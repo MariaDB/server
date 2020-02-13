@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2014, 2019, MariaDB Corporation.
+# Copyright (c) 2014, 2020, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -84,9 +84,7 @@ SET(INNOBASE_SOURCES
 	log/log0log.cc
 	log/log0recv.cc
 	log/log0crypt.cc
-	mach/mach0data.cc
 	mem/mem0mem.cc
-	mtr/mtr0log.cc
 	mtr/mtr0mtr.cc
 	os/os0file.cc
 	os/os0proc.cc

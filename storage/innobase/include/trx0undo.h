@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -250,41 +250,6 @@ trx_undo_commit_cleanup(trx_undo_t* undo, bool is_temp);
 void
 trx_undo_free_at_shutdown(trx_t *trx);
 
-/** Parse MLOG_UNDO_INIT.
-@param[in]	ptr	log record
-@param[in]	end_ptr	end of log record buffer
-@param[in,out]	page	page or NULL
-@param[in,out]	mtr	mini-transaction
-@return	end of log record
-@retval	NULL	if the log record is incomplete */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-byte*
-trx_undo_parse_page_init(const byte* ptr, const byte* end_ptr, page_t* page);
-/** Parse MLOG_UNDO_HDR_REUSE for crash-upgrade from MariaDB 10.2.
-@param[in]	ptr	redo log record
-@param[in]	end_ptr	end of log buffer
-@param[in,out]	page	undo page or NULL
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-byte*
-trx_undo_parse_page_header_reuse(
-	const byte*	ptr,
-	const byte*	end_ptr,
-	page_t*		page);
-
-/** Parse the redo log entry of an undo log page header create.
-@param[in]	ptr	redo log record
-@param[in]	end_ptr	end of log buffer
-@param[in,out]	block	page frame or NULL
-@param[in,out]	mtr	mini-transaction or NULL
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-byte*
-trx_undo_parse_page_header(
-	const byte*	ptr,
-	const byte*	end_ptr,
-	buf_block_t*	block,
-	mtr_t*		mtr);
 /** Read an undo log when starting up the database.
 @param[in,out]	rseg		rollback segment
 @param[in]	id		rollback segment slot

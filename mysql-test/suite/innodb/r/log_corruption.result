@@ -56,7 +56,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND 1 /InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122/ in mysqld.1.err
-FOUND 1 /InnoDB: Missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\./ in mysqld.1.err
+FOUND 1 /InnoDB: Upgrade after a crash is not supported\. The redo log was created with malicious intentions, or perhaps, and it appears corrupted\./ in mysqld.1.err
 # same, but with current-version header
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
@@ -64,7 +64,6 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND 2 /InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122/ in mysqld.1.err
-FOUND 2 /InnoDB: Missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\./ in mysqld.1.err
 # --innodb-force-recovery=6 (skip the entire redo log)
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=6
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
@@ -93,12 +92,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Starting crash recovery from checkpoint LSN=1213964/ in mysqld.1.err
-FOUND 1 /InnoDB: MLOG_FILE_NAME incorrect:bogus/ in mysqld.1.err
-FOUND 1 /InnoDB: ############### CORRUPT LOG RECORD FOUND ##################/ in mysqld.1.err
-FOUND 1 /InnoDB: Log record type 55, page 151:488\. Log parsing proceeded successfully up to 1213973\. Previous log record type 56, is multi 0 Recv offset 9, prev 0/ in mysqld.1.err
-FOUND 1 /len 22. hex 38000000000012860cb7809781e80006626f67757300. asc 8               bogus / in mysqld.1.err
-FOUND 1 /InnoDB: Set innodb_force_recovery to ignore this error/ in mysqld.1.err
+FOUND 1 /\[ERROR\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1\./ in mysqld.1.err
 # Test a corrupted MLOG_FILE_NAME record.
 # valid header, invalid checkpoint 1, valid checkpoint 2, invalid block
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption
@@ -107,28 +101,28 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND 1 /InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 2454333373 found: 150151/ in mysqld.1.err
+FOUND 3 /\[ERROR\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1, and it appears corrupted\./ in mysqld.1.err
 # valid header, invalid checkpoint 1, valid checkpoint 2, invalid log record
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: MLOG_FILE_NAME incorrect:bigot/ in mysqld.1.err
-FOUND 1 /len 22; hex 38000000000012860cb7809781e800066269676f7400; asc 8               bigot ;/ in mysqld.1.err
+FOUND 2 /\[ERROR\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1\./ in mysqld.1.err
 # 10.2 missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42/ in mysqld.1.err
+FOUND 1 /\[ERROR\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with ibbackup was here!!!1!\./ in mysqld.1.err
 # 10.3 missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 2 /InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42/ in mysqld.1.err
+FOUND 3 /\[ERROR\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1\./ in mysqld.1.err
 # Empty 10.3 redo log
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
@@ -136,7 +130,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
 1
-FOUND 1 /InnoDB: .* started; log sequence number 12139[78]\d; transaction id 0/ in mysqld.1.err
+FOUND 1 /InnoDB: .* started; log sequence number 1213964; transaction id 0/ in mysqld.1.err
 # Empty 10.2 redo log
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES

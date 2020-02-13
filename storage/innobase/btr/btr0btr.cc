@@ -1376,11 +1376,9 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
 }
 
 /** Reorganize an index page.
-@tparam recovery   whether this is invoked by btr_parse_page_reorganize()
 @param cursor      index page cursor
 @param index       the index that the cursor belongs to
 @param mtr         mini-transaction */
-template<bool recovery= false>
 static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
                                     mtr_t *mtr)
 {
@@ -1413,9 +1411,7 @@ static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
 	memcpy_aligned<UNIV_PAGE_SIZE_MIN>(temp_block->frame, block->frame,
 					   srv_page_size);
 
-	if (!recovery) {
-		btr_search_drop_page_hash_index(block);
-	}
+	btr_search_drop_page_hash_index(block);
 
 	/* Save the cursor position. */
 	pos = page_rec_get_n_recs_before(page_cur_get_rec(cursor));
@@ -1447,9 +1443,9 @@ static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
 	if (trx_id_t trx_id = page_get_max_trx_id(temp_block->frame)) {
 		/* PAGE_MAX_TRX_ID must be zero on non-leaf pages other than
 		clustered index root pages. */
-		ut_ad(recovery || (dict_index_is_sec_or_ibuf(index)
-				   ? page_is_leaf(temp_block->frame)
-				   : block->page.id.page_no() == index->page));
+		ut_ad(dict_index_is_sec_or_ibuf(index)
+		      ? page_is_leaf(temp_block->frame)
+		      : block->page.id.page_no() == index->page);
 		page_set_max_trx_id(block, NULL, trx_id, mtr);
 	} else {
 		/* PAGE_MAX_TRX_ID is unused in clustered index pages
@@ -1458,7 +1454,7 @@ static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
 		It was always zero-initialized in page_create().
 		PAGE_MAX_TRX_ID must be nonzero on
 		dict_index_is_sec_or_ibuf() leaf pages. */
-		ut_ad(recovery || index->table->is_temporary()
+		ut_ad(index->table->is_temporary()
 		      || !page_is_leaf(temp_block->frame)
 		      || !dict_index_is_sec_or_ibuf(index));
 	}
@@ -1482,46 +1478,44 @@ static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
 		ut_ad(cursor->rec == page_get_infimum_rec(block->frame));
 	}
 
-	if (!recovery) {
-		if (block->page.id.page_no() == index->page
-		    && fil_page_get_type(temp_block->frame)
-		    == FIL_PAGE_TYPE_INSTANT) {
-			/* Preserve the PAGE_INSTANT information. */
-			ut_ad(index->is_instant());
-			static_assert(!(FIL_PAGE_TYPE % 2), "alignment");
-			memcpy_aligned<2>(FIL_PAGE_TYPE + block->frame,
-					  FIL_PAGE_TYPE + temp_block->frame, 2);
-			static_assert(!((PAGE_HEADER+PAGE_INSTANT) % 2), "");
-			memcpy_aligned<2>(PAGE_HEADER + PAGE_INSTANT
-					  + block->frame,
-					  PAGE_HEADER + PAGE_INSTANT
-					  + temp_block->frame, 2);
-			if (!index->table->instant) {
-			} else if (page_is_comp(block->frame)) {
-				memcpy(PAGE_NEW_INFIMUM + block->frame,
-				       PAGE_NEW_INFIMUM + temp_block->frame, 8);
-				memcpy(PAGE_NEW_SUPREMUM + block->frame,
-				       PAGE_NEW_SUPREMUM + temp_block->frame, 8);
-			} else {
-				memcpy(PAGE_OLD_INFIMUM + block->frame,
-				       PAGE_OLD_INFIMUM + temp_block->frame, 8);
-				memcpy(PAGE_OLD_SUPREMUM + block->frame,
-				       PAGE_OLD_SUPREMUM + temp_block->frame, 8);
-			}
+	if (block->page.id.page_no() == index->page
+	    && fil_page_get_type(temp_block->frame)
+	    == FIL_PAGE_TYPE_INSTANT) {
+		/* Preserve the PAGE_INSTANT information. */
+		ut_ad(index->is_instant());
+		static_assert(!(FIL_PAGE_TYPE % 2), "alignment");
+		memcpy_aligned<2>(FIL_PAGE_TYPE + block->frame,
+				  FIL_PAGE_TYPE + temp_block->frame, 2);
+		static_assert(!((PAGE_HEADER+PAGE_INSTANT) % 2), "");
+		memcpy_aligned<2>(PAGE_HEADER + PAGE_INSTANT
+				  + block->frame,
+				  PAGE_HEADER + PAGE_INSTANT
+				  + temp_block->frame, 2);
+		if (!index->table->instant) {
+		} else if (page_is_comp(block->frame)) {
+			memcpy(PAGE_NEW_INFIMUM + block->frame,
+			       PAGE_NEW_INFIMUM + temp_block->frame, 8);
+			memcpy(PAGE_NEW_SUPREMUM + block->frame,
+			       PAGE_NEW_SUPREMUM + temp_block->frame, 8);
+		} else {
+			memcpy(PAGE_OLD_INFIMUM + block->frame,
+			       PAGE_OLD_INFIMUM + temp_block->frame, 8);
+			memcpy(PAGE_OLD_SUPREMUM + block->frame,
+			       PAGE_OLD_SUPREMUM + temp_block->frame, 8);
 		}
+	}
 
-		if (!dict_table_is_locking_disabled(index->table)) {
-			/* Update the record lock bitmaps */
-			lock_move_reorganize_page(block, temp_block);
-		}
+	if (!dict_table_is_locking_disabled(index->table)) {
+		/* Update the record lock bitmaps */
+		lock_move_reorganize_page(block, temp_block);
 	}
 
 	buf_block_free(temp_block);
 
 	MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);
 
-	if (!recovery && UNIV_UNLIKELY(fil_page_get_type(block->frame)
-				       == FIL_PAGE_TYPE_INSTANT)) {
+	if (UNIV_UNLIKELY(fil_page_get_type(block->frame)
+			  == FIL_PAGE_TYPE_INSTANT)) {
 		/* Log the PAGE_INSTANT information. */
 		ut_ad(index->is_instant());
 		mtr->write<2,mtr_t::FORCED>(*block, FIL_PAGE_TYPE
@@ -1608,54 +1602,6 @@ btr_page_reorganize(
 	}
 
 	return true;
-}
-
-/***********************************************************//**
-Parses a redo log record of reorganizing a page.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-btr_parse_page_reorganize(
-/*======================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	bool		compressed,/*!< in: true if compressed page */
-	buf_block_t*	block,	/*!< in: page to be reorganized, or NULL */
-	mtr_t*		mtr)	/*!< in: mtr or NULL */
-{
-	ulint	level = page_zip_level;
-
-	ut_ad(ptr != NULL);
-	ut_ad(end_ptr != NULL);
-	ut_ad(index != NULL);
-
-	/* If dealing with a compressed page the record has the
-	compression level used during original compression written in
-	one byte. Otherwise record is empty. */
-	if (compressed) {
-		if (ptr == end_ptr) {
-			return(NULL);
-		}
-
-		level = mach_read_from_1(ptr);
-
-		ut_a(level <= 9);
-		++ptr;
-	} else {
-		level = page_zip_level;
-	}
-
-	if (block == NULL) {
-	} else if (block->page.zip.data) {
-		page_zip_reorganize(block, index, level, mtr, true);
-	} else {
-		page_cur_t cur;
-		page_cur_set_before_first(block, &cur);
-		btr_page_reorganize_low<true>(&cur, index, mtr);
-	}
-
-	return(ptr);
 }
 
 /** Empty an index page (possibly the root page). @see btr_page_create().
@@ -3194,38 +3140,6 @@ void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
 
 		btr_page_set_prev(next_block, prev_page_no, mtr);
 	}
-}
-
-/****************************************************************//**
-Parses the redo log record for setting an index record as the predefined
-minimum record.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-btr_parse_set_min_rec_mark(
-/*=======================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	ulint		comp,	/*!< in: nonzero=compact page format */
-	buf_block_t*	block,	/*!< in: page or NULL */
-	mtr_t*		mtr)	/*!< in: mtr or NULL */
-{
-	rec_t*	rec;
-
-	if (end_ptr < ptr + 2) {
-
-		return(NULL);
-	}
-
-	if (block) {
-		ut_a(!page_is_comp(block->frame) == !comp);
-
-		rec = block->frame + mach_read_from_2(ptr);
-
-		btr_set_min_rec_mark(rec, *block, mtr);
-	}
-
-	return(ptr + 2);
 }
 
 /*************************************************************//**

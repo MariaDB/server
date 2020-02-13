@@ -3847,67 +3847,6 @@ void page_zip_write_rec(buf_block_t *block, const byte *rec,
 #endif /* UNIV_ZIP_DEBUG */
 }
 
-/***********************************************************//**
-Parses a log record of writing a BLOB pointer of a record.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_zip_parse_write_blob_ptr(
-/*==========================*/
-	const byte*	ptr,	/*!< in: redo log buffer */
-	const byte*	end_ptr,/*!< in: redo log buffer end */
-	page_t*		page,	/*!< in/out: uncompressed page */
-	page_zip_des_t*	page_zip)/*!< in/out: compressed page */
-{
-	ulint	offset;
-	ulint	z_offset;
-
-	ut_ad(ptr != NULL);
-	ut_ad(end_ptr != NULL);
-	ut_ad(!page == !page_zip);
-
-	if (UNIV_UNLIKELY
-	    (end_ptr < ptr + (2 + 2 + BTR_EXTERN_FIELD_REF_SIZE))) {
-
-		return(NULL);
-	}
-
-	offset = mach_read_from_2(ptr);
-	z_offset = mach_read_from_2(ptr + 2);
-
-	if (offset < PAGE_ZIP_START
-	    || offset >= srv_page_size
-	    || z_offset >= srv_page_size) {
-corrupt:
-		recv_sys.found_corrupt_log = TRUE;
-
-		return(NULL);
-	}
-
-	if (page) {
-
-		if (!page_zip || !page_is_leaf(page)) {
-
-			goto corrupt;
-		}
-
-#ifdef UNIV_ZIP_DEBUG
-		ut_a(page_zip_validate(page_zip, page, NULL));
-#endif /* UNIV_ZIP_DEBUG */
-
-		memcpy(page + offset,
-		       ptr + 4, BTR_EXTERN_FIELD_REF_SIZE);
-		memcpy(page_zip->data + z_offset,
-		       ptr + 4, BTR_EXTERN_FIELD_REF_SIZE);
-
-#ifdef UNIV_ZIP_DEBUG
-		ut_a(page_zip_validate(page_zip, page, NULL));
-#endif /* UNIV_ZIP_DEBUG */
-	}
-
-	return(ptr + (2 + 2 + BTR_EXTERN_FIELD_REF_SIZE));
-}
-
 /**********************************************************************//**
 Write a BLOB pointer of a record on the leaf page of a clustered index.
 The information must already have been updated on the uncompressed page. */
@@ -3971,82 +3910,6 @@ page_zip_write_blob_ptr(
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
-}
-
-/***********************************************************//**
-Parses a log record of writing the node pointer of a record.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_zip_parse_write_node_ptr(
-/*==========================*/
-	const byte*	ptr,	/*!< in: redo log buffer */
-	const byte*	end_ptr,/*!< in: redo log buffer end */
-	page_t*		page,	/*!< in/out: uncompressed page */
-	page_zip_des_t*	page_zip)/*!< in/out: compressed page */
-{
-	ulint	offset;
-	ulint	z_offset;
-
-	ut_ad(ptr != NULL);
-	ut_ad(end_ptr!= NULL);
-	ut_ad(!page == !page_zip);
-
-	if (UNIV_UNLIKELY(end_ptr < ptr + (2 + 2 + REC_NODE_PTR_SIZE))) {
-
-		return(NULL);
-	}
-
-	offset = mach_read_from_2(ptr);
-	z_offset = mach_read_from_2(ptr + 2);
-
-	if (offset < PAGE_ZIP_START
-	    || offset >= srv_page_size
-	    || z_offset >= srv_page_size) {
-corrupt:
-		recv_sys.found_corrupt_log = TRUE;
-
-		return(NULL);
-	}
-
-	if (page) {
-		byte*	storage_end;
-		byte*	field;
-		byte*	storage;
-		ulint	heap_no;
-
-		if (!page_zip || page_is_leaf(page)) {
-
-			goto corrupt;
-		}
-
-#ifdef UNIV_ZIP_DEBUG
-		ut_a(page_zip_validate(page_zip, page, NULL));
-#endif /* UNIV_ZIP_DEBUG */
-
-		field = page + offset;
-		storage = page_zip->data + z_offset;
-
-		storage_end = page_zip_dir_start(page_zip);
-
-		heap_no = 1 + ulint(storage_end - storage) / REC_NODE_PTR_SIZE;
-
-		if (UNIV_UNLIKELY((storage_end - storage) % REC_NODE_PTR_SIZE)
-		    || UNIV_UNLIKELY(heap_no < PAGE_HEAP_NO_USER_LOW)
-		    || UNIV_UNLIKELY(heap_no >= page_dir_get_n_heap(page))) {
-
-			goto corrupt;
-		}
-
-		memcpy(field, ptr + 4, REC_NODE_PTR_SIZE);
-		memcpy(storage, ptr + 4, REC_NODE_PTR_SIZE);
-
-#ifdef UNIV_ZIP_DEBUG
-		ut_a(page_zip_validate(page_zip, page, NULL));
-#endif /* UNIV_ZIP_DEBUG */
-	}
-
-	return(ptr + (2 + 2 + REC_NODE_PTR_SIZE));
 }
 
 /**********************************************************************//**
@@ -4192,67 +4055,6 @@ write:
 	UNIV_MEM_ASSERT_RW(rec - rec_offs_extra_size(offsets),
 			   rec_offs_extra_size(offsets));
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
-}
-
-/** Parse a MLOG_ZIP_WRITE_TRX_ID record.
-@param[in]	ptr		redo log buffer
-@param[in]	end_ptr		end of redo log buffer
-@param[in,out]	page		uncompressed page
-@param[in,out]	page_zip	compressed page
-@return end of log record
-@retval	NULL	if the log record is incomplete */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_zip_parse_write_trx_id(
-	const byte*	ptr,
-	const byte*	end_ptr,
-	page_t*		page,
-	page_zip_des_t*	page_zip)
-{
-	const byte* const end = 2 + 2 + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN
-		+ ptr;
-
-	if (UNIV_UNLIKELY(end_ptr < end)) {
-		return(NULL);
-	}
-
-	uint offset = mach_read_from_2(ptr);
-	uint z_offset = mach_read_from_2(ptr + 2);
-
-	if (offset < PAGE_ZIP_START
-	    || offset >= srv_page_size
-	    || z_offset >= srv_page_size) {
-corrupt:
-		recv_sys.found_corrupt_log = TRUE;
-
-		return(NULL);
-	}
-
-	if (page) {
-		if (!page_zip || !page_is_leaf(page)) {
-			goto corrupt;
-		}
-
-#ifdef UNIV_ZIP_DEBUG
-		ut_a(page_zip_validate(page_zip, page, NULL));
-#endif /* UNIV_ZIP_DEBUG */
-
-		byte* field = page + offset;
-		byte* storage = page_zip->data + z_offset;
-
-		if (storage >= page_zip_dir_start(page_zip)) {
-			goto corrupt;
-		}
-
-		memcpy(field, ptr + 4, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
-		memcpy(storage, ptr + 4, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
-
-#ifdef UNIV_ZIP_DEBUG
-		ut_a(page_zip_validate(page_zip, page, NULL));
-#endif /* UNIV_ZIP_DEBUG */
-	}
-
-	return end;
 }
 
 /**********************************************************************//**
@@ -4589,69 +4391,10 @@ void page_zip_dir_delete(buf_block_t *block, byte *rec,
   page_zip_clear_rec(block, rec, index, offsets, mtr);
 }
 
-/***********************************************************//**
-Parses a log record of writing to the header of a page.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_zip_parse_write_header(
-/*========================*/
-	const byte*	ptr,	/*!< in: redo log buffer */
-	const byte*	end_ptr,/*!< in: redo log buffer end */
-	page_t*		page,	/*!< in/out: uncompressed page */
-	page_zip_des_t*	page_zip)/*!< in/out: compressed page */
-{
-	ulint	offset;
-	ulint	len;
-
-	ut_ad(ptr != NULL);
-	ut_ad(end_ptr!= NULL);
-	ut_ad(!page == !page_zip);
-
-	if (UNIV_UNLIKELY(end_ptr < ptr + (1 + 1))) {
-
-		return(NULL);
-	}
-
-	offset = (ulint) *ptr++;
-	len = (ulint) *ptr++;
-
-	if (len == 0 || offset + len >= PAGE_DATA) {
-corrupt:
-		recv_sys.found_corrupt_log = TRUE;
-
-		return(NULL);
-	}
-
-	if (end_ptr < ptr + len) {
-
-		return(NULL);
-	}
-
-	if (page) {
-		if (!page_zip) {
-
-			goto corrupt;
-		}
-#ifdef UNIV_ZIP_DEBUG
-		ut_a(page_zip_validate(page_zip, page, NULL));
-#endif /* UNIV_ZIP_DEBUG */
-
-		memcpy(page + offset, ptr, len);
-		memcpy(page_zip->data + offset, ptr, len);
-
-#ifdef UNIV_ZIP_DEBUG
-		ut_a(page_zip_validate(page_zip, page, NULL));
-#endif /* UNIV_ZIP_DEBUG */
-	}
-
-	return(ptr + len);
-}
-
 /**********************************************************************//**
 Reorganize and compress a page.  This is a low-level operation for
 compressed pages, to be used when page_zip_compress() fails.
-On success, a redo log entry MLOG_ZIP_PAGE_COMPRESS will be written.
+On success, redo log will be written.
 The function btr_page_reorganize() should be preferred whenever possible.
 IMPORTANT: if page_zip_reorganize() is invoked on a leaf page of a
 non-clustered index, the caller must update the insert buffer free
@@ -4860,72 +4603,6 @@ page_zip_copy_recs(
 	ut_a(page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 	page_zip_compress_write_log(block, index, mtr);
-}
-
-/** Parse and optionally apply MLOG_ZIP_PAGE_COMPRESS.
-@param[in]	ptr	log record
-@param[in]	end_ptr	end of log
-@param[in,out]	block	ROW_FORMAT=COMPRESSED block, or NULL for parsing only
-@return	end of log record
-@retval	NULL	if the log record is incomplete */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte* page_zip_parse_compress(const byte* ptr, const byte* end_ptr,
-				    buf_block_t* block)
-{
-	ulint	size;
-	ulint	trailer_size;
-
-	ut_ad(ptr != NULL);
-	ut_ad(end_ptr!= NULL);
-
-	if (UNIV_UNLIKELY(ptr + (2 + 2) > end_ptr)) {
-
-		return(NULL);
-	}
-
-	size = mach_read_from_2(ptr);
-	ptr += 2;
-	trailer_size = mach_read_from_2(ptr);
-	ptr += 2;
-
-	if (UNIV_UNLIKELY(ptr + 8 + size + trailer_size > end_ptr)) {
-
-		return(NULL);
-	}
-
-	if (block) {
-		ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
-		page_zip_des_t* page_zip = buf_block_get_page_zip(block);
-		if (!page_zip || page_zip_get_size(page_zip) < size
-		    || block->page.id.page_no() < 3) {
-corrupt:
-			recv_sys.found_corrupt_log = TRUE;
-
-			return(NULL);
-		}
-
-		memset(page_zip->data, 0, page_zip_get_size(page_zip));
-		mach_write_to_4(FIL_PAGE_OFFSET
-				+ page_zip->data, block->page.id.page_no());
-		mach_write_to_4(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID
-				+ page_zip->data, block->page.id.space());
-		memcpy(page_zip->data + FIL_PAGE_PREV, ptr, 4);
-		memcpy(page_zip->data + FIL_PAGE_NEXT, ptr + 4, 4);
-		memcpy(page_zip->data + FIL_PAGE_TYPE, ptr + 8, size);
-		memset(page_zip->data + FIL_PAGE_TYPE + size, 0,
-		       page_zip_get_size(page_zip) - trailer_size
-		       - (FIL_PAGE_TYPE + size));
-		memcpy(page_zip->data + page_zip_get_size(page_zip)
-		       - trailer_size, ptr + 8 + size, trailer_size);
-
-		if (UNIV_UNLIKELY(!page_zip_decompress(page_zip, block->frame,
-						       TRUE))) {
-
-			goto corrupt;
-		}
-	}
-
-	return(const_cast<byte*>(ptr) + 8 + size + trailer_size);
 }
 #endif /* !UNIV_INNOCHECKSUM */
 

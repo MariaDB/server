@@ -285,45 +285,6 @@ page_cur_open_on_rnd_user_rec(
 /*==========================*/
 	buf_block_t*	block,	/*!< in: page */
 	page_cur_t*	cursor);/*!< out: page cursor */
-/***********************************************************//**
-Parses a log record of a record insert on a page.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_cur_parse_insert_rec(
-/*======================*/
-	bool		is_short,/*!< in: true if short inserts */
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	buf_block_t*	block,	/*!< in: page or NULL */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	mtr_t*		mtr);	/*!< in: mtr or NULL */
-/**********************************************************//**
-Parses a log record of copying a record list end to a new created page.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_parse_copy_rec_list_to_created_page(
-/*=====================================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	buf_block_t*	block,	/*!< in: page or NULL */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	mtr_t*		mtr);	/*!< in: mtr or NULL */
-/***********************************************************//**
-Parses log record of a record delete on a page.
-@return pointer to record end or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_cur_parse_delete_rec(
-/*======================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	buf_block_t*	block,	/*!< in: page or NULL */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction,
-				or NULL if block=NULL */
-	MY_ATTRIBUTE((warn_unused_result, nonnull(1,2,4)));
 
 /** Index page cursor */
 

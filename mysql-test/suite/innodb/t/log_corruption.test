@@ -230,7 +230,7 @@ eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122;
 --source include/search_pattern_in_file.inc
-let SEARCH_PATTERN=InnoDB: Missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\.;
+let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported\. The redo log was created with malicious intentions, or perhaps, and it appears corrupted\.;
 --source include/search_pattern_in_file.inc
 
 --echo # same, but with current-version header
@@ -246,8 +246,6 @@ eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 
 let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122;
---source include/search_pattern_in_file.inc
-let SEARCH_PATTERN=InnoDB: Missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\.;
 --source include/search_pattern_in_file.inc
 --echo # --innodb-force-recovery=6 (skip the entire redo log)
 --let $restart_parameters= $dirs --innodb-force-recovery=6
@@ -302,17 +300,7 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Starting crash recovery from checkpoint LSN=1213964;
---source include/search_pattern_in_file.inc
-let SEARCH_PATTERN=InnoDB: MLOG_FILE_NAME incorrect:bogus;
---source include/search_pattern_in_file.inc
-let SEARCH_PATTERN=InnoDB: ############### CORRUPT LOG RECORD FOUND ##################;
---source include/search_pattern_in_file.inc
-let SEARCH_PATTERN=InnoDB: Log record type 55, page 151:488\. Log parsing proceeded successfully up to 1213973\. Previous log record type 56, is multi 0 Recv offset 9, prev 0;
---source include/search_pattern_in_file.inc
-let SEARCH_PATTERN= len 22. hex 38000000000012860cb7809781e80006626f67757300. asc 8               bogus ;
---source include/search_pattern_in_file.inc
-let SEARCH_PATTERN=InnoDB: Set innodb_force_recovery to ignore this error;
+let SEARCH_PATTERN=\\[ERROR\\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1\.;
 --source include/search_pattern_in_file.inc
 
 --echo # Test a corrupted MLOG_FILE_NAME record.
@@ -343,6 +331,8 @@ eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 2454333373 found: 150151;
 --source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=\\[ERROR\\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1, and it appears corrupted\.;
+--source include/search_pattern_in_file.inc
 --echo # valid header, invalid checkpoint 1, valid checkpoint 2, invalid log record
 perl;
 die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
@@ -355,9 +345,7 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=InnoDB: MLOG_FILE_NAME incorrect:bigot;
---source include/search_pattern_in_file.inc
---let SEARCH_PATTERN= len 22; hex 38000000000012860cb7809781e800066269676f7400; asc 8               bigot ;
+let SEARCH_PATTERN=\\[ERROR\\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1\.;
 --source include/search_pattern_in_file.inc
 
 --echo # 10.2 missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT
@@ -388,7 +376,7 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
---let SEARCH_PATTERN= InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42
+let SEARCH_PATTERN=\\[ERROR\\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with ibbackup was here!!!1!\.;
 --source include/search_pattern_in_file.inc
 
 --echo # 10.3 missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT
@@ -403,7 +391,7 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
---let SEARCH_PATTERN= InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42
+let SEARCH_PATTERN=\\[ERROR\\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1\.;
 --source include/search_pattern_in_file.inc
 
 --echo # Empty 10.3 redo log
@@ -421,11 +409,7 @@ SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 --source include/shutdown_mysqld.inc
-# In encryption.innodb_encrypt_log_corruption, we would convert the
-# log to encrypted format. Writing an extra log checkpoint before the
-# redo log conversion would advance the LSN by the size of a
-# FILE_CHECKPOINT record (12 bytes).
---let SEARCH_PATTERN= InnoDB: .* started; log sequence number 12139[78]\d; transaction id 0
+--let SEARCH_PATTERN= InnoDB: .* started; log sequence number 1213964; transaction id 0
 --source include/search_pattern_in_file.inc
 
 --echo # Empty 10.2 redo log

@@ -243,18 +243,6 @@ void page_zip_write_rec(buf_block_t *block, const byte *rec,
                         ulint create, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull));
 
-/***********************************************************//**
-Parses a log record of writing a BLOB pointer of a record.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_zip_parse_write_blob_ptr(
-/*==========================*/
-	const byte*	ptr,	/*!< in: redo log buffer */
-	const byte*	end_ptr,/*!< in: redo log buffer end */
-	page_t*		page,	/*!< in/out: uncompressed page */
-	page_zip_des_t*	page_zip);/*!< in/out: compressed page */
-
 /**********************************************************************//**
 Write a BLOB pointer of a record on the leaf page of a clustered index.
 The information must already have been updated on the uncompressed page. */
@@ -269,18 +257,6 @@ page_zip_write_blob_ptr(
 	ulint		n,	/*!< in: column index */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
-
-/***********************************************************//**
-Parses a log record of writing the node pointer of a record.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_zip_parse_write_node_ptr(
-/*==========================*/
-	const byte*	ptr,	/*!< in: redo log buffer */
-	const byte*	end_ptr,/*!< in: redo log buffer end */
-	page_t*		page,	/*!< in/out: uncompressed page */
-	page_zip_des_t*	page_zip);/*!< in/out: compressed page */
 
 /**********************************************************************//**
 Write the node pointer of a record on a non-leaf compressed page. */
@@ -312,22 +288,6 @@ page_zip_write_trx_id_and_roll_ptr(
 	roll_ptr_t	roll_ptr,
 	mtr_t*		mtr)
 	MY_ATTRIBUTE((nonnull));
-
-/** Parse a MLOG_ZIP_WRITE_TRX_ID record.
-@param[in]	ptr		redo log buffer
-@param[in]	end_ptr		end of redo log buffer
-@param[in,out]	page		uncompressed page
-@param[in,out]	page_zip	compressed page
-@return end of log record
-@retval	NULL	if the log record is incomplete */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_zip_parse_write_trx_id(
-	const byte*	ptr,
-	const byte*	end_ptr,
-	page_t*		page,
-	page_zip_des_t*	page_zip)
-	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
 
 /** Modify the delete-mark flag of a ROW_FORMAT=COMPRESSED record.
 @param[in,out]  block   buffer block
@@ -363,22 +323,10 @@ void page_zip_dir_delete(buf_block_t *block, byte *rec,
                          const byte *free, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull(1,2,3,4,6)));
 
-/***********************************************************//**
-Parses a log record of writing to the header of a page.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_zip_parse_write_header(
-/*========================*/
-	const byte*	ptr,	/*!< in: redo log buffer */
-	const byte*	end_ptr,/*!< in: redo log buffer end */
-	page_t*		page,	/*!< in/out: uncompressed page */
-	page_zip_des_t*	page_zip);/*!< in/out: compressed page */
-
 /**********************************************************************//**
 Reorganize and compress a page.  This is a low-level operation for
 compressed pages, to be used when page_zip_compress() fails.
-On success, a redo log entry MLOG_ZIP_PAGE_COMPRESS will be written.
+On success, redo log will be written.
 The function btr_page_reorganize() should be preferred whenever possible.
 IMPORTANT: if page_zip_reorganize() is invoked on a leaf page of a
 non-clustered index, the caller must update the insert buffer free
@@ -410,17 +358,6 @@ page_zip_copy_recs(
 	const page_t*		src,		/*!< in: page */
 	dict_index_t*		index,		/*!< in: index of the B-tree */
 	mtr_t*			mtr);		/*!< in: mini-transaction */
-
-/** Parse and optionally apply MLOG_ZIP_PAGE_COMPRESS.
-@param[in]	ptr	log record
-@param[in]	end_ptr	end of log
-@param[in,out]	block	ROW_FORMAT=COMPRESSED block, or NULL for parsing only
-@return	end of log record
-@retval	NULL	if the log record is incomplete */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte* page_zip_parse_compress(const byte* ptr, const byte* end_ptr,
-				    buf_block_t* block);
-
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Calculate the compressed page checksum.

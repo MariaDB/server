@@ -362,9 +362,6 @@ ibuf_merge_space(
 /*=============*/
 	ulint	space);	/*!< in: space id */
 
-/** Apply MLOG_IBUF_BITMAP_INIT when crash-upgrading */
-ATTRIBUTE_COLD void ibuf_bitmap_init_apply(buf_block_t* block);
-
 /******************************************************************//**
 Looks if the insert buffer is empty.
 @return true if empty */

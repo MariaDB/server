@@ -292,90 +292,6 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
 
 /*============== UNDO LOG FILE COPY CREATION AND FREEING ==================*/
 
-/** Parse MLOG_UNDO_INIT.
-@param[in]	ptr	log record
-@param[in]	end_ptr	end of log record buffer
-@param[in,out]	page	page or NULL
-@return	end of log record
-@retval	NULL	if the log record is incomplete */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-byte*
-trx_undo_parse_page_init(const byte* ptr, const byte* end_ptr, page_t* page)
-{
-	if (end_ptr <= ptr) {
-		return NULL;
-	}
-
-	const ulint type = *ptr++;
-
-	if (type > TRX_UNDO_UPDATE) {
-		recv_sys.found_corrupt_log = true;
-	} else if (page) {
-		/* Starting with MDEV-12288 in MariaDB 10.3.1, we use
-		type=0 for the combined insert/update undo log
-		pages. MariaDB 10.2 would use TRX_UNDO_INSERT or
-		TRX_UNDO_UPDATE. */
-		mach_write_to_2(FIL_PAGE_TYPE + page, FIL_PAGE_UNDO_LOG);
-		mach_write_to_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE + page,
-				type);
-		mach_write_to_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START + page,
-				TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-		mach_write_to_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE + page,
-				TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-	}
-
-	return(const_cast<byte*>(ptr));
-}
-
-/** Parse MLOG_UNDO_HDR_REUSE for crash-upgrade from MariaDB 10.2.
-@param[in]	ptr	redo log record
-@param[in]	end_ptr	end of log buffer
-@param[in,out]	page	undo log page or NULL
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-byte*
-trx_undo_parse_page_header_reuse(
-	const byte*	ptr,
-	const byte*	end_ptr,
-	page_t*		undo_page)
-{
-	trx_id_t	trx_id = mach_u64_parse_compressed(&ptr, end_ptr);
-
-	if (!ptr || !undo_page) {
-		return(const_cast<byte*>(ptr));
-	}
-
-	compile_time_assert(TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE
-			    + TRX_UNDO_LOG_XA_HDR_SIZE
-			    < UNIV_PAGE_SIZE_MIN - 100);
-
-	const ulint new_free = TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE
-		+ TRX_UNDO_LOG_OLD_HDR_SIZE;
-
-	/* Insert undo data is not needed after commit: we may free all
-	the space on the page */
-
-	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
-			       + undo_page)
-	      == TRX_UNDO_INSERT);
-
-	byte*	page_hdr = undo_page + TRX_UNDO_PAGE_HDR;
-	mach_write_to_2(page_hdr + TRX_UNDO_PAGE_START, new_free);
-	mach_write_to_2(page_hdr + TRX_UNDO_PAGE_FREE, new_free);
-	mach_write_to_2(TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + undo_page,
-			TRX_UNDO_ACTIVE);
-
-	byte* log_hdr = undo_page + TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE;
-
-	mach_write_to_8(log_hdr + TRX_UNDO_TRX_ID, trx_id);
-	mach_write_to_2(log_hdr + TRX_UNDO_LOG_START, new_free);
-
-	mach_write_to_1(log_hdr + TRX_UNDO_XID_EXISTS, FALSE);
-	mach_write_to_1(log_hdr + TRX_UNDO_DICT_TRANS, FALSE);
-
-	return(const_cast<byte*>(ptr));
-}
-
 /** Initialize the fields in an undo log segment page.
 @param[in,out]	undo_block	undo log segment page
 @param[in,out]	mtr		mini-transaction */
@@ -607,30 +523,6 @@ trx_undo_read_xid(const trx_ulogf_t* log_hdr, XID* xid)
 		log_hdr + TRX_UNDO_XA_BQUAL_LEN));
 
 	memcpy(xid->data, log_hdr + TRX_UNDO_XA_XID, XIDDATASIZE);
-}
-
-/** Parse the redo log entry of an undo log page header create.
-@param[in]	ptr	redo log record
-@param[in]	end_ptr	end of log buffer
-@param[in,out]	block	page frame or NULL
-@param[in,out]	mtr	mini-transaction or NULL
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-byte*
-trx_undo_parse_page_header(
-	const byte*	ptr,
-	const byte*	end_ptr,
-	buf_block_t*	block,
-	mtr_t*		mtr)
-{
-	trx_id_t	trx_id = mach_u64_parse_compressed(&ptr, end_ptr);
-
-	if (ptr && block) {
-		trx_undo_header_create(block, trx_id, mtr);
-
-	}
-
-	return const_cast<byte*>(ptr);
 }
 
 /** Allocate an undo log page.

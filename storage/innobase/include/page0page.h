@@ -1063,22 +1063,6 @@ page_move_rec_list_start(
 	dict_index_t*	index,		/*!< in: record descriptor */
 	mtr_t*		mtr)		/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull(1, 2, 4, 5)));
-/**********************************************************//**
-Parses a log record of a record list end or start deletion.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_parse_delete_rec_list(
-/*=======================*/
-	mlog_id_t	type,	/*!< in: MLOG_LIST_END_DELETE,
-				MLOG_LIST_START_DELETE,
-				MLOG_COMP_LIST_END_DELETE or
-				MLOG_COMP_LIST_START_DELETE */
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	buf_block_t*	block,	/*!< in/out: buffer block or NULL */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	mtr_t*		mtr);	/*!< in: mtr or NULL */
 /** Create an index page.
 @param[in,out]	block	buffer block
 @param[in]	comp	nonzero=compact page format */

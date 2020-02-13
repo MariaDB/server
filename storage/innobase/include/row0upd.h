@@ -316,19 +316,6 @@ que_thr_t*
 row_upd_step(
 /*=========*/
 	que_thr_t*	thr);	/*!< in: query thread */
-/*********************************************************************//**
-Parses the log data written by row_upd_index_write_log.
-@return log data end or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-byte*
-row_upd_index_parse(
-/*================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	mem_heap_t*	heap,	/*!< in: memory heap where update vector is
-				built */
-	upd_t**		update_out);/*!< out: update vector */
-
 
 /* Update vector field */
 struct upd_field_t{

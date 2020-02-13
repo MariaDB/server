@@ -555,44 +555,6 @@ btr_cur_pessimistic_delete(
 @param[in,out]	mtr	mini-transaction */
 void btr_cur_node_ptr_delete(btr_cur_t* parent, mtr_t* mtr)
 	MY_ATTRIBUTE((nonnull));
-/***********************************************************//**
-Parses a redo log record of updating a record in-place.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-btr_cur_parse_update_in_place(
-/*==========================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	buf_block_t*	block,	/*!< in/out: page or NULL */
-	dict_index_t*	index,	/*!< in: index corresponding to page */
-	mtr_t*		mtr);	/*!< in/out: mini-transaction */
-/****************************************************************//**
-Parses the redo log record for delete marking or unmarking of a clustered
-index record.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-btr_cur_parse_del_mark_set_clust_rec(
-/*=================================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	buf_block_t*	block,	/*!< in/out: page or NULL */
-	dict_index_t*	index,	/*!< in: index corresponding to page */
-	mtr_t*		mtr);	/*!< in/out: mini-transaction */
-/****************************************************************//**
-Parses the redo log record for delete marking or unmarking of a secondary
-index record.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-btr_cur_parse_del_mark_set_sec_rec(
-/*===============================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	buf_block_t*	block,	/*!< in/out: page or NULL */
-	mtr_t*		mtr);	/*!< in/out: mini-transaction */
-
 /** Estimates the number of rows in a given index range.
 @param[in]	index	index
 @param[in]	tuple1	range start, may also be empty tuple

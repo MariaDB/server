@@ -826,62 +826,6 @@ zip_reorganize:
 	return(ret);
 }
 
-/**********************************************************//**
-Parses a log record of a record list end or start deletion.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-page_parse_delete_rec_list(
-/*=======================*/
-	mlog_id_t	type,	/*!< in: MLOG_LIST_END_DELETE,
-				MLOG_LIST_START_DELETE,
-				MLOG_COMP_LIST_END_DELETE or
-				MLOG_COMP_LIST_START_DELETE */
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	buf_block_t*	block,	/*!< in/out: buffer block or NULL */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	mtr_t*		mtr)	/*!< in: mtr or NULL */
-{
-	page_t*	page;
-	ulint	offset;
-
-	ut_ad(type == MLOG_LIST_END_DELETE
-	      || type == MLOG_LIST_START_DELETE
-	      || type == MLOG_COMP_LIST_END_DELETE
-	      || type == MLOG_COMP_LIST_START_DELETE);
-
-	/* Read the record offset as a 2-byte ulint */
-
-	if (end_ptr < ptr + 2) {
-
-		return(NULL);
-	}
-
-	offset = mach_read_from_2(ptr);
-	ptr += 2;
-
-	if (!block) {
-
-		return(ptr);
-	}
-
-	page = buf_block_get_frame(block);
-
-	ut_ad(!!page_is_comp(page) == dict_table_is_comp(index->table));
-
-	if (type == MLOG_LIST_END_DELETE
-	    || type == MLOG_COMP_LIST_END_DELETE) {
-		page_delete_rec_list_end(page + offset, block, index,
-					 ULINT_UNDEFINED, ULINT_UNDEFINED,
-					 mtr);
-	} else {
-		page_delete_rec_list_start(page + offset, block, index, mtr);
-	}
-
-	return(ptr);
-}
-
 /*************************************************************//**
 Deletes records from a page from a given record onward, including that record.
 The infimum and supremum records are not deleted. */

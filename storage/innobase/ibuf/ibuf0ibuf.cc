@@ -521,25 +521,6 @@ ibuf_max_size_update(
 	mutex_exit(&ibuf_mutex);
 }
 
-
-/** Apply MLOG_IBUF_BITMAP_INIT when crash-upgrading */
-ATTRIBUTE_COLD void ibuf_bitmap_init_apply(buf_block_t* block)
-{
-	page_t*	page;
-	ulint	byte_offset;
-
-	page = buf_block_get_frame(block);
-	fil_page_set_type(page, FIL_PAGE_IBUF_BITMAP);
-
-	/* Write all zeros to the bitmap */
-	compile_time_assert(!(IBUF_BITS_PER_PAGE % 2));
-
-	byte_offset = UT_BITS_IN_BYTES(block->physical_size()
-				       * IBUF_BITS_PER_PAGE);
-
-	memset(page + IBUF_BITMAP, 0, byte_offset);
-}
-
 # ifdef UNIV_DEBUG
 /** Gets the desired bits for a given page from a bitmap page.
 @param[in]	page		bitmap page

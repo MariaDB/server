@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -239,19 +239,6 @@ trx_undo_prev_version_build(
 				/*!< in: status determine if it is going
 				into this function by purge thread or not.
 				And if we read "after image" of undo log */
-
-/** Parse MLOG_UNDO_INSERT.
-@param[in]	ptr	log record
-@param[in]	end_ptr	end of log record buffer
-@param[in,out]	page	page or NULL
-@return	end of log record
-@retval	NULL	if the log record is incomplete */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-byte*
-trx_undo_parse_add_undo_rec(
-	const byte*	ptr,
-	const byte*	end_ptr,
-	page_t*		page);
 
 /** Read from an undo log record a non-virtual column value.
 @param[in,out]	ptr		pointer to remaining part of the undo record

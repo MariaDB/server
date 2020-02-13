@@ -1,7 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -17,21 +16,13 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 *****************************************************************************/
 
-/**************************************************//**
+/**
 @file include/mtr0log.h
-Mini-transaction logging routines
-
-Created 12/7/1995 Heikki Tuuri
+Mini-transaction log record encoding and decoding
 *******************************************************/
 
-#ifndef mtr0log_h
-#define mtr0log_h
-
+#pragma once
 #include "mtr0mtr.h"
-#include "dyn0buf.h"
-
-// Forward declaration
-struct dict_index_t;
 
 /** The minimum 2-byte integer (0b10xxxxxx xxxxxxxx) */
 constexpr uint32_t MIN_2BYTE= 1 << 7;
@@ -543,53 +534,3 @@ inline void mtr_t::page_create(const buf_block_t &block, bool comp)
   m_log.close(l);
   m_last_offset= FIL_PAGE_TYPE;
 }
-
-/********************************************************//**
-Parses an initial log record written by mlog_write_initial_log_record_low().
-@return parsed record end, NULL if not a complete record */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-mlog_parse_initial_log_record(
-/*==========================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	mlog_id_t*	type,	/*!< out: log record type: MLOG_1BYTE, ... */
-	ulint*		space,	/*!< out: space id */
-	ulint*		page_no);/*!< out: page number */
-/********************************************************//**
-Parses a log record written by mtr_t::write(), mtr_t::memset().
-@return parsed record end, NULL if not a complete record */
-const byte*
-mlog_parse_nbytes(
-/*==============*/
-	mlog_id_t	type,	/*!< in: log record type: MLOG_1BYTE, ... */
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	byte*		page,	/*!< in: page where to apply the log record,
-				or NULL */
-	void*		page_zip);/*!< in/out: compressed page, or NULL */
-/********************************************************//**
-Parses a log record written by mtr_t::memcpy().
-@return parsed record end, NULL if not a complete record */
-const byte*
-mlog_parse_string(
-/*==============*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	byte*		page,	/*!< in: page where to apply the log record,
-				or NULL */
-	void*		page_zip);/*!< in/out: compressed page, or NULL */
-
-/********************************************************//**
-Parses a log record written by mlog_open_and_write_index.
-@return parsed record end, NULL if not a complete record */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-mlog_parse_index(
-/*=============*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	bool		comp,	/*!< in: TRUE=compact record format */
-	dict_index_t**	index);	/*!< out, own: dummy index */
-
-#endif /* mtr0log_h */

@@ -54,50 +54,6 @@ const dtuple_t trx_undo_metadata = {
 
 /*=========== UNDO LOG RECORD CREATION AND DECODING ====================*/
 
-/** Parse MLOG_UNDO_INSERT.
-@param[in]	ptr	log record
-@param[in]	end_ptr	end of log record buffer
-@param[in,out] page	page or NULL
-@return	end of log record
-@retval	NULL	if the log record is incomplete */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-byte*
-trx_undo_parse_add_undo_rec(
-	const byte*	ptr,
-	const byte*	end_ptr,
-	page_t*		page)
-{
-	ulint	len;
-
-	if (end_ptr < ptr + 2) {
-
-		return(NULL);
-	}
-
-	len = mach_read_from_2(ptr);
-	ptr += 2;
-
-	if (end_ptr < ptr + len) {
-
-		return(NULL);
-	}
-
-	if (page) {
-		ulint first_free = mach_read_from_2(page + TRX_UNDO_PAGE_HDR
-						    + TRX_UNDO_PAGE_FREE);
-		byte* rec = page + first_free;
-
-		mach_write_to_2(rec, first_free + 4 + len);
-		mach_write_to_2(rec + 2 + len, first_free);
-
-		mach_write_to_2(page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE,
-				first_free + 4 + len);
-		memcpy(rec + 2, ptr, len);
-	}
-
-	return(const_cast<byte*>(ptr + len));
-}
-
 /** Calculate the free space left for extending an undo log record.
 @param[in]	undo_block	undo log page
 @param[in]	ptr		current end of the undo page

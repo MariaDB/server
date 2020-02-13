@@ -99,15 +99,6 @@ recv_sys.parse_start_lsn is non-zero.
 @return true if more data added */
 bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn);
 
-/** Parse log records from a buffer and optionally store them to recv_sys.pages
-to wait merging to file pages.
-@param[in]	checkpoint_lsn		the LSN of the latest checkpoint
-@param[in]	store			whether to store page operations
-@param[in]	apply			whether to apply the records
-@return whether MLOG_CHECKPOINT or FILE_CHECKPOINT record
-was seen the first time, or corruption was noticed */
-bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t *store, bool apply);
-
 /** Moves the parsing buffer data left to the buffer start */
 void recv_sys_justify_left_parsing_buf();
 
@@ -276,7 +267,7 @@ struct recv_sys_t{
 				the file system contents is detected
 				during log scan or apply */
 	lsn_t		mlog_checkpoint_lsn;
-				/*!< the LSN of a MLOG_CHECKPOINT
+				/*!< the LSN of a FILE_CHECKPOINT
 				record, or 0 if none was parsed */
 	/** the time when progress was last reported */
 	time_t		progress_time;
@@ -328,27 +319,16 @@ public:
   /** whether all redo log in the current batch has been applied */
   bool after_apply= false;
 #endif
-	/** Initialize the redo log recovery subsystem. */
-	void create();
+  /** Initialize the redo log recovery subsystem. */
+  void create();
 
-	/** Free most recovery data structures. */
-	void debug_free();
+  /** Free most recovery data structures. */
+  void debug_free();
 
-	/** Clean up after create() */
-	void close();
+  /** Clean up after create() */
+  void close();
 
-	bool is_initialised() const { return buf_size != 0; }
-
-	/** Store a redo log record for applying.
-	@param type	record type
-	@param page_id	page identifier
-	@param body	record body
-	@param rec_end	end of record
-	@param lsn	start LSN of the mini-transaction
-	@param end_lsn	end LSN of the mini-transaction */
-	inline void add(mlog_id_t type, const page_id_t page_id,
-			const byte* body, const byte* rec_end, lsn_t lsn,
-			lsn_t end_lsn);
+  bool is_initialised() const { return buf_size != 0; }
 
   /** Register a redo log snippet for a page.
   @param page_id  page identifier
@@ -365,24 +345,23 @@ public:
   @param apply           whether to apply file-level log records
   @return whether FILE_CHECKPOINT record was seen the first time,
   or corruption was noticed */
-  inline bool parse(lsn_t checkpoint_lsn, store_t store, bool apply);
+  bool parse(lsn_t checkpoint_lsn, store_t store, bool apply);
 
   /** Clear a fully processed set of stored redo log records. */
   inline void clear();
 
-	/** Determine whether redo log recovery progress should be reported.
-	@param[in]	time	the current time
-	@return	whether progress should be reported
-		(the last report was at least 15 seconds ago) */
-	bool report(time_t time)
-	{
-		if (time - progress_time < 15) {
-			return false;
-		}
+  /** Determine whether redo log recovery progress should be reported.
+  @param time  the current time
+  @return whether progress should be reported
+  (the last report was at least 15 seconds ago) */
+  bool report(time_t time)
+  {
+    if (time - progress_time < 15)
+      return false;
 
-		progress_time = time;
-		return true;
-	}
+    progress_time= time;
+    return true;
+  }
 
   /** The alloc() memory alignment, in bytes */
   static constexpr size_t ALIGNMENT= sizeof(size_t);
@@ -390,7 +369,7 @@ public:
   /** Allocate memory for log_rec_t
   @param len  allocation size, in bytes
   @return pointer to len bytes of memory (never NULL) */
-  inline void *alloc(size_t len, bool store_recv= false);
+  inline void *alloc(size_t len);
 
   /** Free a redo log snippet.
   @param data buffer returned by alloc() */

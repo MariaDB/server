@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -290,20 +290,6 @@ UNIV_INTERN
 void
 fil_space_destroy_crypt_data(
 	fil_space_crypt_t **crypt_data);
-
-/******************************************************************
-Parse a MLOG_FILE_WRITE_CRYPT_DATA log entry
-@param[in]	ptr		Log entry start
-@param[in]	end_ptr		Log entry end
-@param[out]	err		DB_SUCCESS or DB_DECRYPTION_FAILED
-@return position on log buffer */
-UNIV_INTERN
-const byte*
-fil_parse_write_crypt_data(
-	const byte*		ptr,
-	const byte*		end_ptr,
-	dberr_t*		err)
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Amend encryption information from redo log.
 @param[in]	space	tablespace

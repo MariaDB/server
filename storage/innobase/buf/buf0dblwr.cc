@@ -242,8 +242,7 @@ too_small:
 		ut_ad(rw_lock_get_x_lock_count(&new_block->lock) == 1);
 		page_no = new_block->page.id.page_no();
 		/* We only do this in the debug build, to ensure that
-		both the check in buf_flush_init_for_writing() and
-		recv_parse_or_apply_log_rec_body() will see a valid
+		the check in buf_flush_init_for_writing() will see a valid
 		page type. The flushes of new_block are actually
 		unnecessary here.  */
 		ut_d(mtr.write<2>(*new_block,

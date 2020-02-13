@@ -572,34 +572,6 @@ btr_discard_page(
 	btr_cur_t*	cursor,	/*!< in: cursor on the page to discard: not on
 				the root page */
 	mtr_t*		mtr);	/*!< in: mtr */
-/****************************************************************//**
-Parses the redo log record for setting an index record as the predefined
-minimum record.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-MY_ATTRIBUTE((nonnull(1,2), warn_unused_result))
-const byte*
-btr_parse_set_min_rec_mark(
-/*=======================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	ulint		comp,	/*!< in: nonzero=compact page format */
-	buf_block_t*	block,	/*!< in: page or NULL */
-	mtr_t*		mtr);	/*!< in: mtr or NULL */
-/***********************************************************//**
-Parses a redo log record of reorganizing a page.
-@return end of log record or NULL */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-const byte*
-btr_parse_page_reorganize(
-/*======================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	bool		compressed,/*!< in: true if compressed page */
-	buf_block_t*	block,	/*!< in: page to be reorganized, or NULL */
-	mtr_t*		mtr)	/*!< in: mtr or NULL */
-	MY_ATTRIBUTE((warn_unused_result));
 /**************************************************************//**
 Gets the number of pages in a B-tree.
 @return number of pages, or ULINT_UNDEFINED if the index is unavailable */
