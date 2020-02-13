@@ -19,7 +19,6 @@ MW-328A : MDEV-21483 galera.MW-328A galera.MW-328B
 MW-328B : MDEV-21483 galera.MW-328A galera.MW-328B
 MW-329 : MDEV-19962 Galera test failure on MW-329
 galera.galera_defaults : MDEV-21494 Galera test sporadic failure on galera.galera_defaults
-galera_as_slave_gtid_myisam : MDEV-21421 galera.galera_as_slave_gtid_myisam
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
 galera_autoinc_sst_mariabackup : Known issue, may require porting MDEV-17458 from later versions
 galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_bf_abort_group_commit
