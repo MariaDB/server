@@ -240,8 +240,7 @@ int xpand_connection::send_command()
   if (com_error)
   {
     int error_code = mysql_errno(&xpand_net);
-    my_printf_error(error_code,
-                    "Xpand error: %s", MYF(0),
+    my_printf_error(error_code, "Xpand error: %s", MYF(0),
                     mysql_error(&xpand_net));
     return error_code;
   }
@@ -256,8 +255,7 @@ int xpand_connection::read_query_response()
   if (comerr)
   {
     error_code = mysql_errno(&xpand_net);
-    my_printf_error(error_code,
-                    "Xpand error: %s", MYF(0),
+    my_printf_error(error_code, "Xpand error: %s", MYF(0),
                     mysql_error(&xpand_net));
   }
 
@@ -375,9 +373,8 @@ int xpand_connection::run_query(String &stmt)
   return error_code;
 }
 
-int xpand_connection::write_row(ulonglong xpand_table_oid,
-                                   uchar *packed_row, size_t packed_size,
-                                   ulonglong *last_insert_id)
+int xpand_connection::write_row(ulonglong xpand_table_oid, uchar *packed_row,
+                                size_t packed_size, ulonglong *last_insert_id)
 {
   int error_code;
   command_length = 0;
@@ -405,11 +402,10 @@ int xpand_connection::write_row(ulonglong xpand_table_oid,
   return error_code;
 }
 
-int xpand_connection::key_update(ulonglong xpand_table_oid,
-                                    uchar *packed_key, size_t packed_key_length,
-                                    MY_BITMAP *update_set,
-                                    uchar *packed_new_data,
-                                    size_t packed_new_length)
+int xpand_connection::key_update(ulonglong xpand_table_oid, uchar *packed_key,
+                                 size_t packed_key_length,
+                                 MY_BITMAP *update_set, uchar *packed_new_data,
+                                 size_t packed_new_length)
 {
   int error_code;
   command_length = 0;
@@ -444,7 +440,7 @@ int xpand_connection::key_update(ulonglong xpand_table_oid,
 }
 
 int xpand_connection::key_delete(ulonglong xpand_table_oid,
-                                    uchar *packed_key, size_t packed_key_length)
+                                 uchar *packed_key, size_t packed_key_length)
 {
   int error_code;
   command_length = 0;
@@ -665,8 +661,8 @@ int xpand_connection::allocate_cursor(MYSQL *xpand_net, ulong buffer_size,
   bool stmt_completed = FALSE;
   int error_code = (*scan)->initialize(&stmt_completed);
   if (error_code) {
-      delete *scan;
-      *scan = NULL;
+    delete *scan;
+    *scan = NULL;
   }
 
   if (stmt_completed)
@@ -746,7 +742,8 @@ int xpand_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
   if ((error_code = add_command_operand_str(fieldtype, fields)))
     return error_code;
 
-  if ((error_code = add_command_operand_str(field_metadata, field_metadata_size)))
+  if ((error_code = add_command_operand_str(field_metadata,
+                                            field_metadata_size)))
     return error_code;
 
   // This variable length string calls for an additional store w/o lcb lenth prefix.
@@ -1129,7 +1126,7 @@ int xpand_connection::add_command_operand_str(const uchar *str,
     return error_code;
 
   if (!str_length)
-      return 0;
+    return 0;
 
   error_code = expand_command_buffer(str_length);
   if (error_code)

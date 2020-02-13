@@ -30,7 +30,8 @@ extern uint xpand_row_buffer;
  *  metadata_size int or -1 in case of error
  ************************************************************/
 int get_field_types(THD *thd, TABLE *table__, SELECT_LEX *sl, uchar *fieldtype,
-    uchar *field_metadata, uchar *null_bits, const int num_null_bytes, const uint fields_count)
+                    uchar *field_metadata, uchar *null_bits,
+                    const int num_null_bytes, const uint fields_count)
 {
   int field_metadata_size = 0;
   int metadata_index = 0;
@@ -85,7 +86,6 @@ err:
   return field_metadata_size;
 }
 
-
 /*@brief  create_xpand_select_handler- Creates handler*/
 /************************************************************
  * DESCRIPTION:
@@ -138,14 +138,15 @@ create_xpand_select_handler(THD* thd, SELECT_LEX* select_lex)
     &null_bits, num_null_bytes, &field_metadata, (items_number * 2), NULL);
 
   if (!meta_memory) {
-     // The only way to say something here is to raise warning
-     // b/c we will fallback to other access methods: derived handler or rowstore.
-     goto err;
+    // The only way to say something here is to raise warning
+    // b/c we will fallback to other access methods: derived handler or rowstore.
+    goto err;
   }
 
   if((field_metadata_size =
-    get_field_types(thd, NULL, select_lex, fieldtype, field_metadata, null_bits, num_null_bytes, items_number)) < 0) {
-     goto err;
+      get_field_types(thd, NULL, select_lex, fieldtype, field_metadata,
+                      null_bits, num_null_bytes, items_number)) < 0) {
+    goto err;
   }
 
   trx = get_trx(thd, &error_code);
@@ -199,20 +200,20 @@ ha_xpand_select_handler::ha_xpand_select_handler(
  **********************************************************/
 ha_xpand_select_handler::~ha_xpand_select_handler()
 {
-    int error_code;
-    xpand_connection *trx = get_trx(thd, &error_code);
-    if (!trx) {
-      // TBD Log this
-    }
-    if (trx && scan)
-      trx->scan_end(scan);
+  int error_code;
+  xpand_connection *trx = get_trx(thd, &error_code);
+  if (!trx) {
+    // TBD Log this
+  }
+  if (trx && scan)
+    trx->scan_end(scan);
 
-    // If the ::init_scan has been executed
-    if (table__)
-      my_bitmap_free(&scan_fields);
+  // If the ::init_scan has been executed
+  if (table__)
+    my_bitmap_free(&scan_fields);
 
-    if (rgi)
-      remove_current_table_from_rpl_table_list(rgi);
+  if (rgi)
+    remove_current_table_from_rpl_table_list(rgi);
 }
 
 /*@brief  Initiate the query for select_handler           */
@@ -342,23 +343,20 @@ ha_xpand_derived_handler::ha_xpand_derived_handler(
  **********************************************************/
 ha_xpand_derived_handler::~ha_xpand_derived_handler()
 {
-    int error_code;
+  int error_code;
+  xpand_connection *trx = get_trx(thd, &error_code);
+  if (!trx) {
+    // TBD Log this.
+  }
+  if (trx && scan)
+    trx->scan_end(scan);
 
+  // If the ::init_scan has been executed
+  if (table__)
+    my_bitmap_free(&scan_fields);
 
-
-    xpand_connection *trx = get_trx(thd, &error_code);
-    if (!trx) {
-      // TBD Log this.
-    }
-    if (trx && scan)
-      trx->scan_end(scan);
-
-    // If the ::init_scan has been executed
-    if (table__)
-      my_bitmap_free(&scan_fields);
-
-    if (rgi)
-      remove_current_table_from_rpl_table_list(rgi);
+  if (rgi)
+    remove_current_table_from_rpl_table_list(rgi);
 }
 
 /*@brief  Initiate the query for derived_handler           */
@@ -395,7 +393,8 @@ int ha_xpand_derived_handler::init_scan()
   }
 
   if((field_metadata_size=
-    get_field_types(thd__, table, select, fieldtype, field_metadata, null_bits, num_null_bytes, items_number)) < 0) {
+      get_field_types(thd__, table, select, fieldtype, field_metadata,
+                      null_bits, num_null_bytes, items_number)) < 0) {
     goto err;
   }
 
