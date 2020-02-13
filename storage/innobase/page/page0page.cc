@@ -843,34 +843,9 @@ zip_reorganize:
 }
 
 /**********************************************************//**
-Writes a log record of a record list end or start deletion. */
-UNIV_INLINE
-void
-page_delete_rec_list_write_log(
-/*===========================*/
-	rec_t*		rec,	/*!< in: record on page */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	mlog_id_t	type,	/*!< in: operation type:
-				MLOG_LIST_END_DELETE, ... */
-	mtr_t*		mtr)	/*!< in: mtr */
-{
-	byte*	log_ptr;
-	ut_ad(type == MLOG_LIST_END_DELETE
-	      || type == MLOG_LIST_START_DELETE
-	      || type == MLOG_COMP_LIST_END_DELETE
-	      || type == MLOG_COMP_LIST_START_DELETE);
-
-	log_ptr = mlog_open_and_write_index(mtr, rec, index, type, 2);
-	if (log_ptr) {
-		/* Write the parameter as a 2-byte ulint */
-		mach_write_to_2(log_ptr, page_offset(rec));
-		mlog_close(mtr, log_ptr + 2);
-	}
-}
-
-/**********************************************************//**
 Parses a log record of a record list end or start deletion.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_parse_delete_rec_list(
 /*=======================*/
@@ -993,29 +968,20 @@ delete_all:
 		}
 	}
 
-	/* Reset the last insert info in the page header and increment
-	the modify clock for the frame */
-
-	page_header_set_ptr(block->frame, page_zip, PAGE_LAST_INSERT, NULL);
-
 	/* The page gets invalid for optimistic searches: increment the
 	frame modify clock */
 
 	buf_block_modify_clock_inc(block);
 
-	page_delete_rec_list_write_log(rec, index, page_is_comp(block->frame)
-				       ? MLOG_COMP_LIST_END_DELETE
-				       : MLOG_LIST_END_DELETE, mtr);
-
 	const bool is_leaf = page_is_leaf(block->frame);
+	byte* last_insert = my_assume_aligned<2>(PAGE_LAST_INSERT + PAGE_HEADER
+						 + block->frame);
 
-	if (page_zip) {
-		mtr_log_t	log_mode;
-
+	if (UNIV_LIKELY_NULL(page_zip)) {
 		ut_ad(page_is_comp(block->frame));
-		/* Individual deletes are not logged */
 
-		log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
+		memset(last_insert, 0, 2);
+		page_zip_write_header(page_zip, last_insert, 2, mtr);
 
 		do {
 			page_cur_t	cur;
@@ -1034,11 +1000,10 @@ delete_all:
 			mem_heap_free(heap);
 		}
 
-		/* Restore log mode */
-
-		mtr_set_log_mode(mtr, log_mode);
 		return;
 	}
+
+	mtr->write<2,mtr_t::OPT>(*block, last_insert, 0U);
 
 	prev_rec = page_rec_get_prev(rec);
 
@@ -1100,6 +1065,20 @@ delete_all:
 		slot_index = page_dir_find_owner_slot(rec2);
 		ut_ad(slot_index > 0);
 		slot = page_dir_get_nth_slot(block->frame, slot_index);
+		mtr->write<2,mtr_t::OPT>(*block, slot, PAGE_NEW_SUPREMUM);
+		byte* owned = PAGE_NEW_SUPREMUM - REC_NEW_N_OWNED
+			+ block->frame;
+		byte new_owned = (*owned & ~REC_N_OWNED_MASK)
+			| static_cast<byte>(n_owned << REC_N_OWNED_SHIFT);
+		mtr->write<1,mtr_t::OPT>(*block, owned, new_owned);
+		mtr->write<2>(*block, prev_rec - REC_NEXT,
+			      static_cast<uint16_t>
+			      (PAGE_NEW_SUPREMUM - page_offset(prev_rec)));
+		uint16_t free = page_header_get_field(block->frame, PAGE_FREE);
+		mtr->write<2>(*block, last_rec - REC_NEXT, free
+			      ? static_cast<uint16_t>
+			      (free - page_offset(last_rec))
+			      : 0U);
 	} else {
 		rec_t*	rec2	= rec;
 		ulint	count	= 0;
@@ -1116,29 +1095,32 @@ delete_all:
 		slot_index = page_dir_find_owner_slot(rec2);
 		ut_ad(slot_index > 0);
 		slot = page_dir_get_nth_slot(block->frame, slot_index);
+		mtr->write<2,mtr_t::OPT>(*block, slot, PAGE_OLD_SUPREMUM);
+		byte* owned = PAGE_OLD_SUPREMUM - REC_OLD_N_OWNED
+			+ block->frame;
+		byte new_owned = (*owned & ~REC_N_OWNED_MASK)
+			| static_cast<byte>(n_owned << REC_N_OWNED_SHIFT);
+		mtr->write<1,mtr_t::OPT>(*block, owned, new_owned);
+		mtr->write<2>(*block, prev_rec - REC_NEXT, PAGE_OLD_SUPREMUM);
+		mtr->write<2>(*block, last_rec - REC_NEXT,
+			      page_header_get_field(block->frame, PAGE_FREE));
 	}
 
-	page_dir_slot_set_rec(slot, page_get_supremum_rec(block->frame));
-	page_dir_slot_set_n_owned(slot, NULL, n_owned);
-
-	page_dir_set_n_slots(block->frame, NULL, slot_index + 1);
-
-	/* Remove the record chain segment from the record chain */
-	page_rec_set_next(prev_rec, page_get_supremum_rec(block->frame));
+	mtr->write<2,mtr_t::OPT>(*block, PAGE_N_DIR_SLOTS + PAGE_HEADER
+				 + block->frame, slot_index + 1);
 
 	/* Catenate the deleted chain segment to the page free list */
 
-	page_rec_set_next(last_rec, page_header_get_ptr(block->frame,
-							PAGE_FREE));
-	page_header_set_ptr(block->frame, NULL, PAGE_FREE, rec);
+	mtr->write<2>(*block, PAGE_FREE + PAGE_HEADER + block->frame,
+		      page_offset(rec));
+	byte* garbage = my_assume_aligned<2>(PAGE_GARBAGE + PAGE_HEADER
+					     + block->frame);
+	mtr->write<2>(*block, garbage, size + mach_read_from_2(garbage));
 
-	page_header_set_field(block->frame, NULL, PAGE_GARBAGE, size
-			      + page_header_get_field(block->frame,
-						      PAGE_GARBAGE));
-
-	ut_ad(page_get_n_recs(block->frame) > n_recs);
-	page_header_set_field(block->frame, NULL, PAGE_N_RECS,
-			      ulint{page_get_n_recs(block->frame) - n_recs});
+	byte* page_n_recs = my_assume_aligned<2>(PAGE_N_RECS + PAGE_HEADER
+						 + block->frame);
+	mtr->write<2>(*block, page_n_recs,
+		      ulint{mach_read_from_2(page_n_recs)} - n_recs);
 }
 
 /*************************************************************//**
@@ -1187,22 +1169,9 @@ page_delete_rec_list_start(
 		return;
 	}
 
-	mlog_id_t	type;
-
-	if (page_rec_is_comp(rec)) {
-		type = MLOG_COMP_LIST_START_DELETE;
-	} else {
-		type = MLOG_LIST_START_DELETE;
-	}
-
-	page_delete_rec_list_write_log(rec, index, type, mtr);
-
 	page_cur_set_before_first(block, &cur1);
 	page_cur_move_to_next(&cur1);
 
-	/* Individual deletes are not logged */
-
-	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 	const bool	is_leaf = page_rec_is_leaf(rec);
 
 	while (page_cur_get_rec(&cur1) != rec) {
@@ -1215,10 +1184,6 @@ page_delete_rec_list_start(
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
-
-	/* Restore log mode */
-
-	mtr_set_log_mode(mtr, log_mode);
 }
 
 /*************************************************************//**

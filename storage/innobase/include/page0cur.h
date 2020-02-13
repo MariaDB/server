@@ -209,22 +209,6 @@ page_cur_insert_rec_zip(
 	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*************************************************************//**
-Copies records from page to a newly created page, from a given record onward,
-including that record. Infimum and supremum records are not copied.
-
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if this is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit(). */
-ATTRIBUTE_COLD /* only used when crash-upgrading */
-void
-page_copy_rec_list_end_to_created_page(
-/*===================================*/
-	page_t*		new_page,	/*!< in/out: index page to copy to */
-	rec_t*		rec,		/*!< in: first record to copy */
-	dict_index_t*	index,		/*!< in: record descriptor */
-	mtr_t*		mtr);		/*!< in: mtr */
 /***********************************************************//**
 Deletes a record at the page cursor. The cursor is moved to the
 next record after the deleted one. */
@@ -363,6 +347,7 @@ page_parse_copy_rec_list_to_created_page(
 /***********************************************************//**
 Parses log record of a record delete on a page.
 @return pointer to record end or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_cur_parse_delete_rec(
 /*======================*/

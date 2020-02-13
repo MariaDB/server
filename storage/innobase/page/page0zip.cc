@@ -4223,7 +4223,8 @@ page_zip_clear_rec(
 	page_zip_des_t*	page_zip,	/*!< in/out: compressed page */
 	byte*		rec,		/*!< in: record to clear */
 	const dict_index_t*	index,	/*!< in: index of rec */
-	const offset_t*	offsets)	/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec, index) */
+	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 {
 	ulint	heap_no;
 	page_t*	page	= page_align(rec);
@@ -4256,11 +4257,20 @@ page_zip_clear_rec(
 					    rec_offs_n_fields(offsets) - 1,
 					    &len);
 		ut_ad(len == REC_NODE_PTR_SIZE);
-
 		ut_ad(!rec_offs_any_extern(offsets));
 		memset(field, 0, REC_NODE_PTR_SIZE);
-		memset(storage - (heap_no - 1) * REC_NODE_PTR_SIZE,
-		       0, REC_NODE_PTR_SIZE);
+		storage -= (heap_no - 1) * REC_NODE_PTR_SIZE;
+clear_page_zip:
+		/* TODO: write MEMSET record */
+		memset(storage, 0, len);
+		if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2 + len)) {
+			log_ptr = mlog_write_initial_log_record_fast(
+				rec, MLOG_ZIP_WRITE_STRING, log_ptr, mtr);
+			mach_write_to_2(log_ptr, storage - page_zip->data);
+			mach_write_to_2(log_ptr + 2, len);
+			memcpy(log_ptr + 4, storage, len);
+			mlog_close(mtr, log_ptr + 4 + len);
+		}
 	} else if (dict_index_is_clust(index)) {
 		/* Clear trx_id and roll_ptr. On the compressed page,
 		there is an array of these fields immediately before the
@@ -4269,14 +4279,9 @@ page_zip_clear_rec(
 			= dict_col_get_clust_pos(
 			dict_table_get_sys_col(
 				index->table, DATA_TRX_ID), index);
-		storage	= page_zip_dir_start(page_zip);
 		field	= rec_get_nth_field(rec, offsets, trx_id_pos, &len);
 		ut_ad(len == DATA_TRX_ID_LEN);
-
 		memset(field, 0, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
-		memset(storage - (heap_no - 1)
-		       * (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN),
-		       0, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
 
 		if (rec_offs_any_extern(offsets)) {
 			ulint	i;
@@ -4295,6 +4300,12 @@ page_zip_clear_rec(
 				}
 			}
 		}
+
+		len = DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
+		storage = page_zip_dir_start(page_zip)
+			- (heap_no - 1)
+			* (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+		goto clear_page_zip;
 	} else {
 		ut_ad(!rec_offs_any_extern(offsets));
 	}
@@ -4338,17 +4349,32 @@ must already have been written on the uncompressed page. */
 void
 page_zip_rec_set_owned(
 /*===================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	buf_block_t*	block,	/*!< in/out: ROW_FORMAT=COMPRESSED page */
 	const byte*	rec,	/*!< in: record on the uncompressed page */
-	ulint		flag)	/*!< in: the owned flag (nonzero=TRUE) */
+	ulint		flag,	/*!< in: the owned flag (nonzero=TRUE) */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
+	ut_ad(page_align(rec) == block->frame);
+	page_zip_des_t* const page_zip = &block->page.zip;
 	byte*	slot = page_zip_dir_find(page_zip, page_offset(rec));
 	ut_a(slot);
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
+	const byte b = *slot;
 	if (flag) {
 		*slot |= (PAGE_ZIP_DIR_SLOT_OWNED >> 8);
 	} else {
 		*slot &= ~(PAGE_ZIP_DIR_SLOT_OWNED >> 8);
+	}
+	if (b == *slot) {
+	} else if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2 + 1)) {
+		log_ptr = mlog_write_initial_log_record_low(
+			MLOG_ZIP_WRITE_STRING,
+			block->page.id.space(), block->page.id.page_no(),
+			log_ptr, mtr);
+		mach_write_to_2(log_ptr, slot - page_zip->data);
+		mach_write_to_2(log_ptr + 2, 1);
+		log_ptr[4] = *slot;
+		mlog_close(mtr, log_ptr + 5);
 	}
 }
 
@@ -4442,12 +4468,12 @@ page_zip_dir_delete(
 	byte*			rec,		/*!< in: deleted record */
 	const dict_index_t*	index,		/*!< in: index of rec */
 	const offset_t*		offsets,	/*!< in: rec_get_offsets(rec) */
-	const byte*		free)		/*!< in: previous start of
+	const byte*		free,		/*!< in: previous start of
 						the free list */
+	mtr_t*			mtr)		/*!< in/out: mini-transaction */
 {
 	byte*	slot_rec;
 	byte*	slot_free;
-	ulint	n_ext;
 	page_t*	page	= page_align(rec);
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
@@ -4458,6 +4484,15 @@ page_zip_dir_delete(
 	UNIV_MEM_ASSERT_RW(rec - rec_offs_extra_size(offsets),
 			   rec_offs_extra_size(offsets));
 
+	mach_write_to_2(rec - REC_NEXT, free
+			? static_cast<uint16_t>(free - rec) : 0);
+	mach_write_to_2(PAGE_FREE + PAGE_HEADER + page, page_offset(rec));
+	byte* garbage = PAGE_GARBAGE + PAGE_HEADER + page;
+	mach_write_to_2(garbage, rec_offs_size(offsets)
+			+ mach_read_from_2(garbage));
+	compile_time_assert(PAGE_GARBAGE == PAGE_FREE + 2);
+	page_zip_write_header(page_zip, PAGE_FREE + PAGE_HEADER + page,
+			      4, mtr);
 	slot_rec = page_zip_dir_find(page_zip, page_offset(rec));
 
 	ut_a(slot_rec);
@@ -4465,8 +4500,9 @@ page_zip_dir_delete(
 	ut_ad(n_recs);
 	ut_ad(n_recs > 1 || page_get_page_no(page) == index->page);
 	/* This could not be done before page_zip_dir_find(). */
-	page_header_set_field(page, page_zip, PAGE_N_RECS,
-			      n_recs - 1);
+	mach_write_to_2(PAGE_N_RECS + PAGE_HEADER + page, n_recs - 1);
+	page_zip_write_header(page_zip, PAGE_N_RECS + PAGE_HEADER + page,
+			      2, mtr);
 
 	if (UNIV_UNLIKELY(!free)) {
 		/* Make the last slot the start of the free list. */
@@ -4482,22 +4518,34 @@ page_zip_dir_delete(
 		slot_free += PAGE_ZIP_DIR_SLOT_SIZE;
 	}
 
-	if (UNIV_LIKELY(slot_rec > slot_free)) {
+	const ulint slot_len = slot_rec > slot_free
+		? ulint(slot_rec - slot_free)
+		: 0;
+	if (slot_len) {
 		memmove_aligned<2>(slot_free + PAGE_ZIP_DIR_SLOT_SIZE,
-				   slot_free, ulint(slot_rec - slot_free));
+				   slot_free, slot_len);
+		/* TODO: issue MEMMOVE record to reduce log volume */
 	}
 
 	/* Write the entry for the deleted record.
 	The "owned" and "deleted" flags will be cleared. */
 	mach_write_to_2(slot_free, page_offset(rec));
 
-	if (!page_is_leaf(page) || !dict_index_is_clust(index)) {
-		ut_ad(!rec_offs_any_extern(offsets));
-		goto skip_blobs;
+	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2)) {
+		log_ptr = mlog_write_initial_log_record_fast(
+			rec, MLOG_ZIP_WRITE_STRING, log_ptr, mtr);
+		mach_write_to_2(log_ptr, slot_free - page_zip->data);
+		mach_write_to_2(log_ptr + 2, slot_len
+				+ PAGE_ZIP_DIR_SLOT_SIZE);
+		mlog_close(mtr, log_ptr + 4);
+		mlog_catenate_string(mtr, slot_free, slot_len
+				     + PAGE_ZIP_DIR_SLOT_SIZE);
 	}
 
-	n_ext = rec_offs_n_extern(offsets);
-	if (UNIV_UNLIKELY(n_ext != 0)) {
+	if (const ulint n_ext = rec_offs_n_extern(offsets)) {
+		ut_ad(index->is_primary());
+		ut_ad(page_is_leaf(page));
+
 		/* Shift and zero fill the array of BLOB pointers. */
 		ulint	blob_no;
 		byte*	externs;
@@ -4510,24 +4558,34 @@ page_zip_dir_delete(
 			- (page_dir_get_n_heap(page) - PAGE_HEAP_NO_USER_LOW)
 			* PAGE_ZIP_CLUST_LEAF_SLOT_SIZE;
 
-		ext_end = externs - page_zip->n_blobs
-			* BTR_EXTERN_FIELD_REF_SIZE;
-		externs -= blob_no * BTR_EXTERN_FIELD_REF_SIZE;
+		ext_end = externs - page_zip->n_blobs * FIELD_REF_SIZE;
+
+		/* Shift and zero fill the array. */
+		memmove(ext_end + n_ext * FIELD_REF_SIZE, ext_end,
+			ulint(page_zip->n_blobs - n_ext - blob_no)
+			* BTR_EXTERN_FIELD_REF_SIZE);
+		memset(ext_end, 0, n_ext * FIELD_REF_SIZE);
+		/* TODO: use MEMMOVE and MEMSET records to reduce volume */
+		const ulint ext_len = ulint(page_zip->n_blobs - blob_no)
+			* FIELD_REF_SIZE;
+
+		if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2)) {
+			log_ptr = mlog_write_initial_log_record_fast(
+				rec, MLOG_ZIP_WRITE_STRING, log_ptr, mtr);
+			mach_write_to_2(log_ptr, ext_end - page_zip->data);
+			mach_write_to_2(log_ptr + 2, ext_len);
+			mlog_close(mtr, log_ptr + 4);
+			mlog_catenate_string(mtr, ext_end, ext_len);
+		}
 
 		page_zip->n_blobs -= static_cast<unsigned>(n_ext);
-		/* Shift and zero fill the array. */
-		memmove(ext_end + n_ext * BTR_EXTERN_FIELD_REF_SIZE, ext_end,
-			ulint(page_zip->n_blobs - blob_no)
-			* BTR_EXTERN_FIELD_REF_SIZE);
-		memset(ext_end, 0, n_ext * BTR_EXTERN_FIELD_REF_SIZE);
 	}
 
-skip_blobs:
 	/* The compression algorithm expects info_bits and n_owned
 	to be 0 for deleted records. */
 	rec[-REC_N_NEW_EXTRA_BYTES] = 0; /* info_bits and n_owned */
 
-	page_zip_clear_rec(page_zip, rec, index, offsets);
+	page_zip_clear_rec(page_zip, rec, index, offsets, mtr);
 }
 
 /**********************************************************************//**

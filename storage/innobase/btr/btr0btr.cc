@@ -4013,9 +4013,8 @@ btr_discard_only_page_on_level(
 			DBUG_ASSERT(index->table->instant);
 			DBUG_ASSERT(rec_is_alter_metadata(rec, *index));
 			btr_set_instant(block, *index, mtr);
-			rec = page_cur_insert_rec_low(
-				&cur,
-				index, rec, offsets, mtr);
+			rec = page_cur_insert_rec_low(&cur, index, rec,
+						      offsets, mtr);
 			ut_ad(rec);
 			mem_heap_free(heap);
 		} else if (index->is_instant()) {

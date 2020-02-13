@@ -241,15 +241,6 @@ rec_get_n_owned_old(
 	const rec_t*	rec)	/*!< in: old-style physical record */
 	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************//**
-The following function is used to set the number of owned records. */
-UNIV_INLINE
-void
-rec_set_n_owned_old(
-/*================*/
-	rec_t*	rec,		/*!< in: old-style physical record */
-	ulint	n_owned)	/*!< in: the number of owned */
-	MY_ATTRIBUTE((nonnull));
-/******************************************************//**
 The following function is used to get the number of records owned by the
 previous directory record.
 @return number of owned records */
@@ -259,16 +250,6 @@ rec_get_n_owned_new(
 /*================*/
 	const rec_t*	rec)	/*!< in: new-style physical record */
 	MY_ATTRIBUTE((warn_unused_result));
-/******************************************************//**
-The following function is used to set the number of owned records. */
-UNIV_INLINE
-void
-rec_set_n_owned_new(
-/*================*/
-	rec_t*		rec,	/*!< in/out: new-style physical record */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	ulint		n_owned)/*!< in: the number of owned */
-	MY_ATTRIBUTE((nonnull(1)));
 /******************************************************//**
 The following function is used to retrieve the info bits of
 a record.
@@ -418,16 +399,6 @@ rec_get_heap_no_old(
 	const rec_t*	rec)	/*!< in: physical record */
 	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************//**
-The following function is used to set the heap number
-field in an old-style record. */
-UNIV_INLINE
-void
-rec_set_heap_no_old(
-/*================*/
-	rec_t*	rec,	/*!< in: physical record */
-	ulint	heap_no)/*!< in: the heap number */
-	MY_ATTRIBUTE((nonnull));
-/******************************************************//**
 The following function is used to get the order number
 of a new-style record in the heap of the index page.
 @return heap order number */
@@ -437,16 +408,6 @@ rec_get_heap_no_new(
 /*================*/
 	const rec_t*	rec)	/*!< in: physical record */
 	MY_ATTRIBUTE((warn_unused_result));
-/******************************************************//**
-The following function is used to set the heap number
-field in a new-style record. */
-UNIV_INLINE
-void
-rec_set_heap_no_new(
-/*================*/
-	rec_t*	rec,	/*!< in/out: physical record */
-	ulint	heap_no)/*!< in: the heap number */
-	MY_ATTRIBUTE((nonnull));
 /******************************************************//**
 The following function is used to test whether the data offsets
 in the record are stored in one-byte or two-byte format.

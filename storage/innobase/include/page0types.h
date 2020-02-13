@@ -40,6 +40,8 @@ typedef	byte		page_t;
 #ifndef UNIV_INNOCHECKSUM
 /** Index page cursor */
 struct page_cur_t;
+/** Buffer pool block */
+struct buf_block_t;
 
 /** Compressed index page */
 typedef byte		page_zip_t;
@@ -150,9 +152,10 @@ must already have been written on the uncompressed page. */
 void
 page_zip_rec_set_owned(
 /*===================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	buf_block_t*	block,	/*!< in/out: ROW_FORMAT=COMPRESSED page */
 	const byte*	rec,	/*!< in: record on the uncompressed page */
-	ulint		flag)	/*!< in: the owned flag (nonzero=TRUE) */
+	ulint		flag,	/*!< in: the owned flag (nonzero=TRUE) */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
 #endif /* !UNIV_INNOCHECKSUM */
 #endif

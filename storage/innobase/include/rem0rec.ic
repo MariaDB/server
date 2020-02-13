@@ -504,19 +504,6 @@ rec_get_n_owned_old(
 }
 
 /******************************************************//**
-The following function is used to set the number of owned records. */
-UNIV_INLINE
-void
-rec_set_n_owned_old(
-/*================*/
-	rec_t*	rec,		/*!< in: old-style physical record */
-	ulint	n_owned)	/*!< in: the number of owned */
-{
-	rec_set_bit_field_1(rec, n_owned, REC_OLD_N_OWNED,
-			    REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
-}
-
-/******************************************************//**
 The following function is used to get the number of records owned by the
 previous directory record.
 @return number of owned records */
@@ -528,23 +515,6 @@ rec_get_n_owned_new(
 {
 	return(rec_get_bit_field_1(rec, REC_NEW_N_OWNED,
 				   REC_N_OWNED_MASK, REC_N_OWNED_SHIFT));
-}
-
-/******************************************************//**
-The following function is used to set the number of owned records. */
-UNIV_INLINE
-void
-rec_set_n_owned_new(
-/*================*/
-	rec_t*		rec,	/*!< in/out: new-style physical record */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	ulint		n_owned)/*!< in: the number of owned */
-{
-	rec_set_bit_field_1(rec, n_owned, REC_NEW_N_OWNED,
-			    REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
-	if (page_zip && rec_get_status(rec) != REC_STATUS_SUPREMUM) {
-		page_zip_rec_set_owned(page_zip, rec, n_owned);
-	}
 }
 
 /******************************************************//**
@@ -675,20 +645,6 @@ rec_get_heap_no_old(
 }
 
 /******************************************************//**
-The following function is used to set the heap number
-field in an old-style record. */
-UNIV_INLINE
-void
-rec_set_heap_no_old(
-/*================*/
-	rec_t*	rec,	/*!< in: physical record */
-	ulint	heap_no)/*!< in: the heap number */
-{
-	rec_set_bit_field_2(rec, heap_no, REC_OLD_HEAP_NO,
-			    REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT);
-}
-
-/******************************************************//**
 The following function is used to get the order number
 of a new-style record in the heap of the index page.
 @return heap order number */
@@ -700,20 +656,6 @@ rec_get_heap_no_new(
 {
 	return(rec_get_bit_field_2(rec, REC_NEW_HEAP_NO,
 				   REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT));
-}
-
-/******************************************************//**
-The following function is used to set the heap number
-field in a new-style record. */
-UNIV_INLINE
-void
-rec_set_heap_no_new(
-/*================*/
-	rec_t*	rec,	/*!< in/out: physical record */
-	ulint	heap_no)/*!< in: the heap number */
-{
-	rec_set_bit_field_2(rec, heap_no, REC_NEW_HEAP_NO,
-			    REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT);
 }
 
 /******************************************************//**

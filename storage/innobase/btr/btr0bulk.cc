@@ -202,16 +202,22 @@ inline void PageBulk::insertPage(const rec_t *rec, offset_t *offsets)
 				static_cast<uint16_t>(next_rec - insert_rec));
 		mach_write_to_2(m_cur_rec - REC_NEXT,
 				static_cast<uint16_t>(insert_rec - m_cur_rec));
-		rec_set_n_owned_new(insert_rec, NULL, 0);
-		rec_set_heap_no_new(insert_rec,
-				    PAGE_HEAP_NO_USER_LOW + m_rec_no);
+		rec_set_bit_field_1(insert_rec, 0, REC_NEW_N_OWNED,
+				    REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
+		rec_set_bit_field_2(insert_rec,
+				    PAGE_HEAP_NO_USER_LOW + m_rec_no,
+				    REC_NEW_HEAP_NO,
+				    REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT);
 	} else {
 		mach_write_to_2(insert_rec - REC_NEXT,
 				mach_read_from_2(m_cur_rec - REC_NEXT));
 		mach_write_to_2(m_cur_rec - REC_NEXT, page_offset(insert_rec));
-		rec_set_n_owned_old(insert_rec, 0);
-		rec_set_heap_no_old(insert_rec,
-				    PAGE_HEAP_NO_USER_LOW + m_rec_no);
+		rec_set_bit_field_1(insert_rec, 0, REC_OLD_N_OWNED,
+				    REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
+		rec_set_bit_field_2(insert_rec,
+				    PAGE_HEAP_NO_USER_LOW + m_rec_no,
+				    REC_OLD_HEAP_NO,
+				    REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT);
 	}
 
 	/* 4. Set member variables. */
@@ -282,8 +288,9 @@ inline void PageBulk::finishPage()
       {
         slot-= PAGE_DIR_SLOT_SIZE;
         mach_write_to_2(slot, offset);
-        rec_set_n_owned_new(m_page + offset, nullptr, count);
-        count = 0;
+        rec_set_bit_field_1(m_page + offset, count, REC_NEW_N_OWNED,
+                            REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
+        count= 0;
       }
 
       uint16_t next= (mach_read_from_2(m_page + offset - REC_NEXT) + offset) &
@@ -308,8 +315,8 @@ inline void PageBulk::finishPage()
       {
         slot-= PAGE_DIR_SLOT_SIZE;
         mach_write_to_2(slot, page_offset(insert_rec));
-        rec_set_n_owned_old(insert_rec, count);
-
+        rec_set_bit_field_1(insert_rec, count, REC_OLD_N_OWNED,
+                            REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
         count= 0;
       }
 
@@ -328,13 +335,26 @@ inline void PageBulk::finishPage()
 
     count+= (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2;
 
-    page_dir_slot_set_n_owned(slot, nullptr, 0);
+    rec_t *rec= const_cast<rec_t*>(page_dir_slot_get_rec(slot));
+    rec_set_bit_field_1(rec, 0, m_is_comp ? REC_NEW_N_OWNED : REC_OLD_N_OWNED,
+                        REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
     slot+= PAGE_DIR_SLOT_SIZE;
   }
 
   slot-= PAGE_DIR_SLOT_SIZE;
-  page_dir_slot_set_rec(slot, page_get_supremum_rec(m_page));
-  page_dir_slot_set_n_owned(slot, nullptr, count + 1);
+
+  if (m_is_comp)
+  {
+    mach_write_to_2(slot, PAGE_NEW_SUPREMUM);
+    rec_set_bit_field_1(m_page + PAGE_NEW_SUPREMUM, count + 1, REC_NEW_N_OWNED,
+                        REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
+  }
+  else
+  {
+    mach_write_to_2(slot, PAGE_OLD_SUPREMUM);
+    rec_set_bit_field_1(m_page + PAGE_OLD_SUPREMUM, count + 1, REC_OLD_N_OWNED,
+                        REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
+  }
 
   ut_ad(!dict_index_is_spatial(m_index));
   ut_ad(!page_get_instant(m_page));

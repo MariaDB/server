@@ -360,9 +360,10 @@ must already have been written on the uncompressed page. */
 void
 page_zip_rec_set_owned(
 /*===================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	buf_block_t*	block,	/*!< in/out: ROW_FORMAT=COMPRESSED page */
 	const byte*	rec,	/*!< in: record on the uncompressed page */
-	ulint		flag)	/*!< in: the owned flag (nonzero=TRUE) */
+	ulint		flag,	/*!< in: the owned flag (nonzero=TRUE) */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**
@@ -385,9 +386,10 @@ page_zip_dir_delete(
 	byte*			rec,		/*!< in: deleted record */
 	const dict_index_t*	index,		/*!< in: index of rec */
 	const offset_t*		offsets,	/*!< in: rec_get_offsets(rec) */
-	const byte*		free)		/*!< in: previous start of
+	const byte*		free,		/*!< in: previous start of
 						the free list */
-	MY_ATTRIBUTE((nonnull(1,2,3,4)));
+	mtr_t*			mtr)		/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull(1,2,3,4,6)));
 
 /**********************************************************************//**
 Add a slot to the dense page directory. */

@@ -276,8 +276,6 @@ void mtr_t::memcpy(const buf_block_t &b, ulint ofs, ulint len)
   ut_ad(len);
   ut_ad(ofs <= ulint(srv_page_size));
   ut_ad(ofs + len <= ulint(srv_page_size));
-  ut_ad(ofs + len < PAGE_DATA || !b.page.zip.data ||
-        mach_read_from_2(b.frame + FIL_PAGE_TYPE) <= FIL_PAGE_TYPE_ZBLOB2);
 
   set_modified();
   if (get_log_mode() != MTR_LOG_ALL)
@@ -286,6 +284,9 @@ void mtr_t::memcpy(const buf_block_t &b, ulint ofs, ulint len)
           get_log_mode() == MTR_LOG_NO_REDO);
     return;
   }
+
+  ut_ad(ofs + len < PAGE_DATA || !b.page.zip.data ||
+        mach_read_from_2(b.frame + FIL_PAGE_TYPE) <= FIL_PAGE_TYPE_ZBLOB2);
 
   byte *l= get_log()->open(11 + 2 + 2);
   l= mlog_write_initial_log_record_low(MLOG_WRITE_STRING, b.page.id.space(),

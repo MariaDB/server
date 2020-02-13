@@ -406,6 +406,38 @@ inline trx_id_t page_get_max_trx_id(const page_t *page)
   return mach_read_from_8(p);
 }
 
+/**
+Set the number of owned records.
+@tparam compressed    whether to update any ROW_FORMAT=COMPRESSED page as well
+@param[in,out]  block   index page
+@param[in,out]  rec     ROW_FORMAT=REDUNDANT record
+@param[in]      n_owned number of records skipped in the sparse page directory
+@param[in]      comp    whether ROW_FORMAT is one of COMPACT,DYNAMIC,COMPRESSED
+@param[in,out]  mtr     mini-transaction */
+template<bool compressed>
+inline void page_rec_set_n_owned(buf_block_t *block, rec_t *rec, ulint n_owned,
+                                 bool comp, mtr_t *mtr)
+{
+  ut_ad(block->frame == page_align(rec));
+  ut_ad(comp == (page_is_comp(block->frame) != 0));
+
+  if (page_zip_des_t *page_zip= compressed
+      ? buf_block_get_page_zip(block) : nullptr)
+  {
+    ut_ad(comp);
+    rec_set_bit_field_1(rec, n_owned, REC_NEW_N_OWNED,
+                        REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
+    if (rec_get_status(rec) != REC_STATUS_SUPREMUM)
+      page_zip_rec_set_owned(block, rec, n_owned, mtr);
+  }
+  else
+  {
+    rec-= comp ? REC_NEW_N_OWNED : REC_OLD_N_OWNED;
+    mtr->write<1,mtr_t::OPT>(*block, rec, (*rec & ~REC_N_OWNED_MASK) |
+                             (n_owned << REC_N_OWNED_SHIFT));
+  }
+}
+
 /*************************************************************//**
 Sets the max trx id field value. */
 void
@@ -620,17 +652,6 @@ uint16_t
 page_dir_get_n_slots(
 /*=================*/
 	const page_t*	page);	/*!< in: index page */
-/*************************************************************//**
-Sets the number of dir slots in directory. */
-UNIV_INLINE
-void
-page_dir_set_n_slots(
-/*=================*/
-	page_t*		page,	/*!< in/out: page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
-				uncompressed part will be updated, or NULL */
-	ulint		n_slots);/*!< in: number of slots */
-
 /** Gets the pointer to a directory slot.
 @param n  sparse directory slot number
 @return pointer to the sparse directory slot */
@@ -664,14 +685,6 @@ inline const rec_t *page_dir_slot_get_rec(const page_dir_slot_t *slot)
   return page_dir_slot_get_rec(const_cast<rec_t*>(slot));
 }
 /***************************************************************//**
-This is used to set the record offset in a directory slot. */
-UNIV_INLINE
-void
-page_dir_slot_set_rec(
-/*==================*/
-	page_dir_slot_t*slot,	/*!< in: directory slot */
-	const rec_t*	rec);	/*!< in: record on the page */
-/***************************************************************//**
 Gets the number of records owned by a directory slot.
 @return number of records */
 UNIV_INLINE
@@ -679,15 +692,6 @@ ulint
 page_dir_slot_get_n_owned(
 /*======================*/
 	const page_dir_slot_t*	slot);	/*!< in: page directory slot */
-/***************************************************************//**
-This is used to set the owned records field of a directory slot. */
-UNIV_INLINE
-void
-page_dir_slot_set_n_owned(
-/*======================*/
-	page_dir_slot_t*slot,	/*!< in/out: directory slot */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	ulint		n);	/*!< in: number of records owned by the slot */
 /************************************************************//**
 Calculates the space reserved for directory slots of a given
 number of records. The exact value is a fraction number
@@ -1138,6 +1142,7 @@ page_move_rec_list_start(
 /**********************************************************//**
 Parses a log record of a record list end or start deletion.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_parse_delete_rec_list(
 /*=======================*/
