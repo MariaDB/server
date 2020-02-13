@@ -1,8 +1,8 @@
 /*****************************************************************************
 Copyright (c) 2019, MariaDB Corporation.
 *****************************************************************************/
-#ifndef _ha_clustrixdb_pushdown_h
-#define _ha_clustrixdb_pushdown_h
+#ifndef _ha_xpand_pushdown_h
+#define _ha_xpand_pushdown_h
 
 #include "select_handler.h"
 #include "derived_handler.h"
@@ -13,12 +13,12 @@ Copyright (c) 2019, MariaDB Corporation.
  * DESCRIPTION:
  * To be described
  ************************************************************/
-class ha_clustrixdb_base_handler
+class ha_xpand_base_handler
 {
   // To simulate abstract class
   protected:
-    ha_clustrixdb_base_handler(): thd__(0),table__(0) {}
-    ~ha_clustrixdb_base_handler() {}
+    ha_xpand_base_handler(): thd__(0),table__(0) {}
+    ~ha_xpand_base_handler() {}
 
     // Copies of pushdown handlers attributes
     // to use them in shared methods.
@@ -26,10 +26,10 @@ class ha_clustrixdb_base_handler
     TABLE *table__;
     // The bitmap used to sent
     MY_BITMAP scan_fields;
-    // Structures to unpack RBR rows from CLX BE
+    // Structures to unpack RBR rows from XPD BE
     rpl_group_info *rgi;
-    // CLX BE scan operation reference
-    clustrix_connection_cursor *scan;
+    // XPD BE scan operation reference
+    xpand_connection_cursor *scan;
 };
 
 /*@brief select_handler class*/
@@ -40,14 +40,14 @@ class ha_clustrixdb_base_handler
  *  More details in server/sql/select_handler.h
  *  sel semantic tree for the query in SELECT_LEX.
  ************************************************************/
-class ha_clustrixdb_select_handler: 
-    private ha_clustrixdb_base_handler, 
+class ha_xpand_select_handler: 
+    private ha_xpand_base_handler, 
     public select_handler
 {
   public:
-    ha_clustrixdb_select_handler(THD* thd_arg, SELECT_LEX* sel,
-                                 clustrix_connection_cursor *scan);
-    ~ha_clustrixdb_select_handler();
+    ha_xpand_select_handler(THD* thd_arg, SELECT_LEX* sel,
+                                 xpand_connection_cursor *scan);
+    ~ha_xpand_select_handler();
 
     int init_scan();
     int next_row();
@@ -63,14 +63,14 @@ class ha_clustrixdb_select_handler:
  *  More details in server/sql/derived_handler.h
  *  sel semantic tree for the query in SELECT_LEX.
  ************************************************************/
-class ha_clustrixdb_derived_handler:
-    private ha_clustrixdb_base_handler,
+class ha_xpand_derived_handler:
+    private ha_xpand_base_handler,
     public derived_handler
 {
   public:
-    ha_clustrixdb_derived_handler(THD* thd_arg, SELECT_LEX* sel,
-                                  clustrix_connection_cursor *scan);
-    ~ha_clustrixdb_derived_handler();
+    ha_xpand_derived_handler(THD* thd_arg, SELECT_LEX* sel,
+                                  xpand_connection_cursor *scan);
+    ~ha_xpand_derived_handler();
 
     int init_scan();
     int next_row();
@@ -79,9 +79,9 @@ class ha_clustrixdb_derived_handler:
 };
 
 
-select_handler *create_clustrixdb_select_handler(THD* thd,
+select_handler *create_xpand_select_handler(THD* thd,
                                                  SELECT_LEX* select_lex);
-derived_handler *create_clustrixdb_derived_handler(THD* thd,
+derived_handler *create_xpand_derived_handler(THD* thd,
                                                    TABLE_LIST *derived);
 
 #endif
