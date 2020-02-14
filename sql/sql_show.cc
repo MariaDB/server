@@ -3307,8 +3307,9 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
   Status functions
 *****************************************************************************/
 
-static DYNAMIC_ARRAY all_status_vars;
+DYNAMIC_ARRAY all_status_vars;
 static bool status_vars_inited= 0;
+ulonglong status_var_array_version= 0;
 
 C_MODE_START
 static int show_var_cmp(const void *var1, const void *var2)
@@ -3336,6 +3337,7 @@ static void shrink_var_array(DYNAMIC_ARRAY *array)
   }
   else // array is completely empty - delete it
     delete_dynamic(array);
+  status_var_array_version++;
 }
 
 /*
@@ -3375,6 +3377,7 @@ int add_status_vars(SHOW_VAR *list)
   all_status_vars.elements--; // but next insert_dynamic should overwite it
   if (status_vars_inited)
     sort_dynamic(&all_status_vars, show_var_cmp);
+  status_var_array_version++;
 err:
   if (status_vars_inited)
     mysql_rwlock_unlock(&LOCK_all_status_vars);
@@ -3393,6 +3396,7 @@ void init_status_vars()
 {
   status_vars_inited=1;
   sort_dynamic(&all_status_vars, show_var_cmp);
+  status_var_array_version++;
 }
 
 void reset_status_vars()
@@ -3419,6 +3423,7 @@ void reset_status_vars()
 void free_status_vars()
 {
   delete_dynamic(&all_status_vars);
+  status_var_array_version++;
 }
 
 /*
@@ -3480,6 +3485,11 @@ void remove_status_vars(SHOW_VAR *list)
   }
 }
 
+/* Current version of the all_status_vars.  */
+ulonglong get_status_vars_version(void)
+{
+  return status_var_array_version;
+}
 
 /**
   @brief Returns the value of a system or a status variable.

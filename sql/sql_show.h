@@ -119,6 +119,7 @@ bool append_definer(THD *thd, String *buffer, const LEX_CSTRING *definer_user,
                     const LEX_CSTRING *definer_host);
 int add_status_vars(SHOW_VAR *list);
 void remove_status_vars(SHOW_VAR *list);
+ulonglong get_status_vars_version(void);
 void init_status_vars();
 void free_status_vars();
 void reset_status_vars();
