@@ -2786,19 +2786,15 @@ innobase_register_trx(
 	THD*		thd,	/* in: MySQL thd (connection) object */
 	trx_t*		trx)	/* in: transaction to register */
 {
-	/* JAN: TODO: MySQL 5.7 PSI
-	const ulonglong	trx_id = static_cast<const ulonglong>(
+	const ulonglong	trx_id = static_cast<ulonglong>(
 		trx_get_id_for_print(trx));
 
 	trans_register_ha(thd, FALSE, hton, &trx_id);
-	*/
-	trans_register_ha(thd, FALSE, hton);
 
 	if (!trx_is_registered_for_2pc(trx)
 	    && thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
 
-		//trans_register_ha(thd, TRUE, hton, &trx_id);
-		trans_register_ha(thd, TRUE, hton);
+		trans_register_ha(thd, TRUE, hton, &trx_id);
 	}
 
 	trx_register_for_2pc(trx);

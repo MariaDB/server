@@ -40,6 +40,8 @@
 #include "myisam.h"
 #include "probes_mysql.h"
 #include <mysql/psi/mysql_table.h>
+#include <pfs_transaction_provider.h>
+#include <mysql/psi/mysql_transaction.h>
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_audit.h"
 #include "ha_sequence.h"
@@ -61,6 +63,39 @@
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h" /* wsrep transaction hooks */
 #endif /* WITH_WSREP */
+
+/**
+  @def MYSQL_TABLE_LOCK_WAIT
+  Instrumentation helper for table io_waits.
+  @param OP the table operation to be performed
+  @param FLAGS per table operation flags.
+  @param PAYLOAD the code to instrument.
+  @sa MYSQL_END_TABLE_WAIT.
+*/
+#ifdef HAVE_PSI_TABLE_INTERFACE
+  #define MYSQL_TABLE_LOCK_WAIT(OP, FLAGS, PAYLOAD)    \
+    {                                                  \
+      if (m_psi != NULL)                               \
+      {                                                \
+        PSI_table_locker *locker;                      \
+        PSI_table_locker_state state;                  \
+        locker= PSI_TABLE_CALL(start_table_lock_wait)  \
+          (& state, m_psi, OP, FLAGS,                  \
+          __FILE__, __LINE__);                         \
+        PAYLOAD                                        \
+        if (locker != NULL)                            \
+          PSI_TABLE_CALL(end_table_lock_wait)(locker); \
+      }                                                \
+      else                                             \
+      {                                                \
+        PAYLOAD                                        \
+      }                                                \
+    }
+#else
+  #define MYSQL_TABLE_LOCK_WAIT(OP, FLAGS, PAYLOAD) \
+    PAYLOAD
+#endif
+
 
 /*
   While we have legacy_db_type, we have this array to
@@ -1201,7 +1236,8 @@ void ha_pre_shutdown()
     times per transaction.
 
 */
-void trans_register_ha(THD *thd, bool all, handlerton *ht_arg)
+void trans_register_ha(THD *thd, bool all, handlerton *ht_arg,
+                       const ulonglong *trxid)
 {
   THD_TRANS *trans;
   Ha_trx_info *ha_info;
@@ -1232,6 +1268,25 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg)
   if (thd->transaction.implicit_xid.is_null())
     thd->transaction.implicit_xid.set(thd->query_id);
 
+/*
+  Register transaction start in performance schema if not done already.
+  By doing this, we handle cases when the transaction is started implicitly in
+  autocommit=0 mode, and cases when we are in normal autocommit=1 mode and the
+  executed statement is a single-statement transaction.
+
+  Explicitly started transactions are handled in trans_begin().
+
+  Do not register transactions in which binary log is the only participating
+  transactional storage engine.
+*/
+  if (thd->m_transaction_psi == NULL && ht_arg->db_type != DB_TYPE_BINLOG)
+  {
+    thd->m_transaction_psi= MYSQL_START_TRANSACTION(&thd->m_transaction_state,
+          thd->get_xid(), trxid, thd->tx_isolation, thd->tx_read_only,
+          !thd->in_multi_stmt_transaction_mode());
+    DEBUG_SYNC(thd, "after_set_transaction_psi_before_set_transaction_gtid");
+    //gtid_set_performance_schema_values(thd);
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -1457,7 +1512,11 @@ int ha_commit_trans(THD *thd, bool all)
       Free resources and perform other cleanup even for 'empty' transactions.
     */
     if (is_real_trans)
+    {
       thd->transaction.cleanup();
+      MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi);
+      thd->m_transaction_psi= NULL;
+    }
 #ifdef WITH_WSREP
     if (wsrep_is_active(thd) && is_real_trans && !error)
       wsrep_commit_empty(thd, all);
@@ -1651,12 +1710,15 @@ int ha_commit_trans(THD *thd, bool all)
 #endif /* WITH_WSREP */
   DBUG_EXECUTE_IF("crash_commit_before_unlog", DBUG_SUICIDE(););
   if (tc_log->unlog(cookie, xid))
-  {
     error= 2;                                /* Error during commit */
-    goto end;
-  }
 
 done:
+  if (is_real_trans)
+  {
+    MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi);
+    thd->m_transaction_psi= NULL;
+  }
+
   DBUG_EXECUTE_IF("crash_commit_after", DBUG_SUICIDE(););
 
   mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
@@ -1694,6 +1756,8 @@ err:
     ha_rollback_trans(thd, all);
   else
   {
+    MYSQL_ROLLBACK_TRANSACTION(thd->m_transaction_psi);
+    thd->m_transaction_psi= NULL;
     WSREP_DEBUG("rollback skipped %p %d",thd->rgi_slave,
                 thd->rgi_slave->is_parallel_exec);
   }
@@ -1913,6 +1977,13 @@ int ha_rollback_trans(THD *thd, bool all)
   }
   (void) wsrep_after_rollback(thd, all);
 #endif /* WITH_WSREP */
+
+  if (all || !thd->in_active_multi_stmt_transaction())
+  {
+    MYSQL_ROLLBACK_TRANSACTION(thd->m_transaction_psi);
+    thd->m_transaction_psi= NULL;
+  }
+
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
   {
@@ -2360,6 +2431,10 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
     ha_info->reset(); /* keep it conveniently zero-filled */
   }
   trans->ha_list= sv->ha_list;
+
+  if (thd->m_transaction_psi != NULL)
+    MYSQL_INC_TRANSACTION_ROLLBACK_TO_SAVEPOINT(thd->m_transaction_psi, 1);
+
   DBUG_RETURN(error);
 }
 
@@ -2411,6 +2486,9 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
   */
   sv->ha_list= trans->ha_list;
 
+  if (!error && thd->m_transaction_psi != NULL)
+    MYSQL_INC_TRANSACTION_SAVEPOINTS(thd->m_transaction_psi, 1);
+
   DBUG_RETURN(error);
 }
 
@@ -2435,6 +2513,10 @@ int ha_release_savepoint(THD *thd, SAVEPOINT *sv)
       error=1;
     }
   }
+
+  if (thd->m_transaction_psi != NULL)
+    MYSQL_INC_TRANSACTION_RELEASE_SAVEPOINT(thd->m_transaction_psi, 1);
+
   DBUG_RETURN(error);
 }
 

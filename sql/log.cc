@@ -2212,8 +2212,8 @@ void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
   if (WSREP_EMULATE_BINLOG(thd))
   {
     if (is_transactional)
-      trans_register_ha(thd, TRUE, binlog_hton);
-    trans_register_ha(thd, FALSE, binlog_hton);
+      trans_register_ha(thd, TRUE, binlog_hton, NULL);
+    trans_register_ha(thd, FALSE, binlog_hton, NULL);
   }
 #endif /* WITH_WSREP */
   DBUG_VOID_RETURN;
@@ -5713,8 +5713,8 @@ THD::binlog_start_trans_and_stmt()
     }
 #endif
     if (mstmt_mode)
-      trans_register_ha(this, TRUE, binlog_hton);
-    trans_register_ha(this, FALSE, binlog_hton);
+      trans_register_ha(this, TRUE, binlog_hton, NULL);
+    trans_register_ha(this, FALSE, binlog_hton, NULL);
     /*
       Mark statement transaction as read/write. We never start
       a binary log transaction and keep it read-only,
@@ -5758,7 +5758,7 @@ binlog_start_consistent_snapshot(handlerton *hton, THD *thd)
   strmake_buf(cache_mngr->last_commit_pos_file, mysql_bin_log.last_commit_pos_file);
   cache_mngr->last_commit_pos_offset= mysql_bin_log.last_commit_pos_offset;
 
-  trans_register_ha(thd, TRUE, hton);
+  trans_register_ha(thd, TRUE, binlog_hton, NULL);
 
   DBUG_RETURN(err);
 }
@@ -10749,8 +10749,8 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
       Set callbacks in order to be able to call commmit or rollback.
     */
     if (trx)
-      trans_register_ha(thd, TRUE, binlog_hton);
-    trans_register_ha(thd, FALSE, binlog_hton);
+      trans_register_ha(thd, TRUE, binlog_hton, NULL);
+    trans_register_ha(thd, FALSE, binlog_hton, NULL);
 
     /*
       Set the binary log as read/write otherwise callbacks are not called.

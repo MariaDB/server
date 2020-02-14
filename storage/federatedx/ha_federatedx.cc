@@ -3492,7 +3492,7 @@ int ha_federatedx::start_stmt(MYSQL_THD thd, thr_lock_type lock_type)
   if (!txn->in_transaction())
   {
     txn->stmt_begin();
-    trans_register_ha(thd, FALSE, ht);
+    trans_register_ha(thd, FALSE, ht, NULL);
   }
   DBUG_RETURN(0);
 }
@@ -3515,12 +3515,12 @@ int ha_federatedx::external_lock(MYSQL_THD thd, int lock_type)
       if (!thd_test_options(thd, (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)))
       {
         txn->stmt_begin();
-        trans_register_ha(thd, FALSE, ht);
+        trans_register_ha(thd, FALSE, ht, NULL);
       }
       else
       {
         txn->txn_begin();
-        trans_register_ha(thd, TRUE, ht);
+        trans_register_ha(thd, TRUE, ht, NULL);
       }
     }
   }
@@ -3538,7 +3538,7 @@ int ha_federatedx::savepoint_set(handlerton *hton, MYSQL_THD thd, void *sv)
   if (txn && txn->has_connections())
   {
     if (txn->txn_begin())
-      trans_register_ha(thd, TRUE, hton);
+      trans_register_ha(thd, TRUE, hton, NULL);
     
     txn->sp_acquire((ulong *) sv);
 

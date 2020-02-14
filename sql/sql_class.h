@@ -3053,6 +3053,14 @@ public:
   /** Current statement instrumentation state. */
   PSI_statement_locker_state m_statement_state;
 #endif /* HAVE_PSI_STATEMENT_INTERFACE */
+
+  /** Current transaction instrumentation. */
+  PSI_transaction_locker *m_transaction_psi;
+#ifdef HAVE_PSI_TRANSACTION_INTERFACE
+  /** Current transaction instrumentation state. */
+  PSI_transaction_locker_state m_transaction_state;
+#endif /* HAVE_PSI_TRANSACTION_INTERFACE */
+
   /** Idle instrumentation. */
   PSI_idle_locker *m_idle_psi;
 #ifdef HAVE_PSI_IDLE_INTERFACE
@@ -4818,6 +4826,17 @@ public:
   LF_PINS *tdc_hash_pins;
   LF_PINS *xid_hash_pins;
   bool fix_xid_hash_pins();
+
+  const XID *get_xid() const
+  {
+#ifdef WITH_WSREP
+    if (!wsrep_xid.is_null())
+      return &wsrep_xid;
+#endif /* WITH_WSREP */
+    return transaction.xid_state.is_explicit_XA() ?
+          transaction.xid_state.get_xid() :
+          &transaction.implicit_xid;
+  }
 
 /* Members related to temporary tables. */
 public:

@@ -643,6 +643,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    accessed_rows_and_keys(0),
    m_digest(NULL),
    m_statement_psi(NULL),
+   m_transaction_psi(NULL),
    m_idle_psi(NULL),
    col_access(NO_ACL),
    thread_id(id),
@@ -1189,18 +1190,8 @@ void *thd_memdup(MYSQL_THD thd, const void* str, size_t size)
 extern "C"
 void thd_get_xid(const MYSQL_THD thd, MYSQL_XID *xid)
 {
-#ifdef WITH_WSREP
-  if (!thd->wsrep_xid.is_null())
-  {
-    *xid = *(MYSQL_XID *) &thd->wsrep_xid;
-    return;
-  }
-#endif /* WITH_WSREP */
-  *xid= thd->transaction.xid_state.is_explicit_XA() ?
-        *(MYSQL_XID *) thd->transaction.xid_state.get_xid() :
-        *(MYSQL_XID *) &thd->transaction.implicit_xid;
+  *xid = *(MYSQL_XID *) thd->get_xid();
 }
-
 
 extern "C"
 my_time_t thd_TIME_to_gmt_sec(MYSQL_THD thd, const MYSQL_TIME *ltime,
