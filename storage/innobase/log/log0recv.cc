@@ -105,10 +105,8 @@ bool	recv_writer_thread_active;
 /** Stored physical log record with logical LSN (@see log_t::FORMAT_10_5) */
 struct log_phys_t : public log_rec_t
 {
-#if 1 // MDEV-14425 FIXME: remove this!
   /** start LSN of the mini-transaction (not necessarily of this record) */
   const lsn_t start_lsn;
-#endif
 private:
   /** length  of the record, in bytes */
   uint16_t len;
@@ -148,12 +146,10 @@ public:
 
   /** Append a record to the log.
   @param recs  log to append
-  @param size  size of the log, in bytes
-  @param lsn   the commit LSN of the record */
-  void append(const byte *recs, size_t size, lsn_t lsn)
+  @param size  size of the log, in bytes */
+  void append(const byte *recs, size_t size)
   {
     ut_ad(start_lsn < lsn);
-    set_lsn(lsn);
     reinterpret_cast<byte*>(memcpy(end(), recs, size))[size]= 0;
     len+= static_cast<uint16_t>(size);
   }
@@ -1495,10 +1491,9 @@ inline void recv_sys_t::add(const page_id_t page_id,
     log_phys_t *tail= static_cast<log_phys_t*>(recs.log.last());
     if (!tail)
       break;
-#if 1 // MDEV-14425 FIXME: remove this!
     if (tail->start_lsn != start_lsn)
       break;
-#endif
+    ut_ad(tail->lsn == lsn);
     buf_block_t *block= UT_LIST_GET_LAST(blocks);
     ut_ad(block);
     const size_t used= static_cast<uint16_t>(block->page.access_time - 1) + 1;
@@ -1511,7 +1506,7 @@ inline void recv_sys_t::add(const page_id_t page_id,
 append:
       UNIV_MEM_ALLOC(end + 1, len);
       /* Append to the preceding record for the page */
-      tail->append(l, len, lsn);
+      tail->append(l, len);
       return;
     }
     if (end <= &block->frame[used - ALIGNMENT] || &block->frame[used] >= end)

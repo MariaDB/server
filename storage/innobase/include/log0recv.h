@@ -124,10 +124,7 @@ struct log_rec_t
   /** next record */
   log_rec_t *next;
   /** mtr_t::commit_lsn() of the mini-transaction */
-  lsn_t lsn;
-
-protected:
-  void set_lsn(lsn_t end_lsn) { ut_ad(lsn <= end_lsn); lsn= end_lsn; }
+  const lsn_t lsn;
 };
 
 struct recv_dblwr_t {
