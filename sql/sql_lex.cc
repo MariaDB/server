@@ -6257,7 +6257,7 @@ static bool is_old(const char *str)
 bool LEX::is_trigger_new_or_old_reference(const LEX_CSTRING *name) const
 {
   // "name" is not necessarily NULL-terminated!
-  return sphead && sphead->m_handler->type() == TYPE_ENUM_TRIGGER &&
+  return sphead && sphead->m_handler->type() == SP_TYPE_TRIGGER &&
          name->length == 3 && (is_new(name->str) || is_old(name->str));
 }
 
@@ -9010,7 +9010,7 @@ sp_package *LEX::create_package_start(THD *thd,
   }
   if (unlikely(set_command_with_check(command, options)))
     return NULL;
-  if (sph->type() == TYPE_ENUM_PACKAGE_BODY)
+  if (sph->type() == SP_TYPE_PACKAGE_BODY)
   {
     /*
       If we start parsing a "CREATE PACKAGE BODY", we need to load

@@ -34,6 +34,7 @@
 #include "lock.h"                               // lock_object_name
 
 #include <my_user.h>
+#include "mysql/psi/mysql_sp.h"
 
 sp_cache **Sp_handler_procedure::get_cache(THD *thd) const
 {
@@ -718,7 +719,7 @@ Sp_handler::db_find_routine(THD *thd,
 
   table->field[MYSQL_PROC_FIELD_PARAM_LIST]->val_str_nopad(thd->mem_root,
                                                            &params);
-  if (type() != TYPE_ENUM_FUNCTION)
+  if (type() != SP_TYPE_FUNCTION)
     returns= empty_clex_str;
   else if (table->field[MYSQL_PROC_FIELD_RETURNS]->val_str_nopad(thd->mem_root,
                                                                  &returns))
@@ -866,6 +867,8 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   thd->spcont= old_spcont;
   thd->variables.sql_mode= old_sql_mode;
   thd->variables.select_limit= old_select_limit;
+  if (sp != NULL)
+    sp->init_psi_share();
   return sp;
 }
 
@@ -1001,7 +1004,7 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
     (*sphp)->set_creation_ctx(creation_ctx);
     (*sphp)->optimize();
 
-    if (type() == TYPE_ENUM_PACKAGE_BODY)
+    if (type() == SP_TYPE_PACKAGE_BODY)
     {
       sp_package *package= (*sphp)->get_package();
       List_iterator<LEX> it(package->m_routine_implementations);
@@ -1104,6 +1107,9 @@ Sp_handler::sp_drop_routine_internal(THD *thd,
   DBUG_ASSERT(spc);
   if ((sp= sp_cache_lookup(spc, name)))
     sp_cache_flush_obsolete(spc, &sp);
+  /* Drop statistics for this stored program from performance schema. */
+  MYSQL_DROP_SP(type(), name->m_db.str, name->m_db.length,
+                        name->m_name.str, name->m_name.length);
   DBUG_RETURN(SP_OK);
 }
 
@@ -1231,16 +1237,17 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
       if (lex->create_info.or_replace())
       {
         switch (type()) {
-        case TYPE_ENUM_PACKAGE:
+        case SP_TYPE_PACKAGE:
           // Drop together with its PACKAGE BODY mysql.proc record
           ret= sp_handler_package_spec.sp_find_and_drop_routine(thd, table, sp);
           break;
-        case TYPE_ENUM_PACKAGE_BODY:
-        case TYPE_ENUM_FUNCTION:
-        case TYPE_ENUM_PROCEDURE:
+        case SP_TYPE_PACKAGE_BODY:
+        case SP_TYPE_FUNCTION:
+        case SP_TYPE_PROCEDURE:
           ret= sp_drop_routine_internal(thd, sp, table);
           break;
-        case TYPE_ENUM_TRIGGER:
+        case SP_TYPE_TRIGGER:
+        case SP_TYPE_EVENT:
           DBUG_ASSERT(0);
           ret= SP_OK;
         }
@@ -1257,7 +1264,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
         ret= FALSE;
 
         // Setting retstr as it is used for logging.
-        if (type() == TYPE_ENUM_FUNCTION)
+        if (type() == SP_TYPE_FUNCTION)
         {
           sp_returns_type(thd, retstr, sp);
           returns= retstr.lex_cstring();
@@ -1340,7 +1347,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
       table->field[MYSQL_PROC_FIELD_PARAM_LIST]->
         store(sp->m_params, system_charset_info);
 
-    if (type() == TYPE_ENUM_FUNCTION)
+    if (type() == SP_TYPE_FUNCTION)
     {
       sp_returns_type(thd, retstr, sp);
       returns= retstr.lex_cstring();
@@ -1372,7 +1379,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
           store(sp->comment(), system_charset_info);
     }
 
-    if (type() == TYPE_ENUM_FUNCTION &&
+    if (type() == SP_TYPE_FUNCTION &&
         !trust_function_creators && mysql_bin_log.is_open())
     {
       if (!sp->detistic())
@@ -1624,7 +1631,7 @@ Sp_handler::sp_update_routine(THD *thd, const Database_qualified_name *name,
 
   if ((ret= db_find_routine_aux(thd, name, table)) == SP_OK)
   {
-    if (type() == TYPE_ENUM_FUNCTION && ! trust_function_creators &&
+    if (type() == SP_TYPE_FUNCTION && ! trust_function_creators &&
         mysql_bin_log.is_open() &&
         (chistics->daccess == SP_CONTAINS_SQL ||
          chistics->daccess == SP_MODIFIES_SQL_DATA))
@@ -1770,7 +1777,7 @@ bool lock_db_routines(THD *thd, const char *db)
 
       longlong sp_type= table->field[MYSQL_PROC_MYSQL_TYPE]->val_int();
       MDL_request *mdl_request= new (thd->mem_root) MDL_request;
-      const Sp_handler *sph= Sp_handler::handler((stored_procedure_type)
+      const Sp_handler *sph= Sp_handler::handler((enum_sp_type)
                                                  sp_type);
       if (!sph)
         sph= &sp_handler_procedure;
@@ -1813,6 +1820,8 @@ sp_drop_db_routines(THD *thd, const char *db)
   uint key_len;
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   uchar keybuf[MAX_KEY_LENGTH];
+  size_t db_length= strlen(db);
+  Sql_mode_instant_remove smir(thd, MODE_PAD_CHAR_TO_FULL_LENGTH); // see below
   DBUG_ENTER("sp_drop_db_routines");
   DBUG_PRINT("enter", ("db: %s", db));
 
@@ -1820,7 +1829,7 @@ sp_drop_db_routines(THD *thd, const char *db)
   if (!(table= open_proc_table_for_update(thd)))
     goto err;
 
-  table->field[MYSQL_PROC_FIELD_DB]->store(db, strlen(db), system_charset_info);
+  table->field[MYSQL_PROC_FIELD_DB]->store(db, db_length, system_charset_info);
   key_len= table->key_info->key_part[0].store_length;
   table->field[MYSQL_PROC_FIELD_DB]->get_key_image(keybuf, key_len, Field::itRAW);
 
@@ -1839,7 +1848,18 @@ sp_drop_db_routines(THD *thd, const char *db)
     do
     {
       if (! table->file->ha_delete_row(table->record[0]))
+      {
 	deleted= TRUE;		/* We deleted something */
+#ifdef HAVE_PSI_SP_INTERFACE
+        String buf;
+        // the following assumes MODE_PAD_CHAR_TO_FULL_LENGTH being *unset*
+        String *name= table->field[MYSQL_PROC_FIELD_NAME]->val_str(&buf);
+
+        enum_sp_type sp_type= (enum_sp_type) table->field[MYSQL_PROC_MYSQL_TYPE]->ptr[0];
+        /* Drop statistics for this stored program from performance schema. */
+        MYSQL_DROP_SP(sp_type, db, db_length, name->ptr(), name->length());
+#endif
+      }
       else
       {
 	ret= SP_DELETE_ROW_FAILED;
@@ -2013,7 +2033,7 @@ Sp_handler::sp_clone_and_link_routine(THD *thd,
     DBUG_RETURN(0);
   }
 
-  if (type() == TYPE_ENUM_FUNCTION)
+  if (type() == SP_TYPE_FUNCTION)
   {
     sp_returns_type(thd, retstr, sp);
     returns= retstr.lex_cstring();
@@ -2361,7 +2381,7 @@ is_package_public_routine(THD *thd,
                           const LEX_CSTRING &db,
                           const LEX_CSTRING &package,
                           const LEX_CSTRING &routine,
-                          stored_procedure_type type)
+                          enum_sp_type type)
 {
   sp_head *sp= NULL;
   Database_qualified_name tmp(db, package);
@@ -2395,7 +2415,7 @@ is_package_public_routine_quick(THD *thd,
                                 const LEX_CSTRING &db,
                                 const LEX_CSTRING &pkgname,
                                 const LEX_CSTRING &name,
-                                stored_procedure_type type)
+                                enum_sp_type type)
 {
   Database_qualified_name tmp(db, pkgname);
   sp_head *sp= sp_cache_lookup(&thd->sp_package_spec_cache, &tmp);
@@ -2414,7 +2434,7 @@ static bool
 is_package_body_routine(THD *thd, sp_package *pkg,
                         const LEX_CSTRING &name1,
                         const LEX_CSTRING &name2,
-                        stored_procedure_type type)
+                        enum_sp_type type)
 {
   return Sp_handler::eq_routine_name(pkg->m_name, name1) &&
          (pkg->m_routine_declarations.find(name2, type) ||
@@ -2842,7 +2862,7 @@ Sp_handler::sp_cache_package_routine(THD *thd,
                                      bool lookup_only, sp_head **sp) const
 {
   DBUG_ENTER("sp_cache_package_routine");
-  DBUG_ASSERT(type() == TYPE_ENUM_FUNCTION || type() == TYPE_ENUM_PROCEDURE);
+  DBUG_ASSERT(type() == SP_TYPE_FUNCTION || type() == SP_TYPE_PROCEDURE);
   sp_name pkgname(&name->m_db, &pkgname_cstr, false);
   sp_head *ph= NULL;
   int ret= sp_handler_package_body.sp_cache_routine(thd, &pkgname,
@@ -2941,7 +2961,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
   buf->append('(');
   buf->append(&params);
   buf->append(')');
-  if (type() == TYPE_ENUM_FUNCTION)
+  if (type() == SP_TYPE_FUNCTION)
   {
     if (sql_mode & MODE_ORACLE)
       buf->append(STRING_WITH_LEN(" RETURN "));

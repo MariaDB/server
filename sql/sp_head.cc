@@ -56,8 +56,39 @@
 #define SP_INSTR_UINT_MAXLEN  8
 #define SP_STMT_PRINT_MAXLEN 40
 
-
 #include <my_user.h>
+#include "mysql/psi/mysql_statement.h"
+#include "mysql/psi/mysql_sp.h"
+
+#ifdef HAVE_PSI_INTERFACE
+void init_sp_psi_keys()
+{
+  const char *category= "sp";
+  const int num __attribute__((unused)) = __LINE__ + 3;
+
+  PSI_server->register_statement(category, & sp_instr_stmt::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_set::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_set_trigger_field::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_jump::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_jump_if_not::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_freturn::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_preturn::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_hpush_jump::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_hpop::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_hreturn::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_cpush::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_cpop::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_copen::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_cclose::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_cfetch::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_agg_cfetch::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_cursor_copy_struct::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_error::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_set_case_expr::psi_info, 1);
+
+  DBUG_ASSERT(SP_PSI_STATEMENT_INFO_COUNT == __LINE__ - num);
+}
+#endif
 
 extern "C" uchar *sp_table_key(const uchar *ptr, size_t *plen, my_bool first);
 
@@ -605,7 +636,7 @@ bool sp_head::eq_routine_spec(const sp_head *sp) const
 
 bool sp_package::validate_after_parser(THD *thd)
 {
-  if (m_handler->type() != TYPE_ENUM_PACKAGE_BODY)
+  if (m_handler->type() != SP_TYPE_PACKAGE_BODY)
     return false;
   sp_head *sp= sp_cache_lookup(&thd->sp_package_spec_cache, this);
   sp_package *spec= sp ? sp->get_package() : NULL;
@@ -684,7 +715,7 @@ bool sp_package::validate_private_routines(THD *thd)
 
 
 LEX *sp_package::LexList::find(const LEX_CSTRING &name,
-                               stored_procedure_type type)
+                               enum_sp_type type)
 {
   List_iterator<LEX> it(*this);
   for (LEX *lex; (lex= it++); )
@@ -707,7 +738,7 @@ LEX *sp_package::LexList::find(const LEX_CSTRING &name,
 
 
 LEX *sp_package::LexList::find_qualified(const LEX_CSTRING &name,
-                                         stored_procedure_type type)
+                                         enum_sp_type type)
 {
   List_iterator<LEX> it(*this);
   for (LEX *lex; (lex= it++); )
@@ -720,6 +751,17 @@ LEX *sp_package::LexList::find_qualified(const LEX_CSTRING &name,
   return NULL;
 }
 
+
+void sp_package::init_psi_share()
+{
+  List_iterator<LEX> it(m_routine_implementations);
+  for (LEX *lex; (lex= it++); )
+  {
+    DBUG_ASSERT(lex->sphead);
+    lex->sphead->init_psi_share();
+  }
+  sp_head::init_psi_share();
+}
 
 void
 sp_head::init(LEX *lex)
@@ -754,6 +796,13 @@ sp_head::init_sp_name(const sp_name *spname)
   Database_qualified_name::copy(&main_mem_root, spname->m_db, spname->m_name);
   m_explicit_name= spname->m_explicit_name;
   DBUG_VOID_RETURN;
+}
+
+void
+sp_head::init_psi_share()
+{
+  m_sp_share= MYSQL_GET_SP_SHARE(m_handler->type(), m_db.str, m_db.length,
+                                 m_name.str, m_name.length);
 }
 
 
@@ -1358,7 +1407,23 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       WSREP_DEBUG("assigned new next trx ID for SP,  trx id: %" PRIu64, thd->wsrep_next_trx_id());
     }
 #endif /* WITH_WSREP */
+
+#ifdef HAVE_PSI_STATEMENT_INTERFACE
+    PSI_statement_locker_state state;
+    PSI_statement_locker *parent_locker;
+    PSI_statement_info *psi_info = i->get_psi_info();
+
+    parent_locker= thd->m_statement_psi;
+    thd->m_statement_psi= MYSQL_START_STATEMENT(& state, psi_info->m_key,
+      thd->db.str, thd->db.length, thd->charset(), m_sp_share);
+#endif
+
     err_status= i->execute(thd, &ip);
+
+#ifdef HAVE_PSI_STATEMENT_INTERFACE
+    MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+    thd->m_statement_psi= parent_locker;
+#endif
 
 #ifdef WITH_WSREP
     if (WSREP(thd))
@@ -1830,7 +1895,12 @@ sp_head::execute_trigger(THD *thd,
 
   thd->spcont= nctx;
 
-  err_status= execute(thd, FALSE);
+  {
+    PSI_sp_locker_state psi_state;
+    PSI_sp_locker *locker= MYSQL_START_SP(&psi_state, m_sp_share);
+    err_status= execute(thd, FALSE);
+    MYSQL_END_SP(locker);
+  }
 
 err_with_cleanup:
   thd->restore_active_arena(&call_arena, &backup_arena);
@@ -2080,7 +2150,12 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   */
   thd->set_n_backup_active_arena(call_arena, &backup_arena);
 
-  err_status= execute(thd, TRUE);
+  {
+    PSI_sp_locker_state psi_state;
+    PSI_sp_locker *locker= MYSQL_START_SP(&psi_state, m_sp_share);
+    err_status= execute(thd, TRUE);
+    MYSQL_END_SP(locker);
+  }
 
   thd->restore_active_arena(call_arena, &backup_arena);
 
@@ -2361,11 +2436,12 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 #endif
 
   opt_trace_disable_if_no_stored_proc_func_access(thd, this);
+
+  PSI_sp_locker_state psi_state;
+  PSI_sp_locker *locker= MYSQL_START_SP(&psi_state, m_sp_share);
   if (!err_status)
-  {
     err_status= execute(thd, TRUE);
-    DBUG_PRINT("info", ("execute returned %d", (int) err_status));
-  }
+  MYSQL_END_SP(locker);
 
   if (save_log_general)
     thd->variables.option_bits &= ~OPTION_LOG_OFF;
@@ -3554,6 +3630,9 @@ int sp_instr::exec_core(THD *thd, uint *nextp)
   sp_instr_stmt class functions
 */
 
+PSI_statement_info sp_instr_stmt::psi_info=
+{ 0, "stmt", 0};
+
 int
 sp_instr_stmt::execute(THD *thd, uint *nextp)
 {
@@ -3563,6 +3642,8 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
   Sub_statement_state backup_state;
   DBUG_ENTER("sp_instr_stmt::execute");
   DBUG_PRINT("info", ("command: %d", m_lex_keeper.sql_command()));
+
+  MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, m_query.str, m_query.length);
 
 #if defined(ENABLED_PROFILING)
   /* This s-p instr is profilable and will be captured. */
@@ -3689,6 +3770,9 @@ sp_instr_stmt::exec_core(THD *thd, uint *nextp)
 /*
   sp_instr_set class functions
 */
+
+PSI_statement_info sp_instr_set::psi_info=
+{ 0, "set", 0};
 
 int
 sp_instr_set::execute(THD *thd, uint *nextp)
@@ -3840,6 +3924,9 @@ sp_instr_set_row_field_by_name::print(String *str)
   sp_instr_set_trigger_field class functions
 */
 
+PSI_statement_info sp_instr_set_trigger_field::psi_info=
+{ 0, "set_trigger_field", 0};
+
 int
 sp_instr_set_trigger_field::execute(THD *thd, uint *nextp)
 {
@@ -3882,6 +3969,9 @@ uint sp_instr_opt_meta::get_cont_dest() const
 /*
  sp_instr_jump class functions
 */
+
+PSI_statement_info sp_instr_jump::psi_info=
+{ 0, "jump", 0};
 
 int
 sp_instr_jump::execute(THD *thd, uint *nextp)
@@ -3947,6 +4037,9 @@ sp_instr_jump::opt_move(uint dst, List<sp_instr> *bp)
 /*
   sp_instr_jump_if_not class functions
 */
+
+PSI_statement_info sp_instr_jump_if_not::psi_info=
+{ 0, "jump_if_not", 0};
 
 int
 sp_instr_jump_if_not::execute(THD *thd, uint *nextp)
@@ -4043,6 +4136,9 @@ sp_instr_jump_if_not::opt_move(uint dst, List<sp_instr> *bp)
   sp_instr_freturn class functions
 */
 
+PSI_statement_info sp_instr_freturn::psi_info=
+{ 0, "freturn", 0};
+
 int
 sp_instr_freturn::execute(THD *thd, uint *nextp)
 {
@@ -4107,8 +4203,32 @@ sp_instr_freturn::print(String *str)
 }
 
 /*
+  sp_instr_preturn class functions
+*/
+
+PSI_statement_info sp_instr_preturn::psi_info=
+{ 0, "preturn", 0};
+
+int
+sp_instr_preturn::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_preturn::execute");
+  *nextp= UINT_MAX;
+  DBUG_RETURN(0);
+}
+
+void
+sp_instr_preturn::print(String *str)
+{
+  str->append(STRING_WITH_LEN("preturn"));
+}
+
+/*
   sp_instr_hpush_jump class functions
 */
+
+PSI_statement_info sp_instr_hpush_jump::psi_info=
+{ 0, "hpush_jump", 0};
 
 int
 sp_instr_hpush_jump::execute(THD *thd, uint *nextp)
@@ -4186,6 +4306,9 @@ sp_instr_hpush_jump::opt_mark(sp_head *sp, List<sp_instr> *leads)
   sp_instr_hpop class functions
 */
 
+PSI_statement_info sp_instr_hpop::psi_info=
+{ 0, "hpop", 0};
+
 int
 sp_instr_hpop::execute(THD *thd, uint *nextp)
 {
@@ -4209,6 +4332,9 @@ sp_instr_hpop::print(String *str)
 /*
   sp_instr_hreturn class functions
 */
+
+PSI_statement_info sp_instr_hreturn::psi_info=
+{ 0, "hreturn", 0};
 
 int
 sp_instr_hreturn::execute(THD *thd, uint *nextp)
@@ -4269,6 +4395,9 @@ sp_instr_hreturn::opt_mark(sp_head *sp, List<sp_instr> *leads)
   sp_instr_cpush class functions
 */
 
+PSI_statement_info sp_instr_cpush::psi_info=
+{ 0, "cpush", 0};
+
 int
 sp_instr_cpush::execute(THD *thd, uint *nextp)
 {
@@ -4310,6 +4439,9 @@ sp_instr_cpush::print(String *str)
   sp_instr_cpop class functions
 */
 
+PSI_statement_info sp_instr_cpop::psi_info=
+{ 0, "cpop", 0};
+
 int
 sp_instr_cpop::execute(THD *thd, uint *nextp)
 {
@@ -4339,6 +4471,9 @@ sp_instr_cpop::print(String *str)
   @todo
     Assert that we either have an error or a cursor
 */
+
+PSI_statement_info sp_instr_copen::psi_info=
+{ 0, "copen", 0};
 
 int
 sp_instr_copen::execute(THD *thd, uint *nextp)
@@ -4398,6 +4533,9 @@ sp_instr_copen::print(String *str)
   sp_instr_cclose class functions
 */
 
+PSI_statement_info sp_instr_cclose::psi_info=
+{ 0, "cclose", 0};
+
 int
 sp_instr_cclose::execute(THD *thd, uint *nextp)
 {
@@ -4439,6 +4577,9 @@ sp_instr_cclose::print(String *str)
 /*
   sp_instr_cfetch class functions
 */
+
+PSI_statement_info sp_instr_cfetch::psi_info=
+{ 0, "cfetch", 0};
 
 int
 sp_instr_cfetch::execute(THD *thd, uint *nextp)
@@ -4486,6 +4627,13 @@ sp_instr_cfetch::print(String *str)
     str->qs_append(pv->offset);
   }
 }
+
+/*
+  sp_instr_agg_cfetch class functions
+*/
+
+PSI_statement_info sp_instr_agg_cfetch::psi_info=
+{ 0, "agg_cfetch", 0};
 
 int
 sp_instr_agg_cfetch::execute(THD *thd, uint *nextp)
@@ -4538,6 +4686,9 @@ sp_instr_agg_cfetch::print(String *str)
   - opens the cursor without copying data (materialization).
   - copies the cursor structure to the associated %ROWTYPE variable.
 */
+
+PSI_statement_info sp_instr_cursor_copy_struct::psi_info=
+{ 0, "cursor_copy_struct", 0};
 
 int
 sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
@@ -4611,6 +4762,9 @@ sp_instr_cursor_copy_struct::print(String *str)
   sp_instr_error class functions
 */
 
+PSI_statement_info sp_instr_error::psi_info=
+{ 0, "error", 0};
+
 int
 sp_instr_error::execute(THD *thd, uint *nextp)
 {
@@ -4636,6 +4790,9 @@ sp_instr_error::print(String *str)
 /**************************************************************************
   sp_instr_set_case_expr class implementation
 **************************************************************************/
+
+PSI_statement_info sp_instr_set_case_expr::psi_info=
+{ 0, "set_case_expr", 0};
 
 int
 sp_instr_set_case_expr::execute(THD *thd, uint *nextp)

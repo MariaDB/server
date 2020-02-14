@@ -30,7 +30,7 @@
 #include "sql_alter.h"                // Alter_info
 #include "sql_window.h"
 #include "sql_trigger.h"
-#include "sp.h"                       // enum stored_procedure_type
+#include "sp.h"                       // enum enum_sp_type
 #include "sql_tvc.h"
 #include "item.h"
 #include "sql_limit.h"                // Select_limit_counters

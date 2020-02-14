@@ -47,16 +47,17 @@ template <typename T> class SQL_I_List;
 /*
   Values for the type enum. This reflects the order of the enum declaration
   in the CREATE TABLE command.
+  See also storage/perfschema/my_thread.h
 */
-enum stored_procedure_type
+enum enum_sp_type
 {
-  TYPE_ENUM_FUNCTION=1,
-  TYPE_ENUM_PROCEDURE=2,
-  TYPE_ENUM_PACKAGE=3,
-  TYPE_ENUM_PACKAGE_BODY=4,
-  TYPE_ENUM_TRIGGER=5
+  SP_TYPE_FUNCTION=1,
+  SP_TYPE_PROCEDURE=2,
+  SP_TYPE_PACKAGE=3,
+  SP_TYPE_PACKAGE_BODY=4,
+  SP_TYPE_TRIGGER=5,
+  SP_TYPE_EVENT=6,
 };
-
 
 class Sp_handler
 {
@@ -120,13 +121,13 @@ public: // TODO: make it private or protected
 public:
   virtual ~Sp_handler() {}
   static const Sp_handler *handler(enum enum_sql_command cmd);
-  static const Sp_handler *handler(stored_procedure_type type);
+  static const Sp_handler *handler(enum_sp_type type);
   static const Sp_handler *handler(MDL_key::enum_mdl_namespace ns);
   /*
     Return a handler only those SP objects that store
     definitions in the mysql.proc system table
   */
-  static const Sp_handler *handler_mysql_proc(stored_procedure_type type)
+  static const Sp_handler *handler_mysql_proc(enum_sp_type type)
   {
     const Sp_handler *sph= handler(type);
     return sph ? sph->sp_handler_mysql_proc() : NULL;
@@ -153,7 +154,7 @@ public:
   {
     return this;
   }
-  virtual stored_procedure_type type() const= 0;
+  virtual enum_sp_type type() const= 0;
   virtual LEX_CSTRING type_lex_cstring() const= 0;
   virtual LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
   {
@@ -248,7 +249,7 @@ public:
 class Sp_handler_procedure: public Sp_handler
 {
 public:
-  stored_procedure_type type() const { return TYPE_ENUM_PROCEDURE; }
+  enum_sp_type type() const { return SP_TYPE_PROCEDURE; }
   LEX_CSTRING type_lex_cstring() const
   {
     static LEX_CSTRING m_type_str= { STRING_WITH_LEN("PROCEDURE")};
@@ -298,7 +299,7 @@ public:
 class Sp_handler_function: public Sp_handler
 {
 public:
-  stored_procedure_type type() const { return TYPE_ENUM_FUNCTION; }
+  enum_sp_type type() const { return SP_TYPE_FUNCTION; }
   LEX_CSTRING type_lex_cstring() const
   {
     static LEX_CSTRING m_type_str= { STRING_WITH_LEN("FUNCTION")};
@@ -367,7 +368,7 @@ public: // TODO: make it private or protected
                                const Database_qualified_name *name)
                                const;
 public:
-  stored_procedure_type type() const { return TYPE_ENUM_PACKAGE; }
+  enum_sp_type type() const { return SP_TYPE_PACKAGE; }
   LEX_CSTRING type_lex_cstring() const
   {
     static LEX_CSTRING m_type_str= {STRING_WITH_LEN("PACKAGE")};
@@ -400,7 +401,7 @@ public:
 class Sp_handler_package_body: public Sp_handler_package
 {
 public:
-  stored_procedure_type type() const { return TYPE_ENUM_PACKAGE_BODY; }
+  enum_sp_type type() const { return SP_TYPE_PACKAGE_BODY; }
   LEX_CSTRING type_lex_cstring() const
   {
     static LEX_CSTRING m_type_str= {STRING_WITH_LEN("PACKAGE BODY")};
@@ -433,7 +434,7 @@ public:
 class Sp_handler_trigger: public Sp_handler
 {
 public:
-  stored_procedure_type type() const { return TYPE_ENUM_TRIGGER; }
+  enum_sp_type type() const { return SP_TYPE_TRIGGER; }
   LEX_CSTRING type_lex_cstring() const
   {
     static LEX_CSTRING m_type_str= { STRING_WITH_LEN("TRIGGER")};
@@ -492,19 +493,21 @@ inline const Sp_handler *Sp_handler::handler(enum_sql_command cmd)
 }
 
 
-inline const Sp_handler *Sp_handler::handler(stored_procedure_type type)
+inline const Sp_handler *Sp_handler::handler(enum_sp_type type)
 {
   switch (type) {
-  case TYPE_ENUM_PROCEDURE:
+  case SP_TYPE_PROCEDURE:
     return &sp_handler_procedure;
-  case TYPE_ENUM_FUNCTION:
+  case SP_TYPE_FUNCTION:
     return &sp_handler_function;
-  case TYPE_ENUM_PACKAGE:
+  case SP_TYPE_PACKAGE:
     return &sp_handler_package_spec;
-  case TYPE_ENUM_PACKAGE_BODY:
+  case SP_TYPE_PACKAGE_BODY:
     return &sp_handler_package_body;
-  case TYPE_ENUM_TRIGGER:
+  case SP_TYPE_TRIGGER:
     return &sp_handler_trigger;
+  case SP_TYPE_EVENT:
+    break;
   }
   return NULL;
 }

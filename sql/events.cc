@@ -34,6 +34,7 @@
 #include "sp_head.h" // for Stored_program_creation_ctx
 #include "set_var.h"
 #include "lock.h"   // lock_object_name
+#include "mysql/psi/mysql_sp.h"
 
 /**
   @addtogroup Event_Scheduler
@@ -620,6 +621,9 @@ Events::drop_event(THD *thd, const LEX_CSTRING *dbname,
     /* Binlog the drop event. */
     DBUG_ASSERT(thd->query() && thd->query_length());
     ret= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+    /* Drop statistics for this stored program from performance schema. */
+    MYSQL_DROP_SP(SP_TYPE_EVENT,
+                  dbname->str, dbname->length, name->str, name->length);
   }
 
   thd->restore_stmt_binlog_format(save_binlog_format);

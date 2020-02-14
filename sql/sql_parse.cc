@@ -101,6 +101,7 @@
 #include "sql_bootstrap.h"
 #include "sql_sequence.h"
 #include "opt_trace.h"
+#include "mysql/psi/mysql_sp.h"
 
 #include "my_json_writer.h" 
 
@@ -3063,7 +3064,7 @@ mysql_create_routine(THD *thd, LEX *lex)
 
   const LEX_CSTRING *name= lex->sphead->name();
 #ifdef HAVE_DLOPEN
-  if (lex->sphead->m_handler->type() == TYPE_ENUM_FUNCTION)
+  if (lex->sphead->m_handler->type() == SP_TYPE_FUNCTION)
   {
     udf_func *udf = find_udf(name->str, name->length);
 
@@ -5617,12 +5618,18 @@ mysql_execute_command(THD *thd)
     break; /* break super switch */
   } /* end case group bracket */
   case SQLCOM_COMPOUND:
+  {
+    sp_head *sp= lex->sphead;
     DBUG_ASSERT(all_tables == 0);
     DBUG_ASSERT(thd->in_sub_stmt == 0);
-    lex->sphead->m_sql_mode= thd->variables.sql_mode;
+    sp->m_sql_mode= thd->variables.sql_mode;
+    sp->m_sp_share= MYSQL_GET_SP_SHARE(sp->m_handler->type(),
+                                       sp->m_db.str, sp->m_db.length,
+                                       sp->m_name.str, sp->m_name.length);
     if (do_execute_sp(thd, lex->sphead))
       goto error;
     break;
+  }
 
   case SQLCOM_ALTER_PROCEDURE:
   case SQLCOM_ALTER_FUNCTION:

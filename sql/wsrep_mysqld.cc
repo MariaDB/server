@@ -1916,7 +1916,7 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 
   log_query.set_charset(system_charset_info);
 
-  if (sp->m_handler->type() == TYPE_ENUM_FUNCTION)
+  if (sp->m_handler->type() == SP_TYPE_FUNCTION)
   {
     sp_returns_type(thd, retstr, sp);
     returns= retstr.lex_cstring();

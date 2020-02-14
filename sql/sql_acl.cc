@@ -5886,18 +5886,19 @@ struct PRIVS_TO_MERGE
 };
 
 
-static enum PRIVS_TO_MERGE::what sp_privs_to_merge(stored_procedure_type type)
+static enum PRIVS_TO_MERGE::what sp_privs_to_merge(enum_sp_type type)
 {
   switch (type) {
-  case TYPE_ENUM_FUNCTION:
+  case SP_TYPE_FUNCTION:
     return PRIVS_TO_MERGE::FUNC;
-  case TYPE_ENUM_PROCEDURE:
+  case SP_TYPE_PROCEDURE:
     return PRIVS_TO_MERGE::PROC;
-  case TYPE_ENUM_PACKAGE:
+  case SP_TYPE_PACKAGE:
     return PRIVS_TO_MERGE::PACKAGE_SPEC;
-  case TYPE_ENUM_PACKAGE_BODY:
+  case SP_TYPE_PACKAGE_BODY:
     return PRIVS_TO_MERGE::PACKAGE_BODY;
-  case TYPE_ENUM_TRIGGER:
+  case SP_TYPE_EVENT:
+  case SP_TYPE_TRIGGER:
     break;
   }
   DBUG_ASSERT(0);
@@ -7748,7 +7749,7 @@ static bool grant_load(THD *thd,
             continue;
           }
         }
-        stored_procedure_type type= (stored_procedure_type)procs_priv.routine_type()->val_int();
+        enum_sp_type type= (enum_sp_type)procs_priv.routine_type()->val_int();
         const Sp_handler *sph= Sp_handler::handler(type);
         if (!sph || !(hash= sph->get_priv_hash()))
         {

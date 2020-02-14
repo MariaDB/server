@@ -6232,11 +6232,11 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
   proc_table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root, &definer);
   sql_mode= (sql_mode_t) proc_table->field[MYSQL_PROC_FIELD_SQL_MODE]->val_int();
-  sph= Sp_handler::handler_mysql_proc((stored_procedure_type)
+  sph= Sp_handler::handler_mysql_proc((enum_sp_type)
                                       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->
                                       val_int());
-  if (!sph || sph->type() == TYPE_ENUM_PACKAGE ||
-      sph->type() == TYPE_ENUM_PACKAGE_BODY)
+  if (!sph || sph->type() == SP_TYPE_PACKAGE ||
+      sph->type() == SP_TYPE_PACKAGE_BODY)
     DBUG_RETURN(0);
 
   if (!full_access)
@@ -6247,7 +6247,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
 
   proc_table->field[MYSQL_PROC_FIELD_PARAM_LIST]->val_str_nopad(thd->mem_root,
                                                                 &params);
-  if (sph->type() == TYPE_ENUM_FUNCTION)
+  if (sph->type() == SP_TYPE_FUNCTION)
     proc_table->field[MYSQL_PROC_FIELD_RETURNS]->val_str_nopad(thd->mem_root,
                                                                &returns);
   sp= sph->sp_load_for_information_schema(thd, proc_table, db, name,
@@ -6260,7 +6260,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
     Sql_mode_save sql_mode_backup(thd);
     thd->variables.sql_mode= sql_mode;
 
-    if (sph->type() == TYPE_ENUM_FUNCTION)
+    if (sph->type() == SP_TYPE_FUNCTION)
     {
       restore_record(table, s->default_values);
       table->field[0]->store(STRING_WITH_LEN("def"), cs);
@@ -6344,7 +6344,7 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
   proc_table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root, &definer);
-  sph= Sp_handler::handler_mysql_proc((stored_procedure_type)
+  sph= Sp_handler::handler_mysql_proc((enum_sp_type)
                                       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->
                                       val_int());
   if (!sph)
@@ -6373,7 +6373,7 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
       copy_field_as_string(table->field[4],
                            proc_table->field[MYSQL_PROC_MYSQL_TYPE]);
 
-      if (sph->type() == TYPE_ENUM_FUNCTION)
+      if (sph->type() == SP_TYPE_FUNCTION)
       {
         sp_head *sp;
         bool free_sp_head;

@@ -24,6 +24,7 @@
 #include "tztime.h"     // my_tz_find, my_tz_OFFSET0, struct Time_zone
 #include "log.h"        // sql_print_error
 #include "sql_class.h"  // struct THD
+#include "mysql/psi/mysql_sp.h"
 
 /**
   @addtogroup Event_Scheduler
@@ -351,6 +352,9 @@ Event_queue::drop_matching_events(THD *thd, const LEX_CSTRING *pattern,
         is ok.
       */
       queue_remove(&queue, i);
+      /* Drop statistics for this stored program from performance schema. */
+      MYSQL_DROP_SP(SP_TYPE_EVENT, et->dbname.str, et->dbname.length,
+                                   et->name.str, et->name.length);
       delete et;
     }
     else

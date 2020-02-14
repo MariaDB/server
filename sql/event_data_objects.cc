@@ -32,6 +32,7 @@
 #include "event_db_repository.h"
 #include "sp_head.h"
 #include "sql_show.h"                // append_definer, append_identifier
+#include "mysql/psi/mysql_sp.h"
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
@@ -1456,6 +1457,9 @@ Event_job_data::execute(THD *thd, bool drop)
     sphead->set_creation_ctx(creation_ctx);
     sphead->optimize();
 
+    sphead->m_sp_share= MYSQL_GET_SP_SHARE(SP_TYPE_EVENT,
+                                           dbname.str, dbname.length,
+                                           name.str, name.length);
     ret= sphead->execute_procedure(thd, &empty_item_list);
     /*
       There is no pre-locking and therefore there should be no
