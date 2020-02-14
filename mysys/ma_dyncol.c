@@ -3925,10 +3925,8 @@ mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
           }
           if ((alloc= (char *)my_malloc(bufflen, MYF(0))))
           {
-            len= my_convert(alloc, bufflen, cs,
-                            from, (uint32)len,
-                            val->x.string.charset,
-                            &dummy_errors);
+            len= my_convert(alloc, bufflen, cs, from, (uint32)len,
+                            val->x.string.charset, &dummy_errors);
             from= alloc;
           }
           else

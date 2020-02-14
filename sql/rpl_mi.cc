@@ -1570,6 +1570,8 @@ uint any_slave_sql_running(bool already_locked)
 
   if (!already_locked)
     mysql_mutex_lock(&LOCK_active_mi);
+  else
+    mysql_mutex_assert_owner(&LOCK_active_mi);
   if (unlikely(abort_loop || !master_info_index))
     count= 1;
   else

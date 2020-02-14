@@ -3444,7 +3444,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
         thd->mdl_context.release_statement_locks();
     }
   }
-  //TODO: why is this here if log_slow_query is in sp_instr_stmt_execute? 
+  //TODO: why is this here if log_slow_query is in sp_instr_stmt::execute?
   delete_explain_query(m_lex);
 
   if (m_lex->query_tables_own_last)

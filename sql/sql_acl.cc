@@ -68,6 +68,15 @@ const uint max_hostname_length= 60;
 const uint max_dbname_length= 64;
 #endif
 
+const char *safe_vio_type_name(Vio *vio)
+{
+  int unused;
+#ifdef EMBEDDED_LIBRARY
+  if (!vio) return "Internal";
+#endif
+  return vio_type_name(vio_type(vio), &unused);
+}
+
 #include "sql_acl_getsort.ic"
 
 static LEX_CSTRING native_password_plugin_name= {
@@ -13994,17 +14003,9 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   */
   if (sctx->user)
   {
-    if (strcmp(sctx->priv_user, sctx->user))
-    {
-      general_log_print(thd, command, "%s@%s as %s on %s",
-                        sctx->user, sctx->host_or_ip,
-                        sctx->priv_user[0] ? sctx->priv_user : "anonymous",
-                        safe_str(mpvio.db.str));
-    }
-    else
-      general_log_print(thd, command, (char*) "%s@%s on %s",
-                        sctx->user, sctx->host_or_ip,
-                        safe_str(mpvio.db.str));
+    general_log_print(thd, command, (char*) "%s@%s on %s using %s",
+                      sctx->user, sctx->host_or_ip,
+                      safe_str(mpvio.db.str), safe_vio_type_name(thd->net.vio));
   }
 
   if (res > CR_OK && mpvio.status != MPVIO_EXT::SUCCESS)

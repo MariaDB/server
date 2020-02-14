@@ -25,7 +25,7 @@
 
 
 	/* from my_init */
-char *	home_dir=0;
+char *home_dir=0;
 char *mysql_data_home= (char*) ".";
 const char      *my_progname= NULL, *my_progname_short= NULL;
 char		curr_dir[FN_REFLEN]= {0},

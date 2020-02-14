@@ -273,7 +273,7 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
   if (is_infoschema_db(db))
     return TABLE_CATEGORY_INFORMATION;
 
-  if (lex_string_eq(&PERFORMANCE_SCHEMA_DB_NAME, db))
+  if (is_perfschema_db(db))
     return TABLE_CATEGORY_PERFORMANCE;
 
   if (lex_string_eq(&MYSQL_SCHEMA_NAME, db))

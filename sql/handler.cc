@@ -1459,9 +1459,7 @@ int ha_commit_trans(THD *thd, bool all)
       thd->transaction.cleanup();
 #ifdef WITH_WSREP
     if (wsrep_is_active(thd) && is_real_trans && !error)
-    {
       wsrep_commit_empty(thd, all);
-    }
 #endif /* WITH_WSREP */
     DBUG_RETURN(0);
   }

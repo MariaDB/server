@@ -1740,6 +1740,7 @@ void pfs_register_stage_v1(const char *category,
     DBUG_ASSERT(info != NULL);
     DBUG_ASSERT(info->m_name != NULL);
     len= (int)strlen(info->m_name);
+    DBUG_ASSERT(len <= 64); // see table_threads.cc near PROCESSLIST_STATE
     full_length= prefix_length + len;
     if (likely(full_length <= PFS_MAX_INFO_NAME_LENGTH))
     {

@@ -3060,9 +3060,12 @@ extern LEX_CSTRING MYSQL_PROC_NAME;
 
 inline bool is_infoschema_db(const LEX_CSTRING *name)
 {
-  return (INFORMATION_SCHEMA_NAME.length == name->length &&
-          !my_strcasecmp(system_charset_info,
-                         INFORMATION_SCHEMA_NAME.str, name->str));
+  return lex_string_eq(&INFORMATION_SCHEMA_NAME, name);
+}
+
+inline bool is_perfschema_db(const LEX_CSTRING *name)
+{
+  return lex_string_eq(&PERFORMANCE_SCHEMA_DB_NAME, name);
 }
 
 inline void mark_as_null_row(TABLE *table)

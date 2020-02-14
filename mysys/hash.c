@@ -83,7 +83,7 @@ my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
               void (*free_element)(void*), uint flags)
 {
   my_bool res;
-  DBUG_ENTER("my_hash_init");
+  DBUG_ENTER("my_hash_init2");
   DBUG_PRINT("enter",("hash:%p  size: %u", hash, (uint) size));
 
   hash->records=0;

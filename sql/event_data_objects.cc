@@ -1430,10 +1430,8 @@ Event_job_data::execute(THD *thd, bool drop)
 
     if (parse_sql(thd, & parser_state, creation_ctx))
     {
-      sql_print_error("Event Scheduler: "
-                      "%serror during compilation of %s.%s",
-                      thd->is_fatal_error ? "fatal " : "",
-                      (const char *) dbname.str, (const char *) name.str);
+      sql_print_error("Event Scheduler: %serror during compilation of %s.%s",
+                      thd->is_fatal_error ? "fatal " : "", dbname.str, name.str);
       goto end;
     }
   }

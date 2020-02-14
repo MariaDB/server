@@ -247,13 +247,13 @@ class SplM_opt_info;
 typedef struct st_join_table {
   TABLE		*table;
   TABLE_LIST    *tab_list;
-  KEYUSE	*keyuse;			/**< pointer to first used key */
+  KEYUSE	*keyuse;       /**< pointer to first used key */
   KEY           *hj_key;       /**< descriptor of the used best hash join key
-				    not supported by any index                 */
+                                    not supported by any index               */
   SQL_SELECT	*select;
   COND		*select_cond;
   COND          *on_precond;    /**< part of on condition to check before
-				     accessing the first inner table           */  
+                                     accessing the first inner table         */
   QUICK_SELECT_I *quick;
   /* 
     The value of select_cond before we've attempted to do Index Condition

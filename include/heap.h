@@ -153,7 +153,6 @@ typedef struct st_heap_share
   char * name;			/* Name of "memory-file" */
   time_t create_time;
   THR_LOCK lock;
-  mysql_mutex_t intern_lock;            /* Locking for use with _locking */
   my_bool delete_on_close;
   my_bool internal;                     /* Internal temporary table */
   LIST open_list;

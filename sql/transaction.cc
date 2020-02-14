@@ -245,18 +245,12 @@ bool trans_commit(THD *thd)
       if res is non-zero, then ha_commit_trans has rolled back the
       transaction, so the hooks for rollback will be called.
     */
+#ifdef HAVE_REPLICATION
   if (res)
-  {
-#ifdef HAVE_REPLICATION
     repl_semisync_master.wait_after_rollback(thd, FALSE);
-#endif
-  }
   else
-  {
-#ifdef HAVE_REPLICATION
     repl_semisync_master.wait_after_commit(thd, FALSE);
 #endif
-  }
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.reset();
   thd->lex->start_transaction_opt= 0;

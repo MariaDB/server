@@ -424,7 +424,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   /** The instrumentation key to use for opening the log index file. */
   PSI_file_key m_key_file_log_index;
 
-  PSI_file_key m_key_COND_queue_busy;
+  PSI_cond_key m_key_COND_queue_busy;
   /** The instrumentation key to use for LOCK_binlog_end_pos. */
   PSI_mutex_key m_key_LOCK_binlog_end_pos;
 #endif
@@ -675,7 +675,7 @@ public:
                     PSI_cond_key key_bin_log_update,
                     PSI_file_key key_file_log,
                     PSI_file_key key_file_log_index,
-                    PSI_file_key key_COND_queue_busy,
+                    PSI_cond_key key_COND_queue_busy,
                     PSI_mutex_key key_LOCK_binlog_end_pos)
   {
     m_key_LOCK_index= key_LOCK_index;

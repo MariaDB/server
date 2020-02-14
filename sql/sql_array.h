@@ -170,6 +170,11 @@ public:
     return ((const Elem*)array.buffer) + array.elements - 1;
   }
 
+  const Elem *end() const
+  {
+    return back() + 1;
+  }
+
   /// @returns pointer to n-th element
   Elem *get_pos(size_t idx)
   {
@@ -181,7 +186,6 @@ public:
   {
     return ((const Elem*)array.buffer) + idx;
   }
-
 
   /**
      @retval false ok
@@ -240,10 +244,16 @@ public:
     freeze_size(&array);
   }
 
+  bool reserve(size_t new_size)
+  {
+    return allocate_dynamic(&array, (uint)new_size);
+  }
+
+
   bool resize(size_t new_size, Elem default_val)
   {
     size_t old_size= elements();
-    if (unlikely(allocate_dynamic(&array, (uint)new_size)))
+    if (reserve(new_size))
       return true;
     
     if (new_size > old_size)

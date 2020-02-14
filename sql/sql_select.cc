@@ -13495,8 +13495,7 @@ bool JOIN_TAB::preread_init()
   if ((!derived->get_unit()->executed  ||
        derived->is_recursive_with_table() ||
        derived->get_unit()->uncacheable) &&
-      mysql_handle_single_derived(join->thd->lex,
-                                    derived, DT_CREATE | DT_FILL))
+      mysql_handle_single_derived(join->thd->lex, derived, DT_CREATE | DT_FILL))
       return TRUE;
 
   if (!(derived->get_unit()->uncacheable & UNCACHEABLE_DEPENDENT) ||

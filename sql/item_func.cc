@@ -4299,7 +4299,7 @@ static PSI_mutex_key key_LOCK_item_func_sleep;
 
 static PSI_mutex_info item_func_sleep_mutexes[]=
 {
-  { &key_LOCK_item_func_sleep, "LOCK_user_locks", PSI_FLAG_GLOBAL}
+  { &key_LOCK_item_func_sleep, "LOCK_item_func_sleep", PSI_FLAG_GLOBAL}
 };
 
 
@@ -4682,8 +4682,7 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
 	  entry->value=0;
         entry->value= (char*) my_realloc(entry->value, length,
                                          MYF(MY_ALLOW_ZERO_PTR | MY_WME |
-                                             ME_FATAL |
-                                             MY_THREAD_SPECIFIC));
+                                             ME_FATAL | MY_THREAD_SPECIFIC));
         if (!entry->value)
 	  return 1;
       }

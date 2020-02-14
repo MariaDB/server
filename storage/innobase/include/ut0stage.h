@@ -41,8 +41,6 @@ Created Nov 12, 2014 Vasil Dimov
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 
-typedef void PSI_stage_progress;
-
 /** Class used to report ALTER TABLE progress via performance_schema.
 The only user of this class is the ALTER TABLE code and it calls the methods
 in the following order

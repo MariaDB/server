@@ -22,7 +22,7 @@
 
 
 /***************************************************************************
-  Handling of XA id cacheing
+  Handling of XA id caching
 ***************************************************************************/
 enum xa_states { XA_ACTIVE= 0, XA_IDLE, XA_PREPARED, XA_ROLLBACK_ONLY };
 

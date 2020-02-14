@@ -1723,7 +1723,8 @@ static int binlog_close_connection(handlerton *hton, THD *thd)
     if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
   }
 #endif /* WITH_WSREP */
-  DBUG_ASSERT(cache_mngr->trx_cache.empty() && cache_mngr->stmt_cache.empty());
+  DBUG_ASSERT(cache_mngr->trx_cache.empty());
+  DBUG_ASSERT(cache_mngr->stmt_cache.empty());
   cache_mngr->~binlog_cache_mngr();
   my_free(cache_mngr);
   DBUG_RETURN(0);
