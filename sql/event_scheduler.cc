@@ -291,6 +291,15 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
   DBUG_ASSERT(thd->m_digest == NULL);
   DBUG_ASSERT(thd->m_statement_psi == NULL);
 
+#ifdef HAVE_PSI_STATEMENT_INTERFACE
+  PSI_statement_locker_state state;
+  thd->m_statement_psi= MYSQL_START_STATEMENT(& state,
+                                              event->get_psi_info()->m_key,
+                                              event->dbname.str,
+                                              event->dbname.length,
+                                              thd->charset(), NULL);
+#endif
+
   thd->thread_stack= &my_stack;                // remember where our stack is
   res= post_init_event_thread(thd);
 
@@ -319,7 +328,10 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
                           job_data.definer.str,
                           job_data.dbname.str, job_data.name.str);
 end:
-  DBUG_ASSERT(thd->m_statement_psi == NULL);
+#ifdef HAVE_PSI_STATEMENT_INTERFACE
+  MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+  thd->m_statement_psi= NULL;
+#endif
   DBUG_ASSERT(thd->m_digest == NULL);
   DBUG_PRINT("info", ("Done with Event %s.%s", event->dbname.str,
              event->name.str));

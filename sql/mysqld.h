@@ -655,7 +655,6 @@ extern PSI_stage_info stage_waiting_for_table_flush;
 extern PSI_stage_info stage_waiting_for_the_next_event_in_relay_log;
 extern PSI_stage_info stage_waiting_for_the_slave_thread_to_advance_position;
 extern PSI_stage_info stage_waiting_to_finalize_termination;
-extern PSI_stage_info stage_waiting_to_get_readlock;
 extern PSI_stage_info stage_binlog_waiting_background_tasks;
 extern PSI_stage_info stage_binlog_write;
 extern PSI_stage_info stage_binlog_processing_checkpoint_notify;
@@ -674,6 +673,7 @@ extern PSI_stage_info stage_gtid_wait_other_connection;
 extern PSI_stage_info stage_slave_background_process_request;
 extern PSI_stage_info stage_slave_background_wait_request;
 extern PSI_stage_info stage_waiting_for_deadlock_kill;
+extern PSI_stage_info stage_starting;
 
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 /**

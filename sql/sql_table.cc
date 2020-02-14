@@ -10744,6 +10744,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   to->file->extra(HA_EXTRA_PREPARE_FOR_ALTER_TABLE);
   to->file->ha_start_bulk_insert(from->file->stats.records,
                                  ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
+  mysql_stage_set_work_estimated(thd->m_stage_progress_psi, from->file->stats.records);
+
   List_iterator<Create_field> it(create);
   Create_field *def;
   copy_end=copy;
@@ -10844,7 +10846,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   from->file->column_bitmaps_signal();
 
-  THD_STAGE_INFO(thd, stage_copy_to_tmp_table);
   /* Tell handler that we have values for all columns in the to table */
   to->use_all_columns();
   /* Add virtual columns to vcol_set to ensure they are updated */
@@ -10990,7 +10991,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       }
     }
     else
+    {
+      DEBUG_SYNC(thd, "copy_data_between_tables_before");
       found_count++;
+      mysql_stage_set_work_completed(thd->m_stage_progress_psi, found_count);
+    }
     thd->get_stmt_da()->inc_current_row_for_warning();
   }
 

@@ -1166,9 +1166,9 @@ void net_after_header_psi(struct st_net *net, void *user_data,
     thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                 stmt_info_new_packet.m_key,
                                                 thd->get_db(), thd->db.length,
-                                                thd->charset());
+                                                thd->charset(), NULL);
 
-    THD_STAGE_INFO(thd, stage_init);
+    THD_STAGE_INFO(thd, stage_starting);
   }
 
   /*
@@ -9158,25 +9158,25 @@ PSI_stage_info stage_after_create= { 0, "After create", 0};
 PSI_stage_info stage_after_opening_tables= { 0, "After opening tables", 0};
 PSI_stage_info stage_after_table_lock= { 0, "After table lock", 0};
 PSI_stage_info stage_allocating_local_table= { 0, "Allocating local table", 0};
-PSI_stage_info stage_alter_inplace_prepare= { 0, "Preparing for alter table", 0};
-PSI_stage_info stage_alter_inplace= { 0, "Altering table", 0};
+PSI_stage_info stage_alter_inplace_prepare= { 0, "preparing for alter table", 0};
+PSI_stage_info stage_alter_inplace= { 0, "altering table", 0};
 PSI_stage_info stage_alter_inplace_commit= { 0, "Committing alter table to storage engine", 0};
 PSI_stage_info stage_apply_event= { 0, "Apply log event", 0};
 PSI_stage_info stage_changing_master= { 0, "Changing master", 0};
 PSI_stage_info stage_checking_master_version= { 0, "Checking master version", 0};
-PSI_stage_info stage_checking_permissions= { 0, "Checking permissions", 0};
-PSI_stage_info stage_checking_privileges_on_cached_query= { 0, "Checking privileges on cached query", 0};
+PSI_stage_info stage_checking_permissions= { 0, "checking permissions", 0};
+PSI_stage_info stage_checking_privileges_on_cached_query= { 0, "checking privileges on cached query", 0};
 PSI_stage_info stage_checking_query_cache_for_query= { 0, "Checking query cache for query", 0};
 PSI_stage_info stage_cleaning_up= { 0, "Reset for next command", 0};
-PSI_stage_info stage_closing_tables= { 0, "Closing tables", 0};
+PSI_stage_info stage_closing_tables= { 0, "closing tables", 0};
 PSI_stage_info stage_connecting_to_master= { 0, "Connecting to master", 0};
 PSI_stage_info stage_converting_heap_to_myisam= { 0, "Converting HEAP to " TMP_ENGINE_NAME, 0};
 PSI_stage_info stage_copying_to_group_table= { 0, "Copying to group table", 0};
 PSI_stage_info stage_copying_to_tmp_table= { 0, "Copying to tmp table", 0};
-PSI_stage_info stage_copy_to_tmp_table= { 0, "Copy to tmp table", 0};
+PSI_stage_info stage_copy_to_tmp_table= { 0, "copy to tmp table", PSI_FLAG_STAGE_PROGRESS};
 PSI_stage_info stage_creating_delayed_handler= { 0, "Creating delayed handler", 0};
 PSI_stage_info stage_creating_sort_index= { 0, "Creating sort index", 0};
-PSI_stage_info stage_creating_table= { 0, "Creating table", 0};
+PSI_stage_info stage_creating_table= { 0, "creating table", 0};
 PSI_stage_info stage_creating_tmp_table= { 0, "Creating tmp table", 0};
 PSI_stage_info stage_deleting_from_main_table= { 0, "Deleting from main table", 0};
 PSI_stage_info stage_deleting_from_reference_tables= { 0, "Deleting from reference tables", 0};
@@ -9194,8 +9194,8 @@ PSI_stage_info stage_freeing_items= { 0, "Freeing items", 0};
 PSI_stage_info stage_fulltext_initialization= { 0, "Fulltext initialization", 0};
 PSI_stage_info stage_got_handler_lock= { 0, "Got handler lock", 0};
 PSI_stage_info stage_got_old_table= { 0, "Got old table", 0};
-PSI_stage_info stage_init= { 0, "Init", 0};
-PSI_stage_info stage_init_update= { 0, "Init for update", 0};
+PSI_stage_info stage_init= { 0, "init", 0};
+PSI_stage_info stage_init_update= { 0, "init for update", 0};
 PSI_stage_info stage_insert= { 0, "Insert", 0};
 PSI_stage_info stage_invalidating_query_cache_entries_table= { 0, "Invalidating query cache entries (table)", 0};
 PSI_stage_info stage_invalidating_query_cache_entries_table_list= { 0, "Invalidating query cache entries (table list)", 0};
@@ -9214,7 +9214,7 @@ PSI_stage_info stage_starting_cleanup= { 0, "Starting cleanup", 0};
 PSI_stage_info stage_rollback= { 0, "Rollback", 0};
 PSI_stage_info stage_rollback_implicit= { 0, "Rollback_implicit", 0};
 PSI_stage_info stage_commit= { 0, "Commit", 0};
-PSI_stage_info stage_commit_implicit= { 0, "Commit_implicit", 0};
+PSI_stage_info stage_commit_implicit= { 0, "Commit implicit", 0};
 PSI_stage_info stage_queueing_master_event_to_the_relay_log= { 0, "Queueing master event to the relay log", 0};
 PSI_stage_info stage_reading_event_from_the_relay_log= { 0, "Reading event from the relay log", 0};
 PSI_stage_info stage_recreating_table= { 0, "Recreating table", 0};
@@ -9229,7 +9229,7 @@ PSI_stage_info stage_searching_rows_for_update= { 0, "Searching rows for update"
 PSI_stage_info stage_sending_binlog_event_to_slave= { 0, "Sending binlog event to slave", 0};
 PSI_stage_info stage_sending_cached_result_to_client= { 0, "Sending cached result to client", 0};
 PSI_stage_info stage_sending_data= { 0, "Sending data", 0};
-PSI_stage_info stage_setup= { 0, "Setup", 0};
+PSI_stage_info stage_setup= { 0, "setup", 0};
 PSI_stage_info stage_show_explain= { 0, "Show explain", 0};
 PSI_stage_info stage_slave_has_read_all_relay_log= { 0, "Slave has read all relay log; waiting for more updates", 0};
 PSI_stage_info stage_sorting= { 0, "Sorting", 0};
@@ -9242,7 +9242,7 @@ PSI_stage_info stage_storing_result_in_query_cache= { 0, "Storing result in quer
 PSI_stage_info stage_storing_row_into_queue= { 0, "Storing row into queue", 0};
 PSI_stage_info stage_system_lock= { 0, "System lock", 0};
 PSI_stage_info stage_unlocking_tables= { 0, "Unlocking tables", 0};
-PSI_stage_info stage_table_lock= { 0, "Table lock", 0};
+PSI_stage_info stage_table_lock= { 0, "table lock", 0};
 PSI_stage_info stage_filling_schema_table= { 0, "Filling schema table", 0};
 PSI_stage_info stage_update= { 0, "Update", 0};
 PSI_stage_info stage_updating= { 0, "Updating", 0};
@@ -9272,7 +9272,6 @@ PSI_stage_info stage_waiting_for_query_cache_lock= { 0, "Waiting for query cache
 PSI_stage_info stage_waiting_for_the_next_event_in_relay_log= { 0, "Waiting for the next event in relay log", 0};
 PSI_stage_info stage_waiting_for_the_slave_thread_to_advance_position= { 0, "Waiting for the slave SQL thread to advance position", 0};
 PSI_stage_info stage_waiting_to_finalize_termination= { 0, "Waiting to finalize termination", 0};
-PSI_stage_info stage_waiting_to_get_readlock= { 0, "Waiting to get readlock", 0};
 PSI_stage_info stage_binlog_waiting_background_tasks= { 0, "Waiting for background binlog tasks", 0};
 PSI_stage_info stage_binlog_write= { 0, "Writing to binlog", 0};
 PSI_stage_info stage_binlog_processing_checkpoint_notify= { 0, "Processing binlog checkpoint notification", 0};
@@ -9291,6 +9290,7 @@ PSI_stage_info stage_gtid_wait_other_connection= { 0, "Waiting for other master 
 PSI_stage_info stage_slave_background_process_request= { 0, "Processing requests", 0};
 PSI_stage_info stage_slave_background_wait_request= { 0, "Waiting for requests", 0};
 PSI_stage_info stage_waiting_for_deadlock_kill= { 0, "Waiting for parallel replication deadlock handling to complete", 0};
+PSI_stage_info stage_starting= { 0, "starting", 0};
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -9419,7 +9419,6 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_for_the_slave_thread_to_advance_position,
   & stage_waiting_for_work_from_sql_thread,
   & stage_waiting_to_finalize_termination,
-  & stage_waiting_to_get_readlock,
   & stage_master_gtid_wait_primary,
   & stage_master_gtid_wait,
   & stage_gtid_wait_other_connection,
@@ -9428,7 +9427,8 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_for_semi_sync_ack_from_slave,
   & stage_waiting_for_semi_sync_slave,
   & stage_reading_semi_sync_ack,
-  & stage_waiting_for_deadlock_kill
+  & stage_waiting_for_deadlock_kill,
+  & stage_starting
 };
 
 PSI_socket_key key_socket_tcpip, key_socket_unix, key_socket_client_connection;

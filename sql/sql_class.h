@@ -2390,7 +2390,7 @@ public:
                             calling_line);
 #endif
 #ifdef HAVE_PSI_THREAD_INTERFACE
-    MYSQL_SET_STAGE(m_current_stage_key, calling_file, calling_line);
+    m_stage_progress_psi= MYSQL_SET_STAGE(m_current_stage_key, calling_file, calling_line);
 #endif
   }
 
@@ -2988,6 +2988,8 @@ public:
   PROFILING  profiling;
 #endif
 
+  /** Current stage progress instrumentation. */
+  PSI_stage_progress *m_stage_progress_psi;
   /** Current statement digest. */
   sql_digest_state *m_digest;
   /** Current statement digest token array. */

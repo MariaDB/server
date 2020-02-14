@@ -1065,6 +1065,8 @@ static void init_events_psi_keys(void)
 
   count= array_elements(all_events_memory);
   mysql_memory_register(category, all_events_memory, count);
+
+  init_scheduler_psi_keys();
 }
 #endif /* HAVE_PSI_INTERFACE */
 

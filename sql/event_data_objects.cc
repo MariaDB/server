@@ -41,6 +41,18 @@
   @{
 */
 
+#ifdef HAVE_PSI_INTERFACE
+void init_scheduler_psi_keys()
+{
+  const char *category= "scheduler";
+
+  PSI_server->register_statement(category, & Event_queue_element_for_exec::psi_info, 1);
+}
+
+PSI_statement_info Event_queue_element_for_exec::psi_info=
+{ 0, "event", 0};
+#endif
+
 /*************************************************************************/
 
 /**
@@ -1428,10 +1440,20 @@ Event_job_data::execute(THD *thd, bool drop)
 
   {
     Parser_state parser_state;
+    sql_digest_state *parent_digest= thd->m_digest;
+    PSI_statement_locker *parent_locker= thd->m_statement_psi;
+    bool res;
+
     if (parser_state.init(thd, thd->query(), thd->query_length()))
       goto end;
 
-    if (parse_sql(thd, & parser_state, creation_ctx))
+    thd->m_digest= NULL;
+    thd->m_statement_psi= NULL;
+    res= parse_sql(thd, & parser_state, creation_ctx);
+    thd->m_digest= parent_digest;
+    thd->m_statement_psi= parent_locker;
+
+    if (res)
     {
       sql_print_error("Event Scheduler: %serror during compilation of %s.%s",
                       thd->is_fatal_error ? "fatal " : "", dbname.str, name.str);

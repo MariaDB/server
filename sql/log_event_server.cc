@@ -1833,8 +1833,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                     stmt_info_rpl.m_key,
                                                     thd->db.str, thd->db.length,
-                                                    thd->charset());
-        THD_STAGE_INFO(thd, stage_init);
+                                                    thd->charset(), NULL);
+        THD_STAGE_INFO(thd, stage_starting);
         MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(), thd->query_length());
         if (thd->m_digest != NULL)
           thd->m_digest->reset(thd->m_token_array, max_digest_length);
