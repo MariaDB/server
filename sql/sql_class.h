@@ -1021,6 +1021,39 @@ inline bool is_supported_parser_charset(CHARSET_INFO *cs)
   return MY_TEST(cs->mbminlen == 1);
 }
 
+/** THD registry */
+class THD_list_iterator
+{
+protected:
+  I_List<THD> threads;
+  mutable mysql_rwlock_t lock;
+
+public:
+
+  /**
+    Iterates registered threads.
+
+    @param action      called for every element
+    @param argument    opque argument passed to action
+
+    @return
+      @retval 0 iteration completed successfully
+      @retval 1 iteration was interrupted (action returned 1)
+  */
+  template <typename T> int iterate(my_bool (*action)(THD *thd, T *arg), T *arg= 0)
+  {
+    int res= 0;
+    mysql_rwlock_rdlock(&lock);
+    I_List_iterator<THD> it(threads);
+    while (auto tmp= it++)
+      if ((res= action(tmp, arg)))
+        break;
+    mysql_rwlock_unlock(&lock);
+    return res;
+  }
+  static THD_list_iterator *iterator();
+};
+
 #ifdef MYSQL_SERVER
 
 void free_tmp_table(THD *thd, TABLE *entry);
@@ -2375,8 +2408,21 @@ public:
   */
   const char *proc_info;
 
+  void set_psi(PSI_thread *psi)
+  {
+    my_atomic_storeptr(&m_psi, psi);
+  }
+
+  PSI_thread* get_psi()
+  {
+    return static_cast<PSI_thread*>(my_atomic_loadptr(&m_psi));
+  }
+
 private:
   unsigned int m_current_stage_key;
+
+  /** Performance schema thread instrumentation for this session. */
+  PSI_thread *m_psi;
 
 public:
   void enter_stage(const PSI_stage_info *stage,
@@ -7262,11 +7308,8 @@ private:
 
 
 /** THD registry */
-class THD_list
+class THD_list: public THD_list_iterator
 {
-  I_List<THD> threads;
-  mutable mysql_rwlock_t lock;
-
 public:
   /**
     Constructor replacement.
@@ -7313,28 +7356,6 @@ public:
     mysql_rwlock_wrlock(&lock);
     thd->unlink();
     mysql_rwlock_unlock(&lock);
-  }
-
-  /**
-    Iterates registered threads.
-
-    @param action      called for every element
-    @param argument    opque argument passed to action
-
-    @return
-      @retval 0 iteration completed successfully
-      @retval 1 iteration was interrupted (action returned 1)
-  */
-  template <typename T> int iterate(my_bool (*action)(THD *thd, T *arg), T *arg= 0)
-  {
-    int res= 0;
-    mysql_rwlock_rdlock(&lock);
-    I_List_iterator<THD> it(threads);
-    while (auto tmp= it++)
-      if ((res= action(tmp, arg)))
-        break;
-    mysql_rwlock_unlock(&lock);
-    return res;
   }
 };
 

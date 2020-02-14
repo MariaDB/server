@@ -1435,6 +1435,10 @@ end_thread:
         !(connect= cache_thread(thd)))
       break;
 
+    /* Create new instrumentation for the new THD job */
+    PSI_CALL_set_thread(PSI_CALL_new_thread(key_thread_one_connection, thd,
+                                            thd->thread_id));
+
     if (!(connect->create_thd(thd)))
     {
       /* Out of resources. Free thread to get more resources */
@@ -1448,13 +1452,6 @@ end_thread:
       with the new thread_id
     */
     thd->store_globals();
-
-    /*
-      Create new instrumentation for the new THD job,
-      and attach it to this running pthread.
-    */
-    PSI_CALL_set_thread(PSI_CALL_new_thread(key_thread_one_connection,
-                                            thd, thd->thread_id));
 
     /* reset abort flag for the thread */
     thd->mysys_var->abort= 0;
@@ -1576,5 +1573,14 @@ THD *CONNECT::create_thd(THD *thd)
 
   thd->scheduler=          scheduler;
   thd->real_id= pthread_self(); /* Duplicates THD::store_globals() setting. */
+
+  /* Attach PSI instrumentation to the new THD */
+
+  PSI_thread *psi= PSI_CALL_get_thread();
+  PSI_CALL_set_thread_os_id(psi);
+  PSI_CALL_set_thread_THD(psi, thd);
+  PSI_CALL_set_thread_id(psi, thd->thread_id);
+  thd->set_psi(psi);
+
   DBUG_RETURN(thd);
 }

@@ -5445,6 +5445,7 @@ int mysqld_main(int argc, char **argv)
       init_server_psi_keys();
       /* Instrument the main thread */
       PSI_thread *psi= PSI_CALL_new_thread(key_thread_main, NULL, 0);
+      PSI_CALL_set_thread_os_id(psi);
       PSI_CALL_set_thread(psi);
 
       /*

@@ -565,8 +565,7 @@ schema */
 #  define pfs_register_thread(key)			\
 do {								\
 	struct PSI_thread* psi = PSI_CALL_new_thread(key, NULL, 0);\
-	/* JAN: TODO: MYSQL 5.7 PSI                             \
-	PSI_CALL_set_thread_os_id(psi);	*/		\
+	PSI_CALL_set_thread_os_id(psi);			\
 	PSI_CALL_set_thread(psi);			\
 } while (0)
 

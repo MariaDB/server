@@ -488,6 +488,7 @@ handle_slave_background(void *arg __attribute__((unused)))
 #ifdef WITH_WSREP
   thd->variables.wsrep_on= 0;
 #endif
+  thd->set_psi(PSI_CALL_get_thread());
 
   thd_proc_info(thd, "Loading slave GTID position from table");
   if (rpl_load_gtid_slave_state(thd))
@@ -4728,6 +4729,8 @@ pthread_handler_t handle_slave_io(void *arg)
   THD_CHECK_SENTRY(thd);
   mi->io_thd = thd;
 
+  thd->set_psi(PSI_CALL_get_thread());
+
   pthread_detach_this_thread();
   thd->thread_stack= (char*) &thd; // remember where our stack is
   mi->clear_error();
@@ -5366,6 +5369,8 @@ pthread_handler_t handle_slave_sql(void *arg)
     executing SQL queries too.
   */
   serial_rgi->thd= rli->sql_driver_thd= thd;
+
+  thd->set_psi(PSI_CALL_get_thread());
   
   /* Inform waiting threads that slave has started */
   rli->slave_run_id++;
