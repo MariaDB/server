@@ -43,6 +43,7 @@
 
 static HASH system_variable_hash;
 static PolyLock_mutex PLock_global_system_variables(&LOCK_global_system_variables);
+static ulonglong system_variable_hash_version= 0;
 
 /**
   Return variable name and length for hashing of variables.
@@ -584,6 +585,8 @@ int mysql_add_sys_var_chain(sys_var *first)
       goto error;
     }
   }
+  /* Update system_variable_hash version. */
+  system_variable_hash_version++;
   return 0;
 
 error:
@@ -614,6 +617,8 @@ int mysql_del_sys_var_chain(sys_var *first)
     result|= my_hash_delete(&system_variable_hash, (uchar*) var);
   mysql_prlock_unlock(&LOCK_system_variables_hash);
 
+  /* Update system_variable_hash version. */
+  system_variable_hash_version++;
   return result;
 }
 
@@ -621,6 +626,16 @@ int mysql_del_sys_var_chain(sys_var *first)
 static int show_cmp(SHOW_VAR *a, SHOW_VAR *b)
 {
   return strcmp(a->name, b->name);
+}
+
+
+/*
+  Number of records in the system_variable_hash.
+  Requires lock on LOCK_system_variables_hash.
+*/
+ulong get_system_variable_hash_records(void)
+{
+  return system_variable_hash.records;
 }
 
 
@@ -1504,3 +1519,13 @@ pretty_print_engine_list(THD *thd, plugin_ref *list)
   *pos= '\0';
   return buf;
 }
+
+/*
+  Current version of the system_variable_hash.
+  Requires lock on LOCK_system_variables_hash.
+*/
+ulonglong get_system_variable_hash_version(void)
+{
+  return system_variable_hash_version;
+}
+
