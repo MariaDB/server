@@ -590,7 +590,7 @@ dberr_t mapped_file_t::map(const char *path, int flags) noexcept
     return DB_ERROR;
   }
 
-  void *ptr= my_mmap(0, stat.st_size,
+  void *ptr= my_mmap(0, static_cast<size_t>(stat.st_size),
                      srv_read_only_mode ? PROT_READ : PROT_READ | PROT_WRITE,
                      MAP_SHARED_VALIDATE | flags, fd, 0);
   mysql_file_close(fd, MYF(MY_WME));
