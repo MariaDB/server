@@ -122,6 +122,7 @@ When one supplies long data for a placeholder:
 #include "lock.h"                               // MYSQL_OPEN_FORCE_SHARED_MDL
 #include "sql_handler.h"
 #include "transaction.h"                        // trans_rollback_implicit
+#include "mysql/psi/mysql_ps.h"                 // MYSQL_EXECUTE_PS
 #include "wsrep_mysqld.h"
 
 /**
@@ -160,6 +161,7 @@ public:
   };
 
   THD *thd;
+  PSI_prepared_stmt* m_prepared_stmt;
   Select_fetch_protocol_binary result;
   Item_param **param_array;
   Server_side_cursor *cursor;
@@ -2664,6 +2666,12 @@ void mysqld_stmt_prepare(THD *thd, const char *packet, uint packet_length)
 
   thd->protocol= &thd->protocol_binary;
 
+  /* Create PS table entry, set query text after rewrite. */
+  stmt->m_prepared_stmt= MYSQL_CREATE_PS(stmt, stmt->id,
+                                         thd->m_statement_psi,
+                                         stmt->name.str, stmt->name.length,
+                                         NULL, 0);
+
   if (stmt->prepare(packet, packet_length))
   {
     /* Statement map deletes statement on erase */
@@ -2864,6 +2872,12 @@ void mysql_sql_stmt_prepare(THD *thd)
     CALL p1();
   */
   Item_change_list_savepoint change_list_savepoint(thd);
+
+  /* Create PS table entry, set query text after rewrite. */
+  stmt->m_prepared_stmt= MYSQL_CREATE_PS(stmt, stmt->id,
+                                         thd->m_statement_psi,
+                                         stmt->name.str, stmt->name.length,
+                                         NULL, 0);
 
   if (stmt->prepare(query.str, (uint) query.length))
   {
@@ -3260,6 +3274,8 @@ static void mysql_stmt_execute_common(THD *thd,
   open_cursor= MY_TEST(cursor_flags & (ulong) CURSOR_TYPE_READ_ONLY);
 
   thd->protocol= &thd->protocol_binary;
+  MYSQL_EXECUTE_PS(thd->m_statement_psi, stmt->m_prepared_stmt);
+
   if (!bulk_op)
     stmt->execute_loop(&expanded_query, open_cursor, packet, packet_end);
   else
@@ -3369,6 +3385,8 @@ void mysql_sql_stmt_execute(THD *thd)
     CALL p1('x');
   */
   Item_change_list_savepoint change_list_savepoint(thd);
+  MYSQL_EXECUTE_PS(thd->m_statement_psi, stmt->m_prepared_stmt);
+
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
   change_list_savepoint.rollback(thd);
   thd->free_items();    // Free items created by execute_loop()
@@ -3787,6 +3805,7 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
              STMT_INITIALIZED,
              ((++thd_arg->statement_id_counter) & STMT_ID_MASK)),
   thd(thd_arg),
+  m_prepared_stmt(NULL),
   result(thd_arg),
   param_array(0),
   cursor(0),
@@ -3868,6 +3887,9 @@ Prepared_statement::~Prepared_statement()
   DBUG_ENTER("Prepared_statement::~Prepared_statement");
   DBUG_PRINT("enter",("stmt: %p  cursor: %p",
                       this, cursor));
+
+  MYSQL_DESTROY_PS(m_prepared_stmt);
+
   delete cursor;
   /*
     We have to call free on the items even if cleanup is called as some items,
@@ -4100,6 +4122,8 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_PREPARE;
     state= Query_arena::STMT_PREPARED;
     flags&= ~ (uint) IS_IN_USE;
+
+    MYSQL_SET_PS_TEXT(m_prepared_stmt, query(), query_length());
 
     /* 
       Log COM_EXECUTE to the general log. Note, that in case of SQL
@@ -4518,6 +4542,7 @@ Prepared_statement::reprepare()
 
   if (likely(!error))
   {
+    MYSQL_REPREPARE_PS(m_prepared_stmt);
     swap_prepared_statement(&copy);
     swap_parameter_array(param_array, copy.param_array, param_count);
 #ifdef DBUG_ASSERT_EXISTS
@@ -4755,17 +4780,13 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     if (query_cache_send_result_to_client(thd, thd->query(),
                                           thd->query_length()) <= 0)
     {
-      PSI_statement_locker *parent_locker;
       MYSQL_QUERY_EXEC_START(thd->query(),
                              thd->thread_id,
                              thd->get_db(),
                              &thd->security_ctx->priv_user[0],
                              (char *) thd->security_ctx->host_or_ip,
                              1);
-      parent_locker= thd->m_statement_psi;
-      thd->m_statement_psi= NULL;
       error= mysql_execute_command(thd);
-      thd->m_statement_psi= parent_locker;
       MYSQL_QUERY_EXEC_DONE(error);
     }
     else
@@ -4878,7 +4899,12 @@ bool Prepared_statement::execute_immediate(const char *query, uint query_len)
 
   set_sql_prepare();
   name= execute_immediate_stmt_name;      // for DBUG_PRINT etc
-  if (unlikely(prepare(query, query_len)))
+
+  m_prepared_stmt= MYSQL_CREATE_PS(this, id, thd->m_statement_psi,
+                                   name.str, name.length,
+                                   NULL, 0);
+
+  if (prepare(query, query_len))
     DBUG_RETURN(true);
 
   if (param_count != thd->lex->prepared_stmt.param_count())
@@ -4888,6 +4914,7 @@ bool Prepared_statement::execute_immediate(const char *query, uint query_len)
     DBUG_RETURN(true);
   }
 
+  MYSQL_EXECUTE_PS(thd->m_statement_psi, m_prepared_stmt);
   (void) execute_loop(&expanded_query, FALSE, NULL, NULL);
   deallocate_immediate();
   DBUG_RETURN(false);
