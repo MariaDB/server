@@ -6867,8 +6867,8 @@ inline int handler::ha_write_tmp_row(uchar *buf)
   int error;
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_tmp_write_count);
-  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
-                { error= write_row(buf); })
+  TABLE_IO_WAIT(tracker, PSI_TABLE_WRITE_ROW, MAX_KEY, error,
+          { error= write_row(buf); })
   MYSQL_INSERT_ROW_DONE(error);
   return error;
 }
@@ -6878,7 +6878,7 @@ inline int handler::ha_delete_tmp_row(uchar *buf)
   int error;
   MYSQL_DELETE_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_tmp_delete_count);
-  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_DELETE_ROW, MAX_KEY, 0,
+  TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, MAX_KEY, error,
                 { error= delete_row(buf); })
   MYSQL_DELETE_ROW_DONE(error);
   return error;
@@ -6889,12 +6889,11 @@ inline int handler::ha_update_tmp_row(const uchar *old_data, uchar *new_data)
   int error;
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_tmp_update_count);
-  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_UPDATE_ROW, active_index, 0,
-                { error= update_row(old_data, new_data);})
+  TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, active_index, error,
+          { error= update_row(old_data, new_data);})
   MYSQL_UPDATE_ROW_DONE(error);
   return error;
 }
-
 
 extern pthread_attr_t *get_connection_attrib(void);
 

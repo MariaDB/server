@@ -13520,6 +13520,21 @@ bool JOIN_TAB::preread_init()
 }
 
 
+bool JOIN_TAB::pfs_batch_update(JOIN *join)
+{
+  /*
+    Use PFS batch mode if
+     1. tab is an inner-most table, or
+     2. will read more than one row (not eq_ref or const access type)
+     3. no subqueries
+  */
+
+  return join->join_tab + join->table_count - 1 == this &&              // 1
+         type != JT_EQ_REF && type != JT_CONST  && type != JT_SYSTEM && // 2
+         (!select_cond || !select_cond->with_subquery());               // 3
+}
+
+
 /**
   Build a TABLE_REF structure for index lookup in the temporary table
 
@@ -20503,6 +20518,10 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   if (join_tab->loosescan_match_tab)
     join_tab->loosescan_match_tab->found_match= FALSE;
 
+  const bool pfs_batch_update= join_tab->pfs_batch_update(join);
+  if (pfs_batch_update)
+    join_tab->table->file->start_psi_batch_mode();
+
   if (rc != NESTED_LOOP_NO_MORE_ROWS)
   {
     error= (*join_tab->read_first_record)(join_tab);
@@ -20553,6 +20572,9 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   if (rc == NESTED_LOOP_NO_MORE_ROWS &&
       join_tab->last_inner && !join_tab->found)
     rc= evaluate_null_complemented_join_record(join, join_tab);
+
+  if (pfs_batch_update)
+    join_tab->table->file->end_psi_batch_mode();
 
   if (rc == NESTED_LOOP_NO_MORE_ROWS)
     rc= NESTED_LOOP_OK;

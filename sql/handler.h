@@ -3115,8 +3115,59 @@ public:
   */
   PSI_table *m_psi;
 
+private:
+  /** Internal state of the batch instrumentation. */
+  enum batch_mode_t
+  {
+    /** Batch mode not used. */
+    PSI_BATCH_MODE_NONE,
+    /** Batch mode used, before first table io. */
+    PSI_BATCH_MODE_STARTING,
+    /** Batch mode used, after first table io. */
+    PSI_BATCH_MODE_STARTED
+  };
+  /**
+    Batch mode state.
+    @sa start_psi_batch_mode.
+    @sa end_psi_batch_mode.
+  */
+  batch_mode_t m_psi_batch_mode;
+  /**
+    The number of rows in the batch.
+    @sa start_psi_batch_mode.
+    @sa end_psi_batch_mode.
+  */
+  ulonglong m_psi_numrows;
+  /**
+    The current event in a batch.
+    @sa start_psi_batch_mode.
+    @sa end_psi_batch_mode.
+  */
+  PSI_table_locker *m_psi_locker;
+  /**
+    Storage for the event in a batch.
+    @sa start_psi_batch_mode.
+    @sa end_psi_batch_mode.
+  */
+  PSI_table_locker_state m_psi_locker_state;
+
+public:
   virtual void unbind_psi();
   virtual void rebind_psi();
+  /**
+    Put the handler in 'batch' mode when collecting
+    table io instrumented events.
+    When operating in batch mode:
+    - a single start event is generated in the performance schema.
+    - all table io performed between @c start_psi_batch_mode
+      and @c end_psi_batch_mode is not instrumented:
+      the number of rows affected is counted instead in @c m_psi_numrows.
+    - a single end event is generated in the performance schema
+      when the batch mode ends with @c end_psi_batch_mode.
+  */
+  void start_psi_batch_mode();
+  /** End a batch started with @c start_psi_batch_mode. */
+  void end_psi_batch_mode();
 
   bool set_top_table_fields;
   struct TABLE *top_table;
@@ -3163,7 +3214,11 @@ public:
     pushed_rowid_filter(NULL),
     rowid_filter_is_active(0),
     auto_inc_intervals_count(0),
-    m_psi(NULL), set_top_table_fields(FALSE), top_table(0),
+    m_psi(NULL),
+    m_psi_batch_mode(PSI_BATCH_MODE_NONE),
+    m_psi_numrows(0),
+    m_psi_locker(NULL),
+    set_top_table_fields(FALSE), top_table(0),
     top_table_field(0), top_table_fields(0),
     m_lock_type(F_UNLCK), ha_share(NULL), m_prev_insert_id(0)
   {
@@ -4036,11 +4091,10 @@ public:
 
   virtual my_bool register_query_cache_table(THD *thd, const char *table_key,
                                              uint key_length,
-                                             qc_engine_callback
-                                             *engine_callback,
+                                             qc_engine_callback *callback,
                                              ulonglong *engine_data)
   {
-    *engine_callback= 0;
+    *callback= 0;
     return TRUE;
   }
 
@@ -5007,7 +5061,8 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal);
 #endif
 
 /* these are called by storage engines */
-void trans_register_ha(THD *thd, bool all, handlerton *ht);
+void trans_register_ha(THD *thd, bool all, handlerton *ht,
+                       const ulonglong *trxid);
 
 /*
   Storage engine has to assume the transaction will end up with 2pc if
@@ -5032,13 +5087,82 @@ int binlog_log_row(TABLE* table,
                    const uchar *after_record,
                    Log_func *log_func);
 
-#define TABLE_IO_WAIT(TRACKER, PSI, OP, INDEX, FLAGS, PAYLOAD) \
+/**
+  @def MYSQL_TABLE_IO_WAIT
+  Instrumentation helper for table io_waits.
+  Note that this helper is intended to be used from
+  within the handler class only, as it uses members
+  from @c handler
+  Performance schema events are instrumented as follows:
+  - in non batch mode, one event is generated per call
+  - in batch mode, the number of rows affected is saved
+  in @c m_psi_numrows, so that @c end_psi_batch_mode()
+  generates a single event for the batch.
+  @param OP the table operation to be performed
+  @param INDEX the table index used if any, or MAX_KEY.
+  @param PAYLOAD instrumented code to execute
+  @sa handler::end_psi_batch_mode.
+*/
+#ifdef HAVE_PSI_TABLE_INTERFACE
+  #define MYSQL_TABLE_IO_WAIT(OP, INDEX, RESULT, PAYLOAD)     \
+    {                                                         \
+      if (m_psi != NULL)                                      \
+      {                                                       \
+        switch (m_psi_batch_mode)                             \
+        {                                                     \
+          case PSI_BATCH_MODE_NONE:                           \
+          {                                                   \
+            PSI_table_locker *sub_locker= NULL;               \
+            PSI_table_locker_state reentrant_safe_state;      \
+            sub_locker= PSI_TABLE_CALL(start_table_io_wait)   \
+              (& reentrant_safe_state, m_psi, OP, INDEX,      \
+               __FILE__, __LINE__);                           \
+            PAYLOAD                                           \
+            if (sub_locker != NULL)                           \
+              PSI_TABLE_CALL(end_table_io_wait)               \
+                (sub_locker, 1);                              \
+            break;                                            \
+          }                                                   \
+          case PSI_BATCH_MODE_STARTING:                       \
+          {                                                   \
+            m_psi_locker= PSI_TABLE_CALL(start_table_io_wait) \
+              (& m_psi_locker_state, m_psi, OP, INDEX,        \
+               __FILE__, __LINE__);                           \
+            PAYLOAD                                           \
+            if (!RESULT)                                      \
+              m_psi_numrows++;                                \
+            m_psi_batch_mode= PSI_BATCH_MODE_STARTED;         \
+            break;                                            \
+          }                                                   \
+          case PSI_BATCH_MODE_STARTED:                        \
+          default:                                            \
+          {                                                   \
+            DBUG_ASSERT(m_psi_batch_mode                      \
+                        == PSI_BATCH_MODE_STARTED);           \
+            PAYLOAD                                           \
+            if (!RESULT)                                      \
+              m_psi_numrows++;                                \
+            break;                                            \
+          }                                                   \
+        }                                                     \
+      }                                                       \
+      else                                                    \
+      {                                                       \
+        PAYLOAD                                               \
+      }                                                       \
+    }
+#else
+  #define MYSQL_TABLE_IO_WAIT(OP, INDEX, RESULT, PAYLOAD) \
+    PAYLOAD
+#endif
+
+#define TABLE_IO_WAIT(TRACKER, OP, INDEX, RESULT, PAYLOAD) \
   { \
     Exec_time_tracker *this_tracker; \
     if (unlikely((this_tracker= tracker))) \
       tracker->start_tracking(table->in_use); \
     \
-    MYSQL_TABLE_IO_WAIT(PSI, OP, INDEX, FLAGS, PAYLOAD); \
+    MYSQL_TABLE_IO_WAIT(OP, INDEX, RESULT, PAYLOAD); \
     \
     if (unlikely(this_tracker)) \
       tracker->stop_tracking(table->in_use); \

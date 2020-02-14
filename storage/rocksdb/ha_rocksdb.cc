@@ -8345,11 +8345,9 @@ int ha_rocksdb::read_range_first(const key_range *const start_key,
 #endif
     increment_statistics(&SSV::ha_read_key_count);
 
-    MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0, {
-      result =
-          index_read_map_impl(table->record[0], start_key->key,
-                              start_key->keypart_map, start_key->flag, end_key);
-    })
+    result =
+        index_read_map_impl(table->record[0], start_key->key,
+                            start_key->keypart_map, start_key->flag, end_key);
   }
   if (result) {
     DBUG_RETURN((result == HA_ERR_KEY_NOT_FOUND) ? HA_ERR_END_OF_FILE : result);

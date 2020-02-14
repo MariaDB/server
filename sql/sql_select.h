@@ -635,6 +635,8 @@ typedef struct st_join_table {
   ha_rows get_examined_rows();
   bool preread_init();
 
+  bool pfs_batch_update(JOIN *join);
+
   bool is_sjm_nest() { return MY_TEST(bush_children); }
   
   /*
