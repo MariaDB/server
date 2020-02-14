@@ -1006,7 +1006,7 @@ dbcontext::cmd_open(dbcallback_i& cb, const cmd_open_args& arg)
     LEX_CSTRING db_name=  { arg.dbn, strlen(arg.dbn) };
     LEX_CSTRING tbl_name= { arg.tbl, strlen(arg.tbl) };
     tables.init_one_table(&db_name, &tbl_name, 0, lock_type);
-    tables.mdl_request.init(MDL_key::TABLE, arg.dbn, arg.tbl,
+    MDL_REQUEST_INIT(&tables.mdl_request, MDL_key::TABLE, arg.dbn, arg.tbl,
       for_write_flag ? MDL_SHARED_WRITE : MDL_SHARED_READ, MDL_TRANSACTION);
     Open_table_context ot_act(thd, 0);
     if (!open_table(thd, &tables, &ot_act)) {

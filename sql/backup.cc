@@ -161,7 +161,8 @@ static bool backup_start(THD *thd)
     DBUG_RETURN(1);
   }
 
-  mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_START, MDL_EXPLICIT);
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_START,
+                   MDL_EXPLICIT);
   if (thd->mdl_context.acquire_lock(&mdl_request,
                                     thd->variables.lock_wait_timeout))
     DBUG_RETURN(1);

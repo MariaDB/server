@@ -333,8 +333,8 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     right from the start as open_tables() can't handle properly
     back-off for such locks.
   */
-  tables->mdl_request.init(MDL_key::TABLE, tables->db.str, tables->table_name.str,
-                           MDL_SHARED_READ, MDL_TRANSACTION);
+  MDL_REQUEST_INIT(&tables->mdl_request, MDL_key::TABLE, tables->db.str,
+                   tables->table_name.str, MDL_SHARED_READ, MDL_TRANSACTION);
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   /* for now HANDLER can be used only for real TABLES */

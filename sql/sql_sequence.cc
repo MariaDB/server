@@ -452,10 +452,9 @@ int SEQUENCE::read_initial_values(TABLE *table)
         where we don't have a mdl lock on the table
       */
 
-      mdl_request.init(MDL_key::TABLE,
-                       table->s->db.str,
-                       table->s->table_name.str,
-                       MDL_SHARED_READ, MDL_EXPLICIT);
+      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, table->s->db.str,
+                       table->s->table_name.str, MDL_SHARED_READ,
+                       MDL_EXPLICIT);
       mdl_requests.push_front(&mdl_request);
       if (thd->mdl_context.acquire_locks(&mdl_requests,
                                          thd->variables.lock_wait_timeout))

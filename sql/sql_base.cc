@@ -437,7 +437,8 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
       MDL_request *mdl_request= new (thd->mem_root) MDL_request;
       if (mdl_request == NULL)
         DBUG_RETURN(true);
-      mdl_request->init(&table->mdl_request.key, MDL_EXCLUSIVE, MDL_STATEMENT);
+      MDL_REQUEST_INIT_BY_KEY(mdl_request, &table->mdl_request.key,
+                              MDL_EXCLUSIVE, MDL_STATEMENT);
       mdl_requests.push_front(mdl_request);
     }
 
@@ -1577,10 +1578,9 @@ open_table_get_mdl_lock(THD *thd, Open_table_context *ot_ctx,
     DBUG_ASSERT(!(flags & MYSQL_OPEN_FORCE_SHARED_MDL) ||
                 !(flags & MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL));
 
-    mdl_request_shared.init(&mdl_request->key,
-                            (flags & MYSQL_OPEN_FORCE_SHARED_MDL) ?
-                            MDL_SHARED : MDL_SHARED_HIGH_PRIO,
-                            MDL_TRANSACTION);
+    MDL_REQUEST_INIT_BY_KEY(&mdl_request_shared, &mdl_request->key,
+        flags & MYSQL_OPEN_FORCE_SHARED_MDL ? MDL_SHARED : MDL_SHARED_HIGH_PRIO,
+        MDL_TRANSACTION);
     mdl_request= &mdl_request_shared;
   }
 
@@ -2151,8 +2151,8 @@ retry_share:
         DBUG_RETURN(TRUE);
       }
 
-      protection_request.init(MDL_key::BACKUP, "", "", mdl_type,
-                              MDL_STATEMENT);
+      MDL_REQUEST_INIT(&protection_request, MDL_key::BACKUP, "", "", mdl_type,
+                       MDL_STATEMENT);
 
       /*
         Install error handler which if possible will convert deadlock error
@@ -4044,9 +4044,8 @@ lock_table_names(THD *thd, const DDL_options_st &options,
       MDL_request *schema_request= new (thd->mem_root) MDL_request;
       if (schema_request == NULL)
         DBUG_RETURN(TRUE);
-      schema_request->init(MDL_key::SCHEMA, table->db.str, "",
-                           MDL_INTENTION_EXCLUSIVE,
-                           MDL_TRANSACTION);
+      MDL_REQUEST_INIT(schema_request, MDL_key::SCHEMA, table->db.str, "",
+                       MDL_INTENTION_EXCLUSIVE, MDL_TRANSACTION);
       mdl_requests.push_front(schema_request);
     }
 
@@ -4068,7 +4067,8 @@ lock_table_names(THD *thd, const DDL_options_st &options,
   if (thd->has_read_only_protection())
     DBUG_RETURN(true);
 
-  global_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_DDL, MDL_STATEMENT);
+  MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
+                   MDL_STATEMENT);
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   while (!thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout) &&

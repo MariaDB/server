@@ -9205,8 +9205,8 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
         ref_table= tbuf;
       }
 
-      mdl_request.init(MDL_key::TABLE, ref_db, ref_table, MDL_SHARED_NO_WRITE,
-                       MDL_TRANSACTION);
+      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, ref_db, ref_table,
+                       MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
       if (thd->mdl_context.acquire_lock(&mdl_request,
                                         thd->variables.lock_wait_timeout))
         DBUG_RETURN(true);
@@ -9631,9 +9631,9 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       MDL_request_list mdl_requests;
       MDL_request target_db_mdl_request;
 
-      target_mdl_request.init(MDL_key::TABLE,
-                              alter_ctx.new_db.str, alter_ctx.new_name.str,
-                              MDL_EXCLUSIVE, MDL_TRANSACTION);
+      MDL_REQUEST_INIT(&target_mdl_request, MDL_key::TABLE,
+                       alter_ctx.new_db.str, alter_ctx.new_name.str,
+                       MDL_EXCLUSIVE, MDL_TRANSACTION);
       mdl_requests.push_front(&target_mdl_request);
 
       /*
@@ -9643,9 +9643,9 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       */
       if (alter_ctx.is_database_changed())
       {
-        target_db_mdl_request.init(MDL_key::SCHEMA, alter_ctx.new_db.str, "",
-                                   MDL_INTENTION_EXCLUSIVE,
-                                   MDL_TRANSACTION);
+        MDL_REQUEST_INIT(&target_db_mdl_request, MDL_key::SCHEMA,
+                         alter_ctx.new_db.str, "", MDL_INTENTION_EXCLUSIVE,
+                         MDL_TRANSACTION);
         mdl_requests.push_front(&target_db_mdl_request);
       }
 

@@ -25,6 +25,8 @@
 #include <mysql/service_thd_wait.h>
 #include <mysql/psi/mysql_stage.h>
 #include <tpool.h>
+#include <pfs_metadata_provider.h>
+#include <mysql/psi/mysql_mdl.h>
 
 static PSI_memory_key key_memory_MDL_context_acquire_locks;
 
@@ -965,16 +967,20 @@ bool MDL_context::fix_pins()
   @param  mdl_type       The MDL lock type for the request.
 */
 
-void MDL_request::init(MDL_key::enum_mdl_namespace mdl_namespace,
+void MDL_request::init_with_source(MDL_key::enum_mdl_namespace mdl_namespace,
                        const char *db_arg,
                        const char *name_arg,
                        enum_mdl_type mdl_type_arg,
-                       enum_mdl_duration mdl_duration_arg)
+                       enum_mdl_duration mdl_duration_arg,
+                       const char *src_file,
+                       uint src_line)
 {
   key.mdl_key_init(mdl_namespace, db_arg, name_arg);
   type= mdl_type_arg;
   duration= mdl_duration_arg;
   ticket= NULL;
+  m_src_file= src_file;
+  m_src_line= src_line;
 }
 
 
@@ -987,14 +993,18 @@ void MDL_request::init(MDL_key::enum_mdl_namespace mdl_namespace,
   @param mdl_type_arg  The MDL lock type for the request.
 */
 
-void MDL_request::init(const MDL_key *key_arg,
+void MDL_request::init_by_key_with_source(const MDL_key *key_arg,
                        enum_mdl_type mdl_type_arg,
-                       enum_mdl_duration mdl_duration_arg)
+                       enum_mdl_duration mdl_duration_arg,
+                       const char *src_file,
+                       uint src_line)
 {
   key.mdl_key_init(key_arg);
   type= mdl_type_arg;
   duration= mdl_duration_arg;
   ticket= NULL;
+  m_src_file= src_file;
+  m_src_line= src_line;
 }
 
 
@@ -1023,6 +1033,9 @@ MDL_ticket *MDL_ticket::create(MDL_context *ctx_arg, enum_mdl_type type_arg
 
 void MDL_ticket::destroy(MDL_ticket *ticket)
 {
+  mysql_mdl_destroy(ticket->m_psi);
+  ticket->m_psi= NULL;
+
   delete ticket;
 }
 
@@ -2109,6 +2122,15 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
     return TRUE;
   }
 
+  DBUG_ASSERT(ticket->m_psi == NULL);
+  ticket->m_psi= mysql_mdl_create(ticket,
+                                  &mdl_request->key,
+                                  mdl_request->type,
+                                  mdl_request->duration,
+                                  MDL_ticket::PENDING,
+                                  mdl_request->m_src_file,
+                                  mdl_request->m_src_line);
+
   ticket->m_lock= lock;
 
   if (lock->can_grant_lock(mdl_request->type, this, false))
@@ -2120,6 +2142,8 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
     m_tickets[mdl_request->duration].push_front(ticket);
 
     mdl_request->ticket= ticket;
+
+    mysql_mdl_set_status(ticket->m_psi, MDL_ticket::GRANTED);
   }
   else
     *out_ticket= ticket;
@@ -2169,6 +2193,15 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
                                    )))
     return TRUE;
 
+  DBUG_ASSERT(ticket->m_psi == NULL);
+  ticket->m_psi= mysql_mdl_create(ticket,
+                                  &mdl_request->key,
+                                  mdl_request->type,
+                                  mdl_request->duration,
+                                  MDL_ticket::PENDING,
+                                  mdl_request->m_src_file,
+                                  mdl_request->m_src_line);
+
   /* clone() is not supposed to be used to get a stronger lock. */
   DBUG_ASSERT(mdl_request->ticket->has_stronger_or_equal_type(ticket->m_type));
 
@@ -2180,6 +2213,8 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
   mysql_prlock_unlock(&ticket->m_lock->m_rwlock);
 
   m_tickets[mdl_request->duration].push_front(ticket);
+
+  mysql_mdl_set_status(ticket->m_psi, MDL_ticket::GRANTED);
 
   return FALSE;
 }
@@ -2320,6 +2355,12 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   mysql_prlock_unlock(&lock->m_rwlock);
 
+  PSI_metadata_locker_state state;
+  PSI_metadata_locker *locker= NULL;
+
+  if (ticket->m_psi != NULL)
+    locker= PSI_CALL_start_metadata_wait(&state, ticket->m_psi, __FILE__, __LINE__);
+
   will_wait_for(ticket);
 
   /* There is a shared or exclusive lock on the object. */
@@ -2365,6 +2406,9 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   done_waiting_for();
 
+  if (locker != NULL)
+    PSI_CALL_end_metadata_wait(locker, 0);
+
   if (wait_status != MDL_wait::GRANTED)
   {
     lock->remove_ticket(m_pins, &MDL_lock::m_waiting, ticket);
@@ -2399,6 +2443,8 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   m_tickets[mdl_request->duration].push_front(ticket);
 
   mdl_request->ticket= ticket;
+
+  mysql_mdl_set_status(ticket->m_psi, MDL_ticket::GRANTED);
 
   DBUG_RETURN(FALSE);
 }
@@ -2531,8 +2577,8 @@ MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
       mdl_ticket->get_key()->mdl_namespace() != MDL_key::BACKUP)
     DBUG_RETURN(FALSE);
 
-  mdl_xlock_request.init(&mdl_ticket->m_lock->key, new_type,
-                         MDL_TRANSACTION);
+  MDL_REQUEST_INIT_BY_KEY(&mdl_xlock_request, &mdl_ticket->m_lock->key,
+                          new_type, MDL_TRANSACTION);
 
   if (acquire_lock(&mdl_xlock_request, lock_wait_timeout))
     DBUG_RETURN(TRUE);
@@ -2972,7 +3018,8 @@ MDL_context::is_lock_owner(MDL_key::enum_mdl_namespace mdl_namespace,
   MDL_request mdl_request;
   enum_mdl_duration not_unused;
   /* We don't care about exact duration of lock here. */
-  mdl_request.init(mdl_namespace, db, name, mdl_type, MDL_TRANSACTION);
+  MDL_REQUEST_INIT(&mdl_request, mdl_namespace, db, name, mdl_type,
+                   MDL_TRANSACTION);
   MDL_ticket *ticket= find_ticket(&mdl_request, &not_unused);
 
   DBUG_ASSERT(ticket == NULL || ticket->m_lock);

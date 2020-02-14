@@ -4977,8 +4977,8 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
   table->lock_type= locktype;
   table->select_lex= lex->current_select;
   table->cacheable_table= 1;
-  table->mdl_request.init(MDL_key::TABLE, table->db.str, table->table_name.str,
-                          mdl_type, MDL_TRANSACTION);
+  MDL_REQUEST_INIT(&table->mdl_request, MDL_key::TABLE, table->db.str,
+                   table->table_name.str, mdl_type, MDL_TRANSACTION);
 
   lex->add_to_query_tables(table);
   return table;

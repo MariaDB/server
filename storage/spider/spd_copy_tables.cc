@@ -997,7 +997,7 @@ long long spider_copy_tables_body(
 #if MYSQL_VERSION_ID < 50500
   if (open_and_lock_tables(thd, table_list))
 #else
-  table_list->mdl_request.init(
+    MDL_REQUEST_INIT(&table_list->mdl_request,
     MDL_key::TABLE,
     SPIDER_TABLE_LIST_db_str(table_list),
     SPIDER_TABLE_LIST_table_name_str(table_list),

@@ -8221,9 +8221,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   // Pure table aliases do not need to be locked:
   if (ptr->db.str && !(table_options & TL_OPTION_ALIAS))
   {
-    ptr->mdl_request.init(MDL_key::TABLE, ptr->db.str, ptr->table_name.str,
-                          mdl_type,
-                          MDL_TRANSACTION);
+    MDL_REQUEST_INIT(&ptr->mdl_request, MDL_key::TABLE, ptr->db.str,
+                     ptr->table_name.str, mdl_type, MDL_TRANSACTION);
   }
   DBUG_RETURN(ptr);
 }

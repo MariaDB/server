@@ -1751,7 +1751,7 @@ long long spider_direct_sql_body(
         SPIDER_TABLE_LIST_table_name_length(&table_list),
         SPIDER_TABLE_LIST_table_name_str(&table_list), TL_WRITE);
 #endif
-      tables->mdl_request.init(MDL_key::TABLE,
+      MDL_REQUEST_INIT(&tables->mdl_request, MDL_key::TABLE,
         SPIDER_TABLE_LIST_db_str(&table_list),
         SPIDER_TABLE_LIST_table_name_str(&table_list),
         MDL_SHARED_WRITE, MDL_TRANSACTION);

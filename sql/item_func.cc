@@ -4027,7 +4027,7 @@ longlong Item_func_get_lock::val_int()
   }
 
   MDL_request ull_request;
-  ull_request.init(MDL_key::USER_LOCK, res->c_ptr_safe(), "",
+  MDL_REQUEST_INIT(&ull_request, MDL_key::USER_LOCK, res->c_ptr_safe(), "",
                    MDL_SHARED_NO_WRITE, MDL_EXPLICIT);
   MDL_key *ull_key= &ull_request.key;
 
