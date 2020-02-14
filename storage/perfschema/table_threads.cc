@@ -215,7 +215,7 @@ int table_threads::read_row_values(TABLE *table,
 {
   Field *f;
   const char *str= NULL;
-  int len= 0;
+  size_t len= 0;
 
   if (unlikely(! m_row_exists))
     return HA_ERR_RECORD_DELETED;
@@ -326,7 +326,7 @@ int table_threads::read_row_values(TABLE *table,
       case 15: /* CONNECTION_TYPE */
         get_vio_type_name(m_row.m_connection_type, & str, & len);
         if (len > 0)
-          set_field_varchar_utf8(f, str, len);
+          set_field_varchar_utf8(f, str, (uint)len);
         else
           f->set_null();
         break;

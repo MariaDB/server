@@ -70,7 +70,7 @@ const uint max_dbname_length= 64;
 
 const char *safe_vio_type_name(Vio *vio)
 {
-  int unused;
+  size_t unused;
 #ifdef EMBEDDED_LIBRARY
   if (!vio) return "Internal";
 #endif
@@ -13977,6 +13977,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 
     res= do_auth_once(thd, default_auth_plugin_name, &mpvio);
   }
+
+  PSI_CALL_set_connection_type(vio_type(thd->net.vio));
 
   Security_context * const sctx= thd->security_ctx;
   const ACL_USER * acl_user= mpvio.acl_user;
