@@ -55,6 +55,9 @@ TODO:
 static void my_aiowait(my_aio_result *result);
 #endif
 #include <errno.h>
+#include "mysql/psi/mysql_file.h"
+
+PSI_file_key key_file_io_cache;
 
 #define lock_append_buffer(info) \
   mysql_mutex_lock(&(info)->append_buffer_lock)
@@ -131,7 +134,7 @@ init_functions(IO_CACHE* info)
   Initialize an IO_CACHE object
 
   SYNOPSOS
-    init_io_cache()
+    init_io_cache_ext()
     info		cache handler to initialize
     file		File that should be associated to to the handler
 			If == -1 then real_open_cached_file()
@@ -144,20 +147,22 @@ init_functions(IO_CACHE* info)
     cache_myflags	Bitmap of different flags
 			MY_WME | MY_FAE | MY_NABP | MY_FNABP |
 			MY_DONT_CHECK_FILESIZE
+    file_key           Instrumented file key for temporary cache file
 
   RETURN
     0  ok
     #  error
 */
 
-int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
-		  enum cache_type type, my_off_t seek_offset,
-		  my_bool use_async_io, myf cache_myflags)
+int init_io_cache_ext(IO_CACHE *info, File file, size_t cachesize,
+                      enum cache_type type, my_off_t seek_offset,
+                      pbool use_async_io, myf cache_myflags,
+                      PSI_file_key file_key)
 {
   size_t min_cache;
   my_off_t pos;
   my_off_t end_of_file= ~(my_off_t) 0;
-  DBUG_ENTER("init_io_cache");
+  DBUG_ENTER("init_io_cache_ext");
   DBUG_PRINT("enter",("cache:%p  type: %d  pos: %llu",
 		      info, (int) type, (ulonglong) seek_offset));
 
@@ -260,7 +265,7 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
     }
   }
 
-  DBUG_PRINT("info",("init_io_cache: cachesize = %lu", (ulong) cachesize));
+  DBUG_PRINT("info",("init_io_cache_ext: cachesize = %lu", (ulong) cachesize));
   info->read_length=info->buffer_length=cachesize;
   info->myflags=cache_myflags & ~(MY_NABP | MY_FNABP);
   info->request_pos= info->read_pos= info->write_pos = info->buffer;
@@ -301,9 +306,15 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
   info->inited=info->aio_result.pending=0;
 #endif
   DBUG_RETURN(0);
-}						/* init_io_cache */
+}
 
-
+int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
+		  enum cache_type type, my_off_t seek_offset,
+		  my_bool use_async_io, myf cache_myflags)
+{
+  return init_io_cache_ext(info, file, cachesize, type, seek_offset,
+                           use_async_io, cache_myflags, key_file_io_cache);
+}
 
 /*
   Initialize the slave IO_CACHE to read the same file (and data)

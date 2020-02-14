@@ -508,6 +508,8 @@ typedef void (*my_error_reporter)(enum loglevel level, const char *format, ...)
 
 extern my_error_reporter my_charset_error_reporter;
 
+extern PSI_file_key key_file_io_cache;
+
 /* inline functions for mf_iocache */
 
 extern int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock);
@@ -800,6 +802,10 @@ my_off_t my_get_ptr(uchar *ptr, size_t pack_length);
 extern int init_io_cache(IO_CACHE *info,File file,size_t cachesize,
 			 enum cache_type type,my_off_t seek_offset,
 			 my_bool use_async_io, myf cache_myflags);
+extern int init_io_cache_ext(IO_CACHE *info, File file, size_t cachesize,
+                              enum cache_type type, my_off_t seek_offset,
+                              pbool use_async_io, myf cache_myflags,
+                              PSI_file_key file_key);
 extern my_bool reinit_io_cache(IO_CACHE *info,enum cache_type type,
 			       my_off_t seek_offset, my_bool use_async_io,
 			       my_bool clear_cache);

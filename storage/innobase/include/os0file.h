@@ -644,10 +644,12 @@ do {									\
 	register_pfs_file_open_begin(state, locker, key, op, name,	\
 					src_file, src_line)		\
 
-# define register_pfs_file_rename_end(locker, result)			\
+# define register_pfs_file_rename_end(locker, from, to, result)		\
 do {									\
-	if (locker != NULL) {				\
-		PSI_FILE_CALL(end_file_open_wait)(locker, result);	\
+	if (locker != NULL) {						\
+		 PSI_FILE_CALL(						\
+			end_file_rename_wait)(				\
+			locker, from, to, result);			\
 	}								\
 } while (0)
 

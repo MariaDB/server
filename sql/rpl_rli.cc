@@ -73,7 +73,9 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
                          key_RELAYLOG_COND_relay_log_updated,
                          key_RELAYLOG_COND_bin_log_updated,
                          key_file_relaylog,
+                         key_file_relaylog_cache,
                          key_file_relaylog_index,
+                         key_file_relaylog_index_cache,
                          key_RELAYLOG_COND_queue_busy,
                          key_LOCK_relaylog_end_pos);
 #endif
