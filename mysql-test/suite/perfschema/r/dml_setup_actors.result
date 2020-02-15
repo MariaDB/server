@@ -42,10 +42,7 @@ set host='ILLEGAL';
 ERROR HY000: Invalid performance_schema usage
 update performance_schema.setup_actors
 set role='ILLEGAL';
-<<<<<<< HEAD
 ERROR HY000: Invalid performance_schema usage
-=======
-ERROR HY000: Invalid performance_schema usage.
 update performance_schema.setup_actors
 set ENABLED='YES';
 update performance_schema.setup_actors
@@ -71,7 +68,6 @@ ERROR 01000: Data truncated for column 'HISTORY' at row 1
 update performance_schema.setup_actors
 set HISTORY=NULL;
 ERROR 23000: Column 'HISTORY' cannot be null
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 select * from performance_schema.setup_actors
 order by USER, HOST;
 HOST	USER	ROLE	ENABLED	HISTORY

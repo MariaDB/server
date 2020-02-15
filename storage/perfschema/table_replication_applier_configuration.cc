@@ -26,7 +26,7 @@
   Table replication_applier_configuration (implementation).
 */
 
-#define HAVE_REPLICATION
+//#define HAVE_REPLICATION
 
 #include "my_global.h"
 #include "table_replication_applier_configuration.h"
@@ -39,6 +39,7 @@
 #include "sql_parse.h"
 //#include "rpl_msr.h"   /* Multisource replication */
 
+#ifdef HAVE_REPLICATION
 THR_LOCK table_replication_applier_configuration::m_table_lock;
 
 PFS_engine_table_share
@@ -101,7 +102,7 @@ int table_replication_applier_configuration::rnd_next(void)
     {
       make_row(mi);
       m_next_pos.set_after(&m_pos);
-      channel_map.unlock();
+      mysql_mutex_unlock(&LOCK_active_mi);
       return 0;
     }
   }
@@ -138,7 +139,7 @@ void table_replication_applier_configuration::make_row(Master_info *mi)
   mysql_mutex_lock(&mi->data_lock);
   mysql_mutex_lock(&mi->rli.data_lock);
 
-  m_row.channel_name_length= mi->connection_name.length;
+  m_row.channel_name_length= static_cast<uint>(mi->connection_name.length);
   memcpy(m_row.channel_name, mi->connection_name.str, m_row.channel_name_length);
   m_row.desired_delay= 0; //mi->rli->get_sql_delay();
 
@@ -190,3 +191,4 @@ int table_replication_applier_configuration::read_row_values(TABLE *table,
   }
   return 0;
 }
+#endif

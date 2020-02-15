@@ -412,7 +412,6 @@ struct wait_for_commit;
 
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
-#ifdef HAVE_PSI_INTERFACE
   /** The instrumentation key to use for @ LOCK_index. */
   PSI_mutex_key m_key_LOCK_index;
   /** The instrumentation key to use for @ COND_relay_log_updated */
@@ -427,7 +426,6 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   PSI_cond_key m_key_COND_queue_busy;
   /** The instrumentation key to use for LOCK_binlog_end_pos. */
   PSI_mutex_key m_key_LOCK_binlog_end_pos;
-#endif
 
   struct group_commit_entry
   {

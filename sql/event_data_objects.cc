@@ -1480,8 +1480,8 @@ Event_job_data::execute(THD *thd, bool drop)
     sphead->optimize();
 
     sphead->m_sp_share= MYSQL_GET_SP_SHARE(SP_TYPE_EVENT,
-                                           dbname.str, dbname.length,
-                                           name.str, name.length);
+                                           dbname.str, static_cast<uint>(dbname.length),
+                                           name.str, static_cast<uint>(name.length));
     ret= sphead->execute_procedure(thd, &empty_item_list);
     /*
       There is no pre-locking and therefore there should be no

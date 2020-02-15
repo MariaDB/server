@@ -305,7 +305,6 @@ extern my_bool disconnect_on_expired_password;
 
 enum secure_timestamp { SECTIME_NO, SECTIME_SUPER, SECTIME_REPL, SECTIME_YES };
 
-#ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
 extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
        key_LOCK_pool, key_LOCK_pending_checkpoint;
@@ -405,6 +404,7 @@ extern PSI_socket_key key_socket_tcpip, key_socket_unix,
   key_socket_client_connection;
 extern PSI_file_key key_file_binlog_state;
 
+#ifdef HAVE_PSI_INTERFACE
 void init_server_psi_keys();
 #endif /* HAVE_PSI_INTERFACE */
 

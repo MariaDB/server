@@ -49,7 +49,7 @@ table_variables_by_thread::m_share=
   { C_STRING_WITH_LEN("CREATE TABLE user_variables_by_thread("
   "THREAD_ID BIGINT unsigned not null,"
   "VARIABLE_NAME VARCHAR(64) not null,"
-  "VARIABLE_VALUE LONGBLOB)") },
+  "VARIABLE_VALUE VARCHAR(1024))") },
   true   /* perpetual */
 };
 
@@ -62,9 +62,9 @@ table_variables_by_thread::create(void)
 ha_rows table_variables_by_thread::get_row_count(void)
 {
   mysql_mutex_lock(&LOCK_plugin_delete);
-  mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+  mysql_prlock_rdlock(&LOCK_system_variables_hash);
   ulong system_var_count= get_system_variable_hash_records();
-  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
   mysql_mutex_unlock(&LOCK_plugin_delete);
   return (global_thread_container.get_row_count() * system_var_count);
 }

@@ -9,6 +9,7 @@
 ################################################################################
 
 --source include/have_perfschema.inc
+--source include/have_innodb.inc
 --source include/not_embedded.inc
 --source include/no_protocol.inc
 
@@ -18,9 +19,6 @@
 --echo ================================================================================
 --echo SETUP
 --echo ================================================================================
---echo # Save current SHOW_COMPATIBILITY_56 setting
-SELECT @@global.show_compatibility_56 INTO @show_compatibility_56_save;
-SET @@global.show_compatibility_56=OFF;
 SET @@session.sql_log_bin=OFF;
 --echo
 --echo # CREATE 3 CLIENTS, 3 CONNECTIONS, RESULTS TABLE
@@ -287,11 +285,11 @@ ORDER BY variable_name;
 --echo
 FLUSH STATUS;
 --echo
-SELECT * FROM status_by_account WHERE user LIKE 'user%' AND variable_name IN ('handler_delete');
+SELECT * FROM status_by_account WHERE user IN ('user1', 'user2', 'user3') AND variable_name IN ('handler_delete');
 --echo
 SELECT * FROM status_by_host WHERE host IN ('localhost') AND variable_name IN ('handler_delete');
 --echo
-SELECT * FROM status_by_user WHERE user LIKE 'user%' AND variable_name IN ('handler_delete');
+SELECT * FROM status_by_user WHERE user IN ('user1', 'user2', 'user3') AND variable_name IN ('handler_delete');
 
 
 --echo ================================================================================
@@ -305,6 +303,3 @@ DROP USER 'user1'@localhost;
 DROP USER 'user2'@localhost;
 DROP USER 'user3'@localhost;
 --echo
---echo # Restore SHOW_COMPATIBILITY_56 setting
-SET @@global.show_compatibility_56 = @show_compatibility_56_save;
- 

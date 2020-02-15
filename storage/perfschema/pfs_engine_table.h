@@ -432,7 +432,7 @@ public:
 
   ~PFS_readonly_world_acl()
   {}
-  virtual ACL_internal_access_result check(ulong want_access, ulong *save_priv) const;
+  virtual ACL_internal_access_result check(privilege_t want_access, privilege_t *save_priv) const;
 };
 
 
@@ -451,7 +451,7 @@ public:
 
   ~PFS_truncatable_world_acl()
   {}
-  virtual ACL_internal_access_result check(ulong want_access, ulong *save_priv) const;
+  virtual ACL_internal_access_result check(privilege_t want_access, privilege_t *save_priv) const;
 };
 
 

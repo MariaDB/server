@@ -2355,7 +2355,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   mysql_prlock_unlock(&lock->m_rwlock);
 
-  PSI_metadata_locker_state state;
+  PSI_metadata_locker_state state __attribute__((unused));
   PSI_metadata_locker *locker= NULL;
 
   if (ticket->m_psi != NULL)

@@ -779,10 +779,10 @@ create_table_share_index_stat(const TABLE_SHARE *server_share, uint server_index
     else
     {
       KEY *key_info= server_share->key_info + server_index;
-      size_t len= strlen(key_info->name);
+      size_t len= key_info->name.length;
 
-      memcpy(pfs->m_key.m_name, key_info->name, len);
-      pfs->m_key.m_name_length= len;
+      memcpy(pfs->m_key.m_name, key_info->name.str, len);
+      pfs->m_key.m_name_length= static_cast<uint>(len);
     }
 
     /* Reset the stats. */
@@ -1785,8 +1785,8 @@ search:
   {
     lookup_setup_object(thread,
                         OBJECT_TYPE_TABLE,
-                        schema_name, schema_name_length,
-                        table_name, table_name_length,
+                        schema_name, static_cast<uint>(schema_name_length),
+                        table_name, static_cast<uint>(table_name_length),
                         &enabled, &timed);
     /*
       Even when enabled is false, a record is added in the dictionary:
@@ -1801,9 +1801,9 @@ search:
   {
     pfs->m_key= key;
     pfs->m_schema_name= &pfs->m_key.m_hash_key[1];
-    pfs->m_schema_name_length= schema_name_length;
+    pfs->m_schema_name_length= static_cast<uint>(schema_name_length);
     pfs->m_table_name= &pfs->m_key.m_hash_key[schema_name_length + 2];
-    pfs->m_table_name_length= table_name_length;
+    pfs->m_table_name_length= static_cast<uint>(table_name_length);
     pfs->m_enabled= enabled;
     pfs->m_timed= timed;
     pfs->init_refcount();

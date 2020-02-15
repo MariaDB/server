@@ -9,11 +9,11 @@ USE stored_programs;
 CREATE TABLE t1(
 i INT NOT NULL,
 j INT
-);
+) engine=innodb;
 CREATE TABLE t2(
 name   CHAR(16) NOT NULL DEFAULT '',
 id INT NOT NULL
-);
+) engine=innodb;
 CREATE TABLE t3(
 d DATE,
 n INT,
@@ -244,11 +244,11 @@ END	stored_programs	NULL	NULL	NULL	NULL	0
 statement/sql/create_table	CREATE TABLE t1(
 i INT NOT NULL,
 j INT
-)	stored_programs	NULL	NULL	NULL	NULL	0
+) engine=innodb	stored_programs	NULL	NULL	NULL	NULL	0
 statement/sql/create_table	CREATE TABLE t2(
 name   CHAR(16) NOT NULL DEFAULT '',
 id INT NOT NULL
-)	stored_programs	NULL	NULL	NULL	NULL	0
+) engine=innodb	stored_programs	NULL	NULL	NULL	NULL	0
 statement/sql/create_table	CREATE TABLE t3(
 d DATE,
 n INT,
@@ -359,7 +359,7 @@ statement/sp/stmt	INSERT INTO t4(word, mean) VALUES('a','a mean')	stored_program
 statement/sp/jump_if_not	NULL	stored_programs	TRIGGER	stored_programs	trg1	TRANSACTION	1
 statement/sp/jump_if_not	NULL	stored_programs	TRIGGER	stored_programs	trg1	TRANSACTION	2
 statement/sp/jump_if_not	NULL	stored_programs	TRIGGER	stored_programs	trg1	TRANSACTION	2
-statement/sp/stmt	UPDATE t1 SET i=new.id+i	stored_programs	TRIGGER	stored_programs	trg2	TRANSACTION	2
+statement/sp/stmt	UPDATE t1 SET i=new.id+i 	stored_programs	TRIGGER	stored_programs	trg2	TRANSACTION	2
 statement/sp/stmt	SET @change:= @change + new.id - old.id	stored_programs	TRIGGER	stored_programs	trg3	TRANSACTION	1
 statement/sp/stmt	SET @del:= @del + 1	stored_programs	TRIGGER	stored_programs	trg4	TRANSACTION	1
 statement/sp/stmt	SET @del:= @del + 8 + old.j	stored_programs	TRIGGER	stored_programs	trg5	TRANSACTION	1
@@ -415,11 +415,11 @@ USE stored_programs;
 CREATE TABLE t1(
 i INT NOT NULL,
 j INT
-);
+) engine=innodb;
 CREATE TABLE t2(
 name   CHAR(16) NOT NULL DEFAULT '',
 id INT NOT NULL
-);
+) engine=innodb;
 CREATE TABLE t3(
 d DATE,
 n INT,
@@ -659,14 +659,14 @@ b INT
 # let the creation of the following stored programs fail 
 CREATE PROCEDURE fail1(IN a INT  OUT x CHAR(16)) 
 SET a=1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'OUT x CHAR(16)) 
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'OUT x CHAR(16)) 
 SET a=1' at line 1
 CREATE FUNCTION fail2(a INT , b INT) RETURNS INT
 x=SELECT COUNT(*) FROM t;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '=SELECT COUNT(*) FROM t' at line 2
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '=SELECT COUNT(*) FROM t' at line 2
 CREATE EVENT fail3 SCHEDULE EVERY MICROSECOND DO
 DROP TABLE t;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'SCHEDULE EVERY MICROSECOND DO
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SCHEDULE EVERY MICROSECOND DO
 DROP TABLE t' at line 1
 # the below query on PS table doesn't show any rows 
 # as the creation of stored programs failed 
@@ -689,7 +689,7 @@ ERROR 42000: Incorrect number of arguments for PROCEDURE sp.p; expected 2, got 1
 SELECT f("add",1,3);
 ERROR 42000: Incorrect number of arguments for FUNCTION sp.f; expected 2, got 3
 INSERT INTO t1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 # the below query on PS table doesn't expose any statistics as 
 # execution of the created stored porgrams failed.
 SELECT OBJECT_TYPE, OBJECT_SCHEMA, OBJECT_NAME, COUNT_STAR, COUNT_STATEMENTS

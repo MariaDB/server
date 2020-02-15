@@ -4039,15 +4039,15 @@ row_merge_file_create_low(
 #ifdef WITH_INNODB_DISALLOW_WRITES
 	os_event_wait(srv_allow_writes_event);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
+	if (!path) {
+		path = mysql_tmpdir;
+	}
 #ifdef UNIV_PFS_IO
 	/* This temp file open does not go through normal
 	file APIs, add instrumentation to register with
 	performance schema */
 	struct PSI_file_locker*	locker;
 	PSI_file_locker_state	state;
-	if (!path) {
-		path = mysql_tmpdir;
-	}
 	static const char label[] = "/Innodb Merge Temp File";
 	char* name = static_cast<char*>(
 		ut_malloc_nokey(strlen(path) + sizeof label));

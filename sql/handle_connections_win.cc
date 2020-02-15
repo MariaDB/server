@@ -360,7 +360,7 @@ struct Pipe_Listener : public Listener
     {
       sql_perror("Create named pipe failed");
       sql_print_error("Aborting");
-      exit(1);
+      unireg_abort(1);
     }
     first_instance= false;
     return pipe_handle;

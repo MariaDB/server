@@ -114,7 +114,7 @@
 */
 
 /* Iteration on THD from the sql layer. */
-//#include "mysqld_thd_manager.h"
+#include "mysqld_thd_manager.h"
 #define PFS_VAR
 /* Class sys_var */
 #include "set_var.h"
@@ -125,7 +125,6 @@
 #include "pfs_user.h"
 #include "pfs_host.h"
 #include "pfs_account.h"
-#include "my_thread.h"
 
 /* Global array of all server and plugin-defined status variables. */
 extern DYNAMIC_ARRAY all_status_vars;
@@ -200,7 +199,7 @@ private:
 /**
   CLASS Find_THD_variable - Get and lock a validated THD from the thread manager.
 */
-class Find_THD_variable //: public Find_THD_Impl
+class Find_THD_variable : public Find_THD_Impl
 {
 public:
   Find_THD_variable() : m_unsafe_thd(NULL) {}
@@ -236,12 +235,12 @@ public:
       m_current_thd(current_thd),
       m_pfs_thread(NULL),
       m_pfs_client(NULL),
-      //m_thd_finder(),
-      m_cache(PSI_INSTRUMENT_MEM, 200, 50),
+      m_thd_finder(),
+      m_cache(PSI_INSTRUMENT_MEM),
       m_initialized(false),
       m_external_init(external_init),
       m_materialized(false),
-      m_show_var_array(PSI_INSTRUMENT_MEM, 200, 50),
+      m_show_var_array(PSI_INSTRUMENT_MEM),
       m_version(0),
       m_query_scope(OPT_DEFAULT),
       m_use_mem_root(false),
@@ -413,7 +412,7 @@ protected:
   PFS_client *m_pfs_client;
 
   /* Callback for thread iterator. */
-  //Find_THD_variable m_thd_finder;
+  Find_THD_variable m_thd_finder;
 
   /* Cache of materialized variables. */
   Variable_array m_cache;
@@ -447,7 +446,6 @@ protected:
 
 };
 
-#if 0
 /**
   Required implementation for pure virtual destructor of a template class.
 */
@@ -592,7 +590,6 @@ int PFS_variable_cache<Var_type>::materialize_session(PFS_thread *pfs_thread, ui
 
   return do_materialize_session(pfs_thread, index);
 }
-#endif
 
 /**
   CLASS PFS_system_variable_cache - System variable cache.
@@ -716,3 +713,4 @@ void sum_account_status(PFS_client *pfs_account, STATUS_VAR *status_totals);
 
 /** @} */
 #endif
+

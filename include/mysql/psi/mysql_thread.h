@@ -96,26 +96,32 @@
 #define PSI_CALL_new_thread               PSI_THREAD_CALL(new_thread)
 #define PSI_CALL_register_thread          PSI_THREAD_CALL(register_thread)
 #define PSI_CALL_set_thread               PSI_THREAD_CALL(set_thread)
+#define PSI_CALL_set_thread_THD           PSI_THREAD_CALL(set_thread_THD)
 #define PSI_CALL_set_thread_connect_attrs PSI_THREAD_CALL(set_thread_connect_attrs)
 #define PSI_CALL_set_thread_db            PSI_THREAD_CALL(set_thread_db)
 #define PSI_CALL_set_thread_id            PSI_THREAD_CALL(set_thread_id)
+#define PSI_CALL_set_thread_os_id         PSI_THREAD_CALL(set_thread_os_id)
 #define PSI_CALL_set_thread_info          PSI_THREAD_CALL(set_thread_info)
 #define PSI_CALL_set_thread_start_time    PSI_THREAD_CALL(set_thread_start_time)
 #define PSI_CALL_set_thread_account       PSI_THREAD_CALL(set_thread_account)
 #define PSI_CALL_spawn_thread             PSI_THREAD_CALL(spawn_thread)
+#define PSI_CALL_set_connection_type      PSI_THREAD_CALL(set_connection_type)
 #else
 #define PSI_CALL_delete_current_thread()                do { } while(0)
 #define PSI_CALL_get_thread()                           NULL
 #define PSI_CALL_new_thread(A1,A2,A3)                   NULL
 #define PSI_CALL_register_thread(A1,A2,A3)              do { } while(0)
 #define PSI_CALL_set_thread(A1)                         do { } while(0)
+#define PSI_CALL_set_thread_THD(A1,A2)                  do { } while(0)
 #define PSI_CALL_set_thread_connect_attrs(A1,A2,A3)     0
 #define PSI_CALL_set_thread_db(A1,A2)                   do { } while(0)
 #define PSI_CALL_set_thread_id(A1,A2)                   do { } while(0)
+#define PSI_CALL_set_thread_os_id(A1)                   do { } while(0)
 #define PSI_CALL_set_thread_info(A1, A2)                do { } while(0)
 #define PSI_CALL_set_thread_start_time(A1)              do { } while(0)
 #define PSI_CALL_set_thread_account(A1, A2, A3, A4)     do { } while(0)
 #define PSI_CALL_spawn_thread(A1, A2, A3, A4, A5)       0
+#define PSI_CALL_set_connection_type(A)                 do { } while(0)
 #endif
 
 

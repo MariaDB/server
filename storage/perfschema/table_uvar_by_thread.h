@@ -70,6 +70,8 @@ public:
   {
     m_pfs= NULL;
     m_thread_internal_id= 0;
+    for (uint i=0; i < m_array.elements(); i++)
+      m_array.at(i).~User_variable();
     m_array.clear();
   }
 

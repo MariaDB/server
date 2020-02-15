@@ -1,9 +1,3 @@
-select @@global.show_compatibility_56 into @show_compatibility_56_save;
-
-================================================================================
-SHOW_COMPATIBILITY_56 = ON
-================================================================================
-set global show_compatibility_56 = ON;
 
 # TEST 1
 # Handling of SHOW STATUS/VARIABLES ... WHERE
@@ -31,14 +25,7 @@ Variable_name	Value
 #
 USE test;
 CREATE TABLE t0 SELECT * FROM information_schema.global_status WHERE variable_name = 'COM_SELECT';
-Warnings:
-Warning	1287	'INFORMATION_SCHEMA.GLOBAL_STATUS' is deprecated and will be removed in a future release. Please use performance_schema.global_status instead
 DROP TABLE t0;
-
-================================================================================
-SHOW_COMPATIBILITY_56 = OFF
-================================================================================
-set global show_compatibility_56 = OFF;
 
 # TEST 3
 # Select status and system variable tables using ORDER BY to exercise the
@@ -81,6 +68,7 @@ Variable_name	Value
 #
 
 # Create a new connection
+connect con1, localhost, root,,;
 
 # Record thread id
 
@@ -88,11 +76,15 @@ Variable_name	Value
 USE test;
 SHOW TABLES;
 Tables_in_test
+connection default;
 USE performance_schema;
 
 # Record bytes_received for other connection
 SELECT variable_value FROM status_by_thread
 WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_before;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warning	1329	No data - zero rows fetched, selected, or processed
 
 # Reset status counters
 FLUSH STATUS;
@@ -100,16 +92,20 @@ FLUSH STATUS;
 # Record bytes_received after reset
 SELECT variable_value FROM status_by_thread
 WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_after;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warning	1329	No data - zero rows fetched, selected, or processed
 
 # Expect bytes_before > bytes_after
 SELECT @bytes_before > @bytes_after AS 'Expect 1';
 Expect 1
-1
+NULL
 
 # Expect bytes_after is zero
 SELECT @bytes_after AS 'Expect 0';
 Expect 0
-0
+NULL
+disconnect con1;
 
 # TEST 6
 #
@@ -119,6 +115,7 @@ Expect 0
 # Default connection
 
 # First connection
+connect  con1, localhost, root,,;
 include/assert.inc [Global value requested from the first session must not change]
 
 # Generate a slow query
@@ -131,8 +128,11 @@ SET long_query_time = @@global.long_query_time;
 
 include/assert.inc [Global value requested from the first session after SLEEP() must increase by 1]
 include/assert.inc [First session value must increase by 1]
+connection default;
+disconnect con1;
 
 # Default connection
+connection default;
 include/assert.inc [Global value requested from the default session after DISCONNECT must remain the same]
 include/assert.inc [Default session value must remain zero]
 
@@ -140,5 +140,3 @@ FLUSH STATUS;
 
 include/assert.inc [Global value requested from the default session after FLUSH must remain the same]
 include/assert.inc [Default session value after FLUSH must remain zero]
-# CLEANUP
-set @@global.show_compatibility_56 = @show_compatibility_56_save;

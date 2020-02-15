@@ -41,6 +41,8 @@ struct PFS_events
   ulonglong m_event_id;
   /** END_EVENT_ID. */
   ulonglong m_end_event_id;
+  /** (EVENT_TYPE) */
+  enum_event_type m_event_type;
   /** NESTING_EVENT_ID. */
   ulonglong m_nesting_event_id;
   /** NESTING_EVENT_TYPE */

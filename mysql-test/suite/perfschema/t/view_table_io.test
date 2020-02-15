@@ -4,7 +4,7 @@
 #       the view itself never shows up.
 
 ## To skip the test with QC enabled till BUG#14830950 is fixed.
--- source include/have_QC_Disabled.inc
+#-- source include/have_QC_Disabled.inc
 
 --source include/not_embedded.inc
 --source include/have_perfschema.inc

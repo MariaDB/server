@@ -38,7 +38,7 @@ struct PFS_status_stats
   void aggregate_to(STATUS_VAR *to);
 
   bool m_has_stats;
-  ulonglong m_stats[COUNT_GLOBAL_STATUS_VARS];
+  ulong m_stats[COUNT_GLOBAL_STATUS_VARS];
 };
 
 void reset_status_by_thread();

@@ -45,7 +45,7 @@
     inline_mysql_start_transaction(STATE, XID, TRXID, ISO, RO, AC, __FILE__, __LINE__)
 #else
   #define MYSQL_START_TRANSACTION(STATE, XID, TRXID, ISO, RO, AC) \
-    do {} while (0)
+    0
 #endif
 
 #ifdef HAVE_PSI_TRANSACTION_INTERFACE
@@ -109,7 +109,7 @@
     inline_mysql_rollback_transaction(LOCKER)
 #else
   #define MYSQL_ROLLBACK_TRANSACTION(LOCKER) \
-    NULL
+    do { } while(0)
 #endif
 
 #ifdef HAVE_PSI_TRANSACTION_INTERFACE
@@ -117,7 +117,7 @@
     inline_mysql_commit_transaction(LOCKER)
 #else
   #define MYSQL_COMMIT_TRANSACTION(LOCKER) \
-    NULL
+    do { } while(0)
 #endif
 
 #ifdef HAVE_PSI_TRANSACTION_INTERFACE

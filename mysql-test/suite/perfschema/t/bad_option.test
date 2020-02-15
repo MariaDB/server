@@ -16,20 +16,20 @@ let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
 --exec echo "wait" > $restart_file
 --shutdown_server 
 --source include/wait_until_disconnected.inc
---error 1
---exec $MYSQLD_CMD --loose-console --performance-schema-enabled=maybe > $error_log 2>&1
+--error 7
+--exec $MYSQLD_CMD --loose-console --skip-log-error --performance-schema-enabled=maybe > $error_log 2>&1
 # The server restart aborts
 # [ERROR] unknown variable 'performance-schema-enabled=maybe'
-let SEARCH_PATTERN= \[ERROR\] unknown variable 'performance-schema-enabled=maybe';
+let SEARCH_PATTERN= \[ERROR\].*unknown variable 'performance-schema-enabled=maybe';
 --source include/search_pattern_in_file.inc
 --echo # Server start with invalid startup option value 'performance-schema-enabled=maybe' : pass
 
 --remove_file $error_log
---error 1
---exec $MYSQLD_CMD --loose-console --performance-schema-max_=12 > $error_log 2>&1
+--error 7
+--exec $MYSQLD_CMD --loose-console --skip-log-error --performance-schema-max_=12 > $error_log 2>&1
 # The server restart aborts
 # [ERROR] unknown variable 'performance-schema-max_=12'
-let SEARCH_PATTERN= \[ERROR\] unknown variable 'performance-schema-max_=12';
+let SEARCH_PATTERN= \[ERROR\].*unknown variable 'performance-schema-max_=12';
 --source include/search_pattern_in_file.inc
 --echo # Server start with ambigous startup option 'performance-schema-max_=12' : pass
 # The important points is here:
@@ -41,19 +41,19 @@ let SEARCH_PATTERN= \[ERROR\] unknown variable 'performance-schema-max_=12';
 #    a similar reaction.
 
 --remove_file $error_log
---error 1
---exec $MYSQLD_CMD --loose-console --performance-schema-unknown_99 > $error_log 2>&1
+--error 2
+--exec $MYSQLD_CMD --loose-console --skip-log-error --performance-schema-unknown_99 > $error_log 2>&1
 # The server restart aborts
-let SEARCH_PATTERN= \[ERROR\] unknown option '--performance-schema-unknown_99';
+let SEARCH_PATTERN= \[ERROR\].*unknown option '--performance-schema-unknown_99';
 --source include/search_pattern_in_file.inc
 --echo # Server start with invalid startup option '--performance-schema-unknown_99' : pass
 
 --remove_file $error_log
 --error 1
---exec $MYSQLD_CMD --loose-console --datadir=bad_option_h_param > $error_log 2>&1
+--exec $MYSQLD_CMD --loose-console --skip-log-error --datadir=bad_option_h_param > $error_log 2>&1
 # The server restart aborts
-# [ERROR] failed to set datadir to /work/repo1/mysql-trunk2/bad_option_h_param/
-let SEARCH_PATTERN= \[ERROR\] failed to set datadir to .*bad_option_h_param;
+# [ERROR] failed to set datadir to /work/repo1/mysql-trunk2/bad_option_h_param
+let SEARCH_PATTERN= Can.t change dir to .*bad_option_h_param;
 --source include/search_pattern_in_file.inc
 --echo # Server start with invalid startup option value '--datadir=bad_option_h_param' : pass
 # The important point is here:

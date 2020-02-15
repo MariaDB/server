@@ -29,15 +29,14 @@ if(!$success)
 --echo # Verify
 --echo #========================================================================
 
-SELECT event_id from performance_schema.events_transactions_history_long
+SELECT event_id into @base_tx_event_id
+  from performance_schema.events_transactions_history_long
   where (THREAD_ID = @con1_thread_id)
-  order by event_id limit 1
-  into @base_tx_event_id;
+  order by event_id limit 1;
 
-SELECT event_id from performance_schema.events_statements_history_long
+SELECT event_id into @base_stmt_event_id from performance_schema.events_statements_history_long
   where (THREAD_ID = @con1_thread_id)
-  order by event_id limit 1
-  into @base_stmt_event_id;
+  order by event_id limit 1;
 
 select if(@base_tx_event_id < @base_stmt_event_id,
           @base_tx_event_id - 1,

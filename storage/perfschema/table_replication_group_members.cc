@@ -26,7 +26,7 @@
   Table replication_group_members (implementation).
 */
 
-#define HAVE_REPLICATION
+//#define HAVE_REPLICATION
 
 #include "my_global.h"
 #include "table_replication_group_members.h"

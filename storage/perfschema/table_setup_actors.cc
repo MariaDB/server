@@ -53,8 +53,8 @@ table_setup_actors::m_share=
                       "HOST CHAR(60) collate utf8_bin default '%' not null,"
                       "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default '%' not null,"
                       "ROLE CHAR(16) collate utf8_bin default '%' not null,"
-                      "ENABLED ENUM('YES', 'NO') not null,"
-                      "HISTORY ENUM('YES', 'NO') not null)") },
+                      "ENABLED ENUM('YES', 'NO') not null default 'YES',"
+                      "HISTORY ENUM('YES', 'NO') not null default 'YES')") },
   false  /* perpetual */
 };
 

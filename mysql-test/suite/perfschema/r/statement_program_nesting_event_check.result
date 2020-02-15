@@ -8,11 +8,11 @@ USE stored_programs;
 CREATE TABLE t1(
 i INT NOT NULL,
 j INT
-);
+) engine=innodb;
 CREATE TABLE t2(
 name   CHAR(16) NOT NULL DEFAULT '',
 id INT NOT NULL
-);
+) engine=innodb;
 CREATE TABLE t3(
 d DATE,
 n INT,
@@ -225,11 +225,11 @@ END	NULL	NULL	0
 statement/sql/create_table	CREATE TABLE t1(
 i INT NOT NULL,
 j INT
-)	NULL	NULL	0
+) engine=innodb	NULL	NULL	0
 statement/sql/create_table	CREATE TABLE t2(
 name   CHAR(16) NOT NULL DEFAULT '',
 id INT NOT NULL
-)	NULL	NULL	0
+) engine=innodb	NULL	NULL	0
 statement/sql/create_table	CREATE TABLE t3(
 d DATE,
 n INT,
@@ -337,7 +337,7 @@ statement/sp/stmt	INSERT INTO t4(word, mean) VALUES('a','a mean')	sampleproc4	ST
 statement/sp/jump_if_not	NULL	trg1	TRANSACTION	1
 statement/sp/jump_if_not	NULL	trg1	TRANSACTION	2
 statement/sp/jump_if_not	NULL	trg1	TRANSACTION	2
-statement/sp/stmt	UPDATE t1 SET i=new.id+i	trg2	TRANSACTION	2
+statement/sp/stmt	UPDATE t1 SET i=new.id+i 	trg2	TRANSACTION	2
 statement/sp/stmt	SET @change:= @change + new.id - old.id	trg3	TRANSACTION	1
 statement/sp/stmt	SET @del:= @del + 1	trg4	TRANSACTION	1
 statement/sp/stmt	SET @del:= @del + 8 + old.j	trg5	TRANSACTION	1
@@ -377,7 +377,7 @@ data INT NOT NULL
 CREATE TABLE t2(
 n INT UNSIGNED NOT NULL, 
 f BIGINT UNSIGNED
-);
+) engine=innodb;
 ############################
 # Creating Stored Programs #
 ############################

@@ -32,8 +32,8 @@ select OBJECT_SCHEMA, OBJECT_NAME, COUNT_STAR, COUNT_READ, COUNT_WRITE
 from performance_schema.table_lock_waits_summary_by_table
 where OBJECT_SCHEMA='db1';
 OBJECT_SCHEMA	OBJECT_NAME	COUNT_STAR	COUNT_READ	COUNT_WRITE
-db1	t1	3	0	3
-db1	t2	3	0	3
+db1	t1	6	0	6
+db1	t2	6	0	6
 select OBJECT_SCHEMA, OBJECT_NAME, COUNT_STAR, COUNT_READ, COUNT_WRITE
 from performance_schema.table_io_waits_summary_by_table
 where OBJECT_SCHEMA='db1';
@@ -46,8 +46,8 @@ select OBJECT_SCHEMA, OBJECT_NAME, COUNT_STAR, COUNT_READ, COUNT_WRITE
 from performance_schema.table_lock_waits_summary_by_table
 where OBJECT_SCHEMA='db1';
 OBJECT_SCHEMA	OBJECT_NAME	COUNT_STAR	COUNT_READ	COUNT_WRITE
-db1	t1	4	0	4
-db1	t2	4	0	4
+db1	t1	6	0	6
+db1	t2	6	0	6
 select OBJECT_SCHEMA, OBJECT_NAME, COUNT_STAR, COUNT_READ, COUNT_WRITE
 from performance_schema.table_io_waits_summary_by_table
 where OBJECT_SCHEMA='db1';
@@ -60,7 +60,7 @@ select OBJECT_SCHEMA, OBJECT_NAME, COUNT_STAR, COUNT_READ, COUNT_WRITE
 from performance_schema.table_lock_waits_summary_by_table
 where OBJECT_SCHEMA='db1';
 OBJECT_SCHEMA	OBJECT_NAME	COUNT_STAR	COUNT_READ	COUNT_WRITE
-db1	t2	4	0	4
+db1	t2	6	0	6
 select OBJECT_SCHEMA, OBJECT_NAME, COUNT_STAR, COUNT_READ, COUNT_WRITE
 from performance_schema.table_io_waits_summary_by_table
 where OBJECT_SCHEMA='db1';
@@ -72,8 +72,8 @@ select OBJECT_SCHEMA, OBJECT_NAME, COUNT_STAR, COUNT_READ, COUNT_WRITE
 from performance_schema.table_lock_waits_summary_by_table
 where OBJECT_SCHEMA='db1';
 OBJECT_SCHEMA	OBJECT_NAME	COUNT_STAR	COUNT_READ	COUNT_WRITE
-db1	t1	1	0	1
-db1	t2	4	0	4
+db1	t1	0	0	0
+db1	t2	6	0	6
 select OBJECT_SCHEMA, OBJECT_NAME, COUNT_STAR, COUNT_READ, COUNT_WRITE
 from performance_schema.table_io_waits_summary_by_table
 where OBJECT_SCHEMA='db1';

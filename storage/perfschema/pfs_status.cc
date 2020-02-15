@@ -64,7 +64,7 @@ void PFS_status_stats::aggregate(const PFS_status_stats *from)
 
 void PFS_status_stats::aggregate_from(const STATUS_VAR *from)
 {
-  ulonglong *from_var= (ulonglong*) from;
+  ulong *from_var= (ulong*) from;
 
   m_has_stats= true;
   for (int i= 0;
@@ -79,7 +79,7 @@ void PFS_status_stats::aggregate_to(STATUS_VAR *to)
 {
   if (m_has_stats)
   {
-    ulonglong *to_var= (ulonglong*) to;
+    ulong *to_var= (ulong*) to;
 
     for (int i= 0;
          i < COUNT_GLOBAL_STATUS_VARS;

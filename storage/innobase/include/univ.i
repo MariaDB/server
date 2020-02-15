@@ -114,8 +114,7 @@ HAVE_PSI_INTERFACE is defined. */
 # define UNIV_PFS_IO
 # define UNIV_PFS_THREAD
 
-// JAN: TODO: MySQL 5.7 PSI
-// # include "mysql/psi/psi.h" /* HAVE_PSI_MEMORY_INTERFACE */
+# include "mysql/psi/psi.h" /* HAVE_PSI_MEMORY_INTERFACE */
 # ifdef HAVE_PSI_MEMORY_INTERFACE
 #  define UNIV_PFS_MEMORY
 # endif /* HAVE_PSI_MEMORY_INTERFACE */
@@ -129,7 +128,6 @@ be excluded from instrumentation. */
 
 # define PFS_IS_INSTRUMENTED(key)	((key) != PFS_NOT_INSTRUMENTED)
 
-/* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_PFS_THREAD_PROVIDER_H
 /* For PSI_MUTEX_CALL() and similar. */
 #include "pfs_thread_provider.h"
@@ -137,7 +135,6 @@ be excluded from instrumentation. */
 
 #include "mysql/psi/mysql_thread.h"
 /* For PSI_FILE_CALL(). */
-/* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_PFS_FILE_PROVIDER_H
 #include "pfs_file_provider.h"
 #endif

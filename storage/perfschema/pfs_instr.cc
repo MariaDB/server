@@ -95,6 +95,8 @@ LF_HASH filename_hash;
 /** True if filename_hash is initialized. */
 static bool filename_hash_inited= false;
 
+my_bool show_compatibility_56= 0;
+
 /**
   Initialize all the instruments instance buffers.
   @param param                        sizing parameters

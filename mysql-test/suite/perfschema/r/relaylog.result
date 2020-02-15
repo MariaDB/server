@@ -50,14 +50,10 @@ from performance_schema.file_summary_by_event_name
 where event_name like "%binlog%" order by event_name;
 EVENT_NAME	COUNT_READ	COUNT_WRITE	SUM_NUMBER_OF_BYTES_READ	SUM_NUMBER_OF_BYTES_WRITE
 wait/io/file/sql/binlog	MANY	MANY	MANY	MANY
-<<<<<<< HEAD
-wait/io/file/sql/binlog_index	MANY	MANY	MANY	MANY
-wait/io/file/sql/binlog_state	NONE	NONE	NONE	NONE
-=======
 wait/io/file/sql/binlog_cache	NONE	NONE	NONE	NONE
-wait/io/file/sql/binlog_index	MANY	NONE	MANY	NONE
+wait/io/file/sql/binlog_index	MANY	MANY	MANY	MANY
 wait/io/file/sql/binlog_index_cache	NONE	NONE	NONE	NONE
->>>>>>> merge-perfschema-5.7
+wait/io/file/sql/binlog_state	NONE	NONE	NONE	NONE
 select
 EVENT_NAME,
 if (count_star > 0, "MANY", "NONE") as COUNT_STAR
@@ -68,24 +64,11 @@ where event_name like "%MYSQL_BIN_LOG%"
   and event_name not like "%MYSQL_BIN_LOG::COND_xid_list"
   order by event_name;
 EVENT_NAME	COUNT_STAR
-<<<<<<< HEAD
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_bin_log_updated	MANY
-=======
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_queue_busy	NONE
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_relay_log_updated	NONE
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_background_thread	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_end_pos	MANY
-=======
-wait/synch/cond/sql/MYSQL_BIN_LOG::COND_done	NONE
-wait/synch/cond/sql/MYSQL_BIN_LOG::prep_xids_cond	NONE
-wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_end_pos	MANY
-wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_commit	MANY
-wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_commit_queue	MANY
-wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_done	MANY
-wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_flush_queue	MANY
->>>>>>> merge-perfschema-5.7
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_index	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_xid_list	MANY
 "Expect no slave relay log"
@@ -156,14 +139,10 @@ from performance_schema.file_summary_by_event_name
 where event_name like "%binlog%" order by event_name;
 EVENT_NAME	COUNT_READ	COUNT_WRITE	SUM_NUMBER_OF_BYTES_READ	SUM_NUMBER_OF_BYTES_WRITE
 wait/io/file/sql/binlog	MANY	MANY	MANY	MANY
-<<<<<<< HEAD
-wait/io/file/sql/binlog_index	MANY	MANY	MANY	MANY
-wait/io/file/sql/binlog_state	NONE	NONE	NONE	NONE
-=======
 wait/io/file/sql/binlog_cache	NONE	NONE	NONE	NONE
-wait/io/file/sql/binlog_index	MANY	NONE	MANY	NONE
+wait/io/file/sql/binlog_index	MANY	MANY	MANY	MANY
 wait/io/file/sql/binlog_index_cache	NONE	NONE	NONE	NONE
->>>>>>> merge-perfschema-5.7
+wait/io/file/sql/binlog_state	NONE	NONE	NONE	NONE
 select
 EVENT_NAME,
 if (count_star > 0, "MANY", "NONE") as COUNT_STAR
@@ -174,24 +153,11 @@ where event_name like "%MYSQL_BIN_LOG%"
   and event_name not like "%MYSQL_BIN_LOG::COND_xid_list"
   order by event_name;
 EVENT_NAME	COUNT_STAR
-<<<<<<< HEAD
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_bin_log_updated	NONE
-=======
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_queue_busy	NONE
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_relay_log_updated	NONE
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_background_thread	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_end_pos	MANY
-=======
-wait/synch/cond/sql/MYSQL_BIN_LOG::COND_done	NONE
-wait/synch/cond/sql/MYSQL_BIN_LOG::prep_xids_cond	NONE
-wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_end_pos	MANY
-wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_commit	MANY
-wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_commit_queue	MANY
-wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_done	MANY
-wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_flush_queue	MANY
->>>>>>> merge-perfschema-5.7
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_index	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_xid_list	MANY
 "Expect a slave relay log"
@@ -222,13 +188,9 @@ from performance_schema.file_summary_by_event_name
 where event_name like "%relaylog%" order by event_name;
 EVENT_NAME	COUNT_READ	COUNT_WRITE	SUM_NUMBER_OF_BYTES_READ	SUM_NUMBER_OF_BYTES_WRITE
 wait/io/file/sql/relaylog	MANY	MANY	MANY	MANY
-<<<<<<< HEAD
-wait/io/file/sql/relaylog_index	MANY	MANY	MANY	MANY
-=======
 wait/io/file/sql/relaylog_cache	NONE	NONE	NONE	NONE
-wait/io/file/sql/relaylog_index	MANY	NONE	NONE	NONE
+wait/io/file/sql/relaylog_index	MANY	MANY	MANY	MANY
 wait/io/file/sql/relaylog_index_cache	NONE	NONE	NONE	NONE
->>>>>>> merge-perfschema-5.7
 select
 EVENT_NAME,
 if (count_star > 0, "MANY", "NONE") as COUNT_STAR

@@ -89,10 +89,10 @@
   End the last stage
 */
 #ifdef HAVE_PSI_STAGE_INTERFACE
-  #define mysql_end_stage \
-    inline_mysql_end_stage
+  #define mysql_end_stage() \
+    inline_mysql_end_stage()
 #else
-  #define mysql_end_stage \
+  #define mysql_end_stage() \
   do {} while (0)
 #endif
 

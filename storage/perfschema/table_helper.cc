@@ -226,10 +226,11 @@ int PFS_object_row::make_row(PFS_program *pfs)
 
 int PFS_object_row::make_row(const MDL_key *mdl)
 {
+  MDL_key user_lock_workaround;
   switch(mdl->mdl_namespace())
   {
-  case MDL_key::GLOBAL:
-    m_object_type= OBJECT_TYPE_GLOBAL;
+  case MDL_key::BACKUP:
+    m_object_type= OBJECT_TYPE_BACKUP;
     m_schema_name_length= 0;
     m_object_name_length= 0;
     break;
@@ -253,6 +254,11 @@ int PFS_object_row::make_row(const MDL_key *mdl)
     m_schema_name_length= mdl->db_name_length();
     m_object_name_length= mdl->name_length();
     break;
+  case MDL_key::PACKAGE_BODY:
+    m_object_type= OBJECT_TYPE_PACKAGE_BODY;
+    m_schema_name_length= mdl->db_name_length();
+    m_object_name_length= mdl->name_length();
+    break;
   case MDL_key::TRIGGER:
     m_object_type= OBJECT_TYPE_TRIGGER;
     m_schema_name_length= mdl->db_name_length();
@@ -263,28 +269,13 @@ int PFS_object_row::make_row(const MDL_key *mdl)
     m_schema_name_length= mdl->db_name_length();
     m_object_name_length= mdl->name_length();
     break;
-  case MDL_key::COMMIT:
-    m_object_type= OBJECT_TYPE_COMMIT;
-    m_schema_name_length= 0;
-    m_object_name_length= 0;
-    break;
   case MDL_key::USER_LOCK:
     m_object_type= OBJECT_TYPE_USER_LEVEL_LOCK;
+    user_lock_workaround.mdl_key_init(MDL_key::USER_LOCK, "", mdl->db_name());
+    mdl=& user_lock_workaround;
     m_schema_name_length= 0;
     m_object_name_length= mdl->name_length();
     break;
-#if 0
-  case MDL_key::TABLESPACE:
-    m_object_type= OBJECT_TYPE_TABLESPACE;
-    m_schema_name_length= 0;
-    m_object_name_length= mdl->name_length();
-    break;
-  case MDL_key::LOCKING_SERVICE:
-    m_object_type= OBJECT_TYPE_LOCKING_SERVICE;
-    m_schema_name_length= mdl->db_name_length();
-    m_object_name_length= mdl->name_length();
-    break;
-#endif
   case MDL_key::NAMESPACE_END:
   default:
     m_object_type= NO_OBJECT_TYPE;
@@ -550,23 +541,17 @@ void set_field_object_type(Field *f, enum_object_type object_type)
   case OBJECT_TYPE_TRIGGER:
     PFS_engine_table::set_field_varchar_utf8(f, "TRIGGER", 7);
     break;
-  case OBJECT_TYPE_GLOBAL:
-    PFS_engine_table::set_field_varchar_utf8(f, "GLOBAL", 6);
+  case OBJECT_TYPE_BACKUP:
+    PFS_engine_table::set_field_varchar_utf8(f, "BACKUP", 6);
     break;
   case OBJECT_TYPE_SCHEMA:
     PFS_engine_table::set_field_varchar_utf8(f, "SCHEMA", 6);
     break;
-  case OBJECT_TYPE_COMMIT:
-    PFS_engine_table::set_field_varchar_utf8(f, "COMMIT", 6);
+  case OBJECT_TYPE_PACKAGE_BODY:
+    PFS_engine_table::set_field_varchar_utf8(f, "PACKAGE BODY", 12);
     break;
   case OBJECT_TYPE_USER_LEVEL_LOCK:
     PFS_engine_table::set_field_varchar_utf8(f, "USER LEVEL LOCK", 15);
-    break;
-  case OBJECT_TYPE_TABLESPACE:
-    PFS_engine_table::set_field_varchar_utf8(f, "TABLESPACE", 10);
-    break;
-  case OBJECT_TYPE_LOCKING_SERVICE:
-    PFS_engine_table::set_field_varchar_utf8(f, "LOCKING SERVICE", 15);
     break;
   case NO_OBJECT_TYPE:
   default:
@@ -618,40 +603,96 @@ void set_field_lock_type(Field *f, PFS_TL_LOCK_TYPE lock_type)
   }
 }
 
-void set_field_mdl_type(Field *f, opaque_mdl_type mdl_type)
+void set_field_mdl_type(Field *f, opaque_mdl_type mdl_type, bool backup)
 {
-  enum_mdl_type e= (enum_mdl_type) mdl_type;
-  switch (e)
+  if (backup)
   {
-  case MDL_INTENTION_EXCLUSIVE:
-    PFS_engine_table::set_field_varchar_utf8(f, "INTENTION_EXCLUSIVE", 19);
-    break;
-  case MDL_SHARED:
-    PFS_engine_table::set_field_varchar_utf8(f, "SHARED", 6);
-    break;
-  case MDL_SHARED_HIGH_PRIO:
-    PFS_engine_table::set_field_varchar_utf8(f, "SHARED_HIGH_PRIO", 16);
-    break;
-  case MDL_SHARED_READ:
-    PFS_engine_table::set_field_varchar_utf8(f, "SHARED_READ", 11);
-    break;
-  case MDL_SHARED_WRITE:
-    PFS_engine_table::set_field_varchar_utf8(f, "SHARED_WRITE", 12);
-    break;
-  case MDL_SHARED_UPGRADABLE:
-    PFS_engine_table::set_field_varchar_utf8(f, "SHARED_UPGRADABLE", 17);
-    break;
-  case MDL_SHARED_NO_WRITE:
-    PFS_engine_table::set_field_varchar_utf8(f, "SHARED_NO_WRITE", 15);
-    break;
-  case MDL_SHARED_NO_READ_WRITE:
-    PFS_engine_table::set_field_varchar_utf8(f, "SHARED_NO_READ_WRITE", 20);
-    break;
-  case MDL_EXCLUSIVE:
-    PFS_engine_table::set_field_varchar_utf8(f, "EXCLUSIVE", 9);
-    break;
-  default:
-    DBUG_ASSERT(false);
+    switch (mdl_type)
+    {
+    case MDL_BACKUP_START:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_START"));
+      break;
+    case MDL_BACKUP_FLUSH:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_FLUSH"));
+      break;
+    case MDL_BACKUP_WAIT_FLUSH:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_WAIT_FLUSH"));
+      break;
+    case MDL_BACKUP_WAIT_DDL:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_WAIT_DDL"));
+      break;
+    case MDL_BACKUP_WAIT_COMMIT:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_WAIT_COMMIT"));
+      break;
+    case MDL_BACKUP_FTWRL1:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_FTWRL1"));
+      break;
+    case MDL_BACKUP_FTWRL2:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_FTWRL2"));
+      break;
+    case MDL_BACKUP_DML:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_DML"));
+      break;
+    case MDL_BACKUP_TRANS_DML:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_TRANS_DML"));
+      break;
+    case MDL_BACKUP_SYS_DML:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_SYS_DML"));
+      break;
+    case MDL_BACKUP_DDL:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_DDL"));
+      break;
+    case MDL_BACKUP_BLOCK_DDL:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_BLOCK_DDL"));
+      break;
+    case MDL_BACKUP_ALTER_COPY:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_ALTER_COPY"));
+      break;
+    case MDL_BACKUP_COMMIT:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_COMMIT"));
+      break;
+    case MDL_BACKUP_END:
+      PFS_engine_table::set_field_varchar_utf8(f, STRING_WITH_LEN("BACKUP_END"));
+      break;
+    default:
+      DBUG_ASSERT(false);
+    }
+  }
+  else
+  {
+    enum_mdl_type e= (enum_mdl_type) mdl_type;
+    switch (e)
+    {
+    case MDL_INTENTION_EXCLUSIVE:
+      PFS_engine_table::set_field_varchar_utf8(f, "INTENTION_EXCLUSIVE", 19);
+      break;
+    case MDL_SHARED:
+      PFS_engine_table::set_field_varchar_utf8(f, "SHARED", 6);
+      break;
+    case MDL_SHARED_HIGH_PRIO:
+      PFS_engine_table::set_field_varchar_utf8(f, "SHARED_HIGH_PRIO", 16);
+      break;
+    case MDL_SHARED_READ:
+      PFS_engine_table::set_field_varchar_utf8(f, "SHARED_READ", 11);
+      break;
+    case MDL_SHARED_WRITE:
+      PFS_engine_table::set_field_varchar_utf8(f, "SHARED_WRITE", 12);
+      break;
+    case MDL_SHARED_UPGRADABLE:
+      PFS_engine_table::set_field_varchar_utf8(f, "SHARED_UPGRADABLE", 17);
+      break;
+    case MDL_SHARED_NO_WRITE:
+      PFS_engine_table::set_field_varchar_utf8(f, "SHARED_NO_WRITE", 15);
+      break;
+    case MDL_SHARED_NO_READ_WRITE:
+      PFS_engine_table::set_field_varchar_utf8(f, "SHARED_NO_READ_WRITE", 20);
+      break;
+    case MDL_EXCLUSIVE:
+      PFS_engine_table::set_field_varchar_utf8(f, "EXCLUSIVE", 9);
+      break;
+    default:
+      DBUG_ASSERT(false);
+    }
   }
 }
 
@@ -677,19 +718,19 @@ void set_field_mdl_duration(Field *f, opaque_mdl_duration mdl_duration)
 
 void set_field_mdl_status(Field *f, opaque_mdl_status mdl_status)
 {
-  enum_psi_status e= static_cast<enum_psi_status>(mdl_status);
+  MDL_ticket::enum_psi_status e= static_cast<MDL_ticket::enum_psi_status>(mdl_status);
   switch (e)
   {
-  case PENDING:
+  case MDL_ticket::PENDING:
     PFS_engine_table::set_field_varchar_utf8(f, "PENDING", 7);
     break;
-  case GRANTED:
+  case MDL_ticket::GRANTED:
     PFS_engine_table::set_field_varchar_utf8(f, "GRANTED", 7);
     break;
-  case PRE_ACQUIRE_NOTIFY:
+  case MDL_ticket::PRE_ACQUIRE_NOTIFY:
     PFS_engine_table::set_field_varchar_utf8(f, "PRE_ACQUIRE_NOTIFY", 18);
     break;
-  case POST_RELEASE_NOTIFY:
+  case MDL_ticket::POST_RELEASE_NOTIFY:
     PFS_engine_table::set_field_varchar_utf8(f, "POST_RELEASE_NOTIFY", 19);
     break;
   default:
@@ -798,7 +839,7 @@ void PFS_variable_name_row::make_row(const char* str, size_t length)
   DBUG_ASSERT(length <= sizeof(m_str));
   DBUG_ASSERT(length <= NAME_CHAR_LEN);
 
-  m_length= MY_MIN(length, NAME_CHAR_LEN); /* enforce max name length */
+  m_length= MY_MIN(static_cast<uint>(length), NAME_CHAR_LEN); /* enforce max name length */
   if (m_length > 0)
     memcpy(m_str, str, length);
   m_str[m_length]= '\0';
@@ -822,7 +863,7 @@ void PFS_variable_value_row::make_row(const CHARSET_INFO *cs, const char* str, s
   {
     memcpy(m_str, str, length);
   }
-  m_length= length;
+  m_length= static_cast<uint>(length);
   m_charset= cs;
 }
 

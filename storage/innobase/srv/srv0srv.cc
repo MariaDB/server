@@ -43,8 +43,8 @@ Created 10/8/1995 Heikki Tuuri
 // JAN: TODO: MySQL 5.7 missing header
 //#include "my_thread.h"
 //
-// #include "mysql/psi/mysql_stage.h"
-// #include "mysql/psi/psi.h"
+#include "mysql/psi/mysql_stage.h"
+#include "mysql/psi/psi.h"
 
 #include "btr0sea.h"
 #include "buf0flu.h"

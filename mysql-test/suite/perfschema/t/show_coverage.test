@@ -9,13 +9,6 @@
 --source include/no_protocol.inc
 --source include/count_sessions.inc
 
-select @@global.show_compatibility_56 into @show_compatibility_56_save;
---echo
---echo ================================================================================
---echo SHOW_COMPATIBILITY_56 = ON
---echo ================================================================================
-set global show_compatibility_56 = ON;
-
 --echo
 --echo # TEST 1
 --echo # Handling of SHOW STATUS/VARIABLES ... WHERE
@@ -40,11 +33,6 @@ USE test;
 CREATE TABLE t0 SELECT * FROM information_schema.global_status WHERE variable_name = 'COM_SELECT';
 DROP TABLE t0;
 
---echo
---echo ================================================================================
---echo SHOW_COMPATIBILITY_56 = OFF
---echo ================================================================================
-set global show_compatibility_56 = OFF;
 --echo
 --echo # TEST 3
 --echo # Select status and system variable tables using ORDER BY to exercise the
@@ -196,6 +184,3 @@ FLUSH STATUS;
 --let $assert_cond = $default_session_value = 0
 --let $assert_text = Default session value after FLUSH must remain zero
 --source include/assert.inc
-
---echo # CLEANUP
-set @@global.show_compatibility_56 = @show_compatibility_56_save;

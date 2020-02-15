@@ -173,7 +173,7 @@ int table_metadata_locks::read_row_values(TABLE *table,
         set_field_ulonglong(f, (intptr) m_row.m_identity);
         break;
       case 4: /* LOCK_TYPE */
-        set_field_mdl_type(f, m_row.m_mdl_type);
+        set_field_mdl_type(f, m_row.m_mdl_type, m_row.m_object.m_object_type == OBJECT_TYPE_BACKUP);
         break;
       case 5: /* LOCK_DURATION */
         set_field_mdl_duration(f, m_row.m_mdl_duration);

@@ -548,7 +548,7 @@ void PFS_account::aggregate_status(PFS_user *safe_user, PFS_host *safe_host)
       - GLOBAL_STATUS
     */
     safe_user->m_status_stats.aggregate(& m_status_stats);
-    m_status_stats.aggregate_to(& global_status_var);
+    //m_status_stats.aggregate_to(& global_status_var);
     m_status_stats.reset();
     return;
   }
@@ -568,7 +568,7 @@ void PFS_account::aggregate_status(PFS_user *safe_user, PFS_host *safe_host)
     Aggregate STATUS_BY_ACCOUNT to:
     - GLOBAL_STATUS
   */
-  m_status_stats.aggregate_to(& global_status_var);
+  //m_status_stats.aggregate_to(& global_status_var);
   m_status_stats.reset();
   return;
 }

@@ -5,21 +5,16 @@ WHERE name in ('wait/io/table/sql/handler',
 'wait/lock/metadata/sql/mdl');
 set @orig_sql_mode= @@sql_mode;
 set sql_mode= (select replace(@@sql_mode,'NO_AUTO_CREATE_USER',''));
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 grant ALL on *.* to user1@localhost;
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
 grant ALL on *.* to user2@localhost;
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
 set sql_mode= @orig_sql_mode;
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 insert into performance_schema.setup_objects (object_type, object_schema, object_name, enabled, timed)
 values ('TABLE', 'mtr', '%', 'NO', 'NO');
 # Switch to (con1, localhost, user1, , )
+connect  con1, localhost, user1, , ;
 # Switch to (con2, localhost, user2, , )
+connect  con2, localhost, user2, , ;
+connection default;
 drop function if exists thread_id_name;
 create function thread_id_name(THREAD_ID int)
 returns varchar(16)
@@ -89,10 +84,12 @@ INSERT INTO t1 (id) VALUES (1), (2), (3), (4), (5), (6), (7), (8);
 TRUNCATE TABLE performance_schema.events_waits_history_long;
 TRUNCATE TABLE performance_schema.events_waits_history;
 TRUNCATE TABLE performance_schema.events_waits_current;
+connection con1;
 BEGIN;
 SELECT * from t1 where id=1;
 id	b
 1	initial value
+connection default;
 "---- Marker 1 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -120,18 +117,14 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	READ
 EXTERNAL_LOCK	NULL
 OWNER_THREAD_ID	OTHER
 execute dump_waits_current;
 execute dump_waits_history_long;
+connection con1;
 COMMIT;
+connection default;
 "---- Marker 2 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -152,19 +145,15 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	READ
 EXTERNAL_LOCK	NULL
 OWNER_THREAD_ID	OTHER
 execute dump_waits_current;
 execute dump_waits_history_long;
+connection con1;
 BEGIN;
 UPDATE t1 set b="new value" where id=2;
+connection default;
 "---- Marker 3 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -192,19 +181,15 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	WRITE
 EXTERNAL_LOCK	NULL
 OWNER_THREAD_ID	OTHER
 execute dump_waits_current;
 execute dump_waits_history_long;
+connection con2;
 BEGIN;
 DROP TABLE t1;;
+connection default;
 "---- Marker 4 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -214,13 +199,6 @@ LOCK_TYPE	SHARED
 LOCK_DURATION	TRANSACTION
 LOCK_STATUS	GRANTED
 OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	GLOBAL
-OBJECT_SCHEMA	NULL
-OBJECT_NAME	NULL
-LOCK_TYPE	INTENTION_EXCLUSIVE
-LOCK_DURATION	STATEMENT
-LOCK_STATUS	GRANTED
-OWNER_THREAD_ID	USER2
 OBJECT_TYPE	SCHEMA
 OBJECT_SCHEMA	test
 OBJECT_NAME	NULL
@@ -253,13 +231,7 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	WRITE
 EXTERNAL_LOCK	NULL
 OWNER_THREAD_ID	OTHER
 execute dump_waits_current;
@@ -273,7 +245,10 @@ OBJECT_NAME	t1
 INDEX_NAME	NULL
 OPERATION	metadata lock
 execute dump_waits_history_long;
+connection con1;
 COMMIT;
+connection con2;
+connection default;
 "---- Marker 5 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -311,11 +286,14 @@ OBJECT_SCHEMA	test
 OBJECT_NAME	t1
 INDEX_NAME	NULL
 OPERATION	metadata lock
+connection default;
 TRUNCATE TABLE performance_schema.events_waits_history_long;
 TRUNCATE TABLE performance_schema.events_waits_history;
 TRUNCATE TABLE performance_schema.events_waits_current;
 create table t1 (a int);
+connection con1;
 LOCK TABLE t1 READ;
+connection default;
 "---- Marker 6 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -335,7 +313,7 @@ OWNER_THREAD_ID	OTHER
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-LOCK_TYPE	SHARED_READ_ONLY
+LOCK_TYPE	SHARED_READ
 LOCK_DURATION	TRANSACTION
 LOCK_STATUS	GRANTED
 OWNER_THREAD_ID	USER1
@@ -343,12 +321,14 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	READ NO INSERT
 EXTERNAL_LOCK	READ EXTERNAL
 OWNER_THREAD_ID	USER1
 execute dump_waits_current;
 execute dump_waits_history_long;
+connection con2;
 LOCK TABLE t1 write;;
+connection default;
 "---- Marker 7 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -358,13 +338,6 @@ LOCK_TYPE	SHARED
 LOCK_DURATION	TRANSACTION
 LOCK_STATUS	GRANTED
 OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	GLOBAL
-OBJECT_SCHEMA	NULL
-OBJECT_NAME	NULL
-LOCK_TYPE	INTENTION_EXCLUSIVE
-LOCK_DURATION	STATEMENT
-LOCK_STATUS	GRANTED
-OWNER_THREAD_ID	USER2
 OBJECT_TYPE	SCHEMA
 OBJECT_SCHEMA	test
 OBJECT_NAME	NULL
@@ -389,7 +362,7 @@ OWNER_THREAD_ID	USER2
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-LOCK_TYPE	SHARED_READ_ONLY
+LOCK_TYPE	SHARED_READ
 LOCK_DURATION	TRANSACTION
 LOCK_STATUS	GRANTED
 OWNER_THREAD_ID	USER1
@@ -397,7 +370,7 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	READ NO INSERT
 EXTERNAL_LOCK	READ EXTERNAL
 OWNER_THREAD_ID	USER1
 execute dump_waits_current;
@@ -411,9 +384,26 @@ OBJECT_NAME	t1
 INDEX_NAME	NULL
 OPERATION	metadata lock
 execute dump_waits_history_long;
+connection con1;
 UNLOCK TABLES;
+connection con2;
+connection default;
 "---- Marker 8 ----"
 execute dump_metadata_locks;
+OBJECT_TYPE	BACKUP
+OBJECT_SCHEMA	NULL
+OBJECT_NAME	NULL
+LOCK_TYPE	BACKUP_DDL
+LOCK_DURATION	STATEMENT
+LOCK_STATUS	GRANTED
+OWNER_THREAD_ID	USER2
+OBJECT_TYPE	BACKUP
+OBJECT_SCHEMA	NULL
+OBJECT_NAME	NULL
+LOCK_TYPE	BACKUP_DML
+LOCK_DURATION	STATEMENT
+LOCK_STATUS	GRANTED
+OWNER_THREAD_ID	USER2
 OBJECT_TYPE	FUNCTION
 OBJECT_SCHEMA	test
 OBJECT_NAME	thread_id_name
@@ -421,13 +411,6 @@ LOCK_TYPE	SHARED
 LOCK_DURATION	TRANSACTION
 LOCK_STATUS	GRANTED
 OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	GLOBAL
-OBJECT_SCHEMA	NULL
-OBJECT_NAME	NULL
-LOCK_TYPE	INTENTION_EXCLUSIVE
-LOCK_DURATION	STATEMENT
-LOCK_STATUS	GRANTED
-OWNER_THREAD_ID	USER2
 OBJECT_TYPE	SCHEMA
 OBJECT_SCHEMA	test
 OBJECT_NAME	NULL
@@ -453,13 +436,7 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	WRITE
 EXTERNAL_LOCK	WRITE EXTERNAL
 OWNER_THREAD_ID	USER2
 execute dump_waits_current;
@@ -473,9 +450,25 @@ OBJECT_SCHEMA	test
 OBJECT_NAME	t1
 INDEX_NAME	NULL
 OPERATION	metadata lock
+connection con1;
 LOCK TABLES t1 read;;
+connection default;
 "---- Marker 9 ----"
 execute dump_metadata_locks;
+OBJECT_TYPE	BACKUP
+OBJECT_SCHEMA	NULL
+OBJECT_NAME	NULL
+LOCK_TYPE	BACKUP_DDL
+LOCK_DURATION	STATEMENT
+LOCK_STATUS	GRANTED
+OWNER_THREAD_ID	USER2
+OBJECT_TYPE	BACKUP
+OBJECT_SCHEMA	NULL
+OBJECT_NAME	NULL
+LOCK_TYPE	BACKUP_DML
+LOCK_DURATION	STATEMENT
+LOCK_STATUS	GRANTED
+OWNER_THREAD_ID	USER2
 OBJECT_TYPE	FUNCTION
 OBJECT_SCHEMA	test
 OBJECT_NAME	thread_id_name
@@ -483,13 +476,6 @@ LOCK_TYPE	SHARED
 LOCK_DURATION	TRANSACTION
 LOCK_STATUS	GRANTED
 OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	GLOBAL
-OBJECT_SCHEMA	NULL
-OBJECT_NAME	NULL
-LOCK_TYPE	INTENTION_EXCLUSIVE
-LOCK_DURATION	STATEMENT
-LOCK_STATUS	GRANTED
-OWNER_THREAD_ID	USER2
 OBJECT_TYPE	SCHEMA
 OBJECT_SCHEMA	test
 OBJECT_NAME	NULL
@@ -514,7 +500,7 @@ OWNER_THREAD_ID	USER2
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-LOCK_TYPE	SHARED_READ_ONLY
+LOCK_TYPE	SHARED_READ
 LOCK_DURATION	TRANSACTION
 LOCK_STATUS	PENDING
 OWNER_THREAD_ID	USER1
@@ -522,13 +508,7 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	WRITE
 EXTERNAL_LOCK	WRITE EXTERNAL
 OWNER_THREAD_ID	USER2
 execute dump_waits_current;
@@ -551,7 +531,10 @@ OBJECT_SCHEMA	test
 OBJECT_NAME	t1
 INDEX_NAME	NULL
 OPERATION	metadata lock
+connection con2;
 UNLOCK TABLES;
+connection con1;
+connection default;
 "---- Marker 10 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -571,7 +554,7 @@ OWNER_THREAD_ID	OTHER
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-LOCK_TYPE	SHARED_READ_ONLY
+LOCK_TYPE	SHARED_READ
 LOCK_DURATION	TRANSACTION
 LOCK_STATUS	GRANTED
 OWNER_THREAD_ID	USER1
@@ -579,13 +562,7 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	READ NO INSERT
 EXTERNAL_LOCK	READ EXTERNAL
 OWNER_THREAD_ID	USER1
 execute dump_waits_current;
@@ -608,7 +585,9 @@ OBJECT_SCHEMA	test
 OBJECT_NAME	t1
 INDEX_NAME	NULL
 OPERATION	metadata lock
+connection con1;
 UNLOCK TABLES;
+connection default;
 "---- Marker 11 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -629,13 +608,7 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	READ NO INSERT
 EXTERNAL_LOCK	NULL
 OWNER_THREAD_ID	OTHER
 execute dump_waits_current;
@@ -661,8 +634,10 @@ OPERATION	metadata lock
 TRUNCATE TABLE performance_schema.events_waits_history_long;
 TRUNCATE TABLE performance_schema.events_waits_history;
 TRUNCATE TABLE performance_schema.events_waits_current;
+connection con1;
 BEGIN;
 UPDATE LOW_PRIORITY t1 SET a=8;
+connection default;
 "---- Marker 12 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -682,7 +657,7 @@ OWNER_THREAD_ID	OTHER
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-LOCK_TYPE	SHARED_WRITE_LOW_PRIO
+LOCK_TYPE	SHARED_WRITE
 LOCK_DURATION	TRANSACTION
 LOCK_STATUS	GRANTED
 OWNER_THREAD_ID	USER1
@@ -690,24 +665,22 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	WRITE LOW PRIORITY
 EXTERNAL_LOCK	NULL
 OWNER_THREAD_ID	OTHER
 execute dump_waits_current;
 execute dump_waits_history_long;
+connection con1;
 COMMIT;
+connection default;
 TRUNCATE TABLE performance_schema.events_waits_history_long;
 TRUNCATE TABLE performance_schema.events_waits_history;
 TRUNCATE TABLE performance_schema.events_waits_current;
+connection con1;
 SELECT GET_LOCK('test', 0);
 GET_LOCK('test', 0)
 1
+connection default;
 "---- Marker 13 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -727,7 +700,7 @@ OWNER_THREAD_ID	OTHER
 OBJECT_TYPE	USER LEVEL LOCK
 OBJECT_SCHEMA	NULL
 OBJECT_NAME	test
-LOCK_TYPE	EXCLUSIVE
+LOCK_TYPE	SHARED_NO_WRITE
 LOCK_DURATION	EXPLICIT
 LOCK_STATUS	GRANTED
 OWNER_THREAD_ID	USER1
@@ -735,18 +708,14 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	WRITE LOW PRIORITY
 EXTERNAL_LOCK	NULL
 OWNER_THREAD_ID	OTHER
 execute dump_waits_current;
 execute dump_waits_history_long;
+connection con2;
 SELECT GET_LOCK('test', 120);;
+connection default;
 "---- Marker 14 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -766,14 +735,14 @@ OWNER_THREAD_ID	OTHER
 OBJECT_TYPE	USER LEVEL LOCK
 OBJECT_SCHEMA	NULL
 OBJECT_NAME	test
-LOCK_TYPE	EXCLUSIVE
+LOCK_TYPE	SHARED_NO_WRITE
 LOCK_DURATION	EXPLICIT
 LOCK_STATUS	GRANTED
 OWNER_THREAD_ID	USER1
 OBJECT_TYPE	USER LEVEL LOCK
 OBJECT_SCHEMA	NULL
 OBJECT_NAME	test
-LOCK_TYPE	EXCLUSIVE
+LOCK_TYPE	SHARED_NO_WRITE
 LOCK_DURATION	EXPLICIT
 LOCK_STATUS	PENDING
 OWNER_THREAD_ID	USER2
@@ -781,13 +750,7 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	WRITE LOW PRIORITY
 EXTERNAL_LOCK	NULL
 OWNER_THREAD_ID	OTHER
 execute dump_waits_current;
@@ -801,11 +764,14 @@ OBJECT_NAME	test
 INDEX_NAME	NULL
 OPERATION	metadata lock
 execute dump_waits_history_long;
+connection con1;
 SELECT RELEASE_LOCK('test');
 RELEASE_LOCK('test')
 1
+connection con2;
 GET_LOCK('test', 120)
 1
+connection default;
 "---- Marker 15 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -825,7 +791,7 @@ OWNER_THREAD_ID	OTHER
 OBJECT_TYPE	USER LEVEL LOCK
 OBJECT_SCHEMA	NULL
 OBJECT_NAME	test
-LOCK_TYPE	EXCLUSIVE
+LOCK_TYPE	SHARED_NO_WRITE
 LOCK_DURATION	EXPLICIT
 LOCK_STATUS	GRANTED
 OWNER_THREAD_ID	USER2
@@ -833,13 +799,7 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	WRITE LOW PRIORITY
 EXTERNAL_LOCK	NULL
 OWNER_THREAD_ID	OTHER
 execute dump_waits_current;
@@ -862,9 +822,11 @@ OBJECT_SCHEMA	NULL
 OBJECT_NAME	test
 INDEX_NAME	NULL
 OPERATION	metadata lock
+connection con2;
 SELECT RELEASE_LOCK('test');
 RELEASE_LOCK('test')
 1
+connection default;
 "---- Marker 16 ----"
 execute dump_metadata_locks;
 OBJECT_TYPE	FUNCTION
@@ -885,13 +847,7 @@ execute dump_table_handles;
 OBJECT_TYPE	TABLE
 OBJECT_SCHEMA	test
 OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
-EXTERNAL_LOCK	NULL
-OWNER_THREAD_ID	OTHER
-OBJECT_TYPE	TABLE
-OBJECT_SCHEMA	test
-OBJECT_NAME	t1
-INTERNAL_LOCK	NULL
+INTERNAL_LOCK	WRITE LOW PRIORITY
 EXTERNAL_LOCK	NULL
 OWNER_THREAD_ID	OTHER
 execute dump_waits_current;
@@ -914,6 +870,9 @@ OBJECT_SCHEMA	NULL
 OBJECT_NAME	test
 INDEX_NAME	NULL
 OPERATION	metadata lock
+disconnect con1;
+disconnect con2;
+connection default;
 drop table t1;
 UPDATE performance_schema.setup_instruments SET enabled = 'YES', timed = 'YES';
 revoke all privileges, grant option from user1@localhost;

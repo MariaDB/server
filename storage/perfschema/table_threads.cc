@@ -27,34 +27,6 @@
 #include "pfs_instr_class.h"
 #include "pfs_instr.h"
 
-static const LEX_CSTRING vio_type_names[] =
-{
-  { STRING_WITH_LEN("Error") }, // cannot happen
-  { STRING_WITH_LEN("TCP/IP") },
-  { STRING_WITH_LEN("Socket") },
-  { STRING_WITH_LEN("Named Pipe") },
-  { STRING_WITH_LEN("SSL/TLS") },
-  { STRING_WITH_LEN("Shared Memory") }
-};
-
-static void get_vio_type_name(enum enum_vio_type vio_type, const char **str, int *len)
-{
-  int index;
-
-  if ((vio_type >= FIRST_VIO_TYPE) && (vio_type <= LAST_VIO_TYPE))
-  {
-    index= vio_type;
-  }
-  else
-  {
-    index= 0;
-  }
-  *str= vio_type_names[index].str;
-  *len= vio_type_names[index].length;
-  return;
-}
-
-
 THR_LOCK table_threads::m_table_lock;
 
 PFS_engine_table_share
@@ -84,7 +56,7 @@ table_threads::m_share=
                       "ROLE VARCHAR(64),"
                       "INSTRUMENTED ENUM ('YES', 'NO') not null,"
                       "HISTORY ENUM ('YES', 'NO') not null,"
-                      "CONNECTION_TYPE VARCHAR(16)"
+                      "CONNECTION_TYPE VARCHAR(16),"
                       "THREAD_OS_ID BIGINT unsigned)") },
   false  /* perpetual */
 };
@@ -324,7 +296,7 @@ int table_threads::read_row_values(TABLE *table,
         set_field_enum(f, m_row.m_history ? ENUM_YES : ENUM_NO);
         break;
       case 15: /* CONNECTION_TYPE */
-        get_vio_type_name(m_row.m_connection_type, & str, & len);
+        str= vio_type_name(m_row.m_connection_type, & len);
         if (len > 0)
           set_field_varchar_utf8(f, str, (uint)len);
         else

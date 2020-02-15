@@ -1108,8 +1108,8 @@ Sp_handler::sp_drop_routine_internal(THD *thd,
   if ((sp= sp_cache_lookup(spc, name)))
     sp_cache_flush_obsolete(spc, &sp);
   /* Drop statistics for this stored program from performance schema. */
-  MYSQL_DROP_SP(type(), name->m_db.str, name->m_db.length,
-                        name->m_name.str, name->m_name.length);
+  MYSQL_DROP_SP(type(), name->m_db.str, static_cast<uint>(name->m_db.length),
+                        name->m_name.str, static_cast<uint>(name->m_name.length));
   DBUG_RETURN(SP_OK);
 }
 
@@ -1857,7 +1857,7 @@ sp_drop_db_routines(THD *thd, const char *db)
 
         enum_sp_type sp_type= (enum_sp_type) table->field[MYSQL_PROC_MYSQL_TYPE]->ptr[0];
         /* Drop statistics for this stored program from performance schema. */
-        MYSQL_DROP_SP(sp_type, db, db_length, name->ptr(), name->length());
+        MYSQL_DROP_SP(sp_type, db, static_cast<uint>(db_length), name->ptr(), name->length());
 #endif
       }
       else

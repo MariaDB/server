@@ -21,7 +21,7 @@ connection slave;
 "Command: SHOW ALL STAVES STATUS --> SHOW ALL REPLICAS STATUS"
 SHOW ALL REPLICAS STATUS;
 Connection_name	slave1
-Slave_SQL_State	Slave has read all relay log; waiting for the slave I/O thread to update it
+Slave_SQL_State	Slave has read all relay log; waiting for more updates
 Slave_IO_State	Waiting for master to send event
 Master_Host	127.0.0.1
 Master_User	root
@@ -71,7 +71,7 @@ Replicate_Ignore_Domain_Ids
 Parallel_Mode	optimistic
 SQL_Delay	0
 SQL_Remaining_Delay	NULL
-Slave_SQL_Running_State	Slave has read all relay log; waiting for the slave I/O thread to update it
+Slave_SQL_Running_State	Slave has read all relay log; waiting for more updates
 Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
@@ -82,7 +82,7 @@ Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
 Connection_name	slave2
-Slave_SQL_State	Slave has read all relay log; waiting for the slave I/O thread to update it
+Slave_SQL_State	Slave has read all relay log; waiting for more updates
 Slave_IO_State	Waiting for master to send event
 Master_Host	127.0.0.1
 Master_User	root
@@ -132,7 +132,7 @@ Replicate_Ignore_Domain_Ids
 Parallel_Mode	optimistic
 SQL_Delay	0
 SQL_Remaining_Delay	NULL
-Slave_SQL_Running_State	Slave has read all relay log; waiting for the slave I/O thread to update it
+Slave_SQL_Running_State	Slave has read all relay log; waiting for more updates
 Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0

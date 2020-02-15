@@ -30,7 +30,6 @@
 #include "sql_class.h"
 #include "sql_show.h"
 
-my_bool show_compatibility_56= FALSE;
 struct system_status_var global_status_var;
 struct sql_digest_storage;
 

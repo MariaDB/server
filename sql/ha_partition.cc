@@ -107,7 +107,7 @@ static PSI_memory_key key_memory_partition_sort_buffer;
 static PSI_memory_key key_memory_Partition_admin;
 
 static PSI_memory_key key_memory_ha_partition_file;
-static PSI_memory_key key_memory_ha_partition_engine_array;
+//static PSI_memory_key key_memory_ha_partition_engine_array;
 static PSI_memory_key key_memory_ha_partition_part_ids;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -123,7 +123,7 @@ static PSI_memory_info all_partitioning_memory[]=
   { &key_memory_partition_sort_buffer, "partition_sort_buffer", 0},
   { &key_memory_Partition_admin, "Partition_admin", 0},
   { &key_memory_ha_partition_file, "ha_partition::file", 0},
-  { &key_memory_ha_partition_engine_array, "ha_partition::engine_array", 0},
+//  { &key_memory_ha_partition_engine_array, "ha_partition::engine_array", 0},
   { &key_memory_ha_partition_part_ids, "ha_partition::part_ids", 0} };
 static PSI_file_info all_partition_file[]=
 { { &key_file_ha_partition_par, "ha_partition::parfile", 0} };

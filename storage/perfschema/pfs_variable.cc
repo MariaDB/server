@@ -84,7 +84,7 @@ bool PFS_system_variable_cache::init_show_var_array(enum_var_type scope, bool st
   DBUG_ASSERT(!m_initialized);
   m_query_scope= scope;
 
-  mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+  mysql_prlock_rdlock(&LOCK_system_variables_hash);
   DEBUG_SYNC(m_current_thd, "acquired_LOCK_system_variables_hash");
 
   /* Record the system variable hash version to detect subsequent changes. */
@@ -96,7 +96,7 @@ bool PFS_system_variable_cache::init_show_var_array(enum_var_type scope, bool st
   for (int i=0; vars[i].name; i++)
     m_show_var_array.set(i, vars[i]);
 
-  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   /* Increase cache size if necessary. */
   m_cache.reserve(m_show_var_array.elements());
@@ -152,8 +152,8 @@ bool PFS_system_variable_cache::match_scope(int scope)
 */
 int PFS_system_variable_cache::do_materialize_global(void)
 {
-  /* Block plugins from unloading. */
-  mysql_mutex_lock(&LOCK_plugin_delete);
+  /* Block system variable additions or deletions. */
+  mysql_mutex_lock(&LOCK_global_system_variables);
 
   m_materialized= false;
 
@@ -213,7 +213,7 @@ int PFS_system_variable_cache::do_materialize_global(void)
   }
 
   m_materialized= true;
-  mysql_mutex_unlock(&LOCK_plugin_delete);
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   return 0;
 }
 
@@ -247,38 +247,11 @@ int PFS_system_variable_cache::do_materialize_all(THD *unsafe_thd)
     for (SHOW_VAR *show_var= m_show_var_array.front();
          show_var->value && (show_var != m_show_var_array.end()); show_var++)
     {
-      const char* name= show_var->name;
       sys_var *value= (sys_var *)show_var->value;
       DBUG_ASSERT(value);
-      bool ignore= false;
 
-      if (value->scope() == sys_var::SESSION &&
-          (!my_strcasecmp(system_charset_info, name, "gtid_executed")))
-      {
-        /*
-         GTID_EXECUTED is:
-         - declared in sys_vars.cc as both GLOBAL and SESSION in 5.7
-         - can be read with @@session.gtid_executed
-
-         When show_compatibility_56 = ON,
-         - SHOW SESSION VARIABLES does expose a row for GTID_EXECUTED
-         - INFORMATION_SCHEMA.SESSION_VARIABLES also does expose a row,
-         both are for backward compatibility of existing applications,
-         so that no application logic change is required.
-
-         Now, with show_compatibility_56 = OFF (aka, in this code)
-         - SHOW SESSION VARIABLES does -- not -- expose a row for GTID_EXECUTED
-         - PERFORMANCE_SCHEMA.SESSION_VARIABLES also does -- not -- expose a row
-         so that a clean interface is exposed to (upgraded and modified)
-         applications.
-
-         This special case needs be removed once @@SESSION.GTID_EXECUTED is
-         deprecated.
-        */
-        ignore= true;
-      }
       /* Resolve value, convert to text, add to cache. */
-      System_variable system_var(m_safe_thd, show_var, m_query_scope, ignore);
+      System_variable system_var(m_safe_thd, show_var, m_query_scope, false);
       m_cache.push(system_var);
     }
 
@@ -303,7 +276,7 @@ void PFS_system_variable_cache::set_mem_root(void)
     init_sql_alloc(PSI_INSTRUMENT_ME, &m_mem_sysvar, SYSVAR_MEMROOT_BLOCK_SIZE, 0, 0);
     m_mem_sysvar_ptr= &m_mem_sysvar;
   }
-  m_mem_thd= my_thread_get_THR_MALLOC();  /* pointer to current THD mem_root */
+  m_mem_thd= &current_thd->mem_root;      /* pointer to current THD mem_root */
   m_mem_thd_save= *m_mem_thd;             /* restore later */
   *m_mem_thd= &m_mem_sysvar;              /* use temporary mem_root */
 }
@@ -376,18 +349,8 @@ int PFS_system_variable_cache::do_materialize_session(PFS_thread *pfs_thread)
       /* Match the system variable scope to the target scope. */
       if (match_scope(value->scope()))
       {
-        const char* name= show_var->name;
-        bool ignore= false;
-
-        if (value->scope() == sys_var::SESSION &&
-            (!my_strcasecmp(system_charset_info, name, "gtid_executed")))
-        {
-          /* Deprecated. See PFS_system_variable_cache::do_materialize_all. */
-#warning no @@gtid_executed in MariaDB
-          ignore= true;
-        }
         /* Resolve value, convert to text, add to cache. */
-        System_variable system_var(m_safe_thd, show_var, m_query_scope, ignore);
+        System_variable system_var(m_safe_thd, show_var, m_query_scope, false);
         m_cache.push(system_var);
       }
     }
@@ -439,18 +402,9 @@ int PFS_system_variable_cache::do_materialize_session(PFS_thread *pfs_thread, ui
       /* Match the system variable scope to the target scope. */
       if (match_scope(value->scope()))
       {
-        const char* name= show_var->name;
-        bool ignore= false;
-
-        if (value->scope() == sys_var::SESSION &&
-            (!my_strcasecmp(system_charset_info, name, "gtid_executed")))
-        {
-          /* Deprecated. See PFS_system_variable_cache::do_materialize_all. */
-          ignore= true;
-        }
         /* Resolve value, convert to text, add to cache. */
-        System_variable system_var(m_safe_thd, show_var, m_query_scope, ignore);
-        m_cache.push_back(system_var);
+        System_variable system_var(m_safe_thd, show_var, m_query_scope, false);
+        m_cache.push(system_var);
       }
     }
 
@@ -499,17 +453,8 @@ int PFS_system_variable_cache::do_materialize_session(THD *unsafe_thd)
       /* Match the system variable scope to the target scope. */
       if (match_scope(value->scope()))
       {
-        const char* name= show_var->name;
-        bool ignore= false;
-
-        if (value->scope() == sys_var::SESSION &&
-            (!my_strcasecmp(system_charset_info, name, "gtid_executed")))
-        {
-          /* Deprecated. See PFS_system_variable_cache::do_materialize_all. */
-          ignore= true;
-        }
         /* Resolve value, convert to text, add to cache. */
-        System_variable system_var(m_safe_thd, show_var, m_query_scope, ignore);
+        System_variable system_var(m_safe_thd, show_var, m_query_scope, false);
         m_cache.push(system_var);
       }
     }
@@ -575,13 +520,11 @@ void System_variable::init(THD *target_thd, const SHOW_VAR *show_var,
     return;
   }
 
-  THD *current_thread= current_thd;
-
   /* Block remote target thread from updating this system variable. */
+  /*XXX
+  THD *current_thread= current_thd;
   if (target_thd != current_thread)
-    /*XXX mysql_mutex_lock(&target_thd->LOCK_thd_sysvar)*/;
-  /* Block system variable additions or deletions. */
-  mysql_mutex_lock(&LOCK_global_system_variables);
+    mysql_mutex_lock(&target_thd->LOCK_thd_sysvar);*/
 
   sys_var *system_var= (sys_var *)show_var->value;
   DBUG_ASSERT(system_var != NULL);
@@ -591,8 +534,9 @@ void System_variable::init(THD *target_thd, const SHOW_VAR *show_var,
 
   /* Get the value of the system variable. */
   String buf(m_value_str, sizeof(m_value_str) - 1, system_charset_info);
-  system_var->val_str_nolock(&buf, target_thd,
-               system_var->value_ptr(target_thd, query_scope, &null_lex_str));
+  if (!system_var->val_str_nolock(&buf, target_thd,
+               system_var->value_ptr(target_thd, query_scope, &null_clex_str)))
+    buf.length(0);
 
   m_value_length= MY_MIN(buf.length(), SHOW_VAR_FUNC_BUFF_SIZE);
 
@@ -601,9 +545,9 @@ void System_variable::init(THD *target_thd, const SHOW_VAR *show_var,
     memcpy(m_value_str, buf.ptr(), m_value_length);
   m_value_str[m_value_length]= 0;
 
-  mysql_mutex_unlock(&LOCK_global_system_variables);
+  /*XXX
   if (target_thd != current_thread)
-    /*XXX mysql_mutex_unlock(&target_thd->LOCK_thd_sysvar)*/;
+    mysql_mutex_unlock(&target_thd->LOCK_thd_sysvar);*/
 
   m_initialized= true;
 }
@@ -1283,9 +1227,11 @@ void Status_variable::init(const SHOW_VAR *show_var, STATUS_VAR *status_vars, en
   m_type= show_var->type;
 
   /* Get the value of the status variable. */
-  char *value= m_value_str;
-  m_value_length= get_one_variable(status_vars, m_type, show_var->value, &value);
+  const char *value;
+  value= get_one_variable(current_thd, show_var, query_scope, m_type,
+                          status_vars, &m_charset, m_value_str, &m_value_length);
   m_value_length= MY_MIN(m_value_length, SHOW_VAR_FUNC_BUFF_SIZE);
+  m_charset= system_charset_info;
 
   /* Returned value may reference a string other than m_value_str. */
   if (value != m_value_str)

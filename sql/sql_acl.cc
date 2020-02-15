@@ -7997,15 +7997,7 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
       switch(access->check(orig_want_access, &t_ref->grant.privilege))
       {
       case ACL_INTERNAL_ACCESS_GRANTED:
-        /*
-          Currently,
-          -  the information_schema does not subclass ACL_internal_table_access,
-          there are no per table privilege checks for I_S,
-          - the performance schema does use per tables checks, but at most
-          returns 'CHECK_GRANT', and never 'ACCESS_GRANTED'.
-          so this branch is not used.
-        */
-        DBUG_ASSERT(0);
+        continue;
       case ACL_INTERNAL_ACCESS_DENIED:
         goto err;
       case ACL_INTERNAL_ACCESS_CHECK_GRANT:
@@ -14273,8 +14265,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     my_ok(thd);
 
   PSI_CALL_set_thread_account
-    (thd->main_security_ctx.user, strlen(thd->main_security_ctx.user),
-    thd->main_security_ctx.host_or_ip, strlen(thd->main_security_ctx.host_or_ip));
+    (thd->main_security_ctx.user, static_cast<uint>(strlen(thd->main_security_ctx.user)),
+    thd->main_security_ctx.host_or_ip, static_cast<uint>(strlen(thd->main_security_ctx.host_or_ip)));
 
   /* Ready to handle queries */
   DBUG_RETURN(0);

@@ -54,6 +54,7 @@
 --source include/have_perfschema.inc
 --source include/no_protocol.inc
 --source ../include/wait_for_pfs_thread_count.inc
+--source include/not_windows.inc
 
 --disable_query_log
 

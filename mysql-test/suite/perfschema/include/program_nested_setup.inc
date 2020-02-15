@@ -3,6 +3,7 @@
 #
 
 --source include/no_protocol.inc
+--source include/have_innodb.inc
 
 --echo # SET-UP
 CREATE DATABASE nested_sp;
@@ -16,7 +17,7 @@ CREATE TABLE t1(
 CREATE TABLE t2(
   n INT UNSIGNED NOT NULL, 
   f BIGINT UNSIGNED
-);
+) engine=innodb;
 
 --echo ############################
 --echo # Creating Stored Programs #

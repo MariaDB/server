@@ -851,6 +851,5 @@ typedef struct PSI_transaction_locker_state_v1 PSI_transaction_locker_state;
 typedef struct PSI_socket_locker_state_v1 PSI_socket_locker_state;
 typedef struct PSI_sp_locker_state_v1 PSI_sp_locker_state;
 typedef struct PSI_metadata_locker_state_v1 PSI_metadata_locker_state;
-extern MYSQL_PLUGIN_IMPORT my_bool pfs_enabled;
 extern MYSQL_PLUGIN_IMPORT PSI *PSI_server;
 C_MODE_END

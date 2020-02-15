@@ -133,9 +133,10 @@
 #  define MRN_SEVERITY_WARNING Sql_condition::WARN_LEVEL_WARN
 #endif
 
+#ifdef HAVE_PSI_MEMORY_INTERFACE
 #define MRN_HAVE_PSI_MEMORY_KEY
+#endif
 
-#ifdef MRN_HAVE_PSI_MEMORY_KEY
 #  define mrn_my_malloc(size, flags) \
   my_malloc(mrn_memory_key, size, flags)
 #  define mrn_my_strdup(string, flags) \
@@ -144,14 +145,6 @@
   my_strndup(mrn_memory_key, string, size, flags)
 #  define mrn_my_multi_malloc(flags, ...) \
   my_multi_malloc(mrn_memory_key, flags, __VA_ARGS__)
-#else
-#  define mrn_my_malloc(size, flags) my_malloc(size, flags)
-#  define mrn_my_strdup(string, flags) my_strdup(string, flags)
-#  define mrn_my_strndup(string, size, flags) \
-  my_strndup(string, size, flags)
-#  define mrn_my_multi_malloc(flags, ...) \
-  my_multi_malloc(flags, __VA_ARGS__)
-#endif
 
 #if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
 #  define MRN_STRING_FREE(string) string.mem_free();

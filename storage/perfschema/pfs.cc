@@ -1468,6 +1468,7 @@ static enum_operation_type table_lock_operation_map[]=
   OPERATION_TYPE_TL_READ_NO_INSERTS, /* PFS_TL_READ_NO_INSERT */
   OPERATION_TYPE_TL_WRITE_ALLOW_WRITE, /* PFS_TL_WRITE_ALLOW_WRITE */
   OPERATION_TYPE_TL_WRITE_CONCURRENT_INSERT, /* PFS_TL_WRITE_CONCURRENT_INSERT */
+  OPERATION_TYPE_TL_WRITE_DELAYED, /* PFS_TL_WRITE_DELAYED */
   OPERATION_TYPE_TL_WRITE_LOW_PRIORITY, /* PFS_TL_WRITE_LOW_PRIORITY */
   OPERATION_TYPE_TL_WRITE_NORMAL, /* PFS_TL_WRITE */
   OPERATION_TYPE_TL_READ_EXTERNAL, /* PFS_TL_READ_EXTERNAL */
@@ -2963,6 +2964,8 @@ static inline PFS_TL_LOCK_TYPE lock_flags_to_lock_type(uint flags)
       return PFS_TL_WRITE_ALLOW_WRITE;
     case TL_WRITE_CONCURRENT_INSERT:
       return PFS_TL_WRITE_CONCURRENT_INSERT;
+    case TL_WRITE_DELAYED:
+      return PFS_TL_WRITE_DELAYED;
     case TL_WRITE_LOW_PRIORITY:
       return PFS_TL_WRITE_LOW_PRIORITY;
     case TL_WRITE:
@@ -4884,7 +4887,7 @@ pfs_start_stage_v1(PSI_stage_key key, const char *src_file, int src_line)
 }
 
 PSI_stage_progress*
-pfs_get_current_stage_progress_v1()
+pfs_get_current_stage_progress_v1(void)
 {
   PFS_thread *pfs_thread= my_thread_get_THR_PFS();
   if (unlikely(pfs_thread == NULL))
@@ -5762,6 +5765,10 @@ static inline enum_object_type sp_type_to_object_type(uint sp_type)
       return OBJECT_TYPE_FUNCTION;
     case SP_TYPE_PROCEDURE:
       return OBJECT_TYPE_PROCEDURE;
+    case SP_TYPE_PACKAGE:
+      return OBJECT_TYPE_PACKAGE;
+    case SP_TYPE_PACKAGE_BODY:
+      return OBJECT_TYPE_PACKAGE_BODY;
     case SP_TYPE_TRIGGER:
       return OBJECT_TYPE_TRIGGER;
     case SP_TYPE_EVENT:
@@ -6389,8 +6396,8 @@ pfs_create_prepared_stmt_v1(void *identity, uint stmt_id,
   PFS_prepared_stmt *pfs= create_prepared_stmt(identity,
                                                pfs_thread, pfs_program,
                                                pfs_stmt, stmt_id,
-                                               stmt_name, stmt_name_length,
-                                               sql_text, sql_text_length);
+                                               stmt_name, static_cast<uint>(stmt_name_length),
+                                               sql_text, static_cast<uint>(sql_text_length));
 
   state->m_parent_prepared_stmt= reinterpret_cast<PSI_prepared_stmt*>(pfs);
   state->m_in_prepare= true;

@@ -167,8 +167,6 @@ enum ACL_internal_access_result
   /**
     Access granted for all the requested privileges,
     do not use the grant tables.
-    This flag is used only for the INFORMATION_SCHEMA privileges,
-    for compatibility reasons.
   */
   ACL_INTERNAL_ACCESS_GRANTED,
   /** Access denied, do not use the grant tables. */

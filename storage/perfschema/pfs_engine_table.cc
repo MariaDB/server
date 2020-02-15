@@ -310,14 +310,16 @@ static PFS_engine_table_share *all_shares[]=
   &table_table_handles::m_share,
   &table_metadata_locks::m_share,
 
+#ifdef HAVE_REPLICATION
   &table_replication_connection_configuration::m_share,
-  &table_replication_group_members::m_share,
-  &table_replication_connection_status::m_share,
+  //&table_replication_group_members::m_share,
+  //&table_replication_connection_status::m_share,
   &table_replication_applier_configuration::m_share,
   &table_replication_applier_status::m_share,
   &table_replication_applier_status_by_coordinator::m_share,
-  &table_replication_applier_status_by_worker::m_share,
-  &table_replication_group_member_stats::m_share,
+  //&table_replication_applier_status_by_worker::m_share,
+  //&table_replication_group_member_stats::m_share,
+#endif
 
   &table_prepared_stmt_instances::m_share,
 
@@ -329,9 +331,9 @@ static PFS_engine_table_share *all_shares[]=
   &table_global_status::m_share,
   &table_session_status::m_share,
 
-  &table_variables_by_thread::m_share,
-  &table_global_variables::m_share,
-  &table_session_variables::m_share,
+  //&table_variables_by_thread::m_share,
+  //&table_global_variables::m_share,
+  //&table_session_variables::m_share,
 
   NULL
 };
@@ -597,7 +599,7 @@ void PFS_engine_table::set_field_blob(Field *f, const char* val,
 {
   DBUG_ASSERT(f->real_type() == MYSQL_TYPE_BLOB);
   Field_blob *f2= (Field_blob*) f;
-  f2->store(val, len, &my_charset_utf8_bin);
+  f2->store(val, len, &my_charset_utf8mb3_bin);
 }
 
 void PFS_engine_table::set_field_enum(Field *f, ulonglong value)
@@ -765,7 +767,7 @@ PFS_readonly_acl::check(privilege_t want_access, privilege_t *save_priv) const
 PFS_readonly_world_acl pfs_readonly_world_acl;
 
 ACL_internal_access_result
-PFS_readonly_world_acl::check(ulong want_access, ulong *save_priv) const
+PFS_readonly_world_acl::check(privilege_t want_access, privilege_t *save_priv) const
 {
   ACL_internal_access_result res= PFS_readonly_acl::check(want_access, save_priv);
   if (res == ACL_INTERNAL_ACCESS_CHECK_GRANT)
@@ -796,7 +798,7 @@ PFS_truncatable_acl::check(privilege_t want_access, privilege_t *save_priv) cons
 PFS_truncatable_world_acl pfs_truncatable_world_acl;
 
 ACL_internal_access_result
-PFS_truncatable_world_acl::check(ulong want_access, ulong *save_priv) const
+PFS_truncatable_world_acl::check(privilege_t want_access, privilege_t *save_priv) const
 {
   ACL_internal_access_result res= PFS_truncatable_acl::check(want_access, save_priv);
   if (res == ACL_INTERNAL_ACCESS_CHECK_GRANT)

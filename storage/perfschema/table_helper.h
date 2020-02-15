@@ -349,6 +349,7 @@ struct PFS_table_lock_stat_row
   PFS_stat_row m_read_external;
   PFS_stat_row m_write_allow_write;
   PFS_stat_row m_write_concurrent_insert;
+  PFS_stat_row m_write_delayed;
   PFS_stat_row m_write_low_priority;
   PFS_stat_row m_write_normal;
   PFS_stat_row m_write_external;
@@ -374,12 +375,14 @@ struct PFS_table_lock_stat_row
 
     m_write_allow_write.set(normalizer, & stat->m_stat[PFS_TL_WRITE_ALLOW_WRITE]);
     m_write_concurrent_insert.set(normalizer, & stat->m_stat[PFS_TL_WRITE_CONCURRENT_INSERT]);
+    m_write_delayed.set(normalizer, & stat->m_stat[PFS_TL_WRITE_DELAYED]);
     m_write_low_priority.set(normalizer, & stat->m_stat[PFS_TL_WRITE_LOW_PRIORITY]);
     m_write_normal.set(normalizer, & stat->m_stat[PFS_TL_WRITE]);
     m_write_external.set(normalizer, & stat->m_stat[PFS_TL_WRITE_EXTERNAL]);
 
     all_write.aggregate(& stat->m_stat[PFS_TL_WRITE_ALLOW_WRITE]);
     all_write.aggregate(& stat->m_stat[PFS_TL_WRITE_CONCURRENT_INSERT]);
+    all_write.aggregate(& stat->m_stat[PFS_TL_WRITE_DELAYED]);
     all_write.aggregate(& stat->m_stat[PFS_TL_WRITE_LOW_PRIORITY]);
     all_write.aggregate(& stat->m_stat[PFS_TL_WRITE]);
     all_write.aggregate(& stat->m_stat[PFS_TL_WRITE_EXTERNAL]);
@@ -555,7 +558,7 @@ struct PFS_connection_stat_row
 
 void set_field_object_type(Field *f, enum_object_type object_type);
 void set_field_lock_type(Field *f, PFS_TL_LOCK_TYPE lock_type);
-void set_field_mdl_type(Field *f, opaque_mdl_type mdl_type);
+void set_field_mdl_type(Field *f, opaque_mdl_type mdl_type, bool backup);
 void set_field_mdl_duration(Field *f, opaque_mdl_duration mdl_duration);
 void set_field_mdl_status(Field *f, opaque_mdl_status mdl_status);
 void set_field_isolation_level(Field *f, enum_isolation_level iso_level);

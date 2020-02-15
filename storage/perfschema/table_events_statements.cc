@@ -91,7 +91,7 @@ table_events_statements_current::m_share=
                       "NO_GOOD_INDEX_USED BIGINT unsigned not null,"
                       "NESTING_EVENT_ID BIGINT unsigned,"
                       "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'),"
-                      "NESTING_EVENT_LEVEL INT unsigned)") },
+                      "NESTING_EVENT_LEVEL INT)") },
   false  /* perpetual */
 };
 
@@ -149,7 +149,7 @@ table_events_statements_history::m_share=
                       "NO_GOOD_INDEX_USED BIGINT unsigned not null,"
                       "NESTING_EVENT_ID BIGINT unsigned,"
                       "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'),"
-                      "NESTING_EVENT_LEVEL INT unsigned)") },
+                      "NESTING_EVENT_LEVEL INT)") },
   false  /* perpetual */
 };
 
@@ -207,7 +207,7 @@ table_events_statements_history_long::m_share=
                       "NO_GOOD_INDEX_USED BIGINT unsigned not null,"
                       "NESTING_EVENT_ID BIGINT unsigned,"
                       "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'),"
-                      "NESTING_EVENT_LEVEL INT unsigned)") },
+                      "NESTING_EVENT_LEVEL INT)") },
   false  /* perpetual */
 };
 
@@ -489,7 +489,7 @@ int table_events_statements_common::read_row_values(TABLE *table,
           f->set_null();
         break;
       case 19: /* MESSAGE_TEXT */
-        len= strlen(m_row.m_message_text);
+        len= static_cast<uint>(strlen(m_row.m_message_text));
         if (len)
           set_field_varchar_utf8(f, m_row.m_message_text, len);
         else
@@ -868,7 +868,7 @@ int table_events_statements_history_long::rnd_next(void)
     return HA_ERR_END_OF_FILE;
 
   if (events_statements_history_long_full)
-    limit= events_statements_history_long_size;
+    limit= static_cast<uint>(events_statements_history_long_size);
   else
     limit= events_statements_history_long_index.m_u32 % events_statements_history_long_size;
 
@@ -899,7 +899,7 @@ int table_events_statements_history_long::rnd_pos(const void *pos)
   set_position(pos);
 
   if (events_statements_history_long_full)
-    limit= events_statements_history_long_size;
+    limit= static_cast<uint>(events_statements_history_long_size);
   else
     limit= events_statements_history_long_index.m_u32 % events_statements_history_long_size;
 

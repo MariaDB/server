@@ -24,6 +24,7 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}
                     ${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/sql
                     ${CMAKE_BINARY_DIR}/sql
+                    ${CMAKE_CURRENT_BINARY_DIR}
                     ${PCRE_INCLUDES}
                     ${SSL_INCLUDE_DIRS})
 
@@ -161,6 +162,7 @@ cursor_by_host.cc
 cursor_by_thread.cc
 cursor_by_user.cc
 ha_perfschema.cc
+mysqld_thd_manager.cc
 pfs.cc
 pfs_account.cc
 pfs_autosize.cc
@@ -249,9 +251,9 @@ table_status_by_thread.cc
 table_status_by_user.cc
 table_global_status.cc
 table_session_status.cc
-table_variables_by_thread.cc
-table_global_variables.cc
-table_session_variables.cc
+#table_variables_by_thread.cc
+#table_global_variables.cc
+#table_session_variables.cc
 table_table_handles.cc
 table_threads.cc
 table_tiws_by_index_usage.cc
@@ -273,7 +275,56 @@ table_replication_applier_status_by_coordinator.cc
 #table_replication_group_member_stats.cc
 )
 
-MYSQL_ADD_PLUGIN(perfschema ${PERFSCHEMA_SOURCES} STORAGE_ENGINE DEFAULT STATIC_ONLY)
+# Check for pthread_threadid_np()
+CHECK_C_SOURCE_COMPILES("
+#include <pthread.h>
+int main(int ac, char **av)
+{
+  unsigned long long tid64;
+  pthread_threadid_np(NULL, &tid64);
+  return (tid64 != 0 ? 0 : 1);
+}"
+HAVE_PTHREAD_THREADID_NP)
+
+# Check for gettid() system call
+CHECK_C_SOURCE_COMPILES("
+#include <sys/types.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+int main(int ac, char **av)
+{
+  unsigned long long tid = syscall(SYS_gettid);
+  return (tid != 0 ? 0 : 1);
+}"
+HAVE_SYS_GETTID)
+
+# Check for pthread_getthreadid_np()
+CHECK_C_SOURCE_COMPILES("
+#include <pthread_np.h>
+int main(int ac, char **av)
+{
+  unsigned long long tid = pthread_getthreadid_np();
+  return (tid != 0 ? 0 : 1);
+}"
+HAVE_PTHREAD_GETTHREADID_NP)
+
+# Check for pthread_self() returning an integer type
+CHECK_C_SOURCE_COMPILES("
+#include <sys/types.h>
+#include <pthread.h>
+int main(int ac, char **av)
+{
+  unsigned long long tid = pthread_self();
+  return (tid != 0 ? 0 : 1);
+}"
+HAVE_INTEGER_PTHREAD_SELF
+FAIL_REGEX "warning: incompatible pointer to integer conversion"
+)
+
+CONFIGURE_FILE(pfs_config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/pfs_config.h)
+
+MYSQL_ADD_PLUGIN(perfschema ${PERFSCHEMA_SOURCES} STORAGE_ENGINE DEFAULT
+  STATIC_ONLY RECOMPILE_FOR_EMBEDDED)
 IF (TARGET perfschema)
   ADD_DEPENDENCIES(perfschema GenServerSource)
   IF(WITH_UNIT_TESTS)

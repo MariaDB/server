@@ -51,8 +51,7 @@ table_setup_objects::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE setup_objects("
-                      "OBJECT_TYPE ENUM ('EVENT','FUNCTION','PROCEDURE','TABLE','TRIGGER') not null default 'EVENT',"
-    
+                      "OBJECT_TYPE ENUM ('EVENT','FUNCTION','PROCEDURE','TABLE','TRIGGER') not null default 'TABLE',"
                       "OBJECT_SCHEMA VARCHAR(64) default '%',"
                       "OBJECT_NAME VARCHAR(64) not null default '%',"
                       "ENABLED ENUM ('YES', 'NO') not null default 'YES',"

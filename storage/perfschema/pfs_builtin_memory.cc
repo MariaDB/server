@@ -118,7 +118,7 @@ static void init_builtin_memory_class(PFS_builtin_memory_class *klass, const cha
   klass->m_class.m_event_name_index= 0;
   my_snprintf(klass->m_class.m_name, sizeof(klass->m_class.m_name), "%.*s",
               PFS_MAX_INFO_NAME_LENGTH - 1, name);
-  klass->m_class.m_name_length= strlen(name);
+  klass->m_class.m_name_length= static_cast<uint>(strlen(name));
   DBUG_ASSERT(klass->m_class.m_name_length < sizeof(klass->m_class.m_name));
   klass->m_class.m_timer= NULL;
 

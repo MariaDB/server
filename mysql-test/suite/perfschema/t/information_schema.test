@@ -31,13 +31,15 @@ select lower(TABLE_NAME), VERSION, ROW_FORMAT
 select lower(TABLE_NAME), AVG_ROW_LENGTH
   from information_schema.tables
   where TABLE_SCHEMA='performance_schema' and
-  lower(TABLE_NAME) not regexp '^variables|variables$|^status|session_status|global_status';
+  lower(TABLE_NAME) not regexp '^variables|variables$|^status|session_status|global_status'
+  order by table_name;
 
 --replace_column 2 table_rows 3 avg_row_len
 select lower(TABLE_NAME), TABLE_ROWS, AVG_ROW_LENGTH
   from information_schema.tables
   where TABLE_SCHEMA='performance_schema' and
-  lower(TABLE_NAME) regexp '^variables|variables$|^status|session_status|global_status';
+  lower(TABLE_NAME) regexp '^variables|variables$|^status|session_status|global_status'
+  order by table_name;
 
 select lower(TABLE_NAME), DATA_LENGTH, MAX_DATA_LENGTH
   from information_schema.tables
@@ -59,10 +61,10 @@ select lower(TABLE_NAME), TABLE_COLLATION, CHECKSUM
   where TABLE_SCHEMA='performance_schema'
   order by table_name;
 
-# TABLESPACE_NAME does not exist in 5.4
 select lower(TABLE_NAME), CREATE_OPTIONS
   from information_schema.tables
-  where TABLE_SCHEMA='performance_schema';
+  where TABLE_SCHEMA='performance_schema'
+  order by table_name;
 
 select lower(TABLE_NAME), TABLE_COMMENT
   from information_schema.tables

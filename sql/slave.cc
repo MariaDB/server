@@ -57,6 +57,9 @@
 #include "wsrep_trans_observer.h"
 #endif
 
+class Master_info_index;
+Master_info_index *master_info_index;
+
 #ifdef HAVE_REPLICATION
 
 #include "rpl_tblmap.h"
@@ -81,7 +84,6 @@ char slave_transaction_retry_error_names[SHOW_VAR_FUNC_BUFF_SIZE];
 
 char* slave_load_tmpdir = 0;
 Master_info *active_mi= 0;
-Master_info_index *master_info_index;
 my_bool replicate_same_server_id;
 ulonglong relay_log_space_limit = 0;
 ulonglong opt_read_binlog_speed_limit = 0;

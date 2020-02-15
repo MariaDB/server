@@ -37,9 +37,9 @@
 
 /* Iteration on THD from the sql layer. */
 #include "sql_class.h"
-//#include "mysqld_thd_manager.h"
+#include "mysqld_thd_manager.h"
 
-class Find_thd_user_var //: public Find_THD_Impl
+class Find_thd_user_var : public Find_THD_Impl
 {
 public:
   Find_thd_user_var(THD *unsafe_thd)
@@ -244,7 +244,7 @@ int table_uvar_by_thread::materialize(PFS_thread *thread)
     return 1;
 
   Find_thd_user_var finder(unsafe_thd);
-  THD *safe_thd= NULL;//Global_THD_manager::get_instance()->find_thd(&finder);
+  THD *safe_thd= Global_THD_manager::get_instance()->find_thd(&finder);
   if (safe_thd == NULL)
     return 1;
 
@@ -311,7 +311,7 @@ int table_uvar_by_thread
         {
           set_field_blob(f,
                          m_row.m_variable_value->get_value(),
-                         m_row.m_variable_value->get_value_length());
+              static_cast<uint>(m_row.m_variable_value->get_value_length()));
         }
         else
         {

@@ -2410,12 +2410,12 @@ public:
 
   void set_psi(PSI_thread *psi)
   {
-    my_atomic_storeptr(&m_psi, psi);
+    my_atomic_storeptr((void*volatile*)&m_psi, psi);
   }
 
   PSI_thread* get_psi()
   {
-    return static_cast<PSI_thread*>(my_atomic_loadptr(&m_psi));
+    return static_cast<PSI_thread*>(my_atomic_loadptr((void*volatile*)&m_psi));
   }
 
 private:

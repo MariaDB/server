@@ -563,8 +563,9 @@ extern mysql_pfs_key_t	thread_pool_thread_key;
 /* This macro register the current thread and its key with performance
 schema */
 #  define pfs_register_thread(key)			\
-do {								\
-	struct PSI_thread* psi = PSI_CALL_new_thread(key, NULL, 0);\
+do {							\
+	struct PSI_thread* psi __attribute__((unused))	\
+		= PSI_CALL_new_thread(key, NULL, 0);	\
 	PSI_CALL_set_thread_os_id(psi);			\
 	PSI_CALL_set_thread(psi);			\
 } while (0)

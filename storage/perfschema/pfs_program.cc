@@ -146,7 +146,7 @@ static void set_program_key(PFS_program_key *key,
   ptr[0]= 0;
   ptr++;
 
-  key->m_key_length= ptr - &key->m_hash_key[0];
+  key->m_key_length= static_cast<uint>(ptr - &key->m_hash_key[0]);
 }
 
 

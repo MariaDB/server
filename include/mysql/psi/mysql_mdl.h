@@ -30,8 +30,23 @@
 
 #include "mysql/psi/psi.h"
 
+#ifdef HAVE_PSI_METADATA_INTERFACE
+
 #ifndef PSI_METADATA_CALL
 #define PSI_METADATA_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#define PSI_CALL_start_metadata_wait(A,B,C,D) PSI_METADATA_CALL(start_metadata_wait)(A,B,C,D)
+#define PSI_CALL_end_metadata_wait(A,B) PSI_METADATA_CALL(end_metadata_wait)(A,B)
+#define PSI_CALL_create_metadata_lock(A,B,C,D,E,F,G) PSI_METADATA_CALL(create_metadata_lock)(A,B,C,D,E,F,G)
+#define PSI_CALL_set_metadata_lock_status(A,B) PSI_METADATA_CALL(set_metadata_lock_status)(A,B)
+#define PSI_CALL_destroy_metadata_lock(A) PSI_METADATA_CALL(destroy_metadata_lock)(A)
+#else
+#define PSI_CALL_start_metadata_wait(A,B,C,D) 0
+#define PSI_CALL_end_metadata_wait(A,B) do { } while(0)
+#define PSI_CALL_create_metadata_lock(A,B,C,D,E,F,G) 0
+#define PSI_CALL_set_metadata_lock_status(A,B) do {} while(0)
+#define PSI_CALL_destroy_metadata_lock(A) do {} while(0)
 #endif
 
 /**

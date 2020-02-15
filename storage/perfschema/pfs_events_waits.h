@@ -88,6 +88,8 @@ struct PFS_events_waits : public PFS_events
   PFS_metadata_lock *m_weak_metadata_lock;
   /** For weak pointers, target object version. */
   uint32 m_weak_version;
+  /** Address in memory of the object instance waited on. */
+  const void *m_object_instance_addr;
   /** Operation performed. */
   enum_operation_type m_operation;
   /**
@@ -101,6 +103,8 @@ struct PFS_events_waits : public PFS_events
     This member is populated for TABLE IO operations only.
   */
   uint m_index;
+  /** Flags */
+  ulong m_flags;
 };
 
 /** TIMED bit in the state flags bitfield. */

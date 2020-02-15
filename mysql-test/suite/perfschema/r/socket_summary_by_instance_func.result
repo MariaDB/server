@@ -1,4 +1,3 @@
-set global session_track_schema=FALSE;
 # The logging of commands and result sets is mostly disabled.
 # There are some messages which help to observe the progress of the test.
 # In case some check fails
@@ -9,7 +8,7 @@ set global session_track_schema=FALSE;
 #
 # 0. Check, build or set prequisites
 Warnings:
-Warning	1681	'performance_schema.setup_timers' is deprecated and will be removed in a future release.
+Warning	1681	'performance_schema.setup_timers' is deprecated and will be removed in a future release
 UPDATE performance_schema.threads
 SET INSTRUMENTED='NO' WHERE PROCESSLIST_ID = CONNECTION_ID();
 # 1. Basic checks
@@ -36,38 +35,14 @@ ERROR 28000: Access denied for user 'boot0123456789'@'localhost' (using password
 # 2.5 Connect should pass, host = localhost
 #     length of user name  = 10 character
 #     length of default db = 9 character
-<<<<<<< HEAD
 CREATE USER 'root012345'@'localhost';
-=======
-SET @orig_sql_mode= @@sql_mode;
-SET sql_mode= (SELECT replace(@@sql_mode,'NO_AUTO_CREATE_USER',''));
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
->>>>>>> merge-perfschema-5.7
 GRANT ALL PRIVILEGES ON *.* TO 'root012345'@'localhost';
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
-SET sql_mode= @orig_sql_mode;
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 DROP USER 'root012345'@'localhost';
 # 2.6 Connect should pass, host = localhost
 #     length of user name  = 14 character
 #     length of default db = 9 character
-<<<<<<< HEAD
 CREATE USER 'root0123456789'@'localhost';
-=======
-SET @orig_sql_mode= @@sql_mode;
-SET sql_mode= (SELECT replace(@@sql_mode,'NO_AUTO_CREATE_USER',''));
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
->>>>>>> merge-perfschema-5.7
 GRANT ALL PRIVILEGES ON *.* to 'root0123456789'@'localhost';
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
-SET sql_mode= @orig_sql_mode;
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 DROP USER 'root0123456789'@'localhost';
 # 2.7 Connect should pass, host = my_localhost
 #     length of user name  = 4 character
@@ -246,5 +221,6 @@ connection default;
 #    It must reset all counters.
 TRUNCATE TABLE performance_schema.socket_summary_by_instance;
 # 6. Cleanup
+Warnings:
+Warning	1681	'performance_schema.setup_timers' is deprecated and will be removed in a future release
 connection default;
-set global session_track_schema=DEFAULT;

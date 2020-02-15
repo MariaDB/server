@@ -1,6 +1,7 @@
 
 ## Connection default
 
+connection default;
 USE test;
 DROP TABLE IF EXISTS t1;
 SELECT @@global.binlog_cache_size;
@@ -15,6 +16,7 @@ wait/io/file/sql/io_cache	YES	YES
 
 ## Connection con1
 
+connect con1, localhost, root,,;
 USE test;
 CREATE TABLE t1 (s1 INT, s2 VARCHAR(4096));
 SET SESSION AUTOCOMMIT = 0;
@@ -79,13 +81,16 @@ COMMIT;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 8
+disconnect con1;
 
 ## Connection default
 
+connection default;
 SELECT COUNT(*) FROM test.t1;
 COUNT(*)
 8
 SELECT COUNT(*) FROM performance_schema.file_summary_by_event_name WHERE event_name LIKE "%io_cache%";
 COUNT(*)
 1
+connection default;
 DROP TABLE t1;

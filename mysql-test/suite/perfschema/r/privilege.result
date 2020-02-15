@@ -1,7 +1,3 @@
-set @orig_sql_mode= @@sql_mode;
-set sql_mode= (select replace(@@sql_mode,'NO_AUTO_CREATE_USER',''));
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 show grants;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
@@ -10,14 +6,10 @@ create user 'pfs_user_1'@localhost;
 create user 'pfs_user_2'@localhost;
 create user 'pfs_user_3'@localhost;
 grant ALL on *.* to 'pfs_user_1'@localhost with GRANT OPTION;
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
 grant ALL on performance_schema.* to 'pfs_user_2'@localhost
 with GRANT OPTION;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_schema'
 grant CREATE on performance_schema.* to 'pfs_user_2'@localhost;
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
 grant DROP on performance_schema.* to 'pfs_user_2'@localhost;
 grant REFERENCES on performance_schema.* to 'pfs_user_2'@localhost;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_schema'
@@ -50,8 +42,6 @@ grant ALL on performance_schema.setup_instruments to 'pfs_user_3'@localhost
 with GRANT OPTION;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_schema'
 grant CREATE on performance_schema.setup_instruments to 'pfs_user_3'@localhost;
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
 grant DROP on performance_schema.setup_instruments to 'pfs_user_3'@localhost;
 grant REFERENCES on performance_schema.setup_instruments to 'pfs_user_3'@localhost;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_schema'
@@ -591,6 +581,8 @@ WHERE name LIKE 'wait/synch/mutex/%'
    OR name LIKE 'wait/synch/rwlock/%';
 UPDATE performance_schema.setup_consumers SET enabled = 'YES';
 UPDATE performance_schema.setup_timers SET timer_name = 'TICK' WHERE name <> "wait";
+Warnings:
+Warning	1681	'performance_schema.setup_timers' is deprecated and will be removed in a future release
 TRUNCATE TABLE performance_schema.events_waits_history_long;
 TRUNCATE TABLE performance_schema.events_waits_history;
 TRUNCATE TABLE performance_schema.events_waits_current;
@@ -603,11 +595,14 @@ flush privileges;
 UPDATE performance_schema.setup_instruments SET enabled = 'YES', timed = 'YES';
 UPDATE performance_schema.setup_consumers SET enabled = 'YES';
 UPDATE performance_schema.setup_timers SET timer_name = 'MICROSECOND' where name="idle";
-UPDATE performance_schema.setup_timers SET timer_name = 'NANOSECOND'  where name="stage";
-UPDATE performance_schema.setup_timers SET timer_name = 'NANOSECOND'  where name="statement";
-set sql_mode= @orig_sql_mode;
 Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
+Warning	1681	'performance_schema.setup_timers' is deprecated and will be removed in a future release
+UPDATE performance_schema.setup_timers SET timer_name = 'NANOSECOND'  where name="stage";
+Warnings:
+Warning	1681	'performance_schema.setup_timers' is deprecated and will be removed in a future release
+UPDATE performance_schema.setup_timers SET timer_name = 'NANOSECOND'  where name="statement";
+Warnings:
+Warning	1681	'performance_schema.setup_timers' is deprecated and will be removed in a future release
 #
 # WL#2284: Increase the length of a user name
 #

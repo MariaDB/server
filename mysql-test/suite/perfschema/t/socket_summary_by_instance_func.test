@@ -39,8 +39,6 @@
 # prepared statement.
 --source include/no_protocol.inc
 
-set global session_track_schema=FALSE;
-
 #===================================
 # Set IP address defaults with respect to IPV6 support
 #
@@ -1713,5 +1711,3 @@ DROP SCHEMA mysqlsupertest;
 --source include/wait_until_disconnected.inc
 --connection default
 --enable_query_log
-
-set global session_track_schema=DEFAULT;

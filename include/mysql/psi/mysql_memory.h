@@ -30,6 +30,18 @@
 
 #include "mysql/psi/psi.h"
 
+#ifdef HAVE_PSI_MEMORY_INTERFACE
+#define PSI_CALL_memory_alloc(A1,A2,A3) PSI_MEMORY_CALL(memory_alloc)(A1,A2,A3)
+#define PSI_CALL_memory_free(A1,A2,A3) PSI_MEMORY_CALL(memory_free)(A1,A2,A3)
+#define PSI_CALL_memory_realloc(A1,A2,A3,A4) PSI_MEMORY_CALL(memory_realloc)(A1,A2,A3,A4)
+#define PSI_CALL_register_memory(A1,A2,A3) PSI_MEMORY_CALL(register_memory)(A1,A2,A3)
+#else
+#define PSI_CALL_memory_alloc(A1,A2,A3) 0
+#define PSI_CALL_memory_free(A1,A2,A3) do { } while(0)
+#define PSI_CALL_memory_realloc(A1,A2,A3,A4) 0
+#define PSI_CALL_register_memory(A1,A2,A3) do { } while(0)
+#endif
+
 #ifndef PSI_MEMORY_CALL
 #define PSI_MEMORY_CALL(M) PSI_DYNAMIC_CALL(M)
 #endif
@@ -58,9 +70,7 @@ static inline void inline_mysql_memory_register(
   int count __attribute__((unused)))
 #endif
 {
-#ifdef HAVE_PSI_MEMORY_INTERFACE
-  PSI_MEMORY_CALL(register_memory)(category, info, count);
-#endif
+  PSI_CALL_register_memory(category, info, count);
 }
 
 /** @} (end of group Memory_instrumentation) */

@@ -17,7 +17,8 @@ create user 'rootssl'@'santa.claus.ipv4.example.com'
   require SSL;
 grant select on *.* to 'rootssl'@'santa.claus.ipv4.example.com';
 
-set global debug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
+set @old_dbug=@@global.debug_dbug;
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
 
 # Setup
 # make sure we start with a clean slate. log_tables.test says this is OK.
@@ -89,10 +90,9 @@ SET GLOBAL log_output=        @old_log_output;
 
 --horizontal_results
 
-set global debug= default;
+set global debug_dbug= @old_dbug;
 revoke select on *.* from 'root'@'santa.claus.ipv4.example.com';
 drop user 'root'@'santa.claus.ipv4.example.com';
 revoke select on *.* from 'rootssl'@'santa.claus.ipv4.example.com';
 drop user 'rootssl'@'santa.claus.ipv4.example.com';
-
 

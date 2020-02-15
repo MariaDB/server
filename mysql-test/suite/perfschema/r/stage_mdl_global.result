@@ -1,19 +1,4 @@
-<<<<<<< HEAD
 connect  con1, localhost, user1, , ;
-=======
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
->>>>>>> merge-perfschema-5.7
 flush tables with read lock;
 connect  con2, localhost, user2, , ;
 insert into test.t1 values (1), (2), (3);
@@ -23,43 +8,23 @@ username	event_name	sql_text
 user1	statement/sql/flush	flush tables with read lock
 username	event_name	nesting_event_type
 username	event_name	nesting_event_type
-<<<<<<< HEAD
-user1	stage/sql/Init	STATEMENT
-user1	stage/sql/Init	STATEMENT
+user1	stage/sql/starting	STATEMENT
+user1	stage/sql/starting	STATEMENT
 user1	stage/sql/Query end	STATEMENT
 user1	stage/sql/Commit	STATEMENT
-user1	stage/sql/Closing tables	STATEMENT
-user1	stage/sql/Commit_implicit	STATEMENT
+user1	stage/sql/closing tables	STATEMENT
+user1	stage/sql/Commit implicit	STATEMENT
 user1	stage/sql/Starting cleanup	STATEMENT
 user1	stage/sql/Freeing items	STATEMENT
 user1	stage/sql/Reset for next command	STATEMENT
-=======
-<<<<<<< HEAD
-user1	stage/sql/init	STATEMENT
-user1	stage/sql/init	STATEMENT
-=======
-user1	stage/sql/starting	STATEMENT
->>>>>>> merge-perfschema-5.7
-user1	stage/sql/Waiting for query cache lock	STATEMENT
-user1	stage/sql/starting	STATEMENT
-user1	stage/sql/query end	STATEMENT
-user1	stage/sql/closing tables	STATEMENT
-user1	stage/sql/freeing items	STATEMENT
-user1	stage/sql/cleaning up	STATEMENT
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 call dump_one_thread('user2');
 username	event_name	sql_text
 user2	statement/sql/insert	insert into test.t1 values (1), (2), (3)
 username	event_name	nesting_event_type
 user2	stage/sql/Waiting for backup lock	STATEMENT
 username	event_name	nesting_event_type
-<<<<<<< HEAD
-user2	stage/sql/Init	STATEMENT
-user2	stage/sql/Checking permissions	STATEMENT
-=======
 user2	stage/sql/starting	STATEMENT
 user2	stage/sql/checking permissions	STATEMENT
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 user2	stage/sql/Opening tables	STATEMENT
 connection con1;
 unlock tables;

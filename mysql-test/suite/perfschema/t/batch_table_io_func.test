@@ -96,7 +96,7 @@ select * from t3
 # TEST 1 (join, no index)
 #
 
-explain select t1.*, t2.*, t3.*
+explain extended select t1.*, t2.*, t3.*
   from t1 join t2 using (id1) join t3 using (id2);
 
 call before_payload();
@@ -120,7 +120,7 @@ alter table t2 add index(id1);
 alter table t3 add unique index(id3);
 alter table t3 add index(id2);
 
-explain select t1.*, t2.*, t3.*
+explain extended select t1.*, t2.*, t3.*
   from t1 join t2 using (id1) join t3 using (id2);
 
 call before_payload();

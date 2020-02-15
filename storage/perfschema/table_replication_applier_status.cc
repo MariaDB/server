@@ -26,9 +26,11 @@
   Table replication_applier_status (implementation).
 */
 
-#define HAVE_REPLICATION
+//#define HAVE_REPLICATION
 
 #include "my_global.h"
+
+#ifdef HAVE_REPLICATION
 #include "table_replication_applier_status.h"
 #include "pfs_instr_class.h"
 #include "pfs_instr.h"
@@ -138,7 +140,7 @@ void table_replication_applier_status::make_row(Master_info *mi)
 
   DBUG_ASSERT(mi != NULL);
 
-  m_row.channel_name_length= mi->connection_name.length;
+  m_row.channel_name_length= static_cast<uint>(mi->connection_name.length);
   memcpy(m_row.channel_name, mi->connection_name.str, m_row.channel_name_length);
 
   //mysql_mutex_lock(&mi->rli->info_thd_lock);
@@ -217,3 +219,4 @@ int table_replication_applier_status::read_row_values(TABLE *table,
   }
   return 0;
 }
+#endif

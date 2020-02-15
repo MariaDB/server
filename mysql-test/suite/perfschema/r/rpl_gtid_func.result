@@ -45,23 +45,15 @@ TABLE	information_schema	%	NO	NO
 TABLE	master	foo	YES	YES
 TABLE	mysql	%	NO	NO
 TABLE	performance_schema	%	NO	NO
-<<<<<<< HEAD
+TRIGGER	%	%	YES	YES
+TRIGGER	information_schema	%	NO	NO
+TRIGGER	mysql	%	NO	NO
+TRIGGER	performance_schema	%	NO	NO
 select digest_text, count_star
 from performance_schema.events_statements_summary_by_digest
 where digest_text like "%in_%_digest%";
 digest_text	count_star
 SELECT ? AS `in_master_digest` 	1
-=======
-TRIGGER	%	%	YES	YES
-TRIGGER	information_schema	%	NO	NO
-TRIGGER	mysql	%	NO	NO
-TRIGGER	performance_schema	%	NO	NO
-select digest, digest_text, count_star
-from performance_schema.events_statements_summary_by_digest
-where digest_text like "%in_%_digest%";
-digest	digest_text	count_star
-dc3177eb15d923e08c09eef29cecd9a4	SELECT ? AS `in_master_digest` 	1
->>>>>>> merge-perfschema-5.7
 insert into test.marker values (2);
 connection slave;
 select * from test.marker;
@@ -96,25 +88,16 @@ TABLE	information_schema	%	NO	NO
 TABLE	mysql	%	NO	NO
 TABLE	performance_schema	%	NO	NO
 TABLE	slave	foo	YES	YES
-<<<<<<< HEAD
+TRIGGER	%	%	YES	YES
+TRIGGER	information_schema	%	NO	NO
+TRIGGER	mysql	%	NO	NO
+TRIGGER	performance_schema	%	NO	NO
 select digest_text, count_star
 from performance_schema.events_statements_summary_by_digest
 where digest_text like "%in_%_digest%";
 digest_text	count_star
 SELECT ? AS `in_slave_digest` 	1
 connection master;
-=======
-TRIGGER	%	%	YES	YES
-TRIGGER	information_schema	%	NO	NO
-TRIGGER	mysql	%	NO	NO
-TRIGGER	performance_schema	%	NO	NO
-select digest, digest_text, count_star
-from performance_schema.events_statements_summary_by_digest
-where digest_text like "%in_%_digest%";
-digest	digest_text	count_star
-01f5f7c4c65eb61bb9a6afb7172c4a54	SELECT ? AS `in_slave_digest` 	1
-**** On Master ****
->>>>>>> merge-perfschema-5.7
 delete from performance_schema.setup_objects
 where object_schema='master';
 connection slave;

@@ -5,6 +5,7 @@
 
 ## Setup control thread
 
+connection default;
 SET SESSION AUTOCOMMIT= 1;
 USE test;
 DROP DATABASE IF EXISTS db;
@@ -15,11 +16,13 @@ CREATE TABLE db.t1 (s1 int, s2 varchar(64)) ENGINE=INNODB;
 CREATE TABLE db.nt1 (s1 int, s2 varchar(64)) ENGINE=MYISAM;
 
 ## Setup connection 1
+connect con1, localhost, root,,;
 USE db;
 SET SESSION AUTOCOMMIT = 1;
 SELECT thread_id INTO @my_thread_id
 FROM performance_schema.threads
 WHERE processlist_id = connection_id();
+connection default;
 
 ## Disable events from the control (default) connection
 UPDATE performance_schema.threads SET instrumented = 'NO' WHERE processlist_id = CONNECTION_ID();
@@ -39,20 +42,59 @@ CALL test.clear_history();
 #
 # STEP 2.1 - IMPLICIT
 #
+connection con1;
 INSERT INTO t1 VALUES (210, "INSERT 210");
 INSERT INTO t1 VALUES (211, "INSERT 211");
 INSERT INTO t1 VALUES (212, "INSERT 212");
 UPDATE t1 SET s1 = s1 + 1 WHERE s1 = 212;
+connection default;
 #========================================================================
 # Verify
 #========================================================================
+SELECT event_id into @base_tx_event_id
+from performance_schema.events_transactions_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+SELECT event_id into @base_stmt_event_id from performance_schema.events_statements_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+select if(@base_tx_event_id < @base_stmt_event_id,
+@base_tx_event_id - 1,
+@base_stmt_event_id - 1)
+into @base_event_id;
 EVENTS_TRANSACTIONS_CURRENT
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_current
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          8	          8	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	YES 	                  7	STATEMENT         
 
 EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          2	          2	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	YES 	                  1	STATEMENT         
 thread_id	          4	          4	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	YES 	                  3	STATEMENT         
@@ -61,6 +103,18 @@ thread_id	          8	          8	transaction	COMMITTED  	READ WRITE 	REPEATABLE
 
 EVENTS_STATEMENTS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 30, ' ') 'EVENT_NAME                    ',
+RPAD(IFNULL(object_name, 'NULL'), 12, ' ') 'OBJECT_NAME ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+LPAD(NESTING_EVENT_LEVEL, 5, ' ') LEVEL,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME                    	OBJECT_NAME 	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	LEVEL	SQL_TEXT
 thread_id	          1	          2	statement/sql/insert          	NULL        	               NULL	NULL              	    0	INSERT INTO t1 VALUES (210, "INSERT 210")
 thread_id	          3	          4	statement/sql/insert          	NULL        	               NULL	NULL              	    0	INSERT INTO t1 VALUES (211, "INSERT 211")
@@ -71,6 +125,26 @@ thread_id	          7	          8	statement/sql/update          	NULL        	  
 
 EVENTS_STATEMENTS_HISTORY_LONG + EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+'<transaction started>' AS SQL_TXT
+FROM performance_schema.events_transactions_history_long t
+WHERE (t.thread_id = @con1_thread_id)
+UNION
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long s
+WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, r_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/insert     	               NULL	NULL              	INSERT INTO t1 VALUES (210, "INSERT 210")
 thread_id	          2	          2	transaction              	                  1	STATEMENT         	<transaction started>
@@ -83,31 +157,83 @@ thread_id	          8	          8	transaction              	                  7	
 
 ## Clear statement and transaction history
 CALL test.clear_history();
+CALL test.clear_history();
 ## Reset db.t1
 DELETE FROM db.t1;
 
 #
 # STEP 2.2 - EXPLICIT
 #
+connection con1;
 START TRANSACTION;
 INSERT INTO t1 VALUES (220, "INSERT 220"), (221, "INSERT 221");
 UPDATE t1 SET s2 = "UPDATE 221" WHERE s1 = 221;
 COMMIT;
+connection default;
 #========================================================================
 # Verify
 #========================================================================
+SELECT event_id into @base_tx_event_id
+from performance_schema.events_transactions_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+SELECT event_id into @base_stmt_event_id from performance_schema.events_statements_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+select if(@base_tx_event_id < @base_stmt_event_id,
+@base_tx_event_id - 1,
+@base_stmt_event_id - 1)
+into @base_event_id;
 EVENTS_TRANSACTIONS_CURRENT
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_current
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          2	          5	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	NO  	                  1	STATEMENT         
 
 EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          2	          5	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	NO  	                  1	STATEMENT         
 
 EVENTS_STATEMENTS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 30, ' ') 'EVENT_NAME                    ',
+RPAD(IFNULL(object_name, 'NULL'), 12, ' ') 'OBJECT_NAME ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+LPAD(NESTING_EVENT_LEVEL, 5, ' ') LEVEL,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME                    	OBJECT_NAME 	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	LEVEL	SQL_TEXT
 thread_id	          1	          2	statement/sql/begin           	NULL        	               NULL	NULL              	    0	START TRANSACTION
 thread_id	          3	          3	statement/sql/insert          	NULL        	                  2	TRANSACTION       	    0	INSERT INTO t1 VALUES (220, "INSERT 220"), (221, "INSERT 221")
@@ -118,6 +244,26 @@ thread_id	          5	          5	statement/sql/commit          	NULL        	  
 
 EVENTS_STATEMENTS_HISTORY_LONG + EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+'<transaction started>' AS SQL_TXT
+FROM performance_schema.events_transactions_history_long t
+WHERE (t.thread_id = @con1_thread_id)
+UNION
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long s
+WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, r_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/begin      	               NULL	NULL              	START TRANSACTION
 thread_id	          2	          5	transaction              	                  1	STATEMENT         	<transaction started>
@@ -126,6 +272,7 @@ thread_id	          4	          4	statement/sql/update     	                  2	
 thread_id	          5	          5	statement/sql/commit     	                  2	TRANSACTION       	COMMIT
 
 ## Clear statement and transaction history
+CALL test.clear_history();
 CALL test.clear_history();
 ## Reset db.t1
 DELETE FROM db.t1;
@@ -136,6 +283,7 @@ DELETE FROM db.t1;
 #
 # STEP 3.1 - STORED PROCEDURE STARTED WITHIN TRANSACTION
 #
+connection con1;
 CREATE PROCEDURE tp_update() UPDATE t1 SET s1 = s1 + 1;
 
 START TRANSACTION;
@@ -145,21 +293,71 @@ INSERT INTO t1 VALUES (312, "INSERT 312");
 INSERT INTO t1 VALUES (313, "INSERT 313");
 CALL tp_update();
 COMMIT;
+connection default;
 #========================================================================
 # Verify
 #========================================================================
+SELECT event_id into @base_tx_event_id
+from performance_schema.events_transactions_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+SELECT event_id into @base_stmt_event_id from performance_schema.events_statements_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+select if(@base_tx_event_id < @base_stmt_event_id,
+@base_tx_event_id - 1,
+@base_stmt_event_id - 1)
+into @base_event_id;
 EVENTS_TRANSACTIONS_CURRENT
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_current
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          3	         10	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	NO  	                  2	STATEMENT         
 
 EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          3	         10	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	NO  	                  2	STATEMENT         
 
 EVENTS_STATEMENTS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 30, ' ') 'EVENT_NAME                    ',
+RPAD(IFNULL(object_name, 'NULL'), 12, ' ') 'OBJECT_NAME ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+LPAD(NESTING_EVENT_LEVEL, 5, ' ') LEVEL,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME                    	OBJECT_NAME 	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	LEVEL	SQL_TEXT
 thread_id	          1	          1	statement/sql/create_procedure	NULL        	               NULL	NULL              	    0	CREATE PROCEDURE tp_update() UPDATE t1 SET s1 = s1 + 1
 thread_id	          2	          3	statement/sql/begin           	NULL        	               NULL	NULL              	    0	START TRANSACTION
@@ -175,6 +373,26 @@ thread_id	         10	         10	statement/sql/commit          	NULL        	  
 
 EVENTS_STATEMENTS_HISTORY_LONG + EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+'<transaction started>' AS SQL_TXT
+FROM performance_schema.events_transactions_history_long t
+WHERE (t.thread_id = @con1_thread_id)
+UNION
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long s
+WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, r_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          1	statement/sql/create_proc	               NULL	NULL              	CREATE PROCEDURE tp_update() UPDATE t1 SET s1 = s1 + 1
 thread_id	          2	          3	statement/sql/begin      	               NULL	NULL              	START TRANSACTION
@@ -189,12 +407,14 @@ thread_id	         10	         10	statement/sql/commit     	                  3	
 
 ## Clear statement and transaction history
 CALL test.clear_history();
+CALL test.clear_history();
 ## Reset db.t1
 DELETE FROM db.t1;
 
 #
 # STEP 3.2 - TRANSACTION STARTED WITHIN STORED PROCEDURE
 #
+connection con1;
 CREATE PROCEDURE tp_start() START TRANSACTION;
 
 CALL tp_start();
@@ -209,21 +429,71 @@ s1	s2
 323	INSERT 322
 324	INSERT 323
 COMMIT;
+connection default;
 #========================================================================
 # Verify
 #========================================================================
+SELECT event_id into @base_tx_event_id
+from performance_schema.events_transactions_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+SELECT event_id into @base_stmt_event_id from performance_schema.events_statements_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+select if(@base_tx_event_id < @base_stmt_event_id,
+@base_tx_event_id - 1,
+@base_stmt_event_id - 1)
+into @base_event_id;
 EVENTS_TRANSACTIONS_CURRENT
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_current
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          4	          9	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	NO  	                  3	STATEMENT         
 
 EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          4	          9	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	NO  	                  3	STATEMENT         
 
 EVENTS_STATEMENTS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 30, ' ') 'EVENT_NAME                    ',
+RPAD(IFNULL(object_name, 'NULL'), 12, ' ') 'OBJECT_NAME ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+LPAD(NESTING_EVENT_LEVEL, 5, ' ') LEVEL,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME                    	OBJECT_NAME 	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	LEVEL	SQL_TEXT
 thread_id	          1	          1	statement/sql/create_procedure	NULL        	               NULL	NULL              	    0	CREATE PROCEDURE tp_start() START TRANSACTION
 thread_id	          2	          4	statement/sql/call_procedure  	NULL        	               NULL	NULL              	    0	CALL tp_start()
@@ -238,6 +508,26 @@ thread_id	          9	          9	statement/sql/commit          	NULL        	  
 
 EVENTS_STATEMENTS_HISTORY_LONG + EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+'<transaction started>' AS SQL_TXT
+FROM performance_schema.events_transactions_history_long t
+WHERE (t.thread_id = @con1_thread_id)
+UNION
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long s
+WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, r_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          1	statement/sql/create_proc	               NULL	NULL              	CREATE PROCEDURE tp_start() START TRANSACTION
 thread_id	          2	          4	statement/sql/call_proced	               NULL	NULL              	CALL tp_start()
@@ -251,12 +541,14 @@ thread_id	          9	          9	statement/sql/commit     	                  4	
 
 ## Clear statement and transaction history
 CALL test.clear_history();
+CALL test.clear_history();
 ## Reset db.t1
 DELETE FROM db.t1;
 
 #
 # STEP 3.3 - TRANSACTION ENDED WITHIN STORED PROCEDURE
 #
+connection con1;
 CREATE PROCEDURE tp_rollback() ROLLBACK;
 CREATE PROCEDURE tp_commit() COMMIT;
 
@@ -281,16 +573,54 @@ SELECT * FROM t1 ORDER BY s1;
 s1	s2
 330	INSERT 330
 331	INSERT 331
+connection default;
 #========================================================================
 # Verify
 #========================================================================
+SELECT event_id into @base_tx_event_id
+from performance_schema.events_transactions_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+SELECT event_id into @base_stmt_event_id from performance_schema.events_statements_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+select if(@base_tx_event_id < @base_stmt_event_id,
+@base_tx_event_id - 1,
+@base_stmt_event_id - 1)
+into @base_event_id;
 EVENTS_TRANSACTIONS_CURRENT
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_current
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	         18	         18	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	YES 	                 17	STATEMENT         
 
 EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          4	          9	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	NO  	                  3	STATEMENT         
 thread_id	         11	         11	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	YES 	                 10	STATEMENT         
@@ -299,6 +629,18 @@ thread_id	         18	         18	transaction	COMMITTED  	READ WRITE 	REPEATABLE
 
 EVENTS_STATEMENTS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 30, ' ') 'EVENT_NAME                    ',
+RPAD(IFNULL(object_name, 'NULL'), 12, ' ') 'OBJECT_NAME ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+LPAD(NESTING_EVENT_LEVEL, 5, ' ') LEVEL,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME                    	OBJECT_NAME 	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	LEVEL	SQL_TEXT
 thread_id	          1	          1	statement/sql/create_procedure	NULL        	               NULL	NULL              	    0	CREATE PROCEDURE tp_rollback() ROLLBACK
 thread_id	          2	          2	statement/sql/create_procedure	NULL        	               NULL	NULL              	    0	CREATE PROCEDURE tp_commit() COMMIT
@@ -319,6 +661,26 @@ thread_id	         17	         18	statement/sql/select          	NULL        	  
 
 EVENTS_STATEMENTS_HISTORY_LONG + EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+'<transaction started>' AS SQL_TXT
+FROM performance_schema.events_transactions_history_long t
+WHERE (t.thread_id = @con1_thread_id)
+UNION
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long s
+WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, r_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          1	statement/sql/create_proc	               NULL	NULL              	CREATE PROCEDURE tp_rollback() ROLLBACK
 thread_id	          2	          2	statement/sql/create_proc	               NULL	NULL              	CREATE PROCEDURE tp_commit() COMMIT
@@ -341,6 +703,7 @@ thread_id	         18	         18	transaction              	                 17	
 
 ## Clear statement and transaction history
 CALL test.clear_history();
+CALL test.clear_history();
 ## Reset db.t1
 DELETE FROM db.t1;
 
@@ -351,6 +714,7 @@ DELETE FROM db.t1;
 #
 # STEP 4.1 - FUNCTION WITHIN A TRANSACTION
 #
+connection con1;
 CREATE FUNCTION fn_add(x INT, y INT) RETURNS INT
 BEGIN
 INSERT INTO t1 VALUES (x, "INSERT x"),(y, "INSERT y");
@@ -358,7 +722,9 @@ RETURN x+y;
 END |
 
 ## Clear history
+connection default;
 CALL test.clear_history();
+connection con1;
 
 START TRANSACTION;
 INSERT INTO t1 VALUES (410, "INSERT 410");
@@ -380,22 +746,72 @@ s1	s2
 410	INSERT 410
 413	INSERT x
 414	INSERT y
+connection default;
 #========================================================================
 # Verify
 #========================================================================
+SELECT event_id into @base_tx_event_id
+from performance_schema.events_transactions_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+SELECT event_id into @base_stmt_event_id from performance_schema.events_statements_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+select if(@base_tx_event_id < @base_stmt_event_id,
+@base_tx_event_id - 1,
+@base_stmt_event_id - 1)
+into @base_event_id;
 EVENTS_TRANSACTIONS_CURRENT
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_current
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	         13	         13	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	YES 	                 12	STATEMENT         
 
 EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          2	         11	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	NO  	                  1	STATEMENT         
 thread_id	         13	         13	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	YES 	                 12	STATEMENT         
 
 EVENTS_STATEMENTS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 30, ' ') 'EVENT_NAME                    ',
+RPAD(IFNULL(object_name, 'NULL'), 12, ' ') 'OBJECT_NAME ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+LPAD(NESTING_EVENT_LEVEL, 5, ' ') LEVEL,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME                    	OBJECT_NAME 	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	LEVEL	SQL_TEXT
 thread_id	          1	          2	statement/sql/begin           	NULL        	               NULL	NULL              	    0	START TRANSACTION
 thread_id	          3	          3	statement/sql/insert          	NULL        	                  2	TRANSACTION       	    0	INSERT INTO t1 VALUES (410, "INSERT 410")
@@ -413,6 +829,26 @@ thread_id	         12	         13	statement/sql/select          	NULL        	  
 
 EVENTS_STATEMENTS_HISTORY_LONG + EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+'<transaction started>' AS SQL_TXT
+FROM performance_schema.events_transactions_history_long t
+WHERE (t.thread_id = @con1_thread_id)
+UNION
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long s
+WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, r_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/begin      	               NULL	NULL              	START TRANSACTION
 thread_id	          2	         11	transaction              	                  1	STATEMENT         	<transaction started>
@@ -430,9 +866,11 @@ thread_id	         13	         13	transaction              	                 12	
 
 ## Clear statement and transaction history
 CALL test.clear_history();
+CALL test.clear_history();
 ## Reset db.t1
 DELETE FROM db.t1;
 
+connection con1;
 
 ## Again, but this time with a rollback
 
@@ -445,22 +883,72 @@ ROLLBACK;
 
 SELECT * FROM t1 ORDER BY s1;
 s1	s2
+connection default;
 #========================================================================
 # Verify
 #========================================================================
+SELECT event_id into @base_tx_event_id
+from performance_schema.events_transactions_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+SELECT event_id into @base_stmt_event_id from performance_schema.events_statements_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+select if(@base_tx_event_id < @base_stmt_event_id,
+@base_tx_event_id - 1,
+@base_stmt_event_id - 1)
+into @base_event_id;
 EVENTS_TRANSACTIONS_CURRENT
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_current
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          8	          8	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	YES 	                  7	STATEMENT         
 
 EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          2	          6	transaction	ROLLED BACK	READ WRITE 	REPEATABLE READ 	NO  	                  1	STATEMENT         
 thread_id	          8	          8	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	YES 	                  7	STATEMENT         
 
 EVENTS_STATEMENTS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 30, ' ') 'EVENT_NAME                    ',
+RPAD(IFNULL(object_name, 'NULL'), 12, ' ') 'OBJECT_NAME ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+LPAD(NESTING_EVENT_LEVEL, 5, ' ') LEVEL,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME                    	OBJECT_NAME 	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	LEVEL	SQL_TEXT
 thread_id	          1	          2	statement/sql/begin           	NULL        	               NULL	NULL              	    0	START TRANSACTION
 thread_id	          3	          5	statement/sql/select          	NULL        	                  2	TRANSACTION       	    0	SELECT fn_add(415, 416)
@@ -473,6 +961,26 @@ thread_id	          7	          8	statement/sql/select          	NULL        	  
 
 EVENTS_STATEMENTS_HISTORY_LONG + EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+'<transaction started>' AS SQL_TXT
+FROM performance_schema.events_transactions_history_long t
+WHERE (t.thread_id = @con1_thread_id)
+UNION
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long s
+WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, r_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/begin      	               NULL	NULL              	START TRANSACTION
 thread_id	          2	          6	transaction              	                  1	STATEMENT         	<transaction started>
@@ -485,19 +993,23 @@ thread_id	          8	          8	transaction              	                  7	
 
 ## Clear statement and transaction history
 CALL test.clear_history();
+CALL test.clear_history();
 ## Reset db.t1
 DELETE FROM db.t1;
 
 #
 # STEP 4.2 - TRANSACTION CANNOT BE STARTED OR ENDED WITHIN FUNCTION
 #
-CREATE FUNCTION fn_err1() RETURNS VARCHAR(10) BEGIN START TRANSACTION ; RETURN invalid ; END|
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+connection con1;
+CREATE FUNCTION fn_err1() RETURNS VARCHAR(10) BEGIN START TRANSACTION ; RETURN 'invalid' ; END|
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 
 ## Expect 0 transactions
+connection default;
 SELECT COUNT(*) FROM performance_schema.events_transactions_history;
 COUNT(*)
 0
+connection con1;
 
 ## Expect stored function does not exist
 
@@ -505,12 +1017,14 @@ SELECT fn_err1();
 ERROR 42000: FUNCTION db.fn_err1 does not exist
 
 ## Expect 0 transactions
+connection default;
 SELECT COUNT(*) FROM performance_schema.events_transactions_history;
 COUNT(*)
 0
+connection con1;
 
-CREATE FUNCTION fn_err2() RETURNS VARCHAR(10) BEGIN COMMIT; RETURN invalid ; END|
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+CREATE FUNCTION fn_err2() RETURNS VARCHAR(10) BEGIN COMMIT; RETURN 'invalid' ; END|
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 
 ## Expect stored function does not exist
 
@@ -520,6 +1034,7 @@ SELECT fn_err2();
 ERROR 42000: FUNCTION db.fn_err2 does not exist
 
 ## Expect 0 transactions
+connection default;
 SELECT COUNT(*) FROM performance_schema.events_transactions_history;
 COUNT(*)
 0
@@ -533,6 +1048,7 @@ CALL test.clear_history();
 #
 # STEP 5.1 - FORCE STATEMENT ROLLBACK FROM TRIGGER
 #
+connection con1;
 ## Create a trigger to force statement rollback
 
 CREATE TRIGGER trigger_before_update BEFORE UPDATE ON t1
@@ -544,7 +1060,9 @@ END IF;
 END;|
 
 ## Clear history
+connection default;
 CALL test.clear_history();
+connection con1;
 
 ## Insert multiple rows, then update. Trigger will force rollback the
 ## UPDATE statement, but the transaction should not roll back.
@@ -584,22 +1102,72 @@ s1	s2
 COMMIT;
 
 DROP TRIGGER trigger_before_update;
+connection default;
 #========================================================================
 # Verify
 #========================================================================
+SELECT event_id into @base_tx_event_id
+from performance_schema.events_transactions_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+SELECT event_id into @base_stmt_event_id from performance_schema.events_statements_history_long
+where (THREAD_ID = @con1_thread_id)
+order by event_id limit 1;
+select if(@base_tx_event_id < @base_stmt_event_id,
+@base_tx_event_id - 1,
+@base_stmt_event_id - 1)
+into @base_event_id;
 EVENTS_TRANSACTIONS_CURRENT
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_current
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	         21	         21	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	YES 	                 20	STATEMENT         
 
 EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 11, ' ') 'EVENT_NAME ',
+RPAD(STATE, 11, ' ') 'STATE      ',
+RPAD(ACCESS_MODE, 11, ' ') ACCESS_MODE,
+RPAD(ISOLATION_LEVEL, 16, ' ') 'ISOLATION_LEVEL ',
+RPAD(AUTOCOMMIT, 4, ' ') AUTO,
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE
+FROM performance_schema.events_transactions_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME 	STATE      	ACCESS_MODE	ISOLATION_LEVEL 	AUTO	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE
 thread_id	          2	         19	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	NO  	                  1	STATEMENT         
 thread_id	         21	         21	transaction	COMMITTED  	READ WRITE 	REPEATABLE READ 	YES 	                 20	STATEMENT         
 
 EVENTS_STATEMENTS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 30, ' ') 'EVENT_NAME                    ',
+RPAD(IFNULL(object_name, 'NULL'), 12, ' ') 'OBJECT_NAME ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+LPAD(NESTING_EVENT_LEVEL, 5, ' ') LEVEL,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long
+WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME                    	OBJECT_NAME 	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	LEVEL	SQL_TEXT
 thread_id	          1	          2	statement/sql/begin           	NULL        	               NULL	NULL              	    0	START TRANSACTION
 thread_id	          3	          3	statement/sql/insert          	NULL        	                  2	TRANSACTION       	    0	INSERT INTO t1 VALUES (500, "INSERT 500")
@@ -625,6 +1193,26 @@ thread_id	         20	         21	statement/sql/drop_trigger    	NULL        	  
 
 EVENTS_STATEMENTS_HISTORY_LONG + EVENTS_TRANSACTIONS_HISTORY_LONG
 
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(NESTING_EVENT_ID - @base_event_id, 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+'<transaction started>' AS SQL_TXT
+FROM performance_schema.events_transactions_history_long t
+WHERE (t.thread_id = @con1_thread_id)
+UNION
+SELECT THREAD_ID,
+LPAD(EVENT_ID - @base_event_id, 11, ' ') as R_EVENT_ID,
+LPAD(END_EVENT_ID - @base_event_id, 11, ' ') as R_END_EVENT_ID,
+RPAD(EVENT_NAME, 25, ' ') 'EVENT_NAME               ',
+LPAD(IFNULL(NESTING_EVENT_ID - @base_event_id, 'NULL'), 19, ' ') as R_NESTING_EVENT_ID,
+RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
+SQL_TEXT
+FROM performance_schema.events_statements_history_long s
+WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
+ORDER BY thread_id, r_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/begin      	               NULL	NULL              	START TRANSACTION
 thread_id	          2	         19	transaction              	                  1	STATEMENT         	<transaction started>
@@ -650,6 +1238,7 @@ thread_id	         21	         21	transaction              	                 20	
 
 ## Clear statement and transaction history
 CALL test.clear_history();
+CALL test.clear_history();
 ## Reset db.t1
 DELETE FROM db.t1;
 
@@ -657,6 +1246,9 @@ DELETE FROM db.t1;
 #=======================================================================
 # Cleanup
 #=======================================================================
+connection con1;
+disconnect con1;
+connection default;
 DROP DATABASE db;
 UPDATE performance_schema.setup_instruments SET enabled='YES', timed='YES';
 DROP PROCEDURE clear_transaction_tables;

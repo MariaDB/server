@@ -82,7 +82,7 @@ PFS_engine_table* table_setup_timers::create(void)
 {
   THD *thd = current_thd;
   push_warning_printf(thd,
-                      Sql_condition::SL_WARNING,
+                      Sql_condition::WARN_LEVEL_WARN,
                       ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
                       ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
                       "performance_schema.setup_timers");

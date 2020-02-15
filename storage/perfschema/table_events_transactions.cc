@@ -229,7 +229,7 @@ void table_events_transactions_common::make_row(PFS_events_transactions *transac
   */
   //rpl_sid *sid= &transaction->m_sid;
   Gtid_specification *gtid_spec= &transaction->m_gtid_spec;
-  m_row.m_gtid_length= gtid_spec->to_string(m_row.m_gtid);
+  m_row.m_gtid_length= static_cast<uint>(gtid_spec->to_string(m_row.m_gtid));
 
   m_row.m_xid= transaction->m_xid;
   m_row.m_isolation_level= transaction->m_isolation_level;
@@ -259,7 +259,7 @@ static const ulong XID_BUFFER_SIZE= XIDDATASIZE*2 + 2 + 1;
   @param length  number of bytes to process
   @return number of bytes in hex string
 */
-static uint xid_to_hex(char *buf, size_t buf_len, PSI_xid *xid, size_t offset, size_t length)
+static size_t xid_to_hex(char *buf, size_t buf_len, PSI_xid *xid, size_t offset, size_t length)
 {
   DBUG_ASSERT(buf_len >= XID_BUFFER_SIZE);
   DBUG_ASSERT(offset + length <= XIDDATASIZE);

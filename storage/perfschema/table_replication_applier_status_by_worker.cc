@@ -26,7 +26,7 @@
   Table replication_applier_status_by_worker (implementation).
 */
 
-#define HAVE_REPLICATION
+//#define HAVE_REPLICATION
 
 #include "my_global.h"
 #include "table_replication_applier_status_by_worker.h"

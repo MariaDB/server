@@ -2242,6 +2242,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
     mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
+  DEBUG_SYNC(thd, "acquired_LOCK_plugin");
   error= plugin_add(thd->mem_root, thd->lex->create_info.if_not_exists(),
                     name, &dl, MYF(0));
   if (unlikely(error != INSTALL_GOOD))

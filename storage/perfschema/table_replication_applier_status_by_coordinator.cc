@@ -26,9 +26,11 @@
   Table replication_applier_status_by_coordinator (implementation).
 */
 
-#define HAVE_REPLICATION
+//#define HAVE_REPLICATION
 
 #include "my_global.h"
+
+#ifdef HAVE_REPLICATION
 #include "table_replication_applier_status_by_coordinator.h"
 #include "pfs_instr_class.h"
 #include "pfs_instr.h"
@@ -114,7 +116,7 @@ int table_replication_applier_status_by_coordinator::rnd_next(void)
     {
       make_row(mi);
       m_next_pos.set_after(&m_pos);
-      channel_map.unlock();
+      mysql_mutex_unlock(&LOCK_active_mi);
       return 0;
     }
   }
@@ -150,7 +152,7 @@ void table_replication_applier_status_by_coordinator::make_row(Master_info *mi)
 
   mysql_mutex_lock(&mi->rli.data_lock);
 
-  m_row.channel_name_length= mi->connection_name.length;
+  m_row.channel_name_length= static_cast<uint>(mi->connection_name.length);
   memcpy(m_row.channel_name, mi->connection_name.str, m_row.channel_name_length);
 
   if (mi->rli.slave_running)
@@ -183,7 +185,7 @@ void table_replication_applier_status_by_coordinator::make_row(Master_info *mi)
   if (m_row.last_error_number)
   {
     char *temp_store= (char*) mi->rli.last_error().message;
-    m_row.last_error_message_length= strlen(temp_store);
+    m_row.last_error_message_length= static_cast<uint>(strlen(temp_store));
     memcpy(m_row.last_error_message, temp_store,
            m_row.last_error_message_length);
 
@@ -244,3 +246,4 @@ int table_replication_applier_status_by_coordinator
   }
   return 0;
 }
+#endif

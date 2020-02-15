@@ -302,7 +302,7 @@ int table_events_waits_common::make_socket_object_columns(PFS_events_waits *wait
     size_t port_len= int10_to_str(port, (port_str+1), 10) - port_str + 1;
 
     /* OBJECT NAME */
-    m_row.m_object_name_length= ip_length + port_len;
+    m_row.m_object_name_length= ip_length + static_cast<uint>(port_len);
 
     if (unlikely((m_row.m_object_name_length == 0) ||
                  (m_row.m_object_name_length > sizeof(m_row.m_object_name))))
@@ -333,11 +333,12 @@ int table_events_waits_common::make_metadata_lock_object_columns(PFS_events_wait
   if (safe_metadata_lock->get_version() == wait->m_weak_version)
   {
     MDL_key *mdl= & safe_metadata_lock->m_mdl_key;
+    MDL_key user_lock_workaround;
 
     switch(mdl->mdl_namespace())
     {
-    case MDL_key::GLOBAL:
-      m_row.m_object_type= "GLOBAL";
+    case MDL_key::BACKUP:
+      m_row.m_object_type= "BACKUP";
       m_row.m_object_type_length= 6;
       m_row.m_object_schema_length= 0;
       m_row.m_object_name_length= 0;
@@ -366,6 +367,12 @@ int table_events_waits_common::make_metadata_lock_object_columns(PFS_events_wait
       m_row.m_object_schema_length= mdl->db_name_length();
       m_row.m_object_name_length= mdl->name_length();
       break;
+    case MDL_key::PACKAGE_BODY:
+      m_row.m_object_type= "PACKAGE_BODY";
+      m_row.m_object_type_length= 12;
+      m_row.m_object_schema_length= mdl->db_name_length();
+      m_row.m_object_name_length= mdl->name_length();
+      break;
     case MDL_key::TRIGGER:
       m_row.m_object_type= "TRIGGER";
       m_row.m_object_type_length= 7;
@@ -378,32 +385,14 @@ int table_events_waits_common::make_metadata_lock_object_columns(PFS_events_wait
       m_row.m_object_schema_length= mdl->db_name_length();
       m_row.m_object_name_length= mdl->name_length();
       break;
-    case MDL_key::COMMIT:
-      m_row.m_object_type= "COMMIT";
-      m_row.m_object_type_length= 6;
-      m_row.m_object_schema_length= 0;
-      m_row.m_object_name_length= 0;
-      break;
     case MDL_key::USER_LOCK:
       m_row.m_object_type= "USER LEVEL LOCK";
       m_row.m_object_type_length= 15;
+      user_lock_workaround.mdl_key_init(MDL_key::USER_LOCK, "", mdl->db_name());
+      mdl=& user_lock_workaround;
       m_row.m_object_schema_length= 0;
       m_row.m_object_name_length= mdl->name_length();
       break;
-#if 0
-    case MDL_key::TABLESPACE:
-      m_row.m_object_type= "TABLESPACE";
-      m_row.m_object_type_length= 10;
-      m_row.m_object_schema_length= 0;
-      m_row.m_object_name_length= mdl->name_length();
-      break;
-    case MDL_key::LOCKING_SERVICE:
-      m_row.m_object_type= "LOCKING SERVICE";
-      m_row.m_object_type_length= 15;
-      m_row.m_object_schema_length= mdl->db_name_length();
-      m_row.m_object_name_length= mdl->name_length();
-      break;
-#endif
     case MDL_key::NAMESPACE_END:
     default:
       m_row.m_object_type_length= 0;
@@ -621,6 +610,7 @@ static const LEX_STRING operation_names_map[]=
   { C_STRING_WITH_LEN("read no inserts") },
   { C_STRING_WITH_LEN("write allow write") },
   { C_STRING_WITH_LEN("write concurrent insert") },
+  { C_STRING_WITH_LEN("write delayed") },
   { C_STRING_WITH_LEN("write low priority") },
   { C_STRING_WITH_LEN("write normal") },
   { C_STRING_WITH_LEN("read external") },

@@ -90,6 +90,18 @@ void init_sp_psi_keys()
 }
 #endif
 
+#ifdef HAVE_PSI_SP_INTERFACE
+#define MYSQL_RUN_SP(SP,CODE)                                           \
+  do {                                                                  \
+       PSI_sp_locker_state psi_state;                                   \
+       PSI_sp_locker *locker= MYSQL_START_SP(&psi_state, (SP)->m_sp_share); \
+       CODE;                                                            \
+       MYSQL_END_SP(locker);                                            \
+  } while(0)
+#else
+#define MYSQL_RUN_SP(SP, CODE) do { CODE; } while(0)
+#endif
+
 extern "C" uchar *sp_table_key(const uchar *ptr, size_t *plen, my_bool first);
 
 /**
@@ -801,8 +813,8 @@ sp_head::init_sp_name(const sp_name *spname)
 void
 sp_head::init_psi_share()
 {
-  m_sp_share= MYSQL_GET_SP_SHARE(m_handler->type(), m_db.str, m_db.length,
-                                 m_name.str, m_name.length);
+  m_sp_share= MYSQL_GET_SP_SHARE(m_handler->type(), m_db.str, static_cast<uint>(m_db.length),
+                                 m_name.str, static_cast<uint>(m_name.length));
 }
 
 
@@ -1895,12 +1907,7 @@ sp_head::execute_trigger(THD *thd,
 
   thd->spcont= nctx;
 
-  {
-    PSI_sp_locker_state psi_state;
-    PSI_sp_locker *locker= MYSQL_START_SP(&psi_state, m_sp_share);
-    err_status= execute(thd, FALSE);
-    MYSQL_END_SP(locker);
-  }
+  MYSQL_RUN_SP(this, err_status= execute(thd, FALSE));
 
 err_with_cleanup:
   thd->restore_active_arena(&call_arena, &backup_arena);
@@ -2150,12 +2157,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   */
   thd->set_n_backup_active_arena(call_arena, &backup_arena);
 
-  {
-    PSI_sp_locker_state psi_state;
-    PSI_sp_locker *locker= MYSQL_START_SP(&psi_state, m_sp_share);
-    err_status= execute(thd, TRUE);
-    MYSQL_END_SP(locker);
-  }
+  MYSQL_RUN_SP(this, err_status= execute(thd, TRUE));
 
   thd->restore_active_arena(call_arena, &backup_arena);
 
@@ -2437,11 +2439,8 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
   opt_trace_disable_if_no_stored_proc_func_access(thd, this);
 
-  PSI_sp_locker_state psi_state;
-  PSI_sp_locker *locker= MYSQL_START_SP(&psi_state, m_sp_share);
   if (!err_status)
-    err_status= execute(thd, TRUE);
-  MYSQL_END_SP(locker);
+    MYSQL_RUN_SP(this, err_status= execute(thd, TRUE));
 
   if (save_log_general)
     thd->variables.option_bits &= ~OPTION_LOG_OFF;
@@ -3643,7 +3642,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
   DBUG_ENTER("sp_instr_stmt::execute");
   DBUG_PRINT("info", ("command: %d", m_lex_keeper.sql_command()));
 
-  MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, m_query.str, m_query.length);
+  MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, m_query.str, static_cast<uint>(m_query.length));
 
 #if defined(ENABLED_PROFILING)
   /* This s-p instr is profilable and will be captured. */

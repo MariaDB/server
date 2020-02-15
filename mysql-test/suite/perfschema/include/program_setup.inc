@@ -3,6 +3,7 @@
 #
 
 --source include/no_protocol.inc
+--source include/have_innodb.inc
 
 --echo # SET-UP 
 
@@ -12,12 +13,12 @@ USE stored_programs;
 CREATE TABLE t1(
    i INT NOT NULL,
    j INT
-);
+) engine=innodb;
 
 CREATE TABLE t2(
    name   CHAR(16) NOT NULL DEFAULT '',
    id INT NOT NULL
-);
+) engine=innodb;
 
 CREATE TABLE t3(
    d DATE,

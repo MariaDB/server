@@ -629,8 +629,8 @@ end:
     my_ok(thd);
     /* Drop statistics for this stored program from performance schema. */
     MYSQL_DROP_SP(SP_TYPE_TRIGGER,
-                  thd->lex->spname->m_db.str, thd->lex->spname->m_db.length,
-                  thd->lex->spname->m_name.str, thd->lex->spname->m_name.length);
+                  thd->lex->spname->m_db.str, static_cast<uint>(thd->lex->spname->m_db.length),
+                  thd->lex->spname->m_name.str, static_cast<uint>(thd->lex->spname->m_name.length));
   }
 
   DBUG_RETURN(result);
@@ -1562,8 +1562,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         }
 
         sp->m_sp_share= MYSQL_GET_SP_SHARE(SP_TYPE_TRIGGER,
-                                           sp->m_db.str, sp->m_db.length,
-                                           sp->m_name.str, sp->m_name.length);
+                                           sp->m_db.str, static_cast<uint>(sp->m_db.length),
+                                           sp->m_name.str, static_cast<uint>(sp->m_name.length));
 
 #ifndef DBUG_OFF
         /*
@@ -1858,8 +1858,8 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
             result= 1;
           }
           /* Drop statistics for this stored program from performance schema. */
-          MYSQL_DROP_SP(SP_TYPE_TRIGGER, db->str, db->length,
-                        trigger->name.str, trigger->name.length);
+          MYSQL_DROP_SP(SP_TYPE_TRIGGER, db->str, static_cast<uint>(db->length),
+                        trigger->name.str, static_cast<uint>(trigger->name.length));
         }
       }
     }

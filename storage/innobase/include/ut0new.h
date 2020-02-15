@@ -130,10 +130,7 @@ InnoDB:
 
 #include "my_global.h" /* needed for headers from mysql/psi/ */
 
-/* JAN: TODO: missing 5.7 header */
-#ifdef HAVE_MYSQL_MEMORY_H
 #include "mysql/psi/mysql_memory.h" /* PSI_MEMORY_CALL() */
-#endif
 
 #include "mysql/psi/psi_memory.h" /* PSI_memory_key, PSI_memory_info */
 

@@ -1,15 +1,3 @@
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
-Warnings:
-Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 "================== Step 1 =================="
 call dump_thread();
 username	status
@@ -29,12 +17,6 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
@@ -46,10 +28,9 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-stage/sql/Checking permissions	0
-stage/sql/Closing tables	0
-stage/sql/Init	0
-stage/sql/Init for update	0
+stage/sql/checking permissions	0
+stage/sql/closing tables	0
+stage/sql/init	0
 stage/sql/Opening tables	0
 stage/sql/starting	0
 execute dump_stages_history;
@@ -92,12 +73,6 @@ connection default;
 call dump_thread();
 username	event_name	count_star
 user1	wait/io/file/sql/query_log	1
-<<<<<<< HEAD
-user1	wait/synch/mutex/sql/LOCK_user_locks	0
-=======
-user1	wait/synch/mutex/sql/LOCK_connection_count	0
-user1	wait/synch/mutex/sql/LOCK_uuid_generator	0
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 user1	wait/synch/rwlock/sql/LOCK_grant	0
 username	status
 user2	not found
@@ -114,12 +89,6 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	1
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
@@ -132,10 +101,9 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-stage/sql/Checking permissions	0
-stage/sql/Closing tables	0
-stage/sql/Init	0
-stage/sql/Init for update	0
+stage/sql/checking permissions	0
+stage/sql/closing tables	0
+stage/sql/init	0
 stage/sql/Opening tables	0
 stage/sql/starting	0
 execute dump_stages_history;
@@ -172,45 +140,25 @@ execute dump_users;
 USER	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
-<<<<<<< HEAD
 connection con1;
-select get_lock("marker", 10);
-get_lock("marker", 10)
-=======
 select uuid_short() <> 1;
 uuid_short() <> 1
->>>>>>> merge-perfschema-5.7
 1
 select uuid_short() <> 1;
 uuid_short() <> 1
 1
 start transaction;
 insert into test.t1 values ("marker");
-<<<<<<< HEAD
-connection default;
-=======
 commit;
 select test.f(10,20);
 test.f(10,20)
 30
-"================== con1 marker =================="
->>>>>>> merge-perfschema-5.7
+connection default;
 "================== Step 3 =================="
 call dump_thread();
 username	event_name	count_star
-<<<<<<< HEAD
-user1	wait/io/file/sql/query_log	4
-=======
 user1	wait/io/file/sql/query_log	7
-user1	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user1	wait/synch/mutex/sql/LOCK_user_locks	0
 user1	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user1	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user1	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	status
 user2	not found
 username	status
@@ -225,28 +173,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	4
-=======
 wait/io/file/sql/query_log	7
-wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	1
 execute dump_waits_history;
 event_name	count(event_name)
-wait/io/file/sql/query_log	4
-wait/synch/rwlock/sql/LOCK_grant	1
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	2
-wait/synch/rwlock/sql/LOCK_grant	2
-execute dump_waits_history;
-event_name	count(event_name)
 wait/io/file/sql/query_log	7
-wait/synch/mutex/sql/LOCK_uuid_generator	2
-wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
+wait/synch/rwlock/sql/LOCK_grant	1
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -255,33 +187,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	3
-stage/sql/Closing tables	6
-stage/sql/Init	5
-stage/sql/Init for update	1
-stage/sql/Opening tables	4
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	3
-stage/sql/Closing tables	6
-stage/sql/Init	5
-stage/sql/Init for update	1
-stage/sql/Opening tables	4
-=======
 stage/sql/checking permissions	4
-stage/sql/closing tables	6
-stage/sql/init	4
-stage/sql/Opening tables	6
+stage/sql/closing tables	13
+stage/sql/init	3
+stage/sql/Opening tables	7
 stage/sql/starting	6
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	4
-stage/sql/closing tables	6
-stage/sql/init	4
-stage/sql/Opening tables	6
+stage/sql/closing tables	13
+stage/sql/init	3
+stage/sql/Opening tables	7
 stage/sql/starting	6
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -323,27 +240,10 @@ connection default;
 "================== Step 4 =================="
 call dump_thread();
 username	event_name	count_star
-<<<<<<< HEAD
-user1	wait/io/file/sql/query_log	4
-=======
 user1	wait/io/file/sql/query_log	7
-user1	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user1	wait/synch/mutex/sql/LOCK_user_locks	0
 user1	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user1	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user1	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
 user2	wait/io/file/sql/query_log	1
-<<<<<<< HEAD
-user2	wait/synch/mutex/sql/LOCK_user_locks	0
-=======
-user2	wait/synch/mutex/sql/LOCK_connection_count	0
-user2	wait/synch/mutex/sql/LOCK_uuid_generator	0
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 user2	wait/synch/rwlock/sql/LOCK_grant	0
 username	status
 user3	not found
@@ -357,28 +257,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	5
-=======
 wait/io/file/sql/query_log	8
-wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	1
 execute dump_waits_history;
 event_name	count(event_name)
-wait/io/file/sql/query_log	5
-wait/synch/rwlock/sql/LOCK_grant	1
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	2
-wait/synch/rwlock/sql/LOCK_grant	2
-execute dump_waits_history;
-event_name	count(event_name)
 wait/io/file/sql/query_log	8
-wait/synch/mutex/sql/LOCK_uuid_generator	2
-wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
+wait/synch/rwlock/sql/LOCK_grant	1
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -387,33 +271,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	3
-stage/sql/Closing tables	6
-stage/sql/Init	5
-stage/sql/Init for update	1
-stage/sql/Opening tables	4
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	3
-stage/sql/Closing tables	6
-stage/sql/Init	5
-stage/sql/Init for update	1
-stage/sql/Opening tables	4
-=======
 stage/sql/checking permissions	4
-stage/sql/closing tables	6
-stage/sql/init	4
-stage/sql/Opening tables	6
+stage/sql/closing tables	13
+stage/sql/init	3
+stage/sql/Opening tables	7
 stage/sql/starting	6
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	4
-stage/sql/closing tables	6
-stage/sql/init	4
-stage/sql/Opening tables	6
+stage/sql/closing tables	13
+stage/sql/init	3
+stage/sql/Opening tables	7
 stage/sql/starting	6
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -450,59 +319,28 @@ execute dump_users;
 USER	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
-<<<<<<< HEAD
 connection con2;
-select get_lock("marker", 10);
-get_lock("marker", 10)
-=======
 select uuid_short() <> 1;
 uuid_short() <> 1
->>>>>>> merge-perfschema-5.7
 1
 select uuid_short() <> 1;
 uuid_short() <> 1
 1
 start transaction;
 insert into test.t1 values ("marker");
-<<<<<<< HEAD
-connection default;
-=======
 commit;
 select test.f(10,20);
 test.f(10,20)
 30
-"================== con2 marker =================="
->>>>>>> merge-perfschema-5.7
+connection default;
 "================== Step 5 =================="
 call dump_thread();
 username	event_name	count_star
-<<<<<<< HEAD
-user1	wait/io/file/sql/query_log	4
-=======
 user1	wait/io/file/sql/query_log	7
-user1	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user1	wait/synch/mutex/sql/LOCK_user_locks	0
 user1	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user1	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user1	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
-<<<<<<< HEAD
-user2	wait/io/file/sql/query_log	4
-=======
 user2	wait/io/file/sql/query_log	7
-user2	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user2	wait/synch/mutex/sql/LOCK_user_locks	0
 user2	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user2	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user2	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	status
 user3	not found
 username	status
@@ -515,28 +353,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	8
-=======
 wait/io/file/sql/query_log	14
-wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	2
 execute dump_waits_history;
 event_name	count(event_name)
-wait/io/file/sql/query_log	8
-wait/synch/rwlock/sql/LOCK_grant	2
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	4
-wait/synch/rwlock/sql/LOCK_grant	4
-execute dump_waits_history;
-event_name	count(event_name)
 wait/io/file/sql/query_log	14
-wait/synch/mutex/sql/LOCK_uuid_generator	4
-wait/synch/rwlock/sql/LOCK_grant	4
->>>>>>> merge-perfschema-5.7
+wait/synch/rwlock/sql/LOCK_grant	2
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -545,33 +367,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	6
-stage/sql/Closing tables	10
-stage/sql/Init	10
-stage/sql/Init for update	2
-stage/sql/Opening tables	7
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	6
-stage/sql/Closing tables	10
-stage/sql/Init	10
-stage/sql/Init for update	2
-stage/sql/Opening tables	7
-=======
 stage/sql/checking permissions	8
-stage/sql/closing tables	12
-stage/sql/init	8
-stage/sql/Opening tables	12
+stage/sql/closing tables	24
+stage/sql/init	6
+stage/sql/Opening tables	13
 stage/sql/starting	12
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	8
-stage/sql/closing tables	12
-stage/sql/init	8
-stage/sql/Opening tables	12
+stage/sql/closing tables	24
+stage/sql/init	6
+stage/sql/Opening tables	13
 stage/sql/starting	12
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -613,41 +420,13 @@ connection default;
 "================== Step 6 =================="
 call dump_thread();
 username	event_name	count_star
-<<<<<<< HEAD
-user1	wait/io/file/sql/query_log	4
-=======
 user1	wait/io/file/sql/query_log	7
-user1	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user1	wait/synch/mutex/sql/LOCK_user_locks	0
 user1	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user1	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user1	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
-<<<<<<< HEAD
-user2	wait/io/file/sql/query_log	4
-=======
 user2	wait/io/file/sql/query_log	7
-user2	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user2	wait/synch/mutex/sql/LOCK_user_locks	0
 user2	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user2	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user2	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
 user3	wait/io/file/sql/query_log	1
-<<<<<<< HEAD
-user3	wait/synch/mutex/sql/LOCK_user_locks	0
-=======
-user3	wait/synch/mutex/sql/LOCK_connection_count	0
-user3	wait/synch/mutex/sql/LOCK_uuid_generator	0
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 user3	wait/synch/rwlock/sql/LOCK_grant	0
 username	status
 user4	not found
@@ -659,28 +438,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	9
-=======
 wait/io/file/sql/query_log	15
-wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	2
 execute dump_waits_history;
 event_name	count(event_name)
-wait/io/file/sql/query_log	9
-wait/synch/rwlock/sql/LOCK_grant	2
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	4
-wait/synch/rwlock/sql/LOCK_grant	4
-execute dump_waits_history;
-event_name	count(event_name)
 wait/io/file/sql/query_log	15
-wait/synch/mutex/sql/LOCK_uuid_generator	4
-wait/synch/rwlock/sql/LOCK_grant	4
->>>>>>> merge-perfschema-5.7
+wait/synch/rwlock/sql/LOCK_grant	2
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -689,33 +452,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	6
-stage/sql/Closing tables	10
-stage/sql/Init	10
-stage/sql/Init for update	2
-stage/sql/Opening tables	7
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	6
-stage/sql/Closing tables	10
-stage/sql/Init	10
-stage/sql/Init for update	2
-stage/sql/Opening tables	7
-=======
 stage/sql/checking permissions	8
-stage/sql/closing tables	12
-stage/sql/init	8
-stage/sql/Opening tables	12
+stage/sql/closing tables	24
+stage/sql/init	6
+stage/sql/Opening tables	13
 stage/sql/starting	12
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	8
-stage/sql/closing tables	12
-stage/sql/init	8
-stage/sql/Opening tables	12
+stage/sql/closing tables	24
+stage/sql/init	6
+stage/sql/Opening tables	13
 stage/sql/starting	12
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -752,73 +500,31 @@ execute dump_users;
 USER	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
-<<<<<<< HEAD
 connection con3;
-select get_lock("marker", 10);
-get_lock("marker", 10)
-=======
 select uuid_short() <> 1;
 uuid_short() <> 1
->>>>>>> merge-perfschema-5.7
 1
 select uuid_short() <> 1;
 uuid_short() <> 1
 1
 start transaction;
 insert into test.t1 values ("marker");
-<<<<<<< HEAD
-connection default;
-=======
 commit;
 select test.f(10,20);
 test.f(10,20)
 30
-"================== con3 marker =================="
->>>>>>> merge-perfschema-5.7
+connection default;
 "================== Step 7 =================="
 call dump_thread();
 username	event_name	count_star
-<<<<<<< HEAD
-user1	wait/io/file/sql/query_log	4
-=======
 user1	wait/io/file/sql/query_log	7
-user1	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user1	wait/synch/mutex/sql/LOCK_user_locks	0
 user1	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user1	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user1	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
-<<<<<<< HEAD
-user2	wait/io/file/sql/query_log	4
-=======
 user2	wait/io/file/sql/query_log	7
-user2	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user2	wait/synch/mutex/sql/LOCK_user_locks	0
 user2	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user2	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user2	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
-<<<<<<< HEAD
-user3	wait/io/file/sql/query_log	4
-=======
 user3	wait/io/file/sql/query_log	7
-user3	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user3	wait/synch/mutex/sql/LOCK_user_locks	0
 user3	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user3	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user3	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	status
 user4	not found
 execute dump_waits_account;
@@ -829,28 +535,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	12
-=======
 wait/io/file/sql/query_log	21
-wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	3
 execute dump_waits_history;
 event_name	count(event_name)
-wait/io/file/sql/query_log	12
-wait/synch/rwlock/sql/LOCK_grant	3
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	6
-wait/synch/rwlock/sql/LOCK_grant	6
-execute dump_waits_history;
-event_name	count(event_name)
 wait/io/file/sql/query_log	21
-wait/synch/mutex/sql/LOCK_uuid_generator	6
-wait/synch/rwlock/sql/LOCK_grant	6
->>>>>>> merge-perfschema-5.7
+wait/synch/rwlock/sql/LOCK_grant	3
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -859,33 +549,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	9
-stage/sql/Closing tables	14
-stage/sql/Init	15
-stage/sql/Init for update	3
-stage/sql/Opening tables	10
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	9
-stage/sql/Closing tables	14
-stage/sql/Init	15
-stage/sql/Init for update	3
-stage/sql/Opening tables	10
-=======
 stage/sql/checking permissions	12
-stage/sql/closing tables	18
-stage/sql/init	12
-stage/sql/Opening tables	18
+stage/sql/closing tables	35
+stage/sql/init	9
+stage/sql/Opening tables	19
 stage/sql/starting	18
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	12
-stage/sql/closing tables	18
-stage/sql/init	12
-stage/sql/Opening tables	18
+stage/sql/closing tables	35
+stage/sql/init	9
+stage/sql/Opening tables	19
 stage/sql/starting	18
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -927,55 +602,16 @@ connection default;
 "================== Step 8 =================="
 call dump_thread();
 username	event_name	count_star
-<<<<<<< HEAD
-user1	wait/io/file/sql/query_log	4
-=======
 user1	wait/io/file/sql/query_log	7
-user1	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user1	wait/synch/mutex/sql/LOCK_user_locks	0
 user1	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user1	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user1	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
-<<<<<<< HEAD
-user2	wait/io/file/sql/query_log	4
-=======
 user2	wait/io/file/sql/query_log	7
-user2	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user2	wait/synch/mutex/sql/LOCK_user_locks	0
 user2	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user2	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user2	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
-<<<<<<< HEAD
-user3	wait/io/file/sql/query_log	4
-=======
 user3	wait/io/file/sql/query_log	7
-user3	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user3	wait/synch/mutex/sql/LOCK_user_locks	0
 user3	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user3	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user3	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
 user4	wait/io/file/sql/query_log	1
-<<<<<<< HEAD
-user4	wait/synch/mutex/sql/LOCK_user_locks	0
-=======
-user4	wait/synch/mutex/sql/LOCK_connection_count	0
-user4	wait/synch/mutex/sql/LOCK_uuid_generator	0
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 user4	wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_account;
 user	host	event_name	count_star
@@ -985,28 +621,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	13
-=======
 wait/io/file/sql/query_log	22
-wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	3
 execute dump_waits_history;
 event_name	count(event_name)
-wait/io/file/sql/query_log	13
-wait/synch/rwlock/sql/LOCK_grant	3
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	6
-wait/synch/rwlock/sql/LOCK_grant	6
-execute dump_waits_history;
-event_name	count(event_name)
 wait/io/file/sql/query_log	22
-wait/synch/mutex/sql/LOCK_uuid_generator	6
-wait/synch/rwlock/sql/LOCK_grant	6
->>>>>>> merge-perfschema-5.7
+wait/synch/rwlock/sql/LOCK_grant	3
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -1015,33 +635,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	9
-stage/sql/Closing tables	14
-stage/sql/Init	15
-stage/sql/Init for update	3
-stage/sql/Opening tables	10
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	9
-stage/sql/Closing tables	14
-stage/sql/Init	15
-stage/sql/Init for update	3
-stage/sql/Opening tables	10
-=======
 stage/sql/checking permissions	12
-stage/sql/closing tables	18
-stage/sql/init	12
-stage/sql/Opening tables	18
+stage/sql/closing tables	35
+stage/sql/init	9
+stage/sql/Opening tables	19
 stage/sql/starting	18
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	12
-stage/sql/closing tables	18
-stage/sql/init	12
-stage/sql/Opening tables	18
+stage/sql/closing tables	35
+stage/sql/init	9
+stage/sql/Opening tables	19
 stage/sql/starting	18
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -1078,87 +683,34 @@ execute dump_users;
 USER	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
-<<<<<<< HEAD
 connection con4;
-select get_lock("marker", 10);
-get_lock("marker", 10)
-=======
 select uuid_short() <> 1;
 uuid_short() <> 1
->>>>>>> merge-perfschema-5.7
 1
 select uuid_short() <> 1;
 uuid_short() <> 1
 1
 start transaction;
 insert into test.t1 values ("marker");
-<<<<<<< HEAD
-connection default;
-=======
 commit;
 select test.f(10,20);
 test.f(10,20)
 30
-"================== con4 marker =================="
->>>>>>> merge-perfschema-5.7
+connection default;
 "================== Step 9 =================="
 call dump_thread();
 username	event_name	count_star
-<<<<<<< HEAD
-user1	wait/io/file/sql/query_log	4
-=======
 user1	wait/io/file/sql/query_log	7
-user1	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user1	wait/synch/mutex/sql/LOCK_user_locks	0
 user1	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user1	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user1	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
-<<<<<<< HEAD
-user2	wait/io/file/sql/query_log	4
-=======
 user2	wait/io/file/sql/query_log	7
-user2	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user2	wait/synch/mutex/sql/LOCK_user_locks	0
 user2	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user2	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user2	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
-<<<<<<< HEAD
-user3	wait/io/file/sql/query_log	4
-=======
 user3	wait/io/file/sql/query_log	7
-user3	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user3	wait/synch/mutex/sql/LOCK_user_locks	0
 user3	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user3	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user3	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
-<<<<<<< HEAD
-user4	wait/io/file/sql/query_log	4
-=======
 user4	wait/io/file/sql/query_log	7
-user4	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user4	wait/synch/mutex/sql/LOCK_user_locks	0
 user4	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user4	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user4	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 execute dump_waits_account;
 user	host	event_name	count_star
 execute dump_waits_user;
@@ -1167,28 +719,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	16
-=======
 wait/io/file/sql/query_log	28
-wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_waits_history;
 event_name	count(event_name)
-wait/io/file/sql/query_log	16
-wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
-execute dump_waits_history;
-event_name	count(event_name)
 wait/io/file/sql/query_log	28
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
+wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -1197,33 +733,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	20
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	20
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	24
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	24
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -1267,47 +788,14 @@ call dump_thread();
 username	status
 user1	not found
 username	event_name	count_star
-<<<<<<< HEAD
-user2	wait/io/file/sql/query_log	4
-=======
 user2	wait/io/file/sql/query_log	7
-user2	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user2	wait/synch/mutex/sql/LOCK_user_locks	0
 user2	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user2	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user2	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
-<<<<<<< HEAD
-user3	wait/io/file/sql/query_log	4
-=======
 user3	wait/io/file/sql/query_log	7
-user3	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user3	wait/synch/mutex/sql/LOCK_user_locks	0
 user3	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user3	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user3	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
-<<<<<<< HEAD
-user4	wait/io/file/sql/query_log	4
-=======
 user4	wait/io/file/sql/query_log	7
-user4	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user4	wait/synch/mutex/sql/LOCK_user_locks	0
 user4	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user4	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user4	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 execute dump_waits_account;
 user	host	event_name	count_star
 execute dump_waits_user;
@@ -1316,33 +804,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	17
-=======
 wait/io/file/sql/query_log	29
-wait/synch/mutex/sql/LOCK_connection_count	1
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_waits_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-wait/io/file/sql/query_log	17
-=======
 wait/io/file/sql/query_log	29
-wait/synch/mutex/sql/LOCK_connection_count	1
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -1351,33 +818,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	21
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	21
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	25
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	25
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -1424,33 +876,11 @@ user1	not found
 username	status
 user2	not found
 username	event_name	count_star
-<<<<<<< HEAD
-user3	wait/io/file/sql/query_log	4
-=======
 user3	wait/io/file/sql/query_log	7
-user3	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user3	wait/synch/mutex/sql/LOCK_user_locks	0
 user3	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user3	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user3	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 username	event_name	count_star
-<<<<<<< HEAD
-user4	wait/io/file/sql/query_log	4
-=======
 user4	wait/io/file/sql/query_log	7
-user4	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user4	wait/synch/mutex/sql/LOCK_user_locks	0
 user4	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user4	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user4	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 execute dump_waits_account;
 user	host	event_name	count_star
 execute dump_waits_user;
@@ -1459,33 +889,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	18
-=======
 wait/io/file/sql/query_log	30
-wait/synch/mutex/sql/LOCK_connection_count	2
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_waits_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-wait/io/file/sql/query_log	18
-=======
 wait/io/file/sql/query_log	30
-wait/synch/mutex/sql/LOCK_connection_count	2
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -1494,33 +903,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	22
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	22
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	26
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	26
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -1569,19 +963,8 @@ user2	not found
 username	status
 user3	not found
 username	event_name	count_star
-<<<<<<< HEAD
-user4	wait/io/file/sql/query_log	4
-=======
 user4	wait/io/file/sql/query_log	7
-user4	wait/synch/mutex/sql/LOCK_connection_count	0
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-user4	wait/synch/mutex/sql/LOCK_user_locks	0
 user4	wait/synch/rwlock/sql/LOCK_grant	1
-=======
-user4	wait/synch/mutex/sql/LOCK_uuid_generator	2
-user4	wait/synch/rwlock/sql/LOCK_grant	2
->>>>>>> merge-perfschema-5.7
 execute dump_waits_account;
 user	host	event_name	count_star
 execute dump_waits_user;
@@ -1590,33 +973,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	19
-=======
 wait/io/file/sql/query_log	31
-wait/synch/mutex/sql/LOCK_connection_count	3
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_waits_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-wait/io/file/sql/query_log	19
-=======
 wait/io/file/sql/query_log	31
-wait/synch/mutex/sql/LOCK_connection_count	3
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -1625,33 +987,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	23
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	23
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	27
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	27
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -1709,33 +1056,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	20
-=======
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_waits_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-wait/io/file/sql/query_log	20
-=======
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -1744,33 +1070,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -1829,33 +1140,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	20
-=======
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_waits_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-wait/io/file/sql/query_log	20
-=======
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -1864,33 +1154,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -1948,33 +1223,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	20
-=======
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_waits_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-wait/io/file/sql/query_log	20
-=======
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -1983,33 +1237,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -2067,33 +1306,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	20
-=======
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_waits_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-wait/io/file/sql/query_log	20
-=======
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -2102,33 +1320,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -2186,33 +1389,12 @@ execute dump_waits_host;
 host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
-<<<<<<< HEAD
-wait/io/file/sql/query_log	20
-=======
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
-wait/synch/mutex/sql/LOCK_user_locks	0
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_waits_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-wait/io/file/sql/query_log	20
-=======
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -2221,33 +1403,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -2306,27 +1473,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -2335,33 +1486,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -2420,27 +1556,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -2449,33 +1569,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -2534,27 +1639,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -2563,33 +1652,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -2648,27 +1722,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -2677,33 +1735,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -2762,27 +1805,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -2791,33 +1818,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-execute dump_stages_history;
-event_name	count(event_name)
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -2876,27 +1888,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -2905,27 +1901,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-stage/sql/Checking permissions	0
-stage/sql/Closing tables	0
-stage/sql/Init	0
-stage/sql/Init for update	0
+stage/sql/checking permissions	0
+stage/sql/closing tables	0
+stage/sql/init	0
 stage/sql/Opening tables	0
 stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -2984,27 +1971,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -3013,27 +1984,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-stage/sql/Checking permissions	0
-stage/sql/Closing tables	0
-stage/sql/Init	0
-stage/sql/Init for update	0
+stage/sql/checking permissions	0
+stage/sql/closing tables	0
+stage/sql/init	0
 stage/sql/Opening tables	0
 stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -3092,27 +2054,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -3121,27 +2067,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-stage/sql/Checking permissions	0
-stage/sql/Closing tables	0
-stage/sql/Init	0
-stage/sql/Init for update	0
+stage/sql/checking permissions	0
+stage/sql/closing tables	0
+stage/sql/init	0
 stage/sql/Opening tables	0
 stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -3200,27 +2137,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -3229,27 +2150,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-stage/sql/Checking permissions	0
-stage/sql/Closing tables	0
-stage/sql/Init	0
-stage/sql/Init for update	0
+stage/sql/checking permissions	0
+stage/sql/closing tables	0
+stage/sql/init	0
 stage/sql/Opening tables	0
 stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -3308,27 +2220,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -3337,27 +2233,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-stage/sql/Checking permissions	0
-stage/sql/Closing tables	0
-stage/sql/Init	0
-stage/sql/Init for update	0
+stage/sql/checking permissions	0
+stage/sql/closing tables	0
+stage/sql/init	0
 stage/sql/Opening tables	0
 stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -3416,27 +2303,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -3445,25 +2316,17 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-stage/sql/Checking permissions	0
-stage/sql/Closing tables	0
-stage/sql/Init	0
-stage/sql/Init for update	0
+stage/sql/checking permissions	0
+stage/sql/closing tables	0
+stage/sql/init	0
 stage/sql/Opening tables	0
 stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_statements_account;
 user	host	event_name	count_star
@@ -3523,15 +2386,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
+wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -3548,9 +2407,9 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_statements_account;
 user	host	event_name	count_star
@@ -3610,15 +2469,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
+wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -3635,11 +2490,10 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -3698,15 +2552,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
+wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -3723,9 +2573,9 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_statements_account;
 user	host	event_name	count_star
@@ -3785,15 +2635,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
+wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -3810,9 +2656,9 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_statements_account;
 user	host	event_name	count_star
@@ -3872,15 +2718,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
+wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -3897,9 +2739,9 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_statements_account;
 user	host	event_name	count_star
@@ -3959,27 +2801,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -3988,27 +2814,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-stage/sql/Checking permissions	0
-stage/sql/Closing tables	0
-stage/sql/Init	0
-stage/sql/Init for update	0
+stage/sql/checking permissions	0
+stage/sql/closing tables	0
+stage/sql/init	0
 stage/sql/Opening tables	0
 stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -4067,27 +2884,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -4096,27 +2897,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-stage/sql/Checking permissions	0
-stage/sql/Closing tables	0
-stage/sql/Init	0
-stage/sql/Init for update	0
+stage/sql/checking permissions	0
+stage/sql/closing tables	0
+stage/sql/init	0
 stage/sql/Opening tables	0
 stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;
@@ -4175,27 +2967,11 @@ host	event_name	count_star
 execute dump_waits_global;
 event_name	count_star
 wait/io/file/sql/query_log	0
-<<<<<<< HEAD
-wait/synch/mutex/sql/LOCK_user_locks	0
-wait/synch/rwlock/sql/LOCK_grant	0
-execute dump_waits_history;
-event_name	count(event_name)
-wait/io/file/sql/query_log	20
-=======
-wait/synch/mutex/sql/LOCK_connection_count	0
-wait/synch/mutex/sql/LOCK_uuid_generator	0
 wait/synch/rwlock/sql/LOCK_grant	0
 execute dump_waits_history;
 event_name	count(event_name)
 wait/io/file/sql/query_log	32
-wait/synch/mutex/sql/LOCK_connection_count	4
-<<<<<<< HEAD
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 wait/synch/rwlock/sql/LOCK_grant	4
-=======
-wait/synch/mutex/sql/LOCK_uuid_generator	8
-wait/synch/rwlock/sql/LOCK_grant	8
->>>>>>> merge-perfschema-5.7
 execute dump_stages_account;
 user	host	event_name	count_star
 execute dump_stages_user;
@@ -4204,27 +2980,18 @@ execute dump_stages_host;
 host	event_name	count_star
 execute dump_stages_global;
 event_name	count_star
-stage/sql/Checking permissions	0
-stage/sql/Closing tables	0
-stage/sql/Init	0
-stage/sql/Init for update	0
+stage/sql/checking permissions	0
+stage/sql/closing tables	0
+stage/sql/init	0
 stage/sql/Opening tables	0
 stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
-<<<<<<< HEAD
-stage/sql/Checking permissions	12
-stage/sql/Closing tables	18
-stage/sql/Init	24
-stage/sql/Init for update	4
-stage/sql/Opening tables	13
-=======
 stage/sql/checking permissions	16
-stage/sql/closing tables	24
-stage/sql/init	16
-stage/sql/Opening tables	24
+stage/sql/closing tables	46
+stage/sql/init	12
+stage/sql/Opening tables	25
 stage/sql/starting	28
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 execute dump_statements_account;
 user	host	event_name	count_star
 execute dump_statements_user;

@@ -22,9 +22,7 @@
 
 #include "mrn_mysql_compat.h"
 
-#ifdef MRN_HAVE_PSI_MEMORY_KEY
 extern PSI_memory_key mrn_memory_key;
-#endif
 
 namespace mrn {
   namespace variables {

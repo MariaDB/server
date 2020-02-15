@@ -353,8 +353,8 @@ Event_queue::drop_matching_events(THD *thd, const LEX_CSTRING *pattern,
       */
       queue_remove(&queue, i);
       /* Drop statistics for this stored program from performance schema. */
-      MYSQL_DROP_SP(SP_TYPE_EVENT, et->dbname.str, et->dbname.length,
-                                   et->name.str, et->name.length);
+      MYSQL_DROP_SP(SP_TYPE_EVENT, et->dbname.str, static_cast<uint>(et->dbname.length),
+                                   et->name.str, static_cast<uint>(et->name.length));
       delete et;
     }
     else

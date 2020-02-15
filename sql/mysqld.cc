@@ -785,8 +785,8 @@ static struct my_option pfs_early_options[]=
   {"performance_schema_consumer_events_statements_current", 0,
     "Default startup value for the events_statements_current consumer.",
     &pfs_param.m_consumer_events_statements_current_enabled,
-    &pfs_param.m_consumer_events_statements_current_enabled, 0,
-    GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0},
+    &pfs_param.m_consumer_events_statements_current_enabled, 0, GET_BOOL,
+    OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_statements_history", 0,
     "Default startup value for the events_statements_history consumer.",
     &pfs_param.m_consumer_events_statements_history_enabled,
@@ -796,6 +796,21 @@ static struct my_option pfs_early_options[]=
     "Default startup value for the events_statements_history_long consumer.",
     &pfs_param.m_consumer_events_statements_history_long_enabled,
     &pfs_param.m_consumer_events_statements_history_long_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_transactions_current", 0,
+    "Default startup value for the events_transactions_current consumer.",
+    &pfs_param.m_consumer_events_transactions_current_enabled,
+    &pfs_param.m_consumer_events_transactions_current_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_transactions_history", 0,
+    "Default startup value for the events_transactions_history consumer.",
+    &pfs_param.m_consumer_events_transactions_history_enabled,
+    &pfs_param.m_consumer_events_transactions_history_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_transactions_history_long", 0,
+    "Default startup value for the events_transactions_history_long consumer.",
+    &pfs_param.m_consumer_events_transactions_history_long_enabled,
+    &pfs_param.m_consumer_events_transactions_history_long_enabled, 0,
     GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_waits_current", 0,
     "Default startup value for the events_waits_current consumer.",
@@ -833,6 +848,19 @@ static struct my_option pfs_early_options[]=
     &my_getopt_prefix_matching, &my_getopt_prefix_matching, 0, GET_BOOL,
     NO_ARG, 1, 0, 1, 0, 0, 0}
 };
+
+PSI_file_key key_file_binlog,  key_file_binlog_cache, key_file_binlog_index,
+  key_file_binlog_index_cache, key_file_casetest,
+  key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
+  key_file_fileparser, key_file_frm, key_file_global_ddl_log, key_file_load,
+  key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
+  key_file_master_info, key_file_misc, key_file_partition_ddl_log,
+  key_file_pid, key_file_relay_log_info, key_file_send_file, key_file_tclog,
+  key_file_trg, key_file_trn, key_file_init;
+PSI_file_key key_file_query_log, key_file_slow_log;
+PSI_file_key key_file_relaylog, key_file_relaylog_index,
+             key_file_relaylog_cache, key_file_relaylog_index_cache;
+PSI_file_key key_file_binlog_state;
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
@@ -1105,19 +1133,6 @@ static PSI_thread_info all_server_threads[]=
 #ifdef HAVE_MMAP
 PSI_file_key key_file_map;
 #endif /* HAVE_MMAP */
-
-PSI_file_key key_file_binlog,  key_file_binlog_cache, key_file_binlog_index,
-  key_file_binlog_index_cache, key_file_casetest,
-  key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
-  key_file_fileparser, key_file_frm, key_file_global_ddl_log, key_file_load,
-  key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
-  key_file_master_info, key_file_misc, key_file_partition_ddl_log,
-  key_file_pid, key_file_relay_log_info, key_file_send_file, key_file_tclog,
-  key_file_trg, key_file_trn, key_file_init;
-PSI_file_key key_file_query_log, key_file_slow_log;
-PSI_file_key key_file_relaylog, key_file_relaylog_index,
-             key_file_relaylog_cache, key_file_relaylog_index_cache;
-PSI_file_key key_file_binlog_state;
 
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -5346,6 +5361,9 @@ int mysqld_main(int argc, char **argv)
     exit(1);
 
 #ifndef _WIN32
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+  pre_initialize_performance_schema();
+#endif /*WITH_PERFSCHEMA_STORAGE_ENGINE */
   // For windows, my_init() is called from the win specific mysqld_main
   if (my_init())                 // init my_sys library & pthreads
   {
@@ -5725,7 +5743,7 @@ int mysqld_main(int argc, char **argv)
   mysql_cond_broadcast(&COND_server_started);
   mysql_mutex_unlock(&LOCK_server_started);
 
-  MYSQL_SET_STAGE(0 ,__FILE__, __LINE__);
+  (void)MYSQL_SET_STAGE(0 ,__FILE__, __LINE__);
 
   /* Memory used when everything is setup */
   start_memory_used= global_status_var.global_memory_used;
@@ -5909,6 +5927,10 @@ int mysqld_main(int argc, char **argv)
 
   /* Must be initialized early for comparison of service name */
   system_charset_info= &my_charset_utf8mb3_general_ci;
+
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+  pre_initialize_performance_schema();
+#endif /*WITH_PERFSCHEMA_STORAGE_ENGINE */
 
   if (my_init())
   {
@@ -9081,6 +9103,11 @@ void refresh_status(THD *thd)
 {
   mysql_mutex_lock(&LOCK_status);
 
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+  /* Reset aggregated status counters. */
+  reset_pfs_status_stats();
+#endif
+
   /* Add thread's status variabes to global status */
   add_to_status(&global_status_var, &thd->status_var);
 
@@ -9293,6 +9320,87 @@ PSI_stage_info stage_slave_background_wait_request= { 0, "Waiting for requests",
 PSI_stage_info stage_waiting_for_deadlock_kill= { 0, "Waiting for parallel replication deadlock handling to complete", 0};
 PSI_stage_info stage_starting= { 0, "starting", 0};
 
+PSI_memory_key key_memory_DATE_TIME_FORMAT;
+PSI_memory_key key_memory_DDL_LOG_MEMORY_ENTRY;
+PSI_memory_key key_memory_Event_queue_element_for_exec_names;
+PSI_memory_key key_memory_Event_scheduler_scheduler_param;
+PSI_memory_key key_memory_Filesort_info_merge;
+PSI_memory_key key_memory_Filesort_info_record_pointers;
+PSI_memory_key key_memory_Gis_read_stream_err_msg;
+PSI_memory_key key_memory_JOIN_CACHE;
+PSI_memory_key key_memory_MPVIO_EXT_auth_info;
+PSI_memory_key key_memory_MYSQL_BIN_LOG_basename;
+PSI_memory_key key_memory_MYSQL_BIN_LOG_index;
+PSI_memory_key key_memory_MYSQL_LOCK;
+PSI_memory_key key_memory_MYSQL_LOG_name;
+PSI_memory_key key_memory_MYSQL_RELAY_LOG_basename;
+PSI_memory_key key_memory_MYSQL_RELAY_LOG_index;
+PSI_memory_key key_memory_NAMED_ILINK_name;
+PSI_memory_key key_memory_PROFILE;
+PSI_memory_key key_memory_QUICK_RANGE_SELECT_mrr_buf_desc;
+PSI_memory_key key_memory_Query_cache;
+PSI_memory_key key_memory_Relay_log_info_group_relay_log_name;
+PSI_memory_key key_memory_Row_data_memory_memory;
+PSI_memory_key key_memory_Rpl_info_file_buffer;
+PSI_memory_key key_memory_SLAVE_INFO;
+PSI_memory_key key_memory_ST_SCHEMA_TABLE;
+PSI_memory_key key_memory_Sort_param_tmp_buffer;
+PSI_memory_key key_memory_Sys_var_charptr_value;
+PSI_memory_key key_memory_TABLE;
+PSI_memory_key key_memory_TABLE_RULE_ENT;
+PSI_memory_key key_memory_TC_LOG_MMAP_pages;
+PSI_memory_key key_memory_THD_db;
+PSI_memory_key key_memory_THD_handler_tables_hash;
+PSI_memory_key key_memory_THD_variables;
+PSI_memory_key key_memory_Table_trigger_dispatcher;
+PSI_memory_key key_memory_Unique_merge_buffer;
+PSI_memory_key key_memory_Unique_sort_buffer;
+PSI_memory_key key_memory_User_level_lock;
+PSI_memory_key key_memory_XID;
+PSI_memory_key key_memory_acl_cache;
+PSI_memory_key key_memory_acl_mem;
+PSI_memory_key key_memory_acl_memex;
+PSI_memory_key key_memory_binlog_cache_mngr;
+PSI_memory_key key_memory_binlog_pos;
+PSI_memory_key key_memory_binlog_recover_exec;
+PSI_memory_key key_memory_binlog_statement_buffer;
+PSI_memory_key key_memory_binlog_ver_1_event;
+PSI_memory_key key_memory_bison_stack;
+PSI_memory_key key_memory_blob_mem_storage;
+PSI_memory_key key_memory_dboptions_hash;
+PSI_memory_key key_memory_errmsgs;
+PSI_memory_key key_memory_frm_string;
+PSI_memory_key key_memory_gdl;
+PSI_memory_key key_memory_global_system_variables;
+PSI_memory_key key_memory_handler_errmsgs;
+PSI_memory_key key_memory_handlerton;
+PSI_memory_key key_memory_hash_index_key_buffer;
+PSI_memory_key key_memory_host_cache_hostname;
+PSI_memory_key key_memory_ignored_db;
+PSI_memory_key key_memory_locked_table_list;
+PSI_memory_key key_memory_locked_thread_list;
+PSI_memory_key key_memory_my_str_malloc;
+PSI_memory_key key_memory_native_functions;
+PSI_memory_key key_memory_prepared_statement_main_mem_root;
+PSI_memory_key key_memory_prepared_statement_map;
+PSI_memory_key key_memory_queue_item;
+PSI_memory_key key_memory_quick_range_select_root;
+PSI_memory_key key_memory_rpl_filter;
+PSI_memory_key key_memory_sp_cache;
+PSI_memory_key key_memory_sp_head_call_root;
+PSI_memory_key key_memory_sp_head_execute_root;
+PSI_memory_key key_memory_sp_head_main_root;
+PSI_memory_key key_memory_table_mapping_root;
+PSI_memory_key key_memory_table_share;
+PSI_memory_key key_memory_table_triggers_list;
+PSI_memory_key key_memory_thd_main_mem_root;
+PSI_memory_key key_memory_thd_transactions;
+PSI_memory_key key_memory_user_conn;
+PSI_memory_key key_memory_user_var_entry;
+PSI_memory_key key_memory_user_var_entry_value;
+
+PSI_memory_key key_memory_String_value;
+
 #ifdef HAVE_PSI_INTERFACE
 
 PSI_stage_info *all_server_stages[]=
@@ -9440,88 +9548,6 @@ static PSI_socket_info all_server_sockets[]=
   { &key_socket_unix, "server_unix_socket", PSI_FLAG_GLOBAL},
   { &key_socket_client_connection, "client_connection", 0}
 };
-
-
-PSI_memory_key key_memory_DATE_TIME_FORMAT;
-PSI_memory_key key_memory_DDL_LOG_MEMORY_ENTRY;
-PSI_memory_key key_memory_Event_queue_element_for_exec_names;
-PSI_memory_key key_memory_Event_scheduler_scheduler_param;
-PSI_memory_key key_memory_Filesort_info_merge;
-PSI_memory_key key_memory_Filesort_info_record_pointers;
-PSI_memory_key key_memory_Gis_read_stream_err_msg;
-PSI_memory_key key_memory_JOIN_CACHE;
-PSI_memory_key key_memory_MPVIO_EXT_auth_info;
-PSI_memory_key key_memory_MYSQL_BIN_LOG_basename;
-PSI_memory_key key_memory_MYSQL_BIN_LOG_index;
-PSI_memory_key key_memory_MYSQL_LOCK;
-PSI_memory_key key_memory_MYSQL_LOG_name;
-PSI_memory_key key_memory_MYSQL_RELAY_LOG_basename;
-PSI_memory_key key_memory_MYSQL_RELAY_LOG_index;
-PSI_memory_key key_memory_NAMED_ILINK_name;
-PSI_memory_key key_memory_PROFILE;
-PSI_memory_key key_memory_QUICK_RANGE_SELECT_mrr_buf_desc;
-PSI_memory_key key_memory_Query_cache;
-PSI_memory_key key_memory_Relay_log_info_group_relay_log_name;
-PSI_memory_key key_memory_Row_data_memory_memory;
-PSI_memory_key key_memory_Rpl_info_file_buffer;
-PSI_memory_key key_memory_SLAVE_INFO;
-PSI_memory_key key_memory_ST_SCHEMA_TABLE;
-PSI_memory_key key_memory_Sort_param_tmp_buffer;
-PSI_memory_key key_memory_Sys_var_charptr_value;
-PSI_memory_key key_memory_TABLE;
-PSI_memory_key key_memory_TABLE_RULE_ENT;
-PSI_memory_key key_memory_TC_LOG_MMAP_pages;
-PSI_memory_key key_memory_THD_db;
-PSI_memory_key key_memory_THD_handler_tables_hash;
-PSI_memory_key key_memory_THD_variables;
-PSI_memory_key key_memory_Table_trigger_dispatcher;
-PSI_memory_key key_memory_Unique_merge_buffer;
-PSI_memory_key key_memory_Unique_sort_buffer;
-PSI_memory_key key_memory_User_level_lock;
-PSI_memory_key key_memory_XID;
-PSI_memory_key key_memory_acl_cache;
-PSI_memory_key key_memory_acl_mem;
-PSI_memory_key key_memory_acl_memex;
-PSI_memory_key key_memory_binlog_cache_mngr;
-PSI_memory_key key_memory_binlog_pos;
-PSI_memory_key key_memory_binlog_recover_exec;
-PSI_memory_key key_memory_binlog_statement_buffer;
-PSI_memory_key key_memory_binlog_ver_1_event;
-PSI_memory_key key_memory_bison_stack;
-PSI_memory_key key_memory_blob_mem_storage;
-PSI_memory_key key_memory_dboptions_hash;
-PSI_memory_key key_memory_errmsgs;
-PSI_memory_key key_memory_frm_string;
-PSI_memory_key key_memory_gdl;
-PSI_memory_key key_memory_global_system_variables;
-PSI_memory_key key_memory_handler_errmsgs;
-PSI_memory_key key_memory_handlerton;
-PSI_memory_key key_memory_hash_index_key_buffer;
-PSI_memory_key key_memory_host_cache_hostname;
-PSI_memory_key key_memory_ignored_db;
-PSI_memory_key key_memory_locked_table_list;
-PSI_memory_key key_memory_locked_thread_list;
-PSI_memory_key key_memory_my_str_malloc;
-PSI_memory_key key_memory_native_functions;
-PSI_memory_key key_memory_prepared_statement_main_mem_root;
-PSI_memory_key key_memory_prepared_statement_map;
-PSI_memory_key key_memory_queue_item;
-PSI_memory_key key_memory_quick_range_select_root;
-PSI_memory_key key_memory_rpl_filter;
-PSI_memory_key key_memory_sp_cache;
-PSI_memory_key key_memory_sp_head_call_root;
-PSI_memory_key key_memory_sp_head_execute_root;
-PSI_memory_key key_memory_sp_head_main_root;
-PSI_memory_key key_memory_table_mapping_root;
-PSI_memory_key key_memory_table_share;
-PSI_memory_key key_memory_table_triggers_list;
-PSI_memory_key key_memory_thd_main_mem_root;
-PSI_memory_key key_memory_thd_transactions;
-PSI_memory_key key_memory_user_conn;
-PSI_memory_key key_memory_user_var_entry;
-PSI_memory_key key_memory_user_var_entry_value;
-
-PSI_memory_key key_memory_String_value;
 
 static PSI_memory_info all_server_memory[]=
 {

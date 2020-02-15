@@ -13,6 +13,7 @@ v1a	Hello
 v2a	World
 v3a	65
 v4a	NULL
+connect con1, localhost, root,,;
 set @v1b="Salut";
 set @v2b="La compagnie";
 set @v3b=12;
@@ -32,6 +33,8 @@ v3a	65
 v3b	12
 v4a	NULL
 v4b	NULL
+connection default;
+disconnect con1;
 select VARIABLE_NAME, VARIABLE_VALUE
 from performance_schema.user_variables_by_thread
 order by VARIABLE_NAME;

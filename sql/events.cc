@@ -623,7 +623,7 @@ Events::drop_event(THD *thd, const LEX_CSTRING *dbname,
     ret= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
     /* Drop statistics for this stored program from performance schema. */
     MYSQL_DROP_SP(SP_TYPE_EVENT,
-                  dbname->str, dbname->length, name->str, name->length);
+                  dbname->str, static_cast<uint>(dbname->length), name->str, static_cast<uint>(name->length));
   }
 
   thd->restore_stmt_binlog_format(save_binlog_format);

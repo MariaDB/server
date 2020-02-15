@@ -7,7 +7,7 @@
 
 # Presence of the query cache changes query stages,
 # causing noise in the test output
---source include/have_query_cache_disabled.inc
+#--source include/have_query_cache_disabled.inc
 
 create user user1@localhost;
 create user user2@localhost;

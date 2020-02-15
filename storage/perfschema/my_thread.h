@@ -3,12 +3,19 @@
 
 #include <my_pthread.h>
 #include <m_string.h>
-#include "rpl_gtid.h"
+#include "pfs_config.h"
+
+#ifdef HAVE_SYS_GETTID
+#include <sys/types.h>
+#include <sys/syscall.h>
+#endif
 
 typedef pthread_key_t thread_local_key_t;
 typedef pthread_t my_thread_handle;
 typedef pthread_attr_t my_thread_attr_t;
 typedef uint32 my_thread_os_id_t;
+
+#define LOCK_plugin_delete LOCK_plugin
 
 static inline int my_create_thread_local_key(thread_local_key_t *key, void (*destructor)(void*))
 { return pthread_key_create(key, destructor); }
@@ -28,20 +35,46 @@ static inline int my_thread_create(my_thread_handle *thread,
 
 static inline my_thread_os_id_t my_thread_os_id()
 {
-#ifdef __NR_gettid
-  return (uint32)syscall(__NR_gettid);
-#else
-  return 0;
-#endif
-}
+#ifdef HAVE_PTHREAD_THREADID_NP
+  /*
+    macOS.
 
-enum enum_sp_type
-{
-  SP_TYPE_FUNCTION= 1,
-  SP_TYPE_PROCEDURE,
-  SP_TYPE_TRIGGER,
-  SP_TYPE_EVENT
-};
+    Be careful to use this version first, and to not use SYS_gettid on macOS,
+    as SYS_gettid has a different meaning compared to linux gettid().
+  */
+  uint64_t tid64;
+  pthread_threadid_np(nullptr, &tid64);
+  return (pid_t)tid64;
+#else
+#ifdef HAVE_SYS_GETTID
+  /*
+    Linux.
+    See man gettid
+    See GLIBC Bug 6399 - gettid() should have a wrapper
+    https://sourceware.org/bugzilla/show_bug.cgi?id=6399
+  */
+  return syscall(SYS_gettid);
+#else
+#ifdef _WIN32
+  /* Windows */
+  return GetCurrentThreadId();
+#else
+#ifdef HAVE_PTHREAD_GETTHREADID_NP
+  /* FreeBSD 10.2 */
+  return pthread_getthreadid_np();
+#else
+#ifdef HAVE_INTEGER_PTHREAD_SELF
+  /* Unknown platform, fallback. */
+  return pthread_self();
+#else
+  /* Feature not available. */
+  return 0;
+#endif /* HAVE_INTEGER_PTHREAD_SELF */
+#endif /* HAVE_PTHREAD_GETTHREADID_NP */
+#endif /* _WIN32 */
+#endif /* HAVE_SYS_GETTID */
+#endif /* HAVE_SYS_THREAD_SELFID */
+}
 
 #define CHANNEL_NAME_LENGTH MAX_CONNECTION_NAME
 
@@ -59,16 +92,6 @@ typedef enum enum_mysql_show_scope SHOW_SCOPE;
 static inline char *my_stpnmov(char *dst, const char *src, size_t n)
 { return strnmov(dst, src, n); }
 
-class Gtid_specification: public rpl_gtid
-{
-public:
-  size_t to_string(char *buf)
-  {
-    return my_snprintf(buf, GTID_MAX_STR_LENGTH, "%u-%u-%llu",
-                       domain_id, server_id, seq_no);
-  }
-};
-
 static inline size_t bin_to_hex_str(char *to, size_t to_len,
                                     const char *from, size_t from_len)
 {
@@ -83,8 +106,6 @@ static inline size_t bin_to_hex_str(char *to, size_t to_len,
   return from_len * 2 + 1;
 }
 
-enum enum_psi_status { PENDING = 0, GRANTED,
-                       PRE_ACQUIRE_NOTIFY, POST_RELEASE_NOTIFY };
+#define thd_get_psi(X) ((X)->get_psi())
 
-PSI_thread* thd_get_psi(THD *thd);
 #endif
