@@ -5883,7 +5883,6 @@ static enum PRIVS_TO_MERGE::what sp_privs_to_merge(stored_procedure_type type)
   case TYPE_ENUM_PACKAGE_BODY:
     return PRIVS_TO_MERGE::PACKAGE_BODY;
   case TYPE_ENUM_TRIGGER:
-  case TYPE_ENUM_PROXY:
     break;
   }
   DBUG_ASSERT(0);

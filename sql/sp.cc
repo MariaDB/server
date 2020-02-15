@@ -1241,7 +1241,6 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
           ret= sp_drop_routine_internal(thd, sp, table);
           break;
         case TYPE_ENUM_TRIGGER:
-        case TYPE_ENUM_PROXY:
           DBUG_ASSERT(0);
           ret= SP_OK;
         }

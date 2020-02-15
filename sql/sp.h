@@ -54,8 +54,7 @@ enum stored_procedure_type
   TYPE_ENUM_PROCEDURE=2,
   TYPE_ENUM_PACKAGE=3,
   TYPE_ENUM_PACKAGE_BODY=4,
-  TYPE_ENUM_TRIGGER=5,
-  TYPE_ENUM_PROXY=6
+  TYPE_ENUM_TRIGGER=5
 };
 
 
@@ -506,8 +505,6 @@ inline const Sp_handler *Sp_handler::handler(stored_procedure_type type)
     return &sp_handler_package_body;
   case TYPE_ENUM_TRIGGER:
     return &sp_handler_trigger;
-  case TYPE_ENUM_PROXY:
-    break;
   }
   return NULL;
 }
