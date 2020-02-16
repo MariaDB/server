@@ -1742,6 +1742,8 @@ void store_key_image_to_rec(Field *field, uchar *ptr, uint len);
 
 extern String null_string;
 
+
+bool sel_tree_non_empty(SEL_TREE *tree);
 /* check this number of rows (default value) */
 #define SELECTIVITY_SAMPLING_LIMIT 100
 /* but no more then this part of table (10%) */

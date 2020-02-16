@@ -8371,6 +8371,10 @@ Item_func_between::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   }
 
   ftree= tree_and(param, ftree, tree);
+
+  if (sel_tree_non_empty(ftree))
+    n_selectivity_estimates++;
+
   DBUG_RETURN(ftree);
 }
 
@@ -8425,10 +8429,17 @@ SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
       ftree= !ftree ? tree : tree_and(param, ftree, tree);
     }
   }
+  // psergey
+  if (sel_tree_non_empty(ftree))
+    n_selectivity_estimates++;
 
   DBUG_RETURN(ftree);
 }
 
+bool sel_tree_non_empty(SEL_TREE *tree)
+{
+  return (tree && !tree->keys_map.is_clear_all());
+}
 
 SEL_TREE *
 Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,

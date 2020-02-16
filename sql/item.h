@@ -736,6 +736,8 @@ class Item: public Value_source,
   static void *operator new(size_t size);
 
 public:
+  int n_selectivity_estimates;
+
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }

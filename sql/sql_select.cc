@@ -7301,7 +7301,8 @@ best_access_path(JOIN      *join,
   THD *thd= join->thd;
   uint use_cond_selectivity= thd->variables.optimizer_use_condition_selectivity;
   KEYUSE *best_key=         0;
-  uint best_max_key_part=   0;
+  uint best_max_key_part=   0; // this has ~0 for fully-used unique keys
+  uint best_n_key_parts=    0; // this is actual best # key parts used.
   my_bool found_constraint= 0;
   double best=              DBL_MAX;
   double best_time=         DBL_MAX;
@@ -7874,6 +7875,7 @@ best_access_path(JOIN      *join,
         best_records= records;
         best_key= start_key;
         best_max_key_part= max_key_part;
+        best_n_key_parts= max_part_bit(found_part);
         best_ref_depends_map= found_ref;
         best_filter= filter;
         best_type= type;
@@ -8217,6 +8219,9 @@ best_access_path(JOIN      *join,
   pos->sort_nest_operation_here= FALSE;
   pos->index_no= index_picked;
 
+  if (best_key)
+    pos->key_parts = best_n_key_parts;
+
   loose_scan_opt.save_to_position(s, loose_scan_pos);
   trace_paths.end();
 
@@ -8337,6 +8342,114 @@ static void choose_initial_table_order(JOIN *join)
 }
 
 
+/* See comments to MDEV-21713 for explanation of why this works */
+bool
+check_if_refs_cover_item_equal(JOIN *join, bool use_best_pos, uint prefix_size,
+                               Item_equal *item_eq)
+{
+  uint n_covered= 0;
+  // walk through the join prefix and check if used ref access guarantees
+  // selectivity of the condition.
+
+  for (uint i= 0; i < prefix_size; i++)
+  {
+    POSITION *pos= use_best_pos? &join->best_positions[i] : &join->positions[i];
+    KEYUSE *keyuse= pos->key;
+    if (keyuse && keyuse->keypart != FT_KEYPART &&
+        !is_hash_join_key_no(keyuse->key))
+    {
+      uint key= keyuse->key;
+      // For each key part
+      for (uint kp= 0; kp < pos->key_parts; kp++) {
+        Field *field= pos->table->table->key_info[key].key_part[kp].field;
+        // Find the field in the Item_equal
+        if (item_eq->contains(field))
+          n_covered++;
+      }
+    }
+  }
+
+  return n_covered >= item_eq->elements_count() - 1;
+}
+
+
+bool is_item_selectivity_covered(JOIN *join, bool use_best_pos, uint prefix_size, Item *item)
+{
+  if (item->type() == Item::FUNC_ITEM &&
+      ((Item_func*)item)->functype() == Item_func::MULT_EQUAL_FUNC)
+  {
+    // multiple equality... it must be "covered" by estimates for all
+    // pair-wise equalities.
+    if (check_if_refs_cover_item_equal(join, use_best_pos, prefix_size, (Item_equal*)item))
+    {
+      return true;
+    }
+  }
+  else
+  {
+    // not a multiple equality.
+    if (item->n_selectivity_estimates)
+      return true; // EITS or range analyzer have provided the estimates.
+  }
+
+  // This is something that we don't have selectivity for
+  return false;
+}
+
+
+/*
+  @brief Check if a Join plan accounts for all parts of the WHERE condition
+
+  @param use_best_pos  TRUE  - The plan is in join->best_positions,
+                       FALSE - The plan is in join->positions
+  @param prefix_size   Size of join prefix to examine (TODO: currently we
+                       examime only full join orders, examining a prefix will
+                       typically produce "false" (as selectivities on tables
+                       not in the prefix will not be accounted for)
+  @detail
+    The analysis is done as follows: we require that the WHERE clause has form
+
+      simple_pred1 AND ... AND simple_predN
+
+    Where each simple_pred{i} is either
+    - a comparison e.g. "col < const" for which range and/or EITS analyzer
+      produced a range.
+    - A multiple equality:  col1=col2=col3= ...
+      Multiple equality must be "covered" by equalities that are implied by the
+      used ref accesses.
+*/
+
+bool all_selectivity_accounted_for(JOIN *join, bool use_best_pos, uint prefix_size)
+{
+  // TODO: also check for outer joins and their ON expressions.
+  Item *cond= join->conds;
+
+  // Walk the WHERE clause:
+  //   Items that are not multiple equalities must have '1'
+  //   Multiple equalities must have more.
+
+  if (!cond)
+    return true;
+  else if (cond->type() == Item::COND_ITEM &&
+      (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC))
+  {
+    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+    Item *item;
+    while ((item= li++))
+    {
+      if (!is_item_selectivity_covered(join, use_best_pos, prefix_size, item))
+        return false;
+    }
+  }
+  else
+  {
+    if (!is_item_selectivity_covered(join, use_best_pos, prefix_size, cond))
+      return false;
+  }
+
+  return true;
+}
+
 /**
   Selects and invokes a search strategy for an optimal query plan.
 
@@ -8421,7 +8534,7 @@ choose_plan(JOIN *join, table_map join_tables)
       /* Automatically determine a reasonable value for 'search_depth' */
       search_depth= determine_search_depth(join);
 
-    if (join->sort_nest_possible &&
+    if (join->sort_nest_possible && !join->emb_sjm_nest &&
         join->estimate_cardinality_for_join(join_tables))
       DBUG_RETURN(TRUE);
 
@@ -9912,8 +10025,16 @@ best_extension_by_limited_search(JOIN      *join,
         }
         trace_one_table.add("estimated_join_cardinality",
                             partial_join_cardinality);
+        /*
+          SelectivityAccuracyCheck-2: Check if our estimate of join output size
+          is is accurate. If it's not, we are likely to be overly optimistic
+          about this LIMIT-based query plan, so we discard it.
+        */
+        bool disallow_plan= false;
+        if (nest_created && !all_selectivity_accounted_for(join, false, idx+1))
+          disallow_plan= true;
 
-        if (current_read_time < join->best_read)
+        if (current_read_time < join->best_read && !disallow_plan)
         {
           memcpy((uchar*) join->best_positions, (uchar*) join->positions,
                  sizeof(POSITION) * (idx + 1));
@@ -29427,6 +29548,13 @@ bool JOIN::estimate_cardinality_for_join(table_map joined_tables)
   if (greedy_search(this, joined_tables, search_depth, prune_level,
                     use_cond_selectivity))
     return TRUE;
+
+  /*
+    SelectivityAccuracyCheck-1: Check if the obtained estimate of total join
+    cardinality is accurate (or at least is not obviously inaccurate)
+  */
+  if (!all_selectivity_accounted_for(this, true, table_count))
+    sort_nest_possible= false;
 
   set_if_bigger(join_record_count, 1);
   cardinality_estimate= join_record_count;

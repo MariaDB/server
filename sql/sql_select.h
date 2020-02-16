@@ -965,6 +965,9 @@ typedef struct st_position
   */
   KEYUSE *key;
 
+  // Number of key parts used
+  uint    key_parts;
+
   /* If ref-based access is used: bitmap of tables this table depends on  */
   table_map ref_depend_map;
  

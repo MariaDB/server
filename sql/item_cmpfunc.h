@@ -442,6 +442,7 @@ public:
   }
 };
 
+bool sel_tree_non_empty(SEL_TREE *tree);
 
 /**
   A class for functions and operators that can use the range optimizer and
@@ -500,6 +501,8 @@ public:
     if (!(ftree= get_full_func_mm_tree_for_args(param, args[0], args[1])) &&
         !(ftree= get_full_func_mm_tree_for_args(param, args[1], args[0])))
       ftree= Item_func::get_mm_tree(param, cond_ptr);
+    if (sel_tree_non_empty(ftree))
+      n_selectivity_estimates++;
     DBUG_RETURN(ftree);
   }
 };
@@ -3139,6 +3142,7 @@ class Item_equal: public Item_bool_func
 
   const Type_handler *m_compare_handler;
   CHARSET_INFO *m_compare_collation;
+
 public:
 
   COND_EQUAL *upper_levels;       /* multiple equalities of upper and levels */
