@@ -72,9 +72,13 @@ trx_rseg_write_wsrep_checkpoint(
 
 	const ulint xid_length = static_cast<ulint>(xid->gtrid_length
 						    + xid->bqual_length);
-	mtr->memcpy(*rseg_header, TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
-		    + rseg_header->frame, xid->data, xid_length);
-	if (UNIV_LIKELY(xid_length < XIDDATASIZE)) {
+	mtr->memcpy<mtr_t::OPT>(*rseg_header,
+				TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
+				+ rseg_header->frame, xid->data, xid_length);
+	if (xid_length < XIDDATASIZE
+	    && memcmp(TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
+		      + rseg_header->frame, field_ref_zero,
+		      XIDDATASIZE - xid_length)) {
 		mtr->memset(rseg_header,
 			    TRX_RSEG + TRX_RSEG_WSREP_XID_DATA + xid_length,
 			    XIDDATASIZE - xid_length, 0);
