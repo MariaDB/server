@@ -1742,13 +1742,13 @@ inc_dir:
                                    cursor->block->frame),
               my_assume_aligned<8>(PAGE_LAST_INSERT + PAGE_HEADER +
                                    page_zip->data),
-	      PAGE_N_RECS - PAGE_LAST_INSERT + 2);
+              PAGE_N_RECS - PAGE_LAST_INSERT + 2);
 
   /* 7. It remains to update the owner record. */
   ulint n_owned;
 
   while (!(n_owned = rec_get_n_owned_new(next_rec)))
-    next_rec = page_rec_get_next_low(next_rec, true);
+    next_rec= page_rec_get_next_low(next_rec, true);
 
   rec_set_bit_field_1(const_cast<rec_t*>(next_rec), n_owned + 1,
                       REC_NEW_N_OWNED, REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
@@ -1781,25 +1781,76 @@ static void page_mem_free(buf_block_t *block, rec_t *rec,
   const rec_t *free= page_header_get_ptr(block->frame, PAGE_FREE);
 
   if (UNIV_LIKELY_NULL(block->page.zip.data))
+  {
+    page_header_reset_last_insert(block, mtr);
     page_zip_dir_delete(block, rec, index, offsets, free, mtr);
+    return;
+  }
+
+  const uint16_t n_heap= page_header_get_field(block->frame, PAGE_N_HEAP) - 1;
+  alignas(4) byte page_header[6];
+  const bool deleting_last= n_heap == ((n_heap & 0x8000)
+               ? (rec_get_heap_no_new(rec) | 0x8000)
+               : rec_get_heap_no_old(rec)) &&
+    page_offset(rec_get_end(rec, offsets)) ==
+    page_header_get_offs(block->frame, PAGE_HEAP_TOP);
+
+  if (deleting_last)
+  {
+    /* When deleting the last record, do not add it to the PAGE_FREE list.
+    Instead, decrement PAGE_HEAP_TOP and PAGE_N_HEAP. */
+    mach_write_to_2(page_header, page_offset(rec_get_start(rec, offsets)));
+    mach_write_to_2(my_assume_aligned<2>(page_header + 2), n_heap);
+    static_assert(PAGE_N_HEAP == PAGE_HEAP_TOP + 2, "compatibility");
+    mtr->memcpy(*block, my_assume_aligned<4>(PAGE_HEAP_TOP + PAGE_HEADER +
+                                             block->frame), page_header, 4);
+    mtr->write<2,mtr_t::OPT>(*block, my_assume_aligned<2>(PAGE_LAST_INSERT +
+                                                          PAGE_HEADER +
+                                                          block->frame), 0U);
+  }
   else
   {
-    if (srv_immediate_scrub_data_uncompressed)
-      mtr->memset(block, page_offset(rec), rec_offs_data_size(offsets), 0);
+    mach_write_to_2(page_header, page_offset(rec));
+    mach_write_to_2(my_assume_aligned<2>(page_header + 2),
+                    rec_offs_size(offsets) +
+                    page_header_get_field(block->frame, PAGE_GARBAGE));
+    static_assert(PAGE_FREE + 2 == PAGE_GARBAGE, "compatibility");
+    static_assert(PAGE_FREE + 4 == PAGE_LAST_INSERT, "compatibility");
+    size_t size;
+    if (page_header_get_field(block->frame, PAGE_LAST_INSERT))
+    {
+      memset_aligned<2>(page_header + 4, 0, 2);
+      size= 6;
+    }
+    else
+      size= 4;
+    mtr->memcpy(*block, my_assume_aligned<4>(PAGE_FREE + PAGE_HEADER +
+                                             block->frame), page_header, size);
+  }
 
+  mtr->write<2>(*block, PAGE_N_RECS + PAGE_HEADER + block->frame,
+                ulint(page_get_n_recs(block->frame)) - 1);
+
+  if (!deleting_last)
+  {
     uint16_t next= free
-      ? (page_is_comp(block->frame)
+      ? ((n_heap & 0x8000)
          ? static_cast<uint16_t>(free - rec)
          : static_cast<uint16_t>(page_offset(free)))
       : 0;
     mtr->write<2>(*block, rec - REC_NEXT, next);
-    mtr->write<2>(*block, PAGE_FREE + PAGE_HEADER + block->frame,
-                  page_offset(rec));
-    mtr->write<2>(*block, PAGE_GARBAGE + PAGE_HEADER + block->frame,
-                  rec_offs_size(offsets)
-                  + page_header_get_field(block->frame, PAGE_GARBAGE));
-    mtr->write<2>(*block, PAGE_N_RECS + PAGE_HEADER + block->frame,
-                  ulint(page_get_n_recs(block->frame)) - 1);
+  }
+
+  if (srv_immediate_scrub_data_uncompressed)
+  {
+    size_t size= rec_offs_data_size(offsets);
+    if (deleting_last)
+    {
+      const size_t extra_size= rec_offs_extra_size(offsets);
+      rec-= extra_size;
+      size+= extra_size;
+    }
+    mtr->memset(block, page_offset(rec), size, 0);
   }
 }
 
@@ -1867,17 +1918,13 @@ page_cur_delete_rec(
 	cur_dir_slot = page_dir_get_nth_slot(block->frame, cur_slot_no);
 	cur_n_owned = page_dir_slot_get_n_owned(cur_dir_slot);
 
-	/* 1. Reset the last insert info in the page header and increment
-	the modify clock for the frame */
-	page_header_reset_last_insert(block, mtr);
-
 	/* The page gets invalid for btr_pcur_restore_pos().
 	We avoid invoking buf_block_modify_clock_inc(block) because its
 	consistency checks would fail for the dummy block that is being
 	used during IMPORT TABLESPACE. */
 	block->modify_clock++;
 
-	/* 2. Find the next and the previous record. Note that the cursor is
+	/* Find the next and the previous record. Note that the cursor is
 	left at the next record. */
 
 	ut_ad(cur_slot_no > 0);
@@ -1896,12 +1943,12 @@ page_cur_delete_rec(
 	page_cur_move_to_next(cursor);
 	next_rec = cursor->rec;
 
-	/* 3. Remove the record from the linked list of records */
-	/* 4. If the deleted record is pointed to by a dir slot, update the
+	/* Remove the record from the linked list of records */
+	/* If the deleted record is pointed to by a dir slot, update the
 	record pointer in slot. In the following if-clause we assume that
 	prev_rec is owned by the same slot, i.e., PAGE_DIR_SLOT_MIN_N_OWNED
 	>= 2. */
-	/* 5. Update the number of owned records of the slot */
+	/* Update the number of owned records of the slot */
 
 	compile_time_assert(PAGE_DIR_SLOT_MIN_N_OWNED >= 2);
 	ut_ad(cur_n_owned > 1);
@@ -1954,10 +2001,10 @@ page_cur_delete_rec(
 		}
 	}
 
-	/* 6. Free the memory occupied by the record */
+	/* Free the memory occupied by the record */
 	page_mem_free(block, current_rec, index, offsets, mtr);
 
-	/* 7. Now we have decremented the number of owned records of the slot.
+	/* Now we have decremented the number of owned records of the slot.
 	If the number drops below PAGE_DIR_SLOT_MIN_N_OWNED, we balance the
 	slots. */
 
