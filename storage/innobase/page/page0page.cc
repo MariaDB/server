@@ -842,7 +842,6 @@ page_delete_rec_list_end(
 				delete, or ULINT_UNDEFINED if not known */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	page_dir_slot_t*slot;
 	ulint		slot_index;
 	rec_t*		last_rec;
 	rec_t*		prev_rec;
@@ -929,9 +928,8 @@ delete_all:
 
 	last_rec = page_rec_get_prev(page_get_supremum_rec(block->frame));
 
-	bool scrub = srv_immediate_scrub_data_uncompressed;
-	if ((size == ULINT_UNDEFINED) || (n_recs == ULINT_UNDEFINED) ||
-	    scrub) {
+	const bool scrub = srv_immediate_scrub_data_uncompressed;
+	if (scrub || size == ULINT_UNDEFINED || n_recs == ULINT_UNDEFINED) {
 		rec_t*		rec2		= rec;
 		/* Calculate the sum of sizes and the number of records */
 		size = 0;
@@ -952,7 +950,8 @@ delete_all:
 
 			if (scrub) {
 				/* scrub record */
-				memset(rec2, 0, rec_offs_data_size(offsets));
+				mtr->memset(block, page_offset(rec2),
+					    rec_offs_data_size(offsets), 0);
 			}
 
 			rec2 = page_rec_get_next(rec2);
@@ -965,26 +964,61 @@ delete_all:
 
 	ut_ad(size < srv_page_size);
 
-	/* Update the page directory; there is no need to balance the number
-	of the records owned by the supremum record, as it is allowed to be
-	less than PAGE_DIR_SLOT_MIN_N_OWNED */
-
-	if (page_is_comp(block->frame)) {
+	{
 		rec_t*	rec2	= rec;
 		ulint	count	= 0;
 
-		while (rec_get_n_owned_new(rec2) == 0) {
-			count++;
+		if (page_is_comp(block->frame)) {
+			while (!rec_get_n_owned_new(rec2)) {
+				count++;
+				rec2 = rec_get_next_ptr(rec2, TRUE);
+			}
 
-			rec2 = rec_get_next_ptr(rec2, TRUE);
+			ut_ad(rec_get_n_owned_new(rec2) > count);
+
+			n_owned = rec_get_n_owned_new(rec2) - count;
+		} else {
+			while (!rec_get_n_owned_old(rec2)) {
+				count++;
+				rec2 = rec_get_next_ptr(rec2, FALSE);
+			}
+
+			ut_ad(rec_get_n_owned_old(rec2) > count);
+
+			n_owned = rec_get_n_owned_old(rec2) - count;
 		}
 
-		ut_ad(rec_get_n_owned_new(rec2) > count);
-
-		n_owned = rec_get_n_owned_new(rec2) - count;
 		slot_index = page_dir_find_owner_slot(rec2);
 		ut_ad(slot_index > 0);
-		slot = page_dir_get_nth_slot(block->frame, slot_index);
+	}
+
+	mtr->write<2,mtr_t::OPT>(*block, PAGE_N_DIR_SLOTS + PAGE_HEADER
+				 + block->frame, slot_index + 1);
+
+	/* Catenate the deleted chain segment to the page free list */
+	alignas(4) byte page_header[4];
+	byte* page_free = my_assume_aligned<4>(PAGE_HEADER + PAGE_FREE
+					       + block->frame);
+	const uint16_t free = page_header_get_field(block->frame, PAGE_FREE);
+	static_assert(PAGE_FREE + 2 == PAGE_GARBAGE, "compatibility");
+
+	mach_write_to_2(page_header, page_offset(rec));
+	mach_write_to_2(my_assume_aligned<2>(page_header + 2),
+			mach_read_from_2(my_assume_aligned<2>(page_free + 2))
+			+ size);
+	mtr->memcpy(*block, page_free, page_header, 4);
+
+	byte* page_n_recs = my_assume_aligned<2>(PAGE_N_RECS + PAGE_HEADER
+						 + block->frame);
+	mtr->write<2>(*block, page_n_recs,
+		      ulint{mach_read_from_2(page_n_recs)} - n_recs);
+
+	/* Update the page directory; there is no need to balance the number
+	of the records owned by the supremum record, as it is allowed to be
+	less than PAGE_DIR_SLOT_MIN_N_OWNED */
+	page_dir_slot_t*slot = page_dir_get_nth_slot(block->frame, slot_index);
+
+	if (page_is_comp(block->frame)) {
 		mtr->write<2,mtr_t::OPT>(*block, slot, PAGE_NEW_SUPREMUM);
 		byte* owned = PAGE_NEW_SUPREMUM - REC_NEW_N_OWNED
 			+ block->frame;
@@ -994,27 +1028,11 @@ delete_all:
 		mtr->write<2>(*block, prev_rec - REC_NEXT,
 			      static_cast<uint16_t>
 			      (PAGE_NEW_SUPREMUM - page_offset(prev_rec)));
-		uint16_t free = page_header_get_field(block->frame, PAGE_FREE);
 		mtr->write<2>(*block, last_rec - REC_NEXT, free
 			      ? static_cast<uint16_t>
 			      (free - page_offset(last_rec))
 			      : 0U);
 	} else {
-		rec_t*	rec2	= rec;
-		ulint	count	= 0;
-
-		while (rec_get_n_owned_old(rec2) == 0) {
-			count++;
-
-			rec2 = rec_get_next_ptr(rec2, FALSE);
-		}
-
-		ut_ad(rec_get_n_owned_old(rec2) > count);
-
-		n_owned = rec_get_n_owned_old(rec2) - count;
-		slot_index = page_dir_find_owner_slot(rec2);
-		ut_ad(slot_index > 0);
-		slot = page_dir_get_nth_slot(block->frame, slot_index);
 		mtr->write<2,mtr_t::OPT>(*block, slot, PAGE_OLD_SUPREMUM);
 		byte* owned = PAGE_OLD_SUPREMUM - REC_OLD_N_OWNED
 			+ block->frame;
@@ -1022,25 +1040,8 @@ delete_all:
 			| static_cast<byte>(n_owned << REC_N_OWNED_SHIFT);
 		mtr->write<1,mtr_t::OPT>(*block, owned, new_owned);
 		mtr->write<2>(*block, prev_rec - REC_NEXT, PAGE_OLD_SUPREMUM);
-		mtr->write<2>(*block, last_rec - REC_NEXT,
-			      page_header_get_field(block->frame, PAGE_FREE));
+		mtr->write<2>(*block, last_rec - REC_NEXT, free);
 	}
-
-	mtr->write<2,mtr_t::OPT>(*block, PAGE_N_DIR_SLOTS + PAGE_HEADER
-				 + block->frame, slot_index + 1);
-
-	/* Catenate the deleted chain segment to the page free list */
-
-	mtr->write<2>(*block, PAGE_FREE + PAGE_HEADER + block->frame,
-		      page_offset(rec));
-	byte* garbage = my_assume_aligned<2>(PAGE_GARBAGE + PAGE_HEADER
-					     + block->frame);
-	mtr->write<2>(*block, garbage, size + mach_read_from_2(garbage));
-
-	byte* page_n_recs = my_assume_aligned<2>(PAGE_N_RECS + PAGE_HEADER
-						 + block->frame);
-	mtr->write<2>(*block, page_n_recs,
-		      ulint{mach_read_from_2(page_n_recs)} - n_recs);
 }
 
 /*************************************************************//**
