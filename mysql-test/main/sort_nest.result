@@ -1219,7 +1219,7 @@ ANALYZE TABLE t3 PERSISTENT FOR ALL;
 #
 # sort-nest(t2,t1) and independent subquery in the SELECT list
 #
-EXPLAIN SELECT (SELECT A.a FROM t3 A WHERE A.a > 5 limit 1) as x,
+EXPLAIN SELECT (SELECT q.a FROM t3 q WHERE q.a > 5 limit 1) as x,
 t2.b, t1.b, t3.a
 FROM t1,t2,t3
 WHERE t1.a = t2.a
@@ -1230,8 +1230,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ref	a	a	5	test.t2.a	1	
 1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	1000	
-2	SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	1000	Using where
-EXPLAIN FORMAT=JSON SELECT (SELECT A.a FROM t3 A WHERE A.a > 5 limit 1) as x,
+2	SUBQUERY	q	ALL	NULL	NULL	NULL	NULL	1000	Using where
+EXPLAIN FORMAT=JSON SELECT (SELECT q.a FROM t3 q WHERE q.a > 5 limit 1) as x,
 t2.b, t1.b, t3.a
 FROM t1,t2,t3
 WHERE t1.a = t2.a
@@ -1281,18 +1281,18 @@ EXPLAIN
         "query_block": {
           "select_id": 2,
           "table": {
-            "table_name": "A",
+            "table_name": "q",
             "access_type": "ALL",
             "rows": 1000,
             "filtered": 99.219,
-            "attached_condition": "a.a > 5"
+            "attached_condition": "q.a > 5"
           }
         }
       }
     ]
   }
 }
-SELECT (SELECT A.a FROM t3 A WHERE A.a > 5 limit 1) as x,
+SELECT (SELECT q.a FROM t3 q WHERE q.a > 5 limit 1) as x,
 t2.b, t1.b, t3.a
 FROM t1,t2,t3
 WHERE t1.a = t2.a

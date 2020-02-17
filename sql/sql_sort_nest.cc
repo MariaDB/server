@@ -1061,7 +1061,7 @@ int get_best_index_for_order_by_limit(JOIN_TAB *tab,
     {
       best_index= idx;
       *read_time= index_scan_time;
-      *records= select_limit;
+      *records= (double)select_limit;
     }
   }
   considered_indexes.end();
@@ -1256,7 +1256,7 @@ void JOIN::setup_range_scan(JOIN_TAB *tab, uint idx, double records)
     taken selectivity of limit into account.
   */
   if (sort_nest_possible && records < tab->quick->records)
-    tab->quick->records= records;
+    tab->quick->records= (ha_rows)records;
 
   sel->quick= NULL;
 
@@ -1537,7 +1537,7 @@ void find_cost_of_index_with_ordering(THD *thd, const JOIN_TAB *tab,
   KEY *keyinfo= table->key_info + nr;
   ha_rows select_limit= *select_limit_arg;
   double rec_per_key;
-  double table_records= table->stat_records();
+  ha_rows table_records= table->stat_records();
   /*
     If tab=tk is not the last joined table tn then to get first
     L records from the result set we can expect to retrieve
