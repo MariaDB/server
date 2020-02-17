@@ -361,8 +361,8 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 	again. The list of pages in the undo log tail gets
 	inconsistent during the freeing of the segment, and therefore
 	purge should not try to access them again. */
-	mtr.write<2>(*block, block->frame + hdr_addr.boffset
-		     + TRX_UNDO_NEEDS_PURGE, 0U);
+	mtr.write<2,mtr_t::OPT>(*block, block->frame + hdr_addr.boffset
+				+ TRX_UNDO_NEEDS_PURGE, 0U);
 
 	while (!fseg_free_step_not_header(
 		       TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
