@@ -5666,7 +5666,7 @@ static Sys_var_mybool Sys_wsrep_desync (
        ON_UPDATE(wsrep_desync_update));
 
 static Sys_var_mybool Sys_wsrep_strict_ddl (
-       "wsrep_strict_ddl", "Reject DDL on effected tables not supporting Galera replication",
+       "wsrep_strict_ddl", "If set, reject DDL on affected tables not supporting Galera replication",
        GLOBAL_VAR(wsrep_strict_ddl),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
