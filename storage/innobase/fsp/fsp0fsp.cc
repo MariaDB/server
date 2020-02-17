@@ -104,14 +104,8 @@ direction they go alphabetically: FSP_DOWN, FSP_UP, FSP_NO_DIR
 @param[in]	rw_latch		RW_SX_LATCH, RW_X_LATCH
 @param[in,out]	mtr			mini-transaction
 @param[in,out]	init_mtr		mtr or another mini-transaction in
-which the page should be initialized. If init_mtr != mtr, but the page is
-already latched in mtr, do not initialize the page
-@param[in]	has_done_reservation	TRUE if the space has already been
-reserved, in this case we will never return NULL
-@retval NULL	if no page could be allocated
-@retval block	rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
-(init_mtr == mtr, or the page was not previously freed in mtr)
-@retval block	(not allocated or initialized) otherwise */
+which the page should be initialized.
+@retval NULL	if no page could be allocated */
 static
 buf_block_t*
 fseg_alloc_free_page_low(
@@ -121,12 +115,12 @@ fseg_alloc_free_page_low(
 	ulint			hint,
 	byte			direction,
 	rw_lock_type_t		rw_latch,
-	mtr_t*			mtr,
-	mtr_t*			init_mtr
 #ifdef UNIV_DEBUG
-	, ibool			has_done_reservation
+	bool			has_done_reservation,
+	/*!< whether the space has already been reserved */
 #endif /* UNIV_DEBUG */
-)
+	mtr_t*			mtr,
+	mtr_t*			init_mtr)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Get the tablespace header block, SX-latched
@@ -1063,16 +1057,12 @@ fsp_alloc_from_free_frag(buf_block_t *header, buf_block_t *xdes, xdes_t *descr,
 }
 
 /** Gets a buffer block for an allocated page.
-NOTE: If init_mtr != mtr, the block will only be initialized if it was
-not previously x-latched. It is assumed that the block has been
-x-latched only by mtr, and freed in mtr in that case.
 @param[in,out]	space		tablespace
 @param[in]	offset		page number of the allocated page
 @param[in]	rw_latch	RW_SX_LATCH, RW_X_LATCH
 @param[in,out]	mtr		mini-transaction of the allocation
 @param[in,out]	init_mtr	mini-transaction for initializing the page
-@return block, initialized if init_mtr==mtr
-or rw_lock_x_lock_count(&block->lock) == 1 */
+@return block, initialized */
 static
 buf_block_t*
 fsp_page_create(
@@ -1085,34 +1075,21 @@ fsp_page_create(
 	buf_block_t*	block = buf_page_create(page_id_t(space->id, offset),
 						space->zip_size(), init_mtr);
 
-	ut_d(bool latched = mtr_memo_contains_flagged(mtr, block,
-						      MTR_MEMO_PAGE_X_FIX
-						      | MTR_MEMO_PAGE_SX_FIX));
-
-	ut_ad(rw_latch == RW_X_LATCH || rw_latch == RW_SX_LATCH);
-
 	/* Mimic buf_page_get(), but avoid the buf_pool->page_hash lookup. */
+	mtr_memo_type_t memo;
+
 	if (rw_latch == RW_X_LATCH) {
 		rw_lock_x_lock(&block->lock);
+		memo = MTR_MEMO_PAGE_X_FIX;
 	} else {
+		ut_ad(rw_latch == RW_SX_LATCH);
 		rw_lock_sx_lock(&block->lock);
+		memo = MTR_MEMO_PAGE_SX_FIX;
 	}
 
+	mtr_memo_push(init_mtr, block, memo);
 	buf_block_buf_fix_inc(block, __FILE__, __LINE__);
-	mtr_memo_push(init_mtr, block, rw_latch == RW_X_LATCH
-		      ? MTR_MEMO_PAGE_X_FIX : MTR_MEMO_PAGE_SX_FIX);
-
-	if (init_mtr == mtr
-	    || (rw_latch == RW_X_LATCH
-		? rw_lock_get_x_lock_count(&block->lock) == 1
-		: rw_lock_get_sx_lock_count(&block->lock) == 1)) {
-
-		/* Initialize the page, unless it was already
-		SX-latched in mtr. (In this case, we would want to
-		allocate another page that has not been freed in mtr.) */
-		ut_ad(init_mtr == mtr || !latched);
-		fsp_init_file_page(space, block, init_mtr);
-	}
+	fsp_init_file_page(space, block, init_mtr);
 
 	return(block);
 }
@@ -1125,10 +1102,7 @@ The page is marked as used.
 @param[in,out]	mtr		mini-transaction
 @param[in,out]	init_mtr	mini-transaction in which the page should be
 initialized (may be the same as mtr)
-@retval NULL	if no page could be allocated
-@retval block	rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
-(init_mtr == mtr, or the page was not previously freed in mtr)
-@retval block	(not allocated or initialized) otherwise */
+@retval NULL	if no page could be allocated */
 static MY_ATTRIBUTE((warn_unused_result, nonnull))
 buf_block_t*
 fsp_alloc_free_page(
@@ -1799,11 +1773,10 @@ fseg_create(
 		block = fseg_alloc_free_page_low(space,
 						 inode, iblock, 0, FSP_UP,
 						 RW_SX_LATCH,
-						 mtr, mtr
 #ifdef UNIV_DEBUG
-						 , has_done_reservation
+						 has_done_reservation,
 #endif /* UNIV_DEBUG */
-						 );
+						 mtr, mtr);
 
 		/* The allocation cannot fail if we have already reserved a
 		space for the page. */
@@ -1966,10 +1939,7 @@ not yet taken off it!
 @param[out]	xdes		extent descriptor page
 @param[in,out]	space		tablespace
 @param[in,out]	mtr		mini-transaction
-@retval NULL	if no page could be allocated
-@retval block	rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
-(init_mtr == mtr, or the page was not previously freed in mtr)
-@retval block	(not allocated or initialized) otherwise */
+@retval NULL	if no page could be allocated */
 static
 xdes_t*
 fseg_alloc_free_extent(
@@ -2033,14 +2003,8 @@ direction they go alphabetically: FSP_DOWN, FSP_UP, FSP_NO_DIR
 @param[in]	rw_latch		RW_SX_LATCH, RW_X_LATCH
 @param[in,out]	mtr			mini-transaction
 @param[in,out]	init_mtr		mtr or another mini-transaction in
-which the page should be initialized. If init_mtr != mtr, but the page is
-already latched in mtr, do not initialize the page
-@param[in]	has_done_reservation	TRUE if the space has already been
-reserved, in this case we will never return NULL
-@retval NULL	if no page could be allocated
-@retval block	rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
-(init_mtr == mtr, or the page was not previously freed in mtr)
-@retval block	(not allocated or initialized) otherwise */
+which the page should be initialized.
+@retval NULL	if no page could be allocated */
 static
 buf_block_t*
 fseg_alloc_free_page_low(
@@ -2050,12 +2014,12 @@ fseg_alloc_free_page_low(
 	ulint			hint,
 	byte			direction,
 	rw_lock_type_t		rw_latch,
-	mtr_t*			mtr,
-	mtr_t*			init_mtr
 #ifdef UNIV_DEBUG
-	, ibool			has_done_reservation
+	bool			has_done_reservation,
+	/*!< whether the space has already been reserved */
 #endif /* UNIV_DEBUG */
-)
+	mtr_t*			mtr,
+	mtr_t*			init_mtr)
 {
 	ib_id_t		seg_id;
 	ulint		used;
@@ -2276,10 +2240,7 @@ got_hinted_page:
 Allocates a single free page from a segment. This function implements
 the intelligent allocation strategy which tries to minimize file space
 fragmentation.
-@retval NULL if no page could be allocated
-@retval block, rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
-(init_mtr == mtr, or the page was not previously freed in mtr)
-@retval block (not allocated or initialized) otherwise */
+@retval NULL if no page could be allocated */
 buf_block_t*
 fseg_alloc_free_page_general(
 /*=========================*/
@@ -2291,16 +2252,14 @@ fseg_alloc_free_page_general(
 				inserted there in order, into which
 				direction they go alphabetically: FSP_DOWN,
 				FSP_UP, FSP_NO_DIR */
-	ibool		has_done_reservation, /*!< in: TRUE if the caller has
+	bool		has_done_reservation, /*!< in: true if the caller has
 				already done the reservation for the page
 				with fsp_reserve_free_extents, then there
 				is no need to do the check for this individual
 				page */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
 	mtr_t*		init_mtr)/*!< in/out: mtr or another mini-transaction
-				in which the page should be initialized.
-				If init_mtr!=mtr, but the page is already
-				latched in mtr, do not initialize the page. */
+				in which the page should be initialized. */
 {
 	fseg_inode_t*	inode;
 	ulint		space_id;
@@ -2325,11 +2284,11 @@ fseg_alloc_free_page_general(
 
 	block = fseg_alloc_free_page_low(space,
 					 inode, iblock, hint, direction,
-					 RW_X_LATCH, mtr, init_mtr
+					 RW_X_LATCH,
 #ifdef UNIV_DEBUG
-					 , has_done_reservation
+					 has_done_reservation,
 #endif /* UNIV_DEBUG */
-					 );
+					 mtr, init_mtr);
 
 	/* The allocation cannot fail if we have already reserved a
 	space for the page. */

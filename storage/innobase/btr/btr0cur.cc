@@ -7215,7 +7215,6 @@ btr_store_big_rec_extern_fields(
 	ulint		hint_page_no;
 	ulint		i;
 	mtr_t		mtr;
-	mtr_t		mtr_bulk;
 	mem_heap_t*	heap = NULL;
 	page_zip_des_t*	page_zip;
 	z_stream	c_stream;
@@ -7345,34 +7344,18 @@ btr_store_big_rec_extern_fields(
 				hint_page_no = prev_page_no + 1;
 			}
 
-			mtr_t	*alloc_mtr;
-
-			if (UNIV_UNLIKELY(op == BTR_STORE_INSERT_BULK)) {
-				mtr_bulk.start();
-				mtr_bulk.set_spaces(mtr);
-				alloc_mtr = &mtr_bulk;
-			} else {
-				alloc_mtr = &mtr;
-			}
-
 			if (!fsp_reserve_free_extents(&r_extents,
 						      index->table->space, 1,
-						      FSP_BLOB, alloc_mtr,
-						      1)) {
-
-				alloc_mtr->commit();
+						      FSP_BLOB, &mtr, 1)) {
+				mtr.commit();
 				error = DB_OUT_OF_FILE_SPACE;
 				goto func_exit;
 			}
 
 			block = btr_page_alloc(index, hint_page_no, FSP_NO_DIR,
-					       0, alloc_mtr, &mtr);
+					       0, &mtr, &mtr);
 
 			index->table->space->release_free_extents(r_extents);
-
-			if (UNIV_UNLIKELY(op == BTR_STORE_INSERT_BULK)) {
-				mtr_bulk.commit();
-			}
 
 			ut_a(block != NULL);
 
@@ -7411,14 +7394,20 @@ btr_store_big_rec_extern_fields(
 				row_log_table_blob_alloc(index, page_no);
 			}
 
+			ut_ad(!page_has_siblings(block->frame));
+			ut_ad(!fil_page_get_type(block->frame));
+
 			if (page_zip) {
 				int		err;
 				page_zip_des_t*	blob_page_zip;
 
-				mach_write_to_2(block->frame + FIL_PAGE_TYPE,
-						prev_page_no == FIL_NULL
-						? FIL_PAGE_TYPE_ZBLOB
-						: FIL_PAGE_TYPE_ZBLOB2);
+				mtr.write<1>(*block,
+					     FIL_PAGE_TYPE + 1 + block->frame,
+					     prev_page_no == FIL_NULL
+					     ? FIL_PAGE_TYPE_ZBLOB
+					     : FIL_PAGE_TYPE_ZBLOB2);
+				block->page.zip.data[FIL_PAGE_TYPE + 1]
+					= block->frame[FIL_PAGE_TYPE + 1];
 
 				c_stream.next_out = block->frame
 					+ FIL_PAGE_DATA;
@@ -7430,22 +7419,11 @@ btr_store_big_rec_extern_fields(
 				ut_a(err == Z_STREAM_END
 				     || c_stream.avail_out == 0);
 
-				compile_time_assert(FIL_PAGE_NEXT
-						    == FIL_PAGE_PREV + 4);
-				compile_time_assert(FIL_NULL == 0xffffffff);
-				mtr.memset(block, FIL_PAGE_PREV, 8, 0xff);
 				mtr.memcpy(*block,
-					   FIL_PAGE_TYPE,
+					   FIL_PAGE_DATA,
 					   page_zip_get_size(page_zip)
-					   - FIL_PAGE_TYPE
+					   - FIL_PAGE_DATA
 					   - c_stream.avail_out);
-				/* Zero out the unused part of the page. */
-				if (c_stream.avail_out) {
-					mtr.memset(block,
-						   page_zip_get_size(page_zip)
-						   - c_stream.avail_out,
-						   c_stream.avail_out, 0);
-				}
 				/* Copy the page to compressed storage,
 				because it will be flushed to disk
 				from there. */
@@ -7505,7 +7483,7 @@ next_zip_page:
 					break;
 				}
 			} else {
-				mtr.write<2>(*block, FIL_PAGE_TYPE
+				mtr.write<1>(*block, FIL_PAGE_TYPE + 1
 					     + block->frame,
 					     FIL_PAGE_TYPE_BLOB);
 

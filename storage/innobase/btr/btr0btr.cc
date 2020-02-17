@@ -505,10 +505,7 @@ btr_page_alloc_for_ibuf(
 /**************************************************************//**
 Allocates a new file page to be used in an index tree. NOTE: we assume
 that the caller has made the reservation for free extents!
-@retval NULL if no page could be allocated
-@retval block, rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
-(init_mtr == mtr, or the page was not previously freed in mtr)
-@retval block (not allocated or initialized) otherwise */
+@retval NULL if no page could be allocated */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 buf_block_t*
 btr_page_alloc_low(
@@ -523,10 +520,7 @@ btr_page_alloc_low(
 					for the allocation */
 	mtr_t*		init_mtr)	/*!< in/out: mtr or another
 					mini-transaction in which the
-					page should be initialized.
-					If init_mtr!=mtr, but the page
-					is already X-latched in mtr, do
-					not initialize the page. */
+					page should be initialized. */
 {
 	page_t* root = btr_root_get(index, mtr);
 
@@ -541,7 +535,7 @@ btr_page_alloc_low(
 
 	buf_block_t* block = fseg_alloc_free_page_general(
 		seg_header, hint_page_no, file_direction,
-		TRUE, mtr, init_mtr);
+		true, mtr, init_mtr);
 
 #ifdef UNIV_DEBUG_SCRUBBING
 	if (block != NULL) {
@@ -565,10 +559,7 @@ btr_page_alloc_low(
 /**************************************************************//**
 Allocates a new file page to be used in an index tree. NOTE: we assume
 that the caller has made the reservation for free extents!
-@retval NULL if no page could be allocated
-@retval block, rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
-(init_mtr == mtr, or the page was not previously freed in mtr)
-@retval block (not allocated or initialized) otherwise */
+@retval NULL if no page could be allocated */
 buf_block_t*
 btr_page_alloc(
 /*===========*/

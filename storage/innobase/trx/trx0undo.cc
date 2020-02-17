@@ -553,7 +553,7 @@ buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 	new_block = fseg_alloc_free_page_general(
 		TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
 		+ header_block->frame,
-		undo->top_page_no + 1, FSP_UP, TRUE, mtr, mtr);
+		undo->top_page_no + 1, FSP_UP, true, mtr, mtr);
 
 	rseg->space->release_free_extents(n_reserved);
 
