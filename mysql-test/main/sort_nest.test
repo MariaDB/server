@@ -6,7 +6,8 @@ CREATE TABLE t0 (a int);
 INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
 CREATE TABLE t1 (a int, b int);
 INSERT INTO t1 SELECT a, a from t0 where a <5;
-CREATE TABLE t2 as SELECT * from t1 where a < 5;
+CREATE TABLE t2 (a int, b int, key(a));
+INSERT INTO t2 SELECT a, a from t0;
 CREATE TABLE t3(a int, b int, c int, key(a));
 INSERT INTO t3  SELECT seq-1, seq-1, seq-1 from seq_1_to_100;
 
@@ -34,13 +35,13 @@ eval $query;
 
 DROP TABLE t0,t1,t2,t3;
 
-CREATE TABLE t1(a int, b int);
-INSERT INTO t1 SELECT seq-1, seq-1 from seq_1_to_100;
+CREATE TABLE t1(a int, b int, key(a));
+INSERT INTO t1 SELECT seq-1, seq-1 from seq_1_to_100 where seq > 30;
 
 CREATE TABLE t2(a int, b int);
 INSERT INTO t2(a,b) VALUES (1,1), (2,2);
 INSERT INTO t2   SELECT seq-1, seq-1 from seq_1_to_100;
-CREATE TABLE t3(a int, b int);
+CREATE TABLE t3(a int, b int, key(a));
 INSERT INTO t3 SELECT seq-1, seq-1 from seq_1_to_1000;
 
 --disable_result_log
@@ -61,14 +62,11 @@ delimiter ;|
 
 --echo
 --echo # sorting on table t2
---echo # t2.a > 95 would be attached to table t2
---echo # t1.b=t2.a would be attached to table t1;
---echo # t3.a= sort-nest.b would be attached to table t3
 --echo
 
 let $query=
 SELECT * FROM t1,t2,t3
-WHERE t1.a > 95 AND  t1.a=t2.a AND t1.b = t3.a
+WHERE t1.a=t2.a AND t1.b = t3.a
 ORDER BY t2.b
 LIMIT 5;
 
@@ -76,50 +74,15 @@ eval EXPLAIN $query;
 eval EXPLAIN FORMAT=JSON $query;
 eval $query;
 
---echo # {t1,t2} part of the nest
---echo # t1.a > 95 would be attached to table t1
---echo # t1.b=t2.a would be attached to table t2;
+--echo
+--echo # {t2,t1} part of the nest
 --echo # t3.a= sort-nest.b would be attached to table t3
 --echo
 
 let $query=
 SELECT * FROM t1,t2,t3
-WHERE t1.a > 95 AND t1.a=t2.a AND t1.b = t3.a
-ORDER BY t2.b
-LIMIT 5;
-
-ALTER TABLE t2 ADD KEY(a);
-eval EXPLAIN $query;
-eval EXPLAIN FORMAT=JSON $query;
-eval $query;
-
-ALTER TABLE t2 DROP KEY a;
-
---echo
---echo # {t1,t2} part of the sort nest
---echo # (t2.a < 2 or t1.b > 98) would be attached to table t2
---echo
-
-let $query=
-SELECT * FROM t1,t2,t3
-WHERE (t3.a < 2 and t2.a < 2) OR (t1.b > 98 and t3.b > 98)
-ORDER BY t1.a, t2.b
-LIMIT 5;
-
-eval EXPLAIN $query;
-eval EXPLAIN FORMAT=JSON $query;
-eval $query;
-
---echo
---echo # {t1,t2} part of the nest
---echo # t2.a < 2 or f1(t1.b) attached to table t2
---echo # t1.b=t2.a would be attached to table t2;
---echo
-
-let $query=
-SELECT * FROM t1,t2,t3
-WHERE (t3.a<2  AND t2.a <2) OR (f1(t1.b) > 98 AND t3.b > 98)
-ORDER BY t1.a,t2.b
+WHERE t1.a=t2.a AND t1.b = t3.a
+ORDER BY t2.b, t1.b
 LIMIT 5;
 
 eval EXPLAIN $query;
@@ -157,7 +120,7 @@ eval $query;
 let $query=
 SELECT t3.b, t2.a, t1.b, t1.a
 FROM t1,t2,t3
-WHERE t1.b=t3.b
+WHERE t1.b=t3.a and t1.a=t2.b
 ORDER BY t1.b DESC, t2.a DESC limit 3;
 
 eval EXPLAIN $query;
@@ -167,8 +130,8 @@ eval $query;
 let $query=
 SELECT t3.b, t2.a, t1.b, t1.a
 FROM t1,t2,t3
-WHERE t1.b=t3.b
-ORDER BY t3.b DESC, t2.a DESC
+WHERE t1.b=t3.a and t1.a=t2.b
+ORDER BY t3.a DESC, t2.a DESC
 LIMIT 3;
 
 eval EXPLAIN $query;
@@ -183,33 +146,13 @@ eval $query;
 let $query=
 SELECT t3.b,t2.a, t1.b, t1.a
 FROM t1,t2,t3
-WHERE t1.b=t3.b
-ORDER BY t3.b + 1 DESC, t2.a DESC
+WHERE t1.b=t3.a and t1.a=t2.b
+ORDER BY t3.a + 1 DESC, t2.a DESC
 LIMIT 3;
 
 eval EXPLAIN $query;
 eval EXPLAIN FORMAT=JSON $query;
 eval $query;
-
---echo #
---echo # Rows for the sort-nest should be the cardinality of the join of
---echo # inner tables of the sort-nest
---echo #
-
---echo # Rows for sort nest would be 9894 here
-
-ALTER TABLE t1 ADD KEY(a);
-
-let $query=
-SELECT t3.b, t2.a, t1.b, t1.a
-FROM t1,t2,t3
-WHERE t1.a > 5 and t1.b=t3.b
-ORDER BY t1.b DESC, t2.a DESC
-LIMIT 3;
-
-eval EXPLAIN $query;
-eval $query;
-ALTER TABLE t1 DROP KEY a;
 
 --echo #
 --echo # With having clause we can't have a sort-nest
@@ -218,22 +161,20 @@ ALTER TABLE t1 DROP KEY a;
 let $query=
 SELECT * FROM t1,t2,t3
 WHERE t1.a=t2.a AND t1.b = t3.a
-HAVING t1.a > 95
+HAVING t1.a > 15
 ORDER BY t2.b,t1.b
 LIMIT 5;
 
 eval EXPLAIN $query;
-eval EXPLAIN FORMAT=JSON $query;
 eval $query;
 
 let $query=
 SELECT * FROM t1,t2,t3
-WHERE t1.a > 95 AND t1.a=t2.a AND t1.b = t3.a
+WHERE t1.a > 15 AND t1.a=t2.a AND t1.b = t3.a
 ORDER BY t2.b,t1.b
 LIMIT 5;
 
 eval EXPLAIN $query;
-eval EXPLAIN FORMAT=JSON $query;
 eval $query;
 
 --echo #
@@ -246,7 +187,7 @@ CREATE INDEX idx3 ON t3(b);
 
 let $query=
 SELECT * from t1,t2,t3
-WHERE t1.a=t2.a AND t1.b = t3.a AND t1.b < 5 AND t3.b < 900
+WHERE t1.a=t2.a AND t1.b = t3.a AND t1.b < 50 AND t3.b < 900
 ORDER BY t2.b
 LIMIT 5;
 
@@ -302,21 +243,24 @@ DROP TABLE t1,t2,t3,t4;
 
 --echo views inside a sort-nest
 CREATE TABLE t0 (x int);
-CREATE TABLE t1 (a int);
+CREATE TABLE t1 (a int, key(a));
 CREATE TABLE t2 (b int, c int default 0);
 
 INSERT t0 (x) VALUES (0),(10);
-INSERT t1 (a) VALUES (1), (2);
-INSERT t2 (b) VALUES (1), (2);
+INSERT t1 (a) VALUES (1), (2), (3),(4),(5),(6),(7),(8),(9);
+INSERT t2 (b) VALUES (1), (2), (3),(4),(5),(6),(7),(8),(9);
+
+--disable_result_log
+ANALYZE TABLE t0 PERSISTENT FOR ALL;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+--enable_result_log
 
 CREATE VIEW v1 as SELECT t2.b,t2.c FROM t1, t2
-                  WHERE t1.a=t2.b and t2.b < 3 WITH CHECK OPTION;
+                  WHERE t1.a=t2.b and t2.b < 3;
 
 let $query=
-SELECT * FROM v1,t0
-WHERE b<3
-ORDER BY x,b DESC
-LIMIT 2;
+SELECT * FROM v1,t0 ORDER BY x,b DESC LIMIT 2;
 
 eval EXPLAIN $query;
 eval EXPLAIN FORMAT=JSON $query;
@@ -392,7 +336,7 @@ CREATE TABLE t1 (a int, b int);
 INSERT INTO t1 SELECT seq-1,seq-1 from seq_1_to_10;
 CREATE TABLE t2 as SELECT * from t1;
 
-CREATE TABLE t3 (a int, b int);
+CREATE TABLE t3 (a int, b int, key(a));
 INSERT INTO t3 SELECT seq-1, seq-1 from seq_1_to_1000;
 
 --disable_result_log
@@ -403,21 +347,12 @@ ANALYZE TABLE t3 PERSISTENT FOR ALL;
 
 --echo # sort-nest on table t1,t2
 prepare ps1 from "EXPLAIN SELECT * FROM t2,t1,t3
-                  WHERE t3.a=t1.b+1
+                  WHERE t3.a=t1.b
                   ORDER BY t2.a DESC,t1.a DESC
                   LIMIT 5";
 
 EXECUTE ps1;
 EXECUTE ps1;
-
---echo # sort-nest on table t1,t2
-PREPARE ps2 from "EXPLAIN FORMAT=JSON
-                  SELECT * from t2,t1,t3
-                  WHERE t3.a=t1.b+1
-                  ORDER BY t2.a DESC, t1.a DESC
-                  LIMIT 5";
-EXECUTE ps2;
-EXECUTE ps2;
 
 --echo # sort-nest on table t1,t2
 PREPARE ps3 from "SELECT * from t2,t1,t3
@@ -428,7 +363,6 @@ EXECUTE ps3;
 EXECUTE ps3;
 
 DEALLOCATE PREPARE ps1;
-DEALLOCATE PREPARE ps2;
 DEALLOCATE PREPARE ps3;
 DROP TABLE t1,t2,t3;
 
@@ -436,8 +370,8 @@ DROP TABLE t1,t2,t3;
 
 CREATE TABLE t0 (a int);
 INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
-CREATE TABLE t1 (a int, b int);
-INSERT INTO t1 SELECT a,a from t0 where a <5;
+CREATE TABLE t1 (a int, b int, key(a));
+INSERT INTO t1 SELECT a,a from t0;
 CREATE TABLE t2 as SELECT * from t1 where a < 5;
 CREATE TABLE t3 (a int, b int, c int);
 INSERT INTO t3 SELECT seq-1, seq-1, seq-1 from seq_1_to_1000;
@@ -542,7 +476,7 @@ DROP TABLE t1;
 
 CREATE TABLE t0 (a int);
 INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
-CREATE TABLE t1 (a int, b int);
+CREATE TABLE t1 (a int, b int, key(a));
 INSERT INTO t1 SELECT a, a from t0;
 CREATE TABLE t2 as SELECT * from t1;
 CREATE TABLE t3(a int, b int, c int, key(a));
@@ -576,7 +510,6 @@ eval $query;
 
 drop table t0,t1,t2,t3;
 
-
 --echo #
 --echo # Constant removed from ORDER BY , so no need of sorting
 --echo #
@@ -584,8 +517,9 @@ drop table t0,t1,t2,t3;
 CREATE TABLE t0 (a int);
 INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
 CREATE TABLE t1 (a int, b int);
-INSERT INTO t1 SELECT a, a from t0;
-CREATE TABLE t2 as SELECT * from t1;
+INSERT INTO t1 SELECT a, a from t0 where a <= 5;
+CREATE TABLE t2 (a int, b int, key(a));
+INSERT INTO t2 SELECT a, a from t0;
 
 let $query=
 SELECT *
@@ -605,12 +539,14 @@ drop table t0,t1,t2;
 
 CREATE TABLE t0 (a int);
 INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
-CREATE TABLE t1 (a int, b int, c int);
-INSERT INTO t1 SELECT a, a, a from t0 where a <5;
-CREATE TABLE t2 as SELECT * from t1 where a < 5;
+CREATE TABLE t1 (a int, b int, c int, key(a));
+INSERT INTO t1 SELECT a, a, a from t0;
+CREATE TABLE t2 (a int, b int, c int);
+INSERT INTO t2 SELECT a, a, a from t0 where a <5;
 CREATE TABLE t3(a int, b int, c int, key(a));
 INSERT INTO t3  SELECT seq-1, seq-1, seq-1 from seq_1_to_10;
-CREATE TABLE t4 as SELECT * from t1 where a < 5;
+CREATE TABLE t4(a int, b int, c int, key(b));
+INSERT INTO t4  SELECT * from t1 where a < 5;
 
 --disable_result_log
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
@@ -740,42 +676,8 @@ let $query=
 SELECT (SELECT A.a FROM t3 A WHERE A.a = t1.b limit 1) as x,
        t2.b, t1.b, t3.a
 FROM t1,t2,t3
-WHERE t1.a = t2.a and t2.c=t3.c
+WHERE t1.a = t2.a and t2.c=t3.a
 ORDER BY t2.b DESC, t1.b DESC
-LIMIT 5;
-
-eval EXPLAIN $query;
-eval $query;
-
---echo #
---echo # Dependent Subquery attached outside the sort-nest, references inside
---echo # subquery changed to sort-nest field items
---echo #
-
-let $query=
-SELECT t2.b, t1.b, t3.a
-FROM t1,t2,t3
-WHERE t1.a = t2.a AND t2.c = t3.c AND
-t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
-ORDER BY t2.b DESC, t1.b DESC
-LIMIT 5;
-
-eval EXPLAIN $query;
-eval EXPLAIN FORMAT=JSON $query;
-eval $query;
-
---echo #
---echo # sort-nest(t2,t1) and independent subquery in the ORDER BY clause
---echo #
-
---echo # Subquery will be a constant in ORDER BY and will be removed
-
-let $query=
-SELECT t2.b, t1.b, t3.c
-FROM t1,t2,t3
-WHERE t1.a = t2.a and t2.c=t3.c
-ORDER BY t2.b, t1.b,
-         (SELECT A.a FROM t3 A WHERE A.a < 5 limit 1)
 LIMIT 5;
 
 eval EXPLAIN $query;
@@ -790,7 +692,7 @@ eval $query;
 let $query=
 SELECT t2.b, t1.b, t3.c
 FROM t1,t2,t3
-WHERE t1.a = t2.a and t2.c=t3.c
+WHERE t1.a = t2.a and t2.c=t3.a
 ORDER BY t2.b, t1.b,
          (SELECT A.a FROM t3 A WHERE A.a = t1.c limit 1)
 LIMIT 5;
@@ -1019,57 +921,13 @@ drop table t0,t1;
 --echo # SORT-NEST WITH SEMI JOINS
 --echo #
 
-CREATE TABLE t0(a int);
-CREATE TABLE t1 (a int, b int, c int, key(a), key(b));
-CREATE TABLE t2 (a int, b int, c int, key(a));
-CREATE TABLE t3 (a int, b int, c int, key(a));
-CREATE TABLE t4 (a int, b int, c int, key(a));
-
-INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
-INSERT INTO t1 SELECT seq-1, seq-1, seq-1 FROM seq_1_to_100;
-INSERT INTO t2 SELECT a,a,a FROM t0;
-INSERT INTO t3 SELECT a,a,a FROM t0 WHERE a < 5;
-INSERT INTO t3 SELECT a,a,a FROM t0 WHERE a < 5;
-INSERT INTO t4 SELECT a,a,a FROM t0 WHERE a < 5;
-INSERT INTO t4 SELECT a,a,a FROM t0 WHERE a < 5;
-
---disable_result_log
-ANALYZE TABLE t0 PERSISTENT FOR ALL;
-ANALYZE TABLE t1 PERSISTENT FOR ALL;
-ANALYZE TABLE t2 PERSISTENT FOR ALL;
-ANALYZE TABLE t3 PERSISTENT FOR ALL;
-ANALYZE TABLE t4 PERSISTENT FOR ALL;
---enable_result_log
-
---echo #
---echo # SJM Lookup with sort-nest, where SJM lookup table is outside the
---echo # sort-nest
---echo #
-
-let $query=
-SELECT t1.a, t2.a, t1.b,t2.b
-FROM t1, t2, t2 ot
-  WHERE t1.a=t2.a AND t2.b=ot.a AND t2.b < 4 AND
-        t1.b IN (SELECT it1.b FROM t3 it1,t4 it2
-                 WHERE it1.a < 4 AND it1.a=it2.a)
-ORDER BY t2.b DESC ,t1.b DESC
-LIMIT 5;
-
-eval EXPLAIN $query;
-eval EXPLAIN FORMAT=JSON $query;
-eval $query;
-
-drop table t0,t1,t2,t3,t4;
-
-
 --echo #
 --echo # Firstmatch strategy
 --echo #
-
 CREATE TABLE t0(a int);
-CREATE TABLE t1 (a int, b int, c int);
+CREATE TABLE t1 (a int, b int, c int, key(a));
 CREATE TABLE t2 (a int, b int, c int, key(a));
-CREATE TABLE t3 (a int, b int, c int, key(b));
+CREATE TABLE t3 (a int, b int, c int, key(b), key(c));
 CREATE TABLE t4 (a int, b int, c int, key(a));
 
 INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
@@ -1092,7 +950,7 @@ let $query=
 SELECT t1.a, t2.a, t1.b,t2.b
 FROM t1, t2
   WHERE t1.a=t2.a AND
-        t1.b IN (SELECT t3.b FROM t3,t4 WHERE t3.a <= 5 and t3.c = t2.b)
+        t1.b IN (SELECT t4.a FROM t3,t4 WHERE t4.a <= 5 and t3.c = t2.b)
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 
@@ -1106,14 +964,6 @@ eval $query;
 set @save_optimizer_switch= @@optimizer_switch;
 set optimizer_switch='firstmatch=off';
 
-let $query=
-SELECT t1.a, t2.a, t1.b,t2.b
-FROM t1, t2
-  WHERE t1.a=t2.a AND
-        t1.b IN (SELECT t3.b FROM t3,t4 WHERE t3.a <= 5 and t3.c = t2.b)
-ORDER BY t2.b DESC, t1.b DESC
-LIMIT 5;
-
 eval EXPLAIN $query;
 eval $query;
 
@@ -1126,35 +976,39 @@ drop table t0,t1,t2,t3,t4;
 
 create table t0 (a int);
 INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
-create table t1 (a int, b int);
-insert into t1 SELECT a,a from t0 where a <5;
-create table t2 as SELECT * from t1 where a < 5;
-create table t3(a int, b int);
-INSERT INTO t3 SELECT seq-1, seq-1 FROM seq_1_to_100;
+create table t1 (a int, b int, key(b));
+insert into t1 SELECT a,a from t0;
+create table t2 (a int, b int);
+INSERT INTO t2 SELECT * from t1 where a < 5;
+create table t3(a int, b int, key(a));
+INSERT INTO t3 SELECT seq-1, seq-1 FROM seq_1_to_1000;
 
---echo <subquery2> outside the sort-nest
+--disable_result_log
+ANALYZE TABLE t0 PERSISTENT FOR ALL;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+--enable_result_log
 
 let $query=
 SELECT * from t2,t1
-WHERE t2.b=t1.b
-AND
+WHERE t2.b=t1.b AND
 t1.a IN (SELECT max(t3.a) FROM t3 GROUP BY t3.b)
 ORDER BY t2.a DESC,t1.a DESC
 LIMIT 5;
 
+--echo <subquery2> outside the sort-nest
 eval EXPLAIN $query;
 eval EXPLAIN FORMAT=JSON $query;
 eval $query;
 
---echo <subquery2> inside the sort-nest
-
 let $query=
 SELECT * FROM t3,t2
-WHERE t3.b=t2.b AND
-t3.a IN (SELECT max(t1.a) FROM t1 GROUP BY t1.b)
+WHERE t3.a IN (SELECT max(t1.a) FROM t1 GROUP BY t1.b)
 ORDER BY t3.a DESC,t2.a DESC
 LIMIT 5;
 
+--echo <subquery2> inside the sort-nest
 eval EXPLAIN $query;
 eval EXPLAIN FORMAT=JSON $query;
 eval $query;

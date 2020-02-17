@@ -3,7 +3,8 @@ CREATE TABLE t0 (a int);
 INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
 CREATE TABLE t1 (a int, b int);
 INSERT INTO t1 SELECT a, a from t0 where a <5;
-CREATE TABLE t2 as SELECT * from t1 where a < 5;
+CREATE TABLE t2 (a int, b int, key(a));
+INSERT INTO t2 SELECT a, a from t0;
 CREATE TABLE t3(a int, b int, c int, key(a));
 INSERT INTO t3  SELECT seq-1, seq-1, seq-1 from seq_1_to_100;
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
@@ -19,8 +20,8 @@ WHERE t1.a=t2.a AND t2.b=t3.a
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	SIMPLE	t2	ref	a	a	5	test.t1.a	1	
 1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
 1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	Using index
 EXPLAIN FORMAT=JSON SELECT t1.a, t2.b, t1.b, t3.a
@@ -36,19 +37,19 @@ EXPLAIN
       "table_name": "t1",
       "access_type": "ALL",
       "rows": 5,
-      "filtered": 100
+      "filtered": 100,
+      "attached_condition": "t1.a is not null"
     },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 5,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "119",
-      "join_type": "BNL",
-      "attached_condition": "t2.a = t1.a"
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t1.a"],
+      "rows": 1,
+      "filtered": 100
     },
     "read_sorted_file": {
       "filesort": {
@@ -87,12 +88,12 @@ a	b	b	a
 1	1	1	1
 0	0	0	0
 DROP TABLE t0,t1,t2,t3;
-CREATE TABLE t1(a int, b int);
-INSERT INTO t1 SELECT seq-1, seq-1 from seq_1_to_100;
+CREATE TABLE t1(a int, b int, key(a));
+INSERT INTO t1 SELECT seq-1, seq-1 from seq_1_to_100 where seq > 30;
 CREATE TABLE t2(a int, b int);
 INSERT INTO t2(a,b) VALUES (1,1), (2,2);
 INSERT INTO t2   SELECT seq-1, seq-1 from seq_1_to_100;
-CREATE TABLE t3(a int, b int);
+CREATE TABLE t3(a int, b int, key(a));
 INSERT INTO t3 SELECT seq-1, seq-1 from seq_1_to_1000;
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
 ANALYZE TABLE t2 PERSISTENT FOR ALL;
@@ -105,20 +106,17 @@ END|
 Covering 3 table joins
 
 # sorting on table t2
-# t2.a > 95 would be attached to table t2
-# t1.b=t2.a would be attached to table t1;
-# t3.a= sort-nest.b would be attached to table t3
 
 EXPLAIN SELECT * FROM t1,t2,t3
-WHERE t1.a > 95 AND  t1.a=t2.a AND t1.b = t3.a
+WHERE t1.a=t2.a AND t1.b = t3.a
 ORDER BY t2.b
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where; Using filesort
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.a	1	Using where
+1	SIMPLE	t3	ref	a	a	5	test.t1.b	1	
 EXPLAIN FORMAT=JSON SELECT * FROM t1,t2,t3
-WHERE t1.a > 95 AND  t1.a=t2.a AND t1.b = t3.a
+WHERE t1.a=t2.a AND t1.b = t3.a
 ORDER BY t2.b
 LIMIT 5;
 EXPLAIN
@@ -132,245 +130,119 @@ EXPLAIN
           "table_name": "t2",
           "access_type": "ALL",
           "rows": 102,
-          "filtered": 4.6875,
-          "attached_condition": "t2.a > 95"
+          "filtered": 100,
+          "attached_condition": "t2.a is not null"
         }
       }
     },
     "table": {
       "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 100,
-      "filtered": 4.6875,
-      "attached_condition": "t1.a = t2.a"
-    },
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 1000,
-      "filtered": 100,
-      "attached_condition": "t3.a = t1.b"
-    }
-  }
-}
-SELECT * FROM t1,t2,t3
-WHERE t1.a > 95 AND  t1.a=t2.a AND t1.b = t3.a
-ORDER BY t2.b
-LIMIT 5;
-a	b	a	b	a	b
-96	96	96	96	96	96
-97	97	97	97	97	97
-98	98	98	98	98	98
-99	99	99	99	99	99
-# {t1,t2} part of the nest
-# t1.a > 95 would be attached to table t1
-# t1.b=t2.a would be attached to table t2;
-# t3.a= sort-nest.b would be attached to table t3
-
-ALTER TABLE t2 ADD KEY(a);
-EXPLAIN SELECT * FROM t1,t2,t3
-WHERE t1.a > 95 AND t1.a=t2.a AND t1.b = t3.a
-ORDER BY t2.b
-LIMIT 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	SIMPLE	t2	ref	a	a	5	test.t1.a	1	
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
-EXPLAIN FORMAT=JSON SELECT * FROM t1,t2,t3
-WHERE t1.a > 95 AND t1.a=t2.a AND t1.b = t3.a
-ORDER BY t2.b
-LIMIT 5;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 100,
-      "filtered": 4.6875,
-      "attached_condition": "t1.a > 95 and t1.a is not null"
-    },
-    "table": {
-      "table_name": "t2",
       "access_type": "ref",
       "possible_keys": ["a"],
       "key": "a",
       "key_length": "5",
       "used_key_parts": ["a"],
-      "ref": ["test.t1.a"],
+      "ref": ["test.t2.a"],
+      "rows": 1,
+      "filtered": 100,
+      "attached_condition": "t1.b is not null"
+    },
+    "table": {
+      "table_name": "t3",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t1.b"],
+      "rows": 1,
+      "filtered": 100
+    }
+  }
+}
+SELECT * FROM t1,t2,t3
+WHERE t1.a=t2.a AND t1.b = t3.a
+ORDER BY t2.b
+LIMIT 5;
+a	b	a	b	a	b
+30	30	30	30	30	30
+31	31	31	31	31	31
+32	32	32	32	32	32
+33	33	33	33	33	33
+34	34	34	34	34	34
+
+# {t2,t1} part of the nest
+# t3.a= sort-nest.b would be attached to table t3
+
+EXPLAIN SELECT * FROM t1,t2,t3
+WHERE t1.a=t2.a AND t1.b = t3.a
+ORDER BY t2.b, t1.b
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.a	1	
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	
+EXPLAIN FORMAT=JSON SELECT * FROM t1,t2,t3
+WHERE t1.a=t2.a AND t1.b = t3.a
+ORDER BY t2.b, t1.b
+LIMIT 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 102,
+      "filtered": 100,
+      "attached_condition": "t2.a is not null"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
       "rows": 1,
       "filtered": 100
     },
     "read_sorted_file": {
       "filesort": {
-        "sort_key": "`sort-nest`.b",
+        "sort_key": "`sort-nest`.b, `sort-nest`.b",
         "table": {
           "table_name": "<sort-nest>",
           "access_type": "ALL",
-          "rows": 1,
+          "rows": 5,
           "filtered": 100
         }
       }
     },
     "table": {
       "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 1000,
-      "filtered": 100,
-      "attached_condition": "t3.a = `sort-nest`.b"
-    }
-  }
-}
-SELECT * FROM t1,t2,t3
-WHERE t1.a > 95 AND t1.a=t2.a AND t1.b = t3.a
-ORDER BY t2.b
-LIMIT 5;
-a	b	a	b	a	b
-96	96	96	96	96	96
-97	97	97	97	97	97
-98	98	98	98	98	98
-99	99	99	99	99	99
-ALTER TABLE t2 DROP KEY a;
-
-# {t1,t2} part of the sort nest
-# (t2.a < 2 or t1.b > 98) would be attached to table t2
-
-EXPLAIN SELECT * FROM t1,t2,t3
-WHERE (t3.a < 2 and t2.a < 2) OR (t1.b > 98 and t3.b > 98)
-ORDER BY t1.a, t2.b
-LIMIT 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
-EXPLAIN FORMAT=JSON SELECT * FROM t1,t2,t3
-WHERE (t3.a < 2 and t2.a < 2) OR (t1.b > 98 and t3.b > 98)
-ORDER BY t1.a, t2.b
-LIMIT 5;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 100,
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["sort-nest.b"],
+      "rows": 1,
       "filtered": 100
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 102,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "1Kb",
-      "join_type": "BNL",
-      "attached_condition": "t2.a < 2 or t1.b > 98"
-    },
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "`sort-nest`.a, `sort-nest`.b",
-        "table": {
-          "table_name": "<sort-nest>",
-          "access_type": "ALL",
-          "rows": 1,
-          "filtered": 100
-        }
-      }
-    },
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 1000,
-      "filtered": 100,
-      "attached_condition": "t3.a < 2 and `sort-nest`.a < 2 or `sort-nest`.b > 98 and t3.b > 98"
     }
   }
 }
 SELECT * FROM t1,t2,t3
-WHERE (t3.a < 2 and t2.a < 2) OR (t1.b > 98 and t3.b > 98)
-ORDER BY t1.a, t2.b
+WHERE t1.a=t2.a AND t1.b = t3.a
+ORDER BY t2.b, t1.b
 LIMIT 5;
 a	b	a	b	a	b
-0	0	1	1	0	0
-0	0	1	1	1	1
-1	1	1	1	0	0
-1	1	1	1	1	1
-2	2	1	1	0	0
-
-# {t1,t2} part of the nest
-# t2.a < 2 or f1(t1.b) attached to table t2
-# t1.b=t2.a would be attached to table t2;
-
-EXPLAIN SELECT * FROM t1,t2,t3
-WHERE (t3.a<2  AND t2.a <2) OR (f1(t1.b) > 98 AND t3.b > 98)
-ORDER BY t1.a,t2.b
-LIMIT 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using join buffer (flat, BNL join)
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
-EXPLAIN FORMAT=JSON SELECT * FROM t1,t2,t3
-WHERE (t3.a<2  AND t2.a <2) OR (f1(t1.b) > 98 AND t3.b > 98)
-ORDER BY t1.a,t2.b
-LIMIT 5;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 100,
-      "filtered": 100
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 102,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "1Kb",
-      "join_type": "BNL"
-    },
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "`sort-nest`.a, `sort-nest`.b",
-        "table": {
-          "table_name": "<sort-nest>",
-          "access_type": "ALL",
-          "rows": 1,
-          "filtered": 100
-        }
-      }
-    },
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 1000,
-      "filtered": 100,
-      "attached_condition": "t3.a < 2 and `sort-nest`.a < 2 or f1(`sort-nest`.b) > 98 and t3.b > 98"
-    }
-  }
-}
-SELECT * FROM t1,t2,t3
-WHERE (t3.a<2  AND t2.a <2) OR (f1(t1.b) > 98 AND t3.b > 98)
-ORDER BY t1.a,t2.b
-LIMIT 5;
-a	b	a	b	a	b
-0	0	0	0	0	0
-0	0	0	0	1	1
-0	0	1	1	0	0
-0	0	1	1	1	1
-0	0	1	1	0	0
+30	30	30	30	30	30
+31	31	31	31	31	31
+32	32	32	32	32	32
+33	33	33	33	33	33
+34	34	34	34	34	34
 #
 # Removing constant from the order by clause
 #
@@ -379,8 +251,8 @@ WHERE t1.a > 95 AND t1.a=t2.a
 ORDER BY t2.a
 LIMIT 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where; Using filesort
+1	SIMPLE	t1	ref	a	a	5	test.t2.a	1	
 EXPLAIN FORMAT=JSON SELECT * FROM t1,t2
 WHERE t1.a > 95 AND t1.a=t2.a
 ORDER BY t2.a
@@ -393,20 +265,24 @@ EXPLAIN
       "filesort": {
         "sort_key": "t2.a",
         "table": {
-          "table_name": "t1",
+          "table_name": "t2",
           "access_type": "ALL",
-          "rows": 100,
+          "rows": 102,
           "filtered": 4.6875,
-          "attached_condition": "t1.a > 95"
+          "attached_condition": "t2.a > 95 and t2.a is not null"
         }
       }
     },
     "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 102,
-      "filtered": 4.6875,
-      "attached_condition": "t2.a = t1.a"
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 1,
+      "filtered": 100
     }
   }
 }
@@ -423,8 +299,8 @@ EXPLAIN SELECT * FROM t1,t2
 WHERE t1.a > 95  and t1.a=t2.a
 ORDER BY 1+2,t2.a limit 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where; Using filesort
+1	SIMPLE	t1	ref	a	a	5	test.t2.a	1	
 EXPLAIN FORMAT=JSON SELECT * FROM t1,t2
 WHERE t1.a > 95  and t1.a=t2.a
 ORDER BY 1+2,t2.a limit 4;
@@ -436,20 +312,24 @@ EXPLAIN
       "filesort": {
         "sort_key": "t2.a",
         "table": {
-          "table_name": "t1",
+          "table_name": "t2",
           "access_type": "ALL",
-          "rows": 100,
+          "rows": 102,
           "filtered": 4.6875,
-          "attached_condition": "t1.a > 95"
+          "attached_condition": "t2.a > 95 and t2.a is not null"
         }
       }
     },
     "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 102,
-      "filtered": 4.6875,
-      "attached_condition": "t2.a = t1.a"
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 1,
+      "filtered": 100
     }
   }
 }
@@ -467,37 +347,38 @@ a	b	a	b
 #
 EXPLAIN SELECT t3.b, t2.a, t1.b, t1.a
 FROM t1,t2,t3
-WHERE t1.b=t3.b
+WHERE t1.b=t3.a and t1.a=t2.b
 ORDER BY t1.b DESC, t2.a DESC limit 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using join buffer (flat, BNL join)
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.b	1	
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	
 EXPLAIN FORMAT=JSON SELECT t3.b, t2.a, t1.b, t1.a
 FROM t1,t2,t3
-WHERE t1.b=t3.b
+WHERE t1.b=t3.a and t1.a=t2.b
 ORDER BY t1.b DESC, t2.a DESC limit 3;
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "t1",
+      "table_name": "t2",
       "access_type": "ALL",
-      "rows": 100,
-      "filtered": 100
+      "rows": 102,
+      "filtered": 100,
+      "attached_condition": "t2.b is not null"
     },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 102,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "1Kb",
-      "join_type": "BNL"
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.b"],
+      "rows": 1,
+      "filtered": 100
     },
     "read_sorted_file": {
       "filesort": {
@@ -505,63 +386,68 @@ EXPLAIN
         "table": {
           "table_name": "<sort-nest>",
           "access_type": "ALL",
-          "rows": 1,
+          "rows": 3,
           "filtered": 100
         }
       }
     },
     "table": {
       "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 1000,
-      "filtered": 100,
-      "attached_condition": "t3.b = `sort-nest`.b"
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["sort-nest.b"],
+      "rows": 1,
+      "filtered": 100
     }
   }
 }
 SELECT t3.b, t2.a, t1.b, t1.a
 FROM t1,t2,t3
-WHERE t1.b=t3.b
+WHERE t1.b=t3.a and t1.a=t2.b
 ORDER BY t1.b DESC, t2.a DESC limit 3;
 b	a	b	a
 99	99	99	99
-99	98	99	99
-99	97	99	99
+98	98	98	98
+97	97	97	97
 EXPLAIN SELECT t3.b, t2.a, t1.b, t1.a
 FROM t1,t2,t3
-WHERE t1.b=t3.b
-ORDER BY t3.b DESC, t2.a DESC
+WHERE t1.b=t3.a and t1.a=t2.b
+ORDER BY t3.a DESC, t2.a DESC
 LIMIT 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using join buffer (flat, BNL join)
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.b	1	
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	
 EXPLAIN FORMAT=JSON SELECT t3.b, t2.a, t1.b, t1.a
 FROM t1,t2,t3
-WHERE t1.b=t3.b
-ORDER BY t3.b DESC, t2.a DESC
+WHERE t1.b=t3.a and t1.a=t2.b
+ORDER BY t3.a DESC, t2.a DESC
 LIMIT 3;
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "t1",
+      "table_name": "t2",
       "access_type": "ALL",
-      "rows": 100,
-      "filtered": 100
+      "rows": 102,
+      "filtered": 100,
+      "attached_condition": "t2.b is not null"
     },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 102,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "1Kb",
-      "join_type": "BNL"
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.b"],
+      "rows": 1,
+      "filtered": 100
     },
     "read_sorted_file": {
       "filesort": {
@@ -569,68 +455,73 @@ EXPLAIN
         "table": {
           "table_name": "<sort-nest>",
           "access_type": "ALL",
-          "rows": 1,
+          "rows": 3,
           "filtered": 100
         }
       }
     },
     "table": {
       "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 1000,
-      "filtered": 100,
-      "attached_condition": "t3.b = `sort-nest`.b"
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["sort-nest.b"],
+      "rows": 1,
+      "filtered": 100
     }
   }
 }
 SELECT t3.b, t2.a, t1.b, t1.a
 FROM t1,t2,t3
-WHERE t1.b=t3.b
-ORDER BY t3.b DESC, t2.a DESC
+WHERE t1.b=t3.a and t1.a=t2.b
+ORDER BY t3.a DESC, t2.a DESC
 LIMIT 3;
 b	a	b	a
 99	99	99	99
-99	98	99	99
-99	97	99	99
+98	98	98	98
+97	97	97	97
 #
 # Equality propagation also for arguments of expressions,
 # the plan should use a sort nest on {t1,t2}
 #
 EXPLAIN SELECT t3.b,t2.a, t1.b, t1.a
 FROM t1,t2,t3
-WHERE t1.b=t3.b
-ORDER BY t3.b + 1 DESC, t2.a DESC
+WHERE t1.b=t3.a and t1.a=t2.b
+ORDER BY t3.a + 1 DESC, t2.a DESC
 LIMIT 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using join buffer (flat, BNL join)
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.b	1	
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	
 EXPLAIN FORMAT=JSON SELECT t3.b,t2.a, t1.b, t1.a
 FROM t1,t2,t3
-WHERE t1.b=t3.b
-ORDER BY t3.b + 1 DESC, t2.a DESC
+WHERE t1.b=t3.a and t1.a=t2.b
+ORDER BY t3.a + 1 DESC, t2.a DESC
 LIMIT 3;
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "t1",
+      "table_name": "t2",
       "access_type": "ALL",
-      "rows": 100,
-      "filtered": 100
+      "rows": 102,
+      "filtered": 100,
+      "attached_condition": "t2.b is not null"
     },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 102,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "1Kb",
-      "join_type": "BNL"
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.b"],
+      "rows": 1,
+      "filtered": 100
     },
     "read_sorted_file": {
       "filesort": {
@@ -638,189 +529,75 @@ EXPLAIN
         "table": {
           "table_name": "<sort-nest>",
           "access_type": "ALL",
-          "rows": 1,
+          "rows": 3,
           "filtered": 100
         }
       }
     },
     "table": {
       "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 1000,
-      "filtered": 100,
-      "attached_condition": "t3.b = `sort-nest`.b"
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["sort-nest.b"],
+      "rows": 1,
+      "filtered": 100
     }
   }
 }
 SELECT t3.b,t2.a, t1.b, t1.a
 FROM t1,t2,t3
-WHERE t1.b=t3.b
-ORDER BY t3.b + 1 DESC, t2.a DESC
+WHERE t1.b=t3.a and t1.a=t2.b
+ORDER BY t3.a + 1 DESC, t2.a DESC
 LIMIT 3;
 b	a	b	a
 99	99	99	99
-99	98	99	99
-99	97	99	99
-#
-# Rows for the sort-nest should be the cardinality of the join of
-# inner tables of the sort-nest
-#
-# Rows for sort nest would be 9894 here
-ALTER TABLE t1 ADD KEY(a);
-EXPLAIN SELECT t3.b, t2.a, t1.b, t1.a
-FROM t1,t2,t3
-WHERE t1.a > 5 and t1.b=t3.b
-ORDER BY t1.b DESC, t2.a DESC
-LIMIT 3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	100	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using join buffer (flat, BNL join)
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
-SELECT t3.b, t2.a, t1.b, t1.a
-FROM t1,t2,t3
-WHERE t1.a > 5 and t1.b=t3.b
-ORDER BY t1.b DESC, t2.a DESC
-LIMIT 3;
-b	a	b	a
-99	99	99	99
-99	98	99	99
-99	97	99	99
-ALTER TABLE t1 DROP KEY a;
+98	98	98	98
+97	97	97	97
 #
 # With having clause we can't have a sort-nest
 #
 EXPLAIN SELECT * FROM t1,t2,t3
 WHERE t1.a=t2.a AND t1.b = t3.a
-HAVING t1.a > 95
+HAVING t1.a > 15
 ORDER BY t2.b,t1.b
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where; Using join buffer (incremental, BNL join)
-EXPLAIN FORMAT=JSON SELECT * FROM t1,t2,t3
-WHERE t1.a=t2.a AND t1.b = t3.a
-HAVING t1.a > 95
-ORDER BY t2.b,t1.b
-LIMIT 5;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "having_condition": "t1.a > 95",
-    "filesort": {
-      "sort_key": "t2.b, t1.b",
-      "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 100,
-          "filtered": 100
-        },
-        "block-nl-join": {
-          "table": {
-            "table_name": "t2",
-            "access_type": "ALL",
-            "rows": 102,
-            "filtered": 100
-          },
-          "buffer_type": "flat",
-          "buffer_size": "1Kb",
-          "join_type": "BNL",
-          "attached_condition": "t2.a = t1.a"
-        },
-        "block-nl-join": {
-          "table": {
-            "table_name": "t3",
-            "access_type": "ALL",
-            "rows": 1000,
-            "filtered": 100
-          },
-          "buffer_type": "incremental",
-          "buffer_size": "149Kb",
-          "join_type": "BNL",
-          "attached_condition": "t3.a = t1.b"
-        }
-      }
-    }
-  }
-}
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where; Using temporary; Using filesort
+1	SIMPLE	t1	ref	a	a	5	test.t2.a	1	Using where
+1	SIMPLE	t3	ref	a	a	5	test.t1.b	1	
 SELECT * FROM t1,t2,t3
 WHERE t1.a=t2.a AND t1.b = t3.a
-HAVING t1.a > 95
+HAVING t1.a > 15
 ORDER BY t2.b,t1.b
 LIMIT 5;
 a	b	a	b	a	b
-96	96	96	96	96	96
-97	97	97	97	97	97
-98	98	98	98	98	98
-99	99	99	99	99	99
+30	30	30	30	30	30
+31	31	31	31	31	31
+32	32	32	32	32	32
+33	33	33	33	33	33
+34	34	34	34	34	34
 EXPLAIN SELECT * FROM t1,t2,t3
-WHERE t1.a > 95 AND t1.a=t2.a AND t1.b = t3.a
+WHERE t1.a > 15 AND t1.a=t2.a AND t1.b = t3.a
 ORDER BY t2.b,t1.b
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
-EXPLAIN FORMAT=JSON SELECT * FROM t1,t2,t3
-WHERE t1.a > 95 AND t1.a=t2.a AND t1.b = t3.a
-ORDER BY t2.b,t1.b
-LIMIT 5;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 100,
-      "filtered": 4.6875,
-      "attached_condition": "t1.a > 95"
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 102,
-        "filtered": 4.6875
-      },
-      "buffer_type": "flat",
-      "buffer_size": "119",
-      "join_type": "BNL",
-      "attached_condition": "t2.a = t1.a"
-    },
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "`sort-nest`.b, `sort-nest`.b",
-        "table": {
-          "table_name": "<sort-nest>",
-          "access_type": "ALL",
-          "rows": 1,
-          "filtered": 100
-        }
-      }
-    },
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 1000,
-      "filtered": 100,
-      "attached_condition": "t3.a = `sort-nest`.b"
-    }
-  }
-}
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.a	1	
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	
 SELECT * FROM t1,t2,t3
-WHERE t1.a > 95 AND t1.a=t2.a AND t1.b = t3.a
+WHERE t1.a > 15 AND t1.a=t2.a AND t1.b = t3.a
 ORDER BY t2.b,t1.b
 LIMIT 5;
 a	b	a	b	a	b
-96	96	96	96	96	96
-97	97	97	97	97	97
-98	98	98	98	98	98
-99	99	99	99	99	99
+30	30	30	30	30	30
+31	31	31	31	31	31
+32	32	32	32	32	32
+33	33	33	33	33	33
+34	34	34	34	34	34
 #
 # Selectivity estimates taken into account for sort-nest{t1,t2}
 #
@@ -828,16 +605,16 @@ CREATE INDEX idx1 ON t1(b);
 CREATE INDEX idx2 ON t2(a);
 CREATE INDEX idx3 ON t3(b);
 EXPLAIN SELECT * from t1,t2,t3
-WHERE t1.a=t2.a AND t1.b = t3.a AND t1.b < 5 AND t3.b < 900
+WHERE t1.a=t2.a AND t1.b = t3.a AND t1.b < 50 AND t3.b < 900
 ORDER BY t2.b
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1	idx1	5	NULL	3	Using index condition; Using where
+1	SIMPLE	t1	range	a,idx1	idx1	5	NULL	20	Using index condition; Using where
 1	SIMPLE	t2	ref	idx2	idx2	5	test.t1.a	1	
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	SIMPLE	t3	ALL	idx3	NULL	NULL	NULL	1000	Using where
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	SIMPLE	t3	ref	a,idx3	a	5	sort-nest.b	1	Using where
 EXPLAIN FORMAT=JSON SELECT * from t1,t2,t3
-WHERE t1.a=t2.a AND t1.b = t3.a AND t1.b < 5 AND t3.b < 900
+WHERE t1.a=t2.a AND t1.b = t3.a AND t1.b < 50 AND t3.b < 900
 ORDER BY t2.b
 LIMIT 5;
 EXPLAIN
@@ -847,13 +624,13 @@ EXPLAIN
     "table": {
       "table_name": "t1",
       "access_type": "range",
-      "possible_keys": ["idx1"],
+      "possible_keys": ["a", "idx1"],
       "key": "idx1",
       "key_length": "5",
       "used_key_parts": ["b"],
-      "rows": 3,
+      "rows": 20,
       "filtered": 100,
-      "index_condition": "t1.b < 5",
+      "index_condition": "t1.b < 50",
       "attached_condition": "t1.a is not null"
     },
     "table": {
@@ -873,31 +650,35 @@ EXPLAIN
         "table": {
           "table_name": "<sort-nest>",
           "access_type": "ALL",
-          "rows": 1,
+          "rows": 5,
           "filtered": 100
         }
       }
     },
     "table": {
       "table_name": "t3",
-      "access_type": "ALL",
-      "possible_keys": ["idx3"],
-      "rows": 1000,
-      "filtered": 0.6953,
-      "attached_condition": "t3.a = `sort-nest`.b and t3.b < 900"
+      "access_type": "ref",
+      "possible_keys": ["a", "idx3"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["sort-nest.b"],
+      "rows": 1,
+      "filtered": 89,
+      "attached_condition": "t3.b < 900"
     }
   }
 }
 SELECT * from t1,t2,t3
-WHERE t1.a=t2.a AND t1.b = t3.a AND t1.b < 5 AND t3.b < 900
+WHERE t1.a=t2.a AND t1.b = t3.a AND t1.b < 50 AND t3.b < 900
 ORDER BY t2.b
 LIMIT 5;
 a	b	a	b	a	b
-0	0	0	0	0	0
-1	1	1	1	1	1
-1	1	1	1	1	1
-2	2	2	2	2	2
-2	2	2	2	2	2
+30	30	30	30	30	30
+31	31	31	31	31	31
+32	32	32	32	32	32
+33	33	33	33	33	33
+34	34	34	34	34	34
 DROP INDEX idx1 ON t1;
 DROP INDEX idx2 ON t2;
 DROP INDEX idx3 ON t3;
@@ -1116,72 +897,71 @@ f	g
 DROP TABLE t1,t2,t3,t4;
 views inside a sort-nest
 CREATE TABLE t0 (x int);
-CREATE TABLE t1 (a int);
+CREATE TABLE t1 (a int, key(a));
 CREATE TABLE t2 (b int, c int default 0);
 INSERT t0 (x) VALUES (0),(10);
-INSERT t1 (a) VALUES (1), (2);
-INSERT t2 (b) VALUES (1), (2);
+INSERT t1 (a) VALUES (1), (2), (3),(4),(5),(6),(7),(8),(9);
+INSERT t2 (b) VALUES (1), (2), (3),(4),(5),(6),(7),(8),(9);
+ANALYZE TABLE t0 PERSISTENT FOR ALL;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
 CREATE VIEW v1 as SELECT t2.b,t2.c FROM t1, t2
-WHERE t1.a=t2.b and t2.b < 3 WITH CHECK OPTION;
-EXPLAIN SELECT * FROM v1,t0
-WHERE b<3
-ORDER BY x,b DESC
-LIMIT 2;
+WHERE t1.a=t2.b and t2.b < 3;
+EXPLAIN SELECT * FROM v1,t0 ORDER BY x,b DESC LIMIT 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-EXPLAIN FORMAT=JSON SELECT * FROM v1,t0
-WHERE b<3
-ORDER BY x,b DESC
-LIMIT 2;
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+1	SIMPLE	t1	ref	a	a	5	sort-nest.b	1	Using index
+EXPLAIN FORMAT=JSON SELECT * FROM v1,t0 ORDER BY x,b DESC LIMIT 2;
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "t1",
+      "table_name": "t0",
       "access_type": "ALL",
       "rows": 2,
-      "filtered": 100,
-      "attached_condition": "t1.a < 3 and t1.a < 3"
+      "filtered": 100
     },
     "block-nl-join": {
       "table": {
-        "table_name": "t0",
+        "table_name": "t2",
         "access_type": "ALL",
-        "rows": 2,
-        "filtered": 100
+        "rows": 9,
+        "filtered": 32.812
       },
       "buffer_type": "flat",
       "buffer_size": "65",
-      "join_type": "BNL"
+      "join_type": "BNL",
+      "attached_condition": "t2.b < 3"
     },
     "read_sorted_file": {
       "filesort": {
-        "sort_key": "`sort-nest`.x, `sort-nest`.a desc",
+        "sort_key": "`sort-nest`.x, `sort-nest`.b desc",
         "table": {
           "table_name": "<sort-nest>",
           "access_type": "ALL",
-          "rows": 1,
+          "rows": 2,
           "filtered": 100
         }
       }
     },
     "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 2,
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["sort-nest.b"],
+      "rows": 1,
       "filtered": 100,
-      "attached_condition": "t2.b = `sort-nest`.a"
+      "using_index": true
     }
   }
 }
-SELECT * FROM v1,t0
-WHERE b<3
-ORDER BY x,b DESC
-LIMIT 2;
+SELECT * FROM v1,t0 ORDER BY x,b DESC LIMIT 2;
 b	c	x
 2	0	0
 1	0	0
@@ -1381,118 +1161,28 @@ DROP TABLE t1,t2,t3;
 CREATE TABLE t1 (a int, b int);
 INSERT INTO t1 SELECT seq-1,seq-1 from seq_1_to_10;
 CREATE TABLE t2 as SELECT * from t1;
-CREATE TABLE t3 (a int, b int);
+CREATE TABLE t3 (a int, b int, key(a));
 INSERT INTO t3 SELECT seq-1, seq-1 from seq_1_to_1000;
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
 ANALYZE TABLE t2 PERSISTENT FOR ALL;
 ANALYZE TABLE t3 PERSISTENT FOR ALL;
 # sort-nest on table t1,t2
 prepare ps1 from "EXPLAIN SELECT * FROM t2,t1,t3
-                  WHERE t3.a=t1.b+1
+                  WHERE t3.a=t1.b
                   ORDER BY t2.a DESC,t1.a DESC
                   LIMIT 5";
 EXECUTE ps1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	
 EXECUTE ps1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
-# sort-nest on table t1,t2
-PREPARE ps2 from "EXPLAIN FORMAT=JSON
-                  SELECT * from t2,t1,t3
-                  WHERE t3.a=t1.b+1
-                  ORDER BY t2.a DESC, t1.a DESC
-                  LIMIT 5";
-EXECUTE ps2;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t1",
-        "access_type": "ALL",
-        "rows": 10,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "119",
-      "join_type": "BNL"
-    },
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "`sort-nest`.a desc, `sort-nest`.a desc",
-        "table": {
-          "table_name": "<sort-nest>",
-          "access_type": "ALL",
-          "rows": 1,
-          "filtered": 100
-        }
-      }
-    },
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 1000,
-      "filtered": 100,
-      "attached_condition": "t3.a = `sort-nest`.b + 1"
-    }
-  }
-}
-EXECUTE ps2;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t1",
-        "access_type": "ALL",
-        "rows": 10,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "119",
-      "join_type": "BNL"
-    },
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "`sort-nest`.a desc, `sort-nest`.a desc",
-        "table": {
-          "table_name": "<sort-nest>",
-          "access_type": "ALL",
-          "rows": 1,
-          "filtered": 100
-        }
-      }
-    },
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 1000,
-      "filtered": 100,
-      "attached_condition": "t3.a = `sort-nest`.b + 1"
-    }
-  }
-}
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	
 # sort-nest on table t1,t2
 PREPARE ps3 from "SELECT * from t2,t1,t3
                   WHERE t3.a=t1.b+1
@@ -1513,14 +1203,13 @@ a	b	a	b	a	b
 9	9	6	6	7	7
 9	9	5	5	6	6
 DEALLOCATE PREPARE ps1;
-DEALLOCATE PREPARE ps2;
 DEALLOCATE PREPARE ps3;
 DROP TABLE t1,t2,t3;
 # INDEPENDENT SUBQUERIES
 CREATE TABLE t0 (a int);
 INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
-CREATE TABLE t1 (a int, b int);
-INSERT INTO t1 SELECT a,a from t0 where a <5;
+CREATE TABLE t1 (a int, b int, key(a));
+INSERT INTO t1 SELECT a,a from t0;
 CREATE TABLE t2 as SELECT * from t1 where a < 5;
 CREATE TABLE t3 (a int, b int, c int);
 INSERT INTO t3 SELECT seq-1, seq-1, seq-1 from seq_1_to_1000;
@@ -1537,8 +1226,8 @@ WHERE t1.a = t2.a
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t1	ref	a	a	5	test.t2.a	1	
 1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	1000	
 2	SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	1000	Using where
@@ -1553,22 +1242,22 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "t1",
+      "table_name": "t2",
       "access_type": "ALL",
       "rows": 5,
-      "filtered": 100
+      "filtered": 100,
+      "attached_condition": "t2.a is not null"
     },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 5,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "119",
-      "join_type": "BNL",
-      "attached_condition": "t2.a = t1.a"
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 1,
+      "filtered": 100
     },
     "read_sorted_file": {
       "filesort": {
@@ -1596,7 +1285,7 @@ EXPLAIN
             "access_type": "ALL",
             "rows": 1000,
             "filtered": 99.219,
-            "attached_condition": "A.a > 5"
+            "attached_condition": "a.a > 5"
           }
         }
       }
@@ -1708,7 +1397,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t0 (a int);
 INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
-CREATE TABLE t1 (a int, b int);
+CREATE TABLE t1 (a int, b int, key(a));
 INSERT INTO t1 SELECT a, a from t0;
 CREATE TABLE t2 as SELECT * from t1;
 CREATE TABLE t3(a int, b int, c int, key(a));
@@ -1722,8 +1411,8 @@ WHERE t1.a=t2.a AND t3.a = t2.a
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.a	1	
 1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	10	Using filesort
 1	SIMPLE	t3	ref	a	a	5	sort-nest.a	1	Using index
 SELECT t1.a, t2.b, t1.b, t3.a
@@ -1748,8 +1437,8 @@ WHERE t1.a=t2.a AND t3.a=t2.a
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5 OFFSET 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.a	1	
 1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	10	Using filesort
 1	SIMPLE	t3	ref	a	a	5	sort-nest.a	1	Using index
 SELECT t1.a, t2.b, t1.b, t3.a
@@ -1770,16 +1459,17 @@ drop table t0,t1,t2,t3;
 CREATE TABLE t0 (a int);
 INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
 CREATE TABLE t1 (a int, b int);
-INSERT INTO t1 SELECT a, a from t0;
-CREATE TABLE t2 as SELECT * from t1;
+INSERT INTO t1 SELECT a, a from t0 where a <= 5;
+CREATE TABLE t2 (a int, b int, key(a));
+INSERT INTO t2 SELECT a, a from t0;
 EXPLAIN SELECT *
 FROM t1,t2
 WHERE t1.a=t2.a and t1.b= 4
 ORDER BY t1.b DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using where
+1	SIMPLE	t2	ref	a	a	5	test.t1.a	1	
 SELECT *
 FROM t1,t2
 WHERE t1.a=t2.a and t1.b= 4
@@ -1793,12 +1483,14 @@ drop table t0,t1,t2;
 #
 CREATE TABLE t0 (a int);
 INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
-CREATE TABLE t1 (a int, b int, c int);
-INSERT INTO t1 SELECT a, a, a from t0 where a <5;
-CREATE TABLE t2 as SELECT * from t1 where a < 5;
+CREATE TABLE t1 (a int, b int, c int, key(a));
+INSERT INTO t1 SELECT a, a, a from t0;
+CREATE TABLE t2 (a int, b int, c int);
+INSERT INTO t2 SELECT a, a, a from t0 where a <5;
 CREATE TABLE t3(a int, b int, c int, key(a));
 INSERT INTO t3  SELECT seq-1, seq-1, seq-1 from seq_1_to_10;
-CREATE TABLE t4 as SELECT * from t1 where a < 5;
+CREATE TABLE t4(a int, b int, c int, key(b));
+INSERT INTO t4  SELECT * from t1 where a < 5;
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
 ANALYZE TABLE t2 PERSISTENT FOR ALL;
 ANALYZE TABLE t3 PERSISTENT FOR ALL;
@@ -1809,8 +1501,8 @@ WHERE t1.a=t2.b and t2.a=t3.a
 ORDER BY abs(t3.a+t1.b) DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.b	1	
 1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
 1	SIMPLE	t3	ref	a	a	5	sort-nest.a	1	Using index
 SELECT t1.a, t2.b, t1.b, t1.b + t2.b
@@ -1837,8 +1529,8 @@ WHERE t1.a=t2.b and t2.a=t3.a
 ORDER BY f1(t3.a+t1.b) DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+1	SIMPLE	t1	ref	a	a	5	test.t2.b	1	
 1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	Using index
 SELECT t1.a, t2.b, t1.b, t1.b + t2.b
 FROM t1,t2, t3
@@ -1861,8 +1553,8 @@ WHERE t1.a=t2.b AND t2.a=t3.a
 ORDER BY row_number() OVER (ORDER BY t1.a) DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+1	SIMPLE	t1	ref	a	a	5	test.t2.b	1	
 1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	Using index
 SELECT t1.a, t2.b, t1.b, t1.b + t2.b
 FROM t1,t2, t3
@@ -1888,9 +1580,9 @@ t1.b = (select t2.b from t2,t3,t4
 where t2.a=t1.a and t3.b=t4.b
 ORDER BY t2.c,t3.c limit 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
-2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t4	index	b	b	5	NULL	5	Using index; Using join buffer (flat, BNL join)
 2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (incremental, BNL join)
 SELECT *
 FROM t1
@@ -1914,11 +1606,11 @@ t1.b = (select t2.b from t2,t3,t4
 where t2.a=t3.a and t3.b=t4.b
 ORDER BY t2.c,t3.c limit 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
 2	SUBQUERY	t3	ref	a	a	5	test.t2.a	1	
 2	SUBQUERY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-2	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	5	Using where
+2	SUBQUERY	t4	ref	b	b	5	sort-nest.b	1	Using index
 SELECT *
 FROM t1
 WHERE
@@ -1938,8 +1630,8 @@ ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5)q;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+2	DERIVED	t1	ref	a	a	5	test.t2.a	1	
 2	DERIVED	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
 2	DERIVED	t3	ref	a	a	5	sort-nest.b	1	Using index
 SELECT *
@@ -1964,8 +1656,8 @@ WHERE t1.a = t2.a
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t1	ref	a	a	5	test.t2.a	1	
 1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
 1	PRIMARY	t3	index	NULL	a	5	NULL	10	Using index
 2	SUBQUERY	A	range	a	a	5	NULL	4	Using where; Using index
@@ -1987,19 +1679,19 @@ x	b	b	a
 EXPLAIN SELECT (SELECT A.a FROM t3 A WHERE A.a = t1.b limit 1) as x,
 t2.b, t1.b, t3.a
 FROM t1,t2,t3
-WHERE t1.a = t2.a and t2.c=t3.c
+WHERE t1.a = t2.a and t2.c=t3.a
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t1	ref	a	a	5	test.t2.a	1	
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	PRIMARY	t3	ref	a	a	5	sort-nest.c	1	Using index
 2	DEPENDENT SUBQUERY	A	ref	a	a	5	sort-nest.b	1	Using index
 SELECT (SELECT A.a FROM t3 A WHERE A.a = t1.b limit 1) as x,
 t2.b, t1.b, t3.a
 FROM t1,t2,t3
-WHERE t1.a = t2.a and t2.c=t3.c
+WHERE t1.a = t2.a and t2.c=t3.a
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 x	b	b	a
@@ -2009,141 +1701,23 @@ x	b	b	a
 1	1	1	1
 0	0	0	0
 #
-# Dependent Subquery attached outside the sort-nest, references inside
-# subquery changed to sort-nest field items
-#
-EXPLAIN SELECT t2.b, t1.b, t3.a
-FROM t1,t2,t3
-WHERE t1.a = t2.a AND t2.c = t3.c AND
-t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
-ORDER BY t2.b DESC, t1.b DESC
-LIMIT 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-EXPLAIN FORMAT=JSON SELECT t2.b, t1.b, t3.a
-FROM t1,t2,t3
-WHERE t1.a = t2.a AND t2.c = t3.c AND
-t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
-ORDER BY t2.b DESC, t1.b DESC
-LIMIT 5;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 5,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "119",
-      "join_type": "BNL",
-      "attached_condition": "t2.a = t1.a"
-    },
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "`sort-nest`.b desc, `sort-nest`.b desc",
-        "table": {
-          "table_name": "<sort-nest>",
-          "access_type": "ALL",
-          "rows": 1,
-          "filtered": 100
-        }
-      }
-    },
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "t3.c = `sort-nest`.c and `sort-nest`.b = (subquery#2)"
-    },
-    "subqueries": [
-      {
-        "expression_cache": {
-          "state": "uninitialized",
-          "query_block": {
-            "select_id": 2,
-            "outer_ref_condition": "t3.b = `sort-nest`.b",
-            "table": {
-              "table_name": "A",
-              "access_type": "ALL",
-              "rows": 10,
-              "filtered": 89.844,
-              "attached_condition": "A.b > 1"
-            }
-          }
-        }
-      }
-    ]
-  }
-}
-SELECT t2.b, t1.b, t3.a
-FROM t1,t2,t3
-WHERE t1.a = t2.a AND t2.c = t3.c AND
-t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
-ORDER BY t2.b DESC, t1.b DESC
-LIMIT 5;
-b	b	a
-2	2	2
-#
-# sort-nest(t2,t1) and independent subquery in the ORDER BY clause
-#
-# Subquery will be a constant in ORDER BY and will be removed
-EXPLAIN SELECT t2.b, t1.b, t3.c
-FROM t1,t2,t3
-WHERE t1.a = t2.a and t2.c=t3.c
-ORDER BY t2.b, t1.b,
-(SELECT A.a FROM t3 A WHERE A.a < 5 limit 1)
-LIMIT 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	SUBQUERY	A	range	a	a	5	NULL	5	Using where; Using index
-SELECT t2.b, t1.b, t3.c
-FROM t1,t2,t3
-WHERE t1.a = t2.a and t2.c=t3.c
-ORDER BY t2.b, t1.b,
-(SELECT A.a FROM t3 A WHERE A.a < 5 limit 1)
-LIMIT 5;
-b	b	c
-0	0	0
-1	1	1
-2	2	2
-3	3	3
-4	4	4
-#
 # sort-nest(t2,t1) and dependent subquery in the ORDER BY clause
 #
 # Subquery is expensive to evaluate, so don't use a sort-nest
 EXPLAIN SELECT t2.b, t1.b, t3.c
 FROM t1,t2,t3
-WHERE t1.a = t2.a and t2.c=t3.c
+WHERE t1.a = t2.a and t2.c=t3.a
 ORDER BY t2.b, t1.b,
 (SELECT A.a FROM t3 A WHERE A.a = t1.c limit 1)
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+1	PRIMARY	t1	ref	a	a	5	test.t2.a	1	
+1	PRIMARY	t3	ref	a	a	5	test.t2.c	1	
 2	DEPENDENT SUBQUERY	A	ref	a	a	5	test.t1.c	1	Using index
 SELECT t2.b, t1.b, t3.c
 FROM t1,t2,t3
-WHERE t1.a = t2.a and t2.c=t3.c
+WHERE t1.a = t2.a and t2.c=t3.a
 ORDER BY t2.b, t1.b,
 (SELECT A.a FROM t3 A WHERE A.a = t1.c limit 1)
 LIMIT 5;
@@ -2399,154 +1973,13 @@ drop table t0,t1;
 #
 # SORT-NEST WITH SEMI JOINS
 #
-CREATE TABLE t0(a int);
-CREATE TABLE t1 (a int, b int, c int, key(a), key(b));
-CREATE TABLE t2 (a int, b int, c int, key(a));
-CREATE TABLE t3 (a int, b int, c int, key(a));
-CREATE TABLE t4 (a int, b int, c int, key(a));
-INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
-INSERT INTO t1 SELECT seq-1, seq-1, seq-1 FROM seq_1_to_100;
-INSERT INTO t2 SELECT a,a,a FROM t0;
-INSERT INTO t3 SELECT a,a,a FROM t0 WHERE a < 5;
-INSERT INTO t3 SELECT a,a,a FROM t0 WHERE a < 5;
-INSERT INTO t4 SELECT a,a,a FROM t0 WHERE a < 5;
-INSERT INTO t4 SELECT a,a,a FROM t0 WHERE a < 5;
-ANALYZE TABLE t0 PERSISTENT FOR ALL;
-ANALYZE TABLE t1 PERSISTENT FOR ALL;
-ANALYZE TABLE t2 PERSISTENT FOR ALL;
-ANALYZE TABLE t3 PERSISTENT FOR ALL;
-ANALYZE TABLE t4 PERSISTENT FOR ALL;
-#
-# SJM Lookup with sort-nest, where SJM lookup table is outside the
-# sort-nest
-#
-EXPLAIN SELECT t1.a, t2.a, t1.b,t2.b
-FROM t1, t2, t2 ot
-WHERE t1.a=t2.a AND t2.b=ot.a AND t2.b < 4 AND
-t1.b IN (SELECT it1.b FROM t3 it1,t4 it2
-WHERE it1.a < 4 AND it1.a=it2.a)
-ORDER BY t2.b DESC ,t1.b DESC
-LIMIT 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	a	NULL	NULL	NULL	10	Using where
-1	PRIMARY	ot	ref	a	a	5	test.t2.b	1	Using index
-1	PRIMARY	t1	ref	a,b	a	5	test.t2.a	1	
-1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	4	Using filesort
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	it1	ALL	a	NULL	NULL	NULL	10	Using where
-2	MATERIALIZED	it2	ref	a	a	5	test.it1.a	2	Using index
-EXPLAIN FORMAT=JSON SELECT t1.a, t2.a, t1.b,t2.b
-FROM t1, t2, t2 ot
-WHERE t1.a=t2.a AND t2.b=ot.a AND t2.b < 4 AND
-t1.b IN (SELECT it1.b FROM t3 it1,t4 it2
-WHERE it1.a < 4 AND it1.a=it2.a)
-ORDER BY t2.b DESC ,t1.b DESC
-LIMIT 5;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "possible_keys": ["a"],
-      "rows": 10,
-      "filtered": 49.219,
-      "attached_condition": "t2.b < 4 and t2.b is not null and t2.a is not null"
-    },
-    "table": {
-      "table_name": "ot",
-      "access_type": "ref",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t2.b"],
-      "rows": 1,
-      "filtered": 100,
-      "using_index": true
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["a", "b"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t2.a"],
-      "rows": 1,
-      "filtered": 100
-    },
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "`sort-nest`.b desc, `sort-nest`.b desc",
-        "table": {
-          "table_name": "<sort-nest>",
-          "access_type": "ALL",
-          "rows": 4,
-          "filtered": 100
-        }
-      }
-    },
-    "table": {
-      "table_name": "<subquery2>",
-      "access_type": "eq_ref",
-      "possible_keys": ["distinct_key"],
-      "key": "distinct_key",
-      "key_length": "4",
-      "used_key_parts": ["b"],
-      "ref": ["func"],
-      "rows": 1,
-      "filtered": 100,
-      "materialized": {
-        "unique": 1,
-        "query_block": {
-          "select_id": 2,
-          "table": {
-            "table_name": "it1",
-            "access_type": "ALL",
-            "possible_keys": ["a"],
-            "rows": 10,
-            "filtered": 80,
-            "attached_condition": "it1.a < 4 and it1.a is not null"
-          },
-          "table": {
-            "table_name": "it2",
-            "access_type": "ref",
-            "possible_keys": ["a"],
-            "key": "a",
-            "key_length": "5",
-            "used_key_parts": ["a"],
-            "ref": ["test.it1.a"],
-            "rows": 2,
-            "filtered": 100,
-            "using_index": true
-          }
-        }
-      }
-    }
-  }
-}
-SELECT t1.a, t2.a, t1.b,t2.b
-FROM t1, t2, t2 ot
-WHERE t1.a=t2.a AND t2.b=ot.a AND t2.b < 4 AND
-t1.b IN (SELECT it1.b FROM t3 it1,t4 it2
-WHERE it1.a < 4 AND it1.a=it2.a)
-ORDER BY t2.b DESC ,t1.b DESC
-LIMIT 5;
-a	a	b	b
-3	3	3	3
-2	2	2	2
-1	1	1	1
-0	0	0	0
-drop table t0,t1,t2,t3,t4;
 #
 # Firstmatch strategy
 #
 CREATE TABLE t0(a int);
-CREATE TABLE t1 (a int, b int, c int);
+CREATE TABLE t1 (a int, b int, c int, key(a));
 CREATE TABLE t2 (a int, b int, c int, key(a));
-CREATE TABLE t3 (a int, b int, c int, key(b));
+CREATE TABLE t3 (a int, b int, c int, key(b), key(c));
 CREATE TABLE t4 (a int, b int, c int, key(a));
 INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
 INSERT INTO t1 SELECT seq-1, seq-1, seq-1 FROM seq_1_to_100;
@@ -2563,19 +1996,19 @@ ANALYZE TABLE t4 PERSISTENT FOR ALL;
 EXPLAIN SELECT t1.a, t2.a, t1.b,t2.b
 FROM t1, t2
 WHERE t1.a=t2.a AND
-t1.b IN (SELECT t3.b FROM t3,t4 WHERE t3.a <= 5 and t3.c = t2.b)
+t1.b IN (SELECT t4.a FROM t3,t4 WHERE t4.a <= 5 and t3.c = t2.b)
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	a	NULL	NULL	NULL	10	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
-1	PRIMARY	t3	ref	b	b	5	sort-nest.b	2	Using where
-1	PRIMARY	t4	index	NULL	a	5	NULL	10	Using index; FirstMatch(<sort-nest>)
+1	PRIMARY	t2	ALL	a	NULL	NULL	NULL	10	Using where
+1	PRIMARY	t1	ref	a	a	5	test.t2.a	1	Using where
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
+1	PRIMARY	t3	ref	c	c	5	sort-nest.b	2	Using index
+1	PRIMARY	t4	ref	a	a	5	sort-nest.b	2	Using index; FirstMatch(<sort-nest>)
 SELECT t1.a, t2.a, t1.b,t2.b
 FROM t1, t2
 WHERE t1.a=t2.a AND
-t1.b IN (SELECT t3.b FROM t3,t4 WHERE t3.a <= 5 and t3.c = t2.b)
+t1.b IN (SELECT t4.a FROM t3,t4 WHERE t4.a <= 5 and t3.c = t2.b)
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 a	a	b	b
@@ -2592,19 +2025,19 @@ set optimizer_switch='firstmatch=off';
 EXPLAIN SELECT t1.a, t2.a, t1.b,t2.b
 FROM t1, t2
 WHERE t1.a=t2.a AND
-t1.b IN (SELECT t3.b FROM t3,t4 WHERE t3.a <= 5 and t3.c = t2.b)
+t1.b IN (SELECT t4.a FROM t3,t4 WHERE t4.a <= 5 and t3.c = t2.b)
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	a	NULL	NULL	NULL	10	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
-1	PRIMARY	t3	ref	b	b	5	sort-nest.b	2	Using where; Start temporary
-1	PRIMARY	t4	index	NULL	a	5	NULL	10	Using index; End temporary
+1	PRIMARY	t2	ALL	a	NULL	NULL	NULL	10	Using where
+1	PRIMARY	t1	ref	a	a	5	test.t2.a	1	Using where
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
+1	PRIMARY	t3	ref	c	c	5	sort-nest.b	2	Using index; Start temporary
+1	PRIMARY	t4	ref	a	a	5	sort-nest.b	2	Using index; End temporary
 SELECT t1.a, t2.a, t1.b,t2.b
 FROM t1, t2
 WHERE t1.a=t2.a AND
-t1.b IN (SELECT t3.b FROM t3,t4 WHERE t3.a <= 5 and t3.c = t2.b)
+t1.b IN (SELECT t4.a FROM t3,t4 WHERE t4.a <= 5 and t3.c = t2.b)
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 a	a	b	b
@@ -2620,27 +2053,30 @@ drop table t0,t1,t2,t3,t4;
 
 create table t0 (a int);
 INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
-create table t1 (a int, b int);
-insert into t1 SELECT a,a from t0 where a <5;
-create table t2 as SELECT * from t1 where a < 5;
-create table t3(a int, b int);
-INSERT INTO t3 SELECT seq-1, seq-1 FROM seq_1_to_100;
+create table t1 (a int, b int, key(b));
+insert into t1 SELECT a,a from t0;
+create table t2 (a int, b int);
+INSERT INTO t2 SELECT * from t1 where a < 5;
+create table t3(a int, b int, key(a));
+INSERT INTO t3 SELECT seq-1, seq-1 FROM seq_1_to_1000;
+ANALYZE TABLE t0 PERSISTENT FOR ALL;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
 <subquery2> outside the sort-nest
 EXPLAIN SELECT * from t2,t1
-WHERE t2.b=t1.b
-AND
+WHERE t2.b=t1.b AND
 t1.a IN (SELECT max(t3.a) FROM t3 GROUP BY t3.b)
 ORDER BY t2.a DESC,t1.a DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t1	ref	b	b	5	test.t2.b	1	
 1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	sort-nest.a	1	
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	100	Using temporary
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	1000	Using temporary
 EXPLAIN FORMAT=JSON SELECT * from t2,t1
-WHERE t2.b=t1.b
-AND
+WHERE t2.b=t1.b AND
 t1.a IN (SELECT max(t3.a) FROM t3 GROUP BY t3.b)
 ORDER BY t2.a DESC,t1.a DESC
 LIMIT 5;
@@ -2652,19 +2088,19 @@ EXPLAIN
       "table_name": "t2",
       "access_type": "ALL",
       "rows": 5,
-      "filtered": 100
+      "filtered": 100,
+      "attached_condition": "t2.b is not null"
     },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t1",
-        "access_type": "ALL",
-        "rows": 5,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "119",
-      "join_type": "BNL",
-      "attached_condition": "t1.b = t2.b"
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["b"],
+      "key": "b",
+      "key_length": "5",
+      "used_key_parts": ["b"],
+      "ref": ["test.t2.b"],
+      "rows": 1,
+      "filtered": 100
     },
     "read_sorted_file": {
       "filesort": {
@@ -2695,7 +2131,7 @@ EXPLAIN
             "table": {
               "table_name": "t3",
               "access_type": "ALL",
-              "rows": 100,
+              "rows": 1000,
               "filtered": 100
             }
           }
@@ -2705,8 +2141,7 @@ EXPLAIN
   }
 }
 SELECT * from t2,t1
-WHERE t2.b=t1.b
-AND
+WHERE t2.b=t1.b AND
 t1.a IN (SELECT max(t3.a) FROM t3 GROUP BY t3.b)
 ORDER BY t2.a DESC,t1.a DESC
 LIMIT 5;
@@ -2718,19 +2153,17 @@ a	b	a	b
 0	0	0	0
 <subquery2> inside the sort-nest
 EXPLAIN SELECT * FROM t3,t2
-WHERE t3.b=t2.b AND
-t3.a IN (SELECT max(t1.a) FROM t1 GROUP BY t1.b)
+WHERE t3.a IN (SELECT max(t1.a) FROM t1 GROUP BY t1.b)
 ORDER BY t3.a DESC,t2.a DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	100	Using where
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	PRIMARY	t3	ref	a	a	5	sort-nest.max(t1.a)	1	
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t3,t2
-WHERE t3.b=t2.b AND
-t3.a IN (SELECT max(t1.a) FROM t1 GROUP BY t1.b)
+WHERE t3.a IN (SELECT max(t1.a) FROM t1 GROUP BY t1.b)
 ORDER BY t3.a DESC,t2.a DESC
 LIMIT 5;
 EXPLAIN
@@ -2748,7 +2181,7 @@ EXPLAIN
         "table_name": "<subquery2>",
         "access_type": "ALL",
         "possible_keys": ["distinct_key"],
-        "rows": 5,
+        "rows": 10,
         "filtered": 100
       },
       "buffer_type": "flat",
@@ -2762,7 +2195,7 @@ EXPLAIN
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
-              "rows": 5,
+              "rows": 10,
               "filtered": 100
             }
           }
@@ -2775,31 +2208,34 @@ EXPLAIN
         "table": {
           "table_name": "<sort-nest>",
           "access_type": "ALL",
-          "rows": 1,
+          "rows": 5,
           "filtered": 100
         }
       }
     },
     "table": {
       "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 100,
-      "filtered": 100,
-      "attached_condition": "t3.a = `sort-nest`.`max(t1.a)` and t3.b = `sort-nest`.b"
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["sort-nest.max(t1.a)"],
+      "rows": 1,
+      "filtered": 100
     }
   }
 }
 SELECT * FROM t3,t2
-WHERE t3.b=t2.b AND
-t3.a IN (SELECT max(t1.a) FROM t1 GROUP BY t1.b)
+WHERE t3.a IN (SELECT max(t1.a) FROM t1 GROUP BY t1.b)
 ORDER BY t3.a DESC,t2.a DESC
 LIMIT 5;
 a	b	a	b
-4	4	4	4
-3	3	3	3
-2	2	2	2
-1	1	1	1
-0	0	0	0
+9	9	4	4
+9	9	3	3
+9	9	2	2
+9	9	1	1
+9	9	0	0
 DROP TABLE t0,t1,t2,t3;
 #
 # Ensure all tables in Duplicate weedout range are either inside
