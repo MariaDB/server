@@ -303,9 +303,7 @@ static buf_buddy_free_t* buf_buddy_alloc_zip(ulint i)
 
 	buf = UT_LIST_GET_FIRST(buf_pool->zip_free[i]);
 
-	if (buf_pool->curr_size < buf_pool->old_size
-	    && UT_LIST_GET_LEN(buf_pool->withdraw)
-	    < buf_pool->withdraw_target) {
+	if (buf_get_withdraw_depth(buf_pool)) {
 
 		while (buf != NULL
 		       && buf_frame_will_be_withdrawn(

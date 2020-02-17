@@ -1619,18 +1619,12 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t* n)
 	ulint		scanned = 0;
 	ulint		free_len = UT_LIST_GET_LEN(buf_pool->free);
 	ulint		lru_len = UT_LIST_GET_LEN(buf_pool->LRU);
-	ulint		withdraw_depth = 0;
+	ulint		withdraw_depth =  buf_get_withdraw_depth(buf_pool);
 
 	n->flushed = 0;
 	n->evicted = 0;
 	n->unzip_LRU_evicted = 0;
 	ut_ad(mutex_own(&buf_pool->mutex));
-	if (buf_pool->curr_size < buf_pool->old_size
-	    && buf_pool->withdraw_target > 0) {
-		withdraw_depth = buf_pool->withdraw_target
-			- UT_LIST_GET_LEN(buf_pool->withdraw);
-	}
-
 	for (bpage = UT_LIST_GET_LAST(buf_pool->LRU);
 	     bpage != NULL && n->flushed + n->evicted < max
 	     && free_len < srv_LRU_scan_depth + withdraw_depth
@@ -2131,13 +2125,7 @@ static ulint buf_flush_LRU_list()
 	We cap it with current LRU size. */
 	mutex_enter(&buf_pool->mutex);
 	scan_depth = UT_LIST_GET_LEN(buf_pool->LRU);
-	if (buf_pool->curr_size < buf_pool->old_size
-	    && buf_pool->withdraw_target > 0) {
-		withdraw_depth = buf_pool->withdraw_target
-			- UT_LIST_GET_LEN(buf_pool->withdraw);
-	} else {
-		withdraw_depth = 0;
-	}
+	withdraw_depth = buf_get_withdraw_depth(buf_pool);
 	mutex_exit(&buf_pool->mutex);
 	if (withdraw_depth > srv_LRU_scan_depth) {
 		scan_depth = ut_min(withdraw_depth, scan_depth);

@@ -816,10 +816,7 @@ buf_block_t* buf_LRU_get_free_only()
 		ut_ad(!block->page.in_LRU_list);
 		ut_a(!buf_page_in_file(&block->page));
 		UT_LIST_REMOVE(buf_pool->free, &block->page);
-
-		if (buf_pool->curr_size >= buf_pool->old_size
-		    || UT_LIST_GET_LEN(buf_pool->withdraw)
-			>= buf_pool->withdraw_target
+		if (!buf_get_withdraw_depth(buf_pool)
 		    || !buf_block_will_be_withdrawn(block)) {
 			/* found valid free block */
 			buf_page_mutex_enter(block);
@@ -855,9 +852,10 @@ status monitor. */
 static void buf_LRU_check_size_of_non_data_objects()
 {
 	ut_ad(mutex_own(&buf_pool->mutex));
-
+	bool buf_pool_resizing =
+		srv_buf_pool_size_changing.load(std::memory_order::memory_order_relaxed);
 	if (!recv_recovery_is_on()
-	    && buf_pool->curr_size == buf_pool->old_size
+	    && !buf_pool_resizing
 	    && UT_LIST_GET_LEN(buf_pool->free)
 	    + UT_LIST_GET_LEN(buf_pool->LRU) < buf_pool->curr_size / 20) {
 
@@ -872,7 +870,7 @@ static void buf_LRU_check_size_of_non_data_objects()
 			<< (buf_pool->curr_size >> (20U - srv_page_size_shift))
 			<< "M could be bigger.";
 	} else if (!recv_recovery_is_on()
-		   && buf_pool->curr_size == buf_pool->old_size
+		   && !buf_pool_resizing
 		   && (UT_LIST_GET_LEN(buf_pool->free)
 		       + UT_LIST_GET_LEN(buf_pool->LRU))
 		   < buf_pool->curr_size / 3) {

@@ -2119,8 +2119,8 @@ static bool buf_pool_withdraw_blocks()
 		mutex_exit(&buf_pool->mutex);
 
 		/* reserve free_list length */
-		if (UT_LIST_GET_LEN(buf_pool->withdraw)
-		    < buf_pool->withdraw_target) {
+		ulint withdraw_depth = buf_get_withdraw_depth(buf_pool);
+		if (withdraw_depth) {
 			ulint	scan_depth;
 			flush_counters_t n;
 
@@ -2130,8 +2130,7 @@ static bool buf_pool_withdraw_blocks()
 			mutex_exit(&buf_pool->mutex);
 
 			scan_depth = ut_min(
-				ut_max(buf_pool->withdraw_target
-				       - UT_LIST_GET_LEN(buf_pool->withdraw),
+				ut_max(withdraw_depth,
 				       static_cast<ulint>(srv_LRU_scan_depth)),
 				scan_depth);
 
