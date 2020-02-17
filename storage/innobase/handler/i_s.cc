@@ -1634,7 +1634,6 @@ i_s_cmpmem_fill_low(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	ulint			zip_free_len_local[BUF_BUDDY_SIZES_MAX + 1];
-	buf_buddy_stat_t	buddy_stat_local[BUF_BUDDY_SIZES_MAX + 1];
 
 	/* Save buddy stats for buffer pool in local variables. */
 	mutex_enter(&buf_pool->mutex);
@@ -1642,8 +1641,6 @@ i_s_cmpmem_fill_low(
 	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
 		zip_free_len_local[x] = (x < BUF_BUDDY_SIZES) ?
 			UT_LIST_GET_LEN(buf_pool->zip_free[x]) : 0;
-
-		buddy_stat_local[x] = buf_pool->buddy_stat[x];
 
 		if (reset) {
 			/* This is protected by buf_pool->mutex. */
@@ -1655,7 +1652,7 @@ i_s_cmpmem_fill_low(
 	mutex_exit(&buf_pool->mutex);
 
 	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
-		buf_buddy_stat_t* buddy_stat = &buddy_stat_local[x];
+		buf_buddy_stat_t* buddy_stat = &buf_pool->buddy_stat[x];
 
 		Field **field = table->field;
 

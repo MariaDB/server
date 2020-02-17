@@ -1754,11 +1754,11 @@ struct buf_pool_stat_t{
 /** Statistics of buddy blocks of a given size. */
 struct buf_buddy_stat_t {
 	/** Number of blocks allocated from the buddy system. */
-	ulint		used;
+	Atomic_counter<ulint>		used;
 	/** Number of blocks relocated by the buddy system. */
-	ib_uint64_t	relocated;
+	Atomic_counter<ib_uint64_t>	relocated;
 	/** Total duration of block relocations, in microseconds. */
-	ib_uint64_t	relocated_usec;
+	Atomic_counter<ib_uint64_t>	relocated_usec;
 };
 
 /** The buffer pool */
