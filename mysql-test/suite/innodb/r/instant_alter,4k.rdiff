@@ -318,8 +318,8 @@
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';
  instants
--199
-+201
+-202
++204
  SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
  #
  # MDEV-18266: Changing an index comment unnecessarily rebuilds index

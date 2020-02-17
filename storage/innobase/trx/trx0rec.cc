@@ -2411,7 +2411,11 @@ trx_undo_prev_version_build(
 			ut_ad(!rec_offs_nth_default(offsets, n));
 
 			if (UNIV_UNLIKELY(dfield_is_null(&uf->new_val))) {
-				ut_ad(!rec_offs_nth_sql_null(offsets, n));
+				if (rec_offs_nth_sql_null(offsets, n)) {
+					ut_ad(index->table->is_instant());
+					ut_ad(n >= index->n_core_fields);
+					continue;
+				}
 				ut_ad(!index->table->not_redundant());
 				ulint l = rec_get_1byte_offs_flag(*old_vers)
 					? (n + 1) : (n + 1) * 2;

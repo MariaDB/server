@@ -4136,7 +4136,12 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 		ut_ad(!rec_offs_nth_default(offsets, n));
 
 		if (UNIV_UNLIKELY(dfield_is_null(&uf->new_val))) {
-			ut_ad(!rec_offs_nth_sql_null(offsets, n));
+			if (rec_offs_nth_sql_null(offsets, n)) {
+				ut_ad(index->table->is_instant());
+				ut_ad(n >= index->n_core_fields);
+				continue;
+			}
+
 			ut_ad(!index->table->not_redundant());
 			if (ulint size = rec_get_nth_field_size(rec, n)) {
 				mtr->memset(
