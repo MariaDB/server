@@ -217,8 +217,8 @@ ulong	srv_n_page_hash_locks = 16;
 ulong	srv_LRU_scan_depth;
 /** innodb_flush_neighbors; whether or not to flush neighbors of a block */
 ulong	srv_flush_neighbors;
-/** Previously requested size */
-ulint	srv_buf_pool_old_size;
+/** Buffer pool size is being changed */
+std::atomic<bool> srv_buf_pool_size_changing;
 /** Current size as scaling factor for the other components */
 ulint	srv_buf_pool_base_size;
 /** Current size in bytes */

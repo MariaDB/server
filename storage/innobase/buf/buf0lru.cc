@@ -998,7 +998,7 @@ not_found:
 	}
 
 	if (n_iterations > 20 && !buf_lru_free_blocks_error_printed
-	    && srv_buf_pool_old_size == srv_buf_pool_size) {
+	    && !srv_buf_pool_size_changing.load(std::memory_order_relaxed)) {
 
 		ib::warn() << "Difficult to find free blocks in the buffer pool"
 			" (" << n_iterations << " search iterations)! "

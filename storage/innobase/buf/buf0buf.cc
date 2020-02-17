@@ -1767,7 +1767,6 @@ bool buf_pool_init()
 
 	/* FIXME: remove some of these variables */
 	srv_buf_pool_curr_size = buf_pool->curr_pool_size;
-	srv_buf_pool_old_size = srv_buf_pool_size;
 	srv_buf_pool_base_size = srv_buf_pool_size;
 
 	mutex_exit(&buf_pool->mutex);
@@ -2371,9 +2370,9 @@ static void buf_pool_resize()
 
 	ulint new_instance_size = srv_buf_pool_size >> srv_page_size_shift;
 
-	buf_resize_status("Resizing buffer pool from " ULINTPF " to "
+	buf_resize_status("Resizing buffer pool to "
 			  ULINTPF " (unit=" ULINTPF ").",
-			  srv_buf_pool_old_size, srv_buf_pool_size,
+			  srv_buf_pool_size,
 			  srv_buf_pool_chunk_unit);
 
 	mutex_enter(&buf_pool->mutex);
@@ -2693,6 +2692,7 @@ calc_buf_pool_size:
 
 	buf_pool_resizing = false;
 
+
 	/* Normalize other components, if the new size is too different */
 	if (!warning && new_size_too_diff) {
 		srv_buf_pool_base_size = srv_buf_pool_size;
@@ -2720,13 +2720,8 @@ calc_buf_pool_size:
 	/* normalize ibuf.max_size */
 	ibuf_max_size_update(srv_change_buffer_max_size);
 
-	if (srv_buf_pool_old_size != srv_buf_pool_size) {
-
-		ib::info() << "Completed to resize buffer pool from "
-			<< srv_buf_pool_old_size
-			<< " to " << srv_buf_pool_size << ".";
-		srv_buf_pool_old_size = srv_buf_pool_size;
-	}
+	ib::info() << "Completed to resize buffer pool"
+	" to " << srv_buf_pool_size << ".";
 
 #ifdef BTR_CUR_HASH_ADAPT
 	/* enable AHI if needed */
@@ -2758,19 +2753,9 @@ calc_buf_pool_size:
 static void buf_resize_callback(void *)
 {
   ut_a(srv_shutdown_state == SRV_SHUTDOWN_NONE);
-  mutex_enter(&buf_pool->mutex);
-  const auto size= srv_buf_pool_size;
-  const bool work= srv_buf_pool_old_size != size;
-  mutex_exit(&buf_pool->mutex);
-
-  if (work)
-    buf_pool_resize();
-  else
-  {
-    std::ostringstream sout;
-    sout << "Size did not change: old size = new size = " << size;
-    buf_resize_status(sout.str().c_str());
-  }
+  ut_a(srv_buf_pool_size_changing);
+  buf_pool_resize();
+  srv_buf_pool_size_changing.store(false,std::memory_order_release);
 }
 
 /* Ensure that task does not run in parallel, by setting max_concurrency to 1 for the thread group */

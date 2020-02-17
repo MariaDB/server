@@ -21414,7 +21414,7 @@ innodb_buffer_pool_size_validate(
 
 	mutex_enter(&buf_pool->mutex);
 
-	if (srv_buf_pool_old_size != srv_buf_pool_size) {
+	if (srv_buf_pool_size_changing.load(std::memory_order_relaxed)) {
 		mutex_exit(&buf_pool->mutex);
 		my_printf_error(ER_WRONG_ARGUMENTS,
 			"Another buffer pool resize is already in progress.", MYF(0));
@@ -21441,7 +21441,7 @@ innodb_buffer_pool_size_validate(
 		/* nothing to do */
 		return(0);
 	}
-
+	srv_buf_pool_size_changing.store(true, std::memory_order::memory_order_acquire);
 	srv_buf_pool_size = requested_buf_pool_size;
 	mutex_exit(&buf_pool->mutex);
 
