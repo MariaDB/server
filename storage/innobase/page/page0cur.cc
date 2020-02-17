@@ -1788,15 +1788,19 @@ static void page_mem_free(buf_block_t *block, rec_t *rec,
   }
 
   const uint16_t n_heap= page_header_get_field(block->frame, PAGE_N_HEAP) - 1;
+  ut_ad(page_get_n_recs(block->frame) < (n_heap & 0x7fff));
   alignas(4) byte page_header[6];
   const bool deleting_last= n_heap == ((n_heap & 0x8000)
-               ? (rec_get_heap_no_new(rec) | 0x8000)
-               : rec_get_heap_no_old(rec)) &&
-    page_offset(rec_get_end(rec, offsets)) ==
-    page_header_get_offs(block->frame, PAGE_HEAP_TOP);
+                                       ? (rec_get_heap_no_new(rec) | 0x8000)
+                                       : rec_get_heap_no_old(rec));
 
   if (deleting_last)
   {
+    const uint16_t heap_top= page_header_get_offs(block->frame, PAGE_HEAP_TOP);
+    const size_t extra_savings= heap_top -
+      page_offset(rec_get_end(rec, offsets));
+    ut_ad(extra_savings < heap_top);
+
     /* When deleting the last record, do not add it to the PAGE_FREE list.
     Instead, decrement PAGE_HEAP_TOP and PAGE_N_HEAP. */
     mach_write_to_2(page_header, page_offset(rec_get_start(rec, offsets)));
@@ -1804,9 +1808,24 @@ static void page_mem_free(buf_block_t *block, rec_t *rec,
     static_assert(PAGE_N_HEAP == PAGE_HEAP_TOP + 2, "compatibility");
     mtr->memcpy(*block, my_assume_aligned<4>(PAGE_HEAP_TOP + PAGE_HEADER +
                                              block->frame), page_header, 4);
-    mtr->write<2,mtr_t::OPT>(*block, my_assume_aligned<2>(PAGE_LAST_INSERT +
-                                                          PAGE_HEADER +
-                                                          block->frame), 0U);
+    if (extra_savings)
+    {
+      uint16_t garbage= page_header_get_field(block->frame, PAGE_GARBAGE);
+      mach_write_to_2(page_header, garbage - extra_savings);
+      size_t len= 2;
+      if (page_header_get_field(block->frame, PAGE_LAST_INSERT))
+      {
+        memset_aligned<2>(page_header + 2, 0, 2);
+        len= 4;
+      }
+      mtr->memcpy(*block, my_assume_aligned<2>(PAGE_GARBAGE + PAGE_HEADER +
+                                               block->frame),
+                  page_header, len);
+    }
+    else
+      mtr->write<2,mtr_t::OPT>(*block, my_assume_aligned<2>
+                               (PAGE_LAST_INSERT + PAGE_HEADER + block->frame),
+                               0U);
   }
   else
   {
