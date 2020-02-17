@@ -270,12 +270,12 @@ AND
 c_custkey between 1 and 10
 ORDER BY
 l_extendedprice DESC, c_acctbal DESC, o_totalprice DESC
-LIMIT 20;
+LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_custkey	PRIMARY	4	NULL	125	Using where
 1	SIMPLE	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3.orders.o_custkey	1	
 1	SIMPLE	lineitem	ref	PRIMARY,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3.orders.o_orderkey	4	
-1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	20	Using filesort
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
 1	SIMPLE	nation	eq_ref	PRIMARY	PRIMARY	4	sort-nest.c_nationkey	1	Using index
 SELECT
 l_extendedprice, c_acctbal, o_totalprice, o_orderDate, l_orderkey
@@ -293,26 +293,11 @@ AND
 c_custkey between 1 and 10
 ORDER BY
 l_extendedprice DESC, c_acctbal DESC, o_totalprice DESC
-LIMIT 20;
+LIMIT 5;
 l_extendedprice	c_acctbal	o_totalprice	o_orderDate	l_orderkey
 53758.5	794.47	210643.96	1997-04-23	5859
 49830.24	121.65	140363.7	1998-05-28	5507
 49542.24	121.65	140363.7	1998-05-28	5507
 48745.11	6819.74	122823.78	1993-04-05	5794
 47992.64	6819.74	140838.11	1998-06-26	5763
-47615.98	6819.74	182966.39	1994-07-17	5572
-46705.74	9561.95	101429.61	1993-04-21	5670
-44467.59	121.65	44777.63	1992-07-08	5893
-44442.3	6819.74	122823.78	1993-04-05	5794
-39723.6	794.47	210643.96	1997-04-23	5859
-37048.32	9561.95	95312.81	1992-03-28	5953
-36860.25	794.47	210643.96	1997-04-23	5859
-32996.16	6819.74	140838.11	1998-06-26	5763
-31416.68	6819.74	182966.39	1994-07-17	5572
-31219.32	794.47	210643.96	1997-04-23	5859
-31042.34	9561.95	95312.81	1992-03-28	5953
-29462.13	794.47	210643.96	1997-04-23	5859
-28948.59	6819.74	182966.39	1994-07-17	5572
-26732.43	9561.95	101429.61	1993-04-21	5670
-24590.68	9561.95	95312.81	1992-03-28	5953
 drop database dbt3;

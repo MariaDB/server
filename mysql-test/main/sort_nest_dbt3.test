@@ -160,7 +160,7 @@ let $query= SELECT
               c_custkey between 1 and 10
             ORDER BY
               l_extendedprice DESC, c_acctbal DESC, o_totalprice DESC
-            LIMIT 20;
+            LIMIT 5;
 
 
 eval explain $query;

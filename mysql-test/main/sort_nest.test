@@ -811,7 +811,7 @@ insert into t1 values (1,7,2), (1,8,2), (1,9,2), (1,10,2), (1,11,2), (1,12,2);
 --echo # index a_b should be used, no need for filesort
 --echo #
 
-let $query= select a,b,c from t1 where a=1 and c=2 order by b limit 5;
+let $query= select a,b,c from t1 where a=1 and c<=2 order by b limit 5;
 eval $query;
 eval explain $query;
 
@@ -1040,23 +1040,6 @@ ANALYZE TABLE t2 PERSISTENT FOR ALL;
 ANALYZE TABLE t3 PERSISTENT FOR ALL;
 ANALYZE TABLE t4 PERSISTENT FOR ALL;
 --enable_result_log
-
---echo #
---echo # SJM scan inside the sort-nest
---echo #
-
-let $query=
-SELECT t1.a, t2.a, t1.b,t2.b
-FROM t1, t2, t2 ot
-  WHERE t1.a=t2.a AND t2.c=ot.b AND t2.b < 4 AND
-        t1.b IN (SELECT it1.b FROM t3 it1,t4 it2
-                 WHERE it1.a < 4 AND it1.a=it2.a)
-ORDER BY t2.b DESC ,t1.b DESC
-LIMIT 5;
-
-eval EXPLAIN $query;
-eval EXPLAIN FORMAT=JSON $query;
-eval $query;
 
 --echo #
 --echo # SJM Lookup with sort-nest, where SJM lookup table is outside the

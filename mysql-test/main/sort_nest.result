@@ -1685,7 +1685,7 @@ WHERE a=1 and c=2
 ORDER BY b
 LIMIT 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_b,a_c	a_b	5	NULL	19	Using index condition; Using where
+1	SIMPLE	t1	ref	a_b,a_c	a_b	5	const	14	Using where
 SELECT a,b,c FROM t1
 WHERE a=1 and c=2
 ORDER BY b
@@ -2162,16 +2162,16 @@ insert into t1 values (1,7,2), (1,8,2), (1,9,2), (1,10,2), (1,11,2), (1,12,2);
 #
 # index a_b should be used, no need for filesort
 #
-select a,b,c from t1 where a=1 and c=2 order by b limit 5;
+select a,b,c from t1 where a=1 and c<=2 order by b limit 5;
 a	b	c
+1	7	1
 1	7	2
 1	7	2
+1	8	1
 1	8	2
-1	8	2
-1	9	2
-explain select a,b,c from t1 where a=1 and c=2 order by b limit 5;
+explain select a,b,c from t1 where a=1 and c<=2 order by b limit 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_b,a_c	a_b	5	NULL	10	Using index condition; Using where
+1	SIMPLE	t1	range	a_b,a_c	a_b	5	NULL	18	Using index condition; Using where
 drop table t1;
 #
 # Tests where Index(scan, ref or range access) satisfies the ORDERING
@@ -2200,7 +2200,7 @@ a	b
 1	11
 explain select a,b from t1 where a=1 and c=2 order by b limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_b,a_c	a_b	5	NULL	19	Using index condition; Using where
+1	SIMPLE	t1	ref	a_b,a_c	a_b	5	const	14	Using where
 drop table t1;
 CREATE TABLE t1(
 a int NOT NULL,
@@ -2416,124 +2416,6 @@ ANALYZE TABLE t1 PERSISTENT FOR ALL;
 ANALYZE TABLE t2 PERSISTENT FOR ALL;
 ANALYZE TABLE t3 PERSISTENT FOR ALL;
 ANALYZE TABLE t4 PERSISTENT FOR ALL;
-#
-# SJM scan inside the sort-nest
-#
-EXPLAIN SELECT t1.a, t2.a, t1.b,t2.b
-FROM t1, t2, t2 ot
-WHERE t1.a=t2.a AND t2.c=ot.b AND t2.b < 4 AND
-t1.b IN (SELECT it1.b FROM t3 it1,t4 it2
-WHERE it1.a < 4 AND it1.a=it2.a)
-ORDER BY t2.b DESC ,t1.b DESC
-LIMIT 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	8	
-1	PRIMARY	t1	ref	a,b	b	5	test.it1.b	1	Using where
-1	PRIMARY	t2	ref	a	a	5	test.t1.a	1	Using where
-1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	3	Using filesort
-1	PRIMARY	ot	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	MATERIALIZED	it1	ALL	a	NULL	NULL	NULL	10	Using where
-2	MATERIALIZED	it2	ref	a	a	5	test.it1.a	2	Using index
-EXPLAIN FORMAT=JSON SELECT t1.a, t2.a, t1.b,t2.b
-FROM t1, t2, t2 ot
-WHERE t1.a=t2.a AND t2.c=ot.b AND t2.b < 4 AND
-t1.b IN (SELECT it1.b FROM t3 it1,t4 it2
-WHERE it1.a < 4 AND it1.a=it2.a)
-ORDER BY t2.b DESC ,t1.b DESC
-LIMIT 5;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "table": {
-      "table_name": "<subquery2>",
-      "access_type": "ALL",
-      "possible_keys": ["distinct_key"],
-      "rows": 8,
-      "filtered": 100,
-      "materialized": {
-        "unique": 1,
-        "query_block": {
-          "select_id": 2,
-          "table": {
-            "table_name": "it1",
-            "access_type": "ALL",
-            "possible_keys": ["a"],
-            "rows": 10,
-            "filtered": 80,
-            "attached_condition": "it1.a < 4 and it1.a is not null and it1.b is not null"
-          },
-          "table": {
-            "table_name": "it2",
-            "access_type": "ref",
-            "possible_keys": ["a"],
-            "key": "a",
-            "key_length": "5",
-            "used_key_parts": ["a"],
-            "ref": ["test.it1.a"],
-            "rows": 2,
-            "filtered": 100,
-            "using_index": true
-          }
-        }
-      }
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["a", "b"],
-      "key": "b",
-      "key_length": "5",
-      "used_key_parts": ["b"],
-      "ref": ["test.it1.b"],
-      "rows": 1,
-      "filtered": 100,
-      "attached_condition": "t1.a is not null"
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "ref",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t1.a"],
-      "rows": 1,
-      "filtered": 49.219,
-      "attached_condition": "t2.b < 4"
-    },
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "`sort-nest`.b desc, `sort-nest`.b desc",
-        "table": {
-          "table_name": "<sort-nest>",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
-        }
-      }
-    },
-    "table": {
-      "table_name": "ot",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "ot.b = `sort-nest`.c"
-    }
-  }
-}
-SELECT t1.a, t2.a, t1.b,t2.b
-FROM t1, t2, t2 ot
-WHERE t1.a=t2.a AND t2.c=ot.b AND t2.b < 4 AND
-t1.b IN (SELECT it1.b FROM t3 it1,t4 it2
-WHERE it1.a < 4 AND it1.a=it2.a)
-ORDER BY t2.b DESC ,t1.b DESC
-LIMIT 5;
-a	a	b	b
-3	3	3	3
-2	2	2	2
-1	1	1	1
-0	0	0	0
 #
 # SJM Lookup with sort-nest, where SJM lookup table is outside the
 # sort-nest
