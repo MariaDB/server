@@ -34,5 +34,34 @@ EXPLAIN SELECT i,t FROM (SELECT i,t FROM intandtext) t;
 
 DROP TABLE intandtext;
 
+set 
+  optimizer_switch=default,
+  xpand_derived_handler= default,
+  xpand_select_handler=default;
+
+--echo #
+--echo # CLX-77: INSERT ... SELECT returns rows to the client instead of inserting
+--echo #
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+
+create table t1 (a int) engine=xpand;
+insert into t1 values (1);
+
+select a into @var from t1;
+select @var;
+
+--echo # This must not emit output to the client:
+select a into outfile 'tmpfile1' from t1;
+let $file=`select concat(@@datadir,'/clx/tmpfile1')`;
+
+--remove_file $file
+
+create table t2 (a int) engine=myisam;
+insert into t2 select * from t1;
+select * from t2;
+
+drop table t1,t2;
 USE test;
 DROP DATABASE xpd;

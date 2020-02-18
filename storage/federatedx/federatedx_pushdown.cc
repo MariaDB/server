@@ -181,6 +181,15 @@ create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
     else if (ht != tbl->table->file->partition_ht())
       return 0;
   }
+  
+  /*
+    Currently, ha_federatedx_select_handler::init_scan just takes the 
+    thd->query and sends it to the backend.
+    This obviously won't work if the SELECT has an INTO part.
+    Refuse to work in this case.
+  */
+  if (thd->lex->result)
+    return NULL;
 
   /*
     Currently, ha_federatedx_select_handler::init_scan just takes the
