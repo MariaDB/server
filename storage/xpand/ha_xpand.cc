@@ -561,7 +561,8 @@ int ha_xpand::direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
     return error_code;
 
   String update_stmt;
-  update_stmt.append(thd->query_string.str());
+  // Do the same as create_xpand_select_handler does:
+  thd->lex->print(&update_stmt, QT_ORDINARY);
 
   if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
     trx->auto_commit_next();

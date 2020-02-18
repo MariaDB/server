@@ -63,5 +63,17 @@ insert into t2 select * from t1;
 select * from t2;
 
 drop table t1,t2;
+
+--echo # 
+--echo # CLX-55: Prepared statement support: 
+--echo #   Implement "Direct Update" by printing the statement
+--echo # 
+create table t1 (a int primary key, b int) engine=xpand;
+insert into t1 values (1,1),(2,2),(3,3);
+
+prepare s from 'update t1 set b=b+? where a=?';
+execute s using 10000, 2;
+--sorted_result
+select * from t1;
 USE test;
 DROP DATABASE xpd;
