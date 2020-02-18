@@ -529,7 +529,9 @@ inline void mtr_t::page_create(const buf_block_t &block, bool comp)
   set_modified();
   if (m_log_mode != MTR_LOG_ALL)
     return;
-  byte *l= log_write<INIT_INDEX_PAGE>(block.page.id, &block.page, 1, true);
+  byte *l= log_write<EXTENDED>(block.page.id, &block.page, 1, true);
+  static_assert(false == INIT_ROW_FORMAT_REDUNDANT, "encoding");
+  static_assert(true == INIT_ROW_FORMAT_DYNAMIC, "encoding");
   *l++= comp;
   m_log.close(l);
   m_last_offset= FIL_PAGE_TYPE;

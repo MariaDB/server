@@ -74,7 +74,7 @@ type. The following record types refer to data pages:
 
     FREE_PAGE (0): corresponds to MLOG_INIT_FREE_PAGE
     INIT_PAGE (1): corresponds to MLOG_INIT_FILE_PAGE2
-    INIT_INDEX_PAGE (2): initialize a B-tree or R-tree page
+    EXTENDED (2): extended record; followed by subtype code @see mrec_ext_t
     WRITE (3): replaces MLOG_nBYTES, MLOG_WRITE_STRING, MLOG_ZIP_*
     MEMSET (4): extends the 10.4 MLOG_MEMSET record
     MEMMOVE (5): copy data within the page (avoids logging redundant data)
@@ -136,14 +136,13 @@ only record for that page in the mini-transaction. If there is an
 INIT_PAGE record for a page in a mini-transaction, it must be the
 first record for that page in the mini-transaction.
 
-An INIT_INDEX_PAGE must be followed by 1+1 to 5+5 bytes for the page
-identifier (unless the same_page flag is set) and a subtype code:
-0 for ROW_FORMAT=REDUNDANT and 1 for ROW_FORMAT=COMPACT or DYNAMIC.
+An EXTENDED record must be followed by 1+1 to 5+5 bytes for the page
+identifier (unless the same_page flag is set) and a subtype; @see mrec_ext_t
 
 For WRITE, MEMSET, MEMMOVE, the next 1 to 3 bytes are the byte offset
 on the page, relative from the previous offset. If same_page=0, the
 "previous offset" is 0. If same_page=1, the "previous offset" is where
-the previous operation ended (FIL_PAGE_TYPE for INIT_PAGE or INIT_INDEX_PAGE).
+the previous operation ended (FIL_PAGE_TYPE for INIT_PAGE).
 0xxxxxxx                                     for 0 to 127
 10xxxxxx xxxxxxxx                            for 128 to 16,511
 110xxxxx xxxxxxxx xxxxxxxx                   for 16,512 to 2,113,663
@@ -204,30 +203,26 @@ crash recovery must not be changed. */
 enum mrec_type_t
 {
   /** Free a page. On recovery, it is unnecessary to read the page.
-  The next record for the page (if any) must be INIT_PAGE or
-  INIT_INDEX_PAGE. After this record has been written, the page may be
+  The next record for the page (if any) must be INIT_PAGE.
+  After this record has been written, the page may be
   overwritten with zeros, or discarded or trimmed. */
-  FREE_PAGE = 0,
+  FREE_PAGE= 0,
   /** Zero-initialize a page. The current byte offset (for subsequent
   records) will be reset to FIL_PAGE_TYPE. */
-  INIT_PAGE = 0x10,
-  /** Like INIT_PAGE, but initializing a B-tree or R-tree index page,
-  including writing the "infimum" and "supremum" pseudo-records. The
-  current byte offset will be reset to FIL_PAGE_TYPE. The
-  type code is followed by a subtype byte to specify the ROW_FORMAT:
-  0 for ROW_FORMAT=REDUNDANT, 1 for ROW_FORMAT=COMPACT or DYNAMIC. */
-  INIT_INDEX_PAGE = 0x20,
+  INIT_PAGE= 0x10,
+  /** Insert a record into a page. FIXME: implement this! */
+  EXTENDED= 0x20,
   /** Write a string of bytes. Followed by the byte offset (unsigned,
   relative to the current byte offset, encoded in 1 to 3 bytes) and
   the bytes to write (at least one). The current byte offset will be
   set after the last byte written. */
-  WRITE = 0x30,
+  WRITE= 0x30,
   /** Like WRITE, but before the bytes to write, the data_length-1
   (encoded in 1 to 3 bytes) will be encoded, and it must be more
   than the length of the following data bytes to write.
   The data byte(s) will be repeatedly copied to the output until
   the data_length is reached. */
-  MEMSET = 0x40,
+  MEMSET= 0x40,
   /** Like MEMSET, but instead of the bytes to write, a source byte
   offset (signed, nonzero, relative to the target byte offset, encoded
   in 1 to 3 bytes, with the sign bit in the least significant bit)
@@ -238,14 +233,28 @@ enum mrec_type_t
   else the record will be treated as corrupted. The data will be
   copied from the page as it was at the start of the
   mini-transaction. */
-  MEMMOVE = 0x50,
+  MEMMOVE= 0x50,
   /** Reserved for future use. */
-  RESERVED = 0x60,
+  RESERVED= 0x60,
   /** Optional record that may be ignored in crash recovery.
   A subtype code will be encoded immediately after the length.
   Possible subtypes would include a MDEV-18976 page checksum record,
   a binlog record, or an SQL statement. */
-  OPTION = 0x70
+  OPTION= 0x70
+};
+
+
+/** Supported EXTENDED record subtypes. */
+enum mrec_ext_t
+{
+  /** Partly initialize a ROW_FORMAT=REDUNDANT B-tree or R-tree index page,
+  including writing the "infimum" and "supremum" pseudo-records.
+  The current byte offset will be reset to FIL_PAGE_TYPE. */
+  INIT_ROW_FORMAT_REDUNDANT= 0,
+  /** Partly initialize a ROW_FORMAT=COMPACT or DYNAMIC index page,
+  including writing the "infimum" and "supremum" pseudo-records.
+  The current byte offset will be reset to FIL_PAGE_TYPE. */
+  INIT_ROW_FORMAT_DYNAMIC= 1
 };
 
 

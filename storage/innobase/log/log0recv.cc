@@ -253,14 +253,16 @@ public:
       switch (b & 0x70) {
       case OPTION:
         goto next;
-      case INIT_INDEX_PAGE:
+      case EXTENDED:
         if (UNIV_UNLIKELY(block.page.id.page_no() < 3 ||
                           block.page.zip.ssize) &&
             !srv_force_recovery)
           goto record_corrupted;
-        if (UNIV_UNLIKELY(rlen != 1 || *l > 1))
+        static_assert(INIT_ROW_FORMAT_REDUNDANT == 0, "compatiblity");
+        static_assert(INIT_ROW_FORMAT_DYNAMIC == 1, "compatibilit");
+        if (UNIV_UNLIKELY(rlen != 1 || *l > INIT_ROW_FORMAT_DYNAMIC))
           goto record_corrupted;
-        page_create_low(&block, *l != 0);
+        page_create_low(&block, *l != INIT_ROW_FORMAT_REDUNDANT);
         last_offset= FIL_PAGE_TYPE;
         goto next_after_applying;
       case WRITE:
@@ -1724,7 +1726,7 @@ same_page:
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
         break;
-      case INIT_INDEX_PAGE:
+      case EXTENDED:
         if (UNIV_UNLIKELY(rlen != 1))
           goto record_corrupted;
         last_offset= FIL_PAGE_TYPE;
