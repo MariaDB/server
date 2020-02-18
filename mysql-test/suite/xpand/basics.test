@@ -54,7 +54,7 @@ select @var;
 
 --echo # This must not emit output to the client:
 select a into outfile 'tmpfile1' from t1;
-let $file=`select concat(@@datadir,'/clx/tmpfile1')`;
+let $file=`select concat(@@datadir,'/xpd/tmpfile1')`;
 
 --remove_file $file
 
