@@ -147,6 +147,22 @@ FROM federated.t3,
        SELECT * FROM federated.t1 WHERE id >= 5) t
 WHERE federated.t3.name=t.name;
 
+--echo # More tests
+CREATE TABLE federated.t_local (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+) engine=myisam;
+
+insert into federated.t_local select * from federated.t1;
+--sorted_result
+select * from federated.t_local;
+
+select name into @var from federated.t1 where id=3 limit 1 ;
+select @var;
+select name into outfile 'tmp.txt' from federated.t1;
+
+let $path=`select concat(@@datadir, 'test/tmp.txt')`;
+remove_file $path;
 
 DROP TABLE federated.t1, federated.t2, federated.t3;
 
