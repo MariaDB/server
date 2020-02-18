@@ -1373,158 +1373,234 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
 static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
                                     mtr_t *mtr)
 {
-	buf_block_t*	block		= page_cur_get_block(cursor);
-	page_t*		page		= buf_block_get_frame(block);
-	buf_block_t*	temp_block;
-	ulint		data_size1;
-	ulint		data_size2;
-	ulint		max_ins_size1;
-	ulint		max_ins_size2;
-	ulint		pos;
+  const mtr_log_t log_mode= mtr->set_log_mode(MTR_LOG_NONE);
 
-	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
-	ut_ad(!is_buf_block_get_page_zip(block));
-	btr_assert_not_corrupted(block, index);
-	ut_ad(fil_page_index_page_check(block->frame));
-	ut_ad(index->is_dummy
-	      || block->page.id.space() == index->table->space->id);
-	ut_ad(index->is_dummy
-	      || block->page.id.page_no() != index->page
-	      || !page_has_siblings(page));
-	data_size1 = page_get_data_size(page);
-	max_ins_size1 = page_get_max_insert_size_after_reorganize(page, 1);
+  buf_block_t *const block= cursor->block;
 
-	temp_block = buf_block_alloc();
+  ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+  ut_ad(!is_buf_block_get_page_zip(block));
+  btr_assert_not_corrupted(block, index);
+  ut_ad(fil_page_index_page_check(block->frame));
+  ut_ad(index->is_dummy || block->page.id.space() == index->table->space->id);
+  ut_ad(index->is_dummy || block->page.id.page_no() != index->page ||
+        !page_has_siblings(block->frame));
 
-	MONITOR_INC(MONITOR_INDEX_REORG_ATTEMPTS);
+  buf_block_t *old= buf_block_alloc();
+  /* Copy the old page to temporary space */
+  memcpy_aligned<UNIV_PAGE_SIZE_MIN>(old->frame, block->frame, srv_page_size);
 
-	/* Copy the old page to temporary space */
-	memcpy_aligned<UNIV_PAGE_SIZE_MIN>(temp_block->frame, block->frame,
-					   srv_page_size);
+  btr_search_drop_page_hash_index(block);
 
-	btr_search_drop_page_hash_index(block);
+  /* Save the cursor position. */
+  const ulint pos= page_rec_get_n_recs_before(cursor->rec);
 
-	/* Save the cursor position. */
-	pos = page_rec_get_n_recs_before(page_cur_get_rec(cursor));
+  page_create(block, mtr, index->table->not_redundant());
+  if (index->is_spatial())
+    block->frame[FIL_PAGE_TYPE + 1]= byte(FIL_PAGE_RTREE);
 
-	/* Recreate the page: note that global data on page (possible
-	segment headers, next page-field, etc.) is preserved intact */
+  static_assert(((FIL_PAGE_INDEX & 0xff00) | byte(FIL_PAGE_RTREE)) ==
+                FIL_PAGE_RTREE, "compatibility");
 
-	page_create(block, mtr, index->table->not_redundant());
-	if (index->is_spatial()) {
-		static_assert(((FIL_PAGE_INDEX & 0xff00)
-			       | byte(FIL_PAGE_RTREE))
-			      == FIL_PAGE_RTREE, "compatibility");
-		mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
-			      byte(FIL_PAGE_RTREE));
-		if (mach_read_from_8(block->frame + FIL_RTREE_SPLIT_SEQ_NUM)) {
-			mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM, 8, 0);
-		}
-	}
+  /* Copy the records from the temporary space to the recreated page;
+  do not copy the lock bits yet */
 
-	/* Copy the records from the temporary space to the recreated page;
-	do not copy the lock bits yet */
+  page_copy_rec_list_end_no_locks(block, old, page_get_infimum_rec(old->frame),
+                                  index, mtr);
 
-	page_copy_rec_list_end_no_locks(block, temp_block,
-					page_get_infimum_rec(temp_block->frame),
-					index, mtr);
+  /* Copy the PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC. */
+  ut_ad(!page_get_max_trx_id(block->frame));
+  memcpy_aligned<8>(PAGE_MAX_TRX_ID + PAGE_HEADER + block->frame,
+                    PAGE_MAX_TRX_ID + PAGE_HEADER + old->frame, 8);
+#ifdef UNIV_DEBUG
+  if (page_get_max_trx_id(block->frame))
+    /* PAGE_MAX_TRX_ID must be zero on non-leaf pages other than
+    clustered index root pages. */
+    ut_ad(dict_index_is_sec_or_ibuf(index)
+          ? page_is_leaf(block->frame)
+          : block->page.id.page_no() == index->page);
+  else
+    /* PAGE_MAX_TRX_ID is unused in clustered index pages (other than
+    the root where it is repurposed as PAGE_ROOT_AUTO_INC), non-leaf
+    pages, and in temporary tables.  It was always zero-initialized in
+    page_create().  PAGE_MAX_TRX_ID must be nonzero on
+    dict_index_is_sec_or_ibuf() leaf pages. */
+    ut_ad(index->table->is_temporary() || !page_is_leaf(block->frame) ||
+          !dict_index_is_sec_or_ibuf(index));
+#endif
 
-	/* Copy the PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC. */
-	ut_ad(!page_get_max_trx_id(block->frame));
-	if (trx_id_t trx_id = page_get_max_trx_id(temp_block->frame)) {
-		/* PAGE_MAX_TRX_ID must be zero on non-leaf pages other than
-		clustered index root pages. */
-		ut_ad(dict_index_is_sec_or_ibuf(index)
-		      ? page_is_leaf(temp_block->frame)
-		      : block->page.id.page_no() == index->page);
-		page_set_max_trx_id(block, NULL, trx_id, mtr);
-	} else {
-		/* PAGE_MAX_TRX_ID is unused in clustered index pages
-		(other than the root where it is repurposed as
-		PAGE_ROOT_AUTO_INC), non-leaf pages, and in temporary tables.
-		It was always zero-initialized in page_create().
-		PAGE_MAX_TRX_ID must be nonzero on
-		dict_index_is_sec_or_ibuf() leaf pages. */
-		ut_ad(index->table->is_temporary()
-		      || !page_is_leaf(temp_block->frame)
-		      || !dict_index_is_sec_or_ibuf(index));
-	}
+  const uint16_t data_size1= page_get_data_size(old->frame);
+  const uint16_t data_size2= page_get_data_size(block->frame);
+  const ulint max1= page_get_max_insert_size_after_reorganize(old->frame, 1);
+  const ulint max2= page_get_max_insert_size_after_reorganize(block->frame, 1);
 
-	data_size2 = page_get_data_size(block->frame);
-	max_ins_size2 = page_get_max_insert_size_after_reorganize(block->frame,
-								  1);
+  if (UNIV_UNLIKELY(data_size1 != data_size2 || max1 != max2))
+    ib::fatal() << "Page old data size " << data_size1
+                << " new data size " << data_size2
+                << ", page old max ins size " << max1
+                << " new max ins size " << max2;
 
-	if (data_size1 != data_size2 || max_ins_size1 != max_ins_size2) {
-		ib::fatal()
-			<< "Page old data size " << data_size1
-			<< " new data size " << data_size2
-			<< ", page old max ins size " << max_ins_size1
-			<< " new max ins size " << max_ins_size2;
-	}
+  /* Restore the cursor position. */
+  if (pos)
+    cursor->rec = page_rec_get_nth(block->frame, pos);
+  else
+    ut_ad(cursor->rec == page_get_infimum_rec(block->frame));
 
-	/* Restore the cursor position. */
-	if (pos > 0) {
-		cursor->rec = page_rec_get_nth(block->frame, pos);
-	} else {
-		ut_ad(cursor->rec == page_get_infimum_rec(block->frame));
-	}
+  if (block->page.id.page_no() == index->page &&
+      fil_page_get_type(old->frame) == FIL_PAGE_TYPE_INSTANT)
+  {
+    /* Preserve the PAGE_INSTANT information. */
+    ut_ad(index->is_instant());
+    memcpy_aligned<2>(FIL_PAGE_TYPE + block->frame,
+                      FIL_PAGE_TYPE + old->frame, 2);
+    memcpy_aligned<2>(PAGE_HEADER + PAGE_INSTANT + block->frame,
+                      PAGE_HEADER + PAGE_INSTANT + old->frame, 2);
+    if (!index->table->instant);
+    else if (page_is_comp(block->frame))
+    {
+      memcpy(PAGE_NEW_INFIMUM + block->frame,
+             PAGE_NEW_INFIMUM + old->frame, 8);
+      memcpy(PAGE_NEW_SUPREMUM + block->frame,
+             PAGE_NEW_SUPREMUM + old->frame, 8);
+    }
+    else
+    {
+      memcpy(PAGE_OLD_INFIMUM + block->frame,
+             PAGE_OLD_INFIMUM + old->frame, 8);
+      memcpy(PAGE_OLD_SUPREMUM + block->frame,
+             PAGE_OLD_SUPREMUM + old->frame, 8);
+    }
+  }
 
-	if (block->page.id.page_no() == index->page
-	    && fil_page_get_type(temp_block->frame)
-	    == FIL_PAGE_TYPE_INSTANT) {
-		/* Preserve the PAGE_INSTANT information. */
-		ut_ad(index->is_instant());
-		static_assert(!(FIL_PAGE_TYPE % 2), "alignment");
-		memcpy_aligned<2>(FIL_PAGE_TYPE + block->frame,
-				  FIL_PAGE_TYPE + temp_block->frame, 2);
-		static_assert(!((PAGE_HEADER+PAGE_INSTANT) % 2), "");
-		memcpy_aligned<2>(PAGE_HEADER + PAGE_INSTANT
-				  + block->frame,
-				  PAGE_HEADER + PAGE_INSTANT
-				  + temp_block->frame, 2);
-		if (!index->table->instant) {
-		} else if (page_is_comp(block->frame)) {
-			memcpy(PAGE_NEW_INFIMUM + block->frame,
-			       PAGE_NEW_INFIMUM + temp_block->frame, 8);
-			memcpy(PAGE_NEW_SUPREMUM + block->frame,
-			       PAGE_NEW_SUPREMUM + temp_block->frame, 8);
-		} else {
-			memcpy(PAGE_OLD_INFIMUM + block->frame,
-			       PAGE_OLD_INFIMUM + temp_block->frame, 8);
-			memcpy(PAGE_OLD_SUPREMUM + block->frame,
-			       PAGE_OLD_SUPREMUM + temp_block->frame, 8);
-		}
-	}
+  ut_ad(!memcmp(old->frame, block->frame, PAGE_HEADER));
+  ut_ad(!memcmp(old->frame + PAGE_MAX_TRX_ID + PAGE_HEADER,
+                block->frame + PAGE_MAX_TRX_ID + PAGE_HEADER,
+                PAGE_DATA - (PAGE_MAX_TRX_ID + PAGE_HEADER)));
 
-	if (!dict_table_is_locking_disabled(index->table)) {
-		/* Update the record lock bitmaps */
-		lock_move_reorganize_page(block, temp_block);
-	}
+  if (!dict_table_is_locking_disabled(index->table))
+    lock_move_reorganize_page(block, old);
 
-	buf_block_free(temp_block);
+  /* Write log for the changes, if needed. */
+  mtr->set_log_mode(log_mode);
+  if (log_mode == MTR_LOG_ALL)
+  {
+    /* Check and log the changes in the page header. */
+    ulint a, e;
+    for (a= PAGE_HEADER, e= PAGE_MAX_TRX_ID + PAGE_HEADER; a < e; a++)
+    {
+      if (old->frame[a] == block->frame[a])
+        continue;
+      while (--e, old->frame[e] == block->frame[e]);
+      e++;
+      ut_ad(a < e);
+      /* Write log for the changed page header fields. */
+      mtr->memcpy(*block, a, e - a);
+      break;
+    }
 
-	MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);
+    const uint16_t top= page_header_get_offs(block->frame, PAGE_HEAP_TOP);
 
-	if (UNIV_UNLIKELY(fil_page_get_type(block->frame)
-			  == FIL_PAGE_TYPE_INSTANT)) {
-		/* Log the PAGE_INSTANT information. */
-		ut_ad(index->is_instant());
-		mtr->write<2,mtr_t::FORCED>(*block, FIL_PAGE_TYPE
-					    + block->frame,
-					    FIL_PAGE_TYPE_INSTANT);
-		byte* instant = my_assume_aligned<2>(PAGE_HEADER + PAGE_INSTANT
-						     + block->frame);
-		mtr->write<2,mtr_t::FORCED>(*block, instant,
-					    mach_read_from_2(instant));
-		if (!index->table->instant) {
-		} else if (page_is_comp(block->frame)) {
-			mtr->memcpy(*block, PAGE_NEW_INFIMUM, 8);
-			mtr->memcpy(*block, PAGE_NEW_SUPREMUM, 8);
-		} else {
-			mtr->memcpy(*block, PAGE_OLD_INFIMUM, 8);
-			mtr->memcpy(*block, PAGE_OLD_SUPREMUM, 8);
-		}
-	}
+    if (page_is_comp(block->frame))
+    {
+      /* info_bits=0, n_owned=1, heap_no=0, status */
+      ut_ad(!memcmp(PAGE_NEW_INFIMUM - REC_N_NEW_EXTRA_BYTES + block->frame,
+                    PAGE_NEW_INFIMUM - REC_N_NEW_EXTRA_BYTES + old->frame, 3));
+      /* If the 'next' pointer of the infimum record has changed, log it. */
+      a= PAGE_NEW_INFIMUM - 2;
+      e= a + 2;
+      if (block->frame[a] == old->frame[a])
+        a++;
+      if (--e, block->frame[e] != old->frame[e])
+        e++;
+      if (ulint len= e - a)
+        mtr->memcpy(*block, a, len);
+      /* The infimum record itself must not change. */
+      ut_ad(!memcmp(PAGE_NEW_INFIMUM + block->frame,
+                    PAGE_NEW_INFIMUM + old->frame, 8));
+      /* Log any change of the n_owned of the supremum record. */
+      a= PAGE_NEW_SUPREMUM - REC_N_NEW_EXTRA_BYTES;
+      if (block->frame[a] != old->frame[a])
+        mtr->memcpy(*block, a, 1);
+      /* The rest of the supremum record must not change. */
+      ut_ad(!memcmp(&block->frame[a + 1], &old->frame[a + 1],
+                    PAGE_NEW_SUPREMUM_END - PAGE_NEW_SUPREMUM +
+                    REC_N_NEW_EXTRA_BYTES - 1));
+
+      /* Log the differences in the payload. */
+      for (a= PAGE_NEW_SUPREMUM_END, e= top; a < e; a++)
+      {
+        if (old->frame[a] == block->frame[a])
+          continue;
+        while (--e, old->frame[e] == block->frame[e]);
+        e++;
+        ut_ad(a < e);
+	/* TODO: write MEMMOVE records to minimize this further! */
+        mtr->memcpy(*block, a, e - a);
+	break;
+      }
+    }
+    else
+    {
+      /* info_bits=0, n_owned=1, heap_no=0, number of fields, 1-byte format */
+      ut_ad(!memcmp(PAGE_OLD_INFIMUM - REC_N_OLD_EXTRA_BYTES + block->frame,
+                    PAGE_OLD_INFIMUM - REC_N_OLD_EXTRA_BYTES + old->frame, 4));
+      /* If the 'next' pointer of the infimum record has changed, log it. */
+      a= PAGE_OLD_INFIMUM - 2;
+      e= a + 2;
+      if (block->frame[a] == old->frame[a])
+        a++;
+      if (--e, block->frame[e] != old->frame[e])
+        e++;
+      if (ulint len= e - a)
+        mtr->memcpy(*block, a, len);
+      /* The infimum record itself must not change. */
+      ut_ad(!memcmp(PAGE_OLD_INFIMUM + block->frame,
+                    PAGE_OLD_INFIMUM + old->frame, 8));
+      /* Log any change of the n_owned of the supremum record. */
+      a= PAGE_OLD_SUPREMUM - REC_N_OLD_EXTRA_BYTES;
+      if (block->frame[a] != old->frame[a])
+        mtr->memcpy(*block, a, 1);
+      ut_ad(!memcmp(&block->frame[a + 1], &old->frame[a + 1],
+                    PAGE_OLD_SUPREMUM_END - PAGE_OLD_SUPREMUM +
+                    REC_N_OLD_EXTRA_BYTES - 1));
+
+      /* Log the differences in the payload. */
+      for (a= PAGE_OLD_SUPREMUM_END, e= top; a < e; a++)
+      {
+        if (old->frame[a] == block->frame[a])
+          continue;
+        while (--e, old->frame[e] == block->frame[e]);
+        e++;
+        ut_ad(a < e);
+	/* TODO: write MEMMOVE records to minimize this further! */
+        mtr->memcpy(*block, a, e - a);
+	break;
+      }
+    }
+
+    e= srv_page_size - PAGE_DIR;
+    a= e - PAGE_DIR_SLOT_SIZE * page_dir_get_n_slots(block->frame);
+
+    /* Zero out the payload area. */
+    mtr->memset(*block, top, a - top, 0);
+
+    /* Log changes to the page directory. */
+    for (; a < e; a++)
+    {
+      if (old->frame[a] == block->frame[a])
+        continue;
+      while (--e, old->frame[e] == block->frame[e]);
+      e++;
+      ut_ad(a < e);
+      /* Write log for the changed page directory slots. */
+      mtr->memcpy(*block, a, e - a);
+      break;
+    }
+  }
+
+  buf_block_free(old);
+
+  MONITOR_INC(MONITOR_INDEX_REORG_ATTEMPTS);
+  MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);
 }
 
 /*************************************************************//**
