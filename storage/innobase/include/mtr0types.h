@@ -258,7 +258,11 @@ enum mrec_ext_t
   /** Initialize an undo log page.
   This is roughly (not exactly) equivalent to the old MLOG_UNDO_INIT record.
   The current byte offset will be reset to FIL_PAGE_TYPE. */
-  UNDO_INIT= 2
+  UNDO_INIT= 2,
+  /** Append a record to an undo log page.
+  This is equivalent to the old MLOG_UNDO_INSERT record.
+  The current byte offset will be reset to FIL_PAGE_TYPE. */
+  UNDO_APPEND= 3
 };
 
 

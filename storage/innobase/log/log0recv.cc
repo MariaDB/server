@@ -152,6 +152,35 @@ public:
     len+= static_cast<uint16_t>(size);
   }
 
+  /** Apply an UNDO_APPEND record.
+  @see mtr_t::undo_append()
+  @param block   undo log page
+  @param data    undo log record
+  @param len     length of the undo log record */
+  static void undo_append(const buf_block_t &block, const byte *data,
+                          size_t len)
+  {
+    ut_ad(len > 2);
+    byte *free_p= my_assume_aligned<2>
+      (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE + block.frame);
+    const uint16_t free= mach_read_from_2(free_p);
+    if (UNIV_UNLIKELY(free < TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE ||
+                      free + len + 6 >= srv_page_size - FIL_PAGE_DATA_END))
+    {
+      ib::error() << "Not applying UNDO_APPEND due to corruption on "
+                  << block.page.id;
+      return;
+    }
+
+    byte *p= block.frame + free;
+    mach_write_to_2(free_p, free + 4 + len);
+    memcpy(p, free_p, 2);
+    p+= 2;
+    memcpy(p, data, len);
+    p+= len;
+    mach_write_to_2(p, free);
+  }
+
   /** The status of apply() */
   enum apply_status {
     /** The page was not affected */
@@ -258,17 +287,26 @@ public:
           goto record_corrupted;
         static_assert(INIT_ROW_FORMAT_REDUNDANT == 0, "compatiblity");
         static_assert(INIT_ROW_FORMAT_DYNAMIC == 1, "compatibility");
-        if (UNIV_UNLIKELY(rlen != 1))
+        if (UNIV_UNLIKELY(!rlen))
           goto record_corrupted;
         switch (*l) {
         default:
           goto record_corrupted;
         case INIT_ROW_FORMAT_REDUNDANT:
         case INIT_ROW_FORMAT_DYNAMIC:
+          if (UNIV_UNLIKELY(rlen != 1))
+            goto record_corrupted;
           page_create_low(&block, *l != INIT_ROW_FORMAT_REDUNDANT);
           break;
         case UNDO_INIT:
+          if (UNIV_UNLIKELY(rlen != 1))
+            goto record_corrupted;
           trx_undo_page_init(block);
+          break;
+        case UNDO_APPEND:
+          if (UNIV_UNLIKELY(rlen <= 3))
+            goto record_corrupted;
+          undo_append(block, ++l, --rlen);
           break;
         }
         last_offset= FIL_PAGE_TYPE;
@@ -1814,7 +1852,7 @@ same_page:
           goto record_corrupted;
         break;
       case EXTENDED:
-        if (UNIV_UNLIKELY(rlen != 1))
+        if (UNIV_UNLIKELY(!rlen))
           goto record_corrupted;
         last_offset= FIL_PAGE_TYPE;
         break;

@@ -80,36 +80,31 @@ trx_undo_page_set_next_prev_and_add(
 					written on this undo page. */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	ut_ad(page_align(ptr) == undo_block->frame);
+  ut_ad(page_align(ptr) == undo_block->frame);
 
-	if (UNIV_UNLIKELY(trx_undo_left(undo_block, ptr) < 2)) {
-		return(0);
-	}
+  if (UNIV_UNLIKELY(trx_undo_left(undo_block, ptr) < 2))
+    return 0;
 
-	byte* ptr_to_first_free = TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
-		+ undo_block->frame;
+  byte *ptr_to_first_free= my_assume_aligned<2>(TRX_UNDO_PAGE_HDR +
+						TRX_UNDO_PAGE_FREE +
+						undo_block->frame);
 
-	uint16_t first_free = mach_read_from_2(ptr_to_first_free);
-	ut_ad(ptr > &undo_block->frame[first_free]);
+  const uint16_t first_free= mach_read_from_2(ptr_to_first_free);
 
-	/* Write offset of the previous undo log record */
-	mach_write_to_2(ptr, first_free);
-	ptr += 2;
+  /* Write offset of the previous undo log record */
+  memcpy(ptr, ptr_to_first_free, 2);
+  ptr += 2;
 
-	uint16_t end_of_rec = uint16_t(ptr - undo_block->frame);
+  const uint16_t end_of_rec= static_cast<uint16_t>(ptr - undo_block->frame);
 
-	/* Write offset of the next undo log record */
-	mach_write_to_2(undo_block->frame + first_free, end_of_rec);
+  /* Update the offset to first free undo record */
+  mach_write_to_2(ptr_to_first_free, end_of_rec);
+  /* Write offset of the next undo log record */
+  memcpy(undo_block->frame + first_free, ptr_to_first_free, 2);
+  const byte *start= undo_block->frame + first_free + 2;
 
-	/* Update the offset to first free undo record */
-	mtr->write<2>(*undo_block, ptr_to_first_free, end_of_rec);
-
-	ut_ad(ptr > &undo_block->frame[first_free]);
-	ut_ad(ptr < &undo_block->frame[srv_page_size]);
-	mtr->memcpy(*undo_block, first_free,
-		    ptr - &undo_block->frame[first_free]);
-
-	return(first_free);
+  mtr->undo_append(*undo_block, start, ptr - start - 2);
+  return first_free;
 }
 
 /** Virtual column undo log version. To distinguish it from a length value
@@ -379,13 +374,14 @@ trx_undo_page_report_insert(
 	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
 			       + undo_block->frame) <= 2);
 
-	uint16_t first_free = mach_read_from_2(TRX_UNDO_PAGE_HDR
-					       + TRX_UNDO_PAGE_FREE
-					       + undo_block->frame);
+	uint16_t first_free = mach_read_from_2(my_assume_aligned<2>
+					       (TRX_UNDO_PAGE_HDR
+						+ TRX_UNDO_PAGE_FREE
+						+ undo_block->frame));
 	byte* ptr = undo_block->frame + first_free;
 
 	ut_ad(first_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-	ut_ad(first_free <= srv_page_size);
+	ut_ad(first_free <= srv_page_size - FIL_PAGE_DATA_END);
 
 	if (trx_undo_left(undo_block, ptr) < 2 + 1 + 11 + 11) {
 		/* Not enough space for writing the general parameters */
@@ -779,8 +775,6 @@ trx_undo_page_report_modify(
 					virtual column info */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	byte*		ptr;
-
 	ut_ad(index->is_primary());
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	/* MariaDB 10.3.1+ in trx_undo_page_init() always initializes
@@ -790,13 +784,15 @@ trx_undo_page_report_modify(
 	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
 			       + undo_block->frame) <= 2);
 
-	uint16_t first_free = mach_read_from_2(TRX_UNDO_PAGE_HDR
-					       + TRX_UNDO_PAGE_FREE
-					       + undo_block->frame);
-	ptr = undo_block->frame + first_free;
+	byte* ptr_to_first_free = my_assume_aligned<2>(TRX_UNDO_PAGE_HDR
+						       + TRX_UNDO_PAGE_FREE
+						       + undo_block->frame);
+
+	const uint16_t first_free = mach_read_from_2(ptr_to_first_free);
+	byte *ptr = undo_block->frame + first_free;
 
 	ut_ad(first_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-	ut_ad(first_free <= srv_page_size);
+	ut_ad(first_free <= srv_page_size - FIL_PAGE_DATA_END);
 
 	if (trx_undo_left(undo_block, ptr) < 50) {
 		/* NOTE: the value 50 must be big enough so that the general
@@ -1384,18 +1380,15 @@ already_logged:
 	}
 
 	mach_write_to_2(ptr, first_free);
-	ptr += 2;
 	const uint16_t new_free = static_cast<uint16_t>(
-		ptr - undo_block->frame);
+		ptr + 2 - undo_block->frame);
 	mach_write_to_2(undo_block->frame + first_free, new_free);
 
-	mtr->write<2>(*undo_block, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
-		      + undo_block->frame, new_free);
-	ut_ad(ptr > &undo_block->frame[first_free]);
-	ut_ad(page_align(ptr) == undo_block->frame);
-	mtr->memcpy(*undo_block, first_free,
-		    ptr - &undo_block->frame[first_free]);
-	return first_free;
+	mach_write_to_2(ptr_to_first_free, new_free);
+
+	const byte* start = &undo_block->frame[first_free + 2];
+	mtr->undo_append(*undo_block, start, ptr - start);
+	return(first_free);
 }
 
 /**********************************************************************//**
@@ -1848,11 +1841,12 @@ uint16_t
 trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 			    buf_block_t* block, mtr_t* mtr)
 {
-	byte*	ptr_first_free  = TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
-		+ block->frame;
+	byte*	ptr_first_free  = my_assume_aligned<2>(TRX_UNDO_PAGE_HDR
+						       + TRX_UNDO_PAGE_FREE
+						       + block->frame);
 	const uint16_t first_free = mach_read_from_2(ptr_first_free);
 	ut_ad(first_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-	ut_ad(first_free <= srv_page_size);
+	ut_ad(first_free <= srv_page_size - FIL_PAGE_DATA_END);
 	byte* const start = block->frame + first_free;
 	size_t len = strlen(table->name.m_name);
 	const size_t fixed = 2 + 1 + 11 + 11 + 2;
@@ -1875,12 +1869,9 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 	memcpy(ptr, table->name.m_name, len);
 	ptr += len;
 	mach_write_to_2(ptr, first_free);
-	ptr += 2;
-	uint16_t offset = page_offset(ptr);
-	mach_write_to_2(start, offset);
-	mtr->write<2>(*block, ptr_first_free, offset);
-	ut_ad(page_align(ptr) == block->frame);
-	mtr->memcpy(*block, first_free, ptr - start);
+	mach_write_to_2(ptr_first_free, ptr + 2 - block->frame);
+	memcpy(start, ptr_first_free, 2);
+	mtr->undo_append(*block, start + 2, ptr - start - 2);
 	return first_free;
 }
 

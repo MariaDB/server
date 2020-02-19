@@ -439,7 +439,7 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
   }
   else if (len >= 3 && end + len > &log_ptr[16])
   {
-    len+= end - log_ptr - 16;
+    len+= end - log_ptr - 15;
     if (len >= MIN_3BYTE)
       len+= 2;
     else if (len >= MIN_2BYTE)
@@ -447,7 +447,7 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
 
     end= log_ptr;
     *end++= type | same_page;
-    mlog_encode_varint(end, len);
+    end= mlog_encode_varint(end, len);
 
     if (!same_page)
     {
@@ -550,4 +550,33 @@ inline void mtr_t::page_create(const buf_block_t &block, bool comp)
 inline void mtr_t::undo_create(const buf_block_t &block)
 {
   log_write_extended(block, UNDO_INIT);
+}
+
+/** Write log for appending an undo log record.
+@param block    undo page
+@param data     record within the undo page
+@param len      length of the undo record, in bytes */
+inline void mtr_t::undo_append(const buf_block_t &block,
+                               const void *data, size_t len)
+{
+  ut_ad(len > 2);
+  set_modified();
+  if (m_log_mode != MTR_LOG_ALL)
+    return;
+  const bool small= len < mtr_buf_t::MAX_DATA_SIZE - (3 + 3 + 5 + 5);
+  byte *end= log_write<EXTENDED>(block.page.id, &block.page, len + 1, small);
+  if (UNIV_LIKELY(small))
+  {
+    *end++= UNDO_APPEND;
+    ::memcpy(end, data, len);
+    m_log.close(end + len);
+  }
+  else
+  {
+    m_log.close(end);
+    byte type= UNDO_APPEND;
+    m_log.push(&type, 1);
+    m_log.push(static_cast<const byte*>(data), static_cast<uint32_t>(len));
+  }
+  m_last_offset= FIL_PAGE_TYPE;
 }

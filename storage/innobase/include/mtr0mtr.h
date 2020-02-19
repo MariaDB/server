@@ -497,6 +497,12 @@ struct mtr_t {
   /** Write log for initializing an undo log page.
   @param block    undo page */
   inline void undo_create(const buf_block_t &block);
+  /** Write log for appending an undo log record.
+  @param block    undo page
+  @param data     record within the undo page
+  @param len      length of the undo record, in bytes */
+  inline void undo_append(const buf_block_t &block,
+                          const void *data, size_t len);
 
   /** Write a log record about a file operation.
   @param type           file operation
