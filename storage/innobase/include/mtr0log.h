@@ -521,18 +521,33 @@ inline void mtr_t::free(const page_id_t id)
     m_log.close(log_write<FREE_PAGE>(id, nullptr));
 }
 
-/** Partly initialize a B-tree page.
-@param block    B-tree page
-@param comp     false=ROW_FORMAT=REDUNDANT, true=COMPACT or DYNAMIC */
-inline void mtr_t::page_create(const buf_block_t &block, bool comp)
+/** Write an EXTENDED log record.
+@param block  buffer pool page
+@param type	extended record subtype; @see mrec_ext_t */
+inline void mtr_t::log_write_extended(const buf_block_t &block, byte type)
 {
   set_modified();
   if (m_log_mode != MTR_LOG_ALL)
     return;
   byte *l= log_write<EXTENDED>(block.page.id, &block.page, 1, true);
-  static_assert(false == INIT_ROW_FORMAT_REDUNDANT, "encoding");
-  static_assert(true == INIT_ROW_FORMAT_DYNAMIC, "encoding");
-  *l++= comp;
+  *l++= type;
   m_log.close(l);
   m_last_offset= FIL_PAGE_TYPE;
+}
+
+/** Write log for partly initializing a B-tree or R-tree page.
+@param block    B-tree page
+@param comp     false=ROW_FORMAT=REDUNDANT, true=COMPACT or DYNAMIC */
+inline void mtr_t::page_create(const buf_block_t &block, bool comp)
+{
+  static_assert(false == INIT_ROW_FORMAT_REDUNDANT, "encoding");
+  static_assert(true == INIT_ROW_FORMAT_DYNAMIC, "encoding");
+  log_write_extended(block, comp);
+}
+
+/** Write log for initializing an undo log page.
+@param block    undo page */
+inline void mtr_t::undo_create(const buf_block_t &block)
+{
+  log_write_extended(block, UNDO_INIT);
 }

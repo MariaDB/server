@@ -490,10 +490,13 @@ struct mtr_t {
   /** Free a page.
   @param id      page identifier */
   inline void free(const page_id_t id);
-  /** Partly initialize a B-tree page.
+  /** Write log for partly initializing a B-tree or R-tree page.
   @param block    B-tree page
   @param comp     false=ROW_FORMAT=REDUNDANT, true=COMPACT or DYNAMIC */
   inline void page_create(const buf_block_t &block, bool comp);
+  /** Write log for initializing an undo log page.
+  @param block    undo page */
+  inline void undo_create(const buf_block_t &block);
 
   /** Write a log record about a file operation.
   @param type           file operation
@@ -525,6 +528,11 @@ private:
   template<byte type>
   inline byte *log_write(const page_id_t id, const buf_page_t *bpage,
                          size_t len= 0, bool alloc= false, size_t offset= 0);
+
+  /** Write an EXTENDED log record.
+  @param block  buffer pool page
+  @param type	extended record subtype; @see mrec_ext_t */
+  inline void log_write_extended(const buf_block_t &block, byte type);
 
   /** Prepare to write the mini-transaction log to the redo log buffer.
   @return number of bytes to write in finish_write() */

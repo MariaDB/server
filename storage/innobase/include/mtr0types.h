@@ -254,7 +254,11 @@ enum mrec_ext_t
   /** Partly initialize a ROW_FORMAT=COMPACT or DYNAMIC index page,
   including writing the "infimum" and "supremum" pseudo-records.
   The current byte offset will be reset to FIL_PAGE_TYPE. */
-  INIT_ROW_FORMAT_DYNAMIC= 1
+  INIT_ROW_FORMAT_DYNAMIC= 1,
+  /** Initialize an undo log page.
+  This is roughly (not exactly) equivalent to the old MLOG_UNDO_INIT record.
+  The current byte offset will be reset to FIL_PAGE_TYPE. */
+  UNDO_INIT= 2
 };
 
 

@@ -292,25 +292,37 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
 
 /*============== UNDO LOG FILE COPY CREATION AND FREEING ==================*/
 
-/** Initialize the fields in an undo log segment page.
-@param[in,out]	undo_block	undo log segment page
-@param[in,out]	mtr		mini-transaction */
-static void trx_undo_page_init(const buf_block_t *undo_block, mtr_t *mtr)
+/** Initialize an undo log page.
+NOTE: This corresponds to a redo log record and must not be changed!
+@see mtr_t::undo_create()
+@param[in,out]	block	undo log page */
+void trx_undo_page_init(const buf_block_t &block)
 {
-  static_assert(FIL_PAGE_TYPE_ALLOCATED == 0, "compatibility");
-  /* FIXME: FIL_PAGE_TYPE should be FIL_PAGE_TYPE_ALLOCATED here! */
-  ut_ad(mach_read_from_2(FIL_PAGE_TYPE + undo_block->frame) < 0x100);
-  mtr->write<1>(*undo_block, FIL_PAGE_TYPE + 1 + undo_block->frame,
-                FIL_PAGE_UNDO_LOG);
-  compile_time_assert(TRX_UNDO_PAGE_TYPE == 0);
-  compile_time_assert(TRX_UNDO_PAGE_START == 2);
-  compile_time_assert(TRX_UNDO_PAGE_NODE == TRX_UNDO_PAGE_FREE + 2);
-
-  alignas(4) byte hdr[6];
-  mach_write_to_4(hdr, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-  memcpy_aligned<2>(hdr + 4, hdr + 2, 2);
-  static_assert(TRX_UNDO_PAGE_FREE == 4, "compatibility");
-  mtr->memcpy(*undo_block, undo_block->frame + TRX_UNDO_PAGE_HDR, hdr, 6);
+  mach_write_to_2(my_assume_aligned<2>(FIL_PAGE_TYPE + block.frame),
+                  FIL_PAGE_UNDO_LOG);
+  static_assert(TRX_UNDO_PAGE_HDR == FIL_PAGE_DATA, "compatibility");
+  memset_aligned<2>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE + block.frame,
+                    0, 2);
+  mach_write_to_2(my_assume_aligned<2>
+                  (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START + block.frame),
+                  TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
+  memcpy_aligned<2>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE + block.frame,
+                    TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START + block.frame, 2);
+  /* The following corresponds to flst_zero_both(), but without writing log. */
+  memset_aligned<4>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE + FLST_PREV +
+                    FIL_ADDR_PAGE + block.frame, 0xff, 4);
+  memset_aligned<2>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE + FLST_PREV +
+                    FIL_ADDR_BYTE + block.frame, 0, 2);
+  memset_aligned<2>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE + FLST_NEXT +
+                    FIL_ADDR_PAGE + block.frame, 0xff, 4);
+  memset_aligned<2>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE + FLST_NEXT +
+                    FIL_ADDR_BYTE + block.frame, 0, 2);
+  static_assert(TRX_UNDO_PAGE_NODE + FLST_NEXT + FIL_ADDR_BYTE + 2 ==
+                TRX_UNDO_PAGE_HDR_SIZE, "compatibility");
+  /* Preserve TRX_UNDO_SEG_HDR, but clear the rest of the page. */
+  memset_aligned<2>(TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE + block.frame, 0,
+                    srv_page_size - (TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE +
+                                     FIL_PAGE_DATA_END));
 }
 
 /** Look for a free slot for an undo log segment.
@@ -383,11 +395,12 @@ trx_undo_seg_create(fil_space_t *space, buf_block_t *rseg_hdr, ulint *id,
 
 	buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 
-	trx_undo_page_init(block, mtr);
+	mtr->undo_create(*block);
+	trx_undo_page_init(*block);
 
-	mtr->write<2,mtr_t::OPT>(*block, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
-				 + block->frame,
-				 TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE);
+	mtr->write<2>(*block, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+		      + block->frame,
+		      TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE);
 	mtr->write<2,mtr_t::OPT>(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG
 				 + block->frame, 0U);
 
@@ -565,7 +578,8 @@ buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 	buf_block_dbg_add_level(new_block, SYNC_TRX_UNDO_PAGE);
 	undo->last_page_no = new_block->page.id.page_no();
 
-	trx_undo_page_init(new_block, mtr);
+	mtr->undo_create(*new_block);
+	trx_undo_page_init(*new_block);
 
 	flst_add_last(header_block, TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST,
 		      new_block, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE, mtr);

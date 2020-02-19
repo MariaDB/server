@@ -44,10 +44,8 @@ Created 9/20/1997 Heikki Tuuri
 #include "buf0flu.h"
 #include "mtr0mtr.h"
 #include "mtr0log.h"
-#include "page0cur.h"
-#include "page0zip.h"
-#include "btr0btr.h"
-#include "btr0cur.h"
+#include "page0page.h"
+#include "trx0undo.h"
 #include "ibuf0ibuf.h"
 #include "trx0undo.h"
 #include "trx0rec.h"
@@ -259,10 +257,20 @@ public:
             !srv_force_recovery)
           goto record_corrupted;
         static_assert(INIT_ROW_FORMAT_REDUNDANT == 0, "compatiblity");
-        static_assert(INIT_ROW_FORMAT_DYNAMIC == 1, "compatibilit");
-        if (UNIV_UNLIKELY(rlen != 1 || *l > INIT_ROW_FORMAT_DYNAMIC))
+        static_assert(INIT_ROW_FORMAT_DYNAMIC == 1, "compatibility");
+        if (UNIV_UNLIKELY(rlen != 1))
           goto record_corrupted;
-        page_create_low(&block, *l != INIT_ROW_FORMAT_REDUNDANT);
+        switch (*l) {
+        default:
+          goto record_corrupted;
+        case INIT_ROW_FORMAT_REDUNDANT:
+        case INIT_ROW_FORMAT_DYNAMIC:
+          page_create_low(&block, *l != INIT_ROW_FORMAT_REDUNDANT);
+          break;
+        case UNDO_INIT:
+          trx_undo_page_init(block);
+          break;
+        }
         last_offset= FIL_PAGE_TYPE;
         goto next_after_applying;
       case WRITE:
