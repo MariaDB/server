@@ -739,6 +739,7 @@ public:
       const TABLE *old_table_arg, const Rdb_tbl_def *old_tbl_def_arg) const
       MY_ATTRIBUTE((__nonnull__));
 
+  using handler::compare_key_parts;
   int compare_key_parts(const KEY *const old_key,
                         const KEY *const new_key) const
       MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));
