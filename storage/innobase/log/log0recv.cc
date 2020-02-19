@@ -1228,27 +1228,6 @@ recv_find_max_checkpoint_0(ulint* max_field)
 	return(DB_ERROR);
 }
 
-/** Return number of ib_logfile0..100 files */
-static size_t count_log_files()
-{
-  size_t counter= 0;
-  for (int i= 0; i < 101; i++)
-  {
-    auto path=
-        get_log_file_path(LOG_FILE_NAME_PREFIX).append(std::to_string(i));
-    os_file_stat_t stat;
-    dberr_t err= os_file_get_status(path.c_str(), &stat, false, true);
-    if (err)
-      break;
-
-    if (stat.type != OS_FILE_TYPE_FILE)
-      break;
-
-    counter++;
-  }
-  return counter;
-}
-
 /** Same as cals_lsn_offset() except that it supports multiple files */
 lsn_t log_t::file::calc_lsn_offset_old(lsn_t lsn) const
 {
