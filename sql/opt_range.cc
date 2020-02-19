@@ -2902,7 +2902,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       remove_nonrange_trees(&param, tree);
 
       /* Get best 'range' plan and prepare data for making other plans */
-      if ((range_trp= get_key_scans_params(&param, tree, FALSE, TRUE,
+      if ((range_trp= get_key_scans_params(&param, tree,
+                                           only_single_index_range_scan, TRUE,
                                            best_read_time)))
       {
         best_trp= range_trp;
