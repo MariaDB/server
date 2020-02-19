@@ -573,32 +573,27 @@ mapped_file_t::~mapped_file_t() noexcept
     unmap();
 }
 
-dberr_t mapped_file_t::map(const char *path, int flags) noexcept
+dberr_t mapped_file_t::map(const char *path, bool read_only,
+                           bool nvme) noexcept
 {
-  auto fd=
-      mysql_file_open(innodb_log_file_key, path,
-                      srv_read_only_mode ? O_RDONLY : O_RDWR, MYF(MY_WME));
-
+  auto fd= mysql_file_open(innodb_log_file_key, path,
+                           read_only ? O_RDONLY : O_RDWR, MYF(MY_WME));
   if (fd == -1)
     return DB_ERROR;
 
-  MY_STAT stat;
-  if (mysql_file_fstat(fd, &stat, MYF(0)))
-  {
-    mysql_file_close(fd, MYF(MY_WME));
-    return DB_ERROR;
-  }
+  const auto file_size= os_file_get_size(path).m_total_size;
 
-  void *ptr= my_mmap(0, static_cast<size_t>(stat.st_size),
-                     srv_read_only_mode ? PROT_READ : PROT_READ | PROT_WRITE,
-                     MAP_SHARED_VALIDATE | flags, fd, 0);
+  const int nvme_flag= nvme ? MAP_SYNC : 0;
+  void *ptr= my_mmap(0, static_cast<size_t>(file_size),
+                     read_only ? PROT_READ : PROT_READ | PROT_WRITE,
+                     MAP_SHARED_VALIDATE | nvme_flag, fd, 0);
   mysql_file_close(fd, MYF(MY_WME));
 
   if (ptr == MAP_FAILED)
     return DB_ERROR;
 
   m_area= {static_cast<byte *>(ptr),
-           static_cast<span<byte>::index_type>(stat.st_size)};
+           static_cast<span<byte>::index_type>(file_size)};
   return DB_SUCCESS;
 }
 
@@ -630,14 +625,14 @@ file_os_io::~file_os_io() noexcept
     close();
 }
 
-dberr_t file_os_io::open(const char *path) noexcept
+dberr_t file_os_io::open(const char *path, bool read_only) noexcept
 {
   ut_ad(!is_opened());
 
   bool success;
   auto tmp_fd= os_file_create(
       innodb_log_file_key, path, OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
-      OS_FILE_NORMAL, OS_LOG_FILE, srv_read_only_mode, &success);
+      OS_FILE_NORMAL, OS_LOG_FILE, read_only, &success);
   if (!success)
     return DB_ERROR;
 
@@ -685,7 +680,7 @@ dberr_t file_os_io::flush_data_only() noexcept
 static bool is_pmem(const char *path) noexcept
 {
   mapped_file_t mf;
-  return mf.map(path, MAP_SYNC) == DB_SUCCESS ? true : false;
+  return mf.map(path, true, true) == DB_SUCCESS ? true : false;
 }
 
 class file_pmem_io final : public file_io
@@ -693,9 +688,9 @@ class file_pmem_io final : public file_io
 public:
   file_pmem_io() noexcept : file_io(true) {}
 
-  dberr_t open(const char *path) noexcept final
+  dberr_t open(const char *path, bool read_only) noexcept final
   {
-    return m_file.map(path, MAP_SYNC);
+    return m_file.map(path, read_only, true);
   }
   dberr_t rename(const char *old_path, const char *new_path) noexcept final
   {
@@ -725,7 +720,7 @@ private:
 };
 #endif
 
-dberr_t log_file_t::open() noexcept
+dberr_t log_file_t::open(bool read_only) noexcept
 {
   ut_a(!is_opened());
 
@@ -737,7 +732,7 @@ dberr_t log_file_t::open() noexcept
   auto ptr= std::unique_ptr<file_io>(new file_os_io);
 #endif
 
-  if (dberr_t err= ptr->open(m_path.c_str()))
+  if (dberr_t err= ptr->open(m_path.c_str(), read_only))
     return err;
 
   m_file= std::move(ptr);
@@ -795,7 +790,7 @@ dberr_t log_file_t::flush_data_only() noexcept
 void log_t::file::open_file(std::string path)
 {
   fd= log_file_t(std::move(path));
-  if (const dberr_t err= fd.open())
+  if (const dberr_t err= fd.open(srv_read_only_mode))
     ib::fatal() << "open(" << fd.get_path() << ") returned " << err;
 }
 

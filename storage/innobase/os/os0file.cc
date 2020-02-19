@@ -2136,7 +2136,7 @@ os_file_create_simple_func(
 
 		file = CreateFile(
 			(LPCTSTR) name, access,
-			FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+			FILE_SHARE_READ | FILE_SHARE_DELETE,
 			NULL, create_flag, attributes, NULL);
 
 		if (file == INVALID_HANDLE_VALUE) {
@@ -2404,8 +2404,9 @@ os_file_create_func(
 	);
 
 	DWORD		create_flag;
-	const DWORD	share_mode =
-		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+	DWORD		share_mode = read_only
+		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
+		: FILE_SHARE_READ | FILE_SHARE_DELETE;
 
 	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
 		WAIT_ALLOW_WRITES();
@@ -2422,6 +2423,12 @@ os_file_create_func(
 	if (create_mode == OS_FILE_OPEN_RAW) {
 
 		ut_a(!read_only);
+
+		/* On Windows Physical devices require admin privileges and
+		have to have the write-share mode set. See the remarks
+		section for the CreateFile() function documentation in MSDN. */
+
+		share_mode |= FILE_SHARE_WRITE;
 
 		create_flag = OPEN_EXISTING;
 
@@ -2605,8 +2612,9 @@ os_file_create_simple_no_error_handling_func(
 	DWORD		access;
 	DWORD		create_flag;
 	DWORD		attributes	= 0;
-	const DWORD	share_mode =
-		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+	DWORD		share_mode = read_only
+		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
+		: FILE_SHARE_READ | FILE_SHARE_DELETE;
 
 	ut_a(name);
 
@@ -2651,6 +2659,12 @@ os_file_create_simple_no_error_handling_func(
 		ut_a(!read_only);
 
 		access = GENERIC_READ;
+
+		/*!< A backup program has to give mysqld the maximum
+		freedom to do what it likes with the file */
+
+		share_mode |= FILE_SHARE_DELETE | FILE_SHARE_WRITE
+			| FILE_SHARE_READ;
 
 	} else {
 

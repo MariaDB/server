@@ -468,7 +468,8 @@ public:
   mapped_file_t &operator=(mapped_file_t &&)= delete;
   ~mapped_file_t() noexcept;
 
-  dberr_t map(const char *path, int flags= 0) noexcept;
+  dberr_t map(const char *path, bool read_only= false,
+              bool nvme= false) noexcept;
   dberr_t unmap() noexcept;
   byte *data() noexcept { return m_area.data(); }
 
@@ -482,7 +483,7 @@ class file_io
 public:
   file_io(bool durable_writes= false) : m_durable_writes(durable_writes) {}
   virtual ~file_io() noexcept {};
-  virtual dberr_t open(const char *path) noexcept= 0;
+  virtual dberr_t open(const char *path, bool read_only) noexcept= 0;
   virtual dberr_t rename(const char *old_path,
                          const char *new_path) noexcept= 0;
   virtual dberr_t close() noexcept= 0;
@@ -498,7 +499,7 @@ protected:
   bool m_durable_writes;
 };
 
-class file_os_io : public file_io
+class file_os_io final: public file_io
 {
 public:
   file_os_io()= default;
@@ -508,7 +509,7 @@ public:
   file_os_io &operator=(file_os_io &&rhs);
   ~file_os_io() noexcept;
 
-  dberr_t open(const char *path) noexcept final;
+  dberr_t open(const char *path, bool read_only) noexcept final;
   bool is_opened() const noexcept { return m_fd != OS_FILE_CLOSED; }
   dberr_t rename(const char *old_path, const char *new_path) noexcept final;
   dberr_t close() noexcept final;
@@ -527,7 +528,7 @@ class log_file_t
 public:
   log_file_t(std::string path= "") noexcept : m_path{std::move(path)} {}
 
-  dberr_t open() noexcept;
+  dberr_t open(bool read_only) noexcept;
   bool is_opened() const noexcept;
 
   const std::string &get_path() const noexcept { return m_path; }

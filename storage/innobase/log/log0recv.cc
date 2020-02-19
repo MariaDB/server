@@ -598,7 +598,7 @@ void recv_sys_t::open_log_files_if_needed()
   for (auto &&path : get_existing_log_files_paths())
   {
     recv_sys.files.emplace_back(std::move(path));
-    ut_a(recv_sys.files.back().open() == DB_SUCCESS);
+    ut_a(recv_sys.files.back().open(true) == DB_SUCCESS);
   }
 }
 
