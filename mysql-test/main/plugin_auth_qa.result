@@ -2,37 +2,44 @@ set sql_mode="";
 CREATE DATABASE test_user_db;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 ========== test 1.1 ======================================================
 CREATE USER plug IDENTIFIED WITH test_plugin_server;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	
 DROP USER plug;
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug IDENTIFIED WITH test_plugin_server;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	
 REVOKE ALL PRIVILEGES ON test_user_db.* FROM plug;
 DROP USER plug;
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	
 DROP USER plug;
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug IDENTIFIED WITH 'test_plugin_server';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	
 REVOKE ALL PRIVILEGES ON test_user_db.* FROM plug;
 DROP USER plug;
 CREATE USER plug IDENTIFIED WITH test_plugin_server AS '';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	
 DROP USER plug;
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug IDENTIFIED WITH test_plugin_server AS '';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	
 REVOKE ALL PRIVILEGES ON test_user_db.* FROM plug;
 DROP USER plug;
@@ -101,61 +108,73 @@ CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 ========== test 1.1.1.6/1.1.2.5 ============================
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	plug_dest
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	plug_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER plug, plug_dest;
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	plug_dest
 DROP USER plug;
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER plug_dest;
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	plug_dest
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	plug_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER plug, plug_dest;
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	plug_dest
 DROP USER plug;
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER plug_dest;
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	plug_dest
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug_dest IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	plug_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER plug, plug_dest;
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	plug_dest
 DROP USER plug;
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug_dest IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER plug_dest;
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
@@ -171,10 +190,12 @@ DROP USER plug;
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 SELECT user,plugin,authentication_string,password FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string	Password
+mariadb.sys	mysql_native_password		
 plug	test_plugin_server	plug_dest	
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string,password FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string	Password
+mariadb.sys	mysql_native_password		
 plug	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER plug;
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug IDENTIFIED WITH test_plugin_server AS 'plug_dest';
@@ -185,17 +206,20 @@ CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 SELECT user,plugin,authentication_string,password FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string	Password
+mariadb.sys	mysql_native_password		
 plug	test_plugin_server	plug_dest	
 plug_dest	test_plugin_server	plug_dest	
 DROP USER plug,plug_dest;
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 SELECT user,plugin,authentication_string,password FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string	Password
+mariadb.sys	mysql_native_password		
 plug	test_plugin_server	plug_dest	
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug_dest 
 IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 SELECT user,plugin,authentication_string,password FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string	Password
+mariadb.sys	mysql_native_password		
 plug	test_plugin_server	plug_dest	
 plug_dest	test_plugin_server	plug_dest	
 DROP USER plug,plug_dest;
@@ -204,22 +228,26 @@ SET NAMES utf8;
 CREATE USER plüg IDENTIFIED WITH 'test_plugin_server' AS 'plüg_dest';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plüg	test_plugin_server	plüg_dest
 DROP USER plüg;
 CREATE USER plüg_dest IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plüg_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER plüg_dest;
 SET NAMES ascii;
 CREATE USER 'plüg' IDENTIFIED WITH 'test_plugin_server' AS 'plüg_dest';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 pl??g	test_plugin_server	pl??g_dest
 DROP USER 'plüg';
 CREATE USER 'plüg_dest' IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 pl??g_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER 'plüg_dest';
 SET NAMES latin1;
@@ -229,11 +257,13 @@ ERROR HY000: Plugin 'test_plügin_server' is not loaded
 CREATE USER 'plug' IDENTIFIED WITH 'test_plugin_server' AS 'plüg_dest';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	plüg_dest
 DROP USER 'plug';
 CREATE USER 'plüg_dest' IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plüg_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER 'plüg_dest';
 SET NAMES utf8;
@@ -242,21 +272,25 @@ ERROR HY000: Plugin 'test_plügin_server' is not loaded
 CREATE USER 'plüg' IDENTIFIED WITH 'test_plugin_server' AS 'plüg_dest';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plüg	test_plugin_server	plüg_dest
 DROP USER 'plüg';
 CREATE USER 'plüg_dest' IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plüg_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER 'plüg_dest';
 CREATE USER plüg IDENTIFIED WITH test_plugin_server AS 'plüg_dest';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plüg	test_plugin_server	plüg_dest
 DROP USER plüg;
 CREATE USER plüg_dest IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plüg_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER plüg_dest;
 ========== test 1.1.1.2/1.1.2.2=============================
@@ -272,12 +306,14 @@ ERROR HY000: Plugin 'hh's_test_plugin_server' is not loaded
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'hh''s_plug_dest';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug	test_plugin_server	hh's_plug_dest
 DROP USER plug;
 CREATE USER 'hh''s_plug_dest' IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
 hh's_plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
+mariadb.sys	mysql_native_password	
 DROP USER 'hh''s_plug_dest';
 ========== test 1.1.1.4 ====================================
 CREATE USER plug IDENTIFIED WITH hh''s_test_plugin_server AS 'plug_dest';
@@ -287,12 +323,14 @@ GRANT INSERT ON test_user_db.* TO grant_user IDENTIFIED WITH test_plugin_server 
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
 grant_user	test_plugin_server	plug_dest
+mariadb.sys	mysql_native_password	
 CREATE USER plug_dest;
 DROP USER plug_dest;
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug_dest;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
 grant_user	test_plugin_server	plug_dest
+mariadb.sys	mysql_native_password	
 plug_dest	mysql_native_password	
 DROP USER grant_user,plug_dest;
 set @save_sql_mode= @@sql_mode;
@@ -301,6 +339,7 @@ GRANT INSERT ON test_user_db.* TO grant_user IDENTIFIED WITH test_plugin_server 
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
 grant_user	test_plugin_server	plug_dest
+mariadb.sys	mysql_native_password	
 CREATE USER plug_dest;
 DROP USER plug_dest;
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug_dest;
@@ -310,16 +349,19 @@ GRANT INSERT ON test_user_db.* TO grant_user IDENTIFIED WITH test_plugin_server 
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
 grant_user	test_plugin_server	plug_dest
+mariadb.sys	mysql_native_password	
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 SELECT user,plugin,authentication_string,password FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string	Password
 grant_user	test_plugin_server	plug_dest	
+mariadb.sys	mysql_native_password		
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119	*939AEE68989794C0F408277411C26055CDF41119
 DROP USER plug_dest;
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug_dest IDENTIFIED BY 'plug_user_passwd';
 SELECT user,plugin,authentication_string,password FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string	Password
 grant_user	test_plugin_server	plug_dest	
+mariadb.sys	mysql_native_password		
 plug_dest	mysql_native_password	*560881EB651416CEF77314D07D55EDCD5FC1BD6D	*560881EB651416CEF77314D07D55EDCD5FC1BD6D
 DROP USER grant_user,plug_dest;
 set @@sql_mode= @save_sql_mode;

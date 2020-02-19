@@ -3,6 +3,7 @@ create role test_role1;
 grant test_role1 to test_user@localhost;
 select user, host from mysql.user where user not like 'root';
 User	Host
+mariadb.sys	localhost
 test_role1	
 test_user	localhost
 select * from mysql.roles_mapping;
