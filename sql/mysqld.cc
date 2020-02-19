@@ -8109,7 +8109,7 @@ static void usage(void)
          "\nbecause execution stopped before plugins were initialized.");
   }
 
-  puts("\nTo see what values a running MySQL server is using, type"
+  puts("\nTo see what variables a running MySQL server is using, type"
        "\n'mysqladmin variables' instead of 'mysqld --verbose --help'.");
   }
   DBUG_VOID_RETURN;

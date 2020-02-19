@@ -5648,7 +5648,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       error= ER_SLAVE_HEARTBEAT_FAILURE;
       error_msg.append(STRING_WITH_LEN("inconsistent heartbeat event content;"));
       error_msg.append(STRING_WITH_LEN("the event's data: log_file_name "));
-      error_msg.append(hb.get_log_ident(), (uint) strlen(hb.get_log_ident()));
+      error_msg.append(hb.get_log_ident(), (uint) hb.get_ident_len());
       error_msg.append(STRING_WITH_LEN(" log_pos "));
       llstr(hb.log_pos, llbuf);
       error_msg.append(llbuf, strlen(llbuf));
@@ -5676,7 +5676,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       error= ER_SLAVE_HEARTBEAT_FAILURE;
       error_msg.append(STRING_WITH_LEN("heartbeat is not compatible with local info;"));
       error_msg.append(STRING_WITH_LEN("the event's data: log_file_name "));
-      error_msg.append(hb.get_log_ident(), (uint) strlen(hb.get_log_ident()));
+      error_msg.append(hb.get_log_ident(), (uint) hb.get_ident_len());
       error_msg.append(STRING_WITH_LEN(" log_pos "));
       llstr(hb.log_pos, llbuf);
       error_msg.append(llbuf, strlen(llbuf));

@@ -36,6 +36,12 @@ IF (HAVE_WVLA)
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wno-vla")
 ENDIF()
 
+CHECK_C_COMPILER_FLAG("-Wno-address-of-packed-member" HAVE_NO_ADDRESS_PACKED)
+IF(HAVE_NO_ADDRESS_PACKED)
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-address-of-packed-member")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-address-of-packed-member")
+ENDIF()
+
 ############################################
 SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump" PARENT_SCOPE)
 MARK_AS_ADVANCED(BUILDNAME)

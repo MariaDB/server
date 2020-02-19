@@ -643,7 +643,7 @@ SET GLOBAL READ_ONLY = 1;
 # Connection: u1_con (mysqltest_u1@localhost/events_test).
 #
 
-CREATE EVENT e1 ON SCHEDULE AT '2020-01-01 00:00:00' DO SET @a = 1;
+CREATE EVENT e1 ON SCHEDULE AT '2038-01-01 00:00:00' DO SET @a = 1;
 ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
 
 ALTER EVENT e1 COMMENT 'comment';
@@ -656,7 +656,7 @@ ERROR HY000: The MariaDB server is running with the --read-only option so it can
 # Connection: root_con (root@localhost/events_test).
 #
 
-CREATE EVENT e1 ON SCHEDULE AT '2020-01-01 00:00:00' DO SET @a = 1;
+CREATE EVENT e1 ON SCHEDULE AT '2038-01-01 00:00:00' DO SET @a = 1;
 
 ALTER EVENT e1 COMMENT 'comment';
 

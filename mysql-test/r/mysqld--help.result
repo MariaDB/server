@@ -1357,5 +1357,5 @@ userstat FALSE
 verbose TRUE
 wait-timeout 28800
 
-To see what values a running MySQL server is using, type
+To see what variables a running MySQL server is using, type
 'mysqladmin variables' instead of 'mysqld --verbose --help'.

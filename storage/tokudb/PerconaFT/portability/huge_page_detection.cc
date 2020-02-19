@@ -68,6 +68,7 @@ static bool check_huge_pages_config_file(const char *fname)
 static bool check_huge_pages_in_practice(void)
 // Effect: Return true if huge pages appear to be defined in practice.
 {
+  return false; // disabled, doesn't seem to work on newest distros
 #ifdef HAVE_MINCORE    
 #ifdef HAVE_MAP_ANONYMOUS    
     const int map_anonymous = MAP_ANONYMOUS;
