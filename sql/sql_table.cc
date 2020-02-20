@@ -9728,9 +9728,7 @@ do_continue:;
   }
 
   if (handle_if_exists_options(thd, table, alter_info,
-                               &create_info->period_info) ||
-      fix_constraints_names(thd, &alter_info->check_constraint_list,
-                            create_info))
+                               &create_info->period_info))
     DBUG_RETURN(true);
 
   /*
@@ -9810,6 +9808,10 @@ do_continue:;
   {
     DBUG_RETURN(true);
   }
+
+  if (fix_constraints_names(thd, &alter_info->check_constraint_list,
+                            create_info))
+    DBUG_RETURN(true);
 
   set_table_default_charset(thd, create_info, alter_ctx.db);
 
