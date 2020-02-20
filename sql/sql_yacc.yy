@@ -2074,7 +2074,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         query verb_clause create change select select_into
         do drop insert replace insert_start stmt_end
         insert_values update delete truncate rename compound_statement
-        show describe load alter optimize keycache preload flush
+        show describe load alter_table alter optimize keycache preload flush
         reset purge begin_stmt_mariadb commit rollback savepoint release
         slave master_def master_defs master_file_def slave_until_opts
         repair analyze opt_with_admin opt_with_admin_option
@@ -2300,7 +2300,7 @@ verb_clause:
 
 /* Verb clauses, except begin and compound_statement */
 statement:
-         start_cmnd alter
+          alter
         | analyze
         | analyze_stmt_command
         | backup
@@ -7804,8 +7804,8 @@ string_list:
         ;
 
 start_cmnd:
-          /* empty*/  {}
-          | START_SYM
+          /* empty  {}*/
+           START_SYM
             {
               if (thd->variables.pseudo_thread_id)
                 Lex->previous_commit_id= thd->variables.pseudo_thread_id;
@@ -7819,8 +7819,7 @@ start_cmnd:
 /*
 ** Alter table
 */
-
-alter:
+alter_table:
           ALTER
           {
             Lex->name= null_clex_str;
@@ -7859,6 +7858,11 @@ alter:
             }
             Lex->pop_select(); //main select
           }
+
+alter:
+         alter_table
+        |start_cmnd alter_table
+          {Lex->sql_command= SQLCOM_START_ALTER_TABLE;}
         | ALTER DATABASE ident_or_empty
           {
             Lex->create_info.default_table_charset= NULL;

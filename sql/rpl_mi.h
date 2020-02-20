@@ -356,8 +356,8 @@ enum start_alter_state
   WAITING,         // WAITING for commit/rollback
   COMMIT_ALTER,    // COMMIT the alter
   ROLLBACK_ALTER,  // Rollback the alter
-  COMMITTED_ALTER,  // COMMIT Alter written in binlog
-  ROLLBACKED_ALTER // Rollback Alter written in binlog
+  COMMITTED,       // COMMIT/ROLLBACK Alter written in binlog
+  SHUTDOWN_ALTER    //Got shutdown in between
 };
 struct start_alter_info
 {
@@ -373,6 +373,16 @@ struct start_alter_info
   //Seq no of Commit/Rollback
   uint64 seq_no;
   enum start_alter_state state;
+};
+
+struct start_alter_thd_args
+{
+  rpl_group_info *rgi;
+  LEX_CSTRING query;
+  LEX_CSTRING *db;
+  char *catalog;
+  bool shutdown;
+  CHARSET_INFO *cs;
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,

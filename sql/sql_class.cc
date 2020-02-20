@@ -631,7 +631,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
-   rpt(NULL), master_log_pos(0),
+   rpt(NULL), slave_shutdown(false), master_log_pos(0),
    protocol_text(this), protocol_binary(this),
    m_current_stage_key(0),
    in_sub_stmt(0), log_all_errors(0),
@@ -784,6 +784,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   progress.report_to_client= 0;
   progress.max_counter= 0;
   slave_thread = 0;
+  start_alter_thread= false;
   connection_name.str= 0;
   connection_name.length= 0;
 

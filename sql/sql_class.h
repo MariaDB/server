@@ -2200,6 +2200,7 @@ public:
   /* Slave applier execution context */
   rpl_group_info* rgi_slave;
   rpl_parallel_thread *rpt;
+  bool slave_shutdown;
   ulong master_log_pos;
 
   union {
@@ -3079,6 +3080,7 @@ public:
   uint8      password; /* 0, 1 or 2 */
   uint8      failed_com_change_user;
   bool       slave_thread;
+  bool       start_alter_thread;
   bool	     no_errors;
 
   /**

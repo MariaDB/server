@@ -5816,6 +5816,15 @@ err_during_init:
 
   rpl_parallel_resize_pool_if_no_slaves();
 
+  /* shutdown the alter threads waiting on C/R ALter */
+
+  start_alter_info *info=NULL;
+  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+  while ((info= info_iterator++))
+  {
+    info->state= start_alter_state::SHUTDOWN_ALTER;
+    mysql_cond_broadcast(&mi->start_alter_cond);
+  }
   delete serial_rgi;
   delete thd;
 
@@ -5828,22 +5837,76 @@ err_during_init:
 
 /*
   Handle start Alter
+  arg should be structure
 */
-pthread_handler_t handle_start_slave(void *arg)
+pthread_handler_t handle_slave_start_alter(void *arg)
 {
   THD *thd;                     /* needs to be first for thread_stack */
-  Master_info *mi= ((Master_info*)arg);
+  start_alter_thd_args *data= ((start_alter_thd_args*)arg);
+  rpl_sql_thread_info sql_info(NULL);
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
   DBUG_ENTER("handle_start_slave");
 
-  serial_rgi= new rpl_group_info(rli);
   thd = new THD(next_thread_id()); // note that contructor of THD uses DBUG_ !
   thd->thread_stack = (char*)&thd; // remember where our stack is
+  set_current_thd(thd);
+  pthread_detach_this_thread();
+  //Work here
+  thd->slave_thread= true;
+  thd->rgi_slave= data->rgi;
+  thd->start_alter_thread= true;
+  thd->slave_shutdown= data->shutdown;
+  //SIDK
+  thd->catalog= data->catalog;
+  thd->variables.option_bits&= ~OPTION_BIN_LOG;
+  thd->security_ctx->skip_grants();
+  thd->set_db(data->db);
+  //thd->set_query_and_id((char*)data->query.str, data->query.length, data->cs,
+  thd->set_query_and_id((char *)memdup_root(thd->mem_root, data->query.str, data->query.length + 1), data->query.length, data->cs,
+                        next_query_id());
+  thd->system_thread_info.rpl_sql_info=  new rpl_sql_thread_info(
+                                           data->rgi->rli->mi->rpl_filter);
+
+  Parser_state parser_state;
+  if (!parser_state.init(thd, thd->query(), thd->query_length()))
+  {
+    DBUG_ASSERT(thd->m_digest == NULL);
+    thd->m_digest= & thd->m_digest_state;
+    DBUG_ASSERT(thd->m_statement_psi == NULL);
+    thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
+                                                stmt_info_rpl.m_key,
+                                                thd->db.str, thd->db.length,
+                                                thd->charset());
+    THD_STAGE_INFO(thd, stage_init);
+    MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(), thd->query_length());
+    if (thd->m_digest != NULL)
+      thd->m_digest->reset(thd->m_token_array, max_digest_length);
+
+     if (thd->slave_thread)
+     {
+       /*
+         To be compatible with previous releases, the slave thread uses the global
+         log_slow_disabled_statements value, wich can be changed dynamically, so we
+         have to set the sql_log_slow respectively.
+       */
+       thd->variables.sql_log_slow= !MY_TEST(global_system_variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
+     }
+
+    mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
+                FALSE, FALSE);
+    /* Finalize server status flags after executing a statement.
+    thd->update_server_status();
+    log_slow_statement(thd);
+    thd->lex->restore_set_statement_var();
+    */
+  }
+
+  //
 
 
-  delete thd;
-
+//  delete thd;
+//  free(arg);
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
   my_thread_end();
   ERR_remove_state(0);

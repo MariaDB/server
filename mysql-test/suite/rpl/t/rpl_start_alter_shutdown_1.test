@@ -31,10 +31,11 @@ connect (con2,localhost,root,,);
 #Kill Slave
 --connection slave
 --sleep 1
-#select @@gtid_slave_pos;
-#select master_gtid_wait('0-1-3');
-#select @@gtid_binlog_state;
+select @@gtid_slave_pos;
+select master_gtid_wait('0-1-4');
+select @@gtid_binlog_state;
 show binlog events;
+#--sleep 2000000
 #--let $rpl_server_number= 2
 #--source include/rpl_stop_server.inc
 --connection con1
@@ -42,7 +43,7 @@ show binlog events;
 --connection con2
 --reap
 create table t3( a int primary key, b int) engine=innodb;
---sleep 100000
+#--sleep 100000
 show binlog events;
 
 --sync_slave_with_master

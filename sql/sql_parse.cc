@@ -5636,6 +5636,56 @@ mysql_execute_command(THD *thd)
     my_ok(thd);
     break;
   }
+  case SQLCOM_START_ALTER_TABLE:
+  {
+    if (thd->start_alter_thread)
+    {
+      res= lex->m_sql_cmd->execute(thd);
+      break;
+    }
+    pthread_t th;
+    start_alter_thd_args *args= (start_alter_thd_args *) my_malloc(sizeof(
+                                    start_alter_thd_args), MYF(0));
+    args->rgi= thd->rgi_slave;
+    args->query= {thd->query(), thd->query_length()};
+    args->db= &thd->db;
+    args->cs= thd->charset();
+    args->catalog= thd->catalog;
+    args->shutdown= thd->rpt->stop;
+    if (mysql_thread_create(key_rpl_parallel_thread, &th, &connection_attrib,
+                            handle_slave_start_alter, args))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      goto error;
+    }
+    DBUG_ASSERT(thd->rgi_slave);
+    Master_info *mi= thd->rgi_slave->rli->mi;
+    start_alter_info *info=NULL;
+    uint count= 0;
+    mysql_mutex_lock(&mi->start_alter_list_lock);
+    List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+    while(1)
+    {
+      while ((info= info_iterator++))
+      {
+        count++;
+        if(info->thread_id == thd->lex->previous_commit_id)
+          break;
+      }
+      if (info && info->thread_id == thd->lex->previous_commit_id)
+        break;
+      mysql_cond_wait(&mi->start_alter_list_cond, &mi->start_alter_list_lock);
+      info_iterator.rewind();
+    }
+    if (thd->rpt->stop)
+      info_iterator.remove();
+    mysql_mutex_unlock(&mi->start_alter_list_lock);
+    DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
+    if (write_bin_log(thd, true, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
+      return true;
+//    my_sleep(100000000000);
+    break;
+  }
   case SQLCOM_COMMIT_PREVIOUS:
   {
     DBUG_ASSERT(thd->rgi_slave);
@@ -5644,6 +5694,10 @@ mysql_execute_command(THD *thd)
     uint count= 0;
     mysql_mutex_lock(&mi->start_alter_list_lock);
     List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+    char temp[thd->query_length()+ 10];
+    strcpy(temp, thd->query());
+    char* alter_location= strcasestr(temp, "ALTER");
+    char send_query[thd->query_length() + 20];
     while ((info= info_iterator++))
     {
       count++;
@@ -5680,6 +5734,9 @@ mysql_execute_command(THD *thd)
     while(info->state <= start_alter_state::ROLLBACK_ALTER )
       mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
     mysql_mutex_unlock(&mi->start_alter_lock);
+    sprintf(send_query, "/*!100001 COMMIT %d */ %s", info->thread_id,  alter_location);
+      if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
+        DBUG_RETURN(true);
     thd->rpt->__finish_event_group(thd->rgi_slave);
 //    ha_commit_trans(thd, true);
 //    trans_commit_implicit(thd);

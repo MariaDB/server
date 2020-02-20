@@ -82,8 +82,7 @@ static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
                                   const HA_CREATE_INFO *create_info);
 static bool write_start_alter(THD *thd, bool* partial_alter, char * send_query,
                               start_alter_info *info);
-static bool wait_for_master(THD *thd, char* send_query, start_alter_info *info);
-
+static int wait_for_master(THD *thd, char* send_query, start_alter_info *info);
 /**
   @brief Helper function for explain_filename
   @param thd          Thread handle
@@ -7577,7 +7576,7 @@ static bool is_inplace_alter_impossible(TABLE *table,
         failure.
 */
 
-static bool mysql_inplace_alter_table(THD *thd,
+static int mysql_inplace_alter_table(THD *thd,
                                       TABLE_LIST *table_list,
                                       TABLE *table,
                                       TABLE *altered_table,
@@ -7593,6 +7592,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   Alter_info *alter_info= ha_alter_info->alter_info;
   bool reopen_tables= false;
   bool res;
+  int alter_result= 1;
   handlerton *hton;
   DBUG_ENTER("mysql_inplace_alter_table");
 
@@ -7750,6 +7750,15 @@ static bool mysql_inplace_alter_table(THD *thd,
   thd->abort_on_warning= false;
   if (res)
     goto rollback;
+  if (thd->lex->previous_commit_id)
+  {
+    DBUG_ASSERT(thd->slave_thread);
+    alter_result= wait_for_master(thd, send_query, info);
+  }
+  if (alter_result == start_alter_state::ROLLBACK_ALTER ||
+          alter_result == start_alter_state::SHUTDOWN_ALTER)
+    goto rollback;
+
 
   DEBUG_SYNC(thd, "alter_table_inplace_before_lock_upgrade");
   // Upgrade to EXCLUSIVE before commit.
@@ -7826,12 +7835,6 @@ static bool mysql_inplace_alter_table(THD *thd,
       DBUG_RETURN(true);
     }
   }
-  if (thd->lex->previous_commit_id)
-  {
-    DBUG_ASSERT(thd->slave_thread);
-    wait_for_master(thd, send_query, info);
-  }
-
   close_all_tables_for_name(thd, table->s,
                             alter_ctx->is_table_renamed() ?
                             HA_EXTRA_PREPARE_FOR_RENAME :
@@ -9349,7 +9352,7 @@ static int create_table_for_inplace_alter(THD *thd,
 }
 
 
-static bool wait_for_master(THD *thd, char* send_query, start_alter_info* info)
+static int wait_for_master(THD *thd, char* send_query, start_alter_info* info)
 {
   char temp[thd->query_length()+ 10];
   Master_info *mi= thd->rgi_slave->rli->mi;
@@ -9372,27 +9375,26 @@ static bool wait_for_master(THD *thd, char* send_query, start_alter_info* info)
   }
   mysql_mutex_unlock(&mi->start_alter_lock);
 
-  if (thd->rpt->special_worker)
+  /*  if (thd->rpt->special_worker)
   {
     mysql_mutex_lock(&thd->rpt->LOCK_rpl_thread);
     thd->rpt->stop= true;
     mysql_cond_signal(&thd->rpt->COND_rpl_thread);
     mysql_mutex_unlock(&thd->rpt->LOCK_rpl_thread);
-  }
+  }*/
   if (info->state == start_alter_state::COMMIT_ALTER)
   {
 //    thd->transaction.stmt.mark_trans_did_ddl();
     thd->variables.gtid_seq_no= info->seq_no;
     sprintf(send_query, "/*!100001 COMMIT %d */ %s", info->thread_id,  alter_location);
-    return false;
   }
-  else
+  else if (info->state == start_alter_state::ROLLBACK_ALTER)
   {
     assert(info->state == start_alter_state::ROLLBACK_ALTER);
     sprintf(send_query, "/*!100001 ROLLBACK %d */ %s", info->thread_id, alter_location);
     thd->variables.gtid_seq_no= info->seq_no;
-    return true;
   }
+  return info->state;
 }
 
 static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query,
@@ -9401,8 +9403,8 @@ static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query,
   if (thd->lex->previous_commit_id)
   {
     thd->transaction.start_alter= true;
-    if (write_bin_log(thd, true, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
-      return true;
+    //if (write_bin_log(thd, true, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
+    //  return true;
     /*
     Master_info *mi= thd->rgi_slave->rli->mi;
     thd->rgi_slave->mark_start_commit();
@@ -9420,14 +9422,17 @@ static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query,
     mi->start_alter_list.push_back(info, thd->mem_root);
     mysql_mutex_unlock(&mi->start_alter_list_lock);
     //I think we dont need this
+    //We do bro
     mysql_cond_broadcast(&mi->start_alter_list_cond);
-    thd->rgi_slave->rli->stmt_done(thd->master_log_pos, thd,
+/*      thd->rgi_slave->rli->stmt_done(thd->master_log_pos, thd,
             thd->rgi_slave);
-    thd->rpt->__finish_event_group(thd->rgi_slave);
+    thd->rpt->__finish_event_group(thd->rgi_slave);*/
     thd->transaction.start_alter= false;
     DBUG_EXECUTE_IF("start_alter_delay_slave", {
       my_sleep(10000000);
       });
+    if (thd->slave_shutdown)
+      return true;
     return false;
   }
   else if (opt_binlog_split_alter)
@@ -9504,6 +9509,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   Master_info *mi= NULL;
   if (thd->slave_thread)
     mi= thd->rgi_slave->rli->mi;
+  int alter_result= COMMIT_ALTER;
   DBUG_ENTER("mysql_alter_table");
 
   /*
@@ -10364,7 +10370,7 @@ do_continue:;
     if (thd->lex->previous_commit_id)
     {
       DBUG_ASSERT(thd->slave_thread);
-      wait_for_master(thd, send_query, info);
+      alter_result= wait_for_master(thd, send_query, info);
     }
     /* Close lock if this is a transactional table */
     if (thd->lock)
@@ -10403,7 +10409,7 @@ do_continue:;
       if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
         DBUG_RETURN(true);
       mysql_mutex_lock(&mi->start_alter_lock);
-      info->state= start_alter_state::COMMITTED_ALTER;
+      info->state= start_alter_state::COMMITTED;
       mysql_mutex_unlock(&mi->start_alter_lock);
       mysql_cond_broadcast(&mi->start_alter_cond);
     }
@@ -10429,7 +10435,7 @@ do_continue:;
   if (thd->lex->previous_commit_id)
   {
     DBUG_ASSERT(thd->slave_thread);
-    wait_for_master(thd, send_query, info);
+    alter_result= wait_for_master(thd, send_query, info);
   }
   engine_changed= ((new_table->file->ht != table->file->ht) &&
                    (((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
@@ -10608,7 +10614,7 @@ end_inplace:
     if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
       DBUG_RETURN(true);
     mysql_mutex_lock(&mi->start_alter_lock);
-    info->state= start_alter_state::COMMITTED_ALTER;
+    info->state= start_alter_state::COMMITTED;
     mysql_mutex_unlock(&mi->start_alter_lock);
     mysql_cond_broadcast(&mi->start_alter_cond);
   }

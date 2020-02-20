@@ -2170,6 +2170,7 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
   rpl_parallel_thread *thr;
 
   idx= rpl_thread_idx;
+  require_special_worker= false;
  // DBUG_ASSERT((require_special_worker && !reuse) || !require_special_worker);
 // /*
   if (require_special_worker)

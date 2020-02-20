@@ -3,6 +3,7 @@
 --source include/master-slave.inc
 
 --connection slave
+set global debug_dbug="+d,start_alter_delay_slave";
 stop slave;
 SET GLOBAL slave_parallel_threads=10;
 set global slave_parallel_mode=optimistic;
@@ -10,6 +11,7 @@ start slave;
 
 
 --connection master
+set global debug_dbug="+d,start_alter_delay_master";
 set global binlog_split_alter=true;
 create table t1( a int primary key, b int) engine=innodb;
 create table t2( a int primary key, b int) engine=innodb;
@@ -35,6 +37,7 @@ show binlog events;
 --connection slave
 show binlog events;
 show create table t1;
+--sleep 1000000
 
 --connection master
 drop table t1,t2,t3;
