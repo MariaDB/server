@@ -6,9 +6,15 @@ Copyright (c) 2019, MariaDB Corporation.
 
 #include "xpand_connection.h"
 #include <string>
-#include "errmsg.h"
 #include "handler.h"
 #include "table.h"
+#include "sql_class.h"
+#include "tztime.h"
+
+//#include "errmsg.h"
+//name conflicts on macro ER with sql_class.h
+#define CR_CONNECTION_ERROR 2002
+#define CR_CONN_HOST_ERROR 2003
 
 extern int xpand_connect_timeout;
 extern int xpand_read_timeout;
@@ -82,8 +88,8 @@ enum xpand_commands {
 /****************************************************************************
 ** Class xpand_connection
 ****************************************************************************/
-xpand_connection::xpand_connection()
-  : command_buffer(NULL), command_buffer_length(0), command_length(0),
+xpand_connection::xpand_connection(THD *parent_thd)
+  : session(parent_thd), command_buffer(NULL), command_buffer_length(0), command_length(0),
     trans_state(XPAND_TRANS_NONE), trans_flags(XPAND_TRANS_NO_POST_FLAGS)
 {
   DBUG_ENTER("xpand_connection::xpand_connection");
@@ -198,6 +204,43 @@ int xpand_connection::connect()
   DBUG_RETURN(0);
 }
 
+int xpand_connection::add_status_vars()
+{
+  DBUG_ENTER("xpand_connection::add_status_vars");
+  assert(session);
+
+  int error_code = 0;
+  system_variables vars = session->variables;
+  if ((error_code = add_command_operand_uchar(1)))
+    DBUG_RETURN(error_code);
+  //sql mode
+  if ((error_code = add_command_operand_ulonglong(vars.sql_mode)))
+    DBUG_RETURN(error_code);
+  //auto increment state
+  if ((error_code = add_command_operand_ushort(vars.auto_increment_increment)))
+    DBUG_RETURN(error_code);
+  if ((error_code = add_command_operand_ushort(vars.auto_increment_offset)))
+    DBUG_RETURN(error_code);
+  //character set and collation
+  if ((error_code = add_command_operand_ushort(vars.character_set_client->number)))
+    DBUG_RETURN(error_code);
+  if ((error_code = add_command_operand_ushort(vars.collation_connection->number)))
+    DBUG_RETURN(error_code);
+  if ((error_code = add_command_operand_ushort(vars.collation_server->number)))
+    DBUG_RETURN(error_code);
+  //timezone and time names
+  String tzone; //convert to utf8
+  vars.time_zone->get_name()->print(&tzone, get_charset(33,0));
+  if ((error_code = add_command_operand_str((const uchar*)tzone.ptr(),tzone.length())))
+    DBUG_RETURN(error_code);
+  if ((error_code = add_command_operand_ushort(vars.lc_time_names->number)))
+    DBUG_RETURN(error_code);
+  //transaction isolation
+  if ((error_code = add_command_operand_uchar(vars.tx_isolation)))
+    DBUG_RETURN(error_code);
+  DBUG_RETURN(0);
+}
+
 int xpand_connection::begin_command(uchar command)
 {
   if (trans_state == XPAND_TRANS_NONE)
@@ -210,6 +253,11 @@ int xpand_connection::begin_command(uchar command)
 
   if ((error_code = add_command_operand_uchar(trans_state | trans_flags)))
     return error_code;
+
+  if (trans_state & XPAND_TRANS_NEW_STMT ||
+      trans_state & XPAND_TRANS_REQUESTED)
+    if ((error_code = add_status_vars()))
+      return error_code;
 
   return error_code;
 }
@@ -620,7 +668,10 @@ public:
     ulong packet_length = cli_safe_read(xpand_net);
     if (packet_length == packet_error) {
       *stmt_completed = TRUE;
-      DBUG_RETURN(mysql_errno(xpand_net));
+      int error_code = mysql_errno(xpand_net);
+      my_printf_error(error_code, "Xpand error: %s", MYF(0),
+                    mysql_error(xpand_net));
+      DBUG_RETURN(error_code);
     }
 
     unsigned char *pos = xpand_net->net.read_pos;

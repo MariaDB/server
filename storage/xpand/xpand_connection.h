@@ -31,6 +31,7 @@ class xpand_connection_cursor;
 class xpand_connection
 {
 private:
+  THD *session;
   MYSQL xpand_net;
   uchar *command_buffer;
   size_t command_buffer_length;
@@ -41,7 +42,7 @@ private:
   int allocate_cursor(MYSQL *xpand_net, ulong buffer_size,
                       xpand_connection_cursor **scan);
 public:
-  xpand_connection();
+  xpand_connection(THD *parent_thd);
   ~xpand_connection();
 
   inline bool is_connected()
@@ -116,6 +117,7 @@ private:
   int add_command_operand_vlstr(const uchar *str, size_t length);
   int add_command_operand_lex_string(LEX_CSTRING str);
   int add_command_operand_bitmap(MY_BITMAP *bitmap);
+  int add_status_vars();
   int begin_command(uchar command);
   int send_command();
   int read_query_response();
