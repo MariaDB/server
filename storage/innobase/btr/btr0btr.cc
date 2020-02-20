@@ -1031,7 +1031,7 @@ btr_free_root_check(
 @param[in]	type			type of the index
 @param[in]	index_id		index id
 @param[in,out]	space			tablespace where created
-@param[in]	index			index
+@param[in]	index			index, or NULL to create a system table
 @param[in,out]	mtr			mini-transaction
 @return	page number of the created root
 @retval	FIL_NULL	if did not succeed */
@@ -1101,7 +1101,7 @@ btr_create(
 			/* Not enough space for new segment, free root
 			segment before return. */
 			btr_free_root(block, mtr,
-				      !index->table->is_temporary());
+				      !index || !index->table->is_temporary());
 			return(FIL_NULL);
 		}
 
@@ -1122,8 +1122,9 @@ btr_create(
 		ut_ad(!page_has_siblings(block->page.zip.data));
 		page_create_zip(block, index, 0, 0, mtr);
 	} else {
-		page_create(block, mtr, index->table->not_redundant());
-		if (index->is_spatial()) {
+		page_create(block, mtr,
+			    index && index->table->not_redundant());
+		if (index && index->is_spatial()) {
 			static_assert(((FIL_PAGE_INDEX & 0xff00)
 				       | byte(FIL_PAGE_RTREE))
 				      == FIL_PAGE_RTREE, "compatibility");
@@ -1148,7 +1149,8 @@ btr_create(
 
 	Note: Insert Buffering is disabled for temporary tables given that
 	most temporary tables are smaller in size and short-lived. */
-	if (!(type & DICT_CLUSTERED) && !index->table->is_temporary()) {
+	if (!(type & DICT_CLUSTERED)
+	    && (!index || !index->table->is_temporary())) {
 		ibuf_reset_free_bits(block);
 	}
 

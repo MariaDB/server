@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -162,7 +162,7 @@ dict_hdr_create(
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_TABLES_ID,
-				  dict_ind_redundant, mtr);
+				  nullptr, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
@@ -172,7 +172,7 @@ dict_hdr_create(
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_UNIQUE,
 				  fil_system.sys_space, DICT_TABLE_IDS_ID,
-				  dict_ind_redundant, mtr);
+				  nullptr, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
@@ -183,7 +183,7 @@ dict_hdr_create(
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_COLUMNS_ID,
-				  dict_ind_redundant, mtr);
+				  nullptr, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
@@ -194,7 +194,7 @@ dict_hdr_create(
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_INDEXES_ID,
-				  dict_ind_redundant, mtr);
+				  nullptr, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
@@ -205,7 +205,7 @@ dict_hdr_create(
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_FIELDS_ID,
-				  dict_ind_redundant, mtr);
+				  nullptr, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);

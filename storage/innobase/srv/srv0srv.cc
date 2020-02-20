@@ -761,10 +761,6 @@ static void srv_init()
 	mutex_create(LATCH_ID_PAGE_ZIP_STAT_PER_INDEX,
 		     &page_zip_stat_per_index_mutex);
 
-	/* Create dummy indexes for infimum and supremum records */
-
-	dict_ind_init();
-
 #ifdef WITH_INNODB_DISALLOW_WRITES
 	/* Writes have to be enabled on init or else we hang. Thus, we
 	always set the event here regardless of innobase_disallow_writes.
@@ -800,8 +796,6 @@ srv_free(void)
 	}
 
 	ut_d(os_event_destroy(srv_master_thread_disabled_event));
-
-	dict_ind_free();
 
 	trx_i_s_cache_free(trx_i_s_cache);
 	srv_thread_pool_end();

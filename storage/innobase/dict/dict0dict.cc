@@ -40,9 +40,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "sql_table.h"
 #include <mysql/service_thd_mdl.h>
 
-/** dummy index for ROW_FORMAT=REDUNDANT supremum and infimum records */
-dict_index_t*	dict_ind_redundant;
-
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 /** Flag to control insert buffer debugging. */
 extern uint	ibuf_debug;
@@ -4356,34 +4353,6 @@ dict_set_merge_threshold_all_debug(
 }
 
 #endif /* UNIV_DEBUG */
-
-/** Initialize dict_ind_redundant. */
-void
-dict_ind_init()
-{
-	dict_table_t*		table;
-
-	/* create dummy table and index for REDUNDANT infimum and supremum */
-	table = dict_mem_table_create("SYS_DUMMY1", NULL, 1, 0, 0, 0);
-	dict_mem_table_add_col(table, NULL, NULL, DATA_CHAR,
-			       DATA_ENGLISH | DATA_NOT_NULL, 8);
-
-	dict_ind_redundant = dict_mem_index_create(table, "SYS_DUMMY1", 0, 1);
-	dict_index_add_col(dict_ind_redundant, table,
-			   dict_table_get_nth_col(table, 0), 0);
-	/* avoid ut_ad(index->cached) in dict_index_get_n_unique_in_tree */
-	dict_ind_redundant->cached = TRUE;
-}
-
-/** Free dict_ind_redundant. */
-void
-dict_ind_free()
-{
-	dict_table_t*	table = dict_ind_redundant->table;
-	dict_mem_index_free(dict_ind_redundant);
-	dict_ind_redundant = NULL;
-	dict_mem_table_free(table);
-}
 
 /** Get an index by name.
 @param[in]	table		the table where to look for the index

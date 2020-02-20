@@ -1495,7 +1495,7 @@ file_checked:
 
 		ulint ibuf_root = btr_create(
 			DICT_CLUSTERED | DICT_IBUF, fil_system.sys_space,
-			DICT_IBUF_ID_MIN, dict_ind_redundant, &mtr);
+			DICT_IBUF_ID_MIN, nullptr, &mtr);
 
 		mtr_commit(&mtr);
 

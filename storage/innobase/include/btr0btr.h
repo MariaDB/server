@@ -333,7 +333,7 @@ btr_node_ptr_get_child_page_no(
 @param[in]	type			type of the index
 @param[in,out]	space			tablespace where created
 @param[in]	index_id		index id
-@param[in]	index			index
+@param[in]	index			index, or NULL to create a system table
 @param[in,out]	mtr			mini-transaction
 @return	page number of the created root
 @retval	FIL_NULL	if did not succeed */

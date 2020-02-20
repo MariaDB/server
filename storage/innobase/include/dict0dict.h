@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1606,17 +1606,6 @@ extern dict_sys_t	dict_sys;
 #define dict_table_prevent_eviction(table) dict_sys.prevent_eviction(table)
 #define dict_sys_lock() dict_sys.lock(__FILE__, __LINE__)
 #define dict_sys_unlock() dict_sys.unlock()
-
-/** dummy index for ROW_FORMAT=REDUNDANT supremum and infimum records */
-extern dict_index_t*	dict_ind_redundant;
-
-/** Initialize dict_ind_redundant. */
-void
-dict_ind_init();
-
-/** Free dict_ind_redundant. */
-void
-dict_ind_free();
 
 /* Auxiliary structs for checking a table definition @{ */
 
