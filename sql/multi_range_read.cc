@@ -1015,6 +1015,7 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
         primary key. Use the rowid filter outside the engine code (see
         Mrr_ordered_rndpos_reader::refill_from_index_reader).
       */
+      rowid_filter= h_arg->pushed_rowid_filter;
       h_arg->cancel_pushed_rowid_filter();
     }
   }
@@ -1096,15 +1097,18 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
         goto use_default_impl;
     }
 
+    // setup_two_handlers() will call dsmrr_close() will clears the filter.
+    // Save its value and restore afterwards.
+    Rowid_filter *tmp = rowid_filter;
     if ((res= setup_two_handlers()))
       goto error;
+    rowid_filter= tmp;
 
     if ((res= index_strategy->init(secondary_file, seq_funcs, seq_init_param,
                                    n_ranges, mode, &keypar, key_buffer, 
                                    &buf_manager)) || 
         (res= disk_strategy->init(primary_file, index_strategy, mode, 
-                                  &rowid_buffer,
-                                  table->reginfo.join_tab->rowid_filter)))
+                                  &rowid_buffer, rowid_filter)))
     {
       goto error;
     }
@@ -1286,6 +1290,7 @@ void DsMrr_impl::close_second_handler()
 void DsMrr_impl::dsmrr_close()
 {
   DBUG_ENTER("DsMrr_impl::dsmrr_close");
+  rowid_filter= NULL;
   close_second_handler();
   strategy= NULL;
   DBUG_VOID_RETURN;

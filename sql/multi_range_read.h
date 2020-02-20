@@ -557,7 +557,8 @@ public:
   typedef void (handler::*range_check_toggle_func_t)(bool on);
 
   DsMrr_impl()
-    : secondary_file(NULL) {};
+    : secondary_file(NULL),
+      rowid_filter(NULL) {};
   
   void init(handler *h_arg, TABLE *table_arg)
   {
@@ -594,7 +595,13 @@ private:
     to run both index scan and rnd_pos() scan at the same time)
   */
   handler *secondary_file;
-  
+
+  /*
+    The rowid filter that DS-MRR has "unpushed" from the storage engine.
+    If it's present, DS-MRR will use it.
+  */
+  Rowid_filter *rowid_filter;
+
   uint keyno; /* index we're running the scan on */
   /* TRUE <=> need range association, buffers hold {rowid, range_id} pairs */
   bool is_mrr_assoc;
