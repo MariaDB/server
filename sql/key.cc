@@ -929,8 +929,8 @@ int key_period_compare_bases(const KEY &lhs_key, const KEY &rhs_key,
 int key_period_compare_periods(const KEY &lhs_key, const KEY &rhs_key,
                                const uchar *lhs, const uchar *rhs)
 {
-  uint period_start= lhs_key.user_defined_key_parts - 2;
-  uint period_end= lhs_key.user_defined_key_parts - 1;
+  uint period_start= lhs_key.user_defined_key_parts - 1;
+  uint period_end= lhs_key.user_defined_key_parts - 2;
 
   const auto *f= lhs_key.key_part[period_start].field;
   const uchar *l[]= {lhs_key.key_part[period_start].field->ptr_in_record(lhs),

@@ -7032,19 +7032,19 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 
     key_copy(check_overlaps_buffer, new_data, &key_info, 0);
 
-    /* Copy period_end to period_start.
-       the value in period_end field is not significant, but anyway let's leave
+    /* Copy period_start to period_end.
+       the value in period_start field is not significant, but anyway let's leave
        it defined to avoid uninitialized memory access
      */
     memcpy(check_overlaps_buffer + key_base_length,
            check_overlaps_buffer + key_base_length + period_field_length,
            period_field_length);
 
-    /* Find row with period_start < (period_end of new_data) */
+    /* Find row with period_end > (period_start of new_data) */
     error = handler->ha_index_read_map(record_buffer,
                                        check_overlaps_buffer,
-                                       key_part_map((1 << key_parts) - 1),
-                                       HA_READ_BEFORE_KEY);
+                                       key_part_map((1 << (key_parts - 1)) - 1),
+                                       HA_READ_AFTER_KEY);
 
     if (!error && is_update)
     {
@@ -7061,11 +7061,11 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 
       handler->position(record_buffer);
       if (memcmp(ref, handler->ref, ref_length) == 0)
-        error= handler->ha_index_prev(record_buffer);
+        error= handler->ha_index_next(record_buffer);
     }
 
     if (!error && table->check_period_overlaps(key_info, key_info,
-                                        new_data, record_buffer) == 0)
+                                               new_data, record_buffer) == 0)
       error= HA_ERR_FOUND_DUPP_KEY;
 
     if (error == HA_ERR_KEY_NOT_FOUND || error == HA_ERR_END_OF_FILE)
