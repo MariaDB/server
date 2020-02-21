@@ -10,9 +10,8 @@
 #
 ##############################################################################
 
+GCF-1018B : MDEV-21613 galera_sr.GCF-1018B MTR failed: Failed to open table mysql.wsrep_streaming_log for writing
 GCF-1043A : MDEV-21170 Galera test failure on galera_sr.GCF-1043A
-GCF-437 : test relies on InnoDB redo log size limitation
-GCF-561 : MDEV-21517 galera_sr.GCF-561
-GCF_1060 : MDEV-20848 galera_sr.GCF_1060
+GCF-1060 : MDEV-20848 galera_sr.GCF_1060
 galera-features#56 : MDEV-18542 galera_sr.galera-features#56
-galera_sr_table_contents : missing file
+
