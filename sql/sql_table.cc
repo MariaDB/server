@@ -4623,8 +4623,8 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
           return true;
         }
       }
-      key->columns.push_back(new Key_part_spec(&period_start, 0));
       key->columns.push_back(new Key_part_spec(&period_end, 0));
+      key->columns.push_back(new Key_part_spec(&period_start, 0));
     }
   }
 
