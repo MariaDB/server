@@ -3567,14 +3567,34 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
     exec_res= ev->apply_event(rgi);
 
 #ifdef WITH_WSREP
-    if (exec_res && thd->wsrep_conflict_state != NO_CONFLICT)
-    {
+  if (exec_res)
+  {
+    switch (thd->wsrep_conflict_state) {
+    case NO_CONFLICT: break;
+    case MUST_REPLAY:
+      WSREP_DEBUG("SQL apply failed for MUST_REPLAY, res %d", exec_res);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+      wsrep_replay_transaction(thd);
+      switch (thd->wsrep_conflict_state) {
+      case NO_CONFLICT:
+        exec_res = 0; /* replaying succeeded, and slave may continue */
+        break;
+      case ABORTED: break; /* replaying has failed, trx is rolled back */
+      default:
+	WSREP_WARN("unexpected result of slave transaction replaying: %lld, %d",
+		   thd->thread_id, thd->wsrep_conflict_state);
+      }
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      break;
+    default:
       WSREP_DEBUG("SQL apply failed, res %d conflict state: %d",
                   exec_res, thd->wsrep_conflict_state);
       rli->abort_slave= 1;
       rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
                   "Node has dropped from cluster");
+      break;
     }
+  }
 #endif
 
 #ifndef DBUG_OFF
