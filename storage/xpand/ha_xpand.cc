@@ -397,6 +397,37 @@ xpand_mark_table_for_discovery(TABLE *table)
   table->m_needs_reopen = TRUE;
 }
 
+void
+xpand_mark_tables_for_discovery(LEX *lex)
+{
+  for (TABLE_LIST *tbl= lex->query_tables; tbl; tbl= tbl->next_global)
+    if (tbl->table && tbl->table->file->ht == xpand_hton)
+      xpand_mark_table_for_discovery(tbl->table);
+}
+
+ulonglong *
+xpand_extract_table_oids(THD *thd, LEX *lex)
+{
+  int cnt = 1;
+  for (TABLE_LIST *tbl = lex->query_tables; tbl; tbl= tbl->next_global)
+    if (tbl->table && tbl->table->file->ht == xpand_hton)
+        cnt++;
+
+  ulonglong *oids = (ulonglong*)thd_alloc(thd, cnt * sizeof(ulonglong));
+  ulonglong *ptr = oids;
+  for (TABLE_LIST *tbl = lex->query_tables; tbl; tbl= tbl->next_global)
+  {
+    if (tbl->table && tbl->table->file->ht == xpand_hton)
+    {
+      ha_xpand *hndlr = static_cast<ha_xpand *>(tbl->table->file);
+      *ptr++ = hndlr->get_table_oid();
+    }
+  }
+
+  *ptr = 0;
+  return oids;
+}
+
 int ha_xpand::open(const char *name, int mode, uint test_if_locked)
 {
   DBUG_ENTER("ha_xpand::open");
@@ -1093,6 +1124,11 @@ void ha_xpand::cond_pop()
 int ha_xpand::info_push(uint info_type, void *info)
 {
   return 0;
+}
+
+ulonglong ha_xpand::get_table_oid()
+{
+    return xpand_table_oid;
 }
 
 /****************************************************************************
