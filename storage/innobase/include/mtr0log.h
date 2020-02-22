@@ -536,13 +536,65 @@ inline void mtr_t::log_write_extended(const buf_block_t &block, byte type)
 }
 
 /** Write log for partly initializing a B-tree or R-tree page.
-@param block    B-tree page
+@param block    B-tree or R-tree page
 @param comp     false=ROW_FORMAT=REDUNDANT, true=COMPACT or DYNAMIC */
 inline void mtr_t::page_create(const buf_block_t &block, bool comp)
 {
   static_assert(false == INIT_ROW_FORMAT_REDUNDANT, "encoding");
   static_assert(true == INIT_ROW_FORMAT_DYNAMIC, "encoding");
   log_write_extended(block, comp);
+}
+
+/** Write log for deleting a B-tree or R-tree record in ROW_FORMAT=REDUNDANT.
+@param block      B-tree or R-tree page
+@param prev_rec   byte offset of the predecessor of the record to delete,
+                  starting from PAGE_OLD_INFIMUM */
+inline void mtr_t::page_delete(const buf_block_t &block, ulint prev_rec)
+{
+  ut_ad(!block.zip_size());
+  ut_ad(prev_rec < block.physical_size());
+  set_modified();
+  if (m_log_mode != MTR_LOG_ALL)
+    return;
+  size_t len= (prev_rec < MIN_2BYTE ? 2 : prev_rec < MIN_3BYTE ? 3 : 4);
+  byte *l= log_write<EXTENDED>(block.page.id, &block.page, len, true);
+  ut_d(byte *end= l + len);
+  *l++= DELETE_ROW_FORMAT_REDUNDANT;
+  l= mlog_encode_varint(l, prev_rec);
+  ut_ad(end == l);
+  m_log.close(l);
+  m_last_offset= FIL_PAGE_TYPE;
+}
+
+/** Write log for deleting a COMPACT or DYNAMIC B-tree or R-tree record.
+@param block      B-tree or R-tree page
+@param prev_rec   byte offset of the predecessor of the record to delete,
+                  starting from PAGE_NEW_INFIMUM
+@param prev_rec   the predecessor of the record to delete
+@param hdr_size   record header size, excluding REC_N_NEW_EXTRA_BYTES
+@param data_size  data payload size, in bytes */
+inline void mtr_t::page_delete(const buf_block_t &block, ulint prev_rec,
+                               size_t hdr_size, size_t data_size)
+{
+  ut_ad(!block.zip_size());
+  set_modified();
+  ut_ad(hdr_size < MIN_3BYTE);
+  ut_ad(prev_rec < block.physical_size());
+  ut_ad(data_size < block.physical_size());
+  if (m_log_mode != MTR_LOG_ALL)
+    return;
+  size_t len= prev_rec < MIN_2BYTE ? 2 : prev_rec < MIN_3BYTE ? 3 : 4;
+  len+= hdr_size < MIN_2BYTE ? 1 : 2;
+  len+= data_size < MIN_2BYTE ? 1 : data_size < MIN_3BYTE ? 2 : 3;
+  byte *l= log_write<EXTENDED>(block.page.id, &block.page, len, true);
+  ut_d(byte *end= l + len);
+  *l++= DELETE_ROW_FORMAT_DYNAMIC;
+  l= mlog_encode_varint(l, prev_rec);
+  l= mlog_encode_varint(l, hdr_size);
+  l= mlog_encode_varint(l, data_size);
+  ut_ad(end == l);
+  m_log.close(l);
+  m_last_offset= FIL_PAGE_TYPE;
 }
 
 /** Write log for initializing an undo log page.

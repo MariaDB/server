@@ -491,9 +491,23 @@ struct mtr_t {
   @param id      page identifier */
   inline void free(const page_id_t id);
   /** Write log for partly initializing a B-tree or R-tree page.
-  @param block    B-tree page
+  @param block    B-tree or R-tree page
   @param comp     false=ROW_FORMAT=REDUNDANT, true=COMPACT or DYNAMIC */
   inline void page_create(const buf_block_t &block, bool comp);
+  /** Write log for deleting a B-tree or R-tree record in ROW_FORMAT=REDUNDANT.
+  @param block      B-tree or R-tree page
+  @param prev_rec   byte offset of the predecessor of the record to delete,
+                    starting from PAGE_OLD_INFIMUM */
+  inline void page_delete(const buf_block_t &block, ulint prev_rec);
+  /** Write log for deleting a COMPACT or DYNAMIC B-tree or R-tree record.
+  @param block      B-tree or R-tree page
+  @param prev_rec   byte offset of the predecessor of the record to delete,
+                    starting from PAGE_NEW_INFIMUM
+  @param hdr_size   record header size, excluding REC_N_NEW_EXTRA_BYTES
+  @param data_size  data payload size, in bytes */
+  inline void page_delete(const buf_block_t &block, ulint prev_rec,
+                          size_t hdr_size, size_t data_size);
+
   /** Write log for initializing an undo log page.
   @param block    undo page */
   inline void undo_create(const buf_block_t &block);

@@ -262,7 +262,18 @@ enum mrec_ext_t
   /** Append a record to an undo log page.
   This is equivalent to the old MLOG_UNDO_INSERT record.
   The current byte offset will be reset to FIL_PAGE_TYPE. */
-  UNDO_APPEND= 3
+  UNDO_APPEND= 3,
+  /** Delete a record on a ROW_FORMAT=REDUNDANT page.
+  We point to the precedessor of the record to be deleted.
+  The current byte offset will be reset to FIL_PAGE_TYPE.
+  This is similar to the old MLOG_REC_DELETE record. */
+  DELETE_ROW_FORMAT_REDUNDANT= 8,
+  /** Delete a record on a ROW_FORMAT=COMPACT or DYNAMIC page.
+  We point to the precedessor of the record to be deleted
+  and include the total size of the record being deleted.
+  The current byte offset will be reset to FIL_PAGE_TYPE.
+  This is similar to the old MLOG_COMP_REC_DELETE record. */
+  DELETE_ROW_FORMAT_DYNAMIC= 9
 };
 
 

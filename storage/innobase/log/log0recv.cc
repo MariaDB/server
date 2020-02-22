@@ -45,6 +45,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "mtr0mtr.h"
 #include "mtr0log.h"
 #include "page0page.h"
+#include "page0cur.h"
 #include "trx0undo.h"
 #include "ibuf0ibuf.h"
 #include "trx0undo.h"
@@ -282,14 +283,14 @@ public:
         goto next;
       case EXTENDED:
         if (UNIV_UNLIKELY(block.page.id.page_no() < 3 ||
-                          block.page.zip.ssize) &&
-            !srv_force_recovery)
+                          block.page.zip.ssize))
           goto record_corrupted;
         static_assert(INIT_ROW_FORMAT_REDUNDANT == 0, "compatiblity");
         static_assert(INIT_ROW_FORMAT_DYNAMIC == 1, "compatibility");
         if (UNIV_UNLIKELY(!rlen))
           goto record_corrupted;
         switch (*l) {
+          uint8_t ll;
         default:
           goto record_corrupted;
         case INIT_ROW_FORMAT_REDUNDANT:
@@ -307,6 +308,39 @@ public:
           if (UNIV_UNLIKELY(rlen <= 3))
             goto record_corrupted;
           undo_append(block, ++l, --rlen);
+          break;
+        case DELETE_ROW_FORMAT_REDUNDANT:
+          if (UNIV_UNLIKELY(rlen < 2 || rlen > 4))
+            goto record_corrupted;
+	  rlen--;
+          ll= mlog_decode_varint_length(*++l);
+          if (UNIV_UNLIKELY(ll != rlen))
+            goto record_corrupted;
+          page_apply_delete_redundant(block, mlog_decode_varint(l));
+          break;
+        case DELETE_ROW_FORMAT_DYNAMIC:
+          if (UNIV_UNLIKELY(rlen < 2))
+            goto record_corrupted;
+	  rlen--;
+          ll= mlog_decode_varint_length(*++l);
+          if (UNIV_UNLIKELY(ll > 3 || ll >= rlen))
+            goto record_corrupted;
+          size_t prev_rec= mlog_decode_varint(l);
+          ut_ad(prev_rec != MLOG_DECODE_ERROR);
+          rlen-= ll;
+          l+= ll;
+          ll= mlog_decode_varint_length(*l);
+          if (UNIV_UNLIKELY(ll > 2 || ll >= rlen))
+            goto record_corrupted;
+          size_t hdr_size= mlog_decode_varint(l);
+          ut_ad(hdr_size != MLOG_DECODE_ERROR);
+          rlen-= ll;
+          l+= ll;
+          ll= mlog_decode_varint_length(*l);
+          if (UNIV_UNLIKELY(ll > 3 || ll != rlen))
+            goto record_corrupted;
+          page_apply_delete_dynamic(block, prev_rec, hdr_size,
+                                    mlog_decode_varint(l));
           break;
         }
         last_offset= FIL_PAGE_TYPE;
