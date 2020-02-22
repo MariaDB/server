@@ -831,13 +831,19 @@ int xpand_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
  *   dbname &current database name
  **/
 int xpand_connection::update_query(String &stmt, LEX_CSTRING &dbname,
-                                   ulonglong *affected_rows)
+                                   ulonglong *oids, ulonglong *affected_rows)
 {
   int error_code;
   command_length = 0;
 
   if ((error_code = begin_command(XPAND_UPDATE_QUERY)))
     return error_code;
+
+  do {
+    if ((error_code = add_command_operand_ulonglong(*oids)))
+      return error_code;
+  }
+  while (*oids++);
 
   if ((error_code = add_command_operand_str((uchar*)dbname.str, dbname.length)))
     return error_code;

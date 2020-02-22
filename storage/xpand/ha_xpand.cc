@@ -626,13 +626,17 @@ int ha_xpand::write_row(const uchar *buf)
       if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
         trx->auto_commit_next();
 
-      error_code= trx->update_query(update_stmt, table->s->db, &update_rows);
+      ulonglong *oids = xpand_extract_table_oids(thd, thd->lex);
+      error_code= trx->update_query(update_stmt, table->s->db, oids,
+                                    &update_rows);
       if (upsert_flag & XPAND_BULK_UPSERT)
         upsert_flag |= XPAND_UPSERT_SENT;
       else
         upsert_flag &= ~XPAND_HAS_UPSERT;
     }
 
+    if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+      xpand_mark_tables_for_discovery(thd->lex);
     return error_code;
   }
 
@@ -721,8 +725,12 @@ int ha_xpand::direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
   if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
     trx->auto_commit_next();
 
-  error_code = trx->update_query(update_stmt, table->s->db, update_rows);
+  ulonglong *oids = xpand_extract_table_oids(thd, thd->lex);
+  error_code = trx->update_query(update_stmt, table->s->db, oids, update_rows);
   *found_rows = *update_rows;
+  
+  if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+    xpand_mark_tables_for_discovery(thd->lex);
   DBUG_RETURN(error_code);
 }
 
