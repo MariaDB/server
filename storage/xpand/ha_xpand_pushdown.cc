@@ -101,6 +101,7 @@ err:
 select_handler*
 create_xpand_select_handler(THD* thd, SELECT_LEX* select_lex)
 {
+  ulonglong *oids = NULL;
   ha_xpand_select_handler *sh = NULL;
   if (!select_handler_setting(thd)) {
     return sh;
@@ -156,19 +157,22 @@ create_xpand_select_handler(THD* thd, SELECT_LEX* select_lex)
   if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
     trx->auto_commit_next();
 
+  oids = xpand_extract_table_oids(thd, select_lex->parent_lex);
   if ((error_code = trx->scan_query(query, fieldtype, items_number, null_bits,
                                     num_null_bytes, field_metadata,
                                     field_metadata_size,
-                                    row_buffer_setting(thd), &scan))) {
+                                    row_buffer_setting(thd), oids, &scan))) {
     goto err;
   }
 
   sh = new ha_xpand_select_handler(thd, select_lex, scan);
 
 err:
-  // deallocate buffers
   if (meta_memory)
     my_free(meta_memory);
+
+  if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+    xpand_mark_tables_for_discovery(select_lex->parent_lex);
 
   return sh;
 }
@@ -376,6 +380,7 @@ int ha_xpand_derived_handler::init_scan()
   int error_code = 0;
   int field_metadata_size = 0;
   xpand_connection *trx = NULL;
+  ulonglong *oids = NULL;
 
   // We presume this number is equal to types.elements in get_field_types
   uint items_number= select->get_item_list()->elements;
@@ -402,10 +407,11 @@ int ha_xpand_derived_handler::init_scan()
   if (!trx)
     goto err;
 
+  oids = xpand_extract_table_oids(thd__, select->parent_lex);
   if ((error_code = trx->scan_query(query, fieldtype, items_number, null_bits,
                                     num_null_bytes, field_metadata,
                                     field_metadata_size,
-                                    row_buffer_setting(thd), &scan))) {
+                                    row_buffer_setting(thd), oids, &scan))) {
     goto err;
   }
 
@@ -420,9 +426,11 @@ int ha_xpand_derived_handler::init_scan()
   add_current_table_to_rpl_table_list(&rgi, thd__, table__);
 
 err:
-  // deallocate buffers
   if (meta_memory)
     my_free(meta_memory);
+
+  if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+    xpand_mark_tables_for_discovery(select->parent_lex);
 
   return error_code;
 }
