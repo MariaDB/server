@@ -8567,8 +8567,16 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   res= trans_commit(thd); /* Automatically rolls back on error. */
   thd->mdl_context.release_transactional_locks();
 
+#ifdef WITH_WSREP
+  if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
+  if ((!res || (WSREP(thd) && thd->wsrep_conflict_state == MUST_REPLAY)) && sub_id)
+#else
   if (!res && sub_id)
+#endif /* WITH_WSREP */
     rpl_global_gtid_slave_state->update_state_hash(sub_id, &gtid, rgi);
+#ifdef WITH_WSREP
+  if (WSREP(thd)) mysql_mutex_unlock(&thd->LOCK_thd_data);
+#endif /* WITH_WSREP */
 
   /*
     Increment the global status commit count variable
