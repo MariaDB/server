@@ -847,7 +847,7 @@ page_delete_rec_list_end(
   ut_ad(index->table->not_redundant() == !!page_is_comp(block->frame));
 #ifdef UNIV_ZIP_DEBUG
   ut_a(!block->page.zip.data ||
-       page_zip_validate(block->page.zip, block->frame, index));
+       page_zip_validate(&block->page.zip, block->frame, index));
 #endif /* UNIV_ZIP_DEBUG */
 
   if (page_rec_is_supremum(rec))
@@ -897,7 +897,7 @@ page_delete_rec_list_end(
 			       ULINT_UNDEFINED, &heap);
       rec= rec_get_next_ptr(rec, TRUE);
 #ifdef UNIV_ZIP_DEBUG
-      ut_a(page_zip_validate(block->page.zip.data, block->frame, index));
+      ut_a(page_zip_validate(&block->page.zip, block->frame, index));
 #endif /* UNIV_ZIP_DEBUG */
       page_cur_delete_rec(&cur, index, offsets, mtr);
     }
