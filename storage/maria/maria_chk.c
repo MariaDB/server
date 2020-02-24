@@ -142,7 +142,8 @@ int main(int argc, char **argv)
   maria_block_size= 0;                 /* Use block size from control file */
   if (!opt_ignore_control_file &&
       (ma_control_file_open(FALSE, opt_require_control_file ||
-                            !(check_param.testflag & T_SILENT)) &&
+                            !(check_param.testflag & T_SILENT),
+                            TRUE) &&
        (opt_require_control_file ||
         (opt_transaction_logging && (check_param.testflag & T_REP_ANY)))))
   {

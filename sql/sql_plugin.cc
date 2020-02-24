@@ -1592,8 +1592,9 @@ int plugin_init(int *argc, char **argv, int flags)
   struct st_plugin_int tmp, *plugin_ptr, **reap;
   MEM_ROOT tmp_root;
   bool reaped_mandatory_plugin= false;
-  bool mandatory= true;
+  bool mandatory= true, aria_loaded= 0;
   LEX_CSTRING MyISAM= { STRING_WITH_LEN("MyISAM") };
+  LEX_CSTRING Aria= { STRING_WITH_LEN("Aria") };
   DBUG_ENTER("plugin_init");
 
   if (initialized)
@@ -1704,7 +1705,22 @@ int plugin_init(int *argc, char **argv, int flags)
     global_system_variables.table_plugin =
       intern_plugin_lock(NULL, plugin_int_to_ref(plugin_ptr));
     DBUG_SLOW_ASSERT(plugin_ptr->ref_count == 1);
+  }
+  /* Initialize Aria plugin so that we can load mysql.plugin */
+  plugin_ptr= plugin_find_internal(&Aria, MYSQL_STORAGE_ENGINE_PLUGIN);
+  DBUG_ASSERT(plugin_ptr || !mysql_mandatory_plugins[0]);
+  if (plugin_ptr)
+  {
+    DBUG_ASSERT(plugin_ptr->load_option == PLUGIN_FORCE);
 
+    if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv, false))
+    {
+      if (!opt_help)
+        goto err_unlock;
+      plugin_ptr->state= PLUGIN_IS_DISABLED;
+    }
+    else
+      aria_loaded= 1;
   }
   mysql_mutex_unlock(&LOCK_plugin);
 
@@ -1726,8 +1742,10 @@ int plugin_init(int *argc, char **argv, int flags)
       LEX_CSTRING maybe_myisam= { engine_name_buf, 0 };
       bool is_sequence;
       Table_type frm_type= dd_frm_type(NULL, path, &maybe_myisam, &is_sequence);
-      /* if mysql.plugin table is MyISAM - load it right away */
-      if (frm_type == TABLE_TYPE_NORMAL && !strcasecmp(maybe_myisam.str, "MyISAM"))
+      /* if mysql.plugin table is MyISAM or Aria - load it right away */
+      if (frm_type == TABLE_TYPE_NORMAL &&
+          (!strcasecmp(maybe_myisam.str, "MyISAM") ||
+           (!strcasecmp(maybe_myisam.str, "Aria") && aria_loaded)))
       {
         plugin_load(&tmp_root);
         flags|= PLUGIN_INIT_SKIP_PLUGIN_TABLE;
@@ -4190,7 +4208,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   */
   if (disable_plugin)
   {
-    if (global_system_variables.log_warnings)
+    if (global_system_variables.log_warnings && !opt_help)
       sql_print_information("Plugin '%s' is disabled.",
                             tmp->name.str);
     goto err;

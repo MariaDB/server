@@ -1873,7 +1873,7 @@ extern "C" void unireg_abort(int exit_code)
 
   if (opt_help)
     usage();
-  if (exit_code)
+  else if (exit_code)
     sql_print_error("Aborting");
   /* Don't write more notes to the log to not hide error message */
   disable_log_notes= 1;
@@ -8557,9 +8557,15 @@ static void option_error_reporter(enum loglevel level, const char *format, ...)
   va_list args;
   va_start(args, format);
 
-  /* Don't print warnings for --loose options during bootstrap */
-  if (level == ERROR_LEVEL || !opt_bootstrap ||
-      global_system_variables.log_warnings)
+  /*
+    Don't print warnings for --loose options during bootstrap if
+    log_warnings <= 2 (2 is default) as warnings during bootstrap
+    can confuse people when running mysql_install_db and other scripts.
+    Don't print loose warnings at all if log_warnings <= 1
+  */
+  if (level == ERROR_LEVEL ||
+      (global_system_variables.log_warnings >
+       (ulong) (1 + MY_TEST(opt_bootstrap))))
   {
     vprint_msg_to_log(level, format, args);
   }

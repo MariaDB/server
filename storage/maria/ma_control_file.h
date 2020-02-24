@@ -59,12 +59,14 @@ typedef enum enum_control_file_error {
   CONTROL_FILE_MISSING,
   CONTROL_FILE_INCONSISTENT_INFORMATION,
   CONTROL_FILE_WRONG_BLOCKSIZE,
+  CONTROL_FILE_LOCKED,
   CONTROL_FILE_UNKNOWN_ERROR /* any other error */
 } CONTROL_FILE_ERROR;
 
 C_MODE_START
 CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
-                                        my_bool print_error);
+                                        my_bool print_error,
+                                        my_bool wait_for_lock);
 int ma_control_file_write_and_force(LSN last_checkpoint_lsn_arg,
                                     uint32 last_logno_arg, TrID max_trid_arg,
                                     uint8 recovery_failures_arg);
