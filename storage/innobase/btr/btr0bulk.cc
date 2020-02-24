@@ -275,20 +275,23 @@ no_data:
           goto no_data;
 
       /* Try to copy any data bytes of the preceding record. */
-      const byte *cdm= cd;
-      const byte *rdm= rd;
-      for (; cdm < c_end && *rdm == *cdm; cdm++, rdm++)
-      ut_ad(rdm - rd + bd <= insert_rec_end);
-      size_t len= static_cast<size_t>(rdm - rd);
-      ut_ad(!memcmp(rd, cd, len));
-      if (len > 2)
+      if (c_end - cd > 2)
       {
-        m_mtr.memcpy<mtr_t::FORCED>(*m_block, b, r, m_cur_rec - c);
-        memcpy(bd, cd, len);
-        m_mtr.memmove(*m_block, page_offset(bd), page_offset(cd), len);
-        c= cdm;
-        b= rdm - rd + bd;
-        r= rdm;
+        const byte *cdm= cd;
+        const byte *rdm= rd;
+        for (; cdm < c_end && *rdm == *cdm; cdm++, rdm++)
+        ut_ad(rdm - rd + bd <= insert_rec_end);
+        size_t len= static_cast<size_t>(rdm - rd);
+        ut_ad(!memcmp(rd, cd, len));
+        if (len > 2)
+        {
+          m_mtr.memcpy<mtr_t::FORCED>(*m_block, b, r, m_cur_rec - c);
+          memcpy(bd, cd, len);
+          m_mtr.memmove(*m_block, page_offset(bd), page_offset(cd), len);
+          c= cdm;
+          b= rdm - rd + bd;
+          r= rdm;
+        }
       }
     }
 

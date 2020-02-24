@@ -1342,23 +1342,26 @@ no_data:
 
         /* Try to copy any data bytes of the preceding record. */
         const byte * const cd= cur->rec + (rd - rec);
-        const byte *cdm= cd;
-        const byte *rdm= rd;
-        while (*rdm++ == *cdm++)
-          if (cdm == c_end)
-            break;
-        cdm--, rdm--;
-        ut_ad(rdm - rd + bd <= insert_buf + rec_size);
-        size_t len= static_cast<size_t>(rdm - rd);
-        ut_ad(!memcmp(rd, cd, len));
-        if (len > 2)
+        if (c_end - cd > 2)
         {
-          mtr->memcpy<mtr_t::FORCED>(*block, b, r, cur->rec - c);
-          memcpy(bd, cd, len);
-          mtr->memmove(*block, page_offset(bd), page_offset(cd), len);
-          c= cdm;
-          b= rdm - rd + bd;
-          r= rdm;
+          const byte *cdm= cd;
+          const byte *rdm= rd;
+          while (*rdm++ == *cdm++)
+            if (cdm == c_end)
+              break;
+          cdm--, rdm--;
+          ut_ad(rdm - rd + bd <= insert_buf + rec_size);
+          size_t len= static_cast<size_t>(rdm - rd);
+          ut_ad(!memcmp(rd, cd, len));
+          if (len > 2)
+          {
+            mtr->memcpy<mtr_t::FORCED>(*block, b, r, cur->rec - c);
+            memcpy(bd, cd, len);
+            mtr->memmove(*block, page_offset(bd), page_offset(cd), len);
+            c= cdm;
+            b= rdm - rd + bd;
+            r= rdm;
+          }
         }
       }
     }
