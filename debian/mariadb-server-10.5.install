@@ -16,7 +16,6 @@ usr/bin/galera_new_cluster
 usr/bin/galera_recovery
 usr/bin/mariadb-service-convert
 usr/bin/msql2mysql
-usr/bin/my_print_defaults
 usr/bin/myisam_ftdump
 usr/bin/myisamchk
 usr/bin/myisamlog
@@ -79,7 +78,6 @@ usr/share/man/man1/mariadbd-multi.1
 usr/share/man/man1/mariadbd-safe-helper.1
 usr/share/man/man1/mariadbd-safe.1
 usr/share/man/man1/msql2mysql.1
-usr/share/man/man1/my_print_defaults.1
 usr/share/man/man1/myisam_ftdump.1
 usr/share/man/man1/myisamchk.1
 usr/share/man/man1/myisamlog.1
@@ -103,11 +101,5 @@ usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/man/man1/wsrep_sst_mysqldump.1
 usr/share/man/man1/wsrep_sst_rsync.1
 usr/share/mysql/errmsg-utf8.txt
-usr/share/mysql/fill_help_tables.sql
-usr/share/mysql/maria_add_gis_sp_bootstrap.sql
-usr/share/mysql/mysql_performance_tables.sql
-usr/share/mysql/mysql_system_tables.sql
-usr/share/mysql/mysql_system_tables_data.sql
 usr/share/mysql/mysql_test_data_timezone.sql
-usr/share/mysql/mysql_test_db.sql
 usr/share/mysql/wsrep_notify
