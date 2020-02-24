@@ -1929,7 +1929,9 @@ lock_rec_lock(
   ut_ad((LOCK_MODE_MASK & mode) != LOCK_X ||
          lock_table_has(trx, index->table, LOCK_IX));
 
-  if (lock_t *lock= lock_rec_get_first_on_page(lock_sys.rec_hash, block))
+  if (lock_table_has(trx, index->table,
+                     static_cast<lock_mode>(LOCK_MODE_MASK & mode)));
+  else if (lock_t *lock= lock_rec_get_first_on_page(lock_sys.rec_hash, block))
   {
     trx_mutex_enter(trx);
     if (lock_rec_get_next_on_page(lock) ||
@@ -6358,8 +6360,9 @@ lock_trx_has_expl_x_lock(
 
 	lock_mutex_enter();
 	ut_ad(lock_table_has(trx, table, LOCK_IX));
-	ut_ad(lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, block, heap_no,
-				trx));
+	ut_ad(lock_table_has(trx, table, LOCK_X)
+	      || lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, block, heap_no,
+				   trx));
 	lock_mutex_exit();
 	return(true);
 }
