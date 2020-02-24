@@ -464,6 +464,39 @@ SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 = 'lock_rec_lock_created');
 SELECT @end - @start;
 
+--echo # Records must not be S/X-locked if a table is X-locked.
+SET @start = @end;
+# Tables will not be locked if autocommit is not 0.
+# See OPTION_NOT_AUTOCOMMIT in ha_innobase::external_lock().
+SET autocommit = 0;
+BEGIN;
+LOCK TABLE t1 WRITE;
+SELECT * FROM t1;
+SELECT * FROM t1 WHERE a>=10000;
+SELECT * FROM t1 FOR UPDATE;
+SELECT * FROM t1 WHERE a>=10000 FOR UPDATE;
+UPDATE t1 SET b = 'b' WHERE id = 4;
+UPDATE t1 SET b = 'b' WHERE a = 10000;
+INSERT INTO t1 VALUES(5,5,'e');
+DELETE FROM t1 WHERE a = 1 AND b='a';
+DELETE FROM t1;
+COMMIT;
+UNLOCK TABLES;
+SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created');
+SELECT @end - @start;
+
+--echo # Records must not be S-locked if a table is S-locked.
+SET @start = @end;
+BEGIN;
+LOCK TABLE t1 READ;
+SELECT * FROM t1 LOCK IN SHARE MODE;
+SELECT * FROM t1 WHERE a>=10000 LOCK IN SHARE MODE;
+COMMIT;
+UNLOCK TABLES;
+SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created');
+SELECT @end - @start;
+
+SET autocommit = default;
 DROP TABLE t1;
 
 --disable_warnings

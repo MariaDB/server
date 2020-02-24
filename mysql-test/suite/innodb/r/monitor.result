@@ -698,6 +698,53 @@ SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 SELECT @end - @start;
 @end - @start
 0
+# Records must not be S/X-locked if a table is X-locked.
+SET @start = @end;
+SET autocommit = 0;
+BEGIN;
+LOCK TABLE t1 WRITE;
+SELECT * FROM t1;
+id	a	b
+1	1	a
+4	4	d
+3	10000	c
+SELECT * FROM t1 WHERE a>=10000;
+id	a	b
+3	10000	c
+SELECT * FROM t1 FOR UPDATE;
+id	a	b
+1	1	a
+4	4	d
+3	10000	c
+SELECT * FROM t1 WHERE a>=10000 FOR UPDATE;
+id	a	b
+3	10000	c
+UPDATE t1 SET b = 'b' WHERE id = 4;
+UPDATE t1 SET b = 'b' WHERE a = 10000;
+INSERT INTO t1 VALUES(5,5,'e');
+DELETE FROM t1 WHERE a = 1 AND b='a';
+DELETE FROM t1;
+COMMIT;
+UNLOCK TABLES;
+SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created');
+SELECT @end - @start;
+@end - @start
+0
+# Records must not be S-locked if a table is S-locked.
+SET @start = @end;
+BEGIN;
+LOCK TABLE t1 READ;
+SELECT * FROM t1 LOCK IN SHARE MODE;
+id	a	b
+SELECT * FROM t1 WHERE a>=10000 LOCK IN SHARE MODE;
+id	a	b
+COMMIT;
+UNLOCK TABLES;
+SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created');
+SELECT @end - @start;
+@end - @start
+0
+SET autocommit = default;
 DROP TABLE t1;
 SET GLOBAL innodb_monitor_enable=default;
 SET GLOBAL innodb_monitor_disable=default;

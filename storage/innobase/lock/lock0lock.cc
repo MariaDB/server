@@ -1929,6 +1929,10 @@ lock_rec_lock(
   ut_ad((LOCK_MODE_MASK & mode) != LOCK_X ||
          lock_table_has(trx, index->table, LOCK_IX));
 
+  if (lock_table_has(trx, index->table,
+		     static_cast<lock_mode>(LOCK_MODE_MASK & mode)))
+	  goto exit;
+
   if (lock_t *lock= lock_rec_get_first_on_page(lock_sys.rec_hash, block))
   {
     trx_mutex_enter(trx);
@@ -1995,9 +1999,10 @@ lock_rec_lock(
 
     err= DB_SUCCESS_LOCKED_REC;
   }
-  lock_mutex_exit();
-  MONITOR_ATOMIC_INC(MONITOR_NUM_RECLOCK_REQ);
-  return err;
+exit:
+	lock_mutex_exit();
+	MONITOR_ATOMIC_INC(MONITOR_NUM_RECLOCK_REQ);
+	return err;
 }
 
 /*********************************************************************//**
@@ -6358,8 +6363,9 @@ lock_trx_has_expl_x_lock(
 
 	lock_mutex_enter();
 	ut_ad(lock_table_has(trx, table, LOCK_IX));
-	ut_ad(lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, block, heap_no,
-				trx));
+	ut_ad(lock_table_has(trx, table, LOCK_X)
+	      || lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, block, heap_no,
+				   trx));
 	lock_mutex_exit();
 	return(true);
 }
