@@ -3518,8 +3518,13 @@ void LEX::print(String *str, enum_query_type query_type)
     List_iterator<Item> it(sel->item_list);
     List_iterator<Item> it2(value_list);
     Item *col_ref, *value;
+    bool first= true;
     while ((col_ref= it++) && (value= it2++))
     {
+      if (first)
+        first= false;
+      else
+        str->append(STRING_WITH_LEN(", "));
       col_ref->print(str, query_type);
       str->append(STRING_WITH_LEN("="));
       value->print(str, query_type);
