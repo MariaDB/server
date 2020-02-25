@@ -2,7 +2,7 @@
   Pam module to change user names arbitrarily in the pam stack.
 
   Compile as
-  
+
      gcc pam_user_map.c -shared -lpam -fPIC -o pam_user_map.so
 
   Install as appropriate (for example, in /lib/security/).
@@ -39,14 +39,36 @@ and usually end up in /var/log/secure file.
 #include <grp.h>
 #include <pwd.h>
 
+#ifdef HAVE_PAM_EXT_H
 #include <security/pam_ext.h>
+#endif
+
+#ifdef HAVE_PAM_APPL_H
+#include <unistd.h>
+#include <security/pam_appl.h>
+#endif
+
 #include <security/pam_modules.h>
+
+#ifndef HAVE_PAM_SYSLOG
+#include <stdarg.h>
+static void
+pam_syslog (const pam_handle_t *pamh, int priority,
+      const char *fmt, ...)
+{
+  va_list args;
+  va_start (args, fmt);
+  vsyslog (priority, fmt, args);
+  va_end (args);
+}
+#endif
 
 #define FILENAME "/etc/security/user_map.conf"
 #define skip(what) while (*s && (what)) s++
+#define SYSLOG_DEBUG if (mode_debug) pam_syslog
 
 #define GROUP_BUFFER_SIZE 100
-
+static const char debug_keyword[]= "debug";
 
 static int populate_user_groups(const char *user, gid_t **groups)
 {
@@ -127,10 +149,6 @@ static void print_groups(pam_handle_t *pamh, const gid_t *user_groups, int ng)
   pam_syslog(pamh, LOG_DEBUG, "User belongs to %d %s [%s].\n",
                                  ng, (ng == 1) ? "group" : "groups", buf+1);
 }
-
-
-static const char debug_keyword[]= "debug";
-#define SYSLOG_DEBUG if (mode_debug) pam_syslog 
 
 int pam_sm_authenticate(pam_handle_t *pamh, int flags,
     int argc, const char *argv[])
