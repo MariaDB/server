@@ -224,7 +224,7 @@ typedef struct st_partition_key_multi_range
 
 
 /*
-  List of ranges to be scanned in a certain [sub]partition.
+  List of ranges to be scanned in a certain [sub]partition
 
   The idea is that there's a list of ranges to be scanned in the table
   (formed by PARTITION_KEY_MULTI_RANGE structures),
@@ -260,10 +260,10 @@ typedef struct st_partition_part_key_multi_range_hld
   /* Owner object */
   ha_partition *partition;
 
-  // id of the the partition this structure is for
+  /* id of the the partition this structure is for */
   uint32 part_id;
 
-  // Current range we're iterating through.
+  /* Current range we're iterating through */
   PARTITION_PART_KEY_MULTI_RANGE *partition_part_key_multi_range;
 } PARTITION_PART_KEY_MULTI_RANGE_HLD;
 
@@ -867,28 +867,31 @@ public:
   uint m_mrr_new_full_buffer_size;
   MY_BITMAP m_mrr_used_partitions;
   uint *m_stock_range_seq;
-  // not used: uint m_current_range_seq;
+  /* not used: uint m_current_range_seq; */
 
-  // Value of mrr_mode passed to ha_partition::multi_range_read_init
+  /* Value of mrr_mode passed to ha_partition::multi_range_read_init */
   uint m_mrr_mode;
 
-  // Value of n_ranges passed to ha_partition::multi_range_read_init
+  /* Value of n_ranges passed to ha_partition::multi_range_read_init */
   uint m_mrr_n_ranges;
 
   /*
     Ordered MRR mode:  m_range_info[N] has the range_id of the last record that
-    we've got from partition N.
+    we've got from partition N
   */
   range_id_t *m_range_info;
 
-  // TRUE <=> This ha_partition::multi_range_read_next() call is the first one
+  /*
+    TRUE <=> This ha_partition::multi_range_read_next() call is the first one
+  */
   bool m_multi_range_read_first;
-  // not used: uint m_mrr_range_init_flags;
+
+  /* not used: uint m_mrr_range_init_flags; */
 
   /* Number of elements in the list pointed by m_mrr_range_first. Not used */
   uint m_mrr_range_length;
 
-  // Linked list of ranges to scan
+  /* Linked list of ranges to scan */
   PARTITION_KEY_MULTI_RANGE *m_mrr_range_first;
   PARTITION_KEY_MULTI_RANGE *m_mrr_range_current;
 
@@ -897,21 +900,19 @@ public:
   */
   uint *m_part_mrr_range_length;
 
-  /*
-    For each partition: List of ranges to scan in this partition.
-  */
+  /* For each partition: List of ranges to scan in this partition */
   PARTITION_PART_KEY_MULTI_RANGE **m_part_mrr_range_first;
   PARTITION_PART_KEY_MULTI_RANGE **m_part_mrr_range_current;
   PARTITION_PART_KEY_MULTI_RANGE_HLD *m_partition_part_key_multi_range_hld;
 
   /*
-    Sequence of ranges to be scanned (TODO: why not stores this in
+    Sequence of ranges to be scanned (TODO: why not store this in
     handler::mrr_{iter,funcs}?)
   */
   range_seq_t m_seq;
   RANGE_SEQ_IF *m_seq_if;
 
-  // Range iterator structure to be supplied to partitions
+  /* Range iterator structure to be supplied to partitions */
   RANGE_SEQ_IF m_part_seq_if;
 
   virtual int multi_range_key_create_key(
