@@ -970,18 +970,19 @@ Checks if a transaction has a GRANTED explicit lock on rec stronger or equal
 to precise_mode.
 @return lock or NULL */
 UNIV_INLINE
-lock_t*
-lock_rec_has_expl(
-/*==============*/
-	ulint			precise_mode,/*!< in: LOCK_S or LOCK_X
-					possibly ORed to LOCK_GAP or
-					LOCK_REC_NOT_GAP, for a
-					supremum record we regard this
-					always a gap type request */
-	const buf_block_t*	block,	/*!< in: buffer block containing
-					the record */
-	ulint			heap_no,/*!< in: heap number of the record */
-	const trx_t*		trx)	/*!< in: transaction */
+bool lock_rec_has_expl(
+	/*==============*/
+	ulint precise_mode, /*!< in: LOCK_S or LOCK_X
+		       possibly ORed to LOCK_GAP or
+		       LOCK_REC_NOT_GAP, for a
+		       supremum record we regard this
+		       always a gap type request */
+	const dict_table_t* table,
+	const buf_block_t* block, /*!< in: buffer block containing
+				  the record */
+	ulint heap_no,		  /*!< in: heap number of the record */
+	const trx_t* trx,	 /*!< in: transaction */
+	lock_t** out)
 {
 	lock_t*	lock;
 
@@ -989,6 +990,11 @@ lock_rec_has_expl(
 	ut_ad((precise_mode & LOCK_MODE_MASK) == LOCK_S
 	      || (precise_mode & LOCK_MODE_MASK) == LOCK_X);
 	ut_ad(!(precise_mode & LOCK_INSERT_INTENTION));
+
+	if (lock_table_has(
+		    trx, table,
+		    static_cast<lock_mode>(LOCK_MODE_MASK & precise_mode)))
+		return true;
 
 	for (lock = lock_rec_get_first(lock_sys.rec_hash, block, heap_no);
 	     lock != NULL;
@@ -1008,11 +1014,13 @@ lock_rec_has_expl(
 			|| (precise_mode & LOCK_GAP)
 			|| heap_no == PAGE_HEAP_NO_SUPREMUM)) {
 
-			return(lock);
+			if (out)
+				*out = lock;
+			return true;
 		}
 	}
 
-	return(NULL);
+	return false;
 }
 
 #ifdef UNIV_DEBUG
@@ -1942,14 +1950,14 @@ lock_rec_lock(
         lock_rec_get_n_bits(lock) <= heap_no)
     {
       /* Do nothing if the trx already has a strong enough lock on rec */
-      if (!lock_rec_has_expl(mode, block, heap_no, trx))
-      {
-        if (
+      if (!lock_rec_has_expl(mode, index->table, block, heap_no, trx,
+			     nullptr)) {
+	      if (
 #ifdef WITH_WSREP
-	    lock_t *c_lock=
+		      lock_t* c_lock =
 #endif
-	    lock_rec_other_has_conflicting(mode, block, heap_no, trx))
-        {
+			      lock_rec_other_has_conflicting(mode, block,
+							     heap_no, trx)) {
           /*
             If another transaction has a non-gap conflicting
             request in the queue, as this transaction does not
@@ -4896,16 +4904,18 @@ func_exit:
 						wsrep_thd_query(otrx->mysql_thd);
 				}
 
-				if (!lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP,
-						       block, heap_no,
-						       impl_trx)) {
+				if (!lock_rec_has_expl(
+					    LOCK_X | LOCK_REC_NOT_GAP,
+					    index->table, block, heap_no,
+					    impl_trx, nullptr)) {
 					ib::info() << "WSREP impl BF lock conflict";
 				}
 			} else
 #endif /* WITH_WSREP */
 			ut_ad(lock_get_wait(other_lock));
 			ut_ad(lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP,
-						block, heap_no, impl_trx));
+						index->table, block, heap_no,
+						impl_trx, nullptr));
 		}
 
 		mutex_exit(&impl_trx->mutex);
@@ -5385,8 +5395,8 @@ lock_rec_convert_impl_to_expl_for_trx(
 	ut_ad(!trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 
 	if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)
-	    && !lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP,
-				  block, heap_no, trx)) {
+	    && !lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, index->table,
+				  block, heap_no, trx, nullptr)) {
 		lock_rec_add_to_queue(LOCK_REC | LOCK_X | LOCK_REC_NOT_GAP,
 				      block, heap_no, index, trx, true);
 	}
@@ -5403,6 +5413,7 @@ lock_rec_convert_impl_to_expl_for_trx(
 struct lock_rec_other_trx_holds_expl_arg
 {
   const ulint heap_no;
+  const dict_table_t* table;
   const buf_block_t * const block;
   const trx_t *impl_trx;
 };
@@ -5412,23 +5423,29 @@ static my_bool lock_rec_other_trx_holds_expl_callback(
   rw_trx_hash_element_t *element,
   lock_rec_other_trx_holds_expl_arg *arg)
 {
-  mutex_enter(&element->mutex);
-  if (element->trx)
-  {
-    trx_mutex_enter(element->trx);
-    ut_ad(element->trx->state != TRX_STATE_NOT_STARTED);
-    lock_t *expl_lock= element->trx->state == TRX_STATE_COMMITTED_IN_MEMORY
-      ? NULL : lock_rec_has_expl(LOCK_S | LOCK_REC_NOT_GAP, arg->block,
-                                 arg->heap_no, element->trx);
-    /*
-      An explicit lock is held by trx other than the trx holding the implicit
-      lock.
-    */
-    ut_ad(!expl_lock || expl_lock->trx == arg->impl_trx);
-    trx_mutex_exit(element->trx);
+	bool has_expl_lock = false;
+	mutex_enter(&element->mutex);
+	if (element->trx) {
+		trx_mutex_enter(element->trx);
+		ut_ad(element->trx->state != TRX_STATE_NOT_STARTED);
+		lock_t* expl_lock = nullptr;
+		has_expl_lock
+			= element->trx->state != TRX_STATE_COMMITTED_IN_MEMORY
+				  ? false
+				  : lock_rec_has_expl(
+					    LOCK_S | LOCK_REC_NOT_GAP,
+					    arg->table, arg->block,
+					    arg->heap_no, element->trx,
+					    &expl_lock);
+		/*
+		  An explicit lock is held by trx other than the trx holding
+		  the implicit lock.
+		*/
+		ut_ad(!expl_lock || expl_lock->trx == arg->impl_trx);
+		trx_mutex_exit(element->trx);
   }
   mutex_exit(&element->mutex);
-  return 0;
+  return has_expl_lock;
 }
 
 
@@ -5446,9 +5463,10 @@ static my_bool lock_rec_other_trx_holds_expl_callback(
   @param[in]  block       buffer block containing the record
 */
 
-static void lock_rec_other_trx_holds_expl(trx_t *caller_trx, trx_t *trx,
-                                          const rec_t *rec,
-                                          const buf_block_t *block)
+static void lock_rec_other_trx_holds_expl(trx_t* caller_trx, trx_t* trx,
+					  const rec_t* rec,
+					  const dict_table_t* table,
+					  const buf_block_t* block)
 {
   if (trx)
   {
@@ -5465,8 +5483,8 @@ static void lock_rec_other_trx_holds_expl(trx_t *caller_trx, trx_t *trx,
       lock_mutex_exit();
       return;
     }
-    lock_rec_other_trx_holds_expl_arg arg= { page_rec_get_heap_no(rec), block,
-                                             trx };
+    lock_rec_other_trx_holds_expl_arg arg
+	    = {page_rec_get_heap_no(rec), table, block, trx};
     trx_sys.rw_trx_hash.iterate(caller_trx,
                                 reinterpret_cast<my_hash_walk_action>
                                 (lock_rec_other_trx_holds_expl_callback),
@@ -5536,7 +5554,7 @@ lock_rec_convert_impl_to_expl(
 		}
 
 		ut_d(lock_rec_other_trx_holds_expl(caller_trx, trx, rec,
-						   block));
+						   index->table, block));
 	}
 
 	if (trx != 0) {
@@ -6363,9 +6381,8 @@ lock_trx_has_expl_x_lock(
 
 	lock_mutex_enter();
 	ut_ad(lock_table_has(trx, table, LOCK_IX));
-	ut_ad(lock_table_has(trx, table, LOCK_X)
-	      || lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, block, heap_no,
-				   trx));
+	ut_ad(lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, table, block,
+				heap_no, trx, nullptr));
 	lock_mutex_exit();
 	return(true);
 }
