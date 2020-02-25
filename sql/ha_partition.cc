@@ -6264,9 +6264,10 @@ static bool partition_multi_range_key_skip_record(range_seq_t seq,
 {
   PARTITION_PART_KEY_MULTI_RANGE_HLD *hld=
     (PARTITION_PART_KEY_MULTI_RANGE_HLD *)seq;
+  PARTITION_KEY_MULTI_RANGE *pkmr= (PARTITION_KEY_MULTI_RANGE *)range_info;
   DBUG_ENTER("partition_multi_range_key_skip_record");
   DBUG_RETURN(hld->partition->m_seq_if->skip_record(hld->partition->m_seq,
-                                                    range_info, rowid));
+                                                    pkmr->ptr, rowid));
 }
 
 
@@ -6275,9 +6276,10 @@ static bool partition_multi_range_key_skip_index_tuple(range_seq_t seq,
 {
   PARTITION_PART_KEY_MULTI_RANGE_HLD *hld=
     (PARTITION_PART_KEY_MULTI_RANGE_HLD *)seq;
+  PARTITION_KEY_MULTI_RANGE *pkmr= (PARTITION_KEY_MULTI_RANGE *)range_info;
   DBUG_ENTER("partition_multi_range_key_skip_index_tuple");
   DBUG_RETURN(hld->partition->m_seq_if->skip_index_tuple(hld->partition->m_seq,
-                                                         range_info));
+                                                         pkmr->ptr));
 }
 
 ha_rows ha_partition::multi_range_read_info_const(uint keyno,
