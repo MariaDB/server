@@ -800,6 +800,9 @@ struct TABLE_SHARE
   uint  partition_info_str_len;
   uint  partition_info_buffer_size;
   plugin_ref default_part_plugin;
+  bool vers_altering;
+  time_t vers_hist_part_timeout;
+  uint vers_hist_part_error;
 #endif
 
   /**

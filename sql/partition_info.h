@@ -38,6 +38,7 @@ struct Vers_part_info : public Sql_alloc
 {
   Vers_part_info() :
     limit(0),
+    auto_inc(false),
     now_part(NULL),
     hist_part(NULL)
   {
@@ -46,6 +47,7 @@ struct Vers_part_info : public Sql_alloc
   Vers_part_info(Vers_part_info &src) :
     interval(src.interval),
     limit(src.limit),
+    auto_inc(src.auto_inc),
     now_part(NULL),
     hist_part(NULL)
   {
@@ -69,9 +71,30 @@ struct Vers_part_info : public Sql_alloc
     my_time_t start;
     INTERVAL step;
     enum interval_type type;
-    bool is_set() { return type < INTERVAL_LAST; }
+    bool is_set() const { return type < INTERVAL_LAST; }
+    bool lt(size_t seconds) const
+    {
+      if (step.second)
+        return step.second < seconds;
+      if (step.minute)
+        return step.minute * 60 < seconds;
+      if (step.hour)
+        return step.hour * 3600 < seconds;
+      if (step.day)
+        return step.day * 3600 * 24 < seconds;
+      // comparison is used in rough estimates, it doesn't need to be calendar-correct
+      if (step.month)
+        return step.month * 3600 * 24 * 30 < seconds;
+      DBUG_ASSERT(step.year);
+      return step.year * 86400 * 30 * 365 < seconds;
+    }
+    bool ge(size_t seconds) const
+    {
+      return !(this->lt(seconds));
+    }
   } interval;
   ulonglong limit;
+  bool auto_inc;
   partition_element *now_part;
   partition_element *hist_part;
 };
@@ -394,14 +417,16 @@ public:
   bool vers_init_info(THD *thd);
   bool vers_set_interval(THD *thd, Item *interval,
                          interval_type int_type, Item *starts,
-                         const char *table_name);
-  bool vers_set_limit(ulonglong limit)
+                         bool auto_inc, const char *table_name);
+  bool vers_set_limit(ulonglong limit, bool auto_inc)
   {
     DBUG_ASSERT(part_type == VERSIONING_PARTITION);
     vers_info->limit= limit;
+    vers_info->auto_inc= auto_inc;
     return !limit;
   }
   void vers_set_hist_part(THD *thd);
+  void vers_add_hist_part(THD *thd);
   bool vers_fix_field_list(THD *thd);
   void vers_update_el_ids();
   partition_element *get_partition(uint part_id)
@@ -498,6 +523,16 @@ void partition_info::vers_update_el_ids()
         break;
     }
   }
+}
+
+
+#define MAX_PART_NAME_SIZE 8
+
+inline
+bool make_partition_name(char *move_ptr, uint i)
+{
+  int res= snprintf(move_ptr, MAX_PART_NAME_SIZE + 1, "p%u", i);
+  return res < 0 || res > MAX_PART_NAME_SIZE;
 }
 
 #endif /* PARTITION_INFO_INCLUDED */

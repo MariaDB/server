@@ -169,4 +169,15 @@ insert into t1 values (1);
 select * from t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-17554 Auto-create new partition for system versioned tables with history partitioned by INTERVAL/LIMIT
+--echo #
+--echo # Don't auto-create new partition on DELETE HISTORY:
+create or replace table t (a int)
+with system versioning
+partition by system_time limit 1000;
+delete history from t;
+select count(*) - 1 as hist_partitions from information_schema.partitions where table_name = 't' and table_schema = 'test';
+drop table t;
+
 --source suite/versioning/common_finish.inc

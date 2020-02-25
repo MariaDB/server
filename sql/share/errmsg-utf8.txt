@@ -7945,3 +7945,7 @@ ER_PART_STARTS_BEYOND_INTERVAL
         eng "%`s: STARTS is later than query time, first history partition may exceed INTERVAL value"
 ER_GALERA_REPLICATION_NOT_SUPPORTED
 	eng "DDL-statement is forbidden as table storage engine does not support Galera replication"
+ER_VERS_MODIFY_HISTORY
+        eng "Modifying history is prohibited, set `secure_timestamp` to NO or SUPER"
+WARN_VERS_HIST_PART_ERROR
+        eng "Versioned table %`s.%`s: adding HISTORY partition failed with error %u, see error log for details"
