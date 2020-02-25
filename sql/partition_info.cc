@@ -894,6 +894,7 @@ add_hist_part:
   case SQLCOM_DELETE:
     if (thd->lex->last_table()->vers_conditions.type == SYSTEM_TIME_HISTORY)
       break;
+    /* fallthrough */
   case SQLCOM_UPDATE:
   case SQLCOM_INSERT:
   case SQLCOM_INSERT_SELECT:
