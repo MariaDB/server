@@ -157,8 +157,9 @@ public:
   @see mtr_t::undo_append()
   @param block   undo log page
   @param data    undo log record
-  @param len     length of the undo log record */
-  static void undo_append(const buf_block_t &block, const byte *data,
+  @param len     length of the undo log record
+  @return whether the operation failed (inconcistency was noticed) */
+  static bool undo_append(const buf_block_t &block, const byte *data,
                           size_t len)
   {
     ut_ad(len > 2);
@@ -170,7 +171,7 @@ public:
     {
       ib::error() << "Not applying UNDO_APPEND due to corruption on "
                   << block.page.id;
-      return;
+      return true;
     }
 
     byte *p= block.frame + free;
@@ -180,6 +181,7 @@ public:
     memcpy(p, data, len);
     p+= len;
     mach_write_to_2(p, free);
+    return false;
   }
 
   /** The status of apply() */
@@ -307,12 +309,17 @@ public:
         case UNDO_APPEND:
           if (UNIV_UNLIKELY(rlen <= 3))
             goto record_corrupted;
-          undo_append(block, ++l, --rlen);
+          if (undo_append(block, ++l, --rlen) && !srv_force_recovery)
+          {
+            ib::error() << "Set innodb_force_recovery=1 to ignore corruption.";
+            recv_sys.found_corrupt_log= true;
+            return applied;
+          }
           break;
         case DELETE_ROW_FORMAT_REDUNDANT:
           if (UNIV_UNLIKELY(rlen < 2 || rlen > 4))
             goto record_corrupted;
-	  rlen--;
+          rlen--;
           ll= mlog_decode_varint_length(*++l);
           if (UNIV_UNLIKELY(ll != rlen))
             goto record_corrupted;
@@ -321,7 +328,7 @@ public:
         case DELETE_ROW_FORMAT_DYNAMIC:
           if (UNIV_UNLIKELY(rlen < 2))
             goto record_corrupted;
-	  rlen--;
+          rlen--;
           ll= mlog_decode_varint_length(*++l);
           if (UNIV_UNLIKELY(ll > 3 || ll >= rlen))
             goto record_corrupted;
@@ -2274,6 +2281,10 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 		}
 
 set_start_lsn:
+		if (recv_sys.found_corrupt_log && !srv_force_recovery) {
+			break;
+		}
+
 		if (!start_lsn) {
 			start_lsn = l->start_lsn;
 		}

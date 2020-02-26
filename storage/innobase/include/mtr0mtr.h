@@ -551,7 +551,7 @@ private:
 
   /** Write an EXTENDED log record.
   @param block  buffer pool page
-  @param type	extended record subtype; @see mrec_ext_t */
+  @param type   extended record subtype; @see mrec_ext_t */
   inline void log_write_extended(const buf_block_t &block, byte type);
 
   /** Prepare to write the mini-transaction log to the redo log buffer.

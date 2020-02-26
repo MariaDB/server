@@ -523,7 +523,7 @@ inline void mtr_t::free(const page_id_t id)
 
 /** Write an EXTENDED log record.
 @param block  buffer pool page
-@param type	extended record subtype; @see mrec_ext_t */
+@param type   extended record subtype; @see mrec_ext_t */
 inline void mtr_t::log_write_extended(const buf_block_t &block, byte type)
 {
   set_modified();
@@ -615,7 +615,7 @@ inline void mtr_t::undo_append(const buf_block_t &block,
   set_modified();
   if (m_log_mode != MTR_LOG_ALL)
     return;
-  const bool small= len < mtr_buf_t::MAX_DATA_SIZE - (3 + 3 + 5 + 5);
+  const bool small= len + 1 < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5);
   byte *end= log_write<EXTENDED>(block.page.id, &block.page, len + 1, small);
   if (UNIV_LIKELY(small))
   {
@@ -626,8 +626,9 @@ inline void mtr_t::undo_append(const buf_block_t &block,
   else
   {
     m_log.close(end);
-    byte type= UNDO_APPEND;
-    m_log.push(&type, 1);
+    end= m_log.open(1);
+    *end++= UNDO_APPEND;
+    m_log.close(end);
     m_log.push(static_cast<const byte*>(data), static_cast<uint32_t>(len));
   }
   m_last_offset= FIL_PAGE_TYPE;
