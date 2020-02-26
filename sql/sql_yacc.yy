@@ -18002,14 +18002,14 @@ commit:
         | COMMIT_SYM alter
           {
             LEX *lex=Lex;
-            lex->sql_command= SQLCOM_COMMIT_PREVIOUS;
+            lex->sql_command= SQLCOM_COMMIT_ALTER;
             if (thd->variables.pseudo_thread_id)
               lex->previous_commit_id= thd->variables.pseudo_thread_id;
           }
         | COMMIT_SYM ulonglong_num alter
           {
             LEX *lex=Lex;
-            lex->sql_command= SQLCOM_COMMIT_PREVIOUS;
+            lex->sql_command= SQLCOM_COMMIT_ALTER;
             lex->previous_commit_id= $2;
           }
         ;
@@ -18039,14 +18039,14 @@ rollback:
         | ROLLBACK_SYM alter_table
           {
             LEX *lex=Lex;
-            lex->sql_command= SQLCOM_ROLLBACK_PREVIOUS;
+            lex->sql_command= SQLCOM_ROLLBACK_ALTER;
             if (thd->variables.pseudo_thread_id)
               lex->previous_commit_id= thd->variables.pseudo_thread_id;
           }
         | ROLLBACK_SYM ulonglong_num alter_table
           {
             LEX *lex=Lex;
-            lex->sql_command= SQLCOM_ROLLBACK_PREVIOUS;
+            lex->sql_command= SQLCOM_ROLLBACK_ALTER;
             lex->previous_commit_id= $2;
           }
         ;

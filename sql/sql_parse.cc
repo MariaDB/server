@@ -5704,7 +5704,7 @@ mysql_execute_command(THD *thd)
     thd->transaction.start_alter= false;
     break;
   }
-  case SQLCOM_COMMIT_PREVIOUS:
+  case SQLCOM_COMMIT_ALTER:
   {
     DBUG_ASSERT(thd->rgi_slave);
     Master_info *mi= thd->rgi_slave->rli->mi;
@@ -5803,7 +5803,7 @@ mysql_execute_command(THD *thd)
     my_ok(thd);
    break;
   }
-  case SQLCOM_ROLLBACK_PREVIOUS:
+  case SQLCOM_ROLLBACK_ALTER:
   {
     DBUG_ASSERT(thd->rgi_slave);
     Master_info *mi= thd->rgi_slave->rli->mi;

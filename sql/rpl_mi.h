@@ -368,9 +368,10 @@ struct start_alter_info
   /*
     0 prepared and not error from commit and rollback
     >0 error expected in commit/rollback
+    TODO maybe used later ?
   */
   uint error;
-  //Seq no of Commit/Rollback
+  //Seq no of Commit/Rollback (thread id)
   uint64 seq_no;
   enum start_alter_state state;
 };

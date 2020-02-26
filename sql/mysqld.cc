@@ -1942,7 +1942,7 @@ static void mysqld_exit(int exit_code)
 #ifdef SAFEMALLOC
     sf_report_leaked_memory(0);
 #endif
-    //DBUG_SLOW_ASSERT(global_status_var.global_memory_used == 0);
+    DBUG_SLOW_ASSERT(global_status_var.global_memory_used == 0);
   }
   cleanup_tls();
   DBUG_LEAVE;
@@ -3343,7 +3343,7 @@ SHOW_VAR com_status_vars[]= {
   {"check",                STMT_STATUS(SQLCOM_CHECK)},
   {"checksum",             STMT_STATUS(SQLCOM_CHECKSUM)},
   {"commit",               STMT_STATUS(SQLCOM_COMMIT)},
-  {"commit_previous",      STMT_STATUS(SQLCOM_COMMIT_PREVIOUS)},
+  {"commit_alter",         STMT_STATUS(SQLCOM_COMMIT_ALTER)},
   {"compound_sql",         STMT_STATUS(SQLCOM_COMPOUND)},
   {"create_db",            STMT_STATUS(SQLCOM_CREATE_DB)},
   {"create_event",         STMT_STATUS(SQLCOM_CREATE_EVENT)},
@@ -3416,7 +3416,7 @@ SHOW_VAR com_status_vars[]= {
   {"revoke_role",          STMT_STATUS(SQLCOM_REVOKE_ROLE)},
   {"rollback",             STMT_STATUS(SQLCOM_ROLLBACK)},
   {"rollback_to_savepoint",STMT_STATUS(SQLCOM_ROLLBACK_TO_SAVEPOINT)},
-  {"rollback_previous",    STMT_STATUS(SQLCOM_ROLLBACK_PREVIOUS)},
+  {"rollback_alter",       STMT_STATUS(SQLCOM_ROLLBACK_ALTER)},
   {"savepoint",            STMT_STATUS(SQLCOM_SAVEPOINT)},
   {"select",               STMT_STATUS(SQLCOM_SELECT)},
   {"set_option",           STMT_STATUS(SQLCOM_SET_OPTION)},

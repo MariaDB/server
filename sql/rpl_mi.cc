@@ -85,6 +85,10 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
   mysql_mutex_init(key_master_info_data_lock, &data_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_master_info_start_stop_lock, &start_stop_lock,
                    MY_MUTEX_INIT_SLOW);
+  /*
+    start_alter_lock will protect individual start_alter_info while
+    start_alter_list_lock is for list insertion and deletion operations
+  */
   mysql_mutex_init(key_master_info_start_alter_lock, &start_alter_lock,
                                       MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_master_info_start_alter_list_lock, &start_alter_list_lock,
