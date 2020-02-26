@@ -29,8 +29,6 @@ void remove_current_table_from_rpl_table_list(rpl_group_info *rgi);
 int unpack_row_to_buf(rpl_group_info *rgi, TABLE *table, uchar *data,
                       uchar const *const row_data, MY_BITMAP const *cols,
                       uchar const *const row_end);
-void xpand_mark_tables_for_discovery(LEX *lex);
-ulonglong *xpand_extract_table_oids(THD *thd, LEX *lex);
 
 
 class Xpand_share : public Handler_share {
@@ -133,7 +131,6 @@ public:
   void cond_pop();
   int info_push(uint info_type, void *info);
 
-  ulonglong get_table_oid();
 private:
   void build_key_packed_row(uint index, const uchar *buf,
                             uchar *packed_key, size_t *packed_key_len);

@@ -281,7 +281,7 @@ int xpand_connection::send_command()
        committed or rolled back.
   */
   trans_state = XPAND_TRANS_STARTED;
-
+  
   com_error = simple_command(&xpand_net,
                              (enum_server_command)XPAND_SERVER_REQUEST,
                              command_buffer, command_length, TRUE);
@@ -777,7 +777,6 @@ int xpand_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
                                  uchar *null_bits, uint null_bits_size,
                                  uchar *field_metadata,
                                  uint field_metadata_size, ushort row_req,
-                                 ulonglong *oids,
                                  xpand_connection_cursor **scan)
 {
   int error_code;
@@ -785,12 +784,6 @@ int xpand_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
 
   if ((error_code = begin_command(XPAND_SCAN_QUERY)))
     return error_code;
-
-  do {
-    if ((error_code = add_command_operand_ulonglong(*oids)))
-      return error_code;
-  }
-  while (*oids++);
 
   if ((error_code = add_command_operand_ushort(row_req)))
     return error_code;

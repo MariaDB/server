@@ -89,7 +89,7 @@ public:
                  xpand_connection_cursor **scan);
   int scan_query(String &stmt, uchar *fieldtype, uint fields, uchar *null_bits,
                  uint null_bits_size, uchar *field_metadata,
-                 uint field_metadata_size, ushort row_req, ulonglong *oids,
+                 uint field_metadata_size, ushort row_req,
                  xpand_connection_cursor **scan);
   int update_query(String &stmt, LEX_CSTRING &dbname, ulonglong *affected_rows);
   int scan_from_key(ulonglong xpand_table_oid, uint index,
