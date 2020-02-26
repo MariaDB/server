@@ -5,5 +5,5 @@ usr/lib/*/libmysqlclient.so
 usr/lib/*/libmariadbclient.so
 usr/lib/*/libmariadbclient.a
 usr/lib/*/libmysqlservices.a
+usr/lib/*/pkgconfig/mariadb.pc
 usr/share/aclocal/mysql.m4
-usr/share/pkgconfig/mariadb.pc
