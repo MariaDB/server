@@ -103,6 +103,8 @@ public:
   int scan_end(xpand_connection_cursor *scan);
 
   int populate_table_list(LEX_CSTRING *db, handlerton::discovered_list *result);
+  int get_table_oid(const std::string& db, const std::string &name, 
+                    ulonglong *oid, TABLE_SHARE *share);
   int discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name, THD *thd,
                              TABLE_SHARE *share);
 

@@ -30,9 +30,18 @@ int unpack_row_to_buf(rpl_group_info *rgi, TABLE *table, uchar *data,
                       uchar const *const row_data, MY_BITMAP const *cols,
                       uchar const *const row_end);
 
+
+class Xpand_share : public Handler_share {
+public:
+  Xpand_share(): xpand_table_oid(0) {}
+
+  std::atomic<ulonglong> xpand_table_oid;
+};
+
 class ha_xpand : public handler
 {
 private:
+  // TODO: do we need this here or one in share would be sufficient?
   ulonglong xpand_table_oid;
   rpl_group_info *rgi;
 
@@ -55,6 +64,9 @@ private:
     XPAND_UPSERT_SENT= 4
   } xpd_upsert_flags_t;
   int upsert_flag;
+
+  Xpand_share *share;
+  Xpand_share *get_share(); ///< Get the share
 
 public:
   ha_xpand(handlerton *hton, TABLE_SHARE *table_arg);

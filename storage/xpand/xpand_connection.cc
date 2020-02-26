@@ -5,6 +5,7 @@ Copyright (c) 2019, MariaDB Corporation.
 /** @file xpand_connection.cc */
 
 #include "xpand_connection.h"
+#include "ha_xpand.h"
 #include <string>
 #include "handler.h"
 #include "table.h"
@@ -988,24 +989,40 @@ error:
   return error_code;
 }
 
-int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
-                                             THD *thd, TABLE_SHARE *share)
+
+/*
+  Given a table name, find its OID in the Clustrix, and save it in TABLE_SHARE
+
+  @param db     Database name
+  @param name   Table name
+  @param oid    OUT   Return the OID here
+  @param share  INOUT If not NULL and the share has ha_share pointer, also
+                      update Xpand_share::xpand_table_oid.
+
+  @return
+     0 - OK 
+     error code if an error occurred
+*/
+
+int xpand_connection::get_table_oid(const std::string &db, 
+                                    const std::string &name, 
+                                    ulonglong *oid, 
+                                    TABLE_SHARE *share)
 {
-  DBUG_ENTER("xpand_connection::discover_table_details");
+  MYSQL_ROW row;
   int error_code = 0;
   MYSQL_RES *results_oid = NULL;
-  MYSQL_RES *results_create = NULL;
-  MYSQL_ROW row;
-  String get_oid, show;
+  String get_oid;
+  DBUG_ENTER("xpand_connection::get_table_oid");
 
   /* get oid */
   get_oid.append("select r.table "
                  "from system.databases d "
                  "     inner join ""system.relations r on d.db = r.db "
                  "where d.name = '");
-  get_oid.append(db);
+  get_oid.append(db.c_str());
   get_oid.append("' and r.name = '");
-  get_oid.append(name);
+  get_oid.append(name.c_str());
   get_oid.append("'");
 
   if (mysql_real_query(&xpand_net, get_oid.c_ptr(), get_oid.length())) {
@@ -1026,24 +1043,47 @@ int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
     goto error;
   }
 
-  while((row = mysql_fetch_row(results_oid))) {
+  if ((row = mysql_fetch_row(results_oid))) {
     DBUG_PRINT("row", ("%s", row[0]));
-    uchar *to = (uchar*)alloc_root(&share->mem_root, strlen(row[0]) + 1);
-    if (!to) {
-      error_code = HA_ERR_OUT_OF_MEM;
-      goto error;
-    }
 
-    strcpy((char *)to, (char *)row[0]);
-    share->tabledef_version.str = to;
-    share->tabledef_version.length = strlen(row[0]);
+    *oid = strtoull((const char *)row[0], NULL, 10);
+    if (share->ha_share) {
+      Xpand_share *cs= (Xpand_share*)share->ha_share;
+      cs->xpand_table_oid = *oid;
+    }
+  } else {
+    error_code = HA_ERR_NO_SUCH_TABLE;
+    goto error;
   }
+
+error:
+  if (results_oid)
+    mysql_free_result(results_oid);
+
+  DBUG_RETURN(error_code);
+}
+
+
+/*
+  Given a table name, fetch table definition from Clustrix and fill the TABLE_SHARE
+  object with details about field, indexes, etc.
+*/
+int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
+                                             THD *thd, TABLE_SHARE *share)
+{
+  DBUG_ENTER("xpand_connection::discover_table_details");
+  int error_code = 0;
+  MYSQL_RES *results_create = NULL;
+  MYSQL_ROW row;
+  String show;
 
   /* get show create statement */
   show.append("show simple create table ");
   show.append(db);
   show.append(".");
+  show.append("`");
   show.append(name);
+  show.append("`");
   if (mysql_real_query(&xpand_net, show.c_ptr(), show.length())) {
     if ((error_code = mysql_errno(&xpand_net))) {
       DBUG_PRINT("mysql_real_query returns ", ("%d", error_code));
@@ -1074,9 +1114,6 @@ int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
   }
 
 error:
-  if (results_oid)
-    mysql_free_result(results_oid);
-
   if (results_create)
     mysql_free_result(results_create);
   DBUG_RETURN(error_code);
