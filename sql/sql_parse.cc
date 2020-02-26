@@ -5643,6 +5643,12 @@ mysql_execute_command(THD *thd)
       res= lex->m_sql_cmd->execute(thd);
       break;
     }
+    else if(!thd->rpt)
+    {
+      if (write_bin_log(thd, false, thd->query(), thd->query_length()))
+        DBUG_RETURN(true);
+      break;
+    }
     pthread_t th;
     start_alter_thd_args *args= (start_alter_thd_args *) my_malloc(sizeof(
                                     start_alter_thd_args), MYF(0));
@@ -5681,7 +5687,7 @@ mysql_execute_command(THD *thd)
       info_iterator.remove();
     mysql_mutex_unlock(&mi->start_alter_list_lock);
     DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
-    if (write_bin_log(thd, true, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
+    if (write_bin_log(thd, false, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
       return true;
 //    my_sleep(100000000000);
     break;
@@ -5712,9 +5718,13 @@ mysql_execute_command(THD *thd)
     {
       //error handeling
       DBUG_ASSERT(lex->m_sql_cmd != NULL);
+      thd->direct_commit_alter= true;
       res= lex->m_sql_cmd->execute(thd);
+      thd->direct_commit_alter= false;
       DBUG_PRINT("result", ("res: %d  killed: %d  is_error: %d",
                           res, thd->killed, thd->is_error()));
+      if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+        DBUG_RETURN(true);
       break;
     }
     /*
@@ -5731,12 +5741,14 @@ mysql_execute_command(THD *thd)
     mysql_cond_broadcast(&mi->start_alter_cond);
     // Wait for commit by worker thread
     mysql_mutex_lock(&mi->start_alter_lock);
-    while(info->state <= start_alter_state::ROLLBACK_ALTER )
+    while(info->state != start_alter_state::COMMITTED )
       mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
     mysql_mutex_unlock(&mi->start_alter_lock);
-    sprintf(send_query, "/*!100001 COMMIT %d */ %s", info->thread_id,  alter_location);
-      if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
-        DBUG_RETURN(true);
+//    sprintf(send_query, "/*!100001 COMMIT %d */ %s", info->thread_id,  alter_location);
+ //     if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
+   //     DBUG_RETURN(true);
+    if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+      DBUG_RETURN(true);
     thd->rpt->__finish_event_group(thd->rgi_slave);
 //    ha_commit_trans(thd, true);
 //    trans_commit_implicit(thd);
@@ -5785,45 +5797,53 @@ mysql_execute_command(THD *thd)
     Master_info *mi= thd->rgi_slave->rli->mi;
     start_alter_info *info=NULL;
     uint count= 0;
+    mysql_mutex_lock(&mi->start_alter_list_lock);
     List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
-    while (1)
+    char temp[thd->query_length()+ 10];
+    strcpy(temp, thd->query());
+    char* alter_location= strcasestr(temp, "ALTER");
+    char send_query[thd->query_length() + 20];
+    while ((info= info_iterator++))
     {
-      info_iterator.rewind();
-      count= 0;
-      while ((info= info_iterator++))
+      count++;
+      if(info->thread_id == thd->lex->previous_commit_id)
       {
-        if (!info)
-          break;
-        count++;
-        if(info->thread_id == thd->lex->previous_commit_id)
-        {
-          // I dont need mutex lock here
-          info->state= start_alter_state::ROLLBACK_ALTER;
-          info->seq_no= thd->variables.gtid_seq_no;
-          mysql_cond_broadcast(&mi->start_alter_cond);
-          info_iterator.remove();
-          break;
-        }
-      }
-      if (!info || info->thread_id != thd->lex->previous_commit_id)
-      {
-        mysql_mutex_lock(&mi->start_alter_list_lock);
-        mysql_cond_wait(&mi->start_alter_list_cond, &mi->start_alter_list_lock);
-        mysql_mutex_unlock(&mi->start_alter_list_lock);
-      }
-      else
+        info_iterator.remove();
         break;
+      }
     }
-    //thd->rgi_slave->mark_start_commit();
-    //thd->wakeup_subsequent_commits(0);
+    mysql_mutex_unlock(&mi->start_alter_list_lock);
+    if (!info || info->thread_id != thd->lex->previous_commit_id)
+    {
+      //error handeling
+      DBUG_ASSERT(lex->m_sql_cmd != NULL);
+      //Just write the binlog and move on
+      if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+        DBUG_RETURN(true);
+      break;
+    }
     /*
-      Wait for other thread to commit/rollback the alter
-    */
+     start_alter_state can be either ::REGISTERED or ::WAITING
+     */
     mysql_mutex_lock(&mi->start_alter_lock);
-    while(info->state <= start_alter_state:: ROLLBACK_ALTER )
+    while(info->state == start_alter_state::REGISTERED )
       mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
     mysql_mutex_unlock(&mi->start_alter_lock);
-    thd->rpt->__finish_event_group(thd->rgi_slave);
+    mysql_mutex_lock(&mi->start_alter_lock);
+    info->state= start_alter_state::ROLLBACK_ALTER;
+    info->seq_no= thd->variables.gtid_seq_no;
+    mysql_mutex_unlock(&mi->start_alter_lock);
+    mysql_cond_broadcast(&mi->start_alter_cond);
+    // Wait for commit by worker thread
+    mysql_mutex_lock(&mi->start_alter_lock);
+    while(info->state != start_alter_state::COMMITTED )
+      mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+    mysql_mutex_unlock(&mi->start_alter_lock);
+//    sprintf(send_query, "/*!100001 COMMIT %d */ %s", info->thread_id,  alter_location);
+ //     if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
+   //     DBUG_RETURN(true);
+    if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+      DBUG_RETURN(true);
 //    ha_commit_trans(thd, true);
 //    trans_commit_implicit(thd);
 //    trans_commit_stmt(thd);

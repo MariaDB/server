@@ -1977,7 +1977,8 @@ end:
 */
 
 int write_bin_log(THD *thd, bool clear_error,
-                  char const *query, ulong query_length, bool is_trans)
+                  char const *query, ulong query_length, bool is_trans,
+                  bool log_zero_errcode)
 {
   int error= 0;
   if (mysql_bin_log.is_open())
@@ -1990,7 +1991,7 @@ int write_bin_log(THD *thd, bool clear_error,
       errcode= query_error_code(thd, TRUE);
     error= thd->binlog_query(THD::STMT_QUERY_TYPE,
                              query, query_length, is_trans, FALSE, FALSE,
-                             errcode) > 0;
+                             log_zero_errcode? 0 : errcode) > 0;
     thd_proc_info(thd, 0);
   }
   return error;
@@ -7594,6 +7595,9 @@ static int mysql_inplace_alter_table(THD *thd,
   bool res;
   int alter_result= 1;
   handlerton *hton;
+  Master_info *mi= NULL;
+  if (thd->slave_thread)
+    mi= thd->rgi_slave->rli->mi;
   DBUG_ENTER("mysql_inplace_alter_table");
 
   /* Downgrade DDL lock while we are waiting for exclusive lock below */
@@ -7748,15 +7752,35 @@ static int mysql_inplace_alter_table(THD *thd,
   thd->abort_on_warning= !ha_alter_info->ignore && thd->is_strict_mode();
   res= table->file->ha_inplace_alter_table(altered_table, ha_alter_info);
   thd->abort_on_warning= false;
-  if (res)
-    goto rollback;
-  if (thd->lex->previous_commit_id)
+  if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
-    DBUG_ASSERT(thd->slave_thread);
     alter_result= wait_for_master(thd, send_query, info);
+    DBUG_ASSERT(info->state > start_alter_state::WAITING);
+    if (info->state == start_alter_state::ROLLBACK_ALTER)
+    {
+      mysql_mutex_lock(&mi->start_alter_lock);
+      info->state= start_alter_state::COMMITTED;
+      mysql_mutex_unlock(&mi->start_alter_lock);
+      mysql_cond_broadcast(&mi->start_alter_cond);
+      goto rollback;
+    }
+    else if (info->state == start_alter_state::COMMIT_ALTER && res)
+    {
+      //TODO
+      thd->rgi_slave->rli->report(ERROR_LEVEL, 0, thd->rgi_slave->gtid_info(),
+                  "Query caused different errors on master and slave.     "
+                  "Error on master: message (format)='%s' error code=%d ; "
+                  "Error on slave: actual message='%s', error code=%d. "
+                  "Default database: '%s'. Query: '%s'",
+                  ER_THD(thd, 0),
+                  0, thd->get_stmt_da()->message() ,
+                  1045,
+                  "test", thd->query());
+      thd->is_slave_error= 1;
+      DBUG_RETURN(true);
+    }
   }
-  if (alter_result == start_alter_state::ROLLBACK_ALTER ||
-          alter_result == start_alter_state::SHUTDOWN_ALTER)
+  if (res)
     goto rollback;
 
 
@@ -9400,7 +9424,7 @@ static int wait_for_master(THD *thd, char* send_query, start_alter_info* info)
 static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query,
                                 start_alter_info *info)
 {
-  if (thd->lex->previous_commit_id)
+  if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
     thd->transaction.start_alter= true;
     //if (write_bin_log(thd, true, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
@@ -10241,6 +10265,9 @@ do_continue:;
 
       if (res)
       {
+        sprintf(send_query, "/*!100001 ROLLBACK %lld */ %s", thd->thread_id, thd->query());
+        if(write_bin_log(thd, false, send_query, strlen(send_query), true, true))
+          DBUG_RETURN(true);
         cleanup_table_after_inplace_alter(&altered_table);
         DBUG_RETURN(true);
       }
@@ -10367,11 +10394,14 @@ do_continue:;
 
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
-    if (thd->lex->previous_commit_id)
+    if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
     {
       DBUG_ASSERT(thd->slave_thread);
       alter_result= wait_for_master(thd, send_query, info);
     }
+    if (alter_result == start_alter_state::ROLLBACK_ALTER ||
+          alter_result == start_alter_state::SHUTDOWN_ALTER)
+      goto err_new_table_cleanup;
     /* Close lock if this is a transactional table */
     if (thd->lock)
     {
@@ -10406,8 +10436,8 @@ do_continue:;
     }
     else if(thd->lex->previous_commit_id)
     {
-      if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
-        DBUG_RETURN(true);
+      //if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
+       // DBUG_RETURN(true);
       mysql_mutex_lock(&mi->start_alter_lock);
       info->state= start_alter_state::COMMITTED;
       mysql_mutex_unlock(&mi->start_alter_lock);
@@ -10432,11 +10462,14 @@ do_continue:;
     - Neither old or new engine uses files from another engine
       The above is mainly true for the sequence and the partition engine.
   */
-  if (thd->lex->previous_commit_id)
+  if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
     DBUG_ASSERT(thd->slave_thread);
     alter_result= wait_for_master(thd, send_query, info);
   }
+  if (alter_result == start_alter_state::ROLLBACK_ALTER ||
+          alter_result == start_alter_state::SHUTDOWN_ALTER)
+    goto err_new_table_cleanup;
   engine_changed= ((new_table->file->ht != table->file->ht) &&
                    (((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
                       !(table->file->ha_table_flags() & HA_FILE_BASED))) ||
@@ -10611,8 +10644,8 @@ end_inplace:
   }
   else if(thd->lex->previous_commit_id)
   {
-    if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
-      DBUG_RETURN(true);
+    //if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
+    //  DBUG_RETURN(true);
     mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::COMMITTED;
     mysql_mutex_unlock(&mi->start_alter_lock);
@@ -10667,7 +10700,42 @@ err_new_table_cleanup:
                           &alter_ctx.new_db, &alter_ctx.tmp_name,
                           (FN_IS_TMP | (no_ha_table ? NO_HA_TABLE : 0)),
                           alter_ctx.get_tmp_path());
-
+  //STODO
+  if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
+  {
+    if (info->state == start_alter_state::REGISTERED)
+      alter_result= wait_for_master(thd, send_query, info);
+    DBUG_ASSERT(info->state > start_alter_state::WAITING);
+    if (info->state == start_alter_state::ROLLBACK_ALTER)
+    {
+      mysql_mutex_lock(&mi->start_alter_lock);
+      info->state= start_alter_state::COMMITTED;
+      mysql_mutex_unlock(&mi->start_alter_lock);
+      mysql_cond_broadcast(&mi->start_alter_cond);
+      DBUG_RETURN(true);
+    }
+    else if (info->state == start_alter_state::COMMIT_ALTER)
+    {
+      //TODO
+      thd->rgi_slave->rli->report(ERROR_LEVEL, 0, thd->rgi_slave->gtid_info(),
+                  "Query caused different errors on master and slave.     "
+                  "Error on master: message (format)='%s' error code=%d ; "
+                  "Error on slave: actual message='%s', error code=%d. "
+                  "Default database: '%s'. Query: '%s'",
+                  ER_THD(thd, 0),
+                  0, thd->get_stmt_da()->message() ,
+                  1045,
+                  "test", thd->query());
+      thd->is_slave_error= 1;
+      DBUG_RETURN(true);
+    }
+  }
+  else
+  {
+    sprintf(send_query, "/*!100001 ROLLBACK %lld */ %s", thd->thread_id, thd->query());
+    if(write_bin_log(thd, false, send_query, strlen(send_query), true, true))
+      DBUG_RETURN(true);
+  }
   DBUG_RETURN(true);
 
 err_with_mdl_after_alter:

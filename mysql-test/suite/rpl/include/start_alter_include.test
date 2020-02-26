@@ -1,0 +1,87 @@
+--connection master
+--echo # Myisam
+create table t1( a int, b int);
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+--echo #Normal Alter
+alter table t1 add column c int;
+--echo #Failed Alter
+insert into t1 values(1,1, NULL);
+--error ER_DUP_ENTRY
+alter table t1 change a a int unique ;
+--sync_slave_with_master
+source include/show_binlog_events.inc;
+show create table t1;
+--connection master
+drop table t1;
+--sync_slave_with_master
+--connection master
+#--source include/reset_master_slave_binlog.inc
+
+--echo # Innodb
+create table t1( a int, b int) engine=innodb;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+--echo #Normal Alter
+alter table t1 add column c int;
+#--echo #Failed Alter
+#insert into t1 values(1,1, NULL);
+#--error ER_DUP_ENTRY
+#alter table t1 change a a int unique ;
+--sync_slave_with_master
+source include/show_binlog_events.inc;
+show create table t1;
+--connection master
+drop table t1;
+--sync_slave_with_master
+--connection master
+
+
+--echo # Aria
+create table t1( a int, b int) engine=aria;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+--echo #Normal Alter
+alter table t1 add column c int;
+--echo #Failed Alter
+insert into t1 values(1,1, NULL);
+--error ER_DUP_ENTRY
+alter table t1 change a a int unique ;
+--sync_slave_with_master
+source include/show_binlog_events.inc;
+show create table t1;
+--connection master
+drop table t1;
+--sync_slave_with_master
+
+--connection master
+--echo #concurrent alter Myisam
+--let $alter_engine=myisam
+--let $alter_algorithm=copy
+--source include/start_alter_concurrent.test
+--sync_slave_with_master
+source include/show_binlog_events.inc;
+
+--connection master
+--echo #concurrent alter Aria
+--let $alter_engine=aria
+--let $alter_algorithm=copy
+--source include/start_alter_concurrent.test
+--sync_slave_with_master
+source include/show_binlog_events.inc;
+
+--connection master
+--echo #concurrent alter Innodb copy
+--let $alter_engine=innodb
+--let $alter_algorithm=copy
+--source include/start_alter_concurrent.test
+--sync_slave_with_master
+source include/show_binlog_events.inc;
+
+--connection master
+--echo #concurrent alter Innodb Inplace
+--let $alter_engine=innodb
+--let $alter_algorithm=inplace
+--source include/start_alter_concurrent.test
+--sync_slave_with_master
+source include/show_binlog_events.inc;

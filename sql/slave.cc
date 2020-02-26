@@ -4418,6 +4418,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         For GTID, allocate a new sub_id for the given domain_id.
         The sub_id must be allocated in increasing order of binlog order.
       */
+      serial_rgi->gtid_ev_flags3= gev->flags3;
       if (event_group_new_gtid(serial_rgi, gev))
       {
         sql_print_error("Error reading relay log event: %s", "slave SQL thread "
@@ -5842,6 +5843,7 @@ err_during_init:
 pthread_handler_t handle_slave_start_alter(void *arg)
 {
   THD *thd;                     /* needs to be first for thread_stack */
+  Parser_state parser_state;
   start_alter_thd_args *data= ((start_alter_thd_args*)arg);
   rpl_sql_thread_info sql_info(NULL);
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
@@ -5857,6 +5859,10 @@ pthread_handler_t handle_slave_start_alter(void *arg)
   thd->rgi_slave= data->rgi;
   thd->start_alter_thread= true;
   thd->slave_shutdown= data->shutdown;
+  Master_info *mi= data->rgi->rli->mi;
+  if (init_slave_thread(thd, mi, SLAVE_THD_SQL))
+    goto err_during_init;
+  thd->init_for_queries();
   //SIDK
   thd->catalog= data->catalog;
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
@@ -5868,7 +5874,6 @@ pthread_handler_t handle_slave_start_alter(void *arg)
   thd->system_thread_info.rpl_sql_info=  new rpl_sql_thread_info(
                                            data->rgi->rli->mi->rpl_filter);
 
-  Parser_state parser_state;
   if (!parser_state.init(thd, thd->query(), thd->query_length()))
   {
     DBUG_ASSERT(thd->m_digest == NULL);
@@ -5905,6 +5910,7 @@ pthread_handler_t handle_slave_start_alter(void *arg)
   //
 
 
+err_during_init:
 //  delete thd;
 //  free(arg);
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()

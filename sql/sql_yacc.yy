@@ -18036,14 +18036,14 @@ rollback:
             lex->sql_command= SQLCOM_ROLLBACK_TO_SAVEPOINT;
             lex->ident= $4;
           }
-        | ROLLBACK_SYM ALTER
+        | ROLLBACK_SYM alter_table
           {
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_ROLLBACK_PREVIOUS;
             if (thd->variables.pseudo_thread_id)
               lex->previous_commit_id= thd->variables.pseudo_thread_id;
           }
-        | ROLLBACK_SYM ulonglong_num ALTER
+        | ROLLBACK_SYM ulonglong_num alter_table
           {
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_ROLLBACK_PREVIOUS;

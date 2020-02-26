@@ -1,0 +1,26 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_debug.inc
+set global binlog_split_alter=true;
+
+--echo #Legacy Master Slave
+--source include/start_alter_include.test
+
+--connection slave
+stop slave;
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+start slave;
+
+--echo #Parallel Slave
+--connection master
+--source include/start_alter_include.test
+stop slave;
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+start slave;
+
+--connection master
+set global binlog_split_alter=false;
+--source include/rpl_end.inc
