@@ -8996,9 +8996,13 @@ rename:
           RENAME table_or_tables
           {
             Lex->sql_command= SQLCOM_RENAME_TABLE;
+            if (Lex->main_select_push())
+              MYSQL_YYABORT;
           }
           table_to_table_list
-          {}
+          {
+            Lex->pop_select(); //main select
+          }
         | RENAME USER_SYM clear_privileges rename_list
           {
             Lex->sql_command = SQLCOM_RENAME_USER;
@@ -9096,9 +9100,13 @@ preload:
             LEX *lex=Lex;
             lex->sql_command=SQLCOM_PRELOAD_KEYS;
             lex->alter_info.reset();
+            if (lex->main_select_push())
+              MYSQL_YYABORT;
           }
           preload_list_or_parts
-          {}
+          {
+            Lex->pop_select(); //main select
+          }
         ;
 
 preload_list_or_parts:
@@ -13278,11 +13286,16 @@ drop:
           }
           table_list opt_lock_wait_timeout opt_restrict
           {}
-        | DROP INDEX_SYM opt_if_exists_table_element ident ON table_ident opt_lock_wait_timeout
+        | DROP INDEX_SYM
+          {
+            if (Lex->main_select_push())
+              MYSQL_YYABORT;
+          }
+          opt_if_exists_table_element ident ON table_ident opt_lock_wait_timeout
           {
             LEX *lex=Lex;
             Alter_drop *ad= (new (thd->mem_root)
-                             Alter_drop(Alter_drop::KEY, $4.str, $3));
+                             Alter_drop(Alter_drop::KEY, $5.str, $4));
             if (unlikely(ad == NULL))
               MYSQL_YYABORT;
             lex->sql_command= SQLCOM_DROP_INDEX;
@@ -13290,10 +13303,11 @@ drop:
             lex->alter_info.flags= ALTER_DROP_INDEX;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
             if (unlikely(!lex->current_select->
-                         add_table_to_list(thd, $6, NULL, TL_OPTION_UPDATING,
+                         add_table_to_list(thd, $7, NULL, TL_OPTION_UPDATING,
                                            TL_READ_NO_INSERT,
                                            MDL_SHARED_UPGRADABLE)))
               MYSQL_YYABORT;
+            Lex->pop_select(); //main select
           }
         | DROP DATABASE opt_if_exists ident
           {
@@ -14789,12 +14803,18 @@ backup_statements:
           Lex->backup_stage= (backup_stages) (type-1);
           break;
         }
-	| LOCK_SYM table_ident
+	| LOCK_SYM
           {
-	    if (unlikely(!Select->add_table_to_list(thd, $2, NULL, 0,
+            if (Lex->main_select_push())
+              MYSQL_YYABORT;
+          }
+          table_ident
+          {
+	    if (unlikely(!Select->add_table_to_list(thd, $3, NULL, 0,
                                                     TL_READ, MDL_SHARED_HIGH_PRIO)))
              MYSQL_YYABORT;
             Lex->sql_command= SQLCOM_BACKUP_LOCK;
+            Lex->pop_select(); //main select
           }
         | UNLOCK_SYM
           {
