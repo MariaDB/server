@@ -2060,8 +2060,9 @@ page_cur_delete_rec(
 /** Apply a DELETE_ROW_FORMAT_REDUNDANT record that was written by
 page_cur_delete_rec() for a ROW_FORMAT=REDUNDANT page.
 @param block    B-tree or R-tree page in ROW_FORMAT=REDUNDANT
-@param prev     byte offset of the predecessor, relative to PAGE_OLD_INFIMUM */
-void page_apply_delete_redundant(const buf_block_t &block, ulint prev)
+@param prev     byte offset of the predecessor, relative to PAGE_OLD_INFIMUM
+@return whether the operation failed (inconcistency was noticed) */
+bool page_apply_delete_redundant(const buf_block_t &block, ulint prev)
 {
   const uint16_t n_slots= page_dir_get_n_slots(block.frame);
   ulint n_recs= page_get_n_recs(block.frame);
@@ -2077,7 +2078,7 @@ void page_apply_delete_redundant(const buf_block_t &block, ulint prev)
 corrupted:
     ib::error() << "Not applying DELETE_ROW_FORMAT_REDUNDANT"
                    " due to corruption on " << block.page.id;
-    return;
+    return true;
   }
 
   byte *slot= page_dir_get_nth_slot(block.frame, n_slots - 1);
@@ -2145,6 +2146,7 @@ corrupted:
     page_dir_balance_slot(block, (first_slot - slot) / 2);
 
   ut_ad(page_simple_validate_old(block.frame));
+  return false;
 }
 
 /** Apply a DELETE_ROW_FORMAT_DYNAMIC record that was written by
@@ -2152,8 +2154,9 @@ page_cur_delete_rec() for a ROW_FORMAT=COMPACT or DYNAMIC page.
 @param block      B-tree or R-tree page in ROW_FORMAT=COMPACT or DYNAMIC
 @param prev       byte offset of the predecessor, relative to PAGE_NEW_INFIMUM
 @param hdr_size   record header size, excluding REC_N_NEW_EXTRA_BYTES
-@param data_size  data payload size, in bytes */
-void page_apply_delete_dynamic(const buf_block_t &block, ulint prev,
+@param data_size  data payload size, in bytes
+@return whether the operation failed (inconcistency was noticed) */
+bool page_apply_delete_dynamic(const buf_block_t &block, ulint prev,
                                size_t hdr_size, size_t data_size)
 {
   const uint16_t n_slots= page_dir_get_n_slots(block.frame);
@@ -2170,7 +2173,7 @@ void page_apply_delete_dynamic(const buf_block_t &block, ulint prev,
 corrupted:
     ib::error() << "Not applying DELETE_ROW_FORMAT_DYNAMIC"
                    " due to corruption on " << block.page.id;
-    return;
+    return true;
   }
 
   byte *slot= page_dir_get_nth_slot(block.frame, n_slots - 1);
@@ -2237,6 +2240,7 @@ corrupted:
     page_dir_balance_slot(block, (first_slot - slot) / 2);
 
   ut_ad(page_simple_validate_new(block.frame));
+  return false;
 }
 
 #ifdef UNIV_COMPILE_TEST_FUNCS

@@ -204,16 +204,18 @@ page_cur_delete_rec(
 /** Apply a DELETE_ROW_FORMAT_REDUNDANT record that was written by
 page_cur_delete_rec() for a ROW_FORMAT=REDUNDANT page.
 @param block    B-tree or R-tree page in ROW_FORMAT=REDUNDANT
-@param prev     byte offset of the predecessor, relative to PAGE_OLD_INFIMUM */
-void page_apply_delete_redundant(const buf_block_t &block, ulint prev);
+@param prev     byte offset of the predecessor, relative to PAGE_OLD_INFIMUM
+@return whether the operation failed (inconcistency was noticed) */
+bool page_apply_delete_redundant(const buf_block_t &block, ulint prev);
 
 /** Apply a DELETE_ROW_FORMAT_DYNAMIC record that was written by
 page_cur_delete_rec() for a ROW_FORMAT=COMPACT or DYNAMIC page.
 @param block      B-tree or R-tree page in ROW_FORMAT=COMPACT or DYNAMIC
 @param prev       byte offset of the predecessor, relative to PAGE_NEW_INFIMUM
 @param hdr_size   record header size, excluding REC_N_NEW_EXTRA_BYTES
-@param data_size  data payload size, in bytes */
-void page_apply_delete_dynamic(const buf_block_t &block, ulint prev,
+@param data_size  data payload size, in bytes
+@return whether the operation failed (inconcistency was noticed) */
+bool page_apply_delete_dynamic(const buf_block_t &block, ulint prev,
                                size_t hdr_size, size_t data_size);
 
 /** Search the right position for a page cursor.

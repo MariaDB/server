@@ -311,6 +311,7 @@ public:
             goto record_corrupted;
           if (undo_append(block, ++l, --rlen) && !srv_force_recovery)
           {
+page_corrupted:
             ib::error() << "Set innodb_force_recovery=1 to ignore corruption.";
             recv_sys.found_corrupt_log= true;
             return applied;
@@ -323,7 +324,9 @@ public:
           ll= mlog_decode_varint_length(*++l);
           if (UNIV_UNLIKELY(ll != rlen))
             goto record_corrupted;
-          page_apply_delete_redundant(block, mlog_decode_varint(l));
+          if (page_apply_delete_redundant(block, mlog_decode_varint(l)) &&
+              !srv_force_recovery)
+            goto page_corrupted;
           break;
         case DELETE_ROW_FORMAT_DYNAMIC:
           if (UNIV_UNLIKELY(rlen < 2))
@@ -346,8 +349,10 @@ public:
           ll= mlog_decode_varint_length(*l);
           if (UNIV_UNLIKELY(ll > 3 || ll != rlen))
             goto record_corrupted;
-          page_apply_delete_dynamic(block, prev_rec, hdr_size,
-                                    mlog_decode_varint(l));
+          if (page_apply_delete_dynamic(block, prev_rec, hdr_size,
+                                         mlog_decode_varint(l)) &&
+              !srv_force_recovery)
+            goto page_corrupted;
           break;
         }
         last_offset= FIL_PAGE_TYPE;
