@@ -7,6 +7,7 @@ Copyright (c) 2019, MariaDB Corporation.
 #include "ha_xpand.h"
 #include "ha_xpand_pushdown.h"
 #include "key.h"
+#include <strfunc.h>                            /* strconvert */
 
 handlerton *xpand_hton = NULL;
 
@@ -195,6 +196,33 @@ uint row_buffer_setting(THD* thd)
   return THDVAR(thd, row_buffer);
 }
 
+
+/*
+  Get an Xpand_share object for this object. If it doesn't yet exist, create 
+  it.
+*/
+
+Xpand_share *ha_xpand::get_share()
+{
+  Xpand_share *tmp_share;
+
+  DBUG_ENTER("ha_xpand::get_share()");
+
+  lock_shared_ha_data();
+  if (!(tmp_share= static_cast<Xpand_share*>(get_ha_share_ptr())))
+  {
+    tmp_share= new Xpand_share;
+    if (!tmp_share)
+      goto err;
+
+    set_ha_share_ptr(static_cast<Handler_share*>(tmp_share));
+  }
+err:
+  unlock_shared_ha_data();
+  DBUG_RETURN(tmp_share);
+}
+
+
 /****************************************************************************
 ** Utility functions
 ****************************************************************************/
@@ -211,41 +239,70 @@ size_t estimate_row_size(TABLE *table)
   return row_size;
 }
 
-/**
- * @brief
- *   Decodes object name.
- *
- * @details
- *   Replaces the encoded object name in the path with a decoded variant,
- *   e.g if path contains ./test/d@0024. This f() makes it ./test/d$
- *
- *   Used in delete and rename DDL processing.
- **/
-static void decode_objectname(char *buf, const char *path, size_t buf_size)
+
+/*
+  Try to decode a string from filename encoding, if that fails, return the 
+  original string.
+
+  @detail
+    This is used to get table (or database) name from file (or directory) 
+    name. Names of regular tables/databases are encoded using 
+    my_charset_filename encoding.
+    Names of temporary tables are not encoded, and they start with '#sql' 
+    which is not a valid character sequence in my_charset_filename encoding.
+    Our way to talkle this is to
+    1. Try to convert the name back
+    2. If that failed, assume it's a temporary object name and just use the 
+       name.
+*/
+
+static void decode_object_or_tmp_name(const char *from, uint size, 
+                                     std::string *out)
 {
-  size_t new_path_len = filename_to_tablename(path, buf, buf_size);
-  buf[new_path_len] = '\0';
+  uint errors, new_size;
+  out->resize(size+1); // assume the decoded string is not longer
+  new_size= strconvert(&my_charset_filename, from, size,
+                       system_charset_info, (char*)out->c_str(), size+1, 
+                       &errors);
+  if (errors)
+    out->assign(from, size);
+  else
+    out->resize(new_size);
 }
 
-static void decode_file_path(const char *path, char *decoded_dbname,
-                             char *decoded_tbname)
+/*
+  Take a "./db_name/table_name" and extract db_name and table_name from it
+
+  @return 
+     0     OK
+     other Error code
+*/
+static int normalize_tablename(const char *db_table,
+                               std::string *norm_db, std::string *norm_table)
 {
-  // The format cont ains './' in the beginning of a path.
-  char *dbname_start = (char*) path + 2;
-  char *dbname_end = dbname_start;
-  while (*dbname_end != '/')
-    dbname_end++;
+  std::string tablename(db_table);
+  if (tablename.size() < 2 || tablename[0] != '.' ||
+      (tablename[1] != FN_LIBCHAR && tablename[1] != FN_LIBCHAR2)) {
+    DBUG_ASSERT(0);  // We were not passed table name?
+    return HA_ERR_INTERNAL_ERROR;
+  }
 
-  int cnt = dbname_end - dbname_start;
-  char *dbname = (char *)my_alloca(cnt + 1);
-  memcpy(dbname, dbname_start, cnt);
-  dbname[cnt] = '\0';
-  decode_objectname(decoded_dbname, dbname, FN_REFLEN);
-  my_afree(dbname);
+  size_t pos = tablename.find_first_of(FN_LIBCHAR, 2);
+  if (pos == std::string::npos) {
+    pos = tablename.find_first_of(FN_LIBCHAR2, 2);
+  }
 
-  char *tbname_start = dbname_end + 1;
-  decode_objectname(decoded_tbname, tbname_start, FN_REFLEN);
+  if (pos == std::string::npos) {
+    DBUG_ASSERT(0);  // We were not passed table name?
+    return HA_ERR_INTERNAL_ERROR;
+  }
+  
+  decode_object_or_tmp_name(tablename.c_str() + 2, pos - 2, norm_db);
+  decode_object_or_tmp_name(tablename.c_str() + pos + 1, 
+                           tablename.size() - (pos + 1), norm_table);
+  return 0;
 }
+
 
 xpand_connection *get_trx(THD *thd, int *error_code)
 {
@@ -290,6 +347,7 @@ ha_xpand::~ha_xpand()
     remove_current_table_from_rpl_table_list(rgi);
 }
 
+
 int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
 {
   int error_code;
@@ -311,12 +369,16 @@ int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
   ulong old = create_info->used_fields;
   create_info->used_fields &= ~HA_CREATE_USED_ENGINE;
 
+  std::string norm_db, norm_table;
+  if ((error_code= normalize_tablename(name, &norm_db, &norm_table)))
+    return error_code;
+
   TABLE_LIST table_list;
   memset(&table_list, 0, sizeof(table_list));
   table_list.table = form;
-  error_code = show_create_table(thd, &table_list, &create_table_stmt,
-                                 create_info, WITH_DB_NAME);
-
+  error_code = show_create_table_ex(thd, &table_list, 
+                                    norm_db.c_str(), norm_table.c_str(),
+                                    &create_table_stmt, create_info, WITH_DB_NAME);
   if (!is_tmp_table)
     form->s->tmp_table = saved_tmp_table_type;
   create_info->used_fields = old;
@@ -334,6 +396,13 @@ int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
   }
 
   error_code = trx->run_query(create_table_stmt);
+  if (error_code)
+    return error_code;
+  
+  // Load the oid of the created table
+  error_code= trx->get_table_oid(norm_db, norm_table, &xpand_table_oid, 
+                                 table_share);
+
   return error_code;
 }
 
@@ -345,15 +414,17 @@ int ha_xpand::delete_table(const char *path)
   if (!trx)
     return error_code;
 
-  char decoded_dbname[FN_REFLEN];
-  char decoded_tbname[FN_REFLEN];
-  decode_file_path(path, decoded_dbname, decoded_tbname);
+  std::string decoded_dbname;
+  std::string decoded_tbname;
+  if ((error_code= normalize_tablename(path, &decoded_dbname,
+                                       &decoded_tbname)))
+    return error_code;
 
   String delete_cmd;
   delete_cmd.append("DROP TABLE `");
-  delete_cmd.append(decoded_dbname);
+  delete_cmd.append(decoded_dbname.c_str());
   delete_cmd.append("`.`");
-  delete_cmd.append(decoded_tbname);
+  delete_cmd.append(decoded_tbname.c_str());
   delete_cmd.append("`");
 
   return trx->run_query(delete_cmd);
@@ -367,23 +438,27 @@ int ha_xpand::rename_table(const char* from, const char* to)
   if (!trx)
     return error_code;
 
-  char decoded_from_dbname[FN_REFLEN];
-  char decoded_from_tbname[FN_REFLEN];
-  decode_file_path(from, decoded_from_dbname, decoded_from_tbname);
+  std::string decoded_from_dbname;
+  std::string decoded_from_tbname;
+  if ((error_code= normalize_tablename(from, &decoded_from_dbname,
+                                       &decoded_from_tbname)))
+    return error_code;
 
-  char decoded_to_dbname[FN_REFLEN];
-  char decoded_to_tbname[FN_REFLEN];
-  decode_file_path(to, decoded_to_dbname, decoded_to_tbname);
+  std::string decoded_to_dbname;
+  std::string decoded_to_tbname;
+  if ((error_code= normalize_tablename(to, &decoded_to_dbname, 
+                                       &decoded_to_tbname)))
+    return error_code;
 
   String rename_cmd;
   rename_cmd.append("RENAME TABLE `");
-  rename_cmd.append(decoded_from_dbname);
+  rename_cmd.append(decoded_from_dbname.c_str());
   rename_cmd.append("`.`");
-  rename_cmd.append(decoded_from_tbname);
+  rename_cmd.append(decoded_from_tbname.c_str());
   rename_cmd.append("` TO `");
-  rename_cmd.append(decoded_to_dbname);
+  rename_cmd.append(decoded_to_dbname.c_str());
   rename_cmd.append("`.`");
-  rename_cmd.append(decoded_to_tbname);
+  rename_cmd.append(decoded_to_tbname.c_str());
   rename_cmd.append("`;");
 
   return trx->run_query(rename_cmd);
@@ -392,21 +467,37 @@ int ha_xpand::rename_table(const char* from, const char* to)
 static void
 xpand_mark_table_for_discovery(TABLE *table)
 {
-  table->s->tabledef_version.str = NULL;
-  table->s->tabledef_version.length = 0;
   table->m_needs_reopen = TRUE;
+  Xpand_share *xs;
+  if ((xs= (Xpand_share*)table->s->ha_share))
+    xs->xpand_table_oid= 0;
 }
 
 int ha_xpand::open(const char *name, int mode, uint test_if_locked)
 {
+  THD *thd= ha_thd();
   DBUG_ENTER("ha_xpand::open");
-  DBUG_PRINT("oid",
-             ("%s", table->s->tabledef_version.str));
 
-  if (!table->s->tabledef_version.str)
-    DBUG_RETURN(HA_ERR_TABLE_DEF_CHANGED);
-  if (!xpand_table_oid)
-    xpand_table_oid = atoll((const char *)table->s->tabledef_version.str);
+  if (!(share = get_share()))
+    DBUG_RETURN(1);
+  int error_code;
+  xpand_connection *trx = get_trx(thd, &error_code);
+  if (!trx)
+    DBUG_RETURN(error_code);
+
+  if (!share->xpand_table_oid) {
+    // We may end up with two threads executing this piece concurrently but
+    // it's ok
+    std::string norm_table;
+    std::string norm_db;
+    if ((error_code= normalize_tablename(name, &norm_db, &norm_table)))
+      DBUG_RETURN(error_code);
+  
+    error_code= trx->get_table_oid(norm_db, norm_table, &xpand_table_oid, 
+                                   table_share);
+    if (error_code)
+      DBUG_RETURN(error_code);
+  }
 
   // Surrogate key marker
   has_hidden_key = table->s->primary_key == MAX_KEY;
@@ -1298,6 +1389,7 @@ err:
 static int xpand_init(void *p)
 {
   DBUG_ENTER("xpand_init");
+
   xpand_hton = (handlerton *) p;
   xpand_hton->flags = HTON_NO_FLAGS;
   xpand_hton->panic = xpand_panic;

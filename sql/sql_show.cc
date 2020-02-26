@@ -1976,6 +1976,14 @@ static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
   packet->append(STRING_WITH_LEN(")"));
 }
 
+int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
+                      Table_specification_st *create_info_arg,
+                      enum_with_db_name with_db_name)
+{
+  return show_create_table_ex(thd, table_list, NULL, NULL, packet, 
+                              create_info_arg, with_db_name);
+}
+
 /*
   Build a CREATE TABLE statement for a table.
 
@@ -1984,6 +1992,11 @@ static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
     thd               The thread
     table_list        A list containing one table to write statement
                       for.
+    force_db          If not NULL, database name to use in the CREATE 
+                      TABLE statement.
+    force_name        If not NULL, table name to use in the CREATE TABLE
+                      statement. if NULL, the name from table_list will be 
+                      used.
     packet            Pointer to a string where statement will be
                       written.
     create_info_arg   Pointer to create information that can be used
@@ -2000,9 +2013,11 @@ static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
     0       OK
  */
 
-int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
-                      Table_specification_st *create_info_arg,
-                      enum_with_db_name with_db_name)
+int show_create_table_ex(THD *thd, TABLE_LIST *table_list, 
+                         const char *force_db, const char *force_name,
+                         String *packet,
+                         Table_specification_st *create_info_arg,
+                         enum_with_db_name with_db_name)
 {
   List<Item> field_list;
   char tmp[MAX_FIELD_WIDTH], *for_str, def_value_buf[MAX_FIELD_WIDTH];
@@ -2052,41 +2067,55 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   packet->append(STRING_WITH_LEN("TABLE "));
   if (create_info_arg && create_info_arg->if_not_exists())
     packet->append(STRING_WITH_LEN("IF NOT EXISTS "));
-  if (table_list->schema_table)
+
+  if (force_name)
   {
-    alias.str= table_list->schema_table->table_name;
-    alias.length= strlen(alias.str);
+    if (force_db)
+    {
+      append_identifier(thd, packet, force_db, strlen(force_db));
+      packet->append(STRING_WITH_LEN("."));
+    }
+    append_identifier(thd, packet, force_name, strlen(force_name));
   }
   else
   {
-    if (lower_case_table_names == 2)
+    if (table_list->schema_table)
     {
-      alias.str= table->alias.c_ptr();
-      alias.length= table->alias.length();
+      alias.str= table_list->schema_table->table_name;
+      alias.length= strlen(alias.str);
     }
     else
-      alias= share->table_name;
-  }
-
-  /*
-    Print the database before the table name if told to do that. The
-    database name is only printed in the event that it is different
-    from the current database.  The main reason for doing this is to
-    avoid having to update gazillions of tests and result files, but
-    it also saves a few bytes of the binary log.
-   */
-  if (with_db_name == WITH_DB_NAME)
-  {
-    const LEX_CSTRING *const db=
-      table_list->schema_table ? &INFORMATION_SCHEMA_NAME : &table->s->db;
-    if (!thd->db.str || cmp(db, &thd->db))
     {
-      append_identifier(thd, packet, db);
-      packet->append(STRING_WITH_LEN("."));
+      if (lower_case_table_names == 2)
+      {
+        alias.str= table->alias.c_ptr();
+        alias.length= table->alias.length();
+      }
+      else
+        alias= share->table_name;
     }
+
+    /*
+      Print the database before the table name if told to do that. The
+      database name is only printed in the event that it is different
+      from the current database.  The main reason for doing this is to
+      avoid having to update gazillions of tests and result files, but
+      it also saves a few bytes of the binary log.
+     */
+    if (with_db_name == WITH_DB_NAME)
+    {
+      const LEX_CSTRING *const db=
+        table_list->schema_table ? &INFORMATION_SCHEMA_NAME : &table->s->db;
+      if (!thd->db.str || cmp(db, &thd->db))
+      {
+        append_identifier(thd, packet, db);
+        packet->append(STRING_WITH_LEN("."));
+      }
+    }
+
+    append_identifier(thd, packet, &alias);
   }
 
-  append_identifier(thd, packet, &alias);
   packet->append(STRING_WITH_LEN(" (\n"));
   /*
     We need this to get default values from the table
