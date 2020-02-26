@@ -875,7 +875,10 @@ int ha_xpand::index_end()
   if (scan_cur)
     DBUG_RETURN(rnd_end());
   else
+  {
+    my_bitmap_free(&scan_fields);
     DBUG_RETURN(0);
+  }
 }
 
 int ha_xpand::rnd_init(bool scan)
