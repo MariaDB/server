@@ -7788,11 +7788,6 @@ double ha_tokudb::scan_time() {
     DBUG_RETURN(ret_val);
 }
 
-bool ha_tokudb::is_clustering_key(uint index)
-{
-    return index == primary_key || key_is_clustering(&table->key_info[index]);
-}
-
 double ha_tokudb::keyread_time(uint index, uint ranges, ha_rows rows)
 {
     TOKUDB_HANDLER_DBUG_ENTER("%u %u %" PRIu64, index, ranges, (uint64_t) rows);

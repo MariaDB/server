@@ -501,12 +501,6 @@ public:
     DBUG_RETURN(&key_map_full);
   }
 
-  bool primary_key_is_clustered() override {
-    DBUG_ENTER_FUNC();
-
-    DBUG_RETURN(true);
-  }
-
   bool should_store_row_debug_checksums() const {
     return m_store_row_debug_checksums && (rand() % 100 < m_checksums_pct);
   }

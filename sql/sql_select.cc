@@ -13151,8 +13151,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
                 See bug #26447: "Using the clustered index for a table scan
                 is always faster than using a secondary index".
               */
-              if (table->s->primary_key != MAX_KEY &&
-                  table->file->primary_key_is_clustered())
+              if (table->file->pk_is_clustering_key(table->s->primary_key))
                 tab->index= table->s->primary_key;
               else
 #endif
@@ -22860,7 +22859,7 @@ static int test_if_order_by_key(JOIN *join,
   if (have_pk_suffix && reverse == -1)
   {
     uint pk_parts= table->key_info[pk].user_defined_key_parts;
-    if (!(table->file->index_flags(pk, pk_parts, 1) & HA_READ_PREV))
+    if (!(table->file->index_flags(pk, pk_parts-1, 1) & HA_READ_PREV))
       reverse= 0;                               // Index can't be used
   }
 
@@ -23540,8 +23539,7 @@ check_reverse_order:
           if the table is accessed by the primary key
         */
         if (tab->rowid_filter &&
-            tab->index == table->s->primary_key &&
-            table->file->primary_key_is_clustered())
+            table->file->is_clustering_key(tab->index))
 	{
           tab->range_rowid_filter_info= 0;
           delete tab->rowid_filter;

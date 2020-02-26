@@ -16411,38 +16411,6 @@ void ha_mroonga::change_table_ptr(TABLE *table_arg, TABLE_SHARE *share_arg)
   DBUG_VOID_RETURN;
 }
 
-bool ha_mroonga::wrapper_primary_key_is_clustered()
-{
-  MRN_DBUG_ENTER_METHOD();
-  bool is_clustered;
-  MRN_SET_WRAP_SHARE_KEY(share, table->s);
-  MRN_SET_WRAP_TABLE_KEY(this, table);
-  is_clustered = wrap_handler->primary_key_is_clustered();
-  MRN_SET_BASE_SHARE_KEY(share, table->s);
-  MRN_SET_BASE_TABLE_KEY(this, table);
-  DBUG_RETURN(is_clustered);
-}
-
-bool ha_mroonga::storage_primary_key_is_clustered()
-{
-  MRN_DBUG_ENTER_METHOD();
-  bool is_clustered = handler::primary_key_is_clustered();
-  DBUG_RETURN(is_clustered);
-}
-
-bool ha_mroonga::primary_key_is_clustered()
-{
-  MRN_DBUG_ENTER_METHOD();
-  bool is_clustered;
-  if (share && share->wrapper_mode)
-  {
-    is_clustered = wrapper_primary_key_is_clustered();
-  } else {
-    is_clustered = storage_primary_key_is_clustered();
-  }
-  DBUG_RETURN(is_clustered);
-}
-
 bool ha_mroonga::wrapper_is_fk_defined_on_table_or_index(uint index)
 {
   MRN_DBUG_ENTER_METHOD();

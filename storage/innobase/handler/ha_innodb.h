@@ -264,8 +264,6 @@ public:
 		qc_engine_callback*	call_back,
 		ulonglong*		engine_data) override;
 
-	bool primary_key_is_clustered() override;
-
 	int cmp_ref(const uchar* ref1, const uchar* ref2) override;
 
 	/** On-line ALTER TABLE interface @see handler0alter.cc @{ */

@@ -363,7 +363,6 @@ private:
   uint m_rec_length;                     // Local copy of record length
 
   bool m_ordered;                        // Ordered/Unordered index scan
-  bool m_pkey_is_clustered;              // Is primary key clustered
   bool m_create_handler;                 // Handler used to create table
   bool m_is_sub_partitioned;             // Is subpartitioned
   bool m_ordered_scan_ongoing;
@@ -1333,12 +1332,6 @@ public:
   uint max_supported_key_length() const override;
   uint max_supported_key_part_length() const override;
   uint min_record_length(uint options) const override;
-
-  /*
-    Primary key is clustered can only be true if all underlying handlers have
-    this feature.
-  */
-  bool primary_key_is_clustered() override { return m_pkey_is_clustered; }
 
   /*
     -------------------------------------------------------------------------

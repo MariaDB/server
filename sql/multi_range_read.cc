@@ -74,7 +74,7 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                             seq_init_param,
                                                             limit);
   uint len= table->key_info[keyno].key_length + table->file->ref_length;
-  if (keyno == table->s->primary_key && table->file->primary_key_is_clustered())
+  if (table->file->is_clustering_key(keyno))
     len= table->s->stored_rec_length;
   /* Assume block is 75 % full */
   uint avg_block_records= ((uint) (table->file->stats.block_size*3/4))/len + 1;
@@ -143,8 +143,7 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     cost->reset();
     cost->avg_io_cost= 1; /* assume random seeks */
     cost->idx_avg_io_cost= 1;
-    if (!((keyno == table->s->primary_key && primary_key_is_clustered()) ||
-	   is_clustering_key(keyno)))
+    if (!is_clustering_key(keyno))
     {
       cost->idx_io_count= total_touched_blocks +
 	                  keyread_time(keyno, 0, total_rows);
@@ -225,7 +224,7 @@ ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
   cost->avg_io_cost= 1; /* assume random seeks */
 
   /* Produce the same cost as non-MRR code does */
-  if (!(keyno == table->s->primary_key && primary_key_is_clustered()))
+  if (!pk_is_clustering_key(keyno))
   {
     cost->idx_io_count=  n_ranges + keyread_time(keyno, 0, n_rows);
     cost->cpu_cost= cost->idx_cpu_cost=
@@ -939,7 +938,7 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
   h_idx= (primary_file->inited == handler::INDEX)? primary_file: secondary_file;
   keyno= h_idx->active_index;
 
-  if (!(keyno == table->s->primary_key && h_idx->primary_key_is_clustered()))
+  if (! h_idx->is_clustering_key(keyno))
   {
     strategy= disk_strategy= &reader_factory.ordered_rndpos_reader;
     if (h_arg->pushed_rowid_filter)
@@ -976,11 +975,10 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
     if (strategy != index_strategy)
     {
       uint saved_pk_length=0;
-      if (h_idx->primary_key_is_clustered())
+      uint pk= h_idx->get_table()->s->primary_key;
+      if (h_idx->pk_is_clustering_key(pk))
       {
-        uint pk= h_idx->get_table()->s->primary_key;
-        if (pk != MAX_KEY)
-          saved_pk_length= h_idx->get_table()->key_info[pk].key_length;
+        saved_pk_length= h_idx->get_table()->key_info[pk].key_length;
       }
       
       KEY *used_index= &h_idx->get_table()->key_info[h_idx->active_index];
@@ -1621,8 +1619,7 @@ bool DsMrr_impl::check_cpk_scan(THD *thd, TABLE_SHARE *share, uint keyno,
                                 uint mrr_flags)
 {
   return MY_TEST((mrr_flags & HA_MRR_SINGLE_POINT) &&
-                 keyno == share->primary_key &&
-                 primary_file->primary_key_is_clustered() &&
+                 primary_file->is_clustering_key(keyno) &&
                  optimizer_flag(thd, OPTIMIZER_SWITCH_MRR_SORT_KEYS));
 }
 
@@ -1660,8 +1657,7 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
   TABLE_SHARE *share= primary_file->get_table_share();
 
   bool doing_cpk_scan= check_cpk_scan(thd, share, keyno, *flags); 
-  bool using_cpk= MY_TEST(keyno == share->primary_key &&
-                          primary_file->primary_key_is_clustered());
+  bool using_cpk= primary_file->is_clustering_key(keyno);
   *flags &= ~HA_MRR_IMPLEMENTATION_FLAGS;
   if (!optimizer_flag(thd, OPTIMIZER_SWITCH_MRR) ||
       *flags & HA_MRR_INDEX_ONLY ||
@@ -1928,7 +1924,7 @@ void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
   DBUG_ENTER("get_sweep_read_cost");
 
   cost->reset();
-  if (table->file->primary_key_is_clustered())
+  if (table->file->pk_is_clustering_key(table->s->primary_key))
   {
     cost->io_count= table->file->read_time(table->s->primary_key,
                                            (uint) nrows, nrows);

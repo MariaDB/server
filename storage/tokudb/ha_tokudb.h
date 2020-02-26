@@ -869,10 +869,6 @@ public:
     uint8 table_cache_type() {
         return HA_CACHE_TBL_TRANSACT;
     }
-    bool primary_key_is_clustered() {
-        return true;
-    }
-    bool is_clustering_key(uint index);
     int cmp_ref(const uchar * ref1, const uchar * ref2);
     bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes);
 

@@ -11344,7 +11344,6 @@ ulonglong ha_rocksdb::table_flags() const
 }
 
 
-
 /**
   @return
     HA_EXIT_SUCCESS  OK

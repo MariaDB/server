@@ -319,7 +319,6 @@ ha_partition::ha_partition(handlerton *hton, TABLE_SHARE *share,
   m_clone_mem_root= clone_mem_root_arg;
   part_share= clone_arg->part_share;
   m_tot_parts= clone_arg->m_tot_parts;
-  m_pkey_is_clustered= clone_arg->primary_key_is_clustered();
   DBUG_VOID_RETURN;
 }
 
@@ -349,7 +348,6 @@ void ha_partition::init_handler_variables()
   m_reorged_parts= 0;
   m_added_file= NULL;
   m_tot_parts= 0;
-  m_pkey_is_clustered= 0;
   m_part_spec.start_part= NO_CURRENT_PART_ID;
   m_scan_value= 2;
   m_ref_length= 0;
@@ -504,8 +502,7 @@ ha_partition::~ha_partition()
      The flag HA_READ_ORDER will be reset for the time being to indicate no
      ordered output is available from partition handler indexes. Later a merge
      sort will be performed using the underlying handlers.
-  5) primary_key_is_clustered and has_transactions are
-     calculated here.
+  5) has_transactions are calculated here.
 
 */
 
@@ -540,19 +537,15 @@ bool ha_partition::initialize_partition(MEM_ROOT *mem_root)
     We create all underlying table handlers here. We do it in this special
     method to be able to report allocation errors.
 
-    Set up primary_key_is_clustered and
-    has_transactions since they are called often in all kinds of places,
+    Set up has_transactions since they are called often in all kinds of places,
     other parameters are calculated on demand.
     Verify that all partitions have the same table_flags.
   */
   check_table_flags= m_file[0]->ha_table_flags();
-  m_pkey_is_clustered= TRUE;
   file_array= m_file;
   do
   {
     file= *file_array;
-    if (!file->primary_key_is_clustered())
-      m_pkey_is_clustered= FALSE;
     if (check_table_flags != file->ha_table_flags())
     {
       my_error(ER_MIX_HANDLER_ERROR, MYF(0));
@@ -5434,7 +5427,7 @@ int ha_partition::index_init(uint inx, bool sorted)
   m_ordered= sorted;
   m_ordered_scan_ongoing= FALSE;
   m_curr_key_info[0]= table->key_info+inx;
-  if (m_pkey_is_clustered && table->s->primary_key != MAX_KEY)
+  if (pk_is_clustering_key(table->s->primary_key))
   {
     /*
       if PK is clustered, then the key cmp must use the pk to

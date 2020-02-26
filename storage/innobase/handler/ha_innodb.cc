@@ -5098,13 +5098,6 @@ ha_innobase::table_cache_type()
 Determines if the primary key is clustered index.
 @return true */
 
-bool
-ha_innobase::primary_key_is_clustered()
-/*===================================*/
-{
-	return(true);
-}
-
 /** Normalizes a table name string.
 A normalized name consists of the database name catenated to '/'
 and table name. For example: test/mytable.

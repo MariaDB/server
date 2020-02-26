@@ -1499,8 +1499,8 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
     if (!tl->is_jtbm() && (tl->table->map & tables_for_update))
     {
       TABLE *table1= tl->table;
-      bool primkey_clustered= (table1->file->primary_key_is_clustered() &&
-                               table1->s->primary_key != MAX_KEY);
+      bool primkey_clustered= (table1->file->
+                               pk_is_clustering_key(table1->s->primary_key));
 
       bool table_partitioned= false;
 #ifdef WITH_PARTITION_STORAGE_ENGINE

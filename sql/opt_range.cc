@@ -1384,8 +1384,7 @@ bool
 QUICK_INDEX_SORT_SELECT::push_quick_back(QUICK_RANGE_SELECT *quick_sel_range)
 {
   DBUG_ENTER("QUICK_INDEX_SORT_SELECT::push_quick_back");
-  if (head->file->primary_key_is_clustered() &&
-      quick_sel_range->index == head->s->primary_key)
+  if (head->file->is_clustering_key(quick_sel_range->index))
   {
    /*
      A quick_select over a clustered primary key is handled specifically
@@ -2556,7 +2555,7 @@ static int fill_used_fields_bitmap(PARAM *param)
   bitmap_union(&param->needed_fields, table->write_set);
 
   pk= param->table->s->primary_key;
-  if (pk != MAX_KEY && param->table->file->primary_key_is_clustered())
+  if (param->table->file->pk_is_clustering_key(pk))
   {
     /* The table uses clustered PK and it is not internally generated */
     KEY_PART_INFO *key_part= param->table->key_info[pk].key_part;
@@ -4901,16 +4900,16 @@ static void dbug_print_singlepoint_range(SEL_ARG **start, uint num)
 double get_sweep_read_cost(const PARAM *param, ha_rows records)
 {
   double result;
+  uint pk= param->table->s->primary_key;
   DBUG_ENTER("get_sweep_read_cost");
-  if (param->table->file->primary_key_is_clustered() ||
+  if (param->table->file->pk_is_clustering_key(pk) ||
       param->table->file->stats.block_size == 0 /* HEAP */)
   {
     /*
       We are using the primary key to find the rows.
       Calculate the cost for this.
     */
-    result= param->table->file->read_time(param->table->s->primary_key,
-                                          (uint)records, records);
+    result= param->table->file->read_time(pk, (uint)records, records);
   }
   else
   {
@@ -5032,7 +5031,6 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   double imerge_cost= 0.0;
   ha_rows cpk_scan_records= 0;
   ha_rows non_cpk_scan_records= 0;
-  bool pk_is_clustered= param->table->file->primary_key_is_clustered();
   bool all_scans_ror_able= TRUE;
   bool all_scans_rors= TRUE;
   uint unique_calc_buff_size;
@@ -5102,9 +5100,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     imerge_cost += (*cur_child)->read_cost;
     all_scans_ror_able &= ((*ptree)->n_ror_scans > 0);
     all_scans_rors &= (*cur_child)->is_ror;
-    if (pk_is_clustered &&
-        param->real_keynr[(*cur_child)->key_idx] ==
-        param->table->s->primary_key)
+    if (param->table->file->is_clustering_key(param->real_keynr[(*cur_child)->key_idx]))
     {
       cpk_scan= cur_child;
       cpk_scan_records= (*cur_child)->records;
@@ -5686,14 +5682,14 @@ bool prepare_search_best_index_intersect(PARAM *param,
   common->table_cardinality= 
     get_table_cardinality_for_index_intersect(table);
 
-  if (table->file->primary_key_is_clustered())
+  if (table->file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX)
   {
     INDEX_SCAN_INFO **index_scan_end;
     index_scan= tree->index_scans;
     index_scan_end= index_scan+n_index_scans;
     for ( ; index_scan < index_scan_end; index_scan++)
     {  
-      if ((*index_scan)->keynr == table->s->primary_key)
+      if (table->file->is_clustering_key((*index_scan)->keynr))
       {
         common->cpk_scan= cpk_scan= *index_scan;
         break;
@@ -6975,7 +6971,8 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
                                                      sizeof(ROR_SCAN_INFO*)*
                                                      param->keys)))
     return NULL;
-  cpk_no= ((param->table->file->primary_key_is_clustered()) ?
+  cpk_no= (param->table->file->
+           pk_is_clustering_key(param->table->s->primary_key) ?
            param->table->s->primary_key : MAX_KEY);
 
   for (idx= 0, cur_ror_scan= tree->ror_scans; idx < param->keys; idx++)
@@ -11061,7 +11058,6 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   */
   *mrr_flags|= HA_MRR_NO_ASSOCIATION | HA_MRR_SORTED;
 
-  bool pk_is_clustered= file->primary_key_is_clustered();
   // TODO: param->max_key_parts holds 0 now, and not the #keyparts used.
   // Passing wrong second argument to index_flags() makes no difference for
   // most storage engines but might be an issue for MyRocks with certain
@@ -11105,7 +11101,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
         MY_MIN(param->table->quick_condition_rows, rows);
       param->table->quick_rows[keynr]= rows;
       param->table->quick_costs[keynr]= cost->total_cost();
-      if (keynr == param->table->s->primary_key && pk_is_clustered)
+      if (param->table->file->is_clustering_key(keynr))
 	param->table->quick_index_only_costs[keynr]= 0;
       else
         param->table->quick_index_only_costs[keynr]= cost->index_only_cost();
@@ -11122,7 +11118,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
     */
     seq.is_ror_scan= FALSE;
   }
-  else if (param->table->s->primary_key == keynr && pk_is_clustered)
+  else if (param->table->file->is_clustering_key(keynr))
   {
     /* Clustered PK scan is always a ROR scan (TODO: same as above) */
     seq.is_ror_scan= TRUE;
@@ -11207,7 +11203,7 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
 
   key_part= table_key->key_part + nparts;
   pk_number= param->table->s->primary_key;
-  if (!param->table->file->primary_key_is_clustered() || pk_number == MAX_KEY)
+  if (!param->table->file->pk_is_clustering_key(pk_number))
     return FALSE;
 
   KEY_PART_INFO *pk_part= param->table->key_info[pk_number].key_part;
@@ -13650,8 +13646,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   /*
     Check (SA6) if clustered key is used
   */
-  if (is_agg_distinct && index == table->s->primary_key &&
-      table->file->primary_key_is_clustered())
+  if (is_agg_distinct && table->file->is_clustering_key(index))
   {
     trace_group.add("usable", false)
                .add("cause", "index is clustered");
