@@ -632,7 +632,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
              /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    rpt(NULL), slave_shutdown(false), direct_commit_alter(false),
-   master_log_pos(0), protocol_text(this), protocol_binary(this),
+   protocol_text(this), protocol_binary(this),
    m_current_stage_key(0),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),

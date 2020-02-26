@@ -9386,29 +9386,14 @@ static int wait_for_master(THD *thd, char* send_query, start_alter_info* info)
   mysql_cond_broadcast(&mi->start_alter_cond);
   strcpy(temp, thd->query());
   char* alter_location= strcasestr(temp, "ALTER");
-  //issue here
-//  thd->rgi_slave->mark_start_commit();
-//  thd->wakeup_subsequent_commits(0);
-//  thd->transaction.stmt.unmark_trans_did_ddl();
-  // We can use the same condition because while loop will be different
   mysql_mutex_lock(&mi->start_alter_lock);
   while (info->state == start_alter_state::WAITING)
   {
-    //thd->wakeup_subsequent_commits(0);
     mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
   }
   mysql_mutex_unlock(&mi->start_alter_lock);
-
-  /*  if (thd->rpt->special_worker)
-  {
-    mysql_mutex_lock(&thd->rpt->LOCK_rpl_thread);
-    thd->rpt->stop= true;
-    mysql_cond_signal(&thd->rpt->COND_rpl_thread);
-    mysql_mutex_unlock(&thd->rpt->LOCK_rpl_thread);
-  }*/
   if (info->state == start_alter_state::COMMIT_ALTER)
   {
-//    thd->transaction.stmt.mark_trans_did_ddl();
     thd->variables.gtid_seq_no= info->seq_no;
     sprintf(send_query, "/*!100001 COMMIT %d */ %s", info->thread_id,  alter_location);
   }
@@ -9463,15 +9448,9 @@ static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query,
   {
     thd->transaction.start_alter= true;
     sprintf(send_query, "/*!100001 START %lld %s */",thd->thread_id,  thd->query());
- //   thd->transaction.stmt.unmark_trans_did_ddl();
- //   thd->rgi_slave->mark_start_commit();
- //   thd->wakeup_subsequent_commits(0);
     if (write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
       return true;
     *partial_alter= true;
- //   thd->transaction.stmt.mark_trans_did_ddl();
- //   thd->rgi_slave->mark_start_commit();
- //   thd->wakeup_subsequent_commits(0);
     thd->transaction.start_alter= false;
     DBUG_EXECUTE_IF("start_alter_delay_master", {
       my_sleep(10000000);

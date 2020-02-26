@@ -2202,7 +2202,6 @@ public:
   rpl_parallel_thread *rpt;
   bool slave_shutdown;
   bool direct_commit_alter;
-  ulong master_log_pos;
 
   union {
     rpl_io_thread_info *rpl_io_info;

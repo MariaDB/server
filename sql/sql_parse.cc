@@ -5638,12 +5638,20 @@ mysql_execute_command(THD *thd)
   }
   case SQLCOM_START_ALTER_TABLE:
   {
+    /*
+     Slave spawned start alter thread will not binlog, So we have to make sure
+     that slave binlog will write flag FL_START_ALTER_E1
+    */
+    thd->transaction.start_alter= true;
+    /*
+     start_alter_thread will be true for spawned thread
+    */
     if (thd->start_alter_thread)
     {
       res= lex->m_sql_cmd->execute(thd);
       break;
     }
-    else if(!thd->rpt)
+    else if(!thd->rpt) //rpt should be NULL for legacy replication
     {
       if (write_bin_log(thd, false, thd->query(), thd->query_length()))
         DBUG_RETURN(true);
@@ -5657,6 +5665,10 @@ mysql_execute_command(THD *thd)
     args->db= &thd->db;
     args->cs= thd->charset();
     args->catalog= thd->catalog;
+    /*
+     We could get shutdown at this moment so spawned thread just do the work
+     till binlog writing of start alter and then exit.
+    */
     args->shutdown= thd->rpt->stop;
     if (mysql_thread_create(key_rpl_parallel_thread, &th, &connection_attrib,
                             handle_slave_start_alter, args))
@@ -5689,7 +5701,7 @@ mysql_execute_command(THD *thd)
     DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
     if (write_bin_log(thd, false, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
       return true;
-//    my_sleep(100000000000);
+    thd->transaction.start_alter= false;
     break;
   }
   case SQLCOM_COMMIT_PREVIOUS:
