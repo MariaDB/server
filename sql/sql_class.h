@@ -781,9 +781,9 @@ typedef struct system_status_var
   ulong feature_xml;		    /* +1 when XPATH is used */
 
   /* From MASTER_GTID_WAIT usage */
-  ulonglong master_gtid_wait_timeouts;          /* Number of timeouts */
-  ulonglong master_gtid_wait_time;              /* Time in microseconds */
-  ulonglong master_gtid_wait_count;
+  ulong master_gtid_wait_timeouts;          /* Number of timeouts */
+  ulong master_gtid_wait_time;              /* Time in microseconds */
+  ulong master_gtid_wait_count;
 
   ulong empty_queries;
   ulong access_denied_errors;
