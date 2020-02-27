@@ -629,7 +629,7 @@ static void end_statement_noop(PSI_statement_locker *locker NNN,
 static PSI_transaction_locker*
 get_thread_transaction_locker_noop(PSI_transaction_locker_state *state NNN,
                                    const void *xid NNN,
-                                   const ulonglong *trxid NNN,
+                                   ulonglong trxid NNN,
                                    int isolation_level NNN,
                                    my_bool read_only NNN,
                                    my_bool autocommit NNN)

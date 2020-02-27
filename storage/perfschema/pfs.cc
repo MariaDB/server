@@ -5904,7 +5904,7 @@ void pfs_drop_sp_v1(uint sp_type,
 PSI_transaction_locker*
 pfs_get_thread_transaction_locker_v1(PSI_transaction_locker_state *state,
                                      const void *xid,
-                                     const ulonglong *trxid,
+                                     ulonglong trxid,
                                      int isolation_level,
                                      my_bool read_only,
                                      my_bool autocommit)
@@ -5948,7 +5948,7 @@ pfs_get_thread_transaction_locker_v1(PSI_transaction_locker_state *state,
         pfs->m_xid= *(PSI_xid *)xid;
       pfs->m_xa= false;
       pfs->m_xa_state= TRANS_STATE_XA_NOTR;
-      pfs->m_trxid= (trxid == NULL) ? 0 : *trxid;
+      pfs->m_trxid= trxid;
       pfs->m_isolation_level= (enum_isolation_level)isolation_level;
       pfs->m_read_only= read_only;
       pfs->m_autocommit= autocommit;

@@ -1236,8 +1236,7 @@ void ha_pre_shutdown()
     times per transaction.
 
 */
-void trans_register_ha(THD *thd, bool all, handlerton *ht_arg,
-                       const ulonglong *trxid)
+void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
 {
   THD_TRANS *trans;
   Ha_trx_info *ha_info;

@@ -213,7 +213,7 @@ void test_noop()
   ok(metadata_locker == NULL, "no metadata_locker");
   PSI_server->end_metadata_wait(NULL, 0);
   
-  transaction_locker= PSI_server->get_thread_transaction_locker(NULL, NULL, NULL, 1, false, 1);
+  transaction_locker= PSI_server->get_thread_transaction_locker(NULL, NULL, 0, 1, false, 1);
   ok(transaction_locker == NULL, "no transaction_locker");
   PSI_server->start_transaction(NULL, NULL, 0);
   PSI_server->end_transaction(NULL, true);

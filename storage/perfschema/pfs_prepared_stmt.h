@@ -90,7 +90,6 @@ PFS_prepared_stmt*
 create_prepared_stmt(void *identity,
                      PFS_thread *thread, PFS_program *pfs_program,
                      PFS_events_statements *pfs_stmt, uint stmt_id,
-                     const char* stmt_name, uint stmt_name_length,
-                     const char* sqltext, uint sqltext_length);
+                     const char* stmt_name, uint stmt_name_length);
 void delete_prepared_stmt(PFS_prepared_stmt *pfs_ps);
 #endif

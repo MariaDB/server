@@ -602,7 +602,7 @@ typedef void (*end_statement_v1_t)
   (struct PSI_statement_locker *locker, void *stmt_da);
 typedef struct PSI_transaction_locker* (*get_thread_transaction_locker_v1_t)
   (struct PSI_transaction_locker_state_v1 *state, const void *xid,
-   const ulonglong *trxid, int isolation_level, my_bool read_only,
+   ulonglong trxid, int isolation_level, my_bool read_only,
    my_bool autocommit);
 typedef void (*start_transaction_v1_t)
   (struct PSI_transaction_locker *locker,

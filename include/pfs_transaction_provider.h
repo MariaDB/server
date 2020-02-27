@@ -35,7 +35,7 @@ C_MODE_START
 PSI_transaction_locker*
 pfs_get_thread_transaction_locker_v1(PSI_transaction_locker_state *state,
                                      const void *xid,
-                                     const ulonglong *trxid,
+                                     ulonglong trxid,
                                      int isolation_level,
                                      my_bool read_only,
                                      my_bool autocommit);

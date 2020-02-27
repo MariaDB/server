@@ -124,7 +124,7 @@
 static inline struct PSI_transaction_locker *
 inline_mysql_start_transaction(PSI_transaction_locker_state *state,
                                const void *xid,
-                               const ulonglong *trxid,
+                               ulonglong trxid,
                                int isolation_level,
                                my_bool read_only,
                                my_bool autocommit,

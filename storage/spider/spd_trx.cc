@@ -1994,9 +1994,9 @@ int spider_internal_start_trx(
       trx->trx_consistent_snapshot ? "TRUE" : "FALSE"));
     if (!trx->trx_consistent_snapshot)
     {
-      trans_register_ha(thd, FALSE, spider_hton_ptr, NULL);
+      trans_register_ha(thd, FALSE, spider_hton_ptr, 0);
       if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-        trans_register_ha(thd, TRUE, spider_hton_ptr, NULL);
+        trans_register_ha(thd, TRUE, spider_hton_ptr, 0);
     }
     trx->trx_start = TRUE;
     trx->trx_xa_prepared = FALSE;
@@ -3339,8 +3339,8 @@ int spider_start_consistent_snapshot(
       trx->trx_consistent_snapshot = TRUE;
       trx->use_consistent_snapshot = TRUE;
       trx->internal_xa_snapshot = spider_param_internal_xa_snapshot(trx->thd);
-      trans_register_ha(trx->thd, FALSE, spider_hton_ptr, NULL);
-      trans_register_ha(trx->thd, TRUE, spider_hton_ptr, NULL);
+      trans_register_ha(trx->thd, FALSE, spider_hton_ptr, 0);
+      trans_register_ha(trx->thd, TRUE, spider_hton_ptr, 0);
       if (spider_param_use_all_conns_snapshot(trx->thd))
       {
         trx->internal_xa = FALSE;
