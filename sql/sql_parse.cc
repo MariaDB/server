@@ -5653,6 +5653,10 @@ mysql_execute_command(THD *thd)
     }
     else if(!thd->rpt) //rpt should be NULL for legacy replication
     {
+      /*
+       We will just write the binlog and move to next event , because COMMIT
+       Alter will take care of actual work
+      */
       if (write_bin_log(thd, false, thd->query(), thd->query_length()))
         DBUG_RETURN(true);
       break;
@@ -5679,14 +5683,12 @@ mysql_execute_command(THD *thd)
     DBUG_ASSERT(thd->rgi_slave);
     Master_info *mi= thd->rgi_slave->rli->mi;
     start_alter_info *info=NULL;
-    uint count= 0;
     mysql_mutex_lock(&mi->start_alter_list_lock);
     List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
     while(1)
     {
       while ((info= info_iterator++))
       {
-        count++;
         if(info->thread_id == thd->lex->previous_commit_id)
           break;
       }
@@ -5695,9 +5697,14 @@ mysql_execute_command(THD *thd)
       mysql_cond_wait(&mi->start_alter_list_cond, &mi->start_alter_list_lock);
       info_iterator.rewind();
     }
+    //Although write_start_alter can also remove the *info, so we can do this on any place
     if (thd->rpt->stop)
       info_iterator.remove();
     mysql_mutex_unlock(&mi->start_alter_list_lock);
+    /*
+     We can free the args here because spawned thread has already copied the data
+    */
+    my_free(args);
     DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
     if (write_bin_log(thd, false, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
       return true;
@@ -5709,16 +5716,14 @@ mysql_execute_command(THD *thd)
     DBUG_ASSERT(thd->rgi_slave);
     Master_info *mi= thd->rgi_slave->rli->mi;
     start_alter_info *info=NULL;
-    uint count= 0;
-    mysql_mutex_lock(&mi->start_alter_list_lock);
-    List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
     char temp[thd->query_length()+ 10];
     strcpy(temp, thd->query());
     char* alter_location= strcasestr(temp, "ALTER");
     char send_query[thd->query_length() + 20];
+    mysql_mutex_lock(&mi->start_alter_list_lock);
+    List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
     while ((info= info_iterator++))
     {
-      count++;
       if(info->thread_id == thd->lex->previous_commit_id)
       {
         info_iterator.remove();
@@ -5730,6 +5735,9 @@ mysql_execute_command(THD *thd)
     {
       //error handeling
       DBUG_ASSERT(lex->m_sql_cmd != NULL);
+      //direct_commit_alter is used so that mysql_alter_table should not do
+      //unnecessary binlogging or spawn new thread because there is no start
+      //alter context
       thd->direct_commit_alter= true;
       res= lex->m_sql_cmd->execute(thd);
       thd->direct_commit_alter= false;
@@ -5748,7 +5756,6 @@ mysql_execute_command(THD *thd)
     mysql_mutex_unlock(&mi->start_alter_lock);
     mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::COMMIT_ALTER;
-    info->seq_no= thd->variables.gtid_seq_no;
     mysql_mutex_unlock(&mi->start_alter_lock);
     mysql_cond_broadcast(&mi->start_alter_cond);
     // Wait for commit by worker thread
@@ -5756,15 +5763,8 @@ mysql_execute_command(THD *thd)
     while(info->state != start_alter_state::COMMITTED )
       mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
     mysql_mutex_unlock(&mi->start_alter_lock);
-//    sprintf(send_query, "/*!100001 COMMIT %d */ %s", info->thread_id,  alter_location);
- //     if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
-   //     DBUG_RETURN(true);
     if (write_bin_log(thd, true, thd->query(), thd->query_length()))
       DBUG_RETURN(true);
-    thd->rpt->__finish_event_group(thd->rgi_slave);
-//    ha_commit_trans(thd, true);
-//    trans_commit_implicit(thd);
-//    trans_commit_stmt(thd);
     break;
   }
   case SQLCOM_ROLLBACK:
@@ -5808,16 +5808,14 @@ mysql_execute_command(THD *thd)
     DBUG_ASSERT(thd->rgi_slave);
     Master_info *mi= thd->rgi_slave->rli->mi;
     start_alter_info *info=NULL;
-    uint count= 0;
-    mysql_mutex_lock(&mi->start_alter_list_lock);
-    List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
     char temp[thd->query_length()+ 10];
     strcpy(temp, thd->query());
     char* alter_location= strcasestr(temp, "ALTER");
     char send_query[thd->query_length() + 20];
+    mysql_mutex_lock(&mi->start_alter_list_lock);
+    List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
     while ((info= info_iterator++))
     {
-      count++;
       if(info->thread_id == thd->lex->previous_commit_id)
       {
         info_iterator.remove();
@@ -5829,7 +5827,7 @@ mysql_execute_command(THD *thd)
     {
       //error handeling
       DBUG_ASSERT(lex->m_sql_cmd != NULL);
-      //Just write the binlog and move on
+      //Just write the binlog because there is nothing to be done
       if (write_bin_log(thd, true, thd->query(), thd->query_length()))
         DBUG_RETURN(true);
       break;
@@ -5843,7 +5841,6 @@ mysql_execute_command(THD *thd)
     mysql_mutex_unlock(&mi->start_alter_lock);
     mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::ROLLBACK_ALTER;
-    info->seq_no= thd->variables.gtid_seq_no;
     mysql_mutex_unlock(&mi->start_alter_lock);
     mysql_cond_broadcast(&mi->start_alter_cond);
     // Wait for commit by worker thread
@@ -5851,14 +5848,8 @@ mysql_execute_command(THD *thd)
     while(info->state != start_alter_state::COMMITTED )
       mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
     mysql_mutex_unlock(&mi->start_alter_lock);
-//    sprintf(send_query, "/*!100001 COMMIT %d */ %s", info->thread_id,  alter_location);
- //     if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
-   //     DBUG_RETURN(true);
     if (write_bin_log(thd, true, thd->query(), thd->query_length()))
       DBUG_RETURN(true);
-//    ha_commit_trans(thd, true);
-//    trans_commit_implicit(thd);
-//    trans_commit_stmt(thd);
     break;
   }
   case SQLCOM_RELEASE_SAVEPOINT:

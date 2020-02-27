@@ -371,8 +371,6 @@ struct start_alter_info
     TODO maybe used later ?
   */
   uint error;
-  //Seq no of Commit/Rollback (thread id)
-  uint64 seq_no;
   enum start_alter_state state;
 };
 

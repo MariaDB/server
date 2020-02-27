@@ -4418,7 +4418,6 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         For GTID, allocate a new sub_id for the given domain_id.
         The sub_id must be allocated in increasing order of binlog order.
       */
-      serial_rgi->gtid_ev_flags3= gev->flags3;
       if (event_group_new_gtid(serial_rgi, gev))
       {
         sql_print_error("Error reading relay log event: %s", "slave SQL thread "
@@ -5817,8 +5816,11 @@ err_during_init:
 
   rpl_parallel_resize_pool_if_no_slaves();
 
-  /* shutdown the alter threads waiting on C/R ALter */
-
+  /*
+   shutdown the alter threads waiting on C/R ALter
+   What if worker thread has not registered its start alter in alter_list ?
+   In that case rpt->stop
+  */
   start_alter_info *info=NULL;
   List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
   while ((info= info_iterator++))
@@ -5863,13 +5865,12 @@ pthread_handler_t handle_slave_start_alter(void *arg)
   if (init_slave_thread(thd, mi, SLAVE_THD_SQL))
     goto err_during_init;
   thd->init_for_queries();
-  //SIDK
   thd->catalog= data->catalog;
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
   thd->security_ctx->skip_grants();
   thd->set_db(data->db);
-  //thd->set_query_and_id((char*)data->query.str, data->query.length, data->cs,
-  thd->set_query_and_id((char *)memdup_root(thd->mem_root, data->query.str, data->query.length + 1), data->query.length, data->cs,
+  thd->set_query_and_id((char *)memdup_root(thd->mem_root, data->query.str,
+                        data->query.length + 1), data->query.length, data->cs,
                         next_query_id());
   thd->system_thread_info.rpl_sql_info=  new rpl_sql_thread_info(
                                            data->rgi->rli->mi->rpl_filter);
@@ -5900,19 +5901,15 @@ pthread_handler_t handle_slave_start_alter(void *arg)
 
     mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
                 FALSE, FALSE);
-    /* Finalize server status flags after executing a statement.
+    /* Finalize server status flags after executing a statement.*/
     thd->update_server_status();
-    log_slow_statement(thd);
-    thd->lex->restore_set_statement_var();
-    */
   }
 
   //
 
 
 err_during_init:
-//  delete thd;
-//  free(arg);
+  delete thd;
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
   my_thread_end();
   ERR_remove_state(0);

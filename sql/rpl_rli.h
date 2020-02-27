@@ -574,6 +574,7 @@ private:
   uint32 m_flags;
 };
 
+
 /*
   In parallel replication, if we need to re-try a transaction due to a
   deadlock or other temporary error, we may need to go back and re-read events

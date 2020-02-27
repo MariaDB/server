@@ -82,7 +82,8 @@ static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
                                   const HA_CREATE_INFO *create_info);
 static bool write_start_alter(THD *thd, bool* partial_alter, char * send_query,
                               start_alter_info *info);
-static int wait_for_master(THD *thd, char* send_query, start_alter_info *info);
+static int wait_for_master(THD *thd, start_alter_info *info);
+
 /**
   @brief Helper function for explain_filename
   @param thd          Thread handle
@@ -7754,7 +7755,7 @@ static int mysql_inplace_alter_table(THD *thd,
   thd->abort_on_warning= false;
   if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
-    alter_result= wait_for_master(thd, send_query, info);
+    alter_result= wait_for_master(thd, info);
     DBUG_ASSERT(info->state > start_alter_state::WAITING);
     if (info->state == start_alter_state::ROLLBACK_ALTER)
     {
@@ -9376,7 +9377,7 @@ static int create_table_for_inplace_alter(THD *thd,
 }
 
 
-static int wait_for_master(THD *thd, char* send_query, start_alter_info* info)
+static int wait_for_master(THD *thd, start_alter_info* info)
 {
   char temp[thd->query_length()+ 10];
   Master_info *mi= thd->rgi_slave->rli->mi;
@@ -9392,17 +9393,6 @@ static int wait_for_master(THD *thd, char* send_query, start_alter_info* info)
     mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
   }
   mysql_mutex_unlock(&mi->start_alter_lock);
-  if (info->state == start_alter_state::COMMIT_ALTER)
-  {
-    thd->variables.gtid_seq_no= info->seq_no;
-    sprintf(send_query, "/*!100001 COMMIT %d */ %s", info->thread_id,  alter_location);
-  }
-  else if (info->state == start_alter_state::ROLLBACK_ALTER)
-  {
-    assert(info->state == start_alter_state::ROLLBACK_ALTER);
-    sprintf(send_query, "/*!100001 ROLLBACK %d */ %s", info->thread_id, alter_location);
-    thd->variables.gtid_seq_no= info->seq_no;
-  }
   return info->state;
 }
 
@@ -9411,18 +9401,6 @@ static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query,
 {
   if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
-    thd->transaction.start_alter= true;
-    //if (write_bin_log(thd, true, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
-    //  return true;
-    /*
-    Master_info *mi= thd->rgi_slave->rli->mi;
-    thd->rgi_slave->mark_start_commit();
-    rpl_global_gtid_slave_state->next_sub_id(thd->variables.gtid_domain_id);
-    thd->wakeup_subsequent_commits(0);
-    //*/
-    // /*
-    //*/
-    //Finish event group
     Master_info *mi= thd->rgi_slave->rli->mi;
     info->error= 0;
     info->thread_id= thd->lex->previous_commit_id;
@@ -9430,13 +9408,7 @@ static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query,
     mysql_mutex_lock(&mi->start_alter_list_lock);
     mi->start_alter_list.push_back(info, thd->mem_root);
     mysql_mutex_unlock(&mi->start_alter_list_lock);
-    //I think we dont need this
-    //We do bro
     mysql_cond_broadcast(&mi->start_alter_list_cond);
-/*      thd->rgi_slave->rli->stmt_done(thd->master_log_pos, thd,
-            thd->rgi_slave);
-    thd->rpt->__finish_event_group(thd->rgi_slave);*/
-    thd->transaction.start_alter= false;
     DBUG_EXECUTE_IF("start_alter_delay_slave", {
       my_sleep(10000000);
       });
@@ -10376,7 +10348,7 @@ do_continue:;
     if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
     {
       DBUG_ASSERT(thd->slave_thread);
-      alter_result= wait_for_master(thd, send_query, info);
+      alter_result= wait_for_master(thd, info);
     }
     if (alter_result == start_alter_state::ROLLBACK_ALTER ||
           alter_result == start_alter_state::SHUTDOWN_ALTER)
@@ -10444,7 +10416,7 @@ do_continue:;
   if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
     DBUG_ASSERT(thd->slave_thread);
-    alter_result= wait_for_master(thd, send_query, info);
+    alter_result= wait_for_master(thd, info);
   }
   if (alter_result == start_alter_state::ROLLBACK_ALTER ||
           alter_result == start_alter_state::SHUTDOWN_ALTER)
@@ -10683,7 +10655,7 @@ err_new_table_cleanup:
   if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
     if (info->state == start_alter_state::REGISTERED)
-      alter_result= wait_for_master(thd, send_query, info);
+      alter_result= wait_for_master(thd, info);
     DBUG_ASSERT(info->state > start_alter_state::WAITING);
     if (info->state == start_alter_state::ROLLBACK_ALTER)
     {
