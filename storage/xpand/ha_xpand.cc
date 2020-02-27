@@ -8,6 +8,7 @@ Copyright (c) 2019, MariaDB Corporation.
 #include "ha_xpand_pushdown.h"
 #include "key.h"
 #include <strfunc.h>                            /* strconvert */
+#include "my_pthread.h"
 
 handlerton *xpand_hton = NULL;
 
@@ -41,68 +42,99 @@ static MYSQL_SYSVAR_INT
   NULL, NULL, -1, -1, 2147483647, 0
 );
 
-char *xpand_host;
-static MYSQL_SYSVAR_STR
+//state for load balancing
+int xpand_hosts_cur; //protected by my_atomic's
+ulong xpand_balance_algorithm;
+const char* balance_algorithm_names[]=
+{
+  "first", "round_robin", NullS
+};
+
+TYPELIB balance_algorithms=
+{
+  array_elements(balance_algorithm_names) - 1, "",
+  balance_algorithm_names, NULL
+};
+
+static void update_balance_algorithm(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                                     void *var_ptr, const void *save)
+{
+  *static_cast<ulong *>(var_ptr) = *static_cast<const ulong *>(save);
+  my_atomic_store32(&xpand_hosts_cur, 0);
+}
+
+static MYSQL_SYSVAR_ENUM
 (
-  host,
-  xpand_host,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-  "Xpand host",
-  NULL, NULL, "127.0.0.1"
+  balance_algorithm,
+  xpand_balance_algorithm,
+  PLUGIN_VAR_OPCMDARG,
+  "Method for managing load balancing of Clustrix nodes, can take values FIRST or ROUND_ROBIN",
+  NULL, update_balance_algorithm, XPAND_BALANCE_ROUND_ROBIN, &balance_algorithms
 );
 
-int host_list_cnt;
-char **host_list;
+//current list of clx hosts
+static PSI_rwlock_key key_xpand_hosts;
+mysql_rwlock_t xpand_hosts_lock;
+xpand_host_list *xpand_hosts;
 
-static void free_host_list()
+//only call while holding lock
+static void clear_hosts()
 {
-  if (host_list) {
-    for (int i = 0; host_list[i]; i++)
-      my_free(host_list[i]);
-    my_free(host_list);
-    host_list = NULL;
-  }
+  delete xpand_hosts;
+  xpand_hosts = NULL;
+  my_atomic_store32(&xpand_hosts_cur, 0);
 }
 
-static void update_host_list(char *xpand_host)
+static int check_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                       void *save, struct st_mysql_value *value)
 {
-  free_host_list();
+  char b;
+  int len = 0;
+  const char *val = value->val_str(value, &b, &len);
 
-  int cnt = 0;
-  for (char *p = xpand_host, *s = xpand_host; ; p++) {
-    if (*p == ',' || *p == '\0') {
-      if (p > s) {
-        cnt++;
-      }
-      if (!*p)
-        break;
-      s = p + 1;
-    }
-  }
+  if (!val)
+    return HA_ERR_OUT_OF_MEM;
 
-  DBUG_PRINT("host_cnt", ("%d", cnt));
-  host_list = (char **)my_malloc(sizeof(char *) * cnt+1, MYF(MY_WME));
-  host_list[cnt] = 0;
-  host_list_cnt = cnt;
+  int error_code = 0;
+  xpand_host_list *host_list = xpand_host_list::create(val, thd, &error_code);
+  if (error_code)
+    return error_code;
 
-  int i = 0;
-  for (char *p = xpand_host, *s = xpand_host; ; p++) {
-    if (*p == ',' || *p == '\0') {
-      if (p > s) {
-        char *host = (char *)my_malloc(p - s + 1, MYF(MY_WME));
-        host[p-s] = '\0';
-        memcpy(host, s, p-s);
-        DBUG_PRINT("host", ("%s", host));
-        host_list[i++] = host;
-      }
-      if (!*p)
-        break;
-      s = p + 1;
-    }
-  }
-
-  DBUG_PRINT("xpand_host", ("%s", xpand_host));
+  *static_cast<xpand_host_list**>(save) = host_list;
+  return 0;
 }
+
+static void update_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                         void *var_ptr, const void *save)
+{
+  mysql_rwlock_wrlock(&xpand_hosts_lock);
+
+  xpand_host_list *from_save = *static_cast<xpand_host_list * const *>(save);
+  char* raw = from_save->full_list;
+
+  int error_code = 0;
+  xpand_host_list *new_hosts = xpand_host_list::create(raw, &error_code);
+  if (error_code) {
+    my_printf_error(error_code, "Unhandled error setting xpand hostlist", MYF(0));
+    return;
+  }
+
+  clear_hosts();
+  xpand_hosts = new_hosts;
+  *static_cast<char**>(var_ptr) = new_hosts->full_list;
+
+  mysql_rwlock_unlock(&xpand_hosts_lock);
+}
+
+static char *xpand_hosts_str;
+static MYSQL_SYSVAR_STR
+(
+  hosts,
+  xpand_hosts_str,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
+  "List of xpand hostnames seperated by commas, semicolons or spaces",
+  check_hosts, update_hosts, "localhost"
+);
 
 char *xpand_username;
 static MYSQL_SYSVAR_STR
@@ -1403,15 +1435,20 @@ static int xpand_init(void *p)
   xpand_hton->create_select = create_xpand_select_handler;
   xpand_hton->create_derived = create_xpand_derived_handler;
 
-  update_host_list(xpand_host);
-
-  DBUG_RETURN(0);
+  mysql_rwlock_init(key_xpand_hosts, &xpand_hosts_lock);
+  mysql_rwlock_wrlock(&xpand_hosts_lock);
+  int error_code = 0;
+  xpand_hosts = xpand_host_list::create(xpand_hosts_str, &error_code);
+  mysql_rwlock_unlock(&xpand_hosts_lock);
+  DBUG_RETURN(error_code);
 }
 
 static int xpand_deinit(void *p)
 {
   DBUG_ENTER("xpand_deinit");
-  free_host_list();
+  mysql_rwlock_wrlock(&xpand_hosts_lock);
+  delete xpand_hosts;
+  mysql_rwlock_destroy(&xpand_hosts_lock);
   DBUG_RETURN(0);
 }
 
@@ -1425,7 +1462,8 @@ static struct st_mysql_sys_var* xpand_system_variables[] =
   MYSQL_SYSVAR(connect_timeout),
   MYSQL_SYSVAR(read_timeout),
   MYSQL_SYSVAR(write_timeout),
-  MYSQL_SYSVAR(host),
+  MYSQL_SYSVAR(balance_algorithm),
+  MYSQL_SYSVAR(hosts),
   MYSQL_SYSVAR(username),
   MYSQL_SYSVAR(password),
   MYSQL_SYSVAR(port),

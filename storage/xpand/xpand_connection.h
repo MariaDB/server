@@ -21,11 +21,32 @@ Copyright (c) 2019, MariaDB Corporation.
 
 #define XPAND_SERVER_REQUEST 30
 
-typedef enum xpand_lock_mode {
+enum xpand_lock_mode_t {
     XPAND_NO_LOCKS,
     XPAND_SHARED,
     XPAND_EXCLUSIVE,
-} xpand_lock_mode_t;
+};
+
+enum xpand_balance_algorithm_enum {
+  XPAND_BALANCE_FIRST,
+  XPAND_BALANCE_ROUND_ROBIN
+};
+
+static const int max_host_count = 128;
+class xpand_host_list {
+private:
+  char *strtok_buf;
+public:
+  char *full_list;
+  int hosts_len;
+  char *hosts[max_host_count];
+
+  static xpand_host_list *create(const char *hosts, int *error_code);
+  static xpand_host_list *create(const char *hosts, THD *thd, int *error_code);
+  xpand_host_list() = delete;
+  static void operator delete(void *p);
+};
+
 
 class xpand_connection_cursor;
 class xpand_connection
@@ -50,6 +71,7 @@ public:
     return xpand_net.net.vio;
   }
   int connect();
+  int connect_direct(char *host);
   void disconnect(bool is_destructor = FALSE);
 
   bool has_open_transaction();

@@ -10,6 +10,7 @@ Copyright (c) 2019, MariaDB Corporation.
 #include "handler.h"
 #include "table.h"
 #include "sql_class.h"
+#include "my_pthread.h"
 #include "tztime.h"
 
 //#include "errmsg.h"
@@ -125,30 +126,42 @@ void xpand_connection::disconnect(bool is_destructor)
   DBUG_VOID_RETURN;
 }
 
-int host_list_next;
-extern int host_list_cnt;
-extern char **host_list;
+extern int xpand_hosts_cur;
+extern ulong xpand_balance_algorithm;
+
+extern mysql_rwlock_t xpand_hosts_lock;
+extern xpand_host_list *xpand_hosts;
 
 int xpand_connection::connect()
 {
-  int error_code = 0;
-  my_bool my_true = 1;
   DBUG_ENTER("xpand_connection::connect");
+  int start = 0;
+  if (xpand_balance_algorithm == XPAND_BALANCE_ROUND_ROBIN)
+    start = my_atomic_add32(&xpand_hosts_cur, 1);
 
-  // cpu concurrency by damned!
-  int host_num = host_list_next;
-  host_num = host_num % host_list_cnt;
-  char *host = host_list[host_num];
-  host_list_next = host_num + 1;
+  mysql_rwlock_rdlock(&xpand_hosts_lock);
+
+  //search for available host
+  int error_code = 0;
+  for (int i = 0; i < xpand_hosts->hosts_len; i++) {
+    char *host = xpand_hosts->hosts[(start + i) % xpand_hosts->hosts_len];
+    error_code = connect_direct(host);
+    if (!error_code)
+      break;
+  }
+  mysql_rwlock_unlock(&xpand_hosts_lock);
+  if (error_code)
+    my_error(error_code, MYF(0), "clustrix");
+
+  DBUG_RETURN(error_code);
+}
+
+
+int xpand_connection::connect_direct(char *host)
+{
+  DBUG_ENTER("xpand_connection::connect_direct");
+  my_bool my_true = true;
   DBUG_PRINT("host", ("%s", host));
-
-  /* Validate the connection parameters */
-  if (!strcmp(xpand_socket, ""))
-    if (!strcmp(host, "127.0.0.1"))
-      if (xpand_port == MYSQL_PORT_DEFAULT)
-        DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
-
-  //xpand_net.methods = &connection_methods;
 
   if (!mysql_init(&xpand_net))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -180,29 +193,20 @@ int xpand_connection::connect()
   }
 #endif
 
+  int error_code = 0;
   if (!mysql_real_connect(&xpand_net, host, xpand_username, xpand_password,
                           NULL, xpand_port, xpand_socket,
                           CLIENT_MULTI_STATEMENTS))
   {
     error_code = mysql_errno(&xpand_net);
     disconnect();
-
-    if (error_code != CR_CONN_HOST_ERROR &&
-        error_code != CR_CONNECTION_ERROR)
-    {
-      if (error_code == ER_CON_COUNT_ERROR)
-      {
-        my_error(ER_CON_COUNT_ERROR, MYF(0));
-        DBUG_RETURN(ER_CON_COUNT_ERROR);
-      }
-      my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), host);
-      DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
-    }
   }
 
-  xpand_net.reconnect = 1;
+  if (error_code && error_code != ER_CON_COUNT_ERROR) {
+    error_code = ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
+  }
 
-  DBUG_RETURN(0);
+  DBUG_RETURN(error_code);
 }
 
 int xpand_connection::add_status_vars()
@@ -1267,4 +1271,70 @@ int xpand_connection::add_command_operand_bitmap(MY_BITMAP *bitmap)
   memcpy(command_buffer + command_length, bitmap->bitmap, no_bytes);
   command_length += no_bytes;
   return 0;
+}
+
+/****************************************************************************
+** Class xpand_host_list
+****************************************************************************/
+
+xpand_host_list *xpand_host_list::create(const char *hosts, int *error_code)
+{
+  return xpand_host_list::create(hosts, NULL, error_code);
+}
+
+xpand_host_list *xpand_host_list::create(const char *hosts, THD *thd, int *error_code)
+{
+  xpand_host_list *list = static_cast<xpand_host_list*>(
+                          thd ?
+                          thd_calloc(thd, sizeof(xpand_host_list)) :
+                          my_malloc(sizeof(xpand_host_list), MYF(MY_WME | MY_ZEROFILL)));
+  if (!list) {
+    *error_code = HA_ERR_OUT_OF_MEM;
+    return NULL;
+  }
+
+  list->full_list = thd ?
+                    thd_strdup(thd, hosts) :
+                    my_strdup(hosts, MYF(MY_WME));
+  list->strtok_buf = thd ?
+                     thd_strdup(thd, hosts) :
+                     my_strdup(hosts, MYF(MY_WME));
+  if (!list->full_list || !list->strtok_buf) {
+    *error_code = HA_ERR_OUT_OF_MEM;
+    return NULL;
+  }
+
+  const char *sep = ",; ";
+  //parse into array
+  int i = 0;
+  char *cursor = NULL;
+  char *token = NULL;
+  for (token = strtok_r(list->strtok_buf, sep, &cursor);
+       token && i < max_host_count;
+       token = strtok_r(NULL, sep, &cursor)) {
+    list->hosts[i] = token;
+    i++;
+  }
+
+  //host count out of range
+  if (i == 0 || token) {
+    my_free(list->full_list);
+    my_free(list->strtok_buf);
+    my_free(list);
+    *error_code = ER_BAD_HOST_ERROR;
+    return NULL;
+  }
+  list->hosts_len = i;
+
+  return list;
+}
+
+void xpand_host_list::operator delete(void *p)
+{
+  xpand_host_list *list = static_cast<xpand_host_list*>(p);
+  if (list) {
+    my_free(list->full_list);
+    my_free(list->strtok_buf);
+  }
+  my_free(list);
 }
