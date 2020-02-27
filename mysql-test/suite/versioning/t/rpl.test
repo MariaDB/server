@@ -133,28 +133,4 @@ sync_slave_with_master;
 connection master;
 drop table t1;
 
---echo #
---echo # MDEV-17554 Auto-create new partition for system versioned tables with history partitioned by INTERVAL/LIMIT
---echo #
-let $wait_no_alter= select count(*) = 0 from information_schema.processlist where info like 'ALTER TABLE %';
-let $wait_alter= select count(*) > 0 from information_schema.processlist where info like 'ALTER TABLE %';
-
-create or replace table t1 (x int) with system versioning
-partition by system_time limit 1000 auto_increment;
-lock tables t1 write;
-insert t1 values ();
-delete from t1;
---let $wait_condition= $wait_alter
---source include/wait_condition.inc
-unlock tables;
---let $wait_condition= $wait_no_alter
---source include/wait_condition.inc
-select count(*) - 1 as hist_partitions from information_schema.partitions where table_name = 't1' and table_schema = 'test';
---sync_slave_with_master
-select count(*) - 1 as hist_partitions from information_schema.partitions where table_name = 't1' and table_schema = 'test';
---connection master
-
-drop database test;
-create database test;
-
 --source include/rpl_end.inc

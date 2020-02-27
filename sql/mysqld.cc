@@ -1090,7 +1090,7 @@ static PSI_cond_info all_server_conds[]=
 PSI_thread_key key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
-  key_thread_slave_background, key_rpl_parallel_thread, key_thread_query;
+  key_thread_slave_background, key_rpl_parallel_thread;
 PSI_thread_key key_thread_ack_receiver;
 
 static PSI_thread_info all_server_threads[]=
@@ -1102,8 +1102,7 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
   { &key_thread_slave_background, "slave_background", PSI_FLAG_GLOBAL},
   { &key_thread_ack_receiver, "Ack_receiver", PSI_FLAG_GLOBAL},
-  { &key_rpl_parallel_thread, "rpl_parallel_thread", 0},
-  { &key_thread_query, "vers_add_hist_part_thread", 0}
+  { &key_rpl_parallel_thread, "rpl_parallel_thread", 0}
 };
 
 #ifdef HAVE_MMAP

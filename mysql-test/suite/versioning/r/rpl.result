@@ -164,23 +164,4 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
-#
-# MDEV-17554 Auto-create new partition for system versioned tables with history partitioned by INTERVAL/LIMIT
-#
-create or replace table t1 (x int) with system versioning
-partition by system_time limit 1000 auto_increment;
-lock tables t1 write;
-insert t1 values ();
-delete from t1;
-unlock tables;
-select count(*) - 1 as hist_partitions from information_schema.partitions where table_name = 't1' and table_schema = 'test';
-hist_partitions
-2
-connection slave;
-select count(*) - 1 as hist_partitions from information_schema.partitions where table_name = 't1' and table_schema = 'test';
-hist_partitions
-2
-connection master;
-drop database test;
-create database test;
 include/rpl_end.inc
