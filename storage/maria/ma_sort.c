@@ -198,8 +198,8 @@ int _ma_create_index_by_sort(MARIA_SORT_PARAM *info, my_bool no_messages,
                                          HA_FT_MAXBYTELEN),
                                MYF(0)))))
     {
-      if (my_init_dynamic_array(&buffpek, PSI_INSTRUMENT_ME, sizeof(BUFFPEK), maxbuffer,
-                                MY_MIN(maxbuffer/2, 1000), MYF(0)))
+      if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &buffpek, sizeof(BUFFPEK),
+                                maxbuffer, MY_MIN(maxbuffer/2, 1000), MYF(0)))
       {
 	my_free(sort_keys);
         sort_keys= 0;
@@ -432,7 +432,7 @@ static my_bool _ma_thr_find_all_keys_exec(MARIA_SORT_PARAM* sort_param)
                    ((sort_param->keyinfo->flag & HA_FULLTEXT) ?
                     HA_FT_MAXBYTELEN : 0)), MYF(0))))
     {
-      if (my_init_dynamic_array(&sort_param->buffpek, PSI_INSTRUMENT_ME, sizeof(BUFFPEK),
+      if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &sort_param->buffpek, sizeof(BUFFPEK),
                              maxbuffer, MY_MIN(maxbuffer / 2, 1000), MYF(0)))
       {
         my_free(sort_keys);

@@ -289,11 +289,11 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     /*
       HASH entries are of type SQL_HANDLER
     */
-    if (my_hash_init(&thd->handler_tables_hash, &my_charset_latin1,
-                     HANDLER_TABLES_HASH_SIZE, 0, 0,
-                     (my_hash_get_key) mysql_ha_hash_get_key,
-                     (my_hash_free_key) mysql_ha_hash_free, 0,
-                     key_memory_THD_handler_tables_hash))
+    if (my_hash_init(key_memory_THD_handler_tables_hash,
+                     &thd->handler_tables_hash, &my_charset_latin1,
+                     HANDLER_TABLES_HASH_SIZE, 0, 0, (my_hash_get_key)
+                     mysql_ha_hash_get_key, (my_hash_free_key)
+                     mysql_ha_hash_free, 0))
     {
       DBUG_PRINT("exit",("ERROR"));
       DBUG_RETURN(TRUE);

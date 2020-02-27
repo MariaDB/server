@@ -573,8 +573,9 @@ void free_table_ent(void* a)
 void 
 Rpl_filter::init_table_rule_hash(HASH* h, bool* h_inited)
 {
-  my_hash_init(h, system_charset_info,TABLE_RULE_HASH_SIZE,0,0,
-	    get_table_key, free_table_ent, 0, key_memory_TABLE_RULE_ENT);
+  my_hash_init(key_memory_TABLE_RULE_ENT, h,
+               system_charset_info,TABLE_RULE_HASH_SIZE,0,0, get_table_key,
+               free_table_ent, 0);
   *h_inited = 1;
 }
 
@@ -582,7 +583,7 @@ Rpl_filter::init_table_rule_hash(HASH* h, bool* h_inited)
 void 
 Rpl_filter::init_table_rule_array(DYNAMIC_ARRAY* a, bool* a_inited)
 {
-  my_init_dynamic_array(a, key_memory_TABLE_RULE_ENT, sizeof(TABLE_RULE_ENT*),
+  my_init_dynamic_array(key_memory_TABLE_RULE_ENT, a, sizeof(TABLE_RULE_ENT*),
                         TABLE_RULE_ARR_SIZE, TABLE_RULE_ARR_SIZE, MYF(0));
   *a_inited = 1;
 }

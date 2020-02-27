@@ -186,9 +186,9 @@ bool my_dboptions_cache_init(void)
   if (!dboptions_init)
   {
     dboptions_init= 1;
-    error= my_hash_init(&dboptions, table_alias_charset,
-                        32, 0, 0, (my_hash_get_key) dboptions_get_key,
-                        free_dbopt, 0, key_memory_dboptions_hash);
+    error= my_hash_init(key_memory_dboptions_hash, &dboptions,
+                        table_alias_charset, 32, 0, 0, (my_hash_get_key)
+                        dboptions_get_key, free_dbopt, 0);
   }
   return error;
 }
@@ -218,9 +218,8 @@ void my_dbopt_cleanup(void)
 {
   mysql_rwlock_wrlock(&LOCK_dboptions);
   my_hash_free(&dboptions);
-  my_hash_init(&dboptions, table_alias_charset,
-               32, 0, 0, (my_hash_get_key) dboptions_get_key,
-               free_dbopt, 0, key_memory_dboptions_hash);
+  my_hash_init(key_memory_dboptions_hash, &dboptions, table_alias_charset, 32,
+               0, 0, (my_hash_get_key) dboptions_get_key, free_dbopt, 0);
   mysql_rwlock_unlock(&LOCK_dboptions);
 }
 

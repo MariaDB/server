@@ -571,7 +571,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
                                       MYF(MY_WME | MY_THREAD_SPECIFIC))))
     DBUG_RETURN(1);
 
-  my_init_dynamic_array(&collect_arg.shares, PSI_INSTRUMENT_ME,
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &collect_arg.shares,
                         sizeof(TABLE_SHARE*), 100, 100, MYF(0));
   collect_arg.flush_type= flag;
   if (tdc_iterate(thd, (my_hash_walk_action) tc_collect_used_shares,

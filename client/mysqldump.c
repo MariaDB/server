@@ -1001,11 +1001,11 @@ static int get_options(int *argc, char ***argv)
   load_defaults_or_exit("my", load_default_groups, argc, argv);
   defaults_argv= *argv;
 
-  if (my_hash_init(&ignore_database, charset_info, 16, 0, 0,
-        (my_hash_get_key) get_table_key, my_free, 0, PSI_NOT_INSTRUMENTED))
+  if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_database, charset_info, 16, 0, 0,
+        (my_hash_get_key) get_table_key, my_free, 0))
     return(EX_EOM);
-  if (my_hash_init(&ignore_table, charset_info, 16, 0, 0,
-        (my_hash_get_key) get_table_key, my_free, 0, PSI_NOT_INSTRUMENTED))
+  if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_table, charset_info, 16, 0, 0,
+        (my_hash_get_key) get_table_key, my_free, 0))
     return(EX_EOM);
   /* Don't copy internal log tables */
   if (my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,

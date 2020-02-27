@@ -3289,10 +3289,10 @@ bool ha_partition::populate_partition_name_hash()
     DBUG_RETURN(false);
   }
   tot_names= m_is_sub_partitioned ? m_tot_parts + num_parts : num_parts;
-  if (my_hash_init(&part_share->partition_name_hash,
-                   system_charset_info, tot_names, 0, 0,
-                   (my_hash_get_key) get_part_name,
-                   my_free, HASH_UNIQUE, key_memory_Partition_share))
+  if (my_hash_init(key_memory_Partition_share,
+                   &part_share->partition_name_hash, system_charset_info,
+                   tot_names, 0, 0, (my_hash_get_key) get_part_name, my_free,
+                   HASH_UNIQUE))
   {
     unlock_shared_ha_data();
     DBUG_RETURN(TRUE);

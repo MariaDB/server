@@ -1276,7 +1276,7 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
   file= head->file;
   record= head->record[0];
 
-  my_init_dynamic_array2(&ranges, PSI_INSTRUMENT_ME, sizeof(QUICK_RANGE*),
+  my_init_dynamic_array2(PSI_INSTRUMENT_ME, &ranges, sizeof(QUICK_RANGE*),
                          thd->alloc(sizeof(QUICK_RANGE*) * 16), 16, 16,
                          MYF(MY_THREAD_SPECIFIC));
 
@@ -14507,8 +14507,9 @@ int QUICK_GROUP_MIN_MAX_SELECT::init()
 
   if (min_max_arg_part)
   {
-    if (my_init_dynamic_array(&min_max_ranges, PSI_INSTRUMENT_ME,
-                              sizeof(QUICK_RANGE*), 16, 16, MYF(MY_THREAD_SPECIFIC)))
+    if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &min_max_ranges,
+                              sizeof(QUICK_RANGE*), 16, 16,
+                              MYF(MY_THREAD_SPECIFIC)))
       return 1;
 
     if (have_min)

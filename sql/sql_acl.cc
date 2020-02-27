@@ -2461,7 +2461,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     user.sort= get_magic_sort("hu", user.host.hostname, user.user.str);
     user.hostname_length= safe_strlen(user.host.hostname);
 
-    my_init_dynamic_array(&user.role_grants, key_memory_acl_mem,
+    my_init_dynamic_array(key_memory_acl_mem, &user.role_grants,
                           sizeof(ACL_ROLE *), 0, 8, MYF(0));
 
     user.account_locked= user_table.get_account_locked();
@@ -2480,7 +2480,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
       ACL_ROLE *entry= new (&acl_memroot) ACL_ROLE(&user, &acl_memroot);
       entry->role_grants = user.role_grants;
-      my_init_dynamic_array(&entry->parent_grantee, key_memory_acl_mem,
+      my_init_dynamic_array(key_memory_acl_mem, &entry->parent_grantee,
                             sizeof(ACL_USER_BASE *), 0, 8, MYF(0));
       my_hash_insert(&acl_roles, (uchar *)entry);
 
@@ -2744,16 +2744,16 @@ bool acl_reload(THD *thd)
   old_acl_roles_mappings= acl_roles_mappings;
   old_acl_proxy_users= acl_proxy_users;
   old_acl_dbs= acl_dbs;
-  my_init_dynamic_array(&acl_hosts, key_memory_acl_mem, sizeof(ACL_HOST), 20, 50, MYF(0));
-  my_init_dynamic_array(&acl_users, key_memory_acl_mem, sizeof(ACL_USER), 50, 100, MYF(0));
+  my_init_dynamic_array(key_memory_acl_mem, &acl_hosts, sizeof(ACL_HOST), 20, 50, MYF(0));
+  my_init_dynamic_array(key_memory_acl_mem, &acl_users, sizeof(ACL_USER), 50, 100, MYF(0));
   acl_dbs.init(key_memory_acl_mem, 50, 100);
-  my_init_dynamic_array(&acl_proxy_users, key_memory_acl_mem, sizeof(ACL_PROXY_USER), 50, 100, MYF(0));
-  my_hash_init2(&acl_roles,50, &my_charset_utf8mb3_bin,
+  my_init_dynamic_array(key_memory_acl_mem, &acl_proxy_users, sizeof(ACL_PROXY_USER), 50, 100, MYF(0));
+  my_hash_init2(key_memory_acl_mem, &acl_roles,50, &my_charset_utf8mb3_bin,
                 0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
-                (void (*)(void *))free_acl_role, 0, key_memory_acl_mem);
-  my_hash_init2(&acl_roles_mappings, 50, &my_charset_utf8mb3_bin, 0, 0, 0,
-                (my_hash_get_key) acl_role_map_get_key, 0, 0, 0,
-                key_memory_acl_mem);
+                (void (*)(void *))free_acl_role, 0);
+  my_hash_init2(key_memory_acl_mem, &acl_roles_mappings, 50,
+                &my_charset_utf8mb3_bin, 0, 0, 0, (my_hash_get_key)
+                acl_role_map_get_key, 0, 0, 0);
   old_mem= acl_memroot;
   delete_dynamic(&acl_wild_hosts);
   my_hash_free(&acl_check_hosts);
@@ -3191,7 +3191,7 @@ ACL_USER::ACL_USER(THD *thd, const LEX_USER &combo,
   sort= get_magic_sort("hu", host.hostname, user.str);
   password_last_changed= thd->query_start();
   password_lifetime= -1;
-  my_init_dynamic_array(&role_grants, PSI_INSTRUMENT_ME, sizeof(ACL_USER *), 0, 8, MYF(0));
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &role_grants, sizeof(ACL_USER *), 0, 8, MYF(0));
 }
 
 
@@ -3276,9 +3276,9 @@ static void acl_insert_role(const char *rolename, privilege_t privileges)
 
   mysql_mutex_assert_owner(&acl_cache->lock);
   entry= new (&acl_memroot) ACL_ROLE(rolename, privileges, &acl_memroot);
-  my_init_dynamic_array(&entry->parent_grantee, key_memory_acl_mem,
+  my_init_dynamic_array(key_memory_acl_mem, &entry->parent_grantee,
                         sizeof(ACL_USER_BASE *), 0, 8, MYF(0));
-  my_init_dynamic_array(&entry->role_grants, key_memory_acl_mem,
+  my_init_dynamic_array(key_memory_acl_mem, &entry->role_grants,
                         sizeof(ACL_ROLE *), 0, 8, MYF(0));
 
   my_hash_insert(&acl_roles, (uchar *)entry);
@@ -3451,12 +3451,12 @@ exit:
 static void init_check_host(void)
 {
   DBUG_ENTER("init_check_host");
-  (void) my_init_dynamic_array(&acl_wild_hosts, key_memory_acl_mem,
+  (void) my_init_dynamic_array(key_memory_acl_mem, &acl_wild_hosts,
                                sizeof(struct acl_host_and_ip),
                                acl_users.elements, 1, MYF(0));
-  (void) my_hash_init(&acl_check_hosts,system_charset_info, acl_users.elements,
-                      0, 0, (my_hash_get_key) check_get_key, 0, 0,
-                      key_memory_acl_mem);
+  (void) my_hash_init(key_memory_acl_mem, &acl_check_hosts,system_charset_info,
+                      acl_users.elements, 0, 0,
+                      (my_hash_get_key) check_get_key, 0, 0);
   if (!allow_all_hosts)
   {
     for (uint i=0 ; i < acl_users.elements ; i++)
@@ -5101,9 +5101,8 @@ public:
   bool ok() { return privs != NO_ACL || cols != NO_ACL; }
   void init_hash()
   {
-    my_hash_init2(&hash_columns, 4, system_charset_info, 0, 0, 0,
-                  (my_hash_get_key) get_key_column, 0, 0, 0,
-                  key_memory_acl_memex);
+    my_hash_init2(key_memory_acl_memex, &hash_columns, 4, system_charset_info,
+                  0, 0, 0, (my_hash_get_key) get_key_column, 0, 0, 0);
   }
 };
 
@@ -5369,8 +5368,7 @@ column_hash_search(GRANT_TABLE *t, const char *cname, size_t length)
 {
   if (!my_hash_inited(&t->hash_columns))
     return (GRANT_COLUMN*) 0;
-  return (GRANT_COLUMN*) my_hash_search(&t->hash_columns,
-                                        (uchar*) cname, length);
+  return (GRANT_COLUMN*)my_hash_search(&t->hash_columns, (uchar*)cname, length);
 }
 
 
@@ -7652,22 +7650,21 @@ static bool grant_load(THD *thd,
 
   Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
-  (void) my_hash_init(&column_priv_hash, &my_charset_utf8mb3_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table,
-                      (my_hash_free_key) free_grant_table, 0,
-                      key_memory_acl_memex);
-  (void) my_hash_init(&proc_priv_hash, &my_charset_utf8mb3_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table, 0,0,
-                      key_memory_acl_memex);
-  (void) my_hash_init(&func_priv_hash, &my_charset_utf8mb3_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table, 0,0,
-                      key_memory_acl_memex);
-  (void) my_hash_init(&package_spec_priv_hash, &my_charset_utf8mb3_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table, 0,0,
-                      key_memory_acl_memex);
-  (void) my_hash_init(&package_body_priv_hash, &my_charset_utf8mb3_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table, 0,0,
-                      key_memory_acl_memex);
+  (void) my_hash_init(key_memory_acl_memex, &column_priv_hash,
+                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
+                      get_grant_table, (my_hash_free_key) free_grant_table, 0);
+  (void) my_hash_init(key_memory_acl_memex, &proc_priv_hash,
+                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
+                      get_grant_table, 0,0);
+  (void) my_hash_init(key_memory_acl_memex, &func_priv_hash,
+                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
+                      get_grant_table, 0,0);
+  (void) my_hash_init(key_memory_acl_memex, &package_spec_priv_hash,
+                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
+                      get_grant_table, 0,0);
+  (void) my_hash_init(key_memory_acl_memex, &package_body_priv_hash,
+                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
+                      get_grant_table, 0,0);
   init_sql_alloc(key_memory_acl_mem, &grant_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   t_table= tables_priv.table();

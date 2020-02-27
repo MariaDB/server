@@ -3826,13 +3826,12 @@ LEX::LEX()
     default_used(0), is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
-  init_dynamic_array2(&plugins, PSI_INSTRUMENT_ME,
-                      sizeof(plugin_ref), plugins_static_buffer,
-                      INITIAL_LEX_PLUGIN_LIST_SIZE,
+  init_dynamic_array2(PSI_INSTRUMENT_ME, &plugins, sizeof(plugin_ref),
+                      plugins_static_buffer, INITIAL_LEX_PLUGIN_LIST_SIZE,
                       INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
-  init_dynamic_array2(&delete_gtid_domain, PSI_INSTRUMENT_ME, sizeof(uint32),
+  init_dynamic_array2(PSI_INSTRUMENT_ME, &delete_gtid_domain, sizeof(uint32),
                       gtid_domain_static_buffer,
                       initial_gtid_domain_buffer_size,
                       initial_gtid_domain_buffer_size, 0);

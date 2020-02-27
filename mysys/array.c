@@ -40,7 +40,7 @@
     FALSE	Ok
 */
 
-my_bool init_dynamic_array2(DYNAMIC_ARRAY *array, PSI_memory_key psi_key,
+my_bool init_dynamic_array2(PSI_memory_key psi_key, DYNAMIC_ARRAY *array,
                             uint element_size, void *init_buffer,
                             uint init_alloc, uint alloc_increment, myf my_flags)
 {

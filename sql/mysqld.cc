@@ -6395,7 +6395,7 @@ int handle_early_options()
   my_getopt_skip_unknown= TRUE;
 
   /* prepare all_early_options array */
-  my_init_dynamic_array(&all_early_options, PSI_NOT_INSTRUMENTED,
+  my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &all_early_options,
                         sizeof(my_option), 100, 25, MYF(0));
   add_many_options(&all_early_options, pfs_early_options,
                   array_elements(pfs_early_options));
@@ -8570,7 +8570,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   my_getopt_error_reporter= option_error_reporter;
 
   /* prepare all_options array */
-  my_init_dynamic_array(&all_options, PSI_INSTRUMENT_ME, sizeof(my_option),
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &all_options, sizeof(my_option),
                         array_elements(my_long_options) + sys_var_elements(),
                         array_elements(my_long_options)/4, MYF(0));
   add_many_options(&all_options, my_long_options, array_elements(my_long_options));

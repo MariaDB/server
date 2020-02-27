@@ -166,7 +166,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
     goto err;
 
   /* The following should be big enough for all pinning purposes */
-  if (my_init_dynamic_array(&info.pinned_pages, PSI_INSTRUMENT_ME,
+  if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &info.pinned_pages,
                             sizeof(MARIA_PINNED_PAGE),
                             MY_MAX(share->base.blobs*2 + 4,
                                 MARIA_MAX_TREE_LEVELS*3), 16, MYF(0)))

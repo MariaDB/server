@@ -2727,8 +2727,8 @@ size_t Query_cache::init_cache()
 
   DUMP(this);
 
-  (void) my_hash_init(&queries, &my_charset_bin, def_query_hash_size, 0, 0,
-                      query_cache_query_get_key, 0, 0, key_memory_Query_cache);
+  (void) my_hash_init(key_memory_Query_cache, &queries, &my_charset_bin,
+                      def_query_hash_size, 0,0, query_cache_query_get_key,0,0);
 #ifndef FN_NO_CASE_SENSE
   /*
     If lower_case_table_names!=0 then db and table names are already 
@@ -2738,8 +2738,8 @@ size_t Query_cache::init_cache()
     lower_case_table_names == 0 then we should distinguish my_table
     and MY_TABLE cases and so again can use binary collation.
   */
-  (void) my_hash_init(&tables, &my_charset_bin, def_table_hash_size, 0, 0,
-                      query_cache_table_get_key, 0, 0, key_memory_Query_cache);
+  (void) my_hash_init(key_memory_Query_cache, &tables, &my_charset_bin,
+                      def_table_hash_size, 0,0, query_cache_table_get_key, 0,0);
 #else
   /*
     On windows, OS/2, MacOS X with HFS+ or any other case insensitive
@@ -2749,11 +2749,9 @@ size_t Query_cache::init_cache()
     file system) and so should use case insensitive collation for
     comparison.
   */
-  (void) my_hash_init(&tables,
-                      lower_case_table_names ? &my_charset_bin :
-                      files_charset_info,
-                      def_table_hash_size, 0, 0,query_cache_table_get_key,
-                      0, 0, PSI_INSTRUMENT_ME);
+  (void) my_hash_init(PSI_INSTRUMENT_ME, &tables, lower_case_table_names ?
+                      &my_charset_bin : files_charset_info,
+                      def_table_hash_size, 0,0, query_cache_table_get_key, 0,0);
 #endif
 
   queries_in_cache = 0;

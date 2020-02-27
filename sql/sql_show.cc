@@ -571,7 +571,7 @@ static bool skip_ignored_dir_check= TRUE;
 bool
 ignore_db_dirs_init()
 {
-  return my_init_dynamic_array(&ignore_db_dirs_array, key_memory_ignored_db,
+  return my_init_dynamic_array(key_memory_ignored_db, &ignore_db_dirs_array,
                                sizeof(LEX_STRING *), 0, 0, MYF(0));
 }
 
@@ -749,12 +749,10 @@ ignore_db_dirs_process_additions()
 
   skip_ignored_dir_check= TRUE;
 
-  if (my_hash_init(&ignore_db_dirs_hash, 
-                   lower_case_table_names ?
-                     character_set_filesystem : &my_charset_bin,
-                   0, 0, 0, db_dirs_hash_get_key,
-                   dispose_db_dir,
-                   HASH_UNIQUE, key_memory_ignored_db))
+  if (my_hash_init(key_memory_ignored_db, &ignore_db_dirs_hash,
+                   lower_case_table_names ?  character_set_filesystem :
+                   &my_charset_bin, 0, 0, 0, db_dirs_hash_get_key,
+                   dispose_db_dir, HASH_UNIQUE))
     return true;
 
   /* len starts from 1 because of the terminating zero. */
@@ -3365,7 +3363,7 @@ int add_status_vars(SHOW_VAR *list)
   if (status_vars_inited)
     mysql_rwlock_wrlock(&LOCK_all_status_vars);
   if (!all_status_vars.buffer && // array is not allocated yet - do it now
-      my_init_dynamic_array(&all_status_vars, PSI_INSTRUMENT_ME,
+      my_init_dynamic_array(PSI_INSTRUMENT_ME, &all_status_vars,
                             sizeof(SHOW_VAR), 250, 50, MYF(0)))
   {
     res= 1;

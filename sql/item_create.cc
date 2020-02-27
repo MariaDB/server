@@ -5617,14 +5617,9 @@ int item_create_init()
 #ifdef HAVE_SPATIAL
   count+= native_func_registry_array_geom.count();
 #endif
-  if (my_hash_init(& native_functions_hash,
-                   system_charset_info,
-                   (ulong) count,
-                   0,
-                   0,
-                   (my_hash_get_key) get_native_fct_hash_key,
-                   NULL,                          /* Nothing to free */
-                   MYF(0), key_memory_native_functions))
+  if (my_hash_init(key_memory_native_functions, & native_functions_hash,
+                   system_charset_info, (ulong) count, 0, 0, (my_hash_get_key)
+                   get_native_fct_hash_key, NULL, MYF(0)))
     DBUG_RETURN(1);
 
   if (native_func_registry_array.append_to_hash(&native_functions_hash))

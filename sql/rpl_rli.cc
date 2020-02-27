@@ -1834,10 +1834,10 @@ rpl_load_gtid_slave_state(THD *thd)
 
   cb_data.table_list= NULL;
   cb_data.default_entry= NULL;
-  my_hash_init(&hash, &my_charset_bin, 32,
+  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
                offsetof(gtid_pos_element, gtid) + offsetof(rpl_gtid, domain_id),
-               sizeof(uint32), NULL, my_free, HASH_UNIQUE, PSI_INSTRUMENT_ME);
-  if ((err= my_init_dynamic_array(&array, PSI_INSTRUMENT_ME,
+               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
+  if ((err= my_init_dynamic_array(PSI_INSTRUMENT_ME, &array,
                                   sizeof(gtid_pos_element), 0, 0, MYF(0))))
     goto end;
   array_inited= true;

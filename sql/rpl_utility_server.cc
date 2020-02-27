@@ -1123,7 +1123,7 @@ err:
 
 Deferred_log_events::Deferred_log_events(Relay_log_info *rli) : last_added(NULL)
 {
-  my_init_dynamic_array(&array, PSI_INSTRUMENT_ME, sizeof(Log_event *), 32, 16, MYF(0));
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &array, sizeof(Log_event *), 32, 16, MYF(0));
 }
 
 Deferred_log_events::~Deferred_log_events()

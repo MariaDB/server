@@ -242,8 +242,8 @@ static int cassandra_init_func(void *p)
 
   cassandra_hton= (handlerton *)p;
   mysql_mutex_init(ex_key_mutex_example, &cassandra_mutex, MY_MUTEX_INIT_FAST);
-  (void) my_hash_init(&cassandra_open_tables,system_charset_info,32,0,0,
-                      (my_hash_get_key) cassandra_get_key,0,0, PSI_INSTRUMENT_ME);
+  (void) my_hash_init(PSI_INSTRUMENT_ME, &cassandra_open_tables,system_charset_info,32,0,0,
+                      (my_hash_get_key) cassandra_get_key,0,0);
 
   cassandra_hton->create=  cassandra_create_handler;
   /*
@@ -1458,12 +1458,12 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
     special_type_field_names=
       ((LEX_STRING*)(special_type_field_converters + max_non_default_fields));
 
-    if (my_init_dynamic_array(&dynamic_values, PSI_INSTRUMENT_ME,
+    if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &dynamic_values,
                            sizeof(DYNAMIC_COLUMN_VALUE),
                            DYNCOL_USUAL, DYNCOL_DELTA, MYF(0)))
       DBUG_RETURN(true);
     else
-      if (my_init_dynamic_array(&dynamic_names, PSI_INSTRUMENT_ME,
+      if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &dynamic_names,
                              sizeof(LEX_STRING),
                              DYNCOL_USUAL, DYNCOL_DELTA,MYF(0)))
       {

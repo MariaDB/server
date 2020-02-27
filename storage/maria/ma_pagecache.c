@@ -789,10 +789,10 @@ size_t init_pagecache(PAGECACHE *pagecache, size_t use_mem,
   {
     if (mysql_mutex_init(key_PAGECACHE_cache_lock,
                          &pagecache->cache_lock, MY_MUTEX_INIT_FAST) ||
-        my_hash_init(&pagecache->files_in_flush, &my_charset_bin, 32,
-                     offsetof(struct st_file_in_flush, file),
+        my_hash_init(PSI_INSTRUMENT_ME, &pagecache->files_in_flush,
+                     &my_charset_bin, 32, offsetof(struct st_file_in_flush, file),
                      sizeof(((struct st_file_in_flush *)NULL)->file),
-                     NULL, NULL, 0, PSI_INSTRUMENT_ME))
+                     NULL, NULL, 0))
       goto err;
     pagecache->inited= 1;
     pagecache->in_init= 0;

@@ -248,10 +248,9 @@ rpl_slave_state::rpl_slave_state()
 {
   mysql_mutex_init(key_LOCK_slave_state, &LOCK_slave_state,
                    MY_MUTEX_INIT_SLOW);
-  my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
-               sizeof(uint32), NULL, rpl_slave_state_free_element, HASH_UNIQUE,
-               PSI_INSTRUMENT_ME);
-  my_init_dynamic_array(&gtid_sort_array, PSI_INSTRUMENT_ME, sizeof(rpl_gtid),
+  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32, offsetof(element, domain_id),
+               sizeof(uint32), NULL, rpl_slave_state_free_element, HASH_UNIQUE);
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtid_sort_array, sizeof(rpl_gtid),
                         8, 8, MYF(0));
 }
 
@@ -1114,8 +1113,9 @@ rpl_slave_state::iterate(int (*cb)(rpl_gtid *, void *), void *data,
   int res= 1;
   bool locked= false;
 
-  my_hash_init(&gtid_hash, &my_charset_bin, 32, offsetof(rpl_gtid, domain_id),
-               sizeof(uint32), NULL, NULL, HASH_UNIQUE, PSI_INSTRUMENT_ME);
+  my_hash_init(PSI_INSTRUMENT_ME, &gtid_hash, &my_charset_bin, 32,
+               offsetof(rpl_gtid, domain_id), sizeof(uint32), NULL, NULL,
+               HASH_UNIQUE);
   for (i= 0; i < num_extra; ++i)
     if (extra_gtids[i].server_id == global_system_variables.server_id &&
         my_hash_insert(&gtid_hash, (uchar *)(&extra_gtids[i])))
@@ -1487,9 +1487,9 @@ rpl_slave_state::alloc_gtid_pos_table(LEX_CSTRING *table_name, void *hton,
 
 void rpl_binlog_state::init()
 {
-  my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
-               sizeof(uint32), NULL, my_free, HASH_UNIQUE, PSI_INSTRUMENT_ME);
-  my_init_dynamic_array(&gtid_sort_array, PSI_INSTRUMENT_ME, sizeof(rpl_gtid), 8, 8, MYF(0));
+  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32, offsetof(element, domain_id),
+               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
   mysql_mutex_init(key_LOCK_binlog_state, &LOCK_binlog_state,
                    MY_MUTEX_INIT_SLOW);
   initialized= 1;
@@ -1714,9 +1714,9 @@ rpl_binlog_state::alloc_element_nolock(const rpl_gtid *gtid)
   if (elem && lookup_gtid)
   {
     elem->domain_id= gtid->domain_id;
-    my_hash_init(&elem->hash, &my_charset_bin, 32,
+    my_hash_init(PSI_INSTRUMENT_ME, &elem->hash, &my_charset_bin, 32,
                  offsetof(rpl_gtid, server_id), sizeof(uint32), NULL, my_free,
-                 HASH_UNIQUE, PSI_INSTRUMENT_ME);
+                 HASH_UNIQUE);
     elem->last_gtid= lookup_gtid;
     elem->seq_no_counter= gtid->seq_no;
     memcpy(lookup_gtid, gtid, sizeof(*lookup_gtid));
@@ -1795,9 +1795,9 @@ rpl_binlog_state::bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no)
   }
 
   elem->domain_id= domain_id;
-  my_hash_init(&elem->hash, &my_charset_bin, 32,
+  my_hash_init(PSI_INSTRUMENT_ME, &elem->hash, &my_charset_bin, 32,
                offsetof(rpl_gtid, server_id), sizeof(uint32), NULL, my_free,
-               HASH_UNIQUE, PSI_INSTRUMENT_ME);
+               HASH_UNIQUE);
   elem->last_gtid= NULL;
   elem->seq_no_counter= seq_no;
   if (0 == my_hash_insert(&hash, (const uchar *)elem))
@@ -2126,7 +2126,7 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
 
   DBUG_ENTER("rpl_binlog_state::drop_domain");
 
-  my_init_dynamic_array2(&domain_unique, PSI_INSTRUMENT_ME,
+  my_init_dynamic_array2(PSI_INSTRUMENT_ME, &domain_unique,
                          sizeof(element*), domain_unique_buffer,
                          sizeof(domain_unique_buffer) / sizeof(element*), 4, 0);
 
@@ -2251,10 +2251,10 @@ end:
 
 slave_connection_state::slave_connection_state()
 {
-  my_hash_init(&hash, &my_charset_bin, 32,
+  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
                offsetof(entry, gtid) + offsetof(rpl_gtid, domain_id),
-               sizeof(uint32), NULL, my_free, HASH_UNIQUE, PSI_INSTRUMENT_ME);
-  my_init_dynamic_array(&gtid_sort_array, PSI_INSTRUMENT_ME, sizeof(rpl_gtid), 8, 8, MYF(0));
+               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
 }
 
 
@@ -2877,9 +2877,9 @@ free_hash_element(void *p)
 void
 gtid_waiting::init()
 {
-  my_hash_init(&hash, &my_charset_bin, 32,
+  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
                offsetof(hash_element, domain_id), sizeof(uint32), NULL,
-               free_hash_element, HASH_UNIQUE, PSI_INSTRUMENT_ME);
+               free_hash_element, HASH_UNIQUE);
   mysql_mutex_init(key_LOCK_gtid_waiting, &LOCK_gtid_waiting, 0);
 }
 

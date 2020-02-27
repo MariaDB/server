@@ -495,9 +495,9 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 	pthread_mutex_t		mutex;
 	int			ret = 0;
 
-	if (my_hash_init(&filehash, &my_charset_bin, START_FILE_HASH_SIZE,
-			  0, 0, (my_hash_get_key) get_file_entry_key,
-			  (my_hash_free_key) file_entry_free, MYF(0), PSI_NOT_INSTRUMENTED)) {
+        if (my_hash_init(PSI_NOT_INSTRUMENTED, &filehash, &my_charset_bin,
+                         START_FILE_HASH_SIZE, 0, 0, (my_hash_get_key) get_file_entry_key,
+			  (my_hash_free_key) file_entry_free, MYF(0))) {
 		msg("%s: failed to initialize file hash.", my_progname);
 		return 1;
 	}

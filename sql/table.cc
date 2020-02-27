@@ -2198,10 +2198,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   use_hash= share->fields >= MAX_FIELDS_BEFORE_HASH;
   if (use_hash)
-    use_hash= !my_hash_init(&share->name_hash, system_charset_info,
-                            share->fields, 0, 0,
-                            (my_hash_get_key) get_field_name, 0, 0,
-                            PSI_INSTRUMENT_ME);
+    use_hash= !my_hash_init(PSI_INSTRUMENT_ME, &share->name_hash,
+                            system_charset_info, share->fields, 0, 0,
+                            (my_hash_get_key) get_field_name, 0, 0);
 
   if (share->mysql_version >= 50700 && share->mysql_version < 100000 &&
       vcol_screen_length)

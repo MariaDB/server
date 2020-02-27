@@ -128,7 +128,7 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
                         MYF(MyFlags | MY_ZEROFILL))))
     goto error;
   
-  if (my_init_dynamic_array(&dirh->array, key_memory_MY_DIR, sizeof(FILEINFO),
+  if (my_init_dynamic_array(key_memory_MY_DIR, &dirh->array, sizeof(FILEINFO),
                             ENTRIES_START_SIZE, ENTRIES_INCREMENT,
                             MYF(MyFlags)))
     goto error;
@@ -231,7 +231,7 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   if (!(dirh= my_malloc(PSI_INSTRUMENT_ME, sizeof(*dirh), MyFlags | MY_ZEROFILL)))
     goto error;
   
-  if (my_init_dynamic_array(&dirh->array, PSI_INSTRUMENT_ME, sizeof(FILEINFO),
+  if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &dirh->array, sizeof(FILEINFO),
                             ENTRIES_START_SIZE, ENTRIES_INCREMENT,
                             MYF(MyFlags)))
     goto error;

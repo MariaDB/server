@@ -122,13 +122,13 @@ public:
   Dynamic_array(MEM_ROOT *root, uint prealloc=16, uint increment=16)
   {
     void *init_buffer= alloc_root(root, sizeof(Elem) * prealloc);
-    init_dynamic_array2(&array, root->m_psi_key, sizeof(Elem), init_buffer,
+    init_dynamic_array2(root->m_psi_key, &array, sizeof(Elem), init_buffer,
                            prealloc, increment, MYF(0));
   }
 
   void init(PSI_memory_key psi_key, uint prealloc=16, uint increment=16)
   {
-    init_dynamic_array2(&array, psi_key, sizeof(Elem), 0, prealloc, increment, MYF(0));
+    init_dynamic_array2(psi_key, &array, sizeof(Elem), 0, prealloc, increment, MYF(0));
   }
 
   /**

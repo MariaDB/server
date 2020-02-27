@@ -416,7 +416,7 @@ int my_load_defaults(const char *conf_file, const char **groups, int *argc,
 
   args_used= get_defaults_options(*argv);
 
-  if (my_init_dynamic_array(&args, key_memory_defaults, sizeof(char*), 128, 64,
+  if (my_init_dynamic_array(key_memory_defaults, &args, sizeof(char*), 128, 64,
                             MYF(0)))
     goto err;
 

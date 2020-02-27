@@ -142,10 +142,9 @@ class Session_sysvars_tracker: public State_tracker
     bool track_all;
     void init()
     {
-      my_hash_init(&m_registered_sysvars, &my_charset_bin, 0, 0, 0,
-                   (my_hash_get_key) sysvars_get_key, my_free, HASH_UNIQUE |
-                   (mysqld_server_initialized ?  HASH_THREAD_SPECIFIC : 0),
-                   PSI_INSTRUMENT_ME);
+      my_hash_init(PSI_INSTRUMENT_ME, &m_registered_sysvars, &my_charset_bin,
+                   0, 0, 0, (my_hash_get_key) sysvars_get_key, my_free,
+                   HASH_UNIQUE | (mysqld_server_initialized ?  HASH_THREAD_SPECIFIC : 0));
     }
     void free_hash()
     {

@@ -1104,7 +1104,7 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
   if (((get_general_type_code() == WRITE_ROWS_EVENT) && (m_rows_buf==m_rows_end)))
     goto end;
 
-  (void) my_init_dynamic_array(&rows_arr, PSI_NOT_INSTRUMENTED, sizeof(LEX_STRING), 8, 8, MYF(0));
+  (void) my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &rows_arr, sizeof(LEX_STRING), 8, 8, MYF(0));
 
   for (uchar *value= m_rows_buf; value < m_rows_end; )
   {

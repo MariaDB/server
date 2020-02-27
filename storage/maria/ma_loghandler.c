@@ -3660,9 +3660,9 @@ my_bool translog_init_with_table(const char *directory,
                       &log_descriptor.new_goal_cond, 0) ||
       mysql_rwlock_init(key_TRANSLOG_DESCRIPTOR_open_files_lock,
                         &log_descriptor.open_files_lock) ||
-      my_init_dynamic_array(&log_descriptor.open_files, PSI_INSTRUMENT_ME,
+      my_init_dynamic_array(PSI_INSTRUMENT_ME, &log_descriptor.open_files,
                             sizeof(TRANSLOG_FILE*), 10, 10, MYF(0)) ||
-      my_init_dynamic_array(&log_descriptor.unfinished_files, PSI_INSTRUMENT_ME,
+      my_init_dynamic_array(PSI_INSTRUMENT_ME, &log_descriptor.unfinished_files,
                             sizeof(struct st_file_counter),
                             10, 10, MYF(0)))
     goto err;
@@ -5649,7 +5649,7 @@ translog_write_variable_record_mgroup(LSN *lsn,
   used_buffs_init(&cursor.buffs);
   chunk2_header[0]= TRANSLOG_CHUNK_NOHDR;
 
-  if (my_init_dynamic_array(&groups, PSI_INSTRUMENT_ME,
+  if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &groups,
                             sizeof(struct st_translog_group_descriptor),
                             10, 10, MYF(0)))
   {

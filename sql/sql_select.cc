@@ -6769,7 +6769,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   /* set a barrier for the array of SARGABLE_PARAM */
   (*sargables)[0].field= 0; 
 
-  if (my_init_dynamic_array2(keyuse, thd->mem_root->m_psi_key, sizeof(KEYUSE),
+  if (my_init_dynamic_array2(thd->mem_root->m_psi_key, keyuse, sizeof(KEYUSE),
                              thd->alloc(sizeof(KEYUSE) * 20), 20, 64,
                              MYF(MY_THREAD_SPECIFIC)))
     DBUG_RETURN(TRUE);
@@ -24043,9 +24043,9 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
   for (ptr= first_field, field_length=field_lengths ; *ptr ; ptr++)
     (*field_length++)= (*ptr)->sort_length();
 
-  if (my_hash_init(&hash, &my_charset_bin, (uint) file->stats.records, 0,
-                   key_length, (my_hash_get_key) 0, 0, 0,
-                   key_memory_hash_index_key_buffer))
+  if (my_hash_init(key_memory_hash_index_key_buffer, &hash, &my_charset_bin,
+                   (uint) file->stats.records, 0, key_length,
+                   (my_hash_get_key) 0, 0, 0))
   {
     my_free(key_buffer);
     DBUG_RETURN(1);
@@ -27856,7 +27856,7 @@ JOIN::reoptimize(Item *added_where, table_map join_tables,
     reset_query_plan();
 
   if (!keyuse.buffer &&
-      my_init_dynamic_array(&keyuse, thd->mem_root->m_psi_key, sizeof(KEYUSE),
+      my_init_dynamic_array(thd->mem_root->m_psi_key, &keyuse, sizeof(KEYUSE),
                             20, 64, MYF(MY_THREAD_SPECIFIC)))
   {
     delete_dynamic(&added_keyuse);

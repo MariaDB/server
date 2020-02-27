@@ -43,8 +43,8 @@ public:
            size_t key_offset, size_t key_length, my_hash_get_key get_key,
            void (*free_element)(void*), uint flags)
   {
-    my_hash_init(&m_hash, charset, default_array_elements, key_offset,
-                 key_length, get_key, free_element, flags, psi_key);
+    my_hash_init(psi_key, &m_hash, charset, default_array_elements, key_offset,
+                 key_length, get_key, free_element, flags);
   }
   /**
     Destroy the hash by freeing the buckets table. Does
@@ -65,8 +65,8 @@ public:
   */
   bool insert(T *value)
   {
-    my_hash_init_opt(&m_hash, m_hash.charset, START_SIZE, 0, 0,
-                     m_hash.get_key, 0, HASH_UNIQUE, m_hash.array.m_psi_key);
+    my_hash_init_opt(m_hash.array.m_psi_key, &m_hash, m_hash.charset,
+                     START_SIZE, 0, 0, m_hash.get_key, 0, HASH_UNIQUE);
     return my_hash_insert(&m_hash, reinterpret_cast<const uchar*>(value));
   }
   bool remove(T *value)

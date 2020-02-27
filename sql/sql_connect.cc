@@ -322,9 +322,9 @@ extern "C" void free_user(struct user_conn *uc)
 void init_max_user_conn(void)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  my_hash_init(&hash_user_connections, system_charset_info, max_connections,
-               0, 0, (my_hash_get_key) get_key_conn,
-               (my_hash_free_key) free_user, 0, key_memory_user_conn);
+  my_hash_init(key_memory_user_conn, &hash_user_connections,
+               system_charset_info, max_connections, 0, 0, (my_hash_get_key)
+               get_key_conn, (my_hash_free_key) free_user, 0);
 #endif
 }
 
@@ -483,16 +483,16 @@ void init_user_stats(USER_STATS *user_stats,
 
 void init_global_user_stats(void)
 {
-  my_hash_init(&global_user_stats, system_charset_info, max_connections,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_user_stats, system_charset_info, max_connections,
                0, 0, (my_hash_get_key) get_key_user_stats,
-               (my_hash_free_key) free_user_stats, 0, PSI_INSTRUMENT_ME);
+               (my_hash_free_key) free_user_stats, 0);
 }
 
 void init_global_client_stats(void)
 {
-  my_hash_init(&global_client_stats, system_charset_info, max_connections,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_client_stats, system_charset_info, max_connections,
                0, 0, (my_hash_get_key) get_key_user_stats,
-               (my_hash_free_key) free_user_stats, 0, PSI_INSTRUMENT_ME);
+               (my_hash_free_key) free_user_stats, 0);
 }
 
 extern "C" uchar *get_key_table_stats(TABLE_STATS *table_stats, size_t *length,
@@ -509,9 +509,9 @@ extern "C" void free_table_stats(TABLE_STATS* table_stats)
 
 void init_global_table_stats(void)
 {
-  my_hash_init(&global_table_stats, system_charset_info, max_connections,
-               0, 0, (my_hash_get_key) get_key_table_stats,
-               (my_hash_free_key) free_table_stats, 0, PSI_INSTRUMENT_ME);
+  my_hash_init(PSI_INSTRUMENT_ME, &global_table_stats, system_charset_info,
+               max_connections, 0, 0, (my_hash_get_key) get_key_table_stats,
+               (my_hash_free_key) free_table_stats, 0);
 }
 
 extern "C" uchar *get_key_index_stats(INDEX_STATS *index_stats, size_t *length,
@@ -528,9 +528,9 @@ extern "C" void free_index_stats(INDEX_STATS* index_stats)
 
 void init_global_index_stats(void)
 {
-  my_hash_init(&global_index_stats, system_charset_info, max_connections,
-               0, 0, (my_hash_get_key) get_key_index_stats,
-               (my_hash_free_key) free_index_stats, 0, PSI_INSTRUMENT_ME);
+  my_hash_init(PSI_INSTRUMENT_ME, &global_index_stats, system_charset_info,
+               max_connections, 0, 0, (my_hash_get_key) get_key_index_stats,
+               (my_hash_free_key) free_index_stats, 0);
 }
 
 

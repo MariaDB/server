@@ -94,8 +94,8 @@ public:
     first_link= NULL;
     last_link= NULL;
     (void) my_hash_free(&cache);
-    (void) my_hash_init(&cache,hash_charset,m_size,key_offset, 
-                     key_length, get_key, free_element, 0, m_psi_key);
+    (void) my_hash_init(m_psi_key, &cache,hash_charset,m_size,key_offset,
+                        key_length, get_key, free_element, 0);
     if (!locked)
       mysql_mutex_unlock(&lock);
   }

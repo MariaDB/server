@@ -1194,13 +1194,13 @@ int main(int argc, char **argv)
   }
 
   if (opt_auto_repair &&
-      (my_init_dynamic_array(&tables4repair, PSI_NOT_INSTRUMENTED,
+      (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &tables4repair,
                              NAME_LEN*2+2, 16, 64, MYF(0)) ||
-       my_init_dynamic_array(&views4repair, PSI_NOT_INSTRUMENTED,
+       my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &views4repair,
                              NAME_LEN*2+2, 16, 64, MYF(0)) ||
-       my_init_dynamic_array(&tables4rebuild, PSI_NOT_INSTRUMENTED,
+       my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &tables4rebuild,
                              NAME_LEN*2+2, 16, 64, MYF(0)) ||
-       my_init_dynamic_array(&alter_table_cmds, PSI_NOT_INSTRUMENTED,
+       my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &alter_table_cmds,
                              MAX_ALTER_STR_SIZE, 0, 1, MYF(0))))
     goto end;
 

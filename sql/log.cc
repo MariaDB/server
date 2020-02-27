@@ -9564,8 +9564,8 @@ int TC_LOG_MMAP::recover()
     goto err1;
   }
 
-  if (my_hash_init(&xids, &my_charset_bin, tc_log_page_size/3, 0,
-                   sizeof(my_xid), 0, 0, MYF(0), PSI_INSTRUMENT_ME))
+  if (my_hash_init(PSI_INSTRUMENT_ME, &xids, &my_charset_bin,
+                   tc_log_page_size/3, 0, sizeof(my_xid), 0, 0, MYF(0)))
     goto err1;
 
   for ( ; p < end_p ; p++)
@@ -10078,9 +10078,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
 #endif
 
   if (! fdle->is_valid() ||
-      (do_xa && my_hash_init(&xids, &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
-                             sizeof(my_xid), 0, 0, MYF(0),
-                             key_memory_binlog_recover_exec)))
+      (do_xa && my_hash_init(key_memory_binlog_recover_exec, &xids, &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
+                             sizeof(my_xid), 0, 0, MYF(0))))
     goto err1;
 
   if (do_xa)

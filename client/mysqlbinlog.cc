@@ -311,7 +311,7 @@ public:
 
   int init()
   {
-    return my_init_dynamic_array(&file_names, PSI_NOT_INSTRUMENTED, sizeof(File_name_record),
+    return my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &file_names, sizeof(File_name_record),
                                  100, 100, MYF(0));
   }
 
@@ -3047,10 +3047,10 @@ int main(int argc, char** argv)
 
   if (opt_flashback)
   {
-    my_init_dynamic_array(&binlog_events, PSI_NOT_INSTRUMENTED, sizeof(LEX_STRING), 1024, 1024,
-                          MYF(0));
-    my_init_dynamic_array(&events_in_stmt, PSI_NOT_INSTRUMENTED, sizeof(Rows_log_event*), 1024, 1024,
-                          MYF(0));
+    my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &binlog_events,
+                          sizeof(LEX_STRING), 1024, 1024, MYF(0));
+    my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &events_in_stmt,
+                          sizeof(Rows_log_event*), 1024, 1024, MYF(0));
   }
   if (opt_stop_never)
     to_last_remote_log= TRUE;

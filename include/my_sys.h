@@ -843,7 +843,7 @@ File create_temp_file(char *to, const char *dir, const char *pfx,
 		      int mode, myf MyFlags);
 #define my_init_dynamic_array(A,B,C,D,E,F) init_dynamic_array2(A,B,C,NULL,D,E,F)
 #define my_init_dynamic_array2(A,B,C,D,E,F,G) init_dynamic_array2(A,B,C,D,E,F,G)
-extern my_bool init_dynamic_array2(DYNAMIC_ARRAY *array, PSI_memory_key psi_key,
+extern my_bool init_dynamic_array2(PSI_memory_key psi_key, DYNAMIC_ARRAY *array,
                                    uint element_size, void *init_buffer,
                                    uint init_alloc, uint alloc_increment,
                                    myf my_flags);

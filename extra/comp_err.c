@@ -958,7 +958,7 @@ static struct errors *generate_empty_message(uint d_code, my_bool skip)
   if (!(new_error= (struct errors *) my_malloc(PSI_NOT_INSTRUMENTED,
                                                sizeof(*new_error), MYF(MY_WME))))
     return(0);
-  if (my_init_dynamic_array(&new_error->msg, PSI_NOT_INSTRUMENTED,
+  if (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &new_error->msg,
                             sizeof(struct message), 0, 1, MYF(0)))
     return(0);				/* OOM: Fatal error */
 
@@ -999,7 +999,7 @@ static struct errors *parse_error_string(char *str, int er_count)
     DBUG_RETURN(0);
 
   new_error->next_error= 0;
-  if (my_init_dynamic_array(&new_error->msg, PSI_NOT_INSTRUMENTED,
+  if (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &new_error->msg,
                             sizeof(struct message), 0, 0, MYF(0)))
     DBUG_RETURN(0);
 

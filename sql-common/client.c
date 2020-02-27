@@ -816,7 +816,7 @@ static int add_init_command(struct st_mysql_options *options, const char *cmd)
     options->init_commands= (DYNAMIC_ARRAY*)my_malloc(key_memory_mysql_options,
                                                       sizeof(DYNAMIC_ARRAY),
 						      MYF(MY_WME));
-    my_init_dynamic_array(options->init_commands, key_memory_mysql_options,
+    my_init_dynamic_array(key_memory_mysql_options, options->init_commands,
                           sizeof(char*),5, 5, MYF(0));
   }
 
@@ -4047,9 +4047,10 @@ mysql_options4(MYSQL *mysql,enum mysql_option option,
 
       if (!my_hash_inited(&mysql->options.extension->connection_attributes))
       {
-        if (my_hash_init(&mysql->options.extension->connection_attributes,
-                     &my_charset_bin, 0, 0, 0, (my_hash_get_key) get_attr_key,
-                     my_free, HASH_UNIQUE, key_memory_mysql_options))
+        if (my_hash_init(key_memory_mysql_options,
+                         &mysql->options.extension->connection_attributes,
+                         &my_charset_bin, 0, 0, 0, (my_hash_get_key)
+                         get_attr_key, my_free, HASH_UNIQUE))
         {
           set_mysql_error(mysql, CR_OUT_OF_MEMORY, unknown_sqlstate);
           DBUG_RETURN(1);

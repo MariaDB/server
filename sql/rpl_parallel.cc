@@ -2199,9 +2199,9 @@ free_rpl_parallel_entry(void *element)
 rpl_parallel::rpl_parallel() :
   current(NULL), sql_thread_stopping(false)
 {
-  my_hash_init(&domain_hash, &my_charset_bin, 32,
+  my_hash_init(PSI_INSTRUMENT_ME, &domain_hash, &my_charset_bin, 32,
                offsetof(rpl_parallel_entry, domain_id), sizeof(uint32),
-               NULL, free_rpl_parallel_entry, HASH_UNIQUE, PSI_INSTRUMENT_ME);
+               NULL, free_rpl_parallel_entry, HASH_UNIQUE);
 }
 
 

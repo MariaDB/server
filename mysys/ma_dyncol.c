@@ -2417,7 +2417,7 @@ dynamic_column_list(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_uint)
       str->length)
     return ER_DYNCOL_FORMAT;
 
-  if (my_init_dynamic_array(array_of_uint, PSI_INSTRUMENT_ME,
+  if (my_init_dynamic_array(PSI_INSTRUMENT_ME, array_of_uint,
                             sizeof(uint), header.column_count, 0, MYF(0)))
     return ER_DYNCOL_RESOURCE;
 

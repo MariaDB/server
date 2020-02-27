@@ -302,9 +302,8 @@ sp_cache::~sp_cache()
 void
 sp_cache::init()
 {
-  my_hash_init(&m_hashtable, system_charset_info, 0, 0, 0,
-               hash_get_key_for_sp_head, hash_free_sp_head, 0,
-               key_memory_sp_cache);
+  my_hash_init(key_memory_sp_cache, &m_hashtable, system_charset_info, 0, 0, 0,
+               hash_get_key_for_sp_head, hash_free_sp_head, 0);
 }
 
 

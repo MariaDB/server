@@ -93,7 +93,7 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   init_tree(&tree, (max_in_memory_size / 16), 0, size, comp_func,
             NULL, comp_func_fixed_arg, MYF(MY_THREAD_SPECIFIC));
   /* If the following fail's the next add will also fail */
-  my_init_dynamic_array(&file_ptrs, PSI_INSTRUMENT_ME, sizeof(Merge_chunk), 16,
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &file_ptrs, sizeof(Merge_chunk), 16,
                         16, MYF(MY_THREAD_SPECIFIC));
   /*
     If you change the following, change it in get_max_elements function, too.

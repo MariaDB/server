@@ -7427,7 +7427,7 @@ void init_win_path_patterns()
 
   DBUG_ENTER("init_win_path_patterns");
 
-  my_init_dynamic_array(&patterns, PSI_NOT_INSTRUMENTED, sizeof(const char*), 16, 16, MYF(0));
+  my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &patterns, sizeof(const char*), 16, 16, MYF(0));
 
   /* Loop through all paths in the array */
   for (i= 0; i < num_paths; i++)
@@ -9185,10 +9185,10 @@ int main(int argc, char **argv)
   cur_block->ok= TRUE; /* Outer block should always be executed */
   cur_block->cmd= cmd_none;
 
-  my_init_dynamic_array(&q_lines, PSI_NOT_INSTRUMENTED, sizeof(struct st_command*), 1024, 1024, MYF(0));
+  my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &q_lines, sizeof(struct st_command*), 1024, 1024, MYF(0));
 
-  if (my_hash_init2(&var_hash, 64, charset_info,
-                 128, 0, 0, get_var_key, 0, var_free, MYF(0), PSI_NOT_INSTRUMENTED))
+  if (my_hash_init2(PSI_NOT_INSTRUMENTED, &var_hash, 64, charset_info, 128, 0,
+                    0, get_var_key, 0, var_free, MYF(0)))
     die("Variable hash initialization failed");
 
   {
@@ -10159,7 +10159,7 @@ struct st_replace_regex* init_replace_regex(char* expr)
   /* my_malloc() will die on fail with MY_FAE */
   res=(struct st_replace_regex*)my_malloc(PSI_NOT_INSTRUMENTED,
                                           sizeof(*res)+8192 ,MYF(MY_FAE+MY_WME));
-  my_init_dynamic_array(&res->regex_arr,PSI_NOT_INSTRUMENTED, sizeof(struct st_regex), 128, 128, MYF(0));
+  my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &res->regex_arr, sizeof(struct st_regex), 128, 128, MYF(0));
 
   expr_end= expr + expr_len;
   buf_p= (char*)res + sizeof(*res);
@@ -11230,7 +11230,7 @@ void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
   if (!*start)
     DBUG_VOID_RETURN;  /* No input */
 
-  my_init_dynamic_array(&lines, PSI_NOT_INSTRUMENTED, sizeof(const char*), 32, 32, MYF(0));
+  my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &lines, sizeof(const char*), 32, 32, MYF(0));
 
   if (keep_header)
   {

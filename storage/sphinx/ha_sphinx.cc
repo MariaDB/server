@@ -738,8 +738,9 @@ static int sphinx_init_func ( void * p )
 	{
 		sphinx_init = 1;
 		void ( pthread_mutex_init ( &sphinx_mutex, MY_MUTEX_INIT_FAST ) );
-		sphinx_hash_init ( &sphinx_open_tables, system_charset_info, 32, 0, 0,
-			sphinx_get_key, 0, 0, PSI_NOT_INSTRUMENTED );
+                sphinx_hash_init ( PSI_NOT_INSTRUMENTED, &sphinx_open_tables,
+                                   system_charset_info, 32, 0, 0,
+                                   sphinx_get_key, 0, 0 );
 
 		#if MYSQL_VERSION_ID > 50100
 		handlerton * hton = (handlerton*) p;

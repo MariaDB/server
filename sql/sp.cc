@@ -2301,9 +2301,9 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
                          const Sp_handler *handler,
                          TABLE_LIST *belong_to_view)
 {
-  my_hash_init_opt(&prelocking_ctx->sroutines, system_charset_info,
+  my_hash_init_opt(PSI_INSTRUMENT_ME, &prelocking_ctx->sroutines, system_charset_info,
                    Query_tables_list::START_SROUTINES_HASH_SIZE,
-                   0, 0, sp_sroutine_key, 0, 0, PSI_INSTRUMENT_ME);
+                   0, 0, sp_sroutine_key, 0, 0);
 
   if (!my_hash_search(&prelocking_ctx->sroutines, key->ptr(), key->length()))
   {

@@ -742,7 +742,7 @@ void JOIN::add_keyuses_for_splitting()
   save_query_plan(save_qep);
 
   if (!keyuse.buffer &&
-       my_init_dynamic_array(&keyuse, PSI_INSTRUMENT_ME, sizeof(KEYUSE),
+       my_init_dynamic_array(PSI_INSTRUMENT_ME, &keyuse, sizeof(KEYUSE),
                              20, 64, MYF(MY_THREAD_SPECIFIC)))
     goto err;
 

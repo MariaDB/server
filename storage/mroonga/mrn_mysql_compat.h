@@ -247,15 +247,14 @@
                            get_key,                     \
                            free_element,                \
                            flags)                       \
-  my_hash_init(hash,                                    \
+  my_hash_init(mrn_memory_key, hash,                    \
                charset,                                 \
                default_array_elements,                  \
                key_offset,                              \
                key_length,                              \
                get_key,                                 \
                free_element,                            \
-               flags,                                   \
-               mrn_memory_key)
+               flags)
 
 #if defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 100000
 #  define mrn_strconvert(from_cs,               \

@@ -496,8 +496,8 @@ int federated_db_init(void *p)
   if (mysql_mutex_init(fe_key_mutex_federated,
                        &federated_mutex, MY_MUTEX_INIT_FAST))
     goto error;
-  if (!my_hash_init(&federated_open_tables, &my_charset_bin, 32, 0, 0,
-                 (my_hash_get_key) federated_get_key, 0, 0, PSI_INSTRUMENT_ME))
+  if (!my_hash_init(PSI_INSTRUMENT_ME, &federated_open_tables, &my_charset_bin,
+                    32, 0, 0, (my_hash_get_key) federated_get_key, 0, 0))
   {
     DBUG_RETURN(FALSE);
   }
@@ -1642,7 +1642,7 @@ int ha_federated::open(const char *name, int mode, uint test_if_locked)
   ref_length= sizeof(MYSQL_RES *) + sizeof(MYSQL_ROW_OFFSET);
   DBUG_PRINT("info", ("ref_length: %u", ref_length));
 
-  my_init_dynamic_array(&results, PSI_INSTRUMENT_ME, sizeof(MYSQL_RES *), 4, 4, MYF(0));
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &results, sizeof(MYSQL_RES *), 4, 4, MYF(0));
   reset();
 
   DBUG_RETURN(0);

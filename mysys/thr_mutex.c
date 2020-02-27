@@ -169,12 +169,12 @@ static int safe_mutex_lazy_init_deadlock_detection(safe_mutex_t *mp)
   pthread_mutex_lock(&THR_LOCK_mutex);
   mp->id= ++safe_mutex_id;
   pthread_mutex_unlock(&THR_LOCK_mutex);
-  my_hash_init2(mp->locked_mutex, 64, &my_charset_bin, 128,
+  my_hash_init2(PSI_NOT_INSTRUMENTED, mp->locked_mutex, 64, &my_charset_bin, 128,
                 offsetof(safe_mutex_deadlock_t, id), sizeof(mp->id), 0, 0, 0,
-                HASH_UNIQUE, PSI_NOT_INSTRUMENTED);
-  my_hash_init2(mp->used_mutex, 64, &my_charset_bin, 128,
+                HASH_UNIQUE);
+  my_hash_init2(PSI_NOT_INSTRUMENTED, mp->used_mutex, 64, &my_charset_bin, 128,
                 offsetof(safe_mutex_t, id), sizeof(mp->id), 0, 0, 0,
-                HASH_UNIQUE, PSI_NOT_INSTRUMENTED);
+                HASH_UNIQUE);
   return 0;
 }
 

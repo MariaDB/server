@@ -845,14 +845,13 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   profiling.set_thd(this);
 #endif
   user_connect=(USER_CONN *)0;
-  my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
-               (my_hash_get_key) get_var_key,
-               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC,
-               key_memory_user_var_entry);
-  my_hash_init(&sequences, system_charset_info, SEQUENCES_HASH_SIZE, 0, 0,
-               (my_hash_get_key) get_sequence_last_key,
-               (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC,
-               PSI_INSTRUMENT_ME);
+  my_hash_init(key_memory_user_var_entry, &user_vars, system_charset_info,
+               USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
+               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
+  my_hash_init(PSI_INSTRUMENT_ME, &sequences, system_charset_info,
+               SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
+               get_sequence_last_key, (my_hash_free_key) free_sequence_last,
+               HASH_THREAD_SPECIFIC);
 
   sp_proc_cache= NULL;
   sp_func_cache= NULL;
@@ -861,7 +860,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
   /* For user vars replication*/
   if (opt_bin_log)
-    my_init_dynamic_array(&user_var_events, key_memory_user_var_entry,
+    my_init_dynamic_array(key_memory_user_var_entry, &user_var_events,
 			  sizeof(BINLOG_USER_VAR_EVENT *), 16, 16, MYF(0));
   else
     bzero((char*) &user_var_events, sizeof(user_var_events));
@@ -1443,14 +1442,13 @@ void THD::change_user(void)
 
   init();
   stmt_map.reset();
-  my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
-               (my_hash_get_key) get_var_key,
-               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC,
-               key_memory_user_var_entry);
-  my_hash_init(&sequences, system_charset_info, SEQUENCES_HASH_SIZE, 0, 0,
-               (my_hash_get_key) get_sequence_last_key,
-               (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC,
-               key_memory_user_var_entry);
+  my_hash_init(key_memory_user_var_entry, &user_vars, system_charset_info,
+               USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
+               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
+  my_hash_init(key_memory_user_var_entry, &sequences, system_charset_info,
+               SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
+               get_sequence_last_key, (my_hash_free_key) free_sequence_last,
+               HASH_THREAD_SPECIFIC);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
   sp_cache_clear(&sp_package_spec_cache);
@@ -3929,13 +3927,12 @@ Statement_map::Statement_map() :
     START_STMT_HASH_SIZE = 16,
     START_NAME_HASH_SIZE = 16
   };
-  my_hash_init(&st_hash, &my_charset_bin, START_STMT_HASH_SIZE, 0, 0,
-               get_statement_id_as_hash_key,
-               delete_statement_as_hash_key, MYF(0),
-               key_memory_prepared_statement_map);
-  my_hash_init(&names_hash, system_charset_info, START_NAME_HASH_SIZE, 0, 0,
+  my_hash_init(key_memory_prepared_statement_map, &st_hash, &my_charset_bin,
+               START_STMT_HASH_SIZE, 0, 0, get_statement_id_as_hash_key,
+               delete_statement_as_hash_key, MYF(0));
+  my_hash_init(key_memory_prepared_statement_map, &names_hash, system_charset_info, START_NAME_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_stmt_name_hash_key,
-               NULL, MYF(0), key_memory_prepared_statement_map);
+               NULL, MYF(0));
 }
 
 
