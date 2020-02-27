@@ -3360,7 +3360,7 @@ int ha_sphinx::rename_table ( const char *, const char * )
 // if start_key matches any rows.
 //
 // Called from opt_range.cc by check_quick_keys().
-ha_rows ha_sphinx::records_in_range ( uint, key_range *, key_range * )
+ha_rows ha_sphinx::records_in_range ( uint, const key_range *, const key_range *, page_range *)
 {
 	SPH_ENTER_METHOD();
 	SPH_RET(3); // low number to force index usage

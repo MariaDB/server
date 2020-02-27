@@ -11910,8 +11910,9 @@ int ha_rocksdb::extra(enum ha_extra_function operation) {
   Given a starting key and an ending key, estimate the number of rows that
   will exist between the two keys.
 */
-ha_rows ha_rocksdb::records_in_range(uint inx, key_range *const min_key,
-                                     key_range *const max_key) {
+ha_rows ha_rocksdb::records_in_range(uint inx, const key_range *const min_key,
+                                     const key_range *const max_key,
+                                     page_range *pages) {
   DBUG_ENTER_FUNC();
 
   ha_rows ret = THDVAR(ha_thd(), records_in_range);

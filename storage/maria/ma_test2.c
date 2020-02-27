@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
   char *blob_buffer;
   MARIA_CREATE_INFO create_info;
   char filename[FN_REFLEN];
+  page_range pages;
 
 #ifdef SAFE_MUTEX
   safe_mutex_deadlock_detector= 1;
@@ -722,7 +723,8 @@ int main(int argc, char *argv[])
     max_key.keypart_map= HA_WHOLE_KEY;
     max_key.flag= HA_READ_AFTER_KEY;
 
-    range_records= maria_records_in_range(file,(int) i, &min_key, &max_key);
+    range_records= maria_records_in_range(file,(int) i, &min_key, &max_key,
+                                          &pages);
     if (range_records < info.records*8/10 ||
 	range_records > info.records*12/10)
     {
@@ -756,7 +758,8 @@ int main(int argc, char *argv[])
       max_key.key= key2;
       max_key.keypart_map= HA_WHOLE_KEY;
       max_key.flag= HA_READ_BEFORE_KEY;
-      range_records= maria_records_in_range(file, 0, &min_key, &max_key);
+      range_records= maria_records_in_range(file, 0, &min_key, &max_key,
+                                            &pages);
       records=0;
       for (j++ ; j < k ; j++)
 	records+=key1[j];

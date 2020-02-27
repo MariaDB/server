@@ -13936,10 +13936,11 @@ ha_rows
 ha_innobase::records_in_range(
 /*==========================*/
 	uint			keynr,		/*!< in: index number */
-	key_range		*min_key,	/*!< in: start key value of the
+	const key_range		*min_key,	/*!< in: start key value of the
 						range, may also be 0 */
-	key_range		*max_key)	/*!< in: range end key val, may
+	const key_range		*max_key,	/*!< in: range end key val, may
 						also be 0 */
+        page_range              *pages)
 {
 	KEY*		key;
 	dict_index_t*	index;
@@ -14028,8 +14029,12 @@ ha_innobase::records_in_range(
 			n_rows = rtr_estimate_n_rows_in_range(
 				index, range_start, mode1);
 		} else {
+                        btr_pos_t tuple1(range_start, mode1, pages->first_page);
+                        btr_pos_t tuple2(range_end,   mode2, pages->last_page);
 			n_rows = btr_estimate_n_rows_in_range(
-				index, range_start, mode1, range_end, mode2);
+                                 index, &tuple1, &tuple2);
+                        pages->first_page= tuple1.page_id.raw();
+                        pages->last_page=  tuple2.page_id.raw();
 		}
 	} else {
 

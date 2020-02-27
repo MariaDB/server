@@ -1570,8 +1570,8 @@ public:
     ulong sql_type
   ) = 0;
   virtual int append_explain_select_part(
-    key_range *start_key,
-    key_range *end_key,
+    const key_range *start_key,
+    const key_range *end_key,
     ulong sql_type,
     int link_idx
   ) = 0;
@@ -1688,8 +1688,8 @@ public:
     ulonglong &last_insert_id
   ) = 0;
   virtual ha_rows explain_select(
-    key_range *start_key,
-    key_range *end_key,
+    const key_range *start_key,
+    const key_range *end_key,
     int link_idx
   ) = 0;
   virtual int lock_tables(

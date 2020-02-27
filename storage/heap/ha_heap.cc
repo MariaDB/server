@@ -579,8 +579,8 @@ int ha_heap::rename_table(const char * from, const char * to)
 }
 
 
-ha_rows ha_heap::records_in_range(uint inx, key_range *min_key,
-                                  key_range *max_key)
+ha_rows ha_heap::records_in_range(uint inx, const key_range *min_key,
+                                  const key_range *max_key, page_range *pages)
 {
   KEY *key=table->key_info+inx;
   if (key->algorithm == HA_KEY_ALG_BTREE)

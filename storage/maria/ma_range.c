@@ -22,8 +22,9 @@
 #include "ma_rt_index.h"
 
 static ha_rows _ma_record_pos(MARIA_HA *,const uchar *, key_part_map,
-			      enum ha_rkey_function);
-static double _ma_search_pos(MARIA_HA *, MARIA_KEY *, uint32, my_off_t);
+			      enum ha_rkey_function, ulonglong *);
+static double _ma_search_pos(MARIA_HA *, MARIA_KEY *, uint32, my_off_t,
+                             ulonglong *page);
 static uint _ma_keynr(MARIA_PAGE *page, uchar *keypos, uint *ret_max_key);
 
 
@@ -43,8 +44,9 @@ static uint _ma_keynr(MARIA_PAGE *page, uchar *keypos, uint *ret_max_key);
      @retval number        Estimated number of rows
 */
 
-ha_rows maria_records_in_range(MARIA_HA *info, int inx, key_range *min_key,
-                            key_range *max_key)
+ha_rows maria_records_in_range(MARIA_HA *info, int inx,
+                               const key_range *min_key,
+                               const key_range *max_key, page_range *pages)
 {
   ha_rows start_pos,end_pos,res;
   MARIA_SHARE *share= info->s;
@@ -96,11 +98,11 @@ ha_rows maria_records_in_range(MARIA_HA *info, int inx, key_range *min_key,
   default:
     start_pos= (min_key ?
                 _ma_record_pos(info, min_key->key, min_key->keypart_map,
-                               min_key->flag) :
+                               min_key->flag, &pages->first_page) :
                 (ha_rows) 0);
     end_pos=   (max_key ?
                 _ma_record_pos(info, max_key->key, max_key->keypart_map,
-                               max_key->flag) :
+                               max_key->flag, &pages->last_page) :
                 info->state->records + (ha_rows) 1);
     res= (end_pos < start_pos ? (ha_rows) 0 :
           (end_pos == start_pos ? (ha_rows) 1 : end_pos-start_pos));
@@ -128,7 +130,8 @@ ha_rows maria_records_in_range(MARIA_HA *info, int inx, key_range *min_key,
 
 static ha_rows _ma_record_pos(MARIA_HA *info, const uchar *key_data,
                               key_part_map keypart_map,
-			      enum ha_rkey_function search_flag)
+                              enum ha_rkey_function search_flag,
+                              ulonglong *final_page)
 {
   uint inx= (uint) info->lastinx;
   uint32 nextflag;
@@ -185,7 +188,7 @@ static ha_rows _ma_record_pos(MARIA_HA *info, const uchar *key_data,
   */
   pos= _ma_search_pos(info, &key,
                       nextflag | SEARCH_SAVE_BUFF | SEARCH_UPDATE,
-                      info->s->state.key_root[inx]);
+                      info->s->state.key_root[inx], final_page);
   if (pos >= 0.0)
   {
     DBUG_PRINT("exit",("pos: %ld",(ulong) (pos*info->state->records)));
@@ -206,7 +209,8 @@ static ha_rows _ma_record_pos(MARIA_HA *info, const uchar *key_data,
 */
 
 static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
-			     uint32 nextflag, my_off_t pos)
+                             uint32 nextflag, my_off_t pos,
+                             ulonglong *final_page)
 {
   int flag;
   uint keynr, UNINIT_VAR(max_keynr);
@@ -224,6 +228,7 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
                         PAGECACHE_LOCK_LEFT_UNLOCKED, DFLT_INIT_HITS,
                         info->buff, 1))
     goto err;
+  *final_page= pos;
   flag= (*keyinfo->bin_search)(key, &page, nextflag, &keypos,
                                info->lastkey_buff, &after_key);
   keynr= _ma_keynr(&page, keypos, &max_keynr);
@@ -240,7 +245,8 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
     if (! page.node)
       offset= 0.0;
     else if ((offset= _ma_search_pos(info, key, nextflag,
-                                     _ma_kpos(page.node,keypos))) < 0)
+                                     _ma_kpos(page.node,keypos),
+                                     final_page)) < 0)
       DBUG_RETURN(offset);
   }
   else
@@ -269,7 +275,8 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
         Matches keynr + [0-1]
       */
       if ((offset= _ma_search_pos(info, key, SEARCH_FIND,
-                                  _ma_kpos(page.node,keypos))) < 0)
+                                  _ma_kpos(page.node,keypos),
+                                  final_page)) < 0)
 	DBUG_RETURN(offset);			/* Read error */
     }
   }

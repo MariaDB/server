@@ -324,7 +324,9 @@ extern int maria_extra(MARIA_HA *file,
 		       enum ha_extra_function function, void *extra_arg);
 extern int maria_reset(MARIA_HA *file);
 extern ha_rows maria_records_in_range(MARIA_HA *info, int inx,
-				      key_range *min_key, key_range *max_key);
+                                      const key_range *min_key,
+                                      const key_range *max_key,
+                                      page_range *page);
 extern int maria_is_changed(MARIA_HA *info);
 extern int maria_delete_all_rows(MARIA_HA *info);
 extern uint maria_get_pointer_length(ulonglong file_length, uint def);

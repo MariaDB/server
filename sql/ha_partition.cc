@@ -9492,19 +9492,25 @@ double ha_partition::keyread_time(uint inx, uint ranges, ha_rows rows)
   if start_key matches any rows.
 */
 
-ha_rows ha_partition::records_in_range(uint inx, key_range *min_key,
-				       key_range *max_key)
+ha_rows ha_partition::records_in_range(uint inx, const key_range *min_key,
+				       const key_range *max_key,
+                                       page_range *pages)
 {
   ha_rows min_rows_to_check, rows, estimated_rows=0, checked_rows= 0;
   uint partition_index= 0, part_id;
+  page_range ignore_pages;
   DBUG_ENTER("ha_partition::records_in_range");
+
+  /* Don't calculate pages of more than one active partition */
+  if (bitmap_bits_set(&m_part_info->read_partitions) != 1)
+    pages= &ignore_pages;
 
   min_rows_to_check= min_rows_for_estimate();
 
   while ((part_id= get_biggest_used_partition(&partition_index))
          != NO_CURRENT_PART_ID)
   {
-    rows= m_file[part_id]->records_in_range(inx, min_key, max_key);
+    rows= m_file[part_id]->records_in_range(inx, min_key, max_key, pages);
 
     DBUG_PRINT("info", ("part %u match %lu rows of %lu", part_id, (ulong) rows,
                         (ulong) m_file[part_id]->stats.records));

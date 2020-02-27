@@ -8847,9 +8847,10 @@ int ha_spider::info(
 
 ha_rows ha_spider::records_in_range(
   uint inx,
-  key_range *start_key,
-  key_range *end_key
-) {
+  const key_range *start_key,
+  const key_range *end_key,
+  page_range *pages)
+{
   int error_num;
   THD *thd = ha_thd();
   double crd_interval = spider_param_crd_interval(thd, share->crd_interval);

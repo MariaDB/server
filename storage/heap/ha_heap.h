@@ -102,7 +102,8 @@ public:
   int disable_indexes(uint mode);
   int enable_indexes(uint mode);
   int indexes_are_disabled(void);
-  ha_rows records_in_range(uint inx, key_range *min_key, key_range *max_key);
+  ha_rows records_in_range(uint inx, const key_range *start_key,
+                           const key_range *end_key, page_range *pages);
   int delete_table(const char *from);
   void drop_table(const char *name);
   int rename_table(const char * from, const char * to);

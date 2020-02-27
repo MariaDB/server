@@ -7889,7 +7889,9 @@ double ha_tokudb::index_only_read_time(uint keynr, double records) {
 //      number > 0 - There are approximately number matching rows in the range
 //      HA_POS_ERROR - Something is wrong with the index tree
 //
-ha_rows ha_tokudb::records_in_range(uint keynr, key_range* start_key, key_range* end_key) {
+ha_rows ha_tokudb::records_in_range(uint keynr, const key_range* start_key,
+                                    const key_range* end_key,
+                                    page_range *pages) {
     TOKUDB_HANDLER_DBUG_ENTER("%d %p %p", keynr, start_key, end_key);
     DBT *pleft_key, *pright_key;
     DBT left_key, right_key;

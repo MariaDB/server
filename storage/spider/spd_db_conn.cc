@@ -5987,8 +5987,8 @@ int spider_db_show_index(
 }
 
 ha_rows spider_db_explain_select(
-  key_range *start_key,
-  key_range *end_key,
+  const key_range *start_key,
+  const key_range *end_key,
   ha_spider *spider,
   int link_idx
 ) {

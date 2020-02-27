@@ -1185,8 +1185,10 @@ int ha_oqgraph::rename_table(const char *, const char *)
 }
 
 
-ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
-                                  key_range *max_key)
+ha_rows ha_oqgraph::records_in_range(uint inx,
+                                     const key_range *min_key,
+                                     const key_range *max_key,
+                                     page_range *pages)
 {
   if (graph->get_thd() != current_thd) {
     DBUG_PRINT( "oq-debug", ("g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));

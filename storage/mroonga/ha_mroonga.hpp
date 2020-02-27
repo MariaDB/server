@@ -461,7 +461,8 @@ public:
   uint max_supported_key_length()      const mrn_override;
   uint max_supported_key_part_length() const mrn_override;
 
-  ha_rows records_in_range(uint inx, key_range *min_key, key_range *max_key) mrn_override;
+  ha_rows records_in_range(uint inx, const key_range *min_key,
+                           const key_range *max_key, page_range *pages) mrn_override;
   int index_init(uint idx, bool sorted) mrn_override;
   int index_end() mrn_override;
 #ifndef MRN_HANDLER_HAVE_HA_INDEX_READ_MAP
@@ -984,12 +985,14 @@ private:
   int storage_rnd_pos(uchar *buf, uchar *pos);
   void wrapper_position(const uchar *record);
   void storage_position(const uchar *record);
-  ha_rows wrapper_records_in_range(uint key_nr, key_range *range_min,
-                                   key_range *range_max);
-  ha_rows storage_records_in_range(uint key_nr, key_range *range_min,
-                                   key_range *range_max);
-  ha_rows generic_records_in_range_geo(uint key_nr, key_range *range_min,
-                                       key_range *range_max);
+  ha_rows wrapper_records_in_range(uint key_nr, const key_range *range_min,
+                                   const key_range *range_max,
+                                   page_range *pages);
+  ha_rows storage_records_in_range(uint key_nr, const key_range *range_min,
+                                   const key_range *range_max,
+                                   page_range *pages);
+  ha_rows generic_records_in_range_geo(uint key_nr, const key_range *range_min,
+                                       const key_range *range_max);
   int wrapper_index_init(uint idx, bool sorted);
   int storage_index_init(uint idx, bool sorted);
   int wrapper_index_end();

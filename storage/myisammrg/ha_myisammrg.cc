@@ -1216,11 +1216,14 @@ void ha_myisammrg::position(const uchar *record)
 }
 
 
-ha_rows ha_myisammrg::records_in_range(uint inx, key_range *min_key,
-                                       key_range *max_key)
+ha_rows ha_myisammrg::records_in_range(uint inx,
+                                       const key_range *min_key,
+                                       const key_range *max_key,
+                                       page_range *pages)
 {
   DBUG_ASSERT(this->file->children_attached);
-  return (ha_rows) myrg_records_in_range(file, (int) inx, min_key, max_key);
+  return (ha_rows) myrg_records_in_range(file, (int) inx, min_key, max_key,
+                                         pages);
 }
 
 

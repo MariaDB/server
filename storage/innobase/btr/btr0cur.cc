@@ -6135,10 +6135,8 @@ static const ha_rows	rows_in_range_arbitrary_ret_val = 10;
 
 /** Estimates the number of rows in a given index range.
 @param[in]	index		index
-@param[in]	tuple1		range start, may also be empty tuple
-@param[in]	mode1		search mode for range start
-@param[in]	tuple2		range end, may also be empty tuple
-@param[in]	mode2		search mode for range end
+@param[in]	tuple1		range start
+@param[in]	tuple2		range end
 @param[in]	nth_attempt	if the tree gets modified too much while
 we are trying to analyze it, then we will retry (this function will call
 itself, incrementing this parameter)
@@ -6151,10 +6149,8 @@ static
 ha_rows
 btr_estimate_n_rows_in_range_low(
 	dict_index_t*	index,
-	const dtuple_t*	tuple1,
-	page_cur_mode_t	mode1,
-	const dtuple_t*	tuple2,
-	page_cur_mode_t	mode2,
+	btr_pos_t*	tuple1,
+	btr_pos_t*	tuple2,
 	unsigned	nth_attempt)
 {
 	btr_path_t	path1[BTR_PATH_ARRAY_N_SLOTS];
@@ -6170,6 +6166,7 @@ btr_estimate_n_rows_in_range_low(
 	ulint		i;
 	mtr_t		mtr;
 	ha_rows		table_n_rows;
+        page_cur_mode_t mode2= tuple2->mode;
 
 	table_n_rows = dict_table_get_n_rows(index->table);
 
@@ -6188,9 +6185,10 @@ btr_estimate_n_rows_in_range_low(
 
 	bool	should_count_the_left_border;
 
-	if (dtuple_get_n_fields(tuple1) > 0) {
+	if (dtuple_get_n_fields(tuple1->tuple) > 0) {
 
-		btr_cur_search_to_nth_level(index, 0, tuple1, mode1,
+              btr_cur_search_to_nth_level(index, 0, tuple1->tuple,
+                                            tuple1->mode,
 					    BTR_SEARCH_LEAF | BTR_ESTIMATE,
 					    &cursor, 0,
 					    __FILE__, __LINE__, &mtr);
@@ -6230,6 +6228,8 @@ btr_estimate_n_rows_in_range_low(
 		should_count_the_left_border = false;
 	}
 
+        tuple1->page_id= cursor.page_cur.block->page.id;
+
 	mtr_commit(&mtr);
 
 	if (!index->is_readable()) {
@@ -6242,9 +6242,10 @@ btr_estimate_n_rows_in_range_low(
 
 	bool	should_count_the_right_border;
 
-	if (dtuple_get_n_fields(tuple2) > 0) {
+	if (dtuple_get_n_fields(tuple2->tuple) > 0) {
 
-		btr_cur_search_to_nth_level(index, 0, tuple2, mode2,
+		btr_cur_search_to_nth_level(index, 0, tuple2->tuple,
+                                            mode2,
 					    BTR_SEARCH_LEAF | BTR_ESTIMATE,
 					    &cursor, 0,
 					    __FILE__, __LINE__, &mtr);
@@ -6256,7 +6257,7 @@ btr_estimate_n_rows_in_range_low(
 		should_count_the_right_border
 			= (mode2 == PAGE_CUR_LE /* if the range is '<=' */
 			   /* and the record was found */
-			   && cursor.low_match >= dtuple_get_n_fields(tuple2))
+			   && cursor.low_match >= dtuple_get_n_fields(tuple2->tuple))
 			|| (mode2 == PAGE_CUR_L /* or if the range is '<' */
 			    /* and there are any records to match the criteria,
 			    i.e. if the minimum record on the tree is 5 and
@@ -6299,6 +6300,8 @@ btr_estimate_n_rows_in_range_low(
 		page, which must not be counted. */
 		should_count_the_right_border = false;
 	}
+
+        tuple2->page_id= cursor.page_cur.block->page.id;
 
 	mtr_commit(&mtr);
 
@@ -6438,8 +6441,8 @@ btr_estimate_n_rows_in_range_low(
 				}
 
 				return btr_estimate_n_rows_in_range_low(
-					index, tuple1, mode1,
-					tuple2, mode2, nth_attempt + 1);
+                                       index, tuple1, tuple2,
+                                       nth_attempt + 1);
 			}
 
 			diverged = true;
@@ -6510,13 +6513,11 @@ btr_estimate_n_rows_in_range_low(
 ha_rows
 btr_estimate_n_rows_in_range(
 	dict_index_t*	index,
-	const dtuple_t*	tuple1,
-	page_cur_mode_t	mode1,
-	const dtuple_t*	tuple2,
-	page_cur_mode_t	mode2)
+        btr_pos_t       *tuple1,
+        btr_pos_t       *tuple2)
 {
 	return btr_estimate_n_rows_in_range_low(
-		index, tuple1, mode1, tuple2, mode2, 1);
+		index, tuple1, tuple2, 1);
 }
 
 /*******************************************************************//**

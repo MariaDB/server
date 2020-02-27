@@ -7437,8 +7437,10 @@ uint ha_mroonga::max_supported_key_parts() const
   DBUG_RETURN(parts);
 }
 
-ha_rows ha_mroonga::wrapper_records_in_range(uint key_nr, key_range *range_min,
-                                             key_range *range_max)
+ha_rows ha_mroonga::wrapper_records_in_range(uint key_nr,
+                                             const key_range *range_min,
+                                             const key_range *range_max,
+                                             page_range *pages)
 {
   ha_rows row_count;
   MRN_DBUG_ENTER_METHOD();
@@ -7448,15 +7450,18 @@ ha_rows ha_mroonga::wrapper_records_in_range(uint key_nr, key_range *range_min,
   } else {
     MRN_SET_WRAP_SHARE_KEY(share, table->s);
     MRN_SET_WRAP_TABLE_KEY(this, table);
-    row_count = wrap_handler->records_in_range(key_nr, range_min, range_max);
+    row_count = wrap_handler->records_in_range(key_nr, range_min, range_max,
+                                               pages);
     MRN_SET_BASE_SHARE_KEY(share, table->s);
     MRN_SET_BASE_TABLE_KEY(this, table);
   }
   DBUG_RETURN(row_count);
 }
 
-ha_rows ha_mroonga::storage_records_in_range(uint key_nr, key_range *range_min,
-                                             key_range *range_max)
+ha_rows ha_mroonga::storage_records_in_range(uint key_nr,
+                                             const key_range *range_min,
+                                             const key_range *range_max,
+                                             page_range *pages)
 {
   MRN_DBUG_ENTER_METHOD();
   int flags = 0;
@@ -7569,8 +7574,8 @@ ha_rows ha_mroonga::storage_records_in_range(uint key_nr, key_range *range_min,
 }
 
 ha_rows ha_mroonga::generic_records_in_range_geo(uint key_nr,
-                                                 key_range *range_min,
-                                                 key_range *range_max)
+                                                 const key_range *range_min,
+                                                 const key_range *range_max)
 {
   MRN_DBUG_ENTER_METHOD();
   ha_rows row_count;
@@ -7604,15 +7609,17 @@ ha_rows ha_mroonga::generic_records_in_range_geo(uint key_nr,
   DBUG_RETURN(row_count);
 }
 
-ha_rows ha_mroonga::records_in_range(uint key_nr, key_range *range_min, key_range *range_max)
+ha_rows ha_mroonga::records_in_range(uint key_nr, const key_range *range_min,
+                                     const key_range *range_max,
+                                     page_range *pages)
 {
   MRN_DBUG_ENTER_METHOD();
   ha_rows row_count = 0;
   if (share->wrapper_mode)
   {
-    row_count = wrapper_records_in_range(key_nr, range_min, range_max);
+    row_count = wrapper_records_in_range(key_nr, range_min, range_max, pages);
   } else {
-    row_count = storage_records_in_range(key_nr, range_min, range_max);
+    row_count = storage_records_in_range(key_nr, range_min, range_max, pages);
   }
   DBUG_PRINT("info", ("mroonga: row_count=%" MRN_HA_ROWS_FORMAT, row_count));
   DBUG_RETURN(row_count);

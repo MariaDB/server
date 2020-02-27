@@ -844,7 +844,9 @@ public:
     int external_lock(THD * thd, int lock_type);
     int start_stmt(THD * thd, thr_lock_type lock_type);
 
-    ha_rows records_in_range(uint inx, key_range * min_key, key_range * max_key);
+    ha_rows records_in_range(uint inx, const key_range * min_key,
+                             const key_range * max_key,
+                             page_range *pages);
 
     uint32_t get_cursor_isolation_flags(enum thr_lock_type lock_type, THD* thd);
     THR_LOCK_DATA **store_lock(THD * thd, THR_LOCK_DATA ** to, enum thr_lock_type lock_type);

@@ -636,6 +636,17 @@ typedef struct st_key_multi_range
 } KEY_MULTI_RANGE;
 
 
+/* Store first and last leaf page accessed by records_in_range */
+
+typedef struct st_page_range
+{
+  ulonglong first_page;
+  ulonglong last_page;
+} page_range;
+
+#define UNUSED_PAGE_NO ULONGLONG_MAX
+#define unused_page_range { UNUSED_PAGE_NO, UNUSED_PAGE_NO }
+
 /* For number of records */
 #ifdef BIG_TABLES
 #define rows2double(A)	ulonglong2double(A)

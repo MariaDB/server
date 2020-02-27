@@ -902,8 +902,10 @@ public:
   int check(THD *const thd, HA_CHECK_OPT *const check_opt) override
       MY_ATTRIBUTE((__warn_unused_result__));
   int remove_rows(Rdb_tbl_def *const tbl);
-  ha_rows records_in_range(uint inx, key_range *const min_key,
-                           key_range *const max_key) override
+  ha_rows records_in_range(uint inx,
+                           const key_range *const min_key,
+                           const key_range *const max_key,
+                           page_range *pages) override
       MY_ATTRIBUTE((__warn_unused_result__));
 
   int delete_table(Rdb_tbl_def *const tbl);

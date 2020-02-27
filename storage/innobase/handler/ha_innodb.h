@@ -184,9 +184,10 @@ public:
 	int start_stmt(THD *thd, thr_lock_type lock_type) override;
 
 	ha_rows records_in_range(
-		uint			inx,
-		key_range*		min_key,
-		key_range*		max_key) override;
+                uint                    inx,
+                const key_range*        min_key,
+                const key_range*        max_key,
+                page_range*             pages) override;
 
 	ha_rows estimate_rows_upper_bound() override;
 

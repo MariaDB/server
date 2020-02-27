@@ -141,6 +141,7 @@ public:
     ut_ad(page_no <= 0xFFFFFFFFU);
   }
 
+  page_id_t(ulonglong id) : m_id(id) {}
   bool operator==(const page_id_t& rhs) const { return m_id == rhs.m_id; }
   bool operator!=(const page_id_t& rhs) const { return m_id != rhs.m_id; }
 
@@ -169,6 +170,7 @@ public:
   /** Set the FIL_NULL for the space and page_no */
   void set_corrupt_id() { m_id= ~uint64_t{0}; }
 
+  ulonglong raw() { return m_id; }
 private:
   /** The page identifier */
   uint64_t m_id;

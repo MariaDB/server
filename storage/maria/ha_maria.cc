@@ -3296,6 +3296,8 @@ void ha_maria::get_auto_increment(ulonglong offset, ulonglong increment,
     inx                 Index to use
     min_key             Start of range.  Null pointer if from first key
     max_key             End of range. Null pointer if to last key
+    pages               Store first and last page for the range in case of
+                        b-trees. In other cases it's not touched.
 
   NOTES
     min_key.flag can have one of the following values:
@@ -3313,11 +3315,12 @@ void ha_maria::get_auto_increment(ulonglong offset, ulonglong increment,
                         the range.
 */
 
-ha_rows ha_maria::records_in_range(uint inx, key_range *min_key,
-                                   key_range *max_key)
+ha_rows ha_maria::records_in_range(uint inx, const key_range *min_key,
+                                   const key_range *max_key, page_range *pages)
 {
   register_handler(file);
-  return (ha_rows) maria_records_in_range(file, (int) inx, min_key, max_key);
+  return (ha_rows) maria_records_in_range(file, (int) inx, min_key, max_key,
+                                          pages);
 }
 
 

@@ -93,9 +93,8 @@ public:
   int index_prev(uchar *buf);
   int index_first(uchar *buf);
   int index_last(uchar *buf);
-  ha_rows records_in_range(uint inx, key_range *min_key,
-                                   key_range *max_key);
-
+  ha_rows records_in_range(uint inx, const key_range *start_key,
+                           const key_range *end_key, page_range *pages);
   double scan_time() { return (double)nvalues(); }
   double read_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
   double keyread_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
@@ -234,8 +233,9 @@ int ha_seq::index_last(uchar *buf)
   return index_prev(buf);
 }
 
-ha_rows ha_seq::records_in_range(uint inx, key_range *min_key,
-                                 key_range *max_key)
+ha_rows ha_seq::records_in_range(uint inx, const key_range *min_key,
+                                 const key_range *max_key,
+                                 page_range *pages)
 {
   ulonglong kmin= min_key ? uint8korr(min_key->key) : seqs->from;
   ulonglong kmax= max_key ? uint8korr(max_key->key) : seqs->to - 1;

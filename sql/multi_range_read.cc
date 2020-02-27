@@ -121,10 +121,11 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     }
     else
     {
+      page_range pages= unused_page_range;
       if ((range.range_flag & UNIQUE_RANGE) && !(range.range_flag & NULL_RANGE))
         rows= 1; /* there can be at most one row */
       else if (HA_POS_ERROR == (rows= this->records_in_range(keyno, min_endp,
-                                                        max_endp)))
+                                                             max_endp, &pages)))
       {
         /* Can't scan one range => can't do MRR scan at all */
         total_rows= HA_POS_ERROR;
