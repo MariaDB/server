@@ -2692,7 +2692,7 @@ class Item_func_get_lock final :public Item_func_lock
 };
 
 
-class Item_func_release_all_locks final :public Item_func_lock 
+class Item_func_release_all_locks final :public Item_func_lock
 {
 public:
   Item_func_release_all_locks(THD *thd): Item_func_lock(thd)
