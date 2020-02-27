@@ -40,8 +40,8 @@ protected:
  *  More details in server/sql/select_handler.h
  *  sel semantic tree for the query in SELECT_LEX.
  ************************************************************/
-class ha_xpand_select_handler: 
-    private ha_xpand_base_handler, 
+class ha_xpand_select_handler:
+    private ha_xpand_base_handler,
     public select_handler
 {
 public:
