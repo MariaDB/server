@@ -33,7 +33,7 @@ MACRO(BUNDLE_PCRE2)
   ExternalProject_Add(
     pcre2
     PREFIX   "${dir}"
-    URL      "https://ftp.pcre.org/pub/pcre/pcre2-10.34.zip"
+    URL      "http://ftp.pcre.org/pub/pcre/pcre2-10.34.zip"
     URL_MD5  fdb10dba7f3be43730966bebdd3755ef
     INSTALL_COMMAND ""
     CMAKE_ARGS
