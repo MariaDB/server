@@ -78,8 +78,7 @@ PFS_prepared_stmt*
 create_prepared_stmt(void *identity,
                      PFS_thread *thread, PFS_program *pfs_program,
                      PFS_events_statements *pfs_stmt, uint stmt_id,
-                     const char* stmt_name, uint stmt_name_length,
-                     const char* sqltext, uint sqltext_length)
+                     const char* stmt_name, uint stmt_name_length)
 {
   PFS_prepared_stmt *pfs= NULL;
   pfs_dirty_state dirty_state;
@@ -92,11 +91,8 @@ create_prepared_stmt(void *identity,
     pfs->reset_data();
     /* Do the assignments. */
     pfs->m_identity= identity;
-    /* Set query text if available, else it will be set later. */
-    if (sqltext_length > 0)
-      strncpy(pfs->m_sqltext, sqltext, sqltext_length);
 
-    pfs->m_sqltext_length= sqltext_length;
+    pfs->m_sqltext_length= 0;
 
     if (stmt_name != NULL)
     {

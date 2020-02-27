@@ -2669,8 +2669,7 @@ void mysqld_stmt_prepare(THD *thd, const char *packet, uint packet_length)
   /* Create PS table entry, set query text after rewrite. */
   stmt->m_prepared_stmt= MYSQL_CREATE_PS(stmt, stmt->id,
                                          thd->m_statement_psi,
-                                         stmt->name.str, stmt->name.length,
-                                         NULL, 0);
+                                         stmt->name.str, stmt->name.length);
 
   if (stmt->prepare(packet, packet_length))
   {
@@ -2876,8 +2875,7 @@ void mysql_sql_stmt_prepare(THD *thd)
   /* Create PS table entry, set query text after rewrite. */
   stmt->m_prepared_stmt= MYSQL_CREATE_PS(stmt, stmt->id,
                                          thd->m_statement_psi,
-                                         stmt->name.str, stmt->name.length,
-                                         NULL, 0);
+                                         stmt->name.str, stmt->name.length);
 
   if (stmt->prepare(query.str, (uint) query.length))
   {
@@ -4901,8 +4899,7 @@ bool Prepared_statement::execute_immediate(const char *query, uint query_len)
   name= execute_immediate_stmt_name;      // for DBUG_PRINT etc
 
   m_prepared_stmt= MYSQL_CREATE_PS(this, id, thd->m_statement_psi,
-                                   name.str, name.length,
-                                   NULL, 0);
+                                   name.str, name.length);
 
   if (prepare(query, query_len))
     DBUG_RETURN(true);

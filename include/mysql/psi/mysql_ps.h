@@ -35,8 +35,8 @@
 #endif    
 
 #ifdef HAVE_PSI_PS_INTERFACE
-  #define MYSQL_CREATE_PS(IDENTITY, ID, LOCKER, NAME, NAME_LENGTH, SQLTEXT, SQLTEXT_LENGTH) \
-    inline_mysql_create_prepared_stmt(IDENTITY, ID, LOCKER, NAME, NAME_LENGTH, SQLTEXT, SQLTEXT_LENGTH)
+  #define MYSQL_CREATE_PS(IDENTITY, ID, LOCKER, NAME, NAME_LENGTH) \
+    inline_mysql_create_prepared_stmt(IDENTITY, ID, LOCKER, NAME, NAME_LENGTH)
   #define MYSQL_EXECUTE_PS(LOCKER, PREPARED_STMT) \
     inline_mysql_execute_prepared_stmt(LOCKER, PREPARED_STMT)
   #define MYSQL_DESTROY_PS(PREPARED_STMT) \
@@ -46,7 +46,7 @@
   #define MYSQL_SET_PS_TEXT(PREPARED_STMT, SQLTEXT, SQLTEXT_LENGTH) \
     inline_mysql_set_prepared_stmt_text(PREPARED_STMT, SQLTEXT, SQLTEXT_LENGTH)
 #else
-  #define MYSQL_CREATE_PS(IDENTITY, ID, LOCKER, NAME, NAME_LENGTH, SQLTEXT, SQLTEXT_LENGTH) \
+  #define MYSQL_CREATE_PS(IDENTITY, ID, LOCKER, NAME, NAME_LENGTH) \
     NULL
   #define MYSQL_EXECUTE_PS(LOCKER, PREPARED_STMT) \
     do {} while (0)
@@ -62,15 +62,13 @@
 static inline struct PSI_prepared_stmt*
 inline_mysql_create_prepared_stmt(void *identity, uint stmt_id,
                                   PSI_statement_locker *locker,
-                                  const char *stmt_name, size_t stmt_name_length,
-                                  const char *sqltext, size_t sqltext_length)
+                                  const char *stmt_name, size_t stmt_name_length)
 {
   if (locker == NULL)
     return NULL;
   return PSI_PS_CALL(create_prepared_stmt)(identity, stmt_id, 
                                            locker,
-                                           stmt_name, stmt_name_length,
-                                           sqltext, sqltext_length);
+                                           stmt_name, stmt_name_length);
 }
 
 static inline void 

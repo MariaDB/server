@@ -6379,8 +6379,7 @@ void pfs_digest_end_v1(PSI_digest_locker *locker, const sql_digest_storage *dige
 PSI_prepared_stmt*
 pfs_create_prepared_stmt_v1(void *identity, uint stmt_id,
                            PSI_statement_locker *locker,
-                           const char *stmt_name, size_t stmt_name_length,
-                           const char *sql_text, size_t sql_text_length)
+                           const char *stmt_name, size_t stmt_name_length)
 {
   PSI_statement_locker_state *state= reinterpret_cast<PSI_statement_locker_state*> (locker);
   PFS_events_statements *pfs_stmt= reinterpret_cast<PFS_events_statements*> (state->m_statement);
@@ -6390,14 +6389,10 @@ pfs_create_prepared_stmt_v1(void *identity, uint stmt_id,
   if (unlikely(pfs_thread == NULL))
     return NULL;
 
-  if (sql_text_length > COL_INFO_SIZE)
-    sql_text_length= COL_INFO_SIZE;
-
   PFS_prepared_stmt *pfs= create_prepared_stmt(identity,
                                                pfs_thread, pfs_program,
                                                pfs_stmt, stmt_id,
-                                               stmt_name, static_cast<uint>(stmt_name_length),
-                                               sql_text, static_cast<uint>(sql_text_length));
+                                               stmt_name, static_cast<uint>(stmt_name_length));
 
   state->m_parent_prepared_stmt= reinterpret_cast<PSI_prepared_stmt*>(pfs);
   state->m_in_prepare= true;
