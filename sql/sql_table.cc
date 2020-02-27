@@ -80,9 +80,8 @@ static uint blob_length_by_type(enum_field_types type);
 static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
                                   *check_constraint_list,
                                   const HA_CREATE_INFO *create_info);
-static bool write_start_alter(THD *thd, bool* partial_alter, char * send_query,
-                              start_alter_info *info);
-static int wait_for_master(THD *thd, start_alter_info *info);
+static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *info);
+static void wait_for_master(THD *thd, start_alter_info *info);
 
 /**
   @brief Helper function for explain_filename
@@ -7586,7 +7585,7 @@ static int mysql_inplace_alter_table(THD *thd,
                                       enum_alter_inplace_result inplace_supported,
                                       MDL_request *target_mdl_request,
                                       Alter_table_ctx *alter_ctx,
-                                      bool *partial_alter, char *send_query,
+                                      bool *partial_alter,
                                       start_alter_info *info)
 {
   Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN | MYSQL_OPEN_IGNORE_KILLED);
@@ -7594,7 +7593,6 @@ static int mysql_inplace_alter_table(THD *thd,
   Alter_info *alter_info= ha_alter_info->alter_info;
   bool reopen_tables= false;
   bool res;
-  int alter_result= 1;
   handlerton *hton;
   Master_info *mi= NULL;
   if (thd->slave_thread)
@@ -7681,10 +7679,8 @@ static int mysql_inplace_alter_table(THD *thd,
   // It's now safe to take the table level lock.
   if (lock_tables(thd, table_list, alter_ctx->tables_opened, 0))
     goto cleanup;
-  if (write_start_alter(thd, partial_alter, send_query, info))
+  if (write_start_alter(thd, partial_alter, info))
     DBUG_RETURN(true);
-  //if (thd->slave_thread && !strcmp("t1", table->alias.c_ptr()))
-  //my_sleep(1000000000);
 
   DEBUG_SYNC(thd, "alter_table_inplace_after_lock_upgrade");
   THD_STAGE_INFO(thd, stage_alter_inplace_prepare);
@@ -7755,7 +7751,7 @@ static int mysql_inplace_alter_table(THD *thd,
   thd->abort_on_warning= false;
   if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
-    alter_result= wait_for_master(thd, info);
+    wait_for_master(thd, info);
     DBUG_ASSERT(info->state > start_alter_state::WAITING);
     if (info->state == start_alter_state::ROLLBACK_ALTER)
     {
@@ -9377,7 +9373,7 @@ static int create_table_for_inplace_alter(THD *thd,
 }
 
 
-static int wait_for_master(THD *thd, start_alter_info* info)
+static void wait_for_master(THD *thd, start_alter_info* info)
 {
   char temp[thd->query_length()+ 10];
   Master_info *mi= thd->rgi_slave->rli->mi;
@@ -9393,11 +9389,10 @@ static int wait_for_master(THD *thd, start_alter_info* info)
     mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
   }
   mysql_mutex_unlock(&mi->start_alter_lock);
-  return info->state;
+  return;
 }
 
-static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query,
-                                start_alter_info *info)
+static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *info)
 {
   if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
@@ -9418,6 +9413,7 @@ static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query,
   }
   else if (opt_binlog_split_alter)
   {
+    char send_query[thd->query_length() + 20];
     thd->transaction.start_alter= true;
     sprintf(send_query, "/*!100001 START %lld %s */",thd->thread_id,  thd->query());
     if (write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
@@ -9484,7 +9480,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   Master_info *mi= NULL;
   if (thd->slave_thread)
     mi= thd->rgi_slave->rli->mi;
-  int alter_result= COMMIT_ALTER;
   DBUG_ENTER("mysql_alter_table");
 
   /*
@@ -10210,7 +10205,7 @@ do_continue:;
       int res= mysql_inplace_alter_table(thd, table_list, table, &altered_table,
                                          &ha_alter_info, inplace_supported,
                                          &target_mdl_request, &alter_ctx,
-                                         &partial_alter, send_query, info);
+                                         &partial_alter, info);
       thd->count_cuted_fields= save_count_cuted_fields;
       my_free(const_cast<uchar*>(frm.str));
 
@@ -10272,10 +10267,8 @@ do_continue:;
                   MYSQL_LOCK_USE_MALLOC))
     goto err_new_table_cleanup;
   //If issues by binlog/master complete the prepare phase of alter and then commit
-  if (write_start_alter(thd, &partial_alter, send_query, info))
+  if (write_start_alter(thd, &partial_alter, info))
     DBUG_RETURN(true);
-//  if (thd->slave_thread && !strcmp("t1", table->alias.c_ptr()))
-//    my_sleep(1000000000);
   if (ha_create_table(thd, alter_ctx.get_tmp_path(),
                       alter_ctx.new_db.str, alter_ctx.new_name.str,
                       create_info, &frm))
@@ -10348,10 +10341,10 @@ do_continue:;
     if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
     {
       DBUG_ASSERT(thd->slave_thread);
-      alter_result= wait_for_master(thd, info);
+      wait_for_master(thd, info);
     }
-    if (alter_result == start_alter_state::ROLLBACK_ALTER ||
-          alter_result == start_alter_state::SHUTDOWN_ALTER)
+    if (info->state == start_alter_state::ROLLBACK_ALTER ||
+          info->state == start_alter_state::SHUTDOWN_ALTER)
       goto err_new_table_cleanup;
     /* Close lock if this is a transactional table */
     if (thd->lock)
@@ -10416,10 +10409,10 @@ do_continue:;
   if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
     DBUG_ASSERT(thd->slave_thread);
-    alter_result= wait_for_master(thd, info);
+    wait_for_master(thd, info);
   }
-  if (alter_result == start_alter_state::ROLLBACK_ALTER ||
-          alter_result == start_alter_state::SHUTDOWN_ALTER)
+  if (info->state == start_alter_state::ROLLBACK_ALTER ||
+          info->state == start_alter_state::SHUTDOWN_ALTER)
     goto err_new_table_cleanup;
   engine_changed= ((new_table->file->ht != table->file->ht) &&
                    (((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
@@ -10655,7 +10648,7 @@ err_new_table_cleanup:
   if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
     if (info->state == start_alter_state::REGISTERED)
-      alter_result= wait_for_master(thd, info);
+      wait_for_master(thd, info);
     DBUG_ASSERT(info->state > start_alter_state::WAITING);
     if (info->state == start_alter_state::ROLLBACK_ALTER)
     {
