@@ -2660,7 +2660,7 @@ corrupted:
   buf+= hdr_c;
   *buf++= (enc_hdr_l & 3) << 4; /* info_bits; n_owned=0 */
   *buf++= static_cast<byte>(h >> 5); /* MSB of heap number */
-  h= (h & (1U << 5) - 1) << 3;
+  h= (h & ((1U << 5) - 1)) << 3;
   static_assert(REC_STATUS_ORDINARY == 0, "compatibility");
   static_assert(REC_STATUS_INSTANT == 4, "compatibility");
   if (page_is_leaf(block.frame))
