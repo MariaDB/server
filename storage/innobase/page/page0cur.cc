@@ -1215,7 +1215,8 @@ inline void mtr_t::page_insert(const buf_block_t &block, bool reuse,
       shift= -shift << 1 | 1;
     else
       shift<<= 1;
-    len+= shift < MIN_2BYTE ? 1 : shift < MIN_3BYTE ? 2 : 3;
+    len+= static_cast<size_t>(shift) < MIN_2BYTE
+      ? 1 : static_cast<size_t>(shift) < MIN_3BYTE ? 2 : 3;
   }
   ut_ad(hdr_c + hdr_l <= REC_MAX_N_FIELDS * 2);
   len+= hdr_c < MIN_2BYTE ? 1 : 2;
