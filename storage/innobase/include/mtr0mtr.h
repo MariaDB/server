@@ -494,6 +494,45 @@ struct mtr_t {
   @param block    B-tree or R-tree page
   @param comp     false=ROW_FORMAT=REDUNDANT, true=COMPACT or DYNAMIC */
   inline void page_create(const buf_block_t &block, bool comp);
+
+  /** Write log for inserting a B-tree or R-tree record in
+  ROW_FORMAT=REDUNDANT.
+  @param block      B-tree or R-tree page
+  @param reuse      false=allocate from PAGE_HEAP_TOP; true=reuse PAGE_FREE
+  @param prev_rec   byte offset of the predecessor of the record to insert,
+                    starting from PAGE_OLD_INFIMUM
+  @param info_bits  info_bits of the record
+  @param n_fields_s number of fields << 1 | rec_get_1byte_offs_flag()
+  @param hdr_c      number of common record header bytes with prev_rec
+  @param data_c     number of common data bytes with prev_rec
+  @param hdr        record header bytes to copy to the log
+  @param hdr_l      number of copied record header bytes
+  @param data       record payload bytes to copy to the log
+  @param data_l     number of copied record data bytes */
+  inline void page_insert(const buf_block_t &block, bool reuse,
+                          ulint prev_rec, byte info_bits,
+                          ulint n_fields_s, size_t hdr_c, size_t data_c,
+                          const byte *hdr, size_t hdr_l,
+                          const byte *data, size_t data_l);
+  /** Write log for inserting a B-tree or R-tree record in
+  ROW_FORMAT=COMPACT or ROW_FORMAT=DYNAMIC.
+  @param block       B-tree or R-tree page
+  @param reuse       false=allocate from PAGE_HEAP_TOP; true=reuse PAGE_FREE
+  @param prev_rec    byte offset of the predecessor of the record to insert,
+                     starting from PAGE_NEW_INFIMUM
+  @param info_status rec_get_info_and_status_bits()
+  @param shift       unless !reuse: number of bytes the PAGE_FREE is moving
+  @param hdr_c       number of common record header bytes with prev_rec
+  @param data_c      number of common data bytes with prev_rec
+  @param hdr         record header bytes to copy to the log
+  @param hdr_l       number of copied record header bytes
+  @param data        record payload bytes to copy to the log
+  @param data_l      number of copied record data bytes */
+  inline void page_insert(const buf_block_t &block, bool reuse,
+                          ulint prev_rec, byte info_status,
+                          ssize_t shift, size_t hdr_c, size_t data_c,
+                          const byte *hdr, size_t hdr_l,
+                          const byte *data, size_t data_l);
   /** Write log for deleting a B-tree or R-tree record in ROW_FORMAT=REDUNDANT.
   @param block      B-tree or R-tree page
   @param prev_rec   byte offset of the predecessor of the record to delete,

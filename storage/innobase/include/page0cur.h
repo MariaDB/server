@@ -201,6 +201,39 @@ page_cur_delete_rec(
 	mtr_t*			mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
 
+/** Apply a INSERT_HEAP_REDUNDANT or INSERT_REUSE_REDUNDANT record that was
+written by page_cur_insert_rec_low() for a ROW_FORMAT=REDUNDANT page.
+@param block      B-tree or R-tree page in ROW_FORMAT=COMPACT or DYNAMIC
+@param reuse      false=allocate from PAGE_HEAP_TOP; true=reuse PAGE_FREE
+@param prev       byte offset of the predecessor, relative to PAGE_NEW_INFIMUM
+@param enc_hdr    encoded fixed-size header bits
+@param hdr_c      number of common record header bytes with prev
+@param data_c     number of common data bytes with prev
+@param data       literal header and data bytes
+@param data_len   length of the literal data, in bytes
+@return whether the operation failed (inconcistency was noticed) */
+bool page_apply_insert_redundant(const buf_block_t &block, bool reuse,
+                                 ulint prev, ulint enc_hdr,
+                                 size_t hdr_c, size_t data_c,
+                                 const void *data, size_t data_len);
+
+/** Apply a INSERT_HEAP_DYNAMIC or INSERT_REUSE_DYNAMIC record that was
+written by page_cur_insert_rec_low() for a ROW_FORMAT=COMPACT or DYNAMIC page.
+@param block      B-tree or R-tree page in ROW_FORMAT=COMPACT or DYNAMIC
+@param reuse      false=allocate from PAGE_HEAP_TOP; true=reuse PAGE_FREE
+@param prev       byte offset of the predecessor, relative to PAGE_NEW_INFIMUM
+@param shift      unless !reuse: number of bytes the PAGE_FREE is moving
+@param enc_hdr_l  number of copied record header bytes, plus record type bits
+@param hdr_c      number of common record header bytes with prev
+@param data_c     number of common data bytes with prev
+@param data       literal header and data bytes
+@param data_len   length of the literal data, in bytes
+@return whether the operation failed (inconcistency was noticed) */
+bool page_apply_insert_dynamic(const buf_block_t &block, bool reuse,
+                               ulint prev, ulint shift, ulint enc_hdr_l,
+                               size_t hdr_c, size_t data_c,
+                               const void *data, size_t data_len);
+
 /** Apply a DELETE_ROW_FORMAT_REDUNDANT record that was written by
 page_cur_delete_rec() for a ROW_FORMAT=REDUNDANT page.
 @param block    B-tree or R-tree page in ROW_FORMAT=REDUNDANT

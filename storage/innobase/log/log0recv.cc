@@ -291,8 +291,9 @@ public:
         static_assert(INIT_ROW_FORMAT_DYNAMIC == 1, "compatibility");
         if (UNIV_UNLIKELY(!rlen))
           goto record_corrupted;
-        switch (*l) {
+        switch (const byte subtype= *l) {
           uint8_t ll;
+          size_t prev_rec, hdr_size;
         default:
           goto record_corrupted;
         case INIT_ROW_FORMAT_REDUNDANT:
@@ -317,6 +318,90 @@ page_corrupted:
             return applied;
           }
           break;
+        case INSERT_HEAP_REDUNDANT:
+        case INSERT_REUSE_REDUNDANT:
+        case INSERT_HEAP_DYNAMIC:
+        case INSERT_REUSE_DYNAMIC:
+          if (UNIV_UNLIKELY(rlen < 2))
+            goto record_corrupted;
+          rlen--;
+          ll= mlog_decode_varint_length(*++l);
+          if (UNIV_UNLIKELY(ll > 3 || ll >= rlen))
+            goto record_corrupted;
+          prev_rec= mlog_decode_varint(l);
+          ut_ad(prev_rec != MLOG_DECODE_ERROR);
+          rlen-= ll;
+          l+= ll;
+          ll= mlog_decode_varint_length(*l);
+          static_assert(INSERT_HEAP_REDUNDANT == 4, "compatibility");
+          static_assert(INSERT_REUSE_REDUNDANT == 5, "compatibility");
+          static_assert(INSERT_HEAP_DYNAMIC == 6, "compatibility");
+          static_assert(INSERT_REUSE_DYNAMIC == 7, "compatibility");
+          if (subtype & 2)
+          {
+            size_t shift= 0;
+            if (subtype & 1)
+            {
+              if (UNIV_UNLIKELY(ll > 3 || ll >= rlen))
+                goto record_corrupted;
+              shift= mlog_decode_varint(l);
+              ut_ad(shift != MLOG_DECODE_ERROR);
+              rlen-= ll;
+              l+= ll;
+              ll= mlog_decode_varint_length(*l);
+            }
+            if (UNIV_UNLIKELY(ll > 3 || ll >= rlen))
+              goto record_corrupted;
+            size_t enc_hdr_l= mlog_decode_varint(l);
+            ut_ad(enc_hdr_l != MLOG_DECODE_ERROR);
+            rlen-= ll;
+            l+= ll;
+            ll= mlog_decode_varint_length(*l);
+            if (UNIV_UNLIKELY(ll > 2 || ll >= rlen))
+              goto record_corrupted;
+            size_t hdr_c= mlog_decode_varint(l);
+            ut_ad(hdr_c != MLOG_DECODE_ERROR);
+            rlen-= ll;
+            l+= ll;
+            ll= mlog_decode_varint_length(*l);
+            if (UNIV_UNLIKELY(ll > 3 || ll >= rlen))
+              goto record_corrupted;
+            size_t data_c= mlog_decode_varint(l);
+            ut_ad(data_c != MLOG_DECODE_ERROR);
+            rlen-= ll;
+            l+= ll;
+            if (page_apply_insert_dynamic(block, subtype & 1, prev_rec,
+                                          shift, enc_hdr_l, hdr_c, data_c,
+                                          l, rlen) && !srv_force_recovery)
+              goto page_corrupted;
+          }
+          else
+          {
+            if (UNIV_UNLIKELY(ll > 2 || ll >= rlen))
+              goto record_corrupted;
+            size_t header= mlog_decode_varint(l);
+            ut_ad(header != MLOG_DECODE_ERROR);
+            rlen-= ll;
+            l+= ll;
+            ll= mlog_decode_varint_length(*l);
+            if (UNIV_UNLIKELY(ll > 2 || ll >= rlen))
+              goto record_corrupted;
+            size_t hdr_c= mlog_decode_varint(l);
+            ut_ad(hdr_c != MLOG_DECODE_ERROR);
+            rlen-= ll;
+            l+= ll;
+            ll= mlog_decode_varint_length(*l);
+            if (UNIV_UNLIKELY(ll > 2 || ll >= rlen))
+              goto record_corrupted;
+            size_t data_c= mlog_decode_varint(l);
+            rlen-= ll;
+            l+= ll;
+            if (page_apply_insert_redundant(block, subtype & 1, prev_rec,
+                                            header, hdr_c, data_c,
+                                            l, rlen) && !srv_force_recovery)
+              goto page_corrupted;
+          }
+          break;
         case DELETE_ROW_FORMAT_REDUNDANT:
           if (UNIV_UNLIKELY(rlen < 2 || rlen > 4))
             goto record_corrupted;
@@ -335,14 +420,14 @@ page_corrupted:
           ll= mlog_decode_varint_length(*++l);
           if (UNIV_UNLIKELY(ll > 3 || ll >= rlen))
             goto record_corrupted;
-          size_t prev_rec= mlog_decode_varint(l);
+          prev_rec= mlog_decode_varint(l);
           ut_ad(prev_rec != MLOG_DECODE_ERROR);
           rlen-= ll;
           l+= ll;
           ll= mlog_decode_varint_length(*l);
           if (UNIV_UNLIKELY(ll > 2 || ll >= rlen))
             goto record_corrupted;
-          size_t hdr_size= mlog_decode_varint(l);
+          hdr_size= mlog_decode_varint(l);
           ut_ad(hdr_size != MLOG_DECODE_ERROR);
           rlen-= ll;
           l+= ll;
@@ -350,7 +435,7 @@ page_corrupted:
           if (UNIV_UNLIKELY(ll > 3 || ll != rlen))
             goto record_corrupted;
           if (page_apply_delete_dynamic(block, prev_rec, hdr_size,
-                                         mlog_decode_varint(l)) &&
+                                        mlog_decode_varint(l)) &&
               !srv_force_recovery)
             goto page_corrupted;
           break;
