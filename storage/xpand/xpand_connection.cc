@@ -1018,13 +1018,13 @@ error:
                       update Xpand_share::xpand_table_oid.
 
   @return
-     0 - OK 
+     0 - OK
      error code if an error occurred
 */
 
-int xpand_connection::get_table_oid(const std::string &db, 
-                                    const std::string &name, 
-                                    ulonglong *oid, 
+int xpand_connection::get_table_oid(const std::string &db,
+                                    const std::string &name,
+                                    ulonglong *oid,
                                     TABLE_SHARE *share)
 {
   MYSQL_ROW row;
