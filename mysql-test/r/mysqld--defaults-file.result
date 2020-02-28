@@ -17,8 +17,6 @@ Fatal error in defaults handling. Program aborted
 # Test on `defaults-file`
 Default options are read from the following files in the given order:
 MYSQLTEST_VARDIR/my.cnf
-The following groups are read: mysqld server mysqld-10.1 mariadb mariadb-10.1 client-server galera
 # Test on `defaults-extra-file`
 Default options are read from the following files in the given order:
 <first-defaults> MYSQLTEST_VARDIR/my_test.cnf ~/.my.cnf 
-The following groups are read: mysqld server mysqld-10.1 mariadb mariadb-10.1 client-server galera
