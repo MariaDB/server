@@ -327,3 +327,11 @@ disconnect con3;
 disconnect con2;
 disconnect con1;
 connection default;
+CREATE TABLE t1(
+f1 INT, f2 VARCHAR(10) CHARSET ascii,
+f3 CHAR(150) CHARSET ascii,
+f4 TEXT CHARSET ascii)ENGINE=InnoDB
+PARTITION BY RANGE(f1) (PARTITION p1 VALUES LESS THAN(10),
+PARTITION p2 VALUES LESS THAN (100));
+ALTER TABLE t1 convert to charset ascii collate ascii_bin, ALGORITHM=INSTANT;
+DROP TABLE t1;
