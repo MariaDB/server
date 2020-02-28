@@ -429,16 +429,7 @@ int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
     trx->run_query(createdb_stmt);
   }
 
-  error_code = trx->run_query(create_table_stmt);
-  if (error_code)
-    return error_code;
-
-  // Load the oid of the created table
-  error_code= trx->get_table_oid(norm_db.c_str(), strlen(norm_db.c_str()),
-                                 norm_table.c_str(), strlen(norm_table.c_str()),
-                                 &xpand_table_oid, table_share);
-
-  return error_code;
+  return trx->run_query(create_table_stmt);
 }
 
 int ha_xpand::delete_table(const char *path)
@@ -502,10 +493,10 @@ int ha_xpand::rename_table(const char* from, const char* to)
 static void
 xpand_mark_table_for_discovery(TABLE *table)
 {
-  table->m_needs_reopen = TRUE;
+  table->m_needs_reopen = true;
   Xpand_share *xs;
-  if ((xs= (Xpand_share*)table->s->ha_share))
-    xs->xpand_table_oid= 0;
+  if ((xs= static_cast<Xpand_share*>(table->s->ha_share)))
+    xs->rediscover_table = true;
 }
 
 void
@@ -544,12 +535,17 @@ int ha_xpand::open(const char *name, int mode, uint test_if_locked)
   THD *thd= ha_thd();
   DBUG_ENTER("ha_xpand::open");
 
+  Xpand_share *share;
   if (!(share = get_share()))
     DBUG_RETURN(1);
+
   int error_code;
   xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
+
+  if (share->rediscover_table)
+    DBUG_RETURN(HA_ERR_TABLE_DEF_CHANGED);
 
   if (!share->xpand_table_oid) {
     // We may end up with two threads executing this piece concurrently but
@@ -559,13 +555,18 @@ int ha_xpand::open(const char *name, int mode, uint test_if_locked)
     if ((error_code= normalize_tablename(name, &norm_db, &norm_table)))
       DBUG_RETURN(error_code);
 
+    ulonglong oid = 0;
     error_code= trx->get_table_oid(norm_db.c_str(), strlen(norm_db.c_str()),
                                    norm_table.c_str(),
-                                   strlen(norm_table.c_str()), &xpand_table_oid,
+                                   strlen(norm_table.c_str()), &oid,
                                    table_share);
     if (error_code)
       DBUG_RETURN(error_code);
+
+    share->xpand_table_oid = oid;
   }
+
+  xpand_table_oid = share->xpand_table_oid;
 
   // Surrogate key marker
   has_hidden_key = table->s->primary_key == MAX_KEY;

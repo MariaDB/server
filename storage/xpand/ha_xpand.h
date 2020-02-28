@@ -35,9 +35,10 @@ ulonglong *xpand_extract_table_oids(THD *thd, LEX *lex);
 
 class Xpand_share : public Handler_share {
 public:
-  Xpand_share(): xpand_table_oid(0) {}
+  Xpand_share(): xpand_table_oid(0), rediscover_table(false) {}
 
   std::atomic<ulonglong> xpand_table_oid;
+  std::atomic<bool> rediscover_table;
 };
 
 class ha_xpand : public handler
@@ -67,7 +68,6 @@ private:
   } xpd_upsert_flags_t;
   int upsert_flag;
 
-  Xpand_share *share;
   Xpand_share *get_share(); ///< Get the share
 
 public:
