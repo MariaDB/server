@@ -33,7 +33,6 @@
                         // date_time_format_make
 #include "derror.h"
 #include "tztime.h"     // my_tz_find, my_tz_SYSTEM, struct Time_zone
-#include "sql_acl.h"    // SUPER_ACL
 #include "sql_select.h" // free_underlaid_joins
 #include "sql_i_s.h"
 #include "sql_view.h"   // updatable_views_with_limit_typelib
@@ -788,7 +787,8 @@ int set_var::check(THD *thd)
     my_error(err, MYF(0), var->name.str);
     return -1;
   }
-  if ((type == OPT_GLOBAL && check_global_access(thd, SUPER_ACL)))
+  if (type == OPT_GLOBAL &&
+      check_global_access(thd, PRIV_SET_GLOBAL_SYSTEM_VARIABLE))
     return 1;
   /* value is a NULL pointer if we are using SET ... = DEFAULT */
   if (!value)
@@ -825,7 +825,8 @@ int set_var::light_check(THD *thd)
     my_error(err, MYF(0), var->name.str);
     return -1;
   }
-  if (type == OPT_GLOBAL && check_global_access(thd, SUPER_ACL))
+  if (type == OPT_GLOBAL &&
+      check_global_access(thd, PRIV_SET_GLOBAL_SYSTEM_VARIABLE))
     return 1;
 
   if (value && value->fix_fields_if_needed_for_scalar(thd, &value))

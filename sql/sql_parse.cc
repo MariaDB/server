@@ -56,13 +56,6 @@
 #include "sql_rename.h"       // mysql_rename_tables
 #include "sql_tablespace.h"   // mysql_alter_tablespace
 #include "hostname.h"         // hostname_cache_refresh
-#include "sql_acl.h"          // *_ACL, check_grant, is_acl_user,
-                              // has_any_table_level_privileges,
-                              // mysql_drop_user, mysql_rename_user,
-                              // check_grant_routine,
-                              // mysql_routine_grant,
-                              // mysql_show_grants,
-                              // sp_grant_privileges, ...
 #include "sql_test.h"         // mysql_print_status
 #include "sql_select.h"       // handle_select, mysql_select,
                               // mysql_explain_union
@@ -680,7 +673,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_CREATE_USER]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE_DB]=   CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE]=  CF_STATUS_COMMAND;
-  sql_command_flags[SQLCOM_SHOW_MASTER_STAT]= CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_SHOW_BINLOG_STAT]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_SLAVE_STAT]=  CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE_PROC]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE_FUNC]= CF_STATUS_COMMAND;
@@ -1406,7 +1399,7 @@ static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
   LEX *lex= thd->lex;
 
   /* Super user is allowed to do changes */
-  if ((thd->security_ctx->master_access & SUPER_ACL) == SUPER_ACL)
+  if ((thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) != NO_ACL)
     DBUG_RETURN(FALSE);
 
   /* Check if command doesn't update anything */
@@ -1446,10 +1439,10 @@ static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
 static my_bool wsrep_read_only_option(THD *thd, TABLE_LIST *all_tables)
 {
   int opt_readonly_saved = opt_readonly;
-  privilege_t flag_saved= thd->security_ctx->master_access & SUPER_ACL;
+  privilege_t flag_saved= thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY;
 
   opt_readonly = 0;
-  thd->security_ctx->master_access &= ~SUPER_ACL;
+  thd->security_ctx->master_access &= ~PRIV_IGNORE_READ_ONLY;
 
   my_bool ret = !deny_updates_if_read_only_option(thd, all_tables);
 
@@ -2093,7 +2086,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       status_var_increment(thd->status_var.com_other);
 
       thd->query_plan_flags|= QPLAN_ADMIN;
-      if (check_global_access(thd, REPL_SLAVE_ACL))
+      if (check_global_access(thd, PRIV_COM_BINLOG_DUMP))
 	break;
 
       /* TODO: The following has to be changed to an 8 byte integer */
@@ -2249,12 +2242,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   case COM_PROCESS_INFO:
     status_var_increment(thd->status_var.com_stat[SQLCOM_SHOW_PROCESSLIST]);
     if (!thd->security_ctx->priv_user[0] &&
-        check_global_access(thd, PROCESS_ACL))
+        check_global_access(thd, PRIV_COM_PROCESS_INFO))
       break;
     general_log_print(thd, command, NullS);
     mysqld_list_processes(thd,
-			  thd->security_ctx->master_access & PROCESS_ACL ? 
-			  NullS : thd->security_ctx->priv_user, 0);
+                     thd->security_ctx->master_access & PRIV_COM_PROCESS_INFO ?
+                     NullS : thd->security_ctx->priv_user, 0);
     break;
   case COM_PROCESS_KILL:
   {
@@ -2286,7 +2279,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   }
   case COM_DEBUG:
     status_var_increment(thd->status_var.com_other);
-    if (check_global_access(thd, SUPER_ACL))
+    if (check_global_access(thd, PRIV_DEBUG))
       break;					/* purecov: inspected */
     mysql_print_status();
     general_log_print(thd, command, NullS);
@@ -2840,7 +2833,7 @@ bool sp_process_definer(THD *thd)
                   !my_strcasecmp(system_charset_info, d->host.str,
                                  thd->security_ctx->priv_host);
     if (!curuserhost && !currole &&
-        check_global_access(thd, SUPER_ACL, false))
+        check_global_access(thd, PRIV_DEFINER_CLAUSE, false))
       DBUG_RETURN(TRUE);
   }
 
@@ -3828,7 +3821,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_EXPLAIN:
   {
     if (!thd->security_ctx->priv_user[0] &&
-        check_global_access(thd,PROCESS_ACL))
+        check_global_access(thd, PRIV_STMT_SHOW_EXPLAIN))
       break;
 
     /*
@@ -3946,7 +3939,7 @@ mysql_execute_command(THD *thd)
 #ifndef EMBEDDED_LIBRARY
   case SQLCOM_PURGE:
   {
-    if (check_global_access(thd, SUPER_ACL))
+    if (check_global_access(thd, PRIV_STMT_PURGE_BINLOG))
       goto error;
     /* PURGE MASTER LOGS TO 'file' */
     res = purge_master_logs(thd, lex->to_log);
@@ -3956,7 +3949,7 @@ mysql_execute_command(THD *thd)
   {
     Item *it;
 
-    if (check_global_access(thd, SUPER_ACL))
+    if (check_global_access(thd, PRIV_STMT_PURGE_BINLOG))
       goto error;
     /* PURGE MASTER LOGS BEFORE 'data' */
     it= (Item *)lex->value_list.head();
@@ -4003,16 +3996,23 @@ mysql_execute_command(THD *thd)
 #ifdef HAVE_REPLICATION
   case SQLCOM_SHOW_SLAVE_HOSTS:
   {
-    if (check_global_access(thd, REPL_SLAVE_ACL))
+    if (check_global_access(thd, PRIV_STMT_SHOW_SLAVE_HOSTS))
       goto error;
     res = show_slave_hosts(thd);
     break;
   }
-  case SQLCOM_SHOW_RELAYLOG_EVENTS: /* fall through */
+  case SQLCOM_SHOW_RELAYLOG_EVENTS:
+  {
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
+    if (check_global_access(thd, PRIV_STMT_SHOW_RELAYLOG_EVENTS))
+      goto error;
+    res = mysql_show_binlog_events(thd);
+    break;
+  }
   case SQLCOM_SHOW_BINLOG_EVENTS:
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
-    if (check_global_access(thd, REPL_SLAVE_ACL))
+    if (check_global_access(thd, PRIV_STMT_SHOW_BINLOG_EVENTS))
       goto error;
     res = mysql_show_binlog_events(thd);
     break;
@@ -4049,7 +4049,7 @@ mysql_execute_command(THD *thd)
     bool new_master= 0;
     bool master_info_added;
 
-    if (check_global_access(thd, SUPER_ACL))
+    if (check_global_access(thd, PRIV_STMT_CHANGE_MASTER))
       goto error;
     /*
       In this code it's ok to use LOCK_active_mi as we are adding new things
@@ -4104,10 +4104,10 @@ mysql_execute_command(THD *thd)
     break;
   }
 
-  case SQLCOM_SHOW_MASTER_STAT:
+  case SQLCOM_SHOW_BINLOG_STAT:
   {
     /* Accept one of two privileges */
-    if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
+    if (check_global_access(thd, PRIV_STMT_SHOW_BINLOG_STATUS))
       goto error;
     res = show_binlog_info(thd);
     break;
@@ -4116,14 +4116,14 @@ mysql_execute_command(THD *thd)
 #endif /* HAVE_REPLICATION */
   case SQLCOM_SHOW_ENGINE_STATUS:
     {
-      if (check_global_access(thd, PROCESS_ACL))
+      if (check_global_access(thd, PRIV_STMT_SHOW_ENGINE_STATUS))
         goto error;
       res = ha_show_status(thd, lex->create_info.db_type, HA_ENGINE_STATUS);
       break;
     }
   case SQLCOM_SHOW_ENGINE_MUTEX:
     {
-      if (check_global_access(thd, PROCESS_ACL))
+      if (check_global_access(thd, PRIV_STMT_SHOW_ENGINE_MUTEX))
         goto error;
       res = ha_show_status(thd, lex->create_info.db_type, HA_ENGINE_MUTEX);
       break;
@@ -4284,7 +4284,7 @@ mysql_execute_command(THD *thd)
     goto error;
 #else
     {
-      if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
+      if (check_global_access(thd, PRIV_STMT_SHOW_BINARY_LOGS))
 	goto error;
       WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
       res = show_binlogs(thd);
@@ -4416,7 +4416,7 @@ mysql_execute_command(THD *thd)
       if (res)
         break;
       if (opt_readonly &&
-	  !(thd->security_ctx->master_access & SUPER_ACL) &&
+	  !(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
 	  some_non_temp_table_to_be_updated(thd, all_tables))
       {
 	my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
@@ -4892,13 +4892,13 @@ mysql_execute_command(THD *thd)
   }
   case SQLCOM_SHOW_PROCESSLIST:
     if (!thd->security_ctx->priv_user[0] &&
-        check_global_access(thd,PROCESS_ACL))
+        check_global_access(thd, PRIV_STMT_SHOW_PROCESSLIST))
       break;
     mysqld_list_processes(thd,
-			  (thd->security_ctx->master_access & PROCESS_ACL ?
-                           NullS :
-                           thd->security_ctx->priv_user),
-                          lex->verbose);
+                (thd->security_ctx->master_access & PRIV_STMT_SHOW_PROCESSLIST ?
+                 NullS :
+                 thd->security_ctx->priv_user),
+                lex->verbose);
     break;
   case SQLCOM_SHOW_AUTHORS:
     res= mysqld_show_authors(thd);
@@ -5810,7 +5810,7 @@ mysql_execute_command(THD *thd)
   {
     DBUG_PRINT("info", ("case SQLCOM_CREATE_SERVER"));
 
-    if (check_global_access(thd, SUPER_ACL))
+    if (check_global_access(thd, PRIV_STMT_CREATE_SERVER))
       break;
 
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
@@ -5823,7 +5823,7 @@ mysql_execute_command(THD *thd)
     int error;
     DBUG_PRINT("info", ("case SQLCOM_ALTER_SERVER"));
 
-    if (check_global_access(thd, SUPER_ACL))
+    if (check_global_access(thd, PRIV_STMT_ALTER_SERVER))
       break;
 
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
@@ -5843,7 +5843,7 @@ mysql_execute_command(THD *thd)
     int err_code;
     DBUG_PRINT("info", ("case SQLCOM_DROP_SERVER"));
 
-    if (check_global_access(thd, SUPER_ACL))
+    if (check_global_access(thd, PRIV_STMT_DROP_SERVER))
       break;
 
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
@@ -7146,10 +7146,8 @@ bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table)
   @param want_access		Use should have any of these global rights
 
   @warning
-    One gets access right if one has ANY of the rights in want_access.
-    This is useful as one in most cases only need one global right,
-    but in some case we want to check if the user has SUPER or
-    REPL_CLIENT_ACL rights.
+    Starting from 10.5.2 only one bit is allowed in want_access.
+    Access denied error is returned if want_access has multiple bits set.
 
   @retval
     0	ok
@@ -7161,7 +7159,7 @@ bool check_global_access(THD *thd, privilege_t want_access, bool no_errors)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   char command[128];
-  if ((thd->security_ctx->master_access & want_access))
+  if (thd->security_ctx->master_access & want_access)
     return 0;
   if (unlikely(!no_errors))
   {
@@ -9099,11 +9097,11 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
     */
 
 #ifdef WITH_WSREP
-    if (((thd->security_ctx->master_access & SUPER_ACL) ||
+    if (((thd->security_ctx->master_access & PRIV_KILL_OTHER_USER_PROCESS) ||
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
         !wsrep_thd_is_BF(tmp, false) && !tmp->wsrep_applier)
 #else
-    if ((thd->security_ctx->master_access & SUPER_ACL) ||
+    if ((thd->security_ctx->master_access & PRIV_KILL_OTHER_USER_PROCESS) ||
         thd->security_ctx->user_matches(tmp->security_ctx))
 #endif /* WITH_WSREP */
     {
@@ -9156,7 +9154,8 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
          !strcmp(thd->security_ctx->host_or_ip, arg->user->host.str)) &&
         !strcmp(thd->security_ctx->user, arg->user->user.str))
     {
-      if (!(arg->thd->security_ctx->master_access & SUPER_ACL) &&
+      if (!(arg->thd->security_ctx->master_access &
+            PRIV_KILL_OTHER_USER_PROCESS) &&
           !arg->thd->security_ctx->user_matches(thd->security_ctx))
         return 1;
       if (!arg->threads_to_kill.push_back(thd, arg->thd->mem_root))

@@ -49,7 +49,7 @@ enum privilege_t: unsigned long long
   LOCK_TABLES_ACL       = (1UL << 17),
   EXECUTE_ACL           = (1UL << 18),
   REPL_SLAVE_ACL        = (1UL << 19),
-  REPL_CLIENT_ACL       = (1UL << 20),
+  BINLOG_MONITOR_ACL    = (1UL << 20), // Was REPL_CLIENT_ACL prior to 10.5.2
   CREATE_VIEW_ACL       = (1UL << 21),
   SHOW_VIEW_ACL         = (1UL << 22),
   CREATE_PROC_ACL       = (1UL << 23),
@@ -59,24 +59,63 @@ enum privilege_t: unsigned long long
   TRIGGER_ACL           = (1UL << 27),
   CREATE_TABLESPACE_ACL = (1UL << 28),
   DELETE_HISTORY_ACL    = (1UL << 29),  // Added in 10.3.4
+  SET_USER_ACL          = (1UL << 30),  // Added in 10.5.2
+  FEDERATED_ADMIN_ACL   = (1UL << 31),  // Added in 10.5.2
+  CONNECTION_ADMIN_ACL  = (1ULL << 32), // Added in 10.5.2
+  READ_ONLY_ADMIN_ACL   = (1ULL << 33), // Added in 10.5.2
+  REPL_SLAVE_ADMIN_ACL  = (1ULL << 34), // Added in 10.5.2
+  REPL_MASTER_ADMIN_ACL = (1ULL << 35), // Added in 10.5.2
+  BINLOG_ADMIN_ACL      = (1ULL << 36)  // Added in 10.5.2
   /*
-    don't forget to update
-    1. static struct show_privileges_st sys_privileges[]
-    2. static const char *command_array[] and static uint command_lengths[]
-    3. mysql_system_tables.sql and mysql_system_tables_fix.sql
-    4. acl_init() or whatever - to define behaviour for old privilege tables
-    5. sql_yacc.yy - for GRANT/REVOKE to work
-    6. Add a new ALL_KNOWN_ACL_VERSION
-    7. Change ALL_KNOWN_ACL to ALL_KNOWN_ACL_VERSION
-    8. Update User_table_json::get_access()
-  */
+    When adding new privilege bits, don't forget to update:
+    In this file:
+    - Add a new LAST_version_ACL
+    - Add a new ALL_KNOWN_ACL_version
+    - Change ALL_KNOWN_ACL to ALL_KNOWN_ACL_version
+    - Change GLOBAL_ACLS if needed
+    - Change SUPER_ADDED_SINCE_USER_TABLE_ACL if needed
 
-  // A combination of all bits defined in 10.3.4 (and earlier)
-  ALL_KNOWN_ACL_100304 = (1UL << 30) - 1
+    In other files:
+    - static struct show_privileges_st sys_privileges[]
+    - static const char *command_array[] and static uint command_lengths[]
+    - mysql_system_tables.sql and mysql_system_tables_fix.sql
+    - acl_init() or whatever - to define behaviour for old privilege tables
+    - Update User_table_json::get_access()
+    - sql_yacc.yy - for GRANT/REVOKE to work
+
+    Important: the enum should contain only single-bit values.
+    In this case, debuggers print bit combinations in the readable form:
+     (gdb) p (privilege_t) (15)
+     $8 = (SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)
+
+    Bit-OR combinations of the above values should be declared outside!
+  */
 };
 
 
-constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_ACL_100304;
+// Version markers
+constexpr privilege_t LAST_100304_ACL= DELETE_HISTORY_ACL;
+constexpr privilege_t LAST_100502_ACL= BINLOG_ADMIN_ACL;
+
+// Current version markers
+constexpr privilege_t LAST_CURRENT_ACL= LAST_100502_ACL;
+constexpr uint PRIVILEGE_T_MAX_BIT=
+              my_bit_log2_uint64((ulonglong) LAST_CURRENT_ACL);
+
+static_assert((privilege_t)(1ULL << PRIVILEGE_T_MAX_BIT) == LAST_CURRENT_ACL,
+              "Something went fatally badly: "
+              "LAST_CURRENT_ACL and PRIVILEGE_T_MAX_BIT do not match");
+
+// A combination of all bits defined in 10.3.4 (and earlier)
+constexpr privilege_t ALL_KNOWN_ACL_100304 =
+  (privilege_t) ((LAST_100304_ACL << 1) - 1);
+
+// A combination of all bits defined in 10.5.2
+constexpr privilege_t ALL_KNOWN_ACL_100502=
+  (privilege_t) ((LAST_100502_ACL << 1) - 1);
+
+// A combination of all bits defined as of the current version
+constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_ACL_100502;
 
 
 // Unary operators
@@ -175,6 +214,19 @@ static inline privilege_t& operator|=(privilege_t &a, privilege_t b)
 }
 
 
+/*
+  A combination of all SUPER privileges added since the old user table format.
+  These privileges are automatically added when upgrading from the
+  old format mysql.user table if a user has the SUPER privilege.
+*/
+constexpr privilege_t  GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS=
+  SET_USER_ACL |
+  FEDERATED_ADMIN_ACL |
+  CONNECTION_ADMIN_ACL |
+  READ_ONLY_ADMIN_ACL |
+  REPL_SLAVE_ADMIN_ACL |
+  BINLOG_ADMIN_ACL;
+
 
 constexpr privilege_t COL_DML_ACLS=
   SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL;
@@ -213,7 +265,9 @@ constexpr privilege_t GLOBAL_ACLS=
   DB_ACLS | SHOW_DB_ACL |
   CREATE_USER_ACL | CREATE_TABLESPACE_ACL |
   SUPER_ACL | RELOAD_ACL | SHUTDOWN_ACL | PROCESS_ACL | FILE_ACL |
-  REPL_SLAVE_ACL | REPL_CLIENT_ACL;
+  REPL_SLAVE_ACL | BINLOG_MONITOR_ACL |
+  GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS |
+  REPL_MASTER_ADMIN_ACL;
 
 constexpr privilege_t DEFAULT_CREATE_PROC_ACLS=
   ALTER_PROC_ACL | EXECUTE_ACL;
@@ -228,6 +282,124 @@ constexpr privilege_t SHOW_CREATE_TABLE_ACLS=
 */
 constexpr privilege_t TMP_TABLE_ACLS=
   COL_DML_ACLS | ALL_TABLE_DDL_ACLS;
+
+
+
+/*
+  Allow to set an object definer:
+    CREATE DEFINER=xxx {TRIGGER|VIEW|FUNCTION|PROCEDURE}
+  Was SUPER prior to 10.5.2
+*/
+constexpr privilege_t PRIV_DEFINER_CLAUSE= SET_USER_ACL | SUPER_ACL;
+/*
+  If a VIEW has a `definer=invoker@host` clause and
+  the specified definer does not exists, then
+  - The invoker with REVEAL_MISSING_DEFINER_ACL gets:
+    ERROR: The user specified as a definer ('definer1'@'localhost') doesn't exist
+  - The invoker without MISSING_DEFINER_ACL gets a generic access error,
+    without revealing details that the definer does not exists.
+
+  TODO: we should eventually test the same privilege when processing
+  other objects that have the DEFINER clause (e.g. routines, triggers).
+  Currently the missing definer is revealed for non-privileged invokers
+  in case of routines, triggers, etc.
+
+  Was SUPER prior to 10.5.2
+*/
+constexpr privilege_t PRIV_REVEAL_MISSING_DEFINER= SET_USER_ACL | SUPER_ACL;
+
+/* Actions that require only the SUPER privilege */
+constexpr privilege_t PRIV_DES_DECRYPT_ONE_ARG= SUPER_ACL;
+constexpr privilege_t PRIV_LOG_BIN_TRUSTED_SP_CREATOR= SUPER_ACL;
+constexpr privilege_t PRIV_DEBUG= SUPER_ACL;
+constexpr privilege_t PRIV_SET_GLOBAL_SYSTEM_VARIABLE= SUPER_ACL;
+constexpr privilege_t PRIV_SET_RESTRICTED_SESSION_SYSTEM_VARIABLE= SUPER_ACL;
+
+/* Privileges related to --read-only */
+constexpr privilege_t PRIV_IGNORE_READ_ONLY= READ_ONLY_ADMIN_ACL | SUPER_ACL;
+
+/*
+  Privileges related to connection handling.
+*/
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_IGNORE_INIT_CONNECT= CONNECTION_ADMIN_ACL | SUPER_ACL;
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_IGNORE_MAX_USER_CONNECTIONS= CONNECTION_ADMIN_ACL | SUPER_ACL;
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_IGNORE_MAX_CONNECTIONS= CONNECTION_ADMIN_ACL | SUPER_ACL;
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_IGNORE_MAX_PASSWORD_ERRORS= CONNECTION_ADMIN_ACL | SUPER_ACL;
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_KILL_OTHER_USER_PROCESS= CONNECTION_ADMIN_ACL | SUPER_ACL;
+
+
+/*
+  Binary log related privileges that are checked regardless
+  of active replication running.
+*/
+
+/*
+  This command was renamed from "SHOW MASTER STATUS"
+  to "SHOW BINLOG STATUS" in 10.5.2.
+  Was SUPER_ACL | REPL_CLIENT_ACL prior to 10.5.2
+  REPL_CLIENT_ACL was renamed to BINLOG_MONITOR_ACL.
+*/
+constexpr privilege_t PRIV_STMT_SHOW_BINLOG_STATUS= BINLOG_MONITOR_ACL | SUPER_ACL;
+
+/*
+  Was SUPER_ACL | REPL_CLIENT_ACL prior to 10.5.2
+  REPL_CLIENT_ACL was renamed to BINLOG_MONITOR_ACL.
+*/
+constexpr privilege_t PRIV_STMT_SHOW_BINARY_LOGS= BINLOG_MONITOR_ACL | SUPER_ACL;
+
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_STMT_PURGE_BINLOG= BINLOG_ADMIN_ACL | SUPER_ACL;
+
+// Was REPL_SLAVE_ACL prior to 10.5.2
+constexpr privilege_t PRIV_STMT_SHOW_BINLOG_EVENTS= BINLOG_MONITOR_ACL;
+
+
+/*
+  Privileges for replication related statements and commands
+  that are executed on the master.
+*/
+constexpr privilege_t PRIV_COM_REGISTER_SLAVE= REPL_SLAVE_ACL;
+constexpr privilege_t PRIV_COM_BINLOG_DUMP= REPL_SLAVE_ACL;
+// Was REPL_SLAVE_ACL prior to 10.5.2
+constexpr privilege_t PRIV_STMT_SHOW_SLAVE_HOSTS= REPL_MASTER_ADMIN_ACL;
+
+
+/* Privileges for statements that are executed on the slave */
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_STMT_START_SLAVE= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_STMT_STOP_SLAVE= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_STMT_CHANGE_MASTER= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+// Was (SUPER_ACL | REPL_CLIENT_ACL) prior to 10.5.2
+constexpr privilege_t PRIV_STMT_SHOW_SLAVE_STATUS= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_STMT_BINLOG= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+// Was REPL_SLAVE_ACL prior to 10.5.2
+constexpr privilege_t PRIV_STMT_SHOW_RELAYLOG_EVENTS= REPL_SLAVE_ADMIN_ACL;
+
+
+/* Privileges for federated database related statements */
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_STMT_CREATE_SERVER= FEDERATED_ADMIN_ACL | SUPER_ACL;
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_STMT_ALTER_SERVER= FEDERATED_ADMIN_ACL | SUPER_ACL;
+// Was SUPER_ACL prior to 10.5.2
+constexpr privilege_t PRIV_STMT_DROP_SERVER= FEDERATED_ADMIN_ACL | SUPER_ACL;
+
+
+/* Privileges related to processes */
+constexpr privilege_t PRIV_COM_PROCESS_INFO= PROCESS_ACL;
+constexpr privilege_t PRIV_STMT_SHOW_EXPLAIN= PROCESS_ACL;
+constexpr privilege_t PRIV_STMT_SHOW_ENGINE_STATUS= PROCESS_ACL;
+constexpr privilege_t PRIV_STMT_SHOW_ENGINE_MUTEX= PROCESS_ACL;
+constexpr privilege_t PRIV_STMT_SHOW_PROCESSLIST= PROCESS_ACL;
+
 
 /*
   Defines to change the above bits to how things are stored in tables

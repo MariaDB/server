@@ -3121,7 +3121,7 @@ static const Rdb_collation_codec *rdb_init_collation_mapping(
           for (uint idx = 0; idx < p.second.size(); idx++) {
             uchar src = p.second[idx];
             uchar bits =
-                my_bit_log2(my_round_up_to_next_power(p.second.size()));
+                my_bit_log2_uint32(my_round_up_to_next_power(p.second.size()));
             cur->m_enc_idx[src] = idx;
             cur->m_enc_size[src] = bits;
             cur->m_dec_size[dst] = bits;

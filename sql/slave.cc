@@ -1665,7 +1665,7 @@ bool Sql_cmd_show_slave_status::execute(THD *thd)
   bool res= true;
 
   /* Accept one of two privileges */
-  if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
+  if (check_global_access(thd, PRIV_STMT_SHOW_SLAVE_STATUS))
     goto error;
   if (is_show_all_slaves_stat())
   {

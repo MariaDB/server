@@ -28,7 +28,6 @@
                     // mysql_change_db, check_db_dir_existence,
                     // load_db_opt_by_name
 #include "sql_table.h"                          // write_bin_log
-#include "sql_acl.h"                       // SUPER_ACL
 #include "sp_head.h"
 #include "sp_cache.h"
 #include "lock.h"                               // lock_object_name
@@ -1398,7 +1397,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
 	  goto done;
 	}
       }
-      if (!(thd->security_ctx->master_access & SUPER_ACL))
+      if (!(thd->security_ctx->master_access & PRIV_LOG_BIN_TRUSTED_SP_CREATOR))
       {
         my_error(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER,MYF(0));
 	goto done;

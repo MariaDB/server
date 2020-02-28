@@ -30,7 +30,6 @@
 #include "key.h"     // key_copy, key_unpack, key_cmp_if_same, key_cmp
 #include "sql_table.h"                   // build_table_filename
 #include "sql_parse.h"                          // check_stack_overrun
-#include "sql_acl.h"            // SUPER_ACL
 #include "sql_base.h"           // TDC_element
 #include "discover.h"           // extension_based_table_discovery, etc
 #include "log_event.h"          // *_rows_log_event
@@ -1563,7 +1562,7 @@ int ha_commit_trans(THD *thd, bool all)
 
   if (rw_trans &&
       opt_readonly &&
-      !(thd->security_ctx->master_access & SUPER_ACL) &&
+      !(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
       !thd->slave_thread)
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");

@@ -34,7 +34,6 @@
 #include "sql_parse.h"                          // command_name
 #include "sql_time.h"           // calc_time_from_sec, my_time_compare
 #include "tztime.h"             // my_tz_OFFSET0, struct Time_zone
-#include "sql_acl.h"            // SUPER_ACL
 #include "log_event.h"          // Query_log_event
 #include "rpl_filter.h"
 #include "rpl_rli.h"
@@ -10496,7 +10495,7 @@ static struct st_mysql_sys_var *binlog_sys_vars[]=
 /*
   Copy out the non-directory part of binlog position filename for the
   `binlog_snapshot_file' status variable, same way as it is done for
-  SHOW MASTER STATUS.
+  SHOW BINLOG STATUS.
 */
 static void
 set_binlog_snapshot_file(const char *src)

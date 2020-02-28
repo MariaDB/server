@@ -2520,7 +2520,7 @@ static int myisam_init(void *p)
   else
     myisam_recover_options= HA_RECOVER_OFF;
 
-  myisam_block_size=(uint) 1 << my_bit_log2(opt_myisam_block_size);
+  myisam_block_size=(uint) 1 << my_bit_log2_uint64(opt_myisam_block_size);
 
   hton= (handlerton *)p;
   hton->db_type= DB_TYPE_MYISAM;

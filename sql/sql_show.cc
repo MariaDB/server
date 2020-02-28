@@ -480,7 +480,10 @@ static struct show_privileges_st sys_privileges[]=
   {"Proxy", "Server Admin", "To make proxy user possible"},
   {"References", "Databases,Tables", "To have references on tables"},
   {"Reload", "Server Admin", "To reload or refresh tables, logs and privileges"},
-  {"Replication client","Server Admin","To ask where the slave or master servers are"},
+  {"Binlog admin", "Server", "To purge binary logs"},
+  {"Binlog monitor", "Server", "To use SHOW BINLOG STATUS and SHOW BINARY LOG"},
+  {"Replication master admin", "Server", "To monitor connected slaves"},
+  {"Replication slave admin", "Server", "To start/monitor/stop slave and apply binlog events"},
   {"Replication slave","Server Admin","To read binary log events from the master"},
   {"Select", "Tables",  "To retrieve rows from table"},
   {"Show databases","Server Admin","To see all databases with SHOW DATABASES"},
@@ -490,6 +493,10 @@ static struct show_privileges_st sys_privileges[]=
   {"Trigger","Tables", "To use triggers"},
   {"Create tablespace", "Server Admin", "To create/alter/drop tablespaces"},
   {"Update", "Tables",  "To update existing rows"},
+  {"Set user","Server", "To create views and stored routines with a different definer"},
+  {"Federated admin", "Server", "To execute the CREATE SERVER, ALTER SERVER, DROP SERVER statements"},
+  {"Connection admin", "Server", "To bypass connection limits and kill other users' connections"},
+  {"Read_only admin", "Server", "To perform write operations even if @@read_only=ON"},
   {"Usage","Server Admin","No privileges - allow connect only"},
   {NullS, NullS, NullS}
 };
@@ -3053,8 +3060,8 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
 
   DBUG_ASSERT(cond==NULL);
   thread_id= thd->lex->value_list.head()->val_int();
-  calling_user= (thd->security_ctx->master_access & PROCESS_ACL) ?  NullS :
-                 thd->security_ctx->priv_user;
+  calling_user= (thd->security_ctx->master_access & PRIV_STMT_SHOW_EXPLAIN) ?
+                 NullS : thd->security_ctx->priv_user;
 
   if ((tmp= find_thread_by_id(thread_id)))
   {
@@ -3171,8 +3178,9 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
   const char *val;
   ulonglong max_counter;
   bool got_thd_data;
-  char *user= arg->thd->security_ctx->master_access & PROCESS_ACL ?
-              NullS : arg->thd->security_ctx->priv_user;
+  char *user=
+          arg->thd->security_ctx->master_access & PRIV_STMT_SHOW_PROCESSLIST ?
+          NullS : arg->thd->security_ctx->priv_user;
 
   if ((!tmp->vio_ok() && !tmp->system_thread) ||
       (user && (tmp->system_thread || !tmp_sctx->user ||

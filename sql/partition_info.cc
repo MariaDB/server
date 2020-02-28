@@ -30,7 +30,6 @@
                                            // NOT_A_PARTITION_ID
 #include "partition_info.h"
 #include "sql_parse.h"
-#include "sql_acl.h"                          // *_ACL
 #include "sql_base.h"                         // fill_record
 #include "lock.h"
 #include "table.h"

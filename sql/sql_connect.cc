@@ -35,7 +35,6 @@
 #include "sql_db.h"                             // mysql_change_db
 #include "hostname.h" // inc_host_errors, ip_to_hostname,
                       // reset_host_errors
-#include "privilege.h"  // acl_getroot, SUPER_ACL
 #include "sql_callback.h"
 
 #ifdef WITH_WSREP
@@ -140,7 +139,7 @@ int check_for_max_user_connections(THD *thd, USER_CONN *uc)
   if (global_system_variables.max_user_connections &&
       !uc->user_resources.user_conn &&
       global_system_variables.max_user_connections < uc->connections &&
-      !(thd->security_ctx->master_access & SUPER_ACL))
+      !(thd->security_ctx->master_access & PRIV_IGNORE_MAX_USER_CONNECTIONS))
   {
     my_error(ER_TOO_MANY_USER_CONNECTIONS, MYF(0), uc->user);
     error=1;
@@ -1246,7 +1245,8 @@ void prepare_new_connection_state(THD* thd)
   thd->set_command(COM_SLEEP);
   thd->init_for_queries();
 
-  if (opt_init_connect.length && !(sctx->master_access & SUPER_ACL))
+  if (opt_init_connect.length &&
+      !(sctx->master_access & PRIV_IGNORE_INIT_CONNECT))
   {
     execute_init_command(thd, &opt_init_connect, &LOCK_sys_init_connect);
     if (unlikely(thd->is_error()))

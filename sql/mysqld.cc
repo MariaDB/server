@@ -3443,7 +3443,7 @@ SHOW_VAR com_status_vars[]= {
   {"show_generic",         STMT_STATUS(SQLCOM_SHOW_GENERIC)},
   {"show_grants",          STMT_STATUS(SQLCOM_SHOW_GRANTS)},
   {"show_keys",            STMT_STATUS(SQLCOM_SHOW_KEYS)},
-  {"show_master_status",   STMT_STATUS(SQLCOM_SHOW_MASTER_STAT)},
+  {"show_binlog_status",   STMT_STATUS(SQLCOM_SHOW_BINLOG_STAT)},
   {"show_open_tables",     STMT_STATUS(SQLCOM_SHOW_OPEN_TABLES)},
   {"show_package_status",  STMT_STATUS(SQLCOM_SHOW_STATUS_PACKAGE)},
 #ifndef DBUG_OFF

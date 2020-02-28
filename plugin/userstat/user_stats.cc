@@ -34,7 +34,7 @@ static ST_FIELD_INFO user_stats_fields[]=
 
 static int user_stats_fill(THD* thd, TABLE_LIST* tables, COND* cond)
 {
-  if (check_global_access(thd, SUPER_ACL | PROCESS_ACL, true))
+  if (check_global_access(thd, PROCESS_ACL, true))
     return 0;
 
   return send_user_stats(thd, &global_user_stats,  tables->table);

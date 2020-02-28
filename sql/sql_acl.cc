@@ -1001,7 +1001,7 @@ class User_table_tabular: public User_table
     {
       access|= LOCK_TABLES_ACL | CREATE_TMP_ACL | SHOW_DB_ACL;
       if (access & FILE_ACL)
-        access|= REPL_CLIENT_ACL | REPL_SLAVE_ACL;
+        access|= BINLOG_MONITOR_ACL | REPL_SLAVE_ACL | BINLOG_ADMIN_ACL ;
       if (access & PROCESS_ACL)
         access|= SUPER_ACL | EXECUTE_ACL;
     }
@@ -1028,6 +1028,12 @@ class User_table_tabular: public User_table
 
     if (num_fields() <= 46 && (access & DELETE_ACL))
       access|= DELETE_HISTORY_ACL;
+
+    if (access & SUPER_ACL)
+      access|= GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS;
+
+    if (access & REPL_SLAVE_ACL)
+      access|= REPL_MASTER_ADMIN_ACL;
 
     return access & GLOBAL_ACLS;
   }
@@ -1503,12 +1509,26 @@ class User_table_json: public User_table
   privilege_t adjust_access(ulonglong version_id, ulonglong access) const
   {
     privilege_t mask= ALL_KNOWN_ACL_100304;
-    if (access & ~mask)
+    ulonglong orig_access= access;
+    if (version_id >= 100502)
     {
-      print_warning_bad_access(version_id, mask, access);
+      mask= ALL_KNOWN_ACL_100502;
+    }
+    else // 100501 or earlier
+    {
+      if (access & SUPER_ACL)
+        access|= GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS;
+
+      if (access & REPL_SLAVE_ACL)
+        access|= REPL_MASTER_ADMIN_ACL;
+    }
+
+    if (orig_access & ~mask)
+    {
+      print_warning_bad_access(version_id, mask, orig_access);
       return NO_ACL;
     }
-    return access & mask;
+    return access & ALL_KNOWN_ACL;
   }
 
   privilege_t get_access() const
@@ -8857,17 +8877,30 @@ static const char *command_array[]=
   "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "RELOAD",
   "SHUTDOWN", "PROCESS","FILE", "GRANT", "REFERENCES", "INDEX",
   "ALTER", "SHOW DATABASES", "SUPER", "CREATE TEMPORARY TABLES",
-  "LOCK TABLES", "EXECUTE", "REPLICATION SLAVE", "REPLICATION CLIENT",
+  "LOCK TABLES", "EXECUTE", "REPLICATION SLAVE", "BINLOG MONITOR",
   "CREATE VIEW", "SHOW VIEW", "CREATE ROUTINE", "ALTER ROUTINE",
-  "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE",
-  "DELETE HISTORY"
+  "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE", "DELETE HISTORY",
+  "SET USER", "FEDERATED ADMIN", "CONNECTION ADMIN", "READ_ONLY ADMIN",
+  "REPLICATION SLAVE ADMIN", "REPLICATION MASTER ADMIN", "BINLOG ADMIN"
 };
 
 static uint command_lengths[]=
 {
-  6, 6, 6, 6, 6, 4, 6, 8, 7, 4, 5, 10, 5, 5, 14, 5, 23, 11, 7, 17, 18, 11, 9,
-  14, 13, 11, 5, 7, 17, 14,
+  6, 6, 6, 6, 6, 4, 6,
+  8, 7, 4, 5, 10, 5,
+  5, 14, 5, 23,
+  11, 7, 17, 14,
+  11, 9, 14, 13,
+  11, 5, 7, 17, 14,
+  8, 15, 16, 15,
+  23, 24, 12
 };
+
+
+static_assert(array_elements(command_array) == PRIVILEGE_T_MAX_BIT + 1,
+              "The definition of command_array does not match privilege_t");
+static_assert(array_elements(command_lengths) == PRIVILEGE_T_MAX_BIT + 1,
+              "The definition of command_lengths does not match privilege_t");
 
 
 static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
@@ -12993,7 +13026,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
 static bool ignore_max_password_errors(const ACL_USER *acl_user)
 {
  const char *host= acl_user->host.hostname;
- return (acl_user->access & SUPER_ACL)
+ return (acl_user->access & PRIV_IGNORE_MAX_PASSWORD_ERRORS)
    && (!strcasecmp(host, "localhost") ||
        !strcmp(host, "127.0.0.1") ||
        !strcmp(host, "::1"));
@@ -14191,7 +14224,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
               (longlong) sctx->master_access, mpvio.db.str));
 
   if (command == COM_CONNECT &&
-      !(thd->main_security_ctx.master_access & SUPER_ACL))
+      !(thd->main_security_ctx.master_access & PRIV_IGNORE_MAX_CONNECTIONS))
   {
     if (*thd->scheduler->connection_count > *thd->scheduler->max_connections)
     {                                         // too many connections

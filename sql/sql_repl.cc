@@ -24,7 +24,6 @@
 #include "rpl_mi.h"
 #include "rpl_rli.h"
 #include "sql_repl.h"
-#include "sql_acl.h"                            // SUPER_ACL
 #include "log_event.h"
 #include "rpl_filter.h"
 #include <my_dir.h>
@@ -3081,7 +3080,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("start_slave");
 
-  if (check_access(thd, SUPER_ACL, any_db, NULL, NULL, 0, 0))
+  if (check_global_access(thd, PRIV_STMT_START_SLAVE))
     DBUG_RETURN(-1);
 
   create_logfile_name_with_suffix(master_info_file_tmp,
@@ -3284,7 +3283,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
   DBUG_ENTER("stop_slave");
   DBUG_PRINT("enter",("Connection: %s", mi->connection_name.str));
 
-  if (check_access(thd, SUPER_ACL, any_db, NULL, NULL, 0, 0))
+  if (check_global_access(thd, PRIV_STMT_STOP_SLAVE))
     DBUG_RETURN(-1);
   THD_STAGE_INFO(thd, stage_killing_slave);
   int thread_mask;
@@ -4217,7 +4216,7 @@ void show_binlog_info_get_fields(THD *thd, List<Item> *field_list)
 
 
 /**
-  Execute a SHOW MASTER STATUS statement.
+  Execute a SHOW BINLOG STATUS statement.
 
   @param thd Pointer to THD object for the client thread executing the
   statement.

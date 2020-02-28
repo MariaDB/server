@@ -43,7 +43,6 @@
 #include "sql_base.h"            // setup_wild, setup_fields, fill_record
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_partition.h"       // make_used_partitions_str
-#include "sql_acl.h"             // *_ACL
 #include "sql_test.h"            // print_where, print_keyuse_array,
                                  // print_sjm, print_plan, TEST_join
 #include "records.h"             // init_read_record, end_read_record

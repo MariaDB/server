@@ -76,7 +76,6 @@
 #include "lock.h"
 #include "sql_base.h"                       // close_tables_for_reopen
 #include "sql_parse.h"                     // is_log_table_write_query
-#include "sql_acl.h"                       // SUPER_ACL
 #include "sql_handler.h"
 #include <hash.h>
 #include "wsrep_mysqld.h"
@@ -109,12 +108,13 @@ static int
 lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
 {
   uint system_count, i;
-  bool is_superuser, log_table_write_query;
+  bool ignore_read_only, log_table_write_query;
 
   DBUG_ENTER("lock_tables_check");
 
   system_count= 0;
-  is_superuser= (thd->security_ctx->master_access & SUPER_ACL) != NO_ACL;
+  ignore_read_only=
+    (thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) != NO_ACL;
   log_table_write_query= (is_log_table_write_query(thd->lex->sql_command)
                          || ((flags & MYSQL_LOCK_LOG_TABLE) != 0));
 
@@ -179,7 +179,7 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
     if (!(flags & MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY) && !t->s->tmp_table)
     {
       if (t->reginfo.lock_type >= TL_WRITE_ALLOW_WRITE &&
-          !is_superuser && opt_readonly && !thd->slave_thread)
+          !ignore_read_only && opt_readonly && !thd->slave_thread)
       {
         my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
         DBUG_RETURN(1);

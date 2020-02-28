@@ -43,7 +43,6 @@
 #include "set_var.h"
 #include "sql_base.h"
 #include "sql_time.h"
-#include "sql_acl.h"                            // SUPER_ACL
 #include "des_key_file.h"       // st_des_keyschedule, st_des_keyblock
 #include "password.h"           // my_make_scrambled_password,
                                 // my_make_scrambled_password_323
@@ -838,7 +837,7 @@ String *Item_func_des_decrypt::val_str(String *str)
   {
     uint key_number=(uint) (*res)[0] & 127;
     // Check if automatic key and that we have privilege to uncompress using it
-    if (!(current_thd->security_ctx->master_access & SUPER_ACL) ||
+    if (!(current_thd->security_ctx->master_access & PRIV_DES_DECRYPT_ONE_ARG) ||
         key_number > 9)
       goto error;
 

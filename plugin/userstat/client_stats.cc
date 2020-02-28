@@ -78,7 +78,7 @@ static int send_user_stats(THD* thd, HASH *all_user_stats, TABLE *table)
 
 static int client_stats_fill(THD* thd, TABLE_LIST* tables, COND* cond)
 {
-  if (check_global_access(thd, SUPER_ACL | PROCESS_ACL, true))
+  if (check_global_access(thd, PROCESS_ACL, true))
     return 0;
 
   return send_user_stats(thd, &global_client_stats, tables->table);

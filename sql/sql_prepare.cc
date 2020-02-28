@@ -99,7 +99,6 @@ When one supplies long data for a placeholder:
 #include "sql_insert.h" // upgrade_lock_type_for_insert, mysql_prepare_insert
 #include "sql_update.h" // mysql_prepare_update
 #include "sql_db.h"     // mysql_opt_change_db, mysql_change_db
-#include "sql_acl.h"    // *_ACL
 #include "sql_derived.h" // mysql_derived_prepare,
                          // mysql_handle_derived
 #include "sql_cte.h"
@@ -1949,7 +1948,7 @@ static int mysql_test_show_slave_status(Prepared_statement *stmt,
 
 
 /**
-  Validate and prepare for execution SHOW MASTER STATUS statement.
+  Validate and prepare for execution SHOW BINLOG STATUS statement.
 
   @param stmt               prepared statement
 
@@ -1959,9 +1958,9 @@ static int mysql_test_show_slave_status(Prepared_statement *stmt,
     TRUE              error, error message is set in THD
 */
 
-static int mysql_test_show_master_status(Prepared_statement *stmt)
+static int mysql_test_show_binlog_status(Prepared_statement *stmt)
 {
-  DBUG_ENTER("mysql_test_show_master_status");
+  DBUG_ENTER("mysql_test_show_binlog_status");
   THD *thd= stmt->thd;
   List<Item> fields;
 
@@ -2410,8 +2409,8 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       }
       break;
     }
-  case SQLCOM_SHOW_MASTER_STAT:
-    if ((res= mysql_test_show_master_status(stmt)) == 2)
+  case SQLCOM_SHOW_BINLOG_STAT:
+    if ((res= mysql_test_show_binlog_status(stmt)) == 2)
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);

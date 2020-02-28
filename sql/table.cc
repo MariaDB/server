@@ -27,7 +27,6 @@
 #include "strfunc.h"                            // unhex_type2
 #include "sql_partition.h"       // mysql_unpack_partition,
                                  // fix_partition_func, partition_info
-#include "sql_acl.h"             // *_ACL, acl_getroot_no_password
 #include "sql_base.h"
 #include "create_options.h"
 #include "sql_trigger.h"
@@ -6209,7 +6208,7 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd)
       }
       else
       {
-        if (thd->security_ctx->master_access & SUPER_ACL)
+        if (thd->security_ctx->master_access & PRIV_REVEAL_MISSING_DEFINER)
         {
           my_error(ER_NO_SUCH_USER, MYF(0), definer.user.str, definer.host.str);
 

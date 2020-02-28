@@ -51,7 +51,7 @@ update performance_schema.setup_instruments set enabled='YES';
 
 connection default;
 
-grant super on *.* to pfsuser@localhost;
+grant READ_ONLY ADMIN on *.* to pfsuser@localhost;
 flush privileges;
 
 disconnect con1;

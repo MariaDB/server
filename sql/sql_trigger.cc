@@ -30,7 +30,6 @@
 #include "sql_table.h"                        // build_table_filename,
                                               // check_n_cut_mysql50_prefix
 #include "sql_db.h"                        // get_default_db_collation
-#include "sql_acl.h"                       // *_ACL
 #include "sql_handler.h"                        // mysql_ha_rm_tables
 #include "sp_cache.h"                     // sp_invalidate_cache
 #include <mysys_err.h>
@@ -441,7 +440,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   */
   if (!trust_function_creators                               &&
       (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
-      !(thd->security_ctx->master_access & SUPER_ACL))
+      !(thd->security_ctx->master_access & PRIV_LOG_BIN_TRUSTED_SP_CREATOR))
   {
     my_error(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER, MYF(0));
     DBUG_RETURN(TRUE);
@@ -464,7 +463,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     */
     thd->lex->sql_command= backup.sql_command;
 
-    if (opt_readonly && !(thd->security_ctx->master_access & SUPER_ACL) &&
+    if (opt_readonly &&
+        !(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
         !thd->slave_thread)
     {
       my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");

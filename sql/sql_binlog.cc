@@ -189,7 +189,7 @@ void mysql_client_binlog_statement(THD* thd)
                             thd->lex->comment.length : 2048),
                      thd->lex->comment.str));
 
-  if (check_global_access(thd, SUPER_ACL))
+  if (check_global_access(thd, PRIV_STMT_BINLOG))
     DBUG_VOID_RETURN;
 
   /*

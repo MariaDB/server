@@ -38,7 +38,6 @@
 #include "sql_parse.h"                        /* comp_*_creator */
 #include "sql_table.h"                        /* primary_key_name */
 #include "sql_partition.h"  /* partition_info, HASH_PARTITION */
-#include "sql_acl.h"                          /* *_ACL */
 #include "sql_class.h"      /* Key_part_spec, enum_filetype, Diag_condition_item_name */
 #include "slave.h"
 #include "lex_symbol.h"
@@ -835,6 +834,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %token  <kwd>  EXTENT_SIZE_SYM
 %token  <kwd>  FAST_SYM
 %token  <kwd>  FAULTS_SYM
+%token  <kwd>  FEDERATED_SYM                 /* MariaDB privilege */
 %token  <kwd>  FILE_SYM
 %token  <kwd>  FIRST_SYM                     /* SQL-2003-N */
 %token  <kwd>  FIXED_SYM
@@ -931,6 +931,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %token  <kwd>  MIN_ROWS
 %token  <kwd>  MODE_SYM
 %token  <kwd>  MODIFY_SYM
+%token  <kwd>  MONITOR_SYM                   /* MariaDB privilege */
 %token  <kwd>  MONTH_SYM                     /* SQL-2003-R */
 %token  <kwd>  MUTEX_SYM
 %token  <kwd>  MYSQL_SYM
@@ -13620,9 +13621,13 @@ show_param:
               MYSQL_YYABORT;
             lex->table_type= TABLE_TYPE_SEQUENCE;
           }
+        | BINLOG_SYM STATUS_SYM
+          {
+            Lex->sql_command = SQLCOM_SHOW_BINLOG_STAT;
+          }
         | MASTER_SYM STATUS_SYM
           {
-            Lex->sql_command = SQLCOM_SHOW_MASTER_STAT;
+            Lex->sql_command = SQLCOM_SHOW_BINLOG_STAT;
           }
         | ALL SLAVES STATUS_SYM
           {
@@ -15512,6 +15517,7 @@ keyword_sp_var_and_label:
         | FAST_SYM
         | FOUND_SYM
         | ENABLE_SYM
+        | FEDERATED_SYM
         | FULL
         | FILE_SYM
         | FIRST_SYM
@@ -15590,6 +15596,7 @@ keyword_sp_var_and_label:
         | MIN_ROWS
         | MODIFY_SYM
         | MODE_SYM
+        | MONITOR_SYM
         | MONTH_SYM
         | MUTEX_SYM
         | MYSQL_SYM
@@ -16898,7 +16905,7 @@ object_privilege:
         | CREATE TEMPORARY TABLES { $$= CREATE_TMP_ACL;}
         | LOCK_SYM TABLES         { $$= LOCK_TABLES_ACL; }
         | REPLICATION SLAVE       { $$= REPL_SLAVE_ACL; }
-        | REPLICATION CLIENT_SYM  { $$= REPL_CLIENT_ACL; }
+        | REPLICATION CLIENT_SYM  { $$= BINLOG_MONITOR_ACL; /*Compatibility*/ }
         | CREATE VIEW_SYM         { $$= CREATE_VIEW_ACL; }
         | SHOW VIEW_SYM           { $$= SHOW_VIEW_ACL; }
         | CREATE ROUTINE_SYM      { $$= CREATE_PROC_ACL; }
@@ -16908,6 +16915,15 @@ object_privilege:
         | TRIGGER_SYM             { $$= TRIGGER_ACL; }
         | CREATE TABLESPACE       { $$= CREATE_TABLESPACE_ACL; }
         | DELETE_SYM HISTORY_SYM  { $$= DELETE_HISTORY_ACL; }
+        | SET USER_SYM            { $$= SET_USER_ACL; }
+        | FEDERATED_SYM ADMIN_SYM { $$= FEDERATED_ADMIN_ACL; }
+        | CONNECTION_SYM ADMIN_SYM         { $$= CONNECTION_ADMIN_ACL; }
+        | READ_SYM ONLY_SYM ADMIN_SYM      { $$= READ_ONLY_ADMIN_ACL; }
+        | READ_ONLY_SYM ADMIN_SYM          { $$= READ_ONLY_ADMIN_ACL; }
+        | BINLOG_SYM MONITOR_SYM           { $$= BINLOG_MONITOR_ACL; }
+        | BINLOG_SYM ADMIN_SYM             { $$= BINLOG_ADMIN_ACL; }
+        | REPLICATION MASTER_SYM ADMIN_SYM { $$= REPL_MASTER_ADMIN_ACL; }
+        | REPLICATION SLAVE ADMIN_SYM      { $$= REPL_SLAVE_ADMIN_ACL; }
         ;
 
 opt_and:

@@ -24,7 +24,6 @@
 #include "sql_db.h"                        // get_default_db_collation
 #include "sql_time.h"                      // interval_type_to_name
 #include "tztime.h"                             // struct Time_zone
-#include "sql_acl.h" // SUPER_ACL, MYSQL_DB_FIELD_COUNT, mysql_db_table_fields
 #include "records.h"          // init_read_record, end_read_record
 #include "sp_head.h"
 #include "event_data_objects.h"
@@ -1128,7 +1127,7 @@ update_timing_fields_for_event(THD *thd,
   */
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
-  DBUG_ASSERT(thd->security_ctx->master_access & SUPER_ACL);
+  DBUG_ASSERT(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY);
 
   if (open_event_table(thd, TL_WRITE, &table))
     goto end;

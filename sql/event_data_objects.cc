@@ -25,7 +25,6 @@
                                            // date_add_interval,
                                            // calc_time_diff
 #include "tztime.h"     // my_tz_find, my_tz_OFFSET0, struct Time_zone
-#include "sql_acl.h"    // EVENT_ACL, SUPER_ACL
 #include "sp.h"         // load_charset, load_collation
 #include "events.h"
 #include "event_data_objects.h"
@@ -1518,7 +1517,7 @@ end:
       */
 
       privilege_t saved_master_access(thd->security_ctx->master_access);
-      thd->security_ctx->master_access |= SUPER_ACL;
+      thd->security_ctx->master_access |= PRIV_IGNORE_READ_ONLY;
       bool save_tx_read_only= thd->tx_read_only;
       thd->tx_read_only= false;
 

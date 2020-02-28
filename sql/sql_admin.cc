@@ -26,7 +26,6 @@
 #include "sql_view.h"                        // view_checksum
 #include "sql_table.h"                       // mysql_recreate_table
 #include "debug_sync.h"                      // DEBUG_SYNC
-#include "sql_acl.h"                         // *_ACL
 #include "sp.h"                              // Sroutine_hash_entry
 #include "sql_parse.h"                       // check_table_access
 #include "strfunc.h"

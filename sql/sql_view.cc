@@ -27,7 +27,6 @@
 #include "sql_show.h"    // append_identifier
 #include "sql_table.h"                         // build_table_filename
 #include "sql_db.h"            // mysql_opt_change_db, mysql_change_db
-#include "sql_acl.h"           // *_ACL, check_grant
 #include "sql_select.h"
 #include "parse_file.h"
 #include "sp_head.h"

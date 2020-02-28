@@ -22,7 +22,7 @@
 #include "event_queue.h"
 #include "event_db_repository.h"
 #include "sql_connect.h"         // init_new_connection_handler_thread
-#include "sql_acl.h"             // SUPER_ACL
+#include "sql_class.h"
 
 /**
   @addtogroup Event_Scheduler
@@ -417,7 +417,7 @@ Event_scheduler::start(int *err_no)
 
     Same goes for transaction access mode. Set it to read-write for this thd.
   */
-  new_thd->security_ctx->master_access |= SUPER_ACL;
+  new_thd->security_ctx->master_access |= PRIV_IGNORE_READ_ONLY;
   new_thd->variables.tx_read_only= false;
   new_thd->tx_read_only= false;
 
