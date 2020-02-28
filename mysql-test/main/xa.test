@@ -476,5 +476,34 @@ XA END 'xid1';
 XA ROLLBACK 'xid1';
 DROP TABLE t1, t2, t3;
 
---source include/wait_until_count_sessions.inc
 
+--echo #
+--echo # MDEV-21766 - Forbid XID with empty 'gtrid'
+--echo #
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+
+--error ER_XAER_INVAL
+XA BEGIN '';
+
+XA BEGIN '8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x',
+         '8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x';
+INSERT INTO t1 VALUES(1);
+XA END '8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x',
+       '8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x';
+XA PREPARE '8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x',
+           '8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x';
+XA ROLLBACK '8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x',
+            '8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x';
+
+SET NAMES utf8;
+--error ER_PARSE_ERROR
+XA BEGIN 'Я_упала_с_сеновала_тормозила_головой'; # 36 characters, 67 bytes
+XA BEGIN 'Я_упaлa_c_сеновала_тормозила_головой'; # 36 characters, 64 bytes
+XA END 'Я_упaлa_c_сеновала_тормозила_головой';
+XA PREPARE 'Я_упaлa_c_сеновала_тормозила_головой';
+XA ROLLBACK 'Я_упaлa_c_сеновала_тормозила_головой';
+SET NAMES default;
+
+DROP TABLE t1;
+
+--source include/wait_until_count_sessions.inc

@@ -497,9 +497,12 @@ static uint16_t trx_undo_header_create(buf_block_t *undo_page, trx_id_t trx_id,
 static void trx_undo_write_xid(buf_block_t *block, uint16_t offset,
                                const XID &xid, mtr_t *mtr)
 {
-  DBUG_ASSERT(xid.gtrid_length >= 0);
+  DBUG_ASSERT(xid.gtrid_length > 0);
   DBUG_ASSERT(xid.bqual_length >= 0);
-  DBUG_ASSERT(xid.gtrid_length + xid.bqual_length < XIDDATASIZE);
+  DBUG_ASSERT(xid.gtrid_length <= MAXGTRIDSIZE);
+  DBUG_ASSERT(xid.bqual_length <= MAXBQUALSIZE);
+  static_assert(MAXGTRIDSIZE + MAXBQUALSIZE == XIDDATASIZE,
+                "gtrid and bqual don't fit xid data");
   DBUG_ASSERT(mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG +
                                block->frame) == offset);
 

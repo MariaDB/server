@@ -432,6 +432,8 @@ bool trans_xa_start(THD *thd)
   /* TODO: JOIN is not supported yet. */
   if (thd->lex->xa_opt != XA_NONE)
     my_error(ER_XAER_INVAL, MYF(0));
+  else if (!thd->lex->xid->gtrid_length)
+    my_error(ER_XAER_INVAL, MYF(0));
   else if (thd->transaction.xid_state.is_explicit_XA())
     thd->transaction.xid_state.er_xaer_rmfail();
   else if (thd->locked_tables_mode || thd->in_active_multi_stmt_transaction())
