@@ -10,7 +10,7 @@ create table foo (a char (255), key (a))charset=utf8;
 insert into foo values (repeat('A', 255));
 explain select a from foo where a > "a";
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	foo	index	a	a	766	NULL	1	Using where; Using index
+1	SIMPLE	foo	range	a	a	766	NULL	1	Using where; Using index
 select a from foo where a > "a";
 a
 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA

@@ -568,18 +568,18 @@ explain extended select * from t1
 where (a,b) not in ((1,2),(8,9), (5,1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DEPENDENT SUBQUERY	<derived3>	index_subquery	key0	key0	8	func,func	2	100.00	Using where; Full scan on NULL key
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where !<expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),(`test`.`t1`.`a`,`test`.`t1`.`b`) in ( <materialize> (/* select#2 */ select `tvc_0`.`_col_1`,`tvc_0`.`_col_2` from (values (1,2),(8,9),(5,1)) `tvc_0` ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`_col_1` and `test`.`t1`.`b` = `<subquery2>`.`_col_2`))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where !<expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),<exists>(<index_lookup>(<cache>(`test`.`t1`.`a`) in (temporary) on key0 where trigcond(<cache>(`test`.`t1`.`a`) = `tvc_0`.`_col_1`) and trigcond(<cache>(`test`.`t1`.`b`) = `tvc_0`.`_col_2`)))))
 explain extended select * from t1
 where (a,b) not in (select * from (values (1,2),(8,9), (5,1)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DEPENDENT SUBQUERY	<derived3>	index_subquery	key0	key0	8	func,func	2	100.00	Using where; Full scan on NULL key
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where !<expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),(`test`.`t1`.`a`,`test`.`t1`.`b`) in ( <materialize> (/* select#2 */ select `tvc_0`.`1`,`tvc_0`.`2` from (values (1,2),(8,9),(5,1)) `tvc_0` ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`1` and `test`.`t1`.`b` = `<subquery2>`.`2`))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where !<expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),<exists>(<index_lookup>(<cache>(`test`.`t1`.`a`) in (temporary) on key0 where trigcond(<cache>(`test`.`t1`.`a`) = `tvc_0`.`1`) and trigcond(<cache>(`test`.`t1`.`b`) = `tvc_0`.`2`)))))
 select * from t1
 where b < 7 and (a,b) not in ((1,2),(8,9), (5,1));
 a	b
@@ -590,10 +590,10 @@ explain extended select * from t1
 where b < 7 and (a,b) not in ((1,2),(8,9), (5,1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DEPENDENT SUBQUERY	<derived3>	index_subquery	key0	key0	8	func,func	2	100.00	Using where; Full scan on NULL key
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` < 7 and !<expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),(`test`.`t1`.`a`,`test`.`t1`.`b`) in ( <materialize> (/* select#2 */ select `tvc_0`.`_col_1`,`tvc_0`.`_col_2` from (values (1,2),(8,9),(5,1)) `tvc_0` ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`_col_1` and `test`.`t1`.`b` = `<subquery2>`.`_col_2`))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` < 7 and !<expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),<exists>(<index_lookup>(<cache>(`test`.`t1`.`a`) in (temporary) on key0 where trigcond(<cache>(`test`.`t1`.`a`) = `tvc_0`.`_col_1`) and trigcond(<cache>(`test`.`t1`.`b`) = `tvc_0`.`_col_2`)))))
 select * from t2
 where (a,c) not in ((1,2),(8,9), (5,1));
 a	b	c
@@ -606,10 +606,10 @@ explain extended select * from t2
 where (a,c) not in ((1,2),(8,9), (5,1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DEPENDENT SUBQUERY	<derived3>	index_subquery	key0	key0	8	func,func	2	100.00	Using where; Full scan on NULL key
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where !<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`c`>(<in_optimizer>((`test`.`t2`.`a`,`test`.`t2`.`c`),(`test`.`t2`.`a`,`test`.`t2`.`c`) in ( <materialize> (/* select#2 */ select `tvc_0`.`_col_1`,`tvc_0`.`_col_2` from (values (1,2),(8,9),(5,1)) `tvc_0` ), <primary_index_lookup>(`test`.`t2`.`a` in <temporary table> on distinct_key where `test`.`t2`.`a` = `<subquery2>`.`_col_1` and `test`.`t2`.`c` = `<subquery2>`.`_col_2`))))
+Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where !<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`c`>(<in_optimizer>((`test`.`t2`.`a`,`test`.`t2`.`c`),<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in (temporary) on key0 where trigcond(<cache>(`test`.`t2`.`a`) = `tvc_0`.`_col_1`) and trigcond(<cache>(`test`.`t2`.`c`) = `tvc_0`.`_col_2`)))))
 drop table t1, t2, t3;
 set @@in_predicate_conversion_threshold= default;
 #

@@ -52,9 +52,9 @@ double get_merge_many_buffs_cost_fast(ha_rows num_rows,
 
   // Calculate CPU cost of sorting buffers.
   total_cost=
-    ( num_buffers * num_keys_per_buffer * log(1.0 + num_keys_per_buffer) +
-      last_n_elems * log(1.0 + last_n_elems) )
-    / TIME_FOR_COMPARE_ROWID;
+    ((num_buffers * num_keys_per_buffer * log(1.0 + num_keys_per_buffer) +
+      last_n_elems * log(1.0 + last_n_elems)) /
+     TIME_FOR_COMPARE_ROWID);
   
   // Simulate behavior of merge_many_buff().
   while (num_buffers >= MERGEBUFF2)

@@ -53,6 +53,8 @@ insert into t1 (a1, a2, b, c, d) values
 ('d','a','b','e412','xy1'),('d','a','b','f412','xy2'),('d','a','b','g412','xy3'),('d','a','b','h412','xy4'),
 ('d','b','a','i421','xy1'),('d','b','a','j421','xy2'),('d','b','a','k421','xy3'),('d','b','a','l421','xy4'),
 ('d','b','b','m422','xy1'),('d','b','b','n422','xy2'),('d','b','b','o422','xy3'),('d','b','b','p422','xy4');
+insert into t1 select * from t1;
+insert into t1 select * from t1;
 
 create index idx_t1_0 on t1 (a1);
 create index idx_t1_1 on t1 (a1,a2,b,c);

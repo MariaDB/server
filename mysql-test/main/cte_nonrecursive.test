@@ -808,9 +808,12 @@ with cte as
 union
 (select a from t1 where a < 2);
 
+--sorted_result
 eval $q1;
 eval prepare stmt from "$q1";
+--sorted_result
 execute stmt;
+--sorted_result
 execute stmt;
 deallocate prepare stmt;
 
@@ -821,9 +824,12 @@ with cte as
 union
 (select a from cte where exists( select a from t1 where cte.a=t1.a ));
 
+--sorted_result
 eval $q2;
 eval prepare stmt from "$q2";
+--sorted_result
 execute stmt;
+--sorted_result
 execute stmt;
 deallocate prepare stmt;
 
@@ -834,9 +840,12 @@ with cte as
 union
 (select a from cte where exists( select a from t1 where cte.a=t1.a ));
 
+--sorted_result
 eval $q3;
 eval prepare stmt from "$q3";
+--sorted_result
 execute stmt;
+--sorted_result
 execute stmt;
 deallocate prepare stmt;
 
@@ -848,9 +857,12 @@ with cte as
 union
 (select a from cte where exists( select a from t1 where cte.a=t1.a ));
 
+--sorted_result
 eval $q4;
 eval prepare stmt from "$q4";
+--sorted_result
 execute stmt;
+--sorted_result
 execute stmt;
 deallocate prepare stmt;
 

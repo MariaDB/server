@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 #
 # Test of heap tables.
 #
@@ -41,7 +43,9 @@ alter table t1 add unique uniq_id using BTREE (a);
 select * from t1 where a > 736494;
 select * from t1 where a = 736494;
 select * from t1 where a=869751 or a=736494;
+--sorted_result
 select * from t1 where a in (869751,736494,226312,802616);
+explain select * from t1 where a in (869751,736494,226312,802616);
 alter table t1 engine=myisam;
 explain select * from t1 where a in (869751,736494,226312,802616);
 drop table t1;
@@ -110,7 +114,7 @@ drop table t1;
 #
 
 create table t1 (btn char(10) not null, key using BTREE (btn)) engine=heap;
-insert into t1 values ("hello"),("hello"),("hello"),("hello"),("hello"),("a"),("b"),("c"),("d"),("e"),("f"),("g"),("h"),("i");
+insert into t1 values ("hello"),("hello"),("hello"),("hello"),("hello"),("hello"),("hello"), ("a"),("b"),("c"),("d"),("e"),("f"),("g"),("h"),("i");
 explain select * from t1 where btn like "i%";
 --replace_column 9 #
 explain select * from t1 where btn like "h%";
@@ -269,12 +273,14 @@ DROP TABLE t1;
 create table t1 (a bit(63) not null) engine=heap;
 insert into t1 values (869751),(736494),(226312),(802616),(728912);
 alter table t1 add unique uniq_id using BTREE (a);
+--sorted_result
 select 0+a from t1 where a > 736494;
 explain select 0+a from t1 where a > 736494;
 select 0+a from t1 where a = 736494;
 explain select 0+a from t1 where a = 736494;
 select 0+a from t1 where a=869751 or a=736494;
 explain select 0+a from t1 where a=869751 or a=736494;
+insert into t1 (a) select * from seq_1_to_100;
 select 0+a from t1 where a in (869751,736494,226312,802616);
 explain select 0+a from t1 where a in (869751,736494,226312,802616);
 drop table t1;

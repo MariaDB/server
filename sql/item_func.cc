@@ -5901,7 +5901,7 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
 {
   DBUG_ENTER("Item_func_match::init_search");
 
-  if (!table->file->get_table()) // the handler isn't opened yet
+  if (!table->file->is_open())
     DBUG_RETURN(0);
 
   /* Check if init_search() has been called before */

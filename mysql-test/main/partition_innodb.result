@@ -699,7 +699,7 @@ EXPLAIN SELECT * FROM t1 WHERE col1 = 1 AND col2 = 2
 AND col3 BETWEEN '2013-03-08 00:00:00' AND '2013-03-12 12:00:00'
 GROUP BY 1, 2, 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	PRIMARY,col1,col2	col1	8	const	#	Using where; Using filesort
+1	SIMPLE	t1	range	PRIMARY,col1,col2	PRIMARY	5	NULL	#	Using where; Using filesort
 SELECT * FROM t1 USE INDEX () WHERE col1 = 1 AND col2 = 2
 AND col3 BETWEEN '2013-03-08 00:00:00' AND '2013-03-12 12:00:00'
 GROUP BY 1, 2, 3;

@@ -54,7 +54,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-4
+3
 INSERT INTO t1 (a00) VALUES ('al');
 INSERT INTO t1 (a00) VALUES ('am');
 INSERT INTO t1 (a00) VALUES ('an');
@@ -68,7 +68,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-5
+4
 INSERT INTO t1 (a00) VALUES ('as');
 INSERT INTO t1 (a00) VALUES ('at');
 INSERT INTO t1 (a00) VALUES ('au');
@@ -82,7 +82,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-6
+5
 INSERT INTO t1 (a00) VALUES ('az');
 INSERT INTO t1 (a00) VALUES ('ba');
 INSERT INTO t1 (a00) VALUES ('bb');
@@ -96,7 +96,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-7
+6
 INSERT INTO t1 (a00) VALUES ('bg');
 INSERT INTO t1 (a00) VALUES ('bh');
 INSERT INTO t1 (a00) VALUES ('bi');
@@ -110,7 +110,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-8
+7
 INSERT INTO t1 (a00) VALUES ('bn');
 INSERT INTO t1 (a00) VALUES ('bo');
 INSERT INTO t1 (a00) VALUES ('bp');
@@ -124,7 +124,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-11
+8
 INSERT INTO t1 (a00) VALUES ('bu');
 INSERT INTO t1 (a00) VALUES ('bv');
 INSERT INTO t1 (a00) VALUES ('bw');
@@ -152,7 +152,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-15
+13
 INSERT INTO t1 (a00) VALUES ('cp');
 INSERT INTO t1 (a00) VALUES ('cq');
 INSERT INTO t1 (a00) VALUES ('cr');
@@ -208,7 +208,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-23
+21
 INSERT INTO t1 (a00) VALUES ('em');
 INSERT INTO t1 (a00) VALUES ('en');
 INSERT INTO t1 (a00) VALUES ('eo');

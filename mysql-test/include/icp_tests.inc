@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 --echo #
 --echo # Bug#36981 - "innodb crash when selecting for update"
 --echo #
@@ -721,10 +723,12 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (b int NOT NULL, c int, a varchar(1024), PRIMARY KEY (b));
 INSERT INTO t1 VALUES (1,4,'Ill');
+insert into t1 select seq+100,5,seq from seq_1_to_100;
 
 CREATE TABLE t2 (a varchar(1024), KEY (a(512)));
 INSERT INTO t2 VALUES
   ('Ill'), ('eckqzsflbzaffti'), ('w'), ('she'), ('gxbwypqtjzwywwer'), ('w');
+insert into t2 select seq from seq_1_to_100;
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
 EXPLAIN

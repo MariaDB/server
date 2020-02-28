@@ -28,6 +28,7 @@ SELECT * FROM t1 WHERE id=8;
 SHOW SESSION STATUS LIKE 'Handler_read%';
 
 FLUSH STATUS;
+SET GLOBAL rocksdb_force_flush_memtable_and_lzero_now=1;
 SELECT * FROM t1 WHERE b=6;
 SHOW SESSION STATUS LIKE 'Handler_read%';
 

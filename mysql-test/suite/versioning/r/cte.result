@@ -138,14 +138,13 @@ where e.mgr = a.emp_id
 select name from emp where emp_id in (select emp_id from ancestors for system_time as of timestamp @ts_1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	emp	ALL	PRIMARY	NULL	NULL	NULL	4	100.00	Using where
-1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-4	MATERIALIZED	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.emp.emp_id	2	100.00	FirstMatch(emp)
 2	DERIVED	e	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 3	RECURSIVE UNION	e	ALL	mgr-fk	NULL	NULL	NULL	4	100.00	Using where
 3	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.e.mgr	2	100.00	
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	with recursive ancestors as (/* select#2 */ select `test`.`e`.`emp_id` AS `emp_id`,`test`.`e`.`name` AS `name`,`test`.`e`.`mgr` AS `mgr`,`test`.`e`.`salary` AS `salary` from `test`.`emp` FOR SYSTEM_TIME ALL `e` where `test`.`e`.`name` = 'bill' and `test`.`e`.`row_end` > @`ts_1` and `test`.`e`.`row_start` <= @`ts_1` union /* select#3 */ select `test`.`e`.`emp_id` AS `emp_id`,`test`.`e`.`name` AS `name`,`test`.`e`.`mgr` AS `mgr`,`test`.`e`.`salary` AS `salary` from `test`.`emp` FOR SYSTEM_TIME ALL `e` join `ancestors` `a` where `a`.`emp_id` = `test`.`e`.`mgr` and `test`.`e`.`row_end` > @`ts_1` and `test`.`e`.`row_start` <= @`ts_1`)/* select#1 */ select `test`.`emp`.`name` AS `name` from `test`.`emp` FOR SYSTEM_TIME ALL semi join (`ancestors`) where `test`.`emp`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999'
+Note	1003	with recursive ancestors as (/* select#2 */ select `test`.`e`.`emp_id` AS `emp_id`,`test`.`e`.`name` AS `name`,`test`.`e`.`mgr` AS `mgr`,`test`.`e`.`salary` AS `salary` from `test`.`emp` FOR SYSTEM_TIME ALL `e` where `test`.`e`.`name` = 'bill' and `test`.`e`.`row_end` > @`ts_1` and `test`.`e`.`row_start` <= @`ts_1` union /* select#3 */ select `test`.`e`.`emp_id` AS `emp_id`,`test`.`e`.`name` AS `name`,`test`.`e`.`mgr` AS `mgr`,`test`.`e`.`salary` AS `salary` from `test`.`emp` FOR SYSTEM_TIME ALL `e` join `ancestors` `a` where `a`.`emp_id` = `test`.`e`.`mgr` and `test`.`e`.`row_end` > @`ts_1` and `test`.`e`.`row_start` <= @`ts_1`)/* select#1 */ select `test`.`emp`.`name` AS `name` from `test`.`emp` FOR SYSTEM_TIME ALL semi join (`ancestors`) where `ancestors`.`emp_id` = `test`.`emp`.`emp_id` and `test`.`emp`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999'
 with recursive
 ancestors
 as

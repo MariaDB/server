@@ -2089,7 +2089,8 @@ int ha_myisam::info(uint flag)
 
     ref_length= misam_info.reflength;
     share->db_options_in_use= misam_info.options;
-    stats.block_size= myisam_block_size;        /* record block size */
+    /* record block size. We adjust with IO_SIZE to not make it too small */
+    stats.block_size= MY_MAX(myisam_block_size, IO_SIZE);
 
     if (table_share->tmp_table == NO_TMP_TABLE)
       mysql_mutex_lock(&table_share->LOCK_share);

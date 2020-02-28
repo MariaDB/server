@@ -4255,7 +4255,7 @@ void select_insert::abort_result_set()
     table will be assigned with view table structure, but that table will
     not be opened really (it is dummy to check fields types & Co).
    */
-  if (table && table->file->get_table())
+  if (table && table->file->is_open())
   {
     bool changed, transactional_table;
     /*

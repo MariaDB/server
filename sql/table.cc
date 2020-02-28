@@ -9185,8 +9185,8 @@ void TABLE_LIST::set_lock_type(THD *thd, enum thr_lock_type lock)
   /* we call it only when table is opened and it is "leaf" table*/
   DBUG_ASSERT(table);
   lock_type= lock;
-  /* table->file->get_table() can be 0 for derived tables */
-  if (table->file && table->file->get_table())
+  /* If not derived tables */
+  if (table->file && table->file->is_open())
     table->file->set_lock_type(lock);
   if (is_merged_derived())
   {

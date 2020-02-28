@@ -1037,7 +1037,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
 explain select count(distinct a1,a2,b,c) from t1 where (a2 >= 'b') and (b = 'a') and (c = 'i121');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	65	Using where; Using index for group-by (scanning)
+1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	65	Using where; Using index for group-by
 explain format=json select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 EXPLAIN
 {
@@ -1070,7 +1070,7 @@ EXPLAIN
       "rows": 65,
       "filtered": 100,
       "attached_condition": "t1.b = 'a' and t1.c = 'i121' and t1.a2 >= 'b'",
-      "using_index_for_group_by": "scanning"
+      "using_index_for_group_by": true
     }
   }
 }

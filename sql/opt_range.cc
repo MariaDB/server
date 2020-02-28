@@ -2671,9 +2671,15 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     scan_time= read_time= DBL_MAX;
   else
   {
-    scan_time= (double) records / TIME_FOR_COMPARE + 1;
-    read_time= (double) head->file->scan_time() + scan_time + 1.1;
-    if (limit < records)
+    scan_time= rows2double(records) / TIME_FOR_COMPARE;
+    /*
+      The 2 is there to prefer range scans to full table scans.
+      This is mainly to make the test suite happy as many tests has
+      very few rows. In real life tables has more than a few rows and the
+      +2 has no practical effect.
+    */
+    read_time= (double) head->file->scan_time() + scan_time + 2;
+    if (limit < records && read_time < (double) records + scan_time + 1 )
     {
       read_time= (double) records + scan_time + 1; // Force to use index
       notnull_cond= NULL;
@@ -2815,8 +2821,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     if (!force_quick_range && !head->covering_keys.is_clear_all())
     {
       int key_for_use= find_shortest_key(head, &head->covering_keys);
-      double key_read_time= head->file->key_scan_time(key_for_use) +
-                            (double) records / TIME_FOR_COMPARE_IDX;
+      double key_read_time= (head->file->key_scan_time(key_for_use) +
+                             rows2double(records) / TIME_FOR_COMPARE);
       DBUG_PRINT("info",  ("'all'+'using index' scan will be using key %d, "
                            "read time %g", key_for_use, key_read_time));
 
@@ -5158,8 +5164,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
       Add one ROWID comparison for each row retrieved on non-CPK scan.  (it
       is done in QUICK_RANGE_SELECT::row_in_ranges)
      */
-    double rid_comp_cost= static_cast<double>(non_cpk_scan_records) /
-                                             TIME_FOR_COMPARE_ROWID;
+    double rid_comp_cost= (rows2double(non_cpk_scan_records) /
+                           TIME_FOR_COMPARE_ROWID);
     imerge_cost+= rid_comp_cost;
     trace_best_disjunct.add("cost_of_mapping_rowid_in_non_clustered_pk_scan",
                             rid_comp_cost);
@@ -5465,7 +5471,7 @@ typedef struct st_common_index_intersect_info
 {
   PARAM *param;           /* context info for range optimizations            */
   uint key_size;          /* size of a ROWID element stored in Unique object */
-  uint compare_factor;         /* 1/compare - cost to compare two ROWIDs     */
+  double compare_factor;  /* 1/compare - cost to compare two ROWIDs     */
   size_t max_memory_size;   /* maximum space allowed for Unique objects   */   
   ha_rows table_cardinality;   /* estimate of the number of records in table */
   double cutoff_cost;        /* discard index intersects with greater costs  */ 
@@ -6160,7 +6166,7 @@ bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
   {
     uint *buff_elems= common_info->buff_elems;
     uint key_size= common_info->key_size;
-    uint compare_factor= common_info->compare_factor;         
+    double compare_factor= common_info->compare_factor;
     size_t max_memory_size= common_info->max_memory_size; 
     
     records_sent_to_unique+= ext_index_scan_records;
@@ -14232,7 +14238,8 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
   DBUG_ENTER("cost_group_min_max");
 
   table_records= table->stat_records();
-  keys_per_block= (uint) (table->file->stats.block_size / 2 /
+  /* Assume block is 75 % full */
+  keys_per_block= (uint) (table->file->stats.block_size * 3 / 4 /
                           (index_info->key_length + table->file->ref_length)
                           + 1);
   num_blocks= (ha_rows)(table_records / keys_per_block) + 1;
@@ -14298,20 +14305,21 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
              b-tree the number of comparisons will be larger.
        TODO: This cost should be provided by the storage engine.
   */
-  const double tree_traversal_cost= 
+  const double tree_traversal_cost=
     ceil(log(static_cast<double>(table_records))/
          log(static_cast<double>(keys_per_block))) * 
-    1/double(2*TIME_FOR_COMPARE); 
+    1/(2*TIME_FOR_COMPARE);
 
   const double cpu_cost= num_groups *
-                         (tree_traversal_cost + 1/double(TIME_FOR_COMPARE_IDX));
+                         (tree_traversal_cost + 1/TIME_FOR_COMPARE_IDX);
 
   *read_cost= io_cost + cpu_cost;
   *records= num_groups;
 
   DBUG_PRINT("info",
-             ("table rows: %lu  keys/block: %u  keys/group: %lu  result rows: %lu  blocks: %lu",
-              (ulong)table_records, keys_per_block, (ulong) keys_per_group, 
+             ("table rows: %lu  keys/block: %u  keys/group: %lu  "
+              "result rows: %lu  blocks: %lu",
+              (ulong) table_records, keys_per_block, (ulong) keys_per_group, 
               (ulong) *records, (ulong) num_blocks));
   DBUG_VOID_RETURN;
 }

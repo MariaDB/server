@@ -2293,6 +2293,9 @@ SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
 EXPLAIN
 SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
 
+EXPLAIN
+SELECT b, c FROM t1 WHERE b = 1 or b=2 GROUP BY b, c;
+
 DROP TABLE t1;
 
 --echo #

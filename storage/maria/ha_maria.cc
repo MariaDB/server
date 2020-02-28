@@ -1091,7 +1091,8 @@ ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
 double ha_maria::scan_time()
 {
   if (file->s->data_file_type == BLOCK_RECORD)
-    return ulonglong2double(stats.data_file_length - file->s->block_size) / MY_MAX(file->s->block_size / 2, IO_SIZE) + 2;
+    return (ulonglong2double(stats.data_file_length - file->s->block_size) /
+            file->s->block_size) + 2;
   return handler::scan_time();
 }
 

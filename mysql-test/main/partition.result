@@ -551,7 +551,7 @@ INSERT INTO `t1` VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),
 INSERT INTO `t2` VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
 EXPLAIN PARTITIONS SELECT c1 FROM t1 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	c1	c1	5	NULL	20	Using where; Using index
+1	SIMPLE	t1	NULL	range	c1	c1	5	NULL	4	Using where; Using index
 FLUSH STATUS;
 SELECT c1 FROM t1 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
 c1
@@ -561,10 +561,10 @@ c1
 19
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
-Handler_read_first	1
-Handler_read_key	0
+Handler_read_first	0
+Handler_read_key	2
 Handler_read_last	0
-Handler_read_next	20
+Handler_read_next	4
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -572,7 +572,7 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 EXPLAIN PARTITIONS SELECT c1 FROM t2 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	a	index	c1	c1	5	NULL	20	Using where; Using index
+1	SIMPLE	t2	a	range	c1	c1	5	NULL	4	Using where; Using index
 FLUSH STATUS;
 SELECT c1 FROM t2 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
 c1
@@ -582,10 +582,10 @@ c1
 19
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
-Handler_read_first	1
-Handler_read_key	0
+Handler_read_first	0
+Handler_read_key	2
 Handler_read_last	0
-Handler_read_next	20
+Handler_read_next	4
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -2360,6 +2360,10 @@ b	c
 1	15
 EXPLAIN
 SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	bc	bc	10	NULL	8	Using where; Using index for group-by
+EXPLAIN
+SELECT b, c FROM t1 WHERE b = 1 or b=2 GROUP BY b, c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	bc	bc	10	NULL	8	Using where; Using index for group-by
 DROP TABLE t1;

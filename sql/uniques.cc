@@ -161,7 +161,7 @@ inline double log2_n_fact(double x)
 
 static double get_merge_buffers_cost(uint *buff_elems, uint elem_size,
                                      uint *first, uint *last,
-                                     uint compare_factor)
+                                     double compare_factor)
 {
   uint total_buf_elems= 0;
   for (uint *pbuf= first; pbuf <= last; pbuf++)
@@ -206,7 +206,7 @@ static double get_merge_buffers_cost(uint *buff_elems, uint elem_size,
 static double get_merge_many_buffs_cost(uint *buffer,
                                         uint maxbuffer, uint max_n_elems,
                                         uint last_n_elems, int elem_size,
-                                        uint compare_factor)
+                                        double compare_factor)
 {
   int i;
   double total_cost= 0.0;
@@ -306,7 +306,7 @@ static double get_merge_many_buffs_cost(uint *buffer,
 
 double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
                             size_t max_in_memory_size,
-                            uint compare_factor,
+                            double compare_factor,
                             bool intersect_fl, bool *in_memory)
 {
   size_t max_elements_in_tree;
