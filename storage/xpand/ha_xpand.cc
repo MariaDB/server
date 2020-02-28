@@ -434,8 +434,9 @@ int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
     return error_code;
 
   // Load the oid of the created table
-  error_code= trx->get_table_oid(norm_db, norm_table, &xpand_table_oid,
-                                 table_share);
+  error_code= trx->get_table_oid(norm_db.c_str(), strlen(norm_db.c_str()),
+                                 norm_table.c_str(), strlen(norm_table.c_str()),
+                                 &xpand_table_oid, table_share);
 
   return error_code;
 }
@@ -558,7 +559,9 @@ int ha_xpand::open(const char *name, int mode, uint test_if_locked)
     if ((error_code= normalize_tablename(name, &norm_db, &norm_table)))
       DBUG_RETURN(error_code);
 
-    error_code= trx->get_table_oid(norm_db, norm_table, &xpand_table_oid,
+    error_code= trx->get_table_oid(norm_db.c_str(), strlen(norm_db.c_str()),
+                                   norm_table.c_str(),
+                                   strlen(norm_table.c_str()), &xpand_table_oid,
                                    table_share);
     if (error_code)
       DBUG_RETURN(error_code);
