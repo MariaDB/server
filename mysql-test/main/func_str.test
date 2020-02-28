@@ -2100,6 +2100,17 @@ DROP TABLE t1, t2;
 --echo #
 
 --echo #
+--echo # MDEV-21841 CONV() function truncates the result type to 21 symbol.
+--echo #
+
+CREATE TABLE t1(i BIGINT);
+INSERT INTO t1 VALUES (-1);
+CREATE TABLE t2 AS SELECT conv(i,16,2) from t1;
+SELECT * FROM t2;
+SHOW CREATE TABLE t2;
+DROP TABLE t1,t2;
+
+--echo #
 --echo # MDEV-18205 Assertion `str_length < len' failed in Binary_string::realloc_raw
 --echo #
 

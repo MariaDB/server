@@ -1205,7 +1205,7 @@ public:
   bool fix_length_and_dec()
   {
     collation.set(default_charset());
-    max_length=64;
+    fix_char_length(64);
     maybe_null= 1;
     return FALSE;
   }
