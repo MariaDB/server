@@ -32,22 +32,6 @@ enum xpand_balance_algorithm_enum {
   XPAND_BALANCE_ROUND_ROBIN
 };
 
-static const int max_host_count = 128;
-class xpand_host_list {
-private:
-  char *strtok_buf;
-public:
-  char *full_list;
-  int hosts_len;
-  char *hosts[max_host_count];
-
-  static xpand_host_list *create(const char *hosts, int *error_code);
-  static xpand_host_list *create(const char *hosts, THD *thd, int *error_code);
-  xpand_host_list() = delete;
-  static void operator delete(void *p);
-};
-
-
 class xpand_connection_cursor;
 class xpand_connection
 {
@@ -147,4 +131,17 @@ private:
   int send_command();
   int read_query_response();
 };
+
+static const int max_host_count = 128;
+class xpand_host_list {
+private:
+  char *strtok_buf;
+public:
+  int hosts_len;
+  char *hosts[max_host_count];
+
+  int fill(const char *hosts);
+  void empty();
+};
+
 #endif  // _xpand_connection_h

@@ -75,15 +75,7 @@ static MYSQL_SYSVAR_ENUM
 //current list of clx hosts
 static PSI_rwlock_key key_xpand_hosts;
 mysql_rwlock_t xpand_hosts_lock;
-xpand_host_list *xpand_hosts;
-
-//only call while holding lock
-static void clear_hosts()
-{
-  delete xpand_hosts;
-  xpand_hosts = NULL;
-  my_atomic_store32(&xpand_hosts_cur, 0);
-}
+xpand_host_list xpand_hosts;
 
 static int check_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
                        void *save, struct st_mysql_value *value)
@@ -91,37 +83,38 @@ static int check_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
   char b;
   int len = 0;
   const char *val = value->val_str(value, &b, &len);
-
   if (!val)
     return HA_ERR_OUT_OF_MEM;
 
-  int error_code = 0;
-  xpand_host_list *host_list = xpand_host_list::create(val, thd, &error_code);
-  if (error_code)
-    return error_code;
+  xpand_host_list *list = static_cast<xpand_host_list*>(
+                          thd_calloc(thd, sizeof(xpand_host_list)));
+  if (!list)
+    return HA_ERR_OUT_OF_MEM;
 
-  *static_cast<xpand_host_list**>(save) = host_list;
+  int error_code = 0;
+  if ((error_code = list->fill(val)))
+    return error_code;
+  list->empty();
+
+  *static_cast<char**>(save) = thd_strdup(thd, val);
   return 0;
 }
 
 static void update_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
                          void *var_ptr, const void *save)
 {
+  char *from_save = *static_cast<char * const *>(save);
+
   mysql_rwlock_wrlock(&xpand_hosts_lock);
 
-  xpand_host_list *from_save = *static_cast<xpand_host_list * const *>(save);
-  char* raw = from_save->full_list;
-
-  int error_code = 0;
-  xpand_host_list *new_hosts = xpand_host_list::create(raw, &error_code);
+  xpand_hosts.empty();
+  int error_code = xpand_hosts.fill(from_save);
   if (error_code) {
     my_printf_error(error_code, "Unhandled error setting xpand hostlist", MYF(0));
     return;
   }
 
-  clear_hosts();
-  xpand_hosts = new_hosts;
-  *static_cast<char**>(var_ptr) = new_hosts->full_list;
+  *static_cast<char**>(var_ptr) = my_strdup(from_save, MYF(MY_WME));
 
   mysql_rwlock_unlock(&xpand_hosts_lock);
 }
@@ -1481,8 +1474,7 @@ static int xpand_init(void *p)
 
   mysql_rwlock_init(key_xpand_hosts, &xpand_hosts_lock);
   mysql_rwlock_wrlock(&xpand_hosts_lock);
-  int error_code = 0;
-  xpand_hosts = xpand_host_list::create(xpand_hosts_str, &error_code);
+  int error_code = xpand_hosts.fill(xpand_hosts_str);
   mysql_rwlock_unlock(&xpand_hosts_lock);
   DBUG_RETURN(error_code);
 }
@@ -1491,7 +1483,7 @@ static int xpand_deinit(void *p)
 {
   DBUG_ENTER("xpand_deinit");
   mysql_rwlock_wrlock(&xpand_hosts_lock);
-  delete xpand_hosts;
+  xpand_hosts.empty();
   mysql_rwlock_destroy(&xpand_hosts_lock);
   DBUG_RETURN(0);
 }

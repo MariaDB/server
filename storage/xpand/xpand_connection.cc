@@ -21,7 +21,6 @@ Copyright (c) 2019, MariaDB Corporation.
 extern int xpand_connect_timeout;
 extern int xpand_read_timeout;
 extern int xpand_write_timeout;
-extern char *xpand_host;
 extern char *xpand_username;
 extern char *xpand_password;
 extern uint xpand_port;
@@ -130,7 +129,7 @@ extern int xpand_hosts_cur;
 extern ulong xpand_balance_algorithm;
 
 extern mysql_rwlock_t xpand_hosts_lock;
-extern xpand_host_list *xpand_hosts;
+extern xpand_host_list xpand_hosts;
 
 int xpand_connection::connect()
 {
@@ -142,9 +141,9 @@ int xpand_connection::connect()
   mysql_rwlock_rdlock(&xpand_hosts_lock);
 
   //search for available host
-  int error_code = 0;
-  for (int i = 0; i < xpand_hosts->hosts_len; i++) {
-    char *host = xpand_hosts->hosts[(start + i) % xpand_hosts->hosts_len];
+  int error_code = ER_BAD_HOST_ERROR;
+  for (int i = 0; i < xpand_hosts.hosts_len; i++) {
+    char *host = xpand_hosts.hosts[(start + i) % xpand_hosts.hosts_len];
     error_code = connect_direct(host);
     if (!error_code)
       break;
@@ -1290,31 +1289,11 @@ int xpand_connection::add_command_operand_bitmap(MY_BITMAP *bitmap)
 ** Class xpand_host_list
 ****************************************************************************/
 
-xpand_host_list *xpand_host_list::create(const char *hosts, int *error_code)
+int xpand_host_list::fill(const char *hosts)
 {
-  return xpand_host_list::create(hosts, NULL, error_code);
-}
-
-xpand_host_list *xpand_host_list::create(const char *hosts, THD *thd, int *error_code)
-{
-  xpand_host_list *list = static_cast<xpand_host_list*>(
-                          thd ?
-                          thd_calloc(thd, sizeof(xpand_host_list)) :
-                          my_malloc(sizeof(xpand_host_list), MYF(MY_WME | MY_ZEROFILL)));
-  if (!list) {
-    *error_code = HA_ERR_OUT_OF_MEM;
-    return NULL;
-  }
-
-  list->full_list = thd ?
-                    thd_strdup(thd, hosts) :
-                    my_strdup(hosts, MYF(MY_WME));
-  list->strtok_buf = thd ?
-                     thd_strdup(thd, hosts) :
-                     my_strdup(hosts, MYF(MY_WME));
-  if (!list->full_list || !list->strtok_buf) {
-    *error_code = HA_ERR_OUT_OF_MEM;
-    return NULL;
+  strtok_buf = my_strdup(hosts, MYF(MY_WME));
+  if (!strtok_buf) {
+    return HA_ERR_OUT_OF_MEM;
   }
 
   const char *sep = ",; ";
@@ -1322,32 +1301,26 @@ xpand_host_list *xpand_host_list::create(const char *hosts, THD *thd, int *error
   int i = 0;
   char *cursor = NULL;
   char *token = NULL;
-  for (token = strtok_r(list->strtok_buf, sep, &cursor);
+  for (token = strtok_r(strtok_buf, sep, &cursor);
        token && i < max_host_count;
        token = strtok_r(NULL, sep, &cursor)) {
-    list->hosts[i] = token;
+    this->hosts[i] = token;
     i++;
   }
 
   //host count out of range
   if (i == 0 || token) {
-    my_free(list->full_list);
-    my_free(list->strtok_buf);
-    my_free(list);
-    *error_code = ER_BAD_HOST_ERROR;
-    return NULL;
+    my_free(strtok_buf);
+    return ER_BAD_HOST_ERROR;
   }
-  list->hosts_len = i;
+  hosts_len = i;
 
-  return list;
+  return 0;
 }
 
-void xpand_host_list::operator delete(void *p)
+void xpand_host_list::empty()
 {
-  xpand_host_list *list = static_cast<xpand_host_list*>(p);
-  if (list) {
-    my_free(list->full_list);
-    my_free(list->strtok_buf);
-  }
-  my_free(list);
+  my_free(strtok_buf);
+  strtok_buf = NULL;
+  hosts_len = 0;
 }
