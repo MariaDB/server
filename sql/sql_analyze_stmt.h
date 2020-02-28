@@ -221,7 +221,9 @@ public:
     time_tracker(do_timing), r_limit(0), r_used_pq(0),
     r_examined_rows(0), r_sorted_rows(0), r_output_rows(0),
     sort_passes(0),
-    sort_buffer_size(0)
+    sort_buffer_size(0),
+    r_using_addons(false),
+    r_packed_addon_fields(false)
   {}
   
   /* Functions that filesort uses to report various things about its execution */
@@ -263,6 +265,14 @@ public:
     else
       sort_buffer_size= bufsize;
   }
+
+  inline void report_addon_fields_format(bool addons_packed)
+  {
+    r_using_addons= true;
+    r_packed_addon_fields= addons_packed;
+  }
+
+  void get_data_format(String *str);
   
   /* Functions to get the statistics */
   void print_json_members(Json_writer *writer);
@@ -322,6 +332,8 @@ private:
     other          - value
   */
   ulonglong sort_buffer_size;
+  bool r_using_addons;
+  bool r_packed_addon_fields;
 };
 
 

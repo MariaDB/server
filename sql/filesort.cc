@@ -298,6 +298,12 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     tracker->report_sort_buffer_size(sort->sort_buffer_size());
   }
 
+  if (param.using_addon_fields())
+  {
+    // report information whether addon fields are packed or not
+    tracker->report_addon_fields_format(param.using_packed_addons());
+  }
+
   if (open_cached_file(&buffpek_pointers,mysql_tmpdir,TEMP_PREFIX,
 		       DISK_BUFFER_SIZE, MYF(MY_WME)))
     goto err;

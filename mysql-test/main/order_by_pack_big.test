@@ -109,6 +109,8 @@ let $query= select id DIV 100 as x,
 --echo #
 
 set sort_buffer_size=262144*10;
+--source include/analyze-format.inc
+eval analyze format=json $query;
 flush status;
 eval $query;
 show status like '%sort%';
@@ -119,6 +121,8 @@ set sort_buffer_size=default;
 --echo #
 
 set sort_buffer_size=32768;
+--source include/analyze-format.inc
+eval analyze format=json $query;
 flush status;
 eval $query;
 show status like '%sort%';
