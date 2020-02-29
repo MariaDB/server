@@ -129,7 +129,7 @@ extern int xpand_hosts_cur;
 extern ulong xpand_balance_algorithm;
 
 extern mysql_rwlock_t xpand_hosts_lock;
-extern xpand_host_list xpand_hosts;
+extern xpand_host_list *xpand_hosts;
 
 int xpand_connection::connect()
 {
@@ -142,8 +142,8 @@ int xpand_connection::connect()
 
   //search for available host
   int error_code = ER_BAD_HOST_ERROR;
-  for (int i = 0; i < xpand_hosts.hosts_len; i++) {
-    char *host = xpand_hosts.hosts[(start + i) % xpand_hosts.hosts_len];
+  for (int i = 0; i < xpand_hosts->hosts_len; i++) {
+    char *host = xpand_hosts->hosts[(start + i) % xpand_hosts->hosts_len];
     error_code = connect_direct(host);
     if (!error_code)
       break;
