@@ -211,7 +211,7 @@ void mysql_client_binlog_statement(THD* thd)
   size_t coded_len= 0, decoded_len= 0;
 
   rli= thd->rli_fake;
-  if (!rli && (rli= thd->rli_fake= new Relay_log_info(FALSE)))
+  if (!rli && (rli= thd->rli_fake= new Relay_log_info(FALSE, "BINLOG_BASE64_EVENT")))
     rli->sql_driver_thd= thd;
   if (!(rgi= thd->rgi_fake))
     rgi= thd->rgi_fake= new rpl_group_info(rli);
