@@ -1408,7 +1408,7 @@ recv_find_max_checkpoint_0(ulint* max_field)
 /** Same as cals_lsn_offset() except that it supports multiple files */
 lsn_t log_t::file::calc_lsn_offset_old(lsn_t lsn) const
 {
-  ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+  ut_ad(log_sys.mutex.is_owned() || log_write_lock_own());
   const lsn_t size= capacity() * recv_sys.files_size();
   lsn_t l= lsn - this->lsn;
   if (longlong(l) < 0)
