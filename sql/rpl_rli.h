@@ -387,11 +387,11 @@ public:
   */
   slave_connection_state restart_gtid_pos;
 
-  Relay_log_info(bool is_slave_recovery);
+  Relay_log_info(bool is_slave_recovery, const char* thread_name= "SQL");
   ~Relay_log_info();
 
   /*
-    Invalidate cached until_log_name and group_relay_log_name comparison 
+    Invalidate cached until_log_name and group_relay_log_name comparison
     result. Should be called after any update of group_realy_log_name if
     there chances that sql_thread is running.
   */
