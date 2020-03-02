@@ -450,8 +450,8 @@ int spider_db_conn_queue_action(
         (!conn->queued_autocommit_val && conn->autocommit != 0)
       ) &&
       !conn->db_conn->set_autocommit_in_bulk_sql() &&
-      (error_num = spider_dbton[conn->dbton_id].db_util->
-        append_autocommit(&sql_str, conn->queued_autocommit_val))
+      (error_num = conn->db_conn->
+        set_autocommit(conn->queued_autocommit_val, (int *) conn->need_mon))
     ) {
       DBUG_RETURN(error_num);
     }
@@ -462,8 +462,8 @@ int spider_db_conn_queue_action(
         (!conn->queued_sql_log_off_val && conn->sql_log_off != 0)
       ) &&
       !conn->db_conn->set_sql_log_off_in_bulk_sql() &&
-      (error_num = spider_dbton[conn->dbton_id].db_util->
-        append_sql_log_off(&sql_str, conn->queued_sql_log_off_val))
+      (error_num = conn->db_conn->
+        set_sql_log_off(conn->queued_sql_log_off_val, (int *) conn->need_mon))
     ) {
       DBUG_RETURN(error_num);
     }
@@ -471,8 +471,9 @@ int spider_db_conn_queue_action(
       conn->queued_wait_timeout &&
       conn->queued_wait_timeout_val != conn->wait_timeout &&
       !conn->db_conn->set_wait_timeout_in_bulk_sql() &&
-      (error_num = spider_dbton[conn->dbton_id].db_util->
-        append_wait_timeout(&sql_str, conn->queued_wait_timeout_val))
+      (error_num = conn->db_conn->
+        set_wait_timeout(conn->queued_wait_timeout_val,
+        (int *) conn->need_mon))
     ) {
       DBUG_RETURN(error_num);
     }
@@ -480,8 +481,9 @@ int spider_db_conn_queue_action(
       conn->queued_sql_mode &&
       conn->queued_sql_mode_val != conn->sql_mode &&
       !conn->db_conn->set_sql_mode_in_bulk_sql() &&
-      (error_num = spider_dbton[conn->dbton_id].db_util->
-        append_sql_mode(&sql_str, conn->queued_sql_mode_val))
+      (error_num = conn->db_conn->
+        set_sql_mode(conn->queued_sql_mode_val,
+        (int *) conn->need_mon))
     ) {
       DBUG_RETURN(error_num);
     }
@@ -489,8 +491,9 @@ int spider_db_conn_queue_action(
       conn->queued_time_zone &&
       conn->queued_time_zone_val != conn->time_zone &&
       !conn->db_conn->set_time_zone_in_bulk_sql() &&
-      (error_num = spider_dbton[conn->dbton_id].db_util->
-        append_time_zone(&sql_str, conn->queued_time_zone_val))
+      (error_num = conn->db_conn->
+        set_time_zone(conn->queued_time_zone_val,
+        (int *) conn->need_mon))
     ) {
       DBUG_RETURN(error_num);
     }
