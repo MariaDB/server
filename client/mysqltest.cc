@@ -5892,13 +5892,21 @@ do_handle_error:
 
 */
 
+enum use_ssl
+{
+  USE_SSL_FORBIDDEN = -1,
+  USE_SSL_IF_POSSIBLE,
+  USE_SSL_REQUIRED
+};
+
 void do_connect(struct st_command *command)
 {
+  uint protocol= opt_protocol;
   int con_port= opt_port;
   char *con_options;
   char *ssl_cipher __attribute__((unused))= 0;
-  my_bool con_ssl= 0, con_compress= 0;
-  my_bool con_pipe= 0;
+  enum use_ssl con_ssl= USE_SSL_IF_POSSIBLE;
+  my_bool con_compress= 0;
   int read_timeout= 0;
   int write_timeout= 0;
   int connect_timeout= 0;
@@ -5980,16 +5988,38 @@ void do_connect(struct st_command *command)
       end++;
     length= (size_t) (end - con_options);
     if (length == 3 && !strncmp(con_options, "SSL", 3))
-      con_ssl= 1;
+      con_ssl= USE_SSL_REQUIRED;
+    else if (length == 5 && !strncmp(con_options, "NOSSL", 5))
+      con_ssl= USE_SSL_FORBIDDEN;
     else if (!strncmp(con_options, "SSL-CIPHER=", 11))
     {
-      con_ssl= 1;
+      con_ssl= USE_SSL_REQUIRED;
       ssl_cipher=con_options + 11;
     }
     else if (length == 8 && !strncmp(con_options, "COMPRESS", 8))
       con_compress= 1;
+    else if (length == 3 && !strncmp(con_options, "TCP", 3))
+      protocol= MYSQL_PROTOCOL_TCP;
+    else if (length == 7 && !strncmp(con_options, "DEFAULT", 7))
+      protocol= MYSQL_PROTOCOL_DEFAULT;
     else if (length == 4 && !strncmp(con_options, "PIPE", 4))
-      con_pipe= 1;
+    {
+#ifdef _WIN32
+      protocol= MYSQL_PROTOCOL_PIPE;
+#endif
+    }
+    else if (length == 6 && !strncmp(con_options, "SOCKET", 6))
+    {
+#ifndef _WIN32
+      protocol= MYSQL_PROTOCOL_SOCKET;
+#endif
+    }
+    else if (length == 6 && !strncmp(con_options, "MEMORY", 6))
+    {
+#ifdef _WIN32
+      protocol= MYSQL_PROTOCOL_MEMORY;
+#endif
+    }
     else if (strncasecmp(con_options, "read_timeout=",
                          sizeof("read_timeout=")-1) == 0)
     {
@@ -6050,14 +6080,13 @@ void do_connect(struct st_command *command)
   if (opt_charsets_dir)
     mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_DIR,
                   opt_charsets_dir);
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-  if (opt_use_ssl)
-    con_ssl= 1;
-#endif
 
-  if (con_ssl)
-  {
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+  if (con_ssl == USE_SSL_IF_POSSIBLE && opt_use_ssl)
+    con_ssl= USE_SSL_REQUIRED;
+
+  if (con_ssl == USE_SSL_REQUIRED)
+  {
     mysql_ssl_set(con_slot->mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
 		  opt_ssl_capath, ssl_cipher ? ssl_cipher : opt_ssl_cipher);
     mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
@@ -6069,18 +6098,11 @@ void do_connect(struct st_command *command)
     mysql_options(con_slot->mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                   &opt_ssl_verify_server_cert);
 #endif
-#endif
   }
-
-  if (con_pipe)
-  {
-#ifdef _WIN32
-    opt_protocol= MYSQL_PROTOCOL_PIPE;
 #endif
-  }
 
-  if (opt_protocol)
-    mysql_options(con_slot->mysql, MYSQL_OPT_PROTOCOL, (char*) &opt_protocol);
+  if (protocol)
+    mysql_options(con_slot->mysql, MYSQL_OPT_PROTOCOL, (char*) &protocol);
 
   if (read_timeout)
   {
