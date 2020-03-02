@@ -7945,3 +7945,5 @@ ER_PART_STARTS_BEYOND_INTERVAL
         eng "%`s: STARTS is later than query time, first history partition may exceed INTERVAL value"
 ER_GALERA_REPLICATION_NOT_SUPPORTED
 	eng "DDL-statement is forbidden as table storage engine does not support Galera replication"
+ER_NO_SECURE_TRANSPORTS_CONFIGURED
+        eng "No secure transports are configured, unable to set --require_secure_transport=ON"

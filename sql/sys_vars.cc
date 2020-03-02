@@ -3041,6 +3041,40 @@ static Sys_var_mybool Sys_secure_auth(
        GLOBAL_VAR(opt_secure_auth), CMD_LINE(OPT_ARG),
        DEFAULT(TRUE));
 
+static bool check_require_secure_transport(sys_var *self, THD *thd, set_var *var)
+{
+#ifndef _WIN32
+  /*
+    Always allow require_secure_transport to be enabled on
+    Linux, because it always has Unix domain sockets that are secure:
+  */
+  return false;
+#else
+  /*
+    Check SSL is enabled before turning require_secure_transport ON,
+    otherwise no connections will be allowed on Windows:
+  */
+  if (!var->save_result.ulonglong_value)
+    return false;
+  if (opt_use_ssl || opt_enable_named_pipe)
+    return false;
+  /* reject if SSL is disabled: */
+  my_error(ER_NO_SECURE_TRANSPORTS_CONFIGURED, MYF(0));
+  return true;
+#endif
+}
+
+static Sys_var_mybool Sys_require_secure_transport(
+  "require_secure_transport",
+  "When this option is enabled, connections attempted using insecure "
+  "transport will be rejected. Secure transports are SSL/TLS, "
+  "Unix sockets or named pipes.",
+  GLOBAL_VAR(opt_require_secure_transport),
+  CMD_LINE(OPT_ARG),
+  DEFAULT(FALSE),
+  NO_MUTEX_GUARD, NOT_IN_BINLOG,
+  ON_CHECK(check_require_secure_transport), ON_UPDATE(0));
+
 static Sys_var_charptr Sys_secure_file_priv(
        "secure_file_priv",
        "Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to files "
