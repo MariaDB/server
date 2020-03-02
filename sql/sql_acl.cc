@@ -13732,8 +13732,8 @@ static void server_mpvio_info(MYSQL_PLUGIN_VIO *vio,
 
 static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
 {
-#ifdef HAVE_OPENSSL
   Vio *vio= thd->net.vio;
+#ifdef HAVE_OPENSSL
   SSL *ssl= (SSL *) vio->ssl_arg;
   X509 *cert;
 #endif
@@ -13747,6 +13747,24 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
   switch (acl_user->ssl_type) {
   case SSL_TYPE_NOT_SPECIFIED:                  // Impossible
   case SSL_TYPE_NONE:                           // SSL is not required
+    if (opt_require_secure_transport)
+    {
+      enum enum_vio_type type= vio_type(vio);
+#ifdef HAVE_OPENSSL
+      return type != VIO_TYPE_SSL &&
+#ifndef _WIN32
+             type != VIO_TYPE_SOCKET;
+#else
+             type != VIO_TYPE_NAMEDPIPE;
+#endif
+#else
+#ifndef _WIN32
+      return type != VIO_TYPE_SOCKET;
+#else
+      return type != VIO_TYPE_NAMEDPIPE;
+#endif
+#endif
+    }
     return 0;
 #ifdef HAVE_OPENSSL
   case SSL_TYPE_ANY:                            // Any kind of SSL is ok

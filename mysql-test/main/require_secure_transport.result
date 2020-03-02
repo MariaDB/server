@@ -1,0 +1,8 @@
+CREATE TABLE t1 (t int(1));
+SET GLOBAL require_secure_transport=ON;
+ERROR 28000: Access denied for user 'root'@'localhost' (using password: NO)
+connection default;
+SET GLOBAL require_secure_transport=OFF;
+disconnect without_ssl;
+connection default;
+DROP TABLE t1;

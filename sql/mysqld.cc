@@ -418,6 +418,7 @@ my_bool use_temp_pool, relay_log_purge;
 my_bool relay_log_recovery;
 my_bool opt_sync_frm, opt_allow_suspicious_udfs;
 my_bool opt_secure_auth= 0;
+my_bool opt_require_secure_transport= 0;
 char* opt_secure_file_priv;
 my_bool lower_case_file_system= 0;
 my_bool opt_large_pages= 0;
@@ -4548,6 +4549,21 @@ void ssl_acceptor_stats_update(int sslaccept_ret)
 
 static void init_ssl()
 {
+/*
+  Not need to check require_secure_transport on the Linux,
+  because it always has Unix domain sockets that are secure:
+*/
+#ifdef _WIN32
+  if (opt_require_secure_transport &&
+      !opt_use_ssl &&
+      !opt_enable_named_pipe &&
+      !opt_bootstrap)
+  {
+    sql_print_error("Server is started with --require-secure-transport=ON "
+                    "but no secure transport (SSL or PIPE) are configured.");
+    unireg_abort(1);
+  }
+#endif
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
   if (opt_use_ssl)
   {
