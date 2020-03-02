@@ -38,7 +38,7 @@ SET(FEATURE_SET "community" CACHE STRING
  - small: embedded
  - classic: embedded + archive + federated + blackhole 
  - large :  embedded + archive + federated + blackhole + innodb
- - xlarge:  embedded + archive + federated + blackhole + innodb + partition
+ - xlarge:  embedded + archive + federated + blackhole + innodb + partition + s3
  - community:  all  features (currently == xlarge)
 "
 )
@@ -77,6 +77,7 @@ IF(FEATURE_SET)
   ENDIF()
   IF(num GREATER FEATURE_SET_large)
     SET(PLUGIN_PARTITION "STATIC")
+    SET(PLUGIN_S3 "STATIC")
     #SET(PLUGIN_CASSANDRA "STATIC")
   ENDIF()
   IF(num GREATER FEATURE_SET_xlarge)
