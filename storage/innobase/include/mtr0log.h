@@ -626,9 +626,7 @@ inline void mtr_t::undo_append(const buf_block_t &block,
   else
   {
     m_log.close(end);
-    end= m_log.open(1);
-    *end++= UNDO_APPEND;
-    m_log.close(end);
+    *m_log.push<byte*>(1)= UNDO_APPEND;
     m_log.push(static_cast<const byte*>(data), static_cast<uint32_t>(len));
   }
   m_last_offset= FIL_PAGE_TYPE;
