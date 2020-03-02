@@ -135,7 +135,7 @@ static MYSQL_SYSVAR_STR
   xpand_hosts_str,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
   "List of xpand hostnames seperated by commas, semicolons or spaces",
-  check_hosts, update_hosts, "127.0.0.1"
+  check_hosts, update_hosts, "localhost"
 );
 
 char *xpand_username;
