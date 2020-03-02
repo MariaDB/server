@@ -2045,7 +2045,6 @@ typedef struct st_spider_result_list
 #endif
     int                   quick_phase;
   bool                    keyread;
-  int                     lock_type;
   TABLE                   *table;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile int            bgs_error;

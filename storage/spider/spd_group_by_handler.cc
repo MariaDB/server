@@ -795,7 +795,7 @@ void spider_fields::choose_a_conn(
   SPIDER_CONN_HOLDER *conn_holder;
   longlong balance_total = 0, balance_val;
   double rand_val;
-  THD *thd = table_holder[0].spider->trx->thd;
+  THD *thd = table_holder[0].spider->wide_handler->trx->thd;
   DBUG_ENTER("spider_fields::choose_a_conn");
   DBUG_PRINT("info",("spider this=%p", this));
   for (current_conn_holder = first_conn_holder; current_conn_holder;
@@ -1147,8 +1147,8 @@ int spider_fields::ping_table_mon_from_table(
     if (tmp_share->monitoring_kind[tmp_link_idx])
     {
       error_num_buf = spider_ping_table_mon_from_table(
-          tmp_spider->trx,
-          tmp_spider->trx->thd,
+          tmp_spider->wide_handler->trx,
+          tmp_spider->wide_handler->trx->thd,
           tmp_share,
           tmp_link_idx,
           (uint32) tmp_share->monitoring_sid[tmp_link_idx],
@@ -1181,7 +1181,7 @@ spider_group_by_handler::spider_group_by_handler(
   fields->set_pos_to_first_table_holder();
   SPIDER_TABLE_HOLDER *table_holder = fields->get_next_table_holder();
   spider = table_holder->spider;
-  trx = spider->trx;
+  trx = spider->wide_handler->trx;
   DBUG_VOID_RETURN;
 }
 
@@ -1924,6 +1924,12 @@ group_by_handler *spider_create_group_by_handler(
     delete fields;
     DBUG_RETURN(NULL);
   }
+  if (spider->dml_init())
+  {
+    DBUG_PRINT("info",("spider can not init for dml"));
+    delete fields;
+    DBUG_RETURN(NULL);
+  }
   for (
     roop_count = spider_conn_link_idx_next(share->link_statuses,
       spider->conn_link_idx, -1, share->link_count,
@@ -2006,6 +2012,12 @@ group_by_handler *spider_create_group_by_handler(
     }
     DBUG_PRINT("info",("spider s->db=%s", from->table->s->db.str));
     DBUG_PRINT("info",("spider s->table_name=%s", from->table->s->table_name.str));
+    if (spider->dml_init())
+    {
+      DBUG_PRINT("info",("spider can not init for dml"));
+      delete fields;
+      DBUG_RETURN(NULL);
+    }
     for (
       roop_count = spider_conn_link_idx_next(share->link_statuses,
         spider->conn_link_idx, -1, share->link_count,

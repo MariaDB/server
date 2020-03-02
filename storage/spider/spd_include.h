@@ -621,26 +621,19 @@ typedef struct st_spider_lgtm_tblhnd_share
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 typedef struct st_spider_patition_handler_share
 {
-  uint               use_count;
-  TABLE              *table;
+  bool               clone_bitmap_init;
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type table_hash_value;
 #endif
-  void               *creator;
-  void               **handlers;
-  uchar              *searched_bitmap;
-  uchar              *ft_discard_bitmap;
-  uchar              *idx_read_bitmap;
-  uchar              *idx_write_bitmap;
-  uchar              *rnd_read_bitmap;
-  uchar              *rnd_write_bitmap;
-  bool               between_flg;
-  bool               idx_bitmap_is_set;
-  bool               rnd_bitmap_is_set;
   query_id_t         parallel_search_query_id;
+  uint               no_parts;
+  TABLE              *table;
+  ha_spider          *owner;
+  ha_spider          **handlers;
 } SPIDER_PARTITION_HANDLER_SHARE;
+#endif
 
-typedef struct st_spider_patition_share
+typedef struct st_spider_wide_share
 {
   char               *table_name;
   uint               table_name_length;
@@ -648,6 +641,7 @@ typedef struct st_spider_patition_share
   my_hash_value_type table_path_hash_value;
 #endif
   uint               use_count;
+  THR_LOCK           lock;
   pthread_mutex_t    sts_mutex;
   pthread_mutex_t    crd_mutex;
   pthread_mutex_t    pt_handler_mutex;
@@ -664,11 +658,103 @@ typedef struct st_spider_patition_share
   ha_statistics      stat;
 
   longlong           *cardinality;
-/*
-  volatile SPIDER_PARTITION_HANDLER_SHARE *partition_handler_share;
-*/
-} SPIDER_PARTITION_SHARE;
+} SPIDER_WIDE_SHARE;
+
+enum spider_hnd_stage {
+  SPD_HND_STAGE_NONE,
+  SPD_HND_STAGE_STORE_LOCK,
+  SPD_HND_STAGE_EXTERNAL_LOCK,
+  SPD_HND_STAGE_START_STMT,
+  SPD_HND_STAGE_EXTRA,
+  SPD_HND_STAGE_COND_PUSH,
+  SPD_HND_STAGE_COND_POP,
+  SPD_HND_STAGE_INFO_PUSH,
+  SPD_HND_STAGE_SET_TOP_TABLE_AND_FIELDS,
+  SPD_HND_STAGE_CLEAR_TOP_TABLE_FIELDS
+};
+
+typedef struct st_spider_wide_handler
+{
+  spider_hnd_stage   stage;
+  handler            *stage_executor;
+  THR_LOCK_DATA      lock;
+  SPIDER_TRX         *trx;
+  uchar              *searched_bitmap;
+  uchar              *ft_discard_bitmap;
+  uchar              *position_bitmap;
+  uchar              *idx_read_bitmap;
+  uchar              *idx_write_bitmap;
+  uchar              *rnd_read_bitmap;
+  uchar              *rnd_write_bitmap;
+  SPIDER_CONDITION   *condition;
+  void               *owner;
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  uint32             *hs_pushed_ret_fields;
 #endif
+#endif
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  SPIDER_PARTITION_HANDLER_SHARE *partition_handler_share;
+#endif
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  List<Item>         *direct_update_fields;
+  List<Item>         *direct_update_values;
+#endif
+  TABLE              *top_table;
+  Field              **top_table_field;
+  enum thr_lock_type lock_type;
+  uchar              lock_table_type;
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  uint32             hs_pushed_strref_num;
+#endif
+#endif
+  int                lock_mode;
+  int                external_lock_type;
+  int                cond_check_error;
+  uint               sql_command;
+  uint               top_table_fields;
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+#ifdef INFO_KIND_FORCE_LIMIT_BEGIN
+  longlong           info_limit;
+#endif
+#endif
+#ifdef HA_CAN_BULK_ACCESS
+  ulonglong          external_lock_cnt;
+#endif
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  size_t             hs_pushed_ret_fields_num;
+  size_t             hs_pushed_ret_fields_size;
+  size_t             hs_pushed_lcl_fields_num;
+#endif
+#endif
+  bool               between_flg;
+  bool               idx_bitmap_is_set;
+  bool               rnd_bitmap_is_set;
+  bool               position_bitmap_init;
+  bool               semi_trx_isolation_chk;
+  bool               semi_trx_chk;
+  bool               low_priority;
+  bool               high_priority;
+  bool               insert_delayed;
+  bool               consistent_snapshot;
+  bool               quick_mode;
+  bool               keyread;
+  bool               update_request;
+  bool               ignore_dup_key;
+  bool               write_can_replace;
+  bool               insert_with_update;
+  bool               cond_check;
+  bool               set_top_table_fields;
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  bool               hs_increment;
+  bool               hs_decrement;
+#endif
+#endif
+  bool               semi_table_lock;
+} SPIDER_WIDE_HANDLER;
 
 typedef struct st_spider_transaction
 {
@@ -805,7 +891,6 @@ typedef struct st_spider_share
 /*
   pthread_mutex_t    auto_increment_mutex;
 */
-  THR_LOCK           lock;
   TABLE_SHARE        *table_share;
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
@@ -1177,9 +1262,7 @@ typedef struct st_spider_share
 #endif
 
   SPIDER_ALTER_TABLE alter_table;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  SPIDER_PARTITION_SHARE *partition_share;
-#endif
+  SPIDER_WIDE_SHARE  *wide_share;
 } SPIDER_SHARE;
 
 typedef struct st_spider_link_pack

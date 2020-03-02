@@ -312,6 +312,10 @@ void spider_free_conn_from_trx(
         }
       } else {
         /* conn_recycle_mode == 0 */
+        if (conn->quick_target)
+        {
+          spider_db_free_result((ha_spider *) conn->quick_target, TRUE);
+        }
         spider_free_conn(conn);
       }
     } else if (roop_count)
@@ -1283,7 +1287,7 @@ int spider_check_and_get_casual_read_conn(
     if (
       !(spider->conns[link_idx] =
         spider_get_conn(spider->share, link_idx,
-          spider->conn_keys[link_idx], spider->trx,
+          spider->conn_keys[link_idx], spider->wide_handler->trx,
           spider, FALSE, TRUE, SPIDER_CONN_KIND_MYSQL,
           &error_num))
     ) {
@@ -1745,7 +1749,8 @@ int spider_set_conn_bg_param(
   int error_num, roop_count, bgs_mode;
   SPIDER_SHARE *share = spider->share;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
-  THD *thd = spider->trx->thd;
+  SPIDER_WIDE_HANDLER *wide_handler = spider->wide_handler;
+  THD *thd = wide_handler->trx->thd;
   DBUG_ENTER("spider_set_conn_bg_param");
   DBUG_PRINT("info",("spider spider=%p", spider));
   bgs_mode =
@@ -1754,10 +1759,11 @@ int spider_set_conn_bg_param(
     result_list->bgs_phase = 0;
   else if (
     bgs_mode <= 2 &&
-    (result_list->lock_type == F_WRLCK || spider->lock_mode == 2)
+    (wide_handler->external_lock_type == F_WRLCK ||
+      wide_handler->lock_mode == 2)
   )
     result_list->bgs_phase = 0;
-  else if (bgs_mode <= 1 && spider->lock_mode == 1)
+  else if (bgs_mode <= 1 && wide_handler->lock_mode == 1)
     result_list->bgs_phase = 0;
   else {
     result_list->bgs_phase = 1;
@@ -1804,12 +1810,12 @@ int spider_set_conn_bg_param(
       for (
         roop_count = spider_conn_link_idx_next(share->link_statuses,
           spider->conn_link_idx, -1, share->link_count,
-          spider->lock_mode ?
+          spider->wide_handler->lock_mode ?
           SPIDER_LINK_STATUS_RECOVERY : SPIDER_LINK_STATUS_OK);
         roop_count < (int) share->link_count;
         roop_count = spider_conn_link_idx_next(share->link_statuses,
           spider->conn_link_idx, roop_count, share->link_count,
-          spider->lock_mode ?
+          spider->wide_handler->lock_mode ?
           SPIDER_LINK_STATUS_RECOVERY : SPIDER_LINK_STATUS_OK)
       ) {
         if ((error_num = spider_create_conn_thread(spider->conns[roop_count])))
@@ -2688,7 +2694,7 @@ void *spider_bg_conn_action(
                   conn->link_idx);
                 result_list->tmp_tables_created = TRUE;
                 spider_conn_set_timeout_from_share(conn, conn->link_idx,
-                  spider->trx->thd, share);
+                  spider->wide_handler->trx->thd, share);
                 if (dbton_handler->execute_sql(
                   SPIDER_SQL_TYPE_TMP_SQL,
                   conn,
@@ -2706,7 +2712,7 @@ void *spider_bg_conn_action(
               if (!result_list->bgs_error)
               {
                 spider_conn_set_timeout_from_share(conn, conn->link_idx,
-                  spider->trx->thd, share);
+                  spider->wide_handler->trx->thd, share);
                 if (dbton_handler->execute_sql(
                   sql_type,
                   conn,
@@ -2949,6 +2955,7 @@ void *spider_bg_sts_action(
   SPIDER_TRX *trx;
   int error_num = 0, roop_count;
   ha_spider spider;
+  SPIDER_WIDE_HANDLER wide_handler;
   int *need_mons;
   SPIDER_CONN **conns;
   uint *conn_link_idx;
@@ -3042,7 +3049,8 @@ void *spider_bg_sts_action(
     DBUG_RETURN(NULL);
   }
   share->bg_sts_thd = thd;
-  spider.trx = trx;
+  spider.wide_handler = &wide_handler;
+  wide_handler.trx = trx;
   spider.share = share;
   spider.conns = conns;
   spider.conn_link_idx = conn_link_idx;
@@ -3314,6 +3322,7 @@ void *spider_bg_crd_action(
   SPIDER_TRX *trx;
   int error_num = 0, roop_count;
   ha_spider spider;
+  SPIDER_WIDE_HANDLER wide_handler;
   TABLE table;
   int *need_mons;
   SPIDER_CONN **conns;
@@ -3411,7 +3420,8 @@ void *spider_bg_crd_action(
   table.s = share->table_share;
   table.field = share->table_share->field;
   table.key_info = share->table_share->key_info;
-  spider.trx = trx;
+  spider.wide_handler = &wide_handler;
+  wide_handler.trx = trx;
   spider.change_table_ptr(&table, share->table_share);
   spider.share = share;
   spider.conns = conns;
@@ -4097,11 +4107,12 @@ int spider_conn_get_link_status(
 int spider_conn_lock_mode(
   ha_spider *spider
 ) {
-  SPIDER_RESULT_LIST *result_list = &spider->result_list;
+  SPIDER_WIDE_HANDLER *wide_handler = spider->wide_handler;
   DBUG_ENTER("spider_conn_lock_mode");
-  if (result_list->lock_type == F_WRLCK || spider->lock_mode == 2)
+  if (wide_handler->external_lock_type == F_WRLCK ||
+    wide_handler->lock_mode == 2)
     DBUG_RETURN(SPIDER_LOCK_MODE_EXCLUSIVE);
-  else if (spider->lock_mode == 1)
+  else if (wide_handler->lock_mode == 1)
     DBUG_RETURN(SPIDER_LOCK_MODE_SHARED);
   DBUG_RETURN(SPIDER_LOCK_MODE_NO_LOCK);
 }
@@ -4124,7 +4135,7 @@ bool spider_conn_use_handler(
   int lock_mode,
   int link_idx
 ) {
-  THD *thd = spider->trx->thd;
+  THD *thd = spider->wide_handler->trx->thd;
   int use_handler = spider_param_use_handler(thd,
     spider->share->use_handlers[link_idx]);
   DBUG_ENTER("spider_conn_use_handler");
@@ -4197,7 +4208,7 @@ bool spider_conn_use_handler(
     DBUG_RETURN(FALSE);
   }
   if (
-    spider->sql_command == SQLCOM_HA_READ &&
+    spider->wide_handler->sql_command == SQLCOM_HA_READ &&
     (
       !(use_handler & 2) ||
       (
@@ -4212,7 +4223,7 @@ bool spider_conn_use_handler(
     DBUG_RETURN(TRUE);
   }
   if (
-    spider->sql_command != SQLCOM_HA_READ &&
+    spider->wide_handler->sql_command != SQLCOM_HA_READ &&
     lock_mode == SPIDER_LOCK_MODE_NO_LOCK &&
     spider_param_sync_trx_isolation(thd) &&
     thd_tx_isolation(thd) != ISO_SERIALIZABLE &&

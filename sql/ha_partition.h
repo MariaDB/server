@@ -473,6 +473,10 @@ public:
   {
     return m_file;
   }
+  ha_partition *get_clone_source()
+  {
+    return m_is_clone_of;
+  }
   virtual part_id_range *get_part_spec()
   {
     return &m_part_spec;
