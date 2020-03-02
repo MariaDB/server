@@ -529,6 +529,24 @@ bool trans_xa_commit(THD *thd)
   if (!thd->transaction.xid_state.is_explicit_XA() ||
       !thd->transaction.xid_state.xid_cache_element->xid.eq(thd->lex->xid))
   {
+    if (thd->in_multi_stmt_transaction_mode())
+    {
+      /*
+        Not allow to commit from inside an not-"native" to xid
+        ongoing transaction: the commit effect can't be reversed.
+      */
+      my_error(ER_XAER_OUTSIDE, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+    if (thd->lex->xa_opt != XA_NONE)
+    {
+      /*
+        Not allow to commit with one phase a prepared xa out of compatibility
+        with the native commit branch's error out.
+      */
+      my_error(ER_XAER_INVAL, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
     if (thd->fix_xid_hash_pins())
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
@@ -558,10 +576,14 @@ bool trans_xa_commit(THD *thd)
     if ((res= MY_TEST(r)))
       my_error(r == 1 ? ER_XA_RBROLLBACK : ER_XAER_RMERR, MYF(0));
   }
-  else if (thd->transaction.xid_state.xid_cache_element->xa_state == XA_PREPARED &&
-           thd->lex->xa_opt == XA_NONE)
+  else if (thd->transaction.xid_state.xid_cache_element->xa_state == XA_PREPARED)
   {
     MDL_request mdl_request;
+    if (thd->lex->xa_opt != XA_NONE)
+    {
+      my_error(ER_XAER_INVAL, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
 
     /*
       Acquire metadata lock which will ensure that COMMIT is blocked
@@ -623,6 +645,11 @@ bool trans_xa_rollback(THD *thd)
   if (!thd->transaction.xid_state.is_explicit_XA() ||
       !thd->transaction.xid_state.xid_cache_element->xid.eq(thd->lex->xid))
   {
+    if (thd->in_multi_stmt_transaction_mode())
+    {
+      my_error(ER_XAER_OUTSIDE, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
     if (thd->fix_xid_hash_pins())
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
