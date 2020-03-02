@@ -403,6 +403,12 @@ int spider_db_conn_queue_action(
           append_time_zone(&sql_str, conn->queued_time_zone_val))
       ) ||
       (
+        conn->loop_check_queue.records &&
+        conn->db_conn->set_loop_check_in_bulk_sql() &&
+        (error_num = spider_dbton[conn->dbton_id].db_util->
+          append_loop_check(&sql_str, conn))
+      ) ||
+      (
         conn->queued_trx_start &&
         conn->db_conn->trx_start_in_bulk_sql() &&
         (error_num = spider_dbton[conn->dbton_id].db_util->
@@ -494,6 +500,13 @@ int spider_db_conn_queue_action(
       (error_num = conn->db_conn->
         set_time_zone(conn->queued_time_zone_val,
         (int *) conn->need_mon))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+    if (
+      conn->loop_check_queue.records &&
+      !conn->db_conn->set_loop_check_in_bulk_sql() &&
+      (error_num = conn->db_conn->set_loop_check((int *) conn->need_mon))
     ) {
       DBUG_RETURN(error_num);
     }
@@ -602,6 +615,11 @@ int spider_db_conn_queue_action(
       conn->time_zone = conn->queued_time_zone_val;
       DBUG_PRINT("info", ("spider conn->time_zone=%p",
         conn->time_zone));
+    }
+
+    if (conn->loop_check_queue.records)
+    {
+      conn->db_conn->fin_loop_check();
     }
     spider_conn_clear_queue(conn);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)

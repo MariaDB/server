@@ -3868,7 +3868,8 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
 enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        const LEX_CSTRING *alias, uint db_stat, uint prgflag,
                        uint ha_open_flags, TABLE *outparam,
-                       bool is_create_table, List<String> *partitions_to_open)
+                       bool is_create_table, List<String> *partitions_to_open,
+                       TABLE_LIST *table_list)
 {
   enum open_frm_error error;
   uint records, i, bitmap_size, bitmap_count;
@@ -3890,6 +3891,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->s= share;
   outparam->db_stat= db_stat;
   outparam->write_row_record= NULL;
+  outparam->intention_pos_in_table_list= table_list;
 
   if (share->incompatible_version &&
       !(ha_open_flags & (HA_OPEN_FOR_ALTER | HA_OPEN_FOR_REPAIR)))

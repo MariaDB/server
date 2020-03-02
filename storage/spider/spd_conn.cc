@@ -56,6 +56,8 @@ inline void SPIDER_set_next_thread_id(THD *A)
 
 extern handlerton *spider_hton_ptr;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
+extern struct charset_info_st *spd_charset_utf8mb3_bin;
+extern LEX_CSTRING spider_unique_id;
 pthread_mutex_t spider_conn_id_mutex;
 pthread_mutex_t spider_ipport_conn_mutex;
 ulonglong spider_conn_id = 1;
@@ -66,6 +68,7 @@ extern pthread_attr_t spider_pt_attr;
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key spd_key_mutex_mta_conn;
 extern PSI_mutex_key spd_key_mutex_conn_i;
+extern PSI_mutex_key spd_key_mutex_conn_loop_check;
 extern PSI_cond_key spd_key_cond_conn_i;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
 extern PSI_mutex_key spd_key_mutex_bg_conn_chain;
@@ -145,6 +148,102 @@ uchar *spider_ipport_conn_get_key(
   DBUG_RETURN((uchar*) ip_port->key);
 }
 
+static uchar *spider_loop_check_full_get_key(
+  SPIDER_CONN_LOOP_CHECK *ptr,
+  size_t *length,
+  my_bool not_used __attribute__ ((unused))
+) {
+  DBUG_ENTER("spider_loop_check_full_get_key");
+  *length = ptr->full_name.length;
+  DBUG_RETURN((uchar*) ptr->full_name.str);
+}
+
+static uchar *spider_loop_check_to_get_key(
+  SPIDER_CONN_LOOP_CHECK *ptr,
+  size_t *length,
+  my_bool not_used __attribute__ ((unused))
+) {
+  DBUG_ENTER("spider_loop_check_to_get_key");
+  *length = ptr->to_name.length;
+  DBUG_RETURN((uchar*) ptr->to_name.str);
+}
+
+int spider_conn_init(
+  SPIDER_CONN *conn
+) {
+  int error_num = HA_ERR_OUT_OF_MEM;
+  DBUG_ENTER("spider_conn_init");
+#if MYSQL_VERSION_ID < 50500
+  if (pthread_mutex_init(&conn->loop_check_mutex, MY_MUTEX_INIT_FAST))
+#else
+  if (mysql_mutex_init(spd_key_mutex_conn_loop_check, &conn->loop_check_mutex,
+    MY_MUTEX_INIT_FAST))
+#endif
+  {
+    goto error_loop_check_mutex_init;
+  }
+  if (
+    my_hash_init(PSI_INSTRUMENT_ME, &conn->loop_checked, spd_charset_utf8mb3_bin, 32, 0, 0,
+                   (my_hash_get_key) spider_loop_check_full_get_key, 0, 0)
+  ) {
+    goto error_loop_checked_hash_init;
+  }
+  spider_alloc_calc_mem_init(conn->loop_checked, 268);
+  spider_alloc_calc_mem(spider_current_trx,
+    conn->loop_checked,
+    conn->loop_checked.array.max_element *
+    conn->loop_checked.array.size_of_element);
+  if (
+    my_hash_init(PSI_INSTRUMENT_ME, &conn->loop_check_queue, spd_charset_utf8mb3_bin, 32, 0, 0,
+                   (my_hash_get_key) spider_loop_check_to_get_key, 0, 0)
+  ) {
+    goto error_loop_check_queue_hash_init;
+  }
+  spider_alloc_calc_mem_init(conn->loop_check_queue, 269);
+  spider_alloc_calc_mem(spider_current_trx,
+    conn->loop_check_queue,
+    conn->loop_check_queue.array.max_element *
+    conn->loop_check_queue.array.size_of_element);
+  DBUG_RETURN(0);
+
+error_loop_check_queue_hash_init:
+  spider_free_mem_calc(spider_current_trx,
+    conn->loop_checked_id,
+    conn->loop_checked.array.max_element *
+    conn->loop_checked.array.size_of_element);
+  my_hash_free(&conn->loop_checked);
+error_loop_checked_hash_init:
+  pthread_mutex_destroy(&conn->loop_check_mutex);
+error_loop_check_mutex_init:
+  DBUG_RETURN(error_num);
+}
+
+void spider_conn_done(
+  SPIDER_CONN *conn
+) {
+  SPIDER_CONN_LOOP_CHECK *lcptr;
+  DBUG_ENTER("spider_conn_done");
+  uint l = 0;
+  while ((lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_element(
+    &conn->loop_checked, l)))
+  {
+    spider_free(spider_current_trx, lcptr, MYF(0));
+    ++l;
+  }
+  spider_free_mem_calc(spider_current_trx,
+    conn->loop_check_queue_id,
+    conn->loop_check_queue.array.max_element *
+    conn->loop_check_queue.array.size_of_element);
+  my_hash_free(&conn->loop_check_queue);
+  spider_free_mem_calc(spider_current_trx,
+    conn->loop_checked_id,
+    conn->loop_checked.array.max_element *
+    conn->loop_checked.array.size_of_element);
+  my_hash_free(&conn->loop_checked);
+  pthread_mutex_destroy(&conn->loop_check_mutex);
+  DBUG_VOID_RETURN;
+}
+
 int spider_reset_conn_setted_parameter(
   SPIDER_CONN *conn,
   THD *thd
@@ -183,7 +282,7 @@ int spider_reset_conn_setted_parameter(
     conn->default_database.length(default_database_length);
   } else
     conn->default_database.length(0);
-  DBUG_RETURN(0);
+  DBUG_RETURN(spider_conn_reset_queue_loop_check(conn));
 }
 
 int spider_free_conn_alloc(
@@ -199,6 +298,7 @@ int spider_free_conn_alloc(
     delete conn->db_conn;
     conn->db_conn = NULL;
   }
+  spider_conn_done(conn);
   DBUG_ASSERT(!conn->mta_conn_mutex_file_pos.file_name);
   pthread_mutex_destroy(&conn->mta_conn_mutex);
   conn->default_database.free();
@@ -741,6 +841,11 @@ SPIDER_CONN *spider_create_conn(
     goto error_mta_conn_mutex_init;
   }
 
+  if (unlikely((*error_num = spider_conn_init(conn))))
+  {
+    goto error_conn_init;
+  }
+
   spider_conn_queue_connect(share, conn, link_idx);
   conn->ping_time = (time_t) time((time_t*) 0);
   conn->connect_error_time = conn->ping_time;
@@ -792,12 +897,10 @@ SPIDER_CONN *spider_create_conn(
 
   DBUG_RETURN(conn);
 
-/*
-error_init_lock_table_hash:
-  DBUG_ASSERT(!conn->mta_conn_mutex_file_pos.file_name);
-  pthread_mutex_destroy(&conn->mta_conn_mutex);
-*/
 error_too_many_ipport_count:
+  spider_conn_done(conn);
+error_conn_init:
+  pthread_mutex_destroy(&conn->mta_conn_mutex);
 error_mta_conn_mutex_init:
 error_db_conn_init:
   delete conn->db_conn;
@@ -1232,6 +1335,20 @@ SPIDER_CONN *spider_get_conn(
       conn->queued_ping = FALSE;
   }
 
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  if (conn_kind == SPIDER_CONN_KIND_MYSQL)
+  {
+#endif
+    if (unlikely(spider && spider->wide_handler->top_share &&
+      (*error_num = spider_conn_queue_loop_check(
+        conn, spider, base_link_idx))))
+    {
+      goto error;
+    }
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  }
+#endif
+
   DBUG_PRINT("info",("spider conn=%p", conn));
   DBUG_RETURN(conn);
 
@@ -1482,6 +1599,423 @@ void spider_conn_queue_UTC_time_zone(
   DBUG_PRINT("info", ("spider conn=%p", conn));
   spider_conn_queue_time_zone(conn, UTC);
   DBUG_VOID_RETURN;
+}
+
+int spider_conn_queue_and_merge_loop_check(
+  SPIDER_CONN *conn,
+  SPIDER_CONN_LOOP_CHECK *lcptr
+) {
+  int error_num = HA_ERR_OUT_OF_MEM;
+  char *tmp_name, *from_name, *cur_name, *to_name, *full_name, *from_value,
+    *merged_value;
+  SPIDER_CONN_LOOP_CHECK *lcqptr, *lcrptr;
+  DBUG_ENTER("spider_conn_queue_and_merge_loop_check");
+  DBUG_PRINT("info", ("spider conn=%p", conn));
+#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+  if (unlikely(!(lcqptr = (SPIDER_CONN_LOOP_CHECK *)
+    my_hash_search_using_hash_value(&conn->loop_check_queue,
+    lcptr->hash_value_to,
+    (uchar *) lcptr->to_name.str, lcptr->to_name.length))))
+#else
+  if (unlikely(!(lcqptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_search(
+    &conn->loop_check_queue,
+    (uchar *) lcptr->to_name.str, lcptr->to_name.length))))
+#endif
+  {
+    DBUG_PRINT("info", ("spider create merged_value and insert"));
+    lcptr->merged_value.length = spider_unique_id.length +
+      lcptr->cur_name.length + lcptr->from_value.length + 1;
+    tmp_name = (char *) lcptr->merged_value.str;
+    memcpy(tmp_name, spider_unique_id.str, spider_unique_id.length);
+    tmp_name += spider_unique_id.length;
+    memcpy(tmp_name, lcptr->cur_name.str, lcptr->cur_name.length);
+    tmp_name += lcptr->cur_name.length;
+    *tmp_name = '-';
+    ++tmp_name;
+    memcpy(tmp_name, lcptr->from_value.str, lcptr->from_value.length + 1);
+#ifdef HASH_UPDATE_WITH_HASH_VALUE
+    if (unlikely(my_hash_insert_with_hash_value(&conn->loop_check_queue,
+      lcptr->hash_value_to, (uchar *) lcptr)))
+#else
+    if (unlikely(my_hash_insert(&conn->loop_check_queue, (uchar *) lcptr)))
+#endif
+    {
+      goto error_hash_insert_queue;
+    }
+    lcptr->flag |= SPIDER_LOP_CHK_QUEUED;
+  } else {
+    DBUG_PRINT("info", ("spider append merged_value and replace"));
+    if (unlikely(!spider_bulk_malloc(spider_current_trx, 271, MYF(MY_WME),
+      &lcrptr, (uint) (sizeof(SPIDER_CONN_LOOP_CHECK)),
+      &from_name, (uint) (lcqptr->from_name.length + 1),
+      &cur_name, (uint) (lcqptr->cur_name.length + 1),
+      &to_name, (uint) (lcqptr->to_name.length + 1),
+      &full_name, (uint) (lcqptr->full_name.length + 1),
+      &from_value, (uint) (lcqptr->from_value.length + 1),
+      &merged_value, (uint) (lcqptr->merged_value.length +
+        spider_unique_id.length + lcptr->cur_name.length +
+        lcptr->from_value.length + 2),
+      NullS)
+    )) {
+      goto error_alloc_loop_check_replace;
+    }
+#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+    lcrptr->hash_value_to = lcqptr->hash_value_to;
+    lcrptr->hash_value_full = lcqptr->hash_value_full;
+#endif
+    lcrptr->from_name.str = from_name;
+    lcrptr->from_name.length = lcqptr->from_name.length;
+    memcpy(from_name, lcqptr->from_name.str, lcqptr->from_name.length + 1);
+    lcrptr->cur_name.str = cur_name;
+    lcrptr->cur_name.length = lcqptr->cur_name.length;
+    memcpy(cur_name, lcqptr->cur_name.str, lcqptr->cur_name.length + 1);
+    lcrptr->to_name.str = to_name;
+    lcrptr->to_name.length = lcqptr->to_name.length;
+    memcpy(to_name, lcqptr->to_name.str, lcqptr->to_name.length + 1);
+    lcrptr->full_name.str = full_name;
+    lcrptr->full_name.length = lcqptr->full_name.length;
+    memcpy(full_name, lcqptr->full_name.str, lcqptr->full_name.length + 1);
+    lcrptr->from_value.str = from_value;
+    lcrptr->from_value.length = lcqptr->from_value.length;
+    memcpy(from_value, lcqptr->from_value.str, lcqptr->from_value.length + 1);
+    lcrptr->merged_value.str = merged_value;
+    lcrptr->merged_value.length = lcqptr->merged_value.length;
+    memcpy(merged_value,
+      lcqptr->merged_value.str, lcqptr->merged_value.length);
+    merged_value += lcqptr->merged_value.length;
+    memcpy(merged_value, spider_unique_id.str, spider_unique_id.length);
+    merged_value += spider_unique_id.length;
+    memcpy(merged_value, lcptr->cur_name.str, lcptr->cur_name.length);
+    merged_value += lcptr->cur_name.length;
+    *merged_value = '-';
+    ++merged_value;
+    memcpy(merged_value, lcptr->from_value.str, lcptr->from_value.length + 1);
+
+    DBUG_PRINT("info", ("spider free lcqptr"));
+#ifdef HASH_UPDATE_WITH_HASH_VALUE
+    my_hash_delete_with_hash_value(&conn->loop_checked,
+      lcqptr->hash_value_full, (uchar *) lcqptr);
+    my_hash_delete_with_hash_value(&conn->loop_check_queue,
+      lcqptr->hash_value_to, (uchar *) lcqptr);
+#else
+    my_hash_delete(&conn->loop_checked, (uchar*) lcqptr);
+    my_hash_delete(&conn->loop_check_queue, (uchar*) lcqptr);
+#endif
+    spider_free(spider_current_trx, lcqptr, MYF(0));
+
+    lcptr = lcrptr;
+#ifdef HASH_UPDATE_WITH_HASH_VALUE
+    if (unlikely(my_hash_insert_with_hash_value(&conn->loop_checked,
+      lcptr->hash_value_full, (uchar *) lcptr)))
+#else
+    if (unlikely(my_hash_insert(&conn->loop_checked, (uchar *) lcptr)))
+#endif
+    {
+      goto error_hash_insert;
+    }
+#ifdef HASH_UPDATE_WITH_HASH_VALUE
+    if (unlikely(my_hash_insert_with_hash_value(&conn->loop_check_queue,
+      lcptr->hash_value_to, (uchar *) lcptr)))
+#else
+    if (unlikely(my_hash_insert(&conn->loop_check_queue, (uchar *) lcptr)))
+#endif
+    {
+      goto error_hash_insert_queue;
+    }
+    lcptr->flag = SPIDER_LOP_CHK_MERAGED;
+    lcptr->next = NULL;
+    if (!conn->loop_check_meraged_first)
+    {
+      conn->loop_check_meraged_first = lcptr;
+      conn->loop_check_meraged_last = lcptr;
+    } else {
+      conn->loop_check_meraged_last->next = lcptr;
+      conn->loop_check_meraged_last = lcptr;
+    }
+  }
+  DBUG_RETURN(0);
+
+error_alloc_loop_check_replace:
+error_hash_insert_queue:
+#ifdef HASH_UPDATE_WITH_HASH_VALUE
+  my_hash_delete_with_hash_value(&conn->loop_checked,
+    lcptr->hash_value_full, (uchar *) lcptr);
+#else
+  my_hash_delete(&conn->loop_checked, (uchar*) lcptr);
+#endif
+error_hash_insert:
+  spider_free(spider_current_trx, lcptr, MYF(0));
+  pthread_mutex_unlock(&conn->loop_check_mutex);
+  DBUG_RETURN(error_num);
+}
+
+int spider_conn_reset_queue_loop_check(
+  SPIDER_CONN *conn
+) {
+  int error_num;
+  SPIDER_CONN_LOOP_CHECK *lcptr;
+  DBUG_ENTER("spider_conn_reset_queue_loop_check");
+  uint l = 0;
+  pthread_mutex_lock(&conn->loop_check_mutex);
+  while ((lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_element(
+    &conn->loop_checked, l)))
+  {
+    if (!lcptr->flag)
+    {
+      DBUG_PRINT("info", ("spider free lcptr"));
+#ifdef HASH_UPDATE_WITH_HASH_VALUE
+      my_hash_delete_with_hash_value(&conn->loop_checked,
+        lcptr->hash_value_full, (uchar *) lcptr);
+#else
+      my_hash_delete(&conn->loop_checked, (uchar*) lcptr);
+#endif
+      spider_free(spider_current_trx, lcptr, MYF(0));
+    }
+    ++l;
+  }
+
+  lcptr = conn->loop_check_ignored_first;
+  while (lcptr)
+  {
+    lcptr->flag = 0;
+    if ((error_num = spider_conn_queue_and_merge_loop_check(conn, lcptr)))
+    {
+      goto error_queue_and_merge;
+    }
+    lcptr = lcptr->next;
+  }
+  conn->loop_check_meraged_first = NULL;
+  pthread_mutex_unlock(&conn->loop_check_mutex);
+  DBUG_RETURN(0);
+
+error_queue_and_merge:
+  lcptr = lcptr->next;
+  while (lcptr)
+  {
+    lcptr->flag = 0;
+    lcptr = lcptr->next;
+  }
+  conn->loop_check_meraged_first = NULL;
+  pthread_mutex_unlock(&conn->loop_check_mutex);
+  DBUG_RETURN(error_num);
+}
+
+int spider_conn_queue_loop_check(
+  SPIDER_CONN *conn,
+  ha_spider *spider,
+  int link_idx
+) {
+  int error_num = HA_ERR_OUT_OF_MEM;
+  uint conn_link_idx = spider->conn_link_idx[link_idx], buf_sz;
+  char path[FN_REFLEN + 1];
+  char *tmp_name, *from_name, *cur_name, *to_name, *full_name, *from_value,
+    *merged_value;
+  user_var_entry *loop_check;
+  char *loop_check_buf;
+  THD *thd = spider->wide_handler->trx->thd;
+  TABLE_SHARE *top_share = spider->wide_handler->top_share;
+  SPIDER_SHARE *share = spider->share;
+  SPIDER_CONN_LOOP_CHECK *lcptr;
+  LEX_CSTRING lex_str, from_str, to_str;
+  DBUG_ENTER("spider_conn_queue_loop_check");
+  DBUG_PRINT("info", ("spider conn=%p", conn));
+  lex_str.length = top_share->path.length + SPIDER_SQL_LOP_CHK_PRM_PRF_LEN;
+  buf_sz = lex_str.length + 2;
+  loop_check_buf = (char *) my_alloca(buf_sz);
+  if (unlikely(!loop_check_buf))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  lex_str.str = loop_check_buf;
+  memcpy(loop_check_buf,
+    SPIDER_SQL_LOP_CHK_PRM_PRF_STR, SPIDER_SQL_LOP_CHK_PRM_PRF_LEN);
+  memcpy(loop_check_buf + SPIDER_SQL_LOP_CHK_PRM_PRF_LEN,
+    top_share->path.str, top_share->path.length);
+  loop_check_buf[lex_str.length] = '\0';
+  DBUG_PRINT("info", ("spider param name=%s", lex_str.str));
+  loop_check = get_variable(&thd->user_vars, &lex_str, FALSE);
+  if (!loop_check || loop_check->type != STRING_RESULT)
+  {
+    DBUG_PRINT("info", ("spider client is not Spider"));
+    lex_str.str = "";
+    lex_str.length = 0;
+    from_str.str = "";
+    from_str.length = 0;
+  } else {
+    lex_str.str = loop_check->value;
+    lex_str.length = loop_check->length;
+    DBUG_PRINT("info", ("spider from_str=%s", lex_str.str));
+    if (unlikely(!(tmp_name = strchr(loop_check->value, '-'))))
+    {
+      DBUG_PRINT("info", ("spider invalid value for loop checking 1"));
+      from_str.str = "";
+      from_str.length = 0;
+    }
+    else if (unlikely(!(tmp_name = strchr(tmp_name + 1, '-'))))
+    {
+      DBUG_PRINT("info", ("spider invalid value for loop checking 2"));
+      from_str.str = "";
+      from_str.length = 0;
+    }
+    else if (unlikely(!(tmp_name = strchr(tmp_name + 1, '-'))))
+    {
+      DBUG_PRINT("info", ("spider invalid value for loop checking 3"));
+      from_str.str = "";
+      from_str.length = 0;
+    }
+    else if (unlikely(!(tmp_name = strchr(tmp_name + 1, '-'))))
+    {
+      DBUG_PRINT("info", ("spider invalid value for loop checking 4"));
+      from_str.str = "";
+      from_str.length = 0;
+    }
+    else
+    {
+      from_str.str = lex_str.str;
+      from_str.length = tmp_name - lex_str.str + 1;
+    }
+  }
+  my_afree(loop_check_buf);
+
+  to_str.length = build_table_filename(path, FN_REFLEN,
+    share->tgt_dbs[conn_link_idx], share->tgt_table_names[conn_link_idx],
+    "", 0);
+  to_str.str = path;
+  DBUG_PRINT("info", ("spider to=%s", to_str.str));
+  buf_sz = from_str.length + top_share->path.length + to_str.length + 3;
+  loop_check_buf = (char *) my_alloca(buf_sz);
+  if (unlikely(!loop_check_buf))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  DBUG_PRINT("info", ("spider top_share->path=%s", top_share->path.str));
+  memcpy(loop_check_buf, from_str.str, from_str.length);
+  tmp_name = loop_check_buf + from_str.length;
+  *tmp_name = '-';
+  ++tmp_name;
+  memcpy(tmp_name, top_share->path.str, top_share->path.length);
+  tmp_name += top_share->path.length;
+  *tmp_name = '-';
+  ++tmp_name;
+  memcpy(tmp_name, to_str.str, to_str.length);
+  tmp_name += to_str.length;
+  *tmp_name = '\0';
+#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+  my_hash_value_type hash_value = my_calc_hash(&conn->loop_checked,
+    (uchar *) loop_check_buf, buf_sz - 1);
+#endif
+  pthread_mutex_lock(&conn->loop_check_mutex);
+  if (unlikely(
+#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+    !(lcptr = (SPIDER_CONN_LOOP_CHECK *)
+      my_hash_search_using_hash_value(&conn->loop_checked, hash_value,
+      (uchar *) loop_check_buf, buf_sz - 1)) ||
+#else
+    !(lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_search(
+      &conn->loop_checked, (uchar *) loop_check_buf, buf_sz - 1)) ||
+#endif
+    (
+      !lcptr->flag &&
+      (
+        lcptr->from_value.length != lex_str.length ||
+        memcmp(lcptr->from_value.str, lex_str.str, lex_str.length)
+      )
+    )
+  ))
+  {
+    if (unlikely(lcptr))
+    {
+      DBUG_PRINT("info", ("spider free lcptr"));
+#ifdef HASH_UPDATE_WITH_HASH_VALUE
+      my_hash_delete_with_hash_value(&conn->loop_checked,
+        lcptr->hash_value_full, (uchar *) lcptr);
+#else
+      my_hash_delete(&conn->loop_checked, (uchar*) lcptr);
+#endif
+      spider_free(spider_current_trx, lcptr, MYF(0));
+    }
+    DBUG_PRINT("info", ("spider alloc_lcptr"));
+    if (unlikely(!spider_bulk_malloc(spider_current_trx, 272, MYF(MY_WME),
+      &lcptr, (uint) (sizeof(SPIDER_CONN_LOOP_CHECK)),
+      &from_name, (uint) (from_str.length + 1),
+      &cur_name, (uint) (top_share->path.length + 1),
+      &to_name, (uint) (to_str.length + 1),
+      &full_name, (uint) (buf_sz),
+      &from_value, (uint) (lex_str.length + 1),
+      &merged_value, (uint) (spider_unique_id.length + top_share->path.length +
+        lex_str.length + 2),
+      NullS)
+    )) {
+      my_afree(loop_check_buf);
+      goto error_alloc_loop_check;
+    }
+    lcptr->flag = 0;
+    lcptr->from_name.str = from_name;
+    lcptr->from_name.length = from_str.length;
+    memcpy(from_name, from_str.str, from_str.length + 1);
+    lcptr->cur_name.str = cur_name;
+    lcptr->cur_name.length = top_share->path.length;
+    memcpy(cur_name, top_share->path.str, top_share->path.length + 1);
+    lcptr->to_name.str = to_name;
+    lcptr->to_name.length = to_str.length;
+    memcpy(to_name, to_str.str, to_str.length + 1);
+    lcptr->full_name.str = full_name;
+    lcptr->full_name.length = buf_sz - 1;
+    memcpy(full_name, loop_check_buf, buf_sz);
+    lcptr->from_value.str = from_value;
+    lcptr->from_value.length = lex_str.length;
+    memcpy(from_value, lex_str.str, lex_str.length + 1);
+    lcptr->merged_value.str = merged_value;
+#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+    lcptr->hash_value_to = my_calc_hash(&conn->loop_checked,
+      (uchar *) to_str.str, to_str.length);
+    lcptr->hash_value_full = hash_value;
+#endif
+#ifdef HASH_UPDATE_WITH_HASH_VALUE
+    if (unlikely(my_hash_insert_with_hash_value(&conn->loop_checked,
+      lcptr->hash_value_full, (uchar *) lcptr)))
+#else
+    if (unlikely(my_hash_insert(&conn->loop_checked, (uchar *) lcptr)))
+#endif
+    {
+      my_afree(loop_check_buf);
+      goto error_hash_insert;
+    }
+  } else {
+    if (!lcptr->flag)
+    {
+      DBUG_PRINT("info", ("spider add to ignored list"));
+      lcptr->flag |= SPIDER_LOP_CHK_IGNORED;
+      lcptr->next = NULL;
+      if (!conn->loop_check_ignored_first)
+      {
+        conn->loop_check_ignored_first = lcptr;
+        conn->loop_check_ignored_last = lcptr;
+      } else {
+        conn->loop_check_ignored_last->next = lcptr;
+        conn->loop_check_ignored_last = lcptr;
+      }
+    }
+    pthread_mutex_unlock(&conn->loop_check_mutex);
+    my_afree(loop_check_buf);
+    DBUG_PRINT("info", ("spider be sent or queued already"));
+    DBUG_RETURN(0);
+  }
+  my_afree(loop_check_buf);
+
+  if ((error_num = spider_conn_queue_and_merge_loop_check(conn, lcptr)))
+  {
+    goto error_queue_and_merge;
+  }
+  pthread_mutex_unlock(&conn->loop_check_mutex);
+  DBUG_RETURN(0);
+
+error_hash_insert:
+  spider_free(spider_current_trx, lcptr, MYF(0));
+error_queue_and_merge:
+  pthread_mutex_unlock(&conn->loop_check_mutex);
+error_alloc_loop_check:
+  DBUG_RETURN(error_num);
 }
 
 void spider_conn_queue_start_transaction(

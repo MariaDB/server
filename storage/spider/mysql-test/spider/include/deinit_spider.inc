@@ -46,6 +46,10 @@ DROP TABLE IF EXISTS mysql.spider_table_sts;
 DROP TABLE IF EXISTS mysql.spider_table_crd;
 if ($VERSION_COMPILE_OS_WIN)
 {
+  if ($MASTER_1_MYPORT)
+  {
+    DROP SERVER s_1;
+  }
   if ($CHILD2_1_MYPORT)
   {
     DROP SERVER s_2_1;
@@ -73,6 +77,10 @@ if ($VERSION_COMPILE_OS_WIN)
 }
 if (!$VERSION_COMPILE_OS_WIN)
 {
+  if ($MASTER_1_MYSOCK)
+  {
+    DROP SERVER s_1;
+  }
   if ($CHILD2_1_MYSOCK)
   {
     DROP SERVER s_2_1;

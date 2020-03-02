@@ -196,6 +196,7 @@ PSI_mutex_key spd_key_mutex_conn_i;
 PSI_mutex_key spd_key_mutex_bg_stss;
 PSI_mutex_key spd_key_mutex_bg_crds;
 #endif
+PSI_mutex_key spd_key_mutex_conn_loop_check;
 
 static PSI_mutex_info all_spider_mutexes[]=
 {
@@ -246,6 +247,7 @@ static PSI_mutex_info all_spider_mutexes[]=
   { &spd_key_mutex_pt_handler, "pt_handler", 0},
 #endif
   { &spd_key_mutex_udf_table, "udf_table", 0},
+  { &spd_key_mutex_conn_loop_check, "conn_loop_check", 0},
 };
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -403,6 +405,9 @@ extern ulonglong  spider_free_mem_count[SPIDER_MEM_CALC_LIST_NUM];
 
 static char spider_wild_many = '%', spider_wild_one = '_',
   spider_wild_prefix='\\';
+
+static char spider_unique_id_buf[1 + 12 + 1 + 16 + 1 + 1];
+LEX_CSTRING spider_unique_id;
 
 // for spider_open_tables
 uchar *spider_tbl_get_key(
@@ -4605,7 +4610,7 @@ SPIDER_SHARE *spider_get_share(
   SPIDER_SHARE *share;
   TABLE_SHARE *table_share = table->s;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
-  uint length, tmp_conn_link_idx = 0;
+  uint length, tmp_conn_link_idx = 0, buf_sz;
   char *tmp_name, *tmp_cid;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   char *tmp_hs_r_name, *tmp_hs_w_name;
@@ -4640,13 +4645,60 @@ SPIDER_SHARE *spider_get_share(
   bool same_server_link;
   int load_sts_at_startup;
   int load_crd_at_startup;
+  user_var_entry *loop_check;
+  char *loop_check_buf;
+  TABLE_SHARE *top_share;
+  LEX_CSTRING lex_str;
   DBUG_ENTER("spider_get_share");
-
+  top_share = spider->wide_handler->top_share;
   length = (uint) strlen(table_name);
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) table_name, length);
 #endif
+  if (top_share)
+  {
+    lex_str.length = top_share->path.length + SPIDER_SQL_LOP_CHK_PRM_PRF_LEN;
+    buf_sz = spider_unique_id.length > SPIDER_SQL_LOP_CHK_PRM_PRF_LEN ?
+      top_share->path.length + spider_unique_id.length + 2 :
+      lex_str.length + 2;
+    loop_check_buf = (char *) my_alloca(buf_sz);
+    if (unlikely(!loop_check_buf))
+    {
+      *error_num = HA_ERR_OUT_OF_MEM;
+      DBUG_RETURN(NULL);
+    }
+    lex_str.str = loop_check_buf + buf_sz - lex_str.length - 2;
+    memcpy((void *) lex_str.str,
+      SPIDER_SQL_LOP_CHK_PRM_PRF_STR, SPIDER_SQL_LOP_CHK_PRM_PRF_LEN);
+    memcpy((void *) (lex_str.str + SPIDER_SQL_LOP_CHK_PRM_PRF_LEN),
+      top_share->path.str, top_share->path.length);
+    ((char *) lex_str.str)[lex_str.length] = '\0';
+    DBUG_PRINT("info",("spider loop check param name=%s", lex_str.str));
+    loop_check = get_variable(&thd->user_vars, &lex_str, FALSE);
+    if (loop_check && loop_check->type == STRING_RESULT)
+    {
+      lex_str.length = top_share->path.length + spider_unique_id.length + 1;
+      lex_str.str = loop_check_buf + buf_sz - top_share->path.length -
+        spider_unique_id.length - 2;
+      memcpy((void *) lex_str.str, spider_unique_id.str,
+        spider_unique_id.length);
+      ((char *) lex_str.str)[lex_str.length - 1] = '-';
+      ((char *) lex_str.str)[lex_str.length] = '\0';
+      DBUG_PRINT("info",("spider loop check key=%s", lex_str.str));
+      DBUG_PRINT("info",("spider loop check param value=%s",
+        loop_check->value));
+      if (unlikely(strstr(loop_check->value, lex_str.str)))
+      {
+        *error_num = ER_SPIDER_INFINITE_LOOP_NUM;
+        my_printf_error(*error_num, ER_SPIDER_INFINITE_LOOP_STR, MYF(0),
+          top_share->db.str, top_share->table_name.str);
+        my_afree(loop_check_buf);
+        DBUG_RETURN(NULL);
+      }
+    }
+    my_afree(loop_check_buf);
+  }
   pthread_mutex_lock(&spider_tbl_mutex);
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if (!(share = (SPIDER_SHARE*) my_hash_search_using_hash_value(
@@ -5245,6 +5297,7 @@ SPIDER_SHARE *spider_get_share(
         my_printf_error(ER_SPIDER_TABLE_OPEN_TIMEOUT_NUM,
           ER_SPIDER_TABLE_OPEN_TIMEOUT_STR, MYF(0),
           table_share->db.str, table_share->table_name.str);
+        spider_free_share(share);
         goto error_but_no_delete;
       }
       my_sleep(10000); // wait 10 ms
@@ -6918,6 +6971,7 @@ int spider_db_init(
 ) {
   int error_num = HA_ERR_OUT_OF_MEM, roop_count;
   uint dbton_id = 0;
+  char addr[6];
   handlerton *spider_hton = (handlerton *)p;
   DBUG_ENTER("spider_db_init");
   spider_hton_ptr = spider_hton;
@@ -6958,6 +7012,16 @@ int spider_db_init(
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   spider_hton->create_group_by = spider_create_group_by_handler;
 #endif
+
+  if (my_gethwaddr((uchar *) addr))
+  {
+    my_printf_error(ER_SPIDER_CANT_NUM, ER_SPIDER_CANT_STR1, MYF(0),
+      "get hardware address with error ", errno);
+  }
+  spider_unique_id.str = spider_unique_id_buf;
+  spider_unique_id.length = my_sprintf(spider_unique_id_buf,
+    (spider_unique_id_buf, "-%02x%02x%02x%02x%02x%02x-%lx-",
+      addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], (ulong) getpid()));
 
   memset(&spider_alloc_func_name, 0, sizeof(spider_alloc_func_name));
   memset(&spider_alloc_file_name, 0, sizeof(spider_alloc_file_name));
@@ -8402,8 +8466,27 @@ TABLE_LIST *spider_get_parent_table_list(
   ha_spider *spider
 ) {
   TABLE *table = spider->get_top_table();
+  TABLE_LIST *current, *parent;
   DBUG_ENTER("spider_get_parent_table_list");
-  DBUG_RETURN(table->pos_in_table_list);
+  DBUG_PRINT("info",("spider table=%p", table));
+  if (table->pos_in_table_list)
+  {
+    current = table->pos_in_table_list;
+  } else {
+    current = table->intention_pos_in_table_list;
+  }
+#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
+  if (!spider->set_top_table_fields)
+  {
+#endif
+    while ((parent = current->parent_l))
+    {
+      current = parent;
+    }
+#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
+  }
+#endif
+  DBUG_RETURN(current);
 }
 
 List<Index_hint> *spider_get_index_hints(

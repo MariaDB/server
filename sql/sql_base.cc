@@ -1977,11 +1977,13 @@ retry_share:
                                    MYF(MY_WME))))
       goto err_lock;
 
+    table_list->intention_table= table;
     error= open_table_from_share(thd, share, &table_list->alias,
                                  HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
                                  EXTRA_RECORD,
                                  thd->open_options, table, FALSE,
-                                 IF_PARTITIONING(table_list->partition_names,0));
+                                 IF_PARTITIONING(table_list->partition_names,0),
+                                 table_list);
 
     if (unlikely(error))
     {

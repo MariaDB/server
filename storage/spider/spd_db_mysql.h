@@ -91,6 +91,10 @@ public:
     spider_string *str,
     Time_zone *time_zone
   );
+  int append_loop_check(
+    spider_string *str,
+    SPIDER_CONN *conn
+  );
   int append_start_transaction(
     spider_string *str
   );
@@ -439,7 +443,7 @@ public:
   bool is_xa_nota_error(
     int error_num
   );
-  void print_warnings(
+  int print_warnings(
     struct tm *l_time
   );
   spider_db_result *store_result(
@@ -529,6 +533,11 @@ public:
     Time_zone *time_zone,
     int *need_mon
   );
+  bool set_loop_check_in_bulk_sql();
+  int set_loop_check(
+    int *need_mon
+  );
+  int fin_loop_check();
   int exec_simple_sql_with_result(
     SPIDER_TRX *trx,
     SPIDER_SHARE *share,
