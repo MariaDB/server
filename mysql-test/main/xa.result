@@ -51,7 +51,7 @@ formatID	gtrid_length	bqual_length	data
 11	5	5	testb 0@P`
 1	5	5	testatestb
 xa commit 'testb',0x2030405060,11;
-ERROR XAE04: XAER_NOTA: Unknown XID
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
 xa rollback 'testa','testb';
 xa start 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
@@ -369,3 +369,29 @@ XA PREPARE 'Я_упaлa_c_сеновала_тормозила_головой';
 XA ROLLBACK 'Я_упaлa_c_сеновала_тормозила_головой';
 SET NAMES default;
 DROP TABLE t1;
+#
+# MDEV-21659 XA rollback foreign_xid is allowed inside active XA
+# MDEV-21854 - xa commit  one phase for already prepared transaction
+#              must always error out
+#
+BEGIN;
+XA COMMIT 'unknown';
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+XA COMMIT 'unknown' ONE PHASE;
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+BEGIN;
+XA ROLLBACK 'unknown';
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+ROLLBACK;
+XA START 'xid1';
+XA COMMIT 'unknown';
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+XA COMMIT 'unknown' ONE PHASE;
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+XA ROLLBACK 'unknown';
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+XA END 'xid1';
+XA PREPARE 'xid1';
+XA COMMIT 'xid1' ONE PHASE;
+ERROR XAE05: XAER_INVAL: Invalid arguments (or unsupported command)
+XA ROLLBACK 'xid1';

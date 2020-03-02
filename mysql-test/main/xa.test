@@ -72,7 +72,7 @@ xa prepare 'testa','testb';
 
 xa recover;
 
---error ER_XAER_NOTA
+--error ER_XAER_OUTSIDE
 xa commit 'testb',0x2030405060,11;
 xa rollback 'testa','testb';
 
@@ -505,5 +505,32 @@ XA ROLLBACK 'Я_упaлa_c_сеновала_тормозила_головой';
 SET NAMES default;
 
 DROP TABLE t1;
+--echo #
+--echo # MDEV-21659 XA rollback foreign_xid is allowed inside active XA
+--echo # MDEV-21854 - xa commit  one phase for already prepared transaction
+--echo #              must always error out
+--echo #
+BEGIN;
+--error ER_XAER_OUTSIDE
+XA COMMIT 'unknown';
+--error ER_XAER_OUTSIDE
+XA COMMIT 'unknown' ONE PHASE;
+BEGIN;
+--error ER_XAER_OUTSIDE
+XA ROLLBACK 'unknown';
+ROLLBACK;
+
+XA START 'xid1';
+--error ER_XAER_OUTSIDE
+XA COMMIT 'unknown';
+--error ER_XAER_OUTSIDE
+XA COMMIT 'unknown' ONE PHASE;
+--error ER_XAER_OUTSIDE
+XA ROLLBACK 'unknown';
+XA END 'xid1';
+XA PREPARE 'xid1';
+--error ER_XAER_INVAL
+XA COMMIT 'xid1' ONE PHASE;
+XA ROLLBACK 'xid1';
 
 --source include/wait_until_count_sessions.inc
