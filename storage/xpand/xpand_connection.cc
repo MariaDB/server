@@ -165,6 +165,8 @@ int xpand_connection::connect_direct(char *host)
   if (!mysql_init(&xpand_net))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
+  uint protocol_tcp = MYSQL_PROTOCOL_TCP;
+  mysql_options(&xpand_net, MYSQL_OPT_PROTOCOL, &protocol_tcp);
   mysql_options(&xpand_net, MYSQL_OPT_READ_TIMEOUT,
                 &xpand_read_timeout);
   mysql_options(&xpand_net, MYSQL_OPT_WRITE_TIMEOUT,
