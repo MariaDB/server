@@ -1,5 +1,5 @@
-/* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019 MariaDB corp
+/* Copyright (C) 2008-2020 Kentoku Shiba
+   Copyright (C) 2019-2020 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -261,7 +261,7 @@ const char SPIDER_empty_string = "";
 #define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           273
+#define SPIDER_MEM_CALC_LIST_NUM           314
 #define SPIDER_CONN_META_BUF_LEN           64
 
 #define SPIDER_BACKUP_DASTATUS \
@@ -482,6 +482,7 @@ typedef struct st_spider_conn
   char               *tgt_password;
   char               *tgt_socket;
   char               *tgt_wrapper;
+  char               *tgt_db; /* for not joinable tables on different db */
   char               *tgt_ssl_ca;
   char               *tgt_ssl_capath;
   char               *tgt_ssl_cert;
@@ -501,6 +502,7 @@ typedef struct st_spider_conn
   uint               tgt_password_length;
   uint               tgt_socket_length;
   uint               tgt_wrapper_length;
+  uint               tgt_db_length;
   uint               tgt_ssl_ca_length;
   uint               tgt_ssl_capath_length;
   uint               tgt_ssl_cert_length;
@@ -1046,6 +1048,7 @@ typedef struct st_spider_share
   int                bulk_size;
   int                bulk_update_mode;
   int                bulk_update_size;
+  int                buffer_size;
   int                internal_optimize;
   int                internal_optimize_local;
   double             scan_rate;

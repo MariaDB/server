@@ -1053,6 +1053,31 @@ int spider_param_bulk_update_size(
 
 /*
  -1 :use table parameter
+  0-:buffer size
+ */
+static MYSQL_THDVAR_INT(
+  buffer_size, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Buffer size", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  2147483647, /* max */
+  0 /* blk */
+);
+
+int spider_param_buffer_size(
+  THD *thd,
+  int buffer_size
+) {
+  DBUG_ENTER("spider_param_buffer_size");
+  DBUG_RETURN(THDVAR(thd, buffer_size) == -1 ?
+    buffer_size : THDVAR(thd, buffer_size));
+}
+
+/*
+ -1 :use table parameter
   0 :off
   1 :on
  */
@@ -3463,6 +3488,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(bulk_size),
   MYSQL_SYSVAR(bulk_update_mode),
   MYSQL_SYSVAR(bulk_update_size),
+  MYSQL_SYSVAR(buffer_size),
   MYSQL_SYSVAR(internal_optimize),
   MYSQL_SYSVAR(internal_optimize_local),
   MYSQL_SYSVAR(use_flash_logs),

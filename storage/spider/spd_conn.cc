@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2019 Kentoku Shiba
+/* Copyright (C) 2008-2020 Kentoku Shiba
    Copyright (C) 2019, 2020, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
@@ -563,7 +563,7 @@ SPIDER_CONN *spider_create_conn(
   SPIDER_CONN *conn;
   SPIDER_IP_PORT_CONN *ip_port_conn;
   char *tmp_name, *tmp_host, *tmp_username, *tmp_password, *tmp_socket;
-  char *tmp_wrapper, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
+  char *tmp_wrapper, *tmp_db, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
   DBUG_ENTER("spider_create_conn");
 
@@ -578,6 +578,15 @@ SPIDER_CONN *spider_create_conn(
   if (conn_kind == SPIDER_CONN_KIND_MYSQL)
   {
 #endif
+    bool tables_on_different_db_are_joinable;
+    if (share->sql_dbton_ids[link_idx] != SPIDER_DBTON_SIZE)
+    {
+      tables_on_different_db_are_joinable =
+        spider_dbton[share->sql_dbton_ids[link_idx]].db_util->
+          tables_on_different_db_are_joinable();
+    } else {
+      tables_on_different_db_are_joinable = TRUE;
+    }
     if (!(conn = (SPIDER_CONN *)
       spider_bulk_malloc(spider_current_trx, 18, MYF(MY_WME | MY_ZEROFILL),
         &conn, (uint) (sizeof(*conn)),
@@ -590,6 +599,8 @@ SPIDER_CONN *spider_create_conn(
         &tmp_socket, (uint) (share->tgt_sockets_lengths[link_idx] + 1),
         &tmp_wrapper,
           (uint) (share->tgt_wrappers_lengths[link_idx] + 1),
+        &tmp_db, (uint) (tables_on_different_db_are_joinable ?
+          0 : share->tgt_dbs_lengths[link_idx] + 1),
         &tmp_ssl_ca, (uint) (share->tgt_ssl_cas_lengths[link_idx] + 1),
         &tmp_ssl_capath,
           (uint) (share->tgt_ssl_capaths_lengths[link_idx] + 1),
@@ -638,6 +649,13 @@ SPIDER_CONN *spider_create_conn(
     conn->tgt_wrapper = tmp_wrapper;
     memcpy(conn->tgt_wrapper, share->tgt_wrappers[link_idx],
       share->tgt_wrappers_lengths[link_idx]);
+    if (!tables_on_different_db_are_joinable)
+    {
+      conn->tgt_db_length = share->tgt_dbs_lengths[link_idx];
+      conn->tgt_db = tmp_db;
+      memcpy(conn->tgt_db, share->tgt_dbs[link_idx],
+        share->tgt_dbs_lengths[link_idx]);
+    }
     conn->tgt_ssl_ca_length = share->tgt_ssl_cas_lengths[link_idx];
     if (conn->tgt_ssl_ca_length)
     {
@@ -1878,8 +1896,8 @@ int spider_conn_queue_loop_check(
   my_afree(loop_check_buf);
 
   to_str.length = build_table_filename(path, FN_REFLEN,
-    share->tgt_dbs[conn_link_idx], share->tgt_table_names[conn_link_idx],
-    "", 0);
+    share->tgt_dbs[conn_link_idx] ? share->tgt_dbs[conn_link_idx] : "",
+    share->tgt_table_names[conn_link_idx], "", 0);
   to_str.str = path;
   DBUG_PRINT("info", ("spider to=%s", to_str.str));
   buf_sz = from_str.length + top_share->path.length + to_str.length + 3;
@@ -2831,6 +2849,21 @@ int spider_bg_conn_search(
             }
           }
           result_list->bgs_phase = 2;
+          if (conn->db_conn->limit_mode() == 1)
+          {
+            conn->db_conn->set_limit(result_list->limit_num);
+            if (!discard_result)
+            {
+              if ((error_num = spider_db_store_result_for_reuse_cursor(
+                spider, link_idx, result_list->table)))
+              {
+                pthread_mutex_unlock(&conn->bg_conn_mutex);
+                DBUG_RETURN(error_num);
+              }
+            }
+            pthread_mutex_unlock(&conn->bg_conn_mutex);
+            DBUG_RETURN(0);
+          }
         }
         result_list->bgs_working = TRUE;
         conn->bg_search = TRUE;
@@ -2964,6 +2997,21 @@ int spider_bg_conn_search(
               pthread_mutex_unlock(&conn->bg_conn_mutex);
               DBUG_RETURN(error_num);
             }
+          }
+          if (conn->db_conn->limit_mode() == 1)
+          {
+            conn->db_conn->set_limit(result_list->limit_num);
+            if (!discard_result)
+            {
+              if ((error_num = spider_db_store_result_for_reuse_cursor(
+                spider, link_idx, result_list->table)))
+              {
+                pthread_mutex_unlock(&conn->bg_conn_mutex);
+                DBUG_RETURN(error_num);
+              }
+            }
+            pthread_mutex_unlock(&conn->bg_conn_mutex);
+            DBUG_RETURN(0);
           }
         }
         conn->bg_target = spider;

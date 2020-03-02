@@ -10028,6 +10028,28 @@ int ha_spider::update_row(
 }
 
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+bool ha_spider::check_direct_update_sql_part(
+  st_select_lex *select_lex,
+  longlong select_limit,
+  longlong offset_limit
+) {
+  uint roop_count, dbton_id;
+  spider_db_handler *dbton_hdl;
+  DBUG_ENTER("ha_spider::check_direct_update_sql_part");
+  for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
+  {
+    dbton_id = share->use_sql_dbton_ids[roop_count];
+    dbton_hdl = dbton_handler[dbton_id];
+    if (
+      dbton_hdl->first_link_idx >= 0 &&
+      dbton_hdl->check_direct_update(select_lex, select_limit, offset_limit)
+    ) {
+      DBUG_RETURN(TRUE);
+    }
+  }
+  DBUG_RETURN(FALSE);
+}
+
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
 #ifdef SPIDER_MDEV_16246
 int ha_spider::direct_update_rows_init(
@@ -10118,6 +10140,7 @@ int ha_spider::direct_update_rows_init(
       !select_lex ||
       select_lex->table_list.elements != 1 ||
       check_update_columns_sql_part() ||
+      check_direct_update_sql_part(select_lex, select_limit, offset_limit) ||
       spider_db_append_condition(this, NULL, 0, TRUE)
     ) {
       DBUG_PRINT("info",("spider FALSE by condition"));
@@ -10292,6 +10315,7 @@ int ha_spider::direct_update_rows_init()
       !select_lex ||
       select_lex->table_list.elements != 1 ||
       check_update_columns_sql_part() ||
+      check_direct_update_sql_part(select_lex, select_limit, offset_limit) ||
       spider_db_append_condition(this, NULL, 0, TRUE)
     ) {
       DBUG_PRINT("info",("spider FALSE by condition"));
@@ -10649,6 +10673,28 @@ int ha_spider::delete_row(
 }
 
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+bool ha_spider::check_direct_delete_sql_part(
+  st_select_lex *select_lex,
+  longlong select_limit,
+  longlong offset_limit
+) {
+  uint roop_count, dbton_id;
+  spider_db_handler *dbton_hdl;
+  DBUG_ENTER("ha_spider::check_direct_delete_sql_part");
+  for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
+  {
+    dbton_id = share->use_sql_dbton_ids[roop_count];
+    dbton_hdl = dbton_handler[dbton_id];
+    if (
+      dbton_hdl->first_link_idx >= 0 &&
+      dbton_hdl->check_direct_delete(select_lex, select_limit, offset_limit)
+    ) {
+      DBUG_RETURN(TRUE);
+    }
+  }
+  DBUG_RETURN(FALSE);
+}
+
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
 int ha_spider::direct_delete_rows_init(
   uint mode,
@@ -10716,6 +10762,7 @@ int ha_spider::direct_delete_rows_init(
 #endif
       !select_lex ||
       select_lex->table_list.elements != 1 ||
+      check_direct_delete_sql_part(select_lex, select_limit, offset_limit) ||
       spider_db_append_condition(this, NULL, 0, TRUE)
     ) {
       DBUG_PRINT("info",("spider FALSE by condition"));
@@ -10821,6 +10868,7 @@ int ha_spider::direct_delete_rows_init()
 #endif
     !select_lex ||
     select_lex->table_list.elements != 1 ||
+    check_direct_delete_sql_part(select_lex, select_limit, offset_limit) ||
     spider_db_append_condition(this, NULL, 0, TRUE)
   ) {
     DBUG_PRINT("info",("spider FALSE by condition"));

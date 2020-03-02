@@ -1,4 +1,5 @@
-/* Copyright (C) 2018-2019 Kentoku Shiba
+/* Copyright (C) 2018-2020 Kentoku Shiba
+   Copyright (C) 2018-2020 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -33,6 +34,8 @@
 #include "spd_include.h"
 #include "spd_conn.h"
 
+extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
+
 spider_db_result::spider_db_result(
   SPIDER_DB_CONN *in_db_conn
 ) : db_conn(in_db_conn), dbton_id(in_db_conn->dbton_id)
@@ -51,6 +54,13 @@ int spider_db_result::fetch_table_checksum(
   DBUG_RETURN(0);
 }
 #endif
+
+uint spider_db_result::limit_mode()
+{
+  DBUG_ENTER("spider_db_result::limit_mode");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(spider_dbton[dbton_id].db_util->limit_mode());
+}
 
 spider_db_conn::spider_db_conn(
   SPIDER_CONN *in_conn
@@ -110,6 +120,13 @@ int spider_db_conn::fin_loop_check()
   DBUG_RETURN(0);
 }
 
+uint spider_db_conn::limit_mode()
+{
+  DBUG_ENTER("spider_db_conn::limit_mode");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(spider_dbton[dbton_id].db_util->limit_mode());
+}
+
 int spider_db_util::append_loop_check(
   spider_string *str,
   SPIDER_CONN *conn
@@ -117,6 +134,41 @@ int spider_db_util::append_loop_check(
   DBUG_ENTER("spider_db_util::append_loop_check");
   DBUG_PRINT("info",("spider this=%p", this));
   /* nothing to do */
+  DBUG_RETURN(0);
+}
+
+bool spider_db_util::tables_on_different_db_are_joinable()
+{
+  DBUG_ENTER("spider_db_util::tables_on_different_db_are_joinable");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(TRUE);
+}
+
+bool spider_db_util::socket_has_default_value()
+{
+  DBUG_ENTER("spider_db_util::socket_has_default_value");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(TRUE);
+}
+
+bool spider_db_util::database_has_default_value()
+{
+  DBUG_ENTER("spider_db_util::database_has_default_value");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(TRUE);
+}
+
+bool spider_db_util::append_charset_name_before_string()
+{
+  DBUG_ENTER("spider_db_util::append_charset_name_before_string");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(FALSE);
+}
+
+uint spider_db_util::limit_mode()
+{
+  DBUG_ENTER("spider_db_util::limit_mode");
+  DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(0);
 }
 
@@ -134,5 +186,41 @@ int spider_db_handler::checksum_table(
   DBUG_ENTER("spider_db_handler::checksum_table");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(0);
+}
+#endif
+
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+bool spider_db_handler::check_direct_update(
+  st_select_lex *select_lex,
+  longlong select_limit,
+  longlong offset_limit
+) {
+  DBUG_ENTER("spider_db_handler::check_direct_update");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (
+    select_limit != 9223372036854775807LL ||
+    offset_limit != 0 ||
+    select_lex->order_list.elements
+  ) {
+    DBUG_RETURN(TRUE);
+  }
+  DBUG_RETURN(FALSE);
+}
+
+bool spider_db_handler::check_direct_delete(
+  st_select_lex *select_lex,
+  longlong select_limit,
+  longlong offset_limit
+) {
+  DBUG_ENTER("spider_db_handler::check_direct_delete");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (
+    select_limit != 9223372036854775807LL ||
+    offset_limit != 0 ||
+    select_lex->order_list.elements
+  ) {
+    DBUG_RETURN(TRUE);
+  }
+  DBUG_RETURN(FALSE);
 }
 #endif

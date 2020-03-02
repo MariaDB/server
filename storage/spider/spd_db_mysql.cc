@@ -7272,6 +7272,13 @@ int spider_db_mbase_util::append_having(
 }
 #endif
 
+bool spider_db_mbase_util::append_charset_name_before_string()
+{
+  DBUG_ENTER("spider_db_mbase_util::append_charset_name_before_string");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(TRUE);
+}
+
 spider_mbase_share::spider_mbase_share(
   st_spider_share *share,
   uint dbton_id,
@@ -15690,6 +15697,28 @@ int spider_mbase_handler::append_order_by(
     str->length(str->length() - SPIDER_SQL_COMMA_LEN);
   }
   DBUG_RETURN(0);
+}
+#endif
+
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+bool spider_mbase_handler::check_direct_update(
+  st_select_lex *select_lex,
+  longlong select_limit,
+  longlong offset_limit
+) {
+  DBUG_ENTER("spider_mbase_handler::check_direct_update");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(FALSE);
+}
+
+bool spider_mbase_handler::check_direct_delete(
+  st_select_lex *select_lex,
+  longlong select_limit,
+  longlong offset_limit
+) {
+  DBUG_ENTER("spider_mbase_handler::check_direct_delete");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(FALSE);
 }
 #endif
 

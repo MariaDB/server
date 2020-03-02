@@ -585,6 +585,11 @@ public:
   );
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  bool check_direct_update_sql_part(
+    st_select_lex *select_lex,
+    longlong select_limit,
+    longlong offset_limit
+  );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
 #ifdef SPIDER_MDEV_16246
   inline int direct_update_rows_init(
@@ -709,6 +714,11 @@ public:
     const uchar *buf
   );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  bool check_direct_delete_sql_part(
+    st_select_lex *select_lex,
+    longlong select_limit,
+    longlong offset_limit
+  );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
   inline int direct_delete_rows_init()
   {

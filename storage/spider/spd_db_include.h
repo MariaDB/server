@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2020 Kentoku Shiba
+   Copyright (C) 2019-2020 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -93,6 +94,8 @@ typedef st_spider_result SPIDER_RESULT;
 
 #define SPIDER_SQL_SEMICOLON_STR ";"
 #define SPIDER_SQL_SEMICOLON_LEN sizeof(SPIDER_SQL_SEMICOLON_STR) - 1
+#define SPIDER_SQL_COLON_STR ":"
+#define SPIDER_SQL_COLON_LEN sizeof(SPIDER_SQL_COLON_STR) - 1
 #define SPIDER_SQL_VALUE_QUOTE_STR "'"
 #define SPIDER_SQL_VALUE_QUOTE_LEN (sizeof(SPIDER_SQL_VALUE_QUOTE_STR) - 1)
 
@@ -953,6 +956,11 @@ public:
     spider_string *str
   ) = 0;
 #endif
+  virtual bool tables_on_different_db_are_joinable();
+  virtual bool socket_has_default_value();
+  virtual bool database_has_default_value();
+  virtual bool append_charset_name_before_string();
+  virtual uint limit_mode();
 };
 
 class spider_db_row
@@ -1003,12 +1011,12 @@ public:
 
 class spider_db_result
 {
-protected:
-  SPIDER_DB_CONN *db_conn;
 public:
-  uint dbton_id;
+  SPIDER_DB_CONN *db_conn;
+  uint           dbton_id;
   spider_db_result(SPIDER_DB_CONN *in_db_conn);
   virtual ~spider_db_result() {}
+  virtual void set_limit(longlong value) {}
   virtual bool has_result() = 0;
   virtual void free_result() = 0;
   virtual SPIDER_DB_ROW *current_row() = 0;
@@ -1063,19 +1071,20 @@ public:
     CHARSET_INFO *access_charset
   ) = 0;
 #endif
+  virtual uint limit_mode();
 };
 
 class spider_db_conn
 {
-protected:
-  SPIDER_CONN    *conn;
 public:
-  uint dbton_id;
+  SPIDER_CONN    *conn;
+  uint           dbton_id;
   spider_db_conn(
     SPIDER_CONN *in_conn
   );
   virtual ~spider_db_conn() {}
   virtual int init() = 0;
+  virtual void set_limit(longlong value) {}
   virtual bool is_connected() = 0;
   virtual void bg_connect() = 0;
   virtual int connect(
@@ -1282,6 +1291,7 @@ public:
   virtual bool cmp_request_key_to_snd(
     st_spider_db_request_key *request_key
   ) = 0;
+  virtual uint limit_mode();
 };
 
 class spider_db_share
@@ -1821,6 +1831,18 @@ public:
     spider_fields *fields,
     ulong sql_type
   ) = 0;
+#endif
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  virtual bool check_direct_update(
+    st_select_lex *select_lex,
+    longlong select_limit,
+    longlong offset_limit
+  );
+  virtual bool check_direct_delete(
+    st_select_lex *select_lex,
+    longlong select_limit,
+    longlong offset_limit
+  );
 #endif
 };
 

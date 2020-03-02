@@ -199,6 +199,7 @@ public:
     spider_string *str
   );
 #endif
+  bool append_charset_name_before_string();
 };
 
 class spider_db_mysql_util: public spider_db_mbase_util
@@ -1670,6 +1671,18 @@ public:
     uint alias_length,
     bool use_fields,
     spider_fields *fields
+  );
+#endif
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  bool check_direct_update(
+    st_select_lex *select_lex,
+    longlong select_limit,
+    longlong offset_limit
+  );
+  bool check_direct_delete(
+    st_select_lex *select_lex,
+    longlong select_limit,
+    longlong offset_limit
   );
 #endif
 };

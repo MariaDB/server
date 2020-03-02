@@ -126,6 +126,10 @@ int spider_param_bulk_update_size(
   THD *thd,
   int bulk_update_size
 );
+int spider_param_buffer_size(
+  THD *thd,
+  int buffer_size
+);
 int spider_param_internal_optimize(
   THD *thd,
   int internal_optimize

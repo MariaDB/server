@@ -1,5 +1,5 @@
-/* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019 MariaDB corp
+/* Copyright (C) 2008-2020 Kentoku Shiba
+   Copyright (C) 2019-2020 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -2050,6 +2050,7 @@ int spider_parse_connect_info(
   share->bulk_size = -1;
   share->bulk_update_mode = -1;
   share->bulk_update_size = -1;
+  share->buffer_size = -1;
   share->internal_optimize = -1;
   share->internal_optimize_local = -1;
   share->scan_rate = -1;
@@ -2219,6 +2220,7 @@ int spider_parse_connect_info(
 #ifdef HA_CAN_BULK_ACCESS
           SPIDER_PARAM_INT_WITH_MAX("baf", bulk_access_free, 0, 1);
 #endif
+          SPIDER_PARAM_INT("bfz", buffer_size, 0);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
           SPIDER_PARAM_LONGLONG("bfr", bgs_first_read, 0);
           SPIDER_PARAM_INT("bmd", bgs_mode, 0);
@@ -2428,6 +2430,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONG_LIST_WITH_MAX("use_hs_read", use_hs_reads, 0, 1);
 #endif
           SPIDER_PARAM_INT_WITH_MAX("casual_read", casual_read, 0, 63);
+          SPIDER_PARAM_INT("buffer_size", buffer_size, 0);
           error_num = connect_string_parse.print_param_error();
           goto error;
         case 12:
@@ -3504,7 +3507,11 @@ int spider_set_connect_info_default(
 #endif
   TABLE_SHARE *table_share
 ) {
-  int error_num, roop_count;
+  bool check_socket;
+  bool check_database;
+  bool socket_has_default_value;
+  bool database_has_default_value;
+  int error_num, roop_count, roop_count2;
   DBUG_ENTER("spider_set_connect_info_default");
   for (roop_count = 0; roop_count < (int) share->all_link_count; roop_count++)
   {
@@ -3512,6 +3519,64 @@ int spider_set_connect_info_default(
     {
       if ((error_num = spider_get_server(share, roop_count)))
         DBUG_RETURN(error_num);
+    }
+
+    if (
+      !share->tgt_sockets[roop_count] &&
+      (
+        !share->tgt_hosts[roop_count] ||
+        !strcmp(share->tgt_hosts[roop_count], my_localhost)
+      )
+    ) {
+      check_socket = TRUE;
+    } else {
+      check_socket = FALSE;
+    }
+    if (!share->tgt_dbs[roop_count] && table_share)
+    {
+      check_database = TRUE;
+    } else {
+      check_database = FALSE;
+    }
+    if (check_socket || check_database)
+    {
+      socket_has_default_value = check_socket;
+      database_has_default_value = check_database;
+      if (share->tgt_wrappers[roop_count])
+      {
+        for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)
+        {
+          DBUG_PRINT("info",("spider share->tgt_wrappers[%d]=%s", roop_count,
+            share->tgt_wrappers[roop_count]));
+          DBUG_PRINT("info",("spider spider_dbton[%d].wrapper=%s", roop_count2,
+            spider_dbton[roop_count2].wrapper ?
+              spider_dbton[roop_count2].wrapper : "NULL"));
+          if (
+            spider_dbton[roop_count2].wrapper &&
+            !strcmp(share->tgt_wrappers[roop_count],
+              spider_dbton[roop_count2].wrapper)
+          ) {
+            if (spider_dbton[roop_count2].db_access_type ==
+              SPIDER_DB_ACCESS_TYPE_SQL)
+            {
+              if (check_socket)
+              {
+                socket_has_default_value = spider_dbton[roop_count2].
+                  db_util->socket_has_default_value();
+              }
+              if (check_database)
+              {
+                database_has_default_value = spider_dbton[roop_count2].
+                  db_util->database_has_default_value();
+              }
+              break;
+            }
+          }
+        }
+      }
+    } else {
+      socket_has_default_value = FALSE;
+      database_has_default_value = FALSE;
     }
 
     if (!share->tgt_wrappers[roop_count])
@@ -3540,7 +3605,7 @@ int spider_set_connect_info_default(
       }
     }
 
-    if (!share->tgt_dbs[roop_count] && table_share)
+    if (database_has_default_value)
     {
       DBUG_PRINT("info",("spider create default tgt_dbs"));
       share->tgt_dbs_lengths[roop_count] = table_share->db.length;
@@ -3662,10 +3727,8 @@ int spider_set_connect_info_default(
     if (share->tgt_ssl_vscs[roop_count] == -1)
       share->tgt_ssl_vscs[roop_count] = 0;
 
-    if (
-      !share->tgt_sockets[roop_count] &&
-      !strcmp(share->tgt_hosts[roop_count], my_localhost)
-    ) {
+    if (socket_has_default_value)
+    {
       DBUG_PRINT("info",("spider create default tgt_sockets"));
       share->tgt_sockets_lengths[roop_count] =
         strlen((char *) MYSQL_UNIX_ADDR);
@@ -3828,6 +3891,8 @@ int spider_set_connect_info_default(
     share->bulk_update_mode = 0;
   if (share->bulk_update_size == -1)
     share->bulk_update_size = 16000;
+  if (share->buffer_size == -1)
+    share->buffer_size = 16000;
   if (share->internal_optimize == -1)
     share->internal_optimize = 0;
   if (share->internal_optimize_local == -1)
@@ -3934,11 +3999,53 @@ int spider_set_connect_info_default_db_table(
   const char *table_name,
   uint table_name_length
 ) {
-  int roop_count;
+  uint roop_count, roop_count2;
+  bool check_database;
+  bool database_has_default_value;
   DBUG_ENTER("spider_set_connect_info_default_db_table");
-  for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
+  for (roop_count = 0; roop_count < share->link_count; roop_count++)
   {
     if (!share->tgt_dbs[roop_count] && db_name)
+    {
+      check_database = TRUE;
+    } else {
+      check_database = FALSE;
+    }
+    if (check_database)
+    {
+      database_has_default_value = check_database;
+      if (share->tgt_wrappers[roop_count])
+      {
+        for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)
+        {
+          DBUG_PRINT("info",("spider share->tgt_wrappers[%d]=%s", roop_count,
+            share->tgt_wrappers[roop_count]));
+          DBUG_PRINT("info",("spider spider_dbton[%d].wrapper=%s", roop_count2,
+            spider_dbton[roop_count2].wrapper ?
+              spider_dbton[roop_count2].wrapper : "NULL"));
+          if (
+            spider_dbton[roop_count2].wrapper &&
+            !strcmp(share->tgt_wrappers[roop_count],
+              spider_dbton[roop_count2].wrapper)
+          ) {
+            if (spider_dbton[roop_count2].db_access_type ==
+              SPIDER_DB_ACCESS_TYPE_SQL)
+            {
+              if (check_database)
+              {
+                database_has_default_value = spider_dbton[roop_count2].
+                  db_util->database_has_default_value();
+              }
+              break;
+            }
+          }
+        }
+      }
+    } else {
+      database_has_default_value = FALSE;
+    }
+
+    if (database_has_default_value)
     {
       DBUG_PRINT("info",("spider create default tgt_dbs"));
       share->tgt_dbs_lengths[roop_count] = db_name_length;
@@ -4023,16 +4130,19 @@ int spider_create_conn_keys(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   char *tmp_hs_r_name, *tmp_hs_w_name;
 #endif
+  uint length_base = sizeof(uint) * share->all_link_count;
   uint *conn_keys_lengths;
+  uint *sql_dbton_ids;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  uint *hs_dbton_ids;
   uint *hs_r_conn_keys_lengths;
   uint *hs_w_conn_keys_lengths;
 #endif
   DBUG_ENTER("spider_create_conn_keys");
   char *ptr;
-  uint length = sizeof(uint) * share->all_link_count;
+  uint length = length_base * 2;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  length += (sizeof(uint) * share->all_link_count) * 2;
+  length += length_base * 3;
 #endif
   ptr = (char *) my_alloca(length);
   if (!ptr)
@@ -4040,10 +4150,14 @@ int spider_create_conn_keys(
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
   conn_keys_lengths = (uint *) ptr;
-  ptr += (sizeof(uint) * share->all_link_count);
+  ptr += length_base;
+  sql_dbton_ids = (uint *) ptr;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  ptr += length_base;
+  hs_dbton_ids = (uint *) ptr;
+  ptr += length_base;
   hs_r_conn_keys_lengths = (uint *) ptr;
-  ptr += (sizeof(uint) * share->all_link_count);
+  ptr += length_base;
   hs_w_conn_keys_lengths = (uint *) ptr;
 #endif
 
@@ -4054,13 +4168,76 @@ int spider_create_conn_keys(
 #endif
   for (roop_count = 0; roop_count < (int) share->all_link_count; roop_count++)
   {
-    /* tgt_db not use */
+    bool get_sql_id = FALSE;
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+    bool get_nosql_id = FALSE;
+#endif
+    for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)
+    {
+      DBUG_PRINT("info",("spider share->tgt_wrappers[%d]=%s", roop_count,
+        share->tgt_wrappers[roop_count]));
+      DBUG_PRINT("info",("spider spider_dbton[%d].wrapper=%s", roop_count2,
+        spider_dbton[roop_count2].wrapper ?
+          spider_dbton[roop_count2].wrapper : "NULL"));
+      if (
+        spider_dbton[roop_count2].wrapper &&
+        !strcmp(share->tgt_wrappers[roop_count],
+          spider_dbton[roop_count2].wrapper)
+      ) {
+        spider_set_bit(share->dbton_bitmap, roop_count2);
+        if (
+          !get_sql_id &&
+          spider_dbton[roop_count2].db_access_type == SPIDER_DB_ACCESS_TYPE_SQL
+        ) {
+          sql_dbton_ids[roop_count] = roop_count2;
+          get_sql_id = TRUE;
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+          if (get_nosql_id)
+#endif
+            break;
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+          else
+            continue;
+#endif
+        }
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+        if (
+          !get_nosql_id &&
+          spider_dbton[roop_count2].db_access_type ==
+            SPIDER_DB_ACCESS_TYPE_NOSQL
+        ) {
+          hs_dbton_ids[roop_count] = roop_count2;
+          get_nosql_id = TRUE;
+          if (get_sql_id)
+            break;
+        }
+#endif
+      }
+    }
+    if (!get_sql_id)
+      sql_dbton_ids[roop_count] = SPIDER_DBTON_SIZE;
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+    if (!get_nosql_id)
+      hs_dbton_ids[roop_count] = SPIDER_DBTON_SIZE;
+#endif
+
+    bool tables_on_different_db_are_joinable;
+    if (get_sql_id)
+    {
+      tables_on_different_db_are_joinable =
+        spider_dbton[sql_dbton_ids[roop_count]].db_util->
+          tables_on_different_db_are_joinable();
+    } else {
+      tables_on_different_db_are_joinable = TRUE;
+    }
     conn_keys_lengths[roop_count]
       = 1
       + share->tgt_wrappers_lengths[roop_count] + 1
       + share->tgt_hosts_lengths[roop_count] + 1
       + 5 + 1
       + share->tgt_sockets_lengths[roop_count] + 1
+      + (tables_on_different_db_are_joinable ?
+        0 : share->tgt_dbs_lengths[roop_count] + 1)
       + share->tgt_usernames_lengths[roop_count] + 1
       + share->tgt_passwords_lengths[roop_count] + 1
       + share->tgt_ssl_cas_lengths[roop_count] + 1
@@ -4095,7 +4272,7 @@ int spider_create_conn_keys(
     spider_bulk_alloc_mem(spider_current_trx, 45,
       __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
       &share->conn_keys, sizeof(char *) * share->all_link_count,
-      &share->conn_keys_lengths, sizeof(uint) * share->all_link_count,
+      &share->conn_keys_lengths, length_base,
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
       &share->conn_keys_hash_value,
         sizeof(my_hash_value_type) * share->all_link_count,
@@ -4103,23 +4280,23 @@ int spider_create_conn_keys(
       &tmp_name, sizeof(char) * share->conn_keys_charlen,
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
       &share->hs_read_conn_keys, sizeof(char *) * share->all_link_count,
-      &share->hs_read_conn_keys_lengths, sizeof(uint) * share->all_link_count,
+      &share->hs_read_conn_keys_lengths, length_base,
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
       &share->hs_read_conn_keys_hash_value,
         sizeof(my_hash_value_type) * share->all_link_count,
 #endif
       &tmp_hs_r_name, sizeof(char) * share->hs_read_conn_keys_charlen,
       &share->hs_write_conn_keys, sizeof(char *) * share->all_link_count,
-      &share->hs_write_conn_keys_lengths, sizeof(uint) * share->all_link_count,
+      &share->hs_write_conn_keys_lengths, length_base,
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
       &share->hs_write_conn_keys_hash_value,
         sizeof(my_hash_value_type) * share->all_link_count,
 #endif
       &tmp_hs_w_name, sizeof(char) * share->hs_write_conn_keys_charlen,
 #endif
-      &share->sql_dbton_ids, sizeof(uint) * share->all_link_count,
+      &share->sql_dbton_ids, length_base,
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-      &share->hs_dbton_ids, sizeof(uint) * share->all_link_count,
+      &share->hs_dbton_ids, length_base,
 #endif
       NullS))
   ) {
@@ -4128,20 +4305,32 @@ int spider_create_conn_keys(
   }
   share->conn_keys_length = share->all_link_count;
   memcpy(share->conn_keys_lengths, conn_keys_lengths,
-    sizeof(uint) * share->all_link_count);
+    length_base);
+  memcpy(share->sql_dbton_ids, sql_dbton_ids, length_base);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   share->hs_read_conn_keys_length = share->all_link_count;
   share->hs_write_conn_keys_length = share->all_link_count;
   memcpy(share->hs_read_conn_keys_lengths, hs_r_conn_keys_lengths,
-    sizeof(uint) * share->all_link_count);
+    length_base);
   memcpy(share->hs_write_conn_keys_lengths, hs_w_conn_keys_lengths,
-    sizeof(uint) * share->all_link_count);
+    length_base);
+  memcpy(share->hs_dbton_ids, hs_dbton_ids, length_base);
 #endif
 
   my_afree(conn_keys_lengths);
 
   for (roop_count = 0; roop_count < (int) share->all_link_count; roop_count++)
   {
+    bool tables_on_different_db_are_joinable;
+    if (share->sql_dbton_ids[roop_count] != SPIDER_DBTON_SIZE)
+    {
+      tables_on_different_db_are_joinable =
+        spider_dbton[share->sql_dbton_ids[roop_count]].db_util->
+          tables_on_different_db_are_joinable();
+    } else {
+      tables_on_different_db_are_joinable = TRUE;
+    }
+
     share->conn_keys[roop_count] = tmp_name;
     *tmp_name = '0';
     DBUG_PRINT("info",("spider tgt_wrappers[%d]=%s", roop_count,
@@ -4160,6 +4349,16 @@ int spider_create_conn_keys(
       tmp_name = strmov(tmp_name + 1, share->tgt_sockets[roop_count]);
     } else
       tmp_name++;
+    if (!tables_on_different_db_are_joinable)
+    {
+      if (share->tgt_dbs[roop_count])
+      {
+        DBUG_PRINT("info",("spider tgt_dbs[%d]=%s", roop_count,
+          share->tgt_dbs[roop_count]));
+        tmp_name = strmov(tmp_name + 1, share->tgt_dbs[roop_count]);
+      } else
+        tmp_name++;
+    }
     if (share->tgt_usernames[roop_count])
     {
       DBUG_PRINT("info",("spider tgt_usernames[%d]=%s", roop_count,
@@ -4287,59 +4486,6 @@ int spider_create_conn_keys(
       &spider_open_connections, (uchar*) share->hs_write_conn_keys[roop_count],
       share->hs_write_conn_keys_lengths[roop_count]);
 #endif
-#endif
-
-    bool get_sql_id = FALSE;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    bool get_nosql_id = FALSE;
-#endif
-    for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)
-    {
-      DBUG_PRINT("info",("spider share->tgt_wrappers[%d]=%s", roop_count,
-        share->tgt_wrappers[roop_count]));
-      DBUG_PRINT("info",("spider spider_dbton[%d].wrapper=%s", roop_count2,
-        spider_dbton[roop_count2].wrapper ?
-          spider_dbton[roop_count2].wrapper : "NULL"));
-      if (
-        spider_dbton[roop_count2].wrapper &&
-        !strcmp(share->tgt_wrappers[roop_count],
-          spider_dbton[roop_count2].wrapper)
-      ) {
-        spider_set_bit(share->dbton_bitmap, roop_count2);
-        if (
-          !get_sql_id &&
-          spider_dbton[roop_count2].db_access_type == SPIDER_DB_ACCESS_TYPE_SQL
-        ) {
-          share->sql_dbton_ids[roop_count] = roop_count2;
-          get_sql_id = TRUE;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          if (get_nosql_id)
-#endif
-            break;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          else
-            continue;
-#endif
-        }
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-        if (
-          !get_nosql_id &&
-          spider_dbton[roop_count2].db_access_type ==
-            SPIDER_DB_ACCESS_TYPE_NOSQL
-        ) {
-          share->hs_dbton_ids[roop_count] = roop_count2;
-          get_nosql_id = TRUE;
-          if (get_sql_id)
-            break;
-        }
-#endif
-      }
-    }
-    if (!get_sql_id)
-      share->sql_dbton_ids[roop_count] = SPIDER_DBTON_SIZE;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    if (!get_nosql_id)
-      share->hs_dbton_ids[roop_count] = SPIDER_DBTON_SIZE;
 #endif
   }
   for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)

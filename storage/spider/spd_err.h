@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2020 Kentoku Shiba
+   Copyright (C) 2019-2020 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -120,6 +121,8 @@
 #define ER_SPIDER_ORACLE_STR "Error from Oracle %d %d %s"
 #define ER_SPIDER_ORACLE_NUM 12712
 #define ER_SPIDER_ORACLE_ERR "Oracle error"
+#define ER_SPIDER_DATASOURCE_STR "Error from %s %d %s %s"
+#define ER_SPIDER_DATASOURCE_NUM 12712
 #define ER_SPIDER_CON_COUNT_ERROR 12713
 #define ER_SPIDER_CON_COUNT_ERROR_STR "Too many connections between spider and remote"
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_NUM 12714

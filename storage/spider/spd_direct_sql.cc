@@ -1,5 +1,5 @@
-/* Copyright (C) 2009-2019 Kentoku Shiba
-   Copyright (C) 2019 MariaDB corp
+/* Copyright (C) 2009-2020 Kentoku Shiba
+   Copyright (C) 2019-2020 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -206,17 +206,79 @@ int spider_udf_direct_sql_create_conn_key(
   char *tmp_name, port_str[6];
   DBUG_ENTER("spider_udf_direct_sql_create_conn_key");
 
-  /* tgt_db not use */
+  uint roop_count2;
+  bool tables_on_different_db_are_joinable = TRUE;
+  direct_sql->dbton_id = SPIDER_DBTON_SIZE;
+  DBUG_PRINT("info",("spider direct_sql->tgt_wrapper=%s",
+    direct_sql->tgt_wrapper));
+  for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)
+  {
+    DBUG_PRINT("info",("spider spider_dbton[%d].wrapper=%s", roop_count2,
+      spider_dbton[roop_count2].wrapper ?
+        spider_dbton[roop_count2].wrapper : "NULL"));
+    if (
+      spider_dbton[roop_count2].wrapper &&
+      !strcmp(direct_sql->tgt_wrapper, spider_dbton[roop_count2].wrapper)
+    ) {
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+      if (direct_sql->access_mode == 0)
+      {
+#endif
+        if (spider_dbton[roop_count2].db_access_type ==
+          SPIDER_DB_ACCESS_TYPE_SQL)
+        {
+          direct_sql->dbton_id = roop_count2;
+          break;
+        }
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+      } else {
+        if (spider_dbton[roop_count2].db_access_type ==
+          SPIDER_DB_ACCESS_TYPE_NOSQL)
+        {
+          direct_sql->dbton_id = roop_count2;
+          break;
+        }
+      }
+#endif
+    }
+  }
+  if (direct_sql->dbton_id == SPIDER_DBTON_SIZE)
+  {
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+    if (direct_sql->access_mode == 0)
+    {
+#endif
+      my_printf_error(
+        ER_SPIDER_SQL_WRAPPER_IS_INVALID_NUM,
+        ER_SPIDER_SQL_WRAPPER_IS_INVALID_STR,
+        MYF(0), direct_sql->tgt_wrapper);
+      DBUG_RETURN(ER_SPIDER_SQL_WRAPPER_IS_INVALID_NUM);
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+    } else {
+      my_printf_error(
+        ER_SPIDER_NOSQL_WRAPPER_IS_INVALID_NUM,
+        ER_SPIDER_NOSQL_WRAPPER_IS_INVALID_STR,
+        MYF(0), direct_sql->tgt_wrapper);
+      DBUG_RETURN(ER_SPIDER_NOSQL_WRAPPER_IS_INVALID_NUM);
+    }
+#endif
+  }
+
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if (direct_sql->access_mode == 0)
   {
 #endif
+    tables_on_different_db_are_joinable =
+      spider_dbton[direct_sql->dbton_id].db_util->
+        tables_on_different_db_are_joinable();
     direct_sql->conn_key_length
       = 1
       + direct_sql->tgt_wrapper_length + 1
       + direct_sql->tgt_host_length + 1
       + 5 + 1
       + direct_sql->tgt_socket_length + 1
+      + (tables_on_different_db_are_joinable ?
+        0 : direct_sql->tgt_default_db_name_length + 1)
       + direct_sql->tgt_username_length + 1
       + direct_sql->tgt_password_length + 1
       + direct_sql->tgt_ssl_ca_length + 1
@@ -263,6 +325,16 @@ int spider_udf_direct_sql_create_conn_key(
   if (direct_sql->access_mode == 0)
   {
 #endif
+    if (!tables_on_different_db_are_joinable)
+    {
+      if (direct_sql->tgt_default_db_name)
+      {
+        DBUG_PRINT("info",("spider tgt_default_db_name=%s",
+          direct_sql->tgt_default_db_name));
+        tmp_name = strmov(tmp_name + 1, direct_sql->tgt_default_db_name);
+      } else
+        tmp_name++;
+    }
     if (direct_sql->tgt_username)
     {
       DBUG_PRINT("info",("spider tgt_username=%s", direct_sql->tgt_username));
@@ -326,62 +398,6 @@ int spider_udf_direct_sql_create_conn_key(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   }
 #endif
-  uint roop_count2;
-  direct_sql->dbton_id = SPIDER_DBTON_SIZE;
-  DBUG_PRINT("info",("spider direct_sql->tgt_wrapper=%s",
-    direct_sql->tgt_wrapper));
-  for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)
-  {
-    DBUG_PRINT("info",("spider spider_dbton[%d].wrapper=%s", roop_count2,
-      spider_dbton[roop_count2].wrapper ?
-        spider_dbton[roop_count2].wrapper : "NULL"));
-    if (
-      spider_dbton[roop_count2].wrapper &&
-      !strcmp(direct_sql->tgt_wrapper, spider_dbton[roop_count2].wrapper)
-    ) {
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-      if (direct_sql->access_mode == 0)
-      {
-#endif
-        if (spider_dbton[roop_count2].db_access_type ==
-          SPIDER_DB_ACCESS_TYPE_SQL)
-        {
-          direct_sql->dbton_id = roop_count2;
-          break;
-        }
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-      } else {
-        if (spider_dbton[roop_count2].db_access_type ==
-          SPIDER_DB_ACCESS_TYPE_NOSQL)
-        {
-          direct_sql->dbton_id = roop_count2;
-          break;
-        }
-      }
-#endif
-    }
-  }
-  if (direct_sql->dbton_id == SPIDER_DBTON_SIZE)
-  {
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    if (direct_sql->access_mode == 0)
-    {
-#endif
-      my_printf_error(
-        ER_SPIDER_SQL_WRAPPER_IS_INVALID_NUM,
-        ER_SPIDER_SQL_WRAPPER_IS_INVALID_STR,
-        MYF(0), direct_sql->tgt_wrapper);
-      DBUG_RETURN(ER_SPIDER_SQL_WRAPPER_IS_INVALID_NUM);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    } else {
-      my_printf_error(
-        ER_SPIDER_NOSQL_WRAPPER_IS_INVALID_NUM,
-        ER_SPIDER_NOSQL_WRAPPER_IS_INVALID_STR,
-        MYF(0), direct_sql->tgt_wrapper);
-      DBUG_RETURN(ER_SPIDER_NOSQL_WRAPPER_IS_INVALID_NUM);
-    }
-#endif
-  }
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   direct_sql->conn_key_hash_value = my_calc_hash(&spider_open_connections,
     (uchar*) direct_sql->conn_key, direct_sql->conn_key_length);
@@ -396,9 +412,10 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   SPIDER_CONN *conn;
   SPIDER_IP_PORT_CONN *ip_port_conn;
   char *tmp_name, *tmp_host, *tmp_username, *tmp_password, *tmp_socket;
-  char *tmp_wrapper, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
+  char *tmp_wrapper, *tmp_db, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
   int *need_mon;
+  bool tables_on_different_db_are_joinable = TRUE;
   DBUG_ENTER("spider_udf_direct_sql_create_conn");
 
   if (unlikely(!UTC))
@@ -412,6 +429,9 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   if (direct_sql->access_mode == 0)
   {
 #endif
+    tables_on_different_db_are_joinable =
+      spider_dbton[direct_sql->dbton_id].db_util->
+        tables_on_different_db_are_joinable();
     if (!(conn = (SPIDER_CONN *)
       spider_bulk_malloc(spider_current_trx, 32, MYF(MY_WME | MY_ZEROFILL),
         &conn, (uint) (sizeof(*conn)),
@@ -421,6 +441,8 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
         &tmp_password, (uint) (direct_sql->tgt_password_length + 1),
         &tmp_socket, (uint) (direct_sql->tgt_socket_length + 1),
         &tmp_wrapper, (uint) (direct_sql->tgt_wrapper_length + 1),
+        &tmp_db, (uint) (tables_on_different_db_are_joinable ?
+          0 : direct_sql->tgt_default_db_name_length + 1),
         &tmp_ssl_ca, (uint) (direct_sql->tgt_ssl_ca_length + 1),
         &tmp_ssl_capath, (uint) (direct_sql->tgt_ssl_capath_length + 1),
         &tmp_ssl_cert, (uint) (direct_sql->tgt_ssl_cert_length + 1),
@@ -475,6 +497,13 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
     conn->tgt_socket = tmp_socket;
     memcpy(conn->tgt_socket, direct_sql->tgt_socket,
       direct_sql->tgt_socket_length);
+    if (!tables_on_different_db_are_joinable)
+    {
+      conn->tgt_db_length = direct_sql->tgt_default_db_name_length;
+      conn->tgt_db = tmp_db;
+      memcpy(conn->tgt_db, direct_sql->tgt_default_db_name,
+        direct_sql->tgt_default_db_name_length);
+    }
     conn->tgt_username_length = direct_sql->tgt_username_length;
     conn->tgt_username = tmp_username;
     memcpy(conn->tgt_username, direct_sql->tgt_username,
@@ -1338,6 +1367,10 @@ int spider_udf_set_direct_sql_param_default(
   SPIDER_TRX *trx,
   SPIDER_DIRECT_SQL *direct_sql
 ) {
+  bool check_socket;
+  bool check_database;
+  bool socket_has_default_value;
+  bool database_has_default_value;
   int error_num, roop_count;
   DBUG_ENTER("spider_udf_set_direct_sql_param_default");
   if (direct_sql->server_name)
@@ -1346,7 +1379,65 @@ int spider_udf_set_direct_sql_param_default(
       DBUG_RETURN(error_num);
   }
 
+  if (
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+    direct_sql->access_mode == 0 &&
+#endif
+    !direct_sql->tgt_socket &&
+    (!direct_sql->tgt_host || !strcmp(direct_sql->tgt_host, my_localhost))
+  ) {
+    check_socket = TRUE;
+  } else {
+    check_socket = FALSE;
+  }
   if (!direct_sql->tgt_default_db_name)
+  {
+    check_database = TRUE;
+  } else {
+    check_database = FALSE;
+  }
+  if (check_socket || check_database)
+  {
+    socket_has_default_value = check_socket;
+    database_has_default_value = check_database;
+    if (direct_sql->tgt_wrapper)
+    {
+      for (roop_count = 0; roop_count < SPIDER_DBTON_SIZE; roop_count++)
+      {
+        DBUG_PRINT("info",("spider direct_sql->tgt_wrapper=%s",
+          direct_sql->tgt_wrapper));
+        DBUG_PRINT("info",("spider spider_dbton[%d].wrapper=%s", roop_count,
+          spider_dbton[roop_count].wrapper ?
+            spider_dbton[roop_count].wrapper : "NULL"));
+        if (
+          spider_dbton[roop_count].wrapper &&
+          !strcmp(direct_sql->tgt_wrapper,
+            spider_dbton[roop_count].wrapper)
+        ) {
+          if (spider_dbton[roop_count].db_access_type ==
+            SPIDER_DB_ACCESS_TYPE_SQL)
+          {
+            if (check_socket)
+            {
+              socket_has_default_value = spider_dbton[roop_count].
+                db_util->socket_has_default_value();
+            }
+            if (check_database)
+            {
+              database_has_default_value = spider_dbton[roop_count].
+                db_util->database_has_default_value();
+            }
+            break;
+          }
+        }
+      }
+    }
+  } else {
+    socket_has_default_value = FALSE;
+    database_has_default_value = FALSE;
+  }
+
+  if (database_has_default_value)
   {
     DBUG_PRINT("info",("spider create default tgt_default_db_name"));
     direct_sql->tgt_default_db_name_length = SPIDER_THD_db_length(trx->thd);
@@ -1442,13 +1533,8 @@ int spider_udf_set_direct_sql_param_default(
   if (direct_sql->tgt_ssl_vsc == -1)
     direct_sql->tgt_ssl_vsc = 0;
 
-  if (
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    direct_sql->access_mode == 0 &&
-#endif
-    !direct_sql->tgt_socket &&
-    !strcmp(direct_sql->tgt_host, my_localhost)
-  ) {
+  if (socket_has_default_value)
+  {
     DBUG_PRINT("info",("spider create default tgt_socket"));
     direct_sql->tgt_socket_length = strlen((char *) MYSQL_UNIX_ADDR);
     if (
