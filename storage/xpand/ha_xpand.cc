@@ -80,27 +80,29 @@ xpand_host_list *xpand_hosts;
 static int check_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
                        void *save, struct st_mysql_value *value)
 {
+  DBUG_ENTER("check_hosts");
   char b;
   int len = 0;
   const char *val = value->val_str(value, &b, &len);
   if (!val)
-    return HA_ERR_OUT_OF_MEM;
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   xpand_host_list list;
   memset(&list, 0, sizeof(list));
 
   int error_code = 0;
   if ((error_code = list.fill(val)))
-    return error_code;
+    DBUG_RETURN(error_code);
   list.empty();
 
   *static_cast<const char **>(save) = val;
-  return 0;
+  DBUG_RETURN(0);
 }
 
 static void update_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
                          void *var_ptr, const void *save)
 {
+  DBUG_ENTER("update_hosts");
   const char *from_save = *static_cast<const char * const *>(save);
 
   mysql_rwlock_wrlock(&xpand_hosts_lock);
@@ -111,7 +113,7 @@ static void update_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
   if (error_code) {
     my_free(list);
     my_printf_error(error_code, "Unhandled error setting xpand hostlist", MYF(0));
-    return;
+    DBUG_VOID_RETURN;
   }
 
   xpand_hosts->empty();
@@ -123,6 +125,7 @@ static void update_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
   *display_var = my_strdup(from_save, MYF(MY_WME));
 
   mysql_rwlock_unlock(&xpand_hosts_lock);
+  DBUG_VOID_RETURN;
 }
 
 static char *xpand_hosts_str;
@@ -132,7 +135,7 @@ static MYSQL_SYSVAR_STR
   xpand_hosts_str,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
   "List of xpand hostnames seperated by commas, semicolons or spaces",
-  check_hosts, update_hosts, "localhost"
+  check_hosts, update_hosts, "127.0.0.1"
 );
 
 char *xpand_username;
@@ -1496,6 +1499,7 @@ static int xpand_deinit(void *p)
   DBUG_ENTER("xpand_deinit");
   mysql_rwlock_wrlock(&xpand_hosts_lock);
   xpand_hosts->empty();
+  my_free(xpand_hosts);
   xpand_hosts = NULL;
   mysql_rwlock_destroy(&xpand_hosts_lock);
   DBUG_RETURN(0);
