@@ -1237,6 +1237,7 @@ public:
 #endif
   int init_union_table_name_pos_sql();
   int set_union_table_name_pos_sql();
+  int append_lock_tables_list();
   int lock_tables();
   int dml_init();
 #ifdef HA_CAN_BULK_ACCESS
