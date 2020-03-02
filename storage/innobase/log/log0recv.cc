@@ -1444,7 +1444,7 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 
 	if (log_block_calc_checksum_format_0(buf)
 	    != log_block_get_checksum(buf)
-	    && !log_crypt_101_read_block(buf)) {
+	    && !log_crypt_101_read_block(buf, lsn)) {
 		ib::error() << NO_UPGRADE_RECOVERY_MSG
 			<< ", and it appears corrupted.";
 		return(DB_CORRUPTION);
@@ -3043,7 +3043,6 @@ recv_group_scan_log_recs(
 	recv_sys.len = 0;
 	recv_sys.recovered_offset = 0;
 	recv_sys.clear();
-	srv_start_lsn = *contiguous_lsn;
 	recv_sys.parse_start_lsn = *contiguous_lsn;
 	recv_sys.scanned_lsn = *contiguous_lsn;
 	recv_sys.recovered_lsn = *contiguous_lsn;
@@ -3303,7 +3302,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	if (err != DB_SUCCESS) {
 
-		srv_start_lsn = recv_sys.recovered_lsn = log_sys.lsn;
+		recv_sys.recovered_lsn = log_sys.lsn;
 		log_mutex_exit();
 		return(err);
 	}
@@ -3540,11 +3539,8 @@ completed:
 
 	recv_synchronize_groups();
 
-	if (!recv_needed_recovery) {
-		ut_a(checkpoint_lsn == recv_sys.recovered_lsn);
-	} else {
-		srv_start_lsn = recv_sys.recovered_lsn;
-	}
+	ut_ad(recv_needed_recovery
+	      || checkpoint_lsn == recv_sys.recovered_lsn);
 
 	log_sys.buf_free = ulong(log_sys.lsn % OS_FILE_LOG_BLOCK_SIZE);
 	log_sys.buf_next_to_write = log_sys.buf_free;

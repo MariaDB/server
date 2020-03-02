@@ -102,8 +102,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "ut0crc32.h"
 #include "btr0scrub.h"
 
-/** Log sequence number immediately after startup */
-lsn_t	srv_start_lsn;
 /** Log sequence number at shutdown */
 lsn_t	srv_shutdown_lsn;
 
@@ -1036,7 +1034,6 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 			     << " bytes; LSN=" << flushed_lsn;
 		}
 
-		srv_start_lsn = flushed_lsn;
 		bool do_flush_logs = flushed_lsn != log_sys.flushed_to_disk_lsn;
 		log_mutex_exit();
 
@@ -2000,7 +1997,7 @@ skip_monitors:
 	if (srv_print_verbose_log) {
 		ib::info() << INNODB_VERSION_STR
 			   << " started; log sequence number "
-			   << srv_start_lsn
+			   << recv_sys.recovered_lsn
 			   << "; transaction id " << trx_sys.get_max_trx_id();
 	}
 

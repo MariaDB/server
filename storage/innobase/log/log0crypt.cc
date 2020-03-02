@@ -29,7 +29,6 @@ MDEV-11782: Rewritten for MariaDB 10.2 by Marko Mäkelä, MariaDB Corporation.
 #include <mysql/service_my_crypt.h>
 
 #include "log0crypt.h"
-#include "srv0start.h" // for srv_start_lsn
 #include "log0recv.h"  // for recv_sys
 
 /** innodb_encrypt_log: whether to encrypt the redo log */
@@ -302,11 +301,10 @@ next_slot:
 }
 
 /** Decrypt a MariaDB 10.1 redo log block.
-@param[in,out]	buf	log block
+@param[in,out]	buf		log block
+@param[in]	start_lsn	server start LSN
 @return	whether the decryption was successful */
-UNIV_INTERN
-bool
-log_crypt_101_read_block(byte* buf)
+bool log_crypt_101_read_block(byte* buf, lsn_t start_lsn)
 {
 	ut_ad(log_block_calc_checksum_format_0(buf)
 	      != log_block_get_checksum(buf));
@@ -341,7 +339,7 @@ found:
 
 	memcpy(aes_ctr_iv, info->crypt_nonce.bytes, 3);
 	mach_write_to_8(aes_ctr_iv + 3,
-			log_block_get_start_lsn(srv_start_lsn, log_block_no));
+			log_block_get_start_lsn(start_lsn, log_block_no));
 	memcpy(aes_ctr_iv + 11, buf, 4);
 	aes_ctr_iv[11] &= ~(LOG_BLOCK_FLUSH_BIT_MASK >> 24);
 	aes_ctr_iv[15] = 0;

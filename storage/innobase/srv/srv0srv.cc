@@ -1462,7 +1462,7 @@ void srv_error_monitor_task(void*)
 {
 	/* number of successive fatal timeouts observed */
 	static ulint		fatal_cnt;
-	static lsn_t		old_lsn = srv_start_lsn;
+	static lsn_t		old_lsn = recv_sys.recovered_lsn;
 	lsn_t		new_lsn;
 	/* longest waiting thread for a semaphore */
 	os_thread_id_t	waiter;

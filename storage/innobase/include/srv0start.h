@@ -94,8 +94,6 @@ srv_get_encryption_data_filename(
 
 /** Log sequence number at shutdown */
 extern	lsn_t	srv_shutdown_lsn;
-/** Log sequence number immediately after startup */
-extern	lsn_t	srv_start_lsn;
 
 /** TRUE if the server is being started */
 extern	bool	srv_is_being_started;

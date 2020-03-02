@@ -1892,7 +1892,7 @@ wait_suspend_loop:
 		redo log before fil_close_all_files(). */
 		log_sys.log.flush_data_only();
 	} else {
-		lsn = srv_start_lsn;
+		lsn = recv_sys.recovered_lsn;
 	}
 
 	srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
@@ -1907,9 +1907,10 @@ wait_suspend_loop:
 	ut_a(lsn == log_sys.lsn
 	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
 
-	if (lsn < srv_start_lsn) {
+	if (UNIV_UNLIKELY(lsn < recv_sys.recovered_lsn)) {
 		ib::error() << "Shutdown LSN=" << lsn
-			<< " is less than start LSN=" << srv_start_lsn;
+			    << " is less than start LSN="
+			    << recv_sys.recovered_lsn;
 	}
 
 	srv_shutdown_lsn = lsn;

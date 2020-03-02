@@ -60,11 +60,10 @@ bool
 log_crypt_101_read_checkpoint(const byte* buf);
 
 /** Decrypt a MariaDB 10.1 redo log block.
-@param[in,out]	buf	log block
+@param[in,out]	buf		log block
+@param[in]	start_lsn	server start LSN
 @return	whether the decryption was successful */
-UNIV_INTERN
-bool
-log_crypt_101_read_block(byte* buf);
+bool log_crypt_101_read_block(byte* buf, lsn_t start_lsn);
 
 /** Read the checkpoint crypto (version, msg and iv) info.
 @param[in]	buf	checkpoint buffer

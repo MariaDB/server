@@ -5452,11 +5452,11 @@ static bool xtrabackup_prepare_func(char** argv)
 	}
 
 	/* Check whether the log is applied enough or not. */
-	if (srv_start_lsn && srv_start_lsn < target_lsn) {
+	if (recv_sys.recovered_lsn && recv_sys.recovered_lsn < target_lsn) {
 		msg("mariabackup: error: "
 		    "The log was only applied up to LSN " LSN_PF
 		    ", instead of " LSN_PF,
-		    srv_start_lsn, target_lsn);
+		    recv_sys.recovered_lsn, target_lsn);
 		ok = false;
 	}
 #ifdef WITH_WSREP
