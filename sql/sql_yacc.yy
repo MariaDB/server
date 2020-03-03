@@ -7732,6 +7732,16 @@ alter_list_item:
             if (unlikely(Lex->add_alter_list($3, $5)))
               MYSQL_YYABORT;
           }
+        | RENAME key_or_index field_ident TO_SYM field_ident
+          {
+            LEX *lex=Lex;
+            Alter_rename_key *ak= new (thd->mem_root)
+                                    Alter_rename_key($3, $5);
+            if (ak == NULL)
+              MYSQL_YYABORT;
+            lex->alter_info.alter_rename_key_list.push_back(ak);
+            lex->alter_info.flags|= ALTER_RENAME_INDEX;
+          }
         | CONVERT_SYM TO_SYM charset charset_name_or_default opt_collate
           {
             if (!$4)

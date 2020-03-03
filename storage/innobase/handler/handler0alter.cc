@@ -3330,6 +3330,14 @@ innobase_check_index_keys(
 				}
 			}
 
+			for (const Alter_inplace_info::Rename_key_pair& pair :
+			     info->rename_keys) {
+				if (0 == strcmp(key.name.str,
+                                                pair.old_key->name.str)) {
+					goto name_ok;
+				}
+			}
+
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
                                  key.name.str);
 			return(ER_WRONG_NAME_FOR_INDEX);

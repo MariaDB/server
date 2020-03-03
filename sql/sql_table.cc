@@ -6601,7 +6601,7 @@ static int compare_uint(const uint *s, const uint *t)
 
 enum class Compare_keys : uint32_t
 {
-  Equal,
+  Equal= 0,
   EqualButKeyPartLength,
   EqualButComment,
   NotEqual
@@ -7998,6 +7998,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   List<Create_field> new_create_list;
   /* New key definitions are added here */
   List<Key> new_key_list;
+  List<Alter_rename_key> rename_key_list(alter_info->alter_rename_key_list);
   List_iterator<Alter_drop> drop_it(alter_info->drop_list);
   List_iterator<Create_field> def_it(alter_info->create_list);
   List_iterator<Alter_column> alter_it(alter_info->alter_list);
@@ -8446,6 +8447,39 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       continue;
     }
 
+    /* If this index is to stay in the table check if it has to be renamed. */
+    List_iterator<Alter_rename_key> rename_key_it(rename_key_list);
+    Alter_rename_key *rename_key;
+
+    while ((rename_key= rename_key_it++))
+    {
+      if (!my_strcasecmp(system_charset_info, key_name, rename_key->old_name.str))
+      {
+        if (!my_strcasecmp(system_charset_info, key_name, primary_key_name))
+        {
+          my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), rename_key->old_name.str);
+          goto err;
+        }
+        else if (!my_strcasecmp(system_charset_info, rename_key->new_name.str,
+                                primary_key_name))
+        {
+          my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), rename_key->new_name.str);
+          goto err;
+        }
+
+        key_name= rename_key->new_name.str;
+        rename_key_it.remove();
+        /*
+          If the user has explicitly renamed the key, we should no longer
+          treat it as generated. Otherwise this key might be automatically
+          dropped by mysql_prepare_create_table() and this will confuse
+          code in fill_alter_inplace_info().
+        */
+        key_info->flags&= ~HA_GENERATED_KEY;
+        break;
+      }
+    }
+
     if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
     {
       setup_keyinfo_hash(key_info);
@@ -8770,6 +8804,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         break;
       }
     }
+  }
+
+  if (rename_key_list.elements)
+  {
+    my_error(ER_KEY_DOES_NOT_EXITS, MYF(0), rename_key_list.head()->old_name.str,
+             table->s->table_name.str);
+    goto err;
   }
 
   if (!create_info->comment.str)

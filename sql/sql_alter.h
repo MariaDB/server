@@ -19,6 +19,7 @@
 
 class Alter_drop;
 class Alter_column;
+class Alter_rename_key;
 class Key;
 
 /**
@@ -87,6 +88,8 @@ public:
   List<Alter_column>            alter_list;
   // List of keys, used by both CREATE and ALTER TABLE.
   List<Key>                     key_list;
+  // List of keys to be renamed.
+  List<Alter_rename_key>        alter_rename_key_list;
   // List of columns, used by both CREATE and ALTER TABLE.
   List<Create_field>            create_list;
 
@@ -123,6 +126,7 @@ public:
     drop_list.empty();
     alter_list.empty();
     key_list.empty();
+    alter_rename_key_list.empty();
     create_list.empty();
     check_constraint_list.empty();
     flags= 0;

@@ -4585,7 +4585,8 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     ALTER_DROP_CHECK_CONSTRAINT |
     ALTER_PARTITIONED |
     ALTER_VIRTUAL_GCOL_EXPR |
-    ALTER_RENAME;
+    ALTER_RENAME |
+    ALTER_RENAME_INDEX;
 
   /* Is there at least one operation that requires copy algorithm? */
   if (ha_alter_info->handler_flags & ~inplace_offline_operations)

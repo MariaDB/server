@@ -355,6 +355,21 @@ public:
 };
 
 
+class Alter_rename_key : public Sql_alloc
+{
+public:
+  LEX_CSTRING old_name;
+  LEX_CSTRING new_name;
+
+  Alter_rename_key(LEX_CSTRING old_name_arg, LEX_CSTRING new_name_arg)
+      : old_name(old_name_arg), new_name(new_name_arg) {}
+
+  Alter_rename_key *clone(MEM_ROOT *mem_root) const
+    { return new (mem_root) Alter_rename_key(*this); }
+
+};
+
+
 class Key :public Sql_alloc, public DDL_options {
 public:
   enum Keytype { PRIMARY, UNIQUE, MULTIPLE, FULLTEXT, SPATIAL, FOREIGN_KEY};
