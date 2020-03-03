@@ -1098,6 +1098,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %token  <kwd>  TIME_SYM                      /* SQL-2003-R, Oracle-R */
 %token  <kwd>  TRANSACTION_SYM
 %token  <kwd>  TRANSACTIONAL_SYM
+%token  <kwd>  THREADS_SYM
 %token  <kwd>  TRIGGERS_SYM
 %token  <kwd>  TRIM_ORACLE
 %token  <kwd>  TRUNCATE_SYM
@@ -14085,6 +14086,8 @@ flush_option:
           { Lex->type|= REFRESH_USER_RESOURCES; }
         | SSL_SYM
           { Lex->type|= REFRESH_SSL;}
+        | THREADS_SYM
+          { Lex->type|= REFRESH_THREADS;}        
         | IDENT_sys remember_tok_start
            {
              Lex->type|= REFRESH_GENERIC;
@@ -15741,6 +15744,7 @@ keyword_sp_var_and_label:
         | THAN_SYM
         | TRANSACTION_SYM    %prec PREC_BELOW_CONTRACTION_TOKEN2
         | TRANSACTIONAL_SYM
+        | THREADS_SYM
         | TRIGGERS_SYM
         | TRIM_ORACLE
         | TIMESTAMP_ADD

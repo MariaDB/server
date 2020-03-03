@@ -672,3 +672,9 @@ UNLOCK TABLES;
 DROP VIEW v1;
 DROP TABLE t1;
 
+--echo #
+--echo # Test FLUSH THREADS
+--echo #
+
+flush threads;
+show status like "Threads_cached";

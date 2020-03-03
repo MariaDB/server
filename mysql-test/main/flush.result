@@ -558,3 +558,10 @@ ERROR HY000: Table 'v1' was not locked with LOCK TABLES
 UNLOCK TABLES;
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# Test FLUSH THREADS
+#
+flush threads;
+show status like "Threads_cached";
+Variable_name	Value
+Threads_cached	0
