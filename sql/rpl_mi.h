@@ -352,12 +352,13 @@ class Master_info : public Slave_reporting_capability
 };
 enum start_alter_state
 {
-  REGISTERED,      // Start Alter exist
-  WAITING,         // WAITING for commit/rollback
-  COMMIT_ALTER,    // COMMIT the alter
-  ROLLBACK_ALTER,  // Rollback the alter
-  COMMITTED,       // COMMIT/ROLLBACK Alter written in binlog
-  SHUTDOWN_ALTER    //Got shutdown in between
+  REGISTERED,           // Start Alter exist
+  WAITING,              // WAITING for commit/rollback
+  COMMIT_ALTER,         // COMMIT the alter
+  ROLLBACK_ALTER,       // Rollback the alter
+  COMMITTED,            // COMMIT/ROLLBACK Alter written in binlog
+  SHUTDOWN_RECIEVED,    //Got shutdown in between
+  SHUTDOWN_COMPLETED    //Shutdown formalities done on spawned thd side
 };
 struct start_alter_info
 {

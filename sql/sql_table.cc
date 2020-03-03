@@ -82,6 +82,9 @@ static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
                                   const HA_CREATE_INFO *create_info);
 static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *info);
 static void wait_for_master(THD *thd, start_alter_info *info);
+static int master_result(THD *thd, Master_info *mi, start_alter_info *info,
+                                  int alter_result);
+static void mark_shutdown(start_alter_info *info, Master_info *mi);
 
 /**
   @brief Helper function for explain_filename
@@ -672,7 +675,14 @@ mysql_mutex_t LOCK_gdl;
 #define DDL_LOG_NUM_ENTRY_POS 0
 #define DDL_LOG_NAME_LEN_POS 4
 #define DDL_LOG_IO_SIZE_POS 8
-
+/*
+Error from master_result  1= ROLLBACK recieved from master
+                          2= error in alter so no ROLLBACK in binlog,
+                          3= shutdown recieved
+*/
+#define MASTER_RESULT_ROLLBACK      1
+#define MASTER_RESULT_COMMIT_ERROR  1
+#define MASTER_RESULT_SHUTDOWN      1
 /**
   Read one entry from ddl log file.
 
@@ -7561,8 +7571,9 @@ static bool is_inplace_alter_impossible(TABLE *table,
   @param target_mdl_request Metadata request/lock on the target table name.
   @param alter_ctx          ALTER TABLE runtime context.
 
-  @retval   true              Error
-  @retval   false             Success
+  @retval   >=1               Error{ 1= ROLLBACK recieved from master , 2= error
+                                    in alter so no ROLLBACK in binlog }
+  @retval   0                 Success
 
   @note
     If mysql_alter_table does not need to copy the table, it is
@@ -7597,6 +7608,7 @@ static int mysql_inplace_alter_table(THD *thd,
   Master_info *mi= NULL;
   if (thd->slave_thread)
     mi= thd->rgi_slave->rli->mi;
+  int return_result= 0;
   DBUG_ENTER("mysql_inplace_alter_table");
 
   /* Downgrade DDL lock while we are waiting for exclusive lock below */
@@ -7751,31 +7763,8 @@ static int mysql_inplace_alter_table(THD *thd,
   thd->abort_on_warning= false;
   if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
-    wait_for_master(thd, info);
-    DBUG_ASSERT(info->state > start_alter_state::WAITING);
-    if (info->state == start_alter_state::ROLLBACK_ALTER)
-    {
-      mysql_mutex_lock(&mi->start_alter_lock);
-      info->state= start_alter_state::COMMITTED;
-      mysql_mutex_unlock(&mi->start_alter_lock);
-      mysql_cond_broadcast(&mi->start_alter_cond);
+    if ((return_result= master_result(thd, mi, info, res)))
       goto rollback;
-    }
-    else if (info->state == start_alter_state::COMMIT_ALTER && res)
-    {
-      //TODO
-      thd->rgi_slave->rli->report(ERROR_LEVEL, 0, thd->rgi_slave->gtid_info(),
-                  "Query caused different errors on master and slave.     "
-                  "Error on master: message (format)='%s' error code=%d ; "
-                  "Error on slave: actual message='%s', error code=%d. "
-                  "Default database: '%s'. Query: '%s'",
-                  ER_THD(thd, 0),
-                  0, thd->get_stmt_da()->message() ,
-                  1045,
-                  "test", thd->query());
-      thd->is_slave_error= 1;
-      DBUG_RETURN(true);
-    }
   }
   if (res)
     goto rollback;
@@ -7935,7 +7924,7 @@ static int mysql_inplace_alter_table(THD *thd,
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
     /* QQ; do something about metadata locks ? */
   }
-  DBUG_RETURN(true);
+  DBUG_RETURN(return_result? return_result : 1);
 }
 
 /**
@@ -9392,6 +9381,56 @@ static void wait_for_master(THD *thd, start_alter_info* info)
   return;
 }
 
+/*
+  master_result:- process the info->state recieved from master
+  @retval   >=1               Error{ 1= ROLLBACK recieved from master , 2= error
+                                    in alter so no ROLLBACK in binlog,
+                                   3= shutdown recieved }
+  @retval   0                 COMMIT
+*/
+static int master_result(THD *thd, Master_info *mi, start_alter_info *info,
+                                  int alter_result)
+{
+  if (info->state == start_alter_state::REGISTERED)
+    wait_for_master(thd, info);
+  DBUG_ASSERT(info->state > start_alter_state::WAITING);
+  if (info->state == start_alter_state::ROLLBACK_ALTER)
+  {
+    mysql_mutex_lock(&mi->start_alter_lock);
+    info->state= start_alter_state::COMMITTED;
+    mysql_mutex_unlock(&mi->start_alter_lock);
+    mysql_cond_broadcast(&mi->start_alter_cond);
+    return MASTER_RESULT_ROLLBACK;
+  }
+  else if (info->state == start_alter_state::COMMIT_ALTER && alter_result)
+  {
+    //TODO
+    thd->rgi_slave->rli->report(ERROR_LEVEL, 0, thd->rgi_slave->gtid_info(),
+                "Query caused different errors on master and slave.     "
+                "Error on master: message (format)='%s' error code=%d ; "
+                "Error on slave: actual message='%s', error code=%d. "
+                "Default database: '%s'. Query: '%s'",
+                ER_THD(thd, 0),
+                0, thd->get_stmt_da()->message() ,
+                1045,
+                "test", thd->query());
+    thd->is_slave_error= 1;
+    return MASTER_RESULT_COMMIT_ERROR;
+  }
+  else if (info->state == start_alter_state::SHUTDOWN_RECIEVED)
+    return MASTER_RESULT_SHUTDOWN;
+  DBUG_ASSERT(info->state == start_alter_state::COMMIT_ALTER && !alter_result);
+  return 0;
+}
+
+static void mark_shutdown(start_alter_info *info, Master_info *mi)
+{
+  mysql_mutex_lock(&mi->start_alter_lock);
+  info->state= start_alter_state::SHUTDOWN_COMPLETED;
+  mysql_mutex_unlock(&mi->start_alter_lock);
+  mysql_cond_broadcast(&mi->start_alter_cond);
+}
+
 static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *info)
 {
   if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
@@ -9480,6 +9519,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   Master_info *mi= NULL;
   if (thd->slave_thread)
     mi= thd->rgi_slave->rli->mi;
+  int return_result= 0;
   DBUG_ENTER("mysql_alter_table");
 
   /*
@@ -10211,9 +10251,12 @@ do_continue:;
 
       if (res)
       {
-        sprintf(send_query, "/*!100001 ROLLBACK %lld */ %s", thd->thread_id, thd->query());
-        if(write_bin_log(thd, false, send_query, strlen(send_query), true, true))
-          DBUG_RETURN(true);
+        if (opt_binlog_split_alter)
+        {
+          sprintf(send_query, "/*!100001 ROLLBACK %lld */ %s", thd->thread_id, thd->query());
+          if(write_bin_log(thd, false, send_query, strlen(send_query), true, true))
+            DBUG_RETURN(true);
+        }
         cleanup_table_after_inplace_alter(&altered_table);
         DBUG_RETURN(true);
       }
@@ -10344,7 +10387,7 @@ do_continue:;
       wait_for_master(thd, info);
     }
     if (info->state == start_alter_state::ROLLBACK_ALTER ||
-          info->state == start_alter_state::SHUTDOWN_ALTER)
+          info->state == start_alter_state::SHUTDOWN_RECIEVED)
       goto err_new_table_cleanup;
     /* Close lock if this is a transactional table */
     if (thd->lock)
@@ -10412,7 +10455,7 @@ do_continue:;
     wait_for_master(thd, info);
   }
   if (info->state == start_alter_state::ROLLBACK_ALTER ||
-          info->state == start_alter_state::SHUTDOWN_ALTER)
+          info->state == start_alter_state::SHUTDOWN_RECIEVED)
     goto err_new_table_cleanup;
   engine_changed= ((new_table->file->ht != table->file->ht) &&
                    (((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
@@ -10647,32 +10690,8 @@ err_new_table_cleanup:
   //STODO
   if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
   {
-    if (info->state == start_alter_state::REGISTERED)
-      wait_for_master(thd, info);
-    DBUG_ASSERT(info->state > start_alter_state::WAITING);
-    if (info->state == start_alter_state::ROLLBACK_ALTER)
-    {
-      mysql_mutex_lock(&mi->start_alter_lock);
-      info->state= start_alter_state::COMMITTED;
-      mysql_mutex_unlock(&mi->start_alter_lock);
-      mysql_cond_broadcast(&mi->start_alter_cond);
-      DBUG_RETURN(true);
-    }
-    else if (info->state == start_alter_state::COMMIT_ALTER)
-    {
-      //TODO
-      thd->rgi_slave->rli->report(ERROR_LEVEL, 0, thd->rgi_slave->gtid_info(),
-                  "Query caused different errors on master and slave.     "
-                  "Error on master: message (format)='%s' error code=%d ; "
-                  "Error on slave: actual message='%s', error code=%d. "
-                  "Default database: '%s'. Query: '%s'",
-                  ER_THD(thd, 0),
-                  0, thd->get_stmt_da()->message() ,
-                  1045,
-                  "test", thd->query());
-      thd->is_slave_error= 1;
-      DBUG_RETURN(true);
-    }
+    if (master_result(thd, mi, info, 1) == MASTER_RESULT_SHUTDOWN)
+      mark_shutdown(info, mi);
   }
   else
   {

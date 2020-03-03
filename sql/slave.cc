@@ -5825,8 +5825,14 @@ err_during_init:
   List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
   while ((info= info_iterator++))
   {
-    info->state= start_alter_state::SHUTDOWN_ALTER;
+    info->state= start_alter_state::SHUTDOWN_RECIEVED;
     mysql_cond_broadcast(&mi->start_alter_cond);
+    mysql_mutex_lock(&mi->start_alter_lock);
+    while(info->state == start_alter_state::SHUTDOWN_RECIEVED)
+      mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+    DBUG_ASSERT(info->state == start_alter_state::SHUTDOWN_COMPLETED);
+    info_iterator.remove();
+    mysql_mutex_unlock(&mi->start_alter_lock);
   }
   delete serial_rgi;
   delete thd;
@@ -5868,6 +5874,10 @@ pthread_handler_t handle_slave_start_alter(void *arg)
   thd->catalog= data->catalog;
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
   thd->security_ctx->skip_grants();
+  /* Ensure that slave can exeute any alter table it gets from master */
+  thd->variables.alter_algorithm= (ulong) Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT;
+
+  server_threads.insert(thd);
   thd->set_db(data->db);
   thd->set_query_and_id((char *)memdup_root(thd->mem_root, data->query.str,
                         data->query.length + 1), data->query.length, data->cs,
@@ -5908,6 +5918,7 @@ pthread_handler_t handle_slave_start_alter(void *arg)
   //
 
 
+  server_threads.erase(thd);
 err_during_init:
   delete thd;
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
