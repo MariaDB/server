@@ -6167,7 +6167,7 @@ drop_create_field:
       for (f_ptr=table->field; *f_ptr; f_ptr++)
       {
         if (my_strcasecmp(system_charset_info,
-                           acol->name, (*f_ptr)->field_name.str) == 0)
+                           acol->name.str, (*f_ptr)->field_name.str) == 0)
           break;
       }
       if (unlikely(*f_ptr == NULL))
@@ -6175,7 +6175,7 @@ drop_create_field:
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_BAD_FIELD_ERROR,
                             ER_THD(thd, ER_BAD_FIELD_ERROR),
-                            acol->name, table->s->table_name.str);
+                            acol->name.str, table->s->table_name.str);
         it.remove();
         if (alter_info->alter_list.is_empty())
         {
@@ -8138,24 +8138,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       continue;
     }
 
-    /*
-      If we are doing a rename of a column, update all references in virtual
-      column expressions, constraints and defaults to use the new column name
-    */
-    if (alter_info->flags & ALTER_RENAME_COLUMN)
-    {
-      if (field->vcol_info)
-        field->vcol_info->expr->walk(&Item::rename_fields_processor, 1,
-                                     &column_rename_param);
-      if (field->check_constraint)
-        field->check_constraint->expr->walk(&Item::rename_fields_processor, 1,
-                                            &column_rename_param);
-      if (field->default_value)
-        field->default_value->expr->walk(&Item::rename_fields_processor, 1,
-                                         &column_rename_param);
-      table->m_needs_reopen= 1; // because new column name is on thd->mem_root
-    }
-
     /* Check if field is changed */
     def_it.rewind();
     while ((def=def_it++))
@@ -8229,19 +8211,61 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       while ((alter=alter_it++))
       {
 	if (!my_strcasecmp(system_charset_info,field->field_name.str,
-                           alter->name))
+                           alter->name.str))
 	  break;
       }
       if (alter)
       {
-	if ((def->default_value= alter->default_value))
-          def->flags&= ~NO_DEFAULT_VALUE_FLAG;
+        if (alter->is_rename())
+        {
+          def->change= alter->name;
+          def->field_name= alter->new_name;
+          column_rename_param.fields.push_back(def);
+        }
         else
-          def->flags|= NO_DEFAULT_VALUE_FLAG;
+        {
+          if ((def->default_value= alter->default_value))
+            def->flags&= ~NO_DEFAULT_VALUE_FLAG;
+          else
+            def->flags|= NO_DEFAULT_VALUE_FLAG;
+        }
 	alter_it.remove();
       }
     }
   }
+
+  /*
+    If we are doing a rename of a column, update all references in virtual
+    column expressions, constraints and defaults to use the new column name
+  */
+  if (alter_info->flags & ALTER_RENAME_COLUMN)
+  {
+    alter_it.rewind();
+    Alter_column *alter;
+    while ((alter=alter_it++))
+    {
+      if (alter->is_rename())
+      {
+        my_error(ER_BAD_FIELD_ERROR, MYF(0), alter->name.str,
+                 table->s->table_name.str);
+        goto err;
+      }
+    }
+    for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
+    {
+      if (field->vcol_info)
+        field->vcol_info->expr->walk(&Item::rename_fields_processor, 1,
+                                    &column_rename_param);
+      if (field->check_constraint)
+        field->check_constraint->expr->walk(&Item::rename_fields_processor, 1,
+                                            &column_rename_param);
+      if (field->default_value)
+        field->default_value->expr->walk(&Item::rename_fields_processor, 1,
+                                        &column_rename_param);
+    }
+    table->m_needs_reopen= 1; // because new column name is on thd->mem_root
+  }
+
   dropped_sys_vers_fields &= VERS_SYSTEM_FIELD;
   if ((dropped_sys_vers_fields ||
        alter_info->flags & ALTER_DROP_PERIOD) &&
@@ -8357,7 +8381,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     while ((alter=alter_it++))
     {
       if (!my_strcasecmp(system_charset_info,def->field_name.str,
-                         alter->name))
+                         alter->name.str))
         break;
     }
     if (alter)
@@ -8372,7 +8396,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   if (unlikely(alter_info->alter_list.elements))
   {
     my_error(ER_BAD_FIELD_ERROR, MYF(0),
-             alter_info->alter_list.head()->name, table->s->table_name.str);
+             alter_info->alter_list.head()->name.str, table->s->table_name.str);
     goto err;
   }
   if (unlikely(!new_create_list.elements))

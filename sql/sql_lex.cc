@@ -511,7 +511,7 @@ void LEX::add_key_to_list(LEX_CSTRING *field_name,
 }
 
 
-bool LEX::add_alter_list(const char *name, Virtual_column_info *expr,
+bool LEX::add_alter_list(LEX_CSTRING name, Virtual_column_info *expr,
                          bool exists)
 {
   MEM_ROOT *mem_root= thd->mem_root;
@@ -520,6 +520,17 @@ bool LEX::add_alter_list(const char *name, Virtual_column_info *expr,
     return true;
   alter_info.alter_list.push_back(ac, mem_root);
   alter_info.flags|= ALTER_CHANGE_COLUMN_DEFAULT;
+  return false;
+}
+
+
+bool LEX::add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name)
+{
+  Alter_column *ac= new (thd->mem_root) Alter_column(name, new_name);
+  if (unlikely(ac == NULL))
+    return true;
+  alter_info.alter_list.push_back(ac, thd->mem_root);
+  alter_info.flags|= ALTER_RENAME_COLUMN;
   return false;
 }
 

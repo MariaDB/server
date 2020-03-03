@@ -7705,13 +7705,12 @@ alter_list_item:
           }
         | ALTER opt_column opt_if_exists_table_element field_ident SET DEFAULT column_default_expr
           {
-            if (unlikely(Lex->add_alter_list($4.str, $7, $3)))
+            if (unlikely(Lex->add_alter_list($4, $7, $3)))
               MYSQL_YYABORT;
           }
         | ALTER opt_column opt_if_exists_table_element field_ident DROP DEFAULT
           {
-            if (unlikely(Lex->add_alter_list($4.str, (Virtual_column_info*) 0,
-                                             $3)))
+            if (unlikely(Lex->add_alter_list($4, (Virtual_column_info*) 0, $3)))
               MYSQL_YYABORT;
           }
         | RENAME opt_to table_ident
@@ -7727,6 +7726,11 @@ alter_list_item:
               my_yyabort_error((ER_WRONG_TABLE_NAME, MYF(0), $3->table.str));
             lex->name= $3->table;
             lex->alter_info.flags|= ALTER_RENAME;
+          }
+        | RENAME COLUMN_SYM ident TO_SYM ident
+          {
+            if (unlikely(Lex->add_alter_list($3, $5)))
+              MYSQL_YYABORT;
           }
         | CONVERT_SYM TO_SYM charset charset_name_or_default opt_collate
           {
