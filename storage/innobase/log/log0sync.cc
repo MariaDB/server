@@ -261,14 +261,14 @@ void group_commit_lock::release(value_type num)
   group_commit_waiter_t* wakeup_list = nullptr;
   int extra_wake = 0;
 
-  for (cur = m_waiters_list; cur; cur = next)
+  for (prev= nullptr, cur= m_waiters_list; cur; cur= next)
   {
-    next = cur->m_next;
+    next= cur->m_next;
     if (cur->m_value <= num || extra_wake++ == 0)
     {
       /* Move current waiter to wakeup_list*/
 
-      if (cur == m_waiters_list)
+      if (!prev)
       {
         /* Remove from the start of the list.*/
         m_waiters_list = next;
@@ -276,7 +276,7 @@ void group_commit_lock::release(value_type num)
       else
       {
         /* Remove from the middle of the list.*/
-        prev->m_next = cur->m_next;
+        prev->m_next= cur->m_next;
       }
 
       /* Append entry to the wakeup list.*/
@@ -285,14 +285,14 @@ void group_commit_lock::release(value_type num)
     }
     else
     {
-      prev = cur;
+      prev= cur;
     }
   }
   lk.unlock();
 
-  for (cur = wakeup_list; cur; cur = next)
+  for (cur= wakeup_list; cur; cur= next)
   {
-    next = cur->m_next;
+    next= cur->m_next;
     cur->m_sema.wake();
   }
 }
