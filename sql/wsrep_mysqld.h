@@ -242,13 +242,9 @@ extern wsrep_seqno_t wsrep_locked_seqno;
    ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?     \
    wsrep_forced_binlog_format : my_format)
 
-// prefix all messages with "WSREP"
-#define WSREP_LOG(fun, ...)                                       \
-    do {                                                          \
-        char msg[1024]= {'\0'};                                  \
-        snprintf(msg, sizeof(msg) - 1, ## __VA_ARGS__);           \
-        fun("WSREP: %s", msg);                                    \
-    } while(0)
+/* A wrapper function for MySQL log functions. The call will prefix
+   the log message with WSREP and forward the result buffer to fun. */
+void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...);
 
 #define WSREP_DEBUG(...)                                                \
     if (wsrep_debug)     WSREP_LOG(sql_print_information, ##__VA_ARGS__)
