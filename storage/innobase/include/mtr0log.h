@@ -393,10 +393,10 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
   if (!have_len)
     max_len= 1 + 5 + 5;
   else if (!have_offset)
-    max_len= m_last == bpage
+    max_len= bpage && m_last == bpage
       ? 1 + 3
       : 1 + 3 + 5 + 5;
-  else if (m_last == bpage && m_last_offset <= offset)
+  else if (bpage && m_last == bpage && m_last_offset <= offset)
   {
     /* Encode the offset relative from m_last_offset. */
     offset-= m_last_offset;
@@ -630,4 +630,15 @@ inline void mtr_t::undo_append(const buf_block_t &block,
     m_log.push(static_cast<const byte*>(data), static_cast<uint32_t>(len));
   }
   m_last_offset= FIL_PAGE_TYPE;
+}
+
+/** Trim the end of a tablespace.
+@param id       first page identifier that will not be in the file */
+inline void mtr_t::trim_pages(const page_id_t id)
+{
+  if (m_log_mode != MTR_LOG_ALL)
+    return;
+  byte *l= log_write<EXTENDED>(id, nullptr, 1, true);
+  *l++= TRIM_PAGES;
+  m_log.close(l);
 }

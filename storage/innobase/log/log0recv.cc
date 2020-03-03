@@ -1977,14 +1977,31 @@ same_page:
         last_offset= 1; /* the next record must not be same_page  */
         goto free_or_init_page;
       case INIT_PAGE:
-      free_or_init_page:
         last_offset= FIL_PAGE_TYPE;
+      free_or_init_page:
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
         break;
       case EXTENDED:
         if (UNIV_UNLIKELY(!rlen))
           goto record_corrupted;
+        if (rlen == 1 && *l == TRIM_PAGES)
+        {
+#if 0 /* For now, we can only truncate an undo log tablespace */
+          if (UNIV_UNLIKELY(!space_id || !page_no))
+            goto record_corrupted;
+#else
+          if (!srv_is_undo_tablespace(space_id) ||
+              page_no != SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
+            goto record_corrupted;
+          static_assert(UT_ARR_SIZE(truncated_undo_spaces) ==
+                        TRX_SYS_MAX_UNDO_SPACES, "compatibility");
+          truncated_undo_spaces[space_id - srv_undo_space_id_start]=
+            { recovered_lsn, page_no };
+#endif
+          last_offset= 1; /* the next record must not be same_page  */
+          continue;
+        }
         last_offset= FIL_PAGE_TYPE;
         break;
       case RESERVED:
@@ -2145,7 +2162,7 @@ same_page:
         }
         /* fall through */
       case FILE_CREATE:
-        if (UNIV_UNLIKELY(space_id == 0))
+        if (UNIV_UNLIKELY(!space_id || page_no))
           goto file_rec_error;
         /* There is no terminating NUL character. Names must end in .ibd.
         For FILE_RENAME, there is a NUL between the two file names. */
@@ -2167,24 +2184,6 @@ same_page:
             goto file_rec_error;
         }
 
-        if (page_no)
-        {
-          if (UNIV_UNLIKELY((b & 0xf0) != FILE_CREATE))
-            goto file_rec_error;
-          /* truncating an undo log tablespace */
-          ut_ad(fnend - fn >= 7);
-          ut_ad(!memcmp(fnend - 7, "undo", 4));
-          ut_d(char n[4]; char *end; memcpy(n, fnend - 3, 3); n[3]= 0);
-          ut_ad(strtoul(n, &end, 10) <= 127);
-          ut_ad(end == &n[3]);
-          ut_ad(page_no == SRV_UNDO_TABLESPACE_SIZE_IN_PAGES);
-          ut_ad(srv_is_undo_tablespace(space_id));
-          static_assert(UT_ARR_SIZE(truncated_undo_spaces) ==
-                        TRX_SYS_MAX_UNDO_SPACES, "compatibility");
-          truncated_undo_spaces[space_id - srv_undo_space_id_start]=
-            { recovered_lsn, page_no };
-          continue;
-        }
         if (is_predefined_tablespace(space_id))
           goto file_rec_error;
         if (fnend - fn < 4 || memcmp(fnend - 4, DOT_IBD, 4))
@@ -2204,7 +2203,7 @@ same_page:
                       fn2 ? static_cast<ulint>(fn2end - fn2) : 0);
 
         if (!fn2 || !apply);
-        else if (!fil_op_replay_rename(space_id, 0, fn, fn2))
+        else if (!fil_op_replay_rename(space_id, fn, fn2))
           found_corrupt_fs= true;
         const_cast<char&>(fn[rlen])= saved_end;
         if (UNIV_UNLIKELY(found_corrupt_fs))

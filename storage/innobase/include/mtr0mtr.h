@@ -556,15 +556,17 @@ struct mtr_t {
   @param len      length of the undo record, in bytes */
   inline void undo_append(const buf_block_t &block,
                           const void *data, size_t len);
+  /** Trim the end of a tablespace.
+  @param id       first page identifier that will not be in the file */
+  inline void trim_pages(const page_id_t id);
 
   /** Write a log record about a file operation.
   @param type           file operation
   @param space_id       tablespace identifier
-  @param first_page_no  first page number in the file
   @param path           file path
   @param new_path       new file path for type=FILE_RENAME */
   inline void log_file_op(mfile_type_t type, ulint space_id,
-                          ulint first_page_no, const char *path,
+                          const char *path,
                           const char *new_path= nullptr);
 
 private:

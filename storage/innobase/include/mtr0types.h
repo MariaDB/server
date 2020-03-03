@@ -285,7 +285,9 @@ enum mrec_ext_t
   and include the total size of the record being deleted.
   The current byte offset will be reset to FIL_PAGE_TYPE.
   This is similar to the old MLOG_COMP_REC_DELETE record. */
-  DELETE_ROW_FORMAT_DYNAMIC= 9
+  DELETE_ROW_FORMAT_DYNAMIC= 9,
+  /** Truncate a data file. */
+  TRIM_PAGES= 10
 };
 
 

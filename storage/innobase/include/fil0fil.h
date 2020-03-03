@@ -1162,7 +1162,6 @@ fil_create_directory_for_tablename(
 				'databasename/tablename' format */
 /** Replay a file rename operation if possible.
 @param[in]	space_id	tablespace identifier
-@param[in]	first_page_no	first page number in the file
 @param[in]	name		old file name
 @param[in]	new_name	new file name
 @return	whether the operation was successfully applied
@@ -1171,7 +1170,6 @@ name was successfully renamed to new_name)  */
 bool
 fil_op_replay_rename(
 	ulint		space_id,
-	ulint		first_page_no,
 	const char*	name,
 	const char*	new_name)
 	MY_ATTRIBUTE((warn_unused_result));
@@ -1203,10 +1201,6 @@ fil_delete_tablespace(
 @return	the tablespace
 @retval	NULL if the tablespace does not exist */
 fil_space_t* fil_truncate_prepare(ulint space_id);
-
-/** Write log about an undo tablespace truncate operation. */
-void fil_truncate_log(fil_space_t* space, ulint size, mtr_t* mtr)
-	MY_ATTRIBUTE((nonnull));
 
 /*******************************************************************//**
 Closes a single-table tablespace. The tablespace must be cached in the
