@@ -544,7 +544,6 @@ void log_t::create()
   max_checkpoint_age= 0;
   next_checkpoint_no= 0;
   next_checkpoint_lsn= 0;
-  append_on_checkpoint= NULL;
   n_pending_checkpoint_writes= 0;
 
   last_checkpoint_lsn= lsn;
@@ -1433,20 +1432,6 @@ void log_write_checkpoint_info(lsn_t end_lsn)
 	DBUG_EXECUTE_IF("crash_after_checkpoint", DBUG_SUICIDE(););
 
 	log_mutex_exit();
-}
-
-/** Set extra data to be written to the redo log during checkpoint.
-@param[in]	buf	data to be appended on checkpoint, or NULL
-@return pointer to previous data to be appended on checkpoint */
-mtr_buf_t*
-log_append_on_checkpoint(
-	mtr_buf_t*	buf)
-{
-	log_mutex_enter();
-	mtr_buf_t*	old = log_sys.append_on_checkpoint;
-	log_sys.append_on_checkpoint = buf;
-	log_mutex_exit();
-	return(old);
 }
 
 /** Make a checkpoint. Note that this function does not flush dirty

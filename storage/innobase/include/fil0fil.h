@@ -1484,20 +1484,6 @@ char*
 fil_path_to_space_name(
 	const char*	filename);
 
-/** Generate redo log for swapping two .ibd files
-@param[in]	old_table	old table
-@param[in]	new_table	new table
-@param[in]	tmp_name	temporary table name
-@param[in,out]	mtr		mini-transaction
-@return innodb error code */
-dberr_t
-fil_mtr_rename_log(
-	const dict_table_t*	old_table,
-	const dict_table_t*	new_table,
-	const char*		tmp_name,
-	mtr_t*			mtr)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
 /** Acquire the fil_system mutex. */
 #define fil_system_enter()	mutex_enter(&fil_system.mutex)
 /** Release the fil_system mutex. */

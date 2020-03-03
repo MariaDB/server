@@ -46,7 +46,6 @@ Smart ALTER TABLE
 #include "row0row.h"
 #include "row0upd.h"
 #include "trx0trx.h"
-#include "trx0roll.h"
 #include "handler0alter.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
@@ -9771,13 +9770,16 @@ commit_try_rebuild(
 
 	/* We can now rename the old table as a temporary table,
 	rename the new temporary table as the old table and drop the
-	old table. First, we only do this in the data dictionary
-	tables. The actual renaming will be performed in
-	commit_cache_rebuild(), once the data dictionary transaction
-	has been successfully committed. */
+	old table. */
+	char* old_name= mem_heap_strdup(ctx->heap, user_table->name.m_name);
 
-	error = row_merge_rename_tables_dict(
-		user_table, rebuilt_table, ctx->tmp_name, trx);
+	error = row_rename_table_for_mysql(user_table->name.m_name,
+					   ctx->tmp_name, trx, false, false);
+	if (error == DB_SUCCESS) {
+		error = row_rename_table_for_mysql(rebuilt_table->name.m_name,
+						   old_name, trx,
+						   false, false);
+	}
 
 	/* We must be still holding a table handle. */
 	DBUG_ASSERT(user_table->get_ref_count() == 1);
@@ -9832,38 +9834,6 @@ rename_indexes_try(
 	}
 
 	return false;
-}
-
-/** Apply the changes made during commit_try_rebuild(),
-to the data dictionary cache and the file system.
-@param ctx In-place ALTER TABLE context */
-inline MY_ATTRIBUTE((nonnull))
-void
-commit_cache_rebuild(
-/*=================*/
-	ha_innobase_inplace_ctx*	ctx)
-{
-	dberr_t		error;
-
-	DBUG_ENTER("commit_cache_rebuild");
-	DEBUG_SYNC_C("commit_cache_rebuild");
-	DBUG_ASSERT(ctx->need_rebuild());
-	DBUG_ASSERT(!ctx->old_table->space == !ctx->new_table->space);
-
-	const char* old_name = mem_heap_strdup(
-		ctx->heap, ctx->old_table->name.m_name);
-
-	/* We already committed and redo logged the renames,
-	so this must succeed. */
-	error = dict_table_rename_in_cache(
-		ctx->old_table, ctx->tmp_name, false);
-	ut_a(error == DB_SUCCESS);
-
-	error = dict_table_rename_in_cache(
-		ctx->new_table, old_name, false);
-	ut_a(error == DB_SUCCESS);
-
-	DBUG_VOID_RETURN;
 }
 
 /** Set of column numbers */
@@ -10613,7 +10583,6 @@ ha_innobase::commit_inplace_alter_table(
 	bool			commit)
 {
 	ha_innobase_inplace_ctx*ctx0;
-	struct mtr_buf_copy_t	logs;
 
 	ctx0 = static_cast<ha_innobase_inplace_ctx*>
 		(ha_alter_info->handler_ctx);
@@ -10760,8 +10729,6 @@ ha_innobase::commit_inplace_alter_table(
 	or lock waits can happen in it during the data dictionary operation. */
 	row_mysql_lock_data_dictionary(trx);
 
-	ut_ad(log_append_on_checkpoint(NULL) == NULL);
-
 	/* Prevent the background statistics collection from accessing
 	the tables. */
 	for (;;) {
@@ -10852,33 +10819,6 @@ ha_innobase::commit_inplace_alter_table(
 	} else if (!new_clustered) {
 		trx_commit_for_mysql(trx);
 	} else {
-		mtr_t	mtr;
-		mtr_start(&mtr);
-
-		for (inplace_alter_handler_ctx** pctx = ctx_array;
-		     *pctx; pctx++) {
-			ha_innobase_inplace_ctx*	ctx
-				= static_cast<ha_innobase_inplace_ctx*>(*pctx);
-
-			DBUG_ASSERT(ctx->need_rebuild());
-			/* Check for any possible problems for any
-			file operations that will be performed in
-			commit_cache_rebuild(), and if none, generate
-			the redo log for these operations. */
-			dberr_t error = fil_mtr_rename_log(
-				ctx->old_table, ctx->new_table, ctx->tmp_name,
-				&mtr);
-			if (error != DB_SUCCESS) {
-				/* Out of memory or a problem will occur
-				when renaming files. */
-				fail = true;
-				my_error_innodb(error, ctx->old_table->name.m_name,
-						ctx->old_table->flags);
-			}
-			DBUG_INJECT_CRASH("ib_commit_inplace_crash",
-					  crash_inject_count++);
-		}
-
 		/* Test what happens on crash if the redo logs
 		are flushed to disk here. The log records
 		about the rename should not be committed, and
@@ -10890,34 +10830,11 @@ ha_innobase::commit_inplace_alter_table(
 		ut_ad(!trx->fts_trx);
 
 		if (fail) {
-			mtr.set_log_mode(MTR_LOG_NO_REDO);
-			mtr_commit(&mtr);
 			trx_rollback_for_mysql(trx);
 		} else {
 			ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 			ut_ad(trx->has_logged());
-
-			if (mtr.get_log()->size() > 0) {
-				ut_ad((*mtr.get_log()->front()->begin()
-				       & 0xf0) == FILE_RENAME);
-				/* Append the FILE_RENAME
-				records on checkpoint, as a separate
-				mini-transaction before the one that
-				contains the FILE_CHECKPOINT marker. */
-				mtr.get_log()->for_each_block(logs);
-				logs.m_buf.push(field_ref_zero, 1);
-				log_append_on_checkpoint(&logs.m_buf);
-			}
-
-			/* The following call commits the
-			mini-transaction, making the data dictionary
-			transaction committed at mtr.end_lsn. The
-			transaction becomes 'durable' by the time when
-			log_buffer_flush_to_disk() returns. In the
-			logical sense the commit in the file-based
-			data structures happens here. */
-
-			trx_commit_low(trx, &mtr);
+			trx_commit(trx);
 		}
 
 		/* If server crashes here, the dictionary in
@@ -10994,9 +10911,6 @@ ha_innobase::commit_inplace_alter_table(
 			DBUG_PRINT("to_be_dropped",
 				   ("table: %s", ctx->old_table->name.m_name));
 
-			/* Rename the tablespace files. */
-			commit_cache_rebuild(ctx);
-
 			if (innobase_update_foreign_cache(ctx, m_user_thd)
 			    != DB_SUCCESS
 			    && m_prebuilt->trx->check_foreigns) {
@@ -11029,8 +10943,6 @@ foreign_fail:
 		DBUG_INJECT_CRASH("ib_commit_inplace_crash",
 				  crash_inject_count++);
 	}
-
-	log_append_on_checkpoint(NULL);
 
 	/* Tell the InnoDB server that there might be work for
 	utility threads: */

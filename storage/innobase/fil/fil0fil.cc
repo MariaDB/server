@@ -4417,80 +4417,6 @@ fil_delete_file(
 	}
 }
 
-/** Generate redo log for swapping two .ibd files
-@param[in]	old_table	old table
-@param[in]	new_table	new table
-@param[in]	tmp_name	temporary table name
-@param[in,out]	mtr		mini-transaction
-@return innodb error code */
-dberr_t
-fil_mtr_rename_log(
-	const dict_table_t*	old_table,
-	const dict_table_t*	new_table,
-	const char*		tmp_name,
-	mtr_t*			mtr)
-{
-	ut_ad(old_table->space != fil_system.temp_space);
-	ut_ad(new_table->space != fil_system.temp_space);
-	ut_ad(old_table->space->id == old_table->space_id);
-	ut_ad(new_table->space->id == new_table->space_id);
-
-	/* If neither table is file-per-table,
-	there will be no renaming of files. */
-	if (!old_table->space_id && !new_table->space_id) {
-		return(DB_SUCCESS);
-	}
-
-	const bool has_data_dir = DICT_TF_HAS_DATA_DIR(old_table->flags);
-
-	if (old_table->space_id) {
-		char*	tmp_path = fil_make_filepath(
-			has_data_dir ? old_table->data_dir_path : NULL,
-			tmp_name, IBD, has_data_dir);
-		if (tmp_path == NULL) {
-			return(DB_OUT_OF_MEMORY);
-		}
-
-		const char* old_path = old_table->space->chain.start->name;
-		/* Temp filepath must not exist. */
-		dberr_t err = fil_rename_tablespace_check(
-			old_path, tmp_path, !old_table->space);
-		if (err != DB_SUCCESS) {
-			ut_free(tmp_path);
-			return(err);
-		}
-
-		fil_name_write_rename_low(
-			old_table->space_id, old_path, tmp_path, mtr);
-
-		ut_free(tmp_path);
-	}
-
-	if (new_table->space_id) {
-		const char* new_path = new_table->space->chain.start->name;
-		char* old_path = fil_make_filepath(
-			has_data_dir ? old_table->data_dir_path : NULL,
-			old_table->name.m_name, IBD, has_data_dir);
-
-		/* Destination filepath must not exist unless this ALTER
-		TABLE starts and ends with a file_per-table tablespace. */
-		if (!old_table->space_id) {
-			dberr_t err = fil_rename_tablespace_check(
-				new_path, old_path, !new_table->space);
-			if (err != DB_SUCCESS) {
-				ut_free(old_path);
-				return(err);
-			}
-		}
-
-		fil_name_write_rename_low(
-			new_table->space_id, new_path, old_path, mtr);
-		ut_free(old_path);
-	}
-
-	return DB_SUCCESS;
-}
-
 #ifdef UNIV_DEBUG
 /** Check that a tablespace is valid for mtr_commit().
 @param[in]	space	persistent tablespace that has been changed */
@@ -4593,11 +4519,6 @@ fil_names_clear(
 
 	ut_ad(log_mutex_own());
 	ut_ad(lsn);
-
-	if (log_sys.append_on_checkpoint) {
-		mtr_write_log(log_sys.append_on_checkpoint);
-		do_write = true;
-	}
 
 	mtr.start();
 

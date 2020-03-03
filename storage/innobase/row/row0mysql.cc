@@ -4544,13 +4544,16 @@ end:
 		}
 
 		/* We only want to switch off some of the type checking in
-		an ALTER TABLE...ALGORITHM=COPY, not in a RENAME. */
+		an ALTER TABLE, not in a RENAME. */
 		dict_names_t	fk_tables;
 
 		err = dict_load_foreigns(
-			new_name, NULL,
-			false, !old_is_tmp || trx->check_foreigns,
-			DICT_ERR_IGNORE_NONE, fk_tables);
+			new_name, NULL, false,
+			!old_is_tmp || trx->check_foreigns,
+			use_fk
+			? DICT_ERR_IGNORE_NONE
+			: DICT_ERR_IGNORE_FK_NOKEY,
+			fk_tables);
 
 		if (err != DB_SUCCESS) {
 
@@ -4569,8 +4572,6 @@ end:
 					" with the new table definition.";
 			}
 
-			ut_a(DB_SUCCESS == dict_table_rename_in_cache(
-				table, old_name, FALSE));
 			trx->error_state = DB_SUCCESS;
 			trx_rollback_to_savepoint(trx, NULL);
 			trx->error_state = DB_SUCCESS;
