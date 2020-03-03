@@ -9892,8 +9892,7 @@ do_continue:;
   bool fast_alter_partition= false;
   {
     if (prep_alter_part_table(thd, table, alter_info, create_info,
-                              &alter_ctx, &partition_changed,
-                              &fast_alter_partition))
+                              &partition_changed, &fast_alter_partition))
     {
       DBUG_RETURN(true);
     }
