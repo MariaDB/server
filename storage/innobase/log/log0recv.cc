@@ -1183,8 +1183,6 @@ loop:
 
 	log_sys.n_log_ios++;
 
-	MONITOR_INC(MONITOR_LOG_IO);
-
 	ut_a((source_offset >> srv_page_size_shift) <= ULINT_MAX);
 
 	recv_sys.read(source_offset, {buf, len});

@@ -1373,11 +1373,7 @@ void log_write_checkpoint_info(lsn_t end_lsn)
 
 	log_block_store_checksum(buf);
 
-	MONITOR_INC(MONITOR_PENDING_CHECKPOINT_WRITE);
-
 	log_sys.n_log_ios++;
-
-	MONITOR_INC(MONITOR_LOG_IO);
 
 	ut_ad(LOG_CHECKPOINT_1 < srv_page_size);
 	ut_ad(LOG_CHECKPOINT_2 < srv_page_size);
