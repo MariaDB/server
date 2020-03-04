@@ -6403,18 +6403,18 @@ max_part_bit(key_part_map bits)
 /**
   Add a new keuse to the specified array of KEYUSE objects
 
-  @param[in,out]  keyuse_array  array of keyuses to be extended 
+  @param[in,out]  keyuse_array  array of keyuses to be extended
   @param[in]      key_field     info on the key use occurrence
   @param[in]      key           key number for the keyse to be added
   @param[in]      part          key part for the keyuse to be added
 
   @note
   The function builds a new KEYUSE object for a key use utilizing the info
-  on the left and right parts of the given key use  extracted from the 
-  structure key_field, the key number and key part for this key use. 
+  on the left and right parts of the given key use  extracted from the
+  structure key_field, the key number and key part for this key use.
   The built object is added to the dynamic array keyuse_array.
 
-  @retval         0             the built object is succesfully added 
+  @retval         0             the built object is successfully added
   @retval         1             otherwise
 */
 
@@ -14908,28 +14908,28 @@ bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
                                left_item, right_item, cond_equal);
 }
 
-                          
+
 /**
   Item_xxx::build_equal_items()
-  
+
   Replace all equality predicates in a condition referenced by "this"
   by multiple equality items.
 
     At each 'and' level the function detects items for equality predicates
     and replaced them by a set of multiple equality items of class Item_equal,
-    taking into account inherited equalities from upper levels. 
+    taking into account inherited equalities from upper levels.
     If an equality predicate is used not in a conjunction it's just
     replaced by a multiple equality predicate.
     For each 'and' level the function set a pointer to the inherited
     multiple equalities in the cond_equal field of the associated
-    object of the type Item_cond_and.   
+    object of the type Item_cond_and.
     The function also traverses the cond tree and and for each field reference
     sets a pointer to the multiple equality item containing the field, if there
     is any. If this multiple equality equates fields to a constant the
-    function replaces the field reference by the constant in the cases 
+    function replaces the field reference by the constant in the cases
     when the field is not of a string type or when the field reference is
     just an argument of a comparison predicate.
-    The function also determines the maximum number of members in 
+    The function also determines the maximum number of members in
     equality lists of each Item_cond_and object assigning it to
     thd->lex->current_select->max_equal_elems.
 
@@ -14943,7 +14943,7 @@ bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
     in a conjuction for a minimal set of multiple equality predicates.
     This set can be considered as a canonical representation of the
     sub-conjunction of the equality predicates.
-    E.g. (t1.a=t2.b AND t2.b>5 AND t1.a=t3.c) is replaced by 
+    E.g. (t1.a=t2.b AND t2.b>5 AND t1.a=t3.c) is replaced by
     (=(t1.a,t2.b,t3.c) AND t2.b>5), not by
     (=(t1.a,t2.b) AND =(t1.a,t3.c) AND t2.b>5);
     while (t1.a=t2.b AND t2.b>5 AND t3.c=t4.d) is replaced by
@@ -14954,16 +14954,16 @@ bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
     The function performs the substitution in a recursive descent by
     the condtion tree, passing to the next AND level a chain of multiple
     equality predicates which have been built at the upper levels.
-    The Item_equal items built at the level are attached to other 
+    The Item_equal items built at the level are attached to other
     non-equality conjucts as a sublist. The pointer to the inherited
     multiple equalities is saved in the and condition object (Item_cond_and).
-    This chain allows us for any field reference occurence easyly to find a 
-    multiple equality that must be held for this occurence.
+    This chain allows us for any field reference occurrence easily to find a
+    multiple equality that must be held for this occurrence.
     For each AND level we do the following:
     - scan it for all equality predicate (=) items
     - join them into disjoint Item_equal() groups
-    - process the included OR conditions recursively to do the same for 
-      lower AND levels. 
+    - process the included OR conditions recursively to do the same for
+      lower AND levels.
 
     We need to do things in this order as lower AND levels need to know about
     all possible Item_equal objects in upper levels.
@@ -14999,7 +14999,7 @@ COND *Item_cond_and::build_equal_items(THD *thd,
   /*
      Retrieve all conjuncts of this level detecting the equality
      that are subject to substitution by multiple equality items and
-     removing each such predicate from the conjunction after having 
+     removing each such predicate from the conjunction after having
      found/created a multiple equality whose inference the predicate is.
  */
   while ((item= li++))
@@ -25718,7 +25718,7 @@ void free_underlaid_joins(THD *thd, SELECT_LEX *select)
 ****************************************************************************/
 
 /**
-  Replace occurences of group by fields in an expression by ref items.
+  Replace occurrences of group by fields in an expression by ref items.
 
   The function replaces occurrences of group by fields in expr
   by ref objects for these fields unless they are under aggregate

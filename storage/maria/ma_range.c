@@ -252,7 +252,7 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
       pages we are counting keys.
 
       If this is a node then we have to search backwards to find the
-      first occurence of the key.  The row position in a node tree
+      first occurrence of the key.  The row position in a node tree
       is keynr (starting from 0) + offset for sub tree.  If there is
       no sub tree to search, then we are at start of next sub tree.
 

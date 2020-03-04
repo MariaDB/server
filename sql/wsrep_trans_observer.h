@@ -125,7 +125,7 @@ static inline bool wsrep_streaming_enabled(THD* thd)
 }
 
 /*
-  Return number of fragments succesfully certified for the
+  Return number of fragments successfully certified for the
   current statement.
  */
 static inline size_t wsrep_fragments_certified_for_stmt(THD* thd)

@@ -2204,7 +2204,7 @@ int pull_out_semijoin_tables(JOIN *join)
     /*
       Don't do table pull-out for nested joins (if we get nested joins here, it
       means these are outer joins. It is theoretically possible to do pull-out
-      for some of the outer tables but we dont support this currently.
+      for some of the outer tables but we don't support this currently.
     */
     bool have_join_nest_children= FALSE;
 
