@@ -967,14 +967,13 @@ error:
                       update Xpand_share::xpand_table_oid.
 
   @return
-     0 - OK 
+     0 - OK
      error code if an error occurred
 */
 
-int xpand_connection::get_table_oid(const std::string &db, 
-                                    const std::string &name, 
-                                    ulonglong *oid, 
-                                    TABLE_SHARE *share)
+int xpand_connection::get_table_oid(const char *db, size_t db_len,
+                                    const char *name, size_t name_len,
+                                    ulonglong *oid, TABLE_SHARE *share)
 {
   MYSQL_ROW row;
   int error_code = 0;
@@ -987,9 +986,9 @@ int xpand_connection::get_table_oid(const std::string &db,
                  "from system.databases d "
                  "     inner join ""system.relations r on d.db = r.db "
                  "where d.name = '");
-  get_oid.append(db.c_str());
+  get_oid.append(db, db_len);
   get_oid.append("' and r.name = '");
-  get_oid.append(name.c_str());
+  get_oid.append(name, name_len);
   get_oid.append("'");
 
   if (mysql_real_query(&xpand_net, get_oid.c_ptr(), get_oid.length())) {
@@ -1012,12 +1011,7 @@ int xpand_connection::get_table_oid(const std::string &db,
 
   if ((row = mysql_fetch_row(results_oid))) {
     DBUG_PRINT("row", ("%s", row[0]));
-
     *oid = strtoull((const char *)row[0], NULL, 10);
-    if (share->ha_share) {
-      Xpand_share *cs= (Xpand_share*)share->ha_share;
-      cs->xpand_table_oid = *oid;
-    }
   } else {
     error_code = HA_ERR_NO_SUCH_TABLE;
     goto error;
@@ -1043,6 +1037,18 @@ int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
   MYSQL_RES *results_create = NULL;
   MYSQL_ROW row;
   String show;
+  ulonglong oid = 0;
+  Xpand_share *cs;
+
+  if ((error_code = xpand_connection::get_table_oid(db->str, db->length,
+                                                    name->str, name->length,
+                                                    &oid, share)))
+      goto error;
+
+  if (!share->ha_share)
+    share->ha_share= new Xpand_share;
+  cs= static_cast<Xpand_share*>(share->ha_share);
+  cs->xpand_table_oid = oid;
 
   /* get show create statement */
   show.append("show simple create table ");
@@ -1080,6 +1086,7 @@ int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
                                                        strlen(row[1]));
   }
 
+  cs->rediscover_table = false;
 error:
   if (results_create)
     mysql_free_result(results_create);
