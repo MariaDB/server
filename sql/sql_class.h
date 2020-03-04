@@ -2937,6 +2937,7 @@ public:
   /*
     Member functions to handle pending event for row-level logging.
   */
+  binlog_cache_mngr *binlog_get_cache_mngr() const;
   template <class RowsEventT> Rows_log_event*
     binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
                                       size_t needed,
