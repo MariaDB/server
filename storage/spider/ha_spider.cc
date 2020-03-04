@@ -9332,7 +9332,7 @@ ulong ha_spider::table_flags_for_partition()
 {
   DBUG_ENTER("ha_spider::table_flags_for_partition");
   DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(
+  ulong flags =
 #ifdef HA_PT_CALL_AT_ONCE_STORE_LOCK
     HA_PT_CALL_AT_ONCE_STORE_LOCK |
 #endif
@@ -9354,8 +9354,8 @@ ulong ha_spider::table_flags_for_partition()
 #ifdef HA_PT_CALL_AT_ONCE_TOP_TABLE
     HA_PT_CALL_AT_ONCE_TOP_TABLE |
 #endif
-    0
-  );
+    0;
+  DBUG_RETURN(flags);
 }
 
 const char *ha_spider::index_type(

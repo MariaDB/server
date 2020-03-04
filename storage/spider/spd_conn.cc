@@ -26,6 +26,7 @@
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "sql_partition.h"
+#include "sql_table.h"
 #include "tztime.h"
 #endif
 #include "spd_err.h"
@@ -1923,15 +1924,16 @@ int spider_conn_queue_loop_check(
     (uchar *) loop_check_buf, buf_sz - 1);
 #endif
   pthread_mutex_lock(&conn->loop_check_mutex);
-  if (unlikely(
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
-    !(lcptr = (SPIDER_CONN_LOOP_CHECK *)
-      my_hash_search_using_hash_value(&conn->loop_checked, hash_value,
-      (uchar *) loop_check_buf, buf_sz - 1)) ||
+  lcptr = (SPIDER_CONN_LOOP_CHECK *)
+    my_hash_search_using_hash_value(&conn->loop_checked, hash_value,
+    (uchar *) loop_check_buf, buf_sz - 1);
 #else
-    !(lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_search(
-      &conn->loop_checked, (uchar *) loop_check_buf, buf_sz - 1)) ||
+  lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_search(
+    &conn->loop_checked, (uchar *) loop_check_buf, buf_sz - 1);
 #endif
+  if (unlikely(
+    !lcptr ||
     (
       !lcptr->flag &&
       (

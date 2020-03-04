@@ -2359,8 +2359,9 @@ int spider_db_mbase::print_warnings(
             DBUG_PRINT("info",("spider row[2]=%s", row[2]));
             longlong res_num =
               (longlong) my_strtoll10(row[1], (char**) NULL, &error_num);
-            my_printf_error(res_num, row[2], MYF(0));
-            error_num = res_num;
+            DBUG_PRINT("info",("spider res_num=%lld", res_num));
+            my_printf_error((int) res_num, row[2], MYF(0));
+            error_num = (int) res_num;
             row = mysql_fetch_row(res);
           }
         }
