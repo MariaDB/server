@@ -1767,12 +1767,11 @@ binlog_trans_log_truncate(THD *thd, my_off_t pos)
   DBUG_ENTER("binlog_trans_log_truncate");
   DBUG_PRINT("enter", ("pos: %lu", (ulong) pos));
 
-  DBUG_ASSERT(thd_get_ha_data(thd, binlog_hton) != NULL);
+  DBUG_ASSERT(thd->binlog_get_cache_mngr() != NULL);
   /* Only true if binlog_trans_log_savepos() wasn't called before */
   DBUG_ASSERT(pos != ~(my_off_t) 0);
 
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
   cache_mngr->trx_cache.restore_savepoint(pos);
   DBUG_VOID_RETURN;
 }
@@ -1811,8 +1810,7 @@ int binlog_init(void *p)
 static int binlog_close_connection(handlerton *hton, THD *thd)
 {
   DBUG_ENTER("binlog_close_connection");
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
 #ifdef WITH_WSREP
   if (WSREP(thd) && cache_mngr && !cache_mngr->trx_cache.empty()) {
     IO_CACHE* cache= cache_mngr->get_binlog_cache_log(true);
@@ -2231,8 +2229,7 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   PSI_stage_info org_stage;
   DBUG_ENTER("binlog_commit");
 
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
 
   if (!cache_mngr)
   {
@@ -2328,8 +2325,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   DBUG_ENTER("binlog_rollback");
 
   int error= 0;
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
 
   if (!cache_mngr)
   {
@@ -2421,7 +2417,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
 void binlog_reset_cache(THD *thd)
 {
   binlog_cache_mngr *const cache_mngr= opt_bin_log ? 
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton) : 0;
+                                       thd->binlog_get_cache_mngr() : 0;
   DBUG_ENTER("binlog_reset_cache");
   if (cache_mngr)
   {
@@ -5720,8 +5716,7 @@ bool MYSQL_BIN_LOG::is_query_in_union(THD *thd, query_id_t query_id_param)
 bool
 trans_has_updated_trans_table(const THD* thd)
 {
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
 
   return (cache_mngr ? !cache_mngr->trx_cache.empty() : 0);
 }
@@ -5770,8 +5765,7 @@ bool use_trans_cache(const THD* thd, bool is_transactional)
 {
   if (is_transactional)
     return 1;
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  auto *const cache_mngr= thd->binlog_get_cache_mngr();
 
   return ((thd->is_current_stmt_binlog_format_row() ||
            thd->variables.binlog_direct_non_trans_update) ? 0 :
@@ -5937,7 +5931,7 @@ void THD::set_binlog_start_alter_seq_no(uint64 s_no)
 void
 THD::binlog_start_trans_and_stmt()
 {
-  binlog_cache_mngr *cache_mngr= (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
+  binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
   DBUG_ENTER("binlog_start_trans_and_stmt");
   DBUG_PRINT("enter", ("cache_mngr: %p  cache_mngr->trx_cache.get_prev_position(): %lu",
                        cache_mngr,
@@ -6024,8 +6018,7 @@ THD::binlog_start_trans_and_stmt()
 }
 
 void THD::binlog_set_stmt_begin() {
-  binlog_cache_mngr *cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
+  binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
 
   /*
     The call to binlog_trans_log_savepos() might create the cache_mngr
@@ -6035,7 +6028,7 @@ void THD::binlog_set_stmt_begin() {
   */
   my_off_t pos= 0;
   binlog_trans_log_savepos(this, &pos);
-  cache_mngr= (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
+  cache_mngr= binlog_get_cache_mngr();
   cache_mngr->trx_cache.set_prev_position(pos);
 }
 
@@ -6194,8 +6187,7 @@ bool THD::binlog_write_table_map(TABLE *table, bool with_annotate)
   Table_map_log_event
     the_event(this, table, table->s->table_map_id, is_transactional);
 
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= binlog_get_cache_mngr();
   binlog_cache_data *cache_data= (cache_mngr->
                                   get_binlog_cache_data(is_transactional));
   IO_CACHE *file= &cache_data->cache_log;
@@ -6234,6 +6226,12 @@ write_err:
 }
 
 
+binlog_cache_mngr *THD::binlog_get_cache_mngr() const
+{
+  return (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
+}
+
+
 /**
   This function retrieves a pending row event from a cache which is
   specified through the parameter @c is_transactional. Respectively, when it
@@ -6249,8 +6247,7 @@ Rows_log_event*
 THD::binlog_get_pending_rows_event(bool is_transactional) const
 {
   Rows_log_event* rows= NULL;
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= binlog_get_cache_mngr();
 
   /*
     This is less than ideal, but here's the story: If there is no cache_mngr,
@@ -6305,8 +6302,7 @@ MYSQL_BIN_LOG::remove_pending_rows_event(THD *thd, bool is_transactional)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::remove_pending_rows_event");
 
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
 
   DBUG_ASSERT(cache_mngr);
 
@@ -6341,8 +6337,7 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
   DBUG_ASSERT(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open());
   DBUG_PRINT("enter", ("event: %p", event));
 
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
 
   DBUG_ASSERT(cache_mngr);
 
@@ -11733,7 +11728,7 @@ mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file)
 {
   binlog_cache_mngr *cache_mngr;
   if (opt_bin_log &&
-      (cache_mngr= (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton)))
+      (cache_mngr= thd->binlog_get_cache_mngr()))
   {
     *out_file= cache_mngr->last_commit_pos_file;
     *out_pos= (ulonglong)(cache_mngr->last_commit_pos_offset);
@@ -11846,7 +11841,7 @@ TC_LOG_BINLOG::set_status_variables(THD *thd)
   binlog_cache_mngr *cache_mngr;
 
   if (thd && opt_bin_log)
-    cache_mngr= (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+    cache_mngr= thd->binlog_get_cache_mngr();
   else
     cache_mngr= 0;
 
@@ -11968,8 +11963,7 @@ maria_declare_plugin_end;
 IO_CACHE *wsrep_get_cache(THD * thd, bool is_transactional)
 {
   DBUG_ASSERT(binlog_hton->slot != HA_SLOT_UNDEF);
-  binlog_cache_mngr *cache_mngr = (binlog_cache_mngr*)
-    thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *cache_mngr = thd->binlog_get_cache_mngr();
   if (cache_mngr)
     return cache_mngr->get_binlog_cache_log(is_transactional);
 
@@ -11985,8 +11979,7 @@ void wsrep_thd_binlog_trx_reset(THD * thd)
   /*
     todo: fix autocommit select to not call the caller
   */
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
   if (cache_mngr)
   {
     cache_mngr->reset(false, true);
@@ -12004,8 +11997,7 @@ void wsrep_thd_binlog_stmt_rollback(THD * thd)
 {
   DBUG_ENTER("wsrep_thd_binlog_stmt_rollback");
   WSREP_DEBUG("wsrep_thd_binlog_stmt_rollback");
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
   if (cache_mngr)
   {
     thd->binlog_remove_pending_rows_event(TRUE, TRUE);
@@ -12030,8 +12022,7 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
     back a statement or a transaction. However, notifications do not happen
     if the binary log is set as read/write.
   */
-  binlog_cache_mngr *cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
   /* cache_mngr may be missing e.g. in mtr test ev51914.test */
   if (cache_mngr)
   {
