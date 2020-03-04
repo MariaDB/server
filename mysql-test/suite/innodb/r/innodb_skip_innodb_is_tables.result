@@ -198,7 +198,7 @@ log_checkpoints	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0
 log_lsn_last_flush	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	LSN of Last flush
 log_lsn_last_checkpoint	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	LSN at last checkpoint
 log_lsn_current	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Current LSN value
-log_lsn_checkpoint_age	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Current LSN value minus LSN at last checkpoint
+log_lsn_checkpoint_age	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Current LSN value minus LSN at last checkpoint
 log_lsn_buf_pool_oldest	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	The oldest modified block LSN in the buffer pool
 log_max_modified_age_async	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Maximum LSN difference; when exceeded, start asynchronous preflush
 log_max_modified_age_sync	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Maximum LSN difference; when exceeded, start synchronous preflush

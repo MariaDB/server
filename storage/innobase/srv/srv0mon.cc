@@ -889,7 +889,8 @@ static monitor_info_t	innodb_counter_info[] =
 
 	{"log_lsn_checkpoint_age", "recovery",
 	 "Current LSN value minus LSN at last checkpoint",
-	 MONITOR_NONE,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_LSN_CHECKPOINT_AGE},
 
 	{"log_lsn_buf_pool_oldest", "recovery",
@@ -1990,6 +1991,13 @@ srv_mon_process_existing_counter(
 	case MONITOR_LOG_IO:
 		mutex_enter(&log_sys.mutex);
 		value = static_cast<mon_type_t>(log_sys.n_log_ios);
+		mutex_exit(&log_sys.mutex);
+		break;
+
+	case MONITOR_LSN_CHECKPOINT_AGE:
+		mutex_enter(&log_sys.mutex);
+		value = static_cast<mon_type_t>(log_sys.lsn
+						- log_sys.last_checkpoint_lsn);
 		mutex_exit(&log_sys.mutex);
 		break;
 

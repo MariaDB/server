@@ -341,8 +341,6 @@ static dberr_t create_log_file(lsn_t lsn, std::string& logfile0)
 	log_sys.buf_free = LOG_BLOCK_HDR_SIZE;
 	log_sys.lsn += LOG_BLOCK_HDR_SIZE;
 
-	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
-		    (log_sys.lsn - log_sys.last_checkpoint_lsn));
 	log_mutex_exit();
 
 	log_make_checkpoint();

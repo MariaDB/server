@@ -3553,9 +3553,6 @@ completed:
 		fil_names_clear(log_sys.last_checkpoint_lsn, true);
 	}
 
-	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
-		    log_sys.lsn - log_sys.last_checkpoint_lsn);
-
 	log_sys.next_checkpoint_no = ++checkpoint_no;
 
 	mutex_enter(&recv_sys.mutex);

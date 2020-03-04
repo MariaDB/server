@@ -312,9 +312,6 @@ log_reserve_and_write_fast(
 
 	log_sys.lsn += len;
 
-	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
-		    log_sys.lsn - log_sys.last_checkpoint_lsn);
-
 	return(log_sys.lsn);
 }
 

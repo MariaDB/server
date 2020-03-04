@@ -554,8 +554,6 @@ void log_t::create()
   buf_free= LOG_BLOCK_HDR_SIZE;
   lsn= LOG_START_LSN + LOG_BLOCK_HDR_SIZE;
 
-  MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE, lsn - last_checkpoint_lsn);
-
   log_scrub_thread_active= !srv_read_only_mode && srv_scrub_log;
   if (log_scrub_thread_active) {
     log_scrub_event= os_event_create("log_scrub_event");
@@ -1405,8 +1403,6 @@ void log_write_checkpoint_info(lsn_t end_lsn)
 	log_sys.next_checkpoint_no++;
 
 	log_sys.last_checkpoint_lsn = log_sys.next_checkpoint_lsn;
-	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
-		    log_sys.lsn - log_sys.last_checkpoint_lsn);
 
 	DBUG_PRINT("ib_log", ("checkpoint ended at " LSN_PF
 			      ", flushed to " LSN_PF,
