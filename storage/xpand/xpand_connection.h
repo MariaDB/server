@@ -91,7 +91,7 @@ public:
   int scan_table(ulonglong xpand_table_oid,
                  xpand_lock_mode_t lock_mode,
                  MY_BITMAP *read_set, ushort row_req,
-                 xpand_connection_cursor **scan);
+                 xpand_connection_cursor **scan, String* pushdown_cond_sql);
   int scan_query(String &stmt, uchar *fieldtype, uint fields, uchar *null_bits,
                  uint null_bits_size, uchar *field_metadata,
                  uint field_metadata_size, ushort row_req, ulonglong *oids,
