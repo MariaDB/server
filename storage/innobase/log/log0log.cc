@@ -1340,20 +1340,6 @@ static bool log_preflush_pool_modified_pages(lsn_t new_oldest)
 	return(success);
 }
 
-/** Read a log group header page to log_sys.checkpoint_buf.
-@param[in]	header	0 or LOG_CHECKPOINT_1 or LOG_CHECKPOINT2 */
-void log_header_read(ulint header)
-{
-	ut_ad(log_mutex_own());
-
-	log_sys.n_log_ios++;
-
-	MONITOR_INC(MONITOR_LOG_IO);
-
-	log_sys.log.read(header,
-			 {log_sys.checkpoint_buf, OS_FILE_LOG_BLOCK_SIZE});
-}
-
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
 @param[in]	end_lsn	start LSN of the FILE_CHECKPOINT mini-transaction */
 void log_write_checkpoint_info(lsn_t end_lsn)

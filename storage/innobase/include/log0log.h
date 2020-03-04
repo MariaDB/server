@@ -211,9 +211,6 @@ shutdown. This function also writes all log in log file to the log archive. */
 void
 logs_empty_and_mark_files_at_shutdown(void);
 /*=======================================*/
-/** Read a log group header page to log_sys.checkpoint_buf.
-@param[in]	header	0 or LOG_CHECKPOINT_1 or LOG_CHECKPOINT2 */
-void log_header_read(ulint header);
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
 @param[in]	end_lsn	start LSN of the FILE_CHECKPOINT mini-transaction */
 void log_write_checkpoint_info(lsn_t end_lsn);

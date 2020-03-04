@@ -1353,7 +1353,7 @@ recv_find_max_checkpoint_0(ulint* max_field)
 
 	for (ulint field = LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
 	     field += LOG_CHECKPOINT_2 - LOG_CHECKPOINT_1) {
-		log_header_read(field);
+		log_sys.log.read(field, {buf, OS_FILE_LOG_BLOCK_SIZE});
 
 		if (static_cast<uint32_t>(ut_fold_binary(buf, CHECKSUM_1))
 		    != mach_read_from_4(buf + CHECKSUM_1)
@@ -1552,7 +1552,7 @@ recv_find_max_checkpoint(ulint* max_field)
 
 	buf = log_sys.checkpoint_buf;
 
-	log_header_read(0);
+	log_sys.log.read(0, {buf, OS_FILE_LOG_BLOCK_SIZE});
 	/* Check the header page checksum. There was no
 	checksum in the first redo log format (version 0). */
 	log_sys.log.format = mach_read_from_4(buf + LOG_HEADER_FORMAT);
@@ -1591,8 +1591,7 @@ recv_find_max_checkpoint(ulint* max_field)
 
 	for (field = LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
 	     field += LOG_CHECKPOINT_2 - LOG_CHECKPOINT_1) {
-
-		log_header_read(field);
+		log_sys.log.read(field, {buf, OS_FILE_LOG_BLOCK_SIZE});
 
 		const ulint crc32 = log_block_calc_checksum_crc32(buf);
 		const ulint cksum = log_block_get_checksum(buf);
@@ -3306,9 +3305,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		return(err);
 	}
 
-	log_header_read(max_cp_field);
-
 	buf = log_sys.checkpoint_buf;
+	log_sys.log.read(max_cp_field, {buf, OS_FILE_LOG_BLOCK_SIZE});
 
 	checkpoint_lsn = mach_read_from_8(buf + LOG_CHECKPOINT_LSN);
 	checkpoint_no = mach_read_from_8(buf + LOG_CHECKPOINT_NO);
