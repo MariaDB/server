@@ -1503,7 +1503,7 @@ bool THD::lock_temporary_tables()
     DBUG_RETURN(false);
   }
 
-  if (rgi_slave)
+  if (rgi_slave && !start_alter_thread)
   {
     mysql_mutex_lock(&rgi_slave->rli->data_lock);
     temporary_tables= rgi_slave->rli->save_temporary_tables;

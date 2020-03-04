@@ -5753,6 +5753,25 @@ err_during_init:
   /* We need data_lock, at least to wake up any waiting master_pos_wait() */
   mysql_mutex_lock(&rli->data_lock);
   DBUG_ASSERT(rli->slave_running == MYSQL_SLAVE_RUN_NOT_CONNECT); // tracking buffer overrun
+  /*
+   shutdown the alter threads waiting on C/R ALter
+   What if worker thread has not registered its start alter in alter_list ?
+   In that case rpt->stop
+   TODO sideeffects 
+  */
+  start_alter_info *info=NULL;
+  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+  while ((info= info_iterator++))
+  {
+    info->state= start_alter_state::SHUTDOWN_RECIEVED;
+    mysql_cond_broadcast(&mi->start_alter_cond);
+    mysql_mutex_lock(&mi->start_alter_lock);
+    while(info->state == start_alter_state::SHUTDOWN_RECIEVED)
+      mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+    DBUG_ASSERT(info->state == start_alter_state::SHUTDOWN_COMPLETED);
+    info_iterator.remove();
+    mysql_mutex_unlock(&mi->start_alter_lock);
+  }
   /* When master_pos_wait() wakes up it will check this and terminate */
   rli->slave_running= MYSQL_SLAVE_NOT_RUN;
   /* Forget the relay log's format */
@@ -5816,24 +5835,6 @@ err_during_init:
 
   rpl_parallel_resize_pool_if_no_slaves();
 
-  /*
-   shutdown the alter threads waiting on C/R ALter
-   What if worker thread has not registered its start alter in alter_list ?
-   In that case rpt->stop
-  */
-  start_alter_info *info=NULL;
-  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
-  while ((info= info_iterator++))
-  {
-    info->state= start_alter_state::SHUTDOWN_RECIEVED;
-    mysql_cond_broadcast(&mi->start_alter_cond);
-    mysql_mutex_lock(&mi->start_alter_lock);
-    while(info->state == start_alter_state::SHUTDOWN_RECIEVED)
-      mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
-    DBUG_ASSERT(info->state == start_alter_state::SHUTDOWN_COMPLETED);
-    info_iterator.remove();
-    mysql_mutex_unlock(&mi->start_alter_lock);
-  }
   delete serial_rgi;
   delete thd;
 

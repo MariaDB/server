@@ -5763,6 +5763,7 @@ mysql_execute_command(THD *thd)
     while(info->state != start_alter_state::COMMITTED )
       mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
     mysql_mutex_unlock(&mi->start_alter_lock);
+    my_free(info);
     if (write_bin_log(thd, true, thd->query(), thd->query_length()))
       DBUG_RETURN(true);
     break;
@@ -5848,6 +5849,7 @@ mysql_execute_command(THD *thd)
     while(info->state != start_alter_state::COMMITTED )
       mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
     mysql_mutex_unlock(&mi->start_alter_lock);
+    my_free(info);
     if (write_bin_log(thd, true, thd->query(), thd->query_length()))
       DBUG_RETURN(true);
     break;

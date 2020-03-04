@@ -681,8 +681,8 @@ Error from master_result  1= ROLLBACK recieved from master
                           3= shutdown recieved
 */
 #define MASTER_RESULT_ROLLBACK      1
-#define MASTER_RESULT_COMMIT_ERROR  1
-#define MASTER_RESULT_SHUTDOWN      1
+#define MASTER_RESULT_COMMIT_ERROR  2
+#define MASTER_RESULT_SHUTDOWN      3
 /**
   Read one entry from ddl log file.
 
@@ -9364,14 +9364,12 @@ static int create_table_for_inplace_alter(THD *thd,
 
 static void wait_for_master(THD *thd, start_alter_info* info)
 {
-  char temp[thd->query_length()+ 10];
   Master_info *mi= thd->rgi_slave->rli->mi;
   mysql_mutex_lock(&mi->start_alter_lock);
-  info->state= start_alter_state::WAITING;
+  if (info->state != start_alter_state::SHUTDOWN_RECIEVED)
+    info->state= start_alter_state::WAITING;
   mysql_mutex_unlock(&mi->start_alter_lock);
   mysql_cond_broadcast(&mi->start_alter_cond);
-  strcpy(temp, thd->query());
-  char* alter_location= strcasestr(temp, "ALTER");
   mysql_mutex_lock(&mi->start_alter_lock);
   while (info->state == start_alter_state::WAITING)
   {
@@ -9433,7 +9431,10 @@ static void mark_shutdown(start_alter_info *info, Master_info *mi)
 
 static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *info)
 {
-  if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
+  //No need to write start alter , It must be already written
+  if (thd->direct_commit_alter)
+    return false;
+  if (thd->lex->previous_commit_id)
   {
     Master_info *mi= thd->rgi_slave->rli->mi;
     info->error= 0;
@@ -9515,11 +9516,15 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool engine_changed;
   char send_query[thd->query_length() + 20];
   bool partial_alter= false;
-  start_alter_info *info= (start_alter_info *)thd->alloc(sizeof(start_alter_info));
+  /*
+   Why on global memory ?- So that SQLCOM_COMMIT_ALTER/ROLLBACK should not get
+   error when spawned threads exits too early.
+   */
+  start_alter_info *info= (start_alter_info *)my_malloc(sizeof(start_alter_info),
+                                                        MYF(MY_WME));
   Master_info *mi= NULL;
   if (thd->slave_thread)
     mi= thd->rgi_slave->rli->mi;
-  int return_result= 0;
   DBUG_ENTER("mysql_alter_table");
 
   /*
@@ -10385,10 +10390,10 @@ do_continue:;
     {
       DBUG_ASSERT(thd->slave_thread);
       wait_for_master(thd, info);
-    }
-    if (info->state == start_alter_state::ROLLBACK_ALTER ||
+      if (info->state == start_alter_state::ROLLBACK_ALTER ||
           info->state == start_alter_state::SHUTDOWN_RECIEVED)
-      goto err_new_table_cleanup;
+        goto err_new_table_cleanup;
+    }
     /* Close lock if this is a transactional table */
     if (thd->lock)
     {
@@ -10453,10 +10458,10 @@ do_continue:;
   {
     DBUG_ASSERT(thd->slave_thread);
     wait_for_master(thd, info);
-  }
-  if (info->state == start_alter_state::ROLLBACK_ALTER ||
+    if (info->state == start_alter_state::ROLLBACK_ALTER ||
           info->state == start_alter_state::SHUTDOWN_RECIEVED)
-    goto err_new_table_cleanup;
+      goto err_new_table_cleanup;
+  }
   engine_changed= ((new_table->file->ht != table->file->ht) &&
                    (((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
                       !(table->file->ha_table_flags() & HA_FILE_BASED))) ||
