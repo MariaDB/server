@@ -5716,10 +5716,6 @@ mysql_execute_command(THD *thd)
     DBUG_ASSERT(thd->rgi_slave);
     Master_info *mi= thd->rgi_slave->rli->mi;
     start_alter_info *info=NULL;
-    char temp[thd->query_length()+ 10];
-    strcpy(temp, thd->query());
-    char* alter_location= strcasestr(temp, "ALTER");
-    char send_query[thd->query_length() + 20];
     mysql_mutex_lock(&mi->start_alter_list_lock);
     List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
     while ((info= info_iterator++))
@@ -5809,10 +5805,6 @@ mysql_execute_command(THD *thd)
     DBUG_ASSERT(thd->rgi_slave);
     Master_info *mi= thd->rgi_slave->rli->mi;
     start_alter_info *info=NULL;
-    char temp[thd->query_length()+ 10];
-    strcpy(temp, thd->query());
-    char* alter_location= strcasestr(temp, "ALTER");
-    char send_query[thd->query_length() + 20];
     mysql_mutex_lock(&mi->start_alter_list_lock);
     List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
     while ((info= info_iterator++))

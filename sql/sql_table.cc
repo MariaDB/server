@@ -9453,7 +9453,7 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
   }
   else if (opt_binlog_split_alter)
   {
-    char send_query[thd->query_length() + 20];
+    char *send_query= (char *)thd->alloc(thd->query_length() + 20);
     thd->transaction.start_alter= true;
     sprintf(send_query, "/*!100001 START %lld %s */",thd->thread_id,  thd->query());
     if (write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
@@ -9514,7 +9514,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        uint order_num, ORDER *order, bool ignore)
 {
   bool engine_changed;
-  char send_query[thd->query_length() + 20];
+  char *send_query= (char *)thd->alloc(thd->query_length() + 20);
   bool partial_alter= false;
   /*
    Why on global memory ?- So that SQLCOM_COMMIT_ALTER/ROLLBACK should not get
