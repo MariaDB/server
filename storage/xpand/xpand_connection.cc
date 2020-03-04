@@ -83,6 +83,7 @@ enum xpand_commands {
   XPAND_UPDATE_QUERY,
   XPAND_COMMIT,
   XPAND_ROLLBACK,
+  XPAND_SCAN_TABLE_COND,
 };
 
 /****************************************************************************
@@ -732,7 +733,8 @@ int xpand_connection::allocate_cursor(MYSQL *xpand_net, ulong buffer_size,
 int xpand_connection::scan_table(ulonglong xpand_table_oid,
                                  xpand_lock_mode_t lock_mode,
                                  MY_BITMAP *read_set, ushort row_req,
-                                 xpand_connection_cursor **scan)
+                                 xpand_connection_cursor **scan,
+                                 String* pushdown_cond_sql)
 {
   int error_code;
   command_length = 0;
@@ -741,8 +743,13 @@ int xpand_connection::scan_table(ulonglong xpand_table_oid,
   if (trans_flags & XPAND_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
-  if ((error_code = begin_command(XPAND_SCAN_TABLE)))
-    return error_code;
+  if (pushdown_cond_sql != nullptr) {
+    if ((error_code= begin_command(XPAND_SCAN_TABLE_COND)))
+      return error_code;
+  } else {
+    if ((error_code= begin_command(XPAND_SCAN_TABLE)))
+      return error_code;
+  }
 
   if ((error_code = add_command_operand_ushort(row_req)))
     return error_code;
@@ -755,6 +762,14 @@ int xpand_connection::scan_table(ulonglong xpand_table_oid,
 
   if ((error_code = add_command_operand_bitmap(read_set)))
     return error_code;
+
+  if (pushdown_cond_sql != nullptr) {
+    if ((error_code= add_command_operand_str(
+      reinterpret_cast<const uchar*>(pushdown_cond_sql->ptr()),
+      pushdown_cond_sql->length()))) {
+      return error_code;
+    }
+  }
 
   if ((error_code = send_command()))
     return error_code;

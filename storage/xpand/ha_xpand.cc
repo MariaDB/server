@@ -593,6 +593,7 @@ int ha_xpand::reset()
   upsert_flag &= ~XPAND_HAS_UPSERT;
   upsert_flag &= ~XPAND_UPSERT_SENT;
   xpd_lock_type = XPAND_NO_LOCKS;
+  pushdown_cond_list.empty();
   return 0;
 }
 
@@ -1079,8 +1080,25 @@ int ha_xpand::rnd_init(bool scan)
   bitmap_set_all(&scan_fields);
 #endif
 
+  String* pushdown_cond_sql = nullptr;
+  if (pushdown_cond_list.elements) {
+    pushdown_cond_sql = new String();
+    while (pushdown_cond_list.elements > 0) {
+      COND* cond = pushdown_cond_list.pop();
+      String sql_predicate;
+      cond->print_for_table_def(&sql_predicate);
+      pushdown_cond_sql->append(sql_predicate);
+      if ( pushdown_cond_list.elements > 0)
+        pushdown_cond_sql->append(" AND ");
+    }
+  }
+ 
   error_code = trx->scan_table(xpand_table_oid, xpd_lock_type, &scan_fields,
-                               THDVAR(thd, row_buffer), &scan_cur);
+                               THDVAR(thd, row_buffer), &scan_cur,
+                               pushdown_cond_sql);
+
+  if (pushdown_cond_sql != nullptr)
+    delete pushdown_cond_sql;
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
     xpand_mark_table_for_discovery(table);
@@ -1255,11 +1273,17 @@ int ha_xpand::external_lock(THD *thd, int lock_type)
 
 const COND *ha_xpand::cond_push(const COND *cond)
 {
-  return cond;
+  THD *thd= ha_thd();
+  if (!thd->lex->describe) {
+    pushdown_cond_list.push_front(const_cast<COND*>(cond));
+  }
+
+  return NULL;
 }
 
 void ha_xpand::cond_pop()
 {
+  pushdown_cond_list.pop();
 }
 
 int ha_xpand::info_push(uint info_type, void *info)
