@@ -1,14 +1,14 @@
 # Copyright (c) 2012, 2020, MariaDB
-# 
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
@@ -26,7 +26,7 @@ SET(MAN1_SERVER innochecksum.1 my_print_defaults.1 myisam_ftdump.1 myisamchk.1
 		mysqld_safe_helper.1 wsrep_sst_common.1
 		wsrep_sst_mysqldump.1 wsrep_sst_rsync.1
 		galera_recovery.1 galera_new_cluster.1
-		mysql_ldb.1
+		mysql_ldb.1 myrocks_hotbackup.1
 		wsrep_sst_mariabackup.1 mbstream.1 mariabackup.1
 		wsrep_sst_rsync_wan.1)
 SET(MAN8_SERVER mysqld.8)
