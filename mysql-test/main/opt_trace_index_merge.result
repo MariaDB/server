@@ -93,10 +93,6 @@ explain select * from t1 where a=1 or b=1	{
                     }
                   ],
                   "setup_range_conditions": [],
-                  "group_index_range": {
-                    "chosen": false,
-                    "cause": "no group by or distinct"
-                  },
                   "analyzing_range_alternatives": {
                     "range_scan_alternatives": [],
                     "analyzing_roworder_intersect": {
@@ -167,6 +163,10 @@ explain select * from t1 where a=1 or b=1	{
                         "chosen": true
                       }
                     ]
+                  },
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "no group by or distinct"
                   },
                   "chosen_range_access_summary": {
                     "range_access_plan": {

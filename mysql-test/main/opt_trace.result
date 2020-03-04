@@ -1387,6 +1387,13 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                     "chosen": true
                   },
                   "setup_range_conditions": [],
+                  "analyzing_range_alternatives": {
+                    "range_scan_alternatives": [],
+                    "analyzing_roworder_intersect": {
+                      "cause": "too few roworder scans"
+                    },
+                    "analyzing_index_merge_union": []
+                  },
                   "group_index_range": {
                     "potential_group_range_indexes": [
                       {
@@ -1411,13 +1418,6 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                     "ranges": ["(2,3) <= (b,c) <= (2,3)"],
                     "chosen": false,
                     "cause": "cost"
-                  },
-                  "analyzing_range_alternatives": {
-                    "range_scan_alternatives": [],
-                    "analyzing_roworder_intersect": {
-                      "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": []
                   }
                 }
               },
@@ -1598,6 +1598,13 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                     "chosen": true
                   },
                   "setup_range_conditions": [],
+                  "analyzing_range_alternatives": {
+                    "range_scan_alternatives": [],
+                    "analyzing_roworder_intersect": {
+                      "cause": "too few roworder scans"
+                    },
+                    "analyzing_index_merge_union": []
+                  },
                   "group_index_range": {
                     "potential_group_range_indexes": [
                       {
@@ -1622,13 +1629,6 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                     "ranges": ["(2001-01-04) <= (a)"],
                     "chosen": false,
                     "cause": "cost"
-                  },
-                  "analyzing_range_alternatives": {
-                    "range_scan_alternatives": [],
-                    "analyzing_roworder_intersect": {
-                      "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": []
                   }
                 }
               },
@@ -1789,6 +1789,13 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                     "chosen": true
                   },
                   "setup_range_conditions": [],
+                  "analyzing_range_alternatives": {
+                    "range_scan_alternatives": [],
+                    "analyzing_roworder_intersect": {
+                      "cause": "too few roworder scans"
+                    },
+                    "analyzing_index_merge_union": []
+                  },
                   "group_index_range": {
                     "potential_group_range_indexes": [
                       {
@@ -1813,13 +1820,6 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                     "ranges": ["(2001-01-04) <= (a) <= (2001-01-04)"],
                     "chosen": false,
                     "cause": "cost"
-                  },
-                  "analyzing_range_alternatives": {
-                    "range_scan_alternatives": [],
-                    "analyzing_roworder_intersect": {
-                      "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": []
                   }
                 }
               },
@@ -2031,10 +2031,6 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     }
                   ],
                   "setup_range_conditions": [],
-                  "group_index_range": {
-                    "chosen": false,
-                    "cause": "no group by or distinct"
-                  },
                   "analyzing_range_alternatives": {
                     "range_scan_alternatives": [
                       {
@@ -2062,6 +2058,10 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       "cause": "too few roworder scans"
                     },
                     "analyzing_index_merge_union": []
+                  },
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "no group by or distinct"
                   },
                   "chosen_range_access_summary": {
                     "range_access_plan": {
@@ -2213,10 +2213,6 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 }
               ],
               "setup_range_conditions": [],
-              "group_index_range": {
-                "chosen": false,
-                "cause": "no group by or distinct"
-              },
               "analyzing_range_alternatives": {
                 "range_scan_alternatives": [
                   {
@@ -2234,6 +2230,10 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "cause": "too few roworder scans"
                 },
                 "analyzing_index_merge_union": []
+              },
+              "group_index_range": {
+                "chosen": false,
+                "cause": "no group by or distinct"
               },
               "chosen_range_access_summary": {
                 "range_access_plan": {
@@ -3199,10 +3199,6 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                     "chosen": true
                   },
                   "setup_range_conditions": [],
-                  "group_index_range": {
-                    "chosen": false,
-                    "cause": "no group by or distinct"
-                  },
                   "analyzing_range_alternatives": {
                     "range_scan_alternatives": [
                       {
@@ -3270,6 +3266,10 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       "cause": "cost"
                     },
                     "analyzing_index_merge_union": []
+                  },
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "no group by or distinct"
                   },
                   "chosen_range_access_summary": {
                     "range_access_plan": {
@@ -3681,10 +3681,6 @@ explain delete from t0 where t0.a<3	{
           }
         ],
         "setup_range_conditions": [],
-        "group_index_range": {
-          "chosen": false,
-          "cause": "no join"
-        },
         "analyzing_range_alternatives": {
           "range_scan_alternatives": [
             {
@@ -3699,6 +3695,10 @@ explain delete from t0 where t0.a<3	{
             }
           ],
           "analyzing_index_merge_union": []
+        },
+        "group_index_range": {
+          "chosen": false,
+          "cause": "no join"
         },
         "chosen_range_access_summary": {
           "range_access_plan": {
@@ -3824,10 +3824,6 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     "chosen": true
                   },
                   "setup_range_conditions": [],
-                  "group_index_range": {
-                    "chosen": false,
-                    "cause": "not single_table"
-                  },
                   "analyzing_range_alternatives": {
                     "range_scan_alternatives": [
                       {
@@ -3845,6 +3841,10 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       "cause": "too few roworder scans"
                     },
                     "analyzing_index_merge_union": []
+                  },
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "not single_table"
                   },
                   "chosen_range_access_summary": {
                     "range_access_plan": {
@@ -3889,10 +3889,6 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     "chosen": true
                   },
                   "setup_range_conditions": [],
-                  "group_index_range": {
-                    "chosen": false,
-                    "cause": "not single_table"
-                  },
                   "analyzing_range_alternatives": {
                     "range_scan_alternatives": [
                       {
@@ -3910,6 +3906,10 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       "cause": "too few roworder scans"
                     },
                     "analyzing_index_merge_union": []
+                  },
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "not single_table"
                   },
                   "chosen_range_access_summary": {
                     "range_access_plan": {

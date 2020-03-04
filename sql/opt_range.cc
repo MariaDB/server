@@ -277,7 +277,6 @@ public:
     pointer to such SEL_TREE instead of NULL)
   */
   Mem_root_array<SEL_ARG *, true> keys;
-
   key_map keys_map;        /* bitmask of non-NULL elements in keys */
 
   /*
@@ -426,8 +425,9 @@ static bool sel_trees_must_be_ored(RANGE_OPT_PARAM* param,
 static int and_range_trees(RANGE_OPT_PARAM *param,
                            SEL_TREE *tree1, SEL_TREE *tree2,
                            SEL_TREE *result);
-static bool remove_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree);
-
+static bool remove_nonrange_trees(PARAM *param, SEL_TREE *tree);
+static void restore_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree,
+                                   SEL_ARG **backup);
 static void print_key_value(String *out, const KEY_PART_INFO *key_part,
                             const uchar* key, uint length);
 static void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
@@ -2621,8 +2621,8 @@ static int fill_used_fields_bitmap(PARAM *param)
   TODO
    * Change the value returned in quick_condition_rows from a pessimistic
      estimate to true E(#rows that satisfy table condition). 
-     (we can re-use some of E(#rows) calcuation code from index_merge/intersection 
-      for this)
+     (we can re-use some of E(#rows) calcuation code from
+     index_merge/intersection for this)
    
    * Check if this function really needs to modify keys_to_use, and change the
      code to pass it by reference if it doesn't.
@@ -2647,6 +2647,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   uint idx;
   double scan_time;
   Item *notnull_cond= NULL;
+  TABLE_READ_PLAN *best_trp= NULL;
+  SEL_ARG **backup_keys= 0;
   DBUG_ENTER("SQL_SELECT::test_quick_select");
   DBUG_PRINT("enter",("keys_to_use: %lu  prev_tables: %lu  const_tables: %lu",
 		      (ulong) keys_to_use.to_ulonglong(), (ulong) prev_tables,
@@ -2776,7 +2778,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       Json_writer_array trace_keypart(thd, "key_parts");
       for (uint part= 0 ; part < n_key_parts ; 
            part++, key_parts++, key_part_info++)
-     {
+      {
 	key_parts->key=		 param.keys;
 	key_parts->part=	 part;
 	key_parts->length=       key_part_info->length;
@@ -2831,8 +2833,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         trace_cov.add("cause", "cost");
     }
 
-    TABLE_READ_PLAN *best_trp= NULL;
-    TRP_GROUP_MIN_MAX *group_trp= NULL;
     double best_read_time= read_time;
 
     if (notnull_cond)
@@ -2869,36 +2869,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       }
     }
 
-    /*
-      Try to construct a QUICK_GROUP_MIN_MAX_SELECT.
-      Notice that it can be constructed no matter if there is a range tree.
-    */
-    DBUG_EXECUTE_IF("force_group_by", force_group_by = true; );
-    if (!only_single_index_range_scan)
-      group_trp= get_best_group_min_max(&param, tree, best_read_time);
-    if (group_trp)
-    {
-      param.table->quick_condition_rows= MY_MIN(group_trp->records,
-                                             head->stat_records());
-      Json_writer_object grp_summary(thd, "best_group_range_summary");
-
-      if (unlikely(thd->trace_started()))
-        group_trp->trace_basic_info(&param, &grp_summary);
-
-      if (group_trp->read_cost < best_read_time || force_group_by)
-      {
-        grp_summary.add("chosen", true);
-        best_trp= group_trp;
-        best_read_time= best_trp->read_cost;
-        if (force_group_by)
-        {
-          goto force_plan;
-        }
-      }
-      else
-        grp_summary.add("chosen", false).add("cause", "cost");
-    }
-
     if (tree)
     {
       /*
@@ -2910,6 +2880,10 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       TRP_INDEX_INTERSECT *intersect_trp;
       bool can_build_covering= FALSE;
       Json_writer_object trace_range(thd, "analyzing_range_alternatives");
+
+      backup_keys= (SEL_ARG**) alloca(sizeof(backup_keys[0])*param.keys);
+      memcpy(&backup_keys[0], &tree->keys[0],
+             sizeof(backup_keys[0])*param.keys);
 
       remove_nonrange_trees(&param, tree);
 
@@ -3000,7 +2974,38 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       }
     }
 
-force_plan:
+    /*
+      Try to construct a QUICK_GROUP_MIN_MAX_SELECT.
+      Notice that it can be constructed no matter if there is a range tree.
+    */
+    DBUG_EXECUTE_IF("force_group_by", force_group_by = true; );
+    if (!only_single_index_range_scan)
+    {
+      TRP_GROUP_MIN_MAX *group_trp;
+      if (tree)
+        restore_nonrange_trees(&param, tree, backup_keys);
+      if ((group_trp= get_best_group_min_max(&param, tree, read_time)))
+      {
+        param.table->quick_condition_rows= MY_MIN(group_trp->records,
+                                                  head->stat_records());
+        Json_writer_object grp_summary(thd, "best_group_range_summary");
+
+        if (unlikely(thd->trace_started()))
+          group_trp->trace_basic_info(&param, &grp_summary);
+
+        if (group_trp->read_cost < best_read_time || force_group_by)
+        {
+          grp_summary.add("chosen", true);
+          best_trp= group_trp;
+          best_read_time= best_trp->read_cost;
+        }
+        else
+          grp_summary.add("chosen", false).add("cause", "cost");
+      }
+      if (tree)
+        remove_nonrange_trees(&param, tree);
+    }
+
     thd->mem_root= param.old_root;
 
     /* If we got a read plan, create a quick select from it. */
@@ -9417,7 +9422,7 @@ bool sel_trees_must_be_ored(RANGE_OPT_PARAM* param,
     1  No tree->keys[] left.
 */
 
-static bool remove_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree)
+static bool remove_nonrange_trees(PARAM *param, SEL_TREE *tree)
 {
   bool res= FALSE;
   for (uint i=0; i < param->keys; i++)
@@ -9427,6 +9432,8 @@ static bool remove_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree)
       if (tree->keys[i]->part)
       {
         tree->keys[i]= NULL;
+        /* Mark that records_in_range has not been called */
+        param->quick_rows[param->real_keynr[i]]= HA_POS_ERROR;
         tree->keys_map.clear_bit(i);
       }
       else
@@ -9436,6 +9443,23 @@ static bool remove_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree)
   return !res;
 }
 
+
+/*
+  Restore nonrange trees to their previous state
+*/
+
+static void restore_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree,
+                                   SEL_ARG **backup_keys)
+{
+  for (uint i=0; i < param->keys; i++)
+  {
+    if (backup_keys[i])
+    {
+      tree->keys[i]= backup_keys[i];
+      tree->keys_map.set_bit(i);
+    }
+  }
+}
 
 /*
   Build a SEL_TREE for a disjunction out of such trees for the disjuncts
@@ -11032,7 +11056,10 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   ha_rows rows= HA_POS_ERROR;
   uint keynr= param->real_keynr[idx];
   DBUG_ENTER("check_quick_select");
-  
+
+  /* Range not calculated yet */
+  param->quick_rows[keynr]= HA_POS_ERROR;
+
   /* Handle cases when we don't have a valid non-empty list of range */
   if (!tree)
     DBUG_RETURN(HA_POS_ERROR);
@@ -11108,6 +11135,9 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
         param->table->quick_index_only_costs[keynr]= cost->index_only_cost();
     }
   }
+  else
+    param->quick_rows[keynr]= HA_POS_ERROR;
+
   /* Figure out if the key scan is ROR (returns rows in ROWID order) or not */
   enum ha_key_alg key_alg= param->table->key_info[seq.real_keyno].algorithm;
   if ((key_alg != HA_KEY_ALG_BTREE) && (key_alg!= HA_KEY_ALG_UNDEF))
@@ -13074,7 +13104,7 @@ cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
 
  @param  param     Parameter from test_quick_select
  @param  sel_tree  Range tree generated by get_mm_tree
- @param  read_time Best read time so far (=table/index scan time)
+ @param  read_time Best read time so far of table or index scan time
  @return table read plan
    @retval NULL  Loose index scan not applicable or mem_root == NULL
    @retval !NULL Loose index scan table read plan
@@ -13105,7 +13135,6 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   Item_field *item_field;
   bool is_agg_distinct;
   List<Item_field> agg_distinct_flds;
-
   DBUG_ENTER("get_best_group_min_max");
 
   Json_writer_object trace_group(thd, "group_index_range");
@@ -13130,8 +13159,6 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     DBUG_RETURN(NULL);
   }
 
-  /* Check (SA1,SA4) and store the only MIN/MAX argument - the C attribute.*/
-  List_iterator<Item> select_items_it(join->fields_list);
   is_agg_distinct = is_indexed_agg_distinct(join, &agg_distinct_flds);
 
   if ((!join->group_list) && /* Neither GROUP BY nor a DISTINCT query. */
@@ -13142,6 +13169,9 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     DBUG_RETURN(NULL);
   }
   /* Analyze the query in more detail. */
+
+  /* Check (SA1,SA4) and store the only MIN/MAX argument - the C attribute.*/
+  List_iterator<Item> select_items_it(join->fields_list);
 
   if (join->sum_funcs[0])
   {
@@ -13570,25 +13600,18 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     /* Compute the cost of using this index. */
     if (tree)
     {
-      cur_index_tree= tree->keys[cur_param_idx];
-      /* Check if this range tree can be used for prefix retrieval. */
-      Cost_estimate dummy_cost;
-      uint mrr_flags= HA_MRR_USE_DEFAULT_IMPL;
-      uint mrr_bufsize=0;
-      bool is_ror_scan= FALSE;
-      cur_quick_prefix_records= check_quick_select(param, cur_param_idx,
-                                                   FALSE /*don't care*/,
-                                                   cur_index_tree, TRUE,
-                                                   &mrr_flags, &mrr_bufsize,
-                                                   &dummy_cost, &is_ror_scan);
-      if (unlikely(cur_index_tree && thd->trace_started()))
+      if ((cur_index_tree= tree->keys[cur_param_idx]))
       {
-        Json_writer_array trace_range(thd, "ranges");
-
-        const KEY_PART_INFO *key_part= cur_index_info->key_part;
-        trace_ranges(&trace_range, param, cur_param_idx,
-                     cur_index_tree, key_part);
+        cur_quick_prefix_records= param->quick_rows[cur_index];
+        if (unlikely(cur_index_tree && thd->trace_started()))
+        {
+          Json_writer_array trace_range(thd, "ranges");
+          trace_ranges(&trace_range, param, cur_param_idx,
+                       cur_index_tree, cur_index_info->key_part);
+        }
       }
+      else
+        cur_quick_prefix_records= HA_POS_ERROR;
     }
     cost_group_min_max(table, cur_index_info, cur_used_key_parts,
                        cur_group_key_parts, tree, cur_index_tree,
@@ -13995,7 +14018,7 @@ get_sel_arg_for_keypart(Field *field,
     last_part              [in]  Last keypart of the index
     thd                    [in]  Current thread
     key_infix              [out] Infix of constants to be used for index lookup
-    key_infix_len          [out] Lenghth of the infix
+    key_infix_len          [out] Length of the infix
     first_non_infix_part   [out] The first keypart after the infix (if any)
 
   DESCRIPTION
@@ -14023,7 +14046,6 @@ get_constant_key_infix(KEY *index_info, SEL_ARG *index_range_tree,
                        uchar *key_infix, uint *key_infix_len,
                        KEY_PART_INFO **first_non_infix_part)
 {
-  SEL_ARG       *cur_range;
   KEY_PART_INFO *cur_part;
   /* End part for the first loop below. */
   KEY_PART_INFO *end_part= min_max_arg_part ? min_max_arg_part : last_part;
@@ -14032,7 +14054,7 @@ get_constant_key_infix(KEY *index_info, SEL_ARG *index_range_tree,
   uchar *key_ptr= key_infix;
   for (cur_part= first_non_group_part; cur_part != end_part; cur_part++)
   {
-    cur_range= NULL;
+    SEL_ARG *cur_range= NULL;
     /*
       Check NGA3:
       1. get_sel_arg_for_keypart gets the range tree for the 'field' and also
