@@ -875,15 +875,6 @@ inline void log_t::file::set_lsn_offset(lsn_t a_lsn) {
 /** Release the log sys mutex. */
 #define log_mutex_exit() mutex_exit(&log_sys.mutex)
 
-
-/* log scrubbing speed, in bytes/sec */
-extern ulonglong innodb_scrub_log_speed;
-
-/** Event to wake up log_scrub_thread */
-extern os_event_t	log_scrub_event;
-/** Whether log_scrub_thread is active */
-extern bool		log_scrub_thread_active;
-
 #include "log0log.ic"
 
 #endif

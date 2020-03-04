@@ -1094,7 +1094,6 @@ static SHOW_VAR innodb_status_variables[]= {
    &export_vars.innodb_scrub_page_split_failures_missing_index, SHOW_SIZE_T},
   {"scrub_background_page_split_failures_unknown",
    &export_vars.innodb_scrub_page_split_failures_unknown, SHOW_SIZE_T},
-  {"scrub_log", &export_vars.innodb_scrub_log, SHOW_LONGLONG},
   {"encryption_num_key_requests", &export_vars.innodb_encryption_key_requests,
    SHOW_LONGLONG},
 
@@ -3432,7 +3431,16 @@ static const char* innodb_log_compressed_pages_msg
 static my_bool	innodb_log_optimize_ddl;
 static const char* innodb_log_optimize_ddl_msg
 = "The parameter innodb_log_optimize_ddl is deprecated and has no effect.";
-
+/** Deprecated parameter with no effect */
+static my_bool innodb_scrub_log;
+/** Deprecation message for innodb_scrub_log */
+static const char* innodb_scrub_log_msg
+= "The parameter innodb_scrub_log is deprecated and has no effect.";
+/** Deprecated parameter with no effect */
+static ulonglong innodb_scrub_log_speed;
+/** Deprecation message for innodb_scrub_log_speed */
+static const char* innodb_scrub_log_speed_msg
+= "The parameter innodb_scrub_log_speed is deprecated and has no effect.";
 /** Deprecated parameter with no effect */
 static ulong innodb_undo_logs;
 /** Deprecation message for innodb_undo_logs */
@@ -3759,6 +3767,16 @@ static int innodb_init_params()
 	if (UNIV_UNLIKELY(deprecated::innodb_log_optimize_ddl)) {
 		sql_print_warning(deprecated::innodb_log_optimize_ddl_msg);
 		deprecated::innodb_log_optimize_ddl = FALSE;
+	}
+
+	if (UNIV_UNLIKELY(deprecated::innodb_scrub_log)) {
+		sql_print_warning(deprecated::innodb_scrub_log_msg);
+		deprecated::innodb_scrub_log = FALSE;
+	}
+
+	if (UNIV_UNLIKELY(deprecated::innodb_scrub_log_speed != 256)) {
+		sql_print_warning(deprecated::innodb_scrub_log_speed_msg);
+		deprecated::innodb_scrub_log_speed = 256;
 	}
 
 	if (UNIV_UNLIKELY(deprecated::innodb_buffer_pool_instances)) {
@@ -18906,6 +18924,16 @@ innodb_undo_logs_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 			    deprecated::innodb_undo_logs_msg);
 }
 
+/** Issue a deprecation warning for SET GLOBAL innodb_scrub_log_speed.
+@param[in,out]	thd	client connection */
+static void
+innodb_scrub_log_speed_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
+{
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			    HA_ERR_UNSUPPORTED,
+			    deprecated::innodb_scrub_log_speed_msg);
+}
+
 static SHOW_VAR innodb_status_variables_export[]= {
 	{"Innodb", (char*) &show_innodb_vars, SHOW_FUNC},
 	{NullS, NullS, SHOW_LONG}
@@ -20147,18 +20175,15 @@ static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
 			 innodb_encryption_rotation_iops_update,
 			 srv_n_fil_crypt_iops, 0, UINT_MAX32, 0);
 
-static MYSQL_SYSVAR_BOOL(scrub_log, srv_scrub_log,
+static MYSQL_SYSVAR_BOOL(scrub_log, deprecated::innodb_scrub_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Enable background redo log scrubbing",
+  innodb_deprecated_ignored,
   0, 0, 0);
 
-static MYSQL_SYSVAR_ULONGLONG(scrub_log_speed, innodb_scrub_log_speed,
+static MYSQL_SYSVAR_ULONGLONG(scrub_log_speed, deprecated::innodb_scrub_log_speed,
   PLUGIN_VAR_OPCMDARG,
-  "Background redo log scrubbing speed in bytes/sec",
-  NULL, NULL,
-  256,              /* 256 bytes/sec, corresponds to 2000 ms scrub_log_interval */
-  1,                /* min */
-  50000, 0);        /* 50Kbyte/sec, corresponds to 10 ms scrub_log_interval */
+  innodb_deprecated_ignored, NULL, innodb_scrub_log_speed_warn,
+  256, 1, 50000, 0);
 
 static MYSQL_SYSVAR_BOOL(encrypt_log, srv_encrypt_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,

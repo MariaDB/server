@@ -185,9 +185,6 @@ struct srv_stats_t
 	/** Number of encryption_get_latest_key_version calls */
 	ulint_ctr_64_t		n_key_requests;
 
-	/** Number of log scrub operations */
-	ulint_ctr_64_t		n_log_scrubs;
-
 	/** Number of spaces in keyrotation list */
 	ulint_ctr_64_t		key_rotation_list_length;
 
@@ -482,9 +479,6 @@ extern ibool	srv_print_verbose_log;
 
 extern bool	srv_monitor_active;
 
-
-/* TRUE if enable log scrubbing */
-extern my_bool	srv_scrub_log;
 
 extern ulong	srv_n_spin_wait_rounds;
 extern ulong	srv_n_free_tickets_to_enter;
@@ -971,7 +965,6 @@ struct export_var_t{
 	ulint innodb_scrub_page_split_failures_out_of_filespace;
 	ulint innodb_scrub_page_split_failures_missing_index;
 	ulint innodb_scrub_page_split_failures_unknown;
-	int64_t innodb_scrub_log;
 };
 
 /** Thread slot in the thread table.  */

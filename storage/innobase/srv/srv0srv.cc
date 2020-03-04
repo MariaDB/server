@@ -84,8 +84,6 @@ UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPH
 in microseconds, in order to reduce the lagging of the purge thread. */
 ulint	srv_dml_needed_delay;
 
-my_bool	srv_scrub_log;
-
 const char*	srv_main_thread_op_info = "";
 
 /** Prefix used by MySQL to indicate pre-5.1 table name encoding */
@@ -1361,7 +1359,6 @@ srv_export_innodb_status(void)
 			scrub_stat.page_split_failures_missing_index;
 		export_vars.innodb_scrub_page_split_failures_unknown =
 			scrub_stat.page_split_failures_unknown;
-		export_vars.innodb_scrub_log = srv_stats.n_log_scrubs;
 	}
 
 	mutex_exit(&srv_innodb_monitor_mutex);

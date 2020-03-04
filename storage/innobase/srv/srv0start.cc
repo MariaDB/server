@@ -892,10 +892,6 @@ srv_shutdown_all_bg_threads()
 			if (srv_n_fil_crypt_threads_started) {
 				os_event_set(fil_crypt_threads_event);
 			}
-
-			if (log_scrub_thread_active) {
-				os_event_set(log_scrub_event);
-			}
 		}
 
 		if (srv_start_state_is_set(SRV_START_STATE_IO)) {

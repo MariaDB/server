@@ -66,10 +66,6 @@ to the InnoDB redo log. */
 /** Redo log system */
 log_t	log_sys;
 
-/* Next log block number to do dummy record filling if no log records written
-for a while */
-static ulint		next_lbn_to_pad = 0;
-
 /* These control how often we print warnings if the last checkpoint is too
 old */
 static bool	log_has_printed_chkp_warning = false;
@@ -101,15 +97,6 @@ the previous */
 /* Codes used in unlocking flush latches */
 #define LOG_UNLOCK_NONE_FLUSHED_LOCK	1
 #define LOG_UNLOCK_FLUSH_LOCK		2
-
-/** Event to wake up log_scrub_thread */
-os_event_t	log_scrub_event;
-/** Whether log_scrub_thread is active */
-bool		log_scrub_thread_active;
-
-extern "C" UNIV_INTERN
-os_thread_ret_t
-DECLARE_THREAD(log_scrub_thread)(void*);
 
 /****************************************************************//**
 Returns the oldest modified block lsn in the pool, or log_sys.lsn if none
@@ -553,12 +540,6 @@ void log_t::create()
 
   buf_free= LOG_BLOCK_HDR_SIZE;
   lsn= LOG_START_LSN + LOG_BLOCK_HDR_SIZE;
-
-  log_scrub_thread_active= !srv_read_only_mode && srv_scrub_log;
-  if (log_scrub_thread_active) {
-    log_scrub_event= os_event_create("log_scrub_event");
-    os_thread_create(log_scrub_thread, NULL, NULL);
-  }
 }
 
 mapped_file_t::~mapped_file_t() noexcept
@@ -1766,18 +1747,13 @@ wait_suspend_loop:
 		}
 	}
 
-	if (log_scrub_thread_active) {
-		ut_ad(!srv_read_only_mode);
-		os_event_set(log_scrub_event);
-	}
-
 	if (log_sys.is_initialised()) {
 		log_mutex_enter();
 		const ulint	n_write	= log_sys.n_pending_checkpoint_writes;
 		const ulint	n_flush	= log_sys.pending_flushes;
 		log_mutex_exit();
 
-		if (log_scrub_thread_active || n_write || n_flush) {
+		if (n_write || n_flush) {
 			if (srv_print_verbose_log && count > 600) {
 				ib::info() << "Pending checkpoint_writes: "
 					<< n_write
@@ -1788,8 +1764,6 @@ wait_suspend_loop:
 			goto loop;
 		}
 	}
-
-	ut_ad(!log_scrub_thread_active);
 
 	if (!buf_pool) {
 		ut_ad(!srv_was_started);
@@ -1989,102 +1963,7 @@ void log_t::close()
   mutex_free(&mutex);
   mutex_free(&log_flush_order_mutex);
 
-  if (!srv_read_only_mode && srv_scrub_log)
-    os_event_destroy(log_scrub_event);
-
   recv_sys.close();
-}
-
-/******************************************************//**
-Pads the current log block full with dummy log records. Used in producing
-consistent archived log file and scrubbing redo log. */
-static
-void
-log_pad_current_log_block(void)
-/*===========================*/
-{
-	byte		b		= 0;
-	ulint		pad_length;
-	ulint		i;
-	lsn_t		lsn;
-
-	ut_ad(!recv_no_log_write);
-	/* We retrieve lsn only because otherwise gcc crashed on HP-UX */
-	lsn = log_reserve_and_open(OS_FILE_LOG_BLOCK_SIZE);
-
-	pad_length = log_sys.trailer_offset()
-		- log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
-	if (pad_length == log_sys.payload_size()) {
-		pad_length = 0;
-	}
-
-	if (pad_length) {
-		srv_stats.n_log_scrubs.inc();
-	}
-
-	for (i = 0; i < pad_length; i++) {
-		log_write_low(&b, 1);
-	}
-
-	lsn = log_sys.lsn;
-
-	log_close();
-
-	ut_a(lsn % OS_FILE_LOG_BLOCK_SIZE == LOG_BLOCK_HDR_SIZE);
-}
-
-/*****************************************************************//*
-If no log record has been written for a while, fill current log
-block with dummy records. */
-static
-void
-log_scrub()
-/*=========*/
-{
-	log_mutex_enter();
-	ulint cur_lbn = log_block_convert_lsn_to_no(log_sys.lsn);
-
-	if (next_lbn_to_pad == cur_lbn)
-	{
-		log_pad_current_log_block();
-	}
-
-	next_lbn_to_pad = log_block_convert_lsn_to_no(log_sys.lsn);
-	log_mutex_exit();
-}
-
-/* log scrubbing speed, in bytes/sec */
-UNIV_INTERN ulonglong innodb_scrub_log_speed;
-
-/*****************************************************************//**
-This is the main thread for log scrub. It waits for an event and
-when waked up fills current log block with dummy records and
-sleeps again.
-@return this function does not return, it calls os_thread_exit() */
-extern "C" UNIV_INTERN
-os_thread_ret_t
-DECLARE_THREAD(log_scrub_thread)(void*)
-{
-	ut_ad(!srv_read_only_mode);
-
-	while (srv_shutdown_state < SRV_SHUTDOWN_FLUSH_PHASE) {
-		/* log scrubbing interval in µs. */
-		ulonglong interval = 1000*1000*512/innodb_scrub_log_speed;
-
-		os_event_wait_time(log_scrub_event, static_cast<ulint>(interval));
-
-		log_scrub();
-
-		os_event_reset(log_scrub_event);
-	}
-
-	log_scrub_thread_active = false;
-
-	/* We count the number of threads in os_thread_exit(). A created
-	thread should always use that to exit and not use return() to exit. */
-	os_thread_exit();
-
-	OS_THREAD_DUMMY_RETURN;
 }
 
 std::string get_log_file_path(const char *filename)
