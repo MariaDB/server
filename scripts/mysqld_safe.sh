@@ -155,7 +155,7 @@ log_generic () {
   case $logging in
     init) ;;  # Just echo the message, don't save it anywhere
     file)
-      if [ -n "$helper" ]; then
+      if [ "$helper_exist" -eq "0" ]; then
         echo "$msg" | "$helper" "$user" log "$err_log"
       fi
     ;;
@@ -179,7 +179,7 @@ eval_log_error () {
   local cmd="$1"
   case $logging in
     file)
-     if [ -n "$helper" ]; then
+     if [ "$helper_exist" -eq "0" ]; then
         cmd="$cmd 2>&1 | "`shell_quote_string "$helper"`" $user log "`shell_quote_string "$err_log"`
      fi
      ;;
@@ -551,10 +551,9 @@ fi
 
 helper=`find_in_bin mysqld_safe_helper`
 print_defaults=`find_in_bin my_print_defaults`
-
 # Check if helper exists
-$helper --help >/dev/null 2>&1 || helper=""
-
+command -v $helper --help >/dev/null 2>&1
+helper_exist=$?
 #
 # Second, try to find the data directory
 #
@@ -962,7 +961,6 @@ fi
 
 # Avoid 'nohup: ignoring input' warning
 test -n "$NOHUP_NICENESS" && cmd="$cmd < /dev/null"
-
 log_notice "Starting $MYSQLD daemon with databases from $DATADIR"
 
 # variable to track the current number of "fast" (a.k.a. subsecond) restarts
