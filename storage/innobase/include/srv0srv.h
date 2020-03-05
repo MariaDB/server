@@ -612,7 +612,7 @@ extern PSI_stage_info	srv_stage_buffer_pool_load;
 /** Alternatives for innodb_flush_method */
 enum srv_flush_t {
 	SRV_FSYNC = 0,	/*!< fsync, the default */
-	SRV_O_DSYNC,	/*!< open log files in O_SYNC mode */
+	SRV_O_DSYNC,	/*!< open log files in O_DSYNC mode */
 	SRV_LITTLESYNC,	/*!< do not call os_file_flush()
 				when writing data files, but do flush
 				after writing to log files */

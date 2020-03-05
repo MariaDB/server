@@ -1390,18 +1390,17 @@ os_file_create_func(
 
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
-#ifdef O_SYNC
-	/* We let O_SYNC only affect log files; note that we map O_DSYNC to
-	O_SYNC because the datasync options seemed to corrupt files in 2001
-	in both Linux and Solaris */
+	/* We let O_DSYNC only affect log files */
 
 	if (!read_only
 	    && type == OS_LOG_FILE
 	    && srv_file_flush_method == SRV_O_DSYNC) {
-
+#ifdef O_DSYNC
+		create_flag |= O_DSYNC;
+#else
 		create_flag |= O_SYNC;
+#endif
 	}
-#endif /* O_SYNC */
 
 	os_file_t	file;
 	bool		retry;
@@ -2492,7 +2491,7 @@ os_file_create_func(
 	{
 	case SRV_O_DSYNC:
 		if (type == OS_LOG_FILE) {
-			/* Map O_SYNC to FILE_WRITE_THROUGH */
+			/* Map O_DSYNC to FILE_WRITE_THROUGH */
 			attributes |= FILE_FLAG_WRITE_THROUGH;
 		}
 		break;
