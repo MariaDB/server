@@ -2273,14 +2273,7 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 	ulint			pct_for_lsn = 0;
 	ulint			pct_total = 0;
 
-	cur_lsn = log_get_lsn_nowait();
-
-	/* log_get_lsn_nowait tries to get log_sys.mutex with
-	mutex_enter_nowait, if this does not succeed function
-	returns 0, do not use that value to update stats. */
-	if (cur_lsn == 0) {
-		return(0);
-	}
+	cur_lsn = log_sys.get_lsn();
 
 	if (prev_lsn == 0) {
 		/* First time around. */

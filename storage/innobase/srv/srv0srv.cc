@@ -1364,16 +1364,16 @@ srv_export_innodb_status(void)
 	mutex_exit(&srv_innodb_monitor_mutex);
 
 	log_mutex_enter();
-
-	export_vars.innodb_lsn_current = log_sys.lsn;
-	export_vars.innodb_lsn_flushed = log_sys.flushed_to_disk_lsn;
+	export_vars.innodb_lsn_current = log_sys.get_lsn();
+	export_vars.innodb_lsn_flushed = log_sys.get_flushed_lsn();
 	export_vars.innodb_lsn_last_checkpoint = log_sys.last_checkpoint_lsn;
-	export_vars.innodb_checkpoint_age = static_cast<ulint>(
-		log_sys.lsn - log_sys.last_checkpoint_lsn);
 	export_vars.innodb_checkpoint_max_age = static_cast<ulint>(
 		log_sys.max_checkpoint_age);
-
 	log_mutex_exit();
+
+	export_vars.innodb_checkpoint_age = static_cast<ulint>(
+		export_vars.innodb_lsn_current
+		- export_vars.innodb_lsn_last_checkpoint);
 }
 
 struct srv_monitor_state_t
@@ -1460,7 +1460,6 @@ void srv_error_monitor_task(void*)
 	/* number of successive fatal timeouts observed */
 	static ulint		fatal_cnt;
 	static lsn_t		old_lsn = recv_sys.recovered_lsn;
-	lsn_t		new_lsn;
 	/* longest waiting thread for a semaphore */
 	os_thread_id_t	waiter;
 	static os_thread_id_t	old_waiter = os_thread_get_curr_id();
@@ -1473,17 +1472,16 @@ void srv_error_monitor_task(void*)
 	/* Try to track a strange bug reported by Harald Fuchs and others,
 	where the lsn seems to decrease at times */
 
-	if (log_peek_lsn(&new_lsn)) {
-		if (new_lsn < old_lsn) {
+	lsn_t new_lsn = log_sys.get_lsn();
+	if (new_lsn < old_lsn) {
 		ib::error() << "Old log sequence number " << old_lsn << " was"
 			<< " greater than the new log sequence number "
 			<< new_lsn << ". Please submit a bug report to"
 			" https://jira.mariadb.org/";
 			ut_ad(0);
-		}
-
-		old_lsn = new_lsn;
 	}
+
+	old_lsn = new_lsn;
 
 	/* Update the statistics collected for deciding LRU
 	eviction policy. */
@@ -1683,7 +1681,7 @@ srv_sync_log_buffer_in_background(void)
 	srv_main_thread_op_info = "flushing log";
 	if (difftime(current_time, srv_last_log_flush_time)
 	    >= srv_flush_log_at_timeout) {
-		log_buffer_sync_in_background(true);
+		log_sys.initiate_write(true);
 		srv_last_log_flush_time = current_time;
 		srv_log_writes_and_flush++;
 	}

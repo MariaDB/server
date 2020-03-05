@@ -459,7 +459,7 @@ void mtr_t::commit_files(lsn_t checkpoint_lsn)
 	if (checkpoint_lsn) {
 		DBUG_PRINT("ib_log",
 			   ("FILE_CHECKPOINT(" LSN_PF ") written at " LSN_PF,
-			    checkpoint_lsn, log_sys.lsn));
+			    checkpoint_lsn, log_sys.get_lsn()));
 	}
 }
 
@@ -589,7 +589,7 @@ inline ulint mtr_t::prepare_write()
 		ut_ad(m_log_mode == MTR_LOG_NO_REDO);
 		ut_ad(m_log.size() == 0);
 		log_mutex_enter();
-		m_commit_lsn = log_sys.lsn;
+		m_commit_lsn = log_sys.get_lsn();
 		return 0;
 	}
 

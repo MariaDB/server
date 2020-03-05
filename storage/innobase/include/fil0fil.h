@@ -1523,8 +1523,8 @@ inline bool fil_names_write_if_was_clean(fil_space_t* space)
 	}
 
 	const bool	was_clean = space->max_lsn == 0;
-	ut_ad(space->max_lsn <= log_sys.lsn);
-	space->max_lsn = log_sys.lsn;
+	ut_ad(space->max_lsn <= log_sys.get_lsn());
+	space->max_lsn = log_sys.get_lsn();
 
 	if (was_clean) {
 		fil_names_dirty_and_write(space);

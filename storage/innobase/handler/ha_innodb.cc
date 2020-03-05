@@ -18608,12 +18608,12 @@ checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 
 		while (log_sys.last_checkpoint_lsn
 		       + SIZE_OF_FILE_CHECKPOINT
-		       < log_sys.lsn) {
+		       < log_sys.get_lsn()) {
 			log_make_checkpoint();
 			log_sys.log.flush_data_only();
 		}
 
-		dberr_t err = fil_write_flushed_lsn(log_sys.lsn);
+		dberr_t err = fil_write_flushed_lsn(log_sys.get_lsn());
 
 		if (err != DB_SUCCESS) {
 			ib::warn() << "Checkpoint set failed " << err;

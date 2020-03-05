@@ -127,27 +127,11 @@ Closes the log.
 lsn_t
 log_close(void);
 /*===========*/
-/************************************************************//**
-Gets the current lsn.
-@return current lsn */
-UNIV_INLINE
-lsn_t
-log_get_lsn(void);
-/*=============*/
-/************************************************************//**
-Gets the current lsn.
-@return	current lsn */
-UNIV_INLINE
-lsn_t
-log_get_lsn_nowait(void);
-/*=============*/
-/************************************************************//**
-Gets the last lsn that is fully flushed to disk.
-@return	last flushed lsn */
-UNIV_INLINE
-ib_uint64_t
-log_get_flush_lsn(void);
-/*=============*/
+/** Read the current LSN. */
+#define log_get_lsn() log_sys.get_lsn()
+
+/** Read the durable LSN */
+#define log_get_flush_lsn() log_sys.get_flushed_lsn()
 
 /****************************************************************
 Get log_sys::max_modified_age_async. It is OK to read the value without
@@ -184,15 +168,7 @@ also to be flushed to disk. */
 void
 log_buffer_flush_to_disk(
 	bool sync = true);
-/****************************************************************//**
-This functions writes the log buffer to the log file and if 'flush'
-is set it forces a flush of the log file as well. This is meant to be
-called from background master thread only as it does not wait for
-the write (+ possible flush) to finish. */
-void
-log_buffer_sync_in_background(
-/*==========================*/
-	bool	flush);	/*<! in: flush the logs to disk */
+
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
@@ -323,13 +299,6 @@ void
 log_print(
 /*======*/
 	FILE*	file);	/*!< in: file where to print */
-/******************************************************//**
-Peeks the current lsn.
-@return TRUE if success, FALSE if could not get the log system mutex */
-ibool
-log_peek_lsn(
-/*=========*/
-	lsn_t*	lsn);	/*!< out: if returns TRUE, current lsn is here */
 /**********************************************************************//**
 Refreshes the statistics used to print per-second averages. */
 void
@@ -560,10 +529,21 @@ struct log_t{
   /** The MariaDB 10.5 physical format (only with innodb_encrypt_log=ON) */
   static constexpr uint32_t FORMAT_ENC_10_5 = FORMAT_10_5 | FORMAT_ENCRYPTED;
 
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	lsn_t		lsn;		/*!< log sequence number */
-	ulong		buf_free;	/*!< first free offset within the log
-					buffer in use */
+private:
+  /** The log sequence number of the last change of durable InnoDB files */
+  alignas(CACHE_LINE_SIZE)
+  std::atomic<lsn_t> lsn;
+  /** the first guaranteed-durable log sequence number */
+  std::atomic<lsn_t> flushed_to_disk_lsn;
+public:
+  /** first free offset within the log buffer in use */
+  size_t buf_free;
+private:
+  /** set when there may be need to flush the log buffer, or
+  preflush buffer pool pages, or initiate a log checkpoint.
+  This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
+  std::atomic<bool> check_flush_or_checkpoint_;
+public:
 
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	LogSysMutex	mutex;		/*!< mutex protecting the log */
@@ -589,19 +569,9 @@ struct log_t{
 	bool		first_in_use;	/*!< true if buf points to the first
 					half of the buffer, false
 					if the second half */
-	ulong		max_buf_free;	/*!< recommended maximum value of
+	size_t		max_buf_free;	/*!< recommended maximum value of
 					buf_free for the buffer in use, after
 					which the buffer is flushed */
-	bool		check_flush_or_checkpoint;
-					/*!< this is set when there may
-					be need to flush the log buffer, or
-					preflush buffer pool pages, or make
-					a checkpoint; this MUST be TRUE when
-					lsn - last_checkpoint_lsn >
-					max_checkpoint_age; this flag is
-					peeked at by log_free_check(), which
-					does not reserve the log mutex */
-
   /** Log file stuff. Protected by mutex or write_mutex. */
   struct file {
     /** format of the redo log: e.g., FORMAT_10_5 */
@@ -684,7 +654,7 @@ struct log_t{
 
 	/** The fields involved in the log buffer flush @{ */
 
-	ulong		buf_next_to_write;/*!< first offset in the log buffer
+	size_t		buf_next_to_write;/*!< first offset in the log buffer
 					where the byte content may not exist
 					written to file, e.g., the start
 					offset of a log record catenated
@@ -694,9 +664,6 @@ struct log_t{
 	lsn_t		write_lsn;	/*!< last written lsn */
 	lsn_t		current_flush_lsn;/*!< end lsn for the current running
 					write + flush operation */
-	lsn_t		flushed_to_disk_lsn;
-					/*!< how far we have written the log
-					AND flushed to disk */
 	std::atomic<size_t> pending_flushes; /*!< system calls in progress */
 	std::atomic<size_t> flushes;	/*!< system calls counter */
 
@@ -768,6 +735,19 @@ public:
 
   bool is_initialised() const { return m_initialised; }
 
+  lsn_t get_lsn() const { return lsn.load(std::memory_order_relaxed); }
+  void set_lsn(lsn_t lsn) { this->lsn.store(lsn, std::memory_order_relaxed); }
+
+  lsn_t get_flushed_lsn() const
+  { return flushed_to_disk_lsn.load(std::memory_order_relaxed); }
+  void set_flushed_lsn(lsn_t lsn)
+  { flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed); }
+
+  bool check_flush_or_checkpoint() const
+  { return check_flush_or_checkpoint_.load(std::memory_order_relaxed); }
+  void set_check_flush_or_checkpoint(bool flag= true)
+  { check_flush_or_checkpoint_.store(flag, std::memory_order_relaxed); }
+
   /** @return the log block header + trailer size */
   unsigned framing_size() const
   {
@@ -806,6 +786,15 @@ public:
 
   /** Shut down the redo log subsystem. */
   void close();
+
+  /** Initiate a write of the log buffer to the file if needed.
+  @param flush  whether to initiate a durable write */
+  inline void initiate_write(bool flush)
+  {
+    const lsn_t lsn= get_lsn();
+    if (!flush || get_flushed_lsn() < lsn)
+      log_write_up_to(lsn, flush);
+  }
 };
 
 /** Redo log system */

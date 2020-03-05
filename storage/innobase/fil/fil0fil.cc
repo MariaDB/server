@@ -4462,12 +4462,12 @@ fil_names_dirty(
 {
 	ut_ad(log_mutex_own());
 	ut_ad(recv_recovery_is_on());
-	ut_ad(log_sys.lsn != 0);
+	ut_ad(log_sys.get_lsn() != 0);
 	ut_ad(space->max_lsn == 0);
 	ut_d(fil_space_validate_for_mtr_commit(space));
 
 	UT_LIST_ADD_LAST(fil_system.named_spaces, space);
-	space->max_lsn = log_sys.lsn;
+	space->max_lsn = log_sys.get_lsn();
 }
 
 /** Write FILE_MODIFY records when a non-predefined persistent
@@ -4478,7 +4478,7 @@ void fil_names_dirty_and_write(fil_space_t* space)
 {
 	ut_ad(log_mutex_own());
 	ut_d(fil_space_validate_for_mtr_commit(space));
-	ut_ad(space->max_lsn == log_sys.lsn);
+	ut_ad(space->max_lsn == log_sys.get_lsn());
 
 	UT_LIST_ADD_LAST(fil_system.named_spaces, space);
 	mtr_t mtr;

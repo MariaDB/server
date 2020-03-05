@@ -746,14 +746,13 @@ static void buf_page_check_lsn(bool check_lsn, const byte* read_buf)
 {
 #ifndef UNIV_INNOCHECKSUM
 	if (check_lsn && recv_lsn_checks_on) {
-		lsn_t		current_lsn;
+		const lsn_t current_lsn = log_sys.get_lsn();
 		const lsn_t	page_lsn
 			= mach_read_from_8(read_buf + FIL_PAGE_LSN);
 
 		/* Since we are going to reset the page LSN during the import
 		phase it makes no sense to spam the log with error messages. */
-
-		if (log_peek_lsn(&current_lsn) && current_lsn < page_lsn) {
+		if (current_lsn < page_lsn) {
 
 			const ulint	space_id = mach_read_from_4(
 				read_buf + FIL_PAGE_SPACE_ID);

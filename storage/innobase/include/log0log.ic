@@ -296,7 +296,8 @@ log_reserve_and_write_fast(
 		return(0);
 	}
 
-	*start_lsn = log_sys.lsn;
+	lsn_t lsn = log_sys.get_lsn();
+	*start_lsn = lsn;
 
 	memcpy(log_sys.buf + log_sys.buf_free, str, len);
 
@@ -306,70 +307,14 @@ log_reserve_and_write_fast(
                         OS_FILE_LOG_BLOCK_SIZE)),
                 data_len);
 
-	log_sys.buf_free += ulong(len);
+	log_sys.buf_free += len;
 
-	ut_ad(log_sys.buf_free <= srv_log_buffer_size);
+	ut_ad(log_sys.buf_free <= size_t{srv_log_buffer_size});
 
-	log_sys.lsn += len;
+	lsn += len;
+	log_sys.set_lsn(lsn);
 
-	return(log_sys.lsn);
-}
-
-/************************************************************//**
-Gets the current lsn.
-@return current lsn */
-UNIV_INLINE
-lsn_t
-log_get_lsn(void)
-/*=============*/
-{
-	lsn_t	lsn;
-
-	log_mutex_enter();
-
-	lsn = log_sys.lsn;
-
-	log_mutex_exit();
-
-	return(lsn);
-}
-
-/************************************************************//**
-Gets the last lsn that is fully flushed to disk.
-@return	last flushed lsn */
-UNIV_INLINE
-ib_uint64_t
-log_get_flush_lsn(void)
-{
-	ib_uint64_t	lsn;
-
-	log_mutex_enter();
-
-	lsn = log_sys.flushed_to_disk_lsn;
-
-	log_mutex_exit();
-
-	return(lsn);
-}
-
-/************************************************************//**
-Gets the current lsn with a trylock
-@return	current lsn or 0 if false*/
-UNIV_INLINE
-lsn_t
-log_get_lsn_nowait(void)
-/*====================*/
-{
-	lsn_t	lsn=0;
-
-	if (!mutex_enter_nowait(&(log_sys.mutex))) {
-
-		lsn = log_sys.lsn;
-
-		mutex_exit(&(log_sys.mutex));
-	}
-
-	return(lsn);
+	return lsn;
 }
 
 /****************************************************************
@@ -413,7 +358,7 @@ log_free_check(void)
 		      sync_allowed_latches(latches,
 					   latches + UT_ARR_SIZE(latches))));
 
-	if (log_sys.check_flush_or_checkpoint) {
+	if (log_sys.check_flush_or_checkpoint()) {
 
 		log_check_margins();
 	}

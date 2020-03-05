@@ -323,23 +323,22 @@ static dberr_t create_log_file(lsn_t lsn, std::string& logfile0)
 		return DB_ERROR;
 	}
 	ut_d(recv_no_log_write = false);
-	log_sys.lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
-
-	log_sys.log.set_lsn(log_sys.lsn);
+	lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
+	log_sys.set_lsn(lsn + LOG_BLOCK_HDR_SIZE);
+	log_sys.log.set_lsn(lsn);
 	log_sys.log.set_lsn_offset(LOG_FILE_HDR_SIZE);
 
 	log_sys.buf_next_to_write = 0;
-	log_sys.write_lsn = log_sys.lsn;
+	log_sys.write_lsn = lsn;
 
 	log_sys.next_checkpoint_no = 0;
 	log_sys.last_checkpoint_lsn = 0;
 
 	memset(log_sys.buf, 0, srv_log_buffer_size);
-	log_block_init(log_sys.buf, log_sys.lsn);
+	log_block_init(log_sys.buf, lsn);
 	log_block_set_first_rec_group(log_sys.buf, LOG_BLOCK_HDR_SIZE);
 
 	log_sys.buf_free = LOG_BLOCK_HDR_SIZE;
-	log_sys.lsn += LOG_BLOCK_HDR_SIZE;
 
 	log_mutex_exit();
 
@@ -991,9 +990,9 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 
 		log_mutex_enter();
 
-		fil_names_clear(log_sys.lsn, false);
+		fil_names_clear(log_sys.get_lsn(), false);
 
-		flushed_lsn = log_sys.lsn;
+		flushed_lsn = log_sys.get_lsn();
 
 		{
 			ib::info	info;
@@ -1028,10 +1027,9 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 			     << " bytes; LSN=" << flushed_lsn;
 		}
 
-		bool do_flush_logs = flushed_lsn != log_sys.flushed_to_disk_lsn;
 		log_mutex_exit();
 
-		if (do_flush_logs) {
+		if (flushed_lsn != log_sys.get_flushed_lsn()) {
 			log_write_up_to(flushed_lsn, false);
 		}
 		log_sys.log.flush_data_only();
