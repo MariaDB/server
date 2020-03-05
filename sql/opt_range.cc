@@ -4897,7 +4897,8 @@ double get_sweep_read_cost(const PARAM *param, ha_rows records)
 {
   double result;
   DBUG_ENTER("get_sweep_read_cost");
-  if (param->table->file->primary_key_is_clustered())
+  if (param->table->file->primary_key_is_clustered() ||
+      param->table->file->stats.block_size == 0 /* HEAP */)
   {
     /*
       We are using the primary key to find the rows.

@@ -145,8 +145,8 @@ teststring
 teststring
 select * from t1 where text1='teststring' or text1 >= 'teststring\t';
 text1
-teststring
 teststring	
+teststring
 select * from t1 order by text1;
 text1
 nothing
