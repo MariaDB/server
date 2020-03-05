@@ -73,65 +73,65 @@ private:
 public:
   ha_xpand(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_xpand();
-  int create(const char *name, TABLE *form, HA_CREATE_INFO *info);
-  int delete_table(const char *name);
-  int rename_table(const char* from, const char* to);
-  int open(const char *name, int mode, uint test_if_locked);
-  int close(void);
-  int reset();
-  int extra(enum ha_extra_function operation);
-  int write_row(const uchar *buf);
+  int create(const char *name, TABLE *form, HA_CREATE_INFO *info) override;
+  int delete_table(const char *name) override;
+  int rename_table(const char* from, const char* to) override;
+  int open(const char *name, int mode, uint test_if_locked) override;
+  int close(void) override;
+  int reset() override;
+  int extra(enum ha_extra_function operation) override;
+  int write_row(const uchar *buf) override;
   // start_bulk_update exec_bulk_update
-  int update_row(const uchar *old_data, const uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data) override;
   // start_bulk_delete exec_bulk_delete
-  int delete_row(const uchar *buf);
-  int direct_update_rows_init(List<Item> *update_fields);
-  int direct_update_rows(ha_rows *update_rows, ha_rows *found_rows);
-  void start_bulk_insert(ha_rows rows, uint flags = 0);
-  int end_bulk_insert();
+  int delete_row(const uchar *buf) override;
+  int direct_update_rows_init(List<Item> *update_fields) override;
+  int direct_update_rows(ha_rows *update_rows, ha_rows *found_rows) override;
+  void start_bulk_insert(ha_rows rows, uint flags = 0) override;
+  int end_bulk_insert() override;
 
-  Table_flags table_flags(void) const;
-  ulong index_flags(uint idx, uint part, bool all_parts) const;
-  uint max_supported_keys() const { return MAX_KEY; }
+  Table_flags table_flags(void) const override;
+  ulong index_flags(uint idx, uint part, bool all_parts) const override;
+  uint max_supported_keys() const override { return MAX_KEY; }
 
-  ha_rows records();
+  ha_rows records() override;
   ha_rows records_in_range(uint inx, key_range *min_key,
-                           key_range *max_key);
+                           key_range *max_key) override;
 
-  int info(uint flag); // see my_base.h for full description
+  int info(uint flag) override; // see my_base.h for full description
 
   // multi_read_range
   // read_range
-  int index_init(uint idx, bool sorted);
+  int index_init(uint idx, bool sorted) override;
   int index_read(uchar * buf, const uchar * key, uint key_len,
-                 enum ha_rkey_function find_flag);
-  int index_first(uchar *buf);
-  int index_prev(uchar *buf);
-  int index_last(uchar *buf);
-  int index_next(uchar *buf);
-  //int index_next_same(uchar *buf, const uchar *key, uint keylen);
-  int index_end();
+                 enum ha_rkey_function find_flag) override;
+  int index_first(uchar *buf) override;
+  int index_prev(uchar *buf) override;
+  int index_last(uchar *buf) override;
+  int index_next(uchar *buf) override;
+  //int index_next_same(uchar *buf, const uchar *key, uint keylen) override;
+  int index_end() override;
 
-  int rnd_init(bool scan);
-  int rnd_next(uchar *buf);
-  int rnd_pos(uchar * buf, uchar *pos);
-  int rnd_end();
+  int rnd_init(bool scan) override;
+  int rnd_next(uchar *buf) override;
+  int rnd_pos(uchar * buf, uchar *pos) override;
+  int rnd_end() override;
 
-  void position(const uchar *record);
-  uint lock_count(void) const;
+  void position(const uchar *record) override;
+  uint lock_count(void) const override;
   THR_LOCK_DATA **store_lock(THD *thd,
                              THR_LOCK_DATA **to,
-                             enum thr_lock_type lock_type);
-  int external_lock(THD *thd, int lock_type);
+                             enum thr_lock_type lock_type) override;
+  int external_lock(THD *thd, int lock_type) override;
 
-  uint8 table_cache_type()
+  uint8 table_cache_type() override
   {
     return(HA_CACHE_TBL_NOCACHE);
   }
 
-  const COND *cond_push(const COND *cond);
-  void cond_pop();
-  int info_push(uint info_type, void *info);
+  const COND *cond_push(const COND *cond) override;
+  void cond_pop() override;
+  int info_push(uint info_type, void *info) override;
 
   ulonglong get_table_oid();
 private:
