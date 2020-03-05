@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 *****************************************************************************/
 #ifndef _ha_xpand_pushdown_h
 #define _ha_xpand_pushdown_h
