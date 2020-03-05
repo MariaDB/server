@@ -652,8 +652,8 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     {
       if ((error= table_list->table->file->ha_rnd_init_with_error(0)))
         goto err;
-      table->file->prepare_for_insert();
     }
+    table->file->prepare_for_insert();
     thd_progress_init(thd, 2);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
     {

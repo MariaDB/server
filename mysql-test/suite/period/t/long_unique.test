@@ -1,0 +1,23 @@
+--source include/have_partition.inc
+
+--echo #
+--echo # Assertion `inited == NONE || update_handler != this' failed in
+--echo # handler::ha_write_row
+--echo #
+
+CREATE TABLE t1 (f VARCHAR(4096), s DATE, e DATE, PERIOD FOR app(s,e), UNIQUE(f)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo', '2023-08-30', '2025-07-09'),('bar', '2021-01-01', '2021-12-31');
+DELETE FROM t1 FOR PORTION OF app FROM '2023-08-29' TO '2025-07-01';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-21819 Assertion `inited == NONE || update_handler != this'
+--echo # failed in handler::ha_write_row
+--echo #
+
+CREATE OR REPLACE TABLE t1 (a INT, b BLOB, s DATE, e DATE, PERIOD FOR app(s,e), UNIQUE(b)) ENGINE=MyISAM PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t1 VALUES (1,'foo','2022-01-01', '2025-01-01');
+--error ER_DUP_ENTRY
+DELETE FROM t1 FOR PORTION OF app FROM '2023-01-01' TO '2024-01-01';
+DROP TABLE t1;
+

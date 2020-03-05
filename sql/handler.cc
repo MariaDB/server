@@ -2658,7 +2658,6 @@ handler *handler::clone(const char *name, MEM_ROOT *mem_root)
                            HA_OPEN_IGNORE_IF_LOCKED, mem_root))
     goto err;
 
-  new_handler->update_handler= new_handler;
   return new_handler;
 
 err:
@@ -2668,36 +2667,20 @@ err:
 
 
 /**
-  Creates a clone of handler used in update for unique hash key.
-*/
+  clone of current handler.
 
-bool handler::clone_handler_for_update()
+  Creates a clone of handler used for unique hash key and WITHOUT OVERLAPS.
+  @return error code
+*/
+int handler::create_lookup_handler()
 {
   handler *tmp;
-  DBUG_ASSERT(table->s->long_unique_table);
-
-  if (update_handler != this)
-    return 0;                                   // Already done
+  if (lookup_handler != this)
+    return 0;
   if (!(tmp= clone(table->s->normalized_path.str, table->in_use->mem_root)))
     return 1;
-  update_handler= tmp;
-  /* The update handler is only used to check if a row exists */
-  update_handler->ha_external_lock(table->in_use, F_RDLCK);
-  return 0;
-}
-
-/**
-   Delete update handler object if it exists
-*/
-void handler::delete_update_handler()
-{
-  if (update_handler != this)
-  {
-    update_handler->ha_external_lock(table->in_use, F_UNLCK);
-    update_handler->ha_close();
-    delete update_handler;
-  }
-  update_handler= this;
+  lookup_handler= tmp;
+  return lookup_handler->ha_external_lock(table->in_use, F_RDLCK);
 }
 
 LEX_CSTRING *handler::engine_name()
@@ -2836,7 +2819,6 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
   }
   reset_statistics();
   internal_tmp_table= MY_TEST(test_if_locked & HA_OPEN_INTERNAL_TABLE);
-  update_handler= this;
   DBUG_RETURN(error);
 }
 
@@ -4228,15 +4210,17 @@ uint handler::get_dup_key(int error)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE || m_lock_type != F_UNLCK);
   DBUG_ENTER("handler::get_dup_key");
-  if (table->s->long_unique_table && table->file->errkey < table->s->keys)
-    DBUG_RETURN(table->file->errkey);
-  table->file->errkey  = (uint) -1;
+
+  if (lookup_errkey != (uint)-1)
+    DBUG_RETURN(errkey= lookup_errkey);
+
+  errkey= (uint)-1;
   if (error == HA_ERR_FOUND_DUPP_KEY ||
       error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
       error == HA_ERR_FOUND_DUPP_UNIQUE || error == HA_ERR_NULL_IN_SPATIAL ||
       error == HA_ERR_DROP_INDEX_FK)
-    table->file->info(HA_STATUS_ERRKEY | HA_STATUS_NO_LOCK);
-  DBUG_RETURN(table->file->errkey);
+    info(HA_STATUS_ERRKEY | HA_STATUS_NO_LOCK);
+  DBUG_RETURN(errkey);
 }
 
 
@@ -6486,6 +6470,14 @@ int handler::ha_external_lock(THD *thd, int lock_type)
       mysql_audit_external_lock(thd, table_share, lock_type);
   }
 
+  if (lock_type == F_UNLCK && lookup_handler != this)
+  {
+    lookup_handler->ha_external_lock(table->in_use, F_UNLCK);
+    lookup_handler->close();
+    delete lookup_handler;
+    lookup_handler= this;
+  }
+
   if (MYSQL_HANDLER_RDLOCK_DONE_ENABLED() ||
       MYSQL_HANDLER_WRLOCK_DONE_ENABLED() ||
       MYSQL_HANDLER_UNLOCK_DONE_ENABLED())
@@ -6523,8 +6515,6 @@ int handler::ha_reset()
   DBUG_ASSERT(inited == NONE);
   /* reset the bitmaps to point to defaults */
   table->default_column_bitmaps();
-  if (update_handler != this)
-    delete_update_handler();
   pushed_cond= NULL;
   tracker= NULL;
   mark_trx_read_write_done= 0;
@@ -6564,15 +6554,13 @@ static int wsrep_after_row(THD *thd)
    Check if there is a conflicting unique hash key
 */
 
-static int check_duplicate_long_entry_key(TABLE *table, handler *handler,
-                                          const uchar *new_rec, uint key_no)
+int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
 {
-  Field *hash_field;
   int result, error= 0;
   KEY *key_info= table->key_info + key_no;
-  hash_field= key_info->key_part->field;
+  Field *hash_field= key_info->key_part->field;
   uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
-  DBUG_ENTER("check_duplicate_long_entry_key");
+  DBUG_ENTER("handler::check_duplicate_long_entry_key");
 
   DBUG_ASSERT((key_info->flags & HA_NULL_PART_KEY &&
                key_info->key_length == HA_HASH_KEY_LENGTH_WITH_NULL) ||
@@ -6583,15 +6571,11 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *handler,
 
   key_copy(ptr, new_rec, key_info, key_info->key_length, false);
 
-  if (!table->check_unique_buf)
-    table->check_unique_buf= (uchar *)alloc_root(&table->mem_root,
-                                                 table->s->reclength);
-
-  result= handler->ha_index_init(key_no, 0);
+  result= lookup_handler->ha_index_init(key_no, 0);
   if (result)
     DBUG_RETURN(result);
-  store_record(table, check_unique_buf);
-  result= handler->ha_index_read_map(table->record[0],
+  store_record(table, file->lookup_buffer);
+  result= lookup_handler->ha_index_read_map(table->record[0],
                                ptr, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
   if (!result)
   {
@@ -6602,7 +6586,7 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *handler,
     uint arg_count= temp->argument_count();
     do
     {
-      my_ptrdiff_t diff= table->check_unique_buf - new_rec;
+      my_ptrdiff_t diff= table->file->lookup_buffer - new_rec;
       is_same= true;
       for (uint j=0; is_same && j < arg_count; j++)
       {
@@ -6627,8 +6611,9 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *handler,
         }
       }
     }
-    while (!is_same && !(result= handler->ha_index_next_same(table->record[0],
-                         ptr, key_info->key_length)));
+    while (!is_same &&
+           !(result= lookup_handler->ha_index_next_same(table->record[0],
+                                                ptr, key_info->key_length)));
     if (is_same)
       error= HA_ERR_FOUND_DUPP_KEY;
     goto exit;
@@ -6638,16 +6623,25 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *handler,
 exit:
   if (error == HA_ERR_FOUND_DUPP_KEY)
   {
-    table->file->errkey= key_no;
-    if (handler->ha_table_flags() & HA_DUPLICATE_POS)
+    table->file->lookup_errkey= key_no;
+    if (ha_table_flags() & HA_DUPLICATE_POS)
     {
-      handler->position(table->record[0]);
-      memcpy(table->file->dup_ref, handler->ref, handler->ref_length);
+      lookup_handler->position(table->record[0]);
+      memcpy(table->file->dup_ref, lookup_handler->ref, ref_length);
     }
   }
-  restore_record(table, check_unique_buf);
-  handler->ha_index_end();
+  restore_record(table, file->lookup_buffer);
+  lookup_handler->ha_index_end();
   DBUG_RETURN(error);
+}
+
+void handler::alloc_lookup_buffer()
+{
+  if (!lookup_buffer)
+    lookup_buffer= (uchar*)alloc_root(&table->mem_root,
+                                      table_share->max_unique_length
+                                      + table_share->null_fields
+                                      + table_share->reclength);
 }
 
 /** @brief
@@ -6655,16 +6649,14 @@ exit:
     unique constraint on long columns.
     @returns 0 if no duplicate else returns error
   */
-
-static int check_duplicate_long_entries(TABLE *table, handler *handler,
-                                        const uchar *new_rec)
+int handler::check_duplicate_long_entries(const uchar *new_rec)
 {
-  table->file->errkey= -1;
+  lookup_errkey= (uint)-1;
   for (uint i= 0; i < table->s->keys; i++)
   {
     int result;
     if (table->key_info[i].algorithm == HA_KEY_ALG_LONG_HASH &&
-        (result= check_duplicate_long_entry_key(table, handler, new_rec, i)))
+        (result= check_duplicate_long_entry_key(new_rec, i)))
       return result;
   }
   return 0;
@@ -6685,8 +6677,7 @@ static int check_duplicate_long_entries(TABLE *table, handler *handler,
     key as a parameter in normal insert key should be -1
     @returns 0 if no duplicate else returns error
   */
-
-static int check_duplicate_long_entries_update(TABLE *table, uchar *new_rec)
+int handler::check_duplicate_long_entries_update(const uchar *new_rec)
 {
   Field *field;
   uint key_parts;
@@ -6697,7 +6688,7 @@ static int check_duplicate_long_entries_update(TABLE *table, uchar *new_rec)
      with respect to fields in hash_str
    */
   uint reclength= (uint) (table->record[1] - table->record[0]);
-  table->file->clone_handler_for_update();
+
   for (uint i= 0; i < table->s->keys; i++)
   {
     keyinfo= table->key_info + i;
@@ -6712,9 +6703,7 @@ static int check_duplicate_long_entries_update(TABLE *table, uchar *new_rec)
         /* Compare fields if they are different then check for duplicates */
         if (field->cmp_binary_offset(reclength))
         {
-          if ((error= (check_duplicate_long_entry_key(table,
-                                                      table->file->update_handler,
-                                                      new_rec, i))))
+          if((error= check_duplicate_long_entry_key(new_rec, i)))
             return error;
           /*
             break because check_duplicate_long_entries_key will
@@ -6731,24 +6720,20 @@ static int check_duplicate_long_entries_update(TABLE *table, uchar *new_rec)
 
 /**
   Do all initialization needed for insert
-
-  @param force_update_handler  Set to TRUE if we should always create an
-                               update handler.  Needed if we don't know if we
-                               are going to do inserts while a scan is in
-                               progress.
 */
 
-int handler::prepare_for_insert(bool force_update_handler)
+int handler::prepare_for_insert()
 {
   /* Preparation for unique of blob's */
-  if (table->s->long_unique_table && (inited == RND || force_update_handler))
+  if (table->s->long_unique_table)
   {
     /*
       When doing a scan we can't use the same handler to check
       duplicate rows. Create a new temporary one
     */
-    if (clone_handler_for_update())
+    if (inited != NONE && create_lookup_handler())
       return 1;
+    alloc_lookup_buffer();
   }
   return 0;
 }
@@ -6769,8 +6754,8 @@ int handler::ha_write_row(const uchar *buf)
 
   if (table->s->long_unique_table)
   {
-    DBUG_ASSERT(inited == NONE || update_handler != this);
-    if ((error= check_duplicate_long_entries(table, update_handler, buf)))
+    DBUG_ASSERT(inited == NONE || lookup_handler != this);
+    if ((error= check_duplicate_long_entries(buf)))
       DBUG_RETURN(error);
   }
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
@@ -6813,8 +6798,10 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);
   if (table->s->long_unique_table &&
-      (error= check_duplicate_long_entries_update(table, (uchar*) new_data)))
+      (error= check_duplicate_long_entries_update(new_data)))
+  {
     return error;
+  }
 
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_UPDATE_ROW, active_index, 0,
                       { error= update_row(old_data, new_data);})

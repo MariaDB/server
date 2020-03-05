@@ -971,8 +971,7 @@ update_begin:
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
 
-  if (table->versioned(VERS_TIMESTAMP) || table_list->has_period())
-    table->file->prepare_for_insert(1);
+  table->file->prepare_for_insert();
 
   THD_STAGE_INFO(thd, stage_updating);
   while (!(error=info.read_record()) && !thd->killed)
@@ -2031,8 +2030,7 @@ int multi_update::prepare(List<Item> &not_used_values,
     {
       table->read_set= &table->def_read_set;
       bitmap_union(table->read_set, &table->tmp_set);
-      if (table->versioned(VERS_TIMESTAMP))
-        table->file->prepare_for_insert(1);
+      table->file->prepare_for_insert();
     }
   }
   if (unlikely(error))

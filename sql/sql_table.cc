@@ -10738,6 +10738,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   from->file->column_bitmaps_signal();
 
+  to->file->prepare_for_insert();
+
   THD_STAGE_INFO(thd, stage_copy_to_tmp_table);
   /* Tell handler that we have values for all columns in the to table */
   to->use_all_columns();

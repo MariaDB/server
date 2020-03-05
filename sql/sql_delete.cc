@@ -770,7 +770,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   if (table->versioned(VERS_TIMESTAMP) ||
       (table_list->has_period() && !portion_of_time_through_update))
-    table->file->prepare_for_insert(1);
+    table->file->prepare_for_insert();
 
   THD_STAGE_INFO(thd, stage_updating);
   while (likely(!(error=info.read_record())) && likely(!thd->killed) &&
@@ -1268,7 +1268,7 @@ multi_delete::initialize_tables(JOIN *join)
       tbl->prepare_for_position();
 
       if (tbl->versioned(VERS_TIMESTAMP))
-        tbl->file->prepare_for_insert(1);
+        tbl->file->prepare_for_insert();
     }
     else if ((tab->type != JT_SYSTEM && tab->type != JT_CONST) &&
              walk == delete_tables)

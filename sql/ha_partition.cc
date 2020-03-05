@@ -4332,16 +4332,6 @@ int ha_partition::write_row(const uchar * buf)
   }
   m_last_part= part_id;
   DBUG_PRINT("info", ("Insert in partition %u", part_id));
-  /*
-    We have to call prepare_for_insert() if we have an update handler
-    in the underlying table (to clone the handler). This is because for
-    INSERT's prepare_for_insert() is only called for the main table,
-    not for all partitions. This is to reduce the huge overhead of cloning
-    a possible not needed handler if there are many partitions.
-  */
-  if (table->s->long_unique_table &&
-      m_file[part_id]->update_handler == m_file[part_id] && inited == RND)
-    m_file[part_id]->prepare_for_insert(0);
 
   start_part_bulk_insert(thd, part_id);
 
@@ -9926,8 +9916,13 @@ void ha_partition::print_error(int error, myf errflag)
     /* fall through to generic error handling. */
   }
 
-  /* In case m_file has not been initialized, like in bug#42438 */
-  if (m_file)
+  /*
+    We choose a main handler's print_error if:
+    * m_file has not been initialized, like in bug#42438
+    * lookup_errkey is set, which means that an error has occured in the
+      main handler, not in individual partitions
+  */
+  if (m_file && lookup_errkey == (uint)-1)
   {
     if (m_last_part >= m_tot_parts)
     {
