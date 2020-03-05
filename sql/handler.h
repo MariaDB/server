@@ -3025,10 +3025,12 @@ protected:
   Table_flags cached_table_flags;       /* Set on init() and open() */
 
   ha_rows estimation_rows_to_insert;
+  handler *lookup_handler;
 public:
   handlerton *ht;                 /* storage engine of this handler */
   uchar *ref;				/* Pointer to current row */
   uchar *dup_ref;			/* Pointer to duplicate row */
+  uchar *lookup_buffer;
 
   ha_statistics stats;
 
@@ -3061,6 +3063,7 @@ public:
   */
   bool in_range_check_pushed_down;
 
+  uint lookup_errkey;
   uint errkey;                             /* Last dup key */
   uint key_used_on_scan;
   uint active_index, keyread;
@@ -3068,7 +3071,6 @@ public:
   /** Length of ref (1-8 or the clustered key length) */
   uint ref_length;
   FT_INFO *ft_handler;
-  handler *update_handler;  /* Handler used in case of update */
   enum init_stat { NONE=0, INDEX, RND };
   init_stat inited, pre_inited;
 
@@ -3225,13 +3227,14 @@ private:
 public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
-    estimation_rows_to_insert(0), ht(ht_arg),
-    ref(0), end_range(NULL),
+    estimation_rows_to_insert(0),
+    lookup_handler(this),
+    ht(ht_arg), ref(0), lookup_buffer(NULL), end_range(NULL),
     implicit_emptied(0),
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
     check_table_binlog_row_based_result(0),
-    in_range_check_pushed_down(FALSE), errkey(-1),
+    in_range_check_pushed_down(FALSE), lookup_errkey(-1), errkey(-1),
     key_used_on_scan(MAX_KEY),
     active_index(MAX_KEY), keyread(MAX_KEY),
     ref_length(sizeof(my_off_t)),
@@ -3268,8 +3271,6 @@ public:
     return ref != 0;
   }
   virtual handler *clone(const char *name, MEM_ROOT *mem_root);
-  bool clone_handler_for_update();
-  void delete_update_handler();
   /** This is called after create to allow us to set up cached variables */
   void init()
   {
@@ -4646,7 +4647,7 @@ protected:
 public:
   bool check_table_binlog_row_based();
   bool prepare_for_row_logging();
-  int prepare_for_insert(bool force_update_handler= 0);
+  int prepare_for_insert();
   int binlog_log_row(TABLE *table,
                      const uchar *before_record,
                      const uchar *after_record,
@@ -4670,6 +4671,12 @@ private:
 private:
   void mark_trx_read_write_internal();
   bool check_table_binlog_row_based_internal();
+
+  int create_lookup_handler();
+  void alloc_lookup_buffer();
+  int check_duplicate_long_entries(const uchar *new_rec);
+  int check_duplicate_long_entries_update(const uchar *new_rec);
+  int check_duplicate_long_entry_key(const uchar *new_rec, uint key_no);
 
 protected:
   /*

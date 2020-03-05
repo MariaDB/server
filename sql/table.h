@@ -1151,8 +1151,6 @@ public:
   THD	*in_use;                        /* Which thread uses this */
 
   uchar *record[3];			/* Pointer to records */
-  /* record buf to resolve hash collisions for long UNIQUE constraints */
-  uchar *check_unique_buf;
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */
@@ -1181,7 +1179,6 @@ public:
   /* Map of keys dependent on some constraint */
   key_map constraint_dependent_keys;
   KEY  *key_info;			/* data of keys in database */
-  KEY_PART_INFO *base_key_part;         /* Where key parts are stored */
 
   Field **field;                        /* Pointer to fields */
   Field **vfield;                       /* Pointer to virtual fields*/
@@ -2979,6 +2976,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        uint ha_open_flags, TABLE *outparam,
                        bool is_create_table,
                        List<String> *partitions_to_open= NULL);
+bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root);
 bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
 bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
                                     Virtual_column_info *vcol);

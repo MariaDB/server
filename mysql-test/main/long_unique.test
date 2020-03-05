@@ -573,16 +573,5 @@ DROP TABLE t1, t2;
 --error ER_NO_AUTOINCREMENT_WITH_UNIQUE
 CREATE TABLE t1 (pk INT, a TEXT NOT NULL DEFAULT '', PRIMARY KEY (pk), b INT AUTO_INCREMENT, UNIQUE(b), UNIQUE (a,b)) ENGINE=myisam;
 
---echo #
---echo # MDEV-21819 Assertion `inited == NONE || update_handler != this'
---echo # failed in handler::ha_write_row
---echo #
-
-CREATE OR REPLACE TABLE t1 (a INT, b BLOB, s DATE, e DATE, PERIOD FOR app(s,e), UNIQUE(b)) ENGINE=MyISAM PARTITION BY HASH(a) PARTITIONS 2;
-INSERT INTO t1 VALUES (1,'foo','2022-01-01', '2025-01-01');
---error ER_DUP_ENTRY
-DELETE FROM t1 FOR PORTION OF app FROM '2023-01-01' TO '2024-01-01';
-DROP TABLE t1;
-
 # Cleanup
 set @@GLOBAL.max_allowed_packet= @allowed_packet;

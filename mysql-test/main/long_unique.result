@@ -1492,13 +1492,4 @@ DROP TABLE t1, t2;
 #
 CREATE TABLE t1 (pk INT, a TEXT NOT NULL DEFAULT '', PRIMARY KEY (pk), b INT AUTO_INCREMENT, UNIQUE(b), UNIQUE (a,b)) ENGINE=myisam;
 ERROR HY000: AUTO_INCREMENT column `b` cannot be used in the UNIQUE index `a`
-#
-# MDEV-21819 Assertion `inited == NONE || update_handler != this'
-# failed in handler::ha_write_row
-#
-CREATE OR REPLACE TABLE t1 (a INT, b BLOB, s DATE, e DATE, PERIOD FOR app(s,e), UNIQUE(b)) ENGINE=MyISAM PARTITION BY HASH(a) PARTITIONS 2;
-INSERT INTO t1 VALUES (1,'foo','2022-01-01', '2025-01-01');
-DELETE FROM t1 FOR PORTION OF app FROM '2023-01-01' TO '2024-01-01';
-ERROR 23000: Duplicate entry 'foo' for key 'b'
-DROP TABLE t1;
 set @@GLOBAL.max_allowed_packet= @allowed_packet;

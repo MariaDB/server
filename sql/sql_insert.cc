@@ -886,9 +886,9 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
       {
         if (table->file->ha_rnd_init_with_error(0))
           goto abort;
-        table->file->prepare_for_insert();
       }
     }
+    table->file->prepare_for_insert();
     /**
       This is a simple check for the case when the table has a trigger
       that reads from it, or when the statement invokes a stored function
@@ -2544,10 +2544,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   uchar *bitmap;
   char *copy_tmp;
   uint bitmaps_used;
-  KEY_PART_INFO *key_part, *end_part;
   Field **default_fields, **virtual_fields;
-  KEY *keys;
-  KEY_PART_INFO *key_parts;
   uchar *record;
   DBUG_ENTER("Delayed_insert::get_local_table");
 
@@ -2615,9 +2612,6 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
                          share->default_expressions + 1) * sizeof(Field*),
                         &virtual_fields,
                         (share->virtual_fields + 1) * sizeof(Field*),
-                        &keys, share->keys * sizeof(KEY),
-                        &key_parts,
-                        share->ext_key_parts * sizeof(KEY_PART_INFO),
                         &record, (uint) share->reclength,
                         &bitmap, (uint) share->column_bitmap_size*4,
                         NullS))
@@ -2636,13 +2630,6 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     copy->default_field= default_fields;
   if (share->virtual_fields)
     copy->vfield= virtual_fields;
-  copy->key_info= keys;
-  copy->base_key_part= key_parts;
-
-  /* Copy key and key parts from original table */
-  memcpy(keys, table->key_info, sizeof(KEY) * share->keys);
-  memcpy(key_parts, table->base_key_part,
-         sizeof(KEY_PART_INFO) *share->ext_key_parts);
 
   copy->expr_arena= NULL;
 
@@ -2675,34 +2662,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   }
   *field=0;
 
-  /* The following is needed for long hash key */
-  key_part= copy->base_key_part;
-  for (KEY *key= copy->key_info, *end_key= key + share->keys ;
-       key < end_key;
-       key++)
-  {
-    key->key_part= key_part;
-    key_part+= key->ext_key_parts;
-    if (key->algorithm == HA_KEY_ALG_LONG_HASH)
-      key_part++;
-  }
-
-  for (key_part= copy->base_key_part,
-         end_part= key_part + share->ext_key_parts ;
-       key_part < end_part ;
-       key_part++)
-  {
-    Field *field= key_part->field= copy->field[key_part->fieldnr - 1];
-
-    /* Fix partial fields, like in open_table_from_share() */
-    if (field->key_length() != key_part->length &&
-        !(field->flags & BLOB_FLAG))
-    {
-      field= key_part->field= field->make_new_field(client_thd->mem_root,
-                                                    copy, 0);
-      field->field_length= key_part->length;
-    }
-  }
+  if (copy_keys_from_share(copy, client_thd->mem_root))
+    goto error;
 
   if (share->virtual_fields || share->default_expressions ||
       share->default_fields)
@@ -3310,12 +3271,6 @@ pthread_handler_t handle_delayed_insert(void *arg)
         di->table->file->ha_release_auto_increment();
         mysql_unlock_tables(thd, lock);
         trans_commit_stmt(thd);
-        /*
-          We have to delete update handler as we need to create a new one
-          for the next lock table to ensure they have both the same read
-          view.
-        */
-        di->table->file->delete_update_handler();
         di->group_count=0;
         mysql_audit_release(thd);
         /*
@@ -3953,9 +3908,9 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     {
       if (table->file->ha_rnd_init_with_error(0))
         DBUG_RETURN(1);
-      table->file->prepare_for_insert();
     }
   }
+  table->file->prepare_for_insert();
   if (info.handle_duplicates == DUP_REPLACE &&
       (!table->triggers || !table->triggers->has_delete_triggers()))
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
@@ -4720,9 +4675,9 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
     {
       if (table->file->ha_rnd_init_with_error(0))
         DBUG_RETURN(1);
-      table->file->prepare_for_insert();
     }
   }
+  table->file->prepare_for_insert();
   if (info.handle_duplicates == DUP_REPLACE &&
       (!table->triggers || !table->triggers->has_delete_triggers()))
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);

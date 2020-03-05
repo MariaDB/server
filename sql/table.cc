@@ -1243,46 +1243,31 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       Item *list_item;
       KEY *key= 0;
       uint key_index, parts= 0;
-      KEY_PART_INFO *key_part= table->base_key_part;
-
       for (key_index= 0; key_index < table->s->keys; key_index++)
       {
-        /*
-          We have to use key from share as this function may have changed
-          table->key_info if it was ever invoked before. This could happen
-          in case of INSERT DELAYED.
-        */
-        key= table->s->key_info + key_index;
-        if (key->algorithm == HA_KEY_ALG_LONG_HASH)
-        {
+        key=table->key_info + key_index;
           parts= key->user_defined_key_parts;
-          if (key_part[parts].fieldnr == field->field_index + 1)
+        if (key->key_part[parts].fieldnr == field->field_index + 1)
             break;
-          key_part++;
         }
-        key_part+= key->ext_key_parts;
-      }
-      if (key_index == table->s->keys)
+      if (!key || key->algorithm != HA_KEY_ALG_LONG_HASH)
         goto end;
-
-      /* Correct the key & key_parts if this function has been called before */
-      key= table->key_info + key_index;
-      key->key_part= key_part;
-
-      for (uint i=0; i < parts; i++, key_part++)
+      KEY_PART_INFO *keypart;
+      for (uint i=0; i < parts; i++)
       {
-        if (key_part->key_part_flag & HA_PART_KEY_SEG)
+        keypart= key->key_part + i;
+        if (keypart->key_part_flag & HA_PART_KEY_SEG)
         {
-          int length= key_part->length/key_part->field->charset()->mbmaxlen;
+          int length= keypart->length/keypart->field->charset()->mbmaxlen;
           list_item= new (mem_root) Item_func_left(thd,
-                       new (mem_root) Item_field(thd, key_part->field),
+                       new (mem_root) Item_field(thd, keypart->field),
                        new (mem_root) Item_int(thd, length));
           list_item->fix_fields(thd, NULL);
-          key_part->field->vcol_info=
-            table->field[key_part->field->field_index]->vcol_info;
+          keypart->field->vcol_info=
+            table->field[keypart->field->field_index]->vcol_info;
         }
         else
-          list_item= new (mem_root) Item_field(thd, key_part->field);
+          list_item= new (mem_root) Item_field(thd, keypart->field);
         field_list->push_back(list_item, mem_root);
       }
       Item_func_hash *hash_item= new(mem_root)Item_func_hash(thd, *field_list);
@@ -3709,6 +3694,54 @@ static void print_long_unique_table(TABLE *table)
 }
 #endif
 
+bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
+{
+  TABLE_SHARE *share= outparam->s;
+  if (share->key_parts)
+  {
+    KEY	*key_info, *key_info_end;
+    KEY_PART_INFO *key_part;
+
+    if (!multi_alloc_root(root, &key_info, share->keys*sizeof(KEY),
+                          &key_part, share->ext_key_parts*sizeof(KEY_PART_INFO),
+                          NullS))
+      return 1;
+
+    outparam->key_info= key_info;
+
+    memcpy(key_info, share->key_info, sizeof(*key_info)*share->keys);
+    memcpy(key_part, key_info->key_part, sizeof(*key_part)*share->ext_key_parts);
+
+    my_ptrdiff_t adjust_ptrs= PTR_BYTE_DIFF(key_part, key_info->key_part);
+    for (key_info_end= key_info + share->keys ;
+         key_info < key_info_end ;
+         key_info++)
+    {
+      key_info->table= outparam;
+      (uchar*&)(key_info->key_part)+= adjust_ptrs;
+      if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
+        key_info->flags&= ~HA_NOSAME;
+    }
+    for (KEY_PART_INFO *key_part_end= key_part+share->ext_key_parts;
+         key_part < key_part_end;
+         key_part++)
+    {
+      Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
+      if (field->key_length() != key_part->length &&
+          !(field->flags & BLOB_FLAG))
+      {
+        /*
+          We are using only a prefix of the column as a key:
+          Create a new field for the key part that matches the index
+        */
+        field= key_part->field=field->make_new_field(root, outparam, 0);
+        field->field_length= key_part->length;
+      }
+    }
+  }
+  return 0;
+}
+
 /*
   Open a table based on a TABLE_SHARE
 
@@ -3871,58 +3904,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     outparam->found_next_number_field=
       outparam->field[(uint) (share->found_next_number_field - share->field)];
 
-  /* Fix key->name and key_part->field */
-  if (share->key_parts)
-  {
-    KEY	*key_info, *key_info_end;
-    KEY_PART_INFO *key_part;
-    uint n_length;
-    n_length= share->keys*sizeof(KEY) + share->ext_key_parts*sizeof(KEY_PART_INFO);
-    if (!(key_info= (KEY*) alloc_root(&outparam->mem_root, n_length)))
-      goto err;
-    outparam->key_info= key_info;
-    key_part= (reinterpret_cast<KEY_PART_INFO*>(key_info+share->keys));
-    outparam->base_key_part= key_part;
-
-    memcpy(key_info, share->key_info, sizeof(*key_info)*share->keys);
-    memcpy(key_part, share->key_info[0].key_part, (sizeof(*key_part) *
-                                                   share->ext_key_parts));
-
-    for (key_info_end= key_info + share->keys ;
-         key_info < key_info_end ;
-         key_info++)
-    {
-      KEY_PART_INFO *key_part_end;
-
-      key_info->table= outparam;
-      key_info->key_part= key_part;
-
-      key_part_end= key_part + (share->use_ext_keys ? key_info->ext_key_parts :
-			                              key_info->user_defined_key_parts) ;
-      if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
-      {
-        key_part_end++;
-        key_info->flags&= ~HA_NOSAME;
-      }
-      for ( ; key_part < key_part_end; key_part++)
-      {
-        Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
-        if (field->key_length() != key_part->length &&
-            !(field->flags & BLOB_FLAG))
-        {
-          /*
-            We are using only a prefix of the column as a key:
-            Create a new field for the key part that matches the index
-          */
-          field= key_part->field=field->make_new_field(&outparam->mem_root,
-                                                       outparam, 0);
-          const_cast<uint32_t&>(field->field_length)= key_part->length;
-        }
-      }
-      if (!share->use_ext_keys)
-	key_part+= key_info->ext_key_parts - key_info->user_defined_key_parts;
-    }
-  }
+  if (copy_keys_from_share(outparam, &outparam->mem_root))
+    goto err;
 
   /*
     Process virtual and default columns, if any.
@@ -5256,7 +5239,6 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   range_rowid_filter_cost_info_elems= 0;
   range_rowid_filter_cost_info_ptr= NULL;
   range_rowid_filter_cost_info= NULL;
-  check_unique_buf= NULL;
   vers_write= s->versioned;
   quick_condition_rows=0;
   no_cache= false;
