@@ -12,11 +12,7 @@ Copyright (c) 2019, 2020, MariaDB Corporation.
 #include "sql_class.h"
 #include "my_pthread.h"
 #include "tztime.h"
-
-//#include "errmsg.h"
-//name conflicts on macro ER with sql_class.h
-#define CR_CONNECTION_ERROR 2002
-#define CR_CONN_HOST_ERROR 2003
+#include "errmsg.h"
 
 extern int xpand_connect_timeout;
 extern int xpand_read_timeout;
@@ -65,6 +61,9 @@ enum xpand_trans_state {
   XPAND_TRANS_ROLLBACK_STMT = 4,
   XPAND_TRANS_NONE = 32,
 };
+const int XPAND_TRANS_STARTS_STMT = (XPAND_TRANS_NEW_STMT |
+                                     XPAND_TRANS_REQUESTED |
+                                     XPAND_TRANS_ROLLBACK_STMT);
 
 enum xpand_trans_post_flags {
   XPAND_TRANS_AUTOCOMMIT = 8,
@@ -89,8 +88,8 @@ enum xpand_commands {
 /****************************************************************************
 ** Class xpand_connection
 ****************************************************************************/
-xpand_connection::xpand_connection(THD *parent_thd)
-  : session(parent_thd), command_buffer(NULL), command_buffer_length(0), command_length(0),
+xpand_connection::xpand_connection()
+  : command_buffer(NULL), command_buffer_length(0), command_length(0),
     trans_state(XPAND_TRANS_NONE), trans_flags(XPAND_TRANS_NO_POST_FLAGS)
 {
   DBUG_ENTER("xpand_connection::xpand_connection");
@@ -213,10 +212,12 @@ int xpand_connection::connect_direct(char *host)
 int xpand_connection::add_status_vars()
 {
   DBUG_ENTER("xpand_connection::add_status_vars");
-  assert(session);
+
+  if (!(trans_state & XPAND_TRANS_STARTS_STMT))
+    DBUG_RETURN(add_command_operand_uchar(0));
 
   int error_code = 0;
-  system_variables vars = session->variables;
+  system_variables vars = current_thd->variables;
   if ((error_code = add_command_operand_uchar(1)))
     DBUG_RETURN(error_code);
   //sql mode
@@ -227,7 +228,9 @@ int xpand_connection::add_status_vars()
     DBUG_RETURN(error_code);
   if ((error_code = add_command_operand_ushort(vars.auto_increment_offset)))
     DBUG_RETURN(error_code);
-  //character set and collation
+  //character sets and collations
+  if ((error_code = add_command_operand_ushort(vars.character_set_results->number)))
+    DBUG_RETURN(error_code);
   if ((error_code = add_command_operand_ushort(vars.character_set_client->number)))
     DBUG_RETURN(error_code);
   if ((error_code = add_command_operand_ushort(vars.collation_connection->number)))
@@ -235,8 +238,8 @@ int xpand_connection::add_status_vars()
   if ((error_code = add_command_operand_ushort(vars.collation_server->number)))
     DBUG_RETURN(error_code);
   //timezone and time names
-  String tzone; //convert to utf8
-  vars.time_zone->get_name()->print(&tzone, get_charset(33,0));
+  String tzone;
+  vars.time_zone->get_name()->print(&tzone, system_charset_info);
   if ((error_code = add_command_operand_str((const uchar*)tzone.ptr(),tzone.length())))
     DBUG_RETURN(error_code);
   if ((error_code = add_command_operand_ushort(vars.lc_time_names->number)))
@@ -260,10 +263,8 @@ int xpand_connection::begin_command(uchar command)
   if ((error_code = add_command_operand_uchar(trans_state | trans_flags)))
     return error_code;
 
-  if (trans_state & XPAND_TRANS_NEW_STMT ||
-      trans_state & XPAND_TRANS_REQUESTED)
-    if ((error_code = add_status_vars()))
-      return error_code;
+  if ((error_code = add_status_vars()))
+    return error_code;
 
   return error_code;
 }

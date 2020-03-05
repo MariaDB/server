@@ -344,7 +344,7 @@ xpand_connection *get_trx(THD *thd, int *error_code)
   xpand_connection *trx;
   if (!(trx = (xpand_connection *)thd_get_ha_data(thd, xpand_hton)))
   {
-    if (!(trx = new xpand_connection(thd))) {
+    if (!(trx = new xpand_connection())) {
       *error_code = HA_ERR_OUT_OF_MEM;
       return NULL;
     }
@@ -1441,7 +1441,7 @@ static int xpand_discover_table_names(handlerton *hton, LEX_CSTRING *db,
                                       MY_DIR *dir,
                                       handlerton::discovered_list *result)
 {
-  xpand_connection *xpand_net = new xpand_connection(NULL);
+  xpand_connection *xpand_net = new xpand_connection();
   int error_code = xpand_net->connect();
   if (error_code)
     goto err;
@@ -1455,7 +1455,7 @@ err:
 
 int xpand_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 {
-  xpand_connection *xpand_net = new xpand_connection(NULL);
+  xpand_connection *xpand_net = new xpand_connection();
   int error_code = xpand_net->connect();
   if (error_code)
     goto err;

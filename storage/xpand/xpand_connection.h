@@ -36,7 +36,6 @@ class xpand_connection_cursor;
 class xpand_connection
 {
 private:
-  THD *session;
   MYSQL xpand_net;
   uchar *command_buffer;
   size_t command_buffer_length;
@@ -47,7 +46,7 @@ private:
   int allocate_cursor(MYSQL *xpand_net, ulong buffer_size,
                       xpand_connection_cursor **scan);
 public:
-  xpand_connection(THD *parent_thd);
+  xpand_connection();
   ~xpand_connection();
 
   inline bool is_connected()
