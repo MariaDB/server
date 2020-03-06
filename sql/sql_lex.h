@@ -3264,6 +3264,7 @@ public:
   void reset_arena_for_set_stmt(Query_arena *backup);
   void free_arena_for_set_stmt();
 
+  void print(String *str, enum_query_type qtype);
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
   List<LEX_CSTRING>   view_list; // view list (list of field names in view)

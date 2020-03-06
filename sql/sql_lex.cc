@@ -3514,6 +3514,70 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
 }
 
 
+/*
+  @brief
+    Print the whole statement
+
+    @param str         Print into this string
+    @param query_type  Flags describing how to print
+
+  @detail
+    The intent is to allow to eventually print back any query.
+
+    This is useful e.g. for storage engines that take over diferrent kinds of
+    queries
+*/
+
+void LEX::print(String *str, enum_query_type query_type)
+{
+  if (sql_command == SQLCOM_UPDATE)
+  {
+    SELECT_LEX *sel= first_select_lex();
+    str->append(STRING_WITH_LEN("UPDATE "));
+    if (ignore)
+      str->append(STRING_WITH_LEN("IGNORE "));
+    // table name
+    str->append(query_tables->alias);
+    str->append(STRING_WITH_LEN(" SET "));
+    // print item assignments
+    List_iterator<Item> it(sel->item_list);
+    List_iterator<Item> it2(value_list);
+    Item *col_ref, *value;
+    bool first= true;
+    while ((col_ref= it++) && (value= it2++))
+    {
+      if (first)
+        first= false;
+      else
+        str->append(STRING_WITH_LEN(", "));
+      col_ref->print(str, query_type);
+      str->append(STRING_WITH_LEN("="));
+      value->print(str, query_type);
+    }
+
+    str->append(STRING_WITH_LEN(" WHERE "));
+    sel->where->print(str, query_type);
+
+    if (sel->order_list.elements)
+    {
+      str->append(STRING_WITH_LEN(" ORDER BY "));
+      for (ORDER *ord= sel->order_list.first; ord; ord= ord->next)
+      {
+        if (ord != sel->order_list.first)
+          str->append(STRING_WITH_LEN(", "));
+        (*ord->item)->print(str, query_type);
+      }
+    }
+    if (sel->select_limit)
+    {
+      str->append(STRING_WITH_LEN(" LIMIT "));
+      sel->select_limit->print(str, query_type);
+    }
+  }
+  else
+    DBUG_ASSERT(0); // Not implemented yet
+}
+
 void st_select_lex_unit::print(String *str, enum_query_type query_type)
 {
   if (with_clause)
