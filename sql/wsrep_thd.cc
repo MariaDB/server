@@ -153,8 +153,9 @@ static void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow* shadow)
   if (!thd->wsrep_rgi) thd->wsrep_rgi= wsrep_relay_group_init("wsrep_relay");
 
   /* thd->system_thread_info.rpl_sql_info isn't initialized. */
-  thd->system_thread_info.rpl_sql_info=
-    new rpl_sql_thread_info(thd->wsrep_rgi->rli->mi->rpl_filter);
+  if (!thd->slave_thread)
+    thd->system_thread_info.rpl_sql_info=
+      new rpl_sql_thread_info(thd->wsrep_rgi->rli->mi->rpl_filter);
 
   thd->wsrep_exec_mode= REPL_RECV;
   thd->net.vio= 0;
@@ -182,7 +183,8 @@ static void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
   thd->user_time              = shadow->user_time;
   thd->reset_db(&db);
 
-  delete thd->system_thread_info.rpl_sql_info;
+  if (!thd->slave_thread)
+    delete thd->system_thread_info.rpl_sql_info;
   delete thd->wsrep_rgi->rli->mi;
   delete thd->wsrep_rgi->rli;
 

@@ -27,25 +27,24 @@ INSERT INTO t1 VALUES (2,3);
 --connection node_2a
 SET session wsrep_sync_wait=0;
 SET session wsrep_causal_reads=OFF;
+
 SHOW CREATE TABLE t1;
---sleep 1
 --send FLUSH TABLES t1 WITH READ LOCK;
 
 --connection node_2
-# let the flush table wait in pause state before we unlock
-# table otherwise there is window where-in flush table is
-# yet to wait in pause and unlock allows alter table to proceed.
-# this is because send in asynchronous.
---sleep 3
-# this will release existing lock but will not resume
-# the cluster as there is new FTRL that is still pausing it.
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE 'committed%';
+--source include/wait_condition.inc
+
 UNLOCK TABLES;
 SHOW CREATE TABLE t1;
 
 --connection node_2a
 --reap
 UNLOCK TABLES;
---sleep 2
+
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t1;
+--source include/wait_condition.inc
+
 SHOW CREATE TABLE t1;
 SELECT * from t1;
 
