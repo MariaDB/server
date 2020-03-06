@@ -49,6 +49,18 @@ static const char *strip_path(const char *s)
 static bfd *bfdh= 0;
 static asymbol **symtable= 0;
 
+#ifndef bfd_get_section_flags
+#define bfd_get_section_flags(H, S) bfd_section_flags(S)
+#endif /* bfd_get_section_flags */
+
+#ifndef bfd_get_section_size
+#define bfd_get_section_size(S) bfd_section_size(S)
+#endif /* bfd_get_section_size */
+
+#ifndef bfd_get_section_vma
+#define bfd_get_section_vma(H, S) bfd_section_vma(S)
+#endif /* bfd_get_section_vma */
+
 /**
   finds a file name, a line number, and a function name corresponding to addr.
 
