@@ -21,8 +21,6 @@ class Item;
 class THD;
 struct TABLE_LIST;
 
-class Opt_trace_stmt;
-
 /*
    User-visible information about a trace.
 */

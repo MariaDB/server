@@ -3,7 +3,50 @@
 
 #include "sql_array.h"
 
-class Opt_trace_stmt;
+class Opt_trace_context;
+class Opt_trace_info;
+class Json_writer;
+
+class Opt_trace_stmt {
+ public:
+  /**
+     Constructor, starts a trace for information_schema and dbug.
+     @param  ctx_arg          context
+  */
+  Opt_trace_stmt(Opt_trace_context *ctx_arg);
+  ~Opt_trace_stmt();
+  void set_query(const char *query_ptr, size_t length, const CHARSET_INFO *charset);
+  void open_struct(const char *key, char opening_bracket);
+  void close_struct(const char *saved_key, char closing_bracket);
+  void fill_info(Opt_trace_info* info);
+  void add(const char *key, char *opening_bracket, size_t val_length);
+  Json_writer* get_current_json() {return current_json;}
+  void missing_privilege();
+  void disable_tracing_for_children();
+  void enable_tracing_for_children();
+  bool is_enabled()
+  {
+   return I_S_disabled == 0;
+  }
+  void set_allowed_mem_size(size_t mem_size);
+  size_t get_length();
+  size_t get_truncated_bytes();
+  bool get_missing_priv() { return missing_priv; }
+
+private:
+  Opt_trace_context *ctx;
+  String query;  // store the query sent by the user
+  Json_writer *current_json; // stores the trace
+  bool missing_priv;  ///< whether user lacks privilege to see this trace
+  /*
+    0 <=> this trace should be in information_schema.
+  !=0 tracing is disabled, this currently happens when we want to trace a
+      sub-statement. For now traces are only collect for the top statement
+      not for the sub-statments.
+  */
+  uint I_S_disabled;
+};
+
 
 class Opt_trace_context
 {
@@ -48,7 +91,12 @@ public:
     This returns the current trace, to which we are still writing and has not been finished
   */
 
-  Json_writer* get_current_json();
+  Json_writer* get_current_json()
+  {
+    if (!is_started())
+      return NULL;
+    return current_trace->get_current_json();
+  }
 
   bool empty()
   {
@@ -57,7 +105,7 @@ public:
 
   bool is_started()
   {
-    return current_trace && is_enabled();
+    return current_trace && current_trace->is_enabled();
   }
 
   bool disable_tracing_if_required();
