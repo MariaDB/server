@@ -1321,86 +1321,119 @@ static bool redo_file_sizes_are_correct()
   return false;
 }
 
-/** Find the latest checkpoint in the format-0 log header.
-@param[out]	max_field	LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2
-@return error code or DB_SUCCESS */
-static MY_ATTRIBUTE((warn_unused_result))
-dberr_t
-recv_find_max_checkpoint_0(ulint* max_field)
+/** Determine if a redo log from before MariaDB 10.2.2 is clean.
+@return error code
+@retval DB_SUCCESS      if the redo log is clean
+@retval DB_CORRUPTION   if the redo log is corrupted
+@retval DB_ERROR        if the redo log is not empty */
+static dberr_t recv_log_recover_pre_10_2()
 {
-	ib_uint64_t	max_no = 0;
-	ib_uint64_t	checkpoint_no;
-	byte*		buf	= log_sys.checkpoint_buf;
+  uint64_t max_no= 0;
+  uint64_t checkpoint_no;
+  byte *buf= log_sys.buf;
 
-	if (!redo_file_sizes_are_correct()) {
-		return DB_CORRUPTION;
-	}
+  ut_ad(log_sys.log.format == 0);
 
-	ut_ad(log_sys.log.format == 0);
+  if (!redo_file_sizes_are_correct())
+    return DB_CORRUPTION;
 
-	/** Offset of the first checkpoint checksum */
-	static const uint CHECKSUM_1 = 288;
-	/** Offset of the second checkpoint checksum */
-	static const uint CHECKSUM_2 = CHECKSUM_1 + 4;
-	/** Most significant bits of the checkpoint offset */
-	static const uint OFFSET_HIGH32 = CHECKSUM_2 + 12;
-	/** Least significant bits of the checkpoint offset */
-	static const uint OFFSET_LOW32 = 16;
+  /** Offset of the first checkpoint checksum */
+  constexpr uint CHECKSUM_1= 288;
+  /** Offset of the second checkpoint checksum */
+  constexpr uint CHECKSUM_2= CHECKSUM_1 + 4;
+  /** the checkpoint LSN field */
+  constexpr uint CHECKPOINT_LSN= 8;
+  /** Most significant bits of the checkpoint offset */
+  constexpr uint OFFS_HI= CHECKSUM_2 + 12;
+  /** Least significant bits of the checkpoint offset */
+  constexpr uint OFFS_LO= 16;
 
-	bool found = false;
+  lsn_t lsn= 0;
 
-	for (ulint field = LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
-	     field += LOG_CHECKPOINT_2 - LOG_CHECKPOINT_1) {
-		log_sys.log.read(field, {buf, OS_FILE_LOG_BLOCK_SIZE});
+  for (ulint field= LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
+       field += LOG_CHECKPOINT_2 - LOG_CHECKPOINT_1)
+  {
+    log_sys.log.read(field, {buf, OS_FILE_LOG_BLOCK_SIZE});
 
-		if (static_cast<uint32_t>(ut_fold_binary(buf, CHECKSUM_1))
-		    != mach_read_from_4(buf + CHECKSUM_1)
-		    || static_cast<uint32_t>(
-			    ut_fold_binary(buf + LOG_CHECKPOINT_LSN,
-					   CHECKSUM_2 - LOG_CHECKPOINT_LSN))
-		    != mach_read_from_4(buf + CHECKSUM_2)) {
-			DBUG_LOG("ib_log",
-				 "invalid pre-10.2.2 checkpoint " << field);
-			continue;
-		}
+    if (static_cast<uint32_t>(ut_fold_binary(buf, CHECKSUM_1)) !=
+        mach_read_from_4(buf + CHECKSUM_1) ||
+        static_cast<uint32_t>(ut_fold_binary(buf + CHECKPOINT_LSN,
+                                             CHECKSUM_2 - CHECKPOINT_LSN)) !=
+        mach_read_from_4(buf + CHECKSUM_2))
+     {
+       DBUG_LOG("ib_log", "invalid pre-10.2.2 checkpoint " << field);
+       continue;
+     }
 
-		checkpoint_no = mach_read_from_8(
-			buf + LOG_CHECKPOINT_NO);
+    checkpoint_no = mach_read_from_8(buf + LOG_CHECKPOINT_NO);
 
-		if (!log_crypt_101_read_checkpoint(buf)) {
-			ib::error() << "Decrypting checkpoint failed";
-			continue;
-		}
+    if (!log_crypt_101_read_checkpoint(buf))
+    {
+      ib::error() << "Decrypting checkpoint failed";
+      continue;
+    }
 
-		DBUG_PRINT("ib_log",
-			   ("checkpoint " UINT64PF " at " LSN_PF " found",
-			    checkpoint_no,
-			    mach_read_from_8(buf + LOG_CHECKPOINT_LSN)));
+    DBUG_PRINT("ib_log", ("checkpoint " UINT64PF " at " LSN_PF " found",
+                          checkpoint_no,
+                          mach_read_from_8(buf + LOG_CHECKPOINT_LSN)));
 
-		if (checkpoint_no >= max_no) {
-			found = true;
-			*max_field = field;
-			max_no = checkpoint_no;
+    if (checkpoint_no >= max_no)
+    {
+      max_no= checkpoint_no;
+      lsn= mach_read_from_8(buf + CHECKPOINT_LSN);
+      log_sys.log.set_lsn(lsn);
+      log_sys.log.set_lsn_offset(lsn_t{mach_read_from_4(buf + OFFS_HI)} << 32 |
+                                 mach_read_from_4(buf + OFFS_LO));
+    }
+  }
 
-			log_sys.log.set_lsn(mach_read_from_8(
-				buf + LOG_CHECKPOINT_LSN));
-			log_sys.log.set_lsn_offset(
-				lsn_t(mach_read_from_4(buf + OFFSET_HIGH32))
-				<< 32
-				| mach_read_from_4(buf + OFFSET_LOW32));
-		}
-	}
+  if (!lsn)
+  {
+    ib::error() << "Upgrade after a crash is not supported."
+            " This redo log was created before MariaDB 10.2.2,"
+            " and we did not find a valid checkpoint."
+            " Please follow the instructions at"
+            " https://mariadb.com/kb/en/library/upgrading/";
+    return DB_ERROR;
+  }
 
-	if (found) {
-		return(DB_SUCCESS);
-	}
+  log_sys.set_lsn(lsn);
+  log_sys.set_flushed_lsn(lsn);
+  const lsn_t source_offset= log_sys.log.calc_lsn_offset_old(lsn);
 
-	ib::error() << "Upgrade after a crash is not supported."
-		" This redo log was created before MariaDB 10.2.2,"
-		" and we did not find a valid checkpoint."
-		" Please follow the instructions at"
-		" https://mariadb.com/kb/en/library/upgrading/";
-	return(DB_ERROR);
+  static constexpr char NO_UPGRADE_RECOVERY_MSG[]=
+    "Upgrade after a crash is not supported."
+    " This redo log was created before MariaDB 10.2.2";
+
+  recv_sys.read(source_offset & ~511, {buf, 512});
+
+  if (log_block_calc_checksum_format_0(buf) != log_block_get_checksum(buf) &&
+      !log_crypt_101_read_block(buf, lsn))
+  {
+    ib::error() << NO_UPGRADE_RECOVERY_MSG << ", and it appears corrupted.";
+    return DB_CORRUPTION;
+  }
+
+  if (mach_read_from_2(buf + 4) == (source_offset & 511))
+  {
+    /* Mark the redo log for upgrading. */
+    srv_log_file_size= 0;
+    recv_sys.parse_start_lsn= recv_sys.recovered_lsn= recv_sys.scanned_lsn=
+      recv_sys.mlog_checkpoint_lsn = lsn;
+    log_sys.last_checkpoint_lsn= log_sys.next_checkpoint_lsn=
+      log_sys.write_lsn= log_sys.current_flush_lsn= lsn;
+    log_sys.next_checkpoint_no= 0;
+    recv_sys.remove_extra_log_files= true;
+    return DB_SUCCESS;
+  }
+
+  if (buf[20 + 32 * 9] == 2)
+    ib::error() << "Cannot decrypt log for upgrading."
+                   " The encrypted log was created before MariaDB 10.2.2.";
+  else
+    ib::error() << NO_UPGRADE_RECOVERY_MSG << ".";
+
+  return DB_ERROR;
 }
 
 /** Same as cals_lsn_offset() except that it supports multiple files */
@@ -1418,61 +1451,6 @@ lsn_t log_t::file::calc_lsn_offset_old(lsn_t lsn) const
   l+= lsn_offset - LOG_FILE_HDR_SIZE * (1 + lsn_offset / file_size);
   l%= size;
   return l + LOG_FILE_HDR_SIZE * (1 + l / (file_size - LOG_FILE_HDR_SIZE));
-}
-
-/** Determine if a pre-MySQL 5.7.9/MariaDB 10.2.2 redo log is clean.
-@param[in]	lsn	checkpoint LSN
-@param[in]	crypt	whether the log might be encrypted
-@return error code
-@retval	DB_SUCCESS	if the redo log is clean
-@retval DB_ERROR	if the redo log is corrupted or dirty */
-static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
-{
-	log_mutex_enter();
-	const lsn_t source_offset = log_sys.log.calc_lsn_offset_old(lsn);
-	log_mutex_exit();
-	byte*		buf = log_sys.buf;
-
-	static const char* NO_UPGRADE_RECOVERY_MSG =
-		"Upgrade after a crash is not supported."
-		" This redo log was created before MariaDB 10.2.2";
-
-	recv_sys.read(source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1),
-		      {buf, OS_FILE_LOG_BLOCK_SIZE});
-
-	if (log_block_calc_checksum_format_0(buf)
-	    != log_block_get_checksum(buf)
-	    && !log_crypt_101_read_block(buf, lsn)) {
-		ib::error() << NO_UPGRADE_RECOVERY_MSG
-			<< ", and it appears corrupted.";
-		return(DB_CORRUPTION);
-	}
-
-	if (log_block_get_data_len(buf)
-	    == (source_offset & (OS_FILE_LOG_BLOCK_SIZE - 1))) {
-	} else if (crypt) {
-		ib::error() << "Cannot decrypt log for upgrading."
-			" The encrypted log was created"
-			" before MariaDB 10.2.2.";
-		return DB_ERROR;
-	} else {
-		ib::error() << NO_UPGRADE_RECOVERY_MSG << ".";
-		return(DB_ERROR);
-	}
-
-	/* Mark the redo log for upgrading. */
-	srv_log_file_size = 0;
-	recv_sys.parse_start_lsn = recv_sys.recovered_lsn
-		= recv_sys.scanned_lsn
-		= recv_sys.mlog_checkpoint_lsn = lsn;
-	log_sys.last_checkpoint_lsn = log_sys.next_checkpoint_lsn
-		= log_sys.write_lsn = log_sys.current_flush_lsn = lsn;
-	log_sys.set_lsn(lsn);
-	log_sys.set_flushed_lsn(lsn);
-
-	log_sys.next_checkpoint_no = 0;
-	recv_sys.remove_extra_log_files = true;
-	return(DB_SUCCESS);
 }
 
 /** Determine if a redo log from MariaDB 10.2.2+, 10.3, or 10.4 is clean.
@@ -1572,7 +1550,7 @@ recv_find_max_checkpoint(ulint* max_field)
 
 	switch (log_sys.log.format) {
 	case log_t::FORMAT_3_23:
-		return(recv_find_max_checkpoint_0(max_field));
+		return recv_log_recover_pre_10_2();
 	case log_t::FORMAT_10_2:
 	case log_t::FORMAT_10_2 | log_t::FORMAT_ENCRYPTED:
 	case log_t::FORMAT_10_3:
@@ -3325,8 +3303,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	switch (log_sys.log.format) {
 	case 0:
 		log_mutex_exit();
-		return recv_log_format_0_recover(checkpoint_lsn,
-						 buf[20 + 32 * 9] == 2);
+		return DB_SUCCESS;
 	default:
 		if (end_lsn == 0) {
 			break;
