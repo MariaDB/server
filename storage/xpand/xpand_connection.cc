@@ -149,9 +149,6 @@ int xpand_connection::connect()
       break;
   }
   mysql_rwlock_unlock(&xpand_hosts_lock);
-  if (error_code)
-    my_error(error_code, MYF(0), "clustrix");
-
   DBUG_RETURN(error_code);
 }
 
@@ -272,8 +269,6 @@ int xpand_connection::begin_command(uchar command)
 
 int xpand_connection::send_command()
 {
-  my_bool com_error;
-
   /*
      Please note:
      * The transaction state is set before the command is sent because rolling
@@ -289,32 +284,18 @@ int xpand_connection::send_command()
   */
   trans_state = XPAND_TRANS_STARTED;
 
-  com_error = simple_command(&xpand_net,
-                             (enum_server_command)XPAND_SERVER_REQUEST,
-                             command_buffer, command_length, TRUE);
-
-  if (com_error)
-  {
-    int error_code = mysql_errno(&xpand_net);
-    my_printf_error(error_code, "Xpand error: %s", MYF(0),
-                    mysql_error(&xpand_net));
-    return error_code;
-  }
-
+  if (simple_command(&xpand_net,
+                     (enum_server_command)XPAND_SERVER_REQUEST,
+                     command_buffer, command_length, TRUE))
+    return mysql_errno(&xpand_net);
   return 0;
 }
 
 int xpand_connection::read_query_response()
 {
-  my_bool comerr = xpand_net.methods->read_query_result(&xpand_net);
   int error_code = 0;
-  if (comerr)
-  {
+  if (xpand_net.methods->read_query_result(&xpand_net))
     error_code = mysql_errno(&xpand_net);
-    my_printf_error(error_code, "Xpand error: %s", MYF(0),
-                    mysql_error(&xpand_net));
-  }
-
   auto_commit_closed();
   return error_code;
 }

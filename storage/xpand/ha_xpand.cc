@@ -112,7 +112,7 @@ static void update_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
   int error_code = list->fill(from_save);
   if (error_code) {
     my_free(list);
-    my_printf_error(error_code, "Unhandled error setting xpand hostlist", MYF(0));
+    sql_print_error("Unhandled error %d setting xpand hostlist", error_code);
     DBUG_VOID_RETURN;
   }
 
