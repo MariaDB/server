@@ -86,7 +86,7 @@ public:
 
   void init(Json_writer *owner_arg) { owner= owner_arg; }
 
-  bool on_add_member(const char *name);
+  bool on_add_member(const char *name, size_t len);
 
   bool on_start_array();
   bool on_end_array();
@@ -184,6 +184,7 @@ class Json_writer
 public:
   /* Add a member. We must be in an object. */
   Json_writer& add_member(const char *name);
+  Json_writer& add_member(const char *name, size_t len);
   
   /* Add atomic values */
   void add_str(const char* val);
@@ -202,6 +203,7 @@ public:
 
 private:
   void add_unquoted_str(const char* val);
+  void add_unquoted_str(const char* val, size_t len);
 public:
   /* Start a child object */
   void start_object();
@@ -254,63 +256,63 @@ public:
   void init(Json_writer *my_writer) { writer= my_writer; }
   void add_str(const char* val)
   {
-    if (writer)
+    if (unlikely(writer))
       writer->add_str(val);
   }
   void add_str(const char* val, size_t length)
   {
-    if (writer)
+    if (unlikely(writer))
       writer->add_str(val, length);
   }
   void add_str(const String &str)
   {
-    if (writer)
-      writer->add_str(str);
+    if (unlikely(writer))
+      writer->add_str(str.ptr(), str.length());
   }
-  void add_str(LEX_CSTRING str)
+  void add_str(const LEX_CSTRING &str)
   {
-    if (writer)
-      writer->add_str(str.str);
+    if (unlikely(writer))
+      writer->add_str(str.str, str.length);
   }
   void add_str(Item *item)
   {
-    if (writer)
+    if (unlikely(writer))
       writer->add_str(item);
   }
 
   void add_ll(longlong val)
   {
-    if (writer)
+    if (unlikely(writer))
       writer->add_ll(val);
   }
   void add_size(longlong val)
   {
-    if (writer)
+    if (unlikely(writer))
       writer->add_size(val);
   }
   void add_double(double val)
   {
-    if (writer)
+    if (unlikely(writer))
       writer->add_double(val);
   }
   void add_bool(bool val)
   {
-    if (writer)
+    if (unlikely(writer))
       writer->add_bool(val);
   }
   void add_null()
   {
-    if (writer)
+    if (unlikely(writer))
       writer->add_null();
   }
   void add_table_name(const JOIN_TAB *tab)
   {
-    if (writer)
+    if (unlikely(writer))
       writer->add_table_name(tab);
   }
   void add_table_name(const TABLE* table)
   {
-    if (writer)
+    if (unlikely(writer))
       writer->add_table_name(table);
   }
 };
@@ -333,6 +335,10 @@ public:
     context.init(my_writer);
     closed= false;
   }
+  bool trace_started()
+  {
+    return my_writer != 0;
+  }
 };
 
 
@@ -349,7 +355,7 @@ class Json_writer_object : public Json_writer_struct
 private:
   void add_member(const char *name)
   {
-    if (my_writer)
+    if (unlikely(my_writer))
       my_writer->add_member(name);
   }
 public:
@@ -406,11 +412,11 @@ public:
     context.add_str(value, num_bytes);
     return *this;
   }
-  Json_writer_object& add(const char *name, LEX_CSTRING value)
+  Json_writer_object& add(const char *name, const LEX_CSTRING &value)
   {
     DBUG_ASSERT(!closed);
     add_member(name);
-    context.add_str(value.str);
+    context.add_str(value.str, value.length);
     return *this;
   }
   Json_writer_object& add(const char *name, Item *value)
@@ -454,7 +460,7 @@ public:
   void end()
   {
     DBUG_ASSERT(!closed);
-    if (my_writer)
+    if (unlikely(my_writer))
       my_writer->end_object();
     closed= TRUE;
   }
@@ -478,7 +484,7 @@ public:
   void end()
   {
     DBUG_ASSERT(!closed);
-    if (my_writer)
+    if (unlikely(my_writer))
       my_writer->end_array();
     closed= TRUE;
   }
@@ -527,10 +533,10 @@ public:
     context.add_str(value, num_bytes);
     return *this;
   }
-  Json_writer_array& add(LEX_CSTRING value)
+  Json_writer_array& add(const LEX_CSTRING &value)
   {
     DBUG_ASSERT(!closed);
-    context.add_str(value.str);
+    context.add_str(value.str, value.length);
     return *this;
   }
   Json_writer_array& add(Item *value)

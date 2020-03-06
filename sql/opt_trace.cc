@@ -105,8 +105,8 @@ void opt_trace_print_expanded_query(THD *thd, SELECT_LEX *select_lex,
                                     Json_writer_object *writer)
 
 {
-  if (!thd->trace_started())
-    return;
+  DBUG_ASSERT(thd->trace_started());
+
   StringBuffer<1024> str(system_charset_info);
   ulonglong save_option_bits= thd->variables.option_bits;
   thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
@@ -195,12 +195,11 @@ void opt_trace_disable_if_no_stored_proc_func_access(THD *thd, sp_head *sp)
 {
   if (likely(!(thd->variables.optimizer_trace &
                Opt_trace_context::FLAG_ENABLED)) ||
-      thd->system_thread)
+      thd->system_thread ||
+      !thd->trace_started())
     return;
 
   Opt_trace_context *const trace= &thd->opt_trace;
-  if (!thd->trace_started())
-    return;
   bool full_access;
   Security_context *const backup_thd_sctx= thd->security_context();
   thd->set_security_context(&thd->main_security_ctx);
@@ -229,13 +228,12 @@ void opt_trace_disable_if_no_stored_proc_func_access(THD *thd, sp_head *sp)
 void opt_trace_disable_if_no_tables_access(THD *thd, TABLE_LIST *tbl)
 {
   if (likely(!(thd->variables.optimizer_trace &
-              Opt_trace_context::FLAG_ENABLED)) || thd->system_thread)
+              Opt_trace_context::FLAG_ENABLED)) ||
+      thd->system_thread ||
+      !thd->trace_started())
     return;
+
   Opt_trace_context *const trace= &thd->opt_trace;
-
-  if (!thd->trace_started())
-    return;
-
   Security_context *const backup_thd_sctx= thd->security_context();
   thd->set_security_context(&thd->main_security_ctx);
   const TABLE_LIST *const first_not_own_table= thd->lex->first_not_own_table();
@@ -290,12 +288,11 @@ void opt_trace_disable_if_no_view_access(THD *thd, TABLE_LIST *view,
 
   if (likely(!(thd->variables.optimizer_trace &
                Opt_trace_context::FLAG_ENABLED)) ||
-      thd->system_thread)
-    return;
-  Opt_trace_context *const trace= &thd->opt_trace;
-  if (!thd->trace_started())
+      thd->system_thread ||
+      !thd->trace_started())
     return;
 
+  Opt_trace_context *const trace= &thd->opt_trace;
   Security_context *const backup_table_sctx= view->security_ctx;
   Security_context *const backup_thd_sctx= thd->security_context();
   const GRANT_INFO backup_grant_info= view->grant;
@@ -592,6 +589,7 @@ void Opt_trace_stmt::set_allowed_mem_size(size_t mem_size)
 
 void Json_writer::add_table_name(const JOIN_TAB *tab)
 {
+  DBUG_ASSERT(tab->join->thd->trace_started());
   if (tab != NULL)
   {
     char table_name_buffer[SAFE_NAME_LEN];
@@ -630,6 +628,7 @@ void Json_writer::add_table_name(const TABLE *table)
 
 void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab)
 {
+  DBUG_ASSERT(thd->trace_started());
   Json_writer_object table_records(thd);
   table_records.add_table_name(tab);
   Json_writer_object table_rec(thd, "table_scan");
@@ -655,6 +654,8 @@ void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab)
 void trace_plan_prefix(JOIN *join, uint idx, table_map join_tables)
 {
   THD *const thd= join->thd;
+  DBUG_ASSERT(thd->trace_started());
+
   Json_writer_array plan_prefix(thd, "plan_prefix");
   for (uint i= 0; i < idx; i++)
   {
@@ -679,6 +680,8 @@ void trace_plan_prefix(JOIN *join, uint idx, table_map join_tables)
 
 void print_final_join_order(JOIN *join)
 {
+  DBUG_ASSERT(join->thd->trace_started());
+
   Json_writer_object join_order(join->thd);
   Json_writer_array  best_order(join->thd, "best_join_order");
   JOIN_TAB *j;
@@ -692,6 +695,8 @@ void print_final_join_order(JOIN *join)
 void print_best_access_for_table(THD *thd, POSITION *pos,
                                  enum join_type type)
 {
+  DBUG_ASSERT(thd->trace_started());
+
   Json_writer_object trace_best_access(thd, "chosen_access_method");
   trace_best_access.add("type", type == JT_ALL ? "scan" :
                                                  join_type_str[type]);

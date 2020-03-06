@@ -353,8 +353,10 @@ bool dbug_user_var_equals_int(THD *thd, const char *name, int value)
 static void trace_table_dependencies(THD *thd,
                                      JOIN_TAB *join_tabs, uint table_count)
 {
+  DBUG_ASSERT(thd->trace_started());
   Json_writer_object trace_wrapper(thd);
   Json_writer_array trace_dep(thd, "table_dependencies");
+
   for (uint i= 0; i < table_count; i++)
   {
     TABLE_LIST *table_ref= join_tabs[i].tab_list;
@@ -1469,6 +1471,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
     }
   }
 
+  if (thd->trace_started())
   {
     Json_writer_object trace_wrapper(thd);
     opt_trace_print_expanded_query(thd, select_lex, &trace_wrapper);
@@ -5352,6 +5355,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   {
     Json_writer_object rows_estimation_wrapper(thd);
     Json_writer_array rows_estimation(thd, "rows_estimation");
+
     for (s=stat ; s < stat_end ; s++)
     {
       s->startup_cost= 0;
@@ -5496,10 +5500,16 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         if (select)
           delete select;
         else
-          add_table_scan_values_to_trace(thd, s);
+        {
+          if (thd->trace_started())
+            add_table_scan_values_to_trace(thd, s);
+        }
       }
       else
-        add_table_scan_values_to_trace(thd, s);
+      {
+        if (thd->trace_started())
+          add_table_scan_values_to_trace(thd, s);
+      }
     }
   }
 
@@ -7402,7 +7412,7 @@ best_access_path(JOIN      *join,
 
       Json_writer_object trace_access_idx(thd);
       /*
-        ft-keys require special treatment
+        full text keys require special treatment
       */
       if (ft_key)
       {
@@ -7414,7 +7424,7 @@ best_access_path(JOIN      *join,
         records= 1.0;
         type= JT_FT;
         trace_access_idx.add("access_type", join_type_str[type])
-                        .add("index", keyinfo->name);
+                        .add("full-text index", keyinfo->name);
       }
       else
       {
@@ -11866,18 +11876,21 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         i++;
     }
 
-    trace_attached_comp.end();
-    Json_writer_array trace_attached_summary(thd,
-                                           "attached_conditions_summary");
-    for (tab= first_depth_first_tab(join); tab;
-          tab= next_depth_first_tab(join, tab))
+    if (unlikely(thd->trace_started()))
     {
-      if (!tab->table)
-       continue;
-      Item *const cond = tab->select_cond;
-      Json_writer_object trace_one_table(thd);
-      trace_one_table.add_table_name(tab);
-      trace_one_table.add("attached", cond);
+      trace_attached_comp.end();
+      Json_writer_array trace_attached_summary(thd,
+                                               "attached_conditions_summary");
+      for (tab= first_depth_first_tab(join); tab;
+           tab= next_depth_first_tab(join, tab))
+      {
+        if (!tab->table)
+          continue;
+        Item *const cond = tab->select_cond;
+        Json_writer_object trace_one_table(thd);
+        trace_one_table.add_table_name(tab);
+        trace_one_table.add("attached", cond);
+      }
     }
   }
   DBUG_RETURN(0);

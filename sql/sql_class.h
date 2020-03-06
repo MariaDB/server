@@ -3274,7 +3274,10 @@ public:
   void reset_for_reuse();
   bool store_globals();
   void reset_globals();
-  bool trace_started();
+  bool trace_started()
+  {
+    return opt_trace.is_started();
+  }
 #ifdef SIGNAL_WITH_VIO_CLOSE
   inline void set_active_vio(Vio* vio)
   {
@@ -5003,6 +5006,7 @@ public:
   Item *sp_fix_func_item(Item **it_addr);
   Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
+
 };
 
 /** A short cut for thd->get_stmt_da()->set_ok_status(). */

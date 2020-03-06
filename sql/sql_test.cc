@@ -658,9 +658,12 @@ Memory allocated by threads:             %s\n",
 
 void print_keyuse_array_for_trace(THD *thd, DYNAMIC_ARRAY *keyuse_array)
 {
+  DBUG_ASSERT(thd->trace_started());
+
   Json_writer_object wrapper(thd);
   Json_writer_array trace_key_uses(thd, "ref_optimizer_key_uses");
-  for(uint i=0; i < keyuse_array->elements; i++)
+
+  for (uint i=0; i < keyuse_array->elements; i++)
   {
     KEYUSE *keyuse= (KEYUSE*)dynamic_array_ptr(keyuse_array, i);
     Json_writer_object keyuse_elem(thd);

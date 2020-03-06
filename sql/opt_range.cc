@@ -2258,6 +2258,7 @@ public:
 void TRP_RANGE::trace_basic_info(PARAM *param,
                                  Json_writer_object *trace_object) const
 {
+  DBUG_ASSERT(trace_object->trace_started());
   DBUG_ASSERT(param->using_real_indexes);
   const uint keynr_in_table= param->real_keynr[key_idx];
 
@@ -2322,6 +2323,7 @@ void TRP_ROR_UNION::trace_basic_info(PARAM *param,
                                      Json_writer_object *trace_object) const
 {
   THD *thd= param->thd;
+  DBUG_ASSERT(trace_object->trace_started());
   trace_object->add("type", "index_roworder_union");
   Json_writer_array smth_trace(thd, "union_of");
   for (TABLE_READ_PLAN **current= first_ror; current != last_ror; current++)
@@ -2357,6 +2359,7 @@ void TRP_INDEX_INTERSECT::trace_basic_info(PARAM *param,
                                        Json_writer_object *trace_object) const
 {
   THD *thd= param->thd;
+  DBUG_ASSERT(trace_object->trace_started());
   trace_object->add("type", "index_sort_intersect");
   Json_writer_array smth_trace(thd, "index_sort_intersect_of");
   for (TRP_RANGE **current= range_scans; current != range_scans_end;
@@ -2390,6 +2393,7 @@ void TRP_INDEX_MERGE::trace_basic_info(PARAM *param,
                                        Json_writer_object *trace_object) const
 {
   THD *thd= param->thd;
+  DBUG_ASSERT(trace_object->trace_started());
   trace_object->add("type", "index_merge");
   Json_writer_array smth_trace(thd, "index_merge_of");
   for (TRP_RANGE **current= range_scans; current != range_scans_end; current++)
@@ -2458,6 +2462,8 @@ void TRP_GROUP_MIN_MAX::trace_basic_info(PARAM *param,
                                 Json_writer_object *trace_object) const
 {
   THD *thd= param->thd;
+  DBUG_ASSERT(trace_object->trace_started());
+
   trace_object->add("type", "index_group").add("index", index_info->name);
 
   if (min_max_arg_part)
@@ -2833,7 +2839,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     {
       {
         Json_writer_array trace_range_summary(thd,
-                                           "setup_range_conditions");
+                                              "setup_range_conditions");
         tree= cond->get_mm_tree(&param, &cond);
       }
       if (tree)
@@ -5596,6 +5602,8 @@ ha_rows get_table_cardinality_for_index_intersect(TABLE *table)
 static
 void print_keyparts(THD *thd, KEY *key, uint key_parts)
 {
+  DBUG_ASSERT(thd->trace_started());
+
   KEY_PART_INFO *part= key->key_part;
   Json_writer_array keyparts= Json_writer_array(thd, "keyparts");
   for(uint i= 0; i < key_parts; i++, part++)
@@ -6385,6 +6393,8 @@ void TRP_ROR_INTERSECT::trace_basic_info(PARAM *param,
                                          Json_writer_object *trace_object) const
 {
   THD *thd= param->thd;
+  DBUG_ASSERT(trace_object->trace_started());
+
   trace_object->add("type", "index_roworder_intersect");
   trace_object->add("rows", records);
   trace_object->add("cost", read_cost);
@@ -7424,10 +7434,12 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       {
         trace_idx.add("chosen", false);
         if (found_records == HA_POS_ERROR)
+        {
           if (key->type == SEL_ARG::Type::MAYBE_KEY)
             trace_idx.add("cause", "depends on unread values");
           else
             trace_idx.add("cause", "unknown");
+        }
         else
           trace_idx.add("cause", "cost");
       }
@@ -15829,6 +15841,7 @@ static void trace_ranges(Json_writer_array *range_trace,
                          sel_arg_range_seq_next, 0, 0};
   KEY *keyinfo= param->table->key_info + param->real_keynr[idx];
   uint n_key_parts= param->table->actual_n_key_parts(keyinfo);
+  DBUG_ASSERT(range_trace->trace_started());
   seq.keyno= idx;
   seq.real_keyno= param->real_keynr[idx];
   seq.param= param;
