@@ -1,5 +1,5 @@
 #*****************************************************************************
-# Copyright (c) 2020, MariaDB Corporation.
+# Copyright (c) 2019, 2020, MariaDB Corporation.
 #****************************************************************************/
 
 SET(XPAND_SOURCES ha_xpand.cc xpand_connection.cc ha_xpand_pushdown.cc)
