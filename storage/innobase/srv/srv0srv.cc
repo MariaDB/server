@@ -214,7 +214,7 @@ ulong	srv_n_page_hash_locks = 16;
 ulong	srv_LRU_scan_depth;
 /** innodb_flush_neighbors; whether or not to flush neighbors of a block */
 ulong	srv_flush_neighbors;
-/** Previously requested size */
+/** Previously requested size. Accesses protected by memory barriers. */
 ulint	srv_buf_pool_old_size;
 /** Current size as scaling factor for the other components */
 ulint	srv_buf_pool_base_size;

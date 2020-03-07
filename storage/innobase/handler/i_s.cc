@@ -1608,18 +1608,20 @@ static ST_FIELD_INFO	i_s_cmpmem_fields_info[] =
 };
 } // namespace Show
 
-/*******************************************************************//**
-Fill the dynamic table information_schema.innodb_cmpmem or
+/** Fill the dynamic table information_schema.innodb_cmpmem or
 innodb_cmpmem_reset.
+@param[in]	thd	thread
+@param[in,out]	tables	tables to fill
+@param[in]	item	condition (ignored)
+@param[in]	reset	TRUE=reset cumulated counts
 @return 0 on success, 1 on failure */
 static
 int
 i_s_cmpmem_fill_low(
-/*================*/
-	THD*		thd,	/*!< in: thread */
-	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
-	Item*		,	/*!< in: condition (ignored) */
-	ibool		reset)	/*!< in: TRUE=reset cumulated counts */
+	THD*		thd,
+	TABLE_LIST*	tables,
+	Item*		item,
+	ibool		reset)
 {
 	TABLE*	table	= (TABLE*) tables->table;
 
@@ -1636,8 +1638,9 @@ i_s_cmpmem_fill_low(
 	ulint			zip_free_len_local[BUF_BUDDY_SIZES_MAX + 1];
 	buf_buddy_stat_t	buddy_stat_local[BUF_BUDDY_SIZES_MAX + 1];
 
+	mutex_enter(&buf_pool->zip_free_mutex);
+
 	/* Save buddy stats for buffer pool in local variables. */
-	mutex_enter(&buf_pool->mutex);
 
 	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
 		zip_free_len_local[x] = (x < BUF_BUDDY_SIZES) ?
@@ -1646,13 +1649,13 @@ i_s_cmpmem_fill_low(
 		buddy_stat_local[x] = buf_pool->buddy_stat[x];
 
 		if (reset) {
-			/* This is protected by buf_pool->mutex. */
+			/* This is protected by buf_pool->zip_free_mutex. */
 			buf_pool->buddy_stat[x].relocated = 0;
 			buf_pool->buddy_stat[x].relocated_usec = 0;
 		}
 	}
 
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool->zip_free_mutex);
 
 	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
 		buf_buddy_stat_t* buddy_stat = &buddy_stat_local[x];
@@ -4158,7 +4161,11 @@ i_s_innodb_buffer_page_get_info(
 					out: structure filled with scanned
 					info */
 {
+	BPageMutex*	mutex = buf_page_get_mutex(bpage);
+
 	page_info->block_id = pos;
+
+	mutex_enter(mutex);
 
 	page_info->page_state = buf_page_get_state(bpage);
 
@@ -4196,6 +4203,7 @@ i_s_innodb_buffer_page_get_info(
 		case BUF_IO_READ:
 			page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
 			page_info->newest_mod = 0;
+			mutex_exit(mutex);
 			return;
 		}
 
@@ -4221,6 +4229,8 @@ i_s_innodb_buffer_page_get_info(
 	} else {
 		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
 	}
+
+	mutex_exit(mutex);
 }
 
 /*******************************************************************//**
@@ -4271,15 +4281,9 @@ static int i_s_innodb_buffer_page_fill(THD *thd, TABLE_LIST *tables, Item *)
 
 			/* For each chunk, we'll pre-allocate information
 			structures to cache the page information read from
-			the buffer pool. Doing so before obtain any mutex */
+			the buffer pool */
 			info_buffer = (buf_page_info_t*) mem_heap_zalloc(
 				heap, mem_size);
-
-			/* Obtain appropriate mutexes. Since this is diagnostic
-			buffer pool info printout, we are not required to
-			preserve the overall consistency, so we can
-			release mutex periodically */
-			mutex_enter(&buf_pool->mutex);
 
 			/* GO through each block in the chunk */
 			for (n_blocks = num_to_process; n_blocks--; block++) {
@@ -4289,8 +4293,6 @@ static int i_s_innodb_buffer_page_fill(THD *thd, TABLE_LIST *tables, Item *)
 				block_id++;
 				num_page++;
 			}
-
-			mutex_exit(&buf_pool->mutex);
 
 			/* Fill in information schema table with information
 			just collected from the buffer chunk scan */
@@ -4592,9 +4594,12 @@ i_s_innodb_buf_page_lru_fill(
 	DBUG_RETURN(0);
 }
 
-/** Fill the table INFORMATION_SCHEMA.INNODB_BUFFER_PAGE_LRU.
+/** This is the function that goes through buffer pool's LRU list
+@param[in,out]	tables		tables to fill
 @param[in]	thd		thread
 @param[in,out]	tables		tables to fill
+@param[in]	buf_pool	buffer pool to scan
+@param[in]	pool_id		buffer pool id
 @return 0 on success, 1 on failure */
 static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 {
@@ -4615,7 +4620,7 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 
 	/* Aquire the mutex before allocating info_buffer, since
 	UT_LIST_GET_LEN(buf_pool->LRU) could change */
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool->LRU_list_mutex);
 
 	lru_len = UT_LIST_GET_LEN(buf_pool->LRU);
 
@@ -4653,7 +4658,7 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 	ut_ad(lru_pos == UT_LIST_GET_LEN(buf_pool->LRU));
 
 exit:
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool->LRU_list_mutex);
 
 	if (info_buffer) {
 		status = i_s_innodb_buf_page_lru_fill(

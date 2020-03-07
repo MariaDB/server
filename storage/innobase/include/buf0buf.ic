@@ -88,7 +88,7 @@ buf_page_get_freed_page_clock(
 /*==========================*/
 	const buf_page_t*	bpage)	/*!< in: block */
 {
-	/* This is sometimes read without holding buf_pool->mutex. */
+	/* This is sometimes read without holding any buffer pool mutex. */
 	return(bpage->freed_page_clock);
 }
 
@@ -105,13 +105,15 @@ buf_block_get_freed_page_clock(
 }
 
 /** Determine if a block is still close enough to the MRU end of the LRU list
-meaning that it is not in danger of getting evicted and also implying
-that it has been accessed recently.
-The page must be either buffer-fixed, or its page hash must be locked.
-@param[in]	bpage		buffer pool page
+implying that it has been accessed recently.
+The page must be either buffer-fixed, either its page hash must be locked.
+@param[in]	bpage	block
 @return whether bpage is close to MRU end of LRU */
 inline bool buf_page_peek_if_young(const buf_page_t *bpage)
 {
+	ut_ad(bpage->buf_fix_count > 0
+	      || buf_page_hash_lock_held_s_or_x(bpage));
+
 	/* FIXME: bpage->freed_page_clock is 31 bits */
 	return((buf_pool->freed_page_clock & ((1UL << 31) - 1))
 	       < (bpage->freed_page_clock
@@ -194,14 +196,38 @@ buf_block_get_state(
 	return(buf_page_get_state(&block->page));
 }
 
-/*********************************************************************//**
-Sets the state of a block. */
+#ifdef UNIV_DEBUG
+/** Assert that a given buffer pool page is private to the caller: no pointers
+to it exist in any buffer pool list or hash table. Accessing pages by iterating
+over buffer pool chunks is not considered here. Furthermore, assert that no
+buffer pool locks except for LRU list mutex and page hash are held.
+@param[in]	bpage	pointer to a buffer pool page */
+UNIV_INLINE
+bool
+buf_page_is_private(
+	const buf_page_t* bpage)
+{
+	ut_a(!bpage->in_page_hash);
+	ut_a(!bpage->in_zip_hash);
+	ut_a(!bpage->in_flush_list);
+	ut_a(!bpage->in_free_list);
+	ut_a(!bpage->in_LRU_list);
+	ut_a(!mutex_own(buf_page_get_mutex(bpage)));
+	ut_a(!mutex_own(&buf_pool->free_list_mutex));
+	ut_a(!mutex_own(&buf_pool->zip_free_mutex));
+	ut_a(!mutex_own(&buf_pool->zip_hash_mutex));
+	return(true);
+}
+#endif
+
+/** Sets the state of a block.
+@param[in,out]	bpage	pointer to control block
+@param[in]	state	state */
 UNIV_INLINE
 void
 buf_page_set_state(
-/*===============*/
-	buf_page_t*		bpage,	/*!< in/out: pointer to control block */
-	enum buf_page_state	state)	/*!< in: state */
+	buf_page_t*		bpage,
+	enum buf_page_state	state)
 {
 #ifdef UNIV_DEBUG
 	enum buf_page_state	old_state	= buf_page_get_state(bpage);
@@ -215,17 +241,23 @@ buf_page_set_state(
 		break;
 	case BUF_BLOCK_ZIP_DIRTY:
 		ut_ad(state == BUF_BLOCK_ZIP_PAGE);
+		ut_a(mutex_own(buf_page_get_mutex(bpage)));
+		ut_a(mutex_own(&buf_pool->flush_list_mutex));
+		ut_a(bpage->in_flush_list);
 		break;
 	case BUF_BLOCK_NOT_USED:
 		ut_ad(state == BUF_BLOCK_READY_FOR_USE);
+		ut_a(buf_page_is_private(bpage));
 		break;
 	case BUF_BLOCK_READY_FOR_USE:
 		ut_ad(state == BUF_BLOCK_MEMORY
 		      || state == BUF_BLOCK_FILE_PAGE
 		      || state == BUF_BLOCK_NOT_USED);
+		ut_a(buf_page_is_private(bpage));
 		break;
 	case BUF_BLOCK_MEMORY:
 		ut_ad(state == BUF_BLOCK_NOT_USED);
+		ut_a(buf_page_is_private(bpage));
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		ut_ad(state == BUF_BLOCK_NOT_USED
@@ -237,6 +269,8 @@ buf_page_set_state(
 			ut_ad(!bpage->in_LRU_list);
 			ut_ad(!bpage->in_free_list);
 		}
+		ut_a(buf_page_hash_lock_held_x(bpage));
+
 		break;
 	case BUF_BLOCK_REMOVE_HASH:
 		ut_ad(state == BUF_BLOCK_MEMORY);
@@ -380,6 +414,20 @@ buf_page_get_io_fix(
 /*================*/
 	const buf_page_t*	bpage)	/*!< in: pointer to the control block */
 {
+	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
+	return buf_page_get_io_fix_unlocked(bpage);
+}
+
+/** Gets the io_fix state of a buffer page. Does not assert that the
+buf_page_get_mutex() mutex is held, to be used in the cases where it is safe
+not to hold it.
+@param[in]	bpage	pointer to the buffer page
+@return page io_fix state */
+UNIV_INLINE
+enum buf_io_fix
+buf_page_get_io_fix_unlocked(
+	const buf_page_t*	bpage)
+{
 	ut_ad(bpage != NULL);
 
 	enum buf_io_fix	io_fix	= bpage->io_fix;
@@ -409,6 +457,19 @@ buf_block_get_io_fix(
 	return(buf_page_get_io_fix(&block->page));
 }
 
+/** Gets the io_fix state of a buffer block. Does not assert that the
+buf_page_get_mutex() mutex is held, to be used in the cases where it is safe
+not to hold it.
+@param[in]	block	pointer to the buffer block
+@return page io_fix state */
+UNIV_INLINE
+enum buf_io_fix
+buf_block_get_io_fix_unlocked(
+	const buf_block_t*	block)
+{
+	return(buf_page_get_io_fix_unlocked(&block->page));
+}
+
 /*********************************************************************//**
 Sets the io_fix state of a block. */
 UNIV_INLINE
@@ -418,7 +479,6 @@ buf_page_set_io_fix(
 	buf_page_t*	bpage,	/*!< in/out: control block */
 	enum buf_io_fix	io_fix)	/*!< in: io_fix state */
 {
-	ut_ad(mutex_own(&buf_pool->mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 
 	bpage->io_fix = io_fix;
@@ -437,24 +497,26 @@ buf_block_set_io_fix(
 	buf_page_set_io_fix(&block->page, io_fix);
 }
 
-/*********************************************************************//**
-Makes a block sticky. A sticky block implies that even after we release
-the buf_pool->mutex and the block->mutex:
+/** Makes a block sticky. A sticky block implies that even after we release
+the buf_pool->LRU_list_mutex and the block->mutex:
 * it cannot be removed from the flush_list
 * the block descriptor cannot be relocated
 * it cannot be removed from the LRU list
 Note that:
 * the block can still change its position in the LRU list
-* the next and previous pointers can change. */
+* the next and previous pointers can change.
+@param[in,out]	bpage	control block */
 UNIV_INLINE
 void
 buf_page_set_sticky(
-/*================*/
-	buf_page_t*	bpage)	/*!< in/out: control block */
+	buf_page_t*	bpage)
 {
-	ut_ad(mutex_own(&buf_pool->mutex));
+
+	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_NONE);
+	ut_ad(bpage->in_LRU_list);
 
 	bpage->io_fix = BUF_IO_PIN;
 }
@@ -467,7 +529,6 @@ buf_page_unset_sticky(
 /*==================*/
 	buf_page_t*	bpage)	/*!< in/out: control block */
 {
-	ut_ad(mutex_own(&buf_pool->mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_PIN);
 
@@ -483,7 +544,6 @@ buf_page_can_relocate(
 /*==================*/
 	const buf_page_t*	bpage)	/*!< control block being relocated */
 {
-	ut_ad(mutex_own(&buf_pool->mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(buf_page_in_file(bpage));
 	ut_ad(bpage->in_LRU_list);
@@ -492,36 +552,36 @@ buf_page_can_relocate(
 	       && bpage->buf_fix_count == 0);
 }
 
-/*********************************************************************//**
-Determine if a block has been flagged old.
+/** Determine if a block has been flagged old.
+@param[in]	bpage	control block
 @return TRUE if old */
 UNIV_INLINE
 ibool
 buf_page_is_old(
-/*============*/
-	const buf_page_t*	bpage)	/*!< in: control block */
+	const buf_page_t*	bpage)
 {
+
 	/* Buffer page mutex is not strictly required here for heuristic
-	purposes even if LRU mutex is not being held. Keep the assertion
-	for not since all the callers hold it. */
+	purposes even if LRU mutex is not being held.  Keep the assertion
+	for now since all the callers hold it.  */
 	ut_ad(mutex_own(buf_page_get_mutex(bpage))
-	      || mutex_own(&buf_pool->mutex));
+	      || mutex_own(&buf_pool->LRU_list_mutex));
 	ut_ad(buf_page_in_file(bpage));
 
 	return(bpage->old);
 }
 
-/*********************************************************************//**
-Flag a block old. */
+/** Flag a block old.
+@param[in]	bpage	control block
+@param[in]	old	old */
 UNIV_INLINE
 void
 buf_page_set_old(
-/*=============*/
-	buf_page_t*	bpage,	/*!< in/out: control block */
-	bool		old)	/*!< in: old */
+	buf_page_t*	bpage,
+	bool		old)
 {
 	ut_a(buf_page_in_file(bpage));
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 	ut_ad(bpage->in_LRU_list);
 
 #ifdef UNIV_LRU_DEBUG
@@ -566,7 +626,7 @@ buf_page_set_accessed(
 /*==================*/
 	buf_page_t*	bpage)		/*!< in/out: control block */
 {
-	ut_ad(!mutex_own(&buf_pool->mutex));
+	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_a(buf_page_in_file(bpage));
 
@@ -576,19 +636,23 @@ buf_page_set_accessed(
 	}
 }
 
-/*********************************************************************//**
-Gets the buf_block_t handle of a buffered file block if an uncompressed
-page frame exists, or NULL.
+/** Gets the buf_block_t handle of a buffered file block if an uncompressed
+page frame exists, or NULL. page frame exists, or NULL. The caller must hold
+either the appropriate hash lock in any mode, either the LRU list mutex. Note:
+even though bpage is not declared a const we don't update its value. It is safe
+to make this pure.
+@param[in]	bpage	control block, or NULL
 @return control block, or NULL */
 UNIV_INLINE
 buf_block_t*
 buf_page_get_block(
-/*===============*/
-	buf_page_t*	bpage)	/*!< in: control block, or NULL */
+	buf_page_t*	bpage)
 {
 	if (bpage != NULL) {
 		ut_ad(buf_page_hash_lock_held_s_or_x(bpage)
-		      || mutex_own(&buf_pool->mutex));
+		      || mutex_own(&buf_pool->LRU_list_mutex));
+		ut_ad(buf_page_hash_lock_held_s_or_x(bpage)
+		      || mutex_own(&buf_pool->LRU_list_mutex));
 		ut_ad(buf_page_in_file(bpage));
 
 		if (buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE) {
@@ -707,17 +771,10 @@ buf_block_free(
 /*===========*/
 	buf_block_t*	block)	/*!< in, own: block to be freed */
 {
-	mutex_enter(&buf_pool->mutex);
-
-	buf_page_mutex_enter(block);
 
 	ut_a(buf_block_get_state(block) != BUF_BLOCK_FILE_PAGE);
 
 	buf_LRU_block_free_non_file_page(block);
-
-	buf_page_mutex_exit(block);
-
-	mutex_exit(&buf_pool->mutex);
 }
 
 /********************************************************************//**
@@ -732,8 +789,8 @@ buf_block_modify_clock_inc(
 {
 	/* No latch is acquired for the shared temporary tablespace. */
 	ut_ad(fsp_is_system_temporary(block->page.id.space())
-	      || (mutex_own(&buf_pool->mutex)
-		  && block->page.buf_fix_count == 0)
+	      || block->page.buf_fix_count == 0
+		  && mutex_own(&buf_pool->LRU_list_mutex)
 	      || rw_lock_own_flagged(&block->lock,
 				     RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
 	assert_block_ahi_valid(block);
@@ -788,6 +845,7 @@ buf_block_buf_fix_inc_func(
 
 	block->fix();
 }
+
 
 /*******************************************************************//**
 Decrements the bufferfix count. */
@@ -882,12 +940,10 @@ buf_page_hash_get_locked(
 	if (mode == RW_LOCK_S) {
 		rw_lock_s_lock(hash_lock);
 
-		/* If not own buf_pool_mutex, page_hash can be changed. */
 		hash_lock = hash_lock_s_confirm(
 			hash_lock, buf_pool->page_hash, page_id.fold());
 	} else {
 		rw_lock_x_lock(hash_lock);
-		/* If not own buf_pool_mutex, page_hash can be changed. */
 		hash_lock = hash_lock_x_confirm(
 			hash_lock, buf_pool->page_hash, page_id.fold());
 	}
@@ -1059,16 +1115,14 @@ buf_block_dbg_add_level(
 }
 #endif /* UNIV_DEBUG */
 
-/********************************************************************//**
-Get buf frame. */
-UNIV_INLINE
-void *
+
+static inline void *
 buf_page_get_frame(
 /*===============*/
-	const buf_page_t*	bpage) /*!< in: buffer pool page */
-{
+	const buf_page_t*	bpage)/*!< in: buffer pool page */
 	/* In encryption/compression buffer pool page may contain extra
 	buffer where result is stored. */
+{
 	if (bpage->slot && bpage->slot->out_buf) {
 		return bpage->slot->out_buf;
 	} else if (bpage->zip.data) {
@@ -1107,4 +1161,23 @@ buf_pool_size_align(
 	} else {
 		return (ulint)((size / m + 1) * m);
 	}
+}
+
+/** Return how many more pages must be added to the withdraw list to reach the
+withdraw target of the currently ongoing buffer pool resize.
+@param[in]	buf_pool	buffer pool instance
+@return page count to be withdrawn or zero if the target is already achieved or
+if the buffer pool is not currently being resized. */
+UNIV_INLINE
+ulint
+buf_get_withdraw_depth(
+	buf_pool_t* buf_pool)
+{
+	if (buf_pool->curr_size >= buf_pool->old_size)
+		return 0;
+	mutex_enter(&buf_pool->free_list_mutex);
+	ulint withdraw_len = UT_LIST_GET_LEN(buf_pool->withdraw);
+	mutex_exit(&buf_pool->free_list_mutex);
+	return(buf_pool->withdraw_target > withdraw_len
+		? buf_pool->withdraw_target - withdraw_len : 0);
 }

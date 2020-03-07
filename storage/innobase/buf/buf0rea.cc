@@ -58,9 +58,11 @@ buf_read_page_handle_error(
 	const bool	uncompressed = (buf_page_get_state(bpage)
 					== BUF_BLOCK_FILE_PAGE);
 	const page_id_t	old_page_id = bpage->id;
+	rw_lock_t * hash_lock = buf_page_hash_lock_get(bpage->id);
 
 	/* First unfix and release lock on the bpage */
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool->LRU_list_mutex);
+	rw_lock_x_lock(hash_lock);
 	mutex_enter(buf_page_get_mutex(bpage));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_READ);
 
@@ -74,15 +76,16 @@ buf_read_page_handle_error(
 			BUF_IO_READ);
 	}
 
-	mutex_exit(buf_page_get_mutex(bpage));
-
-	/* remove the block from LRU list */
+	/* The hash lock and block mutex will be released during the "free" */
 	buf_LRU_free_one_page(bpage, old_page_id);
+
+	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X)
+		 && !rw_lock_own(hash_lock, RW_LOCK_S));
 
 	ut_ad(buf_pool->n_pend_reads > 0);
 	buf_pool->n_pend_reads--;
+	mutex_exit(&buf_pool->LRU_list_mutex);
 
-	mutex_exit(&buf_pool->mutex);
 }
 
 /** Low-level function which reads a page asynchronously from a file to the
@@ -153,6 +156,7 @@ buf_read_page_low(
 		 << " unzip=" << unzip << ',' << (sync ? "sync" : "async"));
 
 	ut_ad(buf_page_in_file(bpage));
+	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
 
 	if (sync) {
 		thd_wait_begin(NULL, THD_WAIT_DISKIO);
@@ -282,11 +286,8 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 		return(0);
 	}
 
-	mutex_enter(&buf_pool->mutex);
-
 	if (buf_pool->n_pend_reads
 	    > buf_pool->curr_size / BUF_READ_AHEAD_PEND_LIMIT) {
-		mutex_exit(&buf_pool->mutex);
 
 		return(0);
 	}
@@ -295,19 +296,23 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 	that is, reside near the start of the LRU list. */
 
 	for (i = low; i < high; i++) {
-		if (const buf_page_t* bpage = buf_page_hash_get(
-			    page_id_t(page_id.space(), i))) {
-			if (buf_page_is_accessed(bpage)
-			    && buf_page_peek_if_young(bpage)
-			    && ++recent_blocks
-			    >= 5 + buf_pool->read_ahead_area / 8) {
-				mutex_exit(&buf_pool->mutex);
+		rw_lock_t* hash_lock;
+		const buf_page_t* bpage;
+
+		bpage = buf_page_hash_get_s_locked(page_id_t(page_id.space(), i), &hash_lock);
+
+		if (bpage
+			&& buf_page_is_accessed(bpage)
+			&& buf_page_peek_if_young(bpage)
+			&& ++recent_blocks >= 5 + buf_pool->read_ahead_area / 8) {
+				rw_lock_s_unlock(hash_lock);
 				goto read_ahead;
-			}
+		}
+		if (bpage) {
+			rw_lock_s_unlock(hash_lock);
 		}
 	}
 
-	mutex_exit(&buf_pool->mutex);
 	/* Do nothing */
 	return(0);
 
@@ -378,14 +383,8 @@ dberr_t buf_read_page(const page_id_t page_id, ulint zip_size)
 	ulint		count;
 	dberr_t		err = DB_SUCCESS;
 
-	/* We do synchronous IO because our AIO completion code
-	is sub-optimal. See buf_page_io_complete(), we have to
-	acquire the buffer pool mutex before acquiring the block
-	mutex, required for updating the page state. The acquire
-	of the buffer pool mutex becomes an expensive bottleneck. */
-
 	count = buf_read_page_low(
-		&err, true, BUF_READ_ANY_PAGE, page_id, zip_size, false);
+		&err, false , BUF_READ_ANY_PAGE, page_id, zip_size, false);
 
 	srv_stats.buf_pool_reads.add(count);
 
@@ -480,6 +479,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 	buf_page_t*	bpage;
 	buf_frame_t*	frame;
 	buf_page_t*	pred_bpage	= NULL;
+	unsigned	pred_bpage_is_accessed = 0;
 	ulint		pred_offset;
 	ulint		succ_offset;
 	int		asc_or_desc;
@@ -539,11 +539,8 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 		return(0);
 	}
 
-	mutex_enter(&buf_pool->mutex);
-
 	if (buf_pool->n_pend_reads
 	    > buf_pool->curr_size / BUF_READ_AHEAD_PEND_LIMIT) {
-		mutex_exit(&buf_pool->mutex);
 
 		return(0);
 	}
@@ -565,8 +562,12 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 
 	fail_count = 0;
 
+	rw_lock_t*	hash_lock;
+
 	for (i = low; i < high; i++) {
-		bpage = buf_page_hash_get(page_id_t(page_id.space(), i));
+		bpage = buf_page_hash_get_s_locked(
+						   page_id_t(page_id.space(),
+							     i), &hash_lock);
 
 		if (bpage == NULL || !buf_page_is_accessed(bpage)) {
 			/* Not accessed */
@@ -583,7 +584,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 			a little against this. */
 			int res = ut_ulint_cmp(
 				buf_page_is_accessed(bpage),
-				buf_page_is_accessed(pred_bpage));
+				pred_bpage_is_accessed);
 			/* Accesses not in the right order */
 			if (res != 0 && res != asc_or_desc) {
 				fail_count++;
@@ -592,22 +593,29 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 
 		if (fail_count > threshold) {
 			/* Too many failures: return */
-			mutex_exit(&buf_pool->mutex);
+			if (bpage) {
+				rw_lock_s_unlock(hash_lock);
+			}
 			return(0);
 		}
 
-		if (bpage && buf_page_is_accessed(bpage)) {
-			pred_bpage = bpage;
+		if (bpage) {
+			if (buf_page_is_accessed(bpage)) {
+				pred_bpage = bpage;
+				pred_bpage_is_accessed
+					= buf_page_is_accessed(bpage);
+			}
+
+			rw_lock_s_unlock(hash_lock);
 		}
 	}
 
 	/* If we got this far, we know that enough pages in the area have
 	been accessed in the right order: linear read-ahead can be sensible */
 
-	bpage = buf_page_hash_get(page_id);
+	bpage = buf_page_hash_get_s_locked( page_id, &hash_lock);
 
 	if (bpage == NULL) {
-		mutex_exit(&buf_pool->mutex);
 
 		return(0);
 	}
@@ -633,7 +641,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 	pred_offset = fil_page_get_prev(frame);
 	succ_offset = fil_page_get_next(frame);
 
-	mutex_exit(&buf_pool->mutex);
+	rw_lock_s_unlock(hash_lock);
 
 	if ((page_id.page_no() == low)
 	    && (succ_offset == page_id.page_no() + 1)) {
