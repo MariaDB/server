@@ -2168,7 +2168,6 @@ extern "C" void* pfs_spawn_thread(void *arg)
     pfs= create_thread(klass, typed_arg->m_child_identity, 0);
     if (likely(pfs != NULL))
     {
-      pfs->m_thread_os_id= my_thread_os_id();
       clear_thread_account(pfs);
 
       pfs->m_parent_thread_internal_id= typed_arg->m_thread_internal_id;
@@ -2267,7 +2266,15 @@ pfs_new_thread_v1(PSI_thread_key key, const void *identity, ulonglong processlis
 
   PFS_thread_class *klass= find_thread_class(key);
   if (likely(klass != NULL))
+  {
     pfs= create_thread(klass, identity, processlist_id);
+    if (pfs != NULL)
+    {
+      PFS_thread *parent= my_thread_get_THR_PFS();
+      if (parent != NULL)
+        pfs->m_parent_thread_internal_id= parent->m_parent_thread_internal_id;
+    }
+  }
   else
     pfs= NULL;
 

@@ -12,6 +12,7 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 --source include/no_protocol.inc
+--source include/maybe_pool_of_threads.inc
 
 --enable_connect_log
 

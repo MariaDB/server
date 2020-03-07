@@ -11,6 +11,8 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 --source include/no_protocol.inc
+--source include/maybe_pool_of_threads.inc
+
 --disable_query_log
 --source ../include/transaction_setup.inc
 --enable_query_log
