@@ -1467,10 +1467,13 @@ static int xpand_discover_table_names(handlerton *hton, LEX_CSTRING *db,
 {
   xpand_connection *xpand_net = new xpand_connection();
   int error_code = xpand_net->connect();
-  if (error_code)
+  if (error_code) {
+    if (error_code == HA_ERR_NO_CONNECTION)
+      error_code = 0;
     goto err;
+  }
 
-  xpand_net->populate_table_list(db, result);
+  error_code = xpand_net->populate_table_list(db, result);
 
 err:
   delete xpand_net;
@@ -1481,8 +1484,11 @@ int xpand_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 {
   xpand_connection *xpand_net = new xpand_connection();
   int error_code = xpand_net->connect();
-  if (error_code)
+  if (error_code) {
+    if (error_code == HA_ERR_NO_CONNECTION)
+      error_code = HA_ERR_NO_SUCH_TABLE;
     goto err;
+  }
 
   error_code = xpand_net->discover_table_details(&share->db, &share->table_name,
                                                  thd, share);
