@@ -743,7 +743,7 @@ void recv_sys_t::read(os_offset_t total_offset, span<byte> buf)
   ut_a(err == DB_SUCCESS);
 }
 
-size_t recv_sys_t::files_size()
+inline size_t recv_sys_t::files_size()
 {
   open_log_files_if_needed();
   return files.size();
@@ -1439,7 +1439,6 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
     log_sys.last_checkpoint_lsn= log_sys.next_checkpoint_lsn=
       log_sys.write_lsn= log_sys.current_flush_lsn= lsn;
     log_sys.next_checkpoint_no= 0;
-    recv_sys.remove_extra_log_files= true;
     return DB_SUCCESS;
   }
 
@@ -1527,7 +1526,6 @@ static dberr_t recv_log_recover_10_4()
 	log_sys.last_checkpoint_lsn = log_sys.next_checkpoint_lsn
 		= log_sys.write_lsn = log_sys.current_flush_lsn = lsn;
 	log_sys.next_checkpoint_no = 0;
-	recv_sys.remove_extra_log_files = true;
 	return DB_SUCCESS;
 }
 

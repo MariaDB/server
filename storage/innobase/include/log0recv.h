@@ -296,17 +296,13 @@ struct recv_sys_t
   /** Last added LSN to pages. */
   lsn_t last_stored_lsn= 0;
 
-  /** After successful upgrade from multiple redo log files we'd like
-  to remove extra ones */
-  bool remove_extra_log_files{false};
-
   void read(os_offset_t offset, span<byte> buf);
-  size_t files_size();
+  inline size_t files_size();
   void close_files() { files.clear(); }
 
 private:
-  /** All found log files (more that one is possible if we're upgrading
-  from older MariaDB version */
+  /** All found log files (multiple ones are possible if we are upgrading
+  from before MariaDB Server 10.5.1) */
   std::vector<log_file_t> files;
 
   void open_log_files_if_needed();

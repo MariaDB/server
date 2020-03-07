@@ -265,8 +265,9 @@ static dberr_t create_log_file(lsn_t lsn, std::string& logfile0)
 	DBUG_EXECUTE_IF("innodb_log_abort_6", delete_log_file("0");
 			return DB_ERROR;);
 
-	delete_log_file("0");
-	delete_log_file(INIT_LOG_FILE0);
+	for (size_t i = 0; i < 102; i++) {
+		delete_log_file(std::to_string(i).c_str());
+	}
 
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_6"));
 	ut_ad(!buf_pool_check_no_pending_io());
@@ -1031,8 +1032,8 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 
 		if (flushed_lsn != log_sys.get_flushed_lsn()) {
 			log_write_up_to(flushed_lsn, false);
+			log_sys.log.flush_data_only();
 		}
-		log_sys.log.flush_data_only();
 
 		ut_ad(flushed_lsn == log_get_lsn());
 
@@ -1527,15 +1528,6 @@ file_checked:
 
 		err = recv_recovery_from_checkpoint_start(flushed_lsn);
 		recv_sys.close_files();
-
-		if (recv_sys.remove_extra_log_files) {
-			auto log_files_found = recv_sys.files_size();
-			recv_sys.close_files();
-			for (size_t i = 1; i < log_files_found; i++) {
-				delete_log_file(std::to_string(i).c_str());
-			}
-			recv_sys.remove_extra_log_files = false;
-		}
 
 		recv_sys.dblwr.pages.clear();
 
