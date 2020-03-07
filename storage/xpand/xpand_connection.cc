@@ -429,8 +429,11 @@ int xpand_connection::write_row(ulonglong xpand_table_oid, uchar *packed_row,
   if ((error_code = send_command()))
     return error_code;
 
-  if ((error_code = read_query_response()))
+  if ((error_code = read_query_response())) {
+    if (error_code == ER_DUP_ENTRY)
+      return HA_ERR_FOUND_DUPP_KEY;
     return error_code;
+  }
 
   *last_insert_id = xpand_net.insert_id;
   return error_code;
