@@ -1193,7 +1193,7 @@ err:
 
 int ha_xpand::rnd_end()
 {
-  DBUG_ENTER("ha_xpand::rnd_end()");
+  DBUG_ENTER("ha_xpand::rnd_end");
   int error_code = 0;
   THD *thd = ha_thd();
   if (thd->lex->sql_command == SQLCOM_UPDATE)
@@ -1465,6 +1465,7 @@ static int xpand_discover_table_names(handlerton *hton, LEX_CSTRING *db,
                                       MY_DIR *dir,
                                       handlerton::discovered_list *result)
 {
+  DBUG_ENTER("xpand_discover_table_names");
   xpand_connection *xpand_net = new xpand_connection();
   int error_code = xpand_net->connect();
   if (error_code) {
@@ -1477,11 +1478,12 @@ static int xpand_discover_table_names(handlerton *hton, LEX_CSTRING *db,
 
 err:
   delete xpand_net;
-  return error_code;
+  DBUG_RETURN(error_code);
 }
 
 int xpand_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 {
+  DBUG_ENTER("xpand_discover_table");
   xpand_connection *xpand_net = new xpand_connection();
   int error_code = xpand_net->connect();
   if (error_code) {
@@ -1495,7 +1497,7 @@ int xpand_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 
 err:
   delete xpand_net;
-  return error_code;
+  DBUG_RETURN(error_code);
 }
 
 static int xpand_init(void *p)
