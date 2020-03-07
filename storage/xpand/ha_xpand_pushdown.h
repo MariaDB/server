@@ -49,10 +49,10 @@ public:
                           xpand_connection_cursor *scan);
   ~ha_xpand_select_handler();
 
-  int init_scan();
-  int next_row();
-  int end_scan();
-  void print_error(int, unsigned long) {}
+  int init_scan() override;
+  int next_row() override;
+  int end_scan() override;
+  void print_error(int, unsigned long) override {}
 };
 
 /*@brief derived_handler class*/
@@ -72,10 +72,10 @@ public:
                            xpand_connection_cursor *scan);
   ~ha_xpand_derived_handler();
 
-  int init_scan();
-  int next_row();
-  int end_scan();
-  void print_error(int, unsigned long) {}
+  int init_scan() override;
+  int next_row() override;
+  int end_scan() override;
+  void print_error(int, unsigned long) override {}
 };
 
 select_handler *create_xpand_select_handler(THD* thd, SELECT_LEX* select_lex);
