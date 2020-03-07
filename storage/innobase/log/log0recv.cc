@@ -902,11 +902,11 @@ void recv_sys_t::close()
 		}
 
 		if (buf) {
-			ut_free_dodump(buf, buf_size);
+			ut_free_dodump(buf, RECV_PARSING_BUF_SIZE);
 			buf = NULL;
 		}
 
-		buf_size = 0;
+		last_stored_lsn = 0;
 		mutex_free(&writer_mutex);
 		mutex_free(&mutex);
 	}
@@ -1009,7 +1009,6 @@ void recv_sys_t::create()
 
 	max_log_blocks = buf_pool_get_n_pages() / 3;
 	buf = static_cast<byte*>(ut_malloc_dontdump(RECV_PARSING_BUF_SIZE));
-	buf_size = RECV_PARSING_BUF_SIZE;
 	len = 0;
 	parse_start_lsn = 0;
 	scanned_lsn = 0;
@@ -1024,7 +1023,7 @@ void recv_sys_t::create()
 	recv_max_page_lsn = 0;
 
 	memset(truncated_undo_spaces, 0, sizeof truncated_undo_spaces);
-	last_stored_lsn = 0;
+	last_stored_lsn = 1;
 	UT_LIST_INIT(blocks, &buf_block_t::unzip_LRU);
 }
 
@@ -1055,7 +1054,7 @@ void recv_sys_t::debug_free()
 	mutex_enter(&mutex);
 
 	pages.clear();
-	ut_free_dodump(buf, buf_size);
+	ut_free_dodump(buf, RECV_PARSING_BUF_SIZE);
 
 	buf = NULL;
 
