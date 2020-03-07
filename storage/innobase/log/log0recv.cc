@@ -1320,15 +1320,32 @@ static bool redo_file_sizes_are_correct()
   return false;
 }
 
+/** Calculate the checksum for a log block using the pre-10.2.2 algorithm. */
+inline uint32_t log_block_calc_checksum_format_0(const byte *b)
+{
+  uint32_t sum= 1;
+  const byte *const end= &b[512 - 4];
+
+  for (uint32_t sh= 0; b < end; )
+  {
+    sum&= 0x7FFFFFFFUL;
+    sum+= uint32_t{*b} << sh++;
+    sum+= *b++;
+    if (sh > 24)
+      sh= 0;
+  }
+
+  return sum;
+}
+
 /** Determine if a redo log from before MariaDB 10.2.2 is clean.
 @return error code
 @retval DB_SUCCESS      if the redo log is clean
 @retval DB_CORRUPTION   if the redo log is corrupted
 @retval DB_ERROR        if the redo log is not empty */
-static dberr_t recv_log_recover_pre_10_2()
+ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
 {
   uint64_t max_no= 0;
-  uint64_t checkpoint_no;
   byte *buf= log_sys.buf;
 
   ut_ad(log_sys.log.format == 0);
@@ -1364,17 +1381,17 @@ static dberr_t recv_log_recover_pre_10_2()
        continue;
      }
 
-    checkpoint_no = mach_read_from_8(buf + LOG_CHECKPOINT_NO);
-
     if (!log_crypt_101_read_checkpoint(buf))
     {
       ib::error() << "Decrypting checkpoint failed";
       continue;
     }
 
+    const uint64_t checkpoint_no= mach_read_from_8(buf);
+
     DBUG_PRINT("ib_log", ("checkpoint " UINT64PF " at " LSN_PF " found",
                           checkpoint_no,
-                          mach_read_from_8(buf + LOG_CHECKPOINT_LSN)));
+                          mach_read_from_8(buf + CHECKPOINT_LSN)));
 
     if (checkpoint_no >= max_no)
     {
@@ -1435,10 +1452,12 @@ static dberr_t recv_log_recover_pre_10_2()
   return DB_ERROR;
 }
 
-/** Same as cals_lsn_offset() except that it supports multiple files */
-lsn_t log_t::file::calc_lsn_offset_old(lsn_t lsn) const
+/** Calculate the offset of a log sequence number
+in an old redo log file (during upgrade check).
+@param[in]	lsn	log sequence number
+@return byte offset within the log */
+inline lsn_t log_t::file::calc_lsn_offset_old(lsn_t lsn) const
 {
-  ut_ad(log_sys.mutex.is_owned() || log_write_lock_own());
   const lsn_t size= capacity() * recv_sys.files_size();
   lsn_t l= lsn - this->lsn;
   if (longlong(l) < 0)

@@ -624,7 +624,7 @@ public:
     @param[in]	lsn	log sequence number
     @return offset within the log */
     inline lsn_t calc_lsn_offset(lsn_t lsn) const;
-    lsn_t calc_lsn_offset_old(lsn_t lsn) const;
+    inline lsn_t calc_lsn_offset_old(lsn_t lsn) const;
 
     /** Set the field values to correspond to a given lsn. */
     void set_fields(lsn_t lsn)

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -185,35 +185,6 @@ log_block_convert_lsn_to_no(
 	return(((ulint) (lsn / OS_FILE_LOG_BLOCK_SIZE) &
 		DBUG_EVALUATE_IF("innodb_small_log_block_no_limit",
 			0xFUL, 0x3FFFFFFFUL)) + 1);
-}
-
-/** Calculate the checksum for a log block using the pre-5.7.9 algorithm.
-@param[in]	block	log block
-@return		checksum */
-UNIV_INLINE
-ulint
-log_block_calc_checksum_format_0(
-	const byte*	block)
-{
-	ulint	sum;
-	ulint	sh;
-	ulint	i;
-
-	sum = 1;
-	sh = 0;
-
-	for (i = 0; i < OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM; i++) {
-		ulint	b = (ulint) block[i];
-		sum &= 0x7FFFFFFFUL;
-		sum += b;
-		sum += b << sh;
-		sh++;
-		if (sh > 24) {
-			sh = 0;
-		}
-	}
-
-	return(sum);
 }
 
 /** Calculate the CRC-32C checksum of a log block.
