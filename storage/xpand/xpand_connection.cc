@@ -141,7 +141,7 @@ int xpand_connection::connect()
   mysql_rwlock_rdlock(&xpand_hosts_lock);
 
   //search for available host
-  int error_code = ER_BAD_HOST_ERROR;
+  int error_code = HA_ERR_NO_CONNECTION;
   for (int i = 0; i < xpand_hosts->hosts_len; i++) {
     char *host = xpand_hosts->hosts[(start + i) % xpand_hosts->hosts_len];
     error_code = connect_direct(host);
@@ -196,12 +196,9 @@ int xpand_connection::connect_direct(char *host)
                           NULL, xpand_port, xpand_socket,
                           CLIENT_MULTI_STATEMENTS))
   {
-    error_code = mysql_errno(&xpand_net);
+    sql_print_error("Error connecting to xpand: %s", mysql_error(&xpand_net));
     disconnect();
-  }
-
-  if (error_code && error_code != ER_CON_COUNT_ERROR) {
-    error_code = ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
+    error_code = HA_ERR_NO_CONNECTION;
   }
 
   DBUG_RETURN(error_code);
