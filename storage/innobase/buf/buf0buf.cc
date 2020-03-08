@@ -1728,16 +1728,11 @@ bool buf_pool_init()
 		(srv_n_read_io_threads + srv_n_write_io_threads)
 		* OS_AIO_N_PENDING_IOS_PER_THREAD);
 
-	/* FIXME: remove some of these variables */
-	srv_buf_pool_curr_size = buf_pool->curr_pool_size;
-	srv_buf_pool_old_size = srv_buf_pool_size;
-	srv_buf_pool_base_size = srv_buf_pool_size;
-
 	DBUG_EXECUTE_IF("buf_pool_init_instance_force_oom", return true;);
 
 	buf_chunk_map_ref = buf_chunk_map_reg;
 	buf_LRU_old_ratio_update(100 * 3 / 8, false);
-	btr_search_sys_create(srv_buf_pool_curr_size / sizeof(void*) / 64);
+	btr_search_sys_create(buf_pool->curr_pool_size / sizeof(void*) / 64);
 	return false;
 }
 
@@ -2341,12 +2336,9 @@ static void buf_pool_resize()
 
 	ulint new_instance_size = srv_buf_pool_size >> srv_page_size_shift;
 
-	/* Assumes that buf_resize_thread has already issued the necessary
-	memory barrier to read srv_buf_pool_size and srv_buf_pool_old_size */
-
-	buf_resize_status("Resizing buffer pool from " ULINTPF " to "
+	buf_resize_status("Resizing buffer pool to "
 			  ULINTPF " (unit=" ULINTPF ").",
-			  srv_buf_pool_old_size, srv_buf_pool_size,
+			  srv_buf_pool_size,
 			  srv_buf_pool_chunk_unit);
 
 	// No locking needed to read, same thread updated those
@@ -2653,14 +2645,14 @@ calc_buf_pool_size:
 	buf_pool->read_ahead_area = ut_min(
 		BUF_READ_AHEAD_PAGES,
 		ut_2_power_up(buf_pool->curr_size / BUF_READ_AHEAD_PORTION));
+	ulint old_pool_size = buf_pool->curr_pool_size;
 	buf_pool->curr_pool_size = buf_pool->n_chunks * srv_buf_pool_chunk_unit;
-	srv_buf_pool_curr_size = buf_pool->curr_pool_size;/* FIXME: remove*/
 	buf_pool->old_size = buf_pool->curr_size;
-	innodb_set_buf_pool_size(buf_pool_size_align(srv_buf_pool_curr_size));
+	innodb_set_buf_pool_size(buf_pool_size_align(buf_pool->curr_pool_size));
 
 	const bool	new_size_too_diff
-		= srv_buf_pool_base_size > srv_buf_pool_size * 2
-			|| srv_buf_pool_base_size * 2 < srv_buf_pool_size;
+		= old_pool_size/2 > buf_pool->curr_pool_size
+			|| old_pool_size < buf_pool->curr_pool_size/2;
 
 	/* Normalize page_hash and zip_hash,
 	if the new size is too different */
@@ -2686,10 +2678,9 @@ calc_buf_pool_size:
 
 	buf_pool_resizing = false;
 
+
 	/* Normalize other components, if the new size is too different */
 	if (!warning && new_size_too_diff) {
-		srv_buf_pool_base_size = srv_buf_pool_size;
-
 		buf_resize_status("Resizing also other hash tables.");
 
 		/* normalize lock_sys */
@@ -2699,7 +2690,7 @@ calc_buf_pool_size:
 
 		/* normalize btr_search_sys */
 		btr_search_sys_resize(
-			buf_pool_get_curr_size() / sizeof(void*) / 64);
+		 buf_pool->curr_pool_size / sizeof(void*) / 64);
 
 		dict_sys.resize();
 
@@ -2713,13 +2704,8 @@ calc_buf_pool_size:
 	/* normalize ibuf.max_size */
 	ibuf_max_size_update(srv_change_buffer_max_size);
 
-	if (srv_buf_pool_old_size != srv_buf_pool_size) {
-
-		ib::info() << "Completed to resize buffer pool from "
-			<< srv_buf_pool_old_size
-			<< " to " << srv_buf_pool_size << ".";
-		srv_buf_pool_old_size = srv_buf_pool_size;
-	}
+	ib::info() << "Completed to resize buffer pool"
+	" to " << srv_buf_pool_size << ".";
 
 #ifdef BTR_CUR_HASH_ADAPT
 	/* enable AHI if needed */
@@ -2751,17 +2737,9 @@ calc_buf_pool_size:
 static void buf_resize_callback(void *)
 {
   ut_a(srv_shutdown_state == SRV_SHUTDOWN_NONE);
-  const auto size= srv_buf_pool_size;
-  const bool work= srv_buf_pool_old_size != size;
-
-  if (work)
-    buf_pool_resize();
-  else
-  {
-    std::ostringstream sout;
-    sout << "Size did not change: old size = new size = " << size;
-    buf_resize_status(sout.str().c_str());
-  }
+  ut_a(srv_buf_pool_size_changing);
+  buf_pool_resize();
+  srv_buf_pool_size_changing = false;
 }
 
 /* Ensure that task does not run in parallel, by setting max_concurrency to 1 for the thread group */
