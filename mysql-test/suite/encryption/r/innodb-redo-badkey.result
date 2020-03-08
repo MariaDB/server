@@ -7,6 +7,7 @@ call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed f
 call mtr.add_suppression("InnoDB: Failed to read file '.*' at offset .*");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*' cannot be decrypted");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
 # Wait max 10 min for key encryption threads to encrypt all spaces
