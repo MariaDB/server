@@ -2037,9 +2037,15 @@ void buf_LRU_free_one_page(buf_page_t* bpage, page_id_t old_page_id)
 	ut_ad(mutex_own(block_mutex));
 	ut_ad(rw_lock_own(hash_lock, RW_LOCK_X));
 #endif /* UNIV_DEBUG */
-	while (bpage->buf_fix_count > 0) {
+	for (unsigned i = 0; bpage->buf_fix_count; i++) {
 		/* Wait for other threads to release the fix count
 		before releasing the bpage from LRU list. */
+		if (i < 10)
+			ut_delay(1);
+		else if (i < 100)
+			os_thread_yield();
+		else
+			os_thread_sleep(100);
 	}
 
 
