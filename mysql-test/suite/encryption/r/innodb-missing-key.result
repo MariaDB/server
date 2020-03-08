@@ -3,6 +3,7 @@ call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page n
 call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file .*test.t[12].ibd looks corrupted; key_version=1");
 call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted");
+call mtr.add_suppression("InnoDB: Failed to read file '.*' at offset [1-9][0-9]*: Table is encrypted but decrypt failed");
 # Start server with keys2.txt
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
 CREATE TABLE t1(a int not null primary key auto_increment, b varchar(128)) engine=innodb ENCRYPTED=YES ENCRYPTION_KEY_ID=19;

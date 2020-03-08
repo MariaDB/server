@@ -16,6 +16,8 @@ call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t1.ibd looks corrupted; key_version=1");
 call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` is corrupted");
 call mtr.add_suppression("File '.*mysql-test.std_data.keysbad3\\.txt' not found");
+call mtr.add_suppression("InnoDB: Failed to read file '.*test.*t[12]\\.ibd' at offset 3: Table is encrypted but decrypt failed");
+
 # for innodb_checksum_algorithm=full_crc32 only
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
 

@@ -3,6 +3,7 @@ call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page n
 call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
 call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted");
+call mtr.add_suppression("InnoDB: Failed to read file '.*' at offset [1-9][0-9]*: Table is encrypted but decrypt failed");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
 # restart: --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
 SET GLOBAL innodb_file_per_table = ON;

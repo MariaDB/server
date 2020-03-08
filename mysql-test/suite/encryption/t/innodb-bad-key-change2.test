@@ -17,6 +17,7 @@ call mtr.add_suppression("InnoDB: Tablespace for table \`test\`.\`t1\` is set as
 call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted");
 call mtr.add_suppression("InnoDB: Cannot delete tablespace .* because it is not found in the tablespace memory cache");
 call mtr.add_suppression("InnoDB: ALTER TABLE `test`\\.`t1` DISCARD TABLESPACE failed to find tablespace");
+call mtr.add_suppression("InnoDB: Failed to read file '.*' at offset [1-9][0-9]*: Table is encrypted but decrypt failed");
 # for innodb_checksum_algorithm=full_crc32 only
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
 

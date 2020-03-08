@@ -383,8 +383,21 @@ dberr_t buf_read_page(const page_id_t page_id, ulint zip_size)
 	ulint		count;
 	dberr_t		err = DB_SUCCESS;
 
+	/*
+	MDEV-15053 TODO : Percona's/MySQL do async read
+	however, this leads to livelock on compression
+	corruption scenarios in error handling, when trying to
+	release corrupted page from LRU,
+	buf_LRU_free_one_page() loops infinitely, waiting
+	for page buf_fix count to drop to down to 0.
+
+	Until this fixed, we do synchronous reads with compression
+	and async with anything else.
+	*/
+	bool sync = (zip_size != 0);
+
 	count = buf_read_page_low(
-		&err, false , BUF_READ_ANY_PAGE, page_id, zip_size, false);
+		&err, sync, BUF_READ_ANY_PAGE, page_id, zip_size, false);
 
 	srv_stats.buf_pool_reads.add(count);
 
