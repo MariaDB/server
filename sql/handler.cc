@@ -1367,6 +1367,29 @@ int ha_prepare(THD *thd)
   DBUG_RETURN(error);
 }
 
+/*
+  Like ha_check_and_coalesce_trx_read_only to return counted number of
+  read-write transaction participants limited to two, but works in the 'all'
+  context.
+  Also returns the last found rw ha_info through the 2nd argument.
+*/
+uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info)
+{
+  unsigned rw_ha_count= 0;
+
+  for (auto ha_info= thd->transaction.all.ha_list; ha_info;
+       ha_info= ha_info->next())
+  {
+    if (ha_info->is_trx_read_write())
+    {
+      *ptr_ha_info= ha_info;
+      if (++rw_ha_count > 1)
+        break;
+    }
+  }
+  return rw_ha_count;
+}
+
 /**
   Check if we can skip the two-phase commit.
 

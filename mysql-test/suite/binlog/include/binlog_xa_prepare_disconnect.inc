@@ -23,6 +23,7 @@ XA RECOVER;
 --source include/wait_condition.inc
 
 # It will conclude now
+--error 0,1402
 --eval  $terminate_with 'trx1$type'
 
 --replace_result $conn3_id CONN_ID
@@ -32,4 +33,5 @@ XA RECOVER;
 --source include/wait_condition.inc
 
 # It will conclude now
+--error 0,1402
 --eval  $terminate_with 'trx3$type'

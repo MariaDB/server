@@ -820,6 +820,12 @@ bool trans_xa_detach(THD *thd)
 
   if (thd->transaction.xid_state.xid_cache_element->xa_state != XA_PREPARED)
     return xa_trans_force_rollback(thd);
+  else if (!thd->transaction.all.is_trx_read_write())
+  {
+    thd->transaction.xid_state.set_error(ER_XA_RBROLLBACK);
+    ha_rollback_trans(thd, true);
+  }
+
   thd->transaction.xid_state.xid_cache_element->acquired_to_recovered();
   thd->transaction.xid_state.xid_cache_element= 0;
   thd->transaction.cleanup();

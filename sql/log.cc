@@ -2040,8 +2040,8 @@ static int binlog_rollback_by_xid(handlerton *hton, XID *xid)
 
   (void) thd->binlog_setup_trx_data();
 
-  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK);
-
+  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
+              (thd->transaction.xid_state.get_state_code() == XA_ROLLBACK_ONLY));
   return binlog_rollback(hton, thd, TRUE);
 }
 
@@ -10009,6 +10009,10 @@ int TC_LOG_BINLOG::unlog(ulong cookie, my_xid xid)
   DBUG_RETURN(BINLOG_COOKIE_GET_ERROR_FLAG(cookie));
 }
 
+static bool write_empty_xa_prepare(THD *thd, binlog_cache_mngr *cache_mngr)
+{
+  return binlog_commit_flush_xa_prepare(thd, true, cache_mngr);
+}
 
 int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
 {
@@ -10017,10 +10021,28 @@ int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
   binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
   int cookie= 0;
 
-  if (!cache_mngr || !cache_mngr->need_unlog)
-    return 0;
-  else
-    cookie= BINLOG_COOKIE_MAKE(cache_mngr->binlog_id, cache_mngr->delayed_error);
+  if (!cache_mngr->need_unlog)
+  {
+    Ha_trx_info *ha_info;
+    uint rw_count= ha_count_rw_all(thd, &ha_info);
+    bool rc= false;
+
+    if (rw_count > 0)
+    {
+      /* an empty XA-prepare event group is logged */
+#ifndef DBUG_OFF
+      for (ha_info= thd->transaction.all.ha_list; rw_count > 1 && ha_info;
+           ha_info= ha_info->next())
+        DBUG_ASSERT(ha_info->ht() != binlog_hton);
+#endif
+      rc= write_empty_xa_prepare(thd, cache_mngr); // normally gains need_unlog
+      trans_register_ha(thd, true, binlog_hton, 0); // do it for future commmit
+    }
+    if (rw_count == 0 || !cache_mngr->need_unlog)
+      return rc;
+  }
+
+  cookie= BINLOG_COOKIE_MAKE(cache_mngr->binlog_id, cache_mngr->delayed_error);
   cache_mngr->need_unlog= false;
 
   return unlog(cookie, 1);

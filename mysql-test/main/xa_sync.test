@@ -38,7 +38,7 @@ while ($i)
   --echo *** Must have 'xatest' in the list
   XA RECOVER;
   # second time yields no error
-  --error 0
+  --error 0,1402
   --eval $op
   disconnect con2;
 
