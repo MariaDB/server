@@ -516,6 +516,9 @@ public:
   void make_sort_key(uchar *to, Item *item,
                      const SORT_FIELD_ATTR *sort_field, Sort_param *param)
                      const override;
+  uint make_packed_sort_key(uchar *to, Item *item,
+                            const SORT_FIELD_ATTR *sort_field,
+                            Sort_param *param) const override;
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const override;

@@ -33,6 +33,7 @@
 #include "compat56.h"
 #include "sql_type.h"                           /* Type_std_attributes */
 #include "field_comp.h"
+#include "filesort.h"
 
 class Send_field;
 class Copy_field;
@@ -1075,6 +1076,12 @@ public:
   virtual uint32 data_length() { return pack_length(); }
   virtual uint32 sort_length() const { return pack_length(); }
 
+  /*
+    sort_suffix_length() return the length bytes needed to store the length
+    for binary charset
+  */
+  virtual uint32 sort_suffix_length() const { return 0; }
+
   /* 
     Get the number bytes occupied by the value in the field.
     CHAR values are stripped of trailing spaces.
@@ -1410,7 +1417,17 @@ public:
     return bytes;
   }
 
+  /*
+    Create mem-comparable sort keys
+  */
   void make_sort_key(uchar *buff, uint length);
+
+  /*
+    create a compact sort key which can be compared with a comparison
+    function. They are called packed sort keys
+  */
+  virtual uint make_packed_sort_key(uchar *buff,
+                                    const SORT_FIELD_ATTR *sort_field);
   virtual void make_send_field(Send_field *);
   virtual void sort_string(uchar *buff,uint length)=0;
   virtual bool optimize_range(uint idx, uint part) const;
@@ -2140,7 +2157,10 @@ public:
   bool can_optimize_range(const Item_bool_func *cond,
                           const Item *item,
                           bool is_eq_func) const;
-  bool is_packable() { return true; }
+  bool is_packable() override { return true; }
+  uint make_packed_sort_key(uchar *buff,
+                            const SORT_FIELD_ATTR *sort_field)override;
+  uchar* pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field);
 };
 
 /* base class for float and double and decimal (old one) */
@@ -4045,6 +4065,10 @@ public:
     return (uint32) field_length + (field_charset() == &my_charset_bin ?
                                     length_bytes : 0);
   }
+  virtual uint32 sort_suffix_length() const override
+  {
+    return (field_charset() == &my_charset_bin ? length_bytes : 0);
+  }
   Copy_func *get_copy_func(const Field *from) const override;
   bool memcpy_field_possible(const Field *from) const override;
   void update_data_type_statistics(Data_type_statistics *st) const override
@@ -4353,6 +4377,7 @@ public:
   { return (uint32) (packlength); }
   uint row_pack_length() const override { return pack_length_no_ptr(); }
   uint32 sort_length() const override;
+  uint32 sort_suffix_length() const override;
   uint32 value_length() override { return get_length(); }
   virtual uint32 max_data_length() const override
   {

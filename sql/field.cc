@@ -1029,6 +1029,61 @@ void Field::make_sort_key(uchar *buff,uint length)
 }
 
 
+/*
+  @brief
+    Create a packed sort key
+
+  @param  buff           buffer where values are written
+  @param  sort_field     sort column structure
+
+  @retval
+    length of the bytes written, does not include the NULL bytes
+*/
+uint
+Field::make_packed_sort_key(uchar *buff, const SORT_FIELD_ATTR *sort_field)
+{
+  if (maybe_null())
+  {
+    if (is_null())
+    {
+      *buff++= 0;
+      return 0;  // For NULL values don't write any data
+    }
+    *buff++=1;
+  }
+  sort_string(buff, sort_field->original_length);
+  return sort_field->original_length;
+}
+
+
+uint
+Field_longstr::make_packed_sort_key(uchar *buff,
+                                    const SORT_FIELD_ATTR *sort_field)
+{
+  if (maybe_null())
+  {
+    if (is_null())
+    {
+      *buff++= 0;
+      return 0;   // For NULL values don't write any data
+    }
+    *buff++=1;
+  }
+  uchar *end= pack_sort_string(buff, sort_field);
+  return static_cast<int>(end-buff);
+}
+
+
+uchar*
+Field_longstr::pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field)
+{
+  String buf;
+  val_str(&buf, &buf);
+  return to + sort_field->pack_sort_string(to, buf.lex_cstring(),
+                                           field_charset());
+}
+
+
 /**
   @brief
   Determine the relative position of the field value in a numeric interval
@@ -8528,6 +8583,12 @@ uint32 Field_blob::sort_length() const
 {
   return (uint32) (get_thd()->variables.max_sort_length + 
                    (field_charset() == &my_charset_bin ? 0 : packlength));
+}
+
+
+uint32 Field_blob::sort_suffix_length() const
+{
+  return field_charset() == &my_charset_bin ?  packlength : 0;
 }
 
 

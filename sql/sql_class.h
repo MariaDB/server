@@ -6255,6 +6255,11 @@ struct SORT_FIELD_ATTR
 {
   uint length;          /* Length of sort field */
   uint suffix_length;   /* Length suffix (0-4) */
+  /* Max. length of the original value, in bytes */
+  uint original_length;
+
+  uint pack_sort_string(uchar *to, const LEX_CSTRING &str,
+                        CHARSET_INFO *cs) const;
 };
 
 
