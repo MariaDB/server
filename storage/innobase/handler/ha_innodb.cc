@@ -21457,7 +21457,7 @@ innodb_buffer_pool_size_validate(
 		return(1);
 	}
 #endif /* UNIV_DEBUG */
-	if (srv_buf_pool_old_size != srv_buf_pool_size) {
+	if (srv_buf_pool_size_changing.load(std::memory_order_relaxed)) {
 		my_printf_error(ER_WRONG_ARGUMENTS,
 			"Another buffer pool resize is already in progress.", MYF(0));
 		return(1);
@@ -21481,7 +21481,7 @@ innodb_buffer_pool_size_validate(
 		/* nothing to do */
 		return(0);
 	}
-
+	srv_buf_pool_size_changing = true;
 	srv_buf_pool_size = requested_buf_pool_size;
 
 	if (intbuf != static_cast<longlong>(requested_buf_pool_size)) {

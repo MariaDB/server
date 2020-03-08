@@ -62,7 +62,7 @@ ulint
 buf_pool_get_curr_size(void)
 /*========================*/
 {
-	return(srv_buf_pool_curr_size);
+	return(buf_pool?buf_pool->curr_pool_size : srv_buf_pool_size);
 }
 
 /*********************************************************************//**
@@ -71,7 +71,7 @@ Gets the current size of buffer buf_pool in pages.
 inline ulint buf_pool_get_n_pages()
 {
   if (!buf_pool)
-    return srv_buf_pool_curr_size >> srv_page_size_shift;
+    return srv_buf_pool_size >> srv_page_size_shift;
 
   ulint chunk_size= 0;
   for (uint j= 0; j < buf_pool->n_chunks; j++)

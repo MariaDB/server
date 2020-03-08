@@ -408,7 +408,7 @@ void btr_search_disable(bool need_mutex)
 /** Enable the adaptive hash search system. */
 void btr_search_enable()
 {
-	if (srv_buf_pool_old_size != srv_buf_pool_size)
+	if (srv_buf_pool_size_changing.load(std::memory_order_relaxed))
 		return;
 
 	btr_search_x_lock_all();
