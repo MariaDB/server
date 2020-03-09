@@ -112,7 +112,7 @@ static void update_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
   int error_code = list->fill(from_save);
   if (error_code) {
     my_free(list);
-    my_printf_error(error_code, "Unhandled error setting xpand hostlist", MYF(0));
+    sql_print_error("Unhandled error %d setting xpand hostlist", error_code);
     DBUG_VOID_RETURN;
   }
 
@@ -1193,7 +1193,7 @@ err:
 
 int ha_xpand::rnd_end()
 {
-  DBUG_ENTER("ha_xpand::rnd_end()");
+  DBUG_ENTER("ha_xpand::rnd_end");
   int error_code = 0;
   THD *thd = ha_thd();
   if (thd->lex->sql_command == SQLCOM_UPDATE)
@@ -1465,31 +1465,39 @@ static int xpand_discover_table_names(handlerton *hton, LEX_CSTRING *db,
                                       MY_DIR *dir,
                                       handlerton::discovered_list *result)
 {
+  DBUG_ENTER("xpand_discover_table_names");
   xpand_connection *xpand_net = new xpand_connection();
   int error_code = xpand_net->connect();
-  if (error_code)
+  if (error_code) {
+    if (error_code == HA_ERR_NO_CONNECTION)
+      error_code = 0;
     goto err;
+  }
 
-  xpand_net->populate_table_list(db, result);
+  error_code = xpand_net->populate_table_list(db, result);
 
 err:
   delete xpand_net;
-  return error_code;
+  DBUG_RETURN(error_code);
 }
 
 int xpand_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 {
+  DBUG_ENTER("xpand_discover_table");
   xpand_connection *xpand_net = new xpand_connection();
   int error_code = xpand_net->connect();
-  if (error_code)
+  if (error_code) {
+    if (error_code == HA_ERR_NO_CONNECTION)
+      error_code = HA_ERR_NO_SUCH_TABLE;
     goto err;
+  }
 
   error_code = xpand_net->discover_table_details(&share->db, &share->table_name,
                                                  thd, share);
 
 err:
   delete xpand_net;
-  return error_code;
+  DBUG_RETURN(error_code);
 }
 
 static int xpand_init(void *p)
