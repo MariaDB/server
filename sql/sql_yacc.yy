@@ -12344,7 +12344,7 @@ int_num:
 
 ulong_num:
           opt_plus NUM           { int error; $$= (ulong) my_strtoll10($2.str, (char**) 0, &error); }
-        | HEX_NUM       { $$= (ulong) strtol($1.str, (char**) 0, 16); }
+        | HEX_NUM       { $$= strtoul($1.str, (char**) 0, 16); }
         | opt_plus LONG_NUM      { int error; $$= (ulong) my_strtoll10($2.str, (char**) 0, &error); }
         | opt_plus ULONGLONG_NUM { int error; $$= (ulong) my_strtoll10($2.str, (char**) 0, &error); }
         | opt_plus DECIMAL_NUM   { int error; $$= (ulong) my_strtoll10($2.str, (char**) 0, &error); }
@@ -17555,7 +17555,7 @@ xid:
           {
             MYSQL_YYABORT_UNLESS($1->length() <= MAXGTRIDSIZE &&
                                  $3->length() <= MAXBQUALSIZE &&
-                                 $5 <= INT32_MAX);
+                                 $5 <= std::numeric_limits<int32_t>::max());
             if (unlikely(!(Lex->xid=(XID *)thd->alloc(sizeof(XID)))))
               MYSQL_YYABORT;
             Lex->xid->set($5, $1->ptr(), $1->length(), $3->ptr(), $3->length());
