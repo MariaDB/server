@@ -4110,16 +4110,25 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 	}
 #endif /* UNIV_DEBUG */
 
-	byte* info_bits = &rec[rec_offs_comp(offsets)
-			       ? -REC_NEW_INFO_BITS
-			       : -REC_OLD_INFO_BITS];
-	compile_time_assert(REC_INFO_BITS_SHIFT == 0);
-	if ((*info_bits & REC_INFO_BITS_MASK) == update->info_bits) {
-	} else if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+	static_assert(REC_INFO_BITS_SHIFT == 0, "compatibility");
+	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+		ut_ad(rec_offs_comp(offsets));
+		byte* info_bits = &rec[-REC_NEW_INFO_BITS];
+		const bool flip_del_mark = (*info_bits ^ update->info_bits)
+			& REC_INFO_DELETED_FLAG;
 		*info_bits &= ~REC_INFO_BITS_MASK;
 		*info_bits |= update->info_bits;
+
+		if (flip_del_mark) {
+			page_zip_rec_set_deleted(block, rec, update->info_bits
+						 & REC_INFO_DELETED_FLAG, mtr);
+		}
 	} else {
-		mtr->write<1>(*block, info_bits,
+		byte* info_bits = &rec[rec_offs_comp(offsets)
+				       ? -REC_NEW_INFO_BITS
+				       : -REC_OLD_INFO_BITS];
+
+		mtr->write<1,mtr_t::OPT>(*block, info_bits,
 			      (*info_bits & ~REC_INFO_BITS_MASK)
 			      | update->info_bits);
 	}
