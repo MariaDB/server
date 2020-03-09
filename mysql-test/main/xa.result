@@ -369,3 +369,8 @@ XA PREPARE 'Я_упaлa_c_сеновала_тормозила_головой';
 XA ROLLBACK 'Я_упaлa_c_сеновала_тормозила_головой';
 SET NAMES default;
 DROP TABLE t1;
+#
+# MDEV-21856 - xid_t::formatID has to be constrained to 4 byte size
+#
+XA START 'gtrid', 'bqual', 0x80000000;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '0x80000000' at line 1

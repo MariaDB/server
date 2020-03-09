@@ -506,4 +506,11 @@ SET NAMES default;
 
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-21856 - xid_t::formatID has to be constrained to 4 byte size
+--echo #
+--error ER_PARSE_ERROR
+XA START 'gtrid', 'bqual', 0x80000000;
+
 --source include/wait_until_count_sessions.inc
