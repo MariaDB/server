@@ -5,12 +5,12 @@ CREATE TABLE `ins_duplicate`(`id` INT PRIMARY KEY, `animal` VARCHAR(30)) ENGINE=
 INSERT INTO `ins_duplicate` VALUES (1,'Aardvark'), (2,'Cheetah'), (3,'Zebra');
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 
---error ER_DUP_ENTRY 
+--error ER_DUP_KEY
 INSERT INTO ins_duplicate VALUES (1,'Antelope');
 INSERT INTO ins_duplicate VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Banana';
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 
---error ER_DUP_ENTRY 
+--error ER_DUP_KEY
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid';
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
@@ -18,12 +18,12 @@ SELECT * FROM `ins_duplicate` ORDER BY `id`;
 BEGIN;
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 
---error ER_DUP_ENTRY 
+--error ER_DUP_KEY
 INSERT INTO ins_duplicate VALUES (1,'Antelope');
 INSERT INTO ins_duplicate VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Vegetable';
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 
---error ER_DUP_ENTRY 
+--error ER_DUP_KEY
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid2';
 COMMIT;
@@ -31,12 +31,12 @@ COMMIT;
 BEGIN;
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 
---error ER_DUP_ENTRY 
+--error ER_DUP_KEY
 INSERT INTO ins_duplicate VALUES (1,'Antelope');
 INSERT INTO ins_duplicate VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Vegetable';
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 
---error ER_DUP_ENTRY 
+--error ER_DUP_KEY
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid3';
 ROLLBACK;
