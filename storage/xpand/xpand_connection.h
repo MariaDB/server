@@ -125,6 +125,7 @@ private:
   int add_command_operand_vlstr(const uchar *str, size_t length);
   int add_command_operand_lex_string(LEX_CSTRING str);
   int add_command_operand_bitmap(MY_BITMAP *bitmap);
+  int add_status_vars();
   int begin_command(uchar command);
   int send_command();
   int read_query_response();
