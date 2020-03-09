@@ -367,10 +367,13 @@ read_ahead:
 	return(count);
 }
 
-/** High-level function which reads a page asynchronously from a file to the
+/** High-level function which reads a page from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
 an exclusive lock on the buffer frame. The flag is cleared and the x-lock
-released by the i/o-handler thread.
+released by the buf_page_io_complete function.
+We use synchronous reads here, because in this case the page is used
+right after reading.
+
 @param[in]	page_id		page id
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @retval DB_SUCCESS if the page was read and is not corrupted,
@@ -384,7 +387,7 @@ dberr_t buf_read_page(const page_id_t page_id, ulint zip_size)
 	dberr_t		err = DB_SUCCESS;
 
 	count = buf_read_page_low(
-		&err, false , BUF_READ_ANY_PAGE, page_id, zip_size, false);
+		&err, true, BUF_READ_ANY_PAGE, page_id, zip_size, false);
 
 	srv_stats.buf_pool_reads.add(count);
 
