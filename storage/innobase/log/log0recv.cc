@@ -1503,8 +1503,7 @@ static dberr_t recv_log_recover_10_4()
 	}
 
 	if (log_sys.log.is_encrypted()
-	    && !log_crypt(buf, lsn & (OS_FILE_LOG_BLOCK_SIZE - 1),
-			  OS_FILE_LOG_BLOCK_SIZE, LOG_DECRYPT)) {
+	    && !log_crypt(buf, lsn & ~511, 512, LOG_DECRYPT)) {
 		return DB_ERROR;
 	}
 
