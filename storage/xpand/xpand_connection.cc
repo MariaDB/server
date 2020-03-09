@@ -947,7 +947,11 @@ int xpand_connection::scan_next(xpand_connection_cursor *scan,
   if ((error_code = begin_command(XPAND_SCAN_NEXT)))
     return error_code;
 
-  if ((error_code = add_command_operand_ushort(scan->buffer_size)))
+  // This should not happen as @@xpand_row_buffer has this limit.
+  if (scan->buffer_size > 65535)
+    return HA_ERR_INTERNAL_ERROR;
+
+  if ((error_code = add_command_operand_ushort((ushort)scan->buffer_size)))
     return error_code;
 
   if ((error_code = add_command_operand_lcb(scan->scan_refid)))
