@@ -73,7 +73,9 @@ static MYSQL_SYSVAR_ENUM
 );
 
 //current list of clx hosts
+#ifdef HAVE_PSI_INTERFACE
 static PSI_rwlock_key key_xpand_hosts;
+#endif
 mysql_rwlock_t xpand_hosts_lock;
 xpand_host_list *xpand_hosts;
 
