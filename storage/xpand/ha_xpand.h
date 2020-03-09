@@ -68,6 +68,7 @@ private:
   } xpd_upsert_flags_t;
   int upsert_flag;
 
+  List<COND> pushdown_cond_list;
   Xpand_share *get_share(); ///< Get the share
 
 public:
