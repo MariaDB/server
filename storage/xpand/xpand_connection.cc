@@ -528,7 +528,7 @@ int xpand_connection::key_delete(ulonglong xpand_table_oid,
 int xpand_connection::key_read(ulonglong xpand_table_oid, uint index,
                                xpand_lock_mode_t lock_mode, MY_BITMAP *read_set,
                                uchar *packed_key, ulong packed_key_length,
-                               uchar **rowdata, ulong *rowdata_length)
+                               uchar **rowdata, ulonglong *rowdata_length)
 {
   int error_code;
   command_length = 0;
@@ -625,7 +625,7 @@ private:
     }
 
     uchar *rowdata = xpand_net->net.read_pos;
-    ulong rowdata_length = safe_net_field_length_ll(&rowdata, packet_length);
+    ulong rowdata_length = (ulong) safe_net_field_length_ll(&rowdata, packet_length);
     if (!rowdata_length) {
       // We have read all rows in this batch.
       DBUG_RETURN(0);
