@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 *****************************************************************************/
 
 #ifndef _xpand_connection_h
@@ -21,11 +21,16 @@ Copyright (c) 2019, MariaDB Corporation.
 
 #define XPAND_SERVER_REQUEST 30
 
-typedef enum xpand_lock_mode {
+enum xpand_lock_mode_t {
     XPAND_NO_LOCKS,
     XPAND_SHARED,
     XPAND_EXCLUSIVE,
-} xpand_lock_mode_t;
+};
+
+enum xpand_balance_algorithm_enum {
+  XPAND_BALANCE_FIRST,
+  XPAND_BALANCE_ROUND_ROBIN
+};
 
 class xpand_connection_cursor;
 class xpand_connection
@@ -49,6 +54,7 @@ public:
     return xpand_net.net.vio;
   }
   int connect();
+  int connect_direct(char *host);
   void disconnect(bool is_destructor = FALSE);
 
   bool has_open_transaction();
@@ -88,9 +94,10 @@ public:
                  xpand_connection_cursor **scan);
   int scan_query(String &stmt, uchar *fieldtype, uint fields, uchar *null_bits,
                  uint null_bits_size, uchar *field_metadata,
-                 uint field_metadata_size, ushort row_req,
+                 uint field_metadata_size, ushort row_req, ulonglong *oids,
                  xpand_connection_cursor **scan);
-  int update_query(String &stmt, LEX_CSTRING &dbname, ulonglong *affected_rows);
+  int update_query(String &stmt, LEX_CSTRING &dbname, ulonglong *oids,
+                   ulonglong *affected_rows);
   int scan_from_key(ulonglong xpand_table_oid, uint index,
                     xpand_lock_mode_t lock_mode,
                     enum scan_type scan_dir, int no_key_cols, bool sorted_scan,
@@ -102,6 +109,8 @@ public:
   int scan_end(xpand_connection_cursor *scan);
 
   int populate_table_list(LEX_CSTRING *db, handlerton::discovered_list *result);
+  int get_table_oid(const char *db, size_t db_len, const char *name,
+                    size_t name_len, ulonglong *oid, TABLE_SHARE *share);
   int discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name, THD *thd,
                              TABLE_SHARE *share);
 
@@ -121,4 +130,17 @@ private:
   int send_command();
   int read_query_response();
 };
+
+static const int max_host_count = 128;
+class xpand_host_list {
+private:
+  char *strtok_buf;
+public:
+  int hosts_len;
+  char *hosts[max_host_count];
+
+  int fill(const char *hosts);
+  void empty();
+};
+
 #endif  // _xpand_connection_h

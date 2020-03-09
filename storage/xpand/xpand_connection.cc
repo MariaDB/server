@@ -1,10 +1,11 @@
 /*****************************************************************************
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 *****************************************************************************/
 
 /** @file xpand_connection.cc */
 
 #include "xpand_connection.h"
+#include "ha_xpand.h"
 #include <string>
 #include "handler.h"
 #include "table.h"
@@ -12,10 +13,11 @@ Copyright (c) 2019, MariaDB Corporation.
 #include "tztime.h"
 #include "errmsg.h"
 
+#include "my_pthread.h"
+
 extern int xpand_connect_timeout;
 extern int xpand_read_timeout;
 extern int xpand_write_timeout;
-extern char *xpand_host;
 extern char *xpand_username;
 extern char *xpand_password;
 extern uint xpand_port;
@@ -123,34 +125,48 @@ void xpand_connection::disconnect(bool is_destructor)
   DBUG_VOID_RETURN;
 }
 
-int host_list_next;
-extern int host_list_cnt;
-extern char **host_list;
+extern int xpand_hosts_cur;
+extern ulong xpand_balance_algorithm;
+
+extern mysql_rwlock_t xpand_hosts_lock;
+extern xpand_host_list *xpand_hosts;
 
 int xpand_connection::connect()
 {
-  int error_code = 0;
-  my_bool my_true = 1;
   DBUG_ENTER("xpand_connection::connect");
+  int start = 0;
+  if (xpand_balance_algorithm == XPAND_BALANCE_ROUND_ROBIN)
+    start = my_atomic_add32(&xpand_hosts_cur, 1);
 
-  // cpu concurrency by damned!
-  int host_num = host_list_next;
-  host_num = host_num % host_list_cnt;
-  char *host = host_list[host_num];
-  host_list_next = host_num + 1;
+  mysql_rwlock_rdlock(&xpand_hosts_lock);
+
+  //search for available host
+  int error_code = ER_BAD_HOST_ERROR;
+  for (int i = 0; i < xpand_hosts->hosts_len; i++) {
+    char *host = xpand_hosts->hosts[(start + i) % xpand_hosts->hosts_len];
+    error_code = connect_direct(host);
+    if (!error_code)
+      break;
+  }
+  mysql_rwlock_unlock(&xpand_hosts_lock);
+  if (error_code)
+    my_error(error_code, MYF(0), "clustrix");
+
+  DBUG_RETURN(error_code);
+}
+
+
+int xpand_connection::connect_direct(char *host)
+{
+  DBUG_ENTER("xpand_connection::connect_direct");
+  my_bool my_true = true;
   DBUG_PRINT("host", ("%s", host));
-
-  /* Validate the connection parameters */
-  if (!strcmp(xpand_socket, ""))
-    if (!strcmp(host, "127.0.0.1"))
-      if (xpand_port == MYSQL_PORT_DEFAULT)
-        DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
-
-  //xpand_net.methods = &connection_methods;
 
   if (!mysql_init(&xpand_net))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
+  uint protocol_tcp = MYSQL_PROTOCOL_TCP;
+  mysql_options(&xpand_net, MYSQL_OPT_PROTOCOL, &protocol_tcp);
   mysql_options(&xpand_net, MYSQL_OPT_READ_TIMEOUT,
                 &xpand_read_timeout);
   mysql_options(&xpand_net, MYSQL_OPT_WRITE_TIMEOUT,
@@ -178,29 +194,20 @@ int xpand_connection::connect()
   }
 #endif
 
+  int error_code = 0;
   if (!mysql_real_connect(&xpand_net, host, xpand_username, xpand_password,
                           NULL, xpand_port, xpand_socket,
                           CLIENT_MULTI_STATEMENTS))
   {
     error_code = mysql_errno(&xpand_net);
     disconnect();
-
-    if (error_code != CR_CONN_HOST_ERROR &&
-        error_code != CR_CONNECTION_ERROR)
-    {
-      if (error_code == ER_CON_COUNT_ERROR)
-      {
-        my_error(ER_CON_COUNT_ERROR, MYF(0));
-        DBUG_RETURN(ER_CON_COUNT_ERROR);
-      }
-      my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), host);
-      DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
-    }
   }
 
-  xpand_net.reconnect = 1;
+  if (error_code && error_code != ER_CON_COUNT_ERROR) {
+    error_code = ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
+  }
 
-  DBUG_RETURN(0);
+  DBUG_RETURN(error_code);
 }
 
 int xpand_connection::add_status_vars()
@@ -281,7 +288,7 @@ int xpand_connection::send_command()
        committed or rolled back.
   */
   trans_state = XPAND_TRANS_STARTED;
-  
+
   com_error = simple_command(&xpand_net,
                              (enum_server_command)XPAND_SERVER_REQUEST,
                              command_buffer, command_length, TRUE);
@@ -777,6 +784,7 @@ int xpand_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
                                  uchar *null_bits, uint null_bits_size,
                                  uchar *field_metadata,
                                  uint field_metadata_size, ushort row_req,
+                                 ulonglong *oids,
                                  xpand_connection_cursor **scan)
 {
   int error_code;
@@ -784,6 +792,12 @@ int xpand_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
 
   if ((error_code = begin_command(XPAND_SCAN_QUERY)))
     return error_code;
+
+  do {
+    if ((error_code = add_command_operand_ulonglong(*oids)))
+      return error_code;
+  }
+  while (*oids++);
 
   if ((error_code = add_command_operand_ushort(row_req)))
     return error_code;
@@ -820,13 +834,19 @@ int xpand_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
  *   dbname &current database name
  **/
 int xpand_connection::update_query(String &stmt, LEX_CSTRING &dbname,
-                                   ulonglong *affected_rows)
+                                   ulonglong *oids, ulonglong *affected_rows)
 {
   int error_code;
   command_length = 0;
 
   if ((error_code = begin_command(XPAND_UPDATE_QUERY)))
     return error_code;
+
+  do {
+    if ((error_code = add_command_operand_ulonglong(*oids)))
+      return error_code;
+  }
+  while (*oids++);
 
   if ((error_code = add_command_operand_str((uchar*)dbname.str, dbname.length)))
     return error_code;
@@ -989,24 +1009,39 @@ error:
   return error_code;
 }
 
-int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
-                                             THD *thd, TABLE_SHARE *share)
+
+/*
+  Given a table name, find its OID in the Clustrix, and save it in TABLE_SHARE
+
+  @param db     Database name
+  @param name   Table name
+  @param oid    OUT   Return the OID here
+  @param share  INOUT If not NULL and the share has ha_share pointer, also
+                      update Xpand_share::xpand_table_oid.
+
+  @return
+     0 - OK
+     error code if an error occurred
+*/
+
+int xpand_connection::get_table_oid(const char *db, size_t db_len,
+                                    const char *name, size_t name_len,
+                                    ulonglong *oid, TABLE_SHARE *share)
 {
-  DBUG_ENTER("xpand_connection::discover_table_details");
+  MYSQL_ROW row;
   int error_code = 0;
   MYSQL_RES *results_oid = NULL;
-  MYSQL_RES *results_create = NULL;
-  MYSQL_ROW row;
-  String get_oid, show;
+  String get_oid;
+  DBUG_ENTER("xpand_connection::get_table_oid");
 
   /* get oid */
   get_oid.append("select r.table "
                  "from system.databases d "
                  "     inner join ""system.relations r on d.db = r.db "
                  "where d.name = '");
-  get_oid.append(db);
+  get_oid.append(db, db_len);
   get_oid.append("' and r.name = '");
-  get_oid.append(name);
+  get_oid.append(name, name_len);
   get_oid.append("'");
 
   if (mysql_real_query(&xpand_net, get_oid.c_ptr(), get_oid.length())) {
@@ -1027,24 +1062,54 @@ int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
     goto error;
   }
 
-  while((row = mysql_fetch_row(results_oid))) {
+  if ((row = mysql_fetch_row(results_oid))) {
     DBUG_PRINT("row", ("%s", row[0]));
-    uchar *to = (uchar*)alloc_root(&share->mem_root, strlen(row[0]) + 1);
-    if (!to) {
-      error_code = HA_ERR_OUT_OF_MEM;
-      goto error;
-    }
-
-    strcpy((char *)to, (char *)row[0]);
-    share->tabledef_version.str = to;
-    share->tabledef_version.length = strlen(row[0]);
+    *oid = strtoull((const char *)row[0], NULL, 10);
+  } else {
+    error_code = HA_ERR_NO_SUCH_TABLE;
+    goto error;
   }
+
+error:
+  if (results_oid)
+    mysql_free_result(results_oid);
+
+  DBUG_RETURN(error_code);
+}
+
+
+/*
+  Given a table name, fetch table definition from Clustrix and fill the TABLE_SHARE
+  object with details about field, indexes, etc.
+*/
+int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
+                                             THD *thd, TABLE_SHARE *share)
+{
+  DBUG_ENTER("xpand_connection::discover_table_details");
+  int error_code = 0;
+  MYSQL_RES *results_create = NULL;
+  MYSQL_ROW row;
+  String show;
+  ulonglong oid = 0;
+  Xpand_share *cs;
+
+  if ((error_code = xpand_connection::get_table_oid(db->str, db->length,
+                                                    name->str, name->length,
+                                                    &oid, share)))
+      goto error;
+
+  if (!share->ha_share)
+    share->ha_share= new Xpand_share;
+  cs= static_cast<Xpand_share*>(share->ha_share);
+  cs->xpand_table_oid = oid;
 
   /* get show create statement */
   show.append("show simple create table ");
   show.append(db);
   show.append(".");
+  show.append("`");
   show.append(name);
+  show.append("`");
   if (mysql_real_query(&xpand_net, show.c_ptr(), show.length())) {
     if ((error_code = mysql_errno(&xpand_net))) {
       DBUG_PRINT("mysql_real_query returns ", ("%d", error_code));
@@ -1074,10 +1139,8 @@ int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
                                                        strlen(row[1]));
   }
 
+  cs->rediscover_table = false;
 error:
-  if (results_oid)
-    mysql_free_result(results_oid);
-
   if (results_create)
     mysql_free_result(results_create);
   DBUG_RETURN(error_code);
@@ -1231,4 +1294,44 @@ int xpand_connection::add_command_operand_bitmap(MY_BITMAP *bitmap)
   memcpy(command_buffer + command_length, bitmap->bitmap, no_bytes);
   command_length += no_bytes;
   return 0;
+}
+
+/****************************************************************************
+** Class xpand_host_list
+****************************************************************************/
+
+int xpand_host_list::fill(const char *hosts)
+{
+  strtok_buf = my_strdup(hosts, MYF(MY_WME));
+  if (!strtok_buf) {
+    return HA_ERR_OUT_OF_MEM;
+  }
+
+  const char *sep = ",; ";
+  //parse into array
+  int i = 0;
+  char *cursor = NULL;
+  char *token = NULL;
+  for (token = strtok_r(strtok_buf, sep, &cursor);
+       token && i < max_host_count;
+       token = strtok_r(NULL, sep, &cursor)) {
+    this->hosts[i] = token;
+    i++;
+  }
+
+  //host count out of range
+  if (i == 0 || token) {
+    my_free(strtok_buf);
+    return ER_BAD_HOST_ERROR;
+  }
+  hosts_len = i;
+
+  return 0;
+}
+
+void xpand_host_list::empty()
+{
+  my_free(strtok_buf);
+  strtok_buf = NULL;
+  hosts_len = 0;
 }

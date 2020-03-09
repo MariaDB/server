@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 *****************************************************************************/
 
 /** @file ha_xpand.cc */
@@ -7,6 +7,8 @@ Copyright (c) 2019, MariaDB Corporation.
 #include "ha_xpand.h"
 #include "ha_xpand_pushdown.h"
 #include "key.h"
+#include <strfunc.h>                            /* strconvert */
+#include "my_pthread.h"
 
 handlerton *xpand_hton = NULL;
 
@@ -40,68 +42,101 @@ static MYSQL_SYSVAR_INT
   NULL, NULL, -1, -1, 2147483647, 0
 );
 
-char *xpand_host;
-static MYSQL_SYSVAR_STR
+//state for load balancing
+int xpand_hosts_cur; //protected by my_atomic's
+ulong xpand_balance_algorithm;
+const char* balance_algorithm_names[]=
+{
+  "first", "round_robin", NullS
+};
+
+TYPELIB balance_algorithms=
+{
+  array_elements(balance_algorithm_names) - 1, "",
+  balance_algorithm_names, NULL
+};
+
+static void update_balance_algorithm(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                                     void *var_ptr, const void *save)
+{
+  *static_cast<ulong *>(var_ptr) = *static_cast<const ulong *>(save);
+  my_atomic_store32(&xpand_hosts_cur, 0);
+}
+
+static MYSQL_SYSVAR_ENUM
 (
-  host,
-  xpand_host,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-  "Xpand host",
-  NULL, NULL, "127.0.0.1"
+  balance_algorithm,
+  xpand_balance_algorithm,
+  PLUGIN_VAR_OPCMDARG,
+  "Method for managing load balancing of Clustrix nodes, can take values FIRST or ROUND_ROBIN",
+  NULL, update_balance_algorithm, XPAND_BALANCE_ROUND_ROBIN, &balance_algorithms
 );
 
-int host_list_cnt;
-char **host_list;
+//current list of clx hosts
+static PSI_rwlock_key key_xpand_hosts;
+mysql_rwlock_t xpand_hosts_lock;
+xpand_host_list *xpand_hosts;
 
-static void free_host_list()
+static int check_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                       void *save, struct st_mysql_value *value)
 {
-  if (host_list) {
-    for (int i = 0; host_list[i]; i++)
-      my_free(host_list[i]);
-    my_free(host_list);
-    host_list = NULL;
-  }
+  DBUG_ENTER("check_hosts");
+  char b;
+  int len = 0;
+  const char *val = value->val_str(value, &b, &len);
+  if (!val)
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+  xpand_host_list list;
+  memset(&list, 0, sizeof(list));
+
+  int error_code = 0;
+  if ((error_code = list.fill(val)))
+    DBUG_RETURN(error_code);
+  list.empty();
+
+  *static_cast<const char **>(save) = val;
+  DBUG_RETURN(0);
 }
 
-static void update_host_list(char *xpand_host)
+static void update_hosts(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                         void *var_ptr, const void *save)
 {
-  free_host_list();
+  DBUG_ENTER("update_hosts");
+  const char *from_save = *static_cast<const char * const *>(save);
 
-  int cnt = 0;
-  for (char *p = xpand_host, *s = xpand_host; ; p++) {
-    if (*p == ',' || *p == '\0') {
-      if (p > s) {
-        cnt++;
-      }
-      if (!*p)
-        break;
-      s = p + 1;
-    }
+  mysql_rwlock_wrlock(&xpand_hosts_lock);
+
+  xpand_host_list *list = static_cast<xpand_host_list*>(
+                          my_malloc(sizeof(xpand_host_list), MYF(MY_WME | MY_ZEROFILL)));
+  int error_code = list->fill(from_save);
+  if (error_code) {
+    my_free(list);
+    my_printf_error(error_code, "Unhandled error setting xpand hostlist", MYF(0));
+    DBUG_VOID_RETURN;
   }
 
-  DBUG_PRINT("host_cnt", ("%d", cnt));
-  host_list = (char **)my_malloc(sizeof(char *) * cnt+1, MYF(MY_WME));
-  host_list[cnt] = 0;
-  host_list_cnt = cnt;
+  xpand_hosts->empty();
+  my_free(xpand_hosts);
+  xpand_hosts = list;
 
-  int i = 0;
-  for (char *p = xpand_host, *s = xpand_host; ; p++) {
-    if (*p == ',' || *p == '\0') {
-      if (p > s) {
-        char *host = (char *)my_malloc(p - s + 1, MYF(MY_WME));
-        host[p-s] = '\0';
-        memcpy(host, s, p-s);
-        DBUG_PRINT("host", ("%s", host));
-        host_list[i++] = host;
-      }
-      if (!*p)
-        break;
-      s = p + 1;
-    }
-  }
+  char **display_var = static_cast<char**>(var_ptr);
+  my_free(*display_var);
+  *display_var = my_strdup(from_save, MYF(MY_WME));
 
-  DBUG_PRINT("xpand_host", ("%s", xpand_host));
+  mysql_rwlock_unlock(&xpand_hosts_lock);
+  DBUG_VOID_RETURN;
 }
+
+static char *xpand_hosts_str;
+static MYSQL_SYSVAR_STR
+(
+  hosts,
+  xpand_hosts_str,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
+  "List of xpand hostnames seperated by commas, semicolons or spaces",
+  check_hosts, update_hosts, "localhost"
+);
 
 char *xpand_username;
 static MYSQL_SYSVAR_STR
@@ -195,6 +230,33 @@ uint row_buffer_setting(THD* thd)
   return THDVAR(thd, row_buffer);
 }
 
+
+/*
+  Get an Xpand_share object for this object. If it doesn't yet exist, create
+  it.
+*/
+
+Xpand_share *ha_xpand::get_share()
+{
+  Xpand_share *tmp_share;
+
+  DBUG_ENTER("ha_xpand::get_share()");
+
+  lock_shared_ha_data();
+  if (!(tmp_share= static_cast<Xpand_share*>(get_ha_share_ptr())))
+  {
+    tmp_share= new Xpand_share;
+    if (!tmp_share)
+      goto err;
+
+    set_ha_share_ptr(static_cast<Handler_share*>(tmp_share));
+  }
+err:
+  unlock_shared_ha_data();
+  DBUG_RETURN(tmp_share);
+}
+
+
 /****************************************************************************
 ** Utility functions
 ****************************************************************************/
@@ -211,41 +273,70 @@ size_t estimate_row_size(TABLE *table)
   return row_size;
 }
 
-/**
- * @brief
- *   Decodes object name.
- *
- * @details
- *   Replaces the encoded object name in the path with a decoded variant,
- *   e.g if path contains ./test/d@0024. This f() makes it ./test/d$
- *
- *   Used in delete and rename DDL processing.
- **/
-static void decode_objectname(char *buf, const char *path, size_t buf_size)
+
+/*
+  Try to decode a string from filename encoding, if that fails, return the
+  original string.
+
+  @detail
+    This is used to get table (or database) name from file (or directory)
+    name. Names of regular tables/databases are encoded using
+    my_charset_filename encoding.
+    Names of temporary tables are not encoded, and they start with '#sql'
+    which is not a valid character sequence in my_charset_filename encoding.
+    Our way to talkle this is to
+    1. Try to convert the name back
+    2. If that failed, assume it's a temporary object name and just use the
+       name.
+*/
+
+static void decode_object_or_tmp_name(const char *from, uint size,
+                                     std::string *out)
 {
-  size_t new_path_len = filename_to_tablename(path, buf, buf_size);
-  buf[new_path_len] = '\0';
+  uint errors, new_size;
+  out->resize(size+1); // assume the decoded string is not longer
+  new_size= strconvert(&my_charset_filename, from, size,
+                       system_charset_info, (char*)out->c_str(), size+1,
+                       &errors);
+  if (errors)
+    out->assign(from, size);
+  else
+    out->resize(new_size);
 }
 
-static void decode_file_path(const char *path, char *decoded_dbname,
-                             char *decoded_tbname)
+/*
+  Take a "./db_name/table_name" and extract db_name and table_name from it
+
+  @return
+     0     OK
+     other Error code
+*/
+static int normalize_tablename(const char *db_table,
+                               std::string *norm_db, std::string *norm_table)
 {
-  // The format cont ains './' in the beginning of a path.
-  char *dbname_start = (char*) path + 2;
-  char *dbname_end = dbname_start;
-  while (*dbname_end != '/')
-    dbname_end++;
+  std::string tablename(db_table);
+  if (tablename.size() < 2 || tablename[0] != '.' ||
+      (tablename[1] != FN_LIBCHAR && tablename[1] != FN_LIBCHAR2)) {
+    DBUG_ASSERT(0);  // We were not passed table name?
+    return HA_ERR_INTERNAL_ERROR;
+  }
 
-  int cnt = dbname_end - dbname_start;
-  char *dbname = (char *)my_alloca(cnt + 1);
-  memcpy(dbname, dbname_start, cnt);
-  dbname[cnt] = '\0';
-  decode_objectname(decoded_dbname, dbname, FN_REFLEN);
-  my_afree(dbname);
+  size_t pos = tablename.find_first_of(FN_LIBCHAR, 2);
+  if (pos == std::string::npos) {
+    pos = tablename.find_first_of(FN_LIBCHAR2, 2);
+  }
 
-  char *tbname_start = dbname_end + 1;
-  decode_objectname(decoded_tbname, tbname_start, FN_REFLEN);
+  if (pos == std::string::npos) {
+    DBUG_ASSERT(0);  // We were not passed table name?
+    return HA_ERR_INTERNAL_ERROR;
+  }
+
+  decode_object_or_tmp_name(tablename.c_str() + 2, pos - 2, norm_db);
+  decode_object_or_tmp_name(tablename.c_str() + pos + 1,
+                           tablename.size() - (pos + 1), norm_table);
+  return 0;
 }
+
 
 xpand_connection *get_trx(THD *thd, int *error_code)
 {
@@ -290,6 +381,7 @@ ha_xpand::~ha_xpand()
     remove_current_table_from_rpl_table_list(rgi);
 }
 
+
 int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
 {
   int error_code;
@@ -311,12 +403,16 @@ int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
   ulong old = create_info->used_fields;
   create_info->used_fields &= ~HA_CREATE_USED_ENGINE;
 
+  std::string norm_db, norm_table;
+  if ((error_code= normalize_tablename(name, &norm_db, &norm_table)))
+    return error_code;
+
   TABLE_LIST table_list;
   memset(&table_list, 0, sizeof(table_list));
   table_list.table = form;
-  error_code = show_create_table(thd, &table_list, &create_table_stmt,
-                                 create_info, WITH_DB_NAME);
-
+  error_code = show_create_table_ex(thd, &table_list,
+                                    norm_db.c_str(), norm_table.c_str(),
+                                    &create_table_stmt, create_info, WITH_DB_NAME);
   if (!is_tmp_table)
     form->s->tmp_table = saved_tmp_table_type;
   create_info->used_fields = old;
@@ -333,8 +429,7 @@ int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
     trx->run_query(createdb_stmt);
   }
 
-  error_code = trx->run_query(create_table_stmt);
-  return error_code;
+  return trx->run_query(create_table_stmt);
 }
 
 int ha_xpand::delete_table(const char *path)
@@ -345,15 +440,17 @@ int ha_xpand::delete_table(const char *path)
   if (!trx)
     return error_code;
 
-  char decoded_dbname[FN_REFLEN];
-  char decoded_tbname[FN_REFLEN];
-  decode_file_path(path, decoded_dbname, decoded_tbname);
+  std::string decoded_dbname;
+  std::string decoded_tbname;
+  if ((error_code= normalize_tablename(path, &decoded_dbname,
+                                       &decoded_tbname)))
+    return error_code;
 
   String delete_cmd;
   delete_cmd.append("DROP TABLE `");
-  delete_cmd.append(decoded_dbname);
+  delete_cmd.append(decoded_dbname.c_str());
   delete_cmd.append("`.`");
-  delete_cmd.append(decoded_tbname);
+  delete_cmd.append(decoded_tbname.c_str());
   delete_cmd.append("`");
 
   return trx->run_query(delete_cmd);
@@ -367,23 +464,27 @@ int ha_xpand::rename_table(const char* from, const char* to)
   if (!trx)
     return error_code;
 
-  char decoded_from_dbname[FN_REFLEN];
-  char decoded_from_tbname[FN_REFLEN];
-  decode_file_path(from, decoded_from_dbname, decoded_from_tbname);
+  std::string decoded_from_dbname;
+  std::string decoded_from_tbname;
+  if ((error_code= normalize_tablename(from, &decoded_from_dbname,
+                                       &decoded_from_tbname)))
+    return error_code;
 
-  char decoded_to_dbname[FN_REFLEN];
-  char decoded_to_tbname[FN_REFLEN];
-  decode_file_path(to, decoded_to_dbname, decoded_to_tbname);
+  std::string decoded_to_dbname;
+  std::string decoded_to_tbname;
+  if ((error_code= normalize_tablename(to, &decoded_to_dbname,
+                                       &decoded_to_tbname)))
+    return error_code;
 
   String rename_cmd;
   rename_cmd.append("RENAME TABLE `");
-  rename_cmd.append(decoded_from_dbname);
+  rename_cmd.append(decoded_from_dbname.c_str());
   rename_cmd.append("`.`");
-  rename_cmd.append(decoded_from_tbname);
+  rename_cmd.append(decoded_from_tbname.c_str());
   rename_cmd.append("` TO `");
-  rename_cmd.append(decoded_to_dbname);
+  rename_cmd.append(decoded_to_dbname.c_str());
   rename_cmd.append("`.`");
-  rename_cmd.append(decoded_to_tbname);
+  rename_cmd.append(decoded_to_tbname.c_str());
   rename_cmd.append("`;");
 
   return trx->run_query(rename_cmd);
@@ -392,21 +493,80 @@ int ha_xpand::rename_table(const char* from, const char* to)
 static void
 xpand_mark_table_for_discovery(TABLE *table)
 {
-  table->s->tabledef_version.str = NULL;
-  table->s->tabledef_version.length = 0;
-  table->m_needs_reopen = TRUE;
+  table->m_needs_reopen = true;
+  Xpand_share *xs;
+  if ((xs= static_cast<Xpand_share*>(table->s->ha_share)))
+    xs->rediscover_table = true;
+}
+
+void
+xpand_mark_tables_for_discovery(LEX *lex)
+{
+  for (TABLE_LIST *tbl= lex->query_tables; tbl; tbl= tbl->next_global)
+    if (tbl->table && tbl->table->file->ht == xpand_hton)
+      xpand_mark_table_for_discovery(tbl->table);
+}
+
+ulonglong *
+xpand_extract_table_oids(THD *thd, LEX *lex)
+{
+  int cnt = 1;
+  for (TABLE_LIST *tbl = lex->query_tables; tbl; tbl= tbl->next_global)
+    if (tbl->table && tbl->table->file->ht == xpand_hton)
+        cnt++;
+
+  ulonglong *oids = (ulonglong*)thd_alloc(thd, cnt * sizeof(ulonglong));
+  ulonglong *ptr = oids;
+  for (TABLE_LIST *tbl = lex->query_tables; tbl; tbl= tbl->next_global)
+  {
+    if (tbl->table && tbl->table->file->ht == xpand_hton)
+    {
+      ha_xpand *hndlr = static_cast<ha_xpand *>(tbl->table->file);
+      *ptr++ = hndlr->get_table_oid();
+    }
+  }
+
+  *ptr = 0;
+  return oids;
 }
 
 int ha_xpand::open(const char *name, int mode, uint test_if_locked)
 {
+  THD *thd= ha_thd();
   DBUG_ENTER("ha_xpand::open");
-  DBUG_PRINT("oid",
-             ("%s", table->s->tabledef_version.str));
 
-  if (!table->s->tabledef_version.str)
+  Xpand_share *share;
+  if (!(share = get_share()))
+    DBUG_RETURN(1);
+
+  int error_code;
+  xpand_connection *trx = get_trx(thd, &error_code);
+  if (!trx)
+    DBUG_RETURN(error_code);
+
+  if (share->rediscover_table)
     DBUG_RETURN(HA_ERR_TABLE_DEF_CHANGED);
-  if (!xpand_table_oid)
-    xpand_table_oid = atoll((const char *)table->s->tabledef_version.str);
+
+  if (!share->xpand_table_oid) {
+    // We may end up with two threads executing this piece concurrently but
+    // it's ok
+    std::string norm_table;
+    std::string norm_db;
+    if ((error_code= normalize_tablename(name, &norm_db, &norm_table)))
+      DBUG_RETURN(error_code);
+
+    ulonglong oid = 0;
+    error_code= trx->get_table_oid(norm_db.c_str(), strlen(norm_db.c_str()),
+                                   norm_table.c_str(),
+                                   strlen(norm_table.c_str()), &oid,
+                                   table_share);
+    if (error_code)
+      DBUG_RETURN(error_code);
+
+    share->xpand_table_oid = oid;
+  }
+
+  xpand_table_oid = share->xpand_table_oid;
 
   // Surrogate key marker
   has_hidden_key = table->s->primary_key == MAX_KEY;
@@ -472,13 +632,17 @@ int ha_xpand::write_row(const uchar *buf)
       if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
         trx->auto_commit_next();
 
-      error_code= trx->update_query(update_stmt, table->s->db, &update_rows);
+      ulonglong *oids = xpand_extract_table_oids(thd, thd->lex);
+      error_code= trx->update_query(update_stmt, table->s->db, oids,
+                                    &update_rows);
       if (upsert_flag & XPAND_BULK_UPSERT)
         upsert_flag |= XPAND_UPSERT_SENT;
       else
         upsert_flag &= ~XPAND_HAS_UPSERT;
     }
 
+    if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+      xpand_mark_tables_for_discovery(thd->lex);
     return error_code;
   }
 
@@ -561,13 +725,18 @@ int ha_xpand::direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
     return error_code;
 
   String update_stmt;
-  update_stmt.append(thd->query_string.str());
+  // Do the same as create_xpand_select_handler does:
+  thd->lex->print(&update_stmt, QT_ORDINARY);
 
   if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
     trx->auto_commit_next();
 
-  error_code = trx->update_query(update_stmt, table->s->db, update_rows);
+  ulonglong *oids = xpand_extract_table_oids(thd, thd->lex);
+  error_code = trx->update_query(update_stmt, table->s->db, oids, update_rows);
   *found_rows = *update_rows;
+  
+  if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+    xpand_mark_tables_for_discovery(thd->lex);
   DBUG_RETURN(error_code);
 }
 
@@ -874,7 +1043,10 @@ int ha_xpand::index_end()
   if (scan_cur)
     DBUG_RETURN(rnd_end());
   else
+  {
+    my_bitmap_free(&scan_fields);
     DBUG_RETURN(0);
+  }
 }
 
 int ha_xpand::rnd_init(bool scan)
@@ -1095,6 +1267,11 @@ int ha_xpand::info_push(uint info_type, void *info)
   return 0;
 }
 
+ulonglong ha_xpand::get_table_oid()
+{
+    return xpand_table_oid;
+}
+
 /****************************************************************************
 ** Row encoding functions
 ****************************************************************************/
@@ -1294,6 +1471,7 @@ err:
 static int xpand_init(void *p)
 {
   DBUG_ENTER("xpand_init");
+
   xpand_hton = (handlerton *) p;
   xpand_hton->flags = HTON_NO_FLAGS;
   xpand_hton->panic = xpand_panic;
@@ -1307,15 +1485,27 @@ static int xpand_init(void *p)
   xpand_hton->create_select = create_xpand_select_handler;
   xpand_hton->create_derived = create_xpand_derived_handler;
 
-  update_host_list(xpand_host);
-
-  DBUG_RETURN(0);
+  mysql_rwlock_init(key_xpand_hosts, &xpand_hosts_lock);
+  mysql_rwlock_wrlock(&xpand_hosts_lock);
+  xpand_hosts = static_cast<xpand_host_list*>(
+                my_malloc(sizeof(xpand_host_list), MYF(MY_WME | MY_ZEROFILL)));
+  int error_code = xpand_hosts->fill(xpand_hosts_str);
+  if (error_code) {
+    my_free(xpand_hosts);
+    xpand_hosts = NULL;
+  }
+  mysql_rwlock_unlock(&xpand_hosts_lock);
+  DBUG_RETURN(error_code);
 }
 
 static int xpand_deinit(void *p)
 {
   DBUG_ENTER("xpand_deinit");
-  free_host_list();
+  mysql_rwlock_wrlock(&xpand_hosts_lock);
+  xpand_hosts->empty();
+  my_free(xpand_hosts);
+  xpand_hosts = NULL;
+  mysql_rwlock_destroy(&xpand_hosts_lock);
   DBUG_RETURN(0);
 }
 
@@ -1329,7 +1519,8 @@ static struct st_mysql_sys_var* xpand_system_variables[] =
   MYSQL_SYSVAR(connect_timeout),
   MYSQL_SYSVAR(read_timeout),
   MYSQL_SYSVAR(write_timeout),
-  MYSQL_SYSVAR(host),
+  MYSQL_SYSVAR(balance_algorithm),
+  MYSQL_SYSVAR(hosts),
   MYSQL_SYSVAR(username),
   MYSQL_SYSVAR(password),
   MYSQL_SYSVAR(port),

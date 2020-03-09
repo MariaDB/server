@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 *****************************************************************************/
 #ifndef _ha_xpand_pushdown_h
 #define _ha_xpand_pushdown_h
@@ -40,8 +40,8 @@ protected:
  *  More details in server/sql/select_handler.h
  *  sel semantic tree for the query in SELECT_LEX.
  ************************************************************/
-class ha_xpand_select_handler: 
-    private ha_xpand_base_handler, 
+class ha_xpand_select_handler:
+    private ha_xpand_base_handler,
     public select_handler
 {
 public:
@@ -49,10 +49,10 @@ public:
                           xpand_connection_cursor *scan);
   ~ha_xpand_select_handler();
 
-  int init_scan();
-  int next_row();
-  int end_scan();
-  void print_error(int, unsigned long) {}
+  int init_scan() override;
+  int next_row() override;
+  int end_scan() override;
+  void print_error(int, unsigned long) override {}
 };
 
 /*@brief derived_handler class*/
@@ -72,10 +72,10 @@ public:
                            xpand_connection_cursor *scan);
   ~ha_xpand_derived_handler();
 
-  int init_scan();
-  int next_row();
-  int end_scan();
-  void print_error(int, unsigned long) {}
+  int init_scan() override;
+  int next_row() override;
+  int end_scan() override;
+  void print_error(int, unsigned long) override {}
 };
 
 select_handler *create_xpand_select_handler(THD* thd, SELECT_LEX* select_lex);
