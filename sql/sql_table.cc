@@ -7761,7 +7761,7 @@ static int mysql_inplace_alter_table(THD *thd,
   thd->abort_on_warning= !ha_alter_info->ignore && thd->is_strict_mode();
   res= table->file->ha_inplace_alter_table(altered_table, ha_alter_info);
   thd->abort_on_warning= false;
-  if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
+  if (thd->start_alter_id && !thd->direct_commit_alter)
   {
     if ((return_result= master_result(thd, mi, info, res)))
       goto rollback;
@@ -9434,11 +9434,11 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
   //No need to write start alter , It must be already written
   if (thd->direct_commit_alter)
     return false;
-  if (thd->lex->previous_commit_id)
+  if (thd->start_alter_id)
   {
     Master_info *mi= thd->rgi_slave->rli->mi;
     info->error= 0;
-    info->thread_id= thd->lex->previous_commit_id;
+    info->thread_id= thd->start_alter_id;
     info->state= start_alter_state::REGISTERED;
     mysql_mutex_lock(&mi->start_alter_list_lock);
     mi->start_alter_list.push_back(info, thd->mem_root);
@@ -9454,12 +9454,11 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
   else if (opt_binlog_split_alter)
   {
     char *send_query= (char *)thd->alloc(thd->query_length() + 20);
-    thd->transaction.start_alter= true;
-    sprintf(send_query, "/*!100001 START %lld %s */",thd->thread_id,  thd->query());
+    thd->gtid_flags3|= Gtid_log_event::FL_START_ALTER_E1;
+    sprintf(send_query, "/*!100001 %s */", thd->query());
     if (write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
       return true;
     *partial_alter= true;
-    thd->transaction.start_alter= false;
     DBUG_EXECUTE_IF("start_alter_delay_master", {
       my_sleep(10000000);
       });
@@ -10258,7 +10257,8 @@ do_continue:;
       {
         if (opt_binlog_split_alter)
         {
-          sprintf(send_query, "/*!100001 ROLLBACK %lld */ %s", thd->thread_id, thd->query());
+          thd->gtid_flags3|= Gtid_log_event::FL_ROLLBACK_ALTER_E1;
+          sprintf(send_query, "/*!100001  %s */", thd->query());
           if(write_bin_log(thd, false, send_query, strlen(send_query), true, true))
             DBUG_RETURN(true);
         }
@@ -10370,6 +10370,7 @@ do_continue:;
     {
       goto err_new_table_cleanup;
     }
+      my_sleep(10000000);
   }
   else
   {
@@ -10386,7 +10387,7 @@ do_continue:;
 
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
-    if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
+    if (thd->start_alter_id && !thd->direct_commit_alter)
     {
       DBUG_ASSERT(thd->slave_thread);
       wait_for_master(thd, info);
@@ -10422,11 +10423,11 @@ do_continue:;
       goto err_new_table_cleanup;
     if (partial_alter)
     {
-      sprintf(send_query, "/*!100001 COMMIT %lld  */ %s", thd->thread_id, thd->query());
-      if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
+      thd->gtid_flags3|= Gtid_log_event::FL_COMMIT_ALTER_E1;
+      if(write_bin_log(thd, true, thd->query(), thd->query_length()))
         DBUG_RETURN(true);
     }
-    else if(thd->lex->previous_commit_id)
+    else if(thd->start_alter_id)
     {
       //if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
        // DBUG_RETURN(true);
@@ -10454,7 +10455,7 @@ do_continue:;
     - Neither old or new engine uses files from another engine
       The above is mainly true for the sequence and the partition engine.
   */
-  if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
+  if (thd->start_alter_id && !thd->direct_commit_alter)
   {
     DBUG_ASSERT(thd->slave_thread);
     wait_for_master(thd, info);
@@ -10630,11 +10631,11 @@ end_inplace:
                 (create_info->tmp_table())));
   if (partial_alter)
   {
-    sprintf(send_query, "/*!100001 COMMIT %lld */ %s", thd->thread_id, thd->query());
-    if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
+    thd->gtid_flags3|= Gtid_log_event::FL_COMMIT_ALTER_E1;
+    if(write_bin_log(thd, true, thd->query(), thd->query_length()))
       DBUG_RETURN(true);
   }
-  else if(thd->lex->previous_commit_id)
+  else if(thd->start_alter_id)
   {
     //if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
     //  DBUG_RETURN(true);
@@ -10693,14 +10694,15 @@ err_new_table_cleanup:
                           (FN_IS_TMP | (no_ha_table ? NO_HA_TABLE : 0)),
                           alter_ctx.get_tmp_path());
   //STODO
-  if (thd->lex->previous_commit_id && !thd->direct_commit_alter)
+  if (thd->start_alter_id && !thd->direct_commit_alter)
   {
     if (master_result(thd, mi, info, 1) == MASTER_RESULT_SHUTDOWN)
       mark_shutdown(info, mi);
   }
   else
   {
-    sprintf(send_query, "/*!100001 ROLLBACK %lld */ %s", thd->thread_id, thd->query());
+    thd->gtid_flags3|= Gtid_log_event::FL_ROLLBACK_ALTER_E1;
+    sprintf(send_query, "/*!100001 %s */", thd->query());
     if(write_bin_log(thd, false, send_query, strlen(send_query), true, true))
       DBUG_RETURN(true);
   }

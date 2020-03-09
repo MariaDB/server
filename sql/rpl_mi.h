@@ -373,6 +373,8 @@ struct start_alter_info
   */
   uint error;
   enum start_alter_state state;
+  /* We are not using mysql_cond_t because we do not need PSI */
+  pthread_cond cond;
 };
 
 struct start_alter_thd_args
@@ -383,6 +385,7 @@ struct start_alter_thd_args
   char *catalog;
   bool shutdown;
   CHARSET_INFO *cs;
+  uint64 thread_id;
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,

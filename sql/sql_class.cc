@@ -631,7 +631,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
-   rpt(NULL), slave_shutdown(false), direct_commit_alter(false),
+   slave_shutdown(false), direct_commit_alter(false), gtid_flags3(0),
+   start_alter_id(0),
    protocol_text(this), protocol_binary(this),
    m_current_stage_key(0),
    in_sub_stmt(0), log_all_errors(0),
@@ -2319,6 +2320,11 @@ void THD::cleanup_after_query()
 #ifndef EMBEDDED_LIBRARY
   if (rgi_slave)
     rgi_slave->cleanup_after_query();
+  if (gtid_flags3)
+    gtid_flags3= 0;
+  direct_commit_alter= 0;
+  start_alter_id= 0;
+  slave_shutdown= 0;
 #endif
 
 #ifdef WITH_WSREP

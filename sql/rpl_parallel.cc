@@ -1161,7 +1161,6 @@ handle_rpl_parallel_thread(void *arg)
       DBUG_ASSERT(qev->typ==rpl_parallel_thread::queued_event::QUEUED_EVENT);
 
       thd->rgi_slave= rgi;
-      thd->rpt= rpt;
       gco= rgi->gco;
       /* Handle a new event group, which will be initiated by a GTID event. */
       if ((event_type= qev->ev->get_type_code()) == GTID_EVENT)

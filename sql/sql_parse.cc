@@ -5641,8 +5641,8 @@ mysql_execute_command(THD *thd)
     /*
      Slave spawned start alter thread will not binlog, So we have to make sure
      that slave binlog will write flag FL_START_ALTER_E1
-    */
     thd->transaction.start_alter= true;
+    */
     /*
      start_alter_thread will be true for spawned thread
     */
@@ -5651,7 +5651,7 @@ mysql_execute_command(THD *thd)
       res= lex->m_sql_cmd->execute(thd);
       break;
     }
-    else if(!thd->rpt) //rpt should be NULL for legacy replication
+    else if(!thd->rgi_slave->is_parallel_exec) //rpt should be NULL for legacy replication
     {
       /*
        We will just write the binlog and move to next event , because COMMIT
@@ -5672,8 +5672,8 @@ mysql_execute_command(THD *thd)
     /*
      We could get shutdown at this moment so spawned thread just do the work
      till binlog writing of start alter and then exit.
-    */
     args->shutdown= thd->rpt->stop;
+    */
     if (mysql_thread_create(key_rpl_parallel_thread, &th, &connection_attrib,
                             handle_slave_start_alter, args))
     {
@@ -5698,8 +5698,8 @@ mysql_execute_command(THD *thd)
       info_iterator.rewind();
     }
     //Although write_start_alter can also remove the *info, so we can do this on any place
-    if (thd->rpt->stop)
-      info_iterator.remove();
+    //if (thd->rpt->stop)
+     // info_iterator.remove();
     mysql_mutex_unlock(&mi->start_alter_list_lock);
     /*
      We can free the args here because spawned thread has already copied the data
@@ -5708,7 +5708,7 @@ mysql_execute_command(THD *thd)
     DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
     if (write_bin_log(thd, false, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
       return true;
-    thd->transaction.start_alter= false;
+    //thd->transaction.start_alter= false;
     break;
   }
   case SQLCOM_COMMIT_ALTER:

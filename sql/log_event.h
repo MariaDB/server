@@ -3423,7 +3423,10 @@ public:
     For exam. FL_XYZ_E1
     Because in future we may need to allocate more space for flags.
   */
+  //MDEV-11675 flags
   static const uint16 FL_START_ALTER_E1= 4;
+  static const uint16 FL_COMMIT_ALTER_E1= 8;
+  static const uint16 FL_ROLLBACK_ALTER_E1= 16;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
