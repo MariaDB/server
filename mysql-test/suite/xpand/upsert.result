@@ -11,7 +11,7 @@ id	animal
 2	Cheetah
 3	Zebra
 INSERT INTO ins_duplicate VALUES (1,'Antelope');
-ERROR 23000: Xpand error: [5120] Duplicate key in container: `db1`.`ins_duplicate` Primary key: (1)
+ERROR 23000: Can't write; duplicate key in table 'ins_duplicate'
 INSERT INTO ins_duplicate VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Banana';
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 id	animal
@@ -19,7 +19,7 @@ id	animal
 2	Cheetah
 3	Zebra
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
-ERROR 23000: Xpand error: [5120] Duplicate key in container: `db1`.`ins_duplicate` Primary key: (1)
+ERROR 23000: Can't write; duplicate key in table 'ins_duplicate'
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid';
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 id	animal
@@ -33,7 +33,7 @@ id	animal
 2	hybrid
 3	Zebra
 INSERT INTO ins_duplicate VALUES (1,'Antelope');
-ERROR 23000: Xpand error: [5120] Duplicate key in container: `db1`.`ins_duplicate` Primary key: (1)
+ERROR 23000: Can't write; duplicate key in table 'ins_duplicate'
 INSERT INTO ins_duplicate VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Vegetable';
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 id	animal
@@ -41,7 +41,7 @@ id	animal
 2	hybrid
 3	Zebra
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
-ERROR 23000: Xpand error: [5120] Duplicate key in container: `db1`.`ins_duplicate` Primary key: (1)
+ERROR 23000: Can't write; duplicate key in table 'ins_duplicate'
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid2';
 COMMIT;
 BEGIN;
@@ -51,7 +51,7 @@ id	animal
 2	hybrid2
 3	Zebra
 INSERT INTO ins_duplicate VALUES (1,'Antelope');
-ERROR 23000: Xpand error: [5120] Duplicate key in container: `db1`.`ins_duplicate` Primary key: (1)
+ERROR 23000: Can't write; duplicate key in table 'ins_duplicate'
 INSERT INTO ins_duplicate VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Vegetable';
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 id	animal
@@ -59,7 +59,7 @@ id	animal
 2	hybrid2
 3	Zebra
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
-ERROR 23000: Xpand error: [5120] Duplicate key in container: `db1`.`ins_duplicate` Primary key: (1)
+ERROR 23000: Can't write; duplicate key in table 'ins_duplicate'
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid3';
 ROLLBACK;
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
