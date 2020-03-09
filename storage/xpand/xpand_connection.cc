@@ -14,6 +14,27 @@ Copyright (c) 2019, 2020, MariaDB Corporation.
 #include "tztime.h"
 #include "errmsg.h"
 
+#ifdef _WIN32
+#include <stdlib.h>
+#define htobe64 _byteswap_uint64
+#define be64toh _byteswap_uint64
+#define htobe32 _byteswap_ulong
+#define be32toh _byteswap_ulong
+#define htobe16 _byteswap_ushort
+#define be16toh _byteswap_ushort
+#endif
+
+#if defined(__APPLE__)
+#include <libkern/OSByteOrder.h>
+#define htobe64(x) OSSwapHostToBigInt64(x)
+#define be64toh(x) OSSwapBigToHostInt64(x)
+#define htobe32(x) OSSwapHostToBigInt32(x)
+#define be32toh(x) OSSwapBigToHostInt32(x)
+#define htobe16(x) OSSwapHostToBigInt16(x)
+#define be16toh(x) OSSwapBigToHostInt16(x)
+#endif
+
+
 extern int xpand_connect_timeout;
 extern int xpand_read_timeout;
 extern int xpand_write_timeout;
