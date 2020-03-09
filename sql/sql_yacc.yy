@@ -17555,7 +17555,8 @@ xid:
           {
             MYSQL_YYABORT_UNLESS($1->length() <= MAXGTRIDSIZE &&
                                  $3->length() <= MAXBQUALSIZE &&
-                                 $5 <= std::numeric_limits<int32_t>::max());
+                                 $5 <= static_cast<ulong>(
+                                         std::numeric_limits<int32_t>::max()));
             if (unlikely(!(Lex->xid=(XID *)thd->alloc(sizeof(XID)))))
               MYSQL_YYABORT;
             Lex->xid->set($5, $1->ptr(), $1->length(), $3->ptr(), $3->length());
