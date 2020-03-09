@@ -77,10 +77,10 @@ bool Pushdown_select::init()
 
 bool Pushdown_select::send_result_set_metadata()
 {
-  THD *thd= handler->thd;
   DBUG_ENTER("Pushdown_select::send_result_set_metadata");
 
 #ifdef WITH_WSREP
+  THD *thd= handler->thd;
   if (WSREP(thd) && thd->wsrep_retry_query)
   {
     WSREP_DEBUG("skipping select metadata");
