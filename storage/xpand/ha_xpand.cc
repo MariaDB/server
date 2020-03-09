@@ -945,7 +945,7 @@ int ha_xpand::index_read(uchar * buf, const uchar * key, uint key_len,
   uchar *rowdata = NULL;
   if (exact) {
     is_scan = false;
-    ulong rowdata_length;
+    ulonglong rowdata_length;
     error_code = trx->key_read(xpand_table_oid, 0, xpd_lock_type,
                                table->read_set, packed_key, packed_key_len,
                                &rowdata, &rowdata_length);
@@ -1170,7 +1170,7 @@ int ha_xpand::rnd_pos(uchar * buf, uchar *pos)
   build_key_packed_row(table->s->primary_key, buf, packed_key, &packed_key_len);
 
   uchar *rowdata = NULL;
-  ulong rowdata_length;
+  ulonglong rowdata_length;
   if ((error_code = trx->key_read(xpand_table_oid, 0, xpd_lock_type,
                                   table->read_set, packed_key, packed_key_len,
                                   &rowdata, &rowdata_length)))

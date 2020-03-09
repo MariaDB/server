@@ -78,7 +78,7 @@ public:
   int key_read(ulonglong xpand_table_oid, uint index,
                xpand_lock_mode_t lock_mode, MY_BITMAP *read_set,
                uchar *packed_key, ulong packed_key_length, uchar **rowdata,
-               ulong *rowdata_length);
+               ulonglong *rowdata_length);
   enum sort_order {SORT_NONE = 0, SORT_ASC = 1, SORT_DESC = 2};
   enum scan_type {
     READ_KEY_OR_NEXT,  /* rows with key and greater */
