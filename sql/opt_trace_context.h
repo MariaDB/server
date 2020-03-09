@@ -4,7 +4,7 @@
 #include "sql_array.h"
 
 class Opt_trace_context;
-class Opt_trace_info;
+struct Opt_trace_info;
 class Json_writer;
 
 class Opt_trace_stmt {
