@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 *****************************************************************************/
 
 #ifndef _xpand_connection_h
@@ -109,8 +109,8 @@ public:
   int scan_end(xpand_connection_cursor *scan);
 
   int populate_table_list(LEX_CSTRING *db, handlerton::discovered_list *result);
-  int get_table_oid(const std::string& db, const std::string &name, 
-                    ulonglong *oid, TABLE_SHARE *share);
+  int get_table_oid(const char *db, size_t db_len, const char *name,
+                    size_t name_len, ulonglong *oid, TABLE_SHARE *share);
   int discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name, THD *thd,
                              TABLE_SHARE *share);
 
@@ -125,6 +125,7 @@ private:
   int add_command_operand_vlstr(const uchar *str, size_t length);
   int add_command_operand_lex_string(LEX_CSTRING str);
   int add_command_operand_bitmap(MY_BITMAP *bitmap);
+  int add_status_vars();
   int begin_command(uchar command);
   int send_command();
   int read_query_response();

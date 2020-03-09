@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 *****************************************************************************/
 
 /** @file xpand_connection.cc */
@@ -7,9 +7,12 @@ Copyright (c) 2019, MariaDB Corporation.
 #include "xpand_connection.h"
 #include "ha_xpand.h"
 #include <string>
-#include "errmsg.h"
 #include "handler.h"
 #include "table.h"
+#include "sql_class.h"
+#include "tztime.h"
+#include "errmsg.h"
+
 #include "my_pthread.h"
 
 extern int xpand_connect_timeout;
@@ -59,6 +62,9 @@ enum xpand_trans_state {
   XPAND_TRANS_ROLLBACK_STMT = 4,
   XPAND_TRANS_NONE = 32,
 };
+const int XPAND_TRANS_STARTS_STMT = (XPAND_TRANS_NEW_STMT |
+                                     XPAND_TRANS_REQUESTED |
+                                     XPAND_TRANS_ROLLBACK_STMT);
 
 enum xpand_trans_post_flags {
   XPAND_TRANS_AUTOCOMMIT = 8,
@@ -205,6 +211,47 @@ int xpand_connection::connect_direct(char *host)
   DBUG_RETURN(error_code);
 }
 
+int xpand_connection::add_status_vars()
+{
+  DBUG_ENTER("xpand_connection::add_status_vars");
+
+  if (!(trans_state & XPAND_TRANS_STARTS_STMT))
+    DBUG_RETURN(add_command_operand_uchar(0));
+
+  int error_code = 0;
+  system_variables vars = current_thd->variables;
+  if ((error_code = add_command_operand_uchar(1)))
+    DBUG_RETURN(error_code);
+  //sql mode
+  if ((error_code = add_command_operand_ulonglong(vars.sql_mode)))
+    DBUG_RETURN(error_code);
+  //auto increment state
+  if ((error_code = add_command_operand_ushort(vars.auto_increment_increment)))
+    DBUG_RETURN(error_code);
+  if ((error_code = add_command_operand_ushort(vars.auto_increment_offset)))
+    DBUG_RETURN(error_code);
+  //character sets and collations
+  if ((error_code = add_command_operand_ushort(vars.character_set_results->number)))
+    DBUG_RETURN(error_code);
+  if ((error_code = add_command_operand_ushort(vars.character_set_client->number)))
+    DBUG_RETURN(error_code);
+  if ((error_code = add_command_operand_ushort(vars.collation_connection->number)))
+    DBUG_RETURN(error_code);
+  if ((error_code = add_command_operand_ushort(vars.collation_server->number)))
+    DBUG_RETURN(error_code);
+  //timezone and time names
+  String tzone;
+  vars.time_zone->get_name()->print(&tzone, system_charset_info);
+  if ((error_code = add_command_operand_str((const uchar*)tzone.ptr(),tzone.length())))
+    DBUG_RETURN(error_code);
+  if ((error_code = add_command_operand_ushort(vars.lc_time_names->number)))
+    DBUG_RETURN(error_code);
+  //transaction isolation
+  if ((error_code = add_command_operand_uchar(vars.tx_isolation)))
+    DBUG_RETURN(error_code);
+  DBUG_RETURN(0);
+}
+
 int xpand_connection::begin_command(uchar command)
 {
   if (trans_state == XPAND_TRANS_NONE)
@@ -216,6 +263,9 @@ int xpand_connection::begin_command(uchar command)
     return error_code;
 
   if ((error_code = add_command_operand_uchar(trans_state | trans_flags)))
+    return error_code;
+
+  if ((error_code = add_status_vars()))
     return error_code;
 
   return error_code;
@@ -627,7 +677,10 @@ public:
     ulong packet_length = cli_safe_read(xpand_net);
     if (packet_length == packet_error) {
       *stmt_completed = TRUE;
-      DBUG_RETURN(mysql_errno(xpand_net));
+      int error_code = mysql_errno(xpand_net);
+      my_printf_error(error_code, "Xpand error: %s", MYF(0),
+                    mysql_error(xpand_net));
+      DBUG_RETURN(error_code);
     }
 
     unsigned char *pos = xpand_net->net.read_pos;
@@ -982,14 +1035,13 @@ error:
                       update Xpand_share::xpand_table_oid.
 
   @return
-     0 - OK 
+     0 - OK
      error code if an error occurred
 */
 
-int xpand_connection::get_table_oid(const std::string &db, 
-                                    const std::string &name, 
-                                    ulonglong *oid, 
-                                    TABLE_SHARE *share)
+int xpand_connection::get_table_oid(const char *db, size_t db_len,
+                                    const char *name, size_t name_len,
+                                    ulonglong *oid, TABLE_SHARE *share)
 {
   MYSQL_ROW row;
   int error_code = 0;
@@ -1002,9 +1054,9 @@ int xpand_connection::get_table_oid(const std::string &db,
                  "from system.databases d "
                  "     inner join ""system.relations r on d.db = r.db "
                  "where d.name = '");
-  get_oid.append(db.c_str());
+  get_oid.append(db, db_len);
   get_oid.append("' and r.name = '");
-  get_oid.append(name.c_str());
+  get_oid.append(name, name_len);
   get_oid.append("'");
 
   if (mysql_real_query(&xpand_net, get_oid.c_ptr(), get_oid.length())) {
@@ -1027,12 +1079,7 @@ int xpand_connection::get_table_oid(const std::string &db,
 
   if ((row = mysql_fetch_row(results_oid))) {
     DBUG_PRINT("row", ("%s", row[0]));
-
     *oid = strtoull((const char *)row[0], NULL, 10);
-    if (share->ha_share) {
-      Xpand_share *cs= (Xpand_share*)share->ha_share;
-      cs->xpand_table_oid = *oid;
-    }
   } else {
     error_code = HA_ERR_NO_SUCH_TABLE;
     goto error;
@@ -1058,6 +1105,18 @@ int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
   MYSQL_RES *results_create = NULL;
   MYSQL_ROW row;
   String show;
+  ulonglong oid = 0;
+  Xpand_share *cs;
+
+  if ((error_code = xpand_connection::get_table_oid(db->str, db->length,
+                                                    name->str, name->length,
+                                                    &oid, share)))
+      goto error;
+
+  if (!share->ha_share)
+    share->ha_share= new Xpand_share;
+  cs= static_cast<Xpand_share*>(share->ha_share);
+  cs->xpand_table_oid = oid;
 
   /* get show create statement */
   show.append("show simple create table ");
@@ -1095,6 +1154,7 @@ int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
                                                        strlen(row[1]));
   }
 
+  cs->rediscover_table = false;
 error:
   if (results_create)
     mysql_free_result(results_create);
