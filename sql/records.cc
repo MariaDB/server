@@ -39,7 +39,7 @@ static int rr_quick(READ_RECORD *info);
 int rr_sequential(READ_RECORD *info);
 static int rr_from_tempfile(READ_RECORD *info);
 template<bool> static int rr_unpack_from_tempfile(READ_RECORD *info);
-template<bool> static int rr_unpack_from_buffer(READ_RECORD *info);
+template<bool,bool> static int rr_unpack_from_buffer(READ_RECORD *info);
 int rr_from_pointers(READ_RECORD *info);
 static int rr_from_cache(READ_RECORD *info);
 static int init_rr_cache(THD *thd, READ_RECORD *info);
@@ -190,6 +190,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   DBUG_ENTER("init_read_record");
 
   const bool using_addon_fields= filesort && filesort->using_addon_fields();
+  bool using_packed_sortkeys= filesort && filesort->using_packed_sortkeys();
 
   bzero((char*) info,sizeof(*info));
   info->thd=thd;
@@ -287,10 +288,19 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
       DBUG_PRINT("info",("using rr_unpack_from_buffer"));
       DBUG_ASSERT(filesort->sorted_result_in_fsbuf);
       info->unpack_counter= 0;
+
       if (filesort->using_packed_addons())
-        info->read_record_func= rr_unpack_from_buffer<true>;
+      {
+        info->read_record_func= using_packed_sortkeys ?
+                                rr_unpack_from_buffer<true, true> :
+                                rr_unpack_from_buffer<true, false>;
+      }
       else
-        info->read_record_func= rr_unpack_from_buffer<false>;
+      {
+        info->read_record_func= using_packed_sortkeys ?
+                                rr_unpack_from_buffer<false, true> :
+                                rr_unpack_from_buffer<false, false>;
+      }
     }
     else
     {
@@ -626,7 +636,7 @@ int rr_from_pointers(READ_RECORD *info)
     -1   There is no record to be read anymore.
 */
 
-template<bool Packed_addon_fields>
+template<bool Packed_addon_fields, bool Packed_sort_keys>
 static int rr_unpack_from_buffer(READ_RECORD *info)
 {
   if (info->unpack_counter == info->sort_info->return_rows)
@@ -634,7 +644,12 @@ static int rr_unpack_from_buffer(READ_RECORD *info)
 
   uchar *record= info->sort_info->get_sorted_record(
     static_cast<uint>(info->unpack_counter));
-  uchar *plen= record + info->sort_info->get_sort_length();
+
+  uint sort_length= Packed_sort_keys ?
+                    Sort_keys::read_sortkey_length(record):
+                    info->sort_info->get_sort_length();
+
+  uchar *plen= record + sort_length;
   info->sort_info->unpack_addon_fields<Packed_addon_fields>(plen);
   info->unpack_counter++;
   return 0;
@@ -772,6 +787,19 @@ static int rr_cmp(uchar *a,uchar *b)
 #endif
 }
 
+
+/**
+  Copy (unpack) values appended to sorted fields from a buffer back to
+  their regular positions specified by the Field::ptr pointers.
+
+  @param addon_field     Array of descriptors for appended fields
+  @param buff            Buffer which to unpack the value from
+
+  @note
+    The function is supposed to be used only as a callback function
+    when getting field values for the sorted result set.
+
+*/
 template<bool Packed_addon_fields>
 inline void SORT_INFO::unpack_addon_fields(uchar *buff)
 {

@@ -25,9 +25,12 @@ class THD;
 struct TABLE;
 class Filesort_tracker;
 struct SORT_FIELD;
+struct SORT_FIELD_ATTR;
 typedef struct st_order ORDER;
 class JOIN;
 class Addon_fields;
+class Sort_keys;
+
 
 /**
   Sorting related info.
@@ -57,6 +60,7 @@ public:
   bool sort_positions;
 
   Filesort_tracker *tracker;
+  Sort_keys *sort_keys;
 
   Filesort(ORDER *order_arg, ha_rows limit_arg, bool sort_positions_arg,
            SQL_SELECT *select_arg):
@@ -66,14 +70,15 @@ public:
     select(select_arg),
     own_select(false), 
     using_pq(false),
-    sort_positions(sort_positions_arg)
+    sort_positions(sort_positions_arg),
+    sort_keys(NULL)
   {
     DBUG_ASSERT(order);
   };
 
   ~Filesort() { cleanup(); }
   /* Prepare ORDER BY list for sorting. */
-  uint make_sortorder(THD *thd, JOIN *join, table_map first_table_bit);
+  Sort_keys* make_sortorder(THD *thd, JOIN *join, table_map first_table_bit);
 
 private:
   void cleanup();
@@ -88,6 +93,7 @@ class SORT_INFO
 public:
   SORT_INFO()
     :addon_fields(NULL), record_pointers(0),
+     sort_keys(NULL),
      sorted_result_in_fsbuf(FALSE)
   {
     buffpek.str= 0;
@@ -121,6 +127,7 @@ public:
   LEX_STRING buffpek;           /* Buffer for buffpek structures */
   Addon_fields *addon_fields;   /* Addon field descriptors */
   uchar     *record_pointers;    /* If sorted in memory */
+  Sort_keys *sort_keys;         /* Sort key descriptors*/
 
   /**
     If the entire result of filesort fits in memory, we skip the merge phase.
@@ -201,6 +208,7 @@ public:
   template<bool Packed_addon_fields>
   inline void unpack_addon_fields(uchar *buff);
 
+  bool using_packed_sortkeys();
 
   friend SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
                              Filesort_tracker* tracker, JOIN *join,
@@ -216,5 +224,8 @@ bool filesort_use_addons(TABLE *table, uint sortlength,
                          uint *m_packable_length);
 
 void change_double_for_sort(double nr,uchar *to);
+void store_length(uchar *to, uint length, uint pack_length);
+void
+reverse_key(uchar *to, const SORT_FIELD_ATTR *sort_field);
 
 #endif /* FILESORT_INCLUDED */

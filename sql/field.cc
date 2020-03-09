@@ -1013,8 +1013,15 @@ CPP_UNNAMED_NS_END
   Static help functions
 *****************************************************************************/
 
+/*
+  @brief
+    Create a fixed size sort key part
 
-void Field::make_sort_key(uchar *buff,uint length)
+  @param  buff           buffer where values are written
+  @param  length         fixed size of the sort column
+*/
+
+void Field::make_sort_key_part(uchar *buff,uint length)
 {
   if (maybe_null())
   {
@@ -1026,6 +1033,62 @@ void Field::make_sort_key(uchar *buff,uint length)
     *buff++= 1;
   }
   sort_string(buff, length);
+}
+
+
+/*
+  @brief
+    Create a packed sort key part
+
+  @param  buff           buffer where values are written
+  @param  sort_field     sort column structure
+
+  @retval
+    length of the bytes written, does not include the NULL bytes
+*/
+uint
+Field::make_packed_sort_key_part(uchar *buff,
+                                 const SORT_FIELD_ATTR *sort_field)
+{
+  if (maybe_null())
+  {
+    if (is_null())
+    {
+      *buff++= 0;
+      return 0;  // For NULL values don't write any data
+    }
+    *buff++=1;
+  }
+  sort_string(buff, sort_field->original_length);
+  return sort_field->original_length;
+}
+
+
+uint
+Field_longstr::make_packed_sort_key_part(uchar *buff,
+                                         const SORT_FIELD_ATTR *sort_field)
+{
+  if (maybe_null())
+  {
+    if (is_null())
+    {
+      *buff++= 0;
+      return 0;   // For NULL values don't write any data
+    }
+    *buff++=1;
+  }
+  uchar *end= pack_sort_string(buff, sort_field);
+  return static_cast<int>(end-buff);
+}
+
+
+uchar*
+Field_longstr::pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field)
+{
+  String buf;
+  val_str(&buf, &buf);
+  return to + sort_field->pack_sort_string(to, buf.lex_cstring(),
+                                           field_charset());
 }
 
 
@@ -5395,29 +5458,6 @@ static longlong read_native(const uchar *from, uint bytes)
 }
 #endif
 
-static void store_lowendian(ulonglong num, uchar *to, uint bytes)
-{
-  switch(bytes) {
-  case 1: *to= (uchar)num;    break;
-  case 2: int2store(to, num); break;
-  case 3: int3store(to, num); break;
-  case 4: int4store(to, num); break;
-  case 8: int8store(to, num); break;
-  default: DBUG_ASSERT(0);
-  }
-}
-
-static longlong read_lowendian(const uchar *from, uint bytes)
-{
-  switch(bytes) {
-  case 1: return from[0];
-  case 2: return uint2korr(from);
-  case 3: return uint3korr(from);
-  case 4: return uint4korr(from);
-  case 8: return sint8korr(from);
-  default: DBUG_ASSERT(0); return 0;
-  }
-}
 
 void Field_timestamp_hires::store_TIMEVAL(const timeval &tv)
 {
@@ -8526,8 +8566,15 @@ Binlog_type_info Field_blob::binlog_type_info() const
 
 uint32 Field_blob::sort_length() const
 {
-  return (uint32) (get_thd()->variables.max_sort_length + 
-                   (field_charset() == &my_charset_bin ? 0 : packlength));
+  return packlength == 4 ?
+    UINT_MAX32 :
+    (uint32) field_length + sort_suffix_length();
+}
+
+
+uint32 Field_blob::sort_suffix_length() const
+{
+  return field_charset() == &my_charset_bin ?  packlength : 0;
 }
 
 

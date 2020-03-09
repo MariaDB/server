@@ -86,7 +86,10 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
 
 void Filesort_tracker::get_data_format(String *str)
 {
-  str->append("sort_key");
+  if (r_sort_keys_packed)
+    str->append("packed_sort_key");
+  else
+    str->append("sort_key");
   str->append(",");
 
   if (r_using_addons)

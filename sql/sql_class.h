@@ -6277,8 +6277,52 @@ public:
 /* Structs used when sorting */
 struct SORT_FIELD_ATTR
 {
-  uint length;          /* Length of sort field */
-  uint suffix_length;   /* Length suffix (0-4) */
+  /*
+    If using mem-comparable fixed-size keys:
+    length of the mem-comparable image of the field, in bytes.
+
+    If using packed keys: still the same? Not clear what is the use of it.
+  */
+  uint length;
+
+  /*
+    For most datatypes, this is 0.
+    The exception are the VARBINARY columns.
+    For those columns, the comparison actually compares
+
+      (value_prefix(N), suffix=length(value))
+
+    Here value_prefix is either the whole value or its prefix if it was too
+    long, and the suffix is the length of the original value.
+    (this way, for values X and Y:  if X=prefix(Y) then X compares as less
+    than Y
+  */
+  uint suffix_length;
+
+  /*
+    If using packed keys, number of bytes that are used to store the length
+    of the packed key.
+
+  */
+  uint length_bytes;
+
+  /* Max. length of the original value, in bytes */
+  uint original_length;
+  enum Type { FIXED_SIZE, VARIABLE_SIZE } type;
+  /*
+    TRUE  : if the item or field is NULLABLE
+    FALSE : otherwise
+  */
+  bool maybe_null;
+  CHARSET_INFO *cs;
+  uint pack_sort_string(uchar *to, const LEX_CSTRING &str,
+                        CHARSET_INFO *cs) const;
+  int compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
+                                     uchar *b, size_t *b_len);
+  int compare_packed_varstrings(uchar *a, size_t *a_len,
+                                uchar *b, size_t *b_len);
+  bool check_if_packing_possible(THD *thd) const;
+  bool is_variable_sized() { return type == VARIABLE_SIZE; }
 };
 
 

@@ -513,10 +513,14 @@ public:
     def->frm_unpack_basic(buffer);
     return def->frm_unpack_charset(share, buffer);
   }
-  void make_sort_key(uchar *to, Item *item,
-                     const SORT_FIELD_ATTR *sort_field, Sort_param *param)
+  void make_sort_key_part(uchar *to, Item *item,
+                          const SORT_FIELD_ATTR *sort_field,
+                          Sort_param *param)
                      const override;
-  void sortlength(THD *thd,
+  uint make_packed_sort_key_part(uchar *to, Item *item,
+                                 const SORT_FIELD_ATTR *sort_field,
+                                 Sort_param *param) const override;
+  void sort_length(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const override;
   uint32 max_display_length(const Item *item) const override

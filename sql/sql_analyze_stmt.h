@@ -223,7 +223,8 @@ public:
     sort_passes(0),
     sort_buffer_size(0),
     r_using_addons(false),
-    r_packed_addon_fields(false)
+    r_packed_addon_fields(false),
+    r_sort_keys_packed(false)
   {}
   
   /* Functions that filesort uses to report various things about its execution */
@@ -270,6 +271,10 @@ public:
   {
     r_using_addons= true;
     r_packed_addon_fields= addons_packed;
+  }
+  inline void report_sort_keys_format(bool sort_keys_packed)
+  {
+    r_sort_keys_packed= sort_keys_packed;
   }
 
   void get_data_format(String *str);
@@ -334,6 +339,7 @@ private:
   ulonglong sort_buffer_size;
   bool r_using_addons;
   bool r_packed_addon_fields;
+  bool r_sort_keys_packed;
 };
 
 

@@ -531,7 +531,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
     top->set_buffer(merge_buffer + (top - begin) * piece_size,
                     merge_buffer + (top - begin) * piece_size + piece_size);
     top->set_max_keys(max_key_count_per_piece);
-    bytes_read= read_to_buffer(file, top, &sort_param);
+    bytes_read= read_to_buffer(file, top, &sort_param, false);
     if (unlikely(bytes_read == (ulong) -1))
       goto end;
     DBUG_ASSERT(bytes_read);
@@ -561,7 +561,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       /* save old_key not to overwrite it in read_to_buffer */
       memcpy(save_key_buff, old_key, key_length);
       old_key= save_key_buff;
-      bytes_read= read_to_buffer(file, top, &sort_param);
+      bytes_read= read_to_buffer(file, top, &sort_param, false);
       if (unlikely(bytes_read == (ulong) -1))
         goto end;
       else if (bytes_read)      /* top->key, top->mem_count are reset */
@@ -609,7 +609,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       top->advance_current_key(key_length);
     }
     while (top->decrement_mem_count());
-    bytes_read= read_to_buffer(file, top, &sort_param);
+    bytes_read= read_to_buffer(file, top, &sort_param, false);
     if (unlikely(bytes_read == (ulong) -1))
       goto end;
   }
