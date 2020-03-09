@@ -3892,6 +3892,8 @@ inline void IORequest::set_fil_node(fil_node_t* node)
 @param[in] message	message for aio handler if non-sync aio
 			used, else ignored
 @param[in] ignore	whether to ignore out-of-bounds page_id
+@param[in] punch_hole	punch the hole to the file for page_compressed
+			tablespace
 @return DB_SUCCESS, or DB_TABLESPACE_DELETED
 	if we are trying to do i/o on a tablespace which does not exist */
 dberr_t
@@ -3904,7 +3906,8 @@ fil_io(
 	ulint			len,
 	void*			buf,
 	void*			message,
-	bool			ignore)
+	bool			ignore,
+	bool			punch_hole)
 {
 	os_offset_t		offset;
 	IORequest		req_type(type);
@@ -4083,13 +4086,20 @@ fil_io(
 	      || !fil_is_user_tablespace_id(page_id.space())
 	      || offset == page_id.page_no() * zip_size);
 
-	/* Queue the aio request */
-	dberr_t err = os_aio(
-		req_type,
-		mode, name, node->handle, buf, offset, len,
-		space->purpose != FIL_TYPE_TEMPORARY
-		&& srv_read_only_mode,
-		node, message);
+	dberr_t err = DB_SUCCESS;
+
+	if (punch_hole) {
+		/* Punch the hole to the file */
+		err = os_file_punch_hole(node->handle, offset, len);
+	} else {
+		/* Queue the aio request */
+		err = os_aio(
+			req_type,
+			mode, name, node->handle, buf, offset, len,
+			space->purpose != FIL_TYPE_TEMPORARY
+			&& srv_read_only_mode,
+			node, message);
+	}
 
 	/* We an try to recover the page from the double write buffer if
 	the decompression fails or the page is corrupt. */
@@ -4154,8 +4164,8 @@ void fil_aio_callback(os_aio_userdata_t *data)
 	}
 
 	ulint offset = bpage->id.page_no();
-	if (dblwr && bpage->init_on_flush) {
-		bpage->init_on_flush = false;
+	if (dblwr && bpage->status == buf_page_t::INIT_ON_FLUSH) {
+		bpage->status = buf_page_t::NORMAL;
 		dblwr = false;
 	}
 	dberr_t err = buf_page_io_complete(bpage, dblwr);

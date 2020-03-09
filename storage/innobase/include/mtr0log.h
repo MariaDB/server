@@ -502,6 +502,8 @@ inline void mtr_t::memcpy(const buf_block_t &b, void *dest, const void *str,
 @param[in,out]        b       buffer page */
 inline void mtr_t::init(buf_block_t *b)
 {
+  b->page.status= buf_page_t::INIT_ON_FLUSH;
+
   if (m_log_mode != MTR_LOG_ALL)
   {
     ut_ad(m_log_mode == MTR_LOG_NONE || m_log_mode == MTR_LOG_NO_REDO);
@@ -510,7 +512,6 @@ inline void mtr_t::init(buf_block_t *b)
 
   m_log.close(log_write<INIT_PAGE>(b->page.id, &b->page));
   m_last_offset= FIL_PAGE_TYPE;
-  b->page.init_on_flush= true;
 }
 
 /** Free a page.

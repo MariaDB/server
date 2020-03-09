@@ -4984,7 +4984,7 @@ loop:
 		goto function_exit;
 	}
 
-	ut_ad(!block->page.file_page_was_freed);
+	DBUG_ASSERT(block->page.status != buf_page_t::FREED);
 
 	for (i = 0; i < nth_lock; i++) {
 
@@ -5090,7 +5090,7 @@ lock_rec_block_validate(
 	/* The lock and the block that it is referring to may be freed at
 	this point. We pass BUF_GET_POSSIBLY_FREED to skip a debug check.
 	If the lock exists in lock_rec_validate_page() we assert
-	!block->page.file_page_was_freed. */
+	block->page.status != FREED. */
 
 	buf_block_t*	block;
 	mtr_t		mtr;

@@ -962,7 +962,8 @@ fail:
 		}
 
 		ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
-		ut_ad(!block->page.file_page_was_freed);
+		DBUG_ASSERT(block->page.status != buf_page_t::FREED);
+
 		buf_page_set_accessed(&block->page);
 		buf_block_buf_fix_inc(block, __FILE__, __LINE__);
 		mutex_exit(&block->mutex);
@@ -1313,7 +1314,7 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 
 		/* If AHI is still valid, page can't be in free state.
 		AHI is dropped when page is freed. */
-		ut_ad(!block->page.file_page_was_freed);
+		DBUG_ASSERT(block->page.status != buf_page_t::FREED);
 
 		buf_block_dbg_add_level(block, SYNC_TREE_NODE_FROM_HASH);
 

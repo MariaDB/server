@@ -37,6 +37,7 @@ Created June 2005 by Marko Makela
 /** A BLOB field reference full of zero, for use in assertions and tests.
 Initially, BLOB field references are set to zero, in
 dtuple_convert_big_rec(). */
+alignas(UNIV_PAGE_SIZE_MIN)
 const byte field_ref_zero[UNIV_PAGE_SIZE_MAX] = { 0, };
 
 #include "mtr0log.h"
@@ -450,7 +451,7 @@ static void page_zip_compress_write_log(buf_block_t *block,
   if (trailer_size)
     mtr->zmemcpy(block->page, page_zip_get_size(page_zip) - trailer_size,
                  trailer_size);
-  block->page.init_on_flush= true; /* because of mtr_t::init() */
+  block->page.status = buf_page_t::INIT_ON_FLUSH; /* because of mtr_t::init() */
 }
 
 /******************************************************//**

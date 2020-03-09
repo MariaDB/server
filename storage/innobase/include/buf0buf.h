@@ -372,10 +372,7 @@ FILE_PAGE (the other is buf_page_get_gen).
 @param[in,out]	mtr		mini-transaction
 @return pointer to the block, page bufferfixed */
 buf_block_t*
-buf_page_create(
-	const page_id_t		page_id,
-	ulint			zip_size,
-	mtr_t*			mtr);
+buf_page_create(const page_id_t page_id, ulint zip_size, mtr_t *mtr);
 
 /********************************************************************//**
 Releases a compressed-only page acquired with buf_page_get_zip(). */
@@ -402,24 +399,17 @@ buf_page_make_young(
 /*================*/
 	buf_page_t*	bpage);	/*!< in: buffer block of a file page */
 
-#ifdef UNIV_DEBUG
-/** Sets file_page_was_freed TRUE if the page is found in the buffer pool.
-This function should be called when we free a file page and want the
-debug version to check that it is not accessed any more unless
-reallocated.
-@param[in]	page_id	page id
-@return control block if found in page hash table, otherwise NULL */
-buf_page_t* buf_page_set_file_page_was_freed(const page_id_t page_id);
+/** Mark the page status as FREED for the given tablespace id and
+page number. If the page is not in buffer pool then ignore it.
+@param[in]	page_id	page_id
+@param[in,out]	mtr	mini-transaction
+@param[in]	file	file name
+@param[in]	line	line where called */
+void buf_page_free(const page_id_t page_id,
+                   mtr_t *mtr,
+                   const char *file,
+                   unsigned line);
 
-/** Sets file_page_was_freed FALSE if the page is found in the buffer pool.
-This function should be called when we free a file page and want the
-debug version to check that it is not accessed any more unless
-reallocated.
-@param[in]	page_id	page id
-@return control block if found in page hash table, otherwise NULL */
-buf_page_t* buf_page_reset_file_page_was_freed(const page_id_t page_id);
-
-#endif /* UNIV_DEBUG */
 /********************************************************************//**
 Reads the freed_page_clock of a buffer block.
 @return freed_page_clock */
@@ -1244,13 +1234,6 @@ public:
 					if written again we check is TRIM
 					operation needed. */
 
-	/** whether the page will be (re)initialized at the time it will
-	be written to the file, that is, whether the doublewrite buffer
-	can be safely skipped. Protected under similar conditions as
-	buf_block_t::frame. Can be set while holding buf_block_t::lock
-	X-latch and reset during page flush, while io_fix is in effect. */
-	bool		init_on_flush;
-
 	ulint           real_size;	/*!< Real size of the page
 					Normal pages == srv_page_size
 					page compressed pages, payload
@@ -1365,16 +1348,24 @@ public:
 					and bytes allocated for recv_sys.pages,
 					the field is protected by
 					recv_sys_t::mutex. */
-# ifdef UNIV_DEBUG
-	ibool		file_page_was_freed;
-					/*!< this is set to TRUE when
-					fsp frees a page in buffer pool;
-					protected by buf_pool->zip_mutex
-					or buf_block_t::mutex. */
-# endif /* UNIV_DEBUG */
   /** Change buffer entries for the page exist.
   Protected by io_fix==BUF_IO_READ or by buf_block_t::lock. */
   bool ibuf_exist;
+
+  /** Block initialization status. Can be modified while holding io_fix
+  or buf_block_t::lock X-latch */
+  enum {
+    /** the page was read normally and should be flushed normally */
+    NORMAL = 0,
+    /** the page was (re)initialized, and the doublewrite buffer can be
+    skipped on the next flush */
+    INIT_ON_FLUSH,
+    /** the page was freed and need to be flushed.
+    For page_compressed, page flush will punch a hole to free space.
+    Else if innodb_immediate_scrub_data_uncompressed, the page will
+    be overwritten with zeroes. */
+    FREED
+  } status;
 
   void fix() { buf_fix_count++; }
   uint32_t unfix()

@@ -897,6 +897,10 @@ a page is written to disk.
 (may be src_frame or an encrypted/compressed copy of it) */
 static byte* buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s)
 {
+  if (bpage->status == buf_page_t::FREED) {
+	return s;
+  }
+
   ut_ad(space->id == bpage->id.space());
   bpage->real_size = srv_page_size;
 
@@ -1022,6 +1026,62 @@ not_compressed:
   return d;
 }
 
+/** The following function deals with freed page during flushing.
+     i)  Writing zeros to the file asynchronously if scrubbing is enabled
+     ii) Punch the hole to the file synchoronously if page_compressed is
+         enabled for the tablespace
+This function also resets the IO_FIX to IO_NONE and making the
+page status as NORMAL. It initiates the write to the file only after
+releasing the page from flush list and its associated mutex.
+@param[in,out]	bpage	freed buffer page
+@param[in]	space	tablespace object of the freed page */
+static void buf_flush_freed_page(buf_page_t* bpage, fil_space_t* space)
+{
+	const page_id_t	page_id(bpage->id.space(), bpage->id.page_no());
+	BPageMutex* block_mutex = buf_page_get_mutex(bpage);
+	const bool uncompressed = (buf_page_get_state(bpage)
+				   == BUF_BLOCK_FILE_PAGE);
+	bool punch_hole = false;
+
+	mutex_enter(&buf_pool->mutex);
+	mutex_enter(block_mutex);
+
+	buf_page_set_io_fix(bpage, BUF_IO_NONE);
+	bpage->status = buf_page_t::NORMAL;
+	buf_flush_write_complete(bpage, false);
+
+	if (uncompressed) {
+		rw_lock_sx_unlock_gen(&((buf_block_t*) bpage)->lock,
+				      BUF_IO_WRITE);
+	}
+
+	buf_pool->stat.n_pages_written++;
+	mutex_exit(block_mutex);
+	mutex_exit(&buf_pool->mutex);
+
+	if (space->is_compressed()) {
+#if defined(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
+                punch_hole = (space != fil_system.temp_space
+                              && space->is_compressed());
+
+#endif
+	}
+
+	if (srv_immediate_scrub_data_uncompressed || punch_hole) {
+		/* Zero write the page */
+		ulint type = IORequest::WRITE;
+		IORequest request(type, NULL);
+		page_t* frame = const_cast<byte*>(field_ref_zero);
+
+		fil_io(request, punch_hole ? true :false,
+		       page_id, space->zip_size(), 0,
+		       space->physical_size(), frame, NULL,
+		       false, punch_hole);
+	}
+
+	space->release_for_io();
+}
+
 /********************************************************************//**
 Does an asynchronous write of a buffer page. NOTE: when the
 doublewrite buffer is used, we must call
@@ -1084,6 +1144,12 @@ buf_flush_write_block_low(
 			frame = ((buf_block_t*) bpage)->frame;
 		}
 
+		/* Skip the encryption and compression for the
+		freed page */
+		if (bpage->status == buf_page_t::FREED) {
+			break;
+		}
+
 		byte* page = reinterpret_cast<const buf_block_t*>(bpage)->frame;
 
 		if (full_crc32) {
@@ -1111,8 +1177,13 @@ buf_flush_write_block_low(
 		ut_ad(space->atomic_write_supported);
 	}
 
-	const bool use_doublewrite = !bpage->init_on_flush
-		&& space->use_doublewrite();
+	if (bpage->status == buf_page_t::FREED) {
+		buf_flush_freed_page(bpage, space);
+		return;
+	}
+
+	const bool use_doublewrite = bpage->status != buf_page_t::INIT_ON_FLUSH
+			&& space->use_doublewrite();
 
 	if (!use_doublewrite) {
 		ulint	type = IORequest::WRITE;
@@ -1191,17 +1262,14 @@ bool buf_flush_page(buf_page_t* bpage, buf_flush_t flush_type, bool sync)
 
 	ut_ad(buf_flush_ready_for_flush(bpage, flush_type));
 
-	bool	is_uncompressed;
-
-	is_uncompressed = (buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
+	bool	is_uncompressed = (buf_page_get_state(bpage)
+				   == BUF_BLOCK_FILE_PAGE);
 	ut_ad(is_uncompressed == (block_mutex != &buf_pool->zip_mutex));
 
-	ibool		flush;
 	rw_lock_t*	rw_lock;
 	bool		no_fix_count = bpage->buf_fix_count == 0;
 
 	if (!is_uncompressed) {
-		flush = TRUE;
 		rw_lock = NULL;
 	} else if (!(no_fix_count || flush_type == BUF_FLUSH_LIST)
 		   || (!no_fix_count
@@ -1211,61 +1279,55 @@ bool buf_flush_page(buf_page_t* bpage, buf_flush_t flush_type, bool sync)
 		/* For table residing in temporary tablespace sync is done
 		using IO_FIX and so before scheduling for flush ensure that
 		page is not fixed. */
-		flush = FALSE;
+		return false;
 	} else {
 		rw_lock = &reinterpret_cast<buf_block_t*>(bpage)->lock;
-		if (flush_type != BUF_FLUSH_LIST) {
-			flush = rw_lock_sx_lock_nowait(rw_lock, BUF_IO_WRITE);
-		} else {
-			/* Will SX lock later */
-			flush = TRUE;
-		}
-	}
-
-	if (flush) {
-
-		/* We are committed to flushing by the time we get here */
-
-		buf_page_set_io_fix(bpage, BUF_IO_WRITE);
-
-		buf_page_set_flush_type(bpage, flush_type);
-
-		if (buf_pool->n_flush[flush_type] == 0) {
-			os_event_reset(buf_pool->no_flush[flush_type]);
-		}
-
-		++buf_pool->n_flush[flush_type];
-		ut_ad(buf_pool->n_flush[flush_type] != 0);
-
-		mutex_exit(block_mutex);
-
-		mutex_exit(&buf_pool->mutex);
-
-		if (flush_type == BUF_FLUSH_LIST
-		    && is_uncompressed
+		if (flush_type != BUF_FLUSH_LIST
 		    && !rw_lock_sx_lock_nowait(rw_lock, BUF_IO_WRITE)) {
-
-			if (!fsp_is_system_temporary(bpage->id.space())) {
-				/* avoiding deadlock possibility involves
-				doublewrite buffer, should flush it, because
-				it might hold the another block->lock. */
-				buf_dblwr_flush_buffered_writes();
-			} else {
-				buf_dblwr_sync_datafiles();
-			}
-
-			rw_lock_sx_lock_gen(rw_lock, BUF_IO_WRITE);
+			return false;
 		}
-
-		/* Even though bpage is not protected by any mutex at this
-		point, it is safe to access bpage, because it is io_fixed and
-		oldest_modification != 0.  Thus, it cannot be relocated in the
-		buffer pool or removed from flush_list or LRU_list. */
-
-		buf_flush_write_block_low(bpage, flush_type, sync);
 	}
 
-	return(flush);
+	/* We are committed to flushing by the time we get here */
+
+	buf_page_set_io_fix(bpage, BUF_IO_WRITE);
+
+	buf_page_set_flush_type(bpage, flush_type);
+
+	if (buf_pool->n_flush[flush_type] == 0) {
+		os_event_reset(buf_pool->no_flush[flush_type]);
+	}
+
+	++buf_pool->n_flush[flush_type];
+	ut_ad(buf_pool->n_flush[flush_type] != 0);
+
+	mutex_exit(block_mutex);
+
+	mutex_exit(&buf_pool->mutex);
+
+	if (flush_type == BUF_FLUSH_LIST
+	    && is_uncompressed
+	    && !rw_lock_sx_lock_nowait(rw_lock, BUF_IO_WRITE)) {
+
+		if (!fsp_is_system_temporary(bpage->id.space())) {
+			/* avoiding deadlock possibility involves
+			doublewrite buffer, should flush it, because
+			it might hold the another block->lock. */
+			buf_dblwr_flush_buffered_writes();
+		} else {
+			buf_dblwr_sync_datafiles();
+		}
+
+		rw_lock_sx_lock_gen(rw_lock, BUF_IO_WRITE);
+	}
+
+	/* Even though bpage is not protected by any mutex at this
+	point, it is safe to access bpage, because it is io_fixed and
+	oldest_modification != 0.  Thus, it cannot be relocated in the
+	buffer pool or removed from flush_list or LRU_list. */
+
+	buf_flush_write_block_low(bpage, flush_type, sync);
+	return true;
 }
 
 # if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
