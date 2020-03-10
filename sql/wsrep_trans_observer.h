@@ -335,15 +335,22 @@ static inline int wsrep_before_rollback(THD* thd, bool all)
   int ret= 0;
   if (wsrep_is_active(thd))
   {
-    if (!all && thd->in_active_multi_stmt_transaction() &&
-        thd->wsrep_trx().is_streaming() &&
-        !wsrep_stmt_rollback_is_safe(thd))
+    if (!all && thd->in_active_multi_stmt_transaction())
     {
-      /* Non-safe statement rollback during SR multi statement
-         transasction. Self abort the transaction, the actual rollback
-         and error handling will be done in after statement phase. */
-      wsrep_thd_self_abort(thd);
-      ret= 0;
+      if (wsrep_emulate_bin_log)
+      {
+        wsrep_thd_binlog_stmt_rollback(thd);
+      }
+
+      if (thd->wsrep_trx().is_streaming() &&
+          !wsrep_stmt_rollback_is_safe(thd))
+      {
+        /* Non-safe statement rollback during SR multi statement
+           transasction. Self abort the transaction, the actual rollback
+           and error handling will be done in after statement phase. */
+        wsrep_thd_self_abort(thd);
+        ret= 0;
+      }
     }
     else if (wsrep_is_real(thd, all) &&
              thd->wsrep_trx().state() != wsrep::transaction::s_aborted)

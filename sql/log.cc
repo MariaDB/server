@@ -10702,7 +10702,6 @@ maria_declare_plugin(binlog)
 maria_declare_plugin_end;
 
 #ifdef WITH_WSREP
-#include "wsrep_trans_observer.h"
 #include "wsrep_mysqld.h"
 
 IO_CACHE *wsrep_get_trans_cache(THD * thd)
@@ -10740,15 +10739,18 @@ void wsrep_thd_binlog_trx_reset(THD * thd)
   DBUG_VOID_RETURN;
 }
 
-
-void thd_binlog_rollback_stmt(THD * thd)
+void wsrep_thd_binlog_stmt_rollback(THD * thd)
 {
-  WSREP_DEBUG("thd_binlog_rollback_stmt connection: %llu",
-	      thd->thread_id);
+  DBUG_ENTER("wsrep_thd_binlog_stmt_rollback");
+  WSREP_DEBUG("wsrep_thd_binlog_stmt_rollback");
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
   if (cache_mngr)
-    cache_mngr->trx_cache.set_prev_position(MY_OFF_T_UNDEF);
+  {
+    thd->binlog_remove_pending_rows_event(TRUE, TRUE);
+    cache_mngr->stmt_cache.reset();
+  }
+  DBUG_VOID_RETURN;
 }
 
 bool wsrep_stmt_rollback_is_safe(THD* thd)
