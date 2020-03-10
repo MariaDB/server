@@ -631,7 +631,8 @@ extern "C" void thd_kill_timeout(THD* thd)
 THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
-   rli_fake(0), rgi_fake(0), rgi_slave(NULL),
+   rli_fake(0), rgi_fake(0), rgi_slave(NULL), rpt(NULL),
+   direct_commit_alter(false), gtid_flags3(0),
    protocol_text(this), protocol_binary(this),
    m_current_stage_key(0),
    in_sub_stmt(0), log_all_errors(0),
@@ -2315,10 +2316,13 @@ void THD::cleanup_after_query()
   /* reset table map for multi-table update */
   table_map_for_update= 0;
   m_binlog_invoker= INVOKER_NONE;
+  gtid_flags3= 0;
 
 #ifndef EMBEDDED_LIBRARY
   if (rgi_slave)
     rgi_slave->cleanup_after_query();
+  gtid_flags3= 0;
+  direct_commit_alter= 0;
 #endif
 
 #ifdef WITH_WSREP

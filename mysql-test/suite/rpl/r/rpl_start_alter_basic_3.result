@@ -1,0 +1,32 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+stop slave;
+SET GLOBAL slave_parallel_threads=1;
+set global slave_parallel_mode=optimistic;
+change master to master_use_gtid= current_pos;
+start slave;
+connection master;
+set global binlog_split_alter=true;
+create table t1( a int primary key, b int) engine=innodb;
+alter table t1 add column c int, force, algorithm=inplace;
+create table t3( a int primary key, b int) engine=innodb;
+connection master;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection master;
+drop table t1,t3;
+set global binlog_split_alter= false;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+include/start_slave.inc
+include/rpl_end.inc

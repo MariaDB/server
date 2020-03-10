@@ -1,0 +1,63 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection slave
+stop slave;
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+change master to master_use_gtid= current_pos;
+start slave;
+
+
+--connection master
+set global debug_dbug="+d,start_alter_delay_master";
+set global binlog_split_alter=true;
+create table t1( a int primary key, b int) engine=innodb;
+set gtid_domain_id=10;
+create table t2( a int primary key, b int) engine=innodb;
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+connect (con3,localhost,root,,);
+connect (con4,localhost,root,,);
+--connection con1
+--send alter table t1 add column c int, force, algorithm=inplace;
+--connection con2
+set gtid_domain_id=10;
+--send alter table t2 add column c int, force, algorithm=inplace;
+--sleep 1
+--connection con3
+--send insert into t1 values(1,2);
+--connection con4
+set gtid_domain_id=10;
+--send insert into t2 values(1,2);
+
+--connection master
+set DEBUG_SYNC= "now signal alter_cont";
+--connection con1
+--reap
+--connection con2
+--reap
+--connection con3
+--reap
+--connection con4
+--reap
+--connection master
+set DEBUG_SYNC= 'RESET';
+create table t3( a int primary key, b int) engine=innodb;
+
+
+--sync_slave_with_master
+show create table t1;
+
+--connection master
+drop table t1,t2,t3;
+set global binlog_split_alter= false;
+set global debug_dbug="";
+
+--sync_slave_with_master
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+set global debug_dbug="";
+--source include/start_slave.inc
+--source include/rpl_end.inc

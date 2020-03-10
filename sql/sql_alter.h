@@ -80,6 +80,22 @@ public:
     ALTER_TABLE_LOCK_EXCLUSIVE
   };
 
+  /**
+    Alter table state
+  */
+  enum enum_alter_table_state
+  {
+    // Normal ALter
+    ALTER_TABLE_NORMAL= 0,
+
+    // Do the alter till transactinal part
+    ALTER_TABLE_START,
+
+    // COMMIT or ROLLBACK the alter
+    ALTER_TABLE_COMMIT,
+    ALTER_TABLE_ROLLBACK
+  };
+
 
   // Columns and keys to be dropped.
   List<Alter_drop>              drop_list;
@@ -108,6 +124,9 @@ public:
   enum_alter_table_algorithm    requested_algorithm;
   // Type of ALTER TABLE lock.
   enum_alter_table_lock         requested_lock;
+  // alter state and thread id
+  enum_alter_table_state        alter_state;
+  ulong alter_identifier;
 
 
   Alter_info() :
@@ -115,7 +134,8 @@ public:
     keys_onoff(LEAVE_AS_IS),
     num_parts(0),
     requested_algorithm(ALTER_TABLE_ALGORITHM_DEFAULT),
-    requested_lock(ALTER_TABLE_LOCK_DEFAULT)
+    requested_lock(ALTER_TABLE_LOCK_DEFAULT),
+    alter_state(ALTER_TABLE_NORMAL), alter_identifier(0)
   {}
 
   void reset()

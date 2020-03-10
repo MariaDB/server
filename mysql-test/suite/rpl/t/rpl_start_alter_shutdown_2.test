@@ -1,0 +1,72 @@
+#
+# Stop slave in middle of SA SA CA(Stop Slave) CA
+#
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_debug.inc
+
+--connection slave
+SET @old_debug_slave= @@global.debug;
+set global debug_dbug="+d,rpl_slave_stop_CA";
+stop slave;
+SET GLOBAL slave_parallel_threads=4;
+set global slave_parallel_mode=optimistic;
+start slave;
+
+#
+# SLAVE Shutdown
+#
+#
+--connection master
+SET @old_debug_master= @@global.debug;
+set global binlog_split_alter=true;
+create table t1( a int primary key, b int) engine=myisam;
+create table t2( a int primary key, b int) engine=myisam;
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+--connection con1
+--send alter table t1 add column c int;
+--connection con2
+--send alter table t2 add column c int;
+
+
+
+--connection con1
+--reap
+--connection con2
+--reap
+create table t3( a int primary key, b int) engine=innodb;
+show binlog events;
+
+#Stop Slave
+# Master binlog SA SA CA CA
+# lets stop at first CA processing (in process_commit_alter)
+--connection slave
+set debug_sync="now wait_for CA_1_processing";
+connect(extra_slave,127.0.0.1,root,,test,$SLAVE_MYPORT);
+--send stop slave;
+--connection slave
+set debug_sync="now signal proceed_CA_1";
+--connection extra_slave
+--reap
+SET GLOBAL debug_dbug= @old_debug_slave;
+show binlog events;
+
+--connection slave
+--source include/start_slave.inc
+--connection master
+--sync_slave_with_master
+show binlog events;
+
+--connection master
+drop table t1,t2,t3;
+set global binlog_split_alter= false;
+
+--sync_slave_with_master
+stop slave;
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+set DEBUG_SYNC= 'RESET';
+start slave;
+--source include/rpl_end.inc

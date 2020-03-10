@@ -733,6 +733,8 @@ struct rpl_group_info
   bool did_mark_start_commit;
   /* Copy of flags2 from GTID event. */
   uchar gtid_ev_flags2;
+  /* Copy of flags3 from GTID event. */
+  uint16 gtid_ev_flags3;
   enum {
     GTID_DUPLICATE_NULL=0,
     GTID_DUPLICATE_IGNORE=1,
@@ -807,6 +809,8 @@ struct rpl_group_info
     RETRY_KILL_KILLED
   };
   uchar killed_for_retry;
+  bool reserved_start_alter_thread;
+  bool finish_event_group_called;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();

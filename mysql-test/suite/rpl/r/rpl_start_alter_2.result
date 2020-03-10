@@ -1,0 +1,1017 @@
+include/master-slave.inc
+[connection master]
+set global binlog_split_alter=true;
+connection slave;
+set global gtid_strict_mode=1;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+change master to master_use_gtid=slave_pos;
+include/start_slave.inc
+#Parallel Slave
+connection master;
+# Myisam
+connect master_node,127.0.0.1,root,,$db_name, $M_port;
+connect slave_node,127.0.0.1,root,,test, $S_port;
+connection master_node;
+create table t1( a int, b int) engine=myisam;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+#Normal Alter
+alter table t1 add column c int;
+#Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique ;
+ERROR 23000: Duplicate entry '1' for key 'a'
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection master_node;
+drop table t1;
+# Innodb
+connection master_node;
+create table t1( a int, b int) engine=innodb;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+#Normal Alter
+alter table t1 add column c int;
+#Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique ;
+ERROR 23000: Duplicate entry '1' for key 'a'
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection master_node;
+drop table t1;
+# Aria
+connection master_node;
+create table t1( a int, b int) engine=aria;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+#Normal Alter
+alter table t1 add column c int;
+#Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique ;
+ERROR 23000: Duplicate entry '1' for key 'a'
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+connection master_node;
+drop table t1;
+connection master_node;
+#concurrent alter Myisam
+connection master_node;
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=myisam;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=myisam;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=myisam;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=myisam;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=myisam;
+insert into t5 values(1,1),(2,2);
+create table t6( a int primary key, b int) engine=myisam;
+insert into t6 values(1,1),(2,2);
+create table t7( a int primary key, b int) engine=myisam;
+insert into t7 values(1,1),(2,2);
+create table t8( a int primary key, b int) engine=myisam;
+insert into t8 values(1,1),(2,2);
+create table t9( a int primary key, b int) engine=myisam;
+insert into t9 values(1,1),(2,2);
+create table t10( a int primary key, b int) engine=myisam;
+insert into t10 values(1,1),(2,2);
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+set global gtid_domain_id= 0;;
+connect con1,127.0.0.1,root,,$db_name, $M_port;
+connect con2,127.0.0.1,root,,$db_name, $M_port;
+connect con3,127.0.0.1,root,,$db_name, $M_port;
+connect con4,127.0.0.1,root,,$db_name, $M_port;
+connect con5,127.0.0.1,root,,$db_name, $M_port;
+set global gtid_domain_id= 0;;
+connect con6,127.0.0.1,root,,$db_name, $M_port;
+connect con7,127.0.0.1,root,,$db_name, $M_port;
+connect con8,127.0.0.1,root,,$db_name, $M_port;
+connect con9,127.0.0.1,root,,$db_name, $M_port;
+connect con10,127.0.0.1,root,,$db_name, $M_port;
+set global gtid_domain_id= 0;;
+connect con11,127.0.0.1,root,,$db_name, $M_port;
+connect con12,127.0.0.1,root,,$db_name, $M_port;
+connect con13,127.0.0.1,root,,$db_name, $M_port;
+connect con14,127.0.0.1,root,,$db_name, $M_port;
+connect con15,127.0.0.1,root,,$db_name, $M_port;
+set global gtid_domain_id= 0;;
+connect con16,127.0.0.1,root,,$db_name, $M_port;
+connect con17,127.0.0.1,root,,$db_name, $M_port;
+connect con18,127.0.0.1,root,,$db_name, $M_port;
+connect con19,127.0.0.1,root,,$db_name, $M_port;
+connect con20,127.0.0.1,root,,$db_name, $M_port;
+connection con1;
+alter  table t1 add column c int, force, algorithm=copy;
+connection con2;
+alter  table t2 add column c int, force, algorithm=copy;
+connection con3;
+alter  table t3 add column c int, force, algorithm=copy;
+connection con4;
+alter  table t4 add column c int, force, algorithm=copy;
+connection con5;
+alter  table t5 add column c int, force, algorithm=copy;
+connection con6;
+alter  table t6 add column c int, force, algorithm=copy;
+connection con7;
+alter  table t7 add column c int, force, algorithm=copy;
+connection con8;
+alter  table t8 add column c int, force, algorithm=copy;
+connection con9;
+alter  table t9 add column c int, force, algorithm=copy;
+connection con10;
+alter  table t10 add column c int, force, algorithm=copy;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+connection con6;
+connection con7;
+connection con8;
+connection con9;
+connection con10;
+connection master_node;
+set DEBUG_SYNC= 'RESET';
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+#Concurrent DML
+connection con1;
+alter table t1 add column d int, force, algorithm=copy;
+connection con2;
+alter table t2 add column d int, force, algorithm=copy;
+connection con3;
+alter table t3 add column d int, force, algorithm=copy;
+connection con4;
+alter table t4 add column d int, force, algorithm=copy;
+connection con5;
+alter table t5 add column d int, force, algorithm=copy;
+connection con6;
+alter  table t6 add column d int, force, algorithm=copy;
+connection con7;
+alter  table t7 add column d int, force, algorithm=copy;
+connection con8;
+alter  table t8 add column d int, force, algorithm=copy;
+connection con9;
+alter  table t9 add column d int, force, algorithm=copy;
+connection con10;
+alter table t10 add column d int, force, algorithm=copy;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+connection con6;
+connection con7;
+connection con8;
+connection con9;
+connection con10;
+connection master_node;
+set DEBUG_SYNC= 'RESET';
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+# Rollback tests
+connection con1;
+insert into t1 values(3,2,1,1);
+alter table t1 change b b int unique, force, algorithm=copy;
+connection con2;
+insert into t2 values(3,2,1,1);
+alter table t2 change b b int unique, force, algorithm=copy;
+connection con3;
+insert into t3 values(3,2,1,1);
+alter table t3 change b b int unique, force, algorithm=copy;
+connection con4;
+insert into t4 values(3,2,1,1);
+alter table t4 change b b int unique, force, algorithm=copy;
+connection con5;
+insert into t5 values(3,2,1,1);
+alter table t5 change b b int unique, force, algorithm=copy;
+connection con6;
+insert into t6 values(3,2,1,1);
+alter table t6 change b b int unique, force, algorithm=copy;
+connection con7;
+insert into t7 values(3,2,1,1);
+alter table t7 change b b int unique, force, algorithm=copy;
+connection con8;
+insert into t8 values(3,2,1,1);
+alter table t8 change b b int unique, force, algorithm=copy;
+connection con9;
+insert into t9 values(3,2,1,1);
+alter table t9 change b b int unique, force, algorithm=copy;
+connection con10;
+insert into t10 values(3,2,1,1);
+alter table t10 change b b int unique, force, algorithm=copy;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con2;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con3;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con4;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con5;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con6;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con7;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con8;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con9;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con10;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection master_node;
+set DEBUG_SYNC= 'RESET';
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con9;
+disconnect con10;
+disconnect con11;
+disconnect con12;
+disconnect con13;
+disconnect con14;
+disconnect con15;
+disconnect con16;
+disconnect con17;
+disconnect con18;
+disconnect con19;
+disconnect con20;
+connection default;
+SET GLOBAL debug_dbug= "";
+connection master_node;
+#concurrent alter Aria
+connection master_node;
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=aria;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=aria;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=aria;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=aria;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=aria;
+insert into t5 values(1,1),(2,2);
+create table t6( a int primary key, b int) engine=aria;
+insert into t6 values(1,1),(2,2);
+create table t7( a int primary key, b int) engine=aria;
+insert into t7 values(1,1),(2,2);
+create table t8( a int primary key, b int) engine=aria;
+insert into t8 values(1,1),(2,2);
+create table t9( a int primary key, b int) engine=aria;
+insert into t9 values(1,1),(2,2);
+create table t10( a int primary key, b int) engine=aria;
+insert into t10 values(1,1),(2,2);
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+set global gtid_domain_id= 0;;
+connect con1,127.0.0.1,root,,$db_name, $M_port;
+connect con2,127.0.0.1,root,,$db_name, $M_port;
+connect con3,127.0.0.1,root,,$db_name, $M_port;
+connect con4,127.0.0.1,root,,$db_name, $M_port;
+connect con5,127.0.0.1,root,,$db_name, $M_port;
+set global gtid_domain_id= 0;;
+connect con6,127.0.0.1,root,,$db_name, $M_port;
+connect con7,127.0.0.1,root,,$db_name, $M_port;
+connect con8,127.0.0.1,root,,$db_name, $M_port;
+connect con9,127.0.0.1,root,,$db_name, $M_port;
+connect con10,127.0.0.1,root,,$db_name, $M_port;
+set global gtid_domain_id= 0;;
+connect con11,127.0.0.1,root,,$db_name, $M_port;
+connect con12,127.0.0.1,root,,$db_name, $M_port;
+connect con13,127.0.0.1,root,,$db_name, $M_port;
+connect con14,127.0.0.1,root,,$db_name, $M_port;
+connect con15,127.0.0.1,root,,$db_name, $M_port;
+set global gtid_domain_id= 0;;
+connect con16,127.0.0.1,root,,$db_name, $M_port;
+connect con17,127.0.0.1,root,,$db_name, $M_port;
+connect con18,127.0.0.1,root,,$db_name, $M_port;
+connect con19,127.0.0.1,root,,$db_name, $M_port;
+connect con20,127.0.0.1,root,,$db_name, $M_port;
+connection con1;
+alter  table t1 add column c int, force, algorithm=copy;
+connection con2;
+alter  table t2 add column c int, force, algorithm=copy;
+connection con3;
+alter  table t3 add column c int, force, algorithm=copy;
+connection con4;
+alter  table t4 add column c int, force, algorithm=copy;
+connection con5;
+alter  table t5 add column c int, force, algorithm=copy;
+connection con6;
+alter  table t6 add column c int, force, algorithm=copy;
+connection con7;
+alter  table t7 add column c int, force, algorithm=copy;
+connection con8;
+alter  table t8 add column c int, force, algorithm=copy;
+connection con9;
+alter  table t9 add column c int, force, algorithm=copy;
+connection con10;
+alter  table t10 add column c int, force, algorithm=copy;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+connection con6;
+connection con7;
+connection con8;
+connection con9;
+connection con10;
+connection master_node;
+set DEBUG_SYNC= 'RESET';
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+#Concurrent DML
+connection con1;
+alter table t1 add column d int, force, algorithm=copy;
+connection con2;
+alter table t2 add column d int, force, algorithm=copy;
+connection con3;
+alter table t3 add column d int, force, algorithm=copy;
+connection con4;
+alter table t4 add column d int, force, algorithm=copy;
+connection con5;
+alter table t5 add column d int, force, algorithm=copy;
+connection con6;
+alter  table t6 add column d int, force, algorithm=copy;
+connection con7;
+alter  table t7 add column d int, force, algorithm=copy;
+connection con8;
+alter  table t8 add column d int, force, algorithm=copy;
+connection con9;
+alter  table t9 add column d int, force, algorithm=copy;
+connection con10;
+alter table t10 add column d int, force, algorithm=copy;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+connection con6;
+connection con7;
+connection con8;
+connection con9;
+connection con10;
+connection master_node;
+set DEBUG_SYNC= 'RESET';
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+# Rollback tests
+connection con1;
+insert into t1 values(3,2,1,1);
+alter table t1 change b b int unique, force, algorithm=copy;
+connection con2;
+insert into t2 values(3,2,1,1);
+alter table t2 change b b int unique, force, algorithm=copy;
+connection con3;
+insert into t3 values(3,2,1,1);
+alter table t3 change b b int unique, force, algorithm=copy;
+connection con4;
+insert into t4 values(3,2,1,1);
+alter table t4 change b b int unique, force, algorithm=copy;
+connection con5;
+insert into t5 values(3,2,1,1);
+alter table t5 change b b int unique, force, algorithm=copy;
+connection con6;
+insert into t6 values(3,2,1,1);
+alter table t6 change b b int unique, force, algorithm=copy;
+connection con7;
+insert into t7 values(3,2,1,1);
+alter table t7 change b b int unique, force, algorithm=copy;
+connection con8;
+insert into t8 values(3,2,1,1);
+alter table t8 change b b int unique, force, algorithm=copy;
+connection con9;
+insert into t9 values(3,2,1,1);
+alter table t9 change b b int unique, force, algorithm=copy;
+connection con10;
+insert into t10 values(3,2,1,1);
+alter table t10 change b b int unique, force, algorithm=copy;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con2;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con3;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con4;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con5;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con6;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con7;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con8;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con9;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con10;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection master_node;
+set DEBUG_SYNC= 'RESET';
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con9;
+disconnect con10;
+disconnect con11;
+disconnect con12;
+disconnect con13;
+disconnect con14;
+disconnect con15;
+disconnect con16;
+disconnect con17;
+disconnect con18;
+disconnect con19;
+disconnect con20;
+connection default;
+SET GLOBAL debug_dbug= "";
+connection master_node;
+#concurrent alter Innodb copy
+connection master_node;
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=innodb;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=innodb;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=innodb;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=innodb;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=innodb;
+insert into t5 values(1,1),(2,2);
+create table t6( a int primary key, b int) engine=innodb;
+insert into t6 values(1,1),(2,2);
+create table t7( a int primary key, b int) engine=innodb;
+insert into t7 values(1,1),(2,2);
+create table t8( a int primary key, b int) engine=innodb;
+insert into t8 values(1,1),(2,2);
+create table t9( a int primary key, b int) engine=innodb;
+insert into t9 values(1,1),(2,2);
+create table t10( a int primary key, b int) engine=innodb;
+insert into t10 values(1,1),(2,2);
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+set global gtid_domain_id= 0;;
+connect con1,127.0.0.1,root,,$db_name, $M_port;
+connect con2,127.0.0.1,root,,$db_name, $M_port;
+connect con3,127.0.0.1,root,,$db_name, $M_port;
+connect con4,127.0.0.1,root,,$db_name, $M_port;
+connect con5,127.0.0.1,root,,$db_name, $M_port;
+set global gtid_domain_id= 0;;
+connect con6,127.0.0.1,root,,$db_name, $M_port;
+connect con7,127.0.0.1,root,,$db_name, $M_port;
+connect con8,127.0.0.1,root,,$db_name, $M_port;
+connect con9,127.0.0.1,root,,$db_name, $M_port;
+connect con10,127.0.0.1,root,,$db_name, $M_port;
+set global gtid_domain_id= 0;;
+connect con11,127.0.0.1,root,,$db_name, $M_port;
+connect con12,127.0.0.1,root,,$db_name, $M_port;
+connect con13,127.0.0.1,root,,$db_name, $M_port;
+connect con14,127.0.0.1,root,,$db_name, $M_port;
+connect con15,127.0.0.1,root,,$db_name, $M_port;
+set global gtid_domain_id= 0;;
+connect con16,127.0.0.1,root,,$db_name, $M_port;
+connect con17,127.0.0.1,root,,$db_name, $M_port;
+connect con18,127.0.0.1,root,,$db_name, $M_port;
+connect con19,127.0.0.1,root,,$db_name, $M_port;
+connect con20,127.0.0.1,root,,$db_name, $M_port;
+connection con1;
+alter  table t1 add column c int, force, algorithm=copy;
+connection con2;
+alter  table t2 add column c int, force, algorithm=copy;
+connection con3;
+alter  table t3 add column c int, force, algorithm=copy;
+connection con4;
+alter  table t4 add column c int, force, algorithm=copy;
+connection con5;
+alter  table t5 add column c int, force, algorithm=copy;
+connection con6;
+alter  table t6 add column c int, force, algorithm=copy;
+connection con7;
+alter  table t7 add column c int, force, algorithm=copy;
+connection con8;
+alter  table t8 add column c int, force, algorithm=copy;
+connection con9;
+alter  table t9 add column c int, force, algorithm=copy;
+connection con10;
+alter  table t10 add column c int, force, algorithm=copy;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+connection con6;
+connection con7;
+connection con8;
+connection con9;
+connection con10;
+connection master_node;
+set DEBUG_SYNC= 'RESET';
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+#Concurrent DML
+connection con1;
+alter table t1 add column d int, force, algorithm=copy;
+connection con2;
+alter table t2 add column d int, force, algorithm=copy;
+connection con3;
+alter table t3 add column d int, force, algorithm=copy;
+connection con4;
+alter table t4 add column d int, force, algorithm=copy;
+connection con5;
+alter table t5 add column d int, force, algorithm=copy;
+connection con6;
+alter  table t6 add column d int, force, algorithm=copy;
+connection con7;
+alter  table t7 add column d int, force, algorithm=copy;
+connection con8;
+alter  table t8 add column d int, force, algorithm=copy;
+connection con9;
+alter  table t9 add column d int, force, algorithm=copy;
+connection con10;
+alter table t10 add column d int, force, algorithm=copy;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+connection con6;
+connection con7;
+connection con8;
+connection con9;
+connection con10;
+connection master_node;
+set DEBUG_SYNC= 'RESET';
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+# Rollback tests
+connection con1;
+insert into t1 values(3,2,1,1);
+alter table t1 change b b int unique, force, algorithm=copy;
+connection con2;
+insert into t2 values(3,2,1,1);
+alter table t2 change b b int unique, force, algorithm=copy;
+connection con3;
+insert into t3 values(3,2,1,1);
+alter table t3 change b b int unique, force, algorithm=copy;
+connection con4;
+insert into t4 values(3,2,1,1);
+alter table t4 change b b int unique, force, algorithm=copy;
+connection con5;
+insert into t5 values(3,2,1,1);
+alter table t5 change b b int unique, force, algorithm=copy;
+connection con6;
+insert into t6 values(3,2,1,1);
+alter table t6 change b b int unique, force, algorithm=copy;
+connection con7;
+insert into t7 values(3,2,1,1);
+alter table t7 change b b int unique, force, algorithm=copy;
+connection con8;
+insert into t8 values(3,2,1,1);
+alter table t8 change b b int unique, force, algorithm=copy;
+connection con9;
+insert into t9 values(3,2,1,1);
+alter table t9 change b b int unique, force, algorithm=copy;
+connection con10;
+insert into t10 values(3,2,1,1);
+alter table t10 change b b int unique, force, algorithm=copy;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con2;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con3;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con4;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con5;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con6;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con7;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con8;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con9;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con10;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection master_node;
+set DEBUG_SYNC= 'RESET';
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con9;
+disconnect con10;
+disconnect con11;
+disconnect con12;
+disconnect con13;
+disconnect con14;
+disconnect con15;
+disconnect con16;
+disconnect con17;
+disconnect con18;
+disconnect con19;
+disconnect con20;
+connection default;
+SET GLOBAL debug_dbug= "";
+connection master_node;
+#concurrent alter Innodb Inplace
+connection master_node;
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=innodb;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=innodb;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=innodb;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=innodb;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=innodb;
+insert into t5 values(1,1),(2,2);
+create table t6( a int primary key, b int) engine=innodb;
+insert into t6 values(1,1),(2,2);
+create table t7( a int primary key, b int) engine=innodb;
+insert into t7 values(1,1),(2,2);
+create table t8( a int primary key, b int) engine=innodb;
+insert into t8 values(1,1),(2,2);
+create table t9( a int primary key, b int) engine=innodb;
+insert into t9 values(1,1),(2,2);
+create table t10( a int primary key, b int) engine=innodb;
+insert into t10 values(1,1),(2,2);
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+set global gtid_domain_id= 0;;
+connect con1,127.0.0.1,root,,$db_name, $M_port;
+connect con2,127.0.0.1,root,,$db_name, $M_port;
+connect con3,127.0.0.1,root,,$db_name, $M_port;
+connect con4,127.0.0.1,root,,$db_name, $M_port;
+connect con5,127.0.0.1,root,,$db_name, $M_port;
+set global gtid_domain_id= 0;;
+connect con6,127.0.0.1,root,,$db_name, $M_port;
+connect con7,127.0.0.1,root,,$db_name, $M_port;
+connect con8,127.0.0.1,root,,$db_name, $M_port;
+connect con9,127.0.0.1,root,,$db_name, $M_port;
+connect con10,127.0.0.1,root,,$db_name, $M_port;
+set global gtid_domain_id= 0;;
+connect con11,127.0.0.1,root,,$db_name, $M_port;
+connect con12,127.0.0.1,root,,$db_name, $M_port;
+connect con13,127.0.0.1,root,,$db_name, $M_port;
+connect con14,127.0.0.1,root,,$db_name, $M_port;
+connect con15,127.0.0.1,root,,$db_name, $M_port;
+set global gtid_domain_id= 0;;
+connect con16,127.0.0.1,root,,$db_name, $M_port;
+connect con17,127.0.0.1,root,,$db_name, $M_port;
+connect con18,127.0.0.1,root,,$db_name, $M_port;
+connect con19,127.0.0.1,root,,$db_name, $M_port;
+connect con20,127.0.0.1,root,,$db_name, $M_port;
+connection con1;
+alter  table t1 add column c int, force, algorithm=inplace;
+connection con2;
+alter  table t2 add column c int, force, algorithm=inplace;
+connection con3;
+alter  table t3 add column c int, force, algorithm=inplace;
+connection con4;
+alter  table t4 add column c int, force, algorithm=inplace;
+connection con5;
+alter  table t5 add column c int, force, algorithm=inplace;
+connection con6;
+alter  table t6 add column c int, force, algorithm=inplace;
+connection con7;
+alter  table t7 add column c int, force, algorithm=inplace;
+connection con8;
+alter  table t8 add column c int, force, algorithm=inplace;
+connection con9;
+alter  table t9 add column c int, force, algorithm=inplace;
+connection con10;
+alter  table t10 add column c int, force, algorithm=inplace;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+connection con6;
+connection con7;
+connection con8;
+connection con9;
+connection con10;
+connection master_node;
+set DEBUG_SYNC= 'RESET';
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+#Concurrent DML
+connection con1;
+alter table t1 add column d int, force, algorithm=inplace;
+connection con2;
+alter table t2 add column d int, force, algorithm=inplace;
+connection con3;
+alter table t3 add column d int, force, algorithm=inplace;
+connection con4;
+alter table t4 add column d int, force, algorithm=inplace;
+connection con5;
+alter table t5 add column d int, force, algorithm=inplace;
+connection con6;
+alter  table t6 add column d int, force, algorithm=inplace;
+connection con7;
+alter  table t7 add column d int, force, algorithm=inplace;
+connection con8;
+alter  table t8 add column d int, force, algorithm=inplace;
+connection con9;
+alter  table t9 add column d int, force, algorithm=inplace;
+connection con10;
+alter table t10 add column d int, force, algorithm=inplace;
+connection con11;
+insert into t1 values(5,5,5);;
+connection con12;
+insert into t2 values(5,5,5);;
+connection con13;
+insert into t3 values(5,5,5);;
+connection con14;
+insert into t4 values(5,5,5);;
+connection con15;
+insert into t5 values(5,5,5);;
+connection con16;
+insert into t6 values(5,5,5);;
+connection con17;
+insert into t7 values(5,5,5);;
+connection con18;
+insert into t8 values(5,5,5);;
+connection con19;
+insert into t9 values(5,5,5);;
+connection con20;
+insert into t10 values(5,5,5);;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con11;
+connection con12;
+connection con13;
+connection con14;
+connection con15;
+connection con16;
+connection con17;
+connection con18;
+connection con19;
+connection con20;
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+connection con6;
+connection con7;
+connection con8;
+connection con9;
+connection con10;
+connection master_node;
+set DEBUG_SYNC= 'RESET';
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+# Rollback tests
+connection con1;
+insert into t1 values(3,2,1,1);
+alter table t1 change b b int unique, force, algorithm=inplace;
+connection con2;
+insert into t2 values(3,2,1,1);
+alter table t2 change b b int unique, force, algorithm=inplace;
+connection con3;
+insert into t3 values(3,2,1,1);
+alter table t3 change b b int unique, force, algorithm=inplace;
+connection con4;
+insert into t4 values(3,2,1,1);
+alter table t4 change b b int unique, force, algorithm=inplace;
+connection con5;
+insert into t5 values(3,2,1,1);
+alter table t5 change b b int unique, force, algorithm=inplace;
+connection con6;
+insert into t6 values(3,2,1,1);
+alter table t6 change b b int unique, force, algorithm=inplace;
+connection con7;
+insert into t7 values(3,2,1,1);
+alter table t7 change b b int unique, force, algorithm=inplace;
+connection con8;
+insert into t8 values(3,2,1,1);
+alter table t8 change b b int unique, force, algorithm=inplace;
+connection con9;
+insert into t9 values(3,2,1,1);
+alter table t9 change b b int unique, force, algorithm=inplace;
+connection con10;
+insert into t10 values(3,2,1,1);
+alter table t10 change b b int unique, force, algorithm=inplace;
+connection master_node;
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con2;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con3;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con4;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con5;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con6;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con7;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con8;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con9;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con10;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection master_node;
+set DEBUG_SYNC= 'RESET';
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+#Sync
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+connection master_node;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con9;
+disconnect con10;
+disconnect con11;
+disconnect con12;
+disconnect con13;
+disconnect con14;
+disconnect con15;
+disconnect con16;
+disconnect con17;
+disconnect con18;
+disconnect con19;
+disconnect con20;
+connection default;
+SET GLOBAL debug_dbug= "";
+disconnect master_node;
+disconnect slave_node;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+#cleanup
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+set global slave_domain_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+set global gtid_strict_mode=0;
+set global gtid_domain_id= 0;
+include/start_slave.inc
+connection master;
+set global binlog_split_alter=false;
+include/rpl_end.inc

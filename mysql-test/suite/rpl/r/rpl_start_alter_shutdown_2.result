@@ -1,0 +1,98 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+SET @old_debug_slave= @@global.debug;
+set global debug_dbug="+d,rpl_slave_stop_CA";
+stop slave;
+SET GLOBAL slave_parallel_threads=4;
+set global slave_parallel_mode=optimistic;
+start slave;
+connection master;
+SET @old_debug_master= @@global.debug;
+set global binlog_split_alter=true;
+create table t1( a int primary key, b int) engine=myisam;
+create table t2( a int primary key, b int) engine=myisam;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
+alter table t1 add column c int;;
+connection con2;
+alter table t2 add column c int;;
+connection con1;
+connection con2;
+create table t3( a int primary key, b int) engine=innodb;
+show binlog events;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	4	Format_desc	1	256	Server ver: 10.5.0-MariaDB-debug-log, Binlog ver: 4
+master-bin.000001	256	Gtid_list	1	285	[]
+master-bin.000001	285	Binlog_checkpoint	1	329	master-bin.000001
+master-bin.000001	329	Gtid	1	371	GTID 0-1-1
+master-bin.000001	371	Query	1	494	use `test`; create table t1( a int primary key, b int) engine=myisam
+master-bin.000001	494	Gtid	1	536	GTID 0-1-2
+master-bin.000001	536	Query	1	659	use `test`; create table t2( a int primary key, b int) engine=myisam
+master-bin.000001	659	Gtid	1	701	GTID 0-1-3
+master-bin.000001	701	Query	1	839	use `test`; /*!100001  alter table t2 add column c int EXECUTE = UNTIL COMMIT 13 */
+master-bin.000001	839	Gtid	1	881	GTID 0-1-4
+master-bin.000001	881	Query	1	1019	use `test`; /*!100001  alter table t1 add column c int EXECUTE = UNTIL COMMIT 12 */
+master-bin.000001	1019	Gtid	1	1061	GTID 0-1-5
+master-bin.000001	1061	Query	1	1192	use `test`; alter table t2 add column c int /*!100001 EXECUTE = COMMIT 13 */
+master-bin.000001	1192	Gtid	1	1234	GTID 0-1-6
+master-bin.000001	1234	Query	1	1365	use `test`; alter table t1 add column c int /*!100001 EXECUTE = COMMIT 12 */
+master-bin.000001	1365	Gtid	1	1407	GTID 0-1-7
+master-bin.000001	1407	Query	1	1530	use `test`; create table t3( a int primary key, b int) engine=innodb
+connection slave;
+set debug_sync="now wait_for CA_1_processing";
+connect extra_slave,127.0.0.1,root,,test,$SLAVE_MYPORT;
+stop slave;;
+connection slave;
+set debug_sync="now signal proceed_CA_1";
+connection extra_slave;
+SET GLOBAL debug_dbug= @old_debug_slave;
+show binlog events;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	4	Format_desc	2	256	Server ver: 10.5.0-MariaDB-debug-log, Binlog ver: 4
+slave-bin.000001	256	Gtid_list	2	285	[]
+slave-bin.000001	285	Binlog_checkpoint	2	328	slave-bin.000001
+slave-bin.000001	328	Gtid	1	370	GTID 0-1-1
+slave-bin.000001	370	Query	1	493	use `test`; create table t1( a int primary key, b int) engine=myisam
+slave-bin.000001	493	Gtid	1	535	GTID 0-1-2
+slave-bin.000001	535	Query	1	658	use `test`; create table t2( a int primary key, b int) engine=myisam
+slave-bin.000001	658	Gtid	1	700	GTID 0-1-3
+slave-bin.000001	700	Query	1	838	use `test`; /*!100001  alter table t2 add column c int EXECUTE = UNTIL COMMIT 13 */
+slave-bin.000001	838	Gtid	1	880	GTID 0-1-4
+slave-bin.000001	880	Query	1	1018	use `test`; /*!100001  alter table t1 add column c int EXECUTE = UNTIL COMMIT 12 */
+slave-bin.000001	1018	Gtid	1	1060	GTID 0-1-5
+slave-bin.000001	1060	Query	1	1191	use `test`; alter table t2 add column c int /*!100001 EXECUTE = COMMIT 13 */
+connection slave;
+include/start_slave.inc
+connection master;
+connection slave;
+show binlog events;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	4	Format_desc	2	256	Server ver: 10.5.0-MariaDB-debug-log, Binlog ver: 4
+slave-bin.000001	256	Gtid_list	2	285	[]
+slave-bin.000001	285	Binlog_checkpoint	2	328	slave-bin.000001
+slave-bin.000001	328	Gtid	1	370	GTID 0-1-1
+slave-bin.000001	370	Query	1	493	use `test`; create table t1( a int primary key, b int) engine=myisam
+slave-bin.000001	493	Gtid	1	535	GTID 0-1-2
+slave-bin.000001	535	Query	1	658	use `test`; create table t2( a int primary key, b int) engine=myisam
+slave-bin.000001	658	Gtid	1	700	GTID 0-1-3
+slave-bin.000001	700	Query	1	838	use `test`; /*!100001  alter table t2 add column c int EXECUTE = UNTIL COMMIT 13 */
+slave-bin.000001	838	Gtid	1	880	GTID 0-1-4
+slave-bin.000001	880	Query	1	1018	use `test`; /*!100001  alter table t1 add column c int EXECUTE = UNTIL COMMIT 12 */
+slave-bin.000001	1018	Gtid	1	1060	GTID 0-1-5
+slave-bin.000001	1060	Query	1	1191	use `test`; alter table t2 add column c int /*!100001 EXECUTE = COMMIT 13 */
+slave-bin.000001	1191	Gtid	1	1233	GTID 0-1-6
+slave-bin.000001	1233	Query	1	1364	use `test`; alter table t1 add column c int /*!100001 EXECUTE = COMMIT 12 */
+slave-bin.000001	1364	Gtid	1	1406	GTID 0-1-7
+slave-bin.000001	1406	Query	1	1529	use `test`; create table t3( a int primary key, b int) engine=innodb
+connection master;
+drop table t1,t2,t3;
+set global binlog_split_alter= false;
+connection slave;
+stop slave;
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+set DEBUG_SYNC= 'RESET';
+start slave;
+include/rpl_end.inc

@@ -1,0 +1,100 @@
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_debug.inc
+set global binlog_split_alter=true;
+--connection slave
+set global gtid_strict_mode=1;
+
+#--echo #Legacy Master Slave
+#--source include/start_alter_include.test
+
+
+
+
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=4;
+set global slave_parallel_mode=optimistic;
+change master to master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--echo #Parallel Slave
+--connection master
+--let $master_server= "master"
+--let $domain_1=11
+--let $domain_2=12
+--source include/start_alter_include.test
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+
+
+
+
+
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+change master to master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--echo #Parallel Slave
+--connection master
+--let $master_server= "master"
+--let $domain_1=11
+--let $domain_2=12
+--source include/start_alter_include.test
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+
+
+
+
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+set global slave_domain_parallel_threads=2;
+change master to master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--echo #Parallel Slave
+--connection master
+--let $master_server= "master"
+--let $domain_1=11
+--let $domain_2=12
+--source include/start_alter_include.test
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+
+
+
+
+
+
+
+
+
+
+--echo #cleanup
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+set global slave_domain_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+set global gtid_strict_mode=0;
+set global gtid_domain_id= 0;
+--source include/start_slave.inc
+
+--connection master
+set global binlog_split_alter=false;
+--source include/rpl_end.inc

@@ -80,6 +80,7 @@ class Wsrep_applier_service;
 class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
+struct rpl_parallel_thread;
 class Rpl_filter;
 class Query_log_event;
 class Load_log_event;
@@ -721,6 +722,7 @@ typedef struct system_variables
   my_bool binlog_annotate_row_events;
   my_bool binlog_direct_non_trans_update;
   my_bool column_compression_zlib_wrap;
+  my_bool opt_binlog_split_alter;
 
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
@@ -2223,6 +2225,11 @@ public:
   rpl_group_info* rgi_fake;
   /* Slave applier execution context */
   rpl_group_info* rgi_slave;
+  rpl_parallel_thread *rpt;
+  Query_log_event *start_alter_ev;
+  bool direct_commit_alter;
+  //Will be reseted when gtid is written into binlog
+  uint64 gtid_flags3;
 
   union {
     rpl_io_thread_info *rpl_io_info;

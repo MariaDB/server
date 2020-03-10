@@ -19,6 +19,9 @@
 #include "sql_table.h"                       // mysql_alter_table,
                                              // mysql_exchange_partition
 #include "sql_alter.h"
+#include "rpl_mi.h"
+#include "slave.h"
+#include "debug_sync.h"
 #include "wsrep_mysqld.h"
 
 Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
@@ -32,7 +35,8 @@ Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   partition_names(rhs.partition_names, mem_root),
   num_parts(rhs.num_parts),
   requested_algorithm(rhs.requested_algorithm),
-  requested_lock(rhs.requested_lock)
+  requested_lock(rhs.requested_lock),
+  alter_state(rhs.alter_state), alter_identifier(rhs.alter_identifier)
 {
   /*
     Make deep copies of used objects.
@@ -366,6 +370,127 @@ void Alter_table_ctx::report_implicit_default_value_error(THD *thd,
 }
 
 
+/* 0= Nothing to do skip query_log_event parsing , 1= query_log_event_parsing
+ * 2= error */
+#define START_ALTER_SKIP   0
+#define START_ALTER_PARSE  1
+#define START_ALTER_ERROR  2
+static int process_start_alter(THD *thd, uint64 thread_id)
+{
+  //No Slave, Normal Slave, Start Alter under Worker 1 will simple binlog and exit
+  if(!thd->slave_thread || !thd->rpt || thd->rgi_slave->reserved_start_alter_thread)
+  {
+    /*
+     We will just write the binlog and move to next event , because COMMIT
+     Alter will take care of actual work
+    */
+    if (thd->rgi_slave)
+      thd->rgi_slave->reserved_start_alter_thread= false;
+    if (write_bin_log(thd, false, thd->query(), thd->query_length()))
+      return START_ALTER_ERROR;
+    return START_ALTER_SKIP;
+  }
+  return START_ALTER_PARSE;
+}
+static int process_commit_alter(THD *thd, uint64 thread_id)
+{
+  DBUG_ASSERT(thd->rgi_slave);
+  DBUG_EXECUTE_IF("rpl_slave_stop_CA", {
+  debug_sync_set_action(thd,
+                    STRING_WITH_LEN("now signal CA_1_processing WAIT_FOR proceed_CA_1"));
+  });
+  thd->gtid_flags3|= Gtid_log_event::FL_START_ALTER_E1;
+  Master_info *mi= thd->rgi_slave->rli->mi;
+  start_alter_info *info=NULL;
+  uint count=0;
+  mysql_mutex_lock(&mi->start_alter_list_lock);
+  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+  while ((info= info_iterator++))
+  {
+    count++;
+    if(info->thread_id == thread_id)
+    {
+      info_iterator.remove();
+      break;
+    }
+  }
+  mysql_mutex_unlock(&mi->start_alter_list_lock);
+  if (!info || info->thread_id != thread_id)
+  {
+    //error handeling
+    //direct_commit_alter is used so that mysql_alter_table should not do
+    //unnecessary binlogging or spawn new thread because there is no start
+    //alter context
+    thd->direct_commit_alter= 1;
+    if (thd->open_temporary_tables(thd->lex->query_tables))
+      return START_ALTER_ERROR;
+    return START_ALTER_PARSE;
+  }
+  /*
+   start_alter_state must be ::REGISTERED
+   */
+  //Close the temporarty table
+  thd->close_temporary_tables();
+  DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
+  mysql_mutex_lock(&mi->start_alter_lock);
+  info->state= start_alter_state::COMMIT_ALTER;
+  mysql_mutex_unlock(&mi->start_alter_lock);
+  mysql_cond_broadcast(&info->start_alter_cond);
+  // Wait for commit by worker thread
+  mysql_mutex_lock(&mi->start_alter_lock);
+  while(info->state != start_alter_state::COMMITTED )
+    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
+  mysql_mutex_unlock(&mi->start_alter_lock);
+  mysql_cond_destroy(&info->start_alter_cond);
+  my_free(info);
+  if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+    return START_ALTER_ERROR;
+  return START_ALTER_SKIP;
+}
+static int process_rollback_alter(THD *thd, uint64 thread_id)
+{
+  DBUG_ASSERT(thd->rgi_slave);
+  Master_info *mi= thd->rgi_slave->rli->mi;
+  start_alter_info *info=NULL;
+  mysql_mutex_lock(&mi->start_alter_list_lock);
+  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+  while ((info= info_iterator++))
+  {
+    if(info->thread_id == thread_id)
+    {
+      info_iterator.remove();
+      break;
+    }
+  }
+  mysql_mutex_unlock(&mi->start_alter_list_lock);
+  if (!info || info->thread_id != thread_id)
+  {
+    //Just write the binlog because there is nothing to be done
+    if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+      return START_ALTER_ERROR;
+    return START_ALTER_SKIP;
+  }
+  /*
+   start_alter_state must be ::REGISTERED
+   */
+  //Close the temporarty table
+  thd->close_temporary_tables();
+  DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
+  mysql_mutex_lock(&mi->start_alter_lock);
+  info->state= start_alter_state::ROLLBACK_ALTER;
+  mysql_mutex_unlock(&mi->start_alter_lock);
+  mysql_cond_broadcast(&info->start_alter_cond);
+  // Wait for commit by worker thread
+  mysql_mutex_lock(&mi->start_alter_lock);
+  while(info->state != start_alter_state::COMMITTED )
+    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
+  mysql_mutex_unlock(&mi->start_alter_lock);
+  mysql_cond_destroy(&info->start_alter_cond);
+  my_free(info);
+  if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+    return START_ALTER_ERROR;
+  return START_ALTER_SKIP;
+}
 bool Sql_cmd_alter_table::execute(THD *thd)
 {
   LEX *lex= thd->lex;
@@ -398,6 +523,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   ulong priv=0;
   ulong priv_needed= ALTER_ACL;
   bool result;
+  int alter_res= 0;
 
   DBUG_ENTER("Sql_cmd_alter_table::execute");
 
@@ -513,6 +639,30 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     thd->variables.auto_increment_increment = 1;
   }
 #endif
+
+  /*
+    We will follow a different executation path if it is START ALTER
+    or commit/rollback alter
+   */
+  switch (alter_info.alter_state)  {
+  case Alter_info::ALTER_TABLE_START:
+    alter_res= process_start_alter(thd, alter_info.alter_identifier);
+    break;
+  case Alter_info::ALTER_TABLE_COMMIT:
+    alter_res= process_commit_alter(thd, alter_info.alter_identifier);
+    break;
+  case Alter_info::ALTER_TABLE_ROLLBACK:
+    alter_res= process_rollback_alter(thd, alter_info.alter_identifier);
+    break;
+  case Alter_info::ALTER_TABLE_NORMAL:
+  default:
+    alter_res= START_ALTER_PARSE;
+    break;
+  }
+  if (alter_res == START_ALTER_SKIP)
+    DBUG_RETURN(FALSE);
+  else if (alter_res == START_ALTER_ERROR)
+    DBUG_RETURN(TRUE);
 
   result= mysql_alter_table(thd, &select_lex->db, &lex->name,
                             &create_info,

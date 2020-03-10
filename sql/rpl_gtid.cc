@@ -605,6 +605,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   wait_for_commit* suspended_wfc;
   void *hton= NULL;
   LEX_CSTRING gtid_pos_table_name;
+  MDL_savepoint m_start_of_statement_svp(thd->mdl_context.mdl_savepoint());
   DBUG_ENTER("record_gtid");
 
   *out_hton= NULL;
@@ -619,7 +620,6 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     */
     DBUG_RETURN(0);
   }
-
   if (!in_statement)
     thd->reset_for_next_command();
 
@@ -731,12 +731,28 @@ end:
   {
     if (err || (err= ha_commit_trans(thd, FALSE)))
       ha_rollback_trans(thd, FALSE);
-
-    close_thread_tables(thd);
-    if (in_transaction)
-      thd->mdl_context.release_statement_locks();
-    else
-      thd->mdl_context.release_transactional_locks();
+    if (!thd->rgi_slave || !(thd->rgi_slave->gtid_ev_flags3 &
+                                            Gtid_log_event::FL_START_ALTER_E1))
+    {
+      close_thread_tables(thd);
+      if (in_transaction)
+        thd->mdl_context.release_statement_locks();
+      else
+        thd->mdl_context.release_transactional_locks();
+    }
+    else if (thd->rgi_slave->gtid_ev_flags3 & Gtid_log_event::FL_START_ALTER_E1)
+    {
+      //first on is gtid_slave_pos //assuming only gtid_slave_po will be open
+                                   //and rest are for start alter
+      TABLE *tbl= thd->open_tables->next;
+      thd->open_tables->next= NULL ;
+      close_thread_tables(thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+      thd->open_tables= tbl;
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      //Restore till old MDL locks
+      thd->mdl_context.rollback_to_savepoint(m_start_of_statement_svp);
+    }
   }
   thd->lex->restore_backup_query_tables_list(&lex_backup);
   thd->variables.option_bits= thd_saved_option;

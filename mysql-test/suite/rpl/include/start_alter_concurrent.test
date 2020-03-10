@@ -1,0 +1,358 @@
+#
+# ==== Purpose ====
+#
+# Run concurrent split alter on given storage engine
+#
+# ==== Usage ====
+#
+# --let $alter_engine= Engine Name (myisam , innodb ...)
+# --let $alter_algorithm= ...
+# --let $alter_online =  [][ONLINE]
+# --let $domain_1=
+# --let $domain_2=
+# --let $M_port=   //Master port
+# --let $S_port=   //Slave port
+# --let $sync_slave= // 0/1 whether to sync slave with master or not
+#
+
+
+--connection master_node
+set global debug_dbug="+d,start_alter_delay_master";
+--eval create table t1( a int primary key, b int) engine=$alter_engine
+insert into t1 values(1,1),(2,2);
+--eval create table t2( a int primary key, b int) engine=$alter_engine
+insert into t2 values(1,1),(2,2);
+--eval create table t3( a int primary key, b int) engine=$alter_engine
+insert into t3 values(1,1),(2,2);
+--eval create table t4( a int primary key, b int) engine=$alter_engine
+insert into t4 values(1,1),(2,2);
+--eval create table t5( a int primary key, b int) engine=$alter_engine
+insert into t5 values(1,1),(2,2);
+--eval create table t6( a int primary key, b int) engine=$alter_engine
+insert into t6 values(1,1),(2,2);
+--eval create table t7( a int primary key, b int) engine=$alter_engine
+insert into t7 values(1,1),(2,2);
+--eval create table t8( a int primary key, b int) engine=$alter_engine
+insert into t8 values(1,1),(2,2);
+--eval create table t9( a int primary key, b int) engine=$alter_engine
+insert into t9 values(1,1),(2,2);
+--eval create table t10( a int primary key, b int) engine=$alter_engine
+insert into t10 values(1,1),(2,2);
+
+if ($sync_slave)
+{
+  --echo #Sync
+  --source include/save_master_gtid.inc
+  --connection slave_node
+  --source include/sync_with_master_gtid.inc
+  --connection master_node
+}
+
+
+--eval set global gtid_domain_id= $domain_1;
+connect(con1,127.0.0.1,root,,$db_name, $M_port);
+connect(con2,127.0.0.1,root,,$db_name, $M_port);
+connect(con3,127.0.0.1,root,,$db_name, $M_port);
+connect(con4,127.0.0.1,root,,$db_name, $M_port);
+connect(con5,127.0.0.1,root,,$db_name, $M_port);
+
+--eval set global gtid_domain_id= $domain_2;
+connect(con6,127.0.0.1,root,,$db_name, $M_port);
+connect(con7,127.0.0.1,root,,$db_name, $M_port);
+connect(con8,127.0.0.1,root,,$db_name, $M_port);
+connect(con9,127.0.0.1,root,,$db_name, $M_port);
+connect(con10,127.0.0.1,root,,$db_name, $M_port);
+
+--eval set global gtid_domain_id= $domain_1;
+connect(con11,127.0.0.1,root,,$db_name, $M_port);
+connect(con12,127.0.0.1,root,,$db_name, $M_port);
+connect(con13,127.0.0.1,root,,$db_name, $M_port);
+connect(con14,127.0.0.1,root,,$db_name, $M_port);
+connect(con15,127.0.0.1,root,,$db_name, $M_port);
+
+--eval set global gtid_domain_id= $domain_2;
+connect(con16,127.0.0.1,root,,$db_name, $M_port);
+connect(con17,127.0.0.1,root,,$db_name, $M_port);
+connect(con18,127.0.0.1,root,,$db_name, $M_port);
+connect(con19,127.0.0.1,root,,$db_name, $M_port);
+connect(con20,127.0.0.1,root,,$db_name, $M_port);
+--connection con1
+--send_eval alter $alter_online table t1 add column c int, force, algorithm=$alter_algorithm
+--connection con2
+--send_eval alter $alter_online table t2 add column c int, force, algorithm=$alter_algorithm
+--connection con3
+--send_eval alter $alter_online table t3 add column c int, force, algorithm=$alter_algorithm
+--connection con4
+--send_eval alter $alter_online table t4 add column c int, force, algorithm=$alter_algorithm
+--connection con5
+--send_eval alter $alter_online table t5 add column c int, force, algorithm=$alter_algorithm
+--connection con6
+--send_eval alter $alter_online table t6 add column c int, force, algorithm=$alter_algorithm
+--connection con7
+--send_eval alter $alter_online table t7 add column c int, force, algorithm=$alter_algorithm
+--connection con8
+--send_eval alter $alter_online table t8 add column c int, force, algorithm=$alter_algorithm
+--connection con9
+--send_eval alter $alter_online table t9 add column c int, force, algorithm=$alter_algorithm
+--connection con10
+--send_eval alter $alter_online table t10 add column c int, force, algorithm=$alter_algorithm
+
+--connection master_node
+set DEBUG_SYNC= "now signal alter_cont";
+
+--connection con1
+--reap
+--connection con2
+--reap
+--connection con3
+--reap
+--connection con4
+--reap
+--connection con5
+--reap
+--connection con6
+--reap
+--connection con7
+--reap
+--connection con8
+--reap
+--connection con9
+--reap
+--connection con10
+--reap
+--connection master_node
+set DEBUG_SYNC= 'RESET';
+
+if ($sync_slave)
+{
+  --echo #Sync
+  --source include/save_master_gtid.inc
+  --connection slave_node
+  --source include/sync_with_master_gtid.inc
+  --connection master_node
+}
+
+
+--echo #Concurrent DML
+--connection con1
+--send_eval alter table t1 add column d int, force, algorithm=$alter_algorithm
+--connection con2
+--send_eval alter table t2 add column d int, force, algorithm=$alter_algorithm
+--connection con3
+--send_eval alter table t3 add column d int, force, algorithm=$alter_algorithm
+--connection con4
+--send_eval alter table t4 add column d int, force, algorithm=$alter_algorithm
+--connection con5
+--send_eval alter table t5 add column d int, force, algorithm=$alter_algorithm
+--connection con6
+--send_eval alter  table t6 add column d int, force, algorithm=$alter_algorithm
+--connection con7
+--send_eval alter  table t7 add column d int, force, algorithm=$alter_algorithm
+--connection con8
+--send_eval alter  table t8 add column d int, force, algorithm=$alter_algorithm
+--connection con9
+--send_eval alter  table t9 add column d int, force, algorithm=$alter_algorithm
+--connection con10
+--send_eval alter table t10 add column d int, force, algorithm=$alter_algorithm
+
+if ($alter_algorithm == "inplace")
+{
+  --sleep 1
+  --connection con11
+  --send insert into t1 values(5,5,5);
+  --connection con12
+  --send insert into t2 values(5,5,5);
+  --connection con13
+  --send insert into t3 values(5,5,5);
+  --connection con14
+  --send insert into t4 values(5,5,5);
+  --connection con15
+  --send insert into t5 values(5,5,5);
+  --connection con16
+  --send insert into t6 values(5,5,5);
+  --connection con17
+  --send insert into t7 values(5,5,5);
+  --connection con18
+  --send insert into t8 values(5,5,5);
+  --connection con19
+  --send insert into t9 values(5,5,5);
+  --connection con20
+  --send insert into t10 values(5,5,5);
+  --connection master_node
+  set DEBUG_SYNC= "now signal alter_cont";
+
+  --connection con11
+  --reap
+  --connection con12
+  --reap
+  --connection con13
+  --reap
+  --connection con14
+  --reap
+  --connection con15
+  --reap
+  --connection con16
+  --reap
+  --connection con17
+  --reap
+  --connection con18
+  --reap
+  --connection con19
+  --reap
+  --connection con20
+  --reap
+
+  if ($sync_slave)
+  {
+    --echo #Sync
+    --source include/save_master_gtid.inc
+    --connection slave_node
+    --source include/sync_with_master_gtid.inc
+    --connection master_node
+  }
+}
+--connection master_node
+set DEBUG_SYNC= "now signal alter_cont";
+--connection con1
+--reap
+--connection con2
+--reap
+--connection con3
+--reap
+--connection con4
+--reap
+--connection con5
+--reap
+--connection con6
+--reap
+--connection con7
+--reap
+--connection con8
+--reap
+--connection con9
+--reap
+--connection con10
+--reap
+--connection master_node
+set DEBUG_SYNC= 'RESET';
+
+if ($sync_slave)
+{
+  --echo #Sync
+  --source include/save_master_gtid.inc
+  --connection slave_node
+  --source include/sync_with_master_gtid.inc
+  --connection master_node
+}
+
+
+--echo # Rollback tests
+--connection con1
+insert into t1 values(3,2,1,1);
+--send_eval alter table t1 change b b int unique, force, algorithm=$alter_algorithm
+--connection con2
+insert into t2 values(3,2,1,1);
+--send_eval alter table t2 change b b int unique, force, algorithm=$alter_algorithm
+--connection con3
+insert into t3 values(3,2,1,1);
+--send_eval alter table t3 change b b int unique, force, algorithm=$alter_algorithm
+--connection con4
+insert into t4 values(3,2,1,1);
+--send_eval alter table t4 change b b int unique, force, algorithm=$alter_algorithm
+--connection con5
+insert into t5 values(3,2,1,1);
+--send_eval alter table t5 change b b int unique, force, algorithm=$alter_algorithm
+--connection con6
+insert into t6 values(3,2,1,1);
+--send_eval alter table t6 change b b int unique, force, algorithm=$alter_algorithm
+--connection con7
+insert into t7 values(3,2,1,1);
+--send_eval alter table t7 change b b int unique, force, algorithm=$alter_algorithm
+--connection con8
+insert into t8 values(3,2,1,1);
+--send_eval alter table t8 change b b int unique, force, algorithm=$alter_algorithm
+--connection con9
+insert into t9 values(3,2,1,1);
+--send_eval alter table t9 change b b int unique, force, algorithm=$alter_algorithm
+--connection con10
+insert into t10 values(3,2,1,1);
+--send_eval alter table t10 change b b int unique, force, algorithm=$alter_algorithm
+--connection master_node
+set DEBUG_SYNC= "now signal alter_cont";
+
+--connection con1
+--error ER_DUP_ENTRY
+--reap
+--connection con2
+--error ER_DUP_ENTRY
+--reap
+--connection con3
+--error ER_DUP_ENTRY
+--reap
+--connection con4
+--error ER_DUP_ENTRY
+--reap
+--connection con5
+--error ER_DUP_ENTRY
+--reap
+--connection con6
+--error ER_DUP_ENTRY
+--reap
+--connection con7
+--error ER_DUP_ENTRY
+--reap
+--connection con8
+--error ER_DUP_ENTRY
+--reap
+--connection con9
+--error ER_DUP_ENTRY
+--reap
+--connection con10
+--error ER_DUP_ENTRY
+--reap
+--connection master_node
+set DEBUG_SYNC= 'RESET';
+
+
+if ($sync_slave)
+{
+  --echo #Sync
+  --source include/save_master_gtid.inc
+  --connection slave_node
+  --source include/sync_with_master_gtid.inc
+  --connection master_node
+}
+
+drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+
+if ($sync_slave)
+{
+  --echo #Sync
+  --source include/save_master_gtid.inc
+  --connection slave_node
+  --source include/sync_with_master_gtid.inc
+  --connection master_node
+}
+
+--disconnect con1
+--disconnect con2
+--disconnect con3
+--disconnect con4
+--disconnect con5
+--disconnect con6
+--disconnect con7
+--disconnect con8
+--disconnect con9
+--disconnect con10
+--disconnect con11
+--disconnect con12
+--disconnect con13
+--disconnect con14
+--disconnect con15
+--disconnect con16
+--disconnect con17
+--disconnect con18
+--disconnect con19
+--disconnect con20
+--connection default
+SET GLOBAL debug_dbug= "";

@@ -7303,6 +7303,9 @@ alter_commands:
           remove_partitioning
         | remove_partitioning
         | partitioning
+        | alter_list
+           alter_state
+        | alter_state
 /*
   This part was added for release 5.1 by Mikael Ronstrm.
   From here we insert a number of commands to manage the partitions of a
@@ -7731,6 +7734,28 @@ alter_lock_option:
           {
             if (unlikely(Lex->alter_info.set_requested_lock(&$3)))
               my_yyabort_error((ER_UNKNOWN_ALTER_LOCK, MYF(0), $3.str));
+          }
+        ;
+alter_state:
+          EXECUTE_SYM opt_equal DEFAULT
+          {
+            Lex->alter_info.alter_state= Alter_info::ALTER_TABLE_NORMAL;
+            Lex->alter_info.alter_identifier= 0;
+          }
+        | EXECUTE_SYM opt_equal UNTIL_SYM COMMIT_SYM ulong_num
+          {
+            Lex->alter_info.alter_state= Alter_info::ALTER_TABLE_START;
+            Lex->alter_info.alter_identifier= $5;
+          }
+        | EXECUTE_SYM opt_equal COMMIT_SYM ulong_num
+          {
+            Lex->alter_info.alter_state= Alter_info::ALTER_TABLE_COMMIT;
+            Lex->alter_info.alter_identifier= $4;
+          }
+        | EXECUTE_SYM opt_equal ROLLBACK_SYM ulong_num
+          {
+            Lex->alter_info.alter_state= Alter_info::ALTER_TABLE_ROLLBACK;
+            Lex->alter_info.alter_identifier= $4;
           }
         ;
 

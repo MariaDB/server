@@ -1298,6 +1298,7 @@ void LEX::start(THD *thd_arg)
   wild= 0;
   exchange= 0;
 
+  previous_commit_id= 0;
   DBUG_VOID_RETURN;
 }
 

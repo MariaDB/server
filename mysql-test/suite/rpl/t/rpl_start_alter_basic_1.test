@@ -1,0 +1,135 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection slave
+stop slave;
+SET GLOBAL slave_parallel_threads=3;
+set global slave_parallel_mode=optimistic;
+change master to master_use_gtid=slave_pos;
+start slave;
+
+
+--connection master
+set global binlog_split_alter=true;
+--connection master
+create table t1( a int, b int) engine=innodb;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+--echo #Normal Alter
+alter table t1 add column c int;
+--echo #Failed Alter
+insert into t1 values(1,1, NULL);
+--error ER_DUP_ENTRY
+alter table t1 change a a int unique ;
+--sync_slave_with_master
+show create table t1;
+--connection master
+drop table t1;
+--sync_slave_with_master
+--connection master
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=innodb;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=innodb;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=innodb;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=innodb;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=innodb;
+insert into t5 values(1,1),(2,2);
+create table t6( a int primary key, b int) engine=innodb;
+insert into t6 values(1,1),(2,2);
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+connect (con3,localhost,root,,);
+connect (con4,localhost,root,,);
+connect (con5,localhost,root,,);
+connect (con6,localhost,root,,);
+--connection con1
+set gtid_domain_id=22;
+--send alter table t1 add column c int, force, algorithm=inplace;
+--connection con2
+set gtid_domain_id=22;
+--send alter table t2 add column c int, force, algorithm=inplace;
+--connection con3
+set gtid_domain_id=22;
+--send alter table t3 add column c int, force, algorithm=inplace;
+--connection con4
+set gtid_domain_id=23;
+--send alter table t4 add column c int, force, algorithm=inplace;
+--connection con5
+set gtid_domain_id=23;
+--send alter table t5 add column c int, force, algorithm=inplace;
+--connection con6
+set gtid_domain_id=23;
+--send alter table t6 add column c int, force, algorithm=inplace;
+
+--connection master
+set DEBUG_SYNC= "now signal alter_cont";
+--connection con1
+--reap
+--connection con2
+--reap
+--connection con3
+--reap
+--connection con4
+--reap
+--connection con5
+--reap
+--connection con6
+--reap
+--connection master
+set DEBUG_SYNC= 'RESET';
+--connection con1
+--send alter table t1 add column d int, force, algorithm=inplace;
+--connection con2
+--send alter table t2 add column d int, force, algorithm=inplace;
+--connection con3
+--send alter table t3 add column d int, force, algorithm=inplace;
+--connection con4
+--send alter table t4 add column d int, force, algorithm=inplace;
+--connection con5
+--send alter table t5 add column d int, force, algorithm=inplace;
+--connection con6
+--send alter table t6 add column d int, force, algorithm=inplace;
+
+--connection master
+set DEBUG_SYNC= "now signal alter_cont";
+--connection con1
+--reap
+--connection con2
+--reap
+--connection con3
+--reap
+--connection con4
+--reap
+--connection con5
+--reap
+--connection con6
+--reap
+
+--connection master
+set DEBUG_SYNC= 'RESET';
+--connection master
+select @@gtid_binlog_state;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+select @@gtid_binlog_state;
+select @@gtid_slave_pos;
+show create table t6;
+
+--connection master
+drop table t1,t2,t3,t4,t5,t6;
+set global binlog_split_alter=false;
+set global debug_dbug="";
+
+--sync_slave_with_master
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+set global debug_dbug="";
+--source include/start_slave.inc
+--source include/rpl_end.inc

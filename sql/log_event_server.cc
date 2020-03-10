@@ -1604,6 +1604,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     you.
   */
   thd->catalog= catalog_len ? (char *) catalog : (char *)"";
+  thd->start_alter_ev= this;
 
   size_t valid_len= Well_formed_prefix(system_charset_info,
                                        db, db_len, NAME_LEN).length();
@@ -1856,7 +1857,6 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         log_slow_statement(thd);
         thd->lex->restore_set_statement_var();
       }
-
       thd->variables.option_bits&= ~OPTION_MASTER_SQL_ERROR;
     }
     else
@@ -3199,7 +3199,8 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                uint64 commit_id_arg)
   : Log_event(thd_arg, flags_arg, is_transactional),
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
-    flags2((standalone ? FL_STANDALONE : 0) | (commit_id_arg ? FL_GROUP_COMMIT_ID : 0))
+    flags2((standalone ? FL_STANDALONE : 0) | (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
+    flags3(0)
 {
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
@@ -3218,6 +3219,12 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   /* Preserve any DDL or WAITED flag in the slave's binlog. */
   if (thd_arg->rgi_slave)
     flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
+  /* flags3 */
+  if (thd->gtid_flags3)
+  {
+    flags2 |= FL_EXTRA_FLAG_1;
+    flags3 = thd->gtid_flags3;
+  }
 }
 
 
@@ -3260,7 +3267,7 @@ Gtid_log_event::peek(const char *event_start, size_t event_len,
 bool
 Gtid_log_event::write()
 {
-  uchar buf[GTID_HEADER_LEN+2];
+  uchar buf[GTID_HEADER_LEN+2+2];
   size_t write_len;
 
   int8store(buf, seq_no);
@@ -3270,10 +3277,17 @@ Gtid_log_event::write()
   {
     int8store(buf+13, commit_id);
     write_len= GTID_HEADER_LEN + 2;
+    if (flags3)
+    {
+      int2store(buf+21, flags3);
+      write_len+= 2;
+    }
   }
   else
   {
     bzero(buf+13, GTID_HEADER_LEN-13);
+    if (flags3)
+      int2store(buf+13, flags3);
     write_len= GTID_HEADER_LEN;
   }
   return write_header(write_len) ||
@@ -3343,6 +3357,7 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
   rgi->gtid_ev_flags2= flags2;
+  rgi->gtid_ev_flags3= flags3;
   thd->reset_for_next_command();
 
   if (opt_gtid_strict_mode && opt_bin_log && opt_log_slave_updates)

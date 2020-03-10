@@ -1,0 +1,19 @@
+!include ../my.cnf
+
+[mysqld.1]
+log-bin
+log-slave-updates
+
+[mysqld.2]
+log-bin
+log-slave-updates
+
+[mysqld.3]
+log-bin
+log-slave-updates
+
+
+[ENV]
+SERVER_MYPORT_1=              @mysqld.1.port
+SERVER_MYPORT_2=              @mysqld.2.port
+SERVER_MYPORT_3=              @mysqld.3.port

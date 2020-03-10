@@ -2094,6 +2094,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
   gtid_ev_flags2= 0;
+  gtid_ev_flags3= 0;
   last_master_timestamp = 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
@@ -2103,7 +2104,9 @@ rpl_group_info::reinit(Relay_log_info *rli)
 rpl_group_info::rpl_group_info(Relay_log_info *rli)
   : thd(0), wait_commit_sub_id(0),
     wait_commit_group_info(0), parallel_entry(0),
-    deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false)
+    deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false),
+    gtid_ev_flags2(0), gtid_ev_flags3(0), reserved_start_alter_thread(0),
+    finish_event_group_called(0)
 {
   reinit(rli);
   bzero(&current_gtid, sizeof(current_gtid));

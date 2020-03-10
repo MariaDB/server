@@ -1,0 +1,138 @@
+#
+# ==== Purpose ====
+#
+# Run concurrent split alter on different storage engine and with sync to given
+# master
+#
+# ==== Usage ====
+# --let $domain_1=
+# --let $domain_2=
+# --let $M_port=   //Master port
+# --let $S_port=   //Slave port
+# --let $sync_slave=
+# --let $db_name=
+#
+--echo # Myisam
+connect(master_node,127.0.0.1,root,,$db_name, $M_port);
+if (!$sync_slave)
+{
+  --eval set gtid_domain_id= $domain_1;
+}
+connect(slave_node,127.0.0.1,root,,test, $S_port);
+if (!$sync_slave)
+{
+  --eval set gtid_domain_id= $domain_2;
+}
+
+--connection master_node
+create table t1( a int, b int) engine=myisam;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+--echo #Normal Alter
+alter table t1 add column c int;
+--echo #Failed Alter
+insert into t1 values(1,1, NULL);
+--error ER_DUP_ENTRY
+alter table t1 change a a int unique ;
+#source include/show_binlog_events.inc;
+
+if ($sync_slave)
+{
+  --source include/save_master_gtid.inc
+  --connection slave_node
+  --source include/sync_with_master_gtid.inc
+}
+
+show create table t1;
+--connection master_node
+drop table t1;
+#--source include/reset_master_slave_binlog.inc
+
+--echo # Innodb
+--connection master_node
+create table t1( a int, b int) engine=innodb;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+--echo #Normal Alter
+alter table t1 add column c int;
+--echo #Failed Alter
+insert into t1 values(1,1, NULL);
+--error ER_DUP_ENTRY
+alter table t1 change a a int unique ;
+#source include/show_binlog_events.inc;
+
+
+if ($sync_slave)
+{
+  --source include/save_master_gtid.inc
+  --connection slave_node
+  --source include/sync_with_master_gtid.inc
+}
+
+
+show create table t1;
+--connection master_node
+drop table t1;
+#--source include/reset_master_slave_binlog.inc
+
+
+--echo # Aria
+--connection master_node
+create table t1( a int, b int) engine=aria;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+--echo #Normal Alter
+alter table t1 add column c int;
+--echo #Failed Alter
+insert into t1 values(1,1, NULL);
+--error ER_DUP_ENTRY
+alter table t1 change a a int unique ;
+#source include/show_binlog_events.inc;
+
+
+if ($sync_slave)
+{
+  --source include/save_master_gtid.inc
+  --connection slave_node
+  --source include/sync_with_master_gtid.inc
+}
+
+
+show create table t1;
+--connection master_node
+drop table t1;
+#--source include/reset_master_slave_binlog.inc
+
+--connection master_node
+--echo #concurrent alter Myisam
+--let $alter_engine=myisam
+--let $alter_algorithm=copy
+--source include/start_alter_concurrent.test
+#source include/show_binlog_events.inc;
+#--source include/reset_master_slave_binlog.inc
+
+--connection master_node
+--echo #concurrent alter Aria
+--let $alter_engine=aria
+--let $alter_algorithm=copy
+--source include/start_alter_concurrent.test
+#source include/show_binlog_events.inc;
+#--source include/reset_master_slave_binlog.inc
+
+--connection master_node
+--echo #concurrent alter Innodb copy
+--let $alter_engine=innodb
+--let $alter_algorithm=copy
+--source include/start_alter_concurrent.test
+#source include/show_binlog_events.inc;
+#--source include/reset_master_slave_binlog.inc
+
+--connection master_node
+--echo #concurrent alter Innodb Inplace
+--let $alter_engine=innodb
+--let $alter_algorithm=inplace
+--source include/start_alter_concurrent.test
+#source include/show_binlog_events.inc;
+#--source include/reset_master_slave_binlog.inc
+--disconnect master_node
+--disconnect slave_node
