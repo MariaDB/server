@@ -270,9 +270,11 @@ no_data:
       byte *bd= insert_rec;
       const byte *rd= rec;
       /* Skip any unchanged prefix of the record. */
-      for (; *bd == *rd; cd++, bd++, rd++)
+      for (;; cd++, bd++, rd++)
         if (bd == insert_rec_end)
           goto no_data;
+        else if (*bd != *rd)
+          break;
 
       /* Try to copy any data bytes of the preceding record. */
       if (c_end - cd > 2)

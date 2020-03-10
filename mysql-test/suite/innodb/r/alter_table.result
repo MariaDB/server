@@ -68,3 +68,13 @@ t2	CREATE TABLE `t2` (
 alter table t1 engine=innodb;
 alter table t1 add column b int;
 drop table t1,t2;
+#
+# MDEV-21748 ASAN use-after-poison in PageBulk::insertPage()
+#
+CREATE TABLE t1 (pk TIMESTAMP PRIMARY KEY, a TIMESTAMP NULL UNIQUE)
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+('2020-03-10 10:21:00', NULL),
+('0000-00-00 00:00:00', '0000-00-00 00:00:00');
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+DROP TABLE t1;
