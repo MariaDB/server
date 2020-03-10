@@ -93,11 +93,6 @@ struct fil_space_rotate_state_t
 				space */
 	bool starting;		/*!< initial write of IV */
 	bool flushing;		/*!< space is being flushed at end of rotate */
-	struct {
-		bool is_active; /*!< is scrubbing active in this space */
-		time_t last_scrub_completed; /*!< when was last scrub
-					     completed */
-	} scrubbing;
 };
 
 #ifndef UNIV_INNOCHECKSUM
@@ -224,18 +219,6 @@ struct fil_crypt_stat_t {
 	ulint pages_modified;
 	ulint pages_flushed;
 	ulint estimated_iops;
-};
-
-/** Status info about scrubbing */
-struct fil_space_scrub_status_t {
-	ulint space;             /*!< tablespace id */
-	bool compressed;        /*!< is space compressed  */
-	time_t last_scrub_completed;  /*!< when was last scrub completed */
-	bool scrubbing;               /*!< is scrubbing ongoing */
-	time_t current_scrub_started; /*!< when started current scrubbing */
-	ulint current_scrub_active_threads; /*!< current scrub active threads */
-	ulint current_scrub_page_number; /*!< current scrub page no */
-	ulint current_scrub_max_page_number; /*!< current scrub max page no */
 };
 
 /*********************************************************************
@@ -448,18 +431,6 @@ UNIV_INTERN
 void
 fil_crypt_total_stat(
 	fil_crypt_stat_t *stat);
-
-/**
-Get scrub status for a space (used by information_schema)
-
-@param[in]	space		Tablespace
-@param[out]	status		Scrub status
-return 0 if data found */
-UNIV_INTERN
-void
-fil_space_get_scrub_status(
-	const fil_space_t*		space,
-	fil_space_scrub_status_t*	status);
 
 #include "fil0crypt.ic"
 #endif /* !UNIV_INNOCHECKSUM */

@@ -72,7 +72,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
-#include "btr0scrub.h"
 
 
 #include <my_service_manager.h>
@@ -402,6 +401,8 @@ my_bool	srv_force_primary_key;
 
 /** Key version to encrypt the temporary tablespace */
 my_bool innodb_encrypt_temporary_tables;
+
+my_bool srv_immediate_scrub_data_uncompressed;
 
 /* Array of English strings describing the current state of an
 i/o handler thread */
@@ -1113,11 +1114,9 @@ srv_export_innodb_status(void)
 /*==========================*/
 {
 	fil_crypt_stat_t	crypt_stat;
-	btr_scrub_stat_t	scrub_stat;
 
 	if (!srv_read_only_mode) {
 		fil_crypt_total_stat(&crypt_stat);
-		btr_scrub_total_stat(&scrub_stat);
 	}
 
 #ifdef BTR_CUR_HASH_ADAPT
@@ -1346,19 +1345,6 @@ srv_export_innodb_status(void)
 			srv_stats.n_key_requests;
 		export_vars.innodb_key_rotation_list_length =
 			srv_stats.key_rotation_list_length;
-
-		export_vars.innodb_scrub_page_reorganizations =
-			scrub_stat.page_reorganizations;
-		export_vars.innodb_scrub_page_splits =
-			scrub_stat.page_splits;
-		export_vars.innodb_scrub_page_split_failures_underflow =
-			scrub_stat.page_split_failures_underflow;
-		export_vars.innodb_scrub_page_split_failures_out_of_filespace =
-			scrub_stat.page_split_failures_out_of_filespace;
-		export_vars.innodb_scrub_page_split_failures_missing_index =
-			scrub_stat.page_split_failures_missing_index;
-		export_vars.innodb_scrub_page_split_failures_unknown =
-			scrub_stat.page_split_failures_unknown;
 	}
 
 	mutex_exit(&srv_innodb_monitor_mutex);

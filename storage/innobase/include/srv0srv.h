@@ -454,6 +454,7 @@ extern ulong	srv_replication_delay;
 
 extern my_bool	innodb_encrypt_temporary_tables;
 
+extern my_bool  srv_immediate_scrub_data_uncompressed;
 /*-------------------------------------------*/
 
 /** Modes of operation */
@@ -958,13 +959,6 @@ struct export_var_t{
 	ulint innodb_encryption_rotation_estimated_iops;
 	int64_t innodb_encryption_key_requests;
 	int64_t innodb_key_rotation_list_length;
-
-	ulint innodb_scrub_page_reorganizations;
-	ulint innodb_scrub_page_splits;
-	ulint innodb_scrub_page_split_failures_underflow;
-	ulint innodb_scrub_page_split_failures_out_of_filespace;
-	ulint innodb_scrub_page_split_failures_missing_index;
-	ulint innodb_scrub_page_split_failures_unknown;
 };
 
 /** Thread slot in the thread table.  */

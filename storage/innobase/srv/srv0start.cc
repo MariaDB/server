@@ -100,7 +100,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "os0event.h"
 #include "zlib.h"
 #include "ut0crc32.h"
-#include "btr0scrub.h"
 
 /** Log sequence number at shutdown */
 lsn_t	srv_shutdown_lsn;
@@ -2028,7 +2027,6 @@ skip_monitors:
 		will flush dirty pages and that might need e.g.
 		fil_crypt_threads_event. */
 		fil_system_enter();
-		btr_scrub_init();
 		fil_crypt_threads_init();
 		fil_system_exit();
 
@@ -2136,7 +2134,6 @@ void innodb_shutdown()
 		fts_optimize_shutdown(); dict_stats_shutdown(); */
 
 		fil_crypt_threads_cleanup();
-		btr_scrub_cleanup();
 		btr_defragment_shutdown();
 	}
 

@@ -393,10 +393,6 @@ select * from information_schema.innodb_tablespaces_encryption;
 SPACE	NAME	ENCRYPTION_SCHEME	KEYSERVER_REQUESTS	MIN_KEY_VERSION	CURRENT_KEY_VERSION	KEY_ROTATION_PAGE_NUMBER	KEY_ROTATION_MAX_PAGE_NUMBER	CURRENT_KEY_ID	ROTATING_OR_FLUSHING
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_tablespaces_encryption but the InnoDB storage engine is not installed
-select * from information_schema.innodb_tablespaces_scrubbing;
-SPACE	NAME	COMPRESSED	LAST_SCRUB_COMPLETED	CURRENT_SCRUB_STARTED	CURRENT_SCRUB_ACTIVE_THREADS	CURRENT_SCRUB_PAGE_NUMBER	CURRENT_SCRUB_MAX_PAGE_NUMBER	ON_SSD
-Warnings:
-Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_tablespaces_scrubbing but the InnoDB storage engine is not installed
 select * from information_schema.innodb_mutexes;
 NAME	CREATE_FILE	CREATE_LINE	OS_WAITS
 Warnings:
