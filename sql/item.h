@@ -1823,6 +1823,15 @@ public:
   virtual bool need_parentheses_in_default() { return false; }
   virtual void save_in_result_field(bool no_conversions) {}
   /*
+    Data type format implied by the CHECK CONSTRAINT,
+    to be sent to the client in the result set metadata.
+  */
+  virtual bool set_format_by_check_constraint(Send_field_extended_metadata *)
+                                                                        const
+  {
+    return false;
+  }
+  /*
     set value of aggregate function in case of no rows for grouping were found
   */
   virtual void no_rows_in_result() {}

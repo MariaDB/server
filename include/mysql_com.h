@@ -298,6 +298,8 @@ enum enum_indicator_type
 #define MARIADB_CLIENT_COM_MULTI (1ULL << 33)
 /* support of array binding */
 #define MARIADB_CLIENT_STMT_BULK_OPERATIONS (1ULL << 34)
+/* support of extended metadata (e.g. type/format information) */
+#define MARIADB_CLIENT_EXTENDED_METADATA (1ULL << 35)
 
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
@@ -339,6 +341,7 @@ enum enum_indicator_type
                            CLIENT_CONNECT_ATTRS |\
                            MARIADB_CLIENT_COM_MULTI |\
                            MARIADB_CLIENT_STMT_BULK_OPERATIONS |\
+                           MARIADB_CLIENT_EXTENDED_METADATA|\
                            CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS)
 
 /*
@@ -349,6 +352,15 @@ enum enum_indicator_type
 #define CLIENT_BASIC_FLAGS (((CLIENT_ALL_FLAGS & ~CLIENT_SSL) \
                                                & ~CLIENT_COMPRESS) \
                                                & ~CLIENT_SSL_VERIFY_SERVER_CERT)
+
+enum mariadb_field_attr_t
+{
+  MARIADB_FIELD_ATTR_DATA_TYPE_NAME= 0,
+  MARIADB_FIELD_ATTR_FORMAT_NAME= 1
+};
+
+#define MARIADB_FIELD_ATTR_LAST MARIADB_FIELD_ATTR_FORMAT_NAME
+
 
 /**
   Is raised when a multi-statement transaction

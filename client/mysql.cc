@@ -58,6 +58,7 @@ static char *server_version= NULL;
 #define MAX_SERVER_ARGS               64
 
 #include "sql_string.h"
+#include "client_metadata.h"
 
 extern "C" {
 #if defined(HAVE_CURSES_H) && defined(HAVE_TERM_H)
@@ -3513,12 +3514,15 @@ print_field_types(MYSQL_RES *result)
 
   while ((field = mysql_fetch_field(result)))
   {
+    Client_field_metadata metadata(field);
+    BinaryStringBuffer<128> data_type_metadata_str;
+    metadata.print_data_type_related_attributes(&data_type_metadata_str);
     tee_fprintf(PAGER, "Field %3u:  `%s`\n"
                        "Catalog:    `%s`\n"
                        "Database:   `%s`\n"
                        "Table:      `%s`\n"
                        "Org_table:  `%s`\n"
-                       "Type:       %s\n"
+                       "Type:       %s%s%.*s%s\n"
                        "Collation:  %s (%u)\n"
                        "Length:     %lu\n"
                        "Max_length: %lu\n"
@@ -3527,6 +3531,9 @@ print_field_types(MYSQL_RES *result)
                 ++i,
                 field->name, field->catalog, field->db, field->table,
                 field->org_table, fieldtype2str(field->type),
+                data_type_metadata_str.length() ? " (" : "",
+                data_type_metadata_str.length(), data_type_metadata_str.ptr(),
+                data_type_metadata_str.length() ? ")" : "",
                 get_charset_name(field->charsetnr), field->charsetnr,
                 field->length, field->max_length, field->decimals,
                 fieldflags2str(field->flags));

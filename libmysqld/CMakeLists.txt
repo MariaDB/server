@@ -424,9 +424,15 @@ mysql_net_field_length
 mysql_options4
 )
 
+
+SET(CLIENT_API_FUNCTIONS_10_5
+mariadb_field_attr
+)
+
 SET(CLIENT_API_FUNCTIONS
   ${CLIENT_API_FUNCTIONS_5_1}
   ${CLIENT_API_FUNCTIONS_5_5}
+  ${CLIENT_API_FUNCTIONS_10_5}
 )
 
 

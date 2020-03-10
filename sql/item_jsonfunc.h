@@ -84,6 +84,11 @@ public:
     maybe_null= 1;
     return FALSE;
   }
+  bool set_format_by_check_constraint(Send_field_extended_metadata *to) const
+  {
+    static const Lex_cstring fmt(STRING_WITH_LEN("json"));
+    return to->set_format_name(fmt);
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_valid>(thd, this); }
 };
@@ -118,6 +123,12 @@ public:
   Item_json_func(THD *thd, List<Item> &list)
    :Item_str_func(thd, list) { }
   bool is_json_type() { return true; }
+  void make_send_field(THD *thd, Send_field *tmp_field)
+  {
+    Item_str_func::make_send_field(thd, tmp_field);
+    static const Lex_cstring fmt(STRING_WITH_LEN("json"));
+    tmp_field->set_format_name(fmt);
+  }
 };
 
 

@@ -40,6 +40,7 @@
 #include <mysqld_error.h>
 #include <sql_common.h>
 #include <m_ctype.h>
+#include "client_metadata.h"
 #include <my_dir.h>
 #include <hash.h>
 #include <stdarg.h>
@@ -7709,6 +7710,17 @@ void append_metadata(DYNAMIC_STRING *ds,
     dynstr_append_mem(ds, field->name, field->name_length);
     dynstr_append_mem(ds, "\t", 1);
     replace_dynstr_append_uint(ds, field->type);
+
+    Client_field_metadata metadata(field);
+    BinaryStringBuffer<128> data_type_metadata_str;
+    metadata.print_data_type_related_attributes(&data_type_metadata_str);
+    if (data_type_metadata_str.length())
+    {
+      dynstr_append_mem(ds, " (", 2);
+      dynstr_append_mem(ds, data_type_metadata_str.ptr(),
+                            data_type_metadata_str.length());
+      dynstr_append_mem(ds, ")", 1);
+    }
     dynstr_append_mem(ds, "\t", 1);
     replace_dynstr_append_uint(ds, field->length);
     dynstr_append_mem(ds, "\t", 1);

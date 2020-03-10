@@ -38,4 +38,11 @@ typedef struct embedded_query_result
   char sqlstate[SQLSTATE_LENGTH+1];
 } EQR;
 
+
+typedef struct st_mariadb_field_extension
+{
+  MARIADB_CONST_STRING metadata[MARIADB_FIELD_ATTR_LAST+1]; /* 10.5 */
+} MARIADB_FIELD_EXTENSION;
+
+
 C_MODE_END

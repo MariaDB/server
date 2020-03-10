@@ -39,9 +39,16 @@ public:
                                          Item * const *args,
                                          uint start, uint end);
   static const Type_handler_geometry *type_handler_geom_by_type(uint type);
+  LEX_CSTRING extended_metadata_data_type_name() const;
 public:
   virtual ~Type_handler_geometry() {}
   enum_field_types field_type() const override { return MYSQL_TYPE_GEOMETRY; }
+  bool Item_append_extended_type_info(Send_field_extended_metadata *to,
+                                      const Item *item) const override
+  {
+    LEX_CSTRING tmp= extended_metadata_data_type_name();
+    return tmp.length ? to->set_data_type_name(tmp) : false;
+  }
   bool is_param_long_data_type() const override { return true; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override;
@@ -361,6 +368,9 @@ public:
   void make_send_field(Send_field *to) override
   {
     Field_longstr::make_send_field(to);
+    LEX_CSTRING tmp= m_type_handler->extended_metadata_data_type_name();
+    if (tmp.length)
+      to->set_data_type_name(tmp);
   }
   bool can_optimize_range(const Item_bool_func *cond,
                                   const Item *item,

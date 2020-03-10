@@ -799,6 +799,41 @@ bool Protocol::flush()
 
 #ifndef EMBEDDED_LIBRARY
 
+
+class Send_field_packed_extended_metadata: public Binary_string
+{
+public:
+  bool append_chunk(mariadb_field_attr_t type, const LEX_CSTRING &value)
+  {
+    /*
+      If we eventually support many metadata chunk types and long metadata
+      values, we'll need to encode type and length using net_store_length()
+      and do corresponding changes to the unpacking code in libmariadb.
+      For now let's just assert that type and length fit into one byte.
+    */
+    DBUG_ASSERT(net_length_size(type) == 1);
+    DBUG_ASSERT(net_length_size(value.length) == 1);
+    size_t nbytes= 1/*type*/ + 1/*length*/ + value.length;
+    if (reserve(nbytes))
+      return true;
+    qs_append((char) (uchar) type);
+    qs_append((char) (uchar) value.length);
+    qs_append(&value);
+    return false;
+  }
+  bool pack(const Send_field_extended_metadata &src)
+  {
+    for (uint i= 0 ; i <= MARIADB_FIELD_ATTR_LAST; i++)
+    {
+      const LEX_CSTRING attr= src.attr(i);
+      if (attr.str && append_chunk((mariadb_field_attr_t) i, attr))
+        return true;
+    }
+    return false;
+  }
+};
+
+
 bool Protocol_text::store_field_metadata(const THD * thd,
                                          const Send_field &field,
                                          CHARSET_INFO *charset_for_protocol,
@@ -816,8 +851,20 @@ bool Protocol_text::store_field_metadata(const THD * thd,
         store_str(field.table_name, cs, thd_charset) ||
         store_str(field.org_table_name, cs, thd_charset) ||
         store_str(field.col_name, cs, thd_charset) ||
-        store_str(field.org_col_name, cs, thd_charset) ||
-        packet->realloc(packet->length() + 12))
+        store_str(field.org_col_name, cs, thd_charset))
+      return true;
+    if (thd->client_capabilities & MARIADB_CLIENT_EXTENDED_METADATA)
+    {
+      Send_field_packed_extended_metadata metadata;
+      metadata.pack(field);
+      /*
+        Don't apply character set conversion:
+        extended metadata is a binary encoded data.
+      */
+      if (store_str(metadata.lex_cstring(), cs, &my_charset_bin))
+        return true;
+    }
+    if (packet->realloc(packet->length() + 12))
       return true;
     /* Store fixed length fields */
     pos= (char*) packet->end();

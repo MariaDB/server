@@ -7070,6 +7070,27 @@ Field_longstr::report_if_important_data(const char *pstr, const char *end,
 }
 
 
+/*
+  This is JSON specific.
+  We should eventually add Field_json_varchar and Field_json_blob
+  and move make_send_field() to the new classes.
+*/
+void Field_longstr::make_send_field(Send_field *field)
+{
+  Field_str::make_send_field(field);
+  if (check_constraint)
+  {
+    /*
+      Append the format that is implicitly implied by the CHECK CONSTRAINT.
+      For example:
+        CREATE TABLE t1 (js longtext DEFAULT NULL CHECK (json_valid(a)));
+        SELECT j FROM t1;
+      will add "format=json" to the extended type info metadata for t1.js.
+    */
+    check_constraint->expr->set_format_by_check_constraint(field);
+  }
+}
+
 	/* Copy a string and fill with space */
 
 int Field_string::store(const char *from, size_t length,CHARSET_INFO *cs)

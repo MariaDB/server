@@ -34,6 +34,14 @@ Named_type_handler<Type_handler_geometrycollection> type_handler_geometrycollect
 
 Type_collection_geometry        type_collection_geometry;
 
+
+LEX_CSTRING Type_handler_geometry::extended_metadata_data_type_name() const
+{
+  return geometry_type() == GEOM_GEOMETRY ? null_clex_str :
+                                            name().lex_cstring();
+}
+
+
 const Type_handler_geometry *
 Type_handler_geometry::type_handler_geom_by_type(uint type)
 {

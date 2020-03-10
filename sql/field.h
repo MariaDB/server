@@ -2142,6 +2142,7 @@ public:
                                     const Conv_param &param) const;
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
+  void make_send_field(Send_field *) override;
 
   bool is_varchar_and_in_write_set() const
   {
@@ -5511,7 +5512,8 @@ public:
 */
 
 class Send_field :public Sql_alloc,
-                  public Type_handler_hybrid_field_type
+                  public Type_handler_hybrid_field_type,
+                  public Send_field_extended_metadata
 {
 public:
   LEX_CSTRING db_name;

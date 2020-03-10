@@ -64,6 +64,7 @@
 
 #include <sql_common.h>
 #include "client_settings.h"
+#include "embedded_priv.h"
 
 #undef net_buffer_length
 #undef max_allowed_packet
@@ -729,6 +730,26 @@ mysql_fetch_field(MYSQL_RES *result)
   if (result->current_field >= result->field_count)
     return(NULL);
   return &result->fields[result->current_field++];
+}
+
+
+/**************************************************************************
+** Return mysql field metadata
+**************************************************************************/
+int STDCALL
+mariadb_field_attr(MARIADB_CONST_STRING *attr,
+                   const MYSQL_FIELD *field,
+                   enum mariadb_field_attr_t type)
+{
+  MARIADB_FIELD_EXTENSION *ext= (MARIADB_FIELD_EXTENSION*) field->extension;
+  if (!ext || type > MARIADB_FIELD_ATTR_LAST)
+  {
+    static MARIADB_CONST_STRING null_str= {0,0};
+    *attr= null_str;
+    return 1;
+  }
+  *attr= ext->metadata[type];
+  return 0;
 }
 
 

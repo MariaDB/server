@@ -23,6 +23,7 @@
 
 
 #include "mysqld.h"
+#include "lex_string.h"
 #include "sql_array.h"
 #include "sql_const.h"
 #include "sql_time.h"
@@ -135,6 +136,41 @@ enum column_definition_type_t
   COLUMN_DEFINITION_ROUTINE_PARAM,
   COLUMN_DEFINITION_ROUTINE_LOCAL,
   COLUMN_DEFINITION_FUNCTION_RETURN
+};
+
+
+class Send_field_extended_metadata
+{
+  LEX_CSTRING m_attr[MARIADB_FIELD_ATTR_LAST+1];
+public:
+  Send_field_extended_metadata()
+  {
+    bzero(this, sizeof(*this));
+  }
+  bool set_data_type_name(const LEX_CSTRING &str)
+  {
+    m_attr[MARIADB_FIELD_ATTR_DATA_TYPE_NAME]= str;
+    return false;
+  }
+  bool set_format_name(const LEX_CSTRING &str)
+  {
+    m_attr[MARIADB_FIELD_ATTR_FORMAT_NAME]= str;
+    return false;
+  }
+  bool has_extended_metadata() const
+  {
+    for (uint i= 0; i <= MARIADB_FIELD_ATTR_LAST; i++)
+    {
+      if (m_attr[i].str)
+        return true;
+    }
+    return false;
+  }
+  const LEX_CSTRING &attr(uint i) const
+  {
+    DBUG_ASSERT(i <= MARIADB_FIELD_ATTR_LAST);
+    return m_attr[i];
+  }
 };
 
 
@@ -3435,6 +3471,11 @@ public:
     return field_type();
   }
   virtual protocol_send_type_t protocol_send_type() const= 0;
+  virtual bool Item_append_extended_type_info(Send_field_extended_metadata *to,
+                                              const Item *item) const
+  {
+    return false;
+  }
   virtual Item_result result_type() const= 0;
   virtual Item_result cmp_type() const= 0;
   virtual enum_dynamic_column_type

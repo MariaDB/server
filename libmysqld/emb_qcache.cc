@@ -445,6 +445,7 @@ int emb_load_querycache_result(THD *thd, Querycache_stream *src)
         !(field->catalog= src->load_str(f_alloc, &field->catalog_length))    ||
         src->load_safe_str(f_alloc, &field->def, &field->def_length))
       goto err;
+    field->extension= NULL;
   }
   
   data->rows= rows;

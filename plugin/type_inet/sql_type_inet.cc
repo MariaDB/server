@@ -705,6 +705,12 @@ public:
     str.set_ascii(name.ptr(), name.length());
   }
 
+  void make_send_field(Send_field *to) override
+  {
+    Field::make_send_field(to);
+    to->set_data_type_name(type_handler_inet6.name().lex_cstring());
+  }
+
   bool validate_value_in_record(THD *thd, const uchar *record) const override
   {
     return false;

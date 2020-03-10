@@ -1032,6 +1032,39 @@ void Protocol_text::remove_last_row()
 }
 
 
+
+static MARIADB_CONST_STRING ma_const_string_copy_root(MEM_ROOT *memroot,
+                                                      const char *str,
+                                                      size_t length)
+{
+  MARIADB_CONST_STRING res;
+  if (!str || !(res.str= strmake_root(memroot, str, length)))
+    return null_clex_str;
+  res.length= length;
+  return res;
+}
+
+
+class Client_field_extension: public Sql_alloc,
+                              public MARIADB_FIELD_EXTENSION
+{
+public:
+  Client_field_extension()
+  {
+    memset(this, 0, sizeof(*this));
+  }
+  void copy_extended_metadata(MEM_ROOT *memroot,
+                              const Send_field_extended_metadata &src)
+  {
+    for (uint i= 0; i <= MARIADB_FIELD_ATTR_LAST; i++)
+    {
+      LEX_CSTRING attr= src.attr(i);
+      metadata[i]= ma_const_string_copy_root(memroot, attr.str, attr.length);
+    }
+  }
+};
+
+
 bool Protocol_text::store_field_metadata(const THD * thd,
                                          const Send_field &server_field,
                                          CHARSET_INFO *charset_for_protocol,
@@ -1079,6 +1112,17 @@ bool Protocol_text::store_field_metadata(const THD * thd,
 
   client_field->catalog= dup_str_aux(field_alloc, "def", 3, cs, thd_cs);
   client_field->catalog_length= 3;
+
+  if (server_field.has_extended_metadata())
+  {
+    Client_field_extension *ext= new (field_alloc) Client_field_extension();
+    if ((client_field->extension= static_cast<MARIADB_FIELD_EXTENSION*>(ext)))
+      ext->copy_extended_metadata(field_alloc, server_field);
+  }
+  else
+  {
+    client_field->extension= NULL;
+  }
 
   if (IS_NUM(client_field->type))
     client_field->flags|= NUM_FLAG;
