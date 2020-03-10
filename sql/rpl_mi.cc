@@ -100,7 +100,6 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
   mysql_cond_init(key_master_info_start_cond, &start_cond, NULL);
   mysql_cond_init(key_master_info_stop_cond, &stop_cond, NULL);
   mysql_cond_init(key_master_info_sleep_cond, &sleep_cond, NULL);
-  //mysql_cond_init(key_master_info_cond_ddd, &cond_ddd, NULL);
   mysql_cond_init(key_master_info_start_alter_list_cond, &start_alter_list_cond, NULL);
 }
 

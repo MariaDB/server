@@ -249,7 +249,7 @@ class Master_info : public Slave_reporting_capability
   IO_CACHE file;
 
   mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock, start_alter_lock, start_alter_list_lock;
-  mysql_cond_t data_cond, start_cond, stop_cond, sleep_cond, cond_ddd, start_alter_list_cond;
+  mysql_cond_t data_cond, start_cond, stop_cond, sleep_cond, start_alter_list_cond;
   THD *io_thd;
   MYSQL* mysql;
   uint32 file_id;				/* for 3.23 load data infile */
