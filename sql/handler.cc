@@ -6983,8 +6983,10 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
   if (!check_overlaps_buffer)
     check_overlaps_buffer= (uchar*)alloc_root(&table_share->mem_root,
                                               table_share->max_unique_length
+                                              + table_share->null_fields
                                               + table_share->reclength);
-  auto *record_buffer= check_overlaps_buffer + table_share->max_unique_length;
+  auto *record_buffer= check_overlaps_buffer + table_share->max_unique_length
+                                             + table_share->null_fields;
   auto *handler= this;
   // handler->inited can be NONE on INSERT
   if (handler->inited != NONE)
@@ -7015,7 +7017,8 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
       bool key_used= false;
       for (uint k= 0; k < key_parts && !key_used; k++)
         key_used= bitmap_is_set(table->write_set,
-                                key_info.key_part[k].fieldnr - 1);
+                                key_info.key_part[k].fieldnr - 1)
+                  && !key_info.key_part[k].field->is_null_in_record(new_data);
       if (!key_used)
         continue;
     }
@@ -7064,8 +7067,15 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
         error= handler->ha_index_next(record_buffer);
     }
 
-    if (!error && table->check_period_overlaps(key_info, key_info,
-                                               new_data, record_buffer) == 0)
+    bool null_in_key= false;
+    for (uint k= 0; k < key_parts && !null_in_key; k++)
+    {
+      null_in_key= key_info.key_part[k].field->is_null_in_record(record_buffer);
+    }
+
+    if (!null_in_key && !error
+        && table->check_period_overlaps(key_info, key_info,
+                                        new_data, record_buffer) == 0)
       error= HA_ERR_FOUND_DUPP_KEY;
 
     if (error == HA_ERR_KEY_NOT_FOUND || error == HA_ERR_END_OF_FILE)
