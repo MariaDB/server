@@ -10725,18 +10725,15 @@ void wsrep_thd_binlog_trx_reset(THD * thd)
   /*
     todo: fix autocommit select to not call the caller
   */
-  if (thd_get_ha_data(thd, binlog_hton) != NULL)
+  binlog_cache_mngr *const cache_mngr=
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  if (cache_mngr)
   {
-    binlog_cache_mngr *const cache_mngr=
-      (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-    if (cache_mngr)
+    cache_mngr->reset(false, true);
+    if (!cache_mngr->stmt_cache.empty())
     {
-      cache_mngr->reset(false, true);
-      if (!cache_mngr->stmt_cache.empty())
-      {
-        WSREP_DEBUG("pending events in stmt cache, sql: %s", thd->query());
-        cache_mngr->stmt_cache.reset();
-      }
+      WSREP_DEBUG("pending events in stmt cache, sql: %s", thd->query());
+      cache_mngr->stmt_cache.reset();
     }
   }
   thd->clear_binlog_table_maps();
