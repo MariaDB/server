@@ -2937,8 +2937,9 @@ SORT_FIELD_ATTR::pack_sort_string(uchar *to, const LEX_CSTRING &str,
                                   CHARSET_INFO *cs) const
 {
   uchar *orig_to= to;
-  size_t length, data_length;
-  length= str.length;
+  uint32 length, data_length;
+  DBUG_ASSERT(str.length <= UINT32_MAX);
+  length= (uint32)str.length;
 
   if (length + suffix_length <= original_length)
     data_length= length;
