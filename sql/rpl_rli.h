@@ -733,6 +733,8 @@ struct rpl_group_info
   bool did_mark_start_commit;
   /* Copy of flags2 from GTID event. */
   uchar gtid_ev_flags2;
+  /* Copy of flags3 from GTID event. */
+  uint16 gtid_ev_flags3;
   enum {
     GTID_DUPLICATE_NULL=0,
     GTID_DUPLICATE_IGNORE=1,

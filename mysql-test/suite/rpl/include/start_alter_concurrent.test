@@ -1,0 +1,150 @@
+#
+# ==== Purpose ====
+#
+# Run concurrent split alter on different storage engine
+#
+# ==== Usage ====
+#
+# --let $alter_engine= Engine Name (myisam , innodb ...)
+# --let $alter_algorithm= ...
+# --let $alter_online =  [][ONLINE]
+#
+
+SET @old_debug= @@global.debug;
+set global debug_dbug="+d,start_alter_delay_master";
+--eval create table t1( a int primary key, b int) engine=$alter_engine
+insert into t1 values(1,1),(2,2);
+--eval create table t2( a int primary key, b int) engine=$alter_engine
+insert into t2 values(1,1),(2,2);
+--eval create table t3( a int primary key, b int) engine=$alter_engine
+insert into t3 values(1,1),(2,2);
+--eval create table t4( a int primary key, b int) engine=$alter_engine
+insert into t4 values(1,1),(2,2);
+--eval create table t5( a int primary key, b int) engine=$alter_engine
+insert into t5 values(1,1),(2,2);
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+connect (con3,localhost,root,,);
+connect (con4,localhost,root,,);
+connect (con5,localhost,root,,);
+connect (con6,localhost,root,,);
+connect (con7,localhost,root,,);
+connect (con8,localhost,root,,);
+connect (con9,localhost,root,,);
+connect (con10,localhost,root,,);
+--connection con1
+--send_eval alter $alter_online table t1 add column c int, force, algorithm=$alter_algorithm
+--connection con2
+--send_eval alter $alter_online table t2 add column c int, force, algorithm=$alter_algorithm
+--connection con3
+--send_eval alter $alter_online table t3 add column c int, force, algorithm=$alter_algorithm
+--connection con4
+--send_eval alter $alter_online table t4 add column c int, force, algorithm=$alter_algorithm
+--connection con5
+--send_eval alter $alter_online table t5 add column c int, force, algorithm=$alter_algorithm
+
+--connection con1
+--reap
+--connection con2
+--reap
+--connection con3
+--reap
+--connection con4
+--reap
+--connection con5
+--reap
+
+--echo #Concurrent DML
+--connection con1
+--send_eval alter table t1 add column d int, force, algorithm=$alter_algorithm
+--connection con2
+--send_eval alter table t2 add column d int, force, algorithm=$alter_algorithm
+--connection con3
+--send_eval alter table t3 add column d int, force, algorithm=$alter_algorithm
+--connection con4
+--send_eval alter table t4 add column d int, force, algorithm=$alter_algorithm
+--connection con5
+--send_eval alter table t5 add column d int, force, algorithm=$alter_algorithm
+
+if ($alter_algorithm == "inplace")
+{
+--sleep 1
+--connection con6
+--send insert into t1 values(5,5,5);
+--connection con7
+--send insert into t2 values(5,5,5);
+--connection con8
+--send insert into t3 values(5,5,5);
+--connection con9
+--send insert into t4 values(5,5,5);
+--connection con10
+--send insert into t5 values(5,5,5);
+
+--connection con6
+--reap
+--connection con7
+--reap
+--connection con8
+--reap
+--connection con9
+--reap
+--connection con10
+--reap
+}
+--connection con1
+--reap
+--connection con2
+--reap
+--connection con3
+--reap
+--connection con4
+--reap
+--connection con5
+--reap
+
+--echo # Rollback tests
+--connection con1
+insert into t1 values(3,2,1,1);
+--send_eval alter table t1 change b b int unique, force, algorithm=$alter_algorithm
+--connection con2
+insert into t2 values(3,2,1,1);
+--send_eval alter table t2 change b b int unique, force, algorithm=$alter_algorithm
+--connection con3
+insert into t3 values(3,2,1,1);
+--send_eval alter table t3 change b b int unique, force, algorithm=$alter_algorithm
+--connection con4
+insert into t4 values(3,2,1,1);
+--send_eval alter table t4 change b b int unique, force, algorithm=$alter_algorithm
+--connection con5
+insert into t5 values(3,2,1,1);
+--send_eval alter table t5 change b b int unique, force, algorithm=$alter_algorithm
+
+--connection con1
+--error ER_DUP_ENTRY
+--reap
+--connection con2
+--error ER_DUP_ENTRY
+--reap
+--connection con3
+--error ER_DUP_ENTRY
+--reap
+--connection con4
+--error ER_DUP_ENTRY
+--reap
+--connection con5
+--error ER_DUP_ENTRY
+--reap
+
+drop table t1,t2,t3,t4,t5;
+--disconnect con1
+--disconnect con2
+--disconnect con3
+--disconnect con4
+--disconnect con5
+--disconnect con6
+--disconnect con7
+--disconnect con8
+--disconnect con9
+--disconnect con10
+--connection default
+SET GLOBAL debug_dbug= @old_debug;

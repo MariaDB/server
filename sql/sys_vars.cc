@@ -2234,6 +2234,11 @@ static Sys_var_bit Sys_skip_parallel_replication(
        SESSION_ONLY(option_bits), NO_CMD_LINE, OPTION_RPL_SKIP_PARALLEL,
        DEFAULT(FALSE));
 
+static Sys_var_mybool Sys_binlog_split_alter(
+       "binlog_split_alter",
+       "If set split the alter into 2 statement START ALTER and COMMIT/ROLLBACK"
+       "ALTER",
+       GLOBAL_VAR(opt_binlog_split_alter), NO_CMD_LINE, DEFAULT(FALSE));
 
 static bool
 check_gtid_ignore_duplicates(sys_var *self, THD *thd, set_var *var)

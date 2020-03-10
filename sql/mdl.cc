@@ -2191,7 +2191,6 @@ bool MDL_lock::check_if_conflicting_replication_locks(MDL_context *ctx)
 
   if (!rgi_slave->gtid_sub_id)
     return 0;
-
   while ((conflicting_ticket= it++))
   {
     if (conflicting_ticket->get_ctx() != ctx)

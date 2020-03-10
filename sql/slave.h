@@ -272,6 +272,7 @@ int init_dynarray_intvar_from_file(DYNAMIC_ARRAY* arr, IO_CACHE* f);
 pthread_handler_t handle_slave_io(void *arg);
 void slave_output_error_info(rpl_group_info *rgi, THD *thd);
 pthread_handler_t handle_slave_sql(void *arg);
+pthread_handler_t handle_slave_start_alter(void *arg);
 bool net_request_file(NET* net, const char* fname);
 void slave_background_kill_request(THD *to_kill);
 void slave_background_gtid_pos_create_request

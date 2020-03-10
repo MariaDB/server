@@ -257,7 +257,7 @@ CHARSET_INFO* get_sql_field_charset(Column_definition *sql_field,
 bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags);
 int write_bin_log(THD *thd, bool clear_error,
                   char const *query, ulong query_length,
-                  bool is_trans= FALSE);
+                  bool is_trans= FALSE, bool log_zero_errcode= false);
 bool write_ddl_log_entry(DDL_LOG_ENTRY *ddl_log_entry,
                            DDL_LOG_MEMORY_ENTRY **active_entry);
 bool write_execute_ddl_log_entry(uint first_entry,

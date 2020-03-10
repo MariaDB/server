@@ -1738,7 +1738,6 @@ rpl_parallel_inactivate_pool(rpl_parallel_thread_pool *pool)
   return rpl_parallel_change_thread_count(pool, 0, 0);
 }
 
-
 void
 rpl_parallel_thread::batch_free()
 {
@@ -1978,7 +1977,6 @@ rpl_parallel_thread::loc_free_gco(group_commit_orderer *gco)
     gco->next_gco= loc_gco_list;
   loc_gco_list= gco;
 }
-
 
 rpl_parallel_thread_pool::rpl_parallel_thread_pool()
   : threads(0), free_list(0), count(0), inited(false), busy(false)

@@ -1,0 +1,943 @@
+include/master-slave.inc
+[connection master]
+set global binlog_split_alter=true;
+connection slave;
+set global gtid_strict_mode=1;
+#Legacy Master Slave
+# Myisam
+connection master;
+create table t1( a int, b int) engine=myisam;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+#Normal Alter
+alter table t1 add column c int;
+#Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique ;
+ERROR 23000: Duplicate entry '1' for key 'a'
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection master;
+drop table t1;
+connection slave;
+# Innodb
+connection master;
+create table t1( a int, b int) engine=innodb;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+#Normal Alter
+alter table t1 add column c int;
+#Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique ;
+ERROR 23000: Duplicate entry '1' for key 'a'
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection master;
+drop table t1;
+connection slave;
+# Aria
+connection master;
+create table t1( a int, b int) engine=aria;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+#Normal Alter
+alter table t1 add column c int;
+#Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique ;
+ERROR 23000: Duplicate entry '1' for key 'a'
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+connection master;
+drop table t1;
+connection slave;
+connection master;
+#concurrent alter Myisam
+SET @old_debug= @@global.debug;
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=myisam;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=myisam;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=myisam;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=myisam;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=myisam;
+insert into t5 values(1,1),(2,2);
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connect  con4,localhost,root,,;
+connect  con5,localhost,root,,;
+connect  con6,localhost,root,,;
+connect  con7,localhost,root,,;
+connect  con8,localhost,root,,;
+connect  con9,localhost,root,,;
+connect  con10,localhost,root,,;
+connection con1;
+alter  table t1 add column c int, force, algorithm=copy;
+connection con2;
+alter  table t2 add column c int, force, algorithm=copy;
+connection con3;
+alter  table t3 add column c int, force, algorithm=copy;
+connection con4;
+alter  table t4 add column c int, force, algorithm=copy;
+connection con5;
+alter  table t5 add column c int, force, algorithm=copy;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+#Concurrent DML
+connection con1;
+alter table t1 add column d int, force, algorithm=copy;
+connection con2;
+alter table t2 add column d int, force, algorithm=copy;
+connection con3;
+alter table t3 add column d int, force, algorithm=copy;
+connection con4;
+alter table t4 add column d int, force, algorithm=copy;
+connection con5;
+alter table t5 add column d int, force, algorithm=copy;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+# Rollback tests
+connection con1;
+insert into t1 values(3,2,1,1);
+alter table t1 change b b int unique, force, algorithm=copy;
+connection con2;
+insert into t2 values(3,2,1,1);
+alter table t2 change b b int unique, force, algorithm=copy;
+connection con3;
+insert into t3 values(3,2,1,1);
+alter table t3 change b b int unique, force, algorithm=copy;
+connection con4;
+insert into t4 values(3,2,1,1);
+alter table t4 change b b int unique, force, algorithm=copy;
+connection con5;
+insert into t5 values(3,2,1,1);
+alter table t5 change b b int unique, force, algorithm=copy;
+connection con1;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con2;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con3;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con4;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con5;
+ERROR 23000: Duplicate entry '2' for key 'b'
+drop table t1,t2,t3,t4,t5;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con9;
+disconnect con10;
+connection default;
+SET GLOBAL debug_dbug= @old_debug;
+connection slave;
+connection master;
+#concurrent alter Aria
+SET @old_debug= @@global.debug;
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=aria;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=aria;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=aria;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=aria;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=aria;
+insert into t5 values(1,1),(2,2);
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connect  con4,localhost,root,,;
+connect  con5,localhost,root,,;
+connect  con6,localhost,root,,;
+connect  con7,localhost,root,,;
+connect  con8,localhost,root,,;
+connect  con9,localhost,root,,;
+connect  con10,localhost,root,,;
+connection con1;
+alter  table t1 add column c int, force, algorithm=copy;
+connection con2;
+alter  table t2 add column c int, force, algorithm=copy;
+connection con3;
+alter  table t3 add column c int, force, algorithm=copy;
+connection con4;
+alter  table t4 add column c int, force, algorithm=copy;
+connection con5;
+alter  table t5 add column c int, force, algorithm=copy;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+#Concurrent DML
+connection con1;
+alter table t1 add column d int, force, algorithm=copy;
+connection con2;
+alter table t2 add column d int, force, algorithm=copy;
+connection con3;
+alter table t3 add column d int, force, algorithm=copy;
+connection con4;
+alter table t4 add column d int, force, algorithm=copy;
+connection con5;
+alter table t5 add column d int, force, algorithm=copy;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+# Rollback tests
+connection con1;
+insert into t1 values(3,2,1,1);
+alter table t1 change b b int unique, force, algorithm=copy;
+connection con2;
+insert into t2 values(3,2,1,1);
+alter table t2 change b b int unique, force, algorithm=copy;
+connection con3;
+insert into t3 values(3,2,1,1);
+alter table t3 change b b int unique, force, algorithm=copy;
+connection con4;
+insert into t4 values(3,2,1,1);
+alter table t4 change b b int unique, force, algorithm=copy;
+connection con5;
+insert into t5 values(3,2,1,1);
+alter table t5 change b b int unique, force, algorithm=copy;
+connection con1;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con2;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con3;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con4;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con5;
+ERROR 23000: Duplicate entry '2' for key 'b'
+drop table t1,t2,t3,t4,t5;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con9;
+disconnect con10;
+connection default;
+SET GLOBAL debug_dbug= @old_debug;
+connection slave;
+connection master;
+#concurrent alter Innodb copy
+SET @old_debug= @@global.debug;
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=innodb;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=innodb;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=innodb;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=innodb;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=innodb;
+insert into t5 values(1,1),(2,2);
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connect  con4,localhost,root,,;
+connect  con5,localhost,root,,;
+connect  con6,localhost,root,,;
+connect  con7,localhost,root,,;
+connect  con8,localhost,root,,;
+connect  con9,localhost,root,,;
+connect  con10,localhost,root,,;
+connection con1;
+alter  table t1 add column c int, force, algorithm=copy;
+connection con2;
+alter  table t2 add column c int, force, algorithm=copy;
+connection con3;
+alter  table t3 add column c int, force, algorithm=copy;
+connection con4;
+alter  table t4 add column c int, force, algorithm=copy;
+connection con5;
+alter  table t5 add column c int, force, algorithm=copy;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+#Concurrent DML
+connection con1;
+alter table t1 add column d int, force, algorithm=copy;
+connection con2;
+alter table t2 add column d int, force, algorithm=copy;
+connection con3;
+alter table t3 add column d int, force, algorithm=copy;
+connection con4;
+alter table t4 add column d int, force, algorithm=copy;
+connection con5;
+alter table t5 add column d int, force, algorithm=copy;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+# Rollback tests
+connection con1;
+insert into t1 values(3,2,1,1);
+alter table t1 change b b int unique, force, algorithm=copy;
+connection con2;
+insert into t2 values(3,2,1,1);
+alter table t2 change b b int unique, force, algorithm=copy;
+connection con3;
+insert into t3 values(3,2,1,1);
+alter table t3 change b b int unique, force, algorithm=copy;
+connection con4;
+insert into t4 values(3,2,1,1);
+alter table t4 change b b int unique, force, algorithm=copy;
+connection con5;
+insert into t5 values(3,2,1,1);
+alter table t5 change b b int unique, force, algorithm=copy;
+connection con1;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con2;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con3;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con4;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con5;
+ERROR 23000: Duplicate entry '2' for key 'b'
+drop table t1,t2,t3,t4,t5;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con9;
+disconnect con10;
+connection default;
+SET GLOBAL debug_dbug= @old_debug;
+connection slave;
+connection master;
+#concurrent alter Innodb Inplace
+SET @old_debug= @@global.debug;
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=innodb;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=innodb;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=innodb;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=innodb;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=innodb;
+insert into t5 values(1,1),(2,2);
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connect  con4,localhost,root,,;
+connect  con5,localhost,root,,;
+connect  con6,localhost,root,,;
+connect  con7,localhost,root,,;
+connect  con8,localhost,root,,;
+connect  con9,localhost,root,,;
+connect  con10,localhost,root,,;
+connection con1;
+alter  table t1 add column c int, force, algorithm=inplace;
+connection con2;
+alter  table t2 add column c int, force, algorithm=inplace;
+connection con3;
+alter  table t3 add column c int, force, algorithm=inplace;
+connection con4;
+alter  table t4 add column c int, force, algorithm=inplace;
+connection con5;
+alter  table t5 add column c int, force, algorithm=inplace;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+#Concurrent DML
+connection con1;
+alter table t1 add column d int, force, algorithm=inplace;
+connection con2;
+alter table t2 add column d int, force, algorithm=inplace;
+connection con3;
+alter table t3 add column d int, force, algorithm=inplace;
+connection con4;
+alter table t4 add column d int, force, algorithm=inplace;
+connection con5;
+alter table t5 add column d int, force, algorithm=inplace;
+connection con6;
+insert into t1 values(5,5,5);;
+connection con7;
+insert into t2 values(5,5,5);;
+connection con8;
+insert into t3 values(5,5,5);;
+connection con9;
+insert into t4 values(5,5,5);;
+connection con10;
+insert into t5 values(5,5,5);;
+connection con6;
+connection con7;
+connection con8;
+connection con9;
+connection con10;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+# Rollback tests
+connection con1;
+insert into t1 values(3,2,1,1);
+alter table t1 change b b int unique, force, algorithm=inplace;
+connection con2;
+insert into t2 values(3,2,1,1);
+alter table t2 change b b int unique, force, algorithm=inplace;
+connection con3;
+insert into t3 values(3,2,1,1);
+alter table t3 change b b int unique, force, algorithm=inplace;
+connection con4;
+insert into t4 values(3,2,1,1);
+alter table t4 change b b int unique, force, algorithm=inplace;
+connection con5;
+insert into t5 values(3,2,1,1);
+alter table t5 change b b int unique, force, algorithm=inplace;
+connection con1;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con2;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con3;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con4;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con5;
+ERROR 23000: Duplicate entry '2' for key 'b'
+drop table t1,t2,t3,t4,t5;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con9;
+disconnect con10;
+connection default;
+SET GLOBAL debug_dbug= @old_debug;
+connection slave;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+include/start_slave.inc
+#Parallel Slave
+connection master;
+# Myisam
+connection master;
+create table t1( a int, b int) engine=myisam;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+#Normal Alter
+alter table t1 add column c int;
+#Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique ;
+ERROR 23000: Duplicate entry '1' for key 'a'
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection master;
+drop table t1;
+connection slave;
+# Innodb
+connection master;
+create table t1( a int, b int) engine=innodb;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+#Normal Alter
+alter table t1 add column c int;
+#Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique ;
+ERROR 23000: Duplicate entry '1' for key 'a'
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection master;
+drop table t1;
+connection slave;
+# Aria
+connection master;
+create table t1( a int, b int) engine=aria;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+#Normal Alter
+alter table t1 add column c int;
+#Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique ;
+ERROR 23000: Duplicate entry '1' for key 'a'
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+connection master;
+drop table t1;
+connection slave;
+connection master;
+#concurrent alter Myisam
+SET @old_debug= @@global.debug;
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=myisam;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=myisam;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=myisam;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=myisam;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=myisam;
+insert into t5 values(1,1),(2,2);
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connect  con4,localhost,root,,;
+connect  con5,localhost,root,,;
+connect  con6,localhost,root,,;
+connect  con7,localhost,root,,;
+connect  con8,localhost,root,,;
+connect  con9,localhost,root,,;
+connect  con10,localhost,root,,;
+connection con1;
+alter  table t1 add column c int, force, algorithm=copy;
+connection con2;
+alter  table t2 add column c int, force, algorithm=copy;
+connection con3;
+alter  table t3 add column c int, force, algorithm=copy;
+connection con4;
+alter  table t4 add column c int, force, algorithm=copy;
+connection con5;
+alter  table t5 add column c int, force, algorithm=copy;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+#Concurrent DML
+connection con1;
+alter table t1 add column d int, force, algorithm=copy;
+connection con2;
+alter table t2 add column d int, force, algorithm=copy;
+connection con3;
+alter table t3 add column d int, force, algorithm=copy;
+connection con4;
+alter table t4 add column d int, force, algorithm=copy;
+connection con5;
+alter table t5 add column d int, force, algorithm=copy;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+# Rollback tests
+connection con1;
+insert into t1 values(3,2,1,1);
+alter table t1 change b b int unique, force, algorithm=copy;
+connection con2;
+insert into t2 values(3,2,1,1);
+alter table t2 change b b int unique, force, algorithm=copy;
+connection con3;
+insert into t3 values(3,2,1,1);
+alter table t3 change b b int unique, force, algorithm=copy;
+connection con4;
+insert into t4 values(3,2,1,1);
+alter table t4 change b b int unique, force, algorithm=copy;
+connection con5;
+insert into t5 values(3,2,1,1);
+alter table t5 change b b int unique, force, algorithm=copy;
+connection con1;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con2;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con3;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con4;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con5;
+ERROR 23000: Duplicate entry '2' for key 'b'
+drop table t1,t2,t3,t4,t5;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con9;
+disconnect con10;
+connection default;
+SET GLOBAL debug_dbug= @old_debug;
+connection slave;
+connection master;
+#concurrent alter Aria
+SET @old_debug= @@global.debug;
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=aria;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=aria;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=aria;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=aria;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=aria;
+insert into t5 values(1,1),(2,2);
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connect  con4,localhost,root,,;
+connect  con5,localhost,root,,;
+connect  con6,localhost,root,,;
+connect  con7,localhost,root,,;
+connect  con8,localhost,root,,;
+connect  con9,localhost,root,,;
+connect  con10,localhost,root,,;
+connection con1;
+alter  table t1 add column c int, force, algorithm=copy;
+connection con2;
+alter  table t2 add column c int, force, algorithm=copy;
+connection con3;
+alter  table t3 add column c int, force, algorithm=copy;
+connection con4;
+alter  table t4 add column c int, force, algorithm=copy;
+connection con5;
+alter  table t5 add column c int, force, algorithm=copy;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+#Concurrent DML
+connection con1;
+alter table t1 add column d int, force, algorithm=copy;
+connection con2;
+alter table t2 add column d int, force, algorithm=copy;
+connection con3;
+alter table t3 add column d int, force, algorithm=copy;
+connection con4;
+alter table t4 add column d int, force, algorithm=copy;
+connection con5;
+alter table t5 add column d int, force, algorithm=copy;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+# Rollback tests
+connection con1;
+insert into t1 values(3,2,1,1);
+alter table t1 change b b int unique, force, algorithm=copy;
+connection con2;
+insert into t2 values(3,2,1,1);
+alter table t2 change b b int unique, force, algorithm=copy;
+connection con3;
+insert into t3 values(3,2,1,1);
+alter table t3 change b b int unique, force, algorithm=copy;
+connection con4;
+insert into t4 values(3,2,1,1);
+alter table t4 change b b int unique, force, algorithm=copy;
+connection con5;
+insert into t5 values(3,2,1,1);
+alter table t5 change b b int unique, force, algorithm=copy;
+connection con1;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con2;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con3;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con4;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con5;
+ERROR 23000: Duplicate entry '2' for key 'b'
+drop table t1,t2,t3,t4,t5;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con9;
+disconnect con10;
+connection default;
+SET GLOBAL debug_dbug= @old_debug;
+connection slave;
+connection master;
+#concurrent alter Innodb copy
+SET @old_debug= @@global.debug;
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=innodb;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=innodb;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=innodb;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=innodb;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=innodb;
+insert into t5 values(1,1),(2,2);
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connect  con4,localhost,root,,;
+connect  con5,localhost,root,,;
+connect  con6,localhost,root,,;
+connect  con7,localhost,root,,;
+connect  con8,localhost,root,,;
+connect  con9,localhost,root,,;
+connect  con10,localhost,root,,;
+connection con1;
+alter  table t1 add column c int, force, algorithm=copy;
+connection con2;
+alter  table t2 add column c int, force, algorithm=copy;
+connection con3;
+alter  table t3 add column c int, force, algorithm=copy;
+connection con4;
+alter  table t4 add column c int, force, algorithm=copy;
+connection con5;
+alter  table t5 add column c int, force, algorithm=copy;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+#Concurrent DML
+connection con1;
+alter table t1 add column d int, force, algorithm=copy;
+connection con2;
+alter table t2 add column d int, force, algorithm=copy;
+connection con3;
+alter table t3 add column d int, force, algorithm=copy;
+connection con4;
+alter table t4 add column d int, force, algorithm=copy;
+connection con5;
+alter table t5 add column d int, force, algorithm=copy;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+# Rollback tests
+connection con1;
+insert into t1 values(3,2,1,1);
+alter table t1 change b b int unique, force, algorithm=copy;
+connection con2;
+insert into t2 values(3,2,1,1);
+alter table t2 change b b int unique, force, algorithm=copy;
+connection con3;
+insert into t3 values(3,2,1,1);
+alter table t3 change b b int unique, force, algorithm=copy;
+connection con4;
+insert into t4 values(3,2,1,1);
+alter table t4 change b b int unique, force, algorithm=copy;
+connection con5;
+insert into t5 values(3,2,1,1);
+alter table t5 change b b int unique, force, algorithm=copy;
+connection con1;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con2;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con3;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con4;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con5;
+ERROR 23000: Duplicate entry '2' for key 'b'
+drop table t1,t2,t3,t4,t5;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con9;
+disconnect con10;
+connection default;
+SET GLOBAL debug_dbug= @old_debug;
+connection slave;
+connection master;
+#concurrent alter Innodb Inplace
+SET @old_debug= @@global.debug;
+set global debug_dbug="+d,start_alter_delay_master";
+create table t1( a int primary key, b int) engine=innodb;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=innodb;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=innodb;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=innodb;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=innodb;
+insert into t5 values(1,1),(2,2);
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connect  con4,localhost,root,,;
+connect  con5,localhost,root,,;
+connect  con6,localhost,root,,;
+connect  con7,localhost,root,,;
+connect  con8,localhost,root,,;
+connect  con9,localhost,root,,;
+connect  con10,localhost,root,,;
+connection con1;
+alter  table t1 add column c int, force, algorithm=inplace;
+connection con2;
+alter  table t2 add column c int, force, algorithm=inplace;
+connection con3;
+alter  table t3 add column c int, force, algorithm=inplace;
+connection con4;
+alter  table t4 add column c int, force, algorithm=inplace;
+connection con5;
+alter  table t5 add column c int, force, algorithm=inplace;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+#Concurrent DML
+connection con1;
+alter table t1 add column d int, force, algorithm=inplace;
+connection con2;
+alter table t2 add column d int, force, algorithm=inplace;
+connection con3;
+alter table t3 add column d int, force, algorithm=inplace;
+connection con4;
+alter table t4 add column d int, force, algorithm=inplace;
+connection con5;
+alter table t5 add column d int, force, algorithm=inplace;
+connection con6;
+insert into t1 values(5,5,5);;
+connection con7;
+insert into t2 values(5,5,5);;
+connection con8;
+insert into t3 values(5,5,5);;
+connection con9;
+insert into t4 values(5,5,5);;
+connection con10;
+insert into t5 values(5,5,5);;
+connection con6;
+connection con7;
+connection con8;
+connection con9;
+connection con10;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection con5;
+# Rollback tests
+connection con1;
+insert into t1 values(3,2,1,1);
+alter table t1 change b b int unique, force, algorithm=inplace;
+connection con2;
+insert into t2 values(3,2,1,1);
+alter table t2 change b b int unique, force, algorithm=inplace;
+connection con3;
+insert into t3 values(3,2,1,1);
+alter table t3 change b b int unique, force, algorithm=inplace;
+connection con4;
+insert into t4 values(3,2,1,1);
+alter table t4 change b b int unique, force, algorithm=inplace;
+connection con5;
+insert into t5 values(3,2,1,1);
+alter table t5 change b b int unique, force, algorithm=inplace;
+connection con1;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con2;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con3;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con4;
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection con5;
+ERROR 23000: Duplicate entry '2' for key 'b'
+drop table t1,t2,t3,t4,t5;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con9;
+disconnect con10;
+connection default;
+SET GLOBAL debug_dbug= @old_debug;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+set global gtid_strict_mode=0;
+include/start_slave.inc
+connection master;
+set global binlog_split_alter=false;
+include/rpl_end.inc

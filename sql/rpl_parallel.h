@@ -224,6 +224,7 @@ struct rpl_parallel_thread {
   void batch_free();
   /* Update inuse_relaylog refcounts with what we have accumulated so far. */
   void inuse_relaylog_refcount_update();
+  void __finish_event_group(rpl_group_info *);
 };
 
 

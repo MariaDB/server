@@ -3511,6 +3511,9 @@ public:
   vers_select_conds_t vers_conditions;
   vers_select_conds_t period_conditions;
 
+  /* Online Alter */
+  ulong previous_commit_id;
+
   inline void free_set_stmt_mem_root()
   {
     DBUG_ASSERT(!is_arena_for_set_stmt());

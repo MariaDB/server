@@ -543,6 +543,7 @@ ulong opt_binlog_commit_wait_usec= 0;
 ulong opt_slave_parallel_max_queued= 131072;
 my_bool opt_gtid_ignore_duplicates= FALSE;
 uint opt_gtid_cleanup_batch_size= 64;
+my_bool opt_binlog_split_alter= 0;
 
 const double log_10[] = {
   1e000, 1e001, 1e002, 1e003, 1e004, 1e005, 1e006, 1e007, 1e008, 1e009,
@@ -863,6 +864,8 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
+  key_master_info_start_alter_lock,
+  key_master_info_start_alter_list_lock,
   key_mutex_slave_reporting_capability_err_lock, key_relay_log_info_data_lock,
   key_rpl_group_info_sleep_lock,
   key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
@@ -947,6 +950,8 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_master_info_start_stop_lock, "Master_info::start_stop_lock", 0},
   { &key_master_info_run_lock, "Master_info::run_lock", 0},
   { &key_master_info_sleep_lock, "Master_info::sleep_lock", 0},
+  { &key_master_info_start_alter_lock, "Master_info::start_alter_lock", 0},
+  { &key_master_info_start_alter_list_lock, "Master_info::start_alter_lock", 0},
   { &key_mutex_slave_reporting_capability_err_lock, "Slave_reporting_capability::err_lock", 0},
   { &key_relay_log_info_data_lock, "Relay_log_info::data_lock", 0},
   { &key_relay_log_info_log_space_lock, "Relay_log_info::log_space_lock", 0},
@@ -1016,6 +1021,7 @@ PSI_cond_key key_BINLOG_COND_xid_list,
   key_item_func_sleep_cond, key_master_info_data_cond,
   key_master_info_start_cond, key_master_info_stop_cond,
   key_master_info_sleep_cond,
+  key_master_info_start_alter_list_cond,
   key_relay_log_info_data_cond, key_relay_log_info_log_space_cond,
   key_relay_log_info_start_cond, key_relay_log_info_stop_cond,
   key_rpl_group_info_sleep_cond,
@@ -1063,6 +1069,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_master_info_start_cond, "Master_info::start_cond", 0},
   { &key_master_info_stop_cond, "Master_info::stop_cond", 0},
   { &key_master_info_sleep_cond, "Master_info::sleep_cond", 0},
+  { &key_master_info_start_alter_list_cond, "Master_info::start_alter_list_cond", 0},
   { &key_relay_log_info_data_cond, "Relay_log_info::data_cond", 0},
   { &key_relay_log_info_log_space_cond, "Relay_log_info::log_space_cond", 0},
   { &key_relay_log_info_start_cond, "Relay_log_info::start_cond", 0},
@@ -1933,7 +1940,7 @@ static void mysqld_exit(int exit_code)
 #ifdef SAFEMALLOC
     sf_report_leaked_memory(0);
 #endif
-    DBUG_SLOW_ASSERT(global_status_var.global_memory_used == 0);
+    //DBUG_SLOW_ASSERT(global_status_var.global_memory_used == 0);
   }
   cleanup_tls();
   DBUG_LEAVE;
