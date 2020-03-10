@@ -1035,51 +1035,46 @@ page status as NORMAL. It initiates the write to the file only after
 releasing the page from flush list and its associated mutex.
 @param[in,out]	bpage	freed buffer page
 @param[in]	space	tablespace object of the freed page */
-static void buf_flush_freed_page(buf_page_t* bpage, fil_space_t* space)
+static void buf_flush_freed_page(buf_page_t *bpage, fil_space_t *space)
 {
-	const page_id_t	page_id(bpage->id.space(), bpage->id.page_no());
-	BPageMutex* block_mutex = buf_page_get_mutex(bpage);
-	const bool uncompressed = (buf_page_get_state(bpage)
-				   == BUF_BLOCK_FILE_PAGE);
-	bool punch_hole = false;
+  ut_ad(buf_page_in_file(bpage));
+  const bool uncompressed= buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE;
+  BPageMutex *block_mutex= uncompressed
+    ? &reinterpret_cast<buf_block_t*>(bpage)->mutex
+    : &buf_pool->zip_mutex;
 
-	mutex_enter(&buf_pool->mutex);
-	mutex_enter(block_mutex);
+  mutex_enter(&buf_pool->mutex);
+  mutex_enter(block_mutex);
 
-	buf_page_set_io_fix(bpage, BUF_IO_NONE);
-	bpage->status = buf_page_t::NORMAL;
-	buf_flush_write_complete(bpage, false);
+  buf_page_set_io_fix(bpage, BUF_IO_NONE);
+  bpage->status= buf_page_t::NORMAL;
+  buf_flush_write_complete(bpage, false);
 
-	if (uncompressed) {
-		rw_lock_sx_unlock_gen(&((buf_block_t*) bpage)->lock,
-				      BUF_IO_WRITE);
-	}
+  if (uncompressed)
+    rw_lock_sx_unlock_gen(&reinterpret_cast<buf_block_t*>(bpage)->lock,
+			  BUF_IO_WRITE);
 
-	buf_pool->stat.n_pages_written++;
-	mutex_exit(block_mutex);
-	mutex_exit(&buf_pool->mutex);
+  buf_pool->stat.n_pages_written++;
+  mutex_exit(&buf_pool->mutex);
+  const page_id_t page_id(bpage->id);
+  const auto zip_size= bpage->zip_size();
+  mutex_exit(block_mutex);
 
-	if (space->is_compressed()) {
+  const bool punch_hole=
 #if defined(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
-                punch_hole = (space != fil_system.temp_space
-                              && space->is_compressed());
-
+    space->is_compressed() ||
 #endif
-	}
+    false;
 
-	if (srv_immediate_scrub_data_uncompressed || punch_hole) {
-		/* Zero write the page */
-		ulint type = IORequest::WRITE;
-		IORequest request(type, NULL);
-		page_t* frame = const_cast<byte*>(field_ref_zero);
+  ut_ad(space->id == page_id.space());
+  ut_ad(space->zip_size() == zip_size);
 
-		fil_io(request, punch_hole ? true :false,
-		       page_id, space->zip_size(), 0,
-		       space->physical_size(), frame, NULL,
-		       false, punch_hole);
-	}
+  if (punch_hole || srv_immediate_scrub_data_uncompressed)
+    fil_io(IORequestWrite, punch_hole, page_id, zip_size, 0,
+           zip_size ? zip_size : srv_page_size,
+           const_cast<byte*>(field_ref_zero), nullptr, false, punch_hole);
 
-	space->release_for_io();
+  space->release_for_io();
 }
 
 /********************************************************************//**

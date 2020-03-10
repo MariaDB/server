@@ -212,39 +212,12 @@ public:
 		PUNCH_HOLE = 64,
 	};
 
-	/** Default constructor */
-	IORequest()
-		:
-		m_bpage(NULL),
-		m_fil_node(NULL),
-		m_type(READ)
-	{
-		/* No op */
-	}
-
-	/**
-	@param[in]	type		Request type, can be a value that is
-					ORed from the above enum */
-	explicit IORequest(ulint type)
-		:
-		m_bpage(NULL),
-		m_fil_node(NULL),
-		m_type(static_cast<uint16_t>(type))
-	{
-		if (!is_punch_hole_supported()) {
-			clear_punch_hole();
-		}
-	}
-
 	/**
 	@param[in]	type		Request type, can be a value that is
 					ORed from the above enum
 	@param[in]	bpage		Page to be written */
-	IORequest(ulint type, buf_page_t* bpage)
-		:
-		m_bpage(bpage),
-		m_fil_node(NULL),
-		m_type(static_cast<uint16_t>(type))
+	IORequest(ulint type= READ, buf_page_t *bpage= nullptr)
+		: m_bpage(bpage), m_type(static_cast<uint16_t>(type))
 	{
 		if (bpage && buf_page_should_punch_hole(bpage)) {
 			set_punch_hole();
@@ -372,13 +345,13 @@ public:
 
 private:
 	/** Page to be written on write operation. */
-	buf_page_t*		m_bpage;
+	buf_page_t* const	m_bpage= nullptr;
 
 	/** File node */
-	fil_node_t*		m_fil_node;
+	fil_node_t*		m_fil_node= nullptr;
 
 	/** Request type bit flags */
-	uint16_t		m_type;
+	uint16_t		m_type= READ;
 };
 
 /* @} */
