@@ -9469,7 +9469,7 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
 start_alter_info *get_new_start_alter_info(THD *thd)
 {
   /*
-   Why on global memory ?- So that SQLCOM_COMMIT_ALTER/ROLLBACK should not get
+   Why on global memory ?- So that process_commit/rollback_alter should not get
    error when spawned threads exits too early.
    */
   start_alter_info *info;

@@ -2074,7 +2074,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         query verb_clause create change select select_into
         do drop insert replace insert_start stmt_end
         insert_values update delete truncate rename compound_statement
-        show describe load alter_table alter optimize keycache preload flush
+        show describe load alter optimize keycache preload flush
         reset purge begin_stmt_mariadb commit rollback savepoint release
         slave master_def master_defs master_file_def slave_until_opts
         repair analyze opt_with_admin opt_with_admin_option
@@ -2141,7 +2141,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_delete_gtid_domain
         asrow_attribute
         opt_constraint_no_id
-        start_cmnd
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
 %type <NONE> sp_proc_stmt_statement sp_proc_stmt_return
@@ -7803,23 +7802,11 @@ string_list:
           { Lex->last_field->interval_list.push_back($3, thd->mem_root); }
         ;
 
-start_cmnd:
-          /* empty  {}*/
-           START_SYM
-            {
-              if (thd->variables.pseudo_thread_id)
-                Lex->previous_commit_id= thd->variables.pseudo_thread_id;
-            }
-          | START_SYM ulonglong_num
-            {
-              Lex->previous_commit_id= $2;
-            }
-          ;
-
 /*
 ** Alter table
 */
-alter_table:
+
+alter:
           ALTER
           {
             Lex->name= null_clex_str;
@@ -7858,11 +7845,6 @@ alter_table:
             }
             Lex->pop_select(); //main select
           }
-
-alter:
-         alter_table
-        |start_cmnd alter_table
-          {Lex->sql_command= SQLCOM_START_ALTER_TABLE;}
         | ALTER DATABASE ident_or_empty
           {
             Lex->create_info.default_table_charset= NULL;
@@ -17999,19 +17981,6 @@ commit:
             lex->tx_chain= $3;
             lex->tx_release= $4;
           }
-        | COMMIT_SYM alter
-          {
-            LEX *lex=Lex;
-            lex->sql_command= SQLCOM_COMMIT_ALTER;
-            if (thd->variables.pseudo_thread_id)
-              lex->previous_commit_id= thd->variables.pseudo_thread_id;
-          }
-        | COMMIT_SYM ulonglong_num alter
-          {
-            LEX *lex=Lex;
-            lex->sql_command= SQLCOM_COMMIT_ALTER;
-            lex->previous_commit_id= $2;
-          }
         ;
 
 rollback:
@@ -18035,19 +18004,6 @@ rollback:
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_ROLLBACK_TO_SAVEPOINT;
             lex->ident= $4;
-          }
-        | ROLLBACK_SYM alter_table
-          {
-            LEX *lex=Lex;
-            lex->sql_command= SQLCOM_ROLLBACK_ALTER;
-            if (thd->variables.pseudo_thread_id)
-              lex->previous_commit_id= thd->variables.pseudo_thread_id;
-          }
-        | ROLLBACK_SYM ulonglong_num alter_table
-          {
-            LEX *lex=Lex;
-            lex->sql_command= SQLCOM_ROLLBACK_ALTER;
-            lex->previous_commit_id= $2;
           }
         ;
 
