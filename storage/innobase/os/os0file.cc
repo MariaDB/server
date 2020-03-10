@@ -4189,7 +4189,6 @@ os_aio_print(FILE*	file)
 {
 	time_t		current_time;
 	double		time_elapsed;
-	double		avg_bytes_read;
 
 	for (ulint i = 0; i < srv_n_file_io_threads; ++i) {
 		fprintf(file, "I/O thread " ULINTPF " state: %s (%s)",
@@ -4228,22 +4227,20 @@ os_aio_print(FILE*	file)
 			n_reads, n_writes);
 	}
 
-	if (os_n_file_reads == os_n_file_reads_old) {
-		avg_bytes_read = 0.0;
-	} else {
-		avg_bytes_read = (double) os_bytes_read_since_printout
-			/ (os_n_file_reads - os_n_file_reads_old);
-	}
+	ulint avg_bytes_read = (os_n_file_reads == os_n_file_reads_old)
+		? 0
+		: os_bytes_read_since_printout
+		/ (os_n_file_reads - os_n_file_reads_old);
 
 	fprintf(file,
 		"%.2f reads/s, " ULINTPF " avg bytes/read,"
 		" %.2f writes/s, %.2f fsyncs/s\n",
-		(os_n_file_reads - os_n_file_reads_old)
+		static_cast<double>(os_n_file_reads - os_n_file_reads_old)
 		/ time_elapsed,
-		(ulint) avg_bytes_read,
-		(os_n_file_writes - os_n_file_writes_old)
+		avg_bytes_read,
+		static_cast<double>(os_n_file_writes - os_n_file_writes_old)
 		/ time_elapsed,
-		(os_n_fsyncs - os_n_fsyncs_old)
+		static_cast<double>(os_n_fsyncs - os_n_fsyncs_old)
 		/ time_elapsed);
 
 	os_n_file_reads_old = os_n_file_reads;

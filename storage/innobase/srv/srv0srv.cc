@@ -276,8 +276,8 @@ double	srv_adaptive_flushing_lwm;
 adaptive flushing is averaged */
 ulong	srv_flushing_avg_loops;
 
-/** innodb_purge_threads; the number of purge threads to use */
-ulong	srv_n_purge_threads;
+/** innodb_purge_threads; the number of purge tasks to use */
+uint srv_n_purge_threads;
 
 /** innodb_purge_batch_size, in pages */
 ulong	srv_purge_batch_size;
@@ -995,15 +995,15 @@ srv_printf_innodb_monitor(
 
 	fprintf(file,
 		"%.2f hash searches/s, %.2f non-hash searches/s\n",
-		(btr_cur_n_sea - btr_cur_n_sea_old)
+		static_cast<double>(btr_cur_n_sea - btr_cur_n_sea_old)
 		/ time_elapsed,
-		(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
+		static_cast<double>(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
 		/ time_elapsed);
 	btr_cur_n_sea_old = btr_cur_n_sea;
 #else /* BTR_CUR_HASH_ADAPT */
 	fprintf(file,
 		"%.2f non-hash searches/s\n",
-		(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
+		static_cast<double>(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
 		/ time_elapsed);
 #endif /* BTR_CUR_HASH_ADAPT */
 	btr_cur_n_non_sea_old = btr_cur_n_non_sea;
@@ -1062,13 +1062,17 @@ srv_printf_innodb_monitor(
 	fprintf(file,
 		"%.2f inserts/s, %.2f updates/s,"
 		" %.2f deletes/s, %.2f reads/s\n",
-		((ulint) srv_stats.n_rows_inserted - srv_n_rows_inserted_old)
+		static_cast<double>(srv_stats.n_rows_inserted
+				    - srv_n_rows_inserted_old)
 		/ time_elapsed,
-		((ulint) srv_stats.n_rows_updated - srv_n_rows_updated_old)
+		static_cast<double>(srv_stats.n_rows_updated
+				    - srv_n_rows_updated_old)
 		/ time_elapsed,
-		((ulint) srv_stats.n_rows_deleted - srv_n_rows_deleted_old)
+		static_cast<double>(srv_stats.n_rows_deleted
+				    - srv_n_rows_deleted_old)
 		/ time_elapsed,
-		((ulint) srv_stats.n_rows_read - srv_n_rows_read_old)
+		static_cast<double>(srv_stats.n_rows_read
+				    - srv_n_rows_read_old)
 		/ time_elapsed);
 	fprintf(file,
 		"Number of system rows inserted " ULINTPF
@@ -1081,14 +1085,18 @@ srv_printf_innodb_monitor(
 	fprintf(file,
 		"%.2f inserts/s, %.2f updates/s,"
 		" %.2f deletes/s, %.2f reads/s\n",
-		((ulint) srv_stats.n_system_rows_inserted
-		 - srv_n_system_rows_inserted_old) / time_elapsed,
-		((ulint) srv_stats.n_system_rows_updated
-		 - srv_n_system_rows_updated_old) / time_elapsed,
-		((ulint) srv_stats.n_system_rows_deleted
-		 - srv_n_system_rows_deleted_old) / time_elapsed,
-		((ulint) srv_stats.n_system_rows_read
-		 - srv_n_system_rows_read_old) / time_elapsed);
+		static_cast<double>(srv_stats.n_system_rows_inserted
+				    - srv_n_system_rows_inserted_old)
+		/ time_elapsed,
+		static_cast<double>(srv_stats.n_system_rows_updated
+				    - srv_n_system_rows_updated_old)
+		/ time_elapsed,
+		static_cast<double>(srv_stats.n_system_rows_deleted
+				    - srv_n_system_rows_deleted_old)
+		/ time_elapsed,
+		static_cast<double>(srv_stats.n_system_rows_read
+				    - srv_n_system_rows_read_old)
+		/ time_elapsed);
 	srv_n_rows_inserted_old = srv_stats.n_rows_inserted;
 	srv_n_rows_updated_old = srv_stats.n_rows_updated;
 	srv_n_rows_deleted_old = srv_stats.n_rows_deleted;

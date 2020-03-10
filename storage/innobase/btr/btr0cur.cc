@@ -691,7 +691,7 @@ bool btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 
 	switch (fil_page_get_type(page)) {
 	default:
-		ut_ad(!"wrong page type");
+		ut_ad("wrong page type" == 0);
 		return true;
 	case FIL_PAGE_INDEX:
 		/* The field PAGE_INSTANT is guaranteed 0 on clustered
@@ -4105,7 +4105,7 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 		case REC_STATUS_NODE_PTR:
 		case REC_STATUS_INFIMUM:
 		case REC_STATUS_SUPREMUM:
-			ut_ad(!"wrong record status in update");
+			ut_ad("wrong record status in update" == 0);
 		}
 	}
 #endif /* UNIV_DEBUG */
@@ -5871,7 +5871,7 @@ discard_page:
 					   << block->page.id
 					   << " in index " << index->name
 					   << " of " << index->table->name;
-				ut_ad(!"MDEV-14637");
+				ut_ad("MDEV-14637" == 0);
 			}
 		}
 	}
@@ -6677,8 +6677,8 @@ btr_estimate_number_of_different_key_vals(
                 */
 		if (index->stat_index_size > 1) {
 			n_sample_pages = (srv_stats_transient_sample_pages < index->stat_index_size) ?
-				ut_min(static_cast<ulint>(index->stat_index_size),
-					static_cast<ulint>(log2(index->stat_index_size)*srv_stats_transient_sample_pages))
+				ut_min(index->stat_index_size,
+				       static_cast<ulint>(log2(index->stat_index_size)*double(srv_stats_transient_sample_pages)))
 				: index->stat_index_size;
 
 		}

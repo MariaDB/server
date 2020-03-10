@@ -1433,12 +1433,11 @@ static buf_chunk_t* buf_chunk_init(buf_chunk_t* chunk, ulint mem_size)
 #ifdef HAVE_LIBNUMA
 	if (srv_numa_interleave) {
 		struct bitmask *numa_mems_allowed = numa_get_mems_allowed();
-		int	st = mbind(chunk->mem, chunk->mem_size(),
-				   MPOL_INTERLEAVE,
-				   numa_mems_allowed->maskp,
-				   numa_mems_allowed->size,
-				   MPOL_MF_MOVE);
-		if (st != 0) {
+		if (mbind(chunk->mem, chunk->mem_size(),
+			  MPOL_INTERLEAVE,
+			  numa_mems_allowed->maskp,
+			  numa_mems_allowed->size,
+			  MPOL_MF_MOVE)) {
 			ib::warn() << "Failed to set NUMA memory policy of"
 				" buffer pool page frames to MPOL_INTERLEAVE"
 				" (error: " << strerror(errno) << ").";
@@ -2427,7 +2426,7 @@ static void buf_pool_resize()
 	buf_resize_status("Withdrawing blocks to be shrunken.");
 
 	time_t		withdraw_started = time(NULL);
-	ulint		message_interval = 60;
+	double		message_interval = 60;
 	ulint		retry_interval = 1;
 
 withdraw_retry:
@@ -6115,24 +6114,29 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 	pool_info->n_ra_pages_evicted = buf_pool->stat.n_ra_pages_evicted;
 
 	pool_info->page_made_young_rate =
-		 (buf_pool->stat.n_pages_made_young
-		  - buf_pool->old_stat.n_pages_made_young) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_pages_made_young
+			    - buf_pool->old_stat.n_pages_made_young)
+	/ time_elapsed;
 
 	pool_info->page_not_made_young_rate =
-		 (buf_pool->stat.n_pages_not_made_young
-		  - buf_pool->old_stat.n_pages_not_made_young) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_pages_not_made_young
+			    - buf_pool->old_stat.n_pages_not_made_young)
+	/ time_elapsed;
 
 	pool_info->pages_read_rate =
-		(buf_pool->stat.n_pages_read
-		  - buf_pool->old_stat.n_pages_read) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_pages_read
+			    - buf_pool->old_stat.n_pages_read)
+	/ time_elapsed;
 
 	pool_info->pages_created_rate =
-		(buf_pool->stat.n_pages_created
-		 - buf_pool->old_stat.n_pages_created) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_pages_created
+			    - buf_pool->old_stat.n_pages_created)
+	/ time_elapsed;
 
 	pool_info->pages_written_rate =
-		(buf_pool->stat.n_pages_written
-		 - buf_pool->old_stat.n_pages_written) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_pages_written
+			    - buf_pool->old_stat.n_pages_written)
+	/ time_elapsed;
 
 	pool_info->n_page_get_delta = buf_pool->stat.n_page_gets
 				      - buf_pool->old_stat.n_page_gets;
@@ -6150,17 +6154,20 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 			- buf_pool->old_stat.n_pages_not_made_young;
 	}
 	pool_info->pages_readahead_rnd_rate =
-		 (buf_pool->stat.n_ra_pages_read_rnd
-		  - buf_pool->old_stat.n_ra_pages_read_rnd) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_ra_pages_read_rnd
+			    - buf_pool->old_stat.n_ra_pages_read_rnd)
+	/ time_elapsed;
 
 
 	pool_info->pages_readahead_rate =
-		 (buf_pool->stat.n_ra_pages_read
-		  - buf_pool->old_stat.n_ra_pages_read) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_ra_pages_read
+			    - buf_pool->old_stat.n_ra_pages_read)
+	/ time_elapsed;
 
 	pool_info->pages_evicted_rate =
-		(buf_pool->stat.n_ra_pages_evicted
-		 - buf_pool->old_stat.n_ra_pages_evicted) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_ra_pages_evicted
+			    - buf_pool->old_stat.n_ra_pages_evicted)
+	/ time_elapsed;
 
 	pool_info->unzip_lru_len = UT_LIST_GET_LEN(buf_pool->unzip_LRU);
 
@@ -6203,8 +6210,10 @@ buf_print_io_instance(
 		pool_info->lru_len,
 		pool_info->old_lru_len,
 		pool_info->flush_list_len,
-		(((double) pool_info->flush_list_len) /
-		  (pool_info->lru_len + pool_info->free_list_len + 1.0)) * 100.0,
+		static_cast<double>(pool_info->flush_list_len)
+		/ (static_cast<double>(pool_info->lru_len
+				       + pool_info->free_list_len) + 1.0)
+		* 100.0,
 		srv_max_buf_pool_modified_pct,
 		pool_info->n_pend_reads,
 		pool_info->n_pending_flush_lru,
@@ -6229,8 +6238,9 @@ buf_print_io_instance(
 		pool_info->pages_written_rate);
 
 	if (pool_info->n_page_get_delta) {
-		double hit_rate = double(pool_info->page_read_delta)
-			/ pool_info->n_page_get_delta;
+		double hit_rate = static_cast<double>(
+			pool_info->page_read_delta)
+			/ static_cast<double>(pool_info->n_page_get_delta);
 
 		if (hit_rate > 1) {
 			hit_rate = 1;
@@ -6241,10 +6251,11 @@ buf_print_io_instance(
 			" young-making rate " ULINTPF " / 1000 not "
 			ULINTPF " / 1000\n",
 			ulint(1000 * (1 - hit_rate)),
-			ulint(1000 * double(pool_info->young_making_delta)
-			      / pool_info->n_page_get_delta),
+			ulint(1000
+			      * double(pool_info->young_making_delta)
+			      / double(pool_info->n_page_get_delta)),
 			ulint(1000 * double(pool_info->not_young_making_delta)
-			      / pool_info->n_page_get_delta));
+			      / double(pool_info->n_page_get_delta)));
 	} else {
 		fputs("No buffer pool page gets since the last printout\n",
 		      file);

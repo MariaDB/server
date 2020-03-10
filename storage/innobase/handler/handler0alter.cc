@@ -338,7 +338,7 @@ found_nullable:
 							goto found_j;
 						}
 					}
-					DBUG_ASSERT(!"no such col");
+					DBUG_ASSERT("no such col" == 0);
 found_j:
 					std::swap(index.fields[j],
 						  index.fields[k]);
@@ -497,7 +497,7 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 	/* Preserve the default values of previously instantly added
 	columns, or copy the new default values to this->heap. */
-	for (ulint i = 0; i < ulint(table.n_cols); i++) {
+	for (unsigned i = 0; i < table.n_cols; i++) {
 		dict_col_t& c = cols[i];
 
 		if (const dict_col_t* o = find(old_cols, col_map, n_cols, i)) {
@@ -866,12 +866,12 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	/** whether the order of the clustered index is unchanged */
 	bool		skip_pk_sort;
 	/** number of virtual columns to be added */
-	ulint		num_to_add_vcol;
+	unsigned	num_to_add_vcol;
 	/** virtual columns to be added */
 	dict_v_col_t*	add_vcol;
 	const char**	add_vcol_name;
 	/** number of virtual columns to be dropped */
-	ulint		num_to_drop_vcol;
+	unsigned	num_to_drop_vcol;
 	/** virtual columns to be dropped */
 	dict_v_col_t*	drop_vcol;
 	const char**	drop_vcol_name;
@@ -2021,7 +2021,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		const Field*		field = table->field[i];
 		const dict_col_t*	col = dict_table_get_nth_col(
 			m_prebuilt->table, icol);
-		ulint			unsigned_flag;
+		unsigned unsigned_flag;
 
 		if (!field->stored_in_db()) {
 			continue;
@@ -3348,7 +3348,7 @@ name_ok:
 				= key.key_part[i];
 			const Field*		field
 				= key_part1.field;
-			ibool			is_unsigned;
+			unsigned		is_unsigned;
 
 			switch (get_innobase_type_from_mysql_type(
 					&is_unsigned, field)) {
@@ -3417,9 +3417,8 @@ innobase_create_index_field_def(
 	index_field_t*		index_field)
 {
 	const Field*	field;
-	ibool		is_unsigned;
-	ulint		col_type;
-	ulint		num_v = 0;
+	unsigned	is_unsigned;
+	unsigned	num_v = 0;
 
 	DBUG_ENTER("innobase_create_index_field_def");
 
@@ -3433,7 +3432,7 @@ innobase_create_index_field_def(
 		}
 	}
 
-	col_type = get_innobase_type_from_mysql_type(
+	auto col_type = get_innobase_type_from_mysql_type(
 		&is_unsigned, field);
 
 	if ((index_field->is_v_col = !field->stored_in_db())) {
@@ -4768,8 +4767,7 @@ prepare_inplace_add_virtual(
 	const TABLE*		table)
 {
 	ha_innobase_inplace_ctx*	ctx;
-	ulint				i = 0;
-	ulint				j = 0;
+	unsigned i = 0, j = 0;
 
 	ctx = static_cast<ha_innobase_inplace_ctx*>
 		(ha_alter_info->handler_ctx);
@@ -4792,14 +4790,12 @@ prepare_inplace_add_virtual(
 			continue;
 		}
 
-		ulint	is_unsigned;
-		ulint	charset_no;
-		ulint	col_type
-				= get_innobase_type_from_mysql_type(
-					&is_unsigned, field);
+		unsigned is_unsigned;
+		auto col_type = get_innobase_type_from_mysql_type(
+			&is_unsigned, field);
 
-		ulint col_len = field->pack_length();
-		ulint field_type = (ulint) field->type();
+		auto col_len = field->pack_length();
+		unsigned field_type = field->type() | is_unsigned;
 
 		if (!field->real_maybe_null()) {
 			field_type |= DATA_NOT_NULL;
@@ -4809,12 +4805,10 @@ prepare_inplace_add_virtual(
 			field_type |= DATA_BINARY_TYPE;
 		}
 
-		if (is_unsigned) {
-			field_type |= DATA_UNSIGNED;
-		}
+		unsigned charset_no;
 
 		if (dtype_is_string_type(col_type)) {
-			charset_no = (ulint) field->charset()->number;
+			charset_no = field->charset()->number;
 
 			DBUG_EXECUTE_IF(
 				"ib_alter_add_virtual_fail",
@@ -4879,8 +4873,7 @@ prepare_inplace_drop_virtual(
 	const TABLE*		table)
 {
 	ha_innobase_inplace_ctx*	ctx;
-	ulint				i = 0;
-	ulint				j = 0;
+	unsigned i = 0, j = 0;
 
 	ctx = static_cast<ha_innobase_inplace_ctx*>
 		(ha_alter_info->handler_ctx);
@@ -4906,17 +4899,13 @@ prepare_inplace_drop_virtual(
 			continue;
 		}
 
-		ulint	col_len;
-		ulint	is_unsigned;
-		ulint	field_type;
-		ulint	charset_no;
+		unsigned is_unsigned;
 
-		ulint           col_type
-                                = get_innobase_type_from_mysql_type(
-                                        &is_unsigned, field);
+		auto col_type = get_innobase_type_from_mysql_type(
+			&is_unsigned, field);
 
-		col_len = field->pack_length();
-		field_type = (ulint) field->type();
+		auto col_len = field->pack_length();
+		unsigned field_type = field->type() | is_unsigned;
 
 		if (!field->real_maybe_null()) {
 			field_type |= DATA_NOT_NULL;
@@ -4926,12 +4915,10 @@ prepare_inplace_drop_virtual(
 			field_type |= DATA_BINARY_TYPE;
 		}
 
-		if (is_unsigned) {
-			field_type |= DATA_UNSIGNED;
-		}
+		unsigned charset_no = 0;
 
 		if (dtype_is_string_type(col_type)) {
-			charset_no = (ulint) field->charset()->number;
+			charset_no = field->charset()->number;
 
 			DBUG_EXECUTE_IF(
 				"ib_alter_add_virtual_fail",
@@ -5100,7 +5087,7 @@ static bool innobase_add_one_virtual(
 		return true;
 	}
 
-	for (ulint i = 0; i < unsigned{vcol->num_base}; i++) {
+	for (unsigned i = 0; i < vcol->num_base; i++) {
 		if (innobase_insert_sys_virtual(
 			    table, pos, vcol->base_col[i]->ind, trx)) {
 			return true;
@@ -5373,7 +5360,7 @@ innobase_drop_virtual_try(
 	ctx = static_cast<ha_innobase_inplace_ctx*>
 		(ha_alter_info->handler_ctx);
 
-	for (ulint i = 0; i < ctx->num_to_drop_vcol; i++) {
+	for (unsigned i = 0; i < ctx->num_to_drop_vcol; i++) {
 
 		ulint	pos = dict_create_v_col_pos(
 			ctx->drop_vcol[i].v_pos - i,
@@ -5733,7 +5720,7 @@ add_all_virtual:
 						       &mtr);
 		DBUG_ASSERT(root);
 		if (fil_page_get_type(root->frame) != FIL_PAGE_TYPE_INSTANT) {
-			DBUG_ASSERT(!"wrong page type");
+			DBUG_ASSERT("wrong page type" == 0);
 			err = DB_CORRUPTION;
 			goto func_exit;
 		}
@@ -5822,7 +5809,7 @@ empty_table:
 	index->set_modified(mtr);
 	if (buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, &mtr)) {
 		if (fil_page_get_type(root->frame) != FIL_PAGE_INDEX) {
-			DBUG_ASSERT(!"wrong page type");
+			DBUG_ASSERT("wrong page type" == 0);
 			goto err_exit;
 		}
 
@@ -6046,7 +6033,7 @@ prepare_inplace_alter_table_dict(
 			for (ulint i = 0; i < ctx->num_to_add_vcol; i++) {
 				/* Set mbminmax for newly added column */
 				dict_col_t& col = ctx->add_vcol[i].m_col;
-				ulint mbminlen, mbmaxlen;
+				unsigned mbminlen, mbmaxlen;
 				dtype_get_mblen(col.mtype, col.prtype,
 						&mbminlen, &mbmaxlen);
 				col.mbminlen = mbminlen;
@@ -6242,15 +6229,11 @@ new_clustered_failed:
 
 		for (uint i = 0; i < altered_table->s->fields; i++) {
 			const Field*	field = altered_table->field[i];
-			ulint		is_unsigned;
-			ulint		field_type
-				= (ulint) field->type();
-			ulint		col_type
-				= get_innobase_type_from_mysql_type(
-					&is_unsigned, field);
-			ulint		charset_no;
-			ulint		col_len;
-			const bool	is_virtual = !field->stored_in_db();
+			unsigned is_unsigned;
+			auto col_type = get_innobase_type_from_mysql_type(
+				&is_unsigned, field);
+			unsigned field_type = field->type() | is_unsigned;
+			const bool is_virtual = !field->stored_in_db();
 
 			/* we assume in dtype_form_prtype() that this
 			fits in two bytes */
@@ -6262,10 +6245,6 @@ new_clustered_failed:
 
 			if (field->binary()) {
 				field_type |= DATA_BINARY_TYPE;
-			}
-
-			if (is_unsigned) {
-				field_type |= DATA_UNSIGNED;
 			}
 
 			if (altered_table->versioned()) {
@@ -6280,8 +6259,10 @@ new_clustered_failed:
 				}
 			}
 
+			unsigned charset_no;
+
 			if (dtype_is_string_type(col_type)) {
-				charset_no = (ulint) field->charset()->number;
+				charset_no = field->charset()->number;
 
 				if (charset_no > MAX_CHAR_COLL_NUM) {
 					my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
@@ -6292,7 +6273,7 @@ new_clustered_failed:
 				charset_no = 0;
 			}
 
-			col_len = field->pack_length();
+			auto col_len = field->pack_length();
 
 			/* The MySQL pack length contains 1 or 2 bytes
 			length field for a true VARCHAR. Let us
@@ -8983,7 +8964,7 @@ processed_field:
 }
 
 /** Convert field type and length to InnoDB format */
-static void get_type(const Field& f, ulint& prtype, ulint& mtype, ulint& len)
+static void get_type(const Field& f, uint& prtype, uint& mtype, uint& len)
 {
 	mtype = get_innobase_type_from_mysql_type(&prtype, &f);
 	len = f.pack_length();
@@ -9052,7 +9033,7 @@ innobase_rename_or_enlarge_column_try(
 		n_base = 0;
 	}
 
-	ulint prtype, mtype, len;
+	unsigned prtype, mtype, len;
 	get_type(f, prtype, mtype, len);
 	DBUG_ASSERT(!dtype_is_string_type(col->mtype)
 		    || col->mbminlen == f.charset()->mbminlen);
@@ -9206,7 +9187,7 @@ innobase_rename_or_enlarge_columns_cache(
 			DBUG_ASSERT(col->mbminlen
 				    == (is_string
 					? (*af)->charset()->mbminlen : 0));
-			ulint prtype, mtype, len;
+			unsigned prtype, mtype, len;
 			get_type(**af, prtype, mtype, len);
 			DBUG_ASSERT(is_string == dtype_is_string_type(mtype));
 
@@ -10091,9 +10072,9 @@ commit_try_norebuild(
 			DBUG_RETURN(true);
 		}
 
-		ulint	n_col = unsigned(ctx->old_table->n_cols)
+		unsigned n_col = ctx->old_table->n_cols
 			- DATA_N_SYS_COLS;
-		ulint	n_v_col = unsigned(ctx->old_table->n_v_cols)
+		unsigned n_v_col = ctx->old_table->n_v_cols
 			+ ctx->num_to_add_vcol - ctx->num_to_drop_vcol;
 
 		if (innodb_update_cols(

@@ -401,10 +401,6 @@ The real value is set based on the value of io_capacity. */
 #define SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT	(~0UL)
 #define SRV_MAX_IO_CAPACITY_LIMIT		(~0UL)
 extern ulong    srv_max_io_capacity;
-/* Returns the number of IO operations that is X percent of the
-capacity. PCT_IO(5) -> returns the number of IO operations that
-is 5% of the max where max is srv_io_capacity.  */
-#define PCT_IO(p) ((ulong) (srv_io_capacity * ((double) (p) / 100.0)))
 
 /* The "innodb_stats_method" setting, decides how InnoDB is going
 to treat NULL value when collecting statistics. It is not defined
@@ -518,8 +514,8 @@ i/o handler thread */
 extern const char* srv_io_thread_op_info[];
 extern const char* srv_io_thread_function[];
 
-/* the number of purge threads to use from the worker pool (currently 0 or 1) */
-extern ulong srv_n_purge_threads;
+/** innodb_purge_threads; the number of purge tasks to use */
+extern uint srv_n_purge_threads;
 
 /* the number of pages to purge in one batch */
 extern ulong srv_purge_batch_size;
@@ -551,8 +547,6 @@ extern ulong	srv_fatal_semaphore_wait_threshold;
 
 /** Buffer pool dump status frequence in percentages */
 extern ulong srv_buf_dump_status_frequency;
-
-#define srv_max_purge_threads 32
 
 # ifdef UNIV_PFS_THREAD
 extern mysql_pfs_key_t	page_cleaner_thread_key;

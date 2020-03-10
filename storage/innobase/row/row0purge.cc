@@ -907,7 +907,7 @@ row_purge_parse_undo_rec(
 		break;
 	default:
 #ifdef UNIV_DEBUG
-		ut_ad(!"unknown undo log record type");
+		ut_ad("unknown undo log record type" == 0);
 		return false;
 	case TRX_UNDO_UPD_DEL_REC:
 	case TRX_UNDO_UPD_EXIST_REC:

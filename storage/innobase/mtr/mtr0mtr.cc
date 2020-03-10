@@ -207,7 +207,7 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   switch (slot->type) {
 #ifdef UNIV_DEBUG
   default:
-    ut_ad(!"invalid type");
+    ut_ad("invalid type" == 0);
     break;
   case MTR_MEMO_MODIFY:
     break;
@@ -243,7 +243,7 @@ struct ReleaseLatches {
     switch (slot->type) {
 #ifdef UNIV_DEBUG
     default:
-      ut_ad(!"invalid type");
+      ut_ad("invalid type" == 0);
       break;
     case MTR_MEMO_MODIFY:
       break;

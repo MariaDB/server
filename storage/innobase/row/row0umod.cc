@@ -1269,7 +1269,7 @@ close_table:
 	if (node->update->info_bits & REC_INFO_MIN_REC_FLAG) {
 		if ((node->update->info_bits & ~REC_INFO_DELETED_FLAG)
 		    != REC_INFO_MIN_REC_FLAG) {
-			ut_ad(!"wrong info_bits in undo log record");
+			ut_ad("wrong info_bits in undo log record" == 0);
 			goto close_table;
 		}
 		/* This must be an undo log record for a subsequent

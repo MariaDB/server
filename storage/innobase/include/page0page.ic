@@ -712,7 +712,7 @@ page_get_instant(const page_t* page)
 		ut_ad(i <= PAGE_NO_DIRECTION);
 		break;
 	default:
-		ut_ad(!"invalid page type");
+		ut_ad("invalid page type" == 0);
 		break;
 	}
 #endif /* UNIV_DEBUG */

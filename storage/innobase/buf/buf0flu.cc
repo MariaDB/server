@@ -870,8 +870,9 @@ static void buf_tmp_reserve_compression_buf(buf_tmp_buffer_t* slot)
 static byte* buf_tmp_page_encrypt(ulint offset, const byte* s, byte* d)
 {
   /* Calculate the start offset in a page */
-  uint srclen= srv_page_size - (FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION +
-                                FIL_PAGE_FCRC32_CHECKSUM);
+  uint srclen= static_cast<uint>(srv_page_size) -
+    (FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION +
+     FIL_PAGE_FCRC32_CHECKSUM);
   const byte* src= s + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
   byte* dst= d + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
 
@@ -2240,9 +2241,9 @@ af_get_pct_for_dirty()
 	/* 1 + is there to avoid division by zero (in case the buffer
 	pool (including the flush_list) was emptied while we are
 	looking at it) */
-	double	dirty_pct = double(100 * dirty)
-		/ (1 + UT_LIST_GET_LEN(buf_pool->LRU)
-		   + UT_LIST_GET_LEN(buf_pool->free));
+	double	dirty_pct = 100 * static_cast<double>(dirty)
+		/ static_cast<double>(1 + UT_LIST_GET_LEN(buf_pool->LRU)
+				      + UT_LIST_GET_LEN(buf_pool->free));
 
 	ut_a(srv_max_dirty_pages_pct_lwm
 	     <= srv_max_buf_pool_modified_pct);
@@ -2276,8 +2277,9 @@ af_get_pct_for_lsn(
 {
 	lsn_t	max_async_age;
 	lsn_t	lsn_age_factor;
-	lsn_t	af_lwm = (lsn_t) ((srv_adaptive_flushing_lwm
-			* log_get_capacity()) / 100);
+	lsn_t	af_lwm = static_cast<lsn_t>(
+		srv_adaptive_flushing_lwm
+		* static_cast<double>(log_get_capacity()) / 100);
 
 	if (age < af_lwm) {
 		/* No adaptive flushing. */
@@ -2299,10 +2301,11 @@ af_get_pct_for_lsn(
 	lsn_age_factor = (age * 100) / max_async_age;
 
 	ut_ad(srv_max_io_capacity >= srv_io_capacity);
-	return(static_cast<ulint>(
-		((srv_max_io_capacity / srv_io_capacity)
-		* (lsn_age_factor * sqrt((double)lsn_age_factor)))
-		/ 7.5));
+	return static_cast<ulint>(
+		(static_cast<double>(srv_max_io_capacity / srv_io_capacity
+				     * lsn_age_factor)
+		 * sqrt(static_cast<double>(lsn_age_factor))
+		 / 7.5));
 }
 
 /*********************************************************************//**
@@ -2351,7 +2354,7 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 	/* We update our variables every srv_flushing_avg_loops
 	iterations to smooth out transition in workload. */
 	if (++n_iterations >= srv_flushing_avg_loops
-	    || time_elapsed >= srv_flushing_avg_loops) {
+	    || time_elapsed >= static_cast<double>(srv_flushing_avg_loops)) {
 
 		if (time_elapsed < 1) {
 			time_elapsed = 1;
@@ -2360,7 +2363,7 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 		avg_page_rate = static_cast<ulint>(
 			((static_cast<double>(sum_pages)
 			  / time_elapsed)
-			 + avg_page_rate) / 2);
+			 + static_cast<double>(avg_page_rate)) / 2);
 
 		/* How much LSN we have generated since last call. */
 		lsn_rate = static_cast<lsn_t>(
@@ -2481,7 +2484,8 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 	pages_for_lsn = std::min<ulint>(
 		pages_for_lsn, srv_max_io_capacity * 2);
 
-	n_pages = (PCT_IO(pct_total) + avg_page_rate + pages_for_lsn) / 3;
+	n_pages = (ulint(double(srv_io_capacity) * double(pct_total) / 100.0)
+		   + avg_page_rate + pages_for_lsn) / 3;
 
 	if (n_pages > srv_max_io_capacity) {
 		n_pages = srv_max_io_capacity;
@@ -2989,7 +2993,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 
 		} else if (ret_sleep == OS_SYNC_TIME_EXCEEDED) {
 			/* no activity, slept enough */
-			buf_flush_lists(PCT_IO(100), LSN_MAX, &n_flushed);
+			buf_flush_lists(srv_io_capacity, LSN_MAX, &n_flushed);
 
 			n_flushed_last += n_flushed;
 

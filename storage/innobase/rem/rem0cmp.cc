@@ -1120,7 +1120,8 @@ cmp_rec_rec(
 	no need to compare the child page number. */
 	n_fields = std::min(rec_offs_n_fields(offsets1),
 			    rec_offs_n_fields(offsets2));
-	n_fields = std::min(n_fields, dict_index_get_n_unique_in_tree(index));
+	n_fields = std::min<ulint>(n_fields,
+				   dict_index_get_n_unique_in_tree(index));
 
 	for (; cur_field < n_fields; cur_field++) {
 		ulint	mtype;

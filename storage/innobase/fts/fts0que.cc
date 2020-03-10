@@ -3497,8 +3497,9 @@ fts_query_calculate_idf(
 				word_freq->idf = log10(1.0001);
 			} else {
 				word_freq->idf = log10(
-					total_docs
-					/ (double) word_freq->doc_count);
+					static_cast<double>(total_docs)
+					/ static_cast<double>(
+						word_freq->doc_count));
 			}
 		}
 

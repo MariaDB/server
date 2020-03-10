@@ -1452,7 +1452,7 @@ inc_dir:
     case REC_STATUS_INFIMUM:
       break;
     case REC_STATUS_SUPREMUM:
-      ut_ad(!"wrong status on cur->rec");
+      ut_ad("wrong status on cur->rec" == 0);
     }
     switch (rec_get_status(rec)) {
     case REC_STATUS_NODE_PTR:
@@ -1471,7 +1471,7 @@ inc_dir:
       break;
     case REC_STATUS_INFIMUM:
     case REC_STATUS_SUPREMUM:
-      ut_ad(!"wrong status on rec");
+      ut_ad("wrong status on rec" == 0);
     }
     ut_ad(rec_get_status(next_rec) != REC_STATUS_INFIMUM);
 #endif
@@ -2671,7 +2671,7 @@ corrupted:
 
   memcpy(buf, &prev_rec[-REC_N_NEW_EXTRA_BYTES - hdr_c], hdr_c);
   buf+= hdr_c;
-  *buf++= (enc_hdr_l & 3) << 4; /* info_bits; n_owned=0 */
+  *buf++= static_cast<byte>((enc_hdr_l & 3) << 4); /* info_bits; n_owned=0 */
   *buf++= static_cast<byte>(h >> 5); /* MSB of heap number */
   h= (h & ((1U << 5) - 1)) << 3;
   static_assert(REC_STATUS_ORDINARY == 0, "compatibility");

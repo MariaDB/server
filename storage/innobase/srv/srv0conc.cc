@@ -88,7 +88,8 @@ srv_enter_innodb_with_tickets(
 					to enter InnoDB */
 {
 	trx->declared_to_be_inside_innodb = TRUE;
-	trx->n_tickets_to_enter_innodb = srv_n_free_tickets_to_enter;
+	trx->n_tickets_to_enter_innodb = static_cast<uint32_t>(
+		srv_n_free_tickets_to_enter);
 }
 
 /*********************************************************************//**

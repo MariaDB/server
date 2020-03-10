@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -330,9 +330,9 @@ dtype_get_mblen(
 /*============*/
 	ulint	mtype,		/*!< in: main type */
 	ulint	prtype,		/*!< in: precise type (and collation) */
-	ulint*	mbminlen,	/*!< out: minimum length of a
+	unsigned* mbminlen,	/*!< out: minimum length of a
 				multi-byte character */
-	ulint*	mbmaxlen);	/*!< out: maximum length of a
+	unsigned* mbmaxlen);	/*!< out: maximum length of a
 				multi-byte character */
 /**
 Get the charset-collation code for string types.
@@ -399,7 +399,7 @@ dtype_get_mbmaxlen(
 Returns the size of a fixed size data type, 0 if not a fixed size type.
 @return fixed size, or 0 */
 UNIV_INLINE
-ulint
+unsigned
 dtype_get_fixed_size_low(
 /*=====================*/
 	ulint	mtype,		/*!< in: main type */
@@ -415,7 +415,7 @@ dtype_get_fixed_size_low(
 Returns the minimum size of a data type.
 @return minimum size */
 UNIV_INLINE
-ulint
+unsigned
 dtype_get_min_size_low(
 /*===================*/
 	ulint	mtype,		/*!< in: main type */

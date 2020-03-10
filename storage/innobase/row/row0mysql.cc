@@ -1920,7 +1920,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	    && trx->fts_next_doc_id != UINT64_UNDEFINED) {
 		err = row_fts_update_or_delete(prebuilt);
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-			ut_ad(!"unexpected error");
+			ut_ad("unexpected error" == 0);
 			goto error;
 		}
 	}

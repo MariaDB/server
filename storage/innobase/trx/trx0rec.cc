@@ -174,7 +174,7 @@ trx_undo_log_v_idx(
 indexed, and return its position
 @param[in]	table		the table
 @param[in]	ptr		undo log pointer
-@param[out]	col_pos		the column number or ULINT_UNDEFINED
+@param[out]	col_pos		the column number or FIL_NULL
 				if the column is not indexed any more
 @return remaining part of undo log record after reading these values */
 static
@@ -182,12 +182,12 @@ const byte*
 trx_undo_read_v_idx_low(
 	const dict_table_t*	table,
 	const byte*		ptr,
-	ulint*			col_pos)
+	uint32_t*		col_pos)
 {
 	ulint		len = mach_read_from_2(ptr);
 	const byte*	old_ptr = ptr;
 
-	*col_pos = ULINT_UNDEFINED;
+	*col_pos = FIL_NULL;
 
 	ptr += 2;
 
@@ -235,7 +235,7 @@ still indexed, and output its position
 				check to see if this is undo log. When
 				first_v_col is true, is_undo_log is output,
 				when first_v_col is false, is_undo_log is input
-@param[in,out]	field_no	the column number
+@param[out]	field_no	the column number, or FIL_NULL if not indexed
 @return remaining part of undo log record after reading these values */
 const byte*
 trx_undo_read_v_idx(
@@ -243,7 +243,7 @@ trx_undo_read_v_idx(
 	const byte*		ptr,
 	bool			first_v_col,
 	bool*			is_undo_log,
-	ulint*			field_no)
+	uint32_t*		field_no)
 {
 	/* Version marker only put on the first virtual column */
 	if (first_v_col) {
@@ -493,8 +493,8 @@ byte*
 trx_undo_rec_get_col_val(
 	const byte*	ptr,
 	const byte**	field,
-	ulint*		len,
-	ulint*		orig_len)
+	uint32_t*	len,
+	uint32_t*	orig_len)
 {
 	*len = mach_read_next_compressed(&ptr);
 	*orig_len = 0;
@@ -567,8 +567,7 @@ trx_undo_rec_get_row_ref(
 
 	for (i = 0; i < ref_len; i++) {
 		const byte*	field;
-		ulint		len;
-		ulint		orig_len;
+		uint32_t	len, orig_len;
 
 		dfield_t* dfield = dtuple_get_nth_field(tuple, i);
 
@@ -601,8 +600,7 @@ trx_undo_rec_skip_row_ref(
 
 	for (i = 0; i < ref_len; i++) {
 		const byte*	field;
-		ulint		len;
-		ulint		orig_len;
+		uint32_t len, orig_len;
 
 		ptr = trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);
 	}
@@ -1486,12 +1484,11 @@ trx_undo_update_rec_get_update(
 	/* Store then the updated ordinary columns to the update vector */
 
 	for (ulint i = 0; i < n_fields; i++) {
-		const byte*	field;
-		ulint		len;
-		ulint		orig_len;
+		const byte* field;
+		uint32_t len, orig_len;
 
 		upd_field = upd_get_nth_field(update, i);
-		ulint field_no = mach_read_next_compressed(&ptr);
+		uint32_t field_no = mach_read_next_compressed(&ptr);
 
 		const bool is_virtual = (field_no >= REC_MAX_N_FIELDS);
 
@@ -1503,7 +1500,7 @@ trx_undo_update_rec_get_update(
 				&field_no);
 			first_v_col = false;
 			/* This column could be dropped or no longer indexed */
-			if (field_no == ULINT_UNDEFINED) {
+			if (field_no == FIL_NULL) {
 				/* Mark this is no longer needed */
 				upd_field->field_no = REC_MAX_N_FIELDS;
 
@@ -1570,7 +1567,8 @@ trx_undo_update_rec_get_update(
 							       field_no),
 					&upd_field->new_val.type);
 			}
-			upd_field->field_no = field_no;
+			upd_field->field_no = field_no
+				& dict_index_t::MAX_N_FIELDS;
 		} else if (field_no < index->n_fields) {
 			upd_field_set_field_no(upd_field, field_no, index);
 		} else {
@@ -1712,15 +1710,13 @@ trx_undo_rec_get_partial_row(
 	while (ptr != end_ptr) {
 		dfield_t*	dfield;
 		const byte*	field;
-		ulint		field_no;
+		uint32_t	field_no;
 		const dict_col_t* col;
-		ulint		len;
-		ulint		orig_len;
-		bool		is_virtual;
+		uint32_t len, orig_len;
 
 		field_no = mach_read_next_compressed(&ptr);
 
-		is_virtual = (field_no >= REC_MAX_N_FIELDS);
+		const bool is_virtual = (field_no >= REC_MAX_N_FIELDS);
 
 		if (is_virtual) {
 			ptr = trx_undo_read_v_idx(
@@ -1732,7 +1728,7 @@ trx_undo_rec_get_partial_row(
 		ptr = trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);
 
 		/* This column could be dropped or no longer indexed */
-		if (field_no == ULINT_UNDEFINED) {
+		if (field_no == FIL_NULL) {
 			ut_ad(is_virtual);
 			continue;
 		}
@@ -2484,17 +2480,14 @@ trx_undo_read_v_cols(
 	end_ptr = ptr + mach_read_from_2(ptr);
 	ptr += 2;
 	while (ptr < end_ptr) {
-		dfield_t*	dfield;
-		const byte*	field;
-		ulint		field_no;
-		ulint		len;
-		ulint		orig_len;
-		bool		is_virtual;
+		dfield_t* dfield;
+		const byte* field;
+		uint32_t field_no, len, orig_len;
 
 		field_no = mach_read_next_compressed(
 				const_cast<const byte**>(&ptr));
 
-		is_virtual = (field_no >= REC_MAX_N_FIELDS);
+		const bool is_virtual = (field_no >= REC_MAX_N_FIELDS);
 
 		if (is_virtual) {
 			ptr = trx_undo_read_v_idx(
@@ -2509,7 +2502,7 @@ trx_undo_read_v_cols(
 		/* The virtual column is no longer indexed or does not exist.
 		This needs to put after trx_undo_rec_get_col_val() so the
 		undo ptr advances */
-		if (field_no == ULINT_UNDEFINED) {
+		if (field_no == FIL_NULL) {
 			ut_ad(is_virtual);
 			continue;
 		}

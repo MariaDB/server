@@ -2676,8 +2676,9 @@ wsrep_rec_get_foreign_key(
 			memcpy(buf, data, len);
 			*buf_len = wsrep_innobase_mysql_sort(
 				(int)(col_f->prtype & DATA_MYSQL_TYPE_MASK),
-				(uint)dtype_get_charset_coll(col_f->prtype),
-				buf, len, *buf_len);
+				dtype_get_charset_coll(col_f->prtype),
+				buf, static_cast<uint>(len),
+				static_cast<uint>(*buf_len));
 		} else { /* new protocol */
 			if (!(col_r->prtype & DATA_NOT_NULL)) {
 				*buf++ = 0;
@@ -2710,9 +2711,9 @@ wsrep_rec_get_foreign_key(
 				len = wsrep_innobase_mysql_sort(
 					(int)
 					(col_f->prtype & DATA_MYSQL_TYPE_MASK),
-					(uint)
 					dtype_get_charset_coll(col_f->prtype),
-					buf, len, *buf_len);
+					buf, static_cast<uint>(len),
+					static_cast<uint>(*buf_len));
 				break;
 			case DATA_BLOB:
 			case DATA_BINARY:

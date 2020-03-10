@@ -2112,7 +2112,8 @@ i_s_metrics_fill(
 			if (time_diff != 0) {
 				OK(fields[METRIC_AVG_VALUE_RESET]->store(
 					static_cast<double>(
-						MONITOR_VALUE(count) / time_diff)));
+						MONITOR_VALUE(count))
+					/ time_diff));
 				fields[METRIC_AVG_VALUE_RESET]->set_notnull();
 			} else {
 				fields[METRIC_AVG_VALUE_RESET]->set_null();

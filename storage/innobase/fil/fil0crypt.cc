@@ -2247,10 +2247,7 @@ fil_crypt_set_rotation_iops(
 /*********************************************************************
 Adjust encrypt tables
 @param[in]	val		New setting for innodb-encrypt-tables */
-UNIV_INTERN
-void
-fil_crypt_set_encrypt_tables(
-	uint val)
+void fil_crypt_set_encrypt_tables(ulong val)
 {
 	mutex_enter(&fil_system.mutex);
 
@@ -2494,6 +2491,6 @@ bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 			|| checksum == buf_calc_page_new_checksum(page);
 	}
 
-	ut_ad(!"unhandled innodb_checksum_algorithm");
+	ut_ad("unhandled innodb_checksum_algorithm" == 0);
 	return false;
 }

@@ -632,7 +632,7 @@ lock_rec_has_to_wait(
 	bool		for_locking,
 				/*!< in is called locking or releasing */
 	const trx_t*	trx,	/*!< in: trx of new lock */
-	ulint		type_mode,/*!< in: precise mode of the new lock
+	unsigned	type_mode,/*!< in: precise mode of the new lock
 				to set: LOCK_S or LOCK_X, possibly
 				ORed to LOCK_GAP or LOCK_REC_NOT_GAP,
 				LOCK_INSERT_INTENTION */
@@ -1136,7 +1136,7 @@ static
 lock_t*
 lock_rec_other_has_conflicting(
 /*===========================*/
-	ulint			mode,	/*!< in: LOCK_S or LOCK_X,
+	unsigned		mode,	/*!< in: LOCK_S or LOCK_X,
 					possibly ORed to LOCK_GAP or
 					LOC_REC_NOT_GAP,
 					LOCK_INSERT_INTENTION */
@@ -1313,7 +1313,7 @@ lock_rec_create_low(
 	lock_t*		c_lock,	/*!< conflicting lock */
 	que_thr_t*	thr,	/*!< thread owning trx */
 #endif
-	ulint		type_mode,
+	unsigned	type_mode,
 	ulint		space,
 	ulint		page_no,
 	const page_t*	page,
@@ -1662,7 +1662,7 @@ lock_rec_enqueue_waiting(
 #ifdef WITH_WSREP
 	lock_t*			c_lock,	/*!< conflicting lock */
 #endif
-	ulint			type_mode,
+	unsigned		type_mode,
 	const buf_block_t*	block,
 	ulint			heap_no,
 	dict_index_t*		index,
@@ -1770,7 +1770,7 @@ static
 void
 lock_rec_add_to_queue(
 /*==================*/
-	ulint			type_mode,/*!< in: lock mode, wait, gap
+	unsigned		type_mode,/*!< in: lock mode, wait, gap
 					etc. flags; type is ignored
 					and replaced by LOCK_REC */
 	const buf_block_t*	block,	/*!< in: buffer block containing
@@ -1902,7 +1902,7 @@ lock_rec_lock(
 					if no wait is necessary: we
 					assume that the caller will
 					set an implicit lock */
-	ulint			mode,	/*!< in: lock mode: LOCK_X or
+	unsigned		mode,	/*!< in: lock mode: LOCK_X or
 					LOCK_S possibly ORed to either
 					LOCK_GAP or LOCK_REC_NOT_GAP */
 	const buf_block_t*	block,	/*!< in: buffer block containing
@@ -2430,8 +2430,7 @@ lock_rec_inherit_to_gap(
 			|| lock_get_mode(lock) !=
 			(lock->trx->duplicates ? LOCK_S : LOCK_X))) {
 			lock_rec_add_to_queue(
-				LOCK_REC | LOCK_GAP
-				| ulint(lock_get_mode(lock)),
+				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
 				heir_block, heir_heap_no, lock->index,
 				lock->trx, FALSE);
 		}
@@ -2467,8 +2466,7 @@ lock_rec_inherit_to_gap_if_gap_lock(
 			|| !lock_rec_get_rec_not_gap(lock))) {
 
 			lock_rec_add_to_queue(
-				LOCK_REC | LOCK_GAP
-				| ulint(lock_get_mode(lock)),
+				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
 				block, heir_heap_no, lock->index,
 				lock->trx, FALSE);
 		}
@@ -2511,7 +2509,7 @@ lock_rec_move_low(
 	     lock != NULL;
 	     lock = lock_rec_get_next(donator_heap_no, lock)) {
 
-		const ulint	type_mode = lock->type_mode;
+		const auto type_mode = lock->type_mode;
 
 		lock_rec_reset_nth_bit(lock, donator_heap_no);
 
@@ -2744,7 +2742,7 @@ lock_move_rec_list_end(
 	     lock = lock_rec_get_next_on_page(lock)) {
 		const rec_t*	rec1	= rec;
 		const rec_t*	rec2;
-		const ulint	type_mode = lock->type_mode;
+		const auto	type_mode = lock->type_mode;
 
 		if (comp) {
 			if (page_offset(rec1) == PAGE_NEW_INFIMUM) {
@@ -2859,7 +2857,7 @@ lock_move_rec_list_start(
 	     lock = lock_rec_get_next_on_page(lock)) {
 		const rec_t*	rec1;
 		const rec_t*	rec2;
-		const ulint	type_mode = lock->type_mode;
+		const auto	type_mode = lock->type_mode;
 
 		if (comp) {
 			rec1 = page_rec_get_next_low(
@@ -2972,7 +2970,7 @@ lock_rtr_move_rec_list(
 		ulint		moved = 0;
 		const rec_t*	rec1;
 		const rec_t*	rec2;
-		const ulint	type_mode = lock->type_mode;
+		const auto	type_mode = lock->type_mode;
 
 		/* Copy lock requests on user records to new page and
 		reset the lock bits on the old */
@@ -3453,7 +3451,7 @@ lock_table_create(
 /*==============*/
 	dict_table_t*	table,	/*!< in/out: database table
 				in dictionary cache */
-	ulint		type_mode,/*!< in: lock mode possibly ORed with
+	unsigned	type_mode,/*!< in: lock mode possibly ORed with
 				LOCK_WAIT */
 	trx_t*		trx	/*!< in: trx */
 #ifdef WITH_WSREP
@@ -3703,7 +3701,7 @@ static
 dberr_t
 lock_table_enqueue_waiting(
 /*=======================*/
-	ulint		mode,	/*!< in: lock mode this transaction is
+	unsigned	mode,	/*!< in: lock mode this transaction is
 				requesting */
 	dict_table_t*	table,	/*!< in/out: table */
 	que_thr_t*	thr	/*!< in: query thread */
@@ -3740,7 +3738,7 @@ lock_table_enqueue_waiting(
 #endif /* WITH_WSREP */
 
 	/* Enqueue the lock request that will wait to be granted */
-	lock = lock_table_create(table, ulint(mode) | LOCK_WAIT, trx
+	lock = lock_table_create(table, mode | LOCK_WAIT, trx
 #ifdef WITH_WSREP
 				 , c_lock
 #endif
@@ -3834,7 +3832,7 @@ be granted immediately, the query thread is put to wait.
 dberr_t
 lock_table(
 /*=======*/
-	ulint		flags,	/*!< in: if BTR_NO_LOCKING_FLAG bit is set,
+	unsigned	flags,	/*!< in: if BTR_NO_LOCKING_FLAG bit is set,
 				does nothing */
 	dict_table_t*	table,	/*!< in/out: database table
 				in dictionary cache */
@@ -3899,14 +3897,14 @@ lock_table(
 	mode: this trx may have to wait */
 
 	if (wait_for != NULL) {
-		err = lock_table_enqueue_waiting(ulint(mode) | flags, table,
+		err = lock_table_enqueue_waiting(flags | mode, table,
 						 thr
 #ifdef WITH_WSREP
 						 , wait_for
 #endif
 						 );
 	} else {
-		lock_table_create(table, ulint(mode) | flags, trx);
+		lock_table_create(table, flags | mode, trx);
 
 		ut_a(!flags || mode == LOCK_S || mode == LOCK_X);
 
@@ -5295,7 +5293,7 @@ lock_rec_insert_check_and_lock(
 	had to wait for their insert. Both had waiting gap type lock requests
 	on the successor, which produced an unnecessary deadlock. */
 
-	const ulint	type_mode = LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION;
+	const unsigned	type_mode = LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION;
 
 	if (
 #ifdef WITH_WSREP
@@ -5712,7 +5710,7 @@ lock_sec_rec_read_check_and_lock(
 					records: LOCK_S or LOCK_X; the
 					latter is possible in
 					SELECT FOR UPDATE */
-	ulint			gap_mode,/*!< in: LOCK_ORDINARY, LOCK_GAP, or
+	unsigned		gap_mode,/*!< in: LOCK_ORDINARY, LOCK_GAP, or
 					LOCK_REC_NOT_GAP */
 	que_thr_t*		thr)	/*!< in: query thread */
 {
@@ -5749,7 +5747,7 @@ lock_sec_rec_read_check_and_lock(
 		return DB_SUCCESS;
 	}
 
-	err = lock_rec_lock(FALSE, ulint(mode) | gap_mode,
+	err = lock_rec_lock(FALSE, gap_mode | mode,
 			    block, heap_no, index, thr);
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
@@ -5782,7 +5780,7 @@ lock_clust_rec_read_check_and_lock(
 					records: LOCK_S or LOCK_X; the
 					latter is possible in
 					SELECT FOR UPDATE */
-	ulint			gap_mode,/*!< in: LOCK_ORDINARY, LOCK_GAP, or
+	unsigned		gap_mode,/*!< in: LOCK_ORDINARY, LOCK_GAP, or
 					LOCK_REC_NOT_GAP */
 	que_thr_t*		thr)	/*!< in: query thread */
 {
@@ -5814,7 +5812,7 @@ lock_clust_rec_read_check_and_lock(
 		return DB_SUCCESS;
 	}
 
-	err = lock_rec_lock(FALSE, ulint(mode) | gap_mode,
+	err = lock_rec_lock(FALSE, gap_mode | mode,
 			    block, heap_no, index, thr);
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
@@ -5849,7 +5847,7 @@ lock_clust_rec_read_check_and_lock_alt(
 					records: LOCK_S or LOCK_X; the
 					latter is possible in
 					SELECT FOR UPDATE */
-	ulint			gap_mode,/*!< in: LOCK_ORDINARY, LOCK_GAP, or
+	unsigned		gap_mode,/*!< in: LOCK_ORDINARY, LOCK_GAP, or
 					LOCK_REC_NOT_GAP */
 	que_thr_t*		thr)	/*!< in: query thread */
 {

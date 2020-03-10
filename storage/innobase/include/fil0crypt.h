@@ -388,10 +388,7 @@ fil_crypt_set_rotation_iops(
 /*********************************************************************
 Adjust encrypt tables
 @param[in]	val		New setting for innodb-encrypt-tables */
-UNIV_INTERN
-void
-fil_crypt_set_encrypt_tables(
-	uint val);
+void fil_crypt_set_encrypt_tables(ulong val);
 
 /*********************************************************************
 Init threads for key rotation */

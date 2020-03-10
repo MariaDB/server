@@ -666,8 +666,9 @@ btr_defragment_n_pages(
 		max_data_size = optimal_page_size;
 	}
 
-	reserved_space = ut_min((ulint)(optimal_page_size
-			      * (1 - srv_defragment_fill_factor)),
+	reserved_space = ut_min(static_cast<ulint>(
+					static_cast<double>(optimal_page_size)
+					* (1 - srv_defragment_fill_factor)),
 			     (data_size_per_rec
 			      * srv_defragment_fill_factor_n_recs));
 	optimal_page_size -= reserved_space;

@@ -160,8 +160,8 @@ inline void xdes_set_free(const buf_block_t &block, xdes_t *descr,
   ut_ad(!(~*b & 0xaa));
   /* Clear or set XDES_FREE_BIT. */
   byte val= free
-    ? *b | 1 << (index & 7)
-    : *b & ~(1 << (index & 7));
+    ? static_cast<byte>(*b | 1 << (index & 7))
+    : static_cast<byte>(*b & ~(1 << (index & 7)));
   mtr->write<1>(block, b, val);
 }
 
@@ -520,7 +520,7 @@ void fil_space_t::modify_check(const mtr_t& mtr) const
 		return;
 	}
 
-	ut_ad(!"invalid log mode");
+	ut_ad("invalid log mode" == 0);
 }
 #endif
 

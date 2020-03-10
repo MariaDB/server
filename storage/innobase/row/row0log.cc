@@ -970,7 +970,7 @@ row_log_table_low(
 		ut_ad(page_get_page_no(page_align(rec)) == index->page);
 		break;
 	default:
-		ut_ad(!"wrong page type");
+		ut_ad("wrong page type" == 0);
 	}
 #endif /* UNIV_DEBUG */
 	ut_ad(!rec_is_metadata(rec, *index));

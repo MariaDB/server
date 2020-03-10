@@ -259,7 +259,7 @@ ATTRIBUTE_COLD bool log_crypt_101_read_checkpoint(const byte* buf)
 			}
 		}
 		if (infos_used >= UT_ARR_SIZE(infos)) {
-			ut_ad(!"too many checkpoint pages");
+			ut_ad("too many checkpoint pages" == 0);
 			goto next_slot;
 		}
 		infos_used++;

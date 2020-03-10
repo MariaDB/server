@@ -1035,7 +1035,7 @@ btr_free_root_check(
 @param[in,out]	mtr			mini-transaction
 @return	page number of the created root
 @retval	FIL_NULL	if did not succeed */
-ulint
+uint32_t
 btr_create(
 	ulint			type,
 	fil_space_t*		space,
@@ -1768,7 +1768,7 @@ void btr_set_instant(buf_block_t* root, const dict_index_t& index, mtr_t* mtr)
 		}
 		break;
 	default:
-		ut_ad(!"wrong page type");
+		ut_ad("wrong page type" == 0);
 		/* fall through */
 	case FIL_PAGE_INDEX:
 		ut_ad(!page_is_comp(root->frame)

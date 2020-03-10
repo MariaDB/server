@@ -1209,9 +1209,8 @@ trx_purge_dml_delay(void)
 	without holding trx_sys.mutex. */
 
 	if (srv_max_purge_lag > 0) {
-		float	ratio;
-
-		ratio = float(trx_sys.rseg_history_len) / srv_max_purge_lag;
+		double ratio = static_cast<double>(trx_sys.rseg_history_len) /
+			static_cast<double>(srv_max_purge_lag);
 
 		if (ratio > 1.0) {
 			/* If the history list length exceeds the

@@ -280,13 +280,15 @@ ut_stage_alter_t::inc(ulint inc_val)
 		(double) N records per page, then the work_completed
 	        should be incremented on the inc() calls round(k*N),
 		for k=1,2,3... */
-		const double	every_nth = m_n_recs_per_page * multi_factor;
+		const double	every_nth = m_n_recs_per_page *
+			static_cast<double>(multi_factor);
 
 		const ulint	k = static_cast<ulint>(
-			round(m_n_recs_processed / every_nth));
+			round(static_cast<double>(m_n_recs_processed) /
+			      every_nth));
 
 		const ulint	nth = static_cast<ulint>(
-			round(k * every_nth));
+			round(static_cast<double>(k) * every_nth));
 
 		should_proceed = m_n_recs_processed == nth;
 
@@ -328,7 +330,8 @@ ut_stage_alter_t::end_phase_read_pk()
 		m_n_recs_per_page = 1.0;
 	} else {
 		m_n_recs_per_page = std::max(
-			static_cast<double>(m_n_pk_recs) / m_n_pk_pages,
+			static_cast<double>(m_n_pk_recs)
+			/ static_cast<double>(m_n_pk_pages),
 			1.0);
 	}
 }

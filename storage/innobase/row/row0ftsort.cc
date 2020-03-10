@@ -635,7 +635,7 @@ row_merge_fts_doc_tokenize(
 
 		field->type.mtype = DATA_INT;
 		field->type.prtype = DATA_NOT_NULL | DATA_BINARY_TYPE;
-		field->type.len = len;
+		field->type.len = field->len;
 		field->type.mbminlen = 0;
 		field->type.mbmaxlen = 0;
 
@@ -659,7 +659,7 @@ row_merge_fts_doc_tokenize(
 
 		field->type.mtype = DATA_INT;
 		field->type.prtype = DATA_NOT_NULL;
-		field->type.len = len;
+		field->type.len = 4;
 		field->type.mbminlen = 0;
 		field->type.mbmaxlen = 0;
 		cur_len += len;

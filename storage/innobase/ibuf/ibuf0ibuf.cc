@@ -2554,7 +2554,7 @@ ulint ibuf_merge_all()
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
 	ulint	sum_bytes	= 0;
-	ulint	n_pages = PCT_IO(100);
+	ulint	n_pages = srv_io_capacity;
 
 	for (ulint sum_pages = 0; sum_pages < n_pages; ) {
 		ulint n_pag2;

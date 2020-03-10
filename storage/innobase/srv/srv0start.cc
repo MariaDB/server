@@ -1556,7 +1556,7 @@ file_checked:
 			break;
 		case SRV_OPERATION_RESTORE_DELTA:
 		case SRV_OPERATION_BACKUP:
-			ut_ad(!"wrong mariabackup mode");
+			ut_ad("wrong mariabackup mode" == 0);
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {

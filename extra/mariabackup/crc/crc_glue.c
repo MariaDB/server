@@ -63,9 +63,9 @@ unsigned long crc32_iso3309(unsigned long crc, const unsigned char *buf, unsigne
 {
 #if __GNUC__ >= 4 && defined(__x86_64__) && defined(HAVE_CLMUL_INSTRUCTION)
 	if (pclmul_enabled) {
-		uint32_t crc_accum = crc ^ 0xffffffffL;
+		uint32_t crc_accum = (uint32_t) ~crc;
 		crc32_intel_pclmul(&crc_accum, buf, len);
-		return crc_accum ^ 0xffffffffL;
+		return ~crc_accum;
 	}
 #endif
 	return crc32(crc, buf, len);

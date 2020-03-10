@@ -86,13 +86,13 @@ static ulint fil_page_compress_low(
 	byte*		out_buf,
 	ulint		header_len,
 	ulint		comp_algo,
-	ulint		comp_level)
+	unsigned	comp_level)
 {
 	ulint write_size = srv_page_size - header_len;
 
 	switch (comp_algo) {
 	default:
-		ut_ad(!"unknown compression method");
+		ut_ad("unknown compression method" == 0);
 		/* fall through */
 	case PAGE_UNCOMPRESSED:
 		return 0;
@@ -211,7 +211,8 @@ static ulint fil_page_compress_for_full_crc32(
 
 	ulint write_size = fil_page_compress_low(
 		buf, out_buf, header_len,
-		fil_space_t::get_compression_algo(flags), comp_level);
+		fil_space_t::get_compression_algo(flags),
+		static_cast<unsigned>(comp_level));
 
 	if (write_size == 0) {
 fail:
@@ -459,7 +460,9 @@ static bool fil_page_decompress_low(
 		return LZ4_decompress_safe(
 			reinterpret_cast<const char*>(buf) + header_len,
 			reinterpret_cast<char*>(tmp_buf),
-			actual_size, srv_page_size) == int(srv_page_size);
+			static_cast<int>(actual_size),
+			static_cast<int>(srv_page_size)) ==
+			static_cast<int>(srv_page_size);
 #endif /* HAVE_LZ4 */
 #ifdef HAVE_LZO
 	case PAGE_LZO_ALGORITHM:
@@ -488,12 +491,12 @@ static bool fil_page_decompress_low(
 #ifdef HAVE_BZIP2
 	case PAGE_BZIP2_ALGORITHM:
 		{
-			unsigned int dst_pos = srv_page_size;
+			uint dst_pos = static_cast<uint>(srv_page_size);
 			return BZ_OK == BZ2_bzBuffToBuffDecompress(
 				reinterpret_cast<char*>(tmp_buf),
 				&dst_pos,
 				reinterpret_cast<char*>(buf) + header_len,
-				actual_size, 1, 0)
+				static_cast<uint>(actual_size), 1, 0)
 				&& dst_pos == srv_page_size;
 		}
 #endif /* HAVE_BZIP2 */

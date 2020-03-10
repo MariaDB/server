@@ -364,8 +364,7 @@ row_merge_buf_create(
 	mem_heap_t*		heap;
 
 	max_tuples = srv_sort_buf_size
-		/ ut_max(static_cast<ulint>(1),
-			 dict_index_get_min_size(index));
+		/ std::max<ulint>(1, dict_index_get_min_size(index));
 
 	buf_size = (sizeof *buf);
 
@@ -2712,7 +2711,8 @@ write_buffers:
 			/* Update progress for each 1000 rows */
 			curr_progress = (read_rows >= table_total_rows) ?
 					pct_cost :
-				((pct_cost * read_rows) / table_total_rows);
+				pct_cost * static_cast<double>(read_rows)
+				/ static_cast<double>(table_total_rows);
 			/* presenting 10.12% as 1012 integer */
 			onlineddl_pct_progress = (ulint) (curr_progress * 100);
 		}
@@ -3344,7 +3344,8 @@ row_merge_sort(
 			merge_count++;
 			curr_progress = (merge_count >= total_merge_sort_count) ?
 				pct_cost :
-				((pct_cost * merge_count) / total_merge_sort_count);
+				pct_cost * static_cast<double>(merge_count)
+				/ static_cast<double>(total_merge_sort_count);
 			/* presenting 10.12% as 1012 integer */;
 			onlineddl_pct_progress = (ulint) ((pct_progress + curr_progress) * 100);
 		}
@@ -3642,7 +3643,8 @@ row_merge_insert_index_tuples(
 			curr_progress = (inserted_rows >= table_total_rows ||
 				table_total_rows <= 0) ?
 				pct_cost :
-				((pct_cost * inserted_rows) / table_total_rows);
+				pct_cost * static_cast<double>(inserted_rows)
+				/ static_cast<double>(table_total_rows);
 
 			/* presenting 10.12% as 1012 integer */;
 			onlineddl_pct_progress = (ulint) ((pct_progress + curr_progress) * 100);
@@ -4477,8 +4479,10 @@ row_merge_build_indexes(
 		merge_files[i].n_rec = 0;
 	}
 
-	total_static_cost = COST_BUILD_INDEX_STATIC * n_indexes + COST_READ_CLUSTERED_INDEX;
-	total_dynamic_cost = COST_BUILD_INDEX_DYNAMIC * n_indexes;
+	total_static_cost = COST_BUILD_INDEX_STATIC
+		* static_cast<double>(n_indexes) + COST_READ_CLUSTERED_INDEX;
+	total_dynamic_cost = COST_BUILD_INDEX_DYNAMIC
+		* static_cast<double>(n_indexes);
 	for (i = 0; i < n_indexes; i++) {
 		if (indexes[i]->type & DICT_FTS) {
 			ibool	opt_doc_id_size = FALSE;
@@ -4601,9 +4605,10 @@ row_merge_build_indexes(
 				sort_idx, table, col_map, 0};
 
 			pct_cost = (COST_BUILD_INDEX_STATIC +
-				(total_dynamic_cost * merge_files[k].offset /
-					total_index_blocks)) /
-				(total_static_cost + total_dynamic_cost)
+				    (total_dynamic_cost
+				     * static_cast<double>(merge_files[k].offset)
+				     / static_cast<double>(total_index_blocks)))
+				/ (total_static_cost + total_dynamic_cost)
 				* PCT_COST_MERGESORT_INDEX * 100;
 			char*	bufend = innobase_convert_name(
 				buf, sizeof buf,
@@ -4650,10 +4655,14 @@ row_merge_build_indexes(
 				BtrBulk	btr_bulk(sort_idx, trx);
 
 				pct_cost = (COST_BUILD_INDEX_STATIC +
-					(total_dynamic_cost * merge_files[k].offset /
-						total_index_blocks)) /
-					(total_static_cost + total_dynamic_cost) *
-					PCT_COST_INSERT_INDEX * 100;
+					    (total_dynamic_cost
+					     * static_cast<double>(
+						     merge_files[k].offset)
+					     / static_cast<double>(
+						     total_index_blocks)))
+					/ (total_static_cost
+					   + total_dynamic_cost)
+					* PCT_COST_INSERT_INDEX * 100;
 
 				if (global_system_variables.log_warnings > 2) {
 					sql_print_information(

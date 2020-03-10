@@ -1850,5 +1850,6 @@ err_exit:
 	}
 
 	area /= n_recs;
-	return ha_rows(dict_table_get_n_rows(index->table) * area);
+	return ha_rows(static_cast<double>(dict_table_get_n_rows(index->table))
+		       * area);
 }

@@ -435,7 +435,7 @@ row_undo(
 		err = row_undo_mod(node, thr);
 		break;
 	default:
-		ut_ad(!"wrong state");
+		ut_ad("wrong state" == 0);
 		err = DB_CORRUPTION;
 	}
 
