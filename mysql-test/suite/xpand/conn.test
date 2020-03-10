@@ -1,0 +1,51 @@
+CREATE DATABASE xpd;
+USE xpd;
+
+CREATE TABLE t (i INT PRIMARY KEY) ENGINE=XPAND;
+INSERT INTO t VALUES (1);
+SELECT * FROM t;
+
+SET @xpand_hosts = @@xpand_hosts;
+SET @xpand_port = @@xpand_port;
+
+SET GLOBAL xpand_hosts = CONCAT('notahost,', @xpand_hosts);
+
+connect (conn2,localhost,root,,xpd);
+connection conn2;
+
+SHOW CREATE TABLE t;
+INSERT INTO t values (2);
+SELECT * FROM t;
+
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'xpd' AND TABLE_NAME = 't';
+SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'xpd' AND TABLE_NAME = 't';
+
+disconnect conn2;
+connection default;
+
+SET GLOBAL xpand_hosts = '127.0.0.1';
+SET GLOBAL xpand_port = 1;
+
+connect (conn3,localhost,root,,xpd);
+connection conn3;
+
+SHOW CREATE TABLE t;
+--error ER_GET_ERRNO
+INSERT INTO t values (3);
+--error ER_GET_ERRNO
+SELECT * FROM t;
+
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'xpd' AND TABLE_NAME = 't';
+SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'xpd' AND TABLE_NAME = 't';
+
+disconnect conn3;
+connection default;
+
+SET GLOBAL xpand_hosts = @xpand_hosts;
+SET GLOBAL xpand_port = @xpand_port;
+
+INSERT INTO t VALUES (4);
+SELECT * FROM t;
+
+USE test;
+DROP DATABASE xpd;
