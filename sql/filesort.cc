@@ -67,6 +67,31 @@ static Addon_fields *get_addon_fields(TABLE *table, uint sortlength,
 static bool check_if_pq_applicable(Sort_param *param, SORT_INFO *info,
                                    TABLE *table,
                                    ha_rows records, size_t memory_available);
+
+static void store_key_part_length(uint32 num, uchar *to, uint bytes)
+{
+  switch(bytes) {
+  case 1: *to= (uchar)num;    break;
+  case 2: int2store(to, num); break;
+  case 3: int3store(to, num); break;
+  case 4: int4store(to, num); break;
+  default: DBUG_ASSERT(0);
+  }
+}
+
+
+static uint32 read_keypart_length(const uchar *from, uint bytes)
+{
+  switch(bytes) {
+  case 1: return from[0];
+  case 2: return uint2korr(from);
+  case 3: return uint3korr(from);
+  case 4: return uint4korr(from);
+  default: DBUG_ASSERT(0); return 0;
+  }
+}
+
+
 // @param sortlen  [Maximum] length of the sort key
 void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
                                    ha_rows maxrows, bool sort_positions)
@@ -2773,8 +2798,8 @@ int SORT_FIELD_ATTR::compare_packed_varstrings(uchar *a, size_t *a_len,
   else
     *a_len= *b_len= 0;
 
-  a_length= read_lowendian(a, length_bytes);
-  b_length= read_lowendian(b, length_bytes);
+  a_length= read_keypart_length(a, length_bytes);
+  b_length= read_keypart_length(b, length_bytes);
 
   *a_len+= length_bytes + a_length;
   *b_len+= length_bytes + b_length;
@@ -2921,7 +2946,7 @@ SORT_FIELD_ATTR::pack_sort_string(uchar *to, const LEX_CSTRING &str,
     data_length= original_length - suffix_length;
 
   // length stored in lowendian form
-  store_lowendian(data_length + suffix_length, to, length_bytes);
+  store_key_part_length(data_length + suffix_length, to, length_bytes);
   to+= length_bytes;
   // copying data length bytes to the buffer
   memcpy(to, (uchar*)str.str, data_length);
