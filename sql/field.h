@@ -1546,7 +1546,7 @@ public:
   { return length;}
   virtual uint max_packed_col_length(uint max_length)
   { return max_length;}
-  virtual bool is_packable() { return false; }
+  virtual bool is_packable() const { return false; }
 
   uint offset(const uchar *record) const
   {
@@ -2139,12 +2139,12 @@ public:
     {}
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
-  int store_decimal(const my_decimal *d);
-  uint32 max_data_length() const;
+                                    const Conv_param &param) const override;
+  int store_decimal(const my_decimal *d) override;
+  uint32 max_data_length() const override;
   void make_send_field(Send_field *) override;
 
-  bool is_varchar_and_in_write_set() const
+  bool is_varchar_and_in_write_set() const override
   {
     DBUG_ASSERT(table && table->write_set);
     return bitmap_is_set(table->write_set, field_index);
@@ -2152,15 +2152,15 @@ public:
   bool match_collation_to_optimize_range() const { return true; }
 
   bool can_optimize_keypart_ref(const Item_bool_func *cond,
-                                const Item *item) const;
+                                const Item *item) const override;
   bool can_optimize_hash_join(const Item_bool_func *cond,
-                              const Item *item) const;
+                              const Item *item) const override;
   bool can_optimize_group_min_max(const Item_bool_func *cond,
-                                  const Item *const_item) const;
+                                  const Item *const_item) const override;
   bool can_optimize_range(const Item_bool_func *cond,
                           const Item *item,
-                          bool is_eq_func) const;
-  bool is_packable() override { return true; }
+                          bool is_eq_func) const override;
+  bool is_packable() const override { return true; }
   uint make_packed_sort_key_part(uchar *buff,
                                  const SORT_FIELD_ATTR *sort_field)override;
   uchar* pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field);
