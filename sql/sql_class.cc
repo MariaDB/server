@@ -840,6 +840,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   reset_open_tables_state(this);
 
   init();
+  debug_sync_init_thread(this);
 #if defined(ENABLED_PROFILING)
   profiling.set_thd(this);
 #endif
@@ -1320,11 +1321,6 @@ void THD::init()
   /* Set to handle counting of aborted connections */
   userstat_running= opt_userstat_running;
   last_global_update_time= current_connect_time= time(NULL);
-#if defined(ENABLED_DEBUG_SYNC)
-  /* Initialize the Debug Sync Facility. See debug_sync.cc. */
-  debug_sync_init_thread(this);
-#endif /* defined(ENABLED_DEBUG_SYNC) */
-
 #ifndef EMBEDDED_LIBRARY
   session_tracker.enable(this);
 #endif //EMBEDDED_LIBRARY
@@ -1576,11 +1572,6 @@ void THD::cleanup(void)
   }
   wt_thd_destroy(&transaction.wt);
 
-#if defined(ENABLED_DEBUG_SYNC)
-  /* End the Debug Sync Facility. See debug_sync.cc. */
-  debug_sync_end_thread(this);
-#endif /* defined(ENABLED_DEBUG_SYNC) */
-
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
   sp_cache_clear(&sp_proc_cache);
@@ -1634,6 +1625,7 @@ void THD::free_connection()
 #if defined(ENABLED_PROFILING)
   profiling.restart();                          // Reset profiling
 #endif
+  debug_sync_reset_thread(this);
 }
 
 /*
@@ -1742,6 +1734,7 @@ THD::~THD()
     lf_hash_put_pins(tdc_hash_pins);
   if (xid_hash_pins)
     lf_hash_put_pins(xid_hash_pins);
+  debug_sync_end_thread(this);
   /* Ensure everything is freed */
   status_var.local_memory_used-= sizeof(THD);
 
