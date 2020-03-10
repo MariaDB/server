@@ -181,6 +181,16 @@ create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
     else if (ht != tbl->table->file->partition_ht())
       return 0;
   }
+  
+  /*
+    Currently, ha_federatedx_select_handler::init_scan just takes the 
+    thd->query and sends it to the backend.
+    This obviously won't work if the SELECT uses an "INTO @var" or
+    "INTO OUTFILE". It is also unlikely to work if the select has some
+    other kind of side effect.
+  */
+  if (sel->uncacheable & UNCACHEABLE_SIDEEFFECT)
+    return NULL;
 
   /*
     Currently, ha_federatedx_select_handler::init_scan just takes the

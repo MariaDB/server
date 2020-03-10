@@ -1,0 +1,4 @@
+--plugin-load=xpand=ha_xpand.so 
+--core-file 
+--xpand_port=3306 
+--plugin-maturity=unknown
