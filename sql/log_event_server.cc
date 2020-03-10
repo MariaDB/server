@@ -1675,12 +1675,9 @@ static int process_commit_alter(THD *thd, uint64 thread_id)
     return 1;
   }
   /*
-   start_alter_state can be either ::REGISTERED or ::WAITING
+   start_alter_state must be ::REGISTERED
    */
-  mysql_mutex_lock(&mi->start_alter_lock);
-  while(info->state == start_alter_state::REGISTERED )
-    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
-  mysql_mutex_unlock(&mi->start_alter_lock);
+  DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
   mysql_mutex_lock(&mi->start_alter_lock);
   info->state= start_alter_state::COMMIT_ALTER;
   mysql_mutex_unlock(&mi->start_alter_lock);
@@ -1690,8 +1687,8 @@ static int process_commit_alter(THD *thd, uint64 thread_id)
   while(info->state != start_alter_state::COMMITTED )
     mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
   mysql_mutex_unlock(&mi->start_alter_lock);
-  my_free(info);
   mysql_cond_destroy(&info->start_alter_cond);
+  my_free(info);
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
     return 2;
   return 0;
@@ -1722,12 +1719,9 @@ static int process_rollback_alter(THD *thd, uint64 thread_id)
     return 0;
   }
   /*
-   start_alter_state can be either ::REGISTERED or ::WAITING
+   start_alter_state must be ::REGISTERED
    */
-  mysql_mutex_lock(&mi->start_alter_lock);
-  while(info->state == start_alter_state::REGISTERED )
-    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
-  mysql_mutex_unlock(&mi->start_alter_lock);
+  DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
   mysql_mutex_lock(&mi->start_alter_lock);
   info->state= start_alter_state::ROLLBACK_ALTER;
   mysql_mutex_unlock(&mi->start_alter_lock);
@@ -1737,8 +1731,8 @@ static int process_rollback_alter(THD *thd, uint64 thread_id)
   while(info->state != start_alter_state::COMMITTED )
     mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
   mysql_mutex_unlock(&mi->start_alter_lock);
-  my_free(info);
   mysql_cond_destroy(&info->start_alter_cond);
+  my_free(info);
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
     return 2;
   return 0;

@@ -148,8 +148,7 @@ typedef struct st_rows_event_tracker
 
 enum start_alter_state
 {
-  REGISTERED,           // Start Alter exist
-  WAITING,              // WAITING for commit/rollback
+  REGISTERED= 0,        // Start Alter exist, Default state
   COMMIT_ALTER,         // COMMIT the alter
   ROLLBACK_ALTER,       // Rollback the alter
   COMMITTED,            // COMMIT/ROLLBACK Alter written in binlog

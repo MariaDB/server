@@ -9366,12 +9366,12 @@ static void wait_for_master(THD *thd, start_alter_info* info)
 {
   Master_info *mi= thd->rgi_slave->rli->mi;
   mysql_mutex_lock(&mi->start_alter_lock);
-  if (info->state != start_alter_state::SHUTDOWN_RECIEVED)
-    info->state= start_alter_state::WAITING;
+ // if (info->state != start_alter_state::SHUTDOWN_RECIEVED)
+ //   info->state= start_alter_state::WAITING;
   mysql_mutex_unlock(&mi->start_alter_lock);
   mysql_cond_broadcast(&info->start_alter_cond);
   mysql_mutex_lock(&mi->start_alter_lock);
-  while (info->state == start_alter_state::WAITING)
+  while (info->state == start_alter_state::REGISTERED)
   {
     mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
   }
@@ -9391,7 +9391,7 @@ static int master_result(THD *thd, Master_info *mi, start_alter_info *info,
 {
   if (info->state == start_alter_state::REGISTERED)
     wait_for_master(thd, info);
-  DBUG_ASSERT(info->state > start_alter_state::WAITING);
+  DBUG_ASSERT(info->state > start_alter_state::REGISTERED);
   if (info->state == start_alter_state::ROLLBACK_ALTER)
   {
     mysql_mutex_lock(&mi->start_alter_lock);
@@ -9480,6 +9480,7 @@ start_alter_info *get_new_start_alter_info(THD *thd)
     return 0;
   }
   mysql_cond_init(0, &info->start_alter_cond, NULL);
+//  info->start_alter_cond.m_psi= NULL;
   return info;
 }
 
