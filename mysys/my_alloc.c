@@ -186,7 +186,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
                   });
 
   length+=ALIGN_SIZE(sizeof(USED_MEM));
-  if (!(next = (USED_MEM*) my_malloc(length,
+  if (!(next = (USED_MEM*) my_malloc(mem_root->m_psi_key, length,
                                      MYF(MY_WME | ME_FATAL |
                                          MALLOC_FLAG(mem_root->block_size)))))
   {
