@@ -1,6 +1,6 @@
 --echo # Myisam
 --connection master
-create table t1( a int, b int);
+create table t1( a int, b int) engine=myisam;
 insert into t1 values(1,1);
 insert into t1 values(2,2);
 --echo #Normal Alter
@@ -14,10 +14,6 @@ source include/show_binlog_events.inc;
 show create table t1;
 --connection master
 drop table t1;
-show binlog events;
---connection slave
-show binlog events;
---connection master
 --sync_slave_with_master
 --source include/reset_master_slave_binlog.inc
 

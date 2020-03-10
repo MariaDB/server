@@ -5764,10 +5764,10 @@ err_during_init:
   while ((info= info_iterator++))
   {
     info->state= start_alter_state::SHUTDOWN_RECIEVED;
-    mysql_cond_broadcast(&mi->start_alter_cond);
+    mysql_cond_broadcast(&info->start_alter_cond);
     mysql_mutex_lock(&mi->start_alter_lock);
     while(info->state == start_alter_state::SHUTDOWN_RECIEVED)
-      mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+      mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
     DBUG_ASSERT(info->state == start_alter_state::SHUTDOWN_COMPLETED);
     info_iterator.remove();
     mysql_mutex_unlock(&mi->start_alter_lock);

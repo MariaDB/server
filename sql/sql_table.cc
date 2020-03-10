@@ -9369,11 +9369,11 @@ static void wait_for_master(THD *thd, start_alter_info* info)
   if (info->state != start_alter_state::SHUTDOWN_RECIEVED)
     info->state= start_alter_state::WAITING;
   mysql_mutex_unlock(&mi->start_alter_lock);
-  mysql_cond_broadcast(&mi->start_alter_cond);
+  mysql_cond_broadcast(&info->start_alter_cond);
   mysql_mutex_lock(&mi->start_alter_lock);
   while (info->state == start_alter_state::WAITING)
   {
-    mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
   }
   mysql_mutex_unlock(&mi->start_alter_lock);
   return;
@@ -9397,7 +9397,7 @@ static int master_result(THD *thd, Master_info *mi, start_alter_info *info,
     mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::COMMITTED;
     mysql_mutex_unlock(&mi->start_alter_lock);
-    mysql_cond_broadcast(&mi->start_alter_cond);
+    mysql_cond_broadcast(&info->start_alter_cond);
     return MASTER_RESULT_ROLLBACK;
   }
   else if (info->state == start_alter_state::COMMIT_ALTER && alter_result)
@@ -9426,7 +9426,7 @@ static void mark_shutdown(start_alter_info *info, Master_info *mi)
   mysql_mutex_lock(&mi->start_alter_lock);
   info->state= start_alter_state::SHUTDOWN_COMPLETED;
   mysql_mutex_unlock(&mi->start_alter_lock);
-  mysql_cond_broadcast(&mi->start_alter_cond);
+  mysql_cond_broadcast(&info->start_alter_cond);
 }
 
 static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *info)
@@ -9465,6 +9465,22 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
     return false;
   }
   return false;
+}
+start_alter_info *get_new_start_alter_info(THD *thd)
+{
+  /*
+   Why on global memory ?- So that SQLCOM_COMMIT_ALTER/ROLLBACK should not get
+   error when spawned threads exits too early.
+   */
+  start_alter_info *info;
+  if (!(info= (start_alter_info *)my_malloc(sizeof(start_alter_info),
+                                                        MYF(MY_WME))))
+  {
+    sql_print_error("Failed to allocate memory for ddl log free list");
+    return 0;
+  }
+  mysql_cond_init(0, &info->start_alter_cond, NULL);
+  return info;
 }
 
 /**
@@ -9515,12 +9531,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool engine_changed;
   char *send_query= (char *)thd->alloc(thd->query_length() + 20);
   bool partial_alter= false;
-  /*
-   Why on global memory ?- So that SQLCOM_COMMIT_ALTER/ROLLBACK should not get
-   error when spawned threads exits too early.
-   */
-  start_alter_info *info= (start_alter_info *)my_malloc(sizeof(start_alter_info),
-                                                        MYF(MY_WME));
+  start_alter_info *info= get_new_start_alter_info(thd);
   Master_info *mi= NULL;
   if (thd->slave_thread)
     mi= thd->rgi_slave->rli->mi;
@@ -10370,7 +10381,6 @@ do_continue:;
     {
       goto err_new_table_cleanup;
     }
-      my_sleep(10000000);
   }
   else
   {
@@ -10434,7 +10444,7 @@ do_continue:;
       mysql_mutex_lock(&mi->start_alter_lock);
       info->state= start_alter_state::COMMITTED;
       mysql_mutex_unlock(&mi->start_alter_lock);
-      mysql_cond_broadcast(&mi->start_alter_cond);
+      mysql_cond_broadcast(&info->start_alter_cond);
     }
     /* We don't replicate alter table statement on temporary tables */
     else if (!thd->is_current_stmt_binlog_format_row() &&
@@ -10642,7 +10652,7 @@ end_inplace:
     mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::COMMITTED;
     mysql_mutex_unlock(&mi->start_alter_lock);
-    mysql_cond_broadcast(&mi->start_alter_cond);
+    mysql_cond_broadcast(&info->start_alter_cond);
   }
   else if (write_bin_log(thd, true, thd->query(), thd->query_length()))
     DBUG_RETURN(true);

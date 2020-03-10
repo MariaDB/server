@@ -146,7 +146,32 @@ typedef struct st_rows_event_tracker
   bool check_and_report(const char* file_name, my_off_t pos);
 } Rows_event_tracker;
 
-struct start_alter_info;
+enum start_alter_state
+{
+  REGISTERED,           // Start Alter exist
+  WAITING,              // WAITING for commit/rollback
+  COMMIT_ALTER,         // COMMIT the alter
+  ROLLBACK_ALTER,       // Rollback the alter
+  COMMITTED,            // COMMIT/ROLLBACK Alter written in binlog
+  SHUTDOWN_RECIEVED,    //Got shutdown in between
+  SHUTDOWN_COMPLETED    //Shutdown formalities done on spawned thd side
+};
+struct start_alter_info
+{
+  /*
+    Unique among replication channel at one point of time
+   */
+  uint thread_id; //key for searching
+  /*
+    0 prepared and not error from commit and rollback
+    >0 error expected in commit/rollback
+    TODO maybe used later ?
+  */
+  uint error;
+  enum start_alter_state state;
+  /* We are not using mysql_cond_t because we do not need PSI */
+  mysql_cond_t start_alter_cond;
+};
 /*****************************************************************************
   Replication IO Thread
 
@@ -224,7 +249,7 @@ class Master_info : public Slave_reporting_capability
   IO_CACHE file;
 
   mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock, start_alter_lock, start_alter_list_lock;
-  mysql_cond_t data_cond, start_cond, stop_cond, sleep_cond, start_alter_cond, start_alter_list_cond;
+  mysql_cond_t data_cond, start_cond, stop_cond, sleep_cond, cond_ddd, start_alter_list_cond;
   THD *io_thd;
   MYSQL* mysql;
   uint32 file_id;				/* for 3.23 load data infile */
@@ -349,32 +374,6 @@ class Master_info : public Slave_reporting_capability
   */
   int semi_ack;
   List <start_alter_info> start_alter_list;
-};
-enum start_alter_state
-{
-  REGISTERED,           // Start Alter exist
-  WAITING,              // WAITING for commit/rollback
-  COMMIT_ALTER,         // COMMIT the alter
-  ROLLBACK_ALTER,       // Rollback the alter
-  COMMITTED,            // COMMIT/ROLLBACK Alter written in binlog
-  SHUTDOWN_RECIEVED,    //Got shutdown in between
-  SHUTDOWN_COMPLETED    //Shutdown formalities done on spawned thd side
-};
-struct start_alter_info
-{
-  /*
-    Unique among replication channel at one point of time
-   */
-  uint thread_id; //key for searching
-  /*
-    0 prepared and not error from commit and rollback
-    >0 error expected in commit/rollback
-    TODO maybe used later ?
-  */
-  uint error;
-  enum start_alter_state state;
-  /* We are not using mysql_cond_t because we do not need PSI */
-  pthread_cond cond;
 };
 
 struct start_alter_thd_args

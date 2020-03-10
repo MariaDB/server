@@ -5748,16 +5748,16 @@ mysql_execute_command(THD *thd)
      */
     mysql_mutex_lock(&mi->start_alter_lock);
     while(info->state == start_alter_state::REGISTERED )
-      mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+      mysql_cond_wait(&mi->cond_ddd, &mi->start_alter_lock);
     mysql_mutex_unlock(&mi->start_alter_lock);
     mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::COMMIT_ALTER;
     mysql_mutex_unlock(&mi->start_alter_lock);
-    mysql_cond_broadcast(&mi->start_alter_cond);
+    mysql_cond_broadcast(&mi->cond_ddd);
     // Wait for commit by worker thread
     mysql_mutex_lock(&mi->start_alter_lock);
     while(info->state != start_alter_state::COMMITTED )
-      mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+      mysql_cond_wait(&mi->cond_ddd, &mi->start_alter_lock);
     mysql_mutex_unlock(&mi->start_alter_lock);
     my_free(info);
     if (write_bin_log(thd, true, thd->query(), thd->query_length()))
@@ -5830,16 +5830,16 @@ mysql_execute_command(THD *thd)
      */
     mysql_mutex_lock(&mi->start_alter_lock);
     while(info->state == start_alter_state::REGISTERED )
-      mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+      mysql_cond_wait(&mi->cond_ddd, &mi->start_alter_lock);
     mysql_mutex_unlock(&mi->start_alter_lock);
     mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::ROLLBACK_ALTER;
     mysql_mutex_unlock(&mi->start_alter_lock);
-    mysql_cond_broadcast(&mi->start_alter_cond);
+    mysql_cond_broadcast(&mi->cond_ddd);
     // Wait for commit by worker thread
     mysql_mutex_lock(&mi->start_alter_lock);
     while(info->state != start_alter_state::COMMITTED )
-      mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+      mysql_cond_wait(&mi->cond_ddd, &mi->start_alter_lock);
     mysql_mutex_unlock(&mi->start_alter_lock);
     my_free(info);
     if (write_bin_log(thd, true, thd->query(), thd->query_length()))

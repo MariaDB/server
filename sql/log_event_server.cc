@@ -1590,7 +1590,8 @@ static int process_start_alter(THD *thd, uint64 thread_id)
      Alter will take care of actual work
     */
     if (write_bin_log(thd, false, thd->query(), thd->query_length()))
-      return 1;
+      return 2;
+    return 0;
   }
   pthread_t th;
   start_alter_thd_args *args= (start_alter_thd_args *) my_malloc(sizeof(
@@ -1678,18 +1679,19 @@ static int process_commit_alter(THD *thd, uint64 thread_id)
    */
   mysql_mutex_lock(&mi->start_alter_lock);
   while(info->state == start_alter_state::REGISTERED )
-    mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
   mysql_mutex_unlock(&mi->start_alter_lock);
   mysql_mutex_lock(&mi->start_alter_lock);
   info->state= start_alter_state::COMMIT_ALTER;
   mysql_mutex_unlock(&mi->start_alter_lock);
-  mysql_cond_broadcast(&mi->start_alter_cond);
+  mysql_cond_broadcast(&info->start_alter_cond);
   // Wait for commit by worker thread
   mysql_mutex_lock(&mi->start_alter_lock);
   while(info->state != start_alter_state::COMMITTED )
-    mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
   mysql_mutex_unlock(&mi->start_alter_lock);
   my_free(info);
+  mysql_cond_destroy(&info->start_alter_cond);
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
     return 2;
   return 0;
@@ -1724,18 +1726,19 @@ static int process_rollback_alter(THD *thd, uint64 thread_id)
    */
   mysql_mutex_lock(&mi->start_alter_lock);
   while(info->state == start_alter_state::REGISTERED )
-    mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
   mysql_mutex_unlock(&mi->start_alter_lock);
   mysql_mutex_lock(&mi->start_alter_lock);
   info->state= start_alter_state::ROLLBACK_ALTER;
   mysql_mutex_unlock(&mi->start_alter_lock);
-  mysql_cond_broadcast(&mi->start_alter_cond);
+  mysql_cond_broadcast(&info->start_alter_cond);
   // Wait for commit by worker thread
   mysql_mutex_lock(&mi->start_alter_lock);
   while(info->state != start_alter_state::COMMITTED )
-    mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
   mysql_mutex_unlock(&mi->start_alter_lock);
   my_free(info);
+  mysql_cond_destroy(&info->start_alter_cond);
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
     return 2;
   return 0;
