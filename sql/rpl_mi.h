@@ -151,9 +151,7 @@ enum start_alter_state
   REGISTERED= 0,        // Start Alter exist, Default state
   COMMIT_ALTER,         // COMMIT the alter
   ROLLBACK_ALTER,       // Rollback the alter
-  COMMITTED,            // COMMIT/ROLLBACK Alter written in binlog
-  SHUTDOWN_RECIEVED,    //Got shutdown in between
-  SHUTDOWN_COMPLETED    //Shutdown formalities done on spawned thd side
+  COMMITTED             // COMMIT/ROLLBACK Alter written in binlog
 };
 struct start_alter_info
 {

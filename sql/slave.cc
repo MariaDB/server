@@ -5763,14 +5763,18 @@ err_during_init:
   List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
   while ((info= info_iterator++))
   {
-    info->state= start_alter_state::SHUTDOWN_RECIEVED;
-    mysql_cond_broadcast(&info->start_alter_cond);
     mysql_mutex_lock(&mi->start_alter_lock);
-    while(info->state == start_alter_state::SHUTDOWN_RECIEVED)
-      mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
-    DBUG_ASSERT(info->state == start_alter_state::SHUTDOWN_COMPLETED);
-    info_iterator.remove();
+    info->state= start_alter_state::ROLLBACK_ALTER;
+    mysql_cond_broadcast(&info->start_alter_cond);
     mysql_mutex_unlock(&mi->start_alter_lock);
+    mysql_mutex_lock(&mi->start_alter_lock);
+    while(info->state == start_alter_state::ROLLBACK_ALTER)
+      mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
+    mysql_mutex_unlock(&mi->start_alter_lock);
+    DBUG_ASSERT(info->state == start_alter_state::COMMITTED);
+    info_iterator.remove();
+    mysql_cond_destroy(&info->start_alter_cond);
+    my_free(info);
   }
   /* When master_pos_wait() wakes up it will check this and terminate */
   rli->slave_running= MYSQL_SLAVE_NOT_RUN;

@@ -84,7 +84,6 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
 static void wait_for_master(THD *thd, start_alter_info *info);
 static int master_result(THD *thd, Master_info *mi, start_alter_info *info,
                                   int alter_result);
-static void mark_shutdown(start_alter_info *info, Master_info *mi);
 
 /**
   @brief Helper function for explain_filename
@@ -9415,18 +9414,8 @@ static int master_result(THD *thd, Master_info *mi, start_alter_info *info,
     thd->is_slave_error= 1;
     return MASTER_RESULT_COMMIT_ERROR;
   }
-  else if (info->state == start_alter_state::SHUTDOWN_RECIEVED)
-    return MASTER_RESULT_SHUTDOWN;
   DBUG_ASSERT(info->state == start_alter_state::COMMIT_ALTER && !alter_result);
   return 0;
-}
-
-static void mark_shutdown(start_alter_info *info, Master_info *mi)
-{
-  mysql_mutex_lock(&mi->start_alter_lock);
-  info->state= start_alter_state::SHUTDOWN_COMPLETED;
-  mysql_mutex_unlock(&mi->start_alter_lock);
-  mysql_cond_broadcast(&info->start_alter_cond);
 }
 
 static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *info)
@@ -9445,7 +9434,7 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
     mysql_mutex_unlock(&mi->start_alter_list_lock);
     mysql_cond_broadcast(&mi->start_alter_list_cond);
     DBUG_EXECUTE_IF("start_alter_delay_slave", {
-      my_sleep(10000000);
+      my_sleep(5000000);
       });
     if (thd->slave_shutdown)
       return true;
@@ -9460,7 +9449,7 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
       return true;
     *partial_alter= true;
     DBUG_EXECUTE_IF("start_alter_delay_master", {
-      my_sleep(10000000);
+      my_sleep(5000000);
       });
     return false;
   }
@@ -10402,8 +10391,7 @@ do_continue:;
     {
       DBUG_ASSERT(thd->slave_thread);
       wait_for_master(thd, info);
-      if (info->state == start_alter_state::ROLLBACK_ALTER ||
-          info->state == start_alter_state::SHUTDOWN_RECIEVED)
+      if (info->state == start_alter_state::ROLLBACK_ALTER)
         goto err_new_table_cleanup;
     }
     /* Close lock if this is a transactional table */
@@ -10470,8 +10458,7 @@ do_continue:;
   {
     DBUG_ASSERT(thd->slave_thread);
     wait_for_master(thd, info);
-    if (info->state == start_alter_state::ROLLBACK_ALTER ||
-          info->state == start_alter_state::SHUTDOWN_RECIEVED)
+    if (info->state == start_alter_state::ROLLBACK_ALTER)
       goto err_new_table_cleanup;
   }
   engine_changed= ((new_table->file->ht != table->file->ht) &&
@@ -10706,11 +10693,8 @@ err_new_table_cleanup:
                           alter_ctx.get_tmp_path());
   //STODO
   if (thd->start_alter_id && !thd->direct_commit_alter)
-  {
-    if (master_result(thd, mi, info, 1) == MASTER_RESULT_SHUTDOWN)
-      mark_shutdown(info, mi);
-  }
-  else
+    master_result(thd, mi, info, 1);
+  else if (opt_binlog_split_alter)
   {
     thd->gtid_flags3|= Gtid_log_event::FL_ROLLBACK_ALTER_E1;
     sprintf(send_query, "/*!100001 %s */", thd->query());

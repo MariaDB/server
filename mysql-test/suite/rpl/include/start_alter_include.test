@@ -10,12 +10,12 @@ insert into t1 values(1,1, NULL);
 --error ER_DUP_ENTRY
 alter table t1 change a a int unique ;
 --sync_slave_with_master
-source include/show_binlog_events.inc;
+#source include/show_binlog_events.inc;
 show create table t1;
 --connection master
 drop table t1;
 --sync_slave_with_master
---source include/reset_master_slave_binlog.inc
+#--source include/reset_master_slave_binlog.inc
 
 --echo # Innodb
 --connection master
@@ -29,12 +29,12 @@ insert into t1 values(1,1, NULL);
 --error ER_DUP_ENTRY
 alter table t1 change a a int unique ;
 --sync_slave_with_master
-source include/show_binlog_events.inc;
+#source include/show_binlog_events.inc;
 show create table t1;
 --connection master
 drop table t1;
 --sync_slave_with_master
---source include/reset_master_slave_binlog.inc
+#--source include/reset_master_slave_binlog.inc
 
 
 --echo # Aria
@@ -49,12 +49,12 @@ insert into t1 values(1,1, NULL);
 --error ER_DUP_ENTRY
 alter table t1 change a a int unique ;
 --sync_slave_with_master
-source include/show_binlog_events.inc;
+#source include/show_binlog_events.inc;
 show create table t1;
 --connection master
 drop table t1;
 --sync_slave_with_master
---source include/reset_master_slave_binlog.inc
+#--source include/reset_master_slave_binlog.inc
 
 --connection master
 --echo #concurrent alter Myisam
@@ -62,8 +62,8 @@ drop table t1;
 --let $alter_algorithm=copy
 --source include/start_alter_concurrent.test
 --sync_slave_with_master
-source include/show_binlog_events.inc;
---source include/reset_master_slave_binlog.inc
+#source include/show_binlog_events.inc;
+#--source include/reset_master_slave_binlog.inc
 
 --connection master
 --echo #concurrent alter Aria
@@ -71,8 +71,8 @@ source include/show_binlog_events.inc;
 --let $alter_algorithm=copy
 --source include/start_alter_concurrent.test
 --sync_slave_with_master
-source include/show_binlog_events.inc;
---source include/reset_master_slave_binlog.inc
+#source include/show_binlog_events.inc;
+#--source include/reset_master_slave_binlog.inc
 
 --connection master
 --echo #concurrent alter Innodb copy
@@ -80,8 +80,8 @@ source include/show_binlog_events.inc;
 --let $alter_algorithm=copy
 --source include/start_alter_concurrent.test
 --sync_slave_with_master
-source include/show_binlog_events.inc;
---source include/reset_master_slave_binlog.inc
+#source include/show_binlog_events.inc;
+#--source include/reset_master_slave_binlog.inc
 
 --connection master
 --echo #concurrent alter Innodb Inplace
@@ -89,5 +89,5 @@ source include/show_binlog_events.inc;
 --let $alter_algorithm=inplace
 --source include/start_alter_concurrent.test
 --sync_slave_with_master
-source include/show_binlog_events.inc;
---source include/reset_master_slave_binlog.inc
+#source include/show_binlog_events.inc;
+#--source include/reset_master_slave_binlog.inc
