@@ -236,7 +236,7 @@ int xpand_connection::connect_direct(char *host)
                           NULL, xpand_port, xpand_socket,
                           CLIENT_MULTI_STATEMENTS))
   {
-    //sql_print_warning("Cannot connect to xpand: %s", mysql_error(&xpand_net));
+    sql_print_warning("Cannot connect to xpand: %s", mysql_error(&xpand_net));
     disconnect();
     error_code = HA_ERR_NO_CONNECTION;
   }
