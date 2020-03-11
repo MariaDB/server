@@ -3272,7 +3272,6 @@ bool Sql_cmd_call::execute(THD *thd)
   return false;
 }
 
-
 /**
   Execute command saved in thd and lex->sql_command.
 

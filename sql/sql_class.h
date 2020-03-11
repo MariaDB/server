@@ -2228,9 +2228,6 @@ public:
   bool direct_commit_alter;
   //Will be reseted when gtid is written into binlog
   uint64 gtid_flags3;
-  /* 2 part Alter */
-  ulong start_alter_id;
-
 
   union {
     rpl_io_thread_info *rpl_io_info;

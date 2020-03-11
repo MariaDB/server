@@ -381,7 +381,6 @@ struct start_alter_thd_args
   char *catalog;
   bool shutdown;
   CHARSET_INFO *cs;
-  uint64 thread_id;
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,

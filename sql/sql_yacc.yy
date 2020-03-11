@@ -7676,6 +7676,7 @@ alter_list_item:
           }
         | alter_algorithm_option
         | alter_lock_option
+        | alter_state
         | ADD SYSTEM VERSIONING_SYM
           {
             Lex->alter_info.flags|= ALTER_ADD_SYSTEM_VERSIONING;
@@ -7731,6 +7732,23 @@ alter_lock_option:
           {
             if (unlikely(Lex->alter_info.set_requested_lock(&$3)))
               my_yyabort_error((ER_UNKNOWN_ALTER_LOCK, MYF(0), $3.str));
+          }
+        ;
+alter_state:
+          START_SYM ulong_num
+          {
+            Lex->alter_info.alter_state= Alter_info::ALTER_TABLE_START;
+            Lex->alter_info.alter_identifier= $2;
+          }
+        | COMMIT_SYM ulong_num
+          {
+            Lex->alter_info.alter_state= Alter_info::ALTER_TABLE_COMMIT;
+            Lex->alter_info.alter_identifier= $2;
+          }
+        | ROLLBACK_SYM ulong_num
+          {
+            Lex->alter_info.alter_state= Alter_info::ALTER_TABLE_ROLLBACK;
+            Lex->alter_info.alter_identifier= $2;
           }
         ;
 

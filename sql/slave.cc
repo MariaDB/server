@@ -5871,7 +5871,6 @@ pthread_handler_t handle_slave_start_alter(void *arg)
   thd->slave_thread= true;
   thd->rgi_slave= data->rgi;
   thd->start_alter_thread= true;
-  thd->start_alter_id= data->thread_id;
   Master_info *mi= data->rgi->rli->mi;
   if (init_slave_thread(thd, mi, SLAVE_THD_SQL))
     goto err_during_init;
