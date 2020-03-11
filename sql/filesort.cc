@@ -139,8 +139,6 @@ void Sort_param::try_to_pack_addons(ulong max_length_for_sort_data)
     return;
 
   const uint sz= Addon_fields::size_of_length_field;
-  if (rec_length + sz > max_length_for_sort_data)
-    return;
 
   // Heuristic: skip packing if potential savings are less than 10 bytes.
   if (m_packable_length < (10 + sz))
