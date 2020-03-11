@@ -310,12 +310,8 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
     /* Save result for future comparisons. */
     strnmov(addr2line_binary, info.dli_fname, sizeof(addr2line_binary));
   }
-  if (!(error= addr_resolve(ptr, loc)))
-    return 0;
-#ifdef EXTRA_RESOLVE
   if (!(error= addr_resolve((void*) (ptr - info.dli_fbase), loc)))
     return 0;
-#endif
   return error;
 }
 
