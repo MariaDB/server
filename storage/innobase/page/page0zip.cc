@@ -4918,34 +4918,27 @@ page_zip_verify_checksum(
 	ib_uint32_t	crc32 = 0 /* silence bogus warning */;
 	ib_uint32_t	innodb = 0 /* silence bogus warning */;
 
-	stored = static_cast<ib_uint32_t>(mach_read_from_4(
-		static_cast<const unsigned char*>(data) + FIL_PAGE_SPACE_OR_CHKSUM));
-
-#if FIL_PAGE_LSN % 8
-#error "FIL_PAGE_LSN must be 64 bit aligned"
-#endif
-
-	/* Check if page is empty */
-	if (stored == 0
-	    && *reinterpret_cast<const ib_uint64_t*>(static_cast<const char*>(
-		data)
-		+ FIL_PAGE_LSN) == 0) {
-		/* make sure that the page is really empty */
-		for (ulint i = 0; i < size; i++) {
-			if (*((const char*) data + i) != 0) {
-				return(FALSE);
-			}
-		}
-		/* Empty page */
-		return(TRUE);
-	}
-
 	const srv_checksum_algorithm_t	curr_algo =
 		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
 
 	if (curr_algo == SRV_CHECKSUM_ALGORITHM_NONE) {
-		return(TRUE);
+		return true;
 	}
+
+	bool all_zeroes = true;
+	for (size_t i = 0; i < size; i++) {
+		if (static_cast<const byte*>(data)[i] != 0) {
+			all_zeroes = false;
+			break;
+		}
+	}
+
+	if (all_zeroes) {
+		return true;
+	}
+
+	stored = static_cast<ib_uint32_t>(mach_read_from_4(
+		static_cast<const unsigned char*>(data) + FIL_PAGE_SPACE_OR_CHKSUM));
 
 	calc = static_cast<ib_uint32_t>(page_zip_calc_checksum(
 		data, size, curr_algo));
