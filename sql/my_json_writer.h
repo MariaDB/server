@@ -86,7 +86,7 @@ public:
 
   void init(Json_writer *owner_arg) { owner= owner_arg; }
 
-  bool on_add_member(const char *name);
+  bool on_add_member(const char *name, size_t len);
 
   bool on_start_array();
   bool on_end_array();
@@ -184,6 +184,7 @@ class Json_writer
 public:
   /* Add a member. We must be in an object. */
   Json_writer& add_member(const char *name);
+  Json_writer& add_member(const char *name, size_t len);
   
   /* Add atomic values */
   void add_str(const char* val);
@@ -202,6 +203,7 @@ public:
 
 private:
   void add_unquoted_str(const char* val);
+  void add_unquoted_str(const char* val, size_t len);
 public:
   /* Start a child object */
   void start_object();
@@ -254,63 +256,51 @@ public:
   void init(Json_writer *my_writer) { writer= my_writer; }
   void add_str(const char* val)
   {
-    if (writer)
       writer->add_str(val);
   }
   void add_str(const char* val, size_t length)
   {
-    if (writer)
       writer->add_str(val, length);
   }
   void add_str(const String &str)
   {
-    if (writer)
-      writer->add_str(str);
+      writer->add_str(str.ptr(), str.length());
   }
-  void add_str(LEX_CSTRING str)
+  void add_str(const LEX_CSTRING &str)
   {
-    if (writer)
-      writer->add_str(str.str);
+      writer->add_str(str.str, str.length);
   }
   void add_str(Item *item)
   {
-    if (writer)
       writer->add_str(item);
   }
 
   void add_ll(longlong val)
   {
-    if (writer)
       writer->add_ll(val);
   }
   void add_size(longlong val)
   {
-    if (writer)
       writer->add_size(val);
   }
   void add_double(double val)
   {
-    if (writer)
       writer->add_double(val);
   }
   void add_bool(bool val)
   {
-    if (writer)
       writer->add_bool(val);
   }
   void add_null()
   {
-    if (writer)
       writer->add_null();
   }
   void add_table_name(const JOIN_TAB *tab)
   {
-    if (writer)
       writer->add_table_name(tab);
   }
   void add_table_name(const TABLE* table)
   {
-    if (writer)
       writer->add_table_name(table);
   }
 };
@@ -333,6 +323,10 @@ public:
     context.init(my_writer);
     closed= false;
   }
+  bool trace_started()
+  {
+    return my_writer != 0;
+  }
 };
 
 
@@ -349,55 +343,90 @@ class Json_writer_object : public Json_writer_struct
 private:
   void add_member(const char *name)
   {
-    if (my_writer)
-      my_writer->add_member(name);
+    my_writer->add_member(name);
   }
 public:
-  explicit Json_writer_object(THD *thd);
-  explicit Json_writer_object(THD *thd, const char *str);
+  explicit Json_writer_object(THD *thd)
+  : Json_writer_struct(thd)
+  {
+    if (unlikely(my_writer))
+      my_writer->start_object();
+  }
+
+  explicit Json_writer_object(THD* thd, const char *str)
+    : Json_writer_struct(thd)
+  {
+    if (unlikely(my_writer))
+      my_writer->add_member(str).start_object();
+  }
+
+  ~Json_writer_object()
+  {
+    if (my_writer && !closed)
+      my_writer->end_object();
+    closed= TRUE;
+  }
 
   Json_writer_object& add(const char *name, bool value)
   {
     DBUG_ASSERT(!closed);
-    add_member(name);
-    context.add_bool(value);
+    if (my_writer)
+    {
+      add_member(name);
+      context.add_bool(value);
+    }
     return *this;
   }
   Json_writer_object& add(const char *name, ulonglong value)
   {
     DBUG_ASSERT(!closed);
-    add_member(name);
-    context.add_ll(static_cast<longlong>(value));
+    if (my_writer)
+    {
+      add_member(name);
+      context.add_ll(static_cast<longlong>(value));
+    }
     return *this;
   }
   Json_writer_object& add(const char *name, longlong value)
   {
     DBUG_ASSERT(!closed);
-    add_member(name);
-    context.add_ll(value);
+    if (my_writer)
+    {
+      add_member(name);
+      context.add_ll(value);
+    }
     return *this;
   }
   Json_writer_object& add(const char *name, double value)
   {
     DBUG_ASSERT(!closed);
-    add_member(name);
-    context.add_double(value);
+    if (my_writer)
+    {
+      add_member(name);
+      context.add_double(value);
+    }
     return *this;
   }
   #ifndef _WIN64
   Json_writer_object& add(const char *name, size_t value)
   {
     DBUG_ASSERT(!closed);
-    add_member(name);
-    context.add_ll(static_cast<longlong>(value));
+    if (my_writer)
+    {
+      add_member(name);
+      context.add_ll(static_cast<longlong>(value));
+    }
     return *this;
   }
   #endif
   Json_writer_object& add(const char *name, const char *value)
   {
     DBUG_ASSERT(!closed);
-    add_member(name);
-    context.add_str(value);
+    if (my_writer)
+    {
+      add_member(name);
+      context.add_str(value);
+    }
     return *this;
   }
   Json_writer_object& add(const char *name, const char *value, size_t num_bytes)
@@ -406,59 +435,76 @@ public:
     context.add_str(value, num_bytes);
     return *this;
   }
-  Json_writer_object& add(const char *name, LEX_CSTRING value)
+  Json_writer_object& add(const char *name, const LEX_CSTRING &value)
   {
     DBUG_ASSERT(!closed);
-    add_member(name);
-    context.add_str(value.str);
+    if (my_writer)
+    {
+      add_member(name);
+      context.add_str(value.str, value.length);
+    }
     return *this;
   }
   Json_writer_object& add(const char *name, Item *value)
   {
     DBUG_ASSERT(!closed);
-    add_member(name);
-    context.add_str(value);
+    if (my_writer)
+    {
+      add_member(name);
+      context.add_str(value);
+    }
     return *this;
   }
   Json_writer_object& add_null(const char*name)
   {
     DBUG_ASSERT(!closed);
-    add_member(name);
-    context.add_null();
+    if (my_writer)
+    {
+      add_member(name);
+      context.add_null();
+    }
     return *this;
   }
   Json_writer_object& add_table_name(const JOIN_TAB *tab)
   {
     DBUG_ASSERT(!closed);
-    add_member("table");
-    context.add_table_name(tab);
+    if (my_writer)
+    {
+      add_member("table");
+      context.add_table_name(tab);
+    }
     return *this;
   }
   Json_writer_object& add_table_name(const TABLE *table)
   {
     DBUG_ASSERT(!closed);
-    add_member("table");
-    context.add_table_name(table);
+    if (my_writer)
+    {
+      add_member("table");
+      context.add_table_name(table);
+    }
     return *this;
   }
   Json_writer_object& add_select_number(uint select_number)
   {
     DBUG_ASSERT(!closed);
-    add_member("select_id");
-    if (unlikely(select_number >= INT_MAX))
-      context.add_str("fake");
-    else
-      context.add_ll(static_cast<longlong>(select_number));
+    if (my_writer)
+    {
+      add_member("select_id");
+      if (unlikely(select_number >= INT_MAX))
+        context.add_str("fake");
+      else
+        context.add_ll(static_cast<longlong>(select_number));
+    }
     return *this;
   }
   void end()
   {
     DBUG_ASSERT(!closed);
-    if (my_writer)
+    if (unlikely(my_writer))
       my_writer->end_object();
     closed= TRUE;
   }
-  ~Json_writer_object();
 };
 
 
@@ -473,12 +519,29 @@ public:
 class Json_writer_array : public Json_writer_struct
 {
 public:
-  Json_writer_array(THD *thd);
-  Json_writer_array(THD *thd, const char *str);
+  Json_writer_array(THD *thd): Json_writer_struct(thd)
+  {
+    if (unlikely(my_writer))
+      my_writer->start_array();
+  }
+
+  Json_writer_array(THD *thd, const char *str) : Json_writer_struct(thd)
+  {
+    if (unlikely(my_writer))
+      my_writer->add_member(str).start_array();
+  }
+  ~Json_writer_array()
+  {
+    if (unlikely(my_writer && !closed))
+    {
+      my_writer->end_array();
+      closed= TRUE;
+    }
+  }
   void end()
   {
     DBUG_ASSERT(!closed);
-    if (my_writer)
+    if (unlikely(my_writer))
       my_writer->end_array();
     closed= TRUE;
   }
@@ -486,78 +549,89 @@ public:
   Json_writer_array& add(bool value)
   {
     DBUG_ASSERT(!closed);
-    context.add_bool(value);
+    if (my_writer)
+      context.add_bool(value);
     return *this;
   }
   Json_writer_array& add(ulonglong value)
   {
     DBUG_ASSERT(!closed);
-    context.add_ll(static_cast<longlong>(value));
+    if (my_writer)
+      context.add_ll(static_cast<longlong>(value));
     return *this;
   }
   Json_writer_array& add(longlong value)
   {
     DBUG_ASSERT(!closed);
-    context.add_ll(value);
+    if (my_writer)
+      context.add_ll(value);
     return *this;
   }
   Json_writer_array& add(double value)
   {
     DBUG_ASSERT(!closed);
-    context.add_double(value);
+    if (my_writer)
+      context.add_double(value);
     return *this;
   }
   #ifndef _WIN64
   Json_writer_array& add(size_t value)
   {
     DBUG_ASSERT(!closed);
-    context.add_ll(static_cast<longlong>(value));
+    if (my_writer)
+      context.add_ll(static_cast<longlong>(value));
     return *this;
   }
   #endif
   Json_writer_array& add(const char *value)
   {
     DBUG_ASSERT(!closed);
-    context.add_str(value);
+    if (my_writer)
+      context.add_str(value);
     return *this;
   }
   Json_writer_array& add(const char *value, size_t num_bytes)
   {
     DBUG_ASSERT(!closed);
-    context.add_str(value, num_bytes);
+    if (my_writer)
+      context.add_str(value, num_bytes);
     return *this;
   }
-  Json_writer_array& add(LEX_CSTRING value)
+  Json_writer_array& add(const LEX_CSTRING &value)
   {
     DBUG_ASSERT(!closed);
-    context.add_str(value.str);
+    if (my_writer)
+      context.add_str(value.str, value.length);
     return *this;
   }
   Json_writer_array& add(Item *value)
   {
     DBUG_ASSERT(!closed);
-    context.add_str(value);
+    if (my_writer)
+      context.add_str(value);
     return *this;
   }
   Json_writer_array& add_null()
   {
     DBUG_ASSERT(!closed);
-    context.add_null();
+    if (my_writer)
+      context.add_null();
     return *this;
   }
   Json_writer_array& add_table_name(const JOIN_TAB *tab)
   {
     DBUG_ASSERT(!closed);
-    context.add_table_name(tab);
+    if (my_writer)
+      context.add_table_name(tab);
     return *this;
   }
   Json_writer_array& add_table_name(const TABLE *table)
   {
     DBUG_ASSERT(!closed);
-    context.add_table_name(table);
+    if (my_writer)
+      context.add_table_name(table);
     return *this;
   }
-  ~Json_writer_array();
 };
 
 /*

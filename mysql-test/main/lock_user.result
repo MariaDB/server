@@ -31,7 +31,7 @@ alter user user1@localhost account unlock;
 #
 alter user inexistentUser@localhost account lock;
 ERROR HY000: Operation ALTER USER failed for 'inexistentUser'@'localhost'
-alter if exists user inexistentUser@localhost account lock;
+alter user if exists inexistentUser@localhost account lock;
 Warnings:
 Error	1133	Can't find any matching row in the user table
 Note	1396	Operation ALTER USER failed for 'inexistentUser'@'localhost'

@@ -6317,9 +6317,10 @@ static bool partition_multi_range_key_skip_record(range_seq_t seq,
 {
   PARTITION_PART_KEY_MULTI_RANGE_HLD *hld=
     (PARTITION_PART_KEY_MULTI_RANGE_HLD *)seq;
+  PARTITION_KEY_MULTI_RANGE *pkmr= (PARTITION_KEY_MULTI_RANGE *)range_info;
   DBUG_ENTER("partition_multi_range_key_skip_record");
   DBUG_RETURN(hld->partition->m_seq_if->skip_record(hld->partition->m_seq,
-                                                    range_info, rowid));
+                                                    pkmr->ptr, rowid));
 }
 
 
@@ -6328,9 +6329,10 @@ static bool partition_multi_range_key_skip_index_tuple(range_seq_t seq,
 {
   PARTITION_PART_KEY_MULTI_RANGE_HLD *hld=
     (PARTITION_PART_KEY_MULTI_RANGE_HLD *)seq;
+  PARTITION_KEY_MULTI_RANGE *pkmr= (PARTITION_KEY_MULTI_RANGE *)range_info;
   DBUG_ENTER("partition_multi_range_key_skip_index_tuple");
   DBUG_RETURN(hld->partition->m_seq_if->skip_index_tuple(hld->partition->m_seq,
-                                                         range_info));
+                                                         pkmr->ptr));
 }
 
 ha_rows ha_partition::multi_range_read_info_const(uint keyno,
@@ -11802,6 +11804,40 @@ void ha_partition::clear_top_table_fields()
   DBUG_VOID_RETURN;
 }
 
+bool
+ha_partition::can_convert_string(const Field_string* field,
+		                 const Column_definition& new_type) const
+{
+  for (uint index= 0; index < m_tot_parts; index++)
+  {
+    if (!m_file[index]->can_convert_string(field, new_type))
+      return false;
+  }
+  return true;
+}
+
+bool
+ha_partition::can_convert_varstring(const Field_varstring* field,
+		                    const Column_definition& new_type) const{
+  for (uint index= 0; index < m_tot_parts; index++)
+  {
+    if (!m_file[index]->can_convert_varstring(field, new_type))
+      return false;
+  }
+  return true;
+}
+
+bool
+ha_partition::can_convert_blob(const Field_blob* field,
+		               const Column_definition& new_type) const
+{
+  for (uint index= 0; index < m_tot_parts; index++)
+  {
+    if (!m_file[index]->can_convert_blob(field, new_type))
+      return false;
+  }
+  return true;
+}
 
 struct st_mysql_storage_engine partition_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };

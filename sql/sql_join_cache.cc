@@ -2254,6 +2254,8 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
   if ((rc= join_tab_execution_startup(join_tab)) < 0)
     goto finish2;
 
+  join_tab->build_range_rowid_filter_if_needed();
+
   /* Prepare to retrieve all records of the joined table */
   if (unlikely((error= join_tab_scan->open())))
   { 

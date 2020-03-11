@@ -525,6 +525,12 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
     goto error;
   }
 
+  if (thd->current_backup_stage != BACKUP_FINISHED)
+  {
+    my_error(ER_BACKUP_LOCK_IS_ACTIVE, MYF(0));
+    return true;
+  }
+
   if (thd->lex->type & REFRESH_READ_LOCK)
   {
     /*

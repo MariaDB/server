@@ -445,6 +445,11 @@ public:
 	/** @return whether innodb_strict_mode is active */
 	bool is_innodb_strict_mode()
 	{ return is_innodb_strict_mode(m_user_thd); }
+	Compare_keys
+	compare_key_parts(const Field& old_field,
+			  const Column_definition& new_field,
+			  const KEY_PART_INFO& old_part,
+			  const KEY_PART_INFO& new_part) const override;
 
 protected:
 	dberr_t innobase_get_autoinc(ulonglong* value);

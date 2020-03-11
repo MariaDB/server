@@ -1807,6 +1807,42 @@ Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
 drop table t1;
 SET STATEMENT max_statement_time=0 FOR do 1;
+set @save_sql_mode=@@SQL_MODE;
+set SQL_MODE=ORACLE;
+create table t1 (a int);
+SET STATEMENT max_statement_time=0 FOR desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+drop table t1;
+SET STATEMENT max_statement_time=0 FOR do 1;
+set SQL_MODE=@save_sql_mode;
+#
+# MDEV-21684: mysqld crash with signal 11 when renaming
+# table+max_statement_time
+#
+SET STATEMENT max_statement_time=180 FOR RENAME TABLE bleh TO blah;
+ERROR 42S02: Table 'test.bleh' doesn't exist
+SET STATEMENT max_statement_time=180 FOR load index into cache t1_base;
+Table	Op	Msg_type	Msg_text
+test.t1_base	preload_keys	Error	Table 'test.t1_base' doesn't exist
+test.t1_base	preload_keys	status	Operation failed
+SET STATEMENT max_statement_time=180 FOR DROP INDEX i1 ON t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP UNLOCK;
+set @save_sql_mode=@@SQL_MODE;
+set SQL_MODE=ORACLE;
+SET STATEMENT max_statement_time=180 FOR RENAME TABLE bleh TO blah;
+ERROR 42S02: Table 'test.bleh' doesn't exist
+SET STATEMENT max_statement_time=180 FOR load index into cache t1_base;
+Table	Op	Msg_type	Msg_text
+test.t1_base	preload_keys	Error	Table 'test.t1_base' doesn't exist
+test.t1_base	preload_keys	status	Operation failed
+SET STATEMENT max_statement_time=180 FOR DROP INDEX i1 ON t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP UNLOCK;
+set SQL_MODE=@save_sql_mode;
 # End of 10.4 tests
 #
 # Start of 10.5 tests

@@ -1575,6 +1575,39 @@ SET STATEMENT max_statement_time=0 FOR desc t1;
 drop table t1;
 SET STATEMENT max_statement_time=0 FOR do 1;
 
+set @save_sql_mode=@@SQL_MODE;
+set SQL_MODE=ORACLE;
+create table t1 (a int);
+SET STATEMENT max_statement_time=0 FOR desc t1;
+drop table t1;
+SET STATEMENT max_statement_time=0 FOR do 1;
+set SQL_MODE=@save_sql_mode;
+
+
+--echo #
+--echo # MDEV-21684: mysqld crash with signal 11 when renaming
+--echo # table+max_statement_time
+--echo #
+
+--error ER_NO_SUCH_TABLE
+SET STATEMENT max_statement_time=180 FOR RENAME TABLE bleh TO blah;
+SET STATEMENT max_statement_time=180 FOR load index into cache t1_base;
+--error ER_NO_SUCH_TABLE
+SET STATEMENT max_statement_time=180 FOR DROP INDEX i1 ON t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP UNLOCK;
+
+set @save_sql_mode=@@SQL_MODE;
+set SQL_MODE=ORACLE;
+--error ER_NO_SUCH_TABLE
+SET STATEMENT max_statement_time=180 FOR RENAME TABLE bleh TO blah;
+SET STATEMENT max_statement_time=180 FOR load index into cache t1_base;
+--error ER_NO_SUCH_TABLE
+SET STATEMENT max_statement_time=180 FOR DROP INDEX i1 ON t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP UNLOCK;
+set SQL_MODE=@save_sql_mode;
+
 --echo # End of 10.4 tests
 
 

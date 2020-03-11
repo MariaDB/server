@@ -3997,19 +3997,26 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
     exec_res= ev->apply_event(rgi);
 
 #ifdef WITH_WSREP
-  if (WSREP_ON)
-  {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
-    if (exec_res &&
-        thd->wsrep_trx().state() != wsrep::transaction::s_executing)
-    {
-      WSREP_DEBUG("SQL apply failed, res %d conflict state: %s",
-                  exec_res, wsrep_thd_transaction_state_str(thd));
-      rli->abort_slave= 1;
-      rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
-                  "Node has dropped from cluster");
+  if (WSREP_ON) {
+    if (exec_res) {
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+      switch(thd->wsrep_trx().state()) {
+      case wsrep::transaction::s_must_replay:
+        /* this transaction will be replayed,
+           so not raising slave error here */
+        WSREP_DEBUG("SQL apply failed for MUST_REPLAY, res %d", exec_res);
+	exec_res = 0;
+        break;
+      default:
+          WSREP_DEBUG("SQL apply failed, res %d conflict state: %s",
+                      exec_res, wsrep_thd_transaction_state_str(thd));
+          rli->abort_slave= 1;
+          rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                      "Node has dropped from cluster");
+          break;
+      }
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
     }
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
 #endif
 

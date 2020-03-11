@@ -715,3 +715,18 @@ alter table t modify c varchar(10) collate latin1_general_cs, algorithm=instant;
 check table t;
 
 drop table t;
+
+--echo #
+--echo # MDEV-20726: InnoDB: Assertion failure in file data0type.cc line 67
+--echo #
+
+CREATE TABLE t (
+  id int(10) unsigned NOT NULL PRIMARY KEY,
+  a text CHARSET utf8mb3,
+  KEY a_idx(a(1))
+) ENGINE=InnoDB;
+
+INSERT INTO t VALUES (1, 'something in the air');
+ALTER TABLE t MODIFY a text CHARSET utf8mb4;
+
+DROP TABLE t;

@@ -53,7 +53,6 @@ IF (WIN32)
     my_wincond.c
     my_winerr.c
     my_winfile.c
-    my_windac.c
     my_conio.c
     my_win_popen.cc)
 ENDIF()
@@ -103,7 +102,3 @@ SET_TARGET_PROPERTIES(thr_timer PROPERTIES COMPILE_FLAGS "-DMAIN")
 ADD_EXECUTABLE(test_hash hash.c)
 TARGET_LINK_LIBRARIES(test_hash mysys)
 SET_TARGET_PROPERTIES(test_hash PROPERTIES COMPILE_FLAGS "-DMAIN")
-
-IF(MSVC)
-   INSTALL_DEBUG_TARGET(mysys DESTINATION ${INSTALL_LIBDIR}/debug)
-ENDIF()

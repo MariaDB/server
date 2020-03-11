@@ -44,7 +44,7 @@ alter user user1@localhost account unlock;
 --error ER_CANNOT_USER
 alter user inexistentUser@localhost account lock;
 
-alter if exists user inexistentUser@localhost account lock;
+alter user if exists inexistentUser@localhost account lock;
 
 --echo #
 --echo # Passing an existing user to CREATE should not be allowed

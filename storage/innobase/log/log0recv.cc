@@ -549,8 +549,9 @@ struct file_name_t {
 	ulint		size;
 
 	/** Constructor */
-	file_name_t(std::string name_, bool deleted) :
-		name(name_), space(NULL), status(deleted ? DELETED: NORMAL),
+	file_name_t(std::string name_, bool deleted)
+		: name(std::move(name_)), space(NULL),
+		status(deleted ? DELETED: NORMAL),
 		size(0) {}
 };
 

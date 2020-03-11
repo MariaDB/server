@@ -50,7 +50,7 @@ SET GLOBAL read_only = @start_read_only;
 --error ER_CANNOT_USER
 alter user boo;
 --echo #--warning ER_CANNOT_USER
-alter if exists user boo;
+alter user if exists boo;
 
 
 --echo #

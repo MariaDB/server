@@ -65,8 +65,9 @@ public:
   double scan_time()
   { return (double) (stats.records+stats.deleted) / 20.0+10; }
   double read_time(uint index, uint ranges, ha_rows rows)
-  { return (double) rows /  20.0+1; }
-
+  { return (double) rows / 20.0+1; }
+  double keyread_time(uint index, uint ranges, ha_rows rows)
+  { return (double) rows / 20.0+1; }
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
   void set_keys_for_scanning(void);

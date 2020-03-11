@@ -86,9 +86,6 @@ endif
 	    -DSYSTEM_TYPE="debian-$(DEB_HOST_GNU_SYSTEM)" \
 	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_HOST_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
-	    -DINSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH) \
-	    -DINSTALL_PLUGINDIR=lib/mysql/plugin \
-	    -DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
 	    -DDEB=$(DEB_VENDOR) ..'
 

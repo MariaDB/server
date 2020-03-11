@@ -702,7 +702,8 @@ static int rowid_cmp_reverse(void *file, uchar *a, uchar *b)
 int Mrr_ordered_rndpos_reader::init(handler *h_arg, 
                                     Mrr_index_reader *index_reader_arg,
                                     uint mode,
-                                    Lifo_buffer *buf)
+                                    Lifo_buffer *buf,
+                                    Rowid_filter *filter)
 {
   file= h_arg;
   index_reader= index_reader_arg;
@@ -710,19 +711,7 @@ int Mrr_ordered_rndpos_reader::init(handler *h_arg,
   is_mrr_assoc= !MY_TEST(mode & HA_MRR_NO_ASSOCIATION);
   index_reader_exhausted= FALSE;
   index_reader_needs_refill= TRUE;
-
-  /*
-    Currently usage of a rowid filter within InnoDB engine is not supported
-    if the table is accessed by the primary key.
-    With optimizer switches ''mrr' and 'mrr_sort_keys' are both enabled
-    any access by a secondary index is converted to the rndpos access. In
-    InnoDB the rndpos access is always uses the primary key.
-    Do not use pushed rowid filter if the table is accessed actually by the
-    primary key. Use the rowid filter outside the engine code (see
-    Mrr_ordered_rndpos_reader::refill_from_index_reader).
-  */
-  if (file->pushed_rowid_filter && file->primary_key_is_clustered())
-    file->cancel_pushed_rowid_filter();
+  rowid_filter= filter;
 
   return 0;
 }
@@ -817,10 +806,8 @@ int Mrr_ordered_rndpos_reader::refill_from_index_reader()
     index_reader->position();
 
     /*
-      If the built rowid filter cannot be used at the engine level use it here.
+      If the built rowid filter cannot be used at the engine level, use it here.
     */
-    Rowid_filter *rowid_filter=
-                    file->get_table()->reginfo.join_tab->rowid_filter;
     if (rowid_filter && !file->pushed_rowid_filter &&
         !rowid_filter->check((char *)index_rowid))
       continue;
@@ -960,7 +947,8 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
                            void *seq_init_param, uint n_ranges, uint mode,
                            HANDLER_BUFFER *buf)
 {
-  THD *thd= h_arg->get_table()->in_use;
+  TABLE *table= h_arg->get_table();
+  THD *thd= table->in_use;
   int res;
   Key_parameters keypar;
   uint UNINIT_VAR(key_buff_elem_size); /* set/used when do_sort_keys==TRUE */
@@ -1015,6 +1003,21 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
   if (!(keyno == table->s->primary_key && h_idx->primary_key_is_clustered()))
   {
     strategy= disk_strategy= &reader_factory.ordered_rndpos_reader;
+    if (h_arg->pushed_rowid_filter)
+    {
+      /*
+        Currently usage of a rowid filter within InnoDB engine is not supported
+        if the table is accessed by the primary key.
+        With optimizer switches ''mrr' and 'mrr_sort_keys' are both enabled
+        any access by a secondary index is converted to the rndpos access. In
+        InnoDB the rndpos access is always uses the primary key.
+        Do not use pushed rowid filter if the table is accessed actually by the
+        primary key. Use the rowid filter outside the engine code (see
+        Mrr_ordered_rndpos_reader::refill_from_index_reader).
+      */
+      rowid_filter= h_arg->pushed_rowid_filter;
+      h_arg->cancel_pushed_rowid_filter();
+    }
   }
 
   full_buf= buf->buffer;
@@ -1094,14 +1097,18 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
         goto use_default_impl;
     }
 
+    // setup_two_handlers() will call dsmrr_close() will clears the filter.
+    // Save its value and restore afterwards.
+    Rowid_filter *tmp = rowid_filter;
     if ((res= setup_two_handlers()))
       goto error;
+    rowid_filter= tmp;
 
     if ((res= index_strategy->init(secondary_file, seq_funcs, seq_init_param,
                                    n_ranges, mode, &keypar, key_buffer, 
                                    &buf_manager)) || 
         (res= disk_strategy->init(primary_file, index_strategy, mode, 
-                                  &rowid_buffer)))
+                                  &rowid_buffer, rowid_filter)))
     {
       goto error;
     }
@@ -1283,6 +1290,7 @@ void DsMrr_impl::close_second_handler()
 void DsMrr_impl::dsmrr_close()
 {
   DBUG_ENTER("DsMrr_impl::dsmrr_close");
+  rowid_filter= NULL;
   close_second_handler();
   strategy= NULL;
   DBUG_VOID_RETURN;

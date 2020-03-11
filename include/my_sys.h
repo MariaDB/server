@@ -1084,13 +1084,6 @@ extern void thd_increment_net_big_packet_count(void *thd, size_t length);
 
 #ifdef _WIN32
 
-/* implemented in my_windac.c */
-
-int my_security_attr_create(SECURITY_ATTRIBUTES **psa, const char **perror,
-                            DWORD owner_rights, DWORD everybody_rights);
-
-void my_security_attr_free(SECURITY_ATTRIBUTES *sa);
-
 /* implemented in my_conio.c */
 char* my_cgets(char *string, size_t clen, size_t* plen);
 

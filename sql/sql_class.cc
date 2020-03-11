@@ -2231,11 +2231,6 @@ void THD::reset_globals()
   net.thd= 0;
 }
 
-bool THD::trace_started()
-{
-  return opt_trace.is_started();
-}
-
 /*
   Cleanup after query.
 
@@ -5690,6 +5685,7 @@ void THD::leave_locked_tables_mode()
 {
   if (locked_tables_mode == LTM_LOCK_TABLES)
   {
+    DBUG_ASSERT(current_backup_stage == BACKUP_FINISHED);
     /*
       When leaving LOCK TABLES mode we have to change the duration of most
       of the metadata locks being held, except for HANDLER and GRL locks,

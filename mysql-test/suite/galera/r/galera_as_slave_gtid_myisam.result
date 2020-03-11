@@ -1,5 +1,8 @@
 connection node_2;
 connection node_1;
+SELECT @@WSREP_ON;
+@@WSREP_ON
+1
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 SELECT @@wsrep_on;
 @@wsrep_on
