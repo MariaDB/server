@@ -462,23 +462,23 @@ get_mysql_vars(MYSQL *connection)
 	}
 
 	if (innodb_data_file_path_var && *innodb_data_file_path_var) {
-		innobase_data_file_path = my_strdup(
+		innobase_data_file_path = my_strdup(PSI_NOT_INSTRUMENTED,
 			innodb_data_file_path_var, MYF(MY_FAE));
 	}
 
 	if (innodb_data_home_dir_var) {
-		innobase_data_home_dir = my_strdup(
+		innobase_data_home_dir = my_strdup(PSI_NOT_INSTRUMENTED,
 			innodb_data_home_dir_var, MYF(MY_FAE));
 	}
 
 	if (innodb_log_group_home_dir_var
 	    && *innodb_log_group_home_dir_var) {
-		srv_log_group_home_dir = my_strdup(
+		srv_log_group_home_dir = my_strdup(PSI_NOT_INSTRUMENTED,
 			innodb_log_group_home_dir_var, MYF(MY_FAE));
 	}
 
 	if (innodb_undo_directory_var && *innodb_undo_directory_var) {
-		srv_undo_dir = my_strdup(
+		srv_undo_dir = my_strdup(PSI_NOT_INSTRUMENTED,
 			innodb_undo_directory_var, MYF(MY_FAE));
 	}
 

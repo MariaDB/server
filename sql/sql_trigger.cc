@@ -30,11 +30,11 @@
 #include "sql_table.h"                        // build_table_filename,
                                               // check_n_cut_mysql50_prefix
 #include "sql_db.h"                        // get_default_db_collation
-#include "sql_acl.h"                       // *_ACL
 #include "sql_handler.h"                        // mysql_ha_rm_tables
 #include "sp_cache.h"                     // sp_invalidate_cache
 #include <mysys_err.h>
 #include "debug_sync.h"
+#include "mysql/psi/mysql_sp.h"
 
 /*************************************************************************/
 
@@ -440,7 +440,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   */
   if (!trust_function_creators                               &&
       (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
-      !(thd->security_ctx->master_access & SUPER_ACL))
+      !(thd->security_ctx->master_access & PRIV_LOG_BIN_TRUSTED_SP_CREATOR))
   {
     my_error(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER, MYF(0));
     DBUG_RETURN(TRUE);
@@ -463,7 +463,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     */
     thd->lex->sql_command= backup.sql_command;
 
-    if (opt_readonly && !(thd->security_ctx->master_access & SUPER_ACL) &&
+    if (opt_readonly &&
+        !(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
         !thd->slave_thread)
     {
       my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
@@ -624,7 +625,13 @@ end:
     thd->lex->restore_backup_query_tables_list(&backup);
 
   if (!result)
+  {
     my_ok(thd);
+    /* Drop statistics for this stored program from performance schema. */
+    MYSQL_DROP_SP(SP_TYPE_TRIGGER,
+                  thd->lex->spname->m_db.str, static_cast<uint>(thd->lex->spname->m_db.length),
+                  thd->lex->spname->m_name.str, static_cast<uint>(thd->lex->spname->m_name.length));
+  }
 
   DBUG_RETURN(result);
 #ifdef WITH_WSREP
@@ -1554,6 +1561,10 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           trigger->definer= *trg_definer;
         }
 
+        sp->m_sp_share= MYSQL_GET_SP_SHARE(SP_TYPE_TRIGGER,
+                                           sp->m_db.str, static_cast<uint>(sp->m_db.length),
+                                           sp->m_name.str, static_cast<uint>(sp->m_name.length));
+
 #ifndef DBUG_OFF
         /*
           Let us check that we correctly update trigger definitions when we
@@ -1813,8 +1824,8 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
   DBUG_ENTER("Triggers::drop_all_triggers");
 
   table.reset();
-  init_sql_alloc(&table.mem_root, "Triggers::drop_all_triggers", 8192, 0,
-                 MYF(0));
+  init_sql_alloc(key_memory_Table_trigger_dispatcher,
+                 &table.mem_root, 8192, 0, MYF(0));
 
   if (Table_triggers_list::check_n_load(thd, db, name, &table, 1))
   {
@@ -1846,6 +1857,9 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
             */
             result= 1;
           }
+          /* Drop statistics for this stored program from performance schema. */
+          MYSQL_DROP_SP(SP_TYPE_TRIGGER, db->str, static_cast<uint>(db->length),
+                        trigger->name.str, static_cast<uint>(trigger->name.length));
         }
       }
     }
@@ -2065,8 +2079,8 @@ bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
   DBUG_ENTER("Triggers::change_table_name");
 
   table.reset();
-  init_sql_alloc(&table.mem_root, "Triggers::change_table_name", 8192, 0,
-                 MYF(0));
+  init_sql_alloc(key_memory_Table_trigger_dispatcher,
+                 &table.mem_root, 8192, 0, MYF(0));
 
   /*
     This method interfaces the mysql server code protected by

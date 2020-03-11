@@ -1162,7 +1162,6 @@ fil_create_directory_for_tablename(
 				'databasename/tablename' format */
 /** Replay a file rename operation if possible.
 @param[in]	space_id	tablespace identifier
-@param[in]	first_page_no	first page number in the file
 @param[in]	name		old file name
 @param[in]	new_name	new file name
 @return	whether the operation was successfully applied
@@ -1171,7 +1170,6 @@ name was successfully renamed to new_name)  */
 bool
 fil_op_replay_rename(
 	ulint		space_id,
-	ulint		first_page_no,
 	const char*	name,
 	const char*	new_name)
 	MY_ATTRIBUTE((warn_unused_result));
@@ -1203,10 +1201,6 @@ fil_delete_tablespace(
 @return	the tablespace
 @retval	NULL if the tablespace does not exist */
 fil_space_t* fil_truncate_prepare(ulint space_id);
-
-/** Write log about an undo tablespace truncate operation. */
-void fil_truncate_log(fil_space_t* space, ulint size, mtr_t* mtr)
-	MY_ATTRIBUTE((nonnull));
 
 /*******************************************************************//**
 Closes a single-table tablespace. The tablespace must be cached in the
@@ -1384,6 +1378,8 @@ fil_space_extend(
 @param[in]	message		message for aio handler if non-sync aio
 				used, else ignored
 @param[in]	ignore		whether to ignore out-of-bounds page_id
+@param[in]	punch_hole	punch the hole to the file for page_compressed
+				tablespace
 @return DB_SUCCESS, or DB_TABLESPACE_DELETED
 if we are trying to do i/o on a tablespace which does not exist */
 dberr_t
@@ -1396,7 +1392,8 @@ fil_io(
 	ulint			len,
 	void*			buf,
 	void*			message,
-	bool			ignore = false);
+	bool			ignore = false,
+	bool			punch_hole = false);
 
 /**********************************************************************//**
 Waits for an aio operation to complete. This function is used to write the
@@ -1490,20 +1487,6 @@ char*
 fil_path_to_space_name(
 	const char*	filename);
 
-/** Generate redo log for swapping two .ibd files
-@param[in]	old_table	old table
-@param[in]	new_table	new table
-@param[in]	tmp_name	temporary table name
-@param[in,out]	mtr		mini-transaction
-@return innodb error code */
-dberr_t
-fil_mtr_rename_log(
-	const dict_table_t*	old_table,
-	const dict_table_t*	new_table,
-	const char*		tmp_name,
-	mtr_t*			mtr)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
 /** Acquire the fil_system mutex. */
 #define fil_system_enter()	mutex_enter(&fil_system.mutex)
 /** Release the fil_system mutex. */
@@ -1543,8 +1526,8 @@ inline bool fil_names_write_if_was_clean(fil_space_t* space)
 	}
 
 	const bool	was_clean = space->max_lsn == 0;
-	ut_ad(space->max_lsn <= log_sys.lsn);
-	space->max_lsn = log_sys.lsn;
+	ut_ad(space->max_lsn <= log_sys.get_lsn());
+	space->max_lsn = log_sys.get_lsn();
 
 	if (was_clean) {
 		fil_names_dirty_and_write(space);

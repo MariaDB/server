@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2020, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -143,15 +144,18 @@ sync_print_wait_info(FILE* file)
 	fprintf(file,
 		"Spin rounds per wait: %.2f RW-shared,"
 		" %.2f RW-excl, %.2f RW-sx\n",
-		(double) rw_lock_stats.rw_s_spin_round_count /
-		(rw_lock_stats.rw_s_spin_wait_count
-		 ? rw_lock_stats.rw_s_spin_wait_count : 1LL),
-		(double) rw_lock_stats.rw_x_spin_round_count /
-		(rw_lock_stats.rw_x_spin_wait_count
-		 ? rw_lock_stats.rw_x_spin_wait_count : 1LL),
-		(double) rw_lock_stats.rw_sx_spin_round_count /
-		(rw_lock_stats.rw_sx_spin_wait_count
-		 ? rw_lock_stats.rw_sx_spin_wait_count : 1LL));
+		rw_lock_stats.rw_s_spin_wait_count
+		? static_cast<double>(rw_lock_stats.rw_s_spin_round_count) /
+		static_cast<double>(rw_lock_stats.rw_s_spin_wait_count)
+		: static_cast<double>(rw_lock_stats.rw_s_spin_round_count),
+		rw_lock_stats.rw_x_spin_wait_count
+		? static_cast<double>(rw_lock_stats.rw_x_spin_round_count) /
+		static_cast<double>(rw_lock_stats.rw_x_spin_wait_count)
+		: static_cast<double>(rw_lock_stats.rw_x_spin_round_count),
+		rw_lock_stats.rw_sx_spin_wait_count
+		? static_cast<double>(rw_lock_stats.rw_sx_spin_round_count) /
+		static_cast<double>(rw_lock_stats.rw_sx_spin_wait_count)
+		: static_cast<double>(rw_lock_stats.rw_sx_spin_round_count));
 }
 
 /**

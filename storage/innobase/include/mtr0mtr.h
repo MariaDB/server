@@ -104,12 +104,6 @@ savepoint. */
 @return true if the mtr is dirtying a clean page. */
 #define mtr_block_dirtied(b)	mtr_t::is_block_dirtied((b))
 
-/** Append records to the system-wide redo log buffer.
-@param[in]	log	redo log records */
-void
-mtr_write_log(
-	const mtr_buf_t*	log);
-
 /** Mini-transaction memo stack slot. */
 struct mtr_memo_slot_t {
 	/** pointer to the object */
@@ -494,6 +488,45 @@ struct mtr_t {
   @param block    B-tree or R-tree page
   @param comp     false=ROW_FORMAT=REDUNDANT, true=COMPACT or DYNAMIC */
   inline void page_create(const buf_block_t &block, bool comp);
+
+  /** Write log for inserting a B-tree or R-tree record in
+  ROW_FORMAT=REDUNDANT.
+  @param block      B-tree or R-tree page
+  @param reuse      false=allocate from PAGE_HEAP_TOP; true=reuse PAGE_FREE
+  @param prev_rec   byte offset of the predecessor of the record to insert,
+                    starting from PAGE_OLD_INFIMUM
+  @param info_bits  info_bits of the record
+  @param n_fields_s number of fields << 1 | rec_get_1byte_offs_flag()
+  @param hdr_c      number of common record header bytes with prev_rec
+  @param data_c     number of common data bytes with prev_rec
+  @param hdr        record header bytes to copy to the log
+  @param hdr_l      number of copied record header bytes
+  @param data       record payload bytes to copy to the log
+  @param data_l     number of copied record data bytes */
+  inline void page_insert(const buf_block_t &block, bool reuse,
+                          ulint prev_rec, byte info_bits,
+                          ulint n_fields_s, size_t hdr_c, size_t data_c,
+                          const byte *hdr, size_t hdr_l,
+                          const byte *data, size_t data_l);
+  /** Write log for inserting a B-tree or R-tree record in
+  ROW_FORMAT=COMPACT or ROW_FORMAT=DYNAMIC.
+  @param block       B-tree or R-tree page
+  @param reuse       false=allocate from PAGE_HEAP_TOP; true=reuse PAGE_FREE
+  @param prev_rec    byte offset of the predecessor of the record to insert,
+                     starting from PAGE_NEW_INFIMUM
+  @param info_status rec_get_info_and_status_bits()
+  @param shift       unless !reuse: number of bytes the PAGE_FREE is moving
+  @param hdr_c       number of common record header bytes with prev_rec
+  @param data_c      number of common data bytes with prev_rec
+  @param hdr         record header bytes to copy to the log
+  @param hdr_l       number of copied record header bytes
+  @param data        record payload bytes to copy to the log
+  @param data_l      number of copied record data bytes */
+  inline void page_insert(const buf_block_t &block, bool reuse,
+                          ulint prev_rec, byte info_status,
+                          ssize_t shift, size_t hdr_c, size_t data_c,
+                          const byte *hdr, size_t hdr_l,
+                          const byte *data, size_t data_l);
   /** Write log for deleting a B-tree or R-tree record in ROW_FORMAT=REDUNDANT.
   @param block      B-tree or R-tree page
   @param prev_rec   byte offset of the predecessor of the record to delete,
@@ -517,15 +550,17 @@ struct mtr_t {
   @param len      length of the undo record, in bytes */
   inline void undo_append(const buf_block_t &block,
                           const void *data, size_t len);
+  /** Trim the end of a tablespace.
+  @param id       first page identifier that will not be in the file */
+  inline void trim_pages(const page_id_t id);
 
   /** Write a log record about a file operation.
   @param type           file operation
   @param space_id       tablespace identifier
-  @param first_page_no  first page number in the file
   @param path           file path
   @param new_path       new file path for type=FILE_RENAME */
   inline void log_file_op(mfile_type_t type, ulint space_id,
-                          ulint first_page_no, const char *path,
+                          const char *path,
                           const char *new_path= nullptr);
 
 private:
@@ -551,7 +586,7 @@ private:
 
   /** Write an EXTENDED log record.
   @param block  buffer pool page
-  @param type	extended record subtype; @see mrec_ext_t */
+  @param type   extended record subtype; @see mrec_ext_t */
   inline void log_write_extended(const buf_block_t &block, byte type);
 
   /** Prepare to write the mini-transaction log to the redo log buffer.

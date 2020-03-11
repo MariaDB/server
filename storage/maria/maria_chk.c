@@ -1900,8 +1900,8 @@ static int maria_sort_records(HA_CHECK *param,
     goto err;
   }
 
-  if (!(sort_param.record=
-        (uchar*) my_malloc((uint) share->base.default_rec_buff_size, MYF(0))))
+  if (!(sort_param.record= (uchar*) my_malloc(PSI_INSTRUMENT_ME,
+                           (uint) share->base.default_rec_buff_size, MYF(0))))
   {
     _ma_check_print_error(param,"Not enough memory for record");
     goto err;

@@ -106,7 +106,8 @@ enum enum_slave_exec_mode { SLAVE_EXEC_MODE_STRICT,
                             SLAVE_EXEC_MODE_LAST_BIT };
 enum enum_slave_run_triggers_for_rbr { SLAVE_RUN_TRIGGERS_FOR_RBR_NO,
                                        SLAVE_RUN_TRIGGERS_FOR_RBR_YES,
-                                       SLAVE_RUN_TRIGGERS_FOR_RBR_LOGGING};
+                                       SLAVE_RUN_TRIGGERS_FOR_RBR_LOGGING,
+                                       SLAVE_RUN_TRIGGERS_FOR_RBR_ENFORCE};
 enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
 
@@ -333,17 +334,40 @@ public:
 
 class Alter_column :public Sql_alloc {
 public:
-  const char *name;
+  LEX_CSTRING name;
+  LEX_CSTRING new_name;
   Virtual_column_info *default_value;
   bool alter_if_exists;
-  Alter_column(const char *par_name, Virtual_column_info *expr, bool par_exists)
-    :name(par_name), default_value(expr), alter_if_exists(par_exists) {}
+  Alter_column(LEX_CSTRING par_name, Virtual_column_info *expr, bool par_exists)
+    :name(par_name), new_name{NULL, 0}, default_value(expr), alter_if_exists(par_exists) {}
+  Alter_column(LEX_CSTRING par_name, LEX_CSTRING _new_name)
+    :name(par_name), new_name(_new_name), default_value(NULL), alter_if_exists(false) {}
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
   */
   Alter_column *clone(MEM_ROOT *mem_root) const
     { return new (mem_root) Alter_column(*this); }
+  bool is_rename()
+  {
+    DBUG_ASSERT(!new_name.str || !default_value);
+    return new_name.str;
+  }
+};
+
+
+class Alter_rename_key : public Sql_alloc
+{
+public:
+  LEX_CSTRING old_name;
+  LEX_CSTRING new_name;
+
+  Alter_rename_key(LEX_CSTRING old_name_arg, LEX_CSTRING new_name_arg)
+      : old_name(old_name_arg), new_name(new_name_arg) {}
+
+  Alter_rename_key *clone(MEM_ROOT *mem_root) const
+    { return new (mem_root) Alter_rename_key(*this); }
+
 };
 
 
@@ -936,6 +960,10 @@ typedef struct system_status_var
 #define last_system_status_var questions
 #define last_cleared_system_status_var local_memory_used
 
+/* Number of contiguous global status variables. */
+const int COUNT_GLOBAL_STATUS_VARS= (offsetof(STATUS_VAR, last_system_status_var) /
+                                      sizeof(ulong)) + 1;
+
 /*
   Global status variables
 */
@@ -992,6 +1020,39 @@ inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
   return MY_TEST(cs->mbminlen == 1);
 }
+
+/** THD registry */
+class THD_list_iterator
+{
+protected:
+  I_List<THD> threads;
+  mutable mysql_rwlock_t lock;
+
+public:
+
+  /**
+    Iterates registered threads.
+
+    @param action      called for every element
+    @param argument    opque argument passed to action
+
+    @return
+      @retval 0 iteration completed successfully
+      @retval 1 iteration was interrupted (action returned 1)
+  */
+  template <typename T> int iterate(my_bool (*action)(THD *thd, T *arg), T *arg= 0)
+  {
+    int res= 0;
+    mysql_rwlock_rdlock(&lock);
+    I_List_iterator<THD> it(threads);
+    while (auto tmp= it++)
+      if ((res= action(tmp, arg)))
+        break;
+    mysql_rwlock_unlock(&lock);
+    return res;
+  }
+  static THD_list_iterator *iterator();
+};
 
 #ifdef MYSQL_SERVER
 
@@ -1905,9 +1966,8 @@ public:
     m_reopen_array(NULL),
     m_locked_tables_count(0)
   {
-    init_sql_alloc(&m_locked_tables_root, "Locked_tables_list",
-                   MEM_ROOT_BLOCK_SIZE, 0,
-                   MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(key_memory_locked_table_list, &m_locked_tables_root,
+                   MEM_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
   }
   void unlock_locked_tables(THD *thd);
   void unlock_locked_table(THD *thd, MDL_ticket *mdl_ticket);
@@ -2348,8 +2408,21 @@ public:
   */
   const char *proc_info;
 
+  void set_psi(PSI_thread *psi)
+  {
+    my_atomic_storeptr((void*volatile*)&m_psi, psi);
+  }
+
+  PSI_thread* get_psi()
+  {
+    return static_cast<PSI_thread*>(my_atomic_loadptr((void*volatile*)&m_psi));
+  }
+
 private:
   unsigned int m_current_stage_key;
+
+  /** Performance schema thread instrumentation for this session. */
+  PSI_thread *m_psi;
 
 public:
   void enter_stage(const PSI_stage_info *stage,
@@ -2367,7 +2440,7 @@ public:
                             calling_line);
 #endif
 #ifdef HAVE_PSI_THREAD_INTERFACE
-    MYSQL_SET_STAGE(m_current_stage_key, calling_file, calling_line);
+    m_stage_progress_psi= MYSQL_SET_STAGE(m_current_stage_key, calling_file, calling_line);
 #endif
   }
 
@@ -2666,9 +2739,8 @@ public:
     {
       bzero((char*)this, sizeof(*this));
       implicit_xid.null();
-      init_sql_alloc(&mem_root, "THD::transactions",
-                     ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
-                     MYF(MY_THREAD_SPECIFIC));
+      init_sql_alloc(key_memory_thd_transactions, &mem_root,
+                     ALLOC_ROOT_MIN_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
     }
   } transaction;
   Global_read_lock global_read_lock;
@@ -2966,6 +3038,8 @@ public:
   PROFILING  profiling;
 #endif
 
+  /** Current stage progress instrumentation. */
+  PSI_stage_progress *m_stage_progress_psi;
   /** Current statement digest. */
   sql_digest_state *m_digest;
   /** Current statement digest token array. */
@@ -2979,6 +3053,14 @@ public:
   /** Current statement instrumentation state. */
   PSI_statement_locker_state m_statement_state;
 #endif /* HAVE_PSI_STATEMENT_INTERFACE */
+
+  /** Current transaction instrumentation. */
+  PSI_transaction_locker *m_transaction_psi;
+#ifdef HAVE_PSI_TRANSACTION_INTERFACE
+  /** Current transaction instrumentation state. */
+  PSI_transaction_locker_state m_transaction_state;
+#endif /* HAVE_PSI_TRANSACTION_INTERFACE */
+
   /** Idle instrumentation. */
   PSI_idle_locker *m_idle_psi;
 #ifdef HAVE_PSI_IDLE_INTERFACE
@@ -4745,6 +4827,17 @@ public:
   LF_PINS *xid_hash_pins;
   bool fix_xid_hash_pins();
 
+  const XID *get_xid() const
+  {
+#ifdef WITH_WSREP
+    if (!wsrep_xid.is_null())
+      return &wsrep_xid;
+#endif /* WITH_WSREP */
+    return transaction.xid_state.is_explicit_XA() ?
+          transaction.xid_state.get_xid() :
+          &transaction.implicit_xid;
+  }
+
 /* Members related to temporary tables. */
 public:
   /* Opened table states. */
@@ -6253,8 +6346,52 @@ public:
 /* Structs used when sorting */
 struct SORT_FIELD_ATTR
 {
-  uint length;          /* Length of sort field */
-  uint suffix_length;   /* Length suffix (0-4) */
+  /*
+    If using mem-comparable fixed-size keys:
+    length of the mem-comparable image of the field, in bytes.
+
+    If using packed keys: still the same? Not clear what is the use of it.
+  */
+  uint length;
+
+  /*
+    For most datatypes, this is 0.
+    The exception are the VARBINARY columns.
+    For those columns, the comparison actually compares
+
+      (value_prefix(N), suffix=length(value))
+
+    Here value_prefix is either the whole value or its prefix if it was too
+    long, and the suffix is the length of the original value.
+    (this way, for values X and Y:  if X=prefix(Y) then X compares as less
+    than Y
+  */
+  uint suffix_length;
+
+  /*
+    If using packed keys, number of bytes that are used to store the length
+    of the packed key.
+
+  */
+  uint length_bytes;
+
+  /* Max. length of the original value, in bytes */
+  uint original_length;
+  enum Type { FIXED_SIZE, VARIABLE_SIZE } type;
+  /*
+    TRUE  : if the item or field is NULLABLE
+    FALSE : otherwise
+  */
+  bool maybe_null;
+  CHARSET_INFO *cs;
+  uint pack_sort_string(uchar *to, const LEX_CSTRING &str,
+                        CHARSET_INFO *cs) const;
+  int compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
+                                     uchar *b, size_t *b_len);
+  int compare_packed_varstrings(uchar *a, size_t *a_len,
+                                uchar *b, size_t *b_len);
+  bool check_if_packing_possible(THD *thd) const;
+  bool is_variable_sized() { return type == VARIABLE_SIZE; }
 };
 
 
@@ -6795,8 +6932,8 @@ inline int handler::ha_write_tmp_row(uchar *buf)
   int error;
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_tmp_write_count);
-  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
-                { error= write_row(buf); })
+  TABLE_IO_WAIT(tracker, PSI_TABLE_WRITE_ROW, MAX_KEY, error,
+          { error= write_row(buf); })
   MYSQL_INSERT_ROW_DONE(error);
   return error;
 }
@@ -6806,7 +6943,7 @@ inline int handler::ha_delete_tmp_row(uchar *buf)
   int error;
   MYSQL_DELETE_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_tmp_delete_count);
-  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_DELETE_ROW, MAX_KEY, 0,
+  TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, MAX_KEY, error,
                 { error= delete_row(buf); })
   MYSQL_DELETE_ROW_DONE(error);
   return error;
@@ -6817,12 +6954,11 @@ inline int handler::ha_update_tmp_row(const uchar *old_data, uchar *new_data)
   int error;
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_tmp_update_count);
-  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_UPDATE_ROW, active_index, 0,
-                { error= update_row(old_data, new_data);})
+  TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, active_index, error,
+          { error= update_row(old_data, new_data);})
   MYSQL_UPDATE_ROW_DONE(error);
   return error;
 }
-
 
 extern pthread_attr_t *get_connection_attrib(void);
 
@@ -7191,11 +7327,8 @@ private:
 
 
 /** THD registry */
-class THD_list
+class THD_list: public THD_list_iterator
 {
-  I_List<THD> threads;
-  mutable mysql_rwlock_t lock;
-
 public:
   /**
     Constructor replacement.
@@ -7242,28 +7375,6 @@ public:
     mysql_rwlock_wrlock(&lock);
     thd->unlink();
     mysql_rwlock_unlock(&lock);
-  }
-
-  /**
-    Iterates registered threads.
-
-    @param action      called for every element
-    @param argument    opque argument passed to action
-
-    @return
-      @retval 0 iteration completed successfully
-      @retval 1 iteration was interrupted (action returned 1)
-  */
-  template <typename T> int iterate(my_bool (*action)(THD *thd, T *arg), T *arg= 0)
-  {
-    int res= 0;
-    mysql_rwlock_rdlock(&lock);
-    I_List_iterator<THD> it(threads);
-    while (auto tmp= it++)
-      if ((res= action(tmp, arg)))
-        break;
-    mysql_rwlock_unlock(&lock);
-    return res;
   }
 };
 

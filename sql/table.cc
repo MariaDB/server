@@ -27,7 +27,6 @@
 #include "strfunc.h"                            // unhex_type2
 #include "sql_partition.h"       // mysql_unpack_partition,
                                  // fix_partition_func, partition_info
-#include "sql_acl.h"             // *_ACL, acl_getroot_no_password
 #include "sql_base.h"
 #include "create_options.h"
 #include "sql_trigger.h"
@@ -273,7 +272,7 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
   if (is_infoschema_db(db))
     return TABLE_CATEGORY_INFORMATION;
 
-  if (lex_string_eq(&PERFORMANCE_SCHEMA_DB_NAME, db))
+  if (is_perfschema_db(db))
     return TABLE_CATEGORY_PERFORMANCE;
 
   if (lex_string_eq(&MYSQL_SCHEMA_NAME, db))
@@ -323,7 +322,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
 
   path_length= build_table_filename(path, sizeof(path) - 1,
                                     db, table_name, "", 0);
-  init_sql_alloc(&mem_root, "table_share", TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(key_memory_table_share, &mem_root, TABLE_ALLOC_BLOCK_SIZE, 0,
+                 MYF(0));
   if (multi_alloc_root(&mem_root,
                        &share, sizeof(*share),
                        &key_buff, key_length,
@@ -349,7 +349,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
         table_alias_charset->strnncoll(key, 6, "mysql", 6) == 0)
       share->not_usable_by_query_cache= 1;
 
-    init_sql_alloc(&share->stats_cb.mem_root, "share_stats",
+    init_sql_alloc(PSI_INSTRUMENT_ME, &share->stats_cb.mem_root,
                    TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
     memcpy((char*) &share->mem_root, (char*) &mem_root, sizeof(mem_root));
@@ -411,8 +411,9 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
     This can't be MY_THREAD_SPECIFIC for slaves as they are freed
     during cleanup() from Relay_log_info::close_temporary_tables()
   */
-  init_sql_alloc(&share->mem_root, "tmp_table_share", TABLE_ALLOC_BLOCK_SIZE,
-                 0, MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC));
+  init_sql_alloc(key_memory_table_share, &share->mem_root,
+                 TABLE_ALLOC_BLOCK_SIZE, 0,
+                 MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC));
   share->table_category=         TABLE_CATEGORY_TEMPORARY;
   share->tmp_table=              INTERNAL_TMP_TABLE;
   share->db.str=                 (char*) key;
@@ -676,7 +677,8 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   frmlen= uint4korr(head+10);
   set_if_smaller(frmlen, FRM_MAX_SIZE); // safety
 
-  if (!(buf= (uchar*)my_malloc(frmlen, MYF(MY_THREAD_SPECIFIC|MY_WME))))
+  if (!(buf= (uchar*)my_malloc(PSI_INSTRUMENT_ME, frmlen,
+                               MYF(MY_THREAD_SPECIFIC|MY_WME))))
     goto err;
 
   memcpy(buf, head, sizeof(head));
@@ -2195,10 +2197,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   use_hash= share->fields >= MAX_FIELDS_BEFORE_HASH;
   if (use_hash)
-    use_hash= !my_hash_init(&share->name_hash,
-                            system_charset_info,
-                            share->fields,0,0,
-                            (my_hash_get_key) get_field_name,0,0);
+    use_hash= !my_hash_init(PSI_INSTRUMENT_ME, &share->name_hash,
+                            system_charset_info, share->fields, 0, 0,
+                            (my_hash_get_key) get_field_name, 0, 0);
 
   if (share->mysql_version >= 50700 && share->mysql_version < 100000 &&
       vcol_screen_length)
@@ -3756,8 +3757,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     error= OPEN_FRM_NEEDS_REBUILD;
     goto err;
   }
-  init_sql_alloc(&outparam->mem_root, "table", TABLE_ALLOC_BLOCK_SIZE, 0,
-                 MYF(0));
+  init_sql_alloc(key_memory_TABLE, &outparam->mem_root, TABLE_ALLOC_BLOCK_SIZE,
+                 0, MYF(0));
 
   /*
     We have to store the original alias in mem_root as constraints and virtual
@@ -6207,7 +6208,7 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd)
       }
       else
       {
-        if (thd->security_ctx->master_access & SUPER_ACL)
+        if (thd->security_ctx->master_access & PRIV_REVEAL_MISSING_DEFINER)
         {
           my_error(ER_NO_SUCH_USER, MYF(0), definer.user.str, definer.host.str);
 
@@ -8219,11 +8220,10 @@ size_t max_row_length(TABLE *table, MY_BITMAP const *cols, const uchar *data)
 void init_mdl_requests(TABLE_LIST *table_list)
 {
   for ( ; table_list ; table_list= table_list->next_global)
-    table_list->mdl_request.init(MDL_key::TABLE,
-                                 table_list->db.str, table_list->table_name.str,
-                                 table_list->lock_type >= TL_WRITE_ALLOW_WRITE ?
-                                 MDL_SHARED_WRITE : MDL_SHARED_READ,
-                                 MDL_TRANSACTION);
+    MDL_REQUEST_INIT(&table_list->mdl_request, MDL_key::TABLE,
+                     table_list->db.str, table_list->table_name.str,
+                     table_list->lock_type >= TL_WRITE_ALLOW_WRITE
+                     ? MDL_SHARED_WRITE : MDL_SHARED_READ, MDL_TRANSACTION);
 }
 
 

@@ -407,7 +407,7 @@ static bool resolve_sysvars(handlerton *hton, ha_create_table_option *rules)
             return 1;
         }
         DBUG_ASSERT(str.length());
-        opt->values= my_strndup(str.ptr(), str.length()-1, MYF(MY_WME));
+        opt->values= my_strndup(PSI_INSTRUMENT_ME, str.ptr(), str.length()-1, MYF(MY_WME));
         if (!opt->values)
           return 1;
         break;

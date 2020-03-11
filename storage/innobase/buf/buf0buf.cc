@@ -746,14 +746,13 @@ static void buf_page_check_lsn(bool check_lsn, const byte* read_buf)
 {
 #ifndef UNIV_INNOCHECKSUM
 	if (check_lsn && recv_lsn_checks_on) {
-		lsn_t		current_lsn;
+		const lsn_t current_lsn = log_sys.get_lsn();
 		const lsn_t	page_lsn
 			= mach_read_from_8(read_buf + FIL_PAGE_LSN);
 
 		/* Since we are going to reset the page LSN during the import
 		phase it makes no sense to spam the log with error messages. */
-
-		if (log_peek_lsn(&current_lsn) && current_lsn < page_lsn) {
+		if (current_lsn < page_lsn) {
 
 			const ulint	space_id = mach_read_from_4(
 				read_buf + FIL_PAGE_SPACE_ID);
@@ -1356,13 +1355,11 @@ buf_block_init(buf_block_t* block, byte* frame)
 	block->page.state = BUF_BLOCK_NOT_USED;
 	block->page.buf_fix_count = 0;
 	block->page.io_fix = BUF_IO_NONE;
-	block->page.init_on_flush = false;
 	block->page.real_size = 0;
 	block->page.write_size = 0;
 	block->modify_clock = 0;
 	block->page.slot = NULL;
-
-	ut_d(block->page.file_page_was_freed = FALSE);
+	block->page.status = buf_page_t::NORMAL;
 
 #ifdef BTR_CUR_HASH_ADAPT
 	block->index = NULL;
@@ -1436,12 +1433,11 @@ static buf_chunk_t* buf_chunk_init(buf_chunk_t* chunk, ulint mem_size)
 #ifdef HAVE_LIBNUMA
 	if (srv_numa_interleave) {
 		struct bitmask *numa_mems_allowed = numa_get_mems_allowed();
-		int	st = mbind(chunk->mem, chunk->mem_size(),
-				   MPOL_INTERLEAVE,
-				   numa_mems_allowed->maskp,
-				   numa_mems_allowed->size,
-				   MPOL_MF_MOVE);
-		if (st != 0) {
+		if (mbind(chunk->mem, chunk->mem_size(),
+			  MPOL_INTERLEAVE,
+			  numa_mems_allowed->maskp,
+			  numa_mems_allowed->size,
+			  MPOL_MF_MOVE)) {
 			ib::warn() << "Failed to set NUMA memory policy of"
 				" buffer pool page frames to MPOL_INTERLEAVE"
 				" (error: " << strerror(errno) << ").";
@@ -2430,7 +2426,7 @@ static void buf_pool_resize()
 	buf_resize_status("Withdrawing blocks to be shrunken.");
 
 	time_t		withdraw_started = time(NULL);
-	ulint		message_interval = 60;
+	double		message_interval = 60;
 	ulint		retry_interval = 1;
 
 withdraw_retry:
@@ -3212,58 +3208,64 @@ void buf_page_make_young(buf_page_t* bpage)
 	mutex_exit(&buf_pool->mutex);
 }
 
+/** Mark the page status as FREED for the given tablespace id and
+page number. If the page is not in the buffer pool then ignore it.
+X-lock should be taken on the page before marking the page status
+as FREED. It avoids the concurrent flushing of freed page.
+Currently, this function only marks the page as FREED if it is
+in buffer pool.
+@param[in]	page_id	page id
+@param[in,out]	mtr	mini-transaction
+@param[in]	file	file name
+@param[in]	line	line where called */
+void buf_page_free(const page_id_t page_id,
+                   mtr_t *mtr,
+                   const char *file,
+                   unsigned line)
+{
+  ut_ad(mtr);
+  ut_ad(mtr->is_active());
+  buf_pool->stat.n_page_gets++;
+  rw_lock_t *hash_lock= buf_page_hash_lock_get(page_id);
+  rw_lock_s_lock(hash_lock);
+
+  /* page_hash can be changed. */
+  hash_lock= buf_page_hash_lock_s_confirm(hash_lock, page_id);
+  buf_block_t *block= reinterpret_cast<buf_block_t*>
+    (buf_page_hash_get_low(page_id));
+
+  if (!block || buf_block_get_state(block) != BUF_BLOCK_FILE_PAGE)
+  {
+    /* FIXME: if block!=NULL, convert to BUF_BLOCK_FILE_PAGE,
+    but avoid buf_zip_decompress() */
+    /* FIXME: If block==NULL, introduce a separate data structure
+    to cover freed page ranges to augment buf_flush_freed_page() */
+    rw_lock_s_unlock(hash_lock);
+    return;
+  }
+
+  block->fix();
+  mutex_enter(&block->mutex);
+  /* Now safe to release page_hash mutex */
+  rw_lock_s_unlock(hash_lock);
+  ut_ad(block->page.buf_fix_count > 0);
+
 #ifdef UNIV_DEBUG
-/** Sets file_page_was_freed TRUE if the page is found in the buffer pool.
-This function should be called when we free a file page and want the
-debug version to check that it is not accessed any more unless
-reallocated.
-@param[in]	page_id	page id
-@return control block if found in page hash table, otherwise NULL */
-buf_page_t* buf_page_set_file_page_was_freed(const page_id_t page_id)
-{
-	buf_page_t*	bpage;
-	rw_lock_t*	hash_lock;
-
-	bpage = buf_page_hash_get_s_locked(page_id, &hash_lock);
-
-	if (bpage) {
-		BPageMutex*	block_mutex = buf_page_get_mutex(bpage);
-		ut_ad(!buf_pool_watch_is_sentinel(bpage));
-		mutex_enter(block_mutex);
-		rw_lock_s_unlock(hash_lock);
-		/* bpage->file_page_was_freed can already hold
-		when this code is invoked from dict_drop_index_tree() */
-		bpage->file_page_was_freed = TRUE;
-		mutex_exit(block_mutex);
-	}
-
-	return(bpage);
-}
-
-/** Sets file_page_was_freed FALSE if the page is found in the buffer pool.
-This function should be called when we free a file page and want the
-debug version to check that it is not accessed any more unless
-reallocated.
-@param[in]	page_id	page id
-@return control block if found in page hash table, otherwise NULL */
-buf_page_t* buf_page_reset_file_page_was_freed(const page_id_t page_id)
-{
-	buf_page_t*	bpage;
-	rw_lock_t*	hash_lock;
-
-	bpage = buf_page_hash_get_s_locked(page_id, &hash_lock);
-	if (bpage) {
-		BPageMutex*	block_mutex = buf_page_get_mutex(bpage);
-		ut_ad(!buf_pool_watch_is_sentinel(bpage));
-		mutex_enter(block_mutex);
-		rw_lock_s_unlock(hash_lock);
-		bpage->file_page_was_freed = FALSE;
-		mutex_exit(block_mutex);
-	}
-
-	return(bpage);
-}
+  if (!fsp_is_system_temporary(page_id.space()))
+  {
+    ibool ret= rw_lock_s_lock_nowait(block->debug_latch, file, line);
+    ut_a(ret);
+  }
 #endif /* UNIV_DEBUG */
+
+  mtr_memo_type_t fix_type= MTR_MEMO_PAGE_X_FIX;
+  rw_lock_x_lock_inline(&block->lock, 0, file, line);
+  mtr_memo_push(mtr, block, fix_type);
+
+  block->page.status= buf_page_t::FREED;
+  buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
+  mutex_exit(&block->mutex);
+}
 
 /** Attempts to discard the uncompressed frame of a compressed page.
 The caller should not be holding any mutexes when this function is called.
@@ -3383,7 +3385,7 @@ got_block:
 
 	rw_lock_s_unlock(hash_lock);
 
-	ut_ad(!bpage->file_page_was_freed);
+	DBUG_ASSERT(bpage->status != buf_page_t::FREED);
 
 	buf_page_set_accessed(bpage);
 
@@ -4283,7 +4285,7 @@ evict_from_pool:
 	"btr_search_drop_page_hash_when_freed". */
 	ut_ad(mode == BUF_GET_POSSIBLY_FREED
 	      || mode == BUF_PEEK_IF_IN_POOL
-	      || !fix_block->page.file_page_was_freed);
+	      || fix_block->page.status != buf_page_t::FREED);
 
 	/* Check if this is the first access to the page */
 	access_time = buf_page_is_accessed(&fix_block->page);
@@ -4473,10 +4475,6 @@ buf_page_optimistic_get(
 	ut_a(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
-	ut_d(buf_page_mutex_enter(block));
-	ut_ad(!block->page.file_page_was_freed);
-	ut_d(buf_page_mutex_exit(block));
-
 	if (!access_time) {
 		/* In the case of a first access, try to apply linear
 		read-ahead */
@@ -4559,10 +4557,6 @@ buf_page_try_get_func(
 	ut_a(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
-	ut_d(buf_page_mutex_enter(block));
-	ut_d(ut_a(!block->page.file_page_was_freed));
-	ut_d(buf_page_mutex_exit(block));
-
 	buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
 
 	buf_pool->stat.n_page_gets++;
@@ -4589,10 +4583,8 @@ buf_page_init_low(
 	bpage->real_size = 0;
 	bpage->slot = NULL;
 	bpage->ibuf_exist = false;
-
+	bpage->status = buf_page_t::NORMAL;
 	HASH_INVALIDATE(bpage, hash);
-
-	ut_d(bpage->file_page_was_freed = FALSE);
 }
 
 /** Inits a page to the buffer buf_pool.
@@ -4845,7 +4837,7 @@ buf_page_init_for_read(
 
 		bpage->state = BUF_BLOCK_ZIP_PAGE;
 		bpage->id = page_id;
-		bpage->init_on_flush = false;
+		bpage->status = buf_page_t::NORMAL;
 
 		ut_d(bpage->in_page_hash = FALSE);
 		ut_d(bpage->in_zip_hash = FALSE);
@@ -4937,8 +4929,6 @@ buf_page_create(
 	if (block
 	    && buf_page_in_file(&block->page)
 	    && !buf_pool_watch_is_sentinel(&block->page)) {
-		ut_d(block->page.file_page_was_freed = FALSE);
-
 		/* Page can be found in buf_pool */
 		mutex_exit(&buf_pool->mutex);
 		rw_lock_x_unlock(hash_lock);
@@ -4946,8 +4936,13 @@ buf_page_create(
 		buf_block_free(free_block);
 
 		if (!recv_recovery_is_on()) {
-			return buf_page_get_with_no_latch(page_id, zip_size,
-							  mtr);
+			/* FIXME: Remove the redundant lookup and avoid
+			the unnecessary invocation of buf_zip_decompress().
+			We may have to convert buf_page_t to buf_block_t,
+			but we are going to initialize the page. */
+			return buf_page_get_gen(page_id, zip_size, RW_NO_LATCH,
+						block, BUF_GET_POSSIBLY_FREED,
+						__FILE__, __LINE__, mtr);
 		}
 
 		mutex_exit(&recv_sys.mutex);
@@ -6119,24 +6114,29 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 	pool_info->n_ra_pages_evicted = buf_pool->stat.n_ra_pages_evicted;
 
 	pool_info->page_made_young_rate =
-		 (buf_pool->stat.n_pages_made_young
-		  - buf_pool->old_stat.n_pages_made_young) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_pages_made_young
+			    - buf_pool->old_stat.n_pages_made_young)
+	/ time_elapsed;
 
 	pool_info->page_not_made_young_rate =
-		 (buf_pool->stat.n_pages_not_made_young
-		  - buf_pool->old_stat.n_pages_not_made_young) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_pages_not_made_young
+			    - buf_pool->old_stat.n_pages_not_made_young)
+	/ time_elapsed;
 
 	pool_info->pages_read_rate =
-		(buf_pool->stat.n_pages_read
-		  - buf_pool->old_stat.n_pages_read) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_pages_read
+			    - buf_pool->old_stat.n_pages_read)
+	/ time_elapsed;
 
 	pool_info->pages_created_rate =
-		(buf_pool->stat.n_pages_created
-		 - buf_pool->old_stat.n_pages_created) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_pages_created
+			    - buf_pool->old_stat.n_pages_created)
+	/ time_elapsed;
 
 	pool_info->pages_written_rate =
-		(buf_pool->stat.n_pages_written
-		 - buf_pool->old_stat.n_pages_written) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_pages_written
+			    - buf_pool->old_stat.n_pages_written)
+	/ time_elapsed;
 
 	pool_info->n_page_get_delta = buf_pool->stat.n_page_gets
 				      - buf_pool->old_stat.n_page_gets;
@@ -6154,17 +6154,20 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 			- buf_pool->old_stat.n_pages_not_made_young;
 	}
 	pool_info->pages_readahead_rnd_rate =
-		 (buf_pool->stat.n_ra_pages_read_rnd
-		  - buf_pool->old_stat.n_ra_pages_read_rnd) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_ra_pages_read_rnd
+			    - buf_pool->old_stat.n_ra_pages_read_rnd)
+	/ time_elapsed;
 
 
 	pool_info->pages_readahead_rate =
-		 (buf_pool->stat.n_ra_pages_read
-		  - buf_pool->old_stat.n_ra_pages_read) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_ra_pages_read
+			    - buf_pool->old_stat.n_ra_pages_read)
+	/ time_elapsed;
 
 	pool_info->pages_evicted_rate =
-		(buf_pool->stat.n_ra_pages_evicted
-		 - buf_pool->old_stat.n_ra_pages_evicted) / time_elapsed;
+	static_cast<double>(buf_pool->stat.n_ra_pages_evicted
+			    - buf_pool->old_stat.n_ra_pages_evicted)
+	/ time_elapsed;
 
 	pool_info->unzip_lru_len = UT_LIST_GET_LEN(buf_pool->unzip_LRU);
 
@@ -6207,8 +6210,10 @@ buf_print_io_instance(
 		pool_info->lru_len,
 		pool_info->old_lru_len,
 		pool_info->flush_list_len,
-		(((double) pool_info->flush_list_len) /
-		  (pool_info->lru_len + pool_info->free_list_len + 1.0)) * 100.0,
+		static_cast<double>(pool_info->flush_list_len)
+		/ (static_cast<double>(pool_info->lru_len
+				       + pool_info->free_list_len) + 1.0)
+		* 100.0,
 		srv_max_buf_pool_modified_pct,
 		pool_info->n_pend_reads,
 		pool_info->n_pending_flush_lru,
@@ -6233,8 +6238,9 @@ buf_print_io_instance(
 		pool_info->pages_written_rate);
 
 	if (pool_info->n_page_get_delta) {
-		double hit_rate = double(pool_info->page_read_delta)
-			/ pool_info->n_page_get_delta;
+		double hit_rate = static_cast<double>(
+			pool_info->page_read_delta)
+			/ static_cast<double>(pool_info->n_page_get_delta);
 
 		if (hit_rate > 1) {
 			hit_rate = 1;
@@ -6245,10 +6251,11 @@ buf_print_io_instance(
 			" young-making rate " ULINTPF " / 1000 not "
 			ULINTPF " / 1000\n",
 			ulint(1000 * (1 - hit_rate)),
-			ulint(1000 * double(pool_info->young_making_delta)
-			      / pool_info->n_page_get_delta),
+			ulint(1000
+			      * double(pool_info->young_making_delta)
+			      / double(pool_info->n_page_get_delta)),
 			ulint(1000 * double(pool_info->not_young_making_delta)
-			      / pool_info->n_page_get_delta));
+			      / double(pool_info->n_page_get_delta)));
 	} else {
 		fputs("No buffer pool page gets since the last printout\n",
 		      file);

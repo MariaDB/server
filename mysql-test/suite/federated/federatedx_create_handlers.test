@@ -147,8 +147,27 @@ FROM federated.t3,
        SELECT * FROM federated.t1 WHERE id >= 5) t
 WHERE federated.t3.name=t.name;
 
+--echo #
+--echo # MDEV-21887: federatedx crashes on SELECT ... INTO query in select_handler code
+--echo #
 
-DROP TABLE federated.t1, federated.t2, federated.t3;
+CREATE TABLE federated.t4 (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+) engine=myisam;
+insert into federated.t4 select * from federated.t1;
+
+--sorted_result
+select * from federated.t4;
+
+select name into @var from federated.t1 where id=3 limit 1 ;
+select @var;
+select name into outfile 'tmp.txt' from federated.t1;
+
+let $path=`select concat(@@datadir, 'test/tmp.txt')`;
+remove_file $path;
+
+DROP TABLE federated.t1, federated.t2, federated.t3, federated.t4;
 
 connection slave;
 DROP TABLE federated.t1, federated.t2;

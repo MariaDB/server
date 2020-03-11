@@ -480,7 +480,10 @@ static struct show_privileges_st sys_privileges[]=
   {"Proxy", "Server Admin", "To make proxy user possible"},
   {"References", "Databases,Tables", "To have references on tables"},
   {"Reload", "Server Admin", "To reload or refresh tables, logs and privileges"},
-  {"Replication client","Server Admin","To ask where the slave or master servers are"},
+  {"Binlog admin", "Server", "To purge binary logs"},
+  {"Binlog monitor", "Server", "To use SHOW BINLOG STATUS and SHOW BINARY LOG"},
+  {"Replication master admin", "Server", "To monitor connected slaves"},
+  {"Replication slave admin", "Server", "To start/monitor/stop slave and apply binlog events"},
   {"Replication slave","Server Admin","To read binary log events from the master"},
   {"Select", "Tables",  "To retrieve rows from table"},
   {"Show databases","Server Admin","To see all databases with SHOW DATABASES"},
@@ -490,6 +493,10 @@ static struct show_privileges_st sys_privileges[]=
   {"Trigger","Tables", "To use triggers"},
   {"Create tablespace", "Server Admin", "To create/alter/drop tablespaces"},
   {"Update", "Tables",  "To update existing rows"},
+  {"Set user","Server", "To create views and stored routines with a different definer"},
+  {"Federated admin", "Server", "To execute the CREATE SERVER, ALTER SERVER, DROP SERVER statements"},
+  {"Connection admin", "Server", "To bypass connection limits and kill other users' connections"},
+  {"Read_only admin", "Server", "To perform write operations even if @@read_only=ON"},
   {"Usage","Server Admin","No privileges - allow connect only"},
   {NullS, NullS, NullS}
 };
@@ -571,8 +578,8 @@ static bool skip_ignored_dir_check= TRUE;
 bool
 ignore_db_dirs_init()
 {
-  return my_init_dynamic_array(&ignore_db_dirs_array, sizeof(LEX_CSTRING *),
-                               0, 0, MYF(0));
+  return my_init_dynamic_array(key_memory_ignored_db, &ignore_db_dirs_array,
+                               sizeof(LEX_STRING *), 0, 0, MYF(0));
 }
 
 
@@ -620,8 +627,8 @@ push_ignored_db_dir(char *path)
     return true;
 
   // No need to normalize, it's only a directory name, not a path.
-  if (!my_multi_malloc(0,
-                       &new_elt, sizeof(LEX_CSTRING),
+  if (!my_multi_malloc(key_memory_ignored_db, MYF(0),
+                       &new_elt, sizeof(LEX_STRING),
                        &new_elt_buffer, path_len + 1,
                        NullS))
     return true;
@@ -701,7 +708,7 @@ void ignore_db_dirs_append(const char *dirname_arg)
   LEX_STRING *new_entry;
   size_t len= strlen(dirname_arg);
 
-  if (!my_multi_malloc(0,
+  if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(0),
                        &new_entry, sizeof(LEX_STRING),
                        &new_entry_buf, len + 1,
                        NullS))
@@ -723,7 +730,7 @@ void ignore_db_dirs_append(const char *dirname_arg)
   // Add one for comma and one for \0.
   size_t newlen= curlen + len + 1 + 1;
   char *new_db_dirs;
-  if (!(new_db_dirs= (char*)my_malloc(newlen ,MYF(0))))
+  if (!(new_db_dirs= (char*)my_malloc(PSI_INSTRUMENT_ME, newlen, MYF(0))))
   {
     // This is not a critical condition
     return;
@@ -749,12 +756,10 @@ ignore_db_dirs_process_additions()
 
   skip_ignored_dir_check= TRUE;
 
-  if (my_hash_init(&ignore_db_dirs_hash, 
-                   lower_case_table_names ?
-                     character_set_filesystem : &my_charset_bin,
-                   0, 0, 0, db_dirs_hash_get_key,
-                   dispose_db_dir,
-                   HASH_UNIQUE))
+  if (my_hash_init(key_memory_ignored_db, &ignore_db_dirs_hash,
+                   lower_case_table_names ?  character_set_filesystem :
+                   &my_charset_bin, 0, 0, 0, db_dirs_hash_get_key,
+                   dispose_db_dir, HASH_UNIQUE))
     return true;
 
   /* len starts from 1 because of the terminating zero. */
@@ -776,7 +781,8 @@ ignore_db_dirs_process_additions()
     len--;
 
   /* +1 the terminating zero */
-  ptr= opt_ignore_db_dirs= (char *) my_malloc(len + 1, MYF(0));
+  ptr= opt_ignore_db_dirs= (char *) my_malloc(key_memory_ignored_db, len + 1,
+                                              MYF(0));
   if (!ptr)
     return true;
 
@@ -1976,6 +1982,14 @@ static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
   packet->append(STRING_WITH_LEN(")"));
 }
 
+int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
+                      Table_specification_st *create_info_arg,
+                      enum_with_db_name with_db_name)
+{
+  return show_create_table_ex(thd, table_list, NULL, NULL, packet,
+                              create_info_arg, with_db_name);
+}
+
 /*
   Build a CREATE TABLE statement for a table.
 
@@ -1984,6 +1998,11 @@ static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
     thd               The thread
     table_list        A list containing one table to write statement
                       for.
+    force_db          If not NULL, database name to use in the CREATE
+                      TABLE statement.
+    force_name        If not NULL, table name to use in the CREATE TABLE
+                      statement. if NULL, the name from table_list will be
+                      used.
     packet            Pointer to a string where statement will be
                       written.
     create_info_arg   Pointer to create information that can be used
@@ -2000,9 +2019,11 @@ static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
     0       OK
  */
 
-int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
-                      Table_specification_st *create_info_arg,
-                      enum_with_db_name with_db_name)
+int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
+                         const char *force_db, const char *force_name,
+                         String *packet,
+                         Table_specification_st *create_info_arg,
+                         enum_with_db_name with_db_name)
 {
   List<Item> field_list;
   char tmp[MAX_FIELD_WIDTH], *for_str, def_value_buf[MAX_FIELD_WIDTH];
@@ -2052,41 +2073,55 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   packet->append(STRING_WITH_LEN("TABLE "));
   if (create_info_arg && create_info_arg->if_not_exists())
     packet->append(STRING_WITH_LEN("IF NOT EXISTS "));
-  if (table_list->schema_table)
+
+  if (force_name)
   {
-    alias.str= table_list->schema_table->table_name;
-    alias.length= strlen(alias.str);
+    if (force_db)
+    {
+      append_identifier(thd, packet, force_db, strlen(force_db));
+      packet->append(STRING_WITH_LEN("."));
+    }
+    append_identifier(thd, packet, force_name, strlen(force_name));
   }
   else
   {
-    if (lower_case_table_names == 2)
+    if (table_list->schema_table)
     {
-      alias.str= table->alias.c_ptr();
-      alias.length= table->alias.length();
+      alias.str= table_list->schema_table->table_name;
+      alias.length= strlen(alias.str);
     }
     else
-      alias= share->table_name;
-  }
-
-  /*
-    Print the database before the table name if told to do that. The
-    database name is only printed in the event that it is different
-    from the current database.  The main reason for doing this is to
-    avoid having to update gazillions of tests and result files, but
-    it also saves a few bytes of the binary log.
-   */
-  if (with_db_name == WITH_DB_NAME)
-  {
-    const LEX_CSTRING *const db=
-      table_list->schema_table ? &INFORMATION_SCHEMA_NAME : &table->s->db;
-    if (!thd->db.str || cmp(db, &thd->db))
     {
-      append_identifier(thd, packet, db);
-      packet->append(STRING_WITH_LEN("."));
+      if (lower_case_table_names == 2)
+      {
+        alias.str= table->alias.c_ptr();
+        alias.length= table->alias.length();
+      }
+      else
+        alias= share->table_name;
     }
+
+    /*
+      Print the database before the table name if told to do that. The
+      database name is only printed in the event that it is different
+      from the current database.  The main reason for doing this is to
+      avoid having to update gazillions of tests and result files, but
+      it also saves a few bytes of the binary log.
+     */
+    if (with_db_name == WITH_DB_NAME)
+    {
+      const LEX_CSTRING *const db=
+        table_list->schema_table ? &INFORMATION_SCHEMA_NAME : &table->s->db;
+      if (!thd->db.str || cmp(db, &thd->db))
+      {
+        append_identifier(thd, packet, db);
+        packet->append(STRING_WITH_LEN("."));
+      }
+    }
+
+    append_identifier(thd, packet, &alias);
   }
 
-  append_identifier(thd, packet, &alias);
   packet->append(STRING_WITH_LEN(" (\n"));
   /*
     We need this to get default values from the table
@@ -3025,8 +3060,8 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
 
   DBUG_ASSERT(cond==NULL);
   thread_id= thd->lex->value_list.head()->val_int();
-  calling_user= (thd->security_ctx->master_access & PROCESS_ACL) ?  NullS :
-                 thd->security_ctx->priv_user;
+  calling_user= (thd->security_ctx->master_access & PRIV_STMT_SHOW_EXPLAIN) ?
+                 NullS : thd->security_ctx->priv_user;
 
   if ((tmp= find_thread_by_id(thread_id)))
   {
@@ -3143,8 +3178,9 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
   const char *val;
   ulonglong max_counter;
   bool got_thd_data;
-  char *user= arg->thd->security_ctx->master_access & PROCESS_ACL ?
-              NullS : arg->thd->security_ctx->priv_user;
+  char *user=
+          arg->thd->security_ctx->master_access & PRIV_STMT_SHOW_PROCESSLIST ?
+          NullS : arg->thd->security_ctx->priv_user;
 
   if ((!tmp->vio_ok() && !tmp->system_thread) ||
       (user && (tmp->system_thread || !tmp_sctx->user ||
@@ -3277,8 +3313,9 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
   Status functions
 *****************************************************************************/
 
-static DYNAMIC_ARRAY all_status_vars;
+DYNAMIC_ARRAY all_status_vars;
 static bool status_vars_inited= 0;
+ulonglong status_var_array_version= 0;
 
 C_MODE_START
 static int show_var_cmp(const void *var1, const void *var2)
@@ -3306,6 +3343,7 @@ static void shrink_var_array(DYNAMIC_ARRAY *array)
   }
   else // array is completely empty - delete it
     delete_dynamic(array);
+  status_var_array_version++;
 }
 
 /*
@@ -3333,7 +3371,8 @@ int add_status_vars(SHOW_VAR *list)
   if (status_vars_inited)
     mysql_rwlock_wrlock(&LOCK_all_status_vars);
   if (!all_status_vars.buffer && // array is not allocated yet - do it now
-      my_init_dynamic_array(&all_status_vars, sizeof(SHOW_VAR), 250, 50, MYF(0)))
+      my_init_dynamic_array(PSI_INSTRUMENT_ME, &all_status_vars,
+                            sizeof(SHOW_VAR), 250, 50, MYF(0)))
   {
     res= 1;
     goto err;
@@ -3344,6 +3383,7 @@ int add_status_vars(SHOW_VAR *list)
   all_status_vars.elements--; // but next insert_dynamic should overwite it
   if (status_vars_inited)
     sort_dynamic(&all_status_vars, show_var_cmp);
+  status_var_array_version++;
 err:
   if (status_vars_inited)
     mysql_rwlock_unlock(&LOCK_all_status_vars);
@@ -3362,6 +3402,7 @@ void init_status_vars()
 {
   status_vars_inited=1;
   sort_dynamic(&all_status_vars, show_var_cmp);
+  status_var_array_version++;
 }
 
 void reset_status_vars()
@@ -3388,6 +3429,7 @@ void reset_status_vars()
 void free_status_vars()
 {
   delete_dynamic(&all_status_vars);
+  status_var_array_version++;
 }
 
 /*
@@ -3449,6 +3491,11 @@ void remove_status_vars(SHOW_VAR *list)
   }
 }
 
+/* Current version of the all_status_vars.  */
+ulonglong get_status_vars_version(void)
+{
+  return status_var_array_version;
+}
 
 /**
   @brief Returns the value of a system or a status variable.
@@ -4738,8 +4785,9 @@ try_acquire_high_prio_shared_mdl_lock(THD *thd, TABLE_LIST *table,
                                       bool can_deadlock)
 {
   bool error;
-  table->mdl_request.init(MDL_key::TABLE, table->db.str, table->table_name.str,
-                          MDL_SHARED_HIGH_PRIO, MDL_TRANSACTION);
+  MDL_REQUEST_INIT(&table->mdl_request, MDL_key::TABLE, table->db.str,
+                   table->table_name.str, MDL_SHARED_HIGH_PRIO,
+                   MDL_TRANSACTION);
 
   if (can_deadlock)
   {
@@ -4861,8 +4909,8 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
 
   if (schema_table->i_s_requested_object & OPEN_TRIGGER_ONLY)
   {
-    init_sql_alloc(&tbl.mem_root, "fill_schema_table_from_frm",
-                   TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+    init_sql_alloc(key_memory_table_triggers_list,
+                   &tbl.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
     if (!Table_triggers_list::check_n_load(thd, db_name,
                                            table_name, &tbl, 1))
     {
@@ -5016,7 +5064,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
   IS_table_read_plan *plan= tables->is_table_read_plan;
   enum enum_schema_tables schema_table_idx;
-  Dynamic_array<LEX_CSTRING*> db_names;
+  Dynamic_array<LEX_CSTRING*> db_names(PSI_INSTRUMENT_MEM);
   Item *partial_cond= plan->partial_cond;
   int error= 1;
   Open_tables_backup open_tables_state_backup;
@@ -5085,7 +5133,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
 
   /* Use tmp_mem_root to allocate data for opened tables */
-  init_alloc_root(&tmp_mem_root, "get_all_tables", SHOW_ALLOC_BLOCK_SIZE,
+  init_alloc_root(PSI_INSTRUMENT_ME, &tmp_mem_root, SHOW_ALLOC_BLOCK_SIZE,
                   SHOW_ALLOC_BLOCK_SIZE, MY_THREAD_SPECIFIC);
 
   for (size_t i=0; i < db_names.elements(); i++)
@@ -5100,7 +5148,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, 0))
 #endif
     {
-      Dynamic_array<LEX_CSTRING*> table_names;
+      Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
       int res= make_table_name_list(thd, &table_names, lex,
                                     &plan->lookup_field_vals, db_name);
       if (unlikely(res == 2))   /* Not fatal error, continue */
@@ -5216,7 +5264,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   */
 
   LOOKUP_FIELD_VALUES lookup_field_vals;
-  Dynamic_array<LEX_CSTRING*> db_names;
+  Dynamic_array<LEX_CSTRING*> db_names(PSI_INSTRUMENT_MEM);
   Schema_specification_st create;
   TABLE *table= tables->table;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -6200,11 +6248,11 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
   proc_table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root, &definer);
   sql_mode= (sql_mode_t) proc_table->field[MYSQL_PROC_FIELD_SQL_MODE]->val_int();
-  sph= Sp_handler::handler_mysql_proc((stored_procedure_type)
+  sph= Sp_handler::handler_mysql_proc((enum_sp_type)
                                       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->
                                       val_int());
-  if (!sph || sph->type() == TYPE_ENUM_PACKAGE ||
-      sph->type() == TYPE_ENUM_PACKAGE_BODY)
+  if (!sph || sph->type() == SP_TYPE_PACKAGE ||
+      sph->type() == SP_TYPE_PACKAGE_BODY)
     DBUG_RETURN(0);
 
   if (!full_access)
@@ -6215,7 +6263,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
 
   proc_table->field[MYSQL_PROC_FIELD_PARAM_LIST]->val_str_nopad(thd->mem_root,
                                                                 &params);
-  if (sph->type() == TYPE_ENUM_FUNCTION)
+  if (sph->type() == SP_TYPE_FUNCTION)
     proc_table->field[MYSQL_PROC_FIELD_RETURNS]->val_str_nopad(thd->mem_root,
                                                                &returns);
   sp= sph->sp_load_for_information_schema(thd, proc_table, db, name,
@@ -6228,7 +6276,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
     Sql_mode_save sql_mode_backup(thd);
     thd->variables.sql_mode= sql_mode;
 
-    if (sph->type() == TYPE_ENUM_FUNCTION)
+    if (sph->type() == SP_TYPE_FUNCTION)
     {
       restore_record(table, s->default_values);
       table->field[0]->store(STRING_WITH_LEN("def"), cs);
@@ -6312,7 +6360,7 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
   proc_table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root, &definer);
-  sph= Sp_handler::handler_mysql_proc((stored_procedure_type)
+  sph= Sp_handler::handler_mysql_proc((enum_sp_type)
                                       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->
                                       val_int());
   if (!sph)
@@ -6341,7 +6389,7 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
       copy_field_as_string(table->field[4],
                            proc_table->field[MYSQL_PROC_MYSQL_TYPE]);
 
-      if (sph->type() == TYPE_ENUM_FUNCTION)
+      if (sph->type() == SP_TYPE_FUNCTION)
       {
         sp_head *sp;
         bool free_sp_head;
@@ -9504,7 +9552,8 @@ int initialize_schema_table(st_plugin_int *plugin)
   ST_SCHEMA_TABLE *schema_table;
   DBUG_ENTER("initialize_schema_table");
 
-  if (!(schema_table= (ST_SCHEMA_TABLE *)my_malloc(sizeof(ST_SCHEMA_TABLE),
+  if (!(schema_table= (ST_SCHEMA_TABLE *)my_malloc(key_memory_ST_SCHEMA_TABLE,
+                                                   sizeof(ST_SCHEMA_TABLE),
                                                    MYF(MY_WME | MY_ZEROFILL))))
       DBUG_RETURN(1);
   /* Historical Requirement */

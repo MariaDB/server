@@ -2593,7 +2593,7 @@ ERROR 42S22: Unknown column '2' in 'order clause'
 create view v1 as with t(a) as (values (2), (1)) select a from t;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t(a) as (values (2),(1))select `t`.`a` AS `a` from `t`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t(`a`) as (values (2),(1))select `t`.`a` AS `a` from `t`	latin1	latin1_swedish_ci
 select * from v1;
 a
 2

@@ -869,15 +869,6 @@ page_get_free_space_of_empty(
 /*=========================*/
 	ulint	comp)	/*!< in: nonzero=compact page format */
 		MY_ATTRIBUTE((const));
-/**********************************************************//**
-Returns the base extra size of a physical record.  This is the
-size of the fixed header, independent of the record size.
-@return REC_N_NEW_EXTRA_BYTES or REC_N_OLD_EXTRA_BYTES */
-UNIV_INLINE
-ulint
-page_rec_get_base_extra_size(
-/*=========================*/
-	const rec_t*	rec);	/*!< in: physical record */
 /************************************************************//**
 Returns the sum of the sizes of the records in the record list
 excluding the infimum and supremum records.

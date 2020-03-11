@@ -113,6 +113,7 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_reload.h"  // reload_acl_and_cache
+#include "sp_head.h"  // init_sp_psi_keys
 
 #ifdef HAVE_POLL_H
 #include <poll.h>
@@ -320,10 +321,6 @@ MY_TIMER_INFO sys_timer_info;
 static PSI_rwlock_key key_rwlock_openssl;
 #endif
 #endif /* HAVE_PSI_INTERFACE */
-
-#ifdef HAVE_NPTL
-volatile sig_atomic_t ld_assume_kernel_is_set= 0;
-#endif
 
 /**
   Statement instrumentation key for replication.
@@ -789,8 +786,8 @@ static struct my_option pfs_early_options[]=
   {"performance_schema_consumer_events_statements_current", 0,
     "Default startup value for the events_statements_current consumer.",
     &pfs_param.m_consumer_events_statements_current_enabled,
-    &pfs_param.m_consumer_events_statements_current_enabled, 0,
-    GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0},
+    &pfs_param.m_consumer_events_statements_current_enabled, 0, GET_BOOL,
+    OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_statements_history", 0,
     "Default startup value for the events_statements_history consumer.",
     &pfs_param.m_consumer_events_statements_history_enabled,
@@ -800,6 +797,21 @@ static struct my_option pfs_early_options[]=
     "Default startup value for the events_statements_history_long consumer.",
     &pfs_param.m_consumer_events_statements_history_long_enabled,
     &pfs_param.m_consumer_events_statements_history_long_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_transactions_current", 0,
+    "Default startup value for the events_transactions_current consumer.",
+    &pfs_param.m_consumer_events_transactions_current_enabled,
+    &pfs_param.m_consumer_events_transactions_current_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_transactions_history", 0,
+    "Default startup value for the events_transactions_history consumer.",
+    &pfs_param.m_consumer_events_transactions_history_enabled,
+    &pfs_param.m_consumer_events_transactions_history_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_transactions_history_long", 0,
+    "Default startup value for the events_transactions_history_long consumer.",
+    &pfs_param.m_consumer_events_transactions_history_long_enabled,
+    &pfs_param.m_consumer_events_transactions_history_long_enabled, 0,
     GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_waits_current", 0,
     "Default startup value for the events_waits_current consumer.",
@@ -837,6 +849,19 @@ static struct my_option pfs_early_options[]=
     &my_getopt_prefix_matching, &my_getopt_prefix_matching, 0, GET_BOOL,
     NO_ARG, 1, 0, 1, 0, 0, 0}
 };
+
+PSI_file_key key_file_binlog,  key_file_binlog_cache, key_file_binlog_index,
+  key_file_binlog_index_cache, key_file_casetest,
+  key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
+  key_file_fileparser, key_file_frm, key_file_global_ddl_log, key_file_load,
+  key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
+  key_file_master_info, key_file_misc, key_file_partition_ddl_log,
+  key_file_pid, key_file_relay_log_info, key_file_send_file, key_file_tclog,
+  key_file_trg, key_file_trn, key_file_init;
+PSI_file_key key_file_query_log, key_file_slow_log;
+PSI_file_key key_file_relaylog, key_file_relaylog_index,
+             key_file_relaylog_cache, key_file_relaylog_index_cache;
+PSI_file_key key_file_binlog_state;
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
@@ -1110,17 +1135,6 @@ static PSI_thread_info all_server_threads[]=
 PSI_file_key key_file_map;
 #endif /* HAVE_MMAP */
 
-PSI_file_key key_file_binlog, key_file_binlog_index, key_file_casetest,
-  key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
-  key_file_fileparser, key_file_frm, key_file_global_ddl_log, key_file_load,
-  key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
-  key_file_master_info, key_file_misc, key_file_partition,
-  key_file_pid, key_file_relay_log_info, key_file_send_file, key_file_tclog,
-  key_file_trg, key_file_trn, key_file_init;
-PSI_file_key key_file_query_log, key_file_slow_log;
-PSI_file_key key_file_relaylog, key_file_relaylog_index;
-PSI_file_key key_file_binlog_state;
-
 #endif /* HAVE_PSI_INTERFACE */
 
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
@@ -1168,9 +1182,9 @@ void net_after_header_psi(struct st_net *net, void *user_data,
     thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                 stmt_info_new_packet.m_key,
                                                 thd->get_db(), thd->db.length,
-                                                thd->charset());
+                                                thd->charset(), NULL);
 
-    THD_STAGE_INFO(thd, stage_init);
+    THD_STAGE_INFO(thd, stage_starting);
   }
 
   /*
@@ -1296,7 +1310,7 @@ private:
 
 void Buffered_logs::init()
 {
-  init_alloc_root(&m_root, "Buffered_logs", 1024, 0, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &m_root, 1024, 0, MYF(0));
 }
 
 void Buffered_logs::cleanup()
@@ -1676,7 +1690,7 @@ void kill_mysql(THD *thd)
 
   make_user_name(thd, user_host_buff);
 
-  if ((user= my_strdup(user_host_buff, MYF(0))) &&
+  if ((user= my_strdup(PSI_NOT_INSTRUMENTED, user_host_buff, MYF(0))) &&
       !shutdown_user.compare_exchange_strong(expected_shutdown_user,
                                              user,
                                              std::memory_order_relaxed,
@@ -2953,8 +2967,7 @@ void init_signals(void)
   sa.sa_flags = 0;
   sa.sa_handler = print_signal_warning;
   sigaction(SIGHUP, &sa, (struct sigaction*) 0);
-  if (thd_lib_detected != THD_LIB_LT)
-    sigaddset(&set,THR_SERVER_ALARM);
+  sigaddset(&set,THR_SERVER_ALARM);
   if (test_flags & TEST_SIGINT)
   {
     /* Allow SIGINT to break mysqld. This is for debugging with --gdb */
@@ -3211,9 +3224,17 @@ extern "C" void *my_str_malloc_mysqld(size_t size);
 
 void *my_str_malloc_mysqld(size_t size)
 {
-  return my_malloc(size, MYF(MY_FAE));
+  return my_malloc(key_memory_my_str_malloc, size, MYF(MY_FAE));
 }
 
+
+#if 0
+extern "C" void *my_str_realloc_mysqld(void *ptr, size_t size);
+void *my_str_realloc_mysqld(void *ptr, size_t size)
+{
+  return my_realloc(key_memory_my_str_malloc, ptr, size, MYF(MY_FAE));
+}
+#endif
 
 #include <mysqld_default_groups.h>
 
@@ -3423,7 +3444,7 @@ SHOW_VAR com_status_vars[]= {
   {"show_generic",         STMT_STATUS(SQLCOM_SHOW_GENERIC)},
   {"show_grants",          STMT_STATUS(SQLCOM_SHOW_GRANTS)},
   {"show_keys",            STMT_STATUS(SQLCOM_SHOW_KEYS)},
-  {"show_master_status",   STMT_STATUS(SQLCOM_SHOW_MASTER_STAT)},
+  {"show_binlog_status",   STMT_STATUS(SQLCOM_SHOW_BINLOG_STAT)},
   {"show_open_tables",     STMT_STATUS(SQLCOM_SHOW_OPEN_TABLES)},
   {"show_package_status",  STMT_STATUS(SQLCOM_SHOW_STATUS_PACKAGE)},
 #ifndef DBUG_OFF
@@ -3637,10 +3658,8 @@ int json_unescape_json(const char *json_str, const char *json_end,
   @returns Pointer to string containing the full file path, or NULL if
   it was not possible to create the path.
  */
-static inline const char *
-rpl_make_log_name(const char *opt,
-                  const char *def,
-                  const char *ext)
+static const char *rpl_make_log_name(PSI_memory_key key, const char *opt,
+                                     const char *def, const char *ext)
 {
   DBUG_ENTER("rpl_make_log_name");
   DBUG_PRINT("enter", ("opt: %s, def: %s, ext: %s", opt, def, ext));
@@ -3658,7 +3677,7 @@ rpl_make_log_name(const char *opt,
     mysql_real_data_home_ptr= mysql_real_data_home;
 
   if (fn_format(buff, base, mysql_real_data_home_ptr, ext, options))
-    DBUG_RETURN(my_strdup(buff, MYF(MY_WME)));
+    DBUG_RETURN(my_strdup(key, buff, MYF(MY_WME)));
   else
     DBUG_RETURN(NULL);
 }
@@ -3794,7 +3813,9 @@ static int init_common_variables()
                              key_BINLOG_COND_relay_log_updated,
                              key_BINLOG_COND_bin_log_updated,
                              key_file_binlog,
+                             key_file_binlog_cache,
                              key_file_binlog_index,
+                             key_file_binlog_index_cache,
                              key_BINLOG_COND_queue_busy,
                              key_LOCK_binlog_end_pos);
 #endif
@@ -4981,10 +5002,12 @@ static int init_server_components()
     }
 
     log_bin_basename=
-      rpl_make_log_name(opt_bin_logname, pidfile_name,
+      rpl_make_log_name(key_memory_MYSQL_BIN_LOG_basename,
+                        opt_bin_logname, pidfile_name,
                         opt_bin_logname ? "" : "-bin");
     log_bin_index=
-      rpl_make_log_name(opt_binlog_index_name, log_bin_basename, ".index");
+      rpl_make_log_name(key_memory_MYSQL_BIN_LOG_index,
+                        opt_binlog_index_name, log_bin_basename, ".index");
     if (log_bin_basename == NULL || log_bin_index == NULL)
     {
       sql_print_error("Unable to create replication path names:"
@@ -5002,10 +5025,12 @@ static int init_server_components()
   if (opt_relay_logname)
   {
     relay_log_basename=
-      rpl_make_log_name(opt_relay_logname, pidfile_name,
+      rpl_make_log_name(key_memory_MYSQL_RELAY_LOG_basename,
+                        opt_relay_logname, pidfile_name,
                         opt_relay_logname ? "" : "-relay-bin");
     relay_log_index=
-      rpl_make_log_name(opt_relaylog_index_name, relay_log_basename, ".index");
+      rpl_make_log_name(key_memory_MYSQL_RELAY_LOG_index,
+                        opt_relaylog_index_name, relay_log_basename, ".index");
     if (relay_log_basename == NULL || relay_log_index == NULL)
     {
       sql_print_error("Unable to create replication path names:"
@@ -5351,10 +5376,10 @@ int mysqld_main(int argc, char **argv)
   if (init_early_variables())
     exit(1);
 
-#ifdef HAVE_NPTL
-  ld_assume_kernel_is_set= (getenv("LD_ASSUME_KERNEL") != 0);
-#endif
 #ifndef _WIN32
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+  pre_initialize_performance_schema();
+#endif /*WITH_PERFSCHEMA_STORAGE_ENGINE */
   // For windows, my_init() is called from the win specific mysqld_main
   if (my_init())                 // init my_sys library & pthreads
   {
@@ -5454,6 +5479,7 @@ int mysqld_main(int argc, char **argv)
       init_server_psi_keys();
       /* Instrument the main thread */
       PSI_thread *psi= PSI_CALL_new_thread(key_thread_main, NULL, 0);
+      PSI_CALL_set_thread_os_id(psi);
       PSI_CALL_set_thread(psi);
 
       /*
@@ -5733,7 +5759,7 @@ int mysqld_main(int argc, char **argv)
   mysql_cond_broadcast(&COND_server_started);
   mysql_mutex_unlock(&LOCK_server_started);
 
-  MYSQL_SET_STAGE(0 ,__FILE__, __LINE__);
+  (void)MYSQL_SET_STAGE(0 ,__FILE__, __LINE__);
 
   /* Memory used when everything is setup */
   start_memory_used= global_status_var.global_memory_used;
@@ -5917,6 +5943,10 @@ int mysqld_main(int argc, char **argv)
 
   /* Must be initialized early for comparison of service name */
   system_charset_info= &my_charset_utf8mb3_general_ci;
+
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+  pre_initialize_performance_schema();
+#endif /*WITH_PERFSCHEMA_STORAGE_ENGINE */
 
   if (my_init())
   {
@@ -6381,7 +6411,8 @@ int handle_early_options()
   my_getopt_skip_unknown= TRUE;
 
   /* prepare all_early_options array */
-  my_init_dynamic_array(&all_early_options, sizeof(my_option), 100, 25, MYF(0));
+  my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &all_early_options,
+                        sizeof(my_option), 100, 25, MYF(0));
   add_many_options(&all_early_options, pfs_early_options,
                   array_elements(pfs_early_options));
   sys_var_add_options(&all_early_options, sys_var::PARSE_EARLY);
@@ -7700,7 +7731,7 @@ static int option_cmp(my_option *a, my_option *b)
 static void print_help()
 {
   MEM_ROOT mem_root;
-  init_alloc_root(&mem_root, "help", 4096, 4096, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &mem_root, 4096, 4096, MYF(0));
 
   pop_dynamic(&all_options);
   add_many_options(&all_options, pfs_early_options,
@@ -8555,7 +8586,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   my_getopt_error_reporter= option_error_reporter;
 
   /* prepare all_options array */
-  my_init_dynamic_array(&all_options, sizeof(my_option),
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &all_options, sizeof(my_option),
                         array_elements(my_long_options) + sys_var_elements(),
                         array_elements(my_long_options)/4, MYF(0));
   add_many_options(&all_options, my_long_options, array_elements(my_long_options));
@@ -8987,7 +9018,7 @@ static int fix_paths(void)
         sql_print_warning("Failed to normalize the argument for --secure-file-priv.");
         DBUG_RETURN(1);
       }
-      char *secure_file_real_path= (char *)my_malloc(FN_REFLEN, MYF(MY_FAE));
+      char *secure_file_real_path= (char *)my_malloc(PSI_INSTRUMENT_ME, FN_REFLEN, MYF(MY_FAE));
       convert_dirname(secure_file_real_path, buff, NullS);
       my_free(opt_secure_file_priv);
       opt_secure_file_priv= secure_file_real_path;
@@ -9088,6 +9119,11 @@ void refresh_status(THD *thd)
 {
   mysql_mutex_lock(&LOCK_status);
 
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+  /* Reset aggregated status counters. */
+  reset_pfs_status_stats();
+#endif
+
   /* Add thread's status variabes to global status */
   add_to_status(&global_status_var, &thd->status_var);
 
@@ -9125,9 +9161,14 @@ static PSI_file_info all_server_files[]=
   { &key_file_map, "map", 0},
 #endif /* HAVE_MMAP */
   { &key_file_binlog, "binlog", 0},
+  { &key_file_binlog_cache, "binlog_cache", 0},
   { &key_file_binlog_index, "binlog_index", 0},
+  { &key_file_binlog_index_cache, "binlog_index_cache", 0},
   { &key_file_relaylog, "relaylog", 0},
+  { &key_file_relaylog_cache, "relaylog_cache", 0},
   { &key_file_relaylog_index, "relaylog_index", 0},
+  { &key_file_relaylog_index_cache, "relaylog_index_cache", 0},
+  { &key_file_io_cache, "io_cache", 0},
   { &key_file_casetest, "casetest", 0},
   { &key_file_dbopt, "dbopt", 0},
   { &key_file_des_key_file, "des_key_file", 0},
@@ -9142,7 +9183,7 @@ static PSI_file_info all_server_files[]=
   { &key_file_log_event_info, "log_event_info", 0},
   { &key_file_master_info, "master_info", 0},
   { &key_file_misc, "misc", 0},
-  { &key_file_partition, "partition", 0},
+  { &key_file_partition_ddl_log, "partition_ddl_log", 0},
   { &key_file_pid, "pid", 0},
   { &key_file_query_log, "query_log", 0},
   { &key_file_relay_log_info, "relay_log_info", 0},
@@ -9161,25 +9202,25 @@ PSI_stage_info stage_after_create= { 0, "After create", 0};
 PSI_stage_info stage_after_opening_tables= { 0, "After opening tables", 0};
 PSI_stage_info stage_after_table_lock= { 0, "After table lock", 0};
 PSI_stage_info stage_allocating_local_table= { 0, "Allocating local table", 0};
-PSI_stage_info stage_alter_inplace_prepare= { 0, "Preparing for alter table", 0};
-PSI_stage_info stage_alter_inplace= { 0, "Altering table", 0};
+PSI_stage_info stage_alter_inplace_prepare= { 0, "preparing for alter table", 0};
+PSI_stage_info stage_alter_inplace= { 0, "altering table", 0};
 PSI_stage_info stage_alter_inplace_commit= { 0, "Committing alter table to storage engine", 0};
 PSI_stage_info stage_apply_event= { 0, "Apply log event", 0};
 PSI_stage_info stage_changing_master= { 0, "Changing master", 0};
 PSI_stage_info stage_checking_master_version= { 0, "Checking master version", 0};
-PSI_stage_info stage_checking_permissions= { 0, "Checking permissions", 0};
-PSI_stage_info stage_checking_privileges_on_cached_query= { 0, "Checking privileges on cached query", 0};
+PSI_stage_info stage_checking_permissions= { 0, "checking permissions", 0};
+PSI_stage_info stage_checking_privileges_on_cached_query= { 0, "checking privileges on cached query", 0};
 PSI_stage_info stage_checking_query_cache_for_query= { 0, "Checking query cache for query", 0};
 PSI_stage_info stage_cleaning_up= { 0, "Reset for next command", 0};
-PSI_stage_info stage_closing_tables= { 0, "Closing tables", 0};
+PSI_stage_info stage_closing_tables= { 0, "closing tables", 0};
 PSI_stage_info stage_connecting_to_master= { 0, "Connecting to master", 0};
 PSI_stage_info stage_converting_heap_to_myisam= { 0, "Converting HEAP to " TMP_ENGINE_NAME, 0};
 PSI_stage_info stage_copying_to_group_table= { 0, "Copying to group table", 0};
 PSI_stage_info stage_copying_to_tmp_table= { 0, "Copying to tmp table", 0};
-PSI_stage_info stage_copy_to_tmp_table= { 0, "Copy to tmp table", 0};
+PSI_stage_info stage_copy_to_tmp_table= { 0, "copy to tmp table", PSI_FLAG_STAGE_PROGRESS};
 PSI_stage_info stage_creating_delayed_handler= { 0, "Creating delayed handler", 0};
 PSI_stage_info stage_creating_sort_index= { 0, "Creating sort index", 0};
-PSI_stage_info stage_creating_table= { 0, "Creating table", 0};
+PSI_stage_info stage_creating_table= { 0, "creating table", 0};
 PSI_stage_info stage_creating_tmp_table= { 0, "Creating tmp table", 0};
 PSI_stage_info stage_deleting_from_main_table= { 0, "Deleting from main table", 0};
 PSI_stage_info stage_deleting_from_reference_tables= { 0, "Deleting from reference tables", 0};
@@ -9197,17 +9238,17 @@ PSI_stage_info stage_freeing_items= { 0, "Freeing items", 0};
 PSI_stage_info stage_fulltext_initialization= { 0, "Fulltext initialization", 0};
 PSI_stage_info stage_got_handler_lock= { 0, "Got handler lock", 0};
 PSI_stage_info stage_got_old_table= { 0, "Got old table", 0};
-PSI_stage_info stage_init= { 0, "Init", 0};
-PSI_stage_info stage_init_update= { 0, "Init for update", 0};
+PSI_stage_info stage_init= { 0, "init", 0};
+PSI_stage_info stage_init_update= { 0, "init for update", 0};
 PSI_stage_info stage_insert= { 0, "Insert", 0};
 PSI_stage_info stage_invalidating_query_cache_entries_table= { 0, "Invalidating query cache entries (table)", 0};
 PSI_stage_info stage_invalidating_query_cache_entries_table_list= { 0, "Invalidating query cache entries (table list)", 0};
 PSI_stage_info stage_killing_slave= { 0, "Killing slave", 0};
 PSI_stage_info stage_logging_slow_query= { 0, "Logging slow query", 0};
-PSI_stage_info stage_making_temp_file_append_before_load_data= { 0, "Making temporary file (append) before replaying LOAD DATA INFILE.", 0};
-PSI_stage_info stage_making_temp_file_create_before_load_data= { 0, "Making temporary file (create) before replaying LOAD DATA INFILE.", 0};
+PSI_stage_info stage_making_temp_file_append_before_load_data= { 0, "Making temporary file (append) before replaying LOAD DATA INFILE", 0};
+PSI_stage_info stage_making_temp_file_create_before_load_data= { 0, "Making temporary file (create) before replaying LOAD DATA INFILE", 0};
 PSI_stage_info stage_manage_keys= { 0, "Manage keys", 0};
-PSI_stage_info stage_master_has_sent_all_binlog_to_slave= { 0, "Master has sent all binlog to slave; waiting for binlog to be updated", 0};
+PSI_stage_info stage_master_has_sent_all_binlog_to_slave= { 0, "Master has sent all binlog to slave; waiting for more updates", 0};
 PSI_stage_info stage_opening_tables= { 0, "Opening tables", 0};
 PSI_stage_info stage_optimizing= { 0, "Optimizing", 0};
 PSI_stage_info stage_preparing= { 0, "Preparing", 0};
@@ -9217,7 +9258,7 @@ PSI_stage_info stage_starting_cleanup= { 0, "Starting cleanup", 0};
 PSI_stage_info stage_rollback= { 0, "Rollback", 0};
 PSI_stage_info stage_rollback_implicit= { 0, "Rollback_implicit", 0};
 PSI_stage_info stage_commit= { 0, "Commit", 0};
-PSI_stage_info stage_commit_implicit= { 0, "Commit_implicit", 0};
+PSI_stage_info stage_commit_implicit= { 0, "Commit implicit", 0};
 PSI_stage_info stage_queueing_master_event_to_the_relay_log= { 0, "Queueing master event to the relay log", 0};
 PSI_stage_info stage_reading_event_from_the_relay_log= { 0, "Reading event from the relay log", 0};
 PSI_stage_info stage_recreating_table= { 0, "Recreating table", 0};
@@ -9232,9 +9273,9 @@ PSI_stage_info stage_searching_rows_for_update= { 0, "Searching rows for update"
 PSI_stage_info stage_sending_binlog_event_to_slave= { 0, "Sending binlog event to slave", 0};
 PSI_stage_info stage_sending_cached_result_to_client= { 0, "Sending cached result to client", 0};
 PSI_stage_info stage_sending_data= { 0, "Sending data", 0};
-PSI_stage_info stage_setup= { 0, "Setup", 0};
+PSI_stage_info stage_setup= { 0, "setup", 0};
 PSI_stage_info stage_show_explain= { 0, "Show explain", 0};
-PSI_stage_info stage_slave_has_read_all_relay_log= { 0, "Slave has read all relay log; waiting for the slave I/O thread to update it", 0};
+PSI_stage_info stage_slave_has_read_all_relay_log= { 0, "Slave has read all relay log; waiting for more updates", 0};
 PSI_stage_info stage_sorting= { 0, "Sorting", 0};
 PSI_stage_info stage_sorting_for_group= { 0, "Sorting for group", 0};
 PSI_stage_info stage_sorting_for_order= { 0, "Sorting for order", 0};
@@ -9245,7 +9286,7 @@ PSI_stage_info stage_storing_result_in_query_cache= { 0, "Storing result in quer
 PSI_stage_info stage_storing_row_into_queue= { 0, "Storing row into queue", 0};
 PSI_stage_info stage_system_lock= { 0, "System lock", 0};
 PSI_stage_info stage_unlocking_tables= { 0, "Unlocking tables", 0};
-PSI_stage_info stage_table_lock= { 0, "Table lock", 0};
+PSI_stage_info stage_table_lock= { 0, "table lock", 0};
 PSI_stage_info stage_filling_schema_table= { 0, "Filling schema table", 0};
 PSI_stage_info stage_update= { 0, "Update", 0};
 PSI_stage_info stage_updating= { 0, "Updating", 0};
@@ -9275,14 +9316,13 @@ PSI_stage_info stage_waiting_for_query_cache_lock= { 0, "Waiting for query cache
 PSI_stage_info stage_waiting_for_the_next_event_in_relay_log= { 0, "Waiting for the next event in relay log", 0};
 PSI_stage_info stage_waiting_for_the_slave_thread_to_advance_position= { 0, "Waiting for the slave SQL thread to advance position", 0};
 PSI_stage_info stage_waiting_to_finalize_termination= { 0, "Waiting to finalize termination", 0};
-PSI_stage_info stage_waiting_to_get_readlock= { 0, "Waiting to get readlock", 0};
 PSI_stage_info stage_binlog_waiting_background_tasks= { 0, "Waiting for background binlog tasks", 0};
 PSI_stage_info stage_binlog_write= { 0, "Writing to binlog", 0};
 PSI_stage_info stage_binlog_processing_checkpoint_notify= { 0, "Processing binlog checkpoint notification", 0};
 PSI_stage_info stage_binlog_stopping_background_thread= { 0, "Stopping binlog background thread", 0};
 PSI_stage_info stage_waiting_for_work_from_sql_thread= { 0, "Waiting for work from SQL thread", 0};
 PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for prior transaction to commit", 0};
-PSI_stage_info stage_waiting_for_prior_transaction_to_start_commit= { 0, "Waiting for prior transaction to start commit before starting next transaction", 0};
+PSI_stage_info stage_waiting_for_prior_transaction_to_start_commit= { 0, "Waiting for prior transaction to start commit", 0};
 PSI_stage_info stage_waiting_for_room_in_worker_thread= { 0, "Waiting for room in worker thread event queue", 0};
 PSI_stage_info stage_waiting_for_workers_idle= { 0, "Waiting for worker threads to be idle", 0};
 PSI_stage_info stage_waiting_for_ftwrl= { 0, "Waiting due to global read lock", 0};
@@ -9290,10 +9330,92 @@ PSI_stage_info stage_waiting_for_ftwrl_threads_to_pause= { 0, "Waiting for worke
 PSI_stage_info stage_waiting_for_rpl_thread_pool= { 0, "Waiting while replication worker thread pool is busy", 0};
 PSI_stage_info stage_master_gtid_wait_primary= { 0, "Waiting in MASTER_GTID_WAIT() (primary waiter)", 0};
 PSI_stage_info stage_master_gtid_wait= { 0, "Waiting in MASTER_GTID_WAIT()", 0};
-PSI_stage_info stage_gtid_wait_other_connection= { 0, "Waiting for other master connection to process GTID received on multiple master connections", 0};
+PSI_stage_info stage_gtid_wait_other_connection= { 0, "Waiting for other master connection to process the same GTID", 0};
 PSI_stage_info stage_slave_background_process_request= { 0, "Processing requests", 0};
 PSI_stage_info stage_slave_background_wait_request= { 0, "Waiting for requests", 0};
 PSI_stage_info stage_waiting_for_deadlock_kill= { 0, "Waiting for parallel replication deadlock handling to complete", 0};
+PSI_stage_info stage_starting= { 0, "starting", 0};
+
+PSI_memory_key key_memory_DATE_TIME_FORMAT;
+PSI_memory_key key_memory_DDL_LOG_MEMORY_ENTRY;
+PSI_memory_key key_memory_Event_queue_element_for_exec_names;
+PSI_memory_key key_memory_Event_scheduler_scheduler_param;
+PSI_memory_key key_memory_Filesort_info_merge;
+PSI_memory_key key_memory_Filesort_info_record_pointers;
+PSI_memory_key key_memory_Gis_read_stream_err_msg;
+PSI_memory_key key_memory_JOIN_CACHE;
+PSI_memory_key key_memory_MPVIO_EXT_auth_info;
+PSI_memory_key key_memory_MYSQL_BIN_LOG_basename;
+PSI_memory_key key_memory_MYSQL_BIN_LOG_index;
+PSI_memory_key key_memory_MYSQL_LOCK;
+PSI_memory_key key_memory_MYSQL_LOG_name;
+PSI_memory_key key_memory_MYSQL_RELAY_LOG_basename;
+PSI_memory_key key_memory_MYSQL_RELAY_LOG_index;
+PSI_memory_key key_memory_NAMED_ILINK_name;
+PSI_memory_key key_memory_PROFILE;
+PSI_memory_key key_memory_QUICK_RANGE_SELECT_mrr_buf_desc;
+PSI_memory_key key_memory_Query_cache;
+PSI_memory_key key_memory_Relay_log_info_group_relay_log_name;
+PSI_memory_key key_memory_Row_data_memory_memory;
+PSI_memory_key key_memory_Rpl_info_file_buffer;
+PSI_memory_key key_memory_SLAVE_INFO;
+PSI_memory_key key_memory_ST_SCHEMA_TABLE;
+PSI_memory_key key_memory_Sort_param_tmp_buffer;
+PSI_memory_key key_memory_Sys_var_charptr_value;
+PSI_memory_key key_memory_TABLE;
+PSI_memory_key key_memory_TABLE_RULE_ENT;
+PSI_memory_key key_memory_TC_LOG_MMAP_pages;
+PSI_memory_key key_memory_THD_db;
+PSI_memory_key key_memory_THD_handler_tables_hash;
+PSI_memory_key key_memory_THD_variables;
+PSI_memory_key key_memory_Table_trigger_dispatcher;
+PSI_memory_key key_memory_Unique_merge_buffer;
+PSI_memory_key key_memory_Unique_sort_buffer;
+PSI_memory_key key_memory_User_level_lock;
+PSI_memory_key key_memory_XID;
+PSI_memory_key key_memory_acl_cache;
+PSI_memory_key key_memory_acl_mem;
+PSI_memory_key key_memory_acl_memex;
+PSI_memory_key key_memory_binlog_cache_mngr;
+PSI_memory_key key_memory_binlog_pos;
+PSI_memory_key key_memory_binlog_recover_exec;
+PSI_memory_key key_memory_binlog_statement_buffer;
+PSI_memory_key key_memory_binlog_ver_1_event;
+PSI_memory_key key_memory_bison_stack;
+PSI_memory_key key_memory_blob_mem_storage;
+PSI_memory_key key_memory_dboptions_hash;
+PSI_memory_key key_memory_errmsgs;
+PSI_memory_key key_memory_frm_string;
+PSI_memory_key key_memory_gdl;
+PSI_memory_key key_memory_global_system_variables;
+PSI_memory_key key_memory_handler_errmsgs;
+PSI_memory_key key_memory_handlerton;
+PSI_memory_key key_memory_hash_index_key_buffer;
+PSI_memory_key key_memory_host_cache_hostname;
+PSI_memory_key key_memory_ignored_db;
+PSI_memory_key key_memory_locked_table_list;
+PSI_memory_key key_memory_locked_thread_list;
+PSI_memory_key key_memory_my_str_malloc;
+PSI_memory_key key_memory_native_functions;
+PSI_memory_key key_memory_prepared_statement_main_mem_root;
+PSI_memory_key key_memory_prepared_statement_map;
+PSI_memory_key key_memory_queue_item;
+PSI_memory_key key_memory_quick_range_select_root;
+PSI_memory_key key_memory_rpl_filter;
+PSI_memory_key key_memory_sp_cache;
+PSI_memory_key key_memory_sp_head_call_root;
+PSI_memory_key key_memory_sp_head_execute_root;
+PSI_memory_key key_memory_sp_head_main_root;
+PSI_memory_key key_memory_table_mapping_root;
+PSI_memory_key key_memory_table_share;
+PSI_memory_key key_memory_table_triggers_list;
+PSI_memory_key key_memory_thd_main_mem_root;
+PSI_memory_key key_memory_thd_transactions;
+PSI_memory_key key_memory_user_conn;
+PSI_memory_key key_memory_user_var_entry;
+PSI_memory_key key_memory_user_var_entry_value;
+
+PSI_memory_key key_memory_String_value;
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -9422,7 +9544,6 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_for_the_slave_thread_to_advance_position,
   & stage_waiting_for_work_from_sql_thread,
   & stage_waiting_to_finalize_termination,
-  & stage_waiting_to_get_readlock,
   & stage_master_gtid_wait_primary,
   & stage_master_gtid_wait,
   & stage_gtid_wait_other_connection,
@@ -9431,7 +9552,8 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_for_semi_sync_ack_from_slave,
   & stage_waiting_for_semi_sync_slave,
   & stage_reading_semi_sync_ack,
-  & stage_waiting_for_deadlock_kill
+  & stage_waiting_for_deadlock_kill,
+  & stage_starting
 };
 
 PSI_socket_key key_socket_tcpip, key_socket_unix, key_socket_client_connection;
@@ -9441,6 +9563,145 @@ static PSI_socket_info all_server_sockets[]=
   { &key_socket_tcpip, "server_tcpip_socket", PSI_FLAG_GLOBAL},
   { &key_socket_unix, "server_unix_socket", PSI_FLAG_GLOBAL},
   { &key_socket_client_connection, "client_connection", 0}
+};
+
+static PSI_memory_info all_server_memory[]=
+{
+  { &key_memory_locked_table_list, "Locked_tables_list::m_locked_tables_root", 0},
+  { &key_memory_locked_thread_list, "display_table_locks", PSI_FLAG_THREAD},
+  { &key_memory_thd_transactions, "THD::transactions::mem_root", PSI_FLAG_THREAD},
+//  { &key_memory_delegate, "Delegate::memroot", 0},
+  { &key_memory_acl_mem, "sql_acl_mem", PSI_FLAG_GLOBAL},
+  { &key_memory_acl_memex, "sql_acl_memex", PSI_FLAG_GLOBAL},
+  { &key_memory_acl_cache, "acl_cache", PSI_FLAG_GLOBAL},
+  { &key_memory_thd_main_mem_root, "thd::main_mem_root", PSI_FLAG_THREAD},
+//  { &key_memory_help, "help", 0},
+//  { &key_memory_new_frm_mem, "new_frm_mem", 0},
+  { &key_memory_table_share, "TABLE_SHARE::mem_root", PSI_FLAG_GLOBAL}, /* table definition cache */
+  { &key_memory_gdl, "gdl", 0},
+  { &key_memory_table_triggers_list, "Table_triggers_list", 0},
+//  { &key_memory_servers, "servers", 0},
+  { &key_memory_prepared_statement_map, "Prepared_statement_map", PSI_FLAG_THREAD},
+  { &key_memory_prepared_statement_main_mem_root, "Prepared_statement::main_mem_root", PSI_FLAG_THREAD},
+//  { &key_memory_protocol_rset_root, "Protocol_local::m_rset_root", PSI_FLAG_THREAD},
+//  { &key_memory_warning_info_warn_root, "Warning_info::m_warn_root", PSI_FLAG_THREAD},
+  { &key_memory_sp_cache, "THD::sp_cache", 0},
+  { &key_memory_sp_head_main_root, "sp_head::main_mem_root", 0},
+  { &key_memory_sp_head_execute_root, "sp_head::execute_mem_root", PSI_FLAG_THREAD},
+  { &key_memory_sp_head_call_root, "sp_head::call_mem_root", PSI_FLAG_THREAD},
+  { &key_memory_table_mapping_root, "table_mapping::m_mem_root", 0},
+  { &key_memory_quick_range_select_root, "QUICK_RANGE_SELECT::alloc", PSI_FLAG_THREAD},
+//  { &key_memory_quick_index_merge_root, "QUICK_INDEX_MERGE_SELECT::alloc", PSI_FLAG_THREAD},
+//  { &key_memory_quick_ror_intersect_select_root, "QUICK_ROR_INTERSECT_SELECT::alloc", PSI_FLAG_THREAD},
+//  { &key_memory_quick_ror_union_select_root, "QUICK_ROR_UNION_SELECT::alloc", PSI_FLAG_THREAD},
+//  { &key_memory_quick_group_min_max_select_root, "QUICK_GROUP_MIN_MAX_SELECT::alloc", PSI_FLAG_THREAD},
+//  { &key_memory_test_quick_select_exec, "test_quick_select", PSI_FLAG_THREAD},
+//  { &key_memory_prune_partitions_exec, "prune_partitions::exec", 0},
+  { &key_memory_binlog_recover_exec, "MYSQL_BIN_LOG::recover", 0},
+  { &key_memory_blob_mem_storage, "Blob_mem_storage::storage", 0},
+  { &key_memory_NAMED_ILINK_name, "NAMED_ILINK::name", 0},
+  { &key_memory_String_value, "String::value", 0},
+  { &key_memory_Sys_var_charptr_value, "Sys_var_charptr::value", 0},
+  { &key_memory_queue_item, "Queue::queue_item", 0},
+  { &key_memory_THD_db, "THD::db", 0},
+  { &key_memory_user_var_entry, "user_var_entry", 0},
+//  { &key_memory_Slave_job_group_group_relay_log_name, "Slave_job_group::group_relay_log_name", 0},
+  { &key_memory_Relay_log_info_group_relay_log_name, "Relay_log_info::group_relay_log_name", 0},
+  { &key_memory_binlog_cache_mngr, "binlog_cache_mngr", 0},
+  { &key_memory_Row_data_memory_memory, "Row_data_memory::memory", 0},
+//  { &key_memory_Gtid_set_to_string, "Gtid_set::to_string", 0},
+//  { &key_memory_Gtid_state_to_string, "Gtid_state::to_string", 0},
+//  { &key_memory_Owned_gtids_to_string, "Owned_gtids::to_string", 0},
+//  { &key_memory_log_event, "Log_event", 0},
+//  { &key_memory_Incident_log_event_message, "Incident_log_event::message", 0},
+//  { &key_memory_Rows_query_log_event_rows_query, "Rows_query_log_event::rows_query", 0},
+  { &key_memory_Sort_param_tmp_buffer, "Sort_param::tmp_buffer", 0},
+  { &key_memory_Filesort_info_merge, "Filesort_info::merge", 0},
+  { &key_memory_Filesort_info_record_pointers, "Filesort_info::record_pointers", 0},
+//  { &key_memory_Filesort_buffer_sort_keys, "Filesort_buffer::sort_keys", 0},
+  { &key_memory_handler_errmsgs, "handler::errmsgs", 0},
+  { &key_memory_handlerton, "handlerton", 0},
+  { &key_memory_XID, "XID", 0},
+  { &key_memory_host_cache_hostname, "host_cache::hostname", 0},
+  { &key_memory_user_var_entry_value, "user_var_entry::value", 0},
+  { &key_memory_User_level_lock, "User_level_lock", 0},
+  { &key_memory_MYSQL_LOG_name, "MYSQL_LOG::name", 0},
+  { &key_memory_TC_LOG_MMAP_pages, "TC_LOG_MMAP::pages", 0},
+//  { &key_memory_my_bitmap_map, "my_bitmap_map", 0},
+  { &key_memory_QUICK_RANGE_SELECT_mrr_buf_desc, "QUICK_RANGE_SELECT::mrr_buf_desc", 0},
+  { &key_memory_Event_queue_element_for_exec_names, "Event_queue_element_for_exec::names", 0},
+  { &key_memory_my_str_malloc, "my_str_malloc", 0},
+  { &key_memory_MYSQL_BIN_LOG_basename, "MYSQL_BIN_LOG::basename", 0},
+  { &key_memory_MYSQL_BIN_LOG_index, "MYSQL_BIN_LOG::index", 0},
+  { &key_memory_MYSQL_RELAY_LOG_basename, "MYSQL_RELAY_LOG::basename", 0},
+  { &key_memory_MYSQL_RELAY_LOG_index, "MYSQL_RELAY_LOG::index", 0},
+  { &key_memory_rpl_filter, "rpl_filter memory", 0},
+  { &key_memory_errmsgs, "errmsgs", 0},
+  { &key_memory_Gis_read_stream_err_msg, "Gis_read_stream::err_msg", 0},
+//  { &key_memory_Geometry_objects_data, "Geometry::ptr_and_wkb_data", 0},
+  { &key_memory_MYSQL_LOCK, "MYSQL_LOCK", 0},
+//  { &key_memory_NET_buff, "NET::buff", 0},
+//  { &key_memory_NET_compress_packet, "NET::compress_packet", 0},
+  { &key_memory_Event_scheduler_scheduler_param, "Event_scheduler::scheduler_param", 0},
+//  { &key_memory_Gtid_set_Interval_chunk, "Gtid_set::Interval_chunk", 0},
+//  { &key_memory_Owned_gtids_sidno_to_hash, "Owned_gtids::sidno_to_hash", 0},
+//  { &key_memory_Sid_map_Node, "Sid_map::Node", 0},
+//  { &key_memory_Gtid_state_group_commit_sidno, "Gtid_state::group_commit_sidno_locks", 0},
+//  { &key_memory_Mutex_cond_array_Mutex_cond, "Mutex_cond_array::Mutex_cond", 0},
+  { &key_memory_TABLE_RULE_ENT, "TABLE_RULE_ENT", 0},
+//  { &key_memory_Rpl_info_table, "Rpl_info_table", 0},
+  { &key_memory_Rpl_info_file_buffer, "Rpl_info_file::buffer", 0},
+//  { &key_memory_db_worker_hash_entry, "db_worker_hash_entry", 0},
+//  { &key_memory_rpl_slave_check_temp_dir, "rpl_slave::check_temp_dir", 0},
+//  { &key_memory_rpl_slave_command_buffer, "rpl_slave::command_buffer", 0},
+  { &key_memory_binlog_ver_1_event, "binlog_ver_1_event", 0},
+  { &key_memory_SLAVE_INFO, "SLAVE_INFO", 0},
+  { &key_memory_binlog_pos, "binlog_pos", 0},
+//  { &key_memory_HASH_ROW_ENTRY, "HASH_ROW_ENTRY", 0},
+  { &key_memory_binlog_statement_buffer, "binlog_statement_buffer", 0},
+//  { &key_memory_partition_syntax_buffer, "partition_syntax_buffer", 0},
+//  { &key_memory_READ_INFO, "READ_INFO", 0},
+  { &key_memory_JOIN_CACHE, "JOIN_CACHE", 0},
+//  { &key_memory_TABLE_sort_io_cache, "TABLE::sort_io_cache", 0},
+//  { &key_memory_frm, "frm", 0},
+  { &key_memory_Unique_sort_buffer, "Unique::sort_buffer", 0},
+  { &key_memory_Unique_merge_buffer, "Unique::merge_buffer", 0},
+  { &key_memory_TABLE, "TABLE", PSI_FLAG_GLOBAL}, /* Table cache */
+//  { &key_memory_frm_extra_segment_buff, "frm::extra_segment_buff", 0},
+//  { &key_memory_frm_form_pos, "frm::form_pos", 0},
+  { &key_memory_frm_string, "frm::string", 0},
+//  { &key_memory_LOG_name, "LOG_name", 0},
+  { &key_memory_DATE_TIME_FORMAT, "DATE_TIME_FORMAT", 0},
+  { &key_memory_DDL_LOG_MEMORY_ENTRY, "DDL_LOG_MEMORY_ENTRY", 0},
+  { &key_memory_ST_SCHEMA_TABLE, "ST_SCHEMA_TABLE", 0},
+  { &key_memory_ignored_db, "ignored_db", 0},
+  { &key_memory_PROFILE, "PROFILE", 0},
+  { &key_memory_global_system_variables, "global_system_variables", 0},
+  { &key_memory_THD_variables, "THD::variables", 0},
+//  { &key_memory_Security_context, "Security_context", 0},
+//  { &key_memory_shared_memory_name, "Shared_memory_name", 0},
+  { &key_memory_bison_stack, "bison_stack", 0},
+  { &key_memory_THD_handler_tables_hash, "THD::handler_tables_hash", 0},
+  { &key_memory_hash_index_key_buffer, "hash_index_key_buffer", 0},
+  { &key_memory_dboptions_hash, "dboptions_hash", 0},
+  { &key_memory_user_conn, "user_conn", 0},
+//  { &key_memory_LOG_POS_COORD, "LOG_POS_COORD", 0},
+//  { &key_memory_XID_STATE, "XID_STATE", 0},
+  { &key_memory_MPVIO_EXT_auth_info, "MPVIO_EXT::auth_info", 0},
+//  { &key_memory_opt_bin_logname, "opt_bin_logname", 0},
+  { &key_memory_Query_cache, "Query_cache", PSI_FLAG_GLOBAL},
+//  { &key_memory_READ_RECORD_cache, "READ_RECORD_cache", 0},
+//  { &key_memory_Quick_ranges, "Quick_ranges", 0},
+//  { &key_memory_File_query_log_name, "File_query_log::name", 0},
+  { &key_memory_Table_trigger_dispatcher, "Table_trigger_dispatcher::m_mem_root", 0},
+//  { &key_memory_thd_timer, "thd_timer", 0},
+//  { &key_memory_THD_Session_tracker, "THD::Session_tracker", 0},
+//  { &key_memory_THD_Session_sysvar_resource_manager, "THD::Session_sysvar_resource_manager", 0},
+//  { &key_memory_show_slave_status_io_gtid_set, "show_slave_status_io_gtid_set", 0},
+//  { &key_memory_write_set_extraction, "write_set_extraction", 0},
+//  { &key_memory_get_all_tables, "get_all_tables", 0},
+//  { &key_memory_fill_schema_schemata, "fill_schema_schemata", 0},
+  { &key_memory_native_functions, "native_functions", PSI_FLAG_GLOBAL},
 };
 
 /**
@@ -9473,10 +9734,15 @@ void init_server_psi_keys(void)
   count= array_elements(all_server_sockets);
   mysql_socket_register(category, all_server_sockets, count);
 
+  count= array_elements(all_server_memory);
+  mysql_memory_register(category, all_server_memory, count);
+
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   init_sql_statement_info();
   count= array_elements(sql_statement_info);
   mysql_statement_register(category, sql_statement_info, count);
+
+  init_sp_psi_keys();
 
   category= "com";
   init_com_statement_info();

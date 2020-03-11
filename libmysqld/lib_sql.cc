@@ -491,8 +491,8 @@ char **copy_arguments(int argc, char **argv)
   for (from=argv ; from != end ; from++)
     length+= strlen(*from);
 
-  if ((res= (char**) my_malloc(sizeof(argv)*(argc+1)+length+argc,
-			       MYF(MY_WME))))
+  if ((res= (char**) my_malloc(PSI_NOT_INSTRUMENTED,
+                               sizeof(argv)*(argc+1)+length+argc, MYF(MY_WME))))
   {
     char **to= res, *to_str= (char*) (res+argc+1);
     for (from=argv ; from != end ;)
@@ -664,7 +664,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
   thd->mysql= mysql;
   mysql->server_version= server_version;
   mysql->client_flag= client_flag;
-  init_alloc_root(&mysql->field_alloc, "fields", 8192, 0, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &mysql->field_alloc, 8192, 0, MYF(0));
 }
 
 /**
@@ -758,7 +758,7 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
   sctx->host_or_ip= sctx->host= (char*) my_localhost;
   strmake_buf(sctx->priv_host, (char*) my_localhost);
   strmake_buf(sctx->priv_user, mysql->user);
-  sctx->user= my_strdup(mysql->user, MYF(0));
+  sctx->user= my_strdup(PSI_NOT_INSTRUMENTED, mysql->user, MYF(0));
   sctx->proxy_user[0]= 0;
   sctx->master_access= GLOBAL_ACLS;       // Full rights
   emb_transfer_connect_attrs(mysql);
@@ -918,10 +918,8 @@ MYSQL_DATA *THD::alloc_new_dataset()
 {
   MYSQL_DATA *data;
   struct embedded_query_result *emb_data;
-  if (!my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
-                       &data, sizeof(*data),
-                       &emb_data, sizeof(*emb_data),
-                       NULL))
+  if (!my_multi_malloc(PSI_NOT_INSTRUMENTED, MYF(MY_WME | MY_ZEROFILL),
+                       &data, sizeof(*data), &emb_data, sizeof(*emb_data), NULL))
     return NULL;
 
   emb_data->prev_ptr= &data->data;
@@ -984,7 +982,7 @@ bool Protocol::begin_dataset()
     return 1;
   alloc= &data->alloc;
   /* Assume rowlength < 8192 */
-  init_alloc_root(alloc, "protocol", 8192, 0, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, alloc, 8192, 0, MYF(0));
   alloc->min_malloc= sizeof(MYSQL_ROWS);
   return 0;
 }
@@ -1030,6 +1028,39 @@ void Protocol_text::remove_last_row()
 
   DBUG_VOID_RETURN;
 }
+
+
+
+static MARIADB_CONST_STRING ma_const_string_copy_root(MEM_ROOT *memroot,
+                                                      const char *str,
+                                                      size_t length)
+{
+  MARIADB_CONST_STRING res;
+  if (!str || !(res.str= strmake_root(memroot, str, length)))
+    return null_clex_str;
+  res.length= length;
+  return res;
+}
+
+
+class Client_field_extension: public Sql_alloc,
+                              public MARIADB_FIELD_EXTENSION
+{
+public:
+  Client_field_extension()
+  {
+    memset(this, 0, sizeof(*this));
+  }
+  void copy_extended_metadata(MEM_ROOT *memroot,
+                              const Send_field_extended_metadata &src)
+  {
+    for (uint i= 0; i <= MARIADB_FIELD_ATTR_LAST; i++)
+    {
+      LEX_CSTRING attr= src.attr(i);
+      metadata[i]= ma_const_string_copy_root(memroot, attr.str, attr.length);
+    }
+  }
+};
 
 
 bool Protocol_text::store_field_metadata(const THD * thd,
@@ -1079,6 +1110,17 @@ bool Protocol_text::store_field_metadata(const THD * thd,
 
   client_field->catalog= dup_str_aux(field_alloc, "def", 3, cs, thd_cs);
   client_field->catalog_length= 3;
+
+  if (server_field.has_extended_metadata())
+  {
+    Client_field_extension *ext= new (field_alloc) Client_field_extension();
+    if ((client_field->extension= static_cast<MARIADB_FIELD_EXTENSION*>(ext)))
+      ext->copy_extended_metadata(field_alloc, server_field);
+  }
+  else
+  {
+    client_field->extension= NULL;
+  }
 
   if (IS_NUM(client_field->type))
     client_field->flags|= NUM_FLAG;

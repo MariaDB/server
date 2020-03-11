@@ -1127,8 +1127,8 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
              ddl_log_entry->tmp_name));
   handler_name.str= (char*)ddl_log_entry->handler_name;
   handler_name.length= strlen(ddl_log_entry->handler_name);
-  init_sql_alloc(&mem_root, "execute_ddl_log_action", TABLE_ALLOC_BLOCK_SIZE,
-                 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(key_memory_gdl, &mem_root, TABLE_ALLOC_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
   if (!strcmp(ddl_log_entry->handler_name, reg_ext))
     frm_action= TRUE;
   else
@@ -1162,7 +1162,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
           }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           strxmov(to_path, ddl_log_entry->name, par_ext, NullS);
-          (void) mysql_file_delete(key_file_partition, to_path, MYF(MY_WME));
+          (void) mysql_file_delete(key_file_partition_ddl_log, to_path, MYF(MY_WME));
 #endif
         }
         else
@@ -1200,7 +1200,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
         strxmov(to_path, ddl_log_entry->name, par_ext, NullS);
         strxmov(from_path, ddl_log_entry->from_name, par_ext, NullS);
-        (void) mysql_file_rename(key_file_partition, from_path, to_path, MYF(MY_WME));
+        (void) mysql_file_rename(key_file_partition_ddl_log, from_path, to_path, MYF(MY_WME));
 #endif
       }
       else
@@ -1297,7 +1297,7 @@ static bool get_free_ddl_log_entry(DDL_LOG_MEMORY_ENTRY **active_entry,
 
   if (global_ddl_log.first_free == NULL)
   {
-    if (!(used_entry= (DDL_LOG_MEMORY_ENTRY*)my_malloc(
+    if (!(used_entry= (DDL_LOG_MEMORY_ENTRY*)my_malloc(key_memory_DDL_LOG_MEMORY_ENTRY,
                               sizeof(DDL_LOG_MEMORY_ENTRY), MYF(MY_WME))))
     {
       sql_print_error("Failed to allocate memory for ddl log free list");
@@ -6167,7 +6167,7 @@ drop_create_field:
       for (f_ptr=table->field; *f_ptr; f_ptr++)
       {
         if (my_strcasecmp(system_charset_info,
-                           acol->name, (*f_ptr)->field_name.str) == 0)
+                           acol->name.str, (*f_ptr)->field_name.str) == 0)
           break;
       }
       if (unlikely(*f_ptr == NULL))
@@ -6175,7 +6175,7 @@ drop_create_field:
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_BAD_FIELD_ERROR,
                             ER_THD(thd, ER_BAD_FIELD_ERROR),
-                            acol->name, table->s->table_name.str);
+                            acol->name.str, table->s->table_name.str);
         it.remove();
         if (alter_info->alter_list.is_empty())
         {
@@ -6601,7 +6601,7 @@ static int compare_uint(const uint *s, const uint *t)
 
 enum class Compare_keys : uint32_t
 {
-  Equal,
+  Equal= 0,
   EqualButKeyPartLength,
   EqualButComment,
   NotEqual
@@ -7998,6 +7998,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   List<Create_field> new_create_list;
   /* New key definitions are added here */
   List<Key> new_key_list;
+  List<Alter_rename_key> rename_key_list(alter_info->alter_rename_key_list);
   List_iterator<Alter_drop> drop_it(alter_info->drop_list);
   List_iterator<Create_field> def_it(alter_info->create_list);
   List_iterator<Alter_column> alter_it(alter_info->alter_list);
@@ -8138,24 +8139,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       continue;
     }
 
-    /*
-      If we are doing a rename of a column, update all references in virtual
-      column expressions, constraints and defaults to use the new column name
-    */
-    if (alter_info->flags & ALTER_RENAME_COLUMN)
-    {
-      if (field->vcol_info)
-        field->vcol_info->expr->walk(&Item::rename_fields_processor, 1,
-                                     &column_rename_param);
-      if (field->check_constraint)
-        field->check_constraint->expr->walk(&Item::rename_fields_processor, 1,
-                                            &column_rename_param);
-      if (field->default_value)
-        field->default_value->expr->walk(&Item::rename_fields_processor, 1,
-                                         &column_rename_param);
-      table->m_needs_reopen= 1; // because new column name is on thd->mem_root
-    }
-
     /* Check if field is changed */
     def_it.rewind();
     while ((def=def_it++))
@@ -8229,19 +8212,61 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       while ((alter=alter_it++))
       {
 	if (!my_strcasecmp(system_charset_info,field->field_name.str,
-                           alter->name))
+                           alter->name.str))
 	  break;
       }
       if (alter)
       {
-	if ((def->default_value= alter->default_value))
-          def->flags&= ~NO_DEFAULT_VALUE_FLAG;
+        if (alter->is_rename())
+        {
+          def->change= alter->name;
+          def->field_name= alter->new_name;
+          column_rename_param.fields.push_back(def);
+        }
         else
-          def->flags|= NO_DEFAULT_VALUE_FLAG;
+        {
+          if ((def->default_value= alter->default_value))
+            def->flags&= ~NO_DEFAULT_VALUE_FLAG;
+          else
+            def->flags|= NO_DEFAULT_VALUE_FLAG;
+        }
 	alter_it.remove();
       }
     }
   }
+
+  /*
+    If we are doing a rename of a column, update all references in virtual
+    column expressions, constraints and defaults to use the new column name
+  */
+  if (alter_info->flags & ALTER_RENAME_COLUMN)
+  {
+    alter_it.rewind();
+    Alter_column *alter;
+    while ((alter=alter_it++))
+    {
+      if (alter->is_rename())
+      {
+        my_error(ER_BAD_FIELD_ERROR, MYF(0), alter->name.str,
+                 table->s->table_name.str);
+        goto err;
+      }
+    }
+    for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
+    {
+      if (field->vcol_info)
+        field->vcol_info->expr->walk(&Item::rename_fields_processor, 1,
+                                    &column_rename_param);
+      if (field->check_constraint)
+        field->check_constraint->expr->walk(&Item::rename_fields_processor, 1,
+                                            &column_rename_param);
+      if (field->default_value)
+        field->default_value->expr->walk(&Item::rename_fields_processor, 1,
+                                        &column_rename_param);
+    }
+    table->m_needs_reopen= 1; // because new column name is on thd->mem_root
+  }
+
   dropped_sys_vers_fields &= VERS_SYSTEM_FIELD;
   if ((dropped_sys_vers_fields ||
        alter_info->flags & ALTER_DROP_PERIOD) &&
@@ -8357,7 +8382,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     while ((alter=alter_it++))
     {
       if (!my_strcasecmp(system_charset_info,def->field_name.str,
-                         alter->name))
+                         alter->name.str))
         break;
     }
     if (alter)
@@ -8372,7 +8397,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   if (unlikely(alter_info->alter_list.elements))
   {
     my_error(ER_BAD_FIELD_ERROR, MYF(0),
-             alter_info->alter_list.head()->name, table->s->table_name.str);
+             alter_info->alter_list.head()->name.str, table->s->table_name.str);
     goto err;
   }
   if (unlikely(!new_create_list.elements))
@@ -8420,6 +8445,39 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }  
       drop_it.remove();
       continue;
+    }
+
+    /* If this index is to stay in the table check if it has to be renamed. */
+    List_iterator<Alter_rename_key> rename_key_it(rename_key_list);
+    Alter_rename_key *rename_key;
+
+    while ((rename_key= rename_key_it++))
+    {
+      if (!my_strcasecmp(system_charset_info, key_name, rename_key->old_name.str))
+      {
+        if (!my_strcasecmp(system_charset_info, key_name, primary_key_name))
+        {
+          my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), rename_key->old_name.str);
+          goto err;
+        }
+        else if (!my_strcasecmp(system_charset_info, rename_key->new_name.str,
+                                primary_key_name))
+        {
+          my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), rename_key->new_name.str);
+          goto err;
+        }
+
+        key_name= rename_key->new_name.str;
+        rename_key_it.remove();
+        /*
+          If the user has explicitly renamed the key, we should no longer
+          treat it as generated. Otherwise this key might be automatically
+          dropped by mysql_prepare_create_table() and this will confuse
+          code in fill_alter_inplace_info().
+        */
+        key_info->flags&= ~HA_GENERATED_KEY;
+        break;
+      }
     }
 
     if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
@@ -8746,6 +8804,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         break;
       }
     }
+  }
+
+  if (rename_key_list.elements)
+  {
+    my_error(ER_KEY_DOES_NOT_EXITS, MYF(0), rename_key_list.head()->old_name.str,
+             table->s->table_name.str);
+    goto err;
   }
 
   if (!create_info->comment.str)
@@ -9140,8 +9205,8 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
         ref_table= tbuf;
       }
 
-      mdl_request.init(MDL_key::TABLE, ref_db, ref_table, MDL_SHARED_NO_WRITE,
-                       MDL_TRANSACTION);
+      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, ref_db, ref_table,
+                       MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
       if (thd->mdl_context.acquire_lock(&mdl_request,
                                         thd->variables.lock_wait_timeout))
         DBUG_RETURN(true);
@@ -9566,9 +9631,9 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       MDL_request_list mdl_requests;
       MDL_request target_db_mdl_request;
 
-      target_mdl_request.init(MDL_key::TABLE,
-                              alter_ctx.new_db.str, alter_ctx.new_name.str,
-                              MDL_EXCLUSIVE, MDL_TRANSACTION);
+      MDL_REQUEST_INIT(&target_mdl_request, MDL_key::TABLE,
+                       alter_ctx.new_db.str, alter_ctx.new_name.str,
+                       MDL_EXCLUSIVE, MDL_TRANSACTION);
       mdl_requests.push_front(&target_mdl_request);
 
       /*
@@ -9578,9 +9643,9 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       */
       if (alter_ctx.is_database_changed())
       {
-        target_db_mdl_request.init(MDL_key::SCHEMA, alter_ctx.new_db.str, "",
-                                   MDL_INTENTION_EXCLUSIVE,
-                                   MDL_TRANSACTION);
+        MDL_REQUEST_INIT(&target_db_mdl_request, MDL_key::SCHEMA,
+                         alter_ctx.new_db.str, "", MDL_INTENTION_EXCLUSIVE,
+                         MDL_TRANSACTION);
         mdl_requests.push_front(&target_db_mdl_request);
       }
 
@@ -9827,8 +9892,7 @@ do_continue:;
   bool fast_alter_partition= false;
   {
     if (prep_alter_part_table(thd, table, alter_info, create_info,
-                              &alter_ctx, &partition_changed,
-                              &fast_alter_partition))
+                              &partition_changed, &fast_alter_partition))
     {
       DBUG_RETURN(true);
     }
@@ -10680,6 +10744,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   to->file->extra(HA_EXTRA_PREPARE_FOR_ALTER_TABLE);
   to->file->ha_start_bulk_insert(from->file->stats.records,
                                  ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
+  mysql_stage_set_work_estimated(thd->m_stage_progress_psi, from->file->stats.records);
+
   List_iterator<Create_field> it(create);
   Create_field *def;
   copy_end=copy;
@@ -10780,7 +10846,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   from->file->column_bitmaps_signal();
 
-  THD_STAGE_INFO(thd, stage_copy_to_tmp_table);
   /* Tell handler that we have values for all columns in the to table */
   to->use_all_columns();
   /* Add virtual columns to vcol_set to ensure they are updated */
@@ -10926,7 +10991,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       }
     }
     else
+    {
+      DEBUG_SYNC(thd, "copy_data_between_tables_before");
       found_count++;
+      mysql_stage_set_work_completed(thd->m_stage_progress_psi, found_count);
+    }
     thd->get_stmt_da()->inc_current_row_for_warning();
   }
 

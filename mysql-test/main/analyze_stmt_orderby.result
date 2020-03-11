@@ -44,6 +44,7 @@ ANALYZE
       "r_limit": 5,
       "r_used_priority_queue": true,
       "r_output_rows": 6,
+      "r_sort_mode": "sort_key,rowid",
       "table": {
         "update": 1,
         "table_name": "t2",
@@ -145,6 +146,7 @@ ANALYZE
       "r_used_priority_queue": false,
       "r_output_rows": 10000,
       "r_buffer_size": "REPLACED",
+      "r_sort_mode": "sort_key,rowid",
       "table": {
         "delete": 1,
         "table_name": "t2",
@@ -211,6 +213,7 @@ ANALYZE
       "r_limit": 4,
       "r_used_priority_queue": true,
       "r_output_rows": 4,
+      "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
         "table": {
           "table_name": "t0",
@@ -300,6 +303,7 @@ ANALYZE
         "r_used_priority_queue": false,
         "r_output_rows": 10,
         "r_buffer_size": "REPLACED",
+        "r_sort_mode": "sort_key,addon_fields",
         "table": {
           "table_name": "t0",
           "access_type": "ALL",
@@ -359,6 +363,7 @@ ANALYZE
       "r_used_priority_queue": false,
       "r_output_rows": 10,
       "r_buffer_size": "REPLACED",
+      "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
         "table": {
           "table_name": "t2",
@@ -472,6 +477,7 @@ ANALYZE
       "r_limit": 1,
       "r_used_priority_queue": true,
       "r_output_rows": 2,
+      "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
         "filesort": {
           "sort_key": "t5.a",
@@ -480,6 +486,7 @@ ANALYZE
           "r_used_priority_queue": false,
           "r_output_rows": 6,
           "r_buffer_size": "REPLACED",
+          "r_sort_mode": "sort_key,rowid",
           "temporary_table": {
             "table": {
               "table_name": "t6",

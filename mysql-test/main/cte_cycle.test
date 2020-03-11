@@ -1,0 +1,143 @@
+
+--echo #
+--echo # check errors
+--echo #
+
+--error ER_DUP_FIELDNAME
+WITH RECURSIVE cte AS (
+        SELECT 1 AS a UNION ALL
+        SELECT NULL FROM cte WHERE a IS NOT NULL)
+        CYCLE a, a RESTRICT
+SELECT * FROM cte;
+
+--error ER_BAD_FIELD_ERROR
+WITH RECURSIVE cte AS (
+        SELECT 1 AS a UNION ALL
+        SELECT NULL FROM cte WHERE a IS NOT NULL)
+        CYCLE b RESTRICT
+SELECT * FROM cte;
+
+--error ER_PARSE_ERROR
+WITH cte AS (
+        SELECT 1 AS a UNION ALL
+        SELECT NULL FROM cte WHERE a IS NOT NULL)
+        CYCLE b RESTRICT
+SELECT * FROM cte;
+
+
+--echo #
+--echo # A degenerate case
+--echo #
+
+WITH RECURSIVE cte AS (
+	SELECT 1 AS a, 2 as b)
+   CYCLE b RESTRICT
+SELECT * FROM cte;
+
+
+--echo #
+--echo # A simple case
+--echo #
+
+WITH RECURSIVE cte AS (
+	SELECT 1 AS a, 2 as b UNION ALL
+	SELECT 2, 2 FROM cte WHERE a IS NOT NULL)
+        CYCLE b RESTRICT
+SELECT * FROM cte;
+
+
+--echo #
+--echo # MDEV-20632 case (with fixed syntax)
+--echo #
+
+create table t1 (from_ int, to_ int);
+insert into t1 values (1,2), (1,100), (2,3), (3,4), (4,1);
+
+WITH RECURSIVE cte (depth, from_, to_) as (
+   SELECT 0,1,1
+   UNION
+   SELECT depth+1, t1.from_, t1.to_
+      FROM t1, cte WHERE t1.from_ = cte.to_
+) CYCLE from_, to_ RESTRICT
+select * from cte;
+
+create view v1 as WITH RECURSIVE cte (depth, from_, to_) as (
+   SELECT 0,1,1
+   UNION
+   SELECT depth+1, t1.from_, t1.to_
+      FROM t1, cte WHERE t1.from_ = cte.to_
+) CYCLE from_, to_ RESTRICT
+select * from cte;
+
+show create view v1;
+
+select * from v1;
+
+delete from t1;
+
+insert into t1 values (1,2), (1,NULL), (NULL,NULL), (NULL, 1);
+
+select * from v1;
+
+drop view v1;
+
+drop table t1;
+
+
+--echo #
+--echo # A simple blob case
+--echo #
+
+create table t1 (a int, b text);
+insert into t1 values (1, "a");
+
+WITH RECURSIVE cte AS (
+	SELECT a, b  from t1 UNION ALL
+	SELECT a, b FROM cte WHERE a IS NOT NULL)
+        CYCLE b RESTRICT
+SELECT * FROM cte;
+
+drop table t1;
+
+--echo #
+--echo # check bit types
+--echo #
+
+create table t1 (from_ bit(3), to_ bit(3));
+insert into t1 values (1,2), (1,7), (2,3), (3,4), (4,1);
+
+WITH RECURSIVE cte (depth, from_, to_) as (
+   SELECT 0,1,1
+   UNION
+   SELECT depth+1, t1.from_, t1.to_
+      FROM t1, cte WHERE t1.from_ = cte.to_
+) CYCLE from_, to_ RESTRICT
+select * from cte;
+drop table t1;
+
+--echo #
+--echo # check bit types with BLOBs (TEXT)
+--echo #
+
+create table t1 (from_ bit(3), to_ bit(3), load_ text);
+insert into t1 values (1,2,"A"), (1,7,"A"), (2,3,"A"), (3,4,"A"), (4,1,"A");
+
+WITH RECURSIVE cte (depth, from_, to_, load_) as (
+   SELECT 0,1,1,"A"
+   UNION
+   SELECT depth+1, t1.from_, t1.to_, t1.load_
+      FROM t1, cte WHERE t1.from_ = cte.to_
+) CYCLE from_, to_, load_ RESTRICT
+select * from cte;
+insert into t1 values (4,1,"B");
+WITH RECURSIVE cte (depth, from_, to_, load_) as (
+   SELECT 0,1,1,"A"
+   UNION
+   SELECT depth+1, t1.from_, t1.to_, t1.load_
+      FROM t1, cte WHERE t1.from_ = cte.to_
+) CYCLE from_, to_, load_ RESTRICT
+select * from cte;
+
+drop table t1;
+
+

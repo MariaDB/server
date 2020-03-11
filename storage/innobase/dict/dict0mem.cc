@@ -302,7 +302,7 @@ dict_mem_table_add_col(
 	ulint		len)	/*!< in: precision */
 {
 	dict_col_t*	col;
-	ulint		i;
+	unsigned	i;
 
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(!heap == !name);
@@ -370,7 +370,6 @@ dict_mem_table_add_v_col(
 	ulint		num_base)
 {
 	dict_v_col_t*	v_col;
-	ulint		i;
 
 	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
@@ -378,7 +377,7 @@ dict_mem_table_add_v_col(
 
 	ut_ad(prtype & DATA_VIRTUAL);
 
-	i = table->n_v_def++;
+	unsigned i = table->n_v_def++;
 
 	table->n_t_def++;
 
@@ -412,7 +411,8 @@ dict_mem_table_add_v_col(
 		v_col->base_col = NULL;
 	}
 
-	v_col->num_base = num_base;
+	v_col->num_base = static_cast<unsigned>(num_base)
+		& dict_index_t::MAX_N_FIELDS;
 
 	/* Initialize the index list for virtual columns */
 	ut_ad(v_col->v_indexes.empty());
@@ -704,8 +704,7 @@ dict_mem_fill_column_struct(
 	ulint		prtype,		/*!< in: precise type */
 	ulint		col_len)	/*!< in: column length */
 {
-	ulint	mbminlen;
-	ulint	mbmaxlen;
+	unsigned mbminlen, mbmaxlen;
 
 	column->ind = (unsigned int) col_pos;
 	column->ord_part = 0;
@@ -1202,7 +1201,7 @@ inline void dict_index_t::reconstruct_fields()
 	}
 
 	fields = tfields;
-	n_core_null_bytes = UT_BITS_IN_BYTES(n_core_null);
+	n_core_null_bytes = static_cast<byte>(UT_BITS_IN_BYTES(n_core_null));
 }
 
 /** Reconstruct dropped or reordered columns.
@@ -1326,7 +1325,7 @@ dict_index_t::vers_history_row(
         } else {
 		ib::error() << "foreign constraints: secondary index is out of "
 			       "sync";
-		ut_ad(!"secondary index is out of sync");
+		ut_ad("secondary index is out of sync" == 0);
 		error = true;
 	}
 	mtr.commit();

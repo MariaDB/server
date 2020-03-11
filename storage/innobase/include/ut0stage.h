@@ -41,8 +41,6 @@ Created Nov 12, 2014 Vasil Dimov
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 
-typedef void PSI_stage_progress;
-
 /** Class used to report ALTER TABLE progress via performance_schema.
 The only user of this class is the ALTER TABLE code and it calls the methods
 in the following order
@@ -155,7 +153,6 @@ private:
 		const PSI_stage_info*	new_stage);
 
 	/** Performance schema accounting object. */
-	/* TODO: MySQL 5.7 PSI */
 	PSI_stage_progress*	m_progress;
 
 	/** Old table PK. Used for calculating the estimate. */
@@ -207,13 +204,12 @@ ut_stage_alter_t::~ut_stage_alter_t()
 		return;
 	}
 
-	/* TODO: MySQL 5.7 PSI: Set completed = estimated before we quit.
+	/* Set completed = estimated before we quit. */
 	mysql_stage_set_work_completed(
 		m_progress,
 		mysql_stage_get_work_estimated(m_progress));
 
 	mysql_end_stage();
-	*/
 }
 
 /** Flag an ALTER TABLE start (read primary key phase).
@@ -228,12 +224,10 @@ ut_stage_alter_t::begin_phase_read_pk(
 
 	m_cur_phase = READ_PK;
 
-	/* TODO: MySQL 5.7 PSI
 	m_progress = mysql_set_stage(
 		srv_stage_alter_table_read_pk_internal_sort.m_key);
 
 	mysql_stage_set_work_completed(m_progress, 0);
-	*/
 	reestimate();
 }
 
@@ -253,7 +247,7 @@ ut_stage_alter_t::n_pk_recs_inc()
 current phase. */
 inline
 void
-ut_stage_alter_t::inc(ulint)
+ut_stage_alter_t::inc(ulint inc_val)
 {
 	if (m_progress == NULL) {
 		return;
@@ -267,14 +261,12 @@ ut_stage_alter_t::inc(ulint)
 		ut_error;
 	case READ_PK:
 		m_n_pk_pages++;
-#if 0 /* TODO: MySQL 5.7 PSI */
 		ut_ad(inc_val == 1);
 		/* Overall the read pk phase will read all the pages from the
 		PK and will do work, proportional to the number of added
 		indexes, thus when this is called once per read page we
 		increment with 1 + m_n_sort_indexes */
 		inc_val = 1 + m_n_sort_indexes;
-#endif
 		break;
 	case SORT:
 		multi_factor = m_sort_multi_factor;
@@ -288,13 +280,15 @@ ut_stage_alter_t::inc(ulint)
 		(double) N records per page, then the work_completed
 	        should be incremented on the inc() calls round(k*N),
 		for k=1,2,3... */
-		const double	every_nth = m_n_recs_per_page * multi_factor;
+		const double	every_nth = m_n_recs_per_page *
+			static_cast<double>(multi_factor);
 
 		const ulint	k = static_cast<ulint>(
-			round(m_n_recs_processed / every_nth));
+			round(static_cast<double>(m_n_recs_processed) /
+			      every_nth));
 
 		const ulint	nth = static_cast<ulint>(
-			round(k * every_nth));
+			round(static_cast<double>(k) * every_nth));
 
 		should_proceed = m_n_recs_processed == nth;
 
@@ -315,9 +309,7 @@ ut_stage_alter_t::inc(ulint)
 	}
 
 	if (should_proceed) {
-		/* TODO: MySQL 5.7 PSI
 		mysql_stage_inc_work_completed(m_progress, inc_val);
-		*/
 		reestimate();
 	}
 }
@@ -338,7 +330,8 @@ ut_stage_alter_t::end_phase_read_pk()
 		m_n_recs_per_page = 1.0;
 	} else {
 		m_n_recs_per_page = std::max(
-			static_cast<double>(m_n_pk_recs) / m_n_pk_pages,
+			static_cast<double>(m_n_pk_recs)
+			/ static_cast<double>(m_n_pk_pages),
 			1.0);
 	}
 }
@@ -406,12 +399,10 @@ ut_stage_alter_t::reestimate()
 	/* During the log table phase we calculate the estimate as
 	work done so far + log size remaining. */
 	if (m_cur_phase == LOG_INNODB_TABLE) {
-		/* TODO: MySQL 5.7 PSI
 		mysql_stage_set_work_estimated(
 			m_progress,
 			mysql_stage_get_work_completed(m_progress)
 			+ row_log_estimate_work(m_pk));
-		*/
 		return;
 	}
 
@@ -435,12 +426,10 @@ ut_stage_alter_t::reestimate()
 		+ row_log_estimate_work(m_pk);
 
 	/* Prevent estimate < completed */
-	/* TODO: MySQL 5.7 PSI
 	estimate = std::max(estimate,
 			    mysql_stage_get_work_completed(m_progress));
 
 	mysql_stage_set_work_estimated(m_progress, estimate);
-	*/
 }
 
 /** Change the current phase.
@@ -471,7 +460,6 @@ ut_stage_alter_t::change_phase(
 		ut_error;
 	}
 
-	/* TODO: MySQL 5.7 PSI
 	const ulonglong	c = mysql_stage_get_work_completed(m_progress);
 	const ulonglong	e = mysql_stage_get_work_estimated(m_progress);
 
@@ -479,7 +467,6 @@ ut_stage_alter_t::change_phase(
 
 	mysql_stage_set_work_completed(m_progress, c);
 	mysql_stage_set_work_estimated(m_progress, e);
-	*/
 }
 #else /* HAVE_PSI_STAGE_INTERFACE */
 

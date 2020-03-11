@@ -1,0 +1,5 @@
+[pot]
+thread_handling=pool-of-threads
+
+[1tpc]
+thread_handling=one-thread-per-connection

@@ -109,6 +109,8 @@ let $query= select id DIV 100 as x,
 --echo #
 
 set sort_buffer_size=262144*10;
+--source include/analyze-format.inc
+eval analyze format=json $query;
 flush status;
 eval $query;
 show status like '%sort%';
@@ -119,10 +121,60 @@ set sort_buffer_size=default;
 --echo #
 
 set sort_buffer_size=32768;
+--source include/analyze-format.inc
+eval analyze format=json $query;
 flush status;
 eval $query;
 show status like '%sort%';
 set sort_buffer_size=default;
+
+--echo #
+--echo # CASE #1 Packed sort keys with addon fields
+--echo #
+
+ALTER TABLE t3 ADD INDEX idx(names, address);
+
+let $file1 = `SELECT CONCAT(@@datadir, "t1.txt")`;
+let $file2 = `SELECT CONCAT(@@datadir, "t2.txt")`;
+
+set sort_buffer_size= 2097152;
+--source include/analyze-format.inc
+eval ANALYZE FORMAT=JSON  SELECT id, names, address FROM t3 ORDER BY names, address;
+flush status;
+evalp SELECT id, names, address INTO OUTFILE '$file1' FROM t3 ORDER BY names, address;
+
+--echo # Sort_merge_passes should be 0
+show status like '%sort%';
+
+evalp SELECT id, names, address INTO OUTFILE '$file2' FROM t3 FORCE INDEX(idx) ORDER BY names, address;
+
+diff_files $file1 $file2;
+
+--remove_file $file1
+
+--echo #
+--echo # CASE #2 Packed sort keys and ROW_ID
+--echo #
+
+set @save_max_length_for_sort_data=@@max_length_for_sort_data;
+set max_length_for_sort_data= 300;
+
+set sort_buffer_size= 1097152;
+--source include/analyze-format.inc
+eval ANALYZE FORMAT=JSON  SELECT id, names, address FROM t3 ORDER BY names, address;
+flush status;
+evalp SELECT id, names, address INTO OUTFILE '$file1' FROM t3 ORDER BY names, address;
+
+--echo # Sort_merge_passes should be 0
+show status like '%sort%';
+
+diff_files $file1 $file2;
+
+--remove_file $file1
+--remove_file $file2
+
+set @@max_length_for_sort_data=@save_max_length_for_sort_data;
+set @@sort_buffer_size=default;
 
 set @@RAND_SEED1= @save_rand_seed1;
 set @@RAND_SEED2= @save_rand_seed2;

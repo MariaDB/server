@@ -35,7 +35,6 @@
 #include "sql_db.h"                             // mysql_change_db
 #include "hostname.h" // inc_host_errors, ip_to_hostname,
                       // reset_host_errors
-#include "privilege.h"  // acl_getroot, SUPER_ACL
 #include "sql_callback.h"
 
 #ifdef WITH_WSREP
@@ -81,8 +80,8 @@ int get_or_create_user_conn(THD *thd, const char *user,
   {
     /* First connection for user; Create a user connection object */
     if (!(uc= ((struct user_conn*)
-	       my_malloc(sizeof(struct user_conn) + temp_len+1,
-			 MYF(MY_WME)))))
+	       my_malloc(key_memory_user_conn,
+                         sizeof(struct user_conn) + temp_len+1, MYF(MY_WME)))))
     {
       /* MY_WME ensures an error is set in THD. */
       return_val= 1;
@@ -140,7 +139,7 @@ int check_for_max_user_connections(THD *thd, USER_CONN *uc)
   if (global_system_variables.max_user_connections &&
       !uc->user_resources.user_conn &&
       global_system_variables.max_user_connections < uc->connections &&
-      !(thd->security_ctx->master_access & SUPER_ACL))
+      !(thd->security_ctx->master_access & PRIV_IGNORE_MAX_USER_CONNECTIONS))
   {
     my_error(ER_TOO_MANY_USER_CONNECTIONS, MYF(0), uc->user);
     error=1;
@@ -322,9 +321,9 @@ extern "C" void free_user(struct user_conn *uc)
 void init_max_user_conn(void)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  my_hash_init(&hash_user_connections, system_charset_info, max_connections,
-               0, 0, (my_hash_get_key) get_key_conn,
-               (my_hash_free_key) free_user, 0);
+  my_hash_init(key_memory_user_conn, &hash_user_connections,
+               system_charset_info, max_connections, 0, 0, (my_hash_get_key)
+               get_key_conn, (my_hash_free_key) free_user, 0);
 #endif
 }
 
@@ -483,14 +482,14 @@ void init_user_stats(USER_STATS *user_stats,
 
 void init_global_user_stats(void)
 {
-  my_hash_init(&global_user_stats, system_charset_info, max_connections,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_user_stats, system_charset_info, max_connections,
                0, 0, (my_hash_get_key) get_key_user_stats,
                (my_hash_free_key) free_user_stats, 0);
 }
 
 void init_global_client_stats(void)
 {
-  my_hash_init(&global_client_stats, system_charset_info, max_connections,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_client_stats, system_charset_info, max_connections,
                0, 0, (my_hash_get_key) get_key_user_stats,
                (my_hash_free_key) free_user_stats, 0);
 }
@@ -509,8 +508,8 @@ extern "C" void free_table_stats(TABLE_STATS* table_stats)
 
 void init_global_table_stats(void)
 {
-  my_hash_init(&global_table_stats, system_charset_info, max_connections,
-               0, 0, (my_hash_get_key) get_key_table_stats,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_table_stats, system_charset_info,
+               max_connections, 0, 0, (my_hash_get_key) get_key_table_stats,
                (my_hash_free_key) free_table_stats, 0);
 }
 
@@ -528,8 +527,8 @@ extern "C" void free_index_stats(INDEX_STATS* index_stats)
 
 void init_global_index_stats(void)
 {
-  my_hash_init(&global_index_stats, system_charset_info, max_connections,
-               0, 0, (my_hash_get_key) get_key_index_stats,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_index_stats, system_charset_info,
+               max_connections, 0, 0, (my_hash_get_key) get_key_index_stats,
                (my_hash_free_key) free_index_stats, 0);
 }
 
@@ -571,7 +570,7 @@ static bool increment_count_by_name(const char *name, size_t name_length,
   {
     /* First connection for this user or client */
     if (!(user_stats= ((USER_STATS*)
-                       my_malloc(sizeof(USER_STATS),
+                       my_malloc(PSI_INSTRUMENT_ME, sizeof(USER_STATS),
                                  MYF(MY_WME | MY_ZEROFILL)))))
       return TRUE;                              // Out of memory
 
@@ -880,7 +879,7 @@ int thd_set_peer_addr(THD *thd,
   }
 
   my_free((void *)thd->main_security_ctx.ip);
-  if (!(thd->main_security_ctx.ip = my_strdup(ip, MYF(MY_WME))))
+  if (!(thd->main_security_ctx.ip = my_strdup(PSI_INSTRUMENT_ME, ip, MYF(MY_WME))))
   {
     /*
     No error accounting per IP in host_cache,
@@ -1246,7 +1245,8 @@ void prepare_new_connection_state(THD* thd)
   thd->set_command(COM_SLEEP);
   thd->init_for_queries();
 
-  if (opt_init_connect.length && !(sctx->master_access & SUPER_ACL))
+  if (opt_init_connect.length &&
+      !(sctx->master_access & PRIV_IGNORE_INIT_CONNECT))
   {
     execute_init_command(thd, &opt_init_connect, &LOCK_sys_init_connect);
     if (unlikely(thd->is_error()))
@@ -1435,6 +1435,10 @@ end_thread:
         !(connect= cache_thread(thd)))
       break;
 
+    /* Create new instrumentation for the new THD job */
+    PSI_CALL_set_thread(PSI_CALL_new_thread(key_thread_one_connection, thd,
+                                            thd->thread_id));
+
     if (!(connect->create_thd(thd)))
     {
       /* Out of resources. Free thread to get more resources */
@@ -1448,13 +1452,6 @@ end_thread:
       with the new thread_id
     */
     thd->store_globals();
-
-    /*
-      Create new instrumentation for the new THD job,
-      and attach it to this running pthread.
-    */
-    PSI_CALL_set_thread(PSI_CALL_new_thread(key_thread_one_connection,
-                                            thd, thd->thread_id));
 
     /* reset abort flag for the thread */
     thd->mysys_var->abort= 0;
@@ -1576,5 +1573,14 @@ THD *CONNECT::create_thd(THD *thd)
 
   thd->scheduler=          scheduler;
   thd->real_id= pthread_self(); /* Duplicates THD::store_globals() setting. */
+
+  /* Attach PSI instrumentation to the new THD */
+
+  PSI_thread *psi= PSI_CALL_get_thread();
+  PSI_CALL_set_thread_os_id(psi);
+  PSI_CALL_set_thread_THD(psi, thd);
+  PSI_CALL_set_thread_id(psi, thd->thread_id);
+  thd->set_psi(psi);
+
   DBUG_RETURN(thd);
 }

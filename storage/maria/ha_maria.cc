@@ -527,7 +527,7 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
   if (row_type == BLOCK_RECORD)
     options|= HA_OPTION_PACK_RECORD;
 
-  if (!(my_multi_malloc(MYF(MY_WME),
+  if (!(my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
           recinfo_out, (share->fields * 2 + 2) * sizeof(MARIA_COLUMNDEF),
           keydef_out, share->keys * sizeof(MARIA_KEYDEF),
           &keyseg,

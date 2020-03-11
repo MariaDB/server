@@ -149,7 +149,7 @@ struct recv_dblwr_t {
 /** the recovery state and buffered records for a page */
 struct page_recv_t
 {
-  /** Recovery state */
+  /** Recovery state; protected by recv_sys.mutex */
   enum
   {
     /** not yet processed */
@@ -216,10 +216,14 @@ struct page_recv_t
 };
 
 /** Recovery system data structure */
-struct recv_sys_t{
-	ib_mutex_t		mutex;	/*!< mutex protecting the fields apply_log_recs,
-				n_addrs, and the state field in each recv_addr
-				struct */
+struct recv_sys_t
+{
+  /** mutex protecting apply_log_recs and page_recv_t::state */
+  ib_mutex_t mutex;
+  /** whether recv_recover_page(), invoked from buf_page_io_complete(),
+  should apply log records*/
+  bool apply_log_recs;
+
 	ib_mutex_t		writer_mutex;/*!< mutex coordinating
 				flushing between recv_writer_thread and
 				the recovery thread. */
@@ -230,13 +234,9 @@ struct recv_sys_t{
 	buf_flush_t		flush_type;/*!< type of the flush request.
 				BUF_FLUSH_LRU: flush end of LRU, keeping free blocks.
 				BUF_FLUSH_LIST: flush all of blocks. */
-	/** whether recv_recover_page(), invoked from buf_page_io_complete(),
-	should apply log records*/
-	bool		apply_log_recs;
 	/** whether recv_apply_hashed_log_recs() is running */
 	bool		apply_batch_on;
 	byte*		buf;	/*!< buffer for parsing log records */
-	size_t		buf_size;	/*!< size of buf */
 	ulint		len;	/*!< amount of data in buf */
 	lsn_t		parse_start_lsn;
 				/*!< this is the lsn from which we were able to
@@ -294,19 +294,15 @@ struct recv_sys_t{
   recv_dblwr_t dblwr;
 
   /** Last added LSN to pages. */
-  lsn_t last_stored_lsn;
-
-  /** After successful upgrade from multiple redo log files we'd like
-  to remove extra ones */
-  bool remove_extra_log_files{false};
+  lsn_t last_stored_lsn= 0;
 
   void read(os_offset_t offset, span<byte> buf);
-  size_t files_size();
+  inline size_t files_size();
   void close_files() { files.clear(); }
 
 private:
-  /** All found log files (more that one is possible if we're upgrading
-  from older MariaDB version */
+  /** All found log files (multiple ones are possible if we are upgrading
+  from before MariaDB Server 10.5.1) */
   std::vector<log_file_t> files;
 
   void open_log_files_if_needed();
@@ -339,7 +335,7 @@ public:
   /** Clean up after create() */
   void close();
 
-  bool is_initialised() const { return buf_size != 0; }
+  bool is_initialised() const { return last_stored_lsn != 0; }
 
   /** Register a redo log snippet for a page.
   @param page_id  page identifier

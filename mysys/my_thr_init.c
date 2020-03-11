@@ -39,9 +39,6 @@ mysql_mutex_t LOCK_localtime_r;
 static void install_sigabrt_handler();
 #endif
 
-
-static uint get_thread_lib(void);
-
 /** True if @c my_thread_global_init() has been called. */
 static my_bool my_thread_global_init_done= 0;
 /* True if THR_KEY_mysys is created */
@@ -95,7 +92,6 @@ static void my_thread_init_internal_mutex(void)
   mysql_mutex_init(key_THR_LOCK_malloc, &THR_LOCK_malloc, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_THR_COND_threads, &THR_COND_threads, NULL);
 }
-
 
 void my_thread_destroy_internal_mutex(void)
 {
@@ -190,7 +186,6 @@ my_bool my_thread_global_init(void)
   if (my_thread_init())
     return 1;
 
-  thd_lib_detected= get_thread_lib();
 
   my_thread_init_common_mutex();
 
@@ -453,21 +448,6 @@ safe_mutex_t **my_thread_var_mutex_in_use()
     return NULL;
   tmp=  my_pthread_getspecific(struct st_my_thread_var*,THR_KEY_mysys);
   return tmp ? &tmp->mutex_in_use : 0;
-}
-
-static uint get_thread_lib(void)
-{
-#ifdef _CS_GNU_LIBPTHREAD_VERSION
-  char buff[64];
-    
-  confstr(_CS_GNU_LIBPTHREAD_VERSION, buff, sizeof(buff));
-
-  if (!strncasecmp(buff, "NPTL", 4))
-    return THD_LIB_NPTL;
-  if (!strncasecmp(buff, "linuxthreads", 12))
-    return THD_LIB_LT;
-#endif
-  return THD_LIB_OTHER;
 }
 
 #ifdef _WIN32

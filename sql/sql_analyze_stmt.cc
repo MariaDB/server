@@ -26,6 +26,7 @@
 void Filesort_tracker::print_json_members(Json_writer *writer)
 {
   const char *varied_str= "(varied across executions)";
+  String str;
 
   if (!get_r_loops())
     writer->add_member("r_loops").add_null();
@@ -78,6 +79,28 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
     else
       writer->add_size(sort_buffer_size);
   }
+
+  get_data_format(&str);
+  writer->add_member("r_sort_mode").add_str(str.c_ptr(), str.length());
+}
+
+void Filesort_tracker::get_data_format(String *str)
+{
+  if (r_sort_keys_packed)
+    str->append("packed_sort_key");
+  else
+    str->append("sort_key");
+  str->append(",");
+
+  if (r_using_addons)
+  {
+    if (r_packed_addon_fields)
+      str->append("packed_addon_fields");
+    else
+      str->append("addon_fields");
+  }
+  else
+    str->append("rowid");
 }
 
 void attach_gap_time_tracker(THD *thd, Gap_time_tracker *gap_tracker,

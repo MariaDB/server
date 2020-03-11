@@ -221,6 +221,7 @@ storage/myisam/myisamlog
 storage/myisam/myisampack
 storage/myisam/rt_test
 storage/myisam/sp_test
+storage/perfschema/pfs_config.h
 storage/rocksdb/ldb
 storage/rocksdb/myrocks_hotbackup
 storage/rocksdb/mysql_ldb

@@ -228,9 +228,9 @@ Time_zone *mrn_my_tz_UTC;
 HASH *mrn_table_def_cache;
 #endif
 
-#ifdef MRN_HAVE_PSI_MEMORY_KEY
 PSI_memory_key mrn_memory_key;
 
+#ifdef MRN_HAVE_PSI_MEMORY_KEY
 static PSI_memory_info mrn_all_memory_keys[]=
 {
   {&mrn_memory_key, "Mroonga", 0}

@@ -160,8 +160,8 @@ inline void xdes_set_free(const buf_block_t &block, xdes_t *descr,
   ut_ad(!(~*b & 0xaa));
   /* Clear or set XDES_FREE_BIT. */
   byte val= free
-    ? *b | 1 << (index & 7)
-    : *b & ~(1 << (index & 7));
+    ? static_cast<byte>(*b | 1 << (index & 7))
+    : static_cast<byte>(*b & ~(1 << (index & 7)));
   mtr->write<1>(block, b, val);
 }
 
@@ -520,7 +520,7 @@ void fil_space_t::modify_check(const mtr_t& mtr) const
 		return;
 	}
 
-	ut_ad(!"invalid log mode");
+	ut_ad("invalid log mode" == 0);
 }
 #endif
 
@@ -554,8 +554,10 @@ void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
 	const ulint zip_size = space->zip_size();
 
 	mtr_x_lock_space(space, mtr);
+
+	const auto savepoint = mtr->get_savepoint();
 	buf_block_t* block = buf_page_create(page_id, zip_size, mtr);
-	buf_page_get(page_id, zip_size, RW_SX_LATCH, mtr);
+	mtr->sx_latch_at_savepoint(savepoint, block);
 	buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 
 	space->size_in_header = size;
@@ -873,16 +875,12 @@ fsp_fill_free_list(
 			pages should be ignored. */
 
 			if (i > 0) {
-				const page_id_t	page_id(space->id, i);
-
-				block = buf_page_create(
-					page_id, zip_size, mtr);
-
-				buf_page_get(
-					page_id, zip_size, RW_SX_LATCH, mtr);
+				const auto savepoint = mtr->get_savepoint();
+				block= buf_page_create(page_id_t(space->id, i),
+						       zip_size, mtr);
+				mtr->sx_latch_at_savepoint(savepoint, block);
 
 				buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
-
 				fsp_init_file_page(space, block, mtr);
 				mtr->write<2>(*block,
 					      FIL_PAGE_TYPE + block->frame,
@@ -900,17 +898,11 @@ fsp_fill_free_list(
 				ibuf_mtr.start();
 				ibuf_mtr.set_named_space(space);
 
-				const page_id_t	page_id(
-					space->id,
-					i + FSP_IBUF_BITMAP_OFFSET);
-
 				block = buf_page_create(
-					page_id, zip_size, &ibuf_mtr);
-
-				buf_page_get(
-					page_id, zip_size, RW_SX_LATCH,
-					&ibuf_mtr);
-
+					page_id_t(space->id,
+						  i + FSP_IBUF_BITMAP_OFFSET),
+					zip_size, &ibuf_mtr);
+				ibuf_mtr.sx_latch_at_savepoint(0, block);
 				buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 
 				fsp_init_file_page(space, block, &ibuf_mtr);
@@ -1060,8 +1052,7 @@ fsp_alloc_from_free_frag(buf_block_t *header, buf_block_t *xdes, xdes_t *descr,
 @param[in,out]	space		tablespace
 @param[in]	offset		page number of the allocated page
 @param[in]	rw_latch	RW_SX_LATCH, RW_X_LATCH
-@param[in,out]	mtr		mini-transaction of the allocation
-@param[in,out]	init_mtr	mini-transaction for initializing the page
+@param[in,out]	mtr		mini-transaction
 @return block, initialized */
 static
 buf_block_t*
@@ -1069,13 +1060,13 @@ fsp_page_create(
 	fil_space_t*		space,
 	page_no_t		offset,
 	rw_lock_type_t		rw_latch,
-	mtr_t*			mtr,
-	mtr_t*			init_mtr)
+	mtr_t*			mtr)
 {
 	buf_block_t*	block = buf_page_create(page_id_t(space->id, offset),
-						space->zip_size(), init_mtr);
+						space->zip_size(), mtr);
 
-	/* Mimic buf_page_get(), but avoid the buf_pool->page_hash lookup. */
+	/* The latch may already have been acquired, so we cannot invoke
+	mtr_t::x_latch_at_savepoint() or mtr_t::sx_latch_at_savepoint(). */
 	mtr_memo_type_t memo;
 
 	if (rw_latch == RW_X_LATCH) {
@@ -1087,9 +1078,9 @@ fsp_page_create(
 		memo = MTR_MEMO_PAGE_SX_FIX;
 	}
 
-	mtr_memo_push(init_mtr, block, memo);
+	mtr_memo_push(mtr, block, memo);
 	buf_block_buf_fix_inc(block, __FILE__, __LINE__);
-	fsp_init_file_page(space, block, init_mtr);
+	fsp_init_file_page(space, block, mtr);
 
 	return(block);
 }
@@ -1202,7 +1193,7 @@ fsp_alloc_free_page(
 	}
 
 	fsp_alloc_from_free_frag(block, xdes, descr, free, mtr);
-	return fsp_page_create(space, page_no, rw_latch, mtr, init_mtr);
+	return fsp_page_create(space, page_no, rw_latch, init_mtr);
 }
 
 /** Frees a single page of a space.
@@ -2233,7 +2224,7 @@ got_hinted_page:
 				    xdes, mtr);
 	}
 
-	return fsp_page_create(space, ret_page, rw_latch, mtr, init_mtr);
+	return fsp_page_create(space, ret_page, rw_latch, init_mtr);
 }
 
 /**********************************************************************//**
@@ -2642,7 +2633,7 @@ fseg_free_page_func(
 
 	fseg_free_page_low(seg_inode, iblock, space, offset, ahi, mtr);
 
-	ut_d(buf_page_set_file_page_was_freed(page_id_t(space->id, offset)));
+	buf_page_free(page_id_t(space->id, offset), mtr, __FILE__, __LINE__);
 
 	DBUG_VOID_RETURN;
 }
@@ -2747,13 +2738,13 @@ fseg_free_extent(
 
 	fsp_free_extent(space, page, mtr);
 
-#ifdef UNIV_DEBUG
 	for (ulint i = 0; i < FSP_EXTENT_SIZE; i++) {
-
-		buf_page_set_file_page_was_freed(
-			page_id_t(space->id, first_page_in_extent + i));
+		if (!xdes_is_free(descr, i)) {
+			buf_page_free(
+			  page_id_t(space->id, first_page_in_extent + i),
+			  mtr, __FILE__, __LINE__);
+		}
 	}
-#endif /* UNIV_DEBUG */
 }
 
 #ifndef BTR_CUR_HASH_ADAPT

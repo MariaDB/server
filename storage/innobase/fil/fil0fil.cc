@@ -1814,23 +1814,19 @@ fil_create_directory_for_tablename(
 
 /** Write a log record about a file operation.
 @param type           file operation
-@param space_id       tablespace identifier
 @param first_page_no  first page number in the file
 @param path           file path
 @param new_path       new file path for type=FILE_RENAME */
-inline void mtr_t::log_file_op(mfile_type_t type,
-			       ulint space_id, ulint first_page_no,
+inline void mtr_t::log_file_op(mfile_type_t type, ulint space_id,
 			       const char *path, const char *new_path)
 {
-  ut_ad(first_page_no == 0 || type == FILE_CREATE);
   ut_ad((new_path != nullptr) == (type == FILE_RENAME));
   ut_ad(!(byte(type) & 15));
 
   /* fil_name_parse() requires that there be at least one path
   separator and that the file path end with ".ibd". */
   ut_ad(strchr(path, OS_PATH_SEPARATOR) != NULL);
-  ut_ad(first_page_no /* trimming an undo tablespace */ ||
-        !strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
+  ut_ad(!strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
 
   set_modified();
   if (m_log_mode != MTR_LOG_ALL)
@@ -1841,10 +1837,10 @@ inline void mtr_t::log_file_op(mfile_type_t type,
   const size_t new_len= type == FILE_RENAME ? 1 + strlen(new_path) : 0;
   ut_ad(len > 0);
   byte *const log_ptr= m_log.open(1 + 3/*length*/ + 5/*space_id*/ +
-                                  5/*first_page_no*/);
+                                  1/*page_no=0*/);
   byte *end= log_ptr + 1;
   end= mlog_encode_varint(end, space_id);
-  end= mlog_encode_varint(end, first_page_no);
+  *end++= 0;
   if (UNIV_LIKELY(end + len + new_len >= &log_ptr[16]))
   {
     *log_ptr= type;
@@ -1855,7 +1851,7 @@ inline void mtr_t::log_file_op(mfile_type_t type,
       total_len++;
     end= mlog_encode_varint(log_ptr + 1, total_len);
     end= mlog_encode_varint(end, space_id);
-    end= mlog_encode_varint(end, first_page_no);
+    *end++= 0;
   }
   else
   {
@@ -1877,7 +1873,6 @@ inline void mtr_t::log_file_op(mfile_type_t type,
 
 /** Write redo log for renaming a file.
 @param[in]	space_id	tablespace id
-@param[in]	first_page_no	first page number in the file
 @param[in]	old_name	tablespace file name
 @param[in]	new_name	tablespace file name after renaming
 @param[in,out]	mtr		mini-transaction */
@@ -1885,13 +1880,12 @@ static
 void
 fil_name_write_rename_low(
 	ulint		space_id,
-	ulint		first_page_no,
 	const char*	old_name,
 	const char*	new_name,
 	mtr_t*		mtr)
 {
   ut_ad(!is_predefined_tablespace(space_id));
-  mtr->log_file_op(FILE_RENAME, space_id, first_page_no, old_name, new_name);
+  mtr->log_file_op(FILE_RENAME, space_id, old_name, new_name);
 }
 
 /** Write redo log for renaming a file.
@@ -1906,46 +1900,28 @@ fil_name_write_rename(
 {
 	mtr_t	mtr;
 	mtr.start();
-	fil_name_write_rename_low(space_id, 0, old_name, new_name, &mtr);
+	fil_name_write_rename_low(space_id, old_name, new_name, &mtr);
 	mtr.commit();
 	log_write_up_to(mtr.commit_lsn(), true);
 }
 
 /** Write FILE_MODIFY for a file.
 @param[in]	space_id	tablespace id
-@param[in]	first_page_no	first page number in the file
 @param[in]	name		tablespace file name
 @param[in,out]	mtr		mini-transaction */
 static
 void
 fil_name_write(
 	ulint		space_id,
-	ulint		first_page_no,
 	const char*	name,
 	mtr_t*		mtr)
 {
   ut_ad(!is_predefined_tablespace(space_id));
-  mtr->log_file_op(FILE_MODIFY, space_id, first_page_no, name);
-}
-/** Write FILE_MODIFY for a file.
-@param[in]	space		tablespace
-@param[in]	first_page_no	first page number in the file
-@param[in]	file		tablespace file
-@param[in,out]	mtr		mini-transaction */
-static
-void
-fil_name_write(
-	const fil_space_t*	space,
-	ulint			first_page_no,
-	const fil_node_t*	file,
-	mtr_t*			mtr)
-{
-	fil_name_write(space->id, first_page_no, file->name, mtr);
+  mtr->log_file_op(FILE_MODIFY, space_id, name);
 }
 
 /** Replay a file rename operation if possible.
 @param[in]	space_id	tablespace identifier
-@param[in]	first_page_no	first page number in the file
 @param[in]	name		old file name
 @param[in]	new_name	new file name
 @return	whether the operation was successfully applied
@@ -1954,12 +1930,9 @@ name was successfully renamed to new_name)  */
 bool
 fil_op_replay_rename(
 	ulint		space_id,
-	ulint		first_page_no,
 	const char*	name,
 	const char*	new_name)
 {
-	ut_ad(first_page_no == 0);
-
 	/* In order to replay the rename, the following must hold:
 	* The new name is not already used.
 	* A tablespace exists with the old name.
@@ -2341,7 +2314,7 @@ fil_delete_tablespace(
 		mtr_t		mtr;
 
 		mtr.start();
-		mtr.log_file_op(FILE_DELETE, id, 0, path);
+		mtr.log_file_op(FILE_DELETE, id, path);
 		mtr.commit();
 		/* Even if we got killed shortly after deleting the
 		tablespace file, the record must have already been
@@ -2418,17 +2391,6 @@ fil_space_t* fil_truncate_prepare(ulint space_id)
 	}
 	ut_ad(space != NULL);
 	return space;
-}
-
-/** Write log about an undo tablespace truncate operation. */
-void fil_truncate_log(fil_space_t* space, ulint size, mtr_t* mtr)
-{
-  /* Write a record with the new size, so that recovery and
-  backup will ignore any preceding redo log records for writing
-  pages that are after the new end of the tablespace. */
-  ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
-  const fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
-  mtr->log_file_op(FILE_CREATE, space->id, size, file->name);
 }
 
 /*******************************************************************//**
@@ -2921,7 +2883,7 @@ err_exit:
 					      false, true);
 		mtr_t mtr;
 		mtr.start();
-		mtr.log_file_op(FILE_CREATE, space_id, 0, node->name);
+		mtr.log_file_op(FILE_CREATE, space_id, node->name);
 		mtr.commit();
 
 		node->find_metadata(file);
@@ -3930,6 +3892,8 @@ inline void IORequest::set_fil_node(fil_node_t* node)
 @param[in] message	message for aio handler if non-sync aio
 			used, else ignored
 @param[in] ignore	whether to ignore out-of-bounds page_id
+@param[in] punch_hole	punch the hole to the file for page_compressed
+			tablespace
 @return DB_SUCCESS, or DB_TABLESPACE_DELETED
 	if we are trying to do i/o on a tablespace which does not exist */
 dberr_t
@@ -3942,7 +3906,8 @@ fil_io(
 	ulint			len,
 	void*			buf,
 	void*			message,
-	bool			ignore)
+	bool			ignore,
+	bool			punch_hole)
 {
 	os_offset_t		offset;
 	IORequest		req_type(type);
@@ -4121,13 +4086,20 @@ fil_io(
 	      || !fil_is_user_tablespace_id(page_id.space())
 	      || offset == page_id.page_no() * zip_size);
 
-	/* Queue the aio request */
-	dberr_t err = os_aio(
-		req_type,
-		mode, name, node->handle, buf, offset, len,
-		space->purpose != FIL_TYPE_TEMPORARY
-		&& srv_read_only_mode,
-		node, message);
+	dberr_t err = DB_SUCCESS;
+
+	if (punch_hole) {
+		/* Punch the hole to the file */
+		err = os_file_punch_hole(node->handle, offset, len);
+	} else {
+		/* Queue the aio request */
+		err = os_aio(
+			req_type,
+			mode, name, node->handle, buf, offset, len,
+			space->purpose != FIL_TYPE_TEMPORARY
+			&& srv_read_only_mode,
+			node, message);
+	}
 
 	/* We an try to recover the page from the double write buffer if
 	the decompression fails or the page is corrupt. */
@@ -4192,8 +4164,8 @@ void fil_aio_callback(os_aio_userdata_t *data)
 	}
 
 	ulint offset = bpage->id.page_no();
-	if (dblwr && bpage->init_on_flush) {
-		bpage->init_on_flush = false;
+	if (dblwr && bpage->status == buf_page_t::INIT_ON_FLUSH) {
+		bpage->status = buf_page_t::NORMAL;
 		dblwr = false;
 	}
 	dberr_t err = buf_page_io_complete(bpage, dblwr);
@@ -4455,80 +4427,6 @@ fil_delete_file(
 	}
 }
 
-/** Generate redo log for swapping two .ibd files
-@param[in]	old_table	old table
-@param[in]	new_table	new table
-@param[in]	tmp_name	temporary table name
-@param[in,out]	mtr		mini-transaction
-@return innodb error code */
-dberr_t
-fil_mtr_rename_log(
-	const dict_table_t*	old_table,
-	const dict_table_t*	new_table,
-	const char*		tmp_name,
-	mtr_t*			mtr)
-{
-	ut_ad(old_table->space != fil_system.temp_space);
-	ut_ad(new_table->space != fil_system.temp_space);
-	ut_ad(old_table->space->id == old_table->space_id);
-	ut_ad(new_table->space->id == new_table->space_id);
-
-	/* If neither table is file-per-table,
-	there will be no renaming of files. */
-	if (!old_table->space_id && !new_table->space_id) {
-		return(DB_SUCCESS);
-	}
-
-	const bool has_data_dir = DICT_TF_HAS_DATA_DIR(old_table->flags);
-
-	if (old_table->space_id) {
-		char*	tmp_path = fil_make_filepath(
-			has_data_dir ? old_table->data_dir_path : NULL,
-			tmp_name, IBD, has_data_dir);
-		if (tmp_path == NULL) {
-			return(DB_OUT_OF_MEMORY);
-		}
-
-		const char* old_path = old_table->space->chain.start->name;
-		/* Temp filepath must not exist. */
-		dberr_t err = fil_rename_tablespace_check(
-			old_path, tmp_path, !old_table->space);
-		if (err != DB_SUCCESS) {
-			ut_free(tmp_path);
-			return(err);
-		}
-
-		fil_name_write_rename_low(
-			old_table->space_id, 0, old_path, tmp_path, mtr);
-
-		ut_free(tmp_path);
-	}
-
-	if (new_table->space_id) {
-		const char* new_path = new_table->space->chain.start->name;
-		char* old_path = fil_make_filepath(
-			has_data_dir ? old_table->data_dir_path : NULL,
-			old_table->name.m_name, IBD, has_data_dir);
-
-		/* Destination filepath must not exist unless this ALTER
-		TABLE starts and ends with a file_per-table tablespace. */
-		if (!old_table->space_id) {
-			dberr_t err = fil_rename_tablespace_check(
-				new_path, old_path, !new_table->space);
-			if (err != DB_SUCCESS) {
-				ut_free(old_path);
-				return(err);
-			}
-		}
-
-		fil_name_write_rename_low(
-			new_table->space_id, 0, new_path, old_path, mtr);
-		ut_free(old_path);
-	}
-
-	return DB_SUCCESS;
-}
-
 #ifdef UNIV_DEBUG
 /** Check that a tablespace is valid for mtr_commit().
 @param[in]	space	persistent tablespace that has been changed */
@@ -4562,7 +4460,7 @@ fil_names_write(
 	mtr_t*			mtr)
 {
 	ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
-	fil_name_write(space, 0, UT_LIST_GET_FIRST(space->chain), mtr);
+	fil_name_write(space->id, UT_LIST_GET_FIRST(space->chain)->name, mtr);
 }
 
 /** Note that a non-predefined persistent tablespace has been modified
@@ -4574,12 +4472,12 @@ fil_names_dirty(
 {
 	ut_ad(log_mutex_own());
 	ut_ad(recv_recovery_is_on());
-	ut_ad(log_sys.lsn != 0);
+	ut_ad(log_sys.get_lsn() != 0);
 	ut_ad(space->max_lsn == 0);
 	ut_d(fil_space_validate_for_mtr_commit(space));
 
 	UT_LIST_ADD_LAST(fil_system.named_spaces, space);
-	space->max_lsn = log_sys.lsn;
+	space->max_lsn = log_sys.get_lsn();
 }
 
 /** Write FILE_MODIFY records when a non-predefined persistent
@@ -4590,7 +4488,7 @@ void fil_names_dirty_and_write(fil_space_t* space)
 {
 	ut_ad(log_mutex_own());
 	ut_d(fil_space_validate_for_mtr_commit(space));
-	ut_ad(space->max_lsn == log_sys.lsn);
+	ut_ad(space->max_lsn == log_sys.get_lsn());
 
 	UT_LIST_ADD_LAST(fil_system.named_spaces, space);
 	mtr_t mtr;
@@ -4602,7 +4500,7 @@ void fil_names_dirty_and_write(fil_space_t* space)
 				char bogus_name[] = "./test/bogus file.ibd";
 				os_normalize_path(bogus_name);
 				fil_name_write(
-					SRV_SPACE_ID_UPPER_BOUND, 0,
+					SRV_SPACE_ID_UPPER_BOUND,
 					bogus_name, &mtr);
 			});
 
@@ -4631,11 +4529,6 @@ fil_names_clear(
 
 	ut_ad(log_mutex_own());
 	ut_ad(lsn);
-
-	if (log_sys.append_on_checkpoint) {
-		mtr_write_log(log_sys.append_on_checkpoint);
-		do_write = true;
-	}
 
 	mtr.start();
 

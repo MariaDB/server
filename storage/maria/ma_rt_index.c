@@ -905,7 +905,7 @@ static my_bool maria_rtree_fill_reinsert_list(stPageList *ReinsertList,
   if (ReinsertList->n_pages == ReinsertList->m_pages)
   {
     ReinsertList->m_pages += REINSERT_BUFFER_INC;
-    if (!(ReinsertList->pages= (stPageLevel*)my_realloc((uchar*)ReinsertList->pages,
+    if (!(ReinsertList->pages= (stPageLevel*)my_realloc(PSI_INSTRUMENT_ME, (uchar*)ReinsertList->pages,
       ReinsertList->m_pages * sizeof(stPageLevel), MYF(MY_ALLOW_ZERO_PTR))))
       goto err;
   }

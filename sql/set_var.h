@@ -404,6 +404,8 @@ extern SHOW_COMP_OPTION have_openssl;
 /*
   Prototypes for helper functions
 */
+ulong get_system_variable_hash_records(void);
+ulonglong get_system_variable_hash_version(void);
 
 SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type);
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond);

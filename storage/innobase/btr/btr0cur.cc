@@ -691,7 +691,7 @@ bool btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 
 	switch (fil_page_get_type(page)) {
 	default:
-		ut_ad(!"wrong page type");
+		ut_ad("wrong page type" == 0);
 		return true;
 	case FIL_PAGE_INDEX:
 		/* The field PAGE_INSTANT is guaranteed 0 on clustered
@@ -4105,21 +4105,30 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 		case REC_STATUS_NODE_PTR:
 		case REC_STATUS_INFIMUM:
 		case REC_STATUS_SUPREMUM:
-			ut_ad(!"wrong record status in update");
+			ut_ad("wrong record status in update" == 0);
 		}
 	}
 #endif /* UNIV_DEBUG */
 
-	byte* info_bits = &rec[rec_offs_comp(offsets)
-			       ? -REC_NEW_INFO_BITS
-			       : -REC_OLD_INFO_BITS];
-	compile_time_assert(REC_INFO_BITS_SHIFT == 0);
-	if ((*info_bits & REC_INFO_BITS_MASK) == update->info_bits) {
-	} else if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+	static_assert(REC_INFO_BITS_SHIFT == 0, "compatibility");
+	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+		ut_ad(rec_offs_comp(offsets));
+		byte* info_bits = &rec[-REC_NEW_INFO_BITS];
+		const bool flip_del_mark = (*info_bits ^ update->info_bits)
+			& REC_INFO_DELETED_FLAG;
 		*info_bits &= ~REC_INFO_BITS_MASK;
 		*info_bits |= update->info_bits;
+
+		if (flip_del_mark) {
+			page_zip_rec_set_deleted(block, rec, update->info_bits
+						 & REC_INFO_DELETED_FLAG, mtr);
+		}
 	} else {
-		mtr->write<1>(*block, info_bits,
+		byte* info_bits = &rec[rec_offs_comp(offsets)
+				       ? -REC_NEW_INFO_BITS
+				       : -REC_OLD_INFO_BITS];
+
+		mtr->write<1,mtr_t::OPT>(*block, info_bits,
 			      (*info_bits & ~REC_INFO_BITS_MASK)
 			      | update->info_bits);
 	}
@@ -5862,7 +5871,7 @@ discard_page:
 					   << block->page.id
 					   << " in index " << index->name
 					   << " of " << index->table->name;
-				ut_ad(!"MDEV-14637");
+				ut_ad("MDEV-14637" == 0);
 			}
 		}
 	}
@@ -6668,8 +6677,8 @@ btr_estimate_number_of_different_key_vals(
                 */
 		if (index->stat_index_size > 1) {
 			n_sample_pages = (srv_stats_transient_sample_pages < index->stat_index_size) ?
-				ut_min(static_cast<ulint>(index->stat_index_size),
-					static_cast<ulint>(log2(index->stat_index_size)*srv_stats_transient_sample_pages))
+				ut_min(index->stat_index_size,
+				       static_cast<ulint>(log2(index->stat_index_size)*double(srv_stats_transient_sample_pages)))
 				: index->stat_index_size;
 
 		}

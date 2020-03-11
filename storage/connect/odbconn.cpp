@@ -1289,7 +1289,6 @@ bool ODBConn::DriverConnect(DWORD Options)
 #else   // !__WIN__
   HWND    hWnd = (HWND)1;
 #endif  // !__WIN__
-  PGLOBAL& g = m_G;
 
     wConnectOption = SQL_DRIVER_NOPROMPT;
 //else if (Options & forceOdbcDialog)

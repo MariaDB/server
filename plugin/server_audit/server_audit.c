@@ -124,7 +124,7 @@ static char *default_home= (char *)".";
 #define my_rename(A, B, C) loc_rename(A, B)
 #define my_tell(A, B) loc_tell(A)
 #define my_write(A, B, C, D) loc_write(A, B, C)
-#define my_malloc(A, B) malloc(A)
+#define my_malloc(A, B, C) malloc(B)
 #define my_free(A) free(A)
 #ifdef my_errno
   #undef my_errno

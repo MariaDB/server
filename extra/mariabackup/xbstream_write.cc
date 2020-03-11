@@ -65,7 +65,7 @@ xb_stream_write_new(void)
 {
 	xb_wstream_t	*stream;
 
-	stream = (xb_wstream_t *) my_malloc(sizeof(xb_wstream_t), MYF(MY_FAE));
+	stream = (xb_wstream_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(xb_wstream_t), MYF(MY_FAE));
 	pthread_mutex_init(&stream->mutex, NULL);
 
 	return stream;;
@@ -87,7 +87,7 @@ xb_stream_write_open(xb_wstream_t *stream, const char *path,
 		return NULL;
 	}
 
-	file = (xb_wstream_file_t *) my_malloc(sizeof(xb_wstream_file_t) +
+	file = (xb_wstream_file_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(xb_wstream_file_t) +
 					       path_len + 1, MYF(MY_FAE));
 
 	file->path = (char *) (file + 1);

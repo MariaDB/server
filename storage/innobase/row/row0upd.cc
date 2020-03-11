@@ -1203,15 +1203,12 @@ row_upd_replace_vcol(
 		ptr += 2;
 
 		while (ptr != end_ptr) {
-			const byte*             field;
-			ulint                   field_no;
-			ulint                   len;
-			ulint                   orig_len;
-			bool			is_v;
+			const byte* field;
+			uint32_t field_no, len, orig_len;
 
 			field_no = mach_read_next_compressed(&ptr);
 
-			is_v = (field_no >= REC_MAX_N_FIELDS);
+			const bool is_v = (field_no >= REC_MAX_N_FIELDS);
 
 			if (is_v) {
 				ptr = trx_undo_read_v_idx(
@@ -1223,7 +1220,7 @@ row_upd_replace_vcol(
 			ptr = trx_undo_rec_get_col_val(
 				ptr, &field, &len, &orig_len);
 
-			if (field_no == ULINT_UNDEFINED) {
+			if (field_no == FIL_NULL) {
 				ut_ad(is_v);
 				continue;
 			}

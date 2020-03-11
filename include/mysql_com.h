@@ -25,8 +25,10 @@
 
 #define HOSTNAME_LENGTH 60
 #define SYSTEM_CHARSET_MBMAXLEN 3
-#define NAME_CHAR_LEN	64U             /* Field/table name length */
-#define USERNAME_CHAR_LENGTH 128U
+#define NAME_CHAR_LEN	64              /* Field/table name length */
+#define USERNAME_CHAR_LENGTH 128
+#define USERNAME_CHAR_LENGTH_STR STRINGIFY_ARG(USERNAME_CHAR_LENGTH)
+
 #define NAME_LEN                (NAME_CHAR_LEN*SYSTEM_CHARSET_MBMAXLEN)
 #define USERNAME_LENGTH         (USERNAME_CHAR_LENGTH*SYSTEM_CHARSET_MBMAXLEN)
 #define DEFINER_CHAR_LENGTH     (USERNAME_CHAR_LENGTH + HOSTNAME_LENGTH + 1)
@@ -206,6 +208,8 @@ enum enum_indicator_type
                                                 itself supports it*/
 #define LONG_UNIQUE_HASH_FIELD       (1<< 30) /* This field will store hash for unique
                                                 column */
+#define FIELD_PART_OF_TMP_UNIQUE     (1<< 31) /* part of an unique constrain
+                                                for a tmporary table*/
 
 #define REFRESH_GRANT           (1ULL << 0)  /* Refresh grant tables */
 #define REFRESH_LOG             (1ULL << 1)  /* Start on new log file */
@@ -296,6 +300,8 @@ enum enum_indicator_type
 #define MARIADB_CLIENT_COM_MULTI (1ULL << 33)
 /* support of array binding */
 #define MARIADB_CLIENT_STMT_BULK_OPERATIONS (1ULL << 34)
+/* support of extended metadata (e.g. type/format information) */
+#define MARIADB_CLIENT_EXTENDED_METADATA (1ULL << 35)
 
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
@@ -337,6 +343,7 @@ enum enum_indicator_type
                            CLIENT_CONNECT_ATTRS |\
                            MARIADB_CLIENT_COM_MULTI |\
                            MARIADB_CLIENT_STMT_BULK_OPERATIONS |\
+                           MARIADB_CLIENT_EXTENDED_METADATA|\
                            CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS)
 
 /*
@@ -347,6 +354,15 @@ enum enum_indicator_type
 #define CLIENT_BASIC_FLAGS (((CLIENT_ALL_FLAGS & ~CLIENT_SSL) \
                                                & ~CLIENT_COMPRESS) \
                                                & ~CLIENT_SSL_VERIFY_SERVER_CERT)
+
+enum mariadb_field_attr_t
+{
+  MARIADB_FIELD_ATTR_DATA_TYPE_NAME= 0,
+  MARIADB_FIELD_ATTR_FORMAT_NAME= 1
+};
+
+#define MARIADB_FIELD_ATTR_LAST MARIADB_FIELD_ATTR_FORMAT_NAME
+
 
 /**
   Is raised when a multi-statement transaction

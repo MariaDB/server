@@ -1280,7 +1280,7 @@ fts_cache_node_add_positions(
 		} else if (new_size < 48) {
 			new_size = 48;
 		} else {
-			new_size = (ulint)(1.2 * new_size);
+			new_size = new_size * 6 / 5;
 		}
 
 		ilist = static_cast<byte*>(ut_malloc_nokey(new_size));
@@ -4176,7 +4176,8 @@ fts_sync_commit(
 			<< ": SYNC time: "
 			<< (time(NULL) - sync->start_time)
 			<< " secs: elapsed "
-			<< (double) n_nodes / elapsed_time
+			<< static_cast<double>(n_nodes)
+			/ static_cast<double>(elapsed_time)
 			<< " ins/sec";
 	}
 
@@ -5268,7 +5269,9 @@ fts_update_doc_id(
 
 		clust_index = dict_table_get_first_index(table);
 
-		ufield->field_no = dict_col_get_clust_pos(col, clust_index);
+		ufield->field_no = static_cast<unsigned>(
+			dict_col_get_clust_pos(col, clust_index))
+			& dict_index_t::MAX_N_FIELDS;
 		dict_col_copy_type(col, dfield_get_type(&ufield->new_val));
 
 		/* It is possible we update record that has

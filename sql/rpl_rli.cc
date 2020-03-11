@@ -73,7 +73,9 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
                          key_RELAYLOG_COND_relay_log_updated,
                          key_RELAYLOG_COND_bin_log_updated,
                          key_file_relaylog,
+                         key_file_relaylog_cache,
                          key_file_relaylog_index,
+                         key_file_relaylog_index_cache,
                          key_RELAYLOG_COND_queue_busy,
                          key_LOCK_relaylog_end_pos);
 #endif
@@ -1435,14 +1437,15 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
   uint32 gtid_count;
   rpl_gtid *gtid_list;
 
-  if (!(ir= (inuse_relaylog *)my_malloc(sizeof(*ir), MYF(MY_WME|MY_ZEROFILL))))
+  if (!(ir= (inuse_relaylog *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*ir),
+                                        MYF(MY_WME|MY_ZEROFILL))))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*ir));
     return 1;
   }
   gtid_count= relay_log_state.count();
-  if (!(gtid_list= (rpl_gtid *)my_malloc(sizeof(*gtid_list)*gtid_count,
-                                         MYF(MY_WME))))
+  if (!(gtid_list= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME,
+                                 sizeof(*gtid_list)*gtid_count, MYF(MY_WME))))
   {
     my_free(ir);
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*gtid_list)*gtid_count);
@@ -1589,8 +1592,8 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
     }
     else
     {
-      if (!(entry= (struct gtid_pos_element *)my_malloc(sizeof(*entry),
-                                                        MYF(MY_WME))))
+      if (!(entry= (struct gtid_pos_element *)my_malloc(PSI_INSTRUMENT_ME,
+                                                sizeof(*entry), MYF(MY_WME))))
       {
         my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*entry));
         err= 1;
@@ -1831,10 +1834,11 @@ rpl_load_gtid_slave_state(THD *thd)
 
   cb_data.table_list= NULL;
   cb_data.default_entry= NULL;
-  my_hash_init(&hash, &my_charset_bin, 32,
+  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
                offsetof(gtid_pos_element, gtid) + offsetof(rpl_gtid, domain_id),
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
-  if ((err= my_init_dynamic_array(&array, sizeof(gtid_pos_element), 0, 0, MYF(0))))
+  if ((err= my_init_dynamic_array(PSI_INSTRUMENT_ME, &array,
+                                  sizeof(gtid_pos_element), 0, 0, MYF(0))))
     goto end;
   array_inited= true;
 

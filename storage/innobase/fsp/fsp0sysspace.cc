@@ -912,6 +912,8 @@ SysTablespace::open_or_create(
 			if (!space) {
 				return DB_ERROR;
 			}
+			ut_ad(!space->is_compressed());
+			ut_ad(space->full_crc32());
 		} else {
 			ut_ad(!fil_system.sys_space);
 			ut_ad(space_id() == TRX_SYS_SPACE);

@@ -5095,5 +5095,211 @@ ERROR HY000: Operator does not exists: 'CAST(expr AS multilinestring)'
 SELECT CONVERT(1, MULTIPOLYGON);
 ERROR HY000: Operator does not exists: 'CAST(expr AS multipolygon)'
 #
+# MDEV-17832 Protocol: extensions for Pluggable types and JSON, GEOMETRY
+#
+SET NAMES utf8;
+CREATE TABLE t1 (
+p    POINT,
+ls   LINESTRING,
+pl   POLYGON,
+mp   MULTIPOINT,
+mls  MULTILINESTRING,
+mpl  MULTIPOLYGON,
+gc   GEOMETRYCOLLECTION,
+g    GEOMETRY
+) CHARACTER SET utf8;
+SELECT * FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	p	p	255 (type=point)	4294967295	0	Y	144	0	63
+def	test	t1	t1	ls	ls	255 (type=linestring)	4294967295	0	Y	144	0	63
+def	test	t1	t1	pl	pl	255 (type=polygon)	4294967295	0	Y	144	0	63
+def	test	t1	t1	mp	mp	255 (type=multipoint)	4294967295	0	Y	144	0	63
+def	test	t1	t1	mls	mls	255 (type=multilinestring)	4294967295	0	Y	144	0	63
+def	test	t1	t1	mpl	mpl	255 (type=multipolygon)	4294967295	0	Y	144	0	63
+def	test	t1	t1	gc	gc	255 (type=geometrycollection)	4294967295	0	Y	144	0	63
+def	test	t1	t1	g	g	255	4294967295	0	Y	144	0	63
+p	ls	pl	mp	mls	mpl	gc	g
+SELECT
+COALESCE(p) AS p,
+COALESCE(ls) AS ls,
+COALESCE(pl) AS pl,
+COALESCE(mp) AS mp,
+COALESCE(mls) AS mls,
+COALESCE(mpl) AS mpl,
+COALESCE(gc) AS gc,
+COALESCE(g) AS g
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					p	255 (type=point)	4294967295	0	Y	128	0	63
+def					ls	255 (type=linestring)	4294967295	0	Y	128	0	63
+def					pl	255 (type=polygon)	4294967295	0	Y	128	0	63
+def					mp	255 (type=multipoint)	4294967295	0	Y	128	0	63
+def					mls	255 (type=multilinestring)	4294967295	0	Y	128	0	63
+def					mpl	255 (type=multipolygon)	4294967295	0	Y	128	0	63
+def					gc	255 (type=geometrycollection)	4294967295	0	Y	128	0	63
+def					g	255	4294967295	0	Y	128	0	63
+p	ls	pl	mp	mls	mpl	gc	g
+SELECT
+COALESCE(p,p),
+COALESCE(p,ls),
+COALESCE(p,pl),
+COALESCE(p,mp),
+COALESCE(p,mls),
+COALESCE(p,mpl),
+COALESCE(p,g),
+COALESCE(p,gc)
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(p,p)	255 (type=point)	4294967295	0	Y	128	0	63
+def					COALESCE(p,ls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(p,pl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(p,mp)	255	4294967295	0	Y	128	0	63
+def					COALESCE(p,mls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(p,mpl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(p,g)	255	4294967295	0	Y	128	0	63
+def					COALESCE(p,gc)	255	4294967295	0	Y	128	0	63
+COALESCE(p,p)	COALESCE(p,ls)	COALESCE(p,pl)	COALESCE(p,mp)	COALESCE(p,mls)	COALESCE(p,mpl)	COALESCE(p,g)	COALESCE(p,gc)
+SELECT
+COALESCE(ls,p),
+COALESCE(ls,ls),
+COALESCE(ls,pl),
+COALESCE(ls,mp),
+COALESCE(ls,mls),
+COALESCE(ls,mpl),
+COALESCE(ls,g),
+COALESCE(ls,gc)
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(ls,p)	255	4294967295	0	Y	128	0	63
+def					COALESCE(ls,ls)	255 (type=linestring)	4294967295	0	Y	128	0	63
+def					COALESCE(ls,pl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(ls,mp)	255	4294967295	0	Y	128	0	63
+def					COALESCE(ls,mls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(ls,mpl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(ls,g)	255	4294967295	0	Y	128	0	63
+def					COALESCE(ls,gc)	255	4294967295	0	Y	128	0	63
+COALESCE(ls,p)	COALESCE(ls,ls)	COALESCE(ls,pl)	COALESCE(ls,mp)	COALESCE(ls,mls)	COALESCE(ls,mpl)	COALESCE(ls,g)	COALESCE(ls,gc)
+SELECT
+COALESCE(pl,p),
+COALESCE(pl,ls),
+COALESCE(pl,pl),
+COALESCE(pl,mp),
+COALESCE(pl,mls),
+COALESCE(pl,mpl),
+COALESCE(pl,g),
+COALESCE(pl,gc)
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(pl,p)	255	4294967295	0	Y	128	0	63
+def					COALESCE(pl,ls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(pl,pl)	255 (type=polygon)	4294967295	0	Y	128	0	63
+def					COALESCE(pl,mp)	255	4294967295	0	Y	128	0	63
+def					COALESCE(pl,mls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(pl,mpl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(pl,g)	255	4294967295	0	Y	128	0	63
+def					COALESCE(pl,gc)	255	4294967295	0	Y	128	0	63
+COALESCE(pl,p)	COALESCE(pl,ls)	COALESCE(pl,pl)	COALESCE(pl,mp)	COALESCE(pl,mls)	COALESCE(pl,mpl)	COALESCE(pl,g)	COALESCE(pl,gc)
+SELECT
+COALESCE(mp,p),
+COALESCE(mp,ls),
+COALESCE(mp,pl),
+COALESCE(mp,mp),
+COALESCE(mp,mls),
+COALESCE(mp,mpl),
+COALESCE(mp,g),
+COALESCE(mp,gc)
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(mp,p)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mp,ls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mp,pl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mp,mp)	255 (type=multipoint)	4294967295	0	Y	128	0	63
+def					COALESCE(mp,mls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mp,mpl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mp,g)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mp,gc)	255	4294967295	0	Y	128	0	63
+COALESCE(mp,p)	COALESCE(mp,ls)	COALESCE(mp,pl)	COALESCE(mp,mp)	COALESCE(mp,mls)	COALESCE(mp,mpl)	COALESCE(mp,g)	COALESCE(mp,gc)
+SELECT
+COALESCE(mls,p),
+COALESCE(mls,ls),
+COALESCE(mls,pl),
+COALESCE(mls,mp),
+COALESCE(mls,mls),
+COALESCE(mls,mpl),
+COALESCE(mls,g),
+COALESCE(mls,gc)
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(mls,p)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mls,ls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mls,pl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mls,mp)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mls,mls)	255 (type=multilinestring)	4294967295	0	Y	128	0	63
+def					COALESCE(mls,mpl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mls,g)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mls,gc)	255	4294967295	0	Y	128	0	63
+COALESCE(mls,p)	COALESCE(mls,ls)	COALESCE(mls,pl)	COALESCE(mls,mp)	COALESCE(mls,mls)	COALESCE(mls,mpl)	COALESCE(mls,g)	COALESCE(mls,gc)
+SELECT
+COALESCE(mpl,p),
+COALESCE(mpl,ls),
+COALESCE(mpl,pl),
+COALESCE(mpl,mp),
+COALESCE(mpl,mls),
+COALESCE(mpl,mpl),
+COALESCE(mpl,g),
+COALESCE(mpl,gc)
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(mpl,p)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mpl,ls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mpl,pl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mpl,mp)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mpl,mls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mpl,mpl)	255 (type=multipolygon)	4294967295	0	Y	128	0	63
+def					COALESCE(mpl,g)	255	4294967295	0	Y	128	0	63
+def					COALESCE(mpl,gc)	255	4294967295	0	Y	128	0	63
+COALESCE(mpl,p)	COALESCE(mpl,ls)	COALESCE(mpl,pl)	COALESCE(mpl,mp)	COALESCE(mpl,mls)	COALESCE(mpl,mpl)	COALESCE(mpl,g)	COALESCE(mpl,gc)
+SELECT
+COALESCE(g,p),
+COALESCE(g,ls),
+COALESCE(g,pl),
+COALESCE(g,mp),
+COALESCE(g,mls),
+COALESCE(g,mpl),
+COALESCE(g,g),
+COALESCE(g,gc)
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(g,p)	255	4294967295	0	Y	128	0	63
+def					COALESCE(g,ls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(g,pl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(g,mp)	255	4294967295	0	Y	128	0	63
+def					COALESCE(g,mls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(g,mpl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(g,g)	255	4294967295	0	Y	128	0	63
+def					COALESCE(g,gc)	255	4294967295	0	Y	128	0	63
+COALESCE(g,p)	COALESCE(g,ls)	COALESCE(g,pl)	COALESCE(g,mp)	COALESCE(g,mls)	COALESCE(g,mpl)	COALESCE(g,g)	COALESCE(g,gc)
+SELECT
+COALESCE(gc,p),
+COALESCE(gc,ls),
+COALESCE(gc,pl),
+COALESCE(gc,mp),
+COALESCE(gc,mls),
+COALESCE(gc,mpl),
+COALESCE(gc,g),
+COALESCE(gc,gc)
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(gc,p)	255	4294967295	0	Y	128	0	63
+def					COALESCE(gc,ls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(gc,pl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(gc,mp)	255	4294967295	0	Y	128	0	63
+def					COALESCE(gc,mls)	255	4294967295	0	Y	128	0	63
+def					COALESCE(gc,mpl)	255	4294967295	0	Y	128	0	63
+def					COALESCE(gc,g)	255	4294967295	0	Y	128	0	63
+def					COALESCE(gc,gc)	255 (type=geometrycollection)	4294967295	0	Y	128	0	63
+COALESCE(gc,p)	COALESCE(gc,ls)	COALESCE(gc,pl)	COALESCE(gc,mp)	COALESCE(gc,mls)	COALESCE(gc,mpl)	COALESCE(gc,g)	COALESCE(gc,gc)
+DROP TABLE t1;
+#
 # End of 10.5 tests
 #

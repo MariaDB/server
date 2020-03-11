@@ -207,7 +207,7 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   switch (slot->type) {
 #ifdef UNIV_DEBUG
   default:
-    ut_ad(!"invalid type");
+    ut_ad("invalid type" == 0);
     break;
   case MTR_MEMO_MODIFY:
     break;
@@ -243,7 +243,7 @@ struct ReleaseLatches {
     switch (slot->type) {
 #ifdef UNIV_DEBUG
     default:
-      ut_ad(!"invalid type");
+      ut_ad("invalid type" == 0);
       break;
     case MTR_MEMO_MODIFY:
       break;
@@ -350,25 +350,6 @@ struct mtr_write_log_t {
 		return(true);
 	}
 };
-
-/** Append records to the system-wide redo log buffer.
-@param[in]	log	redo log records */
-void
-mtr_write_log(
-	const mtr_buf_t*	log)
-{
-	const ulint	len = log->size();
-	mtr_write_log_t	write_log;
-
-	ut_ad(!recv_no_log_write);
-	DBUG_PRINT("ib_log",
-		   (ULINTPF " extra bytes written at " LSN_PF,
-		    len, log_sys.lsn));
-
-	log_reserve_and_open(len);
-	log->for_each_block(write_log);
-	log_close();
-}
 
 /** Start a mini-transaction. */
 void mtr_t::start()
@@ -478,7 +459,7 @@ void mtr_t::commit_files(lsn_t checkpoint_lsn)
 	if (checkpoint_lsn) {
 		DBUG_PRINT("ib_log",
 			   ("FILE_CHECKPOINT(" LSN_PF ") written at " LSN_PF,
-			    checkpoint_lsn, log_sys.lsn));
+			    checkpoint_lsn, log_sys.get_lsn()));
 	}
 }
 
@@ -608,7 +589,7 @@ inline ulint mtr_t::prepare_write()
 		ut_ad(m_log_mode == MTR_LOG_NO_REDO);
 		ut_ad(m_log.size() == 0);
 		log_mutex_enter();
-		m_commit_lsn = log_sys.lsn;
+		m_commit_lsn = log_sys.get_lsn();
 		return 0;
 	}
 

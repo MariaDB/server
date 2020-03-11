@@ -38,12 +38,6 @@
 #include <table.h>
 #include <sql_list.h>
 
-/* Needed to get access to scheduler variables */
-void* thd_get_scheduler_data(THD *thd);
-void thd_set_scheduler_data(THD *thd, void *data);
-PSI_thread* thd_get_psi(THD *thd);
-void thd_set_psi(THD *thd, PSI_thread *psi);
-
 /* Interface to THD variables and functions */
 void thd_set_killed(THD *thd);
 void thd_clear_errors(THD *thd);

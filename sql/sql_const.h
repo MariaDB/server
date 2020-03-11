@@ -309,4 +309,6 @@
 #define QUERY_PRIOR	6
 #endif /* __WIN92__ */
 
+#define SP_PSI_STATEMENT_INFO_COUNT 19
+
 #endif /* SQL_CONST_INCLUDED */

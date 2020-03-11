@@ -28,6 +28,11 @@ enum enum_indicator_type
   STMT_INDICATOR_DEFAULT,
   STMT_INDICATOR_IGNORE
 };
+enum mariadb_field_attr_t
+{
+  MARIADB_FIELD_ATTR_DATA_TYPE_NAME= 0,
+  MARIADB_FIELD_ATTR_FORMAT_NAME= 1
+};
 struct st_vio;
 typedef struct st_vio Vio;
 typedef struct st_net {
@@ -207,6 +212,7 @@ extern int list_walk(LIST *,list_walk_action action,unsigned char * argument);
 extern unsigned int mariadb_deinitialize_ssl;
 extern unsigned int mysql_port;
 extern char *mysql_unix_port;
+typedef struct st_mysql_const_lex_string MARIADB_CONST_STRING;
 typedef struct st_mysql_field {
   char *name;
   char *org_name;
@@ -234,6 +240,12 @@ typedef char **MYSQL_ROW;
 typedef unsigned int MYSQL_FIELD_OFFSET;
 typedef unsigned long long my_ulonglong;
 extern "C" {
+}
+extern "C" {
+struct PSI_thread;
+typedef unsigned int PSI_memory_key;
+}
+extern "C" {
 typedef struct st_used_mem
 {
   struct st_used_mem *next;
@@ -247,11 +259,10 @@ typedef struct st_mem_root
   USED_MEM *pre_alloc;
   size_t min_malloc;
   size_t block_size;
-  size_t total_alloc;
   unsigned int block_num;
   unsigned int first_block_usage;
   void (*error_handler)(void);
-  const char *name;
+  PSI_memory_key m_psi_key;
 } MEM_ROOT;
 }
 typedef struct st_typelib {
@@ -436,6 +447,9 @@ MYSQL_FIELD * mysql_fetch_field_direct(MYSQL_RES *res,
 MYSQL_FIELD * mysql_fetch_fields(MYSQL_RES *res);
 MYSQL_ROW_OFFSET mysql_row_tell(MYSQL_RES *res);
 MYSQL_FIELD_OFFSET mysql_field_tell(MYSQL_RES *res);
+int mariadb_field_attr(MARIADB_CONST_STRING *attr,
+                               const MYSQL_FIELD *field,
+                               enum mariadb_field_attr_t type);
 unsigned int mysql_field_count(MYSQL *mysql);
 my_ulonglong mysql_affected_rows(MYSQL *mysql);
 my_ulonglong mysql_insert_id(MYSQL *mysql);

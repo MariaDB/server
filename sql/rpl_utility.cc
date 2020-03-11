@@ -171,6 +171,7 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
   return length;
 }
 
+PSI_memory_key key_memory_table_def_memory;
 
 table_def::table_def(unsigned char *types, ulong size,
                      uchar *field_metadata, int metadata_size,
@@ -179,7 +180,7 @@ table_def::table_def(unsigned char *types, ulong size,
     m_field_metadata(0), m_null_bits(0), m_flags(flags),
     m_memory(NULL)
 {
-  m_memory= (uchar *)my_multi_malloc(MYF(MY_WME),
+  m_memory= (uchar *)my_multi_malloc(key_memory_table_def_memory, MYF(MY_WME),
                                      &m_type, size,
                                      &m_field_metadata,
                                      size * sizeof(uint16),

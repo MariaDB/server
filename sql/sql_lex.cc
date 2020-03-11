@@ -511,7 +511,7 @@ void LEX::add_key_to_list(LEX_CSTRING *field_name,
 }
 
 
-bool LEX::add_alter_list(const char *name, Virtual_column_info *expr,
+bool LEX::add_alter_list(LEX_CSTRING name, Virtual_column_info *expr,
                          bool exists)
 {
   MEM_ROOT *mem_root= thd->mem_root;
@@ -520,6 +520,17 @@ bool LEX::add_alter_list(const char *name, Virtual_column_info *expr,
     return true;
   alter_info.alter_list.push_back(ac, mem_root);
   alter_info.flags|= ALTER_CHANGE_COLUMN_DEFAULT;
+  return false;
+}
+
+
+bool LEX::add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name)
+{
+  Alter_column *ac= new (thd->mem_root) Alter_column(name, new_name);
+  if (unlikely(ac == NULL))
+    return true;
+  alter_info.alter_list.push_back(ac, thd->mem_root);
+  alter_info.flags|= ALTER_RENAME_COLUMN;
   return false;
 }
 
@@ -3503,10 +3514,74 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
 }
 
 
+/*
+  @brief
+    Print the whole statement
+
+    @param str         Print into this string
+    @param query_type  Flags describing how to print
+
+  @detail
+    The intent is to allow to eventually print back any query.
+
+    This is useful e.g. for storage engines that take over diferrent kinds of
+    queries
+*/
+
+void LEX::print(String *str, enum_query_type query_type)
+{
+  if (sql_command == SQLCOM_UPDATE)
+  {
+    SELECT_LEX *sel= first_select_lex();
+    str->append(STRING_WITH_LEN("UPDATE "));
+    if (ignore)
+      str->append(STRING_WITH_LEN("IGNORE "));
+    // table name
+    str->append(query_tables->alias);
+    str->append(STRING_WITH_LEN(" SET "));
+    // print item assignments
+    List_iterator<Item> it(sel->item_list);
+    List_iterator<Item> it2(value_list);
+    Item *col_ref, *value;
+    bool first= true;
+    while ((col_ref= it++) && (value= it2++))
+    {
+      if (first)
+        first= false;
+      else
+        str->append(STRING_WITH_LEN(", "));
+      col_ref->print(str, query_type);
+      str->append(STRING_WITH_LEN("="));
+      value->print(str, query_type);
+    }
+
+    str->append(STRING_WITH_LEN(" WHERE "));
+    sel->where->print(str, query_type);
+
+    if (sel->order_list.elements)
+    {
+      str->append(STRING_WITH_LEN(" ORDER BY "));
+      for (ORDER *ord= sel->order_list.first; ord; ord= ord->next)
+      {
+        if (ord != sel->order_list.first)
+          str->append(STRING_WITH_LEN(", "));
+        (*ord->item)->print(str, query_type);
+      }
+    }
+    if (sel->select_limit)
+    {
+      str->append(STRING_WITH_LEN(" LIMIT "));
+      sel->select_limit->print(str, query_type);
+    }
+  }
+  else
+    DBUG_ASSERT(0); // Not implemented yet
+}
+
 void st_select_lex_unit::print(String *str, enum_query_type query_type)
 {
   if (with_clause)
-    with_clause->print(str, query_type);
+    with_clause->print(thd, str, query_type);
   for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
   {
     if (sl != first_select())
@@ -3751,12 +3826,12 @@ LEX::LEX()
     default_used(0), is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
-  init_dynamic_array2(&plugins, sizeof(plugin_ref), plugins_static_buffer,
-                      INITIAL_LEX_PLUGIN_LIST_SIZE,
+  init_dynamic_array2(PSI_INSTRUMENT_ME, &plugins, sizeof(plugin_ref),
+                      plugins_static_buffer, INITIAL_LEX_PLUGIN_LIST_SIZE,
                       INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
-  init_dynamic_array2(&delete_gtid_domain, sizeof(uint32),
+  init_dynamic_array2(PSI_INSTRUMENT_ME, &delete_gtid_domain, sizeof(uint32),
                       gtid_domain_static_buffer,
                       initial_gtid_domain_buffer_size,
                       initial_gtid_domain_buffer_size, 0);
@@ -5584,8 +5659,8 @@ bool LEX::set_arena_for_set_stmt(Query_arena *backup)
     mem_root_for_set_stmt= new MEM_ROOT();
     if (unlikely(!(mem_root_for_set_stmt)))
       DBUG_RETURN(1);
-    init_sql_alloc(mem_root_for_set_stmt, "set_stmt",
-                   ALLOC_ROOT_SET, ALLOC_ROOT_SET, MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(PSI_INSTRUMENT_ME, mem_root_for_set_stmt, ALLOC_ROOT_SET,
+                   ALLOC_ROOT_SET, MYF(MY_THREAD_SPECIFIC));
   }
   if (unlikely(!(arena_for_set_stmt= new(mem_root_for_set_stmt)
                  Query_arena_memroot(mem_root_for_set_stmt,
@@ -6181,7 +6256,7 @@ static bool is_old(const char *str)
 bool LEX::is_trigger_new_or_old_reference(const LEX_CSTRING *name) const
 {
   // "name" is not necessarily NULL-terminated!
-  return sphead && sphead->m_handler->type() == TYPE_ENUM_TRIGGER &&
+  return sphead && sphead->m_handler->type() == SP_TYPE_TRIGGER &&
          name->length == 3 && (is_new(name->str) || is_old(name->str));
 }
 
@@ -8934,7 +9009,7 @@ sp_package *LEX::create_package_start(THD *thd,
   }
   if (unlikely(set_command_with_check(command, options)))
     return NULL;
-  if (sph->type() == TYPE_ENUM_PACKAGE_BODY)
+  if (sph->type() == SP_TYPE_PACKAGE_BODY)
   {
     /*
       If we start parsing a "CREATE PACKAGE BODY", we need to load

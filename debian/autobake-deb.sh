@@ -73,11 +73,21 @@ then
 fi
 
 # If libzstd-dev is not available (before Debian Stretch and Ubuntu Xenial)
-# remove the dependency from server and rocksdb so it can build properly
+# remove the dependency from server and RocksDB so it can build properly
 if ! apt-cache madison libzstd-dev | grep 'libzstd-dev' >/dev/null 2>&1
 then
   sed '/libzstd-dev/d' -i debian/control
   sed '/libzstd1/d' -i debian/control
+fi
+
+# If rocksdb-tools is not available (before Debian Buster and Ubuntu Disco)
+# remove the dependency from the RocksDB plugin so it can install properly
+# and instead ship the one built from MariaDB sources
+if ! apt-cache madison rocksdb-tools | grep 'rocksdb-tools' >/dev/null 2>&1
+then
+  sed '/rocksdb-tools/d' -i debian/control
+  sed '/sst_dump/d' -i debian/not-installed
+  echo "usr/bin/sst_dump" >> debian/mariadb-plugin-rocksdb.install
 fi
 
 # The binaries should be fully hardened by default. However TokuDB compilation seems to fail on

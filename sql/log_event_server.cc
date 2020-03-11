@@ -1833,8 +1833,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                     stmt_info_rpl.m_key,
                                                     thd->db.str, thd->db.length,
-                                                    thd->charset());
-        THD_STAGE_INFO(thd, stage_init);
+                                                    thd->charset(), NULL);
+        THD_STAGE_INFO(thd, stage_starting);
         MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(), thd->query_length());
         if (thd->m_digest != NULL)
           thd->m_digest->reset(thd->m_token_array, max_digest_length);
@@ -3014,7 +3014,7 @@ Rotate_log_event::Rotate_log_event(const char* new_log_ident_arg,
                       pos_arg, (ulong) flags));
   cache_type= EVENT_NO_CACHE;
   if (flags & DUP_NAME)
-    new_log_ident= my_strndup(new_log_ident_arg, ident_len, MYF(MY_WME));
+    new_log_ident= my_strndup(PSI_INSTRUMENT_ME, new_log_ident_arg, ident_len, MYF(MY_WME));
   if (flags & RELAY_LOG)
     set_relay_log_event();
   DBUG_VOID_RETURN;
@@ -3170,7 +3170,7 @@ Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
         const char *binlog_file_name_arg,
         uint binlog_file_len_arg)
   :Log_event(),
-   binlog_file_name(my_strndup(binlog_file_name_arg, binlog_file_len_arg,
+   binlog_file_name(my_strndup(PSI_INSTRUMENT_ME, binlog_file_name_arg, binlog_file_len_arg,
                                MYF(MY_WME))),
    binlog_file_len(binlog_file_len_arg)
 {
@@ -3443,8 +3443,8 @@ Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state *gtid_set,
   cache_type= EVENT_NO_CACHE;
   /* Failure to allocate memory will be caught by is_valid() returning false. */
   if (count < (1<<28) &&
-      (list = (rpl_gtid *)my_malloc(count * sizeof(*list) + (count == 0),
-                                    MYF(MY_WME))))
+      (list = (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME,
+                           count * sizeof(*list) + (count == 0), MYF(MY_WME))))
     gtid_set->get_gtid_list(list, count);
 }
 
@@ -3456,8 +3456,8 @@ Gtid_list_log_event::Gtid_list_log_event(slave_connection_state *gtid_set,
   cache_type= EVENT_NO_CACHE;
   /* Failure to allocate memory will be caught by is_valid() returning false. */
   if (count < (1<<28) &&
-      (list = (rpl_gtid *)my_malloc(count * sizeof(*list) + (count == 0),
-                                    MYF(MY_WME))))
+      (list = (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME,
+                          count * sizeof(*list) + (count == 0), MYF(MY_WME))))
   {
     gtid_set->get_gtid_list(list, count);
 #if defined(HAVE_REPLICATION)
@@ -3465,8 +3465,8 @@ Gtid_list_log_event::Gtid_list_log_event(slave_connection_state *gtid_set,
     {
       uint32 i;
 
-      if (!(sub_id_list= (uint64 *)my_malloc(count * sizeof(uint64),
-                                             MYF(MY_WME))))
+      if (!(sub_id_list= (uint64 *)my_malloc(PSI_INSTRUMENT_ME,
+                                         count * sizeof(uint64), MYF(MY_WME))))
       {
         my_free(list);
         list= NULL;
@@ -4691,7 +4691,7 @@ int Execute_load_log_event::do_apply_event(rpl_group_info *rgi)
       don't want to overwrite it with the filename.
       What we want instead is add the filename to the current error message.
     */
-    char *tmp= my_strdup(rli->last_error().message, MYF(MY_WME));
+    char *tmp= my_strdup(PSI_INSTRUMENT_ME, rli->last_error().message, MYF(MY_WME));
     if (tmp)
     {
       rli->report(ERROR_LEVEL, rli->last_error().number, rgi->gtid_info(),
@@ -4823,8 +4823,8 @@ Execute_load_query_log_event::do_apply_event(rpl_group_info *rgi)
   int error;
   Relay_log_info const *rli= rgi->rli;
 
-  buf= (char*) my_malloc(q_len + 1 - (fn_pos_end - fn_pos_start) +
-                         (FN_REFLEN + 10) + 10 + 8 + 5, MYF(MY_WME));
+  buf= (char*) my_malloc(PSI_INSTRUMENT_ME, q_len + 1 -
+     (fn_pos_end - fn_pos_start) + (FN_REFLEN + 10) + 10 + 8 + 5, MYF(MY_WME));
 
   DBUG_EXECUTE_IF("LOAD_DATA_INFILE_has_fatal_error", my_free(buf); buf= NULL;);
 
@@ -5036,8 +5036,8 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
     size_t const new_alloc= 
         block_size * ((cur_size + length + block_size - 1) / block_size);
 
-    uchar* const new_buf= (uchar*)my_realloc((uchar*)m_rows_buf, new_alloc,
-                                           MYF(MY_ALLOW_ZERO_PTR|MY_WME));
+    uchar* const new_buf= (uchar*)my_realloc(PSI_INSTRUMENT_ME, m_rows_buf,
+                                    new_alloc, MYF(MY_ALLOW_ZERO_PTR|MY_WME));
     if (unlikely(!new_buf))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
@@ -5990,7 +5990,7 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
     m_flags|= TM_BIT_HAS_TRIGGERS_F;
 
   /* If malloc fails, caught in is_valid() */
-  if ((m_memory= (uchar*) my_malloc(m_colcnt, MYF(MY_WME))))
+  if ((m_memory= (uchar*) my_malloc(PSI_INSTRUMENT_ME, m_colcnt, MYF(MY_WME))))
   {
     m_coltype= reinterpret_cast<uchar*>(m_memory);
     for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
@@ -6006,7 +6006,7 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
   */
   uint num_null_bytes= (m_table->s->fields + 7) / 8;
   m_data_size+= num_null_bytes;
-  m_meta_memory= (uchar *)my_multi_malloc(MYF(MY_WME),
+  m_meta_memory= (uchar *)my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
                                  &m_null_bits, num_null_bytes,
                                  &m_field_metadata, (m_colcnt * 2),
                                  NULL);
@@ -6158,7 +6158,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   /* Step the query id to mark what columns that are actually used. */
   thd->set_query_id(next_query_id());
 
-  if (!(memory= my_multi_malloc(MYF(MY_WME),
+  if (!(memory= my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
                                 &table_list, (uint) sizeof(RPL_TABLE_LIST),
                                 &db_mem, (uint) NAME_LEN + 1,
                                 &tname_mem, (uint) NAME_LEN + 1,
@@ -6809,7 +6809,7 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
     m_table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
     m_table->file->extra(HA_EXTRA_IGNORE_NO_KEY);
   }
-  if (slave_run_triggers_for_rbr && !master_had_triggers && m_table->triggers )
+  if (m_table->triggers && do_invoke_trigger())
     m_table->prepare_triggers_for_insert_stmt_or_event();
 
   /* Honor next number column if present */
@@ -6989,8 +6989,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   TABLE *table= m_table;  // pointer to event's table
   int error;
   int UNINIT_VAR(keynum);
-  const bool invoke_triggers=
-    slave_run_triggers_for_rbr && !master_had_triggers && table->triggers;
+  const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
   auto_afree_ptr<char> key(NULL);
 
   prepare_record(table, m_width, true);
@@ -7439,7 +7438,7 @@ int Rows_log_event::find_key()
   }
 
   // Allocate buffer for key searches
-  m_key= (uchar *) my_malloc(best_key->key_length, MYF(MY_WME));
+  m_key= (uchar *) my_malloc(PSI_INSTRUMENT_ME, best_key->key_length, MYF(MY_WME));
   if (m_key == NULL)
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   m_key_info= best_key;
@@ -7866,7 +7865,7 @@ Delete_rows_log_event::do_before_row_operations(const Slave_reporting_capability
     */
     return 0;
   }
-  if (slave_run_triggers_for_rbr && !master_had_triggers)
+  if (do_invoke_trigger())
     m_table->prepare_triggers_for_delete_stmt_or_event();
 
   return find_key();
@@ -7889,8 +7888,7 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
   int error;
   const char *tmp= thd->get_proc_info();
   const char *message= "Delete_rows_log_event::find_row()";
-  const bool invoke_triggers=
-    slave_run_triggers_for_rbr && !master_had_triggers && m_table->triggers;
+  const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
   DBUG_ASSERT(m_table != NULL);
 
 #ifdef WSREP_PROC_INFO
@@ -8016,7 +8014,7 @@ Update_rows_log_event::do_before_row_operations(const Slave_reporting_capability
   if ((err= find_key()))
     return err;
 
-  if (slave_run_triggers_for_rbr && !master_had_triggers)
+  if (do_invoke_trigger())
     m_table->prepare_triggers_for_update_stmt_or_event();
 
   return 0;
@@ -8035,11 +8033,10 @@ Update_rows_log_event::do_after_row_operations(const Slave_reporting_capability 
   return error;
 }
 
-int 
+int
 Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
-  const bool invoke_triggers=
-    slave_run_triggers_for_rbr && !master_had_triggers && m_table->triggers;
+  const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
   const char *tmp= thd->get_proc_info();
   const char *message= "Update_rows_log_event::find_row()";
   DBUG_ASSERT(m_table != NULL);

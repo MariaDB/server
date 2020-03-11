@@ -483,7 +483,7 @@ row_ins_cascade_calc_update_vec(
 	ulint		i;
 	ulint		j;
 	bool		doc_id_updated = false;
-	ulint		doc_id_pos = 0;
+	unsigned	doc_id_pos = 0;
 	doc_id_t	new_doc_id = FTS_NULL_DOC_ID;
 	ulint		prefix_col;
 
@@ -540,10 +540,9 @@ row_ins_cascade_calc_update_vec(
 
 				ufield = update->fields + n_fields_updated;
 
-				ufield->field_no
-					= dict_table_get_nth_col_pos(
-						table, dict_col_get_no(col),
-						&prefix_col);
+				ufield->field_no = dict_table_get_nth_col_pos(
+					table, dict_col_get_no(col),
+					&prefix_col);
 
 				ufield->orig_len = 0;
 				ufield->exp = NULL;
@@ -1487,7 +1486,7 @@ static
 dberr_t
 row_ins_set_shared_rec_lock(
 /*========================*/
-	ulint			type,	/*!< in: LOCK_ORDINARY, LOCK_GAP, or
+	unsigned		type,	/*!< in: LOCK_ORDINARY, LOCK_GAP, or
 					LOCK_REC_NOT_GAP type lock */
 	const buf_block_t*	block,	/*!< in: buffer block of rec */
 	const rec_t*		rec,	/*!< in: record */
@@ -1518,7 +1517,7 @@ static
 dberr_t
 row_ins_set_exclusive_rec_lock(
 /*===========================*/
-	ulint			type,	/*!< in: LOCK_ORDINARY, LOCK_GAP, or
+	unsigned		type,	/*!< in: LOCK_ORDINARY, LOCK_GAP, or
 					LOCK_REC_NOT_GAP type lock */
 	const buf_block_t*	block,	/*!< in: buffer block of rec */
 	const rec_t*		rec,	/*!< in: record */

@@ -19,10 +19,11 @@
 #include "mariadb.h"
 #include "sql_class.h"
 #include "transaction.h"
-
+#include <pfs_transaction_provider.h>
+#include <mysql/psi/mysql_transaction.h>
 
 /***************************************************************************
-  Handling of XA id cacheing
+  Handling of XA id caching
 ***************************************************************************/
 enum xa_states { XA_ACTIVE= 0, XA_IDLE, XA_PREPARED, XA_ROLLBACK_ONLY };
 
@@ -425,12 +426,17 @@ bool trans_xa_start(THD *thd)
     if (not_equal)
       my_error(ER_XAER_NOTA, MYF(0));
     else
+    {
       thd->transaction.xid_state.xid_cache_element->xa_state= XA_ACTIVE;
+      MYSQL_SET_TRANSACTION_XA_STATE(thd->m_transaction_psi, XA_ACTIVE);
+    }
     DBUG_RETURN(not_equal);
   }
 
   /* TODO: JOIN is not supported yet. */
   if (thd->lex->xa_opt != XA_NONE)
+    my_error(ER_XAER_INVAL, MYF(0));
+  else if (!thd->lex->xid->gtrid_length)
     my_error(ER_XAER_INVAL, MYF(0));
   else if (thd->transaction.xid_state.is_explicit_XA())
     thd->transaction.xid_state.er_xaer_rmfail();
@@ -438,6 +444,7 @@ bool trans_xa_start(THD *thd)
     my_error(ER_XAER_OUTSIDE, MYF(0));
   else if (!trans_begin(thd))
   {
+    MYSQL_SET_TRANSACTION_XID(thd->m_transaction_psi, thd->lex->xid, XA_ACTIVE);
     if (xid_cache_insert(thd, &thd->transaction.xid_state, thd->lex->xid))
     {
       trans_rollback(thd);
@@ -472,7 +479,10 @@ bool trans_xa_end(THD *thd)
   else if (!thd->transaction.xid_state.xid_cache_element->xid.eq(thd->lex->xid))
     my_error(ER_XAER_NOTA, MYF(0));
   else if (!xa_trans_rolled_back(thd->transaction.xid_state.xid_cache_element))
+  {
     thd->transaction.xid_state.xid_cache_element->xa_state= XA_IDLE;
+    MYSQL_SET_TRANSACTION_XA_STATE(thd->m_transaction_psi, XA_IDLE);
+  }
 
   DBUG_RETURN(thd->is_error() ||
     thd->transaction.xid_state.xid_cache_element->xa_state != XA_IDLE);
@@ -503,7 +513,10 @@ bool trans_xa_prepare(THD *thd)
     my_error(ER_XA_RBROLLBACK, MYF(0));
   }
   else
+  {
     thd->transaction.xid_state.xid_cache_element->xa_state= XA_PREPARED;
+    MYSQL_SET_TRANSACTION_XA_STATE(thd->m_transaction_psi, XA_PREPARED);
+  }
 
   DBUG_RETURN(thd->is_error() ||
     thd->transaction.xid_state.xid_cache_element->xa_state != XA_PREPARED);
@@ -527,6 +540,24 @@ bool trans_xa_commit(THD *thd)
   if (!thd->transaction.xid_state.is_explicit_XA() ||
       !thd->transaction.xid_state.xid_cache_element->xid.eq(thd->lex->xid))
   {
+    if (thd->in_multi_stmt_transaction_mode())
+    {
+      /*
+        Not allow to commit from inside an not-"native" to xid
+        ongoing transaction: the commit effect can't be reversed.
+      */
+      my_error(ER_XAER_OUTSIDE, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+    if (thd->lex->xa_opt != XA_NONE)
+    {
+      /*
+        Not allow to commit with one phase a prepared xa out of compatibility
+        with the native commit branch's error out.
+      */
+      my_error(ER_XAER_INVAL, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
     if (thd->fix_xid_hash_pins())
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
@@ -556,10 +587,14 @@ bool trans_xa_commit(THD *thd)
     if ((res= MY_TEST(r)))
       my_error(r == 1 ? ER_XA_RBROLLBACK : ER_XAER_RMERR, MYF(0));
   }
-  else if (thd->transaction.xid_state.xid_cache_element->xa_state == XA_PREPARED &&
-           thd->lex->xa_opt == XA_NONE)
+  else if (thd->transaction.xid_state.xid_cache_element->xa_state == XA_PREPARED)
   {
     MDL_request mdl_request;
+    if (thd->lex->xa_opt != XA_NONE)
+    {
+      my_error(ER_XAER_INVAL, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
 
     /*
       Acquire metadata lock which will ensure that COMMIT is blocked
@@ -568,7 +603,7 @@ bool trans_xa_commit(THD *thd)
 
       We allow FLUSHer to COMMIT; we assume FLUSHer knows what it does.
     */
-    mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
                      MDL_TRANSACTION);
 
     if (thd->mdl_context.acquire_lock(&mdl_request,
@@ -584,6 +619,16 @@ bool trans_xa_commit(THD *thd)
       res= MY_TEST(ha_commit_one_phase(thd, 1));
       if (res)
         my_error(ER_XAER_RMERR, MYF(0));
+      else
+      {
+        /*
+          Since we don't call ha_commit_trans() for prepared transactions,
+          we need to explicitly mark the transaction as committed.
+        */
+        MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi);
+      }
+
+      thd->m_transaction_psi= NULL;
     }
   }
   else
@@ -600,7 +645,8 @@ bool trans_xa_commit(THD *thd)
   xid_cache_delete(thd, &thd->transaction.xid_state);
 
   trans_track_end_trx(thd);
-
+  /* The transaction should be marked as complete in P_S. */
+  DBUG_ASSERT(thd->m_transaction_psi == NULL || res);
   DBUG_RETURN(res);
 }
 
@@ -621,6 +667,11 @@ bool trans_xa_rollback(THD *thd)
   if (!thd->transaction.xid_state.is_explicit_XA() ||
       !thd->transaction.xid_state.xid_cache_element->xid.eq(thd->lex->xid))
   {
+    if (thd->in_multi_stmt_transaction_mode())
+    {
+      my_error(ER_XAER_OUTSIDE, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
     if (thd->fix_xid_hash_pins())
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));

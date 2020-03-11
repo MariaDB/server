@@ -25,7 +25,7 @@ static int read_string(File file, uchar**to, size_t length)
   DBUG_ENTER("read_string");
 
   /* This can't use MY_THREAD_SPECIFIC as it's used on server start */
-  if (!(*to= (uchar*) my_malloc(length+1,MYF(MY_WME))) ||
+  if (!(*to= (uchar*) my_malloc(PSI_INSTRUMENT_ME, length+1,MYF(MY_WME))) ||
       mysql_file_read(file, *to, length, MYF(MY_NABP)))
   {
      my_free(*to);

@@ -30,7 +30,7 @@
 #include "sql_alter.h"                // Alter_info
 #include "sql_window.h"
 #include "sql_trigger.h"
-#include "sp.h"                       // enum stored_procedure_type
+#include "sp.h"                       // enum enum_sp_type
 #include "sql_tvc.h"
 #include "item.h"
 #include "sql_limit.h"                // Select_limit_counters
@@ -510,11 +510,11 @@ struct LEX_MASTER_INFO
   void init()
   {
     bzero(this, sizeof(*this));
-    my_init_dynamic_array(&repl_ignore_server_ids,
+    my_init_dynamic_array(PSI_INSTRUMENT_ME, &repl_ignore_server_ids,
                           sizeof(::server_id), 0, 16, MYF(0));
-    my_init_dynamic_array(&repl_do_domain_ids,
+    my_init_dynamic_array(PSI_INSTRUMENT_ME, &repl_do_domain_ids,
                           sizeof(ulong), 0, 16, MYF(0));
-    my_init_dynamic_array(&repl_ignore_domain_ids,
+    my_init_dynamic_array(PSI_INSTRUMENT_ME, &repl_ignore_domain_ids,
                           sizeof(ulong), 0, 16, MYF(0));
     sql_delay= -1;
   }
@@ -3264,6 +3264,7 @@ public:
   void reset_arena_for_set_stmt(Query_arena *backup);
   void free_arena_for_set_stmt();
 
+  void print(String *str, enum_query_type qtype);
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
   List<LEX_CSTRING>   view_list; // view list (list of field names in view)
@@ -4320,8 +4321,9 @@ public:
     alter_info.check_constraint_list.push_back(constr);
     return false;
   }
-  bool add_alter_list(const char *par_name, Virtual_column_info *expr,
+  bool add_alter_list(LEX_CSTRING par_name, Virtual_column_info *expr,
                       bool par_exists);
+  bool add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name);
   void set_command(enum_sql_command command,
                    DDL_options_st options)
   {

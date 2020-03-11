@@ -323,9 +323,8 @@ static st_blackhole_share *get_share(const char *table_name)
         my_hash_search(&blackhole_open_tables,
                        (uchar*) table_name, length)))
   {
-    if (!(share= (st_blackhole_share*) my_malloc(sizeof(st_blackhole_share) +
-                                                 length,
-                                                 MYF(MY_WME | MY_ZEROFILL))))
+    if (!(share= (st_blackhole_share*) my_malloc(PSI_INSTRUMENT_ME,
+              sizeof(st_blackhole_share) + length, MYF(MY_WME | MY_ZEROFILL))))
       goto error;
 
     share->table_name_length= length;
@@ -404,7 +403,8 @@ static int blackhole_init(void *p)
 
   mysql_mutex_init(bh_key_mutex_blackhole,
                    &blackhole_mutex, MY_MUTEX_INIT_FAST);
-  (void) my_hash_init(&blackhole_open_tables, system_charset_info,32,0,0,
+  (void) my_hash_init(PSI_INSTRUMENT_ME, &blackhole_open_tables,
+                      system_charset_info, 32, 0, 0,
                       (my_hash_get_key) blackhole_get_key,
                       (my_hash_free_key) blackhole_free_key, 0);
 

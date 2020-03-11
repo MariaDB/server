@@ -110,7 +110,7 @@ lock_rec_create(
 	lock_t*			c_lock,	/*!< conflicting lock */
 	que_thr_t*		thr,	/*!< thread owning trx */
 #endif
-	ulint			type_mode,/*!< in: lock mode and wait
+	unsigned		type_mode,/*!< in: lock mode and wait
 					flag, type is ignored and
 					replaced by LOCK_REC */
 	const buf_block_t*	block,	/*!< in: buffer block containing

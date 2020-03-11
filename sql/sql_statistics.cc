@@ -1432,7 +1432,7 @@ public:
   */
   bool init(uint n_keyparts)
   {
-    if (!(rowid_buf= (uchar*)my_malloc(rowid_size, MYF(0))))
+    if (!(rowid_buf= (uchar*)my_malloc(PSI_INSTRUMENT_ME, rowid_size, MYF(0))))
       return true;
 
     if (open_cached_file(&io_cache, mysql_tmpdir, TEMP_PREFIX,

@@ -122,6 +122,25 @@ static void init_debug_sync_psi_keys(void)
 
 
 /**
+  Set the THD::proc_info without instrumentation.
+  This method is private to DEBUG_SYNC,
+  and on purpose avoid any use of:
+  - the SHOW PROFILE instrumentation
+  - the PERFORMANCE_SCHEMA instrumentation
+  so that using DEBUG_SYNC() in the server code
+  does not cause the instrumentations to record
+  spurious data.
+*/
+static const char*
+debug_sync_thd_proc_info(THD *thd, const char* info)
+{
+  const char* old_proc_info= thd->proc_info;
+  thd->proc_info= info;
+  return old_proc_info;
+}
+
+
+/**
   Initialize the debug sync facility at server start.
 
   @return status
@@ -236,7 +255,8 @@ void debug_sync_init_thread(THD *thd)
   if (opt_debug_sync_timeout)
   {
     thd->debug_sync_control= (st_debug_sync_control*)
-      my_malloc(sizeof(st_debug_sync_control),
+      my_malloc(PSI_NOT_INSTRUMENTED,
+                sizeof(st_debug_sync_control),
                 MYF(MY_WME | MY_ZEROFILL | MY_THREAD_SPECIFIC));
     if (!thd->debug_sync_control)
     {
@@ -657,7 +677,7 @@ static st_debug_sync_action *debug_sync_get_action(THD *thd,
     if (ds_control->ds_active > ds_control->ds_allocated)
     {
       uint new_alloc= ds_control->ds_active + 3;
-      void *new_action= my_realloc(ds_control->ds_action,
+      void *new_action= my_realloc(PSI_NOT_INSTRUMENTED, ds_control->ds_action,
                                    new_alloc * sizeof(st_debug_sync_action),
                                    MYF(MY_WME | MY_ALLOW_ZERO_PTR));
       if (!new_action)
@@ -1364,7 +1384,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
       strxnmov(ds_control->ds_proc_info, sizeof(ds_control->ds_proc_info)-1,
                "debug sync point: ", action->sync_point.c_ptr(), NullS);
       old_proc_info= thd->proc_info;
-      thd_proc_info(thd, ds_control->ds_proc_info);
+      debug_sync_thd_proc_info(thd, ds_control->ds_proc_info);
     }
 
     /*
@@ -1482,11 +1502,11 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         mysql_mutex_lock(&thd->mysys_var->mutex);
         thd->mysys_var->current_mutex= old_mutex;
         thd->mysys_var->current_cond= old_cond;
-        thd_proc_info(thd, old_proc_info);
+        debug_sync_thd_proc_info(thd, old_proc_info);
         mysql_mutex_unlock(&thd->mysys_var->mutex);
       }
       else
-        thd_proc_info(thd, old_proc_info);
+        debug_sync_thd_proc_info(thd, old_proc_info);
     }
     else
     {

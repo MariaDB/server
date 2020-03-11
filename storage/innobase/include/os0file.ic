@@ -433,13 +433,13 @@ pfs_os_file_rename_func(
 	PSI_file_locker_state	state;
 	struct PSI_file_locker*	locker = NULL;
 
-	register_pfs_file_open_begin(
+	register_pfs_file_rename_begin(
 		&state, locker, key, PSI_FILE_RENAME, newpath,
 		src_file, src_line);
 
 	bool	result = os_file_rename_func(oldpath, newpath);
 
-	register_pfs_file_rename_end(locker, 0);
+	register_pfs_file_rename_end(locker, oldpath, newpath, !result);
 
 	return(result);
 }

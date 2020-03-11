@@ -797,7 +797,7 @@ static void get_options(register int *argc,register char ***argv)
                                              MYF(MY_WME))))
       exit(1);
 
-  myisam_block_size=(uint) 1 << my_bit_log2(opt_myisam_block_size);
+  myisam_block_size=(uint) 1 << my_bit_log2_uint64(opt_myisam_block_size);
   return;
 } /* get options */
 

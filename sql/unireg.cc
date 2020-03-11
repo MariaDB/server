@@ -425,8 +425,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     DBUG_RETURN(frm);
   }
 
-  frm_ptr= (uchar*) my_malloc(frm.length, MYF(MY_WME | MY_ZEROFILL |
-                                              MY_THREAD_SPECIFIC));
+  frm_ptr= (uchar*) my_malloc(PSI_INSTRUMENT_ME, frm.length,
+                              MYF(MY_WME | MY_ZEROFILL | MY_THREAD_SPECIFIC));
   if (!frm_ptr)
     DBUG_RETURN(frm);
 

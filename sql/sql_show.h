@@ -83,6 +83,12 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                       Table_specification_st *create_info_arg,
                       enum_with_db_name with_db_name);
 
+int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
+                         const char * forced_db, const char *forced_name,
+                         String *packet,
+                         Table_specification_st *create_info_arg,
+                         enum_with_db_name with_db_name);
+
 int copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table);
 
 bool append_identifier(THD *thd, String *packet, const char *name, size_t length);
@@ -113,6 +119,7 @@ bool append_definer(THD *thd, String *buffer, const LEX_CSTRING *definer_user,
                     const LEX_CSTRING *definer_host);
 int add_status_vars(SHOW_VAR *list);
 void remove_status_vars(SHOW_VAR *list);
+ulonglong get_status_vars_version(void);
 void init_status_vars();
 void free_status_vars();
 void reset_status_vars();

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -30,11 +30,10 @@ table_session_connect_attrs::m_share=
 {
   { C_STRING_WITH_LEN("session_connect_attrs") },
   &pfs_readonly_acl,
-  &table_session_connect_attrs::create,
+  table_session_connect_attrs::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  NULL, /* get_row_count */
-  1000, /* records */
+  cursor_by_thread_connect_attr::get_row_count,
   sizeof(pos_connect_attr_by_thread_by_attr), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE session_connect_attrs("
@@ -42,7 +41,8 @@ table_session_connect_attrs::m_share=
                       "ATTR_NAME VARCHAR(32) NOT NULL,"
                       "ATTR_VALUE VARCHAR(1024),"
                       "ORDINAL_POSITION INT"
-                      ") CHARACTER SET utf8 COLLATE utf8_bin") }
+                      ") CHARACTER SET utf8 COLLATE utf8_bin") },
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_session_connect_attrs::create()

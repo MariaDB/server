@@ -57,6 +57,9 @@
 #include "wsrep_trans_observer.h"
 #endif
 
+class Master_info_index;
+Master_info_index *master_info_index;
+
 #ifdef HAVE_REPLICATION
 
 #include "rpl_tblmap.h"
@@ -81,7 +84,6 @@ char slave_transaction_retry_error_names[SHOW_VAR_FUNC_BUFF_SIZE];
 
 char* slave_load_tmpdir = 0;
 Master_info *active_mi= 0;
-Master_info_index *master_info_index;
 my_bool replicate_same_server_id;
 ulonglong relay_log_space_limit = 0;
 ulonglong opt_read_binlog_speed_limit = 0;
@@ -488,6 +490,7 @@ handle_slave_background(void *arg __attribute__((unused)))
 #ifdef WITH_WSREP
   thd->variables.wsrep_on= 0;
 #endif
+  thd->set_psi(PSI_CALL_get_thread());
 
   thd_proc_info(thd, "Loading slave GTID position from table");
   if (rpl_load_gtid_slave_state(thd))
@@ -583,7 +586,7 @@ slave_background_kill_request(THD *to_kill)
   if (to_kill->rgi_slave->killed_for_retry)
     return;                                     // Already deadlock killed.
   slave_background_kill_t *p=
-    (slave_background_kill_t *)my_malloc(sizeof(*p), MYF(MY_WME));
+    (slave_background_kill_t *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*p), MYF(MY_WME));
   if (p)
   {
     p->to_kill= to_kill;
@@ -611,7 +614,7 @@ slave_background_gtid_pos_create_request(
 
   if (table_entry->state != rpl_slave_state::GTID_POS_AUTO_CREATE)
     return;
-  p= (slave_background_gtid_pos_create_t *)my_malloc(sizeof(*p), MYF(MY_WME));
+  p= (slave_background_gtid_pos_create_t *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*p), MYF(MY_WME));
   if (!p)
     return;
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
@@ -1662,7 +1665,7 @@ bool Sql_cmd_show_slave_status::execute(THD *thd)
   bool res= true;
 
   /* Accept one of two privileges */
-  if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
+  if (check_global_access(thd, PRIV_STMT_SHOW_SLAVE_STATUS))
     goto error;
   if (is_show_all_slaves_stat())
   {
@@ -1809,7 +1812,8 @@ int init_dynarray_intvar_from_file(DYNAMIC_ARRAY* arr, IO_CACHE* f)
           (decimal size + space) - 1 + `\n' + '\0'
     */
     size_t max_size= (1 + num_items) * (sizeof(long)*3 + 1) + 1;
-    buf_act= (char*) my_malloc(max_size, MYF(MY_WME));
+    buf_act= (char*) my_malloc(key_memory_Rpl_info_file_buffer, max_size,
+                               MYF(MY_WME));
     memcpy(buf_act, buf, read_size);
     snd_size= my_b_gets(f, buf_act + read_size, max_size - read_size);
     if (snd_size == 0 ||
@@ -4727,6 +4731,8 @@ pthread_handler_t handle_slave_io(void *arg)
   THD_CHECK_SENTRY(thd);
   mi->io_thd = thd;
 
+  thd->set_psi(PSI_CALL_get_thread());
+
   pthread_detach_this_thread();
   thd->thread_stack= (char*) &thd; // remember where our stack is
   mi->clear_error();
@@ -5365,6 +5371,8 @@ pthread_handler_t handle_slave_sql(void *arg)
     executing SQL queries too.
   */
   serial_rgi->thd= rli->sql_driver_thd= thd;
+
+  thd->set_psi(PSI_CALL_get_thread());
   
   /* Inform waiting threads that slave has started */
   rli->slave_run_id++;
@@ -6035,7 +6043,8 @@ static int queue_binlog_ver_1_event(Master_info *mi, const char *buf,
   */
   if ((uchar)buf[EVENT_TYPE_OFFSET] == LOAD_EVENT)
   {
-    if (unlikely(!(tmp_buf=(char*)my_malloc(event_len+1,MYF(MY_WME)))))
+    if (unlikely(!(tmp_buf=(char*)my_malloc(key_memory_binlog_ver_1_event,
+                                            event_len+1,MYF(MY_WME)))))
     {
       mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                  ER(ER_SLAVE_FATAL_ERROR), "Memory allocation failed");

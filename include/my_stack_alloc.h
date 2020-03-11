@@ -68,14 +68,14 @@ do                                                                     \
   else                                                                 \
   {                                                                    \
     (must_be_freed)= 1;                                                \
-    (res)= my_malloc(size, MYF(MY_THREAD_SPECIFIC | MY_WME));          \
+    (res)= my_malloc(PSI_INSTRUMENT_ME, size, MYF(MY_THREAD_SPECIFIC | MY_WME));          \
   }                                                                    \
 } while(0)
 #else
 #define alloc_on_stack(stack_end, res, must_be_freed, size)            \
   do {                                                                 \
     (must_be_freed)= 1;                                                \
-    (res)= my_malloc(size, MYF(MY_THREAD_SPECIFIC | MY_WME));          \
+    (res)= my_malloc(PSI_INSTRUMENT_ME, size, MYF(MY_THREAD_SPECIFIC | MY_WME));          \
   } while(0)
 #endif /* HAVE_ALLOCA */
 

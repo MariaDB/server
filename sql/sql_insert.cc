@@ -67,7 +67,6 @@
 #include "sp_head.h"
 #include "sql_view.h"         // check_key_in_view, insert_view_fields
 #include "sql_table.h"        // mysql_create_table_no_lock
-#include "sql_acl.h"          // *_ACL, check_grant_all_columns
 #include "sql_trigger.h"
 #include "sql_select.h"
 #include "sql_show.h"
@@ -554,8 +553,8 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
   if (thd->has_read_only_protection())
     DBUG_RETURN(TRUE);
 
-  protection_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_DML,
-                          MDL_STATEMENT);
+  MDL_REQUEST_INIT(&protection_request, MDL_key::BACKUP, "", "",
+                   MDL_BACKUP_DML, MDL_STATEMENT);
 
   if (thd->mdl_context.acquire_lock(&protection_request,
                                     thd->variables.lock_wait_timeout))
@@ -2402,7 +2401,8 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       di->thd.variables.binlog_annotate_row_events= 0;
 
       di->thd.set_db(&table_list->db);
-      di->thd.set_query(my_strndup(table_list->table_name.str,
+      di->thd.set_query(my_strndup(PSI_INSTRUMENT_ME,
+                                   table_list->table_name.str,
                                    table_list->table_name.length,
                                    MYF(MY_WME | ME_FATAL)),
                         table_list->table_name.length, system_charset_info);
@@ -2421,8 +2421,8 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
         We need the tickets so that they can be cloned in
         handle_delayed_insert
       */
-      di->grl_protection.init(MDL_key::BACKUP, "", "",
-                              MDL_BACKUP_DML, MDL_STATEMENT);
+      MDL_REQUEST_INIT(&di->grl_protection, MDL_key::BACKUP, "", "",
+                       MDL_BACKUP_DML, MDL_STATEMENT);
       di->grl_protection.ticket= grl_protection_request->ticket;
       init_mdl_requests(&di->table_list);
       di->table_list.mdl_request.ticket= table_list->mdl_request.ticket;
@@ -2731,7 +2731,8 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
   if (query.str)
   {
     char *str;
-    if (!(str= my_strndup(query.str, query.length, MYF(MY_WME))))
+    if (!(str= my_strndup(PSI_INSTRUMENT_ME, query.str, query.length,
+                          MYF(MY_WME))))
       goto err;
     query.str= str;
   }
@@ -2754,7 +2755,8 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
       ip_len= strlen(thd->security_ctx->ip) + 1;
   }
   /* This can't be THREAD_SPECIFIC as it's freed in delayed thread */
-  if (!(row->record= (char*) my_malloc(table->s->reclength +
+  if (!(row->record= (char*) my_malloc(PSI_INSTRUMENT_ME,
+                                       table->s->reclength +
                                        user_len + host_len + ip_len,
                                        MYF(MY_WME))))
     goto err;

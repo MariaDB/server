@@ -844,7 +844,7 @@ is_unaccessible:
     mutex_exit(&dict_sys.mutex);
   {
     MDL_request request;
-    request.init(MDL_key::TABLE, db_buf, tbl_buf, MDL_SHARED, MDL_EXPLICIT);
+    MDL_REQUEST_INIT(&request,MDL_key::TABLE, db_buf, tbl_buf, MDL_SHARED, MDL_EXPLICIT);
     if (trylock
         ? mdl_context->try_acquire_lock(&request)
         : mdl_context->acquire_lock(&request,
@@ -955,15 +955,17 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
 /********************************************************************//**
 Looks for column n position in the clustered index.
 @return position in internal representation of the clustered index */
-ulint
+unsigned
 dict_table_get_nth_col_pos(
 /*=======================*/
 	const dict_table_t*	table,	/*!< in: table */
 	ulint			n,	/*!< in: column number */
 	ulint*			prefix_col_pos)
 {
-	return(dict_index_get_nth_col_pos(dict_table_get_first_index(table),
-					  n, prefix_col_pos));
+  ulint pos= dict_index_get_nth_col_pos(dict_table_get_first_index(table),
+					n, prefix_col_pos);
+  DBUG_ASSERT(pos <= dict_index_t::MAX_N_FIELDS);
+  return static_cast<unsigned>(pos);
 }
 
 /********************************************************************//**

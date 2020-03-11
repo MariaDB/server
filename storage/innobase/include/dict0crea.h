@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -272,7 +272,7 @@ struct ind_node_t{
 	/*----------------------*/
 	/* Local storage for this graph node */
 	ulint		state;		/*!< node execution state */
-	ulint		page_no;	/* root page number of the index */
+	uint32_t	page_no;	/* root page number of the index */
 	dict_table_t*	table;		/*!< table which owns the index */
 	dtuple_t*	ind_row;	/* index definition row built */
 	ulint		field_no;	/* next field definition to insert */

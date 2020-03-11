@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -950,6 +950,9 @@ const char innobase_index_reserve_name[] = "GEN_CLUST_INDEX";
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
 struct dict_index_t {
+  /** Maximum number of fields */
+  static constexpr unsigned MAX_N_FIELDS= (1U << 10) - 1;
+
 	index_id_t	id;	/*!< id of the index */
 	mem_heap_t*	heap;	/*!< memory heap */
 	id_name_t	name;	/*!< index name */
@@ -2352,7 +2355,8 @@ inline void dict_index_t::clear_instant_alter()
 	}
 
 	DBUG_ASSERT(&fields[n_fields - table->n_dropped()] == end);
-	n_core_fields = n_fields = n_def = end - fields;
+	n_core_fields = n_fields = n_def
+		= static_cast<unsigned>(end - fields) & MAX_N_FIELDS;
 	n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 	std::sort(begin, end, [](const dict_field_t& a, const dict_field_t& b)
 			      { return a.col->ind < b.col->ind; });
@@ -2361,7 +2365,10 @@ inline void dict_index_t::clear_instant_alter()
 		auto a = std::find_if(begin, end,
 				      [ai_col](const dict_field_t& f)
 				      { return f.col == ai_col; });
-		table->persistent_autoinc = (a == end) ? 0 : 1 + (a - fields);
+		table->persistent_autoinc = (a == end)
+			? 0
+			: (1 + static_cast<unsigned>(a - fields))
+			& MAX_N_FIELDS;
 	}
 }
 

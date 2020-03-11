@@ -733,7 +733,7 @@ static bool fill_locks_row(
 		row->lock_mode = 9;
 		break;
 	default:
-		ut_ad(!"unknown lock mode");
+		ut_ad("unknown lock mode" == 0);
 		row->lock_mode = 0;
 	}
 

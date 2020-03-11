@@ -6481,6 +6481,21 @@ Item *Item_cond_and::neg_transformer(THD *thd)	/* NOT(a AND b AND ...)  -> */
 }
 
 
+bool
+Item_cond_and::set_format_by_check_constraint(
+                                      Send_field_extended_metadata *to) const
+{
+  List_iterator_fast<Item> li(const_cast<List<Item>&>(list));
+  Item *item;
+  while ((item= li++))
+  {
+    if (item->set_format_by_check_constraint(to))
+      return true;
+  }
+  return false;
+}
+
+
 Item *Item_cond_or::neg_transformer(THD *thd)	/* NOT(a OR b OR ...)  -> */
 					/* NOT a AND NOT b AND ... */
 {

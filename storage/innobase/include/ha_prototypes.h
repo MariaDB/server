@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,6 +36,7 @@ simple headers.
 
 /* Forward declarations */
 class THD;
+class Field;
 
 // JAN: TODO missing features:
 #undef MYSQL_FT_INIT_EXT
@@ -164,10 +165,8 @@ VARCHAR and the new true VARCHAR in >= 5.0.3 by the 'prtype'.
 at least ENUM and SET, and unsigned integer types are 'unsigned types'
 @param[in]	f			MySQL Field
 @return DATA_BINARY, DATA_VARCHAR, ... */
-ulint
-get_innobase_type_from_mysql_type(
-	ulint*			unsigned_flag,
-	const void*		field);
+unsigned
+get_innobase_type_from_mysql_type(unsigned *unsigned_flag, const Field *field);
 
 /******************************************************************//**
 Get the variable length bounds of the given character set. */
@@ -175,8 +174,8 @@ void
 innobase_get_cset_width(
 /*====================*/
 	ulint	cset,		/*!< in: MySQL charset-collation code */
-	ulint*	mbminlen,	/*!< out: minimum length of a char (in bytes) */
-	ulint*	mbmaxlen);	/*!< out: maximum length of a char (in bytes) */
+	unsigned*mbminlen,	/*!< out: minimum length of a char (in bytes) */
+	unsigned*mbmaxlen);	/*!< out: maximum length of a char (in bytes) */
 
 /******************************************************************//**
 Compares NUL-terminated UTF-8 strings case insensitively.
@@ -230,14 +229,11 @@ innobase_casedn_str(
 	char*	a);	/*!< in/out: string to put in lower case */
 
 #ifdef WITH_WSREP
-UNIV_INTERN
 int
-wsrep_innobase_kill_one_trx(void * const thd_ptr,
-                            const trx_t * const bf_trx,
-                            trx_t *victim_trx,
-                            ibool signal);
+wsrep_innobase_kill_one_trx(THD *bf_thd, const trx_t *bf_trx,
+                            trx_t *victim_trx, bool signal);
 ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
-                             unsigned char* str, unsigned int str_length,
+                             unsigned char* str, ulint str_length,
                              unsigned int buf_length);
 #endif /* WITH_WSREP */
 

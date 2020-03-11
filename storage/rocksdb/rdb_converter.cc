@@ -436,7 +436,7 @@ void Rdb_converter::setup_field_encoders() {
   uchar cur_null_mask = 0x1;
 
   m_encoder_arr = static_cast<Rdb_field_encoder *>(
-      my_malloc(m_table->s->fields * sizeof(Rdb_field_encoder), MYF(0)));
+      my_malloc(PSI_INSTRUMENT_ME, m_table->s->fields * sizeof(Rdb_field_encoder), MYF(0)));
   if (m_encoder_arr == nullptr) {
     return;
   }

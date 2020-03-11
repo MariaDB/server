@@ -1237,8 +1237,9 @@ SPIDER_TRX *spider_get_trx(
     }
 
     if (
-      my_hash_init(&trx->trx_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_conn_get_key, 0, 0)
+      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_conn_hash,
+                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
+                   spider_conn_get_key, 0, 0)
     )
       goto error_init_hash;
     spider_alloc_calc_mem_init(trx->trx_conn_hash, 151);
@@ -1249,8 +1250,9 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_conn_hash.array.size_of_element);
 
     if (
-      my_hash_init(&trx->trx_another_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_conn_get_key, 0, 0)
+      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_another_conn_hash,
+                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
+                   spider_conn_get_key, 0, 0)
     )
       goto error_init_another_hash;
     spider_alloc_calc_mem_init(trx->trx_another_conn_hash, 152);
@@ -1313,8 +1315,9 @@ SPIDER_TRX *spider_get_trx(
 #endif
 
     if (
-      my_hash_init(&trx->trx_alter_table_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_alter_tbl_get_key, 0, 0)
+      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_alter_table_hash,
+                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
+                   spider_alter_tbl_get_key, 0, 0)
     )
       goto error_init_alter_hash;
     spider_alloc_calc_mem_init(trx->trx_alter_table_hash, 157);
@@ -1325,8 +1328,9 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_alter_table_hash.array.size_of_element);
 
     if (
-      my_hash_init(&trx->trx_ha_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_trx_ha_get_key, 0, 0)
+      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_ha_hash,
+                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
+                   spider_trx_ha_get_key, 0, 0)
     )
       goto error_init_trx_ha_hash;
     spider_alloc_calc_mem_init(trx->trx_ha_hash, 158);
@@ -1990,9 +1994,9 @@ int spider_internal_start_trx(
       trx->trx_consistent_snapshot ? "TRUE" : "FALSE"));
     if (!trx->trx_consistent_snapshot)
     {
-      trans_register_ha(thd, FALSE, spider_hton_ptr);
+      trans_register_ha(thd, FALSE, spider_hton_ptr, 0);
       if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-        trans_register_ha(thd, TRUE, spider_hton_ptr);
+        trans_register_ha(thd, TRUE, spider_hton_ptr, 0);
     }
     trx->trx_start = TRUE;
     trx->trx_xa_prepared = FALSE;
@@ -3335,8 +3339,8 @@ int spider_start_consistent_snapshot(
       trx->trx_consistent_snapshot = TRUE;
       trx->use_consistent_snapshot = TRUE;
       trx->internal_xa_snapshot = spider_param_internal_xa_snapshot(trx->thd);
-      trans_register_ha(trx->thd, FALSE, spider_hton_ptr);
-      trans_register_ha(trx->thd, TRUE, spider_hton_ptr);
+      trans_register_ha(trx->thd, FALSE, spider_hton_ptr, 0);
+      trans_register_ha(trx->thd, TRUE, spider_hton_ptr, 0);
       if (spider_param_use_all_conns_snapshot(trx->thd))
       {
         trx->internal_xa = FALSE;

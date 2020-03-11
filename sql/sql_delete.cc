@@ -30,7 +30,6 @@
 #include "lock.h"                              // unlock_table_name
 #include "sql_view.h"             // check_key_in_view, mysql_frm_type
 #include "sql_parse.h"            // mysql_init_select
-#include "sql_acl.h"              // *_ACL
 #include "filesort.h"             // filesort
 #include "sql_handler.h"          // mysql_ha_rm_tables
 #include "sql_select.h"

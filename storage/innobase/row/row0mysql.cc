@@ -1920,7 +1920,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	    && trx->fts_next_doc_id != UINT64_UNDEFINED) {
 		err = row_fts_update_or_delete(prebuilt);
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-			ut_ad(!"unexpected error");
+			ut_ad("unexpected error" == 0);
 			goto error;
 		}
 	}
@@ -4544,13 +4544,16 @@ end:
 		}
 
 		/* We only want to switch off some of the type checking in
-		an ALTER TABLE...ALGORITHM=COPY, not in a RENAME. */
+		an ALTER TABLE, not in a RENAME. */
 		dict_names_t	fk_tables;
 
 		err = dict_load_foreigns(
-			new_name, NULL,
-			false, !old_is_tmp || trx->check_foreigns,
-			DICT_ERR_IGNORE_NONE, fk_tables);
+			new_name, NULL, false,
+			!old_is_tmp || trx->check_foreigns,
+			use_fk
+			? DICT_ERR_IGNORE_NONE
+			: DICT_ERR_IGNORE_FK_NOKEY,
+			fk_tables);
 
 		if (err != DB_SUCCESS) {
 
@@ -4569,8 +4572,6 @@ end:
 					" with the new table definition.";
 			}
 
-			ut_a(DB_SUCCESS == dict_table_rename_in_cache(
-				table, old_name, FALSE));
 			trx->error_state = DB_SUCCESS;
 			trx_rollback_to_savepoint(trx, NULL);
 			trx->error_state = DB_SUCCESS;

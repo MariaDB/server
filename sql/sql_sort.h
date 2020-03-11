@@ -20,8 +20,8 @@
 #include "my_base.h"                            /* ha_rows */
 #include <my_sys.h>                             /* qsort2_cmp */
 #include "queues.h"
+#include "sql_class.h"
 
-struct SORT_FIELD;
 class Field;
 struct TABLE;
 
@@ -156,6 +156,7 @@ public:
 };
 
 typedef Bounds_checked_array<SORT_ADDON_FIELD> Addon_fields_array;
+typedef Bounds_checked_array<SORT_FIELD> Sort_keys_array;
 
 /**
   This class wraps information about usage of addon fields.
@@ -182,7 +183,7 @@ public:
     /// rr_unpack_from_tempfile needs an extra buffer when unpacking.
   uchar *allocate_addon_buf(uint sz)
   {
-    m_addon_buf= (uchar *)my_malloc(sz, MYF(MY_WME | MY_THREAD_SPECIFIC));
+    m_addon_buf= (uchar *)my_malloc(PSI_INSTRUMENT_ME, sz, MYF(MY_WME | MY_THREAD_SPECIFIC));
     if (m_addon_buf)
       m_addon_buf_length= sz;
     return m_addon_buf;
@@ -241,22 +242,263 @@ private:
   bool      m_using_packed_addons;  ///< Are we packing the addon fields?
 };
 
+/**
+  This class wraps information about usage of sort keys.
+  A Sort_keys object is used both during packing of data in the filesort
+  buffer, and later during unpacking in 'Filesort_info::unpack_addon_fields'.
+
+  @see SORT_FIELD struct.
+*/
+
+class Sort_keys :public Sql_alloc,
+                 public Sort_keys_array
+{
+public:
+  Sort_keys(SORT_FIELD* arr, size_t count):
+  Sort_keys_array(arr, count),
+  m_using_packed_sortkeys(false),
+  size_of_packable_fields(0),
+  sort_length(0)
+  {
+    DBUG_ASSERT(!is_null());
+  }
+
+  bool using_packed_sortkeys() const
+  { return m_using_packed_sortkeys; }
+
+  void set_using_packed_sortkeys(bool val)
+  {
+    m_using_packed_sortkeys= val;
+  }
+  void set_size_of_packable_fields(uint len)
+  {
+    size_of_packable_fields= len;
+  }
+
+  uint get_size_of_packable_fields()
+  {
+    return size_of_packable_fields;
+  }
+
+  void set_sort_length(uint len)
+  {
+    sort_length= len;
+  }
+
+  uint get_sort_length()
+  {
+    return sort_length;
+  }
+
+  static void store_sortkey_length(uchar *p, uint sz)
+  {
+    int4store(p, sz - size_of_length_field);
+  }
+
+  static uint read_sortkey_length(uchar *p)
+  {
+    return size_of_length_field + uint4korr(p);
+  }
+
+  void increment_size_of_packable_fields(uint len)
+  {
+    size_of_packable_fields+= len;
+  }
+
+  void increment_original_sort_length(uint len)
+  {
+    sort_length+= len;
+  }
+
+  static const uint size_of_length_field= 4;
+
+private:
+  bool m_using_packed_sortkeys;     // Are we packing sort keys
+  uint size_of_packable_fields;     // Total length bytes for packable columns
+
+  /*
+    The length that would be needed if we stored non-packed mem-comparable
+    images of fields?
+  */
+  uint sort_length;
+};
+
 
 /**
-  There are two record formats for sorting:
-    |<key a><key b>...|<rowid>|
-    /  sort_length    / ref_l /
+PACKED SORT KEYS
 
-  or with "addon fields"
-    |<key a><key b>...|<null bits>|<field a><field b>...|
-    /  sort_length    /         addon_length            /
+Description
+
+In this optimization where we would like the pack the values of the sort key
+inside the sort buffer for each record.
+
+Contents:
+1. Background
+1.1 Implementation details
+2. Solution : Packed Sort Keys
+2.1 Packed key format
+2.2 Which format to use
+3. Special cases
+3.1 Handling very long strings
+3.2 Handling for long binary strings
+3.3 Handling very long strings with Packed sort keys
+4. Sort key columns in addon_fields
+
+1. Background
+Before this optimization of using packed sort keys, filesort() sorted the
+data using mem-comparable keys.
+
+That is, if we wanted to sort by
+
+  ORDER BY col1, col2, ... colN
+then the filesort code would for each row generate one "Sort Key"
+and then sort the rows by their Sort Keys.
+
+The Sort Keys are mem-comparable (that is, are compared by memcmp()) and
+they are of FIXED SIZE. The sort key has the same length regardless of
+what value it represents. This causes INEFFICIENT MEMORY USAGE.
+
+1.1 Implementation details
+
+make_sortkey() is the function that produces a sort key
+from a record.
+
+The function treats Field and Item objects differently.
+
+class Field has:
+
+a) void make_sort_key(uchar *buff, uint length);
+   make_sort_key is a non-virtual function which handles encoding of
+   SQL null values.
+
+b) virtual void sort_string(uchar *buff,uint length)=0;
+    sort_string produces mem-comparable image of the field value
+    for each datatype.
+
+For Items, Type_handler has a virtual function:
+
+  virtual void make_sort_key(uchar *to, Item *item,
+                             const SORT_FIELD_ATTR *sort_field,
+                             Sort_param *param) const= 0;
+  which various datatypes overload.
+
+
+2. SOLUTION: PACKED SORT KEYS
+
+Note that one can have mem-comparable keys are that are not fixed-size.
+MyRocks uses such encoding for example.
+
+However for this optimization it was decided to store the original
+(non-mem-comparable) values instead and use a datatype-aware
+key comparison function.
+
+2.1 Packed key format
+The keys are stored in a new variable-size data format called "packed".
+
+The format is as follows:
+
+  <sort_key_length><packed_value_1><packed_value2> ....... <packed_valueN>
+
+  format for a n-part sort key
+
+<sort_key_length> is the length of the whole key.
+Each packed value is encoded as follows:
+
+  <null_byte=0>  // This is a an SQL NULL
+  [<null_byte=1>] <packed_value>  // this a non-NULL value
+null_byte is present if the field/item is NULLable.
+SQL NULL is encoded as just one NULL-indicator byte. The value itself is omitted.
+
+The format of the packed_value depends on the datatype.
+For "non-packable" datatypes it is just their mem-comparable form, as before.
+
+The "packable" datatypes are currently variable-length strings and the
+packed format for them is (for binary blobs, see a note below):
+
+<length> <string>
+2.2 Which format to use
+
+The advantage of Packed Key Format is potential space savings for
+variable-length fields.
+
+The disadvantages are:
+
+a) It may actually take more space, because of sort_key_length and
+   length fields.
+b) The comparison function is more expensive.
+
+Currently the logic is: use Packed Key Format if we would save 128 or more
+bytes when constructing a sort key from values that have empty string
+for each packable component.
+
+3. SPECIAL CASES
+3.1 HANDLING VERY LONG STRINGS
+the size of sort key part was limited by @@max_sort_length variable.
+It is defined as:
+
+The number of bytes to use when sorting data values. The server uses only the
+first max_sort_length bytes of each value and ignores the rest.
+
+3.2 HANDLING VERY LONG BINARY STRINGS
+Long binary strings receive special treatment. A sort key for the long
+binary string is truncated at max_sort_length bytes like described above,
+but then a "suffix" is appended which contains the total length of the
+value before the truncation.
+
+3.3 HANDLING VERY LONG STRINGS WITH PACKED SORT KEY
+Truncating multi-byte string at N bytes is not safe because one can cut in the
+middle of a character. One is tempted to solve this by discarding the partial
+character but that's also not a good idea as in some collations multiple
+characters may produce one weight (this is called "contraction").
+
+This combination of circumstances:
+
+The string value is very long, so truncation is necessary
+The collation is "complex", so truncation is dangerous
+is deemed to be relatively rare so it was decided to just use
+the non-packed sort keys in this case.
+
+4. SORT KEY COLUMNS IN ADDON FIELDS
+Currently, each sort key column is actually stored twice
+1. as part of the sort key
+2. in the addon_fields
+This made total sense when sort key stored the mem-comparable image
+(from which one cannot restore the original value in general case).
+But since we now store the original value, we could also remove it from the
+addon_fields and further save space. This is still a limitation and needs
+to be fixed later
+
+@see Sort_keys
+
+**/
+
+/**
+  The sort record format may use one of two formats for the non-sorted part of
+  the record:
+
+  1. Use the rowid
+
+    |<sort_key>|   <rowid>  |
+    /          / ref_length /
+
+  2. Use "addon fields"
+
+    |<sort_key>|<null bits>|<field a><field b>...|
+    /          /         addon_length            /
 
   The packed format for "addon fields"
-    |<key a><key b>...|<length>|<null bits>|<field a><field b>...|
-    /  sort_length    /         addon_length                     /
+
+    |<sort_key>|<length>|<null bits>|<field a><field b>...|
+    /          /         addon_length                     /
+
+  <sort_key>  The key may use one of the two formats:
+              A. fixed-size mem-comparable form. The record is always
+                 sort_length bytes long.
+              B. "PackedKeyFormat" - the records are variable-size.
 
   <key>       Fields are fixed-size, specially encoded with
               Field::make_sort_key() so we can do byte-by-byte compare.
+
   <length>    Contains the *actual* packed length (after packing) of
               everything after the sort keys.
               The size of the length field is 2 bytes,
@@ -289,6 +531,7 @@ public:
    */
   Bounds_checked_array<SORT_FIELD> local_sortorder;
   Addon_fields *addon_fields;     // Descriptors for companion fields.
+  Sort_keys *sort_keys;
   bool using_pq;
 
   uchar *unique_buff;
@@ -316,10 +559,57 @@ public:
     return m_using_packed_addons;
   }
 
+  bool using_packed_sortkeys() const
+  {
+    DBUG_ASSERT(m_using_packed_sortkeys ==
+                (sort_keys != NULL && sort_keys->using_packed_sortkeys()));
+    return m_using_packed_sortkeys;
+  }
+
   /// Are we using "addon fields"?
   bool using_addon_fields() const
   {
     return addon_fields != NULL;
+  }
+
+  uint32 get_result_length(uchar *plen)
+  {
+    if (!m_using_packed_addons)
+      return res_length;
+    return Addon_fields::read_addon_length(plen);
+  }
+
+  uint32 get_addon_length(uchar *plen)
+  {
+    if (using_packed_addons())
+      return Addon_fields::read_addon_length(plen);
+    else
+      return addon_length;
+  }
+
+  uint32 get_sort_length(uchar *plen)
+  {
+    if (using_packed_sortkeys())
+      return Sort_keys::read_sortkey_length(plen) +
+              /*
+                when addon fields are not present, then the sort_length also
+                includes the res_length. For packed keys here we add
+                the res_length
+              */
+             (using_addon_fields() ? 0: res_length);
+    else
+      return sort_length;
+  }
+
+  uint get_record_length(uchar *plen)
+  {
+    if (m_packed_format)
+    {
+      uint sort_len= get_sort_length(plen);
+      return sort_len + get_addon_length(plen + sort_len);
+    }
+    else
+      return rec_length;
   }
 
   /**
@@ -330,22 +620,46 @@ public:
    */
   void get_rec_and_res_len(uchar *record_start, uint *recl, uint *resl)
   {
-    if (!using_packed_addons())
+    if (m_packed_format)
+    {
+      uint sort_len= get_sort_length(record_start);
+      uint addon_len= get_addon_length(record_start + sort_len);
+      *recl= sort_len + addon_len;
+      *resl= using_addon_fields() ? addon_len : res_length;
+    }
+    else
     {
       *recl= rec_length;
       *resl= res_length;
-      return;
     }
-    uchar *plen= record_start + sort_length;
-    *resl= Addon_fields::read_addon_length(plen);
-    DBUG_ASSERT(*resl <= res_length);
-    const uchar *record_end= plen + *resl;
-    *recl= static_cast<uint>(record_end - record_start);
+  }
+
+  void try_to_pack_sortkeys();
+
+  qsort2_cmp get_compare_function() const
+  {
+    return using_packed_sortkeys() ?
+           get_packed_keys_compare_ptr() :
+           get_ptr_compare(sort_length);
+  }
+  void* get_compare_argument(size_t *sort_len) const
+  {
+    return using_packed_sortkeys() ?
+           (void*) this :
+           (void*) sort_len;
+  }
+
+  bool is_packed_format() const
+  {
+    return m_packed_format;
   }
 
 private:
   uint m_packable_length;
   bool m_using_packed_addons; ///< caches the value of using_packed_addons()
+  /* caches the value of using_packed_sortkeys() */
+  bool m_using_packed_sortkeys;
+  bool m_packed_format;
 };
 
 typedef Bounds_checked_array<uchar> Sort_buffer;
@@ -353,7 +667,7 @@ typedef Bounds_checked_array<uchar> Sort_buffer;
 int merge_many_buff(Sort_param *param, Sort_buffer sort_buffer,
                     Merge_chunk *buffpek, uint *maxbuffer, IO_CACHE *t_file);
 ulong read_to_buffer(IO_CACHE *fromfile, Merge_chunk *buffpek,
-                     Sort_param *param);
+                     Sort_param *param, bool packing_format);
 bool merge_buffers(Sort_param *param,IO_CACHE *from_file,
                    IO_CACHE *to_file, Sort_buffer sort_buffer,
                    Merge_chunk *lastbuff, Merge_chunk *Fb,

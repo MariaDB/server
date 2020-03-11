@@ -1,0 +1,61 @@
+#
+# Start of 10.5 tests
+#
+#
+# Test that SERVER DDL statements are not allowed without FEDERATED ADMIN or SUPER
+#
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE FEDERATED ADMIN, SUPER ON *.* FROM user1@localhost;
+connect  con1,localhost,user1,,;
+connection con1;
+CREATE SERVER IF NOT EXISTS server_1
+FOREIGN DATA WRAPPER mysql
+OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
+ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+ALTER SERVER server_1 OPTIONS(HOST 'Server.Example.Org');
+ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+DROP SERVER server_1;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+disconnect con1;
+connection default;
+DROP USER user1@localhost;
+#
+# Test that SERVER DDL statements are allowed with FEDERATED ADMIN
+#
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT FEDERATED ADMIN ON *.* TO user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+Grants for user1@localhost
+GRANT FEDERATED ADMIN ON *.* TO `user1`@`localhost`
+connect  con1,localhost,user1,,;
+connection con1;
+CREATE SERVER IF NOT EXISTS server_1
+FOREIGN DATA WRAPPER mysql
+OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
+ALTER SERVER server_1 OPTIONS(HOST 'Server.Example.Org');
+DROP SERVER server_1;
+disconnect con1;
+connection default;
+DROP USER user1@localhost;
+#
+# Test that SERVER DDL statements are allowed with SUPER
+#
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT SUPER ON *.* TO user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+Grants for user1@localhost
+GRANT SUPER ON *.* TO `user1`@`localhost`
+connect  con1,localhost,user1,,;
+connection con1;
+CREATE SERVER IF NOT EXISTS server_1
+FOREIGN DATA WRAPPER mysql
+OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
+ALTER SERVER server_1 OPTIONS(HOST 'Server.Example.Org');
+DROP SERVER server_1;
+disconnect con1;
+connection default;
+DROP USER user1@localhost;
+#
+# End of 10.5 tests
+#

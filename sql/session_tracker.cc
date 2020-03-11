@@ -72,7 +72,8 @@ void Session_sysvars_tracker::vars_list::copy(vars_list* from, THD *thd)
 bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar)
 {
   sysvar_node_st *node;
-  if (!(node= (sysvar_node_st *) my_malloc(sizeof(sysvar_node_st),
+  if (!(node= (sysvar_node_st *) my_malloc(PSI_INSTRUMENT_ME,
+                                           sizeof(sysvar_node_st),
                                            MYF(MY_WME |
                                                (mysqld_server_initialized ?
                                                 MY_THREAD_SPECIFIC : 0)))))
@@ -326,7 +327,8 @@ void Session_sysvars_tracker::init(THD *thd)
               global_system_variables.session_track_system_variables);
   DBUG_ASSERT(global_system_variables.session_track_system_variables);
   thd->variables.session_track_system_variables=
-    my_strdup(global_system_variables.session_track_system_variables,
+    my_strdup(PSI_INSTRUMENT_ME,
+              global_system_variables.session_track_system_variables,
               MYF(MY_WME | MY_THREAD_SPECIFIC));
 }
 
@@ -383,11 +385,11 @@ bool Session_sysvars_tracker::update(THD *thd, set_var *var)
   size_t length= 1;
 
   if (var->save_result.string_value.str)
-    copy= my_memdup(var->save_result.string_value.str,
+    copy= my_memdup(PSI_INSTRUMENT_ME, var->save_result.string_value.str,
                     (length= var->save_result.string_value.length + 1),
                     MYF(MY_WME | MY_THREAD_SPECIFIC));
     else
-      copy= my_strdup("", MYF(MY_WME | MY_THREAD_SPECIFIC));
+      copy= my_strdup(PSI_INSTRUMENT_ME, "", MYF(MY_WME | MY_THREAD_SPECIFIC));
 
   if (!copy)
     return true;

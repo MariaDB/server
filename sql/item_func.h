@@ -2654,7 +2654,27 @@ public:
 void mysql_ull_cleanup(THD *thd);
 void mysql_ull_set_explicit_lock_duration(THD *thd);
 
-class Item_func_get_lock :public Item_long_func
+
+class Item_func_lock :public Item_long_func
+{
+ public:
+  Item_func_lock(THD *thd): Item_long_func(thd) { }
+  Item_func_lock(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_lock(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
+  table_map used_tables() const
+  {
+    return used_tables_cache | RAND_TABLE_BIT;
+  }
+  bool const_item() const { return 0; }
+  bool is_expensive() { return 1; }
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+  }
+};
+
+
+class Item_func_get_lock final :public Item_func_lock
 {
   bool check_arguments() const
   {
@@ -2663,47 +2683,41 @@ class Item_func_get_lock :public Item_long_func
   }
   String value;
  public:
-  Item_func_get_lock(THD *thd, Item *a, Item *b) :Item_long_func(thd, a, b) {}
-  longlong val_int();
-  const char *func_name() const { return "get_lock"; }
-  bool fix_length_and_dec() { max_length=1; maybe_null=1; return FALSE; }
-  table_map used_tables() const
-  {
-    return used_tables_cache | RAND_TABLE_BIT;
-  }
-  bool const_item() const { return 0; }
-  bool is_expensive() { return 1; }
-  bool check_vcol_func_processor(void *arg)
-  {
-    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
-  }
-  Item *get_copy(THD *thd)
+  Item_func_get_lock(THD *thd, Item *a, Item *b) :Item_func_lock(thd, a, b) {}
+  longlong val_int() final;
+  const char *func_name() const final { return "get_lock"; }
+  bool fix_length_and_dec() { max_length= 1; maybe_null= 1; return FALSE; }
+  Item *get_copy(THD *thd) final
   { return get_item_copy<Item_func_get_lock>(thd, this); }
 };
 
-class Item_func_release_lock :public Item_long_func
+
+class Item_func_release_all_locks final :public Item_func_lock
+{
+public:
+  Item_func_release_all_locks(THD *thd): Item_func_lock(thd)
+  { unsigned_flag= 1; }
+  longlong val_int() final;
+  const char *func_name() const final { return "release_all_locks"; }
+  Item *get_copy(THD *thd) final
+  { return get_item_copy<Item_func_release_all_locks>(thd, this); }
+};
+
+
+class Item_func_release_lock final :public Item_func_lock
 {
   bool check_arguments() const
   { return args[0]->check_type_general_purpose_string(func_name()); }
   String value;
 public:
-  Item_func_release_lock(THD *thd, Item *a): Item_long_func(thd, a) {}
-  longlong val_int();
+  Item_func_release_lock(THD *thd, Item *a): Item_func_lock(thd, a) {}
+  longlong val_int() final;
   const char *func_name() const { return "release_lock"; }
   bool fix_length_and_dec() { max_length= 1; maybe_null= 1; return FALSE; }
-  table_map used_tables() const
-  {
-    return used_tables_cache | RAND_TABLE_BIT;
-  }
-  bool const_item() const { return 0; }
-  bool is_expensive() { return 1; }
-  bool check_vcol_func_processor(void *arg)
-  {
-    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
-  }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) final
   { return get_item_copy<Item_func_release_lock>(thd, this); }
 };
+
 
 /* replication functions */
 

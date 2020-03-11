@@ -1723,7 +1723,7 @@ xb_get_one_option(const struct my_option *opt,
     {
       char *start= argument;
       my_free(opt_password);
-      opt_password= my_strdup(argument, MYF(MY_FAE));
+      opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
       while (*argument) *argument++= 'x';               // Destroy argument
       if (*start)
         start[1]=0 ;
@@ -3860,7 +3860,9 @@ static bool xtrabackup_backup_low()
 		if (recv_find_max_checkpoint(&max_cp_field) == DB_SUCCESS
 		    && log_sys.log.format != 0) {
 			if (max_cp_field == LOG_CHECKPOINT_1) {
-				log_header_read(max_cp_field);
+				log_sys.log.read(max_cp_field,
+						 {log_sys.checkpoint_buf,
+						  OS_FILE_LOG_BLOCK_SIZE});
 			}
 			metadata_to_lsn = mach_read_from_8(
 				log_sys.checkpoint_buf + LOG_CHECKPOINT_LSN);
@@ -4067,11 +4069,11 @@ reread_log_header:
 		goto fail;
 	}
 
-	const byte* buf = log_sys.checkpoint_buf;
+	byte* buf = log_sys.checkpoint_buf;
 	checkpoint_lsn_start = log_sys.log.get_lsn();
 	checkpoint_no_start = log_sys.next_checkpoint_no;
 
-	log_header_read(max_cp_field);
+	log_sys.log.read(max_cp_field, {buf, OS_FILE_LOG_BLOCK_SIZE});
 
 	if (checkpoint_no_start != mach_read_from_8(buf + LOG_CHECKPOINT_NO)
 	    || checkpoint_lsn_start
@@ -5452,11 +5454,11 @@ static bool xtrabackup_prepare_func(char** argv)
 	}
 
 	/* Check whether the log is applied enough or not. */
-	if (srv_start_lsn && srv_start_lsn < target_lsn) {
+	if (recv_sys.recovered_lsn && recv_sys.recovered_lsn < target_lsn) {
 		msg("mariabackup: error: "
 		    "The log was only applied up to LSN " LSN_PF
 		    ", instead of " LSN_PF,
-		    srv_start_lsn, target_lsn);
+		    recv_sys.recovered_lsn, target_lsn);
 		ok = false;
 	}
 #ifdef WITH_WSREP

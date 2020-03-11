@@ -687,7 +687,7 @@ not_free:
 		const ulint size = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 		mtr.start();
 		mtr_x_lock_space(purge_sys.truncate.current, &mtr);
-		fil_truncate_log(purge_sys.truncate.current, size, &mtr);
+		mtr.trim_pages(page_id_t(space.id, size));
 		fsp_header_init(purge_sys.truncate.current, size, &mtr);
 		mutex_enter(&fil_system.mutex);
 		purge_sys.truncate.current->size = file->size = size;
@@ -1209,9 +1209,8 @@ trx_purge_dml_delay(void)
 	without holding trx_sys.mutex. */
 
 	if (srv_max_purge_lag > 0) {
-		float	ratio;
-
-		ratio = float(trx_sys.rseg_history_len) / srv_max_purge_lag;
+		double ratio = static_cast<double>(trx_sys.rseg_history_len) /
+			static_cast<double>(srv_max_purge_lag);
 
 		if (ratio > 1.0) {
 			/* If the history list length exceeds the

@@ -4434,9 +4434,10 @@ void subselect_single_select_engine::print(String *str,
                                            enum_query_type query_type)
 {
   With_clause* with_clause= select_lex->get_with_clause();
+  THD *thd= get_thd();
   if (with_clause)
-    with_clause->print(str, query_type);
-  select_lex->print(get_thd(), str, query_type);
+    with_clause->print(thd, str, query_type);
+  select_lex->print(thd, str, query_type);
 }
 
 
@@ -5807,8 +5808,9 @@ bool Ordered_key::alloc_keys_buffers()
 {
   DBUG_ASSERT(key_buff_elements > 0);
 
-  if (!(key_buff= (rownum_t*) my_malloc((size_t)(key_buff_elements * 
-    sizeof(rownum_t)), MYF(MY_WME | MY_THREAD_SPECIFIC))))
+  if (!(key_buff= (rownum_t*) my_malloc(PSI_INSTRUMENT_ME,
+         static_cast<size_t>(key_buff_elements * sizeof(rownum_t)),
+         MYF(MY_WME | MY_THREAD_SPECIFIC))))
     return TRUE;
 
   /*
@@ -6239,8 +6241,9 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
                                                sizeof(Ordered_key*))) ||
       !(null_bitmaps= (MY_BITMAP**) thd->alloc(merge_keys_count *
                                                sizeof(MY_BITMAP*))) ||
-      !(row_num_to_rowid= (uchar*) my_malloc((size_t)(row_count * rowid_length),
-        MYF(MY_WME | MY_THREAD_SPECIFIC))))
+      !(row_num_to_rowid= (uchar*) my_malloc(PSI_INSTRUMENT_ME,
+                              static_cast<size_t>(row_count * rowid_length),
+                              MYF(MY_WME | MY_THREAD_SPECIFIC))))
     return TRUE;
 
   /* Create the only non-NULL key if there is any. */

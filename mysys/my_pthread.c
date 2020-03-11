@@ -29,8 +29,6 @@
 #define SCHED_POLICY SCHED_OTHER
 #endif
 
-uint thd_lib_detected= 0;
-
 /*
   Some functions for RTS threads, AIX, Siemens Unix and UnixWare 7
   (and DEC OSF/1 3.2 too)

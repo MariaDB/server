@@ -79,8 +79,8 @@ my_bool _ma_setup_live_state(MARIA_HA *info)
   }
 
   /* Table was not used before, create new table state entry */
-  if (!(tables= (MARIA_USED_TABLES*) my_malloc(sizeof(*tables),
-                                               MYF(MY_WME | MY_ZEROFILL))))
+  if (!(tables= (MARIA_USED_TABLES*) my_malloc(PSI_INSTRUMENT_ME,
+                                 sizeof(*tables), MYF(MY_WME | MY_ZEROFILL))))
     DBUG_RETURN(1);
   tables->next= trn->used_tables;
   trn->used_tables= tables;
@@ -495,7 +495,8 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
               ensures that all history items are stored in the list in
               decresing trid order.
             */
-            if (!(history= my_malloc(sizeof(*history), MYF(MY_WME))))
+            if (!(history= my_malloc(PSI_INSTRUMENT_ME, sizeof(*history),
+                                     MYF(MY_WME))))
             {
               /* purecov: begin inspected */
               error= 1;

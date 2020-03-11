@@ -416,15 +416,6 @@
  VARIABLE_COMMENT	Dictates rate at which UNDO records are purged. Value N means purge rollback segment(s) on every Nth iteration of purge invocation
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	128
-@@ -1585,7 +1585,7 @@
- SESSION_VALUE	NULL
- DEFAULT_VALUE	4
- VARIABLE_SCOPE	GLOBAL
--VARIABLE_TYPE	BIGINT UNSIGNED
-+VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Purge threads can be from 1 to 32. Default is 4.
- NUMERIC_MIN_VALUE	1
- NUMERIC_MAX_VALUE	32
 @@ -1609,7 +1609,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	56

@@ -43,7 +43,6 @@
 #include "sql_base.h"            // setup_wild, setup_fields, fill_record
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_partition.h"       // make_used_partitions_str
-#include "sql_acl.h"             // *_ACL
 #include "sql_test.h"            // print_where, print_keyuse_array,
                                  // print_sjm, print_plan, TEST_join
 #include "records.h"             // init_read_record, end_read_record
@@ -6769,7 +6768,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   /* set a barrier for the array of SARGABLE_PARAM */
   (*sargables)[0].field= 0; 
 
-  if (my_init_dynamic_array2(keyuse, sizeof(KEYUSE),
+  if (my_init_dynamic_array2(thd->mem_root->m_psi_key, keyuse, sizeof(KEYUSE),
                              thd->alloc(sizeof(KEYUSE) * 20), 20, 64,
                              MYF(MY_THREAD_SPECIFIC)))
     DBUG_RETURN(TRUE);
@@ -13495,8 +13494,7 @@ bool JOIN_TAB::preread_init()
   if ((!derived->get_unit()->executed  ||
        derived->is_recursive_with_table() ||
        derived->get_unit()->uncacheable) &&
-      mysql_handle_single_derived(join->thd->lex,
-                                    derived, DT_CREATE | DT_FILL))
+      mysql_handle_single_derived(join->thd->lex, derived, DT_CREATE | DT_FILL))
       return TRUE;
 
   if (!(derived->get_unit()->uncacheable & UNCACHEABLE_DEPENDENT) ||
@@ -13518,6 +13516,21 @@ bool JOIN_TAB::preread_init()
       return TRUE;
 
   return FALSE;
+}
+
+
+bool JOIN_TAB::pfs_batch_update(JOIN *join)
+{
+  /*
+    Use PFS batch mode if
+     1. tab is an inner-most table, or
+     2. will read more than one row (not eq_ref or const access type)
+     3. no subqueries
+  */
+
+  return join->join_tab + join->table_count - 1 == this &&              // 1
+         type != JT_EQ_REF && type != JT_CONST  && type != JT_SYSTEM && // 2
+         (!select_cond || !select_cond->with_subquery());               // 3
 }
 
 
@@ -18023,14 +18036,27 @@ class Create_tmp_table: public Data_type_statistics
   ORDER *m_group;
   bool m_distinct;
   bool m_save_sum_fields;
+  bool m_with_cycle;
   ulonglong m_select_options;
   ha_rows m_rows_limit;
-  uint m_hidden_field_count;       // Remove this eventually
   uint m_group_null_items;
-  uint m_null_count;
-  uint m_hidden_uneven_bit_length;
-  uint m_hidden_null_count;
+
+  // counter for distinct/other fields
+  uint m_field_count[2];
+  // counter for distinct/other fields which can be NULL
+  uint m_null_count[2];
+  // counter for distinct/other  blob fields
+  uint m_blobs_count[2];
+  // counter for "tails" of bit fields which do not fit in a byte
+  uint m_uneven_bit[2];
+
 public:
+  enum counter {distinct, other};
+  /*
+    shows which field we are processing: distinct/other (set in processing
+    cycles)
+  */
+  counter current_counter;
   Create_tmp_table(const TMP_TABLE_PARAM *param,
                    ORDER *group, bool distinct, bool save_sum_fields,
                    ulonglong select_options, ha_rows rows_limit)
@@ -18040,14 +18066,21 @@ public:
     m_group(group),
     m_distinct(distinct),
     m_save_sum_fields(save_sum_fields),
+    m_with_cycle(false),
     m_select_options(select_options),
     m_rows_limit(rows_limit),
-    m_hidden_field_count(param->hidden_field_count),
     m_group_null_items(0),
-    m_null_count(0),
-    m_hidden_uneven_bit_length(0),
-    m_hidden_null_count(0)
-  { }
+    current_counter(other)
+  {
+    m_field_count[Create_tmp_table::distinct]= 0;
+    m_field_count[Create_tmp_table::other]= 0;
+    m_null_count[Create_tmp_table::distinct]= 0;
+    m_null_count[Create_tmp_table::other]= 0;
+    m_blobs_count[Create_tmp_table::distinct]= 0;
+    m_blobs_count[Create_tmp_table::other]= 0;
+    m_uneven_bit[Create_tmp_table::distinct]= 0;
+    m_uneven_bit[Create_tmp_table::other]= 0;
+  }
 
   void add_field(TABLE *table, Field *field, uint fieldnr, bool force_not_null_cols);
 
@@ -18080,13 +18113,16 @@ void Create_tmp_table::add_field(TABLE *table, Field *field, uint fieldnr, bool 
   }
 
   if (!(field->flags & NOT_NULL_FLAG))
-    m_null_count++;
+    m_null_count[current_counter]++;
 
   table->s->reclength+= field->pack_length();
 
   // Assign it here, before update_data_type_statistics() changes m_blob_count
   if (field->flags & BLOB_FLAG)
+  {
     table->s->blob_field[m_blob_count]= fieldnr;
+    m_blobs_count[current_counter]++;
+  }
 
   table->field[fieldnr]= field;
   field->field_index= fieldnr;
@@ -18215,7 +18251,7 @@ TABLE *Create_tmp_table::start(THD *thd,
   if (param->precomputed_group_by)
     copy_func_count+= param->sum_func_count;
   
-  init_sql_alloc(&own_root, "tmp_table", TABLE_ALLOC_BLOCK_SIZE, 0,
+  init_sql_alloc(key_memory_TABLE, &own_root, TABLE_ALLOC_BLOCK_SIZE, 0,
                  MYF(MY_THREAD_SPECIFIC));
 
   if (!multi_alloc_root(&own_root,
@@ -18298,6 +18334,7 @@ bool Create_tmp_table::add_fields(THD *thd,
   DBUG_ASSERT(table->s->blob_fields == 0);
 
   const bool not_all_columns= !(m_select_options & TMP_TABLE_ALL_COLUMNS);
+  bool distinct_record_structure= m_distinct;
   uint fieldnr= 0;
   TABLE_SHARE  *share= table->s;
   Item **copy_func= param->items_to_copy;
@@ -18308,8 +18345,29 @@ bool Create_tmp_table::add_fields(THD *thd,
   List_iterator_fast<Item> li(fields);
   Item *item;
   Field **tmp_from_field= m_from_field;
+  uint uneven_delta;
+  while (!m_with_cycle && (item= li++))
+    if (item->common_flags & IS_IN_WITH_CYCLE)
+    {
+      m_with_cycle= true;
+      /*
+        Following distinct_record_structure is (m_distinct || m_with_cycle)
+
+        Note: distinct_record_structure can be true even if m_distinct is
+        false, for example for incr_table in recursive CTE
+        (see select_union_recursive::create_result_table)
+      */
+      distinct_record_structure= true;
+    }
+  li.rewind();
   while ((item=li++))
   {
+    current_counter= (((param->hidden_field_count < (fieldnr + 1)) &&
+                       distinct_record_structure &&
+                       (!m_with_cycle ||
+                        (item->common_flags & IS_IN_WITH_CYCLE)))?
+                      distinct :
+                      other);
     Item::Type type= item->type();
     if (type == Item::COPY_STR_ITEM)
     {
@@ -18334,7 +18392,8 @@ bool Create_tmp_table::add_fields(THD *thd,
 	  continue;
         }
       }
-      if (item->const_item() && (int) m_hidden_field_count <= 0)
+      if (item->const_item() &&
+          param->hidden_field_count < (fieldnr + 1))
         continue; // We don't have to store this
     }
     if (type == Item::SUM_FUNC_ITEM && !m_group && !m_save_sum_fields)
@@ -18351,7 +18410,7 @@ bool Create_tmp_table::add_fields(THD *thd,
             create_tmp_field(table, arg, &copy_func,
                              tmp_from_field, &m_default_field[fieldnr],
                              m_group != 0, not_all_columns,
-                             m_distinct, false);
+                             distinct_record_structure , false);
 	  if (!new_field)
 	    goto err;					// Should be OOM
 	  tmp_from_field++;
@@ -18363,7 +18422,10 @@ bool Create_tmp_table::add_fields(THD *thd,
           arg= sum_item->set_arg(i, thd, tmp_item);
           thd->mem_root= &table->mem_root;
 
+          uneven_delta= m_uneven_bit_length;
           add_field(table, new_field, fieldnr++, param->force_not_null_cols);
+          uneven_delta= m_uneven_bit_length - uneven_delta;
+          m_field_count[current_counter]++;
 
 	  if (!(new_field->flags & NOT_NULL_FLAG))
           {
@@ -18373,6 +18435,8 @@ bool Create_tmp_table::add_fields(THD *thd,
             */
             arg->maybe_null=1;
           }
+          if (current_counter == distinct)
+            new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
 	}
       }
     }
@@ -18440,36 +18504,23 @@ bool Create_tmp_table::add_fields(THD *thd,
       }
       tmp_from_field++;
 
+      uneven_delta= m_uneven_bit_length;
       add_field(table, new_field, fieldnr++, param->force_not_null_cols);
+      uneven_delta= m_uneven_bit_length - uneven_delta;
+      m_field_count[current_counter]++;
 
       if (item->marker == 4 && item->maybe_null)
       {
         m_group_null_items++;
 	new_field->flags|= GROUP_FLAG;
       }
+      if (current_counter == distinct)
+        new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
     }
-    if (!--m_hidden_field_count)
-    {
-      /*
-        This was the last hidden field; Remember how many hidden fields could
-        have null
-      */
-      m_hidden_null_count= m_null_count;
-      /*
-	We need to update hidden_field_count as we may have stored group
-	functions with constant arguments
-      */
-      param->hidden_field_count= fieldnr;
-      m_null_count= 0;
-      /*
-        On last hidden field we store uneven bit length in
-        m_hidden_uneven_bit_length and proceed calculation of
-        uneven bits for visible fields into m_uneven_bit_length.
-      */
-      m_hidden_uneven_bit_length= m_uneven_bit_length;
-      m_uneven_bit_length= 0;
-    }
+    m_uneven_bit[current_counter]+= uneven_delta;
   }
+  DBUG_ASSERT(fieldnr == m_field_count[other] + m_field_count[distinct]);
+  DBUG_ASSERT(m_blob_count == m_blobs_count[other] + m_blobs_count[distinct]);
   share->fields= fieldnr;
   share->blob_fields= m_blob_count;
   table->field[fieldnr]= 0;                     // End marker
@@ -18495,8 +18546,12 @@ bool Create_tmp_table::finalize(THD *thd,
   DBUG_ENTER("Create_tmp_table::finalize");
   DBUG_ASSERT(table);
 
-  uint hidden_null_pack_length;
-  uint null_pack_length;
+  uint null_pack_length[2];
+  uint null_pack_base[2];
+  uint null_counter[2]= {0, 0};
+
+  uint whole_null_pack_length;
+
   bool  use_packed_rows= false;
   uchar *pos;
   uchar *null_flags;
@@ -18547,16 +18602,21 @@ bool Create_tmp_table::finalize(THD *thd,
   if (share->blob_fields == 0)
   {
     /* We need to ensure that first byte is not 0 for the delete link */
-    if (param->hidden_field_count)
-      m_hidden_null_count++;
+    if (m_field_count[other])
+      m_null_count[other]++;
     else
-      m_null_count++;
+      m_null_count[distinct]++;
   }
-  hidden_null_pack_length= (m_hidden_null_count + 7 +
-                            m_hidden_uneven_bit_length) / 8;
-  null_pack_length= (hidden_null_pack_length +
-                     (m_null_count + m_uneven_bit_length + 7) / 8);
-  share->reclength+= null_pack_length;
+
+  null_pack_length[other]= (m_null_count[other] + 7 +
+                            m_uneven_bit[other]) / 8;
+  null_pack_base[other]= 0;
+  null_pack_length[distinct]= (m_null_count[distinct] + 7 +
+                              m_uneven_bit[distinct]) / 8;
+  null_pack_base[distinct]= null_pack_length[other];
+  whole_null_pack_length= null_pack_length[other] +
+                          null_pack_length[distinct];
+  share->reclength+= whole_null_pack_length;
   if (!share->reclength)
     share->reclength= 1;                // Dummy select
   /* Use packed rows if there is blobs or a lot of space to gain */
@@ -18580,43 +18640,53 @@ bool Create_tmp_table::finalize(THD *thd,
 
   recinfo=param->start_recinfo;
   null_flags=(uchar*) table->record[0];
-  pos=table->record[0]+ null_pack_length;
-  if (null_pack_length)
+  pos=table->record[0]+ whole_null_pack_length;
+  if (whole_null_pack_length)
   {
     bzero((uchar*) recinfo,sizeof(*recinfo));
     recinfo->type=FIELD_NORMAL;
-    recinfo->length=null_pack_length;
+    recinfo->length= whole_null_pack_length;
     recinfo++;
-    bfill(null_flags,null_pack_length,255);	// Set null fields
+    bfill(null_flags, whole_null_pack_length, 255);	// Set null fields
 
     table->null_flags= (uchar*) table->record[0];
-    share->null_fields= m_null_count + m_hidden_null_count;
-    share->null_bytes= share->null_bytes_for_compare= null_pack_length;
+    share->null_fields= m_null_count[other] + m_null_count[distinct];
+    share->null_bytes= share->null_bytes_for_compare= whole_null_pack_length;
   }
-  m_null_count= (share->blob_fields == 0) ? 1 : 0;
-  m_hidden_field_count= param->hidden_field_count;
+
+  if (share->blob_fields == 0)
+  {
+    null_counter[(m_field_count[other] ? other : distinct)]++;
+  }
   for (uint i= 0; i < share->fields; i++, recinfo++)
   {
     Field *field= table->field[i];
     uint length;
     bzero((uchar*) recinfo,sizeof(*recinfo));
 
+    current_counter= ((field->flags & FIELD_PART_OF_TMP_UNIQUE) ?
+                      distinct :
+                      other);
+
     if (!(field->flags & NOT_NULL_FLAG))
     {
-      recinfo->null_bit= (uint8)1 << (m_null_count & 7);
-      recinfo->null_pos= m_null_count/8;
-      field->move_field(pos, null_flags + m_null_count/8,
-			(uint8)1 << (m_null_count & 7));
-      m_null_count++;
+
+      recinfo->null_bit= (uint8)1 << (null_counter[current_counter] & 7);
+      recinfo->null_pos= (null_pack_base[current_counter] +
+                          null_counter[current_counter]/8);
+      field->move_field(pos, null_flags + recinfo->null_pos, recinfo->null_bit);
+      null_counter[current_counter]++;
     }
     else
       field->move_field(pos,(uchar*) 0,0);
     if (field->type() == MYSQL_TYPE_BIT)
     {
       /* We have to reserve place for extra bits among null bits */
-      ((Field_bit*) field)->set_bit_ptr(null_flags + m_null_count / 8,
-                                        m_null_count & 7);
-      m_null_count+= (field->field_length & 7);
+      ((Field_bit*) field)->set_bit_ptr(null_flags +
+                                        null_pack_base[current_counter] +
+                                        null_counter[current_counter]/8,
+                                        null_counter[current_counter] & 7);
+      null_counter[current_counter]+= (field->field_length & 7);
     }
     field->reset();
 
@@ -18655,8 +18725,6 @@ bool Create_tmp_table::finalize(THD *thd,
     /* Make entry for create table */
     recinfo->length=length;
     recinfo->type= field->tmp_engine_column_type(use_packed_rows);
-    if (!--m_hidden_field_count)
-      m_null_count= (m_null_count + 7) & ~7;    // move to next byte
 
     // fix table name in field entry
     field->set_table_name(&table->alias);
@@ -18777,7 +18845,8 @@ bool Create_tmp_table::finalize(THD *thd,
                 m_group_buff <= param->group_buff + param->group_length);
   }
 
-  if (m_distinct && share->fields != param->hidden_field_count)
+  if (m_distinct && (share->fields != param->hidden_field_count ||
+                     m_with_cycle))
   {
     uint i;
     Field **reg_field;
@@ -18789,7 +18858,7 @@ bool Create_tmp_table::finalize(THD *thd,
     */
     DBUG_PRINT("info",("hidden_field_count: %d", param->hidden_field_count));
 
-    if (share->blob_fields)
+    if (m_blobs_count[distinct])
     {
       /*
         Special mode for index creation in MyISAM used to support unique
@@ -18798,10 +18867,8 @@ bool Create_tmp_table::finalize(THD *thd,
       */
       share->uniques= 1;
     }
-    null_pack_length-=hidden_null_pack_length;
-    keyinfo->user_defined_key_parts=
-      ((share->fields - param->hidden_field_count)+
-       (share->uniques ? MY_TEST(null_pack_length) : 0));
+    keyinfo->user_defined_key_parts= m_field_count[distinct] +
+       (share->uniques ? MY_TEST(null_pack_length[distinct]) : 0);
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->usable_key_parts= keyinfo->user_defined_key_parts;
     table->distinct= 1;
@@ -18844,11 +18911,11 @@ bool Create_tmp_table::finalize(THD *thd,
       blobs can distinguish NULL from 0. This extra field is not needed
       when we do not use UNIQUE indexes for blobs.
     */
-    if (null_pack_length && share->uniques)
+    if (null_pack_length[distinct] && share->uniques)
     {
       m_key_part_info->null_bit=0;
-      m_key_part_info->offset=hidden_null_pack_length;
-      m_key_part_info->length=null_pack_length;
+      m_key_part_info->offset= null_pack_base[distinct];
+      m_key_part_info->length= null_pack_length[distinct];
       m_key_part_info->field= new Field_string(table->record[0],
                                              (uint32) m_key_part_info->length,
                                              (uchar*) 0,
@@ -18866,8 +18933,10 @@ bool Create_tmp_table::finalize(THD *thd,
     /* Create a distinct key over the columns we are going to return */
     for (i= param->hidden_field_count, reg_field= table->field + i ;
          i < share->fields;
-         i++, reg_field++, m_key_part_info++)
+         i++, reg_field++)
     {
+      if (!((*reg_field)->flags & FIELD_PART_OF_TMP_UNIQUE))
+        continue;
       m_key_part_info->field= *reg_field;
       (*reg_field)->flags |= PART_KEY_FLAG;
       if (m_key_part_info == keyinfo->key_part)
@@ -18904,6 +18973,8 @@ bool Create_tmp_table::finalize(THD *thd,
 	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT1 ||
 	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2) ?
 	0 : FIELDFLAG_BINARY;
+
+      m_key_part_info++;
     }
   }
 
@@ -20446,6 +20517,10 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   if (join_tab->loosescan_match_tab)
     join_tab->loosescan_match_tab->found_match= FALSE;
 
+  const bool pfs_batch_update= join_tab->pfs_batch_update(join);
+  if (pfs_batch_update)
+    join_tab->table->file->start_psi_batch_mode();
+
   if (rc != NESTED_LOOP_NO_MORE_ROWS)
   {
     error= (*join_tab->read_first_record)(join_tab);
@@ -20496,6 +20571,9 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   if (rc == NESTED_LOOP_NO_MORE_ROWS &&
       join_tab->last_inner && !join_tab->found)
     rc= evaluate_null_complemented_join_record(join, join_tab);
+
+  if (pfs_batch_update)
+    join_tab->table->file->end_psi_batch_mode();
 
   if (rc == NESTED_LOOP_NO_MORE_ROWS)
     rc= NESTED_LOOP_OK;
@@ -23952,21 +24030,21 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
   Field **ptr;
   DBUG_ENTER("remove_dup_with_hash_index");
 
-  if (unlikely(!my_multi_malloc(MYF(MY_WME),
-                                &key_buffer,
-                                (uint) ((key_length + extra_length) *
-                                        (long) file->stats.records),
-                                &field_lengths,
-                                (uint) (field_count*sizeof(*field_lengths)),
-                                NullS)))
+  if (!my_multi_malloc(key_memory_hash_index_key_buffer, MYF(MY_WME),
+                       &key_buffer,
+                       (uint) ((key_length + extra_length) *
+                               (long) file->stats.records),
+                       &field_lengths,
+                       (uint) (field_count*sizeof(*field_lengths)),
+                       NullS))
     DBUG_RETURN(1);
 
   for (ptr= first_field, field_length=field_lengths ; *ptr ; ptr++)
     (*field_length++)= (*ptr)->sort_length();
 
-  if (unlikely(my_hash_init(&hash, &my_charset_bin,
-                            (uint) file->stats.records, 0,
-                            key_length, (my_hash_get_key) 0, 0, 0)))
+  if (my_hash_init(key_memory_hash_index_key_buffer, &hash, &my_charset_bin,
+                   (uint) file->stats.records, 0, key_length,
+                   (my_hash_get_key) 0, 0, 0))
   {
     my_free(key_buffer);
     DBUG_RETURN(1);
@@ -24002,7 +24080,7 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
     field_length=field_lengths;
     for (ptr= first_field ; *ptr ; ptr++)
     {
-      (*ptr)->make_sort_key(key_pos, *field_length);
+      (*ptr)->make_sort_key_part(key_pos, *field_length);
       key_pos+= (*ptr)->maybe_null() + *field_length++;
     }
     /* Check if it exists before */
@@ -27481,7 +27559,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     else
       str->append(',');
 
-    if (is_subquery_function() && item->is_autogenerated_name)
+    if (is_subquery_function() && item->is_autogenerated_name())
     {
       /*
         Do not print auto-generated aliases in subqueries. It has no purpose
@@ -27777,8 +27855,8 @@ JOIN::reoptimize(Item *added_where, table_map join_tables,
     reset_query_plan();
 
   if (!keyuse.buffer &&
-      my_init_dynamic_array(&keyuse, sizeof(KEYUSE), 20, 64,
-                            MYF(MY_THREAD_SPECIFIC)))
+      my_init_dynamic_array(thd->mem_root->m_psi_key, &keyuse, sizeof(KEYUSE),
+                            20, 64, MYF(MY_THREAD_SPECIFIC)))
   {
     delete_dynamic(&added_keyuse);
     return REOPT_ERROR;

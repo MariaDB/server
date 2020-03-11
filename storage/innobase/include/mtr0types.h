@@ -263,6 +263,18 @@ enum mrec_ext_t
   This is equivalent to the old MLOG_UNDO_INSERT record.
   The current byte offset will be reset to FIL_PAGE_TYPE. */
   UNDO_APPEND= 3,
+  /** Insert a ROW_FORMAT=REDUNDANT record, extending PAGE_HEAP_TOP.
+  The current byte offset will be reset to FIL_PAGE_TYPE. */
+  INSERT_HEAP_REDUNDANT= 4,
+  /** Insert a ROW_FORMAT=REDUNDANT record, reusing PAGE_FREE.
+  The current byte offset will be reset to FIL_PAGE_TYPE. */
+  INSERT_REUSE_REDUNDANT= 5,
+  /** Insert a ROW_FORMAT=COMPACT or DYNAMIC record, extending PAGE_HEAP_TOP.
+  The current byte offset will be reset to FIL_PAGE_TYPE. */
+  INSERT_HEAP_DYNAMIC= 6,
+  /** Insert a ROW_FORMAT=COMPACT or DYNAMIC record, reusing PAGE_FREE.
+  The current byte offset will be reset to FIL_PAGE_TYPE. */
+  INSERT_REUSE_DYNAMIC= 7,
   /** Delete a record on a ROW_FORMAT=REDUNDANT page.
   We point to the precedessor of the record to be deleted.
   The current byte offset will be reset to FIL_PAGE_TYPE.
@@ -273,7 +285,9 @@ enum mrec_ext_t
   and include the total size of the record being deleted.
   The current byte offset will be reset to FIL_PAGE_TYPE.
   This is similar to the old MLOG_COMP_REC_DELETE record. */
-  DELETE_ROW_FORMAT_DYNAMIC= 9
+  DELETE_ROW_FORMAT_DYNAMIC= 9,
+  /** Truncate a data file. */
+  TRIM_PAGES= 10
 };
 
 

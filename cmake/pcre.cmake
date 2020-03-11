@@ -11,16 +11,17 @@ MACRO(BUNDLE_PCRE2)
   FOREACH(lib pcre2-posix pcre2-8)
     ADD_LIBRARY(${lib} STATIC IMPORTED GLOBAL)
     ADD_DEPENDENCIES(${lib} pcre2)
-    SET(file ${dir}/src/pcre2-build/${CMAKE_CFG_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${CMAKE_STATIC_LIBRARY_SUFFIX})
     IF(WIN32)
       # Debug libary name.
       # Same condition as in pcre2 CMakeLists.txt that adds "d"
+      SET(file ${dir}/src/pcre2-build/${CMAKE_CFG_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${CMAKE_STATIC_LIBRARY_SUFFIX})
       SET(file_d ${dir}/src/pcre2-build/${CMAKE_CFG_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}d${CMAKE_STATIC_LIBRARY_SUFFIX})
       SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION_DEBUG ${file_d})
     ELSE()
+      SET(file ${dir}/src/pcre2-build/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${CMAKE_STATIC_LIBRARY_SUFFIX})
       SET(file_d)
     ENDIF()
-	SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${file} ${file_d})
+    SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${file} ${file_d})
     SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${file})
   ENDFOREACH()
   FOREACH(v "" "_DEBUG" "_RELWITHDEBINFO" "_RELEASE" "_MINZISEREL")
@@ -33,7 +34,7 @@ MACRO(BUNDLE_PCRE2)
   ExternalProject_Add(
     pcre2
     PREFIX   "${dir}"
-    URL      "https://ftp.pcre.org/pub/pcre/pcre2-10.34.zip"
+    URL      "http://ftp.pcre.org/pub/pcre/pcre2-10.34.zip"
     URL_MD5  fdb10dba7f3be43730966bebdd3755ef
     INSTALL_COMMAND ""
     CMAKE_ARGS

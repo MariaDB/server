@@ -4534,7 +4534,8 @@ SPIDER_IP_PORT_CONN* spider_create_ipport_conn(SPIDER_CONN *conn)
   DBUG_ENTER("spider_create_ipport_conn");
   if (conn)
   {
-    SPIDER_IP_PORT_CONN *ret = (SPIDER_IP_PORT_CONN *) my_malloc(sizeof(*ret), MY_ZEROFILL | MY_WME);
+    SPIDER_IP_PORT_CONN *ret = (SPIDER_IP_PORT_CONN *)
+      my_malloc(PSI_INSTRUMENT_ME, sizeof(*ret), MY_ZEROFILL | MY_WME);
     if (!ret)
     {
       goto err_return_direct;
@@ -4568,8 +4569,8 @@ SPIDER_IP_PORT_CONN* spider_create_ipport_conn(SPIDER_CONN *conn)
       goto err_malloc_key;
     }
 
-    ret->key = (char *) my_malloc(ret->key_len + conn->tgt_host_length + 1,
-      MY_ZEROFILL | MY_WME);
+    ret->key = (char *) my_malloc(PSI_INSTRUMENT_ME, ret->key_len +
+                             conn->tgt_host_length + 1, MY_ZEROFILL | MY_WME);
     if (!ret->key) {
       pthread_cond_destroy(&ret->cond);
       pthread_mutex_destroy(&ret->mutex);

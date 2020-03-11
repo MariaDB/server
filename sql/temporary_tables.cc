@@ -955,7 +955,8 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
   /* Create the table definition key for the temporary table. */
   key_length= create_tmp_table_def_key(key_cache, db, table_name);
 
-  if (!(share= (TMP_TABLE_SHARE *) my_malloc(sizeof(TMP_TABLE_SHARE) +
+  if (!(share= (TMP_TABLE_SHARE *) my_malloc(key_memory_table_share,
+                                             sizeof(TMP_TABLE_SHARE) +
                                              strlen(path) + 1 + key_length,
                                              MYF(MY_WME))))
   {
@@ -1002,7 +1003,8 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
   if (!temporary_tables)
   {
     if ((temporary_tables=
-         (All_tmp_tables_list *) my_malloc(sizeof(All_tmp_tables_list),
+         (All_tmp_tables_list *) my_malloc(key_memory_table_share,
+                                           sizeof(All_tmp_tables_list),
                                            MYF(MY_WME))))
     {
       temporary_tables->empty();
@@ -1107,7 +1109,8 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   DBUG_ENTER("THD::open_temporary_table");
 
 
-  if (!(table= (TABLE *) my_malloc(sizeof(TABLE), MYF(MY_WME))))
+  if (!(table= (TABLE *) my_malloc(key_memory_TABLE, sizeof(TABLE),
+                                   MYF(MY_WME))))
   {
     DBUG_RETURN(NULL);                          /* Out of memory */
   }

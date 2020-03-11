@@ -82,17 +82,6 @@ extern void post_kill_notification(THD *);
 struct thd_scheduler
 {
 public:
-  /*
-    Thread instrumentation for the user job.
-    This member holds the instrumentation while the user job is not run
-    by a thread.
-
-    Note that this member is not conditionally declared
-    (ifdef HAVE_PSI_INTERFACE), because doing so will change the binary
-    layout of THD, which is exposed to plugin code that may be compiled
-    differently.
-  */
-  PSI_thread *m_psi;
   void *data;                  /* scheduler-specific data structure */
 };
 

@@ -100,10 +100,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "os0event.h"
 #include "zlib.h"
 #include "ut0crc32.h"
-#include "btr0scrub.h"
 
-/** Log sequence number immediately after startup */
-lsn_t	srv_start_lsn;
 /** Log sequence number at shutdown */
 lsn_t	srv_shutdown_lsn;
 
@@ -267,8 +264,9 @@ static dberr_t create_log_file(lsn_t lsn, std::string& logfile0)
 	DBUG_EXECUTE_IF("innodb_log_abort_6", delete_log_file("0");
 			return DB_ERROR;);
 
-	delete_log_file("0");
-	delete_log_file(INIT_LOG_FILE0);
+	for (size_t i = 0; i < 102; i++) {
+		delete_log_file(std::to_string(i).c_str());
+	}
 
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_6"));
 	ut_ad(!buf_pool_check_no_pending_io());
@@ -325,26 +323,23 @@ static dberr_t create_log_file(lsn_t lsn, std::string& logfile0)
 		return DB_ERROR;
 	}
 	ut_d(recv_no_log_write = false);
-	log_sys.lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
-
-	log_sys.log.set_lsn(log_sys.lsn);
+	lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
+	log_sys.set_lsn(lsn + LOG_BLOCK_HDR_SIZE);
+	log_sys.log.set_lsn(lsn);
 	log_sys.log.set_lsn_offset(LOG_FILE_HDR_SIZE);
 
 	log_sys.buf_next_to_write = 0;
-	log_sys.write_lsn = log_sys.lsn;
+	log_sys.write_lsn = lsn;
 
 	log_sys.next_checkpoint_no = 0;
 	log_sys.last_checkpoint_lsn = 0;
 
 	memset(log_sys.buf, 0, srv_log_buffer_size);
-	log_block_init(log_sys.buf, log_sys.lsn);
+	log_block_init(log_sys.buf, lsn);
 	log_block_set_first_rec_group(log_sys.buf, LOG_BLOCK_HDR_SIZE);
 
 	log_sys.buf_free = LOG_BLOCK_HDR_SIZE;
-	log_sys.lsn += LOG_BLOCK_HDR_SIZE;
 
-	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
-		    (log_sys.lsn - log_sys.last_checkpoint_lsn));
 	log_mutex_exit();
 
 	log_make_checkpoint();
@@ -896,10 +891,6 @@ srv_shutdown_all_bg_threads()
 			if (srv_n_fil_crypt_threads_started) {
 				os_event_set(fil_crypt_threads_event);
 			}
-
-			if (log_scrub_thread_active) {
-				os_event_set(log_scrub_event);
-			}
 		}
 
 		if (srv_start_state_is_set(SRV_START_STATE_IO)) {
@@ -999,9 +990,9 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 
 		log_mutex_enter();
 
-		fil_names_clear(log_sys.lsn, false);
+		fil_names_clear(log_sys.get_lsn(), false);
 
-		flushed_lsn = log_sys.lsn;
+		flushed_lsn = log_sys.get_lsn();
 
 		{
 			ib::info	info;
@@ -1036,13 +1027,12 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 			     << " bytes; LSN=" << flushed_lsn;
 		}
 
-		srv_start_lsn = flushed_lsn;
-		/* Flush the old log file. */
 		log_mutex_exit();
 
-		log_write_up_to(flushed_lsn, true);
-
-		log_sys.log.flush_data_only();
+		if (flushed_lsn != log_sys.get_flushed_lsn()) {
+			log_write_up_to(flushed_lsn, false);
+			log_sys.log.flush_data_only();
+		}
 
 		ut_ad(flushed_lsn == log_get_lsn());
 
@@ -1538,15 +1528,6 @@ file_checked:
 		err = recv_recovery_from_checkpoint_start(flushed_lsn);
 		recv_sys.close_files();
 
-		if (recv_sys.remove_extra_log_files) {
-			auto log_files_found = recv_sys.files_size();
-			recv_sys.close_files();
-			for (size_t i = 1; i < log_files_found; i++) {
-				delete_log_file(std::to_string(i).c_str());
-			}
-			recv_sys.remove_extra_log_files = false;
-		}
-
 		recv_sys.dblwr.pages.clear();
 
 		if (err != DB_SUCCESS) {
@@ -1575,7 +1556,7 @@ file_checked:
 			break;
 		case SRV_OPERATION_RESTORE_DELTA:
 		case SRV_OPERATION_BACKUP:
-			ut_ad(!"wrong mariabackup mode");
+			ut_ad("wrong mariabackup mode" == 0);
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
@@ -1999,7 +1980,7 @@ skip_monitors:
 	if (srv_print_verbose_log) {
 		ib::info() << INNODB_VERSION_STR
 			   << " started; log sequence number "
-			   << srv_start_lsn
+			   << recv_sys.recovered_lsn
 			   << "; transaction id " << trx_sys.get_max_trx_id();
 	}
 
@@ -2046,7 +2027,6 @@ skip_monitors:
 		will flush dirty pages and that might need e.g.
 		fil_crypt_threads_event. */
 		fil_system_enter();
-		btr_scrub_init();
 		fil_crypt_threads_init();
 		fil_system_exit();
 
@@ -2154,7 +2134,6 @@ void innodb_shutdown()
 		fts_optimize_shutdown(); dict_stats_shutdown(); */
 
 		fil_crypt_threads_cleanup();
-		btr_scrub_cleanup();
 		btr_defragment_shutdown();
 	}
 

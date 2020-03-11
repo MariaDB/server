@@ -1075,8 +1075,8 @@ private:
 public:
   Blob_mem_storage() :truncated_value(false)
   {
-    init_alloc_root(&storage, "Blob_mem_storage", MAX_FIELD_VARCHARLENGTH, 0,
-                    MYF(0));
+    init_alloc_root(key_memory_blob_mem_storage,
+                    &storage, MAX_FIELD_VARCHARLENGTH, 0, MYF(0));
   }
   ~ Blob_mem_storage()
   {
@@ -2012,8 +2012,8 @@ struct TABLE_LIST
     alias= (alias_arg ? *alias_arg : *table_name_arg);
     lock_type= lock_type_arg;
     updating= lock_type >= TL_WRITE_ALLOW_WRITE;
-    mdl_request.init(MDL_key::TABLE, db.str, table_name.str, mdl_type,
-                     MDL_TRANSACTION);
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, db.str, table_name.str,
+                     mdl_type, MDL_TRANSACTION);
   }
 
   TABLE_LIST(TABLE *table_arg, thr_lock_type lock_type)
@@ -3060,9 +3060,12 @@ extern LEX_CSTRING MYSQL_PROC_NAME;
 
 inline bool is_infoschema_db(const LEX_CSTRING *name)
 {
-  return (INFORMATION_SCHEMA_NAME.length == name->length &&
-          !my_strcasecmp(system_charset_info,
-                         INFORMATION_SCHEMA_NAME.str, name->str));
+  return lex_string_eq(&INFORMATION_SCHEMA_NAME, name);
+}
+
+inline bool is_perfschema_db(const LEX_CSTRING *name)
+{
+  return lex_string_eq(&PERFORMANCE_SCHEMA_DB_NAME, name);
 }
 
 inline void mark_as_null_row(TABLE *table)

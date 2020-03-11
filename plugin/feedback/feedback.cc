@@ -280,7 +280,7 @@ static int init(void *p)
       if (*s == ' ')
         url_count++;
 
-    urls= (Url **)my_malloc(url_count*sizeof(Url*), MYF(MY_WME));
+    urls= (Url **)my_malloc(PSI_INSTRUMENT_ME, url_count*sizeof(Url*), MYF(MY_WME));
     if (!urls)
       return 1;
 

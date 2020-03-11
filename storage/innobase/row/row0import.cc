@@ -1392,7 +1392,7 @@ row_import::set_root_by_name() UNIV_NOTHROW
 		/* We've already checked that it exists. */
 		ut_a(index != 0);
 
-		index->page = cfg_index->m_page_no;
+		index->page = static_cast<uint32_t>(cfg_index->m_page_no);
 	}
 }
 
@@ -1451,9 +1451,8 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 
 			cfg_index[i].m_srv_index = index;
 
-			index->page = cfg_index[i].m_page_no;
-
-			++i;
+			index->page = static_cast<uint32_t>(
+				cfg_index[i++].m_page_no);
 		}
 	}
 
@@ -2445,7 +2444,7 @@ row_import_cfg_read_string(
 			break;
 		} else if (ch != 0) {
 			if (len < max_len) {
-				ptr[len++] = ch;
+				ptr[len++] = static_cast<byte>(ch);
 			} else {
 				break;
 			}
@@ -2825,12 +2824,12 @@ row_import_read_columns(
 		col->len = mach_read_from_4(ptr);
 		ptr += sizeof(ib_uint32_t);
 
-		ulint mbminmaxlen = mach_read_from_4(ptr);
+		uint32_t mbminmaxlen = mach_read_from_4(ptr);
 		col->mbmaxlen = mbminmaxlen / 5;
 		col->mbminlen = mbminmaxlen % 5;
 		ptr += sizeof(ib_uint32_t);
 
-		col->ind = mach_read_from_4(ptr);
+		col->ind = mach_read_from_4(ptr) & dict_index_t::MAX_N_FIELDS;
 		ptr += sizeof(ib_uint32_t);
 
 		col->ord_part = mach_read_from_4(ptr);

@@ -26,7 +26,6 @@ SET(INNOBASE_SOURCES
 	btr/btr0bulk.cc
 	btr/btr0cur.cc
 	btr/btr0pcur.cc
-	btr/btr0scrub.cc
 	btr/btr0sea.cc
 	btr/btr0defragment.cc
 	buf/buf0buddy.cc
@@ -84,6 +83,7 @@ SET(INNOBASE_SOURCES
 	log/log0log.cc
 	log/log0recv.cc
 	log/log0crypt.cc
+	log/log0sync.cc
 	mem/mem0mem.cc
 	mtr/mtr0mtr.cc
 	os/os0file.cc

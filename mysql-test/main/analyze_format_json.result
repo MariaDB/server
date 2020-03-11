@@ -517,6 +517,7 @@ ANALYZE
       "r_used_priority_queue": false,
       "r_output_rows": 0,
       "r_buffer_size": "REPLACED",
+      "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
         "table": {
           "table_name": "t2",
@@ -548,6 +549,7 @@ ANALYZE
       "r_used_priority_queue": false,
       "r_output_rows": 256,
       "r_buffer_size": "REPLACED",
+      "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
         "table": {
           "table_name": "t2",
@@ -590,6 +592,7 @@ ANALYZE
       "r_used_priority_queue": false,
       "r_output_rows": 256,
       "r_buffer_size": "REPLACED",
+      "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
         "table": {
           "table_name": "t2",
@@ -701,6 +704,7 @@ ANALYZE
       "r_used_priority_queue": false,
       "r_output_rows": 0,
       "r_buffer_size": "REPLACED",
+      "r_sort_mode": "packed_sort_key,rowid",
       "temporary_table": {
         "filesort": {
           "sort_key": "(subquery#2)",
@@ -709,6 +713,7 @@ ANALYZE
           "r_used_priority_queue": false,
           "r_output_rows": 0,
           "r_buffer_size": "REPLACED",
+          "r_sort_mode": "sort_key,rowid",
           "temporary_table": {
             "table": {
               "table_name": "t2",
@@ -824,6 +829,7 @@ ANALYZE
                 "r_limit": null,
                 "r_used_priority_queue": null,
                 "r_output_rows": null,
+                "r_sort_mode": "sort_key,rowid",
                 "table": {
                   "table_name": "t2",
                   "access_type": "ALL",

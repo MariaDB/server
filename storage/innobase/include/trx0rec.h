@@ -247,12 +247,8 @@ trx_undo_prev_version_build(
 @param[in,out]	orig_len	original length of the locally stored part
 of an externally stored column, or 0
 @return remaining part of undo log record after reading these values */
-byte*
-trx_undo_rec_get_col_val(
-        const byte*     ptr,
-        const byte**    field,
-        ulint*          len,
-        ulint*          orig_len);
+byte *trx_undo_rec_get_col_val(const byte *ptr, const byte **field,
+                               uint32_t *len, uint32_t *orig_len);
 
 /** Read virtual column value from undo log
 @param[in]	table		the table
@@ -275,7 +271,7 @@ info, and verify the column is still indexed, and output its position
 @param[in,out]	is_undo_log	his function is used to parse both undo log,
 				and online log for virtual columns. So
 				check to see if this is undo log
-@param[out]	field_no	the column number
+@param[out]	field_no	the column number, or FIL_NULL if not indexed
 @return remaining part of undo log record after reading these values */
 const byte*
 trx_undo_read_v_idx(
@@ -283,7 +279,7 @@ trx_undo_read_v_idx(
 	const byte*		ptr,
 	bool			first_v_col,
 	bool*			is_undo_log,
-	ulint*			field_no);
+	uint32_t*		field_no);
 
 /* Types of an undo log record: these have to be smaller than 16, as the
 compilation info multiplied by 16 is ORed to this value in an undo log

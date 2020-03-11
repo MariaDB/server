@@ -1390,18 +1390,17 @@ os_file_create_func(
 
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
-#ifdef O_SYNC
-	/* We let O_SYNC only affect log files; note that we map O_DSYNC to
-	O_SYNC because the datasync options seemed to corrupt files in 2001
-	in both Linux and Solaris */
+	/* We let O_DSYNC only affect log files */
 
 	if (!read_only
 	    && type == OS_LOG_FILE
 	    && srv_file_flush_method == SRV_O_DSYNC) {
-
+#ifdef O_DSYNC
+		create_flag |= O_DSYNC;
+#else
 		create_flag |= O_SYNC;
+#endif
 	}
-#endif /* O_SYNC */
 
 	os_file_t	file;
 	bool		retry;
@@ -2492,7 +2491,7 @@ os_file_create_func(
 	{
 	case SRV_O_DSYNC:
 		if (type == OS_LOG_FILE) {
-			/* Map O_SYNC to FILE_WRITE_THROUGH */
+			/* Map O_DSYNC to FILE_WRITE_THROUGH */
 			attributes |= FILE_FLAG_WRITE_THROUGH;
 		}
 		break;
@@ -4190,7 +4189,6 @@ os_aio_print(FILE*	file)
 {
 	time_t		current_time;
 	double		time_elapsed;
-	double		avg_bytes_read;
 
 	for (ulint i = 0; i < srv_n_file_io_threads; ++i) {
 		fprintf(file, "I/O thread " ULINTPF " state: %s (%s)",
@@ -4229,22 +4227,20 @@ os_aio_print(FILE*	file)
 			n_reads, n_writes);
 	}
 
-	if (os_n_file_reads == os_n_file_reads_old) {
-		avg_bytes_read = 0.0;
-	} else {
-		avg_bytes_read = (double) os_bytes_read_since_printout
-			/ (os_n_file_reads - os_n_file_reads_old);
-	}
+	ulint avg_bytes_read = (os_n_file_reads == os_n_file_reads_old)
+		? 0
+		: os_bytes_read_since_printout
+		/ (os_n_file_reads - os_n_file_reads_old);
 
 	fprintf(file,
 		"%.2f reads/s, " ULINTPF " avg bytes/read,"
 		" %.2f writes/s, %.2f fsyncs/s\n",
-		(os_n_file_reads - os_n_file_reads_old)
+		static_cast<double>(os_n_file_reads - os_n_file_reads_old)
 		/ time_elapsed,
-		(ulint) avg_bytes_read,
-		(os_n_file_writes - os_n_file_writes_old)
+		avg_bytes_read,
+		static_cast<double>(os_n_file_writes - os_n_file_writes_old)
 		/ time_elapsed,
-		(os_n_fsyncs - os_n_fsyncs_old)
+		static_cast<double>(os_n_fsyncs - os_n_fsyncs_old)
 		/ time_elapsed);
 
 	os_n_file_reads_old = os_n_file_reads;

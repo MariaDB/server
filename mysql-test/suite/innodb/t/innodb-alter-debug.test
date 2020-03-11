@@ -132,3 +132,15 @@ DROP TABLE t1;
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-7318 RENAME INDEX
+--echo #
+CREATE TABLE t (c1 INT, c2 INT, KEY i2 (c2)) ENGINE=INNODB;
+
+SET DEBUG_DBUG= '+d,ib_rename_index_fail1';
+-- error ER_LOCK_DEADLOCK
+ALTER TABLE t RENAME INDEX i2 to x, ALGORITHM=INPLACE;
+SET DEBUG_DBUG= '-d,ib_rename_index_fail1';
+
+DROP TABLE t;

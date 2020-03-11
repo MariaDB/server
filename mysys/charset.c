@@ -463,12 +463,12 @@ my_once_alloc_c(size_t size)
 
 static void *
 my_malloc_c(size_t size)
-{ return my_malloc(size, MYF(MY_WME)); }
+{ return my_malloc(key_memory_charset_loader, size, MYF(MY_WME)); }
 
 
 static void *
 my_realloc_c(void *old, size_t size)
-{ return my_realloc(old, size, MYF(MY_WME|MY_ALLOW_ZERO_PTR)); }
+{ return my_realloc(key_memory_charset_loader, old, size, MYF(MY_WME|MY_ALLOW_ZERO_PTR)); }
 
 
 /**
@@ -506,7 +506,7 @@ my_read_charset_file(MY_CHARSET_LOADER *loader,
   
   if (!my_stat(filename, &stat_info, MYF(myflags)) ||
        ((len= (uint)stat_info.st_size) > MY_MAX_ALLOWED_BUF) ||
-       !(buf= (uchar*) my_malloc(len,myflags)))
+       !(buf= (uchar*) my_malloc(key_memory_charset_loader,len,myflags)))
     return TRUE;
   
   if ((fd= mysql_file_open(key_file_charset, filename, O_RDONLY, myflags)) < 0)

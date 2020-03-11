@@ -51,6 +51,8 @@ class Table_ident;
 class SEL_ARG;
 class RANGE_OPT_PARAM;
 struct KEY_PART;
+struct SORT_FIELD;
+struct SORT_FIELD_ATTR;
 
 enum enum_check_fields
 {
@@ -1075,6 +1077,12 @@ public:
   virtual uint32 data_length() { return pack_length(); }
   virtual uint32 sort_length() const { return pack_length(); }
 
+  /*
+    sort_suffix_length() return the length bytes needed to store the length
+    for binary charset
+  */
+  virtual uint32 sort_suffix_length() const { return 0; }
+
   /* 
     Get the number bytes occupied by the value in the field.
     CHAR values are stripped of trailing spaces.
@@ -1410,7 +1418,18 @@ public:
     return bytes;
   }
 
-  void make_sort_key(uchar *buff, uint length);
+  /*
+    Create mem-comparable sort key part for a sort key
+  */
+  void make_sort_key_part(uchar *buff, uint length);
+
+  /*
+    create a compact sort key which can be compared with a comparison
+    function. They are called packed sort keys
+  */
+  virtual uint make_packed_sort_key_part(uchar *buff,
+                                         const SORT_FIELD_ATTR *sort_field);
+
   virtual void make_send_field(Send_field *);
   virtual void sort_string(uchar *buff,uint length)=0;
   virtual bool optimize_range(uint idx, uint part) const;
@@ -1527,7 +1546,7 @@ public:
   { return length;}
   virtual uint max_packed_col_length(uint max_length)
   { return max_length;}
-  virtual bool is_packable() { return false; }
+  virtual bool is_packable() const { return false; }
 
   uint offset(const uchar *record) const
   {
@@ -2120,11 +2139,12 @@ public:
     {}
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
-  int store_decimal(const my_decimal *d);
-  uint32 max_data_length() const;
+                                    const Conv_param &param) const override;
+  int store_decimal(const my_decimal *d) override;
+  uint32 max_data_length() const override;
+  void make_send_field(Send_field *) override;
 
-  bool is_varchar_and_in_write_set() const
+  bool is_varchar_and_in_write_set() const override
   {
     DBUG_ASSERT(table && table->write_set);
     return bitmap_is_set(table->write_set, field_index);
@@ -2132,15 +2152,18 @@ public:
   bool match_collation_to_optimize_range() const { return true; }
 
   bool can_optimize_keypart_ref(const Item_bool_func *cond,
-                                const Item *item) const;
+                                const Item *item) const override;
   bool can_optimize_hash_join(const Item_bool_func *cond,
-                              const Item *item) const;
+                              const Item *item) const override;
   bool can_optimize_group_min_max(const Item_bool_func *cond,
-                                  const Item *const_item) const;
+                                  const Item *const_item) const override;
   bool can_optimize_range(const Item_bool_func *cond,
                           const Item *item,
-                          bool is_eq_func) const;
-  bool is_packable() { return true; }
+                          bool is_eq_func) const override;
+  bool is_packable() const override { return true; }
+  uint make_packed_sort_key_part(uchar *buff,
+                                 const SORT_FIELD_ATTR *sort_field)override;
+  uchar* pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field);
 };
 
 /* base class for float and double and decimal (old one) */
@@ -4042,8 +4065,11 @@ public:
   uint32 key_length() const override { return (uint32) field_length; }
   uint32 sort_length() const override
   {
-    return (uint32) field_length + (field_charset() == &my_charset_bin ?
-                                    length_bytes : 0);
+    return (uint32) field_length + sort_suffix_length();
+  }
+  virtual uint32 sort_suffix_length() const override
+  {
+    return (field_charset() == &my_charset_bin ? length_bytes : 0);
   }
   Copy_func *get_copy_func(const Field *from) const override;
   bool memcpy_field_possible(const Field *from) const override;
@@ -4183,6 +4209,30 @@ static inline longlong read_bigendian(const uchar *from, uint bytes)
   case 6: return mi_uint6korr(from);
   case 7: return mi_uint7korr(from);
   case 8: return mi_sint8korr(from);
+  default: DBUG_ASSERT(0); return 0;
+  }
+}
+
+static inline void store_lowendian(ulonglong num, uchar *to, uint bytes)
+{
+  switch(bytes) {
+  case 1: *to= (uchar)num;    break;
+  case 2: int2store(to, num); break;
+  case 3: int3store(to, num); break;
+  case 4: int4store(to, num); break;
+  case 8: int8store(to, num); break;
+  default: DBUG_ASSERT(0);
+  }
+}
+
+static inline longlong read_lowendian(const uchar *from, uint bytes)
+{
+  switch(bytes) {
+  case 1: return from[0];
+  case 2: return uint2korr(from);
+  case 3: return uint3korr(from);
+  case 4: return uint4korr(from);
+  case 8: return sint8korr(from);
   default: DBUG_ASSERT(0); return 0;
   }
 }
@@ -4353,6 +4403,7 @@ public:
   { return (uint32) (packlength); }
   uint row_pack_length() const override { return pack_length_no_ptr(); }
   uint32 sort_length() const override;
+  uint32 sort_suffix_length() const override;
   uint32 value_length() override { return get_length(); }
   virtual uint32 max_data_length() const override
   {
@@ -5461,7 +5512,8 @@ public:
 */
 
 class Send_field :public Sql_alloc,
-                  public Type_handler_hybrid_field_type
+                  public Type_handler_hybrid_field_type,
+                  public Send_field_extended_metadata
 {
 public:
   LEX_CSTRING db_name;

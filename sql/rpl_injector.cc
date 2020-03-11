@@ -37,7 +37,8 @@ injector::transaction::transaction(MYSQL_BIN_LOG *log, THD *thd)
   LOG_INFO log_info;
   log->get_current_log(&log_info);
   /* !!! binlog_pos does not follow RAII !!! */
-  m_start_pos.m_file_name= my_strdup(log_info.log_file_name, MYF(0));
+  m_start_pos.m_file_name= my_strdup(key_memory_binlog_pos,
+                                     log_info.log_file_name, MYF(0));
   m_start_pos.m_file_pos= log_info.pos;
 
   m_thd->lex->start_transaction_opt= 0; /* for begin_trans() */

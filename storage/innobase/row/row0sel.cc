@@ -958,25 +958,17 @@ row_sel_get_clust_rec(
 
 	if (!node->read_view) {
 		/* Try to place a lock on the index record */
-		ulint	lock_type;
-		trx_t*	trx;
-
-		trx = thr_get_trx(thr);
+		trx_t* trx = thr_get_trx(thr);
 
 		/* At READ UNCOMMITTED or READ COMMITTED isolation level
 		we lock only the record, i.e., next-key locking is
 		not used. */
-		if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
-			lock_type = LOCK_REC_NOT_GAP;
-		} else {
-			lock_type = LOCK_ORDINARY;
-		}
-
 		err = lock_clust_rec_read_check_and_lock(
 			0, btr_pcur_get_block(&plan->clust_pcur),
 			clust_rec, index, offsets,
-			static_cast<lock_mode>(node->row_lock_mode),
-			lock_type,
+			node->row_lock_mode,
+			trx->isolation_level <= TRX_ISO_READ_COMMITTED
+			? LOCK_REC_NOT_GAP : LOCK_ORDINARY,
 			thr);
 
 		switch (err) {
@@ -1069,8 +1061,8 @@ sel_set_rtr_rec_lock(
 	const rec_t*		first_rec,/*!< in: record */
 	dict_index_t*		index,	/*!< in: index */
 	const offset_t*		offsets,/*!< in: rec_get_offsets(rec, index) */
-	ulint			mode,	/*!< in: lock mode */
-	ulint			type,	/*!< in: LOCK_ORDINARY, LOCK_GAP, or
+	unsigned		mode,	/*!< in: lock mode */
+	unsigned		type,	/*!< in: LOCK_ORDINARY, LOCK_GAP, or
 					LOC_REC_NOT_GAP */
 	que_thr_t*		thr,	/*!< in: query thread */
 	mtr_t*			mtr)	/*!< in: mtr */
@@ -1235,8 +1227,8 @@ sel_set_rec_lock(
 	const rec_t*		rec,	/*!< in: record */
 	dict_index_t*		index,	/*!< in: index */
 	const offset_t*		offsets,/*!< in: rec_get_offsets(rec, index) */
-	ulint			mode,	/*!< in: lock mode */
-	ulint			type,	/*!< in: LOCK_ORDINARY, LOCK_GAP, or
+	unsigned		mode,	/*!< in: lock mode */
+	unsigned		type,	/*!< in: LOCK_ORDINARY, LOCK_GAP, or
 					LOC_REC_NOT_GAP */
 	que_thr_t*		thr,	/*!< in: query thread */
 	mtr_t*			mtr)	/*!< in: mtr */
@@ -1727,7 +1719,7 @@ rec_loop:
 
 		if (!consistent_read) {
 			rec_t*	next_rec = page_rec_get_next(rec);
-			ulint	lock_type;
+			unsigned lock_type;
 			trx_t*	trx;
 
 			trx = thr_get_trx(thr);
@@ -1790,7 +1782,7 @@ skip_lock:
 
 	if (!consistent_read) {
 		/* Try to place a lock on the index record */
-		ulint	lock_type;
+		unsigned lock_type;
 		trx_t*	trx;
 
 		offsets = rec_get_offsets(rec, index, offsets, true,
@@ -3379,7 +3371,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 		err = lock_clust_rec_read_check_and_lock(
 			0, btr_pcur_get_block(prebuilt->clust_pcur),
 			clust_rec, clust_index, *offsets,
-			static_cast<lock_mode>(prebuilt->select_lock_type),
+			prebuilt->select_lock_type,
 			LOCK_REC_NOT_GAP,
 			thr);
 
@@ -4911,7 +4903,7 @@ wrong_offs:
 		is a non-delete marked record, then it is enough to lock its
 		existence with LOCK_REC_NOT_GAP. */
 
-		ulint	lock_type;
+		unsigned lock_type;
 
 		if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
 			/* At READ COMMITTED or READ UNCOMMITTED

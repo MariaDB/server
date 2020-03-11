@@ -82,6 +82,42 @@ select id, generate_random_string(a), generate_random_string(b) from t2;
 # All records fit in memory
 #
 set sort_buffer_size=262144*10;
+analyze format=json select id DIV 100 as x,
+MD5(group_concat(substring(names,1,3), substring(address,1,3)
+order by id))
+FROM t3
+GROUP BY x;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "read_sorted_file": {
+      "r_rows": 10000,
+      "filesort": {
+        "sort_key": "t3.`id` DIV 100",
+        "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
+        "r_used_priority_queue": false,
+        "r_output_rows": 10000,
+        "r_buffer_size": "REPLACED",
+        "r_sort_mode": "sort_key,packed_addon_fields",
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 10000,
+          "r_rows": 10000,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
 flush status;
 select id DIV 100 as x,
 MD5(group_concat(substring(names,1,3), substring(address,1,3)
@@ -203,6 +239,43 @@ set sort_buffer_size=default;
 # Test for merge_many_buff
 #
 set sort_buffer_size=32768;
+analyze format=json select id DIV 100 as x,
+MD5(group_concat(substring(names,1,3), substring(address,1,3)
+order by id))
+FROM t3
+GROUP BY x;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "read_sorted_file": {
+      "r_rows": 10000,
+      "filesort": {
+        "sort_key": "t3.`id` DIV 100",
+        "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
+        "r_used_priority_queue": false,
+        "r_output_rows": 10000,
+        "r_sort_passes": 4,
+        "r_buffer_size": "REPLACED",
+        "r_sort_mode": "sort_key,packed_addon_fields",
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 10000,
+          "r_rows": 10000,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
 flush status;
 select id DIV 100 as x,
 MD5(group_concat(substring(names,1,3), substring(address,1,3)
@@ -320,6 +393,104 @@ Sort_range	0
 Sort_rows	10000
 Sort_scan	1
 set sort_buffer_size=default;
+#
+# CASE #1 Packed sort keys with addon fields
+#
+ALTER TABLE t3 ADD INDEX idx(names, address);
+set sort_buffer_size= 2097152;
+ANALYZE FORMAT=JSON  SELECT id, names, address FROM t3 ORDER BY names, address;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "read_sorted_file": {
+      "r_rows": 10000,
+      "filesort": {
+        "sort_key": "t3.`names`, t3.address",
+        "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
+        "r_used_priority_queue": false,
+        "r_output_rows": 10000,
+        "r_buffer_size": "REPLACED",
+        "r_sort_mode": "packed_sort_key,packed_addon_fields",
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 10000,
+          "r_rows": 10000,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+flush status;
+SELECT id, names, address INTO OUTFILE '$file1' FROM t3 ORDER BY names, address;
+# Sort_merge_passes should be 0
+show status like '%sort%';
+Variable_name	Value
+Sort_merge_passes	0
+Sort_priority_queue_sorts	0
+Sort_range	0
+Sort_rows	10000
+Sort_scan	1
+SELECT id, names, address INTO OUTFILE '$file2' FROM t3 FORCE INDEX(idx) ORDER BY names, address;
+#
+# CASE #2 Packed sort keys and ROW_ID
+#
+set @save_max_length_for_sort_data=@@max_length_for_sort_data;
+set max_length_for_sort_data= 300;
+set sort_buffer_size= 1097152;
+ANALYZE FORMAT=JSON  SELECT id, names, address FROM t3 ORDER BY names, address;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "read_sorted_file": {
+      "r_rows": 10000,
+      "filesort": {
+        "sort_key": "t3.`names`, t3.address",
+        "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
+        "r_used_priority_queue": false,
+        "r_output_rows": 10000,
+        "r_buffer_size": "REPLACED",
+        "r_sort_mode": "packed_sort_key,rowid",
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 10000,
+          "r_rows": 10000,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+flush status;
+SELECT id, names, address INTO OUTFILE '$file1' FROM t3 ORDER BY names, address;
+# Sort_merge_passes should be 0
+show status like '%sort%';
+Variable_name	Value
+Sort_merge_passes	0
+Sort_priority_queue_sorts	0
+Sort_range	0
+Sort_rows	10000
+Sort_scan	1
+set @@max_length_for_sort_data=@save_max_length_for_sort_data;
+set @@sort_buffer_size=default;
 set @@RAND_SEED1= @save_rand_seed1;
 set @@RAND_SEED2= @save_rand_seed2;
 drop function generate_normal_distribution_sample;

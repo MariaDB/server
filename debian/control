@@ -396,7 +396,8 @@ Breaks: mariadb-client-10.0,
         mariadb-client-10.3,
         mariadb-client-10.4,
         mariadb-server-10.3,
-        mariadb-server-10.4
+        mariadb-server-10.4,
+        mariadb-server-10.5 (<< ${source:Version})
 Replaces: mariadb-client-10.0,
           mariadb-client-10.1,
           mariadb-client-10.2,
@@ -404,6 +405,7 @@ Replaces: mariadb-client-10.0,
           mariadb-client-10.4,
           mariadb-server-10.3,
           mariadb-server-10.4,
+          mariadb-server-10.5 (<< ${source:Version}),
           mariadb-server-core-10.0,
           mariadb-server-core-10.1,
           mariadb-server-core-10.2,
@@ -582,6 +584,7 @@ Description: Connect storage engine for MariaDB
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el
 Depends: mariadb-server-10.5 (= ${binary:Version}),
+         rocksdb-tools,
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-rocksdb-engine-10.2,

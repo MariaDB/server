@@ -245,7 +245,7 @@ static bool sst_auth_real_set (const char* value)
 
   if (value)
   {
-    v= my_strdup(value, MYF(0));
+    v= my_strdup(PSI_INSTRUMENT_ME, value, MYF(0));
   }
   else                                          // its NULL
   {
@@ -263,7 +263,7 @@ static bool sst_auth_real_set (const char* value)
     if (strlen(sst_auth_real))
     {
       if (wsrep_sst_auth) { my_free((void*) wsrep_sst_auth); }
-      wsrep_sst_auth= my_strdup(WSREP_SST_AUTH_MASK, MYF(0));
+      wsrep_sst_auth= my_strdup(PSI_INSTRUMENT_ME, WSREP_SST_AUTH_MASK, MYF(0));
     }
     return 0;
   }
@@ -414,7 +414,7 @@ static char* generate_name_value(const char* name, const char* value)
   size_t name_len= strlen(name);
   size_t value_len= strlen(value);
   char* buf=
-    (char*) my_malloc((name_len + value_len + 5) * sizeof(char), MYF(0));
+    (char*) my_malloc(PSI_INSTRUMENT_ME, (name_len + value_len + 5), MYF(0));
   if (buf)
   {
     char* ref= buf;
@@ -449,11 +449,11 @@ static int generate_binlog_opt_val(char** ret)
     *ret= strcmp(opt_bin_logname, "0") ?
       generate_name_value(WSREP_SST_OPT_BINLOG,
                           opt_bin_logname) :
-      my_strdup("", MYF(0));
+      my_strdup(PSI_INSTRUMENT_ME, "", MYF(0));
   }
   else
   {
-    *ret= my_strdup("", MYF(0));
+    *ret= my_strdup(PSI_INSTRUMENT_ME, "", MYF(0));
   }
   if (!*ret) return -ENOMEM;
   return 0;
@@ -468,11 +468,11 @@ static int generate_binlog_index_opt_val(char** ret)
     *ret= strcmp(opt_binlog_index_name, "0") ?
       generate_name_value(WSREP_SST_OPT_BINLOG_INDEX,
                           opt_binlog_index_name) :
-      my_strdup("", MYF(0));
+      my_strdup(PSI_INSTRUMENT_ME, "", MYF(0));
   }
   else
   {
-    *ret= my_strdup("", MYF(0));
+    *ret= my_strdup(PSI_INSTRUMENT_ME, "", MYF(0));
   }
   if (!*ret) return -ENOMEM;
   return 0;

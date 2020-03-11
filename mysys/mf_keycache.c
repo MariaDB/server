@@ -554,7 +554,7 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
 	  Allocate memory for blocks, hash_links and hash entries;
 	  For each block 2 hash links are allocated
         */
-        if (my_multi_malloc_large(MYF(MY_ZEROFILL),
+        if (my_multi_malloc_large(key_memory_KEY_CACHE, MYF(MY_ZEROFILL),
                                   &keycache->block_root,
                                   (ulonglong) (blocks * sizeof(BLOCK_LINK)),
                                   &keycache->hash_root,
@@ -3949,8 +3949,8 @@ static int flush_key_blocks_int(SIMPLE_KEY_CACHE_CB *keycache,
         changed blocks appear while we need to wait for something.
       */
       if ((count > FLUSH_CACHE) &&
-          !(cache= (BLOCK_LINK**) my_malloc(sizeof(BLOCK_LINK*)*count,
-                                            MYF(0))))
+          !(cache= (BLOCK_LINK**) my_malloc(key_memory_KEY_CACHE,
+                                            sizeof(BLOCK_LINK*)*count, MYF(0))))
         cache= cache_buff;
       /*
         After a restart there could be more changed blocks than now.
@@ -5113,7 +5113,8 @@ int init_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
   else
   {
     if(!(partition_ptr=
-       (SIMPLE_KEY_CACHE_CB **) my_malloc(sizeof(SIMPLE_KEY_CACHE_CB *) *
+       (SIMPLE_KEY_CACHE_CB **) my_malloc(key_memory_KEY_CACHE,
+                                          sizeof(SIMPLE_KEY_CACHE_CB *) *
                                           partitions, MYF(MY_WME))))
       DBUG_RETURN(-1);
     bzero(partition_ptr, sizeof(SIMPLE_KEY_CACHE_CB *) * partitions);
@@ -5131,7 +5132,8 @@ int init_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
     else
     {
       if (!(partition=
-              (SIMPLE_KEY_CACHE_CB *)  my_malloc(sizeof(SIMPLE_KEY_CACHE_CB),
+              (SIMPLE_KEY_CACHE_CB *)  my_malloc(key_memory_KEY_CACHE,
+                                                 sizeof(SIMPLE_KEY_CACHE_CB),
 						 MYF(MY_WME))))
         continue;
       partition->key_cache_inited= 0;
@@ -5909,7 +5911,8 @@ int init_key_cache_internal(KEY_CACHE *keycache, uint key_cache_block_size,
   {
     if (partitions == 0)
     {
-      if (!(keycache_cb= (void *)  my_malloc(sizeof(SIMPLE_KEY_CACHE_CB),
+      if (!(keycache_cb= (void *)  my_malloc(key_memory_KEY_CACHE,
+                                             sizeof(SIMPLE_KEY_CACHE_CB),
                                              MYF(0)))) 
         return 0;
       ((SIMPLE_KEY_CACHE_CB *) keycache_cb)->key_cache_inited= 0;
@@ -5918,7 +5921,8 @@ int init_key_cache_internal(KEY_CACHE *keycache, uint key_cache_block_size,
     }
     else
     {
-      if (!(keycache_cb= (void *)  my_malloc(sizeof(PARTITIONED_KEY_CACHE_CB),
+      if (!(keycache_cb= (void *)  my_malloc(key_memory_KEY_CACHE,
+                                             sizeof(PARTITIONED_KEY_CACHE_CB),
                                              MYF(0)))) 
         return 0;
       ((PARTITIONED_KEY_CACHE_CB *) keycache_cb)->key_cache_inited= 0;

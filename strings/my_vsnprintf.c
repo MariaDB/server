@@ -759,7 +759,7 @@ int my_vfprintf(FILE *stream, const char* format, va_list args)
     if (new_len < cur_len)
       return 0;                                 /* Overflow */
     cur_len= new_len;
-    p= my_malloc(cur_len, MYF(MY_FAE));
+    p= my_malloc(PSI_INSTRUMENT_ME, cur_len, MYF(MY_FAE));
     if (!p)
       return 0;
   }

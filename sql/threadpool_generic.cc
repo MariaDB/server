@@ -1532,7 +1532,8 @@ int TP_pool_generic::init()
   DBUG_ENTER("TP_pool_generic::TP_pool_generic");
   threadpool_max_size= MY_MAX(threadpool_size, 128);
   all_groups= (thread_group_t *)
-    my_malloc(sizeof(thread_group_t) * threadpool_max_size, MYF(MY_WME|MY_ZEROFILL));
+    my_malloc(PSI_INSTRUMENT_ME,
+              sizeof(thread_group_t) * threadpool_max_size, MYF(MY_WME|MY_ZEROFILL));
   if (!all_groups)
   {
     threadpool_max_size= 0;

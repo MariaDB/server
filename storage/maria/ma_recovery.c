@@ -152,7 +152,7 @@ static void enlarge_buffer(const TRANSLOG_HEADER_BUFFER *rec)
   if (log_record_buffer.length < rec->record_length)
   {
     log_record_buffer.length= rec->record_length;
-    log_record_buffer.str= my_realloc(log_record_buffer.str,
+    log_record_buffer.str= my_realloc(PSI_INSTRUMENT_ME, log_record_buffer.str,
                                       rec->record_length,
                                       MYF(MY_WME | MY_ALLOW_ZERO_PTR));
   }
@@ -296,10 +296,10 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
   DBUG_ASSERT(should_run_undo_phase || !take_checkpoints);
   DBUG_ASSERT(end_lsn == LSN_IMPOSSIBLE || should_run_undo_phase == 0);
   all_active_trans= (struct st_trn_for_recovery *)
-    my_malloc((SHORT_TRID_MAX + 1) * sizeof(struct st_trn_for_recovery),
+    my_malloc(PSI_INSTRUMENT_ME, (SHORT_TRID_MAX + 1) * sizeof(struct st_trn_for_recovery),
               MYF(MY_ZEROFILL));
   all_tables= (struct st_table_for_recovery *)
-    my_malloc((SHARE_ID_MAX + 1) * sizeof(struct st_table_for_recovery),
+    my_malloc(PSI_INSTRUMENT_ME, (SHARE_ID_MAX + 1) * sizeof(struct st_table_for_recovery),
               MYF(MY_ZEROFILL));
 
   save_error_handler_hook= error_handler_hook;
@@ -3342,19 +3342,19 @@ static LSN parse_checkpoint_record(LSN lsn)
   /* dirty pages */
   nb_dirty_pages= uint8korr(ptr);
 
-  /* Ensure casts later will not loose significant bits. */
+  /* Ensure casts later will not lose significant bits. */
   DBUG_ASSERT((nb_dirty_pages <= SIZE_T_MAX/sizeof(struct st_dirty_page)) &&
               (nb_dirty_pages <= ULONG_MAX));
 
   ptr+= 8;
   tprint(tracef, "%lu dirty pages\n", (ulong) nb_dirty_pages);
-  if (my_hash_init(&all_dirty_pages, &my_charset_bin, (ulong)nb_dirty_pages,
-                   offsetof(struct st_dirty_page, file_and_page_id),
+  if (my_hash_init(PSI_INSTRUMENT_ME, &all_dirty_pages, &my_charset_bin,
+                   (ulong)nb_dirty_pages, offsetof(struct st_dirty_page, file_and_page_id),
                    sizeof(((struct st_dirty_page *)NULL)->file_and_page_id),
                    NULL, NULL, 0))
     return LSN_ERROR;
   dirty_pages_pool=
-    (struct st_dirty_page *)my_malloc((size_t)nb_dirty_pages *
+    (struct st_dirty_page *)my_malloc(PSI_INSTRUMENT_ME, (size_t)nb_dirty_pages *
                                       sizeof(struct st_dirty_page),
                                       MYF(MY_WME));
   if (unlikely(dirty_pages_pool == NULL))

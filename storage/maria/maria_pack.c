@@ -441,7 +441,7 @@ static my_bool open_maria_files(PACK_MRG_INFO *mrg,char **names,uint count)
   uint i,j;
   mrg->count=0;
   mrg->current=0;
-  mrg->file=(MARIA_HA**) my_malloc(sizeof(MARIA_HA*)*count,MYF(MY_FAE));
+  mrg->file=(MARIA_HA**) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(MARIA_HA*)*count,MYF(MY_FAE));
   mrg->free_file=1;
   mrg->src_file_has_indexes_disabled= 0;
   for (i=0; i < count ; i++)
@@ -528,7 +528,7 @@ static int compress(PACK_MRG_INFO *mrg,char *result_table)
 	< 0)
       goto err;
     length=(uint) share->base.keystart;
-    if (!(buff= (uchar*) my_malloc(length,MYF(MY_WME))))
+    if (!(buff= (uchar*) my_malloc(PSI_NOT_INSTRUMENTED, length, MYF(MY_WME))))
       goto err;
     if (my_pread(share->kfile.file, buff, length, 0L, MYF(MY_WME | MY_NABP)) ||
 	my_write(join_maria_file,buff,length,
@@ -775,9 +775,8 @@ static HUFF_COUNTS *init_huff_count(MARIA_HA *info,my_off_t records)
 {
   reg2 uint i;
   reg1 HUFF_COUNTS *count;
-  if ((count = (HUFF_COUNTS*) my_malloc(info->s->base.fields*
-					sizeof(HUFF_COUNTS),
-					MYF(MY_ZEROFILL | MY_WME))))
+  if ((count = (HUFF_COUNTS*) my_malloc(PSI_NOT_INSTRUMENTED,
+        info->s->base.fields*sizeof(HUFF_COUNTS), MYF(MY_ZEROFILL | MY_WME))))
   {
     for (i=0 ; i < info->s->base.fields ; i++)
     {
@@ -804,7 +803,8 @@ static HUFF_COUNTS *init_huff_count(MARIA_HA *info,my_off_t records)
 		NULL, MYF(0));
       if (records && type != FIELD_BLOB && type != FIELD_VARCHAR)
 	count[col_nr].tree_pos=count[col_nr].tree_buff =
-	  my_malloc(count[col_nr].field_length > 1 ? tree_buff_length : 2,
+	  my_malloc(PSI_NOT_INSTRUMENTED,
+                    count[col_nr].field_length > 1 ? tree_buff_length : 2,
 		    MYF(MY_WME));
     }
   }
@@ -1448,8 +1448,8 @@ static HUFF_TREE* make_huff_trees(HUFF_COUNTS *huff_counts, uint trees)
   HUFF_TREE *huff_tree;
   DBUG_ENTER("make_huff_trees");
 
-  if (!(huff_tree=(HUFF_TREE*) my_malloc(trees*sizeof(HUFF_TREE),
-					 MYF(MY_WME | MY_ZEROFILL))))
+  if (!(huff_tree=(HUFF_TREE*) my_malloc(PSI_NOT_INSTRUMENTED,
+                         trees*sizeof(HUFF_TREE), MYF(MY_WME | MY_ZEROFILL))))
     DBUG_RETURN(0);
 
   for (tree=0 ; tree < trees ; tree++)
@@ -1526,16 +1526,15 @@ static int make_huff_tree(HUFF_TREE *huff_tree, HUFF_COUNTS *huff_counts)
   if (!huff_tree->element_buffer)
   {
     if (!(huff_tree->element_buffer=
-	 (HUFF_ELEMENT*) my_malloc(found*2*sizeof(HUFF_ELEMENT),MYF(MY_WME))))
+	 (HUFF_ELEMENT*) my_malloc(PSI_NOT_INSTRUMENTED,
+                                   found*2*sizeof(HUFF_ELEMENT),MYF(MY_WME))))
       return 1;
   }
   else
   {
     HUFF_ELEMENT *temp;
-    if (!(temp=
-	  (HUFF_ELEMENT*) my_realloc((uchar*) huff_tree->element_buffer,
-				     found*2*sizeof(HUFF_ELEMENT),
-				     MYF(MY_WME))))
+    if (!(temp= (HUFF_ELEMENT*) my_realloc(PSI_NOT_INSTRUMENTED,
+           (uchar*) huff_tree->element_buffer, found*2*sizeof(HUFF_ELEMENT), MYF(MY_WME))))
       return 1;
     huff_tree->element_buffer=temp;
   }
@@ -1901,8 +1900,8 @@ static int make_huff_decode_table(HUFF_TREE *huff_tree, uint trees)
     {
       elements=huff_tree->counts->tree_buff ? huff_tree->elements : 256;
       if (!(huff_tree->code =
-            (ulonglong*) my_malloc(elements*
-                                   (sizeof(ulonglong) + sizeof(uchar)),
+            (ulonglong*) my_malloc(PSI_NOT_INSTRUMENTED,
+                                elements* (sizeof(ulonglong) + sizeof(uchar)),
                                    MYF(MY_WME | MY_ZEROFILL))))
 	return 1;
       huff_tree->code_len=(uchar*) (huff_tree->code+elements);
@@ -2803,8 +2802,8 @@ static char *make_old_name(char *new_name, char *old_name)
 static void init_file_buffer(File file, pbool read_buffer)
 {
   file_buffer.file=file;
-  file_buffer.buffer= (uchar*) my_malloc(ALIGN_SIZE(RECORD_CACHE_SIZE),
-					 MYF(MY_WME));
+  file_buffer.buffer= (uchar*) my_malloc(PSI_NOT_INSTRUMENTED,
+                                   ALIGN_SIZE(RECORD_CACHE_SIZE), MYF(MY_WME));
   file_buffer.end=file_buffer.buffer+ALIGN_SIZE(RECORD_CACHE_SIZE)-8;
   file_buffer.pos_in_file=0;
   error_on_write=0;
@@ -2860,7 +2859,8 @@ static int flush_buffer(ulong neaded_length)
   {
     uchar *tmp;
     neaded_length+=256;				/* some margin */
-    tmp= (uchar*) my_realloc(file_buffer.buffer, neaded_length,MYF(MY_WME));
+    tmp= (uchar*) my_realloc(PSI_NOT_INSTRUMENTED, file_buffer.buffer,
+                             neaded_length,MYF(MY_WME));
     if (!tmp)
       return 1;
     file_buffer.pos=    (tmp + (ulong) (file_buffer.pos - file_buffer.buffer));

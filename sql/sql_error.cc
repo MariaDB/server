@@ -506,7 +506,7 @@ void Warning_info::init()
 {
   /* Initialize sub structures */
   DBUG_ASSERT(initialized == 0);
-  init_sql_alloc(&m_warn_root, "Warning_info", WARN_ALLOC_BLOCK_SIZE,
+  init_sql_alloc(PSI_INSTRUMENT_ME, &m_warn_root, WARN_ALLOC_BLOCK_SIZE,
                  WARN_ALLOC_PREALLOC_SIZE, MYF(MY_THREAD_SPECIFIC));
   initialized= 1;
 }

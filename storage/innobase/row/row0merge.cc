@@ -125,8 +125,7 @@ public:
 		ut_ad(mtr_started == scan_mtr->is_active());
 
 		DBUG_EXECUTE_IF("row_merge_instrument_log_check_flush",
-			log_sys.check_flush_or_checkpoint = true;
-		);
+				log_sys.set_check_flush_or_checkpoint(););
 
 		for (idx_tuple_vec::iterator it = m_dtuple_vec->begin();
 		     it != m_dtuple_vec->end();
@@ -134,7 +133,7 @@ public:
 			dtuple = *it;
 			ut_ad(dtuple);
 
-			if (log_sys.check_flush_or_checkpoint) {
+			if (log_sys.check_flush_or_checkpoint()) {
 				if (mtr_started) {
 					btr_pcur_move_to_prev_on_page(pcur);
 					btr_pcur_store_position(pcur, scan_mtr);
@@ -365,8 +364,7 @@ row_merge_buf_create(
 	mem_heap_t*		heap;
 
 	max_tuples = srv_sort_buf_size
-		/ ut_max(static_cast<ulint>(1),
-			 dict_index_get_min_size(index));
+		/ std::max<ulint>(1, dict_index_get_min_size(index));
 
 	buf_size = (sizeof *buf);
 
@@ -2713,7 +2711,8 @@ write_buffers:
 			/* Update progress for each 1000 rows */
 			curr_progress = (read_rows >= table_total_rows) ?
 					pct_cost :
-				((pct_cost * read_rows) / table_total_rows);
+				pct_cost * static_cast<double>(read_rows)
+				/ static_cast<double>(table_total_rows);
 			/* presenting 10.12% as 1012 integer */
 			onlineddl_pct_progress = (ulint) (curr_progress * 100);
 		}
@@ -3345,7 +3344,8 @@ row_merge_sort(
 			merge_count++;
 			curr_progress = (merge_count >= total_merge_sort_count) ?
 				pct_cost :
-				((pct_cost * merge_count) / total_merge_sort_count);
+				pct_cost * static_cast<double>(merge_count)
+				/ static_cast<double>(total_merge_sort_count);
 			/* presenting 10.12% as 1012 integer */;
 			onlineddl_pct_progress = (ulint) ((pct_progress + curr_progress) * 100);
 		}
@@ -3643,7 +3643,8 @@ row_merge_insert_index_tuples(
 			curr_progress = (inserted_rows >= table_total_rows ||
 				table_total_rows <= 0) ?
 				pct_cost :
-				((pct_cost * inserted_rows) / table_total_rows);
+				pct_cost * static_cast<double>(inserted_rows)
+				/ static_cast<double>(table_total_rows);
 
 			/* presenting 10.12% as 1012 integer */;
 			onlineddl_pct_progress = (ulint) ((pct_progress + curr_progress) * 100);
@@ -4040,15 +4041,15 @@ row_merge_file_create_low(
 #ifdef WITH_INNODB_DISALLOW_WRITES
 	os_event_wait(srv_allow_writes_event);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
+	if (!path) {
+		path = mysql_tmpdir;
+	}
 #ifdef UNIV_PFS_IO
 	/* This temp file open does not go through normal
 	file APIs, add instrumentation to register with
 	performance schema */
 	struct PSI_file_locker*	locker;
 	PSI_file_locker_state	state;
-	if (!path) {
-		path = mysql_tmpdir;
-	}
 	static const char label[] = "/Innodb Merge Temp File";
 	char* name = static_cast<char*>(
 		ut_malloc_nokey(strlen(path) + sizeof label));
@@ -4248,121 +4249,6 @@ row_make_new_pathname(
 	ut_ad(!is_system_tablespace(table->space_id));
 	return os_file_make_new_pathname(table->space->chain.start->name,
 					 new_name);
-}
-
-/*********************************************************************//**
-Rename the tables in the data dictionary.  The data dictionary must
-have been locked exclusively by the caller, because the transaction
-will not be committed.
-@return error code or DB_SUCCESS */
-dberr_t
-row_merge_rename_tables_dict(
-/*=========================*/
-	dict_table_t*	old_table,	/*!< in/out: old table, renamed to
-					tmp_name */
-	dict_table_t*	new_table,	/*!< in/out: new table, renamed to
-					old_table->name */
-	const char*	tmp_name,	/*!< in: new name for old_table */
-	trx_t*		trx)		/*!< in/out: dictionary transaction */
-{
-	dberr_t		err	= DB_ERROR;
-	pars_info_t*	info;
-
-	ut_ad(!srv_read_only_mode);
-	ut_ad(old_table != new_table);
-	ut_d(dict_sys.assert_locked());
-	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE
-	      || trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
-
-	trx->op_info = "renaming tables";
-
-	/* We use the private SQL parser of Innobase to generate the query
-	graphs needed in updating the dictionary data in system tables. */
-
-	info = pars_info_create();
-
-	pars_info_add_str_literal(info, "new_name", new_table->name.m_name);
-	pars_info_add_str_literal(info, "old_name", old_table->name.m_name);
-	pars_info_add_str_literal(info, "tmp_name", tmp_name);
-
-	err = que_eval_sql(info,
-			   "PROCEDURE RENAME_TABLES () IS\n"
-			   "BEGIN\n"
-			   "UPDATE SYS_TABLES SET NAME = :tmp_name\n"
-			   " WHERE NAME = :old_name;\n"
-			   "UPDATE SYS_TABLES SET NAME = :old_name\n"
-			   " WHERE NAME = :new_name;\n"
-			   "END;\n", FALSE, trx);
-
-	/* Update SYS_TABLESPACES and SYS_DATAFILES if the old table being
-	renamed is a single-table tablespace, which must be implicitly
-	renamed along with the table. */
-	if (err == DB_SUCCESS
-	    && old_table->space_id) {
-		/* Make pathname to update SYS_DATAFILES. */
-		char* tmp_path = row_make_new_pathname(old_table, tmp_name);
-
-		info = pars_info_create();
-
-		pars_info_add_str_literal(info, "tmp_name", tmp_name);
-		pars_info_add_str_literal(info, "tmp_path", tmp_path);
-		pars_info_add_int4_literal(info, "old_space",
-					   old_table->space_id);
-
-		err = que_eval_sql(info,
-				   "PROCEDURE RENAME_OLD_SPACE () IS\n"
-				   "BEGIN\n"
-				   "UPDATE SYS_TABLESPACES"
-				   " SET NAME = :tmp_name\n"
-				   " WHERE SPACE = :old_space;\n"
-				   "UPDATE SYS_DATAFILES"
-				   " SET PATH = :tmp_path\n"
-				   " WHERE SPACE = :old_space;\n"
-				   "END;\n", FALSE, trx);
-
-		ut_free(tmp_path);
-	}
-
-	/* Update SYS_TABLESPACES and SYS_DATAFILES if the new table being
-	renamed is a single-table tablespace, which must be implicitly
-	renamed along with the table. */
-	if (err == DB_SUCCESS
-	    && dict_table_is_file_per_table(new_table)) {
-		/* Make pathname to update SYS_DATAFILES. */
-		char* old_path = row_make_new_pathname(
-			new_table, old_table->name.m_name);
-
-		info = pars_info_create();
-
-		pars_info_add_str_literal(info, "old_name",
-					  old_table->name.m_name);
-		pars_info_add_str_literal(info, "old_path", old_path);
-		pars_info_add_int4_literal(info, "new_space",
-					   new_table->space_id);
-
-		err = que_eval_sql(info,
-				   "PROCEDURE RENAME_NEW_SPACE () IS\n"
-				   "BEGIN\n"
-				   "UPDATE SYS_TABLESPACES"
-				   " SET NAME = :old_name\n"
-				   " WHERE SPACE = :new_space;\n"
-				   "UPDATE SYS_DATAFILES"
-				   " SET PATH = :old_path\n"
-				   " WHERE SPACE = :new_space;\n"
-				   "END;\n", FALSE, trx);
-
-		ut_free(old_path);
-	}
-
-	if (err == DB_SUCCESS && (new_table->flags2 & DICT_TF2_DISCARDED)) {
-		err = row_import_update_discarded_flag(
-			trx, new_table->id, true);
-	}
-
-	trx->op_info = "";
-
-	return(err);
 }
 
 /** Create the index and load in to the dictionary.
@@ -4593,8 +4479,10 @@ row_merge_build_indexes(
 		merge_files[i].n_rec = 0;
 	}
 
-	total_static_cost = COST_BUILD_INDEX_STATIC * n_indexes + COST_READ_CLUSTERED_INDEX;
-	total_dynamic_cost = COST_BUILD_INDEX_DYNAMIC * n_indexes;
+	total_static_cost = COST_BUILD_INDEX_STATIC
+		* static_cast<double>(n_indexes) + COST_READ_CLUSTERED_INDEX;
+	total_dynamic_cost = COST_BUILD_INDEX_DYNAMIC
+		* static_cast<double>(n_indexes);
 	for (i = 0; i < n_indexes; i++) {
 		if (indexes[i]->type & DICT_FTS) {
 			ibool	opt_doc_id_size = FALSE;
@@ -4717,9 +4605,10 @@ row_merge_build_indexes(
 				sort_idx, table, col_map, 0};
 
 			pct_cost = (COST_BUILD_INDEX_STATIC +
-				(total_dynamic_cost * merge_files[k].offset /
-					total_index_blocks)) /
-				(total_static_cost + total_dynamic_cost)
+				    (total_dynamic_cost
+				     * static_cast<double>(merge_files[k].offset)
+				     / static_cast<double>(total_index_blocks)))
+				/ (total_static_cost + total_dynamic_cost)
 				* PCT_COST_MERGESORT_INDEX * 100;
 			char*	bufend = innobase_convert_name(
 				buf, sizeof buf,
@@ -4766,10 +4655,14 @@ row_merge_build_indexes(
 				BtrBulk	btr_bulk(sort_idx, trx);
 
 				pct_cost = (COST_BUILD_INDEX_STATIC +
-					(total_dynamic_cost * merge_files[k].offset /
-						total_index_blocks)) /
-					(total_static_cost + total_dynamic_cost) *
-					PCT_COST_INSERT_INDEX * 100;
+					    (total_dynamic_cost
+					     * static_cast<double>(
+						     merge_files[k].offset)
+					     / static_cast<double>(
+						     total_index_blocks)))
+					/ (total_static_cost
+					   + total_dynamic_cost)
+					* PCT_COST_INSERT_INDEX * 100;
 
 				if (global_system_variables.log_warnings > 2) {
 					sql_print_information(

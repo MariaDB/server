@@ -185,9 +185,6 @@ struct srv_stats_t
 	/** Number of encryption_get_latest_key_version calls */
 	ulint_ctr_64_t		n_key_requests;
 
-	/** Number of log scrub operations */
-	ulint_ctr_64_t		n_log_scrubs;
-
 	/** Number of spaces in keyrotation list */
 	ulint_ctr_64_t		key_rotation_list_length;
 
@@ -404,10 +401,6 @@ The real value is set based on the value of io_capacity. */
 #define SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT	(~0UL)
 #define SRV_MAX_IO_CAPACITY_LIMIT		(~0UL)
 extern ulong    srv_max_io_capacity;
-/* Returns the number of IO operations that is X percent of the
-capacity. PCT_IO(5) -> returns the number of IO operations that
-is 5% of the max where max is srv_io_capacity.  */
-#define PCT_IO(p) ((ulong) (srv_io_capacity * ((double) (p) / 100.0)))
 
 /* The "innodb_stats_method" setting, decides how InnoDB is going
 to treat NULL value when collecting statistics. It is not defined
@@ -457,6 +450,7 @@ extern ulong	srv_replication_delay;
 
 extern my_bool	innodb_encrypt_temporary_tables;
 
+extern my_bool  srv_immediate_scrub_data_uncompressed;
 /*-------------------------------------------*/
 
 /** Modes of operation */
@@ -482,9 +476,6 @@ extern ibool	srv_print_verbose_log;
 
 extern bool	srv_monitor_active;
 
-
-/* TRUE if enable log scrubbing */
-extern my_bool	srv_scrub_log;
 
 extern ulong	srv_n_spin_wait_rounds;
 extern ulong	srv_n_free_tickets_to_enter;
@@ -523,8 +514,8 @@ i/o handler thread */
 extern const char* srv_io_thread_op_info[];
 extern const char* srv_io_thread_function[];
 
-/* the number of purge threads to use from the worker pool (currently 0 or 1) */
-extern ulong srv_n_purge_threads;
+/** innodb_purge_threads; the number of purge tasks to use */
+extern uint srv_n_purge_threads;
 
 /* the number of pages to purge in one batch */
 extern ulong srv_purge_batch_size;
@@ -557,8 +548,6 @@ extern ulong	srv_fatal_semaphore_wait_threshold;
 /** Buffer pool dump status frequence in percentages */
 extern ulong srv_buf_dump_status_frequency;
 
-#define srv_max_purge_threads 32
-
 # ifdef UNIV_PFS_THREAD
 extern mysql_pfs_key_t	page_cleaner_thread_key;
 extern mysql_pfs_key_t	recv_writer_thread_key;
@@ -568,10 +557,10 @@ extern mysql_pfs_key_t	thread_pool_thread_key;
 /* This macro register the current thread and its key with performance
 schema */
 #  define pfs_register_thread(key)			\
-do {								\
-	struct PSI_thread* psi = PSI_CALL_new_thread(key, NULL, 0);\
-	/* JAN: TODO: MYSQL 5.7 PSI                             \
-	PSI_CALL_set_thread_os_id(psi);	*/		\
+do {							\
+	struct PSI_thread* psi __attribute__((unused))	\
+		= PSI_CALL_new_thread(key, NULL, 0);	\
+	PSI_CALL_set_thread_os_id(psi);			\
 	PSI_CALL_set_thread(psi);			\
 } while (0)
 
@@ -618,7 +607,7 @@ extern PSI_stage_info	srv_stage_buffer_pool_load;
 /** Alternatives for innodb_flush_method */
 enum srv_flush_t {
 	SRV_FSYNC = 0,	/*!< fsync, the default */
-	SRV_O_DSYNC,	/*!< open log files in O_SYNC mode */
+	SRV_O_DSYNC,	/*!< open log files in O_DSYNC mode */
 	SRV_LITTLESYNC,	/*!< do not call os_file_flush()
 				when writing data files, but do flush
 				after writing to log files */
@@ -964,14 +953,6 @@ struct export_var_t{
 	ulint innodb_encryption_rotation_estimated_iops;
 	int64_t innodb_encryption_key_requests;
 	int64_t innodb_key_rotation_list_length;
-
-	ulint innodb_scrub_page_reorganizations;
-	ulint innodb_scrub_page_splits;
-	ulint innodb_scrub_page_split_failures_underflow;
-	ulint innodb_scrub_page_split_failures_out_of_filespace;
-	ulint innodb_scrub_page_split_failures_missing_index;
-	ulint innodb_scrub_page_split_failures_unknown;
-	int64_t innodb_scrub_log;
 };
 
 /** Thread slot in the thread table.  */

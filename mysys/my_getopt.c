@@ -15,11 +15,10 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
-#include <my_global.h>
+#include <mysys_priv.h>
 #include <my_default.h>
 #include <m_string.h>
 #include <stdlib.h>
-#include <my_sys.h>
 #include <mysys_err.h>
 #include <my_getopt.h>
 #include <errno.h>
@@ -754,7 +753,8 @@ static int setval(const struct my_option *opts, void *value, char *argument,
       break;
     case GET_STR_ALLOC:
       my_free(*((char**) value));
-      if (!(*((char**) value)= my_strdup(argument == enabled_my_option ? "" :
+      if (!(*((char**) value)= my_strdup(key_memory_defaults,
+                                         argument == enabled_my_option ? "" :
                                          argument, MYF(MY_WME))))
       {
         res= EXIT_OUT_OF_MEMORY;
@@ -1343,7 +1343,7 @@ static void init_one_value(const struct my_option *option, void *variable,
     {
       char **pstr= (char **) variable;
       my_free(*pstr);
-      *pstr= my_strdup((char*) (intptr) value, MYF(MY_WME));
+      *pstr= my_strdup(key_memory_defaults, (char*) (intptr) value, MYF(MY_WME));
     }
     break;
   default: /* dummy default to avoid compiler warnings */

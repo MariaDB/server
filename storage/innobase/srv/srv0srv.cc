@@ -43,8 +43,8 @@ Created 10/8/1995 Heikki Tuuri
 // JAN: TODO: MySQL 5.7 missing header
 //#include "my_thread.h"
 //
-// #include "mysql/psi/mysql_stage.h"
-// #include "mysql/psi/psi.h"
+#include "mysql/psi/mysql_stage.h"
+#include "mysql/psi/psi.h"
 
 #include "btr0sea.h"
 #include "buf0flu.h"
@@ -72,7 +72,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
-#include "btr0scrub.h"
 
 
 #include <my_service_manager.h>
@@ -83,8 +82,6 @@ UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPH
 /* How much data manipulation language (DML) statements need to be delayed,
 in microseconds, in order to reduce the lagging of the purge thread. */
 ulint	srv_dml_needed_delay;
-
-my_bool	srv_scrub_log;
 
 const char*	srv_main_thread_op_info = "";
 
@@ -279,8 +276,8 @@ double	srv_adaptive_flushing_lwm;
 adaptive flushing is averaged */
 ulong	srv_flushing_avg_loops;
 
-/** innodb_purge_threads; the number of purge threads to use */
-ulong	srv_n_purge_threads;
+/** innodb_purge_threads; the number of purge tasks to use */
+uint srv_n_purge_threads;
 
 /** innodb_purge_batch_size, in pages */
 ulong	srv_purge_batch_size;
@@ -404,6 +401,8 @@ my_bool	srv_force_primary_key;
 
 /** Key version to encrypt the temporary tablespace */
 my_bool innodb_encrypt_temporary_tables;
+
+my_bool srv_immediate_scrub_data_uncompressed;
 
 /* Array of English strings describing the current state of an
 i/o handler thread */
@@ -996,15 +995,15 @@ srv_printf_innodb_monitor(
 
 	fprintf(file,
 		"%.2f hash searches/s, %.2f non-hash searches/s\n",
-		(btr_cur_n_sea - btr_cur_n_sea_old)
+		static_cast<double>(btr_cur_n_sea - btr_cur_n_sea_old)
 		/ time_elapsed,
-		(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
+		static_cast<double>(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
 		/ time_elapsed);
 	btr_cur_n_sea_old = btr_cur_n_sea;
 #else /* BTR_CUR_HASH_ADAPT */
 	fprintf(file,
 		"%.2f non-hash searches/s\n",
-		(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
+		static_cast<double>(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
 		/ time_elapsed);
 #endif /* BTR_CUR_HASH_ADAPT */
 	btr_cur_n_non_sea_old = btr_cur_n_non_sea;
@@ -1063,13 +1062,17 @@ srv_printf_innodb_monitor(
 	fprintf(file,
 		"%.2f inserts/s, %.2f updates/s,"
 		" %.2f deletes/s, %.2f reads/s\n",
-		((ulint) srv_stats.n_rows_inserted - srv_n_rows_inserted_old)
+		static_cast<double>(srv_stats.n_rows_inserted
+				    - srv_n_rows_inserted_old)
 		/ time_elapsed,
-		((ulint) srv_stats.n_rows_updated - srv_n_rows_updated_old)
+		static_cast<double>(srv_stats.n_rows_updated
+				    - srv_n_rows_updated_old)
 		/ time_elapsed,
-		((ulint) srv_stats.n_rows_deleted - srv_n_rows_deleted_old)
+		static_cast<double>(srv_stats.n_rows_deleted
+				    - srv_n_rows_deleted_old)
 		/ time_elapsed,
-		((ulint) srv_stats.n_rows_read - srv_n_rows_read_old)
+		static_cast<double>(srv_stats.n_rows_read
+				    - srv_n_rows_read_old)
 		/ time_elapsed);
 	fprintf(file,
 		"Number of system rows inserted " ULINTPF
@@ -1082,14 +1085,18 @@ srv_printf_innodb_monitor(
 	fprintf(file,
 		"%.2f inserts/s, %.2f updates/s,"
 		" %.2f deletes/s, %.2f reads/s\n",
-		((ulint) srv_stats.n_system_rows_inserted
-		 - srv_n_system_rows_inserted_old) / time_elapsed,
-		((ulint) srv_stats.n_system_rows_updated
-		 - srv_n_system_rows_updated_old) / time_elapsed,
-		((ulint) srv_stats.n_system_rows_deleted
-		 - srv_n_system_rows_deleted_old) / time_elapsed,
-		((ulint) srv_stats.n_system_rows_read
-		 - srv_n_system_rows_read_old) / time_elapsed);
+		static_cast<double>(srv_stats.n_system_rows_inserted
+				    - srv_n_system_rows_inserted_old)
+		/ time_elapsed,
+		static_cast<double>(srv_stats.n_system_rows_updated
+				    - srv_n_system_rows_updated_old)
+		/ time_elapsed,
+		static_cast<double>(srv_stats.n_system_rows_deleted
+				    - srv_n_system_rows_deleted_old)
+		/ time_elapsed,
+		static_cast<double>(srv_stats.n_system_rows_read
+				    - srv_n_system_rows_read_old)
+		/ time_elapsed);
 	srv_n_rows_inserted_old = srv_stats.n_rows_inserted;
 	srv_n_rows_updated_old = srv_stats.n_rows_updated;
 	srv_n_rows_deleted_old = srv_stats.n_rows_deleted;
@@ -1115,11 +1122,9 @@ srv_export_innodb_status(void)
 /*==========================*/
 {
 	fil_crypt_stat_t	crypt_stat;
-	btr_scrub_stat_t	scrub_stat;
 
 	if (!srv_read_only_mode) {
 		fil_crypt_total_stat(&crypt_stat);
-		btr_scrub_total_stat(&scrub_stat);
 	}
 
 #ifdef BTR_CUR_HASH_ADAPT
@@ -1348,35 +1353,21 @@ srv_export_innodb_status(void)
 			srv_stats.n_key_requests;
 		export_vars.innodb_key_rotation_list_length =
 			srv_stats.key_rotation_list_length;
-
-		export_vars.innodb_scrub_page_reorganizations =
-			scrub_stat.page_reorganizations;
-		export_vars.innodb_scrub_page_splits =
-			scrub_stat.page_splits;
-		export_vars.innodb_scrub_page_split_failures_underflow =
-			scrub_stat.page_split_failures_underflow;
-		export_vars.innodb_scrub_page_split_failures_out_of_filespace =
-			scrub_stat.page_split_failures_out_of_filespace;
-		export_vars.innodb_scrub_page_split_failures_missing_index =
-			scrub_stat.page_split_failures_missing_index;
-		export_vars.innodb_scrub_page_split_failures_unknown =
-			scrub_stat.page_split_failures_unknown;
-		export_vars.innodb_scrub_log = srv_stats.n_log_scrubs;
 	}
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 
 	log_mutex_enter();
-
-	export_vars.innodb_lsn_current = log_sys.lsn;
-	export_vars.innodb_lsn_flushed = log_sys.flushed_to_disk_lsn;
+	export_vars.innodb_lsn_current = log_sys.get_lsn();
+	export_vars.innodb_lsn_flushed = log_sys.get_flushed_lsn();
 	export_vars.innodb_lsn_last_checkpoint = log_sys.last_checkpoint_lsn;
-	export_vars.innodb_checkpoint_age = static_cast<ulint>(
-		log_sys.lsn - log_sys.last_checkpoint_lsn);
 	export_vars.innodb_checkpoint_max_age = static_cast<ulint>(
 		log_sys.max_checkpoint_age);
-
 	log_mutex_exit();
+
+	export_vars.innodb_checkpoint_age = static_cast<ulint>(
+		export_vars.innodb_lsn_current
+		- export_vars.innodb_lsn_last_checkpoint);
 }
 
 struct srv_monitor_state_t
@@ -1462,8 +1453,7 @@ void srv_error_monitor_task(void*)
 {
 	/* number of successive fatal timeouts observed */
 	static ulint		fatal_cnt;
-	static lsn_t		old_lsn = srv_start_lsn;
-	lsn_t		new_lsn;
+	static lsn_t		old_lsn = recv_sys.recovered_lsn;
 	/* longest waiting thread for a semaphore */
 	os_thread_id_t	waiter;
 	static os_thread_id_t	old_waiter = os_thread_get_curr_id();
@@ -1476,17 +1466,16 @@ void srv_error_monitor_task(void*)
 	/* Try to track a strange bug reported by Harald Fuchs and others,
 	where the lsn seems to decrease at times */
 
-	if (log_peek_lsn(&new_lsn)) {
-		if (new_lsn < old_lsn) {
+	lsn_t new_lsn = log_sys.get_lsn();
+	if (new_lsn < old_lsn) {
 		ib::error() << "Old log sequence number " << old_lsn << " was"
 			<< " greater than the new log sequence number "
 			<< new_lsn << ". Please submit a bug report to"
 			" https://jira.mariadb.org/";
 			ut_ad(0);
-		}
-
-		old_lsn = new_lsn;
 	}
+
+	old_lsn = new_lsn;
 
 	/* Update the statistics collected for deciding LRU
 	eviction policy. */
@@ -1686,7 +1675,7 @@ srv_sync_log_buffer_in_background(void)
 	srv_main_thread_op_info = "flushing log";
 	if (difftime(current_time, srv_last_log_flush_time)
 	    >= srv_flush_log_at_timeout) {
-		log_buffer_sync_in_background(true);
+		log_sys.initiate_write(true);
 		srv_last_log_flush_time = current_time;
 		srv_log_writes_and_flush++;
 	}

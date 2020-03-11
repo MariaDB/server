@@ -685,8 +685,8 @@ struct row_prebuilt_t {
 					updated */
 	dtuple_t*	clust_ref;	/*!< prebuilt dtuple used in
 					sel/upd/del */
-	ulint		select_lock_type;/*!< LOCK_NONE, LOCK_S, or LOCK_X */
-	ulint		stored_select_lock_type;/*!< this field is used to
+	lock_mode	select_lock_type;/*!< LOCK_NONE, LOCK_S, or LOCK_X */
+	lock_mode	stored_select_lock_type;/*!< this field is used to
 					remember the original select_lock_type
 					that was decided in ha_innodb.cc,
 					::store_lock(), ::external_lock(),

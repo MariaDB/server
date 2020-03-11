@@ -59,7 +59,7 @@ int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)
     Allocate space for header information and for data that is too
     big to keep on stack
   */
-  if (!(disc_cache= my_malloc(info_length, MYF(MY_WME))))
+  if (!(disc_cache= my_malloc(PSI_NOT_INSTRUMENTED, info_length, MYF(MY_WME))))
     DBUG_RETURN(ENOMEM);
 
   if (my_pread(kfile, disc_cache, info_length, 0L, MYF(MY_NABP)))

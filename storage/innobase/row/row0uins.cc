@@ -379,7 +379,7 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 
 	switch (node->rec_type) {
 	default:
-		ut_ad(!"wrong undo record type");
+		ut_ad("wrong undo record type" == 0);
 		goto close_table;
 	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
@@ -536,7 +536,7 @@ row_undo_ins(
 
 	switch (node->rec_type) {
 	default:
-		ut_ad(!"wrong undo record type");
+		ut_ad("wrong undo record type" == 0);
 		/* fall through */
 	case TRX_UNDO_INSERT_REC:
 		/* Skip the clustered index (the first index) */

@@ -114,21 +114,21 @@ template <class Elem> class Dynamic_array
 {
   DYNAMIC_ARRAY  array;
 public:
-  Dynamic_array(uint prealloc=16, uint increment=16)
+  Dynamic_array(PSI_memory_key psi_key, uint prealloc=16, uint increment=16)
   {
-    init(prealloc, increment);
+    init(psi_key, prealloc, increment);
   }
 
   Dynamic_array(MEM_ROOT *root, uint prealloc=16, uint increment=16)
   {
     void *init_buffer= alloc_root(root, sizeof(Elem) * prealloc);
-    my_init_dynamic_array2(&array, sizeof(Elem), init_buffer, 
+    init_dynamic_array2(root->m_psi_key, &array, sizeof(Elem), init_buffer,
                            prealloc, increment, MYF(0));
   }
 
-  void init(uint prealloc=16, uint increment=16)
+  void init(PSI_memory_key psi_key, uint prealloc=16, uint increment=16)
   {
-    init_dynamic_array2(&array, sizeof(Elem), 0, prealloc, increment, MYF(0));
+    init_dynamic_array2(psi_key, &array, sizeof(Elem), 0, prealloc, increment, MYF(0));
   }
 
   /**
@@ -170,6 +170,11 @@ public:
     return ((const Elem*)array.buffer) + array.elements - 1;
   }
 
+  const Elem *end() const
+  {
+    return back() + 1;
+  }
+
   /// @returns pointer to n-th element
   Elem *get_pos(size_t idx)
   {
@@ -181,7 +186,6 @@ public:
   {
     return ((const Elem*)array.buffer) + idx;
   }
-
 
   /**
      @retval false ok
@@ -240,10 +244,16 @@ public:
     freeze_size(&array);
   }
 
+  bool reserve(size_t new_size)
+  {
+    return allocate_dynamic(&array, (uint)new_size);
+  }
+
+
   bool resize(size_t new_size, Elem default_val)
   {
     size_t old_size= elements();
-    if (unlikely(allocate_dynamic(&array, (uint)new_size)))
+    if (reserve(new_size))
       return true;
     
     if (new_size > old_size)

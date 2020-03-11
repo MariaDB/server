@@ -4805,7 +4805,6 @@ static void check_datadir_altered_for_innodb(THD *thd,
 
 uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
                            HA_CREATE_INFO *create_info,
-                           Alter_table_ctx *alter_ctx,
                            bool *partition_changed,
                            bool *fast_alter_table)
 {
@@ -4900,8 +4899,8 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       object to allow fast_alter_partition_table to perform the changes.
     */
     DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
-                                               alter_ctx->db.str,
-                                               alter_ctx->table_name.str,
+                                               table->s->db.str,
+                                               table->s->table_name.str,
                                                MDL_INTENTION_EXCLUSIVE));
 
     tab_part_info= table->part_info;
@@ -7501,7 +7500,7 @@ void append_row_to_str(String &str, const uchar *row, TABLE *table)
     rec= row;
 
   /* Create a new array of all read fields. */
-  fields= (Field**) my_malloc(sizeof(void*) * (num_fields + 1),
+  fields= (Field**) my_malloc(PSI_INSTRUMENT_ME, sizeof(void*) * (num_fields + 1),
                               MYF(0));
   if (!fields)
     return;

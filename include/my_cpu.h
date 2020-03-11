@@ -54,6 +54,7 @@
 #elif defined HAVE_PAUSE_INSTRUCTION
 #elif defined(_ARCH_PWR8)
 #else
+# include "my_global.h"
 # include "my_atomic.h"
 #endif
 

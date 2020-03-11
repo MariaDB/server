@@ -337,7 +337,7 @@ btr_node_ptr_get_child_page_no(
 @param[in,out]	mtr			mini-transaction
 @return	page number of the created root
 @retval	FIL_NULL	if did not succeed */
-ulint
+uint32_t
 btr_create(
 	ulint			type,
 	fil_space_t*		space,

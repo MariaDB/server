@@ -186,9 +186,9 @@ bool my_dboptions_cache_init(void)
   if (!dboptions_init)
   {
     dboptions_init= 1;
-    error= my_hash_init(&dboptions, table_alias_charset,
-                        32, 0, 0, (my_hash_get_key) dboptions_get_key,
-                        free_dbopt,0);
+    error= my_hash_init(key_memory_dboptions_hash, &dboptions,
+                        table_alias_charset, 32, 0, 0, (my_hash_get_key)
+                        dboptions_get_key, free_dbopt, 0);
   }
   return error;
 }
@@ -218,9 +218,8 @@ void my_dbopt_cleanup(void)
 {
   mysql_rwlock_wrlock(&LOCK_dboptions);
   my_hash_free(&dboptions);
-  my_hash_init(&dboptions, table_alias_charset,
-               32, 0, 0, (my_hash_get_key) dboptions_get_key,
-               free_dbopt,0);
+  my_hash_init(key_memory_dboptions_hash, &dboptions, table_alias_charset, 32,
+               0, 0, (my_hash_get_key) dboptions_get_key, free_dbopt, 0);
   mysql_rwlock_unlock(&LOCK_dboptions);
 }
 
@@ -290,7 +289,7 @@ static my_bool put_dbopt(const char *dbname, Schema_specification_st *create)
     /* Options are not in the hash, insert them */
     char *tmp_name;
     char *tmp_comment= NULL;
-    if (!my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
+    if (!my_multi_malloc(key_memory_dboptions_hash, MYF(MY_WME | MY_ZEROFILL),
                          &opt, (uint) sizeof(*opt), &tmp_name, (uint) length+1,
                          &tmp_comment, (uint) DATABASE_COMMENT_MAXLEN+1,
                          NullS))
@@ -1148,9 +1147,9 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
                                                    (char*) table_list->table_name.str);
 
     table_list->alias= table_list->table_name;	// If lower_case_table_names=2
-    table_list->mdl_request.init(MDL_key::TABLE, table_list->db.str,
-                                 table_list->table_name.str, MDL_EXCLUSIVE,
-                                 MDL_TRANSACTION);
+    MDL_REQUEST_INIT(&table_list->mdl_request, MDL_key::TABLE,
+                     table_list->db.str, table_list->table_name.str,
+                     MDL_EXCLUSIVE, MDL_TRANSACTION);
     /* Link into list */
     (*tot_list_next_local)= table_list;
     (*tot_list_next_global)= table_list;
@@ -1547,8 +1546,8 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     TODO: fix check_db_name().
   */
 
-  new_db_file_name.str= my_strndup(new_db_name->str, new_db_name->length,
-                                   MYF(MY_WME));
+  new_db_file_name.str= my_strndup(key_memory_THD_db, new_db_name->str,
+                                   new_db_name->length, MYF(MY_WME));
   new_db_file_name.length= new_db_name->length;
 
   if (new_db_file_name.str == NULL)

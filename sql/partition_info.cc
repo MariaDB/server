@@ -30,7 +30,6 @@
                                            // NOT_A_PARTITION_ID
 #include "partition_info.h"
 #include "sql_parse.h"
-#include "sql_acl.h"                          // *_ACL
 #include "sql_base.h"                         // fill_record
 #include "lock.h"
 #include "table.h"
@@ -733,7 +732,7 @@ char *partition_info::find_duplicate_name()
   max_names= num_parts;
   if (is_sub_partitioned())
     max_names+= num_parts * num_subparts;
-  if (my_hash_init(&partition_names, system_charset_info, max_names, 0, 0,
+  if (my_hash_init(PSI_INSTRUMENT_ME, &partition_names, system_charset_info, max_names, 0, 0,
                    (my_hash_get_key) get_part_name_from_elem, 0, HASH_UNIQUE))
   {
     DBUG_ASSERT(0);

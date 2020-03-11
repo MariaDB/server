@@ -21,7 +21,7 @@
   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <my_global.h>
-#include <my_pthread.h>
+#include <my_thread.h>
 #include <pfs_server.h>
 #include <pfs_instr_class.h>
 #include <pfs_instr.h>
@@ -258,7 +258,7 @@ void test_utf8_parser_bad_encoding()
   ptr= packet;
   *ptr++= strlen(attr);
   memcpy(ptr, attr, strlen(attr));
-  ptr[0]= 0xFA; // invalid UTF-8 char
+  ptr[0]= (char)0xFA; // invalid UTF-8 char
   ptr+= strlen(attr);
   *ptr++= strlen(val);
   memcpy(ptr, val, strlen(val));

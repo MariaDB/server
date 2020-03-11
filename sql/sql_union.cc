@@ -257,6 +257,8 @@ int select_union_recursive::send_data(List<Item> &values)
       write_err != HA_ERR_FOUND_DUPP_UNIQUE)
   { 
     int err;
+    DBUG_ASSERT(incr_table->s->reclength == table->s->reclength ||
+               incr_table->s->reclength == table->s->reclength - MARIA_UNIQUE_HASH_LENGTH);
     if ((err= incr_table->file->ha_write_tmp_row(table->record[0])))
     {
       bool is_duplicate;
@@ -1561,7 +1563,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     {
       if (with_element)
       {
-        if (with_element->rename_columns_of_derived_unit(thd, this))
+        if (with_element->process_columns_of_derived_unit(thd, this))
           goto err;
         if (check_duplicate_names(thd, sl->item_list, 0))
           goto err;

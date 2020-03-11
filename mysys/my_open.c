@@ -136,7 +136,7 @@ File my_register_filename(File fd, const char *FileName, enum file_type
     thread_safe_increment32(&my_file_opened);
     if ((uint) fd >= my_file_limit)
       DBUG_RETURN(fd);
-    my_file_info[fd].name = (char*) my_strdup(FileName, MyFlags);
+    my_file_info[fd].name = my_strdup(key_memory_my_file_info, FileName, MyFlags);
     statistic_increment(my_file_total_opened,&THR_LOCK_open);
     my_file_info[fd].type = type_of_file;
     DBUG_PRINT("exit",("fd: %d",fd));

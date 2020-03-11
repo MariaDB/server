@@ -38,6 +38,91 @@ connect rpl,localhost,mysqltest_1,,;
 connection rpl;
 SHOW MASTER LOGS;
 SHOW BINARY LOGS;
+SHOW BINLOG STATUS;
 disconnect rpl;
 connection default;
 DROP USER 'mysqltest_1'@'localhost';
+#
+# Start of 10.5 test
+#
+#
+# MDEV-21743 Split up SUPER privilege to smaller privileges 
+#
+# Test that REPLICATION CLIENT is an alias for BINLOG MONITOR
+CREATE USER user1@localhost;
+GRANT REPLICATION CLIENT ON *.* TO user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+Grants for user1@localhost
+GRANT BINLOG MONITOR ON *.* TO `user1`@`localhost`
+REVOKE REPLICATION CLIENT ON *.* FROM user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+Grants for user1@localhost
+GRANT USAGE ON *.* TO `user1`@`localhost`
+DROP USER user1@localhost;
+# Test if SHOW BINARY LOGS and SHOW BINGLOG STATUS are not allowed without REPLICATION CLIENT or SUPER
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE REPLICATION CLIENT, SUPER ON *.* FROM user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SHOW MASTER LOGS;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG MONITOR privilege(s) for this operation
+SHOW BINARY LOGS;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG MONITOR privilege(s) for this operation
+SHOW BINLOG STATUS;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG MONITOR privilege(s) for this operation
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test if PURGE BINARY LOGS is not allowed without BINLOG ADMIN or SUPER
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE BINLOG ADMIN, SUPER ON *.* FROM user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+PURGE BINARY LOGS BEFORE '2001-01-01 00:00:00';
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG ADMIN privilege(s) for this operation
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test if PURGE BINLOG is allowed with BINLOG ADMIN
+CREATE USER user1@localhost;
+GRANT BINLOG ADMIN ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+PURGE BINARY LOGS BEFORE '2001-01-01 00:00:00';
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test if PURGE BINLOG is allowed with SUPER
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+PURGE BINARY LOGS BEFORE '2001-01-01 00:00:00';
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test if SHOW BINLOG EVENTS is not allowed without BINLOG MONITOR
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE BINLOG MONITOR ON *.* FROM user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SHOW BINLOG EVENTS;
+ERROR 42000: Access denied; you need (at least one of) the BINLOG MONITOR privilege(s) for this operation
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test if SHOW BINLOG EVENTS is allowed with BINLOG MONITOR
+CREATE USER user1@localhost;
+GRANT BINLOG MONITOR ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SHOW BINLOG EVENTS;
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+#
+# End of 10.5 test
+#

@@ -968,7 +968,8 @@ sync_array_print_long_waits_low(
 	const void**	sema,	/*!< out: longest-waited-for semaphore */
 	ibool*		noticed)/*!< out: TRUE if long wait noticed */
 {
-	ulint		fatal_timeout = srv_fatal_semaphore_wait_threshold;
+	double		fatal_timeout = static_cast<double>(
+		srv_fatal_semaphore_wait_threshold);
 	ibool		fatal = FALSE;
 	double		longest_diff = 0;
 	ulint		i;

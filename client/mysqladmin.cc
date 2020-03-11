@@ -254,7 +254,7 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
     {
       char *start=argument;
       my_free(opt_password);
-      opt_password=my_strdup(argument,MYF(MY_FAE));
+      opt_password=my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
       while (*argument) *argument++= 'x';		/* Destroy argument */
       if (*start)
 	start[1]=0;				/* Cut length of argument */
@@ -1357,11 +1357,11 @@ static char **mask_password(int argc, char ***argv)
   if (!argc)
     return NULL;
 
-  temp_argv= (char **)(my_malloc(sizeof(char *) * argc, MYF(MY_WME)));
+  temp_argv= (char **)(my_malloc(PSI_NOT_INSTRUMENTED, sizeof(char *) * argc, MYF(MY_WME)));
   argc--;
   while (argc > 0)
   {
-    temp_argv[argc]= my_strdup((*argv)[argc], MYF(MY_FAE));
+    temp_argv[argc]= my_strdup(PSI_NOT_INSTRUMENTED, (*argv)[argc], MYF(MY_FAE));
     if (find_type((*argv)[argc - 1],&command_typelib, FIND_TYPE_BASIC) == ADMIN_PASSWORD ||
         find_type((*argv)[argc - 1],&command_typelib, FIND_TYPE_BASIC) == ADMIN_OLD_PASSWORD)
     {
@@ -1374,7 +1374,7 @@ static char **mask_password(int argc, char ***argv)
      }
     argc--;
   }
-  temp_argv[argc]= my_strdup((*argv)[argc], MYF(MY_FAE));
+  temp_argv[argc]= my_strdup(PSI_NOT_INSTRUMENTED, (*argv)[argc], MYF(MY_FAE));
   return(temp_argv);
 }
 

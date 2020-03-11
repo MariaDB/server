@@ -4019,16 +4019,17 @@ longlong Item_func_get_lock::val_int()
   DBUG_PRINT("enter", ("lock: %.*s", res->length(), res->ptr()));
   /* HASH entries are of type User_level_lock. */
   if (! my_hash_inited(&thd->ull_hash) &&
-        my_hash_init(&thd->ull_hash, &my_charset_bin,
-                     16 /* small hash */, 0, 0, ull_get_key, NULL, 0))
+        my_hash_init(key_memory_User_level_lock, &thd->ull_hash,
+                     &my_charset_bin, 16 /* small hash */, 0, 0, ull_get_key,
+                     NULL, 0))
   {
     DBUG_RETURN(0);
   }
 
   MDL_request ull_request;
-  ull_request.init(MDL_key::USER_LOCK, res->c_ptr_safe(), "",
+  MDL_REQUEST_INIT(&ull_request, MDL_key::USER_LOCK, res->c_ptr_safe(), "",
                    MDL_SHARED_NO_WRITE, MDL_EXPLICIT);
-  MDL_key *ull_key = &ull_request.key;
+  MDL_key *ull_key= &ull_request.key;
 
 
   if ((ull= (User_level_lock*)
@@ -4036,7 +4037,7 @@ longlong Item_func_get_lock::val_int()
   {
     /* Recursive lock */
     ull->refs++;
-    null_value = 0;
+    null_value= 0;
     DBUG_PRINT("info", ("recursive lock, ref-count: %d", (int) ull->refs));
     DBUG_RETURN(1);
   }
@@ -4052,7 +4053,8 @@ longlong Item_func_get_lock::val_int()
     DBUG_RETURN(0);
   }
 
-  ull= (User_level_lock*) my_malloc(sizeof(User_level_lock),
+  ull= (User_level_lock*) my_malloc(key_memory_User_level_lock,
+                                    sizeof(User_level_lock),
                                     MYF(MY_WME|MY_THREAD_SPECIFIC));
   if (ull == NULL)
   {
@@ -4072,6 +4074,30 @@ longlong Item_func_get_lock::val_int()
   null_value= 0;
 
   DBUG_RETURN(1);
+}
+
+
+/**
+  Release all user level locks.
+  @return
+    - N if N-lock released
+    - 0 if lock wasn't held
+*/
+longlong Item_func_release_all_locks::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  THD *thd= current_thd;
+  ulong num_unlocked= 0;
+  DBUG_ENTER("Item_func_release_all_locks::val_int");
+  for (size_t i= 0; i < thd->ull_hash.records; i++)
+  {
+    auto ull= (User_level_lock *) my_hash_element(&thd->ull_hash, i);
+    thd->mdl_context.release_lock(ull->lock);
+    num_unlocked+= ull->refs;
+    my_free(ull);
+  }
+  my_hash_free(&thd->ull_hash);
+  DBUG_RETURN(num_unlocked);
 }
 
 
@@ -4275,7 +4301,7 @@ static PSI_mutex_key key_LOCK_item_func_sleep;
 
 static PSI_mutex_info item_func_sleep_mutexes[]=
 {
-  { &key_LOCK_item_func_sleep, "LOCK_user_locks", PSI_FLAG_GLOBAL}
+  { &key_LOCK_item_func_sleep, "LOCK_item_func_sleep", PSI_FLAG_GLOBAL}
 };
 
 
@@ -4396,7 +4422,7 @@ user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
     size_t size=ALIGN_SIZE(sizeof(user_var_entry))+name->length+1+extra_size;
     if (!my_hash_inited(hash))
       return 0;
-    if (!(entry = (user_var_entry*) my_malloc(size,
+    if (!(entry = (user_var_entry*) my_malloc(key_memory_user_var_entry, size,
                                               MYF(MY_WME | ME_FATAL |
                                                   MY_THREAD_SPECIFIC))))
       return 0;
@@ -4656,10 +4682,10 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
 	char *pos= (char*) entry+ ALIGN_SIZE(sizeof(user_var_entry));
 	if (entry->value == pos)
 	  entry->value=0;
-        entry->value= (char*) my_realloc(entry->value, length,
+        entry->value= (char*) my_realloc(key_memory_user_var_entry_value,
+                                         entry->value, length,
                                          MYF(MY_ALLOW_ZERO_PTR | MY_WME |
-                                             ME_FATAL |
-                                             MY_THREAD_SPECIFIC));
+                                             ME_FATAL | MY_THREAD_SPECIFIC));
         if (!entry->value)
 	  return 1;
       }
@@ -6770,7 +6796,7 @@ longlong Item_func_nextval::val_int()
   if (!(entry= ((SEQUENCE_LAST_VALUE*)
                 my_hash_search(&thd->sequences, (uchar*) key, length))))
   {
-    if (!(key= (char*) my_memdup(key, length, MYF(MY_WME))) ||
+    if (!(key= (char*) my_memdup(PSI_INSTRUMENT_ME, key, length, MYF(MY_WME))) ||
         !(entry= new SEQUENCE_LAST_VALUE((uchar*) key, length)))
     {
       /* EOM, error given */

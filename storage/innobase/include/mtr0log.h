@@ -393,10 +393,10 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
   if (!have_len)
     max_len= 1 + 5 + 5;
   else if (!have_offset)
-    max_len= m_last == bpage
+    max_len= bpage && m_last == bpage
       ? 1 + 3
       : 1 + 3 + 5 + 5;
-  else if (m_last == bpage && m_last_offset <= offset)
+  else if (bpage && m_last == bpage && m_last_offset <= offset)
   {
     /* Encode the offset relative from m_last_offset. */
     offset-= m_last_offset;
@@ -502,6 +502,8 @@ inline void mtr_t::memcpy(const buf_block_t &b, void *dest, const void *str,
 @param[in,out]        b       buffer page */
 inline void mtr_t::init(buf_block_t *b)
 {
+  b->page.status= buf_page_t::INIT_ON_FLUSH;
+
   if (m_log_mode != MTR_LOG_ALL)
   {
     ut_ad(m_log_mode == MTR_LOG_NONE || m_log_mode == MTR_LOG_NO_REDO);
@@ -510,7 +512,6 @@ inline void mtr_t::init(buf_block_t *b)
 
   m_log.close(log_write<INIT_PAGE>(b->page.id, &b->page));
   m_last_offset= FIL_PAGE_TYPE;
-  b->page.init_on_flush= true;
 }
 
 /** Free a page.
@@ -523,7 +524,7 @@ inline void mtr_t::free(const page_id_t id)
 
 /** Write an EXTENDED log record.
 @param block  buffer pool page
-@param type	extended record subtype; @see mrec_ext_t */
+@param type   extended record subtype; @see mrec_ext_t */
 inline void mtr_t::log_write_extended(const buf_block_t &block, byte type)
 {
   set_modified();
@@ -615,7 +616,7 @@ inline void mtr_t::undo_append(const buf_block_t &block,
   set_modified();
   if (m_log_mode != MTR_LOG_ALL)
     return;
-  const bool small= len < mtr_buf_t::MAX_DATA_SIZE - (3 + 3 + 5 + 5);
+  const bool small= len + 1 < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5);
   byte *end= log_write<EXTENDED>(block.page.id, &block.page, len + 1, small);
   if (UNIV_LIKELY(small))
   {
@@ -626,9 +627,19 @@ inline void mtr_t::undo_append(const buf_block_t &block,
   else
   {
     m_log.close(end);
-    byte type= UNDO_APPEND;
-    m_log.push(&type, 1);
+    *m_log.push<byte*>(1)= UNDO_APPEND;
     m_log.push(static_cast<const byte*>(data), static_cast<uint32_t>(len));
   }
   m_last_offset= FIL_PAGE_TYPE;
+}
+
+/** Trim the end of a tablespace.
+@param id       first page identifier that will not be in the file */
+inline void mtr_t::trim_pages(const page_id_t id)
+{
+  if (m_log_mode != MTR_LOG_ALL)
+    return;
+  byte *l= log_write<EXTENDED>(id, nullptr, 1, true);
+  *l++= TRIM_PAGES;
+  m_log.close(l);
 }

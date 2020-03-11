@@ -34,7 +34,6 @@
 #include "sql_parse.h"                          // command_name
 #include "sql_time.h"           // calc_time_from_sec, my_time_compare
 #include "tztime.h"             // my_tz_OFFSET0, struct Time_zone
-#include "sql_acl.h"            // SUPER_ACL
 #include "log_event.h"          // Query_log_event
 #include "rpl_filter.h"
 #include "rpl_rli.h"
@@ -253,7 +252,7 @@ void make_default_log_name(char **out, const char* log_ext, bool once)
   else
   {
     my_free(*out);
-    *out= my_strdup(buff, MYF(MY_WME));
+    *out= my_strdup(PSI_INSTRUMENT_ME, buff, MYF(MY_WME));
   }
 }
 
@@ -1723,7 +1722,8 @@ static int binlog_close_connection(handlerton *hton, THD *thd)
     if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
   }
 #endif /* WITH_WSREP */
-  DBUG_ASSERT(cache_mngr->trx_cache.empty() && cache_mngr->stmt_cache.empty());
+  DBUG_ASSERT(cache_mngr->trx_cache.empty());
+  DBUG_ASSERT(cache_mngr->stmt_cache.empty());
   cache_mngr->~binlog_cache_mngr();
   my_free(cache_mngr);
   DBUG_RETURN(0);
@@ -2211,8 +2211,8 @@ void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
   if (WSREP_EMULATE_BINLOG(thd))
   {
     if (is_transactional)
-      trans_register_ha(thd, TRUE, binlog_hton);
-    trans_register_ha(thd, FALSE, binlog_hton);
+      trans_register_ha(thd, TRUE, binlog_hton, 0);
+    trans_register_ha(thd, FALSE, binlog_hton, 0);
   }
 #endif /* WITH_WSREP */
   DBUG_VOID_RETURN;
@@ -2412,8 +2412,8 @@ File open_binlog(IO_CACHE *log, const char *log_file_name, const char **errmsg)
     *errmsg = "Could not open log file";
     goto err;
   }
-  if (init_io_cache(log, file, (size_t)binlog_file_cache_size, READ_CACHE, 0, 0,
-                    MYF(MY_WME|MY_DONT_CHECK_FILESIZE)))
+  if (init_io_cache_ext(log, file, (size_t)binlog_file_cache_size, READ_CACHE,
+            0, 0, MYF(MY_WME|MY_DONT_CHECK_FILESIZE), key_file_binlog_cache))
   {
     sql_print_error("Failed to create a cache on log (file '%s')",
                     log_file_name);
@@ -2652,7 +2652,7 @@ bool MYSQL_LOG::open(
 
   write_error= 0;
 
-  if (!(name= my_strdup(log_name, MYF(MY_WME))))
+  if (!(name= my_strdup(key_memory_MYSQL_LOG_name, log_name, MYF(MY_WME))))
   {
     name= (char *)log_name; // for the error message
     goto err;
@@ -3392,10 +3392,11 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
                                       O_RDWR | O_CREAT | O_BINARY | O_CLOEXEC,
                                       MYF(MY_WME))) < 0 ||
        mysql_file_sync(index_file_nr, MYF(MY_WME)) ||
-       init_io_cache(&index_file, index_file_nr,
+       init_io_cache_ext(&index_file, index_file_nr,
                      IO_SIZE, WRITE_CACHE,
                      mysql_file_seek(index_file_nr, 0L, MY_SEEK_END, MYF(0)),
-                                     0, MYF(MY_WME | MY_WAIT_IF_FULL)) ||
+                                     0, MYF(MY_WME | MY_WAIT_IF_FULL),
+                                     m_key_file_log_index_cache) ||
       DBUG_EVALUATE_IF("fault_injection_openning_index", 1, 0))
   {
     /*
@@ -4442,14 +4443,16 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
     {
       rli->last_inuse_relaylog= NULL;
       included= 1;
-      to_purge_if_included= my_strdup(ir->name, MYF(0));
+      to_purge_if_included= my_strdup(key_memory_Relay_log_info_group_relay_log_name,
+                                      ir->name, MYF(0));
     }
     rli->free_inuse_relaylog(ir);
     ir= next;
   }
   rli->inuse_relaylog_list= ir;
   if (ir)
-    to_purge_if_included= my_strdup(ir->name, MYF(0));
+    to_purge_if_included= my_strdup(key_memory_Relay_log_info_group_relay_log_name,
+                                    ir->name, MYF(0));
 
   /*
     Read the next log file name from the index file and pass it back to
@@ -5588,7 +5591,8 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
   if (cache_mngr)
     DBUG_RETURN(cache_mngr);                             // Already set up
 
-  cache_mngr= (binlog_cache_mngr*) my_malloc(sizeof(binlog_cache_mngr), MYF(MY_ZEROFILL));
+  cache_mngr= (binlog_cache_mngr*) my_malloc(key_memory_binlog_cache_mngr,
+                                  sizeof(binlog_cache_mngr), MYF(MY_ZEROFILL));
   if (!cache_mngr ||
       open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
                        LOG_PREFIX, (size_t)binlog_stmt_cache_size, MYF(MY_WME)) ||
@@ -5708,8 +5712,8 @@ THD::binlog_start_trans_and_stmt()
     }
 #endif
     if (mstmt_mode)
-      trans_register_ha(this, TRUE, binlog_hton);
-    trans_register_ha(this, FALSE, binlog_hton);
+      trans_register_ha(this, TRUE, binlog_hton, 0);
+    trans_register_ha(this, FALSE, binlog_hton, 0);
     /*
       Mark statement transaction as read/write. We never start
       a binary log transaction and keep it read-only,
@@ -5753,7 +5757,7 @@ binlog_start_consistent_snapshot(handlerton *hton, THD *thd)
   strmake_buf(cache_mngr->last_commit_pos_file, mysql_bin_log.last_commit_pos_file);
   cache_mngr->last_commit_pos_offset= mysql_bin_log.last_commit_pos_offset;
 
-  trans_register_ha(thd, TRUE, hton);
+  trans_register_ha(thd, TRUE, binlog_hton, 0);
 
   DBUG_RETURN(err);
 }
@@ -9108,7 +9112,8 @@ int TC_LOG_MMAP::open(const char *opt_name)
   npages=(uint)file_length/tc_log_page_size;
   if (npages < 3)             // to guarantee non-empty pool
     goto err;
-  if (!(pages=(PAGE *)my_malloc(npages*sizeof(PAGE), MYF(MY_WME|MY_ZEROFILL))))
+  if (!(pages=(PAGE *)my_malloc(key_memory_TC_LOG_MMAP_pages,
+                                npages*sizeof(PAGE), MYF(MY_WME|MY_ZEROFILL))))
     goto err;
   inited=3;
   for (pg=pages, i=0; i < npages; i++, pg++)
@@ -9418,7 +9423,8 @@ int TC_LOG_MMAP::unlog(ulong cookie, my_xid xid)
   {
     uint32 size= sizeof(*pending_checkpoint) + sizeof(ulong) * (ncookies - 1);
     if (!(pending_checkpoint=
-          (pending_cookies *)my_malloc(size, MYF(MY_ZEROFILL))))
+          (pending_cookies *)my_malloc(PSI_INSTRUMENT_ME, size,
+                                       MYF(MY_ZEROFILL))))
     {
       my_error(ER_OUTOFMEMORY, MYF(0), size);
       mysql_mutex_unlock(&LOCK_pending_checkpoint);
@@ -9557,8 +9563,8 @@ int TC_LOG_MMAP::recover()
     goto err1;
   }
 
-  if (my_hash_init(&xids, &my_charset_bin, tc_log_page_size/3, 0,
-                   sizeof(my_xid), 0, 0, MYF(0)))
+  if (my_hash_init(PSI_INSTRUMENT_ME, &xids, &my_charset_bin,
+                   tc_log_page_size/3, 0, sizeof(my_xid), 0, 0, MYF(0)))
     goto err1;
 
   for ( ; p < end_p ; p++)
@@ -10071,13 +10077,13 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
 #endif
 
   if (! fdle->is_valid() ||
-      (do_xa && my_hash_init(&xids, &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
+      (do_xa && my_hash_init(key_memory_binlog_recover_exec, &xids, &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
                              sizeof(my_xid), 0, 0, MYF(0))))
     goto err1;
 
   if (do_xa)
-    init_alloc_root(&mem_root, "TC_LOG_BINLOG", TC_LOG_PAGE_SIZE,
-                    TC_LOG_PAGE_SIZE, MYF(0));
+    init_alloc_root(key_memory_binlog_recover_exec, &mem_root,
+                    TC_LOG_PAGE_SIZE, TC_LOG_PAGE_SIZE, MYF(0));
 
   fdle->flags&= ~LOG_EVENT_BINLOG_IN_USE_F; // abort on the first error
 
@@ -10489,7 +10495,7 @@ static struct st_mysql_sys_var *binlog_sys_vars[]=
 /*
   Copy out the non-directory part of binlog position filename for the
   `binlog_snapshot_file' status variable, same way as it is done for
-  SHOW MASTER STATUS.
+  SHOW BINLOG STATUS.
 */
 static void
 set_binlog_snapshot_file(const char *src)
@@ -10741,8 +10747,8 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
       Set callbacks in order to be able to call commmit or rollback.
     */
     if (trx)
-      trans_register_ha(thd, TRUE, binlog_hton);
-    trans_register_ha(thd, FALSE, binlog_hton);
+      trans_register_ha(thd, TRUE, binlog_hton, 0);
+    trans_register_ha(thd, FALSE, binlog_hton, 0);
 
     /*
       Set the binary log as read/write otherwise callbacks are not called.

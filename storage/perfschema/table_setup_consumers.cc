@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,73 +26,105 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "table_setup_consumers.h"
 #include "pfs_instr.h"
 #include "pfs_events_waits.h"
 #include "pfs_digest.h"
+#include "field.h"
 
-#define COUNT_SETUP_CONSUMERS 12
+#define COUNT_SETUP_CONSUMERS 15
+
 static row_setup_consumers all_setup_consumers_data[COUNT_SETUP_CONSUMERS]=
 {
   {
     { C_STRING_WITH_LEN("events_stages_current") },
     &flag_events_stages_current,
+    false,
     false
   },
   {
     { C_STRING_WITH_LEN("events_stages_history") },
     &flag_events_stages_history,
-    false
+    false,
+    true
   },
   {
     { C_STRING_WITH_LEN("events_stages_history_long") },
     &flag_events_stages_history_long,
-    false
+    false,
+    true
   },
   {
     { C_STRING_WITH_LEN("events_statements_current") },
     &flag_events_statements_current,
+    false,
     false
   },
   {
     { C_STRING_WITH_LEN("events_statements_history") },
     &flag_events_statements_history,
-    false
+    false,
+    true
   },
   {
     { C_STRING_WITH_LEN("events_statements_history_long") },
     &flag_events_statements_history_long,
+    false,
+    true
+  },
+  {
+    { C_STRING_WITH_LEN("events_transactions_current") },
+    &flag_events_transactions_current,
+    false,
     false
+  },
+  {
+    { C_STRING_WITH_LEN("events_transactions_history") },
+    &flag_events_transactions_history,
+    false,
+    true
+  },
+  {
+    { C_STRING_WITH_LEN("events_transactions_history_long") },
+    &flag_events_transactions_history_long,
+    false,
+    true
   },
   {
     { C_STRING_WITH_LEN("events_waits_current") },
     &flag_events_waits_current,
+    false,
     false
   },
   {
     { C_STRING_WITH_LEN("events_waits_history") },
     &flag_events_waits_history,
-    false
+    false,
+    true
   },
   {
     { C_STRING_WITH_LEN("events_waits_history_long") },
     &flag_events_waits_history_long,
-    false
+    false,
+    true
   },
   {
     { C_STRING_WITH_LEN("global_instrumentation") },
     &flag_global_instrumentation,
+    true,
     true
   },
   {
     { C_STRING_WITH_LEN("thread_instrumentation") },
     &flag_thread_instrumentation,
-    false
+    false,
+    true
   },
   {
     { C_STRING_WITH_LEN("statements_digest") },
     &flag_statements_digest,
+    false,
     false
   }
 };
@@ -104,21 +136,27 @@ table_setup_consumers::m_share=
 {
   { C_STRING_WITH_LEN("setup_consumers") },
   &pfs_updatable_acl,
-  &table_setup_consumers::create,
+  table_setup_consumers::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  NULL, /* get_row_count */
-  COUNT_SETUP_CONSUMERS, /* records */
+  table_setup_consumers::get_row_count,
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE setup_consumers("
                       "NAME VARCHAR(64) not null,"
-                      "ENABLED ENUM ('YES', 'NO') not null)") }
+                      "ENABLED ENUM ('YES', 'NO') not null)") },
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_setup_consumers::create(void)
 {
   return new table_setup_consumers();
+}
+
+ha_rows
+table_setup_consumers::get_row_count(void)
+{
+  return COUNT_SETUP_CONSUMERS;
 }
 
 table_setup_consumers::table_setup_consumers()
@@ -225,8 +263,11 @@ int table_setup_consumers::update_row_values(TABLE *table,
     }
   }
 
-  if (m_row->m_refresh)
+  if (m_row->m_instrument_refresh)
     update_instruments_derived_flags();
+
+  if (m_row->m_thread_refresh)
+    update_thread_derived_flags();
 
   return 0;
 }
