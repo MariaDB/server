@@ -9420,7 +9420,6 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
   else if (opt_binlog_split_alter)
   {
     char *send_query= (char *)thd->alloc(thd->query_length() + 20);
-    thd->gtid_flags3|= Gtid_log_event::FL_START_ALTER_E1;
     sprintf(send_query, "/*!105001  %s EXECUTE = UNTIL COMMIT %ld */",
                                       thd->query(), (long)thd->thread_id);
     if (write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
@@ -10237,7 +10236,6 @@ do_continue:;
       {
         if (opt_binlog_split_alter)
         {
-          thd->gtid_flags3|= Gtid_log_event::FL_ROLLBACK_ALTER_E1;
           sprintf(send_query, "/*!105001  %s EXECUTE = ROLLBACK %ld */", thd->query(),
                                                         (long)thd->thread_id);
           if(write_bin_log(thd, false, send_query, strlen(send_query), true, true))
@@ -10402,7 +10400,6 @@ do_continue:;
       goto err_new_table_cleanup;
     if (partial_alter)
     {
-      thd->gtid_flags3|= Gtid_log_event::FL_COMMIT_ALTER_E1;
       sprintf(send_query, "%s /*!105001 EXECUTE = COMMIT %ld */", thd->query(),
                                                         (long)thd->thread_id);
       if(write_bin_log(thd, false, send_query, strlen(send_query)))
@@ -10611,7 +10608,6 @@ end_inplace:
                 (create_info->tmp_table())));
   if (partial_alter)
   {
-    thd->gtid_flags3|= Gtid_log_event::FL_COMMIT_ALTER_E1;
     sprintf(send_query, "%s /*!105001 EXECUTE = COMMIT %ld */", thd->query(),
                                                         (long)thd->thread_id);
     if(write_bin_log(thd, false, send_query, strlen(send_query)))
@@ -10680,7 +10676,6 @@ err_new_table_cleanup:
     master_result(thd, mi, info, 1);
   else if (opt_binlog_split_alter)
   {
-    thd->gtid_flags3|= Gtid_log_event::FL_ROLLBACK_ALTER_E1;
     sprintf(send_query, "/*!105001  %s EXECUTE = ROLLBACK %ld */", thd->query(),
                                                         (long)thd->thread_id);
     if(write_bin_log(thd, false, send_query, strlen(send_query), true, true))

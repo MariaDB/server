@@ -3383,7 +3383,6 @@ public:
   uint64 commit_id;
   uint32 domain_id;
   uchar flags2;
-  uint16 flags3;
 
   /* Flags2. */
 
@@ -3412,21 +3411,6 @@ public:
   /* FL_DDL is set for event group containing DDL. */
   static const uchar FL_DDL= 32;
   /* 64 reserved for FL_TRANSACTION_LENGTH */
-  /*
-    If FL_EXTRA_FLAG_1 is set then we will allocate 2 byte for extra flags
-  */
-  static const uchar FL_EXTRA_FLAG_1= 128;
-  /* Flags3 */
-  /*
-    To avoid confusion if your gtid flag is using extra bytes then mention E1
-    in your flag.
-    For exam. FL_XYZ_E1
-    Because in future we may need to allocate more space for flags.
-  */
-  //MDEV-11675 flags
-  static const uint16 FL_START_ALTER_E1= 4;
-  static const uint16 FL_COMMIT_ALTER_E1= 8;
-  static const uint16 FL_ROLLBACK_ALTER_E1= 16;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,

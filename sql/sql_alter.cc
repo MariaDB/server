@@ -377,13 +377,7 @@ void Alter_table_ctx::report_implicit_default_value_error(THD *thd,
 static int process_start_alter(THD *thd, uint64 thread_id)
 {
   /*
-   Slave spawned start alter thread will not binlog, So we have to make sure
-   that slave binlog will write flag FL_START_ALTER_E1
-  */
-  thd->gtid_flags3|= Gtid_log_event::FL_START_ALTER_E1;
-  /*
    start_alter_thread will be true for spawned thread
-   TODO //not needed i guess
   */
   if (thd->start_alter_thread)
   {
@@ -455,7 +449,6 @@ static int process_start_alter(THD *thd, uint64 thread_id)
 static int process_commit_alter(THD *thd, uint64 thread_id)
 {
   DBUG_ASSERT(thd->rgi_slave);
-  thd->gtid_flags3|= Gtid_log_event::FL_START_ALTER_E1;
   Master_info *mi= thd->rgi_slave->rli->mi;
   start_alter_info *info=NULL;
   uint count=0;
