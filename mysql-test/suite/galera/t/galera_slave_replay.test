@@ -7,13 +7,14 @@
 #
 
 --source include/have_innodb.inc
+--source include/have_debug.inc
 --source include/have_debug_sync.inc
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 
 --connection node_2a
 --source include/galera_cluster.inc
-#--source suite/galera/include/galera_have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
 
 #
 # node 1 is native MariaDB server operating as async replication master
