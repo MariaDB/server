@@ -14,6 +14,7 @@
 --source include/have_innodb.inc
 --source include/have_log_bin.inc
 --source include/galera_cluster.inc
+SELECT @@WSREP_ON;
 
 # As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
 # we open the node_3 connection here

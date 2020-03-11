@@ -77,7 +77,6 @@ fi
 if ! apt-cache madison libzstd-dev | grep 'libzstd-dev' >/dev/null 2>&1
 then
   sed '/libzstd-dev/d' -i debian/control
-  sed '/libzstd1/d' -i debian/control
 fi
 
 # The binaries should be fully hardened by default. However TokuDB compilation seems to fail on
