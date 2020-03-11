@@ -396,6 +396,7 @@ int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
   Table_specification_st *create_info = &thd->lex->create_info;
   const bool is_tmp_table = info->options & HA_LEX_CREATE_TMP_TABLE;
   String create_table_stmt;
+  create_table_stmt.set_charset(system_charset_info);
 
   /* Create a copy of the CREATE TABLE statement */
   if (!is_tmp_table)
@@ -412,6 +413,7 @@ int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
   TABLE_LIST table_list;
   memset(&table_list, 0, sizeof(table_list));
   table_list.table = form;
+  Sql_mode_instant_set smis(thd, MODE_STRICT_TRANS_TABLES);
   error_code = show_create_table_ex(thd, &table_list,
                                     norm_db.c_str(), norm_table.c_str(),
                                     &create_table_stmt, create_info, WITH_DB_NAME);
@@ -425,13 +427,13 @@ int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
   // To syncronize the schemas of MDB FE and XPD BE.
   if (form->s && form->s->db.length) {
     String createdb_stmt;
-    createdb_stmt.append("CREATE DATABASE IF NOT EXISTS `");
-    createdb_stmt.append(form->s->db.str, form->s->db.length);
-    createdb_stmt.append("`");
-    trx->run_query(createdb_stmt);
+    createdb_stmt.set_charset(system_charset_info);
+    createdb_stmt.append("CREATE DATABASE IF NOT EXISTS ");
+    append_identifier(thd, &createdb_stmt, &form->s->db);
+    trx->run_system_query(createdb_stmt);
   }
 
-  return trx->run_query(create_table_stmt);
+  return trx->run_system_query(create_table_stmt);
 }
 
 int ha_xpand::delete_table(const char *path)
@@ -448,14 +450,17 @@ int ha_xpand::delete_table(const char *path)
                                        &decoded_tbname)))
     return error_code;
 
+  Sql_mode_instant_set smis(thd, MODE_STRICT_TRANS_TABLES);
   String delete_cmd;
-  delete_cmd.append("DROP TABLE `");
-  delete_cmd.append(decoded_dbname.c_str());
-  delete_cmd.append("`.`");
-  delete_cmd.append(decoded_tbname.c_str());
-  delete_cmd.append("`");
+  delete_cmd.set_charset(system_charset_info);
+  delete_cmd.append("DROP TABLE ");
+  append_identifier(thd, &delete_cmd,
+                    decoded_dbname.c_str(), decoded_dbname.size());
+  delete_cmd.append(".");
+  append_identifier(thd, &delete_cmd,
+                    decoded_tbname.c_str(), decoded_tbname.size());
 
-  return trx->run_query(delete_cmd);
+  return trx->run_system_query(delete_cmd);
 }
 
 int ha_xpand::rename_table(const char* from, const char* to)
@@ -478,18 +483,23 @@ int ha_xpand::rename_table(const char* from, const char* to)
                                        &decoded_to_tbname)))
     return error_code;
 
+  Sql_mode_instant_set smis(thd, MODE_STRICT_TRANS_TABLES);
   String rename_cmd;
-  rename_cmd.append("RENAME TABLE `");
-  rename_cmd.append(decoded_from_dbname.c_str());
-  rename_cmd.append("`.`");
-  rename_cmd.append(decoded_from_tbname.c_str());
-  rename_cmd.append("` TO `");
-  rename_cmd.append(decoded_to_dbname.c_str());
-  rename_cmd.append("`.`");
-  rename_cmd.append(decoded_to_tbname.c_str());
-  rename_cmd.append("`;");
+  rename_cmd.set_charset(system_charset_info);
+  rename_cmd.append("RENAME TABLE ");
+  append_identifier(thd, &rename_cmd,
+                    decoded_from_dbname.c_str(), decoded_from_dbname.size());
+  rename_cmd.append(".");
+  append_identifier(thd, &rename_cmd,
+                    decoded_from_tbname.c_str(), decoded_from_tbname.size());
+  rename_cmd.append(" TO ");
+  append_identifier(thd, &rename_cmd,
+                    decoded_to_dbname.c_str(), decoded_to_dbname.size());
+  rename_cmd.append(".");
+  append_identifier(thd, &rename_cmd,
+                    decoded_to_tbname.c_str(), decoded_to_tbname.size());
 
-  return trx->run_query(rename_cmd);
+  return trx->run_system_query(rename_cmd);
 }
 
 static void
@@ -558,6 +568,10 @@ int ha_xpand::open(const char *name, int mode, uint test_if_locked)
       DBUG_RETURN(error_code);
 
     ulonglong oid = 0;
+    // XXX MSE This sets character_set_client, character_set_results,
+    // character_set_connection, and sql_mode, so we have to set them back using
+    // xpand_connection::add_status_vars before the first command of the
+    // statement.
     error_code= trx->get_table_oid(norm_db.c_str(), strlen(norm_db.c_str()),
                                    norm_table.c_str(),
                                    strlen(norm_table.c_str()), &oid,
@@ -737,7 +751,7 @@ int ha_xpand::direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
   ulonglong *oids = xpand_extract_table_oids(thd, thd->lex);
   error_code = trx->update_query(update_stmt, table->s->db, oids, update_rows);
   *found_rows = *update_rows;
-  
+
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
     xpand_mark_tables_for_discovery(thd->lex);
   DBUG_RETURN(error_code);

@@ -108,6 +108,24 @@ enum xpand_commands {
   XPAND_SCAN_TABLE_COND,
 };
 
+static bool xpand_append_identifier(String *stmt, const char *str, size_t len)
+{
+  if (stmt->append(STRING_WITH_LEN("`")))
+    return TRUE;
+  const void *ptr;
+  while (len && (ptr = memchr(static_cast<const void *>(str), '`', len)))
+  {
+    const char *s = static_cast<const char *>(ptr);
+    if (stmt->append(str, s - str) ||
+        stmt->append(STRING_WITH_LEN("``")))
+      return TRUE;
+    len -= s - str + 1;
+    str = s + 1;
+  }
+  return (stmt->append(str, len) ||
+          stmt->append(STRING_WITH_LEN("`")));
+}
+
 /****************************************************************************
 ** Class xpand_connection
 ****************************************************************************/
@@ -194,7 +212,7 @@ int xpand_connection::connect_direct(char *host)
                 &xpand_connect_timeout);
   mysql_options(&xpand_net, MYSQL_OPT_USE_REMOTE_CONNECTION,
                 NULL);
-  mysql_options(&xpand_net, MYSQL_SET_CHARSET_NAME, "utf8mb4");
+  mysql_options(&xpand_net, MYSQL_SET_CHARSET_NAME, "utf8");
   mysql_options(&xpand_net, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
                 (char *) &my_true);
   mysql_options(&xpand_net, MYSQL_INIT_COMMAND,"SET autocommit=0");
@@ -421,12 +439,42 @@ void xpand_connection::auto_commit_closed()
   }
 }
 
-int xpand_connection::run_query(String &stmt)
+int xpand_connection::begin_system_query()
 {
-  int error_code = mysql_real_query(&xpand_net, stmt.ptr(), stmt.length());
-  if (error_code)
-    return mysql_errno(&xpand_net);
-  return error_code;
+  DBUG_ENTER("xpand_connection::begin_system_query");
+  if (mysql_real_query(&xpand_net, STRING_WITH_LEN("BEGIN ISOLATION LEVEL "
+                                                   "REPEATABLE READ")))
+    DBUG_RETURN(mysql_errno(&xpand_net));
+  DBUG_RETURN(0);
+}
+
+int xpand_connection::run_system_query(String &stmt)
+{
+  DBUG_ENTER("xpand_connection::run_system_query");
+  DBUG_PRINT("info", ("running system query: %s", stmt.ptr()));
+  if (mysql_real_query(&xpand_net,
+                       STRING_WITH_LEN("SET NAMES 'utf8'")) ||
+      mysql_real_query(&xpand_net,
+                       STRING_WITH_LEN("SET sql_mode='STRICT_TRANS_TABLES'")) ||
+      mysql_real_query(&xpand_net, stmt.ptr(), stmt.length()))
+    DBUG_RETURN(mysql_errno(&xpand_net));
+  DBUG_RETURN(0);
+}
+
+int xpand_connection::commit_system_query()
+{
+  DBUG_ENTER("xpand_connection::commit_system_query");
+  if (mysql_real_query(&xpand_net, STRING_WITH_LEN("COMMIT")))
+    DBUG_RETURN(mysql_errno(&xpand_net));
+  DBUG_RETURN(0);
+}
+
+int xpand_connection::rollback_system_query()
+{
+  DBUG_ENTER("xpand_connection::rollback_system_query");
+  if (mysql_real_query(&xpand_net, STRING_WITH_LEN("ROLLBACK")))
+    DBUG_RETURN(mysql_errno(&xpand_net));
+  DBUG_RETURN(0);
 }
 
 int xpand_connection::write_row(ulonglong xpand_table_oid, uchar *packed_row,
@@ -1001,14 +1049,16 @@ int xpand_connection::scan_end(xpand_connection_cursor *scan)
 int xpand_connection::populate_table_list(LEX_CSTRING *db,
                                           handlerton::discovered_list *result)
 {
-  int error_code = 0;
   String stmt;
+  stmt.set_charset(system_charset_info);
   stmt.append("SHOW FULL TABLES FROM ");
-  stmt.append(db);
+  xpand_append_identifier(&stmt, db->str, db->length);
   stmt.append(" WHERE table_type = 'BASE TABLE'");
 
-  if (mysql_real_query(&xpand_net, stmt.c_ptr(), stmt.length())) {
-    int error_code = mysql_errno(&xpand_net);
+  int error_code = run_system_query(stmt);
+  if (error_code)
+  {
+    rollback_system_query();
     if (error_code == ER_BAD_DB_ERROR)
       return 0;
     else
@@ -1026,6 +1076,7 @@ int xpand_connection::populate_table_list(LEX_CSTRING *db,
     result->add_table(row[0], strlen(row[0]));
 
 error:
+  rollback_system_query();  // nothing to commit
   mysql_free_result(results);
   return error_code;
 }
@@ -1053,29 +1104,32 @@ int xpand_connection::get_table_oid(const char *db, size_t db_len,
   int error_code = 0;
   MYSQL_RES *results_oid = NULL;
   String get_oid;
+  get_oid.set_charset(system_charset_info);
+
   DBUG_ENTER("xpand_connection::get_table_oid");
 
   /* get oid */
-  get_oid.append("select r.table "
-                 "from system.databases d "
-                 "     inner join ""system.relations r on d.db = r.db "
-                 "where d.name = '");
-  get_oid.append(db, db_len);
-  get_oid.append("' and r.name = '");
-  get_oid.append(name, name_len);
+  get_oid.append("SELECT r.table "
+                 "FROM system.databases d "
+                 "INNER JOIN system.relations r ON d.db = r.db "
+                 "WHERE d.name = '");
+  get_oid.append_for_single_quote(db, db_len);
+  get_oid.append("' AND r.name = '");
+  get_oid.append_for_single_quote(name, name_len);
   get_oid.append("'");
 
-  if (mysql_real_query(&xpand_net, get_oid.c_ptr(), get_oid.length())) {
-    if ((error_code = mysql_errno(&xpand_net))) {
-      DBUG_PRINT("mysql_real_query returns ", ("%d", error_code));
-      error_code = HA_ERR_NO_SUCH_TABLE;
-      goto error;
-    }
+  error_code = run_system_query(get_oid);
+  if (error_code)
+  {
+    DBUG_PRINT("info", ("mysql_real_query returns %d", error_code));
+    error_code = HA_ERR_NO_SUCH_TABLE;
+    goto error;
   }
 
   results_oid = mysql_store_result(&xpand_net);
-  DBUG_PRINT("oid results",
-             ("rows: %llu, fields: %u", mysql_num_rows(results_oid),
+  DBUG_PRINT("info",
+             ("oid results: rows: %llu, fields: %u",
+              mysql_num_rows(results_oid),
               mysql_num_fields(results_oid)));
 
   if (mysql_num_rows(results_oid) != 1) {
@@ -1110,7 +1164,9 @@ int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
   int error_code = 0;
   MYSQL_RES *results_create = NULL;
   MYSQL_ROW row;
+  Sql_mode_instant_set smis(thd, MODE_STRICT_TRANS_TABLES);
   String show;
+  show.set_charset(system_charset_info);
   ulonglong oid = 0;
   Xpand_share *cs;
 
@@ -1125,23 +1181,23 @@ int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
   cs->xpand_table_oid = oid;
 
   /* get show create statement */
-  show.append("show simple create table ");
-  show.append(db);
+  show.append("SHOW SIMPLE CREATE TABLE ");
+  append_identifier(thd, &show, db);
   show.append(".");
-  show.append("`");
-  show.append(name);
-  show.append("`");
-  if (mysql_real_query(&xpand_net, show.c_ptr(), show.length())) {
-    if ((error_code = mysql_errno(&xpand_net))) {
-      DBUG_PRINT("mysql_real_query returns ", ("%d", error_code));
-      error_code = HA_ERR_NO_SUCH_TABLE;
-      goto error;
-    }
+  append_identifier(thd, &show, name);
+
+  error_code = run_system_query(show);
+  if (error_code)
+  {
+    DBUG_PRINT("info", ("mysql_real_query returns %d", error_code));
+    error_code = HA_ERR_NO_SUCH_TABLE;
+    goto error;
   }
 
   results_create = mysql_store_result(&xpand_net);
-  DBUG_PRINT("show table results",
-             ("rows: %llu, fields: %u", mysql_num_rows(results_create),
+  DBUG_PRINT("info",
+             ("show table results: rows: %llu, fields: %u",
+              mysql_num_rows(results_create),
               mysql_num_fields(results_create)));
 
   if (mysql_num_rows(results_create) != 1) {
@@ -1155,7 +1211,7 @@ int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
   }
 
   while((row = mysql_fetch_row(results_create))) {
-    DBUG_PRINT("row", ("%s - %s", row[0], row[1]));
+    DBUG_PRINT("info", ("row: %s - %s", row[0], row[1]));
     error_code = share->init_from_sql_statement_string(thd, false, row[1],
                                                        strlen(row[1]));
   }
