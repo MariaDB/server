@@ -7303,6 +7303,9 @@ alter_commands:
           remove_partitioning
         | remove_partitioning
         | partitioning
+        | alter_list
+           alter_state
+        | alter_state
 /*
   This part was added for release 5.1 by Mikael Ronstrm.
   From here we insert a number of commands to manage the partitions of a
@@ -7676,7 +7679,6 @@ alter_list_item:
           }
         | alter_algorithm_option
         | alter_lock_option
-        | alter_state
         | ADD SYSTEM VERSIONING_SYM
           {
             Lex->alter_info.flags|= ALTER_ADD_SYSTEM_VERSIONING;
@@ -7735,20 +7737,25 @@ alter_lock_option:
           }
         ;
 alter_state:
-          START_SYM ulong_num
+          EXECUTE_SYM opt_equal DEFAULT
+          {
+            Lex->alter_info.alter_state= Alter_info::ALTER_TABLE_NORMAL;
+            Lex->alter_info.alter_identifier= 0;
+          }
+        | EXECUTE_SYM opt_equal UNTIL_SYM COMMIT_SYM ulong_num
           {
             Lex->alter_info.alter_state= Alter_info::ALTER_TABLE_START;
-            Lex->alter_info.alter_identifier= $2;
+            Lex->alter_info.alter_identifier= $5;
           }
-        | COMMIT_SYM ulong_num
+        | EXECUTE_SYM opt_equal COMMIT_SYM ulong_num
           {
             Lex->alter_info.alter_state= Alter_info::ALTER_TABLE_COMMIT;
-            Lex->alter_info.alter_identifier= $2;
+            Lex->alter_info.alter_identifier= $4;
           }
-        | ROLLBACK_SYM ulong_num
+        | EXECUTE_SYM opt_equal ROLLBACK_SYM ulong_num
           {
             Lex->alter_info.alter_state= Alter_info::ALTER_TABLE_ROLLBACK;
-            Lex->alter_info.alter_identifier= $2;
+            Lex->alter_info.alter_identifier= $4;
           }
         ;
 
