@@ -38,6 +38,9 @@ Modified 30/07/2014 Jan Lindström jan.lindstrom@mariadb.com
 
 #include <list>
 
+using std::list;
+using std::min;
+
 /* When there's no work, either because defragment is disabled, or because no
 query is submitted, thread checks state every BTR_DEFRAGMENT_SLEEP_IN_USECS.*/
 #define BTR_DEFRAGMENT_SLEEP_IN_USECS		1000000

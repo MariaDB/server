@@ -807,7 +807,7 @@ row_create_prebuilt(
 					temp_index->fields[i].fixed_len;
 			}
 		}
-		srch_key_len = max(srch_key_len,temp_len);
+		srch_key_len = std::max(srch_key_len,temp_len);
 	}
 
 	ut_a(srch_key_len <= MAX_SRCH_KEY_VAL_BUFFER);
