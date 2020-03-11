@@ -433,16 +433,9 @@ ADD_CUSTOM_TARGET(distclean
   VERBATIM
   )
 
-IF(INSTALL_LAYOUT STREQUAL "STANDALONE")
-
-# Copy db.opt into data/test/
-SET(DBOPT_FILE ${CMAKE_SOURCE_DIR}/support-files/db.opt ) 
-INSTALL(FILES ${DBOPT_FILE} DESTINATION data/test COMPONENT DataFiles)
-
-# Install initial database on windows
-IF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
-
-  IF(MSVC_IDE OR CMAKE_GENERATOR MATCHES "Xcode")
+# Install initial database (default on windows, optional target elsewhere)
+IF(TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
+  IF(GENERATOR_IS_MULTI_CONFIG)
     SET (CONFIG_PARAM -DCONFIG=${CMAKE_CFG_INTDIR})
   ENDIF()
   MAKE_DIRECTORY(${CMAKE_CURRENT_BINARY_DIR}/data)
@@ -461,15 +454,16 @@ IF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/
      DEPENDS mysqld
   )
+  IF(WIN32)
+    SET(ALL_ON_WINDOWS ALL)
+  ELSE()
+    SET(ALL_ON_WINDOWS)
+  ENDIF()
   ADD_CUSTOM_TARGET(initial_database  
-    ALL
+    ${ALL_ON_WINDOWS}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
   )
-ELSE()
-  # Not windows or cross compiling, just install an empty directory
-  INSTALL(FILES ${DUMMY_FILE} DESTINATION data/mysql COMPONENT DataFiles)
-ENDIF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
-ENDIF(INSTALL_LAYOUT STREQUAL "STANDALONE")
+ENDIF()
 
 IF(WIN32)
   SET(my_bootstrap_sql ${CMAKE_CURRENT_BINARY_DIR}/my_bootstrap.sql)
