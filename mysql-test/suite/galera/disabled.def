@@ -30,6 +30,7 @@ galera_sst_mariabackup_table_options: MDEV-19741 Galera test failure on galera.g
 galera_var_innodb_disallow_writes : MDEV-20928 galera.galera_var_innodb_disallow_writes
 galera_var_node_address : MDEV-20485 Galera test failure
 galera_wan : MDEV-17259 Test failure on galera.galera_wan
+lp1376747-4 : MDEV-21911 Galera test failure on lp1376747-4
 partition : MDEV-19958 Galera test failure on galera.partition
 query_cache: MDEV-15805 Test failure on galera.query_cache
 sql_log_bin : MDEV-21491 galera.sql_log_bin

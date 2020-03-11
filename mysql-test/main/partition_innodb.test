@@ -401,9 +401,7 @@ DROP TABLE t1;
 # Bug #14673: Wrong InnoDB default row format
 #
 create table t1 (a int) engine=innodb partition by hash(a) ;
-# Data_free for InnoDB tablespace varies depending on which
-# tests have been run before this one
---replace_column 10 # 12 #
+--replace_column 12 #
 show table status like 't1';
 drop table t1;
 
@@ -413,33 +411,23 @@ drop table t1;
 create table t1 (a int)
 engine = innodb
 partition by key (a);
-# Data_free for InnoDB tablespace varies depending on which
-# tests have been run before this one
---replace_column 10 # 12 #
+--replace_column 12 Create_time
 show table status;
 insert into t1 values (0), (1), (2), (3);
-# Data_free for InnoDB tablespace varies depending on which
-# tests have been run before this one
---replace_column 10 # 12 #
+--replace_column 12 Create_time 13 Update_time
 show table status;
 drop table t1;
 
 create table t1 (a int auto_increment primary key)
 engine = innodb
 partition by key (a);
-# Data_free for InnoDB tablespace varies depending on which
-# tests have been run before this one
---replace_column 10 # 12 #
+--replace_column 12 Create_time
 show table status;
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
-# Data_free for InnoDB tablespace varies depending on which
-# tests have been run before this one
---replace_column 10 # 12 #
+--replace_column 12 Create_time 13 Update_time
 show table status;
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
-# Data_free for InnoDB tablespace varies depending on which
-# tests have been run before this one
---replace_column 10 # 12 #
+--replace_column 12 Create_time 13 Update_time
 show table status;
 drop table t1;
 
