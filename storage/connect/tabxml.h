@@ -157,6 +157,7 @@ class DllExport TDBXML : public TDBASE {
 /*  Class XMLCOL: XDB table access method column descriptor.           */
 /***********************************************************************/
 class XMLCOL : public COLBLK {
+	friend class TDBXML;
  public:
   // Constructors
   XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "XML");
