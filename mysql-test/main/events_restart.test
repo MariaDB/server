@@ -141,3 +141,34 @@ SHOW EVENTS;
 DROP EVENT e1;
 
 --echo # end test for bug#11748899
+
+--echo #
+--echo # Test for MDEV-21758 Events switched randomly to SLAVESIDE_DISABLED
+--echo #
+
+create event ev on schedule every 1 minute do set @a= 1;
+select name, originator, status from mysql.event;
+
+--let $server_id= `SELECT @@global.server_id`
+
+--echo #
+--echo # Restarting server with server_id=100
+--echo #
+--let $restart_parameters= --server-id=100
+--source include/restart_mysqld.inc
+
+select @@global.server_id;
+select name, originator, status from mysql.event;
+--eval set global server_id= $server_id
+
+--echo #
+--echo # Restarting server with the original server_id=$server_id
+--echo #
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+select @@global.server_id;
+select name, originator, status from mysql.event;
+
+# Cleanup
+drop event ev;

@@ -17,7 +17,6 @@ INSERT INTO t1 VALUES (1);
 
 --connection node_2
 SET session wsrep_sync_wait=0;
-SET session wsrep_causal_reads=OFF;
 FLUSH TABLE WITH READ LOCK;
 
 --connection node_1
@@ -26,9 +25,10 @@ INSERT INTO t1 VALUES (2,3);
 
 --connection node_2a
 SET session wsrep_sync_wait=0;
-SET session wsrep_causal_reads=OFF;
 
+--echo # node_1 DDL should not yet be applied
 SHOW CREATE TABLE t1;
+
 --send FLUSH TABLES t1 WITH READ LOCK;
 
 --connection node_2
@@ -36,6 +36,8 @@ SHOW CREATE TABLE t1;
 --source include/wait_condition.inc
 
 UNLOCK TABLES;
+
+--echo # node_1 DDL should not yet be applied 2
 SHOW CREATE TABLE t1;
 
 --connection node_2a
@@ -45,6 +47,10 @@ UNLOCK TABLES;
 --let $wait_condition = SELECT COUNT(*) = 2 FROM t1;
 --source include/wait_condition.inc
 
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--echo # node_1 DDL should be applied 2
 SHOW CREATE TABLE t1;
 SELECT * from t1;
 

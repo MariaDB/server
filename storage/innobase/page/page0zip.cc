@@ -3386,11 +3386,12 @@ page_zip_validate_low(
 				differed.  Let us ignore it. */
 				page_zip_fail(("page_zip_validate:"
 					       " min_rec_flag"
-					       " (%s%lu,%lu,0x%02lx)\n",
+					       " (%s" ULINTPF "," ULINTPF
+					       ",0x%02x)\n",
 					       sloppy ? "ignored, " : "",
 					       page_get_space_id(page),
 					       page_get_page_no(page),
-					       (ulong) page[offset]));
+					       page[offset]));
 				/* We don't check for spatial index, since
 				the "minimum record" could be deleted when
 				doing rtr_update_mbr_field.

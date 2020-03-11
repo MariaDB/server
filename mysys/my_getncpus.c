@@ -30,50 +30,52 @@ static int ncpus=0;
 
 int my_getncpus(void)
 {
-#if (defined(__linux__) || defined(__FreeBSD__)) && defined(HAVE_PTHREAD_GETAFFINITY_NP)
-  cpu_set_t set;
-
   if (!ncpus)
   {
+    /*
+      First attempt to get the total number of available cores. sysconf is
+      the fallback, but it can return a larger number. It will return the
+      total number of cores, not the ones available to the process - as
+      configured via core affinity.
+    */
+#if (defined(__linux__) || defined(__FreeBSD__)) && defined(HAVE_PTHREAD_GETAFFINITY_NP)
+    cpu_set_t set;
     if (pthread_getaffinity_np(pthread_self(), sizeof(set), &set) == 0)
     {
+#ifdef CPU_COUNT
+      /* CPU_COUNT was introduced with glibc 2.6. */
       ncpus= CPU_COUNT(&set);
-    }
-    else
-    {
-#ifdef _SC_NPROCESSORS_ONLN
-      ncpus= sysconf(_SC_NPROCESSORS_ONLN);
 #else
-      ncpus= 2;
+      /* Implementation for platforms with glibc < 2.6 */
+      size_t i;
+
+      for (i= 0; i < CPU_SETSIZE; i++)
+        if (CPU_ISSET(i, &set))
+          ncpus++;
 #endif
+      return ncpus;
     }
-  }
+#endif /* (__linux__ || __FreeBSD__) && HAVE_PTHREAD_GETAFFINITY_NP */
 
-#else /* __linux__ || FreeBSD && HAVE_PTHREAD_GETAFFINITY_NP */
-
-  if (!ncpus)
-  {
 #ifdef _SC_NPROCESSORS_ONLN
     ncpus= sysconf(_SC_NPROCESSORS_ONLN);
 #elif defined(__WIN__)
     SYSTEM_INFO sysinfo;
 
     /*
-    * We are not calling GetNativeSystemInfo here because (1) we
-    * don't believe that they return different values for number
-    * of processors and (2) if WOW64 limits processors for Win32
-    * then we don't want to try to override that.
+      We are not calling GetNativeSystemInfo here because (1) we
+      don't believe that they return different values for number
+      of processors and (2) if WOW64 limits processors for Win32
+      then we don't want to try to override that.
     */
     GetSystemInfo(&sysinfo);
 
     ncpus= sysinfo.dwNumberOfProcessors;
 #else
-    /* unknown so play safe: assume SMP and forbid uniprocessor build */
+    /* Unknown so play safe: assume SMP and forbid uniprocessor build */
     ncpus= 2;
 #endif
   }
-
-#endif /* __linux__ || FreeBSD && HAVE_PTHREAD_GETAFFINITY_NP */
 
   return ncpus;
 }
