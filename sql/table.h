@@ -1775,7 +1775,7 @@ class IS_table_read_plan;
 constexpr uint frm_fieldno_size= 2;
 static inline uint16 read_frm_fieldno(const uchar *data)
 { return uint2korr(data); }
-static inline void store_frm_fieldno(const uchar *data, uint16 fieldno)
+static inline void store_frm_fieldno(uchar *data, uint16 fieldno)
 { int2store(data, fieldno); }
 
 class select_unit;
