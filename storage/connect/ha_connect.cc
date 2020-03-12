@@ -170,11 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-<<<<<<< HEAD
-       char version[]= "Version 1.06.0010 August 22, 2019";
-=======
        char version[]= "Version 1.07.0001 November 12, 2019";
->>>>>>> 51e9381dcc01ebd72d4f0adc057a64213f850d70
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0001 " __DATE__ " "  __TIME__;
        char slash= '\\';
