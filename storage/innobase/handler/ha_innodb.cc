@@ -4272,6 +4272,7 @@ innobase_commit_ordered_2(
 	innobase_commit_low(trx);
 
 	if (!read_only) {
+		trx->mysql_log_file_name = NULL;
 		trx->flush_log_later = false;
 
 		if (innobase_commit_concurrency > 0) {
@@ -4512,11 +4513,7 @@ innobase_rollback_trx(
 	we come here to roll back the latest SQL statement) we
 	release it now before a possibly lengthy rollback */
 	lock_unlock_table_autoinc(trx);
-
-	if (!trx->has_logged()) {
-		trx->will_lock = 0;
-		DBUG_RETURN(0);
-	}
+	trx_deregister_from_2pc(trx);
 
 	DBUG_RETURN(convert_error_code_to_mysql(trx_rollback_for_mysql(trx),
 						0, trx->mysql_thd));
@@ -4807,74 +4804,39 @@ innobase_savepoint(
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
 }
 
-/*****************************************************************//**
-Frees a possible InnoDB trx object associated with the current THD.
-@return 0 or error number */
-static
-int
-innobase_close_connection(
-/*======================*/
-	handlerton*	hton,	/*!< in: innobase handlerton */
-	THD*		thd)	/*!< in: handle to the MySQL thread of the user
-				whose resources should be free'd */
+
+/**
+  Frees a possible InnoDB trx object associated with the current THD.
+
+  @param hton  innobase handlerton
+  @param thd   server thread descriptor, which resources should be free'd
+
+  @return 0 always
+*/
+static int innobase_close_connection(handlerton *hton, THD *thd)
 {
-
-	DBUG_ENTER("innobase_close_connection");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	trx_t*	trx = thd_to_trx(thd);
-
-	/* During server initialization MySQL layer will try to open
-	some of the master-slave tables those residing in InnoDB.
-	After MySQL layer is done with needed checks these tables
-	are closed followed by invocation of close_connection on the
-	associated thd.
-
-	close_connection rolls back the trx and then frees it.
-	Once trx is freed thd should avoid maintaining reference to
-	it else it can be classified as stale reference.
-
-	Re-invocation of innodb_close_connection on same thd should
-	get trx as NULL. */
-
-	if (trx) {
-
-		if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
-
-			sql_print_error("Transaction not registered for MariaDB 2PC, "
-				"but transaction is active");
-		}
-
-		/* Disconnect causes rollback in the following cases:
-		- trx is not started, or
-		- trx is in *not* in PREPARED state, or
-		- trx has not updated any persistent data.
-		TODO/FIXME: it does not make sense to initiate rollback
-		in the 1st and 3rd case. */
-		if (trx_is_started(trx)) {
-			if (trx_state_eq(trx, TRX_STATE_PREPARED)) {
-				if (trx->has_logged_persistent()) {
-					trx_disconnect_prepared(trx);
-				} else {
-					trx_deregister_from_2pc(trx);
-					goto rollback_and_free;
-				}
-			} else {
-			sql_print_warning(
-				"MariaDB is closing a connection that has an active "
-				"InnoDB transaction.  " TRX_ID_FMT " row modifications "
-				"will roll back.",
-					trx->undo_no);
-				goto rollback_and_free;
-			}
-		} else {
-rollback_and_free:
-			innobase_rollback_trx(trx);
-			trx_free(trx);
-		}
-	}
-
-	DBUG_RETURN(0);
+  DBUG_ASSERT(hton == innodb_hton_ptr);
+  if (auto trx= thd_to_trx(thd))
+  {
+    if (trx->state == TRX_STATE_PREPARED)
+    {
+      if (trx->has_logged_persistent())
+      {
+        trx_disconnect_prepared(trx);
+        return 0;
+      }
+      innobase_rollback_trx(trx);
+    }
+    /*
+      in theory it may fire if preceding rollback failed,
+      but what can we do about it?
+    */
+    DBUG_ASSERT(!trx_is_started(trx));
+    /* some bad guy missed to reset trx->will_lock somewhere, reset it here */
+    trx->will_lock= 0;
+    trx_free(trx);
+  }
+  return 0;
 }
 
 UNIV_INTERN void lock_cancel_waiting_and_release(lock_t* lock);
@@ -17387,7 +17349,6 @@ innobase_rollback_by_xid(
 		}
 #endif /* WITH_WSREP */
 		int ret = innobase_rollback_trx(trx);
-		trx_deregister_from_2pc(trx);
 		ut_ad(!trx->will_lock);
 		trx_free(trx);
 
