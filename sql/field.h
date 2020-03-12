@@ -1239,7 +1239,7 @@ public:
                                                    const Relay_log_info *rli,
                                                    const Conv_param &param)
                                                    const;
-  inline  int cmp(const uchar *str) { return cmp(ptr,str); }
+  inline  int cmp(const uchar *str) const { return cmp(ptr,str); }
   virtual int cmp_max(const uchar *a, const uchar *b, uint max_len) const
     { return cmp(a, b); }
   virtual int cmp(const uchar *,const uchar *) const=0;
