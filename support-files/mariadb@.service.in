@@ -151,13 +151,20 @@ UMask=007
 # LOAD DATA INFILE you can enable PrivateTmp=true for a little more security.
 PrivateTmp=false
 
+# Set an explicit Start and Stop timeout of 900 seconds (15 minutes!)
+# this is the same value as used in SysV init scripts in the past
+# if you need a longer timeout, check the KB:
+# https://mariadb.com/kb/en/library/systemd/#configuring-the-systemd-service-timeout
+TimeoutStartSec=900
+TimeoutStopSec=900
+
 ##
 ## Options previously available to be set via [mysqld_safe]
 ## that now needs to be set by systemd config files as mysqld_safe
 ## isn't executed.
 ##
 
-# Number of files limit. previously [mysqld_safe] open-file-limit
+# Number of files limit. previously [mysqld_safe] open-files-limit
 LimitNOFILE=16364
 
 # Maximium core size. previously [mysqld_safe] core-file-size

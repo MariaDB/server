@@ -110,3 +110,30 @@ Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	E
 test	e1	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	DISABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
 DROP EVENT e1;
 # end test for bug#11748899
+#
+# Test for MDEV-21758 Events switched randomly to SLAVESIDE_DISABLED
+#
+create event ev on schedule every 1 minute do set @a= 1;
+select name, originator, status from mysql.event;
+name	originator	status
+ev	1	ENABLED
+#
+# Restarting server with server_id=100
+#
+select @@global.server_id;
+@@global.server_id
+100
+select name, originator, status from mysql.event;
+name	originator	status
+ev	1	ENABLED
+set global server_id= 1;
+#
+# Restarting server with the original server_id=1
+#
+select @@global.server_id;
+@@global.server_id
+1
+select name, originator, status from mysql.event;
+name	originator	status
+ev	1	ENABLED
+drop event ev;

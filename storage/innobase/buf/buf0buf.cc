@@ -103,6 +103,7 @@ struct set_numa_interleave_t
 					" policy to MPOL_INTERLEAVE: "
 					<< strerror(errno);
 			}
+			numa_bitmask_free(numa_mems_allowed);
 		}
 	}
 
@@ -129,29 +130,6 @@ struct set_numa_interleave_t
 #ifdef HAVE_SNAPPY
 #include "snappy-c.h"
 #endif
-
-inline void* aligned_malloc(size_t size, size_t align) {
-    void *result;
-#ifdef _MSC_VER
-    result = _aligned_malloc(size, align);
-#elif defined (HAVE_POSIX_MEMALIGN)
-    if(posix_memalign(&result, align, size)) {
-	    result = 0;
-    }
-#else
-    /* Use unaligned malloc as fallback */
-    result = malloc(size);
-#endif
-    return result;
-}
-
-inline void aligned_free(void *ptr) {
-#ifdef _MSC_VER
-        _aligned_free(ptr);
-#else
-      free(ptr);
-#endif
-}
 
 /*
 		IMPLEMENTATION OF THE BUFFER POOL
@@ -1663,6 +1641,7 @@ buf_chunk_init(
 				" buffer pool page frames to MPOL_INTERLEAVE"
 				" (error: " << strerror(errno) << ").";
 		}
+		numa_bitmask_free(numa_mems_allowed);
 	}
 #endif /* HAVE_LIBNUMA */
 
@@ -2274,8 +2253,8 @@ buf_page_realloc(
 		ut_d(block->page.in_page_hash = FALSE);
 		ulint	fold = block->page.id.fold();
 		ut_ad(fold == new_block->page.id.fold());
-		HASH_DELETE(buf_page_t, hash, buf_pool->page_hash, fold, (&block->page));
-		HASH_INSERT(buf_page_t, hash, buf_pool->page_hash, fold, (&new_block->page));
+		HASH_REPLACE(buf_page_t, hash, buf_pool->page_hash, fold,
+			     &block->page, &new_block->page);
 
 		ut_ad(new_block->page.in_page_hash);
 
@@ -3393,8 +3372,8 @@ buf_relocate(
 	/* relocate buf_pool->page_hash */
 	ulint	fold = bpage->id.fold();
 	ut_ad(fold == dpage->id.fold());
-	HASH_DELETE(buf_page_t, hash, buf_pool->page_hash, fold, bpage);
-	HASH_INSERT(buf_page_t, hash, buf_pool->page_hash, fold, dpage);
+	HASH_REPLACE(buf_page_t, hash, buf_pool->page_hash, fold, bpage,
+		     dpage);
 }
 
 /** Hazard Pointer implementation. */

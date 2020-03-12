@@ -4,12 +4,12 @@ create user test@localhost;
 grant create view on test.* to test@localhost;
 show grants for test@localhost;
 Grants for test@localhost
-GRANT USAGE ON *.* TO 'test'@'localhost'
-GRANT CREATE VIEW ON `test`.* TO 'test'@'localhost'
+GRANT USAGE ON *.* TO `test`@`localhost`
+GRANT CREATE VIEW ON `test`.* TO `test`@`localhost`
 revoke create view on test.* from test@localhost;
 show grants for test@localhost;
 Grants for test@localhost
-GRANT USAGE ON *.* TO 'test'@'localhost'
+GRANT USAGE ON *.* TO `test`@`localhost`
 drop user test@localhost;
 connect  root,localhost,root,,test;
 connection root;

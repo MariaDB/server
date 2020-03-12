@@ -990,7 +990,7 @@ struct wsrep {
     void (*stats_free) (wsrep_t* wsrep, struct wsrep_stats_var* var_array);
 
   /*!
-   * @brief Reset some stats variables to inital value, provider-dependent.
+   * @brief Reset some stats variables to initial value, provider-dependent.
    *
    * @param wsrep provider handle.
    */

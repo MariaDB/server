@@ -292,6 +292,15 @@ class Temporal_with_date: protected MYSQL_TIME
 {
 protected:
   void make_from_item(THD *thd, Item *item, sql_mode_t flags);
+
+  ulong daynr() const
+  {
+    return (ulong) ::calc_daynr((uint) year, (uint) month, (uint) day);
+  }
+  int weekday(bool sunday_first_day_of_week) const
+  {
+    return ::calc_weekday(daynr(), sunday_first_day_of_week);
+  }
   Temporal_with_date(THD *thd, Item *item, sql_mode_t flags)
   {
     make_from_item(thd, item, flags);
@@ -388,6 +397,11 @@ public:
   {
     DBUG_ASSERT(is_valid_datetime_slow());
     return hour == 0 && minute == 0 && second == 0 && second_part == 0;
+  }
+  int weekday(bool sunday_first_day_of_week) const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return Temporal_with_date::weekday(sunday_first_day_of_week);
   }
   const MYSQL_TIME *get_mysql_time() const
   {

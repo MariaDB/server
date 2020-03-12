@@ -706,6 +706,27 @@ buf_page_is_corrupted(
 #endif
 	MY_ATTRIBUTE((warn_unused_result));
 
+inline void *aligned_malloc(size_t size, size_t align)
+{
+#ifdef _MSC_VER
+  return _aligned_malloc(size, align);
+#else
+  void *result;
+  if (posix_memalign(&result, align, size))
+    result= NULL;
+  return result;
+#endif
+}
+
+inline void aligned_free(void *ptr)
+{
+#ifdef _MSC_VER
+  _aligned_free(ptr);
+#else
+  free(ptr);
+#endif
+}
+
 #ifndef UNIV_INNOCHECKSUM
 /**********************************************************************//**
 Gets the space id, page offset, and byte offset within page of a

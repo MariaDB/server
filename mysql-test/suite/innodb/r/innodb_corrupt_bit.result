@@ -24,7 +24,7 @@ test.corrupt_bit_test_ā	check	Warning	InnoDB: Index idx is marked as corrupted
 test.corrupt_bit_test_ā	check	Warning	InnoDB: Index idxā is marked as corrupted
 test.corrupt_bit_test_ā	check	Warning	InnoDB: Index idxē is marked as corrupted
 test.corrupt_bit_test_ā	check	error	Corrupt
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 CREATE INDEX idx3 ON corrupt_bit_test_ā(b, c);
 ERROR HY000: Index idx is corrupted
 CREATE INDEX idx4 ON corrupt_bit_test_ā(b, z);

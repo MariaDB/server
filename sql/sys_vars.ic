@@ -2634,7 +2634,7 @@ public:
     if (!Sys_var_enum::do_check(thd, var))
       return false;
     MYSQL_TIME ltime;
-    bool res= var->value->get_date(&ltime, 0);
+    bool res= var->value->get_date(&ltime, TIME_NO_ZERO_IN_DATE|TIME_NO_ZERO_DATE);
     if (!res)
     {
       var->save_result.ulonglong_value= SYSTEM_TIME_AS_OF;
@@ -2651,7 +2651,7 @@ private:
     {
       if (var->value)
       {
-        res= var->value->get_date(&out.ltime, 0);
+        res= var->value->get_date(&out.ltime, TIME_NO_ZERO_IN_DATE|TIME_NO_ZERO_DATE);
       }
       else // set DEFAULT from global var
       {

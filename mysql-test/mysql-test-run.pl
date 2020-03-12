@@ -324,7 +324,8 @@ my $opt_valgrind_mysqld= 0;
 my $opt_valgrind_mysqltest= 0;
 my @valgrind_args;
 my $opt_strace= 0;
-my $opt_strace_client;
+my $opt_stracer;
+my $opt_client_strace = 0;
 my @strace_args;
 my $opt_valgrind_path;
 my $valgrind_reports= 0;
@@ -1329,9 +1330,10 @@ sub command_line_setup {
 	     'debugger=s'               => \$opt_debugger,
 	     'boot-dbx'                 => \$opt_boot_dbx,
 	     'client-debugger=s'        => \$opt_client_debugger,
-             'strace'			=> \$opt_strace,
-             'strace-client'            => \$opt_strace_client,
-             'strace-option=s'          => \@strace_args,
+             'strace'              => \$opt_strace,
+             'strace-option=s'     => \@strace_args,
+             'client-strace'       => \$opt_client_strace,
+             'stracer=s'           => \$opt_stracer,
              'max-save-core=i'          => \$opt_max_save_core,
              'max-save-datadir=i'       => \$opt_max_save_datadir,
              'max-test-fail=i'          => \$opt_max_test_fail,
@@ -1927,7 +1929,7 @@ sub command_line_setup {
 	       join(" ", @valgrind_args), "\"");
   }
 
-  if (@strace_args)
+  if (@strace_args || $opt_stracer)
   {
     $opt_strace=1;
   }
@@ -3051,15 +3053,43 @@ sub mysql_server_start($) {
     # Save this test case information, so next can examine it
     $mysqld->{'started_tinfo'}= $tinfo;
   }
+
+  # If wsrep is on, we need to wait until the first
+  # server starts and bootstraps the cluster before
+  # starting other servers. The bootsrap server in the
+  # configuration should always be the first which has
+  # wsrep_on=ON
+  if (wsrep_on($mysqld) && wsrep_is_bootstrap_server($mysqld))
+  {
+    mtr_verbose("Waiting for wsrep bootstrap server to start");
+    if ($mysqld->{WAIT}->($mysqld))
+    {
+      return 1;
+    }
+  }
 }
 
 sub mysql_server_wait {
-  my ($mysqld) = @_;
+  my ($mysqld, $tinfo) = @_;
 
-  return not sleep_until_file_created($mysqld->value('pid-file'),
+  if (!sleep_until_file_created($mysqld->value('pid-file'),
                                       $opt_start_timeout,
                                       $mysqld->{'proc'},
-                                      $warn_seconds);
+                                      $warn_seconds))
+  {
+    $tinfo->{comment}= "Failed to start ".$mysqld->name() . "\n";
+    return 1;
+  }
+
+  if (wsrep_on($mysqld))
+  {
+    mtr_verbose("Waiting for wsrep server " . $mysqld->name() . " to be ready");
+    if (!wait_wsrep_ready($tinfo, $mysqld))
+    {
+      return 1;
+    }
+  }
+  return 0;
 }
 
 sub create_config_file_for_extern {
@@ -4606,6 +4636,8 @@ sub extract_warning_lines ($$) {
      qr/missing DBUG_RETURN/,
      qr/Attempting backtrace/,
      qr/Assertion .* failed/,
+     qr/Sanitizer/,
+     qr/runtime error:/,
     );
   # These are taken from the include/mtr_warnings.sql global suppression
   # list. They occur delayed, so they can be parsed during shutdown rather
@@ -4700,8 +4732,8 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: See also */,
      qr/InnoDB: Cannot open .*ib_buffer_pool.* for reading: No such file or directory*/,
      qr/InnoDB: Table .*mysql.*innodb_table_stats.* not found./,
-     qr/InnoDB: User stopword table .* does not exist./
-
+     qr/InnoDB: User stopword table .* does not exist./,
+     qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/
     );
 
   my $matched_lines= [];
@@ -5498,12 +5530,12 @@ sub server_need_restart {
     {
       delete $server->{'restart_opts'};
       my $use_dynamic_option_switch= 0;
-      delete $server->{'restart_opts'};
+      my $restart_opts = delete $server->{'restart_opts'} || [];
       if (!$use_dynamic_option_switch)
       {
 	mtr_verbose_restart($server, "running with different options '" .
 			    join(" ", @{$extra_opts}) . "' != '" .
-			    join(" ", @{$started_opts}) . "'" );
+			    join(" ", @{$started_opts}, @{$restart_opts}) . "'" );
 	return 1;
       }
 
@@ -5593,6 +5625,118 @@ sub stop_servers($$) {
   }
 }
 
+#
+# run_query_output
+#
+# Run a query against a server using mysql client. The output of
+# the query will be written into outfile.
+#
+sub run_query_output {
+  my ($mysqld, $query, $outfile)= @_;
+  my $args;
+
+  mtr_init_args(\$args);
+  mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
+  mtr_add_arg($args, "--defaults-group-suffix=%s", $mysqld->after('mysqld'));
+  mtr_add_arg($args, "--silent");
+  mtr_add_arg($args, "--execute=%s", $query);
+
+  my $res= My::SafeProcess->run
+  (
+    name          => "run_query_output -> ".$mysqld->name(),
+    path          => $exe_mysql,
+    args          => \$args,
+    output        => $outfile,
+    error         => $outfile
+  );
+
+  return $res
+}
+
+
+#
+# wsrep_wait_ready
+#
+# Wait until the server has been joined to the cluster and is
+# ready for operation.
+#
+# RETURN
+# 1 Server is ready
+# 0 Server didn't transition to ready state within start timeout
+#
+sub wait_wsrep_ready($$) {
+  my ($tinfo, $mysqld)= @_;
+
+  my $sleeptime= 100; # Milliseconds
+  my $loops= ($opt_start_timeout * 1000) / $sleeptime;
+
+  my $name= $mysqld->name();
+  my $outfile= "$opt_vardir/tmp/$name.wsrep_ready";
+  my $query= "SET SESSION wsrep_sync_wait = 0;
+              SELECT VARIABLE_NAME, VARIABLE_VALUE
+              FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+              WHERE VARIABLE_NAME = 'wsrep_ready'";
+
+  for (my $loop= 1; $loop <= $loops; $loop++)
+  {
+    # Careful... if MTR runs with option 'verbose' then the
+    # file contains also SafeProcess verbose output
+    if (run_query_output($mysqld, $query, $outfile) == 0 &&
+        mtr_grab_file($outfile) =~ /WSREP_READY\s+ON/)
+    {
+      unlink($outfile);
+      return 1;
+    }
+    mtr_milli_sleep($sleeptime);
+  }
+
+  $tinfo->{logfile}= "WSREP did not transition to state READY";
+  return 0;
+}
+
+#
+# wsrep_is_bootstrap_server
+#
+# Check if the server is the first one to be started in the
+# cluster.
+#
+# RETURN
+# 1 The server is a bootstrap server
+# 0 The server is not a bootstrap server
+#
+sub wsrep_is_bootstrap_server($) {
+  my $mysqld= shift;
+
+  my $cluster_address= $mysqld->if_exist('wsrep-cluster-address') ||
+                       $mysqld->if_exist('wsrep_cluster_address');
+  if (defined $cluster_address)
+  {
+    return $cluster_address eq "gcomm://" || $cluster_address eq "'gcomm://'";
+  }
+  return 0;
+}
+
+#
+# wsrep_on
+#
+# Check if wsrep has been enabled for a server.
+#
+# RETURN
+# 1 Wsrep has been enabled
+# 0 Wsrep is not enabled
+#
+sub wsrep_on($) {
+  my $mysqld= shift;
+  #check if wsrep_on=  is set in configuration
+  if ($mysqld->if_exist('wsrep-on')) {
+    my $on= "".$mysqld->value('wsrep-on');
+    if ($on eq "1" || $on eq "ON") {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 
 #
 # start_servers
@@ -5612,7 +5756,7 @@ sub start_servers($) {
 
   for (all_servers()) {
     next unless $_->{WAIT} and started($_);
-    if ($_->{WAIT}->($_)) {
+    if ($_->{WAIT}->($_, $tinfo)) {
       $tinfo->{comment}= "Failed to start ".$_->name() . "\n";
       return 1;
     }
@@ -5721,14 +5865,6 @@ sub start_mysqltest ($) {
     mtr_add_arg($args, "--non-blocking-api");
   }
 
-  if ( $opt_strace_client )
-  {
-    $exe=  $opt_strace_client || "strace";
-    mtr_add_arg($args, "-o");
-    mtr_add_arg($args, "%s/log/mysqltest.strace", $opt_vardir);
-    mtr_add_arg($args, "$exe_mysqltest");
-  }
-
   mtr_add_arg($args, "--timer-file=%s/log/timer", $opt_vardir);
 
   if ( $opt_compress )
@@ -5791,6 +5927,17 @@ sub start_mysqltest ($) {
     my @args_saved = @$args;
     mtr_init_args(\$args);
     valgrind_arguments($args, \$exe);
+    mtr_add_arg($args, "%s", $_) for @args_saved;
+  }
+
+  # ----------------------------------------------------------------------
+  # Prefix the strace options to the argument list.
+  # ----------------------------------------------------------------------
+  if ( $opt_client_strace )
+  {
+    my @args_saved = @$args;
+    mtr_init_args(\$args);
+    strace_arguments($args, \$exe, "mysqltest");
     mtr_add_arg($args, "%s", $_) for @args_saved;
   }
 
@@ -6118,16 +6265,17 @@ sub strace_arguments {
   my $args= shift;
   my $exe=  shift;
   my $mysqld_name= shift;
+  my $output= sprintf("%s/log/%s.strace", $path_vardir_trace, $mysqld_name);
 
   mtr_add_arg($args, "-f");
-  mtr_add_arg($args, "-o%s/var/log/%s.strace", $glob_mysql_test_dir, $mysqld_name);
+  mtr_add_arg($args, "-o%s", $output);
 
-  # Add strace options, can be overridden by user
+  # Add strace options
   mtr_add_arg($args, '%s', $_) for (@strace_args);
 
   mtr_add_arg($args, $$exe);
 
-  $$exe= "strace";
+  $$exe=  $opt_stracer || "strace";
 
   if ($exe_libtool)
   {
@@ -6403,11 +6551,11 @@ Options for valgrind
 Options for strace
 
   strace                Run the "mysqld" executables using strace. Default
-                        options are -f -o var/log/'mysqld-name'.strace
-  strace-option=ARGS    Option to give strace, replaces default option(s),
-  strace-client=[path]  Create strace output for mysqltest client, optionally
-                        specifying name and path to the trace program to use.
-                        Example: $0 --strace-client=ktrace
+                        options are -f -o 'vardir'/log/'mysqld-name'.strace.
+  client-strace         Trace the "mysqltest".
+  strace-option=ARGS    Option to give strace, appends to existing options.
+  stracer=<EXE>         Specify name and path to the trace program to use.
+                        Default is "strace". Example: $0 --stracer=ktrace.
 
 Misc options
   user=USER             User for connecting to mysqld(default: $opt_user)

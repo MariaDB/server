@@ -564,7 +564,7 @@ bool ha_partition::initialize_partition(MEM_ROOT *mem_root)
     point.
 
     If you do not implement this, the default delete_table() is called from
-    handler.cc and it will delete all files with the file extentions returned
+    handler.cc and it will delete all files with the file extensions returned
     by bas_ext().
 
     Called from handler.cc by delete_table and  ha_create_table(). Only used
@@ -596,7 +596,7 @@ int ha_partition::delete_table(const char *name)
     Renames a table from one name to another from alter table call.
 
     If you do not implement this, the default rename_table() is called from
-    handler.cc and it will rename all files with the file extentions returned
+    handler.cc and it will rename all files with the file extensions returned
     by bas_ext().
 
     Called from sql_table.cc by mysql_rename_table().
@@ -4538,7 +4538,7 @@ int ha_partition::delete_row(const uchar *buf)
     or last historical partition, but DELETE HISTORY can delete from any
     historical partition. So, skip the check in this case.
   */
-  if (!thd->lex->vers_conditions.is_set()) // if not DELETE HISTORY
+  if (!thd->lex->vers_conditions.delete_history)
   {
     uint32 part_id;
     error= get_part_for_buf(buf, m_rec0, m_part_info, &part_id);
@@ -6235,7 +6235,7 @@ static range_seq_t partition_multi_range_key_init(void *init_params,
   ha_partition *partition= hld->partition;
   uint i= hld->part_id;
   DBUG_ENTER("partition_multi_range_key_init");
-  partition->m_mrr_range_init_flags= flags;
+  // not used: partition->m_mrr_range_init_flags= flags;
   hld->partition_part_key_multi_range= partition->m_part_mrr_range_first[i];
   DBUG_RETURN(init_params);
 }
@@ -6264,9 +6264,10 @@ static bool partition_multi_range_key_skip_record(range_seq_t seq,
 {
   PARTITION_PART_KEY_MULTI_RANGE_HLD *hld=
     (PARTITION_PART_KEY_MULTI_RANGE_HLD *)seq;
+  PARTITION_KEY_MULTI_RANGE *pkmr= (PARTITION_KEY_MULTI_RANGE *)range_info;
   DBUG_ENTER("partition_multi_range_key_skip_record");
   DBUG_RETURN(hld->partition->m_seq_if->skip_record(hld->partition->m_seq,
-                                                    range_info, rowid));
+                                                    pkmr->ptr, rowid));
 }
 
 
@@ -6275,9 +6276,10 @@ static bool partition_multi_range_key_skip_index_tuple(range_seq_t seq,
 {
   PARTITION_PART_KEY_MULTI_RANGE_HLD *hld=
     (PARTITION_PART_KEY_MULTI_RANGE_HLD *)seq;
+  PARTITION_KEY_MULTI_RANGE *pkmr= (PARTITION_KEY_MULTI_RANGE *)range_info;
   DBUG_ENTER("partition_multi_range_key_skip_index_tuple");
   DBUG_RETURN(hld->partition->m_seq_if->skip_index_tuple(hld->partition->m_seq,
-                                                         range_info));
+                                                         pkmr->ptr));
 }
 
 ha_rows ha_partition::multi_range_read_info_const(uint keyno,
@@ -9227,7 +9229,6 @@ void ha_partition::late_extra_cache(uint partition_id)
   }
   if (m_extra_prepare_for_update)
   {
-    DBUG_ASSERT(m_extra_cache);
     (void) file->extra(HA_EXTRA_PREPARE_FOR_UPDATE);
   }
   m_extra_cache_part_id= partition_id;
@@ -10697,8 +10698,8 @@ int ha_partition::indexes_are_disabled(void)
   @param repair        If true, move misplaced rows to correct partition.
 
   @return Operation status.
-    @retval 0     Success
-    @retval != 0  Error
+    @retval HA_ADMIN_OK     Success
+    @retval != HA_ADMIN_OK  Error
 */
 
 int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
@@ -10711,6 +10712,17 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
   DBUG_ENTER("ha_partition::check_misplaced_rows");
 
   DBUG_ASSERT(m_file);
+
+  if (m_part_info->vers_info &&
+      read_part_id != m_part_info->vers_info->now_part->id &&
+      !m_part_info->vers_info->interval.is_set())
+  {
+    print_admin_msg(ha_thd(), MYSQL_ERRMSG_SIZE, "note",
+                    table_share->db.str, table->alias,
+                    opt_op_name[CHECK_PARTS],
+                    "Not supported for non-INTERVAL history partitions");
+    DBUG_RETURN(HA_ADMIN_NOT_IMPLEMENTED);
+  }
 
   if (do_repair)
   {

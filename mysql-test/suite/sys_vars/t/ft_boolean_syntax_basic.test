@@ -64,7 +64,7 @@ SELECT @@global.ft_boolean_syntax;
 
 --echo '#--------------------FN_DYNVARS_033_03-------------------------#'
 ######################################################################
-#     see if it is accessable using session scope                    #
+#     see if it is accessible using session scope                    #
 ######################################################################
 --Error ER_GLOBAL_VARIABLE
 SET @@session.ft_boolean_syntax = '# -><()!*:""&|';

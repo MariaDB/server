@@ -26,8 +26,8 @@ connect foo_node_2,127.0.0.1,foo,,test,$port_2,;
 connection foo_node_1;
 SHOW GRANTS;
 Grants for foo@localhost
-GRANT role1 TO 'foo'@'localhost'
-GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT `role1` TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `foo`@`localhost`
 FLUSH TABLES;
 ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
 SELECT * FROM mysql.roles_mapping;
@@ -62,8 +62,8 @@ pr1
 connection foo_node_2;
 SHOW GRANTS;
 Grants for foo@localhost
-GRANT role1 TO 'foo'@'localhost'
-GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT `role1` TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `foo`@`localhost`
 FLUSH TABLES;
 ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
 SELECT * FROM mysql.roles_mapping;
@@ -129,7 +129,7 @@ SELECT a FROM test1.t2;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
 SHOW GRANTS;
 Grants for foo@localhost
-GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT USAGE ON *.* TO `foo`@`localhost`
 SELECT * FROM INFORMATION_SCHEMA.ENABLED_ROLES;
 ROLE_NAME
 NULL
@@ -151,7 +151,7 @@ SELECT a FROM test1.t2;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
 SHOW GRANTS;
 Grants for foo@localhost
-GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT USAGE ON *.* TO `foo`@`localhost`
 SELECT * FROM INFORMATION_SCHEMA.ENABLED_ROLES;
 ROLE_NAME
 NULL

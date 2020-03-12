@@ -108,12 +108,12 @@ update mysql.user set password=old_password("gambling2") where user=_binary"test
 flush privileges;
 show grants for test@localhost;
 Grants for test@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'test'@'localhost' IDENTIFIED BY PASSWORD '2f27438961437573'
+GRANT ALL PRIVILEGES ON *.* TO `test`@`localhost` IDENTIFIED BY PASSWORD '2f27438961437573'
 update mysql.user set plugin='mysql_old_password' where user='test';
 flush privileges;
 show grants for test@localhost;
 Grants for test@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'test'@'localhost' IDENTIFIED BY PASSWORD '2f27438961437573'
+GRANT ALL PRIVILEGES ON *.* TO `test`@`localhost` IDENTIFIED BY PASSWORD '2f27438961437573'
 connect  con10,localhost,test,gambling2,;
 connect  con5,localhost,test,gambling2,mysql;
 connection con5;

@@ -2418,6 +2418,7 @@ public:
   bool to_be_transformed_into_in_subq(THD *thd);
   bool create_value_list_for_tvc(THD *thd, List< List<Item> > *values);
   Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg);
+  uint32 max_length_of_left_expr();
 };
 
 class cmp_item_row :public cmp_item
@@ -2611,7 +2612,6 @@ class Item_func_like :public Item_bool_func2
 
   bool escape_used_in_parsing;
   bool use_sampling;
-  bool negated;
 
   DTCollation cmp_collation;
   String cmp_value1, cmp_value2;
@@ -2628,6 +2628,7 @@ protected:
                        Item_func::Functype type, Item *value);
 public:
   int escape;
+  bool negated;
 
   Item_func_like(THD *thd, Item *a, Item *b, Item *escape_arg, bool escape_used):
     Item_bool_func2(thd, a, b), canDoTurboBM(FALSE), pattern(0), pattern_len(0),

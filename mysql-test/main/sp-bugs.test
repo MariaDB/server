@@ -1,7 +1,7 @@
 # Test file for stored procedure bugfixes
 
 --echo #
---echo # Bug #47412: Valgrind warnings / user can read uninitalized memory
+--echo # Bug #47412: Valgrind warnings / user can read uninitialized memory
 --echo # using SP variables
 --echo #
 

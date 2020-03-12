@@ -1094,19 +1094,6 @@ void Aggregator_distinct::endup()
 
 
 String *
-Item_sum_num::val_str(String *str)
-{
-  return val_string_from_real(str);
-}
-
-
-my_decimal *Item_sum_num::val_decimal(my_decimal *decimal_value)
-{
-  return val_decimal_from_real(decimal_value);
-}
-
-
-String *
 Item_sum_int::val_str(String *str)
 {
   return val_string_from_int(str);
@@ -2188,7 +2175,7 @@ static double variance_fp_recurrence_result(double s, ulonglong count, bool is_s
 
 
 Item_sum_variance::Item_sum_variance(THD *thd, Item_sum_variance *item):
-  Item_sum_num(thd, item),
+  Item_sum_double(thd, item),
     count(item->count), sample(item->sample),
     prec_increment(item->prec_increment)
 {
@@ -2311,13 +2298,6 @@ double Item_sum_variance::val_real()
 
   null_value=0;
   return variance_fp_recurrence_result(recurrence_s, count, sample);
-}
-
-
-my_decimal *Item_sum_variance::val_decimal(my_decimal *dec_buf)
-{
-  DBUG_ASSERT(fixed == 1);
-  return val_decimal_from_real(dec_buf);
 }
 
 

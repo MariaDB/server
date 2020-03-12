@@ -50,7 +50,7 @@
 #define MAX_DROP_TABLE_Q_LEN      1024
 
 const char *del_exts[]= {".BAK", ".opt", NullS};
-static TYPELIB deletable_extentions=
+static TYPELIB deletable_extensions=
 {array_elements(del_exts)-1,"del_exts", del_exts, NULL};
 
 static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *, const char *,
@@ -1140,7 +1140,7 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
     }
     if (!(extension= strrchr(file->name, '.')))
       extension= strend(file->name);
-    if (find_type(extension, &deletable_extentions, FIND_TYPE_NO_PREFIX) > 0)
+    if (find_type(extension, &deletable_extensions, FIND_TYPE_NO_PREFIX) > 0)
     {
       strxmov(filePath, path, "/", file->name, NullS);
       /*

@@ -1,0 +1,178 @@
+-- source include/have_debug.inc
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-20667 Server crash on pop_cursor
+--echo #
+
+DELIMITER  //;
+CREATE PROCEDURE p1() IS
+BEGIN
+  IF 1=2 THEN
+    BEGIN
+      DECLARE
+        CURSOR cur1 IS SELECT a FROM t1 ;
+      BEGIN
+        GOTO iac_err;
+      END;
+    END;
+  END IF;
+  IF 1=1 THEN
+    GOTO iac_err;
+  END IF;
+<< iac_err >>
+  RETURN;
+END//
+DELIMITER ;//
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER //;
+CREATE PROCEDURE p1() IS
+BEGIN
+  IF 1=2 THEN
+    BEGIN
+      DECLARE
+        CURSOR cur1 IS SELECT a FROM t1 ;
+      BEGIN
+        GOTO iac_err;
+      END;
+    END;
+  END IF;
+  IF 1=1 THEN
+    GOTO iac_err;
+  END IF;
+<< iac_err >>
+  RETURN ;
+END//
+DELIMITER ;//
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER //;
+CREATE PROCEDURE p1() IS
+BEGIN
+  IF 1=2 THEN
+    BEGIN
+      DECLARE
+        CURSOR cur1 IS SELECT a FROM t1 ;
+      BEGIN
+        GOTO iac_err;
+      END;
+    END;
+  END IF;
+  GOTO iac_err;
+<< iac_err >>
+  RETURN ;
+END//
+DELIMITER ;//
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER //;
+CREATE PROCEDURE p1() IS
+BEGIN
+  IF 1=1 THEN
+    DECLARE
+      CURSOR cur2 IS SELECT 'cur2' FROM DUAL;
+    BEGIN
+      SELECT 'cur2';
+      IF 1=1 THEN
+        DECLARE
+          CURSOR cur3 IS SELECT 'cur3' FROM DUAL;
+        BEGIN
+          SELECT 'cur3';
+          IF 1=1 THEN
+            DECLARE
+              CURSOR cur4 IS SELECT 'cur4' FROM DUAL;
+            BEGIN
+              SELECT 'cur4';
+              GOTO ret;
+            END;
+          END IF;
+          GOTO ret;
+        END;
+      END IF;
+      GOTO ret;
+    END;
+  END IF;
+<<ret>>
+  RETURN;
+END;
+//
+DELIMITER ;//
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER //;
+CREATE PROCEDURE p1(lab VARCHAR(32)) IS
+BEGIN
+  IF 1=1 THEN
+    DECLARE
+      CURSOR cur2 IS SELECT 'cur2' FROM DUAL;
+    BEGIN
+      IF 1=1 THEN
+        DECLARE
+          CURSOR cur3 IS SELECT 'cur3' FROM DUAL;
+        BEGIN
+          IF 1=1 THEN
+            DECLARE
+              CURSOR cur4 IS SELECT 'cur4' FROM DUAL;
+            BEGIN
+              IF lab = 'cur4' THEN
+                SELECT 'goto from cur4' AS comment;
+                GOTO ret;
+              END IF;
+            END;
+          END IF;
+          IF lab = 'cur3' THEN
+            SELECT 'goto from cur3' AS comment;
+            GOTO ret;
+          END IF;
+        END;
+      END IF;
+      IF lab = 'cur2' THEN
+        SELECT 'goto from cur2' AS comment;
+        GOTO ret;
+      END IF;
+    END;
+  END IF;
+<<ret>>
+  RETURN;
+END;
+//
+DELIMITER ;//
+SHOW PROCEDURE CODE p1;
+CALL p1('');
+CALL p1('cur2');
+CALL p1('cur3');
+CALL p1('cur4');
+DROP PROCEDURE p1;
+
+
+DELIMITER //;
+CREATE PROCEDURE p1() IS 
+BEGIN 
+  IF 1=2 THEN 
+    BEGIN 
+      DECLARE
+        CONTINUE HANDLER FOR SQLSTATE '23000' SET @x2 = 1;
+      BEGIN
+        GOTO iac_err;
+      END; 
+    END; 
+  END IF; 
+  IF 1=1 THEN
+    GOTO iac_err;
+  END IF; 
+<<iac_err >>
+  RETURN; 
+END//
+DELIMITER ;//
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;

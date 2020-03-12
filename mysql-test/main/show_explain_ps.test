@@ -38,7 +38,8 @@ let $wait_condition= select State='show_explain_trap' from information_schema.pr
 #
 connection con1;
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='d,show_explain_probe_join_exec_start';
 send select count(*) from t0 where a < 100000;
 
 connection default;
@@ -47,7 +48,7 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 
-set debug_dbug='';
+SET debug_dbug= @saved_dbug;
 
 evalp select event_name
         from

@@ -455,6 +455,14 @@ delete from t1 where a is not null;
 create or replace table t1 (i int) with system versioning partition by system_time limit 10 (partition p0 history, partition pn current);
 --error ER_VERS_QUERY_IN_PARTITION
 select * from t1 partition (p0) for system_time all;
+--echo # MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+create or replace procedure sp()
+select * from t1 partition (p0) for system_time all;
+--error ER_VERS_QUERY_IN_PARTITION
+call sp;
+--error ER_VERS_QUERY_IN_PARTITION
+call sp;
+drop procedure sp;
 
 --echo # MDEV-15380 Index for versioned table gets corrupt after partitioning and DELETE
 create or replace table t1 (pk int primary key)
@@ -516,5 +524,47 @@ execute immediate 'select * from t1 for update';
 
 drop view v1;
 drop tables t, t1, t2, t3, t4;
+
+--echo #
+--echo # MDEV-18957 UPDATE with LIMIT clause is wrong for versioned partitioned tables
+--echo #
+create or replace table t1 (
+  x int,
+  a varchar(255)
+) with system versioning partition by system_time (partition p1 history, partition pn current);
+
+insert into t1 (x) values (1), (2), (3), (4);
+update t1 set a= 'foo' limit 3;
+update t1 set a= 'bar' limit 4;
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-21011 Table corruption reported for versioned partitioned table after DELETE: "Found a misplaced row"
+--echo #
+create table t1 (a int) with system versioning
+partition by system_time limit 3
+(partition p1 history, partition p2 history, partition pn current);
+insert into t1 values (1),(2),(3),(4);
+delete from t1;
+delete from t1;
+check table t1;
+
+# cleanup
+drop table t1;
+
+--echo #
+--echo # MDEV-21233 Assertion `m_extra_cache' failed in ha_partition::late_extra_cache
+--echo #
+create table t1 (id int, a varchar(8)) with system versioning partition by key (id) partitions 2;
+insert into t1 values  (1,'foo'),(2,'bar');
+
+create table t2 (b int);
+insert into t2 values (1),(2);
+
+update t1, t2 set a = 1;
+
+# cleanup
+drop table t1, t2;
 
 --source suite/versioning/common_finish.inc

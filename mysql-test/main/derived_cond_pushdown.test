@@ -1,3 +1,4 @@
+--source include/have_sequence.inc
 --source include/default_optimizer_switch.inc
 let $no_pushdown= set statement optimizer_switch='condition_pushdown_for_derived=off' for;
 set @@join_buffer_size=256*1024;
@@ -2140,6 +2141,34 @@ SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
 DROP TABLE t1;
 DROP VIEW v1;
 
+--echo #
+--echo # MDEV-21388 Wrong result of DAYNAME()=xxx in combination with condition_pushdown_for_derived=on
+--echo #
+
+CREATE TABLE t1 (a INT, b DATE, c INT);
+INSERT INTO t1 VALUES
+  (1,'2001-01-21',345),
+  (6,'2001-01-20',315),
+  (6,'2001-01-20',214);
+
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (2,19), (7,20);
+CREATE VIEW v1 AS SELECT a, b, max(c) AS max_c FROM t1
+  GROUP BY a,b HAVING max_c < 707;
+
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a);
+
+SET optimizer_switch='condition_pushdown_for_derived=off';
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a) AND dayname(v1.b)='Sunday';
+
+SET optimizer_switch='condition_pushdown_for_derived=on';
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a) AND dayname(v1.b)='Sunday';
+
+DROP VIEW v1;
+DROP TABLE t1, t2;
+
+SET optimizer_switch=DEFAULT;
+
 --echo # End of 10.2 tests
 
 --echo #
@@ -3299,5 +3328,47 @@ eval $q;
 set join_cache_level=default;
 
 DROP TABLE t1,t2;
+
+
+--echo #
+--echo # MDEV-21614: potentially splittable materialized derived/view
+--echo #             within materialized semi-join
+--echo #
+
+create table t1 (
+  id int not null auto_increment primary key,
+  a int not null
+) engine=myisam;
+
+create table t2 (
+  id int not null auto_increment primary key,
+  ro_id int not null,
+  flag int not null, key (ro_id)
+) engine=myisam;
+
+insert into t1(a) select seq+100 from seq_1_to_20;
+insert into t2(ro_id,flag) select seq, 1 from seq_1_to_20;
+insert into t2(ro_id,flag) select seq, 0 from seq_1_to_20;
+
+create view v1 as
+select t1.* from t1 left join t2 on (t1.id = t2.ro_id AND t2.flag = 1)
+  group by t1.id;
+
+let $q1=
+select id, a from t1 where  id in (select id from v1);
+eval $q1;
+eval explain extended $q1;
+
+let $q2=
+select id, a from t1
+  where id in (select id
+               from (select t1.* from t1 left join t2
+                                      on (t1.id = t2.ro_id AND t2.flag = 1)
+                     group by t1.id) dt);
+eval $q2;
+eval explain extended $q2;
+
+drop view v1;
+drop table t1,t2;
 
 --echo # End of 10.3 tests

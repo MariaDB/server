@@ -33,3 +33,53 @@ REVOKE EXECUTE ON PROCEDURE sp FROM u;
 --error ER_TABLE_NOT_LOCKED
 REVOKE PROCESS ON *.* FROM u;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20076: SHOW GRANTS does not quote role names properly
+--echo #
+
+create role 'role1';
+create role 'fetch';
+create role 'role-1';
+create role 'rock\'n\'roll';
+create user 'user1'@'localhost';
+create user 'fetch'@'localhost';
+create user 'user-1'@'localhost';
+create user 'O\'Brien'@'localhost';
+grant select on mysql.user to role1;
+grant select on mysql.user to 'fetch';
+grant select on mysql.user to 'role-1';
+grant select on mysql.user to 'rock\'n\'roll';
+GRANT 'role1' TO 'user1'@'localhost';
+GRANT 'fetch' TO 'fetch'@'localhost';
+GRANT 'role-1' TO 'user-1'@'localhost';
+GRANT 'rock\'n\'roll' TO 'O\'Brien'@'localhost';
+show grants for 'role1';
+show grants for 'fetch';
+show grants for 'role-1';
+show grants for 'rock\'n\'roll';
+show grants for 'user1'@'localhost';
+show grants for 'fetch'@'localhost';
+show grants for 'user-1'@'localhost';
+show grants for 'O\'Brien'@'localhost';
+set @save_sql_quote_show_create= @@sql_quote_show_create;
+set @@sql_quote_show_create= OFF;
+show grants for 'role1';
+show grants for 'fetch';
+show grants for 'role-1';
+show grants for 'rock\'n\'roll';
+show grants for 'user1'@'localhost';
+show grants for 'fetch'@'localhost';
+show grants for 'user-1'@'localhost';
+show grants for 'O\'Brien'@'localhost';
+set @@sql_quote_show_create= @save_sql_quote_show_create;
+drop role 'role1';
+drop role 'fetch';
+drop role 'role-1';
+drop role 'rock\'n\'roll';
+drop user 'user1'@'localhost';
+drop user 'fetch'@'localhost';
+drop user 'user-1'@'localhost';
+drop user 'O\'Brien'@'localhost';
+
+--echo # End of 10.3 tests

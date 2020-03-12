@@ -170,9 +170,13 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
+<<<<<<< HEAD
        char version[]= "Version 1.06.0010 August 22, 2019";
+=======
+       char version[]= "Version 1.07.0001 November 12, 2019";
+>>>>>>> 51e9381dcc01ebd72d4f0adc057a64213f850d70
 #if defined(__WIN__)
-       char compver[]= "Version 1.06.0010 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.07.0001 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -704,9 +708,9 @@ DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir)
   used by the default rename_table and delete_table method in
   handler.cc.
 
-  For engines that have two file name extentions (separate meta/index file
+  For engines that have two file name extensions (separate meta/index file
   and data file), the order of elements is relevant. First element of engine
-  file name extentions array should be meta/index file extention. Second
+  file name extensions array should be meta/index file extention. Second
   element - data file extention. This order is assumed by
   prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
 
@@ -1042,6 +1046,8 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
 					break;
 				case TAB_REST:
 					type = TAB_NIY;
+					break;
+				default:
 					break;
 			}	// endswitch type
 #endif   // REST_SUPPORT
@@ -2962,10 +2968,19 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 			case Item_func::LE_FUNC:     vop= OP_LE;   break;
 			case Item_func::GE_FUNC:     vop= OP_GE;   break;
 			case Item_func::GT_FUNC:     vop= OP_GT;   break;
+<<<<<<< HEAD
 			//case Item_func::LIKE_FUNC:
 			//	vop= OP_LIKE; 
 			//	neg= ((Item_func_like *)condf)->negated;
 			//	break;
+=======
+#if MYSQL_VERSION_ID > 100200
+			case Item_func::LIKE_FUNC:
+				vop = OP_LIKE;
+			  neg= ((Item_func_like*)condf)->negated;
+			  break;
+#endif // VERSION_ID > 100200
+>>>>>>> 51e9381dcc01ebd72d4f0adc057a64213f850d70
 			case Item_func::ISNOTNULL_FUNC:
 				neg= true;	
 				// fall through
@@ -3783,9 +3798,9 @@ int ha_connect::index_init(uint idx, bool sorted)
     active_index= MAX_KEY;
     rc= HA_ERR_INTERNAL_ERROR;
   } else if (tdbp->GetKindex()) {
-    if (((PTDBDOX)tdbp)->To_Kindex->GetNum_K()) {
+    if (((PTDBDOS)tdbp)->GetKindex()->GetNum_K()) {
       if (tdbp->GetFtype() != RECFM_NAF)
-        ((PTDBDOX)tdbp)->GetTxfp()->ResetBuffer(g);
+        ((PTDBDOS)tdbp)->GetTxfp()->ResetBuffer(g);
 
       active_index= idx;
 //  } else {        // Void table
@@ -4503,7 +4518,9 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool 
 		case TAB_OEM:
       if (table && table->pos_in_table_list) // if SELECT
       {
-        Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
+#if MYSQL_VERSION_ID > 100200
+				Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
+#endif // VERSION_ID > 100200
         return check_global_access(thd, FILE_ACL);
       }
       else
@@ -5630,6 +5647,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case TAB_CSV:
 					ttp = TAB_REST;
 					break;
+				default:
+					break;
 			}	// endswitch type
 #endif   // REST_SUPPORT
 		} // endif ttp
@@ -6039,7 +6058,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				} // endif !nblin
 
 				for (i= 0; !rc && i < qrp->Nblin; i++) {
-					typ= len= prec= dec= 0;
+					typ= len= prec= dec= flg= 0;
 					tm= NOT_NULL_FLAG;
 					cnm= (char*)"noname";
 					dft= xtra= key= fmt= tn= NULL;
@@ -6079,6 +6098,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 								if (crp->Kdata->GetIntValue(i))
 									tm= 0;               // Nullable
 
+								break;
+							case FLD_FLAG:
+								flg = crp->Kdata->GetIntValue(i);
 								break;
 							case FLD_FORMAT:
 								fmt= (crp->Kdata) ? crp->Kdata->GetCharValue(i) : NULL;
@@ -6210,7 +6232,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 						// Now add the field
 						if (add_field(&sql, cnm, typ, prec, dec, key, tm, rem, dft, xtra,
-							fmt, 0, dbf, v))
+							fmt, flg, dbf, v))
 							rc= HA_ERR_OUT_OF_MEM;
 				} // endfor i
 
@@ -7362,14 +7384,14 @@ maria_declare_plugin(connect)
   &connect_storage_engine,
   "CONNECT",
   "Olivier Bertrand",
-  "Management of External Data (SQL/NOSQL/MED), including many file formats",
+  "Management of External Data (SQL/NOSQL/MED), including Rest query results",
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
-  0x0106,                                       /* version number (1.06) */
+  0x0107,                                       /* version number (1.07) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.06.0010",                                  /* string version */
+  "1.07.0001",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;

@@ -10,4 +10,4 @@
 #
 ##############################################################################
 
-foreign_key : Sporadic failure "WSREP has not yet prepared node for application use"
+variables : MDEV-17585 wsrep.variables

@@ -71,5 +71,3 @@ DROP TABLE t2;
 #cleanup
 connection node_1;
 RESET MASTER;
-connection node_2;
-reset master;

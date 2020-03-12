@@ -1007,7 +1007,7 @@ bool CertDecoder::ConfirmSignature(Source& pub)
     }
 #endif
     else {
-        source_.SetError(UNKOWN_SIG_E);
+        source_.SetError(UNKNOWN_SIG_E);
         return false;
     }
 
@@ -1132,7 +1132,7 @@ word32 DER_Encoder::SetAlgoID(HashType aOID, byte* output)
         break;
 
     default:
-        error_.SetError(UNKOWN_HASH_E);
+        error_.SetError(UNKNOWN_HASH_E);
         return 0;
     }
 

@@ -9,7 +9,7 @@ SET @@GLOBAL.log_output='TABLE';
 FLUSH SLOW LOGS;
 SET @@GLOBAL.slow_query_log=ON;
 SET @@GLOBAL.log_slow_admin_statements=ON;
-SET @save_dbug = @@debug_dbug;
+SET @saved_dbug = @@debug_dbug;
 SET SESSION debug_dbug="+d,simulate_slow_query";
 
 DELIMITER $$;
@@ -87,7 +87,7 @@ CALL show_slow_log();
 --echo # Clean up
 --echo #
 
-SET SESSION debug_dbug=@save_dbug;
+SET SESSION debug_dbug=@saved_dbug;
 TRUNCATE mysql.slow_log;
 SET @@global.slow_query_log= @org_slow_query_log;
 SET @@global.log_output= @org_log_output;

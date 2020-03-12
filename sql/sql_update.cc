@@ -184,10 +184,10 @@ static bool check_fields(THD *thd, List<Item> &items, bool update_view)
   return FALSE;
 }
 
-static bool check_has_vers_fields(TABLE *table, List<Item> &items)
+bool TABLE::vers_check_update(List<Item> &items)
 {
   List_iterator<Item> it(items);
-  if (!table->versioned())
+  if (!versioned_write())
     return false;
 
   while (Item *item= it++)
@@ -195,8 +195,11 @@ static bool check_has_vers_fields(TABLE *table, List<Item> &items)
     if (Item_field *item_field= item->field_for_view_update())
     {
       Field *field= item_field->field;
-      if (field->table == table && !field->vers_update_unversioned())
+      if (field->table == this && !field->vers_update_unversioned())
+      {
+        no_cache= true;
         return true;
+      }
     }
   }
   return false;
@@ -415,7 +418,7 @@ int mysql_update(THD *thd,
   {
     DBUG_RETURN(1);
   }
-  bool has_vers_fields= check_has_vers_fields(table, fields);
+  bool has_vers_fields= table->vers_check_update(fields);
   if (check_key_in_view(thd, table_list))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
@@ -878,11 +881,6 @@ update_begin:
   THD_STAGE_INFO(thd, stage_updating);
   while (!(error=info.read_record()) && !thd->killed)
   {
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
-
     explain->tracker.on_record_read();
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
@@ -1265,6 +1263,15 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
 #endif
 
   thd->lex->allow_sum_func.clear_all();
+
+  DBUG_ASSERT(table_list->table);
+  // conds could be cached from previous SP call
+  DBUG_ASSERT(!table_list->vers_conditions.need_setup() ||
+              !*conds || thd->stmt_arena->is_stmt_execute());
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(TRUE);
+
+  *conds= select_lex->where;
 
   /*
     We do not call DT_MERGE_FOR_INSERT because it has no sense for simple
@@ -1786,6 +1793,9 @@ bool mysql_multi_update(THD *thd, TABLE_LIST *table_list, List<Item> *fields,
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
   List<Item> total_list;
 
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(1);
+
   res= mysql_select(thd,
                     table_list, select_lex->with_wild, total_list, conds,
                     select_lex->order_list.elements,
@@ -2126,7 +2136,7 @@ multi_update::initialize_tables(JOIN *join)
       if (safe_update_on_fly(thd, join->join_tab, table_ref, all_tables))
       {
 	table_to_update= table;			// Update table on the fly
-        has_vers_fields= check_has_vers_fields(table, *fields);
+        has_vers_fields= table->vers_check_update(*fields);
 	continue;
       }
     }
@@ -2344,11 +2354,6 @@ int multi_update::send_data(List<Item> &not_used_values)
     */
     if (table->status & (STATUS_NULL_ROW | STATUS_UPDATED))
       continue;
-
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
 
     if (table == table_to_update)
     {
@@ -2607,7 +2612,7 @@ int multi_update::do_updates()
     if (table->vfield)
       empty_record(table);
 
-    has_vers_fields= check_has_vers_fields(table, *fields);
+    has_vers_fields= table->vers_check_update(*fields);
 
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)

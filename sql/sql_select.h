@@ -1103,6 +1103,7 @@ protected:
                                Join_plan_state *save_to);
   /* Choose a subquery plan for a table-less subquery. */
   bool choose_tableless_subquery_plan();
+  void handle_implicit_grouping_with_window_funcs();
 
 public:
   void save_query_plan(Join_plan_state *save_to);

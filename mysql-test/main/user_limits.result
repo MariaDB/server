@@ -108,11 +108,11 @@ connection default;
 grant usage on *.* to mysqltest_1@localhost with max_user_connections -1;
 show grants for mysqltest_1@localhost;
 Grants for mysqltest_1@localhost
-GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost' WITH MAX_USER_CONNECTIONS -1
+GRANT USAGE ON *.* TO `mysqltest_1`@`localhost` WITH MAX_USER_CONNECTIONS -1
 flush user_resources;
 show grants for mysqltest_1@localhost;
 Grants for mysqltest_1@localhost
-GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost' WITH MAX_USER_CONNECTIONS -1
+GRANT USAGE ON *.* TO `mysqltest_1`@`localhost` WITH MAX_USER_CONNECTIONS -1
 connect(localhost,mysqltest_1,,test,MYSQL_PORT,MYSQL_SOCK);
 connect  muc5, localhost, mysqltest_1,,;
 ERROR 42000: User 'mysqltest_1' has exceeded the 'max_user_connections' resource (current value: -1)

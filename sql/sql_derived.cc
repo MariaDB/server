@@ -689,7 +689,39 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
        !(derived->is_multitable() &&
          (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
           thd->lex->sql_command == SQLCOM_DELETE_MULTI))))
+  {
+    /*
+       System versioned tables may still require to get versioning conditions
+       when modifying view (see vers_setup_conds()). Only UPDATE and DELETE are
+       affected because they use WHERE condition.
+    */
+    if (!unit->prepared &&
+        derived->table->versioned() &&
+        derived->merge_underlying_list &&
+        /* choose only those merged views that do not select from other views */
+        !derived->merge_underlying_list->merge_underlying_list)
+    {
+      switch (thd->lex->sql_command)
+      {
+      case SQLCOM_DELETE:
+      case SQLCOM_DELETE_MULTI:
+      case SQLCOM_UPDATE:
+      case SQLCOM_UPDATE_MULTI:
+        if ((res= first_select->vers_setup_conds(thd,
+                                                 derived->merge_underlying_list)))
+          goto exit;
+        if (derived->merge_underlying_list->where)
+        {
+          Query_arena_stmt on_stmt_arena(thd);
+          derived->where= and_items(thd, derived->where,
+                                    derived->merge_underlying_list->where);
+        }
+      default:
+        break;
+      }
+    }
     DBUG_RETURN(FALSE);
+  }
 
   /* prevent name resolving out of derived table */
   for (SELECT_LEX *sl= first_select; sl; sl= sl->next_select())
@@ -807,7 +839,7 @@ exit:
   {
     if (!derived->is_with_table_recursive_reference())
     {
-      if (derived->table)
+      if (derived->table && derived->table->s->tmp_table)
         free_tmp_table(thd, derived->table);
       delete derived->derived_result;
     }

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -121,6 +121,15 @@ static const alter_table_operations INNOBASE_FOREIGN_OPERATIONS
 static const alter_table_operations INNOBASE_ALTER_NOCREATE
 	= ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX
 	| ALTER_DROP_UNIQUE_INDEX;
+
+/** Operations that InnoDB cares about and can perform without validation */
+static const alter_table_operations INNOBASE_ALTER_NOVALIDATE
+	= INNOBASE_ALTER_NOCREATE
+	| ALTER_VIRTUAL_COLUMN_ORDER
+	| ALTER_COLUMN_NAME
+	| INNOBASE_FOREIGN_OPERATIONS
+	| ALTER_COLUMN_UNVERSIONED
+	| ALTER_DROP_VIRTUAL_COLUMN;
 
 /** Operations that InnoDB cares about and can perform without rebuild */
 static const alter_table_operations INNOBASE_ALTER_NOREBUILD
@@ -2162,7 +2171,7 @@ innobase_rec_to_mysql(
 	struct TABLE*		table,	/*!< in/out: MySQL table */
 	const rec_t*		rec,	/*!< in: record */
 	const dict_index_t*	index,	/*!< in: index */
-	const ulint*		offsets)/*!< in: rec_get_offsets(
+	const offset_t*		offsets)/*!< in: rec_get_offsets(
 					rec, index, ...) */
 {
 	uint	n_fields	= table->s->fields;
@@ -4401,7 +4410,7 @@ innobase_add_instant_try(
 			uf->field_no = f;
 			uf->new_val = entry->fields[f];
 		}
-		ulint* offsets = NULL;
+		offset_t* offsets = NULL;
 		mem_heap_t* offsets_heap = NULL;
 		big_rec_t* big_rec;
 		err = btr_cur_pessimistic_update(
@@ -5541,6 +5550,7 @@ new_table_failed:
 				if (index) {
 					dict_mem_index_free(index);
 				}
+error_handling_drop_uncached_1:
 				while (++a < ctx->num_to_add_index) {
 					dict_mem_index_free(ctx->add_index[a]);
 				}
@@ -5550,9 +5560,17 @@ new_table_failed:
 			}
 
 			ctx->add_index[a] = index;
-			if (!info.row_size_is_acceptable(*index)) {
+			/* For ALTER TABLE...FORCE or OPTIMIZE TABLE,
+			we may only issue warnings, because there will
+			be no schema change from the user perspective. */
+			if (!info.row_size_is_acceptable(
+				    *index,
+				    !!(ha_alter_info->handler_flags
+				       & ~(INNOBASE_INPLACE_IGNORE
+					   | INNOBASE_ALTER_NOVALIDATE
+					   | ALTER_RECREATE_TABLE)))) {
 				error = DB_TOO_BIG_RECORD;
-				goto error_handling;
+				goto error_handling_drop_uncached_1;
 			}
 			index->parser = index_defs[a].parser;
 			index->has_new_v_col = has_new_v_col;
@@ -5652,7 +5670,7 @@ error_handling_drop_uncached:
 				DBUG_ASSERT(index != ctx->add_index[a]);
 			}
 			ctx->add_index[a]= index;
-			if (!info.row_size_is_acceptable(*index)) {
+			if (!info.row_size_is_acceptable(*index, true)) {
 				error = DB_TOO_BIG_RECORD;
 				goto error_handling_drop_uncached;
 			}
@@ -5705,7 +5723,7 @@ error_handling_drop_uncached:
 			}
 		}
 	} else if (ctx->is_instant()
-		   && !info.row_size_is_acceptable(*user_table)) {
+		   && !info.row_size_is_acceptable(*user_table, true)) {
 		error = DB_TOO_BIG_RECORD;
 		goto error_handling;
 	}

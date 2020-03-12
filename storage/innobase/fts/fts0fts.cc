@@ -3202,7 +3202,7 @@ fts_fetch_doc_from_rec(
 	dict_index_t*	clust_index,	/*!< in: cluster index */
 	btr_pcur_t*	pcur,		/*!< in: cursor whose position
 					has been stored */
-	ulint*		offsets,	/*!< in: offsets */
+	offset_t*	offsets,	/*!< in: offsets */
 	fts_doc_t*	doc)		/*!< out: fts doc to hold parsed
 					documents */
 {
@@ -3486,7 +3486,7 @@ fts_add_doc_by_id(
 		btr_pcur_t*	doc_pcur;
 		const rec_t*	clust_rec;
 		btr_pcur_t	clust_pcur;
-		ulint*		offsets = NULL;
+		offset_t*	offsets = NULL;
 		ulint		num_idx = ib_vector_size(cache->get_docs);
 
 		rec = btr_pcur_get_rec(&pcur);
@@ -3677,8 +3677,8 @@ fts_get_max_doc_id(
 
 	if (!page_is_empty(btr_pcur_get_page(&pcur))) {
 		const rec_t*    rec = NULL;
-		ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-		ulint*		offsets = offsets_;
+		offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+		offset_t*	offsets = offsets_;
 		mem_heap_t*	heap = NULL;
 		ulint		len;
 		const void*	data;
@@ -5186,8 +5186,8 @@ fts_get_doc_id_from_rec(
 	const byte*	data;
 	ulint		col_no;
 	doc_id_t	doc_id = 0;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets = offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets = offsets_;
 	mem_heap_t*	my_heap = heap;
 
 	ut_a(table->fts->doc_col != ULINT_UNDEFINED);

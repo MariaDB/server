@@ -100,8 +100,13 @@ SET(ignored
   "%ignore /etc"
   "%ignore /etc/init.d"
   "%ignore /etc/logrotate.d"
+  "%ignore /etc/security"
   "%ignore /etc/systemd"
   "%ignore /etc/systemd/system"
+  "%ignore /lib"
+  "%ignore /lib/security"
+  "%ignore /lib64"
+  "%ignore /lib64/security"
   "%ignore ${CMAKE_INSTALL_PREFIX}"
   "%ignore ${CMAKE_INSTALL_PREFIX}/bin"
   "%ignore ${CMAKE_INSTALL_PREFIX}/include"
@@ -195,7 +200,7 @@ MACRO(ALTERNATIVE_NAME real alt)
   SET(p "CPACK_RPM_${real}_PACKAGE_PROVIDES")
   SET(${p} "${${p}} ${alt} = ${ver} ${alt}%{?_isa} = ${ver} config(${alt}) = ${ver}")
   SET(o "CPACK_RPM_${real}_PACKAGE_OBSOLETES")
-  SET(${o} "${${o}} ${alt} ${alt}%{?_isa}")
+  SET(${o} "${${o}} ${alt}")
 ENDMACRO(ALTERNATIVE_NAME)
 
 ALTERNATIVE_NAME("devel"  "mysql-devel")
@@ -215,8 +220,9 @@ ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
   ALTERNATIVE_NAME("server" "mariadb-server")
   ALTERNATIVE_NAME("server" "mysql-compat-server")
   ALTERNATIVE_NAME("test"   "mariadb-test")
-ELSEIF(RPM MATCHES "(rhel|centos)8")
-  SET(PYTHON_SHEBANG "/usr/bin/python3")
+ENDIF()
+IF(RPM MATCHES "fedora31" OR RPM MATCHES "(rhel|centos)8")
+  SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
 ENDIF()
 
 # If we want to build build MariaDB-shared-compat,
@@ -249,6 +255,7 @@ IF(compat53 AND compat101)
 
   STRING(REPLACE "\n" " " compat_provides "${compat_provides}")
   STRING(REPLACE "\n" " " compat_obsoletes "${compat_obsoletes}")
+  STRING(REGEX REPLACE "[^ ]+\\([^ ]+ *" "" compat_obsoletes "${compat_obsoletes}")
   SETA(CPACK_RPM_compat_PACKAGE_PROVIDES "${compat_provides}")
   SETA(CPACK_RPM_compat_PACKAGE_OBSOLETES "${compat_obsoletes}")
 

@@ -157,6 +157,12 @@ os_mem_free_large(
 {
 	ut_a(os_total_large_mem_allocated >= size);
 
+	// We could have manually poisoned that memory for ASAN.
+	// And we must unpoison it by ourself as specified in documentation
+	// for __asan_poison_memory_region() in sanitizer/asan_interface.h
+	// munmap() doesn't do it for us automatically.
+	UNIV_MEM_ALLOC(ptr, size);
+
 #ifdef HAVE_LINUX_LARGE_PAGES
 	if (my_use_large_pages && opt_large_page_size && !shmdt(ptr)) {
 		my_atomic_addlint(

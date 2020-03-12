@@ -29,6 +29,7 @@ select current_user();
 disconnect con1;
 
 --connection default
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
 
 connect (con2,"::1",root,,test,$MASTER_MYPORT,);
@@ -50,5 +51,5 @@ disconnect con3;
 revoke select on test.* from 'root'@'santa.claus.ipv6.example.com';
 drop user 'root'@'santa.claus.ipv6.example.com';
 
-set global debug_dbug= default;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 

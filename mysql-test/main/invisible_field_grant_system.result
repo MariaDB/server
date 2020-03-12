@@ -1,7 +1,7 @@
 create user user_1;
 show grants for user_1;
 Grants for user_1@%
-GRANT USAGE ON *.* TO 'user_1'@'%'
+GRANT USAGE ON *.* TO `user_1`@`%`
 # create user
 create database d;
 use d;

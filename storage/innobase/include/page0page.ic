@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -359,6 +359,26 @@ page_rec_is_last(
 }
 
 /************************************************************//**
+true if distance between the records (measured in number of times we have to
+move to the next record) is at most the specified value */
+UNIV_INLINE
+bool
+page_rec_distance_is_at_most(
+/*=========================*/
+	const rec_t*	left_rec,
+	const rec_t*	right_rec,
+	ulint		val)
+{
+	for (ulint i = 0; i <= val; i++) {
+		if (left_rec == right_rec) {
+			return (true);
+		}
+		left_rec = page_rec_get_next_const(left_rec);
+	}
+	return (false);
+}
+
+/************************************************************//**
 true if the record is the second last user record on a page.
 @return true if the second last user record */
 UNIV_INLINE
@@ -660,6 +680,7 @@ page_rec_get_next_low(
 	}
 
 	ut_ad(page_rec_is_infimum(rec)
+	      || (!page_is_leaf(page) && !page_has_prev(page))
 	      || !(rec_get_info_bits(page + offs, comp)
 		   & REC_INFO_MIN_REC_FLAG));
 
@@ -1004,7 +1025,7 @@ page_mem_free(
 	rec_t*			rec,		/*!< in: pointer to the
 						(origin of) record */
 	const dict_index_t*	index,		/*!< in: index of rec */
-	const ulint*		offsets)	/*!< in: array returned by
+	const offset_t*		offsets)	/*!< in: array returned by
 						rec_get_offsets() */
 {
 	rec_t*		free;

@@ -15,7 +15,7 @@ include/stop_slave.inc
 # Suspend the INSERT statement in current transaction on SQL thread.
 # It guarantees that SQL thread is applying the transaction when
 # STOP SLAVE command launchs.
-set @old_debug=@@global.debug;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= '+d,after_mysql_insert';
 include/start_slave.inc
 
@@ -75,6 +75,7 @@ connection master;
 connection slave;
 
 # Test end
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 include/restart_slave.inc
 connection slave;
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
@@ -99,7 +100,7 @@ connection slave;
 include/stop_slave.inc
 connection master;
 include/stop_dump_threads.inc
-set @old_debug=@@global.debug;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= '+d,dump_thread_wait_before_send_xid';
 connection slave;
 include/start_slave.inc
@@ -122,6 +123,7 @@ connection slave;
 include/wait_for_slave_to_stop.inc
 connection slave1;
 connection master;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 include/stop_dump_threads.inc
 connection slave1;
 include/start_slave.inc

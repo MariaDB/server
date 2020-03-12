@@ -291,13 +291,6 @@ mem_heap_printf(
 	const char*	format,	/*!< in: format string */
 	...) MY_ATTRIBUTE ((format (printf, 2, 3)));
 
-/** Checks that an object is a memory heap (or a block of it)
-@param[in]	heap	Memory heap to check */
-UNIV_INLINE
-void
-mem_block_validate(
-	const mem_heap_t*	heap);
-
 #ifdef UNIV_DEBUG
 /** Validates the contents of a memory heap.
 Asserts that the memory heap is consistent
@@ -312,7 +305,6 @@ mem_heap_validate(
 
 /** The info structure stored at the beginning of a heap block */
 struct mem_block_info_t {
-	ulint	magic_n;/* magic number for debugging */
 #ifdef UNIV_DEBUG
 	char	file_name[8];/* file name where the mem heap was created */
 	unsigned line;	/*!< line number where the mem heap was created */
@@ -346,9 +338,6 @@ struct mem_block_info_t {
 			pool, this contains the buf_block_t handle;
 			otherwise, this is NULL */
 };
-
-#define MEM_BLOCK_MAGIC_N	764741555
-#define MEM_FREED_BLOCK_MAGIC_N	547711122
 
 /* Header size for a memory heap block */
 #define MEM_BLOCK_HEADER_SIZE	UT_CALC_ALIGN(sizeof(mem_block_info_t),\

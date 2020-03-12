@@ -26,7 +26,7 @@ int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
                           enum enum_var_type scope);
 void wsrep_client_rollback(THD *thd);
 void wsrep_replay_transaction(THD *thd);
-void wsrep_create_appliers(long threads);
+bool wsrep_create_appliers(long threads, bool thread_count_lock=false);
 void wsrep_create_rollbacker();
 
 int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,

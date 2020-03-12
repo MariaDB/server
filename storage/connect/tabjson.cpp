@@ -394,10 +394,11 @@ err:
 
 bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
 {
-  char *p, *pc = colname + strlen(colname);
-  int   ars;
-  PJOB  job;
-  PJAR  jar;
+  char  *p, *pc = colname + strlen(colname);
+  int    ars;
+	size_t n;
+  PJOB   job;
+  PJAR   jar;
 
   if ((valp = jvp ? jvp->GetValue() : NULL)) {
     jcol.Type = valp->GetType();
@@ -423,8 +424,10 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
           PCSZ k = jrp->GetKey();
 
           if (*k != '$') {
-            strncat(strncat(fmt, sep, 128), k, 128);
-            strncat(strncat(colname, "_", 64), k, 64);
+						n = sizeof(fmt) - strlen(fmt) -1;
+						strncat(strncat(fmt, sep, n), k, n - strlen(sep));
+						n = sizeof(colname) - strlen(colname) - 1;
+						strncat(strncat(colname, "_", n), k, n - 1);
           } // endif Key
 
           if (Find(g, jrp->GetVal(), k, j + 1))
@@ -443,19 +446,26 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
           ars = MY_MIN(jar->GetSize(false), 1);
 
         for (int k = 0; k < ars; k++) {
-          if (!tdp->Xcol || stricmp(tdp->Xcol, key)) {
+					n = sizeof(fmt) - (strlen(fmt) + 1);
+
+					if (!tdp->Xcol || stricmp(tdp->Xcol, key)) {
             sprintf(buf, "%d", k);
 
-            if (tdp->Uri)
-              strncat(strncat(fmt, sep, 128), buf, 128);
-            else
-              strncat(strncat(strncat(fmt, "[", 128), buf, 128), "]", 128);
+						if (tdp->Uri) {
+							strncat(strncat(fmt, sep, n), buf, n - strlen(sep));
+						} else {
+							strncat(strncat(fmt, "[", n), buf, n - 1);
+							strncat(fmt, "]", n - (strlen(buf) + 1));
+						} // endif uri
 
-            if (all)
-              strncat(strncat(colname, "_", 64), buf, 64);
+						if (all) {
+							n = sizeof(colname) - (strlen(colname) + 1);
+							strncat(strncat(colname, "_", n), buf, n - 1);
+						} // endif all
 
-          } else
-            strncat(fmt, (tdp->Uri ? sep : "[*]"), 128);
+					} else {
+						strncat(fmt, (tdp->Uri ? sep : "[*]"), n);
+					}
 
           if (Find(g, jar->GetValue(k), "", j))
             return true;

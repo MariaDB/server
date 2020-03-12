@@ -134,7 +134,7 @@ static void die(const char *fmt, ...)
   }
 
   /*
-    Stop service that we started, if it was not initally running at
+    Stop service that we started, if it was not initially running at
     program start.
   */
   if (initial_service_state != UINT_MAX && initial_service_state != SERVICE_RUNNING)

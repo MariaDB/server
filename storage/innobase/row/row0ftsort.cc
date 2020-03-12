@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1372,7 +1372,7 @@ row_fts_sel_tree_propagate(
 	ulint		propogated,	/*<! in: tree node propagated */
 	int*		sel_tree,	/*<! in: selection tree */
 	const mrec_t**	mrec,		/*<! in: sort record */
-	ulint**		offsets,	/*<! in: record offsets */
+	offset_t**	offsets,	/*<! in: record offsets */
 	dict_index_t*	index)		/*<! in/out: FTS index */
 {
 	ulint	parent;
@@ -1422,7 +1422,7 @@ row_fts_sel_tree_update(
 	ulint		propagated,	/*<! in: node to propagate up */
 	ulint		height,		/*<! in: tree height */
 	const mrec_t**	mrec,		/*<! in: sort record */
-	ulint**		offsets,	/*<! in: record offsets */
+	offset_t**	offsets,	/*<! in: record offsets */
 	dict_index_t*	index)		/*<! in: index dictionary */
 {
 	ulint	i;
@@ -1444,7 +1444,7 @@ row_fts_build_sel_tree_level(
 	int*		sel_tree,	/*<! in/out: selection tree */
 	ulint		level,		/*<! in: selection tree level */
 	const mrec_t**	mrec,		/*<! in: sort record */
-	ulint**		offsets,	/*<! in: record offsets */
+	offset_t**	offsets,	/*<! in: record offsets */
 	dict_index_t*	index)		/*<! in: index dictionary */
 {
 	ulint	start;
@@ -1504,7 +1504,7 @@ row_fts_build_sel_tree(
 /*===================*/
 	int*		sel_tree,	/*<! in/out: selection tree */
 	const mrec_t**	mrec,		/*<! in: sort record */
-	ulint**		offsets,	/*<! in: record offsets */
+	offset_t**	offsets,	/*<! in: record offsets */
 	dict_index_t*	index)		/*<! in: index dictionary */
 {
 	ulint	treelevel = 1;
@@ -1554,7 +1554,7 @@ row_fts_merge_insert(
 	mem_heap_t*		heap;
 	dberr_t			error = DB_SUCCESS;
 	ulint*			foffs;
-	ulint**			offsets;
+	offset_t**		offsets;
 	fts_tokenizer_word_t	new_word;
 	ib_vector_t*		positions;
 	doc_id_t		last_doc_id;
@@ -1593,7 +1593,7 @@ row_fts_merge_insert(
 		heap, sizeof (*b) * fts_sort_pll_degree);
 	foffs = (ulint*) mem_heap_alloc(
 		heap, sizeof(*foffs) * fts_sort_pll_degree);
-	offsets = (ulint**) mem_heap_alloc(
+	offsets = (offset_t**) mem_heap_alloc(
 		heap, sizeof(*offsets) * fts_sort_pll_degree);
 	buf = (mrec_buf_t**) mem_heap_alloc(
 		heap, sizeof(*buf) * fts_sort_pll_degree);
@@ -1617,10 +1617,10 @@ row_fts_merge_insert(
 
 		num = 1 + REC_OFFS_HEADER_SIZE
 			+ dict_index_get_n_fields(index);
-		offsets[i] = static_cast<ulint*>(mem_heap_zalloc(
+		offsets[i] = static_cast<offset_t*>(mem_heap_zalloc(
 			heap, num * sizeof *offsets[i]));
-		offsets[i][0] = num;
-		offsets[i][1] = dict_index_get_n_fields(index);
+		rec_offs_set_n_alloc(offsets[i], num);
+		rec_offs_set_n_fields(offsets[i], dict_index_get_n_fields(index));
 		block[i] = psort_info[i].merge_block[id];
 		crypt_block[i] = psort_info[i].crypt_block[id];
 		b[i] = psort_info[i].merge_block[id];
@@ -1722,7 +1722,6 @@ row_fts_merge_insert(
 	corresponding FTS index auxiliary tables */
 	for (;;) {
 		dtuple_t*	dtuple;
-		ulint		n_ext;
 		int		min_rec = 0;
 
 		if (fts_sort_pll_degree <= 2) {
@@ -1765,7 +1764,7 @@ row_fts_merge_insert(
 		}
 
 		dtuple = row_rec_to_index_entry_low(
-			mrec[min_rec], index, offsets[min_rec], &n_ext,
+			mrec[min_rec], index, offsets[min_rec],
 			tuple_heap);
 
 		row_fts_insert_tuple(

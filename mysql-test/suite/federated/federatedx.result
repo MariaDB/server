@@ -2283,6 +2283,22 @@ connection default;
 connection master;
 CREATE TABLE t1 (a INT) ENGINE=FEDERATED CONNECTION='mysql://@127.0.0.1:SLAVE_PORT/federated/t1';
 ERROR HY000: Can't create federated table. Foreign data src error:  database: 'federated'  username: ''  hostname: '127.0.0.1'
+#
+# MDEV-21049 Segfault in create federatedx table with empty hostname
+#
+connection master;
+CREATE TABLE federated.t1 (x int) ENGINE=FEDERATED
+CONNECTION='mysql://root@:SLAVE_PORT/federated/t1';
+ERROR HY000: Can't create federated table. Foreign data src error:  database: 'federated'  username: 'root'  hostname: 'localhost'
+connection slave;
+CREATE TABLE federated.t1(x int);
+connection master;
+CREATE TABLE federated.t1 (x int) ENGINE=FEDERATED
+CONNECTION='mysql://root@:SLAVE_PORT/federated/t1';
+DROP TABLE federated.t1;
+connection slave;
+DROP TABLE federated.t1;
+connection default;
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

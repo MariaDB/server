@@ -125,11 +125,17 @@ os_thread_create_func(
 
 	pthread_attr_t	attr;
 
-	pthread_attr_init(&attr);
+	int	ret = pthread_attr_init(&attr);
+	if (UNIV_UNLIKELY(ret)) {
+		fprintf(stderr,
+			"InnoDB: Error: pthread_attr_init() returned %d\n",
+			ret);
+		abort();
+	}
 
 	my_atomic_addlint(&os_thread_count, 1);
 
-	int	ret = pthread_create(&new_thread_id, &attr, func, arg);
+	ret = pthread_create(&new_thread_id, &attr, func, arg);
 
 	ut_a(ret == 0);
 

@@ -348,7 +348,7 @@ my_decimal *seconds2my_decimal(bool sign, ulonglong sec, ulong microsec,
                         (TIME)->second_part, (DECIMAL))
 
 int my_decimal2int(uint mask, const decimal_t *d, bool unsigned_flag,
-		   longlong *l);
+		   longlong *l, decimal_round_mode round_type= HALF_UP);
 
 inline
 int my_decimal2double(uint, const decimal_t *d, double *result)

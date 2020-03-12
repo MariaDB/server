@@ -396,6 +396,18 @@ DELETE FROM t1;
 CHECK TABLE t1;
 DROP TABLE t1;
 
+# MDEV-21172 Memory leak during ADD PRIMARY KEY
+
+SET innodb_strict_mode = ON;
+eval CREATE TABLE t1 (a INT, b VARCHAR(500), c TEXT, UNIQUE(a,b)) $engine;
+ALTER TABLE t1 ADD d TEXT;
+--error 0,ER_TOO_BIG_ROWSIZE
+ALTER TABLE t1 ADD PRIMARY KEY (b,a);
+# Exploit MDEV-17468 to force the table definition to be reloaded
+ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
+DROP TABLE t1;
+SET innodb_strict_mode = OFF;
+
 dec $format;
 let $redundant_4k= 0;
 }

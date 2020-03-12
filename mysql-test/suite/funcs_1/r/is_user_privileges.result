@@ -546,9 +546,9 @@ default_role
 max_statement_time	0.000000
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
-GRANT SELECT, UPDATE ON `db_datadict`.* TO 'testuser1'@'localhost' WITH GRANT OPTION
-GRANT SELECT ON `mysql`.`user` TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
+GRANT SELECT, UPDATE ON `db_datadict`.* TO `testuser1`@`localhost` WITH GRANT OPTION
+GRANT SELECT ON `mysql`.`user` TO `testuser1`@`localhost`
 
 # Now add SELECT on *.* to testuser1;
 connection default;
@@ -1035,9 +1035,9 @@ default_role
 max_statement_time	0.000000
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT SELECT ON *.* TO 'testuser1'@'localhost' WITH GRANT OPTION
-GRANT SELECT, UPDATE ON `db_datadict`.* TO 'testuser1'@'localhost' WITH GRANT OPTION
-GRANT SELECT ON `mysql`.`user` TO 'testuser1'@'localhost'
+GRANT SELECT ON *.* TO `testuser1`@`localhost` WITH GRANT OPTION
+GRANT SELECT, UPDATE ON `db_datadict`.* TO `testuser1`@`localhost` WITH GRANT OPTION
+GRANT SELECT ON `mysql`.`user` TO `testuser1`@`localhost`
 connect  testuser2, localhost, testuser2, , db_datadict;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -1055,7 +1055,7 @@ WHERE user LIKE 'testuser%' ORDER BY host, user;
 ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table 'user'
 SHOW GRANTS;
 Grants for testuser2@localhost
-GRANT INSERT, UPDATE ON *.* TO 'testuser2'@'localhost'
+GRANT INSERT, UPDATE ON *.* TO `testuser2`@`localhost`
 connect  testuser3, localhost, testuser3, , test;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -1069,7 +1069,7 @@ WHERE user LIKE 'testuser%' ORDER BY host, user;
 ERROR 42000: SELECT command denied to user 'testuser3'@'localhost' for table 'user'
 SHOW GRANTS;
 Grants for testuser3@localhost
-GRANT USAGE ON *.* TO 'testuser3'@'localhost'
+GRANT USAGE ON *.* TO `testuser3`@`localhost`
 
 # Revoke privileges from testuser1;
 connection default;
@@ -1249,7 +1249,7 @@ WHERE user LIKE 'testuser%' ORDER BY host, user;
 ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 'user'
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
 CREATE TABLE db_datadict.tb_55 ( c1 TEXT );
 ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table 'tb_55'
 SELECT * FROM information_schema.user_privileges
@@ -1264,7 +1264,7 @@ WHERE user LIKE 'testuser%' ORDER BY host, user;
 ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 'user'
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
 CREATE TABLE db_datadict.tb_66 ( c1 TEXT );
 ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table 'tb_66'
 
@@ -1587,9 +1587,9 @@ default_role
 max_statement_time	0.000000
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
-GRANT ALL PRIVILEGES ON `db_datadict`.* TO 'testuser1'@'localhost' WITH GRANT OPTION
-GRANT SELECT ON `mysql`.`user` TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
+GRANT ALL PRIVILEGES ON `db_datadict`.* TO `testuser1`@`localhost` WITH GRANT OPTION
+GRANT SELECT ON `mysql`.`user` TO `testuser1`@`localhost`
 CREATE TABLE db_datadict.tb_56 ( c1 TEXT );
 ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table 'tb_56'
 USE db_datadict;
@@ -1745,9 +1745,9 @@ default_role
 max_statement_time	0.000000
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
-GRANT ALL PRIVILEGES ON `db_datadict`.* TO 'testuser1'@'localhost' WITH GRANT OPTION
-GRANT SELECT ON `mysql`.`user` TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
+GRANT ALL PRIVILEGES ON `db_datadict`.* TO `testuser1`@`localhost` WITH GRANT OPTION
+GRANT SELECT ON `mysql`.`user` TO `testuser1`@`localhost`
 CREATE TABLE tb_57 ( c1 TEXT )
 ENGINE = <other_engine_type>;
 
@@ -1929,7 +1929,7 @@ WHERE user LIKE 'testuser%' ORDER BY host, user;
 ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 'user'
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
 CREATE TABLE db_datadict.tb_58 ( c1 TEXT )
 ENGINE = <other_engine_type>;
 USE db_datadict;
@@ -1961,7 +1961,7 @@ PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
 SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
 GRANT SELECT, FILE ON *.* TO 'testuser1'@'localhost';
 SELECT * FROM information_schema.user_privileges
 WHERE grantee = '''testuser1''@''localhost''';
@@ -1975,7 +1975,7 @@ PRIVILEGE_TYPE	FILE
 IS_GRANTABLE	NO
 SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
-GRANT SELECT, FILE ON *.* TO 'testuser1'@'localhost'
+GRANT SELECT, FILE ON *.* TO `testuser1`@`localhost`
 DROP USER   'testuser1'@'localhost';
 SELECT * FROM information_schema.user_privileges
 WHERE grantee = '''testuser1''@''localhost''';

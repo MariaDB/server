@@ -73,6 +73,7 @@ while ($i) {
 
 # Emulate corruption in binlog file when SHOW BINLOG EVENTS is executing
 --echo # 2. Corruption in master binlog and SHOW BINLOG EVENTS
+set @saved_dbug = @@global.debug_dbug;
 SET GLOBAL debug_dbug="+d,corrupt_read_log_event_char";
 --echo SHOW BINLOG EVENTS;
 --disable_query_log
@@ -130,12 +131,13 @@ let $slave_io_errno= 1595,1743; # ER_SLAVE_RELAY_LOG_WRITE_FAILURE, ER_NETWORK_R
 --source include/wait_for_slave_io_error.inc
 --connection master
 SET GLOBAL debug_dbug="-d,corrupt_read_log_event2_set";
-SET GLOBAL debug_dbug= "";
+SET GLOBAL debug_dbug=@saved_dbug;
 SET GLOBAL master_verify_checksum=1;
 
 # Emulate corruption in network
 --echo # 5. Slave. Corruption in network
 --connection slave
+SET @saved_dbug_slave = @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,corrupt_queue_event";
 START SLAVE IO_THREAD;
 let $slave_io_errno= 1595,1743; # ER_SLAVE_RELAY_LOG_WRITE_FAILURE, ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE
@@ -152,7 +154,7 @@ let $slave_sql_errno= 1593;
 --source include/wait_for_slave_sql_error.inc
 
 SET GLOBAL debug_dbug="-d,corrupt_read_log_event_char";
-SET GLOBAL debug_dbug= "";
+SET GLOBAL debug_dbug=@saved_dbug_slave;
 
 # Start normal replication and compare same table on master
 # and slave
@@ -167,10 +169,9 @@ let $diff_tables= master:test.t1, slave:test.t1;
 # Clean up
 --echo # 8. Clean up
 --connection master
-SET GLOBAL debug_dbug= "";
+set @@global.debug_dbug = @saved_dbug;
 SET GLOBAL master_verify_checksum = @old_master_verify_checksum;
 DROP TABLE t1;
 --sync_slave_with_master
-SET GLOBAL debug_dbug= "";
 
 --source include/rpl_end.inc

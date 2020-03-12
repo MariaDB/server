@@ -4,7 +4,7 @@ Copyright (c) 2000, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3427,17 +3427,6 @@ trx_is_interrupted(
 	const trx_t*	trx)	/*!< in: transaction */
 {
 	return(trx && trx->mysql_thd && thd_kill_level(trx->mysql_thd));
-}
-
-/**********************************************************************//**
-Determines if the currently running transaction is in strict mode.
-@return TRUE if strict */
-ibool
-trx_is_strict(
-/*==========*/
-	trx_t*	trx)	/*!< in: transaction */
-{
-	return(trx && trx->mysql_thd && THDVAR(trx->mysql_thd, strict_mode));
 }
 
 /**************************************************************//**
@@ -10905,6 +10894,9 @@ create_table_info_t::create_table_def()
 
 	heap = mem_heap_create(1000);
 
+	ut_d(bool have_vers_start = false);
+	ut_d(bool have_vers_end = false);
+
 	for (ulint i = 0, j = 0; j < n_cols; i++) {
 		Field*	field = m_form->field[i];
 		ulint vers_row = 0;
@@ -10912,8 +10904,10 @@ create_table_info_t::create_table_def()
 		if (m_form->versioned()) {
 			if (i == m_form->s->row_start_field) {
 				vers_row = DATA_VERS_START;
+				ut_d(have_vers_start = true);
 			} else if (i == m_form->s->row_end_field) {
 				vers_row = DATA_VERS_END;
+				ut_d(have_vers_end = true);
 			} else if (!(field->flags
 				     & VERS_UPDATE_UNVERSIONED_FLAG)) {
 				vers_row = DATA_VERSIONED;
@@ -11033,6 +11027,10 @@ err_col:
 
 		j++;
 	}
+
+	ut_ad(have_vers_start == have_vers_end);
+	ut_ad(table->versioned() == have_vers_start);
+	ut_ad(!table->versioned() || table->vers_start != table->vers_end);
 
 	if (num_v) {
 		for (ulint i = 0, j = 0; i < n_cols; i++) {
@@ -12493,7 +12491,9 @@ int create_table_info_t::create_table(bool create_fk)
 		}
 	}
 
-	if (!row_size_is_acceptable(*m_table)) {
+	/* In TRUNCATE TABLE, we will merely warn about the maximum
+	row size being too large. */
+	if (!row_size_is_acceptable(*m_table, create_fk)) {
 		DBUG_RETURN(convert_error_code_to_mysql(
 			    DB_TOO_BIG_RECORD, m_flags, NULL));
 	}
@@ -12502,18 +12502,12 @@ int create_table_info_t::create_table(bool create_fk)
 }
 
 bool create_table_info_t::row_size_is_acceptable(
-    const dict_table_t &table) const
+  const dict_table_t &table, bool strict) const
 {
   for (dict_index_t *index= dict_table_get_first_index(&table); index;
        index= dict_table_get_next_index(index))
-  {
-
-    if (!row_size_is_acceptable(*index))
-    {
+    if (!row_size_is_acceptable(*index, strict))
       return false;
-    }
-  }
-
   return true;
 }
 
@@ -12692,7 +12686,7 @@ static void ib_warn_row_too_big(THD *thd, const dict_table_t *table)
 }
 
 bool create_table_info_t::row_size_is_acceptable(
-    const dict_index_t &index) const
+    const dict_index_t &index, bool strict) const
 {
   if ((index.type & DICT_FTS) || index.table->is_system_db)
   {
@@ -12701,7 +12695,7 @@ bool create_table_info_t::row_size_is_acceptable(
     return true;
   }
 
-  const bool strict= THDVAR(m_thd, strict_mode);
+  const bool innodb_strict_mode= THDVAR(m_thd, strict_mode);
   dict_index_t::record_size_info_t info= index.record_size_info();
 
   if (info.row_is_too_big())
@@ -12712,17 +12706,18 @@ bool create_table_info_t::row_size_is_acceptable(
     const size_t idx= info.get_first_overrun_field_index();
     const dict_field_t *field= dict_index_get_nth_field(&index, idx);
 
-    ib::error_or_warn(strict)
-        << "Cannot add field " << field->name << " in table "
-        << index.table->name << " because after adding it, the row size is "
-        << info.get_overrun_size()
-        << " which is greater than maximum allowed size ("
-        << info.max_leaf_size << " bytes) for a record on index leaf page.";
-
-    if (strict)
+    if (innodb_strict_mode || global_system_variables.log_warnings > 2)
     {
-      return false;
+      ib::error_or_warn(strict && innodb_strict_mode)
+          << "Cannot add field " << field->name << " in table "
+          << index.table->name << " because after adding it, the row size is "
+          << info.get_overrun_size()
+          << " which is greater than maximum allowed size ("
+          << info.max_leaf_size << " bytes) for a record on index leaf page.";
     }
+
+    if (strict && innodb_strict_mode)
+      return false;
 
     ib_warn_row_too_big(m_thd, index.table);
   }

@@ -95,7 +95,7 @@ void wsrep_register_hton(THD* thd, bool all)
       {
         trans_register_ha(thd, all, wsrep_hton);
 
-        /* follow innodb read/write settting
+        /* follow innodb read/write setting
          * but, as an exception: CTAS with empty result set will not be
          * replicated unless we declare wsrep hton as read/write here
 	 */
@@ -275,7 +275,7 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
     if (wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
     {
       DBUG_PRINT("wsrep", ("setting rollback fail"));
-      WSREP_ERROR("settting rollback fail: thd: %llu, schema: %s, SQL: %s",
+      WSREP_ERROR("setting rollback fail: thd: %llu, schema: %s, SQL: %s",
                   (long long)thd->real_id, thd->get_db(), thd->query());
     }
     wsrep_cleanup_transaction(thd);
@@ -316,7 +316,7 @@ int wsrep_commit(handlerton *hton, THD *thd, bool all)
         if (wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
         {
           DBUG_PRINT("wsrep", ("setting rollback fail"));
-          WSREP_ERROR("settting rollback fail: thd: %llu, schema: %s, SQL: %s",
+          WSREP_ERROR("setting rollback fail: thd: %llu, schema: %s, SQL: %s",
                       (long long)thd->real_id, thd->get_db(),
                       thd->query());
         }
@@ -488,11 +488,27 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
 
   if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_ws_handle.trx_id)
   {
-    WSREP_WARN("SQL statement was ineffective  thd: %lld  buf: %zu\n"
+    /*
+      Async replication slave may have applied some non-innodb workload,
+      and then has written replication "meta data" into gtid_slave_pos
+      innodb table. Writes to gtid_slave_pos must not be replicated,
+      but this activity has caused that innodb hton is registered for this
+       transaction, but no wsrep keys have been appended.
+       We enter in this code path, because IO cache has events for non-innodb
+       tables.
+       => we should not treat it an error if trx is not introduced for provider
+    */
+    if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL)
+    {
+      WSREP_DEBUG("skipping wsrep replication for async slave, error not raised");
+      DBUG_RETURN(WSREP_TRX_OK);
+    }
+
+    WSREP_WARN("SQL statement was ineffective  thd: %llu  buf: %zu\n"
                "schema: %s \n"
 	       "QUERY: %s\n"
 	       " => Skipping replication",
-	       (longlong) thd->thread_id, data_len,
+	       (ulonglong) thd->thread_id, data_len,
                thd->get_db(), thd->query());
     rcode = WSREP_TRX_FAIL;
   }

@@ -1094,14 +1094,10 @@ longlong Item_func_yearweek::val_int()
 longlong Item_func_weekday::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
+  Datetime dt(current_thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
+  if ((null_value= !dt.is_valid_datetime()))
     return 0;
-
-  return (longlong) calc_weekday(calc_daynr(ltime.year, ltime.month,
-                                            ltime.day),
-                                 odbc_type) + MY_TEST(odbc_type);
+  return dt.weekday(odbc_type) + MY_TEST(odbc_type);
 }
 
 bool Item_func_dayname::fix_length_and_dec()
@@ -1120,14 +1116,14 @@ bool Item_func_dayname::fix_length_and_dec()
 String* Item_func_dayname::val_str(String* str)
 {
   DBUG_ASSERT(fixed == 1);
-  uint weekday=(uint) val_int();		// Always Item_func_weekday()
   const char *day_name;
   uint err;
+  Datetime dt(current_thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
 
-  if (null_value)
+  if ((null_value= !dt.is_valid_datetime()))
     return (String*) 0;
   
-  day_name= locale->day_names->type_names[weekday];
+  day_name= locale->day_names->type_names[dt.weekday(false)];
   str->copy(day_name, (uint) strlen(day_name), &my_charset_utf8_bin,
 	    collation.collation, &err);
   return str;

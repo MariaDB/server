@@ -82,3 +82,29 @@ add foreign key (a) references t3 (a)
 on update set default on update set default);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'update set default)' at line 3
 drop table t_34455;
+#
+# MDEV-18460 Don't allow multiple table CONSTRAINTs with the same name.
+#
+CREATE TABLE tpk (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,name VARCHAR(100) NOT NULL) ENGINE=Innodb;
+CREATE TABLE tfk (c1 INT, c2 INT, CONSTRAINT sid UNIQUE (c1), CONSTRAINT sid CHECK (c2>15));
+ERROR HY000: Duplicate CHECK constraint name 'sid'
+CREATE TABLE tfk (c1 INT, c2 INT, CONSTRAINT sid UNIQUE (c1));
+ALTER TABLE tfk ADD CONSTRAINT sid CHECK (c2>15);
+ERROR HY000: Duplicate CHECK constraint name 'sid'
+DROP TABLE tfk;
+CREATE TABLE tfk (c1 INT, c2 INT,
+CONSTRAINT sid FOREIGN KEY (c1) REFERENCES tpk (id)) ENGINE=Innodb;
+show create table tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  KEY `sid` (`c1`),
+  CONSTRAINT `sid` FOREIGN KEY (`c1`) REFERENCES `tpk` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE tfk ADD CONSTRAINT sid CHECK (c2>15);
+ERROR HY000: Duplicate CHECK constraint name 'sid'
+ALTER TABLE tfk ADD CONSTRAINT sid UNIQUE(c2);
+ERROR 42000: Duplicate key name 'sid'
+DROP TABLE tfk;
+DROP TABLE tpk;

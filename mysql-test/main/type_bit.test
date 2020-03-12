@@ -262,7 +262,7 @@ select hex(a), b from t1;
 drop table t1;
 
 #
-# type was not properly initalized, which caused key_copy to fail
+# type was not properly initialized, which caused key_copy to fail
 #
 
 create table t1(bit_field bit(2), int_field int, key a(bit_field));

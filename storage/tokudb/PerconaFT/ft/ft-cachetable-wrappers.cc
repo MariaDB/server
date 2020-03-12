@@ -73,7 +73,7 @@ cachetable_put_empty_node_with_dep_nodes(
     enum cachetable_dirty dependent_dirty_bits[num_dependent_nodes];
     for (uint32_t i = 0; i < num_dependent_nodes; i++) {
         dependent_pairs[i] = dependent_nodes[i]->ct_pair;
-        dependent_dirty_bits[i] = (enum cachetable_dirty) dependent_nodes[i]->dirty;
+        dependent_dirty_bits[i] = (enum cachetable_dirty) dependent_nodes[i]->dirty();
     }
 
     toku_cachetable_put_with_dep_pairs(
@@ -253,7 +253,7 @@ toku_pin_ftnode_for_query(
             // written out, it would have to be dirtied.  That
             // requires a write lock, and a write lock requires you to
             // resolve checkpointing.
-            if (!node->dirty) {
+            if (!node->dirty()) {
                 toku_ft_bn_update_max_msn(node, max_msn_in_path, bfe->child_to_read);
             }
         }
@@ -280,7 +280,7 @@ toku_pin_ftnode_with_dep_nodes(
     enum cachetable_dirty dependent_dirty_bits[num_dependent_nodes];
     for (uint32_t i = 0; i < num_dependent_nodes; i++) {
         dependent_pairs[i] = dependent_nodes[i]->ct_pair;
-        dependent_dirty_bits[i] = (enum cachetable_dirty) dependent_nodes[i]->dirty;
+        dependent_dirty_bits[i] = (enum cachetable_dirty) dependent_nodes[i]->dirty();
     }
 
     int r = toku_cachetable_get_and_pin_with_dep_pairs(
@@ -333,7 +333,7 @@ cleanup:
 void toku_unpin_ftnode(FT ft, FTNODE node) {
     int r = toku_cachetable_unpin(ft->cf,
                                   node->ct_pair,
-                                  static_cast<enum cachetable_dirty>(node->dirty),
+                                  static_cast<enum cachetable_dirty>(node->dirty()),
                                   make_ftnode_pair_attr(node));
     invariant_zero(r);
 }
@@ -344,7 +344,7 @@ toku_unpin_ftnode_read_only(FT ft, FTNODE node)
     int r = toku_cachetable_unpin(
         ft->cf,
         node->ct_pair,
-        (enum cachetable_dirty) node->dirty,
+        (enum cachetable_dirty) node->dirty(),
         make_invalid_pair_attr()
         );
     assert(r==0);

@@ -1,5 +1,5 @@
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/force_restart.inc
 
 --connection node_1
 reset master;
@@ -39,5 +39,4 @@ DROP TABLE t2;
 --echo #cleanup
 --connection node_1
 RESET MASTER;
---connection node_2
-reset master;
+

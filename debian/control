@@ -7,6 +7,7 @@ Build-Depends: bison,
                cmake (>= 2.7),
                debhelper (>= 9),
                dh-apparmor,
+               dh-exec,
                dh-systemd,
                gdb,
                libaio-dev [linux-any],
@@ -234,7 +235,8 @@ Description: MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)
 
 Package: mariadb-client-core-10.3
 Architecture: any
-Depends: mariadb-common (>= ${source:Version}), libmariadb3,
+Depends: libmariadb3,
+         mariadb-common (>= ${source:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Conflicts: mariadb-client-10.0,
@@ -538,7 +540,6 @@ Description: Connect storage engine for MariaDB
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el
 Depends: mariadb-server-10.3 (= ${binary:Version}),
-         libzstd1,
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-rocksdb-engine-10.2,
@@ -570,8 +571,8 @@ Description: OQGraph storage engine for MariaDB
 
 Package: mariadb-plugin-tokudb
 Architecture: amd64
-Depends: mariadb-server-10.3 (= ${binary:Version}),
-         libjemalloc1 (>= 3.0.0~) | libjemalloc2,
+Depends: libjemalloc1 (>= 3.0.0~) | libjemalloc2,
+         mariadb-server-10.3 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-server-10.0,

@@ -18,7 +18,8 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db, 
                                         const char *name, bool& info);
 
-void Remove_tshp(PCATLG cat);
+TABLE_SHARE *Remove_tshp(PCATLG cat);
+void Restore_tshp(PCATLG cat, TABLE_SHARE *s);
 
 /* -------------------------- PROXY classes -------------------------- */
 

@@ -153,8 +153,9 @@ static void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow* shadow)
   if (!thd->wsrep_rgi) thd->wsrep_rgi= wsrep_relay_group_init("wsrep_relay");
 
   /* thd->system_thread_info.rpl_sql_info isn't initialized. */
-  thd->system_thread_info.rpl_sql_info=
-    new rpl_sql_thread_info(thd->wsrep_rgi->rli->mi->rpl_filter);
+  if (!thd->slave_thread)
+    thd->system_thread_info.rpl_sql_info=
+      new rpl_sql_thread_info(thd->wsrep_rgi->rli->mi->rpl_filter);
 
   thd->wsrep_exec_mode= REPL_RECV;
   thd->net.vio= 0;
@@ -182,7 +183,8 @@ static void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
   thd->user_time              = shadow->user_time;
   thd->reset_db(&db);
 
-  delete thd->system_thread_info.rpl_sql_info;
+  if (!thd->slave_thread)
+    delete thd->system_thread_info.rpl_sql_info;
   delete thd->wsrep_rgi->rli->mi;
   delete thd->wsrep_rgi->rli;
 
@@ -415,29 +417,46 @@ static void wsrep_replication_process(THD *thd)
   DBUG_VOID_RETURN;
 }
 
-static bool create_wsrep_THD(wsrep_thread_args* args)
+static bool create_wsrep_THD(wsrep_thread_args* args, bool thread_count_lock)
 {
-  mysql_mutex_lock(&LOCK_thread_count);
+  if (!thread_count_lock)
+    mysql_mutex_lock(&LOCK_thread_count);
+
   ulong old_wsrep_running_threads= wsrep_running_threads;
+
   DBUG_ASSERT(args->thread_type == WSREP_APPLIER_THREAD ||
               args->thread_type == WSREP_ROLLBACKER_THREAD);
+
   bool res= mysql_thread_create(args->thread_type == WSREP_APPLIER_THREAD
                                 ? key_wsrep_applier : key_wsrep_rollbacker,
                                 &args->thread_id, &connection_attrib,
                                 start_wsrep_THD, (void*)args);
+
+  if (res)
+  {
+    WSREP_ERROR("Can't create wsrep thread");
+  }
+
   /*
     if starting a thread on server startup, wait until the this thread's THD
     is fully initialized (otherwise a THD initialization code might
     try to access a partially initialized server data structure - MDEV-8208).
   */
   if (!mysqld_server_initialized)
+  {
     while (old_wsrep_running_threads == wsrep_running_threads)
+    {
       mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
+    }
+  }
+
+  if (!thread_count_lock)
+    mysql_mutex_unlock(&LOCK_thread_count);
+
   return res;
 }
 
-void wsrep_create_appliers(long threads)
+bool wsrep_create_appliers(long threads, bool thread_count_lock)
 {
   if (!wsrep_connected)
   {
@@ -449,26 +468,32 @@ void wsrep_create_appliers(long threads)
                   "connection at '%s'", wsrep_cluster_address);
       assert(0);
     }
-    return;
+    return false;
   }
 
-  long wsrep_threads=0;
+  long wsrep_threads= 0;
+
   while (wsrep_threads++ < threads) {
     wsrep_thread_args* arg;
-    if((arg = (wsrep_thread_args*)my_malloc(sizeof(wsrep_thread_args), MYF(0))) == NULL) {
+
+    if((arg= (wsrep_thread_args*)my_malloc(sizeof(wsrep_thread_args), MYF(0))) == NULL)
+    {
       WSREP_ERROR("Can't allocate memory for wsrep replication thread %ld\n", wsrep_threads);
       assert(0);
     }
 
-    arg->thread_type = WSREP_APPLIER_THREAD;
-    arg->processor = wsrep_replication_process;
+    arg->thread_type= WSREP_APPLIER_THREAD;
+    arg->processor= wsrep_replication_process;
 
-    if (create_wsrep_THD(arg)) {
-      WSREP_WARN("Can't create thread to manage wsrep replication");
+    if (create_wsrep_THD(arg, thread_count_lock))
+    {
+      WSREP_ERROR("Can't create thread to manage wsrep replication");
       my_free(arg);
-      return;
+      return true;
     }
   }
+
+  return false;
 }
 
 static void wsrep_rollback_process(THD *thd)
@@ -564,7 +589,7 @@ void wsrep_create_rollbacker()
     arg->processor = wsrep_rollback_process;
 
     /* create rollbacker */
-    if (create_wsrep_THD(arg)) {
+    if (create_wsrep_THD(arg, false)) {
       WSREP_WARN("Can't create thread to manage wsrep rollback");
       my_free(arg);
       return;

@@ -835,7 +835,7 @@ int Write_rows_log_event_old::do_after_row_operations(TABLE *table, int error)
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
   /*
-    reseting the extra with 
+    resetting the extra with 
     table->file->extra(HA_EXTRA_NO_IGNORE_NO_KEY); 
     fires bug#27077
     todo: explain or fix
@@ -2459,7 +2459,7 @@ Write_rows_log_event_old::do_after_row_operations(const Slave_reporting_capabili
   m_table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   m_table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
   /*
-    reseting the extra with 
+    resetting the extra with 
     table->file->extra(HA_EXTRA_NO_IGNORE_NO_KEY); 
     fires bug#27077
     todo: explain or fix

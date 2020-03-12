@@ -7455,7 +7455,7 @@ ER_GIS_UNSUPPORTED_ARGUMENT
   eng "Calling geometry function %s with unsupported types of arguments."
 
 ER_GIS_UNKNOWN_ERROR
-  eng "Unknown GIS error occured in function %s."
+  eng "Unknown GIS error occurred in function %s."
 
 ER_GIS_UNKNOWN_EXCEPTION
   eng "Unknown exception caught in GIS function %s."
@@ -7869,7 +7869,7 @@ ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
         eng "Can not DROP SYSTEM VERSIONING for table %`s partitioned BY SYSTEM_TIME"
 
 ER_VERS_DB_NOT_SUPPORTED
-      eng "System versioning tables in the %`s database are not suported"
+      eng "System versioning tables in the %`s database are not supported"
 
 ER_VERS_TRT_IS_DISABLED
         eng "Transaction registry is disabled"

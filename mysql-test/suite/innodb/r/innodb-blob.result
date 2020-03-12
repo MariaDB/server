@@ -153,3 +153,9 @@ a
 SELECT * FROM t2;
 a
 DROP TABLE t1,t2,t3;
+CREATE TABLE t1(f1 INT PRIMARY KEY, f2 TEXT)ENGINE=InnoDB
+ROW_FORMAT=REDUNDANT;
+SET @fill_amount = (@@innodb_page_size / 2 ) + 1 ;
+INSERT INTO t1 VALUES(1, REPEAT(2, @fill_amount));
+UPDATE t1 SET f1 = 2;
+DROP TABLE t1;

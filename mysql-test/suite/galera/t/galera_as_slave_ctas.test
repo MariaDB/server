@@ -1,0 +1,75 @@
+#
+# Test Galera as a slave to a MySQL master
+#
+# The galera/galera_2node_slave.cnf describes the setup of the nodes
+# also, for this test, master server must have binlog_format=ROW
+#
+
+--source include/have_innodb.inc
+
+# As node #1 is not a Galera node, we connect to node #2 in order to run include/galera_cluster.inc
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--source include/galera_cluster.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+--connection node_2
+--disable_query_log
+--eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_1;
+--enable_query_log
+START SLAVE;
+
+
+# make sure master server has binlog_format=ROW
+--connection node_1
+SHOW VARIABLES LIKE 'binlog_format';
+
+#
+# test phase one, issue CTAS with empty source table
+#
+--connection node_1
+CREATE TABLE source (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+CREATE TABLE target AS SELECT * FROM source;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'target';
+--source include/wait_condition.inc
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'target';
+--source include/wait_condition.inc
+
+#
+# test phase two, issue CTAS with populated source table
+#
+--connection node_1
+DROP TABLE target;
+INSERT INTO source VALUES(1);
+
+CREATE TABLE target AS SELECT * FROM source;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM target;
+--source include/wait_condition.inc
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 1 FROM target;
+--source include/wait_condition.inc
+
+--connection node_1
+DROP TABLE source;
+DROP TABLE target;
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'target';
+--source include/wait_condition.inc
+
+
+--connection node_2
+STOP SLAVE;
+RESET SLAVE ALL;
+
+--connection node_1
+RESET MASTER;
+

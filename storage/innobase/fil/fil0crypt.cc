@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -654,51 +654,10 @@ fil_space_encrypt(
 		return (src_frame);
 	}
 
-	fil_space_crypt_t* crypt_data = space->crypt_data;
-	const page_size_t	page_size(space->flags);
 	ut_ad(space->pending_io());
-	byte* tmp = fil_encrypt_buf(crypt_data, space->id, offset, lsn,
-				    src_frame, page_size, dst_frame);
-
-#ifdef UNIV_DEBUG
-	if (tmp) {
-		/* Verify that encrypted buffer is not corrupted */
-		dberr_t err = DB_SUCCESS;
-		byte* src = src_frame;
-		bool page_compressed_encrypted = (mach_read_from_2(tmp+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
-		byte uncomp_mem[UNIV_PAGE_SIZE_MAX];
-		byte tmp_mem[UNIV_PAGE_SIZE_MAX];
-
-		if (page_compressed_encrypted) {
-			memcpy(uncomp_mem, src, srv_page_size);
-			ulint unzipped1 = fil_page_decompress(
-				tmp_mem, uncomp_mem);
-			ut_ad(unzipped1);
-			if (unzipped1 != srv_page_size) {
-				src = uncomp_mem;
-			}
-		}
-
-		ut_ad(!buf_page_is_corrupted(true, src, page_size, space));
-		ut_ad(fil_space_decrypt(crypt_data, tmp_mem, page_size, tmp,
-					&err));
-		ut_ad(err == DB_SUCCESS);
-
-		/* Need to decompress the page if it was also compressed */
-		if (page_compressed_encrypted) {
-			byte buf[UNIV_PAGE_SIZE_MAX];
-			memcpy(buf, tmp_mem, srv_page_size);
-			ulint unzipped2 = fil_page_decompress(tmp_mem, buf);
-			ut_ad(unzipped2);
-		}
-
-		memcpy(tmp_mem + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-		       src + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 8);
-		ut_ad(!memcmp(src, tmp_mem, page_size.physical()));
-	}
-#endif /* UNIV_DEBUG */
-
-	return tmp;
+	return fil_encrypt_buf(space->crypt_data, space->id, offset, lsn,
+			       src_frame, page_size_t(space->flags),
+			       dst_frame);
 }
 
 /** Decrypt a page.
@@ -2335,7 +2294,7 @@ static void fil_crypt_rotation_list_fill()
 			}
 		}
 
-		UT_LIST_ADD_LAST(fil_system.rotation_list, space);
+		fil_system.rotation_list.push_back(*space);
 	}
 }
 

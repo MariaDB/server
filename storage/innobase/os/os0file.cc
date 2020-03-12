@@ -1,8 +1,8 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -413,7 +413,7 @@ public:
 	/** Accessor for the AIO context
 	@param[in]	segment	Segment for which to get the context
 	@return the AIO context for the segment */
-	io_context* io_ctx(ulint segment)
+	io_context_t io_ctx(ulint segment)
 		MY_ATTRIBUTE((warn_unused_result))
 	{
 		ut_ad(segment < get_n_segments());
@@ -421,11 +421,11 @@ public:
 		return(m_aio_ctx[segment]);
 	}
 
-	/** Creates an io_context for native linux AIO.
+	/** Creates an io_context_t for native linux AIO.
 	@param[in]	max_events	number of events
 	@param[out]	io_ctx		io_ctx to initialize.
 	@return true on success. */
-	static bool linux_create_io_ctx(unsigned max_events, io_context_t* io_ctx)
+	static bool linux_create_io_ctx(unsigned max_events, io_context_t& io_ctx)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Checks if the system supports native linux aio. On some kernel
@@ -622,7 +622,7 @@ private:
 
 	/** completion queue for IO. There is one such queue per
 	segment. Each thread will work on one ctx exclusively. */
-	io_context_t*		m_aio_ctx;
+	std::vector<io_context_t>		m_aio_ctx;
 
 	/** The array to collect completed IOs. There is one such
 	event for each possible pending IO. The size of the array
@@ -1470,6 +1470,12 @@ os_file_get_parent_dir(
 		return(NULL);
 	}
 
+	if (last_slash - path < 0) {
+		/* Sanity check, it prevents gcc from trying to handle this case which
+		 * results in warnings for some optimized builds */
+		return (NULL);
+	}
+
 	/* Non-trivial directory component */
 
 	return(mem_strdupl(path, ulint(last_slash - path)));
@@ -1788,10 +1794,14 @@ LinuxAIOHandler::resubmit(Slot* slot)
 
 	iocb->data = slot;
 
+	ut_a(reinterpret_cast<size_t>(iocb->u.c.buf) % OS_FILE_LOG_BLOCK_SIZE
+	     == 0);
+
 	/* Resubmit an I/O request */
 	int	ret = io_submit(m_array->io_ctx(m_segment), 1, &iocb);
+	ut_a(ret != -EINVAL);
 
-	if (ret < -1)  {
+	if (ret < 0)  {
 		errno = -ret;
 	}
 
@@ -1892,8 +1902,8 @@ LinuxAIOHandler::collect()
 	ut_ad(m_array != NULL);
 	ut_ad(m_segment < m_array->get_n_segments());
 
-	/* Which io_context we are going to use. */
-	io_context*	io_ctx = m_array->io_ctx(m_segment);
+	/* Which io_context_t we are going to use. */
+	io_context_t	io_ctx = m_array->io_ctx(m_segment);
 
 	/* Starting point of the m_segment we will be working on. */
 	ulint	start_pos = m_segment * m_n_slots;
@@ -1920,6 +1930,8 @@ LinuxAIOHandler::collect()
 		int	ret;
 
 		ret = io_getevents(io_ctx, 1, m_n_slots, events, &timeout);
+		ut_a(ret != -EINVAL);
+		ut_ad(ret != -EFAULT);
 
 		for (int i = 0; i < ret; ++i) {
 
@@ -2146,14 +2158,18 @@ AIO::linux_dispatch(Slot* slot)
 
 	/* Find out what we are going to work with.
 	The iocb struct is directly in the slot.
-	The io_context is one per segment. */
+	The io_context_t is one per segment. */
 
 	ulint		io_ctx_index;
 	struct iocb*	iocb = &slot->control;
 
 	io_ctx_index = (slot->pos * m_n_segments) / m_slots.size();
 
-	int	ret = io_submit(m_aio_ctx[io_ctx_index], 1, &iocb);
+	ut_a(reinterpret_cast<size_t>(iocb->u.c.buf) % OS_FILE_LOG_BLOCK_SIZE
+	     == 0);
+
+	int	ret = io_submit(io_ctx(io_ctx_index), 1, &iocb);
+	ut_a(ret != -EINVAL);
 
 	/* io_submit() returns number of successfully queued requests
 	or -errno. */
@@ -2165,25 +2181,26 @@ AIO::linux_dispatch(Slot* slot)
 	return(ret == 1);
 }
 
-/** Creates an io_context for native linux AIO.
+/** Creates an io_context_t for native linux AIO.
 @param[in]	max_events	number of events
 @param[out]	io_ctx		io_ctx to initialize.
 @return true on success. */
 bool
 AIO::linux_create_io_ctx(
 	unsigned	max_events,
-	io_context_t*	io_ctx)
+	io_context_t&	io_ctx)
 {
 	ssize_t		n_retries = 0;
 
 	for (;;) {
 
-		memset(io_ctx, 0x0, sizeof(*io_ctx));
+		memset(&io_ctx, 0x0, sizeof(io_ctx));
 
 		/* Initialize the io_ctx. Tell it how many pending
 		IO requests this context will handle. */
 
-		int	ret = io_setup(max_events, io_ctx);
+		int	ret = io_setup(max_events, &io_ctx);
+		ut_a(ret != -EINVAL);
 
 		if (ret == 0) {
 			/* Success. Return now. */
@@ -2262,7 +2279,7 @@ AIO::is_linux_native_aio_supported()
 	io_context_t	io_ctx;
 	char		name[1000];
 
-	if (!linux_create_io_ctx(1, &io_ctx)) {
+	if (!linux_create_io_ctx(1, io_ctx)) {
 
 		/* The platform does not support native aio. */
 
@@ -2277,6 +2294,10 @@ AIO::is_linux_native_aio_supported()
 			ib::warn()
 				<< "Unable to create temp file to check"
 				" native AIO support.";
+
+			int ret = io_destroy(io_ctx);
+			ut_a(ret != -EINVAL);
+			ut_ad(ret != -EFAULT);
 
 			return(false);
 		}
@@ -2307,6 +2328,10 @@ AIO::is_linux_native_aio_supported()
 				<< " \"" << name << "\" to check native"
 				<< " AIO read support.";
 
+			int ret = io_destroy(io_ctx);
+			ut_a(ret != EINVAL);
+			ut_ad(ret != EFAULT);
+
 			return(false);
 		}
 	}
@@ -2335,11 +2360,15 @@ AIO::is_linux_native_aio_supported()
 		io_prep_pread(p_iocb, fd, ptr, 512, 0);
 	}
 
+	ut_a(reinterpret_cast<size_t>(p_iocb->u.c.buf) % OS_FILE_LOG_BLOCK_SIZE
+	     == 0);
 	int	err = io_submit(io_ctx, 1, &p_iocb);
+	ut_a(err != -EINVAL);
 
 	if (err >= 1) {
 		/* Now collect the submitted IO request. */
 		err = io_getevents(io_ctx, 1, 1, &io_event, NULL);
+		ut_a(err != -EINVAL);
 	}
 
 	ut_free(buf);
@@ -2347,7 +2376,13 @@ AIO::is_linux_native_aio_supported()
 
 	switch (err) {
 	case 1:
-		return(true);
+		{
+			int ret = io_destroy(io_ctx);
+			ut_a(ret != -EINVAL);
+			ut_ad(ret != -EFAULT);
+
+			return(true);
+		}
 
 	case -EINVAL:
 	case -ENOSYS:
@@ -2366,6 +2401,10 @@ AIO::is_linux_native_aio_supported()
 			<< (srv_read_only_mode ? name : "tmpdir")
 			<< "returned error[" << -err << "]";
 	}
+
+	int ret = io_destroy(io_ctx);
+	ut_a(ret != -EINVAL);
+	ut_ad(ret != -EFAULT);
 
 	return(false);
 }
@@ -5723,8 +5762,7 @@ AIO::AIO(
 	m_n_segments(segments),
 	m_n_reserved()
 # ifdef LINUX_NATIVE_AIO
-	,m_aio_ctx(),
-	m_events(m_slots.size())
+	,m_events(m_slots.size())
 # endif /* LINUX_NATIVE_AIO */
 #ifdef WIN_ASYNC_IO
 	,m_completion_port(new_completion_port())
@@ -5780,29 +5818,20 @@ AIO::init_slots()
 dberr_t
 AIO::init_linux_native_aio()
 {
-	/* Initialize the io_context array. One io_context
+
+	/* Initialize the io_context_t array. One io_context_t
 	per segment in the array. */
+	m_aio_ctx.resize(get_n_segments());
 
-	ut_a(m_aio_ctx == NULL);
-
-	m_aio_ctx = static_cast<io_context**>(
-		ut_zalloc_nokey(m_n_segments * sizeof(*m_aio_ctx)));
-
-	if (m_aio_ctx == NULL) {
-		return(DB_OUT_OF_MEMORY);
-	}
-
-	io_context**	ctx = m_aio_ctx;
 	ulint		max_events = slots_per_segment();
 
-	for (ulint i = 0; i < m_n_segments; ++i, ++ctx) {
+	for (std::vector<io_context_t>::iterator it = m_aio_ctx.begin(),
+						 end = m_aio_ctx.end();
+	     it != end; ++it) {
 
-		if (!linux_create_io_ctx(max_events, ctx)) {
+		if (!linux_create_io_ctx(max_events, *it)) {
 			/* If something bad happened during aio setup
 			we disable linux native aio.
-			The disadvantage will be a small memory leak
-			at shutdown but that's ok compared to a crash
-			or a not working server.
 			This frequently happens when running the test suite
 			with many threads on a system with low fs.aio-max-nr!
 			*/
@@ -5814,8 +5843,15 @@ AIO::init_linux_native_aio()
 				<< "try increasing system "
 				<< "fs.aio-max-nr to 1048576 or larger or "
 				<< "setting innodb_use_native_aio = 0 in my.cnf";
-			ut_free(m_aio_ctx);
-			m_aio_ctx = 0;
+
+			for (std::vector<io_context_t>::iterator it2
+			     = m_aio_ctx.begin();
+			     it2 != it; ++it2) {
+				int ret = io_destroy(*it2);
+				ut_a(ret != -EINVAL);
+			}
+
+			m_aio_ctx.clear();
 			srv_use_native_aio = FALSE;
 			return(DB_SUCCESS);
 		}
@@ -5891,15 +5927,15 @@ AIO::~AIO()
 
 #if defined(LINUX_NATIVE_AIO)
 	if (srv_use_native_aio) {
-		m_events.clear();
-		ut_free(m_aio_ctx);
+		for (ulint i = 0; i < m_aio_ctx.size(); i++) {
+			int ret = io_destroy(m_aio_ctx[i]);
+			ut_a(ret != -EINVAL);
+		}
 	}
 #endif /* LINUX_NATIVE_AIO */
 #if defined(WIN_ASYNC_IO)
 	CloseHandle(m_completion_port);
 #endif
-
-	m_slots.clear();
 }
 
 /** Initializes the asynchronous io system. Creates one array each for ibuf
@@ -6193,6 +6229,10 @@ AIO::reserve_slot(
 	os_offset_t		offset,
 	ulint			len)
 {
+	ut_ad(reinterpret_cast<size_t>(buf) % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_ad(offset % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_ad(len % OS_FILE_LOG_BLOCK_SIZE == 0);
+
 #ifdef WIN_ASYNC_IO
 	ut_a((len & 0xFFFFFFFFUL) == len);
 #endif /* WIN_ASYNC_IO */

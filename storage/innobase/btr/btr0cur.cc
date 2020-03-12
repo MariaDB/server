@@ -1,9 +1,9 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -158,7 +158,7 @@ btr_cur_unmark_extern_fields(
 				part will be updated, or NULL */
 	rec_t*		rec,	/*!< in/out: record in a clustered index */
 	dict_index_t*	index,	/*!< in: index of the page */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	mtr_t*		mtr);	/*!< in: mtr, or NULL if not logged */
 /*******************************************************************//**
 Adds path information to the cursor for the current page, for which
@@ -183,7 +183,7 @@ btr_rec_free_updated_extern_fields(
 	rec_t*		rec,	/*!< in: record */
 	page_zip_des_t*	page_zip,/*!< in: compressed page whose uncompressed
 				part will be updated, or NULL */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	const upd_t*	update,	/*!< in: update vector */
 	bool		rollback,/*!< in: performing rollback? */
 	mtr_t*		mtr);	/*!< in: mini-transaction handle which contains
@@ -197,7 +197,7 @@ btr_rec_free_externally_stored_fields(
 	dict_index_t*	index,	/*!< in: index of the data, the index
 				tree MUST be X-latched */
 	rec_t*		rec,	/*!< in: record */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	page_zip_des_t*	page_zip,/*!< in: compressed page whose uncompressed
 				part will be updated, or NULL */
 	bool		rollback,/*!< in: performing rollback? */
@@ -476,8 +476,8 @@ incompatible:
 	from the cache. */
 
 	mem_heap_t* heap = NULL;
-	ulint* offsets = rec_get_offsets(rec, index, NULL, true,
-					 ULINT_UNDEFINED, &heap);
+	offset_t* offsets = rec_get_offsets(rec, index, NULL, true,
+					    ULINT_UNDEFINED, &heap);
 	if (rec_offs_any_default(offsets)) {
 inconsistent:
 		mem_heap_free(heap);
@@ -804,46 +804,66 @@ btr_cur_will_modify_tree(
 	const ulint n_recs = page_get_n_recs(page);
 
 	if (lock_intention <= BTR_INTENTION_BOTH) {
-		ulint	margin;
+		compile_time_assert(BTR_INTENTION_DELETE < BTR_INTENTION_BOTH);
+		compile_time_assert(BTR_INTENTION_BOTH < BTR_INTENTION_INSERT);
 
-		/* check delete will cause. (BTR_INTENTION_BOTH
-		or BTR_INTENTION_DELETE) */
-		/* first, 2nd, 2nd-last and last records are 4 records */
-		if (n_recs < 5) {
-			return(true);
+		if (!page_has_siblings(page)) {
+			return true;
 		}
 
-		/* is first, 2nd or last record */
-		if (page_rec_is_first(rec, page)
-		    || (page_has_next(page)
-			&& (page_rec_is_last(rec, page)
-			    || page_rec_is_second_last(rec, page)))
-		    || (page_has_prev(page)
-			&& page_rec_is_second(rec, page))) {
-			return(true);
-		}
+		ulint margin = rec_size;
 
 		if (lock_intention == BTR_INTENTION_BOTH) {
+			ulint	level = btr_page_get_level(page);
+
+			/* This value is the worst expectation for the node_ptr
+			records to be deleted from this page. It is used to
+			expect whether the cursor position can be the left_most
+			record in this page or not. */
+			ulint   max_nodes_deleted = 0;
+
+			/* By modifying tree operations from the under of this
+			level, logically (2 ^ (level - 1)) opportunities to
+			deleting records in maximum even unreally rare case. */
+			if (level > 7) {
+				/* TODO: adjust this practical limit. */
+				max_nodes_deleted = 64;
+			} else if (level > 0) {
+				max_nodes_deleted = (ulint)1 << (level - 1);
+			}
+			/* check delete will cause. (BTR_INTENTION_BOTH
+			or BTR_INTENTION_DELETE) */
+			if (n_recs <= max_nodes_deleted * 2
+			    || page_rec_is_first(rec, page)) {
+				/* The cursor record can be the left most record
+				in this page. */
+				return true;
+			}
+
+			if (page_has_prev(page)
+			    && page_rec_distance_is_at_most(
+				    page_get_infimum_rec(page), rec,
+				    max_nodes_deleted)) {
+				return true;
+			}
+
+			if (page_has_next(page)
+			    && page_rec_distance_is_at_most(
+				    rec, page_get_supremum_rec(page),
+				    max_nodes_deleted)) {
+				return true;
+			}
+
 			/* Delete at leftmost record in a page causes delete
 			& insert at its parent page. After that, the delete
 			might cause btr_compress() and delete record at its
-			parent page. Thus we should consider max 2 deletes. */
-
-			margin = rec_size * 2;
-		} else {
-			ut_ad(lock_intention == BTR_INTENTION_DELETE);
-
-			margin = rec_size;
+			parent page. Thus we should consider max deletes. */
+			margin *= max_nodes_deleted;
 		}
-		/* NOTE: call mach_read_from_4() directly to avoid assertion
-		failure. It is safe because we already have SX latch of the
-		index tree */
+
+		/* Safe because we already have SX latch of the index tree */
 		if (page_get_data_size(page)
-			< margin + BTR_CUR_PAGE_COMPRESS_LIMIT(index)
-		    || (mach_read_from_4(page + FIL_PAGE_NEXT)
-				== FIL_NULL
-			&& mach_read_from_4(page + FIL_PAGE_PREV)
-				== FIL_NULL)) {
+		    < margin + BTR_CUR_PAGE_COMPRESS_LIMIT(index)) {
 			return(true);
 		}
 	}
@@ -1142,10 +1162,10 @@ btr_cur_search_to_nth_level_func(
 	btr_search_t*	info;
 #endif /* BTR_CUR_ADAPT */
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
-	ulint		offsets2_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets2	= offsets2_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
+	offset_t	offsets2_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets2	= offsets2_;
 	rec_offs_init(offsets_);
 	rec_offs_init(offsets2_);
 	/* Currently, PAGE_CUR_LE is the only search mode used for searches
@@ -2025,9 +2045,9 @@ need_opposite_intention:
 				offsets2 = rec_get_offsets(
 					first_rec, index, offsets2,
 					false, ULINT_UNDEFINED, &heap);
-				cmp_rec_rec_with_match(node_ptr, first_rec,
-					offsets, offsets2, index, FALSE,
-					&matched_fields);
+				cmp_rec_rec(node_ptr, first_rec,
+					    offsets, offsets2, index, false,
+					    &matched_fields);
 
 				if (matched_fields
 				    >= rec_offs_n_fields(offsets) - 1) {
@@ -2043,10 +2063,10 @@ need_opposite_intention:
 					offsets2 = rec_get_offsets(
 						last_rec, index, offsets2,
 						false, ULINT_UNDEFINED, &heap);
-					cmp_rec_rec_with_match(
+					cmp_rec_rec(
 						node_ptr, last_rec,
 						offsets, offsets2, index,
-						FALSE, &matched_fields);
+						false, &matched_fields);
 					if (matched_fields
 					    >= rec_offs_n_fields(offsets) - 1) {
 						detected_same_key_root = true;
@@ -2406,8 +2426,8 @@ btr_cur_open_at_index_side_func(
 	ulint		n_blocks = 0;
 	ulint		n_releases = 0;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 	dberr_t		err = DB_SUCCESS;
 
 	rec_offs_init(offsets_);
@@ -2775,8 +2795,8 @@ btr_cur_open_at_rnd_pos_func(
 	ulint		n_blocks = 0;
 	ulint		n_releases = 0;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(!index->is_spatial());
@@ -3065,7 +3085,7 @@ btr_cur_insert_if_possible(
 				cursor stays valid */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert; the size info need not
 				have been stored to tuple */
-	ulint**		offsets,/*!< out: offsets on *rec */
+	offset_t**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
@@ -3228,7 +3248,7 @@ btr_cur_optimistic_insert(
 				specified */
 	btr_cur_t*	cursor,	/*!< in: cursor on page after which to insert;
 				cursor stays valid */
-	ulint**		offsets,/*!< out: offsets on *rec */
+	offset_t**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap */
 	dtuple_t*	entry,	/*!< in/out: entry to insert */
 	rec_t**		rec,	/*!< out: pointer to inserted record if
@@ -3528,7 +3548,7 @@ btr_cur_pessimistic_insert(
 				insertion will certainly succeed */
 	btr_cur_t*	cursor,	/*!< in: cursor after which to insert;
 				cursor stays valid */
-	ulint**		offsets,/*!< out: offsets on *rec */
+	offset_t**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap
 				that can be emptied */
 	dtuple_t*	entry,	/*!< in/out: entry to insert */
@@ -3666,8 +3686,8 @@ btr_cur_pessimistic_insert(
 		if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
 			ut_ad(entry->info_bits == REC_INFO_METADATA);
 			ut_ad(index->is_instant());
-			ut_ad((flags & ulint(~BTR_KEEP_IBUF_BITMAP))
-			      == BTR_NO_LOCKING_FLAG);
+			ut_ad(flags & BTR_NO_LOCKING_FLAG);
+			ut_ad(!(flags & BTR_CREATE_FLAG));
 		} else {
 			btr_search_update_hash_on_insert(
 				cursor, btr_get_search_latch(index));
@@ -3696,7 +3716,7 @@ btr_cur_upd_lock_and_undo(
 /*======================*/
 	ulint		flags,	/*!< in: undo logging and locking flags */
 	btr_cur_t*	cursor,	/*!< in: cursor on record to update */
-	const ulint*	offsets,/*!< in: rec_get_offsets() on cursor */
+	const offset_t*	offsets,/*!< in: rec_get_offsets() on cursor */
 	const upd_t*	update,	/*!< in: update vector */
 	ulint		cmpl_info,/*!< in: compiler info on secondary index
 				updates */
@@ -3827,7 +3847,7 @@ btr_cur_parse_update_in_place(
 	roll_ptr_t	roll_ptr;
 	ulint		rec_offset;
 	mem_heap_t*	heap;
-	ulint*		offsets;
+	offset_t*	offsets;
 
 	if (end_ptr < ptr + 1) {
 
@@ -3912,7 +3932,7 @@ btr_cur_update_alloc_zip_func(
 	page_cur_t*	cursor,	/*!< in/out: B-tree page cursor */
 	dict_index_t*	index,	/*!< in: the index corresponding to cursor */
 #ifdef UNIV_DEBUG
-	ulint*		offsets,/*!< in/out: offsets of the cursor record */
+	offset_t*	offsets,/*!< in/out: offsets of the cursor record */
 #endif /* UNIV_DEBUG */
 	ulint		length,	/*!< in: size needed */
 	bool		create,	/*!< in: true=delete-and-insert,
@@ -3994,7 +4014,7 @@ btr_cur_update_in_place(
 	btr_cur_t*	cursor,	/*!< in: cursor on the record to update;
 				cursor stays valid and positioned on the
 				same record */
-	ulint*		offsets,/*!< in/out: offsets on cursor->page_cur.rec */
+	offset_t*	offsets,/*!< in/out: offsets on cursor->page_cur.rec */
 	const upd_t*	update,	/*!< in: update vector */
 	ulint		cmpl_info,/*!< in: compiler info on secondary index
 				updates */
@@ -4215,7 +4235,7 @@ btr_cur_optimistic_update(
 	btr_cur_t*	cursor,	/*!< in: cursor on the record to update;
 				cursor stays valid and positioned on the
 				same record */
-	ulint**		offsets,/*!< out: offsets on cursor->page_cur.rec */
+	offset_t**	offsets,/*!< out: offsets on cursor->page_cur.rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to NULL or memory heap */
 	const upd_t*	update,	/*!< in: update vector; this must also
 				contain trx id and roll ptr fields */
@@ -4242,7 +4262,6 @@ btr_cur_optimistic_update(
 	dtuple_t*	new_entry;
 	roll_ptr_t	roll_ptr;
 	ulint		i;
-	ulint		n_ext;
 
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
@@ -4319,10 +4338,8 @@ any_extern:
 			+ DTUPLE_EST_ALLOC(rec_offs_n_fields(*offsets)));
 	}
 
-	new_entry = row_rec_to_index_entry(rec, index, *offsets,
-					   &n_ext, *heap);
-	/* We checked above that there are no externally stored fields. */
-	ut_a(!n_ext);
+	new_entry = row_rec_to_index_entry(rec, index, *offsets, *heap);
+	ut_ad(!dtuple_get_n_ext(new_entry));
 
 	/* The page containing the clustered index record
 	corresponding to new_entry is latched in mtr.
@@ -4553,7 +4570,7 @@ btr_cur_pessimistic_update(
 	btr_cur_t*	cursor,	/*!< in/out: cursor on the record to update;
 				cursor may become invalid if *big_rec == NULL
 				|| !(flags & BTR_KEEP_POS_FLAG) */
-	ulint**		offsets,/*!< out: offsets on cursor->page_cur.rec */
+	offset_t**	offsets,/*!< out: offsets on cursor->page_cur.rec */
 	mem_heap_t**	offsets_heap,
 				/*!< in/out: pointer to memory heap
 				that can be emptied */
@@ -4586,7 +4603,6 @@ btr_cur_pessimistic_update(
 	roll_ptr_t	roll_ptr;
 	ibool		was_first;
 	ulint		n_reserved	= 0;
-	ulint		n_ext;
 	ulint		max_ins_size	= 0;
 
 	*offsets = NULL;
@@ -4651,7 +4667,7 @@ btr_cur_pessimistic_update(
 	ut_ad(rec_offs_validate(rec, index, *offsets));
 
 	dtuple_t*	new_entry = row_rec_to_index_entry(
-		rec, index, *offsets, &n_ext, entry_heap);
+		rec, index, *offsets, entry_heap);
 
 	/* The page containing the clustered index record
 	corresponding to new_entry is latched in mtr.  If the
@@ -4671,7 +4687,6 @@ btr_cur_pessimistic_update(
 
 	ut_ad(!page_is_comp(page) || !rec_get_node_ptr_flag(rec));
 	ut_ad(rec_offs_validate(rec, index, *offsets));
-	n_ext += btr_push_update_extern_fields(new_entry, update, entry_heap);
 
 	if ((flags & BTR_NO_UNDO_LOG_FLAG)
 	    && rec_offs_any_extern(*offsets)) {
@@ -4691,6 +4706,8 @@ btr_cur_pessimistic_update(
 		btr_rec_free_updated_extern_fields(
 			index, rec, page_zip, *offsets, update, true, mtr);
 	}
+
+	ulint n_ext = dtuple_get_n_ext(new_entry);
 
 	if (page_zip_rec_needs_ext(
 			rec_get_converted_size(index, new_entry, n_ext),
@@ -5098,7 +5115,7 @@ btr_cur_parse_del_mark_set_clust_rec(
 		clustered index fields. */
 		ut_ad(pos <= MAX_REF_PARTS);
 
-		ulint offsets[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+		offset_t offsets[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 		rec_offs_init(offsets);
 		mem_heap_t*	heap	= NULL;
 
@@ -5141,7 +5158,7 @@ btr_cur_del_mark_set_clust_rec(
 	buf_block_t*	block,	/*!< in/out: buffer block of the record */
 	rec_t*		rec,	/*!< in/out: record */
 	dict_index_t*	index,	/*!< in: clustered index of the record */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec) */
 	que_thr_t*	thr,	/*!< in: query thread */
 	const dtuple_t*	entry,	/*!< in: dtuple for the deleting record, also
 				contains the virtual cols if there are any */
@@ -5427,8 +5444,8 @@ btr_cur_optimistic_delete_func(
 	buf_block_t*	block;
 	rec_t*		rec;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 	ibool		no_compress_needed;
 	rec_offs_init(offsets_);
 
@@ -5611,7 +5628,7 @@ btr_cur_pessimistic_delete(
 	bool		success;
 	ibool		ret		= FALSE;
 	mem_heap_t*	heap;
-	ulint*		offsets;
+	offset_t*	offsets;
 #ifdef UNIV_DEBUG
 	bool		parent_latched	= false;
 #endif /* UNIV_DEBUG */
@@ -5759,7 +5776,7 @@ discard_page:
 			rtr_mbr_t	father_mbr;
 			rec_t*		father_rec;
 			btr_cur_t	father_cursor;
-			ulint*		offsets;
+			offset_t*	offsets;
 			bool		upd_ret;
 			ulint		len;
 
@@ -6505,7 +6522,7 @@ btr_record_not_null_field_in_rec(
 	ulint		n_unique,	/*!< in: dict_index_get_n_unique(index),
 					number of columns uniquely determine
 					an index entry */
-	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index),
+	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec, index),
 					its size could be for all fields or
 					that of "n_unique" */
 	ib_uint64_t*	n_not_null)	/*!< in/out: array to record number of
@@ -6559,8 +6576,8 @@ btr_estimate_number_of_different_key_vals(
 	uintmax_t	add_on;
 	mtr_t		mtr;
 	mem_heap_t*	heap		= NULL;
-	ulint*		offsets_rec	= NULL;
-	ulint*		offsets_next_rec = NULL;
+	offset_t*	offsets_rec	= NULL;
+	offset_t*	offsets_next_rec = NULL;
 
 	/* For spatial index, there is no such stats can be
 	fetched. */
@@ -6722,10 +6739,10 @@ btr_estimate_number_of_different_key_vals(
 							   ULINT_UNDEFINED,
 							   &heap);
 
-			cmp_rec_rec_with_match(rec, next_rec,
-					       offsets_rec, offsets_next_rec,
-					       index, stats_null_not_equal,
-					       &matched_fields);
+			cmp_rec_rec(rec, next_rec,
+				    offsets_rec, offsets_next_rec,
+				    index, stats_null_not_equal,
+				    &matched_fields);
 
 			for (j = matched_fields; j < n_cols; j++) {
 				/* We add one if this index record has
@@ -6748,7 +6765,7 @@ btr_estimate_number_of_different_key_vals(
 			and assign the old offsets_rec buffer to
 			offsets_next_rec. */
 			{
-				ulint*	offsets_tmp = offsets_rec;
+				offset_t* offsets_tmp = offsets_rec;
 				offsets_rec = offsets_next_rec;
 				offsets_next_rec = offsets_tmp;
 			}
@@ -6833,7 +6850,7 @@ static
 ulint
 btr_rec_get_field_ref_offs(
 /*=======================*/
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint		n)	/*!< in: index of the external field */
 {
 	ulint	field_ref_offs;
@@ -6862,7 +6879,7 @@ btr_rec_get_field_ref_offs(
 ulint
 btr_rec_get_externally_stored_len(
 	const rec_t*	rec,
-	const ulint*	offsets)
+	const offset_t*	offsets)
 {
 	ulint	n_fields;
 	ulint	total_extern_len = 0;
@@ -6901,7 +6918,7 @@ btr_cur_set_ownership_of_extern_field(
 				part will be updated, or NULL */
 	rec_t*		rec,	/*!< in/out: clustered index record */
 	dict_index_t*	index,	/*!< in: index of the page */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint		i,	/*!< in: field number */
 	ibool		val,	/*!< in: value to set */
 	mtr_t*		mtr)	/*!< in: mtr, or NULL if not logged */
@@ -6951,7 +6968,7 @@ btr_cur_disown_inherited_fields(
 				part will be updated, or NULL */
 	rec_t*		rec,	/*!< in/out: record in a clustered index */
 	dict_index_t*	index,	/*!< in: index of the page */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	const upd_t*	update,	/*!< in: update vector */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
@@ -6982,7 +6999,7 @@ btr_cur_unmark_extern_fields(
 				part will be updated, or NULL */
 	rec_t*		rec,	/*!< in/out: record in a clustered index */
 	dict_index_t*	index,	/*!< in: index of the page */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	mtr_t*		mtr)	/*!< in: mtr, or NULL if not logged */
 {
 	ulint	n;
@@ -7003,84 +7020,6 @@ btr_cur_unmark_extern_fields(
 				page_zip, rec, index, offsets, i, TRUE, mtr);
 		}
 	}
-}
-
-/*******************************************************************//**
-Flags the data tuple fields that are marked as extern storage in the
-update vector.  We use this function to remember which fields we must
-mark as extern storage in a record inserted for an update.
-@return number of flagged external columns */
-ulint
-btr_push_update_extern_fields(
-/*==========================*/
-	dtuple_t*	tuple,	/*!< in/out: data tuple */
-	const upd_t*	update,	/*!< in: update vector */
-	mem_heap_t*	heap)	/*!< in: memory heap */
-{
-	ulint			n_pushed	= 0;
-	ulint			n;
-	const upd_field_t*	uf;
-
-	uf = update->fields;
-	n = upd_get_n_fields(update);
-
-	for (; n--; uf++) {
-		if (dfield_is_ext(&uf->new_val)) {
-			dfield_t*	field
-				= dtuple_get_nth_field(tuple, uf->field_no);
-
-			if (!dfield_is_ext(field)) {
-				dfield_set_ext(field);
-				n_pushed++;
-			}
-
-			switch (uf->orig_len) {
-				byte*	data;
-				ulint	len;
-				byte*	buf;
-			case 0:
-				break;
-			case BTR_EXTERN_FIELD_REF_SIZE:
-				/* Restore the original locally stored
-				part of the column.  In the undo log,
-				InnoDB writes a longer prefix of externally
-				stored columns, so that column prefixes
-				in secondary indexes can be reconstructed. */
-				dfield_set_data(field,
-						(byte*) dfield_get_data(field)
-						+ dfield_get_len(field)
-						- BTR_EXTERN_FIELD_REF_SIZE,
-						BTR_EXTERN_FIELD_REF_SIZE);
-				dfield_set_ext(field);
-				break;
-			default:
-				/* Reconstruct the original locally
-				stored part of the column.  The data
-				will have to be copied. */
-				ut_a(uf->orig_len > BTR_EXTERN_FIELD_REF_SIZE);
-
-				data = (byte*) dfield_get_data(field);
-				len = dfield_get_len(field);
-
-				buf = (byte*) mem_heap_alloc(heap,
-							     uf->orig_len);
-				/* Copy the locally stored prefix. */
-				memcpy(buf, data,
-				       unsigned(uf->orig_len)
-				       - BTR_EXTERN_FIELD_REF_SIZE);
-				/* Copy the BLOB pointer. */
-				memcpy(buf + unsigned(uf->orig_len)
-				       - BTR_EXTERN_FIELD_REF_SIZE,
-				       data + len - BTR_EXTERN_FIELD_REF_SIZE,
-				       BTR_EXTERN_FIELD_REF_SIZE);
-
-				dfield_set_data(field, buf, uf->orig_len);
-				dfield_set_ext(field);
-			}
-		}
-	}
-
-	return(n_pushed);
 }
 
 /*******************************************************************//**
@@ -7155,7 +7094,7 @@ struct btr_blob_log_check_t {
 	/** Mini transaction holding the latches for m_pcur */
 	mtr_t*		m_mtr;
 	/** rec_get_offsets(rec, index); offset of clust_rec */
-	const ulint*	m_offsets;
+	const offset_t*	m_offsets;
 	/** The block containing clustered record */
 	buf_block_t**	m_block;
 	/** The clustered record pointer */
@@ -7175,7 +7114,7 @@ struct btr_blob_log_check_t {
 	btr_blob_log_check_t(
 		btr_pcur_t*	pcur,
 		mtr_t*		mtr,
-		const ulint*	offsets,
+		const offset_t*	offsets,
 		buf_block_t**	block,
 		rec_t**		rec,
 		enum blob_op	op)
@@ -7246,7 +7185,7 @@ struct btr_blob_log_check_t {
 		*m_rec		= btr_pcur_get_rec(m_pcur);
 
 		rec_offs_make_valid(*m_rec, index, true,
-				    const_cast<ulint*>(m_offsets));
+				    const_cast<offset_t*>(m_offsets));
 
 		ut_ad(m_mtr->memo_contains_page_flagged(
 		      *m_rec,
@@ -7277,7 +7216,7 @@ btr_store_big_rec_extern_fields(
 	btr_pcur_t*	pcur,		/*!< in/out: a persistent cursor. if
 					btr_mtr is restarted, then this can
 					be repositioned. */
-	ulint*		offsets,	/*!< in/out: rec_get_offsets() on
+	offset_t*	offsets,	/*!< in/out: rec_get_offsets() on
 					pcur. the "external storage" flags
 					in offsets will correctly correspond
 					to rec when this function returns */
@@ -7537,33 +7476,6 @@ btr_store_big_rec_extern_fields(
 				/* Initialize the unused "prev page" pointer */
 				mlog_write_ulint(page + FIL_PAGE_PREV,
 						 FIL_NULL, MLOG_4BYTES, &mtr);
-				/* Write a back pointer to the record
-				into the otherwise unused area.  This
-				information could be useful in
-				debugging.  Later, we might want to
-				implement the possibility to relocate
-				BLOB pages.  Then, we would need to be
-				able to adjust the BLOB pointer in the
-				record.  We do not store the heap
-				number of the record, because it can
-				change in page_zip_reorganize() or
-				btr_page_reorganize().  However, also
-				the page number of the record may
-				change when B-tree nodes are split or
-				merged.
-				NOTE: FIL_PAGE_FILE_FLUSH_LSN space is
-				used by R-tree index for a Split Sequence
-				Number */
-				ut_ad(!dict_index_is_spatial(index));
-
-				mlog_write_ulint(page
-						 + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-						 space_id,
-						 MLOG_4BYTES, &mtr);
-				mlog_write_ulint(page
-						 + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
-						 rec_page_no,
-						 MLOG_4BYTES, &mtr);
 
 				/* Zero out the unused part of the page. */
 				memset(page + page_zip_get_size(page_zip)
@@ -7789,7 +7701,7 @@ btr_free_externally_stored_field(
 	byte*		field_ref,	/*!< in/out: field reference */
 	const rec_t*	rec,		/*!< in: record containing field_ref, for
 					page_zip_write_blob_ptr(), or NULL */
-	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index),
+	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec, index),
 					or NULL */
 	page_zip_des_t*	page_zip,	/*!< in: compressed page corresponding
 					to rec, or NULL if rec == NULL */
@@ -7963,7 +7875,7 @@ btr_rec_free_externally_stored_fields(
 	dict_index_t*	index,	/*!< in: index of the data, the index
 				tree MUST be X-latched */
 	rec_t*		rec,	/*!< in/out: record */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	page_zip_des_t*	page_zip,/*!< in: compressed page whose uncompressed
 				part will be updated, or NULL */
 	bool		rollback,/*!< in: performing rollback? */
@@ -8004,7 +7916,7 @@ btr_rec_free_updated_extern_fields(
 	rec_t*		rec,	/*!< in/out: record */
 	page_zip_des_t*	page_zip,/*!< in: compressed page whose uncompressed
 				part will be updated, or NULL */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	const upd_t*	update,	/*!< in: update vector */
 	bool		rollback,/*!< in: performing rollback? */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle which contains
@@ -8402,7 +8314,7 @@ protected by a lock or a page latch
 byte*
 btr_rec_copy_externally_stored_field(
 	const rec_t*		rec,
-	const ulint*		offsets,
+	const offset_t*		offsets,
 	const page_size_t&	page_size,
 	ulint			no,
 	ulint*			len,

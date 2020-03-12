@@ -8361,13 +8361,12 @@ static void add_user_option(String *grant, double value, const char *name)
   }
 }
 
-static void add_user_parameters(String *result, ACL_USER* acl_user,
+static void add_user_parameters(THD *thd, String *result, ACL_USER* acl_user,
                                 bool with_grant)
 {
-  result->append(STRING_WITH_LEN("@'"));
-  result->append(acl_user->host.hostname, acl_user->hostname_length,
-                system_charset_info);
-  result->append('\'');
+  result->append('@');
+  append_identifier(thd, result, acl_user->host.hostname,
+                    acl_user->hostname_length);
 
   if (acl_user->plugin.str == native_password_plugin_name.str ||
       acl_user->plugin.str == old_password_plugin_name.str)
@@ -8548,11 +8547,9 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
     goto end;
   }
 
-  result.append("CREATE USER '");
-  result.append(username);
-  result.append('\'');
-
-  add_user_parameters(&result, acl_user, false);
+  result.append("CREATE USER ");
+  append_identifier(thd, &result, username, strlen(username));
+  add_user_parameters(thd, &result, acl_user, false);
 
   protocol->prepare_for_resend();
   protocol->store(result.ptr(), result.length(), result.charset());
@@ -8797,17 +8794,14 @@ static bool show_role_grants(THD *thd, const char *username,
     grant.append(STRING_WITH_LEN("GRANT "));
     ACL_ROLE *acl_role= *(dynamic_element(&acl_entry->role_grants, counter,
                                           ACL_ROLE**));
-    grant.append(acl_role->user.str, acl_role->user.length,
-                  system_charset_info);
-    grant.append(STRING_WITH_LEN(" TO '"));
-    grant.append(acl_entry->user.str, acl_entry->user.length,
-                  system_charset_info);
+    append_identifier(thd, &grant, acl_role->user.str, acl_role->user.length);
+    grant.append(STRING_WITH_LEN(" TO "));
+    append_identifier(thd, &grant, acl_entry->user.str, acl_entry->user.length);
     if (!(acl_entry->flags & IS_ROLE))
     {
-      grant.append(STRING_WITH_LEN("'@'"));
-      grant.append(&host);
+      grant.append('@');
+      append_identifier(thd, &grant, host.str, host.length);
     }
-    grant.append('\'');
 
     ROLE_GRANT_PAIR *pair=
       find_role_grant_pair(&acl_entry->user, &host, &acl_role->user);
@@ -8861,13 +8855,12 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
       }
     }
   }
-  global.append (STRING_WITH_LEN(" ON *.* TO '"));
-  global.append(acl_entry->user.str, acl_entry->user.length,
-                system_charset_info);
-  global.append('\'');
+  global.append (STRING_WITH_LEN(" ON *.* TO "));
+  append_identifier(thd, &global, acl_entry->user.str, acl_entry->user.length);
 
   if (!handle_as_role)
-    add_user_parameters(&global, (ACL_USER *)acl_entry, (want_access & GRANT_ACL));
+    add_user_parameters(thd, &global, (ACL_USER *)acl_entry,
+                        (want_access & GRANT_ACL));
 
   protocol->prepare_for_resend();
   protocol->store(global.ptr(),global.length(),global.charset());
@@ -8877,6 +8870,21 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
   return FALSE;
 
 }
+
+
+static void add_to_user(THD *thd, String *result, const char *user,
+                        bool is_user, const char *host)
+{
+  result->append(STRING_WITH_LEN(" TO "));
+  append_identifier(thd, result, user, strlen(user));
+  if (is_user)
+  {
+    result->append('@');
+    // host and lex_user->host are equal except for case
+    append_identifier(thd, result, host, strlen(host));
+  }
+}
+
 
 static bool show_database_privileges(THD *thd, const char *username,
                                      const char *hostname,
@@ -8938,16 +8946,8 @@ static bool show_database_privileges(THD *thd, const char *username,
         }
         db.append (STRING_WITH_LEN(" ON "));
         append_identifier(thd, &db, acl_db->db, strlen(acl_db->db));
-        db.append (STRING_WITH_LEN(".* TO '"));
-        db.append(username, strlen(username),
-                  system_charset_info);
-        if (*hostname)
-        {
-          db.append (STRING_WITH_LEN("'@'"));
-          // host and lex_user->host are equal except for case
-          db.append(host, strlen(host), system_charset_info);
-        }
-        db.append ('\'');
+        db.append (STRING_WITH_LEN(".*"));
+        add_to_user(thd, &db, username, (*hostname), host);
         if (want_access & GRANT_ACL)
           db.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
         protocol->prepare_for_resend();
@@ -9078,16 +9078,7 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
         global.append('.');
         append_identifier(thd, &global, grant_table->tname,
                           strlen(grant_table->tname));
-        global.append(STRING_WITH_LEN(" TO '"));
-        global.append(username, strlen(username),
-                      system_charset_info);
-        if (*hostname)
-        {
-          global.append(STRING_WITH_LEN("'@'"));
-          // host and lex_user->host are equal except for case
-          global.append(host, strlen(host), system_charset_info);
-        }
-        global.append('\'');
+        add_to_user(thd, &global, username, (*hostname), host);
         if (table_access & GRANT_ACL)
           global.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
         protocol->prepare_for_resend();
@@ -9173,16 +9164,7 @@ static int show_routine_grants(THD* thd,
 	global.append('.');
 	append_identifier(thd, &global, grant_proc->tname,
 			  strlen(grant_proc->tname));
-	global.append(STRING_WITH_LEN(" TO '"));
-        global.append(username, strlen(username),
-		      system_charset_info);
-        if (*hostname)
-        {
-          global.append(STRING_WITH_LEN("'@'"));
-          // host and lex_user->host are equal except for case
-          global.append(host, strlen(host), system_charset_info);
-        }
-	global.append('\'');
+        add_to_user(thd, &global, username, (*hostname), host);
 	if (proc_access & GRANT_ACL)
 	  global.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
 	protocol->prepare_for_resend();
@@ -12253,6 +12235,7 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   int2store(end+5, thd->client_capabilities >> 16);
   end[7]= data_len;
   DBUG_EXECUTE_IF("poison_srv_handshake_scramble_len", end[7]= -100;);
+  DBUG_EXECUTE_IF("increase_srv_handshake_scramble_len", end[7]= 50;);
   bzero(end + 8, 6);
   int4store(end + 14, thd->client_capabilities >> 32);
   end+= 18;

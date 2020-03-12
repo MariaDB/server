@@ -473,48 +473,46 @@ check_routine_name(const LEX_CSTRING *ident)
  *  sp_head
  *
  */
-
-void *
-sp_head::operator new(size_t size) throw()
+ 
+sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler)
 {
-  DBUG_ENTER("sp_head::operator new");
   MEM_ROOT own_root;
+  init_sql_alloc(&own_root, "sp_head", MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC,
+                 MYF(0));
   sp_head *sp;
+  if (!(sp= new (&own_root) sp_head(&own_root, parent, handler)))
+    free_root(&own_root, MYF(0));
 
-  init_sql_alloc(&own_root, "sp_head",
-                 MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
-  sp= (sp_head *) alloc_root(&own_root, size);
-  if (sp == NULL)
-    DBUG_RETURN(NULL);
-  sp->main_mem_root= own_root;
-  DBUG_PRINT("info", ("mem_root %p", &sp->mem_root));
-  DBUG_RETURN(sp);
+  return sp;
 }
 
-void
-sp_head::operator delete(void *ptr, size_t size) throw()
+
+void sp_head::destroy(sp_head *sp)
 {
-  DBUG_ENTER("sp_head::operator delete");
-  MEM_ROOT own_root;
+  if (sp)
+  {
+    /* Make a copy of main_mem_root as free_root will free the sp */
+    MEM_ROOT own_root= sp->main_mem_root;
+    DBUG_PRINT("info", ("mem_root %p moved to %p",
+                        &sp->mem_root, &own_root));
+    delete sp;
 
-  if (ptr == NULL)
-    DBUG_VOID_RETURN;
-
-  sp_head *sp= (sp_head *) ptr;
-
-  /* Make a copy of main_mem_root as free_root will free the sp */
-  own_root= sp->main_mem_root;
-  DBUG_PRINT("info", ("mem_root %p moved to %p",
-                      &sp->mem_root, &own_root));
-  free_root(&own_root, MYF(0));
-
-  DBUG_VOID_RETURN;
+ 
+    free_root(&own_root, MYF(0));
+  }
 }
 
+/*
+ *
+ *  sp_head
+ *
+ */
 
-sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
-  :Query_arena(&main_mem_root, STMT_INITIALIZED_FOR_SP),
+sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent, 
+                 const Sp_handler *sph)
+  :Query_arena(NULL, STMT_INITIALIZED_FOR_SP),
    Database_qualified_name(&null_clex_str, &null_clex_str),
+   main_mem_root(*mem_root_arg),
    m_parent(parent),
    m_handler(sph),
    m_flags(0),
@@ -545,6 +543,8 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
    m_pcont(new (&main_mem_root) sp_pcontext()),
    m_cont_level(0)
 {
+  mem_root= &main_mem_root;
+
   m_first_instance= this;
   m_first_free_instance= this;
   m_last_cached_sp= this;
@@ -567,10 +567,25 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
 }
 
 
-sp_package::sp_package(LEX *top_level_lex,
+sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
+                               const Sp_handler *sph)
+{
+  MEM_ROOT own_root;
+  init_sql_alloc(&own_root, "sp_package", MEM_ROOT_BLOCK_SIZE,
+                 MEM_ROOT_PREALLOC, MYF(0));
+  sp_package *sp;
+  if (!(sp= new (&own_root) sp_package(&own_root, top_level_lex, name, sph)))
+    free_root(&own_root, MYF(0));
+
+  return sp;
+}
+
+
+sp_package::sp_package(MEM_ROOT *mem_root_arg,
+                       LEX *top_level_lex,
                        const sp_name *name,
                        const Sp_handler *sph)
- :sp_head(NULL, sph),
+ :sp_head(mem_root_arg, NULL, sph),
   m_current_routine(NULL),
   m_top_level_lex(top_level_lex),
   m_rcontext(NULL),
@@ -588,7 +603,7 @@ sp_package::~sp_package()
   m_routine_declarations.cleanup();
   m_body= null_clex_str;
   if (m_current_routine)
-    delete m_current_routine->sphead;
+    sp_head::destroy(m_current_routine->sphead);
   delete m_rcontext;
 }
 
@@ -845,7 +860,7 @@ sp_head::~sp_head()
   my_hash_free(&m_sptabs);
   my_hash_free(&m_sroutines);
 
-  delete m_next_cached_sp;
+  sp_head::destroy(m_next_cached_sp);
 
   DBUG_VOID_RETURN;
 }
@@ -2571,7 +2586,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       }
       if (bp->instr_type == CPOP)
       {
-        uint n= lab->ctx->diff_cursors(lab_begin_block->ctx, true);
+        uint n= bp->instr->m_ctx->diff_cursors(lab_begin_block->ctx, true);
         if (n == 0)
         {
           // Remove cpop instr
@@ -2588,7 +2603,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       }
       if (bp->instr_type == HPOP)
       {
-        uint n= lab->ctx->diff_handlers(lab_begin_block->ctx, true);
+        uint n= bp->instr->m_ctx->diff_handlers(lab_begin_block->ctx, true);
         if (n == 0)
         {
           // Remove hpop instr
@@ -3082,6 +3097,8 @@ void sp_head::optimize()
   sp_instr *i;
   uint src, dst;
 
+  DBUG_EXECUTE_IF("sp_head_optimize_disable", return; );
+
   opt_mark();
 
   bp.empty();
@@ -3379,11 +3396,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     Update the state of the active arena if no errors on
     open_tables stage.
   */
-  if (likely(!res) || likely(!thd->is_error()) ||
-      (thd->get_stmt_da()->sql_errno() != ER_CANT_REOPEN_TABLE &&
-       thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE &&
-       thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE &&
-       thd->get_stmt_da()->sql_errno() != ER_UPDATE_TABLE_USED))
+  if (likely(!res) || likely(!thd->is_error()))
     thd->stmt_arena->state= Query_arena::STMT_EXECUTED;
 
   /*
