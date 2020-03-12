@@ -4310,15 +4310,17 @@ uint handler::get_dup_key(int error)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE || m_lock_type != F_UNLCK);
   DBUG_ENTER("handler::get_dup_key");
-  if (table->s->long_unique_table && table->file->errkey < table->s->keys)
-    DBUG_RETURN(table->file->errkey);
-  table->file->errkey  = (uint) -1;
+
+  if (lookup_errkey != (uint)-1)
+    DBUG_RETURN(errkey= lookup_errkey);
+
+  errkey= (uint)-1;
   if (error == HA_ERR_FOUND_DUPP_KEY ||
       error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
       error == HA_ERR_FOUND_DUPP_UNIQUE || error == HA_ERR_NULL_IN_SPATIAL ||
       error == HA_ERR_DROP_INDEX_FK)
-    table->file->info(HA_STATUS_ERRKEY | HA_STATUS_NO_LOCK);
-  DBUG_RETURN(table->file->errkey);
+    info(HA_STATUS_ERRKEY | HA_STATUS_NO_LOCK);
+  DBUG_RETURN(errkey);
 }
 
 
@@ -6543,6 +6545,14 @@ int handler::ha_external_lock(THD *thd, int lock_type)
       mysql_audit_external_lock(thd, table_share, lock_type);
   }
 
+  if (lock_type == F_UNLCK && lookup_handler)
+  {
+    lookup_handler->ha_external_lock(table->in_use, F_UNLCK);
+    lookup_handler->close();
+    delete lookup_handler;
+    lookup_handler= NULL;
+  }
+
   if (MYSQL_HANDLER_RDLOCK_DONE_ENABLED() ||
       MYSQL_HANDLER_WRLOCK_DONE_ENABLED() ||
       MYSQL_HANDLER_UNLOCK_DONE_ENABLED())
@@ -6632,14 +6642,10 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h,
 
   key_copy(ptr, new_rec, key_info, key_info->key_length, false);
 
-  if (!table->check_unique_buf)
-    table->check_unique_buf= (uchar *)alloc_root(&table->mem_root,
-                                                 table->s->reclength);
-
   result= h->ha_index_init(key_no, 0);
   if (result)
     return result;
-  store_record(table, check_unique_buf);
+  store_record(table, file->lookup_buffer);
   result= h->ha_index_read_map(table->record[0],
                                ptr, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
   if (!result)
@@ -6651,7 +6657,7 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h,
     uint arg_count= temp->argument_count();
     do
     {
-      my_ptrdiff_t diff= table->check_unique_buf - new_rec;
+      my_ptrdiff_t diff= table->file->lookup_buffer - new_rec;
       is_same= true;
       for (uint j=0; is_same && j < arg_count; j++)
       {
@@ -6687,16 +6693,25 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h,
 exit:
   if (error == HA_ERR_FOUND_DUPP_KEY)
   {
-    table->file->errkey= key_no;
+    table->file->lookup_errkey= key_no;
     if (h->ha_table_flags() & HA_DUPLICATE_POS)
     {
       h->position(table->record[0]);
       memcpy(table->file->dup_ref, h->ref, h->ref_length);
     }
   }
-  restore_record(table, check_unique_buf);
+  restore_record(table, file->lookup_buffer);
   h->ha_index_end();
   return error;
+}
+
+void handler::alloc_lookup_buffer()
+{
+  if (!lookup_buffer)
+    lookup_buffer= (uchar*)alloc_root(&table->mem_root,
+                                      table_share->max_unique_length
+                                      + table_share->null_fields
+                                      + table_share->reclength);
 }
 
 /** @brief
@@ -6704,10 +6719,13 @@ exit:
     unique constraint on long columns.
     @returns 0 if no duplicate else returns error
   */
-static int check_duplicate_long_entries(TABLE *table, handler *h,
-                                        const uchar *new_rec)
+int handler::check_duplicate_long_entries(const uchar *new_rec)
 {
-  table->file->errkey= -1;
+  if (inited != NONE)
+    create_lookup_handler();
+  handler *h= lookup_handler ? lookup_handler : this;
+  alloc_lookup_buffer();
+  lookup_errkey= (uint)-1;
   int result;
   for (uint i= 0; i < table->s->keys; i++)
   {
@@ -6732,7 +6750,7 @@ static int check_duplicate_long_entries(TABLE *table, handler *h,
     key as a parameter in normal insert key should be -1
     @returns 0 if no duplicate else returns error
   */
-static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec)
+int handler::check_duplicate_long_entries_update(const uchar *new_rec)
 {
   Field *field;
   uint key_parts;
@@ -6744,7 +6762,8 @@ static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *
      with respect to fields in hash_str
    */
   uint reclength= (uint) (table->record[1] - table->record[0]);
-  table->clone_handler_for_update();
+  error= create_lookup_handler();
+
   for (uint i= 0; i < table->s->keys; i++)
   {
     keyinfo= table->key_info + i;
@@ -6758,8 +6777,8 @@ static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *
         /* Compare fields if they are different then check for duplicates*/
         if(field->cmp_binary_offset(reclength))
         {
-          if((error= check_duplicate_long_entry_key(table, table->update_handler,
-                                                 new_rec, i)))
+          if((error= check_duplicate_long_entry_key(table, lookup_handler,
+                                                    new_rec, i)))
             goto exit;
           /*
             break because check_duplicate_long_entries_key will
@@ -6789,10 +6808,7 @@ int handler::ha_write_row(const uchar *buf)
 
   if (table->s->long_unique_table && this == table->file)
   {
-    if (inited == RND)
-      table->clone_handler_for_update();
-    handler *h= table->update_handler ? table->update_handler : table->file;
-    if ((error= check_duplicate_long_entries(table, h, buf)))
+    if ((error= check_duplicate_long_entries(buf)))
       DBUG_RETURN(error);
   }
   TABLE_IO_WAIT(tracker, PSI_TABLE_WRITE_ROW, MAX_KEY, error,
@@ -6835,7 +6851,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);
   if (table->s->long_unique_table &&
-          (error= check_duplicate_long_entries_update(table, table->file, (uchar *)new_data)))
+          (error= check_duplicate_long_entries_update(new_data)))
   {
     return error;
   }
@@ -7088,6 +7104,22 @@ Compare_keys handler::compare_key_parts(const Field &old_field,
     return Compare_keys::NotEqual;
 
   return Compare_keys::Equal;
+}
+
+/**
+  clone of current handler.
+
+  Creates a clone of handler used for unique hash key and WITHOUT OVERLAPS.
+  @return error code
+*/
+int handler::create_lookup_handler() 
+{
+  if (lookup_handler)
+    return 0;
+  lookup_handler= clone(table_share->normalized_path.str,
+                        table->in_use->mem_root);
+  int error= lookup_handler->ha_external_lock(table->in_use, F_RDLCK);
+  return error;
 }
 
 #ifdef WITH_WSREP

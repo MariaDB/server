@@ -5240,8 +5240,6 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   range_rowid_filter_cost_info_elems= 0;
   range_rowid_filter_cost_info_ptr= NULL;
   range_rowid_filter_cost_info= NULL;
-  update_handler= NULL;
-  check_unique_buf= NULL;
   vers_write= s->versioned;
   quick_condition_rows=0;
   no_cache= false;
@@ -9241,35 +9239,6 @@ void re_setup_keyinfo_hash(KEY *key_info)
   key_info->user_defined_key_parts= key_info->usable_key_parts=
                key_info->ext_key_parts= 1;
   key_info->flags&= ~HA_NOSAME;
-}
-/**
-  @brief clone of current handler.
-  Creates a clone of handler used in update for
-  unique hash key.
-*/
-void TABLE::clone_handler_for_update()
-{
-  if (this->update_handler)
-    return;
-  handler *update_handler= NULL;
-  if (!s->long_unique_table)
-    return;
-  update_handler= file->clone(s->normalized_path.str,
-                                     in_use->mem_root);
-  update_handler->ha_external_lock(in_use, F_RDLCK);
-  this->update_handler= update_handler;
-  return;
-}
-
-/**
- @brief Deletes update handler object
-*/
-void TABLE::delete_update_handler()
-{
-  update_handler->ha_external_lock(in_use, F_UNLCK);
-  update_handler->ha_close();
-  delete update_handler;
-  this->update_handler= NULL;
 }
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt)

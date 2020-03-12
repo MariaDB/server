@@ -9933,8 +9933,13 @@ void ha_partition::print_error(int error, myf errflag)
     /* fall through to generic error handling. */
   }
 
-  /* In case m_file has not been initialized, like in bug#42438 */
-  if (m_file)
+  /*
+    We choose a main handler's print_error if:
+    * m_file has not been initialized, like in bug#42438
+    * lookup_errkey is set, which means that an error is occured in the
+      main handler, not in individual partitions
+  */
+  if (m_file && lookup_errkey == (uint)-1)
   {
     if (m_last_part >= m_tot_parts)
     {

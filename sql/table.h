@@ -1151,9 +1151,6 @@ public:
   THD	*in_use;                        /* Which thread uses this */
 
   uchar *record[3];			/* Pointer to records */
-  /* record buf to resolve hash collisions for long UNIQUE constraints */
-  uchar *check_unique_buf;
-  handler *update_handler;  /* Handler used in case of update */
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */
@@ -1640,8 +1637,6 @@ public:
   void vers_update_fields();
   void vers_update_end();
   void find_constraint_correlated_indexes();
-  void clone_handler_for_update();
-  void delete_update_handler();
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
