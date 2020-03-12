@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -2664,18 +2664,18 @@ public:
   double idx_cpu_cost;    /* cost of operations in CPU for index           */
   double import_cost;     /* cost of remote operations     */
   double mem_cost;        /* cost of used memory           */
-  
-  enum { IO_COEFF=1 };
-  enum { CPU_COEFF=1 };
-  enum { MEM_COEFF=1 };
-  enum { IMPORT_COEFF=1 };
+
+  static constexpr double IO_COEFF= 1;
+  static constexpr double CPU_COEFF= 1;
+  static constexpr double MEM_COEFF= 1;
+  static constexpr double IMPORT_COEFF= 1;
 
   Cost_estimate()
   {
     reset();
   }
 
-  double total_cost() 
+  double total_cost() const
   {
     return IO_COEFF*io_count*avg_io_cost +
            IO_COEFF*idx_io_count*idx_avg_io_cost +
@@ -2696,7 +2696,7 @@ public:
   */
   bool is_zero() const
   {
-    return io_count == 0.0 && idx_io_count && cpu_cost == 0.0 &&
+    return io_count == 0.0 && idx_io_count == 0.0 && cpu_cost == 0.0 &&
       import_cost == 0.0 && mem_cost == 0.0;
   }
 
@@ -2719,7 +2719,7 @@ public:
 
   void add(const Cost_estimate* cost)
   {
-    if (cost->io_count)
+    if (cost->io_count != 0.0)
     {
       double io_count_sum= io_count + cost->io_count;
       avg_io_cost= (io_count * avg_io_cost +
@@ -2727,7 +2727,7 @@ public:
 	            /io_count_sum;
       io_count= io_count_sum;
     }
-    if (cost->idx_io_count)
+    if (cost->idx_io_count != 0.0)
     {
       double idx_io_count_sum= idx_io_count + cost->idx_io_count;
       idx_avg_io_cost= (idx_io_count * idx_avg_io_cost +

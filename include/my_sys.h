@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation.
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -959,7 +959,7 @@ extern ulonglong my_interval_timer(void);
 extern ulonglong my_getcputime(void);
 
 #define microsecond_interval_timer()    (my_interval_timer()/1000)
-#define hrtime_to_time(X)               ((X).val/HRTIME_RESOLUTION)
+#define hrtime_to_time(X)               ((time_t)((X).val/HRTIME_RESOLUTION))
 #define hrtime_from_time(X)             ((ulonglong)((X)*HRTIME_RESOLUTION))
 #define hrtime_to_double(X)             ((X).val/(double)HRTIME_RESOLUTION)
 #define hrtime_sec_part(X)              ((ulong)((X).val % HRTIME_RESOLUTION))

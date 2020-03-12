@@ -960,9 +960,10 @@ typedef struct system_status_var
 #define last_system_status_var questions
 #define last_cleared_system_status_var local_memory_used
 
-/* Number of contiguous global status variables. */
-const int COUNT_GLOBAL_STATUS_VARS= (offsetof(STATUS_VAR, last_system_status_var) /
-                                      sizeof(ulong)) + 1;
+/** Number of contiguous global status variables */
+constexpr int COUNT_GLOBAL_STATUS_VARS= int(offsetof(STATUS_VAR,
+                                                     last_system_status_var) /
+                                            sizeof(ulong)) + 1;
 
 /*
   Global status variables

@@ -411,7 +411,6 @@ my_bool net_flush(NET *net)
 my_bool my_net_write(NET *net, const uchar *packet, size_t len)
 {
   uchar buff[NET_HEADER_SIZE];
-  int rc;
 
   if (unlikely(!net->vio)) /* nowhere to write */
     return 0;
@@ -448,7 +447,7 @@ my_bool my_net_write(NET *net, const uchar *packet, size_t len)
 #ifndef DEBUG_DATA_PACKETS
   DBUG_DUMP("packet_header", buff, NET_HEADER_SIZE);
 #endif
-  rc= MY_TEST(net_write_buff(net, packet, len));
+  my_bool rc= MY_TEST(net_write_buff(net, packet, len));
   MYSQL_NET_WRITE_DONE(rc);
   return rc;
 }
@@ -489,7 +488,7 @@ net_write_command(NET *net,uchar command,
   size_t length=len+1+head_len;			/* 1 extra byte for command */
   uchar buff[NET_HEADER_SIZE+1];
   uint header_size=NET_HEADER_SIZE+1;
-  int rc;
+  my_bool rc;
   DBUG_ENTER("net_write_command");
   DBUG_PRINT("enter",("length: %lu", (ulong) len));
 

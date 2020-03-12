@@ -353,10 +353,10 @@ size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize);
 #endif /* !cmp_timespec */
 
 #ifndef set_timespec_time_nsec
-#define set_timespec_time_nsec(ABSTIME,NSEC) do {    \
-  ulonglong _now_= (NSEC);                             \
-  (ABSTIME).MY_tv_sec=  (_now_ / 1000000000ULL);       \
-  (ABSTIME).MY_tv_nsec= (_now_ % 1000000000ULL);       \
+#define set_timespec_time_nsec(ABSTIME,NSEC) do {		\
+  ulonglong _now_= (NSEC);					\
+  (ABSTIME).MY_tv_sec=  (time_t) (_now_ / 1000000000ULL);	\
+  (ABSTIME).MY_tv_nsec= (ulong) (_now_ % 1000000000UL);		\
 } while(0)
 #endif /* !set_timespec_time_nsec */
 

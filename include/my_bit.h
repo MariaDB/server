@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ static inline CONSTEXPR uint my_bit_log2_hex_digit(uint8 value)
 }
 static inline CONSTEXPR uint my_bit_log2_uint8(uint8 value)
 {
-  return value & 0xF0 ? my_bit_log2_hex_digit(value >> 4) + 4:
+  return value & 0xF0 ? my_bit_log2_hex_digit((uint8) (value >> 4)) + 4:
                         my_bit_log2_hex_digit(value);
 }
 static inline CONSTEXPR uint my_bit_log2_uint16(uint16 value)
@@ -162,14 +162,13 @@ static inline uchar last_byte_mask(uint bits)
   /* Get the number of used bits-1 (0..7) in the last byte */
   unsigned int const used = (bits - 1U) & 7U;
   /* Return bitmask for the significant bits */
-  return ((2U << used) - 1);
+  return (uchar) ((2U << used) - 1);
 }
 
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif
 
-#define MY_FIND_FIRST_BIT_END sizeof(ulonglong)*8
 /*
   Find the position of the first(least significant) bit set in
   the argument. Returns 64 if the argument was 0.
@@ -177,7 +176,7 @@ static inline uchar last_byte_mask(uint bits)
 static inline uint my_find_first_bit(ulonglong n)
 {
   if(!n)
-    return MY_FIND_FIRST_BIT_END;
+    return 64;
 #if defined(__GNUC__)
   return __builtin_ctzll(n);
 #elif defined(_MSC_VER)

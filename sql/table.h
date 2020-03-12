@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2564,22 +2564,10 @@ struct TABLE_LIST
   }
 
   /* Set of functions returning/setting state of a derived table/view. */
-  inline bool is_non_derived()
-  {
-    return (!derived_type);
-  }
-  inline bool is_view_or_derived()
-  {
-    return (derived_type);
-  }
-  inline bool is_view()
-  {
-    return (derived_type & DTYPE_VIEW);
-  }
-  inline bool is_derived()
-  {
-    return (derived_type & DTYPE_TABLE);
-  }
+  bool is_non_derived() const { return (!derived_type); }
+  bool is_view_or_derived() const { return derived_type; }
+  bool is_view() const { return (derived_type & DTYPE_VIEW); }
+  bool is_derived() const { return (derived_type & DTYPE_TABLE); }
   bool is_with_table();
   bool is_recursive_with_table();
   bool is_with_table_recursive_reference();
@@ -2595,22 +2583,19 @@ struct TABLE_LIST
   {
     derived_type= DTYPE_TABLE;
   }
-  inline bool is_merged_derived()
-  {
-    return (derived_type & DTYPE_MERGE);
-  }
+  bool is_merged_derived() const { return (derived_type & DTYPE_MERGE); }
   inline void set_merged_derived()
   {
     DBUG_ENTER("set_merged_derived");
     DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
                         (alias.str ? alias.str : "<NULL>"),
                          get_unit()));
-    derived_type= ((derived_type & DTYPE_MASK) |
-                   DTYPE_TABLE | DTYPE_MERGE);
+    derived_type= static_cast<uint8>((derived_type & DTYPE_MASK) |
+                                     DTYPE_TABLE | DTYPE_MERGE);
     set_check_merged();
     DBUG_VOID_RETURN;
   }
-  inline bool is_materialized_derived()
+  bool is_materialized_derived() const
   {
     return (derived_type & DTYPE_MATERIALIZE);
   }
@@ -2621,15 +2606,13 @@ struct TABLE_LIST
                         (alias.str ? alias.str : "<NULL>"),
                          get_unit()));
     derived= get_unit();
-    derived_type= ((derived_type & (derived ? DTYPE_MASK : DTYPE_VIEW)) |
-                   DTYPE_TABLE | DTYPE_MATERIALIZE);
+    derived_type= static_cast<uint8>((derived_type &
+                                      (derived ? DTYPE_MASK : DTYPE_VIEW)) |
+                                     DTYPE_TABLE | DTYPE_MATERIALIZE);
     set_check_materialized();
     DBUG_VOID_RETURN;
   }
-  inline bool is_multitable()
-  {
-    return (derived_type & DTYPE_MULTITABLE);
-  }
+  bool is_multitable() const { return (derived_type & DTYPE_MULTITABLE); }
   inline void set_multitable()
   {
     derived_type|= DTYPE_MULTITABLE;
