@@ -37,7 +37,7 @@ exec $MYSQLD --defaults-file=no_extension --print-defaults 2>&1;
 --echo #
 
 --echo # Test on `defaults-file`
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_result $MYSQLTEST_REAL_VARDIR MYSQLTEST_VARDIR
 exec $MYSQLD --defaults-file=$MYSQLTEST_VARDIR/my.cnf --help --verbose | grep -A 1 'Default options are read';
 
 --echo # Test on `defaults-extra-file`

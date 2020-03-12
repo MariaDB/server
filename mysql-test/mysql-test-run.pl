@@ -79,7 +79,6 @@ BEGIN {
 use lib "lib";
 
 use Cwd ;
-use Cwd 'realpath';
 use Getopt::Long;
 use My::File::Path; # Patched version of File::Path
 use File::Basename;
@@ -103,6 +102,8 @@ use mtr_results;
 use IO::Socket::INET;
 use IO::Select;
 use Time::HiRes qw(gettimeofday);
+
+sub realpath($) { (IS_WINDOWS) ? $_[0] : Cwd::realpath($_[0]) }
 
 require "mtr_process.pl";
 require "mtr_io.pl";
@@ -1650,7 +1651,7 @@ sub command_line_setup {
   my $vardir_location= (defined $ENV{MTR_BINDIR} 
                           ? "$ENV{MTR_BINDIR}/mysql-test" 
                           : $glob_mysql_test_dir);
-  $vardir_location= realpath $vardir_location unless IS_WINDOWS;
+  $vardir_location= realpath $vardir_location;
   $default_vardir= "$vardir_location/var";
 
   if ( ! $opt_vardir )
@@ -2454,6 +2455,7 @@ sub environment_setup {
   $ENV{'DEFAULT_MASTER_PORT'}= $mysqld_variables{'port'};
   $ENV{'MYSQL_TMP_DIR'}=      $opt_tmpdir;
   $ENV{'MYSQLTEST_VARDIR'}=   $opt_vardir;
+  $ENV{'MYSQLTEST_REAL_VARDIR'}= realpath $opt_vardir;
   $ENV{'MYSQL_BINDIR'}=       $bindir;
   $ENV{'MYSQL_SHAREDIR'}=     $path_language;
   $ENV{'MYSQL_CHARSETSDIR'}=  $path_charsetsdir;
