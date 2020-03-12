@@ -137,7 +137,7 @@ struct aiocb
   int m_err;
   void *m_internal;
   task m_internal_task;
-  char m_userdata[MAX_AIO_USERDATA_LEN];
+  alignas(8) char m_userdata[MAX_AIO_USERDATA_LEN];
 
   aiocb() : m_internal_task(nullptr, nullptr)
   {}

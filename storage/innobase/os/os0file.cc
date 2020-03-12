@@ -3883,7 +3883,7 @@ extern void fil_aio_callback(os_aio_userdata_t *data);
 static void io_callback(tpool::aiocb* cb)
 {
 	ut_a(cb->m_err == DB_SUCCESS);
-	os_aio_userdata_t data = *(os_aio_userdata_t*)cb->m_userdata;
+	os_aio_userdata_t data(cb->m_userdata);
 	/* Return cb back to cache*/
 	if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD) {
 		if (read_slots->contains(cb)) {

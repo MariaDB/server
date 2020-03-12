@@ -1350,6 +1350,12 @@ struct os_aio_userdata_t
   fil_node_t* node;
   IORequest type;
   void* message;
+
+  os_aio_userdata_t(fil_node_t*node, IORequest type, void*message) :
+    node(node), type(type), message(message) {}
+
+  /** Construct from tpool::aiocb::m_userdata[] */
+  os_aio_userdata_t(const char *buf) { memcpy((void*)this, buf, sizeof*this); }
 };
 /**
 NOTE! Use the corresponding macro os_aio(), not directly this function!
