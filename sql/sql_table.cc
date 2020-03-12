@@ -81,10 +81,12 @@ static uint blob_length_by_type(enum_field_types type);
 static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
                                   *check_constraint_list,
                                   const HA_CREATE_INFO *create_info);
-static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *info);
-static void wait_for_master(THD *thd, start_alter_info *info);
-static int master_result(THD *thd, Master_info *mi, start_alter_info *info,
-                                  int alter_result);
+static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info
+                              *info, start_alter_struct *alter_struct);
+static void wait_for_master(THD *thd, start_alter_info *info,
+                             start_alter_struct *alter_struct);
+static int master_result(THD *thd, start_alter_info *info, int alter_result,
+                          start_alter_struct *alter_struct);
 
 /**
   @brief Helper function for explain_filename
@@ -7573,7 +7575,8 @@ static int mysql_inplace_alter_table(THD *thd,
                                       MDL_request *target_mdl_request,
                                       Alter_table_ctx *alter_ctx,
                                       bool *partial_alter,
-                                      start_alter_info *info)
+                                      start_alter_info *info,
+                                      start_alter_struct *alter_struct)
 {
   Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN | MYSQL_OPEN_IGNORE_KILLED);
   handlerton *db_type= table->s->db_type();
@@ -7581,9 +7584,6 @@ static int mysql_inplace_alter_table(THD *thd,
   bool reopen_tables= false;
   bool res;
   handlerton *hton;
-  Master_info *mi= NULL;
-  if (thd->slave_thread)
-    mi= thd->rgi_slave->rli->mi;
   int return_result= 0;
   DBUG_ENTER("mysql_inplace_alter_table");
 
@@ -7666,7 +7666,7 @@ static int mysql_inplace_alter_table(THD *thd,
   // It's now safe to take the table level lock.
   if (lock_tables(thd, table_list, alter_ctx->tables_opened, 0))
     goto cleanup;
-  if (write_start_alter(thd, partial_alter, info))
+  if (write_start_alter(thd, partial_alter, info, alter_struct))
     DBUG_RETURN(true);
 
   DEBUG_SYNC(thd, "alter_table_inplace_after_lock_upgrade");
@@ -7738,7 +7738,7 @@ static int mysql_inplace_alter_table(THD *thd,
   thd->abort_on_warning= false;
   if (thd->lex->alter_info.alter_identifier && !thd->direct_commit_alter)
   {
-    if ((return_result= master_result(thd, mi, info, res)))
+    if ((return_result= master_result(thd, info, res, alter_struct)))
       goto rollback;
   }
   if (res)
@@ -9337,20 +9337,20 @@ static int create_table_for_inplace_alter(THD *thd,
 }
 
 
-static void wait_for_master(THD *thd, start_alter_info* info)
+static void wait_for_master(THD *thd, start_alter_info* info,
+                                           start_alter_struct *alter_struct)
 {
-  Master_info *mi= thd->rgi_slave->rli->mi;
-  mysql_mutex_lock(&mi->start_alter_lock);
+  mysql_mutex_lock(&alter_struct->start_alter_lock);
  // if (info->state != start_alter_state::SHUTDOWN_RECIEVED)
  //   info->state= start_alter_state::WAITING;
-  mysql_mutex_unlock(&mi->start_alter_lock);
+  mysql_mutex_unlock(&alter_struct->start_alter_lock);
   mysql_cond_broadcast(&info->start_alter_cond);
-  mysql_mutex_lock(&mi->start_alter_lock);
+  mysql_mutex_lock(&alter_struct->start_alter_lock);
   while (info->state == start_alter_state::REGISTERED)
   {
-    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
+    mysql_cond_wait(&info->start_alter_cond, &alter_struct->start_alter_lock);
   }
-  mysql_mutex_unlock(&mi->start_alter_lock);
+  mysql_mutex_unlock(&alter_struct->start_alter_lock);
   return;
 }
 
@@ -9361,17 +9361,17 @@ static void wait_for_master(THD *thd, start_alter_info* info)
                                    3= shutdown recieved }
   @retval   0                 COMMIT
 */
-static int master_result(THD *thd, Master_info *mi, start_alter_info *info,
-                                  int alter_result)
+static int master_result(THD *thd, start_alter_info *info,
+                          int alter_result, start_alter_struct *alter_struct)
 {
   if (info->state == start_alter_state::REGISTERED)
-    wait_for_master(thd, info);
+    wait_for_master(thd, info, alter_struct);
   DBUG_ASSERT(info->state > start_alter_state::REGISTERED);
   if (info->state == start_alter_state::ROLLBACK_ALTER)
   {
-    mysql_mutex_lock(&mi->start_alter_lock);
+    mysql_mutex_lock(&alter_struct->start_alter_lock);
     info->state= start_alter_state::COMMITTED;
-    mysql_mutex_unlock(&mi->start_alter_lock);
+    mysql_mutex_unlock(&alter_struct->start_alter_lock);
     mysql_cond_broadcast(&info->start_alter_cond);
     return MASTER_RESULT_ROLLBACK;
   }
@@ -9394,7 +9394,8 @@ static int master_result(THD *thd, Master_info *mi, start_alter_info *info,
   return 0;
 }
 
-static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *info)
+static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info
+                               *info, start_alter_struct *alter_struct)
 {
   //No need to write start alter , It must be already written
   if (thd->direct_commit_alter)
@@ -9402,14 +9403,13 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
   ulong start_alter_id= thd->lex->alter_info.alter_identifier;
   if (start_alter_id)
   {
-    Master_info *mi= thd->rgi_slave->rli->mi;
     info->error= 0;
     info->thread_id= start_alter_id;
     info->state= start_alter_state::REGISTERED;
-    mysql_mutex_lock(&mi->start_alter_list_lock);
-    mi->start_alter_list.push_back(info, thd->mem_root);
-    mysql_mutex_unlock(&mi->start_alter_list_lock);
-    mysql_cond_broadcast(&mi->start_alter_list_cond);
+    mysql_mutex_lock(&alter_struct->start_alter_list_lock);
+    alter_struct->start_alter_list.push_back(info, thd->mem_root);
+    mysql_mutex_unlock(&alter_struct->start_alter_list_lock);
+    mysql_cond_broadcast(&alter_struct->start_alter_list_cond);
     DBUG_EXECUTE_IF("start_alter_delay_slave", {
       my_sleep(5000000);
       });
@@ -9499,9 +9499,11 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   char *send_query= (char *)thd->alloc(thd->query_length() + 20);
   bool partial_alter= false;
   start_alter_info *info= get_new_start_alter_info(thd);
-  Master_info *mi= NULL;
+  start_alter_struct *alter_struct;
   if (thd->slave_thread)
-    mi= thd->rgi_slave->rli->mi;
+    alter_struct= &thd->rgi_slave->rli->mi->start_alter_struct_master;
+  else
+    alter_struct= NULL;
   ulong start_alter_id= thd->lex->alter_info.alter_identifier;
   DBUG_ENTER("mysql_alter_table");
 
@@ -10228,7 +10230,7 @@ do_continue:;
       int res= mysql_inplace_alter_table(thd, table_list, table, &altered_table,
                                          &ha_alter_info, inplace_supported,
                                          &target_mdl_request, &alter_ctx,
-                                         &partial_alter, info);
+                                         &partial_alter, info, alter_struct);
       thd->count_cuted_fields= save_count_cuted_fields;
       my_free(const_cast<uchar*>(frm.str));
 
@@ -10294,7 +10296,7 @@ do_continue:;
                   MYSQL_LOCK_USE_MALLOC))
     goto err_new_table_cleanup;
   //If issues by binlog/master complete the prepare phase of alter and then commit
-  if (write_start_alter(thd, &partial_alter, info))
+  if (write_start_alter(thd, &partial_alter, info, alter_struct))
     DBUG_RETURN(true);
   if (ha_create_table(thd, alter_ctx.get_tmp_path(),
                       alter_ctx.new_db.str, alter_ctx.new_name.str,
@@ -10368,7 +10370,7 @@ do_continue:;
     if (start_alter_id && !thd->direct_commit_alter)
     {
       DBUG_ASSERT(thd->slave_thread);
-      wait_for_master(thd, info);
+      wait_for_master(thd, info, alter_struct);
       if (info->state == start_alter_state::ROLLBACK_ALTER)
         goto err_new_table_cleanup;
     }
@@ -10409,9 +10411,9 @@ do_continue:;
     {
       //if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
        // DBUG_RETURN(true);
-      mysql_mutex_lock(&mi->start_alter_lock);
+      mysql_mutex_lock(&alter_struct->start_alter_lock);
       info->state= start_alter_state::COMMITTED;
-      mysql_mutex_unlock(&mi->start_alter_lock);
+      mysql_mutex_unlock(&alter_struct->start_alter_lock);
       mysql_cond_broadcast(&info->start_alter_cond);
     }
     /* We don't replicate alter table statement on temporary tables */
@@ -10436,7 +10438,7 @@ do_continue:;
   if (start_alter_id && !thd->direct_commit_alter)
   {
     DBUG_ASSERT(thd->slave_thread);
-    wait_for_master(thd, info);
+    wait_for_master(thd, info, alter_struct);
     if (info->state == start_alter_state::ROLLBACK_ALTER)
       goto err_new_table_cleanup;
   }
@@ -10617,9 +10619,9 @@ end_inplace:
   {
     //if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
     //  DBUG_RETURN(true);
-    mysql_mutex_lock(&mi->start_alter_lock);
+    mysql_mutex_lock(&alter_struct->start_alter_lock);
     info->state= start_alter_state::COMMITTED;
-    mysql_mutex_unlock(&mi->start_alter_lock);
+    mysql_mutex_unlock(&alter_struct->start_alter_lock);
     mysql_cond_broadcast(&info->start_alter_cond);
   }
   else if (write_bin_log(thd, true, thd->query(), thd->query_length()))
@@ -10673,7 +10675,7 @@ err_new_table_cleanup:
                           alter_ctx.get_tmp_path());
   //STODO
   if (start_alter_id && !thd->direct_commit_alter)
-    master_result(thd, mi, info, 1);
+    master_result(thd, info, 1, alter_struct);
   else if (opt_binlog_split_alter)
   {
     sprintf(send_query, "/*!105001  %s EXECUTE = ROLLBACK %ld */", thd->query(),

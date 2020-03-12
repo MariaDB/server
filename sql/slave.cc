@@ -5760,17 +5760,18 @@ err_during_init:
    TODO sideeffects 
   */
   start_alter_info *info=NULL;
-  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+  start_alter_struct *alter_struct= &mi->start_alter_struct_master;
+  List_iterator<start_alter_info> info_iterator(alter_struct->start_alter_list);
   while ((info= info_iterator++))
   {
-    mysql_mutex_lock(&mi->start_alter_lock);
+    mysql_mutex_lock(&alter_struct->start_alter_lock);
     info->state= start_alter_state::ROLLBACK_ALTER;
     mysql_cond_broadcast(&info->start_alter_cond);
-    mysql_mutex_unlock(&mi->start_alter_lock);
-    mysql_mutex_lock(&mi->start_alter_lock);
+    mysql_mutex_unlock(&alter_struct->start_alter_lock);
+    mysql_mutex_lock(&alter_struct->start_alter_lock);
     while(info->state == start_alter_state::ROLLBACK_ALTER)
-      mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
-    mysql_mutex_unlock(&mi->start_alter_lock);
+      mysql_cond_wait(&info->start_alter_cond, &alter_struct->start_alter_lock);
+    mysql_mutex_unlock(&alter_struct->start_alter_lock);
     DBUG_ASSERT(info->state == start_alter_state::COMMITTED);
     info_iterator.remove();
     mysql_cond_destroy(&info->start_alter_cond);

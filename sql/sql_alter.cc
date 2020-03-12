@@ -368,13 +368,18 @@ void Alter_table_ctx::report_implicit_default_value_error(THD *thd,
                                               s, error_field->field_name.str);
 }
 
+start_alter_struct local_start_alter;
 
 /* 0= Nothing to do skip query_log_event parsing , 1= query_log_event_parsing
  * 2= error */
 #define START_ALTER_SKIP   0
 #define START_ALTER_PARSE  1
 #define START_ALTER_ERROR  2
-static int process_start_alter(THD *thd, uint64 thread_id)
+static int process_start_alter(THD *thd, uint64 thread_id,
+                               List <start_alter_info> *start_alter_list,
+                               mysql_mutex_t *start_alter_list_lock,
+                               mysql_mutex_t *start_alter_lock,
+                               mysql_cond_t *start_alter_list_cond)
 {
   /*
    start_alter_thread will be true for spawned thread
@@ -384,16 +389,16 @@ static int process_start_alter(THD *thd, uint64 thread_id)
     return START_ALTER_PARSE;
   }
   //TODO
+    /*
   else if(!thd->rgi_slave->is_parallel_exec )
   {
-    /*
      We will just write the binlog and move to next event , because COMMIT
      Alter will take care of actual work
-    */
     if (write_bin_log(thd, false, thd->query(), thd->query_length()))
       return 2;
     return 0;
   }
+    */
   pthread_t th;
   start_alter_thd_args *args= (start_alter_thd_args *) my_malloc(sizeof(
                                   start_alter_thd_args), MYF(0));
@@ -414,11 +419,9 @@ static int process_start_alter(THD *thd, uint64 thread_id)
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return 2;
   }
-  DBUG_ASSERT(thd->rgi_slave);
-  Master_info *mi= thd->rgi_slave->rli->mi;
   start_alter_info *info=NULL;
-  mysql_mutex_lock(&mi->start_alter_list_lock);
-  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+  mysql_mutex_lock(start_alter_list_lock);
+  List_iterator<start_alter_info> info_iterator(*start_alter_list);
   while(1)
   {
     while ((info= info_iterator++))
@@ -428,13 +431,13 @@ static int process_start_alter(THD *thd, uint64 thread_id)
     }
     if (info && info->thread_id == thread_id)
       break;
-    mysql_cond_wait(&mi->start_alter_list_cond, &mi->start_alter_list_lock);
+    mysql_cond_wait(start_alter_list_cond, start_alter_list_lock);
     info_iterator.rewind();
   }
   //Although write_start_alter can also remove the *info, so we can do this on any place
   //if (thd->rpt->stop)
    // info_iterator.remove();
-  mysql_mutex_unlock(&mi->start_alter_list_lock);
+  mysql_mutex_unlock(start_alter_list_lock);
   /*
    We can free the args here because spawned thread has already copied the data
   */
@@ -446,14 +449,16 @@ static int process_start_alter(THD *thd, uint64 thread_id)
 }
 /* 0= Nothing to do skip query_log_event parsing , 1= query_log_event_parsing
  * 2= error */
-static int process_commit_alter(THD *thd, uint64 thread_id)
+static int process_commit_alter(THD *thd, uint64 thread_id,
+                                List <start_alter_info> *start_alter_list,
+                                mysql_mutex_t *start_alter_list_lock,
+                                mysql_mutex_t *start_alter_lock,
+                                mysql_cond_t *start_alter_list_cond)
 {
-  DBUG_ASSERT(thd->rgi_slave);
-  Master_info *mi= thd->rgi_slave->rli->mi;
   start_alter_info *info=NULL;
   uint count=0;
-  mysql_mutex_lock(&mi->start_alter_list_lock);
-  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+  mysql_mutex_lock(start_alter_list_lock);
+  List_iterator<start_alter_info> info_iterator(*start_alter_list);
   while ((info= info_iterator++))
   {
     count++;
@@ -463,7 +468,7 @@ static int process_commit_alter(THD *thd, uint64 thread_id)
       break;
     }
   }
-  mysql_mutex_unlock(&mi->start_alter_list_lock);
+  mysql_mutex_unlock(start_alter_list_lock);
   if (!info || info->thread_id != thread_id)
   {
     //error handeling
@@ -477,15 +482,15 @@ static int process_commit_alter(THD *thd, uint64 thread_id)
    start_alter_state must be ::REGISTERED
    */
   DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
-  mysql_mutex_lock(&mi->start_alter_lock);
+  mysql_mutex_lock(start_alter_lock);
   info->state= start_alter_state::COMMIT_ALTER;
-  mysql_mutex_unlock(&mi->start_alter_lock);
+  mysql_mutex_unlock(start_alter_lock);
   mysql_cond_broadcast(&info->start_alter_cond);
   // Wait for commit by worker thread
-  mysql_mutex_lock(&mi->start_alter_lock);
+  mysql_mutex_lock(start_alter_lock);
   while(info->state != start_alter_state::COMMITTED )
-    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
-  mysql_mutex_unlock(&mi->start_alter_lock);
+    mysql_cond_wait(&info->start_alter_cond, start_alter_lock);
+  mysql_mutex_unlock(start_alter_lock);
   mysql_cond_destroy(&info->start_alter_cond);
   my_free(info);
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
@@ -494,13 +499,15 @@ static int process_commit_alter(THD *thd, uint64 thread_id)
 }
 /* 0= Nothing to do skip query_log_event parsing , 1= query_log_event_parsing
  * 2= error */
-static int process_rollback_alter(THD *thd, uint64 thread_id)
+static int process_rollback_alter(THD *thd, uint64 thread_id,
+                                  List <start_alter_info> *start_alter_list,
+                                  mysql_mutex_t *start_alter_list_lock,
+                                  mysql_mutex_t *start_alter_lock,
+                                  mysql_cond_t *start_alter_list_cond)
 {
-  DBUG_ASSERT(thd->rgi_slave);
-  Master_info *mi= thd->rgi_slave->rli->mi;
   start_alter_info *info=NULL;
-  mysql_mutex_lock(&mi->start_alter_list_lock);
-  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+  mysql_mutex_lock(start_alter_list_lock);
+  List_iterator<start_alter_info> info_iterator(*start_alter_list);
   while ((info= info_iterator++))
   {
     if(info->thread_id == thread_id)
@@ -509,7 +516,7 @@ static int process_rollback_alter(THD *thd, uint64 thread_id)
       break;
     }
   }
-  mysql_mutex_unlock(&mi->start_alter_list_lock);
+  mysql_mutex_unlock(start_alter_list_lock);
   if (!info || info->thread_id != thread_id)
   {
     //Just write the binlog because there is nothing to be done
@@ -521,15 +528,15 @@ static int process_rollback_alter(THD *thd, uint64 thread_id)
    start_alter_state must be ::REGISTERED
    */
   DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
-  mysql_mutex_lock(&mi->start_alter_lock);
+  mysql_mutex_lock(start_alter_lock);
   info->state= start_alter_state::ROLLBACK_ALTER;
-  mysql_mutex_unlock(&mi->start_alter_lock);
+  mysql_mutex_unlock(start_alter_lock);
   mysql_cond_broadcast(&info->start_alter_cond);
   // Wait for commit by worker thread
-  mysql_mutex_lock(&mi->start_alter_lock);
+  mysql_mutex_lock(start_alter_lock);
   while(info->state != start_alter_state::COMMITTED )
-    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
-  mysql_mutex_unlock(&mi->start_alter_lock);
+    mysql_cond_wait(&info->start_alter_cond, start_alter_lock);
+  mysql_mutex_unlock(start_alter_lock);
   mysql_cond_destroy(&info->start_alter_cond);
   my_free(info);
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
@@ -689,25 +696,50 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     We will follow a different executation path if it is START ALTER
     or commit/rollback alter
    */
-  switch (alter_info.alter_state)  {
-  case Alter_info::ALTER_TABLE_START:
-    alter_res= process_start_alter(thd, alter_info.alter_identifier);
-    break;
-  case Alter_info::ALTER_TABLE_COMMIT:
-    alter_res= process_commit_alter(thd, alter_info.alter_identifier);
-    break;
-  case Alter_info::ALTER_TABLE_ROLLBACK:
-    alter_res= process_rollback_alter(thd, alter_info.alter_identifier);
-    break;
-  case Alter_info::ALTER_TABLE_NORMAL:
-    alter_res= START_ALTER_PARSE;
-    break;
+  if (alter_info.alter_state != Alter_info::ALTER_TABLE_NORMAL)
+  {
+    List <start_alter_info> *start_alter_list;
+    mysql_mutex_t *start_alter_list_lock, *start_alter_lock;
+    mysql_cond_t *start_alter_list_cond;
+    if (thd->rgi_slave)
+    {
+      start_alter_struct *data= &thd->rgi_slave->rli->mi->start_alter_struct_master;
+      start_alter_list= &data->start_alter_list;
+      start_alter_list_lock= &data->start_alter_list_lock;
+      start_alter_lock= &data->start_alter_lock;
+      start_alter_list_cond= &data->start_alter_list_cond;
+    }
+    else
+    {
+      start_alter_list= &local_start_alter.start_alter_list;
+      start_alter_list_lock= &local_start_alter.start_alter_list_lock;
+      start_alter_lock= &local_start_alter.start_alter_lock;
+      start_alter_list_cond= &local_start_alter.start_alter_list_cond;
+    }
+    switch (alter_info.alter_state)  {
+    case Alter_info::ALTER_TABLE_START:
+      alter_res= process_start_alter(thd, alter_info.alter_identifier,
+                                     start_alter_list, start_alter_list_lock,
+                                     start_alter_lock, start_alter_list_cond);
+      break;
+    case Alter_info::ALTER_TABLE_COMMIT:
+      alter_res= process_commit_alter(thd, alter_info.alter_identifier,
+                                     start_alter_list, start_alter_list_lock,
+                                     start_alter_lock, start_alter_list_cond);
+      break;
+    case Alter_info::ALTER_TABLE_ROLLBACK:
+      alter_res= process_rollback_alter(thd, alter_info.alter_identifier,
+                                     start_alter_list, start_alter_list_lock,
+                                     start_alter_lock, start_alter_list_cond);
+      break;
+    default:
+      break;
+    }
+    if (alter_res == START_ALTER_SKIP)
+      DBUG_RETURN(FALSE);
+    else if (alter_res == START_ALTER_ERROR)
+      DBUG_RETURN(TRUE);
   }
-  if (alter_res == START_ALTER_SKIP)
-    DBUG_RETURN(FALSE);
-  else if (alter_res == START_ALTER_ERROR)
-    DBUG_RETURN(TRUE);
-
   result= mysql_alter_table(thd, &select_lex->db, &lex->name,
                             &create_info,
                             first_table,

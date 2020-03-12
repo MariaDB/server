@@ -169,6 +169,13 @@ struct start_alter_info
   /* We are not using mysql_cond_t because we do not need PSI */
   mysql_cond_t start_alter_cond;
 };
+
+struct start_alter_struct
+{
+  List <start_alter_info> start_alter_list;
+  mysql_mutex_t start_alter_list_lock, start_alter_lock;
+  mysql_cond_t start_alter_list_cond;
+};
 /*****************************************************************************
   Replication IO Thread
 
@@ -245,8 +252,8 @@ class Master_info : public Slave_reporting_capability
   File fd; // we keep the file open, so we need to remember the file pointer
   IO_CACHE file;
 
-  mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock, start_alter_lock, start_alter_list_lock;
-  mysql_cond_t data_cond, start_cond, stop_cond, sleep_cond, start_alter_list_cond;
+  mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock;
+  mysql_cond_t data_cond, start_cond, stop_cond, sleep_cond;
   THD *io_thd;
   MYSQL* mysql;
   uint32 file_id;				/* for 3.23 load data infile */
@@ -371,6 +378,7 @@ class Master_info : public Slave_reporting_capability
   */
   int semi_ack;
   List <start_alter_info> start_alter_list;
+  start_alter_struct start_alter_struct_master;
 };
 
 struct start_alter_thd_args
