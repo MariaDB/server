@@ -400,6 +400,9 @@ const LEX_CSTRING command_name[257]={
 };
 
 #ifdef HAVE_REPLICATION
+start_alter_struct local_start_alter_struct;
+#endif
+#ifdef HAVE_REPLICATION
 /**
   Returns true if all tables should be ignored.
 */

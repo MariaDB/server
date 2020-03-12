@@ -65,6 +65,9 @@
 #endif
 
 const char *primary_key_name="PRIMARY";
+#ifdef HAVE_REPLICATION
+extern start_alter_struct local_start_alter_struct;
+#endif
 
 static int check_if_keyname_exists(const char *name,KEY *start, KEY *end);
 static char *make_unique_key_name(THD *, const char *, KEY *, KEY *);
@@ -9503,16 +9506,14 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   char *send_query= (char *)thd->alloc(thd->query_length() + 20);
   bool partial_alter= false;
   start_alter_info *info= get_new_start_alter_info(thd);
-  start_alter_struct *alter_struct;
+  start_alter_struct *alter_struct= NULL;
   DBUG_ENTER("mysql_alter_table");
-  if (thd->slave_thread)
 #ifdef HAVE_REPLICATION
+  if (thd->slave_thread)
     alter_struct= &thd->rgi_slave->rli->mi->start_alter_struct_master;
-#else
-    DBUG_RETURN(true);
-#endif
   else
-    alter_struct= NULL;
+    alter_struct= &local_start_alter_struct;
+#endif
   ulong start_alter_id= thd->lex->alter_info.alter_identifier;
 
   /*

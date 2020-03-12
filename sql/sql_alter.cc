@@ -23,6 +23,9 @@
 #include "rpl_rli.h"
 #include "slave.h"
 #include "wsrep_mysqld.h"
+#ifdef HAVE_REPLICATION
+extern start_alter_struct local_start_alter_struct;
+#endif
 
 Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   :drop_list(rhs.drop_list, mem_root),
@@ -369,7 +372,6 @@ void Alter_table_ctx::report_implicit_default_value_error(THD *thd,
                                               s, error_field->field_name.str);
 }
 
-start_alter_struct local_start_alter;
 
 /* 0= Nothing to do skip query_log_event parsing , 1= query_log_event_parsing
  * 2= error */
@@ -420,7 +422,7 @@ static int process_start_alter(THD *thd, uint64 thread_id,
                           handle_slave_start_alter, args))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    return 2;
+    return START_ALTER_ERROR;
   }
   start_alter_info *info=NULL;
   mysql_mutex_lock(start_alter_list_lock);
@@ -447,11 +449,11 @@ static int process_start_alter(THD *thd, uint64 thread_id,
   my_free(args);
   DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
   if (write_bin_log(thd, false, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
-    return 2;
+    return START_ALTER_ERROR;
 #else
   return START_ALTER_PARSE;
 #endif
-  return 0;
+  return START_ALTER_SKIP;
 }
 /* 0= Nothing to do skip query_log_event parsing , 1= query_log_event_parsing
  * 2= error */
@@ -462,12 +464,10 @@ static int process_commit_alter(THD *thd, uint64 thread_id,
                                 mysql_cond_t *start_alter_list_cond)
 {
   start_alter_info *info=NULL;
-  uint count=0;
   mysql_mutex_lock(start_alter_list_lock);
   List_iterator<start_alter_info> info_iterator(*start_alter_list);
   while ((info= info_iterator++))
   {
-    count++;
     if(info->thread_id == thread_id)
     {
       info_iterator.remove();
@@ -482,7 +482,7 @@ static int process_commit_alter(THD *thd, uint64 thread_id,
     //unnecessary binlogging or spawn new thread because there is no start
     //alter context
     thd->direct_commit_alter= 1;
-    return 1;
+    return START_ALTER_PARSE;
   }
   /*
    start_alter_state must be ::REGISTERED
@@ -500,8 +500,8 @@ static int process_commit_alter(THD *thd, uint64 thread_id,
   mysql_cond_destroy(&info->start_alter_cond);
   my_free(info);
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
-    return 2;
-  return 0;
+    return START_ALTER_ERROR;
+  return START_ALTER_SKIP;
 }
 /* 0= Nothing to do skip query_log_event parsing , 1= query_log_event_parsing
  * 2= error */
@@ -527,8 +527,8 @@ static int process_rollback_alter(THD *thd, uint64 thread_id,
   {
     //Just write the binlog because there is nothing to be done
     if (write_bin_log(thd, true, thd->query(), thd->query_length()))
-      return 2;
-    return 0;
+      return START_ALTER_ERROR;
+    return START_ALTER_SKIP;
   }
   /*
    start_alter_state must be ::REGISTERED
@@ -546,8 +546,8 @@ static int process_rollback_alter(THD *thd, uint64 thread_id,
   mysql_cond_destroy(&info->start_alter_cond);
   my_free(info);
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
-    return 2;
-  return 0;
+    return START_ALTER_ERROR;
+  return START_ALTER_SKIP;
 }
 bool Sql_cmd_alter_table::execute(THD *thd)
 {
@@ -704,26 +704,26 @@ bool Sql_cmd_alter_table::execute(THD *thd)
    */
   if (alter_info.alter_state != Alter_info::ALTER_TABLE_NORMAL)
   {
-    List <start_alter_info> *start_alter_list;
-    mysql_mutex_t *start_alter_list_lock, *start_alter_lock;
-    mysql_cond_t *start_alter_list_cond;
+    List <start_alter_info> *start_alter_list= NULL;
+    mysql_mutex_t *start_alter_list_lock= NULL, *start_alter_lock= NULL;
+    mysql_cond_t *start_alter_list_cond= NULL;
+#ifdef HAVE_REPLICATION
     if (thd->rgi_slave)
     {
-#ifdef HAVE_REPLICATION
       start_alter_struct *data= &thd->rgi_slave->rli->mi->start_alter_struct_master;
       start_alter_list= &data->start_alter_list;
       start_alter_list_lock= &data->start_alter_list_lock;
       start_alter_lock= &data->start_alter_lock;
       start_alter_list_cond= &data->start_alter_list_cond;
-#endif
     }
     else
     {
-      start_alter_list= &local_start_alter.start_alter_list;
-      start_alter_list_lock= &local_start_alter.start_alter_list_lock;
-      start_alter_lock= &local_start_alter.start_alter_lock;
-      start_alter_list_cond= &local_start_alter.start_alter_list_cond;
+      start_alter_list= &local_start_alter_struct.start_alter_list;
+      start_alter_list_lock= &local_start_alter_struct.start_alter_list_lock;
+      start_alter_lock= &local_start_alter_struct.start_alter_lock;
+      start_alter_list_cond= &local_start_alter_struct.start_alter_list_cond;
     }
+#endif
     switch (alter_info.alter_state)  {
     case Alter_info::ALTER_TABLE_START:
       alter_res= process_start_alter(thd, alter_info.alter_identifier,
