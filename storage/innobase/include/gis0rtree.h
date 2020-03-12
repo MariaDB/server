@@ -151,7 +151,6 @@ rtr_rec_cal_increase(
 				dtuple in some of the common fields, or which
 				has an equal number or more fields than
 				dtuple */
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	double*		area);	/*!< out: increased area */
 
 /****************************************************************//**

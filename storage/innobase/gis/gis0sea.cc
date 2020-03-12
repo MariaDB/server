@@ -1620,6 +1620,60 @@ rtr_get_mbr_from_tuple(
 		     mbr);
 }
 
+/** Compare minimum bounding rectangles.
+@return	1, 0, -1, if mode == PAGE_CUR_MBR_EQUAL. And return
+1, 0 for rest compare modes, depends on a and b qualifies the
+relationship (CONTAINS, WITHIN etc.) */
+static int cmp_gis_field(page_cur_mode_t mode, const void *a, const void *b)
+{
+  return mode == PAGE_CUR_MBR_EQUAL
+    ? cmp_geometry_field(a, b)
+    : rtree_key_cmp(mode, a, b);
+}
+
+/** Compare a GIS data tuple to a physical record in rtree non-leaf node.
+We need to check the page number field, since we don't store pk field in
+rtree non-leaf node.
+@param[in]	dtuple		data tuple
+@param[in]	rec		R-tree record
+@return whether dtuple is less than rec */
+static bool
+cmp_dtuple_rec_with_gis_internal(const dtuple_t* dtuple, const rec_t* rec)
+{
+  const dfield_t *dtuple_field= dtuple_get_nth_field(dtuple, 0);
+  ut_ad(dfield_get_len(dtuple_field) == DATA_MBR_LEN);
+
+  if (cmp_gis_field(PAGE_CUR_WITHIN, dfield_get_data(dtuple_field), rec))
+    return true;
+
+  dtuple_field= dtuple_get_nth_field(dtuple, 1);
+  ut_ad(dfield_get_len(dtuple_field) == 4); /* child page number */
+  ut_ad(dtuple_field->type.mtype == DATA_SYS_CHILD);
+  ut_ad(!(dtuple_field->type.prtype & ~DATA_NOT_NULL));
+
+  return memcmp(dtuple_field->data, rec + DATA_MBR_LEN, 4) != 0;
+}
+
+#ifndef UNIV_DEBUG
+static
+#endif
+/** Compare a GIS data tuple to a physical record.
+@param[in] dtuple data tuple
+@param[in] rec R-tree record
+@param[in] mode compare mode
+@retval negative if dtuple is less than rec */
+int cmp_dtuple_rec_with_gis(const dtuple_t *dtuple, const rec_t *rec,
+                            page_cur_mode_t mode)
+{
+  const dfield_t *dtuple_field= dtuple_get_nth_field(dtuple, 0);
+  /* FIXME: TABLE_SHARE::init_from_binary_frm_image() is adding
+  field->key_part_length_bytes() to the key length */
+  ut_ad(dfield_get_len(dtuple_field) == DATA_MBR_LEN ||
+        dfield_get_len(dtuple_field) == DATA_MBR_LEN + 2);
+
+  return cmp_gis_field(mode, dfield_get_data(dtuple_field), rec);
+}
+
 /****************************************************************//**
 Searches the right position in rtree for a page cursor. */
 bool
@@ -1701,9 +1755,6 @@ rtr_cur_search_with_match(
 	}
 
 	while (!page_rec_is_supremum(rec)) {
-		offsets = rec_get_offsets(rec, index, offsets, is_leaf,
-					  dtuple_get_n_fields_cmp(tuple),
-					  &heap);
 		if (!is_leaf) {
 			switch (mode) {
 			case PAGE_CUR_CONTAIN:
@@ -1713,21 +1764,21 @@ rtr_cur_search_with_match(
 				both CONTAIN and INTERSECT for either of
 				the search mode */
 				cmp = cmp_dtuple_rec_with_gis(
-					tuple, rec, offsets, PAGE_CUR_CONTAIN);
+					tuple, rec, PAGE_CUR_CONTAIN);
 
 				if (cmp != 0) {
 					cmp = cmp_dtuple_rec_with_gis(
-						tuple, rec, offsets,
+						tuple, rec,
 						PAGE_CUR_INTERSECT);
 				}
 				break;
 			case PAGE_CUR_DISJOINT:
 				cmp = cmp_dtuple_rec_with_gis(
-					tuple, rec, offsets, mode);
+					tuple, rec, mode);
 
 				if (cmp != 0) {
 					cmp = cmp_dtuple_rec_with_gis(
-						tuple, rec, offsets,
+						tuple, rec,
 						PAGE_CUR_INTERSECT);
 				}
 				break;
@@ -1736,11 +1787,11 @@ rtr_cur_search_with_match(
 				double	area;
 
 				cmp = cmp_dtuple_rec_with_gis(
-					tuple, rec, offsets, PAGE_CUR_WITHIN);
+					tuple, rec, PAGE_CUR_WITHIN);
 
 				if (cmp != 0) {
 					increase = rtr_rec_cal_increase(
-						tuple, rec, offsets, &area);
+						tuple, rec, &area);
 					/* Once it goes beyond DBL_MAX,
 					it would not make sense to record
 					such value, just make it
@@ -1763,19 +1814,19 @@ rtr_cur_search_with_match(
 				break;
 			case PAGE_CUR_RTREE_GET_FATHER:
 				cmp = cmp_dtuple_rec_with_gis_internal(
-					tuple, rec, offsets);
+					tuple, rec);
 				break;
 			default:
 				/* WITHIN etc. */
 				cmp = cmp_dtuple_rec_with_gis(
-					tuple, rec, offsets, mode);
+					tuple, rec, mode);
 			}
 		} else {
 			/* At leaf level, INSERT should translate to LE */
 			ut_ad(mode != PAGE_CUR_RTREE_INSERT);
 
 			cmp = cmp_dtuple_rec_with_gis(
-				tuple, rec, offsets, mode);
+				tuple, rec, mode);
 		}
 
 		if (cmp == 0) {
@@ -1948,17 +1999,10 @@ rtr_cur_search_with_match(
 	} else {
 
 		if (mode == PAGE_CUR_RTREE_INSERT) {
-			ulint	child_no;
-			ut_ad(!last_match_rec && rec);
-
-			offsets = rec_get_offsets(
-				rec, index, offsets, false,
-				ULINT_UNDEFINED, &heap);
-
-			child_no = btr_node_ptr_get_child_page_no(rec, offsets);
-
+			ut_ad(!last_match_rec);
 			rtr_non_leaf_insert_stack_push(
-				index, rtr_info->parent_path, level, child_no,
+				index, rtr_info->parent_path, level,
+				mach_read_from_4(rec + DATA_MBR_LEN),
 				block, rec, 0);
 
 		} else if (rtr_info && found && !is_leaf) {

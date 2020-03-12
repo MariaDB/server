@@ -4357,7 +4357,7 @@ btr_check_node_ptr(
 	if (dict_index_is_spatial(index)) {
 		ut_a(!cmp_dtuple_rec_with_gis(
 			tuple, btr_cur_get_rec(&cursor),
-			offsets, PAGE_CUR_WITHIN));
+			PAGE_CUR_WITHIN));
 	} else {
 		ut_a(!cmp_dtuple_rec(tuple, btr_cur_get_rec(&cursor), offsets));
 	}
