@@ -5906,7 +5906,7 @@ void do_connect(struct st_command *command)
   int con_port= opt_port;
   char *con_options;
   char *ssl_cipher __attribute__((unused))= 0;
-  enum use_ssl con_ssl= USE_SSL_IF_POSSIBLE;
+  enum use_ssl con_ssl __attribute__((unused))= USE_SSL_IF_POSSIBLE;
   my_bool con_compress= 0;
   int read_timeout= 0;
   int write_timeout= 0;
