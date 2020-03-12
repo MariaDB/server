@@ -3,8 +3,6 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
---source include/big_test.inc
 
 --connection node_1
 CREATE TABLE ten (f1 INTEGER) Engine=InnoDB;

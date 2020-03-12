@@ -163,6 +163,7 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_run_wsrep_commit,
   wsrep_thd_LOCK,
   wsrep_thd_UNLOCK,
+  wsrep_LOCK,
   wsrep_thd_awake,
   wsrep_thd_conflict_state,
   wsrep_thd_conflict_state_str,
@@ -186,7 +187,8 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_trx_order_before,
   wsrep_unlock_rollback,
   wsrep_set_data_home_dir,
-  wsrep_thd_is_applier
+  wsrep_thd_is_applier,
+  wsrep_enqueue_background_kill
 };
 
 static struct thd_specifics_service_st thd_specifics_handler=

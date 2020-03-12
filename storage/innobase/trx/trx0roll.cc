@@ -229,6 +229,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 		ut_ad(trx->mysql_thd);
 #ifdef WITH_WSREP
 		trx->wsrep = false;
+		trx->lock.was_chosen_as_wsrep_victim= false;
 #endif
 		return(DB_SUCCESS);
 
@@ -453,9 +454,7 @@ trx_rollback_to_savepoint_for_mysql_low(
 	trx->op_info = "";
 
 #ifdef WITH_WSREP
-	if (trx->is_wsrep()) {
-		trx->lock.was_chosen_as_deadlock_victim = false;
-	}
+	trx->lock.was_chosen_as_wsrep_victim= false;
 #endif
 	return(err);
 }

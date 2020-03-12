@@ -438,23 +438,6 @@ Check transaction state */
 	ut_error;							\
 } while (0)
 
-/** Check if transaction is free so that it can be re-initialized.
-@param t transaction handle */
-#define	assert_trx_is_free(t)	do {					\
-	ut_ad(trx_state_eq((t), TRX_STATE_NOT_STARTED));		\
-	ut_ad(!(t)->id);						\
-	ut_ad(!(t)->has_logged());					\
-	ut_ad(!(t)->is_referenced());					\
-	ut_ad(!(t)->is_wsrep());					\
-	ut_ad(!(t)->read_view.is_open());				\
-	ut_ad((t)->lock.wait_thr == NULL);				\
-	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
-	ut_ad((t)->lock.table_locks.empty());				\
-	ut_ad(!(t)->autoinc_locks					\
-	      || ib_vector_is_empty((t)->autoinc_locks));		\
-	ut_ad((t)->dict_operation == TRX_DICT_OP_NONE);			\
-} while(0)
-
 #ifdef UNIV_DEBUG
 /*******************************************************************//**
 Assert that an autocommit non-locking select cannot be in the
@@ -542,6 +525,11 @@ struct trx_lock_t {
 					lock_sys.mutex. Otherwise, this may
 					only be modified by the thread that is
 					serving the running transaction. */
+#ifdef WITH_WSREP
+	bool		was_chosen_as_wsrep_victim;
+					/*!< high priority wsrep thread has
+					marked this trx to abort */
+#endif /* WITH_WSREP */
 
 	/** Pre-allocated record locks */
 	struct {
@@ -1133,7 +1121,25 @@ public:
   /** Free the memory to trx_pools */
   void free();
 
-
+  /** Check if transaction is free so that it can be re-initialized. */
+  void assert_freed()
+  {
+	ut_ad(state == TRX_STATE_NOT_STARTED);
+	ut_ad(!id);
+	ut_ad(!has_logged());
+	ut_ad(!is_referenced());
+	ut_ad(!is_wsrep());
+#ifdef WITH_WSREP
+	ut_ad(!lock.was_chosen_as_wsrep_victim);
+#endif
+	ut_ad(!read_view.is_open());
+	ut_ad(lock.wait_thr == NULL);
+	ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
+	ut_ad(lock.table_locks.empty());
+	ut_ad(!autoinc_locks
+	      || ib_vector_is_empty(autoinc_locks));
+	ut_ad(dict_operation == TRX_DICT_OP_NONE);
+  }
 private:
 	/** Assign a rollback segment for modifying temporary tables.
 	@return the assigned rollback segment */

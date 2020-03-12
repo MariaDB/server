@@ -500,6 +500,7 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
   if (wsrep_start_replication())
   {
     wsrep_create_rollbacker();
+    wsrep_create_killer();
     WSREP_DEBUG("Cluster address update creating %ld applier threads running %lu",
 	    wsrep_slave_threads, wsrep_running_applier_threads);
     wsrep_create_appliers(wsrep_slave_threads);

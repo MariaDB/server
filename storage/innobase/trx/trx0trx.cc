@@ -339,8 +339,7 @@ trx_t *trx_create()
 	MEM_CHECK_DEFINED() in trx_t::free(). */
 	MEM_MAKE_DEFINED(trx, sizeof *trx);
 #endif
-
-	assert_trx_is_free(trx);
+	trx->assert_freed();
 
 	mem_heap_t*	heap;
 	ib_alloc_t*	alloc;
@@ -389,7 +388,7 @@ void trx_t::free()
 
   dict_operation= TRX_DICT_OP_NONE;
   trx_sys.deregister_trx(this);
-  assert_trx_is_free(this);
+  this->assert_freed();
   trx_sys.rw_trx_hash.put_pins(this);
 
   mysql_thd= NULL;
@@ -1506,12 +1505,11 @@ trx_commit_in_memory(
 	trx->state = TRX_STATE_NOT_STARTED;
 #ifdef WITH_WSREP
 	trx->wsrep = false;
+	trx->lock.was_chosen_as_wsrep_victim= false;
 #endif
 
-	assert_trx_is_free(trx);
-
+	trx->assert_freed();
 	trx_init(trx);
-
 	trx_mutex_exit(trx);
 
 	ut_a(trx->error_state == DB_SUCCESS);

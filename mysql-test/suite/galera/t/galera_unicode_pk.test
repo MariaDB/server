@@ -12,6 +12,9 @@ CREATE TABLE t1 (
 INSERT INTO t1 VALUES ('текст');
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+
 SELECT f1 = 'текст' FROM t1;
 
 #

@@ -2,7 +2,9 @@
 
 [mysqld.1]
 wsrep-debug=1
+wsrep-log-conflicts=ON
 
 [mysqld.2]
 wsrep-debug=1
+wsrep-log-conflicts=ON
 
