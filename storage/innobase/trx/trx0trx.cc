@@ -330,8 +330,7 @@ trx_t *trx_allocate_for_background()
 	MEM_CHECK_DEFINED() in trx_t::free(). */
 	MEM_MAKE_DEFINED(trx, sizeof *trx);
 #endif
-
-	assert_trx_is_free(trx);
+	trx->assert_freed();
 
 	mem_heap_t*	heap;
 	ib_alloc_t*	alloc;
@@ -1857,15 +1856,14 @@ trx_commit_in_memory(
 	trx->state = TRX_STATE_NOT_STARTED;
 #ifdef WITH_WSREP
 	trx->wsrep = false;
+	trx->lock.was_chosen_as_wsrep_victim= false;
 #endif
 
 	/* trx->in_mysql_trx_list would hold between
 	trx_allocate_for_mysql() and trx_free_for_mysql(). It does not
 	hold for recovered transactions or system transactions. */
-	assert_trx_is_free(trx);
-
+	trx->assert_freed();
 	trx_init(trx);
-
 	trx_mutex_exit(trx);
 
 	ut_a(trx->error_state == DB_SUCCESS);

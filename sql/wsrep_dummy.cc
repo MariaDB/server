@@ -16,6 +16,7 @@
 #include <my_global.h>
 #include <sql_class.h>
 #include <mysql/service_wsrep.h>
+#include "wsrep_mysqld.h"
 
 my_bool wsrep_thd_is_BF(THD *, my_bool)
 { return 0; }
@@ -154,3 +155,9 @@ void wsrep_log(void (*)(const char *, ...), const char *, ...)
 
 my_bool wsrep_thd_is_applier(MYSQL_THD thd)
 { return false; }
+
+bool wsrep_enqueue_background_kill(wsrep_kill_t item)
+{ return false;}
+
+bool wsrep_thd_set_wsrep_aborter(THD *victim_thd, THD *bf_thd)
+{ return true; }

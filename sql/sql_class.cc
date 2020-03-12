@@ -652,7 +652,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_po_handle(WSREP_PO_INITIALIZER),
    wsrep_po_cnt(0),
    wsrep_apply_format(0),
-   wsrep_ignore_table(false)
+   wsrep_ignore_table(false),
+   wsrep_aborter(0)
 #endif
 {
   ulong tmp;
@@ -790,6 +791,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
   wsrep_split_flag        = false;
+  wsrep_aborter           = 0;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);

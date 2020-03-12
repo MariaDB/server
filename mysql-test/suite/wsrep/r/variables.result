@@ -149,7 +149,7 @@ VARIABLE_VALUE
 1
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 VARIABLE_VALUE
-2
+3
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
 libgalera_smm.so
@@ -164,7 +164,7 @@ Variable_name	Value
 Threads_connected	1
 SHOW STATUS LIKE 'wsrep_thread_count';
 Variable_name	Value
-wsrep_thread_count	2
+wsrep_thread_count	3
 
 SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
 SET GLOBAL wsrep_slave_threads= 10;
@@ -177,7 +177,7 @@ VARIABLE_VALUE
 1
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 VARIABLE_VALUE
-11
+12
 SHOW STATUS LIKE 'threads_connected';
 Variable_name	Value
 Threads_connected	1

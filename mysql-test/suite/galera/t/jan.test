@@ -1,0 +1,20 @@
+--source include/galera_cluster.inc
+
+--connection node_1
+CREATE TABLE t1(a int not null primary key auto_increment,b int) engine=InnoDB;
+insert into t1 values (NULL,1);
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+set session wsrep_on=OFF;
+begin;
+update t1 set a =5, b=2;
+
+--connection node_2
+ALTER TABLE t1 ADD UNIQUE KEY bcc(b);
+
+select * from t1;
+
+drop table t1;
+
+--disconnect node_2a

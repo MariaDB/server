@@ -7,6 +7,8 @@ SELECT * FROM t1;
 id	f2
 connection node_2;
 INSERT INTO t1 VALUES (1,1);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
 connection node_1;
 SELECT * FROM t1;
 ERROR 40001: Deadlock: wsrep aborted transaction
@@ -20,6 +22,7 @@ id	f2
 1	1
 connection node_2;
 UPDATE t1 SET f2 = 2;
+connection node_1a;
 connection node_1;
 UPDATE t1 SET f2 = 3;
 ERROR 40001: Deadlock: wsrep aborted transaction
@@ -27,11 +30,18 @@ ROLLBACK;
 DELETE FROM t1;
 connection node_1;
 START TRANSACTION;
-connection node_1;
 INSERT INTO t1 VALUES (1,1);
 connection node_2;
 INSERT INTO t1 VALUES (1,2);
 connection node_1;
 COMMIT;
 ERROR 40001: Deadlock: wsrep aborted transaction
+SELECT * from t1;
+id	f2
+1	2
+connection node_2;
+SELECT * from t1;
+id	f2
+1	2
 DROP TABLE t1;
+disconnect node_1a;

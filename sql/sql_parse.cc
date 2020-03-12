@@ -8896,8 +8896,15 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
 	!wsrep_thd_is_BF(tmp, false))
     {
-      tmp->awake(kill_signal);
-      error=0;
+#ifdef WITH_WSREP
+      /* We allow kill to continue only if there is no concurrent
+         kill in processing. */
+      if (wsrep_thd_set_wsrep_aborter(tmp, thd))
+#endif
+      {
+        tmp->awake(kill_signal);
+        error=0;
+      }
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :

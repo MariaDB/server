@@ -1149,7 +1149,7 @@ wsrep_kill_victim(
 			}
 
 			wsrep_innobase_kill_one_trx(trx->mysql_thd,
-						    trx, lock->trx, TRUE);
+						    lock->trx, true);
 		}
 	}
 }

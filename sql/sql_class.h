@@ -3753,13 +3753,23 @@ public:
       Resetting killed has to be done under a mutex to ensure
       its not done during an awake() call.
     */
+#ifdef WITH_WSREP
+    mysql_mutex_assert_not_owner(&LOCK_thd_kill);
+    mysql_mutex_assert_not_owner(&LOCK_thd_data);
+    mysql_mutex_lock(&LOCK_thd_data);
+#endif
+    mysql_mutex_lock(&LOCK_thd_kill);
     if (killed != NOT_KILLED)
     {
-      mysql_mutex_lock(&LOCK_thd_kill);
       killed= NOT_KILLED;
       killed_err= 0;
-      mysql_mutex_unlock(&LOCK_thd_kill);
     }
+
+#ifdef WITH_WSREP
+    wsrep_aborter= 0;
+    mysql_mutex_unlock(&LOCK_thd_data);
+#endif
+    mysql_mutex_unlock(&LOCK_thd_kill);
   }
   inline void reset_kill_query()
   {
@@ -4421,6 +4431,8 @@ public:
 
 #ifdef WITH_WSREP
   const bool                wsrep_applier; /* dedicated slave applier thread */
+  bool                      wsrep_killer; /* dedicated background
+					  kill thread */
   bool                      wsrep_applier_closing; /* applier marked to close */
   bool                      wsrep_client_thread; /* to identify client threads*/
   bool                      wsrep_PA_safe;
@@ -4470,6 +4482,8 @@ public:
   registered again, but replication of last chunk of rows is skipped
   by the innodb engine: */
   bool                      wsrep_split_flag;
+  /* thread who has started kill for this THD protected by LOCK_thd_data*/
+  my_thread_id              wsrep_aborter;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */

@@ -140,10 +140,10 @@ void wsrep_post_commit(THD* thd, bool all)
         => cleanup
       */
       if (thd->wsrep_conflict_state != MUST_REPLAY)
-     {
-       WSREP_DEBUG("cleanup transaction for LOCAL_STATE: %s",
-                   WSREP_QUERY(thd));
-     }
+      {
+        WSREP_DEBUG("cleanup transaction for LOCAL_STATE: %s",
+      	            wsrep_thd_query(thd));
+      }
       /*
         Run post-rollback hook to clean up in the case if
         some keys were populated for the transaction in provider
