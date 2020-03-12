@@ -10,7 +10,6 @@
 #
 ##############################################################################
 
-MW-286 : MDEV-18464 Killing thread can cause mutex deadlock if done concurrently with Galera/replication victim kill
 MW-328A : MDEV-21483 galera.MW-328A galera.MW-328B
 MW-328B : MDEV-21483 galera.MW-328A galera.MW-328B
 MW-329 : MDEV-19962 Galera test failure on MW-329

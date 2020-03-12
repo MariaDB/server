@@ -150,3 +150,9 @@ void wsrep_set_data_home_dir(const char *)
 
 my_bool wsrep_thd_is_applier(MYSQL_THD thd)
 { return false; }
+
+bool wsrep_enqueue_background_kill(wsrep_kill_t* item)
+{ return false;}
+
+wsrep_kill_t* wsrep_dequeue_background_kill()
+{ return NULL;}

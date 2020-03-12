@@ -28,6 +28,7 @@ void wsrep_client_rollback(THD *thd);
 void wsrep_replay_transaction(THD *thd);
 bool wsrep_create_appliers(long threads, bool thread_count_lock=false);
 void wsrep_create_rollbacker();
+void wsrep_create_killer();
 
 int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,
                                 my_bool signal);
