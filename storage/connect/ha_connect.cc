@@ -2968,19 +2968,12 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 			case Item_func::LE_FUNC:     vop= OP_LE;   break;
 			case Item_func::GE_FUNC:     vop= OP_GE;   break;
 			case Item_func::GT_FUNC:     vop= OP_GT;   break;
-<<<<<<< HEAD
-			//case Item_func::LIKE_FUNC:
-			//	vop= OP_LIKE; 
-			//	neg= ((Item_func_like *)condf)->negated;
-			//	break;
-=======
 #if MYSQL_VERSION_ID > 100200
 			case Item_func::LIKE_FUNC:
 				vop = OP_LIKE;
 			  neg= ((Item_func_like*)condf)->negated;
 			  break;
 #endif // VERSION_ID > 100200
->>>>>>> 51e9381dcc01ebd72d4f0adc057a64213f850d70
 			case Item_func::ISNOTNULL_FUNC:
 				neg= true;	
 				// fall through

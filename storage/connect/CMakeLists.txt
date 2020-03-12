@@ -310,34 +310,6 @@ IF(CONNECT_WITH_MONGO)
   ENDIF(libmongoc-1.0_FOUND)
 ENDIF(CONNECT_WITH_MONGO)
 
-#
-# REST
-#
-
-OPTION(CONNECT_WITH_REST "Compile CONNECT storage engine with REST support" ON)
-
-IF(CONNECT_WITH_REST)
-  MESSAGE(STATUS "=====> REST support is ON")
-  FIND_PACKAGE(cpprestsdk)
-  IF (cpprestsdk_FOUND)
-    MESSAGE(STATUS "=====> cpprestsdk found")
-	IF(UNIX)
-#     INCLUDE_DIRECTORIES(${CPPRESTSDK_INCLUDE_DIR})
-#     If needed edit next line to set the path to libcpprest.so
-      SET(REST_LIBRARY -lcpprest)
-      MESSAGE (STATUS ${REST_LIBRARY})
-	ELSE(NOT UNIX)
-#     Next line sets debug compile mode matching cpprest_2_10d.dll
-#     when it was binary installed (can be change later in Visual Studio)
-#     Comment it out if not needed depending on your cpprestsdk installation.
-	  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
-	ENDIF(UNIX)
-    SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp restget.cpp tabrest.h)
-    add_definitions(-DREST_SUPPORT)
-  ELSE(NOT cpprestsdk_FOUND)
-    MESSAGE(STATUS "=====> cpprestsdk package not found")
-  ENDIF (cpprestsdk_FOUND)
-ENDIF(CONNECT_WITH_REST)
 
 #
 # REST
@@ -346,7 +318,7 @@ ENDIF(CONNECT_WITH_REST)
 OPTION(CONNECT_WITH_REST "Compile CONNECT storage engine with REST support" ON)
 
 IF(CONNECT_WITH_REST)
-  MESSAGE(STATUS "=====> REST support is ON")
+# MESSAGE(STATUS "=====> REST support is ON")
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp tabrest.h)
   add_definitions(-DREST_SUPPORT)
   FIND_PACKAGE(cpprestsdk QUIET)
@@ -366,8 +338,8 @@ IF(CONNECT_WITH_REST)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} restget.cpp)
     add_definitions(-DREST_SOURCE)
 #   ENDIF()
-  ELSE(NOT cpprestsdk_FOUND)
-#    MESSAGE(STATUS "=====> cpprestsdk package not found")
+# ELSE(NOT cpprestsdk_FOUND)
+#   MESSAGE(STATUS "=====> cpprestsdk package not found")
   ENDIF (cpprestsdk_FOUND)
 ENDIF(CONNECT_WITH_REST)
 
@@ -396,34 +368,25 @@ IF(NOT TARGET connect)
   RETURN()
 ENDIF()
 
-# Don't link with bundled zlib and systel libxml2 at the same time.
-# System libxml2 uses system zlib, might conflict with the bundled one.
-IF (XML_LIBRARY AND BUILD_BUNDLED_ZLIB)
-  GET_PROPERTY(INCS TARGET connect PROPERTY INCLUDE_DIRECTORIES)
-  LIST(REMOVE_ITEM INCS ${ZLIB_INCLUDE_DIR})
-  SET_PROPERTY(TARGET connect PROPERTY INCLUDE_DIRECTORIES ${INCS})
-ENDIF()
-
 IF(WIN32)
   IF (libmongoc-1.0_FOUND)
     SET_TARGET_PROPERTIES(connect PROPERTIES LINK_FLAGS
       "/DELAYLOAD:libbson-1.0.dll /DELAYLOAD:libmongoc-1.0.dll")
   ENDIF(libmongoc-1.0_FOUND)
-
-# Install some extra files that belong to connect engine
-
-  INSTALL(FILES "$<TARGET_FILE_DIR:connect>/ha_connect.lib"
-    DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
 ENDIF(WIN32)
 
-IF(MSVC)
-  # Temporarily disable "conversion from size_t .."
-  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
+# Install some extra files that belong to connect engine
+IF(WIN32)
+  # install ha_connect.lib
+  GET_TARGET_PROPERTY(CONNECT_LOCATION connect LOCATION)
+  STRING(REPLACE "dll" "lib" CONNECT_LIB ${CONNECT_LOCATION})
+  IF(CMAKE_CONFIGURATION_TYPES)
+    STRING(REPLACE "${CMAKE_CFG_INTDIR}" "\${CMAKE_INSTALL_CONFIG_NAME}"
+      CONNECT_LIB ${CONNECT_LIB})
   ENDIF()
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4996")
-  string(REPLACE "/permissive-" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-ENDIF()
+  INSTALL(FILES ${CONNECT_LIB}
+    DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+ENDIF(WIN32)
 
 IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
   # TODO: Find how to compile and install the java wrapper classes
