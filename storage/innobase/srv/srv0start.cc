@@ -1192,7 +1192,8 @@ dberr_t srv_start(bool create_new_db)
 
 	/* Register performance schema stages before any real work has been
 	started which may need to be instrumented. */
-	mysql_stage_register("innodb", srv_stages, UT_ARR_SIZE(srv_stages));
+	mysql_stage_register("innodb", srv_stages,
+			     static_cast<int>(UT_ARR_SIZE(srv_stages)));
 
 	/* Set the maximum number of threads which can wait for a semaphore
 	inside InnoDB: this is the 'sync wait array' size, as well as the

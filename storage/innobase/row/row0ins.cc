@@ -540,9 +540,10 @@ row_ins_cascade_calc_update_vec(
 
 				ufield = update->fields + n_fields_updated;
 
-				ufield->field_no = dict_table_get_nth_col_pos(
-					table, dict_col_get_no(col),
-					&prefix_col);
+				ufield->field_no = static_cast<uint16_t>(
+					dict_table_get_nth_col_pos(
+						table, dict_col_get_no(col),
+						&prefix_col));
 
 				ufield->orig_len = 0;
 				ufield->exp = NULL;
@@ -972,7 +973,7 @@ row_ins_foreign_fill_virtual(
 		goto func_exit;
 	}
 
-	for (ulint i = 0; i < n_v_fld; i++) {
+	for (uint16_t i = 0; i < n_v_fld; i++) {
 
 		dict_v_col_t*     col = dict_table_get_nth_v_col(
 				index->table, i);
@@ -1297,8 +1298,9 @@ row_ins_foreign_check_on_constraint(
 						index, i);
 			ulint		prefix_col;
 
-			ufield->field_no = dict_table_get_nth_col_pos(
-				table, col_no, &prefix_col);
+			ufield->field_no = static_cast<uint16_t>(
+				dict_table_get_nth_col_pos(
+					table, col_no, &prefix_col));
 			dict_col_t*	col = dict_table_get_nth_col(
 				table, col_no);
 			dict_col_copy_type(col, dfield_get_type(&ufield->new_val));

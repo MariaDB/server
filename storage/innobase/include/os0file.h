@@ -248,15 +248,14 @@ public:
 	/** Clear the punch hole flag */
 	void clear_punch_hole()
 	{
-		m_type &= ~PUNCH_HOLE;
+		m_type &= uint16_t(~PUNCH_HOLE);
 	}
 
 	/** @return true if partial read warning disabled */
 	bool is_partial_io_warning_disabled() const
 		MY_ATTRIBUTE((warn_unused_result))
 	{
-		return((m_type & DISABLE_PARTIAL_IO_WARNINGS)
-		       == DISABLE_PARTIAL_IO_WARNINGS);
+		return !!(m_type & DISABLE_PARTIAL_IO_WARNINGS);
 	}
 
 	/** Disable partial read warnings */

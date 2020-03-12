@@ -145,7 +145,7 @@ bool log_crypt(byte* buf, lsn_t lsn, ulint size, log_crypt_t op)
 		/* The log block number is not encrypted. */
 		memcpy_aligned<4>(dst, buf + LOG_BLOCK_HDR_NO, 4);
 		memcpy_aligned<4>(aes_ctr_iv, buf + LOG_BLOCK_HDR_NO, 4);
-		*aes_ctr_iv &= ~(LOG_BLOCK_FLUSH_BIT_MASK >> 24);
+		*aes_ctr_iv &= byte(~(LOG_BLOCK_FLUSH_BIT_MASK >> 24));
 		static_assert(LOG_BLOCK_HDR_NO + 4 == LOG_CRYPT_HDR_SIZE,
 			      "compatibility");
 		memcpy_aligned<4>(aes_ctr_iv + 4, info.crypt_nonce, 4);
@@ -155,7 +155,7 @@ bool log_crypt(byte* buf, lsn_t lsn, ulint size, log_crypt_t op)
 		      == lsn);
 		byte* key_ver = &buf[OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_KEY
 				     - LOG_BLOCK_CHECKSUM];
-		const uint dst_size
+		const size_t dst_size
 			= log_sys.log.format == log_t::FORMAT_ENC_10_4
 			? sizeof dst - LOG_BLOCK_KEY
 			: sizeof dst;
@@ -195,7 +195,7 @@ bool log_crypt(byte* buf, lsn_t lsn, ulint size, log_crypt_t op)
 
 		uint dst_len;
 		int rc = encryption_crypt(
-			buf + LOG_CRYPT_HDR_SIZE, dst_size,
+			buf + LOG_CRYPT_HDR_SIZE, static_cast<uint>(dst_size),
 			reinterpret_cast<byte*>(dst), &dst_len,
 			const_cast<byte*>(info.crypt_key),
 			MY_AES_BLOCK_SIZE,
@@ -317,7 +317,7 @@ found:
 	mach_write_to_8(aes_ctr_iv + 3,
 			log_block_get_start_lsn(start_lsn, log_block_no));
 	memcpy(aes_ctr_iv + 11, buf, 4);
-	aes_ctr_iv[11] &= ~(LOG_BLOCK_FLUSH_BIT_MASK >> 24);
+	aes_ctr_iv[11] &= byte(~(LOG_BLOCK_FLUSH_BIT_MASK >> 24));
 	aes_ctr_iv[15] = 0;
 
 	int rc = encryption_crypt(buf + LOG_BLOCK_HDR_SIZE, src_len,

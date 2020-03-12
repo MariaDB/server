@@ -606,7 +606,8 @@ fts_ranking_words_add(
 	/* Set ranking words */
 	ut_ad(byte_offset < ranking->words_len);
 	bit_offset = pos % CHAR_BIT;
-	ranking->words[byte_offset] |= 1 << bit_offset;
+	ranking->words[byte_offset] = static_cast<byte>(
+		ranking->words[byte_offset] | 1 << bit_offset);
 }
 
 /*******************************************************************//**

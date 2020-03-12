@@ -117,7 +117,7 @@ when m is a power of two.  In other words, rounds n up to m * k.
 @return n rounded up to the smallest possible integer multiple of m */
 #define UT_CALC_ALIGN(n, m) ((n + m - 1) & ~(m - 1))
 template <typename T> inline T ut_calc_align(T n, T m)
-{ return UT_CALC_ALIGN(n, m); }
+{ return static_cast<T>(UT_CALC_ALIGN(n, m)); }
 
 /*************************************************************//**
 Calculates fast the 2-logarithm of a number, rounded upward to an

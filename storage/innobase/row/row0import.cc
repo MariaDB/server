@@ -2510,10 +2510,10 @@ row_import_cfg_read_index_fields(
 
 		new (field) dict_field_t();
 
-		field->prefix_len = mach_read_from_4(ptr);
+		field->prefix_len = mach_read_from_4(ptr) & ((1U << 12) - 1);
 		ptr += sizeof(ib_uint32_t);
 
-		field->fixed_len = mach_read_from_4(ptr);
+		field->fixed_len = mach_read_from_4(ptr) & ((1U << 10) - 1);
 		ptr += sizeof(ib_uint32_t);
 
 		/* Include the NUL byte in the length. */
@@ -2818,24 +2818,24 @@ row_import_read_columns(
 		col->prtype = mach_read_from_4(ptr);
 		ptr += sizeof(ib_uint32_t);
 
-		col->mtype = mach_read_from_4(ptr);
+		col->mtype = static_cast<byte>(mach_read_from_4(ptr));
 		ptr += sizeof(ib_uint32_t);
 
-		col->len = mach_read_from_4(ptr);
+		col->len = static_cast<uint16_t>(mach_read_from_4(ptr));
 		ptr += sizeof(ib_uint32_t);
 
 		uint32_t mbminmaxlen = mach_read_from_4(ptr);
-		col->mbmaxlen = mbminmaxlen / 5;
-		col->mbminlen = mbminmaxlen % 5;
+		col->mbmaxlen = (mbminmaxlen / 5) & 7;
+		col->mbminlen = (mbminmaxlen % 5) & 7;
 		ptr += sizeof(ib_uint32_t);
 
 		col->ind = mach_read_from_4(ptr) & dict_index_t::MAX_N_FIELDS;
 		ptr += sizeof(ib_uint32_t);
 
-		col->ord_part = mach_read_from_4(ptr);
+		col->ord_part = mach_read_from_4(ptr) & 1;
 		ptr += sizeof(ib_uint32_t);
 
-		col->max_prefix = mach_read_from_4(ptr);
+		col->max_prefix = mach_read_from_4(ptr) & ((1U << 12) - 1);
 		ptr += sizeof(ib_uint32_t);
 
 		/* Read in the column name as [len, byte array]. The len
@@ -4214,7 +4214,7 @@ row_import_for_mysql(
 	}
 
 	table->file_unreadable = false;
-	table->flags2 &= ~DICT_TF2_DISCARDED;
+	table->flags2 &= ~DICT_TF2_DISCARDED & ((1U << DICT_TF2_BITS) - 1);
 
 	/* Set autoinc value read from .cfg file, if one was specified.
 	Otherwise, keep the PAGE_ROOT_AUTO_INC as is. */

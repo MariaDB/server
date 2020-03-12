@@ -4226,7 +4226,7 @@ static int stmt_fetch_row(MYSQL_STMT *stmt, uchar *row)
       (*my_bind->fetch_result)(my_bind, field, &row);
       truncation_count+= *my_bind->error;
     }
-    if (!((bit<<=1) & 255))
+    if (!(bit= (uchar) (bit << 1)))
     {
       bit= 1;					/* To next uchar */
       null_ptr++;
@@ -4426,7 +4426,7 @@ static void stmt_update_metadata(MYSQL_STMT *stmt, MYSQL_ROWS *data)
     if (!(*null_ptr & bit))
       (*my_bind->skip_result)(my_bind, field, &row);
     DBUG_ASSERT(row <= row_end);
-    if (!((bit<<=1) & 255))
+    if (!(bit= (uchar) (bit << 1)))
     {
       bit= 1;					/* To next uchar */
       null_ptr++;

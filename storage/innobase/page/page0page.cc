@@ -1003,8 +1003,8 @@ page_delete_rec_list_end(
   {
     mtr->write<2,mtr_t::OPT>(*block, slot, PAGE_NEW_SUPREMUM);
     byte *owned= PAGE_NEW_SUPREMUM - REC_NEW_N_OWNED + block->frame;
-    byte new_owned= (*owned & ~REC_N_OWNED_MASK) |
-      static_cast<byte>(n_owned << REC_N_OWNED_SHIFT);
+    byte new_owned= static_cast<byte>((*owned & ~REC_N_OWNED_MASK) |
+                                      n_owned << REC_N_OWNED_SHIFT);
 #if 0 // FIXME: implement minimal logging for ROW_FORMAT=COMPRESSED
     if (UNIV_LIKELY_NULL(block->page.zip.data))
     {
@@ -1032,8 +1032,8 @@ page_delete_rec_list_end(
   {
     mtr->write<2,mtr_t::OPT>(*block, slot, PAGE_OLD_SUPREMUM);
     byte *owned= PAGE_OLD_SUPREMUM - REC_OLD_N_OWNED + block->frame;
-    byte new_owned= (*owned & ~REC_N_OWNED_MASK) |
-      static_cast<byte>(n_owned << REC_N_OWNED_SHIFT);
+    byte new_owned= static_cast<byte>((*owned & ~REC_N_OWNED_MASK) |
+                                      n_owned << REC_N_OWNED_SHIFT);
     mtr->write<1,mtr_t::OPT>(*block, owned, new_owned);
     mtr->write<2>(*block, prev_rec - REC_NEXT, PAGE_OLD_SUPREMUM);
     mtr->write<2>(*block, last_rec - REC_NEXT, free);

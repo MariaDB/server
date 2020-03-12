@@ -1418,7 +1418,7 @@ page_zip_compress(
 	page_zip_set_alloc(&c_stream, heap);
 
 	err = deflateInit2(&c_stream, static_cast<int>(level),
-			   Z_DEFLATED, srv_page_size_shift,
+			   Z_DEFLATED, static_cast<int>(srv_page_size_shift),
 			   MAX_MEM_LEVEL, Z_DEFAULT_STRATEGY);
 	ut_a(err == Z_OK);
 
@@ -1562,9 +1562,9 @@ err_exit:
 #ifdef UNIV_DEBUG
 	page_zip->m_start =
 #endif /* UNIV_DEBUG */
-		page_zip->m_end = unsigned(PAGE_DATA + c_stream.total_out);
+		page_zip->m_end = uint16_t(PAGE_DATA + c_stream.total_out);
 	page_zip->m_nonempty = FALSE;
-	page_zip->n_blobs = unsigned(n_blobs);
+	page_zip->n_blobs = unsigned(n_blobs) & ((1U << 12) - 1);
 	/* Copy those header fields that will not be written
 	in buf_flush_init_for_writing() */
 	memcpy_aligned<8>(page_zip->data + FIL_PAGE_PREV, page + FIL_PAGE_PREV,
@@ -1678,7 +1678,7 @@ page_zip_fields_decode(
 	table = dict_mem_table_create("ZIP_DUMMY", NULL, n, 0,
 				      DICT_TF_COMPACT, 0);
 	index = dict_mem_index_create(table, "ZIP_DUMMY", 0, n);
-	index->n_uniq = unsigned(n);
+	index->n_uniq = static_cast<unsigned>(n) & dict_index_t::MAX_N_FIELDS;
 	/* avoid ut_ad(index->cached) in dict_index_get_n_unique_in_tree */
 	index->cached = TRUE;
 
@@ -1737,14 +1737,15 @@ page_zip_fields_decode(
 			page_zip_fields_free(index);
 			index = NULL;
 		} else {
-			index->n_nullable = unsigned(val);
+			index->n_nullable = static_cast<unsigned>(val)
+				& dict_index_t::MAX_N_FIELDS;
 		}
 	}
 
 	/* ROW_FORMAT=COMPRESSED does not support instant ADD COLUMN */
 	index->n_core_fields = index->n_fields;
-	index->n_core_null_bytes
-		= UT_BITS_IN_BYTES(unsigned(index->n_nullable));
+	index->n_core_null_bytes = static_cast<uint8_t>(
+		UT_BITS_IN_BYTES(unsigned(index->n_nullable)));
 
 	ut_ad(b == end);
 
@@ -2402,7 +2403,7 @@ zlib_done:
 	}
 
 #ifdef UNIV_DEBUG
-	page_zip->m_start = unsigned(PAGE_DATA + d_stream->total_in);
+	page_zip->m_start = uint16_t(PAGE_DATA + d_stream->total_in);
 #endif /* UNIV_DEBUG */
 
 	/* Apply the modification log. */
@@ -2417,7 +2418,7 @@ zlib_done:
 		if (UNIV_UNLIKELY(!mod_log_ptr)) {
 			return(FALSE);
 		}
-		page_zip->m_end = unsigned(mod_log_ptr - page_zip->data);
+		page_zip->m_end = uint16_t(mod_log_ptr - page_zip->data);
 		page_zip->m_nonempty = mod_log_ptr != d_stream->next_in;
 	}
 
@@ -2556,7 +2557,7 @@ zlib_done:
 			     - d_stream->next_out));
 	}
 
-	ut_d(page_zip->m_start = unsigned(PAGE_DATA + d_stream->total_in));
+	ut_d(page_zip->m_start = uint16_t(PAGE_DATA + d_stream->total_in));
 
 	/* Apply the modification log. */
 	{
@@ -2570,7 +2571,7 @@ zlib_done:
 		if (UNIV_UNLIKELY(!mod_log_ptr)) {
 			return(FALSE);
 		}
-		page_zip->m_end = unsigned(mod_log_ptr - page_zip->data);
+		page_zip->m_end = uint16_t(mod_log_ptr - page_zip->data);
 		page_zip->m_nonempty = mod_log_ptr != d_stream->next_in;
 	}
 
@@ -2886,7 +2887,7 @@ zlib_done:
 			     - d_stream->next_out));
 	}
 
-	ut_d(page_zip->m_start = unsigned(PAGE_DATA + d_stream->total_in));
+	ut_d(page_zip->m_start = uint16_t(PAGE_DATA + d_stream->total_in));
 
 	/* Apply the modification log. */
 	{
@@ -2900,7 +2901,7 @@ zlib_done:
 		if (UNIV_UNLIKELY(!mod_log_ptr)) {
 			return(FALSE);
 		}
-		page_zip->m_end = unsigned(mod_log_ptr - page_zip->data);
+		page_zip->m_end = uint16_t(mod_log_ptr - page_zip->data);
 		page_zip->m_nonempty = mod_log_ptr != d_stream->next_in;
 	}
 
@@ -3107,7 +3108,7 @@ zlib_error:
 	d_stream.next_out = page + PAGE_ZIP_START;
 	d_stream.avail_out = uInt(srv_page_size - PAGE_ZIP_START);
 
-	if (UNIV_UNLIKELY(inflateInit2(&d_stream, srv_page_size_shift)
+	if (UNIV_UNLIKELY(inflateInit2(&d_stream, int(srv_page_size_shift))
 			  != Z_OK)) {
 		ut_error;
 	}
@@ -3588,7 +3589,8 @@ page_zip_write_rec_ext(
 		externs -= blob_no * FIELD_REF_SIZE;
 
 		if (create) {
-			page_zip->n_blobs += static_cast<unsigned>(n_ext);
+			page_zip->n_blobs = (page_zip->n_blobs + n_ext)
+				& ((1U << 12) - 1);
 			ASSERT_ZERO_BLOB(ext_end - n_ext * FIELD_REF_SIZE);
 			if (ulint len = ulint(externs - ext_end)) {
 				byte* ext_start = ext_end
@@ -3714,7 +3716,7 @@ void page_zip_write_rec(buf_block_t *block, const byte *rec,
 		      || row_get_rec_trx_id(rec, index, offsets));
 		*slot |= PAGE_ZIP_DIR_SLOT_DEL >> 8;
 	} else {
-		*slot &= ~(PAGE_ZIP_DIR_SLOT_DEL >> 8);
+		*slot &= byte(~(PAGE_ZIP_DIR_SLOT_DEL >> 8));
 	}
 
 	ut_ad(rec_get_start((rec_t*) rec, offsets) >= page + PAGE_ZIP_START);
@@ -3840,7 +3842,7 @@ void page_zip_write_rec(buf_block_t *block, const byte *rec,
 	ut_ad((ulint) (data - page_zip->data) < page_zip_get_size(page_zip));
 	mtr->zmemcpy(block->page, page_zip->m_end,
 		     data - page_zip->data - page_zip->m_end);
-	page_zip->m_end = unsigned(data - page_zip->data);
+	page_zip->m_end = uint16_t(data - page_zip->data);
 	page_zip->m_nonempty = TRUE;
 
 #ifdef UNIV_ZIP_DEBUG
@@ -4165,7 +4167,7 @@ void page_zip_rec_set_deleted(buf_block_t *block, rec_t *rec, bool flag,
   if (flag)
     b|= (PAGE_ZIP_DIR_SLOT_DEL >> 8);
   else
-    b&= ~(PAGE_ZIP_DIR_SLOT_DEL >> 8);
+    b&= byte(~(PAGE_ZIP_DIR_SLOT_DEL >> 8));
   mtr->zmemcpy<mtr_t::OPT>(block->page, slot, &b, 1);
 #ifdef UNIV_ZIP_DEBUG
   ut_a(page_zip_validate(&block->page.zip, block->frame, nullptr));
@@ -4191,7 +4193,7 @@ page_zip_rec_set_owned(
   if (flag)
     b|= (PAGE_ZIP_DIR_SLOT_OWNED >> 8);
   else
-    b&= ~(PAGE_ZIP_DIR_SLOT_OWNED >> 8);
+    b&= byte(~(PAGE_ZIP_DIR_SLOT_OWNED >> 8));
   mtr->zmemcpy<mtr_t::OPT>(block->page, slot, &b, 1);
 }
 
@@ -4382,7 +4384,7 @@ void page_zip_dir_delete(buf_block_t *block, byte *rec,
     }
     memset(ext_end, 0, n_ext * FIELD_REF_SIZE);
     mtr->memset(*block, ext_end - page_zip->data, n_ext * FIELD_REF_SIZE, 0);
-    page_zip->n_blobs -= static_cast<unsigned>(n_ext);
+    page_zip->n_blobs = (page_zip->n_blobs - n_ext) & ((1U << 12) - 1);
   }
 
   /* The compression algorithm expects info_bits and n_owned
@@ -4596,7 +4598,8 @@ page_zip_copy_recs(
 			rec_t*	rec = page + offs;
 			ut_a(rec[-REC_N_NEW_EXTRA_BYTES]
 			     & REC_INFO_MIN_REC_FLAG);
-			rec[-REC_N_NEW_EXTRA_BYTES] &= ~ REC_INFO_MIN_REC_FLAG;
+			rec[-REC_N_NEW_EXTRA_BYTES]
+				&= byte(~REC_INFO_MIN_REC_FLAG);
 		}
 	}
 

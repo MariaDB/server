@@ -119,7 +119,7 @@ struct buf_page_info_t{
 	unsigned	access_time:32;	/*!< Time of first access */
 	unsigned	flush_type:2;	/*!< Flush type */
 	unsigned	io_fix:2;	/*!< type of pending I/O operation */
-	unsigned	fix_count:19;	/*!< Count of how manyfold this block
+	uint32_t	fix_count;	/*!< Count of how manyfold this block
 					is bufferfixed */
 #ifdef BTR_CUR_HASH_ADAPT
 	unsigned	hashed:1;	/*!< Whether hash index has been
@@ -4118,13 +4118,13 @@ i_s_innodb_set_page_type(
 			page_info->page_type = I_S_PAGE_TYPE_INDEX;
 		}
 
-		page_info->data_size = unsigned(page_header_get_field(
+		page_info->data_size = uint16_t(page_header_get_field(
 			page, PAGE_HEAP_TOP) - (page_is_comp(page)
 						? PAGE_NEW_SUPREMUM_END
 						: PAGE_OLD_SUPREMUM_END)
 			- page_header_get_field(page, PAGE_GARBAGE));
 
-		page_info->num_recs = page_get_n_recs(page);
+		page_info->num_recs = page_get_n_recs(page) & ((1U << 14) - 1);
 	} else if (page_type > FIL_PAGE_TYPE_LAST) {
 		/* Encountered an unknown page type */
 		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
@@ -4133,7 +4133,7 @@ i_s_innodb_set_page_type(
 		i_s_page_type[] array */
 		ut_a(page_type == i_s_page_type[page_type].type_value);
 
-		page_info->page_type = page_type;
+		page_info->page_type = page_type & 0xf;
 	}
 
 	if (page_info->page_type == FIL_PAGE_TYPE_ZBLOB
@@ -4161,7 +4161,7 @@ i_s_innodb_buffer_page_get_info(
 {
 	page_info->block_id = pos;
 
-	page_info->page_state = buf_page_get_state(bpage);
+	page_info->page_state = buf_page_get_state(bpage) & 7;
 
 	/* Only fetch information for buffers that map to a tablespace,
 	that is, buffer page with state BUF_BLOCK_ZIP_PAGE,
@@ -4183,7 +4183,7 @@ i_s_innodb_buffer_page_get_info(
 
 		page_info->zip_ssize = bpage->zip.ssize;
 
-		page_info->io_fix = bpage->io_fix;
+		page_info->io_fix = bpage->io_fix & 3;
 
 		page_info->is_old = bpage->old;
 
@@ -6604,7 +6604,7 @@ i_s_dict_fill_sys_tablespaces(
 		ut_free(filepath);
 	}
 
-	if (file.m_total_size == static_cast<os_offset_t>(~0)) {
+	if (file.m_total_size == os_offset_t(~0)) {
 		stat.block_size = 0;
 		file.m_total_size = 0;
 		file.m_alloc_size = 0;

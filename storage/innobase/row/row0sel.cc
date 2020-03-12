@@ -2995,7 +2995,7 @@ row_sel_store_mysql_field(
 		/* It is a nullable column with a non-NULL
 		value */
 		mysql_rec[templ->mysql_null_byte_offset]
-			&= ~(byte) templ->mysql_null_bit_mask;
+			&= static_cast<byte>(~templ->mysql_null_bit_mask);
 	}
 
 	DBUG_RETURN(TRUE);
@@ -3098,8 +3098,9 @@ static bool row_sel_store_mysql_rec(
 				(const byte*)dfield->data, dfield->len);
 				if (templ->mysql_null_bit_mask) {
 					mysql_rec[
-					templ->mysql_null_byte_offset]
-					&= ~(byte) templ->mysql_null_bit_mask;
+						templ->mysql_null_byte_offset]
+						&= static_cast<byte>
+						(~templ->mysql_null_bit_mask);
 				}
 			}
 

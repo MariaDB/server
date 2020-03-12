@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2017, 2019, MariaDB Corporation.
+# Copyright (c) 2017, 2020, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -84,17 +84,6 @@ ENDIF()
 
 SET(MUTEXTYPE "event" CACHE STRING "Mutex type: event, sys or futex")
 
-IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-# After: WL#5825 Using C++ Standard Library with MySQL code
-#       we no longer use -fno-exceptions
-#	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
-
-# Add -Wconversion if compiling with GCC
-## As of Mar 15 2011 this flag causes 3573+ warnings. If you are reading this
-## please fix them and enable the following code:
-#SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wconversion")
-ENDIF()
-
 # Enable InnoDB's UNIV_DEBUG in debug builds
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DUNIV_DEBUG")
 
@@ -126,6 +115,13 @@ ENDIF()
 
 IF(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE)
  ADD_DEFINITIONS(-DHAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE=1)
+ENDIF()
+
+IF (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
+    CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  ADD_DEFINITIONS("-Wconversion -Wno-sign-conversion")
+  SET_SOURCE_FILES_PROPERTIES(fts/fts0pars.cc
+    PROPERTIES COMPILE_FLAGS -Wno-conversion)
 ENDIF()
 
 IF(NOT MSVC)

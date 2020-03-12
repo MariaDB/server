@@ -351,7 +351,8 @@ start:
 	do {
 		if (mblob) {
 			if (i == index->first_user_field()) {
-				offs += FIELD_REF_SIZE;
+				offs = static_cast<offset_t>(offs
+							     + FIELD_REF_SIZE);
 				len = combine(offs, STORED_OFFPAGE);
 				any |= REC_OFFS_EXTERNAL;
 				field--;
@@ -424,12 +425,12 @@ start:
 			more, or when the field is stored externally. */
 			if ((len & 0x80) && DATA_BIG_COL(col)) {
 				/* 1exxxxxxx xxxxxxxx */
-				len <<= 8;
-				len |= *lens--;
-
-				offs += get_value(len);
+				len = static_cast<offset_t>(len << 8
+							    | *lens--);
+				offs = static_cast<offset_t>(offs
+							     + get_value(len));
 				if (UNIV_UNLIKELY(len & 0x4000)) {
-					ut_ad(dict_index_is_clust(index));
+					ut_ad(index->is_primary());
 					any |= REC_OFFS_EXTERNAL;
 					len = combine(offs, STORED_OFFPAGE);
 				} else {
@@ -439,9 +440,10 @@ start:
 				continue;
 			}
 
-			len = offs += len;
+			len = offs = static_cast<offset_t>(offs + len);
 		} else {
-			len = offs += field->fixed_len;
+			len = offs = static_cast<offset_t>(offs
+							   + field->fixed_len);
 		}
 	} while (field++, rec_offs_base(offsets)[++i] = len,
 		 i < rec_offs_n_fields(offsets));
@@ -466,11 +468,12 @@ rec_offs_make_valid(
 	const bool is_alter_metadata = leaf
 		&& rec_is_alter_metadata(rec, *index);
 	ut_ad(is_alter_metadata
-	      || rec_offs_n_fields(offsets)
-	      <= (leaf
-		  ? dict_index_get_n_fields(index)
-		  : dict_index_get_n_unique_in_tree_nonleaf(index) + 1)
-	      || index->is_dummy || dict_index_is_ibuf(index));
+	      || index->is_dummy || index->is_ibuf()
+	      || (leaf
+		  ? rec_offs_n_fields(offsets)
+		  <= dict_index_get_n_fields(index)
+		  : rec_offs_n_fields(offsets) - 1
+		  <= dict_index_get_n_unique_in_tree_nonleaf(index)));
 	const bool is_user_rec = (dict_table_is_comp(index->table)
 				  ? rec_get_heap_no_new(rec)
 				  : rec_get_heap_no_old(rec))
@@ -526,7 +529,7 @@ rec_offs_validate(
 	}
 	if (index) {
 		ut_ad(!memcmp(&index, &offsets[INDEX_OFFSET], sizeof(index)));
-		ulint max_n_fields = std::max(
+		ulint max_n_fields = std::max<ulint>(
 			dict_index_get_n_fields(index),
 			dict_index_get_n_unique_in_tree(index) + 1);
 		if (comp && rec) {
@@ -664,7 +667,8 @@ rec_init_offsets(
 		do {
 			offset_t len;
 			if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
-				len = offs += REC_NODE_PTR_SIZE;
+				len = offs = static_cast<offset_t>(
+					offs + REC_NODE_PTR_SIZE);
 				goto resolved;
 			}
 
@@ -707,25 +711,26 @@ rec_init_offsets(
 				if (DATA_BIG_COL(col)) {
 					if (len & 0x80) {
 						/* 1exxxxxxx xxxxxxxx */
-
-						len <<= 8;
-						len |= *lens--;
+						len = static_cast<offset_t>(
+							len << 8 | *lens--);
 
 						/* B-tree node pointers
 						must not contain externally
 						stored columns.  Thus
 						the "e" flag must be 0. */
 						ut_a(!(len & 0x4000));
-						offs += get_value(len);
+						offs = static_cast<offset_t>(
+							offs + get_value(len));
 						len = offs;
 
 						goto resolved;
 					}
 				}
 
-				len = offs += len;
+				len = offs = static_cast<offset_t>(offs + len);
 			} else {
-				len = offs += field->fixed_len;
+				len = offs = static_cast<offset_t>(
+					offs + field->fixed_len);
 			}
 resolved:
 			rec_offs_base(offsets)[i + 1] = len;
@@ -742,29 +747,32 @@ resolved:
 		offset_t any;
 
 		if (rec_get_1byte_offs_flag(rec)) {
-			offs += static_cast<offset_t>(n_fields);
+			offs = static_cast<offset_t>(offs + n_fields);
 			any = offs;
 			/* Determine offsets to fields */
 			do {
 				offs = rec_1_get_field_end_info(rec, i);
 				if (offs & REC_1BYTE_SQL_NULL_MASK) {
-					offs &= ~REC_1BYTE_SQL_NULL_MASK;
+					offs &= static_cast<offset_t>(
+						~REC_1BYTE_SQL_NULL_MASK);
 					set_type(offs, SQL_NULL);
 				}
 				rec_offs_base(offsets)[1 + i] = offs;
 			} while (++i < n);
 		} else {
-			offs += 2 * static_cast<offset_t>(n_fields);
+			offs = static_cast<offset_t>(offs + 2 * n_fields);
 			any = offs;
 			/* Determine offsets to fields */
 			do {
 				offs = rec_2_get_field_end_info(rec, i);
 				if (offs & REC_2BYTE_SQL_NULL_MASK) {
-					offs &= ~REC_2BYTE_SQL_NULL_MASK;
+					offs &= static_cast<offset_t>(
+						~REC_2BYTE_SQL_NULL_MASK);
 					set_type(offs, SQL_NULL);
 				}
 				if (offs & REC_2BYTE_EXTERN_MASK) {
-					offs &= ~REC_2BYTE_EXTERN_MASK;
+					offs &= static_cast<offset_t>(
+						~REC_2BYTE_EXTERN_MASK);
 					set_type(offs, STORED_OFFPAGE);
 					any |= REC_OFFS_EXTERNAL;
 				}
@@ -864,8 +872,8 @@ rec_get_offsets_func(
 		ut_ad(!is_user_rec || leaf || index->is_dummy
 		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* dict_stats_analyze_index_level() */
-		      || n
-		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
+		      || n - 1
+		      == dict_index_get_n_unique_in_tree_nonleaf(index));
 		ut_ad(!is_user_rec || !leaf || index->is_dummy
 		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* btr_pcur_restore_position() */
@@ -972,7 +980,8 @@ rec_get_offsets_reverse(
 	do {
 		offset_t len;
 		if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
-			len = offs += REC_NODE_PTR_SIZE;
+			len = offs = static_cast<offset_t>(
+				offs + REC_NODE_PTR_SIZE);
 			goto resolved;
 		}
 
@@ -1012,10 +1021,11 @@ rec_get_offsets_reverse(
 			if (DATA_BIG_COL(col)) {
 				if (len & 0x80) {
 					/* 1exxxxxxx xxxxxxxx */
-					len <<= 8;
-					len |= *lens++;
+					len = static_cast<offset_t>(
+						len << 8 | *lens++);
 
-					offs += get_value(len);
+					offs = static_cast<offset_t>(
+						offs + get_value(len));
 					if (UNIV_UNLIKELY(len & 0x4000)) {
 						any_ext = REC_OFFS_EXTERNAL;
 						len = combine(offs,
@@ -1028,9 +1038,10 @@ rec_get_offsets_reverse(
 				}
 			}
 
-			len = offs += len;
+			len = offs = static_cast<offset_t>(offs + len);
 		} else {
-			len = offs += static_cast<offset_t>(field->fixed_len);
+			len = offs = static_cast<offset_t>(offs
+							   + field->fixed_len);
 		}
 resolved:
 		rec_offs_base(offsets)[i + 1] = len;
@@ -1116,7 +1127,7 @@ rec_get_converted_size_comp_prefix_low(
 {
 	ulint	extra_size = temp ? 0 : REC_N_NEW_EXTRA_BYTES;
 	ut_ad(n_fields > 0);
-	ut_ad(n_fields <= dict_index_get_n_fields(index) + mblob);
+	ut_ad(n_fields - mblob <= dict_index_get_n_fields(index));
 	ut_d(ulint n_null = index->n_nullable);
 	ut_ad(status == REC_STATUS_ORDINARY || status == REC_STATUS_NODE_PTR
 	      || status == REC_STATUS_INSTANT);
@@ -1524,8 +1535,8 @@ rec_convert_dtuple_to_rec_comp(
 				    REC_NEW_HEAP_NO, REC_HEAP_NO_MASK,
 				    REC_HEAP_NO_SHIFT);
 		rec_set_status(rec, status);
-		ut_ad(n_fields
-		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
+		ut_ad(n_fields - 1
+		      == dict_index_get_n_unique_in_tree_nonleaf(index));
 		ut_d(n_null = std::min<uint>(index->n_core_null_bytes * 8U,
 					     index->n_nullable));
 		n_node_ptr_field = n_fields - 1;
@@ -1580,7 +1591,7 @@ start:
 
 			/* set the null flag if necessary */
 			if (dfield_is_null(field)) {
-				*nulls |= null_mask;
+				*nulls |= static_cast<byte>(null_mask);
 				null_mask <<= 1;
 				continue;
 			}
@@ -1825,8 +1836,8 @@ rec_copy_prefix_to_dtuple(
 	offset_t*	offsets	= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_ad(is_leaf || n_fields
-	      <= dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
+	ut_ad(is_leaf || n_fields - 1
+	      <= dict_index_get_n_unique_in_tree_nonleaf(index));
 
 	offsets = rec_get_offsets(rec, index, offsets, is_leaf,
 				  n_fields, &heap);
@@ -2187,7 +2198,7 @@ rec_print_old(
 	n = rec_get_n_fields_old(rec);
 
 	fprintf(file, "PHYSICAL RECORD: n_fields " ULINTPF ";"
-		" %u-byte offsets; info bits " ULINTPF "\n",
+		" %u-byte offsets; info bits %u\n",
 		n,
 		rec_get_1byte_offs_flag(rec) ? 1 : 2,
 		rec_get_info_bits(rec, FALSE));
@@ -2441,7 +2452,7 @@ rec_print_new(
 	}
 
 	fprintf(file, "PHYSICAL RECORD: n_fields " ULINTPF ";"
-		" compact format; info bits " ULINTPF "\n",
+		" compact format; info bits %u\n",
 		rec_offs_n_fields(offsets),
 		rec_get_info_bits(rec, TRUE));
 

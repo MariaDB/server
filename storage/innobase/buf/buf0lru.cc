@@ -1292,7 +1292,8 @@ buf_LRU_add_block_low(
 
 		UT_LIST_ADD_FIRST(buf_pool->LRU, bpage);
 
-		bpage->freed_page_clock = buf_pool->freed_page_clock;
+		bpage->freed_page_clock = buf_pool->freed_page_clock
+			& ((1U << 31) - 1);
 	} else {
 #ifdef UNIV_LRU_DEBUG
 		/* buf_pool->LRU_old must be the first item in the LRU list

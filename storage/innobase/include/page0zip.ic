@@ -133,7 +133,7 @@ page_zip_set_size(
 		for (ssize = 1; size > (512U << ssize); ssize++) {
 		}
 
-		page_zip->ssize = ssize;
+		page_zip->ssize = ssize & ((1U << PAGE_ZIP_SSIZE_BITS) - 1);
 	} else {
 		page_zip->ssize = 0;
 	}

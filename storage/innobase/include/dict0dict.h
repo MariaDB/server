@@ -921,7 +921,7 @@ inline ulint dict_tf_get_zip_size(ulint flags)
 inline ulint dict_table_extent_size(const dict_table_t* table)
 {
 	if (ulint zip_size = table->space->zip_size()) {
-		return (1ULL << 20) / zip_size;
+		return (1U << 20) / zip_size;
 	}
 
 	return FSP_EXTENT_SIZE;
@@ -1006,7 +1006,7 @@ Gets the number of fields in the internal representation of an index,
 including fields added by the dictionary system.
 @return number of fields */
 UNIV_INLINE
-unsigned
+uint16_t
 dict_index_get_n_fields(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: an internal
@@ -1021,7 +1021,7 @@ we do not take multiversioning into account: in the B-tree use the value
 returned by dict_index_get_n_unique_in_tree.
 @return number of fields */
 UNIV_INLINE
-unsigned
+uint16_t
 dict_index_get_n_unique(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: an internal representation
@@ -1033,7 +1033,7 @@ which uniquely determine the position of an index entry in the index, if
 we also take multiversioning into account.
 @return number of fields */
 UNIV_INLINE
-unsigned
+uint16_t
 dict_index_get_n_unique_in_tree(
 /*============================*/
 	const dict_index_t*	index)	/*!< in: an internal representation
@@ -1051,7 +1051,7 @@ include page no field.
 @param[in]	index	index
 @return number of fields */
 UNIV_INLINE
-unsigned
+uint16_t
 dict_index_get_n_unique_in_tree_nonleaf(
 	const dict_index_t*	index)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
@@ -1062,7 +1062,7 @@ unique, but this function returns the number of fields the user defined
 in the index as ordering fields.
 @return number of fields */
 UNIV_INLINE
-unsigned
+uint16_t
 dict_index_get_n_ordering_defined_by_user(
 /*======================================*/
 	const dict_index_t*	index)	/*!< in: an internal representation

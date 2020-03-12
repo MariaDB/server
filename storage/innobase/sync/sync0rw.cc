@@ -227,8 +227,8 @@ rw_lock_create_func(
 	/* This should hold in practice. If it doesn't then we need to
 	split the source file anyway. Or create the locks on lines
 	less than 8192. cline is unsigned:13. */
-	ut_ad(cline <= 8192);
-	lock->cline = cline;
+	ut_ad(cline <= ((1U << 13) - 1));
+	lock->cline = cline & ((1U << 13) - 1);
 	lock->count_os_wait = 0;
 	lock->last_x_file_name = "not yet reserved";
 	lock->last_x_line = 0;
@@ -547,7 +547,7 @@ rw_lock_x_lock_low(
 	ut_d(rw_lock_add_debug_info(lock, pass, RW_LOCK_X, file_name, line));
 
 	lock->last_x_file_name = file_name;
-	lock->last_x_line = line;
+	lock->last_x_line = line & ((1U << 14) - 1);
 
 	return(TRUE);
 }
@@ -626,7 +626,7 @@ rw_lock_sx_lock_low(
 	ut_d(rw_lock_add_debug_info(lock, pass, RW_LOCK_SX, file_name, line));
 
 	lock->last_x_file_name = file_name;
-	lock->last_x_line = line;
+	lock->last_x_line = line & ((1U << 14) - 1);
 
 	return(TRUE);
 }

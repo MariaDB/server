@@ -388,7 +388,7 @@ opt_calc_index_goodness(
 		}
 	}
 
-	if (goodness >= 4 * dict_index_get_n_unique(index)) {
+	if (goodness / 4 >= dict_index_get_n_unique(index)) {
 		goodness += 1024;
 
 		if (dict_index_is_clust(index)) {

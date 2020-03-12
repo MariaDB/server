@@ -656,7 +656,8 @@ row_merge_buf_add(
 				doc_item->field = field;
 				doc_item->doc_id = *doc_id;
 
-				bucket = *doc_id % fts_sort_pll_degree;
+				bucket = static_cast<ulint>(
+					*doc_id % fts_sort_pll_degree);
 
 				/* Add doc item to fts_doc_list */
 				mutex_enter(&psort_info[bucket].mutex);
@@ -3287,7 +3288,7 @@ row_merge_sort(
 	num_runs = file->offset;
 
 	if (stage != NULL) {
-		stage->begin_phase_sort(log2(num_runs));
+		stage->begin_phase_sort(log2(double(num_runs)));
 	}
 
 	/* If num_runs are less than 1, nothing to merge */

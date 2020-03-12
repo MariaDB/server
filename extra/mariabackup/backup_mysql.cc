@@ -505,7 +505,8 @@ get_mysql_vars(MYSQL *connection)
 	}
 
 	if (page_zip_level_var != NULL) {
-		page_zip_level = strtoul(page_zip_level_var, &endptr, 10);
+		page_zip_level = static_cast<uint>(strtoul(page_zip_level_var,
+							   &endptr, 10));
 		ut_ad(*endptr == 0);
 	}
 

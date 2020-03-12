@@ -181,7 +181,8 @@ be less than 256 */
 				BLOB columns.
 */
 #define DATA_GIS_MBR	2048U	/* Used as GIS MBR column */
-#define DATA_MBR_LEN	SPDIMS * 2 * sizeof(double) /* GIS MBR length*/
+/** the size of a GIS maximum bounding rectangle */
+constexpr uint8_t DATA_MBR_LEN= uint8_t(SPDIMS * 2 * sizeof(double));
 
 #define	DATA_LONG_TRUE_VARCHAR 4096U	/* this is ORed to the precise data
 				type when the column is true VARCHAR where

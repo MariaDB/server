@@ -63,21 +63,21 @@ The status is stored in the low-order bits. */
 
 #ifndef UNIV_INNOCHECKSUM
 /** SQL null flag in a 1-byte offset of ROW_FORMAT=REDUNDANT records */
-static const offset_t REC_1BYTE_SQL_NULL_MASK= 0x80;
+constexpr offset_t REC_1BYTE_SQL_NULL_MASK= 0x80;
 /** SQL null flag in a 2-byte offset of ROW_FORMAT=REDUNDANT records */
-static const offset_t REC_2BYTE_SQL_NULL_MASK= 0x8000;
+constexpr offset_t REC_2BYTE_SQL_NULL_MASK= 0x8000;
 
 /** In a 2-byte offset of ROW_FORMAT=REDUNDANT records, the second most
 significant bit denotes that the tail of a field is stored off-page. */
-static const offset_t REC_2BYTE_EXTERN_MASK= 0x4000;
+constexpr offset_t REC_2BYTE_EXTERN_MASK= 0x4000;
 
-static const size_t RECORD_OFFSET= 2;
-static const size_t INDEX_OFFSET=
+constexpr size_t RECORD_OFFSET= 2;
+constexpr size_t INDEX_OFFSET=
     RECORD_OFFSET + sizeof(rec_t *) / sizeof(offset_t);
 #endif /* UNIV_INNOCHECKSUM */
 
 /* Length of the rec_get_offsets() header */
-static const size_t REC_OFFS_HEADER_SIZE=
+constexpr size_t REC_OFFS_HEADER_SIZE=
 #ifdef UNIV_DEBUG
 #ifndef UNIV_INNOCHECKSUM
     sizeof(rec_t *) / sizeof(offset_t) +
@@ -88,9 +88,9 @@ static const size_t REC_OFFS_HEADER_SIZE=
 
 /* Number of elements that should be initially allocated for the
 offsets[] array, first passed to rec_get_offsets() */
-static const size_t REC_OFFS_NORMAL_SIZE= 300;
-static const size_t REC_OFFS_SMALL_SIZE= 18;
-static const size_t REC_OFFS_SEC_INDEX_SIZE=
+constexpr size_t REC_OFFS_NORMAL_SIZE= 300;
+constexpr size_t REC_OFFS_SMALL_SIZE= 18;
+constexpr size_t REC_OFFS_SEC_INDEX_SIZE=
     /* PK max key parts */ 16 + /* sec idx max key parts */ 16 +
     /* child page number for non-leaf pages */ 1;
 
@@ -117,30 +117,30 @@ enum field_type_t
 };
 
 /** without 2 upper bits */
-static const offset_t DATA_MASK= 0x3fff;
+static constexpr offset_t DATA_MASK= 0x3fff;
 /** 2 upper bits */
-static const offset_t TYPE_MASK= ~DATA_MASK;
+static constexpr offset_t TYPE_MASK= ~DATA_MASK;
 inline field_type_t get_type(offset_t n)
 {
   return static_cast<field_type_t>(n & TYPE_MASK);
 }
 inline void set_type(offset_t &n, field_type_t type)
 {
-  n= (n & DATA_MASK) | static_cast<offset_t>(type);
+  n= static_cast<offset_t>((n & DATA_MASK) | type);
 }
 inline offset_t get_value(offset_t n) { return n & DATA_MASK; }
 inline offset_t combine(offset_t value, field_type_t type)
 {
-  return get_value(value) | static_cast<offset_t>(type);
+  return static_cast<offset_t>(get_value(value) | type);
 }
 
 /** Compact flag ORed to the extra size returned by rec_get_offsets() */
-const offset_t REC_OFFS_COMPACT= ~(offset_t(~0) >> 1);
+constexpr offset_t REC_OFFS_COMPACT= offset_t(~(offset_t(~0) >> 1));
 /** External flag in offsets returned by rec_get_offsets() */
-const offset_t REC_OFFS_EXTERNAL= REC_OFFS_COMPACT >> 1;
+constexpr offset_t REC_OFFS_EXTERNAL= REC_OFFS_COMPACT >> 1;
 /** Default value flag in offsets returned by rec_get_offsets() */
-const offset_t REC_OFFS_DEFAULT= REC_OFFS_COMPACT >> 2;
-const offset_t REC_OFFS_MASK= REC_OFFS_DEFAULT - 1;
+constexpr offset_t REC_OFFS_DEFAULT= REC_OFFS_COMPACT >> 2;
+constexpr offset_t REC_OFFS_MASK= REC_OFFS_DEFAULT - 1;
 /******************************************************//**
 The following function is used to get the pointer of the next chained record
 on the same page.
@@ -256,7 +256,7 @@ The following function is used to retrieve the info bits of
 a record.
 @return info bits */
 UNIV_INLINE
-ulint
+byte
 rec_get_info_bits(
 /*==============*/
 	const rec_t*	rec,	/*!< in: physical record */
@@ -278,13 +278,11 @@ rec_get_status(const rec_t* rec)
 /** Set the status bits of a non-REDUNDANT record.
 @param[in,out]	rec	ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED record
 @param[in]	bits	status bits */
-inline
-void
-rec_set_status(rec_t* rec, byte bits)
+inline void rec_set_status(rec_t *rec, byte bits)
 {
-	ut_ad(bits <= REC_STATUS_INSTANT);
-	rec[-REC_NEW_STATUS] = (rec[-REC_NEW_STATUS] & ~REC_NEW_STATUS_MASK)
-		| bits;
+  ut_ad(bits <= REC_STATUS_INSTANT);
+  rec[-REC_NEW_STATUS]= static_cast<byte>((rec[-REC_NEW_STATUS] &
+                                           ~REC_NEW_STATUS_MASK) | bits);
 }
 
 /** Get the length of added field count in a REC_STATUS_INSTANT record.
@@ -325,7 +323,7 @@ inline void rec_set_n_add_field(byte*& header, ulint n_add)
 	if (n_add < 0x80) {
 		*header-- = byte(n_add);
 	} else {
-		*header-- = byte(n_add) | 0x80;
+		*header-- = byte(byte(n_add) | 0x80);
 		*header-- = byte(n_add >> 7);
 	}
 }
@@ -333,9 +331,9 @@ inline void rec_set_n_add_field(byte*& header, ulint n_add)
 /******************************************************//**
 The following function is used to retrieve the info and status
 bits of a record.  (Only compact records have status bits.)
-@return info bits */
+@return info and status bits */
 UNIV_INLINE
-ulint
+byte
 rec_get_info_and_status_bits(
 /*=========================*/
 	const rec_t*	rec,	/*!< in: physical record */

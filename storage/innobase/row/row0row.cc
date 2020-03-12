@@ -765,7 +765,7 @@ row_rec_to_index_entry_impl(
 	      (missing merge_threshold column) is acceptable. */
 	      || (!index->table->is_temporary()
 		  && index->table->id == DICT_INDEXES_ID
-		  && rec_len == dict_index_get_n_fields(index) - 1));
+		  && rec_len + 1 == dict_index_get_n_fields(index)));
 
 	ulint i;
 	for (i = 0; i < (mblob ? index->first_user_field() : rec_len);

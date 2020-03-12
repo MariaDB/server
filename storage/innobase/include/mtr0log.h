@@ -42,7 +42,7 @@ constexpr uint32_t MLOG_DECODE_ERROR= ~0U;
 inline uint8_t mlog_decode_varint_length(byte first)
 {
   uint8_t len= 1;
-  for (; first & 0x80; len++, first<<= 1);
+  for (; first & 0x80; len++, first= static_cast<uint8_t>(first << 1));
   return len;
 }
 
@@ -78,6 +78,10 @@ inline uint32_t mlog_decode_varint(const byte* log)
 @return end of the encoded integer */
 inline byte *mlog_encode_varint(byte *log, size_t i)
 {
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 4 and 5 need this here */
+#endif
   if (i < MIN_2BYTE)
   {
   }
@@ -112,6 +116,9 @@ last3:
 last2:
     *log++= static_cast<byte>(i >> 8);
   }
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
   *log++= static_cast<byte>(i);
   return log;
 }

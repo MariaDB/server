@@ -457,7 +457,6 @@ btr_search_info_update_hash(
 	btr_cur_t*	cursor)
 {
 	dict_index_t*	index = cursor->index;
-	ulint		n_unique;
 	int		cmp;
 
 	ut_ad(!btr_search_own_any(RW_LOCK_S));
@@ -470,7 +469,7 @@ btr_search_info_update_hash(
 		return;
 	}
 
-	n_unique = dict_index_get_n_unique_in_tree(index);
+	uint16_t n_unique = dict_index_get_n_unique_in_tree(index);
 
 	if (info->n_hash_potential == 0) {
 
@@ -512,16 +511,13 @@ set_new_recomm:
 
 	cmp = ut_pair_cmp(cursor->up_match, cursor->up_bytes,
 			  cursor->low_match, cursor->low_bytes);
+	info->left_side = cmp >= 0;
+	info->n_hash_potential = cmp != 0;
+
 	if (cmp == 0) {
-		info->n_hash_potential = 0;
-
 		/* For extra safety, we set some sensible values here */
-
 		info->n_fields = 1;
 		info->n_bytes = 0;
-
-		info->left_side = TRUE;
-
 	} else if (cmp > 0) {
 		info->n_hash_potential = 1;
 
@@ -532,31 +528,31 @@ set_new_recomm:
 
 		} else if (cursor->low_match < cursor->up_match) {
 
-			info->n_fields = cursor->low_match + 1;
+			info->n_fields = static_cast<uint16_t>(
+				cursor->low_match + 1);
 			info->n_bytes = 0;
 		} else {
-			info->n_fields = cursor->low_match;
-			info->n_bytes = cursor->low_bytes + 1;
+			info->n_fields = static_cast<uint16_t>(
+				cursor->low_match);
+			info->n_bytes = static_cast<uint16_t>(
+				cursor->low_bytes + 1);
 		}
-
-		info->left_side = TRUE;
 	} else {
-		info->n_hash_potential = 1;
-
 		if (cursor->low_match >= n_unique) {
 
 			info->n_fields = n_unique;
 			info->n_bytes = 0;
 		} else if (cursor->low_match > cursor->up_match) {
 
-			info->n_fields = cursor->up_match + 1;
+			info->n_fields = static_cast<uint16_t>(
+				cursor->up_match + 1);
 			info->n_bytes = 0;
 		} else {
-			info->n_fields = cursor->up_match;
-			info->n_bytes = cursor->up_bytes + 1;
+			info->n_fields = static_cast<uint16_t>(
+				cursor->up_match);
+			info->n_bytes = static_cast<uint16_t>(
+				cursor->up_bytes + 1);
 		}
-
-		info->left_side = FALSE;
 	}
 }
 
@@ -1348,9 +1344,9 @@ btr_search_build_page_hash_index(
 	dict_index_t*	index,
 	buf_block_t*	block,
 	rw_lock_t*	ahi_latch,
-	ulint		n_fields,
-	ulint		n_bytes,
-	ibool		left_side)
+	uint16_t	n_fields,
+	uint16_t	n_bytes,
+	bool		left_side)
 {
 	const rec_t*	rec;
 	const rec_t*	next_rec;
@@ -1438,7 +1434,7 @@ btr_search_build_page_hash_index(
 		btr_search_get_n_fields(n_fields, n_bytes),
 		&heap);
 	ut_ad(page_rec_is_supremum(rec)
-	      || n_fields + (n_bytes > 0) == rec_offs_n_fields(offsets));
+	      || n_fields == rec_offs_n_fields(offsets) - (n_bytes > 0));
 
 	fold = rec_fold(rec, offsets, n_fields, n_bytes, index->id);
 
@@ -1516,9 +1512,9 @@ btr_search_build_page_hash_index(
 
 	block->n_hash_helps = 0;
 
-	block->curr_n_fields = unsigned(n_fields);
-	block->curr_n_bytes = unsigned(n_bytes);
-	block->curr_left_side = unsigned(left_side);
+	block->curr_n_fields = n_fields & dict_index_t::MAX_N_FIELDS;
+	block->curr_n_bytes = n_bytes & ((1U << 15) - 1);
+	block->curr_left_side = left_side;
 	block->index = index;
 
 	for (i = 0; i < n_cached; i++) {
@@ -1633,9 +1629,9 @@ btr_search_move_or_delete_hash_entries(
 	rw_lock_s_lock(ahi_latch);
 
 	if (block->index) {
-		ulint	n_fields = block->curr_n_fields;
-		ulint	n_bytes = block->curr_n_bytes;
-		ibool	left_side = block->curr_left_side;
+		uint16_t n_fields = block->curr_n_fields;
+		uint16_t n_bytes = block->curr_n_bytes;
+		bool left_side = block->curr_left_side;
 
 		new_block->n_fields = block->curr_n_fields;
 		new_block->n_bytes = block->curr_n_bytes;

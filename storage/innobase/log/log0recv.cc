@@ -150,7 +150,7 @@ public:
   {
     ut_ad(start_lsn < lsn);
     reinterpret_cast<byte*>(memcpy(end(), recs, size))[size]= 0;
-    len+= static_cast<uint16_t>(size);
+    len= static_cast<uint16_t>(len + size);
   }
 
   /** Apply an UNDO_APPEND record.
@@ -458,7 +458,7 @@ page_corrupted:
         if (UNIV_UNLIKELY(offset + last_offset < 8 ||
                           offset + last_offset >= size))
           goto record_corrupted;
-        last_offset+= static_cast<uint16_t>(offset);
+        last_offset= static_cast<uint16_t>(last_offset + offset);
         l+= olen;
         rlen-= olen;
         size_t llen= rlen;
@@ -477,7 +477,7 @@ page_corrupted:
             applied= APPLIED_TO_FSP_HEADER;
         next_after_applying_write:
           ut_ad(llen + last_offset <= size);
-          last_offset+= static_cast<uint16_t>(llen);
+          last_offset= static_cast<uint16_t>(last_offset + llen);
           goto next_after_applying;
         }
         llen= mlog_decode_varint_length(*l);
@@ -1665,7 +1665,8 @@ recv_calc_lsn_on_data_add(
 	ib_uint64_t	len)	/*!< in: this many bytes of data is
 				added, log block headers not included */
 {
-	unsigned frag_len = (lsn % OS_FILE_LOG_BLOCK_SIZE) - LOG_BLOCK_HDR_SIZE;
+	unsigned frag_len = static_cast<unsigned>(lsn % OS_FILE_LOG_BLOCK_SIZE)
+		- LOG_BLOCK_HDR_SIZE;
 	unsigned payload_size = log_sys.payload_size();
 	ut_ad(frag_len < payload_size);
 	lsn_t lsn_len = len;

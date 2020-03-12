@@ -126,7 +126,7 @@ and the shift needed to obtain each bit-field of the record. */
 /******************************************************//**
 Gets a bit field from within 1 byte. */
 UNIV_INLINE
-ulint
+byte
 rec_get_bit_field_1(
 /*================*/
 	const rec_t*	rec,	/*!< in: pointer to record origin */
@@ -134,9 +134,7 @@ rec_get_bit_field_1(
 	ulint		mask,	/*!< in: mask used to filter bits */
 	ulint		shift)	/*!< in: shift right applied after masking */
 {
-	ut_ad(rec);
-
-	return((mach_read_from_1(rec - offs) & mask) >> shift);
+  return static_cast<byte>((*(rec - offs) & mask) >> shift);
 }
 
 /******************************************************//**
@@ -504,40 +502,35 @@ rec_get_n_owned_new(
 The following function is used to retrieve the info bits of a record.
 @return info bits */
 UNIV_INLINE
-ulint
+byte
 rec_get_info_bits(
 /*==============*/
 	const rec_t*	rec,	/*!< in: physical record */
 	ulint		comp)	/*!< in: nonzero=compact page format */
 {
-	const ulint	val = rec_get_bit_field_1(
+	return rec_get_bit_field_1(
 		rec, comp ? REC_NEW_INFO_BITS : REC_OLD_INFO_BITS,
 		REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
-	return(val);
 }
 
 /******************************************************//**
 The following function is used to retrieve the info and status
 bits of a record.  (Only compact records have status bits.)
-@return info bits */
+@return info and status bits */
 UNIV_INLINE
-ulint
+byte
 rec_get_info_and_status_bits(
 /*=========================*/
 	const rec_t*	rec,	/*!< in: physical record */
 	ulint		comp)	/*!< in: nonzero=compact page format */
 {
-	ulint	bits;
-	compile_time_assert(!((REC_NEW_STATUS_MASK >> REC_NEW_STATUS_SHIFT)
-			      & (REC_INFO_BITS_MASK >> REC_INFO_BITS_SHIFT)));
-	if (comp) {
-		bits = rec_get_info_bits(rec, TRUE)
-			| ulint(rec_get_status(rec));
-	} else {
-		bits = rec_get_info_bits(rec, FALSE);
-		ut_ad(!(bits & ~(REC_INFO_BITS_MASK >> REC_INFO_BITS_SHIFT)));
-	}
-	return(bits);
+  compile_time_assert(!((REC_NEW_STATUS_MASK >> REC_NEW_STATUS_SHIFT)
+                        & (REC_INFO_BITS_MASK >> REC_INFO_BITS_SHIFT)));
+  if (comp)
+    return static_cast<byte>(rec_get_info_bits(rec, TRUE) |
+                             rec_get_status(rec));
+  else
+    return rec_get_info_bits(rec, FALSE);
 }
 /******************************************************//**
 The following function is used to set the info and status
@@ -1176,8 +1169,8 @@ rec_get_converted_size(
 		ut_ad(dtuple->n_fields > 1);
 	} else if ((dtuple_get_info_bits(dtuple) & REC_NEW_STATUS_MASK)
 		   == REC_STATUS_NODE_PTR) {
-		ut_ad(dtuple->n_fields
-		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
+		ut_ad(dtuple->n_fields - 1
+		      == dict_index_get_n_unique_in_tree_nonleaf(index));
 	} else if (index->table->id == DICT_INDEXES_ID) {
 		/* The column SYS_INDEXES.MERGE_THRESHOLD was
 		instantly added in MariaDB 10.2.2 (MySQL 5.7). */

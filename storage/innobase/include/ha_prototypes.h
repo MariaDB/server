@@ -165,7 +165,7 @@ VARCHAR and the new true VARCHAR in >= 5.0.3 by the 'prtype'.
 at least ENUM and SET, and unsigned integer types are 'unsigned types'
 @param[in]	f			MySQL Field
 @return DATA_BINARY, DATA_VARCHAR, ... */
-unsigned
+uint8_t
 get_innobase_type_from_mysql_type(unsigned *unsigned_flag, const Field *field);
 
 /******************************************************************//**

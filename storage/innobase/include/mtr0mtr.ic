@@ -205,7 +205,7 @@ mtr_t::set_log_mode(mtr_log_t mode)
 		/* MTR_LOG_NO_REDO can only be set before generating
 		any redo log records. */
 		ut_ad(mode != MTR_LOG_NO_REDO || m_log.empty());
-		m_log_mode = mode;
+		m_log_mode = mode & 3;
 		return(old_mode);
 	}
 

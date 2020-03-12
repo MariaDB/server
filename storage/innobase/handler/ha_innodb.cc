@@ -5791,8 +5791,9 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 
 	mutex_enter(&table->autoinc_mutex);
 
-	table->persistent_autoinc = 1
-		+ dict_table_get_nth_col_pos(table, col_no, NULL);
+	table->persistent_autoinc = static_cast<uint16_t>(
+		dict_table_get_nth_col_pos(table, col_no, NULL) + 1)
+		& dict_index_t::MAX_N_FIELDS;
 
 	if (table->autoinc) {
 		/* Already initialized. Our caller checked
@@ -6567,7 +6568,7 @@ VARCHAR and the new true VARCHAR in >= 5.0.3 by the 'prtype'.
 ENUM and SET, and unsigned integer types are 'unsigned types'
 @param[in]	f		MySQL Field
 @return DATA_BINARY, DATA_VARCHAR, ... */
-unsigned
+uint8_t
 get_innobase_type_from_mysql_type(unsigned *unsigned_flag, const Field *field)
 {
 	/* The following asserts try to check that the MySQL type code fits in
@@ -6702,7 +6703,7 @@ wsrep_store_key_val_for_row(
 	char*		buff_start	= buff;
 	enum_field_types mysql_type;
 	Field*		field;
-	uint buff_space = buff_len;
+	ulint buff_space = buff_len;
 
 	DBUG_ENTER("wsrep_store_key_val_for_row");
 
@@ -7328,7 +7329,8 @@ ha_innobase::build_template(
 
 	m_prebuilt->template_type = whole_row
 		? ROW_MYSQL_WHOLE_ROW : ROW_MYSQL_REC_FIELDS;
-	m_prebuilt->null_bitmap_len = table->s->null_bytes;
+	m_prebuilt->null_bitmap_len = table->s->null_bytes
+		& dict_index_t::MAX_N_FIELDS;
 
 	/* Prepare to build m_prebuilt->mysql_template[]. */
 	m_prebuilt->templ_contains_blob = FALSE;
@@ -8048,7 +8050,7 @@ calc_row_difference(
 	ibool		changes_fts_doc_col = FALSE;
 	trx_t* const	trx = prebuilt->trx;
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
-	unsigned	num_v = 0;
+	uint16_t	num_v = 0;
 	const bool skip_virtual = ha_innobase::omits_virtual_cols(*table->s);
 
 	ut_ad(!srv_read_only_mode);
@@ -8280,7 +8282,7 @@ calc_row_difference(
 				num_v++;
 				ut_ad(field != table->found_next_number_field);
 			} else {
-				ufield->field_no = static_cast<unsigned>(
+				ufield->field_no = static_cast<uint16_t>(
 					dict_col_get_clust_pos(
 						&prebuilt->table->cols
 						[i - num_v],
@@ -10277,7 +10279,8 @@ ha_innobase::wsrep_append_keys(
 							keyval1,
 						    /* for len1+1 see keyval1
 						     initialization comment */
-							len1+1, key_type);
+							uint16_t(len1+1),
+							key_type);
 						    if (rcode)
 							DBUG_RETURN(rcode);
 						}
@@ -10289,7 +10292,8 @@ ha_innobase::wsrep_append_keys(
 						thd, trx, table_share,
 						/* for len0+1 see keyval0
 						   initialization comment */
-						keyval0, len0+1, key_type);
+						keyval0, uint16_t(len0+1),
+						key_type);
 					if (rcode)
 						DBUG_RETURN(rcode);
 
@@ -10457,7 +10461,8 @@ prepare_vcol_for_base_setup(
 	bitmap_clear_all(&field->table->tmp_set);
 	field->vcol_info->expr->walk(
 		&Item::register_field_in_read_map, 1, field->table);
-	col->num_base= bitmap_bits_set(&field->table->tmp_set);
+	col->num_base= bitmap_bits_set(&field->table->tmp_set)
+		& dict_index_t::MAX_N_FIELDS;
 	if (col->num_base != 0) {
 		col->base_col = static_cast<dict_col_t**>(mem_heap_zalloc(
 					table->heap, col->num_base * sizeof(
@@ -10477,7 +10482,7 @@ innodb_base_col_setup(
 	const Field*	field,
 	dict_v_col_t*	v_col)
 {
-	unsigned n = 0;
+	uint16_t n = 0;
 
 	prepare_vcol_for_base_setup(table, field, v_col);
 
@@ -10502,7 +10507,7 @@ innodb_base_col_setup(
 			n++;
 		}
 	}
-	v_col->num_base= n;
+	v_col->num_base= n & dict_index_t::MAX_N_FIELDS;
 }
 
 /** Set up base columns for stored column
@@ -11895,7 +11900,8 @@ innobase_parse_hint_from_comment(
 			/* x-lock index is needed to exclude concurrent
 			pessimistic tree operations */
 			rw_lock_x_lock(dict_index_get_lock(index));
-			index->merge_threshold = merge_threshold_table;
+			index->merge_threshold = merge_threshold_table
+				& ((1U << 6) - 1);
 			rw_lock_x_unlock(dict_index_get_lock(index));
 
 			continue;
@@ -11915,7 +11921,8 @@ innobase_parse_hint_from_comment(
 				pessimistic tree operations */
 				rw_lock_x_lock(dict_index_get_lock(index));
 				index->merge_threshold
-					= merge_threshold_index[i];
+					= merge_threshold_index[i]
+					& ((1U << 6) - 1);
 				rw_lock_x_unlock(dict_index_get_lock(index));
 				is_found[i] = true;
 
@@ -12411,7 +12418,7 @@ create_table_info_t::create_foreign_keys()
 		dict_mem_foreign_table_name_lookup_set(foreign, TRUE);
 
 		foreign->foreign_index = index;
-		foreign->n_fields      = (unsigned int)i;
+		foreign->n_fields      = i & dict_index_t::MAX_N_FIELDS;
 
 		foreign->foreign_col_names = static_cast<const char**>(
 			mem_heap_alloc(foreign->heap, i * sizeof(void*)));
@@ -13113,9 +13120,12 @@ create_table_info_t::create_table_update_dict()
 		} else {
 			const unsigned	col_no = innodb_col_no(ai);
 
-			innobase_table->persistent_autoinc = 1
-				+ dict_table_get_nth_col_pos(
-					innobase_table, col_no, NULL);
+			innobase_table->persistent_autoinc
+				= static_cast<uint16_t>(
+					dict_table_get_nth_col_pos(
+						innobase_table, col_no, NULL)
+					+ 1)
+				& dict_index_t::MAX_N_FIELDS;
 
 			/* Persist the "last used" value, which
 			typically is AUTO_INCREMENT - 1.
@@ -20947,7 +20957,8 @@ innobase_get_computed_value(
 				/* It is a nullable column with a
 				non-NULL value */
 				mysql_rec[templ->mysql_null_byte_offset]
-					&= ~(byte) templ->mysql_null_bit_mask;
+					&= static_cast<byte>(
+						~templ->mysql_null_bit_mask);
 			}
 		}
 	}

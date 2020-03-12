@@ -1445,13 +1445,13 @@ struct buf_block_t{
 	NOTE that these fields are NOT protected by any semaphore! */
 	/* @{ */
 
-	ulint		n_hash_helps;	/*!< counter which controls building
-					of a new hash index for the page */
-	volatile ulint	n_bytes;	/*!< recommended prefix length for hash
+	volatile uint16_t n_bytes;	/*!< recommended prefix length for hash
 					search: number of bytes in
 					an incomplete last field */
-	volatile ulint	n_fields;	/*!< recommended prefix length for hash
+	volatile uint16_t n_fields;	/*!< recommended prefix length for hash
 					search: number of full fields */
+	uint16_t	n_hash_helps;	/*!< counter which controls building
+					of a new hash index for the page */
 	volatile bool	left_side;	/*!< true or false, depending on
 					whether the leftmost record of several
 					records with the same prefix should be

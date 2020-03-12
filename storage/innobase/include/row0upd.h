@@ -75,7 +75,7 @@ void
 upd_field_set_field_no(
 /*===================*/
 	upd_field_t*	upd_field,	/*!< in: update vector field */
-	ulint		field_no,	/*!< in: field number in a clustered
+	uint16_t	field_no,	/*!< in: field number in a clustered
 					index */
 	dict_index_t*	index);
 
@@ -87,7 +87,7 @@ UNIV_INLINE
 void
 upd_field_set_v_field_no(
 	upd_field_t*	upd_field,
-	ulint		field_no,
+	uint16_t	field_no,
 	dict_index_t*	index);
 /*********************************************************************//**
 Returns a field of an update vector by field_no.
@@ -97,7 +97,7 @@ const upd_field_t*
 upd_get_field_by_field_no(
 /*======================*/
 	const upd_t*	update,	/*!< in: update vector */
-	ulint		no,	/*!< in: field_no */
+	uint16_t	no,	/*!< in: field_no */
 	bool		is_virtual) /*!< in: if it is a virtual column */
 	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
@@ -319,14 +319,14 @@ row_upd_step(
 
 /* Update vector field */
 struct upd_field_t{
-	unsigned	field_no:16;	/*!< field number in an index, usually
+	uint16_t	field_no;	/*!< field number in an index, usually
 					the clustered index, but in updating
 					a secondary index record in btr0cur.cc
 					this is the position in the secondary
 					index. If this field is a virtual
 					column, then field_no represents
 					the nth virtual	column in the table */
-	unsigned	orig_len:16;	/*!< original length of the locally
+	uint16_t	orig_len;	/*!< original length of the locally
 					stored part of an externally stored
 					column, or 0 */
 	que_node_t*	exp;		/*!< expression for calculating a new
@@ -349,7 +349,7 @@ struct upd_field_t{
 /* Update vector structure */
 struct upd_t{
 	mem_heap_t*	heap;		/*!< heap from which memory allocated */
-	ulint		info_bits;	/*!< new value of info bits to record;
+	byte		info_bits;	/*!< new value of info bits to record;
 					default is 0 */
 	dtuple_t*	old_vrow;	/*!< pointer to old row, used for
 					virtual column update now */
@@ -366,7 +366,7 @@ struct upd_t{
 
 	/** Determine if the given field_no is modified.
 	@return true if modified, false otherwise.  */
-	bool is_modified(const ulint field_no) const
+	bool is_modified(uint16_t field_no) const
 	{
 		for (ulint i = 0; i < n_fields; ++i) {
 			if (field_no == fields[i].field_no) {
