@@ -20,6 +20,7 @@
                                              // mysql_exchange_partition
 #include "sql_alter.h"
 #include "rpl_mi.h"
+#include "rpl_rli.h"
 #include "slave.h"
 #include "wsrep_mysqld.h"
 
@@ -381,6 +382,8 @@ static int process_start_alter(THD *thd, uint64 thread_id,
                                mysql_mutex_t *start_alter_lock,
                                mysql_cond_t *start_alter_list_cond)
 {
+
+#ifdef HAVE_REPLICATION
   /*
    start_alter_thread will be true for spawned thread
   */
@@ -445,6 +448,9 @@ static int process_start_alter(THD *thd, uint64 thread_id,
   DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
   if (write_bin_log(thd, false, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
     return 2;
+#else
+  return START_ALTER_PARSE;
+#endif
   return 0;
 }
 /* 0= Nothing to do skip query_log_event parsing , 1= query_log_event_parsing
@@ -703,11 +709,13 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     mysql_cond_t *start_alter_list_cond;
     if (thd->rgi_slave)
     {
+#ifdef HAVE_REPLICATION
       start_alter_struct *data= &thd->rgi_slave->rli->mi->start_alter_struct_master;
       start_alter_list= &data->start_alter_list;
       start_alter_list_lock= &data->start_alter_list_lock;
       start_alter_lock= &data->start_alter_lock;
       start_alter_list_cond= &data->start_alter_list_cond;
+#endif
     }
     else
     {

@@ -56,6 +56,8 @@
 #include "tztime.h"
 #include <algorithm>
 #include "rpl_mi.h"
+#include "rpl_rli.h"
+#include "slave.h"
 
 
 #ifdef __WIN__
@@ -9377,6 +9379,7 @@ static int master_result(THD *thd, start_alter_info *info,
   }
   else if (info->state == start_alter_state::COMMIT_ALTER && alter_result)
   {
+      /*  
     //TODO
     thd->rgi_slave->rli->report(ERROR_LEVEL, 0, thd->rgi_slave->gtid_info(),
                 "Query caused different errors on master and slave.     "
@@ -9387,6 +9390,7 @@ static int master_result(THD *thd, start_alter_info *info,
                 0, thd->get_stmt_da()->message() ,
                 1045,
                 "test", thd->query());
+                */
     thd->is_slave_error= 1;
     return MASTER_RESULT_COMMIT_ERROR;
   }
@@ -9500,12 +9504,16 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool partial_alter= false;
   start_alter_info *info= get_new_start_alter_info(thd);
   start_alter_struct *alter_struct;
+  DBUG_ENTER("mysql_alter_table");
   if (thd->slave_thread)
+#ifdef HAVE_REPLICATION
     alter_struct= &thd->rgi_slave->rli->mi->start_alter_struct_master;
+#else
+    DBUG_RETURN(true);
+#endif
   else
     alter_struct= NULL;
   ulong start_alter_id= thd->lex->alter_info.alter_identifier;
-  DBUG_ENTER("mysql_alter_table");
 
   /*
     Check if we attempt to alter mysql.slow_log or

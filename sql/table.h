@@ -324,6 +324,49 @@ typedef struct st_grant_info
   GRANT_INTERNAL_INFO m_internal;
 } GRANT_INFO;
 
+enum start_alter_state
+{
+  REGISTERED= 0,        // Start Alter exist, Default state
+  COMMIT_ALTER,         // COMMIT the alter
+  ROLLBACK_ALTER,       // Rollback the alter
+  COMMITTED             // COMMIT/ROLLBACK Alter written in binlog
+};
+struct start_alter_info
+{
+  /*
+    Unique among replication channel at one point of time
+   */
+  uint thread_id; //key for searching
+  /*
+    0 prepared and not error from commit and rollback
+    >0 error expected in commit/rollback
+    TODO maybe used later ?
+  */
+  uint error;
+  enum start_alter_state state;
+  /* We are not using mysql_cond_t because we do not need PSI */
+  mysql_cond_t start_alter_cond;
+};
+
+struct start_alter_struct
+{
+  List <start_alter_info> start_alter_list;
+  mysql_mutex_t start_alter_list_lock, start_alter_lock;
+  mysql_cond_t start_alter_list_cond;
+};
+
+struct rpl_group_info;
+
+struct start_alter_thd_args
+{
+  rpl_group_info *rgi;
+  LEX_CSTRING query;
+  LEX_CSTRING *db;
+  char *catalog;
+  bool shutdown;
+  CHARSET_INFO *cs;
+};
+
 enum tmp_table_type
 {
   NO_TMP_TABLE, NON_TRANSACTIONAL_TMP_TABLE, TRANSACTIONAL_TMP_TABLE,
