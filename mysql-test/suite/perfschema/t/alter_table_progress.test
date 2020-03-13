@@ -120,7 +120,7 @@ select "After payload";
 
 --connection default
 
---echo Dumping ALTER TABLE stages
+--echo # Dumping ALTER TABLE stages
 
 # Print all stages for this ALTER TABLE statement
 select EVENT_NAME, WORK_COMPLETED, WORK_ESTIMATED

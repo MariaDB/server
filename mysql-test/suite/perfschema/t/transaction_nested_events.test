@@ -17,27 +17,27 @@
 --source ../include/transaction_setup.inc
 --enable_query_log
 
---echo
+--echo #
 --echo #========================================================================
 --echo # STEP 1 - SETUP
 --echo #========================================================================
 
---echo
+--echo #
 --echo ## Setup control thread
---echo
+--echo #
 --connection default
 SET SESSION AUTOCOMMIT= 1;
 --disable_warnings
 USE test;
 DROP DATABASE IF EXISTS db;
 --enable_warnings
---echo
+--echo #
 --echo ## Create test database, test tables, one transactional and one non-transactional
 CREATE DATABASE db;
 CREATE TABLE db.t1 (s1 int, s2 varchar(64)) ENGINE=INNODB;
 CREATE TABLE db.nt1 (s1 int, s2 varchar(64)) ENGINE=MYISAM;
 
---echo
+--echo #
 --echo ## Setup connection 1
 connect(con1, localhost, root,,);
 USE db;
@@ -50,24 +50,24 @@ let $con1_thread_id= `SELECT @my_thread_id`;
 eval SET @con1_thread_id= $con1_thread_id;
 --enable_query_log
 
---echo
+--echo #
 --echo ## Disable events from the control (default) connection
 UPDATE performance_schema.threads SET instrumented = 'NO' WHERE processlist_id = CONNECTION_ID();
 
 # Use this to select events from all threads
 eval SET @all_threads= 0;
 
---echo
+--echo #
 --echo ## Enable only transaction and statement instruments
 UPDATE performance_schema.setup_instruments SET enabled='NO', timed='NO';
 UPDATE performance_schema.setup_instruments SET enabled='YES'
   WHERE name LIKE ('statement/%') OR name = 'transaction';
 
---echo
+--echo #
 --echo ## Clear statement and transaction history
 CALL test.clear_history();
 
---echo
+--echo #
 --echo #========================================================================
 --echo # STEP 2 - BASIC TRANSACTION
 --echo #========================================================================
@@ -103,7 +103,7 @@ COMMIT;
 --echo #
 --connection con1
 CREATE PROCEDURE tp_update() UPDATE t1 SET s1 = s1 + 1;
---echo
+--echo #
 START TRANSACTION;
 INSERT INTO t1 VALUES (310, "INSERT 310");
 INSERT INTO t1 VALUES (311, "INSERT 311");
@@ -120,12 +120,12 @@ COMMIT;
 --echo #
 --connection con1
 CREATE PROCEDURE tp_start() START TRANSACTION;
---echo
+--echo #
 CALL tp_start();
 INSERT INTO t1 VALUES (320, "INSERT 320"),(321, "INSERT 321");
 INSERT INTO t1 VALUES (322, "INSERT 322"),(323, "INSERT 323");
 UPDATE t1 SET s1 = s1 + 1 WHERE s1 > 320;
---echo
+--echo #
 SELECT * FROM t1 ORDER BY s1;
 COMMIT;
 
@@ -139,22 +139,22 @@ COMMIT;
 CREATE PROCEDURE tp_rollback() ROLLBACK;
 CREATE PROCEDURE tp_commit() COMMIT;
 
---echo
+--echo #
 --echo ## COMMIT within stored procedure
 START TRANSACTION;
 INSERT INTO t1 VALUES (330, "INSERT 330"),(331, "INSERT 331");
 INSERT INTO t1 VALUES (332, "INSERT 332"),(333, "INSERT 333");
 DELETE FROM t1 WHERE s1 > 331;
 CALL tp_commit();
---echo
+--echo #
 SELECT * FROM t1 ORDER BY s1;
 
---echo
+--echo #
 --echo ## ROLLBACK within stored procedure
 START TRANSACTION;
 UPDATE t1 SET s1 = s1*2 WHERE s1 > 331;
 CALL tp_rollback();
---echo
+--echo #
 SELECT * FROM t1 ORDER BY s1;
 
 ## Verify and reset
@@ -163,7 +163,7 @@ SELECT * FROM t1 ORDER BY s1;
 --echo #========================================================================
 --echo # STEP 4 - TRANSACTIONS AND STORED FUNCTIONS
 --echo #========================================================================
---echo
+--echo #
 --echo #
 --echo # STEP 4.1 - FUNCTION WITHIN A TRANSACTION
 --echo #
@@ -176,38 +176,38 @@ RETURN x+y;
 END |
 DELIMITER ;|
 
---echo
+--echo #
 --echo ## Clear history
 --connection default
 CALL test.clear_history();
 --connection con1
 
---echo
+--echo #
 START TRANSACTION;
 INSERT INTO t1 VALUES (410, "INSERT 410");
 INSERT INTO t1 VALUES (411, "INSERT 411");
 INSERT INTO t1 VALUES (412, "INSERT 412");
 DELETE FROM t1 WHERE s1 > 410;
---echo
+--echo #
 SELECT * FROM t1 ORDER BY s1;
---echo
+--echo #
 SELECT fn_add(413, 414);
 COMMIT;
---echo
+--echo #
 SELECT * FROM t1 ORDER BY s1;
 
 ## Verify and reset
 --source ../include/transaction_nested_events_verifier.inc
 
 --connection con1
---echo
+--echo #
 --echo ## Again, but this time with a rollback
---echo
+--echo #
 START TRANSACTION;
 SELECT fn_add(415, 416);
---echo
+--echo #
 ROLLBACK;
---echo
+--echo #
 SELECT * FROM t1 ORDER BY s1;
 
 ## Verify and reset
@@ -222,57 +222,57 @@ DELIMITER |;
 CREATE FUNCTION fn_err1() RETURNS VARCHAR(10) BEGIN START TRANSACTION ; RETURN 'invalid' ; END|
 DELIMITER ;|
 
---echo
+--echo #
 --echo ## Expect 0 transactions
 --connection default
 SELECT COUNT(*) FROM performance_schema.events_transactions_history;
 --connection con1
 
---echo
+--echo #
 --echo ## Expect stored function does not exist
---echo
+--echo #
 --error ER_SP_DOES_NOT_EXIST
 SELECT fn_err1();
 
---echo
+--echo #
 --echo ## Expect 0 transactions
 --connection default
 SELECT COUNT(*) FROM performance_schema.events_transactions_history;
 --connection con1
 
---echo
+--echo #
 DELIMITER |;
 --error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
 CREATE FUNCTION fn_err2() RETURNS VARCHAR(10) BEGIN COMMIT; RETURN 'invalid' ; END|
 DELIMITER ;|
 
---echo
+--echo #
 --echo ## Expect stored function does not exist
---echo
+--echo #
 START TRANSACTION;
 DELETE FROM t1 WHERE s1 > 320;
 --error ER_SP_DOES_NOT_EXIST
 SELECT fn_err2();
 
---echo
+--echo #
 --echo ## Expect 0 transactions
 --connection default
 SELECT COUNT(*) FROM performance_schema.events_transactions_history;
 
---echo
+--echo #
 --echo ## Clear transaction and statement tables
 CALL test.clear_history();
 
 --echo #========================================================================
 --echo # STEP 5 - TRANSACTIONS AND TRIGGERS
 --echo #========================================================================
---echo
+--echo #
 --echo #
 --echo # STEP 5.1 - FORCE STATEMENT ROLLBACK FROM TRIGGER
 --echo #
 --connection con1
 --echo ## Create a trigger to force statement rollback
---echo
+--echo #
 DELIMITER |;
 CREATE TRIGGER trigger_before_update BEFORE UPDATE ON t1
 FOR EACH ROW
@@ -283,16 +283,16 @@ BEGIN
 END;|
 DELIMITER ;|
 
---echo
+--echo #
 --echo ## Clear history
 --connection default
 CALL test.clear_history();
 --connection con1
 
---echo
+--echo #
 --echo ## Insert multiple rows, then update. Trigger will force rollback the
 --echo ## UPDATE statement, but the transaction should not roll back.
---echo
+--echo #
 START TRANSACTION;
 INSERT INTO t1 VALUES (500, "INSERT 500");
 INSERT INTO t1 VALUES (501, "INSERT 501");
@@ -300,19 +300,19 @@ INSERT INTO t1 VALUES (502, "INSERT 502");
 INSERT INTO t1 VALUES (503, "INSERT 503");
 INSERT INTO t1 VALUES (504, "INSERT 504");
 INSERT INTO t1 VALUES (505, "INSERT 505");
---echo
+--echo #
 SELECT * FROM t1 ORDER BY s1;
---echo
+--echo #
 --echo ## Expect error when UPDATE hits record 505
---echo
+--echo #
 --error ER_SIGNAL_EXCEPTION
 UPDATE t1 SET s1 = s1 * 2 WHERE s1 >= 500;
---echo
+--echo #
 --echo ## Verify that INSERT succeeded, UPDATE failed and transaction did not rollback
---echo
+--echo #
 SELECT * FROM t1 ORDER BY s1;
 COMMIT;
---echo
+--echo #
 DROP TRIGGER trigger_before_update;
 
 ## Verify and reset
@@ -328,9 +328,9 @@ DROP TRIGGER trigger_before_update;
 # Check that the event_scheduler is really running
 #--source include/running_event_scheduler.inc
 
---echo
+--echo #
 --echo ## Create a one-time event that will insert, update, commit and rollback.
---echo
+--echo #
 DELIMITER |;
 CREATE EVENT trx_event ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 5 SECOND DO
 BEGIN
@@ -348,23 +348,23 @@ BEGIN
 END;|
 DELIMITER ;|
 
---echo
+--echo #
 --echo ## Clear history
 --connection default
 CALL test.clear_history();
 --connection con1
---echo
+--echo #
 --echo ## Wait a few seconds for scheduled event to execute and finish.
 # Check based on the expected content in t1.
 let $wait_condition= SELECT COUNT(*) = 4 FROM t1;
 --source include/wait_condition.inc
---echo
+--echo #
 --echo ## Confirm that the scheduled event completed and the content of t1 is right.
---echo
+--echo #
 SELECT * FROM t1 ORDER BY s1;
---echo
+--echo #
 --echo ## Verify and reset
---echo
+--echo #
 eval SET @all_threads= 1;
 --source ../include/transaction_nested_events_verifier.inc
 eval SET @all_threads= 0;

@@ -1,20 +1,20 @@
 --disable_warnings
 
---echo
+--echo #
 SHOW GLOBAL STATUS LIKE "example_%";
---echo
+--echo #
 SHOW SESSION STATUS LIKE "example_%";
---echo
+--echo #
 SHOW GLOBAL VARIABLES LIKE "example_%";
---echo
+--echo #
 SHOW SESSION VARIABLES LIKE "example_%";
---echo
+--echo #
 SELECT variable_name, variable_value FROM performance_schema.global_status WHERE variable_name LIKE "example_%";
---echo
+--echo #
 SELECT variable_name, variable_value FROM performance_schema.session_status WHERE variable_name LIKE "example_%";
---echo
+--echo #
 SELECT variable_name, variable_value FROM performance_schema.global_variables WHERE variable_name LIKE "example_%";
---echo
+--echo #
 SELECT variable_name, variable_value FROM performance_schema.session_variables WHERE variable_name LIKE "example_%";
 
 #

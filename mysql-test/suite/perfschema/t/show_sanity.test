@@ -130,185 +130,185 @@ set @my_host='localhost';
 # Debug
 # select connection_id(), @my_tid, @my_user, @my_host;
 # show plugins
---echo
---echo ================================================================================
---echo SHOW_COMPATIBILITY_56 = ON
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # SHOW_COMPATIBILITY_56 = ON
+--echo # ================================================================================
 set global show_compatibility_56 = on;
 
---echo
+--echo #
 --echo # STEP 1-1
 insert into test.sanity
   select "5.6", "I_S.GLOBAL_VARIABLES", variable_name
   from information_schema.global_variables;
 
---echo
+--echo #
 --echo # STEP 1-2
 insert into test.sanity
   select "5.6", "I_S.SESSION_VARIABLES", variable_name
   from information_schema.session_variables;
 
---echo
+--echo #
 --echo # STEP 1-3
 insert into test.sanity
   select "5.6", "P_S.GLOBAL_VARIABLES", variable_name
   from performance_schema.global_variables;
 
---echo
+--echo #
 --echo # STEP 1-4
 insert into test.sanity
   select "5.6", "P_S.VARIABLES_BY_THREAD", variable_name
   from performance_schema.variables_by_thread
   where thread_id = @my_tid;
 
---echo
+--echo #
 --echo # STEP 1-5
 insert into test.sanity
   select "5.6", "P_S.SESSION_VARIABLES", variable_name
   from performance_schema.session_variables;
 
---echo
+--echo #
 --echo # STEP 1-6
 insert into test.sanity
   select "5.6", "I_S.GLOBAL_STATUS", variable_name
   from information_schema.global_status;
 
---echo
+--echo #
 --echo # STEP 1-7
 insert into test.sanity
   select "5.6", "I_S.SESSION_STATUS", variable_name
   from information_schema.session_status;
 
---echo
+--echo #
 --echo # STEP 1-8
 insert into test.sanity
   select "5.6", "P_S.GLOBAL_STATUS", variable_name
   from performance_schema.global_status;
 
---echo
+--echo #
 --echo # STEP 1-9
 --echo # EMPTY, NO WARNINGS (not available in 5.6 mode)
 select *
   from performance_schema.status_by_thread;
 
---echo
+--echo #
 --echo # STEP 1-10
 insert into test.sanity
   select "5.6", "P_S.SESSION_STATUS", variable_name
   from performance_schema.session_status;
 
---echo
+--echo #
 --echo # STEP 1-11
 --echo # EMPTY, NO WARNINGS (not available in 5.6 mode)
 select *
   from performance_schema.status_by_account;
 
---echo
+--echo #
 --echo # STEP 1-12
 --echo # EMPTY, NO WARNINGS (not available in 5.6 mode)
 select *
   from performance_schema.status_by_user;
 
---echo
+--echo #
 --echo # STEP 1-13
 --echo # EMPTY, NO WARNINGS (not available in 5.6 mode)
 select *
   from performance_schema.status_by_host;
 
---echo
---echo ================================================================================
---echo SHOW_COMPATIBILITY_56 = OFF
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # SHOW_COMPATIBILITY_56 = OFF
+--echo # ================================================================================
 set global show_compatibility_56 = off;
 
---echo
+--echo #
 --echo # STEP 2-1
 --echo # FAILS WITH ERROR
 --error ER_FEATURE_DISABLED_SEE_DOC
 select *
   from information_schema.global_variables;
 
---echo
+--echo #
 --echo # STEP 2-2
 --echo # FAILS WITH ERROR
 --error ER_FEATURE_DISABLED_SEE_DOC
 select *
   from information_schema.session_variables;
 
---echo
+--echo #
 --echo # STEP 2-3
 insert into test.sanity
   select "5.7", "P_S.GLOBAL_VARIABLES", variable_name
   from performance_schema.global_variables;
 
---echo
+--echo #
 --echo # STEP 2-4
 insert into test.sanity
   select "5.7", "P_S.VARIABLES_BY_THREAD", variable_name
   from performance_schema.variables_by_thread
   where thread_id = @my_tid;
 
---echo
+--echo #
 --echo # STEP 2-5
 insert into test.sanity
   select "5.7", "P_S.SESSION_VARIABLES", variable_name
   from performance_schema.session_variables;
 
---echo
+--echo #
 --echo # STEP 2-6
 --echo # FAILS WITH ERROR
 --error ER_FEATURE_DISABLED_SEE_DOC
 select *
   from information_schema.global_status;
 
---echo
+--echo #
 --echo # STEP 2-7
 --echo # FAILS WITH ERROR
 --error ER_FEATURE_DISABLED_SEE_DOC
 select *
   from information_schema.session_status;
 
---echo
+--echo #
 --echo # STEP 2-8
 insert into test.sanity
   select "5.7", "P_S.GLOBAL_STATUS", variable_name
   from performance_schema.global_status;
 
---echo
+--echo #
 --echo # STEP 2-9
 insert into test.sanity
   select "5.7", "P_S.STATUS_BY_THREAD", variable_name
   from performance_schema.status_by_thread
   where thread_id = @my_tid;
 
---echo
+--echo #
 --echo # STEP 2-10
 insert into test.sanity
   select "5.7", "P_S.SESSION_STATUS", variable_name
   from performance_schema.session_status;
 
---echo
+--echo #
 --echo # STEP 2-11
 insert into test.sanity
   select "5.7", "P_S.STATUS_BY_ACCOUNT", variable_name
   from performance_schema.status_by_account
   where `user` = @my_user and `host` = @my_host;
 
---echo
+--echo #
 --echo # STEP 2-12
 insert into test.sanity
   select "5.7", "P_S.STATUS_BY_USER", variable_name
   from performance_schema.status_by_user
   where `user` = @my_user;
 
---echo
+--echo #
 --echo # STEP 2-13
 insert into test.sanity
   select "5.7", "P_S.STATUS_BY_HOST", variable_name
   from performance_schema.status_by_host
   where `host` = @my_host;
 
---echo
+--echo #
 --echo # STEP 2-14
 --echo # Known global variables in 5.6 that should not display in session queries.
 --echo # These should be global-only system variables.
@@ -725,7 +725,7 @@ insert into test.sanity values
 ;
 --enable_query_log
 
---echo
+--echo #
 --echo # STEP 2-15
 --echo # Known global status in 5.6 that should not exist in session queries.
 --echo # These should be global-only status variables.
@@ -895,7 +895,7 @@ insert into test.sanity values
 ;
 --enable_query_log
 
---echo
+--echo #
 --echo # STEP 2-15A
 --echo # COM counters appear in I_S.SESSION_STATUS, but not in P_S.SESSION_STATUS
 --disable_query_log
@@ -1051,7 +1051,7 @@ insert into test.sanity values
 
 --enable_query_log
 
---echo
+--echo #
 --echo # STEP 2-15B
 --echo # These slave status counters appear in I_S.SESSION_STATUS, but not in P_S.SESSION_STATUS
 insert into test.sanity values
@@ -1062,7 +1062,7 @@ insert into test.sanity values
   ("JUNK: SLAVE-ONLY", "I_S.SESSION_STATUS", "SLAVE_RUNNING")
 ;
 
---echo
+--echo #
 --echo # STEP 2-16
 --echo # Known session-only status in 5.6 that should not exist in global queries.
 insert into test.sanity values
@@ -1071,7 +1071,7 @@ insert into test.sanity values
   ("JUNK: SESSION-ONLY", "I_S.GLOBAL_STATUS", "LAST_QUERY_PARTIAL_PLANS")
 ;
 
---echo
+--echo #
 --echo # STEP 2-16A
 --echo # COM counters appear in I_S.GLOBAL_STATUS but not in P_S.GLOBAL_STATUS
 --disable_query_log
@@ -1227,7 +1227,7 @@ insert into test.sanity values
 
 --enable_query_log
 
---echo
+--echo #
 --echo # STEP 2-16B
 --echo # These slave status counters appear in I_S.GLOBAL_STATUS, but not in P_S.GLOBAL_STATUS
 insert into test.sanity values
@@ -1238,7 +1238,7 @@ insert into test.sanity values
   ("JUNK: SLAVE-ONLY", "I_S.GLOBAL_STATUS", "SLAVE_RUNNING")
 ;
 
---echo
+--echo #
 --echo # STEP 2-17
 --echo # Status variables that should not exist in queries that aggregate across threads.
 --echo # Criteria: Session-only OR non-aggregatable.
@@ -1263,12 +1263,12 @@ insert into test.sanity values
 #Debug
 #select * from test.sanity order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 1A
---echo Present in 5.6 P_S.GLOBAL_VARIABLES (1-3)
---echo Missing in 5.6 I_S.GLOBAL_VARIABLES (1-1)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 1A
+--echo # Present in 5.6 P_S.GLOBAL_VARIABLES (1-3)
+--echo # Missing in 5.6 I_S.GLOBAL_VARIABLES (1-1)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "P_S.GLOBAL_VARIABLES"
@@ -1278,12 +1278,12 @@ select * from test.sanity
     and source = "I_S.GLOBAL_VARIABLES")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 1B
---echo Present in 5.7 P_S.GLOBAL_VARIABLES (2-3)
---echo Missing in 5.6 I_S.GLOBAL_VARIABLES (1-1)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 1B
+--echo # Present in 5.7 P_S.GLOBAL_VARIABLES (2-3)
+--echo # Missing in 5.6 I_S.GLOBAL_VARIABLES (1-1)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.GLOBAL_VARIABLES"
@@ -1293,12 +1293,12 @@ select * from test.sanity
     and source = "I_S.GLOBAL_VARIABLES")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 2A
---echo Present in 5.6 I_S.GLOBAL_VARIABLES (1-1)
---echo Missing in 5.6 P_S.GLOBAL_VARIABLES (1-3)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 2A
+--echo # Present in 5.6 I_S.GLOBAL_VARIABLES (1-1)
+--echo # Missing in 5.6 P_S.GLOBAL_VARIABLES (1-3)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "I_S.GLOBAL_VARIABLES"
@@ -1308,12 +1308,12 @@ select * from test.sanity
     and source = "P_S.GLOBAL_VARIABLES")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 2B
---echo Present in 5.6 I_S.GLOBAL_VARIABLES (1-1)
---echo Missing in 5.7 P_S.GLOBAL_VARIABLES (2-3)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 2B
+--echo # Present in 5.6 I_S.GLOBAL_VARIABLES (1-1)
+--echo # Missing in 5.7 P_S.GLOBAL_VARIABLES (2-3)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "I_S.GLOBAL_VARIABLES"
@@ -1323,12 +1323,12 @@ select * from test.sanity
     and source = "P_S.GLOBAL_VARIABLES")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 3A
---echo Present in 5.6 P_S.SESSION_VARIABLES (1-5)
---echo Missing in 5.6 I_S.SESSION_VARIABLES (1-2)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 3A
+--echo # Present in 5.6 P_S.SESSION_VARIABLES (1-5)
+--echo # Missing in 5.6 I_S.SESSION_VARIABLES (1-2)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "P_S.SESSION_VARIABLES"
@@ -1338,12 +1338,12 @@ select * from test.sanity
     and source = "I_S.SESSION_VARIABLES")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 3B
---echo Present in 5.7 P_S.SESSION_VARIABLES (2-5)
---echo Missing in 5.6 I_S.SESSION_VARIABLES (1-2)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 3B
+--echo # Present in 5.7 P_S.SESSION_VARIABLES (2-5)
+--echo # Missing in 5.6 I_S.SESSION_VARIABLES (1-2)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.SESSION_VARIABLES"
@@ -1353,12 +1353,12 @@ select * from test.sanity
     and source = "I_S.SESSION_VARIABLES")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 4A
---echo Present in 5.6 I_S.SESSION_VARIABLES (1-2)
---echo Missing in 5.6 P_S.SESSION_VARIABLES (1-5)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 4A
+--echo # Present in 5.6 I_S.SESSION_VARIABLES (1-2)
+--echo # Missing in 5.6 P_S.SESSION_VARIABLES (1-5)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "I_S.SESSION_VARIABLES"
@@ -1368,12 +1368,12 @@ select * from test.sanity
     and source = "P_S.SESSION_VARIABLES")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 4B
---echo Present in 5.6 I_S.SESSION_VARIABLES (1-2)
---echo Missing in 5.7 P_S.SESSION_VARIABLES (2-5)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 4B
+--echo # Present in 5.6 I_S.SESSION_VARIABLES (1-2)
+--echo # Missing in 5.7 P_S.SESSION_VARIABLES (2-5)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "I_S.SESSION_VARIABLES"
@@ -1383,12 +1383,12 @@ select * from test.sanity
     and source = "P_S.SESSION_VARIABLES")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 5A
---echo Present in 5.6 P_S.VARIABLES_BY_THREAD (1-4)
---echo Missing in 5.6 I_S.SESSION_VARIABLES (1-2)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 5A
+--echo # Present in 5.6 P_S.VARIABLES_BY_THREAD (1-4)
+--echo # Missing in 5.6 I_S.SESSION_VARIABLES (1-2)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "P_S.VARIABLES_BY_THREAD"
@@ -1398,12 +1398,12 @@ select * from test.sanity
     and source = "I_S.SESSION_VARIABLES")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 5B
---echo Present in 5.7 P_S.VARIABLES_BY_THREAD (2-4)
---echo Missing in 5.6 I_S.SESSION_VARIABLES (1-2)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 5B
+--echo # Present in 5.7 P_S.VARIABLES_BY_THREAD (2-4)
+--echo # Missing in 5.6 I_S.SESSION_VARIABLES (1-2)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.VARIABLES_BY_THREAD"
@@ -1413,13 +1413,13 @@ select * from test.sanity
     and source = "I_S.SESSION_VARIABLES")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 5C
---echo Present in 5.6 I_S.SESSION_VARIABLES (1-2)
---echo Missing in 5.6 P_S.VARIABLES_BY_THREAD (1-4)
---echo EXPECT NOTHING BESIDE KNOWN GLOBAL VARIABLES (2-14)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 5C
+--echo # Present in 5.6 I_S.SESSION_VARIABLES (1-2)
+--echo # Missing in 5.6 P_S.VARIABLES_BY_THREAD (1-4)
+--echo # EXPECT NOTHING BESIDE KNOWN GLOBAL VARIABLES (2-14)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "I_S.SESSION_VARIABLES"
@@ -1433,13 +1433,13 @@ select * from test.sanity
     and source = "I_S.SESSION_VARIABLES")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 5D
---echo Present in 5.6 I_S.SESSION_VARIABLES (1-2)
---echo Missing in 5.7 P_S.VARIABLES_BY_THREAD (2-5)
---echo EXPECT NOTHING BESIDE KNOWN GLOBAL VARIABLES (2-14)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 5D
+--echo # Present in 5.6 I_S.SESSION_VARIABLES (1-2)
+--echo # Missing in 5.7 P_S.VARIABLES_BY_THREAD (2-5)
+--echo # EXPECT NOTHING BESIDE KNOWN GLOBAL VARIABLES (2-14)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "I_S.SESSION_VARIABLES"
@@ -1453,12 +1453,12 @@ select * from test.sanity
     and source = "I_S.SESSION_VARIABLES")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 5E
---echo KNOWN GLOBAL VARIABLES (2-14)
---echo Expect missing in 5.6 P_S.VARIABLES_BY_THREAD (1-4)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 5E
+--echo # KNOWN GLOBAL VARIABLES (2-14)
+--echo # Expect missing in 5.6 P_S.VARIABLES_BY_THREAD (1-4)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "JUNK: GLOBAL-ONLY"
   and source = "I_S.SESSION_VARIABLES"
@@ -1468,12 +1468,12 @@ select * from test.sanity
     and source = "P_S.VARIABLES_BY_THREAD")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 5F
---echo KNOWN GLOBAL VARIABLES (2-14)
---echo Expect missing in 5.7 P_S.VARIABLES_BY_THREAD (2-5)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 5F
+--echo # KNOWN GLOBAL VARIABLES (2-14)
+--echo # Expect missing in 5.7 P_S.VARIABLES_BY_THREAD (2-5)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "JUNK: GLOBAL-ONLY"
   and source = "I_S.SESSION_VARIABLES"
@@ -1483,13 +1483,13 @@ select * from test.sanity
     and source = "P_S.VARIABLES_BY_THREAD")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 6A
---echo Present in 5.7 P_S.GLOBAL_STATUS (2-8)
---echo Missing in 5.6 I_S.GLOBAL_STATUS (1-6)
---echo EXPECT NOTHING
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 6A
+--echo # Present in 5.7 P_S.GLOBAL_STATUS (2-8)
+--echo # Missing in 5.6 I_S.GLOBAL_STATUS (1-6)
+--echo # EXPECT NOTHING
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.GLOBAL_STATUS"
@@ -1499,13 +1499,13 @@ select * from test.sanity
     and source = "I_S.GLOBAL_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 6B
---echo Present in 5.7 P_S.GLOBAL_STATUS (2-8)
---echo Missing in 5.6 P_S.GLOBAL_STATUS (1-8)
---echo EXPECT NOTHING
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 6B
+--echo # Present in 5.7 P_S.GLOBAL_STATUS (2-8)
+--echo # Missing in 5.6 P_S.GLOBAL_STATUS (1-8)
+--echo # EXPECT NOTHING
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.GLOBAL_STATUS"
@@ -1515,13 +1515,13 @@ select * from test.sanity
     and source = "P_S.GLOBAL_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 6C
---echo Present in 5.6 P_S.GLOBAL_STATUS (1-8)
---echo Missing in 5.7 P_S.GLOBAL_STATUS (2-8)
---echo EXPECT NOTHING
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 6C
+--echo # Present in 5.6 P_S.GLOBAL_STATUS (1-8)
+--echo # Missing in 5.7 P_S.GLOBAL_STATUS (2-8)
+--echo # EXPECT NOTHING
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "P_S.GLOBAL_STATUS"
@@ -1531,13 +1531,13 @@ select * from test.sanity
     and source = "P_S.GLOBAL_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 7
---echo Present in 5.6 I_S.GLOBAL_STATUS (1-6)
---echo Missing in 5.7 P_S.GLOBAL_STATUS (2-8)
---echo EXPECT NOTHING AFTER REMOVING KNOWN SESSION-ONLY, COM COUNTERS AND SLAVE-ONLY (2-16 & 2-16A & 2-16B)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 7
+--echo # Present in 5.6 I_S.GLOBAL_STATUS (1-6)
+--echo # Missing in 5.7 P_S.GLOBAL_STATUS (2-8)
+--echo # EXPECT NOTHING AFTER REMOVING KNOWN SESSION-ONLY, COM COUNTERS AND SLAVE-ONLY (2-16 & 2-16A & 2-16B)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "I_S.GLOBAL_STATUS"
@@ -1551,15 +1551,15 @@ select * from test.sanity
     and source = "P_S.GLOBAL_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 8
---echo KNOWN SESSION-ONLY (2-16)
---echo KNOWN COM COUNTERS (2-16A)
---echo KNOWN SLAVE-ONLY (2-16B)
---echo Status variables that should NOT be present in 5.7 P_S.GLOBAL_STATUS (2-8)
---echo EXPECT NOTHING
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 8
+--echo # KNOWN SESSION-ONLY (2-16)
+--echo # KNOWN COM COUNTERS (2-16A)
+--echo # KNOWN SLAVE-ONLY (2-16B)
+--echo # Status variables that should NOT be present in 5.7 P_S.GLOBAL_STATUS (2-8)
+--echo # EXPECT NOTHING
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.GLOBAL_STATUS"
@@ -1569,13 +1569,13 @@ select * from test.sanity
     and source = "I_S.GLOBAL_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 9A
---echo Present in 5.7 P_S.SESSION_STATUS (2-10)
---echo Missing in 5.6 I_S.SESSION_STATUS (1-7)
---echo EXPECT NOTHING
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 9A
+--echo # Present in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # Missing in 5.6 I_S.SESSION_STATUS (1-7)
+--echo # EXPECT NOTHING
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.SESSION_STATUS"
@@ -1585,13 +1585,13 @@ select * from test.sanity
     and source = "I_S.SESSION_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 9B
---echo Present in 5.7 P_S.SESSION_STATUS (2-10)
---echo Missing in 5.6 P_S.SESSION_STATUS (1-10)
---echo EXPECT NOTHING
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 9B
+--echo # Present in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # Missing in 5.6 P_S.SESSION_STATUS (1-10)
+--echo # EXPECT NOTHING
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.SESSION_STATUS"
@@ -1601,13 +1601,13 @@ select * from test.sanity
     and source = "P_S.SESSION_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 9C
---echo Present in 5.6 P_S.SESSION_STATUS (1-10)
---echo Missing in 5.7 P_S.SESSION_STATUS (2-10)
---echo EXPECT NOTHING
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 9C
+--echo # Present in 5.6 P_S.SESSION_STATUS (1-10)
+--echo # Missing in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # EXPECT NOTHING
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "P_S.SESSION_STATUS"
@@ -1617,13 +1617,13 @@ select * from test.sanity
     and source = "P_S.SESSION_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 10
---echo Present in 5.6 I_S.SESSION_STATUS (1-7)
---echo Missing in 5.7 P_S.SESSION_STATUS (2-10)
---echo EXPECT NOTHING AFTER REMOVING KNOWN COM COUNTERS AND SLAVE-ONLY (2-15A & 2-15B)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 10
+--echo # Present in 5.6 I_S.SESSION_STATUS (1-7)
+--echo # Missing in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # EXPECT NOTHING AFTER REMOVING KNOWN COM COUNTERS AND SLAVE-ONLY (2-15A & 2-15B)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.6"
   and source = "I_S.SESSION_STATUS"
@@ -1637,14 +1637,14 @@ select * from test.sanity
     and source = "P_S.SESSION_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 11
---echo KNOWN COM COUNTERS (2-15A)
---echo KNOWN SLAVE-ONLY (2-15B)
---echo Status variables that should NOT be present in 5.7 P_S.SESSION_STATUS (2-10)
---echo EXPECT NOTHING
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 11
+--echo # KNOWN COM COUNTERS (2-15A)
+--echo # KNOWN SLAVE-ONLY (2-15B)
+--echo # Status variables that should NOT be present in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # EXPECT NOTHING
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.SESSION_STATUS"
@@ -1654,13 +1654,13 @@ select * from test.sanity
     and source = "I_S.SESSION_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 12
---echo Present in 5.7 P_S.SESSION_STATUS (2-10)
---echo Missing in 5.7 P_S.STATUS_BY_THREAD
---echo EXPECT NOTHING AFTER REMOVING KNOWN GLOBAL-ONLY (2-15)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 12
+--echo # Present in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # Missing in 5.7 P_S.STATUS_BY_THREAD
+--echo # EXPECT NOTHING AFTER REMOVING KNOWN GLOBAL-ONLY (2-15)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.SESSION_STATUS"
@@ -1674,13 +1674,13 @@ select * from test.sanity
     and source = "I_S.SESSION_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 13
---echo Present in 5.7 P_S.STATUS_BY_THREAD
---echo Missing in 5.7 P_S.SESSION_STATUS (2-10)
---echo EXPECT NOTHING
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 13
+--echo # Present in 5.7 P_S.STATUS_BY_THREAD
+--echo # Missing in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # EXPECT NOTHING
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.STATUS_BY_THREAD"
@@ -1690,15 +1690,15 @@ select * from test.sanity
     and source = "P_S.SESSION_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 14
---echo Present in 5.7 P_S.SESSION_STATUS (2-10)
---echo Missing in 5.7 P_S.STATUS_BY_ACCOUNT
---echo EXPECT NOTHING AFTER REMOVING
---echo - KNOWN GLOBAL-ONLY (2-15)
---echo - STATUS VARS THAT CAN'T BE AGGREGATED (2-17)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 14
+--echo # Present in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # Missing in 5.7 P_S.STATUS_BY_ACCOUNT
+--echo # EXPECT NOTHING AFTER REMOVING
+--echo # - KNOWN GLOBAL-ONLY (2-15)
+--echo # - STATUS VARS THAT CAN'T BE AGGREGATED (2-17)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.SESSION_STATUS"
@@ -1716,13 +1716,13 @@ select * from test.sanity
     and source = "P_S.STATUS_BY_ACCOUNT")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 15
---echo Present in 5.7 P_S.STATUS_BY_ACCOUNT
---echo Missing in 5.7 P_S.SESSION_STATUS (2-10)
---echo EXPECT NOTHING
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 15
+--echo # Present in 5.7 P_S.STATUS_BY_ACCOUNT
+--echo # Missing in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # EXPECT NOTHING
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.STATUS_BY_ACCOUNT"
@@ -1732,12 +1732,12 @@ select * from test.sanity
     and source = "P_S.SESSION_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 16
---echo KNOWN STATUS VARS THAT CAN'T BE AGGREGATED (2-17)
---echo Status variables that should NOT be present in 5.7 P_S.STATUS_BY_ACCOUNT
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 16
+--echo # KNOWN STATUS VARS THAT CAN'T BE AGGREGATED (2-17)
+--echo # Status variables that should NOT be present in 5.7 P_S.STATUS_BY_ACCOUNT
+--echo # ================================================================================
 select * from performance_schema.status_by_account
   where upper(variable_name) in (
     select upper(variable_name) from test.sanity
@@ -1745,15 +1745,15 @@ select * from performance_schema.status_by_account
     and source = "NO AGGREGATE")
   order by variable_name;
 
---echo
---echo ================================================================================
---echo TEST 17
---echo Present in 5.7 P_S.SESSION_STATUS (2-10)
---echo Missing in 5.7 P_S.STATUS_BY_USER
---echo EXPECT NOTHING AFTER REMOVING
---echo - KNOWN GLOBAL-ONLY (2-15)
---echo - STATUS VARS THAT CAN'T BE AGGREGATED (2-17)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 17
+--echo # Present in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # Missing in 5.7 P_S.STATUS_BY_USER
+--echo # EXPECT NOTHING AFTER REMOVING
+--echo # - KNOWN GLOBAL-ONLY (2-15)
+--echo # - STATUS VARS THAT CAN'T BE AGGREGATED (2-17)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.SESSION_STATUS"
@@ -1771,12 +1771,12 @@ select * from test.sanity
     and source = "P_S.STATUS_BY_USER")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 18
---echo Present in 5.7 P_S.STATUS_BY_USER
---echo Missing in 5.7 P_S.SESSION_STATUS (2-10)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 18
+--echo # Present in 5.7 P_S.STATUS_BY_USER
+--echo # Missing in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.STATUS_BY_USER"
@@ -1786,12 +1786,12 @@ select * from test.sanity
     and source = "P_S.SESSION_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 19
---echo KNOWN STATUS VARS THAT CAN'T BE AGGREGATED (2-17)
---echo Status variables that should NOT be present in 5.7 P_S.STATUS_BY_USER
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 19
+--echo # KNOWN STATUS VARS THAT CAN'T BE AGGREGATED (2-17)
+--echo # Status variables that should NOT be present in 5.7 P_S.STATUS_BY_USER
+--echo # ================================================================================
 select * from performance_schema.status_by_user
   where upper(variable_name) in (
     select upper(variable_name) from test.sanity
@@ -1799,15 +1799,15 @@ select * from performance_schema.status_by_user
     and source = "NO AGGREGATE")
   order by variable_name;
 
---echo
---echo ================================================================================
---echo TEST 20
---echo Present in 5.7 P_S.SESSION_STATUS (2-10)
---echo Missing in 5.7 P_S.STATUS_BY_HOST
---echo EXPECT NOTHING AFTER REMOVING
---echo - KNOWN GLOBAL-ONLY (2-15)
---echo - STATUS VARS THAT CAN'T BE AGGREGATED (2-17)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 20
+--echo # Present in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # Missing in 5.7 P_S.STATUS_BY_HOST
+--echo # EXPECT NOTHING AFTER REMOVING
+--echo # - KNOWN GLOBAL-ONLY (2-15)
+--echo # - STATUS VARS THAT CAN'T BE AGGREGATED (2-17)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.SESSION_STATUS"
@@ -1825,12 +1825,12 @@ select * from test.sanity
     and source = "P_S.STATUS_BY_HOST")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 21
---echo Present in 5.7 P_S.STATUS_BY_HOST
---echo Missing in 5.7 P_S.SESSION_STATUS (2-10)
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 21
+--echo # Present in 5.7 P_S.STATUS_BY_HOST
+--echo # Missing in 5.7 P_S.SESSION_STATUS (2-10)
+--echo # ================================================================================
 select * from test.sanity
   where show_mode = "5.7"
   and source = "P_S.STATUS_BY_HOST"
@@ -1840,12 +1840,12 @@ select * from test.sanity
     and source = "P_S.SESSION_STATUS")
   order by show_mode, source, variable_name;
 
---echo
---echo ================================================================================
---echo TEST 22
---echo KNOWN STATUS VARS THAT CAN'T BE AGGREGATED (2-17)
---echo Status variables that should NOT be present in 5.7 P_S.STATUS_BY_HOST
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # TEST 22
+--echo # KNOWN STATUS VARS THAT CAN'T BE AGGREGATED (2-17)
+--echo # Status variables that should NOT be present in 5.7 P_S.STATUS_BY_HOST
+--echo # ================================================================================
 select * from performance_schema.status_by_host
   where upper(variable_name) in (
     select upper(variable_name) from test.sanity
@@ -1853,10 +1853,10 @@ select * from performance_schema.status_by_host
     and source = "NO AGGREGATE")
   order by variable_name;
 
---echo
---echo ================================================================================
---echo CLEAN UP
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # CLEAN UP
+--echo # ================================================================================
 set @@global.show_compatibility_56 = @show_compatibility_56_save;
 drop table test.sanity;
 

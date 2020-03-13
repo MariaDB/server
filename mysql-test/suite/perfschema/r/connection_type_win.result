@@ -1,4 +1,4 @@
-"Default connection"
+# Default connection
 select NAME, PROCESSLIST_USER, PROCESSLIST_HOST, CONNECTION_TYPE
 from performance_schema.threads
 where PROCESSLIST_ID = connection_id();
@@ -20,7 +20,6 @@ SET GLOBAL general_log_file = '.../log/rewrite_general_con.log';
 SET GLOBAL log_output =       'FILE,TABLE';
 SET GLOBAL general_log=       'ON';
 connect con1, localhost, root,,;
-"Connection con1"
 select NAME, PROCESSLIST_USER, PROCESSLIST_HOST, CONNECTION_TYPE
 from performance_schema.threads
 where PROCESSLIST_ID = connection_id();
@@ -30,7 +29,6 @@ PROCESSLIST_HOST	santa.claus.ipv4.example.com
 CONNECTION_TYPE	TCP/IP
 disconnect con1;
 connect con2, "127.0.0.1", root,,test,$MASTER_MYPORT,;
-"Connection con2"
 select NAME, PROCESSLIST_USER, PROCESSLIST_HOST, CONNECTION_TYPE
 from performance_schema.threads
 where PROCESSLIST_ID = connection_id();
@@ -40,7 +38,6 @@ PROCESSLIST_HOST	santa.claus.ipv4.example.com
 CONNECTION_TYPE	TCP/IP
 disconnect con2;
 connect con3, "127.0.0.1", rootssl,,test,$MASTER_MYPORT,,SSL;
-"Connection con3"
 select NAME, PROCESSLIST_USER, PROCESSLIST_HOST, CONNECTION_TYPE
 from performance_schema.threads
 where PROCESSLIST_ID = connection_id();

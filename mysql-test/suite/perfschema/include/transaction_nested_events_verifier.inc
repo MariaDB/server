@@ -17,11 +17,11 @@ let $wait_condition=
 --source include/wait_condition.inc
 if(!$success)
 {
-  --echo The activity of connection con1 did not finish.
+  --echo # The activity of connection con1 did not finish.
   SELECT thread_id , PROCESSLIST_id, PROCESSLIST_STATE, PROCESSLIST_INFO
   FROM performance_schema.threads
   WHERE thread_id = @con1_thread_id;
-  --echo Abort.
+  --echo # Abort.
   exit;
 }
 
@@ -47,8 +47,9 @@ select if(@base_tx_event_id < @base_stmt_event_id,
 # set @base_event_id = 0;
 # select @base_tx_event_id, @base_stmt_event_id, @base_event_id;
 
---echo EVENTS_TRANSACTIONS_CURRENT
---echo
+--echo #
+--echo # EVENTS_TRANSACTIONS_CURRENT
+--echo #
 
 --replace_column 1 thread_id
 
@@ -66,9 +67,9 @@ FROM performance_schema.events_transactions_current
 WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
 ORDER BY thread_id, event_id;
 
---echo
---echo EVENTS_TRANSACTIONS_HISTORY_LONG
---echo
+--echo #
+--echo # EVENTS_TRANSACTIONS_HISTORY_LONG
+--echo #
 
 --replace_column 1 thread_id
 
@@ -86,9 +87,9 @@ FROM performance_schema.events_transactions_history_long
 WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
 ORDER BY thread_id, event_id;
 
---echo
---echo EVENTS_STATEMENTS_HISTORY_LONG
---echo
+--echo #
+--echo # EVENTS_STATEMENTS_HISTORY_LONG
+--echo #
 
 --replace_column 1 thread_id
 
@@ -105,11 +106,11 @@ FROM performance_schema.events_statements_history_long
 WHERE ((THREAD_ID = @con1_thread_id) OR (@all_threads = 1))
 ORDER BY thread_id, event_id;
 
---echo
---echo ## Combined statement and transaction event history ordered by event id
---echo
---echo EVENTS_STATEMENTS_HISTORY_LONG + EVENTS_TRANSACTIONS_HISTORY_LONG
---echo
+--echo #
+--echo ### Combined statement and transaction event history ordered by event id
+--echo #
+--echo #EVENTS_STATEMENTS_HISTORY_LONG + EVENTS_TRANSACTIONS_HISTORY_LONG
+--echo #
 
 --replace_column 1 thread_id
 
@@ -134,11 +135,11 @@ FROM performance_schema.events_statements_history_long s
 WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
 ORDER BY thread_id, r_event_id;
 
---echo
---echo ## Clear statement and transaction history
---echo CALL test.clear_history();
+--echo #
+--echo ### Clear statement and transaction history
+--echo # CALL test.clear_history();
 CALL test.clear_history();
 --enable_query_log
 --echo ## Reset db.t1
 DELETE FROM db.t1;
---echo
+--echo #

@@ -1,6 +1,6 @@
-
+#
 # Create a temporary table of performance schema table names
-
+#
 CREATE TEMPORARY TABLE table_list (id INT AUTO_INCREMENT, PRIMARY KEY (id)) AS
 SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA='performance_schema'
@@ -8,10 +8,10 @@ WHERE TABLE_SCHEMA='performance_schema'
 SELECT COUNT(*) FROM table_list INTO @table_count;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-
+#
 # For each table in the performance schema, attempt HANDLER...OPEN,
 # which should fail with an error 1031, ER_ILLEGAL_HA.
-
+#
 SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=80;
 HANDLER performance_schema.user_variables_by_thread OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`user_variables_by_thread` doesn't have this option

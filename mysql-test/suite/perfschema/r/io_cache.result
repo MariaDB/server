@@ -1,6 +1,6 @@
-
+#
 ## Connection default
-
+#
 connection default;
 USE test;
 DROP TABLE IF EXISTS t1;
@@ -13,9 +13,9 @@ SELECT @@global.binlog_stmt_cache_size;
 SELECT * FROM performance_schema.setup_instruments WHERE name LIKE "%file/sql/io_cache%";
 NAME	ENABLED	TIMED
 wait/io/file/sql/io_cache	YES	YES
-
+#
 ## Connection con1
-
+#
 connect con1, localhost, root,,;
 USE test;
 CREATE TABLE t1 (s1 INT, s2 VARCHAR(4096));
@@ -82,9 +82,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 8
 disconnect con1;
-
+#
 ## Connection default
-
+#
 connection default;
 SELECT COUNT(*) FROM test.t1;
 COUNT(*)

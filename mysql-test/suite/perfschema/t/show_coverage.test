@@ -9,23 +9,23 @@
 --source include/no_protocol.inc
 --source include/count_sessions.inc
 
---echo
+--echo #
 --echo # TEST 1
 --echo # Handling of SHOW STATUS/VARIABLES ... WHERE
 --echo #
 SHOW STATUS WHERE VARIABLE_NAME LIKE "foo";
---echo
+--echo #
 SHOW GLOBAL STATUS WHERE VARIABLE_NAME LIKE "foo";
---echo
+--echo #
 SHOW SESSION STATUS WHERE VARIABLE_NAME LIKE "foo";
---echo
+--echo #
 SHOW VARIABLES WHERE VARIABLE_NAME LIKE "foo";
---echo
+--echo #
 SHOW GLOBAL VARIABLES WHERE VARIABLE_NAME LIKE "foo";
---echo
+--echo #
 SHOW SESSION VARIABLES WHERE VARIABLE_NAME LIKE "foo";
 
---echo
+--echo #
 --echo # TEST 2
 --echo # CREATE..SELECT -- Expect correct ER_WARN_DEPRECATED_SYNTAX
 --echo #
@@ -33,7 +33,7 @@ USE test;
 CREATE TABLE t0 SELECT * FROM information_schema.global_status WHERE variable_name = 'COM_SELECT';
 DROP TABLE t0;
 
---echo
+--echo #
 --echo # TEST 3
 --echo # Select status and system variable tables using ORDER BY to exercise the
 --echo # rnd_pos() method
@@ -51,33 +51,33 @@ select * from status_by_host order by variable_name;
 select * from status_by_account order by variable_name;
 --enable_result_log
 
---echo
+--echo #
 --echo # TEST 4
 --echo # Handling of SHOW STATUS/VARIABLES ... WHERE
 --echo #
 SHOW STATUS WHERE VARIABLE_NAME LIKE "foo";
---echo
+--echo #
 SHOW GLOBAL STATUS WHERE VARIABLE_NAME LIKE "foo";
---echo
+--echo #
 SHOW SESSION STATUS WHERE VARIABLE_NAME LIKE "foo";
---echo
+--echo #
 SHOW VARIABLES WHERE VARIABLE_NAME LIKE "foo";
---echo
+--echo #
 SHOW GLOBAL VARIABLES WHERE VARIABLE_NAME LIKE "foo";
---echo
+--echo #
 SHOW SESSION VARIABLES WHERE VARIABLE_NAME LIKE "foo";
 
---echo
+--echo #
 --echo # TEST 5
 --echo # Confirm FLUSH STATUS resets counters for all threads.
 --echo #
---echo
+--echo #
 --echo # Create a new connection
 --connect(con1, localhost, root,,)
---echo
+--echo #
 --echo # Record thread id
 let $thread_id= `SELECT THREAD_ID FROM performance_schema.threads WHERE PROCESSLIST_ID = CONNECTION_ID()`;
---echo
+--echo #
 --echo # Increase bytes_received for new connection
 USE test;
 SHOW TABLES;
@@ -87,21 +87,21 @@ USE performance_schema;
 eval SELECT $thread_id INTO @thread_id;
 --enable_query_log
 
---echo
+--echo #
 --echo # Record bytes_received for other connection
 SELECT variable_value FROM status_by_thread
   WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_before;
---echo
+--echo #
 --echo # Reset status counters
 FLUSH STATUS;
---echo
+--echo #
 --echo # Record bytes_received after reset
 SELECT variable_value FROM status_by_thread
   WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_after;
---echo
+--echo #
 --echo # Expect bytes_before > bytes_after
 SELECT @bytes_before > @bytes_after AS 'Expect 1';
---echo
+--echo #
 --echo # Expect bytes_after is zero
 SELECT @bytes_after AS 'Expect 0';
 
@@ -109,19 +109,19 @@ disconnect con1;
 --source include/wait_until_count_sessions.inc
 
 
---echo
+--echo #
 --echo # TEST 6
 --echo #
 --echo # Bug#28291258 FLUSH STATUS ADDS TWICE TO GLOBAL VALUES
 --echo #
 
---echo
+--echo #
 --echo # Default connection
 --let $initial_global_value = query_get_value(SHOW GLOBAL STATUS LIKE 'Slow_queries', Value, 1)
 
 --source include/count_sessions.inc
 
---echo
+--echo #
 --echo # First connection
 --connect (con1, localhost, root,,)
 
@@ -131,13 +131,13 @@ disconnect con1;
 --let $assert_text = Global value requested from the first session must not change
 --source include/assert.inc
 
---echo
+--echo #
 --echo # Generate a slow query
---echo
+--echo #
 SET long_query_time = 2;
 SELECT SLEEP(4);
 SET long_query_time = @@global.long_query_time;
---echo
+--echo #
 
 ## Global value requested from the first session after SLEEP() must increase by 1
 --let $current_global_value = query_get_value(SHOW GLOBAL STATUS LIKE 'Slow_queries', Value, 1)
@@ -153,7 +153,7 @@ SET long_query_time = @@global.long_query_time;
 --disconnect con1
 --source include/wait_until_count_sessions.inc
 
---echo
+--echo #
 --echo # Default connection
 --connection default
 
@@ -169,9 +169,9 @@ SET long_query_time = @@global.long_query_time;
 --let $assert_text = Default session value must remain zero
 --source include/assert.inc
 
---echo
+--echo #
 FLUSH STATUS;
---echo
+--echo #
 
 ## Global value requested from the default session after FLUSH must remain the same
 --let $current_global_value = query_get_value(SHOW GLOBAL STATUS LIKE 'Slow_queries', Value, 1)

@@ -24,6 +24,6 @@ if ($current_result == '')
   --let $current_result= none
 }
 
---echo - history=$history_result current=$current_result
+--echo # - history=$history_result current=$current_result
 
 --connection default

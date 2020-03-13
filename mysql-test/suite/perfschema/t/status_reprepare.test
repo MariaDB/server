@@ -4,10 +4,10 @@
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
 
---echo
---echo ================================================================================
---echo SETUP
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # SETUP
+--echo # ================================================================================
 
 # Create a new connection, to get clean statistics
 connect(con1, localhost, root,,);
@@ -50,10 +50,10 @@ SELECT VARIABLE_VALUE INTO @count_global_reprepare_after
 # Should increment by 1
 SELECT @count_global_reprepare_after - @count_global_reprepare_before;
 
---echo
---echo ================================================================================
---echo CLEANUP
---echo ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # CLEANUP
+--echo # ================================================================================
 
 DROP TABLE test.t1;
 

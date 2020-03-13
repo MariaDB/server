@@ -4,7 +4,7 @@
 --source include/have_debug.inc
 --source include/have_perfschema.inc
 
---echo "Default connection"
+--echo # Default connection
 
 --vertical_results
 select NAME, PROCESSLIST_USER, PROCESSLIST_HOST, CONNECTION_TYPE
@@ -35,8 +35,6 @@ SET GLOBAL general_log=       'ON';
 
 connect(con1, localhost, root,,);
 
---echo "Connection con1"
-
 select NAME, PROCESSLIST_USER, PROCESSLIST_HOST, CONNECTION_TYPE
   from performance_schema.threads
   where PROCESSLIST_ID = connection_id();
@@ -45,8 +43,6 @@ select NAME, PROCESSLIST_USER, PROCESSLIST_HOST, CONNECTION_TYPE
 
 connect(con2, "127.0.0.1", root,,test,$MASTER_MYPORT,);
 
---echo "Connection con2"
-
 select NAME, PROCESSLIST_USER, PROCESSLIST_HOST, CONNECTION_TYPE
   from performance_schema.threads
   where PROCESSLIST_ID = connection_id();
@@ -54,8 +50,6 @@ select NAME, PROCESSLIST_USER, PROCESSLIST_HOST, CONNECTION_TYPE
 --disconnect con2
 
 connect(con3, "127.0.0.1", rootssl,,test,$MASTER_MYPORT,,SSL);
-
---echo "Connection con3"
 
 select NAME, PROCESSLIST_USER, PROCESSLIST_HOST, CONNECTION_TYPE
   from performance_schema.threads

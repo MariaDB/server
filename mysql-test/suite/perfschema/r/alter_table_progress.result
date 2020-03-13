@@ -57,7 +57,7 @@ select "After payload";
 After payload
 After payload
 connection default;
-Dumping ALTER TABLE stages
+# Dumping ALTER TABLE stages
 select EVENT_NAME, WORK_COMPLETED, WORK_ESTIMATED
 from performance_schema.events_stages_history_long
 where (thread_id = @con1_thread_id)

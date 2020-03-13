@@ -57,7 +57,7 @@
 --let $rpl_server_count= 1
 --source include/rpl_init.inc
 
---echo ==== Configure ====
+--echo # ==== Configure ====
 
 --connection default
 
@@ -75,7 +75,7 @@ CREATE TABLE t1 (a INT);
 --let $auxiliary_file= suite/perfschema/include/show_transaction_gtid.inc
 --let $quiet= 1
 
---echo ==== Test ====
+--echo # ==== Test ====
 
 --let $n= 1
 while ($n <= 4) {
@@ -182,7 +182,7 @@ while ($n <= 4) {
   --inc $n
 }
 
---echo ==== Clean up ====
+--echo # ==== Clean up ====
 
 DROP TABLE t1;
 # DROP TABLE t_1, t_2, t_3, t_4;

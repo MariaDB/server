@@ -11,9 +11,9 @@
 --source include/not_embedded.inc
 --source include/no_protocol.inc
 
---echo
+--echo #
 --echo ## Connection default
---echo
+--echo #
 --connection default
 --disable_warnings
 USE test;
@@ -23,9 +23,9 @@ SELECT @@global.binlog_cache_size;
 SELECT @@global.binlog_stmt_cache_size;
 SELECT * FROM performance_schema.setup_instruments WHERE name LIKE "%file/sql/io_cache%";
 
---echo
+--echo #
 --echo ## Connection con1
---echo
+--echo #
 connect(con1, localhost, root,,);
 USE test;
 CREATE TABLE t1 (s1 INT, s2 VARCHAR(4096));
@@ -103,9 +103,9 @@ COMMIT;
 SELECT COUNT(*) FROM t1;
 --disconnect con1
 
---echo
+--echo #
 --echo ## Connection default
---echo
+--echo #
 --connection default
 SELECT COUNT(*) FROM test.t1;
 

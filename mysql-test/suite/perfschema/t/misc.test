@@ -204,7 +204,7 @@ select * from t1;
 select mysql_errno, returned_sqlstate, message_text, errors, warnings
   from performance_schema.events_statements_history where errors > 0;
   
---echo
+--echo #
 select mysql_errno, returned_sqlstate, message_text, errors, warnings from 
   performance_schema.events_statements_history_long where errors > 0;
 
