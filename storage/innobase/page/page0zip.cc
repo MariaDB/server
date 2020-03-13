@@ -4986,60 +4986,30 @@ page_zip_calc_checksum(
 	return(0);
 }
 
-/**********************************************************************//**
-Verify a compressed page's checksum.
-@return TRUE if the stored checksum is valid according to the value of
-innodb_checksum_algorithm */
-ibool
-page_zip_verify_checksum(
-/*=====================*/
-	const void*	data,		/*!< in: compressed page */
-	ulint		size)		/*!< in: size of compressed page */
+/** Validate the checksum on a ROW_FORMAT=COMPRESSED page.
+@param data    ROW_FORMAT=COMPRESSED page
+@param size    size of the page, in bytes
+@return whether the stored checksum matches innodb_checksum_algorithm */
+bool page_zip_verify_checksum(const void *data, size_t size)
 {
-	const uint32_t stored = mach_read_from_4(
-		static_cast<const byte*>(data) + FIL_PAGE_SPACE_OR_CHKSUM);
-
-#if FIL_PAGE_LSN % 8
-#error "FIL_PAGE_LSN must be 64 bit aligned"
-#endif
-
-	/* Check if page is empty */
-	if (stored == 0
-	    && *reinterpret_cast<const ib_uint64_t*>(static_cast<const char*>(
-		data)
-		+ FIL_PAGE_LSN) == 0) {
-		/* make sure that the page is really empty */
-#ifdef UNIV_INNOCHECKSUM
-		ulint i;
-		for (i = 0; i < size; i++) {
-			if (*((const char*) data + i) != 0)
-				break;
-		}
-		if (i >= size) {
-			if (log_file) {
-			fprintf(log_file, "Page::%llu is empty and"
-					" uncorrupted\n", cur_page_num);
-			}
-
-			return(TRUE);
-		}
-#else
-		for (ulint i = 0; i < size; i++) {
-			if (*((const char*) data + i) != 0) {
-				return(FALSE);
-			}
-		}
-		/* Empty page */
-		return(TRUE);
-#endif /* UNIV_INNOCHECKSUM */
-	}
-
 	const srv_checksum_algorithm_t	curr_algo =
 		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
 
 	if (curr_algo == SRV_CHECKSUM_ALGORITHM_NONE) {
-		return(TRUE);
+		return true;
 	}
+
+	for (size_t i = 0; i < size; i++) {
+		if (static_cast<const byte*>(data)[i] != 0) {
+			goto not_all_zeroes;
+		}
+	}
+
+	return true;
+
+not_all_zeroes:
+	const uint32_t stored = mach_read_from_4(
+		static_cast<const byte*>(data) + FIL_PAGE_SPACE_OR_CHKSUM);
 
 	uint32_t calc = page_zip_calc_checksum(data, size, curr_algo);
 
@@ -5055,7 +5025,6 @@ page_zip_verify_checksum(
 	}
 
 	if (!strict_verify) {
-
 		const uint32_t	crc32 = page_zip_calc_checksum(
 			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
 
