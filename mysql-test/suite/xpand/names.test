@@ -1,0 +1,98 @@
+CREATE DATABASE xpd;
+USE xpd;
+
+CREATE TABLE `--` (i INT) ENGINE=Xpand;
+CREATE TABLE `;` (i INT) ENGINE=Xpand;
+CREATE TABLE `;--` (i INT) ENGINE=Xpand;
+CREATE TABLE `'` (i INT) ENGINE=Xpand;
+CREATE TABLE `';` (i INT) ENGINE=Xpand;
+CREATE TABLE `''` (i INT) ENGINE=Xpand;
+CREATE TABLE `'';` (i INT) ENGINE=Xpand;
+CREATE TABLE `'';--` (i INT) ENGINE=Xpand;
+CREATE TABLE `"` (i INT) ENGINE=Xpand;
+CREATE TABLE `";` (i INT) ENGINE=Xpand;
+CREATE TABLE `""` (i INT) ENGINE=Xpand;
+CREATE TABLE `"";` (i INT) ENGINE=Xpand;
+CREATE TABLE `"";--` (i INT) ENGINE=Xpand;
+
+SET @sql_mode = @@sql_mode;
+SET sql_mode = CONCAT('ANSI_QUOTES,', @sql_mode);
+CREATE TABLE "`" (i INT) ENGINE=Xpand;
+CREATE TABLE "`;" (i INT) ENGINE=Xpand;
+CREATE TABLE "``" (i INT) ENGINE=Xpand;
+CREATE TABLE "``;" (i INT) ENGINE=Xpand;
+CREATE TABLE "``;--" (i INT) ENGINE=Xpand;
+SET sql_mode = @sql_mode;
+
+RENAME TABLE `--` TO `--x`;
+RENAME TABLE `--x` TO `--`;
+RENAME TABLE `;` TO `;x`;
+RENAME TABLE `;x` TO `;`;
+RENAME TABLE `;--` TO `;--x`;
+RENAME TABLE `;--x` TO `;--`;
+RENAME TABLE `'` TO `'x`;
+RENAME TABLE `'x` TO `'`;
+RENAME TABLE `';` TO `';x`;
+RENAME TABLE `';x` TO `';`;
+RENAME TABLE `''` TO `''x`;
+RENAME TABLE `''x` TO `''`;
+RENAME TABLE `'';` TO `'';x`;
+RENAME TABLE `'';x` TO `'';`;
+RENAME TABLE `'';--` TO `'';--x`;
+RENAME TABLE `'';--x` TO `'';--`;
+RENAME TABLE `"` TO `"x`;
+RENAME TABLE `"x` TO `"`;
+RENAME TABLE `";` TO `";x`;
+RENAME TABLE `";x` TO `";`;
+RENAME TABLE `""` TO `""x`;
+RENAME TABLE `""x` TO `""`;
+RENAME TABLE `"";` TO `"";x`;
+RENAME TABLE `"";x` TO `"";`;
+RENAME TABLE `"";--` TO `"";--x`;
+RENAME TABLE `"";--x` TO `"";--`;
+
+SET @sql_mode = @@sql_mode;
+SET sql_mode = CONCAT('ANSI_QUOTES,', @sql_mode);
+RENAME TABLE "`" TO "`x";
+RENAME TABLE "`x" TO "`";
+RENAME TABLE "`;" TO "`;x";
+RENAME TABLE "`;x" TO "`;";
+RENAME TABLE "``" TO "``x";
+RENAME TABLE "``x" TO "``";
+RENAME TABLE "``;" TO "``;x";
+RENAME TABLE "``;x" TO "``;";
+RENAME TABLE "``;--" TO "``;--x";
+RENAME TABLE "``;--x" TO "``;--";
+SET sql_mode = @sql_mode;
+
+CREATE DATABASE `xpd2; DROP DATABASE xpd`;
+USE `xpd2; DROP DATABASE xpd`;
+
+CREATE TABLE `t (i INT) ENGINE=Xpand; --` (j VARCHAR(255)) ENGINE=Xpand;
+INSERT INTO `t (i INT) ENGINE=Xpand; --` VALUES ('`yay`');
+SELECT * FROM `t (i INT) ENGINE=Xpand; --`;
+DROP TABLE `t (i INT) ENGINE=Xpand; --`;
+
+USE xpd;
+
+DROP TABLE `--`, `;`, `;--`;
+DROP TABLE `'`, `';`;
+DROP TABLE `''`;
+DROP TABLE `'';`;
+DROP TABLE `'';--`;
+DROP TABLE `"`, `";`;
+DROP TABLE `""`;
+DROP TABLE `"";`;
+DROP TABLE `"";--`;
+
+SET @sql_mode = @@sql_mode;
+SET sql_mode = CONCAT('ANSI_QUOTES,', @sql_mode);
+DROP TABLE "`", "`;";
+DROP TABLE "``";
+DROP TABLE "``;";
+DROP TABLE "``;--";
+SET sql_mode = @sql_mode;
+
+USE test;
+DROP DATABASE `xpd2; DROP DATABASE xpd`;
+DROP DATABASE xpd;

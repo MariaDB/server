@@ -1,0 +1,100 @@
+CREATE DATABASE xpd;
+USE xpd;
+
+--disable_warnings
+DROP TABLE IF EXISTS cx1, t1, t2;
+--enable_warnings
+
+CREATE TABLE cx1(i BIGINT)ENGINE=xpand;
+--error ER_TABLE_EXISTS_ERROR
+CREATE TABLE cx1(i BIGINT)ENGINE=xpand;
+
+INSERT INTO cx1 VALUES (42);
+
+SELECT * FROM cx1;
+
+DROP TABLE cx1;
+
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE cx1;
+
+DROP TABLE IF EXISTS intandtext;
+CREATE TABLE intandtext(i bigint, t text)ENGINE=xpand;
+INSERT INTO intandtext VALUES(10, 'someqwqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
+
+SELECT i,t FROM intandtext;
+EXPLAIN SELECT i,t FROM intandtext;
+
+SET @@optimizer_switch='derived_merge=OFF';
+SET xpand_select_handler=OFF;
+SELECT i,t FROM (SELECT i,t FROM intandtext) t;
+EXPLAIN SELECT i,t FROM (SELECT i,t FROM intandtext) t;
+
+SET xpand_derived_handler=OFF;
+SELECT i,t FROM intandtext;
+SELECT i,t FROM (SELECT i,t FROM intandtext) t;
+EXPLAIN SELECT i,t FROM (SELECT i,t FROM intandtext) t;
+
+DROP TABLE intandtext;
+
+set 
+  optimizer_switch=default,
+  xpand_derived_handler= default,
+  xpand_select_handler=default;
+
+--echo #
+--echo # CLX-77: INSERT ... SELECT returns rows to the client instead of inserting
+--echo #
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+
+create table t1 (a int) engine=xpand;
+insert into t1 values (1);
+
+select a into @var from t1;
+select @var;
+
+--echo # This must not emit output to the client:
+select a into outfile 'tmpfile1' from t1;
+let $file=`select concat(@@datadir,'/xpd/tmpfile1')`;
+
+--remove_file $file
+
+create table t2 (a int) engine=myisam;
+insert into t2 select * from t1;
+select * from t2;
+
+drop table t1,t2;
+
+--echo # 
+--echo # CLX-55: Prepared statement support: 
+--echo #   Implement "Direct Update" by printing the statement
+--echo # 
+create table t1 (a int primary key, b int) engine=xpand;
+insert into t1 values (1,1),(2,2),(3,3);
+
+prepare s from 'update t1 set b=b+? where a=?';
+execute s using 10000, 2;
+--sorted_result
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # CLX-80: ALTER TABLE t ENGINE=CLUSTRIX fails with an error
+--echo #
+create table t1 (a int) engine=myisam;
+insert into t1 values (1),(2),(3);
+alter table t1 engine=xpand;
+--sorted_result
+select * from t1;
+show create table t1;
+
+--echo # Try a RENAME TABLE too since the patch touches the code
+alter table t1 rename t2;
+show create table t2;
+
+drop table t2;
+
+USE test;
+DROP DATABASE xpd;

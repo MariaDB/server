@@ -1,0 +1,44 @@
+CREATE DATABASE IF NOT EXISTS `db1`;
+
+# Do the test in another connection so that we don't have to clean up
+connect (con1,localhost,root,,test);
+connection con1;
+
+USE `db1`;
+--disable_warnings
+DROP TABLE IF EXISTS `t1`;
+--enable_warnings
+
+CREATE TABLE `t1`(i BIGINT, t TEXT)ENGINE=xpand;
+show create table t1;
+
+set character_set_client=utf8;
+set collation_connection=utf8_bin;
+set character_set_results=utf8;
+INSERT INTO `t1` (i, t) VALUES (42, 'один');
+INSERT INTO `t1` (i, t) VALUES (42, 'ноль');
+SELECT * FROM `t1` ORDER BY `i` DESC, `t` DESC;
+
+--echo # examine the data on the backend:
+--echo # This should show that the SELECT has been pushed to the backend:
+explain
+select i, hex(t) from t1;
+--sorted_result
+select i, hex(t) from t1;
+--echo # The above should match:
+select hex('один') as row1, hex('ноль') as row2;
+
+UPDATE `t1` SET i=i+1,t='два' WHERE t='один';
+SELECT * FROM `t1` ORDER BY `i` DESC, `t` DESC;
+
+USE test;
+UPDATE `db1`.`t1` SET i=i+1,t='три' WHERE t='два';
+SELECT * FROM `db1`.`t1` ORDER BY `i` DESC, `t` DESC;
+
+disconnect con1;
+connection default;
+
+DROP TABLE `db1`.`t1`;
+
+USE test;
+DROP DATABASE `db1`;

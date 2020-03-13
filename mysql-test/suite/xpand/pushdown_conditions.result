@@ -1,0 +1,47 @@
+CREATE DATABASE xpd;
+USE xpd;
+DROP TABLE IF EXISTS cx1;
+CREATE TABLE cx1(i BIGINT, i2 BIGINT, t TEXT)ENGINE=xpand;
+INSERT INTO cx1 VALUES (41, 43, 'some1'), (42, 42, 'some2'), (43, 41, 'some3');
+SELECT * FROM cx1 ORDER BY i;
+i	i2	t
+41	43	some1
+42	42	some2
+43	41	some3
+SET xpand_select_handler=OFF;
+SELECT * FROM cx1 WHERE i>41 AND i2>41;
+i	i2	t
+42	42	some2
+EXPLAIN SELECT * FROM cx1 WHERE i>41 AND i2>41;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	cx1	ALL	NULL	NULL	NULL	NULL	10000	Using where with pushed condition
+SELECT * FROM cx1 WHERE i>41 AND i2>41 AND t='some2';
+i	i2	t
+42	42	some2
+EXPLAIN SELECT * FROM cx1 WHERE i>41 AND i2>41 AND t='some2';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	cx1	ALL	NULL	NULL	NULL	NULL	10000	Using where with pushed condition
+SELECT * FROM cx1 WHERE i>i2+1;
+i	i2	t
+43	41	some3
+EXPLAIN SELECT * FROM cx1 WHERE i>i2+1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	cx1	ALL	NULL	NULL	NULL	NULL	10000	Using where with pushed condition
+SET @@optimizer_switch='derived_merge=OFF';
+SELECT * FROM (SELECT * FROM cx1 WHERE i>i2+1) a1 ORDER BY i;
+i	i2	t
+43	41	some3
+EXPLAIN SELECT * FROM (SELECT * FROM cx1 WHERE i>i2+1) a1 ORDER BY i;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SET xpand_derived_handler=OFF;
+SELECT * FROM (SELECT * FROM cx1 WHERE i>i2+1) a1 ORDER BY i;
+i	i2	t
+43	41	some3
+EXPLAIN SELECT * FROM (SELECT * FROM cx1 WHERE i>i2+1) a1 ORDER BY i;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
+2	DERIVED	cx1	ALL	NULL	NULL	NULL	NULL	10000	Using where with pushed condition
+USE test;
+DROP DATABASE xpd;
