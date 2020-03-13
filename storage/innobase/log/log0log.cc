@@ -37,13 +37,11 @@ Created 12/9/1995 Heikki Tuuri
 
 #include "log0log.h"
 #include "log0crypt.h"
-#include "mem0mem.h"
 #include "buf0buf.h"
 #include "buf0flu.h"
 #include "lock0lock.h"
 #include "log0recv.h"
 #include "fil0fil.h"
-#include "dict0boot.h"
 #include "dict0stats_bg.h"
 #include "btr0defragment.h"
 #include "srv0srv.h"
@@ -52,7 +50,6 @@ Created 12/9/1995 Heikki Tuuri
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "srv0mon.h"
-#include "sync0sync.h"
 #include "buf0dump.h"
 #include "log0sync.h"
 
@@ -93,10 +90,6 @@ should be bigger than LOG_POOL_PREFLUSH_RATIO_SYNC */
 /* The same ratio for asynchronous preflushing; this value should be less than
 the previous */
 #define LOG_POOL_PREFLUSH_RATIO_ASYNC	8
-
-/* Codes used in unlocking flush latches */
-#define LOG_UNLOCK_NONE_FLUSHED_LOCK	1
-#define LOG_UNLOCK_FLUSH_LOCK		2
 
 /****************************************************************//**
 Returns the oldest modified block lsn in the pool, or log_sys.lsn if none

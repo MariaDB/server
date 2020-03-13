@@ -34,25 +34,21 @@ Created 12/9/1995 Heikki Tuuri
 #ifndef log0log_h
 #define log0log_h
 
-#include "dyn0buf.h"
 #include "log0types.h"
-#include "os0event.h"
+#include "ut0mutex.h"
 #include "os0file.h"
 #include "span.h"
 #include <atomic>
+#include <vector>
+#include <string>
 
 using st_::span;
-
-/** Magic value to use instead of log checksums when they are disabled */
-#define LOG_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
 
 /* Margin for the free space in the smallest log, before a new query
 step which modifies the database, is started */
 
 #define LOG_CHECKPOINT_FREE_PER_THREAD	(4U << srv_page_size_shift)
 #define LOG_CHECKPOINT_EXTRA_FREE	(8U << srv_page_size_shift)
-
-typedef ulint (*log_checksum_func_t)(const byte* log_block);
 
 static const char LOG_FILE_NAME_PREFIX[] = "ib_logfile";
 static const char LOG_FILE_NAME[] = "ib_logfile0";
@@ -304,10 +300,6 @@ Refreshes the statistics used to print per-second averages. */
 void
 log_refresh_stats(void);
 /*===================*/
-
-/* Values used as flags */
-#define LOG_FLUSH	7652559
-#define LOG_CHECKPOINT	78656949
 
 /* The counting of lsn's starts from this value: this must be non-zero */
 #define LOG_START_LSN		((lsn_t) (16 * OS_FILE_LOG_BLOCK_SIZE))
