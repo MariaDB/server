@@ -2094,7 +2094,7 @@ static void page_mem_free(const buf_block_t &block, rec_t *rec,
       ? ((n_heap & 0x8000)
          ? static_cast<uint16_t>(free - rec)
          : static_cast<uint16_t>(free - block.frame))
-      : 0;
+      : uint16_t{0};
     mach_write_to_2(rec - REC_NEXT, next);
   }
   else

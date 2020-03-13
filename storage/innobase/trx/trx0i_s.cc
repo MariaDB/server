@@ -184,7 +184,7 @@ static uint16_t wait_lock_get_heap_no(const lock_t* lock)
 {
 	return lock_get_type(lock) == LOCK_REC
 		? static_cast<uint16_t>(lock_rec_find_set_bit(lock))
-		: 0;
+		: uint16_t{0};
 }
 
 /*******************************************************************//**

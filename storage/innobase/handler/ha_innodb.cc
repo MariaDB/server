@@ -20939,8 +20939,15 @@ innobase_get_computed_value(
 		}
 
 		if (len == UNIV_SQL_NULL) {
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
+#endif
                         mysql_rec[templ->mysql_null_byte_offset]
                                 |= (byte) templ->mysql_null_bit_mask;
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
                         memcpy(mysql_rec + templ->mysql_col_offset,
                                static_cast<const byte*>(
 					index->table->vc_templ->default_rec

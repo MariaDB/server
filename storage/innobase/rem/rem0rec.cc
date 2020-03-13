@@ -448,8 +448,9 @@ start:
 	} while (field++, rec_offs_base(offsets)[++i] = len,
 		 i < rec_offs_n_fields(offsets));
 
-	*rec_offs_base(offsets)
-		= static_cast<offset_t>(rec - (lens + 1)) | REC_OFFS_COMPACT | any;
+	*rec_offs_base(offsets) = static_cast<offset_t>((rec - (lens + 1))
+							| REC_OFFS_COMPACT
+							| any);
 }
 
 #ifdef UNIV_DEBUG
@@ -737,8 +738,8 @@ resolved:
 		} while (++i < rec_offs_n_fields(offsets));
 
 		*rec_offs_base(offsets)
-			= static_cast<offset_t>(rec - (lens + 1))
-			  | REC_OFFS_COMPACT;
+			= static_cast<offset_t>((rec - (lens + 1))
+						| REC_OFFS_COMPACT);
 	} else {
 		/* Old-style record: determine extra size and end offsets */
 		offs = REC_N_OLD_EXTRA_BYTES;
@@ -1591,7 +1592,14 @@ start:
 
 			/* set the null flag if necessary */
 			if (dfield_is_null(field)) {
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
+#endif
 				*nulls |= static_cast<byte>(null_mask);
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 				null_mask <<= 1;
 				continue;
 			}
@@ -1626,21 +1634,20 @@ start:
 			ut_ad(DATA_BIG_COL(ifield->col));
 			ut_ad(len <= REC_ANTELOPE_MAX_INDEX_COL_LEN
 					+ BTR_EXTERN_FIELD_REF_SIZE);
-			*lens-- = (byte) (len >> 8) | 0xc0;
-			*lens-- = (byte) len;
+			*lens-- = static_cast<byte>(len >> 8 | 0xc0);
+			*lens-- = static_cast<byte>(len);
 		} else {
 			ut_ad(len <= field->type.len
 			      || DATA_LARGE_MTYPE(field->type.mtype)
 			      || !strcmp(index->name,
 					 FTS_INDEX_TABLE_IND_NAME));
 			if (len < 128 || !DATA_BIG_LEN_MTYPE(
-				field->type.len, field->type.mtype)) {
-
-				*lens-- = (byte) len;
+				    field->type.len, field->type.mtype)) {
+				*lens-- = static_cast<byte>(len);
 			} else {
 				ut_ad(len < 16384);
-				*lens-- = (byte) (len >> 8) | 0x80;
-				*lens-- = (byte) len;
+				*lens-- = static_cast<byte>(len >> 8 | 0x80);
+				*lens-- = static_cast<byte>(len);
 			}
 		}
 

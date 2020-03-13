@@ -643,7 +643,14 @@ ibuf_bitmap_page_set_bits(
 	} else {
 		ut_ad(val <= 1);
 		b &= static_cast<byte>(~(1U << bit_offset));
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
+#endif
 		b |= static_cast<byte>(val << bit_offset);
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 	}
 
 	mtr->write<1,mtr_t::OPT>(*block, map_byte, b);
