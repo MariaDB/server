@@ -789,8 +789,8 @@ buf_block_modify_clock_inc(
 {
 	/* No latch is acquired for the shared temporary tablespace. */
 	ut_ad(fsp_is_system_temporary(block->page.id.space())
-	      || block->page.buf_fix_count == 0
-		  && mutex_own(&buf_pool->LRU_list_mutex)
+	      || (block->page.buf_fix_count == 0
+		  && mutex_own(&buf_pool->LRU_list_mutex))
 	      || rw_lock_own_flagged(&block->lock,
 				     RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
 	assert_block_ahi_valid(block);

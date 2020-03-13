@@ -1530,8 +1530,8 @@ not_freed:
 
 		goto not_freed;
 
-	} else if (b != NULL) {
-		memcpy(b, bpage, sizeof *b);
+	} else if (b) {
+		new (b) buf_page_t(*bpage);
 	}
 
 	ut_ad(rw_lock_own(hash_lock, RW_LOCK_X));
