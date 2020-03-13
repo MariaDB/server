@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
+  Copyright (c) 2020, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -619,6 +620,7 @@ static void init_instr_class(PFS_instr_class *klass,
   DBUG_ASSERT(name_length <= PFS_MAX_INFO_NAME_LENGTH);
   memset(klass, 0, sizeof(PFS_instr_class));
   strncpy(klass->m_name, name, name_length);
+  klass->m_name[PFS_MAX_INFO_NAME_LENGTH - 1]= '\0';
   klass->m_name_length= name_length;
   klass->m_flags= flags;
   klass->m_enabled= true;
