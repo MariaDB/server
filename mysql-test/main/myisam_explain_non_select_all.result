@@ -752,12 +752,12 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	1	Using where; Using filesort
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using filesort
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	3
@@ -781,8 +781,6 @@ Handler_read_rnd_next	1
 # Status of testing query execution:
 Variable_name	Value
 Handler_read_key	3
-Handler_read_rnd_next	1
-Sort_scan	1
 
 INSERT INTO t1 VALUES (1), (2), (3), (-1), (-2), (-3);
 #

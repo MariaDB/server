@@ -28,12 +28,14 @@ SELECT `db`.`version`, `db`.`nodeID`
 FROM `version_history` AS `v` INNER JOIN `db_history` AS `db` ON `db`.`nodeID` = `v`.`linkid` 
 WHERE `latch` = 'breadth_first' AND `origid` = '1' ORDER BY `weight` DESC LIMIT 1;
 version	nodeID
+0.0.3	3
 disconnect con1;
 connect  con2,localhost,root,,test;
 SELECT `db`.`version`, `db`.`nodeID` 
 FROM `version_history` AS `v` INNER JOIN `db_history` AS `db` ON `db`.`nodeID` = `v`.`linkid` 
 WHERE `latch` = 'breadth_first' AND `origid` = '1' ORDER BY `weight` DESC LIMIT 1;
 version	nodeID
+0.0.3	3
 disconnect con2;
 connect  con3,localhost,root,,test;
 DROP TABLE version_history;

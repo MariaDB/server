@@ -1117,6 +1117,7 @@ CREATE INDEX t3_quality ON t3(quality);
 INSERT INTO t3 VALUES
   (6, 4, 8, 0, "010101_anastacia_spmidi.mid", "2004-03-16 13:40:00", 1, NULL, NULL, 255),
   (3343, 3, 8, 1, "010102_4VN4bsPwnxRQUJW5Zp1RhG2IL9vvl_8.mid", "2004-03-16 13:40:00", 1, NULL, NULL, 255);
+insert into t3 (mediaid, formatid) values (1000,1),(1001,2),(1002,3),(1003,1),(1004,2),(1005,3);
 
 CREATE TABLE t4(
   formatid int  NOT NULL ,

@@ -192,7 +192,7 @@ a
 15
 explain select * from t1 where not(a < 15 and a > 5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	11	Using where; Using index
+1	SIMPLE	t1	index	a	a	5	NULL	21	Using where; Using index
 select * from t1 where not(a < 15 and a > 5);
 a
 0
@@ -208,7 +208,7 @@ a
 19
 explain select * from t1 where a = 2 or not(a < 10);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	11	Using where; Using index
+1	SIMPLE	t1	index	a	a	5	NULL	21	Using where; Using index
 select * from t1 where a = 2 or not(a < 10);
 a
 2
@@ -255,7 +255,7 @@ a
 19
 explain select * from t1 where a = 2 or not(a < 5 or a > 15);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	12	Using where; Using index
+1	SIMPLE	t1	index	a	a	5	NULL	21	Using where; Using index
 select * from t1 where a = 2 or not(a < 5 or a > 15);
 a
 2
@@ -289,7 +289,7 @@ a
 19
 explain select * from t1 where NULL or not(a < 15 and a > 5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	11	Using where; Using index
+1	SIMPLE	t1	index	a	a	5	NULL	21	Using where; Using index
 select * from t1 where NULL or not(a < 15 and a > 5);
 a
 0

@@ -440,25 +440,25 @@ VARIABLE_NAME	VARIABLE_VALUE
 KEY_BLOCKS_NOT_FLUSHED	0
 KEY_BLOCKS_USED	4
 KEY_BLOCKS_WARM	0
-KEY_READ_REQUESTS	24
+KEY_READ_REQUESTS	22
 KEY_READS	0
 KEY_WRITE_REQUESTS	26
 KEY_WRITES	6
 select variable_value into @key_blocks_unused from information_schema.session_status where variable_name = 'Key_blocks_unused';
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	NULL	NULL	2097152	1024	4	#	0	24	0	26	6
+default	NULL	NULL	2097152	1024	4	#	0	22	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 delete from t2 where a='zzzz';
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	NULL	NULL	2097152	1024	4	#	0	32	0	32	9
+default	NULL	NULL	2097152	1024	4	#	0	29	0	32	9
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 delete from t1;
 delete from t2;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	NULL	NULL	2097152	1024	4	#	0	32	0	32	9
+default	NULL	NULL	2097152	1024	4	#	0	29	0	32	9
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 set global key_cache_segments=2;
 select @@key_cache_segments;
@@ -488,7 +488,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 KEY_BLOCKS_NOT_FLUSHED	0
 KEY_BLOCKS_USED	4
 KEY_BLOCKS_WARM	0
-KEY_READ_REQUESTS	24
+KEY_READ_REQUESTS	22
 KEY_READS	0
 KEY_WRITE_REQUESTS	26
 KEY_WRITES	6
@@ -497,13 +497,13 @@ variable_value < @key_blocks_unused
 1
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	2097152	1024	4	#	0	24	0	26	6
+default	2	NULL	2097152	1024	4	#	0	22	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 delete from t1;
 delete from t2;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	2097152	1024	4	#	0	24	0	26	6
+default	2	NULL	2097152	1024	4	#	0	22	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 set global key_cache_segments=1;
 select @@key_cache_segments;
@@ -533,7 +533,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 KEY_BLOCKS_NOT_FLUSHED	0
 KEY_BLOCKS_USED	4
 KEY_BLOCKS_WARM	0
-KEY_READ_REQUESTS	24
+KEY_READ_REQUESTS	22
 KEY_READS	0
 KEY_WRITE_REQUESTS	26
 KEY_WRITES	6
@@ -542,13 +542,13 @@ variable_value = @key_blocks_unused
 1
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	1	NULL	2097152	1024	4	#	0	24	0	26	6
+default	1	NULL	2097152	1024	4	#	0	22	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 delete from t1;
 delete from t2;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	1	NULL	2097152	1024	4	#	0	24	0	26	6
+default	1	NULL	2097152	1024	4	#	0	22	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 flush tables;
 flush status;
@@ -586,7 +586,7 @@ update t1 set p=3 where p=1;
 update t2 set i=2 where i=1;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	4	#	0	24	0	26	6
+default	2	NULL	32768	1024	4	#	0	22	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	0	0	0	0
 insert into t1(a) select a from t1;
 insert into t1(a) select a from t1;
@@ -606,7 +606,7 @@ insert into t2(i,a) select i,a from t2;
 insert into t2(i,a) select i,a from t2;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	6735	#	3684	103
+default	2	NULL	32768	1024	#	#	0	6733	#	3684	103
 small	NULL	NULL	1048576	1024	#	#	0	0	#	0	0
 select * from t1 where p between 1010 and 1020 ;
 p	a
@@ -625,7 +625,7 @@ p	i	a
 1020	3	zzzz
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	6756	#	3684	103
+default	2	NULL	32768	1024	#	#	0	6750	#	3684	103
 small	NULL	NULL	1048576	1024	#	#	0	0	#	0	0
 flush tables;
 flush status;
@@ -633,7 +633,7 @@ update t1 set a='zzzz' where a='qqqq';
 update t2 set i=1 where i=2;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3078	18	1552	18
+default	2	NULL	32768	1024	#	#	0	3076	18	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 set global keycache1.key_buffer_size=256*1024;
 select @@keycache1.key_buffer_size;
@@ -645,7 +645,7 @@ select @@keycache1.key_cache_segments;
 7
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3078	18	1552	18
+default	2	NULL	32768	1024	#	#	0	3076	18	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 keycache1	7	NULL	262143	2048	#	#	0	0	0	0	0
 select * from information_schema.key_caches where key_cache_name like "key%"
@@ -685,13 +685,13 @@ count(*)
 256
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
-keycache1	7	NULL	262143	2048	#	#	0	18	3	0	0
+keycache1	7	NULL	262143	2048	#	#	0	14	3	0	0
 select * from information_schema.key_caches where key_cache_name like "key%"
                                                   and segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-keycache1	7	NULL	262143	2048	3	#	0	18	3	0	0
+keycache1	7	NULL	262143	2048	3	#	0	14	3	0	0
 cache index t2 in keycache1;
 Table	Op	Msg_type	Msg_text
 test.t2	assign_to_keycache	status	OK
@@ -699,7 +699,7 @@ update t2 set p=p+3000, i=2 where a='qqqq';
 select * from information_schema.key_caches where key_cache_name like "key%"
                                                   and segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-keycache1	7	NULL	262143	2048	25	#	0	2088	25	1071	19
+keycache1	7	NULL	262143	2048	25	#	0	2082	25	1071	19
 set global keycache2.key_buffer_size=1024*1024;
 cache index t2 in keycache2;
 Table	Op	Msg_type	Msg_text
@@ -712,7 +712,7 @@ keycache2	NULL	NULL	1048576	1024	6	#	0	6	6	3	3
 select * from information_schema.key_caches where key_cache_name like "key%" 
 and segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-keycache1	7	NULL	262143	2048	25	#	0	2088	25	1071	19
+keycache1	7	NULL	262143	2048	25	#	0	2082	25	1071	19
 keycache2	NULL	NULL	1048576	1024	6	#	0	6	6	3	3
 cache index t2 in keycache1;
 Table	Op	Msg_type	Msg_text
@@ -751,80 +751,80 @@ a
 yyyy
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
-keycache1	7	NULL	262143	2048	#	#	0	3231	43	1594	30
+keycache1	7	NULL	262143	2048	#	#	0	3201	43	1594	30
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 set global keycache1.key_cache_block_size=2*1024;
 insert into t2 values (7000, 3, 'yyyy');
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 keycache1	7	NULL	262143	2048	#	#	0	6	6	3	3
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 set global keycache1.key_cache_block_size=8*1024;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 keycache1	3	NULL	262143	8192	#	#	0	0	0	0	0
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 insert into t2 values (8000, 3, 'yyyy');
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 keycache1	3	NULL	262143	8192	#	#	0	6	5	3	3
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 set global keycache1.key_buffer_size=64*1024;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 set global keycache1.key_cache_block_size=2*1024;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 keycache1	3	NULL	65535	2048	#	#	0	0	0	0	0
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 set global keycache1.key_cache_block_size=8*1024;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 set global keycache1.key_buffer_size=0;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 set global keycache1.key_cache_block_size=8*1024;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 set global keycache1.key_buffer_size=0;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 set global keycache1.key_buffer_size=128*1024;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 keycache1	1	NULL	131072	8192	#	#	0	0	0	0	0
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 set global keycache1.key_cache_block_size=1024;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	3178	24	1552	18
+default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
 keycache1	7	NULL	131068	1024	#	#	0	0	0	0	0
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3

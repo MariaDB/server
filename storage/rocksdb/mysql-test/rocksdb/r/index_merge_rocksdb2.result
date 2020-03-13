@@ -479,7 +479,7 @@ a	filler	b
 must use union, not sort-union:
 explain select * from t2 where a=4 or b=4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a,b	NULL	NULL	NULL	#	Using where
+1	SIMPLE	t2	index_merge	a,b	a,b	5,5	NULL	#	Using union(a,b); Using where
 select * from t2 where a=4 or b=4;
 a	filler	b
 4	4	0

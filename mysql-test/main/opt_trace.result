@@ -2044,7 +2044,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 180,
-                        "cost": 231.72,
+                        "cost": 229.72,
                         "chosen": true
                       },
                       {
@@ -2226,7 +2226,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     "using_mrr": false,
                     "index_only": false,
                     "rows": 180,
-                    "cost": 231.72,
+                    "cost": 229.72,
                     "chosen": true
                   }
                 ],
@@ -2243,7 +2243,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "ranges": ["(1) <= (a) <= (1)"]
                 },
                 "rows_for_plan": 180,
-                "cost_for_plan": 231.72,
+                "cost_for_plan": 229.72,
                 "chosen": true
               }
             }
@@ -7568,7 +7568,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": true,
                 "rows": 107,
-                "cost": 10.955,
+                "cost": 8.9549,
                 "chosen": true
             }
         ],
@@ -7605,7 +7605,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1000,
-                "cost": 1282.2,
+                "cost": 1273.2,
                 "chosen": true
             }
         ],
@@ -8009,7 +8009,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1000,
-                "cost": 1282.2,
+                "cost": 1273.2,
                 "chosen": true
             }
         ],

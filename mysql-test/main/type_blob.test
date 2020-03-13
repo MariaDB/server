@@ -362,6 +362,7 @@ insert into t1 (txt) values
   ('Chevy'), ('Chevy '), (NULL), ('Honda'), ('Subaru'), ('Honda');
 select * from t1 where txt='Chevy' or txt is NULL;
 explain select * from t1 where txt='Chevy' or txt is NULL;
+explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL;
 select * from t1 where txt='Chevy ';
 select * from t1 where txt='Chevy ' or txt='Chevy';
 select * from t1 where txt='Chevy' or txt='Chevy ';

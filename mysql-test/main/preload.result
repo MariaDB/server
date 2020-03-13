@@ -55,14 +55,14 @@ count(*)
 4181
 show status like "key_read%";
 Variable_name	Value
-Key_read_requests	297
+Key_read_requests	294
 Key_reads	60
 select count(*) from t1 where b = 'test1';
 count(*)
 4181
 show status like "key_read%";
 Variable_name	Value
-Key_read_requests	594
+Key_read_requests	588
 Key_reads	60
 flush tables;
 flush status;
@@ -81,7 +81,7 @@ count(*)
 4181
 show status like "key_read%";
 Variable_name	Value
-Key_read_requests	1071
+Key_read_requests	1068
 Key_reads	774
 flush tables;
 flush status;
@@ -105,7 +105,7 @@ count(*)
 4181
 show status like "key_read%";
 Variable_name	Value
-Key_read_requests	314
+Key_read_requests	311
 Key_reads	75
 flush tables;
 flush status;
@@ -133,7 +133,7 @@ count(*)
 2584
 show status like "key_read%";
 Variable_name	Value
-Key_read_requests	1272
+Key_read_requests	1266
 Key_reads	821
 flush tables;
 flush status;

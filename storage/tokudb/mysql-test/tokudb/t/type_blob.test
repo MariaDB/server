@@ -364,6 +364,7 @@ create table t1 (id integer primary key auto_increment, txt text, index txt_inde
 insert into t1 (txt) values ('Chevy'), ('Chevy '), (NULL);
 select * from t1 where txt='Chevy' or txt is NULL;
 explain select * from t1 where txt='Chevy' or txt is NULL;
+explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL;
 select * from t1 where txt='Chevy ';
 select * from t1 where txt='Chevy ' or txt='Chevy';
 select * from t1 where txt='Chevy' or txt='Chevy ';
@@ -384,8 +385,10 @@ select * from t1 where txt > 'Chevy';
 select * from t1 where txt >= 'Chevy';
 alter table t1 modify column txt blob;
 explain select * from t1 where txt='Chevy' or txt is NULL;
+explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL;
 select * from t1 where txt='Chevy' or txt is NULL;
 explain select * from t1 where txt='Chevy' or txt is NULL order by txt;
+explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL order by txt;
 select * from t1 where txt='Chevy' or txt is NULL order by txt;
 drop table t1;
 
