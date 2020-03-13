@@ -2068,8 +2068,7 @@ ibuf_get_merge_page_nos_func(
 
 	*n_stored = 0;
 
-	limit = ut_min(IBUF_MAX_N_PAGES_MERGED,
-		       buf_pool_get_curr_size() / 4);
+	limit = IBUF_MAX_N_PAGES_MERGED;
 
 	if (page_rec_is_supremum(rec)) {
 
@@ -4222,7 +4221,12 @@ ibuf_merge_or_delete_for_page(
 	ulint		dops[IBUF_OP_COUNT];
 
 	ut_ad(block == NULL || page_id == block->page.id);
+#if MDEV_15053_FIXED // innodb.ibuf_not_empty fails
+	ut_ad(block == NULL
+	      || buf_block_get_io_fix_unlocked(block) == BUF_IO_READ);
+#else
 	ut_ad(!block || buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
+#endif
 
 	if (trx_sys_hdr_page(page_id)
 	    || fsp_is_system_temporary(page_id.space())) {

@@ -358,12 +358,8 @@ extern ulong	srv_n_page_hash_locks;
 extern ulong	srv_LRU_scan_depth;
 /** Whether or not to flush neighbors of a block */
 extern ulong	srv_flush_neighbors;
-/** Previously requested size */
-extern ulint	srv_buf_pool_old_size;
-/** Current size as scaling factor for the other components */
-extern ulint	srv_buf_pool_base_size;
-/** Current size in bytes */
-extern ulint	srv_buf_pool_curr_size;
+/** Buffer pool size is being changed */
+extern std::atomic<bool>	srv_buf_pool_size_changing;
 /** Dump this % of each buffer pool during BP dump */
 extern ulong	srv_buf_pool_dump_pct;
 #ifdef UNIV_DEBUG
