@@ -1006,6 +1006,64 @@ static int install_used_engines(void)
   return 0;
 }
 
+static int check_slave_repositories(void)
+{
+  DYNAMIC_STRING ds_result;
+  int row_count= 0;
+  int error= 0;
+  const char *query = "SELECT COUNT(*) AS c1 FROM mysql.slave_master_info";
+
+  if (init_dynamic_string(&ds_result, "", 512, 512))
+    die("Out of memory");
+
+  run_query(query, &ds_result, TRUE);
+
+  if (ds_result.length)
+  {
+    row_count= atoi((char *)ds_result.str);
+    if (row_count)
+    {
+      fprintf(stderr,"Slave info repository compatibility check:"
+              " Found data in `mysql`.`slave_master_info` table.\n");
+      fprintf(stderr,"Warning: Content of `mysql`.`slave_master_info` table"
+              " will be ignored as MariaDB supports file based info "
+              "repository.\n");
+      error= 1;
+    }
+  }
+  dynstr_free(&ds_result);
+
+  query = "SELECT COUNT(*) AS c1 FROM mysql.slave_relay_log_info";
+
+  if (init_dynamic_string(&ds_result, "", 512, 512))
+    die("Out of memory");
+
+  run_query(query, &ds_result, TRUE);
+
+  if (ds_result.length)
+  {
+    row_count= atoi((char *)ds_result.str);
+    if (row_count)
+    {
+      fprintf(stderr, "Slave info repository compatibility check:"
+              " Found data in `mysql`.`slave_relay_log_info` table.\n");
+      fprintf(stderr, "Warning: Content of `mysql`.`slave_relay_log_info` "
+              "table will be ignored as MariaDB supports file based "
+              "repository.\n");
+      error= 1;
+    }
+  }
+  dynstr_free(&ds_result);
+  if (error)
+  {
+    fprintf(stderr,"Slave server may not possess the correct replication "
+            "metadata.\n");
+    fprintf(stderr, "Execution of CHANGE MASTER as per "
+            "`mysql`.`slave_master_info` and  `mysql`.`slave_relay_log_info` "
+            "table content is recommended.\n");
+  }
+  return 0;
+}
 
 /*
   Update all system tables in MySQL Server to current
@@ -1217,7 +1275,8 @@ int main(int argc, char **argv)
       run_mysqlcheck_views() ||
       run_sql_fix_privilege_tables() ||
       run_mysqlcheck_fixnames() ||
-      run_mysqlcheck_upgrade(FALSE))
+      run_mysqlcheck_upgrade(FALSE) ||
+      check_slave_repositories())
     die("Upgrade failed" );
 
   verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);

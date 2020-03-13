@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -182,7 +182,7 @@ enum Exit_status {
 */
 static Annotate_rows_log_event *annotate_event= NULL;
 
-void free_annotate_event()
+static void free_annotate_event()
 {
   if (annotate_event)
   {
@@ -928,7 +928,7 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     }
   }
 
-  /* 
+  /*
      end of statement check:
        i) destroy/free ignored maps
       ii) if skip event
@@ -939,21 +939,21 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
    */
   if (is_stmt_end)
   {
-    /* 
+    /*
       Now is safe to clear ignored map (clear_tables will also
       delete original table map events stored in the map).
     */
     if (print_event_info->m_table_map_ignored.count() > 0)
       print_event_info->m_table_map_ignored.clear_tables();
 
-    /* 
+    /*
       If there is a kept Annotate event and all corresponding
       rbr-events were filtered away, the Annotate event was not
       freed and it is just the time to do it.
     */
-      free_annotate_event();
+    free_annotate_event();
 
-    /* 
+    /*
        One needs to take into account an event that gets
        filtered but was last event in the statement. If this is
        the case, previous rows events that were written into

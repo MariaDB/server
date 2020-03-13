@@ -1400,7 +1400,7 @@ buf_page_encrypt_before_write(
 NOTE! The definition appears here only for other modules of this
 directory (buf) to see it. Do not use from outside! */
 
-typedef struct {
+struct buf_tmp_buffer_t {
 private:
 	int32		reserved;	/*!< true if this slot is reserved
 					*/
@@ -1430,7 +1430,7 @@ public:
 		return !my_atomic_fas32_explicit(&reserved, true,
 						 MY_MEMORY_ORDER_RELAXED);
 	}
-} buf_tmp_buffer_t;
+};
 
 /** The common buffer control block structure
 for compressed and uncompressed frames */
