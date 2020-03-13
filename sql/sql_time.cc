@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013 Monty Program Ab.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -402,7 +402,7 @@ bool double_to_datetime_with_warn(double value, MYSQL_TIME *ltime,
   if (neg)
     value= -value;
 
-  if (value > LONGLONG_MAX)
+  if (value > static_cast<double>(LONGLONG_MAX))
     value= static_cast<double>(LONGLONG_MAX);
 
   longlong nr= static_cast<ulonglong>(floor(value));

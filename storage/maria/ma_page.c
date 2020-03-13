@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -112,7 +113,7 @@ my_bool _ma_fetch_keypage(MARIA_PAGE *page, MARIA_HA *info,
 
   if (lock != PAGECACHE_LOCK_LEFT_UNLOCKED)
   {
-    DBUG_ASSERT(lock == PAGECACHE_LOCK_WRITE || PAGECACHE_LOCK_READ);
+    DBUG_ASSERT(lock == PAGECACHE_LOCK_WRITE || lock == PAGECACHE_LOCK_READ);
     page_link.unlock= (lock == PAGECACHE_LOCK_WRITE ?
                        PAGECACHE_LOCK_WRITE_UNLOCK :
                        PAGECACHE_LOCK_READ_UNLOCK);
