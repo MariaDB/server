@@ -154,8 +154,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   next(0), binlog_status(binlog_status_arg), value_origin(COMPILE_TIME),
   flags(flags_arg), show_val_type(show_val_type_arg),
   guard(lock), offset(off), on_check(on_check_func), on_update(on_update_func),
-  deprecation_substitute(substitute),
-  is_os_charset(FALSE)
+  deprecation_substitute(substitute)
 {
   /*
     There is a limitation in handle_options() related to short options:
@@ -507,12 +506,6 @@ bool throw_bounds_warning(THD *thd, const char *name, bool fixed, double v)
     return throw_bounds_warning(thd, name, buf);
   }
   return false;
-}
-
-CHARSET_INFO *sys_var::charset(THD *thd)
-{
-  return is_os_charset ? thd->variables.character_set_filesystem :
-    system_charset_info;
 }
 
 

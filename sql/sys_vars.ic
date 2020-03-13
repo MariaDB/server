@@ -97,7 +97,6 @@
       exit(255);                                                        \
     }
 
-enum charset_enum {IN_SYSTEM_CHARSET, IN_FS_CHARSET};
 
 static const char *bool_values[3]= {"OFF", "ON", 0};
 TYPELIB bool_typelib={ array_elements(bool_values)-1, "", bool_values, 0 };
@@ -449,9 +448,6 @@ public:
   or not. The state of the initial value is specified in the constructor,
   after that it's managed automatically. The value of NULL is supported.
 
-  Class specific constructor arguments:
-    enum charset_enum is_os_charset_arg
-
   Backing store: char*
 
   @note
@@ -465,7 +461,6 @@ public:
   Sys_var_charptr_base(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
-          enum charset_enum is_os_charset_arg,
           const char *def_val, PolyLock *lock=0,
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
@@ -476,7 +471,6 @@ public:
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
   {
-    is_os_charset= is_os_charset_arg == IN_FS_CHARSET;
     /*
      use GET_STR_ALLOC - if ALLOCATED it must be *always* allocated,
      otherwise (GET_STR) you'll never know whether to free it or not.
@@ -566,14 +560,13 @@ public:
   Sys_var_charptr(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
-          enum charset_enum is_os_charset_arg,
           const char *def_val, PolyLock *lock=0,
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
           const char *substitute=0) :
     Sys_var_charptr_base(name_arg, comment, flag_args, off, size, getopt,
-                         is_os_charset_arg, def_val, lock, binlog_status_arg,
+                         def_val, lock, binlog_status_arg,
                          on_check_func, on_update_func, substitute)
   {
     SYSVAR_ASSERT(scope() == GLOBAL);
@@ -589,6 +582,18 @@ public:
   { DBUG_ASSERT(FALSE); }
 };
 
+
+class Sys_var_charptr_fscs: public Sys_var_charptr
+{
+  using Sys_var_charptr::Sys_var_charptr;
+public:
+  CHARSET_INFO *charset(THD *thd) const override
+  {
+    return thd->variables.character_set_filesystem;
+  }
+};
+
+
 #ifndef EMBEDDED_LIBRARY
 class Sys_var_sesvartrack: public Sys_var_charptr_base
 {
@@ -596,11 +601,10 @@ public:
   Sys_var_sesvartrack(const char *name_arg,
                       const char *comment,
                       CMD_LINE getopt,
-                      enum charset_enum is_os_charset_arg,
                       const char *def_val, PolyLock *lock= 0) :
     Sys_var_charptr_base(name_arg, comment,
                          SESSION_VAR(session_track_system_variables),
-                         getopt, is_os_charset_arg, def_val, lock,
+                         getopt, def_val, lock,
                          VARIABLE_NOT_IN_BINLOG, 0, 0, 0)
     {}
   bool do_check(THD *thd, set_var *var)
@@ -649,14 +653,12 @@ public:
 class Sys_var_proxy_user: public sys_var
 {
 public:
-  Sys_var_proxy_user(const char *name_arg,
-          const char *comment, enum charset_enum is_os_charset_arg)
+  Sys_var_proxy_user(const char *name_arg, const char *comment)
     : sys_var(&all_sys_vars, name_arg, comment,
               sys_var::READONLY+sys_var::ONLY_SESSION, 0, NO_GETOPT,
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL)
   {
-    is_os_charset= is_os_charset_arg == IN_FS_CHARSET;
     option.var_type|= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)
@@ -689,9 +691,8 @@ protected:
 class Sys_var_external_user : public Sys_var_proxy_user
 {
 public:
-  Sys_var_external_user(const char *name_arg, const char *comment_arg, 
-          enum charset_enum is_os_charset_arg) 
-    : Sys_var_proxy_user (name_arg, comment_arg, is_os_charset_arg)
+  Sys_var_external_user(const char *name_arg, const char *comment_arg)
+    : Sys_var_proxy_user (name_arg, comment_arg)
   {}
 
 protected:
@@ -743,9 +744,6 @@ protected:
   The class for string variables. Useful for strings that aren't necessarily
   \0-terminated. Otherwise the same as Sys_var_charptr.
 
-  Class specific constructor arguments:
-    enum charset_enum is_os_charset_arg
-
   Backing store: LEX_CSTRING
 
   @note
@@ -757,14 +755,13 @@ public:
   Sys_var_lexstring(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
-          enum charset_enum is_os_charset_arg,
           const char *def_val, PolyLock *lock=0,
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
           const char *substitute=0)
     : Sys_var_charptr(name_arg, comment, flag_args, off, sizeof(char*),
-              getopt, is_os_charset_arg, def_val, lock, binlog_status_arg,
+              getopt, def_val, lock, binlog_status_arg,
               on_check_func, on_update_func, substitute)
   {
     global_var(LEX_CSTRING).length= strlen(def_val);
@@ -793,7 +790,6 @@ public:
   Sys_var_session_lexstring(const char *name_arg,
                             const char *comment, int flag_args,
                             ptrdiff_t off, size_t size, CMD_LINE getopt,
-                            enum charset_enum is_os_charset_arg,
                             const char *def_val, size_t max_length_arg,
                             on_check_function on_check_func=0,
                             on_update_function on_update_func=0)

@@ -501,16 +501,16 @@ static Sys_var_ulong Sys_back_log(
        AUTO_SET READ_ONLY GLOBAL_VAR(back_log), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 65535), DEFAULT(150), BLOCK_SIZE(1));
 
-static Sys_var_charptr Sys_basedir(
+static Sys_var_charptr_fscs Sys_basedir(
        "basedir", "Path to installation directory. All paths are "
        "usually resolved relative to this",
        READ_ONLY GLOBAL_VAR(mysql_home_ptr), CMD_LINE(REQUIRED_ARG, 'b'),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
-static Sys_var_charptr Sys_my_bind_addr(
+static Sys_var_charptr_fscs Sys_my_bind_addr(
        "bind_address", "IP address to bind to.",
        READ_ONLY GLOBAL_VAR(my_bind_addr_str), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 const char *Sys_var_vers_asof::asof_keywords[]= {"DEFAULT", NULL};
 static Sys_var_vers_asof Sys_vers_asof_timestamp(
@@ -730,10 +730,10 @@ static Sys_var_ulonglong Sys_bulk_insert_buff_size(
        SESSION_VAR(bulk_insert_buff_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, SIZE_T_MAX), DEFAULT(8192*1024), BLOCK_SIZE(1));
 
-static Sys_var_charptr Sys_character_sets_dir(
+static Sys_var_charptr_fscs Sys_character_sets_dir(
        "character_sets_dir", "Directory where character sets are",
        READ_ONLY GLOBAL_VAR(charsets_dir), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static bool check_not_null(sys_var *self, THD *thd, set_var *var)
 {
@@ -986,10 +986,10 @@ static Sys_var_ulong Sys_connect_timeout(
        GLOBAL_VAR(connect_timeout), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(2, LONG_TIMEOUT), DEFAULT(CONNECT_TIMEOUT), BLOCK_SIZE(1));
 
-static Sys_var_charptr Sys_datadir(
+static Sys_var_charptr_fscs Sys_datadir(
        "datadir", "Path to the database root directory",
        READ_ONLY GLOBAL_VAR(mysql_real_data_home_ptr),
-       CMD_LINE(REQUIRED_ARG, 'h'), IN_FS_CHARSET, DEFAULT(mysql_real_data_home));
+       CMD_LINE(REQUIRED_ARG, 'h'), DEFAULT(mysql_real_data_home));
 
 #ifndef DBUG_OFF
 static Sys_var_dbug Sys_dbug(
@@ -1185,7 +1185,7 @@ static Sys_var_charptr Sys_ft_boolean_syntax(
        "ft_boolean_syntax", "List of operators for "
        "MATCH ... AGAINST ( ... IN BOOLEAN MODE)",
        GLOBAL_VAR(ft_boolean_syntax),
-       CMD_LINE(REQUIRED_ARG), IN_SYSTEM_CHARSET,
+       CMD_LINE(REQUIRED_ARG),
        DEFAULT(DEFAULT_FTB_SYNTAX), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_ftb_syntax), ON_UPDATE(query_cache_flush));
 
@@ -1212,11 +1212,11 @@ static Sys_var_ulong Sys_ft_query_expansion_limit(
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1000), DEFAULT(20), BLOCK_SIZE(1));
 
-static Sys_var_charptr Sys_ft_stopword_file(
+static Sys_var_charptr_fscs Sys_ft_stopword_file(
        "ft_stopword_file",
        "Use stopwords from this file instead of built-in list",
        READ_ONLY GLOBAL_VAR(ft_stopword_file), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static Sys_var_mybool Sys_ignore_builtin_innodb(
        "ignore_builtin_innodb",
@@ -1237,7 +1237,7 @@ static PolyLock_rwlock PLock_sys_init_connect(&LOCK_sys_init_connect);
 static Sys_var_lexstring Sys_init_connect(
        "init_connect", "Command(s) that are executed for each "
        "new connection (unless the user has SUPER privilege)",
-       GLOBAL_VAR(opt_init_connect), CMD_LINE(REQUIRED_ARG), IN_SYSTEM_CHARSET,
+       GLOBAL_VAR(opt_init_connect), CMD_LINE(REQUIRED_ARG),
        DEFAULT(""), &PLock_sys_init_connect, NOT_IN_BINLOG,
        ON_CHECK(check_init_string));
 
@@ -1257,11 +1257,11 @@ static Sys_var_session_lexstring Sys_default_master_connection(
        "default_master_connection",
        "Master connection to use for all slave variables and slave commands",
        SESSION_ONLY(default_master_connection),
-       NO_CMD_LINE, IN_SYSTEM_CHARSET,
+       NO_CMD_LINE,
        DEFAULT(""), MAX_CONNECTION_NAME, ON_CHECK(check_master_connection));
 #endif
 
-static Sys_var_charptr Sys_init_file(
+static Sys_var_charptr_fscs Sys_init_file(
        "init_file", "Read SQL commands from this file at startup",
        READ_ONLY GLOBAL_VAR(opt_init_file),
 #ifdef DISABLE_GRANT_OPTIONS
@@ -1269,13 +1269,13 @@ static Sys_var_charptr Sys_init_file(
 #else
        CMD_LINE(REQUIRED_ARG),
 #endif
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static PolyLock_rwlock PLock_sys_init_slave(&LOCK_sys_init_slave);
 static Sys_var_lexstring Sys_init_slave(
        "init_slave", "Command(s) that are executed by a slave server "
        "each time the SQL thread starts", GLOBAL_VAR(opt_init_slave),
-       CMD_LINE(REQUIRED_ARG), IN_SYSTEM_CHARSET,
+       CMD_LINE(REQUIRED_ARG),
        DEFAULT(""), &PLock_sys_init_slave,
        NOT_IN_BINLOG, ON_CHECK(check_init_string));
 
@@ -1361,10 +1361,10 @@ static Sys_var_mybool Sys_large_pages(
        READ_ONLY GLOBAL_VAR(opt_large_pages),
        IF_WIN(NO_CMD_LINE, CMD_LINE(OPT_ARG)), DEFAULT(FALSE));
 
-static Sys_var_charptr Sys_language(
+static Sys_var_charptr_fscs Sys_language(
        "lc_messages_dir", "Directory where error messages are",
        READ_ONLY GLOBAL_VAR(lc_messages_dir_ptr), CMD_LINE(REQUIRED_ARG, 'L'),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static Sys_var_mybool Sys_local_infile(
        "local_infile", "Enable LOAD DATA LOCAL INFILE",
@@ -1412,14 +1412,14 @@ static Sys_var_mybool Sys_trust_function_creators(
        GLOBAL_VAR(trust_function_creators),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-static Sys_var_charptr Sys_log_error(
+static Sys_var_charptr_fscs Sys_log_error(
        "log_error",
        "Log errors to file (instead of stdout).  If file name is not specified "
        "then 'datadir'/'log-basename'.err or the 'pid-file' path with extension "
        ".err is used",
        READ_ONLY GLOBAL_VAR(log_error_file_ptr),
        CMD_LINE(OPT_ARG, OPT_LOG_ERROR),
-       IN_FS_CHARSET, DEFAULT(disabled_my_option));
+       DEFAULT(disabled_my_option));
 
 static Sys_var_bit Sys_log_queries_not_using_indexes(
        "log_queries_not_using_indexes",
@@ -2691,15 +2691,15 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
 
-static Sys_var_charptr Sys_pid_file(
+static Sys_var_charptr_fscs Sys_pid_file(
        "pid_file", "Pid file used by safe_mysqld",
        READ_ONLY GLOBAL_VAR(pidfile_name_ptr), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
-static Sys_var_charptr Sys_plugin_dir(
+static Sys_var_charptr_fscs Sys_plugin_dir(
        "plugin_dir", "Directory for plugins",
        READ_ONLY GLOBAL_VAR(opt_plugin_dir_ptr), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static Sys_var_uint Sys_port(
        "port",
@@ -2725,12 +2725,10 @@ static Sys_var_uint Sys_protocol_version(
        VALID_RANGE(0, ~0U), DEFAULT(PROTOCOL_VERSION), BLOCK_SIZE(1));
 
 static Sys_var_proxy_user Sys_proxy_user(
-       "proxy_user", "The proxy user account name used when logging in",
-       IN_SYSTEM_CHARSET);
+       "proxy_user", "The proxy user account name used when logging in");
 
 static Sys_var_external_user Sys_exterenal_user(
-       "external_user", "The external user account used when logging in",
-       IN_SYSTEM_CHARSET);
+       "external_user", "The external user account used when logging in");
 
 static Sys_var_ulong Sys_read_buff_size(
        "read_buffer_size",
@@ -2911,10 +2909,10 @@ static Sys_var_mybool Sys_skip_show_database(
        READ_ONLY GLOBAL_VAR(opt_skip_show_db), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE));
 
-static Sys_var_charptr Sys_socket(
+static Sys_var_charptr_fscs Sys_socket(
        "socket", "Socket file to use for connection",
        READ_ONLY GLOBAL_VAR(mysqld_unix_port), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static Sys_var_ulonglong Sys_thread_stack(
        "thread_stack", "The stack size for each thread",
@@ -2922,7 +2920,7 @@ static Sys_var_ulonglong Sys_thread_stack(
        VALID_RANGE(128*1024, ULONGLONG_MAX), DEFAULT(DEFAULT_THREAD_STACK),
        BLOCK_SIZE(1024));
 
-static Sys_var_charptr Sys_tmpdir(
+static Sys_var_charptr_fscs Sys_tmpdir(
        "tmpdir", "Path for temporary files. Several paths may "
        "be specified, separated by a "
 #if defined(__WIN__)
@@ -2932,7 +2930,7 @@ static Sys_var_charptr Sys_tmpdir(
 #endif
        ", in this case they are used in a round-robin fashion",
        READ_ONLY GLOBAL_VAR(opt_mysql_tmpdir), CMD_LINE(REQUIRED_ARG, 't'),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static bool fix_trans_mem_root(sys_var *self, THD *thd, enum_var_type type)
 {
@@ -3135,12 +3133,12 @@ static Sys_var_mybool Sys_require_secure_transport(
   NO_MUTEX_GUARD, NOT_IN_BINLOG,
   ON_CHECK(check_require_secure_transport), ON_UPDATE(0));
 
-static Sys_var_charptr Sys_secure_file_priv(
+static Sys_var_charptr_fscs Sys_secure_file_priv(
        "secure_file_priv",
        "Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to files "
        "within specified directory",
        PREALLOCATED READ_ONLY GLOBAL_VAR(opt_secure_file_priv),
-       CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(0));
+       CMD_LINE(REQUIRED_ARG), DEFAULT(0));
 
 static bool fix_server_id(sys_var *self, THD *thd, enum_var_type type)
 {
@@ -3599,44 +3597,44 @@ static Sys_var_set Sys_old_behavior(
 #define SSL_OPT(X) NO_CMD_LINE
 #endif
 
-static Sys_var_charptr Sys_ssl_ca(
+static Sys_var_charptr_fscs Sys_ssl_ca(
        "ssl_ca",
        "CA file in PEM format (check OpenSSL docs, implies --ssl)",
        READ_ONLY GLOBAL_VAR(opt_ssl_ca), SSL_OPT(OPT_SSL_CA),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
-static Sys_var_charptr Sys_ssl_capath(
+static Sys_var_charptr_fscs Sys_ssl_capath(
        "ssl_capath",
        "CA directory (check OpenSSL docs, implies --ssl)",
        READ_ONLY GLOBAL_VAR(opt_ssl_capath), SSL_OPT(OPT_SSL_CAPATH),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
-static Sys_var_charptr Sys_ssl_cert(
+static Sys_var_charptr_fscs Sys_ssl_cert(
        "ssl_cert", "X509 cert in PEM format (implies --ssl)",
        READ_ONLY GLOBAL_VAR(opt_ssl_cert), SSL_OPT(OPT_SSL_CERT),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
-static Sys_var_charptr Sys_ssl_cipher(
+static Sys_var_charptr_fscs Sys_ssl_cipher(
        "ssl_cipher", "SSL cipher to use (implies --ssl)",
        READ_ONLY GLOBAL_VAR(opt_ssl_cipher), SSL_OPT(OPT_SSL_CIPHER),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
-static Sys_var_charptr Sys_ssl_key(
+static Sys_var_charptr_fscs Sys_ssl_key(
        "ssl_key", "X509 key in PEM format (implies --ssl)",
        READ_ONLY GLOBAL_VAR(opt_ssl_key), SSL_OPT(OPT_SSL_KEY),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
-static Sys_var_charptr Sys_ssl_crl(
+static Sys_var_charptr_fscs Sys_ssl_crl(
        "ssl_crl",
        "CRL file in PEM format (check OpenSSL docs, implies --ssl)",
        READ_ONLY GLOBAL_VAR(opt_ssl_crl), SSL_OPT(OPT_SSL_CRL),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
-static Sys_var_charptr Sys_ssl_crlpath(
+static Sys_var_charptr_fscs Sys_ssl_crlpath(
        "ssl_crlpath",
        "CRL directory (check OpenSSL docs, implies --ssl)",
        READ_ONLY GLOBAL_VAR(opt_ssl_crlpath), SSL_OPT(OPT_SSL_CRLPATH),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static const char *tls_version_names[]=
 {
@@ -3690,7 +3688,7 @@ static Sys_var_charptr Sys_system_time_zone(
        "system_time_zone", "The server system time zone",
        READ_ONLY GLOBAL_VAR(system_time_zone_ptr),
        CMD_LINE_HELP_ONLY,
-       IN_SYSTEM_CHARSET, DEFAULT(system_time_zone));
+       DEFAULT(system_time_zone));
 
 /*
   If One use views with prepared statements this should be bigger than
@@ -3972,7 +3970,7 @@ static Sys_var_charptr Sys_version(
        "enabled, for example 10.1.1-MariaDB-mariadb1precise-log.",
        READ_ONLY GLOBAL_VAR(server_version_ptr),
        CMD_LINE_HELP_ONLY,
-       IN_SYSTEM_CHARSET, DEFAULT(server_version));
+       DEFAULT(server_version));
 
 static char *server_version_comment_ptr;
 static Sys_var_charptr Sys_version_comment(
@@ -3981,14 +3979,14 @@ static Sys_var_charptr Sys_version_comment(
        "mariadb.org binary distribution.",
        READ_ONLY GLOBAL_VAR(server_version_comment_ptr),
        CMD_LINE_HELP_ONLY,
-       IN_SYSTEM_CHARSET, DEFAULT(MYSQL_COMPILATION_COMMENT));
+       DEFAULT(MYSQL_COMPILATION_COMMENT));
 
 static char *server_version_compile_machine_ptr;
 static Sys_var_charptr Sys_version_compile_machine(
        "version_compile_machine", "The machine type or architecture "
        "MariaDB was built on, for example i686.",
        READ_ONLY GLOBAL_VAR(server_version_compile_machine_ptr),
-       CMD_LINE_HELP_ONLY, IN_SYSTEM_CHARSET, DEFAULT(DEFAULT_MACHINE));
+       CMD_LINE_HELP_ONLY, DEFAULT(DEFAULT_MACHINE));
 
 static char *server_version_compile_os_ptr;
 static Sys_var_charptr Sys_version_compile_os(
@@ -3996,7 +3994,7 @@ static Sys_var_charptr Sys_version_compile_os(
        "on, for example debian-linux-gnu.",
        READ_ONLY GLOBAL_VAR(server_version_compile_os_ptr),
        CMD_LINE_HELP_ONLY,
-       IN_SYSTEM_CHARSET, DEFAULT(SYSTEM_TYPE));
+       DEFAULT(SYSTEM_TYPE));
 
 #include <source_revision.h>
 static char *server_version_source_revision;
@@ -4004,19 +4002,19 @@ static Sys_var_charptr Sys_version_source_revision(
        "version_source_revision", "Source control revision id for MariaDB source code",
        READ_ONLY GLOBAL_VAR(server_version_source_revision),
        CMD_LINE_HELP_ONLY,
-       IN_SYSTEM_CHARSET, DEFAULT(SOURCE_REVISION));
+       DEFAULT(SOURCE_REVISION));
 
 static char *malloc_library;
 static Sys_var_charptr Sys_malloc_library(
        "version_malloc_library", "Version of the used malloc library",
        READ_ONLY GLOBAL_VAR(malloc_library), CMD_LINE_HELP_ONLY,
-       IN_SYSTEM_CHARSET, DEFAULT(guess_malloc_library()));
+       DEFAULT(guess_malloc_library()));
 
 static char *ssl_library;
 static Sys_var_charptr Sys_ssl_library(
        "version_ssl_library", "Version of the used SSL library",
        READ_ONLY GLOBAL_VAR(ssl_library), CMD_LINE_HELP_ONLY,
-       IN_SYSTEM_CHARSET, DEFAULT(SSL_LIBRARY));
+       DEFAULT(SSL_LIBRARY));
 
 static Sys_var_ulong Sys_net_wait_timeout(
        "wait_timeout",
@@ -4142,7 +4140,7 @@ static Sys_var_debug_sync Sys_debug_sync(
 static Sys_var_charptr Sys_date_format(
        "date_format", "The DATE format (ignored)",
        READ_ONLY GLOBAL_VAR(global_date_format.format.str),
-       CMD_LINE(REQUIRED_ARG), IN_SYSTEM_CHARSET,
+       CMD_LINE(REQUIRED_ARG),
        DEFAULT(known_date_time_formats[ISO_FORMAT].date_format),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
        DEPRECATED("")); // since 10.1.2
@@ -4150,7 +4148,7 @@ static Sys_var_charptr Sys_date_format(
 static Sys_var_charptr Sys_datetime_format(
        "datetime_format", "The DATETIME format (ignored)",
        READ_ONLY GLOBAL_VAR(global_datetime_format.format.str),
-       CMD_LINE(REQUIRED_ARG), IN_SYSTEM_CHARSET,
+       CMD_LINE(REQUIRED_ARG),
        DEFAULT(known_date_time_formats[ISO_FORMAT].datetime_format),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
        DEPRECATED("")); // since 10.1.2
@@ -4158,7 +4156,7 @@ static Sys_var_charptr Sys_datetime_format(
 static Sys_var_charptr Sys_time_format(
        "time_format", "The TIME format (ignored)",
        READ_ONLY GLOBAL_VAR(global_time_format.format.str),
-       CMD_LINE(REQUIRED_ARG), IN_SYSTEM_CHARSET,
+       CMD_LINE(REQUIRED_ARG),
        DEFAULT(known_date_time_formats[ISO_FORMAT].time_format),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
        DEPRECATED("")); //  since 10.1.2
@@ -4640,7 +4638,7 @@ static char *glob_hostname_ptr;
 static Sys_var_charptr Sys_hostname(
        "hostname", "Server host name",
        READ_ONLY GLOBAL_VAR(glob_hostname_ptr), NO_CMD_LINE,
-       IN_SYSTEM_CHARSET, DEFAULT(glob_hostname));
+       DEFAULT(glob_hostname));
 
 #ifndef EMBEDDED_LIBRARY
 static Sys_var_charptr Sys_repl_report_host(
@@ -4653,21 +4651,21 @@ static Sys_var_charptr Sys_repl_report_host(
        "NAT and other routing issues, that IP may not be valid for connecting "
        "to the slave from the master or other hosts",
        READ_ONLY GLOBAL_VAR(report_host), CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static Sys_var_charptr Sys_repl_report_user(
        "report_user",
        "The account user name of the slave to be reported to the master "
        "during slave registration",
        READ_ONLY GLOBAL_VAR(report_user), CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static Sys_var_charptr Sys_repl_report_password(
        "report_password",
        "The account password of the slave to be reported to the master "
        "during slave registration",
        READ_ONLY GLOBAL_VAR(report_password), CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static Sys_var_uint Sys_repl_report_port(
        "report_port",
@@ -4688,7 +4686,7 @@ static Sys_var_mybool Sys_keep_files_on_create(
 static char *license;
 static Sys_var_charptr Sys_license(
        "license", "The type of license the server has",
-       READ_ONLY GLOBAL_VAR(license), NO_CMD_LINE, IN_SYSTEM_CHARSET,
+       READ_ONLY GLOBAL_VAR(license), NO_CMD_LINE,
        DEFAULT(STRINGIFY_ARG(LICENSE)));
 
 #include <proxy_protocol.h>
@@ -4707,7 +4705,7 @@ static bool fix_proxy_protocol_networks(sys_var *, THD *, enum_var_type)
 }
 
 
-static Sys_var_charptr Sys_proxy_protocol_networks(
+static Sys_var_charptr_fscs Sys_proxy_protocol_networks(
     "proxy_protocol_networks", "Enable proxy protocol for these source "
     "networks. The syntax is a comma separated list of IPv4 and IPv6 "
     "networks. If the network doesn't contain mask, it is considered to be "
@@ -4715,7 +4713,7 @@ static Sys_var_charptr Sys_proxy_protocol_networks(
     "directive on the line. String \"localhost\" represents non-TCP "
     "local connections (Unix domain socket, Windows named pipe or shared memory).",
     GLOBAL_VAR(my_proxy_protocol_networks), CMD_LINE(REQUIRED_ARG),
-    IN_FS_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+    DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
     ON_CHECK(check_proxy_protocol_networks), ON_UPDATE(fix_proxy_protocol_networks));
 
 
@@ -4812,10 +4810,10 @@ static bool fix_general_log_file(sys_var *self, THD *thd, enum_var_type type)
   return fix_log(&opt_logname,  opt_log_basename, ".log", opt_log,
                  reopen_general_log);
 }
-static Sys_var_charptr Sys_general_log_path(
+static Sys_var_charptr_fscs Sys_general_log_path(
        "general_log_file", "Log connections and queries to given file",
        PREALLOCATED GLOBAL_VAR(opt_logname), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_log_path), ON_UPDATE(fix_general_log_file));
 
 static void reopen_slow_log(char* name)
@@ -4828,12 +4826,12 @@ static bool fix_slow_log_file(sys_var *self, THD *thd, enum_var_type type)
   return fix_log(&opt_slow_logname, opt_log_basename, "-slow.log",
                  global_system_variables.sql_log_slow, reopen_slow_log);
 }
-static Sys_var_charptr Sys_slow_log_path(
+static Sys_var_charptr_fscs Sys_slow_log_path(
        "slow_query_log_file", "Log slow queries to given log file. "
        "Defaults logging to 'hostname'-slow.log. Must be enabled to activate "
        "other slow log options",
        PREALLOCATED GLOBAL_VAR(opt_slow_logname), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_log_path), ON_UPDATE(fix_slow_log_file));
 
 static Sys_var_have Sys_have_compress(
@@ -4896,12 +4894,12 @@ static Sys_var_have Sys_have_symlink(
 
 #ifdef __SANITIZE_ADDRESS__
 static char *have_sanitizer;
-static Sys_var_charptr Sys_have_santitizer(
+static Sys_var_charptr_fscs Sys_have_santitizer(
        "have_sanitizer",
        "If the server is compiled with ASan (Address sanitizer) this will be "
        "set to ASAN",
        READ_ONLY GLOBAL_VAR(have_sanitizer), NO_CMD_LINE,
-       IN_FS_CHARSET, DEFAULT("ASAN"));
+       DEFAULT("ASAN"));
 #endif
 
 static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type);
@@ -4994,49 +4992,49 @@ static Sys_var_mybool Sys_log_slave_updates(
        READ_ONLY GLOBAL_VAR(opt_log_slave_updates), CMD_LINE(OPT_ARG),
        DEFAULT(0));
 
-static Sys_var_charptr Sys_relay_log(
+static Sys_var_charptr_fscs Sys_relay_log(
        "relay_log", "The location and name to use for relay logs.",
        READ_ONLY GLOBAL_VAR(opt_relay_logname), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 /*
   Uses NO_CMD_LINE since the --relay-log-index option set
   opt_relaylog_index_name variable and computes a value for the
   relay_log_index variable.
 */
-static Sys_var_charptr Sys_relay_log_index(
+static Sys_var_charptr_fscs Sys_relay_log_index(
        "relay_log_index", "The location and name to use for the file "
        "that keeps a list of the last relay logs.",
        READ_ONLY GLOBAL_VAR(relay_log_index), NO_CMD_LINE,
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 /*
   Uses NO_CMD_LINE since the --log-bin-index option set
   opt_binlog_index_name variable and computes a value for the
   log_bin_index variable.
 */
-static Sys_var_charptr Sys_binlog_index(
+static Sys_var_charptr_fscs Sys_binlog_index(
        "log_bin_index", "File that holds the names for last binary log files.",
        READ_ONLY GLOBAL_VAR(log_bin_index), NO_CMD_LINE,
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
-static Sys_var_charptr Sys_relay_log_basename(
+static Sys_var_charptr_fscs Sys_relay_log_basename(
        "relay_log_basename",
        "The full path of the relay log file names, excluding the extension.",
        READ_ONLY GLOBAL_VAR(relay_log_basename), NO_CMD_LINE,
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
-static Sys_var_charptr Sys_log_bin_basename(
+static Sys_var_charptr_fscs Sys_log_bin_basename(
        "log_bin_basename",
        "The full path of the binary log file names, excluding the extension.",
        READ_ONLY GLOBAL_VAR(log_bin_basename), NO_CMD_LINE,
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
-static Sys_var_charptr Sys_relay_log_info_file(
+static Sys_var_charptr_fscs Sys_relay_log_info_file(
        "relay_log_info_file", "The location and name of the file that "
        "remembers where the SQL replication thread is in the relay logs.",
        READ_ONLY GLOBAL_VAR(relay_log_info_file), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static Sys_var_mybool Sys_relay_log_purge(
        "relay_log_purge", "if disabled - do not purge relay logs. "
@@ -5208,11 +5206,11 @@ static Sys_var_rpl_filter Sys_replicate_wild_ignore_table(
        "Tells the slave thread to not replicate to the tables that "
        "match the given wildcard pattern.");
 
-static Sys_var_charptr Sys_slave_load_tmpdir(
+static Sys_var_charptr_fscs Sys_slave_load_tmpdir(
        "slave_load_tmpdir", "The location where the slave should put "
        "its temporary files when replicating a LOAD DATA INFILE command",
        READ_ONLY GLOBAL_VAR(slave_load_tmpdir), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static Sys_var_uint Sys_slave_net_timeout(
        "slave_net_timeout", "Number of seconds to wait for more data "
@@ -5330,7 +5328,7 @@ static Sys_var_charptr Sys_slave_skip_errors(
        "replication when a query event returns an error from the "
        "provided list",
        READ_ONLY GLOBAL_VAR(opt_slave_skip_errors), CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static Sys_var_ulonglong Sys_read_binlog_speed_limit(
        "read_binlog_speed_limit", "Maximum speed(KB/s) to read binlog from"
@@ -5346,7 +5344,7 @@ static Sys_var_charptr Sys_slave_transaction_retry_errors(
        "connect error and 2 types of lost connection error are automatically "
        "added to this list",
        READ_ONLY GLOBAL_VAR(opt_slave_transaction_retry_errors), CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static Sys_var_ulonglong Sys_relay_log_space_limit(
        "relay_log_space_limit", "Maximum space to use for all relay logs",
@@ -5486,10 +5484,10 @@ static Sys_var_tz Sys_time_zone(
 #include "wsrep_sst.h"
 #include "wsrep_binlog.h"
 
-static Sys_var_charptr Sys_wsrep_provider(
+static Sys_var_charptr_fscs Sys_wsrep_provider(
        "wsrep_provider", "Path to replication provider library",
        PREALLOCATED GLOBAL_VAR(wsrep_provider), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(WSREP_NONE),
+       DEFAULT(WSREP_NONE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_provider_check), ON_UPDATE(wsrep_provider_update));
 
@@ -5498,19 +5496,19 @@ static Sys_var_charptr Sys_wsrep_provider_options(
        "options (see wsrep_provider_options documentation).",
        PREALLOCATED GLOBAL_VAR(wsrep_provider_options), 
        CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_provider_options_check), 
        ON_UPDATE(wsrep_provider_options_update));
 
-static Sys_var_charptr Sys_wsrep_data_home_dir(
+static Sys_var_charptr_fscs Sys_wsrep_data_home_dir(
        "wsrep_data_home_dir", "home directory for wsrep provider",
        READ_ONLY GLOBAL_VAR(wsrep_data_home_dir), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(mysql_real_data_home));
+       DEFAULT(mysql_real_data_home));
 
 static Sys_var_charptr Sys_wsrep_cluster_name(
        "wsrep_cluster_name", "Name for the cluster",
        PREALLOCATED GLOBAL_VAR(wsrep_cluster_name), CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(WSREP_CLUSTER_NAME),
+       DEFAULT(WSREP_CLUSTER_NAME),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_cluster_name_check),
        ON_UPDATE(wsrep_cluster_name_update));
@@ -5520,7 +5518,7 @@ static Sys_var_charptr Sys_wsrep_cluster_address (
        "wsrep_cluster_address", "Address to initially connect to cluster",
        PREALLOCATED GLOBAL_VAR(wsrep_cluster_address), 
        CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(""),
+       DEFAULT(""),
        &PLock_wsrep_cluster_config, NOT_IN_BINLOG,
        ON_CHECK(wsrep_cluster_address_check), 
        ON_UPDATE(wsrep_cluster_address_update));
@@ -5530,7 +5528,7 @@ static Sys_var_charptr Sys_wsrep_node_name (
        "wsrep_sst_donor as a preferred donor. Note that multiple nodes "
        "in a cluster can have the same name.",
        PREALLOCATED GLOBAL_VAR(wsrep_node_name), CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(glob_hostname), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       DEFAULT(glob_hostname), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        wsrep_node_name_check, wsrep_node_name_update);
 
 static Sys_var_charptr Sys_wsrep_node_address (
@@ -5538,7 +5536,7 @@ static Sys_var_charptr Sys_wsrep_node_address (
        "the format ip address[:port]. Used in situations where autoguessing "
        "is not reliable. As of MariaDB 10.1.8, supports IPv6.",
        PREALLOCATED GLOBAL_VAR(wsrep_node_address), CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(""),
+       DEFAULT(""),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_node_address_check),
        ON_UPDATE(wsrep_node_address_update));
@@ -5546,7 +5544,7 @@ static Sys_var_charptr Sys_wsrep_node_address (
 static Sys_var_charptr Sys_wsrep_node_incoming_address(
        "wsrep_node_incoming_address", "Client connection address",
        PREALLOCATED GLOBAL_VAR(wsrep_node_incoming_address),CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(WSREP_NODE_INCOMING_AUTO));
+       DEFAULT(WSREP_NODE_INCOMING_AUTO));
 
 static Sys_var_ulong Sys_wsrep_slave_threads(
        "wsrep_slave_threads", "Number of slave appliers to launch",
@@ -5559,7 +5557,7 @@ static Sys_var_ulong Sys_wsrep_slave_threads(
 static Sys_var_charptr Sys_wsrep_dbug_option(
        "wsrep_dbug_option", "DBUG options to provider library",
        GLOBAL_VAR(wsrep_dbug_option),CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(""));
+       DEFAULT(""));
 
 static const char *wsrep_debug_names[]=
 { "NONE", "SERVER", "TRANSACTION", "STREAMING", "CLIENT", NullS };
@@ -5641,14 +5639,14 @@ static Sys_var_mybool Sys_wsrep_drupal_282555_workaround(
 static Sys_var_charptr sys_wsrep_sst_method(
        "wsrep_sst_method", "State snapshot transfer method",
        GLOBAL_VAR(wsrep_sst_method),CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(WSREP_SST_DEFAULT), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       DEFAULT(WSREP_SST_DEFAULT), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_sst_method_check));
 
 static Sys_var_charptr Sys_wsrep_sst_receive_address( 
        "wsrep_sst_receive_address", "Address where node is waiting for "
        "SST contact", 
        GLOBAL_VAR(wsrep_sst_receive_address),CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(WSREP_SST_ADDRESS_AUTO), NO_MUTEX_GUARD,
+       DEFAULT(WSREP_SST_ADDRESS_AUTO), NO_MUTEX_GUARD,
        NOT_IN_BINLOG,
        ON_CHECK(wsrep_sst_receive_address_check),
        ON_UPDATE(wsrep_sst_receive_address_update)); 
@@ -5656,7 +5654,7 @@ static Sys_var_charptr Sys_wsrep_sst_receive_address(
 static Sys_var_charptr Sys_wsrep_sst_auth(
        "wsrep_sst_auth", "Authentication for SST connection",
        PREALLOCATED GLOBAL_VAR(wsrep_sst_auth), CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(NULL), NO_MUTEX_GUARD,
+       DEFAULT(NULL), NO_MUTEX_GUARD,
        NOT_IN_BINLOG,
        ON_CHECK(wsrep_sst_auth_check),
        ON_UPDATE(wsrep_sst_auth_update)); 
@@ -5664,7 +5662,7 @@ static Sys_var_charptr Sys_wsrep_sst_auth(
 static Sys_var_charptr Sys_wsrep_sst_donor(
        "wsrep_sst_donor", "preferred donor node for the SST",
        GLOBAL_VAR(wsrep_sst_donor),CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_sst_donor_check),
        ON_UPDATE(wsrep_sst_donor_update)); 
 
@@ -5686,7 +5684,7 @@ static Sys_var_charptr Sys_wsrep_start_position (
        "wsrep_start_position", "global transaction position to start from ",
        PREALLOCATED GLOBAL_VAR(wsrep_start_position), 
        CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(WSREP_START_POSITION_ZERO),
+       DEFAULT(WSREP_START_POSITION_ZERO),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_start_position_check), 
        ON_UPDATE(wsrep_start_position_update));
@@ -5706,7 +5704,7 @@ static Sys_var_ulong Sys_wsrep_max_ws_rows (
 static Sys_var_charptr Sys_wsrep_notify_cmd(
        "wsrep_notify_cmd", "",
        GLOBAL_VAR(wsrep_notify_cmd),CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(""));
+       DEFAULT(""));
 
 static Sys_var_mybool Sys_wsrep_certify_nonPK(
        "wsrep_certify_nonPK", "Certify tables with no primary key",
@@ -5893,7 +5891,7 @@ static char *wsrep_patch_version_ptr;
 static Sys_var_charptr Sys_wsrep_patch_version(
        "wsrep_patch_version", "Wsrep patch version, for example wsrep_25.10.",
        READ_ONLY GLOBAL_VAR(wsrep_patch_version_ptr), CMD_LINE_HELP_ONLY,
-       IN_SYSTEM_CHARSET, DEFAULT(WSREP_PATCH_VERSION));
+       DEFAULT(WSREP_PATCH_VERSION));
 
 #endif /* WITH_WSREP */
 
@@ -5959,14 +5957,14 @@ static Sys_var_mybool Sys_tcp_nodelay(
        ON_CHECK(check_session_only_variable),
        ON_UPDATE(update_tcp_nodelay));
 
-static Sys_var_charptr Sys_ignore_db_dirs(
+static Sys_var_charptr_fscs Sys_ignore_db_dirs(
        "ignore_db_dirs",
        "Specifies a directory to add to the ignore list when collecting "
        "database names from the datadir. Put a blank argument to reset "
        "the list accumulated so far.",
        READ_ONLY GLOBAL_VAR(opt_ignore_db_dirs), 
        CMD_LINE(REQUIRED_ARG, OPT_IGNORE_DB_DIRECTORY),
-       IN_FS_CHARSET, DEFAULT(0));
+       DEFAULT(0));
 
 static Sys_var_ulong Sys_sp_cache_size(
        "stored_program_cache",
@@ -6410,7 +6408,7 @@ static Sys_var_ulonglong Sys_max_thread_mem(
 static Sys_var_sesvartrack Sys_track_session_sys_vars(
        "session_track_system_variables",
        "Track changes in registered system variables. ",
-       CMD_LINE(REQUIRED_ARG), IN_SYSTEM_CHARSET,
+       CMD_LINE(REQUIRED_ARG),
        DEFAULT("autocommit,character_set_client,character_set_connection,"
        "character_set_results,time_zone"));
 

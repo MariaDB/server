@@ -90,7 +90,6 @@ protected:
   on_check_function on_check;
   on_update_function on_update;
   const char *const deprecation_substitute;
-  bool is_os_charset; ///< true if the value is in character_set_filesystem
 
 public:
   sys_var(sys_var_chain *chain, const char *name_arg, const char *comment,
@@ -130,7 +129,10 @@ public:
 
   SHOW_TYPE show_type() { return show_val_type; }
   int scope() const { return flags & SCOPE_MASK; }
-  CHARSET_INFO *charset(THD *thd);
+  virtual CHARSET_INFO *charset(THD *thd) const
+  {
+    return system_charset_info;
+  }
   bool is_readonly() const { return flags & READONLY; }
   /**
     the following is only true for keycache variables,
