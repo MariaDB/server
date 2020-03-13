@@ -8,6 +8,8 @@
 --echo # MDEV-21743 Split up SUPER privilege to smaller privileges 
 --echo #
 
+--let $count_sessions=1
+
 --echo #
 --echo # Test that KILL is not allowed without CONNECTION ADMIN or SUPER
 --echo #
@@ -20,7 +22,6 @@ REVOKE CONNECTION ADMIN, SUPER ON *.* FROM bar@localhost;
 --connect (foo,localhost,foo,,)
 let $id=`(SELECT id FROM INFORMATION_SCHEMA.PROCESSLIST WHERE user='foo')`;
 --connect (bar,localhost,bar,,)
---connection bar
 SELECT user FROM information_schema.processlist ORDER BY user;
 --replace_result $id ID
 --error ER_KILL_DENIED_ERROR
@@ -28,6 +29,7 @@ SELECT user FROM information_schema.processlist ORDER BY user;
 --disconnect foo
 --disconnect bar
 --connection default
+--source include/wait_until_count_sessions.inc
 DROP USER foo@localhost;
 DROP USER bar@localhost;
 
@@ -42,7 +44,6 @@ GRANT PROCESS, CONNECTION ADMIN ON *.* TO bar@localhost;
 --connect (foo,localhost,foo,,)
 let $id=`(SELECT id FROM INFORMATION_SCHEMA.PROCESSLIST WHERE user='foo')`;
 --connect (bar,localhost,bar,,)
---connection bar
 SELECT user FROM information_schema.processlist ORDER BY user;
 --replace_result $id ID
 --eval KILL $id
@@ -53,7 +54,7 @@ let $wait_condition=
 --source include/wait_condition.inc
 --disconnect foo
 --disconnect bar
---connection default
+--source include/wait_until_count_sessions.inc
 DROP USER foo@localhost;
 DROP USER bar@localhost;
 
@@ -68,7 +69,6 @@ GRANT PROCESS, SUPER ON *.* TO bar@localhost;
 --connect (foo,localhost,foo,,)
 let $id=`(SELECT id FROM INFORMATION_SCHEMA.PROCESSLIST WHERE user='foo')`;
 --connect (bar,localhost,bar,,)
---connection bar
 SELECT user FROM information_schema.processlist ORDER BY user;
 --replace_result $id ID
 --eval KILL $id
@@ -79,7 +79,7 @@ let $wait_condition=
 --source include/wait_condition.inc
 --disconnect foo
 --disconnect bar
---connection default
+--source include/wait_until_count_sessions.inc
 DROP USER foo@localhost;
 DROP USER bar@localhost;
 

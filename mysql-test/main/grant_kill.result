@@ -14,7 +14,6 @@ GRANT ALL PRIVILEGES ON *.* TO bar@localhost;
 REVOKE CONNECTION ADMIN, SUPER ON *.* FROM bar@localhost;
 connect  foo,localhost,foo,,;
 connect  bar,localhost,bar,,;
-connection bar;
 SELECT user FROM information_schema.processlist ORDER BY user;
 user
 bar
@@ -36,7 +35,6 @@ CREATE USER bar@localhost;
 GRANT PROCESS, CONNECTION ADMIN ON *.* TO bar@localhost;
 connect  foo,localhost,foo,,;
 connect  bar,localhost,bar,,;
-connection bar;
 SELECT user FROM information_schema.processlist ORDER BY user;
 user
 bar
@@ -46,7 +44,6 @@ KILL ID;
 connection default;
 disconnect foo;
 disconnect bar;
-connection default;
 DROP USER foo@localhost;
 DROP USER bar@localhost;
 #
@@ -58,7 +55,6 @@ CREATE USER bar@localhost;
 GRANT PROCESS, SUPER ON *.* TO bar@localhost;
 connect  foo,localhost,foo,,;
 connect  bar,localhost,bar,,;
-connection bar;
 SELECT user FROM information_schema.processlist ORDER BY user;
 user
 bar
@@ -68,7 +64,6 @@ KILL ID;
 connection default;
 disconnect foo;
 disconnect bar;
-connection default;
 DROP USER foo@localhost;
 DROP USER bar@localhost;
 #
