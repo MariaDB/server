@@ -6802,6 +6802,13 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                         update_tbl_stats, &mrr_flags,
                                         &buf_size, &cost);
 
+      if (!param->is_ror_scan &&
+          !optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION))
+      {
+        /* The scan is not a ROR-scan, just skip it */
+        continue;
+      }
+
       if (found_records != HA_POS_ERROR && tree->index_scans &&
           (index_scan= (INDEX_SCAN_INFO *)alloc_root(param->mem_root,
 						     sizeof(INDEX_SCAN_INFO))))
