@@ -1,6 +1,11 @@
 --source include/have_aria.inc
 --source include/innodb_page_size.inc
 
+# see suite.pm "check for exact values, in case the default changes to be small everywhere"
+if (`select @@max_binlog_stmt_cache_size = 4294963200 and @@innodb_page_size = 65536`) {
+  skip skipped on 32bit; # tries to allocate 1GB of memory
+  }
+
 call mtr.add_suppression("InnoDB: New log files created");
 
 let basedir=$MYSQLTEST_VARDIR/tmp/backup;
