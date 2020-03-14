@@ -50,22 +50,24 @@ TYPELIB s3_protocol_typelib= {array_elements(protocol_types)-1,"",
 
 static void *s3_wrap_malloc(size_t size)
 {
-  return my_malloc(size, MYF(MY_WME));
+  return my_malloc(PSI_NOT_INSTRUMENTED, size, MYF(MY_WME));
 }
 
 static void *s3_wrap_calloc(size_t nmemb, size_t size)
 {
-  return my_malloc(nmemb * size, MYF(MY_WME | MY_ZEROFILL));
+  return my_malloc(PSI_NOT_INSTRUMENTED, nmemb * size,
+                   MYF(MY_WME | MY_ZEROFILL));
 }
 
 static void *s3_wrap_realloc(void *ptr, size_t size)
 {
-  return my_realloc(ptr, size, MYF(MY_WME | MY_ALLOW_ZERO_PTR));
+  return my_realloc(PSI_NOT_INSTRUMENTED, ptr, size,
+                    MYF(MY_WME | MY_ALLOW_ZERO_PTR));
 }
 
 static char *s3_wrap_strdup(const char *str)
 {
-  return my_strdup(str, MYF(MY_WME));
+  return my_strdup(PSI_NOT_INSTRUMENTED, str, MYF(MY_WME));
 }
 
 static void s3_wrap_free(void *ptr)
@@ -110,7 +112,7 @@ S3_INFO *s3_info_copy(S3_INFO *old)
   /* Copy lengths */
   memcpy(&tmp, old, sizeof(tmp));
   /* Allocate new buffers */
-  if (!my_multi_malloc(MY_WME, &to, sizeof(S3_INFO),
+  if (!my_multi_malloc(PSI_NOT_INSTRUMENTED, MY_WME, &to, sizeof(S3_INFO),
                        &tmp.access_key.str, old->access_key.length+1,
                        &tmp.secret_key.str, old->secret_key.length+1,
                        &tmp.region.str,     old->region.length+1,
@@ -379,7 +381,8 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
   block_size= (block_size/cap.block_size)*cap.block_size;
 
   /* Allocate block for data + flag for compress header */
-  if (!(alloc_block= (uchar*) my_malloc(block_size+ALIGN_SIZE(1),
+  if (!(alloc_block= (uchar*) my_malloc(PSI_NOT_INSTRUMENTED,
+                                        block_size+ALIGN_SIZE(1),
                                         MYF(MY_WME))))
     goto err;
   /* Read/write data here, but with prefix space for compression flag */
@@ -871,7 +874,8 @@ my_bool s3_get_object(ms3_st *s3_client, const char *aws_bucket,
 
       length= uint3korr(block->str+1);
 
-      if (!(data= (uchar*) my_malloc(length, MYF(MY_WME | MY_THREAD_SPECIFIC))))
+      if (!(data= (uchar*) my_malloc(PSI_NOT_INSTRUMENTED,
+                                     length, MYF(MY_WME | MY_THREAD_SPECIFIC))))
       {
         s3_free(block);
         DBUG_RETURN(TRUE);
@@ -1183,7 +1187,7 @@ static int s3_read_frm_from_disk(const char *filename, uchar **to,
     return(1);
 
   file_size= (size_t) my_seek(file, 0L, MY_SEEK_END, MYF(0));
-  if (!(alloc_block= my_malloc(file_size, MYF(MY_WME))))
+  if (!(alloc_block= my_malloc(PSI_NOT_INSTRUMENTED, file_size, MYF(MY_WME))))
     goto err;
 
   if (my_pread(file, alloc_block, file_size, 0, MYF(MY_WME | MY_FNABP)))

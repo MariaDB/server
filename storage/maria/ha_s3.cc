@@ -94,7 +94,7 @@ static void update_access_key(MYSQL_THD thd,
   if (s3_tmp_access_key[0])
   {
     s3_access_key= s3_tmp_access_key;
-    s3_tmp_access_key= my_strdup("*****", MYF(MY_WME));
+    s3_tmp_access_key= my_strdup(PSI_NOT_INSTRUMENTED, "*****", MYF(MY_WME));
   }
 }
 
@@ -108,7 +108,7 @@ static void update_secret_key(MYSQL_THD thd,
   if (s3_tmp_secret_key[0])
   {
     s3_secret_key= s3_tmp_secret_key;
-    s3_tmp_secret_key= my_strdup("*****", MYF(MY_WME));
+    s3_tmp_secret_key= my_strdup(PSI_NOT_INSTRUMENTED, "*****", MYF(MY_WME));
   }
 }
 

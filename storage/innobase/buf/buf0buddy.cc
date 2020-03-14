@@ -333,9 +333,9 @@ static buf_buddy_free_t* buf_buddy_alloc_zip(ulint i)
 
 	if (buf) {
 		/* Trash the page other than the BUF_BUDDY_STAMP_NONFREE. */
-		UNIV_MEM_TRASH((void*) buf, ~i, BUF_BUDDY_STAMP_OFFSET);
+               UNIV_MEM_TRASH((void*) buf, (int) ~i, BUF_BUDDY_STAMP_OFFSET);
 		UNIV_MEM_TRASH(BUF_BUDDY_STAMP_OFFSET + 4
-			       + buf->stamp.bytes, ~i,
+			       + buf->stamp.bytes, (int) ~i,
 			       (BUF_BUDDY_LOW << i)
 			       - (BUF_BUDDY_STAMP_OFFSET + 4));
 		ut_ad(mach_read_from_4(buf->stamp.bytes
