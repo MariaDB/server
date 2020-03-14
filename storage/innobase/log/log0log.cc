@@ -772,8 +772,13 @@ bool log_t::file::writes_are_durable() const noexcept
 
 void log_t::file::write(os_offset_t offset, span<byte> buf)
 {
+  srv_stats.os_log_pending_writes.inc();
   if (const dberr_t err= fd.write(offset, buf))
     ib::fatal() << "write(" << fd.get_path() << ") returned " << err;
+  srv_stats.os_log_pending_writes.dec();
+  srv_stats.os_log_written.add(buf.size());
+  srv_stats.log_writes.inc();
+  log_sys.n_log_ios++;
 }
 
 void log_t::file::flush_data_only()
@@ -841,13 +846,7 @@ log_file_header_flush(
 
 	DBUG_PRINT("ib_log", ("write " LSN_PF, start_lsn));
 
-	log_sys.n_log_ios++;
-
-	srv_stats.os_log_pending_writes.inc();
-
 	log_sys.log.write(0, buf);
-
-	srv_stats.os_log_pending_writes.dec();
 }
 
 /******************************************************//**
@@ -894,9 +893,6 @@ loop:
 		ut_a(next_offset / log_sys.log.file_size <= ULINT_MAX);
 
 		log_file_header_flush(start_lsn);
-		srv_stats.os_log_written.add(OS_FILE_LOG_BLOCK_SIZE);
-
-		srv_stats.log_writes.inc();
 	}
 
 	if ((next_offset % log_sys.log.file_size) + len
@@ -939,18 +935,9 @@ loop:
 		log_block_store_checksum(buf + i * OS_FILE_LOG_BLOCK_SIZE);
 	}
 
-	log_sys.n_log_ios++;
-
-	srv_stats.os_log_pending_writes.inc();
-
 	ut_a((next_offset >> srv_page_size_shift) <= ULINT_MAX);
 
 	log_sys.log.write(static_cast<size_t>(next_offset), {buf, write_len});
-
-	srv_stats.os_log_pending_writes.dec();
-
-	srv_stats.os_log_written.add(write_len);
-	srv_stats.log_writes.inc();
 
 	if (write_len < len) {
 		start_lsn += write_len;
@@ -1310,8 +1297,6 @@ void log_write_checkpoint_info(lsn_t end_lsn)
 	mach_write_to_8(buf + LOG_CHECKPOINT_END_LSN, end_lsn);
 
 	log_block_store_checksum(buf);
-
-	log_sys.n_log_ios++;
 
 	ut_ad(LOG_CHECKPOINT_1 < srv_page_size);
 	ut_ad(LOG_CHECKPOINT_2 < srv_page_size);
