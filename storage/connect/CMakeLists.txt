@@ -73,6 +73,7 @@ ELSE(NOT UNIX)
   tabwmi.cpp tabwmi.h tabmac.cpp tabmac.h macutil.cpp macutil.h)
   # Add exception handling to the CONNECT project)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX-")
   SET(IPHLPAPI_LIBRARY iphlpapi.lib)
   IF(MSVC AND (CMAKE_CXX_COMPILER_ID MATCHES Clang))
     # Connect does not work with clang-cl
