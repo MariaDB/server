@@ -42,36 +42,6 @@ GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g
 # Debian policy and targeting Debian Sid. Then case-by-case run in autobake-deb.sh
 # tests for backwards compatibility and strip away parts on older builders.
 
-# If libcrack2 (>= 2.9.0) is not available (before Debian Jessie and Ubuntu Trusty)
-# clean away the cracklib stanzas so the package can build without them.
-if ! apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
-then
-  sed '/libcrack2-dev/d' -i debian/control
-  sed '/Package: mariadb-plugin-cracklib/,/^$/d' -i debian/control
-fi
-
-# If libpcre3-dev (>= 2:8.35-3.2~) is not available (before Debian Jessie or Ubuntu Wily)
-# clean away the PCRE3 stanzas so the package can build without them.
-# Update check when version 2:8.40 or newer is available.
-if ! apt-cache madison libpcre3-dev | grep 'libpcre3-dev *| *2:8\.3[2-9]' >/dev/null 2>&1
-then
-  sed '/libpcre3-dev/d' -i debian/control
-fi
-
-# If libsystemd-dev is not available (before Debian Jessie or Ubuntu Wily)
-# clean away the systemd stanzas so the package can build without them.
-if ! apt-cache madison libsystemd-dev | grep 'libsystemd-dev' >/dev/null 2>&1
-then
-  sed '/dh-systemd/d' -i debian/control
-  sed '/libsystemd-dev/d' -i debian/control
-  sed 's/ --with systemd//' -i debian/rules
-  sed '/systemd/d' -i debian/rules
-  sed '/\.service/d' -i debian/rules
-  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.5.install
-  sed '/galera_recovery/d' -i debian/mariadb-server-10.5.install
-  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.5.install
-fi
-
 # If libzstd-dev is not available (before Debian Stretch and Ubuntu Xenial)
 # remove the dependency from server and RocksDB so it can build properly
 if ! apt-cache madison libzstd-dev | grep 'libzstd-dev' >/dev/null 2>&1
