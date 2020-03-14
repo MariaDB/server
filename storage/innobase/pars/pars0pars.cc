@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1131,9 +1131,11 @@ pars_process_assign_list(
 
 		col_sym = assign_node->col;
 
-		upd_field_set_field_no(upd_field, dict_index_get_nth_col_pos(
-						clust_index, col_sym->col_no,
-						NULL),
+		ulint field_no = dict_index_get_nth_col_pos(
+			clust_index, col_sym->col_no, NULL);
+		ut_ad(field_no < clust_index->n_fields);
+		upd_field_set_field_no(upd_field,
+				       static_cast<uint16_t>(field_no),
 				       clust_index);
 		upd_field->exp = assign_node->val;
 
@@ -1929,7 +1931,7 @@ pars_stored_procedure_call(
 
 /*************************************************************//**
 Retrieves characters to the lexical analyzer. */
-size_t
+int
 pars_get_lex_chars(
 /*===============*/
 	char*	buf,		/*!< in/out: buffer where to copy */
@@ -1951,7 +1953,7 @@ pars_get_lex_chars(
 
 	pars_sym_tab_global->next_char_pos += len;
 
-	return(len);
+	return static_cast<int>(len);
 }
 
 /*************************************************************//**

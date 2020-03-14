@@ -721,7 +721,7 @@ public:
     if (m_error)
       return true;
     to_hh24mmssff(ltime, MYSQL_TIMESTAMP_TIME);
-    ltime->hour+= to_days_abs() * 24;
+    ltime->hour+= static_cast<unsigned>(to_days_abs() * 24);
     return adjust_time_range_with_warn(thd, ltime, decimals);
   }
   bool to_datetime(MYSQL_TIME *ltime) const
@@ -906,7 +906,8 @@ protected:
   my_decimal *to_decimal(my_decimal *to) const;
   static double to_double(bool negate, ulonglong num, ulong frac)
   {
-    double d= (double) num + frac / (double) TIME_SECOND_PART_FACTOR;
+    double d= static_cast<double>(num) + static_cast<double>(frac) /
+      TIME_SECOND_PART_FACTOR;
     return negate ? -d : d;
   }
   longlong to_packed() const { return ::pack_time(this); }
@@ -1034,7 +1035,7 @@ protected:
   {
     return ::check_date(this, flags, warn);
   }
-  void time_hhmmssff_set_max(ulong max_hour)
+  void time_hhmmssff_set_max(uint max_hour)
   {
     hour= max_hour;
     minute= TIME_MAX_MINUTE;
@@ -3201,7 +3202,7 @@ public:
   { }
   uchar *ptr() const { return m_ptr; }
   uchar offs() const { return m_offs; }
-  uchar bit() const { return m_ptr ? ((uchar) 1) << m_offs : 0; }
+  uchar bit() const { return static_cast<uchar>(m_ptr ? 1U << m_offs : 0); }
   void inc()
   {
     DBUG_ASSERT(m_ptr);

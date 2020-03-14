@@ -103,7 +103,8 @@ row_merge_create_fts_sort_index(
 		? DATA_VARCHAR : DATA_VARMYSQL;
 	field->col->mbminlen = idx_field->col->mbminlen;
 	field->col->mbmaxlen = idx_field->col->mbmaxlen;
-	field->col->len = HA_FT_MAXCHARLEN * unsigned(field->col->mbmaxlen);
+	field->col->len = static_cast<uint16_t>(
+		HA_FT_MAXCHARLEN * field->col->mbmaxlen);
 
 	field->fixed_len = 0;
 
@@ -635,7 +636,7 @@ row_merge_fts_doc_tokenize(
 
 		field->type.mtype = DATA_INT;
 		field->type.prtype = DATA_NOT_NULL | DATA_BINARY_TYPE;
-		field->type.len = field->len;
+		field->type.len = static_cast<uint16_t>(field->len);
 		field->type.mbminlen = 0;
 		field->type.mbmaxlen = 0;
 
@@ -1619,7 +1620,8 @@ row_fts_merge_insert(
 	in order to get the correct aux table names. */
 	index->table->flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
 	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			index->table->flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
+			index->table->flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME
+			& ((1U << DICT_TF2_BITS) - 1););
 	fts_table.type = FTS_INDEX_TABLE;
 	fts_table.index_id = index->id;
 	fts_table.table_id = table->id;

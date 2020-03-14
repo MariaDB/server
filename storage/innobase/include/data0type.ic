@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -119,9 +119,9 @@ dtype_set(
 	ut_ad(type);
 	ut_ad(mtype <= DATA_MTYPE_MAX);
 
-	type->mtype = unsigned(mtype);
-	type->prtype = unsigned(prtype);
-	type->len = unsigned(len);
+	type->mtype = static_cast<byte>(mtype);
+	type->prtype = static_cast<unsigned>(prtype);
+	type->len = static_cast<uint16_t>(len);
 
 	dtype_set_mblen(type);
 }

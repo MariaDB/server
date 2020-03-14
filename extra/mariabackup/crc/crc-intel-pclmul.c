@@ -358,7 +358,7 @@ crc32_reflected_less_than_16 (u32 *pcrc, const byte *inbuf, size_t inlen,
       else
 	{
 	  data = ((const struct u16_unaligned_s *)inbuf)->a;
-	  data |= inbuf[2] << 16;
+	  data |= ((u32) inbuf[2]) << 16;
 	  data ^= crc;
 	  data <<= 8;
 	  crc >>= 24;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -66,7 +66,6 @@ spatial_status_t
 dfield_get_spatial_status(
 	const dfield_t*	field)
 {
-	ut_ad(field);
 	ut_ad(dfield_is_ext(field));
 
 	return(static_cast<spatial_status_t>(field->spatial_status));
@@ -81,10 +80,8 @@ dfield_set_spatial_status(
 	dfield_t*		field,
 	spatial_status_t	spatial_status)
 {
-	ut_ad(field);
-	ut_ad(dfield_is_ext(field));
-
-	field->spatial_status = spatial_status;
+	field->spatial_status = spatial_status & 3;
+	ut_ad(dfield_get_spatial_status(field) == spatial_status);
 }
 
 /*********************************************************************//**

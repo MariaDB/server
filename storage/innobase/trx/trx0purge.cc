@@ -294,9 +294,9 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	}
 
 	/* Add the log as the first in the history list */
-	flst_add_first(rseg_header, TRX_RSEG + TRX_RSEG_HISTORY,
-		       undo_page, undo->hdr_offset + TRX_UNDO_HISTORY_NODE,
-		       mtr);
+	flst_add_first(rseg_header, TRX_RSEG + TRX_RSEG_HISTORY, undo_page,
+		       static_cast<uint16_t>(undo->hdr_offset
+					     + TRX_UNDO_HISTORY_NODE), mtr);
 
 	mtr->write<8>(*undo_page, undo_header + TRX_UNDO_TRX_NO, trx->no);
 	/* This is needed for upgrading old undo log pages from
@@ -336,7 +336,7 @@ static void trx_purge_remove_log_hdr(buf_block_t *rseg, buf_block_t* log,
                                      uint16_t offset, mtr_t *mtr)
 {
   flst_remove(rseg, TRX_RSEG + TRX_RSEG_HISTORY,
-              log, offset + TRX_UNDO_HISTORY_NODE, mtr);
+              log, static_cast<uint16_t>(offset + TRX_UNDO_HISTORY_NODE), mtr);
   trx_sys.rseg_history_len--;
 }
 
@@ -438,8 +438,11 @@ trx_purge_truncate_rseg_history(
 
 	buf_block_t* rseg_hdr = trx_rsegf_get(rseg.space, rseg.page_no, &mtr);
 
-	hdr_addr = trx_purge_get_log_from_hist(
-		flst_get_last(TRX_RSEG + TRX_RSEG_HISTORY + rseg_hdr->frame));
+	hdr_addr = flst_get_last(TRX_RSEG + TRX_RSEG_HISTORY
+				 + rseg_hdr->frame);
+	hdr_addr.boffset = static_cast<uint16_t>(hdr_addr.boffset
+						 - TRX_UNDO_HISTORY_NODE);
+
 loop:
 	if (hdr_addr.page == FIL_NULL) {
 func_exit:
@@ -464,9 +467,10 @@ func_exit:
 		goto func_exit;
 	}
 
-	prev_hdr_addr = trx_purge_get_log_from_hist(
-		flst_get_prev_addr(block->frame + hdr_addr.boffset
-				   + TRX_UNDO_HISTORY_NODE));
+	prev_hdr_addr = flst_get_prev_addr(block->frame + hdr_addr.boffset
+					   + TRX_UNDO_HISTORY_NODE);
+	prev_hdr_addr.boffset = static_cast<uint16_t>(prev_hdr_addr.boffset
+						      - TRX_UNDO_HISTORY_NODE);
 
 	if (mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + block->frame)
 	    == TRX_UNDO_TO_PURGE
@@ -841,8 +845,10 @@ static void trx_purge_rseg_get_next_history_log(
 
 	(*n_pages_handled)++;
 
-	prev_log_addr = trx_purge_get_log_from_hist(
-		flst_get_prev_addr(log_hdr + TRX_UNDO_HISTORY_NODE));
+	prev_log_addr = flst_get_prev_addr(log_hdr + TRX_UNDO_HISTORY_NODE);
+	prev_log_addr.boffset = static_cast<uint16_t>(prev_log_addr.boffset
+						      - TRX_UNDO_HISTORY_NODE);
+
 
 	const bool empty = prev_log_addr.page == FIL_NULL;
 

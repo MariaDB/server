@@ -1855,7 +1855,7 @@ inline void mtr_t::log_file_op(mfile_type_t type, ulint space_id,
   }
   else
   {
-    *log_ptr= type | static_cast<byte>(end + len + new_len - &log_ptr[1]);
+    *log_ptr= static_cast<byte>(type | (end + len + new_len - &log_ptr[1]));
     ut_ad(*log_ptr & 15);
   }
 
@@ -2828,10 +2828,11 @@ err_exit:
 		page_zip_set_size(&page_zip, zip_size);
 		page_zip.data = page + srv_page_size;
 #ifdef UNIV_DEBUG
-		page_zip.m_start =
+		page_zip.m_start = 0;
 #endif /* UNIV_DEBUG */
-			page_zip.m_end = page_zip.m_nonempty =
-			page_zip.n_blobs = 0;
+		page_zip.m_end = 0;
+		page_zip.m_nonempty = 0;
+		page_zip.n_blobs = 0;
 
 		buf_flush_init_for_writing(NULL, page, &page_zip, false);
 

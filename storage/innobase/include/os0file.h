@@ -248,15 +248,14 @@ public:
 	/** Clear the punch hole flag */
 	void clear_punch_hole()
 	{
-		m_type &= ~PUNCH_HOLE;
+		m_type &= uint16_t(~PUNCH_HOLE);
 	}
 
 	/** @return true if partial read warning disabled */
 	bool is_partial_io_warning_disabled() const
 		MY_ATTRIBUTE((warn_unused_result))
 	{
-		return((m_type & DISABLE_PARTIAL_IO_WARNINGS)
-		       == DISABLE_PARTIAL_IO_WARNINGS);
+		return !!(m_type & DISABLE_PARTIAL_IO_WARNINGS);
 	}
 
 	/** Disable partial read warnings */
@@ -1350,6 +1349,12 @@ struct os_aio_userdata_t
   fil_node_t* node;
   IORequest type;
   void* message;
+
+  os_aio_userdata_t(fil_node_t*node, IORequest type, void*message) :
+    node(node), type(type), message(message) {}
+
+  /** Construct from tpool::aiocb::m_userdata[] */
+  os_aio_userdata_t(const char *buf) { memcpy((void*)this, buf, sizeof*this); }
 };
 /**
 NOTE! Use the corresponding macro os_aio(), not directly this function!

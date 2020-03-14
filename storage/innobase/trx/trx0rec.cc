@@ -1401,11 +1401,10 @@ trx_undo_update_rec_get_sys_cols(
 					general parameters */
 	trx_id_t*	trx_id,		/*!< out: trx id */
 	roll_ptr_t*	roll_ptr,	/*!< out: roll ptr */
-	ulint*		info_bits)	/*!< out: info bits state */
+	byte*		info_bits)	/*!< out: info bits state */
 {
 	/* Read the state of the info bits */
-	*info_bits = mach_read_from_1(ptr);
-	ptr += 1;
+	*info_bits = *ptr++;
 
 	/* Read the values of the system columns */
 
@@ -1436,7 +1435,7 @@ trx_undo_update_rec_get_update(
 				the update vector */
 	trx_id_t	trx_id,	/*!< in: transaction id from this undo record */
 	roll_ptr_t	roll_ptr,/*!< in: roll pointer from this undo record */
-	ulint		info_bits,/*!< in: info bits from this undo record */
+	byte		info_bits,/*!< in: info bits from this undo record */
 	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
 				needed is allocated */
 	upd_t**		upd)	/*!< out, own: update vector */
@@ -1500,7 +1499,7 @@ trx_undo_update_rec_get_update(
 				&field_no);
 			first_v_col = false;
 			/* This column could be dropped or no longer indexed */
-			if (field_no == FIL_NULL) {
+			if (field_no >= index->n_fields) {
 				/* Mark this is no longer needed */
 				upd_field->field_no = REC_MAX_N_FIELDS;
 
@@ -1512,12 +1511,14 @@ trx_undo_update_rec_get_update(
 				continue;
 			}
 
-			upd_field_set_v_field_no(upd_field, field_no, index);
+			upd_field_set_v_field_no(
+				upd_field, static_cast<uint16_t>(field_no),
+				index);
 		} else if (UNIV_UNLIKELY((update->info_bits
 					  & ~REC_INFO_DELETED_FLAG)
 					 == REC_INFO_MIN_REC_FLAG)) {
 			ut_ad(type == TRX_UNDO_UPD_EXIST_REC);
-			const ulint uf = index->first_user_field();
+			const uint32_t uf = index->first_user_field();
 			ut_ad(field_no >= uf);
 
 			if (update->info_bits != REC_INFO_MIN_REC_FLAG) {
@@ -1570,7 +1571,9 @@ trx_undo_update_rec_get_update(
 			upd_field->field_no = field_no
 				& dict_index_t::MAX_N_FIELDS;
 		} else if (field_no < index->n_fields) {
-			upd_field_set_field_no(upd_field, field_no, index);
+			upd_field_set_field_no(upd_field,
+					       static_cast<uint16_t>(field_no),
+					       index);
 		} else {
 			ib::error() << "Trying to access update undo rec"
 				" field " << field_no
@@ -1590,7 +1593,7 @@ trx_undo_update_rec_get_update(
 
 		ptr = trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);
 
-		upd_field->orig_len = orig_len;
+		upd_field->orig_len = static_cast<uint16_t>(orig_len);
 
 		if (len == UNIV_SQL_NULL) {
 			dfield_set_null(&upd_field->new_val);
@@ -2238,7 +2241,7 @@ trx_undo_prev_version_build(
 	roll_ptr_t	roll_ptr;
 	upd_t*		update;
 	byte*		ptr;
-	ulint		info_bits;
+	byte		info_bits;
 	ulint		cmpl_info;
 	bool		dummy_extern;
 	byte*		buf;
@@ -2406,8 +2409,9 @@ trx_undo_prev_version_build(
 				ut_ad(!index->table->not_redundant());
 				ulint l = rec_get_1byte_offs_flag(*old_vers)
 					? (n + 1) : (n + 1) * 2;
-				(*old_vers)[-REC_N_OLD_EXTRA_BYTES - l]
-					|= REC_1BYTE_SQL_NULL_MASK;
+				byte* b = *old_vers - REC_N_OLD_EXTRA_BYTES
+					- l;
+				*b= byte(*b | REC_1BYTE_SQL_NULL_MASK);
 				compile_time_assert(REC_1BYTE_SQL_NULL_MASK << 8
 						    == REC_2BYTE_SQL_NULL_MASK);
 				continue;
@@ -2424,7 +2428,7 @@ trx_undo_prev_version_build(
 				ulint l = rec_get_1byte_offs_flag(*old_vers)
 					? (n + 1) : (n + 1) * 2;
 				(*old_vers)[-REC_N_OLD_EXTRA_BYTES - l]
-					&= ~REC_1BYTE_SQL_NULL_MASK;
+					&= byte(~REC_1BYTE_SQL_NULL_MASK);
 			}
 		}
 	}

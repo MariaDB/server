@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -245,9 +245,9 @@ struct btr_search_t{
 				btr_search_info_create(). */
 
 	/*---------------------- @{ */
-	ulint	n_fields;	/*!< recommended prefix length for hash search:
+	uint16_t n_fields;	/*!< recommended prefix length for hash search:
 				number of full fields */
-	ulint	n_bytes;	/*!< recommended prefix: number of bytes in
+	uint16_t n_bytes;	/*!< recommended prefix: number of bytes in
 				an incomplete field
 				@see BTR_PAGE_MAX_REC_SIZE */
 	bool	left_side;	/*!< true or false, depending on whether

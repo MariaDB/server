@@ -110,7 +110,7 @@ trx_undo_update_rec_get_sys_cols(
 					general parameters */
 	trx_id_t*	trx_id,		/*!< out: trx id */
 	roll_ptr_t*	roll_ptr,	/*!< out: roll ptr */
-	ulint*		info_bits);	/*!< out: info bits state */
+	byte*		info_bits);	/*!< out: info bits state */
 /*******************************************************************//**
 Builds an update vector based on a remaining part of an undo log record.
 @return remaining part of the record, NULL if an error detected, which
@@ -132,7 +132,7 @@ trx_undo_update_rec_get_update(
 				the update vector */
 	trx_id_t	trx_id,	/*!< in: transaction id from this undorecord */
 	roll_ptr_t	roll_ptr,/*!< in: roll pointer from this undo record */
-	ulint		info_bits,/*!< in: info bits from this undo record */
+	byte		info_bits,/*!< in: info bits from this undo record */
 	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
 				needed is allocated */
 	upd_t**		upd);	/*!< out, own: update vector */

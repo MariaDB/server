@@ -575,13 +575,13 @@ page_get_data_size(
 /*===============*/
 	const page_t*	page)	/*!< in: index page */
 {
-	uint16_t	ret = page_header_get_field(page, PAGE_HEAP_TOP)
+	unsigned ret = page_header_get_field(page, PAGE_HEAP_TOP)
 		- (page_is_comp(page)
 		   ? PAGE_NEW_SUPREMUM_END
 		   : PAGE_OLD_SUPREMUM_END)
 		- page_header_get_field(page, PAGE_GARBAGE);
 	ut_ad(ret < srv_page_size);
-	return(ret);
+	return static_cast<uint16_t>(ret);
 }
 
 #ifndef UNIV_INNOCHECKSUM
@@ -716,7 +716,7 @@ page_get_instant(const page_t* page)
 		break;
 	}
 #endif /* UNIV_DEBUG */
-	return(i >> 3);
+	return i / 8;
 }
 #endif /* !UNIV_INNOCHECKSUM */
 

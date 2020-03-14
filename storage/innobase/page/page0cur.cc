@@ -1404,20 +1404,20 @@ use_heap:
     if (UNIV_UNLIKELY(!last_insert))
     {
 no_direction:
-      *dir= (*dir & ~((1U << 3) - 1)) | PAGE_NO_DIRECTION;
+      *dir= static_cast<byte>((*dir & ~((1U << 3) - 1)) | PAGE_NO_DIRECTION);
       memset(n, 0, 2);
     }
     else if (block->frame + last_insert == cur->rec &&
              (*dir & ((1U << 3) - 1)) != PAGE_LEFT)
     {
-      *dir= (*dir & ~((1U << 3) - 1)) | PAGE_RIGHT;
+      *dir= static_cast<byte>((*dir & ~((1U << 3) - 1)) | PAGE_RIGHT);
 inc_dir:
       mach_write_to_2(n, mach_read_from_2(n) + 1);
     }
     else if (next_rec == block->frame + last_insert &&
              (*dir & ((1U << 3) - 1)) != PAGE_RIGHT)
     {
-      *dir= (*dir & ~((1U << 3) - 1)) | PAGE_LEFT;
+      *dir= static_cast<byte>((*dir & ~((1U << 3) - 1)) | PAGE_LEFT);
       goto inc_dir;
     }
     else
@@ -1866,7 +1866,7 @@ too_small:
     static_assert(UNIV_ZIP_SIZE_SHIFT_MAX == 14, "compatibility");
     if (next_rec)
     {
-      next_rec+= free_rec;
+      next_rec= static_cast<int16_t>(next_rec + free_rec);
       ut_ad(int{PAGE_NEW_SUPREMUM_END + REC_N_NEW_EXTRA_BYTES} <= next_rec);
       ut_ad(static_cast<uint16_t>(next_rec) < srv_page_size);
     }
@@ -2041,7 +2041,8 @@ static void page_mem_free(const buf_block_t &block, rec_t *rec,
   ut_ad(!block.page.zip.data);
   const rec_t *free= page_header_get_ptr(block.frame, PAGE_FREE);
 
-  const uint16_t n_heap= page_header_get_field(block.frame, PAGE_N_HEAP) - 1;
+  const uint16_t n_heap= uint16_t(page_header_get_field(block.frame,
+                                                        PAGE_N_HEAP) - 1);
   ut_ad(page_get_n_recs(block.frame) < (n_heap & 0x7fff));
   const bool deleting_top= n_heap == ((n_heap & 0x8000)
                                       ? (rec_get_heap_no_new(rec) | 0x8000)
@@ -2093,7 +2094,7 @@ static void page_mem_free(const buf_block_t &block, rec_t *rec,
       ? ((n_heap & 0x8000)
          ? static_cast<uint16_t>(free - rec)
          : static_cast<uint16_t>(free - block.frame))
-      : 0;
+      : uint16_t{0};
     mach_write_to_2(rec - REC_NEXT, next);
   }
   else
@@ -2480,20 +2481,20 @@ corrupted:
     if (UNIV_UNLIKELY(!last_insert))
     {
 no_direction:
-      *dir= (*dir & ~((1U << 3) - 1)) | PAGE_NO_DIRECTION;
+      *dir= static_cast<byte>((*dir & ~((1U << 3) - 1)) | PAGE_NO_DIRECTION);
       memset(n_dir, 0, 2);
     }
     else if (block.frame + last_insert == prev_rec &&
              (*dir & ((1U << 3) - 1)) != PAGE_LEFT)
     {
-      *dir= (*dir & ~((1U << 3) - 1)) | PAGE_RIGHT;
+      *dir= static_cast<byte>((*dir & ~((1U << 3) - 1)) | PAGE_RIGHT);
 inc_dir:
       mach_write_to_2(n_dir, mach_read_from_2(n_dir) + 1);
     }
     else if (next_rec == block.frame + last_insert &&
              (*dir & ((1U << 3) - 1)) != PAGE_RIGHT)
     {
-      *dir= (*dir & ~((1U << 3) - 1)) | PAGE_LEFT;
+      *dir= static_cast<byte>((*dir & ~((1U << 3) - 1)) | PAGE_LEFT);
       goto inc_dir;
     }
     else
@@ -2570,7 +2571,7 @@ corrupted:
 
   uint16_t n= static_cast<uint16_t>(PAGE_NEW_INFIMUM + prev);
   rec_t *prev_rec= block.frame + n;
-  n+= mach_read_from_2(prev_rec - REC_NEXT);
+  n= static_cast<uint16_t>(n + mach_read_from_2(prev_rec - REC_NEXT));
   if (!prev);
   else if (UNIV_UNLIKELY(heap_bot + REC_N_NEW_EXTRA_BYTES > prev_rec ||
                          prev_rec > heap_top))
@@ -2589,7 +2590,7 @@ corrupted:
   for (ulint ns= PAGE_DIR_SLOT_MAX_N_OWNED;
        !(n_owned= rec_get_n_owned_new(owner_rec)); )
   {
-    n+= mach_read_from_2(owner_rec - REC_NEXT);
+    n= static_cast<uint16_t>(n + mach_read_from_2(owner_rec - REC_NEXT));
     owner_rec= block.frame + n;
     if (n == PAGE_NEW_SUPREMUM);
     else if (UNIV_UNLIKELY(heap_bot + REC_N_NEW_EXTRA_BYTES > owner_rec ||
@@ -2643,7 +2644,7 @@ corrupted:
       goto corrupted;
     if ((n= mach_read_from_2(free_rec - REC_NEXT)) != 0)
     {
-      n+= static_cast<uint16_t>(free_rec - block.frame);
+      n= static_cast<uint16_t>(n + free_rec - block.frame);
       if (UNIV_UNLIKELY(n < PAGE_NEW_SUPREMUM_END + REC_N_NEW_EXTRA_BYTES ||
                         heap_top < block.frame + n))
         goto corrupted;
@@ -2708,20 +2709,20 @@ corrupted:
     if (UNIV_UNLIKELY(!last_insert))
     {
 no_direction:
-      *dir= (*dir & ~((1U << 3) - 1)) | PAGE_NO_DIRECTION;
+      *dir= static_cast<byte>((*dir & ~((1U << 3) - 1)) | PAGE_NO_DIRECTION);
       memset(n_dir, 0, 2);
     }
     else if (block.frame + last_insert == prev_rec &&
              (*dir & ((1U << 3) - 1)) != PAGE_LEFT)
     {
-      *dir= (*dir & ~((1U << 3) - 1)) | PAGE_RIGHT;
+      *dir= static_cast<byte>((*dir & ~((1U << 3) - 1)) | PAGE_RIGHT);
 inc_dir:
       mach_write_to_2(n_dir, mach_read_from_2(n_dir) + 1);
     }
     else if (next_rec == block.frame + last_insert &&
              (*dir & ((1U << 3) - 1)) != PAGE_RIGHT)
     {
-      *dir= (*dir & ~((1U << 3) - 1)) | PAGE_LEFT;
+      *dir= static_cast<byte>((*dir & ~((1U << 3) - 1)) | PAGE_LEFT);
       goto inc_dir;
     }
     else
@@ -2864,7 +2865,7 @@ corrupted:
   rec_t *prev_rec= block.frame + n;
   if (UNIV_UNLIKELY(prev_rec > slot))
     goto corrupted;
-  n+= mach_read_from_2(prev_rec - REC_NEXT);
+  n= static_cast<uint16_t>(n + mach_read_from_2(prev_rec - REC_NEXT));
   rec_t *rec= block.frame + n;
   if (UNIV_UNLIKELY(n < PAGE_NEW_SUPREMUM_END + REC_N_NEW_EXTRA_BYTES ||
                     slot < rec))
@@ -2873,7 +2874,7 @@ corrupted:
   if (UNIV_UNLIKELY(n < PAGE_NEW_SUPREMUM_END + extra_size ||
                     slot < rec + data_size))
     goto corrupted;
-  n+= mach_read_from_2(rec - REC_NEXT);
+  n= static_cast<uint16_t>(n + mach_read_from_2(rec - REC_NEXT));
   rec_t *next= block.frame + n;
   if (n == PAGE_NEW_SUPREMUM);
   else if (UNIV_UNLIKELY(n < PAGE_NEW_SUPREMUM_END + REC_N_NEW_EXTRA_BYTES ||
@@ -2885,7 +2886,7 @@ corrupted:
   ulint slot_owned;
   for (ulint i= n_recs; !(slot_owned= rec_get_n_owned_new(s)); )
   {
-    n+= mach_read_from_2(s - REC_NEXT);
+    n= static_cast<uint16_t>(n + mach_read_from_2(s - REC_NEXT));
     s= block.frame + n;
     if (n == PAGE_NEW_SUPREMUM);
     else if (UNIV_UNLIKELY(n < PAGE_NEW_SUPREMUM_END + REC_N_NEW_EXTRA_BYTES ||

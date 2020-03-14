@@ -287,12 +287,6 @@ void debug_sync_end_thread(THD *thd)
   {
     st_debug_sync_control *ds_control= thd->debug_sync_control;
 
-    /*
-      This synchronization point can be used to synchronize on thread end.
-      This is the latest point in a THD's life, where this can be done.
-    */
-    DEBUG_SYNC(thd, "thread_end");
-
     if (ds_control->ds_action)
     {
       st_debug_sync_action *action= ds_control->ds_action;
@@ -319,6 +313,20 @@ void debug_sync_end_thread(THD *thd)
   }
 
   DBUG_VOID_RETURN;
+}
+
+
+void debug_sync_reset_thread(THD *thd)
+{
+  if (thd->debug_sync_control)
+  {
+    /*
+      This synchronization point can be used to synchronize on thread end.
+      This is the latest point in a THD's life, where this can be done.
+    */
+    DEBUG_SYNC(thd, "thread_end");
+    thd->debug_sync_control->ds_active= 0;
+  }
 }
 
 

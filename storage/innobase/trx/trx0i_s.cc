@@ -184,7 +184,7 @@ static uint16_t wait_lock_get_heap_no(const lock_t* lock)
 {
 	return lock_get_type(lock) == LOCK_REC
 		? static_cast<uint16_t>(lock_rec_find_set_bit(lock))
-		: 0;
+		: uint16_t{0};
 }
 
 /*******************************************************************//**
@@ -718,16 +718,16 @@ static bool fill_locks_row(
 		&& (lock->type_mode & LOCK_GAP);
 	switch (lock->type_mode & LOCK_MODE_MASK) {
 	case LOCK_S:
-		row->lock_mode = 1 + is_gap_lock;
+		row->lock_mode = uint8_t(1 + is_gap_lock);
 		break;
 	case LOCK_X:
-		row->lock_mode = 3 + is_gap_lock;
+		row->lock_mode = uint8_t(3 + is_gap_lock);
 		break;
 	case LOCK_IS:
-		row->lock_mode = 5 + is_gap_lock;
+		row->lock_mode = uint8_t(5 + is_gap_lock);
 		break;
 	case LOCK_IX:
-		row->lock_mode = 7 + is_gap_lock;
+		row->lock_mode = uint8_t(7 + is_gap_lock);
 		break;
 	case LOCK_AUTO_INC:
 		row->lock_mode = 9;

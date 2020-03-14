@@ -1777,7 +1777,7 @@ void btr_set_instant(buf_block_t* root, const dict_index_t& index, mtr_t* mtr)
 		ut_ad(!memcmp(supremum, "supremum", 8));
 		mtr->write<2>(*root, page_type, FIL_PAGE_TYPE_INSTANT);
 		ut_ad(i <= PAGE_NO_DIRECTION);
-		i |= index.n_core_fields << 3;
+		i |= static_cast<uint16_t>(index.n_core_fields << 3);
 		mtr->write<2>(*root, PAGE_HEADER + PAGE_INSTANT + root->frame,
 			      i);
 		break;
@@ -4357,7 +4357,7 @@ btr_check_node_ptr(
 	if (dict_index_is_spatial(index)) {
 		ut_a(!cmp_dtuple_rec_with_gis(
 			tuple, btr_cur_get_rec(&cursor),
-			offsets, PAGE_CUR_WITHIN));
+			PAGE_CUR_WITHIN));
 	} else {
 		ut_a(!cmp_dtuple_rec(tuple, btr_cur_get_rec(&cursor), offsets));
 	}

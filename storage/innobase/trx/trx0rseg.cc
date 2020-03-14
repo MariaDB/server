@@ -510,9 +510,11 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 				    + rseg_hdr->frame)) {
 		trx_sys.rseg_history_len += len;
 
-		fil_addr_t	node_addr = trx_purge_get_log_from_hist(
-			flst_get_last(TRX_RSEG + TRX_RSEG_HISTORY
-				      + rseg_hdr->frame));
+		fil_addr_t node_addr = flst_get_last(TRX_RSEG
+						     + TRX_RSEG_HISTORY
+						     + rseg_hdr->frame);
+		node_addr.boffset = static_cast<uint16_t>(
+			node_addr.boffset - TRX_UNDO_HISTORY_NODE);
 
 		rseg->last_page_no = node_addr.page;
 		rseg->last_offset = node_addr.boffset;

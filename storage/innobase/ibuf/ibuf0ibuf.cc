@@ -637,13 +637,20 @@ ibuf_bitmap_page_set_bits(
 	if (bit == IBUF_BITMAP_FREE) {
 		ut_ad(bit_offset + 1 < 8);
 		ut_ad(val <= 3);
-		b &= ~(3U << bit_offset);
-		b |= ((val & 2) >> 1) << bit_offset
-			| (val & 1) << (bit_offset + 1);
+		b &= static_cast<byte>(~(3U << bit_offset));
+		b |= static_cast<byte>(((val & 2) >> 1) << bit_offset
+				       | (val & 1) << (bit_offset + 1));
 	} else {
 		ut_ad(val <= 1);
-		b &= ~(1U << bit_offset);
-		b |= val << bit_offset;
+		b &= static_cast<byte>(~(1U << bit_offset));
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
+#endif
+		b |= static_cast<byte>(val << bit_offset);
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 	}
 
 	mtr->write<1,mtr_t::OPT>(*block, map_byte, b);
@@ -1431,8 +1438,8 @@ ibuf_build_entry_from_ibuf_rec_func(
 		ibuf_dummy_index_add_col(index, dfield_get_type(field), len);
 	}
 
-	index->n_core_null_bytes
-		= UT_BITS_IN_BYTES(unsigned(index->n_nullable));
+	index->n_core_null_bytes = static_cast<uint8_t>(
+		UT_BITS_IN_BYTES(unsigned(index->n_nullable)));
 
 	/* Prevent an ut_ad() failure in page_zip_write_rec() by
 	adding system columns to the dummy table pointed to by the
@@ -3798,7 +3805,7 @@ dump:
 
 		/* Copy the info bits. Clear the delete-mark. */
 		update->info_bits = rec_get_info_bits(rec, page_is_comp(page));
-		update->info_bits &= ~REC_INFO_DELETED_FLAG;
+		update->info_bits &= byte(~REC_INFO_DELETED_FLAG);
 		page_zip_des_t* page_zip = buf_block_get_page_zip(block);
 
 		/* We cannot invoke btr_cur_optimistic_update() here,

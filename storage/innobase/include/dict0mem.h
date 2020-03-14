@@ -279,7 +279,7 @@ index tables) of a FTS table are in HEX format. */
 	(table->flags2 & (flag))
 
 #define DICT_TF2_FLAG_UNSET(table, flag)	\
-	(table->flags2 &= ~(flag))
+	(table->flags2 &= ~(flag) & ((1U << DICT_TF2_BITS) - 1))
 
 /** Tables could be chained together with Foreign key constraint. When
 first load the parent table, we would load all of its descedents.
@@ -641,7 +641,7 @@ public:
 			: DATA_BINARY_TYPE;
 		if (fixed) {
 			mtype = DATA_FIXBINARY;
-			len = fixed;
+			len = static_cast<uint16_t>(fixed);
 		} else {
 			mtype = DATA_BINARY;
 			len = len2 ? 65535 : 255;
@@ -1169,18 +1169,24 @@ struct dict_index_t {
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 
 	/** @return the position of DB_TRX_ID */
-	unsigned db_trx_id() const {
+	uint16_t db_trx_id() const {
 		DBUG_ASSERT(is_primary());
 		DBUG_ASSERT(n_uniq);
 		DBUG_ASSERT(n_uniq <= MAX_REF_PARTS);
 		return n_uniq;
 	}
 	/** @return the position of DB_ROLL_PTR */
-	unsigned db_roll_ptr() const { return db_trx_id() + 1; }
+	uint16_t db_roll_ptr() const
+	{
+		return static_cast<uint16_t>(db_trx_id() + 1);
+	}
 
 	/** @return the offset of the metadata BLOB field,
 	or the first user field after the PRIMARY KEY,DB_TRX_ID,DB_ROLL_PTR */
-	unsigned first_user_field() const { return db_trx_id() + 2; }
+	uint16_t first_user_field() const
+	{
+		return static_cast<uint16_t>(db_trx_id() + 2);
+	}
 
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
@@ -1670,7 +1676,7 @@ class field_map_element_t
 	/** Field metadata */
 	uint16_t data;
 
-	void clear_not_null() { data &= ~NOT_NULL; }
+	void clear_not_null() { data &= uint16_t(~NOT_NULL); }
 public:
 	bool is_dropped() const { return data & DROPPED; }
 	void set_dropped() { data |= DROPPED; }
@@ -2307,14 +2313,14 @@ inline bool dict_index_t::is_corrupted() const
 
 inline void dict_index_t::clear_instant_add()
 {
-	DBUG_ASSERT(is_primary());
-	DBUG_ASSERT(is_instant());
-	DBUG_ASSERT(!table->instant);
-	for (unsigned i = n_core_fields; i < n_fields; i++) {
-		fields[i].col->clear_instant();
-	}
-	n_core_fields = n_fields;
-	n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(n_nullable));
+  DBUG_ASSERT(is_primary());
+  DBUG_ASSERT(is_instant());
+  DBUG_ASSERT(!table->instant);
+  for (unsigned i= n_core_fields; i < n_fields; i++)
+    fields[i].col->clear_instant();
+  n_core_fields= n_fields;
+  n_core_null_bytes= static_cast<byte>
+    (UT_BITS_IN_BYTES(static_cast<unsigned>(n_nullable)));
 }
 
 inline void dict_index_t::clear_instant_alter()
@@ -2357,7 +2363,7 @@ inline void dict_index_t::clear_instant_alter()
 	DBUG_ASSERT(&fields[n_fields - table->n_dropped()] == end);
 	n_core_fields = n_fields = n_def
 		= static_cast<unsigned>(end - fields) & MAX_N_FIELDS;
-	n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
+	n_core_null_bytes = static_cast<byte>(UT_BITS_IN_BYTES(n_nullable));
 	std::sort(begin, end, [](const dict_field_t& a, const dict_field_t& b)
 			      { return a.col->ind < b.col->ind; });
 	table->instant = NULL;

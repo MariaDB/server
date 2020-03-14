@@ -528,7 +528,6 @@ dict_process_sys_foreign_rec(
 {
 	ulint		len;
 	const byte*	field;
-	ulint		n_fields_and_type;
 
 	if (rec_get_deleted_flag(rec, 0)) {
 		return("delete-marked record in SYS_FOREIGN");
@@ -586,10 +585,10 @@ err_len:
 	if (len != 4) {
 		goto err_len;
 	}
-	n_fields_and_type = mach_read_from_4(field);
+	uint32_t n_fields_and_type = mach_read_from_4(field);
 
-	foreign->type = (unsigned int) (n_fields_and_type >> 24);
-	foreign->n_fields = (unsigned int) (n_fields_and_type & 0x3FFUL);
+	foreign->type = n_fields_and_type >> 24 & ((1U << 6) - 1);
+	foreign->n_fields = n_fields_and_type & dict_index_t::MAX_N_FIELDS;
 
 	return(NULL);
 }
@@ -2097,7 +2096,7 @@ err_len:
 
 		sys_field->name = mem_heap_strdupl(
 			heap, (const char*) field, len);
-		sys_field->prefix_len = prefix_len;
+		sys_field->prefix_len = prefix_len & ((1U << 12) - 1);
 		*pos = position;
 	}
 
@@ -2326,7 +2325,7 @@ err_len:
 	(*index)->id = id;
 	(*index)->page = mach_read_from_4(field);
 	ut_ad((*index)->page);
-	(*index)->merge_threshold = merge_threshold;
+	(*index)->merge_threshold = merge_threshold & ((1U << 6) - 1);
 
 	return(NULL);
 }
@@ -2693,10 +2692,12 @@ dict_get_and_save_data_dir_path(
 
 		if (const char* p = table->space
 		    ? table->space->chain.start->name : NULL) {
-			table->flags |= (1 << DICT_TF_POS_DATA_DIR);
+			table->flags |= 1 << DICT_TF_POS_DATA_DIR
+				& ((1U << DICT_TF_BITS) - 1);
 			dict_save_data_dir_path(table, p);
 		} else if (char* path = dict_get_first_path(table->space_id)) {
-			table->flags |= (1 << DICT_TF_POS_DATA_DIR);
+			table->flags |= 1 << DICT_TF_POS_DATA_DIR
+				& ((1U << DICT_TF_BITS) - 1);
 			dict_save_data_dir_path(table, path);
 			ut_free(path);
 		}
@@ -2706,7 +2707,8 @@ dict_get_and_save_data_dir_path(
 			unset the flag.  This does not change SYS_DATAFILES
 			or SYS_TABLES or FSP_FLAGS on the header page of the
 			tablespace, but it makes dict_table_t consistent. */
-			table->flags &= ~DICT_TF_MASK_DATA_DIR;
+			table->flags &= ~DICT_TF_MASK_DATA_DIR
+				& ((1U << DICT_TF_BITS) - 1);
 		}
 
 		if (!dict_mutex_own) {
@@ -3373,7 +3375,6 @@ dict_load_foreign(
 	const rec_t*	rec;
 	const byte*	field;
 	ulint		len;
-	ulint		n_fields_and_type;
 	mtr_t		mtr;
 	dict_table_t*	for_table;
 	dict_table_t*	ref_table;
@@ -3447,7 +3448,7 @@ dict_load_foreign(
 
 	foreign = dict_mem_foreign_create();
 
-	n_fields_and_type = mach_read_from_4(
+	uint32_t n_fields_and_type = mach_read_from_4(
 		rec_get_nth_field_old(
 			rec, DICT_FLD__SYS_FOREIGN__N_COLS, &len));
 
@@ -3455,8 +3456,8 @@ dict_load_foreign(
 
 	/* We store the type in the bits 24..29 of n_fields_and_type. */
 
-	foreign->type = (unsigned int) (n_fields_and_type >> 24);
-	foreign->n_fields = (unsigned int) (n_fields_and_type & 0x3FFUL);
+	foreign->type = (n_fields_and_type >> 24) & ((1U << 6) - 1);
+	foreign->n_fields = n_fields_and_type & dict_index_t::MAX_N_FIELDS;
 
 	foreign->id = mem_heap_strdupl(foreign->heap, id, id_len);
 

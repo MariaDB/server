@@ -312,8 +312,8 @@ dict_boot(void)
 		index, mach_read_from_4(dict_hdr + DICT_HDR_TABLES));
 	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
-	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
-		unsigned(table->indexes.start->n_nullable));
+	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
+		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
 
 	/*-------------------------*/
 	index = dict_mem_index_create(table, "ID_IND", DICT_UNIQUE, 1);
@@ -354,8 +354,8 @@ dict_boot(void)
 		index, mach_read_from_4(dict_hdr + DICT_HDR_COLUMNS));
 	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
-	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
-		unsigned(table->indexes.start->n_nullable));
+	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
+		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
 
 	/*-------------------------*/
 	table = dict_mem_table_create("SYS_INDEXES", fil_system.sys_space,
@@ -397,8 +397,8 @@ dict_boot(void)
 		index, mach_read_from_4(dict_hdr + DICT_HDR_INDEXES));
 	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
-	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
-		unsigned(table->indexes.start->n_nullable));
+	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
+		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
 
 	/*-------------------------*/
 	table = dict_mem_table_create("SYS_FIELDS", fil_system.sys_space,
@@ -426,8 +426,8 @@ dict_boot(void)
 		index, mach_read_from_4(dict_hdr + DICT_HDR_FIELDS));
 	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
-	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
-		unsigned(table->indexes.start->n_nullable));
+	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
+		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
 
 	mtr_commit(&mtr);
 

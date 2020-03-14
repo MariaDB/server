@@ -698,8 +698,8 @@ bool btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 		index root pages of ROW_FORMAT=COMPACT or
 		ROW_FORMAT=DYNAMIC when instant ADD COLUMN is not used. */
 		ut_ad(!page_is_comp(page) || !page_get_instant(page));
-		index->n_core_null_bytes = UT_BITS_IN_BYTES(
-			unsigned(index->n_nullable));
+		index->n_core_null_bytes = static_cast<uint8_t>(
+			UT_BITS_IN_BYTES(unsigned(index->n_nullable)));
 		return false;
 	case FIL_PAGE_TYPE_INSTANT:
 		break;
@@ -718,7 +718,7 @@ bool btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 		return true;
 	}
 
-	index->n_core_fields = n;
+	index->n_core_fields = n & dict_index_t::MAX_N_FIELDS;
 
 	const rec_t* infimum = page_get_infimum_rec(page);
 	const rec_t* supremum = page_get_supremum_rec(page);
@@ -734,8 +734,8 @@ bool btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 
 		ut_ad(!index->is_dummy);
 		ut_d(index->is_dummy = true);
-		index->n_core_null_bytes = UT_BITS_IN_BYTES(
-			index->get_n_nullable(n));
+		index->n_core_null_bytes = static_cast<uint8_t>(
+			UT_BITS_IN_BYTES(index->get_n_nullable(n)));
 		ut_d(index->is_dummy = false);
 		return false;
 	}
@@ -4116,7 +4116,7 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 		byte* info_bits = &rec[-REC_NEW_INFO_BITS];
 		const bool flip_del_mark = (*info_bits ^ update->info_bits)
 			& REC_INFO_DELETED_FLAG;
-		*info_bits &= ~REC_INFO_BITS_MASK;
+		*info_bits &= byte(~REC_INFO_BITS_MASK);
 		*info_bits |= update->info_bits;
 
 		if (flip_del_mark) {
@@ -5290,7 +5290,7 @@ void btr_rec_set_deleted(buf_block_t *block, rec_t *rec, mtr_t *mtr)
     byte *b= &rec[-REC_NEW_INFO_BITS];
     const byte v= flag
       ? (*b | REC_INFO_DELETED_FLAG)
-      : (*b & ~REC_INFO_DELETED_FLAG);
+      : (*b & byte(~REC_INFO_DELETED_FLAG));
     if (*b == v);
     else if (UNIV_LIKELY_NULL(block->page.zip.data))
     {
@@ -5306,7 +5306,7 @@ void btr_rec_set_deleted(buf_block_t *block, rec_t *rec, mtr_t *mtr)
     byte *b= &rec[-REC_OLD_INFO_BITS];
     const byte v = flag
       ? (*b | REC_INFO_DELETED_FLAG)
-      : (*b & ~REC_INFO_DELETED_FLAG);
+      : (*b & byte(~REC_INFO_DELETED_FLAG));
     mtr->write<1,mtr_t::OPT>(*block, b, v);
   }
 }
@@ -6676,11 +6676,12 @@ btr_estimate_number_of_different_key_vals(
 		n_pages = S < I? min(I,L) : I
                 */
 		if (index->stat_index_size > 1) {
-			n_sample_pages = (srv_stats_transient_sample_pages < index->stat_index_size) ?
-				ut_min(index->stat_index_size,
-				       static_cast<ulint>(log2(index->stat_index_size)*double(srv_stats_transient_sample_pages)))
+			n_sample_pages = (srv_stats_transient_sample_pages < index->stat_index_size)
+				? ut_min(index->stat_index_size,
+					 static_cast<ulint>(
+						 log2(double(index->stat_index_size))
+						 * double(srv_stats_transient_sample_pages)))
 				: index->stat_index_size;
-
 		}
 	}
 
@@ -6977,13 +6978,11 @@ btr_cur_disown_inherited_fields(
 	const upd_t*	update,	/*!< in: update vector */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	ulint	i;
-
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec_offs_comp(offsets) || !rec_get_node_ptr_flag(rec));
 	ut_ad(rec_offs_any_extern(offsets));
 
-	for (i = 0; i < rec_offs_n_fields(offsets); i++) {
+	for (uint16_t i = 0; i < rec_offs_n_fields(offsets); i++) {
 		if (rec_offs_nth_extern(offsets, i)
 		    && !upd_get_field_by_field_no(update, i, false)) {
 			btr_cur_set_ownership_of_extern_field(

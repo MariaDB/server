@@ -271,14 +271,15 @@ fseg_mark_page_used(fseg_inode_t *seg_inode, buf_block_t *iblock,
   ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N) == FSEG_MAGIC_N_VALUE);
   ut_ad(!memcmp(seg_inode + FSEG_ID, descr + XDES_ID, 4));
 
-  const uint16_t xoffset= XDES_FLST_NODE + uint16_t(descr - xdes->frame);
+  const uint16_t xoffset= uint16_t(descr - xdes->frame + XDES_FLST_NODE);
   const uint16_t ioffset= uint16_t(seg_inode - iblock->frame);
 
   if (!xdes_get_n_used(descr))
   {
     /* We move the extent from the free list to the NOT_FULL list */
-    flst_remove(iblock, FSEG_FREE + ioffset, xdes, xoffset, mtr);
-    flst_add_last(iblock, FSEG_NOT_FULL + ioffset, xdes, xoffset, mtr);
+    flst_remove(iblock, uint16_t(FSEG_FREE + ioffset), xdes, xoffset, mtr);
+    flst_add_last(iblock, uint16_t(FSEG_NOT_FULL + ioffset),
+                  xdes, xoffset, mtr);
   }
 
   ut_ad(xdes_is_free(descr, page % FSP_EXTENT_SIZE));
@@ -292,8 +293,8 @@ fseg_mark_page_used(fseg_inode_t *seg_inode, buf_block_t *iblock,
   if (xdes_is_full(descr))
   {
     /* We move the extent from the NOT_FULL list to the FULL list */
-    flst_remove(iblock, FSEG_NOT_FULL + ioffset, xdes, xoffset, mtr);
-    flst_add_last(iblock, FSEG_FULL + ioffset, xdes, xoffset, mtr);
+    flst_remove(iblock, uint16_t(FSEG_NOT_FULL + ioffset), xdes, xoffset, mtr);
+    flst_add_last(iblock, uint16_t(FSEG_FULL + ioffset), xdes, xoffset, mtr);
     mtr->write<4>(*iblock, seg_inode + FSEG_NOT_FULL_N_USED,
                   not_full_n_used - FSP_EXTENT_SIZE);
   }
@@ -920,8 +921,8 @@ fsp_fill_free_list(
 			fil_block_check_type(*xdes, FIL_PAGE_TYPE_XDES, mtr);
 		}
 		xdes_init(*xdes, descr, mtr);
-		const uint16_t xoffset= XDES_FLST_NODE
-			+ uint16_t(descr - xdes->frame);
+		const uint16_t xoffset= static_cast<uint16_t>(
+			descr - xdes->frame + XDES_FLST_NODE);
 
 		if (UNIV_UNLIKELY(init_xdes)) {
 
@@ -1004,9 +1005,9 @@ fsp_alloc_free_extent(
 						mtr);
 	}
 
-	flst_remove(header, FSP_HEADER_OFFSET + FSP_FREE,
-		    desc_block, uint16_t(descr - desc_block->frame)
-		    + XDES_FLST_NODE, mtr);
+	flst_remove(header, FSP_HEADER_OFFSET + FSP_FREE, desc_block,
+		    static_cast<uint16_t>(
+			    descr - desc_block->frame + XDES_FLST_NODE), mtr);
 	space->free_len--;
 	*xdes = desc_block;
 
@@ -1034,8 +1035,8 @@ fsp_alloc_from_free_frag(buf_block_t *header, buf_block_t *xdes, xdes_t *descr,
 
 	if (xdes_is_full(descr)) {
 		/* The fragment is full: move it to another list */
-		const uint16_t xoffset= XDES_FLST_NODE
-			+ uint16_t(descr - xdes->frame);
+		const uint16_t xoffset= static_cast<uint16_t>(
+			descr - xdes->frame + XDES_FLST_NODE);
 		flst_remove(header, FSP_HEADER_OFFSET + FSP_FREE_FRAG,
 			    xdes, xoffset, mtr);
 		xdes_set_state(*xdes, descr, XDES_FULL_FRAG, mtr);
@@ -1141,8 +1142,9 @@ fsp_alloc_free_page(
 
 			xdes_set_state(*xdes, descr, XDES_FREE_FRAG, mtr);
 			flst_add_last(block, FSP_HEADER_OFFSET + FSP_FREE_FRAG,
-				      xdes, XDES_FLST_NODE
-				      + uint16_t(descr - xdes->frame), mtr);
+				      xdes, static_cast<uint16_t>(
+					      descr - xdes->frame
+					      + XDES_FLST_NODE), mtr);
 		} else {
 			descr = xdes_lst_get_descriptor(space, first, &xdes,
 							mtr);
@@ -1262,7 +1264,8 @@ static void fsp_free_page(fil_space_t* space, page_no_t offset, mtr_t* mtr)
 	frag_n_used = mach_read_from_4(FSP_HEADER_OFFSET + FSP_FRAG_N_USED
 				       + header->frame);
 
-	const uint16_t xoffset= XDES_FLST_NODE + uint16_t(descr - xdes->frame);
+	const uint16_t xoffset= static_cast<uint16_t>(descr - xdes->frame
+						      + XDES_FLST_NODE);
 
 	if (state == XDES_FULL_FRAG) {
 		/* The fragment was full: move it to another list */
@@ -1306,7 +1309,8 @@ static void fsp_free_extent(fil_space_t* space, page_no_t offset, mtr_t* mtr)
   xdes_init(*xdes, descr, mtr);
 
   flst_add_last(block, FSP_HEADER_OFFSET + FSP_FREE,
-                xdes, XDES_FLST_NODE + uint16_t(descr - xdes->frame), mtr);
+                xdes, static_cast<uint16_t>(descr - xdes->frame
+					    + XDES_FLST_NODE), mtr);
   space->free_len++;
 }
 
@@ -1913,10 +1917,11 @@ fseg_fill_free_list(
 		      == FSEG_MAGIC_N_VALUE);
 		mtr->write<8>(*xdes, descr + XDES_ID, seg_id);
 
-		flst_add_last(iblock, FSEG_FREE
-			      + uint16_t(inode - iblock->frame),
-			      xdes, XDES_FLST_NODE
-			      + uint16_t(descr - xdes->frame), mtr);
+		flst_add_last(iblock,
+			      static_cast<uint16_t>(inode - iblock->frame
+						    + FSEG_FREE), xdes,
+			      static_cast<uint16_t>(descr - xdes->frame
+						    + XDES_FLST_NODE), mtr);
 		hint += FSP_EXTENT_SIZE;
 	}
 }
@@ -1967,10 +1972,11 @@ fseg_alloc_free_extent(
 
 		xdes_set_state(**xdes, descr, XDES_FSEG, mtr);
 		mtr->write<8,mtr_t::OPT>(**xdes, descr + XDES_ID, seg_id);
-		flst_add_last(iblock, FSEG_FREE
-			      + uint16_t(inode - iblock->frame),
-			      *xdes, XDES_FLST_NODE
-			      + uint16_t(descr - (*xdes)->frame), mtr);
+		flst_add_last(iblock,
+			      static_cast<uint16_t>(inode - iblock->frame
+						    + FSEG_FREE), *xdes,
+			      static_cast<uint16_t>(descr - (*xdes)->frame
+						    + XDES_FLST_NODE), mtr);
 
 		/* Try to fill the segment free list */
 		fseg_fill_free_list(inode, iblock, space,
@@ -2076,10 +2082,11 @@ take_hinted_page:
 
 		xdes_set_state(*xdes, ret_descr, XDES_FSEG, mtr);
 		mtr->write<8,mtr_t::OPT>(*xdes, ret_descr + XDES_ID, seg_id);
-		flst_add_last(iblock, FSEG_FREE
-			      + uint16_t(seg_inode - iblock->frame),
-			      xdes, XDES_FLST_NODE
-			      + uint16_t(ret_descr - xdes->frame), mtr);
+		flst_add_last(iblock,
+			      static_cast<uint16_t>(seg_inode - iblock->frame
+						    + FSEG_FREE), xdes,
+			      static_cast<uint16_t>(ret_descr - xdes->frame
+						    + XDES_FLST_NODE), mtr);
 
 		/* Try to fill the segment free list */
 		fseg_fill_free_list(seg_inode, iblock, space,
@@ -2566,14 +2573,16 @@ fseg_free_page_low(
 
 	byte* p_not_full = seg_inode + FSEG_NOT_FULL_N_USED;
 	uint32_t not_full_n_used = mach_read_from_4(p_not_full);
-	const uint16_t xoffset= XDES_FLST_NODE + uint16_t(descr - xdes->frame);
+	const uint16_t xoffset= uint16_t(descr - xdes->frame + XDES_FLST_NODE);
 	const uint16_t ioffset= uint16_t(seg_inode - iblock->frame);
 
 	if (xdes_is_full(descr)) {
 		/* The fragment is full: move it to another list */
-		flst_remove(iblock, FSEG_FULL + ioffset, xdes, xoffset, mtr);
-		flst_add_last(iblock, FSEG_NOT_FULL + ioffset, xdes, xoffset,
-			      mtr);
+		flst_remove(iblock, static_cast<uint16_t>(FSEG_FULL + ioffset),
+			    xdes, xoffset, mtr);
+		flst_add_last(iblock, static_cast<uint16_t>(FSEG_NOT_FULL
+							    + ioffset),
+			      xdes, xoffset, mtr);
 		not_full_n_used += FSP_EXTENT_SIZE - 1;
 	} else {
 		ut_a(not_full_n_used > 0);
@@ -2588,8 +2597,9 @@ fseg_free_page_low(
 
 	if (!xdes_get_n_used(descr)) {
 		/* The extent has become free: free it to space */
-		flst_remove(iblock, FSEG_NOT_FULL + ioffset, xdes, xoffset,
-			    mtr);
+		flst_remove(iblock, static_cast<uint16_t>(FSEG_NOT_FULL
+							  + ioffset),
+			    xdes, xoffset, mtr);
 		fsp_free_extent(space, offset, mtr);
 	}
 }
@@ -2717,17 +2727,19 @@ fseg_free_extent(
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
-	const uint16_t xoffset= XDES_FLST_NODE + uint16_t(descr - xdes->frame);
+	const uint16_t xoffset= uint16_t(descr - xdes->frame + XDES_FLST_NODE);
 	const uint16_t ioffset= uint16_t(seg_inode - iblock->frame);
 
 	if (xdes_is_full(descr)) {
-		flst_remove(iblock, FSEG_FULL + ioffset, xdes, xoffset, mtr);
+		flst_remove(iblock, static_cast<uint16_t>(FSEG_FULL + ioffset),
+			    xdes, xoffset, mtr);
 	} else if (!xdes_get_n_used(descr)) {
-		flst_remove(iblock, FSEG_FREE + ioffset, xdes, xoffset, mtr);
+		flst_remove(iblock, static_cast<uint16_t>(FSEG_FREE + ioffset),
+			    xdes, xoffset, mtr);
 	} else {
-		flst_remove(iblock, FSEG_NOT_FULL + ioffset, xdes, xoffset,
-			    mtr);
-
+		flst_remove(iblock, static_cast<uint16_t>(FSEG_NOT_FULL
+							  + ioffset),
+			    xdes, xoffset, mtr);
 		ulint not_full_n_used = mach_read_from_4(
 			FSEG_NOT_FULL_N_USED + seg_inode);
 		ulint descr_n_used = xdes_get_n_used(descr);

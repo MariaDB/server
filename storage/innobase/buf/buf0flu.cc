@@ -3228,34 +3228,3 @@ void buf_flush_validate()
 }
 
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-
-/** Determine the number of dirty pages in a tablespace.
-@param[in]	id		tablespace identifier
-@return number of dirty pages */
-ulint buf_pool_get_dirty_pages_count(ulint id)
-{
-	ulint		count = 0;
-
-	mutex_enter(&buf_pool->mutex);
-	mutex_enter(&buf_pool->flush_list_mutex);
-
-	buf_page_t*	bpage;
-
-	for (bpage = UT_LIST_GET_FIRST(buf_pool->flush_list);
-	     bpage != 0;
-	     bpage = UT_LIST_GET_NEXT(list, bpage)) {
-
-		ut_ad(buf_page_in_file(bpage));
-		ut_ad(bpage->in_flush_list);
-		ut_ad(bpage->oldest_modification > 0);
-
-		if (id == bpage->id.space()) {
-			++count;
-		}
-	}
-
-	mutex_exit(&buf_pool->flush_list_mutex);
-	mutex_exit(&buf_pool->mutex);
-
-	return(count);
-}

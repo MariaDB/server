@@ -1673,6 +1673,113 @@ rtr_check_same_block(
 	return(false);
 }
 
+/*************************************************************//**
+Calculates MBR_AREA(a+b) - MBR_AREA(a)
+Note: when 'a' and 'b' objects are far from each other,
+the area increase can be really big, so this function
+can return 'inf' as a result.
+Return the area increaed. */
+static double
+rtree_area_increase(
+	const uchar*	a,		/*!< in: original mbr. */
+	const uchar*	b,		/*!< in: new mbr. */
+	double*		ab_area)	/*!< out: increased area. */
+{
+	double		a_area = 1.0;
+	double		loc_ab_area = 1.0;
+	double		amin, amax, bmin, bmax;
+	double		data_round = 1.0;
+
+	static_assert(DATA_MBR_LEN == SPDIMS * 2 * sizeof(double),
+		      "compatibility");
+
+	for (auto i = SPDIMS; i--; ) {
+		double	area;
+
+		amin = mach_double_read(a);
+		bmin = mach_double_read(b);
+		amax = mach_double_read(a + sizeof(double));
+		bmax = mach_double_read(b + sizeof(double));
+
+		a += 2 * sizeof(double);
+		b += 2 * sizeof(double);
+
+		area = amax - amin;
+		if (area == 0) {
+			a_area *= LINE_MBR_WEIGHTS;
+		} else {
+			a_area *= area;
+		}
+
+		area = (double)std::max(amax, bmax) -
+		       (double)std::min(amin, bmin);
+		if (area == 0) {
+			loc_ab_area *= LINE_MBR_WEIGHTS;
+		} else {
+			loc_ab_area *= area;
+		}
+
+		/* Value of amax or bmin can be so large that small difference
+		are ignored. For example: 3.2884281489988079e+284 - 100 =
+		3.2884281489988079e+284. This results some area difference
+		are not detected */
+		if (loc_ab_area == a_area) {
+			if (bmin < amin || bmax > amax) {
+				data_round *= ((double)std::max(amax, bmax)
+					       - amax
+					       + (amin - (double)std::min(
+								amin, bmin)));
+			} else {
+				data_round *= area;
+			}
+		}
+	}
+
+	*ab_area = loc_ab_area;
+
+	if (loc_ab_area == a_area && data_round != 1.0) {
+		return(data_round);
+	}
+
+	return(loc_ab_area - a_area);
+}
+
+/** Calculates overlapping area
+@param[in]	a	mbr a
+@param[in]	b	mbr b
+@return overlapping area */
+static double rtree_area_overlapping(const byte *a, const byte *b)
+{
+	double	area = 1.0;
+	double	amin;
+	double	amax;
+	double	bmin;
+	double	bmax;
+
+	static_assert(DATA_MBR_LEN == SPDIMS * 2 * sizeof(double),
+		      "compatibility");
+
+	for (auto i = SPDIMS; i--; ) {
+		amin = mach_double_read(a);
+		bmin = mach_double_read(b);
+		amax = mach_double_read(a + sizeof(double));
+		bmax = mach_double_read(b + sizeof(double));
+		a += 2 * sizeof(double);
+		b += 2 * sizeof(double);
+
+		amin = std::max(amin, bmin);
+		amax = std::min(amax, bmax);
+
+		if (amin > amax) {
+			return(0);
+		} else {
+			area *= (amax - amin);
+		}
+	}
+
+	return(area);
+}
+
 /****************************************************************//**
 Calculate the area increased for a new record
 @return area increased */
@@ -1685,28 +1792,20 @@ rtr_rec_cal_increase(
 				dtuple in some of the common fields, or which
 				has an equal number or more fields than
 				dtuple */
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	double*		area)	/*!< out: increased area */
 {
 	const dfield_t*	dtuple_field;
-	ulint		dtuple_f_len;
-	ulint		rec_f_len;
-	const byte*	rec_b_ptr;
-	double		ret = 0;
 
 	ut_ad(!page_rec_is_supremum(rec));
 	ut_ad(!page_rec_is_infimum(rec));
 
 	dtuple_field = dtuple_get_nth_field(dtuple, 0);
-	dtuple_f_len = dfield_get_len(dtuple_field);
+	ut_ad(dfield_get_len(dtuple_field) == DATA_MBR_LEN);
 
-	rec_b_ptr = rec_get_nth_field(rec, offsets, 0, &rec_f_len);
-	ret = rtree_area_increase(
-		rec_b_ptr,
-		static_cast<const byte*>(dfield_get_data(dtuple_field)),
-		static_cast<int>(dtuple_f_len), area);
-
-	return(ret);
+	return rtree_area_increase(rec,
+				   static_cast<const byte*>(
+					   dfield_get_data(dtuple_field)),
+				   area);
 }
 
 /** Estimates the number of rows in a given area.
@@ -1800,10 +1899,9 @@ err_exit:
 
 			case PAGE_CUR_WITHIN:
 			case PAGE_CUR_MBR_EQUAL:
-				if (rtree_key_cmp(
+				if (!rtree_key_cmp(
 					    PAGE_CUR_WITHIN, range_mbr_ptr,
-					    DATA_MBR_LEN, rec, DATA_MBR_LEN)
-				    == 0) {
+					    rec)) {
 					area += 1;
 				}
 
@@ -1817,14 +1915,14 @@ err_exit:
 			case PAGE_CUR_CONTAIN:
 			case PAGE_CUR_INTERSECT:
 				area += rtree_area_overlapping(
-					range_mbr_ptr, rec, DATA_MBR_LEN)
+					range_mbr_ptr, rec)
 					/ rec_area;
 				break;
 
 			case PAGE_CUR_DISJOINT:
 				area += 1;
 				area -= rtree_area_overlapping(
-					range_mbr_ptr, rec, DATA_MBR_LEN)
+					range_mbr_ptr, rec)
 					/ rec_area;
 				break;
 
@@ -1832,7 +1930,7 @@ err_exit:
 			case PAGE_CUR_MBR_EQUAL:
 				if (!rtree_key_cmp(
 					    PAGE_CUR_WITHIN, range_mbr_ptr,
-					    DATA_MBR_LEN, rec, DATA_MBR_LEN)) {
+					    rec)) {
 					area += range_area / rec_area;
 				}
 

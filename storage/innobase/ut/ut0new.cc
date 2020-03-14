@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -192,12 +192,10 @@ ut_new_boot()
 		pfs_info_auto[i].m_flags = 0;
 	}
 
-	PSI_MEMORY_CALL(register_memory)("innodb",
-					 pfs_info,
-					 UT_ARR_SIZE(pfs_info));
-	PSI_MEMORY_CALL(register_memory)("innodb",
-					 pfs_info_auto,
-					 n_auto);
+	PSI_MEMORY_CALL(register_memory)("innodb", pfs_info, static_cast<int>(
+						 UT_ARR_SIZE(pfs_info)));
+	PSI_MEMORY_CALL(register_memory)("innodb", pfs_info_auto,
+					 static_cast<int>(n_auto));
 #endif /* UNIV_PFS_MEMORY */
 }
 

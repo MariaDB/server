@@ -18358,7 +18358,6 @@ bool Create_tmp_table::add_fields(THD *thd,
   List_iterator_fast<Item> li(fields);
   Item *item;
   Field **tmp_from_field= m_from_field;
-  uint uneven_delta;
   while (!m_with_cycle && (item= li++))
     if (item->common_flags & IS_IN_WITH_CYCLE)
     {
@@ -18373,6 +18372,7 @@ bool Create_tmp_table::add_fields(THD *thd,
       distinct_record_structure= true;
     }
   li.rewind();
+  uint uneven_delta= 0;
   while ((item=li++))
   {
     current_counter= (((param->hidden_field_count < (fieldnr + 1)) &&
@@ -18396,13 +18396,13 @@ bool Create_tmp_table::add_fields(THD *thd,
         if ((item->real_type() == Item::SUBSELECT_ITEM) ||
             (item->used_tables() & ~OUTER_REF_TABLE_BIT))
         {
-	  /*
-	    Mark that the we have ignored an item that refers to a summary
-	    function. We need to know this if someone is going to use
-	    DISTINCT on the result.
-	  */
-	  param->using_outer_summary_function=1;
-	  continue;
+          /*
+            Mark that the we have ignored an item that refers to a summary
+            function. We need to know this if someone is going to use
+            DISTINCT on the result.
+          */
+          param->using_outer_summary_function=1;
+          continue;
         }
       }
       if (item->const_item() &&
@@ -18415,18 +18415,18 @@ bool Create_tmp_table::add_fields(THD *thd,
       sum_item->result_field=0;
       for (uint i= 0 ; i < sum_item->get_arg_count() ; i++)
       {
-	Item *arg= sum_item->get_arg(i);
-	if (!arg->const_item())
-	{
+        Item *arg= sum_item->get_arg(i);
+        if (!arg->const_item())
+        {
           Item *tmp_item;
           Field *new_field=
             create_tmp_field(table, arg, &copy_func,
                              tmp_from_field, &m_default_field[fieldnr],
                              m_group != 0, not_all_columns,
                              distinct_record_structure , false);
-	  if (!new_field)
-	    goto err;					// Should be OOM
-	  tmp_from_field++;
+          if (!new_field)
+            goto err;					// Should be OOM
+          tmp_from_field++;
 
           thd->mem_root= mem_root_save;
           if (!(tmp_item= new (thd->mem_root)
@@ -18440,7 +18440,7 @@ bool Create_tmp_table::add_fields(THD *thd,
           uneven_delta= m_uneven_bit_length - uneven_delta;
           m_field_count[current_counter]++;
 
-	  if (!(new_field->flags & NOT_NULL_FLAG))
+          if (!(new_field->flags & NOT_NULL_FLAG))
           {
             /*
               new_field->maybe_null() is still false, it will be
@@ -18450,20 +18450,20 @@ bool Create_tmp_table::add_fields(THD *thd,
           }
           if (current_counter == distinct)
             new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
-	}
+        }
       }
     }
     else
     {
       /*
-	The last parameter to create_tmp_field_ex() is a bit tricky:
+        The last parameter to create_tmp_field_ex() is a bit tricky:
 
-	We need to set it to 0 in union, to get fill_record() to modify the
-	temporary table.
-	We need to set it to 1 on multi-table-update and in select to
-	write rows to the temporary table.
-	We here distinguish between UNION and multi-table-updates by the fact
-	that in the later case group is set to the row pointer.
+        We need to set it to 0 in union, to get fill_record() to modify the
+        temporary table.
+        We need to set it to 1 on multi-table-update and in select to
+        write rows to the temporary table.
+        We here distinguish between UNION and multi-table-updates by the fact
+        that in the later case group is set to the row pointer.
 
         The test for item->marker == 4 is ensure we don't create a group-by
         key over a bit field as heap tables can't handle that.
@@ -18486,9 +18486,9 @@ bool Create_tmp_table::add_fields(THD *thd,
                          param->force_copy_fields);
       if (!new_field)
       {
-	if (unlikely(thd->is_fatal_error))
-	  goto err;				// Got OOM
-	continue;				// Some kind of const item
+        if (unlikely(thd->is_fatal_error))
+          goto err;                             // Got OOM
+        continue;                               // Some kind of const item
       }
       if (type == Item::SUM_FUNC_ITEM)
       {
@@ -18525,7 +18525,7 @@ bool Create_tmp_table::add_fields(THD *thd,
       if (item->marker == 4 && item->maybe_null)
       {
         m_group_null_items++;
-	new_field->flags|= GROUP_FLAG;
+        new_field->flags|= GROUP_FLAG;
       }
       if (current_counter == distinct)
         new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;

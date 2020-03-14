@@ -2067,9 +2067,8 @@ row_log_table_apply_update(
 
 	ut_ad(dtuple_get_n_fields_cmp(old_pk)
 	      == dict_index_get_n_unique(index));
-	ut_ad(dtuple_get_n_fields(old_pk)
-	      == dict_index_get_n_unique(index)
-	      + (log->same_pk ? 0 : 2));
+	ut_ad(dtuple_get_n_fields(old_pk) - (log->same_pk ? 0 : 2)
+	      == dict_index_get_n_unique(index));
 
 	row = row_log_table_apply_convert_mrec(
 		mrec, dup->index, offsets, log, heap, &error);

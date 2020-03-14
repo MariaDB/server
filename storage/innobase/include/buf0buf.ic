@@ -354,7 +354,7 @@ buf_page_set_flush_type(
 	buf_page_t*	bpage,		/*!< in: buffer page */
 	buf_flush_t	flush_type)	/*!< in: flush type */
 {
-	bpage->flush_type = flush_type;
+	bpage->flush_type = flush_type & 3;
 	ut_ad(buf_page_get_flush_type(bpage) == flush_type);
 }
 

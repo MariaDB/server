@@ -372,7 +372,7 @@ inline void PageBulk::finishPage()
   {
     uint16_t offset= mach_read_from_2(PAGE_NEW_INFIMUM - REC_NEXT + m_page);
     ut_ad(offset >= PAGE_NEW_SUPREMUM - PAGE_NEW_INFIMUM);
-    offset += PAGE_NEW_INFIMUM;
+    offset= static_cast<uint16_t>(offset + PAGE_NEW_INFIMUM);
     /* Set owner & dir. */
     do
     {
@@ -395,8 +395,9 @@ inline void PageBulk::finishPage()
         count= 0;
       }
 
-      uint16_t next= (mach_read_from_2(m_page + offset - REC_NEXT) + offset) &
-        (srv_page_size - 1);
+      uint16_t next= static_cast<uint16_t>
+        ((mach_read_from_2(m_page + offset - REC_NEXT) + offset) &
+         (srv_page_size - 1));
       ut_ad(next);
       offset= next;
     }

@@ -478,8 +478,7 @@ row_undo_mod_clust(
 					0, 1ULL << ROLL_PTR_INSERT_FLAG_POS,
 					&mtr);
 			} else {
-				uint16_t offs = page_offset(rec
-							    + trx_id_offset);
+				size_t offs = page_offset(rec + trx_id_offset);
 				mtr.memset(block, offs, DATA_TRX_ID_LEN, 0);
 				offs += DATA_TRX_ID_LEN;
 				mtr.write<1,mtr_t::OPT>(*block, block->frame
@@ -1204,7 +1203,7 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 	table_id_t	table_id;
 	trx_id_t	trx_id;
 	roll_ptr_t	roll_ptr;
-	ulint		info_bits;
+	byte		info_bits;
 	ulint		type;
 	ulint		cmpl_info;
 	bool		dummy_extern;

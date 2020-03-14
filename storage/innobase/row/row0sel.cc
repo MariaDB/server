@@ -2951,8 +2951,15 @@ row_sel_store_mysql_field(
 			UNIV_MEM_ASSERT_RW(prebuilt->default_rec
 					   + templ->mysql_col_offset,
 					   templ->mysql_col_len);
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
+#endif
 			mysql_rec[templ->mysql_null_byte_offset]
 				|= (byte) templ->mysql_null_bit_mask;
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 			memcpy(mysql_rec + templ->mysql_col_offset,
 			       (const byte*) prebuilt->default_rec
 			       + templ->mysql_col_offset,
@@ -2995,7 +3002,7 @@ row_sel_store_mysql_field(
 		/* It is a nullable column with a non-NULL
 		value */
 		mysql_rec[templ->mysql_null_byte_offset]
-			&= ~(byte) templ->mysql_null_bit_mask;
+			&= static_cast<byte>(~templ->mysql_null_bit_mask);
 	}
 
 	DBUG_RETURN(TRUE);
@@ -3048,8 +3055,15 @@ static bool row_sel_store_mysql_rec(
 				&& !prebuilt->m_read_virtual_key)) {
 				/* Initialize the NULL bit. */
 				if (templ->mysql_null_bit_mask) {
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
+#endif
 					mysql_rec[templ->mysql_null_byte_offset]
 						|= (byte) templ->mysql_null_bit_mask;
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 				}
 				continue;
 			}
@@ -3084,8 +3098,15 @@ static bool row_sel_store_mysql_rec(
 			}
 
 			if (dfield->len == UNIV_SQL_NULL) {
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
+#endif
 				mysql_rec[templ->mysql_null_byte_offset]
 				|= (byte) templ->mysql_null_bit_mask;
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 				memcpy(mysql_rec
 				+ templ->mysql_col_offset,
 				(const byte*) prebuilt->default_rec
@@ -3098,8 +3119,9 @@ static bool row_sel_store_mysql_rec(
 				(const byte*)dfield->data, dfield->len);
 				if (templ->mysql_null_bit_mask) {
 					mysql_rec[
-					templ->mysql_null_byte_offset]
-					&= ~(byte) templ->mysql_null_bit_mask;
+						templ->mysql_null_byte_offset]
+						&= static_cast<byte>
+						(~templ->mysql_null_bit_mask);
 				}
 			}
 
@@ -3640,10 +3662,17 @@ row_sel_copy_cached_fields_for_mysql(
 		/* Copy NULL bit of the current field from cached_rec
 		to buf */
 		if (templ->mysql_null_bit_mask) {
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
+#endif
 			buf[templ->mysql_null_byte_offset]
 				^= (buf[templ->mysql_null_byte_offset]
 				    ^ cached_rec[templ->mysql_null_byte_offset])
 				& (byte) templ->mysql_null_bit_mask;
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 		}
 	}
 }

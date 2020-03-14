@@ -848,7 +848,10 @@ is_unaccessible:
     if (trylock
         ? mdl_context->try_acquire_lock(&request)
         : mdl_context->acquire_lock(&request,
-                                    global_system_variables.lock_wait_timeout))
+                                    /* FIXME: use compatible type, and maybe
+                                    remove this parameter altogether! */
+                                    static_cast<double>(global_system_variables
+                                                        .lock_wait_timeout)))
     {
       *mdl= nullptr;
       if (trylock)
@@ -1991,8 +1994,8 @@ dict_index_add_to_cache(
 		new_index = (index->type & DICT_FTS)
 			? dict_index_build_internal_fts(index)
 			: dict_index_build_internal_non_clust(index);
-		new_index->n_core_null_bytes = UT_BITS_IN_BYTES(
-			unsigned(new_index->n_nullable));
+		new_index->n_core_null_bytes = static_cast<uint8_t>(
+			UT_BITS_IN_BYTES(unsigned(new_index->n_nullable)));
 	}
 
 	/* Set the n_fields value in new_index to the actual defined
@@ -2289,12 +2292,14 @@ dict_index_add_col(
 	field = dict_index_get_nth_field(index, unsigned(index->n_def) - 1);
 
 	field->col = col;
-	field->fixed_len = static_cast<unsigned int>(
+	field->fixed_len = static_cast<uint16_t>(
 		dict_col_get_fixed_size(
-			col, dict_table_is_comp(table)));
+			col, dict_table_is_comp(table)))
+		& ((1U << 10) - 1);
 
 	if (prefix_len && field->fixed_len > prefix_len) {
-		field->fixed_len = (unsigned int) prefix_len;
+		field->fixed_len = static_cast<uint16_t>(prefix_len)
+			& ((1U << 10) - 1);
 	}
 
 	/* Long fixed-length fields that need external storage are treated as
@@ -2470,7 +2475,8 @@ dict_index_build_internal_clust(
 		new_index->n_uniq = new_index->n_def;
 	} else {
 		/* Also the row id is needed to identify the entry */
-		new_index->n_uniq = 1 + unsigned(new_index->n_def);
+		new_index->n_uniq = unsigned(new_index->n_def + 1)
+			& dict_index_t::MAX_N_FIELDS;
 	}
 
 	new_index->trx_id_offset = 0;
@@ -2520,7 +2526,8 @@ dict_index_build_internal_clust(
 		can theoretically occur. Check for it. */
 		fixed_size += new_index->trx_id_offset;
 
-		new_index->trx_id_offset = unsigned(fixed_size);
+		new_index->trx_id_offset = static_cast<unsigned>(fixed_size)
+			& ((1U << 12) - 1);
 
 		if (new_index->trx_id_offset != fixed_size) {
 			/* Overflow. Pretend that this is a
@@ -2570,7 +2577,8 @@ dict_index_build_internal_clust(
 
 	new_index->n_core_null_bytes = table->supports_instant()
 		? dict_index_t::NO_CORE_NULL_BYTES
-		: UT_BITS_IN_BYTES(unsigned(new_index->n_nullable));
+		: static_cast<uint8_t>(
+			UT_BITS_IN_BYTES(unsigned(new_index->n_nullable)));
 	new_index->cached = TRUE;
 
 	return(new_index);
@@ -4333,7 +4341,8 @@ dict_set_merge_threshold_list_debug(
 		     index != NULL;
 		     index = UT_LIST_GET_NEXT(indexes, index)) {
 			rw_lock_x_lock(dict_index_get_lock(index));
-			index->merge_threshold = merge_threshold_all;
+			index->merge_threshold = merge_threshold_all
+				& ((1U << 6) - 1);
 			rw_lock_x_unlock(dict_index_get_lock(index));
 		}
 	}

@@ -521,7 +521,7 @@ inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 	byte*	b = reinterpret_cast<byte*>(&lock[1]) + (i >> 3);
 	byte	mask = byte(1U << (i & 7));
 	byte	bit = *b & mask;
-	*b &= ~mask;
+	*b &= byte(~mask);
 
 	if (bit != 0) {
 		ut_ad(lock->trx->lock.n_rec_locks > 0);

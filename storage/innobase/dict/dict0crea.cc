@@ -1260,8 +1260,8 @@ dict_create_index_step(
 			  ? dict_index_t::NO_CORE_NULL_BYTES
 			  : UT_BITS_IN_BYTES(
 				  unsigned(node->index->n_nullable))));
-		node->index->n_core_null_bytes = UT_BITS_IN_BYTES(
-			unsigned(node->index->n_nullable));
+		node->index->n_core_null_bytes = static_cast<uint8_t>(
+			UT_BITS_IN_BYTES(unsigned(node->index->n_nullable)));
 		node->state = INDEX_CREATE_INDEX_TREE;
 	}
 

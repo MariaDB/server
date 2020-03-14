@@ -3883,7 +3883,7 @@ extern void fil_aio_callback(os_aio_userdata_t *data);
 static void io_callback(tpool::aiocb* cb)
 {
 	ut_a(cb->m_err == DB_SUCCESS);
-	os_aio_userdata_t data = *(os_aio_userdata_t*)cb->m_userdata;
+	os_aio_userdata_t data(cb->m_userdata);
 	/* Return cb back to cache*/
 	if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD) {
 		if (read_slots->contains(cb)) {
@@ -4032,8 +4032,8 @@ static bool is_linux_native_aio_supported()
 
 bool os_aio_init(ulint n_reader_threads, ulint n_writer_threads, ulint)
 {
-	int max_write_events = (int)n_writer_threads * OS_AIO_N_PENDING_IOS_PER_THREAD;
-	int max_read_events = (int)n_reader_threads * OS_AIO_N_PENDING_IOS_PER_THREAD;
+  int max_write_events= int(n_writer_threads * OS_AIO_N_PENDING_IOS_PER_THREAD);
+  int max_read_events= int(n_reader_threads * OS_AIO_N_PENDING_IOS_PER_THREAD);
 	int max_ibuf_events = 1 * OS_AIO_N_PENDING_IOS_PER_THREAD;
 	int max_events = max_read_events + max_write_events + max_ibuf_events;
 	int ret;

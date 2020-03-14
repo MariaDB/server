@@ -604,22 +604,34 @@ as they age and move towards the tail of the LRU list.
 @param[in]	first		first page to be flushed or evicted */
 static void buf_flush_dirty_pages(ulint id, bool flush, ulint first)
 {
-	for (;;) {
-		mutex_enter(&buf_pool->mutex);
-		bool freed = buf_flush_or_remove_pages(id, flush, first);
-		mutex_exit(&buf_pool->mutex);
+  mutex_enter(&buf_pool->mutex);
+  while (!buf_flush_or_remove_pages(id, flush, first))
+  {
+    mutex_exit(&buf_pool->mutex);
+    ut_d(buf_flush_validate());
+    os_thread_sleep(2000);
+    mutex_enter(&buf_pool->mutex);
+  }
 
-		ut_d(buf_flush_validate());
+#ifdef UNIV_DEBUG
+  if (!first)
+  {
+    mutex_enter(&buf_pool->flush_list_mutex);
 
-		if (freed) {
-			break;
-		}
+    for (buf_page_t *bpage= UT_LIST_GET_FIRST(buf_pool->flush_list); bpage;
+         bpage= UT_LIST_GET_NEXT(list, bpage))
+    {
+      ut_ad(buf_page_in_file(bpage));
+      ut_ad(bpage->in_flush_list);
+      ut_ad(bpage->oldest_modification > 0);
+      ut_ad(id != bpage->id.space());
+    }
 
-		os_thread_sleep(2000);
-		ut_d(buf_flush_validate());
-	}
+    mutex_exit(&buf_pool->flush_list_mutex);
+  }
+#endif
 
-	ut_ad(first || buf_pool_get_dirty_pages_count(id) == 0);
+  mutex_exit(&buf_pool->mutex);
 }
 
 /** Empty the flush list for all pages belonging to a tablespace.
@@ -1292,7 +1304,8 @@ buf_LRU_add_block_low(
 
 		UT_LIST_ADD_FIRST(buf_pool->LRU, bpage);
 
-		bpage->freed_page_clock = buf_pool->freed_page_clock;
+		bpage->freed_page_clock = buf_pool->freed_page_clock
+			& ((1U << 31) - 1);
 	} else {
 #ifdef UNIV_LRU_DEBUG
 		/* buf_pool->LRU_old must be the first item in the LRU list

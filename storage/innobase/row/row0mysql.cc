@@ -2561,8 +2561,8 @@ row_create_index_for_mysql(
 		ut_ad((index == NULL) == (err != DB_SUCCESS));
 		if (UNIV_LIKELY(err == DB_SUCCESS)) {
 			ut_ad(!index->is_instant());
-			index->n_core_null_bytes = UT_BITS_IN_BYTES(
-				unsigned(index->n_nullable));
+			index->n_core_null_bytes = static_cast<uint8_t>(
+				UT_BITS_IN_BYTES(unsigned(index->n_nullable)));
 
 			err = dict_create_index_tree_in_mem(index, trx);
 

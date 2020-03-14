@@ -1,0 +1,15 @@
+-- source include/have_ssl_communication.inc
+CREATE TABLE t1 (t int(1));
+SET GLOBAL require_secure_transport=ON;
+--disable_query_log
+--error ER_ACCESS_DENIED_ERROR
+connect without_ssl,localhost,root,,,,,TCP NOSSL;
+--enable_query_log
+connection default;
+SET GLOBAL require_secure_transport=OFF;
+--disable_query_log
+connect without_ssl,localhost,root,,,,,TCP NOSSL;
+--enable_query_log
+disconnect without_ssl;
+connection default;
+DROP TABLE t1;

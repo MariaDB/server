@@ -411,7 +411,7 @@ my_bool	STDCALL mysql_change_user(MYSQL *mysql, const char *user,
     mysql->db= saved_db;
   }
 
-  DBUG_RETURN(rc);
+  DBUG_RETURN(rc != 0);
 }
 
 #if defined(HAVE_GETPWUID) && defined(NO_GETPWUID_DECL)
@@ -839,7 +839,8 @@ MYSQL_FIELD *cli_list_fields(MYSQL *mysql)
 
   mysql->field_count= (uint) query->rows;
   return unpack_fields(mysql, query,&mysql->field_alloc,
-		       mysql->field_count, 1, mysql->server_capabilities);
+                       mysql->field_count, 1,
+                       (uint) mysql->server_capabilities);
 }
 
 
@@ -898,7 +899,7 @@ mysql_list_processes(MYSQL *mysql)
 					      protocol_41(mysql) ? 7 : 5)))
     DBUG_RETURN(NULL);
   if (!(mysql->fields=unpack_fields(mysql, fields,&mysql->field_alloc,field_count,0,
-				    mysql->server_capabilities)))
+				    (uint) mysql->server_capabilities)))
     DBUG_RETURN(0);
   mysql->status=MYSQL_STATUS_GET_RESULT;
   mysql->field_count=field_count;
@@ -1488,12 +1489,12 @@ my_bool cli_read_prepare_result(MYSQL *mysql, MYSQL_STMT *stmt)
     if (!(fields_data= (*mysql->methods->read_rows)(mysql,(MYSQL_FIELD*)0,7)))
       DBUG_RETURN(1);
     if (!(stmt->fields= unpack_fields(mysql, fields_data,&stmt->mem_root,
-				      field_count,0,
-				      mysql->server_capabilities)))
+                                      field_count,0,
+                                      (uint) mysql->server_capabilities)))
       DBUG_RETURN(1);
   }
   stmt->field_count=  field_count;
-  stmt->param_count=  (ulong) param_count;
+  stmt->param_count=  (uint) param_count;
   DBUG_PRINT("exit",("field_count: %u  param_count: %u  warning_count: %u",
                      field_count, param_count, (uint) mysql->warning_count));
 
@@ -2024,7 +2025,10 @@ static void net_store_datetime(NET *net, MYSQL_TIME *tm)
 static void store_param_date(NET *net, MYSQL_BIND *param)
 {
   MYSQL_TIME tm= *((MYSQL_TIME *) param->buffer);
-  tm.hour= tm.minute= tm.second= tm.second_part= 0;
+  tm.hour= 0;
+  tm.minute= 0;
+  tm.second= 0;
+  tm.second_part= 0;
   net_store_datetime(net, &tm);
 }
 
@@ -2061,7 +2065,14 @@ static void store_param_str(NET *net, MYSQL_BIND *param)
 static void store_param_null(NET *net, MYSQL_BIND *param)
 {
   uint pos= param->param_number;
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ == 5
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 needs this */
+#endif
   net->buff[pos/8]|=  (uchar) (1 << (pos & 7));
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ == 5
+# pragma GCC diagnostic pop
+#endif
 }
 
 
@@ -3082,14 +3093,14 @@ mysql_stmt_send_long_data(MYSQL_STMT *stmt, uint param_number,
 static void read_binary_time(MYSQL_TIME *tm, uchar **pos)
 {
   /* net_field_length will set pos to the first byte of data */
-  uint length= net_field_length(pos);
+  ulong length= net_field_length(pos);
 
   if (length)
   {
     uchar *to= *pos;
     tm->neg=    to[0];
 
-    tm->day=    (ulong) sint4korr(to+1);
+    tm->day=    (uint) sint4korr(to+1);
     tm->hour=   (uint) to[5];
     tm->minute= (uint) to[6];
     tm->second= (uint) to[7];
@@ -3111,7 +3122,7 @@ static void read_binary_time(MYSQL_TIME *tm, uchar **pos)
 
 static void read_binary_datetime(MYSQL_TIME *tm, uchar **pos)
 {
-  uint length= net_field_length(pos);
+  ulong length= net_field_length(pos);
 
   if (length)
   {
@@ -3141,7 +3152,7 @@ static void read_binary_datetime(MYSQL_TIME *tm, uchar **pos)
 
 static void read_binary_date(MYSQL_TIME *tm, uchar **pos)
 {
-  uint length= net_field_length(pos);
+  ulong length= net_field_length(pos);
 
   if (length)
   {
@@ -3382,7 +3393,7 @@ static void fetch_long_with_conversion(MYSQL_BIND *param, MYSQL_FIELD *field,
     uchar *end= (uchar*) longlong10_to_str(value, (char*) buff,
                                            is_unsigned ? 10: -10);
     /* Resort to string conversion which supports all typecodes */
-    uint length= (uint) (end-buff);
+    size_t length= end-buff;
 
     if (field->flags & ZEROFILL_FLAG && length < field->length &&
         field->length < 21)
@@ -3906,8 +3917,10 @@ static my_bool is_binary_compatible(enum enum_field_types type1,
     my_bool type1_found= FALSE, type2_found= FALSE;
     for (type= *range; *type != MYSQL_TYPE_NULL; type++)
     {
-      type1_found|= type1 == *type;
-      type2_found|= type2 == *type;
+      if (type1 == *type)
+	type1_found= TRUE;
+      if (type2 == *type)
+	type2_found= TRUE;
     }
     if (type1_found || type2_found)
       return type1_found && type2_found;
@@ -4213,7 +4226,7 @@ static int stmt_fetch_row(MYSQL_STMT *stmt, uchar *row)
       (*my_bind->fetch_result)(my_bind, field, &row);
       truncation_count+= *my_bind->error;
     }
-    if (!((bit<<=1) & 255))
+    if (!(bit= (uchar) (bit << 1)))
     {
       bit= 1;					/* To next uchar */
       null_ptr++;
@@ -4413,7 +4426,7 @@ static void stmt_update_metadata(MYSQL_STMT *stmt, MYSQL_ROWS *data)
     if (!(*null_ptr & bit))
       (*my_bind->skip_result)(my_bind, field, &row);
     DBUG_ASSERT(row <= row_end);
-    if (!((bit<<=1) & 255))
+    if (!(bit= (uchar) (bit << 1)))
     {
       bit= 1;					/* To next uchar */
       null_ptr++;

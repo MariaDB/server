@@ -290,12 +290,12 @@ add_metadata:
 			DBUG_ASSERT(instant->dropped[i].is_dropped());
 		}
 #endif
-		const uint n_fields = index.n_fields + n_dropped();
+		const unsigned n_fields = index.n_fields + n_dropped();
 
 		DBUG_ASSERT(n_fields >= oindex.n_fields);
 		dict_field_t* fields = static_cast<dict_field_t*>(
 			mem_heap_zalloc(heap, n_fields * sizeof *fields));
-		uint i = 0, j = 0, n_nullable = 0;
+		unsigned i = 0, j = 0, n_nullable = 0;
 		ut_d(uint core_null = 0);
 		for (; i < oindex.n_fields; i++) {
 			DBUG_ASSERT(j <= i);
@@ -385,11 +385,12 @@ found_j:
 				    == fields[i].col->name(*this));
 		}
 		DBUG_ASSERT(j == index.n_fields);
-		index.n_fields = index.n_def = n_fields;
+		index.n_fields = index.n_def = n_fields
+			& dict_index_t::MAX_N_FIELDS;
 		index.fields = fields;
 		DBUG_ASSERT(n_nullable >= index.n_nullable);
 		DBUG_ASSERT(n_nullable >= oindex.n_nullable);
-		index.n_nullable = n_nullable;
+		index.n_nullable = n_nullable & dict_index_t::MAX_N_FIELDS;
 		goto set_core_fields;
 	}
 
@@ -497,7 +498,7 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 	/* Preserve the default values of previously instantly added
 	columns, or copy the new default values to this->heap. */
-	for (unsigned i = 0; i < table.n_cols; i++) {
+	for (uint16_t i = 0; i < table.n_cols; i++) {
 		dict_col_t& c = cols[i];
 
 		if (const dict_col_t* o = find(old_cols, col_map, n_cols, i)) {
@@ -511,10 +512,10 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 			if (o->vers_sys_start()) {
 				ut_ad(o->ind == vers_start);
-				vers_start = i;
+				vers_start = i & dict_index_t::MAX_N_FIELDS;
 			} else if (o->vers_sys_end()) {
 				ut_ad(o->ind == vers_end);
-				vers_end = i;
+				vers_end = i & dict_index_t::MAX_N_FIELDS;
 			}
 			continue;
 		}
@@ -532,8 +533,10 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 		}
 	}
 
-	n_t_def += table.n_cols - n_cols;
-	n_t_cols += table.n_cols - n_cols;
+	n_t_def = (n_t_def + (table.n_cols - n_cols))
+		& dict_index_t::MAX_N_FIELDS;
+	n_t_cols = (n_t_cols + (table.n_cols - n_cols))
+		& dict_index_t::MAX_N_FIELDS;
 	n_def = table.n_cols;
 
 	const dict_v_col_t* const old_v_cols = v_cols;
@@ -555,8 +558,10 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 		v_cols = NULL;
 	}
 
-	n_t_def += table.n_v_cols - n_v_cols;
-	n_t_cols += table.n_v_cols - n_v_cols;
+	n_t_def = (n_t_def + (table.n_v_cols - n_v_cols))
+		& dict_index_t::MAX_N_FIELDS;
+	n_t_cols = (n_t_cols + (table.n_v_cols - n_v_cols))
+		& dict_index_t::MAX_N_FIELDS;
 	n_v_def = table.n_v_cols;
 
 	for (unsigned i = 0; i < n_v_def; i++) {
@@ -745,12 +750,14 @@ inline void dict_table_t::rollback_instant(
 		v_cols[i].~dict_v_col_t();
 	}
 
-	index->n_core_fields = (index->n_fields == index->n_core_fields)
-		? old_n_fields
-		: old_n_core_fields;
-	index->n_def = index->n_fields = old_n_fields;
-	index->n_core_null_bytes = UT_BITS_IN_BYTES(
-		index->get_n_nullable(index->n_core_fields));
+	index->n_core_fields = ((index->n_fields == index->n_core_fields)
+				? old_n_fields
+				: old_n_core_fields)
+		& dict_index_t::MAX_N_FIELDS;
+	index->n_def = index->n_fields = old_n_fields
+		& dict_index_t::MAX_N_FIELDS;
+	index->n_core_null_bytes = static_cast<uint8_t>(
+		UT_BITS_IN_BYTES(index->get_n_nullable(index->n_core_fields)));
 
 	const dict_col_t* const new_cols = cols;
 	const dict_col_t* const new_cols_end __attribute__((unused)) = cols + n_cols;
@@ -761,16 +768,16 @@ inline void dict_table_t::rollback_instant(
 	col_names = old_col_names;
 	v_cols = old_v_cols;
 	v_col_names = old_v_col_names;
-	n_def = n_cols = old_n_cols;
-	n_v_def = n_v_cols = old_n_v_cols;
-	n_t_def = n_t_cols = n_cols + n_v_cols;
+	n_def = n_cols = old_n_cols & dict_index_t::MAX_N_FIELDS;
+	n_v_def = n_v_cols = old_n_v_cols & dict_index_t::MAX_N_FIELDS;
+	n_t_def = n_t_cols = (n_cols + n_v_cols) & dict_index_t::MAX_N_FIELDS;
 
 	if (versioned()) {
 		for (unsigned i = 0; i < n_cols; ++i) {
 			if (cols[i].vers_sys_start()) {
-				vers_start = i;
+				vers_start = i & dict_index_t::MAX_N_FIELDS;
 			} else if (cols[i].vers_sys_end()) {
-				vers_end = i;
+				vers_end = i & dict_index_t::MAX_N_FIELDS;
 			}
 		}
 	}
@@ -2519,7 +2526,8 @@ innobase_init_foreign(
         dict_mem_foreign_table_name_lookup_set(foreign, TRUE);
 
         foreign->foreign_index = index;
-        foreign->n_fields = (unsigned int) num_field;
+        foreign->n_fields = static_cast<unsigned>(num_field)
+		& dict_index_t::MAX_N_FIELDS;
 
         foreign->foreign_col_names = static_cast<const char**>(
                 mem_heap_alloc(foreign->heap, num_field * sizeof(void*)));
@@ -4287,13 +4295,14 @@ innobase_build_col_map(
 				}
 
 				col_map[old_i - num_old_v] = i;
-				if (old_table->versioned()
-				    && altered_table->versioned()) {
-					if (old_i == old_table->vers_start) {
-						new_table->vers_start = i + num_v;
-					} else if (old_i == old_table->vers_end) {
-						new_table->vers_end = i + num_v;
-					}
+				if (!old_table->versioned()
+				    || !altered_table->versioned()) {
+				} else if (old_i == old_table->vers_start) {
+					new_table->vers_start = (i + num_v)
+						& dict_index_t::MAX_N_FIELDS;
+				} else if (old_i == old_table->vers_end) {
+					new_table->vers_end = (i + num_v)
+						& dict_index_t::MAX_N_FIELDS;
 				}
 				goto found_col;
 			}
@@ -4767,7 +4776,7 @@ prepare_inplace_add_virtual(
 	const TABLE*		table)
 {
 	ha_innobase_inplace_ctx*	ctx;
-	unsigned i = 0, j = 0;
+	uint16_t i = 0, j = 0;
 
 	ctx = static_cast<ha_innobase_inplace_ctx*>
 		(ha_alter_info->handler_ctx);
@@ -4843,14 +4852,16 @@ prepare_inplace_add_virtual(
 
 		ctx->add_vcol[j].m_col.mtype = col_type;
 
-		ctx->add_vcol[j].m_col.len = col_len;
+		ctx->add_vcol[j].m_col.len = static_cast<uint16_t>(col_len);
 
-		ctx->add_vcol[j].m_col.ind = i - 1;
+		ctx->add_vcol[j].m_col.ind = (i - 1)
+			& dict_index_t::MAX_N_FIELDS;
 		ctx->add_vcol[j].num_base = 0;
 		ctx->add_vcol_name[j] = field->field_name.str;
 		ctx->add_vcol[j].base_col = NULL;
-		ctx->add_vcol[j].v_pos = ctx->old_table->n_v_cols
-					 - ctx->num_to_drop_vcol + j;
+		ctx->add_vcol[j].v_pos = (ctx->old_table->n_v_cols
+					  - ctx->num_to_drop_vcol + j)
+			& dict_index_t::MAX_N_FIELDS;
 
 		ctx->add_vcol[j].n_v_indexes = 0;
 		/* MDEV-17468: Do this on ctx->instant_table later */
@@ -4953,9 +4964,9 @@ prepare_inplace_drop_virtual(
 
 		ctx->drop_vcol[j].m_col.mtype = col_type;
 
-		ctx->drop_vcol[j].m_col.len = col_len;
+		ctx->drop_vcol[j].m_col.len = static_cast<uint16_t>(col_len);
 
-		ctx->drop_vcol[j].m_col.ind = i;
+		ctx->drop_vcol[j].m_col.ind = i & dict_index_t::MAX_N_FIELDS;
 
 		ctx->drop_vcol_name[j] = field->field_name.str;
 
@@ -5732,7 +5743,7 @@ add_all_virtual:
 		/* Reserve room for DB_TRX_ID,DB_ROLL_PTR and any
 		non-updated off-page columns in case they are moved off
 		page as a result of the update. */
-		const unsigned f = user_table->instant != NULL;
+		const uint16_t f = user_table->instant != NULL;
 		upd_t* update = upd_create(index->n_fields + f, ctx->heap);
 		update->n_fields = n + f;
 		update->info_bits = f
@@ -5751,7 +5762,7 @@ add_all_virtual:
 
 		for (unsigned k = n_old_fields; k < index->n_fields; k++) {
 			upd_field_t* uf = upd_get_nth_field(update, j++);
-			uf->field_no = k + f;
+			uf->field_no = static_cast<uint16_t>(k + f);
 			uf->new_val = entry->fields[k + f];
 
 			ut_ad(j <= n + f);
@@ -6036,8 +6047,8 @@ prepare_inplace_alter_table_dict(
 				unsigned mbminlen, mbmaxlen;
 				dtype_get_mblen(col.mtype, col.prtype,
 						&mbminlen, &mbmaxlen);
-				col.mbminlen = mbminlen;
-				col.mbmaxlen = mbmaxlen;
+				col.mbminlen = mbminlen & 7;
+				col.mbmaxlen = mbmaxlen & 7;
 			}
 			add_v = static_cast<dict_add_v_col_t*>(
 				mem_heap_alloc(ctx->heap, sizeof *add_v));
@@ -6712,9 +6723,10 @@ error_handling_drop_uncached_1:
 		if (const Field* ai = altered_table->found_next_number_field) {
 			const unsigned	col_no = innodb_col_no(ai);
 
-			ctx->new_table->persistent_autoinc = 1
-				+ dict_table_get_nth_col_pos(
-					ctx->new_table, col_no, NULL);
+			ctx->new_table->persistent_autoinc =
+				(dict_table_get_nth_col_pos(
+					ctx->new_table, col_no, NULL) + 1)
+				& dict_index_t::MAX_N_FIELDS;
 
 			/* Initialize the AUTO_INCREMENT sequence
 			to the rebuilt table from the old one. */
@@ -8964,14 +8976,15 @@ processed_field:
 }
 
 /** Convert field type and length to InnoDB format */
-static void get_type(const Field& f, uint& prtype, uint& mtype, uint& len)
+static void get_type(const Field& f, uint& prtype, uint8_t& mtype,
+                     uint16_t& len)
 {
 	mtype = get_innobase_type_from_mysql_type(&prtype, &f);
-	len = f.pack_length();
+	len = static_cast<uint16_t>(f.pack_length());
 	prtype |= f.type();
 	if (f.type() == MYSQL_TYPE_VARCHAR) {
 		auto l = static_cast<const Field_varstring&>(f).length_bytes;
-		len -= l;
+		len = static_cast<uint16_t>(len - l);
 		if (l == 2) prtype |= DATA_LONG_TRUE_VARCHAR;
 	}
 	if (!f.real_maybe_null()) prtype |= DATA_NOT_NULL;
@@ -8988,7 +9001,7 @@ static void get_type(const Field& f, uint& prtype, uint& mtype, uint& len)
 	if (!f.stored_in_db()) prtype |= DATA_VIRTUAL;
 
 	if (dtype_is_string_type(mtype)) {
-		prtype |= ulint(f.charset()->number) << 16;
+		prtype |= f.charset()->number << 16;
 	}
 }
 
@@ -9033,7 +9046,9 @@ innobase_rename_or_enlarge_column_try(
 		n_base = 0;
 	}
 
-	unsigned prtype, mtype, len;
+	unsigned prtype;
+	uint8_t mtype;
+	uint16_t len;
 	get_type(f, prtype, mtype, len);
 	DBUG_ASSERT(!dtype_is_string_type(col->mtype)
 		    || col->mbminlen == f.charset()->mbminlen);
@@ -9187,7 +9202,9 @@ innobase_rename_or_enlarge_columns_cache(
 			DBUG_ASSERT(col->mbminlen
 				    == (is_string
 					? (*af)->charset()->mbminlen : 0));
-			unsigned prtype, mtype, len;
+			unsigned prtype;
+			uint8_t mtype;
+			uint16_t len;
 			get_type(**af, prtype, mtype, len);
 			DBUG_ASSERT(is_string == dtype_is_string_type(mtype));
 
@@ -9195,7 +9212,7 @@ innobase_rename_or_enlarge_columns_cache(
 			col->mtype = mtype;
 			col->len = len;
 			col->mbmaxlen = is_string
-				? (*af)->charset()->mbmaxlen : 0;
+				? (*af)->charset()->mbmaxlen & 7: 0;
 
 			if ((*fp)->flags & FIELD_IS_RENAMED) {
 				dict_mem_table_col_rename(
@@ -10117,11 +10134,22 @@ commit_cache_norebuild(
 
 	if (ctx->page_compression_level) {
 		DBUG_ASSERT(ctx->new_table->space != fil_system.sys_space);
-		ctx->new_table->flags &=
-			~(0xFU << DICT_TF_POS_PAGE_COMPRESSION_LEVEL);
-		ctx->new_table->flags |= 1 << DICT_TF_POS_PAGE_COMPRESSION
-			| (ctx->page_compression_level
-			   << DICT_TF_POS_PAGE_COMPRESSION_LEVEL);
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 4 and 5 need this here */
+#endif
+		ctx->new_table->flags
+			= static_cast<uint16_t>(
+				(ctx->new_table->flags
+				 & ~(0xFU
+				     << DICT_TF_POS_PAGE_COMPRESSION_LEVEL))
+				| 1 << DICT_TF_POS_PAGE_COMPRESSION
+				| (ctx->page_compression_level & 0xF)
+				<< DICT_TF_POS_PAGE_COMPRESSION_LEVEL)
+			& ((1U << DICT_TF_BITS) - 1);
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 
 		if (fil_space_t* space = ctx->new_table->space) {
 			bool update = !(space->flags

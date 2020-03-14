@@ -399,6 +399,7 @@ void trx_free(trx_t*& trx)
 	ut_ad(!trx->n_mysql_tables_in_use);
 	ut_ad(!trx->mysql_n_tables_locked);
 	ut_ad(!trx->internal);
+	ut_ad(!trx->mysql_log_file_name);
 
 	if (trx->declared_to_be_inside_innodb) {
 
@@ -437,7 +438,6 @@ void trx_free(trx_t*& trx)
 
 	trx_sys.rw_trx_hash.put_pins(trx);
 	trx->mysql_thd = 0;
-	trx->mysql_log_file_name = 0;
 
 	// FIXME: We need to avoid this heap free/alloc for each commit.
 	if (trx->autoinc_locks != NULL) {
@@ -546,11 +546,13 @@ void trx_disconnect_prepared(trx_t *trx)
 {
   ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
   ut_ad(trx->mysql_thd);
+  ut_ad(!trx->mysql_log_file_name);
   trx->read_view.close();
   trx->is_recovered= true;
   trx->mysql_thd= NULL;
   /* todo/fixme: suggest to do it at innodb prepare */
   trx->will_lock= 0;
+  trx_sys.rw_trx_hash.put_pins(trx);
 }
 
 /****************************************************************//**
@@ -1121,8 +1123,6 @@ trx_write_serialisation_history(
 	mutex_exit(&rseg->mutex);
 
 	MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
-
-	trx->mysql_log_file_name = NULL;
 }
 
 /********************************************************************

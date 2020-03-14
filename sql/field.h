@@ -1369,7 +1369,7 @@ public:
   void set_null_ptr(uchar *p_null_ptr, uint p_null_bit)
   {
     null_ptr= p_null_ptr;
-    null_bit= p_null_bit;
+    null_bit= static_cast<uchar>(p_null_bit);
   }
 
   bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }
@@ -4921,7 +4921,8 @@ public:
       explicitly using the field_length.
     */
     return Binlog_type_info(type(),
-            field_length % 8 + ((field_length / 8) << 8), 2);
+                            static_cast<uint16>((field_length & 7) |
+                                                ((field_length / 8) << 8)), 2);
   }
 
 private:
@@ -5558,9 +5559,9 @@ public:
   uint32 max_char_length(CHARSET_INFO *cs) const
   {
     return type_handler()->field_type() >= MYSQL_TYPE_TINY_BLOB &&
-           type_handler()->field_type() <= MYSQL_TYPE_BLOB ?
-                   length / cs->mbminlen :
-                   length / cs->mbmaxlen;
+           type_handler()->field_type() <= MYSQL_TYPE_BLOB
+      ? static_cast<uint32>(length / cs->mbminlen)
+      : static_cast<uint32>(length / cs->mbmaxlen);
   }
   uint32 max_octet_length(CHARSET_INFO *from, CHARSET_INFO *to) const
   {

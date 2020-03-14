@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -98,8 +98,14 @@ lock_rec_set_nth_bit(
 	byte_index = i / 8;
 	bit_index = i % 8;
 
-	((byte*) &lock[1])[byte_index] |= 1 << bit_index;
-
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 4 and 5 need this here */
+#endif
+	((byte*) &lock[1])[byte_index] |= static_cast<byte>(1 << bit_index);
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 	++lock->trx->lock.n_rec_locks;
 }
 

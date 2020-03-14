@@ -2936,6 +2936,9 @@ static void fts_optimize_callback(void *)
 	ib_vector_free(fts_slots);
 	fts_slots = NULL;
 
+	ib_wqueue_free(fts_optimize_wq);
+	fts_optimize_wq = NULL;
+
 	innobase_destroy_background_thd(fts_opt_thd);
 	ib::info() << "FTS optimize thread exiting.";
 
@@ -3023,8 +3026,6 @@ fts_optimize_shutdown()
 	os_event_wait(fts_opt_shutdown_event);
 
 	os_event_destroy(fts_opt_shutdown_event);
-	ib_wqueue_free(fts_optimize_wq);
-	fts_optimize_wq = NULL;
 	fts_opt_thd = NULL;
 }
 

@@ -605,7 +605,6 @@ row_upd_build_sec_rec_difference_binary(
 	ulint		len;
 	upd_t*		update;
 	ulint		n_diff;
-	ulint		i;
 
 	/* This function is used only for a secondary index */
 	ut_a(!dict_index_is_clust(index));
@@ -619,7 +618,7 @@ row_upd_build_sec_rec_difference_binary(
 
 	n_diff = 0;
 
-	for (i = 0; i < dtuple_get_n_fields(entry); i++) {
+	for (uint16_t i = 0; i < dtuple_get_n_fields(entry); i++) {
 
 		data = rec_get_nth_field(rec, offsets, i, &len);
 
@@ -707,7 +706,7 @@ row_upd_build_difference_binary(
 		ut_ad(rec_offs_validate(rec, index, offsets));
 	}
 
-	for (ulint i = 0; i < entry->n_fields; i++) {
+	for (uint16_t i = 0; i < entry->n_fields; i++) {
 		const byte* data = rec_get_nth_cfield(rec, index, offsets, i,
 						      &len);
 		const dfield_t* dfield = dtuple_get_nth_field(entry, i);
@@ -728,7 +727,8 @@ row_upd_build_difference_binary(
 		}
 	}
 
-	for (ulint i = entry->n_fields; i < index->n_fields; i++) {
+	for (uint16_t i = static_cast<uint16_t>(entry->n_fields);
+	     i < index->n_fields; i++) {
 		upd_field_t* uf = upd_get_nth_field(update, n_diff++);
 		const dict_col_t* col = dict_index_get_nth_col(index, i);
 		/* upd_create() zero-initialized uf */
@@ -762,7 +762,7 @@ row_upd_build_difference_binary(
 					       &mysql_table,
 					       &record, &vcol_storage);
 
-		for (ulint i = 0; i < n_v_fld; i++) {
+		for (uint16_t i = 0; i < n_v_fld; i++) {
 			const dict_v_col_t*     col
                                 = dict_table_get_nth_v_col(index->table, i);
 
@@ -1021,7 +1021,7 @@ row_upd_index_replace_new_col_vals_index_pos(
 
 	dtuple_set_info_bits(entry, update->info_bits);
 
-	for (unsigned i = index->n_fields; i--; ) {
+	for (uint16_t i = index->n_fields; i--; ) {
 		const dict_field_t*	field;
 		const dict_col_t*	col;
 		const upd_field_t*	uf;
@@ -1091,8 +1091,9 @@ row_upd_index_replace_new_col_vals(
 				update, vcol->v_pos, true);
 		} else {
 			uf = upd_get_field_by_field_no(
-				update,
-				dict_col_get_clust_pos(col, clust_index),
+				update, static_cast<uint16_t>(
+					dict_col_get_clust_pos(
+						col, clust_index)),
 				false);
 		}
 
@@ -1392,8 +1393,9 @@ row_upd_changes_ord_field_binary_func(
 				update, vcol->v_pos, true);
 		} else {
 			upd_field = upd_get_field_by_field_no(
-				update,
-				dict_col_get_clust_pos(col, clust_index),
+				update, static_cast<uint16_t>(
+					dict_col_get_clust_pos(
+						col, clust_index)),
 				false);
 		}
 
@@ -2278,14 +2280,13 @@ row_upd_clust_rec_by_insert_inherit_func(
 	const upd_t*	update)	/*!< in: update vector */
 {
 	bool	inherit	= false;
-	ulint	i;
 
 	ut_ad(!rec == !offsets);
 	ut_ad(!rec == !index);
 	ut_ad(!rec || rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec || rec_offs_any_extern(offsets));
 
-	for (i = 0; i < dtuple_get_n_fields(entry); i++) {
+	for (uint16_t i = 0; i < dtuple_get_n_fields(entry); i++) {
 		dfield_t*	dfield	= dtuple_get_nth_field(entry, i);
 		byte*		data;
 		ulint		len;
@@ -2336,7 +2337,7 @@ row_upd_clust_rec_by_insert_inherit_func(
 		a lock wait and we already had disowned the BLOB. */
 		ut_a(rec == NULL
 		     || !(data[BTR_EXTERN_LEN] & BTR_EXTERN_OWNER_FLAG));
-		data[BTR_EXTERN_LEN] &= ~BTR_EXTERN_OWNER_FLAG;
+		data[BTR_EXTERN_LEN] &= byte(~BTR_EXTERN_OWNER_FLAG);
 		data[BTR_EXTERN_LEN] |= BTR_EXTERN_INHERITED_FLAG;
 		/* The BTR_EXTERN_INHERITED_FLAG only matters in
 		rollback of a fresh insert. Purge will always free
@@ -2972,7 +2973,7 @@ row_upd(
 	ut_ad(!thr_get_trx(thr)->in_rollback);
 
 	DBUG_PRINT("row_upd", ("table: %s", node->table->name.m_name));
-	DBUG_PRINT("row_upd", ("info bits in update vector: 0x" ULINTPFx,
+	DBUG_PRINT("row_upd", ("info bits in update vector: 0x%x",
 			       node->update ? node->update->info_bits: 0));
 	DBUG_PRINT("row_upd", ("foreign_id: %s",
 			       node->foreign ? node->foreign->id: "NULL"));
@@ -3193,7 +3194,9 @@ void upd_node_t::make_versioned_helper(const trx_t* trx, ulint idx)
 	upd_field_t* ufield = upd_get_nth_field(update, update->n_fields - 1);
 	const dict_col_t* col = dict_table_get_nth_col(table, idx);
 
-	upd_field_set_field_no(ufield, dict_col_get_clust_pos(col, clust_index),
+	upd_field_set_field_no(ufield, static_cast<uint16_t>(
+				       dict_col_get_clust_pos(
+					       col, clust_index)),
 			       clust_index);
 
 	char* where = reinterpret_cast<char*>(update->vers_sys_value);

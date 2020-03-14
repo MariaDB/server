@@ -36,16 +36,6 @@ Created 3/26/1996 Heikki Tuuri
 which needs no purge */
 extern trx_undo_rec_t	trx_purge_dummy_rec;
 
-/********************************************************************//**
-Calculates the file address of an undo log header when we have the file
-address of its history list node.
-@return file address of the log */
-UNIV_INLINE
-fil_addr_t
-trx_purge_get_log_from_hist(
-/*========================*/
-	fil_addr_t	node_addr);	/*!< in: file address of the history
-					list node of the log */
 /** Prepend the history list with an undo log.
 Remove the undo log segment from the rseg slot if it is too big for reuse.
 @param[in]	trx		transaction
@@ -260,7 +250,5 @@ public:
 
 /** The global data structure coordinating a purge */
 extern purge_sys_t	purge_sys;
-
-#include "trx0purge.ic"
 
 #endif /* trx0purge_h */

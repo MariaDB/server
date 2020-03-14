@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -162,15 +162,21 @@ dict_mem_table_create(
 
 	ut_d(table->magic_n = DICT_TABLE_MAGIC_N);
 
-	table->flags = (unsigned int) flags;
-	table->flags2 = (unsigned int) flags2;
+	table->flags = static_cast<unsigned>(flags)
+		& ((1U << DICT_TF_BITS) - 1);
+	table->flags2 = static_cast<unsigned>(flags2)
+		& ((1U << DICT_TF2_BITS) - 1);
 	table->name.m_name = mem_strdup(name);
 	table->is_system_db = dict_mem_table_is_system(table->name.m_name);
 	table->space = space;
 	table->space_id = space ? space->id : ULINT_UNDEFINED;
-	table->n_t_cols = unsigned(n_cols + DATA_N_SYS_COLS);
-	table->n_v_cols = (unsigned int) (n_v_cols);
-	table->n_cols = unsigned(table->n_t_cols - table->n_v_cols);
+	table->n_t_cols = static_cast<unsigned>(n_cols + DATA_N_SYS_COLS)
+		& dict_index_t::MAX_N_FIELDS;
+	table->n_v_cols = static_cast<unsigned>(n_v_cols)
+		& dict_index_t::MAX_N_FIELDS;
+	table->n_cols = static_cast<unsigned>(
+		table->n_t_cols - table->n_v_cols)
+		& dict_index_t::MAX_N_FIELDS;
 
 	table->cols = static_cast<dict_col_t*>(
 		mem_heap_alloc(heap, table->n_cols * sizeof(dict_col_t)));
@@ -336,11 +342,11 @@ dict_mem_table_add_col(
 	switch (prtype & DATA_VERSIONED) {
 	case DATA_VERS_START:
 		ut_ad(!table->vers_start);
-		table->vers_start = i;
+		table->vers_start = i & dict_index_t::MAX_N_FIELDS;
 		break;
 	case DATA_VERS_END:
 		ut_ad(!table->vers_end);
-		table->vers_end = i;
+		table->vers_end = i & dict_index_t::MAX_N_FIELDS;
 	}
 }
 
@@ -401,7 +407,7 @@ dict_mem_table_add_v_col(
 	v_col = &table->v_cols[i];
 
 	dict_mem_fill_column_struct(&v_col->m_col, pos, mtype, prtype, len);
-	v_col->v_pos = i;
+	v_col->v_pos = i & dict_index_t::MAX_N_FIELDS;
 
 	if (num_base != 0) {
 		v_col->base_col = static_cast<dict_col_t**>(mem_heap_zalloc(
@@ -706,15 +712,16 @@ dict_mem_fill_column_struct(
 {
 	unsigned mbminlen, mbmaxlen;
 
-	column->ind = (unsigned int) col_pos;
+	column->ind = static_cast<unsigned>(col_pos)
+		& dict_index_t::MAX_N_FIELDS;
 	column->ord_part = 0;
 	column->max_prefix = 0;
-	column->mtype = (unsigned int) mtype;
-	column->prtype = (unsigned int) prtype;
-	column->len = (unsigned int) col_len;
+	column->mtype = static_cast<uint8_t>(mtype);
+	column->prtype = static_cast<unsigned>(prtype);
+	column->len = static_cast<uint16_t>(col_len);
 	dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
-	column->mbminlen = mbminlen;
-	column->mbmaxlen = mbmaxlen;
+	column->mbminlen = mbminlen & 7;
+	column->mbmaxlen = mbmaxlen & 7;
 	column->def_val.data = NULL;
 	column->def_val.len = UNIV_SQL_DEFAULT;
 	ut_ad(!column->is_dropped());
@@ -1043,7 +1050,7 @@ dict_mem_index_add_field(
 	field = dict_index_get_nth_field(index, unsigned(index->n_def) - 1);
 
 	field->name = name;
-	field->prefix_len = (unsigned int) prefix_len;
+	field->prefix_len = prefix_len & ((1U << 12) - 1);
 }
 
 /**********************************************************************//**
@@ -1159,8 +1166,10 @@ inline void dict_index_t::reconstruct_fields()
 {
 	DBUG_ASSERT(is_primary());
 
-	n_fields += table->instant->n_dropped;
-	n_def += table->instant->n_dropped;
+	n_fields = (n_fields + table->instant->n_dropped)
+		& dict_index_t::MAX_N_FIELDS;
+	n_def = (n_def + table->instant->n_dropped)
+		& dict_index_t::MAX_N_FIELDS;
 
 	const unsigned n_first = first_user_field();
 
@@ -1179,7 +1188,8 @@ inline void dict_index_t::reconstruct_fields()
 		if (c.is_dropped()) {
 			f.col = &table->instant->dropped[j++];
 			DBUG_ASSERT(f.col->is_dropped());
-			f.fixed_len = dict_col_get_fixed_size(f.col, comp);
+			f.fixed_len = dict_col_get_fixed_size(f.col, comp)
+				& ((1U << 10) - 1);
 		} else {
 			DBUG_ASSERT(!c.is_not_null());
 			const auto old = std::find_if(

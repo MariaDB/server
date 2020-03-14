@@ -1382,7 +1382,7 @@ lock_rec_create_low(
 	}
 
 	lock->trx = trx;
-	lock->type_mode = (type_mode & ~LOCK_TYPE_MASK) | LOCK_REC;
+	lock->type_mode = (type_mode & unsigned(~LOCK_TYPE_MASK)) | LOCK_REC;
 	lock->index = index;
 	lock->un_member.rec_lock.space = uint32_t(space);
 	lock->un_member.rec_lock.page_no = uint32_t(page_no);

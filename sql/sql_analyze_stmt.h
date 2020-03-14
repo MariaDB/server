@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015 MariaDB Corporation Ab
+   Copyright (c) 2015, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -90,7 +90,8 @@ public:
   double get_time_ms() const
   {
     // convert 'cycles' to milliseconds.
-    return 1000 * ((double)cycles) / sys_timer_info.cycles.frequency;
+    return 1000.0 * static_cast<double>(cycles) /
+      static_cast<double>(sys_timer_info.cycles.frequency);
   }
 };
 
@@ -114,7 +115,8 @@ public:
   double get_time_ms() const
   {
     // convert 'cycles' to milliseconds.
-    return 1000 * ((double)cycles) / sys_timer_info.cycles.frequency;
+    return 1000.0 * static_cast<double>(cycles) /
+      static_cast<double>(sys_timer_info.cycles.frequency);
   }
 };
 
@@ -178,24 +180,23 @@ public:
   ha_rows r_rows; /* How many rows we've got after that */
   ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
 
-  bool has_scans() { return (r_scans != 0); }
-  ha_rows get_loops() { return r_scans; }
-  double get_avg_rows()
+  bool has_scans() const { return (r_scans != 0); }
+  ha_rows get_loops() const { return r_scans; }
+  double get_avg_rows() const
   {
-    return r_scans ? ((double)r_rows / r_scans): 0;
+    return r_scans
+      ? static_cast<double>(r_rows) / static_cast<double>(r_scans)
+      : 0;
   }
 
-  double get_filtered_after_where()
+  double get_filtered_after_where() const
   {
-    double r_filtered;
-    if (r_rows > 0)
-      r_filtered= (double)r_rows_after_where / r_rows;
-    else
-      r_filtered= 1.0;
-
-    return r_filtered;
+    return r_rows > 0
+      ? static_cast<double>(r_rows_after_where) /
+        static_cast<double>(r_rows)
+      : 1.0;
   }
-  
+
   inline void on_scan_init() { r_scans++; }
   inline void on_record_read() { r_rows++; }
   inline void on_record_after_where() { r_rows_after_where++; }
@@ -278,25 +279,27 @@ public:
   }
 
   void get_data_format(String *str);
-  
+
   /* Functions to get the statistics */
   void print_json_members(Json_writer *writer);
-  
+
   ulonglong get_r_loops() const { return time_tracker.get_loops(); }
-  double get_avg_examined_rows() 
-  { 
-    return ((double)r_examined_rows) / get_r_loops();
-  }
-  double get_avg_returned_rows()
-  { 
-    return ((double)r_output_rows) / get_r_loops(); 
-  }
-  double get_r_filtered()
+  double get_avg_examined_rows() const
   {
-    if (r_examined_rows > 0)
-      return ((double)r_sorted_rows / r_examined_rows);
-    else
-      return 1.0;
+    return static_cast<double>(r_examined_rows) /
+      static_cast<double>(get_r_loops());
+  }
+  double get_avg_returned_rows() const
+  {
+    return static_cast<double>(r_output_rows) /
+      static_cast<double>(get_r_loops());
+  }
+  double get_r_filtered() const
+  {
+    return r_examined_rows > 0
+      ? static_cast<double>(r_sorted_rows) /
+        static_cast<double>(r_examined_rows)
+      : 1.0;
   }
 private:
   Time_and_counter_tracker time_tracker;
@@ -397,7 +400,7 @@ public:
     return &time_tracker;
   }
 
-  double get_time_fill_container_ms()
+  double get_time_fill_container_ms() const
   {
     return time_tracker.get_time_ms();
   }
@@ -411,13 +414,14 @@ public:
 
   inline void increment_container_elements_count() { container_elements++; }
 
-  uint get_container_elements() { return container_elements; }
+  uint get_container_elements() const { return container_elements; }
 
-  double get_r_selectivity_pct()
+  double get_r_selectivity_pct() const
   {
-    return (double)n_positive_checks/(double)n_checks;
+    return static_cast<double>(n_positive_checks) /
+      static_cast<double>(n_checks);
   }
 
-  size_t get_container_buff_size() { return container_buff_size; }
+  size_t get_container_buff_size() const { return container_buff_size; }
 };
 

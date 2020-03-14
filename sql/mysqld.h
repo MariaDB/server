@@ -134,6 +134,7 @@ extern my_bool read_only, opt_readonly;
 extern MYSQL_PLUGIN_IMPORT my_bool lower_case_file_system;
 extern my_bool opt_enable_named_pipe, opt_sync_frm, opt_allow_suspicious_udfs;
 extern my_bool opt_secure_auth;
+extern my_bool opt_require_secure_transport;
 extern const char *current_dbug_option;
 extern char* opt_secure_file_priv;
 extern char* opt_secure_backup_file_priv;
@@ -762,6 +763,7 @@ extern mysql_cond_t COND_manager;
 extern mysql_cond_t COND_slave_background;
 extern Atomic_counter<uint32_t> thread_count;
 
+extern my_bool opt_use_ssl;
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
   *opt_ssl_key, *opt_ssl_crl, *opt_ssl_crlpath;
 extern ulonglong tls_version;

@@ -221,11 +221,6 @@ buf_flush_ready_for_flush(
 	buf_flush_t	flush_type)/*!< in: type of flush */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Determine the number of dirty pages in a tablespace.
-@param[in]	id		tablespace identifier
-@return number of dirty pages */
-ulint buf_pool_get_dirty_pages_count(ulint id);
-
 /** Synchronously flush dirty blocks.
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
 void buf_flush_sync();
