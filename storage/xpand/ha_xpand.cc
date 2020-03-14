@@ -640,6 +640,7 @@ int ha_xpand::write_row(const uchar *buf)
   if (!trx)
     return error_code;
 
+  ulonglong last_insert_id = 0;
   if (upsert_flag & XPAND_HAS_UPSERT) {
     if (!(upsert_flag & XPAND_UPSERT_SENT)) {
       ha_rows update_rows;
@@ -651,11 +652,14 @@ int ha_xpand::write_row(const uchar *buf)
 
       ulonglong *oids = xpand_extract_table_oids(thd, thd->lex);
       error_code= trx->update_query(update_stmt, table->s->db, oids,
-                                    &update_rows);
+                                    &update_rows, &last_insert_id);
       if (upsert_flag & XPAND_BULK_UPSERT)
         upsert_flag |= XPAND_UPSERT_SENT;
       else
         upsert_flag &= ~XPAND_HAS_UPSERT;
+
+      if (table->next_number_field)
+        insert_id_for_cur_row = last_insert_id;
     }
 
     if (error_code == HA_ERR_TABLE_DEF_CHANGED)
@@ -669,7 +673,6 @@ int ha_xpand::write_row(const uchar *buf)
 
   /* XXX: Xpand may needs to return HA_ERR_AUTOINC_ERANGE if we hit that
      error. */
-  ulonglong last_insert_id = 0;
   if ((error_code = trx->write_row(xpand_table_oid, packed_new_row, packed_size,
                                    &last_insert_id)))
     goto err;
@@ -749,7 +752,8 @@ int ha_xpand::direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
     trx->auto_commit_next();
 
   ulonglong *oids = xpand_extract_table_oids(thd, thd->lex);
-  error_code = trx->update_query(update_stmt, table->s->db, oids, update_rows);
+  error_code = trx->update_query(update_stmt, table->s->db, oids, update_rows,
+                                 NULL);
   *found_rows = *update_rows;
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)

@@ -1,5 +1,9 @@
 CREATE DATABASE IF NOT EXISTS `db1`;
 USE `db1`;
+
+#################################################
+## Basic test.
+#################################################
 DROP TABLE IF EXISTS `ins_duplicate`;
 CREATE TABLE `ins_duplicate`(`id` INT PRIMARY KEY, `animal` VARCHAR(30)) ENGINE=xpand;
 INSERT INTO `ins_duplicate` VALUES (1,'Aardvark'), (2,'Cheetah'), (3,'Zebra');
@@ -7,14 +11,19 @@ SELECT * FROM `ins_duplicate` ORDER BY `id`;
 
 --error ER_DUP_KEY
 INSERT INTO ins_duplicate VALUES (1,'Antelope');
+INSERT INTO ins_duplicate VALUES (4,'Mouse') ON DUPLICATE KEY UPDATE animal='Rat';
 INSERT INTO ins_duplicate VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Banana';
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 
 --error ER_DUP_KEY
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
+INSERT INTO ins_duplicate VALUES (5,'Cat'),(6,'Dog') ON DUPLICATE KEY UPDATE animal='Parrot';
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid';
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 
+#################################################
+## With committed transaction.
+#################################################
 BEGIN;
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 
@@ -28,6 +37,9 @@ INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid2';
 COMMIT;
 
+#################################################
+## With rolled back transaction.
+#################################################
 BEGIN;
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 
@@ -44,6 +56,114 @@ ROLLBACK;
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 
 DROP TABLE `db1`.`ins_duplicate`;
+
+#################################################
+## With no keys.
+#################################################
+DROP TABLE IF EXISTS `db1`.`ins_no_duplicate1`;
+CREATE TABLE `db1`.`ins_no_duplicate1` (id INT, vegetable VARCHAR(10));
+INSERT INTO `db1`.`ins_no_duplicate1` VALUES (1, 'Carrot'), (2, 'Broccoli');
+SELECT * FROM `ins_no_duplicate1` ORDER BY `id`, `vegetable`;
+
+INSERT INTO ins_no_duplicate1 VALUES (1,'Cabbage');
+INSERT INTO ins_no_duplicate1 VALUES (2,'Beetroot') ON DUPLICATE KEY UPDATE vegetable='Apple';
+SELECT * FROM `ins_no_duplicate1` ORDER BY `id`, `vegetable`;
+
+INSERT INTO ins_no_duplicate1 VALUES (2,'Kale'), (2,'Parsley') ON DUPLICATE KEY UPDATE vegetable='Lettuce';
+SELECT * FROM `ins_no_duplicate1` ORDER BY `id`, `vegetable`;
+DROP TABLE `db1`.`ins_no_duplicate1`;
+
+#################################################
+## With no unique keys.
+#################################################
+DROP TABLE IF EXISTS `db1`.`ins_dup_with_no_uniq_key`;
+CREATE TABLE `db1`.`ins_dup_with_no_uniq_key` (id INT, vegetable VARCHAR(10), KEY (id));
+INSERT INTO `db1`.`ins_dup_with_no_uniq_key` VALUES (1, 'Carrot'), (2, 'Broccoli');
+SELECT * FROM `ins_dup_with_no_uniq_key` ORDER BY `id`, `vegetable`;
+
+INSERT INTO ins_dup_with_no_uniq_key VALUES (1,'Cabbage');
+INSERT INTO ins_dup_with_no_uniq_key VALUES (2,'Beetroot') ON DUPLICATE KEY UPDATE vegetable='Apple';
+SELECT * FROM `ins_dup_with_no_uniq_key` ORDER BY `id`, `vegetable`;
+
+INSERT INTO ins_dup_with_no_uniq_key VALUES (2,'Kale'), (2,'Parsley') ON DUPLICATE KEY UPDATE vegetable='Lettuce';
+SELECT * FROM `ins_dup_with_no_uniq_key` ORDER BY `id`, `vegetable`;
+DROP TABLE `db1`.`ins_dup_with_no_uniq_key`;
+
+#################################################
+## With multi-part keys.
+#################################################
+DROP TABLE IF EXISTS `ins_multi_duplicate`;
+CREATE TABLE `ins_multi_duplicate`(`id` INT, `id2` VARCHAR(10), `animal` VARCHAR(30), PRIMARY KEY(`id`, `id2`)) ENGINE=xpand;
+INSERT INTO `ins_multi_duplicate` VALUES (1, '1', 'Aardvark'), (2, '2', 'Cheetah'), (3, '3', 'Zebra');
+SELECT * FROM `ins_multi_duplicate` ORDER BY `id`, `id2`;
+
+--error ER_DUP_KEY
+INSERT INTO ins_multi_duplicate VALUES (1, '1', 'Antelope');
+INSERT INTO ins_multi_duplicate VALUES (4, '4', 'Mouse') ON DUPLICATE KEY UPDATE animal='Rat';
+INSERT INTO ins_multi_duplicate VALUES (1, '1', 'Antelope') ON DUPLICATE KEY UPDATE animal='Banana';
+SELECT * FROM `ins_multi_duplicate` ORDER BY `id`, `id2`;
+
+--error ER_DUP_KEY
+INSERT INTO ins_multi_duplicate VALUES (1, '1', 'Antelope'),(2, '3', 'Cheetah');
+INSERT INTO ins_multi_duplicate VALUES (5, '5', 'Cat'),(6, '5', 'Dog') ON DUPLICATE KEY UPDATE animal='Parrot';
+INSERT INTO ins_multi_duplicate VALUES (1, '1', 'Antelope'),(2, '1', 'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid';
+SELECT * FROM `ins_multi_duplicate` ORDER BY `id`, `id2`;
+DROP TABLE `ins_multi_duplicate`;
+
+#################################################
+## Autoinc test.
+#################################################
+DROP TABLE IF EXISTS `ins_autoinc_duplicate`;
+CREATE TABLE `ins_autoinc_duplicate`(`id` INT AUTO_INCREMENT PRIMARY KEY, `animal` VARCHAR(30)) ENGINE=xpand;
+INSERT INTO `ins_autoinc_duplicate` (`animal`) VALUES ('Aardvark'), ('Cheetah'), ('Zebra');
+SELECT * FROM `ins_autoinc_duplicate` ORDER BY `id`;
+
+--error ER_DUP_KEY
+INSERT INTO ins_autoinc_duplicate VALUES (1,'Antelope');
+INSERT INTO ins_autoinc_duplicate VALUES (4,'Mouse') ON DUPLICATE KEY UPDATE animal='Rat';
+INSERT INTO ins_autoinc_duplicate VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Banana';
+SELECT * FROM `ins_autoinc_duplicate` ORDER BY `id`;
+
+--error ER_DUP_KEY
+INSERT INTO ins_autoinc_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
+INSERT INTO ins_autoinc_duplicate VALUES (5,'Cat'),(6,'Dog') ON DUPLICATE KEY UPDATE animal='Parrot';
+INSERT INTO ins_autoinc_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid';
+SELECT * FROM `ins_autoinc_duplicate` ORDER BY `id`;
+
+INSERT INTO ins_autoinc_duplicate (`animal`) VALUES ('Bat') ON DUPLICATE KEY UPDATE animal='Squirrel';
+SELECT * FROM `ins_autoinc_duplicate` ORDER BY `id`;
+SELECT last_insert_id();
+DROP TABLE `ins_autoinc_duplicate`;
+
+#################################################
+## Multiple unique keys.
+#################################################
+DROP TABLE IF EXISTS `ins_duplicate_multiple_keys`;
+CREATE TABLE `ins_duplicate_multiple_keys`(`id` INT PRIMARY KEY, `animal` VARCHAR(30), UNIQUE KEY (`animal`)) ENGINE=xpand;
+INSERT INTO `ins_duplicate_multiple_keys` VALUES (1,'Aardvark'), (2,'Cheetah'), (3,'Zebra');
+SELECT * FROM `ins_duplicate_multiple_keys` ORDER BY `id`;
+
+--error ER_DUP_KEY
+INSERT INTO ins_duplicate_multiple_keys VALUES (99,'Aardvark');
+--error ER_DUP_KEY
+INSERT INTO ins_duplicate_multiple_keys VALUES (1,'Antelope');
+--error ER_DUP_KEY
+INSERT INTO ins_duplicate_multiple_keys VALUES (1,'Chicken'),(20,'Duck');
+--error ER_DUP_KEY
+INSERT INTO ins_duplicate_multiple_keys VALUES (20,'Chicken'),(1,'Duck');
+SELECT * FROM `ins_duplicate_multiple_keys` ORDER BY `id`;
+
+INSERT INTO ins_duplicate_multiple_keys VALUES (4,'Mouse') ON DUPLICATE KEY UPDATE animal='Rat';
+INSERT INTO ins_duplicate_multiple_keys VALUES (5,'Cat'),(6,'Dog') ON DUPLICATE KEY UPDATE animal='Parrot';
+SELECT * FROM `ins_duplicate_multiple_keys` ORDER BY `id`;
+
+INSERT INTO ins_duplicate_multiple_keys VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Antelope';
+INSERT INTO ins_duplicate_multiple_keys VALUES (20,'Cheetah') ON DUPLICATE KEY UPDATE animal='Cougar';
+SELECT * FROM `ins_duplicate_multiple_keys` ORDER BY `id`;
+
+INSERT INTO ins_duplicate_multiple_keys VALUES (1,'Aardvark'),(20,'Cougar'),(7,'Deer') ON DUPLICATE KEY UPDATE animal=concat(animal, '_hybrid');
+SELECT * FROM `ins_duplicate_multiple_keys` ORDER BY `id`;
+DROP TABLE `ins_duplicate_multiple_keys`;
 
 USE test;
 DROP DATABASE `db1`;

@@ -902,7 +902,8 @@ int xpand_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
  *   dbname &current database name
  **/
 int xpand_connection::update_query(String &stmt, LEX_CSTRING &dbname,
-                                   ulonglong *oids, ulonglong *affected_rows)
+                                   ulonglong *oids, ulonglong *affected_rows,
+                                   ulonglong *last_insert_id)
 {
   int error_code;
   command_length = 0;
@@ -926,8 +927,11 @@ int xpand_connection::update_query(String &stmt, LEX_CSTRING &dbname,
     return error_code;
 
   error_code = read_query_response();
-  if (!error_code)
+  if (!error_code) {
     *affected_rows = xpand_net.affected_rows;
+    if (last_insert_id)
+      *last_insert_id = xpand_net.insert_id;
+  }
 
   return error_code;
 }
