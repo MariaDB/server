@@ -6167,8 +6167,8 @@ void spider_handlersocket_handler::minimum_select_bitmap_create()
   {
     uint field_index = (*field_p)->field_index;
     if (
-      spider_bit_is_set(spider->searched_bitmap, field_index) |
-      bitmap_is_set(table->read_set, field_index) |
+      spider_bit_is_set(spider->searched_bitmap, field_index) ||
+      bitmap_is_set(table->read_set, field_index) ||
       bitmap_is_set(table->write_set, field_index)
     ) {
       spider_set_bit(minimum_select_bitmap, field_index);
