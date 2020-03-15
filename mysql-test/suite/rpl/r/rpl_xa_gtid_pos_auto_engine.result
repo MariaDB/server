@@ -43,8 +43,8 @@ SELECT @@global.gtid_slave_pos = CONCAT(domain_id,"-",server_id,"-",seq_no) FROM
 1
 xa recover;
 formatID	gtrid_length	bqual_length	data
-1	1	0	t
 1	1	0	s
+1	1	0	t
 connection master;
 xa commit 't';
 xa commit 's';
@@ -96,8 +96,8 @@ disconnect master_ro_1;
 connection master;
 xa recover;
 formatID	gtrid_length	bqual_length	data
-1	4	0	ro_2
 1	4	0	ro_1
+1	4	0	ro_2
 *** Zero prepared xa:s must be in the list:
 xa recover;
 formatID	gtrid_length	bqual_length	data

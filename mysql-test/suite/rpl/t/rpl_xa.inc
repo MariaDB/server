@@ -55,6 +55,7 @@ if ($rpl_xa_check)
     --eval SELECT $rpl_xa_check_rhs
   }
 }
+sorted_result;
 xa recover;
 
 connection master;
@@ -126,6 +127,7 @@ while ($p_trx)
 
 --echo *** $ro_cases prepared xa:s must be in the list:
 --connection master
+sorted_result;
 xa recover;
 
 --let $p_trx=$ro_cases
