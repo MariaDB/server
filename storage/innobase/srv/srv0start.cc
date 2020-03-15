@@ -340,6 +340,8 @@ static dberr_t create_log_file(lsn_t lsn, std::string& logfile0)
 
 	log_sys.buf_free = LOG_BLOCK_HDR_SIZE;
 
+	log_sys.log.write_header_durable(lsn);
+
 	log_mutex_exit();
 
 	log_make_checkpoint();

@@ -759,6 +759,38 @@ void log_t::file::open_file(std::string path)
     ib::fatal() << "open(" << fd.get_path() << ") returned " << err;
 }
 
+/** Update the log block checksum. */
+static void log_block_store_checksum(byte* block)
+{
+  log_block_set_checksum(block, log_block_calc_checksum_crc32(block));
+}
+
+void log_t::file::write_header_durable(lsn_t lsn)
+{
+  ut_ad(lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
+  ut_ad(!recv_no_log_write);
+  ut_ad(log_sys.log.format == log_t::FORMAT_10_5 ||
+        log_sys.log.format == log_t::FORMAT_ENC_10_5);
+
+  // man 2 open suggests this buffer to be aligned by 512 for O_DIRECT
+  alignas(OS_FILE_LOG_BLOCK_SIZE) byte buf[OS_FILE_LOG_BLOCK_SIZE] = {0};
+
+  mach_write_to_4(buf + LOG_HEADER_FORMAT, log_sys.log.format);
+  mach_write_to_4(buf + LOG_HEADER_SUBFORMAT, log_sys.log.subformat);
+  mach_write_to_8(buf + LOG_HEADER_START_LSN, lsn);
+  strcpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
+         LOG_HEADER_CREATOR_CURRENT);
+  ut_ad(LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR >=
+        sizeof LOG_HEADER_CREATOR_CURRENT);
+  log_block_store_checksum(buf);
+
+  DBUG_PRINT("ib_log", ("write " LSN_PF, lsn));
+
+  log_sys.log.write(0, buf);
+  if (!log_sys.log.writes_are_durable())
+    log_sys.log.flush_data_only();
+}
+
 void log_t::file::read(os_offset_t offset, span<byte> buf)
 {
   if (const dberr_t err= fd.read(offset, buf))
@@ -812,43 +844,6 @@ void log_t::file::create()
   lsn_offset= LOG_FILE_HDR_SIZE;
 }
 
-/** Update the log block checksum. */
-inline void log_block_store_checksum(byte* block)
-{
-	log_block_set_checksum(block, log_block_calc_checksum_crc32(block));
-}
-
-/******************************************************//**
-Writes a log file header to a log file space. */
-static
-void
-log_file_header_flush(
-	lsn_t		start_lsn)	/*!< in: log file data starts at this
-					lsn */
-{
-	ut_ad(log_write_lock_own());
-	ut_ad(!recv_no_log_write);
-	ut_ad(log_sys.log.format == log_t::FORMAT_10_5
-	      || log_sys.log.format == log_t::FORMAT_ENC_10_5);
-
-	// man 2 open suggests this buffer to be aligned by 512 for O_DIRECT
-	MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE)
-	byte buf[OS_FILE_LOG_BLOCK_SIZE] = {0};
-
-	mach_write_to_4(buf + LOG_HEADER_FORMAT, log_sys.log.format);
-	mach_write_to_4(buf + LOG_HEADER_SUBFORMAT, log_sys.log.subformat);
-	mach_write_to_8(buf + LOG_HEADER_START_LSN, start_lsn);
-	strcpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
-	       LOG_HEADER_CREATOR_CURRENT);
-	ut_ad(LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR
-	      >= sizeof LOG_HEADER_CREATOR_CURRENT);
-	log_block_store_checksum(buf);
-
-	DBUG_PRINT("ib_log", ("write " LSN_PF, start_lsn));
-
-	log_sys.log.write(0, buf);
-}
-
 /******************************************************//**
 Writes a buffer to a log file. */
 static
@@ -885,15 +880,6 @@ loop:
 	}
 
 	next_offset = log_sys.log.calc_lsn_offset(start_lsn);
-
-	if (write_header
-	    && next_offset % log_sys.log.file_size == LOG_FILE_HDR_SIZE) {
-		/* We start to write a new log file instance in the group */
-
-		ut_a(next_offset / log_sys.log.file_size <= ULINT_MAX);
-
-		log_file_header_flush(start_lsn);
-	}
 
 	if ((next_offset % log_sys.log.file_size) + len
 	    > log_sys.log.file_size) {

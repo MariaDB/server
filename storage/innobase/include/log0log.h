@@ -588,6 +588,8 @@ public:
 
     /** opens log file which must be closed prior this call */
     void open_file(std::string path);
+    /** writes header */
+    void write_header_durable(lsn_t lsn);
     /** opens log file which must be closed prior this call */
     dberr_t rename(std::string path) { return fd.rename(path); }
     /** reads buffer from log file
