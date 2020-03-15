@@ -2386,3 +2386,17 @@ select a, b, c from t1 order by a, b;
 set max_sort_length= @save_max_sort_length;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-21922: Allow packing addon fields even if they don't honour max_length_for_sort_data
+--echo #
+
+create table t1 (a varchar(200) character set utf8, b int);
+insert into t1 select seq, seq from seq_1_to_10;
+select * from t1 order by a;
+--echo #
+--echo # r_sort_mode should show both packed_sort_key and packed_addon_fields
+--echo #
+--source include/analyze-format.inc
+analyze format=json select * from t1 order by a;
+drop table t1;
