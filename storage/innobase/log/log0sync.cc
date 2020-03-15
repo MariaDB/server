@@ -76,7 +76,7 @@ Note that if write operation is very fast, a) or b) can be fine as alternative.
 
 #include <log0types.h>
 #include "log0sync.h"
-
+#include <mysql/service_thd_wait.h>
 /**
   Helper class , used in group commit lock.
 
@@ -239,7 +239,10 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num)
     lk.unlock();
 
     /* Sleep until woken in release().*/
+    thd_wait_begin(0,THD_WAIT_GROUP_COMMIT);
     thread_local_waiter.m_sema.wait();
+    thd_wait_end(0);
+
   }
   return lock_return_code::EXPIRED;
 }
