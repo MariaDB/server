@@ -210,23 +210,21 @@ connection master;
 xa recover;
 formatID	gtrid_length	bqual_length	data
 1	11	0	skip_binlog
-connection master;
-call mtr.add_suppression("Slave: XAER_NOTA: Unknown XID");
+set @@session.sql_log_bin = OFF;
 xa rollback 'skip_binlog';
+set @@session.sql_log_bin = ON;
+include/save_master_gtid.inc
 *** Zero must be in the list:
 connection master;
 xa recover;
 formatID	gtrid_length	bqual_length	data
-*** At the end of --binlog-ignore-db section gtid list has 2 more:
+*** At the end of skip_log_binb section gtid list has 0 more:
 flush logs;
 show binlog events in 'master-bin.000007' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000007	#	Gtid_list	1	#	[0-1-27]
-include/save_master_gtid.inc
+master-bin.000007	#	Gtid_list	1	#	[0-1-25]
 connection slave;
-include/wait_for_slave_sql_error.inc [errno=1397]
-set @@global.sql_slave_skip_counter= 1;
-include/start_slave.inc
+include/sync_with_master_gtid.inc
 connection master;
 drop database test_ign;
 drop table t1, t2, t3, tm;
