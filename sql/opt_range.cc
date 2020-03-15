@@ -8837,7 +8837,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       if (key2->next_key_part)
       {
 	key1->use_count--;			// Incremented in and_all_keys
-	return and_all_keys(param, key1, key2, clone_flag);
+        return and_all_keys(param, key1, key2->next_key_part, clone_flag);
       }
       key2->use_count--;			// Key2 doesn't have a tree
     }
