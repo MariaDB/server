@@ -4683,7 +4683,7 @@ public:
    information to decide the logging format. So that cases we call decide_logging_format_2
    at later stages in execution.
    One example would be binlog format for IODKU but column with unique key is not inserted.
-   We dont have inserted columns info when we call decide_logging_format so on later stage we call
+   We don't have inserted columns info when we call decide_logging_format so on later stage we call
    decide_logging_format_low
 
    @returns 0 if no format is changed
@@ -5365,7 +5365,7 @@ public:
   
   It is aimed at capturing SHOW EXPLAIN output, so:
   - Unlike select_result class, we don't assume that the sent data is an 
-    output of a SELECT_LEX_UNIT (and so we dont apply "LIMIT x,y" from the
+    output of a SELECT_LEX_UNIT (and so we don't apply "LIMIT x,y" from the
     unit)
   - We don't try to convert the target table to MyISAM 
 */

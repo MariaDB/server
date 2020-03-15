@@ -566,7 +566,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   // What I think this code is doing:
   // * Our OQGRAPH table is `database_blah/name`
-  // * We point p --> /name (or if table happened to be simply `name`, to `name`, dont know if this is possible)
+  // * We point p --> /name (or if table happened to be simply `name`, to `name`, don't know if this is possible)
   // * plen seems to be then set to length of `database_blah/options_data_table_name`
   // * then we set share->normalized_path.str and share->path.str to `database_blah/options_data_table_name`
   // * I assume that this verbiage is needed so  the memory used by share->path.str is set in the share mem root

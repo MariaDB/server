@@ -292,7 +292,7 @@ TDBOCCUR::TDBOCCUR(POCCURDEF tdp) : TDBPRX(tdp)
 	Col = NULL;                        // To source column blocks array
 	Mult = PrepareColist(Colist);      // Multiplication factor
 	N = 0;									           // The current table index
-	M = 0;                             // The occurence rank
+	M = 0;                             // The occurrence rank
 	RowFlag = 0;    				           // 0: Ok, 1: Same, 2: Skip
   } // end of TDBOCCUR constructor
 
@@ -431,7 +431,7 @@ int TDBOCCUR::GetMaxSize(PGLOBAL g)
 
 /***********************************************************************/
 /*  In this sample, ROWID will be the (virtual) row number,            */
-/*  while ROWNUM will be the occurence rank in the multiple column.    */
+/*  while ROWNUM will be the occurrence rank in the multiple column.    */
 /***********************************************************************/
 int TDBOCCUR::RowNumber(PGLOBAL, bool b)
 	{

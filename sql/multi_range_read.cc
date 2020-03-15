@@ -1247,7 +1247,7 @@ int DsMrr_impl::setup_two_handlers()
       scans.
 
       Calling primary_file->index_end() will invoke dsmrr_close() for this object,
-      which will delete secondary_file. We need to keep it, so put it away and dont
+      which will delete secondary_file. We need to keep it, so put it away and don't
       let it be deleted:
     */
     if (primary_file->inited == handler::INDEX)

@@ -536,7 +536,7 @@ int TDBPRX::GetMaxSize(PGLOBAL g)
 
 /***********************************************************************/
 /*  In this sample, ROWID will be the (virtual) row number,            */
-/*  while ROWNUM will be the occurence rank in the multiple column.    */
+/*  while ROWNUM will be the occurrence rank in the multiple column.    */
 /***********************************************************************/
 int TDBPRX::RowNumber(PGLOBAL g, bool b)
 	{

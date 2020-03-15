@@ -3797,3 +3797,56 @@ efg	5	5
 fgh	6	6
 set max_sort_length= @save_max_sort_length;
 drop table t1;
+#
+# MDEV-21922: Allow packing addon fields even if they don't honour max_length_for_sort_data
+#
+create table t1 (a varchar(200) character set utf8, b int);
+insert into t1 select seq, seq from seq_1_to_10;
+select * from t1 order by a;
+a	b
+1	1
+10	10
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+#
+# r_sort_mode should show both packed_sort_key and packed_addon_fields
+#
+analyze format=json select * from t1 order by a;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "read_sorted_file": {
+      "r_rows": 10,
+      "filesort": {
+        "sort_key": "t1.a",
+        "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
+        "r_used_priority_queue": false,
+        "r_output_rows": 10,
+        "r_buffer_size": "REPLACED",
+        "r_sort_mode": "packed_sort_key,packed_addon_fields",
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+drop table t1;

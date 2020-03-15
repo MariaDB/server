@@ -404,7 +404,7 @@ TDBPIVOT::TDBPIVOT(PPIVOTDEF tdp) : TDBPRX(tdp)
   Accept = tdp->Accept;
   Mult = -1;                // Estimated table size
   N = 0;                    // The current table index
-  M = 0;                    // The occurence rank
+  M = 0;                    // The occurrence rank
   FileStatus = 0;           // Logical End-of-File
   RowFlag = 0;              // 0: Ok, 1: Same, 2: Skip
   } // end of TDBPIVOT constructor
@@ -644,7 +644,7 @@ int TDBPIVOT::GetMaxSize(PGLOBAL g __attribute__((unused)))
 
 /***********************************************************************/
 /*  In this sample, ROWID will be the (virtual) row number,            */
-/*  while ROWNUM will be the occurence rank in the multiple column.    */
+/*  while ROWNUM will be the occurrence rank in the multiple column.    */
 /***********************************************************************/
 int TDBPIVOT::RowNumber(PGLOBAL, bool b)
   {

@@ -139,8 +139,6 @@ void Sort_param::try_to_pack_addons(ulong max_length_for_sort_data)
     return;
 
   const uint sz= Addon_fields::size_of_length_field;
-  if (rec_length + sz > max_length_for_sort_data)
-    return;
 
   // Heuristic: skip packing if potential savings are less than 10 bytes.
   if (m_packable_length < (10 + sz))
@@ -2281,7 +2279,7 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *multi_byte_charset,
   Check whether addon fields can be used or not.
 
   @param table                  Table structure
-  @param sortlength             Length of sort key
+  @param sortlength             Length of sort key [strxfrm form]
   @param length [OUT]           Max length of addon fields
   @param fields [OUT]           Number of addon fields
   @param null_fields [OUT]      Number of nullable addon fields
@@ -2321,6 +2319,15 @@ bool filesort_use_addons(TABLE *table, uint sortlength,
     return false;
   (*length)+= (*null_fields+7)/8;
 
+  /*
+    sortlength used here is unpacked key length (the strxfrm form). This is
+    done because unpacked key length is a good upper bound for packed sort
+    key length.
+    But for some collations the max packed length may be greater than the
+    length obtained from the strxfrm form.
+    Example: for utf8_general_ci, the original string form can be longer than
+    its mem-comparable form (note that this is rarely achieved in practice).
+  */
   return *length + sortlength <
          table->in_use->variables.max_length_for_sort_data;
 }

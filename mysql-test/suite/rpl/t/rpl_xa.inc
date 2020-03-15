@@ -308,8 +308,8 @@ flush logs;
 --source include/show_gtid_list.inc
 
 
-# B. Session binlog disable does not log even empty XA-prepare but XA-complete will be
-# logged despite of that.
+# B. Session binlog disable does not log even empty XA-prepare
+#    Therefore XA-complete should be also run in sql_log_bin-OFF environment.
 
 --let $db=test
 --let $xid=skip_binlog
@@ -328,28 +328,27 @@ set @@session.sql_log_bin = OFF;
 --connection master
 xa recover;
 
---connection master
-call mtr.add_suppression("Slave: XAER_NOTA: Unknown XID");
+# now commit it carefully to avoid binlogging as the prepare part did
+set @@session.sql_log_bin = OFF;
 --eval xa rollback '$xid'
+set @@session.sql_log_bin = ON;
+--source include/save_master_gtid.inc
 
 --echo *** Zero must be in the list:
 --connection master
 xa recover;
 
---echo *** At the end of --binlog-ignore-db section gtid list has 2 more:
+--echo *** At the end of skip_log_binb section gtid list has 0 more:
 flush logs;
 --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
 --source include/show_gtid_list.inc
---source include/save_master_gtid.inc
 
 #
-# Expected error on slave and manual correction
+# sync slave successfully to prove its consistency
 #
 --connection slave
-let $slave_sql_errno= 1397; # ER_XAER_NOTA
-source include/wait_for_slave_sql_error.inc;
-set @@global.sql_slave_skip_counter= 1;
---source include/start_slave.inc
+source include/sync_with_master_gtid.inc;
+
 
 connection master;
 --eval drop database test_ign

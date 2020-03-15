@@ -1436,7 +1436,7 @@ fts_drop_table(
 
 		dict_table_close(table, TRUE, FALSE);
 
-		/* Pass nonatomic=false (dont allow data dict unlock),
+		/* Pass nonatomic=false (don't allow data dict unlock),
 		because the transaction may hold locks on SYS_* tables from
 		previous calls to fts_drop_table(). */
 		error = row_drop_table_for_mysql(table_name, trx,

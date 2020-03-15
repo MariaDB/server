@@ -795,7 +795,7 @@ do_retry:
     else
     {
       /*
-        A failure of a preceeding "parent" transaction may not be
+        A failure of a preceding "parent" transaction may not be
         seen by the current one through its own worker_error.
         Such induced error gets set by ourselves now.
       */

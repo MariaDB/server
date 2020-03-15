@@ -5760,7 +5760,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
     {
       idx_scan.add("chosen", true);
       if (!*scan_ptr)
-        idx_scan.add("cause", "first occurence of index prefix");
+        idx_scan.add("cause", "first occurrence of index prefix");
       else
         idx_scan.add("cause", "better cost for same idx prefix");
       *scan_ptr= *index_scan;

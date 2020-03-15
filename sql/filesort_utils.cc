@@ -174,7 +174,7 @@ void Filesort_buffer::sort_buffer(const Sort_param *param, uint count)
   if (count <= 1 || size == 0)
     return;
 
-  // dont reverse for PQ, it is already done
+  // don't reverse for PQ, it is already done
   if (!param->using_pq)
     reverse_record_pointers();
 

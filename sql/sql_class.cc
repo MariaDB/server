@@ -6808,7 +6808,7 @@ void THD::binlog_prepare_row_images(TABLE *table)
 
   /**
     if there is a primary key in the table (ie, user declared PK or a
-    non-null unique index) and we dont want to ship the entire image,
+    non-null unique index) and we don't want to ship the entire image,
     and the handler involved supports this.
    */
   if (table->s->primary_key < MAX_KEY &&

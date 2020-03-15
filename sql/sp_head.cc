@@ -1472,7 +1472,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
         /*
           Reset the return code to zero if the transaction was
-          replayed succesfully.
+          replayed successfully.
         */
         if (must_replay && !wsrep_current_error(thd))
         {
