@@ -201,4 +201,32 @@ insert into t values (1, '2020-03-05', '2020-03-10', 'test2');
 --error ER_DUP_ENTRY
 insert into t values (1, '2020-03-03', '2020-03-10', 'test3');
 
+let $MYSQLD_DATADIR= `select @@datadir`;
+create or replace table t (x int, s date, e date, period for apptime(s,e),
+                           unique(x, apptime without overlaps));
+--error ER_NOT_SUPPORTED_YET
+replace into t values (1, '2020-03-03', '2020-03-10');
+--error ER_NOT_SUPPORTED_YET
+insert into t values (1, '2020-03-03', '2020-03-10')
+              on duplicate key update x = 2;
+
+select * from t;
+select * into outfile 'tmp_t.txt' from t;
+load data infile 'tmp_t.txt' into table t;
+--error ER_NOT_SUPPORTED_YET
+load data infile 'tmp_t.txt' replace into table t;
+remove_file $MYSQLD_DATADIR/test/tmp_t.txt;
+
+insert into t values (1, '2020-03-01', '2020-03-05');
+select * into outfile 'tmp_t.txt' from t;
+--error ER_DUP_ENTRY
+load data infile 'tmp_t.txt' into table t;
+
+load data infile 'tmp_t.txt' ignore into table t;
+
+--error ER_NOT_SUPPORTED_YET
+load data infile 'tmp_t.txt' replace into table t;
+
+remove_file $MYSQLD_DATADIR/test/tmp_t.txt;
+
 create or replace database test;

@@ -38,6 +38,8 @@ void upgrade_lock_type_for_insert(THD *thd, thr_lock_type *lock_type,
 int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
                                            TABLE_LIST *table_list);
 int vers_insert_history_row(TABLE *table);
+int check_duplic_insert_without_overlaps(THD *thd, TABLE *table,
+                                         enum_duplicates duplic);
 int write_record(THD *thd, TABLE *table, COPY_INFO *info,
                  select_result *returning= NULL);
 void kill_delayed_threads(void);
