@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -104,7 +105,7 @@ ha_rows mi_records_in_range(MI_INFO *info, int inx,
 		        : (double) info->state->records);
     res= (end_pos < start_pos ? (ha_rows) 0 :
           (end_pos == start_pos ? (ha_rows) 1 : (ha_rows) (end_pos-start_pos)));
-    if (start_pos == HA_POS_ERROR || end_pos == HA_POS_ERROR)
+    if (start_pos == (double) HA_POS_ERROR || end_pos == (double) HA_POS_ERROR)
       res=HA_POS_ERROR;
     else
     {
