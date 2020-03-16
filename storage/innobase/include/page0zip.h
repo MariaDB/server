@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -493,12 +493,11 @@ page_zip_calc_checksum(
 	ulint				size,
 	srv_checksum_algorithm_t	algo);
 
-/** Verify a compressed page's checksum.
-@param[in]	data		compressed page
-@param[in]	size		size of compressed page
-@return whether the stored checksum is valid according to the value of
-innodb_checksum_algorithm */
-bool page_zip_verify_checksum(const void* data, ulint size);
+/** Validate the checksum on a ROW_FORMAT=COMPRESSED page.
+@param data    ROW_FORMAT=COMPRESSED page
+@param size    size of the page, in bytes
+@return whether the stored checksum matches innodb_checksum_algorithm */
+bool page_zip_verify_checksum(const void *data, size_t size);
 
 #ifndef UNIV_INNOCHECKSUM
 /**********************************************************************//**
