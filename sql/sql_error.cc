@@ -947,7 +947,7 @@ size_t convert_error_message(char *to, size_t to_length, CHARSET_INFO *to_cs,
   /* Make room for the null terminator. */
   to_length--;
 
-  if (to_cs == &my_charset_bin)
+  if (!to_cs || to_cs == &my_charset_bin)
     to_cs= system_charset_info;
   uint32 cnv_length= my_convert_using_func(to, to_length,
                                            to_cs,
