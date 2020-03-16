@@ -117,6 +117,13 @@ fi
 
 sed -i -e "/Package: mariadb-plugin-tokudb/,/^$/d" debian/control
 
+# If libpcre2-dev is not available (before Debian Stretch and Ubuntu Xenial)
+# attempt to build using older libpcre3-dev (SIC!)
+if ! apt-cache madison libpcre2-dev | grep --quiet 'libpcre2-dev'
+then
+  sed 's/libpcre2-dev/libpcre3-dev/' -i debian/control
+fi
+
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above
 if [[ $TRAVIS ]]
 then
