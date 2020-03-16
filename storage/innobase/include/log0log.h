@@ -337,7 +337,7 @@ log_refresh_stats(void);
 
 #define	LOG_BLOCK_KEY		4	/* encryption key version
 					before LOG_BLOCK_CHECKSUM;
-					in log_t::FORMAT_ENC_10_4 only */
+					after log_t::FORMAT_ENC_10_4 only */
 #define	LOG_BLOCK_CHECKSUM	4	/* 4 byte checksum of the log block
 					contents; in InnoDB versions
 					< 3.23.52 this did not contain the
@@ -742,17 +742,21 @@ public:
   void set_check_flush_or_checkpoint(bool flag= true)
   { check_flush_or_checkpoint_.store(flag, std::memory_order_relaxed); }
 
+  bool has_encryption_key_rotation() const {
+    return log.format == FORMAT_ENC_10_4 || log.format == FORMAT_ENC_10_5;
+  }
+
   /** @return the log block header + trailer size */
   unsigned framing_size() const
   {
-    return log.format == FORMAT_ENC_10_4
+    return has_encryption_key_rotation()
       ? LOG_BLOCK_HDR_SIZE + LOG_BLOCK_KEY + LOG_BLOCK_CHECKSUM
       : LOG_BLOCK_HDR_SIZE + LOG_BLOCK_CHECKSUM;
   }
   /** @return the log block payload size */
   unsigned payload_size() const
   {
-    return log.format == FORMAT_ENC_10_4
+    return has_encryption_key_rotation()
       ? OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE - LOG_BLOCK_CHECKSUM -
       LOG_BLOCK_KEY
       : OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE - LOG_BLOCK_CHECKSUM;
@@ -760,7 +764,7 @@ public:
   /** @return the log block trailer offset */
   unsigned trailer_offset() const
   {
-    return log.format == FORMAT_ENC_10_4
+    return has_encryption_key_rotation()
       ? OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM - LOG_BLOCK_KEY
       : OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM;
   }
