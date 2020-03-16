@@ -215,21 +215,6 @@ ut_crc32_64_low_hw(
 	return(static_cast<uint32_t>(crc_64bit));
 }
 
-/** Swap the byte order of an 8 byte integer.
-@param[in]	i	8-byte integer
-@return 8-byte integer */
-inline uint64_t ut_crc32_swap_byteorder(uint64_t i)
-{
-  return i << 56 |
-    (i & 0x000000000000FF00ULL) << 40 |
-    (i & 0x0000000000FF0000ULL) << 24 |
-    (i & 0x00000000FF000000ULL) << 8 |
-    (i & 0x000000FF00000000ULL) >> 8 |
-    (i & 0x0000FF0000000000ULL) >> 24 |
-    (i & 0x00FF000000000000ULL) >> 40 |
-    i >> 56;
-}
-
 /** Calculate CRC32 over 64-bit byte string using a hardware/CPU instruction.
 @param[in,out]	crc	crc32 checksum so far when this function is called,
 when the function ends it will contain the new checksum
@@ -404,6 +389,23 @@ ut_crc32_8_sw(
 	(*data)++;
 	(*len)--;
 }
+
+/** Swap the byte order of an 8 byte integer.
+@param[in]	i	8-byte integer
+@return 8-byte integer */
+# ifdef WORDS_BIGENDIAN
+inline uint64_t ut_crc32_swap_byteorder(uint64_t i)
+{
+  return i << 56 |
+    (i & 0x000000000000FF00ULL) << 40 |
+    (i & 0x0000000000FF0000ULL) << 24 |
+    (i & 0x00000000FF000000ULL) << 8 |
+    (i & 0x000000FF00000000ULL) >> 8 |
+    (i & 0x0000FF0000000000ULL) >> 24 |
+    (i & 0x00FF000000000000ULL) >> 40 |
+    i >> 56;
+}
+# endif /* WORDS_BIGENDIAN */
 
 /** Calculate CRC32 over a 64-bit integer using a software implementation.
 @param[in]	crc	crc32 checksum so far
