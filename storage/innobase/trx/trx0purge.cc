@@ -298,7 +298,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		       static_cast<uint16_t>(undo->hdr_offset
 					     + TRX_UNDO_HISTORY_NODE), mtr);
 
-	mtr->write<8>(*undo_page, undo_header + TRX_UNDO_TRX_NO, trx->no);
+	mtr->write<8,mtr_t::OPT>(*undo_page, undo_header + TRX_UNDO_TRX_NO,
+				 trx->no);
 	/* This is needed for upgrading old undo log pages from
 	before MariaDB 10.3.1. */
 	if (UNIV_UNLIKELY(!mach_read_from_2(undo_header
