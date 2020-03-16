@@ -24,5 +24,5 @@ SUBPARTITION BY HASH ( id2 )
 SUBPARTITIONS 2 (
 PARTITION çççççççççççççççççççççççççççççççççççççççççççççççççççççççççççç VALUES LESS THAN (1000) ENGINE = InnoDB,
 PARTITION pmax VALUES LESS THAN MAXVALUE ENGINE = InnoDB);
-ERROR HY000: The path specified for @0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@ is too long
+ERROR HY000: The path specified for @0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@... is too long
 drop database mysqltest1;

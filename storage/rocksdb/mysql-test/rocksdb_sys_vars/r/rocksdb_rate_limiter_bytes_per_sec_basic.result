@@ -97,5 +97,5 @@ Warnings:
 Warning	1210	RocksDB: rocksdb_rate_limiter_bytes_per_sec cannot be dynamically changed to or from 0.  Do a clean shutdown if you want to change it from or to 0.
 SET @@global.rocksdb_rate_limiter_bytes_per_sec = -1;
 Warnings:
-Warning	1292	Truncated incorrect rocksdb_rate_limiter_bytes_per_s value: '-1'
+Warning	1292	Truncated incorrect rocksdb_rate_limiter_bytes_pe... value: '-1'
 Warning	1210	RocksDB: rocksdb_rate_limiter_bytes_per_sec cannot be dynamically changed to or from 0.  Do a clean shutdown if you want to change it from or to 0.

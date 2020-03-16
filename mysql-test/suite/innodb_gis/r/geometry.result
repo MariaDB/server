@@ -535,7 +535,7 @@ LINESTRING(10 10,20 20,30 30)	LINESTRING(10 10,20 20,30 30)
 DELETE FROM tab
 Where c8=c8=ST_GeometryFromWKB(ST_AsWKB(ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))')));
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '\x00\x00\x00\x00\x01\x07\x00\x00\x00\x02\x00\x00\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF0?\x00\x00\x00\x00\x00\x00\xF'
+Warning	1292	Truncated incorrect DOUBLE value: '\x00\x00\x00\x00\x01\x07\x00\x00\x00\x02\x00\x00\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF0?\x00\x00\x00\x00\x00\x00...'
 #check the data, should 0
 SELECT COUNT(*) FROM tab;
 COUNT(*)

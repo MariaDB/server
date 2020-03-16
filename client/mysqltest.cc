@@ -588,8 +588,7 @@ static void cleanup_and_exit(int exit_code);
 
 ATTRIBUTE_NORETURN
 void really_die(const char *msg);
-void report_or_die(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
-ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
+void report_or_die(const char *fmt, ...);
 void die(const char *fmt, ...);
 static void make_error_message(char *buf, size_t len, const char *fmt, va_list args);
 ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
@@ -717,7 +716,7 @@ public:
     DBUG_ASSERT(ds->str);
 
 #ifdef EXTRA_DEBUG
-    DBUG_PRINT("extra", ("str: %*s", (int) ds->length, ds->str));
+    DBUG_PRINT("extra", ("str: %*b", (int) ds->length, ds->str));
 #endif
 
     if (fwrite(ds->str, 1, ds->length, m_file) != ds->length)
@@ -1312,7 +1311,7 @@ void check_command_args(struct st_command *command,
 
     /* Check required arg */
     if (arg->ds->length == 0 && arg->required)
-      die("Missing required argument '%s' to command '%.*s'", arg->argname,
+      die("Missing required argument '%s' to command '%.*b'", arg->argname,
           command->first_word_len, command->query);
 
   }
@@ -1321,7 +1320,7 @@ void check_command_args(struct st_command *command,
   while(ptr <= command->end && *ptr != '#')
   {
     if (*ptr && *ptr != ' ')
-      die("Extra argument '%s' passed to '%.*s'",
+      die("Extra argument '%s' passed to '%.*b'",
           ptr, command->first_word_len, command->query);
     ptr++;
   }
@@ -1341,7 +1340,7 @@ void handle_command_error(struct st_command *command, uint error,
 
     if (command->abort_on_error)
     {
-      report_or_die("command \"%.*s\" failed with error: %u  my_errno: %d  "
+      report_or_die("command \"%.*b\" failed with error: %u  my_errno: %d  "
                     "errno: %d",
           command->first_word_len, command->query, error, my_errno,
           sys_errno);
@@ -1359,7 +1358,7 @@ void handle_command_error(struct st_command *command, uint error,
       DBUG_VOID_RETURN;
     }
     if (command->expected_errors.count > 0)
-      report_or_die("command \"%.*s\" failed with wrong error: %u  "
+      report_or_die("command \"%.*b\" failed with wrong error: %u  "
                     "my_errno: %d  errno: %d",
                     command->first_word_len, command->query, error, my_errno,
                     sys_errno);
@@ -1368,7 +1367,7 @@ void handle_command_error(struct st_command *command, uint error,
            command->expected_errors.err[0].code.errnum != 0)
   {
     /* Error code we wanted was != 0, i.e. not an expected success */
-    report_or_die("command \"%.*s\" succeeded - should have failed with "
+    report_or_die("command \"%.*b\" succeeded - should have failed with "
                   "errno %d...",
         command->first_word_len, command->query,
         command->expected_errors.err[0].code.errnum);
@@ -2322,7 +2321,7 @@ static int strip_surrounding(char* str, char c1, char c2)
 static void strip_parentheses(struct st_command *command)
 {
   if (strip_surrounding(command->first_argument, '(', ')'))
-    die("%.*s - argument list started with '%c' must be ended with '%c'",
+    die("%.*b - argument list started with '%c' must be ended with '%c'",
         command->first_word_len, command->query, '(', ')');
 }
 
@@ -2978,7 +2977,7 @@ void eval_expr(VAR *v, const char *p, const char **p_end,
     /* Make sure there was just a $variable and nothing else */
     const char* end= *p_end + 1;
     if (end < expected_end && !open_end)
-      die("Found junk '%.*s' after $variable in expression",
+      die("Found junk '%.*b' after $variable in expression",
           (int)(expected_end - end - 1), end);
 
     DBUG_VOID_RETURN;
@@ -3472,10 +3471,10 @@ int do_modify_var(struct st_command *command,
   const char *p= command->first_argument;
   VAR* v;
   if (!*p)
-    die("Missing argument to %.*s", command->first_word_len,
+    die("Missing argument to %.*b", command->first_word_len,
         command->query);
   if (*p != '$')
-    die("The argument to %.*s must be a variable (start with $)",
+    die("The argument to %.*b must be a variable (start with $)",
         command->first_word_len, command->query);
   v= var_get(p, &p, 1, 0);
   if (! v->is_int)
@@ -4753,18 +4752,18 @@ void do_sync_with_master2(struct st_command *command, long offset,
         information is not initialized, the arguments are
         incorrect, or an error has occurred
       */
-      die("%.*s failed: '%s' returned NULL "          \
+      die("%.*b failed: '%s' returned NULL "          \
           "indicating slave SQL thread failure",
           command->first_word_len, command->query, query_buf);
 
     }
 
     if (result == -1)
-      die("%.*s failed: '%s' returned -1 "            \
+      die("%.*b failed: '%s' returned -1 "            \
           "indicating timeout after %d seconds",
           command->first_word_len, command->query, query_buf, timeout);
     else
-      die("%.*s failed: '%s' returned unknown result :%d",
+      die("%.*b failed: '%s' returned unknown result :%d",
           command->first_word_len, command->query, query_buf, result);
   }
 
@@ -4929,17 +4928,17 @@ int do_sleep(struct st_command *command, my_bool real_sleep)
   while (my_isspace(charset_info, *p))
     p++;
   if (!*p)
-    die("Missing argument to %.*s", command->first_word_len,
+    die("Missing argument to %.*b", command->first_word_len,
         command->query);
   sleep_start= p;
   /* Check that arg starts with a digit, not handled by my_strtod */
   if (!my_isdigit(charset_info, *sleep_start))
-    die("Invalid argument to %.*s \"%s\"", command->first_word_len,
+    die("Invalid argument to %.*b \"%s\"", command->first_word_len,
         command->query, sleep_start);
   sleep_val= my_strtod(sleep_start, &sleep_end, &error);
   check_eol_junk_line(sleep_end);
   if (error)
-    die("Invalid argument to %.*s \"%s\"", command->first_word_len,
+    die("Invalid argument to %.*b \"%s\"", command->first_word_len,
         command->query, command->first_argument);
   dynstr_free(&ds_sleep);
 
@@ -5942,7 +5941,7 @@ void do_connect(struct st_command *command)
       csname= strdup(con_options + sizeof("CHARSET=") - 1);
     }
     else
-      die("Illegal option to connect: %.*s", 
+      die("Illegal option to connect: %.*b",
           (int) (end - con_options), con_options);
     /* Process next option */
     con_options= end;
@@ -6269,7 +6268,7 @@ void do_block(enum block_cmd cmd, struct st_command* command)
 
     enum block_op operand= find_operand(curr_ptr);
     if (operand == ILLEG_OP)
-      die("Found junk '%.*s' after $variable in condition",
+      die("Found junk '%.*b' after $variable in condition",
           (int)(expr_end - curr_ptr), curr_ptr);
 
     /* We could silently allow this, but may be confusing */
@@ -9466,6 +9465,7 @@ int main(int argc, char **argv)
       case Q_LET: do_let(command); break;
       case Q_EVAL_RESULT:
         die("'eval_result' command  is deprecated");
+	break; // never called but keep compiler calm
       case Q_EVAL:
       case Q_EVALP:
       case Q_QUERY_VERTICAL:
