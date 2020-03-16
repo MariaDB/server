@@ -1,4 +1,5 @@
 /* Copyright (c) 2015, 2018, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2020, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -247,9 +248,6 @@ int PFS_system_variable_cache::do_materialize_all(THD *unsafe_thd)
     for (SHOW_VAR *show_var= m_show_var_array.front();
          show_var->value && (show_var != m_show_var_array.end()); show_var++)
     {
-      sys_var *value= (sys_var *)show_var->value;
-      DBUG_ASSERT(value);
-
       /* Resolve value, convert to text, add to cache. */
       System_variable system_var(m_safe_thd, show_var, m_query_scope, false);
       m_cache.push(system_var);
@@ -505,9 +503,8 @@ void System_variable::init(THD *target_thd, const SHOW_VAR *show_var,
   if (show_var == NULL || show_var->name == NULL)
     return;
 
-  enum_mysql_show_type show_var_type= show_var->type;
-  DBUG_ASSERT(show_var_type == SHOW_SYS);
-  
+  DBUG_ASSERT(show_var->type == SHOW_SYS);
+
   m_name= show_var->name;
   m_name_length= strlen(m_name);
 
