@@ -1404,6 +1404,33 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
 }
 
 
+/**
+  TODO remove when MDEV-17395 will be closed
+
+  Checks if REPLACE or ON DUPLICATE UPDATE was executed on table containing
+  WITHOUT OVERLAPS key.
+
+  @return
+  0 if no error
+  ER_NOT_SUPPORTED_YET if the above condidion was met
+ */
+int check_duplic_insert_without_overlaps(THD *thd, TABLE *table,
+                                         enum_duplicates duplic)
+{
+  if (duplic == DUP_REPLACE || duplic == DUP_UPDATE)
+  {
+    for (uint k = 0; k < table->s->keys; k++)
+    {
+      if (table->key_info[k].without_overlaps)
+      {
+        my_error(ER_NOT_SUPPORTED_YET, MYF(0), "WITHOUT OVERLAPS");
+        return ER_NOT_SUPPORTED_YET;
+      }
+    }
+  }
+  return 0;
+}
+
 /*
   Check if table can be updated
 
@@ -1600,6 +1627,9 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
 
   if (!table)
     table= table_list->table;
+
+  if (check_duplic_insert_without_overlaps(thd, table, duplic) != 0)
+    DBUG_RETURN(true);
 
   if (table->versioned(VERS_TIMESTAMP) && duplic == DUP_REPLACE)
   {

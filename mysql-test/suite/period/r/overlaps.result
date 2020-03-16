@@ -204,4 +204,26 @@ ERROR 23000: Duplicate entry 'test' for key 'b'
 insert into t values (1, '2020-03-05', '2020-03-10', 'test2');
 insert into t values (1, '2020-03-03', '2020-03-10', 'test3');
 ERROR 23000: Duplicate entry '1-2020-03-10-2020-03-03' for key 'x'
+create or replace table t (x int, s date, e date, period for apptime(s,e),
+unique(x, apptime without overlaps));
+replace into t values (1, '2020-03-03', '2020-03-10');
+ERROR 42000: This version of MariaDB doesn't yet support 'WITHOUT OVERLAPS'
+insert into t values (1, '2020-03-03', '2020-03-10')
+on duplicate key update x = 2;
+ERROR 42000: This version of MariaDB doesn't yet support 'WITHOUT OVERLAPS'
+select * from t;
+x	s	e
+select * into outfile 'tmp_t.txt' from t;
+load data infile 'tmp_t.txt' into table t;
+load data infile 'tmp_t.txt' replace into table t;
+ERROR 42000: This version of MariaDB doesn't yet support 'WITHOUT OVERLAPS'
+insert into t values (1, '2020-03-01', '2020-03-05');
+select * into outfile 'tmp_t.txt' from t;
+load data infile 'tmp_t.txt' into table t;
+ERROR 23000: Duplicate entry '1-2020-03-05-2020-03-01' for key 'x'
+load data infile 'tmp_t.txt' ignore into table t;
+Warnings:
+Warning	1062	Duplicate entry '1-2020-03-05-2020-03-01' for key 'x'
+load data infile 'tmp_t.txt' replace into table t;
+ERROR 42000: This version of MariaDB doesn't yet support 'WITHOUT OVERLAPS'
 create or replace database test;

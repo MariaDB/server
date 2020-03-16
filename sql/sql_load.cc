@@ -440,6 +440,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   is_concurrent= (table_list->lock_type == TL_WRITE_CONCURRENT_INSERT);
 #endif
 
+  if (check_duplic_insert_without_overlaps(thd, table, handle_duplicates) != 0)
+    DBUG_RETURN(true);
+
   if (!fields_vars.elements)
   {
     Field_iterator_table_ref field_iterator;
