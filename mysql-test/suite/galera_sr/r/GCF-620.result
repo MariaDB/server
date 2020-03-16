@@ -14,5 +14,5 @@ COMMIT;
 connection node_2;
 SELECT COUNT(*) = 2 FROM t1;
 COUNT(*) = 2
-0
+1
 DROP TABLE t1;

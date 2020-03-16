@@ -31,5 +31,5 @@ COUNT(*) = 6
 connection node_2;
 SELECT COUNT(*) = 6 FROM t1;
 COUNT(*) = 6
-0
+1
 DROP TABLE t1;

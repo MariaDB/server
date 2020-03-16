@@ -53,11 +53,6 @@ static void wsrep_replication_process(THD *thd,
 
   Wsrep_applier_service applier_service(thd);
 
-  /* thd->system_thread_info.rpl_sql_info isn't initialized. */
-  if (!thd->slave_thread)
-    thd->system_thread_info.rpl_sql_info=
-      new rpl_sql_thread_info(thd->wsrep_rgi->rli->mi->rpl_filter);
-
   WSREP_INFO("Starting applier thread %llu", thd->thread_id);
   enum wsrep::provider::status
     ret= Wsrep_server_state::get_provider().run_applier(&applier_service);
@@ -68,8 +63,6 @@ static void wsrep_replication_process(THD *thd,
   mysql_cond_broadcast(&COND_wsrep_slave_threads);
   mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
 
-  if (!thd->slave_thread)
-    delete thd->system_thread_info.rpl_sql_info;
   delete thd->wsrep_rgi->rli->mi;
   delete thd->wsrep_rgi->rli;
   
