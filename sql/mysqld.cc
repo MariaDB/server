@@ -8038,7 +8038,7 @@ static int mysql_init_variables(void)
   disable_log_notes= 0;
   mqh_used= 0;
   cleanup_done= 0;
-  test_flags= select_errors= dropping_tables= ha_open_options=0;
+  select_errors= dropping_tables= ha_open_options=0;
   thread_count= kill_cached_threads= wake_thread= 0;
   slave_open_temp_tables= 0;
   cached_thread_count= 0;
