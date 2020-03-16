@@ -864,7 +864,6 @@ log_write_buf(
 					header */
 {
 	ulint		write_len;
-	bool		write_header	= new_data_offset == 0;
 	lsn_t		next_offset;
 	ulint		i;
 
@@ -929,9 +928,6 @@ loop:
 		start_lsn += write_len;
 		len -= write_len;
 		buf += write_len;
-
-		write_header = true;
-
 		goto loop;
 	}
 }
