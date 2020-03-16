@@ -140,7 +140,7 @@ void binary_semaphore::wake()
   }
 }
 #else
-void binary_semaphore::wake()
+void binary_semaphore::wait()
 {
   std::unique_lock<std::mutex> lk(m_mtx);
   while (!m_signalled)
