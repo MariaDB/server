@@ -155,7 +155,7 @@ SET GLOBAL event_scheduler=OFF;
 SELECT EVENT_NAME, SQL_TEXT, OBJECT_NAME, NESTING_EVENT_TYPE, NESTING_EVENT_LEVEL
 FROM performance_schema.events_statements_history_long 
 WHERE CURRENT_SCHEMA='stored_programs' AND
-(SQL_TEXT not like '%count(*) = 1%' OR SQL_TEXT IS NULL)
+(SQL_TEXT not like '%count(*) = %' OR SQL_TEXT IS NULL)
 ORDER BY OBJECT_NAME,NESTING_EVENT_LEVEL,SQL_TEXT;
 EVENT_NAME	SQL_TEXT	OBJECT_NAME	NESTING_EVENT_TYPE	NESTING_EVENT_LEVEL
 statement/scheduler/event	NULL	NULL	NULL	0
@@ -270,8 +270,6 @@ statement/sql/select	SELECT @change	NULL	NULL	0
 statement/sql/select	SELECT @del	NULL	NULL	0
 statement/sql/select	SELECT @del	NULL	NULL	0
 statement/sql/select	SELECT append("Bolly", "wood")	NULL	NULL	0
-statement/sql/select	SELECT COUNT(*) = 0 FROM information_schema.processlist
-WHERE user = 'event_scheduler'	NULL	NULL	0
 statement/sql/select	SELECT fac(5)	NULL	NULL	0
 statement/sql/select	SELECT wt_avg(1, 12, 1990, 1121990)	NULL	NULL	0
 statement/sql/set_option	SET @a=1	NULL	NULL	0
