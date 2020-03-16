@@ -103,7 +103,6 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
   max_rows= maxrows;
 }
 
-
 void Sort_param::try_to_pack_addons(ulong max_length_for_sort_data)
 {
   if (!using_addon_fields() ||                  // no addons, or
@@ -2165,6 +2164,9 @@ Type_handler_decimal_result::sort_length(THD *thd,
   @return
     Total length of sort buffer in bytes
 */
+static int get_segment_size_from_collation(const CHARSET_INFO *const cs);
+static void rdb_get_mem_comparable_space(const CHARSET_INFO *const cs,
+                                         std::vector<uchar> **xfrm);
 
 static uint
 sortlength(THD *thd, Sort_keys *sort_keys, bool *multi_byte_charset,
@@ -2195,6 +2197,7 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *multi_byte_charset,
                        SORT_FIELD_ATTR::VARIABLE_SIZE :
                        SORT_FIELD_ATTR::FIXED_SIZE;
       sortorder->cs= cs;
+      sortorder->space_xfrm= NULL;
 
       if (use_strnxfrm((cs=sortorder->field->sort_charset())))
       {
@@ -2207,6 +2210,10 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *multi_byte_charset,
         sortorder->length_bytes=
           number_storage_requirement(MY_MIN(sortorder->original_length,
                                             thd->variables.max_sort_length));
+        //psergey-try:
+        sortorder->m_segment_size= get_segment_size_from_collation(cs);
+        rdb_get_mem_comparable_space(cs, &sortorder->space_xfrm);
+        sortorder->m_n_weights= sortorder->field->char_length();
       }
 
       if ((sortorder->maybe_null= sortorder->field->maybe_null()))
@@ -2215,6 +2222,7 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *multi_byte_charset,
     else
     {
       CHARSET_INFO *cs;
+      sortorder->space_xfrm= NULL;
       sortorder->item->type_handler()->sort_length(thd, sortorder->item,
                                                    sortorder);
       sortorder->type= sortorder->item->type_handler()->is_packable() ?
@@ -2228,6 +2236,7 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *multi_byte_charset,
       if (sortorder->is_variable_sized() && allow_packing_for_keys)
       {
         allow_packing_for_keys= sortorder->check_if_packing_possible(thd);
+        allow_packing_for_keys= false; // psergey-new
         sortorder->length_bytes=
           number_storage_requirement(MY_MIN(sortorder->original_length,
                                             thd->variables.max_sort_length));
@@ -2478,7 +2487,6 @@ SORT_INFO::~SORT_INFO()
   free_data();
   DBUG_VOID_RETURN;
 }
-
 
 void Sort_param::try_to_pack_sortkeys()
 {
@@ -2850,7 +2858,27 @@ int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
     <0   key a_ptr less than b_ptr
 
 */
+int compare_packed_sort_keys(void *sort_param,
+                             unsigned char **a_ptr, unsigned char **b_ptr)
+{
+  uchar *a= *a_ptr;
+  uchar *b= *b_ptr;
+  // length was saved with this:
+  // Sort_keys::store_sortkey_length(orig_to, length);
+  int a_len= uint4korr(a);
+  int b_len= uint4korr(b);
+  a+= Sort_keys::size_of_length_field;
+  b+= Sort_keys::size_of_length_field;
 
+  int size= std::min(a_len, b_len);
+  int res;
+  if ((res= memcmp(a, b, size)))
+    return res;
+  return  (a_len < b_len)? -1 : ( (a_len == b_len)? 0 : 1);
+    
+}
+
+#if 0
 int compare_packed_sort_keys(void *sort_param,
                              unsigned char **a_ptr, unsigned char **b_ptr)
 {
@@ -2886,7 +2914,106 @@ int compare_packed_sort_keys(void *sort_param,
     retval= memcmp(a, b, param->res_length);
   return retval;
 }
+#endif
 
+
+/////////////////////////////////////////////////////////////////////////////
+// psergey-try:
+/////////////////////////////////////////////////////////////////////////////
+
+/*
+  Compare the string in [buf..buf_end) with a string that is an infinite
+  sequence of strings in space_xfrm
+*/
+
+static int rdb_compare_string_with_spaces(
+    const uchar *buf, const uchar *const buf_end,
+    const std::vector<uchar> *const space_xfrm) {
+  int cmp = 0;
+  while (buf < buf_end) {
+    size_t bytes = std::min((size_t)(buf_end - buf), space_xfrm->size());
+    if ((cmp = memcmp(buf, space_xfrm->data(), bytes)) != 0) break;
+    buf += bytes;
+  }
+  return cmp;
+}
+
+static int get_segment_size_from_collation(const CHARSET_INFO *const cs) {
+  int ret;
+
+  enum collations_used {
+    COLLATION_UTF8MB4_BIN = 46,
+    COLLATION_LATIN1_BIN  = 47,
+    COLLATION_UTF16LE_BIN = 55,
+    COLLATION_UTF32_BIN   = 61,
+    COLLATION_UTF16_BIN   = 62,
+    COLLATION_BINARY      = 63,
+    COLLATION_UTF8_BIN    = 83
+  };
+
+  if (cs->number == COLLATION_UTF8MB4_BIN || cs->number == COLLATION_UTF16_BIN ||
+      cs->number == COLLATION_UTF16LE_BIN || cs->number == COLLATION_UTF32_BIN) {
+    /*
+      In these collations, a character produces one weight, which is 3 bytes.
+      Segment has 3 characters, add one byte for VARCHAR_CMP_* marker, and we
+      get 3*3+1=10
+    */
+    ret = 10;
+  } else {
+    /*
+      All other collations. There are two classes:
+      - Unicode-based, except for collations mentioned in the if-condition.
+        For these all weights are 2 bytes long, a character may produce 0..8
+        weights.
+        in any case, 8 bytes of payload in the segment guarantee that the last
+        space character won't span across segments.
+
+      - Collations not based on unicode. These have length(strxfrm(' '))=1,
+        there nothing to worry about.
+
+      In both cases, take 8 bytes payload + 1 byte for VARCHAR_CMP* marker.
+    */
+    ret = 9;
+  }
+  return ret;
+}
+
+const int RDB_SPACE_XFRM_SIZE = 20;
+
+static void rdb_get_mem_comparable_space(const CHARSET_INFO *const cs,
+                                         std::vector<uchar> **xfrm) {
+                                         //size_t *const xfrm_len,
+                                         //size_t *const mb_len) {
+
+  // Upper bound of how many bytes can be occupied by multi-byte form of a
+  // character in any charset.
+  const int MAX_MULTI_BYTE_CHAR_SIZE = 4;
+  DBUG_ASSERT(cs->mbmaxlen <= MAX_MULTI_BYTE_CHAR_SIZE);
+
+  // multi-byte form of the ' ' (space) character
+  uchar space_mb[MAX_MULTI_BYTE_CHAR_SIZE];
+
+  const size_t space_mb_len = cs->wc_mb(
+      (my_wc_t)cs->pad_char, space_mb, space_mb + sizeof(space_mb));
+
+  // mem-comparable image of the space character
+  std::array<uchar, 20> space;
+
+  const size_t space_len = cs->strnxfrm(
+      space.data(), sizeof(space), 1, space_mb, space_mb_len, 0);
+
+  std::vector<uchar> *p= new std::vector<uchar>(space.data(),
+                                                space.data() + space_len);
+  while (p->size() < RDB_SPACE_XFRM_SIZE) {
+    p->insert(p->end(), space.data(),
+                             space.data() + space_len);
+  }
+
+  *xfrm = p;
+  //*xfrm = &rdb_mem_comparable_space[cs->number]->spaces_xfrm;
+  //*xfrm_len = rdb_mem_comparable_space[cs->number]->space_xfrm_len;
+  //*mb_len = rdb_mem_comparable_space[cs->number]->space_mb_len;
+}
 
 /*
   @brief
@@ -2911,6 +3038,59 @@ uint
 SORT_FIELD_ATTR::pack_sort_string(uchar *to, const LEX_CSTRING &str,
                                   CHARSET_INFO *cs) const
 {
+  const int VARCHAR_CMP_LESS_THAN_SPACES = 1;
+  const int VARCHAR_CMP_EQUAL_TO_SPACES = 2;
+  const int VARCHAR_CMP_GREATER_THAN_SPACES = 3;
+
+  const size_t trimmed_len = cs->lengthsp(str.str, str.length);
+  uchar buf_space[1000];
+  uchar *buf=buf_space;
+  const size_t xfrm_len = cs->strnxfrm((char*)buf, sizeof(buf_space), 
+                                       m_n_weights,
+                                       str.str, trimmed_len,
+                                       0/*flags*/);
+
+  /* Got a mem-comparable image in 'buf'. Now, produce varlength encoding */
+  uchar *const buf_end = buf + xfrm_len;
+
+  size_t encoded_size = 0;
+  uchar *ptr = to;
+  size_t padding_bytes;
+  while (true) {
+    const size_t copy_len =
+        std::min<size_t>(m_segment_size - 1, buf_end - buf);
+    padding_bytes = m_segment_size - 1 - copy_len;
+    memcpy(ptr, buf, copy_len);
+    ptr += copy_len;
+    buf += copy_len;
+
+    if (padding_bytes) {
+      memcpy(ptr, space_xfrm->data(), padding_bytes);
+      ptr += padding_bytes;
+      *ptr = VARCHAR_CMP_EQUAL_TO_SPACES;  // last segment
+    } else {
+      // Compare the string suffix with a hypothetical infinite string of
+      // spaces. It could be that the first difference is beyond the end of
+      // current chunk.
+      const int cmp =
+          rdb_compare_string_with_spaces(buf, buf_end, space_xfrm);
+
+      if (cmp < 0) {
+        *ptr = VARCHAR_CMP_LESS_THAN_SPACES;
+      } else if (cmp > 0) {
+        *ptr = VARCHAR_CMP_GREATER_THAN_SPACES;
+      } else {
+        // It turns out all the rest are spaces.
+        *ptr = VARCHAR_CMP_EQUAL_TO_SPACES;
+      }
+    }
+    encoded_size += m_segment_size;
+
+    if (*(ptr++) == VARCHAR_CMP_EQUAL_TO_SPACES) break;
+  }
+
+  return encoded_size;
+#if 0
   uchar *orig_to= to;
   size_t length, data_length;
   length= str.length;
@@ -2934,6 +3114,7 @@ SORT_FIELD_ATTR::pack_sort_string(uchar *to, const LEX_CSTRING &str,
     to+= suffix_length;
   }
   return static_cast<uint>(to - orig_to);
+#endif
 }
 
 

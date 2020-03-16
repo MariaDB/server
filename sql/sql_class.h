@@ -6315,6 +6315,11 @@ struct SORT_FIELD_ATTR
   */
   bool maybe_null;
   CHARSET_INFO *cs;
+
+  uint m_segment_size; //psergey-try:
+  uint m_n_weights; // psergey-try
+  std::vector<uchar> *space_xfrm;
+
   uint pack_sort_string(uchar *to, const LEX_CSTRING &str,
                         CHARSET_INFO *cs) const;
   int compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
