@@ -1872,7 +1872,15 @@ static enum json_types smart_read_value(json_engine_t *je,
     *value_len= (int) ((char *) je->s.c_str - *value);
   }
 
-  return je->value_type;
+  compile_time_assert((int) JSON_VALUE_OBJECT == (int) JSV_OBJECT);
+  compile_time_assert((int) JSON_VALUE_ARRAY == (int) JSV_ARRAY);
+  compile_time_assert((int) JSON_VALUE_STRING == (int) JSV_STRING);
+  compile_time_assert((int) JSON_VALUE_NUMBER == (int) JSV_NUMBER);
+  compile_time_assert((int) JSON_VALUE_TRUE == (int) JSV_TRUE);
+  compile_time_assert((int) JSON_VALUE_FALSE == (int) JSV_FALSE);
+  compile_time_assert((int) JSON_VALUE_NULL == (int) JSV_NULL);
+
+  return (enum json_types) je->value_type;
 
 err_return:
   return JSV_BAD_JSON;
