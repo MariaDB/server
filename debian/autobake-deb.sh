@@ -89,6 +89,12 @@ then
   echo "usr/bin/sst_dump" >> debian/mariadb-plugin-rocksdb.install
 fi
 
+# From Debian Buster/Ubuntu Bionic, libcurl4 replaces libcurl3.
+if ! apt-cache madison libcurl4 | grep 'libcurl4' >/dev/null 2>&1
+then
+  sed 's/libcurl4/libcurl3/g' -i debian/control
+fi
+
 # The binaries should be fully hardened by default. However TokuDB compilation seems to fail on
 # Debian Jessie and older and on Ubuntu Xenial and older with the following error message:
 #   /usr/bin/ld.bfd.real: /tmp/ccOIwjFo.ltrans0.ltrans.o: relocation R_X86_64_PC32 against symbol
