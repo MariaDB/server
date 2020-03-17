@@ -1285,7 +1285,7 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(BUF_POOL_LRU_LIST,
 		  SYNC_BUF_LRU_LIST,
-		  buf_pool_LRU_list_mutex_key);
+		  buf_pool_mutex_key);
 
 	LATCH_ADD_MUTEX(BUF_POOL_FREE_LIST,
 		  SYNC_BUF_FREE_LIST,

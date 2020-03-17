@@ -849,7 +849,7 @@ buf_block_set_io_fix(
 	buf_block_t*	block,	/*!< in/out: control block */
 	enum buf_io_fix	io_fix);/*!< in: io_fix state */
 /** Makes a block sticky. A sticky block implies that even after we release
-the buf_pool->LRU_list_mutex and the block->mutex:
+the buf_pool->mutex and the block->mutex:
 * it cannot be removed from the flush_list
 * the block descriptor cannot be relocated
 * it cannot be removed from the LRU list
@@ -1329,7 +1329,7 @@ public:
 					any one of the two mutexes */
 	/* @} */
 	/** @name LRU replacement algorithm fields
-	These fields are protected by both buf_pool->LRU_list_mutex and the
+	These fields are protected by both buf_pool->mutex and the
 	block mutex. */
 	/* @{ */
 
@@ -1428,7 +1428,7 @@ struct buf_block_t{
 					a block is in the unzip_LRU list
 					if page.state == BUF_BLOCK_FILE_PAGE
 					and page.zip.data != NULL. Protected by
-					both LRU_list_mutex and the block
+					both mutex and the block
 					mutex. */
 #ifdef UNIV_DEBUG
 	ibool		in_unzip_LRU_list;/*!< TRUE if the page is in the
@@ -1754,16 +1754,16 @@ struct buf_pool_stat_t{
 				as part of read ahead. Not protected. */
 	ulint	n_ra_pages_evicted;/*!< number of read ahead
 				pages that are evicted without
-				being accessed. Protected by LRU_list_mutex. */
+				being accessed. Protected by mutex. */
 	ulint	n_pages_made_young; /*!< number of pages made young, in
 				calls to buf_LRU_make_block_young(). Protected
-				by LRU_list_mutex. */
+				by mutex. */
 	ulint	n_pages_not_made_young; /*!< number of pages not made
 				young because the first access
 				was not long enough ago, in
 				buf_page_peek_if_too_old(). Not protected. */
 	ulint	LRU_bytes;	/*!< LRU size in bytes. Protected by
-				LRU_list_mutex. */
+				mutex. */
 	ulint	flush_list_bytes;/*!< flush_list size in bytes.
 				Protected by flush_list_mutex */
 };
@@ -1785,7 +1785,7 @@ struct buf_pool_t
 {
 	/** @name General fields */
 	/* @{ */
-	BufListMutex	LRU_list_mutex; /*!< LRU list mutex */
+	BufListMutex	mutex; /*!< LRU list mutex */
 	BufListMutex	free_list_mutex;/*!< free and withdraw list mutex */
 	BufListMutex	zip_free_mutex; /*!< buddy allocator mutex */
 	BufListMutex	zip_hash_mutex; /*!< zip_hash mutex */
@@ -1899,7 +1899,7 @@ struct buf_pool_t
 					to read this for heuristic
 					purposes without holding any
 					mutex or latch. For non-heuristic
-					purposes protected by LRU_list_mutex */
+					purposes protected by mutex */
 	ibool		try_LRU_scan;	/*!< Set to FALSE when an LRU
 					scan for free block fails. This
 					flag is used to avoid repeated
@@ -1930,15 +1930,15 @@ struct buf_pool_t
 					block list, when withdrawing */
 
 	/** "hazard pointer" used during scan of LRU while doing
-	LRU list batch.  Protected by buf_pool::LRU_list_mutex */
+	LRU list batch.  Protected by buf_pool::mutex */
 	LRUHp		lru_hp;
 
 	/** Iterator used to scan the LRU list when searching for
-	replacable victim. Protected by buf_pool::LRU_list_mutex. */
+	replacable victim. Protected by buf_pool::mutex. */
 	LRUItr		lru_scan_itr;
 
 	/** Iterator used to scan the LRU list when searching for
-	single page flushing victim.  Protected by buf_pool::LRU_list_mutex. */
+	single page flushing victim.  Protected by buf_pool::mutex. */
 	LRUItr		single_scan_itr;
 
 	UT_LIST_BASE_NODE_T(buf_page_t) LRU;
@@ -1962,7 +1962,7 @@ struct buf_pool_t
 	UT_LIST_BASE_NODE_T(buf_block_t) unzip_LRU;
 					/*!< base node of the
 					unzip_LRU list. The list is protected
-					by LRU_list_mutex. */
+					by mutex. */
 
 	/* @} */
 	/** @name Buddy allocator fields

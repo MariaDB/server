@@ -7062,7 +7062,7 @@ btr_blob_free(
 
 	mtr_commit(mtr);
 
-	mutex_enter(&buf_pool->LRU_list_mutex);
+	mutex_enter(&buf_pool->mutex);
 	buf_page_mutex_enter(block);
 
 	/* Only free the block if it is still allocated to
@@ -7085,7 +7085,7 @@ btr_blob_free(
 	}
 
 	if (!freed) {
-		mutex_exit(&buf_pool->LRU_list_mutex);
+		mutex_exit(&buf_pool->mutex);
 		buf_page_mutex_exit(block);
 	}
 }

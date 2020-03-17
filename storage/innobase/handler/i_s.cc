@@ -4621,7 +4621,7 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 
 	/* Aquire the mutex before allocating info_buffer, since
 	UT_LIST_GET_LEN(buf_pool->LRU) could change */
-	mutex_enter(&buf_pool->LRU_list_mutex);
+	mutex_enter(&buf_pool->mutex);
 
 	lru_len = UT_LIST_GET_LEN(buf_pool->LRU);
 
@@ -4655,7 +4655,7 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 	ut_ad(lru_pos == UT_LIST_GET_LEN(buf_pool->LRU));
 
 exit:
-	mutex_exit(&buf_pool->LRU_list_mutex);
+	mutex_exit(&buf_pool->mutex);
 
 	if (info_buffer) {
 		status = i_s_innodb_buf_page_lru_fill(

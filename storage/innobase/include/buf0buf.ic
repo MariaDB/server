@@ -498,7 +498,7 @@ buf_block_set_io_fix(
 }
 
 /** Makes a block sticky. A sticky block implies that even after we release
-the buf_pool->LRU_list_mutex and the block->mutex:
+the buf_pool->mutex and the block->mutex:
 * it cannot be removed from the flush_list
 * the block descriptor cannot be relocated
 * it cannot be removed from the LRU list
@@ -512,7 +512,7 @@ buf_page_set_sticky(
 	buf_page_t*	bpage)
 {
 
-	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+	ut_ad(mutex_own(&buf_pool->mutex));
 
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_NONE);
@@ -565,7 +565,7 @@ buf_page_is_old(
 	purposes even if LRU mutex is not being held.  Keep the assertion
 	for now since all the callers hold it.  */
 	ut_ad(mutex_own(buf_page_get_mutex(bpage))
-	      || mutex_own(&buf_pool->LRU_list_mutex));
+	      || mutex_own(&buf_pool->mutex));
 	ut_ad(buf_page_in_file(bpage));
 
 	return(bpage->old);
@@ -581,7 +581,7 @@ buf_page_set_old(
 	bool		old)
 {
 	ut_a(buf_page_in_file(bpage));
-	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+	ut_ad(mutex_own(&buf_pool->mutex));
 	ut_ad(bpage->in_LRU_list);
 
 #ifdef UNIV_LRU_DEBUG
@@ -626,7 +626,7 @@ buf_page_set_accessed(
 /*==================*/
 	buf_page_t*	bpage)		/*!< in/out: control block */
 {
-	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
+	ut_ad(!mutex_own(&buf_pool->mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_a(buf_page_in_file(bpage));
 
@@ -650,9 +650,9 @@ buf_page_get_block(
 {
 	if (bpage != NULL) {
 		ut_ad(buf_page_hash_lock_held_s_or_x(bpage)
-		      || mutex_own(&buf_pool->LRU_list_mutex));
+		      || mutex_own(&buf_pool->mutex));
 		ut_ad(buf_page_hash_lock_held_s_or_x(bpage)
-		      || mutex_own(&buf_pool->LRU_list_mutex));
+		      || mutex_own(&buf_pool->mutex));
 		ut_ad(buf_page_in_file(bpage));
 
 		if (buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE) {
@@ -790,7 +790,7 @@ buf_block_modify_clock_inc(
 	/* No latch is acquired for the shared temporary tablespace. */
 	ut_ad(fsp_is_system_temporary(block->page.id.space())
 	      || (block->page.buf_fix_count == 0
-		  && mutex_own(&buf_pool->LRU_list_mutex))
+		  && mutex_own(&buf_pool->mutex))
 	      || rw_lock_own_flagged(&block->lock,
 				     RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
 	assert_block_ahi_valid(block);

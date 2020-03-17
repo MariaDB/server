@@ -61,7 +61,7 @@ buf_read_page_handle_error(
 	rw_lock_t * hash_lock = buf_page_hash_lock_get(bpage->id);
 
 	/* First unfix and release lock on the bpage */
-	mutex_enter(&buf_pool->LRU_list_mutex);
+	mutex_enter(&buf_pool->mutex);
 	rw_lock_x_lock(hash_lock);
 	mutex_enter(buf_page_get_mutex(bpage));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_READ);
@@ -84,7 +84,7 @@ buf_read_page_handle_error(
 
 	ut_ad(buf_pool->n_pend_reads > 0);
 	buf_pool->n_pend_reads--;
-	mutex_exit(&buf_pool->LRU_list_mutex);
+	mutex_exit(&buf_pool->mutex);
 
 }
 
@@ -156,7 +156,7 @@ buf_read_page_low(
 		 << " unzip=" << unzip << ',' << (sync ? "sync" : "async"));
 
 	ut_ad(buf_page_in_file(bpage));
-	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
+	ut_ad(!mutex_own(&buf_pool->mutex));
 
 	if (sync) {
 		thd_wait_begin(NULL, THD_WAIT_DISKIO);

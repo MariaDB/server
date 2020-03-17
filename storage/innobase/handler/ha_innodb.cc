@@ -507,7 +507,7 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(buffer_block_mutex),
 #  endif /* !PFS_SKIP_BUFFER_MUTEX_RWLOCK */
 	PSI_KEY(buf_pool_flush_state_mutex),
-	PSI_KEY(buf_pool_LRU_list_mutex),
+	PSI_KEY(buf_pool_mutex),
 	PSI_KEY(buf_pool_free_list_mutex),
 	PSI_KEY(buf_pool_zip_free_mutex),
 	PSI_KEY(buf_pool_zip_hash_mutex),
@@ -18246,7 +18246,7 @@ innodb_buffer_pool_evict_uncompressed()
 {
 	bool	all_evicted = true;
 
-	mutex_enter(&buf_pool->LRU_list_mutex);
+	mutex_enter(&buf_pool->mutex);
 
 	for (buf_block_t* block = UT_LIST_GET_LAST(buf_pool->unzip_LRU);
 	     block != NULL; ) {
@@ -18279,7 +18279,7 @@ innodb_buffer_pool_evict_uncompressed()
 		block = prev_block;
 	}
 
-	mutex_exit(&buf_pool->LRU_list_mutex);
+	mutex_exit(&buf_pool->mutex);
 	return(all_evicted);
 }
 

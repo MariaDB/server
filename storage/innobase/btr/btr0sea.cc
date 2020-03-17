@@ -2023,7 +2023,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 
 			/* Prevent BUF_BLOCK_FILE_PAGE -> BUF_BLOCK_REMOVE_HASH
 			transition until we lock the block mutex */
-			mutex_enter(&buf_pool->LRU_list_mutex);
+			mutex_enter(&buf_pool->mutex);
 			if (UNIV_LIKELY(buf_block_get_state(block)
 					== BUF_BLOCK_FILE_PAGE)) {
 
@@ -2056,7 +2056,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 			}
 
 			mutex_enter(&block->mutex);
-			mutex_exit(&buf_pool->LRU_list_mutex);
+			mutex_exit(&buf_pool->mutex);
 
 			ut_a(!dict_index_is_ibuf(block->index));
 			ut_ad(block->page.id.space()
