@@ -86,7 +86,7 @@ matrix:
       addons: 
         apt:
           sources: *add-sources
-          packages: [ *common-packages, debhelper, dh-apparmor, dpatch, po-debconf, libzmq-dev, libdistro-info-perl, devscripts, fakeroot, dh-systemd, libsystemd-dev, libzstd-dev, unixodbc-dev] # make sure these match debian/control contents
+          packages: [ *common-packages, debhelper, dh-apparmor, dh-exec, dpatch, po-debconf, libzmq-dev, libdistro-info-perl, devscripts, fakeroot, dh-systemd, libsystemd-dev, libzstd-dev, unixodbc-dev] # make sure these match debian/control contents
       script:
         - ${CC} --version ; ${CXX} --version
         - env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
@@ -99,7 +99,7 @@ matrix:
       addons: 
         apt:
           sources: *add-sources
-          packages: [ *common-packages, debhelper, dh-apparmor, dpatch, po-debconf, libzmq3-dev, libdistro-info-perl, devscripts, fakeroot, dh-systemd, libsystemd-dev, libzstd-dev, unixodbc-dev] # make sure these match debian/control contents
+          packages: [ *common-packages, debhelper, dh-apparmor, dh-exec, dpatch, po-debconf, libzmq3-dev, libdistro-info-perl, devscripts, fakeroot, dh-systemd, libsystemd-dev, libzstd-dev, unixodbc-dev] # make sure these match debian/control contents
       script:
         - ${CC} --version ; ${CXX} --version
         - env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
