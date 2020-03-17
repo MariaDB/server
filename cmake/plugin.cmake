@@ -36,14 +36,23 @@ MACRO(MYSQL_ADD_PLUGIN)
     "LINK_LIBRARIES;DEPENDENCIES"
     ${ARGN}
   )
-  IF(NOT WITHOUT_SERVER OR ARG_CLIENT)
-
-  # Add common include directories
+  
+  # Find bug: Why not find my_global.h when install only client?(-DWITHOUT_SERVER)
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
                     ${CMAKE_SOURCE_DIR}/sql
                     ${PCRE_INCLUDES}
                     ${SSL_INCLUDE_DIRS}
                     ${ZLIB_INCLUDE_DIR})
+
+  IF(NOT WITHOUT_SERVER OR ARG_CLIENT)
+
+  # Move to above IF's codeblock 
+  #INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
+  #                  ${CMAKE_SOURCE_DIR}/sql
+  #                  ${PCRE_INCLUDES}
+  #                  ${SSL_INCLUDE_DIRS}
+  #                  ${ZLIB_INCLUDE_DIR})
+
 
   LIST(GET ARG_UNPARSED_ARGUMENTS 0 plugin)
   SET(SOURCES ${ARG_UNPARSED_ARGUMENTS})

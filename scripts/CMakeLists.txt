@@ -270,7 +270,7 @@ IF(WIN32)
     INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/${file}.pl COMPONENT Server_Scripts)
   ENDFOREACH()
 ELSE()
-  IF(WITH_WSREP)
+  IF(WITH_WSREP OR (NOT WITHOUT_SERVER)) #Find bug: Why create symlink wsrep_sst_rsync_wan with -DWITHOUT_SERVER in CentOS 7?
     SET(WSREP_SCRIPTS
       wsrep_sst_mysqldump
       wsrep_sst_rsync
@@ -332,36 +332,37 @@ ELSE()
       COMPONENT ${${file}_COMPONENT}
      )
   ENDFOREACH()
-
-  SET (wsrep_sst_rsync_wan ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_rsync_wan)
-  ADD_CUSTOM_COMMAND(
-    OUTPUT ${wsrep_sst_rsync_wan}
-    COMMAND ${CMAKE_COMMAND} ARGS -E create_symlink
-      wsrep_sst_rsync
-      wsrep_sst_rsync_wan
-  )
-  ADD_CUSTOM_TARGET(symlink_wsrep_sst_rsync
-      ALL
-      DEPENDS ${wsrep_sst_rsync_wan}
-  )
-  INSTALL(
-    FILES  ${wsrep_sst_rsync_wan}
-    DESTINATION ${INSTALL_BINDIR}
-    COMPONENT Server
-  )
-
-  FOREACH(file ${WSREP_SOURCE})
-    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
-      ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)
-    IF(NOT ${file}_COMPONENT)
-      SET(${file}_COMPONENT Server)
-    ENDIF()
-    INSTALL(FILES
-      ${CMAKE_CURRENT_BINARY_DIR}/${file}
+  IF(NOT WITHOUT_SERVER)#Find bug: Why create symlink wsrep_sst_rsync_wan with -DWITHOUT_SERVER in CentOS 7?
+    SET (wsrep_sst_rsync_wan ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_rsync_wan)
+    ADD_CUSTOM_COMMAND(
+      OUTPUT ${wsrep_sst_rsync_wan}
+      COMMAND ${CMAKE_COMMAND} ARGS -E create_symlink
+        wsrep_sst_rsync
+        wsrep_sst_rsync_wan
+    )
+    ADD_CUSTOM_TARGET(symlink_wsrep_sst_rsync
+        ALL
+        DEPENDS ${wsrep_sst_rsync_wan}
+    )
+    INSTALL(
+      FILES  ${wsrep_sst_rsync_wan}
       DESTINATION ${INSTALL_BINDIR}
-      COMPONENT ${${file}_COMPONENT}
-     )
-  ENDFOREACH()
+      COMPONENT Server
+    )
+
+    FOREACH(file ${WSREP_SOURCE})
+      CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
+        ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)
+      IF(NOT ${file}_COMPONENT)
+        SET(${file}_COMPONENT Server)
+      ENDIF()
+      INSTALL(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/${file}
+        DESTINATION ${INSTALL_BINDIR}
+        COMPONENT ${${file}_COMPONENT}
+      )
+    ENDFOREACH()
+  ENDIF()
 ENDIF()
 
 # Install libgcc as  mylibgcc.a
