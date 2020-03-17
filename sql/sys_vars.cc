@@ -526,7 +526,9 @@ static Sys_var_enum Sys_vers_alter_history(
        SESSION_VAR(vers_alter_history), CMD_LINE(REQUIRED_ARG),
        vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_ERROR));
 
-static Sys_var_ulonglong Sys_binlog_cache_size(
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_CACHE_SIZE>
+Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "
        "updates to transactional engines for the binary log. "
        "If you often use transactions containing many statements, "
@@ -535,14 +537,18 @@ static Sys_var_ulonglong Sys_binlog_cache_size(
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE, SIZE_T_MAX), DEFAULT(32768), BLOCK_SIZE(IO_SIZE));
 
-static Sys_var_ulonglong  Sys_binlog_file_cache_size(
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_FILE_CACHE_SIZE>
+Sys_binlog_file_cache_size(
        "binlog_file_cache_size", 
        "The size of file cache for the binary log", 
        GLOBAL_VAR(binlog_file_cache_size),
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE*2, SIZE_T_MAX), DEFAULT(IO_SIZE*4), BLOCK_SIZE(IO_SIZE));
 
-static Sys_var_ulonglong Sys_binlog_stmt_cache_size(
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                             PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_STMT_CACHE_SIZE>
+Sys_binlog_stmt_cache_size(
        "binlog_stmt_cache_size", "The size of the statement cache for "
        "updates to non-transactional engines for the binary log. "
        "If you often use statements updating a great number of rows, "
@@ -1150,7 +1156,9 @@ static Sys_var_enum Sys_event_scheduler(
        ON_CHECK(event_scheduler_check), ON_UPDATE(event_scheduler_update));
 #endif
 
-static Sys_var_ulong Sys_expire_logs_days(
+static Sys_var_on_access_global<Sys_var_ulong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_EXPIRE_LOGS_DAYS>
+Sys_expire_logs_days(
        "expire_logs_days",
        "If non-zero, binary logs will be purged after expire_logs_days "
        "days; possible purges happen at startup and at binary log rotation",
@@ -1393,19 +1401,25 @@ static Sys_var_mybool Sys_log_bin(
        "log_bin", "Whether the binary log is enabled",
        READ_ONLY GLOBAL_VAR(opt_bin_log), NO_CMD_LINE, DEFAULT(FALSE));
 
-static Sys_var_mybool Sys_log_bin_compress(
+static Sys_var_on_access_global<Sys_var_mybool,
+                            PRIV_SET_SYSTEM_GLOBAL_VAR_LOG_BIN_COMPRESS>
+Sys_log_bin_compress(
   "log_bin_compress", "Whether the binary log can be compressed",
   GLOBAL_VAR(opt_bin_log_compress), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 /* the min length is 10, means that Begin/Commit/Rollback would never be compressed!   */
-static Sys_var_uint Sys_log_bin_compress_min_len(
+static Sys_var_on_access_global<Sys_var_uint,
+                            PRIV_SET_SYSTEM_GLOBAL_VAR_LOG_BIN_COMPRESS_MIN_LEN>
+Sys_log_bin_compress_min_len(
   "log_bin_compress_min_len",
   "Minimum length of sql statement(in statement mode) or record(in row mode)"
   "that can be compressed.",
   GLOBAL_VAR(opt_bin_log_compress_min_len),
   CMD_LINE(OPT_ARG), VALID_RANGE(10, 1024), DEFAULT(256), BLOCK_SIZE(1));
 
-static Sys_var_mybool Sys_trust_function_creators(
+static Sys_var_on_access_global<Sys_var_mybool,
+                    PRIV_SET_SYSTEM_GLOBAL_VAR_LOG_BIN_TRUST_FUNCTION_CREATORS>
+Sys_trust_function_creators(
        "log_bin_trust_function_creators",
        "If set to FALSE (the default), then when --log-bin is used, creation "
        "of a stored function (or trigger) is allowed only to users having the "
@@ -1586,14 +1600,18 @@ static Sys_var_ulong Sys_slave_max_allowed_packet(
        VALID_RANGE(1024, MAX_MAX_ALLOWED_PACKET),
        DEFAULT(MAX_MAX_ALLOWED_PACKET), BLOCK_SIZE(1024));
 
-static Sys_var_ulonglong Sys_max_binlog_cache_size(
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                              PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE>
+Sys_max_binlog_cache_size(
        "max_binlog_cache_size",
        "Sets the total size of the transactional cache",
        GLOBAL_VAR(max_binlog_cache_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE, SIZE_T_MAX),
        DEFAULT((SIZE_T_MAX/IO_SIZE)*IO_SIZE), BLOCK_SIZE(IO_SIZE));
 
-static Sys_var_ulonglong Sys_max_binlog_stmt_cache_size(
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                       PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_STMT_CACHE_SIZE>
+Sys_max_binlog_stmt_cache_size(
        "max_binlog_stmt_cache_size",
        "Sets the total size of the statement cache",
        GLOBAL_VAR(max_binlog_stmt_cache_size), CMD_LINE(REQUIRED_ARG),
@@ -1605,7 +1623,9 @@ static bool fix_max_binlog_size(sys_var *self, THD *thd, enum_var_type type)
   mysql_bin_log.set_max_size(max_binlog_size);
   return false;
 }
-static Sys_var_ulong Sys_max_binlog_size(
+static Sys_var_on_access_global<Sys_var_ulong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_SIZE>
+Sys_max_binlog_size(
        "max_binlog_size",
        "Binary log will be rotated automatically when the size exceeds this "
        "value.",
@@ -2346,7 +2366,9 @@ static Sys_var_mybool Sys_gtid_ignore_duplicates(
 #endif
 
 
-static Sys_var_ulong Sys_binlog_commit_wait_count(
+static Sys_var_on_access_global<Sys_var_ulong,
+                           PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_COMMIT_WAIT_COUNT>
+Sys_binlog_commit_wait_count(
        "binlog_commit_wait_count",
        "If non-zero, binlog write will wait at most binlog_commit_wait_usec "
        "microseconds for at least this many commits to queue up for group "
@@ -2357,7 +2379,9 @@ static Sys_var_ulong Sys_binlog_commit_wait_count(
        VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
 
-static Sys_var_ulong Sys_binlog_commit_wait_usec(
+static Sys_var_on_access_global<Sys_var_ulong,
+                            PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_COMMIT_WAIT_USEC>
+Sys_binlog_commit_wait_usec(
        "binlog_commit_wait_usec",
        "Maximum time, in microseconds, to wait for more commits to queue up "
        "for binlog group commit. Only takes effect if the value of "
@@ -5408,7 +5432,9 @@ static Sys_var_uint Sys_sync_relayloginfo_period(
        VALID_RANGE(0, UINT_MAX), DEFAULT(10000), BLOCK_SIZE(1));
 #endif
 
-static Sys_var_uint Sys_sync_binlog_period(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_SYNC_BINLOG>
+Sys_sync_binlog_period(
        "sync_binlog", "Synchronously flush binary log to disk after "
        "every #th event. Use 0 (default) to disable synchronous flushing",
        GLOBAL_VAR(sync_binlog_period), CMD_LINE(REQUIRED_ARG),
@@ -6348,7 +6374,9 @@ static Sys_var_enum Sys_binlog_row_image(
        binlog_row_image_names, DEFAULT(BINLOG_ROW_IMAGE_FULL));
 
 static const char *binlog_row_metadata_names[]= {"NO_LOG", "MINIMAL", "FULL", NullS};
-static Sys_var_enum Sys_binlog_row_metadata(
+static Sys_var_on_access_global<Sys_var_enum,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_ROW_METADATA>
+Sys_binlog_row_metadata(
        "binlog_row_metadata",
        "Controls whether metadata is logged using FULL , MINIMAL format and NO_LOG."
        "FULL causes all metadata to be logged; MINIMAL means that only "
