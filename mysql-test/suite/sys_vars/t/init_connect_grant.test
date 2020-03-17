@@ -1,0 +1,56 @@
+--source include/not_embedded.inc
+
+SET @global=@@global.init_connect;
+
+--echo #
+--echo # MDEV-21961 Bind CONNECTION ADMIN to a number of global system variables
+--echo #
+
+--echo # Test that "SET init_connect" is not allowed without CONNECTION ADMIN or SUPER
+
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE CONNECTION ADMIN, SUPER ON *.* FROM user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET GLOBAL init_connect="SET @xxx=1";
+--error ER_GLOBAL_VARIABLE
+SET init_connect="SET @xxx=1";
+--error ER_GLOBAL_VARIABLE
+SET SESSION init_connect="SET @xxx=1";
+--disconnect user1
+--connection default
+DROP USER user1@localhost;
+
+--echo # Test that "SET init_connect" is allowed with CONNECTION ADMIN
+
+CREATE USER user1@localhost;
+GRANT CONNECTION ADMIN ON *.* TO user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+SET GLOBAL init_connect="SET @xxx=1";
+--error ER_GLOBAL_VARIABLE
+SET init_connect="SET @xxx=1";
+--error ER_GLOBAL_VARIABLE
+SET SESSION init_connect="SET @xxx=1";
+--disconnect user1
+--connection default
+DROP USER user1@localhost;
+
+--echo # Test that "SET init_connect" is allowed with SUPER
+
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+SET GLOBAL init_connect="SET @xxx=1";
+--error ER_GLOBAL_VARIABLE
+SET init_connect="SET @xxx=1";
+--error ER_GLOBAL_VARIABLE
+SET SESSION init_connect="SET @xxx=1";
+--disconnect user1
+--connection default
+DROP USER user1@localhost;
+
+SET @@global.init_connect=@global;

@@ -979,7 +979,9 @@ static Sys_var_enum Sys_concurrent_insert(
        GLOBAL_VAR(myisam_concurrent_insert), CMD_LINE(OPT_ARG),
        concurrent_insert_names, DEFAULT(1));
 
-static Sys_var_ulong Sys_connect_timeout(
+static Sys_var_on_access_global<Sys_var_ulong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_CONNECT_TIMEOUT>
+Sys_connect_timeout(
        "connect_timeout",
        "The number of seconds the mysqld server is waiting for a connect "
        "packet before responding with 'Bad handshake'",
@@ -1234,7 +1236,10 @@ static bool check_init_string(sys_var *self, THD *thd, set_var *var)
   return false;
 }
 static PolyLock_rwlock PLock_sys_init_connect(&LOCK_sys_init_connect);
-static Sys_var_lexstring Sys_init_connect(
+
+static Sys_var_on_access_global<Sys_var_lexstring,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_INIT_CONNECT>
+Sys_init_connect(
        "init_connect", "Command(s) that are executed for each "
        "new connection (unless the user has SUPER privilege)",
        GLOBAL_VAR(opt_init_connect), CMD_LINE(REQUIRED_ARG),
@@ -1620,7 +1625,9 @@ static bool fix_max_connections(sys_var *self, THD *thd, enum_var_type type)
 
 // Default max_connections of 151 is larger than Apache's default max
 // children, to avoid "too many connections" error in a common setup
-static Sys_var_ulong Sys_max_connections(
+static Sys_var_on_access_global<Sys_var_ulong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_CONNECTIONS>
+Sys_max_connections(
        "max_connections", "The number of simultaneous clients allowed",
        PARSED_EARLY GLOBAL_VAR(max_connections), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(10, 100000),
@@ -1637,7 +1644,9 @@ static Sys_var_uint Sys_default_password_lifetime(
        GLOBAL_VAR(default_password_lifetime), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
-static Sys_var_mybool Sys_disconnect_on_expired_password(
+static Sys_var_on_access_global<Sys_var_mybool,
+                     PRIV_SET_SYSTEM_GLOBAL_VAR_DISCONNECT_ON_EXPIRED_PASSWORD>
+Sys_disconnect_on_expired_password(
        "disconnect_on_expired_password",
        "This variable controls how the server handles clients that are not "
        "aware of the sandbox mode. If enabled, the server disconnects the "
@@ -1645,7 +1654,9 @@ static Sys_var_mybool Sys_disconnect_on_expired_password(
        GLOBAL_VAR(disconnect_on_expired_password), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE));
 
-static Sys_var_ulong Sys_max_connect_errors(
+static Sys_var_on_access_global<Sys_var_ulong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_CONNECT_ERRORS>
+Sys_max_connect_errors(
        "max_connect_errors",
        "If there is more than this number of interrupted connections from "
        "a host this host will be blocked from further connections",
@@ -1653,7 +1664,9 @@ static Sys_var_ulong Sys_max_connect_errors(
        VALID_RANGE(1, UINT_MAX), DEFAULT(MAX_CONNECT_ERRORS),
        BLOCK_SIZE(1));
 
-static Sys_var_uint Sys_max_password_errors(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_PASSWORD_ERRORS>
+Sys_max_password_errors(
        "max_password_errors",
        "If there is more than this number of failed connect attempts "
        "due to invalid password, user will be blocked from further connections until FLUSH_PRIVILEGES.",
@@ -3094,7 +3107,9 @@ static Sys_var_mybool Sys_query_cache_wlock_invalidate(
        DEFAULT(FALSE));
 #endif /* HAVE_QUERY_CACHE */
 
-static Sys_var_mybool Sys_secure_auth(
+static Sys_var_on_access_global<Sys_var_mybool,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_SECURE_AUTH>
+Sys_secure_auth(
        "secure_auth",
        "Disallow authentication for accounts that have old (pre-4.1) "
        "passwords",
@@ -3436,7 +3451,9 @@ static Sys_var_uint  Sys_semisync_slave_kill_conn_timeout(
        ON_UPDATE(fix_rpl_semi_sync_slave_kill_conn_timeout));
 #endif /* HAVE_REPLICATION */
 
-static Sys_var_ulong Sys_slow_launch_time(
+static Sys_var_on_access_global<Sys_var_ulong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_SLOW_LAUNCH_TIME>
+Sys_slow_launch_time(
        "slow_launch_time",
        "If creating the thread takes longer than this value (in seconds), "
        "the Slow_launch_threads counter will be incremented",
@@ -3773,7 +3790,9 @@ static bool fix_threadpool_stall_limit(sys_var*, THD*, enum_var_type)
 }
 
 #ifdef _WIN32
-static Sys_var_uint Sys_threadpool_min_threads(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
+Sys_threadpool_min_threads(
   "thread_pool_min_threads",
   "Minimum number of threads in the thread pool.",
   GLOBAL_VAR(threadpool_min_threads), CMD_LINE(REQUIRED_ARG),
@@ -3783,7 +3802,9 @@ static Sys_var_uint Sys_threadpool_min_threads(
   );
 
 static const char *threadpool_mode_names[]={ "windows", "generic", 0 };
-static Sys_var_enum Sys_threadpool_mode(
+static Sys_var_on_access_global<Sys_var_enum,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
+Sys_threadpool_mode(
   "thread_pool_mode",
   "Chose implementation of the threadpool",
   READ_ONLY GLOBAL_VAR(threadpool_mode), CMD_LINE(REQUIRED_ARG),
@@ -3792,27 +3813,35 @@ static Sys_var_enum Sys_threadpool_mode(
 #endif
 
 static const char *threadpool_priority_names[]={ "high", "low", "auto", 0 };
-static Sys_var_enum Sys_thread_pool_priority(
+static Sys_var_on_access_global<Sys_var_enum,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
+Sys_thread_pool_priority(
   "thread_pool_priority",
   "Threadpool priority. High priority connections usually start executing earlier than low priority."
   "If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction.",
   SESSION_VAR(threadpool_priority), CMD_LINE(REQUIRED_ARG),
   threadpool_priority_names, DEFAULT(TP_PRIORITY_AUTO));
 
-static Sys_var_uint Sys_threadpool_idle_thread_timeout(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
+Sys_threadpool_idle_thread_timeout(
   "thread_pool_idle_timeout",
   "Timeout in seconds for an idle thread in the thread pool."
   "Worker thread will be shut down after timeout",
   GLOBAL_VAR(threadpool_idle_timeout), CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(1, UINT_MAX), DEFAULT(60), BLOCK_SIZE(1)
 );
-static Sys_var_uint Sys_threadpool_oversubscribe(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
+Sys_threadpool_oversubscribe(
   "thread_pool_oversubscribe",
   "How many additional active worker threads in a group are allowed.",
   GLOBAL_VAR(threadpool_oversubscribe), CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(1, 1000), DEFAULT(3), BLOCK_SIZE(1)
 );
-static Sys_var_uint Sys_threadpool_size(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
+Sys_threadpool_size(
  "thread_pool_size",
  "Number of thread groups in the pool. "
  "This parameter is roughly equivalent to maximum number of concurrently "
@@ -3822,7 +3851,9 @@ static Sys_var_uint Sys_threadpool_size(
   NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_threadpool_size),
   ON_UPDATE(fix_threadpool_size)
 );
-static Sys_var_uint Sys_threadpool_stall_limit(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
+Sys_threadpool_stall_limit(
  "thread_pool_stall_limit",
  "Maximum query execution time in milliseconds,"
  "before an executing non-yielding thread is considered stalled."
@@ -3834,7 +3865,9 @@ static Sys_var_uint Sys_threadpool_stall_limit(
   ON_UPDATE(fix_threadpool_stall_limit)
 );
 
-static Sys_var_uint Sys_threadpool_max_threads(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
+Sys_threadpool_max_threads(
   "thread_pool_max_threads",
   "Maximum allowed number of worker threads in the thread pool",
    GLOBAL_VAR(threadpool_max_threads), CMD_LINE(REQUIRED_ARG),
@@ -3843,21 +3876,27 @@ static Sys_var_uint Sys_threadpool_max_threads(
    ON_UPDATE(fix_tp_max_threads)
 );
 
-static Sys_var_uint Sys_threadpool_threadpool_prio_kickup_timer(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
+Sys_threadpool_threadpool_prio_kickup_timer(
  "thread_pool_prio_kickup_timer",
  "The number of milliseconds before a dequeued low-priority statement is moved to the high-priority queue",
   GLOBAL_VAR(threadpool_prio_kickup_timer), CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, UINT_MAX), DEFAULT(1000), BLOCK_SIZE(1)
 );
 
-static Sys_var_mybool Sys_threadpool_exact_stats(
+static Sys_var_on_access_global<Sys_var_mybool,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
+Sys_threadpool_exact_stats(
   "thread_pool_exact_stats",
   "If set to 1, provides better statistics in information_schema threadpool tables",
   GLOBAL_VAR(threadpool_exact_stats), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
     NO_MUTEX_GUARD, NOT_IN_BINLOG
 );
 
-static Sys_var_mybool Sys_threadpool_dedicated_listener(
+static Sys_var_on_access_global<Sys_var_mybool,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
+Sys_threadpool_dedicated_listener(
   "thread_pool_dedicated_listener",
   "If set to 1,listener thread will not pick up queries",
   GLOBAL_VAR(threadpool_dedicated_listener), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
@@ -4707,7 +4746,9 @@ static bool fix_proxy_protocol_networks(sys_var *, THD *, enum_var_type)
 }
 
 
-static Sys_var_charptr_fscs Sys_proxy_protocol_networks(
+static Sys_var_on_access_global<Sys_var_charptr_fscs,
+                            PRIV_SET_SYSTEM_GLOBAL_VAR_PROXY_PROTOCOL_NETWORKS>
+Sys_proxy_protocol_networks(
     "proxy_protocol_networks", "Enable proxy protocol for these source "
     "networks. The syntax is a comma separated list of IPv4 and IPv6 "
     "networks. If the network doesn't contain mask, it is considered to be "
@@ -6017,7 +6058,9 @@ static Sys_var_uint Sys_extra_port(
        READ_ONLY GLOBAL_VAR(mysqld_extra_port), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_extra_max_connections(
+static Sys_var_on_access_global<Sys_var_ulong,
+                              PRIV_SET_SYSTEM_GLOBAL_VAR_EXTRA_MAX_CONNECTIONS>
+Sys_extra_max_connections(
        "extra_max_connections", "The number of connections on extra-port",
        GLOBAL_VAR(extra_max_connections), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 100000), DEFAULT(1), BLOCK_SIZE(1), NO_MUTEX_GUARD,
