@@ -36,8 +36,9 @@ MACRO(MYSQL_ADD_PLUGIN)
     "LINK_LIBRARIES;DEPENDENCIES"
     ${ARGN}
   )
-  
+
   # Find bug: Why not find my_global.h when install only client?(-DWITHOUT_SERVER)
+  # Add common include directories
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
                     ${CMAKE_SOURCE_DIR}/sql
                     ${PCRE_INCLUDES}
