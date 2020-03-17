@@ -214,6 +214,12 @@ public:
   virtual uchar *default_value_ptr(THD *thd)
   { return (uchar*)&option.def_value; }
 
+  virtual bool on_check_access_global(THD *thd) const;
+  virtual bool on_check_access_session(THD *thd) const
+  {
+    return false;
+  }
+
 private:
   virtual bool do_check(THD *thd, set_var *var) = 0;
   /**

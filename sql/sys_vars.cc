@@ -601,9 +601,6 @@ static Sys_var_bit Sys_core_file("core_file", "write a core-file on crashes",
 
 static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
 {
-  if (check_has_super(self, thd, var))
-    return true;
-
   /*
     MariaDB Galera does not support STATEMENT or MIXED binlog format currently.
   */
@@ -674,7 +671,10 @@ static bool fix_binlog_format_after_update(sys_var *self, THD *thd,
   return false;
 }
 
-static Sys_var_enum Sys_binlog_format(
+static Sys_var_on_access<Sys_var_enum,
+                         PRIV_SET_SYSTEM_VAR_BINLOG_FORMAT,
+                         PRIV_SET_SYSTEM_VAR_BINLOG_FORMAT>
+Sys_binlog_format(
        "binlog_format", "What form of binary logging the master will "
        "use: either ROW for row-based binary logging, STATEMENT "
        "for statement-based binary logging, or MIXED. MIXED is statement-"
@@ -689,9 +689,6 @@ static Sys_var_enum Sys_binlog_format(
 
 static bool binlog_direct_check(sys_var *self, THD *thd, set_var *var)
 {
-  if (check_has_super(self, thd, var))
-    return true;
-
   if (var->type == OPT_GLOBAL)
     return false;
 
@@ -703,7 +700,10 @@ static bool binlog_direct_check(sys_var *self, THD *thd, set_var *var)
   return false;
 }
 
-static Sys_var_mybool Sys_binlog_direct(
+static Sys_var_on_access<Sys_var_mybool,
+                PRIV_SET_SYSTEM_VAR_BINLOG_DIRECT_NON_TRANSACTIONAL_UPDATES,
+                PRIV_SET_SYSTEM_VAR_BINLOG_DIRECT_NON_TRANSACTIONAL_UPDATES>
+Sys_binlog_direct(
        "binlog_direct_non_transactional_updates",
        "Causes updates to non-transactional engines using statement format to "
        "be written directly to binary log. Before using this option make sure "
@@ -4297,9 +4297,6 @@ static bool check_session_only_variable(sys_var *self, THD *,set_var *var)
 */
 static bool check_sql_log_bin(sys_var *self, THD *thd, set_var *var)
 {
-  if (check_has_super(self, thd, var))
-    return true;
-
   if (check_session_only_variable(self, thd, var))
     return true;
 
@@ -4311,7 +4308,10 @@ static bool check_sql_log_bin(sys_var *self, THD *thd, set_var *var)
   return false;
 }
 
-static Sys_var_mybool Sys_log_binlog(	
+static Sys_var_on_access<Sys_var_mybool,
+                         PRIV_SET_SYSTEM_VAR_SQL_LOG_BIN,
+                         PRIV_SET_SYSTEM_VAR_SQL_LOG_BIN>
+Sys_sql_log_bin(
        "sql_log_bin", "If set to 0 (1 is the default), no logging to the binary "
        "log is done for the client. Only clients with the SUPER privilege can "
        "update this variable. Can have unintended consequences if set globally, "

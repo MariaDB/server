@@ -1,0 +1,51 @@
+source include/have_log_bin.inc;
+
+
+--echo #
+--echo #
+--echo #
+
+--echo # Test that "SET sql_log_bin" is not allowed without BINLOG ADMIN or SUPER
+
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE BINLOG ADMIN, SUPER ON *.* FROM user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET sql_log_bin=1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET GLOBAL sql_log_bin=1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET SESSION sql_log_bin=1;
+--disconnect user1
+--connection default
+DROP USER user1@localhost;
+
+--echo # Test that "SET sql_log_bin" is allowed with BINLOG ADMIN
+
+CREATE USER user1@localhost;
+GRANT BINLOG ADMIN ON *.* TO user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+SET sql_log_bin=1;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET GLOBAL sql_log_bin=1;
+SET SESSION sql_log_bin=1;
+--disconnect user1
+--connection default
+DROP USER user1@localhost;
+
+--echo # Test that "SET sql_log_bin" is allowed with SUPER
+
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+SET sql_log_bin=1;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET GLOBAL sql_log_bin=1;
+SET SESSION sql_log_bin=1;
+--disconnect user1
+--connection default
+DROP USER user1@localhost;

@@ -14,7 +14,7 @@ set session sql_log_bin = 1;
 connection plain;
 [plain]
 set session sql_log_bin = 1;
-ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG ADMIN privilege(s) for this operation
 **** Variable BINLOG_FORMAT ****
 connection root;
 [root]
@@ -23,9 +23,9 @@ set session binlog_format = row;
 connection plain;
 [plain]
 set global binlog_format = row;
-ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG ADMIN privilege(s) for this operation
 set session binlog_format = row;
-ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG ADMIN privilege(s) for this operation
 **** Clean up ****
 disconnect plain;
 disconnect root;

@@ -315,6 +315,15 @@ constexpr privilege_t PRIV_DEBUG= SUPER_ACL;
 constexpr privilege_t PRIV_SET_GLOBAL_SYSTEM_VARIABLE= SUPER_ACL;
 constexpr privilege_t PRIV_SET_RESTRICTED_SESSION_SYSTEM_VARIABLE= SUPER_ACL;
 
+/* The following variables respected only SUPER_ACL prior to 10.5.2 */
+constexpr privilege_t PRIV_SET_SYSTEM_VAR_BINLOG_FORMAT=
+  SUPER_ACL | BINLOG_ADMIN_ACL;
+constexpr privilege_t PRIV_SET_SYSTEM_VAR_BINLOG_DIRECT_NON_TRANSACTIONAL_UPDATES=
+  SUPER_ACL | BINLOG_ADMIN_ACL;
+constexpr privilege_t PRIV_SET_SYSTEM_VAR_SQL_LOG_BIN=
+  SUPER_ACL | BINLOG_ADMIN_ACL;
+
+
 /* Privileges related to --read-only */
 constexpr privilege_t PRIV_IGNORE_READ_ONLY= READ_ONLY_ADMIN_ACL | SUPER_ACL;
 

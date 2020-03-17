@@ -1,0 +1,56 @@
+source include/have_log_bin.inc;
+
+SET @global= @@global.binlog_direct_non_transactional_updates;
+SET @session= @@global.binlog_direct_non_transactional_updates;
+
+
+--echo #
+--echo #
+--echo #
+
+--echo # Test that "SET binlog_direct_non_transactional_updates" is not allowed without BINLOG ADMIN or SUPER
+
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE BINLOG ADMIN, SUPER ON *.* FROM user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET binlog_direct_non_transactional_updates=0;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET GLOBAL binlog_direct_non_transactional_updates=0;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET SESSION binlog_direct_non_transactional_updates=0;
+--disconnect user1
+--connection default
+DROP USER user1@localhost;
+
+--echo # Test that "SET binlog_direct_non_transactional_updates" is allowed with BINLOG ADMIN
+
+CREATE USER user1@localhost;
+GRANT BINLOG ADMIN ON *.* TO user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+SET binlog_direct_non_transactional_updates=0;
+SET GLOBAL binlog_direct_non_transactional_updates=0;
+SET SESSION binlog_direct_non_transactional_updates=0;
+--disconnect user1
+--connection default
+DROP USER user1@localhost;
+
+--echo # Test that "SET binlog_direct_non_transactional_updates" is allowed with SUPER
+
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+SET binlog_direct_non_transactional_updates=0;
+SET GLOBAL binlog_direct_non_transactional_updates=0;
+SET SESSION binlog_direct_non_transactional_updates=0;
+--disconnect user1
+--connection default
+DROP USER user1@localhost;
+
+
+SET GLOBAL binlog_direct_non_transactional_updates=@global;
+SET SESSION binlog_direct_non_transactional_updates=@session;

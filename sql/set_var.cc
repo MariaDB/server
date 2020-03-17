@@ -756,6 +756,11 @@ err:
   Functions to handle SET mysql_internal_variable=const_expr
 *****************************************************************************/
 
+bool sys_var::on_check_access_global(THD *thd) const
+{
+  return check_global_access(thd, PRIV_SET_GLOBAL_SYSTEM_VARIABLE);
+}
+
 /**
   Verify that the supplied value is correct.
 
@@ -780,8 +785,7 @@ int set_var::check(THD *thd)
     my_error(err, MYF(0), var->name.str);
     return -1;
   }
-  if (type == OPT_GLOBAL &&
-      check_global_access(thd, PRIV_SET_GLOBAL_SYSTEM_VARIABLE))
+  if (type == OPT_GLOBAL && var->on_check_access_global(thd))
     return 1;
   /* value is a NULL pointer if we are using SET ... = DEFAULT */
   if (!value)
@@ -793,6 +797,16 @@ int set_var::check(THD *thd)
   {
     my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), var->name.str);
     return -1;
+  }
+  switch (type) {
+  case SHOW_OPT_DEFAULT:
+  case SHOW_OPT_SESSION:
+    DBUG_ASSERT(var->scope() != sys_var::GLOBAL);
+    if (var->on_check_access_session(thd))
+      return -1;
+    break;
+  case SHOW_OPT_GLOBAL:  // Checked earlier
+    break;
   }
   return var->check(thd, this) ? -1 : 0;
 }
