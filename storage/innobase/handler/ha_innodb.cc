@@ -506,7 +506,11 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 #  ifndef PFS_SKIP_BUFFER_MUTEX_RWLOCK
 	PSI_KEY(buffer_block_mutex),
 #  endif /* !PFS_SKIP_BUFFER_MUTEX_RWLOCK */
-	PSI_KEY(buf_pool_mutex),
+	PSI_KEY(buf_pool_flush_state_mutex),
+	PSI_KEY(buf_pool_LRU_list_mutex),
+	PSI_KEY(buf_pool_free_list_mutex),
+	PSI_KEY(buf_pool_zip_free_mutex),
+	PSI_KEY(buf_pool_zip_hash_mutex),
 	PSI_KEY(buf_pool_zip_mutex),
 	PSI_KEY(cache_last_read_mutex),
 	PSI_KEY(dict_foreign_err_mutex),
@@ -17611,7 +17615,7 @@ static
 void
 innodb_buffer_pool_size_update(THD*,st_mysql_sys_var*,void*, const void* save)
 {
-        longlong	in_val = *static_cast<const longlong*>(save);
+	longlong	in_val = *static_cast<const longlong*>(save);
 
 	snprintf(export_vars.innodb_buffer_pool_resize_status,
 	        sizeof(export_vars.innodb_buffer_pool_resize_status),
@@ -18233,8 +18237,7 @@ innodb_srv_buf_dump_filename_validate(
 #ifdef UNIV_DEBUG
 static char* srv_buffer_pool_evict;
 
-/****************************************************************//**
-Evict all uncompressed pages of compressed tables from the buffer pool.
+/** Evict all uncompressed pages of compressed tables from the buffer pool.
 Keep the compressed pages in the buffer pool.
 @return whether all uncompressed pages were evicted */
 static MY_ATTRIBUTE((warn_unused_result))
@@ -18243,7 +18246,7 @@ innodb_buffer_pool_evict_uncompressed()
 {
 	bool	all_evicted = true;
 
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool->LRU_list_mutex);
 
 	for (buf_block_t* block = UT_LIST_GET_LAST(buf_pool->unzip_LRU);
 	     block != NULL; ) {
@@ -18253,14 +18256,30 @@ innodb_buffer_pool_evict_uncompressed()
 		ut_ad(block->page.in_LRU_list);
 		mutex_enter(&block->mutex);
 
-		if (!buf_LRU_free_page(&block->page, false)) {
+		rw_lock_t* hash_lock
+			= buf_page_hash_lock_get(block->page.id);
+		rw_lock_x_lock(hash_lock);
+		mutex_enter(&block->mutex);
+
+		if (!buf_page_can_relocate(&block->page)
+		    || block->page.oldest_modification) {
+
+			rw_lock_x_unlock(hash_lock);
+
 			mutex_exit(&block->mutex);
+
 			all_evicted = false;
+
+		} else {
+
+			btr_search_drop_page_hash_index(block);
+			auto old_page_id = block->page.id;
+			buf_LRU_free_one_page(&block->page, old_page_id);
 		}
 		block = prev_block;
 	}
 
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool->LRU_list_mutex);
 	return(all_evicted);
 }
 
@@ -21429,12 +21448,7 @@ innodb_buffer_pool_size_validate(
 		return(1);
 	}
 #endif /* UNIV_DEBUG */
-
-
-	mutex_enter(&buf_pool->mutex);
-
-	if (srv_buf_pool_old_size != srv_buf_pool_size) {
-		mutex_exit(&buf_pool->mutex);
+	if (srv_buf_pool_size_changing.load(std::memory_order_relaxed)) {
 		my_printf_error(ER_WRONG_ARGUMENTS,
 			"Another buffer pool resize is already in progress.", MYF(0));
 		return(1);
@@ -21445,13 +21459,11 @@ innodb_buffer_pool_size_validate(
 	*static_cast<ulonglong*>(save) = requested_buf_pool_size;
 
 	if (srv_buf_pool_size == ulint(intbuf)) {
-		mutex_exit(&buf_pool->mutex);
 		/* nothing to do */
 		return(0);
 	}
 
 	if (srv_buf_pool_size == requested_buf_pool_size) {
-		mutex_exit(&buf_pool->mutex);
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
 				    "innodb_buffer_pool_size must be at least"
@@ -21460,9 +21472,8 @@ innodb_buffer_pool_size_validate(
 		/* nothing to do */
 		return(0);
 	}
-
+	srv_buf_pool_size_changing = true;
 	srv_buf_pool_size = requested_buf_pool_size;
-	mutex_exit(&buf_pool->mutex);
 
 	if (intbuf != static_cast<longlong>(requested_buf_pool_size)) {
 		char	buf[64];

@@ -16,6 +16,7 @@ call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed f
 call mtr.add_suppression("InnoDB: Failed to read file '.*' at offset .*");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*' cannot be decrypted");
 # for innodb_checksum_algorithm=full_crc32 only
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
 

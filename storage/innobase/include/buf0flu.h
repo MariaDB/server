@@ -133,13 +133,13 @@ passed back to caller. Ignored if NULL.
 @retval false if another batch of same type was already running */
 bool buf_flush_lists(ulint min_n, lsn_t lsn_limit, ulint *n_processed);
 
-/******************************************************************//**
-This function picks up a single page from the tail of the LRU
+/** This function picks up a single page from the tail of the LRU
 list, flushes it (if it is dirty), removes it from page_hash and LRU
 list and puts it on the free list. It is called from user threads when
 they are unable to find a replaceable page at the tail of the LRU
 list i.e.: when the background LRU flushing in the page_cleaner thread
 is not fast enough to keep pace with the workload.
+@param[in,out]	buf_pool	buffer pool instance
 @return true if success. */
 bool buf_flush_single_page_from_LRU();
 
@@ -162,15 +162,15 @@ buf_flush_note_modification(
 					set of mtr's */
 	lsn_t		end_lsn);	/*!< in: end lsn of the last mtr in the
 					set of mtr's */
-/********************************************************************//**
-Returns TRUE if the file page block is immediately suitable for replacement,
-i.e., transition FILE_PAGE => NOT_USED allowed.
+/** Returns TRUE if the file page block is immediately suitable for replacement,
+i.e., the transition FILE_PAGE => NOT_USED allowed. The caller must hold the
+LRU list and block mutexes.
+@param[in]	bpage	buffer control block, must be buf_page_in_file() and
+			in the LRU list
 @return TRUE if can replace immediately */
 ibool
 buf_flush_ready_for_replace(
-/*========================*/
-	buf_page_t*	bpage);	/*!< in: buffer control block, must be
-				buf_page_in_file(bpage) and in the LRU list */
+	buf_page_t*	bpage);
 
 /** Initialize page_cleaner. */
 void buf_flush_page_cleaner_init();
@@ -212,13 +212,12 @@ bool buf_flush_page(buf_page_t* bpage, buf_flush_t flush_type, bool sync);
 /** Check if the block is modified and ready for flushing.
 @param[in]	bpage		buffer control block, must be buf_page_in_file()
 @param[in]	flush_type	type of flush
+@param[in]	flush_type	type of flush
 @return true if can flush immediately */
 bool
 buf_flush_ready_for_flush(
-/*======================*/
-	buf_page_t*	bpage,	/*!< in: buffer control block, must be
-				buf_page_in_file(bpage) */
-	buf_flush_t	flush_type)/*!< in: type of flush */
+	buf_page_t*	bpage,
+	buf_flush_t	flush_type)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Synchronously flush dirty blocks.

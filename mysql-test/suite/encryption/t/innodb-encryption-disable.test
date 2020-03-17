@@ -16,7 +16,7 @@ call mtr.add_suppression("InnoDB: Table `test`\\.`t[15]` is corrupted");
 # Suppression for builds where file_key_management plugin is linked statically
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
 
---let $restart_parameters=--innodb-encrypt-tables=ON --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+--let $restart_parameters=--innodb-encrypt-tables=ON --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
 
 create table t5 (
@@ -48,7 +48,7 @@ select * from t1;
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 select * from t5;
 
---let $restart_parameters=--innodb-encrypt-tables=ON --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+--let $restart_parameters=--innodb-encrypt-tables=ON --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
 
 drop table t1;
