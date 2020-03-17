@@ -3483,7 +3483,8 @@ buf_zip_decompress(
 				frame, size, SRV_CHECKSUM_ALGORITHM_INNODB)
 			<< ", none: "
 			<< page_zip_calc_checksum(
-				frame, size, SRV_CHECKSUM_ALGORITHM_NONE);
+				frame, size, SRV_CHECKSUM_ALGORITHM_NONE)
+			<< " (algorithm: " << srv_checksum_algorithm << ")";
 		goto err_exit;
 	}
 

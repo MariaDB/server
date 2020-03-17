@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -780,7 +780,7 @@ err_len:
 @param[in]	space_id	Tablespace ID
 @return First filepath (caller must invoke ut_free() on it)
 @retval NULL if no SYS_DATAFILES entry was found. */
-char*
+static char*
 dict_get_first_path(
 	ulint	space_id)
 {
@@ -838,7 +838,7 @@ dict_get_first_path(
 			ut_ad(len > 0);
 			ut_ad(len < OS_FILE_MAX_PATH);
 
-			if (len > 0 && len != UNIV_SQL_NULL) {
+			if (len > 0 && len < UNIV_SQL_NULL) {
 				filepath = mem_strdupl(
 					reinterpret_cast<const char*>(field),
 					len);
