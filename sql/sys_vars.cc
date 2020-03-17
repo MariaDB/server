@@ -2822,7 +2822,9 @@ static bool fix_read_only(sys_var *self, THD *thd, enum_var_type type)
   transition (especially when transitioning from false to true) and
   synchronizes both booleans in the end.
 */
-static Sys_var_mybool Sys_readonly(
+static Sys_var_on_access_global<Sys_var_mybool,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_READ_ONLY>
+Sys_readonly(
        "read_only",
        "Make all non-temporary tables read-only, with the exception for "
        "replication (slave) threads and users with the SUPER privilege",

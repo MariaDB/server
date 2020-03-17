@@ -1,0 +1,52 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-21960 Bind READ_ONLY ADMIN to @@read_only
+--echo #
+
+--echo # Test that "SET read_only" is not allowed without READ_ONLY ADMIN or SUPER
+
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE READ_ONLY ADMIN, SUPER ON *.* FROM user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET GLOBAL read_only=0;
+--error ER_GLOBAL_VARIABLE
+SET read_only=0;
+--error ER_GLOBAL_VARIABLE
+SET SESSION read_only=0;
+--disconnect user1
+--connection default
+DROP USER user1@localhost;
+
+--echo # Test that "SET read_only" is allowed with READ_ONLY ADMIN
+
+CREATE USER user1@localhost;
+GRANT READ_ONLY ADMIN ON *.* TO user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+SET GLOBAL read_only=0;
+--error ER_GLOBAL_VARIABLE
+SET read_only=0;
+--error ER_GLOBAL_VARIABLE
+SET SESSION read_only=0;
+--disconnect user1
+--connection default
+DROP USER user1@localhost;
+
+--echo # Test that "SET read_only" is allowed with SUPER
+
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+SET GLOBAL read_only=0;
+--error ER_GLOBAL_VARIABLE
+SET read_only=0;
+--error ER_GLOBAL_VARIABLE
+SET SESSION read_only=0;
+--disconnect user1
+--connection default
+DROP USER user1@localhost;

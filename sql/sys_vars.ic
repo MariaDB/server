@@ -118,6 +118,17 @@ class Sys_var_on_access: public BASE
 };
 
 
+template<class BASE, privilege_t GLOBAL_PRIV>
+class Sys_var_on_access_global: public BASE
+{
+  using BASE::BASE;
+  bool on_check_access_global(THD *thd) const override
+  {
+    return check_global_access(thd, GLOBAL_PRIV);
+  }
+};
+
+
 /**
   A small wrapper class to pass getopt arguments as a pair
   to the Sys_var_* constructors. It improves type safety and helps
