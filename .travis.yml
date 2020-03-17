@@ -260,6 +260,9 @@ matrix:
       addons: *clang7_addons_s390x
   # Until OSX becomes a bit more stable: MDEV-12435 MDEV-16213
   allow_failures:
+    - os: linux
+      compiler: clang
+      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
     - os: osx
       compiler: clang
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
