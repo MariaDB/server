@@ -3294,7 +3294,9 @@ Sys_slave_sql_verify_checksum(
        GLOBAL_VAR(opt_slave_sql_verify_checksum), CMD_LINE(OPT_ARG),
        DEFAULT(TRUE));
 
-static Sys_var_mybool Sys_master_verify_checksum(
+static Sys_var_on_access_global<Sys_var_mybool,
+                              PRIV_SET_SYSTEM_GLOBAL_VAR_MASTER_VERIFY_CHECKSUM>
+Sys_master_verify_checksum(
        "master_verify_checksum",
        "Force checksum verification of logged events in the binary log before "
        "sending them to slaves or printing them in the output of "

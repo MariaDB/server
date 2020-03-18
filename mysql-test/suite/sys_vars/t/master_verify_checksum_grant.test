@@ -1,0 +1,9 @@
+--echo #
+--echo # MDEV-21972 Bind REPLICATION MASTER ADMIN to master_verify_checksum
+--echo #
+
+--let var = master_verify_checksum
+--let grant = REPLICATION MASTER ADMIN
+--let value = 1
+
+--source suite/sys_vars/inc/sysvar_global_grant.inc

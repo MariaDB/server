@@ -482,6 +482,9 @@ constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_TRACE_LEVE
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_WAIT_POINT=
   REPL_MASTER_ADMIN_ACL | SUPER_ACL;
 
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_MASTER_VERIFY_CHECKSUM=
+  REPL_MASTER_ADMIN_ACL | SUPER_ACL;
+
 
 /* Privileges for statements that are executed on the slave */
 // Was SUPER_ACL prior to 10.5.2
