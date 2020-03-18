@@ -6314,7 +6314,10 @@ static Sys_var_mybool Sys_userstat(
        GLOBAL_VAR(opt_userstat_running),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-static Sys_var_mybool Sys_binlog_annotate_row_events(
+static Sys_var_on_access<Sys_var_mybool,
+                         PRIV_SET_SYSTEM_VAR_BINLOG_ANNOTATE_ROW_EVENTS,
+                         PRIV_SET_SYSTEM_VAR_BINLOG_ANNOTATE_ROW_EVENTS>
+Sys_binlog_annotate_row_events(
        "binlog_annotate_row_events",
        "Tells the master to annotate RBR events with the statement that "
        "caused these events",
@@ -6428,7 +6431,10 @@ static Sys_var_mybool Sys_binlog_encryption(
        DEFAULT(FALSE));
 
 static const char *binlog_row_image_names[]= {"MINIMAL", "NOBLOB", "FULL", NullS};
-static Sys_var_enum Sys_binlog_row_image(
+static Sys_var_on_access<Sys_var_enum,
+                         PRIV_SET_SYSTEM_VAR_BINLOG_ROW_IMAGE,
+                         PRIV_SET_SYSTEM_VAR_BINLOG_ROW_IMAGE>
+Sys_binlog_row_image(
        "binlog_row_image",
        "Controls whether rows should be logged in 'FULL', 'NOBLOB' or "
        "'MINIMAL' formats. 'FULL', means that all columns in the before "
