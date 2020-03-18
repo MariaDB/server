@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation.
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -748,23 +748,23 @@ public:
     option.var_type|= GET_STR | GET_ASK_ADDR;
   }
 
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     return Sys_var_charptr::do_string_check(thd, var, charset(thd));
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *, set_var *) override
   { DBUG_ASSERT(FALSE); }
 
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *, set_var *) override
   { DBUG_ASSERT(FALSE); }
 
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *, set_var *) override
   {
     DBUG_ASSERT(FALSE);
     return true;
   }
 
-  bool global_update(THD *thd, set_var *var);
+  bool global_update(THD *thd, set_var *var) override;
 
   bool on_check_access_global(THD *thd) const override
   {
@@ -772,7 +772,7 @@ public:
   }
 
 protected:
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base);
+  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) override;
   bool set_filter_value(const char *value, Master_info *mi);
 };
 
