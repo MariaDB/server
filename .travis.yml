@@ -1,7 +1,6 @@
 # vim ft=yaml
 # travis-ci.org definition
 
-sudo: false
 dist: xenial
 
 git:
@@ -22,56 +21,56 @@ cache:
     - /usr/local/Cellar # Fails do to permission error: https://github.com/travis-ci/travis-ci/issues/8092
 
 env:
-  matrix:
-    - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
-    - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
-    - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
-    - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
-    - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
-    - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
-    - CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
+  - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
+  - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+  - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+  - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
+  - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
+  - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
+  - CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
+
 addons:
   apt:
     sources: &add-sources
       - ubuntu-toolchain-r-test
       - llvm-toolchain-xenial-6.0
       - llvm-toolchain-xenial-7
-      - sourceline: 'deb [arch=amd64,arm64,i386,ppc64el] http://ftp.osuosl.org/pub/mariadb/repo/10.4/ubuntu xenial main'
+      - sourceline: 'deb [arch=amd64,arm64,i386,ppc64el] http://ftp.osuosl.org/pub/mariadb/repo/10.5/ubuntu xenial main'
         key_url: 'http://keyserver.ubuntu.com/pks/lookup?search=0xF1656F24C74CD1D8&op=get'
-    packages: &common-packages 
+    packages: &common-packages
       # make sure these include all compilers and all build dependencies (see list above)
       - bison
       - chrpath
       - cmake
+      - cracklib-runtime
       - gdb
       - libaio-dev
       - libboost-dev
+      - libcrack2-dev
       - libcurl3-dev
       - libdbd-mysql
+      - libjemalloc-dev
       - libjudy-dev
+      - liblzma-dev
       - libncurses5-dev
+      - libnuma-dev
       - libpam0g-dev
       - libpcre2-dev
       - libreadline-gplv2-dev
-      - libstemmer-dev
+      - libsnappy-dev
       - libssl-dev
-      - libnuma-dev
+      - libstemmer-dev
       - libxml2-dev
       - lsb-release
       - perl
       - psmisc
-      - zlib1g-dev
-      - libcrack2-dev
-      - cracklib-runtime
-      - libjemalloc-dev
-      - libsnappy-dev
-      - liblzma-dev
       - uuid-dev
+      - zlib1g-dev
 
 # libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
 
 
-matrix:
+jobs:
   exclude:
     - os: osx
       compiler: gcc
@@ -83,10 +82,25 @@ matrix:
       compiler: gcc
       env:
         - DebPackages
-      addons: 
+      addons:
         apt:
           sources: *add-sources
-          packages: [ *common-packages, debhelper, dh-apparmor, dh-exec, dpatch, po-debconf, libzmq-dev, libdistro-info-perl, devscripts, fakeroot, dh-systemd, libsystemd-dev, libzstd-dev, unixodbc-dev] # make sure these match debian/control contents
+          # make sure these match debian/control contents
+          packages: &deb-packages
+            - *common-packages
+            - debhelper
+            - devscripts
+            - dh-apparmor
+            - dh-exec
+            - dh-systemd
+            - dpatch
+            - fakeroot
+            - libdistro-info-perl
+            - libsystemd-dev
+            - libzmq-dev
+            - libzstd-dev
+            - po-debconf
+            - unixodbc-dev
       script:
         - ${CC} --version ; ${CXX} --version
         - env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
@@ -96,80 +110,100 @@ matrix:
       compiler: gcc
       env:
         - DebPackages
-      addons: 
+      addons:
         apt:
           sources: *add-sources
-          packages: [ *common-packages, debhelper, dh-apparmor, dh-exec, dpatch, po-debconf, libzmq3-dev, libdistro-info-perl, devscripts, fakeroot, dh-systemd, libsystemd-dev, libzstd-dev, unixodbc-dev] # make sure these match debian/control contents
+          packages: *deb-packages
       script:
         - ${CC} --version ; ${CXX} --version
         - env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
-    - os: linux     
+    - os: linux
       compiler: gcc
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
       addons: &gcc6_addons
         apt:
           sources: *add-sources
-          packages: [ *common-packages, gcc-6, g++-6, galera-4, libzmq-dev]
-    - os: linux     
+          packages:
+            - *common-packages
+            - gcc-6
+            - g++-6
+            - galera-4
+            - libzmq-dev
+    - os: linux
       compiler: gcc
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
       addons: *gcc6_addons
-    - os: linux     
+    - os: linux
       compiler: gcc
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
       addons: *gcc6_addons
-    - os: linux     
+    - os: linux
       compiler: gcc
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
       addons: &gcc7_addons
         apt:
           sources: *add-sources
-          packages: [ *common-packages, gcc-7, g++-7, galera-4, libzmq-dev]
-    - os: linux     
+          packages:
+            - *common-packages
+            - gcc-7
+            - g++-7
+            - galera-4
+            - libzmq-dev
+    - os: linux
       compiler: gcc
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
       addons: *gcc7_addons
-    - os: linux     
+    - os: linux
       compiler: gcc
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
       addons: *gcc7_addons
-    - os: linux     
+    - os: linux
       compiler: gcc
       env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
-      addons: 
+      addons:
         apt:
           sources: *add-sources
           packages: [ *common-packages, gcc-8, g++-8, galera-4, libzmq-dev]
-    - os: linux     
+    - os: linux
       compiler: clang
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
       addons: &clang6_addons
         apt:
           sources: *add-sources
-          packages: [ *common-packages, clang-6.0, llvm-6.0-dev, galera-4, libzmq-dev]
-    - os: linux     
+          packages:
+            - *common-packages
+            - clang-6.0
+            - llvm-6.0-dev
+            - galera-4
+            - libzmq-dev
+    - os: linux
       compiler: clang
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
       addons: *clang6_addons
-    - os: linux     
+    - os: linux
       compiler: clang
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
       addons: *clang6_addons
-    - os: linux     
+    - os: linux
       compiler: clang
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
       addons: &clang7_addons
         apt:
           sources: *add-sources
-          packages: [ *common-packages, clang-7, llvm-7-dev, galera-4, libzmq-dev]
-    - os: linux     
+          packages:
+            - *common-packages
+            - clang-7
+            - llvm-7-dev
+            - galera-4
+            - libzmq-dev
+    - os: linux
       compiler: clang
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
       addons: *clang7_addons
-    - os: linux     
+    - os: linux
       compiler: clang
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
-      addons: *clang7_addons 
+      addons: *clang7_addons
   #s390x matrix
     - os: linux
       arch: s390x
@@ -179,82 +213,107 @@ matrix:
       addons: &gcc6_addons_s390x
         apt:
           sources: *add-sources
-          packages: [ *common-packages, gcc-6, g++-6, galera-3, libzmq3-dev]
+          packages:
+            - *common-packages
+            - gcc-6
+            - g++-6
+            - galera-3
+            - libzmq3-dev
     - os: linux
       arch: s390x
-      dist: bionic	
+      dist: bionic
       compiler: gcc
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
       addons: *gcc6_addons_s390x
     - os: linux
       arch: s390x
-      dist: bionic	
+      dist: bionic
       compiler: gcc
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
       addons: *gcc6_addons_s390x
     - os: linux
       arch: s390x
-      dist: bionic	
+      dist: bionic
       compiler: gcc
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
       addons: &gcc7_addons_s390x
         apt:
           sources: *add-sources
-          packages: [ *common-packages, gcc-7, g++-7, galera-3, libzmq3-dev]
+          packages:
+            - *common-packages
+            - gcc-7
+            - g++-7
+            - galera-3
+            - libzmq3-dev
     - os: linux
       arch: s390x
-      dist: bionic	
+      dist: bionic
       compiler: gcc
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
       addons: *gcc7_addons_s390x
     - os: linux
       arch: s390x
-      dist: bionic	
+      dist: bionic
       compiler: gcc
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
       addons: *gcc7_addons_s390x
     - os: linux
       arch: s390x
-      dist: bionic	
+      dist: bionic
       compiler: gcc
       env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
-      addons: 
+      addons:
         apt:
           sources: *add-sources
-          packages: [ *common-packages, gcc-8, g++-8, galera-3, libzmq3-dev]
+          packages:
+            - *common-packages
+            - gcc-8
+            - g++-8
+            - galera-3
+            - libzmq3-dev
     - os: linux
       arch: s390x
-      dist: bionic	
+      dist: bionic
       compiler: clang
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
       addons: &clang6_addons_s390x
         apt:
           sources: *add-sources
-          packages: [ *common-packages, clang-6.0, llvm-6.0-dev, galera-3, libzmq3-dev]
+          packages:
+            - *common-packages
+            - clang-6.0
+            - llvm-6.0-dev
+            - galera-3
+            - libzmq3-dev
     - os: linux
       arch: s390x
-      dist: bionic	
+      dist: bionic
       compiler: clang
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
       addons: *clang6_addons_s390x
     - os: linux
       arch: s390x
-      dist: bionic	
+      dist: bionic
       compiler: clang
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
       addons: &clang7_addons_s390x
         apt:
           sources: *add-sources
-          packages: [ *common-packages, clang-7, llvm-7-dev, galera-3, libzmq3-dev] 
+          packages:
+            - *common-packages
+            - clang-7
+            - llvm-7-dev
+            - galera-3
+            - libzmq3-dev
     - os: linux
       arch: s390x
-      dist: bionic	
+      dist: bionic
       compiler: clang
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
       addons: *clang7_addons_s390x
     - os: linux
       arch: s390x
-      dist: bionic	
+      dist: bionic
       compiler: clang
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
       addons: *clang7_addons_s390x
