@@ -1,0 +1,46 @@
+#
+# MDEV-21966 Bind REPLICATION SLAVE ADMIN to a number of global system variables
+#
+SET @global=@@global.slave_transaction_retry_interval;
+# Test that "SET slave_transaction_retry_interval" is not allowed without REPLICATION SLAVE ADMIN or SUPER
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE REPLICATION SLAVE ADMIN, SUPER ON *.* FROM user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL slave_transaction_retry_interval=256;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, REPLICATION SLAVE ADMIN privilege(s) for this operation
+SET slave_transaction_retry_interval=256;
+ERROR HY000: Variable 'slave_transaction_retry_interval' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION slave_transaction_retry_interval=256;
+ERROR HY000: Variable 'slave_transaction_retry_interval' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET slave_transaction_retry_interval" is allowed with REPLICATION SLAVE ADMIN
+CREATE USER user1@localhost;
+GRANT REPLICATION SLAVE ADMIN ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL slave_transaction_retry_interval=256;
+SET slave_transaction_retry_interval=256;
+ERROR HY000: Variable 'slave_transaction_retry_interval' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION slave_transaction_retry_interval=256;
+ERROR HY000: Variable 'slave_transaction_retry_interval' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET slave_transaction_retry_interval" is allowed with SUPER
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL slave_transaction_retry_interval=256;
+SET slave_transaction_retry_interval=256;
+ERROR HY000: Variable 'slave_transaction_retry_interval' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION slave_transaction_retry_interval=256;
+ERROR HY000: Variable 'slave_transaction_retry_interval' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+SET @@global.slave_transaction_retry_interval=@global;

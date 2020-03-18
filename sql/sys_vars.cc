@@ -1285,7 +1285,9 @@ static Sys_var_charptr_fscs Sys_init_file(
        DEFAULT(0));
 
 static PolyLock_rwlock PLock_sys_init_slave(&LOCK_sys_init_slave);
-static Sys_var_lexstring Sys_init_slave(
+static Sys_var_on_access_global<Sys_var_lexstring,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_INIT_SLAVE>
+Sys_init_slave(
        "init_slave", "Command(s) that are executed by a slave server "
        "each time the SQL thread starts", GLOBAL_VAR(opt_init_slave),
        CMD_LINE(REQUIRED_ARG),
@@ -1593,7 +1595,9 @@ static Sys_var_ulong Sys_max_allowed_packet(
        BLOCK_SIZE(1024), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_max_allowed_packet));
 
-static Sys_var_ulong Sys_slave_max_allowed_packet(
+static Sys_var_on_access_global<Sys_var_ulong,
+                            PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_MAX_ALLOWED_PACKET>
+Sys_slave_max_allowed_packet(
        "slave_max_allowed_packet",
        "The maximum packet length to sent successfully from the master to slave.",
        GLOBAL_VAR(slave_max_allowed_packet), CMD_LINE(REQUIRED_ARG),
@@ -2154,7 +2158,9 @@ fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 }
 
 
-static Sys_var_ulong Sys_slave_parallel_threads(
+static Sys_var_on_access_global<Sys_var_ulong,
+                             PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_PARALLEL_THREADS>
+Sys_slave_parallel_threads(
        "slave_parallel_threads",
        "If non-zero, number of threads to spawn to apply in parallel events "
        "on the slave that were group-committed on the master or were logged "
@@ -2167,7 +2173,9 @@ static Sys_var_ulong Sys_slave_parallel_threads(
        ON_UPDATE(fix_slave_parallel_threads));
 
 /* Alias for @@slave_parallel_threads to match what MySQL 5.7 uses. */
-static Sys_var_ulong Sys_slave_parallel_workers(
+static Sys_var_on_access_global<Sys_var_ulong,
+                              PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_PARALLEL_WORKERS>
+Sys_slave_parallel_workers(
        "slave_parallel_workers",
        "Alias for slave_parallel_threads",
        GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
@@ -2195,7 +2203,9 @@ fix_slave_domain_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 }
 
 
-static Sys_var_ulong Sys_slave_domain_parallel_threads(
+static Sys_var_on_access_global<Sys_var_ulong,
+                       PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_DOMAIN_PARALLEL_THREADS>
+Sys_slave_domain_parallel_threads(
        "slave_domain_parallel_threads",
        "Maximum number of parallel threads to use on slave for events in a "
        "single replication domain. When using multiple domains, this can be "
@@ -2209,7 +2219,9 @@ static Sys_var_ulong Sys_slave_domain_parallel_threads(
        ON_UPDATE(fix_slave_domain_parallel_threads));
 
 
-static Sys_var_ulong Sys_slave_parallel_max_queued(
+static Sys_var_on_access_global<Sys_var_ulong,
+                           PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_PARALLEL_MAX_QUEUED>
+Sys_slave_parallel_max_queued(
        "slave_parallel_max_queued",
        "Limit on how much memory SQL threads should use per parallel "
        "replication thread when reading ahead in the relay log looking for "
@@ -2306,7 +2318,9 @@ export TYPELIB slave_parallel_mode_typelib = {
   NULL
 };
 
-static Sys_var_slave_parallel_mode Sys_slave_parallel_mode(
+static Sys_var_on_access_global<Sys_var_slave_parallel_mode,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_PARALLEL_MODE>
+Sys_slave_parallel_mode(
        "slave_parallel_mode",
        "Controls what transactions are applied in parallel when using "
        "--slave-parallel-threads. Possible values: \"optimistic\" tries to "
@@ -3204,7 +3218,9 @@ static Sys_var_ulong Sys_server_id(
        VALID_RANGE(1, UINT_MAX32), DEFAULT(1), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_has_super), ON_UPDATE(fix_server_id));
 
-static Sys_var_mybool Sys_slave_compressed_protocol(
+static Sys_var_on_access_global<Sys_var_mybool,
+                          PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_COMPRESSED_PROTOCOL>
+Sys_slave_compressed_protocol(
        "slave_compressed_protocol",
        "Use compression on master/slave protocol",
        GLOBAL_VAR(opt_slave_compressed_protocol), CMD_LINE(OPT_ARG),
@@ -3212,7 +3228,9 @@ static Sys_var_mybool Sys_slave_compressed_protocol(
 
 #ifdef HAVE_REPLICATION
 static const char *slave_exec_mode_names[]= {"STRICT", "IDEMPOTENT", 0};
-static Sys_var_enum Slave_exec_mode(
+static Sys_var_on_access_global<Sys_var_enum,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_EXEC_MODE>
+Slave_exec_mode(
        "slave_exec_mode",
        "How replication events should be executed. Legal values "
        "are STRICT (default) and IDEMPOTENT. In IDEMPOTENT mode, "
@@ -3224,7 +3242,9 @@ static Sys_var_enum Slave_exec_mode(
        GLOBAL_VAR(slave_exec_mode_options), CMD_LINE(REQUIRED_ARG),
        slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_STRICT));
 
-static Sys_var_enum Slave_ddl_exec_mode(
+static Sys_var_on_access_global<Sys_var_enum,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_DDL_EXEC_MODE>
+Slave_ddl_exec_mode(
        "slave_ddl_exec_mode",
        "How replication events should be executed. Legal values "
        "are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode, "
@@ -3236,7 +3256,9 @@ static Sys_var_enum Slave_ddl_exec_mode(
 
 static const char *slave_run_triggers_for_rbr_names[]=
   {"NO", "YES", "LOGGING", "ENFORCE", 0};
-static Sys_var_enum Slave_run_triggers_for_rbr(
+static Sys_var_on_access_global<Sys_var_enum,
+                          PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_RUN_TRIGGERS_FOR_RBR>
+Slave_run_triggers_for_rbr(
        "slave_run_triggers_for_rbr",
        "Modes for how triggers in row-base replication on slave side will be "
        "executed. Legal values are NO (default), YES, LOGGING and ENFORCE. NO means "
@@ -3251,7 +3273,9 @@ static Sys_var_enum Slave_run_triggers_for_rbr(
        DEFAULT(SLAVE_RUN_TRIGGERS_FOR_RBR_NO));
 
 static const char *slave_type_conversions_name[]= {"ALL_LOSSY", "ALL_NON_LOSSY", 0};
-static Sys_var_set Slave_type_conversions(
+static Sys_var_on_access_global<Sys_var_set,
+                              PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_TYPE_CONVERSIONS>
+Slave_type_conversions(
        "slave_type_conversions",
        "Set of slave type conversions that are enabled."
        " If the variable is empty, no conversions are"
@@ -3260,7 +3284,9 @@ static Sys_var_set Slave_type_conversions(
        slave_type_conversions_name,
        DEFAULT(0));
 
-static Sys_var_mybool Sys_slave_sql_verify_checksum(
+static Sys_var_on_access_global<Sys_var_mybool,
+                           PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_SQL_VERIFY_CHECKSUM>
+Sys_slave_sql_verify_checksum(
        "slave_sql_verify_checksum",
        "Force checksum verification of replication events after reading them "
        "from relay log. Note: Events are always checksum-verified by slave on "
@@ -3294,7 +3320,9 @@ Sys_var_replicate_events_marked_for_skip::global_update(THD *thd, set_var *var)
   DBUG_RETURN(result);
 }
 
-static Sys_var_replicate_events_marked_for_skip Replicate_events_marked_for_skip
+static Sys_var_on_access_global<Sys_var_replicate_events_marked_for_skip,
+                   PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_EVENTS_MARKED_FOR_SKIP>
+Replicate_events_marked_for_skip
    ("replicate_events_marked_for_skip",
    "Whether the slave should replicate events that were created with "
    "@@skip_replication=1 on the master. Default REPLICATE (no events are "
@@ -5240,12 +5268,14 @@ static Sys_var_rpl_filter Sys_replicate_do_db(
        "statement-based replication, only the default database (that "
        "is, the one selected by USE) is considered, not any explicitly "
        "mentioned tables in the query. For row-based replication, the "
-       "actual names of table(s) being updated are checked.");
+       "actual names of table(s) being updated are checked.",
+       PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_DO_DB);
 
 static Sys_var_rpl_filter Sys_replicate_do_table(
        "replicate_do_table", OPT_REPLICATE_DO_TABLE,
        "Tells the slave to restrict replication to tables in the "
-       "comma-separated list.");
+       "comma-separated list.",
+       PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_DO_TABLE);
 
 static Sys_var_rpl_filter Sys_replicate_ignore_db(
        "replicate_ignore_db", OPT_REPLICATE_IGNORE_DB,
@@ -5254,24 +5284,28 @@ static Sys_var_rpl_filter Sys_replicate_ignore_db(
        "statement-based replication, only the default database (that "
        "is, the one selected by USE) is considered, not any explicitly "
        "mentioned tables in the query. For row-based replication, the "
-       "actual names of table(s) being updated are checked.");
+       "actual names of table(s) being updated are checked.",
+       PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_IGNORE_DB);
 
 static Sys_var_rpl_filter Sys_replicate_ignore_table(
        "replicate_ignore_table", OPT_REPLICATE_IGNORE_TABLE,
        "Tells the slave thread not to replicate any statement that "
        "updates the specified table, even if any other tables might be "
-       "updated by the same statement.");
+       "updated by the same statement.",
+       PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_IGNORE_TABLE);
 
 static Sys_var_rpl_filter Sys_replicate_wild_do_table(
        "replicate_wild_do_table", OPT_REPLICATE_WILD_DO_TABLE,
        "Tells the slave thread to restrict replication to statements "
        "where any of the updated tables match the specified database "
-       "and table name patterns.");
+       "and table name patterns.",
+       PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_WILD_DO_TABLE);
 
 static Sys_var_rpl_filter Sys_replicate_wild_ignore_table(
        "replicate_wild_ignore_table", OPT_REPLICATE_WILD_IGNORE_TABLE,
        "Tells the slave thread to not replicate to the tables that "
-       "match the given wildcard pattern.");
+       "match the given wildcard pattern.",
+       PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_WILD_IGNORE_TABLE);
 
 static Sys_var_charptr_fscs Sys_slave_load_tmpdir(
        "slave_load_tmpdir", "The location where the slave should put "
@@ -5279,7 +5313,9 @@ static Sys_var_charptr_fscs Sys_slave_load_tmpdir(
        READ_ONLY GLOBAL_VAR(slave_load_tmpdir), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
 
-static Sys_var_uint Sys_slave_net_timeout(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_NET_TIMEOUT>
+Sys_slave_net_timeout(
        "slave_net_timeout", "Number of seconds to wait for more data "
        "from any master/slave connection before aborting the read",
        GLOBAL_VAR(slave_net_timeout), CMD_LINE(REQUIRED_ARG),
@@ -5397,7 +5433,9 @@ static Sys_var_charptr Sys_slave_skip_errors(
        READ_ONLY GLOBAL_VAR(opt_slave_skip_errors), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
 
-static Sys_var_ulonglong Sys_read_binlog_speed_limit(
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                            PRIV_SET_SYSTEM_GLOBAL_VAR_READ_BINLOG_SPEED_LIMIT>
+Sys_read_binlog_speed_limit(
        "read_binlog_speed_limit", "Maximum speed(KB/s) to read binlog from"
        " master (0 = no limit)",
        GLOBAL_VAR(opt_read_binlog_speed_limit), CMD_LINE(REQUIRED_ARG),
@@ -5455,7 +5493,9 @@ static Sys_var_ulong Sys_slave_trans_retries(
        GLOBAL_VAR(slave_trans_retries), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(10), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_slave_trans_retry_interval(
+static Sys_var_on_access_global<Sys_var_ulong,
+                    PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_TRANSACTION_RETRY_INTERVAL>
+Sys_slave_trans_retry_interval(
        "slave_transaction_retry_interval", "Interval of the slave SQL "
        "thread will retry a transaction in case it failed with a deadlock "
        "or elapsed lock wait timeout or listed in "
