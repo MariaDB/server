@@ -11178,13 +11178,16 @@ void replace_dynstr_append_mem(DYNAMIC_STRING *ds, const char *val, size_t len)
     {
       /* Convert to lower case, and do this first */
       char *c= lower;
-      for (const char *v= val;  *v;  v++)
+      for (const char *v= val, *end_v= v + len;  v < end_v;  v++)
         *c++= my_tolower(charset_info, *v);
       *c= '\0';
       /* Copy from this buffer instead */
     }
     else
-      memcpy(lower, val, len+1);
+    {
+      memcpy(lower, val, len);
+      lower[len]= 0;
+    }
     fix_win_paths(lower, len);
     val= lower;
   }

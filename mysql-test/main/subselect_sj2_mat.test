@@ -2,6 +2,7 @@
 # Run subselect_sj2.test with subquery materialization.
 #
 --source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
 
 set optimizer_switch='materialization=on';
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
@@ -338,7 +339,7 @@ insert  into t1(`id`,`local_name`) values
 (11,'Rollover - Internet Payday'),
 (12,'AL Monthly Installment'),
 (13,'AL Semi-Monthly Installment');
-
+insert into t1 select seq,"ignore" from seq_1000_to_1100;
 ANALYZE TABLE t1;
 
 explain

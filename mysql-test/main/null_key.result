@@ -20,7 +20,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	a	9	NULL	12	Using where; Using index
 explain select * from t1 where (a is null or a > 0 and a < 2) and b < 5 limit 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a,b	a	9	NULL	2	Using where; Using index
+1	SIMPLE	t1	index	a,b	a	9	NULL	12	Using where; Using index
 explain select * from t1 where (a is null or a = 7) and b=7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref_or_null	a,b	a	9	const,const	2	Using where; Using index
@@ -32,7 +32,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	a,b	a	5	const	3	Using where; Using index
 explain select * from t1 where a is null and b=9 or a is null and b=7 limit 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a,b	a	9	NULL	3	Using where; Using index
+1	SIMPLE	t1	ref	a,b	a	5	const	2	Using where; Using index
 explain select * from t1 where a > 1 and a < 3 limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	1	Using where; Using index

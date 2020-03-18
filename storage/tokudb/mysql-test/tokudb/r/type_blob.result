@@ -599,6 +599,9 @@ id	txt
 explain select * from t1 where txt='Chevy' or txt is NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	txt_index	NULL	NULL	NULL	3	Using where
+explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref_or_null	txt_index	txt_index	23	const	3	Using where
 select * from t1 where txt='Chevy ';
 id	txt
 1	Chevy
@@ -669,12 +672,18 @@ id	txt
 alter table t1 modify column txt blob;
 explain select * from t1 where txt='Chevy' or txt is NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	txt_index	NULL	NULL	NULL	4	Using where
+explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref_or_null	txt_index	txt_index	23	const	2	Using where
 select * from t1 where txt='Chevy' or txt is NULL;
 id	txt
 1	Chevy
 3	NULL
 explain select * from t1 where txt='Chevy' or txt is NULL order by txt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	txt_index	NULL	NULL	NULL	4	Using where; Using filesort
+explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL order by txt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref_or_null	txt_index	txt_index	23	const	2	Using where; Using filesort
 select * from t1 where txt='Chevy' or txt is NULL order by txt;

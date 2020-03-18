@@ -960,6 +960,7 @@ CREATE TABLE t1 (
 
 INSERT INTO t1 VALUES
   ('B'), ('A'), ('A'), ('C'), ('B'), ('A'), ('A'), ('C'), ('A');
+INSERT INTO t1 VALUES ('X'),('Y'),('Z'),('X1'),('Y1'),('Z1'),('X1'),('Y1'),('Z1');
 
 SELECT a FROM t1 WHERE a='b' OR a='B';
 EXPLAIN SELECT a FROM t1 WHERE a='b' OR a='B';
@@ -1077,7 +1078,7 @@ INSERT INTO t3 VALUES
 # To make range scan compelling to the optimizer
 INSERT INTO t3 SELECT * FROM t3 WHERE a = 10;
 INSERT INTO t3 SELECT * FROM t3 WHERE a = 10;
-
+insert into t1 select -a,b from t1;
 
 #
 # Problem#1 Test queries. Will give missing results unless Problem#1 is fixed.

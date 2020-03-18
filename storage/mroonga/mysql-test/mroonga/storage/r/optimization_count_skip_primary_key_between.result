@@ -8,6 +8,7 @@ INSERT INTO users (id) VALUES (2);
 INSERT INTO users (id) VALUES (3);
 INSERT INTO users (id) VALUES (4);
 INSERT INTO users (id) VALUES (5);
+INSERT INTO users (id) VALUES (32),(33),(34),(35),(36),(37);
 SELECT COUNT(*) FROM users WHERE id BETWEEN 2 AND 4;
 COUNT(*)
 3

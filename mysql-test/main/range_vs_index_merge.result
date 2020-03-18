@@ -705,9 +705,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN
 SELECT * FROM City 
 WHERE ((Population > 101000 AND Population < 103000) OR Name LIKE 'P%')
-AND Country='FIN';
+AND Country='EST';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	ref	Population,Country,Name,CountryPopulation	Country	3	const	7	Using index condition; Using where
+1	SIMPLE	City	ref	Population,Country,Name,CountryPopulation	Country	3	const	2	Using index condition; Using where
 SELECT * FROM City 
 WHERE ((Population > 101000 AND Population < 103000) OR Name LIKE 'Pas%')
 AND Country='USA';
@@ -1079,7 +1079,7 @@ EXPLAIN SELECT Name, Country, Population FROM City WHERE
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Country,CountryPopulation,CountryName,CityName	CountryName	38	NULL	28	Using index condition
+1	SIMPLE	City	index_merge	Country,CountryPopulation,CountryName,CityName	CountryName,CityName	38,35	NULL	28	Using sort_union(CountryName,CityName); Using where
 SELECT Name, Country, Population FROM City WHERE
 (Name='Manila' AND Country='PHL') OR
 (Name='Addis Abeba' AND Country='ETH') OR          
@@ -1109,33 +1109,33 @@ SELECT Name, Country, Population FROM City WHERE
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
 Name	Country	Population
-Toronto	CAN	688275
-Vancouver	CAN	514008
+Addis Abeba	ETH	2495000
+Ankara	TUR	3038159
+Bangalore	IND	2660088
 Basel	CHE	166700
+Caracas	VEN	1975294
+Dakar	SEN	785071
+Delhi	IND	7206704
+Dresden	DEU	476668
+Jakarta	IDN	9604900
+Kaunas	LTU	412639
+Lagos	NGA	1518000
+Lugansk	UKR	469000
+Manila	PHL	1581082
+Paris	FRA	2125246
 Peking	CHN	7472000
 Praha	CZE	1181126
-Dresden	DEU	476668
-Addis Abeba	ETH	2495000
-Paris	FRA	2125246
-Jakarta	IDN	9604900
-Bangalore	IND	2660088
-Delhi	IND	7206704
-Teheran	IRN	6758845
-Roma	ITA	2643581
-Venezia	ITA	277305
-Tokyo	JPN	7980230
-Seoul	KOR	9981619
-Kaunas	LTU	412639
 Rabat	MAR	623457
-Tijuana	MEX	1212232
-Lagos	NGA	1518000
-Manila	PHL	1581082
+Roma	ITA	2643581
 Samara	RUS	1156100
-Dakar	SEN	785071
-Ankara	TUR	3038159
-Lugansk	UKR	469000
 Seattle	USA	563374
-Caracas	VEN	1975294
+Seoul	KOR	9981619
+Teheran	IRN	6758845
+Tijuana	MEX	1212232
+Tokyo	JPN	7980230
+Toronto	CAN	688275
+Vancouver	CAN	514008
+Venezia	ITA	277305
 set optimizer_switch='index_merge=off';
 EXPLAIN SELECT Name, Country, Population FROM City WHERE
 (Name='Manila' AND Country='PHL') OR
@@ -1196,33 +1196,33 @@ SELECT Name, Country, Population FROM City WHERE
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
 Name	Country	Population
-Toronto	CAN	688275
-Vancouver	CAN	514008
+Addis Abeba	ETH	2495000
+Ankara	TUR	3038159
+Bangalore	IND	2660088
 Basel	CHE	166700
+Caracas	VEN	1975294
+Dakar	SEN	785071
+Delhi	IND	7206704
+Dresden	DEU	476668
+Jakarta	IDN	9604900
+Kaunas	LTU	412639
+Lagos	NGA	1518000
+Lugansk	UKR	469000
+Manila	PHL	1581082
+Paris	FRA	2125246
 Peking	CHN	7472000
 Praha	CZE	1181126
-Dresden	DEU	476668
-Addis Abeba	ETH	2495000
-Paris	FRA	2125246
-Jakarta	IDN	9604900
-Bangalore	IND	2660088
-Delhi	IND	7206704
-Teheran	IRN	6758845
-Roma	ITA	2643581
-Venezia	ITA	277305
-Tokyo	JPN	7980230
-Seoul	KOR	9981619
-Kaunas	LTU	412639
 Rabat	MAR	623457
-Tijuana	MEX	1212232
-Lagos	NGA	1518000
-Manila	PHL	1581082
+Roma	ITA	2643581
 Samara	RUS	1156100
-Dakar	SEN	785071
-Ankara	TUR	3038159
-Lugansk	UKR	469000
 Seattle	USA	563374
-Caracas	VEN	1975294
+Seoul	KOR	9981619
+Teheran	IRN	6758845
+Tijuana	MEX	1212232
+Tokyo	JPN	7980230
+Toronto	CAN	688275
+Vancouver	CAN	514008
+Venezia	ITA	277305
 set optimizer_switch=@save_optimizer_switch;
 # 
 # Bug mdev-585: range vs index-merge with ORDER BY ... LIMIT n
@@ -1674,7 +1674,9 @@ CREATE TABLE t1 (
 f1 int, f2 int, f3 int, f4 int,
 PRIMARY KEY (f1), KEY (f3), KEY (f4)
 );
+INSERT INTO t1 VALUES (1,0,0,0), (2,0,0,0), (3,0,0,0);
 INSERT INTO t1 VALUES (9,0,2,6), (9930,0,0,NULL);
+insert into t1 select seq,seq,seq,seq from seq_100_to_400;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -1685,24 +1687,24 @@ SET SESSION optimizer_switch='index_merge_union=off';
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY,f3,f4	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t1	ALL	PRIMARY,f3,f4	NULL	NULL	NULL	306	Using where
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 f1	f2	f3	f4
 9	0	2	6
 SET SESSION optimizer_switch='index_merge_union=on';
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index_merge	PRIMARY,f3,f4	f3,PRIMARY,f3	5,4,5	NULL	3	Using union(f3,PRIMARY,f3); Using where
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 f1	f2	f3	f4
 9	0	2	6
 INSERT INTO t1 VALUES 
@@ -1718,24 +1720,24 @@ SET SESSION optimizer_switch='index_merge_union=off';
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY,f3,f4	NULL	NULL	NULL	16	Using where
+1	SIMPLE	t1	ALL	PRIMARY,f3,f4	NULL	NULL	NULL	320	Using where
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 f1	f2	f3	f4
 9	0	2	6
 SET SESSION optimizer_switch='index_merge_union=on';
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index_merge	PRIMARY,f3,f4	f3,PRIMARY,f3	5,4,5	NULL	3	Using union(f3,PRIMARY,f3); Using where
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 f1	f2	f3	f4
 9	0	2	6
 SET SESSION optimizer_switch=DEFAULT;

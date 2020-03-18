@@ -3011,7 +3011,8 @@ int select_send::send_data(List<Item> &items)
 
   thd->inc_sent_row_count(1);
 
-  if (thd->vio_ok())
+  /* Don't return error if disconnected, only if write fails */
+  if (likely(thd->vio_ok()))
     DBUG_RETURN(protocol->write());
 
   DBUG_RETURN(0);

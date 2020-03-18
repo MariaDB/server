@@ -694,6 +694,7 @@ INSERT INTO t1 VALUES
   ('fkxdmbdkpjdanpje','o'), ('f','Pennsylvan'), ('Virginia','ei');
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
+--replace_column 9 #
 EXPLAIN
 SELECT * FROM t1 
   WHERE NOT(b = 'Texas') AND b BETWEEN 'wy' AND 'y' OR b = 'Pennsylvania'
@@ -703,6 +704,7 @@ SELECT * FROM t1
   ORDER BY a;
 
 SET SESSION optimizer_switch='index_condition_pushdown=on';
+--replace_column 9 #
 EXPLAIN
 SELECT * FROM t1 
   WHERE NOT(b = 'Texas') AND b BETWEEN 'wy' AND 'y' OR b = 'Pennsylvania'

@@ -1,5 +1,6 @@
 --source include/default_optimizer_switch.inc
 --source include/default_charset.inc
+--source include/have_sequence.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2,t3,t4;
@@ -387,7 +388,7 @@ SELECT * FROM City
 EXPLAIN
 SELECT * FROM City 
   WHERE ((Population > 101000 AND Population < 103000) OR Name LIKE 'P%')
-        AND Country='FIN';
+        AND Country='EST';
 
 # The following 4 queries check that the plans
 # for the previous 2 plans are valid
@@ -628,7 +629,7 @@ SELECT * FROM City
 
 
 #
-# LP bug #954262: index merge oover long disjunction in WHERE    
+# LP bug #954262: index merge over long disjunction in WHERE    
 #  
 
 set @save_optimizer_switch=@@optimizer_switch;
@@ -667,6 +668,7 @@ let $cond =
 eval
 EXPLAIN SELECT Name, Country, Population FROM City WHERE
 $cond;
+--sorted_result
 eval 
 SELECT Name, Country, Population FROM City WHERE
 $cond;
@@ -676,6 +678,7 @@ set optimizer_switch='index_merge=off';
 eval
 EXPLAIN SELECT Name, Country, Population FROM City WHERE
 $cond;
+--sorted_result
 eval
 SELECT Name, Country, Population FROM City WHERE
 $cond;
@@ -1087,7 +1090,9 @@ CREATE TABLE t1 (
   PRIMARY KEY (f1), KEY (f3), KEY (f4)
 );
 
+INSERT INTO t1 VALUES (1,0,0,0), (2,0,0,0), (3,0,0,0);
 INSERT INTO t1 VALUES (9,0,2,6), (9930,0,0,NULL);
+insert into t1 select seq,seq,seq,seq from seq_100_to_400;
 
 analyze table t1;
 
@@ -1099,22 +1104,22 @@ SET SESSION optimizer_switch='index_merge_union=off';
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SET SESSION optimizer_switch='index_merge_union=on';
 
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 
 INSERT INTO t1 VALUES 
@@ -1130,22 +1135,22 @@ SET SESSION optimizer_switch='index_merge_union=off';
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SET SESSION optimizer_switch='index_merge_union=on';
 
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SET SESSION optimizer_switch=DEFAULT;
 
