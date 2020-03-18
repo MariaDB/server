@@ -20,8 +20,6 @@ STOP SLAVE;
 ERROR 42000: Access denied; you need (at least one of) the SUPER, REPLICATION SLAVE ADMIN privilege(s) for this operation
 SHOW SLAVE STATUS;
 ERROR 42000: Access denied; you need (at least one of) the SUPER, REPLICATION SLAVE ADMIN privilege(s) for this operation
-BINLOG '';
-ERROR 42000: Access denied; you need (at least one of) the SUPER, REPLICATION SLAVE ADMIN privilege(s) for this operation
 disconnect con1;
 connection default;
 DROP USER user1@localhost;
@@ -42,7 +40,6 @@ STOP SLAVE;
 Warnings:
 Note	1255	Slave already has been stopped
 SHOW SLAVE STATUS;
-BINLOG '';
 disconnect con1;
 connection default;
 DROP USER user1@localhost;
@@ -63,7 +60,6 @@ STOP SLAVE;
 Warnings:
 Note	1255	Slave already has been stopped
 SHOW SLAVE STATUS;
-BINLOG '';
 disconnect con1;
 connection default;
 DROP USER user1@localhost;

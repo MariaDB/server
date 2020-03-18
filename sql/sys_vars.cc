@@ -1758,19 +1758,18 @@ static Sys_var_ulong Sys_metadata_locks_hash_instances(
        VALID_RANGE(1, 1024), DEFAULT(8),
        BLOCK_SIZE(1));
 
-static Sys_var_ulonglong Sys_pseudo_thread_id(
+static Sys_var_on_access_session<Sys_var_ulonglong,
+                                 PRIV_SET_SYSTEM_SESSION_VAR_PSEUDO_THREAD_ID>
+Sys_pseudo_thread_id(
        "pseudo_thread_id",
        "This variable is for internal server use",
        SESSION_ONLY(pseudo_thread_id),
        NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
-       BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG,
-       ON_CHECK(check_has_super));
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG);
 
 static bool
 check_gtid_domain_id(sys_var *self, THD *thd, set_var *var)
 {
-  if (check_has_super(self, thd, var))
-    return true;
   if (var->type != OPT_GLOBAL &&
       error_if_in_trans_or_substatement(thd,
           ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
@@ -1781,7 +1780,10 @@ check_gtid_domain_id(sys_var *self, THD *thd, set_var *var)
 }
 
 
-static Sys_var_uint Sys_gtid_domain_id(
+static Sys_var_on_access<Sys_var_uint,
+                         PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_DOMAIN_ID,
+                         PRIV_SET_SYSTEM_SESSION_VAR_GTID_DOMAIN_ID>
+Sys_gtid_domain_id(
        "gtid_domain_id",
        "Used with global transaction ID to identify logically independent "
        "replication streams. When events can propagate through multiple "
@@ -1799,8 +1801,6 @@ static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
   uint32 domain_id, server_id;
   uint64 seq_no;
 
-  if (check_has_super(self, thd, var))
-    return true;
   if (unlikely(error_if_in_trans_or_substatement(thd,
                                                  ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
                                                  ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO)))
@@ -1818,7 +1818,9 @@ static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
 }
 
 
-static Sys_var_ulonglong Sys_gtid_seq_no(
+static Sys_var_on_access_session<Sys_var_ulonglong,
+                                PRIV_SET_SYSTEM_SESSION_VAR_GTID_SEQ_NO>
+Sys_gtid_seq_no(
        "gtid_seq_no",
        "Internal server usage, for replication with global transaction id. "
        "When set, next event group logged to the binary log will use this "
@@ -3216,13 +3218,16 @@ static bool fix_server_id(sys_var *self, THD *thd, enum_var_type type)
   }
   return false;
 }
-static Sys_var_ulong Sys_server_id(
+static Sys_var_on_access<Sys_var_ulong,
+                         PRIV_SET_SYSTEM_GLOBAL_VAR_SERVER_ID,
+                         PRIV_SET_SYSTEM_SESSION_VAR_SERVER_ID>
+Sys_server_id(
        "server_id",
        "Uniquely identifies the server instance in the community of "
        "replication partners",
        SESSION_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
        VALID_RANGE(1, UINT_MAX32), DEFAULT(1), BLOCK_SIZE(1), NO_MUTEX_GUARD,
-       NOT_IN_BINLOG, ON_CHECK(check_has_super), ON_UPDATE(fix_server_id));
+       NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_server_id));
 
 static Sys_var_on_access_global<Sys_var_mybool,
                           PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_COMPRESSED_PROTOCOL>
@@ -4585,12 +4590,21 @@ static Sys_var_harows Sys_select_limit(
        VALID_RANGE(0, HA_POS_ERROR), DEFAULT(HA_POS_ERROR), BLOCK_SIZE(1));
 
 static const char *secure_timestamp_levels[]= {"NO", "SUPER", "REPLICATION", "YES", 0};
-static bool check_timestamp(sys_var *self, THD *thd, set_var *var)
+bool Sys_var_timestamp::on_check_access_session(THD *thd) const
 {
-  if (opt_secure_timestamp == SECTIME_NO)
+  switch (opt_secure_timestamp) {
+  case SECTIME_NO:
     return false;
-  if (opt_secure_timestamp == SECTIME_SUPER)
-    return check_has_super(self, thd, var);
+  case SECTIME_SUPER:
+    return check_global_access(thd, SUPER_ACL | BINLOG_REPLAY_ACL);
+  case SECTIME_REPL:
+  /*
+    Perhaps we eventually should do this here:
+      return check_global_access(thd, BINLOG_REPLAY_ACL);
+  */
+  case SECTIME_YES:
+    break;
+  }
   char buf[1024];
   strxnmov(buf, sizeof(buf), "--secure-timestamp=",
            secure_timestamp_levels[opt_secure_timestamp], NULL);
@@ -4601,7 +4615,7 @@ static Sys_var_timestamp Sys_timestamp(
        "timestamp", "Set the time for this client",
        sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, TIMESTAMP_MAX_VALUE),
-       NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_timestamp));
+       NO_MUTEX_GUARD, IN_BINLOG);
 
 static bool update_last_insert_id(THD *thd, set_var *var)
 {

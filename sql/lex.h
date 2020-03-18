@@ -522,6 +522,7 @@ static SYMBOL symbols[] = {
   { "REPAIR",		SYM(REPAIR)},
   { "REPEATABLE",	SYM(REPEATABLE_SYM)},
   { "REPLACE",		SYM(REPLACE)},
+  { "REPLAY",           SYM(REPLAY_SYM)},
   { "REPLICA",      SYM(SLAVE)},
   { "REPLICAS",     SYM(SLAVES)},
   { "REPLICA_POS",  SYM(SLAVE_POS_SYM)},

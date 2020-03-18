@@ -1001,7 +1001,8 @@ class User_table_tabular: public User_table
     {
       access|= LOCK_TABLES_ACL | CREATE_TMP_ACL | SHOW_DB_ACL;
       if (access & FILE_ACL)
-        access|= BINLOG_MONITOR_ACL | REPL_SLAVE_ACL | BINLOG_ADMIN_ACL ;
+        access|= BINLOG_MONITOR_ACL | REPL_SLAVE_ACL | BINLOG_ADMIN_ACL |
+                 BINLOG_REPLAY_ACL;
       if (access & PROCESS_ACL)
         access|= SUPER_ACL | EXECUTE_ACL;
     }
@@ -8881,7 +8882,8 @@ static const char *command_array[]=
   "CREATE VIEW", "SHOW VIEW", "CREATE ROUTINE", "ALTER ROUTINE",
   "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE", "DELETE HISTORY",
   "SET USER", "FEDERATED ADMIN", "CONNECTION ADMIN", "READ_ONLY ADMIN",
-  "REPLICATION SLAVE ADMIN", "REPLICATION MASTER ADMIN", "BINLOG ADMIN"
+  "REPLICATION SLAVE ADMIN", "REPLICATION MASTER ADMIN", "BINLOG ADMIN",
+  "BINLOG REPLAY"
 };
 
 static uint command_lengths[]=
@@ -8893,7 +8895,8 @@ static uint command_lengths[]=
   11, 9, 14, 13,
   11, 5, 7, 17, 14,
   8, 15, 16, 15,
-  23, 24, 12
+  23, 24, 12,
+  13
 };
 
 

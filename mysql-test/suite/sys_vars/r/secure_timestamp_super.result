@@ -11,7 +11,7 @@ EDITABLE
 create user foo@127.0.0.1;
 connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
 set timestamp=1234567890.101112;
-ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG REPLAY privilege(s) for this operation
 select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'non-privileged';
 non-privileged
 READONLY

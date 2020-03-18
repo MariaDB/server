@@ -26,8 +26,6 @@ CHANGE MASTER TO MASTER_HOST='127.0.0.1';
 STOP SLAVE;
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 SHOW SLAVE STATUS;
---error ER_SPECIFIC_ACCESS_DENIED_ERROR
-BINLOG '';
 disconnect con1;
 
 connection default;
@@ -50,10 +48,6 @@ CHANGE MASTER TO MASTER_USER='root';
 STOP SLAVE;
 --disable_result_log
 SHOW SLAVE STATUS;
-# The below fails with a syntax error.
-# This is fine. It's only important that it does not fail on "access denied".
---error ER_SYNTAX_ERROR
-BINLOG '';
 --enable_result_log
 disconnect con1;
 
@@ -77,10 +71,6 @@ CHANGE MASTER TO MASTER_USER='root';
 STOP SLAVE;
 --disable_result_log
 SHOW SLAVE STATUS;
-# The below fails with a syntax error.
-# This is fine. It's only important that it does not fail on "access denied".
---error ER_SYNTAX_ERROR
-BINLOG '';
 --enable_result_log
 disconnect con1;
 

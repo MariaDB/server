@@ -129,6 +129,17 @@ class Sys_var_on_access_global: public BASE
 };
 
 
+template<class BASE, privilege_t SESSION_PRIV>
+class Sys_var_on_access_session: public BASE
+{
+  using BASE::BASE;
+  bool on_check_access_session(THD *thd) const override
+  {
+    return check_global_access(thd, SESSION_PRIV);
+  }
+};
+
+
 /**
   A small wrapper class to pass getopt arguments as a pair
   to the Sys_var_* constructors. It improves type safety and helps
@@ -1993,6 +2004,7 @@ public:
     thd->sys_var_tmp.double_value= 0;
     return (uchar*) &thd->sys_var_tmp.double_value;
   }
+  bool on_check_access_session(THD *thd) const;
 };
 
 

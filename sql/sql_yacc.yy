@@ -1013,6 +1013,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %token  <kwd>  REORGANIZE_SYM
 %token  <kwd>  REPAIR
 %token  <kwd>  REPEATABLE_SYM                /* SQL-2003-N */
+%token  <kwd>  REPLAY_SYM                    /* MariaDB privilege */
 %token  <kwd>  REPLICATION
 %token  <kwd>  RESET_SYM
 %token  <kwd>  RESTART_SYM
@@ -15678,6 +15679,7 @@ keyword_sp_var_and_label:
         | RELOAD
         | REORGANIZE_SYM
         | REPEATABLE_SYM
+        | REPLAY_SYM
         | REPLICATION
         | RESOURCES
         | RESTART_SYM
@@ -16942,6 +16944,7 @@ object_privilege:
         | READ_ONLY_SYM ADMIN_SYM          { $$= READ_ONLY_ADMIN_ACL; }
         | BINLOG_SYM MONITOR_SYM           { $$= BINLOG_MONITOR_ACL; }
         | BINLOG_SYM ADMIN_SYM             { $$= BINLOG_ADMIN_ACL; }
+        | BINLOG_SYM REPLAY_SYM            { $$= BINLOG_REPLAY_ACL; }
         | REPLICATION MASTER_SYM ADMIN_SYM { $$= REPL_MASTER_ADMIN_ACL; }
         | REPLICATION SLAVE ADMIN_SYM      { $$= REPL_SLAVE_ADMIN_ACL; }
         ;

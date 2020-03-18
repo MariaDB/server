@@ -65,7 +65,8 @@ enum privilege_t: unsigned long long
   READ_ONLY_ADMIN_ACL   = (1ULL << 33), // Added in 10.5.2
   REPL_SLAVE_ADMIN_ACL  = (1ULL << 34), // Added in 10.5.2
   REPL_MASTER_ADMIN_ACL = (1ULL << 35), // Added in 10.5.2
-  BINLOG_ADMIN_ACL      = (1ULL << 36)  // Added in 10.5.2
+  BINLOG_ADMIN_ACL      = (1ULL << 36), // Added in 10.5.2
+  BINLOG_REPLAY_ACL     = (1ULL << 37)  // Added in 10.5.2
   /*
     When adding new privilege bits, don't forget to update:
     In this file:
@@ -95,7 +96,7 @@ enum privilege_t: unsigned long long
 
 // Version markers
 constexpr privilege_t LAST_100304_ACL= DELETE_HISTORY_ACL;
-constexpr privilege_t LAST_100502_ACL= BINLOG_ADMIN_ACL;
+constexpr privilege_t LAST_100502_ACL= BINLOG_REPLAY_ACL;
 
 // Current version markers
 constexpr privilege_t LAST_CURRENT_ACL= LAST_100502_ACL;
@@ -225,7 +226,8 @@ constexpr privilege_t  GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS=
   CONNECTION_ADMIN_ACL |
   READ_ONLY_ADMIN_ACL |
   REPL_SLAVE_ADMIN_ACL |
-  BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL |
+  BINLOG_REPLAY_ACL;
 
 
 constexpr privilege_t COL_DML_ACLS=
@@ -488,6 +490,12 @@ constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_MASTER_VERIFY_CHECKSUM=
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_BINLOG_STATE=
   REPL_MASTER_ADMIN_ACL | SUPER_ACL;
 
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SERVER_ID=
+  REPL_MASTER_ADMIN_ACL | SUPER_ACL;
+
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_DOMAIN_ID=
+  REPL_MASTER_ADMIN_ACL | SUPER_ACL;
+
 
 /* Privileges for statements that are executed on the slave */
 // Was SUPER_ACL prior to 10.5.2
@@ -498,11 +506,26 @@ constexpr privilege_t PRIV_STMT_STOP_SLAVE= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
 constexpr privilege_t PRIV_STMT_CHANGE_MASTER= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
 // Was (SUPER_ACL | REPL_CLIENT_ACL) prior to 10.5.2
 constexpr privilege_t PRIV_STMT_SHOW_SLAVE_STATUS= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
-// Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_STMT_BINLOG= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
 // Was REPL_SLAVE_ACL prior to 10.5.2
 constexpr privilege_t PRIV_STMT_SHOW_RELAYLOG_EVENTS= REPL_SLAVE_ADMIN_ACL;
 
+/*
+  Privileges related to binlog replying.
+  Were SUPER_ACL prior to 10.5.2
+*/
+constexpr privilege_t PRIV_STMT_BINLOG= BINLOG_REPLAY_ACL | SUPER_ACL;
+
+constexpr privilege_t PRIV_SET_SYSTEM_SESSION_VAR_GTID_SEQ_NO=
+  BINLOG_REPLAY_ACL | SUPER_ACL;
+
+constexpr privilege_t PRIV_SET_SYSTEM_SESSION_VAR_PSEUDO_THREAD_ID=
+  BINLOG_REPLAY_ACL | SUPER_ACL;
+
+constexpr privilege_t PRIV_SET_SYSTEM_SESSION_VAR_SERVER_ID=
+  BINLOG_REPLAY_ACL | SUPER_ACL;
+
+constexpr privilege_t PRIV_SET_SYSTEM_SESSION_VAR_GTID_DOMAIN_ID=
+  BINLOG_REPLAY_ACL | SUPER_ACL;
 
 /*
   Privileges for slave related global variables.

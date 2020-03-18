@@ -1,0 +1,73 @@
+-- source include/not_embedded.inc
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-21975 Add BINLOG REPLAY privilege and bind new privileges to gtid_seq_no, preudo_thread_id, server_id, gtid_domain_id
+--echo #
+
+--echo #
+--echo # Test that binlog replay statements are not allowed without BINLOG REPLAY or SUPER
+--echo #
+
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE BINLOG REPLAY, SUPER ON *.* FROM user1@localhost;
+
+connect (con1,localhost,user1,,);
+connection con1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+BINLOG '';
+disconnect con1;
+
+connection default;
+DROP USER user1@localhost;
+
+
+--echo #
+--echo # Test that binlog replay statements are allowed with BINLOG REPLAY
+--echo #
+
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT BINLOG REPLAY ON *.* TO user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+
+connect (con1,localhost,user1,,);
+connection con1;
+# The below fails with a syntax error.
+# This is fine. It's only important that it does not fail on "access denied".
+--error ER_SYNTAX_ERROR
+BINLOG '';
+--enable_result_log
+disconnect con1;
+
+connection default;
+DROP USER user1@localhost;
+
+
+--echo #
+--echo # Test that binlog replay statements are allowed with SUPER
+--echo #
+
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT SUPER ON *.* TO user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+
+connect (con1,localhost,user1,,);
+connection con1;
+--error ER_BAD_SLAVE
+# The below fails with a syntax error.
+# This is fine. It's only important that it does not fail on "access denied".
+--error ER_SYNTAX_ERROR
+BINLOG '';
+--enable_result_log
+disconnect con1;
+
+connection default;
+DROP USER user1@localhost;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
