@@ -5149,12 +5149,16 @@ static Sys_var_charptr_fscs Sys_relay_log_info_file(
        READ_ONLY GLOBAL_VAR(relay_log_info_file), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
 
-static Sys_var_mybool Sys_relay_log_purge(
+static Sys_var_on_access_global<Sys_var_mybool,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_RELAY_LOG_PURGE>
+Sys_relay_log_purge(
        "relay_log_purge", "if disabled - do not purge relay logs. "
        "if enabled - purge them as soon as they are no more needed.",
        GLOBAL_VAR(relay_log_purge), CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
-static Sys_var_mybool Sys_relay_log_recovery(
+static Sys_var_on_access_global<Sys_var_mybool,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_RELAY_LOG_RECOVERY>
+Sys_relay_log_recovery(
        "relay_log_recovery", "Enables automatic relay log recovery "
        "right after the database startup, which means that the IO Thread "
        "starts re-fetching from the master right after the last transaction "
@@ -5474,13 +5478,17 @@ static Sys_var_ulonglong Sys_relay_log_space_limit(
        READ_ONLY GLOBAL_VAR(relay_log_space_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
-static Sys_var_uint Sys_sync_relaylog_period(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_SYNC_RELAY_LOG>
+Sys_sync_relaylog_period(
        "sync_relay_log", "Synchronously flush relay log to disk after "
        "every #th event. Use 0 to disable synchronous flushing",
        GLOBAL_VAR(sync_relaylog_period), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(10000), BLOCK_SIZE(1));
 
-static Sys_var_uint Sys_sync_relayloginfo_period(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_SYNC_RELAY_LOG_INFO>
+Sys_sync_relayloginfo_period(
        "sync_relay_log_info", "Synchronously flush relay log info "
        "to disk after every #th transaction. Use 0 to disable "
        "synchronous flushing",
@@ -5496,7 +5504,9 @@ Sys_sync_binlog_period(
        GLOBAL_VAR(sync_binlog_period), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
-static Sys_var_uint Sys_sync_masterinfo_period(
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_SYNC_MASTER_INFO>
+Sys_sync_masterinfo_period(
        "sync_master_info", "Synchronously flush master info to disk "
        "after every #th event. Use 0 to disable synchronous flushing",
        GLOBAL_VAR(sync_masterinfo_period), CMD_LINE(REQUIRED_ARG),

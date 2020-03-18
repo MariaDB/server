@@ -1,0 +1,9 @@
+--echo #
+--echo # MDEV-21969 Bind REPLICATION SLAVE ADMIN to relay_log_*, sync_master_info, sync_relay_log, sync_relay_log_info
+--echo #
+
+--let var = sync_master_info
+--let grant = REPLICATION SLAVE ADMIN
+--let value = 20000
+
+--source suite/sys_vars/inc/sysvar_global_grant.inc
