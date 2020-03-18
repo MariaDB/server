@@ -1081,7 +1081,7 @@ buf_page_is_corrupted(
 
 	/* A page filled with NUL bytes is considered not corrupted.
 	The FIL_PAGE_FILE_FLUSH_LSN field may be written nonzero for
-	the first page of each file of the system tablespace.
+	the first page of the system tablespace.
 	Ignore it for the system tablespace. */
 	if (!checksum_field1 && !checksum_field2) {
 		/* Checksum fields can have valid value as zero.
