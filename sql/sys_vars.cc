@@ -3389,7 +3389,9 @@ static bool fix_rpl_semi_sync_master_wait_no_slave(sys_var *self, THD *thd,
   return false;
 }
 
-static Sys_var_mybool Sys_semisync_master_enabled(
+static Sys_var_on_access_global<Sys_var_mybool,
+                        PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_ENABLED>
+Sys_semisync_master_enabled(
        "rpl_semi_sync_master_enabled",
        "Enable semi-synchronous replication master (disabled by default).",
        GLOBAL_VAR(rpl_semi_sync_master_enabled),
@@ -3397,7 +3399,9 @@ static Sys_var_mybool Sys_semisync_master_enabled(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_master_enabled));
 
-static Sys_var_ulong Sys_semisync_master_timeout(
+static Sys_var_on_access_global<Sys_var_ulong,
+                        PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_TIMEOUT>
+Sys_semisync_master_timeout(
        "rpl_semi_sync_master_timeout",
        "The timeout value (in ms) for semi-synchronous replication in the "
        "master",
@@ -3407,7 +3411,9 @@ static Sys_var_ulong Sys_semisync_master_timeout(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_master_timeout));
 
-static Sys_var_mybool Sys_semisync_master_wait_no_slave(
+static Sys_var_on_access_global<Sys_var_mybool,
+                  PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_WAIT_NO_SLAVE>
+Sys_semisync_master_wait_no_slave(
        "rpl_semi_sync_master_wait_no_slave",
        "Wait until timeout when no semi-synchronous replication slave "
        "available (enabled by default).",
@@ -3416,7 +3422,9 @@ static Sys_var_mybool Sys_semisync_master_wait_no_slave(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_master_wait_no_slave));
 
-static Sys_var_ulong Sys_semisync_master_trace_level(
+static Sys_var_on_access_global<Sys_var_ulong,
+                    PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_TRACE_LEVEL>
+Sys_semisync_master_trace_level(
        "rpl_semi_sync_master_trace_level",
        "The tracing level for semi-sync replication.",
        GLOBAL_VAR(rpl_semi_sync_master_trace_level),
@@ -3428,7 +3436,9 @@ static Sys_var_ulong Sys_semisync_master_trace_level(
 static const char *repl_semisync_wait_point[]=
 {"AFTER_SYNC", "AFTER_COMMIT", NullS};
 
-static Sys_var_enum Sys_semisync_master_wait_point(
+static Sys_var_on_access_global<Sys_var_enum,
+                     PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_WAIT_POINT>
+Sys_semisync_master_wait_point(
        "rpl_semi_sync_master_wait_point",
        "Should transaction wait for semi-sync ack after having synced binlog, "
        "or after having committed in storage engine.",
@@ -3466,7 +3476,9 @@ static bool fix_rpl_semi_sync_slave_kill_conn_timeout(sys_var *self, THD *thd,
   return false;
 }
 
-static Sys_var_mybool Sys_semisync_slave_enabled(
+static Sys_var_on_access_global<Sys_var_mybool,
+                         PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_ENABLED>
+Sys_semisync_slave_enabled(
        "rpl_semi_sync_slave_enabled",
        "Enable semi-synchronous replication slave (disabled by default).",
        GLOBAL_VAR(rpl_semi_sync_slave_enabled),
@@ -3474,7 +3486,9 @@ static Sys_var_mybool Sys_semisync_slave_enabled(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_slave_enabled));
 
-static Sys_var_ulong Sys_semisync_slave_trace_level(
+static Sys_var_on_access_global<Sys_var_ulong,
+                    PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_TRACE_LEVEL>
+Sys_semisync_slave_trace_level(
        "rpl_semi_sync_slave_trace_level",
        "The tracing level for semi-sync replication.",
        GLOBAL_VAR(rpl_semi_sync_slave_trace_level),
@@ -3483,7 +3497,9 @@ static Sys_var_ulong Sys_semisync_slave_trace_level(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_slave_trace_level));
 
-static Sys_var_mybool Sys_semisync_slave_delay_master(
+static Sys_var_on_access_global<Sys_var_mybool,
+                    PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_DELAY_MASTER>
+Sys_semisync_slave_delay_master(
        "rpl_semi_sync_slave_delay_master",
        "Only write master info file when ack is needed.",
        GLOBAL_VAR(rpl_semi_sync_slave_delay_master),
@@ -3491,7 +3507,9 @@ static Sys_var_mybool Sys_semisync_slave_delay_master(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_slave_delay_master));
 
-static Sys_var_uint  Sys_semisync_slave_kill_conn_timeout(
+static Sys_var_on_access_global<Sys_var_uint,
+               PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_KILL_CONN_TIMEOUT>
+Sys_semisync_slave_kill_conn_timeout(
        "rpl_semi_sync_slave_kill_conn_timeout",
        "Timeout for the mysql connection used to kill the slave io_thread's "
        "connection on master. This timeout comes into play when stop slave "

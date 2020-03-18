@@ -1,0 +1,46 @@
+#
+# MDEV-21967 Bind REPLICATION {MASTER|SLAVE} ADMIN to rpl_semi_sync_* variables
+#
+SET @global=@@global.rpl_semi_sync_slave_trace_level;
+# Test that "SET rpl_semi_sync_slave_trace_level" is not allowed without REPLICATION SLAVE ADMIN or SUPER
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE REPLICATION SLAVE ADMIN, SUPER ON *.* FROM user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL rpl_semi_sync_slave_trace_level=64;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, REPLICATION SLAVE ADMIN privilege(s) for this operation
+SET rpl_semi_sync_slave_trace_level=64;
+ERROR HY000: Variable 'rpl_semi_sync_slave_trace_level' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION rpl_semi_sync_slave_trace_level=64;
+ERROR HY000: Variable 'rpl_semi_sync_slave_trace_level' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET rpl_semi_sync_slave_trace_level" is allowed with REPLICATION SLAVE ADMIN
+CREATE USER user1@localhost;
+GRANT REPLICATION SLAVE ADMIN ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL rpl_semi_sync_slave_trace_level=64;
+SET rpl_semi_sync_slave_trace_level=64;
+ERROR HY000: Variable 'rpl_semi_sync_slave_trace_level' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION rpl_semi_sync_slave_trace_level=64;
+ERROR HY000: Variable 'rpl_semi_sync_slave_trace_level' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET rpl_semi_sync_slave_trace_level" is allowed with SUPER
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL rpl_semi_sync_slave_trace_level=64;
+SET rpl_semi_sync_slave_trace_level=64;
+ERROR HY000: Variable 'rpl_semi_sync_slave_trace_level' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION rpl_semi_sync_slave_trace_level=64;
+ERROR HY000: Variable 'rpl_semi_sync_slave_trace_level' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+SET @@global.rpl_semi_sync_slave_trace_level=@global;

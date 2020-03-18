@@ -1,0 +1,46 @@
+#
+# MDEV-21967 Bind REPLICATION {MASTER|SLAVE} ADMIN to rpl_semi_sync_* variables
+#
+SET @global=@@global.rpl_semi_sync_master_wait_no_slave;
+# Test that "SET rpl_semi_sync_master_wait_no_slave" is not allowed without REPLICATION MASTER ADMIN or SUPER
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE REPLICATION MASTER ADMIN, SUPER ON *.* FROM user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL rpl_semi_sync_master_wait_no_slave=1;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, REPLICATION MASTER ADMIN privilege(s) for this operation
+SET rpl_semi_sync_master_wait_no_slave=1;
+ERROR HY000: Variable 'rpl_semi_sync_master_wait_no_slave' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION rpl_semi_sync_master_wait_no_slave=1;
+ERROR HY000: Variable 'rpl_semi_sync_master_wait_no_slave' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET rpl_semi_sync_master_wait_no_slave" is allowed with REPLICATION MASTER ADMIN
+CREATE USER user1@localhost;
+GRANT REPLICATION MASTER ADMIN ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL rpl_semi_sync_master_wait_no_slave=1;
+SET rpl_semi_sync_master_wait_no_slave=1;
+ERROR HY000: Variable 'rpl_semi_sync_master_wait_no_slave' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION rpl_semi_sync_master_wait_no_slave=1;
+ERROR HY000: Variable 'rpl_semi_sync_master_wait_no_slave' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET rpl_semi_sync_master_wait_no_slave" is allowed with SUPER
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL rpl_semi_sync_master_wait_no_slave=1;
+SET rpl_semi_sync_master_wait_no_slave=1;
+ERROR HY000: Variable 'rpl_semi_sync_master_wait_no_slave' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION rpl_semi_sync_master_wait_no_slave=1;
+ERROR HY000: Variable 'rpl_semi_sync_master_wait_no_slave' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+SET @@global.rpl_semi_sync_master_wait_no_slave=@global;
