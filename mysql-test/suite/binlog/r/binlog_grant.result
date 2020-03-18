@@ -124,5 +124,29 @@ disconnect user1;
 connection default;
 DROP USER user1@localhost;
 #
+# MDEV-21975 Add BINLOG REPLAY privilege and bind new privileges to
+#             gtid_seq_no, preudo_thread_id, server_id, gtid_domain_id
+#
+# Test combinations of BINLOG REPLAY guarded features which typically
+# arise in mysqlbinlog output replay on server.
+#
+CREATE USER user1@localhost;
+GRANT BINLOG REPLAY ON *.* TO user1@localhost;
+RESET MASTER;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+connect user1,localhost,user1,,;
+RENAME TABLE t1 to t2;
+connection default;
+REVOKE BINLOG REPLAY ON *.* FROM user1@localhost;
+call mtr.add_suppression("Access denied; you need (at least one of) the SUPER, BINLOG REPLAY privilege(s) for this operation");
+# Privilege errors are expected now: 
+connection user1;
+connection default;
+include/diff_tables.inc [t1,t2]
+#  Test cleanup
+DROP TABLE t2,t1;
+DROP USER user1@localhost;
+#
 # End of 10.5 test
 #
