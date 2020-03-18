@@ -352,7 +352,7 @@ extern const ulint	srv_buf_pool_min_size;
 extern const ulint	srv_buf_pool_def_size;
 /** Requested buffer pool chunk size */
 extern ulong		srv_buf_pool_chunk_unit;
-/** Number of locks to protect buf_pool->page_hash */
+/** Number of locks to protect buf_pool.page_hash */
 extern ulong	srv_n_page_hash_locks;
 /** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
 extern ulong	srv_LRU_scan_depth;
@@ -829,7 +829,7 @@ struct export_var_t{
 	ulint innodb_buffer_pool_pages_made_not_young;
 	ulint innodb_buffer_pool_pages_made_young;
 	ulint innodb_buffer_pool_pages_old;
-	ulint innodb_buffer_pool_read_requests;	/*!< buf_pool->stat.n_page_gets */
+	ulint innodb_buffer_pool_read_requests;	/*!< buf_pool.stat.n_page_gets */
 	ulint innodb_buffer_pool_reads;		/*!< srv_buf_pool_reads */
 	ulint innodb_buffer_pool_wait_free;	/*!< srv_buf_pool_wait_free */
 	ulint innodb_buffer_pool_pages_flushed;	/*!< srv_buf_pool_flushed */
@@ -866,9 +866,9 @@ struct export_var_t{
 	ulint innodb_os_log_fsyncs;		/*!< n_log_flushes */
 	ulint innodb_os_log_pending_writes;	/*!< srv_os_log_pending_writes */
 	ulint innodb_os_log_pending_fsyncs;	/*!< n_pending_log_flushes */
-	ulint innodb_pages_created;		/*!< buf_pool->stat.n_pages_created */
-	ulint innodb_pages_read;		/*!< buf_pool->stat.n_pages_read*/
-	ulint innodb_pages_written;		/*!< buf_pool->stat.n_pages_written */
+	ulint innodb_pages_created;		/*!< buf_pool.stat.n_pages_created */
+	ulint innodb_pages_read;		/*!< buf_pool.stat.n_pages_read*/
+	ulint innodb_pages_written;		/*!< buf_pool.stat.n_pages_written */
 	ulint innodb_row_lock_waits;		/*!< srv_n_lock_wait_count */
 	ulint innodb_row_lock_current_waits;	/*!< srv_n_lock_wait_current_count */
 	int64_t innodb_row_lock_time;		/*!< srv_n_lock_wait_time

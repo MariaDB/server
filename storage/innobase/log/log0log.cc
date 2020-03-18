@@ -1680,7 +1680,7 @@ wait_suspend_loop:
 		}
 	}
 
-	if (!buf_pool) {
+	if (!buf_pool.is_initialised()) {
 		ut_ad(!srv_was_started);
 	} else if (ulint pending_io = buf_pool_check_no_pending_io()) {
 		if (srv_print_verbose_log && count > 600) {
@@ -1754,7 +1754,7 @@ wait_suspend_loop:
 
 	service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 				       "Free innodb buffer pool");
-	ut_d(buf_assert_all_freed());
+	ut_d(buf_pool.assert_all_freed());
 
 	ut_a(lsn == log_sys.get_lsn()
 	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);

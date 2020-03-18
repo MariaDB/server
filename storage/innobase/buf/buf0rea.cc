@@ -41,7 +41,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 
-/** If there are buf_pool->curr_size per the number below pending reads, then
+/** If there are buf_pool.curr_size per the number below pending reads, then
 read-ahead is not done: this is to prevent flooding the buffer pool with
 i/o-fixed buffer blocks */
 #define BUF_READ_AHEAD_PEND_LIMIT	2
@@ -60,7 +60,7 @@ buf_read_page_handle_error(
 	const page_id_t	old_page_id = bpage->id;
 
 	/* First unfix and release lock on the bpage */
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool.mutex);
 	mutex_enter(buf_page_get_mutex(bpage));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_READ);
 
@@ -79,10 +79,10 @@ buf_read_page_handle_error(
 	/* remove the block from LRU list */
 	buf_LRU_free_one_page(bpage, old_page_id);
 
-	ut_ad(buf_pool->n_pend_reads > 0);
-	buf_pool->n_pend_reads--;
+	ut_ad(buf_pool.n_pend_reads > 0);
+	buf_pool.n_pend_reads--;
 
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.mutex);
 }
 
 /** Low-level function which reads a page asynchronously from a file to the
@@ -245,7 +245,7 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 	}
 
 	const ulint	buf_read_ahead_random_area
-		= buf_pool->read_ahead_area;
+		= buf_pool.read_ahead_area;
 	low  = (page_id.page_no() / buf_read_ahead_random_area)
 		* buf_read_ahead_random_area;
 
@@ -282,11 +282,11 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 		return(0);
 	}
 
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool.mutex);
 
-	if (buf_pool->n_pend_reads
-	    > buf_pool->curr_size / BUF_READ_AHEAD_PEND_LIMIT) {
-		mutex_exit(&buf_pool->mutex);
+	if (buf_pool.n_pend_reads
+	    > buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT) {
+		mutex_exit(&buf_pool.mutex);
 
 		return(0);
 	}
@@ -300,14 +300,14 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 			if (buf_page_is_accessed(bpage)
 			    && buf_page_peek_if_young(bpage)
 			    && ++recent_blocks
-			    >= 5 + buf_pool->read_ahead_area / 8) {
-				mutex_exit(&buf_pool->mutex);
+			    >= 5 + buf_pool.read_ahead_area / 8) {
+				mutex_exit(&buf_pool.mutex);
 				goto read_ahead;
 			}
 		}
 	}
 
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.mutex);
 	/* Do nothing */
 	return(0);
 
@@ -357,7 +357,7 @@ read_ahead:
 	LRU policy decision. */
 	buf_LRU_stat_inc_io();
 
-	buf_pool->stat.n_ra_pages_read_rnd += count;
+	buf_pool.stat.n_ra_pages_read_rnd += count;
 	srv_stats.buf_pool_reads.add(count);
 	return(count);
 }
@@ -501,7 +501,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 	}
 
 	const ulint	buf_read_ahead_linear_area
-		= buf_pool->read_ahead_area;
+		= buf_pool.read_ahead_area;
 	low  = (page_id.page_no() / buf_read_ahead_linear_area)
 		* buf_read_ahead_linear_area;
 	high = (page_id.page_no() / buf_read_ahead_linear_area + 1)
@@ -539,11 +539,11 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 		return(0);
 	}
 
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool.mutex);
 
-	if (buf_pool->n_pend_reads
-	    > buf_pool->curr_size / BUF_READ_AHEAD_PEND_LIMIT) {
-		mutex_exit(&buf_pool->mutex);
+	if (buf_pool.n_pend_reads
+	    > buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT) {
+		mutex_exit(&buf_pool.mutex);
 
 		return(0);
 	}
@@ -561,7 +561,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 	/* How many out of order accessed pages can we ignore
 	when working out the access pattern for linear readahead */
 	threshold = ut_min(static_cast<ulint>(64 - srv_read_ahead_threshold),
-			   buf_pool->read_ahead_area);
+			   buf_pool.read_ahead_area);
 
 	fail_count = 0;
 
@@ -592,7 +592,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 
 		if (fail_count > threshold) {
 			/* Too many failures: return */
-			mutex_exit(&buf_pool->mutex);
+			mutex_exit(&buf_pool.mutex);
 			return(0);
 		}
 
@@ -607,7 +607,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 	bpage = buf_page_hash_get(page_id);
 
 	if (bpage == NULL) {
-		mutex_exit(&buf_pool->mutex);
+		mutex_exit(&buf_pool.mutex);
 
 		return(0);
 	}
@@ -633,7 +633,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 	pred_offset = fil_page_get_prev(frame);
 	succ_offset = fil_page_get_next(frame);
 
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.mutex);
 
 	if ((page_id.page_no() == low)
 	    && (succ_offset == page_id.page_no() + 1)) {
@@ -715,7 +715,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 	LRU policy decision. */
 	buf_LRU_stat_inc_io();
 
-	buf_pool->stat.n_ra_pages_read += count;
+	buf_pool.stat.n_ra_pages_read += count;
 	return(count);
 }
 
@@ -748,7 +748,7 @@ buf_read_recv_pages(
 		const page_id_t	cur_page_id(space_id, page_nos[i]);
 
 		for (ulint count = 0, limit = recv_sys.max_blocks() / 2;
-		     buf_pool->n_pend_reads >= limit; ) {
+		     buf_pool.n_pend_reads >= limit; ) {
 
 			os_thread_sleep(10000);
 
@@ -757,7 +757,7 @@ buf_read_recv_pages(
 				ib::error()
 					<< "Waited for " << count / 100
 					<< " seconds for "
-					<< buf_pool->n_pend_reads
+					<< buf_pool.n_pend_reads
 					<< " pending reads";
 			}
 		}

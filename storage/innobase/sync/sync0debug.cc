@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -828,16 +828,16 @@ LatchDebug::check_order(
 	case SYNC_BUF_PAGE_HASH:
 
 		/* Multiple page_hash locks are only allowed during
-		buf_validate and that is where buf_pool mutex is already
+		buf_pool.validate() and that is where buf_pool mutex is already
 		held. */
 
 		/* Fall through */
 
 	case SYNC_BUF_BLOCK:
 
-		/* Either the thread must own the (buffer pool) buf_pool->mutex
+		/* Either the thread must own the (buffer pool) buf_pool.mutex
 		or it is allowed to latch only ONE of (buffer block)
-		block->mutex or buf_pool->zip_mutex. */
+		block->mutex or buf_pool.zip_mutex. */
 
 		if (less(latches, level) != NULL) {
 			basic_check(latches, level, level - 1);

@@ -1008,7 +1008,13 @@ void recv_sys_t::create()
 	apply_log_recs = false;
 	apply_batch_on = false;
 
-	max_log_blocks = buf_pool_get_n_pages() / 3;
+	if (buf_pool.is_initialised()) {
+		max_log_blocks = buf_pool.get_n_pages() / 3;
+	} else {
+		ut_ad(srv_operation == SRV_OPERATION_BACKUP
+		      || srv_operation == SRV_OPERATION_RESTORE_DELTA);
+		max_log_blocks = 0;
+	}
 	buf = static_cast<byte*>(ut_malloc_dontdump(RECV_PARSING_BUF_SIZE, PSI_INSTRUMENT_ME));
 	len = 0;
 	parse_start_lsn = 0;
@@ -1118,17 +1124,12 @@ inline void recv_sys_t::free(const void *data)
   data= page_align(data);
   ut_ad(mutex_own(&mutex));
 
-#ifdef UNIV_DEBUG
-  /* MDEV-14481 FIXME: To prevent race condition with buf_pool_resize(),
+  /* MDEV-14481 FIXME: To prevent race condition with buf_pool.resize(),
   we must acquire and hold the buffer pool mutex here. */
-  extern volatile bool buf_pool_resizing;
-  extern volatile bool buf_pool_withdrawing;
-  ut_ad(!buf_pool_resizing);
-  ut_ad(!buf_pool_withdrawing);
-#endif
+  ut_ad(!buf_pool.resize_in_progress());
 
-  buf_chunk_t *chunk= buf_pool->chunks;
-  for (auto i= buf_pool->n_chunks; i--; chunk++)
+  auto *chunk= buf_pool.chunks;
+  for (auto i= buf_pool.n_chunks; i--; chunk++)
   {
     if (data < chunk->blocks->frame)
       continue;
@@ -3270,10 +3271,10 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
-	ut_d(mutex_enter(&buf_pool->flush_list_mutex));
-	ut_ad(UT_LIST_GET_LEN(buf_pool->LRU) == 0);
-	ut_ad(UT_LIST_GET_LEN(buf_pool->unzip_LRU) == 0);
-	ut_d(mutex_exit(&buf_pool->flush_list_mutex));
+	ut_d(mutex_enter(&buf_pool.flush_list_mutex));
+	ut_ad(UT_LIST_GET_LEN(buf_pool.LRU) == 0);
+	ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
+	ut_d(mutex_exit(&buf_pool.flush_list_mutex));
 
 	/* Initialize red-black tree for fast insertions into the
 	flush_list during recovery process. */

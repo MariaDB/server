@@ -34,10 +34,6 @@ Created 11/17/1995 Heikki Tuuri
 class buf_page_t;
 /** Buffer block for which an uncompressed page exists */
 struct buf_block_t;
-/** Buffer pool chunk comprising buf_block_t */
-struct buf_chunk_t;
-/** Buffer pool comprising buf_chunk_t */
-struct buf_pool_t;
 /** Buffer pool statistics struct */
 struct buf_pool_stat_t;
 /** Buffer pool buddy statistics struct */

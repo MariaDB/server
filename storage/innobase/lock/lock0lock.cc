@@ -516,8 +516,8 @@ void lock_sys_t::resize(ulint n_cells)
 	hash_table_free(old_hash);
 
 	/* need to update block->lock_hash_val */
-	mutex_enter(&buf_pool->mutex);
-	for (buf_page_t* bpage = UT_LIST_GET_FIRST(buf_pool->LRU);
+	mutex_enter(&buf_pool.mutex);
+	for (buf_page_t* bpage = UT_LIST_GET_FIRST(buf_pool.LRU);
 	     bpage; bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
 		if (buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE) {
 			buf_block_t*	block = reinterpret_cast<buf_block_t*>(
@@ -527,7 +527,7 @@ void lock_sys_t::resize(ulint n_cells)
 				bpage->id.space(), bpage->id.page_no());
 		}
 	}
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.mutex);
 	mutex_exit(&mutex);
 }
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1275,7 +1275,7 @@ rtr_cur_restore_position(
 
 	ut_ad(latch_mode == BTR_CONT_MODIFY_TREE);
 
-	if (!buf_pool_is_obsolete(r_cursor->withdraw_clock)
+	if (!buf_pool.is_obsolete(r_cursor->withdraw_clock)
 	    && buf_page_optimistic_get(RW_X_LATCH,
 				       r_cursor->block_when_stored,
 				       r_cursor->modify_clock,

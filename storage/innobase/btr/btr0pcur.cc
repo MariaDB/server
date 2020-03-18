@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -202,7 +202,7 @@ before_first:
 
 	/* Function try to check if block is S/X latch. */
 	cursor->modify_clock = buf_block_get_modify_clock(block);
-	cursor->withdraw_clock = buf_withdraw_clock;
+	cursor->withdraw_clock = buf_pool.withdraw_clock();
 }
 
 /**************************************************************//**
@@ -309,7 +309,7 @@ btr_pcur_restore_position_func(
 	case BTR_MODIFY_PREV:
 		/* Try optimistic restoration. */
 
-		if (!buf_pool_is_obsolete(cursor->withdraw_clock)
+		if (!buf_pool.is_obsolete(cursor->withdraw_clock)
 		    && btr_cur_optimistic_latch_leaves(
 			cursor->block_when_stored, cursor->modify_clock,
 			&latch_mode, btr_pcur_get_btr_cur(cursor),
@@ -416,7 +416,7 @@ btr_pcur_restore_position_func(
 		cursor->modify_clock = buf_block_get_modify_clock(
 						cursor->block_when_stored);
 		cursor->old_stored = true;
-		cursor->withdraw_clock = buf_withdraw_clock;
+		cursor->withdraw_clock = buf_pool.withdraw_clock();
 
 		mem_heap_free(heap);
 

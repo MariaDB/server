@@ -1389,7 +1389,7 @@ btr_cur_search_to_nth_level_func(
 #else
 	info = btr_search_get_info(index);
 
-	if (!buf_pool_is_obsolete(info->withdraw_clock)) {
+	if (!buf_pool.is_obsolete(info->withdraw_clock)) {
 		guess = info->root_guess;
 	} else {
 		guess = NULL;
@@ -1461,7 +1461,7 @@ btr_cur_search_to_nth_level_func(
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
 		    && trx_sys.rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
-		    && buf_pool->n_pend_reads) {
+		    && buf_pool.n_pend_reads) {
 x_latch_index:
 			mtr_x_lock_index(index, mtr);
 		} else if (index->is_spatial()
@@ -1837,7 +1837,7 @@ retry_page_get:
 #ifdef BTR_CUR_ADAPT
 		if (block != guess) {
 			info->root_guess = block;
-			info->withdraw_clock = buf_withdraw_clock;
+			info->withdraw_clock = buf_pool.withdraw_clock();
 		}
 #endif
 	}
@@ -2590,7 +2590,7 @@ btr_cur_open_at_index_side_func(
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
 		    && trx_sys.rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
-		    && buf_pool->n_pend_reads) {
+		    && buf_pool.n_pend_reads) {
 			mtr_x_lock_index(index, mtr);
 		} else {
 			mtr_sx_lock_index(index, mtr);
@@ -2917,7 +2917,7 @@ btr_cur_open_at_rnd_pos_func(
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
 		    && trx_sys.rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
-		    && buf_pool->n_pend_reads) {
+		    && buf_pool.n_pend_reads) {
 			mtr_x_lock_index(index, mtr);
 		} else {
 			mtr_sx_lock_index(index, mtr);
@@ -7062,7 +7062,7 @@ btr_blob_free(
 
 	mtr_commit(mtr);
 
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool.mutex);
 
 	/* Only free the block if it is still allocated to
 	the same file page. */
@@ -7081,7 +7081,7 @@ btr_blob_free(
 		}
 	}
 
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.mutex);
 }
 
 /** Helper class used while writing blob pages, during insert or update. */
