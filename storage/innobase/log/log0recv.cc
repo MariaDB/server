@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -102,14 +102,6 @@ static mlog_id_t	recv_previous_parsed_rec_type;
 static ulint	recv_previous_parsed_rec_offset;
 /** The 'multi' flag of the previous parsed redo log record */
 static ulint	recv_previous_parsed_rec_is_multi;
-
-/** This many frames must be left free in the buffer pool when we scan
-the log and store the scanned log records in the buffer pool: we will
-use these free frames to read in pages when we start applying the
-log records to the database.
-This is the default value. If the actual size of the buffer pool is
-larger than 10 MB we'll set this value to 512. */
-ulint	recv_n_pool_free_frames;
 
 /** The maximum lsn we see for a page during the recovery process. If this
 is bigger than the lsn we are able to scan up to, that is an indication that
@@ -839,9 +831,6 @@ recv_sys_init()
 		recv_sys->flush_start = os_event_create(0);
 		recv_sys->flush_end = os_event_create(0);
 	}
-
-	recv_n_pool_free_frames =
-		buf_pool_get_n_pages() / 3;
 
 	recv_sys->buf = static_cast<byte*>(
 		ut_malloc_nokey(RECV_PARSING_BUF_SIZE));
@@ -3456,9 +3445,8 @@ recv_group_scan_log_recs(
 	lsn_t	end_lsn;
 	store_t	store_to_hash	= recv_sys->mlog_checkpoint_lsn == 0
 		? STORE_NO : (last_phase ? STORE_IF_EXISTS : STORE_YES);
-	ulint	available_mem	= UNIV_PAGE_SIZE
-		* (buf_pool_get_n_pages()
-		   - (recv_n_pool_free_frames * srv_buf_pool_instances));
+	ulint	available_mem = (buf_pool_get_n_pages() * 2 / 3)
+				<< srv_page_size_shift;
 
 	group->scanned_lsn = end_lsn = *contiguous_lsn = ut_uint64_align_down(
 		*contiguous_lsn, OS_FILE_LOG_BLOCK_SIZE);
