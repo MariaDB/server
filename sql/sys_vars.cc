@@ -1982,7 +1982,9 @@ static Sys_var_gtid_slave_pos Sys_gtid_slave_pos(
        GLOBAL_VAR(opt_gtid_slave_pos_dummy), NO_CMD_LINE);
 
 
-static Sys_var_mybool Sys_gtid_strict_mode(
+static Sys_var_on_access_global<Sys_var_mybool,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_STRICT_MODE>
+Sys_gtid_strict_mode(
        "gtid_strict_mode",
        "Enforce strict seq_no ordering of events in the binary log. Slave "
        "stops with an error if it encounters an event that would cause it to "
@@ -2126,7 +2128,9 @@ Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base)
 }
 
 
-static Sys_var_uint Sys_gtid_cleanup_batch_size(
+static Sys_var_on_access_global<Sys_var_uint,
+                            PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_CLEANUP_BATCH_SIZE>
+Sys_gtid_cleanup_batch_size(
        "gtid_cleanup_batch_size",
        "Normally does not need tuning. How many old rows must accumulate in "
        "the mysql.gtid_slave_pos table before a background job will be run to "
@@ -2364,7 +2368,9 @@ fix_gtid_ignore_duplicates(sys_var *self, THD *thd, enum_var_type type)
 }
 
 
-static Sys_var_mybool Sys_gtid_ignore_duplicates(
+static Sys_var_on_access_global<Sys_var_mybool,
+                              PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_IGNORE_DUPLICATES>
+Sys_gtid_ignore_duplicates(
        "gtid_ignore_duplicates",
        "When set, different master connections in multi-source replication are "
        "allowed to receive and process event groups with the same GTID (when "
@@ -4209,7 +4215,9 @@ check_gtid_pos_auto_engines(sys_var *self, THD *thd, set_var *var)
 }
 
 
-static Sys_var_pluginlist Sys_gtid_pos_auto_engines(
+static Sys_var_on_access_global<Sys_var_pluginlist,
+                               PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_POS_AUTO_ENGINES>
+Sys_gtid_pos_auto_engines(
        "gtid_pos_auto_engines",
        "List of engines for which to automatically create a "
        "mysql.gtid_slave_pos_ENGINE table, if a transaction using that engine "

@@ -1,0 +1,67 @@
+--source include/not_embedded.inc
+
+
+--echo #
+--echo # MDEV-21973 Bind REPLICATION {MASTER|SLAVE} ADMIN to gtid_* GLOBAL-only system variables
+--echo #
+
+#
+# Binlog is not opened in this test.
+# So the test returns "access denied" on the lack of privileges,
+# or "Binlog closed, cannot RESET MASTER" on success.
+#
+
+
+--let var = gtid_binlog_state
+--let grant = REPLICATION MASTER ADMIN
+--let value = '0-1-10'
+
+
+--echo # Test that "SET $var" is not allowed without $grant or SUPER
+
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+--eval REVOKE $grant, SUPER ON *.* FROM user1@localhost
+--connect(user1,localhost,user1,,)
+--connection user1
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+--eval SET GLOBAL $var=$value
+--error ER_GLOBAL_VARIABLE
+--eval SET $var=$value
+--error ER_GLOBAL_VARIABLE
+--eval SET SESSION $var=$value
+--disconnect user1
+--connection default
+DROP USER user1@localhost;
+
+--echo # Test that "SET $var" is allowed with $grant
+
+CREATE USER user1@localhost;
+--eval GRANT $grant ON *.* TO user1@localhost
+--connect(user1,localhost,user1,,)
+--connection user1
+--error ER_FLUSH_MASTER_BINLOG_CLOSED
+--eval SET GLOBAL $var=$value
+--error ER_GLOBAL_VARIABLE
+--eval SET $var=$value
+--error ER_GLOBAL_VARIABLE
+--eval SET SESSION $var=$value
+--disconnect user1
+--connection default
+DROP USER user1@localhost;
+
+--echo # Test that "SET $var" is allowed with SUPER
+
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+--connect(user1,localhost,user1,,)
+--connection user1
+--error ER_FLUSH_MASTER_BINLOG_CLOSED
+--eval SET GLOBAL $var=$value
+--error ER_GLOBAL_VARIABLE
+--eval SET $var=$value
+--error ER_GLOBAL_VARIABLE
+--eval SET SESSION $var=$value
+--disconnect user1
+--connection default
+DROP USER user1@localhost;

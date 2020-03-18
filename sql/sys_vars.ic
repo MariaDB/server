@@ -2531,6 +2531,10 @@ public:
   uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base);
   uchar *default_value_ptr(THD *thd)
   { return 0; }
+  bool on_check_access_global(THD *thd) const
+  {
+    return check_global_access(thd, PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_SLAVE_POS);
+  }
 };
 
 
@@ -2573,6 +2577,11 @@ public:
   uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base);
   uchar *default_value_ptr(THD *thd)
   { return 0; }
+  bool on_check_access_global(THD *thd) const
+  {
+    return
+      check_global_access(thd, PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_BINLOG_STATE);
+  }
 };
 
 
