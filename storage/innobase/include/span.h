@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020 MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,7 +34,7 @@ public:
 	typedef element_type& reference;
 	typedef const element_type& const_reference;
 	typedef pointer iterator;
-	typedef const pointer const_iterator;
+	typedef const_pointer const_iterator;
 	typedef std::reverse_iterator<iterator> reverse_iterator;
 	typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 

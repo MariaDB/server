@@ -83,6 +83,8 @@ Created 11/5/1995 Heikki Tuuri
 #include "lzo/lzo1x.h"
 #endif
 
+using st_::span;
+
 #ifdef HAVE_LIBNUMA
 #include <numa.h>
 #include <numaif.h>
@@ -461,7 +463,7 @@ buf_pool_register_chunk(
 @return true if temporary tablespace decrypted, false if not */
 static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 {
-	if (buf_page_is_zeroes(src_frame, srv_page_size)) {
+	if (buf_is_zeroes(span<const byte>(src_frame, srv_page_size))) {
 		return true;
 	}
 
@@ -950,20 +952,18 @@ static uint32_t buf_page_check_crc32(const byte* page, uint32_t checksum)
 # define buf_page_check_crc32(page, checksum) buf_calc_page_crc32(page)
 #endif /* INNODB_BUG_ENDIAN_CRC32 */
 
-/** Check if a page is all zeroes.
-@param[in]	read_buf	database page
-@param[in]	page_size	page frame size
-@return whether the page is all zeroes */
-bool buf_page_is_zeroes(const void* read_buf, size_t page_size)
+
+/** Check if a buffer is all zeroes.
+@param[in]	buf	data to check
+@return whether the buffer is all zeroes */
+bool buf_is_zeroes(span<const byte> buf)
 {
-	const ulint* b = reinterpret_cast<const ulint*>(read_buf);
-	const ulint* const e = b + page_size / sizeof *b;
-	do {
-		if (*b++) {
-			return false;
-		}
-	} while (b != e);
-	return true;
+  static const byte zeroes[4 * 1024] = {0};
+  for (size_t i = 0; i < buf.size(); i += sizeof(zeroes)) {
+    if (memcmp(zeroes, buf.data() + i, sizeof(zeroes)) != 0)
+      return false;
+  }
+  return true;
 }
 
 /** Check if a page is corrupt.

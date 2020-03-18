@@ -27,6 +27,9 @@ Created June 2005 by Marko Makela
 
 #include "page0size.h"
 #include "page0zip.h"
+#include "span.h"
+
+using st_::span;
 
 /** A BLOB field reference full of zero, for use in assertions and tests.
 Initially, BLOB field references are set to zero, in
@@ -4990,7 +4993,7 @@ page_zip_calc_checksum(
 @param data    ROW_FORMAT=COMPRESSED page
 @param size    size of the page, in bytes
 @return whether the stored checksum matches innodb_checksum_algorithm */
-bool page_zip_verify_checksum(const void *data, size_t size)
+bool page_zip_verify_checksum(const byte *data, size_t size)
 {
 	const srv_checksum_algorithm_t	curr_algo =
 		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
@@ -4999,17 +5002,12 @@ bool page_zip_verify_checksum(const void *data, size_t size)
 		return true;
 	}
 
-	for (size_t i = 0; i < size; i++) {
-		if (static_cast<const byte*>(data)[i] != 0) {
-			goto not_all_zeroes;
-		}
+	if (buf_is_zeroes(span<const byte>(data, size))) {
+		return true;
 	}
 
-	return true;
-
-not_all_zeroes:
 	const uint32_t stored = mach_read_from_4(
-		static_cast<const byte*>(data) + FIL_PAGE_SPACE_OR_CHKSUM);
+		data + FIL_PAGE_SPACE_OR_CHKSUM);
 
 	uint32_t calc = page_zip_calc_checksum(data, size, curr_algo);
 
