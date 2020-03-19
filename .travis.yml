@@ -96,15 +96,20 @@ addons:
       - zlib
       - zstd
 
-# The jobs matrix consists of all the combinations of 'arch', 'os', 'compiler' and 'env'
-arch:
-  - amd64
+## Build jobs matrix
+# The jobs matrix consists of all the combinations of 'arch', 'os', 'compiler'
+# and 'env'. Ensure there is a good variation of architectures and at least the
+# main suite is run on all architectures, as the main test suite needs to pass
+# on all architectures (amd64, arm64, ppc64le, s390x) before a release is made.
+# All test suites should also run on the clang build at least on one
+# arch/platform. In gcc and clang versions prefer 7, which is very widely used,
+# and after that prioritize newer versions (8, 9 etc) above older versions (5, 6).
+arch: amd64
 os: linux
 compiler:
   - gcc
   - clang
 env:
-  - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
   - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
   - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
   - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
@@ -113,11 +118,6 @@ env:
   - CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
 
 jobs:
-  # Define what of the above defined jobs matrix is excluded
-  exclude:
-    - compiler: clang
-      env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
-
   # Define extra jobs that are run in addition to the main jobs matrix
   include:
     - os: linux
@@ -160,17 +160,7 @@ jobs:
       arch: s390x
       dist: bionic
       compiler: gcc
-      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
-    - os: linux
-      arch: s390x
-      dist: bionic
-      compiler: gcc
-      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
-    - os: linux
-      arch: s390x
-      dist: bionic
-      compiler: gcc
-      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+      env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
     - os: linux
       arch: s390x
       dist: bionic
@@ -181,16 +171,6 @@ jobs:
       dist: bionic
       compiler: gcc
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
-    - os: linux
-      arch: s390x
-      dist: bionic
-      compiler: gcc
-      env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
-    - os: linux
-      arch: s390x
-      dist: bionic
-      compiler: gcc
-      env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
       # Some chosen ones with s390x and clang
     - os: linux
       arch: s390x
@@ -201,29 +181,26 @@ jobs:
       arch: s390x
       dist: bionic
       compiler: clang
-      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+      env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
     - os: linux
       arch: s390x
       dist: bionic
       compiler: clang
-      env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
+      env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
+    # Extra tests to ensure builds on IBM Power and ARM 64 work
     - os: linux
-      arch: s390x
       dist: bionic
-      compiler: clang
-      env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
+      arch: ppc64le
+      compiler: gcc
+      env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
     - os: linux
-      arch: s390x
       dist: bionic
-      compiler: clang
-      env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
+      arch: arm64
+      compiler: gcc
+      env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
 
   allow_failures:
     # Permanently fails on main.thread_pool_info test
-    - os: linux
-      arch: amd64
-      compiler: clang
-      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
     - os: linux
       arch: amd64
       compiler: clang
