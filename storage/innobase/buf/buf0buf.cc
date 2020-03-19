@@ -2135,14 +2135,13 @@ inline void buf_pool_t::resize()
 
 #ifdef BTR_CUR_HASH_ADAPT
 	/* disable AHI if needed */
-	bool	btr_search_disabled = false;
+	const bool btr_search_disabled = btr_search_enabled;
 
 	buf_resize_status("Disabling adaptive hash index.");
 
 	btr_search_s_lock_all();
-	if (btr_search_enabled) {
+	if (btr_search_disabled) {
 		btr_search_s_unlock_all();
-		btr_search_disabled = true;
 	} else {
 		btr_search_s_unlock_all();
 	}

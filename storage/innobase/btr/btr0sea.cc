@@ -840,7 +840,6 @@ btr_search_failure(btr_search_t* info, btr_cur_t* cursor)
 	info->last_hash_succ = FALSE;
 }
 
-#ifdef BTR_CUR_HASH_ADAPT
 /** Clear the adaptive hash index on all pages in the buffer pool. */
 inline void buf_pool_t::clear_hash_index()
 {
@@ -848,7 +847,7 @@ inline void buf_pool_t::clear_hash_index()
   ut_ad(!resizing);
   ut_ad(!btr_search_enabled);
 
-  for (chunk_t *chunk= chunks + n_chunks; --chunk != chunks; )
+  for (chunk_t *chunk= chunks + n_chunks; chunk-- != chunks; )
   {
     for (buf_block_t *block= chunk->blocks, * const end= block + chunk->size;
          block != end; block++)
@@ -882,7 +881,6 @@ inline void buf_pool_t::clear_hash_index()
     }
   }
 }
-#endif /* BTR_CUR_HASH_ADAPT */
 
 /** Get a buffer block from an adaptive hash index pointer.
 This function does not return if the block is not identified.
