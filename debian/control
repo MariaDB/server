@@ -756,6 +756,28 @@ Description: CrackLib Password Validation Plugin for MariaDB
  .
  Install and configure this to enforce stronger passwords for MariaDB users.
 
+Package: mariadb-plugin-xpand
+Architecture: any
+Depends: mariadb-server-10.5 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Breaks: mariadb-server-10.0,
+        mariadb-server-10.1,
+        mariadb-server-10.2,
+        mariadb-server-10.3,
+        mariadb-server-10.4
+Replaces: mariadb-server-10.0,
+          mariadb-server-10.1,
+          mariadb-server-10.2,
+          mariadb-server-10.3,
+          mariadb-server-10.4
+Description: XPand storage engine for MariaDB
+ The Xpand Storage Engine allows MariaDB to connect to a cluster of Xpand Nodes
+ (based on Clustrix technology). The Xpand nodes allow the data to be both sharded
+ while at the same time providing built in HA by having multiple copies of the same data.
+ .
+ For more information on the Xpand Nodes visit the documentation.
+
 Package: mariadb-test
 Architecture: any
 Depends: mariadb-client-10.5 (= ${binary:Version}),
