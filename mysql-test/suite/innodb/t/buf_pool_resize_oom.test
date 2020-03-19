@@ -1,7 +1,5 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
-# Allocating 1 GiB of buffer pool is pretty steep!
---source include/big_test.inc
 --source include/not_embedded.inc
 
 --echo #
