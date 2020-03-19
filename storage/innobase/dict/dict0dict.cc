@@ -1630,7 +1630,8 @@ dict_table_rename_in_cache(
 			return(DB_OUT_OF_MEMORY);
 		}
 
-		fil_delete_tablespace(table->space);
+		fil_delete_tablespace(table->space,
+				      dict_table_is_discarded(table));
 
 		/* Delete any temp file hanging around. */
 		if (os_file_status(filepath, &exists, &ftype)

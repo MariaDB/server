@@ -3725,10 +3725,12 @@ do_drop:
 		dict_table_t.  Free this memory before returning. */
 		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 			dict_get_and_save_data_dir_path(table, true);
-			ut_a(table->data_dir_path);
+			ut_ad(table->data_dir_path
+			      || dict_table_is_discarded(table));
 			filepath = fil_make_filepath(
 				table->data_dir_path,
-				table->name.m_name, IBD, true);
+				table->name.m_name, IBD,
+				table->data_dir_path != NULL);
 		} else {
 			filepath = fil_make_filepath(
 				NULL, table->name.m_name, IBD, false);
@@ -4304,11 +4306,9 @@ row_rename_table_for_mysql(
 
 	/* SYS_TABLESPACES and SYS_DATAFILES need to be updated if
 	the table is in a single-table tablespace. */
-	if (err == DB_SUCCESS
-	    && dict_table_is_file_per_table(table)) {
-		/* Make a new pathname to update SYS_DATAFILES. */
-		char*	new_path = row_make_new_pathname(table, new_name);
-		char*	old_path = fil_space_get_first_path(table->space);
+	if (err != DB_SUCCESS || !dict_table_is_file_per_table(table)) {
+	} else if (char* old_path = fil_space_get_first_path(table->space)) {
+		char* new_path = os_file_make_new_pathname(old_path, new_name);
 
 		/* If old path and new path are the same means tablename
 		has not changed and only the database name holding the table

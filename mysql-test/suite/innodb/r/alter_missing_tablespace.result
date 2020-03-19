@@ -35,7 +35,9 @@ ALTER TABLE t DISCARD TABLESPACE;
 Warnings:
 Warning	1812	Tablespace is missing for table 'test/t'
 Warning	1812	Tablespace is missing for table 'test/t'
-DROP TABLE t;
+RENAME TABLE t TO u;
+RENAME TABLE u TO v;
+DROP TABLE v;
 SELECT * FROM `x..d`;
 ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
 DROP TABLE `x..d`;

@@ -4149,6 +4149,7 @@ Provide a new pathname for a table that is being renamed if it belongs to
 a file-per-table tablespace.  The caller is responsible for freeing the
 memory allocated for the return value.
 @return new pathname of tablespace file, or NULL if space = 0 */
+static
 char*
 row_make_new_pathname(
 /*==================*/
