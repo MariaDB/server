@@ -1360,6 +1360,7 @@ buf_block_init(buf_block_t* block, byte* frame)
 @return whether the allocation succeeded */
 inline bool buf_pool_t::chunk_t::create(size_t bytes)
 {
+  DBUG_EXECUTE_IF("ib_buf_chunk_init_fails", return false;);
   /* Round down to a multiple of page size, although it already should be. */
   bytes= ut_2pow_round<size_t>(bytes, srv_page_size);
 
@@ -2317,13 +2318,7 @@ withdraw_retry:
 			ut_zalloc_nokey_nofatal(new_chunks_size));
 
 		DBUG_EXECUTE_IF("buf_pool_resize_chunk_null",
-				{
-					static int count = 0;
-					if (count++ == 1) {
-						ut_free(new_chunks);
-						new_chunks= nullptr;
-					}
-				});
+				{ ut_free(new_chunks); new_chunks= nullptr; });
 
 		if (!new_chunks) {
 			ib::error() << "failed to allocate"
@@ -2497,6 +2492,7 @@ calc_buf_pool_size:
 /** Thread pool task invoked by innodb_buffer_pool_size changes. */
 static void buf_resize_callback(void *)
 {
+  DBUG_ENTER("buf_resize_callback");
   ut_a(srv_shutdown_state == SRV_SHUTDOWN_NONE);
   mutex_enter(&buf_pool.mutex);
   const auto size= srv_buf_pool_size;
@@ -2511,6 +2507,7 @@ static void buf_resize_callback(void *)
     sout << "Size did not change: old size = new size = " << size;
     buf_resize_status(sout.str().c_str());
   }
+  DBUG_VOID_RETURN;
 }
 
 /* Ensure that task does not run in parallel, by setting max_concurrency to 1 for the thread group */
