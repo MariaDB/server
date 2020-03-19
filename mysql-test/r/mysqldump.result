@@ -5628,3 +5628,22 @@ select count(*) from t2;
 count(*)
 2
 drop tables t2, t1;
+#
+# MDEV-22037: Add ability to skip content of some tables
+# (work around for MDEV-20939)
+#
+use mysql;
+# check that all tables we need are not empty
+select count(*) >=  1 from  mysql.proc;
+count(*) >=  1
+1
+select count(*) >=  1 from  mysql.db;
+count(*) >=  1
+1
+# for proc we have CREATE and INSERT for all other only CREATE
+FOUND /INSERT INTO `proc`/ in MDEV-20939.sql
+NOT FOUND /INSERT INTO `db`/ in MDEV-20939.sql
+FOUND /CREATE TABLE `db`/ in MDEV-20939.sql
+FOUND /CREATE TABLE `proc`/ in MDEV-20939.sql
+use test;
+# End of 10.1 tests
