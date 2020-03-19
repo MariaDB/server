@@ -178,7 +178,8 @@ trx_rollback_to_savepoint(
 				complete rollback */
 {
 #ifdef WITH_WSREP
-	if (savept == NULL && wsrep_on(trx->mysql_thd)) {
+	if (savept == NULL && wsrep_on(trx->mysql_thd)
+	    && wsrep_thd_is_SR(trx->mysql_thd)) {
 		wsrep_handle_SR_rollback(NULL, trx->mysql_thd);
 	}
 #endif /* WITH_WSREP */
