@@ -140,7 +140,7 @@ RENAME TABLE t1 to t2;
 connection default;
 REVOKE BINLOG REPLAY ON *.* FROM user1@localhost;
 call mtr.add_suppression("Access denied; you need (at least one of) the SUPER, BINLOG REPLAY privilege(s) for this operation");
-# Privilege errors are expected now: 
+# Privilege errors are expected now:
 connection user1;
 connection default;
 include/diff_tables.inc [t1,t2]
