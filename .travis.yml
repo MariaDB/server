@@ -8,8 +8,6 @@ git:
 
 language: cpp
 
-osx_image: xcode10.1
-
 cache:
   timeout: 500
   apt: true
@@ -66,15 +64,42 @@ addons:
       - psmisc
       - uuid-dev
       - zlib1g-dev
-
-# libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
+      # libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
+  homebrew:
+    # Temporary workaround, remove when this is solved:
+    # https://travis-ci.community/t/macos-build-fails-because-of-homebrew-bundle-unknown-command/7296/20
+    update: true
+    # OSX builds are not properly maintained on Travis-CI nor buildbot and
+    # thus this list of dependencies is likely to be inaccurate.
+    packages:
+      - bison
+      - boost
+      - ccache
+      - cmake
+      - cracklib
+      - curl
+      - gnutls
+      - groonga
+      - jemalloc
+      - libxml2
+      - lz4
+      - lzo
+      - ncurses
+      - openssl@1.1
+      - ossp-uuid
+      - pcre2
+      - perl
+      - pkg-config
+      - readline
+      - snappy
+      - xz
+      - zlib
+      - zstd
 
 # The jobs matrix consists of all the combinations of 'arch', 'os', 'compiler' and 'env'
 arch:
   - amd64
-os:
-  - linux
-  - osx
+os: linux
 compiler:
   - gcc
   - clang
@@ -90,10 +115,6 @@ env:
 jobs:
   # Define what of the above defined jobs matrix is excluded
   exclude:
-    - os: osx
-      compiler: gcc
-    - os: osx
-      env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
     - compiler: clang
       env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
 
@@ -129,6 +150,11 @@ jobs:
       env: DebPackages=bionic
       addons: *deb-addons
       script: *deb-script
+      # Just one OS X build is enough
+    - os: osx
+      osx_image: xcode10.1
+      compiler: clang
+      env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
       # Some chosen ones with s390x and gcc
     - os: linux
       arch: s390x
@@ -202,7 +228,7 @@ jobs:
       arch: amd64
       compiler: clang
       env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
-    # Until OSX becomes a bit more stable: MDEV-12435 MDEV-16213
+    # Until OSX becomes a bit more stable
     - os: osx
 
 before_install:
