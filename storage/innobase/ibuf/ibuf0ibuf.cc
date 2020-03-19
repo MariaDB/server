@@ -432,7 +432,8 @@ ibuf_init_at_db_start(void)
 	buffer pool size. Once ibuf struct is initialized this
 	value is updated with the user supplied size by calling
 	ibuf_max_size_update(). */
-	ibuf.max_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
+	ut_ad(buf_pool.is_initialised());
+	ibuf.max_size = ((buf_pool.curr_pool_size >> srv_page_size_shift)
 			  * CHANGE_BUFFER_DEFAULT_SIZE) / 100;
 
 	mutex_create(LATCH_ID_IBUF, &ibuf_mutex);
@@ -514,7 +515,8 @@ ibuf_max_size_update(
 	ulint	new_val)	/*!< in: new value in terms of
 				percentage of the buffer pool size */
 {
-	ulint	new_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
+	ut_ad(buf_pool.is_initialised());
+	ulint	new_size = ((buf_pool.curr_pool_size >> srv_page_size_shift)
 			    * new_val) / 100;
 	mutex_enter(&ibuf_mutex);
 	ibuf.max_size = new_size;
@@ -2068,8 +2070,7 @@ ibuf_get_merge_page_nos_func(
 
 	*n_stored = 0;
 
-	limit = ut_min(IBUF_MAX_N_PAGES_MERGED,
-		       buf_pool_get_curr_size() / 4);
+	limit = IBUF_MAX_N_PAGES_MERGED;
 
 	if (page_rec_is_supremum(rec)) {
 
@@ -4222,7 +4223,12 @@ ibuf_merge_or_delete_for_page(
 	ulint		dops[IBUF_OP_COUNT];
 
 	ut_ad(block == NULL || page_id == block->page.id);
+#if MDEV_15053_FIXED // innodb.ibuf_not_empty fails
+	ut_ad(block == NULL
+	      || buf_block_get_io_fix_unlocked(block) == BUF_IO_READ);
+#else
 	ut_ad(!block || buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
+#endif
 
 	if (trx_sys_hdr_page(page_id)
 	    || fsp_is_system_temporary(page_id.space())) {

@@ -53,17 +53,15 @@ buf_buddy_get_slot(ulint size)
 @param[in]	i	index of buf_pool.zip_free[] or BUF_BUDDY_SIZES
 @param[out]	lru	whether buf_pool.mutex was temporarily released
 @return allocated block, never NULL */
-byte *buf_buddy_alloc_low(ulint i, bool *lru) MY_ATTRIBUTE((malloc));
+byte *buf_buddy_alloc_low(ulint i) MY_ATTRIBUTE((malloc));
 
-/** Allocate a ROW_FORMAT=COMPRESSED block.
-The caller must not hold buf_pool.mutex nor buf_pool.zip_mutex nor any
+/** The caller must not hold buf_pool.mutex nor buf_pool.zip_mutex nor any
 block->mutex.
 @param[in]	size	compressed page size
-@param[out]	lru	whether buf_pool.mutex was temporarily released
 @return allocated block, never NULL */
-inline byte *buf_buddy_alloc(ulint size, bool *lru= nullptr)
+inline byte *buf_buddy_alloc(ulint size)
 {
-  return buf_buddy_alloc_low(buf_buddy_get_slot(size), lru);
+  return buf_buddy_alloc_low(buf_buddy_get_slot(size));
 }
 
 /** Deallocate a block.
@@ -72,7 +70,7 @@ inline byte *buf_buddy_alloc(ulint size, bool *lru= nullptr)
 @param[in]	i	index of buf_pool.zip_free[], or BUF_BUDDY_SIZES */
 void buf_buddy_free_low(void* buf, ulint i);
 
-/** Deallocate a block.
+/** Try to reallocate a block.
 @param[in]	buf	block to be freed, must not be pointed to
 			by the buffer pool
 @param[in]	size	block size in bytes */
@@ -85,6 +83,7 @@ inline void buf_buddy_free(void* buf, ulint size)
 @param[in]	buf		block to be reallocated, must be pointed
 to by the buffer pool
 @param[in]	size		block size, up to srv_page_size
+@retval true	if succeeded or if failed because the block was fixed
 @retval false	if failed because of no free blocks. */
 bool buf_buddy_realloc(void* buf, ulint size);
 

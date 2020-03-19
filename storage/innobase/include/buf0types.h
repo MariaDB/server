@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -128,6 +128,7 @@ this must be equal to srv_page_size */
 #define BUF_BUDDY_HIGH	(BUF_BUDDY_LOW << BUF_BUDDY_SIZES)
 /* @} */
 
+
 /** Page identifier. */
 class page_id_t
 {
@@ -181,6 +182,7 @@ private:
 
 typedef ib_bpmutex_t BPageMutex;
 typedef ib_mutex_t BufPoolMutex;
+
 typedef ib_mutex_t FlushListMutex;
 typedef BPageMutex BufPoolZipMutex;
 typedef rw_lock_t BPageLock;

@@ -63,31 +63,29 @@ bool buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table)
 void buf_LRU_flush_or_remove_pages(ulint id, bool flush, ulint first = 0);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-/********************************************************************//**
-Insert a compressed block into buf_pool.zip_clean in the LRU order. */
+/** Insert a compressed block into buf_pool.zip_clean in the LRU order.
+@param[in]	bpage	pointer to the block in question */
 void
 buf_LRU_insert_zip_clean(
-/*=====================*/
-	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
+	buf_page_t*	bpage);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
-/******************************************************************//**
-Try to free a block.  If bpage is a descriptor of a compressed-only
+/** Try to free a block.  If bpage is a descriptor of a compressed-only
 page, the descriptor object will be freed as well.
-
-NOTE: If this function returns true, it will temporarily
-release buf_pool.mutex.  Furthermore, the page frame will no longer be
-accessible via bpage.
-
-The caller must hold buf_pool.mutex and must not hold any
-buf_page_get_mutex() when calling this function.
+NOTE: this function may temporarily release and relock the
+buf_page_get_get_mutex(). Furthermore, the page frame will no longer be
+accessible via bpage. If this function returns true, it will also release
+the LRU list mutex.
+The caller must hold the LRU list and buf_page_get_mutex() mutexes.
+@param[in]	bpage	block to be freed
+@param[in]	zip	true if should remove also the compressed page of
+			an uncompressed page
 @return true if freed, false otherwise. */
 bool
 buf_LRU_free_page(
-/*==============*/
-	buf_page_t*	bpage,	/*!< in: block to be freed */
-	bool		zip)	/*!< in: true if should remove also the
-				compressed page of an uncompressed page */
+	buf_page_t*	bpage,
+	bool		zip)
+
 	MY_ATTRIBUTE((nonnull));
 
 /** Try to free a replaceable block.
@@ -101,6 +99,7 @@ bool buf_LRU_scan_and_free_block(bool scan_all);
 buf_block_t* buf_LRU_get_free_only();
 
 /** Get a free block from the buf_pool. The block is taken off the
+@param[in]	buf_pool	buffer pool instance
 free list. If free list is empty, blocks are moved from the end of the
 LRU list to the free list.
 This function is called from a user thread when it needs a clean
@@ -122,6 +121,7 @@ we put it to free list to be used.
     * scan LRU list even if buf_pool.try_LRU_scan is not set
 * iteration > 1:
   * same as iteration 1 but sleep 10ms
+@param[in,out]	buf_pool	buffer pool instance
 @return the free control block, in state BUF_BLOCK_READY_FOR_USE */
 buf_block_t* buf_LRU_get_free_block()
 	MY_ATTRIBUTE((malloc,warn_unused_result));
@@ -146,16 +146,18 @@ buf_LRU_add_block(
 				blocks in the LRU list, else put to the
 				start; if the LRU list is very short, added to
 				the start regardless of this parameter */
-/******************************************************************//**
-Adds a block to the LRU list of decompressed zip pages. */
+
+/** Adds a block to the LRU list of decompressed zip pages.
+@param[in]	block	control block
+@param[in]	old	TRUE if should be put to the end of the list,
+			else put to the start */
 void
 buf_unzip_LRU_add_block(
-/*====================*/
-	buf_block_t*	block,	/*!< in: control block */
-	ibool		old);	/*!< in: TRUE if should be put to the end
-				of the list, else put to the start */
-/******************************************************************//**
-Moves a block to the start of the LRU list. */
+	buf_block_t*	block,
+	ibool		old);
+
+/** Moves a block to the start of the LRU list.
+@param[in]	bpage	control block */
 void
 buf_LRU_make_block_young(buf_page_t* bpage);
 
@@ -180,6 +182,7 @@ buf_LRU_stat_update();
 @param[in]	old_page_id	page number before bpage->id was invalidated */
 void buf_LRU_free_one_page(buf_page_t* bpage, page_id_t old_page_id)
 	MY_ATTRIBUTE((nonnull));
+
 
 /** Adjust LRU hazard pointers if needed.
 @param[in]	bpage	buffer page descriptor */
@@ -236,7 +239,7 @@ Cleared by buf_LRU_stat_update(). */
 extern buf_LRU_stat_t	buf_LRU_stat_cur;
 
 /** Running sum of past values of buf_LRU_stat_cur.
-Updated by buf_LRU_stat_update().  Protected by buf_pool.mutex. */
+Updated by buf_LRU_stat_update(). Accesses protected by memory barriers. */
 extern buf_LRU_stat_t	buf_LRU_stat_sum;
 
 /********************************************************************//**

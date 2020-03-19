@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -162,7 +162,7 @@ V
 Search system mutex
 |
 V
-Buffer pool mutex
+Buffer pool mutexes
 |
 V
 Log mutex
@@ -193,11 +193,13 @@ enum latch_level_t {
 	SYNC_DOUBLEWRITE,
 
 	SYNC_BUF_FLUSH_LIST,
-
+	SYNC_BUF_FLUSH_STATE,
+	SYNC_BUF_ZIP_HASH,
+	SYNC_BUF_FREE_LIST,
+	SYNC_BUF_ZIP_FREE,
 	SYNC_BUF_BLOCK,
 	SYNC_BUF_PAGE_HASH,
-
-	SYNC_BUF_POOL,
+	SYNC_BUF_LRU_LIST,
 
 	SYNC_POOL,
 	SYNC_POOL_MANAGER,
@@ -284,8 +286,12 @@ enum latch_id_t {
 	LATCH_ID_NONE = 0,
 	LATCH_ID_AUTOINC,
 	LATCH_ID_BUF_BLOCK_MUTEX,
-	LATCH_ID_BUF_POOL,
 	LATCH_ID_BUF_POOL_ZIP,
+	LATCH_ID_BUF_POOL_LRU_LIST,
+	LATCH_ID_BUF_POOL_FREE_LIST,
+	LATCH_ID_BUF_POOL_ZIP_FREE,
+	LATCH_ID_BUF_POOL_ZIP_HASH,
+	LATCH_ID_BUF_POOL_FLUSH_STATE,
 	LATCH_ID_CACHE_LAST_READ,
 	LATCH_ID_DICT_FOREIGN_ERR,
 	LATCH_ID_DICT_SYS,

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -84,14 +84,14 @@ ibool
 buf_dblwr_page_inside(
 /*==================*/
 	ulint	page_no);	/*!< in: page number */
-/********************************************************************//**
-Posts a buffer page for writing. If the doublewrite memory buffer is
-full, calls buf_dblwr_flush_buffered_writes and waits for for free
-space to appear. */
+
+/** Posts a buffer page for writing. If the doublewrite memory buffer
+is full, calls buf_dblwr_flush_buffered_writes and waits for for free
+space to appear.
+@param[in]	bpage	buffer block to write */
 void
 buf_dblwr_add_to_batch(
-/*====================*/
-	buf_page_t*	bpage);	/*!< in: buffer block to write */
+	buf_page_t*	bpage);
 
 /********************************************************************//**
 Flush a batch of writes to the datafiles that have already been

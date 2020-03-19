@@ -62,8 +62,8 @@ static volatile bool	buf_load_should_start;
 static bool	buf_load_abort_flag;
 
 /* Used to temporary store dump info in order to avoid IO while holding
-buffer pool mutex during dump and also to sort the contents of the dump
-before reading the pages from disk during load.
+buffer pool LRU list mutex during dump and also to sort the contents of the
+dump before reading the pages from disk during load.
 We store the space id in the high 32 bits and page no in low 32 bits. */
 typedef ib_uint64_t	buf_dump_t;
 
@@ -234,18 +234,16 @@ buf_dump_generate_path(
 	}
 }
 
-/*****************************************************************//**
-Perform a buffer pool dump into the file specified by
+/** Perform a buffer pool dump into the file specified by
 innodb_buffer_pool_filename. If any errors occur then the value of
 innodb_buffer_pool_dump_status will be set accordingly, see buf_dump_status().
 The dump filename can be specified by (relative to srv_data_home):
-SET GLOBAL innodb_buffer_pool_filename='filename'; */
+SET GLOBAL innodb_buffer_pool_filename='filename';
+@param[in]	obey_shutdown	quit if we are in a shutting down state */
 static
 void
 buf_dump(
-/*=====*/
-	ibool	obey_shutdown)	/*!< in: quit if we are in a shutting down
-				state */
+	ibool	obey_shutdown)
 {
 #define SHOULD_QUIT()	(SHUTTING_DOWN() && obey_shutdown)
 

@@ -1016,7 +1016,8 @@ void dict_sys_t::create()
 
   mutex_create(LATCH_ID_DICT_SYS, &mutex);
 
-  const ulint hash_size = buf_pool_get_curr_size()
+  ut_ad(buf_pool.is_initialised());
+  const ulint hash_size = buf_pool.curr_pool_size
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
 
   table_hash= hash_create(hash_size);
@@ -4811,14 +4812,15 @@ void dict_sys_t::resize()
   hash_table_free(table_hash);
   hash_table_free(table_id_hash);
   hash_table_free(temp_id_hash);
+  ut_ad(buf_pool.is_initialised());
 
-  const ulint hash_size = buf_pool_get_curr_size()
-    / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
-  table_hash = hash_create(hash_size);
-  table_id_hash = hash_create(hash_size);
-  temp_id_hash = hash_create(hash_size);
+  const ulint hash_size= buf_pool.curr_pool_size /
+    (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
+  table_hash= hash_create(hash_size);
+  table_id_hash= hash_create(hash_size);
+  temp_id_hash= hash_create(hash_size);
 
-  for (dict_table_t* table= UT_LIST_GET_FIRST(table_LRU); table;
+  for (dict_table_t *table= UT_LIST_GET_FIRST(table_LRU); table;
        table= UT_LIST_GET_NEXT(table_LRU, table))
   {
     ut_ad(!table->is_temporary());
@@ -4829,17 +4831,15 @@ void dict_sys_t::resize()
     HASH_INSERT(dict_table_t, id_hash, table_id_hash, id_fold, table);
   }
 
-  for (dict_table_t* table = UT_LIST_GET_FIRST(table_non_LRU); table;
-       table = UT_LIST_GET_NEXT(table_LRU, table)) {
-	  ulint	fold = ut_fold_string(table->name.m_name);
-	  ulint	id_fold = ut_fold_ull(table->id);
-
-	  HASH_INSERT(dict_table_t, name_hash, table_hash, fold, table);
-
-	  hash_table_t* id_hash = table->is_temporary()
-	    ? temp_id_hash : table_id_hash;
-
-	  HASH_INSERT(dict_table_t, id_hash, id_hash, id_fold, table);
+  for (dict_table_t *table= UT_LIST_GET_FIRST(table_non_LRU); table;
+       table = UT_LIST_GET_NEXT(table_LRU, table))
+  {
+    ulint fold= ut_fold_string(table->name.m_name);
+    ulint id_fold= ut_fold_ull(table->id);
+    HASH_INSERT(dict_table_t, name_hash, table_hash, fold, table);
+    hash_table_t *id_hash= table->is_temporary()
+      ? temp_id_hash : table_id_hash;
+    HASH_INSERT(dict_table_t, id_hash, id_hash, id_fold, table);
   }
 
   mutex_exit(&mutex);
