@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2019, 2020 MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,6 +31,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "que0types.h"
 #include "trx0types.h"
 #include "row0types.h"
+#include <vector>
 
 /***************************************************************//**
 Checks if foreign key constraint fails for an index entry. Sets shared locks
@@ -159,7 +160,10 @@ row_ins_step(
 /* Insert node structure */
 
 struct ins_node_t{
-	que_common_t	common;	/*!< node type: QUE_NODE_INSERT */
+	ins_node_t() : common(QUE_NODE_INSERT, NULL), entry(entry_list.end())
+	{
+	}
+	que_common_t common;	 /*!< node type: QUE_NODE_INSERT */
 	ulint		ins_type;/* INS_VALUES, INS_SEARCHED, or INS_DIRECT */
 	dtuple_t*	row;	/*!< row to insert */
 	dict_table_t*	table;	/*!< table where to insert */
@@ -169,11 +173,12 @@ struct ins_node_t{
 	ulint		state;	/*!< node execution state */
 	dict_index_t*	index;	/*!< NULL, or the next index where the index
 				entry should be inserted */
-	dtuple_t*	entry;	/*!< NULL, or entry to insert in the index;
+	std::vector<dtuple_t*>
+			entry_list;/* list of entries, one for each index */
+	std::vector<dtuple_t*>::iterator
+			entry;	/*!< NULL, or entry to insert in the index;
 				after a successful insert of the entry,
 				this should be reset to NULL */
-	UT_LIST_BASE_NODE_T(dtuple_t)
-			entry_list;/* list of entries, one for each index */
 	/** buffer for the system columns */
 	byte		sys_buf[DATA_ROW_ID_LEN
 				+ DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN];
