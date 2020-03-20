@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2689,23 +2689,6 @@ buf_pool_resize_hash(
 	buf_pool->zip_hash = new_hash_table;
 }
 
-#ifndef DBUG_OFF
-/** This is a debug routine to inject an memory allocation failure error. */
-static
-void
-buf_pool_resize_chunk_make_null(buf_chunk_t** new_chunks)
-{
-	static int count = 0;
-
-	if (count == 1) {
-		ut_free(*new_chunks);
-		*new_chunks = NULL;
-	}
-
-	count++;
-}
-#endif // DBUG_OFF
-
 /** Resize the buffer pool based on srv_buf_pool_size from
 srv_buf_pool_old_size. */
 static
@@ -2973,7 +2956,8 @@ withdraw_retry:
 					ut_zalloc_nokey_nofatal(new_chunks_size));
 
 			DBUG_EXECUTE_IF("buf_pool_resize_chunk_null",
-				buf_pool_resize_chunk_make_null(&new_chunks););
+					ut_free(new_chunks);
+					new_chunks = NULL;);
 
 			if (new_chunks == NULL) {
 				ib::error() << "buffer pool " << i

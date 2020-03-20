@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -9033,18 +9033,26 @@ int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
     {
       const char *db= table->s->db.str;
       const char *tab_name= table->s->table_name.str;
+      Geometry_buffer buffer;
+      Geometry *geom= NULL;
+      String wkt;
+      const char *dummy;
 
       if (!db)
         db= "";
       if (!tab_name)
         tab_name= "";
+      wkt.set_charset(&my_charset_latin1);
+      if (!(geom= Geometry::construct(&buffer, from, length)) ||
+          geom->as_wkt(&wkt, &dummy))
+        goto err;
 
       my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0),
                Geometry::ci_collection[geom_type]->m_name.str,
-               Geometry::ci_collection[wkb_type]->m_name.str,
-               db, tab_name, field_name.str,
+               wkt.c_ptr(), db, tab_name, field_name.str,
                (ulong) table->in_use->get_stmt_da()->
                current_row_for_warning());
+
       goto err_exit;
     }
 

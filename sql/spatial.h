@@ -145,12 +145,7 @@ struct MBR
              (mbr->xmax >= xmin && mbr->xmax <= xmax)));
   }
 
-  int within(const MBR *mbr)
-  {
-    /* The following should be safe, even if we compare doubles */
-    return ((mbr->xmin <= xmin) && (mbr->ymin <= ymin) &&
-	    (mbr->xmax >= xmax) && (mbr->ymax >= ymax));
-  }
+  int within(const MBR *mbr);
 
   int contains(const MBR *mbr)
   {

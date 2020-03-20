@@ -1,4 +1,5 @@
 /* Copyright (c) 2013, Kristian Nielsen and MariaDB Services Ab.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2432,7 +2433,8 @@ gtid_waiting::wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us)
       /* fall through */
     case 0:
       status_var_add(thd->status_var.master_gtid_wait_time,
-                     microsecond_interval_timer() - before);
+                     static_cast<ulong>
+                     (microsecond_interval_timer() - before));
   }
   my_free(wait_pos);
   return err;

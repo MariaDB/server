@@ -1740,11 +1740,9 @@ longlong Item_func_int_div::val_int()
       raise_integer_overflow();
     return res;
   }
-  
-  longlong val0=args[0]->val_int();
-  longlong val1=args[1]->val_int();
-  bool val0_negative, val1_negative, res_negative;
-  ulonglong uval0, uval1, res;
+
+  Longlong_hybrid val0= args[0]->to_longlong_hybrid();
+  Longlong_hybrid val1= args[1]->to_longlong_hybrid();
   if ((null_value= (args[0]->null_value || args[1]->null_value)))
     return 0;
   if (val1 == 0)
@@ -1753,12 +1751,8 @@ longlong Item_func_int_div::val_int()
     return 0;
   }
 
-  val0_negative= !args[0]->unsigned_flag && val0 < 0;
-  val1_negative= !args[1]->unsigned_flag && val1 < 0;
-  res_negative= val0_negative != val1_negative;
-  uval0= (ulonglong) (val0_negative ? -val0 : val0);
-  uval1= (ulonglong) (val1_negative ? -val1 : val1);
-  res= uval0 / uval1;
+  bool res_negative= val0.neg() != val1.neg();
+  ulonglong res= val0.abs() / val1.abs();
   if (res_negative)
   {
     if (res > (ulonglong) LONGLONG_MAX)
@@ -1783,11 +1777,8 @@ bool Item_func_int_div::fix_length_and_dec()
 longlong Item_func_mod::int_op()
 {
   DBUG_ASSERT(fixed == 1);
-  longlong val0= args[0]->val_int();
-  longlong val1= args[1]->val_int();
-  bool val0_negative, val1_negative;
-  ulonglong uval0, uval1;
-  ulonglong res;
+  Longlong_hybrid val0= args[0]->to_longlong_hybrid();
+  Longlong_hybrid val1= args[1]->to_longlong_hybrid();
 
   if ((null_value= args[0]->null_value || args[1]->null_value))
     return 0; /* purecov: inspected */
@@ -1802,13 +1793,9 @@ longlong Item_func_mod::int_op()
     LONGLONG_MIN by -1 generates SIGFPE, we calculate using unsigned values and
     then adjust the sign appropriately.
   */
-  val0_negative= !args[0]->unsigned_flag && val0 < 0;
-  val1_negative= !args[1]->unsigned_flag && val1 < 0;
-  uval0= (ulonglong) (val0_negative ? -val0 : val0);
-  uval1= (ulonglong) (val1_negative ? -val1 : val1);
-  res= uval0 % uval1;
-  return check_integer_overflow(val0_negative ? -(longlong) res : res,
-                                !val0_negative);
+  ulonglong res= val0.abs() % val1.abs();
+  return check_integer_overflow(val0.neg() ? -(longlong) res : res,
+                                !val0.neg());
 }
 
 double Item_func_mod::real_op()
