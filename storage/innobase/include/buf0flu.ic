@@ -24,6 +24,7 @@ The database buffer pool flush algorithm
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
+#include "assume_aligned.h"
 #include "buf0buf.h"
 #include "mtr0mtr.h"
 #include "srv0srv.h"

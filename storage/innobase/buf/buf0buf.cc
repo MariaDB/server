@@ -31,6 +31,7 @@ The database buffer buf_pool
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
+#include "assume_aligned.h"
 #include "mtr0types.h"
 #include "mach0data.h"
 #include "buf0buf.h"

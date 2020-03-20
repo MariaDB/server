@@ -27,6 +27,7 @@ Created 12/18/1995 Heikki Tuuri
 #ifndef fsp0fsp_h
 #define fsp0fsp_h
 
+#include "assume_aligned.h"
 #include "fsp0types.h"
 #include "fut0lst.h"
 #include "ut0byte.h"
