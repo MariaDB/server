@@ -46,11 +46,11 @@ INSTALL(FILES ${MAN1_DEVEL} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPage
 INSTALL(FILES ${MAN1_TEST} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesTest)
 
 macro(MARIADB_SYMLINK_MANPAGE)
-  list(LENGTH MARIADB_SYMLINK_FROMS _len)
+  list(LENGTH MARIADB_SYMLINK_TOS _len)
   math(EXPR _listlen "${_len}-1")
 
   foreach(_index RANGE ${_listlen})
-    list(GET MARIADB_SYMLINK_FROMS ${_index} _name)
+    list(GET MARIADB_SYMLINK_TOS ${_index} _name)
 
     set(_manname "${_name}")
     list(FIND MAN1_SERVER ${_manname}.1 _iman1server)
@@ -78,7 +78,7 @@ macro(MARIADB_SYMLINK_MANPAGE)
 endmacro(MARIADB_SYMLINK_MANPAGE)
 
 macro(MARIADB_SYMLINK_MANPAGE_CREATE mysqlname index mannr dir comp)
-  LIST(GET MARIADB_SYMLINK_TOS ${index} _mariadbname)
+  LIST(GET MARIADB_SYMLINK_FROMS ${index} _mariadbname)
   SET(dest "${CMAKE_CURRENT_BINARY_DIR}/${_mariadbname}.${mannr}")
   FILE(WRITE ${dest} ".so ${dir}/${mysqlname}.${mannr}")
   INSTALL(FILES ${dest} DESTINATION ${INSTALL_MANDIR}/${dir} COMPONENT ${comp})

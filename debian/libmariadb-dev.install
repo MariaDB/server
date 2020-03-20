@@ -1,4 +1,4 @@
-usr/bin/mariadb_config
+usr/bin/mariadb-config
 usr/include/mariadb
 usr/lib/*/libmariadb.so
 usr/lib/*/libmariadbclient.a
@@ -7,3 +7,4 @@ usr/lib/*/libmysqlservices.a
 usr/lib/*/pkgconfig/mariadb.pc
 usr/share/aclocal/mysql.m4
 usr/share/man/man1/mysql_config.1
+usr/share/man/man1/mariadb-config.1

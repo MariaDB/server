@@ -597,21 +597,6 @@
    
    <?endif ?>
 
-    <!-- Custom action, create symlinks -->
-    <CustomAction Id="Symlinks.SetProperty" Return="check" Property="Symlinks" Value="[INSTALLDIR]" />
-    <CustomAction Id="Symlinks" BinaryKey="wixca.dll" DllEntry="FixSymlinks" Execute="deferred" Impersonate="no" Return="ignore"/>
-    <CustomAction Id="SymlinksRollback.SetProperty" Return="check" Property="SymlinksRollback" Value="[INSTALLDIR]" />
-    <CustomAction Id="SymlinksRollback" BinaryKey="wixca.dll" DllEntry="FixSymlinksRollback" Execute="rollback" Impersonate="no" Return="ignore"/>
-    <CustomAction Id="SymlinksUninstall.SetProperty" Return="check" Property="SymlinksUninstall" Value="[INSTALLDIR]" />
-    <CustomAction Id="SymlinksUninstall" BinaryKey="wixca.dll" DllEntry="SymlinksUninstall" Execute="deferred" Impersonate="no" Return="ignore"/>
-    <InstallExecuteSequence>
-      <Custom Action="Symlinks.SetProperty" Before="Symlinks">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
-      <Custom Action="Symlinks" After="SymlinksRollback">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
-      <Custom Action="SymlinksRollback.SetProperty" Before="SymlinksRollback">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
-      <Custom Action="SymlinksRollback" After="InstallFiles">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
-      <Custom Action="SymlinksUninstall.SetProperty" Before="SymlinksUninstall">Installed AND NOT UPGRADINGPRODUCTCODE</Custom>
-      <Custom Action="SymlinksUninstall" Before="RemoveFiles">Installed AND NOT UPGRADINGPRODUCTCODE</Custom>
-    </InstallExecuteSequence>
 
     <!-- Custom action, call mysql_install_db -->
     <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="SKIPNETWORKING" Value="--skip-networking" >SKIPNETWORKING</SetProperty>
@@ -633,7 +618,7 @@
     <CustomAction Id="CreateDatabaseRollback" BinaryKey="wixca.dll" DllEntry="CreateDatabaseRollback"
         Execute="rollback" Return="check" Impersonate="no"/>
     <UI>
-      <ProgressText Action="CreateDatabase">Running mysql_install_db.exe</ProgressText>
+      <ProgressText Action="CreateDatabase">Running mariadb-install-db.exe</ProgressText>
     </UI>
 
     <!-- Error injection script activated by TEST_FAIL=1 passed to msiexec (to see how good custom action rollback works)  -->
