@@ -9043,7 +9043,7 @@ int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
       if (!tab_name)
         tab_name= "";
       wkt.set_charset(&my_charset_latin1);
-      if (!(geom= Geometry::construct(&buffer, from, length)) ||
+      if (!(geom= Geometry::construct(&buffer, from, uint32(length))) ||
           geom->as_wkt(&wkt, &dummy))
         goto err;
 
