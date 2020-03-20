@@ -2389,37 +2389,40 @@ bool Item_func_or_sum::agg_item_set_converter(const DTCollation &coll,
   @param mem_root   part of the memory for the clone   
 
   @details
-    This method gets copy of the current item and also 
-    build clones for its referencies. For the referencies 
-    build_copy is called again.
+    This method fisrt builds clones of the arguments. If it is successful with
+    buiding the clones then it constructs a copy of this Item_func_or_sum object
+    and attaches to it the built clones of the arguments.
       
    @retval
-     clone of the item
-     0 if an error occured
+     clone of the item on success
+     0 on a failure
 */ 
 
 Item* Item_func_or_sum::build_clone(THD *thd, MEM_ROOT *mem_root)
 {
-  Item_func_or_sum *copy= (Item_func_or_sum *) get_copy(thd, mem_root);
-  if (!copy)
-    return 0;
+  Item *copy_tmp_args[2]= {0,0};
+  Item **copy_args= copy_tmp_args;
   if (arg_count > 2)
   {
-    copy->args= 
-      (Item**) alloc_root(mem_root, sizeof(Item*) * arg_count);
-    if (!copy->args)
+    if (!(copy_args= (Item**) alloc_root(mem_root, sizeof(Item*) * arg_count)))
       return 0;
   }
-  else if (arg_count > 0)
-    copy->args= copy->tmp_arg;
-
-   
   for (uint i= 0; i < arg_count; i++)
   {
     Item *arg_clone= args[i]->build_clone(thd, mem_root);
     if (!arg_clone)
       return 0;
-    copy->args[i]= arg_clone;
+    copy_args[i]= arg_clone;
+  }
+  Item_func_or_sum *copy= (Item_func_or_sum *) get_copy(thd, mem_root);
+  if (!copy)
+    return 0;
+  if (arg_count > 2)
+    copy->args= copy_args;
+  else if (arg_count > 0)
+  {
+    copy->args= copy->tmp_arg;
+    memcpy(copy->args, copy_args, sizeof(Item *) * arg_count);
   }
   return copy;
 }

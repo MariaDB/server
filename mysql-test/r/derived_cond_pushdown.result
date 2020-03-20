@@ -10581,4 +10581,16 @@ a	b	max_c	a	b	dayname(v1.b)
 DROP VIEW v1;
 DROP TABLE t1, t2;
 SET optimizer_switch=DEFAULT;
+#
+# MDEV-17177: an attempt to push down IN predicate when one of
+#             the arguments is too complex to be cloned
+#
+CREATE TABLE t1 (a VARCHAR(8));
+INSERT INTO t1 VALUES ('abc'),('def');
+CREATE VIEW v1 AS SELECT * FROM t1 GROUP BY a;
+SELECT * FROM v1 WHERE IF( a REGEXP 'def', 'foo', a ) IN ('abc', 'foobar');
+a
+abc
+DROP VIEW v1;
+DROP TABLE t1;
 # End of 10.2 tests
