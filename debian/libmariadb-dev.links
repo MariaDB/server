@@ -1,1 +1,1 @@
-usr/share/man/man1/mysql_config.1.gz usr/share/man/man1/mariadb_config.1.gz
+usr/bin/mariadb-config usr/bin/mysql_config
