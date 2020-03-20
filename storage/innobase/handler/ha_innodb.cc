@@ -14640,7 +14640,7 @@ ha_innobase::optimize(
 	calls to OPTIMIZE, which is undesirable. */
 	bool try_alter = true;
 
-	if (srv_defragment) {
+	if (!m_prebuilt->table->is_temporary() && srv_defragment) {
 		int err= defragment_table(
 			m_prebuilt->table->name.m_name, NULL, false);
 

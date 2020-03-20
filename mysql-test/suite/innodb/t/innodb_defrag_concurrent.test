@@ -2,17 +2,13 @@
 --source include/big_test.inc
 --source include/not_valgrind.inc
 --source include/not_embedded.inc
+--source include/have_sequence.inc
 
---disable_warnings
-DROP TABLE if exists t1;
---enable_warnings
+SET @n_pages= @@GLOBAL.innodb_defragment_n_pages;
+SET @accuracy= @@GLOBAL.innodb_defragment_stats_accuracy;
+SET @sp= @@GLOBAL.innodb_stats_persistent;
 
---disable_query_log
-let $innodb_defragment_n_pages_orig=`select @@innodb_defragment_n_pages`;
-let $innodb_defragment_stats_accuracy_orig=`select @@innodb_defragment_stats_accuracy`;
---enable_query_log
-
-select @@global.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 set global innodb_defragment_stats_accuracy = 80;
 
 # Create table.
@@ -46,6 +42,12 @@ connection default;
 
 SET @@global.innodb_defragment_n_pages = 20;
 
+CREATE TEMPORARY TABLE tt (a INT, KEY(a)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO tt SELECT 0 FROM seq_1_to_180;
+INSERT INTO tt SELECT 5 FROM seq_1_to_160;
+INSERT INTO tt SELECT 1 FROM seq_1_to_1000;
+OPTIMIZE TABLE tt;
+
 let $data_size = 20000;
 let $delete_size = 2000;
 
@@ -60,7 +62,7 @@ while ($i)
 }
 --enable_query_log
 
-select count(*) from t1; 
+select count(*) from t1;
 select count(*) from t1 force index (second);
 select count(*) from t1 force index (third);
 
@@ -75,7 +77,7 @@ while ($size)
 }
 --enable_query_log
 
-select count(*) from t1; 
+select count(*) from t1;
 select count(*) from t1 force index (second);
 select count(*) from t1 force index (third);
 
@@ -136,7 +138,6 @@ select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like
 drop table t1;
 
 # reset system
---disable_query_log
-EVAL SET GLOBAL innodb_defragment_n_pages = $innodb_defragment_n_pages_orig;
-EVAL SET GLOBAL innodb_defragment_stats_accuracy = $innodb_defragment_stats_accuracy_orig;
---enable_query_log
+SET GLOBAL innodb_defragment_n_pages = @n_pages;
+SET GLOBAL innodb_defragment_stats_accuracy = @accuracy;
+SET GLOBAL innodb_stats_persistent = @sp;

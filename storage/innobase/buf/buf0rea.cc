@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -891,8 +891,12 @@ buf_read_recv_pages(
 		ulint			count = 0;
 
 		buf_pool = buf_pool_get(cur_page_id);
-		while (buf_pool->n_pend_reads >= recv_n_pool_free_frames / 2) {
+		ulint limit = 0;
+		for (ulint j = 0; j < buf_pool->n_chunks; j++) {
+			limit += buf_pool->chunks[j].size / 2;
+		}
 
+		while (buf_pool->n_pend_reads >= limit) {
 			os_aio_simulated_wake_handler_threads();
 			os_thread_sleep(10000);
 

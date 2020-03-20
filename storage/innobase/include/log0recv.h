@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -335,11 +335,5 @@ times! */
 /** Size of block reads when the log groups are scanned forward to do a
 roll-forward */
 #define RECV_SCAN_SIZE		(4U << srv_page_size_shift)
-
-/** This many frames must be left free in the buffer pool when we scan
-the log and store the scanned log records in the buffer pool: we will
-use these free frames to read in pages when we start applying the
-log records to the database. */
-extern ulint	recv_n_pool_free_frames;
 
 #endif
