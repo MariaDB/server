@@ -2,7 +2,7 @@
 # -*- cperl -*-
 
 # Copyright (c) 2004, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2018, MariaDB Corporation
+# Copyright (c) 2009, 2020, MariaDB Corporation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -614,7 +614,8 @@ sub main {
     else
     {
       my $sys_info= My::SysInfo->new();
-      $opt_parallel= $sys_info->num_cpus();
+      $opt_parallel= $sys_info->num_cpus() +
+        int($sys_info->min_bogomips()/500) - 4;
       for my $limit (2000, 1500, 1000, 500){
         $opt_parallel-- if ($sys_info->min_bogomips() < $limit);
       }
