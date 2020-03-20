@@ -58,6 +58,7 @@
 #include "sql_plugin_compat.h"
 
 #define MAX_SCRAMBLE_LENGTH 1024
+#define MAX_REDIRECTION_LEN  512
 
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
@@ -14312,6 +14313,50 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 
   if (res == CR_OK_HANDSHAKE_COMPLETE)
     thd->get_stmt_da()->disable_status();
+  else
+  if (redirect_enabled)
+  {
+    int total_size = 18
+                   + strlen(redirect_server_host)
+                   + 1 + strlen(redirect_server_port)
+                   + 6 + strlen(sctx->user)
+                   + (!strcmp(redirect_server_ttl, "0") ? 0 : (5 + strlen(redirect_server_ttl)));;
+
+    if (total_size >= MAX_REDIRECTION_LEN)
+    {
+      sql_print_error("error", ("redirection info is too large to return to client (len= %lu)",
+                     total_size));
+      my_ok(thd);
+    }
+    else
+    {
+      char *msg = new char[MAX_REDIRECTION_LEN];
+      if (NULL == msg)
+      {
+        DBUG_RETURN(1);
+      }
+
+      msg[0] = '\0';
+      strcat(msg, "Location: mysql://");
+      strcat(msg, redirect_server_host);
+      strcat(msg, ":");
+      strcat(msg, redirect_server_port);
+      strcat(msg, "/user=");
+      strcat(msg, sctx->user);
+
+      if (strcmp(redirect_server_ttl, "0"))
+      {
+        strcat(msg, "&ttl=");
+        strcat(msg, redirect_server_ttl);
+      }
+
+      msg[total_size] = 0;
+
+      my_ok(thd, 0, 0, msg);
+
+      delete[] msg;
+    }
+  }
   else
     my_ok(thd);
 
