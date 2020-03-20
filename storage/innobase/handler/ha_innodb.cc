@@ -3432,22 +3432,26 @@ ulong srv_n_log_files;
 static my_bool innodb_background_scrub_data_uncompressed;
 
 static const char* innodb_background_scrub_data_uncompressed_msg
-= "The parameter innodb_background_scrub_data_uncompressed is deprecated and has no effect.";
+= "The parameter innodb_background_scrub_data_uncompressed is deprecated and"
+  " has no effect.";
 
 static my_bool innodb_background_scrub_data_compressed;
 
 static const char* innodb_background_scrub_data_compressed_msg
-= "The parameter innodb_background_scrub_data_compressed is deprecated and has no effect.";
+= "The parameter innodb_background_scrub_data_compressed is deprecated and"
+  " has no effect.";
 
 static uint innodb_background_scrub_data_check_interval;
 
 static const char* innodb_background_scrub_data_check_interval_msg
-= "The parameter innodb_background_scrub_data_check_interval is deprecated and has no effect.";
+= "The parameter innodb_background_scrub_data_check_interval is deprecated and"
+  " has no effect.";
 
 static uint innodb_background_scrub_data_interval;
 
 static const char* innodb_background_scrub_data_interval_msg
-= "The parameter innodb_background_scrub_data_interval is deprecated and has no effect.";
+= "The parameter innodb_background_scrub_data_interval is deprecated and"
+  " has no effect.";
 } // namespace deprecated
 
 /** Initialize, validate and normalize the InnoDB startup parameters.
@@ -19714,8 +19718,6 @@ static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   "Size of each log file in a log group.",
   NULL, NULL, 96 << 20, 1 << 20, std::numeric_limits<ulonglong>::max(),
   UNIV_PAGE_SIZE_MAX);
-/* OS_FILE_LOG_BLOCK_SIZE would be more appropriate than UNIV_PAGE_SIZE_MAX,
-but fil_space_t is being used for the redo log, and it uses data pages. */
 
 static MYSQL_SYSVAR_ULONG(log_files_in_group, deprecated::srv_n_log_files,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
