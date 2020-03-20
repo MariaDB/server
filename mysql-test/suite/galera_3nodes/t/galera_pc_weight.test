@@ -88,6 +88,15 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 --connection node_1
 --source include/wait_condition.inc
 
+# wait until nodes 2 and 3 have declared ready state (can happen after cluster_size raaise)
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+
+--connection node_3
+--source include/wait_condition.inc
+
+
 # On all nodes, we now expect a Primary component of size 3, weight 3, Synced and ready
 SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';

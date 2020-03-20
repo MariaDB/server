@@ -87,6 +87,8 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 connection node_2;
 connection node_3;
 connection node_1;
+connection node_2;
+connection node_3;
 SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 VARIABLE_VALUE = 3
 1
