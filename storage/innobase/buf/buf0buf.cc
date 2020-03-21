@@ -958,14 +958,8 @@ static uint32_t buf_page_check_crc32(const byte* page, uint32_t checksum)
 @return whether the buffer is all zeroes */
 bool buf_is_zeroes(span<const byte> buf)
 {
-  static const byte zeroes[4 * 1024] = {0};
-  for (size_t i = 0; i < buf.size(); i += std::min(sizeof(zeroes),
-						   buf.size() - i)) {
-    if (memcmp(zeroes, buf.data() + i, std::min(sizeof(zeroes),
-						buf.size() - i)) != 0)
-      return false;
-  }
-  return true;
+  ut_ad(buf.size() <= sizeof field_ref_zero);
+  return memcmp(buf.data(), field_ref_zero, buf.size()) == 0;
 }
 
 /** Check if a page is corrupt.

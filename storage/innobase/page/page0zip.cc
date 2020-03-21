@@ -34,12 +34,8 @@ using st_::span;
 /** A BLOB field reference full of zero, for use in assertions and tests.
 Initially, BLOB field references are set to zero, in
 dtuple_convert_big_rec(). */
-const byte field_ref_zero[FIELD_REF_SIZE] = {
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-};
+MY_ALIGNED(UNIV_PAGE_SIZE_MAX)
+const byte field_ref_zero[UNIV_PAGE_SIZE_MAX] = { 0, };
 
 #ifndef UNIV_INNOCHECKSUM
 #include "page0page.h"
@@ -113,7 +109,7 @@ Compare at most sizeof(field_ref_zero) bytes.
 /** Assert that a BLOB pointer is filled with zero bytes.
 @param b in: BLOB pointer */
 #define ASSERT_ZERO_BLOB(b) \
-	ut_ad(!memcmp(b, field_ref_zero, sizeof field_ref_zero))
+	ut_ad(!memcmp(b, field_ref_zero, FIELD_REF_SIZE))
 
 /* Enable some extra debugging output.  This code can be enabled
 independently of any UNIV_ debugging conditions. */
