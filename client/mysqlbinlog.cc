@@ -41,6 +41,7 @@
 /* That one is necessary for defines of OPTION_NO_FOREIGN_KEY_CHECKS etc */
 #include "sql_priv.h"
 #include "sql_basic_types.h"
+#include <atomic>
 #include "log_event.h"
 #include "compat56.h"
 #include "sql_common.h"

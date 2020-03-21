@@ -223,7 +223,7 @@ struct rpl_slave_state
   */
   void * volatile gtid_pos_tables;
   /* The default entry in gtid_pos_tables, mysql.gtid_slave_pos. */
-  void * volatile default_gtid_pos_table;
+  std::atomic<gtid_pos_table*> default_gtid_pos_table;
   bool loaded;
 
   rpl_slave_state();

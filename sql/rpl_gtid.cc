@@ -497,7 +497,7 @@ gtid_check_rpl_slave_state_table(TABLE *table)
 void
 rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename)
 {
-  struct gtid_pos_table *list, *table_entry, *default_entry;
+  struct gtid_pos_table *list, *table_entry;
 
   /*
     See comments on rpl_slave_state::gtid_pos_tables for rules around proper
@@ -565,9 +565,8 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename)
     already active in the transaction, or if there is no current transaction
     engines available, we return the default gtid_slave_pos table.
   */
-  default_entry= (struct gtid_pos_table *)
-    my_atomic_loadptr_explicit(&default_gtid_pos_table, MY_MEMORY_ORDER_ACQUIRE);
-  *out_tablename= default_entry->table_name;
+  *out_tablename=
+    default_gtid_pos_table.load(std::memory_order_acquire)->table_name;
   /* Record in status that we failed to find a suitable gtid_pos table. */
   if (count > 0)
   {
@@ -840,9 +839,7 @@ rpl_slave_state::select_gtid_pos_table(void *hton)
     table_entry= table_entry->next;
   }
 
-  table_entry= (struct gtid_pos_table *)
-    my_atomic_loadptr_explicit(&default_gtid_pos_table, MY_MEMORY_ORDER_ACQUIRE);
-  return &table_entry->table_name;
+  return &default_gtid_pos_table.load(std::memory_order_acquire)->table_name;
 }
 
 
@@ -1445,8 +1442,7 @@ rpl_slave_state::set_gtid_pos_tables_list(rpl_slave_state::gtid_pos_table *new_l
   mysql_mutex_assert_owner(&LOCK_slave_state);
   old_list= (struct gtid_pos_table *)gtid_pos_tables;
   my_atomic_storeptr_explicit(&gtid_pos_tables, new_list, MY_MEMORY_ORDER_RELEASE);
-  my_atomic_storeptr_explicit(&default_gtid_pos_table, default_entry,
-                              MY_MEMORY_ORDER_RELEASE);
+  default_gtid_pos_table.store(default_entry, std::memory_order_release);
   free_gtid_pos_tables(old_list);
 }
 
