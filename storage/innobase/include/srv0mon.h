@@ -30,7 +30,6 @@ Created 12/15/2009	Jimmy Yang
 #define srv0mon_h
 
 #include "univ.i"
-#include "my_atomic.h"
 
 #ifndef __STDC_LIMIT_MACROS
 /* Required for FreeBSD so that INT64_MAX is defined. */
