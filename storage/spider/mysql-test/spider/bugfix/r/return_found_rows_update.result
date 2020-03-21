@@ -48,7 +48,7 @@ Bye
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%update %';
 argument
-update `auto_test_remote`.`tbl_a` set `tm` = _latin1'12:00:00' where (`skey` = 0)
+update `auto_test_remote`.`tbl_a` set `tm` = _utf8mb4'12:00:00' where (`skey` = 0)
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%update %'
 SELECT skey, dt, tm FROM tbl_a ORDER BY skey;
 skey	dt	tm
