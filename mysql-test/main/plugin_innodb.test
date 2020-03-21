@@ -9,14 +9,22 @@ if (!`select count(*) from information_schema.plugins
 }
 
 
---replace_regex /\.dll/.so/
-eval install plugin example soname '$HA_EXAMPLE_SO';
+install plugin example soname 'ha_example';
 create table t1(a int) engine=example;
 drop table t1;
 
 alter table mysql.plugin engine=innodb;
---echo restart
---source include/restart_mysqld.inc
+--source include/shutdown_mysqld.inc
+
+--exec $MYSQLD_CMD  --innodb --help --verbose > $MYSQL_TMP_DIR/plugin_innodb.txt 2> $MYSQL_TMP_DIR/plugin_innodb.err
+perl;
+  open(F, '<', "$ENV{MYSQL_TMP_DIR}/plugin_innodb.txt") or die;
+  while (<F>) {
+    print if /EXAMPLE/;
+  }
+EOF
+
+--source include/start_mysqld.inc
 
 create table t1(a int) engine=example;
 select * from t1;

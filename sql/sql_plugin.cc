@@ -1592,9 +1592,10 @@ int plugin_init(int *argc, char **argv, int flags)
   struct st_plugin_int tmp, *plugin_ptr, **reap;
   MEM_ROOT tmp_root;
   bool reaped_mandatory_plugin= false;
-  bool mandatory= true, aria_loaded= 0;
+  bool mandatory= true;
+  char plugin_table_engine_name_buf[NAME_CHAR_LEN + 1];
+  LEX_CSTRING plugin_table_engine_name= { plugin_table_engine_name_buf, 0 };
   LEX_CSTRING MyISAM= { STRING_WITH_LEN("MyISAM") };
-  LEX_CSTRING Aria= { STRING_WITH_LEN("Aria") };
   DBUG_ENTER("plugin_init");
 
   if (initialized)
@@ -1706,22 +1707,6 @@ int plugin_init(int *argc, char **argv, int flags)
       intern_plugin_lock(NULL, plugin_int_to_ref(plugin_ptr));
     DBUG_SLOW_ASSERT(plugin_ptr->ref_count == 1);
   }
-  /* Initialize Aria plugin so that we can load mysql.plugin */
-  plugin_ptr= plugin_find_internal(&Aria, MYSQL_STORAGE_ENGINE_PLUGIN);
-  DBUG_ASSERT(plugin_ptr || !mysql_mandatory_plugins[0]);
-  if (plugin_ptr)
-  {
-    DBUG_ASSERT(plugin_ptr->load_option == PLUGIN_FORCE);
-
-    if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv, false))
-    {
-      if (!opt_help)
-        goto err_unlock;
-      plugin_ptr->state= PLUGIN_IS_DISABLED;
-    }
-    else
-      aria_loaded= 1;
-  }
   mysql_mutex_unlock(&LOCK_plugin);
 
   /* Register (not initialize!) all dynamic plugins */
@@ -1738,18 +1723,10 @@ int plugin_init(int *argc, char **argv, int flags)
     {
       char path[FN_REFLEN + 1];
       build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
-      char engine_name_buf[NAME_CHAR_LEN + 1];
-      LEX_CSTRING maybe_myisam= { engine_name_buf, 0 };
-      bool is_sequence;
-      Table_type frm_type= dd_frm_type(NULL, path, &maybe_myisam, &is_sequence);
-      /* if mysql.plugin table is MyISAM or Aria - load it right away */
-      if (frm_type == TABLE_TYPE_NORMAL &&
-          (!strcasecmp(maybe_myisam.str, "MyISAM") ||
-           (!strcasecmp(maybe_myisam.str, "Aria") && aria_loaded)))
-      {
-        plugin_load(&tmp_root);
-        flags|= PLUGIN_INIT_SKIP_PLUGIN_TABLE;
-      }
+      bool dummy;
+      Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name, &dummy);
+      if (ttype != TABLE_TYPE_NORMAL)
+        plugin_table_engine_name=empty_clex_str;
     }
   }
 
@@ -1771,8 +1748,12 @@ int plugin_init(int *argc, char **argv, int flags)
         plugin_ptr= (struct st_plugin_int *) my_hash_element(hash, idx);
         if (plugin_ptr->state == PLUGIN_IS_UNINITIALIZED)
         {
-          if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv,
-                                (flags & PLUGIN_INIT_SKIP_INITIALIZATION)))
+          bool plugin_table_engine= lex_string_eq(&plugin_table_engine_name,
+                                                  &plugin_ptr->name);
+          bool opts_only= flags & PLUGIN_INIT_SKIP_INITIALIZATION &&
+                         (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE ||
+                          !plugin_table_engine);
+          if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv, opts_only))
           {
             plugin_ptr->state= PLUGIN_IS_DYING;
             *(reap++)= plugin_ptr;
@@ -1806,7 +1787,7 @@ int plugin_init(int *argc, char **argv, int flags)
 
   mysql_mutex_unlock(&LOCK_plugin);
   my_afree(reap);
-  if (reaped_mandatory_plugin)
+  if (reaped_mandatory_plugin && !opt_help)
     goto err;
 
   free_root(&tmp_root, MYF(0));
