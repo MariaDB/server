@@ -23,7 +23,6 @@
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */
 #include "mysql_com.h"                     /* SERVER_VERSION_LENGTH */
-#include "my_atomic.h"
 #include "my_counter.h"
 #include "mysql/psi/mysql_file.h"          /* MYSQL_FILE */
 #include "mysql/psi/mysql_socket.h"        /* MYSQL_SOCKET */
@@ -763,17 +762,17 @@ enum enum_query_type
 
 
 /* query_id */
-extern query_id_t global_query_id;
+extern Atomic_counter<query_id_t> global_query_id;
 
 /* increment query_id and return it.  */
 inline __attribute__((warn_unused_result)) query_id_t next_query_id()
 {
-  return my_atomic_add64_explicit(&global_query_id, 1, MY_MEMORY_ORDER_RELAXED);
+  return global_query_id++;
 }
 
 inline query_id_t get_query_id()
 {
-  return my_atomic_load64_explicit(&global_query_id, MY_MEMORY_ORDER_RELAXED);
+  return global_query_id;
 }
 
 /* increment global_thread_id and return it.  */
