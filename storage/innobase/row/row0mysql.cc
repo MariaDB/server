@@ -3735,10 +3735,11 @@ do_drop:
 		dict_table_t. */
 		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 			dict_get_and_save_data_dir_path(table, true);
-			ut_a(table->data_dir_path);
+			ut_ad(table->data_dir_path || !space);
 			filepath = space ? NULL : fil_make_filepath(
 				table->data_dir_path,
-				table->name.m_name, IBD, true);
+				table->name.m_name, IBD,
+				table->data_dir_path != NULL);
 		} else {
 			filepath = space ? NULL : fil_make_filepath(
 				NULL, table->name.m_name, IBD, false);
@@ -4316,14 +4317,14 @@ row_rename_table_for_mysql(
 
 	/* SYS_TABLESPACES and SYS_DATAFILES need to be updated if
 	the table is in a single-table tablespace. */
-	if (err == DB_SUCCESS
-	    && dict_table_is_file_per_table(table)) {
-		/* Make a new pathname to update SYS_DATAFILES. */
+	if (err != DB_SUCCESS || !dict_table_is_file_per_table(table)) {
+	} else if (table->space) {
 		/* If old path and new path are the same means tablename
 		has not changed and only the database name holding the table
 		has changed so we need to make the complete filepath again. */
 		char*	new_path = dict_tables_have_same_db(old_name, new_name)
-			? row_make_new_pathname(table, new_name)
+			? os_file_make_new_pathname(
+				table->space->chain.start->name, new_name)
 			: fil_make_filepath(NULL, new_name, IBD, false);
 
 		info = pars_info_create();

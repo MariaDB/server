@@ -167,6 +167,7 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
                                          THD *victim_thd)
 {
   DBUG_ASSERT(victim_thd);
+  DBUG_ASSERT(wsrep_thd_is_SR(victim_thd));
   if (!victim_thd || !wsrep_on(bf_thd)) return;
 
   WSREP_DEBUG("handle rollback, for deadlock: thd %llu trx_id %" PRIu64 " frags %zu conf %s",

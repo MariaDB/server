@@ -1008,14 +1008,8 @@ void recv_sys_t::create()
 	apply_log_recs = false;
 	apply_batch_on = false;
 
-	if (buf_pool.is_initialised()) {
-		max_log_blocks = buf_pool.get_n_pages() / 3;
-	} else {
-		ut_ad(srv_operation == SRV_OPERATION_BACKUP
-		      || srv_operation == SRV_OPERATION_RESTORE_DELTA);
-		max_log_blocks = 0;
-	}
-	buf = static_cast<byte*>(ut_malloc_dontdump(RECV_PARSING_BUF_SIZE, PSI_INSTRUMENT_ME));
+	buf = static_cast<byte*>(ut_malloc_dontdump(RECV_PARSING_BUF_SIZE,
+						    PSI_INSTRUMENT_ME));
 	len = 0;
 	parse_start_lsn = 0;
 	scanned_lsn = 0;
@@ -2722,7 +2716,8 @@ Store last_stored_lsn if the recovery is not in the last phase.
 @return whether the memory is exhausted */
 inline bool recv_sys_t::is_memory_exhausted(store_t *store)
 {
-  if (*store == STORE_NO || UT_LIST_GET_LEN(blocks) < max_log_blocks)
+  if (*store == STORE_NO ||
+      UT_LIST_GET_LEN(blocks) * 3 < buf_pool.get_n_pages())
     return false;
   if (*store == STORE_YES)
     last_stored_lsn= recovered_lsn;

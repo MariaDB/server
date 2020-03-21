@@ -485,7 +485,7 @@ ALTER TABLE tab MODIFY COLUMN c2 GEOMETRY NOT NULL;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tab MODIFY COLUMN c3 POLYGON NOT NULL;
-ERROR 22007: Incorrect POLYGON value: 'LINESTRING' for column `test`.`tab`.`c3` at row 1
+ERROR 22007: Incorrect POLYGON value: 'LINESTRING(5 5,20 20,30 30)' for column `test`.`tab`.`c3` at row 1
 ALTER TABLE tab add COLUMN c7 POINT NOT NULL;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
@@ -790,13 +790,13 @@ DROP TABLE t1;
 create table t1 (p point not null default if(unix_timestamp()>10,POINT(1,1),LineString(Point(0,0),Point(1,1)))) ENGINE=innodb;
 set timestamp=10;
 insert into t1 values(default);
-ERROR 22007: Incorrect POINT value: 'LINESTRING' for column `test`.`t1`.`p` at row 1
+ERROR 22007: Incorrect POINT value: 'LINESTRING(0 0,1 1)' for column `test`.`t1`.`p` at row 1
 drop table t1;
 SET timestamp=default;
 create table t1 (p point not null default if(unix_timestamp()>10,POINT(1,1),LineString(Point(0,0),Point(1,1)))) ENGINE=innodb;
 set timestamp=10;
 alter table t1 add column i int;
-ERROR 22007: Incorrect POINT value: 'LINESTRING' for column `test`.`t1`.`p` at row 1
+ERROR 22007: Incorrect POINT value: 'LINESTRING(0 0,1 1)' for column `test`.`t1`.`p` at row 1
 drop table t1;
 SET timestamp=default;
 CREATE OR REPLACE TABLE t1 (a INT) ENGINE=InnoDB;

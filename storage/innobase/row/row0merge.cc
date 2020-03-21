@@ -4236,22 +4236,6 @@ row_merge_rename_index_to_drop(
 	return(err);
 }
 
-/*********************************************************************//**
-Provide a new pathname for a table that is being renamed if it belongs to
-a file-per-table tablespace.  The caller is responsible for freeing the
-memory allocated for the return value.
-@return new pathname of tablespace file, or NULL if space = 0 */
-char*
-row_make_new_pathname(
-/*==================*/
-	dict_table_t*	table,		/*!< in: table to be renamed */
-	const char*	new_name)	/*!< in: new name */
-{
-	ut_ad(!is_system_tablespace(table->space_id));
-	return os_file_make_new_pathname(table->space->chain.start->name,
-					 new_name);
-}
-
 /** Create the index and load in to the dictionary.
 @param[in,out]	table		the index is on this table
 @param[in]	index_def	the index definition

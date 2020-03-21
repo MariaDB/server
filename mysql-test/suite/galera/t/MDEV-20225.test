@@ -41,6 +41,8 @@ SET DEBUG_SYNC = 'RESET';
 SET GLOBAL wsrep_slave_threads = 1;
 
 # Trigger should now be dropped on node_2.
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME like '%tr1'
+--source include/wait_condition.inc
 SHOW TRIGGERS;
 
 DROP TABLE t1;

@@ -307,15 +307,10 @@ private:
 
   void open_log_files_if_needed();
 
-  /** Maximum number of buffer pool blocks to allocate for redo log records */
-  ulint max_log_blocks;
-
-  /** Base node of the redo block list (up to max_log_blocks)
+  /** Base node of the redo block list.
   List elements are linked via buf_block_t::unzip_LRU. */
   UT_LIST_BASE_NODE_T(buf_block_t) blocks;
 public:
-  /** @return the maximum number of buffer pool blocks for log records */
-  ulint max_blocks() const { return max_log_blocks; }
   /** Check whether the number of read redo log blocks exceeds the maximum.
   Store last_stored_lsn if the recovery is not in the last phase.
   @param[in,out] store    whether to store page operations

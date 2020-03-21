@@ -2319,7 +2319,7 @@ withdraw_retry:
 			ut_zalloc_nokey_nofatal(new_chunks_size));
 
 		DBUG_EXECUTE_IF("buf_pool_resize_chunk_null",
-				{ ut_free(new_chunks); new_chunks= nullptr; });
+				ut_free(new_chunks); new_chunks= nullptr; );
 
 		if (!new_chunks) {
 			ib::error() << "failed to allocate"
