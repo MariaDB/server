@@ -1593,6 +1593,7 @@ int plugin_init(int *argc, char **argv, int flags)
   MEM_ROOT tmp_root;
   bool reaped_mandatory_plugin= false;
   bool mandatory= true;
+  I_List_iterator<i_string> opt_plugin_load_list_iter(opt_plugin_load_list);
   char plugin_table_engine_name_buf[NAME_CHAR_LEN + 1];
   LEX_CSTRING plugin_table_engine_name= { plugin_table_engine_name_buf, 0 };
   LEX_CSTRING MyISAM= { STRING_WITH_LEN("MyISAM") };
@@ -1710,24 +1711,19 @@ int plugin_init(int *argc, char **argv, int flags)
   mysql_mutex_unlock(&LOCK_plugin);
 
   /* Register (not initialize!) all dynamic plugins */
-  if (!(flags & PLUGIN_INIT_SKIP_DYNAMIC_LOADING))
-  {
-    I_List_iterator<i_string> iter(opt_plugin_load_list);
-    i_string *item;
-    if (global_system_variables.log_warnings >= 9)
-      sql_print_information("Initializing plugins specified on the command line");
-    while (NULL != (item= iter++))
-      plugin_load_list(&tmp_root, item->ptr);
+  if (global_system_variables.log_warnings >= 9)
+    sql_print_information("Initializing plugins specified on the command line");
+  while (i_string *item= opt_plugin_load_list_iter++)
+    plugin_load_list(&tmp_root, item->ptr);
 
-    if (!(flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE))
-    {
-      char path[FN_REFLEN + 1];
-      build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
-      bool dummy;
-      Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name, &dummy);
-      if (ttype != TABLE_TYPE_NORMAL)
-        plugin_table_engine_name=empty_clex_str;
-    }
+  if (!(flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE))
+  {
+    char path[FN_REFLEN + 1];
+    build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
+    bool dummy;
+    Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name, &dummy);
+    if (ttype != TABLE_TYPE_NORMAL)
+      plugin_table_engine_name=empty_clex_str;
   }
 
   /*
