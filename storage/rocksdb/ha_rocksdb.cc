@@ -3159,11 +3159,11 @@ class Rdb_transaction_impl : public Rdb_transaction {
 
   virtual bool is_writebatch_trx() const override { return false; }
 
-  bool is_prepared() {
+  bool is_prepared() override {
     return m_rocksdb_tx && rocksdb::Transaction::PREPARED == m_rocksdb_tx->GetState();
   }
 
-  void detach_prepared_tx() {
+  void detach_prepared_tx() override {
     DBUG_ASSERT(rocksdb::Transaction::PREPARED == m_rocksdb_tx->GetState());
     m_rocksdb_tx = nullptr;
   }
