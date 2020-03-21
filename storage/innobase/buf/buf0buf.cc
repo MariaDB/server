@@ -959,8 +959,10 @@ static uint32_t buf_page_check_crc32(const byte* page, uint32_t checksum)
 bool buf_is_zeroes(span<const byte> buf)
 {
   static const byte zeroes[4 * 1024] = {0};
-  for (size_t i = 0; i < buf.size(); i += sizeof(zeroes)) {
-    if (memcmp(zeroes, buf.data() + i, sizeof(zeroes)) != 0)
+  for (size_t i = 0; i < buf.size(); i += std::min(sizeof(zeroes),
+						   buf.size() - i)) {
+    if (memcmp(zeroes, buf.data() + i, std::min(sizeof(zeroes),
+						buf.size() - i)) != 0)
       return false;
   }
   return true;
