@@ -34,7 +34,6 @@ using st_::span;
 /** A BLOB field reference full of zero, for use in assertions and tests.
 Initially, BLOB field references are set to zero, in
 dtuple_convert_big_rec(). */
-MY_ALIGNED(UNIV_PAGE_SIZE_MAX)
 const byte field_ref_zero[UNIV_PAGE_SIZE_MAX] = { 0, };
 
 #ifndef UNIV_INNOCHECKSUM
