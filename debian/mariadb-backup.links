@@ -1,1 +1,2 @@
 usr/bin/mariadb-backup usr/bin/mariabackup
+usr/share/man/man1/mariadb-backup.1 usr/share/man/man1/mariabackup.1
