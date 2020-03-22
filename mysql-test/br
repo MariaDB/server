@@ -1,0 +1,2 @@
+break slave.cc:5828
+break terminate_slave_thread

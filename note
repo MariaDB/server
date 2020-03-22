@@ -1,0 +1,472 @@
+Just a prototype maybe be stupid too
+but I have to try it na
+
+
+Read view same time on master and slave gtid
+create prepare point
+
+So it will be enclosed like this
+
+Start
+Alter
+End
+
+Prepare { Gtid will be there}
+Commit  {Gtid will be there}
+so Alter will be in gtid commit
+
+
+So to proceed with prototype
+look how xa prepare is sandwiched between gtid and commit
+in short look xa prepare/coomit are recorded in binlog
+
+then look when we create read view and then send the prepare event encapsulated
+in gtid.
+
+GTID_BLOCK
+Gtid
+XA START
+
+QUERY_BLOCK/ROW_BLOCK
+Query/Write/Dml
+
+QUERY_LOG_EVENT BLOCK
+XA END
+
+XID_PREPARE_EVENT
+XA Prepare
+
+GTID_BLOCK
+gtid
+/TODO
+XA COMMIT
+
+
+
+
+
+Prototype
+
+Wait for read view
+create the prepapre event and send it
+
+
+
+MASTER
+
+W1
+W2
+A_1
+W3
+W4
+W5
+6A_2C
+W7
+W8
+
+Slave
+Prepare
+W1
+A_1
+W2
+W3
+W4
+W5
+WA_2C
+W7
+W8
+
+Slave Commit
+W1
+W2
+A_1
+W3
+W4
+W5
+6A_2C
+W7
+W8
+
+
+For now should be executed in TOI mode, no other exclusive stuff
+
+
+XA START ALTER_THREAD_ID
+ALTER
+XA END
+Prepare
+
+Commit
+
+
+
+
+
+
+
+New Design
+
+Start 'Gtid_seq_no_constant'   ' part_no_1' Command_1
+Start 'Gtid_seq_no_constant'   ' part_no_2' Command_2
+.
+.
+.
+.
+Start 'Gtid_seq_no_constant'   ' part_no_N' Command_N
+Commit 'Gtid_seq_no_constant'  'part_no_N+1'
+
+Gtid_seq_no_constant= Gtid_seq no of Command1
+
+What about domain id ?
+We can have something like this 'x-x-x' Whole gtid instead of seq_no
+
+For the just stick with normal alter
+
+START 'thread_id' ALTER
+COMMIT 'thred_id'
+>>>>Replace thread_id with starting gtid and partno
+
+Next stage artifical commit
+
+
+Slave t.1
+start ALTER 
+Complete prepare phase
+SEND PREPARE N
+WAIT FOR COMMIt/ROLLBACK N Signal
+COMMIT/ROLLBACK
+
+Slave t.2
+Commit N
+Wait for PREPARE N
+Send COMMIT N
+
+
+ROLLABACK
+Wait for PREPARE N
+SEND ROLLBACK N Signal
+
+
+
+
+No nothing like that , Start alter should commit, But we will preserve thread context
+
+Lets assume simple case
+M         S
+|         |
+S.A(t.1)  |
+|        S.A(thread_1)
+C(t.1)    Waiting
+|         C(thread_2)
+
+
+So Something Like this
+
+On Slave
+
+Parent thread
+|
+S.A
+Prepare Alter
+Fork                  Slave Thread
+|                         |
+Do fake Commit            Wait_of_commit signal N
+|                         Do Commit N
+                          Exit
+
+
+
+
+
+On MASTER
+START ALTER......
+COMMIT ALTER....
+ROLLBACK ALTER ....
+
+
+
+On Slave
+START ALTER
+COMMIT ALTER...
+COMMIT query_id ALTER (Will be issued by DBA)
+ROLLBACK ALTER...
+ROLLBACK query_id ALTER (Will be issued by DBA)
+
+
+
+W.SA                                   W.C/R
+SA                                      |
+Global Str flg SA(channel_name + id)    |
+SIGNAL                                  |
+WAIT                                    |
+|                                       check global struc (channel_name + id)
+|                                       Signal
+COMMIT
+
+
+
+GLOBAL ARRAY of size worker num (wrt to channel)
+[0][0][0][0][1][1][1][0][0]  -1, 0, error
+ W..W..W........W........
+
+
+
+
+
+START ALTER STRUCTURE
+
+thread_id(key)
+status  WAITING, ROLLBACK, COMMIT
+error 0, UINT32_MAX
+
+
+void THD::lock_temporary_table(TABLE *table)
+
+
+do_gco_wait
+
+mark_start_commit_no_lock
+
+
+change the start alter to commit/rollback , As given by master.
+
+
+______________________________________________________________________
+drop table t1;
+create table t1 (id int primary key auto_increment, a int, b int) engine=myisam;
+insert into t1 values(null, 1,1);
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+insert into t1(a,b) select a,b from t1;
+shutdown;
+
+alter table t1 add column d int default (a+b);shutdown;
+alter table t1 add column d int default 1 , force, algorithm=inplace;shutdown
+
+alter table t1 add column f1 int unique default(id+10);
+shutdown;
+
+
+
+create table t1( id int unique) engine =innodb;
+
+T1 = insert into t1 values(1);
+T2 = insert into t1 values(2);
+T3 = alter table t1 drop index id;
+T4 = insert into t1 values(2);
+
+
+T1               T1
+DML              DML
+DML              DML
+DML              DML
+DML              ALTER
+DML              DML
+DML              DML
+DML              DML
+ALTER            DML
+DML              DML
+DML              DML
+
+
+
+Make it FL_TRANSACTIONAL(SA)
+
+Done , now we have crash
+
+
+
+SLAVE side
+
+(notify means calling mark_commit_done and wait_subsequent_commits)
+time ----->
+t1   SA(notify) ---Work--- Wait_for_master
+t2            SA(notify) ---Work--- Wait_for_master
+t3                     SA(notify) ---Work--- Wait_for_master
+t4                              SA(notify) ---Work--- Wait_for_master
+C(t1)                                                                (WAIT to COMMIT)
+C(t2)                                                                               (WAIT to COMMIT)
+C(t3)                                                                                               (WAIT to COMMIT)
+C(t4)                                                                                                              (WAIT to COMMIT)
+
+
+Do one thing , debug this
+
+Worker 4
+inserts 20 , insert with sleep of 500
+
+
+
+State
+waiting
+commit/rollback
+commited/rollbacked
+
+rpl_parallel_add_extra_worker()
+thd::transaction add START_ALTER
+
+
+Next sub id
+(gdb) bt
+#0  event_group_new_gtid (rgi=0x7fffb0031eb0, gev=0x7fffb003bbb0) at /home/sachin/10.5/server/sql/rpl_rli.cc:2135
+#1  0x0000555555fed12f in rpl_parallel_thread::get_rgi (this=0x7fffb00295b8, rli=0x5555586f3898, gtid_ev=0x7fffb003bbb0, e=0x7fffb00314e0, event_size=42) at /home/sachin/10.5/server/sql/rpl_parallel.cc:1907
+#2  0x0000555555fef1f7 in rpl_parallel::do_event (this=0x5555586f6ab0, serial_rgi=0x7fffb00008d0, ev=0x7fffb003bbb0, event_size=42) at /home/sachin/10.5/server/sql/rpl_parallel.cc:2745
+#3  0x0000555555cc249c in exec_relay_log_event (thd=0x7fffb0001690, rli=0x5555586f3898, serial_rgi=0x7fffb00008d0) at /home/sachin/10.5/server/sql/slave.cc:4381
+#4  0x0000555555cc60aa in handle_slave_sql (arg=0x5555586f1bd0) at /home/sachin/10.5/server/sql/slave.cc:5633
+#5  0x00005555564bf70c in pfs_spawn_thread (arg=0x7fffa401b360) at /home/sachin/10.5/server/storage/perfschema/pfs.cc:1862
+#6  0x00007ffff6e0e6db in start_thread (arg=0x7ffff0191700) at pthread_create.c:463
+#7  0x00007ffff5ff488f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+(gdb) 
+
+
+
+rpl_parallel.cc 1119
+
+
+Now shutdown/stop slave
+Start alter Waiting for signal --- Do nothing
+
+COMMIT/ROLLBACK signal recieved  --do the work and shutdown
+
+
+
+TEST CASE
+
+MASTER KILLED
+_WORKING_
+
+SA CA .... SA _SDM_ CA
+
+//ISSUE
+SA SA C/R Alter
+SLAVE KILLED
+SA CA .... SA _SDS_ CA
+RESTART
+
+DIFFERENT type of alter algoirthm
+(INNODB)
+(MYISAm)
+and other storage engine
+
+
+inc_group_relay_log_pos
+
+SLAVE SHUTDOWN when start alter is running and no commit and rollback
+SA--------CRASH--------NO C/R
+
+
+
+
+we will be in wait_for_master
+
+stop slave should broadcast start_alter_info cond
+and we should be looking for whether we are killed or not
+
+
+
+lets do stop slave after we recieve START ALTER
+1thing:- Do the shutdown
+how the fuck shutdown will be working ?
+So We will wait till start alter to complete
+So now 3 things
+1. In middle of start alter , maa chuda lo , laudo kuch hoga
+Bhak BC , I will set one thd variable ki shutdown ker lo
+ab bata bc wo kese karunga ?
+So I will do something like this
+on terminate_slave_threads(SQL thread), 
+Bro this will work for everything
+I make shutdown =true for each list node
+and broadcast start_alter_info_signal
+
+2. Waiting of C/R Alter , isme kya karu ?
+2nd , restart should work
+
+
+
+TODO wait_for_master status
+
+i
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1 before start of SA
+R
+2. AFTER SA
+R
+2.1 before write_bin_log
+R
+2.2 in cond wait
+R
+3 in COMIT?ROLL
+R
+4 after C/R
+R
+
+Lets assume
+SA t1 SA t1 COMMIT
+SA t1 I(t1) SA t1 COMMIT

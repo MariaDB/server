@@ -544,6 +544,7 @@ ulong opt_slave_parallel_max_queued= 131072;
 my_bool opt_gtid_ignore_duplicates= FALSE;
 uint opt_gtid_cleanup_batch_size= 64;
 my_bool opt_binlog_split_alter= 0;
+uint opt_background_alter_threads_max= 10;
 
 const double log_10[] = {
   1e000, 1e001, 1e002, 1e003, 1e004, 1e005, 1e006, 1e007, 1e008, 1e009,
@@ -5253,6 +5254,9 @@ static int init_server_components()
   if (!opt_bootstrap)
     servers_init(0);
   init_status_vars();
+#ifdef HAVE_REPLICATION
+  init_start_alter_struct();
+#endif
   DBUG_RETURN(0);
 }
 

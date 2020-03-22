@@ -400,9 +400,16 @@ const LEX_CSTRING command_name[257]={
 };
 
 #ifdef HAVE_REPLICATION
-start_alter_struct local_start_alter_struct;
-#endif
-#ifdef HAVE_REPLICATION
+start_alter_struct start_alter_struct_local;
+void init_start_alter_struct()
+{
+  mysql_mutex_init(0, &start_alter_struct_local.start_alter_list_lock,
+                    MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(0, &start_alter_struct_local.start_alter_lock,
+                    MY_MUTEX_INIT_FAST);
+  mysql_cond_init(0, &start_alter_struct_local.start_alter_list_cond, NULL);
+
+}
 /**
   Returns true if all tables should be ignored.
 */

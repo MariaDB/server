@@ -2236,9 +2236,15 @@ static Sys_var_bit Sys_skip_parallel_replication(
 
 static Sys_var_mybool Sys_binlog_split_alter(
        "binlog_split_alter",
-       "If set split the alter into 2 statement START ALTER and COMMIT/ROLLBACK"
+       "If set split the alter into 2 statement UNTIL COMMIT and COMMIT/ROLLBACK"
        "ALTER",
        GLOBAL_VAR(opt_binlog_split_alter), NO_CMD_LINE, DEFAULT(FALSE));
+
+static Sys_var_int Sys_binlog_alter_threads(
+       "background_alter_threads",
+       "Maximum no of threads used for background ALTER processing",
+       AUTO_SET GLOBAL_VAR(opt_background_alter_threads_max), NO_CMD_LINE,
+       VALID_RANGE(0, INT_MAX32/1000), DEFAULT(5),BLOCK_SIZE(1));
 
 static bool
 check_gtid_ignore_duplicates(sys_var *self, THD *thd, set_var *var)

@@ -1,0 +1,54 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_debug.inc
+set global binlog_split_alter=true;
+
+--connection slave
+stop slave;
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+start slave;
+
+--echo #Parallel Slave
+--connection master
+
+--echo # Innodb
+create table t1( a int, b int) engine=innodb;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+--echo #Normal Alter
+alter table t1 add column c int;
+--sleep 100000
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--sync_slave_with_master
+source include/show_binlog_events.inc;
+show create table t1;
+--connection master
+drop table t1;
+--sync_slave_with_master
+--connection master
+
+stop slave;
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+start slave;
+
+--connection master
+set global binlog_split_alter=false;
+--source include/rpl_end.inc

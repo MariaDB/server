@@ -1,0 +1,31 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection slave
+stop slave;
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+start slave;
+
+
+--connection master
+create table t1( a int primary key, b int) engine=innodb;
+insert into t1 values(1,1),(2,2);
+alter table t1 add column c int, force, algorithm=inplace;
+
+show binlog events;
+show create table t1;
+
+--connection slave
+--sleep 10000
+
+--connection master
+drop table t1,t2,t3,t4,t5;
+
+--connection slave
+stop slave;
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+start slave;
+--source include/rpl_end.inc

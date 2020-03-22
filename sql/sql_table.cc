@@ -66,7 +66,7 @@
 
 const char *primary_key_name="PRIMARY";
 #ifdef HAVE_REPLICATION
-extern start_alter_struct local_start_alter_struct;
+extern start_alter_struct start_alter_struct_local;
 #endif
 
 static int check_if_keyname_exists(const char *name,KEY *start, KEY *end);
@@ -9351,6 +9351,7 @@ static void wait_for_master(THD *thd, start_alter_info* info,
   mysql_mutex_unlock(&alter_struct->start_alter_lock);
   mysql_cond_broadcast(&info->start_alter_cond);
   mysql_mutex_lock(&alter_struct->start_alter_lock);
+  thd_proc_info(thd, "ALTER %ld Waiting for COMMIT/ROLLBACK ");
   while (info->state == start_alter_state::REGISTERED)
   {
     mysql_cond_wait(&info->start_alter_cond, &alter_struct->start_alter_lock);
@@ -9512,7 +9513,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   if (thd->slave_thread)
     alter_struct= &thd->rgi_slave->rli->mi->start_alter_struct_master;
   else
-    alter_struct= &local_start_alter_struct;
+    alter_struct= &start_alter_struct_local;
 #endif
   ulong start_alter_id= thd->lex->alter_info.alter_identifier;
 
@@ -10446,7 +10447,6 @@ do_continue:;
   */
   if (start_alter_id && !thd->direct_commit_alter)
   {
-    DBUG_ASSERT(thd->slave_thread);
     wait_for_master(thd, info, alter_struct);
     if (info->state == start_alter_state::ROLLBACK_ALTER)
       goto err_new_table_cleanup;

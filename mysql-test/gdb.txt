@@ -1,0 +1,598 @@
+Starting program: /home/sachin/alter/build/sql/mysqld --defaults-group-suffix=.2 --defaults-file=/home/sachin/alter/build/mysql-test/var/my.cnf --log-output=file --gdb --innodb --innodb-cmpmem --innodb-cmp-per-index --innodb-trx --innodb-locks --innodb-lock-waits --innodb-metrics --innodb-buffer-pool-stats --innodb-buffer-page --innodb-buffer-page-lru --innodb-sys-columns --innodb-sys-fields --innodb-sys-foreign --innodb-sys-foreign-cols --innodb-sys-indexes --innodb-sys-tables --innodb-sys-virtual --log-bin=slave-bin --binlog-format=row --log-bin=slave-bin --core-file --loose-debug-sync-timeout=300 
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+[New Thread 0x7ffff0bbe700 (LWP 27295)]
+[New Thread 0x7fffeb7e1700 (LWP 27296)]
+[New Thread 0x7fffe9fdf700 (LWP 27297)]
+[New Thread 0x7fffe97de700 (LWP 27298)]
+[New Thread 0x7fffe8fdd700 (LWP 27299)]
+[New Thread 0x7fffe3fff700 (LWP 27300)]
+[New Thread 0x7fffe37fe700 (LWP 27301)]
+[New Thread 0x7fffe2ffd700 (LWP 27302)]
+[New Thread 0x7fffe27fc700 (LWP 27303)]
+[New Thread 0x7fffe1ffb700 (LWP 27304)]
+[New Thread 0x7fffe17fa700 (LWP 27305)]
+[New Thread 0x7fffe0ff9700 (LWP 27306)]
+[Thread 0x7fffe1ffb700 (LWP 27304) exited]
+[New Thread 0x7fffe1ffb700 (LWP 27307)]
+[New Thread 0x7fffbffff700 (LWP 27308)]
+[New Thread 0x7fffbf7fe700 (LWP 27309)]
+[New Thread 0x7fffbeffd700 (LWP 27310)]
+[New Thread 0x7fffbe7fc700 (LWP 27311)]
+[New Thread 0x7fffbdffb700 (LWP 27312)]
+[New Thread 0x7fffbd7fa700 (LWP 27313)]
+[New Thread 0x7fffbcff9700 (LWP 27314)]
+[New Thread 0x7fffa7fff700 (LWP 27315)]
+[New Thread 0x7fffa77fe700 (LWP 27316)]
+[New Thread 0x7fffa6ffd700 (LWP 27317)]
+[New Thread 0x7fffa67fc700 (LWP 27318)]
+[New Thread 0x7ffff0073700 (LWP 27319)]
+[New Thread 0x7fffea1df700 (LWP 27320)]
+[New Thread 0x7fffea194700 (LWP 27321)]
+[New Thread 0x7fffea149700 (LWP 27327)]
+[New Thread 0x7fffea0fe700 (LWP 27330)]
+[New Thread 0x7fffea0b3700 (LWP 27333)]
+[New Thread 0x7fffea068700 (LWP 27334)]
+[New Thread 0x7fffe85d7700 (LWP 27338)]
+[New Thread 0x7fffe858c700 (LWP 27339)]
+[Thread 0x7fffea068700 (LWP 27334) exited]
+[Thread 0x7fffea0b3700 (LWP 27333) exited]
+[New Thread 0x7fffea0b3700 (LWP 27341)]
+[New Thread 0x7fffea068700 (LWP 27342)]
+[New Thread 0x7fffe8541700 (LWP 27344)]
+[New Thread 0x7fffe84f6700 (LWP 27345)]
+[New Thread 0x7fffe84ab700 (LWP 27346)]
+[New Thread 0x7fffe8460700 (LWP 27347)]
+[New Thread 0x7fffe8415700 (LWP 27348)]
+[New Thread 0x7fffe83ca700 (LWP 27349)]
+[New Thread 0x7fffe837f700 (LWP 27350)]
+[New Thread 0x7fffe8334700 (LWP 27351)]
+[New Thread 0x7fffe82e9700 (LWP 27352)]
+[New Thread 0x7fffe829e700 (LWP 27353)]
+[New Thread 0x7fffe8253700 (LWP 27358)]
+[Thread 0x7fffe8253700 (LWP 27358) exited]
+
+Thread 1 "mysqld" received signal SIGINT, Interrupt.
+0x00007ffff6941bf9 in __GI___poll (fds=0x7fffffffab90, nfds=2, timeout=-1) at ../sysdeps/unix/sysv/linux/poll.c:29
+29	../sysdeps/unix/sysv/linux/poll.c: No such file or directory.
+Already logging to gdb.txt.
+
+Thread 46 (Thread 0x7fffe829e700 (LWP 27353)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x7fff74035958) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x7fff74034328, cond=0x7fff74035930) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x7fff74035930, mutex=0x7fff74034328) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x7fff74035930, mp=0x7fff74034300, file=0x555556c53560 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x0000555555fece4e in inline_mysql_cond_wait (that=0x7fff74035930, mutex=0x7fff74034300, src_file=0x555556c53958 "/home/sachin/alter/server/sql/rpl_parallel.cc", src_line=381) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x0000555555fee47b in do_gco_wait (rgi=0x7fff74034d10, gco=0x7fff74035930, did_enter_cond=0x7fffe829ddbf, old_stage=0x7fffe829de50) at /home/sachin/alter/server/sql/rpl_parallel.cc:380
+#6  0x0000555555ff07aa in handle_rpl_parallel_thread (arg=0x7fff74008fc8) at /home/sachin/alter/server/sql/rpl_parallel.cc:1216
+#7  0x00005555564d2564 in pfs_spawn_thread (arg=0x7fff7400a0d0) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#8  0x00007ffff77686db in start_thread (arg=0x7fffe829e700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 45 (Thread 0x7fffe82e9700 (LWP 27352)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x5555586d8520) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x5555586d8358, cond=0x5555586d84f8) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x5555586d84f8, mutex=0x5555586d8358) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x5555586d84f8, mp=0x5555586d8330, file=0x555556dc1d28 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x0000555556286acb in inline_mysql_cond_wait (that=0x5555586d84f8, mutex=0x5555586d8330, src_file=0x555556dc2b58 "/home/sachin/alter/server/sql/log_event_server.cc", src_line=1629) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x000055555628bf13 in process_start_alter (thd=0x7fff50000d60) at /home/sachin/alter/server/sql/log_event_server.cc:1629
+#6  0x000055555628d464 in Query_log_event::do_apply_event (this=0x7fff740517e0, rgi=0x7fff74049d80, query_arg=0x7fff7405198b "/*!100001 alter table t3 add column c int, force, algorithm=inplace */", q_len_arg=70) at /home/sachin/alter/server/sql/log_event_server.cc:2006
+#7  0x000055555628bb47 in Query_log_event::do_apply_event (this=0x7fff740517e0, rgi=0x7fff74049d80) at /home/sachin/alter/server/sql/log_event_server.cc:1530
+#8  0x0000555555cc4c4d in Log_event::apply_event (this=0x7fff740517e0, rgi=0x7fff74049d80) at /home/sachin/alter/server/sql/log_event.h:1487
+#9  0x0000555555cb6c28 in apply_event_and_update_pos_apply (ev=0x7fff740517e0, thd=0x7fff50000d60, rgi=0x7fff74049d80, reason=0) at /home/sachin/alter/server/sql/slave.cc:3987
+#10 0x0000555555cb7379 in apply_event_and_update_pos_for_parallel (ev=0x7fff740517e0, thd=0x7fff50000d60, rgi=0x7fff74049d80) at /home/sachin/alter/server/sql/slave.cc:4165
+#11 0x0000555555fed6bc in rpt_handle_event (qev=0x7fff74049920, rpt=0x7fff74008dc0) at /home/sachin/alter/server/sql/rpl_parallel.cc:61
+#12 0x0000555555ff0c1e in handle_rpl_parallel_thread (arg=0x7fff74008dc0) at /home/sachin/alter/server/sql/rpl_parallel.cc:1340
+#13 0x00005555564d2564 in pfs_spawn_thread (arg=0x7fff74009d30) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#14 0x00007ffff77686db in start_thread (arg=0x7fffe82e9700) at pthread_create.c:463
+#15 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 44 (Thread 0x7fffe8334700 (LWP 27351)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x7fff7404f058) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x7fff74034328, cond=0x7fff7404f030) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x7fff7404f030, mutex=0x7fff74034328) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x7fff7404f030, mp=0x7fff74034300, file=0x555556c53560 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x0000555555fece4e in inline_mysql_cond_wait (that=0x7fff7404f030, mutex=0x7fff74034300, src_file=0x555556c53958 "/home/sachin/alter/server/sql/rpl_parallel.cc", src_line=381) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x0000555555fee47b in do_gco_wait (rgi=0x7fff7404e560, gco=0x7fff7404f030, did_enter_cond=0x7fffe8333dbf, old_stage=0x7fffe8333e50) at /home/sachin/alter/server/sql/rpl_parallel.cc:380
+#6  0x0000555555ff07aa in handle_rpl_parallel_thread (arg=0x7fff74008bb8) at /home/sachin/alter/server/sql/rpl_parallel.cc:1216
+#7  0x00005555564d2564 in pfs_spawn_thread (arg=0x7fff74009990) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#8  0x00007ffff77686db in start_thread (arg=0x7fffe8334700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 43 (Thread 0x7fffe837f700 (LWP 27350)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x7fff74054538) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x7fff74034328, cond=0x7fff74054510) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x7fff74054510, mutex=0x7fff74034328) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x7fff74054510, mp=0x7fff74034300, file=0x555556c53560 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x0000555555fece4e in inline_mysql_cond_wait (that=0x7fff74054510, mutex=0x7fff74034300, src_file=0x555556c53958 "/home/sachin/alter/server/sql/rpl_parallel.cc", src_line=381) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x0000555555fee47b in do_gco_wait (rgi=0x7fff74053a40, gco=0x7fff74054510, did_enter_cond=0x7fffe837edbf, old_stage=0x7fffe837ee50) at /home/sachin/alter/server/sql/rpl_parallel.cc:380
+#6  0x0000555555ff07aa in handle_rpl_parallel_thread (arg=0x7fff740089b0) at /home/sachin/alter/server/sql/rpl_parallel.cc:1216
+#7  0x00005555564d2564 in pfs_spawn_thread (arg=0x7fff740095f0) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#8  0x00007ffff77686db in start_thread (arg=0x7fffe837f700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 42 (Thread 0x7fffe83ca700 (LWP 27349)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x7fff740578c8) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x7fff74034328, cond=0x7fff740578a0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x7fff740578a0, mutex=0x7fff74034328) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x7fff740578a0, mp=0x7fff74034300, file=0x555556c53560 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x0000555555fece4e in inline_mysql_cond_wait (that=0x7fff740578a0, mutex=0x7fff74034300, src_file=0x555556c53958 "/home/sachin/alter/server/sql/rpl_parallel.cc", src_line=381) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x0000555555fee47b in do_gco_wait (rgi=0x7fff74056dd0, gco=0x7fff740578a0, did_enter_cond=0x7fffe83c9dbf, old_stage=0x7fffe83c9e50) at /home/sachin/alter/server/sql/rpl_parallel.cc:380
+#6  0x0000555555ff07aa in handle_rpl_parallel_thread (arg=0x7fff740087a8) at /home/sachin/alter/server/sql/rpl_parallel.cc:1216
+#7  0x00005555564d2564 in pfs_spawn_thread (arg=0x7fff74009250) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#8  0x00007ffff77686db in start_thread (arg=0x7fffe83ca700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 41 (Thread 0x7fffe8415700 (LWP 27348)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x7fff740593d8) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x7fff74034328, cond=0x7fff740593b0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x7fff740593b0, mutex=0x7fff74034328) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x7fff740593b0, mp=0x7fff74034300, file=0x555556c53560 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x0000555555fece4e in inline_mysql_cond_wait (that=0x7fff740593b0, mutex=0x7fff74034300, src_file=0x555556c53958 "/home/sachin/alter/server/sql/rpl_parallel.cc", src_line=381) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x0000555555fee47b in do_gco_wait (rgi=0x7fff740588e0, gco=0x7fff740593b0, did_enter_cond=0x7fffe8414dbf, old_stage=0x7fffe8414e50) at /home/sachin/alter/server/sql/rpl_parallel.cc:380
+#6  0x0000555555ff07aa in handle_rpl_parallel_thread (arg=0x7fff740085a0) at /home/sachin/alter/server/sql/rpl_parallel.cc:1216
+#7  0x00005555564d2564 in pfs_spawn_thread (arg=0x7fff7402d400) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#8  0x00007ffff77686db in start_thread (arg=0x7fffe8415700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 40 (Thread 0x7fffe8460700 (LWP 27347)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x7fff7405aee8) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x7fff74034328, cond=0x7fff7405aec0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x7fff7405aec0, mutex=0x7fff74034328) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x7fff7405aec0, mp=0x7fff74034300, file=0x555556c53560 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x0000555555fece4e in inline_mysql_cond_wait (that=0x7fff7405aec0, mutex=0x7fff74034300, src_file=0x555556c53958 "/home/sachin/alter/server/sql/rpl_parallel.cc", src_line=381) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x0000555555fee47b in do_gco_wait (rgi=0x7fff7405a3f0, gco=0x7fff7405aec0, did_enter_cond=0x7fffe845fdbf, old_stage=0x7fffe845fe50) at /home/sachin/alter/server/sql/rpl_parallel.cc:380
+#6  0x0000555555ff07aa in handle_rpl_parallel_thread (arg=0x7fff74008398) at /home/sachin/alter/server/sql/rpl_parallel.cc:1216
+#7  0x00005555564d2564 in pfs_spawn_thread (arg=0x7fff7402d060) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#8  0x00007ffff77686db in start_thread (arg=0x7fffe8460700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 39 (Thread 0x7fffe84ab700 (LWP 27346)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x7fff74050b18) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x7fff74034328, cond=0x7fff74050af0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x7fff74050af0, mutex=0x7fff74034328) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x7fff74050af0, mp=0x7fff74034300, file=0x555556c53560 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x0000555555fece4e in inline_mysql_cond_wait (that=0x7fff74050af0, mutex=0x7fff74034300, src_file=0x555556c53958 "/home/sachin/alter/server/sql/rpl_parallel.cc", src_line=381) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x0000555555fee47b in do_gco_wait (rgi=0x7fff7405bf00, gco=0x7fff74050af0, did_enter_cond=0x7fffe84aadbf, old_stage=0x7fffe84aae50) at /home/sachin/alter/server/sql/rpl_parallel.cc:380
+#6  0x0000555555ff07aa in handle_rpl_parallel_thread (arg=0x7fff74008190) at /home/sachin/alter/server/sql/rpl_parallel.cc:1216
+#7  0x00005555564d2564 in pfs_spawn_thread (arg=0x7fff7402ccc0) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#8  0x00007ffff77686db in start_thread (arg=0x7fffe84ab700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 38 (Thread 0x7fffe84f6700 (LWP 27345)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x7fff7405ecf8) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x7fff74034328, cond=0x7fff7405ecd0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x7fff7405ecd0, mutex=0x7fff74034328) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x7fff7405ecd0, mp=0x7fff74034300, file=0x555556c53560 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x0000555555fece4e in inline_mysql_cond_wait (that=0x7fff7405ecd0, mutex=0x7fff74034300, src_file=0x555556c53958 "/home/sachin/alter/server/sql/rpl_parallel.cc", src_line=381) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x0000555555fee47b in do_gco_wait (rgi=0x7fff7405e200, gco=0x7fff7405ecd0, did_enter_cond=0x7fffe84f5dbf, old_stage=0x7fffe84f5e50) at /home/sachin/alter/server/sql/rpl_parallel.cc:380
+#6  0x0000555555ff07aa in handle_rpl_parallel_thread (arg=0x7fff74007f88) at /home/sachin/alter/server/sql/rpl_parallel.cc:1216
+#7  0x00005555564d2564 in pfs_spawn_thread (arg=0x7fff740294b0) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#8  0x00007ffff77686db in start_thread (arg=0x7fffe84f6700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 37 (Thread 0x7fffe8541700 (LWP 27344)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x7fff740607f8) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x7fff74034328, cond=0x7fff740607d0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x7fff740607d0, mutex=0x7fff74034328) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x7fff740607d0, mp=0x7fff74034300, file=0x555556c53560 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x0000555555fece4e in inline_mysql_cond_wait (that=0x7fff740607d0, mutex=0x7fff74034300, src_file=0x555556c53958 "/home/sachin/alter/server/sql/rpl_parallel.cc", src_line=381) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x0000555555fee47b in do_gco_wait (rgi=0x7fff7405fd00, gco=0x7fff740607d0, did_enter_cond=0x7fffe8540dbf, old_stage=0x7fffe8540e50) at /home/sachin/alter/server/sql/rpl_parallel.cc:380
+#6  0x0000555555ff07aa in handle_rpl_parallel_thread (arg=0x7fff74007d80) at /home/sachin/alter/server/sql/rpl_parallel.cc:1216
+#7  0x00005555564d2564 in pfs_spawn_thread (arg=0x7fff7801b3b0) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#8  0x00007ffff77686db in start_thread (arg=0x7fffe8541700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 36 (Thread 0x7fffea068700 (LWP 27342)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x5555586d91dc) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x5555586d8a58, cond=0x5555586d91b0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x5555586d91b0, mutex=0x5555586d8a58) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x5555586d91b0, mp=0x5555586d8a30, file=0x555556db74e0 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x00005555562500e8 in inline_mysql_cond_wait (that=0x5555586d91b0, mutex=0x5555586d8a30, src_file=0x555556db80f8 "/home/sachin/alter/server/sql/log.cc", src_line=8423) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x000055555626991a in MYSQL_BIN_LOG::wait_for_update_relay_log (this=0x5555586d8a20, thd=0x7fff74001690) at /home/sachin/alter/server/sql/log.cc:8423
+#6  0x0000555555cc1d97 in next_event (rgi=0x7fff740008d0, event_size=0x7fffea067710) at /home/sachin/alter/server/sql/slave.cc:7859
+#7  0x0000555555cb73f4 in exec_relay_log_event (thd=0x7fff74001690, rli=0x5555586d8548, serial_rgi=0x7fff740008d0) at /home/sachin/alter/server/sql/slave.cc:4286
+#8  0x0000555555cbb499 in handle_slave_sql (arg=0x5555586d66b0) at /home/sachin/alter/server/sql/slave.cc:5627
+#9  0x00005555564d2564 in pfs_spawn_thread (arg=0x7fff7801b3b0) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#10 0x00007ffff77686db in start_thread (arg=0x7fffea068700) at pthread_create.c:463
+#11 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 35 (Thread 0x7fffea0b3700 (LWP 27341)):
+#0  0x00007ffff6941bf9 in __GI___poll (fds=0x7fffea0b29a8, nfds=1, timeout=120000) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x0000555556362d47 in vio_io_wait (vio=0x7fff7801a6b0, event=VIO_IO_EVENT_READ, timeout=120000) at /home/sachin/alter/server/vio/viosocket.c:980
+#2  0x00005555563612fa in vio_socket_io_wait (vio=0x7fff7801a6b0, event=VIO_IO_EVENT_READ) at /home/sachin/alter/server/vio/viosocket.c:118
+#3  0x0000555556361502 in vio_read (vio=0x7fff7801a6b0, buf=0x7fff8000d270 "+", size=16384) at /home/sachin/alter/server/vio/viosocket.c:199
+#4  0x000055555636172d in vio_read_buff (vio=0x7fff7801a6b0, buf=0x7fff800112f0 "", size=4) at /home/sachin/alter/server/vio/viosocket.c:247
+#5  0x00005555562b3784 in my_real_read (net=0x7fff80019c20, complen=0x7fffea0b2c30, header=0 '\000') at /home/sachin/alter/server/sql/net_serv.cc:962
+#6  0x00005555562b4084 in my_net_read_packet_reallen (net=0x7fff80019c20, read_from_server=0 '\000', reallen=0x7fffea0b2d80) at /home/sachin/alter/server/sql/net_serv.cc:1243
+#7  0x00005555560d6eff in cli_safe_read_reallen (mysql=0x7fff80019c20, reallen=0x7fffea0b2d80) at /home/sachin/alter/server/sql-common/client.c:339
+#8  0x0000555555cb628e in read_event (mysql=0x7fff80019c20, mi=0x5555586d66b0, suppress_warnings=0x7fffea0b2d56, network_read_len=0x7fffea0b2d80) at /home/sachin/alter/server/sql/slave.cc:3762
+#9  0x0000555555cb9212 in handle_slave_io (arg=0x5555586d66b0) at /home/sachin/alter/server/sql/slave.cc:4921
+#10 0x00005555564d2564 in pfs_spawn_thread (arg=0x7fff7801a6b0) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#11 0x00007ffff77686db in start_thread (arg=0x7fffea0b3700) at pthread_create.c:463
+#12 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 34 (Thread 0x7fffe858c700 (LWP 27339)):
+#0  0x00007ffff6941bf9 in __GI___poll (fds=0x7fffe858bb28, nfds=1, timeout=28800000) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x0000555556362d47 in vio_io_wait (vio=0x5555582fc0a0, event=VIO_IO_EVENT_READ, timeout=28800000) at /home/sachin/alter/server/vio/viosocket.c:980
+#2  0x00005555563612fa in vio_socket_io_wait (vio=0x5555582fc0a0, event=VIO_IO_EVENT_READ) at /home/sachin/alter/server/vio/viosocket.c:118
+#3  0x0000555556361502 in vio_read (vio=0x5555582fc0a0, buf=0x7fff6c0088e0 "\001", size=4) at /home/sachin/alter/server/vio/viosocket.c:199
+#4  0x00005555562b3784 in my_real_read (net=0x7fff6c001068, complen=0x7fffe858bd40, header=1 '\001') at /home/sachin/alter/server/sql/net_serv.cc:962
+#5  0x00005555562b4084 in my_net_read_packet_reallen (net=0x7fff6c001068, read_from_server=1 '\001', reallen=0x7fffe858bda8) at /home/sachin/alter/server/sql/net_serv.cc:1243
+#6  0x00005555562b4032 in my_net_read_packet (net=0x7fff6c001068, read_from_server=1 '\001') at /home/sachin/alter/server/sql/net_serv.cc:1227
+#7  0x0000555555dbebec in do_command (thd=0x7fff6c000d60) at /home/sachin/alter/server/sql/sql_parse.cc:1237
+#8  0x0000555555f67360 in do_handle_one_connection (connect=0x5555582fbfd0, put_in_cache=true) at /home/sachin/alter/server/sql/sql_connect.cc:1422
+#9  0x0000555555f6707e in handle_one_connection (arg=0x5555582fbfd0) at /home/sachin/alter/server/sql/sql_connect.cc:1319
+#10 0x00005555564d2564 in pfs_spawn_thread (arg=0x5555582fc0a0) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#11 0x00007ffff77686db in start_thread (arg=0x7fffe858c700) at pthread_create.c:463
+#12 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 33 (Thread 0x7fffe85d7700 (LWP 27338)):
+#0  0x00007ffff776ef85 in futex_abstimed_wait_cancelable (private=<optimized out>, abstime=0x7fffe85d4dd0, expected=0, futex_word=0x5555586da678) at ../sysdeps/unix/sysv/linux/futex-internal.h:205
+#1  __pthread_cond_wait_common (abstime=0x7fffe85d4dd0, mutex=0x5555586da4a8, cond=0x5555586da650) at pthread_cond_wait.c:539
+#2  __pthread_cond_timedwait (cond=0x5555586da650, mutex=0x5555586da4a8, abstime=0x7fffe85d4dd0) at pthread_cond_wait.c:667
+#3  0x0000555556a4bf1c in safe_cond_timedwait (cond=0x5555586da650, mp=0x5555586da480, abstime=0x7fffe85d4dd0, file=0x555556c276e0 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1204) at /home/sachin/alter/server/mysys/thr_mutex.c:546
+#4  0x0000555555f507b4 in inline_mysql_cond_timedwait (that=0x5555586da650, mutex=0x5555586da480, abstime=0x7fffe85d4dd0, src_file=0x555556c27ba0 "/home/sachin/alter/server/sql/rpl_rli.cc", src_line=940) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1204
+#5  0x0000555555f539d8 in Relay_log_info::wait_for_pos (this=0x5555586d8548, thd=0x7fff78000d60, log_name=0x7fff78012808, log_pos=5729, timeout=300) at /home/sachin/alter/server/sql/rpl_rli.cc:940
+#6  0x00005555561b7be7 in Item_master_pos_wait::val_int (this=0x7fff78012b30) at /home/sachin/alter/server/sql/item_func.cc:3702
+#7  0x000055555601021f in Type_handler::Item_send_longlong (this=0x555557915080 <type_handler_slonglong>, item=0x7fff78012b30, protocol=0x7fff78001338, buf=0x7fffe85d5200) at /home/sachin/alter/server/sql/sql_type.cc:7180
+#8  0x000055555601f08c in Type_handler_longlong::Item_send (this=0x555557915080 <type_handler_slonglong>, item=0x7fff78012b30, protocol=0x7fff78001338, buf=0x7fffe85d5200) at /home/sachin/alter/server/sql/sql_type.h:5380
+#9  0x0000555555c9ab80 in Item::send (this=0x7fff78012b30, protocol=0x7fff78001338, buffer=0x7fffe85d5200) at /home/sachin/alter/server/sql/item.h:1044
+#10 0x0000555555c94543 in Protocol::send_result_set_row (this=0x7fff78001338, row_items=0x7fff78012488) at /home/sachin/alter/server/sql/protocol.cc:1035
+#11 0x0000555555d4fde1 in select_send::send_data (this=0x7fff78013580, items=...) at /home/sachin/alter/server/sql/sql_class.cc:3021
+#12 0x0000555555e65c9d in select_result_sink::send_data_with_check (this=0x7fff78013580, items=..., u=0x7fff78004ce0, sent=0) at /home/sachin/alter/server/sql/sql_class.h:5119
+#13 0x0000555555e1c6b9 in JOIN::exec_inner (this=0x7fff780135a8) at /home/sachin/alter/server/sql/sql_select.cc:4259
+#14 0x0000555555e1bf5c in JOIN::exec (this=0x7fff780135a8) at /home/sachin/alter/server/sql/sql_select.cc:4172
+#15 0x0000555555e1d696 in mysql_select (thd=0x7fff78000d60, tables=0x0, fields=..., conds=0x0, og_num=0, order=0x0, group=0x0, having=0x0, proc_param=0x0, select_options=2147748608, result=0x7fff78013580, unit=0x7fff78004ce0, select_lex=0x7fff78012338) at /home/sachin/alter/server/sql/sql_select.cc:4596
+#16 0x0000555555e0d53d in handle_select (thd=0x7fff78000d60, lex=0x7fff78004c18, result=0x7fff78013580, setup_tables_done_option=0) at /home/sachin/alter/server/sql/sql_select.cc:416
+#17 0x0000555555dd1c61 in execute_sqlcom_select (thd=0x7fff78000d60, all_tables=0x0) at /home/sachin/alter/server/sql/sql_parse.cc:6390
+#18 0x0000555555dc6e9d in mysql_execute_command (thd=0x7fff78000d60) at /home/sachin/alter/server/sql/sql_parse.cc:3905
+#19 0x0000555555dd6996 in mysql_parse (thd=0x7fff78000d60, rawbuf=0x7fff78012258 "select master_pos_wait('master-bin.000001', 5729, 300, '')", length=58, parser_state=0x7fffe85d6560, is_com_multi=false, is_next_command=false) at /home/sachin/alter/server/sql/sql_parse.cc:8158
+#20 0x0000555555dc0b53 in dispatch_command (command=COM_QUERY, thd=0x7fff78000d60, packet=0x7fff780088e1 "", packet_length=58, is_com_multi=false, is_next_command=false) at /home/sachin/alter/server/sql/sql_parse.cc:1845
+#21 0x0000555555dbf28e in do_command (thd=0x7fff78000d60) at /home/sachin/alter/server/sql/sql_parse.cc:1363
+#22 0x0000555555f67360 in do_handle_one_connection (connect=0x555558682130, put_in_cache=true) at /home/sachin/alter/server/sql/sql_connect.cc:1422
+#23 0x0000555555f6707e in handle_one_connection (arg=0x555558682130) at /home/sachin/alter/server/sql/sql_connect.cc:1319
+#24 0x00005555564d2564 in pfs_spawn_thread (arg=0x5555582fbc30) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#25 0x00007ffff77686db in start_thread (arg=0x7fffe85d7700) at pthread_create.c:463
+#26 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 30 (Thread 0x7fffea0fe700 (LWP 27330)):
+#0  0x00007ffff6941bf9 in __GI___poll (fds=0x7fffea0fdb28, nfds=1, timeout=28800000) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x0000555556362d47 in vio_io_wait (vio=0x5555587cdf70, event=VIO_IO_EVENT_READ, timeout=28800000) at /home/sachin/alter/server/vio/viosocket.c:980
+#2  0x00005555563612fa in vio_socket_io_wait (vio=0x5555587cdf70, event=VIO_IO_EVENT_READ) at /home/sachin/alter/server/vio/viosocket.c:118
+#3  0x0000555556361502 in vio_read (vio=0x5555587cdf70, buf=0x7fff7c0088e0 "\001", size=4) at /home/sachin/alter/server/vio/viosocket.c:199
+#4  0x00005555562b3784 in my_real_read (net=0x7fff7c001068, complen=0x7fffea0fdd40, header=1 '\001') at /home/sachin/alter/server/sql/net_serv.cc:962
+#5  0x00005555562b4084 in my_net_read_packet_reallen (net=0x7fff7c001068, read_from_server=1 '\001', reallen=0x7fffea0fdda8) at /home/sachin/alter/server/sql/net_serv.cc:1243
+#6  0x00005555562b4032 in my_net_read_packet (net=0x7fff7c001068, read_from_server=1 '\001') at /home/sachin/alter/server/sql/net_serv.cc:1227
+#7  0x0000555555dbebec in do_command (thd=0x7fff7c000d60) at /home/sachin/alter/server/sql/sql_parse.cc:1237
+#8  0x0000555555f67360 in do_handle_one_connection (connect=0x5555587cdea0, put_in_cache=true) at /home/sachin/alter/server/sql/sql_connect.cc:1422
+#9  0x0000555555f6707e in handle_one_connection (arg=0x5555587cdea0) at /home/sachin/alter/server/sql/sql_connect.cc:1319
+#10 0x00005555564d2564 in pfs_spawn_thread (arg=0x5555587cdf70) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#11 0x00007ffff77686db in start_thread (arg=0x7fffea0fe700) at pthread_create.c:463
+#12 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 29 (Thread 0x7fffea149700 (LWP 27327)):
+#0  0x00007ffff6941bf9 in __GI___poll (fds=0x7fffea148b28, nfds=1, timeout=28800000) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x0000555556362d47 in vio_io_wait (vio=0x5555587cdb00, event=VIO_IO_EVENT_READ, timeout=28800000) at /home/sachin/alter/server/vio/viosocket.c:980
+#2  0x00005555563612fa in vio_socket_io_wait (vio=0x5555587cdb00, event=VIO_IO_EVENT_READ) at /home/sachin/alter/server/vio/viosocket.c:118
+#3  0x0000555556361502 in vio_read (vio=0x5555587cdb00, buf=0x7fff880088e0 "\001", size=4) at /home/sachin/alter/server/vio/viosocket.c:199
+#4  0x00005555562b3784 in my_real_read (net=0x7fff88001068, complen=0x7fffea148d40, header=1 '\001') at /home/sachin/alter/server/sql/net_serv.cc:962
+#5  0x00005555562b4084 in my_net_read_packet_reallen (net=0x7fff88001068, read_from_server=1 '\001', reallen=0x7fffea148da8) at /home/sachin/alter/server/sql/net_serv.cc:1243
+#6  0x00005555562b4032 in my_net_read_packet (net=0x7fff88001068, read_from_server=1 '\001') at /home/sachin/alter/server/sql/net_serv.cc:1227
+#7  0x0000555555dbebec in do_command (thd=0x7fff88000d60) at /home/sachin/alter/server/sql/sql_parse.cc:1237
+#8  0x0000555555f67360 in do_handle_one_connection (connect=0x5555587ca210, put_in_cache=true) at /home/sachin/alter/server/sql/sql_connect.cc:1422
+#9  0x0000555555f6707e in handle_one_connection (arg=0x55555879c980) at /home/sachin/alter/server/sql/sql_connect.cc:1319
+#10 0x00005555564d2564 in pfs_spawn_thread (arg=0x5555587cdb00) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#11 0x00007ffff77686db in start_thread (arg=0x7fffea149700) at pthread_create.c:463
+#12 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 28 (Thread 0x7fffea194700 (LWP 27321)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x5555578da1cc <COND_slave_background+44>) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x5555578dd3a8 <LOCK_slave_background+40>, cond=0x5555578da1a0 <COND_slave_background>) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x5555578da1a0 <COND_slave_background>, mutex=0x5555578dd3a8 <LOCK_slave_background+40>) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x5555578da1a0 <COND_slave_background>, mp=0x5555578dd380 <LOCK_slave_background>, file=0x555556bbc558 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x0000555555ca99ee in inline_mysql_cond_wait (that=0x5555578da1a0 <COND_slave_background>, mutex=0x5555578dd380 <LOCK_slave_background>, src_file=0x555556bbd168 "/home/sachin/alter/server/sql/slave.cc", src_line=519) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x0000555555cab4de in handle_slave_background (arg=0x0) at /home/sachin/alter/server/sql/slave.cc:519
+#6  0x00005555564d2564 in pfs_spawn_thread (arg=0x555558681d90) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#7  0x00007ffff77686db in start_thread (arg=0x7fffea194700) at pthread_create.c:463
+#8  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 27 (Thread 0x7fffea1df700 (LWP 27320)):
+#0  0x00007ffff686d26c in __GI___sigtimedwait (set=<optimized out>, info=0x7fffea1ded30, timeout=0x0) at ../sysdeps/unix/sysv/linux/sigtimedwait.c:42
+#1  0x0000555555c750b4 in my_sigwait (set=0x7fffea1dee10, sig=0x7fffea1dedd4, code=0x7fffea1dedd8) at /home/sachin/alter/server/include/my_pthread.h:198
+#2  0x0000555555c7b71f in signal_hand (arg=0x0) at /home/sachin/alter/server/sql/mysqld.cc:3085
+#3  0x00005555564d2564 in pfs_spawn_thread (arg=0x5555586b62c0) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#4  0x00007ffff77686db in start_thread (arg=0x7fffea1df700) at pthread_create.c:463
+#5  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 26 (Thread 0x7ffff0073700 (LWP 27319)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x5555579199e4 <mysql_bin_log+4292>) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x555557919930 <mysql_bin_log+4112>, cond=0x5555579199b8 <mysql_bin_log+4248>) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x5555579199b8 <mysql_bin_log+4248>, mutex=0x555557919930 <mysql_bin_log+4112>) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x5555579199b8 <mysql_bin_log+4248>, mp=0x555557919908 <mysql_bin_log+4072>, file=0x555556db74e0 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1167) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x00005555562500e8 in inline_mysql_cond_wait (that=0x5555579199b8 <mysql_bin_log+4248>, mutex=0x555557919908 <mysql_bin_log+4072>, src_file=0x555556db80f8 "/home/sachin/alter/server/sql/log.cc", src_line=9999) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1167
+#5  0x000055555626e1dd in binlog_background_thread (arg=0x0) at /home/sachin/alter/server/sql/log.cc:9998
+#6  0x00005555564d2564 in pfs_spawn_thread (arg=0x55555869bc30) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#7  0x00007ffff77686db in start_thread (arg=0x7ffff0073700) at pthread_create.c:463
+#8  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 25 (Thread 0x7fffa67fc700 (LWP 27318)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x7fffa67fbdc8) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x7fffa67fbe08, cond=0x7fffa67fbda0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x7fffa67fbda0, mutex=0x7fffa67fbe08) at pthread_cond_wait.c:655
+#3  0x0000555556a4bb5c in safe_cond_wait (cond=0x7fffa67fbda0, mp=0x7fffa67fbde0, file=0x555556e531e0 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1178) at /home/sachin/alter/server/mysys/thr_mutex.c:492
+#4  0x000055555652d318 in inline_mysql_cond_wait (that=0x7fffa67fbda0, mutex=0x7fffa67fbde0, src_file=0x555556e54e58 "/home/sachin/alter/server/storage/innobase/handler/ha_innodb.cc", src_line=286) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1178
+#5  0x0000555556533000 in thd_destructor_proxy () at /home/sachin/alter/server/storage/innobase/handler/ha_innodb.cc:286
+#6  0x00005555564d2564 in pfs_spawn_thread (arg=0x555558674490) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#7  0x00007ffff77686db in start_thread (arg=0x7fffa67fc700) at pthread_create.c:463
+#8  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 24 (Thread 0x7fffa6ffd700 (LWP 27317)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x5555583f71e8) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x5555583f7198, cond=0x5555583f71c0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x5555583f71c0, mutex=0x5555583f7198) at pthread_cond_wait.c:655
+#3  0x0000555556648a16 in os_event::wait (this=0x5555583f7180) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:158
+#4  0x00005555566484b2 in os_event::wait_low (this=0x5555583f7180, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:325
+#5  0x00005555566487d0 in os_event_wait_low (event=0x5555583f7180, reset_sig_count=0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:502
+#6  0x0000555556858a9e in buf_resize_thread () at /home/sachin/alter/server/storage/innobase/buf/buf0buf.cc:3200
+#7  0x00007ffff77686db in start_thread (arg=0x7fffa6ffd700) at pthread_create.c:463
+#8  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 23 (Thread 0x7fffa77fe700 (LWP 27316)):
+#0  0x00007ffff7772c60 in __GI___nanosleep (requested_time=0x7fffa77fd7d0, remaining=0x0) at ../sysdeps/unix/sysv/linux/nanosleep.c:28
+#1  0x0000555556648d8e in os_thread_sleep (tm=1000000) at /home/sachin/alter/server/storage/innobase/os/os0thread.cc:225
+#2  0x00005555568475be in btr_defragment_thread () at /home/sachin/alter/server/storage/innobase/btr/btr0defragment.cc:698
+#3  0x00007ffff77686db in start_thread (arg=0x7fffa77fe700) at pthread_create.c:463
+#4  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 22 (Thread 0x7fffa7fff700 (LWP 27315)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x5555583f70e8) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x5555583f7098, cond=0x5555583f70c0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x5555583f70c0, mutex=0x5555583f7098) at pthread_cond_wait.c:655
+#3  0x0000555556648a16 in os_event::wait (this=0x5555583f7080) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:158
+#4  0x00005555566484b2 in os_event::wait_low (this=0x5555583f7080, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:325
+#5  0x00005555566487d0 in os_event_wait_low (event=0x5555583f7080, reset_sig_count=0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:502
+#6  0x0000555556873a79 in buf_dump_thread () at /home/sachin/alter/server/storage/innobase/buf/buf0dump.cc:833
+#7  0x00007ffff77686db in start_thread (arg=0x7fffa7fff700) at pthread_create.c:463
+#8  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 21 (Thread 0x7fffbcff9700 (LWP 27314)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x5555583f6f68) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x5555583f6f18, cond=0x5555583f6f40) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x5555583f6f40, mutex=0x5555583f6f18) at pthread_cond_wait.c:655
+#3  0x0000555556648a16 in os_event::wait (this=0x5555583f6f00) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:158
+#4  0x00005555566484b2 in os_event::wait_low (this=0x5555583f6f00, reset_sig_count=35) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:325
+#5  0x00005555566487d0 in os_event_wait_low (event=0x5555583f6f00, reset_sig_count=0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:502
+#6  0x0000555556766d32 in srv_resume_thread (slot=0x5555577176d0 <srv_sys+1360>, sig_count=0, wait=true, timeout_usec=0) at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:903
+#7  0x000055555676b1c3 in srv_worker_thread (arg=0x0) at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:2536
+#8  0x00007ffff77686db in start_thread (arg=0x7fffbcff9700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 20 (Thread 0x7fffbd7fa700 (LWP 27313)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x5555583f6ee8) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x5555583f6e98, cond=0x5555583f6ec0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x5555583f6ec0, mutex=0x5555583f6e98) at pthread_cond_wait.c:655
+#3  0x0000555556648a16 in os_event::wait (this=0x5555583f6e80) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:158
+#4  0x00005555566484b2 in os_event::wait_low (this=0x5555583f6e80, reset_sig_count=35) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:325
+#5  0x00005555566487d0 in os_event_wait_low (event=0x5555583f6e80, reset_sig_count=0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:502
+#6  0x0000555556766d32 in srv_resume_thread (slot=0x5555577175d0 <srv_sys+1104>, sig_count=0, wait=true, timeout_usec=0) at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:903
+#7  0x000055555676b1c3 in srv_worker_thread (arg=0x0) at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:2536
+#8  0x00007ffff77686db in start_thread (arg=0x7fffbd7fa700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 19 (Thread 0x7fffbdffb700 (LWP 27312)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x5555583f6e6c) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x5555583f6e18, cond=0x5555583f6e40) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x5555583f6e40, mutex=0x5555583f6e18) at pthread_cond_wait.c:655
+#3  0x0000555556648a16 in os_event::wait (this=0x5555583f6e00) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:158
+#4  0x00005555566484b2 in os_event::wait_low (this=0x5555583f6e00, reset_sig_count=42) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:325
+#5  0x00005555566487d0 in os_event_wait_low (event=0x5555583f6e00, reset_sig_count=0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:502
+#6  0x0000555556766d32 in srv_resume_thread (slot=0x5555577174d0 <srv_sys+848>, sig_count=0, wait=true, timeout_usec=0) at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:903
+#7  0x000055555676b1c3 in srv_worker_thread (arg=0x0) at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:2536
+#8  0x00007ffff77686db in start_thread (arg=0x7fffbdffb700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 18 (Thread 0x7fffbe7fc700 (LWP 27311)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x5555583f6de8) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x5555583f6d98, cond=0x5555583f6dc0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x5555583f6dc0, mutex=0x5555583f6d98) at pthread_cond_wait.c:655
+#3  0x0000555556648a16 in os_event::wait (this=0x5555583f6d80) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:158
+#4  0x00005555566484b2 in os_event::wait_low (this=0x5555583f6d80, reset_sig_count=9) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:325
+#5  0x00005555566487d0 in os_event_wait_low (event=0x5555583f6d80, reset_sig_count=9) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:502
+#6  0x0000555556766d32 in srv_resume_thread (slot=0x5555577173d0 <srv_sys+592>, sig_count=9, wait=true, timeout_usec=0) at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:903
+#7  0x000055555676b68e in srv_purge_coordinator_suspend (slot=0x5555577173d0 <srv_sys+592>, rseg_history_len=25) at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:2676
+#8  0x000055555676b9cf in srv_purge_coordinator_thread (arg=0x0) at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:2757
+#9  0x00007ffff77686db in start_thread (arg=0x7fffbe7fc700) at pthread_create.c:463
+#10 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 17 (Thread 0x7fffbeffd700 (LWP 27310)):
+#0  0x00007ffff7772c60 in __GI___nanosleep (requested_time=0x7fffbeffce60, remaining=0x0) at ../sysdeps/unix/sysv/linux/nanosleep.c:28
+#1  0x0000555556648d8e in os_thread_sleep (tm=1000000) at /home/sachin/alter/server/storage/innobase/os/os0thread.cc:225
+#2  0x000055555676a941 in srv_master_sleep () at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:2353
+#3  0x000055555676aabd in srv_master_thread (arg=0x0) at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:2394
+#4  0x00007ffff77686db in start_thread (arg=0x7fffbeffd700) at pthread_create.c:463
+#5  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 16 (Thread 0x7fffbf7fe700 (LWP 27309)):
+#0  0x00007ffff776ef85 in futex_abstimed_wait_cancelable (private=<optimized out>, abstime=0x7fffbf7fdc70, expected=0, futex_word=0x5555586567a8) at ../sysdeps/unix/sysv/linux/futex-internal.h:205
+#1  __pthread_cond_wait_common (abstime=0x7fffbf7fdc70, mutex=0x555558656758, cond=0x555558656780) at pthread_cond_wait.c:539
+#2  __pthread_cond_timedwait (cond=0x555558656780, mutex=0x555558656758, abstime=0x7fffbf7fdc70) at pthread_cond_wait.c:667
+#3  0x0000555556648312 in os_event::timed_wait (this=0x555558656740, abstime=0x7fffbf7fdc70) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:275
+#4  0x00005555566485dd in os_event::wait_time_low (this=0x555558656740, time_in_usec=5000000, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:385
+#5  0x00005555566487a5 in os_event_wait_time_low (event=0x555558656740, time_in_usec=5000000, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:485
+#6  0x00005555567da89e in ib_wqueue_timedwait (wq=0x5555586565b0, wait_in_usecs=5000000) at /home/sachin/alter/server/storage/innobase/ut/ut0wqueue.cc:154
+#7  0x0000555556956a47 in fts_optimize_thread (arg=0x5555586565b0) at /home/sachin/alter/server/storage/innobase/fts/fts0opt.cc:2835
+#8  0x00007ffff77686db in start_thread (arg=0x7fffbf7fe700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 15 (Thread 0x7fffbffff700 (LWP 27308)):
+#0  0x00007ffff776ef85 in futex_abstimed_wait_cancelable (private=<optimized out>, abstime=0x7fffbfffee90, expected=0, futex_word=0x555558617d48) at ../sysdeps/unix/sysv/linux/futex-internal.h:205
+#1  __pthread_cond_wait_common (abstime=0x7fffbfffee90, mutex=0x555558617cf8, cond=0x555558617d20) at pthread_cond_wait.c:539
+#2  __pthread_cond_timedwait (cond=0x555558617d20, mutex=0x555558617cf8, abstime=0x7fffbfffee90) at pthread_cond_wait.c:667
+#3  0x0000555556648312 in os_event::timed_wait (this=0x555558617ce0, abstime=0x7fffbfffee90) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:275
+#4  0x00005555566485dd in os_event::wait_time_low (this=0x555558617ce0, time_in_usec=10000000, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:385
+#5  0x00005555566487a5 in os_event_wait_time_low (event=0x555558617ce0, time_in_usec=10000000, reset_sig_count=0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:485
+#6  0x00005555568ece5d in dict_stats_thread () at /home/sachin/alter/server/storage/innobase/dict/dict0stats_bg.cc:475
+#7  0x00007ffff77686db in start_thread (arg=0x7fffbffff700) at pthread_create.c:463
+#8  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 14 (Thread 0x7fffe1ffb700 (LWP 27307)):
+#0  0x00007ffff776ef85 in futex_abstimed_wait_cancelable (private=<optimized out>, abstime=0x7fffe1ffae50, expected=0, futex_word=0x5555583f7068) at ../sysdeps/unix/sysv/linux/futex-internal.h:205
+#1  __pthread_cond_wait_common (abstime=0x7fffe1ffae50, mutex=0x5555583f7018, cond=0x5555583f7040) at pthread_cond_wait.c:539
+#2  __pthread_cond_timedwait (cond=0x5555583f7040, mutex=0x5555583f7018, abstime=0x7fffe1ffae50) at pthread_cond_wait.c:667
+#3  0x0000555556648312 in os_event::timed_wait (this=0x5555583f7000, abstime=0x7fffe1ffae50) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:275
+#4  0x00005555566485dd in os_event::wait_time_low (this=0x5555583f7000, time_in_usec=5000000, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:385
+#5  0x00005555566487a5 in os_event_wait_time_low (event=0x5555583f7000, time_in_usec=5000000, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:485
+#6  0x0000555556769105 in srv_monitor_thread () at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:1720
+#7  0x00007ffff77686db in start_thread (arg=0x7fffe1ffb700) at pthread_create.c:463
+#8  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 13 (Thread 0x7fffe0ff9700 (LWP 27306)):
+#0  0x00007ffff776ef85 in futex_abstimed_wait_cancelable (private=<optimized out>, abstime=0x7fffe0ff8cb0, expected=0, futex_word=0x5555583f6fe8) at ../sysdeps/unix/sysv/linux/futex-internal.h:205
+#1  __pthread_cond_wait_common (abstime=0x7fffe0ff8cb0, mutex=0x5555583f6f98, cond=0x5555583f6fc0) at pthread_cond_wait.c:539
+#2  __pthread_cond_timedwait (cond=0x5555583f6fc0, mutex=0x5555583f6f98, abstime=0x7fffe0ff8cb0) at pthread_cond_wait.c:667
+#3  0x0000555556648312 in os_event::timed_wait (this=0x5555583f6f80, abstime=0x7fffe0ff8cb0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:275
+#4  0x00005555566485dd in os_event::wait_time_low (this=0x5555583f6f80, time_in_usec=1000000, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:385
+#5  0x00005555566487a5 in os_event_wait_time_low (event=0x5555583f6f80, time_in_usec=1000000, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:485
+#6  0x0000555556769692 in srv_error_monitor_thread () at /home/sachin/alter/server/storage/innobase/srv/srv0srv.cc:1884
+#7  0x00007ffff77686db in start_thread (arg=0x7fffe0ff9700) at pthread_create.c:463
+#8  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 12 (Thread 0x7fffe17fa700 (LWP 27305)):
+#0  0x00007ffff776ef85 in futex_abstimed_wait_cancelable (private=<optimized out>, abstime=0x7fffe17f9e70, expected=0, futex_word=0x5555585e6848) at ../sysdeps/unix/sysv/linux/futex-internal.h:205
+#1  __pthread_cond_wait_common (abstime=0x7fffe17f9e70, mutex=0x5555585e67f8, cond=0x5555585e6820) at pthread_cond_wait.c:539
+#2  __pthread_cond_timedwait (cond=0x5555585e6820, mutex=0x5555585e67f8, abstime=0x7fffe17f9e70) at pthread_cond_wait.c:667
+#3  0x0000555556648312 in os_event::timed_wait (this=0x5555585e67e0, abstime=0x7fffe17f9e70) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:275
+#4  0x00005555566485dd in os_event::wait_time_low (this=0x5555585e67e0, time_in_usec=1000000, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:385
+#5  0x00005555566487a5 in os_event_wait_time_low (event=0x5555585e67e0, time_in_usec=1000000, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:485
+#6  0x000055555660a5af in lock_wait_timeout_thread () at /home/sachin/alter/server/storage/innobase/lock/lock0wait.cc:522
+#7  0x00007ffff77686db in start_thread (arg=0x7fffe17fa700) at pthread_create.c:463
+#8  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 10 (Thread 0x7fffe27fc700 (LWP 27303)):
+#0  0x00007ffff776ef85 in futex_abstimed_wait_cancelable (private=<optimized out>, abstime=0x7fffe27fbc00, expected=0, futex_word=0x5555583f716c) at ../sysdeps/unix/sysv/linux/futex-internal.h:205
+#1  __pthread_cond_wait_common (abstime=0x7fffe27fbc00, mutex=0x5555583f7118, cond=0x5555583f7140) at pthread_cond_wait.c:539
+#2  __pthread_cond_timedwait (cond=0x5555583f7140, mutex=0x5555583f7118, abstime=0x7fffe27fbc00) at pthread_cond_wait.c:667
+#3  0x0000555556648312 in os_event::timed_wait (this=0x5555583f7100, abstime=0x7fffe27fbc00) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:275
+#4  0x00005555566485dd in os_event::wait_time_low (this=0x5555583f7100, time_in_usec=924000, reset_sig_count=2) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:385
+#5  0x00005555566487a5 in os_event_wait_time_low (event=0x5555583f7100, time_in_usec=924000, reset_sig_count=2) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:485
+#6  0x000055555687fed2 in pc_sleep_if_needed (next_loop_time=115941003, sig_count=2, cur_time=115940079) at /home/sachin/alter/server/storage/innobase/buf/buf0flu.cc:2646
+#7  0x00005555568810e6 in buf_flush_page_cleaner_coordinator () at /home/sachin/alter/server/storage/innobase/buf/buf0flu.cc:3104
+#8  0x00007ffff77686db in start_thread (arg=0x7fffe27fc700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 9 (Thread 0x7fffe2ffd700 (LWP 27302)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x555558450048) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x55555844fff8, cond=0x555558450020) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x555558450020, mutex=0x55555844fff8) at pthread_cond_wait.c:655
+#3  0x0000555556648a16 in os_event::wait (this=0x55555844ffe0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:158
+#4  0x00005555566484b2 in os_event::wait_low (this=0x55555844ffe0, reset_sig_count=5) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:325
+#5  0x00005555566487d0 in os_event_wait_low (event=0x55555844ffe0, reset_sig_count=0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:502
+#6  0x0000555556641e89 in os_aio_simulated_handler (global_segment=5, m1=0x7fffe2ffcca8, m2=0x7fffe2ffccb0, type=0x7fffe2ffcce0) at /home/sachin/alter/server/storage/innobase/os/os0file.cc:7095
+#7  0x00005555566400d7 in os_aio_handler (segment=5, m1=0x7fffe2ffcca8, m2=0x7fffe2ffccb0, request=0x7fffe2ffcce0) at /home/sachin/alter/server/storage/innobase/os/os0file.cc:5532
+#8  0x0000555556906d72 in fil_aio_wait (segment=5) at /home/sachin/alter/server/storage/innobase/fil/fil0fil.cc:4357
+#9  0x000055555676d9d2 in io_handler_thread (arg=0x555558174d48 <n+40>) at /home/sachin/alter/server/storage/innobase/srv/srv0start.cc:324
+#10 0x00007ffff77686db in start_thread (arg=0x7fffe2ffd700) at pthread_create.c:463
+#11 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 8 (Thread 0x7fffe37fe700 (LWP 27301)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x55555844ffcc) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x55555844ff78, cond=0x55555844ffa0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x55555844ffa0, mutex=0x55555844ff78) at pthread_cond_wait.c:655
+#3  0x0000555556648a16 in os_event::wait (this=0x55555844ff60) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:158
+#4  0x00005555566484b2 in os_event::wait_low (this=0x55555844ff60, reset_sig_count=4) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:325
+#5  0x00005555566487d0 in os_event_wait_low (event=0x55555844ff60, reset_sig_count=0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:502
+#6  0x0000555556641e89 in os_aio_simulated_handler (global_segment=4, m1=0x7fffe37fdca8, m2=0x7fffe37fdcb0, type=0x7fffe37fdce0) at /home/sachin/alter/server/storage/innobase/os/os0file.cc:7095
+#7  0x00005555566400d7 in os_aio_handler (segment=4, m1=0x7fffe37fdca8, m2=0x7fffe37fdcb0, request=0x7fffe37fdce0) at /home/sachin/alter/server/storage/innobase/os/os0file.cc:5532
+#8  0x0000555556906d72 in fil_aio_wait (segment=4) at /home/sachin/alter/server/storage/innobase/fil/fil0fil.cc:4357
+#9  0x000055555676d9d2 in io_handler_thread (arg=0x555558174d40 <n+32>) at /home/sachin/alter/server/storage/innobase/srv/srv0start.cc:324
+#10 0x00007ffff77686db in start_thread (arg=0x7fffe37fe700) at pthread_create.c:463
+#11 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 7 (Thread 0x7fffe3fff700 (LWP 27300)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x55555844ff48) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x55555844fef8, cond=0x55555844ff20) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x55555844ff20, mutex=0x55555844fef8) at pthread_cond_wait.c:655
+#3  0x0000555556648a16 in os_event::wait (this=0x55555844fee0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:158
+#4  0x00005555566484b2 in os_event::wait_low (this=0x55555844fee0, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:325
+#5  0x00005555566487d0 in os_event_wait_low (event=0x55555844fee0, reset_sig_count=0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:502
+#6  0x0000555556641e89 in os_aio_simulated_handler (global_segment=3, m1=0x7fffe3ffeca8, m2=0x7fffe3ffecb0, type=0x7fffe3ffece0) at /home/sachin/alter/server/storage/innobase/os/os0file.cc:7095
+#7  0x00005555566400d7 in os_aio_handler (segment=3, m1=0x7fffe3ffeca8, m2=0x7fffe3ffecb0, request=0x7fffe3ffece0) at /home/sachin/alter/server/storage/innobase/os/os0file.cc:5532
+#8  0x0000555556906d72 in fil_aio_wait (segment=3) at /home/sachin/alter/server/storage/innobase/fil/fil0fil.cc:4357
+#9  0x000055555676d9d2 in io_handler_thread (arg=0x555558174d38 <n+24>) at /home/sachin/alter/server/storage/innobase/srv/srv0start.cc:324
+#10 0x00007ffff77686db in start_thread (arg=0x7fffe3fff700) at pthread_create.c:463
+#11 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 6 (Thread 0x7fffe8fdd700 (LWP 27299)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x55555844fec8) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x55555844fe78, cond=0x55555844fea0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x55555844fea0, mutex=0x55555844fe78) at pthread_cond_wait.c:655
+#3  0x0000555556648a16 in os_event::wait (this=0x55555844fe60) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:158
+#4  0x00005555566484b2 in os_event::wait_low (this=0x55555844fe60, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:325
+#5  0x00005555566487d0 in os_event_wait_low (event=0x55555844fe60, reset_sig_count=0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:502
+#6  0x0000555556641e89 in os_aio_simulated_handler (global_segment=2, m1=0x7fffe8fdcca8, m2=0x7fffe8fdccb0, type=0x7fffe8fdcce0) at /home/sachin/alter/server/storage/innobase/os/os0file.cc:7095
+#7  0x00005555566400d7 in os_aio_handler (segment=2, m1=0x7fffe8fdcca8, m2=0x7fffe8fdccb0, request=0x7fffe8fdcce0) at /home/sachin/alter/server/storage/innobase/os/os0file.cc:5532
+#8  0x0000555556906d72 in fil_aio_wait (segment=2) at /home/sachin/alter/server/storage/innobase/fil/fil0fil.cc:4357
+#9  0x000055555676d9d2 in io_handler_thread (arg=0x555558174d30 <n+16>) at /home/sachin/alter/server/storage/innobase/srv/srv0start.cc:324
+#10 0x00007ffff77686db in start_thread (arg=0x7fffe8fdd700) at pthread_create.c:463
+#11 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 5 (Thread 0x7fffe97de700 (LWP 27298)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x55555844fe48) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x55555844fdf8, cond=0x55555844fe20) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x55555844fe20, mutex=0x55555844fdf8) at pthread_cond_wait.c:655
+#3  0x0000555556648a16 in os_event::wait (this=0x55555844fde0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:158
+#4  0x00005555566484b2 in os_event::wait_low (this=0x55555844fde0, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:325
+#5  0x00005555566487d0 in os_event_wait_low (event=0x55555844fde0, reset_sig_count=0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:502
+#6  0x0000555556641e89 in os_aio_simulated_handler (global_segment=1, m1=0x7fffe97ddca8, m2=0x7fffe97ddcb0, type=0x7fffe97ddce0) at /home/sachin/alter/server/storage/innobase/os/os0file.cc:7095
+#7  0x00005555566400d7 in os_aio_handler (segment=1, m1=0x7fffe97ddca8, m2=0x7fffe97ddcb0, request=0x7fffe97ddce0) at /home/sachin/alter/server/storage/innobase/os/os0file.cc:5532
+#8  0x0000555556906d72 in fil_aio_wait (segment=1) at /home/sachin/alter/server/storage/innobase/fil/fil0fil.cc:4357
+#9  0x000055555676d9d2 in io_handler_thread (arg=0x555558174d28 <n+8>) at /home/sachin/alter/server/storage/innobase/srv/srv0start.cc:324
+#10 0x00007ffff77686db in start_thread (arg=0x7fffe97de700) at pthread_create.c:463
+#11 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 4 (Thread 0x7fffe9fdf700 (LWP 27297)):
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x55555844fdc8) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+#1  __pthread_cond_wait_common (abstime=0x0, mutex=0x55555844fd78, cond=0x55555844fda0) at pthread_cond_wait.c:502
+#2  __pthread_cond_wait (cond=0x55555844fda0, mutex=0x55555844fd78) at pthread_cond_wait.c:655
+#3  0x0000555556648a16 in os_event::wait (this=0x55555844fd60) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:158
+#4  0x00005555566484b2 in os_event::wait_low (this=0x55555844fd60, reset_sig_count=1) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:325
+#5  0x00005555566487d0 in os_event_wait_low (event=0x55555844fd60, reset_sig_count=0) at /home/sachin/alter/server/storage/innobase/os/os0event.cc:502
+#6  0x0000555556641e89 in os_aio_simulated_handler (global_segment=0, m1=0x7fffe9fdeca8, m2=0x7fffe9fdecb0, type=0x7fffe9fdece0) at /home/sachin/alter/server/storage/innobase/os/os0file.cc:7095
+#7  0x00005555566400d7 in os_aio_handler (segment=0, m1=0x7fffe9fdeca8, m2=0x7fffe9fdecb0, request=0x7fffe9fdece0) at /home/sachin/alter/server/storage/innobase/os/os0file.cc:5532
+#8  0x0000555556906d72 in fil_aio_wait (segment=0) at /home/sachin/alter/server/storage/innobase/fil/fil0fil.cc:4357
+#9  0x000055555676d9d2 in io_handler_thread (arg=0x555558174d20 <n>) at /home/sachin/alter/server/storage/innobase/srv/srv0start.cc:324
+#10 0x00007ffff77686db in start_thread (arg=0x7fffe9fdf700) at pthread_create.c:463
+#11 0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 3 (Thread 0x7fffeb7e1700 (LWP 27296)):
+#0  0x00007ffff776ef85 in futex_abstimed_wait_cancelable (private=<optimized out>, abstime=0x7fffeb7e0de0, expected=0, futex_word=0x55555811d628 <COND_checkpoint+40>) at ../sysdeps/unix/sysv/linux/futex-internal.h:205
+#1  __pthread_cond_wait_common (abstime=0x7fffeb7e0de0, mutex=0x55555811d568 <LOCK_checkpoint+40>, cond=0x55555811d600 <COND_checkpoint>) at pthread_cond_wait.c:539
+#2  __pthread_cond_timedwait (cond=0x55555811d600 <COND_checkpoint>, mutex=0x55555811d568 <LOCK_checkpoint+40>, abstime=0x7fffeb7e0de0) at pthread_cond_wait.c:667
+#3  0x0000555556a4bf1c in safe_cond_timedwait (cond=0x55555811d600 <COND_checkpoint>, mp=0x55555811d540 <LOCK_checkpoint>, abstime=0x7fffeb7e0de0, file=0x555556e11a10 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1204) at /home/sachin/alter/server/mysys/thr_mutex.c:546
+#4  0x00005555563e9cbd in inline_mysql_cond_timedwait (that=0x55555811d600 <COND_checkpoint>, mutex=0x55555811d540 <LOCK_checkpoint>, abstime=0x7fffeb7e0de0, src_file=0x555556e11a50 "/home/sachin/alter/server/storage/maria/ma_servicethread.c", src_line=116) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1204
+#5  0x00005555563ea202 in my_service_thread_sleep (control=0x555557709c80 <checkpoint_control>, sleep_time=30000000000) at /home/sachin/alter/server/storage/maria/ma_servicethread.c:115
+#6  0x00005555563ddfd4 in ma_checkpoint_background (arg=0x1e) at /home/sachin/alter/server/storage/maria/ma_checkpoint.c:707
+#7  0x00005555564d2564 in pfs_spawn_thread (arg=0x5555583afc00) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#8  0x00007ffff77686db in start_thread (arg=0x7fffeb7e1700) at pthread_create.c:463
+#9  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 2 (Thread 0x7ffff0bbe700 (LWP 27295)):
+#0  0x00007ffff776ef85 in futex_abstimed_wait_cancelable (private=<optimized out>, abstime=0x7ffff0bbde90, expected=0, futex_word=0x55555818caa8 <COND_timer+40>) at ../sysdeps/unix/sysv/linux/futex-internal.h:205
+#1  __pthread_cond_wait_common (abstime=0x7ffff0bbde90, mutex=0x55555818c9e8 <LOCK_timer+40>, cond=0x55555818ca80 <COND_timer>) at pthread_cond_wait.c:539
+#2  __pthread_cond_timedwait (cond=0x55555818ca80 <COND_timer>, mutex=0x55555818c9e8 <LOCK_timer+40>, abstime=0x7ffff0bbde90) at pthread_cond_wait.c:667
+#3  0x0000555556a4bf1c in safe_cond_timedwait (cond=0x55555818ca80 <COND_timer>, mp=0x55555818c9c0 <LOCK_timer>, abstime=0x7ffff0bbde90, file=0x555556fce570 "/home/sachin/alter/server/include/mysql/psi/mysql_thread.h", line=1204) at /home/sachin/alter/server/mysys/thr_mutex.c:546
+#4  0x0000555556a4cf6c in inline_mysql_cond_timedwait (that=0x55555818ca80 <COND_timer>, mutex=0x55555818c9c0 <LOCK_timer>, abstime=0x7ffff0bbde90, src_file=0x555556fce5b0 "/home/sachin/alter/server/mysys/thr_timer.c", src_line=292) at /home/sachin/alter/server/include/mysql/psi/mysql_thread.h:1204
+#5  0x0000555556a4db31 in timer_handler (arg=0x0) at /home/sachin/alter/server/mysys/thr_timer.c:292
+#6  0x00005555564d2564 in pfs_spawn_thread (arg=0x5555582fb030) at /home/sachin/alter/server/storage/perfschema/pfs.cc:1862
+#7  0x00007ffff77686db in start_thread (arg=0x7ffff0bbe700) at pthread_create.c:463
+#8  0x00007ffff694e88f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+Thread 1 (Thread 0x7ffff7fd3c00 (LWP 27291)):
+#0  0x00007ffff6941bf9 in __GI___poll (fds=0x7fffffffab90, nfds=2, timeout=-1) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x0000555555c81b9c in handle_connections_sockets () at /home/sachin/alter/server/sql/mysqld.cc:6270
+#2  0x0000555555c80f93 in mysqld_main (argc=167, argv=0x5555581b5ab0) at /home/sachin/alter/server/sql/mysqld.cc:5738
+#3  0x0000555555c75020 in main (argc=27, argv=0x7fffffffae98) at /home/sachin/alter/server/sql/main.cc:25
+[Switching to thread 45 (Thread 0x7fffe82e9700 (LWP 27352))]
+#0  0x00007ffff776e9f3 in futex_wait_cancelable (private=<optimized out>, expected=0, futex_word=0x5555586d8520) at ../sysdeps/unix/sysv/linux/futex-internal.h:88
+88	../sysdeps/unix/sysv/linux/futex-internal.h: No such file or directory.

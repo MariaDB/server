@@ -1,0 +1,88 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--connect (server_1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (server_2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--connect (server_3,127.0.0.1,root,,,$SERVER_MYPORT_3)
+--connect (server_4,127.0.0.1,root,,,$SERVER_MYPORT_4)
+
+--connection server_1
+create database a;
+use a;
+create table t1(a int)engine=innodb;
+insert into t1 values(1);
+insert into t1 values(1);
+insert into t1 values(1);
+insert into t1 values(1);
+insert into t1 values(1);
+--save_master_pos
+
+--connection server_2
+create database b;
+use b;
+create table t1(a int)engine=innodb;
+insert into t1 values(1);
+insert into t1 values(1);
+insert into t1 values(1);
+insert into t1 values(1);
+insert into t1 values(1);
+--save_master_pos
+
+--connection server_3
+create database c;
+use c;
+create table t1(a int)engine=innodb;
+insert into t1 values(1);
+insert into t1 values(1);
+insert into t1 values(1);
+insert into t1 values(1);
+insert into t1 values(1);
+insert into t1 values(1);
+--save_master_pos
+
+--connection server_4
+--disable_warnings
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root';
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval change master 'm2' to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root';
+--replace_result $SERVER_MYPORT_3 MYPORT_3
+eval change master  to master_port=$SERVER_MYPORT_3 , master_host='127.0.0.1', master_user='root';
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+start all slaves;
+set default_master_connection = 'm1';
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = 'm2';
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+--source include/wait_for_slave_to_start.inc
+
+--echo #CleanUp
+--connection server_1
+drop database a;
+--save_master_pos
+
+--connection server_2
+drop database b;
+--save_master_pos
+
+--connection server_3
+drop database c;
+--save_master_pos
+
+--connection server_4
+--sync_with_master 0,'m1'
+--sync_with_master 0,'m2'
+--sync_with_master 0,''
+--disable_warnings
+stop all slaves;
+--enable_warnings
+SET default_master_connection = "m1";
+--source include/wait_for_slave_to_stop.inc
+SET default_master_connection = "m2";
+--source include/wait_for_slave_to_stop.inc
+SET default_master_connection = "";
+--source include/wait_for_slave_to_stop.inc
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;

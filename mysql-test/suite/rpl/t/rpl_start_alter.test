@@ -7,7 +7,7 @@ set global binlog_split_alter=true;
 set global gtid_strict_mode=1;
 
 --echo #Legacy Master Slave
---source include/start_alter_include.test
+#--source include/start_alter_include.test
 
 --connection slave
 --source include/stop_slave.inc

@@ -1,0 +1,51 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection slave
+set global debug_dbug="+d,start_alter_delay_slave";
+stop slave;
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+start slave;
+
+
+--connection master
+set global debug_dbug="+d,start_alter_delay_master";
+set global binlog_split_alter=true;
+create table t1( a int primary key, b int) engine=innodb;
+create table t2( a int primary key, b int) engine=innodb;
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+--connection con1
+--send alter table t1 add column c int, force, algorithm=inplace;
+--connection con2
+--send alter table t2 add column c int, force, algorithm=inplace;
+
+#--source include/kill_mysqld.inc
+#--let $rpl_server_number= 1
+#--source include/rpl_stop_server.inc
+--connection con1
+--reap
+--connection con2
+--reap
+create table t3( a int primary key, b int) engine=innodb;
+
+show binlog events;
+
+--sleep 10
+--connection slave
+show binlog events;
+show create table t1;
+--sleep 1000000
+
+--connection master
+drop table t1,t2,t3;
+set global binlog_split_alter= false;
+
+--connection slave
+stop slave;
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+start slave;
+--source include/rpl_end.inc

@@ -1,0 +1,214 @@
+Lag Free ALTER Table for Slave
+
+Hi Everyone!
+
+This mail will describe usage and implementation of Lag Free Alter. And this
+will also answer the question raised by Kristian and Simon J Mudd(in 2016)
+
+Desc:- This will split Alter into 2 different commits. START ALTER and COMMIT
+/ROLLBACK ALTER , Start Alter will be written in binlog as soon as we get the
+locks for the table, alter will proceeds as usual and at the time of writing
+binlog if alter is successful we will write COMMIT Alter other wise ROLLBACK
+Alter.
+
+Usage:- Using this feature is quite simple.
+  1. On master you have to turn on `BINLOG_SPLIT_ALTER` dynamic variable.
+  2. Slave must be using parallel replication.
+
+Advance Usage:-
+So alter is divided like this.
+1. START identifier Actual_alter_stmt
+2. COMMIT/ROLLBACK identifier Actual_alter_stmt. OR
+2. COMMIT/ROLLBACK identifier ALTER
+
+identifier is thread_id.
+
+Questions by Simon Mudd.
+>>* this behaviour should be configurable?
+Yes.
+>>   - new global variable on the master to allow injection of this changed event stream?
+Right , `BINLOG_SPLIT_ALTER`
+>>   - a new session variable set in the session where the command is triggered ?
+Right , `BINLOG_SPLIT_ALTER`
+>>   - on slave a setting to indicate how many INPLACE  ALTER TABLEs can run at once?
+No setting so far , but I am thinking of maximum no of CONCURRENT ALTER =
+slave_parallel_threads
+>>* how does a DBA monitor what’s going on?
+>> - the progress and number of active DDL statements
+So as we there is 2 part, So progress will go like this
+1. Executing of start alter (this will take most of time)
+2. Waiting for commit/rollback Signal
+3. Commit/ Rollback Alter.
+Number of active ALTER , these will create new threads so DBA can know using this
+or I am thinking of adding variable in SHOW SLAVE INFO. which will show active DDL.
+>> - please consider adding counters/metrics for:
+>>   * number of “asynchronous DDLs”  in progress / completed successfully / failed or rolled back
+Okay, We can have counter for these metrics. If i get time to implement this.
+>>   * sizes of the DDL changes made so far
+Not sure if we need this.
+>>   * number of threads busy in this state (maybe can be implied from SHOW PROCESSLIST or equivalent but nicer to have an easy to query metric)
+Show processlist will show the busy threads.
+Sample Output when concurrent alter is running on slave.
+slave_parallel_threads= 10
+Every 1.0s: mysql -uroot -S /home/sachin/alter/build/mysql-test/var/tmp/mysqld.2.sock -e show processlist                                                sachin-sp52: Wed Jan 22 16:56:00 2020
+
+Id      User    Host    db      Command Time    State   Info    Progress
+1       system user             NULL    Daemon  NULL    InnoDB purge coordinator        NULL    0.000
+3       system user             NULL    Daemon  NULL    InnoDB purge worker     NULL    0.000
+2       system user             NULL    Daemon  NULL    InnoDB purge worker     NULL    0.000
+4       system user             NULL    Daemon  NULL    InnoDB purge worker     NULL    0.000
+5       system user             NULL    Daemon  NULL    InnoDB shutdown handler NULL    0.000
+10      root    localhost:44478 test    Sleep   6               NULL    0.000
+11      root    localhost:44480 test    Sleep   7               NULL    0.000
+15      root    localhost:44492 test    Sleep   6               NULL    0.000
+16      root    localhost:44494 test    Sleep   6               NULL    0.000
+17      system user             NULL    Slave_IO        6       Waiting for master to send event        NULL    0.000
+19      system user             NULL    Slave_worker    6       Waiting for work from SQL thread        NULL    0.000
+22      system user             NULL    Slave_worker    6       Waiting for work from SQL thread        NULL    0.000
+20      system user             NULL    Slave_worker    6       Waiting for work from SQL thread        NULL    0.000
+23      system user             NULL    Slave_worker    6       Waiting for work from SQL thread        NULL    0.000
+24      system user             NULL    Slave_worker    6       Waiting for work from SQL thread        NULL    0.000
+25      system user             NULL    Slave_worker    6       Waiting for work from SQL thread        NULL    0.000
+26      system user             NULL    Slave_worker    6       Waiting for work from SQL thread        NULL    0.000
+21      system user             NULL    Slave_worker    6       Waiting for work from SQL thread        NULL    0.000
+27      system user             NULL    Slave_worker    6       Waiting for work from SQL thread        NULL    0.000
+28      system user             NULL    Slave_worker    6       Waiting for work from SQL thread        NULL    0.000
+18      system user             NULL    Slave_SQL       6       Slave has read all relay log; waiting for the slave I/O thread to update it     NULL    0.000
+29      system user             test    Slave_worker    6       NULL    /*!100001 START 19 alter table t3 add column c int, force, algorithm=inplace */ 0.000
+30      system user             test    Slave_worker    6       NULL    /*!100001 START 17 alter table t1 add column c int, force, algorithm=inplace */ 0.000
+31      system user             test    Slave_worker    6       NULL    /*!100001 START 18 alter table t2 add column c int, force, algorithm=inplace */ 0.000
+32      system user             test    Slave_worker    6       NULL    /*!100001 START 20 alter table t4 add column c int, force, algorithm=inplace */ 0.000
+33      system user             test    Slave_worker    6       NULL    /*!100001 START 21 alter table t5 add column c int, force, algorithm=inplace */ 0.000
+34      root    localhost       NULL    Query   0       Init    show processlist        0.000
+
+>>* what happens if the commit/rollback ddl event never arrives? (the statement on the master could be skipped for one of several reasons)
+So here are 2 options
+If slave is still running DBA can manually run
+COMMIT/ROLLBACK identifier alter_stmt/ALTER , where identifier is same as
+START ALTER identifier.
+so this will either commit or rollback alter.
+If slave is not running.
+Since slave is not running all context is lost , so this will take as much as
+time a normal alter.
+>> - I assume that users on the slave see the old structure all the time until it completes
+Right, we work on copy of alter for myisam and for other case innodb will take
+care of it.
+>> - would this have a storage or performance penalty on the slave if the commit/rollback DDL event never arrives?
+Not performance but yes storage and ram penalty.
+>> - can a “commit” / “rollback” be manually triggered by the DBA in such circumstances?
+yes.
+>>* what happens if the server crashes while this process (or these processes) are ongoing when the server starts up again?
+So if we crash in START ALTER no issue , we can run it again , since it is
+transactional(we are working on copy so ..)
+If we crash after start alter and we receive COMMIT alter then it will be
+treated as normal alter.
+ROLLBACK ALTER will be instant.
+If we crash in COMMIT ALTER this will be same as crash in normal ALTER table ,
+so DBA has to deal with it.
+
+Architecture:-
+Lets look at sample alter perf data for innodb and myisam
+Myisam
++   96.72%     0.00%  mysqld   mysqld               [.] mysql_parse
++   96.72%     0.00%  mysqld   mysqld               [.] mysql_execute_command
++   96.72%     0.00%  mysqld   mysqld               [.] Sql_cmd_alter_table::execute
+-   96.72%     0.00%  mysqld   mysqld               [.] mysql_alter_table
+   - mysql_alter_table
+      - 96.63% copy_data_between_tables
+         + 79.64% handler::ha_write_row
+         + 6.24% TABLE::update_default_fields
+         + 5.71% READ_RECORD::read_record
+         + 1.87% do_copy_null
+           1.05% Field::do_field_int
+         + 0.95% _mcount
+InnoDB
++   41.27%     0.00%  mysqld   mysqld               [.] mysql_parse
++   41.27%     0.00%  mysqld   mysqld               [.] mysql_execute_command
++   41.27%     0.00%  mysqld   mysqld               [.] Sql_cmd_alter_table::execute
+-   41.27%     0.00%  mysqld   mysqld               [.] mysql_alter_table
+   - mysql_alter_table
+      - 41.27% mysql_inplace_alter_table
+         - 41.15% handler::ha_inplace_alter_table
+              ha_innobase::inplace_alter_table
+            - row_merge_build_indexes
+               - 41.00% row_merge_read_clustered_index
+                  + 22.88% row_merge_insert_index_tuples
+                  + 5.89% row_build_w_add_vcol
+                  + 5.20% BtrBulk::finish
+                  + 3.20% row_merge_buf_add
+                  + 0.87% page_cur_move_to_next
+                    0.62% rec_get_offsets_func
+So as we can see most of the work is done by copy_data_between_tables/
+mysql_inplace_alter_table.
+Master Side:-
+There is not much change into master side.
+So after locking table and before executing these functions we write
+START _id_ alter_stmt into binlog.
+And at the time of write_bin_log we write
+COMMIT _id_ alter_stmt into binlog.
+So alter statement will be divided into 2 , hence 2 gtid. START_ALTER will
+have special flag FL_START_ALTER_E1(4), this will be used on slave side to
+create new worker thread for start alter processing.
+
+Slave Side:-
+This require parallel replication on slave side.
+So in do_event when we get a gtid_event with FL_START_ALTER_E1, ::choose_thread
+will call rpl_parallel_add_extra_worker, which will create a new worker thread
+and this will do start alter processing. So the gtid_log_event and next
+Query_log_event will be scheduled to this new thread. And this thread will be
+exited as soon as alter is finished.
+On slave side START ALTER will binlog after successfully getting MDL lock and
+thd lock. Untill this point we are executed as DDL(so new GCO), but after
+getting locks we will call finish_event_group. So that new events can proceed in
+parallel.
+Then it will continue to execute code in mysql_alter_table until
+we reach a non transactional part(like renaming table/dropping table in myisam)
+So before executing NON-Transactional part it will wait signal from other worker
+thread to either abort or proceed forward. We will add a entry into mi->
+start_alter_list, with thread_id(of master) as a key.
+
+COMMIT/ROLLBACK Alter is treated as a normal query_log_event so it will be
+assigned normal worker. This command will take SQLCOM_COMMIT_PREVIOUS path in
+mysql_execute_command. We will simple search for thread_id into start_alter_list
+and change status from ::WAITING to ::COMMIT_ALTER and signal the wait condition
+if we dont find the thread_id we will wait on wait condition, So simple it is just
+consumer producer between start alter and commit/rollback.
+
+Questions by Kristian:-
+>Can you explain what you mean by "true LOCK=NONE"? It is not clear from your
+>description. I think you mean something that will allow to run an ALTER
+>TABLE on the slave in parallel with the same statement on the master?
+Yes
+>There will be a number of things to consider with this. Previously, all
+>transactions in the binlog have been atomic; this introduces related events
+>that can be arbitrarily separated in the binlog.
+>For example, suppose the slave stops in the middle between BEGIN_DDL_EVENT
+>and COMMIT_DDL_EVENT/ROLLBACK_DDL_EVENT. What is then the slave's binlog
+>position / GTID position?
+Now we are using 2 gtid for ALTER , So it wont be issue.
+>Hopefully, the exiting pool of slave worker threads (currently used for
+>parallel replication) can be used for this as well? Doesn't seem right to
+>introduce a new kind of thread pool...
+We are using same(global) thread pool but I am creating new threads for START
+ALTER. Otherwise we will have a deadlock , Suppose if we have 5 concurrent START
+ALTER and just 5 slave-worker-threads , all worker will be waiting for
+COMMIT/ROLLBACK, but we cant execute commit rollback because we dont have any
+free worker. There can be more case when we have concurrent DML too , so creating
+a new thread was the safest option.
+>Won't you need some mechanism to prevent following events to access the
+>table before ALTER TABLE in a worker thread can acquire the metadata lock?
+Right, So Untill Locking START ALTER is executed as DDL so no following event
+will be executed before locking.
+And one more thing regarding locks , So there will we only one thread will be
+doing whole work of alter, (we can just assume that there is some sleep on slave)
+so execution on master and slave will be equivalent.
+>There are some nasty issues to be aware of with potential deadlocks related
+>to FLUSH TABLES WITH GLOBAL READ LOCK and such, when multiple threads are
+>trying to coordinate waiting and locking; there were already some quite hard
+>issues with this for parallel replication.
+I have to test for it.
+
+Code branch bb-10.5-olter
+
+Regards
+Sachin

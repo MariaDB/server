@@ -256,6 +256,7 @@ extern ulong opt_binlog_commit_wait_count;
 extern ulong opt_binlog_commit_wait_usec;
 extern my_bool opt_gtid_ignore_duplicates;
 extern my_bool opt_binlog_split_alter;
+extern uint opt_background_alter_threads_max;
 extern uint opt_gtid_cleanup_batch_size;
 extern ulong back_log;
 extern ulong executed_events;

@@ -5869,12 +5869,18 @@ pthread_handler_t handle_slave_start_alter(void *arg)
   set_current_thd(thd);
   pthread_detach_this_thread();
   //Work here
-  thd->slave_thread= true;
-  thd->rgi_slave= data->rgi;
   thd->start_alter_thread= true;
-  Master_info *mi= data->rgi->rli->mi;
-  if (init_slave_thread(thd, mi, SLAVE_THD_SQL))
-    goto err_during_init;
+  if (data->rgi)
+  {
+    thd->slave_thread= true;
+    thd->rgi_slave= data->rgi;
+    Master_info *mi= data->rgi->rli->mi;
+    if (init_slave_thread(thd, mi, SLAVE_THD_SQL))
+      goto err_during_init;
+    thd->system_thread_info.rpl_sql_info=  new rpl_sql_thread_info(
+                                           data->rgi->rli->mi->rpl_filter);
+  }
+  thd->system_thread= SYSTEM_THREAD_ALTER;
   thd->init_for_queries();
   thd->catalog= data->catalog;
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
@@ -5887,8 +5893,6 @@ pthread_handler_t handle_slave_start_alter(void *arg)
   thd->set_query_and_id((char *)memdup_root(thd->mem_root, data->query.str,
                         data->query.length + 1), data->query.length, data->cs,
                         next_query_id());
-  thd->system_thread_info.rpl_sql_info=  new rpl_sql_thread_info(
-                                           data->rgi->rli->mi->rpl_filter);
 
   if (!parser_state.init(thd, thd->query(), thd->query_length()))
   {

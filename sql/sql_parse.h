@@ -122,6 +122,9 @@ void init_update_queries(void);
 Item *normalize_cond(THD *thd, Item *cond);
 Item *negate_expression(THD *thd, Item *expr);
 bool check_stack_overrun(THD *thd, long margin, uchar *dummy);
+#ifdef HAVE_REPLICATION
+void init_start_alter_struct();
+#endif
 
 /* Variables */
 
