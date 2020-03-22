@@ -17,3 +17,4 @@ mysql_embedded           : Bug#12561297 2011-05-14 Anitha Dependent on PB2 chang
 file_contents            : MDEV-6526 these files are not installed anymore
 max_statement_time       : cannot possibly work, depends on timing
 partition_open_files_limit : open_files_limit check broken by MDEV-18360
+partition_innodb         : Waiting for fix MDEV-20169
