@@ -489,7 +489,7 @@ drop table s;
 create temporary sequence s;
 drop temporary table s;
 create temporary table s (i int);
---error ER_UNKNOWN_SEQUENCES
+--error ER_NOT_SEQUENCE2
 drop temporary sequence s;
 drop table s;
 
