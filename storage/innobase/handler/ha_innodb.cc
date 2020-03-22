@@ -3428,6 +3428,8 @@ static const char* innodb_page_cleaners_msg
 = "The parameter innodb_page_cleaners is deprecated and has no effect.";
 
 ulong srv_n_log_files;
+static const char* srv_n_log_files_msg
+= "The parameter innodb_log_files_in_group is deprecated and has no effect.";
 
 static my_bool innodb_background_scrub_data_uncompressed;
 
@@ -3784,6 +3786,11 @@ static int innodb_init_params()
 
 	if (UNIV_UNLIKELY(deprecated::innodb_page_cleaners)) {
 		sql_print_warning(deprecated::innodb_page_cleaners_msg);
+	}
+
+	if (UNIV_UNLIKELY(deprecated::srv_n_log_files != 1)) {
+		sql_print_warning(deprecated::srv_n_log_files_msg);
+		deprecated::srv_n_log_files = 1;
 	}
 
 	deprecated::innodb_buffer_pool_instances = 1;
