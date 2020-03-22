@@ -288,7 +288,8 @@ int spider_udf_direct_sql_create_conn_key(
       + direct_sql->tgt_ssl_key_length + 1
       + 1 + 1
       + direct_sql->tgt_default_file_length + 1
-      + direct_sql->tgt_default_group_length;
+      + direct_sql->tgt_default_group_length + 1
+      + direct_sql->tgt_dsn_length;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   } else {
     direct_sql->conn_key_length
@@ -395,6 +396,13 @@ int spider_udf_direct_sql_create_conn_key(
       tmp_name = strmov(tmp_name + 1, direct_sql->tgt_default_group);
     } else
       tmp_name++;
+    if (direct_sql->tgt_dsn)
+    {
+      DBUG_PRINT("info",("spider tgt_dsn=%s",
+        direct_sql->tgt_dsn));
+      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_dsn);
+    } else
+      tmp_name++;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   }
 #endif
@@ -414,6 +422,7 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   char *tmp_name, *tmp_host, *tmp_username, *tmp_password, *tmp_socket;
   char *tmp_wrapper, *tmp_db, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
+  char *tmp_dsn;
   int *need_mon;
   bool tables_on_different_db_are_joinable = TRUE;
   DBUG_ENTER("spider_udf_direct_sql_create_conn");
@@ -452,6 +461,8 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
           (uint) (direct_sql->tgt_default_file_length + 1),
         &tmp_default_group,
           (uint) (direct_sql->tgt_default_group_length + 1),
+        &tmp_dsn,
+          (uint) (direct_sql->tgt_dsn_length + 1),
         &need_mon, (uint) (sizeof(int)),
         NullS))
     ) {
@@ -568,6 +579,14 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
         direct_sql->tgt_default_group_length);
     } else
       conn->tgt_default_group = NULL;
+    conn->tgt_dsn_length = direct_sql->tgt_dsn_length;
+    if (conn->tgt_dsn_length)
+    {
+      conn->tgt_dsn = tmp_dsn;
+      memcpy(conn->tgt_dsn, direct_sql->tgt_dsn,
+        direct_sql->tgt_dsn_length);
+    } else
+      conn->tgt_dsn = NULL;
     conn->tgt_ssl_vsc = direct_sql->tgt_ssl_vsc;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   } else {
@@ -1238,6 +1257,7 @@ int spider_udf_parse_direct_sql_param(
         SPIDER_PARAM_INT("cto", connect_timeout, 0);
         SPIDER_PARAM_STR("dff", tgt_default_file);
         SPIDER_PARAM_STR("dfg", tgt_default_group);
+        SPIDER_PARAM_STR("dsn", tgt_dsn);
         SPIDER_PARAM_LONGLONG("prt", priority, 0);
         SPIDER_PARAM_INT("rto", net_read_timeout, 0);
         SPIDER_PARAM_STR("sca", tgt_ssl_ca);
@@ -1660,6 +1680,10 @@ void spider_udf_free_direct_sql_alloc(
   if (direct_sql->tgt_default_group)
   {
     spider_free(spider_current_trx, direct_sql->tgt_default_group, MYF(0));
+  }
+  if (direct_sql->tgt_dsn)
+  {
+    spider_free(spider_current_trx, direct_sql->tgt_dsn, MYF(0));
   }
   if (direct_sql->conn_key)
   {

@@ -51,6 +51,7 @@ static LEX_STRING spider_init_queries[] = {
     "  ssl_verify_server_cert tinyint not null default 0,"
     "  default_file text,"
     "  default_group char(64) default null,"
+    "  dsn char(64) default null,"
     "  key idx1 (data, format_id, gtrid_length, host)"
     ") engine=MyISAM default charset=utf8 collate=utf8_bin"
   )},
@@ -74,6 +75,7 @@ static LEX_STRING spider_init_queries[] = {
     "  ssl_verify_server_cert tinyint not null default 0,"
     "  default_file text,"
     "  default_group char(64) default null,"
+    "  dsn char(64) default null,"
     "  thread_id int default null,"
     "  status char(8) not null default '',"
     "  failed_time timestamp not null default current_timestamp,"
@@ -102,6 +104,7 @@ static LEX_STRING spider_init_queries[] = {
     "  monitoring_binlog_pos_at_failing tinyint not null default 0,"
     "  default_file text,"
     "  default_group char(64) default null,"
+    "  dsn char(64) default null,"
     "  tgt_db_name char(64) default null,"
     "  tgt_table_name char(64) default null,"
     "  link_status tinyint not null default 1,"
@@ -133,6 +136,7 @@ static LEX_STRING spider_init_queries[] = {
     "  ssl_verify_server_cert tinyint not null default 0,"
     "  default_file text,"
     "  default_group char(64) default null,"
+    "  dsn char(64) default null,"
     "  primary key (db_name, table_name, link_id, sid)"
     ") engine=MyISAM default charset=utf8 collate=utf8_bin"
   )},
@@ -595,6 +599,21 @@ static LEX_STRING spider_init_queries[] = {
     "      primary key (db_name, table_name, table_id, partition_id)"
     "    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;"
     "  end if;"
+/*
+  Fix for version 3.4
+*/
+    "  call mysql.spider_fix_one_table('spider_link_mon_servers', 'dsn',"
+    "   'alter table mysql.spider_link_mon_servers"
+    "    add column dsn char(64) default null after default_group');"
+    "  call mysql.spider_fix_one_table('spider_tables', 'dsn',"
+    "   'alter table mysql.spider_tables"
+    "    add column dsn char(64) default null after default_group');"
+    "  call mysql.spider_fix_one_table('spider_xa_failed_log', 'dsn',"
+    "   'alter table mysql.spider_xa_failed_log"
+    "    add column dsn char(64) default null after default_group');"
+    "  call mysql.spider_fix_one_table('spider_xa_member', 'dsn',"
+    "   'alter table mysql.spider_xa_member"
+    "    add column dsn char(64) default null after default_group');"
     "end;"
   )},
   {C_STRING_WITH_LEN(
