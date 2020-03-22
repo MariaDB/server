@@ -3518,7 +3518,7 @@ String *Item_sum_udf_str::val_str(String *str)
 */
 
 extern "C"
-int group_concat_key_cmp_with_distinct(void* arg, const void* key1, 
+int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
                                        const void* key2)
 {
   Item_func_group_concat *item_func= (Item_func_group_concat*)arg;
@@ -3545,6 +3545,54 @@ int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
     uint offset= (field->offset(field->table->record[0]) -
                   field->table->s->null_bytes);
     int res= field->cmp((uchar*)key1 + offset, (uchar*)key2 + offset);
+    if (res)
+      return res;
+  }
+  return 0;
+}
+
+
+int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
+                                                  const void* key1_arg,
+                                                  const void* key2_arg)
+{
+  Item_func_group_concat *item_func= (Item_func_group_concat*)arg;
+
+  uchar *key1= (uchar*)key1_arg + item_func->table->s->null_bytes;
+  uchar *key2= (uchar*)key2_arg + item_func->table->s->null_bytes;
+
+  for (uint i= 0; i < item_func->arg_count_field; i++)
+  {
+    Item *item= item_func->args[i];
+    /*
+      If item is a const item then either get_tmp_table_field returns 0
+      or it is an item over a const table.
+    */
+    if (item->const_item())
+      continue;
+    /*
+      We have to use get_tmp_table_field() instead of
+      real_item()->get_tmp_table_field() because we want the field in
+      the temporary table, not the original field
+    */
+    Field *field= item->get_tmp_table_field();
+
+    if (!field)
+      continue;
+
+    if (field->is_null_in_record((uchar*)key1_arg) &&
+        field->is_null_in_record((uchar*)key2_arg))
+      continue;
+
+    if (field->is_null_in_record((uchar*)key1_arg))
+      return -1;
+
+    if (field->is_null_in_record((uchar*)key2_arg))
+      return 1;
+
+    uint offset= (field->offset(field->table->record[0]) -
+                  field->table->s->null_bytes);
+    int res= field->cmp(key1 + offset, key2 + offset);
     if (res)
       return res;
   }
@@ -3621,6 +3669,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   uint max_length= (uint)table->in_use->variables.group_concat_max_len;
   String tmp((char *)table->record[1], table->s->reclength,
              default_charset_info);
+  const bool exclude_nulls= item->exclude_nulls;
   String tmp2;
   uchar *key= (uchar *) key_arg;
   String *result= &item->result;
@@ -3650,9 +3699,11 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
     result->append(*item->separator);
 
 
+  bool is_null= false;
   for (; arg < arg_end; arg++)
   {
     String *res;
+    is_null= false;
     /*
       We have to use get_tmp_table_field() instead of
       real_item()->get_tmp_table_field() because we want the field in
@@ -3661,7 +3712,11 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       because it contains both order and arg list fields.
      */
     if ((*arg)->const_item())
+    {
       res= (*arg)->val_str(&tmp);
+      if ((*arg)->null_value)
+        is_null= TRUE;
+    }
     else
     {
       Field *field= (*arg)->get_tmp_table_field();
@@ -3670,7 +3725,11 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
         uint offset= (field->offset(field->table->record[0]) -
                       table->s->null_bytes);
         DBUG_ASSERT(offset < table->s->reclength);
-        res= field->val_str(&tmp, key + offset);
+        if (!exclude_nulls && field->is_null_in_record(key))
+          is_null= true;
+        res= field->val_str(&tmp,
+                            key + offset + (exclude_nulls ? 0 :
+                                            table->s->null_bytes +offset));
       }
       else
         res= (*arg)->val_str(&tmp);
@@ -3684,10 +3743,12 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
           appending it to the result
         */
         Item_func_json_arrayagg *arrayagg= (Item_func_json_arrayagg *) item_arg;
-        res= arrayagg->convert_to_json(*arg, res);
+        if (arrayagg->convert_to_json(&tmp2, res, *arg, is_null))
+          return 1;
+        result->append(tmp2);
       }
-
-      result->append(*res);
+      else
+       result->append(*res);
     }
   }
 
@@ -3753,7 +3814,7 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
    warning_for_row(FALSE),
    force_copy_fields(0), row_limit(NULL),
    offset_limit(NULL), limit_clause(limit_clause),
-   copy_offset_limit(0), copy_row_limit(0), original(0)
+   copy_offset_limit(0), copy_row_limit(0), original(0), exclude_nulls(TRUE)
 {
   Item *item_select;
   Item **arg_ptr;
@@ -3822,7 +3883,8 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   force_copy_fields(item->force_copy_fields),
   row_limit(item->row_limit), offset_limit(item->offset_limit),
   limit_clause(item->limit_clause),copy_offset_limit(item->copy_offset_limit),
-  copy_row_limit(item->copy_row_limit), original(item)
+  copy_row_limit(item->copy_row_limit), original(item),
+  exclude_nulls(item->exclude_nulls)
 {
   quick_group= item->quick_group;
   result.set_charset(collation.collation);
@@ -3994,7 +4056,7 @@ bool Item_func_group_concat::repack_tree(THD *thd)
 */
 #define GCONCAT_REPACK_FACTOR (1 << 10)
 
-bool Item_func_group_concat::add(bool exclude_nulls)
+bool Item_func_group_concat::add()
 {
   if (always_null && exclude_nulls)
     return 0;
@@ -4020,6 +4082,14 @@ bool Item_func_group_concat::add(bool exclude_nulls)
       if (tree && (res= field->val_str(&buf)))
         row_str_len+= res->length();
     }
+    else
+    {
+      /*
+        should not reach here, we create temp table for all the arguments of
+        the group_concat function
+      */
+      DBUG_ASSERT(0);
+    }
   }
 
   null_value= FALSE;
@@ -4029,7 +4099,9 @@ bool Item_func_group_concat::add(bool exclude_nulls)
   {
     /* Filter out duplicate rows. */
     uint count= unique_filter->elements_in_tree();
-    unique_filter->unique_add(table->record[0] + table->s->null_bytes);
+    unique_filter->unique_add(exclude_nulls ?
+                              table->record[0] + table->s->null_bytes :
+                              table->record[0]);
     if (count == unique_filter->elements_in_tree())
       row_eligible= FALSE;
   }
@@ -4055,7 +4127,9 @@ bool Item_func_group_concat::add(bool exclude_nulls)
     row to the output buffer here. That will be done in val_str.
   */
   if (row_eligible && !warning_for_row && (!tree && !distinct))
-    dump_leaf_key(table->record[0] + table->s->null_bytes, 1, this);
+    dump_leaf_key(exclude_nulls ?
+                  table->record[0] + table->s->null_bytes :
+                  table->record[0], 1, this);
 
   return 0;
 }
@@ -4258,9 +4332,12 @@ bool Item_func_group_concat::setup(THD *thd)
   }
 
   if (distinct)
-    unique_filter= new Unique(group_concat_key_cmp_with_distinct,
+    unique_filter= new Unique((exclude_nulls ?
+                              group_concat_key_cmp_with_distinct :
+                              group_concat_key_cmp_with_distinct_with_nulls),
                               (void*)this,
-                              tree_key_length,
+                              tree_key_length + (exclude_nulls ? 0:
+                                                 table->s->null_bytes),
                               ram_limitation(thd));
   if ((row_limit && row_limit->cmp_type() != INT_RESULT) ||
       (offset_limit && offset_limit->cmp_type() != INT_RESULT))

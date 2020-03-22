@@ -1160,13 +1160,13 @@ JSON_ARRAYAGG(DISTINCT a)
 [1,2,3]
 SELECT JSON_ARRAYAGG(DISTINCT b) FROM t1;
 JSON_ARRAYAGG(DISTINCT b)
-["Hello","World","This","Will","Work","!",null]
+[null,"!","Hello","This","Will","Work","World"]
 SELECT JSON_ARRAYAGG(DISTINCT a LIMIT 2) FROM t1;
 JSON_ARRAYAGG(DISTINCT a LIMIT 2)
 [1,2]
 SELECT JSON_ARRAYAGG(DISTINCT b LIMIT 2) FROM t1;
 JSON_ARRAYAGG(DISTINCT b LIMIT 2)
-["Hello","World"]
+[null,"!"]
 #
 # JSON aggregation
 #

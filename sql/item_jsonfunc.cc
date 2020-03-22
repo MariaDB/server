@@ -1452,6 +1452,31 @@ append_null:
 }
 
 
+bool append_json_value(String *str, String *res, Item *item, bool null_value)
+{
+  if (null_value)
+    return str->append("null", 4);
+
+  if (item->type_handler()->is_bool_type())
+  {
+    return  ((*res)[0] == '1') ?
+            str->append("true", 4) :
+            str->append("false", 5);
+  }
+
+  if (item->is_json_type())
+    return str->append(res->ptr(), res->length());
+
+  if (item->result_type() == STRING_RESULT)
+  {
+    return str->append("\"", 1) ||
+           st_append_escaped(str, res) ||
+           str->append("\"", 1);
+  }
+   return st_append_escaped(str, res);
+}
+
+
 static int append_json_keyname(String *str, Item *item, String *tmp_val)
 {
   String *sv= item->val_str(tmp_val);
@@ -3621,12 +3646,13 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
 }
 
 
-String* Item_func_json_arrayagg::convert_to_json(Item *item, String *res)
+bool Item_func_json_arrayagg::convert_to_json(String *str, String *res,
+                                              Item *item, bool null_value)
 {
-  String tmp;
-  res->length(0);
-  append_json_value(res, item, &tmp);
-  return res;
+  str->length(0);
+  if (append_json_value(str, res, item, null_value))
+    return true;
+  return false;
 }
 
 

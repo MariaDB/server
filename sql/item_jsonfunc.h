@@ -545,6 +545,7 @@ public:
       Item_func_group_concat(thd, context_arg, is_distinct, is_select, is_order,
                              is_separator, limit_clause, row_limit, offset_limit)
   {
+    exclude_nulls= FALSE;
   }
   Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item);
   bool is_json_type() { return true; }
@@ -552,14 +553,10 @@ public:
   const char *func_name() const { return "json_arrayagg("; }
   enum Sumfunctype sum_func() const {return JSON_ARRAYAGG_FUNC;}
 
-  String* convert_to_json(Item *item, String *str);
+  bool convert_to_json(String *str, String *res, Item *item, bool null_value);
   String* val_str(String *str);
 
-  /* Overrides Item_func_group_concat::add() */
-  bool add()
-  {
-    return Item_func_group_concat::add(false);
-  }
+
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_arrayagg>(thd, this); }
 };

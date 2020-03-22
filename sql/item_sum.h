@@ -1841,6 +1841,8 @@ public:
 C_MODE_START
 int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
                                        const void* key2);
+int group_concat_key_cmp_with_distinct_with_nulls(void* arg, const void* key1,
+                                                  const void* key2);
 int group_concat_key_cmp_with_order(void* arg, const void* key1,
                                     const void* key2);
 int dump_leaf_key(void* key_arg,
@@ -1897,14 +1899,19 @@ protected:
   */
   Item_func_group_concat *original;
 
+  bool exclude_nulls;
+
   /*
     Used by Item_func_group_concat and Item_func_json_arrayagg. The latter
     needs null values but the former doesn't.
   */
-  bool add(bool exclude_nulls);
+  bool add();
 
   friend int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
                                                 const void* key2);
+  friend int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
+                                                           const void* key1,
+                                                           const void* key2);
   friend int group_concat_key_cmp_with_order(void* arg, const void* key1,
 					     const void* key2);
   friend int dump_leaf_key(void* key_arg,
@@ -1940,10 +1947,6 @@ public:
     return &type_handler_varchar;
   }
   void clear();
-  bool add()
-  {
-    return add(true);
-  }
   void reset_field() { DBUG_ASSERT(0); }        // not used
   void update_field() { DBUG_ASSERT(0); }       // not used
   bool fix_fields(THD *,Item **);
