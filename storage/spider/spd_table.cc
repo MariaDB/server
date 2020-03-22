@@ -1071,7 +1071,7 @@ char *spider_get_string_between_quote(
   SPIDER_PARAM_STRING_PARSE *param_string_parse
 ) {
   char *start_ptr, *end_ptr, *tmp_ptr, *esc_ptr;
-  bool find_flg = FALSE, esc_flg = FALSE;
+  bool find_flg = FALSE;
   DBUG_ENTER("spider_get_string_between_quote");
 
   start_ptr = strchr(ptr, '\'');
@@ -1091,11 +1091,9 @@ char *spider_get_string_between_quote(
           find_flg = TRUE;
         else if (esc_ptr == end_ptr - 1)
         {
-          esc_flg = TRUE;
           tmp_ptr = end_ptr + 1;
           break;
         } else {
-          esc_flg = TRUE;
           esc_ptr += 2;
         }
       }
@@ -1116,11 +1114,9 @@ char *spider_get_string_between_quote(
           find_flg = TRUE;
         else if (esc_ptr == end_ptr - 1)
         {
-          esc_flg = TRUE;
           tmp_ptr = end_ptr + 1;
           break;
         } else {
-          esc_flg = TRUE;
           esc_ptr += 2;
         }
       }
@@ -1129,36 +1125,6 @@ char *spider_get_string_between_quote(
     DBUG_RETURN(NULL);
 
   *end_ptr = '\0';
-  if (esc_flg)
-  {
-    esc_ptr = start_ptr;
-    while (TRUE)
-    {
-      esc_ptr = strchr(esc_ptr, '\\');
-      if (!esc_ptr)
-        break;
-      switch(*(esc_ptr + 1))
-      {
-        case 'b':
-          *esc_ptr = '\b';
-          break;
-        case 'n':
-          *esc_ptr = '\n';
-          break;
-        case 'r':
-          *esc_ptr = '\r';
-          break;
-        case 't':
-          *esc_ptr = '\t';
-          break;
-        default:
-          *esc_ptr = *(esc_ptr + 1);
-          break;
-      }
-      esc_ptr++;
-      strcpy(esc_ptr, esc_ptr + 1);
-    }
-  }
 
   if (param_string_parse)
     param_string_parse->set_param_value(start_ptr, start_ptr + strlen(start_ptr) + 1);
@@ -1184,7 +1150,7 @@ int spider_create_string_list(
   SPIDER_PARAM_STRING_PARSE *param_string_parse
 ) {
   int roop_count;
-  char *tmp_ptr, *tmp_ptr2, *tmp_ptr3, *esc_ptr;
+  char *tmp_ptr, *tmp_ptr2, *tmp_ptr3, *tmp_ptr4, *esc_ptr;
   bool find_flg = FALSE;
   DBUG_ENTER("spider_create_string_list");
 
@@ -1206,22 +1172,30 @@ int spider_create_string_list(
     DBUG_RETURN(0);
   }
 
+  bool last_esc_flg = FALSE;
   while (TRUE)
   {
     if ((tmp_ptr2 = strchr(tmp_ptr, ' ')))
     {
+      find_flg = FALSE;
+      last_esc_flg = FALSE;
       esc_ptr = tmp_ptr;
       while (!find_flg)
       {
         esc_ptr = strchr(esc_ptr, '\\');
         if (!esc_ptr || esc_ptr > tmp_ptr2)
+        {
           find_flg = TRUE;
+        }
         else if (esc_ptr == tmp_ptr2 - 1)
         {
+          last_esc_flg = TRUE;
           tmp_ptr = tmp_ptr2 + 1;
           break;
-        } else
+        } else {
+          last_esc_flg = TRUE;
           esc_ptr += 2;
+        }
       }
       if (find_flg)
       {
@@ -1254,6 +1228,8 @@ int spider_create_string_list(
 
   for (roop_count = 0; roop_count < (int) *list_length - 1; roop_count++)
   {
+    bool esc_flg = FALSE;
+    find_flg = FALSE;
     while (TRUE)
     {
       tmp_ptr2 = strchr(tmp_ptr, ' ');
@@ -1263,13 +1239,18 @@ int spider_create_string_list(
       {
         esc_ptr = strchr(esc_ptr, '\\');
         if (!esc_ptr || esc_ptr > tmp_ptr2)
+        {
           find_flg = TRUE;
+        }
         else if (esc_ptr == tmp_ptr2 - 1)
         {
+          esc_flg = TRUE;
           tmp_ptr = tmp_ptr2 + 1;
           break;
-        } else
+        } else {
+          esc_flg = TRUE;
           esc_ptr += 2;
+        }
       }
       if (find_flg)
         break;
@@ -1289,6 +1270,43 @@ int spider_create_string_list(
       my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
+
+    if (esc_flg)
+    {
+      esc_ptr = (*string_list)[roop_count];
+      while (TRUE)
+      {
+        esc_ptr = strchr(esc_ptr, '\\');
+        if (!esc_ptr)
+          break;
+        switch(*(esc_ptr + 1))
+        {
+          case 'b':
+            *esc_ptr = '\b';
+            break;
+          case 'n':
+            *esc_ptr = '\n';
+            break;
+          case 'r':
+            *esc_ptr = '\r';
+            break;
+          case 't':
+            *esc_ptr = '\t';
+            break;
+          default:
+            *esc_ptr = *(esc_ptr + 1);
+            break;
+        }
+        esc_ptr++;
+        tmp_ptr4 = esc_ptr;
+        do
+        {
+          *tmp_ptr4 = *(tmp_ptr4 + 1);
+          tmp_ptr4++;
+        } while (*tmp_ptr4);
+        (*string_length_list)[roop_count] -= 1;
+      }
+    }
     DBUG_PRINT("info",("spider string_list[%d]=%s", roop_count,
       (*string_list)[roop_count]));
     tmp_ptr3 = tmp_ptr;
@@ -1299,6 +1317,42 @@ int spider_create_string_list(
   ) {
     my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  if (last_esc_flg)
+  {
+    esc_ptr = (*string_list)[roop_count];
+    while (TRUE)
+    {
+      esc_ptr = strchr(esc_ptr, '\\');
+      if (!esc_ptr)
+        break;
+      switch(*(esc_ptr + 1))
+      {
+        case 'b':
+          *esc_ptr = '\b';
+          break;
+        case 'n':
+          *esc_ptr = '\n';
+          break;
+        case 'r':
+          *esc_ptr = '\r';
+          break;
+        case 't':
+          *esc_ptr = '\t';
+          break;
+        default:
+          *esc_ptr = *(esc_ptr + 1);
+          break;
+      }
+      esc_ptr++;
+      tmp_ptr4 = esc_ptr;
+      do
+      {
+        *tmp_ptr4 = *(tmp_ptr4 + 1);
+        tmp_ptr4++;
+      } while (*tmp_ptr4);
+      (*string_length_list)[roop_count] -= 1;
+    }
   }
 
   param_string_parse->set_param_value(tmp_ptr3,
