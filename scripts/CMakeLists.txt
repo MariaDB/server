@@ -212,7 +212,7 @@ SET(pkgdata_locations "$basedir/${INSTALL_MYSQLSHAREDIR} $basedir/share $basedir
 IF(UNIX)
   CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mysql_install_db.sh
     ${CMAKE_CURRENT_BINARY_DIR}/mariadb-install-db ESCAPE_QUOTES @ONLY)
-
+  EXECUTE_PROCESS(COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/mariadb-install-db)
   INSTALL_SCRIPT(
     "${CMAKE_CURRENT_BINARY_DIR}/mariadb-install-db"
     DESTINATION ${INSTALL_SCRIPTDIR}
@@ -336,18 +336,27 @@ ELSE()
       CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${binname}
         ${CMAKE_CURRENT_BINARY_DIR}/${file} COPYONLY)
     ELSE()
-      MESSAGE(FATAL_ERROR "Can not find ${binname}.sh or ${binname} in "
+      MESSAGE(FATAL_ERROR "Cannot find ${binname}.sh or ${binname} in "
         "${CMAKE_CURRENT_SOURCE_DIR}" )
     ENDIF()
 
     IF(NOT ${file}_COMPONENT)
       SET(${file}_COMPONENT Server)
     ENDIF()
+
+    # install script
     INSTALL_SCRIPT(
       ${CMAKE_CURRENT_BINARY_DIR}/${file}
       DESTINATION ${INSTALL_BINDIR}
       COMPONENT ${${file}_COMPONENT}
     )
+
+    # make scripts executable in build dir
+    IF(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${binname})
+      EXECUTE_PROCESS(COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/${binname})
+    ELSEIF(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${file})
+      EXECUTE_PROCESS(COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/${file})
+    ENDIF()
 
     # Create symlink
     IF (NOT ${binname} STREQUAL ${file})
@@ -366,7 +375,7 @@ ELSE()
       ${CMAKE_CURRENT_BINARY_DIR}/${file}
       DESTINATION ${INSTALL_BINDIR}
       COMPONENT ${${file}_COMPONENT}
-     )
+    )
   ENDFOREACH()
 ENDIF()
 
