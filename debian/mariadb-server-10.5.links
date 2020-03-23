@@ -8,13 +8,3 @@ usr/bin/mariadb-tzinfo-to-sql usr/bin/mysql_tzinfo_to_sql
 usr/bin/mariadbd-multi usr/bin/mysqld_multi
 usr/bin/mariadbd-safe usr/bin/mysqld_safe
 usr/bin/mariadbd-safe-helper usr/bin/mysqld_safe_helper
-usr/share/man/man1/mariadb-convert-table-format.1 usr/share/man/man1/mysql_convert_table_format.1
-usr/share/man/man1/mariadb-plugin.1 usr/share/man/man1/mysql_plugin.1
-usr/share/man/man1/mariadb-secure-installation.1 usr/share/man/man1/mysql_secure_installation.1
-usr/share/man/man1/mariadb-setpermission.1 usr/share/man/man1/mysql_setpermission.1
-usr/share/man/man1/mariadb-tzinfo-to-sql.1 usr/share/man/man1/mysql_tzinfo_to_sql.1
-usr/share/man/man1/mariadb-binlog.1 usr/share/man/man1/mysqlbinlog.1
-usr/share/man/man1/mariadbd-multi.1 usr/share/man/man1/mysqld_multi.1
-usr/share/man/man1/mariadbd-safe.1 usr/share/man/man1/mysqld_safe.1
-usr/share/man/man1/mariadbd-safe-helper.1 usr/share/man/man1/mysqld_safe_helper.1
-usr/share/man/man1/mariadb-hotcopy.1 usr/share/man/man1/mysqlhotcopy.1

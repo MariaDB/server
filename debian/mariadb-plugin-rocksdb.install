@@ -4,3 +4,4 @@ usr/bin/myrocks_hotbackup
 usr/lib/mysql/plugin/ha_rocksdb.so
 usr/share/man/man1/mariadb-ldb.1
 usr/share/man/man1/myrocks_hotbackup.1
+usr/share/man/man1/mysql_ldb.1

@@ -2,4 +2,3 @@
 usr/bin/mariadb_config usr/bin/mysql_config
 usr/include/mariadb usr/include/mysql
 usr/lib/${DEB_HOST_MULTIARCH}/pkgconfig/mariadb.pc usr/lib/${DEB_HOST_MULTIARCH}/pkgconfig/mysqlclient.pc
-usr/share/man/man1/mariadb-config.1 usr/share/man/man1/mysql_config.1

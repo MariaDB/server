@@ -1,6 +1,3 @@
 usr/bin/mariadb-install-db usr/bin/mysql_install_db
 usr/bin/mariadb-upgrade usr/bin/mysql_upgrade
 usr/sbin/mariadbd usr/sbin/mysqld
-usr/share/man/man1/mariadb-install-db.1 usr/share/man/man1/mysql_install_db.1
-usr/share/man/man1/mariadb-upgrade.1 usr/share/man/man1/mysql_upgrade.1
-usr/share/man/man8/mariadbd.8 usr/share/man/man8/mysqld.8

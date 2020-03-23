@@ -1,4 +1,2 @@
 usr/bin/mariadb usr/bin/mysql
 usr/bin/mariadb-check usr/bin/mysqlcheck
-usr/share/man/man1/mariadb-check.1 usr/share/man/man1/mysqlcheck.1
-usr/share/man/man1/mariadb.1 usr/share/man/man1/mysql.1

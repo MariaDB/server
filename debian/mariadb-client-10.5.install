@@ -22,4 +22,14 @@ usr/share/man/man1/mariadb-import.1
 usr/share/man/man1/mariadb-show.1
 usr/share/man/man1/mariadb-slap.1
 usr/share/man/man1/mariadb-waitpid.1
+usr/share/man/man1/mysql_find_rows.1
+usr/share/man/man1/mysql_fix_extensions.1
+usr/share/man/man1/mysql_waitpid.1
+usr/share/man/man1/mysqlaccess.1
+usr/share/man/man1/mysqladmin.1
+usr/share/man/man1/mysqldump.1
+usr/share/man/man1/mysqldumpslow.1
+usr/share/man/man1/mysqlimport.1
+usr/share/man/man1/mysqlshow.1
+usr/share/man/man1/mysqlslap.1
 usr/share/man/man1/mytop.1

@@ -4,7 +4,3 @@ usr/bin/mariadb-test usr/bin/mysqltest
 usr/bin/mariadb-test-embedded usr/bin/mysqltest_embedded
 usr/share/mysql/mysql-test/mysql-test-run.pl usr/share/mysql/mysql-test/mtr
 usr/share/mysql/mysql-test/mysql-test-run.pl usr/share/mysql/mysql-test/mysql-test-run
-usr/share/man/man1/mariadb-client-test.1 usr/share/man/man1/mysql_client_test.1
-usr/share/man/man1/mariadb-client-test.1 usr/share/man/man1/mysql_client_test_embedded.1
-usr/share/man/man1/mariadb-client-test.1 usr/share/man/man1/mysqltest.1
-usr/share/man/man1/mariadb-test-embedded.1 usr/share/man/man1/mysqltest_embedded.1

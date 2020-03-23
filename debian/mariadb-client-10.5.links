@@ -21,13 +21,3 @@ usr/share/man/man1/mariadb-check.1 usr/share/man/man1/mariadb-repair.1
 usr/share/man/man1/mariadb-check.1 usr/share/man/man1/mysqlanalyze.1
 usr/share/man/man1/mariadb-check.1 usr/share/man/man1/mysqloptimize.1
 usr/share/man/man1/mariadb-check.1 usr/share/man/man1/mysqlrepair.1
-usr/share/man/man1/mariadb-access.1 usr/share/man/man1/mysqlaccess.1
-usr/share/man/man1/mariadb-admin.1 usr/share/man/man1/mysqladmin.1
-usr/share/man/man1/mariadb-dump.1 usr/share/man/man1/mysqldump.1
-usr/share/man/man1/mariadb-dumpslow.1 usr/share/man/man1/mysqldumpslow.1
-usr/share/man/man1/mariadb-find-rows.1 usr/share/man/man1/mysql_find_rows.1
-usr/share/man/man1/mariadb-fix-extensions.1 usr/share/man/man1/mysql_fix_extensions.1
-usr/share/man/man1/mariadb-import.1 usr/share/man/man1/mysqlimport.1
-usr/share/man/man1/mariadb-show.1 usr/share/man/man1/mysqlshow.1
-usr/share/man/man1/mariadb-slap.1 usr/share/man/man1/mysqlslap.1
-usr/share/man/man1/mariadb-waitpid.1 usr/share/man/man1/mysql_waitpid.1
