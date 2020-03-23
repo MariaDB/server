@@ -2004,15 +2004,15 @@ public:
 					block list, when withdrawing */
 
 	/** "hazard pointer" used during scan of LRU while doing
-	LRU list batch.  Protected by buf_pool::mutex */
+	LRU list batch.  Protected by buf_pool_t::mutex. */
 	LRUHp		lru_hp;
 
 	/** Iterator used to scan the LRU list when searching for
-	replacable victim. Protected by buf_pool::mutex. */
+	replacable victim. Protected by buf_pool_t::mutex. */
 	LRUItr		lru_scan_itr;
 
 	/** Iterator used to scan the LRU list when searching for
-	single page flushing victim.  Protected by buf_pool::mutex. */
+	single page flushing victim.  Protected by buf_pool_t::mutex. */
 	LRUItr		single_scan_itr;
 
 	UT_LIST_BASE_NODE_T(buf_page_t) LRU;

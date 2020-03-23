@@ -159,16 +159,6 @@ The buffer frames have to be aligned so that the start memory
 address of a frame is divisible by the universal page size, which
 is a power of two.
 
-We intend to make the buffer buf_pool size on-line reconfigurable,
-that is, the buf_pool size can be changed without closing the database.
-Then the database administarator may adjust it to be bigger
-at night, for example. The control block array must
-contain enough control blocks for the maximum buffer buf_pool size
-which is used in the particular database.
-If the buf_pool size is cut, we exploit the virtual memory mechanism of
-the OS, and just refrain from using frames at high addresses. Then the OS
-can swap them to disk.
-
 The control blocks containing file pages are put to a hash table
 according to the file address of the page.
 We could speed up the access to an individual page by using
@@ -1523,8 +1513,7 @@ bool buf_pool_t::create()
   n_chunks= srv_buf_pool_size / srv_buf_pool_chunk_unit;
   const size_t chunk_size= srv_buf_pool_chunk_unit;
 
-  chunks= static_cast<buf_pool_t::chunk_t*>(ut_zalloc_nokey(n_chunks *
-                                                            sizeof *chunks));
+  chunks= static_cast<chunk_t*>(ut_zalloc_nokey(n_chunks * sizeof *chunks));
   UT_LIST_INIT(free, &buf_page_t::list);
   curr_size= 0;
   auto chunk= chunks;
@@ -3794,7 +3783,7 @@ evict_from_pool:
 			if (block != NULL) {
 				/* Either the page has been read in or
 				a watch was set on that in the window
-				where we released the buf_pool::mutex
+				where we released the buf_pool.mutex
 				and before we acquire the hash_lock
 				above. Try again. */
 				guess = block;
@@ -5209,7 +5198,7 @@ void buf_pool_invalidate()
 void buf_pool_t::validate()
 {
 	buf_page_t*	b;
-	buf_pool_t::chunk_t*	chunk;
+	chunk_t*	chunk;
 	ulint		i;
 	ulint		n_lru_flush	= 0;
 	ulint		n_page_flush	= 0;
@@ -5430,7 +5419,7 @@ void buf_pool_t::print()
 	ulint		j;
 	index_id_t	id;
 	ulint		n_found;
-	buf_pool_t::chunk_t*	chunk;
+	chunk_t*	chunk;
 	dict_index_t*	index;
 
 	size = curr_size;
