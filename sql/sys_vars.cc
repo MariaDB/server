@@ -4598,10 +4598,7 @@ bool Sys_var_timestamp::on_check_access_session(THD *thd) const
   case SECTIME_SUPER:
     return check_global_access(thd, SUPER_ACL | BINLOG_REPLAY_ACL);
   case SECTIME_REPL:
-  /*
-    Perhaps we eventually should do this here:
-      return check_global_access(thd, BINLOG_REPLAY_ACL);
-  */
+    return check_global_access(thd, BINLOG_REPLAY_ACL);
   case SECTIME_YES:
     break;
   }
