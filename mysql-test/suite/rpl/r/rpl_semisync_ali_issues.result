@@ -28,7 +28,7 @@ connection slave;
 [ enable semi-sync on slave ]
 stop slave;
 set global rpl_semi_sync_slave_enabled = 1;
-start slave;
+include/start_slave.inc
 show status like 'rpl_semi_sync_slave%';
 Variable_name	Value
 Rpl_semi_sync_slave_send_ack	0
@@ -348,6 +348,6 @@ SET GLOBAL rpl_semi_sync_master_enabled = 0;
 DROP TABLE t1;
 connection slave;
 SET GLOBAL rpl_semi_sync_slave_enabled = 0;
-stop slave;
-start slave;
+include/stop_slave.inc
+include/start_slave.inc
 include/rpl_end.inc

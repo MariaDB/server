@@ -30,7 +30,7 @@ connection slave;
 echo [ enable semi-sync on slave ];
 stop slave;
 set global rpl_semi_sync_slave_enabled = 1;
-start slave;
+--source include/start_slave.inc
 show status like 'rpl_semi_sync_slave%';
 
 connection master;
@@ -405,6 +405,7 @@ SET GLOBAL rpl_semi_sync_master_enabled = 0;
 DROP TABLE t1;
 connection slave;
 SET GLOBAL rpl_semi_sync_slave_enabled = 0;
-stop slave;start slave;
+--source include/stop_slave.inc
+--source include/start_slave.inc
 
 --source include/rpl_end.inc
