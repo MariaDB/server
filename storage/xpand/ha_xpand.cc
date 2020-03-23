@@ -233,7 +233,6 @@ uint row_buffer_setting(THD* thd)
   return THDVAR(thd, row_buffer);
 }
 
-
 /*
   Get an Xpand_share object for this object. If it doesn't yet exist, create
   it.
@@ -838,12 +837,6 @@ ha_rows ha_xpand::records()
   return 10000;
 }
 
-ha_rows ha_xpand::records_in_range(uint inx, key_range *min_key,
-                                   key_range *max_key)
-{
-  return 2;
-}
-
 int ha_xpand::info(uint flag)
 {
   //THD *thd = ha_thd();
@@ -972,7 +965,7 @@ int ha_xpand::index_read(uchar * buf, const uchar * key, uint key_len,
     error_code = trx->scan_from_key(xpand_table_oid, active_index,
                                     xpd_lock_type, st, -1, sorted_scan,
                                     &scan_fields, packed_key, packed_key_len,
-                                    THDVAR(thd, row_buffer), &scan_cur);
+                                    row_buffer_setting(thd), &scan_cur);
     if (!error_code)
       error_code = rnd_next(buf);
   }
@@ -1001,7 +994,7 @@ int ha_xpand::index_first(uchar *buf)
   error_code = trx->scan_from_key(xpand_table_oid, active_index, xpd_lock_type,
                                   xpand_connection::READ_FROM_START, -1,
                                   sorted_scan, &scan_fields, NULL, 0,
-                                  THDVAR(thd, row_buffer), &scan_cur);
+                                  row_buffer_setting(thd), &scan_cur);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
     xpand_mark_table_for_discovery(table);
@@ -1024,7 +1017,7 @@ int ha_xpand::index_last(uchar *buf)
   error_code = trx->scan_from_key(xpand_table_oid, active_index, xpd_lock_type,
                                   xpand_connection::READ_FROM_LAST, -1,
                                   sorted_scan, &scan_fields, NULL, 0,
-                                  THDVAR(thd, row_buffer), &scan_cur);
+                                  row_buffer_setting(thd), &scan_cur);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
     xpand_mark_table_for_discovery(table);
@@ -1111,7 +1104,7 @@ int ha_xpand::rnd_init(bool scan)
   }
  
   error_code = trx->scan_table(xpand_table_oid, xpd_lock_type, &scan_fields,
-                               THDVAR(thd, row_buffer), &scan_cur,
+                               row_buffer_setting(thd), &scan_cur,
                                pushdown_cond_sql);
 
   if (pushdown_cond_sql != nullptr)

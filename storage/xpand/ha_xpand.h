@@ -88,7 +88,7 @@ public:
   int delete_row(const uchar *buf) override;
   int direct_update_rows_init(List<Item> *update_fields) override;
   int direct_update_rows(ha_rows *update_rows, ha_rows *found_rows) override;
-  void start_bulk_insert(ha_rows rows, uint flags = 0) override;
+  void start_bulk_insert(ha_rows rows, uint flags) override;
   int end_bulk_insert() override;
 
   Table_flags table_flags(void) const override;
@@ -96,8 +96,6 @@ public:
   uint max_supported_keys() const override { return MAX_KEY; }
 
   ha_rows records() override;
-  ha_rows records_in_range(uint inx, key_range *min_key,
-                           key_range *max_key) override;
 
   int info(uint flag) override; // see my_base.h for full description
 
