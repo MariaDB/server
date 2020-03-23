@@ -498,4 +498,12 @@ SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 
 --echo # End of 10.2 tests
 
+# MDEV-21792 Server aborts upon attempt to create foreign key on spatial field
+# Fail to create foreign key for spatial fields
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
+		 FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;
+
+-- echo # End of 10.4 tests
+
 --source include/wait_until_count_sessions.inc
