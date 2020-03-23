@@ -313,6 +313,7 @@ ELSE()
     mariadb-access
     mariadb-convert-table-format
     mariadb-find-rows
+    mysql_config
     mytop
     mariadb-hotcopy
     ${SERVER_SCRIPTS}

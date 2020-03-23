@@ -38,7 +38,10 @@ SET(CLIENT_PLUGIN_PVIO_SOCKET STATIC)
 MESSAGE("== Configuring MariaDB Connector/C")
 ADD_SUBDIRECTORY(libmariadb)
 
-#remove after merging libmariadb > v3.0.9
-IF(TARGET caching_sha2_password AND CMAKE_C_FLAGS_DEBUG MATCHES "-Werror")
-  SET_PROPERTY(TARGET caching_sha2_password APPEND_STRING PROPERTY COMPILE_FLAGS -Wno-unused-function)
+IF(UNIX)
+  INSTALL(CODE "EXECUTE_PROCESS(
+                  COMMAND ${CMAKE_COMMAND} -E make_directory ${INSTALL_BINDIR}
+                  COMMAND ${CMAKE_COMMAND} -E create_symlink mariadb_config ${INSTALL_BINDIR}/mariadb-config
+                  WORKING_DIRECTORY \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX})"
+          COMPONENT Development)
 ENDIF()
