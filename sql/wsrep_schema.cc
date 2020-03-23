@@ -139,6 +139,25 @@ private:
   my_bool m_wsrep_on;
 };
 
+class thd_server_status
+{
+public:
+  thd_server_status(THD* thd, uint server_status, bool condition)
+    : m_thd(thd)
+    , m_thd_server_status(thd->server_status)
+  {
+    if (condition)
+      thd->server_status= server_status;
+  }
+  ~thd_server_status()
+  {
+    m_thd->server_status= m_thd_server_status;
+  }
+private:
+  THD* m_thd;
+  uint m_thd_server_status;
+};
+
 class thd_context_switch
 {
 public:
@@ -1094,6 +1113,9 @@ int Wsrep_schema::remove_fragments(THD* thd,
   }
   else
   {
+    Wsrep_schema_impl::thd_server_status
+      thd_server_status(thd, thd->server_status | SERVER_STATUS_IN_TRANS,
+                        thd->in_multi_stmt_transaction_mode());
     Wsrep_schema_impl::finish_stmt(thd);
   }
 
