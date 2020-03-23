@@ -20,9 +20,9 @@ set optimizer_switch='extended_keys=off';
 --disable_result_log
 --disable_warnings
 --source include/dbt3_s001.inc
-delete from mysql.table_stats;
-delete from mysql.column_stats;
-delete from mysql.index_stats;
+truncate mysql.table_stats;
+truncate mysql.column_stats;
+truncate mysql.index_stats;
 ANALYZE TABLE
 customer, lineitem, nation, orders, part, partsupp, region, supplier;
 --enable_warnings
