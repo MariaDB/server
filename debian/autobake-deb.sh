@@ -173,7 +173,7 @@ then
   for package in `ls *.deb`
   do
     echo $package | cut -d '_' -f 1
-    dpkg-deb -c $package | awk '{print $1 " " $2 " " $6}' | sort -k 3
+    dpkg-deb -c $package | awk '{print $1 " " $2 " " $6 " " $7 " " $8}' | sort -k 3
     echo "------------------------------------------------"
   done
 fi
