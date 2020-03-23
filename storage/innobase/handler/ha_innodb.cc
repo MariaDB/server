@@ -3480,6 +3480,54 @@ static int innodb_init_params()
 				  "xtradbinnodb-file-format/", p);
 	}
 
+	if (UNIV_UNLIKELY(!deprecated::innodb_log_checksums)) {
+		sql_print_warning(deprecated::innodb_log_checksums_msg);
+		deprecated::innodb_log_checksums = TRUE;
+	}
+
+	if (UNIV_UNLIKELY(!deprecated::innodb_log_compressed_pages)) {
+		sql_print_warning(deprecated::innodb_log_compressed_pages_msg);
+		deprecated::innodb_log_compressed_pages = TRUE;
+	}
+
+	if (UNIV_UNLIKELY(deprecated::innodb_log_optimize_ddl)) {
+		sql_print_warning(deprecated::innodb_log_optimize_ddl_msg);
+		deprecated::innodb_log_optimize_ddl = FALSE;
+	}
+
+	if (UNIV_UNLIKELY(deprecated::innodb_scrub_log)) {
+		sql_print_warning(deprecated::innodb_scrub_log_msg);
+		deprecated::innodb_scrub_log = FALSE;
+	}
+
+	if (UNIV_UNLIKELY(deprecated::innodb_scrub_log_speed != 256)) {
+		sql_print_warning(deprecated::innodb_scrub_log_speed_msg);
+		deprecated::innodb_scrub_log_speed = 256;
+	}
+
+	if (UNIV_UNLIKELY(deprecated::innodb_buffer_pool_instances)) {
+		sql_print_warning("The parameter innodb_buffer_pool_instances"
+				  " is deprecated and has no effect.");
+	}
+
+	if (UNIV_UNLIKELY(deprecated::innodb_page_cleaners)) {
+		sql_print_warning(deprecated::innodb_page_cleaners_msg);
+	}
+
+	if (UNIV_UNLIKELY(deprecated::srv_n_log_files != 1)) {
+		sql_print_warning(deprecated::srv_n_log_files_msg);
+		deprecated::srv_n_log_files = 1;
+	}
+
+	deprecated::innodb_buffer_pool_instances = 1;
+
+	deprecated::innodb_page_cleaners = 1;
+
+	if (UNIV_UNLIKELY(deprecated::innodb_undo_logs != TRX_SYS_N_RSEGS)) {
+		sql_print_warning(deprecated::innodb_undo_logs_msg);
+		deprecated::innodb_undo_logs = TRX_SYS_N_RSEGS;
+	}
+
 	/* Check that values don't overflow on 32-bit systems. */
 	if (sizeof(ulint) == 4) {
 		if (innobase_buffer_pool_size > UINT_MAX32) {
@@ -3753,54 +3801,6 @@ static int innodb_init_params()
 	}
 
 	srv_buf_pool_size = ulint(innobase_buffer_pool_size);
-
-	if (UNIV_UNLIKELY(!deprecated::innodb_log_checksums)) {
-		sql_print_warning(deprecated::innodb_log_checksums_msg);
-		deprecated::innodb_log_checksums = TRUE;
-	}
-
-	if (UNIV_UNLIKELY(!deprecated::innodb_log_compressed_pages)) {
-		sql_print_warning(deprecated::innodb_log_compressed_pages_msg);
-		deprecated::innodb_log_compressed_pages = TRUE;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_log_optimize_ddl)) {
-		sql_print_warning(deprecated::innodb_log_optimize_ddl_msg);
-		deprecated::innodb_log_optimize_ddl = FALSE;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_scrub_log)) {
-		sql_print_warning(deprecated::innodb_scrub_log_msg);
-		deprecated::innodb_scrub_log = FALSE;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_scrub_log_speed != 256)) {
-		sql_print_warning(deprecated::innodb_scrub_log_speed_msg);
-		deprecated::innodb_scrub_log_speed = 256;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_buffer_pool_instances)) {
-		sql_print_warning("The parameter innodb_buffer_pool_instances"
-				  " is deprecated and has no effect.");
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_page_cleaners)) {
-		sql_print_warning(deprecated::innodb_page_cleaners_msg);
-	}
-
-	if (UNIV_UNLIKELY(deprecated::srv_n_log_files != 1)) {
-		sql_print_warning(deprecated::srv_n_log_files_msg);
-		deprecated::srv_n_log_files = 1;
-	}
-
-	deprecated::innodb_buffer_pool_instances = 1;
-
-	deprecated::innodb_page_cleaners = 1;
-
-	if (UNIV_UNLIKELY(deprecated::innodb_undo_logs != TRX_SYS_N_RSEGS)) {
-		sql_print_warning(deprecated::innodb_undo_logs_msg);
-		deprecated::innodb_undo_logs = TRX_SYS_N_RSEGS;
-	}
 
 	row_rollback_on_timeout = (ibool) innobase_rollback_on_timeout;
 
