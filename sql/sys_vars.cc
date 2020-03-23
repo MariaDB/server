@@ -6695,16 +6695,16 @@ static Sys_var_charptr Sys_redirect_server_host(
        "redirect_server_host",
        "The server host that client can choose to redirect to.",
        READ_ONLY GLOBAL_VAR(redirect_server_host), CMD_LINE(OPT_ARG),
-       IN_FS_CHARSET, DEFAULT("localhost"));
+       DEFAULT("localhost"));
 
 static Sys_var_charptr Sys_redirect_server_port(
        "redirect_server_port",
        "The server host port that client can choose to redirect to.",
        READ_ONLY GLOBAL_VAR(redirect_server_port), CMD_LINE(OPT_ARG),
-       IN_FS_CHARSET, DEFAULT("3306"));
+       DEFAULT("3306"));
 
 static Sys_var_charptr Sys_redirect_server_ttl(
        "redirect_server_ttl",
        "The ttl (time to live) in seconds the redirected endpoint can be trusted.",
        READ_ONLY GLOBAL_VAR(redirect_server_ttl), CMD_LINE(OPT_ARG),
-       IN_FS_CHARSET, DEFAULT("0"));
+       DEFAULT("0"));
