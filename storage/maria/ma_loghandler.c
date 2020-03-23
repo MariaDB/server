@@ -470,7 +470,6 @@ static ulonglong flush_start= 0;
 #define TRANSLOG_CLSN_LEN_BITS 0xC0    /* Mask to get compressed LSN length */
 
 
-#include <my_atomic.h>
 /* an array that maps id of a MARIA_SHARE to this MARIA_SHARE */
 static MARIA_SHARE **id_to_share= NULL;
 

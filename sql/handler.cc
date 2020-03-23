@@ -474,9 +474,9 @@ static int ha_finish_errors(void)
   return 0;
 }
 
-static volatile int32 need_full_discover_for_existence= 0;
-static volatile int32 engines_with_discover_file_names= 0;
-static volatile int32 engines_with_discover= 0;
+static Atomic_counter<int32> need_full_discover_for_existence(0);
+static Atomic_counter<int32> engines_with_discover_file_names(0);
+static Atomic_counter<int32> engines_with_discover(0);
 
 static int full_discover_for_existence(handlerton *, const char *, const char *)
 { return 0; }
@@ -498,13 +498,13 @@ static int hton_ext_based_table_discovery(handlerton *hton, LEX_CSTRING *db,
 static void update_discovery_counters(handlerton *hton, int val)
 {
   if (hton->discover_table_existence == full_discover_for_existence)
-    my_atomic_add32(&need_full_discover_for_existence,  val);
+    need_full_discover_for_existence+= val;
 
   if (hton->discover_table_names && hton->tablefile_extensions[0])
-    my_atomic_add32(&engines_with_discover_file_names, val);
+    engines_with_discover_file_names+= val;
 
   if (hton->discover_table)
-    my_atomic_add32(&engines_with_discover, val);
+    engines_with_discover+= val;
 }
 
 int ha_finalize_handlerton(st_plugin_int *plugin)

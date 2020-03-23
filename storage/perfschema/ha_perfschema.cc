@@ -27,7 +27,6 @@
 
 #include "sql_plugin.h"
 #include "my_pthread.h"
-#include "my_atomic.h"
 #include "ha_perfschema.h"
 #include "pfs_engine_table.h"
 #include "pfs_column_values.h"

@@ -518,6 +518,10 @@ test.t1	check	status	OK
 DROP TABLE t1;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 # End of 10.2 tests
+CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
+FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+# End of 10.4 tests
 #
 # MDEV-20729 Fix REFERENCES constraint in column definition
 #

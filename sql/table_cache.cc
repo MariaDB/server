@@ -56,7 +56,7 @@
 ulong tdc_size; /**< Table definition cache threshold for LRU eviction. */
 ulong tc_size; /**< Table cache threshold for LRU eviction. */
 uint32 tc_instances;
-uint32 tc_active_instances= 1;
+static std::atomic<uint32_t> tc_active_instances(1);
 static std::atomic<bool> tc_contention_warning_reported;
 
 /** Data collections. */
@@ -162,7 +162,7 @@ struct Table_cache_instance
     overhead on TABLE object release. All other table cache mutex acquistions
     are considered out of hot path and are not instrumented either.
   */
-  void lock_and_check_contention(uint32 n_instances, uint32 instance)
+  void lock_and_check_contention(uint32_t n_instances, uint32_t instance)
   {
     if (mysql_mutex_trylock(&LOCK_table_cache))
     {
@@ -171,11 +171,10 @@ struct Table_cache_instance
       {
         if (n_instances < tc_instances)
         {
-          if (my_atomic_cas32_weak_explicit((int32*) &tc_active_instances,
-                                            (int32*) &n_instances,
-                                            (int32) n_instances + 1,
-                                            MY_MEMORY_ORDER_RELAXED,
-                                            MY_MEMORY_ORDER_RELAXED))
+          if (tc_active_instances.
+              compare_exchange_weak(n_instances, n_instances + 1,
+                                    std::memory_order_relaxed,
+                                    std::memory_order_relaxed))
           {
             sql_print_information("Detected table cache mutex contention at instance %d: "
                                   "%d%% waits. Additional table cache instance "
@@ -353,8 +352,8 @@ void tc_purge()
 
 void tc_add_table(THD *thd, TABLE *table)
 {
-  uint32 i= thd->thread_id % my_atomic_load32_explicit((int32*) &tc_active_instances,
-                                                       MY_MEMORY_ORDER_RELAXED);
+  uint32_t i=
+    thd->thread_id % tc_active_instances.load(std::memory_order_relaxed);
   TABLE *LRU_table= 0;
   TDC_element *element= table->s->tdc;
 
@@ -407,10 +406,8 @@ void tc_add_table(THD *thd, TABLE *table)
 
 TABLE *tc_acquire_table(THD *thd, TDC_element *element)
 {
-  uint32 n_instances=
-    my_atomic_load32_explicit((int32*) &tc_active_instances,
-                              MY_MEMORY_ORDER_RELAXED);
-  uint32 i= thd->thread_id % n_instances;
+  uint32_t n_instances= tc_active_instances.load(std::memory_order_relaxed);
+  uint32_t i= thd->thread_id % n_instances;
   TABLE *table;
 
   tc[i].lock_and_check_contention(n_instances, i);
@@ -1278,4 +1275,15 @@ int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
     free_root(&no_dups_argument.root, MYF(0));
   }
   return res;
+}
+
+
+int show_tc_active_instances(THD *thd, SHOW_VAR *var, char *buff,
+                             enum enum_var_type scope)
+{
+  var->type= SHOW_UINT;
+  var->value= buff;
+  *(reinterpret_cast<uint32_t*>(buff))=
+    tc_active_instances.load(std::memory_order_relaxed);
+  return 0;
 }

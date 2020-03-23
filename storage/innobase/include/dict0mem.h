@@ -734,6 +734,9 @@ public:
 				 | CHAR_COLL_MASK << 16
 				 | DATA_LONG_TRUE_VARCHAR));
 	}
+
+  /** @return whether the column values are comparable by memcmp() */
+  inline bool is_binary() const { return prtype & DATA_BINARY_TYPE; }
 };
 
 /** Index information put in a list of virtual column structure. Index

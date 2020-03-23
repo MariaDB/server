@@ -16,7 +16,6 @@
 
 #include <my_global.h>
 #include <my_sys.h>
-#include <my_atomic.h>
 #include <tap.h>
 
 volatile uint32 bad;

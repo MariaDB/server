@@ -2023,10 +2023,9 @@ find_gtid_slave_pos_tables(THD *thd)
       However we can add new entries, and warn about any tables that
       disappeared, but may still be visible to running SQL threads.
     */
-    rpl_slave_state::gtid_pos_table *old_entry, *new_entry, **next_ptr_ptr;
-
-    old_entry= (rpl_slave_state::gtid_pos_table *)
-      rpl_global_gtid_slave_state->gtid_pos_tables;
+    rpl_slave_state::gtid_pos_table *new_entry, **next_ptr_ptr;
+    auto old_entry= rpl_global_gtid_slave_state->
+                    gtid_pos_tables.load(std::memory_order_relaxed);
     while (old_entry)
     {
       new_entry= cb_data.table_list;
@@ -2048,8 +2047,8 @@ find_gtid_slave_pos_tables(THD *thd)
     while (new_entry)
     {
       /* Check if we already have a table with this storage engine. */
-      old_entry= (rpl_slave_state::gtid_pos_table *)
-        rpl_global_gtid_slave_state->gtid_pos_tables;
+      old_entry= rpl_global_gtid_slave_state->
+                 gtid_pos_tables.load(std::memory_order_relaxed);
       while (old_entry)
       {
         if (new_entry->table_hton == old_entry->table_hton)
