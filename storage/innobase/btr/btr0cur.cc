@@ -7044,44 +7044,25 @@ btr_blob_get_next_page_no(
 	return(mach_read_from_4(blob_header + BTR_BLOB_HDR_NEXT_PAGE_NO));
 }
 
-/*******************************************************************//**
-Deallocate a buffer block that was reserved for a BLOB part. */
-static
-void
-btr_blob_free(
-/*==========*/
-	buf_block_t*	block,	/*!< in: buffer block */
-	ibool		all,	/*!< in: TRUE=remove also the compressed page
-				if there is one */
-	mtr_t*		mtr)	/*!< in: mini-transaction to commit */
+/** Deallocate a buffer block that was reserved for a BLOB part.
+@param block   buffer block
+@param all     flag whether to remove a ROW_FORMAT=COMPRESSED page
+@param mtr     mini-transaction to commit */
+static void btr_blob_free(buf_block_t *block, bool all, mtr_t *mtr)
 {
-	ulint		space = block->page.id.space();
-	ulint		page_no	= block->page.id.page_no();
+  const page_id_t page_id= block->page.id;
+  ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+  mtr->commit();
 
-	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+  mutex_enter(&buf_pool.mutex);
+  /* Free the block if it is still allocated to the same file page. */
+  if (block->page.state == BUF_BLOCK_FILE_PAGE && block->page.id == page_id &&
+      !buf_LRU_free_page(&block->page, all) && all && block->page.zip.data)
+    /* Attempt to deallocate the redundant copy of the uncompressed page
+    if the whole ROW_FORMAT=COMPRESSED block cannot be deallocted. */
+    buf_LRU_free_page(&block->page, false);
 
-	mtr_commit(mtr);
-
-	mutex_enter(&buf_pool.mutex);
-
-	/* Only free the block if it is still allocated to
-	the same file page. */
-
-	if (buf_block_get_state(block)
-	    == BUF_BLOCK_FILE_PAGE
-	    && block->page.id.space() == space
-	    && block->page.id.page_no() == page_no) {
-
-		if (!buf_LRU_free_page(&block->page, all)
-		    && all && block->page.zip.data) {
-			/* Attempt to deallocate the uncompressed page
-			if the whole block cannot be deallocted. */
-
-			buf_LRU_free_page(&block->page, false);
-		}
-	}
-
-	mutex_exit(&buf_pool.mutex);
+  mutex_exit(&buf_pool.mutex);
 }
 
 /** Helper class used while writing blob pages, during insert or update. */

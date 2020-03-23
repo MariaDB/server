@@ -2516,18 +2516,12 @@ void buf_resize_shutdown()
 }
 
 
-/********************************************************************//**
-Relocate a buffer control block.  Relocates the block on the LRU list
-and in buf_pool.page_hash.  Does not relocate bpage->list.
-The caller must take care of relocating bpage->list. */
-static
-void
-buf_relocate(
-/*=========*/
-	buf_page_t*	bpage,	/*!< in/out: control block being relocated;
-				buf_page_get_state(bpage) must be
-				BUF_BLOCK_ZIP_DIRTY or BUF_BLOCK_ZIP_PAGE */
-	buf_page_t*	dpage)	/*!< in/out: destination control block */
+/** Relocate a ROW_FORMAT=COMPRESSED block in the LRU list and
+buf_pool.page_hash.
+The caller must relocate bpage->list.
+@param bpage   control block in BUF_BLOCK_ZIP_DIRTY or BUF_BLOCK_ZIP_PAGE
+@param dpage   destination control block */
+static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage)
 {
 	buf_page_t*	b;
 
@@ -2745,27 +2739,20 @@ page_found:
 }
 
 /** Remove the sentinel block for the watch before replacing it with a
-real block. buf_page_watch_clear() or buf_page_watch_occurred() will notice
+real block. buf_pool_watch_unset() or buf_pool_watch_occurred() will notice
 that the block has been replaced with the real block.
 @param[in,out]	watch		sentinel for watch
 @return reference count, to be added to the replacement block */
-static
-void
-buf_pool_watch_remove(buf_page_t* watch)
+static void buf_pool_watch_remove(buf_page_t *watch)
 {
-#ifdef UNIV_DEBUG
-	/* We must also own the appropriate hash_bucket mutex. */
-	rw_lock_t* hash_lock = buf_page_hash_lock_get(watch->id);
-	ut_ad(rw_lock_own(hash_lock, RW_LOCK_X));
-#endif /* UNIV_DEBUG */
+  ut_ad(rw_lock_own(buf_page_hash_lock_get(watch->id), RW_LOCK_X));
+  ut_ad(mutex_own(&buf_pool.mutex));
 
-	ut_ad(mutex_own(&buf_pool.mutex));
-
-	HASH_DELETE(buf_page_t, hash, buf_pool.page_hash, watch->id.fold(),
-		    watch);
-	ut_d(watch->in_page_hash = FALSE);
-	watch->buf_fix_count = 0;
-	watch->state = BUF_BLOCK_POOL_WATCH;
+  ut_ad(watch->in_page_hash);
+  ut_d(watch->in_page_hash= FALSE);
+  HASH_DELETE(buf_page_t, hash, buf_pool.page_hash, watch->id.fold(), watch);
+  watch->buf_fix_count= 0;
+  watch->state= BUF_BLOCK_POOL_WATCH;
 }
 
 /** Stop watching if the page has been read in.
@@ -2773,27 +2760,28 @@ buf_pool_watch_set(same_page_id) must have returned NULL before.
 @param[in]	page_id	page id */
 void buf_pool_watch_unset(const page_id_t page_id)
 {
-	buf_page_t*	bpage;
-	/* We only need to have buf_pool.mutex in case where we end
-	up calling buf_pool_watch_remove but to obey latching order
-	we acquire it here before acquiring hash_lock. This should
-	not cause too much grief as this function is only ever
-	called from the purge thread. */
-	mutex_enter(&buf_pool.mutex);
+  rw_lock_t *hash_lock= buf_page_hash_lock_get(page_id);
+  rw_lock_x_lock(hash_lock);
 
-	rw_lock_t*	hash_lock = buf_page_hash_lock_get(page_id);
-	rw_lock_x_lock(hash_lock);
+  /* The page must exist because buf_pool_watch_set() increments
+  buf_fix_count. */
+  buf_page_t *watch= buf_page_hash_get_low(page_id);
 
-	/* The page must exist because buf_pool_watch_set()
-	increments buf_fix_count. */
-	bpage = buf_page_hash_get_low(page_id);
-
-	if (bpage->unfix() == 0 && buf_pool_watch_is_sentinel(bpage)) {
-		buf_pool_watch_remove(bpage);
-	}
-
-	mutex_exit(&buf_pool.mutex);
-	rw_lock_x_unlock(hash_lock);
+  if (watch->unfix() == 0 && buf_pool_watch_is_sentinel(watch))
+  {
+    /* The following is based on buf_pool_watch_remove(). */
+    ut_d(watch->in_page_hash= FALSE);
+    HASH_DELETE(buf_page_t, hash, buf_pool.page_hash, watch->id.fold(), watch);
+    rw_lock_x_unlock(hash_lock);
+    /* Now that the watch is no longer reachable by other threads,
+    return it to the pool of inactive watches, for reuse. */
+    mutex_enter(&buf_pool.mutex);
+    watch->buf_fix_count= 0;
+    watch->state= BUF_BLOCK_POOL_WATCH;
+    mutex_exit(&buf_pool.mutex);
+  }
+  else
+    rw_lock_x_unlock(hash_lock);
 }
 
 /** Check if the page has been read in.
@@ -4187,17 +4175,9 @@ static void buf_page_init(const page_id_t page_id, ulint zip_size,
 
 		buf_pool_watch_remove(hash_page);
 	} else {
-
-		ib::error() << "Page " << page_id
+		ib::fatal() << "Page " << page_id
 			<< " already found in the hash table: "
 			<< hash_page << ", " << block;
-
-		ut_d(buf_page_mutex_exit(block));
-		ut_d(mutex_exit(&buf_pool.mutex));
-		ut_d(buf_pool.print());
-		ut_d(buf_LRU_print());
-		ut_d(buf_LRU_validate());
-		ut_error;
 	}
 
 	ut_ad(!block->page.in_zip_hash);
