@@ -4190,7 +4190,45 @@ buf_wait_for_read(
 	}
 }
 
-/** This is the general function used to get access to a database page.
+/** Lock the page with the given latch type.
+@param[in,out]	block		block to be locked
+@param[in]	rw_latch	RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
+@param[in]	mtr		mini-transaction
+@param[in]	file		file name
+@param[in]	line		line where called
+@return pointer to locked block */
+static buf_block_t* buf_page_mtr_lock(buf_block_t *block,
+                                      ulint rw_latch,
+                                      mtr_t* mtr,
+                                      const char *file,
+                                      unsigned line)
+{
+  mtr_memo_type_t fix_type;
+  switch (rw_latch)
+  {
+  case RW_NO_LATCH:
+    fix_type= MTR_MEMO_BUF_FIX;
+    break;
+  case RW_S_LATCH:
+    rw_lock_s_lock_inline(&block->lock, 0, file, line);
+    fix_type= MTR_MEMO_PAGE_S_FIX;
+    break;
+  case RW_SX_LATCH:
+    rw_lock_sx_lock_inline(&block->lock, 0, file, line);
+    fix_type= MTR_MEMO_PAGE_SX_FIX;
+    break;
+  default:
+    ut_ad(rw_latch == RW_X_LATCH);
+    rw_lock_x_lock_inline(&block->lock, 0, file, line);
+    fix_type= MTR_MEMO_PAGE_X_FIX;
+    break;
+  }
+
+  mtr_memo_push(mtr, block, fix_type);
+  return block;
+}
+
+/** This is the low level function used to get access to a database page.
 @param[in]	page_id		page id
 @param[in]	rw_latch	RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
 @param[in]	guess		guessed block or NULL
@@ -4201,7 +4239,7 @@ BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 @param[in]	mtr		mini-transaction
 @return pointer to the block or NULL */
 buf_block_t*
-buf_page_get_gen(
+buf_page_get_low(
 	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			rw_latch,
@@ -4844,35 +4882,7 @@ evict_from_pool:
 		return NULL;
 	}
 
-	mtr_memo_type_t	fix_type;
-
-	switch (rw_latch) {
-	case RW_NO_LATCH:
-
-		fix_type = MTR_MEMO_BUF_FIX;
-		break;
-
-	case RW_S_LATCH:
-		rw_lock_s_lock_inline(&fix_block->lock, 0, file, line);
-
-		fix_type = MTR_MEMO_PAGE_S_FIX;
-		break;
-
-	case RW_SX_LATCH:
-		rw_lock_sx_lock_inline(&fix_block->lock, 0, file, line);
-
-		fix_type = MTR_MEMO_PAGE_SX_FIX;
-		break;
-
-	default:
-		ut_ad(rw_latch == RW_X_LATCH);
-		rw_lock_x_lock_inline(&fix_block->lock, 0, file, line);
-
-		fix_type = MTR_MEMO_PAGE_X_FIX;
-		break;
-	}
-
-	mtr_memo_push(mtr, fix_block, fix_type);
+	fix_block = buf_page_mtr_lock(fix_block, rw_latch, mtr, file, line);
 
 	if (mode != BUF_PEEK_IF_IN_POOL && !access_time) {
 		/* In the case of a first access, try to apply linear
@@ -4885,6 +4895,42 @@ evict_from_pool:
 				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	return(fix_block);
+}
+
+/** This is the general function used to get access to a database page.
+It does page initialization and applies the buffered redo logs.
+@param[in]	page_id		page id
+@param[in]	rw_latch	RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
+@param[in]	guess		guessed block or NULL
+@param[in]	mode		BUF_GET, BUF_GET_IF_IN_POOL,
+BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
+@param[in]	file		file name
+@param[in]	line		line where called
+@param[in]	mtr		mini-transaction
+@param[out]	err		DB_SUCCESS or error code
+@return pointer to the block or NULL */
+buf_block_t*
+buf_page_get_gen(
+	const page_id_t		page_id,
+	const page_size_t&	page_size,
+	ulint			rw_latch,
+	buf_block_t*		guess,
+	ulint			mode,
+	const char*		file,
+	unsigned		line,
+	mtr_t*			mtr,
+	dberr_t*		err)
+{
+  if (buf_block_t *block = recv_recovery_create_page(page_id))
+  {
+    buf_block_fix(block);
+    ut_ad(rw_lock_s_lock_nowait(&block->debug_latch, file, line));
+    block= buf_page_mtr_lock(block, rw_latch, mtr, file, line);
+    return block;
+  }
+
+  return buf_page_get_low(page_id, page_size, rw_latch,
+                          guess, mode, file, line, mtr, err);
 }
 
 /********************************************************************//**
