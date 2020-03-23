@@ -14834,9 +14834,7 @@ bool ha_mroonga::wrapper_inplace_alter_table(
     need_fill_index = true;
   }
   if (!error && need_fill_index) {
-    my_ptrdiff_t diff =
-      PTR_BYTE_DIFF(table->record[0], altered_table->record[0]);
-    mrn::TableFieldsOffsetMover mover(altered_table, diff);
+    mrn::FieldTableChanger changer(altered_table, table);
     error = wrapper_fill_indexes(ha_thd(), altered_table->key_info,
                                  index_columns, ha_alter_info->key_count);
   }
@@ -14989,9 +14987,7 @@ bool ha_mroonga::storage_inplace_alter_table_add_index(
     }
   }
   if (!error && have_multiple_column_index) {
-    my_ptrdiff_t diff =
-      PTR_BYTE_DIFF(table->record[0], altered_table->record[0]);
-    mrn::TableFieldsOffsetMover mover(altered_table, diff);
+    mrn::FieldTableChanger changer(altered_table, table);
     error = storage_add_index_multiple_columns(altered_table->key_info,
                                                ha_alter_info->key_count,
                                                index_tables,
@@ -15176,7 +15172,7 @@ bool ha_mroonga::storage_inplace_alter_table_add_column(
 
       my_ptrdiff_t diff =
         PTR_BYTE_DIFF(table->record[0], altered_table->record[0]);
-      mrn::TableFieldsOffsetMover mover(altered_table, diff);
+      mrn::FieldTableChanger changer(altered_table, table);
 
       error = storage_rnd_init(true);
       if (error) {
