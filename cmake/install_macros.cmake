@@ -38,7 +38,7 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
     ENDIF()
     set(comp "")
 
-    IF((target STREQUAL "mysqld"))
+    IF((target STREQUAL "mariadbd"))
       SET(comp Server)
     ENDIF()
 
