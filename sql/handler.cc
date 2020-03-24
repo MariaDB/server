@@ -4860,7 +4860,7 @@ handler::ha_rename_table(const char *from, const char *to)
 int
 handler::ha_delete_table(const char *name)
 {
-  if (ha_check_if_updates_are_ignored(current_thd, ht, "DROP"))
+  if (ha_check_if_updates_are_ignored(ha_thd(), ht, "DROP"))
     return 0;                                   // Simulate dropped
   mark_trx_read_write();
   return delete_table(name);
@@ -4880,7 +4880,7 @@ void
 handler::ha_drop_table(const char *name)
 {
   DBUG_ASSERT(m_lock_type == F_UNLCK);
-  if (ha_check_if_updates_are_ignored(current_thd, ht, "DROP"))
+  if (ha_check_if_updates_are_ignored(ha_thd(), ht, "DROP"))
     return;
 
   mark_trx_read_write();

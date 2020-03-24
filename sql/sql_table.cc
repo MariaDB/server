@@ -5686,7 +5686,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   int res= 1;
   bool is_trans= FALSE;
   bool do_logging= FALSE;
-  bool force_generated_create;
+  bool force_generated_create= false;
   uint not_used;
   int create_res;
   DBUG_ENTER("mysql_create_like_table");
@@ -5838,6 +5838,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   if (thd->is_current_stmt_binlog_disabled())
     goto err;
 
+#ifdef ENABLE_WHEN_S3_CAN_CREATE_TABLES
   /*
     If we do a create based on a shared table, log the full create of the
     resulting table. This is needed as a shared table may look different
@@ -5847,6 +5848,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     (((src_table->table->s->db_type()->flags &
        HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE) &&
       src_table->table->s->db_type() != local_create_info.db_type));
+#endif
 
   if (thd->is_current_stmt_binlog_format_row() || force_generated_create)
   {
