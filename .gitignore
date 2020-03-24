@@ -577,6 +577,7 @@ man/mariadb-admin.1
 man/mariadb-backup.1
 man/mariadb-binlog.1
 man/mariadb-check.1
+man/mariadb-config.1
 man/mariadb-client-test-embedded.1
 man/mariadb-client-test.1
 man/mariadb-config.1
