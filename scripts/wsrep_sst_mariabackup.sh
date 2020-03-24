@@ -712,9 +712,11 @@ if ${INNOBACKUPEX_BIN} /tmp --help 2>/dev/null | grep -q -- '--version-check'; t
     disver="--no-version-check"
 fi
 
+iopts+=" --databases-exclude=\"lost+found\""
+
 if [[ ${FORCE_FTWRL:-0} -eq 1 ]];then 
     wsrep_log_info "Forcing FTWRL due to environment variable FORCE_FTWRL equal to $FORCE_FTWRL"
-    iopts+=" --no-backup-locks "
+    iopts+=" --no-backup-locks"
 fi
 
 INNOEXTRA=$WSREP_SST_OPT_MYSQLD
