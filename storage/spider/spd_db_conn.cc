@@ -1,5 +1,5 @@
 /* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019, 2020, MariaDB corp
+   Copyright (C) 2019, 2020, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -5862,7 +5862,7 @@ int spider_db_simple_action(
 #endif
     default:
       DBUG_ASSERT(0);
-      error_num = 0;
+      error_num = HA_ERR_CRASHED;
       break;
   }
   DBUG_RETURN(error_num);
