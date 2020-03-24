@@ -1,0 +1,43 @@
+#
+# MDEV-21743 Split up SUPER privilege to smaller privileges
+#
+create user rpl@localhost;
+grant replication slave on *.* to rpl@localhost;
+include/master-slave.inc
+[connection master]
+connection slave;
+stop slave;
+change master to master_user='rpl';
+connection master;
+create database mysqltest1;
+create table  mysqltest1.t1 (a int);
+insert mysqltest1.t1 values (1),(2),(3);
+select * from mysqltest1.t1;
+a
+1
+2
+3
+flush tables;
+create user foo@localhost;
+grant select on *.* to foo@localhost;
+connection slave;
+start slave;
+connection master;
+connection slave;
+select * from mysqltest1.t1;
+a
+1
+2
+3
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT SELECT ON *.* TO `foo`@`localhost`
+connection master;
+drop user foo@localhost;
+drop database mysqltest1;
+connection slave;
+stop slave;
+change master to master_user='root';
+start slave;
+include/rpl_end.inc
+drop user rpl@localhost;
