@@ -1033,6 +1033,14 @@ class User_table_tabular: public User_table
     if (access & SUPER_ACL)
       access|= GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS;
 
+    /*
+      The SHOW SLAVE HOSTS statement :
+      - required REPLICATION SLAVE privilege prior to 10.5.2
+      - requires REPLICATION MASTER ADMIN privilege since 10.5.2
+      There is no a way to GRANT MASTER ADMIN with User_table_tabular.
+      So let's automatically add REPLICATION MASTER ADMIN for all users
+      that had REPLICATION SLAVE. This will allow to do SHOW SLAVE HOSTS.
+    */
     if (access & REPL_SLAVE_ACL)
       access|= REPL_MASTER_ADMIN_ACL;
 
@@ -1519,9 +1527,6 @@ class User_table_json: public User_table
     {
       if (access & SUPER_ACL)
         access|= GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS;
-
-      if (access & REPL_SLAVE_ACL)
-        access|= REPL_MASTER_ADMIN_ACL;
     }
 
     if (orig_access & ~mask)

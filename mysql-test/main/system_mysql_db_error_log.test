@@ -81,6 +81,10 @@ WHERE
   host='localhost' and user='good_version_id_100400';
 FLUSH PRIVILEGES;
 SHOW GRANTS FOR good_version_id_100400@localhost;
+# Testing that it's missing only "REPLICATION MASTER ADMIN".
+# Should report ALL PRIVILEGES after GRANT REPLICATION MASTER ADMIN:
+GRANT REPLICATION MASTER ADMIN ON *.* TO good_version_id_100400@localhost;
+SHOW GRANTS FOR good_version_id_100400@localhost;
 DROP USER good_version_id_100400@localhost;
 
 
