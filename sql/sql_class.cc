@@ -1207,7 +1207,7 @@ void THD::init(void)
 #ifdef WITH_WSREP
   wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
   wsrep_conflict_state= NO_CONFLICT;
-  wsrep_query_state= QUERY_IDLE;
+  wsrep_thd_set_query_state(this, QUERY_IDLE);
   wsrep_last_query_id= 0;
   wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
   wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
