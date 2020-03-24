@@ -412,7 +412,8 @@ public:
    represented differently, but we need to support it either way.
   */
   uint32 key_length() const  override{ return packlength; }
-  uint get_key_image(uchar *buff,uint length, imagetype type_arg) override;
+  uint get_key_image(uchar *buff,uint length,
+                     const uchar *ptr_arg, imagetype type_arg) const override;
 
   /**
     Non-nullable GEOMETRY types cannot have defaults,
