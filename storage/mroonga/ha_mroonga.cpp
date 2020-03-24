@@ -6530,17 +6530,10 @@ int ha_mroonga::wrapper_update_row_index(const uchar *old_data,
 
   grn_id old_record_id;
   my_ptrdiff_t ptr_diff = PTR_BYTE_DIFF(old_data, table->record[0]);
-  for (uint j = 0; j < KEY_N_KEY_PARTS(key_info); j++) {
-    Field *field = key_info->key_part[j].field;
-    field->move_field_offset(ptr_diff);
-  }
+
   error = wrapper_get_record_id((uchar *)old_data, &old_record_id,
                                 "failed to get old record ID "
                                 "for updating from groonga");
-  for (uint j = 0; j < KEY_N_KEY_PARTS(key_info); j++) {
-    Field *field = key_info->key_part[j].field;
-    field->move_field_offset(-ptr_diff);
-  }
   if (error) {
     DBUG_RETURN(0);
   }
@@ -6852,8 +6845,6 @@ int ha_mroonga::storage_update_row_index(const uchar *old_data,
   GRN_TEXT_INIT(&new_key, 0);
   GRN_TEXT_INIT(&new_encoded_key, 0);
 
-  my_ptrdiff_t ptr_diff = PTR_BYTE_DIFF(old_data, table->record[0]);
-
   mrn::DebugColumnAccess debug_column_access(table, table->read_set);
   uint i;
   uint n_keys = table->s->keys;
@@ -6877,18 +6868,10 @@ int ha_mroonga::storage_update_row_index(const uchar *old_data,
 
     GRN_BULK_REWIND(&old_key);
     grn_bulk_space(ctx, &old_key, key_info->key_length);
-    for (uint j = 0; j < KEY_N_KEY_PARTS(key_info); j++) {
-      Field *field = key_info->key_part[j].field;
-      field->move_field_offset(ptr_diff);
-    }
     key_copy((uchar *)(GRN_TEXT_VALUE(&old_key)),
              (uchar *)old_data,
              key_info,
              key_info->key_length);
-    for (uint j = 0; j < KEY_N_KEY_PARTS(key_info); j++) {
-      Field *field = key_info->key_part[j].field;
-      field->move_field_offset(-ptr_diff);
-    }
     GRN_BULK_REWIND(&old_encoded_key);
     grn_bulk_reserve(ctx, &old_encoded_key, MRN_MAX_KEY_SIZE);
     uint old_encoded_key_length;
