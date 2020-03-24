@@ -385,7 +385,7 @@ ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
 
   cost->reset();
   /* Produce the same cost as non-MRR code does */
-  if (!pk_is_clustering_key(keyno))
+  if (!is_clustering_key(keyno))
   {
     /*
       idx_io_count could potentially be increased with the number of
