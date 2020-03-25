@@ -6695,13 +6695,13 @@ static Sys_var_charptr Sys_redirect_server_host(
        "redirect_server_host",
        "The server host that client can choose to redirect to.",
        READ_ONLY GLOBAL_VAR(redirect_server_host), CMD_LINE(OPT_ARG),
-       DEFAULT("localhost"));
+       DEFAULT(""));
 
 static Sys_var_charptr Sys_redirect_server_port(
        "redirect_server_port",
        "The server host port that client can choose to redirect to.",
        READ_ONLY GLOBAL_VAR(redirect_server_port), CMD_LINE(OPT_ARG),
-       DEFAULT("3306"));
+       DEFAULT(""));
 
 static Sys_var_charptr Sys_redirect_server_ttl(
        "redirect_server_ttl",
