@@ -229,8 +229,8 @@ parameters are declared in mysqld.cc: */
 
 long innobase_buffer_pool_awe_mem_mb = 0;
 long innobase_file_io_threads = 4;
-long innobase_read_io_threads = 4;
-long innobase_write_io_threads = 4;
+ulong innobase_read_io_threads = 4;
+ulong innobase_write_io_threads = 4;
 
 longlong innobase_page_size = (1LL << 14); /* 16KB */
 char*	innobase_buffer_pool_filename = NULL;
@@ -1879,8 +1879,8 @@ static bool innodb_init_param()
 	srv_buf_pool_chunk_unit = (ulong)srv_buf_pool_size;
 
 	srv_n_file_io_threads = (ulint) innobase_file_io_threads;
-	srv_n_read_io_threads = (ulint) innobase_read_io_threads;
-	srv_n_write_io_threads = (ulint) innobase_write_io_threads;
+	srv_n_read_io_threads = innobase_read_io_threads;
+	srv_n_write_io_threads = innobase_write_io_threads;
 
 	srv_max_n_open_files = ULINT_UNDEFINED - 5;
 
@@ -3803,7 +3803,7 @@ end:
 	return static_cast<ulong>(max_file_limit);
 }
 #else
-# define xb_set_max_open_files(x) 0
+# define xb_set_max_open_files(x) 0UL
 #endif
 
 static void stop_backup_threads()

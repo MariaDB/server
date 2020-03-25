@@ -115,7 +115,7 @@ ENDIF()
 # Add version information to the exe and dll files
 # Refer to http://msdn.microsoft.com/en-us/library/aa381058(VS.85).aspx
 # for more info.
-IF(MSVC)
+IF(MSVC AND NOT CLANG_CL)
     # Tiny version is used to identify the build, it can be set with cmake -DTINY_VERSION=<number>
     # to bzr revno for example (in the CI builds)
     IF(NOT TINY_VERSION)

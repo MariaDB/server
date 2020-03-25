@@ -46,6 +46,10 @@ IF(CMAKE_C_COMPILER MATCHES "icl")
  SET(MSVC TRUE)
 ENDIF()
 
+IF(MSVC  AND CMAKE_CXX_COMPILER_ID MATCHES Clang)
+ SET(CLANG_CL TRUE)
+ENDIF()
+
 ADD_DEFINITIONS(-D_WINDOWS -D__WIN__ -D_CRT_SECURE_NO_DEPRECATE)
 ADD_DEFINITIONS(-D_WIN32_WINNT=0x0A00)
 # We do not want the windows.h macros min/max
@@ -60,7 +64,7 @@ IF(MINGW AND CMAKE_SIZEOF_VOID_P EQUAL 4)
 ENDIF()
 
 FUNCTION(ENABLE_ASAN)
-  IF(NOT (MSVC AND CMAKE_CXX_COMPILER_ID MATCHES Clang))
+  IF(NOT CLANG_CL)
     MESSAGE(FATAL_ERROR "clang-cl is necessary to enable asan")
   ENDIF()
   # currently, asan is broken with static CRT.
@@ -141,7 +145,7 @@ IF(MSVC)
    ENDIF()
   ENDFOREACH()
 
-  IF(CMAKE_CXX_COMPILER_ID MATCHES Clang)
+  IF(CLANG_CL)
      SET(CLANG_CL_FLAGS
 "-Wno-unknown-warning-option -Wno-unused-private-field \
 -Wno-unused-parameter -Wno-inconsistent-missing-override \
@@ -173,7 +177,7 @@ IF(MSVC)
   ENDIF()
   
   # Speed up multiprocessor build
-  IF (NOT CMAKE_CXX_COMPILER_ID MATCHES Clang)
+  IF (NOT CLANG_CL)
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
   ENDIF()
@@ -181,13 +185,14 @@ IF(MSVC)
   #TODO: update the code and remove the disabled warnings
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /we4700 /we4311 /we4477 /we4302 /we4090")
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /we4099 /we4700 /we4311 /we4477 /we4302 /we4090")
-  IF(MSVC_VERSION GREATER 1910  AND (NOT CMAKE_CXX_COMPILER_ID MATCHES Clang))
+  IF(MSVC_VERSION GREATER 1910  AND NOT CLANG_CL)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /permissive-")
   ENDIF()
   ADD_DEFINITIONS(-D_CRT_NONSTDC_NO_WARNINGS)
   IF(MYSQL_MAINTAINER_MODE MATCHES "ERR")
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX")
+	MESSAGE("MEH")
     FOREACH(type EXE SHARED MODULE)
       FOREACH(cfg RELEASE DEBUG RELWITHDEBINFO)
         SET(CMAKE_${type}_LINKER_FLAGS_${cfg} "${CMAKE_${type}_LINKER_FLAGS_${cfg}} /WX")
@@ -198,7 +203,7 @@ IF(MSVC)
     # Noisy warning C4800: 'type': forcing value to bool 'true' or 'false' (performance warning),
     # removed in VS2017
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4800")
-  ELSEIF (NOT (CMAKE_CXX_COMPILER_ID MATCHES Clang))
+  ELSEIF (NOT CLANG_CL)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /d2OptimizeHugeFunctions")
   ENDIF()
 ENDIF()
