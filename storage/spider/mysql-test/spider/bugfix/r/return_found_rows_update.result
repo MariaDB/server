@@ -36,7 +36,7 @@ FLUSH TABLES;
 select test 1
 connection child2_1;
 TRUNCATE TABLE mysql.general_log;
-EXE_MYSQL -v -v -u root -h localhost -P MASTER_1_MYPORT -S MASTER_1_MYSOCK -e "UPDATE tbl_a SET tm = '12:00:00' WHERE skey = 0" auto_test_local
+MYSQL -v -v -u root -h localhost -P MASTER_1_MYPORT -S MASTER_1_MYSOCK -e "UPDATE tbl_a SET tm = '12:00:00' WHERE skey = 0" auto_test_local
 --------------
 UPDATE tbl_a SET tm = '12:00:00' WHERE skey = 0
 --------------
