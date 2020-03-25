@@ -53,8 +53,8 @@ FLUSH TABLES;
 TRUNCATE TABLE mysql.general_log;
 
 --disable_query_log
-echo EXE_MYSQL -v -v -u root -h localhost -P MASTER_1_MYPORT -S MASTER_1_MYSOCK -e "UPDATE tbl_a SET tm = '12:00:00' WHERE skey = 0" auto_test_local;
-exec $EXE_MYSQL -v -v -u root -h localhost --default-character-set=latin1 -P $MASTER_1_MYPORT -S $MASTER_1_MYSOCK -e "UPDATE tbl_a SET tm = '12:00:00' WHERE skey = 0" auto_test_local;
+echo MYSQL -v -v -u root -h localhost -P MASTER_1_MYPORT -S MASTER_1_MYSOCK -e "UPDATE tbl_a SET tm = '12:00:00' WHERE skey = 0" auto_test_local;
+exec $MYSQL -v -v -u root -h localhost --default-character-set=latin1 -P $MASTER_1_MYPORT -S $MASTER_1_MYSOCK -e "UPDATE tbl_a SET tm = '12:00:00' WHERE skey = 0" auto_test_local;
 --enable_query_log
 
 --connection child2_1
