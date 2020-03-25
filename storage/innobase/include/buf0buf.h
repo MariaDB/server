@@ -1153,7 +1153,9 @@ public:
 					used for encryption/compression
 					or NULL */
 #ifdef UNIV_DEBUG
-	ibool		in_page_hash;	/*!< TRUE if in buf_pool.page_hash */
+	/** whether the page is in buf_pool.page_hash;
+	protected by buf_pool.mutex(!) and the hash bucket rw-latch */
+	ibool		in_page_hash;
 	ibool		in_zip_hash;	/*!< TRUE if in buf_pool.zip_hash */
 #endif /* UNIV_DEBUG */
 

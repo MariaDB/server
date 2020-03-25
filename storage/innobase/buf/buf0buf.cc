@@ -2760,6 +2760,10 @@ buf_pool_watch_set(same_page_id) must have returned NULL before.
 @param[in]	page_id	page id */
 void buf_pool_watch_unset(const page_id_t page_id)
 {
+  /* FIXME: We only need buf_pool.mutex during the HASH_DELETE
+  because it protects watch->in_page_hash. */
+  mutex_enter(&buf_pool.mutex);
+
   rw_lock_t *hash_lock= buf_page_hash_lock_get(page_id);
   rw_lock_x_lock(hash_lock);
 
@@ -2771,17 +2775,16 @@ void buf_pool_watch_unset(const page_id_t page_id)
   {
     /* The following is based on buf_pool_watch_remove(). */
     ut_d(watch->in_page_hash= FALSE);
-    HASH_DELETE(buf_page_t, hash, buf_pool.page_hash, watch->id.fold(), watch);
+    HASH_DELETE(buf_page_t, hash, buf_pool.page_hash, page_id.fold(), watch);
     rw_lock_x_unlock(hash_lock);
-    /* Now that the watch is no longer reachable by other threads,
-    return it to the pool of inactive watches, for reuse. */
-    mutex_enter(&buf_pool.mutex);
+    /* Now that the watch is no longer reachable via buf_pool.page_hash,
+    release it to buf_pool.watch[] for reuse. */
     watch->buf_fix_count= 0;
     watch->state= BUF_BLOCK_POOL_WATCH;
-    mutex_exit(&buf_pool.mutex);
   }
   else
     rw_lock_x_unlock(hash_lock);
+  mutex_exit(&buf_pool.mutex);
 }
 
 /** Check if the page has been read in.
