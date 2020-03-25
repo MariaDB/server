@@ -14313,49 +14313,21 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 
   if (res == CR_OK_HANDSHAKE_COMPLETE)
     thd->get_stmt_da()->disable_status();
-  else
-  if (redirect_enabled)
+  else if (redirect_enabled)
   {
-    int total_size = 18
-                   + strlen(redirect_server_host)
-                   + 1 + strlen(redirect_server_port)
-                   + 6 + strlen(sctx->user)
-                   + (!strcmp(redirect_server_ttl, "0") ? 0 : (5 + strlen(redirect_server_ttl)));;
+    char msg[MAX_REDIRECTION_LEN];
+    size_t len = 0;
 
-    if (total_size >= MAX_REDIRECTION_LEN)
-    {
-      sql_print_error("error", ("redirection info is too large to return to client (len= %lu)",
-                     total_size));
+    msg[0] = '\0';
+    len = snprintf(msg + 1, MAX_REDIRECTION_LEN - 1, "Location: mysql://[%s]:%s/user=%s&ttl=%s", 
+      redirect_server_host, redirect_server_port, sctx->user, redirect_server_ttl);
+
+    if (len >= MAX_REDIRECTION_LEN - 1){
+      sql_print_error("redirection info is too large to return to client (len= %u)",len);
       my_ok(thd);
     }
     else
-    {
-      char *msg = new char[MAX_REDIRECTION_LEN];
-      if (NULL == msg)
-      {
-        DBUG_RETURN(1);
-      }
-
-      msg[0] = '\0';
-      strcat(msg, "Location: mysql://");
-      strcat(msg, redirect_server_host);
-      strcat(msg, ":");
-      strcat(msg, redirect_server_port);
-      strcat(msg, "/user=");
-      strcat(msg, sctx->user);
-
-      if (strcmp(redirect_server_ttl, "0"))
-      {
-        strcat(msg, "&ttl=");
-        strcat(msg, redirect_server_ttl);
-      }
-
-      msg[total_size] = 0;
-
       my_ok(thd, 0, 0, msg);
-
-      delete[] msg;
-    }
   }
   else
     my_ok(thd);
