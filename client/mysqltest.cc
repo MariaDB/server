@@ -10265,6 +10265,7 @@ void append_replace_regex(char* expr, char *expr_end, struct st_replace_regex* r
   return;
 
 err:
+  my_free(res->regex_arr.buffer);
   my_free(res);
   die("Error parsing replace_regex \"%s\"", expr);
 }
