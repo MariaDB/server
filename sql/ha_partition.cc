@@ -4535,13 +4535,13 @@ exit:
 int ha_partition::delete_row(const uchar *buf)
 {
   int error;
-  THD *thd= ha_thd();
   DBUG_ENTER("ha_partition::delete_row");
   m_err_rec= NULL;
 
   DBUG_ASSERT(bitmap_is_subset(&m_part_info->full_part_field_set,
                                table->read_set));
 #ifndef DBUG_OFF
+  THD* thd = ha_thd();
   /*
     The protocol for deleting a row is:
     1) position the handler (cursor) on the row to be deleted,
