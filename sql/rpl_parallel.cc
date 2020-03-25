@@ -1775,7 +1775,7 @@ rpl_parallel_thread::inuse_relaylog_refcount_update()
   inuse_relaylog *ir= accumulated_ir_last;
   if (ir)
   {
-    my_atomic_add64(&ir->dequeued_count, accumulated_ir_count);
+    ir->dequeued_count+= accumulated_ir_count;
     accumulated_ir_count= 0;
     accumulated_ir_last= NULL;
   }
