@@ -1868,9 +1868,10 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
   }
 
   /*
-    If flags2_inited==0, this is an event from 3.23 or 4.0; nothing to
-    print (remember we don't produce mixed relay logs so there cannot be
-    5.0 events before that one so there is nothing to reset).
+    If flags2_inited==0, this is an event from 3.23 or 4.0 or a dummy
+    event from the mtr test suite; nothing to print (remember we don't
+    produce mixed relay logs so there cannot be 5.0 events before that
+    one so there is nothing to reset).
   */
   if (likely(flags2_inited)) /* likely as this will mainly read 5.0 logs */
   {
@@ -3761,6 +3762,7 @@ st_print_event_info::st_print_event_info()
   delimiter[0]= ';';
   delimiter[1]= 0;
   flags2_inited= 0;
+  flags2= 0;
   sql_mode_inited= 0;
   row_events= 0;
   sql_mode= 0;

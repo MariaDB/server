@@ -1367,7 +1367,8 @@ Query_log_event::Query_log_event()
   Creates an event for binlogging
   The value for `errcode' should be supplied by caller.
 */
-Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg, size_t query_length, bool using_trans,
+Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
+                                 size_t query_length, bool using_trans,
 				 bool direct, bool suppress_use, int errcode)
 
   :Log_event(thd_arg,
@@ -1380,7 +1381,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg, size_t que
    thread_id(thd_arg->thread_id),
    /* save the original thread id; we already know the server id */
    slave_proxy_id((ulong)thd_arg->variables.pseudo_thread_id),
-   flags2_inited(1), sql_mode_inited(1), charset_inited(1),
+   flags2_inited(1), sql_mode_inited(1), charset_inited(1), flags2(0),
    sql_mode(thd_arg->variables.sql_mode),
    auto_increment_increment(thd_arg->variables.auto_increment_increment),
    auto_increment_offset(thd_arg->variables.auto_increment_offset),
@@ -1685,15 +1686,18 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     {
       thd->slave_expected_error= expected_error;
       if (flags2_inited)
+      {
         /*
-          all bits of thd->variables.option_bits which are 1 in OPTIONS_WRITTEN_TO_BIN_LOG
-          must take their value from flags2.
+          all bits of thd->variables.option_bits which are 1 in
+          OPTIONS_WRITTEN_TO_BIN_LOG must take their value from
+          flags2.
         */
         thd->variables.option_bits= flags2|(thd->variables.option_bits & ~OPTIONS_WRITTEN_TO_BIN_LOG);
+      }
       /*
         else, we are in a 3.23/4.0 binlog; we previously received a
-        Rotate_log_event which reset thd->variables.option_bits and sql_mode etc, so
-        nothing to do.
+        Rotate_log_event which reset thd->variables.option_bits and
+        sql_mode etc, so nothing to do.
       */
       /*
         We do not replicate MODE_NO_DIR_IN_CREATE. That is, if the master is a
