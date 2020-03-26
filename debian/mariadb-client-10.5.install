@@ -14,6 +14,7 @@ usr/bin/mariadb-waitpid
 usr/bin/mytop
 usr/share/man/man1/mariadb-access.1
 usr/share/man/man1/mariadb-admin.1
+usr/share/man/man1/mariadb-conv.1
 usr/share/man/man1/mariadb-dump.1
 usr/share/man/man1/mariadb-dumpslow.1
 usr/share/man/man1/mariadb-find-rows.1
