@@ -214,7 +214,7 @@ struct pool_timer_t
   mysql_mutex_t mutex;
   mysql_cond_t cond;
   volatile uint64 current_microtime;
-  volatile uint64 next_timeout_check;
+  std::atomic<uint64_t> next_timeout_check;
   int  tick_interval;
   bool shutdown;
   pthread_t timer_thread_id;
@@ -623,7 +623,8 @@ static void* timer_thread(void *param)
 
   my_thread_init();
   DBUG_ENTER("timer_thread");
-  timer->next_timeout_check= ULONGLONG_MAX;
+  timer->next_timeout_check.store(std::numeric_limits<uint64_t>::max(),
+                                  std::memory_order_relaxed);
   timer->current_microtime= microsecond_interval_timer();
 
   for(;;)
@@ -651,11 +652,12 @@ static void* timer_thread(void *param)
       }
       
       /* Check if any client exceeded wait_timeout */
-      if (timer->next_timeout_check <= timer->current_microtime)
+      if (timer->next_timeout_check.load(std::memory_order_relaxed) <=
+          timer->current_microtime)
       {
         /* Reset next timeout check, it will be recalculated below */
-        my_atomic_fas64((volatile int64*) &timer->next_timeout_check,
-                        ULONGLONG_MAX);
+        timer->next_timeout_check.store(std::numeric_limits<uint64_t>::max(),
+                                        std::memory_order_relaxed);
         server_threads.iterate(timeout_check, timer);
       }
     }
@@ -1411,12 +1413,15 @@ void TP_connection_generic::wait_end()
 
 static void set_next_timeout_check(ulonglong abstime)
 {
+  auto old= pool_timer.next_timeout_check.load(std::memory_order_relaxed);
   DBUG_ENTER("set_next_timeout_check");
-  while(abstime < pool_timer.next_timeout_check)
+  while (abstime < old)
   {
-    longlong old= (longlong)pool_timer.next_timeout_check;
-    my_atomic_cas64((volatile int64*)&pool_timer.next_timeout_check,
-          &old, abstime);
+    if (pool_timer.next_timeout_check.
+                   compare_exchange_weak(old, abstime,
+                                         std::memory_order_relaxed,
+                                         std::memory_order_relaxed))
+     break;
   }
   DBUG_VOID_RETURN;
 }
