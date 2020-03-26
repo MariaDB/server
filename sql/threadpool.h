@@ -47,7 +47,7 @@ extern void tp_timeout_handler(TP_connection *c);
 struct TP_STATISTICS
 {
   /* Current number of worker thread. */
-  volatile int32 num_worker_threads;
+  Atomic_counter<uint32_t> num_worker_threads;
 };
 
 extern TP_STATISTICS tp_stats;

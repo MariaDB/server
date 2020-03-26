@@ -908,7 +908,7 @@ static void add_thread_count(thread_group_t *thread_group, int32 count)
   thread_group->thread_count += count;
   /* worker starts out and end in "active" state */
   thread_group->active_thread_count += count;
-  my_atomic_add32(&tp_stats.num_worker_threads, count);
+  tp_stats.num_worker_threads+= count;
 }
 
 
@@ -928,7 +928,7 @@ static int create_worker(thread_group_t *thread_group)
   int err;
   
   DBUG_ENTER("create_worker");
-  if (tp_stats.num_worker_threads >= (int)threadpool_max_threads
+  if (tp_stats.num_worker_threads >= threadpool_max_threads
      && thread_group->thread_count >= 2)
   {
     err= 1;
