@@ -1562,13 +1562,10 @@ inc_dir:
       c_end= std::min<const byte*>(c_end, block->frame + srv_page_size -
                                    PAGE_DIR - PAGE_DIR_SLOT_SIZE *
                                    page_dir_get_n_slots(block->frame));
-    size_t data_common= 0;
+    size_t data_common;
     /* Copy common data bytes of the preceding record. */
-    if (c != c_end)
-    {
-      for (; *r == *c && c++ != c_end; r++);
-      data_common= static_cast<size_t>(r - rec);
-    }
+    for (; c != c_end && *r == *c; c++, r++);
+    data_common= static_cast<size_t>(r - rec);
 
     if (comp)
       mtr->page_insert(*block, reuse,
