@@ -1060,6 +1060,7 @@ handle_rpl_parallel_thread(void *arg)
   /* Ensure that slave can exeute any alter table it gets from master */
   thd->variables.alter_algorithm= (ulong) Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT;
   thd->slave_thread= 1;
+  thd->rpt= rpt;
 
   set_slave_thread_options(thd);
   thd->client_capabilities = CLIENT_LOCAL_FILES;
@@ -1976,6 +1977,11 @@ rpl_parallel_thread::loc_free_gco(group_commit_orderer *gco)
   else
     gco->next_gco= loc_gco_list;
   loc_gco_list= gco;
+}
+void rpl_parallel_thread::__finish_event_group(rpl_group_info *group_rgi)
+{
+  finish_event_group(this, group_rgi->gtid_sub_id,
+                                 group_rgi->parallel_entry, group_rgi);
 }
 
 rpl_parallel_thread_pool::rpl_parallel_thread_pool()

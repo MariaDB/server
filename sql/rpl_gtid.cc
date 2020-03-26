@@ -620,7 +620,6 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     DBUG_RETURN(0);
   }
 
-  if (!in_statement)
     thd->reset_for_next_command();
 
   /*

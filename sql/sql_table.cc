@@ -9402,6 +9402,8 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
   ulong start_alter_id= thd->lex->alter_info.alter_identifier;
   if (start_alter_id)
   {
+    if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+      return 0;
     Master_info *mi= thd->rgi_slave->rli->mi;
     info->error= 0;
     info->thread_id= start_alter_id;
@@ -9413,6 +9415,11 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
     DBUG_EXECUTE_IF("start_alter_delay_slave", {
       my_sleep(5000000);
       });
+    thd->start_alter_ev->update_pos(thd->rgi_slave);
+    thd->rgi_slave->mark_start_commit();
+    thd->wakeup_subsequent_commits(0);
+    //Finish event group
+    thd->rpt->__finish_event_group(thd->rgi_slave);
     if (thd->slave_shutdown)
       return true;
     return false;
@@ -9421,7 +9428,7 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
   {
     char *send_query= (char *)thd->alloc(thd->query_length() + 20);
     thd->gtid_flags3|= Gtid_log_event::FL_START_ALTER_E1;
-    sprintf(send_query, "/*!105001  %s EXECUTE = UNTIL COMMIT %ld */",
+    sprintf(send_query, "/*!100001  %s EXECUTE = UNTIL COMMIT %ld */",
                                       thd->query(), (long)thd->thread_id);
     if (write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
       return true;
@@ -10238,7 +10245,7 @@ do_continue:;
         if (opt_binlog_split_alter)
         {
           thd->gtid_flags3|= Gtid_log_event::FL_ROLLBACK_ALTER_E1;
-          sprintf(send_query, "/*!105001  %s EXECUTE = ROLLBACK %ld */", thd->query(),
+          sprintf(send_query, "/*!100001  %s EXECUTE = ROLLBACK %ld */", thd->query(),
                                                         (long)thd->thread_id);
           if(write_bin_log(thd, false, send_query, strlen(send_query), true, true))
             DBUG_RETURN(true);
@@ -10403,7 +10410,7 @@ do_continue:;
     if (partial_alter)
     {
       thd->gtid_flags3|= Gtid_log_event::FL_COMMIT_ALTER_E1;
-      sprintf(send_query, "%s /*!105001 EXECUTE = COMMIT %ld */", thd->query(),
+      sprintf(send_query, "%s /*!100001 EXECUTE = COMMIT %ld */", thd->query(),
                                                         (long)thd->thread_id);
       if(write_bin_log(thd, false, send_query, strlen(send_query)))
         DBUG_RETURN(true);
@@ -10612,7 +10619,7 @@ end_inplace:
   if (partial_alter)
   {
     thd->gtid_flags3|= Gtid_log_event::FL_COMMIT_ALTER_E1;
-    sprintf(send_query, "%s /*!105001 EXECUTE = COMMIT %ld */", thd->query(),
+    sprintf(send_query, "%s /*!100001 EXECUTE = COMMIT %ld */", thd->query(),
                                                         (long)thd->thread_id);
     if(write_bin_log(thd, false, send_query, strlen(send_query)))
       DBUG_RETURN(true);
@@ -10681,7 +10688,7 @@ err_new_table_cleanup:
   else if (opt_binlog_split_alter)
   {
     thd->gtid_flags3|= Gtid_log_event::FL_ROLLBACK_ALTER_E1;
-    sprintf(send_query, "/*!105001  %s EXECUTE = ROLLBACK %ld */", thd->query(),
+    sprintf(send_query, "/*!100001  %s EXECUTE = ROLLBACK %ld */", thd->query(),
                                                         (long)thd->thread_id);
     if(write_bin_log(thd, false, send_query, strlen(send_query), true, true))
       DBUG_RETURN(true);

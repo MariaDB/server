@@ -696,10 +696,9 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     We will follow a different executation path if it is START ALTER
     or commit/rollback alter
    */
+  if (0)
+      process_start_alter(thd, alter_info.alter_identifier);
   switch (alter_info.alter_state)  {
-  case Alter_info::ALTER_TABLE_START:
-    alter_res= process_start_alter(thd, alter_info.alter_identifier);
-    break;
   case Alter_info::ALTER_TABLE_COMMIT:
     alter_res= process_commit_alter(thd, alter_info.alter_identifier);
     break;
@@ -707,6 +706,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     alter_res= process_rollback_alter(thd, alter_info.alter_identifier);
     break;
   case Alter_info::ALTER_TABLE_NORMAL:
+  default:
     alter_res= START_ALTER_PARSE;
     break;
   }

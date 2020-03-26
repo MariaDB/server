@@ -1604,6 +1604,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     you.
   */
   thd->catalog= catalog_len ? (char *) catalog : (char *)"";
+  thd->start_alter_ev= this;
 
   size_t valid_len= Well_formed_prefix(system_charset_info,
                                        db, db_len, NAME_LEN).length();
