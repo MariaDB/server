@@ -69,8 +69,7 @@ Architecture: any
 Section: libs
 Depends: libmariadb3,
          mariadb-common,
-         ${misc:Depends},
-         ${shlibs:Depends}
+         ${misc:Depends}
 Breaks: libmysqlclient19,
         libmysqlclient20,
         libmysqlclient21
@@ -196,8 +195,7 @@ Provides: libmysqld-dev
 Pre-Depends: ${misc:Pre-Depends}
 Depends: libmariadb-dev (= ${binary:Version}),
          libmariadbd19 (= ${binary:Version}),
-         ${misc:Depends},
-         ${shlibs:Depends}
+         ${misc:Depends}
 Breaks: libmysqld-dev
 Replaces: libmysqld-dev
 Description: MariaDB embedded database, development files
@@ -210,8 +208,7 @@ Description: MariaDB embedded database, development files
 
 Package: mysql-common
 Architecture: all
-Depends: ${misc:Depends},
-         ${shlibs:Depends}
+Depends: ${misc:Depends}
 Description: MariaDB database common files (e.g. /etc/mysql/my.cnf)
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -224,8 +221,7 @@ Description: MariaDB database common files (e.g. /etc/mysql/my.cnf)
 Package: mariadb-common
 Architecture: all
 Depends: mysql-common,
-         ${misc:Depends},
-         ${shlibs:Depends}
+         ${misc:Depends}
 Description: MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -478,6 +474,7 @@ Depends: galera-4 (>=26.4),
          rsync,
          socat,
          ${misc:Depends},
+         ${perl:Depends},
          ${shlibs:Depends}
 Conflicts: mariadb-server (<< ${source:Version}),
            mariadb-server-10.0,
@@ -782,6 +779,7 @@ Depends: mariadb-client-10.5 (= ${binary:Version}),
          mariadb-server-10.5 (= ${binary:Version}),
          mariadb-test-data (= ${source:Version}),
          ${misc:Depends},
+         ${perl:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-server-5.5,
         mariadb-test-10.0,
@@ -822,7 +820,8 @@ Description: MariaDB database regression test suite
 Package: mariadb-test-data
 Architecture: all
 Multi-Arch: foreign
-Depends: ${misc:Depends}
+Depends: ${misc:Depends},
+         ${shlibs:Depends}
 Breaks: mariadb-test-10.0,
         mariadb-test-10.1,
         mariadb-test-10.2,
