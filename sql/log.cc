@@ -2209,9 +2209,6 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
   int error= 1;
   DBUG_ENTER("binlog_savepoint_set");
 
-  if (wsrep_emulate_bin_log)
-    DBUG_RETURN(0);
-
   char buf[1024];
 
   String log_query(buf, sizeof(buf), &my_charset_bin);
@@ -2244,9 +2241,6 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
 static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 {
   DBUG_ENTER("binlog_savepoint_rollback");
-
-  if (wsrep_emulate_bin_log)
-    DBUG_RETURN(0);
 
   /*
     Write ROLLBACK TO SAVEPOINT to the binlog cache if we have updated some
