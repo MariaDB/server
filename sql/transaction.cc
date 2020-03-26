@@ -614,6 +614,9 @@ bool trans_savepoint(THD *thd, LEX_STRING name)
   if (thd->transaction.xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
 
+  if (WSREP_ON)
+    wsrep_register_hton(thd, thd->in_multi_stmt_transaction_mode());
+
   sv= find_savepoint(thd, name);
 
   if (*sv) /* old savepoint of the same name exists */
@@ -689,6 +692,9 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_STRING name)
 
   if (thd->transaction.xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
+
+  if (WSREP_ON)
+    wsrep_register_hton(thd, thd->in_multi_stmt_transaction_mode());
 
   /**
     Checking whether it is safe to release metadata locks acquired after
