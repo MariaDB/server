@@ -6686,7 +6686,7 @@ static Sys_var_ulonglong Sys_max_rowid_filter_size(
 
 static Sys_var_mybool Sys_redirect_enabled(
        "redirect_enabled",
-       "Enable return redirection endpoint",
+       "Return redirection information to client.",
        GLOBAL_VAR(redirect_enabled), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(0));
@@ -6705,6 +6705,6 @@ static Sys_var_charptr Sys_redirect_server_port(
 
 static Sys_var_charptr Sys_redirect_server_ttl(
        "redirect_server_ttl",
-       "The ttl (time to live) in seconds the redirected endpoint can be trusted.",
+       "The life time of the validity of redirected information with unit second.",
        READ_ONLY GLOBAL_VAR(redirect_server_ttl), CMD_LINE(OPT_ARG),
        DEFAULT("0"));
