@@ -21,6 +21,7 @@ connection con3;
 set @@autocommit=0;
 DROP TABLE t1;
 connection con1;
+# Waiting for until transaction will be locked inside innodb subsystem
 # Connection 1 is now holding the lock.
 # Issuing insert from connection 1 while connection 2&3 
 # is waiting for the lock should give a deadlock error.
