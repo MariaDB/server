@@ -25,8 +25,8 @@ then
   # Don't build the test package at all to save time and disk space
   sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
 
-  # Also skip building RocksDB and TokuDB to save even more time and disk space
-  sed 's|-DDEB|-DPLUGIN_TOKUDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -WITH_EMBEDDED_SERVER=OFF -DDEB|' -i debian/rules
+  # Also skip building RocksDB, Mroonga etc to save even more time and disk space
+  sed 's|-DDEB|-DPLUGIN_MROONGA=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -WITH_EMBEDDED_SERVER=OFF -DDEB|' -i debian/rules
 fi
 
 # Convert gcc version to numberical value. Format is Mmmpp where M is Major
@@ -65,16 +65,6 @@ then
   sed 's/libcurl4/libcurl3/g' -i debian/control
 fi
 
-# The binaries should be fully hardened by default. However TokuDB compilation seems to fail on
-# Debian Jessie and older and on Ubuntu Xenial and older with the following error message:
-#   /usr/bin/ld.bfd.real: /tmp/ccOIwjFo.ltrans0.ltrans.o: relocation R_X86_64_PC32 against symbol
-#   `toku_product_name_strings' can not be used when making a shared object; recompile with -fPIC
-# Therefore we need to disable PIE on those releases using gcc as proxy for detection.
-if [[ $GCCVERSION -lt 60000 ]]
-then
-  sed 's/hardening=+all$/hardening=+all,-pie/' -i debian/rules
-fi
-
 # Don't build rocksdb package if gcc version is less than 4.8 or we are running on
 # x86 32 bit.
 if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
@@ -82,15 +72,16 @@ then
   sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
 fi
 
-# Always remove aws plugin, see -DNOT_FOR_DISTRIBUTION in CMakeLists.txt
+# Always remove AWS plugin, see -DNOT_FOR_DISTRIBUTION in CMakeLists.txt
 sed '/Package: mariadb-plugin-aws-key-management-10.2/,/^$/d' -i debian/control
 
-# Don't build cassandra package if thrift is not installed
+# Don't build Cassandra package if Thrift is not installed
 if [[ ! -f /usr/local/include/thrift/Thrift.h && ! -f /usr/include/thrift/Thrift.h ]]
 then
   sed '/Package: mariadb-plugin-cassandra/,/^$/d' -i debian/control
 fi
 
+# Don't include TokuDB package as it is not built anymore by default (MDEV-19780)
 sed -i -e "/Package: mariadb-plugin-tokudb/,/^$/d" debian/control
 
 # If libpcre2-dev is not available (before Debian Stretch and Ubuntu Xenial)
@@ -100,10 +91,9 @@ then
   sed 's/libpcre2-dev/libpcre3-dev/' -i debian/control
 fi
 
-# Mroonga, TokuDB never built on Travis CI anyway, see build flags above
+# Cassandra, Mroonga etc never built on Travis CI anyway, see build flags above
 if [[ $TRAVIS ]]
 then
-  sed -i -e "/Package: mariadb-plugin-tokudb/,/^$/d" debian/control
   sed -i -e "/Package: mariadb-plugin-mroonga/,/^$/d" debian/control
   sed -i -e "/Package: mariadb-plugin-spider/,/^$/d" debian/control
   sed -i -e "/Package: mariadb-plugin-oqgraph/,/^$/d" debian/control
