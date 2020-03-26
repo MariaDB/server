@@ -12,26 +12,35 @@ id	animal
 3	Zebra
 INSERT INTO ins_duplicate VALUES (1,'Antelope');
 ERROR 23000: Can't write; duplicate key in table 'ins_duplicate'
+INSERT INTO ins_duplicate VALUES (4,'Mouse') ON DUPLICATE KEY UPDATE animal='Rat';
 INSERT INTO ins_duplicate VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Banana';
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 id	animal
 1	Banana
 2	Cheetah
 3	Zebra
+4	Mouse
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
 ERROR 23000: Can't write; duplicate key in table 'ins_duplicate'
+INSERT INTO ins_duplicate VALUES (5,'Cat'),(6,'Dog') ON DUPLICATE KEY UPDATE animal='Parrot';
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid';
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 id	animal
 1	hybrid
 2	hybrid
 3	Zebra
+4	Mouse
+5	Cat
+6	Dog
 BEGIN;
 SELECT * FROM `ins_duplicate` ORDER BY `id`;
 id	animal
 1	hybrid
 2	hybrid
 3	Zebra
+4	Mouse
+5	Cat
+6	Dog
 INSERT INTO ins_duplicate VALUES (1,'Antelope');
 ERROR 23000: Can't write; duplicate key in table 'ins_duplicate'
 INSERT INTO ins_duplicate VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Vegetable';
@@ -40,6 +49,9 @@ id	animal
 1	Vegetable
 2	hybrid
 3	Zebra
+4	Mouse
+5	Cat
+6	Dog
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
 ERROR 23000: Can't write; duplicate key in table 'ins_duplicate'
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid2';
@@ -50,6 +62,9 @@ id	animal
 1	hybrid2
 2	hybrid2
 3	Zebra
+4	Mouse
+5	Cat
+6	Dog
 INSERT INTO ins_duplicate VALUES (1,'Antelope');
 ERROR 23000: Can't write; duplicate key in table 'ins_duplicate'
 INSERT INTO ins_duplicate VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Vegetable';
@@ -58,6 +73,9 @@ id	animal
 1	Vegetable
 2	hybrid2
 3	Zebra
+4	Mouse
+5	Cat
+6	Dog
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
 ERROR 23000: Can't write; duplicate key in table 'ins_duplicate'
 INSERT INTO ins_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid3';
@@ -67,6 +85,197 @@ id	animal
 1	hybrid2
 2	hybrid2
 3	Zebra
+4	Mouse
+5	Cat
+6	Dog
 DROP TABLE `db1`.`ins_duplicate`;
+DROP TABLE IF EXISTS `db1`.`ins_no_duplicate1`;
+Warnings:
+Note	1051	Unknown table 'db1.ins_no_duplicate1'
+CREATE TABLE `db1`.`ins_no_duplicate1` (id INT, vegetable VARCHAR(10));
+INSERT INTO `db1`.`ins_no_duplicate1` VALUES (1, 'Carrot'), (2, 'Broccoli');
+SELECT * FROM `ins_no_duplicate1` ORDER BY `id`, `vegetable`;
+id	vegetable
+1	Carrot
+2	Broccoli
+INSERT INTO ins_no_duplicate1 VALUES (1,'Cabbage');
+INSERT INTO ins_no_duplicate1 VALUES (2,'Beetroot') ON DUPLICATE KEY UPDATE vegetable='Apple';
+SELECT * FROM `ins_no_duplicate1` ORDER BY `id`, `vegetable`;
+id	vegetable
+1	Cabbage
+1	Carrot
+2	Beetroot
+2	Broccoli
+INSERT INTO ins_no_duplicate1 VALUES (2,'Kale'), (2,'Parsley') ON DUPLICATE KEY UPDATE vegetable='Lettuce';
+SELECT * FROM `ins_no_duplicate1` ORDER BY `id`, `vegetable`;
+id	vegetable
+1	Cabbage
+1	Carrot
+2	Beetroot
+2	Broccoli
+2	Kale
+2	Parsley
+DROP TABLE `db1`.`ins_no_duplicate1`;
+DROP TABLE IF EXISTS `db1`.`ins_dup_with_no_uniq_key`;
+Warnings:
+Note	1051	Unknown table 'db1.ins_dup_with_no_uniq_key'
+CREATE TABLE `db1`.`ins_dup_with_no_uniq_key` (id INT, vegetable VARCHAR(10), KEY (id));
+INSERT INTO `db1`.`ins_dup_with_no_uniq_key` VALUES (1, 'Carrot'), (2, 'Broccoli');
+SELECT * FROM `ins_dup_with_no_uniq_key` ORDER BY `id`, `vegetable`;
+id	vegetable
+1	Carrot
+2	Broccoli
+INSERT INTO ins_dup_with_no_uniq_key VALUES (1,'Cabbage');
+INSERT INTO ins_dup_with_no_uniq_key VALUES (2,'Beetroot') ON DUPLICATE KEY UPDATE vegetable='Apple';
+SELECT * FROM `ins_dup_with_no_uniq_key` ORDER BY `id`, `vegetable`;
+id	vegetable
+1	Cabbage
+1	Carrot
+2	Beetroot
+2	Broccoli
+INSERT INTO ins_dup_with_no_uniq_key VALUES (2,'Kale'), (2,'Parsley') ON DUPLICATE KEY UPDATE vegetable='Lettuce';
+SELECT * FROM `ins_dup_with_no_uniq_key` ORDER BY `id`, `vegetable`;
+id	vegetable
+1	Cabbage
+1	Carrot
+2	Beetroot
+2	Broccoli
+2	Kale
+2	Parsley
+DROP TABLE `db1`.`ins_dup_with_no_uniq_key`;
+DROP TABLE IF EXISTS `ins_multi_duplicate`;
+Warnings:
+Note	1051	Unknown table 'db1.ins_multi_duplicate'
+CREATE TABLE `ins_multi_duplicate`(`id` INT, `id2` VARCHAR(10), `animal` VARCHAR(30), PRIMARY KEY(`id`, `id2`)) ENGINE=xpand;
+INSERT INTO `ins_multi_duplicate` VALUES (1, '1', 'Aardvark'), (2, '2', 'Cheetah'), (3, '3', 'Zebra');
+SELECT * FROM `ins_multi_duplicate` ORDER BY `id`, `id2`;
+id	id2	animal
+1	1	Aardvark
+2	2	Cheetah
+3	3	Zebra
+INSERT INTO ins_multi_duplicate VALUES (1, '1', 'Antelope');
+ERROR 23000: Can't write; duplicate key in table 'ins_multi_duplicate'
+INSERT INTO ins_multi_duplicate VALUES (4, '4', 'Mouse') ON DUPLICATE KEY UPDATE animal='Rat';
+INSERT INTO ins_multi_duplicate VALUES (1, '1', 'Antelope') ON DUPLICATE KEY UPDATE animal='Banana';
+SELECT * FROM `ins_multi_duplicate` ORDER BY `id`, `id2`;
+id	id2	animal
+1	1	Banana
+2	2	Cheetah
+3	3	Zebra
+4	4	Mouse
+INSERT INTO ins_multi_duplicate VALUES (1, '1', 'Antelope'),(2, '3', 'Cheetah');
+ERROR 23000: Can't write; duplicate key in table 'ins_multi_duplicate'
+INSERT INTO ins_multi_duplicate VALUES (5, '5', 'Cat'),(6, '5', 'Dog') ON DUPLICATE KEY UPDATE animal='Parrot';
+INSERT INTO ins_multi_duplicate VALUES (1, '1', 'Antelope'),(2, '1', 'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid';
+SELECT * FROM `ins_multi_duplicate` ORDER BY `id`, `id2`;
+id	id2	animal
+1	1	hybrid
+2	1	Cheetah
+2	2	Cheetah
+3	3	Zebra
+4	4	Mouse
+5	5	Cat
+6	5	Dog
+DROP TABLE `ins_multi_duplicate`;
+DROP TABLE IF EXISTS `ins_autoinc_duplicate`;
+Warnings:
+Note	1051	Unknown table 'db1.ins_autoinc_duplicate'
+CREATE TABLE `ins_autoinc_duplicate`(`id` INT AUTO_INCREMENT PRIMARY KEY, `animal` VARCHAR(30)) ENGINE=xpand;
+INSERT INTO `ins_autoinc_duplicate` (`animal`) VALUES ('Aardvark'), ('Cheetah'), ('Zebra');
+SELECT * FROM `ins_autoinc_duplicate` ORDER BY `id`;
+id	animal
+1	Aardvark
+2	Cheetah
+3	Zebra
+INSERT INTO ins_autoinc_duplicate VALUES (1,'Antelope');
+ERROR 23000: Can't write; duplicate key in table 'ins_autoinc_duplicate'
+INSERT INTO ins_autoinc_duplicate VALUES (4,'Mouse') ON DUPLICATE KEY UPDATE animal='Rat';
+INSERT INTO ins_autoinc_duplicate VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Banana';
+SELECT * FROM `ins_autoinc_duplicate` ORDER BY `id`;
+id	animal
+1	Banana
+2	Cheetah
+3	Zebra
+4	Mouse
+INSERT INTO ins_autoinc_duplicate VALUES (1,'Antelope'),(2,'Cheetah');
+ERROR 23000: Can't write; duplicate key in table 'ins_autoinc_duplicate'
+INSERT INTO ins_autoinc_duplicate VALUES (5,'Cat'),(6,'Dog') ON DUPLICATE KEY UPDATE animal='Parrot';
+INSERT INTO ins_autoinc_duplicate VALUES (1,'Antelope'),(2,'Cheetah') ON DUPLICATE KEY UPDATE animal='hybrid';
+SELECT * FROM `ins_autoinc_duplicate` ORDER BY `id`;
+id	animal
+1	hybrid
+2	hybrid
+3	Zebra
+4	Mouse
+5	Cat
+6	Dog
+INSERT INTO ins_autoinc_duplicate (`animal`) VALUES ('Bat') ON DUPLICATE KEY UPDATE animal='Squirrel';
+SELECT * FROM `ins_autoinc_duplicate` ORDER BY `id`;
+id	animal
+1	hybrid
+2	hybrid
+3	Zebra
+4	Mouse
+5	Cat
+6	Dog
+7	Bat
+SELECT last_insert_id();
+last_insert_id()
+7
+DROP TABLE `ins_autoinc_duplicate`;
+DROP TABLE IF EXISTS `ins_duplicate_multiple_keys`;
+Warnings:
+Note	1051	Unknown table 'db1.ins_duplicate_multiple_keys'
+CREATE TABLE `ins_duplicate_multiple_keys`(`id` INT PRIMARY KEY, `animal` VARCHAR(30), UNIQUE KEY (`animal`)) ENGINE=xpand;
+INSERT INTO `ins_duplicate_multiple_keys` VALUES (1,'Aardvark'), (2,'Cheetah'), (3,'Zebra');
+SELECT * FROM `ins_duplicate_multiple_keys` ORDER BY `id`;
+id	animal
+1	Aardvark
+2	Cheetah
+3	Zebra
+INSERT INTO ins_duplicate_multiple_keys VALUES (99,'Aardvark');
+ERROR 23000: Can't write; duplicate key in table 'ins_duplicate_multiple_keys'
+INSERT INTO ins_duplicate_multiple_keys VALUES (1,'Antelope');
+ERROR 23000: Can't write; duplicate key in table 'ins_duplicate_multiple_keys'
+INSERT INTO ins_duplicate_multiple_keys VALUES (1,'Chicken'),(20,'Duck');
+ERROR 23000: Can't write; duplicate key in table 'ins_duplicate_multiple_keys'
+INSERT INTO ins_duplicate_multiple_keys VALUES (20,'Chicken'),(1,'Duck');
+ERROR 23000: Can't write; duplicate key in table 'ins_duplicate_multiple_keys'
+SELECT * FROM `ins_duplicate_multiple_keys` ORDER BY `id`;
+id	animal
+1	Aardvark
+2	Cheetah
+3	Zebra
+INSERT INTO ins_duplicate_multiple_keys VALUES (4,'Mouse') ON DUPLICATE KEY UPDATE animal='Rat';
+INSERT INTO ins_duplicate_multiple_keys VALUES (5,'Cat'),(6,'Dog') ON DUPLICATE KEY UPDATE animal='Parrot';
+SELECT * FROM `ins_duplicate_multiple_keys` ORDER BY `id`;
+id	animal
+1	Aardvark
+2	Cheetah
+3	Zebra
+4	Mouse
+5	Cat
+6	Dog
+INSERT INTO ins_duplicate_multiple_keys VALUES (1,'Antelope') ON DUPLICATE KEY UPDATE animal='Antelope';
+INSERT INTO ins_duplicate_multiple_keys VALUES (20,'Cheetah') ON DUPLICATE KEY UPDATE animal='Cougar';
+SELECT * FROM `ins_duplicate_multiple_keys` ORDER BY `id`;
+id	animal
+1	Antelope
+2	Cougar
+3	Zebra
+4	Mouse
+5	Cat
+6	Dog
+INSERT INTO ins_duplicate_multiple_keys VALUES (1,'Aardvark'),(20,'Cougar'),(7,'Deer') ON DUPLICATE KEY UPDATE animal=concat(animal, '_hybrid');
+SELECT * FROM `ins_duplicate_multiple_keys` ORDER BY `id`;
+id	animal
+1	Antelope_hybrid
+2	Cougar_hybrid
+3	Zebra
+4	Mouse
+5	Cat
+6	Dog
+7	Deer
+DROP TABLE `ins_duplicate_multiple_keys`;
 USE test;
 DROP DATABASE `db1`;

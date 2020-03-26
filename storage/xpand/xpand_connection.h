@@ -99,7 +99,7 @@ public:
                  uint field_metadata_size, ushort row_req, ulonglong *oids,
                  xpand_connection_cursor **scan);
   int update_query(String &stmt, LEX_CSTRING &dbname, ulonglong *oids,
-                   ulonglong *affected_rows);
+                   ulonglong *affected_rows, ulonglong *last_insert_id);
   int scan_from_key(ulonglong xpand_table_oid, uint index,
                     xpand_lock_mode_t lock_mode,
                     enum scan_type scan_dir, int no_key_cols, bool sorted_scan,
