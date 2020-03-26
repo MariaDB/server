@@ -200,7 +200,7 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) thread_group_t
 
 static thread_group_t *all_groups;
 static uint group_count;
-static int32 shutdown_group_count;
+static Atomic_counter<uint32_t> shutdown_group_count;
 
 /**
  Used for printing "pool blocked" message, see
@@ -1068,7 +1068,7 @@ void thread_group_destroy(thread_group_t *thread_group)
   }
 #endif
 
-  if (my_atomic_add32(&shutdown_group_count, -1) == 1)
+  if (!--shutdown_group_count)
     my_free(all_groups);
 }
 
