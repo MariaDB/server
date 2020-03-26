@@ -1,5 +1,6 @@
 usr/bin/mariadb_config
 usr/include/mariadb
+usr/lib/*/libmariadb.a
 usr/lib/*/libmariadb.so
 usr/lib/*/libmariadbclient.a
 usr/lib/*/libmariadbclient.so

@@ -143,6 +143,9 @@ endif
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.19
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.20
 
+	# Install libmariadbclient.a compatibility link
+	ln -s libmariadb.a $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.a
+
 override_dh_fixperms:
 	dh_fixperms
 	chmod 04755 debian/mariadb-server-10.5/usr/lib/mysql/plugin/auth_pam_tool_dir/auth_pam_tool
