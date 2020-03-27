@@ -1551,7 +1551,6 @@ inc_dir:
   /* Insert the record, possibly copying from the preceding record. */
   ut_ad(mtr->get_log_mode() == MTR_LOG_ALL);
 
-  if (data_size)
   {
     const byte *r= rec;
     const byte *c= cur->rec;
@@ -2883,7 +2882,11 @@ corrupted:
   ulint slot_owned;
   for (ulint i= n_recs; !(slot_owned= rec_get_n_owned_new(s)); )
   {
-    n= static_cast<uint16_t>(n + mach_read_from_2(s - REC_NEXT));
+    const uint16_t next= mach_read_from_2(s - REC_NEXT);
+    if (UNIV_UNLIKELY(next < REC_N_NEW_EXTRA_BYTES ||
+                      next > static_cast<uint16_t>(-REC_N_NEW_EXTRA_BYTES)))
+      goto corrupted;
+    n= static_cast<uint16_t>(n + next);
     s= block.frame + n;
     if (n == PAGE_NEW_SUPREMUM);
     else if (UNIV_UNLIKELY(n < PAGE_NEW_SUPREMUM_END + REC_N_NEW_EXTRA_BYTES ||
