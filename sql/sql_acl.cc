@@ -1525,8 +1525,26 @@ class User_table_json: public User_table
     }
     else // 100501 or earlier
     {
+      /*
+        Address changes in SUPER and REPLICATION SLAVE made in 10.5.2.
+        This also covers a special case: if the user had ALL PRIVILEGES before
+        the upgrade, it gets ALL PRIVILEGES after the upgrade.
+      */
       if (access & SUPER_ACL)
+      {
+        if (access & REPL_SLAVE_ACL)
+        {
+          /*
+            The user could do both before the upgrade:
+            - set global variables       (because of SUPER_ACL)
+            - execute "SHOW SLAVE HOSTS" (because of REPL_SLAVE_ACL)
+            Grant all new privileges that were splitted from SUPER (in 10.5.2),
+            and REPLICATION MASTER ADMIN, so it still can do "SHOW SLAVE HOSTS".
+          */
+          access|= REPL_MASTER_ADMIN_ACL;
+        }
         access|= GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS;
+      }
     }
 
     if (orig_access & ~mask)
