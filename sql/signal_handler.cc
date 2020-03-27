@@ -57,7 +57,11 @@ static inline void output_core_info()
     my_safe_printf_stderr("Writing a core file...\nWorking directory at %.*s\n",
                           (int) len, buff);
   }
+#ifdef __FreeBSD__
+  if ((fd= my_open("/proc/curproc/rlimit", O_RDONLY, MYF(0))) >= 0)
+#else
   if ((fd= my_open("/proc/self/limits", O_RDONLY, MYF(0))) >= 0)
+#endif
   {
     my_safe_printf_stderr("Resource Limits:\n");
     while ((len= my_read(fd, (uchar*)buff, sizeof(buff),  MYF(0))) > 0)
