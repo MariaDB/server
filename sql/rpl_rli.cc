@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1437,32 +1437,27 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
   uint32 gtid_count;
   rpl_gtid *gtid_list;
 
-  if (!(ir= (inuse_relaylog *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*ir),
-                                        MYF(MY_WME|MY_ZEROFILL))))
-  {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*ir));
-    return 1;
-  }
   gtid_count= relay_log_state.count();
   if (!(gtid_list= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME,
                                  sizeof(*gtid_list)*gtid_count, MYF(MY_WME))))
   {
-    my_free(ir);
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*gtid_list)*gtid_count);
+    return 1;
+  }
+  if (!(ir= new inuse_relaylog(this, gtid_list, gtid_count, name)))
+  {
+    my_free(gtid_list);
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(*ir));
     return 1;
   }
   if (relay_log_state.get_gtid_list(gtid_list, gtid_count))
   {
     my_free(gtid_list);
-    my_free(ir);
+    delete ir;
     DBUG_ASSERT(0 /* Should not be possible as we allocated correct length */);
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return 1;
   }
-  ir->rli= this;
-  strmake_buf(ir->name, name);
-  ir->relay_log_state= gtid_list;
-  ir->relay_log_state_count= gtid_count;
 
   if (!inuse_relaylog_list)
     inuse_relaylog_list= ir;
@@ -1481,7 +1476,7 @@ void
 Relay_log_info::free_inuse_relaylog(inuse_relaylog *ir)
 {
   my_free(ir->relay_log_state);
-  my_free(ir);
+  delete ir;
 }
 
 
