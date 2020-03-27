@@ -258,8 +258,9 @@ public:
   void position(const uchar *record);                           ///< required
   int info(uint);                                               ///< required
   int delete_all_rows(void);
-  ha_rows records_in_range(uint inx, key_range *min_key,
-                           key_range *max_key);
+  ha_rows records_in_range(uint inx, const key_range *min_key,
+                           const key_range *max_key,
+                           page_range *res);
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info);                      ///< required
   bool check_if_incompatible_data(HA_CREATE_INFO *info,

@@ -731,6 +731,7 @@ INSERT INTO t2 VALUES
 insert into t2 select seq from seq_1_to_100;
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
+--replace_column 9 #
 EXPLAIN
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0 
   HAVING t1.c != 5 ORDER BY t1.c;
@@ -738,6 +739,7 @@ SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0
   HAVING t1.c != 5 ORDER BY t1.c;
 
 SET SESSION optimizer_switch='index_condition_pushdown=on';
+--replace_column 9 #
 EXPLAIN
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0
   HAVING t1.c != 5 ORDER BY t1.c;

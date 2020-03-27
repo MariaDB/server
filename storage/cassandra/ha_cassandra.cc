@@ -2527,8 +2527,9 @@ THR_LOCK_DATA **ha_cassandra::store_lock(THD *thd,
 }
 
 
-ha_rows ha_cassandra::records_in_range(uint inx, key_range *min_key,
-                                       key_range *max_key)
+ha_rows records_in_range(uint inx, const key_range *min_key,
+                         const key_range *max_key,
+                         page_range *res)
 {
   DBUG_ENTER("ha_cassandra::records_in_range");
   DBUG_RETURN(HA_POS_ERROR); /* Range scans are not supported */
