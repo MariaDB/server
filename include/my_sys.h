@@ -177,13 +177,8 @@ extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
 
 #if defined(__linux__) || defined(HAVE_GETPAGESIZES)
-#define my_large_page_sizes_length 8
-extern size_t my_large_page_sizes[my_large_page_sizes_length];
-extern void my_get_large_page_sizes(size_t sizes[]);
 extern size_t my_next_large_page_size(size_t sz, int *start);
 #else
-#define my_large_page_sizes_length 0
-#define my_get_large_page_sizes(A) do {} while(0)
 #define my_next_large_page_size(A,B) (0)
 #endif
 
@@ -195,8 +190,9 @@ extern void my_get_large_page_size(void);
 #endif
 
 #ifdef HAVE_LARGE_PAGE_OPTION
-extern uchar * my_large_malloc(size_t *size, myf my_flags);
-extern void my_large_free(void *ptr, size_t size);
+int my_init_large_pages(my_bool super_large_pages);
+uchar * my_large_malloc(size_t *size, myf my_flags);
+void my_large_free(void *ptr, size_t size);
 #else
 #define my_large_malloc(A,B) my_malloc_lock(*(A),(B))
 #define my_large_free(A,B) my_free_lock((A))
@@ -264,12 +260,6 @@ extern int sf_leaking_memory; /* set to 1 to disable memleak detection */
 
 extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
                               const char *, const char *, const unsigned int);
-
-#ifdef HAVE_LARGE_PAGE_OPTION
-extern my_bool my_use_large_pages;
-#else
-#define my_use_large_pages 0
-#endif
 
 /* charsets */
 #define MY_ALL_CHARSETS_SIZE 2048

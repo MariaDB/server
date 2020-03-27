@@ -26,12 +26,91 @@
 #include "my_bit.h"
 #endif
 
+#ifdef HAVE_SOLARIS_LARGE_PAGES
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#if defined(__sun__) && defined(__GNUC__) && defined(__cplusplus) \
+    && defined(_XOPEN_SOURCE)
+/* memcntl exist within sys/mman.h, but under-defines what is need to use it */
+extern int memcntl(caddr_t, size_t, int, caddr_t, int, int);
+#endif /* __sun__ ... */
+#endif /* HAVE_SOLARIS_LARGE_PAGES */
+
+#ifdef HAVE_LARGE_PAGE_OPTION
+static my_bool my_use_large_pages= 0;
+#else
+#define my_use_large_pages 0
+#endif
+
+#if defined(__linux__) || defined(HAVE_GETPAGESIZES)
+#define my_large_page_sizes_length 8
+static size_t my_large_page_sizes[my_large_page_sizes_length];
+static void my_get_large_page_sizes(size_t sizes[]);
+#else
+#define my_large_page_sizes_length 0
+#define my_get_large_page_sizes(A) do {} while(0)
+#endif
+
 static inline my_bool my_is_2pow(size_t n) { return !((n) & ((n) - 1)); }
 
 static uchar* my_large_malloc_int(size_t *size, myf my_flags);
 static my_bool my_large_free_int(void *ptr, size_t size);
 
 #ifdef HAVE_LARGE_PAGE_OPTION
+
+int my_init_large_pages(my_bool super_large_pages)
+{
+  my_use_large_pages= 1;
+  my_get_large_page_sizes(my_large_page_sizes);
+  if (!my_obtain_privilege(SE_LOCK_MEMORY_NAME))
+  {
+    fprintf(stderr, "mysqld: Lock Pages in memory access rights required for use with large-pages, "
+      "see https://mariadb.com/kb/en/library/mariadb-memory-allocation/#huge-pages");
+    return 1;
+  }
+#ifdef HAVE_SOLARIS_LARGE_PAGES
+#define LARGE_PAGESIZE (4*1024*1024)  /* 4MB */
+#define SUPER_LARGE_PAGESIZE (256*1024*1024)  /* 256MB */
+  /*
+    tell the kernel that we want to use 4/256MB page for heap storage
+    and also for the stack. We use 4 MByte as default and if the
+    super-large-page is set we increase it to 256 MByte. 256 MByte
+    is for server installations with GBytes of RAM memory where
+    the MySQL Server will have page caches and other memory regions
+    measured in a number of GBytes.
+    We use as big pages as possible which isn't bigger than the above
+    desired page sizes.
+  */
+  int nelem= 0;
+  size_t max_desired_page_size;
+  size_t max_page_size= 0;
+  if (super_large_pages)
+    max_desired_page_size= SUPER_LARGE_PAGESIZE;
+  else
+    max_desired_page_size= LARGE_PAGESIZE;
+
+  max_page_size= my_next_large_page_size(max_desired_page_size, &nelem);
+  if (max_page_size > 0)
+  {
+    struct memcntl_mha mpss;
+
+    mpss.mha_cmd= MHA_MAPSIZE_BSSBRK;
+    mpss.mha_pagesize= max_page_size;
+    mpss.mha_flags= 0;
+    if (memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t)&mpss, 0, 0))
+    {
+      perror("memcntl MC_HAT_ADVISE cmd MHA_MAPSIZE_BSSBRK error (continuing)");
+    }
+    mpss.mha_cmd= MHA_MAPSIZE_STACK;
+    if (memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t)&mpss, 0, 0))
+    {
+      perror("memcntl MC_HAT_ADVISE cmd MHA_MAPSIZE_STACK error (continuing)");
+    }
+  }
+#endif /* HAVE_SOLARIS_LARGE_PAGES */
+  return 0;
+}
 
 /*
   General large pages allocator.
@@ -73,15 +152,15 @@ void my_large_free(void *ptr, size_t size)
   */
   if (!my_large_free_int(ptr, size))
     my_free_lock(ptr);
+  /*
+    For ASAN, we need to explicitly unpoison this memory region because the OS
+    may reuse that memory for some TLS or stack variable. It will remain
+    poisoned if it was explicitly poisioned before release. If this happens,
+    we'll have hard to debug false positives like in MDEV-21239.
+    For valgrind, we mark it as UNDEFINED rather than NOACCESS because of the
+    implict reuse possiblility.
+  */
   else
-    /*
-      For ASAN, we need to explicitly unpoison this memory region because the OS
-      may reuse that memory for some TLS or stack variable. It will remain
-      poisoned if it was explicitly poisioned before release. If this happens,
-      we'll have hard to debug false positives like in MDEV-21239.
-      For valgrind, we mark it as UNDEFINED rather than NOACCESS because of the
-      implict reuse possiblility.
-    */
     MEM_UNDEFINED(ptr, size);
 
   DBUG_VOID_RETURN;
@@ -146,7 +225,7 @@ size_t my_next_large_page_size(size_t sz, int *start)
 #ifdef __linux__
 /* Linux-specific function to determine the sizes of large pages */
 
-void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
+static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
 {
   DIR *dirp;
   struct dirent *r;
@@ -266,7 +345,7 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
 #endif /* defined(__linux__) || defined(HAVE_MMAP_ALIGNED) */
 
 #if defined(HAVE_GETPAGESIZES) && !defined(__linux__)
-void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
+static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
 {
   int nelem;
 

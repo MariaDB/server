@@ -167,17 +167,6 @@ extern "C" {					// Because of SCO 3.2V4.2
 #include <crtdbg.h>
 #endif
 
-#ifdef HAVE_SOLARIS_LARGE_PAGES
-#ifdef HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif
-#if defined(__sun__) && defined(__GNUC__) && defined(__cplusplus) \
-    && defined(_XOPEN_SOURCE)
-/* memcntl exist within sys/mman.h, but under-defines what is need to use it */
-extern int memcntl(caddr_t, size_t, int, caddr_t, int, int);
-#endif /* __sun__ ... */
-#endif /* HAVE_SOLARIS_LARGE_PAGES */
-
 #ifdef _AIX41
 int initgroups(const char *,unsigned int);
 #endif
@@ -3953,67 +3942,17 @@ static int init_common_variables()
   if (opt_large_pages)
   {
     DBUG_PRINT("info", ("Large page set"));
-    my_use_large_pages= 1;
-    my_get_large_page_sizes(my_large_page_sizes);
-    if (!my_obtain_privilege(SE_LOCK_MEMORY_NAME))
+    if (my_init_large_pages(opt_super_large_pages))
     {
-      sql_print_error("mysqld: Lock Pages in memory access rights required for use with large-pages, "
-        "see https://mariadb.com/kb/en/library/mariadb-memory-allocation/#huge-pages");
       return 1;
     }
   }
   /*
     my_get_large_page_size results used by large allocations even if not large pages.
-    This function uses my_use_large_pages retrieved with my_get_large_page_sizes.
+    This function must be called after my_init_large_pages.
   */
   my_get_large_page_size();
 #endif /* HAVE_LARGE_PAGE_OPTION */
-#ifdef HAVE_SOLARIS_LARGE_PAGES
-#define LARGE_PAGESIZE (4*1024*1024)  /* 4MB */
-#define SUPER_LARGE_PAGESIZE (256*1024*1024)  /* 256MB */
-  if (opt_large_pages)
-  {
-  /*
-    tell the kernel that we want to use 4/256MB page for heap storage
-    and also for the stack. We use 4 MByte as default and if the
-    super-large-page is set we increase it to 256 MByte. 256 MByte
-    is for server installations with GBytes of RAM memory where
-    the MySQL Server will have page caches and other memory regions
-    measured in a number of GBytes.
-    We use as big pages as possible which isn't bigger than the above
-    desired page sizes.
-  */
-   int nelem= 0;
-   size_t max_desired_page_size;
-   size_t max_page_size= 0;
-   if (opt_super_large_pages)
-     max_desired_page_size= SUPER_LARGE_PAGESIZE;
-   else
-     max_desired_page_size= LARGE_PAGESIZE;
-
-   max_page_size= my_next_large_page_size(max_desired_page_size, &nelem);
-   if (max_page_size > 0)
-   {
-     struct memcntl_mha mpss;
-
-     mpss.mha_cmd= MHA_MAPSIZE_BSSBRK;
-     mpss.mha_pagesize= max_page_size;
-     mpss.mha_flags= 0;
-     if (memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t)&mpss, 0, 0))
-     {
-       sql_print_warning("memcntl MC_HAT_ADVISE cmd MHA_MAPSIZE_BSSBRK error %s (continuing)",
-         strerror(errno));
-     }
-     mpss.mha_cmd= MHA_MAPSIZE_STACK;
-     if (memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t)&mpss, 0, 0))
-     {
-       sql_print_warning("memcntl MC_HAT_ADVISE cmd MHA_MAPSIZE_STACK error %s (continuing)",
-         strerror(errno));
-     }
-   }
-  }
-#endif /* HAVE_SOLARIS_LARGE_PAGES */
-
 
 #if defined(HAVE_POOL_OF_THREADS)
   if (IS_SYSVAR_AUTOSIZE(&threadpool_size))
