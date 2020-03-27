@@ -1459,6 +1459,7 @@ cannot_create_many_fulltext_index:
 	}
 
 	if (need_rebuild || fts_need_rebuild) {
+		ha_alter_info->handler_flags |= ALTER_RECREATE_TABLE;
 		DBUG_RETURN(online
 			    ? HA_ALTER_INPLACE_COPY_NO_LOCK
 			    : HA_ALTER_INPLACE_COPY_LOCK);
