@@ -22,7 +22,6 @@ addons:
     sources: &add-sources
       - ubuntu-toolchain-r-test # Includes e.g. gcc4-9 for xenial, gcc9 for bionic
       # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/test/+packages?field.name_filter=&field.status_filter=published&field.series_filter=xenial
-      - llvm-toolchain-xenial-6.0
       - llvm-toolchain-xenial-7 # NOTE: This repo has no clang-7 for s390x
       - sourceline: 'ppa:maria-captains/travis-ci-helper-repo'
       # https://launchpad.net/~maria-captains/+archive/ubuntu/travis-ci-helper-repo/+packages
@@ -30,14 +29,12 @@ addons:
       # make sure these include all compilers and all build dependencies (see list above)
       - bison
       - chrpath
-      - clang-6.0 # xenial, bionic
       - clang-7 # bionic-updates, llvm-toolchain-xenial-6.0 (amd64 only, not s390x)
       - clang-8 # xenial, bionic
       - cmake
       - cracklib-runtime
       - galera-4
       - g++-5 # xenial, bionic, ubuntu-toolchain-r/test (xenial)
-      - g++-6 # bionic, ubuntu-toolchain-r/test (xenial)
       - g++-7 # bionic, ubuntu-toolchain-r/test (xenial)
       - g++-8 # bionic, ubuntu-toolchain-r/test (xenial)
       - g++-9 # ubuntu-toolchain-r/test (xenial and bionic)
@@ -110,10 +107,8 @@ compiler:
   - gcc
   - clang
 env:
-  - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
-  - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
-  - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
-  - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
+  - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+  - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb,versioning,rpl
   - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
   - CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
 
@@ -165,29 +160,19 @@ jobs:
       arch: s390x
       dist: bionic
       compiler: gcc
-      env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
-    - os: linux
-      arch: s390x
-      dist: bionic
-      compiler: gcc
-      env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
+      env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb,versioning,rpl
       # Some chosen ones with s390x and clang
     - os: linux
       arch: s390x
       dist: bionic
       compiler: clang
-      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
-    - os: linux
-      arch: s390x
-      dist: bionic
-      compiler: clang
-      env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+      env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
     - os: linux
       arch: s390x
       dist: bionic
       compiler: clang
       env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
-    # Extra tests to ensure builds on IBM Power and ARM 64 work
+    # Extra tests to ensure IBM Power and ARM 64 work
     - os: linux
       dist: bionic
       arch: ppc64le
@@ -200,11 +185,14 @@ jobs:
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
 
   allow_failures:
-    # Permanently fails on main.thread_pool_info test
+    # Permanently fails on main.thread_pool_info test (MDEV-20372)
     - os: linux
       arch: amd64
       compiler: clang
       env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
+    # Sporadically fails on main.thread_pool_info test (MDEV-20372)
+    - arch: ppc64le
+    - arch: arm64
     # Until OSX becomes a bit more stable
     - os: osx
 
