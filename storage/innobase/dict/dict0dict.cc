@@ -753,9 +753,8 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   if (!dict_locked)
     mutex_exit(&dict_sys.mutex);
 
-  *db_name_len= db_len;
-
-  filename_to_tablename(db_buf, db_name, MAX_DATABASE_NAME_LEN + 1, true);
+  *db_name_len= filename_to_tablename(db_buf, db_name,
+                                      MAX_DATABASE_NAME_LEN + 1, true);
 
   if (tbl_len > TEMP_FILE_PREFIX_LENGTH
       && !strncmp(tbl_buf, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH))
@@ -764,8 +763,8 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   if (char* is_part= strchr(tbl_buf, '#'))
     *is_part= '\0';
 
-  filename_to_tablename(tbl_buf, tbl_name, MAX_TABLE_NAME_LEN + 1, true);
-  *tbl_name_len= strlen(tbl_name);
+  *tbl_name_len= filename_to_tablename(tbl_buf, tbl_name,
+                                       MAX_TABLE_NAME_LEN + 1, true);
   return true;
 }
 
