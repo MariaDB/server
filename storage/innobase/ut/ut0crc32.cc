@@ -172,6 +172,8 @@ ut_crc32_8_hw(
 {
 #  ifdef _MSC_VER
 	*crc = _mm_crc32_u8(*crc, (*data)[0]);
+#  elif __has_feature(memory_sanitizer)
+	*crc = __builtin_ia32_crc32qi(*crc, (*data)[0]);
 #  else
 	asm("crc32b %1, %0"
 	    /* output operands */
@@ -204,6 +206,8 @@ ut_crc32_64_low_hw(
 #   else
 #    error Not Supported processors type.
 #   endif
+#  elif __has_feature(memory_sanitizer)
+	crc_64bit = __builtin_ia32_crc32di(crc_64bit, data);
 #  else
 	asm("crc32q %1, %0"
 	    /* output operands */

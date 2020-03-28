@@ -155,8 +155,10 @@ int STDCALL mysql_server_init(int argc __attribute__((unused)),
       */
 
 #if MYSQL_PORT_DEFAULT == 0
+# if !__has_feature(memory_sanitizer) // Work around MSAN deficiency
       if ((serv_ptr= getservbyname("mysql", "tcp")))
         mysql_port= (uint) ntohs((ushort) serv_ptr->s_port);
+# endif
 #endif
       if ((env= getenv("MYSQL_TCP_PORT")))
         mysql_port=(uint) atoi(env);
