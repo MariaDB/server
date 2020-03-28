@@ -590,6 +590,7 @@ public:
 
   bool with_sum_func() const { return true; }
   virtual void set_partition_row_count(ulonglong count) { DBUG_ASSERT(0); }
+  bool is_packing_allowed(TABLE* table, uint* total_length);
 };
 
 
@@ -696,7 +697,10 @@ public:
 
   bool unique_walk_function(void *element);
   bool unique_walk_function_for_count(void *element);
+  bool is_distinct_packed();
   static int composite_key_cmp(void* arg, uchar* key1, uchar* key2);
+  static int composite_packed_key_cmp(void* arg, uchar* key1, uchar* key2);
+  uchar* make_packed_record(uchar *to);
 };
 
 
@@ -1920,6 +1924,9 @@ protected:
   friend int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
                                                            const void* key1,
                                                            const void* key2);
+  friend int group_concat_packed_key_cmp_with_distinct(void *arg,
+                                                       const void *key1,
+                                                       const void *key2);
   friend int group_concat_key_cmp_with_order(void* arg, const void* key1,
 					     const void* key2);
   friend int group_concat_key_cmp_with_order_with_nulls(void *arg,
@@ -1941,6 +1948,9 @@ protected:
   virtual String *get_str_from_field(Item *i, Field *f, String *tmp,
                                      const uchar *key, size_t offset)
     { return f->val_str(tmp, key + offset); }
+  virtual String *get_str_from_field(Item *i, Field *f, String *tmp)
+  { return f->val_str(tmp); }
+
   virtual void cut_max_length(String *result,
                               uint old_length, uint max_length) const;
 public:
@@ -2015,11 +2025,12 @@ public:
     { context= (Name_resolution_context *)cntx; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_group_concat>(thd, this); }
-  qsort_cmp2 get_comparator_function_for_distinct();
+  qsort_cmp2 get_comparator_function_for_distinct(bool packed);
   qsort_cmp2 get_comparator_function_for_order_by();
   uchar* get_record_pointer();
   uint get_null_bytes();
-
+  bool is_distinct_packed();
+  bool is_packing_allowed(uint* total_length);
 };
 
 #endif /* ITEM_SUM_INCLUDED */

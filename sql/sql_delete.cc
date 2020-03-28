@@ -714,7 +714,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       {
         table->file->position(table->record[0]);
         if (unlikely((error=
-                      deltempfile->unique_add((char*) table->file->ref))))
+                      deltempfile->unique_add((char*) table->file->ref,
+                                               deltempfile->get_size()))))
         {
           error= 1;
           goto terminate_delete;
@@ -1350,7 +1351,8 @@ int multi_delete::send_data(List<Item> &values)
     }
     else
     {
-      error=tempfiles[secure_counter]->unique_add((char*) table->file->ref);
+      uint size= tempfiles[secure_counter]->get_size();
+      error=tempfiles[secure_counter]->unique_add((char*) table->file->ref, size);
       if (unlikely(error))
       {
 	error= 1;                               // Fatal error
