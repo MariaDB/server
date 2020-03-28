@@ -45,7 +45,6 @@ static void io_poll_close(TP_file_handle fd)
 #endif
 }
 
-
 /** Maximum number of native events a listener can read in one go */
 #define MAX_EVENTS 1024
 
@@ -435,6 +434,16 @@ static TP_connection_generic *queue_get(thread_group_t *thread_group)
   DBUG_RETURN(0);  
 }
 
+static TP_connection_generic* queue_get(thread_group_t* group, operation_origin origin)
+{
+  auto ret = queue_get(group);
+  if (ret)
+  {
+    TP_INCREMENT_GROUP_COUNTER(group, dequeues[(int)origin]);
+  }
+  return ret;
+}
+
 static bool is_queue_empty(thread_group_t *thread_group)
 {
   for (int i=0; i < NQUEUES; i++)
@@ -684,7 +693,7 @@ static TP_connection_generic * listener(worker_thread_t *current_thread,
       break;
   
     cnt = io_poll_wait(thread_group->pollfd, ev, MAX_EVENTS, -1);
-    TP_INCREMENT_GROUP_COUNTER(thread_group, polls_by_listener);
+    TP_INCREMENT_GROUP_COUNTER(thread_group, polls[(int)operation_origin::LISTENER]);
     if (cnt <=0)
     {
       DBUG_ASSERT(thread_group->shutdown);
@@ -750,7 +759,7 @@ static TP_connection_generic * listener(worker_thread_t *current_thread,
     if (listener_picks_event)
     {
       /* Handle the first event. */
-      retval= queue_get(thread_group);
+      retval= queue_get(thread_group, operation_origin::LISTENER);
       mysql_mutex_unlock(&thread_group->mutex);
       break;
     }
@@ -1130,10 +1139,9 @@ TP_connection_generic *get_event(worker_thread_t *current_thread,
     /* Check if queue is not empty */
     if (!oversubscribed)
     {
-      connection = queue_get(thread_group);
+      connection = queue_get(thread_group, operation_origin::WORKER);
       if(connection)
       {
-        TP_INCREMENT_GROUP_COUNTER(thread_group,dequeues_by_worker);
         break;
       }
     }
@@ -1146,10 +1154,7 @@ TP_connection_generic *get_event(worker_thread_t *current_thread,
       mysql_mutex_unlock(&thread_group->mutex);
 
       connection = listener(current_thread, thread_group);
-      if (connection)
-      {
-        TP_INCREMENT_GROUP_COUNTER(thread_group, dequeues_by_listener);
-      }
+
       mysql_mutex_lock(&thread_group->mutex);
       thread_group->active_thread_count++;
       /* There is no listener anymore, it just returned. */
@@ -1167,11 +1172,11 @@ TP_connection_generic *get_event(worker_thread_t *current_thread,
     {
       native_event ev[MAX_EVENTS];
       int cnt = io_poll_wait(thread_group->pollfd, ev, MAX_EVENTS, 0);
-      TP_INCREMENT_GROUP_COUNTER(thread_group, polls_by_worker);
+      TP_INCREMENT_GROUP_COUNTER(thread_group, polls[(int)operation_origin::WORKER]);
       if (cnt > 0)
       {
         queue_put(thread_group, ev, cnt);
-        connection= queue_get(thread_group);
+        connection= queue_get(thread_group,operation_origin::WORKER);
         break;
       }
     }
