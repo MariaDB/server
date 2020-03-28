@@ -6532,9 +6532,13 @@ struct SORT_FIELD_ATTR
                                      uchar *b, size_t *b_len);
   int compare_packed_varstrings(uchar *a, size_t *a_len,
                                 uchar *b, size_t *b_len);
+  int compare_packed_varstrings(uchar *a, uchar *b);
   bool check_if_packing_possible(THD *thd) const;
   bool is_variable_sized() { return type == VARIABLE_SIZE; }
   void set_length_and_original_length(THD *thd, uint length_arg);
+  void setup_key_part_for_variable_size_key(Field *fld);
+  void setup_key_part_for_fixed_size_key(Field *fld);
+  int compare_nullability(uchar *a, uchar *b);
 };
 
 
@@ -6543,6 +6547,11 @@ struct SORT_FIELD: public SORT_FIELD_ATTR
   Field *field;				/* Field to sort */
   Item	*item;				/* Item if not sorting fields */
   bool reverse;				/* if descending sort */
+  void setup_key_part_for_variable_size_key(Field *fld);
+  void setup_key_part_for_variable_size_key(Item *item);
+  void setup_key_part_for_fixed_size_key(Field *fld);
+  int compare_fixed_size_vals(uchar *a, size_t *a_len,
+                              uchar *b, size_t *b_len);
 };
 
 
@@ -6654,7 +6663,7 @@ class SORT_INFO;
 class multi_delete :public select_result_interceptor
 {
   TABLE_LIST *delete_tables, *table_being_deleted;
-  Unique **tempfiles;
+  Unique_impl **tempfiles;
   ha_rows deleted, found;
   uint num_of_tables;
   int error;

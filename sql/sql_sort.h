@@ -324,6 +324,8 @@ public:
 
   bool is_parameters_computed() { return parameters_computed; }
   void set_parameters_computed(bool val) { parameters_computed= val; }
+  int compare_keys(uchar *a, uchar *b);
+  int compare_keys_for_single_arg(uchar *a, uchar *b);
 
   static const uint size_of_length_field= 4;
 
@@ -596,8 +598,8 @@ public:
 
   bool using_packed_sortkeys() const
   {
-    DBUG_ASSERT(m_using_packed_sortkeys ==
-                (sort_keys != NULL && sort_keys->using_packed_sortkeys()));
+    DBUG_ASSERT(sort_keys == NULL ||
+                (m_using_packed_sortkeys == sort_keys->using_packed_sortkeys()));
     return m_using_packed_sortkeys;
   }
 
@@ -605,6 +607,11 @@ public:
   bool using_addon_fields() const
   {
     return addon_fields != NULL;
+  }
+
+  void set_using_packed_keys(bool val)
+  {
+    m_using_packed_sortkeys= val;
   }
 
   uint32 get_result_length(uchar *plen)
@@ -688,6 +695,12 @@ public:
   {
     return m_packed_format;
   }
+  void set_packed_format(bool val)
+  {
+    m_packed_format= val;
+  }
+
+  uint32 get_key_length_for_unique(uchar *to, uint size_of_dupl_count);
 
 private:
   uint m_packable_length;

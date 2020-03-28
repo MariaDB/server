@@ -319,7 +319,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   bool binlog_is_row;
   Explain_delete *explain;
   Delete_plan query_plan(thd->mem_root);
-  Unique * deltempfile= NULL;
+  Unique_impl *deltempfile= NULL;
   bool delete_record= false;
   bool delete_while_scanning;
   bool portion_of_time_through_update;
@@ -715,9 +715,16 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       clause.  Instead of deleting the rows, first mark them deleted.
     */
     ha_rows tmplimit=limit;
-    deltempfile= new (thd->mem_root) Unique (refpos_order_cmp, table->file,
-                                             table->file->ref_length,
-                                             MEM_STRIP_BUF_SIZE);
+    Descriptor *desc= new Fixed_size_keys_for_rowids(table->file);
+    if (!desc)
+      goto terminate_delete;  // OOM
+
+    deltempfile= new (thd->mem_root) Unique_impl(refpos_cmp, desc,
+                                                 table->file->ref_length,
+                                                 MEM_STRIP_BUF_SIZE, 0, desc);
+
+    if (!deltempfile)
+      goto terminate_delete;  // OOM
 
     THD_STAGE_INFO(thd, stage_searching_rows_for_update);
     while (!(error=info.read_record()) && !thd->killed &&
@@ -726,8 +733,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       if (record_should_be_deleted(thd, table, select, explain, delete_history))
       {
         table->file->position(table->record[0]);
-        if (unlikely((error=
-                      deltempfile->unique_add((char*) table->file->ref))))
+        if (unlikely((error= deltempfile->unique_add(table->file->ref))))
         {
           error= 1;
           goto terminate_delete;
@@ -739,7 +745,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     end_read_record(&info);
     if (unlikely(deltempfile->get(table)) ||
         unlikely(table->file->ha_index_or_rnd_end()) ||
-        unlikely(init_read_record(&info, thd, table, 0, &deltempfile->sort, 0,
+        unlikely(init_read_record(&info, thd, table, 0, deltempfile->get_sort(), 0,
                                   1, false)))
     {
       error= 1;
@@ -1071,6 +1077,13 @@ extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b)
   return file->cmp_ref((const uchar*)a, (const uchar*)b);
 }
 
+
+extern "C" int refpos_cmp(void* arg, const void *a, const void *b)
+{
+  Fixed_size_keys_for_rowids *desc= (Fixed_size_keys_for_rowids *) arg;
+  return desc->compare_keys((uchar*)a, (uchar *)b);
+}
+
 /*
   make delete specific preparation and checks after opening tables
 
@@ -1174,7 +1187,8 @@ multi_delete::multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables_arg)
     num_of_tables(num_of_tables_arg), error(0),
     do_delete(0), transactional_tables(0), normal_tables(0), error_handled(0)
 {
-  tempfiles= (Unique **) thd_arg->calloc(sizeof(Unique *) * num_of_tables);
+  tempfiles=
+    (Unique_impl **) thd_arg->calloc(sizeof(Unique_impl *) * num_of_tables);
 }
 
 
@@ -1208,7 +1222,7 @@ bool
 multi_delete::initialize_tables(JOIN *join)
 {
   TABLE_LIST *walk;
-  Unique **tempfiles_ptr;
+  Unique_impl **tempfiles_ptr;
   DBUG_ENTER("initialize_tables");
 
   if (unlikely((thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
@@ -1278,12 +1292,23 @@ multi_delete::initialize_tables(JOIN *join)
     table_being_deleted= delete_tables;
     walk= walk->next_local;
   }
+  Unique_impl *unique;
+  Descriptor *desc;
   for (;walk ;walk= walk->next_local)
   {
     TABLE *table=walk->table;
-    *tempfiles_ptr++= new (thd->mem_root) Unique (refpos_order_cmp, table->file,
-                                                  table->file->ref_length,
-                                                  MEM_STRIP_BUF_SIZE);
+    desc= new Fixed_size_keys_for_rowids(table->file);
+    if (!desc)
+      DBUG_RETURN(TRUE); // OOM
+
+    unique= new (thd->mem_root) Unique_impl(refpos_cmp,
+                                            desc,
+                                            table->file->ref_length,
+                                            MEM_STRIP_BUF_SIZE,
+                                            0, desc);
+    if (!unique)
+      DBUG_RETURN(TRUE);  // OOM
+    *tempfiles_ptr++= unique;
   }
   init_ftfuncs(thd, thd->lex->current_select, 1);
   DBUG_RETURN(thd->is_fatal_error);
@@ -1363,7 +1388,7 @@ int multi_delete::send_data(List<Item> &values)
     }
     else
     {
-      error=tempfiles[secure_counter]->unique_add((char*) table->file->ref);
+      error=tempfiles[secure_counter]->unique_add(table->file->ref);
       if (unlikely(error))
       {
 	error= 1;                               // Fatal error
@@ -1463,7 +1488,7 @@ int multi_delete::do_deletes()
     if (unlikely(tempfiles[counter]->get(table)))
       DBUG_RETURN(1);
 
-    local_error= do_table_deletes(table, &tempfiles[counter]->sort,
+    local_error= do_table_deletes(table, tempfiles[counter]->get_sort(),
                                   thd->lex->ignore);
 
     if (unlikely(thd->killed) && likely(!local_error))
