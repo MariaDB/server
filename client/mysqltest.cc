@@ -10867,7 +10867,7 @@ REPLACE *init_replace(char * *from, char * *to,uint count,
     for (i=1 ; i <= found_sets ; i++)
     {
       pos=from[found_set[i-1].table_offset];
-      rep_str[i].found= !memcmp(pos, "\\^", 3) ? 2 : 1;
+      rep_str[i].found= !strncmp(pos, "\\^", 3) ? 2 : 1;
       rep_str[i].replace_string=to_array[found_set[i-1].table_offset];
       rep_str[i].to_offset=found_set[i-1].found_offset-start_at_word(pos);
       rep_str[i].from_offset=found_set[i-1].found_offset-replace_len(pos)+

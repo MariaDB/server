@@ -59,6 +59,7 @@ int wsrep_is_wsrep_xid(const void* xid_ptr)
   const XID* xid= static_cast<const XID*>(xid_ptr);
   return (xid->formatID      == 1                   &&
           xid->bqual_length  == 0                   &&
+          xid->gtrid_length  >= static_cast<long>(WSREP_XID_GTRID_LEN_V_1_2) &&
           !memcmp(xid->data, WSREP_XID_PREFIX, WSREP_XID_PREFIX_LEN)      &&
           (((xid->data[WSREP_XID_VERSION_OFFSET] == WSREP_XID_VERSION_1   ||
              xid->data[WSREP_XID_VERSION_OFFSET] == WSREP_XID_VERSION_2)  &&
