@@ -1064,6 +1064,47 @@ Field::make_packed_sort_key_part(uchar *buff,
 }
 
 
+/*
+  @brief
+    Create a packed sort key part
+
+  @param  buff           buffer where values are written
+  @param  sort_field     sort column structure
+
+  @details
+   This function stores the original values for the fixed size columns and
+   does not covert them to mem-comparable images.
+
+  @retval
+    length of the bytes written, does not include the NULL bytes
+*/
+
+uint
+Field::make_packed_key_part(uchar *buff, const SORT_FIELD_ATTR *sort_field)
+{
+  if (maybe_null())
+  {
+    if (is_null())
+    {
+      *buff++= 0;
+      return 0;  // For NULL values don't write any data
+    }
+    *buff++=1;
+  }
+  memcpy(buff, ptr, sort_field->original_length);
+  return sort_field->original_length;
+}
+
+
+uint
+Field_longstr::make_packed_key_part(uchar *buff,
+                                    const SORT_FIELD_ATTR *sort_field)
+{
+  return make_packed_sort_key_part(buff, sort_field);
+}
+
+
+
 uint
 Field_longstr::make_packed_sort_key_part(uchar *buff,
                                          const SORT_FIELD_ATTR *sort_field)
