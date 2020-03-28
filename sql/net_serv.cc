@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2018, MariaDB Corporation.
+   Copyright (c) 2012, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -141,6 +141,8 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   DBUG_ENTER("my_net_init");
   DBUG_PRINT("enter", ("my_flags: %u", my_flags));
   net->vio = vio;
+  net->read_timeout= 0;
+  net->write_timeout= 0;
   my_net_local_init(net);			/* Set some limits */
 
   if (net_allocate_new_packet(net, thd, my_flags))
