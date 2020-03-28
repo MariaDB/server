@@ -1109,6 +1109,11 @@ public:
   */
   virtual uint32 data_length() { return pack_length(); }
   virtual uint32 sort_length() const { return pack_length(); }
+  /*
+    returns the sort_length for a field without the suffix length bytes
+    for fields with binary charset.
+  */
+  virtual uint32 sort_length_without_suffix() const { return pack_length(); }
 
   /*
     sort_suffix_length() return the length bytes needed to store the length
@@ -1316,9 +1321,21 @@ public:
     }
     return update_fl;
   }
+
+  /*
+    @brief
+      Make a packed value for a field
+    @param
+      to                     buffer to store the value
+  */
+  virtual uint make_packed_record_field(uchar *to)
+  {
+    uchar* end= pack(to, ptr);
+    return static_cast<uint>(end - to);
+  }
   virtual void store_field_value(uchar *val, uint len)
   {
-     memcpy(ptr, val, len);
+    memcpy(ptr, val, len);
   }
   virtual uint decimals() const { return 0; }
   virtual Information_schema_numeric_attributes
@@ -4122,6 +4139,10 @@ public:
   {
     return (uint32) field_length + sort_suffix_length();
   }
+  uint32 sort_length_without_suffix() const override
+  {
+    return (uint32) field_length;
+  }
   virtual uint32 sort_suffix_length() const override
   {
     return (field_charset() == &my_charset_bin ? length_bytes : 0);
@@ -4463,6 +4484,10 @@ public:
   { return (uint32) (packlength); }
   uint row_pack_length() const override { return pack_length_no_ptr(); }
   uint32 sort_length() const override;
+  uint32 sort_length_without_suffix() const override
+  {
+    return field_length;
+  }
   uint32 sort_suffix_length() const override;
   uint32 value_length() override { return get_length(); }
   virtual uint32 max_data_length() const override
