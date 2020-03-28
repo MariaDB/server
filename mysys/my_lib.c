@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -183,7 +184,8 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   my_errno=errno;
   if (dirp)
     (void) closedir(dirp);
-  my_dirend(&dirh->dir);
+  if (dirh)
+    my_dirend(&dirh->dir);
   if (MyFlags & (MY_FAE | MY_WME))
     my_error(EE_DIR, MYF(ME_BELL | ME_WAITTANG), path, my_errno);
   DBUG_RETURN(NULL);
