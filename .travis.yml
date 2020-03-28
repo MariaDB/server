@@ -1,7 +1,7 @@
 # vim ft=yaml
 # travis-ci.org definition
 
-dist: xenial
+dist: bionic
 
 git:
   depth: 2
@@ -116,6 +116,7 @@ jobs:
   # Define extra jobs that are run in addition to the main jobs matrix
   include:
     - os: linux
+      dist: xenial
       compiler: gcc
       env: DebPackages=xenial
       addons: &deb-addons
@@ -140,7 +141,6 @@ jobs:
         - env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
     - os: linux
       arch: s390x
-      dist: bionic
       compiler: gcc
       env: DebPackages=bionic
       addons: *deb-addons
@@ -153,33 +153,27 @@ jobs:
       # Some chosen ones with s390x and gcc
     - os: linux
       arch: s390x
-      dist: bionic
       compiler: gcc
       env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
     - os: linux
       arch: s390x
-      dist: bionic
       compiler: gcc
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb,versioning,rpl
       # Some chosen ones with s390x and clang
     - os: linux
       arch: s390x
-      dist: bionic
       compiler: clang
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
     - os: linux
       arch: s390x
-      dist: bionic
       compiler: clang
       env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
     # Extra tests to ensure IBM Power and ARM 64 work
     - os: linux
-      dist: bionic
       arch: ppc64le
       compiler: gcc
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
     - os: linux
-      dist: bionic
       arch: arm64
       compiler: gcc
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
