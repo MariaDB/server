@@ -34,6 +34,7 @@
 #include "sp.h"
 #include "sql_parse.h"
 #include "sp_head.h"
+#include "sql_sort.h"
 
 /**
   Calculate the affordable RAM limit for structures like TREE or Unique
@@ -701,6 +702,55 @@ int Aggregator_distinct::composite_key_cmp(void* arg, uchar* key1, uchar* key2)
 }
 
 
+/**
+  Correctly compare composite keys.
+
+  Used by the Unique class to compare packed keys. Will do correct comparisons
+  for composite keys with various field types.
+
+  @param arg     Pointer to the relevant Aggregator_distinct instance
+  @param key1    left key image
+  @param key2    right key image
+
+  @return        comparison result
+    @retval <0       if key1 < key2
+    @retval =0       if key1 = key2
+    @retval >0       if key1 > key2
+*/
+
+int
+Aggregator_distinct::composite_packed_key_cmp(void* arg,
+                                              uchar* key1, uchar* key2)
+{
+  Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
+  DBUG_ASSERT(aggr->tree);
+  return aggr->tree->get_descriptor()->compare_keys(key1, key2);
+}
+
+
+/**
+  Correctly compare composite keys.
+
+  Used by the Unique class to compare packed keys which have a single argument
+
+  @param arg     Pointer to the relevant Aggregator_distinct instance
+  @param key1    left key image
+  @param key2    right key image
+
+  @return        comparison result
+    @retval <0       if key1 < key2
+    @retval =0       if key1 = key2
+    @retval >0       if key1 > key2
+*/
+int
+Aggregator_distinct::packed_key_cmp_single_arg(void *arg, uchar *key1, uchar *key2)
+{
+  Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
+  DBUG_ASSERT(aggr->tree);
+  return aggr->tree->get_descriptor()->compare_keys_for_single_arg(key1, key2);
+}
+
+
 /***************************************************************************/
 
 C_MODE_START
@@ -756,8 +806,8 @@ bool Aggregator_distinct::setup(THD *thd)
 
   if (item_sum->setup(thd))
     return TRUE;
-  if (item_sum->sum_func() == Item_sum::COUNT_FUNC || 
-      item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
+
+  if (item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
   {
     List<Item> list;
     SELECT_LEX *select_lex= thd->lex->current_select;
@@ -766,13 +816,19 @@ bool Aggregator_distinct::setup(THD *thd)
       return TRUE;
 
     /* Create a table with an unique key over all parameters */
+    uint non_const_items= 0;
     for (uint i=0; i < item_sum->get_arg_count() ; i++)
     {
       Item *item=item_sum->get_arg(i);
       if (list.push_back(item, thd->mem_root))
         return TRUE;                              // End of memory
-      if (item->const_item() && item->is_null())
-        always_null= true;
+      if (item->const_item())
+      {
+        if (item->is_null())
+          always_null= true;
+      }
+      else
+        non_const_items++;
     }
     if (always_null)
       return FALSE;
@@ -861,16 +917,28 @@ bool Aggregator_distinct::setup(THD *thd)
           }
         }
       }
+
+      bool allow_packing= item_sum->is_packing_allowed(table, &tree_key_length);
+
+      if (allow_packing)
+      {
+        compare_key= get_compare_func_for_packed_keys();
+        cmp_arg= (void*)this;
+      }
       DBUG_ASSERT(tree == 0);
-      tree= new Unique(compare_key, cmp_arg, tree_key_length,
-                       item_sum->ram_limitation(thd));
+
+      tree= item_sum->get_unique(compare_key, cmp_arg, tree_key_length,
+                                 item_sum->ram_limitation(thd), 0,
+                                 allow_packing);
       /*
         The only time tree_key_length could be 0 is if someone does
         count(distinct) on a char(0) field - stupid thing to do,
         but this has to be handled - otherwise someone can crash
         the server with a DoS attack
       */
-      if (! tree)
+      if (!tree || (tree->get_descriptor()->setup(thd, item_sum,
+                                                  non_const_items,
+                                                  item_sum->get_arg_count())))
         return TRUE;
     }
     return FALSE;
@@ -919,9 +987,9 @@ bool Aggregator_distinct::setup(THD *thd)
       simple_raw_key_cmp because the table contains numbers only; decimals
       are converted to binary representation as well.
     */
-    tree= new Unique(simple_raw_key_cmp, &tree_key_length, tree_key_length,
-                     item_sum->ram_limitation(thd));
-
+    tree= item_sum->get_unique(simple_raw_key_cmp, &tree_key_length, tree_key_length,
+                               item_sum->ram_limitation(thd), 0,
+                               false);
     DBUG_RETURN(tree == 0);
   }
 }
@@ -958,6 +1026,60 @@ void Aggregator_distinct::clear()
 }
 
 
+/*
+  @brief
+    Insert a record inside the Unique tree
+
+  @retval
+    -1       NULL value, record rejected
+     0       record succesfully inserted into the tree
+     1       error
+*/
+int Aggregator_distinct::insert_record_to_unique()
+{
+  if (tree->is_packed())
+  {
+    uint packed_length;
+    if ((packed_length= tree->get_descriptor()->make_packed_record(true)) == 0)
+      return -1; // NULL value
+    DBUG_ASSERT(packed_length <= tree->get_size());
+    return tree->unique_add(tree->get_descriptor()->get_packed_rec_ptr());
+  }
+
+  copy_fields(tmp_table_param);
+  if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
+    return 1;
+
+  for (Field **field=table->field ; *field ; field++)
+    if ((*field)->is_real_null(0))
+      return -1;         // Don't count NULL
+
+  /*
+    The first few bytes of record (at least one) are just markers
+    for deleted and NULLs. We want to skip them since they will
+    bloat the tree without providing any valuable info. Besides,
+    key_length used to initialize the tree didn't include space for them.
+  */
+
+  return tree->unique_add(table->record[0] + table->s->null_bytes);
+}
+
+
+/*
+  @brief
+    Get compare function for packed keys
+
+    @retval
+      comparision function
+*/
+qsort_cmp2 Aggregator_distinct::get_compare_func_for_packed_keys()
+{
+  return item_sum->get_arg_count() == 1 ?
+         (qsort_cmp2) packed_key_cmp_single_arg:
+         (qsort_cmp2) composite_packed_key_cmp;
+}
+
+
 /**
   Process incoming row. 
   
@@ -979,9 +1101,16 @@ bool Aggregator_distinct::add()
   if (always_null)
     return 0;
 
-  if (item_sum->sum_func() == Item_sum::COUNT_FUNC || 
-      item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
+  if (item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
   {
+    if (tree)
+    {
+      int retval= insert_record_to_unique();
+      if (retval == -1)
+        return false;
+      return retval != 0;
+    }
+
     int error;
     copy_fields(tmp_table_param);
     if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
@@ -989,18 +1118,8 @@ bool Aggregator_distinct::add()
 
     for (Field **field=table->field ; *field ; field++)
       if ((*field)->is_real_null(0))
-        return 0;					// Don't count NULL
+        return 0;         // Don't count NULL
 
-    if (tree)
-    {
-      /*
-        The first few bytes of record (at least one) are just markers
-        for deleted and NULLs. We want to skip them since they will
-        bloat the tree without providing any valuable info. Besides,
-        key_length used to initialize the tree didn't include space for them.
-      */
-      return tree->unique_add(table->record[0] + table->s->null_bytes);
-    }
     if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))) &&
         table->file->is_fatal_error(error, HA_CHECK_DUP))
       return TRUE;
@@ -1013,6 +1132,8 @@ bool Aggregator_distinct::add()
       return 0;
     DBUG_ASSERT(tree);
     item_sum->null_value= 0;
+
+    DBUG_ASSERT(tree->is_packed() == false);
     /*
       '0' values are also stored in the tree. This doesn't matter
       for SUM(DISTINCT), but is important for AVG(DISTINCT)
@@ -1051,7 +1172,7 @@ void Aggregator_distinct::endup()
   {
     DBUG_ASSERT(item_sum->fixed == 1);
     Item_sum_count *sum= (Item_sum_count *)item_sum;
-    if (tree && tree->elements == 0)
+    if (tree && tree->is_in_memory())
     {
       /* everything fits in memory */
       sum->count= (longlong) tree->elements_in_tree();
@@ -3612,6 +3733,33 @@ int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
 
 
 /**
+  Compares the packed values for fields in expr list of GROUP_CONCAT.
+  @note
+
+     GROUP_CONCAT([DISTINCT] expr [,expr ...]
+              [ORDER BY {unsigned_integer | col_name | expr}
+                  [ASC | DESC] [,col_name ...]]
+              [SEPARATOR str_val])
+
+  @return
+  @retval -1 : key1 < key2
+  @retval  0 : key1 = key2
+  @retval  1 : key1 > key2
+*/
+int group_concat_packed_key_cmp_with_distinct(void *arg,
+                                              const void *a_ptr,
+                                              const void *b_ptr)
+{
+  Item_func_group_concat *item_func= (Item_func_group_concat*)arg;
+
+  DBUG_ASSERT(item_func->unique_filter);
+  uchar *a= (uchar*)a_ptr;
+  uchar *b= (uchar*)b_ptr;
+  return item_func->unique_filter->get_descriptor()->compare_keys(a, b);
+}
+
+
+/**
   function of sort for syntax: GROUP_CONCAT(expr,... ORDER BY col,... )
 */
 
@@ -3768,9 +3916,9 @@ void Item_func_group_concat::cut_max_length(String *result,
   Append data from current leaf to item->result.
 */
 
-extern "C"
-int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
-                  void* item_arg)
+int Item_func_group_concat::dump_leaf_key(void* key_arg,
+                                          element_count count __attribute__((unused)),
+                                          void* item_arg)
 {
   Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
   TABLE *table= item->table;
@@ -3778,7 +3926,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   String tmp((char *)table->record[1], table->s->reclength,
              default_charset_info);
   String tmp2;
-  uchar *key= (uchar *) key_arg;
+  const uchar *key= (const uchar *) key_arg;
   String *result= &item->result;
   Item **arg= item->args, **arg_end= item->args + item->arg_count_field;
   uint old_length= result->length();
@@ -3830,6 +3978,128 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       }
       else
         res= item->get_str_from_item(*arg, &tmp);
+    }
+
+    if (res)
+      result->append(*res);
+  }
+
+  if (item->limit_clause)
+    (*row_limit)--;
+  item->row_count++;
+
+  /* stop if length of result more than max_length */
+  if (result->length() > max_length)
+  {
+    THD *thd= current_thd;
+    item->cut_max_length(result, old_length, max_length);
+    item->warning_for_row= TRUE;
+    report_cut_value_error(thd, item->row_count, item->func_name());
+
+    /**
+       To avoid duplicated warnings in Item_func_group_concat::val_str()
+    */
+    if (table && table->blob_storage)
+      table->blob_storage->set_truncated_value(false);
+    return 1;
+  }
+  return 0;
+}
+
+
+/**
+  Append data from current leaf of variable size to item->result.
+*/
+int
+Item_func_group_concat::dump_leaf_variable_sized_key(void *key_arg,
+                                        element_count __attribute__((unused)),
+                                        void *item_arg)
+{
+  Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
+  TABLE *table= item->table;
+  uint max_length= (uint)table->in_use->variables.group_concat_max_len;
+  String tmp((char *)table->record[1], table->s->reclength,
+             default_charset_info);
+  String tmp2;
+
+  const uchar *key= (const uchar *) key_arg;
+  const uchar *key_end= NULL;
+  String *result= &item->result;
+
+  Item **arg= item->args, **arg_end= item->args + item->arg_count_field;
+
+  uint old_length= result->length();
+  SORT_FIELD *pos;
+
+  pos= item->unique_filter->get_descriptor()->get_sortorder();
+  key_end= key + item->unique_filter->get_full_size();
+  key+= Variable_sized_keys_descriptor::size_of_length_field;
+
+  ulonglong *offset_limit= &item->copy_offset_limit;
+  ulonglong *row_limit = &item->copy_row_limit;
+  if (item->limit_clause && !(*row_limit))
+  {
+    item->result_finalized= true;
+    return 1;
+  }
+
+  tmp.length(0);
+
+  if (item->limit_clause && (*offset_limit))
+  {
+    item->row_count++;
+    (*offset_limit)--;
+    return 0;
+  }
+
+  if (!item->result_finalized)
+    item->result_finalized= true;
+  else
+    result->append(*item->separator);
+
+  for (; arg < arg_end; arg++)
+  {
+    String *res;
+    /*
+      We have to use get_tmp_table_field() instead of
+      real_item()->get_tmp_table_field() because we want the field in
+      the temporary table, not the original field
+      We also can't use table->field array to access the fields
+      because it contains both order and arg list fields.
+     */
+    if ((*arg)->const_item())
+      res= item->get_str_from_item(*arg, &tmp);
+    else
+    {
+      Field *field= (*arg)->get_tmp_table_field();
+      if (field)
+      {
+        if (field->maybe_null())
+        {
+          if (*key == 0)
+          {
+            // Case with NULL value
+            field->set_null();
+            res= item->get_str_from_field(*arg, field, &tmp);
+            key++;
+          }
+          else
+          {
+            // Case with NOT NULL value
+            field->set_notnull();
+            const uchar *end= field->unpack(field->ptr, key+1, key_end, 0);
+            res= item->get_str_from_field(*arg, field, &tmp);
+            key= end;
+          }
+        }
+        else
+        {
+          const uchar *end= field->unpack(field->ptr, key, key_end, 0);
+          res= item->get_str_from_field(*arg, field, &tmp);
+          key= end;
+        }
+        pos++;
+      }
     }
 
     if (res)
@@ -4130,49 +4400,57 @@ bool Item_func_group_concat::add(bool exclude_nulls)
 {
   if (always_null && exclude_nulls)
     return 0;
-  copy_fields(tmp_table_param);
-  if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
-    return TRUE;
 
   size_t row_str_len= 0;
   StringBuffer<MAX_FIELD_WIDTH> buf;
   String *res;
-  for (uint i= 0; i < arg_count_field; i++)
-  {
-    Item *show_item= args[i];
-    if (show_item->const_item())
-      continue;
+  bool row_eligible= TRUE;
 
-    Field *field= show_item->get_tmp_table_field();
-    if (field)
+  if (distinct)
+  {
+    uint count= unique_filter->elements_in_tree();
+      int retval= insert_record_to_unique();
+      if (retval == -1)
+        return false;
+    if (count == unique_filter->elements_in_tree())
+      row_eligible= FALSE;
+  }
+  else
+  {
+    copy_fields(tmp_table_param);
+    if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
+      return TRUE;
+  }
+
+  if (!distinct || tree)
+  {
+    for (uint i= 0; i < arg_count_field; i++)
     {
-      if (field->is_null_in_record((const uchar*) table->record[0]) &&
-          exclude_nulls)
-        return 0;                    // Skip row if it contains null
-      if (tree && (res= field->val_str(&buf)))
-        row_str_len+= res->length();
-    }
-    else
-    {
-      /*
-        should not reach here, we create temp table for all the arguments of
-        the group_concat function
-      */
-      DBUG_ASSERT(0);
+      Item *show_item= args[i];
+      if (show_item->const_item())
+        continue;
+
+      Field *field= show_item->get_tmp_table_field();
+      if (field)
+      {
+        if (field->is_null_in_record((const uchar*) table->record[0]) &&
+            exclude_nulls)
+          return 0;                    // Skip row if it contains null
+        if (tree && (res= field->val_str(&buf)))
+          row_str_len+= res->length();
+      }
+      else
+      {
+        /*
+          should not reach here, we create temp table for all the arguments of
+          the group_concat function
+        */
+        DBUG_ASSERT(0);
+      }
     }
   }
 
   null_value= FALSE;
-  bool row_eligible= TRUE;
-
-  if (distinct) 
-  {
-    /* Filter out duplicate rows. */
-    uint count= unique_filter->elements_in_tree();
-    unique_filter->unique_add(get_record_pointer());
-    if (count == unique_filter->elements_in_tree())
-      row_eligible= FALSE;
-  }
 
   TREE_ELEMENT *el= 0;                          // Only for safety
   if (row_eligible && tree)
@@ -4285,16 +4563,22 @@ bool Item_func_group_concat::setup(THD *thd)
 
   /* Push all not constant fields to the list and create a temp table */
   always_null= 0;
+  uint non_const_items= 0;
   for (uint i= 0; i < arg_count_field; i++)
   {
     Item *item= args[i];
     if (list.push_back(item, thd->mem_root))
       DBUG_RETURN(TRUE);
-    if (item->const_item() && item->is_null() && skip_nulls())
+    if (item->const_item())
     {
-      always_null= 1;
-      DBUG_RETURN(FALSE);
+      if (item->is_null() && skip_nulls())
+      {
+        always_null= 1;
+        DBUG_RETURN(FALSE);
+      }
     }
+    else
+      non_const_items++;
   }
 
   List<Item> all_fields(list);
@@ -4377,6 +4661,7 @@ bool Item_func_group_concat::setup(THD *thd)
      the row is not added to the result.
   */
   uint tree_key_length= table->s->reclength - table->s->null_bytes;
+  bool allow_packing= is_packing_allowed(&tree_key_length);
 
   if (arg_count_order)
   {
@@ -4395,10 +4680,18 @@ bool Item_func_group_concat::setup(THD *thd)
   }
 
   if (distinct)
-    unique_filter= new Unique(get_comparator_function_for_distinct(),
-                              (void*)this,
-                              tree_key_length + get_null_bytes(),
-                              ram_limitation(thd));
+  {
+    unique_filter= get_unique(get_comparator_function_for_distinct(allow_packing),
+                             (void*)this,
+                             tree_key_length + get_null_bytes(),
+                             ram_limitation(thd), 0, allow_packing);
+
+    if (!unique_filter ||
+        (unique_filter->get_descriptor()->setup(thd, this,
+                                                non_const_items,
+                                                arg_count_field)))
+      DBUG_RETURN(TRUE);
+  }
   if ((row_limit && row_limit->cmp_type() != INT_RESULT) ||
       (offset_limit && offset_limit->cmp_type() != INT_RESULT))
   {
@@ -4433,7 +4726,10 @@ String* Item_func_group_concat::val_str(String* str)
     if (tree != NULL) // order by
       tree_walk(tree, &dump_leaf_key, this, left_root_right);
     else if (distinct) // distinct (and no order by).
-      unique_filter->walk(table, &dump_leaf_key, this);
+      unique_filter->walk(table,
+                          unique_filter->is_packed() ?
+                          dump_leaf_variable_sized_key :
+                          dump_leaf_key, this);
     else if (row_limit && copy_row_limit == (ulonglong)row_limit->val_int())
       return &result;
     else
@@ -4456,11 +4752,13 @@ String* Item_func_group_concat::val_str(String* str)
     Get the comparator function for DISTINT clause
 */
 
-qsort_cmp2 Item_func_group_concat::get_comparator_function_for_distinct()
+qsort_cmp2 Item_func_group_concat::get_comparator_function_for_distinct(bool packed)
 {
-  return skip_nulls() ?
-         group_concat_key_cmp_with_distinct :
-         group_concat_key_cmp_with_distinct_with_nulls;
+  return packed ?
+         group_concat_packed_key_cmp_with_distinct :
+         (skip_nulls() ?
+          group_concat_key_cmp_with_distinct :
+          group_concat_key_cmp_with_distinct_with_nulls);
 }
 
 
@@ -4488,9 +4786,11 @@ qsort_cmp2 Item_func_group_concat::get_comparator_function_for_order_by()
 
 uchar* Item_func_group_concat::get_record_pointer()
 {
-  return skip_nulls() ?
-         table->record[0] + table->s->null_bytes :
-         table->record[0];
+  return is_distinct_packed() ?
+         unique_filter->get_descriptor()->get_packed_rec_ptr() :
+         (skip_nulls() ?
+          table->record[0] + table->s->null_bytes :
+          table->record[0]);
 }
 
 
@@ -4508,6 +4808,129 @@ uchar* Item_func_group_concat::get_record_pointer()
 uint Item_func_group_concat::get_null_bytes()
 {
   return skip_nulls() ? 0 : table->s->null_bytes;
+}
+
+
+/*
+  @brief
+    Checks whether the unique tree is packed or not
+
+  @retval
+    TRUE    tree stored packed values
+    FALSE   otherwise
+*/
+
+bool Item_func_group_concat::is_distinct_packed()
+{
+  return unique_filter && unique_filter->is_packed();
+}
+
+
+/*
+  @brief
+    Checks if one can store packed values in the Unique tree
+
+  @param
+    total_length   [OUT] length of the key in the tree
+
+  @retval
+    TRUE     packing allowed
+    FALSE    packing not allowed
+*/
+
+bool Item_func_group_concat::is_packing_allowed(uint* total_length)
+{
+  /*
+    TODO varun:
+    Currently Unique is not packed if ORDER BY clause is used
+    This needs to be implemented when MDEV-22089 is fixed
+  */
+  if (!distinct || arg_count_order)
+    return false;
+
+  return Item_sum::is_packing_allowed(table, total_length);
+}
+
+
+/*
+  @brief
+    Check if storing packed values inside the Unique tree is allowed
+
+  @param table           Table structure
+  @total_length     [OUT] max length of the packed key(takes into account
+                          the length bytes also)
+*/
+
+
+bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
+{
+  uint size_of_packable_fields= 0;
+  uint tot_length= 0;
+  for (uint i= 0; i < get_arg_count(); i++)
+  {
+    Item *item= args[i];
+    if (item->const_item())
+      continue;
+    Field *field= item->get_tmp_table_field();
+    if (field)
+    {
+      /*
+        For blob columns packing is not allowed
+      */
+      if (field->flags & BLOB_FLAG)
+        return false;
+
+      // 1 byte for nullability;
+      tot_length+= MY_TEST(field->maybe_null());
+
+      tot_length+= field->sort_length_without_suffix();
+      if (field->is_packable())
+      {
+        size_of_packable_fields+=
+              number_storage_requirement(field->sort_length_without_suffix());
+      }
+    }
+  }
+
+  // All fields are of fixed size
+  if (size_of_packable_fields == 0)
+    return false;
+
+  /*
+    TODO varun: we can introduce a heuristic here, no need to do packing if we
+    have small VARCHAR or CHAR
+  */
+  *total_length= tot_length;
+  /*
+    Unique::size_of_lengt_field is the length bytes to store the packed length
+    for each record inserted in the Unique tree
+  */
+  (*total_length)+= Variable_sized_keys_descriptor::size_of_length_field +
+                    size_of_packable_fields;
+  return true;
+}
+
+
+/*
+  @brief
+    Get unique instance to filter out duplicate for AGG_FUNC(DISTINCT col....)
+*/
+Unique_impl*
+Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                     uint size_arg, size_t max_in_memory_size_arg,
+                     uint min_dupl_count_arg, bool allow_packing)
+{
+  Descriptor *desc;
+
+  if (allow_packing)
+    desc= new Variable_sized_keys_descriptor(size_arg);
+  else
+    desc= new Fixed_sized_keys_descriptor(size_arg);
+
+  if (!desc)
+    return NULL;
+  return new Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
+                         max_in_memory_size_arg, min_dupl_count_arg, desc);
 }
 
 
@@ -4562,4 +4985,45 @@ Item_func_group_concat::~Item_func_group_concat()
 {
   if (!original && unique_filter)
     delete unique_filter;    
+}
+
+
+/*
+  @brief
+    Insert a record inside the Unique tree
+
+  @retval
+    -1       NULL value, record rejected
+     0       record succesfully inserted into the tree
+     1       error
+*/
+int Item_func_group_concat::insert_record_to_unique()
+{
+  if (unique_filter->is_packed())
+  {
+    uint packed_length;
+    if ((packed_length= unique_filter->get_descriptor()->
+                        make_packed_record(skip_nulls())) == 0)
+      return -1; // NULL value
+    DBUG_ASSERT(packed_length <= unique_filter->get_size());
+    return unique_filter->unique_add(unique_filter->get_descriptor()
+                                     ->get_packed_rec_ptr());
+  }
+
+  copy_fields(tmp_table_param);
+  if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
+    return 1;
+
+  for (Field **field=table->field ; *field ; field++)
+    if (skip_nulls() && (*field)->is_real_null(0))
+      return -1;         // Don't count NULL
+
+  /*
+    The first few bytes of record (at least one) are just markers
+    for deleted and NULLs. We want to skip them since they will
+    bloat the tree without providing any valuable info. Besides,
+    key_length used to initialize the tree didn't include space for them.
+  */
+
+  return unique_filter->unique_add(get_record_pointer());
 }

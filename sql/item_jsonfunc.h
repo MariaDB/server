@@ -547,6 +547,7 @@ protected:
   String *get_str_from_item(Item *i, String *tmp);
   String *get_str_from_field(Item *i, Field *f, String *tmp,
                              const uchar *key, size_t offset);
+  String *get_str_from_field(Item *i, Field *f, String *tmp);
   void cut_max_length(String *result,
                       uint old_length, uint max_length) const;
 public:

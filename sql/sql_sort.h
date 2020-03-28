@@ -310,6 +310,9 @@ public:
     sort_length+= len;
   }
 
+  int compare_keys(uchar *a, uchar *b);
+  int compare_keys_for_single_arg(uchar *a, uchar *b);
+
   static const uint size_of_length_field= 4;
 
 private:
@@ -567,8 +570,8 @@ public:
 
   bool using_packed_sortkeys() const
   {
-    DBUG_ASSERT(m_using_packed_sortkeys ==
-                (sort_keys != NULL && sort_keys->using_packed_sortkeys()));
+    DBUG_ASSERT(sort_keys == NULL ||
+                (m_using_packed_sortkeys == sort_keys->using_packed_sortkeys()));
     return m_using_packed_sortkeys;
   }
 
@@ -576,6 +579,11 @@ public:
   bool using_addon_fields() const
   {
     return addon_fields != NULL;
+  }
+
+  void set_using_packed_keys(bool val)
+  {
+    m_using_packed_sortkeys= val;
   }
 
   uint32 get_result_length(uchar *plen)
@@ -659,6 +667,12 @@ public:
   {
     return m_packed_format;
   }
+  void set_packed_format(bool val)
+  {
+    m_packed_format= val;
+  }
+
+  uint32 get_record_length_for_unique(uchar *to, uint size_of_dupl_count);
 
 private:
   uint m_packable_length;
@@ -682,5 +696,26 @@ int merge_index(Sort_param *param, Sort_buffer sort_buffer,
                 Merge_chunk *buffpek, uint maxbuffer,
                 IO_CACHE *tempfile, IO_CACHE *outfile);
 void reuse_freed_buff(QUEUE *queue, Merge_chunk *reuse, uint key_length);
+
+
+/*
+  An interface to handle variable sized records.
+  The primary use of this class is to create record for a key
+  which has variable sized values for its keyparts.
+
+
+  The format used for the record is:
+
+    <total_key_length> <keypart1_null_byte> < keypart1_length> <keypart1_value> ......... <keypartN_value>
+
+  <total_key_length>     : 4 bytes is used to store the length of the key.
+  <keypart1_null_byte>   : uses 1 byte to store nullability for a kepart,
+                           no byte is used if  the keypart is defined as NOT NULLABLE
+  <keypart1_length>      : length of the value of the keypart. This is optional and is only stored for keyparts
+                           that can have variable sized values. For eg VARCHARS and CHARS will have this length
+                           but integers being fixed size will not have these additional bytes for length.
+  <keypart1_value>       : the value for the keypart.
+
+*/
 
 #endif /* SQL_SORT_INCLUDED */
