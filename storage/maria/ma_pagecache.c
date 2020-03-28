@@ -681,6 +681,10 @@ static my_bool pagecache_fwrite(PAGECACHE *pagecache,
     DBUG_PRINT("error", ("write callback problem"));
     DBUG_RETURN(1);
   }
+#if __has_feature(memory_sanitizer) /* FIXME: encryption.aria_tiny etc. fail */
+  /* FIXME: ENGINE=Aria occasionally writes uninitialized data */
+  __msan_unpoison(args.page, pagecache->block_size);
+#endif
   res= (int)my_pwrite(filedesc->file, args.page, pagecache->block_size,
                  ((my_off_t) pageno << pagecache->shift), flags);
   (*filedesc->post_write_hook)(res, &args);

@@ -50,13 +50,8 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define REDZONE_SIZE 8
 #elif __has_feature(memory_sanitizer)
 # include <sanitizer/msan_interface.h>
-# if 0 /* FIXME: these reveal lots of failures */
-#  define MEM_UNDEFINED(a,len) __msan_allocated_memory(a,len)
-#  define MEM_MAKE_DEFINED(a,len) __msan_unpoison(a,len)
-# else
-#  define MEM_UNDEFINED(a,len) ((void) 0)
-#  define MEM_MAKE_DEFINED(a,len) ((void) 0)
-# endif
+# define MEM_UNDEFINED(a,len) __msan_allocated_memory(a,len)
+# define MEM_MAKE_DEFINED(a,len) __msan_unpoison(a,len)
 # define MEM_NOACCESS(a,len) ((void) 0)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_CHECK_DEFINED(a,len) __msan_check_mem_is_initialized(a,len)
