@@ -6737,26 +6737,20 @@ int handler::check_duplicate_long_entries_update(const uchar *new_rec)
 int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 {
   DBUG_ASSERT(new_data);
+  if (this != table->file)
+    return 0;
   if (!table_share->period.unique_keys)
     return 0;
   if (table->versioned() && !table->vers_end_field()->is_max())
     return 0;
 
-  bool is_update= old_data != NULL;
-  alloc_lookup_buffer();
-  auto *record_buffer= lookup_buffer + table_share->max_unique_length
-                                     + table_share->null_fields;
-  auto *handler= this;
-  // handler->inited can be NONE on INSERT
-  if (handler->inited != NONE)
-  {
-    create_lookup_handler();
-    handler= lookup_handler;
+  const bool is_update= old_data != NULL;
+  uchar *record_buffer= lookup_buffer + table_share->max_unique_length
+                                      + table_share->null_fields;
 
-    // Needs to compare record refs later is old_row_found()
-    if (is_update)
-      position(old_data);
-  }
+  // Needs to compare record refs later is old_row_found()
+  if (is_update)
+    position(old_data);
 
   DBUG_ASSERT(!keyread_enabled());
 
@@ -6780,11 +6774,11 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
         continue;
     }
 
-    error= handler->ha_index_init(key_nr, 0);
+    error= lookup_handler->ha_index_init(key_nr, 0);
     if (error)
       return error;
 
-    error= handler->ha_start_keyread(key_nr);
+    error= lookup_handler->ha_start_keyread(key_nr);
     DBUG_ASSERT(!error);
 
     const uint period_field_length= key_info.key_part[key_parts - 1].length;
@@ -6801,7 +6795,7 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
            period_field_length);
 
     /* Find row with period_end > (period_start of new_data) */
-    error = handler->ha_index_read_map(record_buffer, lookup_buffer,
+    error = lookup_handler->ha_index_read_map(record_buffer, lookup_buffer,
                                        key_part_map((1 << (key_parts - 1)) - 1),
                                        HA_READ_AFTER_KEY);
 
@@ -6814,13 +6808,13 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
          An assumption is made that during update we always have the last
          fetched row in old_data. Therefore, comparing ref's is enough
       */
-      DBUG_ASSERT(handler != this);
+      DBUG_ASSERT(lookup_handler != this);
       DBUG_ASSERT(inited != NONE);
-      DBUG_ASSERT(ref_length == handler->ref_length);
+      DBUG_ASSERT(ref_length == lookup_handler->ref_length);
 
-      handler->position(record_buffer);
-      if (memcmp(ref, handler->ref, ref_length) == 0)
-        error= handler->ha_index_next(record_buffer);
+      lookup_handler->position(record_buffer);
+      if (memcmp(ref, lookup_handler->ref, ref_length) == 0)
+        error= lookup_handler->ha_index_next(record_buffer);
     }
 
     if (!error && table->check_period_overlaps(key_info, new_data, record_buffer))
@@ -6832,10 +6826,10 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     if (error == HA_ERR_FOUND_DUPP_KEY)
       lookup_errkey= key_nr;
 
-    int end_error= handler->ha_end_keyread();
+    int end_error= lookup_handler->ha_end_keyread();
     DBUG_ASSERT(!end_error);
 
-    end_error= handler->ha_index_end();
+    end_error= lookup_handler->ha_index_end();
     if (!error && end_error)
       error= end_error;
   }
@@ -6919,7 +6913,7 @@ bool handler::prepare_for_row_logging()
 int handler::prepare_for_insert()
 {
   /* Preparation for unique of blob's */
-  if (table->s->long_unique_table)
+  if (table->s->long_unique_table || table->s->period.unique_keys)
   {
     /*
       When doing a scan we can't use the same handler to check
@@ -6941,9 +6935,8 @@ int handler::ha_write_row(const uchar *buf)
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
 
-  error= ha_check_overlaps(NULL, buf);
-  if (unlikely(error))
-    goto end;
+  if ((error= ha_check_overlaps(NULL, buf)))
+    DBUG_RETURN(error);
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
@@ -6976,7 +6969,6 @@ int handler::ha_write_row(const uchar *buf)
 #endif /* WITH_WSREP */
   }
 
-end:
   DEBUG_SYNC_C("ha_write_row_end");
   DBUG_RETURN(error);
 }
