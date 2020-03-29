@@ -24,6 +24,8 @@
 #include "my_json_writer.h"
 #include "sp_head.h"
 
+#include "rowid_filter.h"
+
 const char I_S_table_name[]= "OPTIMIZER_TRACE";
 
 /**
@@ -664,14 +666,17 @@ void print_best_access_for_table(THD *thd, POSITION *pos,
 {
   DBUG_ASSERT(thd->trace_started());
 
-  Json_writer_object trace_best_access(thd, "chosen_access_method");
-  trace_best_access.add("type", type == JT_ALL ? "scan" :
-                                                 join_type_str[type]);
-  trace_best_access.add("records", pos->records_read);
-  trace_best_access.add("cost", pos->read_time);
-  trace_best_access.add("uses_join_buffering", pos->use_join_buffer);
-  trace_best_access.add("filter_used",
-                         pos->range_rowid_filter_info != NULL);
+  Json_writer_object obj(thd, "chosen_access_method");
+  obj.add("type", type == JT_ALL ? "scan" : join_type_str[type]);
+  obj.add("records", pos->records_read);
+  obj.add("cost", pos->read_time);
+  obj.add("uses_join_buffering", pos->use_join_buffer);
+  if (pos->range_rowid_filter_info)
+  {
+    uint key_no= pos->range_rowid_filter_info->key_no;
+    obj.add("rowid_filter_key",
+            pos->table->table->key_info[key_no].name);
+  }
 }
 
 

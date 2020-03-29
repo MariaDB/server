@@ -217,8 +217,7 @@ explain select * from t1 where a=1 or b=1	{
                     "type": "index_merge",
                     "records": 2,
                     "cost": 4.1484,
-                    "uses_join_buffering": false,
-                    "filter_used": false
+                    "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 2,

@@ -452,6 +452,8 @@ public:
 
   double get_a() { return a; }
 
+  void trace_info(THD *thd);
+
   friend
   void TABLE::prune_range_rowid_filters();
 
