@@ -2535,17 +2535,6 @@ void recv_apply_hashed_log_recs(bool last_batch)
 
 	if (recv_sys.pages.empty()) {
 		goto done;
-	}
-
-	if (!log_sys.log.subformat && !srv_force_recovery
-	    && srv_undo_tablespaces_open) {
-		ib::error() << "Recovery of separately logged"
-			" TRUNCATE operations is no longer supported."
-			" Set innodb_force_recovery=1"
-			" if no *trunc.log files exist";
-		recv_sys.found_corrupt_log = true;
-		mutex_exit(&recv_sys.mutex);
-		return;
 	} else {
 		const char* msg = last_batch
 			? "Starting final batch to recover "
