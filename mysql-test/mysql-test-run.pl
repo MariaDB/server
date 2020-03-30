@@ -2154,7 +2154,7 @@ sub find_mysqld {
 
   my ($mysqld_basedir)= $ENV{MTR_BINDIR}|| @_;
 
-  my @mysqld_names= ("mysqld", "mysqld-max-nt", "mysqld-max",
+  my @mysqld_names= ("mariadbd", "mysqld", "mysqld-max-nt", "mysqld-max",
 		     "mysqld-nt");
 
   if ( $opt_debug_server ){
