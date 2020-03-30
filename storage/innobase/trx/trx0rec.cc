@@ -42,8 +42,7 @@ Created 3/26/1996 Heikki Tuuri
 /** The search tuple corresponding to TRX_UNDO_INSERT_METADATA */
 const dtuple_t trx_undo_metadata = {
 	REC_INFO_METADATA, 0, 0,
-	NULL, 0, NULL,
-	UT_LIST_NODE_T(dtuple_t)()
+	NULL, 0, NULL
 #ifdef UNIV_DEBUG
 	, DATA_TUPLE_MAGIC_N
 #endif /* UNIV_DEBUG */

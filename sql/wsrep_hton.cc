@@ -445,7 +445,7 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     DBUG_RETURN(WSREP_TRX_CERT_FAIL);
   }
 
-  thd->wsrep_query_state = QUERY_COMMITTING;
+  wsrep_thd_set_query_state(thd, QUERY_COMMITTING);
   mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   cache = get_trans_log(thd);
@@ -482,7 +482,7 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     {
       WSREP_DEBUG("empty rbr buffer, query: %s", thd->query());
     }
-    thd->wsrep_query_state= QUERY_EXEC;
+    wsrep_thd_set_query_state(thd, QUERY_EXEC);
     DBUG_RETURN(WSREP_TRX_OK);
   }
 
@@ -594,7 +594,7 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     WSREP_DEBUG("commit failed for reason: %d", rcode);
     DBUG_PRINT("wsrep", ("replicating commit fail"));
 
-    thd->wsrep_query_state= QUERY_EXEC;
+    wsrep_thd_set_query_state(thd, QUERY_EXEC);
 
     if (thd->wsrep_conflict_state == MUST_ABORT) {
       thd->wsrep_conflict_state= ABORTED;
@@ -626,7 +626,7 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     DBUG_RETURN(WSREP_TRX_ERROR);
   }
 
-  thd->wsrep_query_state= QUERY_EXEC;
+  wsrep_thd_set_query_state(thd, QUERY_EXEC);
   mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   DBUG_RETURN(WSREP_TRX_OK);

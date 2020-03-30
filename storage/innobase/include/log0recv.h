@@ -329,4 +329,22 @@ times! */
 roll-forward */
 #define RECV_SCAN_SIZE		(4U << srv_page_size_shift)
 
+/** This is a low level function for the recovery system
+to create a page which has buffered intialized redo log records.
+@param[in]	page_id	page to be created using redo logs
+@return whether the page creation successfully */
+buf_block_t* recv_recovery_create_page_low(const page_id_t page_id);
+
+/** Recovery system creates a page which has buffered intialized
+redo log records.
+@param[in]	page_id	page to be created using redo logs
+@return block which contains page was initialized */
+inline buf_block_t* recv_recovery_create_page(const page_id_t page_id)
+{
+  if (UNIV_LIKELY(!recv_recovery_on))
+    return NULL;
+
+  return recv_recovery_create_page_low(page_id);
+}
+
 #endif

@@ -5412,6 +5412,7 @@ pthread_handler_t handle_slave_sql(void *arg)
 
 #ifdef WITH_WSREP
   thd->wsrep_exec_mode= LOCAL_STATE;
+  wsrep_thd_set_query_state(thd, QUERY_EXEC);
   /* synchronize with wsrep replication */
   if (WSREP_ON)
     wsrep_ready_wait();
