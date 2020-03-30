@@ -1,4 +1,4 @@
-[ERROR] mysqld: Can't lock aria aria_log_control for exclusive use, error: #. Will retry for 0 seconds
+[ERROR] mariadbd: Can't lock aria aria_log_control for exclusive use, error: #. Will retry for 0 seconds
 [ERROR] Plugin 'Aria' init function returned error.
 [ERROR] Plugin 'Aria' registration as a STORAGE ENGINE failed.
 [Warning] Could not open mysql.plugin table: "Unknown storage engine 'Aria'". Some options may be missing from the help text
