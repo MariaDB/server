@@ -1686,27 +1686,34 @@ int vers_insert_history_row(TABLE *table)
   return table->file->ha_write_row(table->record[0]);
 }
 
-static void setup_period_conds(THD *thd, TABLE *table,
-                               vers_select_conds_t *period_conds)
+static bool setup_period_conds(THD *thd, TABLE *table,
+                               vers_select_conds_t *period_conds,
+                               uchar *record)
 {
   auto *fstart= table->field[table->s->period.start_fieldno];
   auto *fend= table->field[table->s->period.end_fieldno];
   auto *type_handler= fstart->type_handler();
-  auto *record= table->record;
+
+  // any Type_all_attributes descendant will fit
+  auto *all_attributes= new(thd->mem_root) Item_datetime(thd);
+  *(Type_numeric_attributes*)all_attributes= fstart->type_numeric_attributes();
 
   auto portion_start= type_handler->make_and_init_table_field(thd->mem_root,
           &fstart->field_name,
-          Record_addr(fstart->ptr - record[0] + record[2], NULL, 0),
-          *new(thd->mem_root) Item_datetime(thd), table);
+          Record_addr(fstart->ptr - table->record[0] + record, NULL, 0),
+          *all_attributes, table);
   auto portion_end= type_handler->make_and_init_table_field(thd->mem_root,
           &fend->field_name,
-          Record_addr(fend->ptr - record[0] + record[2], NULL, 0),
-          *new(thd->mem_root) Item_datetime(thd), table);
+          Record_addr(fend->ptr - table->record[0] + record, NULL, 0),
+          *all_attributes, table);
 
   period_conds->field_start= new(thd->mem_root) Item_field(thd, fstart);
   period_conds->field_end=   new(thd->mem_root) Item_field(thd, fend);
   period_conds->start.item=  new(thd->mem_root) Item_field(thd, portion_start);
   period_conds->end.item=    new(thd->mem_root) Item_field(thd, portion_end);
+
+  return period_conds->start.item && period_conds->end.item
+         && period_conds->field_start && period_conds->field_end;
 }
 
 /*
@@ -1757,8 +1764,9 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
     {
       uint key_nr;
       vers_select_conds_t period_conds;
-      if (table->file->overlap_ref && info->handle_duplicates == DUP_REPLACE)
-        setup_period_conds(thd, table, &period_conds);
+      if (table->file->overlap_ref &&
+          !setup_period_conds(thd, table, &period_conds, table->insert_values))
+        goto err;
       /*
         If we do more than one iteration of this loop, from the second one the
         row will have an explicit value in the autoinc field, which was set at
@@ -1880,9 +1888,16 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
             We don't check for other UNIQUE keys - the first row
             that matches, is updated. If update causes a conflict again,
             an error is returned
+
+            The value was written to record[1] after lookup
           */
           restore_record(table,record[1]);
           table->reset_default_fields();
+
+          if (table->file->overlap_ref)
+          {
+            table->cut_fields_for_portion_of_time(thd, period_conds);
+          }
 
           /*
             in INSERT ... ON DUPLICATE KEY UPDATE the set of modified fields can
@@ -1908,7 +1923,7 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
             be updated as if this is an UPDATE.
           */
           if (different_records && table->default_field)
-          table->evaluate_update_default_function();
+            table->evaluate_update_default_function();
 
           /* CHECK OPTION for VIEW ... ON DUPLICATE KEY UPDATE ... */
           res= info->table_list->view_check_option(table->in_use, info->ignore);
@@ -2041,15 +2056,24 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
             }
             else
               error= 0;   // error was HA_ERR_RECORD_IS_THE_SAME
+
+            if (table->file->overlap_ref)
+            {
+              restore_record(table, record[1]);
+              error= table->insert_portion_of_time(thd, period_conds,
+                                                   &info->copied);
+              if (unlikely(error))
+                goto err;
+            }
             /*
-            Since we pretend that we have done insert we should call
-            its after triggers.
-          */
-          goto after_trg_n_copied_inc;
-        }
-        else
-        {
-          if (table->triggers &&
+              Since we pretend that we have done insert we should call
+              its after triggers.
+            */
+            goto after_trg_n_copied_inc;
+          }
+          else
+          {
+            if (table->triggers &&
               table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                                 TRG_ACTION_BEFORE, TRUE))
             goto before_trg_err;
@@ -2081,29 +2105,36 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
               goto after_trg_or_ignored_err;
             }
 
-            if (likely(!error) && table->file->overlap_ref)
+            if (table->file->overlap_ref)
             {
-              store_record(table, record[2]);
+              /*
+                Invert period_conds: will use the record found by lookup
+                to insert for portion, instead of the one actually replacing.
+              */
+              store_record(table, insert_values);
               restore_record(table, record[1]);
               error= table->insert_portion_of_time(thd, period_conds,
                                                    &info->copied);
-              restore_record(table, record[2]);
+              restore_record(table, insert_values);
+
+              if (unlikely(error))
+                goto err;
             }
             /* Let us attempt do write_row() once more */
           }
         }
+
         if(table->file->overlap_ref)
         {
           error= table->file->ha_index_next(table->record[1]);
-          if (error && error != HA_ERR_END_OF_FILE)
+          if (unlikely(error) && error != HA_ERR_END_OF_FILE)
             goto err;
         }
       } while (table->file->overlap_ref
                && error != HA_ERR_END_OF_FILE
                && table->check_period_overlaps(table->key_info[key_nr],
-                                               table->key_info[key_nr],
                                                table->record[1],
-                                               table->insert_values) == 0);
+                                               table->insert_values));
 
       if (table->file->inited == handler::INDEX)
       {

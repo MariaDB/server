@@ -8582,6 +8582,33 @@ int TABLE::period_make_insert(Item *src, Field *dst)
   return res;
 }
 
+int TABLE::cut_fields_for_portion_of_time(THD *thd,
+                                        const vers_select_conds_t &period_conds)
+{
+  bool lcond= period_conds.field_start->val_datetime_packed(thd)
+              < period_conds.start.item->val_datetime_packed(thd);
+  bool rcond= period_conds.field_end->val_datetime_packed(thd)
+              > period_conds.end.item->val_datetime_packed(thd);
+
+  Field *start_field= field[s->period.start_fieldno];
+  Field *end_field= field[s->period.end_fieldno];
+
+  int res= 0;
+  if (lcond)
+  {
+    res= period_conds.start.item->save_in_field(start_field, true);
+    start_field->set_has_explicit_value();
+  }
+
+  if (likely(!res) && rcond)
+  {
+    res= period_conds.end.item->save_in_field(end_field, true);
+    end_field->set_has_explicit_value();
+  }
+
+  return res;
+}
+
 int TABLE::insert_portion_of_time(THD *thd,
                                   const vers_select_conds_t &period_conds,
                                   ha_rows *rows_inserted)
@@ -8631,7 +8658,7 @@ void TABLE::evaluate_update_default_function()
            false,    either key values differ or periods don't overlap
  */
 bool TABLE::check_period_overlaps(const KEY &key,
-                                 const uchar *lhs, const uchar *rhs)
+                                  const uchar *lhs, const uchar *rhs)
 {
   DBUG_ASSERT(key.without_overlaps);
   uint base_part_nr= key.user_defined_key_parts - 2;

@@ -303,34 +303,6 @@ static void prepare_record_for_error_message(int error, TABLE *table)
 }
 
 
-static
-int cut_fields_for_portion_of_time(THD *thd, TABLE *table,
-                                   const vers_select_conds_t &period_conds)
-{
-  bool lcond= period_conds.field_start->val_datetime_packed(thd)
-              < period_conds.start.item->val_datetime_packed(thd);
-  bool rcond= period_conds.field_end->val_datetime_packed(thd)
-              > period_conds.end.item->val_datetime_packed(thd);
-
-  Field *start_field= table->field[table->s->period.start_fieldno];
-  Field *end_field= table->field[table->s->period.end_fieldno];
-
-  int res= 0;
-  if (lcond)
-  {
-    res= period_conds.start.item->save_in_field(start_field, true);
-    start_field->set_has_explicit_value();
-  }
-
-  if (likely(!res) && rcond)
-  {
-    res= period_conds.end.item->save_in_field(end_field, true);
-    end_field->set_has_explicit_value();
-  }
-
-  return res;
-}
-
 /*
   Process usual UPDATE
 
@@ -982,8 +954,8 @@ update_begin:
       store_record(table,record[1]);
 
       if (table_list->has_period())
-        cut_fields_for_portion_of_time(thd, table,
-                                       table_list->period_conditions);
+        table->cut_fields_for_portion_of_time(thd,
+                                              table_list->period_conditions);
 
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                TRG_EVENT_UPDATE))

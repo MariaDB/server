@@ -7228,6 +7228,16 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 
     if (error == HA_ERR_FOUND_DUPP_KEY)
     {
+      // Set up overlaps_ref and overlaps_error_key similar to err_key/dup_ref
+      uint period_key_part_nr= key_parts - 2;
+      auto &pstart= key_info.key_part[period_key_part_nr];
+      auto &pend= key_info.key_part[period_key_part_nr + 1];
+      uchar *key_end= lookup_buffer + key_info.key_length;
+
+      memcpy(key_end - 2 * pstart.length,
+             pstart.field->ptr_in_record(record_buffer), pstart.length);
+      memcpy(key_end - pend.length,
+             pend.field->ptr_in_record(record_buffer), pend.length);
       lookup_errkey= key_nr;
       overlap_ref= lookup_buffer;
     }

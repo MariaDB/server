@@ -1631,6 +1631,8 @@ public:
 
   int update_generated_fields();
   int period_make_insert(Item *src, Field *dst);
+  int cut_fields_for_portion_of_time(THD *thd,
+                                     const vers_select_conds_t &period_conds);
   int insert_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
                              ha_rows *rows_inserted);
   bool vers_check_update(List<Item> &items);

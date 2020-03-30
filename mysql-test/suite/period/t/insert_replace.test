@@ -1,37 +1,38 @@
-create or replace table t(id int, val int, s date, e date,
+create or replace table t(id int, s date, e date, val int,
                           period for p(s,e),
                           primary key(id, p without overlaps)) engine=myisam;
 
-insert into t values (1, 1, '2003-01-01', '2003-03-01'),
-                     (1, 2, '2003-05-01', '2003-07-01');
+insert into t values (1, '2003-01-01', '2003-03-01', 1),
+                     (1, '2003-05-01', '2003-07-01', 2);
 
 --echo # This just inserts a row; no rows matched
-insert into t values (2, 3, '2003-01-01', '2003-04-01')
-       on duplicate key update val=3;
-
---echo # The following command is equivalent to
---echo # MERGE INTO t USING t
---echo #  ON id = 1 AND s <= 2003-04-01 AND e > 2003-01-01
---echo #  WHEN MATCHED UPDATE SET val=3
---echo #  WHEN NOT MATCHED INSERT VALUES (1, 3, '2003-01-01', '2003-04-01');
-
-insert into t values (1, 3, '2003-01-01', '2003-04-01')
-       on duplicate key update val=3;
-select row_count();
-select * from t;
-insert into t values (1, 3, '2003-01-01', '2003-06-01')
+insert into t values (2, '2003-01-01', '2003-04-01', 3)
        on duplicate key update val=4;
+
+--sorted_result
+select * from t;
+
+insert into t values (1, '2003-01-05', '2003-04-01', 5)
+       on duplicate key update val=6;
 select row_count();
+--sorted_result
+select * from t;
+insert into t values (1, '2003-01-01', '2003-06-01', 7)
+       on duplicate key update val=8;
+select row_count();
+--sorted_result
 select * from t;
 
 --echo # No rows matched
-insert into t values (1, 3, '2003-07-01', '2003-08-01')
-       on duplicate key update val=5;
+insert into t values (1, '2003-07-01', '2003-08-01', 9)
+       on duplicate key update val=10;
 select row_count();
+--sorted_result
 select * from t;
 
-replace into t values(1, 6, '2003-01-01', '2003-06-01');
+replace into t values (1, '2003-02-01', '2003-05-05', 11);
 select row_count();
+--sorted_result
 select * from t;
 
 drop table t;
