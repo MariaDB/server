@@ -107,6 +107,7 @@ int maria_close(register MARIA_HA *info)
       /* Avoid _ma_mark_file_changed() when flushing pages */
       share->global_changed= 1;
 
+      /* Flush page cache if BLOCK format */
       if ((*share->once_end)(share))
         error= my_errno;
       /*

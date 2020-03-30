@@ -90,6 +90,15 @@ enum enum_alter_inplace_result {
   HA_ALTER_INPLACE_NO_LOCK
 };
 
+/* Flags for create_partitioning_metadata() */
+
+enum chf_create_flags {
+  CHF_CREATE_FLAG,
+  CHF_DELETE_FLAG,
+  CHF_RENAME_FLAG,
+  CHF_INDEX_FLAG
+};
+
 /* Bits in table_flags() to show what database can do */
 
 #define HA_NO_TRANSACTIONS     (1ULL << 0) /* Doesn't support transactions */
@@ -1670,6 +1679,14 @@ struct handlerton
 
   /* Server shutdown early notification.*/
   void (*pre_shutdown)(void);
+
+  /*
+    Inform handler that partitioning engine has changed the .frm and the .par
+    files
+  */
+  int (*create_partitioning_metadata)(const char *path,
+                                      const char *old_path,
+                                      chf_create_flags action_flag);
 };
 
 
@@ -3183,7 +3200,10 @@ private:
 
 public:
   virtual void unbind_psi();
-  virtual int rebind();
+  virtual void rebind_psi();
+  /* Return error if definition doesn't match for already opened table */
+  virtual int discover_check_version() { return 0; }
+
   /**
     Put the handler in 'batch' mode when collecting
     table io instrumented events.
@@ -3416,7 +3436,7 @@ public:
   int ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info);
 
   int ha_create_partitioning_metadata(const char *name, const char *old_name,
-                                      int action_flag);
+                                      chf_create_flags action_flag);
 
   int ha_change_partitions(HA_CREATE_INFO *create_info,
                            const char *path,
@@ -3901,6 +3921,7 @@ public:
   virtual void get_dynamic_partition_info(PARTITION_STATS *stat_info,
                                           uint part_id);
   virtual void set_partitions_to_open(List<String> *partition_names) {}
+  virtual bool check_if_updates_are_ignored(const char *op) const;
   virtual int change_partitions_to_open(List<String> *partition_names)
   { return 0; }
   virtual int extra(enum ha_extra_function operation)
@@ -4080,11 +4101,6 @@ public:
 
   void update_global_table_stats();
   void update_global_index_stats();
-
-#define CHF_CREATE_FLAG 0
-#define CHF_DELETE_FLAG 1
-#define CHF_RENAME_FLAG 2
-#define CHF_INDEX_FLAG  3
 
   /**
     @note lock_count() can return > 1 if the table is MERGE or partitioned.
@@ -4918,8 +4934,9 @@ public:
   virtual void drop_table(const char *name);
   virtual int create(const char *name, TABLE *form, HA_CREATE_INFO *info)=0;
 
-  virtual int create_partitioning_metadata(const char *name, const char *old_name,
-                                   int action_flag)
+  virtual int create_partitioning_metadata(const char *name,
+                                           const char *old_name,
+                                           chf_create_flags action_flag)
   { return FALSE; }
 
   virtual int change_partitions(HA_CREATE_INFO *create_info,
@@ -5123,9 +5140,11 @@ public:
 int ha_discover_table(THD *thd, TABLE_SHARE *share);
 int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable);
-bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
+bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
+                     const LEX_CSTRING *table_name,
                      handlerton **hton= 0, bool *is_sequence= 0);
-bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton, const char *op);
+bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton,
+                                     const char *op);
 #endif /* MYSQL_SERVER */
 
 /* key cache */

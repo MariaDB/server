@@ -631,7 +631,7 @@ protected:
   void free_foreign_key_create_info(char* str) mrn_override;
 #ifdef MRN_HAVE_HA_REBIND_PSI
   void unbind_psi() mrn_override;
-  int rebind() mrn_override;
+  void rebind_psi() mrn_override;
 #endif
   my_bool register_query_cache_table(THD *thd,
                                      const char *table_key,
@@ -1290,7 +1290,7 @@ private:
 #ifdef MRN_HAVE_HA_REBIND_PSI
   void wrapper_unbind_psi();
   void storage_unbind_psi();
-  int wrapper_rebind();
+  void wrapper_rebind();
   void storage_rebind();
 #endif
   my_bool wrapper_register_query_cache_table(THD *thd,

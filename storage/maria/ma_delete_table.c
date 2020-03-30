@@ -78,22 +78,32 @@ int maria_delete_table(const char *name)
       DBUG_RETURN(1);
   }
 
-  DBUG_RETURN(maria_delete_table_files(name, 0, sync_dir));
+  DBUG_RETURN(maria_delete_table_files(name, 0, sync_dir | MY_WME));
 }
 
+/**
+   Delete all files related to a aria table
+*/
 
-int maria_delete_table_files(const char *name, my_bool temporary, myf sync_dir)
+int maria_delete_table_files(const char *name, my_bool temporary, myf flags)
 {
+  int error= 0;
   DBUG_ENTER("maria_delete_table_files");
 
-  if (mysql_file_delete_with_symlink(key_file_kfile, name, MARIA_NAME_IEXT, MYF(MY_WME | sync_dir)) ||
-      mysql_file_delete_with_symlink(key_file_dfile, name, MARIA_NAME_DEXT, MYF(MY_WME | sync_dir)))
-    DBUG_RETURN(my_errno);
-
+  if (mysql_file_delete_with_symlink(key_file_kfile, name, MARIA_NAME_IEXT,
+                                     flags))
+    error= my_errno;
+  if (mysql_file_delete_with_symlink(key_file_dfile, name, MARIA_NAME_DEXT,
+                                     flags))
+    error= my_errno;
   if (!temporary)
   {
-    mysql_file_delete_with_symlink(key_file_dfile, name, ".TMD", MYF(0));
+    /* This is delete a possible temporary aria_chk file */
+    mysql_file_delete_with_symlink(key_file_dfile, name, DATA_TMP_EXT, MYF(0));
+#ifdef SUPPORT_ARIA_PACK
+    /* This is delete a possible temporary aria_pack file */
     mysql_file_delete_with_symlink(key_file_dfile, name, ".OLD", MYF(0));
+#endif
   }
-  DBUG_RETURN(0);
+  DBUG_RETURN(error);
 }

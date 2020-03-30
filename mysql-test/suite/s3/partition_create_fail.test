@@ -1,0 +1,39 @@
+--source include/have_partition.inc
+--source include/have_s3.inc
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source create_database.inc
+
+SET @saved_dbug = @@debug_dbug;
+
+# Test failure in create of partition table
+
+CREATE TABLE p0 (
+  c1 int primary key,
+  c2 int DEFAULT NULL
+) ENGINE=InnoDB;
+insert into p0 select seq,seq from seq_1_to_10;
+
+SET debug_dbug='+d,failed_create_partitioning_metadata';
+
+--error 1041
+alter table p0 engine=s3
+  PARTITION BY RANGE (c1)
+(PARTITION p0 VALUES LESS THAN (100));
+
+SET debug_dbug=@saved_dbug;
+
+drop table p0;
+
+# If something went wrong, then we have a copy of the .frm file in S3 and
+# the following drop table will not fail
+
+--replace_result $database s3
+--error ER_BAD_TABLE_ERROR
+drop table p0;
+
+#
+# clean up
+#
+--source drop_database.inc

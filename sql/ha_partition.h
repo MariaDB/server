@@ -22,7 +22,7 @@
 #include "queues.h"             /* QUEUE */
 
 #define PARTITION_BYTES_IN_POS 2
-
+#define PAR_EXT ".par"
 
 /** Struct used for partition_name_hash */
 typedef struct st_part_name_def
@@ -555,8 +555,10 @@ public:
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info) override;
   int create_partitioning_metadata(const char *name,
-                                   const char *old_name, int action_flag)
+                                   const char *old_name,
+                                   chf_create_flags action_flag)
     override;
+  bool check_if_updates_are_ignored(const char *op) const override;
   void update_create_info(HA_CREATE_INFO *create_info) override;
   char *update_table_comment(const char *comment) override;
   int change_partitions(HA_CREATE_INFO *create_info, const char *path,
@@ -686,6 +688,7 @@ public:
   virtual void unbind_psi();
   virtual int rebind();
 #endif
+  int discover_check_version() override;
   /*
     -------------------------------------------------------------------------
     MODULE change record

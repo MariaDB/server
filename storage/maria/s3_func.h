@@ -31,10 +31,19 @@ extern TYPELIB s3_protocol_typelib;
 
 typedef struct s3_info
 {
+  /* Connection strings */
   LEX_CSTRING access_key, secret_key, region, bucket, host_name;
 
-  /* The following will be filled in by maria_open() */
+
+  /* Will be set by caller or by ma_open() */
   LEX_CSTRING database, table;
+
+  /*
+    Name of the partition table if the table is partitioned. If not, it's set
+    to be same as table. This is used to know which frm file to read to
+    check table version.
+  */
+  LEX_CSTRING base_table;
 
   /* Sent to open to verify version */
   LEX_CUSTRING tabledef_version;
@@ -68,17 +77,18 @@ int aria_rename_s3(ms3_st *s3_client, const char *aws_bucket,
                    const char *to_database, const char *to_table,
                    my_bool rename_frm);
 ms3_st *s3_open_connection(S3_INFO *s3);
-my_bool s3_put_object(ms3_st *s3_client, const char *aws_bucket,
-                      const char *name, uchar *data, size_t length,
-                      my_bool compression);
-my_bool s3_get_object(ms3_st *s3_client, const char *aws_bucket,
-                      const char *name, S3_BLOCK *block, my_bool compression,
-                      int print_error);
-my_bool s3_delete_object(ms3_st *s3_client, const char *aws_bucket,
-                      const char *name, my_bool print_error);
+void s3_deinit(ms3_st *s3_client);
+int s3_put_object(ms3_st *s3_client, const char *aws_bucket,
+                  const char *name, uchar *data, size_t length,
+                  my_bool compression);
+int s3_get_object(ms3_st *s3_client, const char *aws_bucket,
+                  const char *name, S3_BLOCK *block, my_bool compression,
+                  int print_error);
+int s3_delete_object(ms3_st *s3_client, const char *aws_bucket,
+                     const char *name, myf error_flags);
 my_bool s3_rename_object(ms3_st *s3_client, const char *aws_bucket,
                          const char *from_name, const char *to_name,
-                         my_bool print_error);
+                         myf error_flags);
 void s3_free(S3_BLOCK *data);
 my_bool s3_copy_from_file(ms3_st *s3_client, const char *aws_bucket,
                           char *aws_path, File file, my_off_t start,
@@ -92,11 +102,18 @@ int s3_delete_directory(ms3_st *s3_client, const char *aws_bucket,
                         const char *path);
 int s3_rename_directory(ms3_st *s3_client, const char *aws_bucket,
                         const char *from_name, const char *to_name,
-                        my_bool print_error);
+                        myf error_flags);
+int partition_delete_from_s3(ms3_st *s3_client, const char *aws_bucket,
+                             const char *database, const char *table,
+                             myf error_flags);
+int partition_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
+                         const char *path, const char *old_path,
+                         const char *database, const char *table_name);
 
 S3_INFO *s3_info_copy(S3_INFO *old);
 my_bool set_database_and_table_from_path(S3_INFO *s3, const char *path);
-my_bool s3_get_frm(ms3_st *s3_client, S3_INFO *S3_info, S3_BLOCK *block);
+my_bool s3_get_def(ms3_st *s3_client, S3_INFO *S3_info, S3_BLOCK *block,
+                   const char *ext);
 my_bool s3_frm_exists(ms3_st *s3_client, S3_INFO *s3_info);
 int s3_check_frm_version(ms3_st *s3_client, S3_INFO *s3_info);
 my_bool read_index_header(ms3_st *client, S3_INFO *s3, S3_BLOCK *block);

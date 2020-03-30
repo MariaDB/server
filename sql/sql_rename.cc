@@ -335,6 +335,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
     if (hton->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
       *force_if_exists= 1;
 
+    thd->replication_flags= 0;
     if (!(rc= mysql_rename_table(hton, &ren_table->db, &old_alias,
                                  new_db, &new_alias, 0)))
     {
@@ -357,6 +358,8 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
                                   &ren_table->db, &old_alias, NO_FK_CHECKS);
       }
     }
+    if (thd->replication_flags & OPTION_IF_EXISTS)
+      *force_if_exists= 1;
   }
   else
   {
@@ -398,8 +401,8 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
     empty.
 
   RETURN
-    false     Ok
-    true      rename failed
+    0         Ok
+    table     pointer to the table list element which rename failed
 */
 
 static TABLE_LIST *

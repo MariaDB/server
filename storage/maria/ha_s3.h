@@ -21,7 +21,9 @@
 
 class ha_s3 :public ha_maria
 {
-  bool in_alter_table;
+  enum alter_table_op
+  { S3_NO_ALTER, S3_ALTER_TABLE, S3_ADD_PARTITION, S3_ADD_TMP_PARTITION };
+  alter_table_op in_alter_table;
   S3_INFO *open_args;
 
 public:
@@ -33,28 +35,35 @@ public:
   int write_row(const uchar *buf);
   int update_row(const uchar * old_data, const uchar * new_data)
   {
-    return HA_ERR_WRONG_COMMAND;
+    DBUG_ENTER("update_row");
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   }
   int delete_row(const uchar * buf)
   {
-    return HA_ERR_WRONG_COMMAND;
+    DBUG_ENTER("delete_row");
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   }
   int check(THD * thd, HA_CHECK_OPT * check_opt)
   {
-    return HA_ERR_WRONG_COMMAND;
+    DBUG_ENTER("delete_row");
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   }
   int analyze(THD * thd, HA_CHECK_OPT * check_opt)
   {
-    return HA_ERR_WRONG_COMMAND;
+    DBUG_ENTER("analyze");
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   }
   int repair(THD * thd, HA_CHECK_OPT * check_opt)
   {
-    return HA_ERR_WRONG_COMMAND;
+    DBUG_ENTER("repair");
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   }
   int preload_keys(THD * thd, HA_CHECK_OPT * check_opt)
   {
-    return HA_ERR_WRONG_COMMAND;
+    DBUG_ENTER("preload_keys");
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   }
+  int external_lock(THD * thd, int lock_type);
   /*
     drop_table() is only used for internal temporary tables,
     not applicable for s3
@@ -64,7 +73,7 @@ public:
   }
   int delete_table(const char *name);
   int rename_table(const char *from, const char *to);
-  int discover_check_version();
+  int discover_check_version() override;
   int rebind();
   S3_INFO *s3_open_args() { return open_args; }
   void register_handler(MARIA_HA *file);

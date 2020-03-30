@@ -99,34 +99,32 @@ int readfrm(const char *name, const uchar **frmdata, size_t *len)
 
 
 /*
-  Write the content of a frm data pointer 
-  to a frm file.
+  Write the content of a frm data pointer to a frm or par file.
 
-  @param path           path to table-file "db/name"
-  @param frmdata        frm data
-  @param len            length of the frmdata
+  @param path           full path to table-file "db/name.frm" or .par
+  @param db             Database name. Only used for my_error()
+  @param table          Table name. Only used for my_error()
+  @param data           data to write to file
+  @param len            length of the data
 
   @retval
     0	ok
   @retval
-    2    Could not write file
+    <> 0    Could not write file. In this case the file is not created
 */
 
-int writefrm(const char *path, const char *db, const char *table,
-             bool tmp_table, const uchar *frmdata, size_t len)
+int writefile(const char *path, const char *db, const char *table,
+              bool tmp_table, const uchar *data, size_t len)
 {
-  char	 file_name[FN_REFLEN+1];
   int error;
   int create_flags= O_RDWR | O_TRUNC;
-  DBUG_ENTER("writefrm");
+  DBUG_ENTER("writefile");
   DBUG_PRINT("enter",("name: '%s' len: %lu ",path, (ulong) len));
 
   if (tmp_table)
     create_flags|= O_EXCL | O_NOFOLLOW;
 
-  strxnmov(file_name, sizeof(file_name)-1, path, reg_ext, NullS);
-
-  File file= mysql_file_create(key_file_frm, file_name,
+  File file= mysql_file_create(key_file_frm, path,
                                CREATE_MODE, create_flags, MYF(0));
 
   if (unlikely((error= file < 0)))
@@ -138,16 +136,19 @@ int writefrm(const char *path, const char *db, const char *table,
   }
   else
   {
-    error= (int)mysql_file_write(file, frmdata, len, MYF(MY_WME | MY_NABP));
+    error= (int)mysql_file_write(file, data, len, MYF(MY_WME | MY_NABP));
 
     if (!error && !tmp_table && opt_sync_frm)
         error= mysql_file_sync(file, MYF(MY_WME)) ||
-             my_sync_dir_by_file(file_name, MYF(MY_WME));
+             my_sync_dir_by_file(path, MYF(MY_WME));
 
     error|= mysql_file_close(file, MYF(MY_WME));
+    if (error)
+      my_delete(path, MYF(0));
   }
   DBUG_RETURN(error);
-} /* writefrm */
+} /* writefile */
+
 
 static inline void advance(FILEINFO* &from, FILEINFO* &to,
                            FILEINFO* cur, bool &skip)
@@ -155,7 +156,7 @@ static inline void advance(FILEINFO* &from, FILEINFO* &to,
   if (skip)                   // if not copying
     from= cur;                //   just advance the start pointer
   else                        // if copying
-    if (to == from)           //   but to the same place (not shifting the data)
+    if (to == from)           //   but to the same place, not shifting the data
       from= to= cur;          //     advance both pointers
     else                      //   otherwise
       while (from < cur)      //     have to copy [from...cur) to [to...)

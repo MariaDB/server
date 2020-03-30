@@ -16975,15 +16975,15 @@ void ha_mroonga::unbind_psi()
   DBUG_VOID_RETURN;
 }
 
-int ha_mroonga::wrapper_rebind()
+void ha_mroonga::wrapper_rebind()
 {
   MRN_DBUG_ENTER_METHOD();
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
-  int error= wrap_handler->rebind();
+  wrap_handler->rebind_psi();
   MRN_SET_BASE_SHARE_KEY(share, table->s);
   MRN_SET_BASE_TABLE_KEY(this, table);
-  DBUG_RETURN(error);
+  DBUG_VOID_RETURN;
 }
 
 void ha_mroonga::storage_rebind()
@@ -16992,22 +16992,17 @@ void ha_mroonga::storage_rebind()
   DBUG_VOID_RETURN;
 }
 
-int ha_mroonga::rebind()
+void ha_mroonga::rebind_psi()
 {
   MRN_DBUG_ENTER_METHOD();
-  if (int error= handler::rebind())
-    DBUG_RETURN(error);
+  handler::rebind_psi();
   if (share->wrapper_mode)
   {
-    if (int error= wrapper_rebind())
-    {
-      handler::unbind_psi();
-      DBUG_RETURN(error);
-    }
+    wrapper_rebind();
   } else {
     storage_rebind();
   }
-  DBUG_RETURN(0);
+  DBUG_VOID_RETURN;
 }
 #endif
 

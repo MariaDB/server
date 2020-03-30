@@ -1038,7 +1038,9 @@ struct TABLE_SHARE
     discovering the table over and over again
   */
   int init_from_binary_frm_image(THD *thd, bool write,
-                                 const uchar *frm_image, size_t frm_length);
+                                 const uchar *frm_image, size_t frm_length,
+                                 const uchar *par_image=0,
+                                 size_t par_length=0);
 
   /*
     populates TABLE_SHARE from the table description, specified as the
@@ -1053,7 +1055,9 @@ struct TABLE_SHARE
     writes the frm image to an frm file, corresponding to this table
   */
   bool write_frm_image(const uchar *frm_image, size_t frm_length);
+  bool write_par_image(const uchar *par_image, size_t par_length);
 
+  /* Only used by tokudb */
   bool write_frm_image(void)
   { return frm_image ? write_frm_image(frm_image->str, frm_image->length) : 0; }
 

@@ -1957,13 +1957,14 @@ retry_share:
   if (table)
   {
     DBUG_ASSERT(table->file != NULL);
-    if (table->file->rebind() == HA_ERR_TABLE_DEF_CHANGED)
+    if (table->file->discover_check_version())
     {
       tc_release_table(table);
       (void) ot_ctx->request_backoff_action(Open_table_context::OT_DISCOVER,
                                             table_list);
       DBUG_RETURN(TRUE);
     }
+    table->file->rebind_psi();
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     part_names_error= set_partitions_as_used(table_list, table);
 #endif

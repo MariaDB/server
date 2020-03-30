@@ -10,10 +10,17 @@ ALTER TABLE t1 ENGINE=S3;
 SELECT count(*) FROM t1;
 count(*)
 6
+SHOW TABLES;
+Tables_in_s3
+t1
 ALTER TABLE t1 COALESCE PARTITION 2;
-ERROR HY000: Storage engine S3 of the table `s3`.`t1` doesn't have this option
+ERROR 42000: Table 't1' uses an extension that doesn't exist in this MariaDB version
+SHOW WARNINGS;
+Level	Code	Message
+Error	1112	Table 't1' uses an extension that doesn't exist in this MariaDB version
+Error	6	Error on delete of './s3/t1#P#p0#TMP#.MAI' (Errcode: 2 "No such file or directory")
+Error	6	Error on delete of './s3/t1#P#p0#TMP#.MAD' (Errcode: 2 "No such file or directory")
 ALTER TABLE t1 ADD PARTITION PARTITIONS 6;
-ERROR HY000: Storage engine S3 of the table `s3`.`t1` doesn't have this option
 SELECT count(*) FROM t1;
 count(*)
 6
@@ -61,7 +68,7 @@ SELECT count(*) FROM t2;
 count(*)
 6
 ALTER TABLE t2 REBUILD PARTITION p0, p1;
-ERROR HY000: Storage engine S3 of the table `s3`.`t2` doesn't have this option
+ERROR 42000: Table 't2' uses an extension that doesn't exist in this MariaDB version
 ALTER TABLE t2 OPTIMIZE PARTITION p0, p1;
 Table	Op	Msg_type	Msg_text
 s3.t2	optimize	Error	Table 't2' is read only
@@ -77,14 +84,38 @@ SELECT count(*) FROM t2;
 count(*)
 6
 ALTER TABLE t2 ADD PARTITION (PARTITION p4 VALUES LESS THAN (400));
-ERROR HY000: Storage engine S3 of the table `s3`.`t2` doesn't have this option
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL
+) ENGINE=S3 DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`c1`)
+SUBPARTITION BY HASH (`c2`)
+SUBPARTITIONS 2
+(PARTITION `p0` VALUES LESS THAN (100) ENGINE = S3,
+ PARTITION `p1` VALUES LESS THAN (200) ENGINE = S3,
+ PARTITION `p3` VALUES LESS THAN (300) ENGINE = S3,
+ PARTITION `p4` VALUES LESS THAN (400) ENGINE = S3)
 ALTER TABLE t2
-REORGANIZE PARTITION p3 INTO (
+REORGANIZE PARTITION p4 INTO (
 PARTITION n0 VALUES LESS THAN (500),
 PARTITION n1 VALUES LESS THAN (600)
 );
-ERROR HY000: Storage engine S3 of the table `s3`.`t2` doesn't have this option
+ERROR 42000: Table 't2' uses an extension that doesn't exist in this MariaDB version
 ALTER TABLE t2 DROP PARTITION p3;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL
+) ENGINE=S3 DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`c1`)
+SUBPARTITION BY HASH (`c2`)
+SUBPARTITIONS 2
+(PARTITION `p0` VALUES LESS THAN (100) ENGINE = S3,
+ PARTITION `p1` VALUES LESS THAN (200) ENGINE = S3,
+ PARTITION `p4` VALUES LESS THAN (400) ENGINE = S3)
 SELECT count(*) from t2;
 count(*)
 4
@@ -99,6 +130,12 @@ count(*)
 4
 # Test for REMOVE PARTITIONING
 ALTER TABLE t2 REMOVE PARTITIONING;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL
+) ENGINE=S3 DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 SELECT count(*) FROM t2;
 count(*)
 4

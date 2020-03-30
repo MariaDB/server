@@ -2,7 +2,6 @@
 --source include/have_s3.inc
 --source create_database.inc
 
-
 --echo # Test for COALESCE PARTITION, ALTER TABLE and ADD PARTITIONS
 --echo # for tables with HASH partitions
 CREATE TABLE t1 (
@@ -13,11 +12,15 @@ CREATE TABLE t1 (
 INSERT INTO t1 VALUE (1), (2), (101), (102), (201), (202);
 ALTER TABLE t1 ENGINE=S3;
 SELECT count(*) FROM t1;
+# Check that partition tables are not shown;
 --replace_result $database s3
---error ER_ILLEGAL_HA
+SHOW TABLES;
+
+--replace_result $database s3
+--error ER_UNSUPPORTED_EXTENSION
 ALTER TABLE t1 COALESCE PARTITION 2;
 --replace_result $database s3
---error ER_ILLEGAL_HA
+SHOW WARNINGS;
 ALTER TABLE t1 ADD PARTITION PARTITIONS 6;
 SELECT count(*) FROM t1;
 ALTER TABLE t1 ADD COLUMN c INT;
@@ -55,7 +58,7 @@ SELECT count(*) FROM t2;
 ALTER TABLE t2 CHECK PARTITION p3;
 SELECT count(*) FROM t2;
 --replace_result $database s3
---error ER_ILLEGAL_HA
+--error ER_UNSUPPORTED_EXTENSION
 ALTER TABLE t2 REBUILD PARTITION p0, p1;
 --replace_result $database s3
 ALTER TABLE t2 OPTIMIZE PARTITION p0, p1;
@@ -64,16 +67,17 @@ SELECT count(*) FROM t2;
 ALTER TABLE t2 REPAIR PARTITION p0, p1;
 SELECT count(*) FROM t2;
 --replace_result $database s3
---error ER_ILLEGAL_HA
 ALTER TABLE t2 ADD PARTITION (PARTITION p4 VALUES LESS THAN (400));
+SHOW CREATE TABLE t2;
 --replace_result $database s3
---error ER_ILLEGAL_HA
+--error ER_UNSUPPORTED_EXTENSION
 ALTER TABLE t2
-    REORGANIZE PARTITION p3 INTO (
+    REORGANIZE PARTITION p4 INTO (
         PARTITION n0 VALUES LESS THAN (500),
         PARTITION n1 VALUES LESS THAN (600)
 );
 ALTER TABLE t2 DROP PARTITION p3;
+SHOW CREATE TABLE t2;
 SELECT count(*) from t2;
 
 --echo # Test for ALTER TABLE
@@ -84,6 +88,7 @@ SELECT count(*) FROM t2;
 
 --echo # Test for REMOVE PARTITIONING
 ALTER TABLE t2 REMOVE PARTITIONING;
+SHOW CREATE TABLE t2;
 SELECT count(*) FROM t2;
 DROP TABLE t2;
 

@@ -5906,6 +5906,8 @@ mysql_execute_command(THD *thd)
   case SQLCOM_CALL:
   case SQLCOM_REVOKE:
   case SQLCOM_GRANT:
+    if (thd->variables.option_bits & OPTION_IF_EXISTS)
+      lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
     DBUG_ASSERT(lex->m_sql_cmd != NULL);
     res= lex->m_sql_cmd->execute(thd);
     DBUG_PRINT("result", ("res: %d  killed: %d  is_error: %d",

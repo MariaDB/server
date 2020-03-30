@@ -4,7 +4,8 @@
 --source include/have_debug.inc
 --source include/have_innodb.inc
 --source include/have_partition.inc
-# Don't test this under valgrind, memory leaks will occur
+# Don't test this under valgrind, memory leaks will occur. Also SIGKILL may
+# not get trough and the test will hang.
 --source include/not_valgrind.inc
 # Crash tests don't work with embedded
 --source include/not_embedded.inc

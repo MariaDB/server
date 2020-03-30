@@ -34,8 +34,8 @@ static void convert_index_to_s3_format(uchar *header, ulong block_size,
 static void convert_index_to_disk_format(uchar *header);
 static void convert_frm_to_s3_format(uchar *header);
 static void convert_frm_to_disk_format(uchar *header);
-static int s3_read_frm_from_disk(const char *filename, uchar **to,
-                                 size_t *to_size);
+static int s3_read_file_from_disk(const char *filename, uchar **to,
+                                  size_t *to_size, my_bool print_error);
 
 /* Used by ha_s3.cc and tools to define different protocol options */
 
@@ -120,6 +120,7 @@ S3_INFO *s3_info_copy(S3_INFO *old)
                        &tmp.bucket.str,     old->bucket.length+1,
                        &tmp.database.str,   old->database.length+1,
                        &tmp.table.str,      old->table.length+1,
+                       &tmp.base_table.str, old->base_table.length+1,
                        NullS))
     return 0;
   /* Copy lengths and new pointers to to */
@@ -132,6 +133,7 @@ S3_INFO *s3_info_copy(S3_INFO *old)
   /* Database may not be null terminated */
   strmake((char*) to->database.str,  old->database.str, old->database.length);
   strmov((char*) to->table.str,      old->table.str);
+  strmov((char*) to->base_table.str, old->base_table.str);
   return to;
 }
 
@@ -156,6 +158,17 @@ ms3_st *s3_open_connection(S3_INFO *s3)
     ms3_set_option(s3_client, MS3_OPT_FORCE_PROTOCOL_VERSION,
                    &s3->protocol_version);
   return s3_client;
+}
+
+/**
+   close a connection to s3
+*/
+
+void s3_deinit(ms3_st *s3_client)
+{
+  DBUG_PUSH("");                                /* Avoid tracing free calls */
+  ms3_deinit(s3_client);
+  DBUG_POP();
 }
 
 
@@ -190,7 +203,7 @@ static void fix_suffix(char *to_end, ulong nr)
 */
 
 static my_bool copy_from_file(ms3_st *s3_client, const char *aws_bucket,
-                              const char *aws_path,
+                              char *aws_path,
                               File file, my_off_t start, my_off_t file_end,
                               uchar *block, size_t block_size,
                               my_bool compression, my_bool display)
@@ -327,7 +340,7 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
       ensure that discovery of the table will work.
     */
     fn_format(filename, path, "", ".frm", MY_REPLACE_EXT);
-    if (!s3_read_frm_from_disk(filename, &alloc_block, &frm_length))
+    if (!s3_read_file_from_disk(filename, &alloc_block, &frm_length,0))
     {
       if (display)
         printf("Copying frm file %s\n", filename);
@@ -455,7 +468,7 @@ err:
   if (frm_created)
   {
     end= strmov(aws_path_end,"/frm");
-    (void) s3_delete_object(s3_client, aws_bucket, aws_path, 0);
+    (void) s3_delete_object(s3_client, aws_bucket, aws_path, MYF(ME_NOTE));
   }
   if (file >= 0)
     my_close(file, MYF(0));
@@ -710,7 +723,7 @@ int aria_delete_from_s3(ms3_st *s3_client, const char *aws_bucket,
     printf("Delete of base information and frm\n");
 
   strmov(aws_path_end,"/aria");
-  if (s3_delete_object(s3_client, aws_bucket, aws_path, 1))
+  if (s3_delete_object(s3_client, aws_bucket, aws_path, MYF(MY_WME)))
     error= 1;
 
   /*
@@ -719,7 +732,7 @@ int aria_delete_from_s3(ms3_st *s3_client, const char *aws_bucket,
   */
   strmov(aws_path_end,"/frm");
   /* Ignore error if .frm file doesn't exist */
-  s3_delete_object(s3_client, aws_bucket, aws_path, 0);
+  s3_delete_object(s3_client, aws_bucket, aws_path, MYF(ME_NOTE));
 
   DBUG_RETURN(error);
 }
@@ -728,7 +741,6 @@ int aria_delete_from_s3(ms3_st *s3_client, const char *aws_bucket,
 /**
   Rename a table in s3
 */
-
 
 int aria_rename_s3(ms3_st *s3_client, const char *aws_bucket,
                    const char *from_database, const char *from_table,
@@ -759,28 +771,149 @@ int aria_rename_s3(ms3_st *s3_client, const char *aws_bucket,
   strmov(to_aws_path_end,"/index");
 
   error= s3_rename_directory(s3_client, aws_bucket, from_aws_path, to_aws_path,
-                             1);
+                             MYF(MY_WME));
 
   strmov(from_aws_path_end,"/data");
   strmov(to_aws_path_end,"/data");
 
   error|= s3_rename_directory(s3_client, aws_bucket, from_aws_path,
-                              to_aws_path, 1);
+                              to_aws_path, MYF(MY_WME));
 
   if (rename_frm) {
     strmov(from_aws_path_end, "/frm");
     strmov(to_aws_path_end, "/frm");
 
-    s3_rename_object(s3_client, aws_bucket, from_aws_path, to_aws_path, 1);
+    s3_rename_object(s3_client, aws_bucket, from_aws_path, to_aws_path,
+                     MYF(MY_WME));
   }
 
   strmov(from_aws_path_end,"/aria");
   strmov(to_aws_path_end,"/aria");
-  if (s3_rename_object(s3_client, aws_bucket, from_aws_path, to_aws_path, 1))
+  if (s3_rename_object(s3_client, aws_bucket, from_aws_path, to_aws_path,
+                       MYF(MY_WME)))
     error= 1;
   DBUG_RETURN(error);
 }
 
+/**
+   Copy all partition files related to a table from S3 (.frm and .par)
+
+   @param s3_client   s3 client connection
+   @param aws_bucket  bucket to use
+   @param path        The path to the partitioned table files (no extension)
+   @param old_path    In some cases the partioned files are not yet renamed.
+                      This points to the temporary files that will later
+                      be renamed to the partioned table
+   @param database    Database for the partitioned table
+   @param database    table name for the partitioned table
+*/
+
+int partition_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
+                         const char *path, const char *old_path,
+                         const char *database, const char *table_name)
+{
+  char aws_path[FN_REFLEN+100];
+  char filename[FN_REFLEN];
+  char *aws_path_end;
+  uchar *alloc_block= 0;
+  ms3_status_st status;
+  size_t frm_length;
+  int error;
+  DBUG_ENTER("partition_copy_to_s3");
+  DBUG_PRINT("enter",("from: %s  database: %s  table: %s",
+                      path, database, table_name));
+
+  if (!old_path)
+    old_path= path;
+
+  aws_path_end= strxmov(aws_path, database, "/", table_name, "/", NullS);
+  strmov(aws_path_end, "frm");
+  fn_format(filename, old_path, "", ".frm", MY_REPLACE_EXT);
+
+  /* Just to be safe, delete any conflicting object */
+  if (!ms3_status(s3_client, aws_bucket, aws_path, &status))
+  {
+    if ((error= s3_delete_object(s3_client, aws_bucket, aws_path,
+                                 MYF(ME_FATAL))))
+      DBUG_RETURN(error);
+  }
+  if ((error= s3_read_file_from_disk(filename, &alloc_block, &frm_length, 0)))
+  {
+    /*
+      In case of ADD PARTITION PARTITON the .frm file is already renamed.
+      Copy the renamed file if it exists.
+    */
+    fn_format(filename, path, "", ".frm", MY_REPLACE_EXT);
+    if ((error= s3_read_file_from_disk(filename, &alloc_block, &frm_length,
+                                       1)))
+      goto err;
+  }
+  if ((error= s3_put_object(s3_client, aws_bucket, aws_path, alloc_block,
+                            frm_length, 0)))
+    goto err;
+
+  /*
+    Note that because ha_partiton::rename_table() is called before
+    this function, the .par table already has it's final name!
+  */
+  fn_format(filename, path, "", ".par", MY_REPLACE_EXT);
+  strmov(aws_path_end, "par");
+  if (!ms3_status(s3_client, aws_bucket, aws_path, &status))
+  {
+    if ((error= s3_delete_object(s3_client, aws_bucket, aws_path,
+                                 MYF(ME_FATAL))))
+      goto err;
+  }
+
+  my_free(alloc_block);
+  alloc_block= 0;
+  if ((error=s3_read_file_from_disk(filename, &alloc_block, &frm_length, 1)))
+    goto err;
+  if ((error= s3_put_object(s3_client, aws_bucket, aws_path, alloc_block,
+                            frm_length, 0)))
+  {
+    /* Delete the .frm file created above */
+    strmov(aws_path_end, "frm");
+    (void) s3_delete_object(s3_client, aws_bucket, aws_path,
+                            MYF(ME_FATAL));
+    goto err;
+  }
+  error= 0;
+
+err:
+  my_free(alloc_block);
+  DBUG_RETURN(error);
+}
+
+
+/**
+   Drop all partition files related to a table from S3
+*/
+
+int partition_delete_from_s3(ms3_st *s3_client, const char *aws_bucket,
+                             const char *database, const char *table,
+                             myf error_flags)
+{
+  char aws_path[FN_REFLEN+100];
+  char *aws_path_end;
+  int error=0, res;
+  DBUG_ENTER("partition_delete_from_s3");
+
+  aws_path_end= strxmov(aws_path, database, "/", table, NullS);
+  strmov(aws_path_end, "/par");
+
+  if ((res= s3_delete_object(s3_client, aws_bucket, aws_path, error_flags)))
+    error= res;
+  /*
+    Delete .frm last as this is used by discovery to check if a s3 table
+    exists
+  */
+  strmov(aws_path_end, "/frm");
+  if ((res= s3_delete_object(s3_client, aws_bucket, aws_path, error_flags)))
+    error= res;
+
+  DBUG_RETURN(error);
+}
 
 /******************************************************************************
  Low level functions interfacing with libmarias3
@@ -794,9 +927,9 @@ int aria_rename_s3(ms3_st *s3_client, const char *aws_bucket,
 
 */
 
-my_bool s3_put_object(ms3_st *s3_client, const char *aws_bucket,
-                      const char *name, uchar *data, size_t length,
-                      my_bool compression)
+int s3_put_object(ms3_st *s3_client, const char *aws_bucket,
+                   const char *name, uchar *data, size_t length,
+                   my_bool compression)
 {
   uint8_t error;
   const char *errmsg;
@@ -816,14 +949,14 @@ my_bool s3_put_object(ms3_st *s3_client, const char *aws_bucket,
   }
 
   if (likely(!(error= ms3_put(s3_client, aws_bucket, name, data, length))))
-    DBUG_RETURN(FALSE);
+    DBUG_RETURN(0);
 
   if (!(errmsg= ms3_server_error(s3_client)))
     errmsg= ms3_error(error);
 
   my_printf_error(EE_WRITE, "Got error from put_object(%s): %d %s", MYF(0),
                   name, error, errmsg);
-  DBUG_RETURN(TRUE);
+  DBUG_RETURN(EE_WRITE);
 }
 
 
@@ -835,11 +968,12 @@ my_bool s3_put_object(ms3_st *s3_client, const char *aws_bucket,
    @param print_error 2  Print error that table doesn't exists
 */
 
-my_bool s3_get_object(ms3_st *s3_client, const char *aws_bucket,
-                      const char *name, S3_BLOCK *block,
-                      my_bool compression, int print_error)
+int s3_get_object(ms3_st *s3_client, const char *aws_bucket,
+                  const char *name, S3_BLOCK *block,
+                  my_bool compression, int print_error)
 {
   uint8_t error;
+  int result= 0;
   uchar *data;
   DBUG_ENTER("s3_get_object");
   DBUG_PRINT("enter", ("name: %s  compression: %d", name, compression));
@@ -866,9 +1000,9 @@ my_bool s3_get_object(ms3_st *s3_client, const char *aws_bucket,
           s3_free(block);
           my_printf_error(HA_ERR_NOT_A_TABLE,
                           "Block '%s' is not compressed", MYF(0), name);
-          DBUG_RETURN(TRUE);
+          DBUG_RETURN(HA_ERR_NOT_A_TABLE);
         }
-        DBUG_RETURN(FALSE);
+        DBUG_RETURN(0);
       }
 
       if (((uchar*)block->str)[0] > 1)
@@ -876,7 +1010,7 @@ my_bool s3_get_object(ms3_st *s3_client, const char *aws_bucket,
         s3_free(block);
         my_printf_error(HA_ERR_NOT_A_TABLE,
                         "Block '%s' is not compressed", MYF(0), name);
-        DBUG_RETURN(TRUE);
+        DBUG_RETURN(HA_ERR_NOT_A_TABLE);
       }
 
       length= uint3korr(block->str+1);
@@ -885,7 +1019,7 @@ my_bool s3_get_object(ms3_st *s3_client, const char *aws_bucket,
                                      length, MYF(MY_WME | MY_THREAD_SPECIFIC))))
       {
         s3_free(block);
-        DBUG_RETURN(TRUE);
+        DBUG_RETURN(EE_OUTOFMEMORY);
       }
       if (uncompress(data, &length, block->str + COMPRESS_HEADER,
                      block->length - COMPRESS_HEADER))
@@ -894,23 +1028,27 @@ my_bool s3_get_object(ms3_st *s3_client, const char *aws_bucket,
                         "Got error uncompressing s3 packet", MYF(0));
         s3_free(block);
         my_free(data);
-        DBUG_RETURN(TRUE);
+        DBUG_RETURN(ER_NET_UNCOMPRESS_ERROR);
       }
       s3_free(block);
       block->str= block->alloc_ptr= data;
       block->length= length;
     }
-    DBUG_RETURN(FALSE);
+    DBUG_RETURN(0);
   }
-  if (print_error)
+
+  if (error == 9)
   {
-    if (error == 9)
-    {
-      my_errno= print_error == 1 ? EE_FILENOTFOUND : HA_ERR_NO_SUCH_TABLE;
+    result= my_errno= (print_error == 1 ? EE_FILENOTFOUND :
+                       HA_ERR_NO_SUCH_TABLE);
+    if (print_error)
       my_printf_error(my_errno, "Expected object '%s' didn't exist",
                       MYF(0), name);
-    }
-    else
+  }
+  else
+  {
+    result= my_errno= EE_READ;
+    if (print_error)
     {
       const char *errmsg;
       if (!(errmsg= ms3_server_error(s3_client)))
@@ -918,40 +1056,43 @@ my_bool s3_get_object(ms3_st *s3_client, const char *aws_bucket,
 
       my_printf_error(EE_READ, "Got error from get_object(%s): %d %s", MYF(0),
                       name, error, errmsg);
-      my_errno= EE_READ;
     }
   }
   s3_free(block);
-  DBUG_RETURN(TRUE);
+  DBUG_RETURN(result);
 }
 
 
-my_bool s3_delete_object(ms3_st *s3_client, const char *aws_bucket,
-                         const char *name, my_bool print_error)
+int s3_delete_object(ms3_st *s3_client, const char *aws_bucket,
+                         const char *name, myf error_flags)
 {
   uint8_t error;
+  int result;
   DBUG_ENTER("s3_delete_object");
   DBUG_PRINT("enter", ("name: %s", name));
 
   if (likely(!(error= ms3_delete(s3_client, aws_bucket, name))))
-    DBUG_RETURN(FALSE);
+    DBUG_RETURN(0);
 
-  if (print_error)
+  if (error_flags)
   {
+    error_flags&= ~MY_WME;
     if (error == 9)
-      my_printf_error(EE_FILENOTFOUND, "Expected object '%s' didn't exist",
-                      MYF(0), name);
+      my_printf_error(result= EE_FILENOTFOUND,
+                      "Expected object '%s' didn't exist",
+                      error_flags, name);
     else
     {
       const char *errmsg;
       if (!(errmsg= ms3_server_error(s3_client)))
         errmsg= ms3_error(error);
 
-      my_printf_error(EE_READ, "Got error from delete_object(%s): %d %s",
-                      MYF(0), name, error, errmsg);
+      my_printf_error(result= EE_READ,
+                      "Got error from delete_object(%s): %d %s",
+                      error_flags, name, error, errmsg);
     }
   }
-  DBUG_RETURN(TRUE);
+  DBUG_RETURN(result);
 }
 
 
@@ -980,7 +1121,7 @@ int s3_delete_directory(ms3_st *s3_client, const char *aws_bucket,
   }
 
   for (list= org_list ; list ; list= list->next)
-    if (s3_delete_object(s3_client, aws_bucket, list->key, 1))
+    if (s3_delete_object(s3_client, aws_bucket, list->key, MYF(MY_WME)))
       error= 1;
   if (org_list)
     ms3_list_free(org_list);
@@ -990,7 +1131,7 @@ int s3_delete_directory(ms3_st *s3_client, const char *aws_bucket,
 
 my_bool s3_rename_object(ms3_st *s3_client, const char *aws_bucket,
                          const char *from_name, const char *to_name,
-                         my_bool print_error)
+                         myf error_flags)
 {
   uint8_t error;
   DBUG_ENTER("s3_rename_object");
@@ -1001,12 +1142,13 @@ my_bool s3_rename_object(ms3_st *s3_client, const char *aws_bucket,
                                aws_bucket, to_name))))
     DBUG_RETURN(FALSE);
 
-  if (print_error)
+  if (error_flags)
   {
+    error_flags&= ~MY_WME;
     if (error == 9)
     {
       my_printf_error(EE_FILENOTFOUND, "Expected object '%s' didn't exist",
-                      MYF(0), from_name);
+                      error_flags, from_name);
     }
     else
     {
@@ -1015,7 +1157,7 @@ my_bool s3_rename_object(ms3_st *s3_client, const char *aws_bucket,
         errmsg= ms3_error(error);
 
       my_printf_error(EE_READ, "Got error from move_object(%s -> %s): %d %",
-                      MYF(0),
+                      error_flags,
                       from_name, to_name, error, errmsg);
     }
   }
@@ -1025,7 +1167,7 @@ my_bool s3_rename_object(ms3_st *s3_client, const char *aws_bucket,
 
 int s3_rename_directory(ms3_st *s3_client, const char *aws_bucket,
                         const char *from_name, const char *to_name,
-                        my_bool print_error)
+                        myf error_flags)
 {
   ms3_list_st *list, *org_list= 0;
   my_bool error= 0;
@@ -1039,7 +1181,8 @@ int s3_rename_directory(ms3_st *s3_client, const char *aws_bucket,
       errmsg= ms3_error(error);
 
     my_printf_error(EE_FILENOTFOUND,
-                    "Can't get list of files from %s. Error: %d %s", MYF(0),
+                    "Can't get list of files from %s. Error: %d %s",
+                    MYF(error_flags & ~MY_WME),
                     from_name, error, errmsg);
     DBUG_RETURN(EE_FILENOTFOUND);
   }
@@ -1052,7 +1195,7 @@ int s3_rename_directory(ms3_st *s3_client, const char *aws_bucket,
     {
       strmake(end, sep, (sizeof(name) - (end-name) - 1));
       if (s3_rename_object(s3_client, aws_bucket, list->key, name,
-                           print_error))
+                           error_flags))
         error= 1;
     }
   }
@@ -1180,18 +1323,19 @@ my_bool set_database_and_table_from_path(S3_INFO *s3, const char *path)
    Read frm from the disk
 */
 
-static int s3_read_frm_from_disk(const char *filename, uchar **to,
-                                 size_t *to_size)
+static int s3_read_file_from_disk(const char *filename, uchar **to,
+                                  size_t *to_size, my_bool print_error)
 {
   File file;
   uchar *alloc_block;
   size_t file_size;
+  int error;
 
   *to= 0;
   if ((file= my_open(filename,
                      O_RDONLY | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
-                     MYF(MY_WME))) < 0)
-    return(1);
+                     MYF(print_error ? MY_WME: 0))) < 0)
+    return(my_errno);
 
   file_size= (size_t) my_seek(file, 0L, MY_SEEK_END, MYF(0));
   if (!(alloc_block= my_malloc(PSI_NOT_INSTRUMENTED, file_size, MYF(MY_WME))))
@@ -1206,25 +1350,27 @@ static int s3_read_frm_from_disk(const char *filename, uchar **to,
   return 0;
 
 err:
+  error= my_errno;
   my_free(alloc_block);
   my_close(file, MYF(0));
-  return 1;
+  return error;
 }
 
 
 /**
-   Get .frm from S3
+   Get .frm or par from S3
 
    @return 0 ok
    @return 1 error
 */
 
-my_bool s3_get_frm(ms3_st *s3_client, S3_INFO *s3_info, S3_BLOCK *block)
+my_bool s3_get_def(ms3_st *s3_client, S3_INFO *s3_info, S3_BLOCK *block,
+                   const char *ext)
 {
   char aws_path[AWS_PATH_LENGTH];
 
   strxnmov(aws_path, sizeof(aws_path)-1, s3_info->database.str, "/",
-           s3_info->table.str, "/frm", NullS);
+           s3_info->table.str, "/", ext, NullS);
 
   return s3_get_object(s3_client, s3_info->bucket.str, aws_path, block,
                        0, 0);
@@ -1333,10 +1479,13 @@ int s3_check_frm_version(ms3_st *s3_client, S3_INFO *s3_info)
   DBUG_ENTER("s3_check_frm_version");
 
   strxnmov(aws_path, sizeof(aws_path)-1, s3_info->database.str, "/",
-           s3_info->table.str, "/frm", NullS);
+           s3_info->base_table.str, "/frm", NullS);
 
   if (s3_get_object(s3_client, s3_info->bucket.str, aws_path, &block, 0, 0))
+  {
+    DBUG_PRINT("exit", ("No object found"));
     DBUG_RETURN(2);                    /* Ignore check, use old frm */
+  }
 
   if (get_tabledef_version_from_frm(uuid, (uchar*) block.str, block.length) ||
       s3_info->tabledef_version.length != MY_UUID_SIZE)
@@ -1350,6 +1499,8 @@ int s3_check_frm_version(ms3_st *s3_client, S3_INFO *s3_info)
   s3_free(&block);
   if (res)
     DBUG_PRINT("error", ("Wrong table version"));
+  else
+    DBUG_PRINT("error", ("Version strings matches"));
   DBUG_RETURN(res);
 }
 

@@ -25,7 +25,8 @@
                                                 // primary_key_name
 #include "sql_parse.h"                          // free_items
 #include "strfunc.h"                            // unhex_type2
-#include "sql_partition.h"       // mysql_unpack_partition,
+#include "ha_partition.h"        // PART_EXT
+                                 // mysql_unpack_partition,
                                  // fix_partition_func, partition_info
 #include "sql_base.h"
 #include "create_options.h"
@@ -618,9 +619,13 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
                  path);
   if (flags & GTS_FORCE_DISCOVERY)
   {
+    const char *path2= share->normalized_path.str;
     DBUG_ASSERT(flags & GTS_TABLE);
     DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
-    mysql_file_delete_with_symlink(key_file_frm, path, "", MYF(0));
+    /* Delete .frm and .par files */
+    mysql_file_delete_with_symlink(key_file_frm, path2, reg_ext, MYF(0));
+    mysql_file_delete_with_symlink(key_file_partition_ddl_log, path2, PAR_EXT,
+                                   MYF(0));
     file= -1;
   }
   else
@@ -1669,6 +1674,9 @@ public:
 /**
   Read data from a binary .frm file image into a TABLE_SHARE
 
+  @param write   Write the .frm and .par file.  These are not created if
+                 the function returns an error.
+
   @note
   frm bytes at the following offsets are unused in MariaDB 10.0:
 
@@ -1679,12 +1687,13 @@ public:
 
   42..46 are unused since 5.0 (were for RAID support)
   Also, there're few unused bytes in forminfo.
-
 */
 
 int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                             const uchar *frm_image,
-                                            size_t frm_length)
+                                            size_t frm_length,
+                                            const uchar *par_image,
+                                            size_t par_length)
 {
   TABLE_SHARE *share= this;
   uint new_frm_ver, field_pack_length, new_field_pack_flag;
@@ -1715,23 +1724,30 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint len;
   uint ext_key_parts= 0;
   plugin_ref se_plugin= 0;
-  bool vers_can_native= false;
+  bool vers_can_native= false, frm_created= 0;
   Field_data_type_info_array field_data_type_info_array;
-
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
   extra2_fields extra2;
-
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   keyinfo= &first_keyinfo;
   thd->mem_root= &share->mem_root;
 
-  if (write && write_frm_image(frm_image, frm_length))
-    goto err;
-
   if (frm_length < FRM_HEADER_SIZE + FRM_FORMINFO_SIZE)
     goto err;
+
+  if (write)
+  {
+    frm_created= 1;
+    if (write_frm_image(frm_image, frm_length))
+      goto err;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (par_image)
+      if (write_par_image(par_image, par_length))
+        goto err;
+#endif
+  }
 
   share->frm_version= frm_image[2];
   /*
@@ -2069,6 +2085,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
       hash_fields++;
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (par_image && plugin_data(se_plugin, handlerton*) == partition_hton)
+  {
+    /*
+      Discovery returned a partition plugin. Change to use it. The partition
+      engine will then use discovery to find the rest of the plugin tables,
+      which may be in the original engine used for discovery
+    */
+    share->db_plugin= se_plugin;
+  }
+#endif
   if (share->db_plugin && !plugin_equals(share->db_plugin, se_plugin))
     goto err; // wrong engine (someone changed the frm under our feet?)
 
@@ -3196,6 +3223,19 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   DBUG_RETURN(0);
 
 err:
+  if (frm_created)
+  {
+    char path[FN_REFLEN+1];
+    strxnmov(path, FN_REFLEN, normalized_path.str, reg_ext, NullS);
+    my_delete(path, MYF(0));
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (par_image)
+    {
+      strxnmov(path, FN_REFLEN, normalized_path.str, PAR_EXT, NullS);
+      my_delete(path, MYF(0));
+    }
+#endif
+  }
   share->db_plugin= NULL;
   share->error= OPEN_FRM_CORRUPTED;
   share->open_errno= my_errno;
@@ -3361,7 +3401,19 @@ ret:
 
 bool TABLE_SHARE::write_frm_image(const uchar *frm, size_t len)
 {
-  return writefrm(normalized_path.str, db.str, table_name.str, false, frm, len);
+  char file_name[FN_REFLEN+1];
+  strxnmov(file_name, sizeof(file_name)-1, normalized_path.str, reg_ext,
+           NullS);
+  return writefile(file_name, db.str, table_name.str, false,
+                   frm, len);
+}
+
+bool TABLE_SHARE::write_par_image(const uchar *par, size_t len)
+{
+  char file_name[FN_REFLEN+1];
+  strxnmov(file_name, sizeof(file_name)-1, normalized_path.str, PAR_EXT,
+           NullS);
+  return writefile(file_name, db.str, table_name.str, false, par, len);
 }
 
 
@@ -4136,7 +4188,7 @@ partititon_err:
         the fact that table doesn't in fact exist and remove
         the stray .frm file.
       */
-      if (share->db_type()->discover_table &&
+      if (outparam->file->partition_ht()->discover_table &&
           (ha_err == ENOENT || ha_err == HA_ERR_NO_SUCH_TABLE))
         error= OPEN_FRM_DISCOVER;
 
