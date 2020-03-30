@@ -10578,6 +10578,18 @@ a	b	max_c	a	b	dayname(v1.b)
 DROP VIEW v1;
 DROP TABLE t1, t2;
 SET optimizer_switch=DEFAULT;
+#
+# MDEV-17177: an attempt to push down IN predicate when one of
+#             the arguments is too complex to be cloned
+#
+CREATE TABLE t1 (a VARCHAR(8));
+INSERT INTO t1 VALUES ('abc'),('def');
+CREATE VIEW v1 AS SELECT * FROM t1 GROUP BY a;
+SELECT * FROM v1 WHERE IF( a REGEXP 'def', 'foo', a ) IN ('abc', 'foobar');
+a
+abc
+DROP VIEW v1;
+DROP TABLE t1;
 # End of 10.2 tests
 #
 # MDEV-14579: pushdown conditions into materialized views/derived tables
@@ -16912,6 +16924,91 @@ Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` semi join ((/* select#3 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`ro_id` = `test`.`t1`.`id` and `test`.`t2`.`flag` = 1) where `test`.`t1`.`id` = `test`.`t1`.`id` group by `test`.`t1`.`id`) `dt`) where `dt`.`id` = `test`.`t1`.`id`
 drop view v1;
 drop table t1,t2;
+#
+# MDEV-21883: potentially splittable materialized derived
+#             that uses a join of 32 tables
+#
+CREATE TABLE t (id INT NOT NULL PRIMARY KEY);
+INSERT INTO t values (1),(2),(3);
+set statement optimizer_switch='split_materialized=off' for SELECT t.id FROM t
+LEFT JOIN (
+SELECT t0.id FROM t AS t0
+LEFT JOIN t AS t1 ON 0=1
+LEFT JOIN t AS t2 ON 0=1
+LEFT JOIN t AS t3 ON 0=1
+LEFT JOIN t AS t4 ON 0=1
+LEFT JOIN t AS t5 ON 0=1
+LEFT JOIN t AS t6 ON 0=1
+LEFT JOIN t AS t7 ON 0=1
+LEFT JOIN t AS t8 ON 0=1
+LEFT JOIN t AS t9 ON 0=1
+LEFT JOIN t AS t10 ON 0=1
+LEFT JOIN t AS t11 ON 0=1
+LEFT JOIN t AS t12 ON 0=1
+LEFT JOIN t AS t13 ON 0=1
+LEFT JOIN t AS t14 ON 0=1
+LEFT JOIN t AS t15 ON 0=1
+LEFT JOIN t AS t16 ON 0=1
+LEFT JOIN t AS t17 ON 0=1
+LEFT JOIN t AS t18 ON 0=1
+LEFT JOIN t AS t19 ON 0=1
+LEFT JOIN t AS t20 ON 0=1
+LEFT JOIN t AS t21 ON 0=1
+LEFT JOIN t AS t22 ON 0=1
+LEFT JOIN t AS t23 ON 0=1
+LEFT JOIN t AS t24 ON 0=1
+LEFT JOIN t AS t25 ON 0=1
+LEFT JOIN t AS t26 ON 0=1
+LEFT JOIN t AS t27 ON 0=1
+LEFT JOIN t AS t28 ON 0=1
+LEFT JOIN t AS t29 ON 0=1
+LEFT JOIN t AS t30 ON 0=1
+LEFT JOIN t AS t31 ON 0=1
+GROUP BY t0.id) AS dt ON dt.id = t.id;
+id
+1
+2
+3
+set statement optimizer_switch='split_materialized=on' for SELECT t.id FROM t
+LEFT JOIN (
+SELECT t0.id FROM t AS t0
+LEFT JOIN t AS t1 ON 0=1
+LEFT JOIN t AS t2 ON 0=1
+LEFT JOIN t AS t3 ON 0=1
+LEFT JOIN t AS t4 ON 0=1
+LEFT JOIN t AS t5 ON 0=1
+LEFT JOIN t AS t6 ON 0=1
+LEFT JOIN t AS t7 ON 0=1
+LEFT JOIN t AS t8 ON 0=1
+LEFT JOIN t AS t9 ON 0=1
+LEFT JOIN t AS t10 ON 0=1
+LEFT JOIN t AS t11 ON 0=1
+LEFT JOIN t AS t12 ON 0=1
+LEFT JOIN t AS t13 ON 0=1
+LEFT JOIN t AS t14 ON 0=1
+LEFT JOIN t AS t15 ON 0=1
+LEFT JOIN t AS t16 ON 0=1
+LEFT JOIN t AS t17 ON 0=1
+LEFT JOIN t AS t18 ON 0=1
+LEFT JOIN t AS t19 ON 0=1
+LEFT JOIN t AS t20 ON 0=1
+LEFT JOIN t AS t21 ON 0=1
+LEFT JOIN t AS t22 ON 0=1
+LEFT JOIN t AS t23 ON 0=1
+LEFT JOIN t AS t24 ON 0=1
+LEFT JOIN t AS t25 ON 0=1
+LEFT JOIN t AS t26 ON 0=1
+LEFT JOIN t AS t27 ON 0=1
+LEFT JOIN t AS t28 ON 0=1
+LEFT JOIN t AS t29 ON 0=1
+LEFT JOIN t AS t30 ON 0=1
+LEFT JOIN t AS t31 ON 0=1
+GROUP BY t0.id) AS dt ON dt.id = t.id;
+id
+1
+2
+3
+DROP TABLE t;
 # End of 10.3 tests
 #
 # MDEV-18679: materialized view with SELECT S containing materialized

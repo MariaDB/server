@@ -971,7 +971,7 @@ public:
 
 	/** Return the next fil_space_t from key rotation list.
 	Once started, the caller must keep calling this until it returns NULL.
-	fil_space_acquire() and fil_space_release() are invoked here which
+	fil_space_acquire() and fil_space_t::release() are invoked here, which
 	blocks a concurrent operation from dropping the tablespace.
 	@param[in]      prev_space      Previous tablespace or NULL to start
 					from beginning of fil_system->rotation

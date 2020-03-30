@@ -27,7 +27,7 @@ include/start_slave.inc
 DO_DOMAIN_IDS (AFTER)     : 
 IGNORE_DOMAIN_IDS (AFTER) : 
 SET @saved_dbug = @@GLOBAL.debug_dbug;
-SET @@global.debug_dbug="+d,kill_slave_io_before_commit";
+SET @@global.debug_dbug="d,kill_slave_io_before_commit";
 connection master;
 START TRANSACTION;
 INSERT INTO t1 VALUES(2);
@@ -43,7 +43,7 @@ include/wait_for_slave_io_error.inc [errno=1595]
 SELECT * FROM t1;
 i
 1
-SET @@global.debug_dbug="-d";
+SET @@global.debug_dbug=@saved_dbug;
 START SLAVE io_thread;
 include/wait_for_slave_io_to_start.inc
 SELECT * FROM t1;
@@ -61,7 +61,7 @@ CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
 DO_DOMAIN_IDS (AFTER)     : 
 IGNORE_DOMAIN_IDS (AFTER) : 1
-SET @@global.debug_dbug="+d,kill_slave_io_before_commit";
+SET @@global.debug_dbug="d,kill_slave_io_before_commit";
 connection master;
 START TRANSACTION;
 INSERT INTO t1 VALUES(4);
@@ -81,7 +81,7 @@ i
 1
 2
 3
-SET @@global.debug_dbug="-d";
+SET @@global.debug_dbug=@saved_dbug;
 START SLAVE io_thread;
 include/wait_for_slave_io_to_start.inc
 SELECT * FROM t1;
@@ -99,7 +99,7 @@ CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
 DO_DOMAIN_IDS (AFTER)     : 
 IGNORE_DOMAIN_IDS (AFTER) : 
-SET @@global.debug_dbug="+d,kill_slave_io_before_commit";
+SET @@global.debug_dbug="d,kill_slave_io_before_commit";
 connection master;
 START TRANSACTION;
 INSERT INTO t1 VALUES(6);
@@ -134,7 +134,7 @@ i
 1
 2
 3
-SET @@global.debug_dbug="-d";
+SET @@global.debug_dbug=@saved_dbug;
 include/stop_slave.inc
 DO_DOMAIN_IDS (BEFORE)     : 
 IGNORE_DOMAIN_IDS (BEFORE) : 
@@ -159,7 +159,7 @@ CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
 DO_DOMAIN_IDS (AFTER)     : 
 IGNORE_DOMAIN_IDS (AFTER) : 1
-SET @@global.debug_dbug="+d,kill_slave_io_before_commit";
+SET @@global.debug_dbug="d,kill_slave_io_before_commit";
 connection master;
 SET @@session.gtid_domain_id= 1;
 START TRANSACTION;
@@ -203,7 +203,7 @@ i
 3
 10
 11
-SET @@global.debug_dbug="-d";
+SET @@global.debug_dbug=@saved_dbug;
 include/stop_slave.inc
 DO_DOMAIN_IDS (BEFORE)     : 
 IGNORE_DOMAIN_IDS (BEFORE) : 1
@@ -232,7 +232,7 @@ CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
 DO_DOMAIN_IDS (AFTER)     : 
 IGNORE_DOMAIN_IDS (AFTER) : 1
-SET @@global.debug_dbug="+d,kill_slave_io_after_2_events";
+SET @@global.debug_dbug="d,kill_slave_io_after_2_events";
 connection master;
 SET @@session.gtid_domain_id= 1;
 START TRANSACTION;
@@ -286,7 +286,7 @@ i
 15
 16
 17
-SET @@global.debug_dbug="-d";
+SET @@global.debug_dbug=@saved_dbug;
 include/stop_slave.inc
 DO_DOMAIN_IDS (BEFORE)     : 
 IGNORE_DOMAIN_IDS (BEFORE) : 1
@@ -319,7 +319,7 @@ CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
 DO_DOMAIN_IDS (AFTER)     : 
 IGNORE_DOMAIN_IDS (AFTER) : 
-SET @@global.debug_dbug="+d,kill_slave_io_after_2_events";
+SET @@global.debug_dbug="d,kill_slave_io_after_2_events";
 connection master;
 SET @@session.gtid_domain_id= 1;
 START TRANSACTION;
@@ -383,7 +383,7 @@ i
 21
 22
 23
-SET @@global.debug_dbug="-d";
+SET @@global.debug_dbug=@saved_dbug;
 include/stop_slave.inc
 DO_DOMAIN_IDS (BEFORE)     : 
 IGNORE_DOMAIN_IDS (BEFORE) : 

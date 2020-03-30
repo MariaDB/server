@@ -43,10 +43,8 @@ Created 3/26/1996 Heikki Tuuri
 const dtuple_t trx_undo_metadata = {
 	/* This also works for REC_INFO_METADATA_ALTER, because the
 	delete-mark (REC_INFO_DELETED_FLAG) is ignored when searching. */
-	REC_INFO_METADATA_ADD,
-	0, 0,
-	NULL, 0, NULL,
-	UT_LIST_NODE_T(dtuple_t)()
+	REC_INFO_METADATA_ADD, 0, 0,
+	NULL, 0, NULL
 #ifdef UNIV_DEBUG
 	, DATA_TUPLE_MAGIC_N
 #endif /* UNIV_DEBUG */

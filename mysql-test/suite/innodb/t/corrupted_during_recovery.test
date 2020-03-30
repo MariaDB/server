@@ -63,3 +63,31 @@ SELECT * FROM t2;
 CHECK TABLE t2;
 
 DROP TABLE t1, t2;
+
+# MDEV-21572 buf_page_get_gen() should apply buffered page
+# initialized redo log during recovery
+--source ../include/no_checkpoint_start.inc
+CREATE TABLE t1(pk SERIAL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3);
+connect (con1,localhost,root,,);
+BEGIN;
+DELETE FROM t1 WHERE pk=1;
+connection default;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t1 WHERE pk=3;
+--let CLEANUP_IF_CHECKPOINT=DROP TABLE t1;
+--source ../include/no_checkpoint_end.inc
+disconnect con1;
+
+--echo # Corrupt the pages
+perl;
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+seek (FILE, $ENV{INNODB_PAGE_SIZE} * 3, SEEK_SET) or die "seek";
+print FILE "junk";
+close FILE or die "close";
+EOF
+--source include/start_mysqld.inc
+SELECT * FROM t1;
+DROP TABLE t1;

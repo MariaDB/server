@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2559,42 +2559,46 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
 /**
   @brief
     Building clone for Item_func_or_sum
-    
+
   @param thd        thread handle
-  @param mem_root   part of the memory for the clone   
+  @param mem_root   part of the memory for the clone
 
   @details
-    This method gets copy of the current item and also 
-    build clones for its referencies. For the referencies 
-    build_copy is called again.
-      
-   @retval
-     clone of the item
-     0 if an error occurred
-*/ 
+    This method first builds clones of the arguments. If it is successful with
+    buiding the clones then it constructs a copy of this Item_func_or_sum object
+    and attaches to it the built clones of the arguments.
+
+   @return clone of the item
+   @retval 0 on a failure
+*/
 
 Item* Item_func_or_sum::build_clone(THD *thd)
 {
-  Item_func_or_sum *copy= (Item_func_or_sum *) get_copy(thd);
-  if (unlikely(!copy))
-    return 0;
+  Item *copy_tmp_args[2]= {0,0};
+  Item **copy_args= copy_tmp_args;
   if (arg_count > 2)
   {
-    copy->args= 
-      (Item**) alloc_root(thd->mem_root, sizeof(Item*) * arg_count);
-    if (unlikely(!copy->args))
+    copy_args= static_cast<Item**>
+      (alloc_root(thd->mem_root, sizeof(Item*) * arg_count));
+    if (unlikely(!copy_args))
       return 0;
   }
-  else if (arg_count > 0)
-    copy->args= copy->tmp_arg;
-
-   
   for (uint i= 0; i < arg_count; i++)
   {
     Item *arg_clone= args[i]->build_clone(thd);
-    if (!arg_clone)
+    if (unlikely(!arg_clone))
       return 0;
-    copy->args[i]= arg_clone;
+    copy_args[i]= arg_clone;
+  }
+  Item_func_or_sum *copy= static_cast<Item_func_or_sum *>(get_copy(thd));
+  if (unlikely(!copy))
+    return 0;
+  if (arg_count > 2)
+    copy->args= copy_args;
+  else if (arg_count > 0)
+  {
+    copy->args= copy->tmp_arg;
+    memcpy(copy->args, copy_args, sizeof(Item *) * arg_count);
   }
   return copy;
 }
