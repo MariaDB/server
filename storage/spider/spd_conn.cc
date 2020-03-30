@@ -4544,6 +4544,7 @@ SPIDER_IP_PORT_CONN* spider_create_ipport_conn(SPIDER_CONN *conn)
     memcpy(ret->key, conn->conn_key, ret->key_len);
 
     strncpy(ret->remote_ip_str, conn->tgt_host, sizeof(ret->remote_ip_str));
+    ret->remote_ip_str[sizeof ret->remote_ip_str - 1] = '\0';
     ret->remote_port = conn->tgt_port;
     ret->conn_id = conn->conn_id;
     ret->ip_port_count = 1; // init
