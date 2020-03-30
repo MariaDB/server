@@ -5003,7 +5003,8 @@ mysql_execute_command(THD *thd)
     if (thd->variables.option_bits & OPTION_TABLE_LOCK)
     {
       res= trans_commit_implicit(thd);
-      thd->locked_tables_list.unlock_locked_tables(thd);
+      if (thd->locked_tables_list.unlock_locked_tables(thd))
+        res= 1;
       thd->mdl_context.release_transactional_locks();
       thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
     }
@@ -5017,7 +5018,8 @@ mysql_execute_command(THD *thd)
   case SQLCOM_LOCK_TABLES:
     /* We must end the transaction first, regardless of anything */
     res= trans_commit_implicit(thd);
-    thd->locked_tables_list.unlock_locked_tables(thd);
+    if (thd->locked_tables_list.unlock_locked_tables(thd))
+      res= 1;
     /* Release transactional metadata locks. */
     thd->mdl_context.release_transactional_locks();
     if (res)

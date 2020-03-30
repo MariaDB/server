@@ -103,7 +103,8 @@ bool trans_begin(THD *thd, uint flags)
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
 
-  thd->locked_tables_list.unlock_locked_tables(thd);
+  if (thd->locked_tables_list.unlock_locked_tables(thd))
+    DBUG_RETURN(true);
 
   DBUG_ASSERT(!thd->locked_tables_mode);
 

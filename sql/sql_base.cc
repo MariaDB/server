@@ -772,9 +772,10 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
     leave prelocked mode if needed.
 */
 
-void close_thread_tables(THD *thd)
+int close_thread_tables(THD *thd)
 {
   TABLE *table;
+  int error= 0;
   DBUG_ENTER("close_thread_tables");
 
   THD_STAGE_INFO(thd, stage_closing_tables);
@@ -874,7 +875,7 @@ void close_thread_tables(THD *thd)
       we will exit this function a few lines below.
     */
     if (! thd->lex->requires_prelocking())
-      DBUG_VOID_RETURN;
+      DBUG_RETURN(0);
 
     /*
       We are in the top-level statement of a prelocked statement,
@@ -885,7 +886,7 @@ void close_thread_tables(THD *thd)
       thd->locked_tables_mode= LTM_LOCK_TABLES;
 
     if (thd->locked_tables_mode == LTM_LOCK_TABLES)
-      DBUG_VOID_RETURN;
+      DBUG_RETURN(0);
 
     thd->leave_locked_tables_mode();
 
@@ -904,7 +905,7 @@ void close_thread_tables(THD *thd)
       binlog_query()) or when preparing a pending event.
      */
     (void)thd->binlog_flush_pending_rows_event(TRUE);
-    mysql_unlock_tables(thd, thd->lock);
+    error= mysql_unlock_tables(thd, thd->lock);
     thd->lock=0;
   }
   /*
@@ -914,7 +915,7 @@ void close_thread_tables(THD *thd)
   while (thd->open_tables)
     (void) close_thread_table(thd, &thd->open_tables);
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error);
 }
 
 
@@ -2320,9 +2321,10 @@ Locked_tables_list::init_locked_tables(THD *thd)
   @note This function is a no-op if we're not in LOCK TABLES.
 */
 
-void
+int
 Locked_tables_list::unlock_locked_tables(THD *thd)
 {
+  int error;
   DBUG_ASSERT(!thd->in_sub_stmt &&
               !(thd->state_flags & Open_tables_state::BACKUPS_AVAIL));
   /*
@@ -2332,7 +2334,7 @@ Locked_tables_list::unlock_locked_tables(THD *thd)
     open tables, e.g. from begin_trans().
   */
   if (thd->locked_tables_mode != LTM_LOCK_TABLES)
-    return;
+    return 0;
 
   for (TABLE_LIST *table_list= m_locked_tables;
        table_list; table_list= table_list->next_global)
@@ -2349,7 +2351,7 @@ Locked_tables_list::unlock_locked_tables(THD *thd)
   TRANSACT_TRACKER(clear_trx_state(thd, TX_LOCKED_TABLES));
 
   DBUG_ASSERT(thd->transaction.stmt.is_empty());
-  close_thread_tables(thd);
+  error= close_thread_tables(thd);
 
   /*
     We rely on the caller to implicitly commit the
@@ -2361,6 +2363,7 @@ Locked_tables_list::unlock_locked_tables(THD *thd)
     request for metadata locks and TABLE_LIST elements.
   */
   reset();
+  return error;
 }
 
 
@@ -2369,7 +2372,7 @@ Locked_tables_list::unlock_locked_tables(THD *thd)
   table mode if there is no locked tables anymore
 */
 
-void
+int
 Locked_tables_list::unlock_locked_table(THD *thd, MDL_ticket *mdl_ticket)
 {
   /*
@@ -2378,7 +2381,7 @@ Locked_tables_list::unlock_locked_table(THD *thd, MDL_ticket *mdl_ticket)
     to check this condition here than in the caller.
   */
   if (thd->locked_tables_mode != LTM_LOCK_TABLES)
-    return;
+    return 0;
 
   if (mdl_ticket)
   {
@@ -2391,7 +2394,8 @@ Locked_tables_list::unlock_locked_table(THD *thd, MDL_ticket *mdl_ticket)
   }
 
   if (thd->lock->table_count == 0)
-    unlock_locked_tables(thd);
+    return unlock_locked_tables(thd);
+  return 0;
 }
 
 

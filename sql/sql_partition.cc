@@ -6778,20 +6778,21 @@ static bool alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
 
   @param lpt  Struct carrying parameters
 
-  @return Always 0.
+  @return error code if external_unlock fails
 */
 
 static int alter_close_table(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
+  int error;
   DBUG_ENTER("alter_close_table");
 
   if (lpt->table->db_stat)
   {
-    mysql_lock_remove(lpt->thd, lpt->thd->lock, lpt->table);
-    lpt->table->file->ha_close();
+    error= mysql_lock_remove(lpt->thd, lpt->thd->lock, lpt->table);
+    error= lpt->table->file->ha_close();
     lpt->table->db_stat= 0;                        // Mark file closed
   }
-  DBUG_RETURN(0);
+  DBUG_RETURN(error);
 }
 
 

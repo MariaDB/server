@@ -409,17 +409,18 @@ static int lock_external(THD *thd, TABLE **tables, uint count)
 }
 
 
-void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock)
+int mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock)
 {
-  mysql_unlock_tables(thd, sql_lock,
-                      (thd->variables.option_bits & OPTION_TABLE_LOCK) ||
-                      !(sql_lock->flags & GET_LOCK_ON_THD));
+  return mysql_unlock_tables(thd, sql_lock,
+                             (thd->variables.option_bits & OPTION_TABLE_LOCK) ||
+                             !(sql_lock->flags & GET_LOCK_ON_THD));
 }
 
 
-void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock)
+int mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock)
 {
   bool errors= thd->is_error();
+  int error= 0;
   PSI_stage_info org_stage;
   DBUG_ENTER("mysql_unlock_tables");
 
@@ -427,7 +428,7 @@ void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock)
   THD_STAGE_INFO(thd, stage_unlocking_tables);
 
   if (sql_lock->table_count)
-    unlock_external(thd, sql_lock->table, sql_lock->table_count);
+    error= unlock_external(thd, sql_lock->table, sql_lock->table_count);
   if (sql_lock->lock_count)
     thr_multi_unlock(sql_lock->locks, sql_lock->lock_count, 0);
   if (free_lock)
@@ -435,10 +436,12 @@ void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock)
     DBUG_ASSERT(!(sql_lock->flags & GET_LOCK_ON_THD));
     my_free(sql_lock);
   }
-  if (likely(!errors))
+  if (likely(!errors && !error))
     thd->clear_error();
   THD_STAGE_INFO(thd, org_stage);
-  DBUG_VOID_RETURN;
+  if (error)
+    DBUG_PRINT("exit", ("error: %d", error));
+  DBUG_RETURN(error);
 }
 
 /**
@@ -447,12 +450,16 @@ void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock)
   This will work even if get_lock_data fails (next unlock will free all)
 */
 
-void mysql_unlock_some_tables(THD *thd, TABLE **table,uint count, uint flag)
+int mysql_unlock_some_tables(THD *thd, TABLE **table,uint count, uint flag)
 {
-  MYSQL_LOCK *sql_lock=
-    get_lock_data(thd, table, count, GET_LOCK_UNLOCK | GET_LOCK_ON_THD | flag);
-  if (sql_lock)
-    mysql_unlock_tables(thd, sql_lock, 0);
+  int error;
+  MYSQL_LOCK *sql_lock;
+  if (!(sql_lock= get_lock_data(thd, table, count,
+                                GET_LOCK_UNLOCK | GET_LOCK_ON_THD | flag)))
+    error= ER_OUTOFMEMORY;
+  else
+    error= mysql_unlock_tables(thd, sql_lock, 0);
+  return error;
 }
 
 
@@ -460,9 +467,10 @@ void mysql_unlock_some_tables(THD *thd, TABLE **table,uint count, uint flag)
   unlock all tables locked for read.
 */
 
-void mysql_unlock_read_tables(THD *thd, MYSQL_LOCK *sql_lock)
+int mysql_unlock_read_tables(THD *thd, MYSQL_LOCK *sql_lock)
 {
   uint i,found;
+  int error= 0;
   DBUG_ENTER("mysql_unlock_read_tables");
 
   /* Call external lock for all tables to be unlocked */
@@ -482,7 +490,7 @@ void mysql_unlock_read_tables(THD *thd, MYSQL_LOCK *sql_lock)
   /* Unlock all read locked tables */
   if (i != found)
   {
-    (void) unlock_external(thd,table,i-found);
+    error= unlock_external(thd,table,i-found);
     sql_lock->table_count=found;
   }
 
@@ -517,7 +525,7 @@ void mysql_unlock_read_tables(THD *thd, MYSQL_LOCK *sql_lock)
     found+= tbl->lock_count;
     table++;
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error);
 }
 
 
@@ -531,8 +539,9 @@ void mysql_unlock_read_tables(THD *thd, MYSQL_LOCK *sql_lock)
   @param  table           the table to unlock
 */
 
-void mysql_lock_remove(THD *thd, MYSQL_LOCK *locked,TABLE *table)
+int mysql_lock_remove(THD *thd, MYSQL_LOCK *locked,TABLE *table)
 {
+  int error= 0;
   if (locked)
   {
     uint i;
@@ -541,13 +550,20 @@ void mysql_lock_remove(THD *thd, MYSQL_LOCK *locked,TABLE *table)
       if (locked->table[i] == table)
       {
         uint  j, removed_locks, old_tables;
+        int tmp_error;
         TABLE *tbl;
         uint lock_data_end;
 
         DBUG_ASSERT(table->lock_position == i);
 
         /* Unlock the table. */
-        mysql_unlock_some_tables(thd, &table, /* table count */ 1, 0);
+        if ((tmp_error= mysql_unlock_some_tables(thd, &table,
+                                                 /* table count */ 1, 0)))
+        {
+          table->file->print_error(tmp_error, MYF(0));
+          if (!error)
+            error= tmp_error;
+        }
 
         /* Decrement table_count in advance, making below expressions easier */
         old_tables= --locked->table_count;
@@ -589,6 +605,7 @@ void mysql_lock_remove(THD *thd, MYSQL_LOCK *locked,TABLE *table)
       }
     }
   }
+  return error;
 }
 
 

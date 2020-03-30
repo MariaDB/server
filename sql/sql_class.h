@@ -1969,8 +1969,8 @@ public:
     init_sql_alloc(key_memory_locked_table_list, &m_locked_tables_root,
                    MEM_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
   }
-  void unlock_locked_tables(THD *thd);
-  void unlock_locked_table(THD *thd, MDL_ticket *mdl_ticket);
+  int unlock_locked_tables(THD *thd);
+  int unlock_locked_table(THD *thd, MDL_ticket *mdl_ticket);
   ~Locked_tables_list()
   {
     reset();

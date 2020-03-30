@@ -2699,7 +2699,8 @@ err:
       if (thd->lock && thd->lock->table_count == 0 &&
           non_temp_tables_count > 0 && !dont_free_locks)
       {
-        thd->locked_tables_list.unlock_locked_tables(thd);
+        if (thd->locked_tables_list.unlock_locked_tables(thd))
+          error= 1;
         goto end;
       }
       for (table= tables; table; table= table->next_local)
@@ -5406,7 +5407,7 @@ err:
         Possible locked table was dropped. We should remove meta data locks
         associated with it and do UNLOCK_TABLES if no more locked tables.
       */
-      thd->locked_tables_list.unlock_locked_table(thd, mdl_ticket);
+      (void) thd->locked_tables_list.unlock_locked_table(thd, mdl_ticket);
     }
     else if (likely(!result) && create_info->table)
     {
@@ -10608,8 +10609,10 @@ do_continue:;
       if (thd->locked_tables_mode != LTM_LOCK_TABLES &&
           thd->locked_tables_mode != LTM_PRELOCKED_UNDER_LOCK_TABLES)
       {
-        mysql_unlock_tables(thd, thd->lock);
+        int tmp_error= mysql_unlock_tables(thd, thd->lock);
         thd->lock= NULL;
+        if (tmp_error)
+          goto err_new_table_cleanup;
       }
       else
       {
@@ -10617,7 +10620,8 @@ do_continue:;
           If LOCK TABLES list is not empty and contains this table,
           unlock the table and remove the table from this list.
         */
-        mysql_lock_remove(thd, thd->lock, table);
+        if (mysql_lock_remove(thd, thd->lock, table))
+          goto err_new_table_cleanup;
       }
     }
     new_table->s->table_creation_was_logged=

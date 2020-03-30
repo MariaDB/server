@@ -1532,7 +1532,13 @@ int ha_commit_trans(THD *thd, bool all)
   }
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
-  ha_maria::implicit_commit(thd, TRUE);
+  if ((error= ha_maria::implicit_commit(thd, TRUE)))
+  {
+    my_error(ER_ERROR_DURING_COMMIT, MYF(0), error);
+    ha_rollback_trans(thd, all);
+    DBUG_RETURN(1);
+  }
+
 #endif
 
   if (!ha_info)

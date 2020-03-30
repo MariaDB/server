@@ -320,7 +320,8 @@ int Wsrep_client_service::bf_rollback()
   int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
   if (m_thd->locked_tables_mode && m_thd->lock)
   {
-    m_thd->locked_tables_list.unlock_locked_tables(m_thd);
+    if (m_thd->locked_tables_list.unlock_locked_tables(m_thd))
+      ret= 1;
     m_thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
   }
   if (m_thd->global_read_lock.is_acquired())

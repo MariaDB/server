@@ -2359,10 +2359,11 @@ int JOIN::optimize_stage2()
   {
     /*
       Unlock all tables, except sequences, as accessing these may still
-      require table updates
+      require table updates. It's safe to ignore result code as all
+      tables where opened for read only.
     */
-    mysql_unlock_some_tables(thd, table, const_tables,
-                             GET_LOCK_SKIP_SEQUENCES);
+    (void) mysql_unlock_some_tables(thd, table, const_tables,
+                                    GET_LOCK_SKIP_SEQUENCES);
   }
   if (!conds && outer_join)
   {

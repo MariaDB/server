@@ -233,6 +233,7 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
   int error;
   DBUG_PRINT("mutex", ("%s (0x%lx) locking", mp->name ? mp->name : "Null",
                        (ulong) mp));
+  DBUG_PUSH("");
 
   pthread_mutex_lock(&mp->global);
   if (!mp->file)
@@ -283,7 +284,7 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
   {
     error= pthread_mutex_trylock(&mp->mutex);
     if (error == EBUSY)
-      return error;
+      goto end;
   }
   else
     error= pthread_mutex_lock(&mp->mutex);
@@ -393,7 +394,10 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
     }
   }
 
-  DBUG_PRINT("mutex", ("%s (0x%lx) locked", mp->name, (ulong) mp));
+end:
+  DBUG_POP();
+  if (!error)
+    DBUG_PRINT("mutex", ("%s (0x%lx) locked", mp->name, (ulong) mp));
   return error;
 }
 
