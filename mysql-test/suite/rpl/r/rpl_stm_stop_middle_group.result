@@ -7,7 +7,7 @@ create table tm (a int auto_increment primary key) engine=myisam;
 create table ti (a int auto_increment primary key) engine=innodb;
 connection slave;
 SET @saved_dbug = @@GLOBAL.debug_dbug;
-set @@global.debug_dbug="+d,stop_slave_middle_group";
+set @@global.debug_dbug="d,stop_slave_middle_group";
 connection master;
 begin;
 insert into ti set a=null;
@@ -28,14 +28,13 @@ one
 select count(*) as one from ti;
 one
 1
-set @@global.debug_dbug="-d";
+set @@global.debug_dbug=@saved_dbug;
 include/start_slave.inc
 connection master;
 truncate table tm;
 truncate table ti;
 connection slave;
-set @@global.debug_dbug="+d,stop_slave_middle_group";
-set @@global.debug_dbug="+d,incomplete_group_in_relay_log";
+set @@global.debug_dbug="d,stop_slave_middle_group,incomplete_group_in_relay_log";
 connection master;
 begin;
 insert into ti set a=null;
@@ -54,14 +53,13 @@ one
 select count(*) as zero from ti;
 zero
 0
-set @@global.debug_dbug="-d";
+set @@global.debug_dbug=@saved_dbug;
 stop slave;
 truncate table tm;
 include/start_slave.inc
 connection master;
 connection slave;
-set @@global.debug_dbug="+d,stop_slave_middle_group";
-set @@global.debug_dbug="+d,incomplete_group_in_relay_log";
+set @@global.debug_dbug="d,stop_slave_middle_group,incomplete_group_in_relay_log";
 connection master;
 update tm as t1, ti as t2 set t1.a=t1.a * 2, t2.a=t2.a * 2;
 connection slave;

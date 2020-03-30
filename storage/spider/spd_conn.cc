@@ -1,5 +1,5 @@
 /* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019 MariaDB corp
+   Copyright (C) 2019, 2020, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by

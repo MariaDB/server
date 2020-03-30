@@ -69,6 +69,8 @@ Created 11/5/1995 Heikki Tuuri
 #include <map>
 #include <sstream>
 
+using st_::span;
+
 #ifdef HAVE_LIBNUMA
 #include <numa.h>
 #include <numaif.h>
@@ -336,7 +338,7 @@ on the io_type */
 @return true if temporary tablespace decrypted, false if not */
 static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 {
-	if (buf_page_is_zeroes(src_frame, srv_page_size)) {
+	if (buf_is_zeroes(span<const byte>(src_frame, srv_page_size))) {
 		return true;
 	}
 
@@ -716,20 +718,14 @@ static void buf_page_check_lsn(bool check_lsn, const byte* read_buf)
 #endif /* !UNIV_INNOCHECKSUM */
 }
 
-/** Check if a page is all zeroes.
-@param[in]	read_buf	database page
-@param[in]	page_size	page frame size
-@return whether the page is all zeroes */
-bool buf_page_is_zeroes(const void* read_buf, size_t page_size)
+
+/** Check if a buffer is all zeroes.
+@param[in]	buf	data to check
+@return whether the buffer is all zeroes */
+bool buf_is_zeroes(span<const byte> buf)
 {
-	const ulint* b = reinterpret_cast<const ulint*>(read_buf);
-	const ulint* const e = b + page_size / sizeof *b;
-	do {
-		if (*b++) {
-			return false;
-		}
-	} while (b != e);
-	return true;
+  ut_ad(buf.size() <= sizeof field_ref_zero);
+  return memcmp(buf.data(), field_ref_zero, buf.size()) == 0;
 }
 
 /** Check if a page is corrupt.
@@ -758,7 +754,7 @@ buf_page_is_corrupted(
 		uint crc32 = mach_read_from_4(end);
 
 		if (!crc32 && size == srv_page_size
-		    && buf_page_is_zeroes(read_buf, size)) {
+		    && buf_is_zeroes(span<const byte>(read_buf, size))) {
 			return false;
 		}
 
@@ -854,8 +850,9 @@ buf_page_is_corrupted(
 	static_assert(FIL_PAGE_LSN % 8 == 0, "alignment");
 
 	/* A page filled with NUL bytes is considered not corrupted.
-	The FIL_PAGE_FILE_FLUSH_LSN field may be written nonzero for
-	the first page of each file of the system tablespace.
+	Before MariaDB Server 10.1.25 (MDEV-12113) or 10.2.2 (or MySQL 5.7),
+	the FIL_PAGE_FILE_FLUSH_LSN field may have been written nonzero
+	for the first page of each file of the system tablespace.
 	We want to ignore it for the system tablespace, but because
 	we do not know the expected tablespace here, we ignore the
 	field for all data files, except for
@@ -3219,7 +3216,45 @@ buf_wait_for_read(
 	}
 }
 
-/** This is the general function used to get access to a database page.
+/** Lock the page with the given latch type.
+@param[in,out]	block		block to be locked
+@param[in]	rw_latch	RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
+@param[in]	mtr		mini-transaction
+@param[in]	file		file name
+@param[in]	line		line where called
+@return pointer to locked block */
+static buf_block_t* buf_page_mtr_lock(buf_block_t *block,
+                                      ulint rw_latch,
+                                      mtr_t* mtr,
+                                      const char *file,
+                                      unsigned line)
+{
+  mtr_memo_type_t fix_type;
+  switch (rw_latch)
+  {
+  case RW_NO_LATCH:
+    fix_type= MTR_MEMO_BUF_FIX;
+    break;
+  case RW_S_LATCH:
+    rw_lock_s_lock_inline(&block->lock, 0, file, line);
+    fix_type= MTR_MEMO_PAGE_S_FIX;
+    break;
+  case RW_SX_LATCH:
+    rw_lock_sx_lock_inline(&block->lock, 0, file, line);
+    fix_type= MTR_MEMO_PAGE_SX_FIX;
+    break;
+  default:
+    ut_ad(rw_latch == RW_X_LATCH);
+    rw_lock_x_lock_inline(&block->lock, 0, file, line);
+    fix_type= MTR_MEMO_PAGE_X_FIX;
+    break;
+  }
+
+  mtr_memo_push(mtr, block, fix_type);
+  return block;
+}
+
+/** Low level function used to get access to a database page.
 @param[in]	page_id			page id
 @param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
@@ -3236,7 +3271,7 @@ then it makes sure that it does merging of change buffer changes while
 reading the page from file.
 @return pointer to the block or NULL */
 buf_block_t*
-buf_page_get_gen(
+buf_page_get_low(
 	const page_id_t		page_id,
 	ulint			zip_size,
 	ulint			rw_latch,
@@ -3891,28 +3926,8 @@ evict_from_pool:
 		}
 	} else {
 get_latch:
-		mtr_memo_type_t fix_type;
-
-		switch (rw_latch) {
-		case RW_NO_LATCH:
-			fix_type = MTR_MEMO_BUF_FIX;
-			break;
-		case RW_S_LATCH:
-			rw_lock_s_lock_inline(&fix_block->lock, 0, file, line);
-			fix_type = MTR_MEMO_PAGE_S_FIX;
-			break;
-		case RW_SX_LATCH:
-			rw_lock_sx_lock_inline(&fix_block->lock, 0, file, line);
-			fix_type = MTR_MEMO_PAGE_SX_FIX;
-			break;
-		default:
-			ut_ad(rw_latch == RW_X_LATCH);
-			rw_lock_x_lock_inline(&fix_block->lock, 0, file, line);
-			fix_type = MTR_MEMO_PAGE_X_FIX;
-			break;
-		}
-
-		mtr->memo_push(block, fix_type);
+		fix_block = buf_page_mtr_lock(fix_block, rw_latch, mtr,
+					      file, line);
 	}
 
 	if (mode != BUF_PEEK_IF_IN_POOL && !access_time) {
@@ -3926,6 +3941,45 @@ get_latch:
 				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	return(fix_block);
+}
+
+/** Get access to a database page. Buffered redo log may be applied.
+@param[in]	page_id			page id
+@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
+@param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
+@param[in]	guess			guessed block or NULL
+@param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
+BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
+@param[in]	file			file name
+@param[in]	line			line where called
+@param[in]	mtr			mini-transaction
+@param[out]	err			DB_SUCCESS or error code
+@param[in]	allow_ibuf_merge	Allow change buffer merge while
+reading the pages from file.
+@return pointer to the block or NULL */
+buf_block_t*
+buf_page_get_gen(
+	const page_id_t		page_id,
+	ulint			zip_size,
+	ulint			rw_latch,
+	buf_block_t*		guess,
+	ulint			mode,
+	const char*		file,
+	unsigned		line,
+	mtr_t*			mtr,
+	dberr_t*		err,
+	bool			allow_ibuf_merge)
+{
+  if (buf_block_t *block= recv_sys.recover(page_id))
+  {
+    block->fix();
+    ut_ad(rw_lock_s_lock_nowait(block->debug_latch, file, line));
+    block= buf_page_mtr_lock(block, rw_latch, mtr, file, line);
+    return block;
+  }
+
+  return buf_page_get_low(page_id, zip_size, rw_latch,
+                          guess, mode, file, line, mtr, err, allow_ibuf_merge);
 }
 
 /********************************************************************//**
@@ -4794,7 +4848,8 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 	/* If traditional checksums match, we assume that page is
 	not anymore encrypted. */
 	if (space->full_crc32()
-	    && !buf_page_is_zeroes(dst_frame, space->physical_size())
+	    && !buf_is_zeroes(span<const byte>(dst_frame,
+					       space->physical_size()))
 	    && (key_version || space->is_compressed()
 		|| space->purpose == FIL_TYPE_TEMPORARY)) {
 		if (buf_page_full_crc32_is_corrupted(

@@ -167,8 +167,7 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 #endif  // !MARIADB
 
   //  We used the file name relative to recorded datapath
-  strcat(strcat(strcat(strcpy(filename, "."), dir_slash), db), dir_slash);
-  strncat(filename, fn, _MAX_PATH - strlen(filename));
+  snprintf(filename, sizeof filename, IF_WIN(".\\%s\\%s","./%s/%s"), db, fn);
 
   // Retrieve the file from the web and copy it locally
 	if (http && grf(g->Message, trace(515), http, uri, filename)) {

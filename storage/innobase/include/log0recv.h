@@ -301,6 +301,12 @@ private:
   @return whether the page was successfully initialized */
   inline buf_block_t *recover_low(const page_id_t page_id, map::iterator &p,
                                   mtr_t &mtr);
+  /** Attempt to initialize a page based on redo log records.
+  @param page_id  page identifier
+  @return the recovered block
+  @retval nullptr if the page cannot be initialized based on log records */
+  buf_block_t *recover_low(const page_id_t page_id);
+
   /** All found log files (multiple ones are possible if we are upgrading
   from before MariaDB Server 10.5.1) */
   std::vector<log_file_t> files;
@@ -384,6 +390,15 @@ public:
   This function should only be called when innodb_force_recovery is set.
   @param page_id  corrupted page identifier */
   ATTRIBUTE_COLD void free_corrupted_page(page_id_t page_id);
+
+  /** Attempt to initialize a page based on redo log records.
+  @param page_id  page identifier
+  @return the recovered block
+  @retval nullptr if the page cannot be initialized based on log records */
+  buf_block_t *recover(const page_id_t page_id)
+  {
+    return UNIV_UNLIKELY(recovery_on) ? recover_low(page_id) : nullptr;
+  }
 };
 
 /** The recovery system */

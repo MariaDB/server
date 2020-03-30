@@ -50,6 +50,8 @@ Created 2012-02-08 by Sunny Bains.
 #include <my_aes.h>
 #endif
 
+using st_::span;
+
 /** The size of the buffer to use for IO.
 @param n physical page size
 @return number of pages */
@@ -3474,7 +3476,8 @@ fil_iterate(
 			byte*	src = readptr + i * size;
 			const ulint page_no = page_get_page_no(src);
 			if (!page_no && block->page.id.page_no()) {
-				if (!buf_page_is_zeroes(src, size)) {
+				if (!buf_is_zeroes(span<const byte>(src,
+								    size))) {
 					goto page_corrupted;
 				}
 				/* Proceed to the next page,

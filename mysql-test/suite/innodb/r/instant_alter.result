@@ -1,6 +1,8 @@
 #
 # MDEV-11369: Instant ADD COLUMN for InnoDB
 #
+SET @saved_allowance = @@GLOBAL.innodb_instant_alter_column_allowed;
+SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
 call mtr.add_suppression("Cannot add field `.*` in table `test`.`.*` because after adding it, the row size is");
 CREATE TABLE t(a INT UNIQUE)ENGINE=InnoDB ROW_FORMAT=COMPACT;
 ALTER TABLE t ADD e INT, ROW_FORMAT=COMPRESSED;
@@ -526,6 +528,44 @@ ALTER TABLE t1 ADD PRIMARY KEY (b,a);
 ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
 DROP TABLE t1;
 SET innodb_strict_mode = OFF;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET a=42;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_drop_reorder;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+DROP TABLE t1;
+SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
 CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 INSERT INTO t1 (a) VALUES (NULL), (NULL);
 ALTER TABLE t1 DROP a, ADD COLUMN a INT;
@@ -1418,6 +1458,44 @@ ALTER TABLE t1 ADD PRIMARY KEY (b,a);
 ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
 DROP TABLE t1;
 SET innodb_strict_mode = OFF;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET a=42;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_drop_reorder;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+DROP TABLE t1;
+SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
 CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=COMPACT;
 INSERT INTO t1 (a) VALUES (NULL), (NULL);
 ALTER TABLE t1 DROP a, ADD COLUMN a INT;
@@ -2310,6 +2388,44 @@ ALTER TABLE t1 ADD PRIMARY KEY (b,a);
 ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
 DROP TABLE t1;
 SET innodb_strict_mode = OFF;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET a=42;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_drop_reorder;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+DROP TABLE t1;
+SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
 CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
 INSERT INTO t1 (a) VALUES (NULL), (NULL);
 ALTER TABLE t1 DROP a, ADD COLUMN a INT;
@@ -2736,8 +2852,9 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-202
+208
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
+SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;
 #
 # MDEV-18266: Changing an index comment unnecessarily rebuilds index
 #

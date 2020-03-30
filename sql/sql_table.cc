@@ -4454,6 +4454,8 @@ bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
                              uint err_code, const char *name)
 {
   DBUG_ENTER("validate_comment_length");
+  if (comment->length == 0)
+    DBUG_RETURN(false);
   size_t tmp_len= system_charset_info->charpos(comment->str,
                                                comment->str + comment->length,
                                                max_len);

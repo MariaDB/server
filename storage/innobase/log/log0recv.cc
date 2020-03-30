@@ -646,10 +646,10 @@ public:
 			if (!i.second.created) {
 				continue;
 			}
-			if (buf_block_t* block = buf_page_get_gen(
-				    i.first, 0, RW_X_LATCH, NULL,
+			if (buf_block_t* block = buf_page_get_low(
+				    i.first, 0, RW_X_LATCH, nullptr,
 				    BUF_GET_IF_IN_POOL, __FILE__, __LINE__,
-				    &mtr)) {
+				    &mtr, nullptr, false)) {
 				if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 					switch (fil_page_get_type(
 							block->page.zip.data)) {
@@ -2534,6 +2534,26 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
   return block;
 }
 
+/** Attempt to initialize a page based on redo log records.
+@param page_id  page identifier
+@return whether the page was successfully initialized */
+buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
+{
+  buf_block_t *block= nullptr;
+
+  mutex_enter(&mutex);
+  map::iterator p= pages.find(page_id);
+
+  if (p != pages.end() && p->second.state == page_recv_t::RECV_WILL_NOT_READ)
+  {
+    mtr_t mtr;
+    block= recover_low(page_id, p, mtr);
+  }
+
+  mutex_exit(&mutex);
+  return block;
+}
+
 /** Apply buffered log to persistent data pages.
 @param last_batch     whether it is possible to write more redo log */
 void recv_sys_t::apply(bool last_batch)
@@ -2602,9 +2622,10 @@ void recv_sys_t::apply(bool last_batch)
       case page_recv_t::RECV_NOT_PROCESSED:
         mtr.start();
         mtr.set_log_mode(MTR_LOG_NONE);
-        if (buf_block_t *block= buf_page_get_gen(page_id, 0, RW_X_LATCH,
+        if (buf_block_t *block= buf_page_get_low(page_id, 0, RW_X_LATCH,
                                                  nullptr, BUF_GET_IF_IN_POOL,
-                                                 __FILE__, __LINE__, &mtr))
+                                                 __FILE__, __LINE__,
+                                                 &mtr, nullptr, false))
         {
           buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
           recv_recover_page(block, mtr, p);

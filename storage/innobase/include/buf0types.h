@@ -176,6 +176,12 @@ private:
   uint64_t m_id;
 };
 
+/** A field reference full of zero, for use in assertions and checks,
+and dummy default values of instantly dropped columns.
+Initially, BLOB field references are set to zero, in
+dtuple_convert_big_rec(). */
+extern const byte field_ref_zero[UNIV_PAGE_SIZE_MAX];
+
 #ifndef UNIV_INNOCHECKSUM
 
 #include "ut0mutex.h"

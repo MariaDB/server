@@ -7425,6 +7425,16 @@ static int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
   *(int *)buff= tp_get_idle_thread_count(); 
   return 0;
 }
+
+
+static int show_threadpool_threads(THD *thd, SHOW_VAR *var, char *buff,
+                                   enum enum_var_type scope)
+{
+  var->type= SHOW_INT;
+  var->value= buff;
+  *(reinterpret_cast<int*>(buff))= tp_get_thread_count();
+  return 0;
+}
 #endif
 
 /*
@@ -7644,7 +7654,7 @@ SHOW_VAR status_vars[]= {
 #endif
 #ifdef HAVE_POOL_OF_THREADS
   {"Threadpool_idle_threads",  (char *) &show_threadpool_idle_threads, SHOW_SIMPLE_FUNC},
-  {"Threadpool_threads",       (char *) &tp_stats.num_worker_threads, SHOW_INT},
+  {"Threadpool_threads",       (char *) &show_threadpool_threads, SHOW_SIMPLE_FUNC},
 #endif
   {"Threads_cached",           (char*) &cached_thread_count,    SHOW_LONG_NOFLUSH},
   {"Threads_connected",        (char*) &connection_count,       SHOW_INT},

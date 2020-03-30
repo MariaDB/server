@@ -5,11 +5,7 @@
 /***********************************************************************/
 #pragma once
 
-extern PCSZ slash;
-#if defined(__WIN__)
-#define dir_slash "\\"
-#else // !__WIN__
-#define dir_slash "/"
+#ifndef __WIN__
 #define stricmp strcasecmp
 #endif // !__WIN__
 

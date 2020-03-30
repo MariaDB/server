@@ -2,7 +2,7 @@
 #define SQL_SELECT_INCLUDED
 
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1666,6 +1666,9 @@ public:
   void copy_ref_ptr_array(Ref_ptr_array dst_arr, Ref_ptr_array src_arr)
   {
     DBUG_ASSERT(dst_arr.size() >= src_arr.size());
+    if (src_arr.size() == 0)
+      return;
+
     void *dest= dst_arr.array();
     const void *src= src_arr.array();
     memcpy(dest, src, src_arr.size() * src_arr.element_size());

@@ -1990,6 +1990,23 @@ GROUP BY REPEAT((BINARY pk), v1), AES_DECRYPT((@A := i1), 20852) WITH ROLLUP HAV
 drop table t1;
 
 --echo #
+--echo # MDEV-22019: Sig 11 in next_breadth_first_tab | max_sort_length setting + double
+--echo # GROUP BY leads to crash
+--echo #
+
+
+CALL mtr.add_suppression("Out of sort memory");
+CALL mtr.add_suppression("Sort aborted");
+SET @save_max_sort_length= @@max_sort_length;
+SET max_sort_length=2000000;
+--error ER_OUT_OF_SORTMEMORY
+SELECT * FROM information_schema.tables t JOIN information_schema.columns c
+ON t.table_schema=c.table_schema
+WHERE c.table_schema=(SELECT COUNT(*) FROM INFORMATION_SCHEMA.columns GROUP BY column_type)
+GROUP BY t.table_name;
+SET max_sort_length= @save_max_sort_length;
+
+--echo #
 --echo # MDEV-16170
 --echo # Server crashes in Item_null_result::type_handler on SELECT with ROLLUP
 --echo #
@@ -1998,3 +2015,5 @@ CREATE TABLE t1 (d DATE);
 INSERT INTO t1 VALUES ('2032-10-08');
 SELECT d != '2023-03-04' AS f, COUNT(*) FROM t1 GROUP BY d WITH ROLLUP;
 DROP TABLE t1;
+
+--echo # End of 10.3 tests

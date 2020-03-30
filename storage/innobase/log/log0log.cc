@@ -558,7 +558,7 @@ dberr_t mapped_file_t::map(const char *path, bool read_only,
     return DB_ERROR;
 
   m_area= {static_cast<byte *>(ptr),
-           static_cast<span<byte>::index_type>(file_size)};
+           static_cast<span<byte>::size_type>(file_size)};
   return DB_SUCCESS;
 }
 

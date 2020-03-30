@@ -3,8 +3,8 @@ include/rpl_connect.inc [creating M4]
 include/rpl_connect.inc [creating M2]
 connection M2;
 STOP SLAVE;
-SET @old_debug= @@global.debug;
-SET GLOBAL debug_dbug= "+d,dbug.rows_events_to_delay_relay_logging";
+SET @old_debug= @@global.debug_dbug;
+SET GLOBAL debug_dbug= "d,dbug.rows_events_to_delay_relay_logging";
 START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
 connection M2;

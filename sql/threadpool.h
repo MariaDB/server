@@ -1,8 +1,4 @@
-#ifndef THREADPOOL_H_INCLUDED
-#define THREADPOOL_H_INCLUDED
-
-#ifdef HAVE_POOL_OF_THREADS
-/* Copyright (C) 2012 Monty Program Ab
+/* Copyright (C) 2012, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,6 +13,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
+#pragma once
+#ifdef HAVE_POOL_OF_THREADS
 #define MAX_THREAD_GROUPS 100000
 
 /* Threadpool parameters */
@@ -50,7 +48,7 @@ extern void tp_timeout_handler(TP_connection *c);
 struct TP_STATISTICS
 {
   /* Current number of worker thread. */
-  volatile int32 num_worker_threads;
+  Atomic_counter<uint32_t> num_worker_threads;
 };
 
 extern TP_STATISTICS tp_stats;
@@ -163,4 +161,3 @@ struct TP_pool_generic :TP_pool
 };
 
 #endif /* HAVE_POOL_OF_THREADS */
-#endif /* THREADPOOL_H_INCLUDED */

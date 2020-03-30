@@ -1,4 +1,4 @@
-/* Copyright(C) 2019 MariaDB
+/* Copyright(C) 2019, 2020, MariaDB
  *
  * This program is free software; you can redistribute itand /or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,8 +17,8 @@
 #include <my_global.h>
 #include <sql_plist.h>
 #include <my_pthread.h>
-#include <threadpool.h>
 #include <mysqld.h>
+#include <threadpool.h>
 #include <violite.h>
 
 #ifdef _WIN32

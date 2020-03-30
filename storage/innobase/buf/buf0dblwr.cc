@@ -34,6 +34,8 @@ Created 2011/12/19
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
 
+using st_::span;
+
 /** The doublewrite buffer */
 buf_dblwr_t*	buf_dblwr = NULL;
 
@@ -541,7 +543,7 @@ buf_dblwr_process()
 
 		const ulint physical_size = space->physical_size();
 		const ulint zip_size = space->zip_size();
-		ut_ad(!buf_page_is_zeroes(page, physical_size));
+		ut_ad(!buf_is_zeroes(span<const byte>(page, physical_size)));
 
 		/* We want to ensure that for partial reads the
 		unread portion of the page is NUL. */
@@ -564,8 +566,8 @@ buf_dblwr_process()
 				<< "error: " << ut_strerr(err);
 		}
 
-		const bool is_all_zero = buf_page_is_zeroes(
-			read_buf, physical_size);
+		const bool is_all_zero = buf_is_zeroes(
+			span<const byte>(read_buf, physical_size));
 		const bool expect_encrypted = space->crypt_data
 			&& space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED;
 		bool is_corrupted = false;

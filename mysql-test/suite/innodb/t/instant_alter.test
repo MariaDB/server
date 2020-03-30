@@ -4,6 +4,9 @@
 --echo # MDEV-11369: Instant ADD COLUMN for InnoDB
 --echo #
 
+SET @saved_allowance = @@GLOBAL.innodb_instant_alter_column_allowed;
+SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
+
 call mtr.add_suppression("Cannot add field `.*` in table `test`.`.*` because after adding it, the row size is");
 
 let $format= `SELECT CASE WHEN @@GLOBAL.innodb_page_size>16384
@@ -417,6 +420,46 @@ ALTER TABLE t1 ADD PRIMARY KEY (b,a);
 ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
 DROP TABLE t1;
 SET innodb_strict_mode = OFF;
+
+# MDEV-20950 innodb_instant_alter_column_allowed
+eval CREATE TABLE t1 (a INT PRIMARY KEY) $engine;
+INSERT INTO t1 SET a=42;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+--enable_info
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+--disable_info
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_drop_reorder;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY a INT DEFAULT 0, ALGORITHM=INSTANT;
+--enable_info
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+--disable_info
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+DROP TABLE t1;
+SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
 
 # MDEV-15562 Instant DROP/ADD/reorder columns
 
@@ -850,6 +893,7 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
+SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;
 
 --echo #
 --echo # MDEV-18266: Changing an index comment unnecessarily rebuilds index
