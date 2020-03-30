@@ -2210,8 +2210,12 @@ JOIN::optimize_inner()
     having_is_correlated= MY_TEST(having->used_tables() & OUTER_REF_TABLE_BIT);
   tmp_having= having;
 
-  if ((select_lex->options & OPTION_SCHEMA_TABLE))
-    optimize_schema_tables_reads(this);
+  if ((select_lex->options & OPTION_SCHEMA_TABLE) &&
+       optimize_schema_tables_reads(this))
+    DBUG_RETURN(TRUE);
+
+  if (unlikely(thd->is_error()))
+    DBUG_RETURN(TRUE);
 
   /*
     The loose index scan access method guarantees that all grouping or
