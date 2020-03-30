@@ -23584,7 +23584,7 @@ check_reverse_order:
          If ref_key used index tree reading only ('Using index' in EXPLAIN),
          and best_key doesn't, then revert the decision.
       */
-      if (table->covering_keys.is_set(best_key))
+      if (table->covering_keys.is_set(best_key) && !table->no_keyread)
         table->file->ha_start_keyread(best_key);
       else
         table->file->ha_end_keyread();
@@ -28568,8 +28568,6 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   if (new_used_key_parts != NULL)
     *new_used_key_parts= best_key_parts;
   table->file->ha_end_keyread();
-  if (is_best_covering && !table->no_keyread)
-    table->file->ha_start_keyread(best_key);
   DBUG_RETURN(TRUE);
 }
 

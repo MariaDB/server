@@ -379,8 +379,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     tables.table = table;
     tables.alias = table_list->alias;
 
-      if (select_lex->setup_ref_array(thd, order_list->elements) ||
-	  setup_order(thd, select_lex->ref_pointer_array, &tables,
+    if (select_lex->setup_ref_array(thd, order_list->elements) ||
+        setup_order(thd, select_lex->ref_pointer_array, &tables,
                     fields, all_fields, order))
     {
       free_underlaid_joins(thd, thd->lex->first_select_lex());
@@ -547,10 +547,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     else
     {
       ha_rows scanned_limit= query_plan.scanned_rows;
+      table->no_keyread= 1;
       query_plan.index= get_index_for_order(order, table, select, limit,
                                             &scanned_limit,
                                             &query_plan.using_filesort, 
                                             &reverse);
+      table->no_keyread= 0;
       if (!query_plan.using_filesort)
         query_plan.scanned_rows= scanned_limit;
     }

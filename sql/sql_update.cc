@@ -614,9 +614,11 @@ int mysql_update(THD *thd,
   else
   {
     ha_rows scanned_limit= query_plan.scanned_rows;
+    table->no_keyread= 1;
     query_plan.index= get_index_for_order(order, table, select, limit,
                                           &scanned_limit, &need_sort,
                                           &reverse);
+    table->no_keyread= 0;
     if (!need_sort)
       query_plan.scanned_rows= scanned_limit;
 
