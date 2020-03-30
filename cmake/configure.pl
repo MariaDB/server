@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 # Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
 # 
