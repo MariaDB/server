@@ -1567,7 +1567,7 @@ file_checked:
 			respective file pages, for the last batch of
 			recv_group_scan_log_recs(). */
 
-			recv_apply_hashed_log_recs(true);
+			recv_sys.apply(true);
 
 			if (recv_sys.found_corrupt_log
 			    || recv_sys.found_corrupt_fs) {

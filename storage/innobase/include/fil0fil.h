@@ -1536,8 +1536,7 @@ yet, to get valid size and flags.
 @param[in,out]	space	tablespace */
 inline void fil_space_open_if_needed(fil_space_t* space)
 {
-	ut_d(extern volatile bool recv_recovery_on);
-	ut_ad(recv_recovery_on);
+	ut_ad(recv_recovery_is_on());
 
 	if (space->size == 0) {
 		/* Initially, size and flags will be set to 0,

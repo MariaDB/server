@@ -807,7 +807,6 @@ srv_boot(void)
 /*==========*/
 {
 	sync_check_init();
-	recv_sys_var_init();
 	trx_pool_init();
 	row_mysql_init();
 	srv_init();

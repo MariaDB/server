@@ -3986,7 +3986,6 @@ fail:
 	sync_check_init();
 	ut_d(sync_check_enable());
 	/* Reset the system variables in the recovery module. */
-	recv_sys_var_init();
 	trx_pool_init();
 
 	ut_crc32_init();
@@ -5367,7 +5366,7 @@ static bool xtrabackup_prepare_func(char** argv)
 		ut_crc32_init();
 		recv_sys.create();
 		log_sys.create();
-		recv_recovery_on = true;
+		recv_sys.recovery_on = true;
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
 		srv_allow_writes_event = os_event_create(0);

@@ -24,8 +24,7 @@ Recovery
 Created 9/20/1997 Heikki Tuuri
 *******************************************************/
 
-#ifndef log0recv_h
-#define log0recv_h
+#pragma once
 
 #include "ut0byte.h"
 #include "buf0types.h"
@@ -38,7 +37,7 @@ Created 9/20/1997 Heikki Tuuri
 extern bool	recv_writer_thread_active;
 
 /** @return whether recovery is currently running. */
-#define recv_recovery_is_on() UNIV_UNLIKELY(recv_recovery_on)
+#define recv_recovery_is_on() UNIV_UNLIKELY(recv_sys.recovery_on)
 
 /** Find the latest checkpoint in the log header.
 @param[out]	max_field	LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2
@@ -69,16 +68,6 @@ Initiates the rollback of active transactions. */
 void
 recv_recovery_rollback_active(void);
 /*===============================*/
-
-/********************************************************//**
-Reset the state of the recovery system variables. */
-void
-recv_sys_var_init(void);
-/*===================*/
-
-/** Apply recv_sys.pages to persistent data pages.
-@param[in]	last_batch	whether redo log writes are possible */
-void recv_apply_hashed_log_recs(bool last_batch);
 
 /** Whether to store redo log records in recv_sys.pages */
 enum store_t {
@@ -220,6 +209,8 @@ struct recv_sys_t
 {
   /** mutex protecting apply_log_recs and page_recv_t::state */
   ib_mutex_t mutex;
+  /** whether we are applying redo log records during crash recovery */
+  bool recovery_on;
   /** whether recv_recover_page(), invoked from buf_page_io_complete(),
   should apply log records*/
   bool apply_log_recs;
@@ -275,6 +266,7 @@ struct recv_sys_t
   /** buffered records waiting to be applied to pages */
   map pages;
 
+private:
   /** Process a record that indicates that a tablespace size is being shrunk.
   @param page_id first page that is not in the file
   @param lsn     log sequence number of the shrink operation */
@@ -290,6 +282,7 @@ struct recv_sys_t
     unsigned pages;
   } truncated_undo_spaces[127];
 
+public:
   /** The contents of the doublewrite buffer */
   recv_dblwr_t dblwr;
 
@@ -301,6 +294,13 @@ struct recv_sys_t
   void close_files() { files.clear(); }
 
 private:
+  /** Attempt to initialize a page based on redo log records.
+  @param page_id  page identifier
+  @param p        iterator pointing to page_id
+  @param mtr      mini-transaction
+  @return whether the page was successfully initialized */
+  inline buf_block_t *recover_low(const page_id_t page_id, map::iterator &p,
+                                  mtr_t &mtr);
   /** All found log files (multiple ones are possible if we are upgrading
   from before MariaDB Server 10.5.1) */
   std::vector<log_file_t> files;
@@ -316,6 +316,9 @@ public:
   @param[in,out] store    whether to store page operations
   @return whether the memory is exhausted */
   inline bool is_memory_exhausted(store_t *store);
+  /** Apply buffered log to persistent data pages.
+  @param last_batch     whether it is possible to write more redo log */
+  void apply(bool last_batch);
 
 #ifdef UNIV_DEBUG
   /** whether all redo log in the current batch has been applied */
@@ -386,10 +389,6 @@ public:
 /** The recovery system */
 extern recv_sys_t	recv_sys;
 
-/** TRUE when applying redo log records during crash recovery; FALSE
-otherwise.  Note that this is FALSE while a background thread is
-rolling back incomplete transactions. */
-extern volatile bool	recv_recovery_on;
 /** If the following is TRUE, the buffer pool file pages must be invalidated
 after recovery and no ibuf operations are allowed; this will be set if
 recv_sys.pages becomes too full, and log records must be merged
@@ -420,5 +419,3 @@ times! */
 /** Size of block reads when the log groups are scanned forward to do a
 roll-forward */
 #define RECV_SCAN_SIZE		(4U << srv_page_size_shift)
-
-#endif
