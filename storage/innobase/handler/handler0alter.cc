@@ -59,6 +59,8 @@ Smart ALTER TABLE
 #include "span.h"
 
 using st_::span;
+/** File format constraint for ALTER TABLE */
+extern ulong innodb_instant_alter_column_allowed;
 
 static const char *MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN=
 			"INPLACE ADD or DROP of virtual columns cannot be "
@@ -953,6 +955,26 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	const char* reason_rebuild = NULL;
+
+	switch (innodb_instant_alter_column_allowed) {
+	case 0: /* never */
+		if ((ha_alter_info->handler_flags
+		     & ALTER_ADD_STORED_BASE_COLUMN)
+		    || m_prebuilt->table->is_instant()) {
+			reason_rebuild =
+				"innodb_instant_alter_column_allowed=never";
+			if (ha_alter_info->handler_flags
+			    & ALTER_RECREATE_TABLE) {
+				reason_rebuild = NULL;
+			} else {
+				ha_alter_info->handler_flags
+					|= ALTER_RECREATE_TABLE;
+				ha_alter_info->unsupported_reason
+					= reason_rebuild;
+			}
+		}
+		break;
+	}
 
 	switch (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
 	case ALTER_OPTIONS:

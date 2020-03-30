@@ -213,9 +213,6 @@ static char* innodb_large_prefix;
 stopword table to be used */
 static char*	innobase_server_stopword_table;
 
-/* Below we have boolean-valued start-up parameters, and their default
-values */
-
 static my_bool	innobase_use_atomic_writes;
 static my_bool	innobase_use_checksums;
 static my_bool	innobase_locks_unsafe_for_binlog;
@@ -238,6 +235,9 @@ extern uint srv_background_scrub_data_check_interval;
 my_bool innodb_evict_tables_on_commit_debug;
 extern my_bool srv_scrub_force_testing;
 #endif
+
+/** File format constraint for ALTER TABLE */
+ulong innodb_instant_alter_column_allowed;
 
 /** Note we cannot use rec_format_enum because we do not allow
 COMPRESSED row format for innodb_default_row_format option. */
@@ -471,6 +471,21 @@ static TYPELIB innodb_change_buffering_typelib = {
 	array_elements(innodb_change_buffering_names) - 1,
 	"innodb_change_buffering_typelib",
 	innodb_change_buffering_names,
+	NULL
+};
+
+/** Allowed values of innodb_instant_alter_column_allowed */
+const char* innodb_instant_alter_column_allowed_names[] = {
+	"never", /* compatible with MariaDB 5.5 to 10.2 */
+	"add_last",/* allow instant ADD COLUMN */
+	NullS
+};
+
+/** Enumeration of innodb_instant_alter_column_allowed */
+static TYPELIB innodb_instant_alter_column_allowed_typelib = {
+	array_elements(innodb_instant_alter_column_allowed_names) - 1,
+	"innodb_instant_alter_column_allowed_typelib",
+	innodb_instant_alter_column_allowed_names,
 	NULL
 };
 
@@ -19200,6 +19215,12 @@ static MYSQL_SYSVAR_BOOL(stats_include_delete_marked,
   "Include delete marked records when calculating persistent statistics",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_ENUM(instant_alter_column_allowed,
+			 innodb_instant_alter_column_allowed,
+  PLUGIN_VAR_RQCMDARG,
+  "File format constraint for ALTER TABLE", NULL, NULL, 1/*add_last*/,
+  &innodb_instant_alter_column_allowed_typelib);
+
 static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
   PLUGIN_VAR_RQCMDARG,
   "Number of IOPs the server can do. Tunes the background IO rate",
@@ -19316,6 +19337,7 @@ static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
 static MYSQL_SYSVAR_STR(file_format, innodb_file_format,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Deprecated parameter with no effect.", NULL, NULL, NULL);
+
 static MYSQL_SYSVAR_STR(large_prefix, innodb_large_prefix,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Deprecated parameter with no effect.", NULL, NULL, NULL);
@@ -20482,6 +20504,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(random_read_ahead),
   MYSQL_SYSVAR(read_ahead_threshold),
   MYSQL_SYSVAR(read_only),
+  MYSQL_SYSVAR(instant_alter_column_allowed),
   MYSQL_SYSVAR(io_capacity),
   MYSQL_SYSVAR(io_capacity_max),
   MYSQL_SYSVAR(page_cleaners),
