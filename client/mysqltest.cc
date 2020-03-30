@@ -9748,7 +9748,8 @@ int main(int argc, char **argv)
         break;
       case Q_DIE:
         /* Abort test with error code and error message */
-        die("%s", command->first_argument);
+        die("%s", command->first_argument[0] ? command->first_argument :
+            "Explicit --die command executed");
         break;
       case Q_EXIT:
         /* Stop processing any more commands */
