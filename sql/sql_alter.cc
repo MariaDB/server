@@ -376,79 +376,17 @@ void Alter_table_ctx::report_implicit_default_value_error(THD *thd,
 #define START_ALTER_ERROR  2
 static int process_start_alter(THD *thd, uint64 thread_id)
 {
-  /*
-   Slave spawned start alter thread will not binlog, So we have to make sure
-   that slave binlog will write flag FL_START_ALTER_E1
-  */
-  thd->gtid_flags3|= Gtid_log_event::FL_START_ALTER_E1;
-  /*
-   start_alter_thread will be true for spawned thread
-   TODO //not needed i guess
-  */
-  if (thd->start_alter_thread)
-  {
-    return START_ALTER_PARSE;
-  }
-  //TODO
-  else if(!thd->rgi_slave->is_parallel_exec )
+  if(thd->rpt == thd->rgi_slave->parallel_entry->rpl_threads[0])
   {
     /*
      We will just write the binlog and move to next event , because COMMIT
      Alter will take care of actual work
     */
     if (write_bin_log(thd, false, thd->query(), thd->query_length()))
-      return 2;
-    return 0;
+      return START_ALTER_ERROR;
+    return START_ALTER_SKIP;
   }
-  pthread_t th;
-  start_alter_thd_args *args= (start_alter_thd_args *) my_malloc(sizeof(
-                                  start_alter_thd_args), MYF(0));
-  args->rgi= thd->rgi_slave;
-  args->query= {thd->query(), thd->query_length()};
-  args->db= &thd->db;
-  args->cs= thd->charset();
-  args->catalog= thd->catalog;
-  /*
-   We could get shutdown at this moment so spawned thread just do the work
-   till binlog writing of start alter and then exit.
-   TODO
-  args->shutdown= thd->rpt->stop;
-  */
-  if (mysql_thread_create(key_rpl_parallel_thread, &th, &connection_attrib,
-                          handle_slave_start_alter, args))
-  {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    return 2;
-  }
-  DBUG_ASSERT(thd->rgi_slave);
-  Master_info *mi= thd->rgi_slave->rli->mi;
-  start_alter_info *info=NULL;
-  mysql_mutex_lock(&mi->start_alter_list_lock);
-  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
-  while(1)
-  {
-    while ((info= info_iterator++))
-    {
-      if(info->thread_id == thread_id)
-        break;
-    }
-    if (info && info->thread_id == thread_id)
-      break;
-    mysql_cond_wait(&mi->start_alter_list_cond, &mi->start_alter_list_lock);
-    info_iterator.rewind();
-  }
-  //Although write_start_alter can also remove the *info, so we can do this on any place
-  //if (thd->rpt->stop)
-   // info_iterator.remove();
-  mysql_mutex_unlock(&mi->start_alter_list_lock);
-  /*
-   We can free the args here because spawned thread has already copied the data
-  */
-  my_free(args);
-  DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
-  if (write_bin_log(thd, false, thd->query(), thd->query_length(), true) && ha_commit_trans(thd, true))
-    return 2;
-  return 0;
+  return START_ALTER_PARSE;
 }
 /* 0= Nothing to do skip query_log_event parsing , 1= query_log_event_parsing
  * 2= error */
@@ -478,7 +416,7 @@ static int process_commit_alter(THD *thd, uint64 thread_id)
     //unnecessary binlogging or spawn new thread because there is no start
     //alter context
     thd->direct_commit_alter= 1;
-    return 1;
+    return START_ALTER_PARSE;
   }
   /*
    start_alter_state must be ::REGISTERED
@@ -496,8 +434,8 @@ static int process_commit_alter(THD *thd, uint64 thread_id)
   mysql_cond_destroy(&info->start_alter_cond);
   my_free(info);
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
-    return 2;
-  return 0;
+    return START_ALTER_ERROR;
+  return START_ALTER_SKIP;
 }
 /* 0= Nothing to do skip query_log_event parsing , 1= query_log_event_parsing
  * 2= error */
@@ -521,8 +459,8 @@ static int process_rollback_alter(THD *thd, uint64 thread_id)
   {
     //Just write the binlog because there is nothing to be done
     if (write_bin_log(thd, true, thd->query(), thd->query_length()))
-      return 2;
-    return 0;
+      return START_ALTER_ERROR;
+    return START_ALTER_SKIP;
   }
   /*
    start_alter_state must be ::REGISTERED
@@ -540,8 +478,8 @@ static int process_rollback_alter(THD *thd, uint64 thread_id)
   mysql_cond_destroy(&info->start_alter_cond);
   my_free(info);
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
-    return 2;
-  return 0;
+    return START_ALTER_ERROR;
+  return START_ALTER_SKIP;
 }
 bool Sql_cmd_alter_table::execute(THD *thd)
 {
@@ -699,6 +637,9 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   if (0)
       process_start_alter(thd, alter_info.alter_identifier);
   switch (alter_info.alter_state)  {
+  case Alter_info::ALTER_TABLE_START:
+    alter_res= process_start_alter(thd, alter_info.alter_identifier);
+    break;
   case Alter_info::ALTER_TABLE_COMMIT:
     alter_res= process_commit_alter(thd, alter_info.alter_identifier);
     break;
