@@ -196,7 +196,7 @@ static MYSQL_THDVAR_BOOL(
   "",
   NULL,
   NULL,
-  1
+  0
 );
 
 // Per thread derived handler knob
@@ -206,7 +206,7 @@ static MYSQL_THDVAR_BOOL(
   "",
   NULL,
   NULL,
-  1
+  0
 );
 
 static MYSQL_THDVAR_BOOL(
@@ -215,7 +215,7 @@ static MYSQL_THDVAR_BOOL(
   "",
   NULL,
   NULL,
-  1
+  0
 );
 
 bool select_handler_setting(THD* thd)
