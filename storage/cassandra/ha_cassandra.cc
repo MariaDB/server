@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2012, Monty Program Ab
+   Copyright (c) 2012, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2524,15 +2524,6 @@ THR_LOCK_DATA **ha_cassandra::store_lock(THD *thd,
   }
   *to++= &lock;
   DBUG_RETURN(to);
-}
-
-
-ha_rows records_in_range(uint inx, const key_range *min_key,
-                         const key_range *max_key,
-                         page_range *res)
-{
-  DBUG_ENTER("ha_cassandra::records_in_range");
-  DBUG_RETURN(HA_POS_ERROR); /* Range scans are not supported */
 }
 
 
