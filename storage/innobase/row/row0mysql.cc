@@ -54,7 +54,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "rem0cmp.h"
 #include "row0import.h"
 #include "row0ins.h"
-#include "row0merge.h"
 #include "row0row.h"
 #include "row0sel.h"
 #include "row0upd.h"

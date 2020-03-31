@@ -1993,11 +1993,9 @@ skip_monitors:
 	}
 
 	if (srv_force_recovery == 0) {
-		/* In the insert buffer we may have even bigger tablespace
+		/* In the change buffer we may have even bigger tablespace
 		id's, because we may have dropped those tablespaces, but
-		insert buffer merge has not had time to clean the records from
-		the ibuf tree. */
-
+		the buffered records have not been cleaned yet. */
 		ibuf_update_max_tablespace_id();
 	}
 

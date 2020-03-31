@@ -2200,8 +2200,8 @@ fil_close_tablespace(
 
 	/* Invalidate in the buffer pool all pages belonging to the
 	tablespace. Since we have set space->stop_new_ops = true, readahead
-	or ibuf merge can no longer read more pages of this tablespace to the
-	buffer pool. Thus we can clean the tablespace out of the buffer pool
+	can no longer read more pages of this tablespace to buf_pool.
+	Thus we can clean the tablespace out of buf_pool
 	completely and permanently. The flag stop_new_ops also prevents
 	fil_flush() from being applied to this tablespace. */
 	buf_LRU_flush_or_remove_pages(id, true);
@@ -2279,7 +2279,7 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists)
 	ut_a(path != 0);
 
 	/* IMPORTANT: Because we have set space::stop_new_ops there
-	can't be any new ibuf merges, reads or flushes. We are here
+	can't be any new reads or flushes. We are here
 	because node::n_pending was zero above. However, it is still
 	possible to have pending read and write requests:
 

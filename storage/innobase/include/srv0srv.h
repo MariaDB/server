@@ -417,13 +417,11 @@ extern ulong	srv_flushing_avg_loops;
 
 extern ulong	srv_force_recovery;
 
-extern uint	srv_fast_shutdown;	/*!< If this is 1, do not do a
-					purge and index buffer merge.
-					If this 2, do not even flush the
-					buffer pool to data files at the
-					shutdown: we effectively 'crash'
-					InnoDB (but lose no committed
-					transactions). */
+/** innodb_fast_shutdown=1 skips purge and change buffer merge.
+innodb_fast_shutdown=2 effectively crashes the server (no log checkpoint).
+innodb_fast_shutdown=3 is a clean shutdown that skips the rollback
+of active transaction (to be done on restart). */
+extern uint	srv_fast_shutdown;
 
 extern ibool	srv_innodb_status;
 
@@ -776,9 +774,8 @@ void srv_master_callback(void*);
 
 
 /**
-Perform shutdown tasks such as background drop,
-and optionally ibuf merge.
-*/
+Complete the shutdown tasks such as background DROP TABLE,
+and optionally change buffer merge (on innodb_fast_shutdown=0). */
 void srv_shutdown(bool ibuf_merge);
 
 

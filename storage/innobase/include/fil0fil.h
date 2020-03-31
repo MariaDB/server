@@ -100,9 +100,8 @@ struct fil_space_t
 				tablespace will be in named_spaces. */
 	/** set when an .ibd file is about to be deleted,
 	or an undo tablespace is about to be truncated.
-	When this is set following new ops are not allowed:
+	When this is set, the following new ops are not allowed:
 	* read IO request
-	* ibuf merge
 	* file flush
 	Note that we can still possibly have new write operations
 	because we don't check this flag when doing flush batches. */
@@ -134,7 +133,7 @@ struct fil_space_t
 	/** Number of pending buffer pool operations accessing the tablespace
 	without holding a table lock or dict_sys.latch S-latch
 	that would prevent the table (and tablespace) from being
-	dropped. An example is change buffer merge.
+	dropped. An example is fil_crypt_thread.
 	The tablespace cannot be dropped while this is nonzero,
 	or while fil_node_t::n_pending is nonzero.
 	Protected by fil_system.mutex and std::atomic. */

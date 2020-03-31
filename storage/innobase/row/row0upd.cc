@@ -503,11 +503,6 @@ row_upd_changes_field_size_or_external(
 		ut_ad(new_len != UNIV_SQL_DEFAULT);
 
 		if (dfield_is_null(new_val) && !rec_offs_comp(offsets)) {
-			/* A bug fixed on Dec 31st, 2004: we looked at the
-			SQL NULL size from the wrong field! We may backport
-			this fix also to 4.0. The merge to 5.0 will be made
-			manually immediately after we commit this to 4.1. */
-
 			new_len = dict_col_get_sql_null_size(
 				dict_index_get_nth_col(index,
 						       upd_field->field_no),
