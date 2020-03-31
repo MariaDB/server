@@ -3527,7 +3527,7 @@ mysql_execute_command(THD *thd)
      * and dirty reads (if configured)
      */
     if (!(thd->wsrep_applier) &&
-        !(wsrep_ready_get() && wsrep_reject_queries == WSREP_REJECT_NONE)    &&
+        !(wsrep_ready_get() && wsrep_reject_queries == WSREP_REJECT_NONE)  &&
         !(thd->variables.wsrep_dirty_reads &&
           (sql_command_flags[lex->sql_command] & CF_CHANGES_DATA) == 0)    &&
         !wsrep_tables_accessible_when_detached(all_tables)                 &&
