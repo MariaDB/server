@@ -1655,6 +1655,7 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
   {
     mysql_mutex_lock(&pool->threads[i]->LOCK_rpl_thread);
     pool->threads[i]->delay_start= false;
+    pool->threads[i]->current_start_alter_id= 0;
     mysql_cond_signal(&pool->threads[i]->COND_rpl_thread);
     while (!pool->threads[i]->running)
       mysql_cond_wait(&pool->threads[i]->COND_rpl_thread,
@@ -2070,6 +2071,58 @@ rpl_parallel_thread_pool::release_thread(rpl_parallel_thread *rpt)
   mysql_mutex_unlock(&LOCK_rpl_thread_pool);
 }
 
+static uint get_split_alter_thread_id_part_1(rpl_parallel_thread **rpl_threads,
+                                              uint16 flags3, uint32 rpl_thread_max)
+{
+  /*
+    Commit alter/Rollback alter will always go to worker 1, to avoid deadlocks
+  */
+  if (flags3 & (Gtid_log_event::FL_COMMIT_ALTER_E1 |
+                              Gtid_log_event::FL_ROLLBACK_ALTER_E1 ))
+  {
+    return 0;
+  }
+  else
+  {
+    for(uint i= 1; i < rpl_thread_max; i++)
+    {
+      if (rpl_threads[i] && !rpl_threads[i]->current_start_alter_id)
+        return i;
+    }
+    //No worker is free , treat as a just a binlog start alter
+    return 0;
+  }
+}
+
+static void get_split_alter_thread_id_part_2(rpl_parallel_thread **rpl_threads,
+                                              uint16 flags3, uint32 rpl_thread_max,
+                                              uint32 rpt_index, uint64 thread_id)
+{
+  assert(thread_id);
+  /*
+    Commit alter/Rollback alter will always go to worker 1, to avoid deadlocks
+  */
+  if (flags3 & (Gtid_log_event::FL_COMMIT_ALTER_E1 |
+                              Gtid_log_event::FL_ROLLBACK_ALTER_E1 ))
+  {
+    //Free the corrosponding rpt current_start_alter_id
+    for(uint i= 1; i < rpl_thread_max; i++)
+    {
+      //If we fail in this condition(after whole for) that means start alter
+      //is assigned to worker 1
+      if(rpl_threads[i] && rpl_threads[i]->current_start_alter_id == thread_id)
+      {
+        rpl_threads[i]->current_start_alter_id= 0;
+        break;
+      }
+    }
+  }
+  else
+    rpl_threads[rpt_index]->current_start_alter_id= thread_id;
+
+  return;
+}
+
 
 /*
   Obtain a worker thread that we can queue an event to.
@@ -2097,7 +2150,8 @@ rpl_parallel_thread_pool::release_thread(rpl_parallel_thread *rpt)
 */
 rpl_parallel_thread *
 rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
-                                  PSI_stage_info *old_stage, bool reuse)
+                                  PSI_stage_info *old_stage, bool reuse, uint64
+                                  thread_id)
 {
   uint32 idx;
   Relay_log_info *rli= rgi->rli;
@@ -2109,8 +2163,21 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
     ++idx;
     if (idx >= rpl_thread_max)
       idx= 0;
+    /*
+      handeling for split alter cases
+    */
+    if (rgi->gtid_ev_flags3 & (Gtid_log_event::FL_START_ALTER_E1 |
+                                Gtid_log_event::FL_COMMIT_ALTER_E1 |
+                                Gtid_log_event::FL_ROLLBACK_ALTER_E1 ))
+      idx= get_split_alter_thread_id_part_1(rpl_threads, rgi->gtid_ev_flags3,
+                                             rpl_thread_max);
     rpl_thread_idx= idx;
   }
+  else if (rgi->gtid_ev_flags3 & (Gtid_log_event::FL_START_ALTER_E1 |
+                                   Gtid_log_event::FL_COMMIT_ALTER_E1 |
+                                   Gtid_log_event::FL_ROLLBACK_ALTER_E1 ))
+      get_split_alter_thread_id_part_2(rpl_threads, rgi->gtid_ev_flags3,
+                                        rpl_thread_max, idx, thread_id);
   thr= rpl_threads[idx];
   if (thr)
   {
@@ -2548,6 +2615,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   enum Log_event_type typ;
   bool is_group_event;
   bool did_enter_cond= false;
+  uint64 thread_id= 0;
   PSI_stage_info old_stage;
 
   DBUG_EXECUTE_IF("slave_crash_if_parallel_apply", DBUG_SUICIDE(););
@@ -2696,6 +2764,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     gtid.server_id= gtid_ev->server_id;
     gtid.seq_no= gtid_ev->seq_no;
     rli->update_relay_log_state(&gtid, 1);
+    serial_rgi->gtid_ev_flags3= gtid_ev->flags3;
     if (process_gtid_for_restart_pos(rli, &gtid))
     {
       /*
@@ -2712,6 +2781,13 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   else
     e= current;
 
+  if (typ != GTID_EVENT && serial_rgi->gtid_ev_flags3 & (Gtid_log_event::FL_START_ALTER_E1 |
+                                   Gtid_log_event::FL_COMMIT_ALTER_E1 |
+                                   Gtid_log_event::FL_ROLLBACK_ALTER_E1 ))
+  {
+    Query_log_event *query_ev= static_cast<Query_log_event *>(ev);
+    thread_id= query_ev->thread_id;
+  }
   /*
     Find a worker thread to queue the event for.
     Prefer a new thread, so we maximise parallelism (at least for the group
@@ -2720,7 +2796,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   */
   cur_thread=
     e->choose_thread(serial_rgi, &did_enter_cond, &old_stage,
-                     typ != GTID_EVENT);
+                     typ != GTID_EVENT, thread_id);
   if (!cur_thread)
   {
     /* This means we were killed. The error is already signalled. */

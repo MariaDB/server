@@ -7649,6 +7649,11 @@ static int mysql_inplace_alter_table(THD *thd,
     tdc_remove_table(thd, TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE,
                      table->s->db.str, table->s->table_name.str);
   }
+  if (write_start_alter(thd, partial_alter, info))
+    DBUG_RETURN(true);
+    DBUG_EXECUTE_IF("start_alter_delay_slave", {
+      my_sleep(5000000);
+      });
 
   /*
     Upgrade to SHARED_NO_WRITE lock if:
@@ -7663,12 +7668,13 @@ static int mysql_inplace_alter_table(THD *thd,
                                            thd->variables.lock_wait_timeout))
     goto cleanup;
 
+
   // It's now safe to take the table level lock.
   if (lock_tables(thd, table_list, alter_ctx->tables_opened, 0))
     goto cleanup;
-  if (write_start_alter(thd, partial_alter, info))
-    DBUG_RETURN(true);
-
+    DBUG_EXECUTE_IF("start_alter_delay_master", {
+      my_sleep(5000000);
+      });
   DEBUG_SYNC(thd, "alter_table_inplace_after_lock_upgrade");
   THD_STAGE_INFO(thd, stage_alter_inplace_prepare);
 
@@ -9412,14 +9418,12 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
     mi->start_alter_list.push_back(info, thd->mem_root);
     mysql_mutex_unlock(&mi->start_alter_list_lock);
     mysql_cond_broadcast(&mi->start_alter_list_cond);
-    DBUG_EXECUTE_IF("start_alter_delay_slave", {
-      my_sleep(5000000);
-      });
     thd->start_alter_ev->update_pos(thd->rgi_slave);
     thd->rgi_slave->mark_start_commit();
     thd->wakeup_subsequent_commits(0);
     //Finish event group
     thd->rpt->__finish_event_group(thd->rgi_slave);
+    thd->rpt->loc_free_rgi(thd->rgi_slave);
     if (thd->slave_shutdown)
       return true;
     return false;
@@ -9432,10 +9436,8 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
                                       thd->query(), (long)thd->thread_id);
     if (write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
       return true;
+    thd->gtid_flags3&= ~Gtid_log_event::FL_START_ALTER_E1;
     *partial_alter= true;
-    DBUG_EXECUTE_IF("start_alter_delay_master", {
-      my_sleep(5000000);
-      });
     return false;
   }
   return false;
@@ -10298,13 +10300,16 @@ do_continue:;
   else
     thd->close_unused_temporary_table_instances(table_list);
 
+  //If issues by binlog/master complete the prepare phase of alter and then commit
+  if (write_start_alter(thd, &partial_alter, info))
+    DBUG_RETURN(true);
+    DBUG_EXECUTE_IF("start_alter_delay_master", {
+      my_sleep(5000000);
+      });
   // It's now safe to take the table level lock.
   if (lock_tables(thd, table_list, alter_ctx.tables_opened,
                   MYSQL_LOCK_USE_MALLOC))
     goto err_new_table_cleanup;
-  //If issues by binlog/master complete the prepare phase of alter and then commit
-  if (write_start_alter(thd, &partial_alter, info))
-    DBUG_RETURN(true);
   if (ha_create_table(thd, alter_ctx.get_tmp_path(),
                       alter_ctx.new_db.str, alter_ctx.new_name.str,
                       create_info, &frm))

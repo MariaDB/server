@@ -6647,7 +6647,15 @@ int handler::ha_write_row(const uchar *buf)
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
-
+  /*
+  if(table->in_use->slave_thread)
+  {
+    if (!strcmp(table->alias.ptr(), "t1"))
+      my_sleep(500000000);
+    if (!strcmp(table->alias.ptr(), "t2"))
+      my_sleep(500000000);
+  }
+  */
   if (table->s->long_unique_table)
   {
     if (this->inited == RND)

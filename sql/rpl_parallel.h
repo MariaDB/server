@@ -98,6 +98,7 @@ struct rpl_parallel_thread {
   bool running;
   bool stop;
   bool pause_for_ftwrl;
+  uint64 current_start_alter_id;
   mysql_mutex_t LOCK_rpl_thread;
   mysql_cond_t COND_rpl_thread;
   mysql_cond_t COND_rpl_thread_queue;
@@ -349,7 +350,8 @@ struct rpl_parallel_entry {
   group_commit_orderer *current_gco;
 
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
-                                      PSI_stage_info *old_stage, bool reuse);
+                                      PSI_stage_info *old_stage, bool reuse,
+                                      uint64 thread_id);
   int queue_master_restart(rpl_group_info *rgi,
                            Format_description_log_event *fdev);
 };

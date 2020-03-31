@@ -2317,6 +2317,7 @@ void THD::cleanup_after_query()
   /* reset table map for multi-table update */
   table_map_for_update= 0;
   m_binlog_invoker= INVOKER_NONE;
+  gtid_flags3= 0;
 
 #ifndef EMBEDDED_LIBRARY
   if (rgi_slave)

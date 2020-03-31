@@ -3225,7 +3225,6 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   {
     flags2 |= FL_EXTRA_FLAG_1;
     flags3 = thd->gtid_flags3;
-    thd->gtid_flags3= 0;
   }
 }
 

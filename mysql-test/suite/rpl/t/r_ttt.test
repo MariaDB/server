@@ -14,7 +14,7 @@ start slave;
 set global debug_dbug="+d,start_alter_delay_master";
 set global binlog_split_alter=true;
 --connection master
-create table t1( a int, b int) engine=myisam;
+create table t1( a int, b int) engine=innodb;
 insert into t1 values(1,1);
 insert into t1 values(2,2);
 --echo #Normal Alter
@@ -23,7 +23,7 @@ alter table t1 add column c int;
 insert into t1 values(1,1, NULL);
 --error ER_DUP_ENTRY
 alter table t1 change a a int unique ;
-source include/show_binlog_events.inc;
+show binlog events;
 --sync_slave_with_master
 source include/show_binlog_events.inc;
 show create table t1;
