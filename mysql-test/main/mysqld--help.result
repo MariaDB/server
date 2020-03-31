@@ -976,6 +976,15 @@ The following specify which files/extra groups are read (specified before remain
  --read-rnd-buffer-size=# 
  When reading rows in sorted order after a sort, the rows
  are read through this buffer to avoid a disk seeks
+ --redirect-enabled  Return redirection information to client.
+ --redirect-server-host[=name] 
+ The server host that client can choose to redirect to.
+ --redirect-server-port[=name] 
+ The server host port that client can choose to redirect
+ to.
+ --redirect-server-ttl[=name] 
+ The life time of the validity of redirected information
+ with unit second.
  --relay-log=name    The location and name to use for relay logs.
  --relay-log-index=name 
  The location and name to use for the file that keeps a
@@ -1725,6 +1734,10 @@ read-binlog-speed-limit 0
 read-buffer-size 131072
 read-only FALSE
 read-rnd-buffer-size 262144
+redirect-enabled FALSE
+redirect-server-host 
+redirect-server-port 
+redirect-server-ttl 0
 relay-log (No default value)
 relay-log-index (No default value)
 relay-log-info-file relay-log.info
