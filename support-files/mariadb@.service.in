@@ -76,14 +76,14 @@ PermissionsStartOnly=true
 ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
 
 ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
- VAR=`@bindir@/galera_recovery --defaults-file=@sysconf2dir@/my%I.cnf`; [ $? -eq 0 ] \
+ VAR=`cd @bindir@/..; @bindir@/galera_recovery --defaults-file=@sysconf2dir@/my%I.cnf`; [ $? -eq 0 ] \
  && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
 
 # Alternate: (remove ConditionPathExists above)
 # use [mysqld.INSTANCENAME] as sections in my.cnf
 #
 #ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
-# VAR=`@bindir@/galera_recovery --defaults-group-suffix=%I`; [ $? -eq 0 ] \
+# VAR=`cd @bindir@/..; @bindir@/galera_recovery --defaults-group-suffix=%I`; [ $? -eq 0 ] \
 # && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
 
 # Needed to create system tables etc.

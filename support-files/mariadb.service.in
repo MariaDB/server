@@ -70,7 +70,7 @@ PermissionsStartOnly=true
 # Do not panic if galera_recovery script is not available. (MDEV-10538)
 ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
 ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
- VAR=`@bindir@/galera_recovery`; [ $? -eq 0 ] \
+ VAR=`cd @bindir@/..; @bindir@/galera_recovery`; [ $? -eq 0 ] \
  && systemctl set-environment _WSREP_START_POSITION=$VAR || exit 1"
 
 # Needed to create system tables etc.
