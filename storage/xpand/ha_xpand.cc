@@ -1069,8 +1069,6 @@ int ha_xpand::rnd_init(bool scan)
   DBUG_ENTER("ha_xpand::rnd_init");
   int error_code = 0;
   THD *thd = ha_thd();
-  if (thd->lex->sql_command == SQLCOM_UPDATE)
-    DBUG_RETURN(error_code);
   xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
