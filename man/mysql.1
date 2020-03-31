@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQL\FR" "1" "27 June 2019" "MariaDB 10\&.5" "MariaDB Database System"
+.TH "\FBMariaDB\FR" "1" "27 June 2019" "MariaDB 10\&.5" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,20 +11,20 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysql
+.\" mariadb
 .\" command-line tool
 .\" tools: command-line
 .\" scripts: SQL
 .\" SQL scripts
 .\" batch SQL files
 .SH "NAME"
-mysql \- the MariaDB command\-line tool
+mariadb \- the MariaDB command\-line tool
 .SH "SYNOPSIS"
-.HP \w'\fBmysql\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIdb_name\fR\fR\ 'u
-\fBmysql [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR
+.HP \w'\fBmariadb\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIdb_name\fR\fR\ 'u
+\fBmariadb [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR
 .SH "DESCRIPTION"
 .PP
-\fBmysql\fR
+\fBmariadb\fR
 is a simple SQL shell (with GNU
 readline
 capabilities)\&. It supports interactive and non\-interactive use\&. When used interactively, query results are presented in an ASCII\-table format\&. When used non\-interactively (for example, as a filter), the result is presented in tab\-separated format\&. The output format can be changed using command options\&.
@@ -32,21 +32,21 @@ capabilities)\&. It supports interactive and non\-interactive use\&. When used i
 If you have problems due to insufficient memory for large result sets, use the
 \fB\-\-quick\fR
 option\&. This forces
-\fBmysql\fR
+\fBmariadb\fR
 to retrieve results from the server a row at a time rather than retrieving the entire result set and buffering it in memory before displaying it\&. This is done by returning the result set using the
 mysql_use_result()
 C API function in the client/server library rather than
 mysql_store_result()\&.
 .PP
 Using
-\fBmysql\fR
+\fBmariadb\fR
 is very easy\&. Invoke it from the prompt of your command interpreter as follows:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql \fR\fB\fIdb_name\fR\fR
+shell> \fBmariadb \fR\fB\fIdb_name\fR\fR
 .fi
 .if n \{\
 .RE
@@ -58,7 +58,7 @@ Or:
 .RS 4
 .\}
 .nf
-shell> \fBmysql \-\-user=\fR\fB\fIuser_name\fR\fR\fB \-\-password=\fR\fB\fIyour_password\fR\fR\fB \fR\fB\fIdb_name\fR\fR
+shell> \fBmariadb \-\-user=\fR\fB\fIuser_name\fR\fR\fB \-\-password=\fR\fB\fIyour_password\fR\fR\fB \fR\fB\fIdb_name\fR\fR
 .fi
 .if n \{\
 .RE
@@ -71,9 +71,9 @@ Then type an SQL statement, end it with
 and press Enter\&.
 .PP
 Typing Control\-C causes
-\fBmysql\fR
+\fBmariadb\fR
 to attempt to kill the current statement\&. If this cannot be done, or Control\-C is typed again before the statement is killed,
-\fBmysql\fR
+\fBmariadb\fR
 exits\&.
 .PP
 You can execute SQL statements in a script file (batch file) like this:
@@ -82,22 +82,22 @@ You can execute SQL statements in a script file (batch file) like this:
 .RS 4
 .\}
 .nf
-shell> \fBmysql \fR\fB\fIdb_name\fR\fR\fB < \fR\fB\fIscript\&.sql\fR\fR\fB > \fR\fB\fIoutput\&.tab\fR\fR
+shell> \fBmariadb \fR\fB\fIdb_name\fR\fR\fB < \fR\fB\fIscript\&.sql\fR\fR\fB > \fR\fB\fIoutput\&.tab\fR\fR
 .fi
 .if n \{\
 .RE
 .\}
-.SH "MYSQL OPTIONS"
-.\" mysql command options
-.\" command options: mysql
-.\" options: command-line: mysql
-.\" startup parameters: mysql
+.SH "MariaDB OPTIONS"
+.\" mariadb command options
+.\" command options: mariadb
+.\" options: command-line: mariadb
+.\" startup parameters: mariadb
 .PP
-\fBmysql\fR
+\fBmariadb\fR
 supports the following options, which can be specified on the command line or in the
-[mysql], [client], [client-server] or [client-mariadb]
+[mariadb], [client], [client-server] or [client-mariadb]
 option file groups\&.
-\fBmysql\fR
+\fBmariadb\fR
 also supports the options for processing option files\&.
 .sp
 .RS 4
@@ -108,8 +108,8 @@ also supports the options for processing option files\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: help option
-.\" help option: mysql
+.\" mariadb: help option
+.\" help option: mariadb
 \fB\-\-help\fR,
 \fB\-?\fR,
 \fB\-I\fR
@@ -125,8 +125,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: abort-source-on-error option
-.\" abort-source-on-error: mysql
+.\" mariadb: abort-source-on-error option
+.\" abort-source-on-error: mariadb
 \fB\-\-abort\-source\-on\-error\fR
 .sp
 Abort 'source filename' operations in case of errors\&.
@@ -140,20 +140,20 @@ Abort 'source filename' operations in case of errors\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: auto-rehash option
-.\" auto-rehash option: mysql
+.\" mariadb: auto-rehash option
+.\" auto-rehash option: mariadb
 \fB\-\-auto\-rehash\fR
 .sp
 Enable automatic rehashing\&. This option is on by default, which enables database, table, and column name completion\&. Use
 \fB\-\-disable\-auto\-rehash\fR, \fB\-\-no\-auto\-rehash\fR,  or \fB\-\-skip\-auto\-rehash\fR
 to disable rehashing\&. That causes
-\fBmysql\fR
+\fBmariadb\fR
 to start faster, but you must issue the
 rehash
 command if you want to use name completion\&.
 .sp
 To complete a name, enter the first part and press Tab\&. If the name is unambiguous,
-\fBmysql\fR
+\fBmariadb\fR
 completes it\&. Otherwise, you can press Tab again to see the possible names that begin with what you have typed so far\&. Completion does not occur if there is no default database\&.
 .RE
 .sp
@@ -165,8 +165,8 @@ completes it\&. Otherwise, you can press Tab again to see the possible names tha
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: auto-vertical-output option
-.\" auto-vertical-output option: mysql
+.\" mariadb: auto-vertical-output option
+.\" auto-vertical-output option: mariadb
 \fB\-\-auto\-vertical\-output\fR
 .sp
 Automatically switch to vertical output mode if the result is wider than the terminal width\&.
