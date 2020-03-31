@@ -167,7 +167,7 @@ static char *create_string;
 uint *concurrency;
 static char mysql_charsets_dir[FN_REFLEN+1];
 
-const char *default_dbug_option="d:t:o,/tmp/mysqlslap.trace";
+const char *default_dbug_option="d:t:o,/tmp/mariadb-slap.trace";
 const char *opt_csv_str;
 File csv_file;
 

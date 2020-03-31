@@ -187,7 +187,7 @@ static const char *mysql_universal_client_charset=
   MYSQL_UNIVERSAL_CLIENT_CHARSET;
 static char *default_charset;
 static CHARSET_INFO *charset_info= &my_charset_latin1;
-const char *default_dbug_option="d:t:o,/tmp/mysqldump.trace";
+const char *default_dbug_option="d:t:o,/tmp/mariadb-dump.trace";
 /* have we seen any VIEWs during table scanning? */
 my_bool seen_views= 0;
 const char *compatible_mode_names[]=

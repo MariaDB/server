@@ -62,7 +62,7 @@ static my_bool tty_password= 0;
 static char opt_tmpdir[FN_REFLEN] = "";
 
 #ifndef DBUG_OFF
-static char *default_dbug_option= (char*) "d:t:O,/tmp/mysql_upgrade.trace";
+static char *default_dbug_option= (char*) "d:t:O,/tmp/mariadb-upgrade.trace";
 #endif
 
 static char **defaults_argv;

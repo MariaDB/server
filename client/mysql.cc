@@ -205,7 +205,7 @@ static CHARSET_INFO *charset_info= &my_charset_latin1;
 
 #include "sslopt-vars.h"
 
-const char *default_dbug_option="d:t:o,/tmp/mysql.trace";
+const char *default_dbug_option="d:t:o,/tmp/mariadb.trace";
 
 void tee_fprintf(FILE *file, const char *fmt, ...);
 void tee_fputs(const char *s, FILE *file);

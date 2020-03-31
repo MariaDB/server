@@ -7881,8 +7881,8 @@ static int mysql_init_variables(void)
   
   /* Variables that depends on compile options */
 #ifndef DBUG_OFF
-  default_dbug_option=IF_WIN("d:t:i:O,\\mysqld.trace",
-			     "d:t:i:o,/tmp/mysqld.trace");
+  default_dbug_option=IF_WIN("d:t:i:O,\\mariadbd.trace",
+			     "d:t:i:o,/tmp/mariadbd.trace");
   current_dbug_option= default_dbug_option;
 #endif
   opt_error_log= IF_WIN(1,0);
