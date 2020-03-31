@@ -2272,7 +2272,7 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists)
 				       " in the tablespace memory cache.";
 		}
 
-		return(err);
+		goto func_exit;
 	}
 
 	ut_a(space);
@@ -2367,8 +2367,9 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists)
 		err = DB_TABLESPACE_NOT_FOUND;
 	}
 
+func_exit:
 	ut_free(path);
-
+	ibuf_delete_for_discarded_space(id);
 	return(err);
 }
 
