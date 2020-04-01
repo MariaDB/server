@@ -1104,7 +1104,7 @@ inline void mtr_t::page_insert(const buf_block_t &block, bool reuse,
   ut_ad((n_fields_s >> 1) <= REC_MAX_N_FIELDS);
   ut_ad(data_l + data_c <= REDUNDANT_REC_MAX_DATA_SIZE);
 
-  set_modified();
+  set_modified(block);
 
   static_assert(REC_INFO_MIN_REC_FLAG == 0x10, "compatibility");
   static_assert(REC_INFO_DELETED_FLAG == 0x20, "compatibility");
@@ -1201,7 +1201,7 @@ inline void mtr_t::page_insert(const buf_block_t &block, bool reuse,
   }
 #endif
 
-  set_modified();
+  set_modified(block);
 
   static_assert(REC_INFO_MIN_REC_FLAG == 0x10, "compatibility");
   static_assert(REC_INFO_DELETED_FLAG == 0x20, "compatibility");

@@ -1828,7 +1828,7 @@ inline void mtr_t::log_file_op(mfile_type_t type, ulint space_id,
   ut_ad(strchr(path, OS_PATH_SEPARATOR) != NULL);
   ut_ad(!strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
 
-  set_modified();
+  flag_modified();
   if (m_log_mode != MTR_LOG_ALL)
     return;
   m_last= nullptr;

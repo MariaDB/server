@@ -780,18 +780,31 @@ mtr_t::memo_contains_page_flagged(
 		? NULL : iteration.functor.get_block();
 }
 
-/** Mark the given latched page as modified.
-@param[in]	ptr	pointer to within buffer frame */
-void
-mtr_t::memo_modify_page(const byte* ptr)
+/** Find a block, preferrably in MTR_MEMO_MODIFY state */
+struct FindModified
 {
-	buf_block_t*	block = memo_contains_page_flagged(
-		ptr, MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX);
-	ut_ad(block != NULL);
+  const mtr_memo_slot_t *found= nullptr;
+  const buf_block_t& block;
 
-	if (!memo_contains(get_memo(), block, MTR_MEMO_MODIFY)) {
-		memo_push(block, MTR_MEMO_MODIFY);
-	}
+  FindModified(const buf_block_t &block) : block(block) {}
+  bool operator()(const mtr_memo_slot_t* slot)
+  {
+    if (slot->object != &block)
+      return true;
+    found= slot;
+    return slot->type != MTR_MEMO_MODIFY;
+  }
+};
+
+/** Mark the given latched page as modified.
+@param block   page that will be modified */
+void mtr_t::modify(const buf_block_t &block)
+{
+  Iterate<FindModified> iteration(block);
+  m_memo.for_each_block_in_reverse(iteration);
+  ut_ad(iteration.functor.found);
+  if (iteration.functor.found->type != MTR_MEMO_MODIFY)
+    memo_push(const_cast<buf_block_t*>(&block), MTR_MEMO_MODIFY);
 }
 
 /** Print info of an mtr handle. */
