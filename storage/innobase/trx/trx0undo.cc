@@ -468,8 +468,8 @@ static uint16_t trx_undo_header_create(buf_block_t *undo_page, trx_id_t trx_id,
   memcpy_aligned<2>(buf + 2, start, 2);
   static_assert(TRX_UNDO_NEEDS_PURGE + 2 == TRX_UNDO_LOG_START,
                 "compatibility");
-  mtr->memcpy(*undo_page, free + TRX_UNDO_NEEDS_PURGE + undo_page->frame,
-              buf, 4);
+  mtr->memcpy<mtr_t::OPT>(*undo_page, free + TRX_UNDO_NEEDS_PURGE +
+                          undo_page->frame, buf, 4);
   /* Initialize all fields TRX_UNDO_XID_EXISTS to TRX_UNDO_HISTORY_NODE. */
   if (prev_log)
   {
