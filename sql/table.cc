@@ -3745,7 +3745,8 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
          key_info++)
     {
       key_info->table= outparam;
-      (uchar*&)(key_info->key_part)+= adjust_ptrs;
+      key_info->key_part= reinterpret_cast<KEY_PART_INFO*>
+        (reinterpret_cast<char*>(key_info->key_part) + adjust_ptrs);
       if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
         key_info->flags&= ~HA_NOSAME;
     }
