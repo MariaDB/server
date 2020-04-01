@@ -4113,6 +4113,7 @@ page_zip_clear_rec(
 		ut_ad(!rec_offs_any_extern(offsets));
 		memset(field, 0, REC_NODE_PTR_SIZE);
 		storage -= (heap_no - 1) * REC_NODE_PTR_SIZE;
+		len = REC_NODE_PTR_SIZE;
 clear_page_zip:
 		memset(storage, 0, len);
 		mtr->memset(*block, storage - page_zip->data, len, 0);
