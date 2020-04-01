@@ -1090,6 +1090,8 @@ static SHOW_VAR innodb_status_variables[]= {
    &export_vars.innodb_n_temp_blocks_encrypted, SHOW_LONGLONG},
   {"encryption_n_temp_blocks_decrypted",
    &export_vars.innodb_n_temp_blocks_decrypted, SHOW_LONGLONG},
+  {"encryption_num_key_requests", &export_vars.innodb_encryption_key_requests,
+   SHOW_LONGLONG},
 
   {NullS, NullS, SHOW_LONG}
 };
