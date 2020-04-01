@@ -90,6 +90,7 @@
 /* Max length GTID position that we will output. */
 #define MAX_GTID_LENGTH 1024
 
+static my_bool ignore_table_data(const uchar *hash_key, size_t len);
 static void add_load_option(DYNAMIC_STRING *str, const char *option,
                              const char *option_value);
 static ulong find_set(TYPELIB *, const char *, size_t, char **, uint *);
@@ -211,7 +212,7 @@ TYPELIB compatible_mode_typelib= {array_elements(compatible_mode_names) - 1,
 
 #define MED_ENGINES "MRG_MyISAM, MRG_ISAM, CONNECT, OQGRAPH, SPIDER, VP, FEDERATED"
 
-HASH ignore_table;
+HASH ignore_table, ignore_data;
 
 static struct my_option my_long_options[] =
 {
@@ -375,6 +376,12 @@ static struct my_option my_long_options[] =
    &opt_hex_blob, &opt_hex_blob, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host.", &current_host,
    &current_host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"ignore-table-data", OPT_IGNORE_DATA,
+   "Do not dump the specified table data. To specify more than one table "
+   "to ignore, use the directive multiple times, once for each table. "
+   "Each table must be specified with both database and table names, e.g., "
+   "--ignore-table-data=database.table.",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-table", OPT_IGNORE_TABLE,
    "Do not dump the specified table. To specify more than one table to ignore, "
    "use the directive multiple times, once for each table.  Each table must "
@@ -899,6 +906,18 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
   case (int) OPT_TABLES:
     opt_databases=0;
     break;
+  case (int) OPT_IGNORE_DATA:
+  {
+    if (!strchr(argument, '.'))
+    {
+      fprintf(stderr,
+              "Illegal use of option --ignore-table-data=<database>.<table>\n");
+      exit(1);
+    }
+    if (my_hash_insert(&ignore_data, (uchar*)my_strdup(argument, MYF(0))))
+      exit(EX_EOM);
+    break;
+  }
   case (int) OPT_IGNORE_TABLE:
   {
     if (!strchr(argument, '.'))
@@ -999,6 +1018,10 @@ static int get_options(int *argc, char ***argv)
                      (uchar*) my_strdup("mysql.general_log", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
                      (uchar*) my_strdup("mysql.slow_log", MYF(MY_WME))))
+    return(EX_EOM);
+
+  if (my_hash_init(&ignore_data, charset_info, 16, 0, 0,
+                   (my_hash_get_key) get_table_key, my_free, 0))
     return(EX_EOM);
 
   if ((ho_error= handle_options(argc, argv, my_long_options, get_one_option)))
@@ -1648,6 +1671,8 @@ static void free_resources()
   free_root(&glob_root, MYF(0));
   if (my_hash_inited(&ignore_table))
     my_hash_free(&ignore_table);
+  if (my_hash_inited(&ignore_data))
+    my_hash_free(&ignore_data);
   dynstr_free(&extended_row);
   dynstr_free(&dynamic_where);
   dynstr_free(&insert_pat);
@@ -3622,7 +3647,7 @@ static char *alloc_query_str(ulong size)
 */
 
 
-static void dump_table(char *table, char *db)
+static void dump_table(char *table, char *db, const uchar *hash_key, size_t len)
 {
   char ignore_flag;
   char buf[200], table_buff[NAME_LEN+3];
@@ -3650,7 +3675,7 @@ static void dump_table(char *table, char *db)
     DBUG_VOID_RETURN;
 
   /* Check --no-data flag */
-  if (opt_no_data)
+  if (opt_no_data || (hash_key && ignore_table_data(hash_key, len)))
   {
     verbose_msg("-- Skipping dump data for table '%s', --no-data was used\n",
                 table);
@@ -4578,9 +4603,13 @@ static int init_dumping(char *database, int init_func(char*))
 
 /* Return 1 if we should copy the table */
 
-my_bool include_table(const uchar *hash_key, size_t len)
+static my_bool include_table(const uchar *hash_key, size_t len)
 {
   return ! my_hash_search(&ignore_table, hash_key, len);
+}
+static my_bool ignore_table_data(const uchar *hash_key, size_t len)
+{
+  return my_hash_search(&ignore_data, hash_key, len) != NULL;
 }
 
 
@@ -4646,7 +4675,7 @@ static int dump_all_tables_in_db(char *database)
     char *end= strmov(afterdot, table);
     if (include_table((uchar*) hash_key, end - hash_key))
     {
-      dump_table(table,database);
+      dump_table(table, database, (uchar*) hash_key, end - hash_key);
       my_free(order_by);
       order_by= 0;
       if (opt_dump_triggers && mysql_get_server_version(mysql) >= 50009)
@@ -5035,7 +5064,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   for (pos= dump_tables; pos < end; pos++)
   {
     DBUG_PRINT("info",("Dumping table %s", *pos));
-    dump_table(*pos, db);
+    dump_table(*pos, db, NULL, 0);
     if (opt_dump_triggers &&
         mysql_get_server_version(mysql) >= 50009)
     {
@@ -6016,6 +6045,7 @@ int main(int argc, char **argv)
   compatible_mode_normal_str[0]= 0;
   default_charset= (char *)mysql_universal_client_charset;
   bzero((char*) &ignore_table, sizeof(ignore_table));
+  bzero((char*) &ignore_data, sizeof(ignore_data));
 
   exit_code= get_options(&argc, &argv);
   if (exit_code)
