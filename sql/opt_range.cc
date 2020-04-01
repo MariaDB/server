@@ -6827,6 +6827,13 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                         update_tbl_stats, &mrr_flags,
                                         &buf_size, &cost);
 
+      if (!param->is_ror_scan &&
+          !optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION))
+      {
+        /* The scan is not a ROR-scan, just skip it */
+        continue;
+      }
+
       if (found_records != HA_POS_ERROR && tree->index_scans &&
           (index_scan= (INDEX_SCAN_INFO *)alloc_root(param->mem_root,
 						     sizeof(INDEX_SCAN_INFO))))
@@ -8865,7 +8872,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       if (key2->next_key_part)
       {
 	key1->use_count--;			// Incremented in and_all_keys
-	return and_all_keys(param, key1, key2, clone_flag);
+        return and_all_keys(param, key1, key2->next_key_part, clone_flag);
       }
       key2->use_count--;			// Key2 doesn't have a tree
     }
