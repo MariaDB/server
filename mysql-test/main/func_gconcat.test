@@ -580,7 +580,7 @@ create table t1(a bit(2), b varchar(10), c bit);
 insert into t1 values (1, 'a', 0), (0, 'b', 1), (0, 'c', 0), (3, 'd', 1),
 (1, 'e', 1), (3, 'f', 1), (0, 'g', 1);
 select group_concat(distinct a, c) from t1;
-select group_concat(distinct a, c order by a) from t1;
+select group_concat(distinct a, c order by a, b) from t1;
 select group_concat(distinct a, c) from t1;
 select group_concat(distinct a, c order by a, c) from t1;
 select group_concat(distinct a, c order by a desc, c desc) from t1;
@@ -1034,3 +1034,25 @@ drop table t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+create table t1 (a int, b varchar(255), c char(255));
+insert t1 select seq, REPEAT(CHAR(65 + seq-1), 10), REPEAT(CHAR(65 + seq-1), 10) from seq_1_to_26;
+insert t1 select seq, REPEAT(CHAR(65 + seq-1), 10), REPEAT(CHAR(65 + seq-1), 10) from seq_1_to_26;
+
+--echo #
+--echo # All data in memory
+--echo #
+
+select group_concat(c order by a desc) from t1;
+select group_concat(distinct c order by a desc) from t1;
+
+--echo #
+--echo # Data is flushed to memory
+--echo #
+
+set @save_tmp_table_size= @@tmp_table_size;
+set tmp_table_size=1024;
+select group_concat(c order by a desc) from t1;
+select group_concat(distinct c order by a desc) from t1;
+set tmp_table_size= @save_tmp_table_size;
+drop table t1;

@@ -1988,6 +1988,12 @@ public:
     { context= (Name_resolution_context *)cntx; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_group_concat>(thd, this); }
+  bool insert_to_order_tree(uint row_str_len, uchar *key);
+  String *get_value_for_arg(String *res, Item *arg, uchar *key, bool *is_null);
+  static int dump_leaf_key_to_tree(void* key_arg,
+                                   element_count count __attribute__((unused)),
+                                   void* item_arg);
+
 };
 
 #endif /* ITEM_SUM_INCLUDED */

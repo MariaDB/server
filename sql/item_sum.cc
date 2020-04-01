@@ -3669,7 +3669,6 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   uint max_length= (uint)table->in_use->variables.group_concat_max_len;
   String tmp((char *)table->record[1], table->s->reclength,
              default_charset_info);
-  const bool exclude_nulls= item->exclude_nulls;
   String tmp2;
   uchar *key= (uchar *) key_arg;
   String *result= &item->result;
@@ -3703,7 +3702,6 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   for (; arg < arg_end; arg++)
   {
     String *res;
-    is_null= false;
     /*
       We have to use get_tmp_table_field() instead of
       real_item()->get_tmp_table_field() because we want the field in
@@ -3711,29 +3709,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       We also can't use table->field array to access the fields
       because it contains both order and arg list fields.
      */
-    if ((*arg)->const_item())
-    {
-      res= (*arg)->val_str(&tmp);
-      if ((*arg)->null_value)
-        is_null= TRUE;
-    }
-    else
-    {
-      Field *field= (*arg)->get_tmp_table_field();
-      if (field)
-      {
-        uint offset= (field->offset(field->table->record[0]) -
-                      table->s->null_bytes);
-        DBUG_ASSERT(offset < table->s->reclength);
-        if (!exclude_nulls && field->is_null_in_record(key))
-          is_null= true;
-        res= field->val_str(&tmp,
-                            key + offset + (exclude_nulls ? 0 :
-                                            table->s->null_bytes +offset));
-      }
-      else
-        res= (*arg)->val_str(&tmp);
-    }
+    res= item->get_value_for_arg(&tmp, *arg, key, &is_null);
     if (res)
     {
       if (item->sum_func() == Item_sum::JSON_ARRAYAGG_FUNC)
@@ -3786,6 +3762,55 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
     return 1;
   }
   return 0;
+}
+
+
+/*
+  @brief
+    Insert a key into a tree to achieve ordering
+
+  @details
+    It is a callback function used by Unique class, where we walk over
+    the Unique tree and for each key we insert the key into the ORDER BY tree
+
+  @param key_arg           key to be inserted
+  @param item_arg          compare arg
+*/
+
+int
+Item_func_group_concat::dump_leaf_key_to_tree(void* key_arg,
+                                  element_count count __attribute__((unused)),
+                                  void* item_arg)
+{
+  Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
+  TABLE *table= item->table;
+  String tmp((char *)table->record[1], table->s->reclength,
+             default_charset_info);
+
+  // Currently JSON_ARRAYAGG does not support ORDER BY clause
+  DBUG_ASSERT(item->exclude_nulls == TRUE);
+  uchar *key= (uchar *) key_arg;
+  Item **arg= item->args, **arg_end= item->args + item->arg_count_field;
+
+  uint row_str_len= 0;
+
+  for (; arg < arg_end; arg++)
+  {
+    String *res;
+    bool is_null;
+    /*
+      We have to use get_tmp_table_field() instead of
+      real_item()->get_tmp_table_field() because we want the field in
+      the temporary table, not the original field
+      We also can't use table->field array to access the fields
+      because it contains both order and arg list fields.
+     */
+    res= item->get_value_for_arg(&tmp, *arg, key, &is_null);
+    if (res)
+      row_str_len+= res->length();
+  }
+
+  return item->insert_to_order_tree(row_str_len, key);
 }
 
 
@@ -4106,22 +4131,10 @@ bool Item_func_group_concat::add()
       row_eligible= FALSE;
   }
 
-  TREE_ELEMENT *el= 0;                          // Only for safety
-  if (row_eligible && tree)
-  {
-    THD *thd= table->in_use;
-    table->field[0]->store(row_str_len, FALSE);
-    if (tree_len > thd->variables.group_concat_max_len * GCONCAT_REPACK_FACTOR
-        && tree->elements_in_tree > 1)
-      if (repack_tree(thd))
-        return 1;
-    el= tree_insert(tree, table->record[0] + table->s->null_bytes, 0,
-                    tree->custom_arg);
-    /* check if there was enough memory to insert the row */
-    if (!el)
-      return 1;
-    tree_len+= row_str_len;
-  }
+  if (!distinct && row_eligible && tree &&
+      insert_to_order_tree(row_str_len,
+                           table->record[0] + table->s->null_bytes))
+    return 1;
   /*
     In case of GROUP_CONCAT with DISTINCT or ORDER BY (or both) don't dump the
     row to the output buffer here. That will be done in val_str.
@@ -4132,6 +4145,90 @@ bool Item_func_group_concat::add()
                   table->record[0], 1, this);
 
   return 0;
+}
+
+
+
+/*
+  @brief
+    Insert a key into the ORDER BY tree for GROUP_CONCAT
+
+  @param row_str_len     length of the value of the arguments in the
+                         expression list
+  @param key             key to be inserted
+
+  @retval
+    TRUE     ERROR
+    FALSE    key inserted in the tree
+*/
+
+bool Item_func_group_concat::insert_to_order_tree(uint row_str_len, uchar *key)
+{
+  DBUG_ASSERT(tree);
+
+  TREE_ELEMENT *el= 0;                          // Only for safety
+  THD *thd= table->in_use;
+  table->field[0]->store(row_str_len, FALSE);
+  if (tree_len > thd->variables.group_concat_max_len * GCONCAT_REPACK_FACTOR
+      && tree->elements_in_tree > 1)
+  if (repack_tree(thd))
+    return TRUE;
+  el= tree_insert(tree, key, 0, tree->custom_arg);
+    /* check if there was enough memory to insert the row */
+    if (!el)
+      return TRUE;
+  tree_len+= row_str_len;
+  return FALSE;
+}
+
+
+/*
+  @brief
+    Get the value of the item
+
+  @param res                     String where the value of the item will be
+                                 stored
+  @param arg                     Item to get the value for
+  @param key                     key value
+  @param is_null[OUT]            TRUE if key value is NULL
+                                 FALSE otherwise
+*/
+
+String *Item_func_group_concat::get_value_for_arg(String *res, Item *arg,
+                                                  uchar *key, bool *is_null)
+{
+  *is_null= FALSE;
+  /*
+    We have to use get_tmp_table_field() instead of
+    real_item()->get_tmp_table_field() because we want the field in
+    the temporary table, not the original field
+    We also can't use table->field array to access the fields
+    because it contains both order and arg list fields.
+   */
+  if (arg->const_item())
+  {
+    res= arg->val_str(res);
+    if (arg->null_value)
+      *is_null= TRUE;
+  }
+  else
+  {
+    Field *field= arg->get_tmp_table_field();
+    if (field)
+    {
+      uint offset= (field->offset(field->table->record[0]) -
+                    table->s->null_bytes);
+      DBUG_ASSERT(offset < table->s->reclength);
+      if (!exclude_nulls && field->is_null_in_record(key))
+        *is_null= TRUE;
+      res= field->val_str(res,
+                          key + offset + (exclude_nulls ? 0 :
+                                          table->s->null_bytes +offset));
+    }
+    else
+      res= arg->val_str(res);
+  }
+  return res;
 }
 
 
@@ -4370,7 +4467,12 @@ String* Item_func_group_concat::val_str(String* str)
 
   if (!m_result_finalized) // Result yet to be written.
   {
-    if (tree != NULL) // order by
+    if (tree && distinct)
+    {
+      unique_filter->walk(table, &dump_leaf_key_to_tree, this);
+      tree_walk(tree, &dump_leaf_key, this, left_root_right);
+    }
+    else if (tree != NULL) // order by
       tree_walk(tree, &dump_leaf_key, this, left_root_right);
     else if (distinct) // distinct (and no order by).
       unique_filter->walk(table, &dump_leaf_key, this);
