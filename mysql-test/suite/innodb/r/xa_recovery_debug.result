@@ -12,7 +12,7 @@ COUNT(*)
 2
 XA END 'zombie';
 XA PREPARE 'zombie';
-SET DEBUG_SYNC='trx_xa_rollback SIGNAL s1 WAIT_FOR s2';
+SET DEBUG_SYNC='trx_after_rollback_row SIGNAL s1 WAIT_FOR s2';
 XA ROLLBACK 'zombie';
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR s1';
@@ -21,7 +21,6 @@ DELETE FROM t LIMIT 1;
 disconnect con1;
 XA COMMIT 'zombie';
 ERROR XAE04: XAER_NOTA: Unknown XID
-SELECT COUNT(*) FROM t;
-COUNT(*)
-0
+SELECT * FROM t;
+a	b
 DROP TABLE t;
