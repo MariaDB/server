@@ -103,8 +103,7 @@ select * from db1.t1	{
                     "type": "scan",
                     "records": 3,
                     "cost": 2.0051,
-                    "uses_join_buffering": false,
-                    "filter_used": false
+                    "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
@@ -227,8 +226,7 @@ select * from db1.v1	{
                     "type": "scan",
                     "records": 3,
                     "cost": 2.0051,
-                    "uses_join_buffering": false,
-                    "filter_used": false
+                    "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,

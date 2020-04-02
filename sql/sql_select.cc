@@ -7758,6 +7758,8 @@ best_access_path(JOIN      *join,
           filter->get_cmp_gain(rows);
           tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
           DBUG_ASSERT(tmp >= 0);
+          trace_access_idx.add("rowid_filter_key",
+                               s->table->key_info[filter->key_no].name);
         }
       }
       trace_access_idx.add("rows", records).add("cost", tmp);
