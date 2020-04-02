@@ -400,7 +400,7 @@ public:
     /** the page is guaranteed to always change */
     NORMAL= 0,
     /** optional: the page contents might not change */
-    OPT,
+    MAYBE_NOP,
     /** force a write, even if the page contents is not changing */
     FORCED
   };

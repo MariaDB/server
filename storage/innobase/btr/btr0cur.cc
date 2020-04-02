@@ -3985,7 +3985,7 @@ static void btr_cur_upd_rec_sys(buf_block_t *block, rec_t *rec,
   }
 
   if (UNIV_LIKELY(len)) /* extra safety, to avoid corrupting the log */
-    mtr->memcpy<mtr_t::OPT>(*block, dest, sys + d, len);
+    mtr->memcpy<mtr_t::MAYBE_NOP>(*block, dest, sys + d, len);
 }
 
 /*************************************************************//**
@@ -4128,9 +4128,10 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 				       ? -REC_NEW_INFO_BITS
 				       : -REC_OLD_INFO_BITS];
 
-		mtr->write<1,mtr_t::OPT>(*block, info_bits,
-			      (*info_bits & ~REC_INFO_BITS_MASK)
-			      | update->info_bits);
+		mtr->write<1,mtr_t::MAYBE_NOP>(*block, info_bits,
+					       (*info_bits
+						& ~REC_INFO_BITS_MASK)
+					       | update->info_bits);
 	}
 
 	for (ulint i = 0; i < update->n_fields; i++) {
@@ -4192,8 +4193,8 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 		}
 
 		if (len) {
-			mtr->memcpy<mtr_t::OPT>(*block, data, uf->new_val.data,
-						len);
+			mtr->memcpy<mtr_t::MAYBE_NOP>(*block, data,
+						      uf->new_val.data, len);
 		}
 	}
 
@@ -5307,7 +5308,7 @@ void btr_rec_set_deleted(buf_block_t *block, rec_t *rec, mtr_t *mtr)
     const byte v = flag
       ? (*b | REC_INFO_DELETED_FLAG)
       : (*b & byte(~REC_INFO_DELETED_FLAG));
-    mtr->write<1,mtr_t::OPT>(*block, b, v);
+    mtr->write<1,mtr_t::MAYBE_NOP>(*block, b, v);
   }
 }
 
@@ -6958,9 +6959,8 @@ btr_cur_set_ownership_of_extern_field(
 		mach_write_to_1(data + local_len + BTR_EXTERN_LEN, byte_val);
 		page_zip_write_blob_ptr(block, rec, index, offsets, i, mtr);
 	} else {
-		mtr->write<1,mtr_t::OPT>(*block,
-					 data + local_len + BTR_EXTERN_LEN,
-					 byte_val);
+		mtr->write<1,mtr_t::MAYBE_NOP>(*block, data + local_len
+					       + BTR_EXTERN_LEN, byte_val);
 	}
 }
 
@@ -7488,7 +7488,7 @@ next_zip_page:
 					store_len = extern_len;
 				}
 
-				mtr.memcpy<mtr_t::OPT>(
+				mtr.memcpy<mtr_t::MAYBE_NOP>(
 					*block,
 					FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE
 					+ block->frame,
@@ -7514,7 +7514,7 @@ next_zip_page:
 
 				if (prev_page_no == FIL_NULL) {
 					ut_ad(blob_npages == 0);
-					mtr.write<4,mtr_t::OPT>(
+					mtr.write<4,mtr_t::MAYBE_NOP>(
 						*rec_block,
 						field_ref + BTR_EXTERN_SPACE_ID,
 						space_id);
@@ -7748,9 +7748,10 @@ btr_free_externally_stored_field(
 				mtr.write<4>(*block,
 					     BTR_EXTERN_PAGE_NO + field_ref,
 					     next_page_no);
-				mtr.write<4,mtr_t::OPT>(*block,
-							BTR_EXTERN_LEN + 4
-							+ field_ref, 0U);
+				mtr.write<4,mtr_t::MAYBE_NOP>(*block,
+							      BTR_EXTERN_LEN
+							      + 4 + field_ref,
+							      0U);
 			}
 		} else {
 			ut_ad(!block->page.zip.data);
@@ -7768,9 +7769,9 @@ btr_free_externally_stored_field(
 			trx_rollback_all_recovered() could
 			dereference the half-deleted BLOB, fetching a
 			wrong prefix for the BLOB. */
-			mtr.write<4,mtr_t::OPT>(*block,
-						BTR_EXTERN_LEN + 4 + field_ref,
-						0U);
+			mtr.write<4,mtr_t::MAYBE_NOP>(*block,
+						      BTR_EXTERN_LEN + 4
+						      + field_ref, 0U);
 		}
 
 		/* Commit mtr and release the BLOB block to save memory. */

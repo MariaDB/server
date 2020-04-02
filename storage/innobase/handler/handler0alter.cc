@@ -10220,7 +10220,7 @@ commit_cache_norebuild(
 					    space->zip_size(),
 					    RW_X_LATCH, &mtr)) {
 					mtr.set_named_space(space);
-					mtr.write<4,mtr_t::OPT>(
+					mtr.write<4,mtr_t::MAYBE_NOP>(
 						*b,
 						FSP_HEADER_OFFSET
 						+ FSP_SPACE_FLAGS + b->frame,

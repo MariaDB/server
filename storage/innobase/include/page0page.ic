@@ -88,7 +88,7 @@ page_set_ssn_id(
   ut_ad(!page_zip || page_zip == &block->page.zip);
   constexpr uint16_t field= FIL_RTREE_SPLIT_SEQ_NUM;
   byte *b= my_assume_aligned<2>(&block->frame[field]);
-  if (mtr->write<8,mtr_t::OPT>(*block, b, ssn_id) &&
+  if (mtr->write<8,mtr_t::MAYBE_NOP>(*block, b, ssn_id) &&
       UNIV_LIKELY_NULL(page_zip))
     memcpy_aligned<2>(&page_zip->data[field], b, 8);
 }
@@ -126,7 +126,7 @@ inline void page_header_reset_last_insert(buf_block_t *block, mtr_t *mtr)
 {
   constexpr uint16_t field= PAGE_HEADER + PAGE_LAST_INSERT;
   byte *b= my_assume_aligned<2>(&block->frame[field]);
-  if (mtr->write<2,mtr_t::OPT>(*block, b, 0U) &&
+  if (mtr->write<2,mtr_t::MAYBE_NOP>(*block, b, 0U) &&
       UNIV_LIKELY_NULL(block->page.zip.data))
     memset_aligned<2>(&block->page.zip.data[field], 0, 2);
 }

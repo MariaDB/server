@@ -400,7 +400,7 @@ inline void mtr_t::zmemcpy(const buf_block_t &b, void *dest, const void *str,
     {
       if (d == end)
       {
-        ut_ad(w == OPT);
+        ut_ad(w == MAYBE_NOP);
         return;
       }
     }
@@ -3836,8 +3836,8 @@ void page_zip_write_rec(buf_block_t *block, const byte *rec,
 
 		/* Copy the node pointer to the uncompressed area. */
 		byte* node_ptr = storage - REC_NODE_PTR_SIZE * (heap_no - 1);
-		mtr->zmemcpy<mtr_t::OPT>(*block, node_ptr,
-					 rec + len, REC_NODE_PTR_SIZE);
+		mtr->zmemcpy<mtr_t::MAYBE_NOP>(*block, node_ptr,
+					       rec + len, REC_NODE_PTR_SIZE);
 	}
 
 	ut_a(!*data);
@@ -3909,8 +3909,8 @@ page_zip_write_blob_ptr(
 	externs -= (blob_no + 1) * BTR_EXTERN_FIELD_REF_SIZE;
 	field += len - BTR_EXTERN_FIELD_REF_SIZE;
 
-	mtr->zmemcpy<mtr_t::OPT>(*block, externs, field,
-				 BTR_EXTERN_FIELD_REF_SIZE);
+	mtr->zmemcpy<mtr_t::MAYBE_NOP>(*block, externs, field,
+				       BTR_EXTERN_FIELD_REF_SIZE);
 
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(page_zip_validate(page_zip, page, index));
@@ -4049,8 +4049,8 @@ page_zip_write_trx_id_and_roll_ptr(
 		}
 	} else {
 write:
-                mtr->zmemcpy<mtr_t::OPT>(*block, storage, field,
-					 sys_len - len);
+                mtr->zmemcpy<mtr_t::MAYBE_NOP>(*block, storage, field,
+					       sys_len - len);
 	}
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
 	ut_a(!memcmp(storage - len, field - len, sys_len));
@@ -4171,7 +4171,7 @@ void page_zip_rec_set_deleted(buf_block_t *block, rec_t *rec, bool flag,
     b|= (PAGE_ZIP_DIR_SLOT_DEL >> 8);
   else
     b&= byte(~(PAGE_ZIP_DIR_SLOT_DEL >> 8));
-  mtr->zmemcpy<mtr_t::OPT>(*block, slot, &b, 1);
+  mtr->zmemcpy<mtr_t::MAYBE_NOP>(*block, slot, &b, 1);
 #ifdef UNIV_ZIP_DEBUG
   ut_a(page_zip_validate(&block->page.zip, block->frame, nullptr));
 #endif /* UNIV_ZIP_DEBUG */
@@ -4197,7 +4197,7 @@ page_zip_rec_set_owned(
     b|= (PAGE_ZIP_DIR_SLOT_OWNED >> 8);
   else
     b&= byte(~(PAGE_ZIP_DIR_SLOT_OWNED >> 8));
-  mtr->zmemcpy<mtr_t::OPT>(*block, slot, &b, 1);
+  mtr->zmemcpy<mtr_t::MAYBE_NOP>(*block, slot, &b, 1);
 }
 
 /**********************************************************************//**

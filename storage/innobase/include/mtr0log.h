@@ -200,7 +200,7 @@ inline bool mtr_t::write(const buf_block_t &block, void *ptr, V val)
     {
       if (p == end)
       {
-        ut_ad(w == OPT);
+        ut_ad(w == MAYBE_NOP);
         return false;
       }
     }
@@ -494,7 +494,7 @@ inline void mtr_t::memcpy(const buf_block_t &b, void *dest, const void *str,
     {
       if (d == end)
       {
-        ut_ad(w == OPT);
+        ut_ad(w == MAYBE_NOP);
         return;
       }
     }

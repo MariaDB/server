@@ -409,7 +409,7 @@ void fil_space_crypt_t::write_page0(buf_block_t* block, mtr_t* mtr)
 		+ fsp_header_get_encryption_offset(block->zip_size());
 	byte* b = block->frame + offset;
 
-	mtr->memcpy<mtr_t::OPT>(*block, b, CRYPT_MAGIC, MAGIC_SZ);
+	mtr->memcpy<mtr_t::MAYBE_NOP>(*block, b, CRYPT_MAGIC, MAGIC_SZ);
 
 	b += MAGIC_SZ;
 	byte* const start = b;

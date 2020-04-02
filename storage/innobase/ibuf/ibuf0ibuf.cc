@@ -653,7 +653,7 @@ ibuf_bitmap_page_set_bits(
 #endif
 	}
 
-	mtr->write<1,mtr_t::OPT>(*block, map_byte, b);
+	mtr->write<1,mtr_t::MAYBE_NOP>(*block, map_byte, b);
 }
 
 /** Calculates the bitmap page number for a given page number.

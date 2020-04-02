@@ -4315,8 +4315,8 @@ dict_index_set_merge_threshold(
 			DICT_FLD__SYS_INDEXES__MERGE_THRESHOLD, &len);
 
 		ut_ad(len == 4);
-		mtr.write<4,mtr_t::OPT>(*btr_cur_get_block(&cursor), field,
-					merge_threshold);
+		mtr.write<4,mtr_t::MAYBE_NOP>(*btr_cur_get_block(&cursor),
+					      field, merge_threshold);
 	}
 
 	mtr_commit(&mtr);
