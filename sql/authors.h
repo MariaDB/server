@@ -77,6 +77,7 @@ struct show_table_authors_st show_table_authors[]= {
   { "Federico Razolli", "Italy", "MariaDB documentation Italian translation"},
   { "Vinchen", "Shenzhen, China", "Instant ADD Column for InnoDB, Spider engine optimization, from Tencent Game DBA Team" },
   { "Willhan", "Shenzhen, China", "Big Column Compression, Spider engine optimization, from Tencent Game DBA Team" },
+  { "Anders Karlsson", "Ystad, Sweden", "Replication patch for enforcing triggers on slave"},
 
   /* People working on MySQL code base (not NDB) */
   { "Guilhem Bichot", "Bordeaux, France", "Replication (since 4.0)" },
