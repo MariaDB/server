@@ -50,6 +50,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 IF (WIN32)
   SET (MYSYS_SOURCES ${MYSYS_SOURCES}
     my_winthread.c
+    my_wintoken.c
     my_wincond.c
     my_winerr.c
     my_winfile.c
@@ -65,7 +66,7 @@ IF(HAVE_ALARM)
  SET(MYSYS_SOURCES ${MYSYS_SOURCES} my_alarm.c)
 ENDIF()
 
-IF(HAVE_LINUX_LARGE_PAGES)
+IF(HAVE_LARGE_PAGE_OPTION)
  SET(MYSYS_SOURCES ${MYSYS_SOURCES} my_largepage.c)
 ENDIF()
 

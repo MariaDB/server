@@ -176,15 +176,34 @@ extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf My
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
 
-#ifdef HAVE_LINUX_LARGE_PAGES
-extern uint my_get_large_page_size(void);
-extern uchar * my_large_malloc(size_t size, myf my_flags);
-extern void my_large_free(uchar *ptr);
+#if defined(__linux__) || defined(HAVE_GETPAGESIZES)
+extern size_t my_next_large_page_size(size_t sz, int *start);
 #else
-#define my_get_large_page_size() (0)
-#define my_large_malloc(A,B) my_malloc_lock((A),(B))
-#define my_large_free(A) my_free_lock((A))
-#endif /* HAVE_LINUX_LARGE_PAGES */
+#define my_next_large_page_size(A,B) (0)
+#endif
+
+#if defined(_WIN32) || (defined(HAVE_MMAP) && !defined(__linux__) \
+                        && !defined(HAVE_MMAP_ALIGNED))
+extern void my_get_large_page_size(void);
+#else
+#define my_get_large_page_size() do {} while(0)
+#endif
+
+#ifdef HAVE_LARGE_PAGE_OPTION
+int my_init_large_pages(my_bool super_large_pages);
+uchar * my_large_malloc(size_t *size, myf my_flags);
+void my_large_free(void *ptr, size_t size);
+#else
+#define my_large_malloc(A,B) my_malloc_lock(*(A),(B))
+#define my_large_free(A,B) my_free_lock((A))
+#endif /* HAVE_LARGE_PAGE_OPTION */
+
+#ifdef _WIN32
+extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
+#else
+#define my_obtain_privilege(A) (1)
+#define SE_LOCK_MEMORY_NAME "SeLockMemoryPrivilege"
+#endif
 
 void my_init_atomic_write(void);
 #ifdef __linux__
@@ -241,11 +260,6 @@ extern int sf_leaking_memory; /* set to 1 to disable memleak detection */
 
 extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
                               const char *, const char *, const unsigned int);
-
-#ifdef HAVE_LINUX_LARGE_PAGES
-extern my_bool my_use_large_pages;
-extern uint    my_large_page_size;
-#endif
 
 /* charsets */
 #define MY_ALL_CHARSETS_SIZE 2048

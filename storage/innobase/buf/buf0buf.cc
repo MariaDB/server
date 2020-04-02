@@ -1380,6 +1380,8 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
 
   /* Align a pointer to the first frame.  Note that when
   opt_large_page_size is smaller than srv_page_size,
+  (with max srv_page_size at 64k don't think any hardware
+  makes this true),
   we may allocate one fewer block than requested.  When
   it is bigger, we may allocate more blocks than requested. */
   static_assert(sizeof(byte*) == sizeof(ulint), "pointer size");
@@ -1526,8 +1528,7 @@ bool buf_pool_t::create()
           for (auto i= chunk->size; i--; block++)
           buf_block_free_mutexes(block);
 
-          allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx,
-                                            chunk->mem_size());
+          allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
         }
         ut_free(chunks);
         chunks= nullptr;
@@ -1653,8 +1654,7 @@ void buf_pool_t::close()
     for (auto i= chunk->size; i--; block++)
       buf_block_free_mutexes(block);
 
-    allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx,
-                                      chunk->mem_size());
+    allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
   }
 
   for (ulint i= BUF_FLUSH_LRU; i < BUF_FLUSH_N_TYPES; ++i)
@@ -2279,8 +2279,7 @@ withdraw_retry:
 			}
 
 			allocator.deallocate_large_dodump(
-				chunk->mem, &chunk->mem_pfx,
-				chunk->mem_size());
+				chunk->mem, &chunk->mem_pfx);
 			sum_freed += chunk->size;
 			++chunk;
 		}

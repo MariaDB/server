@@ -1476,7 +1476,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	LARGE_PAGE_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	If large page support is enabled, this shows the size of memory pages
+VARIABLE_COMMENT	Previously showed the size of large memory pages, unused since multiple page size support was added
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
