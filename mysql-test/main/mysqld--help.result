@@ -984,7 +984,7 @@ The following specify which files/extra groups are read (specified before remain
  to.
  --redirect-server-ttl[=name] 
  The life time of the validity of redirected information
- with unit second.
+ in seconds.
  --relay-log=name    The location and name to use for relay logs.
  --relay-log-index=name 
  The location and name to use for the file that keeps a

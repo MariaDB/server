@@ -6705,6 +6705,6 @@ static Sys_var_charptr Sys_redirect_server_port(
 
 static Sys_var_charptr Sys_redirect_server_ttl(
        "redirect_server_ttl",
-       "The life time of the validity of redirected information with unit second.",
+       "The life time of the validity of redirected information in seconds.",
        READ_ONLY GLOBAL_VAR(redirect_server_ttl), CMD_LINE(OPT_ARG),
        DEFAULT("0"));
