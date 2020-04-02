@@ -6016,6 +6016,24 @@ the generated partition syntax in a correct manner.
           *partition_changed= true;
         }
       }
+
+      // In case of PARTITION BY KEY(), check if primary key has changed
+      // System versioning also implicitly adds/removes primary key parts
+      if (alter_info->partition_flags == 0 && part_info->list_of_part_fields
+          && part_info->part_field_list.elements == 0)
+      {
+        if (alter_info->flags & (ALTER_DROP_SYSTEM_VERSIONING |
+                                 ALTER_ADD_SYSTEM_VERSIONING))
+          *partition_changed= true;
+
+        List_iterator<Key> it(alter_info->key_list);
+        Key *key;
+        while((key= it++) && !*partition_changed)
+        {
+          if (key->type == Key::PRIMARY)
+            *partition_changed= true;
+        }
+      }
       /*
         Set up partition default_engine_type either from the create_info
         or from the previus table
