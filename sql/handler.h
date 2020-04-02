@@ -4387,4 +4387,16 @@ void print_keydup_error(TABLE *table, KEY *key, myf errflag);
 
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
 int del_global_table_stat(THD *thd, LEX_STRING *db, LEX_STRING *table);
+#ifndef DBUG_OFF
+/** Converts XID to string.
+
+@param[out] buf output buffer
+@param[in] xid XID to convert
+
+@return pointer to converted string
+
+@note This does not need to be multi-byte safe or anything */
+char *xid_to_str(char *buf, const XID &xid);
+#endif // !DBUG_OFF
+
 #endif /* HANDLER_INCLUDED */

@@ -584,9 +584,7 @@ trx_free_prepared(
 	     || (trx->is_recovered
 		 && (trx_state_eq(trx, TRX_STATE_ACTIVE)
 		     || trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY))
-		 && (!srv_was_started
-		     || srv_operation == SRV_OPERATION_RESTORE
-		     || srv_operation == SRV_OPERATION_RESTORE_EXPORT
+		 && (!srv_was_started || is_mariabackup_restore_or_export()
 		     || srv_read_only_mode
 		     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)));
 	ut_a(trx->magic_n == TRX_MAGIC_N);
