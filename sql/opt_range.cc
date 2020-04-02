@@ -2386,7 +2386,7 @@ static int fill_used_fields_bitmap(PARAM *param)
      force_quick_range is really needed.
 
   RETURN
-   -1 if impossible select (i.e. certainly no rows will be selected)
+   -1 if error or impossible select (i.e. certainly no rows will be selected)
     0 if can't use quick_select
     1 if found usable ranges and quick select has been successfully created.
 */
@@ -2473,7 +2473,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     {
       thd->no_errors=0;
       free_root(&alloc,MYF(0));			// Return memory & allocator
-      DBUG_RETURN(0);				// Can't use range
+      DBUG_RETURN(-1);				// Error
     }
     key_parts= param.key_parts;
 
@@ -2524,7 +2524,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     {
       thd->no_errors=0;
       free_root(&alloc,MYF(0));			// Return memory & allocator
-      DBUG_RETURN(0);				// Can't use range
+      DBUG_RETURN(-1);				// Error
     }
 
     thd->mem_root= &alloc;
@@ -2560,6 +2560,13 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         */
         if (tree->type != SEL_TREE::KEY && tree->type != SEL_TREE::KEY_SMALLER)
           tree= NULL;
+      }
+      else if (thd->is_error())
+      {
+        thd->no_errors=0;
+        thd->mem_root= param.old_root;
+        free_root(&alloc, MYF(0));
+        DBUG_RETURN(-1);
       }
     }
 

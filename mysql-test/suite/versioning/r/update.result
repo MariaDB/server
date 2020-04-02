@@ -312,3 +312,10 @@ ERROR 42S22: Unknown column 'xx' in 'field list'
 drop procedure sp;
 drop view v1;
 drop table t1;
+#
+# MDEV-21342 Assertion in set_ok_status() upon spatial field error on system-versioned table
+#
+create or replace table t1 (f point, key(f)) with system versioning engine=myisam;
+update t1 set f = null where f = 'foo';
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+drop table t1;
