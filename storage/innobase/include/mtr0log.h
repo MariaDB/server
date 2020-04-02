@@ -427,7 +427,7 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
     if (oend + len > &log_ptr[16])
     {
       len+= oend - log_ptr - 15;
-      if (len >= MIN_3BYTE)
+      if (len >= MIN_3BYTE - 1)
         len+= 2;
       else if (len >= MIN_2BYTE)
         len++;
@@ -448,7 +448,7 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
   else if (len >= 3 && end + len > &log_ptr[16])
   {
     len+= end - log_ptr - 15;
-    if (len >= MIN_3BYTE)
+    if (len >= MIN_3BYTE - 1)
       len+= 2;
     else if (len >= MIN_2BYTE)
       len++;
