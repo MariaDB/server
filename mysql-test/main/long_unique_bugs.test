@@ -18,6 +18,7 @@ delete from tmp;
 drop table t1;
 --let $datadir= `SELECT @@datadir`
 --remove_file $datadir/test/load.data
+drop table tmp;
 
 #
 # MDEV-18712 InnoDB indexes are inconsistent with what defined in .frm for table after rebuilding table with index on blob
@@ -340,3 +341,15 @@ while ($count)
 --eval $insert_stmt
 --enable_query_log
 drop table t1;
+
+#
+# MDEV-22113 SIGSEGV, ASAN use-after-poison, Assertion `next_insert_id == 0' in handler::ha_external_lock
+#
+create temporary table tmp ( a int, b int, c blob not null, d int, e int default 0, f int, unique key (c)) engine=innodb;
+create table t2 (x int);
+lock table t2 write;
+update tmp set c = 'foo';
+start transaction;
+alter table tmp alter column a set default 8;
+unlock tables;
+drop table t2;

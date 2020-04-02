@@ -6481,14 +6481,6 @@ int handler::ha_external_lock(THD *thd, int lock_type)
       mysql_audit_external_lock(thd, table_share, lock_type);
   }
 
-  if (lock_type == F_UNLCK && lookup_handler != this)
-  {
-    lookup_handler->ha_external_lock(table->in_use, F_UNLCK);
-    lookup_handler->close();
-    delete lookup_handler;
-    lookup_handler= this;
-  }
-
   if (MYSQL_HANDLER_RDLOCK_DONE_ENABLED() ||
       MYSQL_HANDLER_WRLOCK_DONE_ENABLED() ||
       MYSQL_HANDLER_UNLOCK_DONE_ENABLED())
@@ -6540,6 +6532,13 @@ int handler::ha_reset()
   /* Reset information about pushed index conditions */
   cancel_pushed_rowid_filter();
   clear_top_table_fields();
+  if (lookup_handler != this)
+  {
+    lookup_handler->ha_external_lock(table->in_use, F_UNLCK);
+    lookup_handler->close();
+    delete lookup_handler;
+    lookup_handler= this;
+  }
   DBUG_RETURN(reset());
 }
 

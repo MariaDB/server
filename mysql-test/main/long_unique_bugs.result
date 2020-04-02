@@ -10,6 +10,7 @@ create temporary table tmp (a varchar(1024), b int, c int, d int, e linestring, 
 load data infile 'load.data' into table tmp;
 delete from tmp;
 drop table t1;
+drop table tmp;
 create table t1 (b blob) engine=innodb;
 alter table t1 add unique (b);
 alter table t1 force;
@@ -270,3 +271,11 @@ ERROR 42000: Specified key was too long; max key length is 2000 bytes
 create table t1(a int, unique(a) using hash);
 #BULK insert > 100 rows (MI_MIN_ROWS_TO_DISABLE_INDEXES)
 drop table t1;
+create temporary table tmp ( a int, b int, c blob not null, d int, e int default 0, f int, unique key (c)) engine=innodb;
+create table t2 (x int);
+lock table t2 write;
+update tmp set c = 'foo';
+start transaction;
+alter table tmp alter column a set default 8;
+unlock tables;
+drop table t2;
