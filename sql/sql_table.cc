@@ -9379,6 +9379,7 @@ static int master_result(THD *thd, Master_info *mi, start_alter_info *info,
     info->state= start_alter_state::COMMITTED;
     mysql_mutex_unlock(&mi->start_alter_lock);
     mysql_cond_broadcast(&info->start_alter_cond);
+    thd->clear_error();
     return MASTER_RESULT_ROLLBACK;
   }
   else if (info->state == start_alter_state::COMMIT_ALTER && alter_result)
