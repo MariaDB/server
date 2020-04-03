@@ -504,11 +504,11 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE);
   }
 
-//  if (table->s->period.name && handle_duplicates != DUP_ERROR)
-//  {
-//    if (table_list->set_insert_values(thd->mem_root))
-//      DBUG_RETURN(1);
-//  }
+  if (table->s->period.name && handle_duplicates != DUP_ERROR)
+  {
+    if (table_list->set_insert_values(thd->mem_root))
+      DBUG_RETURN(1);
+  }
 
   /* We can't give an error in the middle when using LOCAL files */
   if (read_file_from_client && handle_duplicates == DUP_ERROR)
@@ -676,7 +676,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                             set_fields, set_values, read_info,
                             *ex->enclosed, skip_lines, ignore);
 
-    if (table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS)
+    if (table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS
+        /* if the index matched was WITHOUT OVERLAPS, INDEX was used */
+        && !(table->file->overlap_ref && handle_duplicates != DUP_ERROR))
       table_list->table->file->ha_rnd_end();
 
     thd_proc_info(thd, "End bulk insert");

@@ -1133,8 +1133,8 @@ values_loop_end:
     {
       table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
       if (table->file->ha_table_flags() & HA_DUPLICATE_POS
-          /* if the index matched was WITHOUT OVERLAPS, RND was already ended */
-          && !table->file->overlap_ref)
+          /* if the index matched was WITHOUT OVERLAPS, INDEX was used */
+          && !(table->file->overlap_ref && duplic != DUP_ERROR))
         table->file->ha_rnd_end();
     }
 
@@ -4174,7 +4174,8 @@ bool select_insert::prepare_eof()
   if (likely(!error) && unlikely(thd->is_error()))
     error= thd->get_stmt_da()->sql_errno();
 
-  if (info.ignore || info.handle_duplicates != DUP_ERROR)
+  if (info.ignore || (info.handle_duplicates != DUP_ERROR
+                      && !table->file->overlap_ref))
       if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
         table->file->ha_rnd_end();
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);

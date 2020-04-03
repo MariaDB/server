@@ -56,6 +56,24 @@ select row_count();
 --sorted_result
 select * from t;
 
+let $MYSQLD_DATADIR= `select @@datadir`;
 
+select 2, '2003-01-15', '2003-07-15', 16 into outfile 'tmp_t.txt';
+--error ER_DUP_ENTRY
+load data infile 'tmp_t.txt' into table t;
+
+load data infile 'tmp_t.txt' replace into table t;
+--sorted_result
+select * from t;
+remove_file $MYSQLD_DATADIR/test/tmp_t.txt;
+
+insert t select 2, '2003-01-07', '2003-09-01', 17
+         on duplicate key update val = 18;
+--sorted_result
+select * from t;
+
+replace t select 2, '2003-01-07', '2003-09-01', 19;
+--sorted_result
+select * from t;
 
 drop table t;
