@@ -1603,13 +1603,11 @@ public:
 
   bool versioned() const
   {
-    DBUG_ASSERT(s);
     return s->versioned;
   }
 
   bool versioned(vers_kind_t type) const
   {
-    DBUG_ASSERT(s);
     DBUG_ASSERT(type);
     return s->versioned == type;
   }
@@ -1629,25 +1627,25 @@ public:
 
   Field *vers_start_field() const
   {
-    DBUG_ASSERT(s && s->versioned);
+    DBUG_ASSERT(s->versioned);
     return field[s->vers.start_fieldno];
   }
 
   Field *vers_end_field() const
   {
-    DBUG_ASSERT(s && s->versioned);
+    DBUG_ASSERT(s->versioned);
     return field[s->vers.end_fieldno];
   }
 
   Field *period_start_field() const
   {
-    DBUG_ASSERT(s && s->period.name);
+    DBUG_ASSERT(s->period.name);
     return field[s->period.start_fieldno];
   }
 
   Field *period_end_field() const
   {
-    DBUG_ASSERT(s && s->period.name);
+    DBUG_ASSERT(s->period.name);
     return field[s->period.end_fieldno];
   }
 
