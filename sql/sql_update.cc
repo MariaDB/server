@@ -465,6 +465,7 @@ int mysql_update(THD *thd,
       my_error(ER_NOT_CONSTANT_EXPRESSION, MYF(0), "FOR PORTION OF");
       DBUG_RETURN(true);
     }
+    table->no_cache= true;
   }
 
   old_covering_keys= table->covering_keys;		// Keys used in WHERE
