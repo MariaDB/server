@@ -35,4 +35,27 @@ select row_count();
 --sorted_result
 select * from t;
 
+--echo # Single row insert
+replace into t values(2, '2003-06-01', '2003-08-01', 12);
+select row_count();
+--sorted_result
+select * from t;
+
+replace into t values(2, '2003-02-01', '2003-09-01', 13);
+select row_count();
+--sorted_result
+select * from t;
+
+delete from t where val=13;
+insert into t values(2, '2003-06-01', '2003-08-01', 14);
+--sorted_result
+select * from t;
+
+replace into t values(2, '2003-02-01', '2003-07-01', 15);
+select row_count();
+--sorted_result
+select * from t;
+
+
+
 drop table t;
