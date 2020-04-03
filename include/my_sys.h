@@ -185,11 +185,11 @@ extern void my_get_large_page_size(void);
 
 #ifdef HAVE_LARGE_PAGE_OPTION
 int my_init_large_pages(my_bool super_large_pages);
-uchar * my_large_malloc(size_t *size, myf my_flags);
+uchar *my_large_malloc(size_t *size, myf my_flags);
 void my_large_free(void *ptr, size_t size);
 #else
-#define my_large_malloc(A,B) my_malloc_lock(*(A),(B))
-#define my_large_free(A,B) my_free_lock((A))
+#define my_large_malloc(A, B) my_malloc_lock(*(A), (B))
+#define my_large_free(A, B) my_free_lock((A))
 #endif /* HAVE_LARGE_PAGE_OPTION */
 
 #ifdef _WIN32

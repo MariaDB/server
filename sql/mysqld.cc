@@ -5042,8 +5042,10 @@ static int init_server_components()
       {"timed-mutexes", OPT_DEPRECATED_OPTION, "",
        0, 0, 0, GET_NO_ARG, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #if defined(__linux__)
-      /* Linux was the only large page OS that we've now removed the (always)
-         unused super-large-pages (because its Solaris only). */
+      /*
+        Linux was the only large page OS that we've now removed the (always)
+        unused super-large-pages (because its Solaris only).
+      */
       {"super-large-pages", OPT_DEPRECATED_OPTION, "",
        0, 0, 0, GET_NO_ARG, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif

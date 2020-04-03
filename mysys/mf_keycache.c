@@ -547,7 +547,8 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
              ((size_t) blocks * keycache->key_cache_block_size) > use_mem && blocks > 8)
         blocks--;
       keycache->allocated_mem_size= blocks * keycache->key_cache_block_size;
-      if ((keycache->block_mem=my_large_malloc(&keycache->allocated_mem_size, MYF(0))))
+      if ((keycache->block_mem= my_large_malloc(&keycache->allocated_mem_size,
+                                                MYF(0))))
       {
         /*
 	  Allocate memory for blocks, hash_links and hash entries;

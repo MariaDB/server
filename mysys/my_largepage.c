@@ -125,8 +125,9 @@ int my_init_large_pages(my_bool super_large_pages)
   my_get_large_page_sizes(my_large_page_sizes);
   if (!my_obtain_privilege(SE_LOCK_MEMORY_NAME))
   {
-    fprintf(stderr, "mysqld: Lock Pages in memory access rights required for use with large-pages, "
-      "see https://mariadb.com/kb/en/library/mariadb-memory-allocation/#huge-pages");
+    fprintf(stderr, "mysqld: Lock Pages in memory access rights required for "
+            "use with large-pages, see https://mariadb.com/kb/en/library/"
+            "mariadb-memory-allocation/#huge-pages");
     return 1;
   }
 #ifdef HAVE_SOLARIS_LARGE_PAGES
@@ -158,12 +159,12 @@ int my_init_large_pages(my_bool super_large_pages)
     mpss.mha_cmd= MHA_MAPSIZE_BSSBRK;
     mpss.mha_pagesize= max_page_size;
     mpss.mha_flags= 0;
-    if (memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t)&mpss, 0, 0))
+    if (memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t) &mpss, 0, 0))
     {
       perror("memcntl MC_HAT_ADVISE cmd MHA_MAPSIZE_BSSBRK error (continuing)");
     }
     mpss.mha_cmd= MHA_MAPSIZE_STACK;
-    if (memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t)&mpss, 0, 0))
+    if (memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t) &mpss, 0, 0))
     {
       perror("memcntl MC_HAT_ADVISE cmd MHA_MAPSIZE_STACK error (continuing)");
     }
@@ -245,15 +246,15 @@ static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
   }
   else
   {
-    while (i < my_large_page_sizes_length &&
-          (r= readdir(dirp)))
+    while (i < my_large_page_sizes_length && (r= readdir(dirp)))
     {
       if (strncmp("hugepages-", r->d_name, 10) == 0)
       {
         sizes[i]= strtoull(r->d_name + 10, NULL, 10) * 1024ULL;
         if (!my_is_2pow(sizes[i]))
         {
-          fprintf(stderr, "Warning: non-power of 2 large page size (%zu) found, skipping\n", sizes[i]);
+          fprintf(stderr, "Warning: non-power of 2 large page size (%zu) found,"
+                  " skipping\n", sizes[i]);
           sizes[i]= 0;
           continue;
         }
@@ -312,7 +313,8 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
         {
           fprintf(stderr,
                   "Warning: Failed to allocate %zu bytes from HugeTLB memory"
-                  "(page size %zu). errno %d\n", aligned_size, large_page_size, errno);
+                  "(page size %zu). errno %d\n", aligned_size, large_page_size,
+                  errno);
         }
         else
         {
@@ -332,11 +334,11 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
     {
       if (large_page_size)
       {
-         /*
-            we do need to record the adjustment so that munmap gets called with
-            the right size. This is only the case for HUGETLB pages.
-         */
-         *size= aligned_size;
+        /*
+          we do need to record the adjustment so that munmap gets called with
+          the right size. This is only the case for HUGETLB pages.
+        */
+        *size= aligned_size;
       }
       DBUG_RETURN(ptr);
     }
