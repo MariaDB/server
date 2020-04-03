@@ -3947,11 +3947,6 @@ static int init_common_variables()
       return 1;
     }
   }
-  /*
-    my_get_large_page_size results used by large allocations even if not large pages.
-    This function must be called after my_init_large_pages.
-  */
-  my_get_large_page_size();
 #endif /* HAVE_LARGE_PAGES */
 
 #if defined(HAVE_POOL_OF_THREADS)

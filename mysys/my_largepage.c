@@ -38,6 +38,10 @@ extern int memcntl(caddr_t, size_t, int, caddr_t, int, int);
 #endif /* __sun__ ... */
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
 
+#if defined(_WIN32) || (!defined(__linux__) && !defined(MAP_ALIGNED))
+static size_t my_large_page_size;
+#endif
+
 #ifdef HAVE_LARGE_PAGES
 static my_bool my_use_large_pages= 0;
 #else
@@ -121,8 +125,7 @@ static size_t my_next_large_page_size(size_t sz, int *start)
 
 int my_init_large_pages(my_bool super_large_pages)
 {
-  my_use_large_pages= 1;
-  my_get_large_page_sizes(my_large_page_sizes);
+#ifdef _WIN32
   if (!my_obtain_privilege(SE_LOCK_MEMORY_NAME))
   {
     fprintf(stderr, "mysqld: Lock Pages in memory access rights required for "
@@ -130,6 +133,18 @@ int my_init_large_pages(my_bool super_large_pages)
             "mariadb-memory-allocation/#huge-pages");
     return 1;
   }
+  my_large_page_size= GetLargePageMinimum();
+#elif !defined(__linux__) && !defined(MAP_ALIGNED)
+  /*
+    This is a fudge as we only use this to ensure that mmap allocations are of
+    this size.
+  */
+  my_large_page_size= my_getpagesize();
+#endif
+
+  my_use_large_pages= 1;
+  my_get_large_page_sizes(my_large_page_sizes);
+
 #ifdef HAVE_SOLARIS_LARGE_PAGES
 #define LARGE_PAGESIZE (4*1024*1024)  /* 4MB */
 #define SUPER_LARGE_PAGESIZE (256*1024*1024)  /* 256MB */
@@ -403,18 +418,6 @@ MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
 #error unsupported mmap - no MAP_ANON{YMOUS}
 #endif
 
-static size_t my_large_page_size= 0;
-
-/* mmap-specific function to determine the size of large pages
-
-This is a fudge as we only use this to ensure that mmap allocations
-are of this size.
-*/
-
-void my_get_large_page_size(void)
-{
-  my_large_page_size= my_getpagesize();
-}
 
 /* mmap(non-Linux,non-FreeBSD) pages allocator  */
 
@@ -447,18 +450,6 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
 #endif /* defined(HAVE_MMAP) && !defined(__linux__) && !defined(_WIN32) */
 
 #ifdef _WIN32
-static size_t my_large_page_size= 0;
-
-/* Windows-specific function to determine the size of large pages */
-
-void my_get_large_page_size(void)
-{
-  DBUG_ENTER("my_get_large_page_size_int");
-
-  my_large_page_size= my_use_large_pages ? GetLargePageMinimum()
-                      : my_getpagesize();
-  DBUG_VOID_RETURN;
-}
 
 /* Windows-specific large pages allocator */
 

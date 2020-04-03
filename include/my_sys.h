@@ -176,13 +176,6 @@ extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf My
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
 
-#if defined(_WIN32) || (defined(HAVE_MMAP) && !defined(__linux__) \
-                        && !defined(MAP_ALIGNED))
-extern void my_get_large_page_size(void);
-#else
-#define my_get_large_page_size() do {} while(0)
-#endif
-
 #ifdef HAVE_LARGE_PAGES
 int my_init_large_pages(my_bool super_large_pages);
 uchar *my_large_malloc(size_t *size, myf my_flags);
@@ -194,9 +187,6 @@ void my_large_free(void *ptr, size_t size);
 
 #ifdef _WIN32
 extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
-#else
-#define my_obtain_privilege(A) (1)
-#define SE_LOCK_MEMORY_NAME "SeLockMemoryPrivilege"
 #endif
 
 void my_init_atomic_write(void);
