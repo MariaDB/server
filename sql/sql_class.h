@@ -341,8 +341,8 @@ public:
   bool alter_if_exists;
   Alter_column(LEX_CSTRING par_name, Virtual_column_info *expr, bool par_exists)
     :name(par_name), new_name{NULL, 0}, default_value(expr), alter_if_exists(par_exists) {}
-  Alter_column(LEX_CSTRING par_name, LEX_CSTRING _new_name)
-    :name(par_name), new_name(_new_name), default_value(NULL), alter_if_exists(false) {}
+  Alter_column(LEX_CSTRING par_name, LEX_CSTRING _new_name, bool exists)
+    :name(par_name), new_name(_new_name), default_value(NULL), alter_if_exists(exists) {}
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
@@ -362,9 +362,10 @@ class Alter_rename_key : public Sql_alloc
 public:
   LEX_CSTRING old_name;
   LEX_CSTRING new_name;
+  bool alter_if_exists;
 
-  Alter_rename_key(LEX_CSTRING old_name_arg, LEX_CSTRING new_name_arg)
-      : old_name(old_name_arg), new_name(new_name_arg) {}
+  Alter_rename_key(LEX_CSTRING old_name_arg, LEX_CSTRING new_name_arg, bool exists)
+      : old_name(old_name_arg), new_name(new_name_arg), alter_if_exists(exists) {}
 
   Alter_rename_key *clone(MEM_ROOT *mem_root) const
     { return new (mem_root) Alter_rename_key(*this); }

@@ -2110,6 +2110,9 @@ ALTER TABLE t1 RENAME COLUMN a TO a;
 --replace_result $default_engine DEFAULT_ENGINE " PAGE_CHECKSUM=1" ""
 SHOW CREATE TABLE t1;
 ALTER TABLE t1 RENAME COLUMN a TO m;
+--error ER_BAD_FIELD_ERROR
+ALTER TABLE t1 RENAME COLUMN a TO m;
+ALTER TABLE t1 RENAME COLUMN IF EXISTS a TO m;
 --replace_result $default_engine DEFAULT_ENGINE " PAGE_CHECKSUM=1" ""
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
@@ -2293,6 +2296,7 @@ show create table t1;
 --echo #      exists, dropped or added within the same ALTER TABLE.
 --error ER_KEY_DOES_NOT_EXISTS
 alter table t1 rename key d to e;
+alter table t1 rename key if exists d to e;
 show create table t1;
 --error ER_KEY_DOES_NOT_EXISTS
 alter table t1 drop key c, rename key c to d;

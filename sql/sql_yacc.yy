@@ -7757,16 +7757,16 @@ alter_list_item:
             lex->name= $3->table;
             lex->alter_info.flags|= ALTER_RENAME;
           }
-        | RENAME COLUMN_SYM ident TO_SYM ident
+        | RENAME COLUMN_SYM opt_if_exists_table_element ident TO_SYM ident
           {
-            if (unlikely(Lex->add_alter_list($3, $5)))
+            if (unlikely(Lex->add_alter_list($4, $6, $3)))
               MYSQL_YYABORT;
           }
-        | RENAME key_or_index field_ident TO_SYM field_ident
+        | RENAME key_or_index opt_if_exists_table_element field_ident TO_SYM field_ident
           {
             LEX *lex=Lex;
             Alter_rename_key *ak= new (thd->mem_root)
-                                    Alter_rename_key($3, $5);
+                                    Alter_rename_key($4, $6, $3);
             if (ak == NULL)
               MYSQL_YYABORT;
             lex->alter_info.alter_rename_key_list.push_back(ak);

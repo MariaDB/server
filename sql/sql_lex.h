@@ -4323,7 +4323,7 @@ public:
   }
   bool add_alter_list(LEX_CSTRING par_name, Virtual_column_info *expr,
                       bool par_exists);
-  bool add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name);
+  bool add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists);
   void set_command(enum_sql_command command,
                    DDL_options_st options)
   {

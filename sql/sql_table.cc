@@ -6256,7 +6256,7 @@ drop_create_field:
     }
   }
 
-  /* Handle ALTER COLUMN IF EXISTS SET/DROP DEFAULT. */
+  /* Handle ALTER/RENAME COLUMN IF EXISTS. */
   {
     List_iterator<Alter_column> it(alter_info->alter_list);
     Alter_column *acol;
@@ -6422,6 +6422,35 @@ drop_create_field:
                           ALTER_DROP_INDEX |
                           ALTER_DROP_FOREIGN_KEY);
     alter_info->flags|= left_flags;
+  }
+
+  /* Handle RENAME KEY IF EXISTS. */
+  {
+    List_iterator<Alter_rename_key> rename_key_it(alter_info->alter_rename_key_list);
+    Alter_rename_key *rename_key;
+    while ((rename_key= rename_key_it++))
+    {
+      if (!rename_key->alter_if_exists)
+        continue;
+      bool exists= false;
+      for (uint n_key= 0; n_key < table->s->keys; n_key++)
+      {
+        if (my_strcasecmp(system_charset_info,
+                          rename_key->old_name.str,
+                          table->key_info[n_key].name.str) == 0)
+        {
+          exists= true;
+          break;
+        }
+      }
+      if (exists)
+        continue;
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_KEY_DOES_NOT_EXISTS,
+                          ER_THD(thd, ER_KEY_DOES_NOT_EXISTS),
+                          rename_key->old_name.str, table->s->table_name.str);
+      rename_key_it.remove();
+    }
   }
 
   /* ALTER TABLE ADD KEY IF NOT EXISTS */

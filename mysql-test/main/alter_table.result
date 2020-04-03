@@ -2594,6 +2594,11 @@ t1	CREATE TABLE `t1` (
   `c` float DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 RENAME COLUMN a TO m;
+ALTER TABLE t1 RENAME COLUMN a TO m;
+ERROR 42S22: Unknown column 'a' in 't1'
+ALTER TABLE t1 RENAME COLUMN IF EXISTS a TO m;
+Warnings:
+Note	1054	Unknown column 'a' in 't1'
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2882,6 +2887,9 @@ t1	CREATE TABLE `t1` (
 #      exists, dropped or added within the same ALTER TABLE.
 alter table t1 rename key d to e;
 ERROR 42000: Key 'd' doesn't exist in table 't1'
+alter table t1 rename key if exists d to e;
+Warnings:
+Note	1176	Key 'd' doesn't exist in table 't1'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
