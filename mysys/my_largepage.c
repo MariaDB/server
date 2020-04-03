@@ -38,7 +38,7 @@ extern int memcntl(caddr_t, size_t, int, caddr_t, int, int);
 #endif /* __sun__ ... */
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
 
-#ifdef HAVE_LARGE_PAGE_OPTION
+#ifdef HAVE_LARGE_PAGES
 static my_bool my_use_large_pages= 0;
 #else
 #define my_use_large_pages 0
@@ -58,7 +58,7 @@ static inline my_bool my_is_2pow(size_t n) { return !((n) & ((n) - 1)); }
 static uchar* my_large_malloc_int(size_t *size, myf my_flags);
 static my_bool my_large_free_int(void *ptr, size_t size);
 
-#ifdef HAVE_LARGE_PAGE_OPTION
+#ifdef HAVE_LARGE_PAGES
 
 #if defined(HAVE_GETPAGESIZES) || defined(__linux__)
 /* Descending sort */
@@ -226,7 +226,7 @@ void my_large_free(void *ptr, size_t size)
 
   DBUG_VOID_RETURN;
 }
-#endif /* HAVE_LARGE_PAGE_OPTION */
+#endif /* HAVE_LARGE_PAGES */
 
 
 #ifdef __linux__

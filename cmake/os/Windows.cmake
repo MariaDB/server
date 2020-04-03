@@ -281,7 +281,7 @@ ENDIF()
 
 SET(FN_NO_CASE_SENSE 1)
 SET(USE_SYMDIR 1)
-SET(HAVE_LARGE_PAGE_OPTION 1)
+SET(HAVE_LARGE_PAGES 1)
 
 # Force static C runtime for targets in current directory
 # (useful to get rid of MFC dll's dependency, or in installer)
