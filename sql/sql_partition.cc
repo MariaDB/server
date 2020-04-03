@@ -6875,6 +6875,7 @@ static void alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
       thd->set_stmt_da(&tmp_stmt_da);
     }
 
+    // TODO: why error status of reopen_tables() is ignored?
     if (unlikely(thd->locked_tables_list.reopen_tables(thd, false)))
       sql_print_warning("We failed to reacquire LOCKs in ALTER TABLE");
 
