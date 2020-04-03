@@ -8908,7 +8908,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   if (rename_key_list.elements)
   {
-    my_error(ER_KEY_DOES_NOT_EXITS, MYF(0), rename_key_list.head()->old_name.str,
+    my_error(ER_KEY_DOES_NOT_EXISTS, MYF(0), rename_key_list.head()->old_name.str,
              table->s->table_name.str);
     goto err;
   }

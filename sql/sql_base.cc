@@ -7864,7 +7864,7 @@ bool get_key_map_from_key_list(key_map *map, TABLE *table,
                         name->length(), 1)) <=
         0)
     {
-      my_error(ER_KEY_DOES_NOT_EXITS, MYF(0), name->c_ptr(),
+      my_error(ER_KEY_DOES_NOT_EXISTS, MYF(0), name->c_ptr(),
 	       table->pos_in_table_list->alias.str);
       map->set_all();
       return 1;

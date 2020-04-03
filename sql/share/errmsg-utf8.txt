@@ -3919,7 +3919,7 @@ ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
         spa "Tu estás usando modo de actualización segura y tentado actualizar una tabla sin un WHERE que usa una KEY columna"
         swe "Du använder 'säker uppdateringsmod' och försökte uppdatera en tabell utan en WHERE-sats som använder sig av en nyckel"
         ukr "Ви у режимі безпечного оновлення та намагаєтесь оновити таблицю без оператора WHERE, що використовує KEY стовбець"
-ER_KEY_DOES_NOT_EXITS 42000 S1009
+ER_KEY_DOES_NOT_EXISTS 42000 S1009
         cze "Klíč '%-.192s' v tabulce '%-.192s' neexistuje"
         dan "Nøglen '%-.192s' eksisterer ikke i tabellen '%-.192s'"
         nla "Zoeksleutel '%-.192s' bestaat niet in tabel '%-.192s'"

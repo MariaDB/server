@@ -1214,7 +1214,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
 
   if (table->index_hints && table->index_hints->elements)
   {
-    my_error(ER_KEY_DOES_NOT_EXITS, MYF(0),
+    my_error(ER_KEY_DOES_NOT_EXISTS, MYF(0),
              table->index_hints->head()->key_name.str, table->table_name.str);
     DBUG_RETURN(TRUE);
   }

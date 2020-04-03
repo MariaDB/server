@@ -2291,13 +2291,13 @@ show create table t1;
 
 --echo # 1.b) It should be impossible to rename index that doesn't
 --echo #      exists, dropped or added within the same ALTER TABLE.
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 alter table t1 rename key d to e;
 show create table t1;
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 alter table t1 drop key c, rename key c to d;
 show create table t1;
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 alter table t1 add key d(j), rename key d to e;
 show create table t1;
 
