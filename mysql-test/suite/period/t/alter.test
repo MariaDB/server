@@ -131,3 +131,17 @@ alter table t add constraint mytime_1 check (x > 2);
 insert t values (3, @e, @s);
 
 drop table t;
+
+--echo #
+--echo # MDEV-21941 RENAME doesn't work for system time or period fields
+--echo #
+create or replace table t1 (
+  a int, s date, e date,
+  period for mytime(s, e));
+
+alter table t1 rename column s to x;
+alter table t1 rename column e to y;
+
+show create table t1;
+# cleanup
+drop table t1;

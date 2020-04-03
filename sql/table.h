@@ -831,12 +831,26 @@ struct TABLE_SHARE
 
   Field *vers_start_field()
   {
+    DBUG_ASSERT(versioned);
     return field[vers.start_fieldno];
   }
 
   Field *vers_end_field()
   {
+    DBUG_ASSERT(versioned);
     return field[vers.end_fieldno];
+  }
+
+  Field *period_start_field() const
+  {
+    DBUG_ASSERT(period.name);
+    return field[period.start_fieldno];
+  }
+
+  Field *period_end_field() const
+  {
+    DBUG_ASSERT(period.name);
+    return field[period.end_fieldno];
   }
 
   /**
@@ -1624,6 +1638,19 @@ public:
     DBUG_ASSERT(s && s->versioned);
     return field[s->vers.end_fieldno];
   }
+
+  Field *period_start_field() const
+  {
+    DBUG_ASSERT(s && s->period.name);
+    return field[s->period.start_fieldno];
+  }
+
+  Field *period_end_field() const
+  {
+    DBUG_ASSERT(s && s->period.name);
+    return field[s->period.end_fieldno];
+  }
+
 
   ulonglong vers_start_id() const;
   ulonglong vers_end_id() const;

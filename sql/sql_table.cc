@@ -8142,6 +8142,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   Field **f_ptr,*field;
   MY_BITMAP *dropped_fields= NULL; // if it's NULL - no dropped fields
   bool drop_period= false;
+  LEX_CSTRING period_start_name;
+  LEX_CSTRING period_end_name;
+  if (table->s->period.name)
+  {
+    period_start_name= table->s->period_start_field()->field_name;
+    period_end_name= table->s->period_end_field()->field_name;
+  }
   DBUG_ENTER("mysql_prepare_alter_table");
 
   /*
@@ -8338,13 +8345,24 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                            alter->name.str))
 	  break;
       }
-      if (alter)
+      if (alter && field->invisible < INVISIBLE_SYSTEM)
       {
         if (alter->is_rename())
         {
           def->change= alter->name;
           def->field_name= alter->new_name;
           column_rename_param.fields.push_back(def);
+          if (field->flags & VERS_SYS_START_FLAG)
+            create_info->vers_info.as_row.start= alter->new_name;
+          else if (field->flags & VERS_SYS_END_FLAG)
+            create_info->vers_info.as_row.end= alter->new_name;
+          if (table->s->period.name)
+          {
+            if (field == table->period_start_field())
+              period_start_name= alter->new_name;
+            else if (field == table->period_end_field())
+              period_end_name= alter->new_name;
+          }
         }
         else
         {
@@ -8804,9 +8822,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     else
     {
-      Field *s= table->s->period.start_field(table->s);
-      Field *e= table->s->period.end_field(table->s);
-      create_info->period_info.set_period(s->field_name, e->field_name);
+      create_info->period_info.set_period(period_start_name, period_end_name);
       create_info->period_info.name= table->s->period.name;
     }
   }
