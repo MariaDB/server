@@ -23,7 +23,7 @@
 #include <linux/mman.h>
 #include <dirent.h>
 #endif
-#if defined(__linux__) || defined(HAVE_MMAP_ALIGNED)
+#if defined(__linux__) || defined(MAP_ALIGNED)
 #include "my_bit.h"
 #endif
 
@@ -267,7 +267,7 @@ static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
 
 /* Multisized (Linux/FreeBSD) large pages allocator  */
 
-#if defined(__linux__) || defined(HAVE_MMAP_ALIGNED)
+#if defined(__linux__) || defined(MAP_ALIGNED)
 uchar* my_large_malloc_int(size_t *size, myf my_flags)
 {
   uchar* ptr;
@@ -343,7 +343,7 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
   DBUG_RETURN(ptr);
 }
 
-#endif /* defined(__linux__) || defined(HAVE_MMAP_ALIGNED) */
+#endif /* defined(__linux__) || defined(MAP_ALIGNED) */
 
 #if defined(HAVE_GETPAGESIZES) && !defined(__linux__)
 static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
@@ -383,7 +383,7 @@ my_bool my_large_free_int(void *ptr, size_t size)
 }
 #endif /* HAVE_MMAP */
 
-#if defined(HAVE_MMAP) && !defined(__linux__) && !defined(HAVE_MMAP_ALIGNED) \
+#if defined(HAVE_MMAP) && !defined(__linux__) && !defined(MAP_ALIGNED) \
     && !defined(_WIN32)
 
 /* Solaris for example has only MAP_ANON, FreeBSD has MAP_ANONYMOUS and
