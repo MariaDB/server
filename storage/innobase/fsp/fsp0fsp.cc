@@ -2605,6 +2605,8 @@ fseg_free_page_low(
 			    xdes, xoffset, mtr);
 		fsp_free_extent(space, offset, mtr);
 	}
+
+	mtr->free(page_id_t(space->id, offset));
 }
 
 #ifndef BTR_CUR_HASH_ADAPT
