@@ -201,4 +201,111 @@ insert into t values (1, '2020-03-05', '2020-03-10', 'test2');
 --error ER_DUP_ENTRY
 insert into t values (1, '2020-03-03', '2020-03-10', 'test3');
 
+create or replace table t(id int, s date, e date, val int,
+                          period for p(s,e),
+                          unique(id, p without overlaps));
+
+insert into t values (1, '2003-01-01', '2003-03-01', 1),
+                     (1, '2003-05-01', '2003-07-01', 2);
+
+--echo # This just inserts a row; no rows matched
+insert into t values (2, '2003-01-01', '2003-04-01', 3)
+       on duplicate key update val=4;
+
+--sorted_result
+select * from t;
+
+insert into t values (1, '2003-01-05', '2003-04-01', 5)
+       on duplicate key update val=6;
+select row_count();
+--sorted_result
+select * from t;
+insert into t values (1, '2003-01-01', '2003-06-01', 7)
+       on duplicate key update val=8;
+select row_count();
+--sorted_result
+select * from t;
+
+--echo # No rows matched
+insert into t values (1, '2003-07-01', '2003-08-01', 9)
+       on duplicate key update val=10;
+select row_count();
+--sorted_result
+select * from t;
+
+replace into t values (1, '2003-02-01', '2003-05-05', 11);
+select row_count();
+--sorted_result
+select * from t;
+
+--echo # Single row insert
+replace into t values(2, '2003-06-01', '2003-08-01', 12);
+select row_count();
+--sorted_result
+select * from t;
+
+replace into t values(2, '2003-02-01', '2003-09-01', 13);
+select row_count();
+--sorted_result
+select * from t;
+
+delete from t where val=13;
+insert into t values(2, '2003-06-01', '2003-08-01', 14);
+--sorted_result
+select * from t;
+
+replace into t values(2, '2003-02-01', '2003-07-01', 15);
+select row_count();
+--sorted_result
+select * from t;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+select 2, '2003-01-15', '2003-07-15', 16 into outfile 'tmp_t.txt';
+--error ER_DUP_ENTRY
+load data infile 'tmp_t.txt' into table t;
+
+load data infile 'tmp_t.txt' replace into table t;
+--sorted_result
+select * from t;
+remove_file $MYSQLD_DATADIR/test/tmp_t.txt;
+
+insert t select 2, '2003-01-07', '2003-09-01', 17
+         on duplicate key update val = 18;
+--sorted_result
+select * from t;
+
+replace t select 2, '2003-01-07', '2003-09-01', 19;
+--sorted_result
+select * from t;
+
+--echo # Double execution
+replace t values (2, '2003-01-01', '2003-01-10', 20),
+                 (2, '2003-05-01', '2003-08-01', 20);
+--sorted_result
+select * from t;
+
+prepare stmt from "insert t values (2, '2003-01-05', '2003-07-10', 21) on duplicate key update val= val+1";
+execute stmt;
+--sorted_result
+select * from t;
+
+execute stmt;
+--sorted_result
+select * from t;
+
+deallocate prepare stmt;
+
+--echo # auto_increment
+alter table t add pk int primary key auto_increment;
+
+replace t(id, s, e, val) values (2, '2003-06-01', '2003-08-15', 23);
+--sorted_result
+select * from t;
+
+insert t(id, s, e, val) values (2, '2003-05-15', '2003-08-20', 24)
+                        on duplicate key update val = 25;
+--sorted_result
+select * from t;
+
 create or replace database test;
