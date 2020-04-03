@@ -176,12 +176,6 @@ extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf My
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
 
-#if defined(__linux__) || defined(HAVE_GETPAGESIZES)
-extern size_t my_next_large_page_size(size_t sz, int *start);
-#else
-#define my_next_large_page_size(A,B) (0)
-#endif
-
 #if defined(_WIN32) || (defined(HAVE_MMAP) && !defined(__linux__) \
                         && !defined(MAP_ALIGNED))
 extern void my_get_large_page_size(void);
