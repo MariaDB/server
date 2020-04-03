@@ -88,7 +88,7 @@ sed -i -e "/Package: mariadb-plugin-tokudb/,/^$/d" debian/control
 # attempt to build using older libpcre3-dev (SIC!)
 if ! apt-cache madison libpcre2-dev | grep --quiet 'libpcre2-dev'
 then
-  sed 's/libpcre2-dev/libpcre3-dev/' -i debian/control
+  sed 's/libcurl4-openssl-dev | libcurl4-dev/libpcre3-dev/' -i debian/control
 fi
 
 # Cassandra, Mroonga etc never built on Travis CI anyway, see build flags above
