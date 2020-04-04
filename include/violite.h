@@ -138,6 +138,9 @@ typedef my_socket YASSL_SOCKET_T;
 #define YASSL_SOCKET_T_DEFINED
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#ifdef DEPRECATED
+#undef DEPRECATED
+#endif
 
 enum enum_ssl_init_error
 {
