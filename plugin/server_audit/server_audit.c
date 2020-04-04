@@ -2177,6 +2177,7 @@ struct mysql_event_general_v8
 
 static void auditing_v8(MYSQL_THD thd, struct mysql_event_general_v8 *ev_v8)
 {
+#ifdef __linux__
 #ifdef DBUG_OFF
   #ifdef __x86_64__
   static const int cmd_off= 4200;
@@ -2198,6 +2199,7 @@ static void auditing_v8(MYSQL_THD thd, struct mysql_event_general_v8 *ev_v8)
   static const int db_len_off= 68;
   #endif /*x86_64*/
 #endif /*DBUG_OFF*/
+#endif /*__linux*/
 
   struct mysql_event_general event;
 
@@ -2259,6 +2261,7 @@ static void auditing_v13(MYSQL_THD thd, unsigned int *ev_v0)
 
 int get_db_mysql57(MYSQL_THD thd, char **name, int *len)
 {
+#ifdef __linux__
   int db_off;
   int db_len_off;
   if (debug_server_started)
@@ -2282,7 +2285,6 @@ int get_db_mysql57(MYSQL_THD thd, char **name, int *len)
 #endif /*x86_64*/
   }
 
-#ifdef __linux__
   *name= *(char **) (((char *) thd) + db_off);
   *len= *((int *) (((char*) thd) + db_len_off));
   if (*name && (*name)[*len] != 0)
