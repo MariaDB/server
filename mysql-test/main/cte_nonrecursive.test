@@ -1202,3 +1202,106 @@ DROP TABLE test.t;
 --disconnect con1
 
 --echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-21673: several references to CTE that uses
+--echo #             local variables / parameters of SP
+--echo #
+
+CREATE TABLE t1 (col1 int);
+CREATE TABLE t2 (col1 int, col2 date, col3 varchar(16), col4 int);
+CREATE TABLE t3 (col1 int, col2 date);
+CREATE TABLE t4 (col1 int, col2 date);
+INSERT INTO t1 VALUES (3), (7), (9), (1);
+INSERT INTO t2 VALUES
+  (3,'2019-09-01','AAA',2), (7,'2019-10-01','AAA',4), (3,'2019-10-01','AAA',8),
+  (1,'2019-10-01','BBB',9), (1,'2019-10-01','AAA',4), (1,'2019-10-01','AAA',6);
+INSERT INTO t3 VALUES
+  (4,'2018-10-01'), (6,'2018-10-01'), (4,'2017-10-01'), (7,'2017-10-01');
+INSERT INTO t4 VALUES
+  (5,'2018-10-01'), (8,'2017-10-01'), (4,'2017-10-01');
+
+DELIMITER |;
+
+CREATE OR REPLACE PROCEDURE SP1()
+BEGIN
+DECLARE p_date date;
+DECLARE p_var2 varchar(16);
+SET p_date='2019-10-01';
+SET p_var2='AAA';
+WITH cte_first(col) AS
+(
+  SELECT DISTINCT col4
+  FROM t1, t2
+  WHERE t2.col1 = t1.col1 AND t2.col2 = p_date AND t2.col3 = p_var2
+),
+cte2 AS
+(
+  SELECT DISTINCT col2
+  FROM t3
+  WHERE col1 IN ( SELECT col FROM cte_first )
+),
+cte3 AS (
+  SELECT distinct t4.col1
+  FROM cte2, t4
+  WHERE t4.col2 = cte2.col2 AND t4.col1 IN ( SELECT col FROM cte_first )
+)
+SELECT * FROM cte3;
+END|
+
+CREATE PROCEDURE SP2(IN d date)
+BEGIN
+DECLARE p_var2 varchar(16);
+SET p_var2='AAA';
+WITH cte_first(col) AS
+(
+  SELECT DISTINCT col4
+  FROM t1, t2
+  WHERE t2.col1 = t1.col1 AND t2.col2 = d AND t2.col3 = p_var2
+),
+cte2 AS
+(
+  SELECT DISTINCT col2
+  FROM t3
+  WHERE col1 IN ( SELECT col FROM cte_first )
+),
+cte3 AS (
+  SELECT distinct t4.col1
+  FROM cte2, t4
+  WHERE t4.col2 = cte2.col2 AND t4.col1 IN ( SELECT col FROM cte_first )
+)
+SELECT * FROM cte3;
+END|
+
+DELIMITER ;|
+
+
+CREATE TABLE t AS
+SELECT col4 AS col
+FROM t1, t2
+WHERE t2.col1 = t1.col1 AND t2.col2 ='2019-10-01' AND t2.col3 = 'AAA';
+SELECT * FROM t;
+
+CREATE TABLE tt AS
+SELECT col2
+FROM t3
+WHERE col1 IN ( SELECT col FROM t );
+SELECT * FROM tt;
+
+SELECT t4.col1
+FROM tt, t4
+WHERE t4.col2 = tt.col2 AND t4.col1 IN ( SELECT col FROM t );
+
+DROP TABLE t,tt;
+
+CALL SP1();
+CALL SP1();
+
+CALL SP2('2019-10-01');
+CALL SP2('2019-10-01');
+
+DROP PROCEDURE SP1;
+DROP PROCEDURE SP2;
+DROP TABLE t1,t2,t3,t4;
+
+--echo # End of 10.3 tests
