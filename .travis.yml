@@ -44,14 +44,14 @@ addons:
       - libcrack2-dev
       - libcurl3-dev
       - libdbd-mysql
+      - libedit-dev
       - libjemalloc-dev
       - libjudy-dev
-      - liblzma-dev
+      - liblz4-dev
       - libncurses5-dev
       - libnuma-dev
       - libpam0g-dev
       - libpcre2-dev
-      - libreadline-gplv2-dev
       - libsnappy-dev
       - libssl-dev
       - libstemmer-dev
