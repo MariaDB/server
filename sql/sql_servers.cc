@@ -164,7 +164,9 @@ static my_bool close_cached_connection_tables_callback(
     return TRUE;
   }
 
-  tmp->next_local= arg->tables;
+  tmp->next_global= tmp->next_local= arg->tables;
+  MDL_REQUEST_INIT(&tmp->mdl_request, MDL_key::TABLE, tmp->db.str,
+                   tmp->table_name.str, MDL_EXCLUSIVE, MDL_TRANSACTION);
   arg->tables= tmp;
 
 end:
