@@ -9356,6 +9356,8 @@ static void wait_for_master(THD *thd, start_alter_info* info)
   {
     mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
   }
+  if (info->state == start_alter_state::ROLLBACK_ALTER)
+    thd->clear_error();
   mysql_mutex_unlock(&mi->start_alter_lock);
   return;
 }

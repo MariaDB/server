@@ -1374,7 +1374,8 @@ handle_rpl_parallel_thread(void *arg)
         }
         thd->reset_killed();
       }
-      if (end_of_group)
+      if (end_of_group && !(rgi->gtid_ev_flags3 &
+                                           Gtid_log_event::FL_START_ALTER_E1))
       {
         in_event_group= false;
         finish_event_group(rpt, event_gtid_sub_id, entry, rgi);

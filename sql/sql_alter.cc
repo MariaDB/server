@@ -376,7 +376,9 @@ void Alter_table_ctx::report_implicit_default_value_error(THD *thd,
 #define START_ALTER_ERROR  2
 static int process_start_alter(THD *thd, uint64 thread_id)
 {
-  if(thd->rpt == thd->rgi_slave->parallel_entry->rpl_threads[0])
+  //No Slave, Normal Slave, Start Alter under Worker 1 will simple binlog and exit
+  if(!thd->slave_thread || !thd->rpt
+            || thd->rpt == thd->rgi_slave->parallel_entry->rpl_threads[0])
   {
     /*
      We will just write the binlog and move to next event , because COMMIT
@@ -634,8 +636,6 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     We will follow a different executation path if it is START ALTER
     or commit/rollback alter
    */
-  if (0)
-      process_start_alter(thd, alter_info.alter_identifier);
   switch (alter_info.alter_state)  {
   case Alter_info::ALTER_TABLE_START:
     alter_res= process_start_alter(thd, alter_info.alter_identifier);
