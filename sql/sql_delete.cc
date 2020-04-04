@@ -246,6 +246,10 @@ int TABLE::delete_row()
 
   store_record(this, record[1]);
   vers_update_end();
+  Field *row_start= vers_start_field();
+  /* Don't create history for records inserted in same query */
+  if (0 == row_start->cmp(row_start->ptr, vers_end_field()->ptr) >= 0)
+    return file->ha_delete_row(record[1]);
   return file->ha_update_row(record[1], record[0]);
 }
 
