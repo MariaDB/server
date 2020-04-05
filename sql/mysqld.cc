@@ -3937,7 +3937,6 @@ static int init_common_variables()
   DBUG_PRINT("info",("%s  Ver %s for %s on %s\n",my_progname,
 		     server_version, SYSTEM_TYPE,MACHINE_TYPE));
 
-#ifdef HAVE_LARGE_PAGES
   /* Initialize large page size */
   if (opt_large_pages)
   {
@@ -3947,7 +3946,6 @@ static int init_common_variables()
       return 1;
     }
   }
-#endif /* HAVE_LARGE_PAGES */
 
 #if defined(HAVE_POOL_OF_THREADS)
   if (IS_SYSVAR_AUTOSIZE(&threadpool_size))

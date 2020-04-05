@@ -40,6 +40,9 @@ extern int memcntl(caddr_t, size_t, int, caddr_t, int, int);
 
 #if defined(_WIN32)
 static size_t my_large_page_size;
+#define HAVE_LARGE_PAGES
+#elif defined(HAVE_MMAP)
+#define HAVE_LARGE_PAGES
 #endif
 
 #ifdef HAVE_LARGE_PAGES
