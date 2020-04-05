@@ -66,8 +66,6 @@ static void my_get_large_page_sizes(size_t sizes[])
 
 static inline my_bool my_is_2pow(size_t n) { return !((n) & ((n) - 1)); }
 
-#ifdef HAVE_LARGE_PAGES
-
 #if defined(HAVE_GETPAGESIZES) || defined(__linux__)
 /* Descending sort */
 
@@ -85,6 +83,7 @@ static int size_t_cmp(const void *a, const void *b)
   }
   return 0;
 }
+#endif /* defined(HAVE_GETPAGESIZES) || defined(__linux__) */
 
 
 /**
@@ -109,6 +108,7 @@ static int size_t_cmp(const void *a, const void *b)
            size possible.
 */
 
+#if defined(HAVE_MMAP) && !defined(_WIN32)
 static size_t my_next_large_page_size(size_t sz, int *start)
 {
   DBUG_ENTER("my_next_large_page_size");
@@ -124,7 +124,7 @@ static size_t my_next_large_page_size(size_t sz, int *start)
   }
   DBUG_RETURN(0);
 }
-#endif /* defined(HAVE_GETPAGESIZES) || defined(__linux__) */
+#endif /* defined(MMAP) || !defined(_WIN32) */
 
 
 int my_init_large_pages(my_bool super_large_pages)
@@ -134,7 +134,7 @@ int my_init_large_pages(my_bool super_large_pages)
   {
     fprintf(stderr, "mysqld: Lock Pages in memory access rights required for "
             "use with large-pages, see https://mariadb.com/kb/en/library/"
-            "mariadb-memory-allocation/#huge-pages");
+            "mariadb-memory-allocation/#huge-pages\n");
     return 1;
   }
   my_large_page_size= GetLargePageMinimum();
@@ -142,6 +142,10 @@ int my_init_large_pages(my_bool super_large_pages)
 
   my_use_large_pages= 1;
   my_get_large_page_sizes(my_large_page_sizes);
+
+#ifndef HAVE_LARGE_PAGES
+  fprintf(stderr, "Warning: no large page support on this platform\n");
+#endif
 
 #ifdef HAVE_SOLARIS_LARGE_PAGES
 #define LARGE_PAGESIZE (4*1024*1024)  /* 4MB */
@@ -186,6 +190,7 @@ int my_init_large_pages(my_bool super_large_pages)
   return 0;
 }
 
+
 #if defined(HAVE_MMAP) && !defined(_WIN32)
 /* Solaris for example has only MAP_ANON, FreeBSD has MAP_ANONYMOUS and
 MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
@@ -204,10 +209,9 @@ MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
   my_malloc_lock() in case of failure.
   Every implementation returns a zero filled buffer here.
 */
-
 uchar* my_large_malloc(size_t *size, myf my_flags)
 {
-  uchar* ptr;
+  uchar* ptr= NULL;
   DBUG_ENTER("my_large_malloc");
   
 #ifdef _WIN32
@@ -318,20 +322,23 @@ uchar* my_large_malloc(size_t *size, myf my_flags)
     DBUG_RETURN(ptr);
   }
   ptr= my_malloc_lock(*size, my_flags);
+
+#ifdef HAVE_LARGE_PAGES
   if (my_flags & MY_WME)
     fprintf(stderr,
             "Warning: Using conventional memory pool to allocate %p, size %zu\n",
             ptr, *size);
+#endif
       
   DBUG_RETURN(ptr);
 }
+
 
 /*
   General large pages deallocator.
   Tries to deallocate memory as if it was from large pages pool and falls back
   to my_free_lock() in case of failure
  */
-
 void my_large_free(void *ptr, size_t size)
 {
   DBUG_ENTER("my_large_free");
@@ -371,7 +378,10 @@ void my_large_free(void *ptr, size_t size)
     my_free_lock(ptr);
   }
 #else
-#error No my_large_free implementation for this OS
+  my_free_lock(ptr);
+  if (1)
+  {
+  }
 #endif
   /*
     For ASAN, we need to explicitly unpoison this memory region because the OS
@@ -386,12 +396,10 @@ void my_large_free(void *ptr, size_t size)
 
   DBUG_VOID_RETURN;
 }
-#endif /* HAVE_LARGE_PAGES */
 
 
-#ifdef __linux__
 /* Linux-specific function to determine the sizes of large pages */
-
+#ifdef __linux__
 static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
 {
   DIR *dirp;
