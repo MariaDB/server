@@ -146,6 +146,13 @@ endif
 	# Install libmariadbclient.a compatibility link
 	ln -s libmariadb.a $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.a
 
+	# Symlink plugins that are used by both server and client and thus need to
+	# load from the libmariadb path as well
+	ln -s ../../../mysql/plugin/auth_test_plugin.so $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb3/plugin/auth_test_plugin.so
+	ln -s ../../../mysql/plugin/qa_auth_interface.so $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb3/plugin/qa_auth_interface.so
+	# Move test plugins that are only needed by the client to the libmariadb path
+	mv -v $(TMP)/usr/lib/mysql/plugin/qa_auth_client.so $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb3/plugin/
+
 override_dh_fixperms:
 	dh_fixperms
 	chmod 04755 debian/mariadb-server-10.5/usr/lib/mysql/plugin/auth_pam_tool_dir/auth_pam_tool
