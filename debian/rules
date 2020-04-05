@@ -8,6 +8,11 @@ export DEB_BUILD_HARDENING=1
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/default.mk
+# CPPFLAGS are nor read by CMake, so copy them to CXXFLAGS
+# See why at https://cmake.org/Bug/view.php?id=12928
+# This is needed for e.g. all automatic Debian hardening flags to apply on all cmake builds.
+CFLAGS+=$(CPPFLAGS)
+CXXFLAGS+=$(CPPFLAGS)
 
 BUILDDIR := builddir
 DEB_VERSION_REVISION := $(shell echo $(DEB_VERSION) | sed -e 's/^.*-//')
@@ -28,7 +33,7 @@ else
 endif
 
 # Ignore test suite exit code on unstable platforms
-ifneq (,$(filter $(DEB_HOST_ARCH),mips mipsel mips64el alpha powerpc sh4 hurd-i386 sparc64 kfreebsd-i386 kfreebsd-amd64))
+ifeq ($(DEB_HOST_ARCH),$(filter $(DEB_HOST_ARCH),mips mipsel mips64el alpha powerpc sh4 hurd-i386 sparc64 kfreebsd-i386 kfreebsd-amd64))
     TESTSUITE_FAIL_CMD:=true
 else
     TESTSUITE_FAIL_CMD:=exit 1
@@ -45,9 +50,12 @@ ifneq ($(DEB_HOST_ARCH),amd64)
     CMAKEFLAGS += -DWITHOUT_TOKUDB=true
 endif
 
-# Disable jemalloc on mips* due to #843926
-ifneq (,$(filter $(DEB_HOST_ARCH), mips mipsel mips64 mips64el))
-    CMAKEFLAGS += -DWITH_JEMALLOC=no
+# Add extra flag to avoid WolfSSL code crashing the entire mysqld on s390x. This
+# can be removed once upstream has made the code s390x compatible, see
+# https://jira.mariadb.org/browse/MDEV-21705 and
+# https://github.com/wolfSSL/wolfssl/issues/2828
+ifeq ($(DEB_HOST_ARCH),s390x)
+    CFLAGS += -DWC_NO_CACHE_RESISTANT
 endif
 
 # Add support for verbose builds
@@ -57,22 +65,20 @@ override_dh_auto_clean:
 	@echo "RULES.$@"
 	dh_testdir
 	dh_testroot
-	[ ! -d mysql-test/var ] || rm -rf mysql-test/var
-	rm -rf $(BUILDDIR)
-	debconf-updatepo # Update po-files when clean runs before each build
+	rm -rf $(BUILDDIR) builddir-native
 
-override_dh_prep:
-        # Don't clean /tmp/ away, it is needed by all binary packages
+	[ ! -f debian/mysql-test-unstable-tests.orig ] || \
+	    mv debian/mysql-test-unstable-tests.orig mysql-test/unstable-tests
+
+	debconf-updatepo # Update po-files when clean runs before each build
 
 override_dh_auto_configure:
 	@echo "RULES.$@"
 	dh_testdir
 
-	# Versioned symbols are only available on Linux.
-	# Remove symbols file on kFreeBSD builds so that
-	# dpkg-gensymbols will not fail the build.
-ifneq (,$(filter $(DEB_HOST_ARCH), kfreebsd-i386 kfreebsd-amd64))
-	rm debian/libmariadb3.symbols
+ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
+	dpkg-architecture -a$(DEB_BUILD_ARCH) -f -c dh_auto_configure --builddirectory=builddir-native
+	dh_auto_build --builddirectory=builddir-native -- import_executables
 endif
 
 	mkdir -p $(BUILDDIR) && cd $(BUILDDIR) && \
@@ -100,6 +106,7 @@ override_dh_auto_test:
 	@echo "RULES.$@"
 	dh_testdir
 	# Skip unstable tests if such are defined for arch
+	cp mysql-test/unstable-tests debian/mysql-test-unstable-tests.orig
 	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> mysql-test/unstable-tests
 	# Run testsuite
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
@@ -128,14 +135,15 @@ endif
 	# Delete private files from libraries so they don't get shipped in the -dev pacakges
 	rm -r $(TMP)/usr/include/mariadb/server/private
 
+	# Don't ship sql-bench at all, just delete it completely even though it builds
+	rm -r $(TMP)/usr/sql-bench
+
 	# nm numeric soft is not enough, therefore extra sort in command
 	# to satisfy Debian reproducible build requirements
 	nm --defined-only $(BUILDDIR)/sql/mysqld | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.5/mysqld.sym.gz
 
 	# rename and install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mysqld
-	# install Apport hook
-	install -D -m 644 debian/mariadb-server-10.5.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.5.py
 
 	# Install libmariadbclient18 compatibility links
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so

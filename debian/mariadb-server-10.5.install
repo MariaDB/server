@@ -3,6 +3,7 @@ debian/additions/debian-start.inc.sh usr/share/mysql
 debian/additions/echo_stderr usr/share/mysql
 debian/additions/mysql.init usr/share/mysql
 debian/additions/mysqld_safe_syslog.cnf etc/mysql/conf.d
+debian/additions/source_mariadb-10.5.py usr/share/apport/package-hooks
 etc/apparmor.d/usr.sbin.mysqld
 etc/security/user_map.conf
 lib/*/security/pam_user_map.so
@@ -58,7 +59,6 @@ usr/lib/mysql/plugin/server_audit.so
 usr/lib/mysql/plugin/simple_password_check.so
 usr/lib/mysql/plugin/sql_errlog.so
 usr/lib/mysql/plugin/wsrep_info.so
-usr/share/apport/package-hooks/source_mariadb-10.5.py
 usr/share/doc/mariadb-server-10.5/mysqld.sym.gz
 usr/share/man/man1/aria_chk.1
 usr/share/man/man1/aria_dump_log.1
