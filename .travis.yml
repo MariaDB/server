@@ -147,7 +147,7 @@ jobs:
       script: *deb-script
       # Just one OS X build is enough
     - os: osx
-      osx_image: xcode10.1
+      osx_image: xcode11.3
       compiler: clang
       env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
       # Some chosen ones with s390x and gcc
