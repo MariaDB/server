@@ -31,7 +31,7 @@ then
   sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
 
   # Also skip building RocksDB, Mroonga etc to save even more time and disk space
-  sed 's|-DDEB|-DPLUGIN_MROONGA=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -WITH_EMBEDDED_SERVER=OFF -DDEB|' -i debian/rules
+  sed 's|-DDEB|-DPLUGIN_MROONGA=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -DDEB|' -i debian/rules
 fi
 
 # Convert gcc version to numberical value. Format is Mmmpp where M is Major

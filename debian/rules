@@ -88,6 +88,7 @@ endif
 	    -DWITHOUT_TOKUDB=true \
 	    -DWITHOUT_CASSANDRA=true \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
+	    -WITH_EMBEDDED_SERVER=OFF \
 	    -DDEB=$(DEB_VENDOR) ..'
 
 # This is needed, otherwise 'make test' will run before binaries have been built
@@ -172,8 +173,6 @@ override_dh_installinit-arch:
 	#dh_installinit --name=mysql -- defaults 19 21
 	dh_systemd_start --restart-after-upgrade
 
-override_dh_installcron-arch:
-	dh_installcron --name mysql-server
 
 # If a file is not supposed to be included anywhere, add it to the not-installed
 # file and document the reason. Note that dh_install supports the above mentioned
