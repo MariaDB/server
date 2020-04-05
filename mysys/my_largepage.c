@@ -277,11 +277,11 @@ MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
 uchar* my_large_malloc(size_t *size, myf my_flags)
 {
   uchar* ptr= NULL;
-  DBUG_ENTER("my_large_malloc");
   
 #ifdef _WIN32
   DWORD alloc_type= MEM_COMMIT | MEM_RESERVE;
   size_t orig_size= *size;
+  DBUG_ENTER("my_large_malloc");
 
   if (my_use_large_pages)
   {
@@ -314,6 +314,7 @@ uchar* my_large_malloc(size_t *size, myf my_flags)
   int page_i= 0;
   size_t large_page_size= 0;
   size_t aligned_size= *size;
+  DBUG_ENTER("my_large_malloc");
 
   while (1)
   {
