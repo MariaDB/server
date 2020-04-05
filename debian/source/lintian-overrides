@@ -1,5 +1,3 @@
-# Overridden temporarily to get Salsa-CI pass and not stall other dev work with broken pipeline
-python-depends-but-no-python-helper mariadb-plugin-rocksdb
 # Upstream fix pending: https://github.com/wolfSSL/wolfssl/pull/2785
 source-is-missing extra/wolfssl/wolfssl/doc/formats/html/html_changes/menu.js line length is 679 characters (>512)
 # Necessary for drop-in-place-replacement upgrades on mysql-server/-client
@@ -24,4 +22,3 @@ version-substvar-for-external-package mariadb-client-10.5 -> mysql-client-core-5
 version-substvar-for-external-package mariadb-client-10.5 -> mysql-client-core-8.0
 version-substvar-for-external-package mariadb-client-10.5 -> mysql-client-core-8.0
 version-substvar-for-external-package libmariadbd-dev -> libmariadbclient-dev
-version-substvar-for-external-package libmariadbd-dev -> libmariadb-dev

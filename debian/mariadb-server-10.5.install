@@ -38,6 +38,7 @@ usr/bin/wsrep_sst_common
 usr/bin/wsrep_sst_mariabackup
 usr/bin/wsrep_sst_mysqldump
 usr/bin/wsrep_sst_rsync
+usr/bin/wsrep_sst_rsync_wan
 usr/lib/mysql/plugin/auth_ed25519.so
 usr/lib/mysql/plugin/auth_pam.so
 usr/lib/mysql/plugin/auth_pam_tool_dir/auth_pam_tool
@@ -99,5 +100,6 @@ usr/share/man/man1/wsrep_sst_common.1
 usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/man/man1/wsrep_sst_mysqldump.1
 usr/share/man/man1/wsrep_sst_rsync.1
+usr/share/man/man1/wsrep_sst_rsync_wan.1
 usr/share/mysql/errmsg-utf8.txt
 usr/share/mysql/wsrep_notify
