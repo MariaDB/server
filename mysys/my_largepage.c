@@ -51,22 +51,6 @@ static my_bool my_use_large_pages= 0;
 #define my_use_large_pages 0
 #endif
 
-#if defined(__linux__) || defined(HAVE_GETPAGESIZES)
-#define my_large_page_sizes_length 8
-static size_t my_large_page_sizes[my_large_page_sizes_length];
-static void my_get_large_page_sizes(size_t sizes[]);
-#elif defined(_WIN32)
-#define my_large_page_sizes_length 0
-#define my_get_large_page_sizes(A) do {} while(0)
-#else
-#define my_large_page_sizes_length 1
-static size_t my_large_page_sizes[my_large_page_sizes_length];
-static void my_get_large_page_sizes(size_t sizes[])
-{
-  sizes[0]= my_getpagesize();
-}
-#endif
-
 static inline my_bool my_is_2pow(size_t n) { return !((n) & ((n) - 1)); }
 
 #if defined(HAVE_GETPAGESIZES) || defined(__linux__)
@@ -87,6 +71,85 @@ static int size_t_cmp(const void *a, const void *b)
   return 0;
 }
 #endif /* defined(HAVE_GETPAGESIZES) || defined(__linux__) */
+
+
+#if defined(__linux__) || defined(HAVE_GETPAGESIZES)
+#define my_large_page_sizes_length 8
+static size_t my_large_page_sizes[my_large_page_sizes_length];
+#endif
+
+/**
+  Linux-specific function to determine the sizes of large pages
+*/
+#ifdef __linux__
+static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
+{
+  DIR *dirp;
+  struct dirent *r;
+  int i= 0;
+  DBUG_ENTER("my_get_large_page_sizes");
+
+  dirp= opendir("/sys/kernel/mm/hugepages");
+  if (dirp == NULL)
+  {
+    perror("Warning: failed to open /sys/kernel/mm/hugepages");
+  }
+  else
+  {
+    while (i < my_large_page_sizes_length && (r= readdir(dirp)))
+    {
+      if (strncmp("hugepages-", r->d_name, 10) == 0)
+      {
+        sizes[i]= strtoull(r->d_name + 10, NULL, 10) * 1024ULL;
+        if (!my_is_2pow(sizes[i]))
+        {
+          fprintf(stderr, "Warning: non-power of 2 large page size (%zu) found,"
+                  " skipping\n", sizes[i]);
+          sizes[i]= 0;
+          continue;
+        }
+        ++i;
+      }
+    }
+    if (closedir(dirp))
+    {
+      perror("Warning: failed to close /sys/kernel/mm/hugepages");
+    }
+    qsort(sizes, i, sizeof(size_t), size_t_cmp);
+  }
+  DBUG_VOID_RETURN;
+}
+
+
+#elif defined(HAVE_GETPAGESIZES)
+static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
+{
+  int nelem;
+
+  nelem= getpagesizes(NULL, 0);
+
+  assert(nelem <= my_large_page_sizes_length);
+  getpagesizes(sizes, my_large_page_sizes_length);
+  qsort(sizes, nelem, sizeof(size_t), size_t_cmp);
+  if (nelem < my_large_page_sizes_length)
+  {
+    sizes[nelem]= 0;
+  }
+}
+
+
+#elif defined(_WIN32)
+#define my_large_page_sizes_length 0
+#define my_get_large_page_sizes(A) do {} while(0)
+
+#else
+#define my_large_page_sizes_length 1
+static size_t my_large_page_sizes[my_large_page_sizes_length];
+static void my_get_large_page_sizes(size_t sizes[])
+{
+  sizes[0]= my_getpagesize();
+}
+#endif
 
 
 /**
@@ -110,7 +173,6 @@ static int size_t_cmp(const void *a, const void *b)
   @retval  a large page size that is valid on this system or 0 if no large page
            size possible.
 */
-
 #if defined(HAVE_MMAP) && !defined(_WIN32)
 static size_t my_next_large_page_size(size_t sz, int *start)
 {
@@ -206,7 +268,7 @@ MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
 #endif
 #endif /* HAVE_MMAP && !_WIN32 */
 
-/*
+/**
   General large pages allocator.
   Tries to allocate memory from large pages pool and falls back to
   my_malloc_lock() in case of failure.
@@ -332,24 +394,31 @@ uchar* my_large_malloc(size_t *size, myf my_flags)
             "Warning: Using conventional memory pool to allocate %p, size %zu\n",
             ptr, *size);
 #endif
-      
+
   DBUG_RETURN(ptr);
 }
 
 
-/*
+/**
   General large pages deallocator.
   Tries to deallocate memory as if it was from large pages pool and falls back
   to my_free_lock() in case of failure
- */
+*/
 void my_large_free(void *ptr, size_t size)
 {
   DBUG_ENTER("my_large_free");
-  
+
   /*
     The following implementations can only fail if ptr was not allocated with
     my_large_malloc(), i.e. my_malloc_lock() was used so we should free it
     with my_free_lock()
+
+    For ASAN, we need to explicitly unpoison this memory region because the OS
+    may reuse that memory for some TLS or stack variable. It will remain
+    poisoned if it was explicitly poisioned before release. If this happens,
+    we'll have hard to debug false positives like in MDEV-21239.
+    For valgrind, we mark it as UNDEFINED rather than NOACCESS because of the
+    implict reuse possiblility.
   */
 #if defined(HAVE_MMAP) && !defined(_WIN32)
   if (munmap(ptr, size))
@@ -358,16 +427,18 @@ void my_large_free(void *ptr, size_t size)
       This occurs when the original allocation fell back to conventional
       memory so ignore the EINVAL error.
     */
-    if (errno == EINVAL)
-    {
-      my_free_lock(ptr);
-    }
-    else
+    if (errno != EINVAL)
     {
       fprintf(stderr,
               "Warning: Failed to unmap location %p, %zu bytes, errno %d\n",
               ptr, size, errno);
+      DBUG_VOID_RETURN;
     }
+  }
+  else
+  {
+    MEM_UNDEFINED(ptr, size);
+    DBUG_VOID_RETURN;
   }
 #elif defined(_WIN32)
   /*
@@ -378,84 +449,14 @@ void my_large_free(void *ptr, size_t size)
   {
     fprintf(stderr,
             "Error: VirtualFree(%p, %zu) failed; Windows error %lu\n", ptr, size, GetLastError());
-    my_free_lock(ptr);
   }
-#else
-  my_free_lock(ptr);
-  if (1)
-  {
-  }
-#endif
-  /*
-    For ASAN, we need to explicitly unpoison this memory region because the OS
-    may reuse that memory for some TLS or stack variable. It will remain
-    poisoned if it was explicitly poisioned before release. If this happens,
-    we'll have hard to debug false positives like in MDEV-21239.
-    For valgrind, we mark it as UNDEFINED rather than NOACCESS because of the
-    implict reuse possiblility.
-  */
   else
+  {
     MEM_UNDEFINED(ptr, size);
+    DBUG_VOID_RETURN;
+  }
+#endif
+  my_free_lock(ptr);
 
   DBUG_VOID_RETURN;
 }
-
-
-/* Linux-specific function to determine the sizes of large pages */
-#ifdef __linux__
-static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
-{
-  DIR *dirp;
-  struct dirent *r;
-  int i= 0;
-  DBUG_ENTER("my_get_large_page_sizes");
-
-  dirp= opendir("/sys/kernel/mm/hugepages");
-  if (dirp == NULL)
-  {
-    perror("Warning: failed to open /sys/kernel/mm/hugepages");
-  }
-  else
-  {
-    while (i < my_large_page_sizes_length && (r= readdir(dirp)))
-    {
-      if (strncmp("hugepages-", r->d_name, 10) == 0)
-      {
-        sizes[i]= strtoull(r->d_name + 10, NULL, 10) * 1024ULL;
-        if (!my_is_2pow(sizes[i]))
-        {
-          fprintf(stderr, "Warning: non-power of 2 large page size (%zu) found,"
-                  " skipping\n", sizes[i]);
-          sizes[i]= 0;
-          continue;
-        }
-        ++i;
-      }
-    }
-    if (closedir(dirp))
-    {
-      perror("Warning: failed to close /sys/kernel/mm/hugepages");
-    }
-    qsort(sizes, i, sizeof(size_t), size_t_cmp);
-  }
-  DBUG_VOID_RETURN;
-}
-#endif
-
-
-#if defined(HAVE_GETPAGESIZES) && !defined(__linux__)
-static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
-{
-  int nelem;
-
-  nelem= getpagesizes(NULL, 0);
-
-  assert(nelem <= my_large_page_sizes_length);
-  getpagesizes(sizes, my_large_page_sizes_length);
-  qsort(sizes, nelem, sizeof(size_t), size_t_cmp);
-  if (nelem < my_large_page_sizes_length)
-  {
-    sizes[nelem]= 0;
-  }
-}
-#endif
