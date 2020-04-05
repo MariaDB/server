@@ -60,7 +60,6 @@ static void my_get_large_page_sizes(size_t sizes[]);
 static inline my_bool my_is_2pow(size_t n) { return !((n) & ((n) - 1)); }
 
 static uchar* my_large_malloc_int(size_t *size, myf my_flags);
-static my_bool my_large_free_int(void *ptr, size_t size);
 
 #ifdef HAVE_LARGE_PAGES
 
@@ -222,12 +221,40 @@ void my_large_free(void *ptr, size_t size)
   DBUG_ENTER("my_large_free");
   
   /*
-    my_large_free_int() can only fail if ptr was not allocated with
+    The following implementations can only fail if ptr was not allocated with
     my_large_malloc_int(), i.e. my_malloc_lock() was used so we should free it
     with my_free_lock()
   */
-  if (!my_large_free_int(ptr, size))
+#if defined(HAVE_MMAP) && !defined(_WIN32)
+  if (munmap(ptr, size))
+  {
+    /*
+      This occurs when the original allocation fell back to conventional
+      memory so ignore the EINVAL error.
+    */
+    if (errno == EINVAL)
+    {
+      my_free_lock(ptr);
+    }
+    else
+    {
+      fprintf(stderr, "Warning: Failed to unmap %zu bytes, errno %d\n", size, errno);
+    }
+  }
+#elif defined(_WIN32)
+  /*
+     When RELEASE memory, the size parameter must be 0.
+     Do not use MEM_RELEASE with MEM_DECOMMIT.
+  */
+  if (ptr && !VirtualFree(ptr, 0, MEM_RELEASE))
+  {
+    fprintf(stderr,
+            "Error: VirtualFree(%p, %zu) failed; Windows error %lu\n", ptr, size, GetLastError());
     my_free_lock(ptr);
+  }
+#else
+#error No my_large_free implementation for this OS
+#endif
   /*
     For ASAN, we need to explicitly unpoison this memory region because the OS
     may reuse that memory for some TLS or stack variable. It will remain
@@ -384,27 +411,6 @@ static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
 }
 #endif
 
-#if defined(HAVE_MMAP) && !defined(_WIN32)
-
-/* mmap and Linux-specific large pages deallocator */
-
-my_bool my_large_free_int(void *ptr, size_t size)
-{
-  DBUG_ENTER("my_large_free_int");
-
-  if (munmap(ptr, size))
-  {
-    /* This occurs when the original allocation fell back to conventional memory so ignore the EINVAL error */
-    if (errno != EINVAL)
-    {
-      fprintf(stderr, "Warning: Failed to unmap %zu bytes, errno %d\n", size, errno);
-    }
-    DBUG_RETURN(0);
-  }
-  DBUG_RETURN(1);
-}
-#endif /* HAVE_MMAP */
-
 #if defined(HAVE_MMAP) && !defined(__linux__) && !defined(MAP_ALIGNED) \
     && !defined(_WIN32)
 
@@ -490,23 +496,5 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
   DBUG_RETURN(ptr);
 }
 
-/* Windows-specific large pages deallocator */
-
-my_bool my_large_free_int(void *ptr, size_t size)
-{
-  DBUG_ENTER("my_large_free_int");
-  /*
-     When RELEASE memory, the size parameter must be 0.
-     Do not use MEM_RELEASE with MEM_DECOMMIT.
-  */
-  if (ptr && !VirtualFree(ptr, 0, MEM_RELEASE))
-  {
-    fprintf(stderr,
-            "Error: VirtualFree(%p, %zu) failed; Windows error %lu\n", ptr, size, GetLastError());
-    DBUG_RETURN(0);
-  }
-
-  DBUG_RETURN(1);
-}
 #endif /* _WIN32 */
 
