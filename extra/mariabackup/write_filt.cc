@@ -203,6 +203,15 @@ wf_wt_init(xb_write_filt_ctxt_t *ctxt, char *dst_name __attribute__((unused)),
 	return(TRUE);
 }
 
+extern
+	bool
+fil_space_verify_crypt_checksum(
+	byte* 			page,
+	const page_size_t&	page_size,
+	ulint			space,
+	ulint			offset);
+
+
 /************************************************************************
 Write the next batch of pages to the destination datasink.
 
@@ -211,6 +220,37 @@ static my_bool
 wf_wt_process(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile)
 {
 	xb_fil_cur_t			*cursor = ctxt->cursor;
+
+	page_size_t page_size_size(cursor->node->space->flags);
+	if (cursor->node->space->id != SRV_LOG_SPACE_FIRST_ID &&
+				!page_size_size.is_compressed() &&
+//			!FSP_FLAGS_GET_ZIP_SSIZE(cursor->node->space->flags) &&
+			!FSP_FLAGS_HAS_PAGE_COMPRESSION(cursor->node->space->flags) &&
+		fil_is_user_tablespace_id(cursor->node->space->id)) {
+			ulint                           i;
+			byte                            *page;
+			const ulint                     page_size
+				= cursor->page_size.physical();
+			for (i = 0, page = cursor->buf; i < cursor->buf_npages;
+				i++, page += page_size) {
+				if	(
+					!fil_space_verify_crypt_checksum(
+						page,
+						page_size_size,
+						cursor->node->space->id,
+						mach_read_from_4(page + FIL_PAGE_OFFSET))
+					&& mach_read_from_4(page + FIL_PAGE_LSN + 4) !=
+						mach_read_from_4(page
+							+ UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM + 4))
+					msg("Warning: page %u of file %s, the LSN at the start %u "
+							"does match LSN at the end %u",
+							mach_read_from_4(page + FIL_PAGE_OFFSET),
+							cursor->node->name,
+							mach_read_from_4(page + FIL_PAGE_LSN + 4),
+							mach_read_from_4(page +
+								UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM + 4));
+			}
+	}
 
 	if (ds_write(dstfile, cursor->buf, cursor->buf_read)) {
 		return(FALSE);

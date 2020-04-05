@@ -5017,6 +5017,14 @@ fil_report_invalid_page_access(
 		: "");
 }
 
+extern
+bool
+fil_space_verify_crypt_checksum(
+	byte* 			page,
+	const page_size_t&	page_size,
+	ulint			space,
+	ulint			offset);
+
 /** Reads or writes data. This operation could be asynchronous (aio).
 
 @param[in,out] type	IO context
@@ -5280,6 +5288,31 @@ fil_io(
 	const char* name = node->name == NULL ? space->name : node->name;
 
 	req_type.set_fil_node(node);
+
+
+	ulint page_type = mach_read_from_2(static_cast<byte *>(buf) + FIL_PAGE_TYPE);
+
+	if (req_type.is_write()
+
+		&& page_id.space() != SRV_LOG_SPACE_FIRST_ID
+		&& fil_is_user_tablespace_id(page_id.space())
+		&& !page_size.is_compressed()
+#ifndef UNIV_INNOCHECKSUM
+		&& !FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags)
+#endif
+		&& !fil_space_verify_crypt_checksum(
+				static_cast<byte *>(buf), page_size, page_id.space(), page_id.page_no())
+				 &&
+				(mach_read_from_4(static_cast<const byte *>(buf) + FIL_PAGE_LSN + 4) !=
+				 mach_read_from_4(static_cast<const byte *>(buf)
+					+ UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM + 4))) {
+		ib::error() << "Page write: log sequence number at the start "
+			<< mach_read_from_4(static_cast<const byte *>(buf) + FIL_PAGE_LSN + 4)
+			<< " and the end "
+			<< mach_read_from_4(static_cast<const byte *>(buf) + UNIV_PAGE_SIZE
+				- FIL_PAGE_END_LSN_OLD_CHKSUM + 4)
+			<< " do not match";
+	}
 
 	/* Queue the aio request */
 	dberr_t err = os_aio(

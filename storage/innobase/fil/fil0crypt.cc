@@ -2529,7 +2529,7 @@ encrypted, or corrupted.
 @param[in]	space		tablespace identifier
 @param[in]	offset		page number
 @return true if page is encrypted AND OK, false otherwise */
-UNIV_INTERN
+//UNIV_INTERN
 bool
 fil_space_verify_crypt_checksum(
 	byte* 			page,

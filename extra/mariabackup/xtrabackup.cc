@@ -4438,13 +4438,35 @@ xtrabackup_apply_delta(
 				}
 			}
 
-			success = os_file_write(IORequestWrite,
-						dst_path, dst_file, buf, off, page_size);
-			if (!success) {
-				goto error;
+
+
+	fil_space_t* space = fil_space_acquire(info.space_id);
+	if (space) {
+		page_size_t page_size_size(space->flags);
+		if (info.space_id != SRV_LOG_SPACE_FIRST_ID
+			&& fil_is_user_tablespace_id(info.space_id)
+			&& !FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags)
+			&& !page_size_size.is_compressed()
+			&&  !fil_space_verify_crypt_checksum(
+					buf, page_size_size, info.space_id, mach_read_from_4(buf + FIL_PAGE_OFFSET))
+			&&
+				(mach_read_from_4(buf + FIL_PAGE_LSN + 4) !=
+				 mach_read_from_4(buf + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM + 4))
+			)
+			msg("Warning: the LSN at the start %u does match LSN at the end %u "
+					"for tablespace %s",
+				mach_read_from_4(buf + FIL_PAGE_LSN + 4),
+				mach_read_from_4(buf +
+					UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM + 4),
+				filename);
+
+				success = os_file_write(IORequestWrite,
+							dst_path, dst_file, buf, off, page_size);
+				if (!success) {
+					goto error;
+				}
 			}
 		}
-
 		incremental_buffers++;
 	}
 
