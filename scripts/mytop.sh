@@ -1277,7 +1277,7 @@ sub GetData()
             {
                 ## To have a computed value of "Progress" like the
                 ## "SHOW PROCESSLIST" one, the Progress column of the query
-                ## must be replaced by : 
+                ## must be replaced by :
                 ## "CASE WHEN Max_Stage < 2 THEN Progress ELSE
                 ## (Stage-1)/Max_Stage*100+Progress/Max_Stage END AS Progress"
                 $proc_cmd = "SELECT /*mytop*/ Id, User, Host, db, Command,
@@ -1439,7 +1439,7 @@ sub GetData()
         ## Trailing space removal
         $thread->{Info} =~ s/\s$//;
 
-        ## Put the first letter of the query uppercase for a better readability 
+        ## Put the first letter of the query uppercase for a better readability
         ## with long State strings
         $thread->{Info} = ucfirst $thread->{Info};
 
@@ -2082,7 +2082,7 @@ B<mytop> [options]
 
 Base version from B<http://www.mysqlfanboy.com/mytop-3>.
 
-This version comes as part of the B<MariaDB> distribution. See B<http://mariadb.org/>.
+This version comes as part of the B<MariaDB> distribution. See B<https://mariadb.org/>.
 
 And older (the original) version B<mytop> is available from
 http://www.mysqlfanboy.com/mytop-3/ it B<might> also be on CPAN as

@@ -16,14 +16,12 @@ mysqld\[[0-9]+\]: Warning: Ignoring user change to 'mysql' because the user was 
 mysqld_safe\[[0-9]+\]: ?$
 mysqld_safe\[[0-9]+\]: able to use the new GRANT command!$
 mysqld_safe\[[0-9]+\]: ended$
-mysqld_safe\[[0-9]+\]: http://www.mysql.com$
 mysqld_safe\[[0-9]+\]: NOTE:  If you are upgrading from a MySQL <= 3.22.10 you should run$
 mysqld_safe\[[0-9]+\]: PLEASE REMEMBER TO SET A PASSWORD FOR THE MySQL root USER !$
-mysqld_safe\[[0-9]+\]: Please report any problems at http://mariadb.org/jira$
+mysqld_safe\[[0-9]+\]: Please report any problems at https://mariadb.org/jira$
 mysqld_safe\[[0-9]+\]: See the manual for more instructions.$
 mysqld_safe\[[0-9]+\]: started$
-mysqld_safe\[[0-9]+\]: Support MySQL by buying support/licenses at https://order.mysql.com$
-mysqld_safe\[[0-9]+\]: The latest information about MySQL is available on the web at$
+mysqld_safe\[[0-9]+\]: The latest information about MariaDB is available at$
 mysqld_safe\[[0-9]+\]: the /usr/bin/mysql_fix_privilege_tables. Otherwise you will not be$
 mysqld_safe\[[0-9]+\]: To do so, start the server, then issue the following commands:$
 mysqld_safe\[[0-9]+\]: /usr/bin/mysqladmin -u root -h app109 password 'new-password'$

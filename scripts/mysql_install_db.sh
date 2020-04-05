@@ -1,16 +1,16 @@
 #!/bin/sh
 # Copyright (c) 2000, 2013, Oracle and/or its affiliates.
 # Copyright (c) 2009, 2013, Monty Program Ab
-# 
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
@@ -76,7 +76,7 @@ Usage: $0 [OPTIONS]
   --force              Causes mysql_install_db to run even if DNS does not
                        work.  In that case, grant table entries that
                        normally use hostnames will use IP addresses.
-  --help               Display this help and exit.                     
+  --help               Display this help and exit.
   --ldata=path         The path to the MariaDB data directory. Same as
                        --datadir.
   --no-defaults        Don't read default options from any option file.
@@ -593,7 +593,7 @@ else
   echo "the maria-discuss email list at https://launchpad.net/~maria-discuss"
   echo
   echo "Please check all of the above before submitting a bug report"
-  echo "at http://mariadb.org/jira"
+  echo "at https://mariadb.org/jira"
   echo
   exit 1
 fi
@@ -636,7 +636,7 @@ then
   fi
 
   echo
-  echo "See the MariaDB Knowledgebase at http://mariadb.com/kb or the"
+  echo "See the MariaDB Knowledgebase at https://mariadb.com/kb or the"
   echo "MySQL manual for more instructions."
 
   if test "$in_rpm" -eq 0
@@ -650,11 +650,11 @@ then
   fi
 
   echo
-  echo "Please report any problems at http://mariadb.org/jira"
+  echo "Please report any problems at https://mariadb.org/jira"
   echo
-  echo "The latest information about MariaDB is available at http://mariadb.org/."
+  echo "The latest information about MariaDB is available at https://mariadb.org/."
   echo "You can find additional information about the MySQL part at:"
-  echo "http://dev.mysql.com"
+  echo "https://dev.mysql.com"
   echo "Consider joining MariaDB's strong and vibrant community:"
   echo "https://mariadb.org/get-involved/"
   echo
