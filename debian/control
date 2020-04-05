@@ -49,10 +49,14 @@ Depends: libmariadb3 (= ${binary:Version}),
          zlib1g-dev,
          ${misc:Depends},
          ${shlibs:Depends}
-Breaks: libmariadbclient-dev
-Replaces: libmariadbclient-dev
 Conflicts: libmariadbclient16-dev
 Provides: libmariadbclient-dev
+Breaks: libmariadbclient-dev,
+        libmysqlclient-dev (<< ${source:Version}),
+        libmysqld-dev (<< ${source:Version})
+Replaces: libmariadbclient-dev,
+          libmysqlclient-dev (<< ${source:Version}),
+          libmysqld-dev (<< ${source:Version})
 Description: MariaDB database development files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -198,8 +202,12 @@ Pre-Depends: ${misc:Pre-Depends}
 Depends: libmariadb-dev (= ${binary:Version}),
          libmariadbd19 (= ${binary:Version}),
          ${misc:Depends}
-Breaks: libmysqld-dev
-Replaces: libmysqld-dev
+Breaks: libmariadb-dev (<< ${source:Version}),
+        libmariadbclient-dev (<< ${source:Version}),
+        libmysqld-dev
+Replaces: libmariadb-dev (<< ${source:Version}),
+          libmariadbclient-dev (<< ${source:Version}),
+          libmysqld-dev
 Description: MariaDB embedded database, development files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
