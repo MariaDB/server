@@ -78,6 +78,7 @@ main.host_cache_size_functionality    : MDEV-10606 - sporadic failure on shutdow
 main.index_intersect_innodb           : MDEV-10643 - failed with timeout
 main.index_merge_innodb               : MDEV-7142 - Plan mismatch
 main.innodb_icp                       : MDEV-20168 - Wrong execution plans
+main.innodb_ext_key                   : MDEV-22119 - fails with NULL values
 main.innodb_mysql_lock                : MDEV-7861 - Wrong result
 main.insert_debug                     : Added in 10.4.12
 main.ipv4_and_ipv6                    : MDEV-20964 - Wrong result
@@ -172,7 +173,10 @@ main.status                           : MDEV-13255 - Wrong result
 main.subselect                        : MDEV-20551 - Valgrind failure
 main.subselect_innodb                 : MDEV-10614 - Wrong result
 main.tc_heuristic_recover             : MDEV-14189 - Wrong result
+main.thread_pool_info                 : MDEV-20372 - thread_pool_info fails randomly in 10.5
 main.timezone2                        : Modified in 10.4.12
+main.tls_version                      : MDEV-21965 - old TLS versions don't work on latest Debian and Ubuntu releases
+main.tls_version1                     : MDEV-21965 - old TLS versions don't work on latest Debian and Ubuntu releases
 main.type_blob                        : MDEV-15195 - Wrong result
 main.type_datetime                    : Modified in 10.4.12
 main.type_datetime_hires              : MDEV-10687 - Timeout
@@ -188,6 +192,7 @@ main.wait_timeout                     : MDEV-19023 - Lost connection to MySQL se
 main.warnings_debug                   : Modified in 10.4.12
 main.win                              : Modified in 10.4.12
 main.xa                               : MDEV-11769 - lock wait timeout
+main.xml                              : MDEV-21968 - mysql crashes on test main.xml on arch armhf
 
 #-----------------------------------------------------------------------
 
