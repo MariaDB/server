@@ -1,4 +1,3 @@
-usr/bin/mysql_config
 usr/lib/*/libmysqlclient.a
 usr/lib/*/libmysqlclient.so
 usr/lib/*/libmysqlclient_r.a
