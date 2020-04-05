@@ -317,10 +317,13 @@ uchar* my_large_malloc(size_t *size, myf my_flags)
     MEM_MAKE_DEFINED(ptr, *size);
     DBUG_RETURN(ptr);
   }
+  ptr= my_malloc_lock(*size, my_flags);
   if (my_flags & MY_WME)
-    fprintf(stderr, "Warning: Using conventional memory pool\n");
+    fprintf(stderr,
+            "Warning: Using conventional memory pool to allocate %p, size %zu\n",
+            ptr, *size);
       
-  DBUG_RETURN(my_malloc_lock(*size, my_flags));
+  DBUG_RETURN(ptr);
 }
 
 /*
@@ -351,7 +354,9 @@ void my_large_free(void *ptr, size_t size)
     }
     else
     {
-      fprintf(stderr, "Warning: Failed to unmap %zu bytes, errno %d\n", size, errno);
+      fprintf(stderr,
+              "Warning: Failed to unmap location %p, %zu bytes, errno %d\n",
+              ptr, size, errno);
     }
   }
 #elif defined(_WIN32)
