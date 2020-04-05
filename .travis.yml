@@ -56,6 +56,7 @@ matrix:
             - cmake
             - debhelper
             - dh-apparmor
+            - dh-exec
             - dpatch
             - gdb
             - libaio-dev
