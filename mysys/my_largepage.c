@@ -38,7 +38,7 @@ extern int memcntl(caddr_t, size_t, int, caddr_t, int, int);
 #endif /* __sun__ ... */
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
 
-#if defined(_WIN32) || (!defined(__linux__) && !defined(MAP_ALIGNED))
+#if defined(_WIN32)
 static size_t my_large_page_size;
 #endif
 
@@ -52,14 +52,19 @@ static my_bool my_use_large_pages= 0;
 #define my_large_page_sizes_length 8
 static size_t my_large_page_sizes[my_large_page_sizes_length];
 static void my_get_large_page_sizes(size_t sizes[]);
-#else
+#elif defined(_WIN32)
 #define my_large_page_sizes_length 0
 #define my_get_large_page_sizes(A) do {} while(0)
+#else
+#define my_large_page_sizes_length 1
+static size_t my_large_page_sizes[my_large_page_sizes_length];
+static void my_get_large_page_sizes(size_t sizes[])
+{
+  sizes[0]= my_getpagesize();
+}
 #endif
 
 static inline my_bool my_is_2pow(size_t n) { return !((n) & ((n) - 1)); }
-
-static uchar* my_large_malloc_int(size_t *size, myf my_flags);
 
 #ifdef HAVE_LARGE_PAGES
 
@@ -133,12 +138,6 @@ int my_init_large_pages(my_bool super_large_pages)
     return 1;
   }
   my_large_page_size= GetLargePageMinimum();
-#elif !defined(__linux__) && !defined(MAP_ALIGNED)
-  /*
-    This is a fudge as we only use this to ensure that mmap allocations are of
-    this size.
-  */
-  my_large_page_size= my_getpagesize();
 #endif
 
   my_use_large_pages= 1;
@@ -187,6 +186,18 @@ int my_init_large_pages(my_bool super_large_pages)
   return 0;
 }
 
+#if defined(HAVE_MMAP) && !defined(_WIN32)
+/* Solaris for example has only MAP_ANON, FreeBSD has MAP_ANONYMOUS and
+MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
+#if defined(MAP_ANONYMOUS)
+#define OS_MAP_ANON     MAP_ANONYMOUS
+#elif defined(MAP_ANON)
+#define OS_MAP_ANON     MAP_ANON
+#else
+#error unsupported mmap - no MAP_ANON{YMOUS}
+#endif
+#endif /* HAVE_MMAP && !_WIN32 */
+
 /*
   General large pages allocator.
   Tries to allocate memory from large pages pool and falls back to
@@ -199,7 +210,109 @@ uchar* my_large_malloc(size_t *size, myf my_flags)
   uchar* ptr;
   DBUG_ENTER("my_large_malloc");
   
-  if ((ptr= my_large_malloc_int(size, my_flags)) != NULL)
+#ifdef _WIN32
+  DWORD alloc_type= MEM_COMMIT | MEM_RESERVE;
+  size_t orig_size= *size;
+
+  if (my_use_large_pages)
+  {
+    alloc_type|= MEM_LARGE_PAGES;
+    /* Align block size to my_large_page_size */
+    *size= MY_ALIGN(*size, (size_t) my_large_page_size);
+  }
+  ptr= VirtualAlloc(NULL, *size, alloc_type, PAGE_READWRITE);
+  if (!ptr)
+  {
+    if (my_flags & MY_WME)
+    {
+      fprintf(stderr,
+              "Warning: VirtualAlloc(%zu bytes%s) failed; Windows error %lu\n",
+              *size,
+              my_use_large_pages ? ", MEM_LARGE_PAGES" : "",
+              GetLastError());
+    }
+    *size= orig_size;
+    ptr= VirtualAlloc(NULL, *size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!ptr && my_flags & MY_WME)
+    {
+      fprintf(stderr,
+              "Warning: VirtualAlloc(%zu bytes) failed; Windows error %lu\n",
+              *size, GetLastError());
+    }
+  }
+#elif defined(HAVE_MMAP)
+  int mapflag;
+  int page_i= 0;
+  size_t large_page_size= 0;
+  size_t aligned_size= *size;
+
+  while (1)
+  {
+    mapflag= MAP_PRIVATE | OS_MAP_ANON;
+    if (my_use_large_pages)
+    {
+      large_page_size= my_next_large_page_size(*size, &page_i);
+      if (large_page_size)
+      {
+#ifdef __linux__
+        mapflag|= MAP_HUGETLB | my_bit_log2_size_t(large_page_size) << MAP_HUGE_SHIFT;
+#elif defined(MAP_ALIGNED)
+        mapflag|= MAP_ALIGNED_SUPER | MAP_ALIGNED(my_bit_log2_size_t(large_page_size));
+#endif
+        aligned_size= MY_ALIGN(*size, (size_t) large_page_size);
+      }
+      else
+      {
+        aligned_size= *size;
+      }
+    }
+    ptr= mmap(NULL, aligned_size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
+    if (ptr == (void*) -1)
+    {
+      ptr= NULL;
+      if (my_flags & MY_WME)
+      {
+        if (large_page_size)
+        {
+          fprintf(stderr,
+                  "Warning: Failed to allocate %zu bytes from HugeTLB memory"
+                  "(page size %zu). errno %d\n", aligned_size, large_page_size,
+                  errno);
+        }
+        else
+        {
+          fprintf(stderr,
+                  "Warning: Failed to allocate %zu bytes from memory."
+                  " errno %d\n", aligned_size, errno);
+        }
+      }
+      /* try next smaller memory size */
+      if (large_page_size && errno == ENOMEM)
+        continue;
+
+      /* other errors are more serious */
+      break;
+    }
+    else /* success */
+    {
+      if (large_page_size)
+      {
+        /*
+          we do need to record the adjustment so that munmap gets called with
+          the right size. This is only the case for HUGETLB pages.
+        */
+        *size= aligned_size;
+      }
+      break;
+    }
+    if (large_page_size == 0)
+    {
+      break; /* no more options to try */
+    }
+  }
+#endif /* defined(HAVE_MMAP) */
+
+  if (ptr != NULL)
   {
     MEM_MAKE_DEFINED(ptr, *size);
     DBUG_RETURN(ptr);
@@ -222,7 +335,7 @@ void my_large_free(void *ptr, size_t size)
   
   /*
     The following implementations can only fail if ptr was not allocated with
-    my_large_malloc_int(), i.e. my_malloc_lock() was used so we should free it
+    my_large_malloc(), i.e. my_malloc_lock() was used so we should free it
     with my_free_lock()
   */
 #if defined(HAVE_MMAP) && !defined(_WIN32)
@@ -313,86 +426,6 @@ static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
 }
 #endif
 
-/* Multisized (Linux/FreeBSD) large pages allocator  */
-
-#if defined(__linux__) || defined(MAP_ALIGNED)
-uchar* my_large_malloc_int(size_t *size, myf my_flags)
-{
-  uchar* ptr;
-  int mapflag;
-  int page_i= 0;
-  size_t large_page_size= 0;
-  size_t aligned_size= *size;
-  DBUG_ENTER("my_large_malloc_int");
-
-  while (1)
-  {
-    mapflag= MAP_PRIVATE | MAP_ANONYMOUS;
-    if (my_use_large_pages)
-    {
-      large_page_size= my_next_large_page_size(*size, &page_i);
-      if (large_page_size)
-      {
-#ifdef __linux__
-        mapflag|= MAP_HUGETLB | my_bit_log2_size_t(large_page_size) << MAP_HUGE_SHIFT;
-#else
-        mapflag|= MAP_ALIGNED_SUPER | MAP_ALIGNED(my_bit_log2_size_t(large_page_size));
-#endif
-        aligned_size= MY_ALIGN(*size, (size_t) large_page_size);
-      }
-      else
-      {
-        aligned_size= *size;
-      }
-    }
-    ptr= mmap(NULL, aligned_size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
-    if (ptr == (void*) -1)
-    {
-      ptr= NULL;
-      if (my_flags & MY_WME)
-      {
-        if (large_page_size)
-        {
-          fprintf(stderr,
-                  "Warning: Failed to allocate %zu bytes from HugeTLB memory"
-                  "(page size %zu). errno %d\n", aligned_size, large_page_size,
-                  errno);
-        }
-        else
-        {
-          fprintf(stderr,
-                  "Warning: Failed to allocate %zu bytes from memory."
-                  " errno %d\n", aligned_size, errno);
-        }
-      }
-      /* try next smaller memory size */
-      if (large_page_size && errno == ENOMEM)
-        continue;
-
-      /* other errors are more serious */
-      DBUG_RETURN(NULL);
-    }
-    else /* success */
-    {
-      if (large_page_size)
-      {
-        /*
-          we do need to record the adjustment so that munmap gets called with
-          the right size. This is only the case for HUGETLB pages.
-        */
-        *size= aligned_size;
-      }
-      DBUG_RETURN(ptr);
-    }
-    if (large_page_size == 0)
-    {
-      break; /* no more options to try */
-    }
-  }
-  DBUG_RETURN(ptr);
-}
-
-#endif /* defined(__linux__) || defined(MAP_ALIGNED) */
 
 #if defined(HAVE_GETPAGESIZES) && !defined(__linux__)
 static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
@@ -410,91 +443,3 @@ static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
   }
 }
 #endif
-
-#if defined(HAVE_MMAP) && !defined(__linux__) && !defined(MAP_ALIGNED) \
-    && !defined(_WIN32)
-
-/* Solaris for example has only MAP_ANON, FreeBSD has MAP_ANONYMOUS and
-MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
-#if defined(MAP_ANONYMOUS)
-#define OS_MAP_ANON     MAP_ANONYMOUS
-#elif defined(MAP_ANON)
-#define OS_MAP_ANON     MAP_ANON
-#else
-#error unsupported mmap - no MAP_ANON{YMOUS}
-#endif
-
-
-/* mmap(non-Linux,non-FreeBSD) pages allocator  */
-
-uchar* my_large_malloc_int(size_t *size, myf my_flags)
-{
-  uchar* ptr;
-  int mapflag;
-  DBUG_ENTER("my_large_malloc_int");
-
-  mapflag= MAP_PRIVATE | OS_MAP_ANON;
-
-  if (my_use_large_pages && my_large_page_size)
-  {
-    /* Align block size to my_large_page_size */
-    *size= MY_ALIGN(*size, (size_t) my_large_page_size);
-  }
-  ptr= mmap(NULL, *size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
-  if (ptr == (void*) -1)
-  {
-    ptr= NULL;
-    if (my_flags & MY_WME)
-    {
-      fprintf(stderr,
-              "Warning: Failed to allocate %zu bytes from memory."
-              " errno %d\n", *size, errno);
-    }
-  }
-  DBUG_RETURN(ptr);
-}
-#endif /* defined(HAVE_MMAP) && !defined(__linux__) && !defined(_WIN32) */
-
-#ifdef _WIN32
-
-/* Windows-specific large pages allocator */
-
-uchar* my_large_malloc_int(size_t *size, myf my_flags)
-{
-  DBUG_ENTER("my_large_malloc_int");
-  void* ptr;
-  DWORD alloc_type= MEM_COMMIT | MEM_RESERVE;
-  size_t orig_size= *size;
-
-  if (my_use_large_pages)
-  {
-    alloc_type|= MEM_LARGE_PAGES;
-    /* Align block size to my_large_page_size */
-    *size= MY_ALIGN(*size, (size_t) my_large_page_size);
-  }
-  ptr= VirtualAlloc(NULL, *size, alloc_type, PAGE_READWRITE);
-  if (!ptr)
-  {
-    if (my_flags & MY_WME)
-    {
-      fprintf(stderr,
-              "Warning: VirtualAlloc(%zu bytes%s) failed; Windows error %lu\n",
-              *size,
-              my_use_large_pages ? ", MEM_LARGE_PAGES" : "",
-              GetLastError());
-    }
-    *size= orig_size;
-    ptr= VirtualAlloc(NULL, *size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!ptr && my_flags & MY_WME)
-    {
-      fprintf(stderr,
-              "Warning: VirtualAlloc(%zu bytes) failed; Windows error %lu\n",
-              *size, GetLastError());
-    }
-  }
-
-  DBUG_RETURN(ptr);
-}
-
-#endif /* _WIN32 */
-
