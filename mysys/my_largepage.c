@@ -213,8 +213,6 @@ int my_init_large_pages(my_bool super_large_pages)
 #endif
 
 #ifdef HAVE_SOLARIS_LARGE_PAGES
-#define LARGE_PAGESIZE (4*1024*1024)  /* 4MB */
-#define SUPER_LARGE_PAGESIZE (256*1024*1024)  /* 256MB */
   /*
     tell the kernel that we want to use 4/256MB page for heap storage
     and also for the stack. We use 4 MByte as default and if the
@@ -226,14 +224,9 @@ int my_init_large_pages(my_bool super_large_pages)
     desired page sizes.
   */
   int nelem= 0;
-  size_t max_desired_page_size;
-  size_t max_page_size= 0;
-  if (super_large_pages)
-    max_desired_page_size= SUPER_LARGE_PAGESIZE;
-  else
-    max_desired_page_size= LARGE_PAGESIZE;
+  size_t max_desired_page_size= (super_large_pages ? 256 : 4) * 1024 * 1024;
+  size_t max_page_size= my_next_large_page_size(max_desired_page_size, &nelem);
 
-  max_page_size= my_next_large_page_size(max_desired_page_size, &nelem);
   if (max_page_size > 0)
   {
     struct memcntl_mha mpss;
