@@ -2105,6 +2105,7 @@ Type_handler_string_result::sort_length(THD *thd,
 {
   CHARSET_INFO *cs;
   sortorder->length= item->max_length;
+  set_if_smaller(sortorder->length, thd->variables.max_sort_length);
   sortorder->original_length= item->max_length;
 
   if (use_strnxfrm((cs= item->collation.collation)))
@@ -2114,9 +2115,13 @@ Type_handler_string_result::sort_length(THD *thd,
   else if (cs == &my_charset_bin)
   {
     /* Store length last to be able to sort blob/varbinary */
-    sortorder->suffix_length= suffix_length(sortorder->length);
+    sortorder->suffix_length= suffix_length(item->max_length);
+    DBUG_ASSERT(sortorder->length <= UINT_MAX32 - sortorder->suffix_length);
     sortorder->length+= sortorder->suffix_length;
-    sortorder->original_length+= sortorder->suffix_length;
+    if (sortorder->original_length >= UINT_MAX32 - sortorder->suffix_length)
+      sortorder->original_length= UINT_MAX32;
+    else
+      sortorder->original_length+= sortorder->suffix_length;
   }
 }
 
