@@ -380,21 +380,14 @@ uchar* my_large_malloc(size_t *size, myf my_flags)
       break; /* no more options to try */
     }
   }
+#else
+  DBUG_RETURN(my_malloc_lock(*size, my_flags));
 #endif /* defined(HAVE_MMAP) */
 
   if (ptr != NULL)
   {
     MEM_MAKE_DEFINED(ptr, *size);
-    DBUG_RETURN(ptr);
   }
-  ptr= my_malloc_lock(*size, my_flags);
-
-#ifdef HAVE_LARGE_PAGES
-  if (my_flags & MY_WME)
-    fprintf(stderr,
-            "Warning: Using conventional memory pool to allocate %p, size %zu\n",
-            ptr, *size);
-#endif
 
   DBUG_RETURN(ptr);
 }
@@ -424,22 +417,13 @@ void my_large_free(void *ptr, size_t size)
 #if defined(HAVE_MMAP) && !defined(_WIN32)
   if (munmap(ptr, size))
   {
-    /*
-      This occurs when the original allocation fell back to conventional
-      memory so ignore the EINVAL error.
-    */
-    if (errno != EINVAL)
-    {
-      fprintf(stderr,
-              "Warning: Failed to unmap location %p, %zu bytes, errno %d\n",
-              ptr, size, errno);
-      DBUG_VOID_RETURN;
-    }
+    fprintf(stderr,
+            "Warning: Failed to unmap location %p, %zu bytes, errno %d\n",
+            ptr, size, errno);
   }
   else
   {
     MEM_UNDEFINED(ptr, size);
-    DBUG_VOID_RETURN;
   }
 #elif defined(_WIN32)
   /*
@@ -454,10 +438,10 @@ void my_large_free(void *ptr, size_t size)
   else
   {
     MEM_UNDEFINED(ptr, size);
-    DBUG_VOID_RETURN;
   }
-#endif
+#else
   my_free_lock(ptr);
+#endif
 
   DBUG_VOID_RETURN;
 }
