@@ -3966,7 +3966,6 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
     {
       if (i != first)
         join->best_positions[i].sj_strategy= SJ_OPT_NONE;
-
       handled_tabs |= join->best_positions[i].table->table->map;
     }
 
@@ -5090,7 +5089,7 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
   Sort_nest_info *sort_nest_info= join->sort_nest_info;
 
   if (sort_nest_info)
-    no_jbuf_after= join->const_tables+ sort_nest_info->number_of_tables();
+    no_jbuf_after= join->const_tables + sort_nest_info->number_of_tables();
 
   POSITION *pos= join->best_positions + join->const_tables;
   for (i= join->const_tables ; i < join->top_join_tab_count; )
@@ -5156,28 +5155,8 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
           }
         }
 
-        bool sort_nest_present= FALSE;
-        /*
-          Walk through the range and remember
-           - tables that need their rowids to be put into temptable
-           - the last outer table
-        */
-        if (join->sort_nest_needed())
-        {
-          for (JOIN_TAB *j= tab; j < tab + pos->n_sj_tables; j++)
-          {
-            if (j->is_sort_nest)
-            {
-              sort_nest_present= TRUE;
-              break;
-            }
-          }
-        }
-
-        init_dups_weedout(join, first_table, i,
-                          i + pos->n_sj_tables + MY_TEST(sort_nest_present)-
-                          first_table);
-        i+= pos->n_sj_tables + MY_TEST(sort_nest_present);
+        init_dups_weedout(join, first_table, i, i + pos->n_sj_tables - first_table);
+        i+= pos->n_sj_tables;
         pos+= pos->n_sj_tables;
         break;
       }
@@ -5330,11 +5309,9 @@ int clear_sj_tmp_tables(JOIN *join)
 
 static bool sj_table_is_included(JOIN *join, JOIN_TAB *join_tab)
 {
-  if (join_tab->emb_sj_nest)
+  if (join_tab->emb_sj_nest || join_tab->is_sort_nest)
     return FALSE;
-  if (join_tab->is_sort_nest)
-    return FALSE;
-  
+
   /* Check if this table is functionally dependent on the tables that
      are within the same outer join nest
   */
@@ -5718,18 +5695,15 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
       This would compute the partial join and write the records
       in the temporary table.
     */
-
-    /*
-      TODO(varun): this can be move to the SJM nest when the handling
-      of sort-nest is done with a bush
-    */
     enum_nested_loop_state rc;
     JOIN *join= tab->join;
     Sort_nest_info *nest_info= join->sort_nest_info;
+    DBUG_ASSERT(nest_info);
+    DBUG_ASSERT(nest_info->nest_tab == tab);
 
     if (!nest_info->is_materialized())
     {
-      JOIN_TAB *join_tab= join->join_tab + join->const_tables;
+      JOIN_TAB *join_tab= nest_info->get_start_tab();
       JOIN_TAB *save_return_tab= join->return_tab;
       if ((rc= sub_select(join, join_tab, FALSE)) < 0 ||
           (rc= sub_select(join, join_tab, TRUE)) < 0)

@@ -2547,10 +2547,10 @@ int JOIN::optimize_stage2()
 
   if (sort_nest_needed())
   {
-    if (make_sort_nest(sort_nest_info))
+    if (sort_nest_info->make_sort_nest())
       DBUG_RETURN(1);
     substitute_best_fields_for_order_by_items();
-    substitute_base_with_nest_field_items(sort_nest_info);
+    sort_nest_info->substitute_base_with_nest_field_items();
   }
 
   if (make_join_select(this, select, conds))
@@ -10778,8 +10778,6 @@ bool JOIN::get_best_combination()
   full_join=0;
   hash_join= FALSE;
 
-  int index_no= best_positions[const_tables].index_no;
-
   fix_semijoin_strategies_for_picked_join_order(this);
   top_join_tab_count= get_number_of_tables_at_top_level(this);
 
@@ -10794,12 +10792,12 @@ bool JOIN::get_best_combination()
   if (check_if_sort_nest_present(&n_tables, &nest_tables_map))
   {
     if (create_sort_nest_info(n_tables, nest_tables_map))
-      DBUG_RETURN(TRUE);
+      DBUG_RETURN(TRUE); // OOM
 
     if (sort_nest_needed())
       join_tab[const_tables + n_tables].is_sort_nest= TRUE;
     else
-      setup_index_use_for_ordering(index_no);
+      setup_index_use_for_ordering();
   }
 
   JOIN_TAB_RANGE *root_range;
@@ -10822,16 +10820,10 @@ bool JOIN::get_best_combination()
 
     if (j->is_sort_nest)
     {
-      uint tables= n_tables;
-      j->join= this;
-      j->table= NULL;
-      j->ref.key = -1;
-      j->on_expr_ref= (Item**) &null_ptr;
-      j->is_sort_nest= TRUE;
-      j->records_read= calculate_record_count_for_sort_nest(tables);
-      j->records= (ha_rows) j->records_read;
-      j->cond_selectivity= 1.0;
+      // TODO varun: maybe this init can move to a function of sort_nest_info
       sort_nest_info->nest_tab= j;
+      // For sort_nest the start table is the first non-const table
+      sort_nest_info->setup_nest_join_tab(join_tab + const_tables);
       tablenr--;
       continue;
     }
@@ -20633,6 +20625,8 @@ do_select(JOIN *join, Procedure *procedure)
 
     JOIN_TAB *join_tab= join->join_tab +
                         (join->tables_list ? join->const_tables : 0);
+
+    // TODO varun: can we try to have a bush for sort nest too?
     Sort_nest_info *sort_nest_info= join->sort_nest_info;
     join_tab= sort_nest_info ? sort_nest_info->nest_tab
                               : join_tab;
@@ -29469,7 +29463,7 @@ select_handler *SELECT_LEX::find_select_handler(THD *thd)
 
 /*
   @brief
-    Check if the items in the ORDER BY clause are expensive or not.
+    Check if any of the item in the ORDER BY clause is expensive or not.
 
   @details
     In this function we walk through the ORDER BY list and check if

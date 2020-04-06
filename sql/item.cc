@@ -6205,8 +6205,14 @@ Item *Item_field::replace_with_nest_items(THD *thd, uchar *arg)
 {
   Mat_join_tab_nest_info *nest_info= (Mat_join_tab_nest_info*)arg;
 
-  if (!(used_tables() & nest_info->get_tables_map()) &&
-      !(used_tables() & OUTER_REF_TABLE_BIT))
+  /*
+    For replacing base field items with nest items, the requirements are
+    (1) the field item must belong to the tables inside the nest OR
+    (2) the field item is an outer reference and belongs to the tables inside
+        the nest
+  */
+  if (!(used_tables() & nest_info->get_tables_map()) &&  // (1)
+      !(used_tables() & OUTER_REF_TABLE_BIT))            // (2)
     return this;
 
   List_iterator_fast<Item_pair> li(nest_info->mapping_of_items);
@@ -7316,9 +7322,7 @@ void Item::check_pushable_cond(Pushdown_checker checker, uchar *arg)
   @details
     This method traverses the AND-OR condition cond and for each subformula of
     the condition it checks whether it can be usable for the extraction of a
-    condition over the grouping fields of this select. The method uses
-    the call-back parameter checker to check whether a primary formula
-    depends only on grouping fields.
+    condition using the Pushdown checker argument.
     The subformulas that are not usable are marked with the flag NO_EXTRACTION_FL.
     The subformulas that can be entierly extracted are marked with the flag
     FULL_EXTRACTION_FL.
@@ -7328,11 +7332,9 @@ void Item::check_pushable_cond(Pushdown_checker checker, uchar *arg)
     for the subformula when extracting the pushable condition.
     The flag FULL_EXTRACTION_FL allows to delete later all top level conjuncts
     from cond.
-
-  TODO varun:
-    rewrite the comments to make sense
-    also a note for sort-nest using this would make sense
-
+    Used by a materialized nest to extract condition that is internal to the
+    nest that is the condition only depends on the tables inside the
+    materialized nest
 */
 
 void Item::check_pushable_cond_extraction(Pushdown_checker checker, uchar *arg)

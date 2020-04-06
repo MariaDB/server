@@ -212,11 +212,10 @@ void find_cost_of_index_with_ordering(THD *thd, const JOIN_TAB *tab,
                                       Json_writer_object *trace_possible_key);
 
 
+static Item * const null_ptr= NULL;
 /*
   @brief
     Substitute field items of tables inside the nest with nest's field items.
-
-  @param nest_info          Structure holding information about the nest
 
   @details
     Substitute field items of tables inside the sort-nest with sort-nest's
@@ -258,9 +257,10 @@ void find_cost_of_index_with_ordering(THD *thd, const JOIN_TAB *tab,
 */
 
 void
-JOIN::substitute_base_with_nest_field_items(Mat_join_tab_nest_info *nest_info)
+Mat_join_tab_nest_info::substitute_base_with_nest_field_items()
 {
-  List_iterator<Item> it(fields_list);
+  THD *thd= join->thd;
+  List_iterator<Item> it(join->fields_list);
   Item *item, *new_item;
 
   /* Substituting SELECT list field items with sort-nest's field items */
@@ -268,7 +268,7 @@ JOIN::substitute_base_with_nest_field_items(Mat_join_tab_nest_info *nest_info)
   {
     if ((new_item= item->transform(thd,
                                    &Item::replace_with_nest_items, TRUE,
-                                   (uchar *) nest_info)) != item)
+                                   (uchar *) this)) != item)
     {
       new_item->name= item->name;
       thd->change_item_tree(it.ref(), new_item);
@@ -278,31 +278,29 @@ JOIN::substitute_base_with_nest_field_items(Mat_join_tab_nest_info *nest_info)
 
   /* Substituting ORDER BY field items with sort-nest's field items */
   ORDER *ord;
-  for (ord= order; ord ; ord=ord->next)
+  for (ord= join->order; ord ; ord=ord->next)
   {
     (*ord->item)= (*ord->item)->transform(thd,
                                           &Item::replace_with_nest_items,
-                                          TRUE, (uchar *) nest_info);
+                                          TRUE, (uchar *) this);
     (*ord->item)->update_used_tables();
   }
 
-  JOIN_TAB *end_tab= nest_info->nest_tab;
-  uint i, j;
-  for (i= const_tables + nest_info->number_of_tables(), j=0;
-       i < top_join_tab_count; i++, j++)
+  JOIN_TAB *tab= nest_tab;
+  for (uint i= join->const_tables + number_of_tables();
+       (tab && i < join->top_join_tab_count); i++, tab++)
   {
-    JOIN_TAB *tab= end_tab + j;
 
     if (tab->type == JT_REF || tab->type == JT_EQ_REF ||
         tab->type == JT_REF_OR_NULL)
-      substitute_ref_items(tab, nest_info);
+      substitute_ref_items(tab);
 
     /* Substituting ON-EXPR field items with sort-nest's field items */
     if (*tab->on_expr_ref)
     {
       item= (*tab->on_expr_ref)->transform(thd,
                                            &Item::replace_with_nest_items,
-                                           TRUE, (uchar *) nest_info);
+                                           TRUE, (uchar *) this);
       *tab->on_expr_ref= item;
       (*tab->on_expr_ref)->update_used_tables();
     }
@@ -311,20 +309,17 @@ JOIN::substitute_base_with_nest_field_items(Mat_join_tab_nest_info *nest_info)
       Substituting REF field items for SJM lookup with sort-nest's field items
     */
     if (tab->bush_children)
-      substitutions_for_sjm_lookup(tab, nest_info);
+      substitutions_for_sjm_lookup(tab);
   }
 
-  /*
-    This needs a pointer to the nest, so that this could be used in general
-  */
-  extract_condition_for_the_nest(nest_info);
+  extract_condition_for_the_nest();
 
   /* Substituting WHERE clause's field items with sort-nest's field items */
-  if (conds)
+  if (join->conds)
   {
-    conds= conds->transform(thd, &Item::replace_with_nest_items, TRUE,
-                            (uchar *) nest_info);
-    conds->update_used_tables();
+    join->conds= join->conds->transform(thd, &Item::replace_with_nest_items,
+                                        TRUE, (uchar *) this);
+    join->conds->update_used_tables();
   }
 }
 
@@ -334,20 +329,19 @@ JOIN::substitute_base_with_nest_field_items(Mat_join_tab_nest_info *nest_info)
     Substitute ref access field items with nest's field items.
 
   @param tab                join tab structure having ref access
-  @param nest_info          Structure holding information about the nest
 
 */
 
-void JOIN::substitute_ref_items(JOIN_TAB *tab,
-                                Mat_join_tab_nest_info* nest_info)
+void Mat_join_tab_nest_info::substitute_ref_items(JOIN_TAB *tab)
 {
+  THD *thd= join->thd;
   Item *item;
   /* Substituting REF field items with sort-nest's field items */
   for (uint keypart= 0; keypart < tab->ref.key_parts; keypart++)
   {
     item= tab->ref.items[keypart]->transform(thd,
                                              &Item::replace_with_nest_items,
-                                             TRUE, (uchar *) nest_info);
+                                             TRUE, (uchar *) this);
     if (item != tab->ref.items[keypart])
     {
       tab->ref.items[keypart]= item;
@@ -369,7 +363,6 @@ void JOIN::substitute_ref_items(JOIN_TAB *tab,
     Substitute the left expression of the IN subquery with nest's field items.
 
   @param sjm_tab           SJM lookup join tab
-  @param nest_info         Structure holding information about the nest
 
   @details
     This substitution is needed for SJM lookup when the SJM materialized
@@ -397,9 +390,9 @@ void JOIN::substitute_ref_items(JOIN_TAB *tab,
 
 */
 
-void JOIN::substitutions_for_sjm_lookup(JOIN_TAB *sjm_tab,
-                                        Mat_join_tab_nest_info* nest_info)
+void Mat_join_tab_nest_info::substitutions_for_sjm_lookup(JOIN_TAB *sjm_tab)
 {
+  THD *thd= join->thd;
   JOIN_TAB *tab= sjm_tab->bush_children->start;
   TABLE_LIST *emb_sj_nest= tab->table->pos_in_table_list->embedding;
 
@@ -414,7 +407,7 @@ void JOIN::substitutions_for_sjm_lookup(JOIN_TAB *sjm_tab,
   {
     Item *left_expr= emb_sj_nest->sj_subq_pred->left_expr;
     left_expr= left_expr->transform(thd, &Item::replace_with_nest_items,
-                                    TRUE, (uchar *) nest_info);
+                                    TRUE, (uchar *) this);
     left_expr->update_used_tables();
     emb_sj_nest->sj_subq_pred->left_expr= left_expr;
   }
@@ -424,8 +417,6 @@ void JOIN::substitutions_for_sjm_lookup(JOIN_TAB *sjm_tab,
 /*
   @brief
     Extract from the WHERE clause the sub-condition for tables inside the nest.
-
-  @param  nest_info               Structure holding information about the nest
 
   @details
     Extract the sub-condition from the WHERE clause that can be added to the
@@ -461,20 +452,20 @@ void JOIN::substitutions_for_sjm_lookup(JOIN_TAB *sjm_tab,
       ORDER BY clause is applied.
 */
 
-void JOIN::extract_condition_for_the_nest(Mat_join_tab_nest_info* nest_info)
+void Mat_join_tab_nest_info::extract_condition_for_the_nest()
 {
-  DBUG_ASSERT(nest_info);
-  Item *orig_cond= conds;
+  THD *thd= join->thd;
+  Item *orig_cond= join->conds;
   Item *extracted_cond;
 
   /*
     check_pushable_cond_extraction would set the flag NO_EXTRACTION_FL for
     all the predicates that cannot be added to the inner tables of the nest.
   */
-  table_map nest_tables_map= nest_info->get_tables_map();
-  conds->check_pushable_cond_extraction(
+  table_map nest_tables_map= get_tables_map();
+  join->conds->check_pushable_cond_extraction(
                                        &Item::pushable_cond_checker_for_tables,
-                                        (uchar*)&nest_tables_map);
+                                       (uchar*)&nest_tables_map);
 
   /*
     build_pushable_condition would create a sub-condition that would be
@@ -492,9 +483,9 @@ void JOIN::extract_condition_for_the_nest(Mat_join_tab_nest_info* nest_info)
       extracted for the inner tables of the nest
     */
     orig_cond= remove_pushed_top_conjuncts(thd, orig_cond);
-    nest_info->set_nest_cond(extracted_cond);
+    set_nest_cond(extracted_cond);
   }
-  conds= orig_cond;
+  join->conds= orig_cond;
 }
 
 
@@ -704,9 +695,6 @@ void JOIN::substitute_best_fields_for_order_by_items()
   @brief
     Make the sort-nest.
 
-  @param
-    nest_info               Structure holding information about the nest
-
   @details
     Setup execution structures for sort-nest materialization:
       - Create the list of Items of the inner tables of the sort-nest
@@ -720,15 +708,16 @@ void JOIN::substitute_best_fields_for_order_by_items()
     FALSE  : Nest creation successful
 */
 
-bool JOIN::make_sort_nest(Mat_join_tab_nest_info *nest_info)
+bool Mat_join_tab_nest_info::make_nest()
 {
   Field_iterator_table field_iterator;
 
   JOIN_TAB *j;
   JOIN_TAB *tab;
+  THD *thd= join->thd;
 
   if (unlikely(thd->trace_started()))
-    add_sort_nest_tables_to_trace(this, nest_info);
+    add_nest_tables_to_trace(get_name());
 
   /*
     List of field items of the tables inside the sort-nest is created for
@@ -744,7 +733,7 @@ bool JOIN::make_sort_nest(Mat_join_tab_nest_info *nest_info)
       ORDER BY context
   */
 
-  for (j= join_tab + const_tables; j < nest_info->nest_tab; j++)
+  for (j= start_tab; j < nest_tab; j++)
   {
     if (!j->bush_children)
     {
@@ -758,7 +747,7 @@ bool JOIN::make_sort_nest(Mat_join_tab_nest_info *nest_info)
         Item *item;
         if (!(item= field_iterator.create_item(thd)))
           return TRUE;
-        nest_info->nest_base_table_cols.push_back(item, thd->mem_root);
+        nest_base_table_cols.push_back(item, thd->mem_root);
       }
     }
     else
@@ -776,22 +765,22 @@ bool JOIN::make_sort_nest(Mat_join_tab_nest_info *nest_info)
       List_iterator_fast<Item> li(subq_select->item_list);
       Item *item;
       while((item= li++))
-        nest_info->nest_base_table_cols.push_back(item, thd->mem_root);
+        nest_base_table_cols.push_back(item, thd->mem_root);
     }
   }
 
-  tab= nest_info->nest_tab;
+  tab= nest_tab;
   DBUG_ASSERT(!tab->table);
 
-  uint sort_nest_elements= nest_info->nest_base_table_cols.elements;
-  nest_info->tmp_table_param.init();
-  nest_info->tmp_table_param.bit_fields_as_long= TRUE;
-  nest_info->tmp_table_param.field_count= sort_nest_elements;
-  nest_info->tmp_table_param.force_not_null_cols= FALSE;
+  uint sort_nest_elements= nest_base_table_cols.elements;
+  tmp_table_param.init();
+  tmp_table_param.bit_fields_as_long= TRUE;
+  tmp_table_param.field_count= sort_nest_elements;
+  tmp_table_param.force_not_null_cols= FALSE;
 
   const LEX_CSTRING order_nest_name= { STRING_WITH_LEN("sort-nest") };
-  if (!(tab->table= create_tmp_table(thd, &nest_info->tmp_table_param,
-                                     nest_info->nest_base_table_cols,
+  if (!(tab->table= create_tmp_table(thd, &tmp_table_param,
+                                     nest_base_table_cols,
                                      (ORDER*) 0,
                                      FALSE /* distinct */,
                                      0, /*save_sum_fields*/
@@ -801,8 +790,8 @@ bool JOIN::make_sort_nest(Mat_join_tab_nest_info *nest_info)
                                      &order_nest_name)))
     return TRUE; /* purecov: inspected */
 
-  tab->table->map= nest_info->get_tables_map();
-  nest_info->table= tab->table;
+  tab->table->map= get_tables_map();
+  table= tab->table;
   tab->type= JT_ALL;
   tab->table->reginfo.join_tab= tab;
 
@@ -811,7 +800,7 @@ bool JOIN::make_sort_nest(Mat_join_tab_nest_info *nest_info)
     substitution for items that would be evaluated in POST SORT NEST context
   */
   field_iterator.set_table(tab->table);
-  List_iterator_fast<Item> li(nest_info->nest_base_table_cols);
+  List_iterator_fast<Item> li(nest_base_table_cols);
   Item *item;
   for (; !field_iterator.end_of_fields() && (item= li++);
        field_iterator.next())
@@ -821,16 +810,40 @@ bool JOIN::make_sort_nest(Mat_join_tab_nest_info *nest_info)
     if (!(nest_item= new (thd->mem_root)Item_temptable_field(thd, field)))
       return TRUE;
     Item_pair *tmp_field= new Item_pair(item, nest_item);
-    nest_info->mapping_of_items.push_back(tmp_field, thd->mem_root);
+    mapping_of_items.push_back(tmp_field, thd->mem_root);
   }
 
   /* Setting up the scan on the temp table */
   tab->read_first_record= join_init_read_record;
   tab->read_record.read_record_func= rr_sequential;
   tab[-1].next_select= end_nest_materialization;
-  DBUG_ASSERT(!nest_info->is_materialized());
+  DBUG_ASSERT(!is_materialized());
 
   return FALSE;
+}
+
+
+bool Sort_nest_info::make_sort_nest()
+{
+  return make_nest();
+}
+
+
+/*
+  @brief
+    setup the join tab for the materialized nest
+*/
+
+void Mat_join_tab_nest_info::setup_nest_join_tab(JOIN_TAB *nest_start)
+{
+  nest_tab->join= join;
+  start_tab= nest_start;
+  nest_tab->table= NULL;
+  nest_tab->ref.key = -1;
+  nest_tab->on_expr_ref= (Item**) &null_ptr;
+  nest_tab->records_read= calculate_record_count_for_nest();
+  nest_tab->records= (ha_rows) nest_tab->records_read;
+  nest_tab->cond_selectivity= 1.0;
 }
 
 
@@ -885,9 +898,26 @@ double JOIN::sort_nest_oper_cost(double join_record_count, uint idx,
 
 /*
   @brief
-    Calculate the number of records that would be read from the sort-nest.
+    Calculate the number of records that would be read from the nest.
 
-  @param n_tables          number of tables in the sort-nest
+  @retval Number of records that the optimizer expects to be read from the
+          nest
+*/
+
+double Mat_join_tab_nest_info::calculate_record_count_for_nest()
+{
+  double nest_records= 1, record_count;
+  for (JOIN_TAB *tab= start_tab; tab < nest_tab; tab++)
+  {
+    record_count= tab->records_read * tab->cond_selectivity;
+    nest_records= COST_MULT(nest_records, record_count);
+  }
+  return nest_records;
+}
+
+/*
+  @brief
+    Calculate the number of records that would be read from the sort-nest.
 
   @details
     The number of records read from the sort-nest would be:
@@ -899,24 +929,19 @@ double JOIN::sort_nest_oper_cost(double join_record_count, uint idx,
       selectivity_of_limit= limit / cardinality(join of all tables)
 
     This number of records is what we would also see in the EXPLAIN output
-    for the sort-nest in the columns "rows".
+    for the sort-nest in the column "rows".
 
   @retval Number of records that the optimizer expects to be read from the
           sort-nest
 */
 
-double JOIN::calculate_record_count_for_sort_nest(uint n_tables)
+double Sort_nest_info::calculate_record_count_for_nest()
 {
-  double sort_nest_records= 1, record_count;
-  JOIN_TAB *tab= join_tab + const_tables;
-  for (uint j= 0; j < n_tables ; j++, tab++)
-  {
-    record_count= tab->records_read * tab->cond_selectivity;
-    sort_nest_records= COST_MULT(sort_nest_records, record_count);
-  }
-  sort_nest_records= sort_nest_records * fraction_output_for_nest;
-  set_if_bigger(sort_nest_records, 1);
-  return sort_nest_records;
+  double records;
+  records= Mat_join_tab_nest_info::calculate_record_count_for_nest();
+  records= records * join->fraction_output_for_nest;
+  set_if_bigger(records, 1);
+  return records;
 }
 
 
@@ -941,6 +966,7 @@ void JOIN_TAB::find_keys_that_can_achieve_ordering()
         test_if_order_by_key(join, join->order, table, index))
       table->keys_with_ordering.set_bit(index);
   }
+  //  INDEX HINTS for ORDER BY may be provided
   table->keys_with_ordering.intersect(table->keys_in_use_for_order_by);
 }
 
@@ -1269,9 +1295,6 @@ use_filesort:
   @brief
     Setup range/index scan to resolve ordering on the first non-const table.
 
-  @param
-    index        index for which index scan or range scan needs to be setup
-
   @details
     Here we try to prepare range scan or index scan for an index that can be
     used to resolve the ORDER BY clause. This is used only for the first
@@ -1286,20 +1309,21 @@ use_filesort:
       We just store the index in Sort_nest_info::index_used.
 */
 
-void JOIN::setup_index_use_for_ordering(int index)
+void JOIN::setup_index_use_for_ordering()
 {
   DBUG_ASSERT(sort_nest_info->index_used == -1);
 
+  int index= best_positions[const_tables].index_no;
   sort_nest_info->nest_tab= join_tab + const_tables;
   POSITION *cur_pos= &best_positions[const_tables];
   JOIN_TAB *tab= cur_pos->table;
 
-  if (cur_pos->key)
+  if (cur_pos->key) // Ref access
     return;
 
   index= (index == -1) ?
          (cur_pos->table->quick ? cur_pos->table->quick->index : -1) :
-          index;
+         index;
 
   if (tab->check_if_index_satisfies_ordering(index))
   {
@@ -1426,6 +1450,34 @@ bool JOIN::sort_nest_allowed()
 
 /*
   @brief
+    Check if indexes on a table are allowed to resolve the ORDER BY clause
+
+  @param
+    idx                       position of the table in the partial plan
+
+  @retval
+    TRUE    Indexes are allowed to resolve ORDER BY clause
+    FALSE   Otherwise
+
+*/
+
+bool JOIN::is_index_with_ordering_allowed(uint idx)
+{
+  /*
+    An index on a table can allowed to resolve ordering in these cases:
+      1) Table should be the first non-const table
+      2) Query that allows the ORDER BY LIMIT optimization.
+         @see sort_nest_allowed
+      3) Join planner is not run to get the estimate of cardinality
+  */
+  return  idx == const_tables &&                                   // (1)
+          sort_nest_possible &&                                    // (2)
+          !get_cardinality_estimate;                               // (3)
+}
+
+
+/*
+  @brief
     Consider adding a sort-nest on a prefix of the join
 
   @param prefix_tables           map of all the tables in the prefix
@@ -1483,33 +1535,6 @@ JOIN::extend_prefix_to_ensure_duplicate_removal(table_map prefix_tables, uint id
   return FALSE;
 }
 
-
-/*
-  @brief
-    Check if indexes on a table are allowed to resolve the ORDER BY clause
-
-  @param
-    idx                       position of the table in the partial plan
-
-  @retval
-    TRUE    Indexes are allowed to resolve ORDER BY clause
-    FALSE   Otherwise
-
-*/
-
-bool JOIN::is_index_with_ordering_allowed(uint idx)
-{
-  /*
-    An index on a table can allowed to resolve ordering in these cases:
-      1) Table should be the first non-const table
-      2) Query that allows the ORDER BY LIMIT optimization.
-         @see sort_nest_allowed
-      3) Join planner is not run to get the estimate of cardinality
-  */
-  return  idx == const_tables &&                                   // (1)
-          sort_nest_possible &&                                    // (2)
-          !get_cardinality_estimate;                               // (3)
-}
 
 /*
   @brief

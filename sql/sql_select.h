@@ -532,7 +532,7 @@ typedef struct st_join_table {
 
   /*
     Set to TRUE if we picked a join order that would use a sort-nest on
-    a prefix that satisfies the ORDER BY clause.
+    a prefix that can resolve the ORDER BY clause.
   */
   bool is_sort_nest;
 
@@ -1019,8 +1019,8 @@ typedef struct st_position
   Range_rowid_filter_cost_info *range_rowid_filter_info;
 
   /*
-    Flag to be set to TRUE if prefix of a join satisfies the ORDER BY CLAUSE
-    This flag is only set at the join planner stage.
+    Flag to be set to TRUE if prefix of a join resolves the ORDER BY CLAUSE
+    This flag is set ONLY at the join planner stage.
   */
   bool sort_nest_operation_here;
   /*
@@ -1122,8 +1122,8 @@ public:
 
 /*
   A subset of joined tables that are joined together is called a join table
-  nest. If the result of the join these tables is materialized in a temporary
-  table then the nest is called a materialized join table nest.
+  nest. If the result of the join of these tables is materialized in a
+  temporary table then the nest is called a materialized join table nest.
   The class declared below is used for the objects created to handle
   materialized join tables nests. These objects are supposed to be used at the
   optimization an execution phases.
@@ -1142,6 +1142,10 @@ protected:
   Item *nest_cond;
   /* TRUE <=> materialization already performed */
   bool materialized;
+  /*
+    join tab structure for the first table in the nest
+  */
+  st_join_table *start_tab;
 
 public:
   Mat_join_tab_nest_info(JOIN *join_arg, uint tables, table_map tables_map)
@@ -1153,6 +1157,7 @@ public:
     nest_tables_map= tables_map;
     nest_cond= NULL;
     materialized= FALSE;
+    start_tab= NULL;
   }
 
   TMP_TABLE_PARAM tmp_table_param;
@@ -1163,6 +1168,9 @@ public:
     corresponding items in the nest
   */
   List<Item_pair> mapping_of_items;
+  /*
+    join tab structure for the nest
+  */
   st_join_table *nest_tab;
   TABLE *table;
 
@@ -1172,6 +1180,16 @@ public:
   Item *get_nest_cond()   { return nest_cond; }
   void set_materialized() { materialized= TRUE; }
   bool is_materialized()  { return materialized; }
+  st_join_table *get_start_tab() { return start_tab; }
+  void add_nest_tables_to_trace(const char* name);
+  virtual const char *get_name() { return "nest"; }
+  virtual double calculate_record_count_for_nest();
+  bool make_nest();
+  void setup_nest_join_tab(JOIN_TAB *nest_start);
+  void substitute_ref_items(JOIN_TAB *tab);
+  void substitutions_for_sjm_lookup(JOIN_TAB *sjm_tab);
+  void extract_condition_for_the_nest();
+  void substitute_base_with_nest_field_items();
 };
 
 /*
@@ -1186,12 +1204,15 @@ public:
   {
     index_used= -1;
   }
+  const char *get_name() { return "sort-nest"; }
   /*
     >=0 set to the index that satisfies the ORDER BY clause and does an index
         scan on the first non-const table.
     -1 otherwise
   */
   int index_used;
+  double calculate_record_count_for_nest();
+  bool make_sort_nest();
 };
 
 
@@ -1666,15 +1687,15 @@ public:
   double cardinality_estimate;
 
   /*
-    The fraction of records we would read of the sort-nest or the first table
-    that satisfies the ORDER BY clause, after the sorting is done.
+    The fraction of records we would read from the sort-nest or the first table
+    that satisfies the ORDER BY clause, AFTER the sorting is done.
   */
   double fraction_output_for_nest;
 
   /*
     Caches that a prefix resolved the ORDER BY clause. This is done so that
-    we don't walk through the order by list everytime when we extend the prefix
-    to check if the extended prefix satifies the ordering or not.
+    we don't walk through the order by list every time when we extend the
+    prefix to check if the extended prefix satisfies the ordering or not.
   */
   bool prefix_resolves_ordering;
 
@@ -1775,10 +1796,10 @@ public:
     is_orig_degenerated= false;
     sort_nest_info= NULL;
     sort_nest_possible= FALSE;
-    fraction_output_for_nest= 1;
+    fraction_output_for_nest= 0;
     prefix_resolves_ordering= FALSE;
     get_cardinality_estimate= FALSE;
-    cardinality_estimate= DBL_MAX;
+    cardinality_estimate= 0;
   }
 
   /* True if the plan guarantees that it will be returned zero or one row */
@@ -1933,8 +1954,11 @@ public:
   }
 
   /*
+    @brief
+      Check if a separate JOIN_TAB structure is needed for the sort-nest
+
     TRUE   if the sort-nest contains more than one table
-    FALSE  otherwise
+    FALSE  otherwise  (use Filesort on the first table or index scan)
   */
   bool sort_nest_needed()
   {
@@ -1943,32 +1967,34 @@ public:
     return sort_nest_info->number_of_tables() == 1 ? FALSE : TRUE;
   }
 
+  // FUNCTIONALITY RELATED TO SORT_NEST
+
   bool sort_nest_allowed();
   bool is_order_by_expensive();
   bool estimate_cardinality_for_join(table_map joined_tables);
-  bool check_if_sort_nest_present(uint* n_tables, table_map *tables_map);
-  bool create_sort_nest_info(uint n_tables, table_map nest_tables_map);
   bool remove_const_from_order_by();
-  bool make_sort_nest(Mat_join_tab_nest_info *nest_info);
-  double calculate_record_count_for_sort_nest(uint n_tables);
-  void
-  substitute_base_with_nest_field_items(Mat_join_tab_nest_info* nest_info);
-  void substitute_best_fields_for_order_by_items();
-  void substitute_ref_items(JOIN_TAB *tab, Mat_join_tab_nest_info* nest_info);
-  void substitutions_for_sjm_lookup(JOIN_TAB *sjm_tab,
-                                    Mat_join_tab_nest_info* nest_info);
-  void extract_condition_for_the_nest(Mat_join_tab_nest_info* nest_info);
   void propagate_equal_field_for_orderby();
-  void setup_index_use_for_ordering(int index_no);
-  void setup_range_scan(JOIN_TAB *tab, uint idx, double records);
-  bool is_join_buffering_allowed(JOIN_TAB *tab);
-  bool check_join_prefix_resolves_ordering(table_map previous_tables);
+
+  /*
+    Functions related to the join planner stage for the sort-nest
+  */
+  bool is_index_with_ordering_allowed(uint idx);
   bool consider_adding_sort_nest(table_map previous_tables, uint idx);
+  bool check_join_prefix_resolves_ordering(table_map previous_tables);
   bool extend_prefix_to_ensure_duplicate_removal(table_map prefix_tables, uint idx);
   void set_fraction_output_for_nest();
-  double sort_nest_oper_cost(double join_record_count, uint idx,
-                             ulong rec_len);
-  bool is_index_with_ordering_allowed(uint idx);
+  double sort_nest_oper_cost(double join_record_count, uint idx, ulong rec_len);
+
+  /*
+    Functions related to the plan refinement stage for the sort-nest
+  */
+  bool check_if_sort_nest_present(uint* n_tables, table_map *tables_map);
+  bool create_sort_nest_info(uint n_tables, table_map nest_tables_map);
+  void setup_index_use_for_ordering();
+  void setup_range_scan(JOIN_TAB *tab, uint idx, double records);
+  bool is_join_buffering_allowed(JOIN_TAB *tab);
+
+  void substitute_best_fields_for_order_by_items();
 
   bool choose_subquery_plan(table_map join_tables);
   void get_partial_cost_and_fanout(int end_tab_idx,
@@ -2322,7 +2348,6 @@ bool mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &list,
 void free_underlaid_joins(THD *thd, SELECT_LEX *select);
 bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit,
                          select_result *result);
-double calculate_record_count_for_sort_nest(JOIN *join, uint n_tables);
 void check_cond_extraction_for_nest(THD *thd, Item *cond,
                                     Pushdown_checker checker, uchar* arg);
 void resetup_access_for_ordering(JOIN_TAB* tab, int idx);

@@ -617,9 +617,8 @@ void Json_writer::add_table_name(const JOIN_TAB *tab)
     }
     else if (tab->is_sort_nest)
     {
-      size_t len= my_snprintf(table_name_buffer,
-                           sizeof(table_name_buffer)-1,
-                           "<sort-nest>");
+      size_t len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
+                              "<sort-nest>");
       add_str(table_name_buffer, len);
     }
     else
@@ -714,26 +713,25 @@ void print_best_access_for_table(THD *thd, POSITION *pos,
 
 
 /*
-  Add the tables that are inside the sort-nest
-  in the optimizer trace
+  @brief
+    Print the tables that are inside the sort-nest to the optimizer trace
+
+  @param name                    name of the type of nest used
 */
-void add_sort_nest_tables_to_trace(JOIN *join,
-                                   Mat_join_tab_nest_info* nest_info)
+void Mat_join_tab_nest_info::add_nest_tables_to_trace(const char *name)
 {
-  JOIN_TAB *end_tab, *tab;
+  JOIN_TAB *tab;
   THD *thd= join->thd;
-  end_tab= nest_info->nest_tab;
   Json_writer_object trace_wrapper(thd);
-  Json_writer_array sort_nest(thd, "sort-nest");
-  for (tab= join->join_tab + join->const_tables; tab < end_tab; tab++)
+  Json_writer_array sort_nest(thd, name);
+  for (tab= join->join_tab + join->const_tables; tab < nest_tab; tab++)
     sort_nest.add_table_name(tab);
 }
 
 
 /*
-  This function is used during best_access_path to print the sort-nest
-  that were considered doing the cost based analysis of the various
-  join orders.
+  @brief
+    print the tables considered in the sort-nest by the join planer
 */
 
 void trace_sort_nest(JOIN *join, uint idx, table_map remaining_tables)
