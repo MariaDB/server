@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
+#include <mysys_err.h>
 
 #ifdef __linux__
 #include <dirent.h>
@@ -85,7 +86,7 @@ static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
   dirp= opendir("/sys/kernel/mm/hugepages");
   if (dirp == NULL)
   {
-    perror("Warning: failed to open /sys/kernel/mm/hugepages");
+    my_error(EE_DIR, MYF(ME_BELL), "/sys/kernel/mm/hugepages", errno);
   }
   else
   {
@@ -96,8 +97,10 @@ static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
         sizes[i]= strtoull(r->d_name + 10, NULL, 10) * 1024ULL;
         if (!my_is_2pow(sizes[i]))
         {
-          fprintf(stderr, "Warning: non-power of 2 large page size (%zu) found,"
-                  " skipping\n", sizes[i]);
+          my_printf_error(0,
+                          "non-power of 2 large page size (%zu) found,"
+                          " skipping", MYF(ME_NOTE | ME_ERROR_LOG_ONLY),
+                          sizes[i]);
           sizes[i]= 0;
           continue;
         }
@@ -106,7 +109,7 @@ static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
     }
     if (closedir(dirp))
     {
-      perror("Warning: failed to close /sys/kernel/mm/hugepages");
+      my_error(EE_BADCLOSE, MYF(ME_BELL), "/sys/kernel/mm/hugepages", errno);
     }
     qsort(sizes, i, sizeof(size_t), size_t_cmp);
   }
@@ -190,9 +193,10 @@ int my_init_large_pages(my_bool super_large_pages)
 #ifdef _WIN32
   if (!my_obtain_privilege(SE_LOCK_MEMORY_NAME))
   {
-    fprintf(stderr, "mysqld: Lock Pages in memory access rights required for "
-            "use with large-pages, see https://mariadb.com/kb/en/library/"
-            "mariadb-memory-allocation/#huge-pages\n");
+    my_printf_error(EE_PERM_LOCK_MEMORY,
+                    "Lock Pages in memory access rights required for use with"
+                    " large-pages, see https://mariadb.com/kb/en/library/"
+                    "mariadb-memory-allocation/#huge-pages", MYF(MY_WME));
     return 1;
   }
   my_large_page_size= GetLargePageMinimum();
@@ -202,7 +206,8 @@ int my_init_large_pages(my_bool super_large_pages)
   my_get_large_page_sizes(my_large_page_sizes);
 
 #ifndef HAVE_LARGE_PAGES
-  fprintf(stderr, "Warning: no large page support on this platform\n");
+  my_printf_error(EE_OUTOFMEMORY, "No large page support on this platform",
+                  MYF(MY_WME));
 #endif
 
 #ifdef HAVE_SOLARIS_LARGE_PAGES
@@ -280,19 +285,28 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
   {
     if (my_flags & MY_WME)
     {
-      fprintf(stderr,
-              "Warning: VirtualAlloc(%zu bytes%s) failed; Windows error %lu\n",
-              *size,
-              my_use_large_pages ? ", MEM_LARGE_PAGES" : "",
-              GetLastError());
+      if (my_use_large_pages)
+      {
+        my_printf_error(EE_OUTOFMEMORY,
+                        "Couldn't allocate %zu bytes (MEM_LARGE_PAGES page "
+                        "size %zu); Windows error %lu; fallback to "
+                        "conventional pages failed",
+                        MYF(ME_WARNING | ME_ERROR_LOG_ONLY), *size,
+                        my_large_page_size, GetLastError());
+      }
+      else
+      {
+        my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_ERROR_LOG), *size);
+      }
     }
-    *size= orig_size;
-    ptr= VirtualAlloc(NULL, *size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!ptr && my_flags & MY_WME)
+    if (my_use_large_pages)
     {
-      fprintf(stderr,
-              "Warning: VirtualAlloc(%zu bytes) failed; Windows error %lu\n",
-              *size, GetLastError());
+      *size= orig_size;
+      ptr= VirtualAlloc(NULL, *size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+      if (!ptr && my_flags & MY_WME)
+      {
+        my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_ERROR_LOG), *size);
+      }
     }
   }
 #elif defined(HAVE_MMAP)
@@ -308,12 +322,15 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
     if (my_use_large_pages)
     {
       large_page_size= my_next_large_page_size(*size, &page_i);
+      /* this might be 0, in which case we do a standard mmap */
       if (large_page_size)
       {
 #ifdef __linux__
-        mapflag|= MAP_HUGETLB | my_bit_log2_size_t(large_page_size) << MAP_HUGE_SHIFT;
+        mapflag|= MAP_HUGETLB |
+                  my_bit_log2_size_t(large_page_size) << MAP_HUGE_SHIFT;
 #elif defined(MAP_ALIGNED)
-        mapflag|= MAP_ALIGNED_SUPER | MAP_ALIGNED(my_bit_log2_size_t(large_page_size));
+        mapflag|= MAP_ALIGNED_SUPER |
+                  MAP_ALIGNED(my_bit_log2_size_t(large_page_size));
 #endif
         aligned_size= MY_ALIGN(*size, (size_t) large_page_size);
       }
@@ -330,16 +347,15 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
       {
         if (large_page_size)
         {
-          fprintf(stderr,
-                  "Warning: Failed to allocate %zu bytes from HugeTLB memory"
-                  "(page size %zu). errno %d\n", aligned_size, large_page_size,
-                  errno);
+          my_printf_error(EE_OUTOFMEMORY,
+                          "Couldn't allocate %zu bytes (Large/HugeTLB memory "
+                          "page size %zu); errno %u; continuing to smaller size",
+                          MYF(ME_WARNING | ME_ERROR_LOG_ONLY),
+                          aligned_size, large_page_size, errno);
         }
         else
         {
-          fprintf(stderr,
-                  "Warning: Failed to allocate %zu bytes from memory."
-                  " errno %d\n", aligned_size, errno);
+          my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_ERROR_LOG), aligned_size);
         }
       }
       /* try next smaller memory size */
@@ -403,9 +419,7 @@ void my_large_free(void *ptr, size_t size)
 #if defined(HAVE_MMAP) && !defined(_WIN32)
   if (munmap(ptr, size))
   {
-    fprintf(stderr,
-            "Warning: Failed to unmap location %p, %zu bytes, errno %d\n",
-            ptr, size, errno);
+    my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size, errno);
   }
   else
   {
@@ -418,8 +432,8 @@ void my_large_free(void *ptr, size_t size)
   */
   if (ptr && !VirtualFree(ptr, 0, MEM_RELEASE))
   {
-    fprintf(stderr,
-            "Error: VirtualFree(%p, %zu) failed; Windows error %lu\n", ptr, size, GetLastError());
+    my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size,
+             GetLastError());
   }
   else
   {
