@@ -4851,6 +4851,7 @@ public:
     TMP_TABLE_ANY
   };
   bool has_thd_temporary_tables();
+  bool has_temporary_tables();
 
   TABLE *create_and_open_tmp_table(LEX_CUSTRING *frm,
                                    const char *path,
@@ -4889,7 +4890,6 @@ private:
   /* Whether a lock has been acquired? */
   bool m_tmp_tables_locked;
 
-  bool has_temporary_tables();
   uint create_tmp_table_def_key(char *key, const char *db,
                                 const char *table_name);
   TMP_TABLE_SHARE *create_temporary_table(LEX_CUSTRING *frm,

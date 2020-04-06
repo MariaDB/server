@@ -834,6 +834,7 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
   st_select_lex_unit *res= NULL; 
   Query_arena backup;
   Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
+  bool has_tmp_tables;
 
   if (!(lex= (LEX*) new(thd->mem_root) st_lex_local))
   {
@@ -879,11 +880,12 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
 
   spec_tables= lex->query_tables;
   spec_tables_tail= 0;
+  has_tmp_tables= thd->has_temporary_tables();
   for (TABLE_LIST *tbl= spec_tables;
        tbl;
        tbl= tbl->next_global)
   {
-    if (!tbl->derived && !tbl->schema_table &&
+    if (has_tmp_tables && !tbl->derived && !tbl->schema_table &&
         thd->open_temporary_table(tbl))
       goto err;
     spec_tables_tail= tbl;

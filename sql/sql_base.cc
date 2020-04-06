@@ -3691,9 +3691,9 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
         The problem is that since those attributes are not set in merge
         children, another round of PREPARE will not help.
     */
-    error= thd->open_temporary_table(tables);
-
-    if (!error && !tables->table)
+    if (!thd->has_temporary_tables() ||
+        (!(error= thd->open_temporary_table(tables)) &&
+         !tables->table))
       error= open_table(thd, tables, ot_ctx);
 
     thd->pop_internal_handler();
@@ -3710,9 +3710,9 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
     Repair_mrg_table_error_handler repair_mrg_table_handler;
     thd->push_internal_handler(&repair_mrg_table_handler);
 
-    error= thd->open_temporary_table(tables);
-
-    if (!error && !tables->table)
+    if (!thd->has_temporary_tables() ||
+        (!(error= thd->open_temporary_table(tables)) &&
+         !tables->table))
       error= open_table(thd, tables, ot_ctx);
 
     thd->pop_internal_handler();
@@ -3727,7 +3727,8 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
         still might need to look for a temporary table if this table
         list element corresponds to underlying table of a merge table.
       */
-      error= thd->open_temporary_table(tables);
+      if (thd->has_temporary_tables())
+        error= thd->open_temporary_table(tables);
     }
 
     if (!error && !tables->table)
