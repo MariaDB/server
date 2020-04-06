@@ -16,11 +16,7 @@
 
 #include "mysys_priv.h"
 
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 #ifdef __linux__
-#include <linux/mman.h>
 #include <dirent.h>
 #endif
 #if defined(__linux__) || defined(MAP_ALIGNED)
@@ -28,9 +24,6 @@
 #endif
 
 #ifdef HAVE_SOLARIS_LARGE_PAGES
-#ifdef HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif
 #if defined(__sun__) && defined(__GNUC__) && defined(__cplusplus) \
     && defined(_XOPEN_SOURCE)
 /* memcntl exist within sys/mman.h, but under-defines what is need to use it */
