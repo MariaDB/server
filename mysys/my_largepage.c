@@ -260,10 +260,10 @@ MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
   my_malloc_lock() in case of failure.
   Every implementation returns a zero filled buffer here.
 */
-uchar* my_large_malloc(size_t *size, myf my_flags)
+uchar *my_large_malloc(size_t *size, myf my_flags)
 {
-  uchar* ptr= NULL;
-  
+  uchar *ptr= NULL;
+
 #ifdef _WIN32
   DWORD alloc_type= MEM_COMMIT | MEM_RESERVE;
   size_t orig_size= *size;
