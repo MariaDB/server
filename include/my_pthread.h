@@ -729,13 +729,14 @@ struct st_my_thread_var
 #endif
 };
 
-extern struct st_my_thread_var *_my_thread_var(void) __attribute__ ((const));
+struct st_my_thread_var *_my_thread_var(void);
 extern void **my_thread_var_dbug(void);
 extern safe_mutex_t **my_thread_var_mutex_in_use(void);
 extern uint my_thread_end_wait_time;
 extern my_bool safe_mutex_deadlock_detector;
 #define my_thread_var (_my_thread_var())
 #define my_errno my_thread_var->thr_errno
+int set_mysys_var(struct st_my_thread_var *mysys_var);
 /*
   Keep track of shutdown,signal, and main threads so that my_end() will not
   report errors with them
