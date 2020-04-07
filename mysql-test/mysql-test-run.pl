@@ -4672,7 +4672,7 @@ sub extract_warning_lines ($$) {
 
   my @patterns =
     (
-     qr/^Warning|mysqld: Warning|\[Warning\]/,
+     qr/^Warning|(mysqld|mariadbd): Warning|\[Warning\]/,
      qr/^Error:|\[ERROR\]/,
      qr/^==\d+==\s+\S/, # valgrind errors
      qr/InnoDB: Warning|InnoDB: Error/,
@@ -4747,7 +4747,7 @@ sub extract_warning_lines ($$) {
      qr|Access denied for user|,
      qr|Aborted connection|,
      qr|table.*is full|,
-     qr|\[ERROR\] mysqld: \Z|,  # Warning from Aria recovery
+     qr/\[ERROR\] (mysqld|mariadbd): \Z/,  # Warning from Aria recovery
      qr|Linux Native AIO|, # warning that aio does not work on /dev/shm
      qr|InnoDB: io_setup\(\) attempt|,
      qr|InnoDB: io_setup\(\) failed with EAGAIN|,
@@ -6279,7 +6279,7 @@ sub valgrind_arguments {
   my $exe=  shift;
 
   # Ensure the jemalloc works with mysqld
-  if ($$exe =~ /mysqld/)
+  if ($$exe =~ /(mysqld|mariadbd)/)
   {
     my %somalloc=(
       'system jemalloc' => 'libjemalloc*',
