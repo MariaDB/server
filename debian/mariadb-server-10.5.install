@@ -34,7 +34,6 @@ usr/bin/myisampack
 usr/bin/perror
 usr/bin/replace
 usr/bin/resolve_stack_dump
-usr/bin/resolveip
 usr/bin/wsrep_sst_common
 usr/bin/wsrep_sst_mariabackup
 usr/bin/wsrep_sst_mysqldump
@@ -96,11 +95,9 @@ usr/share/man/man1/mysqlhotcopy.1
 usr/share/man/man1/perror.1
 usr/share/man/man1/replace.1
 usr/share/man/man1/resolve_stack_dump.1
-usr/share/man/man1/resolveip.1
 usr/share/man/man1/wsrep_sst_common.1
 usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/man/man1/wsrep_sst_mysqldump.1
 usr/share/man/man1/wsrep_sst_rsync.1
 usr/share/mysql/errmsg-utf8.txt
-usr/share/mysql/mysql_test_data_timezone.sql
 usr/share/mysql/wsrep_notify
