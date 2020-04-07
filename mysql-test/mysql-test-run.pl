@@ -129,6 +129,8 @@ our $path_testlog;
 our $default_vardir;
 our $opt_vardir;                # Path to use for var/ dir
 our $plugindir;
+our $opt_xml_report;            # XML output
+
 my $path_vardir_trace;          # unix formatted opt_vardir for trace files
 my $opt_tmpdir;                 # Path to use for tmp/ dir
 my $opt_tmpdir_pid;
@@ -563,7 +565,6 @@ sub main {
   }
 
   print_total_times($opt_parallel) if $opt_report_times;
-
   mtr_report_stats($prefix, $fail, $completed, $extra_warnings);
 
   if ( @$completed != $num_tests)
@@ -1059,6 +1060,7 @@ sub print_global_resfile {
   resfile_global("warnings", $opt_warnings ? 1 : 0);
   resfile_global("max-connections", $opt_max_connections);
   resfile_global("product", "MySQL");
+  resfile_global("xml-report", $opt_xml_report);
   # Somewhat hacky code to convert numeric version back to dot notation
   my $v1= int($mysql_version_id / 10000);
   my $v2= int(($mysql_version_id % 10000)/100);
@@ -1225,7 +1227,8 @@ sub command_line_setup {
              'help|h'                   => \$opt_usage,
 	     # list-options is internal, not listed in help
 	     'list-options'             => \$opt_list_options,
-             'skip-test-list=s'         => \@opt_skip_test_list
+             'skip-test-list=s'         => \@opt_skip_test_list,
+             'xml-report=s'             => \$opt_xml_report
            );
 
   # fix options (that take an optional argument and *only* after = sign
@@ -6281,6 +6284,7 @@ Misc options
                         phases of test execution.
   stress=ARGS           Run stress test, providing options to
                         mysql-stress-test.pl. Options are separated by comma.
+  xml-report=<file>     Output jUnit xml file of the results.
 
 Some options that control enabling a feature for normal test runs,
 can be turned off by prepending 'no' to the option, e.g. --notimer.
