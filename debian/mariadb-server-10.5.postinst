@@ -1,4 +1,5 @@
-#!/bin/bash -e
+#!/bin/bash
+set -e
 
 . /usr/share/debconf/confmodule
 
@@ -12,6 +13,7 @@ export PATH=$PATH:/sbin:/usr/sbin:/bin:/usr/bin
 
 # This command can be used as pipe to syslog. With "-s" it also logs to stderr.
 ERR_LOGGER="logger -p daemon.err -t mariadb-server-$MAJOR_VER.postinst -i"
+# Specify syslog tag name so it is clear the entry came from this postinst script.
 # This will make an error in a logged command immediately apparent by aborting
 # the install, rather than failing silently and leaving a broken install.
 set -o pipefail
@@ -31,7 +33,6 @@ case "$1" in
     mysql_statedir=/usr/share/mysql
     mysql_datadir=/var/lib/mysql
     mysql_logdir=/var/log/mysql
-    mysql_rundir=/var/run/mysqld
     mysql_cfgdir=/etc/mysql
     mysql_upgradedir=/var/lib/mysql-upgrade
 
@@ -56,7 +57,7 @@ case "$1" in
           mv "$savelink" "$targetdir"
         else
           # this should never even happen, but just in case...
-          mysql_tmp=`mktemp -d -t mysql-symlink-restore-XXXXXX`
+          mysql_tmp=$(mktemp -d -t mysql-symlink-restore-XXXXXX)
           echo "this is very strange!  see $mysql_tmp/README..." >&2
           mv "$targetdir" "$mysql_tmp"
           cat << EOF > "$mysql_tmp/README"
@@ -79,17 +80,17 @@ EOF
     done
 
     # Ensure the existence and right permissions for the database and
-    # log files.
-    if [ ! -d "$mysql_statedir" -a ! -L "$mysql_statedir" ]; then mkdir "$mysql_statedir"; fi
-    if [ ! -d "$mysql_datadir"  -a ! -L "$mysql_datadir" ]; then mkdir "$mysql_datadir" ; fi
-    if [ ! -d "$mysql_logdir"   -a ! -L "$mysql_logdir"  ]; then mkdir "$mysql_logdir"  ; fi
+    # log files. Use mkdir option 'Z' to create with correct SELinux context.
+    if [ ! -d "$mysql_statedir" ] && [ ! -L "$mysql_statedir" ]; then mkdir -Z "$mysql_statedir"; fi
+    if [ ! -d "$mysql_datadir"  ] && [ ! -L "$mysql_datadir" ]; then mkdir -Z "$mysql_datadir" ; fi
+    if [ ! -d "$mysql_logdir"   ] && [ ! -L "$mysql_logdir"  ]; then mkdir -Z "$mysql_logdir"  ; fi
     # When creating an ext3 jounal on an already mounted filesystem like e.g.
     # /var/lib/mysql, you get a .journal file that is not modifyable by chown.
     # The mysql_statedir must not be writable by the mysql user under any
     # circumstances as it contains scripts that are executed by root.
     set +e
     chown -R 0:0 $mysql_statedir
-    find $mysql_datadir ! -uid $(id -u mysql) -print0 | xargs -0 -r chown mysql
+    find $mysql_datadir ! -uid "$(id -u mysql)" -print0 | xargs -0 -r chown mysql
     chown -R mysql:adm $mysql_logdir
     chmod 2750 $mysql_logdir
     set -e
@@ -105,7 +106,7 @@ EOF
     # Clean up old flags before setting new one
     rm -f $mysql_datadir/debian-*.flag
     # Flag data dir to avoid downgrades
-    touch $mysql_datadir/debian-10.5.flag
+    touch "$mysql_datadir/debian-$MAJOR_VER.flag"
 
     # initiate databases. Output is not allowed by debconf :-(
     # This will fail if we are upgrading an existing database; in this case
@@ -115,12 +116,12 @@ EOF
     # Debian: can safely run on upgrades with existing databases
     set +e
     bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql \
-                                   --disable-log-bin --skip-test-db 2>&1 | \
+                                   --disable-log-bin  --skip-test-db 2>&1 | \
                                    $ERR_LOGGER
     set -e
 
     # To avoid downgrades.
-    touch $mysql_statedir/debian-$MAJOR_VER.flag
+    touch "$mysql_statedir/debian-$MAJOR_VER.flag"
 
     # On new installations root user can connect via unix_socket.
     # But on upgrades, scripts rely on debian-sys-maint user and
@@ -130,6 +131,9 @@ EOF
     # --defaults-file option for tools (for the sake of upgrades)
     # and thus need /etc/mysql/debian.cnf to exist, even if it's empty.
     dc=$mysql_cfgdir/debian.cnf;
+    if [ ! -d "$mysql_cfgdir" ]; then
+      install -o 0 -g 0 -m 0755 -d $mysql_cfgdir
+    fi
     if [ ! -e "$dc" ]; then
         cat /dev/null > $dc
         echo "# Automatically generated for Debian scripts. DO NOT TOUCH!" >>$dc
@@ -146,11 +150,11 @@ EOF
     # any profile installed and maintained by users themselves.
     profile="/etc/apparmor.d/usr.sbin.mysqld"
     if [ -f "$profile" ] && aa-status --enabled 2>/dev/null; then
-        if grep -q /usr/sbin/mysqld "$profile" 2>/dev/null ; then
-            apparmor_parser -r "$profile" || true
-        else
-            echo "/usr/sbin/mysqld { }" | apparmor_parser --remove 2>/dev/null || true
-	fi
+      if grep -q /usr/sbin/mysqld "$profile" 2>/dev/null ; then
+        apparmor_parser -r "$profile" || true
+      else
+        echo "/usr/sbin/mysqld { }" | apparmor_parser --remove 2>/dev/null || true
+      fi
     fi
 
     # copy out any mysqld_safe settings
@@ -189,5 +193,3 @@ if [ -x "$(command -v deb-systemd-helper)" ]; then
 fi
 
 #DEBHELPER#
-
-exit 0
