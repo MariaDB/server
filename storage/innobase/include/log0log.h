@@ -442,9 +442,9 @@ public:
   virtual dberr_t read(os_offset_t offset, span<byte> buf) noexcept= 0;
   virtual dberr_t write(const char *path, os_offset_t offset,
                         span<const byte> buf) noexcept= 0;
-  virtual dberr_t flush_data_only() noexcept= 0;
+  virtual dberr_t flush() noexcept= 0;
 
-  /** Durable writes doesn't require calling flush_data_only() */
+  /** Durable writes doesn't require calling flush() */
   bool writes_are_durable() const noexcept { return m_durable_writes; }
 
 protected:
@@ -468,7 +468,7 @@ public:
   dberr_t read(os_offset_t offset, span<byte> buf) noexcept final;
   dberr_t write(const char *path, os_offset_t offset,
                 span<const byte> buf) noexcept final;
-  dberr_t flush_data_only() noexcept final;
+  dberr_t flush() noexcept final;
 
 private:
   pfs_os_file_t m_fd{OS_FILE_CLOSED};
@@ -490,7 +490,7 @@ public:
   dberr_t read(os_offset_t offset, span<byte> buf) noexcept;
   bool writes_are_durable() const noexcept;
   dberr_t write(os_offset_t offset, span<const byte> buf) noexcept;
-  dberr_t flush_data_only() noexcept;
+  dberr_t flush() noexcept;
 
 private:
   std::unique_ptr<file_io> m_file;
@@ -596,14 +596,14 @@ public:
     @param[in]	offset		offset in log file
     @param[in]	buf		buffer where to read */
     void read(os_offset_t offset, span<byte> buf);
-    /** Tells whether writes require calling flush_data_only() */
+    /** Tells whether writes require calling flush() */
     bool writes_are_durable() const noexcept;
     /** writes buffer to log file
     @param[in]	offset		offset in log file
     @param[in]	buf		buffer from which to write */
     void write(os_offset_t offset, span<byte> buf);
     /** flushes OS page cache (excluding metadata!) for log file */
-    void flush_data_only();
+    void flush();
     /** closes log file */
     void close_file();
 

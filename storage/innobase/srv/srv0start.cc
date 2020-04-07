@@ -1033,7 +1033,7 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 
 		if (flushed_lsn != log_sys.get_flushed_lsn()) {
 			log_write_up_to(flushed_lsn, false);
-			log_sys.log.flush_data_only();
+			log_sys.log.flush();
 		}
 
 		ut_ad(flushed_lsn == log_get_lsn());

@@ -78,6 +78,9 @@ Created 10/21/1995 Heikki Tuuri
 #include <my_sys.h>
 #endif
 
+#include <thread>
+#include <chrono>
+
 /* Per-IO operation environment*/
 class io_slots
 {
@@ -879,55 +882,53 @@ os_file_get_last_error_low(
 	return(OS_FILE_ERROR_MAX + err);
 }
 
-/** Wrapper to fsync(2) that retries the call on some errors.
+/** Wrapper to fsync() or fdatasync() that retries the call on some errors.
 Returns the value 0 if successful; otherwise the value -1 is returned and
 the global variable errno is set to indicate the error.
 @param[in]	file		open file handle
 @return 0 if success, -1 otherwise */
-static
-int
-os_file_fsync_posix(
-	os_file_t	file)
+static int os_file_sync_posix(os_file_t file)
 {
-	ulint		failures = 0;
+#if !defined(HAVE_FDATASYNC) || HAVE_DECL_FDATASYNC == 0
+  auto func= fsync;
+  auto func_name= "fsync()";
+#else
+  auto func= fdatasync;
+  auto func_name= "fdatasync()";
+#endif
 
-	for (;;) {
+  ulint failures= 0;
 
-		++os_n_fsyncs;
+  for (;;)
+  {
+    ++os_n_fsyncs;
 
-		int	ret = fsync(file);
+    int ret= func(file);
 
-		if (ret == 0) {
-			return(ret);
-		}
+    if (ret == 0)
+      return ret;
 
-		switch(errno) {
-		case ENOLCK:
+    switch (errno)
+    {
+    case ENOLCK:
+      ++failures;
+      ut_a(failures < 1000);
 
-			++failures;
-			ut_a(failures < 1000);
+      if (!(failures % 100))
+        ib::warn() << func_name << ": No locks available; retrying";
 
-			if (!(failures % 100)) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
+      break;
 
-				ib::warn()
-					<< "fsync(): "
-					<< "No locks available; retrying";
-			}
+    case EINTR:
+      ++failures;
+      ut_a(failures < 2000);
+      break;
 
-			/* 0.2 sec */
-			os_thread_sleep(200000);
-			break;
-
-		case EINTR:
-
-			++failures;
-			ut_a(failures < 2000);
-			break;
-
-		default:
-			ib::fatal() << "fsync() returned " << errno;
-		}
-	}
+    default:
+      ib::fatal() << func_name << " returned " << errno;
+    }
+  }
 }
 
 /** Check the existence and type of the given file.
@@ -988,7 +989,7 @@ os_file_flush_func(
 	int	ret;
 
 	WAIT_ALLOW_WRITES();
-	ret = os_file_fsync_posix(file);
+	ret = os_file_sync_posix(file);
 
 	if (ret == 0) {
 		return(true);
@@ -4604,32 +4605,3 @@ os_normalize_path(
 		}
 	}
 }
-
-bool os_file_flush_data_func(os_file_t file) {
-#if defined(_WIN32) || !defined(HAVE_FDATASYNC) || HAVE_DECL_FDATASYNC == 0
-  return os_file_flush_func(file);
-#else
-  bool success= fdatasync(file) != -1;
-  if (!success) {
-    ib::error() << "fdatasync() errno: " << errno;
-  }
-  return success;
-#endif
-}
-
-#ifdef UNIV_PFS_IO
-bool pfs_os_file_flush_data_func(pfs_os_file_t file, const char *src_file,
-                                 uint src_line)
-{
-  PSI_file_locker_state state;
-  struct PSI_file_locker *locker= NULL;
-
-  register_pfs_file_io_begin(&state, locker, file, 0, PSI_FILE_SYNC, src_file,
-                             src_line);
-
-  bool success= os_file_flush_data_func(file);
-
-  register_pfs_file_io_end(locker, 0);
-  return success;
-}
-#endif

@@ -744,9 +744,6 @@ The wrapper functions have the prefix of "innodb_". */
 # define os_file_flush(file)					\
 	pfs_os_file_flush_func(file, __FILE__, __LINE__)
 
-#define os_file_flush_data(file)                                              \
-  pfs_os_file_flush_data_func(file, __FILE__, __LINE__)
-
 # define os_file_rename(key, oldpath, newpath)				\
 	pfs_os_file_rename_func(key, oldpath, newpath, __FILE__, __LINE__)
 
@@ -992,17 +989,6 @@ pfs_os_file_flush_func(
 	const char*	src_file,
 	uint		src_line);
 
-/** NOTE! Please use the corresponding macro os_file_flush_data(), not directly
-this function!
-This is the performance schema instrumented wrapper function for
-os_file_flush_data() which flushes only(!) data (excluding metadata) from OS
-page cache of a given file to the disk.
-@param[in]	file		Open file handle
-@param[in]	src_file	file name where func invoked
-@param[in]	src_line	line where the func invoked
-@return true if success */
-bool pfs_os_file_flush_data_func(pfs_os_file_t file, const char *src_file,
-                                 uint src_line);
 
 /** NOTE! Please use the corresponding macro os_file_rename(), not directly
 this function!
@@ -1098,8 +1084,6 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_flush(file)	os_file_flush_func(file)
 
-#define os_file_flush_data(file) os_file_flush_data_func(file)
-
 # define os_file_rename(key, oldpath, newpath)				\
 	os_file_rename_func(oldpath, newpath)
 
@@ -1178,14 +1162,6 @@ Flushes the write buffers of a given file to the disk.
 bool
 os_file_flush_func(
 	os_file_t	file);
-
-/** NOTE! Use the corresponding macro os_file_flush_data(), not directly this
-function!
-Flushes only(!) data (excluding metadata) from OS page cache of a given file to
-the disk.
-@param[in]	file		handle to a file
-@return true if success */
-bool os_file_flush_data_func(os_file_t file);
 
 /** Retrieves the last error number if an error occurs in a file io function.
 The number should be retrieved before any other OS calls (because they may
