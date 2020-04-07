@@ -1,0 +1,838 @@
+# Inlude Salsa-CI as a base
+include:
+  - https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/salsa-ci.yml
+  - https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/pipeline-jobs.yml
+
+# Overridfe Salsa-CI with MariaDB specific variations
+variables:
+  DEB_BUILD_OPTIONS: "nocheck noautodbgsym"
+  RELEASE: sid
+  SALSA_CI_DISABLE_REPROTEST: 1
+  SALSA_CI_DISABLE_MISSING_BREAKS: 0
+  SALSA_CI_DISABLE_RC_BUGS: 1
+  SALSA_CI_DISABLE_BUILD_PACKAGE_ALL: 1
+  SALSA_CI_DISABLE_BUILD_PACKAGE_ANY: 1
+  GIT_SUBMODULE_STRATEGY: recursive
+
+stages:
+  - build
+  - test
+  - upgrade in Sid
+  - upgrade from Buster/Stretch/Jessie
+  - test extras
+  - upgrade extras
+  - publish # Stage referenced by Salsa-CI template aptly stanza, so must exist even though not used
+
+build:
+  extends: .build-package
+  script: &autobake-deb-steps
+    - mkdir -p ${WORKING_DIR} ${CCACHE_WORK_DIR}
+    - mv ${CCACHE_WORK_DIR} ${CCACHE_TMP_DIR}
+    - apt-get update && apt-get install --yes devscripts equivs ccache build-essential
+    # Installing build-essential (sic!) until https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=958414 is fixed
+    - export CCACHE_DIR="${CCACHE_TMP_DIR}"
+    - update-ccache-symlinks; ccache -z # Zero out ccache counters
+    - mk-build-deps debian/control -t "apt-get -y -o Debug::pkgProblemResolver=yes --no-install-recommends" -r -i
+    - debian/autobake-deb.sh
+    - cd ..; rm -rfv *.tmp # Clean away build files not to store as artifacts
+    - cp -v *.* ${WORKING_DIR}/
+    - du -shc ${WORKING_DIR}/* # Show total file size of artifacts. Must stay are under 100 MB.
+    - ccache -s # Show ccache stats to validate it worked
+    - mv ${CCACHE_TMP_DIR} ${CCACHE_WORK_DIR} || true
+
+build buster-backports:
+  extends: .build-package
+  script:
+    - *autobake-deb-steps
+  variables:
+      RELEASE: buster-backports
+
+build stretch-backports:
+  extends: .build-package
+  script:
+    - *autobake-deb-steps
+  variables:
+      RELEASE: stretch-backports
+
+build native deb:
+  extends: .build-package
+  script:
+    - mkdir -p ${WORKING_DIR} ${CCACHE_WORK_DIR}
+    - mv ${CCACHE_WORK_DIR} ${CCACHE_TMP_DIR}
+    # NOTE! --git-submodules needed despite GIT_SUBMODULE_STRATEGY since --git-export-dir is used
+    - gbp buildpackage --git-submodules --git-ignore-branch --git-ignore-new --git-export-dir=${WORKING_DIR} --git-builder="docker-build.sh ${SALSA_CI_IMAGES_DOCKERBUILDER}"  |& filter-output
+    - du -shc ${WORKING_DIR}/* # Show total file size of artifacts. Must stay are under 100 MB.
+    - mv ${CCACHE_TMP_DIR} ${CCACHE_WORK_DIR}
+  allow_failure: true
+
+autopkgtest:
+  extends: .test-autopkgtest
+  allow_failure: true
+
+piuparts:
+  extends: .test-piuparts
+  stage: test extras
+  allow_failure: true
+
+blhc:
+  extends: .test-blhc
+  stage: test extras
+  dependencies:
+    - build native deb # Needs the correct debian/output/*.build
+  allow_failure: true
+
+lintian:
+  extends: .test-lintian
+  allow_failure: true
+
+missing-breaks:
+  extends: .test-missing-breaks
+  allow_failure: true
+
+# In addition to Salsa-CI, also run these fully MariaDB specific build jobs
+
+fresh install:
+  stage: test
+  dependencies:
+    - build
+  image: debian:${RELEASE}
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - sed -i "s/101/0/g" -i /usr/sbin/policy-rc.d # Enable automatic restarts from maint scripts
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - apt-get update
+    # Install MariaDB built in this commit
+    - apt-get install -y ./*.deb
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mysql status
+    - mkdir -p debug # Ensure dir exists before using it
+    - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+    - cp -ra /etc/mysql debug/etc-mysql
+    - cp -ra /var/log/mysql debug/var-log-mysql
+    - mariadb --skip-column-names -e "select @@version, @@version_comment" # Show version
+    - echo 'SHOW DATABASES;' | mariadb # List databases
+    - mariadb -e "create database test; use test; create table t(a int primary key) engine=innodb; insert into t values (1); select * from t; drop table t; drop database test;" # Test InnoDB works
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+mariadb-10.3.x to mariadb-10.5.y upgrade:
+  stage: upgrade in Sid
+  dependencies:
+    - build
+  image: debian:sid
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - sed -i "s/101/0/g" -i /usr/sbin/policy-rc.d # Enable automatic restarts from maint scripts
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - apt-get update
+    # Install almost everything currently in Debian Sid
+    - apt-get install -y 'default-mysql*' 'mariadb-*' libmariadb3 'libmariadb-*' 'libmariadbd*' 'libmariadbclient-*'
+    # Verify installation of MariaDB currently in Debian Sid
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - service mysql status
+    - mariadb --skip-column-names -e "select @@version, @@version_comment"
+    - echo 'SHOW DATABASES;' | mysql
+    # Install MariaDB built in this commit
+    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mysql status
+    - mkdir -p debug # Ensure dir exists before using it
+    - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+    - cp -ra /etc/mysql debug/etc-mysql
+    - cp -ra /var/log/mysql debug/var-log-mysql
+    - mariadb --skip-column-names -e "select @@version, @@version_comment" # Show version
+    - echo 'SHOW DATABASES;' | mariadb # List databases before upgrade are still there
+    - mariadb -e "create database test; use test; create table t(a int primary key) engine=innodb; insert into t values (1); select * from t; drop table t; drop database test;" # Test InnoDB works
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+mariadb-10.3.x buster to mariadb-10.5 upgrade:
+  stage: upgrade from Buster/Stretch/Jessie
+  dependencies:
+    - build
+  image: debian:buster
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - sed -i "s/101/0/g" -i /usr/sbin/policy-rc.d # Enable automatic restarts from maint scripts
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - apt-get update
+    # Install almost everything currently in Debian Buster
+    - apt-get install -y 'default-mysql*' 'mariadb-*' libmariadb3 'libmariadb-*' 'libmariadbd*' 'libmariadbclient-*'
+    # Verify installation of MariaDB from Buster
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - service mysql status
+    - mysql --skip-column-names -e "select @@version, @@version_comment"
+    - echo 'SHOW DATABASES;' | mysql
+    # Install MariaDB built in this commit
+    - sed 's/buster/sid/g' -i /etc/apt/sources.list # Enable next Debian release
+    - sed '/sid-updates/d' -i /etc/apt/sources.list # Remove repositories that don't exist for Sid
+    - sed '/security/d' -i /etc/apt/sources.list # Remove repositories that don't exist for Sid
+    - apt-get update; apt-get install -y apt # Uprade minimal stack first
+    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mysql status
+    - mkdir -p debug # Ensure dir exists before using it
+    - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+    - cp -ra /etc/mysql debug/etc-mysql
+    - cp -ra /var/log/mysql debug/var-log-mysql
+    - mariadb --skip-column-names -e "select @@version, @@version_comment" # Show version
+    - echo 'SHOW DATABASES;' | mariadb # List databases before upgrade are still there
+    - mariadb -e "create database test; use test; create table t(a int primary key) engine=innodb; insert into t values (1); select * from t; drop table t; drop database test;" # Test InnoDB works
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+mariadb-10.1 to mariadb-10.5 upgrade:
+  stage: upgrade from Buster/Stretch/Jessie
+  dependencies:
+    - build
+  image: debian:stretch
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - sed -i "s/101/0/g" -i /usr/sbin/policy-rc.d # Enable automatic restarts from maint scripts
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - apt-get update
+    # Install almost everything currently in Debian Stretch
+    - apt-get install -y 'default-mysql*' 'mariadb-*' 'libmariadbd*' 'libmariadbclient*'
+    # Verify installation of MariaDB from Stretch
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - service mysql status
+    - mysql --skip-column-names -e "select @@version, @@version_comment"
+    - echo 'SHOW DATABASES;' | mysql
+    # Install MariaDB built in this commit
+    - sed 's/stretch/sid/g' -i /etc/apt/sources.list # Enable next Debian release
+    - sed '/sid-updates/d' -i /etc/apt/sources.list # Remove repositories that don't exist for Sid
+    - sed '/security/d' -i /etc/apt/sources.list # Remove repositories that don't exist for Sid
+    - apt-get update; apt-get install -y apt # Uprade minimal stack first
+    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mysql status
+    - mkdir -p debug # Ensure dir exists before using it
+    - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+    - cp -ra /etc/mysql debug/etc-mysql
+    - cp -ra /var/log/mysql debug/var-log-mysql
+    - mariadb --skip-column-names -e "select @@version, @@version_comment" # Show version
+    - echo 'SHOW DATABASES;' | mariadb # List databases before upgrade are still there
+    - mariadb -e "create database test; use test; create table t(a int primary key) engine=innodb; insert into t values (1); select * from t; drop table t; drop database test;" # Test InnoDB works
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+test basic features:
+  stage: test
+  dependencies:
+    - build
+  image: debian:${RELEASE}
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - sed -i "s/101/0/g" -i /usr/sbin/policy-rc.d # Enable automatic restarts from maint scripts
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - apt-get update
+    # Install MariaDB built in this commit
+    - apt-get install -y ./*.deb
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mysql status
+    - mkdir -p debug # Ensure dir exists before using it
+    - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+    - cp -ra /etc/mysql debug/etc-mysql
+    - cp -ra /var/log/mysql debug/var-log-mysql
+    - echo 'SHOW DATABASES;' | mariadb # List databases
+    # Print info about server
+    - mariadb --skip-column-names -e "select @@version, @@version_comment"
+    - mariadb --skip-column-names -e "select engine, support, transactions, savepoints from information_schema.engines order by engine" | sort
+    - mariadb --skip-column-names -e "select plugin_name, plugin_status, plugin_type, plugin_library, plugin_license from information_schema.all_plugins order by plugin_name, plugin_library"
+    # Test various features
+    - mariadb -e "CREATE DATABASE db"
+    - mariadb -e "CREATE TABLE db.t_innodb(a1 SERIAL, c1 CHAR(8)) ENGINE=InnoDB; INSERT INTO db.t_innodb VALUES (1,'"'"'foo'"'"'),(2,'"'"'bar'"'"')"
+    - mariadb -e "CREATE TABLE db.t_myisam(a2 SERIAL, c2 CHAR(8)) ENGINE=MyISAM; INSERT INTO db.t_myisam VALUES (1,'"'"'foo'"'"'),(2,'"'"'bar'"'"')"
+    - mariadb -e "CREATE TABLE db.t_aria(a3 SERIAL, c3 CHAR(8)) ENGINE=Aria; INSERT INTO db.t_aria VALUES (1,'"'"'foo'"'"'),(2,'"'"'bar'"'"')"
+    - mariadb -e "CREATE TABLE db.t_memory(a4 SERIAL, c4 CHAR(8)) ENGINE=MEMORY; INSERT INTO db.t_memory VALUES (1,'"'"'foo'"'"'),(2,'"'"'bar'"'"')"
+    - mariadb -e "CREATE ALGORITHM=MERGE VIEW db.v_merge AS SELECT * FROM db.t_innodb, db.t_myisam, db.t_aria"
+    - mariadb -e "CREATE ALGORITHM=TEMPTABLE VIEW db.v_temptable AS SELECT * FROM db.t_innodb, db.t_myisam, db.t_aria"
+    - mariadb -e "CREATE PROCEDURE db.p() SELECT * FROM db.v_merge"
+    - mariadb -e "CREATE FUNCTION db.f() RETURNS INT DETERMINISTIC RETURN 1"
+    # Test that the features still work (this step can be done e.g. after an upgrade)
+    - mariadb -e "SHOW TABLES IN db"
+    - mariadb -e "SELECT * FROM db.t_innodb; INSERT INTO db.t_innodb VALUES (3,'"'"'foo'"'"'),(4,'"'"'bar'"'"')"
+    - mariadb -e "SELECT * FROM db.t_myisam; INSERT INTO db.t_myisam VALUES (3,'"'"'foo'"'"'),(4,'"'"'bar'"'"')"
+    - mariadb -e "SELECT * FROM db.t_aria; INSERT INTO db.t_aria VALUES (3,'"'"'foo'"'"'),(4,'"'"'bar'"'"')"
+    - mariadb -e "SELECT * FROM db.t_memory; INSERT INTO db.t_memory VALUES (3,'"'"'foo'"'"'),(4,'"'"'bar'"'"')"
+    - mariadb -e "SELECT COUNT(*) FROM db.v_merge"
+    - mariadb -e "SELECT COUNT(*) FROM db.v_temptable"
+    - mariadb -e "CALL db.p()"
+    - mariadb -e "SELECT db.f()"
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+# Build a piece of software that was designed for libmysqlclient-dev but using the
+# libmariadb-dev-compat layer. Should always end up using libmariadb.so.3 run-time.
+build mariadbclient consumer Python-MySQLdb:
+  stage: test
+  dependencies:
+    - build
+  image: debian:${RELEASE}
+  script:
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - mkdir -p debug # Ensure dir exists before using it
+    - apt-get update
+    - apt-get install -y pkg-config ./libmariadb-dev*.deb ./libmariadb3_*.deb ./mariadb-common*.deb
+    - pkg-config --cflags --libs mysqlclient # See what MySQLdb builds with
+    - apt-get install -y python3-pip
+    - pip3 install mysqlclient # Compiles module against libmysqlclient
+    - apt-get purge -y libmariadb-dev # Not needed for run-time
+    - python3 -c "import MySQLdb; print(MySQLdb.get_client_info())"
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+libmysql* to libmariadb* upgrade:
+  stage: test extras
+  dependencies:
+    - build
+  image: debian:unstable
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true
+    - apt-get update
+    # Install all libmysql* available in Debian unstable
+    - apt-get install -y pkg-config libmysqld-dev libmysqlclient-dev
+    - pkg-config --list-all
+    - pkg-config --cflags mysqlclient # mysqlclient.pc from original package
+    - apt-get install -y ./libmariadb3_*.deb ./mariadb-common_*.deb
+    - pkg-config --list-all
+    - apt-get install -y ./libmariadb-dev_*.deb
+    - pkg-config --list-all
+    - apt-get install -y ./libmariadb-dev-compat_*.deb
+    - pkg-config --cflags mysqlclient # mysqlclient.pc from compat package
+    - pkg-config --list-all
+    - apt-get install -y ./libmariadbd19_*.deb
+    - pkg-config --list-all
+    - apt-get install -y ./libmariadbd-dev_*.deb
+    - pkg-config --list-all
+    - apt-get install -y default-libmysqlclient-dev default-libmysqld-dev
+    - ldconfig -p # | grep -e mariadb -e mysql
+    - pkg-config --list-all
+    - pkg-config --cflags --libs mysqlclient
+    - pkg-config --cflags --libs libmariadb
+    - pkg-config --cflags --libs mariadb
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+default-libmysqlclient-dev upgrade:
+  stage: upgrade in Sid
+  dependencies:
+    - build
+  image: debian:sid
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true
+    - apt-get update
+    - apt-get install -y pkg-config default-libmysqlclient-dev default-libmysqld-dev
+    - pkg-config --list-all
+    - apt-get install -y ./libmariadb3_*.deb ./libmariadb-dev_*.deb ./libmariadb-dev-compat_*.deb ./libmariadbd19_*.deb ./libmariadbd-dev_*.deb ./mariadb-common_*.deb
+    - ldconfig -p # | grep -e mariadb -e mysql
+    - pkg-config --list-all
+    - pkg-config --cflags --libs mysqlclient
+    - pkg-config --cflags --libs libmariadb
+    - pkg-config --cflags --libs mariadb
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+default-libmysqlclient-dev on buster upgrade:
+  stage: upgrade from Buster/Stretch/Jessie
+  dependencies:
+    - build
+  image: debian:buster
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true
+    - apt-get update
+    - apt-get install -y pkg-config default-libmysqlclient-dev
+    - pkg-config --list-all
+    - echo 'deb http://deb.debian.org/debian sid main' > /etc/apt/sources.list
+    - apt-get update; apt-get install -y apt # Uprade minimal stack first
+    - apt-get install -y ./libmariadb3_*.deb ./libmariadb-dev_*.deb ./libmariadb-dev-compat_*.deb ./libmariadbd19_*.deb ./libmariadbd-dev_*.deb ./mariadb-common_*.deb
+    - ldconfig -p # | grep -e mariadb -e mysql
+    - pkg-config --list-all
+    - pkg-config --cflags --libs mysqlclient
+    - pkg-config --cflags --libs libmariadb
+    - pkg-config --cflags --libs mariadb
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+default-libmysqlclient-dev on stretch upgrade:
+  stage: upgrade from Buster/Stretch/Jessie
+  dependencies:
+    - build
+  image: debian:stretch
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true
+    - apt-get update
+    - apt-get install -y pkg-config default-libmysqlclient-dev
+    - pkg-config --list-all
+    - echo 'deb http://deb.debian.org/debian sid main' > /etc/apt/sources.list
+    - apt-get update; apt-get install -y apt # Uprade minimal stack first
+    - apt-get install -y ./libmariadb3_*.deb ./libmariadb-dev_*.deb ./libmariadb-dev-compat_*.deb ./libmariadbd19_*.deb ./libmariadbd-dev_*.deb ./mariadb-common_*.deb
+    - ldconfig -p # | grep -e mariadb -e mysql
+    - pkg-config --list-all
+    - pkg-config --cflags --libs mysqlclient
+    - pkg-config --cflags --libs libmariadb
+    - pkg-config --cflags --libs mariadb
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+mariadb-connector-c on stretch upgrade:
+  stage: upgrade from Buster/Stretch/Jessie
+  dependencies:
+    - build
+  image: debian:stretch
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true
+    - apt-get update
+    - apt-get install -y pkg-config libmariadb2 libmariadb-dev libmariadb-dev-compat
+    - pkg-config --list-all
+    - echo 'deb http://deb.debian.org/debian sid main' > /etc/apt/sources.list
+    - apt-get update; apt-get install -y apt # Uprade minimal stack first
+    - apt-get install -y ./libmariadb3_*.deb ./libmariadb-dev_*.deb ./libmariadb-dev-compat_*.deb ./libmariadbd19_*.deb ./libmariadbd-dev_*.deb ./mariadb-common_*.deb
+    - ldconfig -p # | grep -e mariadb -e mysql
+    - pkg-config --list-all
+    - pkg-config --cflags --libs mysqlclient
+    - pkg-config --cflags --libs libmariadb
+    - pkg-config --cflags --libs mariadb
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+mysql-5.5 to mariadb-10.5 upgrade:
+  stage: upgrade from Buster/Stretch/Jessie
+  dependencies:
+    - build
+  image: debian:jessie
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - sed -i "s/101/0/g" -i /usr/sbin/policy-rc.d # Enable automatic restarts from maint scripts
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - apt-get update
+    - apt-get install -y mysql-server
+    # Verify installation of MySQL from Jessie
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - service mysql status
+    - mysql --skip-column-names -e "select @@version, @@version_comment"
+    - echo 'SHOW DATABASES;' | mysql
+    # Install MariaDB built in this commit
+    - sed 's/jessie/sid/g' -i /etc/apt/sources.list # Enable next Debian release
+    - sed '/sid-updates/d' -i /etc/apt/sources.list # Remove repositories that don't exist for Sid
+    - sed '/security/d' -i /etc/apt/sources.list # Remove repositories that don't exist for Sid
+    - apt-get update; apt-get install -y apt || true # Install apt 1.4.9 so the wildcard command below works
+    - apt-get dist-upgrade -y || true # Upgrade all to avoid udev/systemd failures
+    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mysql status
+    - mkdir -p debug # Ensure dir exists before using it
+    - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+    - cp -ra /etc/mysql debug/etc-mysql
+    - cp -ra /var/log/mysql debug/var-log-mysql
+    - mariadb --skip-column-names -e "select @@version, @@version_comment" # Show version
+    - echo 'SHOW DATABASES;' | mariadb # List databases before upgrade are still there
+    - mariadb -e "create database test; use test; create table t(a int primary key) engine=innodb; insert into t values (1); select * from t; drop table t; drop database test;" # Test InnoDB works
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+# Upgrading from MySQL 5.7 involves automatic renaming of auth_socket plugin
+# to unix_socket and automaticly re-adding Password column in user table.
+mysql-5.7 to mariadb-10.5 upgrade:
+  stage: test extras
+  dependencies:
+    - build
+  image: debian:sid
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - sed -i "s/101/0/g" -i /usr/sbin/policy-rc.d # Enable automatic restarts from maint scripts
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - apt-get update
+    - apt-get install -y mysql-server
+    # Verify installation of MySQL from Sid
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - service mysql status
+    - mysql --skip-column-names -e "SELECT @@version, @@version_comment"
+    - mysql -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
+    - mysql -e "SELECT * FROM plugin;" mysql
+    - echo 'SHOW DATABASES;' | mysql
+    # Install MariaDB built in this commit
+    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mysql status
+    - mkdir -p debug # Ensure dir exists before using it
+    - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+    - cp -ra /etc/mysql debug/etc-mysql
+    - cp -ra /var/log/mysql debug/var-log-mysql
+    - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
+    - mysql --skip-column-names -e "SELECT @@version, @@version_comment"
+    - mysql -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
+    - mysql -e "SELECT * FROM plugin;" mysql
+    - echo 'SHOW DATABASES;' | mariadb # List databases before upgrade are still there
+    - mariadb -e "create database test; use test; create table t(a int primary key) engine=innodb; insert into t values (1); select * from t; drop table t; drop database test;" # Test InnoDB works
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+# Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
+# The Debian maintainer scripts detect this situation and simply moves old datadir aside and start fresh.
+mysql-8.0 to mariadb-10.5 upgrade:
+  stage: upgrade extras
+  dependencies:
+    - build
+  image: debian:sid
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - sed -i "s/101/0/g" -i /usr/sbin/policy-rc.d # Enable automatic restarts from maint scripts
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    # Add Ubuntu Focal archive keys and repository
+    - apt-get update
+    - apt-get install --no-install-recommends --yes gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
+    - apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 871920D1991BC93C 3B4FE6ACC0B21F32
+    - echo 'deb http://archive.ubuntu.com/ubuntu/ focal main restricted' > /etc/apt/sources.list.d/ubuntu.list
+    - apt-get update
+    - apt-get install -y mysql-server
+    # Verify installation of MySQL from Ubuntu Focal
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - service mysql status
+    - mysql --skip-column-names -e "SELECT @@version, @@version_comment"
+    - mysql -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
+    - mysql -e "SELECT * FROM plugin;" mysql
+    - echo 'SHOW DATABASES;' | mysql
+    # Install MariaDB built in this commit
+    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mysql status
+    - mkdir -p debug # Ensure dir exists before using it
+    - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+    - cp -ra /etc/mysql debug/etc-mysql
+    - cp -ra /var/log/mysql debug/var-log-mysql
+    - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
+    - mysql --skip-column-names -e "SELECT @@version, @@version_comment"
+    - mysql -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
+    - mysql -e "SELECT * FROM plugin;" mysql
+    - echo 'SHOW DATABASES;' | mariadb # List databases before upgrade are still there
+    - mariadb -e "create database test; use test; create table t(a int primary key) engine=innodb; insert into t values (1); select * from t; drop table t; drop database test;" # Test InnoDB works
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+
+mariadb.org-10.5.x to mariadb-10.5 upgrade:
+  stage: upgrade extras
+  dependencies:
+    - build
+  image: debian:sid
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - sed -i "s/101/0/g" -i /usr/sbin/policy-rc.d # Enable automatic restarts from maint scripts
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - apt-get update
+    - apt install -y curl systemctl # systemctl shim needed on platforms that don't have systemd
+    - curl https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo 'deb [arch=amd64,i386] http://mirror.one.com/mariadb/repo/10.5/debian sid main' > /etc/apt/sources.list.d/mariadb.list
+    - apt-get update
+    - apt-get install -y mariadb-server-10.5
+    # Verify installation of MySQL from Sid
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - service mysql status || true # Currently does not support service name 'mysql'
+    - service mariadb status
+    - mysql --skip-column-names -e "SELECT @@version, @@version_comment"
+    - mysql -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
+    - mysql -e "SELECT * FROM plugin;" mysql
+    - echo 'SHOW DATABASES;' | mysql
+    # Install MariaDB built in this commit
+    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mysql status || true # Currently does not support service name 'mysql'
+    - service mariadb status
+    - mkdir -p debug # Ensure dir exists before using it
+    - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+    - cp -ra /etc/mysql debug/etc-mysql
+    - cp -ra /var/log/mysql debug/var-log-mysql
+    - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
+    - mysql --skip-column-names -e "SELECT @@version, @@version_comment"
+    - mysql -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
+    - mysql -e "SELECT * FROM plugin;" mysql
+    - echo 'SHOW DATABASES;' | mariadb # List databases before upgrade are still there
+    - mariadb -e "create database test; use test; create table t(a int primary key) engine=innodb; insert into t values (1); select * from t; drop table t; drop database test;" # Test InnoDB works
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+
+mariadb.org-10.4 to mariadb-10.5 upgrade:
+  stage: upgrade extras
+  dependencies:
+    - build
+  image: debian:sid
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - sed -i "s/101/0/g" -i /usr/sbin/policy-rc.d # Enable automatic restarts from maint scripts
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - apt-get update
+    - apt install -y curl systemctl # systemctl shim needed on platforms that don't have systemd
+    - curl https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo 'deb [arch=amd64,i386] http://mirror.one.com/mariadb/repo/10.4/debian sid main' > /etc/apt/sources.list.d/mariadb.list
+    - apt-get update
+    - apt-get install -y mariadb-server-10.4
+    # Verify installation of MySQL from Sid
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - service mysql status || true # Currently does not support service name 'mysql'
+    - service mariadb status
+    - mysql --skip-column-names -e "SELECT @@version, @@version_comment"
+    - mysql -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
+    - mysql -e "SELECT * FROM plugin;" mysql
+    - echo 'SHOW DATABASES;' | mysql
+    # Install MariaDB built in this commit
+    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mysql status || true # Currently does not support service name 'mysql'
+    - service mariadb status
+    - mkdir -p debug # Ensure dir exists before using it
+    - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+    - cp -ra /etc/mysql debug/etc-mysql
+    - cp -ra /var/log/mysql debug/var-log-mysql
+    - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
+    - mysql --skip-column-names -e "SELECT @@version, @@version_comment"
+    - mysql -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
+    - mysql -e "SELECT * FROM plugin;" mysql
+    - echo 'SHOW DATABASES;' | mariadb # List databases before upgrade are still there
+    - mariadb -e "create database test; use test; create table t(a int primary key) engine=innodb; insert into t values (1); select * from t; drop table t; drop database test;" # Test InnoDB works
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+
+mariadb.org-10.3 to mariadb-10.5 upgrade:
+  stage: upgrade extras
+  dependencies:
+    - build
+  image: debian:sid
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - sed -i "s/101/0/g" -i /usr/sbin/policy-rc.d # Enable automatic restarts from maint scripts
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - apt-get update
+    - apt install -y curl
+    - curl https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo 'deb [arch=amd64,i386] http://mirror.one.com/mariadb/repo/10.3/debian sid main' > /etc/apt/sources.list.d/mariadb.list
+    - apt-get update
+    - apt-get install -y mariadb-server-10.3
+    # Verify installation of MySQL from Sid
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - service mysql status
+    # prepending with --defaults-file=/etc/mysql/debian.cnf is needed in upstream 5.5–10.3
+    - mysql --defaults-file=/etc/mysql/debian.cnf --skip-column-names -e "SELECT @@version, @@version_comment"
+    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
+    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM plugin;" mysql
+    - echo 'SHOW DATABASES;' | mysql --defaults-file=/etc/mysql/debian.cnf
+    # Additional systemctl hack since there is no real systemctl in Docker
+    - ln -s /bin/true /bin/systemctl
+    # Install MariaDB built in this commit
+    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mysql restart # Needed due to systemctl hack and lack of real init support
+    - service mysql status
+    - mkdir -p debug # Ensure dir exists before using it
+    - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+    - cp -ra /etc/mysql debug/etc-mysql
+    - cp -ra /var/log/mysql debug/var-log-mysql
+    - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
+    - mysql --skip-column-names -e "SELECT @@version, @@version_comment"
+    - mysql -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
+    - mysql -e "SELECT * FROM plugin;" mysql
+    - echo 'SHOW DATABASES;' | mariadb # List databases before upgrade are still there
+    - mariadb -e "create database test; use test; create table t(a int primary key) engine=innodb; insert into t values (1); select * from t; drop table t; drop database test;" # Test InnoDB works
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+
+mariadb.org-10.2 to mariadb-10.5 upgrade:
+  stage: upgrade extras
+  dependencies:
+    - build
+  image: debian:sid
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - sed -i "s/101/0/g" -i /usr/sbin/policy-rc.d # Enable automatic restarts from maint scripts
+    - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
+    - apt-get update
+    - apt install -y curl
+    - curl https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo 'deb [arch=amd64,i386] http://mirror.one.com/mariadb/repo/10.2/debian sid main' > /etc/apt/sources.list.d/mariadb.list
+    - apt-get update
+    - apt-get install -y mariadb-server-10.2
+    # Verify installation of MySQL from Sid
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - service mysql status
+    # prepending with --defaults-file=/etc/mysql/debian.cnf is needed in upstream 5.5–10.3
+    - mysql --defaults-file=/etc/mysql/debian.cnf --skip-column-names -e "SELECT @@version, @@version_comment"
+    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
+    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM plugin;" mysql
+    - echo 'SHOW DATABASES;' | mysql --defaults-file=/etc/mysql/debian.cnf
+    # Additional systemctl hack since there is no real systemctl in Docker
+    - ln -s /bin/true /bin/systemctl
+    # Install MariaDB built in this commit
+    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mysql restart # Needed due to systemctl hack and lack of real init support
+    - service mysql status
+    - mkdir -p debug # Ensure dir exists before using it
+    - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+    - cp -ra /etc/mysql debug/etc-mysql
+    - cp -ra /var/log/mysql debug/var-log-mysql
+    - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
+    - mysql --skip-column-names -e "SELECT @@version, @@version_comment"
+    - mysql -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
+    - mysql -e "SELECT * FROM plugin;" mysql
+    - echo 'SHOW DATABASES;' | mariadb # List databases before upgrade are still there
+    - mariadb -e "create database test; use test; create table t(a int primary key) engine=innodb; insert into t values (1); select * from t; drop table t; drop database test;" # Test InnoDB works
+  variables:
+      GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
