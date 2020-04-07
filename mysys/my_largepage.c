@@ -234,12 +234,14 @@ int my_init_large_pages(my_bool super_large_pages)
     mpss.mha_flags= 0;
     if (memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t) &mpss, 0, 0))
     {
-      perror("memcntl MC_HAT_ADVISE cmd MHA_MAPSIZE_BSSBRK error (continuing)");
+      my_error(EE_MEMCNTL, MYF(ME_WARNING | ME_ERROR_LOG_ONLY), "MC_HAT_ADVISE",
+               "MHA_MAPSIZE_BSSBRK");
     }
     mpss.mha_cmd= MHA_MAPSIZE_STACK;
     if (memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t) &mpss, 0, 0))
     {
-      perror("memcntl MC_HAT_ADVISE cmd MHA_MAPSIZE_STACK error (continuing)");
+      my_error(EE_MEMCNTL, MYF(ME_WARNING | ME_ERROR_LOG_ONLY), "MC_HAT_ADVISE",
+               "MHA_MAPSIZE_STACK");
     }
   }
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
