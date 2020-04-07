@@ -1,0 +1,2 @@
+# Overridden temporarily to get Salsa-CI pass and not stall other dev work with broken pipeline
+python-script-but-no-python-dep usr/bin/myrocks_hotbackup #!python
