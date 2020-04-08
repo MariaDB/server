@@ -216,6 +216,7 @@ my @mysqld_rules=
 my @client_rules=
 (
  { 'character-sets-dir' => \&fix_charset_dir },
+ { 'plugin-dir' => sub { $::client_plugindir } },
 );
 
 
