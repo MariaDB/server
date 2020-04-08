@@ -982,6 +982,7 @@ extern ulonglong my_getcputime(void);
 /* Compatibility with pre linux 3.8 distributions */
 #ifdef __linux__
 #define MAP_HUGE_SHIFT 26
+#define MAP_HUGETLB 0x40000
 #endif
 
 #ifdef HAVE_MMAP64
