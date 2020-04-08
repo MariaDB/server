@@ -949,7 +949,8 @@ QUICK_RANGE_SELECT *get_quick_select(PARAM *param,uint index,
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used,
                                        bool update_tbl_stats,
-                                       double read_time);
+                                       double read_time,
+                                       bool ror_scans_required);
 static
 TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
                                               double read_time);
@@ -3146,7 +3147,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 
       /* Get best 'range' plan and prepare data for making other plans */
       if ((range_trp= get_key_scans_params(&param, tree, FALSE, TRUE,
-                                           best_read_time)))
+                                           best_read_time, FALSE)))
       {
         best_trp= range_trp;
         best_read_time= best_trp->read_cost;
@@ -4708,7 +4709,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   {
     DBUG_EXECUTE("info", print_sel_tree(param, *ptree, &(*ptree)->keys_map,
                                         "tree in SEL_IMERGE"););
-    if (!(*cur_child= get_key_scans_params(param, *ptree, TRUE, FALSE, read_time)))
+    if (!(*cur_child= get_key_scans_params(param, *ptree, TRUE, FALSE,
+                                           read_time, TRUE)))
     {
       /*
         One of index scans in this index_merge is more expensive than entire
@@ -5030,7 +5032,7 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
          index merge retrievals are not well calibrated
     */
     trp= get_key_scans_params(param, *imerge->trees, FALSE, TRUE,
-                              read_time);
+                              read_time, TRUE);
   }
 
   DBUG_RETURN(trp); 
@@ -6747,6 +6749,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
       index_read_must_be_used if TRUE, assume 'index only' option will be set
                              (except for clustered PK indexes)
       read_time    don't create read plans with cost > read_time.
+      ror_scans_required           set to TRUE for index merge
   RETURN
     Best range read plan
     NULL if no plan found or error occurred
@@ -6755,7 +6758,8 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used, 
                                        bool update_tbl_stats,
-                                       double read_time)
+                                       double read_time,
+                                       bool ror_scans_required)
 {
   uint idx;
   SEL_ARG **key,**end, **key_to_read= NULL;
@@ -6802,7 +6806,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                         update_tbl_stats, &mrr_flags,
                                         &buf_size, &cost);
 
-      if (!param->is_ror_scan &&
+      if (ror_scans_required && !param->is_ror_scan &&
           !optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION))
       {
         /* The scan is not a ROR-scan, just skip it */
