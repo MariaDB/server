@@ -1,9 +1,10 @@
 #!/usr/bin/perl -w
 
-# mysqlreport v4.0 Oct 23 2015
+# mariadb-report v4.0 Oct 23 2015
+# renamed to from mysqlreport in 2020
 # http://hackmysql.com/mysqlreport
 
-# mysqlreport makes an easy-to-read report of important MySQL/MariaDB status values.
+# mariadb-report makes an easy-to-read report of important MySQL/MariaDB status values.
 # Copyright 2006-2008 Daniel Nichter
 # Copyright 2012-2015 Jean Weisbuch
 #
@@ -76,7 +77,7 @@ get_user_mycnf() unless $op{'no-mycnf'};
 # Command line options override ~/.my.cnf
 $mycnf{'host'}   = $op{'host'}   if have_op 'host';
 $mycnf{'port'}   = $op{'port'}   if have_op 'port';
-$mycnf{'socket'} = $op{'socket'} if have_op 'socket'; 
+$mycnf{'socket'} = $op{'socket'} if have_op 'socket';
 $mycnf{'user'}   = $op{'user'}   if have_op 'user';
 
 $mycnf{'user'} ||= $ENV{'USER'};
@@ -115,8 +116,8 @@ if($op{'detach'})
 
    if(fork())
    {
-      print "mysqlreport has forked and detached.\n";
-      print "While running detached, mysqlreport writes reports to '$tmpfile'.\n";
+      print "mariadb-report has forked and detached.\n";
+      print "While running detached, mariadb-report writes reports to '$tmpfile'.\n";
 
       exit;
    }
@@ -147,8 +148,8 @@ my $use_thread_pool = 0;
 if(defined $op{'r'})
 {
    if($relative_live)
-   { 
-      print STDERR "mysqlreport is writing relative reports to '$tmpfile'.\n" unless $op{'detach'}; 
+   {
+      print STDERR "mariadb-report is writing relative reports to '$tmpfile'.\n" unless $op{'detach'};
       get_MySQL_version();
       collect_reports();
    }
@@ -189,8 +190,8 @@ exit;
 sub show_help_and_exit
 {
    print <<"HELP";
-mysqlreport v4.0 Oct 23 2015
-mysqlreport makes an easy-to-read report of important MySQL/MariaDB status values.
+mariadb-report v4.0 Oct 23 2015
+mariadb-report makes an easy-to-read report of important MySQL/MariaDB status values.
 
 Command line options (abbreviations work):
    --user USER       Connect to MySQL as USER
@@ -496,7 +497,7 @@ sub read_infile
    $vars{'table_cache'} = 64          if !exists $vars{'table_cache'};
    $vars{'max_connections'} = 100     if !exists $vars{'max_connections'};
    $vars{'key_buffer_size'} = 8388600 if !exists $vars{'key_buffer_size'}; # 8M
-   $vars{'thread_cache_size'} = 0     if !exists $vars{'thread_cache_size'}; 
+   $vars{'thread_cache_size'} = 0     if !exists $vars{'thread_cache_size'};
    $vars{'tmp_table_size'} = 0        if !exists $vars{'tmp_table_size'};
    $vars{'long_query_time'} = '?'     if !exists $vars{'long_query_time'};
    $vars{'log_slow_queries'} = '?'    if !exists $vars{'log_slow_queries'};
@@ -512,7 +513,7 @@ sub read_infile
    {
       last if !defined $_;
 
-      next if /^\+/;  # skip divider lines 
+      next if /^\+/;  # skip divider lines
       next if /^$/;   # skip blank lines
 
       next until /(Aborted_clients|back_log|=)/;
@@ -886,8 +887,8 @@ sub write_report
    write_DMS();
    write_Com();
    write_Rows();
-   $~ = 'SAS', write; 
-   write_qcache(); 
+   $~ = 'SAS', write;
+   write_qcache();
    $~ = 'REPORT_END', write;
    $~ = 'THREADS', write;
    if($use_thread_pool)
@@ -923,10 +924,10 @@ sub sec_to_dhms # Seconds to days+hours:minutes:seconds
      $h = int $s / 3600;
      $s -= $h * 3600;
    }
-   
+
    $m = int $s / 60;
    $s -= $m * 60;
-   
+
    return "$d+$h:$m:$s";
 }
 
@@ -956,14 +957,14 @@ sub make_short
 #
 # The format_u_time sub simply beautifies long_query_time.
 
-sub format_u_time  # format microsecond (µ) time value
+sub format_u_time  # format microsecond (Âµ) time value
 {
-   # 0.000000 - 0.000999 = 0 - 999 µ
+   # 0.000000 - 0.000999 = 0 - 999 Âµ
    # 0.001000 - 0.999999 = 1 ms - 999.999 ms
    # 1.000000 - n.nnnnnn = 1 s - n.nnnnn s
 
    my $t = shift;
-   my $f;  # formatted µ time
+   my $f;  # formatted Âµ time
    my $u = chr(($WIN ? 230 : 181));
 
    $t = 0 if $t < 0;
@@ -1011,7 +1012,7 @@ sub email_report # Email given report to $op{'email'}
    my $report = shift;
 
    open SENDMAIL, "|/usr/sbin/sendmail -t";
-   print SENDMAIL "From: mysqlreport\n";
+   print SENDMAIL "From: mariadb-report\n";
    print SENDMAIL "To: $op{email}\n";
    print SENDMAIL "Subject: $dbms status report on " . ($mycnf{'host'} || 'localhost') . "\n\n";
    print SENDMAIL `cat $report`;
@@ -1170,7 +1171,7 @@ sub write_Binlog
    print "write_Binlog\n" if $op{debug};
 
    return if $binlog_cache_ratio == 0 && $binlog_stmt_cache_ratio == 0;
-   $~ = 'BINLOG';  
+   $~ = 'BINLOG';
    write;
 }
 
@@ -1319,7 +1320,7 @@ $stat_name, make_short($stat_val), t($stat_val), $stat_label, perc($stat_val, $q
 .
 
 format SLOW_DMS =
-Slow @<<<<<<< @>>>>>>    @>>>>>/s          @>>>>>  %DMS: @>>>>> Log: @>> 
+Slow @<<<<<<< @>>>>>>    @>>>>>/s          @>>>>>  %DMS: @>>>>> Log: @>>
 $slow_query_t, make_short($stats{'Slow_queries'}), t($stats{'Slow_queries'}), perc($stats{'Slow_queries'}, $questions), perc($stats{'Slow_queries'}, $dms), $vars{'log_slow_queries'}
 DMS         @>>>>>>>>    @>>>>>/s          @>>>>>
 make_short($dms), t($dms), perc($dms, $questions)
