@@ -411,7 +411,7 @@ Description: MariaDB database client binaries
  ease of use.
  .
  This package includes the client binaries and the additional tools
- innotop and mysqlreport.
+ innotop and mariadb-report (mysqlreport).
 
 Package: mariadb-server-core-10.5
 Architecture: any

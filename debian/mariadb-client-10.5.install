@@ -1,5 +1,5 @@
 debian/additions/innotop/innotop usr/bin/
-debian/additions/mysqlreport usr/bin/
+debian/additions/mariadb-report usr/bin/
 usr/bin/mariadb-access
 usr/bin/mariadb-admin
 usr/bin/mariadb-conv

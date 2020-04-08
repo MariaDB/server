@@ -24,3 +24,4 @@ usr/share/man/man1/mariadb-check.1.gz usr/share/man/man1/mariadbcheck.1.gz
 usr/share/man/man1/mariadb-check.1.gz usr/share/man/man1/mysqlanalyze.1.gz
 usr/share/man/man1/mariadb-check.1.gz usr/share/man/man1/mysqloptimize.1.gz
 usr/share/man/man1/mariadb-check.1.gz usr/share/man/man1/mysqlrepair.1.gz
+usr/share/man/man1/mariadb-report.1.gz usr/share/man/man1/mysqlreport.1.gz
