@@ -2012,3 +2012,5 @@ CREATE TABLE t1 ( id1 INT, id2 INT, CONSTRAINT `foo` PRIMARY KEY (id1), CONSTRAI
 Warnings:
 Warning	1280	Name 'foo' ignored for PRIMARY key.
 DROP TABLE t1;
+CREATE TABLE t1 (id1 INT, id2 INT, primary key (id1), unique index (id2) visible);
+drop table t1;

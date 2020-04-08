@@ -1873,3 +1873,9 @@ drop table t1;
 CREATE TABLE t1 ( id1 INT, id2 INT, CONSTRAINT `foo` PRIMARY KEY (id1), CONSTRAINT `bar` UNIQUE KEY(id2));
 DROP TABLE t1;
 
+#
+# MDEV-22199 Add VISIBLE option for indexes in create table
+#
+
+CREATE TABLE t1 (id1 INT, id2 INT, primary key (id1), unique index (id2) visible);
+drop table t1;

@@ -1125,6 +1125,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %token  <kwd>  VERSIONING_SYM                /* SQL-2011-R */
 %token  <kwd>  VIA_SYM
 %token  <kwd>  VIEW_SYM                      /* SQL-2003-N */
+%token  <kwd>  VISIBLE_SYM                   /* MySQL 8.0 */
 %token  <kwd>  VIRTUAL_SYM
 %token  <kwd>  WAIT_SYM
 %token  <kwd>  WARNINGS
@@ -6997,6 +6998,10 @@ all_key_opt:
          }
         | COMMENT_SYM TEXT_STRING_sys
           { Lex->last_key->key_create_info.comment= $2; }
+        | VISIBLE_SYM
+          {
+            /* This is mainly for MySQL 8.0 compatiblity */
+          }
         | IDENT_sys equal TEXT_STRING_sys
           {
             if (unlikely($3.length > ENGINE_OPTION_MAX_LENGTH))
@@ -15796,6 +15801,7 @@ keyword_sp_var_and_label:
         | VERSIONING_SYM
         | VIEW_SYM
         | VIRTUAL_SYM
+        | VISIBLE_SYM
         | VALUE_SYM
         | WARNINGS
         | WAIT_SYM
