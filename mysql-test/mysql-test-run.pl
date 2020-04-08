@@ -267,8 +267,10 @@ our %gprof_dirs;
 
 our $glob_debugger= 0;
 our $opt_gdb;
+our $opt_rr;
 our $opt_client_gdb;
 my $opt_boot_gdb;
+my $opt_boot_rr;
 our $opt_dbx;
 our $opt_client_dbx;
 my $opt_boot_dbx;
@@ -1320,10 +1322,12 @@ sub command_line_setup {
              'debug-common'             => \$opt_debug_common,
              'debug-server'             => \$opt_debug_server,
              'gdb=s'                    => \$opt_gdb,
+             'rr'                       => \$opt_rr,
              'client-gdb'               => \$opt_client_gdb,
              'manual-gdb'               => \$opt_manual_gdb,
              'manual-lldb'              => \$opt_manual_lldb,
 	     'boot-gdb'                 => \$opt_boot_gdb,
+	     'boot-rr'                  => \$opt_boot_rr,
              'manual-debug'             => \$opt_manual_debug,
              'ddd'                      => \$opt_ddd,
              'client-ddd'               => \$opt_client_ddd,
@@ -1797,7 +1801,7 @@ sub command_line_setup {
   $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp"
     if -f "$glob_mysql_test_dir/lsan.supp";
 
-  if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || 
+  if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || $opt_rr
        $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd || 
        $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx || 
        $opt_debugger || $opt_client_debugger )
@@ -2448,6 +2452,7 @@ sub environment_setup {
   $ENV{'MYSQL_TEST_DIR'}=     $glob_mysql_test_dir;
   $ENV{'DEFAULT_MASTER_PORT'}= $mysqld_variables{'port'};
   $ENV{'MYSQL_TMP_DIR'}=      $opt_tmpdir;
+  $ENV{'_RR_TRACE_DIR'}=      "$opt_vardir/rr";
   $ENV{'MYSQLTEST_VARDIR'}=   $opt_vardir;
   $ENV{'MYSQL_BINDIR'}=       $bindir;
   $ENV{'MYSQL_SHAREDIR'}=     $path_language;
@@ -2762,6 +2767,7 @@ sub setup_vardir() {
   # Create var/tmp and tmp - they might be different
   mkpath("$opt_vardir/tmp");
   mkpath($opt_tmpdir) if ($opt_tmpdir ne "$opt_vardir/tmp");
+  mkpath("$opt_vardir/rr");
 
   # On some operating systems, there is a limit to the length of a
   # UNIX domain socket's path far below PATH_MAX.
@@ -3416,6 +3422,10 @@ sub mysql_install_db {
     if ($opt_boot_ddd) {
       ddd_arguments(\$args, \$exe_mysqld_bootstrap, $mysqld->name(),
         $bootstrap_sql_file);
+    }
+    if ($opt_boot_rr) {
+      $args= ["record", "$exe_mysqld_bootstrap", @$args];
+      $exe_mysqld_bootstrap= "rr";
     }
 
     my $path_sql= my_find_file($install_basedir,
@@ -5408,6 +5418,11 @@ sub mysqld_start ($$) {
      # Indicate the exe should not be started
     $exe= undef;
   }
+  elsif ( $opt_rr)
+  {
+    $args= ["record", "$exe", @$args];
+    $exe= "rr";
+  }
   else
   {
     # Default to not wait until pid file has been created
@@ -6528,6 +6543,7 @@ Options for debugging the product
   boot-dbx              Start bootstrap server in dbx
   boot-ddd              Start bootstrap server in ddd
   boot-gdb              Start bootstrap server in gdb
+  boot-rr               Start bootstrap server in rr
   client-dbx            Start mysqltest client in dbx
   client-ddd            Start mysqltest client in ddd
   client-debugger=NAME  Start mysqltest in the selected debugger
@@ -6541,6 +6557,7 @@ Options for debugging the product
                         tracing
   debugger=NAME         Start mysqld in the selected debugger
   gdb                   Start the mysqld(s) in gdb
+  rr                    Start the mysqld(s) in rr
   manual-debug          Let user manually start mysqld in debugger, before
                         running test(s)
   manual-gdb            Let user manually start mysqld in gdb, before running
