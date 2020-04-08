@@ -2641,7 +2641,8 @@ static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn, bool last)
 		}
 	}
 
-	if (more_data && recv_sys.parse(0, STORE_NO, false)) {
+	store_t store= STORE_NO;
+	if (more_data && recv_sys.parse(0, &store, false)) {
 		msg("Error: copying the log failed");
 		return(0);
 	}

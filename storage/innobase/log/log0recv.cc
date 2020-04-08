@@ -1771,13 +1771,14 @@ append:
 @param apply           whether to apply file-level log records
 @return whether FILE_CHECKPOINT record was seen the first time,
 or corruption was noticed */
-bool recv_sys_t::parse(lsn_t checkpoint_lsn, store_t store, bool apply)
+bool recv_sys_t::parse(lsn_t checkpoint_lsn, store_t *store, bool apply)
 {
   ut_ad(log_mutex_own());
   ut_ad(mutex_own(&mutex));
   ut_ad(parse_start_lsn);
   ut_ad(log_sys.is_physical());
 
+  bool last_phase= (*store == STORE_IF_EXISTS);
   const byte *const end= buf + len;
 loop:
   const byte *const log= buf + recovered_offset;
@@ -2073,13 +2074,13 @@ same_page:
       }
 #endif
       const bool is_init= (b & 0x70) <= INIT_PAGE;
-      switch (store) {
+      switch (*store) {
       case STORE_IF_EXISTS:
         if (!fil_space_get_size(space_id))
           continue;
         /* fall through */
       case STORE_YES:
-        if (is_init || !mlog_init.will_avoid_read(id, start_lsn))
+        if (!mlog_init.will_avoid_read(id, start_lsn))
           add(id, start_lsn, end_lsn, recs,
               static_cast<size_t>(l + rlen - recs));
         continue;
@@ -2089,12 +2090,7 @@ same_page:
         map::iterator i= pages.find(id);
         if (i == pages.end())
           continue;
-        if ((*static_cast<const log_phys_t*>(*i->second.log.begin())->begin() &
-             0x70) <= INIT_PAGE)
-        {
-          ut_ad(i->second.state == page_recv_t::RECV_WILL_NOT_READ);
-          continue;
-        }
+        i->second.log.clear();
         pages.erase(i);
         mlog_init.add(id, start_lsn);
       }
@@ -2216,6 +2212,8 @@ same_page:
   ut_ad(l == el);
   recovered_offset= l - buf;
   recovered_lsn= end_lsn;
+  if (is_memory_exhausted(store) && last_phase)
+    return false;
   goto loop;
 }
 
@@ -2994,7 +2992,7 @@ static bool recv_scan_log_recs(
 
 	if (more_data && !recv_sys.found_corrupt_log) {
 		/* Try to parse more log records */
-		if (recv_sys.parse(checkpoint_lsn, *store, apply)) {
+		if (recv_sys.parse(checkpoint_lsn, store, apply)) {
 			ut_ad(recv_sys.found_corrupt_log
 			      || recv_sys.found_corrupt_fs
 			      || recv_sys.mlog_checkpoint_lsn

@@ -356,7 +356,7 @@ public:
   @param apply           whether to apply file-level log records
   @return whether FILE_CHECKPOINT record was seen the first time,
   or corruption was noticed */
-  bool parse(lsn_t checkpoint_lsn, store_t store, bool apply);
+  bool parse(lsn_t checkpoint_lsn, store_t *store, bool apply);
 
   /** Clear a fully processed set of stored redo log records. */
   inline void clear();
