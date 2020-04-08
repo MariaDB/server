@@ -164,11 +164,6 @@ endif
 	# Move test plugins that are only needed by the client to the libmariadb path
 	mv -v $(TMP)/usr/lib/mysql/plugin/qa_auth_client.so $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb3/plugin/
 
-override_dh_fixperms:
-	dh_fixperms
-	chmod 04755 debian/mariadb-server-10.5/usr/lib/mysql/plugin/auth_pam_tool_dir/auth_pam_tool
-	chmod  0700 debian/mariadb-server-10.5/usr/lib/mysql/plugin/auth_pam_tool_dir
-
 override_dh_installlogrotate-arch:
 	dh_installlogrotate --name mysql-server
 
