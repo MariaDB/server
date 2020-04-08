@@ -33,7 +33,7 @@ COUNT(*) = 5
 1
 SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'b';
 COUNT(*) = 0
-0
+1
 SELECT COUNT(*) = 5 FROM t1 WHERE f2 = 'c';
 COUNT(*) = 5
 1

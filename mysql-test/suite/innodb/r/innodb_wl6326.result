@@ -295,8 +295,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR lockwait1 TIMEOUT 1';
 SET DEBUG_SYNC = 'now WAIT_FOR lockwait2 TIMEOUT 1';
 SET DEBUG_SYNC = 'now SIGNAL continue';
 connection con1;
-Warnings:
-Warning	1639	debug sync point wait timed out
 connection con2;
 a00	a01
 ar	a

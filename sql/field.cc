@@ -11077,3 +11077,20 @@ void Field::print_key_value_binary(String *out, const uchar* key, uint32 length)
 {
   out->append_semi_hex((const char*)key, length, charset());
 }
+
+
+Virtual_column_info* Virtual_column_info::clone(THD *thd)
+{
+  Virtual_column_info* dst= new (thd->mem_root) Virtual_column_info(*this);
+  if (!dst)
+    return NULL;
+  if (expr)
+  {
+    dst->expr= expr->get_copy(thd);
+    if (!dst->expr)
+      return NULL;
+  }
+  if (!thd->make_lex_string(&dst->name, name.str, name.length))
+    return NULL;
+  return dst;
+};

@@ -6751,9 +6751,9 @@ static void release_log_entries(partition_info *part_info)
     alter_partition_lock_handling()
     lpt                        Struct carrying parameters
   RETURN VALUES
-    NONE
+    true on error
 */
-static void alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
+static bool alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   THD *thd= lpt->thd;
 
@@ -6767,23 +6767,9 @@ static void alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
   lpt->table= 0;
   lpt->table_list->table= 0;
   if (thd->locked_tables_mode)
-  {
-    Diagnostics_area *stmt_da= NULL;
-    Diagnostics_area tmp_stmt_da(true);
+    return thd->locked_tables_list.reopen_tables(thd, false);
 
-    if (unlikely(thd->is_error()))
-    {
-      /* reopen might fail if we have a previous error, use a temporary da. */
-      stmt_da= thd->get_stmt_da();
-      thd->set_stmt_da(&tmp_stmt_da);
-    }
-
-    if (unlikely(thd->locked_tables_list.reopen_tables(thd, false)))
-      sql_print_warning("We failed to reacquire LOCKs in ALTER TABLE");
-
-    if (stmt_da)
-      thd->set_stmt_da(stmt_da);
-  }
+  return false;
 }
 
 
@@ -6984,6 +6970,8 @@ err_exclusive_lock:
       thd->set_stmt_da(&tmp_stmt_da);
     }
 
+    /* NB: error status is not needed here, the statement fails with
+       the original error. */
     if (unlikely(thd->locked_tables_list.reopen_tables(thd, false)))
       sql_print_warning("We failed to reacquire LOCKs in ALTER TABLE");
 
@@ -7207,13 +7195,14 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT_ERROR("fail_drop_partition_8") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
         ERROR_INJECT_CRASH("crash_drop_partition_9") ||
-        ERROR_INJECT_ERROR("fail_drop_partition_9") ||
-        (alter_partition_lock_handling(lpt), FALSE)) 
+        ERROR_INJECT_ERROR("fail_drop_partition_9"))
     {
       handle_alter_part_error(lpt, action_completed, TRUE, frm_install,
                               close_table_on_failure);
       goto err;
     }
+    if (alter_partition_lock_handling(lpt))
+      goto err;
   }
   else if ((alter_info->partition_flags & ALTER_PARTITION_ADD) &&
            (part_info->part_type == RANGE_PARTITION ||
@@ -7284,13 +7273,14 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT_ERROR("fail_add_partition_9") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
         ERROR_INJECT_CRASH("crash_add_partition_10") ||
-        ERROR_INJECT_ERROR("fail_add_partition_10") ||
-        (alter_partition_lock_handling(lpt), FALSE))
+        ERROR_INJECT_ERROR("fail_add_partition_10"))
     {
       handle_alter_part_error(lpt, action_completed, FALSE, frm_install,
                               close_table_on_failure);
       goto err;
     }
+    if (alter_partition_lock_handling(lpt))
+      goto err;
   }
   else
   {
@@ -7389,13 +7379,14 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT_ERROR("fail_change_partition_11") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
         ERROR_INJECT_CRASH("crash_change_partition_12") ||
-        ERROR_INJECT_ERROR("fail_change_partition_12") ||
-        (alter_partition_lock_handling(lpt), FALSE))
+        ERROR_INJECT_ERROR("fail_change_partition_12"))
     {
       handle_alter_part_error(lpt, action_completed, FALSE, frm_install,
                               close_table_on_failure);
       goto err;
     }
+    if (alter_partition_lock_handling(lpt))
+      goto err;
   }
   downgrade_mdl_if_lock_tables_mode(thd, mdl_ticket, MDL_SHARED_NO_READ_WRITE);
   /*

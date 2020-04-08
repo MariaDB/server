@@ -1591,6 +1591,7 @@ public:
 
   void init_cost_info_for_usable_range_rowid_filters(THD *thd);
   void prune_range_rowid_filters();
+  void trace_range_rowid_filters(THD *thd) const;
   Range_rowid_filter_cost_info *
   best_range_rowid_filter_for_partial_join(uint access_key_no,
                                            double records,

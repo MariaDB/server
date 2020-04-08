@@ -596,6 +596,7 @@ public:
     name.str= NULL;
     name.length= 0;
   };
+  Virtual_column_info* clone(THD *thd);
   ~Virtual_column_info() {};
   enum_vcol_info_type get_vcol_type() const
   {
