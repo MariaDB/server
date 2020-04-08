@@ -95,7 +95,23 @@ EOF
     chmod 2750 $mysql_logdir
     set -e
 
-    # Set the correct filesystem ownership for the PAM v2 plugin
+    ## Set the correct filesystem ownership for the PAM v2 plugin
+    # eg. /usr/lib/x86_64-linux-gnu/mysql/plugin/auth_pam_tool_dir/
+    # NOTE! This is security sensitive, don't allow for a race condition.
+    #
+    # 1. Drop privileges of directory
+    # -> At this point only root can see and execute auth_pam_tool
+    chmod 0700 /usr/lib/mysql/plugin/auth_pam_tool_dir
+    #
+    # 2. Make binary setuid
+    # -> At this point only root can run the setuid binary so no escalation here yet
+    chmod 04755 /usr/lib/mysql/plugin/auth_pam_tool_dir/auth_pam_tool
+    #
+    # 3. Allow user 'mysql' to see and execute auth_pam_tool
+    # -> Now user mysql owns the directory and can see and execute the binary inside
+    # -> Since the binary is setuid, user mysql gets limited root powers here to
+    #    run the PAM authetications, which need root (e.g. to validate passwords
+    #    against /etc/shadow)
     chown mysql /usr/lib/mysql/plugin/auth_pam_tool_dir
 
     # This is important to avoid dataloss when there is a removed
