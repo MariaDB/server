@@ -198,12 +198,6 @@ EOF
       fi
     fi
 
-    # copy out any mysqld_safe settings
-    systemd_conf=/etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
-    if [ -x /usr/bin/mariadb-service-convert -a ! -f "${systemd_conf}" ]; then
-      mkdir -p /etc/systemd/system/mariadb.service.d
-      /usr/bin/mariadb-service-convert > "${systemd_conf}"
-    fi
   ;;
 
   abort-upgrade|abort-remove|abort-configure)
