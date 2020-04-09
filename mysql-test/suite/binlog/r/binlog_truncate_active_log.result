@@ -1,0 +1,118 @@
+call mtr.add_suppression("Can.t init tc log");
+call mtr.add_suppression("Aborting");
+connection default;
+RESET MASTER;
+CREATE TABLE t  ( f INT )  ENGINE=INNODB;
+CREATE TABLE t2  ( f INT ) ENGINE=INNODB;
+CREATE TABLE tm ( f INT ) ENGINE=Aria;
+# Case A.
+connect master1,localhost,root,,;
+connect master2,localhost,root,,;
+connect master3,localhost,root,,;
+connection default;
+INSERT INTO t  VALUES (10);
+INSERT INTO tm VALUES (10);
+connection master1;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+INSERT INTO t VALUES (20);
+connection master2;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";
+DELETE FROM t2 WHERE f = 666 /* no such record */;
+connection master3;
+SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
+SELECT @@global.gtid_binlog_pos as 'Before the crash';
+Before the crash
+0-1-7
+# Kill the server
+connection default;
+FOUND # /Successfully truncated.*to remove transactions starting from GTID 0-1-6/ in mysqld.1.err
+SELECT @@global.gtid_binlog_pos as 'After the crash';
+After the crash
+0-1-5
+"One row should be present in table 't'"
+SELECT COUNT(*) as 'One' FROM t;
+One
+1
+DELETE FROM t;
+disconnect master1;
+disconnect master2;
+disconnect master3;
+# Case B.
+connect master1,localhost,root,,;
+connect master2,localhost,root,,;
+connect master3,localhost,root,,;
+connection default;
+INSERT INTO t  VALUES (10);
+INSERT INTO tm VALUES (10);
+connection master1;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+DELETE FROM t2 WHERE f = 0;
+connection master2;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";
+INSERT INTO t VALUES (20);
+connection master3;
+SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
+SELECT @@global.gtid_binlog_pos as 'Before the crash';
+Before the crash
+0-1-10
+# Kill the server
+connection default;
+FOUND # /Successfully truncated.*to remove transactions starting from GTID 0-1-10/ in mysqld.1.err
+SELECT @@global.gtid_binlog_pos as 'After the crash';
+After the crash
+0-1-9
+"One row should be present in table 't'"
+SELECT COUNT(*) as 'One' FROM t;
+One
+1
+DELETE FROM t;
+disconnect master1;
+disconnect master2;
+disconnect master3;
+CREATE PROCEDURE sp_blank_xa()
+BEGIN
+XA START   'blank';
+DELETE FROM t2 WHERE f = 666 /* no such record */;
+XA END     'blank';
+XA PREPARE 'blank';
+END|
+# Case C.
+connect master1,localhost,root,,;
+connect master2,localhost,root,,;
+connect master3,localhost,root,,;
+connection default;
+INSERT INTO t  VALUES (10);
+INSERT INTO tm VALUES (10);
+connection master1;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+INSERT INTO t VALUES (20);
+connection master2;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+CALL sp_blank_xa;
+SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";
+XA COMMIT  'blank';
+connection master3;
+SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
+SELECT @@global.gtid_binlog_pos as 'Before the crash';
+Before the crash
+0-1-15
+# Kill the server
+connection default;
+NOT FOUND /Successfully truncated.*to remove transactions starting from GTID 0-1-13/ in mysqld.1.err
+SELECT @@global.gtid_binlog_pos as 'After the crash';
+After the crash
+0-1-13
+"One row should be present in table 't'"
+SELECT COUNT(*) as 'One' FROM t;
+One
+1
+DELETE FROM t;
+disconnect master1;
+disconnect master2;
+disconnect master3;
+DROP PROCEDURE sp_blank_xa;
+# Cleanup
+DROP TABLE t,t2,tm;
+# End of the tests

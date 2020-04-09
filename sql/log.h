@@ -860,6 +860,10 @@ public:
   int purge_first_log(Relay_log_info* rli, bool included);
   int set_purge_index_file_name(const char *base_file_name);
   int open_purge_index_file(bool destroy);
+  bool truncate_and_remove_binlogs(const char *truncate_file,
+                                   my_off_t truncate_pos,
+                                   rpl_gtid *gtid,
+                                   enum_binlog_checksum_alg cs_alg);
   bool is_inited_purge_index_file();
   int close_purge_index_file();
   int clean_purge_index_file();
@@ -896,7 +900,7 @@ public:
   void set_status_variables(THD *thd);
   bool is_xidlist_idle();
   bool write_gtid_event(THD *thd, bool standalone, bool is_transactional,
-                        uint64 commit_id);
+                        uint64 commit_id, bool has_xid= false);
   int read_state_from_file();
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);

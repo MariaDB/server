@@ -1,0 +1,105 @@
+# ==== Purpose ====
+#
+# Test verifies truncation of multiple binary logs.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    1 - Set max_binlog_size= 4096, to help a series of inserts into a
+#        transaction table 'ti' get binlog rotated so many time while the
+#        transactions won't be committed, being stopped at
+#        a prior to commit debug_sync point
+#    2 - kill and restart the server as semisync slave successfully to
+#        end with an expected first binlog and the gtid state.
+#
+# ==== References ====
+# MDEV-21117: recovery for --rpl-semi-sync-slave-enabled server
+
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+
+call mtr.add_suppression("Can.t init tc log");
+call mtr.add_suppression("Aborting");
+
+--let $old_max_binlog_size= `select @@global.max_binlog_size`
+SET @@global.max_binlog_size= 4096;
+
+RESET MASTER;
+FLUSH LOGS;
+CREATE TABLE ti (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+CREATE TABLE tm (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=MyISAM;
+
+connect(master1,localhost,root,,);
+--echo "List of binary logs before rotation"
+--source include/show_binary_logs.inc
+
+# Some load to either non- and transactional egines
+# that should not affect the following recovery:
+INSERT INTO ti VALUES(1,"I am gonna survive");
+INSERT INTO tm VALUES(1,"me too!");
+
+# hold on near engine commit
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL master1_ready WAIT_FOR con1_go";
+--send_eval INSERT INTO ti VALUES (2, REPEAT("x", 4100))
+
+connect(master2,localhost,root,,);
+# The 2nd trx for recovery, it does not rotate binlog
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master2_ready WAIT_FOR master2_go";
+--send_eval INSERT INTO ti VALUES (3, "not gonna survive")
+
+--connection default
+SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
+--echo "List of binary logs before crash"
+--source include/show_binary_logs.inc
+--echo # The gtid binlog state prior the crash will be truncated at the end of the test
+SELECT @@global.gtid_binlog_state;
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+--source include/kill_mysqld.inc
+--source include/wait_until_disconnected.inc
+
+#
+# Server restart
+#
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart: --rpl-semi-sync-slave-enabled=1
+EOF
+
+connection default;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+# Check error log for a successful truncate message.
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+}
+--let SEARCH_FILE=$log_error_
+--let SEARCH_RANGE=-50000
+--let SEARCH_PATTERN=truncated binlog file:.*master.*000002
+--replace_regex /FOUND [0-9]+/FOUND #/
+--source include/search_pattern_in_file.inc
+
+
+--echo "One record should be present in table"
+SELECT count(*) FROM ti;
+
+--echo # The truncated gtid binlog state
+SELECT @@global.gtid_binlog_state;
+SELECT @@global.gtid_binlog_pos;
+
+--echo # Cleanup
+--replace_result $old_max_binlog_size VALUE_AT_START
+--eval SET @@global.max_binlog_size = $old_max_binlog_size
+DROP TABLE ti;
+
+--echo # End of the tests

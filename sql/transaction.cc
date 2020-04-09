@@ -971,7 +971,15 @@ bool trans_xa_commit(THD *thd)
     {
       DEBUG_SYNC(thd, "trans_xa_commit_after_acquire_commit_lock");
 
+      Ha_trx_info *ha_info= thd->transaction.all.ha_list;
+      uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, true);
+      /* rw_trans is TRUE when we in a transaction changing data */
+      bool rw_trans=
+        rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U);
+
+      thd->is_1pc_ro_trans= !rw_trans;
       res= MY_TEST(ha_commit_one_phase(thd, 1));
+      thd->is_1pc_ro_trans= false;
       if (res)
         my_error(ER_XAER_RMERR, MYF(0));
     }
