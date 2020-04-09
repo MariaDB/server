@@ -71,21 +71,23 @@ PrivateDevices=true
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
 
-# Execute pre and post scripts as root, otherwise it does it as User=
-PermissionsStartOnly=true
+# Use an environment file to pass variable _WSREP_NEW_CLUSTER
+EnvironmentFile=-@mysqlunixdir@/wsrep-new-cluster-%N
+
+# Use an environment file to pass variables _WSREP_START_POSITION
+EnvironmentFile=-@mysqlunixdir@/wsrep-start-position-%N
 
 @SYSTEMD_EXECSTARTPRE@
 
 # Perform automatic wsrep recovery. When server is started without wsrep,
 # galera_recovery simply returns an empty string. In any case, however,
 # the script is not expected to return with a non-zero status.
-# It is always safe to unset _WSREP_START_POSITION%I environment variable.
+# It is always safe to remove @mysqlunixdir@/wsrep-start-position-%N
+# environment file.
 # Do not panic if galera_recovery script is not available. (MDEV-10538)
-ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
-
 ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
  VAR=`@bindir@/galera_recovery --defaults-file=@sysconf2dir@/my%I.cnf`; [ $? -eq 0 ] \
- && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
+ && echo _WSREP_START_POSITION=$VAR > @mysqlunixdir@/wsrep-start-position-%N || exit 1"
 
 # Alternate: (remove ConditionPathExists above)
 # use [mysqld.INSTANCENAME] as sections in my.cnf
@@ -106,15 +108,15 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
 # Note: Place $MYSQLD_OPTS at the very end for its options to take precedence.
 
 ExecStart=@sbindir@/mysqld --defaults-file=@sysconf2dir@/my%I.cnf \
-  $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION%I $MYSQLD_OPTS
+  $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION $MYSQLD_OPTS
 # Alternate: (remove ConditionPathExists above)
 # use [mysqld.INSTANCENAME] as sections in my.cnf
 #
 # ExecStart=@sbindir@/mysqld --defaults-group-suffix=%I \
-# $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION%I $MYSQLD_OPTS
+# $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION $MYSQLD_OPTS
 
 # Unset _WSREP_START_POSITION environment variable.
-ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
+ExecStartPost=/bin/rm -f @mysqlunixdir@/wsrep-start-position-%N
 
 @SYSTEMD_EXECSTARTPOST@
 

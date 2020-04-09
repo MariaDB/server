@@ -21,11 +21,11 @@ EOF
     exit 0
 fi
 
-systemctl set-environment _WSREP_NEW_CLUSTER='--wsrep-new-cluster' && \
+echo _WSREP_NEW_CLUSTER='--wsrep-new-cluster' > @mysqlunixdir@/"wsrep-new-cluster-${1:-mariadb}" && \
     systemctl start ${1:-mariadb}
 
 extcode=$?
 
-systemctl set-environment _WSREP_NEW_CLUSTER=''
+rm -f @mysqlunixdir@/"wsrep-new-cluster-${1:-mariadb}"
 
 exit $extcode
