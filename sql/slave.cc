@@ -6186,6 +6186,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   char new_buf_arr[4096];
   bool is_malloc = false;
   bool is_rows_event= false;
+  bool semisync_recovery= false;
   /*
     FD_q must have been prepared for the first R_a event
     inside get_master_version_and_clock()
@@ -6944,7 +6945,9 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   }
   else
   if ((s_id == global_system_variables.server_id &&
-       !mi->rli.replicate_same_server_id) ||
+       (!mi->rli.replicate_same_server_id &&
+        !(semisync_recovery= (rpl_semi_sync_slave_enabled &&
+                              mi->using_gtid != Master_info::USE_GTID_NO)))) ||
       event_that_should_be_ignored(buf) ||
       /*
         the following conjunction deals with IGNORE_SERVER_IDS, if set
@@ -7004,6 +7007,19 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   }
   else
   {
+    if (semisync_recovery)
+    {
+      int2store(const_cast<char*>(buf + FLAGS_OFFSET),
+                uint2korr(buf + FLAGS_OFFSET) | LOG_EVENT_ACCEPT_OWN_F);
+      if (checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
+      {
+        ha_checksum crc= 0;
+
+        crc= my_checksum(crc, (const uchar *) buf,
+                         event_len - BINLOG_CHECKSUM_LEN);
+        int4store(&buf[event_len - BINLOG_CHECKSUM_LEN], crc);
+      }
+    }
     if (likely(!rli->relay_log.write_event_buffer((uchar*)buf, event_len)))
     {
       mi->master_log_pos+= inc_pos;

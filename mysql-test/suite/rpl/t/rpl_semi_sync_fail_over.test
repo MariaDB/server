@@ -1,0 +1,144 @@
+# ==== Purpose ====
+#
+# Test verifies replication failover scenario.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Having two servers 1 and 2 enable semi-sync replication with
+#        with the master wait 'after_sync'.
+#    1 - Insert a row. While inserting second row simulate
+#        a server crash at once the transaction is written to binlog, flushed
+#        and synced but the binlog position is not updated.
+#    2 - Post crash-recovery on the old master execute there CHANGE MASTER
+#        TO command to connect to server id 2.
+#    3 - The old master new slave server 1 must connect to the new
+#        master server 2.
+#    4 - repeat the above to crash the new master and restore in role the old one
+#
+# ==== References ====
+#
+# MDEV-21117: recovery for --rpl-semi-sync-slave-enabled server
+
+
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--connection server_2
+--source include/stop_slave.inc
+
+--connection server_1
+RESET MASTER;
+
+--connection server_2
+RESET MASTER;
+set @@global.rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos = "";
+CHANGE MASTER TO master_use_gtid= slave_pos;
+--source include/start_slave.inc
+
+
+--connection server_1
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+set @@global.rpl_semi_sync_master_enabled = 1;
+set @@global.rpl_semi_sync_master_wait_point=AFTER_SYNC;
+
+call mtr.add_suppression("Can.t init tc log");
+call mtr.add_suppression("Aborting");
+call mtr.add_suppression("1 client is using or hasn.t closed the table properly");
+call mtr.add_suppression("Table './mtr/test_suppressions' is marked as crashed and should be repaired");
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+INSERT INTO t1 VALUES (1, 'dummy1');
+
+#
+# CRASH the original master, and FAILOVER to the new
+#
+
+# value 1 for server id 1 -> 2 failover
+--let $failover_to_slave=1
+--let $query_to_crash= INSERT INTO t1 VALUES (2, REPEAT("x", 4100))
+--let $log_search_pattern=truncated binlog file:.*master.*000001
+--source rpl_semi_sync_crash.inc
+
+--connection server_2
+--let $rows_so_far=3
+--eval INSERT INTO t1 VALUES ($rows_so_far, 'dummy3')
+--save_master_pos
+--echo # The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+
+--connection server_1
+--sync_with_master
+--eval SELECT COUNT(*) = $rows_so_far as 'true' FROM t1
+--echo # ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+
+--connection server_2
+#
+# CRASH the new master and FAILOVER back to the original
+#
+
+# value 0 for the reverse server id 2 -> 1 failover
+--let $failover_to_slave=0
+--let $query_to_crash = INSERT INTO t1 VALUES (4, REPEAT("x", 4100))
+--let $query2_to_crash= INSERT INTO t1 VALUES (5, REPEAT("x", 4100))
+--let $log_search_pattern=truncated binlog file:.*slave.*000001
+--source rpl_semi_sync_crash.inc
+
+--connection server_1
+--let $rows_so_far=6
+--eval INSERT INTO t1 VALUES ($rows_so_far, 'Done')
+--save_master_pos
+--echo # The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+
+--connection server_2
+--sync_with_master
+--eval SELECT COUNT(*) = $rows_so_far as 'true' FROM t1
+--echo # ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+
+
+--let $diff_tables=server_1:t1, server_2:t1
+--source include/diff_tables.inc
+
+#
+--echo # Cleanup
+#
+--connection server_1
+DROP TABLE t1;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+
+--connection server_1
+set @@global.rpl_semi_sync_master_enabled = 0;
+set @@global.rpl_semi_sync_slave_enabled = 0;
+set @@global.rpl_semi_sync_master_wait_point=default;
+RESET SLAVE;
+RESET MASTER;
+
+--connection server_2
+set @@global.rpl_semi_sync_master_enabled = 0;
+set @@global.rpl_semi_sync_slave_enabled = 0;
+set @@global.rpl_semi_sync_master_wait_point=default;
+
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_use_gtid=no;
+--source include/start_slave.inc
+
+connection default;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/rpl_end.inc

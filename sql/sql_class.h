@@ -4632,7 +4632,7 @@ public:
   LF_PINS *tdc_hash_pins;
   LF_PINS *xid_hash_pins;
   bool fix_xid_hash_pins();
-
+  bool is_1pc_ro_trans;
 /* Members related to temporary tables. */
 public:
   /* Opened table states. */

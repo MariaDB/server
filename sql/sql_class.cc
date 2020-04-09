@@ -643,6 +643,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    m_stmt_da(&main_da),
    tdc_hash_pins(0),
    xid_hash_pins(0),
+   is_1pc_ro_trans(false),
    m_tmp_tables_locked(false)
 #ifdef WITH_WSREP
   ,

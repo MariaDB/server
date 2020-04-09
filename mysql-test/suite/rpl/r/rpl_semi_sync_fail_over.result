@@ -1,0 +1,124 @@
+include/rpl_init.inc [topology=1->2]
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+RESET MASTER;
+connection server_2;
+RESET MASTER;
+set @@global.rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos = "";
+CHANGE MASTER TO master_use_gtid= slave_pos;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+set @@global.rpl_semi_sync_master_enabled = 1;
+set @@global.rpl_semi_sync_master_wait_point=AFTER_SYNC;
+call mtr.add_suppression("Can.t init tc log");
+call mtr.add_suppression("Aborting");
+call mtr.add_suppression("1 client is using or hasn.t closed the table properly");
+call mtr.add_suppression("Table './mtr/test_suppressions' is marked as crashed and should be repaired");
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+INSERT INTO t1 VALUES (1, 'dummy1');
+connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL con1_ready WAIT_FOR con1_go";
+INSERT INTO t1 VALUES (2, REPEAT("x", 4100));
+connection server_1;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+# Kill the server
+connection server_2;
+include/stop_slave.inc
+SELECT @@GLOBAL.gtid_current_pos;
+@@GLOBAL.gtid_current_pos
+0-1-8
+connection server_1;
+FOUND 1 /truncated binlog file:.*master.*000001/ in mysqld.1.err
+disconnect conn_client;
+connection server_2;
+set global rpl_semi_sync_master_enabled = 1;
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+connection server_1;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_2, master_user='root', master_use_gtid=SLAVE_POS;
+set global rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+include/start_slave.inc
+connection server_2;
+INSERT INTO t1 VALUES (3, 'dummy3');
+# The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-9
+connection server_1;
+SELECT COUNT(*) = 3 as 'true' FROM t1;
+true
+1
+# ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-9
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-9
+connection server_2;
+connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL con1_ready WAIT_FOR con1_go";
+INSERT INTO t1 VALUES (4, REPEAT("x", 4100));
+connect  conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+SET DEBUG_SYNC= "commit_after_release_LOCK_lock SIGNAL con1_ready WAIT_FOR con2_go";
+INSERT INTO t1 VALUES (5, REPEAT("x", 4100));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+# Kill the server
+connection server_1;
+include/stop_slave.inc
+SELECT @@GLOBAL.gtid_current_pos;
+@@GLOBAL.gtid_current_pos
+0-2-11
+connection server_2;
+NOT FOUND /truncated binlog file:.*slave.*000001/ in mysqld.2.err
+disconnect conn_client;
+connection server_1;
+set global rpl_semi_sync_master_enabled = 1;
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+connection server_2;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root', master_use_gtid=SLAVE_POS;
+set global rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+include/start_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (6, 'Done');
+# The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-1-12
+connection server_2;
+SELECT COUNT(*) = 6 as 'true' FROM t1;
+true
+1
+# ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-1-12
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-1-12
+include/diff_tables.inc [server_1:t1, server_2:t1]
+# Cleanup
+connection server_1;
+DROP TABLE t1;
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+set @@global.rpl_semi_sync_master_enabled = 0;
+set @@global.rpl_semi_sync_slave_enabled = 0;
+set @@global.rpl_semi_sync_master_wait_point=default;
+RESET SLAVE;
+RESET MASTER;
+connection server_2;
+set @@global.rpl_semi_sync_master_enabled = 0;
+set @@global.rpl_semi_sync_slave_enabled = 0;
+set @@global.rpl_semi_sync_master_wait_point=default;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root', master_use_gtid=no;
+include/start_slave.inc
+connection default;
+include/rpl_end.inc
