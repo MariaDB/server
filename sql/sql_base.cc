@@ -2907,16 +2907,13 @@ static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
 static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
 {
   TABLE_SHARE *share;
-  TABLE *entry;
+  TABLE entry;
   bool result= TRUE;
 
   thd->clear_error();
 
-  if (!(entry= (TABLE*)my_malloc(key_memory_TABLE, sizeof(TABLE), MYF(MY_WME))))
-    return result;
-
   if (!(share= tdc_acquire_share(thd, table_list, GTS_TABLE)))
-    goto end_free;
+    return result;
 
   DBUG_ASSERT(! share->is_view);
 
@@ -2924,27 +2921,25 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
                             HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
                             EXTRA_RECORD,
                             ha_open_options | HA_OPEN_FOR_REPAIR,
-                            entry, FALSE) || ! entry->file ||
-      (entry->file->is_crashed() && entry->file->ha_check_and_repair(thd)))
+                            &entry, FALSE) || ! entry.file ||
+      (entry.file->is_crashed() && entry.file->ha_check_and_repair(thd)))
   {
     /* Give right error message */
     thd->clear_error();
     my_error(ER_NOT_KEYFILE, MYF(0), share->table_name.str);
     sql_print_error("Couldn't repair table: %s.%s", share->db.str,
                     share->table_name.str);
-    if (entry->file)
-      closefrm(entry);
+    if (entry.file)
+      closefrm(&entry);
   }
   else
   {
     thd->clear_error();			// Clear error message
-    closefrm(entry);
+    closefrm(&entry);
     result= FALSE;
   }
 
   tdc_remove_referenced_share(thd, share);
-end_free:
-  my_free(entry);
   return result;
 }
 
