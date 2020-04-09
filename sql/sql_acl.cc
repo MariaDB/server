@@ -14319,7 +14319,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     size_t len = 0;
 
     msg[0] = '\0';
-    len = snprintf(msg + 1, MAX_REDIRECTION_LEN - 1, "Location: mysql://[%s]:%s/user=%s&ttl=%s", 
+    len = snprintf(msg + 1, MAX_REDIRECTION_LEN - 1, "Location: mysql://[%s]:%s/user=%s&ttl=%s\n", 
       redirect_server_host, redirect_server_port, sctx->user, redirect_server_ttl);
 
     if (len >= MAX_REDIRECTION_LEN - 1){
