@@ -600,8 +600,8 @@ bool Sql_cmd_alter_table_exchange_partition::
                        swap_table_list->db.str,
                        swap_table_list->table_name.str,
                        "", 0);
-  /* create a unique temp name #sqlx-nnnn_nnnn, x for eXchange */
-  my_snprintf(temp_name, sizeof(temp_name), "%sx-%lx_%llx",
+  /* create a unique temp name */
+  my_snprintf(temp_name, sizeof(temp_name), "%s-exchange-%lx-%llx",
               tmp_file_prefix, current_pid, thd->thread_id);
   if (lower_case_table_names)
     my_casedn_str(files_charset_info, temp_name);

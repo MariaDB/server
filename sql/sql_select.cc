@@ -18266,13 +18266,13 @@ TABLE *Create_tmp_table::start(THD *thd,
     m_temp_pool_slot = bitmap_lock_set_next(&temp_pool);
 
   if (m_temp_pool_slot != MY_BIT_NONE) // we got a slot
-    sprintf(path, "%s-%lx-%i", tmp_file_prefix,
+    sprintf(path, "%s-temptable-%lx-%i", tmp_file_prefix,
             current_pid, m_temp_pool_slot);
   else
   {
     /* if we run out of slots or we are not using tempool */
-    sprintf(path, "%s-%lx-%lx-%x", tmp_file_prefix,current_pid,
-            (ulong) thd->thread_id, thd->tmp_table++);
+    sprintf(path, "%s-temptable-%lx-%llx-%x", tmp_file_prefix,current_pid,
+            thd->thread_id, thd->tmp_table++);
   }
 
   /*

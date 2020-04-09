@@ -305,15 +305,30 @@ static my_bool s3_info_init(S3_INFO *s3_info, const char *path,
 }
 
 /*
-  Check if table is a temporary table that is stored in Aria
+  Check if table is a temporary table
+
+  Returns 1 if table is a temporary table that should be stored in Aria
+  (to later be copied to S3 with a name change)
 */
 
 static int is_mariadb_internal_tmp_table(const char *table_name)
 {
   int length;
+  const int p_length= sizeof(tmp_file_prefix);  // prefix + '-'
   /* Temporary table from ALTER TABLE */
-  if (!strncmp(table_name, "#sql-", 5))
+  if (!strncmp(table_name, tmp_file_prefix "-" , p_length))
+  {
+    /*
+      Internal temporary tables used by ALTER TABLE and ALTER PARTITION
+      should be stored in S3
+    */
+    if (!strncmp(table_name+p_length, "backup-", sizeof("backup-")-1) ||
+        !strncmp(table_name+p_length, "exchange-", sizeof("exchange-")-1) ||
+        !strncmp(table_name+p_length, "temptable-", sizeof("temptable-")-1))
+      return 0;
+    /* Other temporary tables should be stored in Aria on local disk */
     return 1;
+  }
   length= strlen(table_name);
   if (length > 5 && !strncmp(table_name + length - 5, "#TMP#", 5))
     return 1;
