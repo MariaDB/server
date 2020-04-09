@@ -25,7 +25,7 @@ MYSQL_ADD_PLUGIN(qa_auth_server qa_auth_server.c
   MODULE_ONLY COMPONENT Test)
 
 MYSQL_ADD_PLUGIN(qa_auth_client qa_auth_client.c
-  MODULE_ONLY COMPONENT Test)
+  MODULE_ONLY CLIENT COMPONENT Test)
 
 MYSQL_ADD_PLUGIN(auth_0x0100 auth_0x0100.c MODULE_ONLY COMPONENT Test)
 
