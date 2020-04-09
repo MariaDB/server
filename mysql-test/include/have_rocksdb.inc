@@ -1,4 +1,4 @@
-if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'ROCKSDB' AND support IN ('YES', 'DEFAULT', 'ENABLED')`)
+if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'rocksdb'`)
 {
-  --skip Test requires MyRocks engine
+  --skip Requires rocksdb
 }
