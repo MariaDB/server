@@ -6976,62 +6976,6 @@ int spider_db_init(
   memset(&spider_alloc_mem_count, 0, sizeof(spider_alloc_mem_count));
   memset(&spider_free_mem_count, 0, sizeof(spider_free_mem_count));
 
-#ifdef _WIN32
-  HMODULE current_module = GetModuleHandle(NULL);
-#ifndef SPIDER_HAS_NEXT_THREAD_ID
-  spd_db_att_thread_id = (ulong *)
-    GetProcAddress(current_module, "?thread_id@@3KA");
-#endif
-#ifdef SPIDER_XID_USES_xid_cache_iterate
-#else
-#ifdef XID_CACHE_IS_SPLITTED
-  spd_db_att_xid_cache_split_num = (uint *)
-    GetProcAddress(current_module,
-      "?opt_xid_cache_split_num@@3IA");
-  spd_db_att_LOCK_xid_cache = *((pthread_mutex_t **)
-    GetProcAddress(current_module,
-      "?LOCK_xid_cache@@3PAUst_mysql_mutex@@A"));
-  spd_db_att_xid_cache = *((HASH **)
-    GetProcAddress(current_module, "?xid_cache@@3PAUst_hash@@A"));
-#else
-  spd_db_att_LOCK_xid_cache = (pthread_mutex_t *)
-#if MYSQL_VERSION_ID < 50500
-    GetProcAddress(current_module,
-      "?LOCK_xid_cache@@3U_RTL_CRITICAL_SECTION@@A");
-#else
-    GetProcAddress(current_module,
-      "?LOCK_xid_cache@@3Ust_mysql_mutex@@A");
-#endif
-  spd_db_att_xid_cache = (HASH *)
-    GetProcAddress(current_module, "?xid_cache@@3Ust_hash@@A");
-#endif
-#endif
-  spd_charset_utf8mb3_bin = (struct charset_info_st *)
-    GetProcAddress(current_module, "my_charset_utf8mb3_bin");
-  spd_defaults_extra_file = (const char **)
-    GetProcAddress(current_module, "my_defaults_extra_file");
-  spd_defaults_file = (const char **)
-    GetProcAddress(current_module, "my_defaults_file");
-  spd_mysqld_unix_port = (const char **)
-    GetProcAddress(current_module, "?mysqld_unix_port@@3PADA");
-  spd_mysqld_port = (uint *)
-    GetProcAddress(current_module, "?mysqld_port@@3IA");
-  spd_abort_loop = (bool volatile *)
-    GetProcAddress(current_module, "?abort_loop@@3_NC");
-  spd_tz_system = *(Time_zone **)
-#ifdef _WIN64
-    GetProcAddress(current_module, "?my_tz_SYSTEM@@3PEAVTime_zone@@EA");
-#else
-    GetProcAddress(current_module, "?my_tz_SYSTEM@@3PAVTime_zone@@A");
-#endif
-  spd_mysqld_server_started = (int *)
-    GetProcAddress(current_module, "?mysqld_server_started@@3HA");
-  spd_LOCK_server_started = (pthread_mutex_t *)
-    GetProcAddress(current_module,
-      "?LOCK_server_started@@3Ust_mysql_mutex@@A");
-  spd_COND_server_started = (pthread_cond_t *)
-    GetProcAddress(current_module, "?COND_server_started@@3Ust_mysql_cond@@A");
-#else
 #ifndef SPIDER_HAS_NEXT_THREAD_ID
   spd_db_att_thread_id = &thread_id;
 #endif
@@ -7056,7 +7000,6 @@ int spider_db_init(
   spd_mysqld_server_started = &mysqld_server_started;
   spd_LOCK_server_started = &LOCK_server_started;
   spd_COND_server_started = &COND_server_started;
-#endif
 
 #ifdef HAVE_PSI_INTERFACE
   init_spider_psi_keys();

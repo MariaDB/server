@@ -276,7 +276,7 @@ static my_off_t loc_tell(File fd)
 #endif /*WIN32*/
 
 
-extern char server_version[];
+extern MYSQL_PLUGIN_IMPORT char server_version[];
 static const char *serv_ver= NULL;
 static int started_mysql= 0;
 static int mysql_57_started= 0;
@@ -2373,31 +2373,37 @@ typedef struct loc_system_variables
 
 static int init_done= 0;
 
+static void* find_sym(const char *sym)
+{
+#ifdef _WIN32
+  return GetProcAddress(GetModuleHandle("server.dll"),sym);
+#else
+  return dlsym(RTLD_DEFAULT, sym);
+#endif
+}
+
 static int server_audit_init(void *p __attribute__((unused)))
 {
   if (!serv_ver)
   {
-#ifdef _WIN32
-    serv_ver= (const char *) GetProcAddress(0, "server_version");
-#else
-    serv_ver= server_version;
-#endif /*_WIN32*/
+    serv_ver= find_sym("server_version");
   }
+
   if (!mysql_57_started)
   {
-    const void *my_hash_init_ptr= dlsym(RTLD_DEFAULT, "_my_hash_init");
+    const void *my_hash_init_ptr= find_sym("_my_hash_init");
     if (!my_hash_init_ptr)
     {
       maria_above_5= 1;
-      my_hash_init_ptr= dlsym(RTLD_DEFAULT, "my_hash_init2");
+      my_hash_init_ptr= find_sym("my_hash_init2");
     }
     if (!my_hash_init_ptr)
       return 1;
   }
 
-  if(!(int_mysql_data_home= dlsym(RTLD_DEFAULT, "mysql_data_home")))
+  if(!(int_mysql_data_home= find_sym("mysql_data_home")))
   {
-    if(!(int_mysql_data_home= dlsym(RTLD_DEFAULT, "?mysql_data_home@@3PADA")))
+    if(!(int_mysql_data_home= find_sym("?mysql_data_home@@3PADA")))
       int_mysql_data_home= &default_home;
   }
 
@@ -2929,7 +2935,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
   if (fdwReason != DLL_PROCESS_ATTACH)
     return 1;
 
-  serv_ver= (const char *) GetProcAddress(0, "server_version");
+  serv_ver= server_version;
 #else
 void __attribute__ ((constructor)) audit_plugin_so_init(void)
 {

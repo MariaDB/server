@@ -38,7 +38,8 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
     ENDIF()
     set(comp "")
 
-    IF((target STREQUAL "mariadbd"))
+    IF(target STREQUAL "server"
+       OR target STREQUAL "mariadbd")
       SET(comp Server)
     ENDIF()
 

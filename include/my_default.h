@@ -20,9 +20,9 @@
 
 C_MODE_START
 
-extern const char *my_defaults_extra_file;
+extern MYSQL_PLUGIN_IMPORT const char *my_defaults_extra_file;
 extern const char *my_defaults_group_suffix;
-extern const char *my_defaults_file;
+extern MYSQL_PLUGIN_IMPORT const char *my_defaults_file;
 extern my_bool my_defaults_mark_files;
 
 extern int get_defaults_options(char **argv);

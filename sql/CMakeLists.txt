@@ -179,7 +179,7 @@ IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
 ENDIF()
 
 IF(WIN32)
-  SET(SQL_SOURCE ${SQL_SOURCE} handle_connections_win.cc)
+  SET(SQL_SOURCE ${SQL_SOURCE} handle_connections_win.cc nt_servc.cc)
 ENDIF()
 
 MYSQL_ADD_PLUGIN(partition ha_partition.cc STORAGE_ENGINE DEFAULT STATIC_ONLY
@@ -208,86 +208,44 @@ FOREACH(se aria partition perfschema sql_sequence wsrep)
 ENDFOREACH()
 
 IF(WIN32)
-  SET(MYSQLD_SOURCE main.cc nt_servc.cc message.rc)
-  TARGET_LINK_LIBRARIES(sql psapi)
+  SET(MYSQLD_SOURCE main.cc  message.rc)
 ELSE()
   SET(MYSQLD_SOURCE main.cc ${DTRACE_PROBES_ALL})
 ENDIF()
 
-
-IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
-
-  # mysqld.exe must to export symbols from some specific libs.
-  # These symbols are used by dynamic plugins, that "link" to mysqld.
-  #
-  # To do that, we
-  #
-  # 1. Generate mysqld_lib.def text file with all symbols from static
-  # libraries mysys, dbug, strings, sql.
-  # 2. Then we call
-  #  lib.exe /DEF:mysqld_lib.def ...
-  #  to create import library mysqld_lib.lib and export library mysqld_lib.exp
-  # 3. mysqld.exe links with mysqld_lib.exp (exporting symbols)
-  # 4. plugins link with mysqld_lib.lib (importing symbols)
-  #
-  # We do not not regenerate .def, .lib and .exp
-  # without necessity.E.g source modifications, that do not
-  # change list of exported symbols, will not result in a relink for plugins.
-
-  SET(MYSQLD_DEF ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib${CMAKE_CFG_INTDIR}.def)
-  SET(MYSQLD_EXP ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib${CMAKE_CFG_INTDIR}.exp)
-  SET(MYSQLD_LIB ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib${CMAKE_CFG_INTDIR}.lib)
-  SET(MYSQLD_CORELIBS sql mysys dbug strings)
-  FOREACH (CORELIB ${MYSQLD_CORELIBS})
-    SET (LIB_LOCATIONS ${LIB_LOCATIONS} $<TARGET_FILE:${CORELIB}>)
-  ENDFOREACH (CORELIB)
-
-  SET(_PLATFORM x86)
-  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    SET(_PLATFORM  x64)
-  ENDIF()
-  # Create a cmake script to generate import and export libs
-  # from a .def file
-  SET(CMAKE_CONFIGURABLE_FILE_CONTENT "
-    IF ((mysqld_lib\${CFG}.def IS_NEWER_THAN mysqld_lib\${CFG}.lib) OR
-        (mysqld_lib\${CFG}.def IS_NEWER_THAN mysqld_lib\${CFG}.exp))
-      FILE(REMOVE mysqld_lib\${CFG}.lib mysqld_lib\${CFG}.exp)
-      SET(ENV{VS_UNICODE_OUTPUT})
-      EXECUTE_PROCESS (
-        COMMAND \"${CMAKE_LINKER}\" /lib /NAME:mysqld.exe \"/DEF:${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib\${CFG}.def\" /MACHINE:${_PLATFORM}
-        RESULT_VARIABLE ret)
-      IF(NOT ret EQUAL 0)
-        MESSAGE(FATAL_ERROR \"process failed ret=\${ret}\")
-      ENDIF()
-    ENDIF()
-  ")
-
-  CONFIGURE_FILE(
-    ${PROJECT_SOURCE_DIR}/cmake/configurable_file_content.in
-    make_mysqld_lib.cmake
-    @ONLY)
-
-  IF(CMAKE_VERSION VERSION_GREATER "3.2.0")
-    SET(MYSQLD_LIB_BYPRODUCTS  BYPRODUCTS ${MYSQLD_DEF} ${MYSQLD_LIB} ${MYSQLD_EXP})
-  ENDIF()
-
-  ADD_CUSTOM_COMMAND(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.stamp
-    ${MYSQLD_LIB_BYPRODUCTS}
-    COMMENT "Generating ${MYSQLD_DEF}, ${MYSQLD_LIB}, ${MYSQLD_EXP}"
-    COMMAND cscript //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
-            ${_PLATFORM} /forLib ${LIB_LOCATIONS} > ${MYSQLD_DEF}.tmp
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLD_DEF}.tmp ${MYSQLD_DEF}
-    COMMAND ${CMAKE_COMMAND} -E remove ${MYSQLD_DEF}.tmp
-    COMMAND ${CMAKE_COMMAND}  "-DCFG=${CMAKE_CFG_INTDIR}" -P make_mysqld_lib.cmake
-    COMMAND ${CMAKE_COMMAND} -E touch mysqld_lib.stamp
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS ${MYSQLD_CORELIBS}
+IF(MSVC)
+  SET(libs_to_export_symbols sql mysys dbug strings)
+  # Create shared library of already compiled object
+  # Export all symbols from selected libraries, to be used
+  # by plugins
+  ADD_LIBRARY(server SHARED
+    $<TARGET_OBJECTS:sql>
+    $<TARGET_OBJECTS:mysys>
+    $<TARGET_OBJECTS:dbug>
+    $<TARGET_OBJECTS:strings>
+    ${PROJECT_BINARY_DIR}/versioninfo_dll.rc
   )
 
-  ADD_CUSTOM_TARGET(gen_mysqld_lib DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.stamp)
-  ADD_LIBRARY(mysqld_import_lib UNKNOWN IMPORTED GLOBAL)
-  SET_TARGET_PROPERTIES(mysqld_import_lib PROPERTIES IMPORTED_LOCATION ${MYSQLD_LIB})
+  # We need to add all dependencies of sql/mysys/dbug/strings
+  # to link the shared library
+  SET(all_deps)
+  FOREACH(lib ${libs_to_export_symbols})
+    GET_TARGET_PROPERTY(deps ${lib} LINK_LIBRARIES)
+    IF(deps)
+      LIST(APPEND all_deps ${deps})
+    ENDIF()
+  ENDFOREACH()  
+  LIST(REMOVE_DUPLICATES all_deps)
+  FOREACH(lib ${libs_to_export_symbols})
+    LIST(REMOVE_ITEM all_deps ${lib})
+  ENDFOREACH()
+
+  TARGET_LINK_LIBRARIES(server
+   ${all_deps}
+   sql_builtins
+  )
+  SET_TARGET_PROPERTIES(server PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+  MYSQL_INSTALL_TARGETS(server DESTINATION  ${INSTALL_BINDIR} COMPONENT Server)
 ENDIF()
 
 ADD_LIBRARY(sql_builtins STATIC ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc)
@@ -311,17 +269,13 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
   IF(NOT mysqld_link_flags)
     SET(mysqld_link_flags)
   ENDIF()
-  IF (MINGW OR CYGWIN)
-    SET_TARGET_PROPERTIES(mariadbd PROPERTIES LINK_FLAGS "${mysqld_link_flags} -Wl,--export-all-symbols")
-  ENDIF()
-  IF(MSVC)
-    SET_TARGET_PROPERTIES(mariadbd PROPERTIES LINK_FLAGS "${mysqld_link_flags} \"${MYSQLD_EXP}\"")
-    ADD_DEPENDENCIES(mariadbd gen_mysqld_lib)
-  ENDIF()
 ENDIF(NOT WITHOUT_DYNAMIC_PLUGINS)
 
-TARGET_LINK_LIBRARIES(mariadbd LINK_PRIVATE sql sql_builtins)
-
+IF(MSVC)
+  TARGET_LINK_LIBRARIES(mariadbd server)
+ELSE()
+  TARGET_LINK_LIBRARIES(mariadbd LINK_PRIVATE sql sql_builtins)
+ENDIF()
 
 # Provide plugins with minimal set of libraries
 SET(INTERFACE_LIBS ${LIBRT})
@@ -461,7 +415,7 @@ IF(TARGET mariadbd AND NOT CMAKE_CROSSCOMPILING)
   ENDIF()
   ADD_CUSTOM_TARGET(initial_database  
     ${ALL_ON_WINDOWS}
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep	
   )
 ENDIF()
 

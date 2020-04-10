@@ -283,13 +283,7 @@ static int qc_info_plugin_init(void *p)
 
   schema->fields_info= Show::qc_info_fields;
   schema->fill_table= qc_info_fill_table;
-
-#ifdef _WIN32
-  qc = (Accessible_Query_Cache *)
-    GetProcAddress(GetModuleHandle(NULL), "?query_cache@@3VQuery_cache@@A");
-#else
   qc = (Accessible_Query_Cache *)&query_cache;
-#endif
 
   return qc == 0;
 }
