@@ -119,7 +119,7 @@ ENDIF()
 
 IF (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
     CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  ADD_DEFINITIONS("-Wconversion -Wno-sign-conversion")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wconversion -Wno-sign-conversion")
   SET_SOURCE_FILES_PROPERTIES(fts/fts0pars.cc
     PROPERTIES COMPILE_FLAGS -Wno-conversion)
 ENDIF()
