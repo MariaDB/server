@@ -1700,6 +1700,7 @@ spider_db_result *spider_db_oracle::store_result(
 }
 
 spider_db_result *spider_db_oracle::use_result(
+  ha_spider *spider,
   st_spider_db_request_key *request_key,
   int *error_num
 ) {

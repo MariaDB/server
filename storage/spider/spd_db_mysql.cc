@@ -2407,6 +2407,7 @@ spider_db_result *spider_db_mbase::store_result(
 }
 
 spider_db_result *spider_db_mbase::use_result(
+  ha_spider *spider,
   st_spider_db_request_key *request_key,
   int *error_num
 ) {

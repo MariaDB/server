@@ -453,6 +453,7 @@ public:
     int *error_num
   );
   spider_db_result *use_result(
+    ha_spider *spider,
     st_spider_db_request_key *request_key,
     int *error_num
   );
