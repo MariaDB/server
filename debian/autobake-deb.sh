@@ -128,10 +128,17 @@ then
   BUILDPACKAGE_FLAGS="-b"
 fi
 
+# Use eatmydata is available to build faster with less I/O, skipping fsync()
+# during the entire build process (safe because a build can always be restarted)
+if which eatmydata > /dev/null
+then
+  BUILDPACKAGE_PREPEND=eatmydata
+fi
+
 # Build the package
 # Pass -I so that .git and other unnecessary temporary and source control files
 # will be ignored by dpkg-source when creating the tar.gz source package.
-fakeroot dpkg-buildpackage -us -uc -I $BUILDPACKAGE_FLAGS
+fakeroot $BUILDPACKAGE_PREPEND dpkg-buildpackage -us -uc -I $BUILDPACKAGE_FLAGS
 
 # If the step above fails due to missing dependencies, you can manually run
 #   sudo mk-build-deps debian/control -r -i
