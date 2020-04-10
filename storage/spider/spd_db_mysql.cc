@@ -15261,10 +15261,10 @@ void spider_mbase_handler::minimum_select_bitmap_create()
       bitmap_is_set(table->write_set, field_index) ?
         "TRUE" : "FALSE"));
     if (
-      spider_bit_is_set(spider->wide_handler->ft_discard_bitmap, field_index) &
+      spider_bit_is_set(spider->wide_handler->ft_discard_bitmap, field_index) &&
       (
-        spider_bit_is_set(spider->wide_handler->searched_bitmap, field_index) |
-        bitmap_is_set(table->read_set, field_index) |
+        spider_bit_is_set(spider->wide_handler->searched_bitmap, field_index) ||
+        bitmap_is_set(table->read_set, field_index) ||
         bitmap_is_set(table->write_set, field_index)
       )
     ) {
