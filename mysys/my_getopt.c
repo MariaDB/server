@@ -1040,21 +1040,30 @@ static ulonglong eval_num_suffix_ull(char *argument,
   ulonglong num;
   DBUG_ENTER("eval_num_suffix_ull");
 
+  if (*argument == '-')
+  {
+    my_getopt_error_reporter(ERROR_LEVEL,
+                             "Incorrect unsigned value: '%s' for %s",
+                             argument, option_name);
+    *error= 1;
+    DBUG_RETURN(0);
+  }
   *error= 0;
   errno= 0;
   num= strtoull(argument, &endchar, 10);
   if (errno == ERANGE)
   {
     my_getopt_error_reporter(ERROR_LEVEL,
-                             "Incorrect integer value: '%s'", argument);
+                             "Incorrect integer value: '%s' for %s",
+                             argument, option_name);
     *error= 1;
     DBUG_RETURN(0);
   }
   num*= eval_num_suffix(endchar, error);
   if (*error)
-    fprintf(stderr,
-	    "Unknown suffix '%c' used for variable '%s' (value '%s')\n",
-	    *endchar, option_name, argument);
+    my_getopt_error_reporter(ERROR_LEVEL,
+                             "Unknown suffix '%c' used for variable '%s' (value '%s')",
+                             *endchar, option_name, argument);
   DBUG_RETURN(num);
 }
 
