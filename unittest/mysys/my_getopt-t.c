@@ -377,16 +377,11 @@ int main(int argc __attribute__((unused)), char **argv)
   ok(res==0 && arg_c==0 && opt_ull==100,
      "res:%d, argc:%d, opt_ull:%llu", res, arg_c, opt_ull);
 
-  /*
-    negative numbers are wrapped. this is kinda questionable,
-    we might want to fix it eventually. but it'd be a change in behavior,
-    users might've got used to "-1" meaning "max possible value"
-  */
   run("--ull=-100", NULL);
-  ok(res==0 && arg_c==0 && opt_ull==18446744073709551516ULL,
+  ok(res==9 && arg_c==1 && opt_ull==0ULL,
      "res:%d, argc:%d, opt_ull:%llu", res, arg_c, opt_ull);
   run("--ul=-100", NULL);
-  ok(res==0 && arg_c==0 && opt_ul==4294967295UL,
+  ok(res==9 && arg_c==1 && opt_ul==0UL,
      "res:%d, argc:%d, opt_ul:%lu", res, arg_c, opt_ul);
 
   my_end(0);
