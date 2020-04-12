@@ -1357,7 +1357,7 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
 {
   if (opt_secure_auth)
     mysql_options(mysql, MYSQL_SECURE_AUTH, (char *) &opt_secure_auth);
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if !defined(EMBEDDED_LIBRARY)
   if (opt_use_ssl)
   {
     mysql_ssl_set(mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
@@ -4809,12 +4809,12 @@ com_status(String *buffer __attribute__((unused)),
     mysql_free_result(result);
   }
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if !defined(EMBEDDED_LIBRARY)
   if ((status_str= mysql_get_ssl_cipher(&mysql)))
     tee_fprintf(stdout, "SSL:\t\t\tCipher in use is %s\n",
                 status_str);
   else
-#endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
+#endif /* !EMBEDDED_LIBRARY */
     tee_puts("SSL:\t\t\tNot in use", stdout);
 
   if (skip_updates)
