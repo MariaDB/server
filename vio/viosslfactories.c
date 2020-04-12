@@ -190,7 +190,7 @@ static long vio_tls_protocol_options(ulonglong tls_version)
 #ifdef TLS1_3_VERSION
     SSL_OP_NO_TLSv1_3 |
 #endif
-#if defined(TLS1_2_VERSION) || defined(HAVE_WOLFSSL)
+#if defined(TLS1_2_VERSION)
     SSL_OP_NO_TLSv1_2 |
 #endif
     SSL_OP_NO_TLSv1_1 |
@@ -205,7 +205,7 @@ static long vio_tls_protocol_options(ulonglong tls_version)
     disabled_tls_protocols&= ~SSL_OP_NO_TLSv1;
   if (tls_version & VIO_TLSv1_1)
     disabled_tls_protocols&= ~SSL_OP_NO_TLSv1_1;
-#if defined(TLS1_2_VERSION) || defined(HAVE_WOLFSSL)
+#if defined(TLS1_2_VERSION)
   if (tls_version & VIO_TLSv1_2)
     disabled_tls_protocols&= ~SSL_OP_NO_TLSv1_2;
 #endif
