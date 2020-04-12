@@ -1996,8 +1996,6 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
           tables which have ON UPDATE but have no ON DELETE triggers,
           we just should not expose this fact to users by invoking
           ON UPDATE triggers.
-          For system versioning wa also use path through delete since we would
-          save nothing through this cheating.
         */
         if (last_uniq_key(table,key_nr) &&
             !table->file->referenced_by_foreign_key() &&

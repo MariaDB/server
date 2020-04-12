@@ -234,11 +234,11 @@ typedef struct st_mi_isam_share
 
 struct st_myisam_info
 {
-  MYISAM_SHARE *s;                      /* Shared between open:s */
+  MYISAM_SHARE *s;                      /* Shared between opens */
   MI_STATUS_INFO *state, save_state;
   MI_BLOB *blobs;                       /* Pointer to blobs */
   MI_BIT_BUFF bit_buff;
-  /* accumulate indexfile changes between write's */
+  /* accumulate indexfile changes between writes */
   TREE *bulk_insert;
   DYNAMIC_ARRAY *ft1_to_ft2;            /* used only in ft1->ft2 conversion */
   MEM_ROOT      ft_memroot;             /* used by the parser               */
@@ -256,7 +256,7 @@ struct st_myisam_info
   uint32 int_keytree_version;		/*  -""-  */
   int (*read_record)(struct st_myisam_info*, my_off_t, uchar*);
   invalidator_by_filename invalidator;  /* query cache invalidator */
-  ulong this_unique;                    /* uniq filenumber or thread */
+  ulong this_unique;                    /* unique filenumber or thread */
   ulong last_unique;                    /* last unique number */
   ulong this_loop;                      /* counter for this open */
   ulong last_loop;                      /* last used counter */
@@ -269,7 +269,7 @@ struct st_myisam_info
   my_off_t dupp_key_pos;
   ha_checksum checksum;                 /* Temp storage for row checksum */
   /*
-    QQ: the folloing two xxx_length fields should be removed,
+    QQ: the following two xxx_length fields should be removed,
      as they are not compatible with parallel repair
   */
   ulong packed_length, blob_length;     /* Length of found, packed record */

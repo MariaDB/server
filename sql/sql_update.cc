@@ -2036,7 +2036,7 @@ int multi_update::prepare(List<Item> &not_used_values,
     DBUG_RETURN(1);    
 
   /*
-    Save tables beeing updated in update_tables
+    Save tables being updated in update_tables
     update_table->shared is position for table
     Don't use key read on tables that are updated
   */
