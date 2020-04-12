@@ -651,12 +651,14 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
+    bool create_lookup_handler= handle_duplicates != DUP_ERROR;
     if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS))
     {
+      create_lookup_handler= true;
       if ((error= table_list->table->file->ha_rnd_init_with_error(0)))
         goto err;
     }
-    table->file->prepare_for_insert();
+    table->file->prepare_for_insert(create_lookup_handler);
     thd_progress_init(thd, 2);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
     {

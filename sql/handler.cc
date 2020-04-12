@@ -6909,16 +6909,12 @@ bool handler::prepare_for_row_logging()
   Do all initialization needed for insert
 */
 
-int handler::prepare_for_insert()
+int handler::prepare_for_insert(bool do_create)
 {
   /* Preparation for unique of blob's */
   if (table->s->long_unique_table || table->s->period.unique_keys)
   {
-    /*
-      When doing a scan we can't use the same handler to check
-      duplicate rows. Create a new temporary one
-    */
-    if (inited != NONE && create_lookup_handler())
+    if (do_create && create_lookup_handler())
       return 1;
     alloc_lookup_buffer();
   }

@@ -2096,7 +2096,7 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
   DBUG_PRINT("info", ("start_bulk_insert: rows %lu", (ulong) rows));
 
   /* don't enable row cache if too few rows */
-  if (!rows || (rows > MARIA_MIN_ROWS_TO_USE_WRITE_CACHE))
+  if ((!rows || rows > MARIA_MIN_ROWS_TO_USE_WRITE_CACHE) && !has_long_unique())
   {
     ulonglong size= thd->variables.read_buff_size, tmp;
     if (rows)
