@@ -3385,7 +3385,7 @@ sub do_before_run_mysqltest($)
     # to be able to distinguish them from manually created
     # version-controlled results, and to ignore them in git.
     my $dest = "$base_file$suites.result~";
-    my @cmd = ($exe_patch, qw/-r - -f -s -o/,
+    my @cmd = ($exe_patch, qw/--binary -r - -f -s -o/,
                $dest, $base_result, $resfile);
     if (-w $resdir) {
       # don't rebuild a file if it's up to date
