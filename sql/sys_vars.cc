@@ -6697,14 +6697,14 @@ static Sys_var_charptr Sys_redirect_server_host(
        READ_ONLY GLOBAL_VAR(redirect_server_host), CMD_LINE(OPT_ARG),
        DEFAULT(""));
 
-static Sys_var_charptr Sys_redirect_server_port(
+static Sys_var_uint Sys_redirect_server_port(
        "redirect_server_port",
        "The server host port that client can choose to redirect to.",
        READ_ONLY GLOBAL_VAR(redirect_server_port), CMD_LINE(OPT_ARG),
-       DEFAULT(""));
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
-static Sys_var_charptr Sys_redirect_server_ttl(
+static Sys_var_uint Sys_redirect_server_ttl(
        "redirect_server_ttl",
        "The life time of the validity of redirected information in seconds.",
        READ_ONLY GLOBAL_VAR(redirect_server_ttl), CMD_LINE(OPT_ARG),
-       DEFAULT("0"));
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));

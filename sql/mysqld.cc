@@ -383,8 +383,8 @@ bool volatile abort_loop;
 uint volatile global_disable_checkpoint;
 my_bool redirect_enabled;
 const char *redirect_server_host;
-const char *redirect_server_port;
-const char *redirect_server_ttl;
+uint redirect_server_port;
+uint redirect_server_ttl;
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
 ulong slow_start_timeout;
 #endif
@@ -7851,8 +7851,8 @@ static int mysql_init_variables(void)
   abort_loop= select_thread_in_use= signal_thread_in_use= 0;
   redirect_enabled= 0;
   redirect_server_host= NullS;
-  redirect_server_port= NullS;
-  redirect_server_ttl= NullS;
+  redirect_server_port= 0;
+  redirect_server_ttl= 0;
   grant_option= 0;
   aborted_threads= aborted_connects= aborted_connects_preauth= 0;
   subquery_cache_miss= subquery_cache_hit= 0;

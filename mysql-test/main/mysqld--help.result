@@ -979,10 +979,10 @@ The following specify which files/extra groups are read (specified before remain
  --redirect-enabled  Return redirection information to client.
  --redirect-server-host[=name] 
  The server host that client can choose to redirect to.
- --redirect-server-port[=name] 
+ --redirect-server-port[=#] 
  The server host port that client can choose to redirect
  to.
- --redirect-server-ttl[=name] 
+ --redirect-server-ttl[=#] 
  The life time of the validity of redirected information
  in seconds.
  --relay-log=name    The location and name to use for relay logs.
@@ -1736,7 +1736,7 @@ read-only FALSE
 read-rnd-buffer-size 262144
 redirect-enabled FALSE
 redirect-server-host 
-redirect-server-port 
+redirect-server-port 0
 redirect-server-ttl 0
 relay-log (No default value)
 relay-log-index (No default value)
