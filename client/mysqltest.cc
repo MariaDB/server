@@ -5898,6 +5898,7 @@ void do_connect(struct st_command *command)
   int con_port= opt_port;
   char *con_options;
   char *ssl_cipher __attribute__((unused))= 0;
+  char *tls_version __attribute__((unused))= 0;
   my_bool con_ssl= 0, con_compress= 0;
   my_bool con_pipe= 0;
   int read_timeout= 0;
@@ -5986,6 +5987,19 @@ void do_connect(struct st_command *command)
     {
       con_ssl= 1;
       ssl_cipher=con_options + 11;
+      if (*end)
+      {
+        *end++= '\0';
+      }
+    }
+    else if (!strncmp(con_options, "TLS-VERSION=", 12))
+    {
+      con_ssl= 1;
+      tls_version=con_options + 12;
+      if (*end)
+      {
+        *end++= '\0';
+      }
     }
     else if (length == 8 && !strncmp(con_options, "COMPRESS", 8))
       con_compress= 1;
@@ -6063,7 +6077,8 @@ void do_connect(struct st_command *command)
 		  opt_ssl_capath, ssl_cipher ? ssl_cipher : opt_ssl_cipher);
     mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(con_slot->mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
+    mysql_options(con_slot->mysql, MARIADB_OPT_TLS_VERSION,
+                  tls_version ? tls_version : opt_tls_version);
 #if MYSQL_VERSION_ID >= 50000
     /* Turn on ssl_verify_server_cert only if host is "localhost" */
     opt_ssl_verify_server_cert= !strcmp(ds_host.str, "localhost");
