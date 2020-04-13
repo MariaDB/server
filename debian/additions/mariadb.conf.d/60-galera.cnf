@@ -1,6 +1,8 @@
 #
 # * Galera-related settings
 #
+# See the examples of server wsrep.cnf files in /usr/share/mysql
+
 [galera]
 # Mandatory settings
 #wsrep_on=ON
@@ -9,11 +11,10 @@
 #binlog_format=row
 #default_storage_engine=InnoDB
 #innodb_autoinc_lock_mode=2
-#
+
 # Allow server to accept connections on all interfaces.
-#
 #bind-address=0.0.0.0
-#
-# Optional setting
+
+# Optional settings
 #wsrep_slave_threads=1
 #innodb_flush_log_at_trx_commit=0
