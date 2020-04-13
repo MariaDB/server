@@ -80,12 +80,6 @@ fi
 # Always remove AWS plugin, see -DNOT_FOR_DISTRIBUTION in CMakeLists.txt
 sed '/Package: mariadb-plugin-aws-key-management-10.2/,/^$/d' -i debian/control
 
-# Don't build Cassandra package if Thrift is not installed
-if [[ ! -f /usr/local/include/thrift/Thrift.h && ! -f /usr/include/thrift/Thrift.h ]]
-then
-  sed '/Package: mariadb-plugin-cassandra/,/^$/d' -i debian/control
-fi
-
 # If libpcre2-dev is not available (before Debian Stretch and Ubuntu Xenial)
 # attempt to build using older libpcre3-dev (SIC!)
 if ! apt-cache madison libpcre2-dev | grep --quiet 'libpcre2-dev'
@@ -93,7 +87,7 @@ then
   sed 's/libcurl4-openssl-dev | libcurl4-dev/libpcre3-dev/' -i debian/control
 fi
 
-# Cassandra, Mroonga etc never built on Travis CI anyway, see build flags above
+# Mroonga, Spider etc never built on Travis CI anyway, see build flags above
 if [[ $TRAVIS ]]
 then
   sed -i -e "/Package: mariadb-plugin-mroonga/,/^$/d" debian/control
