@@ -77,9 +77,6 @@ then
   sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
 fi
 
-# Always remove AWS plugin, see -DNOT_FOR_DISTRIBUTION in CMakeLists.txt
-sed '/Package: mariadb-plugin-aws-key-management-10.2/,/^$/d' -i debian/control
-
 # If libpcre2-dev is not available (before Debian Stretch and Ubuntu Xenial)
 # attempt to build using older libpcre3-dev (SIC!)
 if ! apt-cache madison libpcre2-dev | grep --quiet 'libpcre2-dev'
