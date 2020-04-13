@@ -1,3 +1,4 @@
+--source include/have_perfschema.inc
 --source include/word_size.inc
 --vertical_results
 
