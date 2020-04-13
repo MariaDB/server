@@ -8,7 +8,7 @@
 default-character-set = utf8mb4
 
 # socket location
-socket = /var/run/mysqld/mysqld.sock
+socket = /run/mysqld/mysqld.sock
 
 # Example of client certificate usage
 # ssl-cert=/etc/mysql/client-cert.pem
