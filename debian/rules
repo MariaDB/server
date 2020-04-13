@@ -86,6 +86,7 @@ endif
 	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_HOST_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
 	    -DWITHOUT_TOKUDB=true \
+	    -DWITHOUT_CASSANDRA=true \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
 	    -DDEB=$(DEB_VENDOR) ..'
 
