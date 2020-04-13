@@ -269,7 +269,7 @@ my $current_config_name; # The currently running config file template
 our @opt_experimentals;
 our $experimental_test_cases= [];
 
-my $baseport;
+our $baseport;
 # $opt_build_thread may later be set from $opt_port_base
 my $opt_build_thread= $ENV{'MTR_BUILD_THREAD'} || "auto";
 my $opt_port_base= $ENV{'MTR_PORT_BASE'} || "auto";
