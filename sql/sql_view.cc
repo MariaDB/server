@@ -655,8 +655,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   */
 
   if (!res)
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, view->db.str,
-                     view->table_name.str);
+    tdc_remove_table(thd, view->db.str, view->table_name.str);
 
   if (!res && mysql_bin_log.is_open())
   {
@@ -1215,7 +1214,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
 
   if (table->index_hints && table->index_hints->elements)
   {
-    my_error(ER_KEY_DOES_NOT_EXITS, MYF(0),
+    my_error(ER_KEY_DOES_NOT_EXISTS, MYF(0),
              table->index_hints->head()->key_name.str, table->table_name.str);
     DBUG_RETURN(TRUE);
   }
@@ -1876,8 +1875,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       For a view, there is a TABLE_SHARE object.
       Remove it from the table definition cache, in case the view was cached.
     */
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, view->db.str,
-                     view->table_name.str);
+    tdc_remove_table(thd, view->db.str, view->table_name.str);
     query_cache_invalidate3(thd, view, 0);
     sp_cache_invalidate();
   }

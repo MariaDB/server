@@ -837,4 +837,19 @@ update t1, t2 set a = 1;
 # cleanup
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-22153 ALTER add default history partitions breaks table
+--echo #
+create or replace table t1 (x int) with system versioning partition by system_time;
+alter table t1 add partition partitions 1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+alter table t1 add partition partitions 2;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+alter table t1 add partition partitions 3;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+drop tables t1;
+
 --source suite/versioning/common_finish.inc

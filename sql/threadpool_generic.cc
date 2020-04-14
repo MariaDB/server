@@ -45,7 +45,6 @@ static void io_poll_close(TP_file_handle fd)
 #endif
 }
 
-
 /** Maximum number of native events a listener can read in one go */
 #define MAX_EVENTS 1024
 
@@ -93,7 +92,7 @@ static PSI_thread_info	thread_list[] =
 
 thread_group_t *all_groups;
 static uint group_count;
-static int32 shutdown_group_count;
+static Atomic_counter<uint32_t> shutdown_group_count;
 
 /**
  Used for printing "pool blocked" message, see
@@ -107,7 +106,7 @@ struct pool_timer_t
   mysql_mutex_t mutex;
   mysql_cond_t cond;
   volatile uint64 current_microtime;
-  volatile uint64 next_timeout_check;
+  std::atomic<uint64_t> next_timeout_check;
   int  tick_interval;
   bool shutdown;
   pthread_t timer_thread_id;
@@ -435,6 +434,16 @@ static TP_connection_generic *queue_get(thread_group_t *thread_group)
   DBUG_RETURN(0);  
 }
 
+static TP_connection_generic* queue_get(thread_group_t* group, operation_origin origin)
+{
+  auto ret = queue_get(group);
+  if (ret)
+  {
+    TP_INCREMENT_GROUP_COUNTER(group, dequeues[(int)origin]);
+  }
+  return ret;
+}
+
 static bool is_queue_empty(thread_group_t *thread_group)
 {
   for (int i=0; i < NQUEUES; i++)
@@ -516,7 +525,8 @@ static void* timer_thread(void *param)
 
   my_thread_init();
   DBUG_ENTER("timer_thread");
-  timer->next_timeout_check= ULONGLONG_MAX;
+  timer->next_timeout_check.store(std::numeric_limits<uint64_t>::max(),
+                                  std::memory_order_relaxed);
   timer->current_microtime= microsecond_interval_timer();
 
   for(;;)
@@ -544,11 +554,12 @@ static void* timer_thread(void *param)
       }
       
       /* Check if any client exceeded wait_timeout */
-      if (timer->next_timeout_check <= timer->current_microtime)
+      if (timer->next_timeout_check.load(std::memory_order_relaxed) <=
+          timer->current_microtime)
       {
         /* Reset next timeout check, it will be recalculated below */
-        my_atomic_fas64((volatile int64*) &timer->next_timeout_check,
-                        ULONGLONG_MAX);
+        timer->next_timeout_check.store(std::numeric_limits<uint64_t>::max(),
+                                        std::memory_order_relaxed);
         server_threads.iterate(timeout_check, timer);
       }
     }
@@ -684,7 +695,7 @@ static TP_connection_generic * listener(worker_thread_t *current_thread,
       break;
   
     cnt = io_poll_wait(thread_group->pollfd, ev, MAX_EVENTS, -1);
-    TP_INCREMENT_GROUP_COUNTER(thread_group, polls_by_listener);
+    TP_INCREMENT_GROUP_COUNTER(thread_group, polls[(int)operation_origin::LISTENER]);
     if (cnt <=0)
     {
       DBUG_ASSERT(thread_group->shutdown);
@@ -750,7 +761,7 @@ static TP_connection_generic * listener(worker_thread_t *current_thread,
     if (listener_picks_event)
     {
       /* Handle the first event. */
-      retval= queue_get(thread_group);
+      retval= queue_get(thread_group, operation_origin::LISTENER);
       mysql_mutex_unlock(&thread_group->mutex);
       break;
     }
@@ -800,7 +811,7 @@ static void add_thread_count(thread_group_t *thread_group, int32 count)
   thread_group->thread_count += count;
   /* worker starts out and end in "active" state */
   thread_group->active_thread_count += count;
-  my_atomic_add32(&tp_stats.num_worker_threads, count);
+  tp_stats.num_worker_threads+= count;
 }
 
 
@@ -820,7 +831,7 @@ static int create_worker(thread_group_t *thread_group, bool due_to_stall)
   int err;
   
   DBUG_ENTER("create_worker");
-  if (tp_stats.num_worker_threads >= (int)threadpool_max_threads
+  if (tp_stats.num_worker_threads >= threadpool_max_threads
      && thread_group->thread_count >= 2)
   {
     err= 1;
@@ -969,7 +980,7 @@ void thread_group_destroy(thread_group_t *thread_group)
   }
 #endif
 
-  if (my_atomic_add32(&shutdown_group_count, -1) == 1)
+  if (!--shutdown_group_count)
     my_free(all_groups);
 }
 
@@ -1130,10 +1141,9 @@ TP_connection_generic *get_event(worker_thread_t *current_thread,
     /* Check if queue is not empty */
     if (!oversubscribed)
     {
-      connection = queue_get(thread_group);
+      connection = queue_get(thread_group, operation_origin::WORKER);
       if(connection)
       {
-        TP_INCREMENT_GROUP_COUNTER(thread_group,dequeues_by_worker);
         break;
       }
     }
@@ -1146,10 +1156,7 @@ TP_connection_generic *get_event(worker_thread_t *current_thread,
       mysql_mutex_unlock(&thread_group->mutex);
 
       connection = listener(current_thread, thread_group);
-      if (connection)
-      {
-        TP_INCREMENT_GROUP_COUNTER(thread_group, dequeues_by_listener);
-      }
+
       mysql_mutex_lock(&thread_group->mutex);
       thread_group->active_thread_count++;
       /* There is no listener anymore, it just returned. */
@@ -1167,11 +1174,11 @@ TP_connection_generic *get_event(worker_thread_t *current_thread,
     {
       native_event ev[MAX_EVENTS];
       int cnt = io_poll_wait(thread_group->pollfd, ev, MAX_EVENTS, 0);
-      TP_INCREMENT_GROUP_COUNTER(thread_group, polls_by_worker);
+      TP_INCREMENT_GROUP_COUNTER(thread_group, polls[(int)operation_origin::WORKER]);
       if (cnt > 0)
       {
         queue_put(thread_group, ev, cnt);
-        connection= queue_get(thread_group);
+        connection= queue_get(thread_group,operation_origin::WORKER);
         break;
       }
     }
@@ -1326,12 +1333,15 @@ void TP_connection_generic::wait_end()
 
 static void set_next_timeout_check(ulonglong abstime)
 {
+  auto old= pool_timer.next_timeout_check.load(std::memory_order_relaxed);
   DBUG_ENTER("set_next_timeout_check");
-  while(abstime < pool_timer.next_timeout_check)
+  while (abstime < old)
   {
-    longlong old= (longlong)pool_timer.next_timeout_check;
-    my_atomic_cas64((volatile int64*)&pool_timer.next_timeout_check,
-          &old, abstime);
+    if (pool_timer.next_timeout_check.
+                   compare_exchange_weak(old, abstime,
+                                         std::memory_order_relaxed,
+                                         std::memory_order_relaxed))
+     break;
   }
   DBUG_VOID_RETURN;
 }

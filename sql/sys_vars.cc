@@ -1367,14 +1367,17 @@ static Sys_var_mybool Sys_large_files_support(
 
 static Sys_var_uint Sys_large_page_size(
        "large_page_size",
-       "If large page support is enabled, this shows the size of memory pages",
+       "Previously showed the size of large memory pages, unused since "
+       "multiple page size support was added",
        READ_ONLY GLOBAL_VAR(opt_large_page_size), NO_CMD_LINE,
-       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED(""));
 
 static Sys_var_mybool Sys_large_pages(
        "large_pages", "Enable support for large pages",
        READ_ONLY GLOBAL_VAR(opt_large_pages),
-       IF_WIN(NO_CMD_LINE, CMD_LINE(OPT_ARG)), DEFAULT(FALSE));
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_charptr_fscs Sys_language(
        "lc_messages_dir", "Directory where error messages are",
@@ -4469,6 +4472,11 @@ static Sys_var_bit Sys_auto_is_null(
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_AUTO_IS_NULL,
        DEFAULT(FALSE), NO_MUTEX_GUARD, IN_BINLOG);
 
+static Sys_var_bit Sys_if_exists(
+      "sql_if_exists", "If set to 1 adds an implicate IF EXISTS to ALTER, RENAME and DROP of TABLES, VIEWS, FUNCTIONS and PACKAGES",
+       SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_IF_EXISTS,
+       DEFAULT(FALSE), NO_MUTEX_GUARD, IN_BINLOG);
+
 static Sys_var_bit Sys_safe_updates(
        "sql_safe_updates", "If set to 1, UPDATEs and DELETEs need either a key in "
        "the WHERE clause, or a LIMIT clause, or else they will aborted. Prevents "
@@ -4598,10 +4606,7 @@ bool Sys_var_timestamp::on_check_access_session(THD *thd) const
   case SECTIME_SUPER:
     return check_global_access(thd, SUPER_ACL | BINLOG_REPLAY_ACL);
   case SECTIME_REPL:
-  /*
-    Perhaps we eventually should do this here:
-      return check_global_access(thd, BINLOG_REPLAY_ACL);
-  */
+    return check_global_access(thd, BINLOG_REPLAY_ACL);
   case SECTIME_YES:
     break;
   }

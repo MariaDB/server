@@ -20,6 +20,7 @@
 #include "opt_range.h"
 #include "rowid_filter.h"
 #include "sql_select.h"
+#include "opt_trace.h"
 
 
 inline
@@ -356,7 +357,7 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
   {
     if (!(file->index_flags(key_no, 0, 1) & HA_DO_RANGE_FILTER_PUSHDOWN))  // !1
       continue;
-    if (key_no == s->primary_key && file->primary_key_is_clustered())      // !2
+    if (file->is_clustering_key(key_no))                              // !2
       continue;
    if (quick_rows[key_no] >
        get_max_range_rowid_filter_elems_for_table(thd, this,
@@ -403,8 +404,36 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
   }
 
   prune_range_rowid_filters();
+
+  if (unlikely(thd->trace_started()))
+    trace_range_rowid_filters(thd);
 }
 
+
+void TABLE::trace_range_rowid_filters(THD *thd) const
+{
+  if (!range_rowid_filter_cost_info_elems)
+    return;
+
+  Range_rowid_filter_cost_info **p= range_rowid_filter_cost_info_ptr;
+  Range_rowid_filter_cost_info **end= p + range_rowid_filter_cost_info_elems;
+
+  Json_writer_object js_obj(thd);
+  js_obj.add_table_name(this);
+  Json_writer_array js_arr(thd, "rowid_filters");
+
+  for (; p < end; p++)
+    (*p)->trace_info(thd);
+}
+
+
+void Range_rowid_filter_cost_info::trace_info(THD *thd)
+{
+  Json_writer_object js_obj(thd);
+  js_obj.add("key", table->key_info[key_no].name);
+  js_obj.add("build_cost", b);
+  js_obj.add("rows", est_elements);
+}
 
 /**
   @brief
@@ -447,7 +476,7 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
     clustered primary key it would, but the current InnoDB code does not
     allow it. Later this limitation will be lifted
   */
-  if (access_key_no == s->primary_key && file->primary_key_is_clustered())
+  if (file->is_clustering_key(access_key_no))
     return 0;
 
   Range_rowid_filter_cost_info *best_filter= 0;

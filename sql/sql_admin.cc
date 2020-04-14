@@ -1027,9 +1027,7 @@ send_result_message:
                  *save_next_global= table->next_global;
       table->next_local= table->next_global= 0;
 
-      tmp_disable_binlog(thd); // binlogging is done by caller if wanted
       result_code= admin_recreate_table(thd, table);
-      reenable_binlog(thd);
       trans_commit_stmt(thd);
       trans_commit(thd);
       close_thread_tables(thd);
@@ -1158,8 +1156,7 @@ send_result_message:
       }
       else if (open_for_modify || fatal_error)
       {
-        tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
-                         table->db.str, table->table_name.str);
+        table->table->s->tdc->flush_unused(true);
         /*
           May be something modified. Consequently, we have to
           invalidate the query cache.

@@ -478,11 +478,15 @@ Wsrep_applier_service::Wsrep_applier_service(THD* thd)
   thd->wsrep_cs().open(wsrep::client_id(thd->thread_id));
   thd->wsrep_cs().before_command();
   thd->wsrep_cs().debug_log_level(wsrep_debug);
-
+  if (!thd->slave_thread)
+    thd->system_thread_info.rpl_sql_info=
+      new rpl_sql_thread_info(thd->wsrep_rgi->rli->mi->rpl_filter);
 }
 
 Wsrep_applier_service::~Wsrep_applier_service()
 {
+  if (!m_thd->slave_thread)
+    delete m_thd->system_thread_info.rpl_sql_info;
   m_thd->wsrep_cs().after_command_before_result();
   m_thd->wsrep_cs().after_command_after_result();
   m_thd->wsrep_cs().close();

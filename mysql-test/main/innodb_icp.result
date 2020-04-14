@@ -658,7 +658,7 @@ SELECT * FROM t1
 WHERE NOT(b = 'Texas') AND b BETWEEN 'wy' AND 'y' OR b = 'Pennsylvania'
   ORDER BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	b	NULL	NULL	NULL	#	Using where; Using filesort
+1	SIMPLE	t1	range	b	b	13	NULL	#	Using where; Rowid-ordered scan; Using filesort
 SELECT * FROM t1 
 WHERE NOT(b = 'Texas') AND b BETWEEN 'wy' AND 'y' OR b = 'Pennsylvania'
   ORDER BY a;
@@ -670,7 +670,7 @@ SELECT * FROM t1
 WHERE NOT(b = 'Texas') AND b BETWEEN 'wy' AND 'y' OR b = 'Pennsylvania'
   ORDER BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	b	NULL	NULL	NULL	#	Using where; Using filesort
+1	SIMPLE	t1	range	b	b	13	NULL	#	Using index condition; Rowid-ordered scan; Using filesort
 SELECT * FROM t1 
 WHERE NOT(b = 'Texas') AND b BETWEEN 'wy' AND 'y' OR b = 'Pennsylvania'
   ORDER BY a;
@@ -682,16 +682,18 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (b int NOT NULL, c int, a varchar(1024), PRIMARY KEY (b));
 INSERT INTO t1 VALUES (1,4,'Ill');
+insert into t1 select seq+100,5,seq from seq_1_to_100;
 CREATE TABLE t2 (a varchar(1024), KEY (a(512)));
 INSERT INTO t2 VALUES
 ('Ill'), ('eckqzsflbzaffti'), ('w'), ('she'), ('gxbwypqtjzwywwer'), ('w');
+insert into t2 select seq from seq_1_to_100;
 SET SESSION optimizer_switch='index_condition_pushdown=off';
 EXPLAIN
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0 
 HAVING t1.c != 5 ORDER BY t1.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using filesort
-1	SIMPLE	t2	ref	a	a	515	test.t1.a	1	Using where
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	#	Using where; Using filesort
+1	SIMPLE	t2	ref	a	a	515	test.t1.a	#	Using where
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0
 HAVING t1.c != 5 ORDER BY t1.c;
 b	c
@@ -701,8 +703,8 @@ EXPLAIN
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0
 HAVING t1.c != 5 ORDER BY t1.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using filesort
-1	SIMPLE	t2	ref	a	a	515	test.t1.a	1	Using where
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	#	Using where; Using filesort
+1	SIMPLE	t2	ref	a	a	515	test.t1.a	#	Using where
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0
 HAVING t1.c != 5 ORDER BY t1.c;
 b	c

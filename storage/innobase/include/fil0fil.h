@@ -100,9 +100,8 @@ struct fil_space_t
 				tablespace will be in named_spaces. */
 	/** set when an .ibd file is about to be deleted,
 	or an undo tablespace is about to be truncated.
-	When this is set following new ops are not allowed:
+	When this is set, the following new ops are not allowed:
 	* read IO request
-	* ibuf merge
 	* file flush
 	Note that we can still possibly have new write operations
 	because we don't check this flag when doing flush batches. */
@@ -134,7 +133,7 @@ struct fil_space_t
 	/** Number of pending buffer pool operations accessing the tablespace
 	without holding a table lock or dict_sys.latch S-latch
 	that would prevent the table (and tablespace) from being
-	dropped. An example is change buffer merge.
+	dropped. An example is fil_crypt_thread.
 	The tablespace cannot be dropped while this is nonzero,
 	or while fil_node_t::n_pending is nonzero.
 	Protected by fil_system.mutex and std::atomic. */
@@ -964,7 +963,7 @@ public:
 
 	/** Return the next fil_space_t from key rotation list.
 	Once started, the caller must keep calling this until it returns NULL.
-	fil_space_acquire() and fil_space_release() are invoked here which
+	fil_space_acquire() and fil_space_t::release() are invoked here, which
 	blocks a concurrent operation from dropping the tablespace.
 	@param[in]      prev_space      Previous tablespace or NULL to start
 					from beginning of fil_system->rotation
@@ -1187,14 +1186,9 @@ bool fil_table_accessible(const dict_table_t* table)
 
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
+@param[in]	if_exists	whether to ignore missing tablespace
 @return	DB_SUCCESS or error */
-dberr_t
-fil_delete_tablespace(
-	ulint id
-#ifdef BTR_CUR_HASH_ADAPT
-	, bool drop_ahi = false /*!< whether to drop the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
-	);
+dberr_t fil_delete_tablespace(ulint id, bool if_exists= false);
 
 /** Prepare to truncate an undo tablespace.
 @param[in]	space_id	undo tablespace id
@@ -1541,8 +1535,7 @@ yet, to get valid size and flags.
 @param[in,out]	space	tablespace */
 inline void fil_space_open_if_needed(fil_space_t* space)
 {
-	ut_d(extern volatile bool recv_recovery_on);
-	ut_ad(recv_recovery_on);
+	ut_ad(recv_recovery_is_on());
 
 	if (space->size == 0) {
 		/* Initially, size and flags will be set to 0,

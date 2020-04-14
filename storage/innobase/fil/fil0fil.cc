@@ -1828,7 +1828,7 @@ inline void mtr_t::log_file_op(mfile_type_t type, ulint space_id,
   ut_ad(strchr(path, OS_PATH_SEPARATOR) != NULL);
   ut_ad(!strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
 
-  set_modified();
+  flag_modified();
   if (m_log_mode != MTR_LOG_ALL)
     return;
   m_last= nullptr;
@@ -2200,8 +2200,8 @@ fil_close_tablespace(
 
 	/* Invalidate in the buffer pool all pages belonging to the
 	tablespace. Since we have set space->stop_new_ops = true, readahead
-	or ibuf merge can no longer read more pages of this tablespace to the
-	buffer pool. Thus we can clean the tablespace out of the buffer pool
+	can no longer read more pages of this tablespace to buf_pool.
+	Thus we can clean the tablespace out of buf_pool
 	completely and permanently. The flag stop_new_ops also prevents
 	fil_flush() from being applied to this tablespace. */
 	buf_LRU_flush_or_remove_pages(id, true);
@@ -2253,14 +2253,9 @@ bool fil_table_accessible(const dict_table_t* table)
 
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
+@param[in]	if_exists	whether to ignore missing tablespace
 @return	DB_SUCCESS or error */
-dberr_t
-fil_delete_tablespace(
-	ulint id
-#ifdef BTR_CUR_HASH_ADAPT
-	, bool drop_ahi /*!< whether to drop the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
-	)
+dberr_t fil_delete_tablespace(ulint id, bool if_exists)
 {
 	char*		path = 0;
 	fil_space_t*	space = 0;
@@ -2271,19 +2266,20 @@ fil_delete_tablespace(
 		id, FIL_OPERATION_DELETE, &space, &path);
 
 	if (err != DB_SUCCESS) {
+		if (!if_exists) {
+			ib::error() << "Cannot delete tablespace " << id
+				    << " because it is not found"
+				       " in the tablespace memory cache.";
+		}
 
-		ib::error() << "Cannot delete tablespace " << id
-			<< " because it is not found in the tablespace"
-			" memory cache.";
-
-		return(err);
+		goto func_exit;
 	}
 
 	ut_a(space);
 	ut_a(path != 0);
 
 	/* IMPORTANT: Because we have set space::stop_new_ops there
-	can't be any new ibuf merges, reads or flushes. We are here
+	can't be any new reads or flushes. We are here
 	because node::n_pending was zero above. However, it is still
 	possible to have pending read and write requests:
 
@@ -2371,8 +2367,9 @@ fil_delete_tablespace(
 		err = DB_TABLESPACE_NOT_FOUND;
 	}
 
+func_exit:
 	ut_free(path);
-
+	ibuf_delete_for_discarded_space(id);
 	return(err);
 }
 

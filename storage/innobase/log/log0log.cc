@@ -558,7 +558,7 @@ dberr_t mapped_file_t::map(const char *path, bool read_only,
     return DB_ERROR;
 
   m_area= {static_cast<byte *>(ptr),
-           static_cast<span<byte>::index_type>(file_size)};
+           static_cast<span<byte>::size_type>(file_size)};
   return DB_SUCCESS;
 }
 
@@ -1207,7 +1207,7 @@ static bool log_preflush_pool_modified_pages(lsn_t new_oldest)
 		not know how up-to-date the disk version of the database is,
 		and we could not make a new checkpoint on the basis of the
 		info on the buffer pool only. */
-		recv_apply_hashed_log_recs(true);
+		recv_sys.apply(true);
 	}
 
 	if (new_oldest == LSN_MAX
@@ -1334,7 +1334,7 @@ bool log_checkpoint()
 			os_thread_sleep(360000000););
 
 	if (recv_recovery_is_on()) {
-		recv_apply_hashed_log_recs(true);
+		recv_sys.apply(true);
 	}
 
 	switch (srv_file_flush_method) {

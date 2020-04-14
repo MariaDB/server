@@ -1,4 +1,4 @@
-/* Copyright (C) 2010, 2019, MariaDB Corporation.
+/* Copyright (C) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,6 +33,7 @@
 #if defined(HAVE_VALGRIND_MEMCHECK_H) && defined(HAVE_valgrind)
 # include <valgrind/memcheck.h>
 # define MEM_UNDEFINED(a,len) VALGRIND_MAKE_MEM_UNDEFINED(a,len)
+# define MEM_MAKE_DEFINED(a,len) VALGRIND_MAKE_MEM_DEFINED(a,len)
 # define MEM_NOACCESS(a,len) VALGRIND_MAKE_MEM_NOACCESS(a,len)
 # define MEM_CHECK_ADDRESSABLE(a,len) VALGRIND_CHECK_MEM_IS_ADDRESSABLE(a,len)
 # define MEM_CHECK_DEFINED(a,len) VALGRIND_CHECK_MEM_IS_DEFINED(a,len)
@@ -42,12 +43,22 @@
 /* How to do manual poisoning:
 https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define MEM_UNDEFINED(a,len) ASAN_UNPOISON_MEMORY_REGION(a,len)
+# define MEM_MAKE_DEFINED(a,len) ((void) 0)
 # define MEM_NOACCESS(a,len) ASAN_POISON_MEMORY_REGION(a,len)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_CHECK_DEFINED(a,len) ((void) 0)
 # define REDZONE_SIZE 8
+#elif __has_feature(memory_sanitizer)
+# include <sanitizer/msan_interface.h>
+# define MEM_UNDEFINED(a,len) __msan_allocated_memory(a,len)
+# define MEM_MAKE_DEFINED(a,len) __msan_unpoison(a,len)
+# define MEM_NOACCESS(a,len) ((void) 0)
+# define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
+# define MEM_CHECK_DEFINED(a,len) __msan_check_mem_is_initialized(a,len)
+# define REDZONE_SIZE 8
 #else
 # define MEM_UNDEFINED(a,len) ((void) (a), (void) (len))
+# define MEM_MAKE_DEFINED(a,len) ((void) 0)
 # define MEM_NOACCESS(a,len) ((void) 0)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_CHECK_DEFINED(a,len) ((void) 0)

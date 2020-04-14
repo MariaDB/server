@@ -322,3 +322,17 @@ CREATE DATABASE mysqltest;
 CREATE TABLE mysqltest.db(id INT);
 DROP DATABASE mysqltest;
 
+--echo #
+--echo # Verify sql_if_exists
+--echo #
+
+--error ER_DB_DROP_EXISTS
+DROP DATABASE mysqltest;
+CREATE DATABASE mysqltest;
+--error ER_BAD_TABLE_ERROR
+drop table mysqltest.does_not_exists;
+set @@session.sql_if_exists=1;
+drop table mysqltest.does_not_exists;
+drop database mysqltest;
+drop database mysqltest;
+set @@session.sql_if_exists=0;

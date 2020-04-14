@@ -39,27 +39,12 @@ typedef void*			os_process_t;
 typedef unsigned long int	os_process_id_t;
 
 /** The total amount of memory currently allocated from the operating
-system with os_mem_alloc_large(). */
+system with allocate_large(). */
 extern Atomic_counter<ulint>	os_total_large_mem_allocated;
 
 /** Converts the current process id to a number.
 @return process id as a number */
 ulint
 os_proc_get_number(void);
-
-/** Allocates large pages memory.
-@param[in,out]	n	Number of bytes to allocate
-@return allocated memory */
-void*
-os_mem_alloc_large(
-	ulint*	n);
-
-/** Frees large pages memory.
-@param[in]	ptr	pointer returned by os_mem_alloc_large()
-@param[in]	size	size returned by os_mem_alloc_large() */
-void
-os_mem_free_large(
-	void	*ptr,
-	ulint	size);
 
 #endif

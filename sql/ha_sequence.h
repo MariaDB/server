@@ -141,8 +141,8 @@ public:
   { return file->rename_table(from, to); }
   void unbind_psi()
   { return file->unbind_psi(); }
-  void rebind_psi()
-  { return file->rebind_psi(); }
+  int rebind()
+  { return file->rebind(); }
 
   bool auto_repair(int error) const
   { return file->auto_repair(error); }

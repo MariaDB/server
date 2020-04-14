@@ -2400,3 +2400,16 @@ select * from t1 order by a;
 --source include/analyze-format.inc
 analyze format=json select * from t1 order by a;
 drop table t1;
+
+--echo #
+--echo # MDEV-21946: Server crash in store_length upon GROUP BY WITH ROLLUP with geometry field
+--echo #
+
+create table t1 ( a longblob);
+insert into t1 select repeat('a', 256);
+insert into t1 select repeat('b', 256);
+insert into t1 select repeat('c', 256);
+insert into t1 select repeat('d', 256);
+
+SELECT IF( 0, NULL, a ) AS f FROM t1 GROUP BY f WITH ROLLUP;
+DROP TABLE t1;

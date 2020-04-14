@@ -125,6 +125,11 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
 */
 #define MYSQL_OPEN_IGNORE_REPAIR                0x10000
 
+/**
+   Don't call decide_logging_format. Used for statistic tables etc
+*/
+#define MYSQL_OPEN_IGNORE_LOGGING_FORMAT        0x20000
+
 /** Please refer to the internals manual. */
 #define MYSQL_OPEN_REOPEN  (MYSQL_OPEN_IGNORE_FLUSH |\
                             MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |\
@@ -301,7 +306,6 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
                          bool wait_for_refresh, ulong timeout);
 void purge_tables();
 bool flush_tables(THD *thd, flush_tables_type flag);
-bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connect_string);
 void close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                                ha_extra_function extra,
                                TABLE *skip_table);

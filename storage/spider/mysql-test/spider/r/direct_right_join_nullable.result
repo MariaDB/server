@@ -87,7 +87,7 @@ NULL	c	2000-01-03 00:00:00	3
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
-select t0.`a` `a`,t2.`b` `b`,t2.`c` `c`,t3.`a` `a` from `auto_test_remote`.`ta_r_no_idx` t3 left join `auto_test_remote`.`ta_r_auto_inc` t2 on ((t2.`b` = t3.`b`) and (t3.`b` is not null)) left join `auto_test_remote`.`ta_r_3` t1 on (t1.`c` = t2.`c`) left join `auto_test_remote`.`ta_r` t0 on ((t0.`a` = t1.`a`) and (t1.`a` is not null)) where 1 order by t3.`a` desc
+select t0.`a` `a`,t2.`b` `b`,t2.`c` `c`,t3.`a` `a` from `auto_test_remote`.`ta_r_no_idx` t3 left join `auto_test_remote`.`ta_r_auto_inc` t2 on (t2.`b` = t3.`b`) left join `auto_test_remote`.`ta_r_3` t1 on (t1.`c` = t2.`c`) left join `auto_test_remote`.`ta_r` t0 on ((t0.`a` = t1.`a`) and (t1.`a` is not null)) where 1 order by t3.`a` desc
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')

@@ -460,10 +460,11 @@ btr_page_create(
         mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM, 8, 0);
     }
     /* Set the level of the new index page */
-    mtr->write<2,mtr_t::OPT>(*block,
-                             my_assume_aligned<2>(PAGE_HEADER + PAGE_LEVEL +
-                                                  block->frame), level);
-    mtr->write<8,mtr_t::OPT>(*block, index_id, index->id);
+    mtr->write<2,mtr_t::MAYBE_NOP>(*block,
+                                   my_assume_aligned<2>(PAGE_HEADER +
+                                                        PAGE_LEVEL +
+                                                        block->frame), level);
+    mtr->write<8,mtr_t::MAYBE_NOP>(*block, index_id, index->id);
   }
 }
 
@@ -979,7 +980,8 @@ static void btr_free_root(buf_block_t *block, mtr_t *mtr, bool invalidate)
     constexpr uint16_t field= PAGE_HEADER + PAGE_INDEX_ID;
 
     byte *page_index_id= my_assume_aligned<2>(field + block->frame);
-    if (mtr->write<8,mtr_t::OPT>(*block, page_index_id, BTR_FREED_INDEX_ID) &&
+    if (mtr->write<8,mtr_t::MAYBE_NOP>(*block, page_index_id,
+                                       BTR_FREED_INDEX_ID) &&
         UNIV_LIKELY_NULL(block->page.zip.data))
       memcpy_aligned<2>(&block->page.zip.data[field], page_index_id, 8);
   }
@@ -1137,9 +1139,10 @@ btr_create(
 			}
 		}
 		/* Set the level of the new index page */
-		mtr->write<2,mtr_t::OPT>(*block, PAGE_HEADER + PAGE_LEVEL
-					 + block->frame, 0U);
-		mtr->write<8,mtr_t::OPT>(*block, page_index_id, index_id);
+		mtr->write<2,mtr_t::MAYBE_NOP>(*block, PAGE_HEADER + PAGE_LEVEL
+					       + block->frame, 0U);
+		mtr->write<8,mtr_t::MAYBE_NOP>(*block, page_index_id,
+					       index_id);
 	}
 
 	/* We reset the free bits for the page in a separate
@@ -1724,8 +1727,8 @@ btr_page_empty(
 					    8, 0);
 			}
 		}
-		mtr->write<2,mtr_t::OPT>(*block, PAGE_HEADER + PAGE_LEVEL
-					 + block->frame, level);
+		mtr->write<2,mtr_t::MAYBE_NOP>(*block, PAGE_HEADER + PAGE_LEVEL
+					       + block->frame, level);
 		if (autoinc) {
 			mtr->write<8>(*block, PAGE_HEADER + PAGE_MAX_TRX_ID
 				      + block->frame, autoinc);
@@ -1786,8 +1789,8 @@ void btr_set_instant(buf_block_t* root, const dict_index_t& index, mtr_t* mtr)
 	if (index.table->instant) {
 		mtr->memset(root, infimum - root->frame, 8, 0);
 		mtr->memset(root, supremum - root->frame, 7, 0);
-		mtr->write<1,mtr_t::OPT>(*root, &supremum[7],
-					 index.n_core_null_bytes);
+		mtr->write<1,mtr_t::MAYBE_NOP>(*root, &supremum[7],
+					       index.n_core_null_bytes);
 	}
 }
 
@@ -1807,10 +1810,10 @@ void btr_reset_instant(const dict_index_t &index, bool all, mtr_t *mtr)
     {
       ut_ad(mach_read_from_2(page_type) == FIL_PAGE_TYPE_INSTANT ||
             mach_read_from_2(page_type) == FIL_PAGE_INDEX);
-      mtr->write<2,mtr_t::OPT>(*root, page_type, FIL_PAGE_INDEX);
+      mtr->write<2,mtr_t::MAYBE_NOP>(*root, page_type, FIL_PAGE_INDEX);
       byte *instant= PAGE_INSTANT + PAGE_HEADER + root->frame;
-      mtr->write<2,mtr_t::OPT>(*root, instant,
-                               page_ptr_get_direction(instant + 1));
+      mtr->write<2,mtr_t::MAYBE_NOP>(*root, instant,
+                                     page_ptr_get_direction(instant + 1));
     }
     else
       ut_ad(mach_read_from_2(page_type) == FIL_PAGE_TYPE_INSTANT);
@@ -1828,9 +1831,10 @@ void btr_reset_instant(const dict_index_t &index, bool all, mtr_t *mtr)
     }
     ut_ad(!memcmp(&root->frame[infimum], supremuminfimum + 8, 8) ==
           !memcmp(&root->frame[supremum], supremuminfimum, 8));
-    mtr->memcpy<mtr_t::OPT>(*root, &root->frame[infimum], supremuminfimum + 8,
-                            8);
-    mtr->memcpy<mtr_t::OPT>(*root, &root->frame[supremum], supremuminfimum, 8);
+    mtr->memcpy<mtr_t::MAYBE_NOP>(*root, &root->frame[infimum],
+                                  supremuminfimum + 8, 8);
+    mtr->memcpy<mtr_t::MAYBE_NOP>(*root, &root->frame[supremum],
+                                  supremuminfimum, 8);
   }
 }
 

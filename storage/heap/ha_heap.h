@@ -65,9 +65,11 @@ public:
   double scan_time()
   { return (double) (stats.records+stats.deleted) / 20.0+10; }
   double read_time(uint index, uint ranges, ha_rows rows)
-  { return (double) rows / 20.0+1; }
+  { return (double) (rows +1)/ 20.0; }
   double keyread_time(uint index, uint ranges, ha_rows rows)
-  { return (double) rows / 20.0+1; }
+  { return (double) (rows + ranges) / 20.0 ; }
+  double avg_io_cost()
+  { return 0.05; }                              /* 1/20 */
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
   void set_keys_for_scanning(void);
@@ -102,7 +104,8 @@ public:
   int disable_indexes(uint mode);
   int enable_indexes(uint mode);
   int indexes_are_disabled(void);
-  ha_rows records_in_range(uint inx, key_range *min_key, key_range *max_key);
+  ha_rows records_in_range(uint inx, const key_range *start_key,
+                           const key_range *end_key, page_range *pages);
   int delete_table(const char *from);
   void drop_table(const char *name);
   int rename_table(const char * from, const char * to);

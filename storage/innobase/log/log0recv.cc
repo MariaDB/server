@@ -60,11 +60,6 @@ Created 9/20/1997 Heikki Tuuri
 
 /** The recovery system */
 recv_sys_t	recv_sys;
-/** TRUE when applying redo log records during crash recovery; FALSE
-otherwise.  Note that this is FALSE while a background thread is
-rolling back incomplete transactions. */
-volatile bool	recv_recovery_on;
-
 /** TRUE when recv_init_crash_recovery() has been called. */
 bool	recv_needed_recovery;
 #ifdef UNIV_DEBUG
@@ -112,11 +107,11 @@ private:
 
   /** @return start of the log records */
   byte *begin() { return reinterpret_cast<byte*>(&len + 1); }
-  /** @return start of the log records */
-  const byte *begin() const { return const_cast<log_phys_t*>(this)->begin(); }
   /** @return end of the log records */
   byte *end() { byte *e= begin() + len; ut_ad(!*e); return e; }
 public:
+  /** @return start of the log records */
+  const byte *begin() const { return const_cast<log_phys_t*>(this)->begin(); }
   /** @return end of the log records */
   const byte *end() const { return const_cast<log_phys_t*>(this)->end(); }
 
@@ -603,17 +598,19 @@ private:
 public:
 	/** Record that a page will be initialized by the redo log.
 	@param[in]	page_id		page identifier
-	@param[in]	lsn		log sequence number */
-	void add(const page_id_t page_id, lsn_t lsn)
+	@param[in]	lsn		log sequence number
+	@return whether the state was changed */
+	bool add(const page_id_t page_id, lsn_t lsn)
 	{
 		ut_ad(mutex_own(&recv_sys.mutex));
 		const init init = { lsn, false };
 		std::pair<map::iterator, bool> p = inits.insert(
 			map::value_type(page_id, init));
 		ut_ad(!p.first->second.created);
-		if (!p.second && p.first->second.lsn < init.lsn) {
-			p.first->second = init;
-		}
+		if (p.second) return true;
+		if (p.first->second.lsn >= init.lsn) return false;
+		p.first->second = init;
+		return true;
 	}
 
 	/** Get the last stored lsn of the page id and its respective
@@ -626,6 +623,17 @@ public:
 	{
 		ut_ad(mutex_own(&recv_sys.mutex));
 		return inits.find(page_id)->second;
+	}
+
+	/** Determine if a page will be initialized or freed after a time.
+	@param page_id      page identifier
+	@param lsn          log sequence number
+	@return whether page_id will be freed or initialized after lsn */
+	bool will_avoid_read(page_id_t page_id, lsn_t lsn) const
+	{
+		ut_ad(mutex_own(&recv_sys.mutex));
+		auto i= inits.find(page_id);
+		return i != inits.end() && i->second.lsn > lsn;
 	}
 
 	/** At the end of each recovery batch, reset the 'created' flags. */
@@ -651,10 +659,10 @@ public:
 			if (!i.second.created) {
 				continue;
 			}
-			if (buf_block_t* block = buf_page_get_gen(
-				    i.first, 0, RW_X_LATCH, NULL,
+			if (buf_block_t* block = buf_page_get_low(
+				    i.first, 0, RW_X_LATCH, nullptr,
 				    BUF_GET_IF_IN_POOL, __FILE__, __LINE__,
-				    &mtr)) {
+				    &mtr, nullptr, false)) {
 				if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 					switch (fil_page_get_type(
 							block->page.zip.data)) {
@@ -918,19 +926,6 @@ void recv_sys_t::close()
 	files.clear();
 }
 
-/************************************************************
-Reset the state of the recovery system variables. */
-void
-recv_sys_var_init(void)
-/*===================*/
-{
-	recv_recovery_on = false;
-	recv_needed_recovery = false;
-	recv_lsn_checks_on = false;
-	recv_no_ibuf_operations = false;
-	recv_max_page_lsn = 0;
-}
-
 /******************************************************************//**
 recv_writer thread tasked with flushing dirty pages from the buffer
 pools.
@@ -1008,14 +1003,8 @@ void recv_sys_t::create()
 	apply_log_recs = false;
 	apply_batch_on = false;
 
-	if (buf_pool.is_initialised()) {
-		max_log_blocks = buf_pool.get_n_pages() / 3;
-	} else {
-		ut_ad(srv_operation == SRV_OPERATION_BACKUP
-		      || srv_operation == SRV_OPERATION_RESTORE_DELTA);
-		max_log_blocks = 0;
-	}
-	buf = static_cast<byte*>(ut_malloc_dontdump(RECV_PARSING_BUF_SIZE, PSI_INSTRUMENT_ME));
+	buf = static_cast<byte*>(ut_malloc_dontdump(RECV_PARSING_BUF_SIZE,
+						    PSI_INSTRUMENT_ME));
 	len = 0;
 	parse_start_lsn = 0;
 	scanned_lsn = 0;
@@ -1782,13 +1771,14 @@ append:
 @param apply           whether to apply file-level log records
 @return whether FILE_CHECKPOINT record was seen the first time,
 or corruption was noticed */
-bool recv_sys_t::parse(lsn_t checkpoint_lsn, store_t store, bool apply)
+bool recv_sys_t::parse(lsn_t checkpoint_lsn, store_t *store, bool apply)
 {
   ut_ad(log_mutex_own());
   ut_ad(mutex_own(&mutex));
   ut_ad(parse_start_lsn);
   ut_ad(log_sys.is_physical());
 
+  bool last_phase= (*store == STORE_IF_EXISTS);
   const byte *const end= buf + len;
 loop:
   const byte *const log= buf + recovered_offset;
@@ -1962,7 +1952,7 @@ same_page:
 
     if (got_page_op)
     {
-      ut_d(const page_id_t id(space_id, page_no));
+      const page_id_t id(space_id, page_no);
       ut_d(if ((b & 0x70) == INIT_PAGE) freed.erase(id));
       ut_ad(freed.find(id) == freed.end());
       switch (b & 0x70) {
@@ -2083,16 +2073,26 @@ same_page:
         ut_ad(modified.emplace(id).second || (b & 0x70) != INIT_PAGE);
       }
 #endif
-      switch (store) {
-      case STORE_NO:
-        continue;
+      const bool is_init= (b & 0x70) <= INIT_PAGE;
+      switch (*store) {
       case STORE_IF_EXISTS:
         if (!fil_space_get_size(space_id))
           continue;
         /* fall through */
       case STORE_YES:
-        add(page_id_t(space_id, page_no), start_lsn, end_lsn, recs,
-            static_cast<size_t>(l + rlen - recs));
+        if (!mlog_init.will_avoid_read(id, start_lsn))
+          add(id, start_lsn, end_lsn, recs,
+              static_cast<size_t>(l + rlen - recs));
+        continue;
+      case STORE_NO:
+        if (!is_init)
+          continue;
+        map::iterator i= pages.find(id);
+        if (i == pages.end())
+          continue;
+        i->second.log.clear();
+        pages.erase(i);
+        mlog_init.add(id, start_lsn);
       }
     }
 #if 1 /* MDEV-14425 FIXME: this must be in the checkpoint file only! */
@@ -2212,6 +2212,8 @@ same_page:
   ut_ad(l == el);
   recovered_offset= l - buf;
   recovered_lsn= end_lsn;
+  if (is_memory_exhausted(store) && last_phase)
+    return false;
   goto loop;
 }
 
@@ -2507,213 +2509,219 @@ static void recv_read_in_area(page_id_t page_id)
 	}
 }
 
-/** Apply recv_sys.pages to persistent data pages.
-@param[in]	last_batch	whether redo log writes are possible */
-void recv_apply_hashed_log_recs(bool last_batch)
+/** Attempt to initialize a page based on redo log records.
+@param page_id  page identifier
+@param p        iterator pointing to page_id
+@param mtr      mini-transaction
+@return whether the page was successfully initialized */
+inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
+                                            map::iterator &p, mtr_t &mtr)
 {
-	ut_ad(srv_operation == SRV_OPERATION_NORMAL
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+  ut_ad(mutex_own(&mutex));
+  ut_ad(p->first == page_id);
+  page_recv_t &recs= p->second;
+  ut_ad(recs.state == page_recv_t::RECV_WILL_NOT_READ);
+  buf_block_t* block= nullptr;
+  mlog_init_t::init &i= mlog_init.last(page_id);
+  const lsn_t end_lsn = recs.log.last()->lsn;
+  if (end_lsn < i.lsn)
+    DBUG_LOG("ib_log", "skip log for page " << page_id
+             << " LSN " << end_lsn << " < " << i.lsn);
+  else if (fil_space_t *space= fil_space_acquire_for_io(page_id.space()))
+  {
+    mtr.start();
+    mtr.set_log_mode(MTR_LOG_NONE);
+    block= buf_page_create(page_id, space->zip_size(), &mtr);
+    p= recv_sys.pages.find(page_id);
+    if (p == recv_sys.pages.end())
+    {
+      /* The page happened to exist in the buffer pool, or it was just
+      being read in. Before buf_page_get_with_no_latch() returned to
+      buf_page_create(), all changes must have been applied to the
+      page already. */
+      mtr.commit();
+      block= nullptr;
+    }
+    else
+    {
+      ut_ad(&recs == &p->second);
+      i.created= true;
+      buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
+      mtr.x_latch_at_savepoint(0, block);
+      recv_recover_page(block, mtr, p, space, &i);
+      ut_ad(mtr.has_committed());
+      recs.log.clear();
+      map::iterator r= p++;
+      recv_sys.pages.erase(r);
+    }
+    space->release_for_io();
+  }
 
-	mutex_enter(&recv_sys.mutex);
+  return block;
+}
 
-	while (recv_sys.apply_batch_on) {
-		bool abort = recv_sys.found_corrupt_log;
-		mutex_exit(&recv_sys.mutex);
+/** Attempt to initialize a page based on redo log records.
+@param page_id  page identifier
+@return whether the page was successfully initialized */
+buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
+{
+  buf_block_t *block= nullptr;
 
-		if (abort) {
-			return;
-		}
+  mutex_enter(&mutex);
+  map::iterator p= pages.find(page_id);
 
-		os_thread_sleep(500000);
-		mutex_enter(&recv_sys.mutex);
-	}
+  if (p != pages.end() && p->second.state == page_recv_t::RECV_WILL_NOT_READ)
+  {
+    mtr_t mtr;
+    block= recover_low(page_id, p, mtr);
+  }
 
-	ut_ad(!last_batch == log_mutex_own());
+  mutex_exit(&mutex);
+  return block;
+}
 
-	recv_no_ibuf_operations = !last_batch
-		|| srv_operation == SRV_OPERATION_RESTORE
-		|| srv_operation == SRV_OPERATION_RESTORE_EXPORT;
+/** Apply buffered log to persistent data pages.
+@param last_batch     whether it is possible to write more redo log */
+void recv_sys_t::apply(bool last_batch)
+{
+  ut_ad(srv_operation == SRV_OPERATION_NORMAL ||
+        srv_operation == SRV_OPERATION_RESTORE ||
+        srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
-	ut_d(recv_no_log_write = recv_no_ibuf_operations);
+  mutex_enter(&mutex);
 
-	mtr_t mtr;
+  while (apply_batch_on)
+  {
+    bool abort= found_corrupt_log;
+    mutex_exit(&mutex);
 
-	if (recv_sys.pages.empty()) {
-		goto done;
-	}
+    if (abort)
+      return;
 
-	if (!log_sys.log.subformat && !srv_force_recovery
-	    && srv_undo_tablespaces_open) {
-		ib::error() << "Recovery of separately logged"
-			" TRUNCATE operations is no longer supported."
-			" Set innodb_force_recovery=1"
-			" if no *trunc.log files exist";
-		recv_sys.found_corrupt_log = true;
-		mutex_exit(&recv_sys.mutex);
-		return;
-	} else {
-		const char* msg = last_batch
-			? "Starting final batch to recover "
-			: "Starting a batch to recover ";
-		const ulint n = recv_sys.pages.size();
-		ib::info() << msg << n << " pages from redo log.";
-		sd_notifyf(0, "STATUS=%s" ULINTPF " pages from redo log",
-			   msg, n);
-	}
+    os_thread_sleep(500000);
+    mutex_enter(&mutex);
+  }
 
-	recv_sys.apply_log_recs = true;
-	recv_sys.apply_batch_on = true;
+  ut_ad(!last_batch == log_mutex_own());
 
-	for (ulint id = srv_undo_tablespaces_open; id--;) {
-		const recv_sys_t::trunc& t= recv_sys.truncated_undo_spaces[id];
-		if (t.lsn) {
-			recv_sys.trim(page_id_t(id + srv_undo_space_id_start,
-						t.pages), t.lsn);
-		}
-	}
+  recv_no_ibuf_operations = !last_batch ||
+    srv_operation == SRV_OPERATION_RESTORE ||
+    srv_operation == SRV_OPERATION_RESTORE_EXPORT;
 
-	for (recv_sys_t::map::iterator p = recv_sys.pages.begin();
-	     p != recv_sys.pages.end();) {
-		const page_id_t page_id = p->first;
-		page_recv_t& recs = p->second;
-		ut_ad(!recs.log.empty());
+  ut_d(recv_no_log_write = recv_no_ibuf_operations);
 
-		switch (recs.state) {
-		case page_recv_t::RECV_BEING_READ:
-		case page_recv_t::RECV_BEING_PROCESSED:
-			p++;
-			continue;
-		case page_recv_t::RECV_NOT_PROCESSED:
-			mtr.start();
-			mtr.set_log_mode(MTR_LOG_NONE);
-			if (buf_block_t* block = buf_page_get_gen(
-				    page_id, 0, RW_X_LATCH, NULL,
-				    BUF_GET_IF_IN_POOL,
-				    __FILE__, __LINE__, &mtr, NULL)) {
-				buf_block_dbg_add_level(
-					block, SYNC_NO_ORDER_CHECK);
-				recv_recover_page(block, mtr, p);
-				ut_ad(mtr.has_committed());
-			} else {
-				mtr.commit();
-				recv_read_in_area(page_id);
-				break;
-			}
-		ignore:
-			{
-				recv_sys_t::map::iterator r = p++;
-				r->second.log.clear();
-				recv_sys.pages.erase(r);
-			}
-			continue;
-		case page_recv_t::RECV_WILL_NOT_READ:
-			mlog_init_t::init& i = mlog_init.last(page_id);
-			const lsn_t end_lsn = recs.log.last()->lsn;
-			if (end_lsn < i.lsn) {
-				DBUG_LOG("ib_log", "skip log for page "
-					 << page_id
-					 << " LSN " << end_lsn
-					 << " < " << i.lsn);
-				goto ignore;
-			}
+  mtr_t mtr;
 
-			fil_space_t* space = fil_space_acquire_for_io(
-				page_id.space());
-			if (!space) {
-				goto ignore;
-			}
+  if (!pages.empty())
+  {
+    const char *msg= last_batch
+      ? "Starting final batch to recover "
+      : "Starting a batch to recover ";
+    const ulint n= pages.size();
+    ib::info() << msg << n << " pages from redo log.";
+    sd_notifyf(0, "STATUS=%s" ULINTPF " pages from redo log", msg, n);
 
-			mtr.start();
-			mtr.set_log_mode(MTR_LOG_NONE);
-			buf_block_t* block = buf_page_create(
-				page_id, space->zip_size(), &mtr);
-			p = recv_sys.pages.find(page_id);
-			if (p == recv_sys.pages.end()) {
-				/* The page happened to exist
-				in the buffer pool, or it was
-				just being read in. Before
-				buf_page_get_with_no_latch()
-				returned, all changes must have
-				been applied to the page already. */
-				mtr.commit();
-			} else {
-				ut_ad(&recs == &p->second);
-				i.created = true;
-				buf_block_dbg_add_level(
-					block, SYNC_NO_ORDER_CHECK);
-				mtr.x_latch_at_savepoint(0, block);
-				recv_recover_page(block, mtr, p, space, &i);
-				ut_ad(mtr.has_committed());
-				p->second.log.clear();
-				recv_sys.pages.erase(p);
-			}
+    apply_log_recs= true;
+    apply_batch_on= true;
 
-			space->release_for_io();
-		}
+    for (auto id= srv_undo_tablespaces_open; id--;)
+    {
+      const trunc& t= truncated_undo_spaces[id];
+      if (t.lsn)
+        trim(page_id_t(id + srv_undo_space_id_start, t.pages), t.lsn);
+    }
 
-		p = recv_sys.pages.lower_bound(page_id);
-	}
+    for (map::iterator p= pages.begin(); p != pages.end(); )
+    {
+      const page_id_t page_id= p->first;
+      page_recv_t &recs= p->second;
+      ut_ad(!recs.log.empty());
 
-	/* Wait until all the pages have been processed */
+      switch (recs.state) {
+      case page_recv_t::RECV_BEING_READ:
+      case page_recv_t::RECV_BEING_PROCESSED:
+        p++;
+        continue;
+      case page_recv_t::RECV_WILL_NOT_READ:
+        recover_low(page_id, p, mtr);
+        continue;
+      case page_recv_t::RECV_NOT_PROCESSED:
+        mtr.start();
+        mtr.set_log_mode(MTR_LOG_NONE);
+        if (buf_block_t *block= buf_page_get_low(page_id, 0, RW_X_LATCH,
+                                                 nullptr, BUF_GET_IF_IN_POOL,
+                                                 __FILE__, __LINE__,
+                                                 &mtr, nullptr, false))
+        {
+          buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
+          recv_recover_page(block, mtr, p);
+          ut_ad(mtr.has_committed());
+        }
+        else
+        {
+          mtr.commit();
+          recv_read_in_area(page_id);
+          break;
+        }
+        map::iterator r= p++;
+        r->second.log.clear();
+        pages.erase(r);
+        continue;
+      }
 
-	while (!recv_sys.pages.empty()) {
-		const bool abort = recv_sys.found_corrupt_log
-			|| recv_sys.found_corrupt_fs;
+      p= pages.lower_bound(page_id);
+    }
 
-		if (recv_sys.found_corrupt_fs && !srv_force_recovery) {
-			ib::info() << "Set innodb_force_recovery=1"
-				" to ignore corrupted pages.";
-		}
+    /* Wait until all the pages have been processed */
+    while (!pages.empty())
+    {
+      const bool abort= found_corrupt_log || found_corrupt_fs;
 
-		mutex_exit(&(recv_sys.mutex));
+      if (found_corrupt_fs && !srv_force_recovery)
+        ib::info() << "Set innodb_force_recovery=1 to ignore corrupted pages.";
 
-		if (abort) {
-			return;
-		}
+      mutex_exit(&mutex);
 
-		os_thread_sleep(500000);
+      if (abort)
+        return;
+      os_thread_sleep(500000);
+      mutex_enter(&mutex);
+    }
+  }
 
-		mutex_enter(&(recv_sys.mutex));
-	}
+  if (!last_batch)
+  {
+    /* Flush all the file pages to disk and invalidate them in buf_pool */
+    mutex_exit(&mutex);
+    log_mutex_exit();
 
-done:
-	if (!last_batch) {
-		/* Flush all the file pages to disk and invalidate them in
-		the buffer pool */
+    /* Stop the recv_writer thread from issuing any LRU flush batches. */
+    mutex_enter(&writer_mutex);
 
-		mutex_exit(&(recv_sys.mutex));
-		log_mutex_exit();
+    /* Wait for any currently run batch to end. */
+    buf_flush_wait_LRU_batch_end();
 
-		/* Stop the recv_writer thread from issuing any LRU
-		flush batches. */
-		mutex_enter(&recv_sys.writer_mutex);
+    os_event_reset(flush_end);
+    flush_type = BUF_FLUSH_LIST;
+    os_event_set(flush_start);
+    os_event_wait(flush_end);
 
-		/* Wait for any currently run batch to end. */
-		buf_flush_wait_LRU_batch_end();
+    buf_pool_invalidate();
 
-		os_event_reset(recv_sys.flush_end);
-		recv_sys.flush_type = BUF_FLUSH_LIST;
-		os_event_set(recv_sys.flush_start);
-		os_event_wait(recv_sys.flush_end);
+    /* Allow batches from recv_writer thread. */
+    mutex_exit(&writer_mutex);
 
-		buf_pool_invalidate();
+    log_mutex_enter();
+    mutex_enter(&mutex);
+    mlog_init.reset();
+  }
+  else
+    /* We skipped this in buf_page_create(). */
+    mlog_init.mark_ibuf_exist(mtr);
 
-		/* Allow batches from recv_writer thread. */
-		mutex_exit(&recv_sys.writer_mutex);
-
-		log_mutex_enter();
-		mutex_enter(&(recv_sys.mutex));
-		mlog_init.reset();
-	} else {
-		/* We skipped this in buf_page_create(). */
-		mlog_init.mark_ibuf_exist(mtr);
-	}
-
-	ut_d(recv_sys.after_apply= true;);
-	recv_sys.clear();
-
-	mutex_exit(&recv_sys.mutex);
+  ut_d(after_apply= true);
+  clear();
+  mutex_exit(&mutex);
 }
 
 /** Check whether the number of read redo log blocks exceeds the maximum.
@@ -2722,7 +2730,8 @@ Store last_stored_lsn if the recovery is not in the last phase.
 @return whether the memory is exhausted */
 inline bool recv_sys_t::is_memory_exhausted(store_t *store)
 {
-  if (*store == STORE_NO || UT_LIST_GET_LEN(blocks) < max_log_blocks)
+  if (*store == STORE_NO ||
+      UT_LIST_GET_LEN(blocks) * 3 < buf_pool.get_n_pages())
     return false;
   if (*store == STORE_YES)
     last_stored_lsn= recovered_lsn;
@@ -2983,7 +2992,7 @@ static bool recv_scan_log_recs(
 
 	if (more_data && !recv_sys.found_corrupt_log) {
 		/* Try to parse more log records */
-		if (recv_sys.parse(checkpoint_lsn, *store, apply)) {
+		if (recv_sys.parse(checkpoint_lsn, store, apply)) {
 			ut_ad(recv_sys.found_corrupt_log
 			      || recv_sys.found_corrupt_fs
 			      || recv_sys.mlog_checkpoint_lsn
@@ -3056,7 +3065,7 @@ recv_group_scan_log_recs(
 	do {
 		if (last_phase && store == STORE_NO) {
 			store = STORE_IF_EXISTS;
-			recv_apply_hashed_log_recs(false);
+			recv_sys.apply(false);
 			/* Rescan the redo logs from last stored lsn */
 			end_lsn = recv_sys.recovered_lsn;
 		}
@@ -3287,7 +3296,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		return(DB_SUCCESS);
 	}
 
-	recv_recovery_on = true;
+	recv_sys.recovery_on = true;
 
 	log_mutex_enter();
 
@@ -3577,7 +3586,7 @@ recv_recovery_from_checkpoint_finish(void)
 	mutex_enter(&recv_sys.writer_mutex);
 
 	/* Free the resources of the recovery system */
-	recv_recovery_on = false;
+	recv_sys.recovery_on = false;
 
 	/* By acquring the mutex we ensure that the recv_writer thread
 	won't trigger any more LRU batches. Now wait for currently

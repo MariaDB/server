@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2012, Monty Program Ab
+   Copyright (c) 2012, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2170,7 +2170,7 @@ int ha_cassandra::info(uint flag)
 }
 
 
-void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
+void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
               uint key_length, bool with_zerofill);
 
 
@@ -2524,14 +2524,6 @@ THR_LOCK_DATA **ha_cassandra::store_lock(THD *thd,
   }
   *to++= &lock;
   DBUG_RETURN(to);
-}
-
-
-ha_rows ha_cassandra::records_in_range(uint inx, key_range *min_key,
-                                       key_range *max_key)
-{
-  DBUG_ENTER("ha_cassandra::records_in_range");
-  DBUG_RETURN(HA_POS_ERROR); /* Range scans are not supported */
 }
 
 

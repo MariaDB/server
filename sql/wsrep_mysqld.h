@@ -222,7 +222,7 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 /* use xxxxxx_NNULL macros when thd pointer is guaranteed to be non-null to
  * avoid compiler warnings (GCC 6 and later) */
 #define WSREP_NNULL(thd) \
-  (WSREP_ON && thd->variables.wsrep_on)
+  (thd->variables.wsrep_on && WSREP_ON)
 
 #define WSREP(thd) \
   (thd && WSREP_NNULL(thd))
@@ -534,11 +534,6 @@ extern void
 wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                           MDL_ticket *ticket,
                           const MDL_key *key);
-IO_CACHE * get_trans_log(THD * thd);
-bool wsrep_trans_cache_is_empty(THD *thd);
-void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end);
-void thd_binlog_rollback_stmt(THD * thd);
-void thd_binlog_trx_reset(THD * thd);
 
 enum wsrep_thread_type {
   WSREP_APPLIER_THREAD=1,

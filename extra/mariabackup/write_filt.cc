@@ -76,7 +76,7 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 
 	/* allocate buffer for incremental backup (4096 pages) */
 	cp->delta_buf_size = (cursor->page_size / 4) * cursor->page_size;
-	cp->delta_buf = (unsigned char *)os_mem_alloc_large(&cp->delta_buf_size);
+	cp->delta_buf = (unsigned char *)my_large_malloc(&cp->delta_buf_size, MYF(0));
 
 	if (!cp->delta_buf) {
 		msg(cursor->thread_n,"Can't allocate %zu bytes",
@@ -185,7 +185,7 @@ static void
 wf_incremental_deinit(xb_write_filt_ctxt_t *ctxt)
 {
 	xb_wf_incremental_ctxt_t	*cp = &(ctxt->u.wf_incremental_ctxt);
-	os_mem_free_large(cp->delta_buf, cp->delta_buf_size);
+	my_large_free(cp->delta_buf, cp->delta_buf_size);
 }
 
 /************************************************************************

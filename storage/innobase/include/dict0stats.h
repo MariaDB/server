@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -140,10 +140,18 @@ dict_stats_update(
 					the stats or to fetch them from
 					the persistent storage */
 
-/*********************************************************************//**
-Removes the information for a particular index's stats from the persistent
+/** Remove the information for a particular index's stats from the persistent
 storage if it exists and if there is data stored for this index.
 This function creates its own trx and commits it.
+
+We must modify system tables in a separate transaction in order to
+adhere to the InnoDB design constraint that dict_sys.latch prevents
+lock waits on system tables. If we modified system and user tables in
+the same transaction, we should exclusively hold dict_sys.latch until
+the transaction is committed, and effectively block other transactions
+that will attempt to open any InnoDB tables. Because we have no
+guarantee that user transactions will be committed fast, we cannot
+afford to keep the system tables locked in a user transaction.
 @return DB_SUCCESS or error code */
 dberr_t
 dict_stats_drop_index(

@@ -67,6 +67,7 @@ int main(int argc, char *argv[])
   const char *filename;
   char *blob_buffer;
   MI_CREATE_INFO create_info;
+  page_range pages;
   MY_INIT(argv[0]);
 
   filename= "test2";
@@ -622,7 +623,8 @@ int main(int argc, char *argv[])
     max_key.keypart_map= HA_WHOLE_KEY;
     max_key.flag= HA_READ_AFTER_KEY;
 
-    range_records= mi_records_in_range(file,(int) i, &min_key, &max_key);
+    range_records= mi_records_in_range(file,(int) i, &min_key, &max_key,
+                                       &pages);
     if (range_records < info.records*8/10 ||
 	range_records > info.records*12/10)
     {
@@ -645,6 +647,7 @@ int main(int argc, char *argv[])
     if (j != 0 && k != 0)
     {
       key_range min_key, max_key;
+      page_range pages;
       if (j > k)
 	swap_variables(int, j, k);
       sprintf((char*) key,"%6d",j);
@@ -656,7 +659,7 @@ int main(int argc, char *argv[])
       max_key.key= key2;
       max_key.keypart_map= HA_WHOLE_KEY;
       max_key.flag= HA_READ_BEFORE_KEY;
-      range_records= mi_records_in_range(file, 0, &min_key, &max_key);
+      range_records= mi_records_in_range(file, 0, &min_key, &max_key, &pages);
       records=0;
       for (j++ ; j < k ; j++)
 	records+=key1[j];

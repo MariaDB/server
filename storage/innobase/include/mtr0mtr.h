@@ -295,8 +295,22 @@ struct mtr_t {
 	@param[in]	type	object type: MTR_MEMO_PAGE_X_FIX, ... */
 	void release_page(const void* ptr, mtr_memo_type_t type);
 
-  /** Note that the mini-transaction has modified data. */
-  void set_modified() { m_modifications = true; }
+private:
+  /** Note that the mini-transaction will modify data. */
+  void flag_modified() { m_modifications = true; }
+#ifdef UNIV_DEBUG
+  /** Mark the given latched page as modified.
+  @param block   page that will be modified */
+  void modify(const buf_block_t& block);
+public:
+  /** Note that the mini-transaction will modify a block. */
+  void set_modified(const buf_block_t &block)
+  { flag_modified(); if (m_log_mode == MTR_LOG_ALL) modify(block); }
+#else /* UNIV_DEBUG */
+public:
+  /** Note that the mini-transaction will modify a block. */
+  void set_modified(const buf_block_t &) { flag_modified(); }
+#endif /* UNIV_DEBUG */
 
   /** Set the state to not-modified. This will not log the changes.
   This is only used during redo log apply, to avoid logging the changes. */
@@ -345,10 +359,6 @@ struct mtr_t {
 		const byte*	ptr,
 		ulint		flags) const;
 
-	/** Mark the given latched page as modified.
-	@param[in]	ptr	pointer to within buffer frame */
-	void memo_modify_page(const byte* ptr);
-
 	/** Print info of an mtr handle. */
 	void print() const;
 
@@ -390,7 +400,7 @@ struct mtr_t {
     /** the page is guaranteed to always change */
     NORMAL= 0,
     /** optional: the page contents might not change */
-    OPT,
+    MAYBE_NOP,
     /** force a write, even if the page contents is not changing */
     FORCED
   };
@@ -427,16 +437,16 @@ struct mtr_t {
   @param[in]      b       ROW_FORMAT=COMPRESSED index page
   @param[in]      offset  byte offset from b.zip.data
   @param[in]      len     length of the data to write */
-  inline void zmemcpy(const buf_page_t &b, ulint offset, ulint len);
+  inline void zmemcpy(const buf_block_t &b, ulint offset, ulint len);
 
   /** Write a byte string to a ROW_FORMAT=COMPRESSED page.
-  @param[in,out]  b       ROW_FORMAT=COMPRESSED index page
+  @param[in]      b       ROW_FORMAT=COMPRESSED index page
   @param[in]      dest    destination within b.zip.data
   @param[in]      str     the data to write
   @param[in]      len     length of the data to write
   @tparam w       write request type */
   template<write_type w= NORMAL>
-  inline void zmemcpy(const buf_page_t &b, void *dest, const void *str,
+  inline void zmemcpy(const buf_block_t &b, void *dest, const void *str,
                       ulint len);
 
   /** Log an initialization of a string of bytes.
@@ -565,11 +575,11 @@ struct mtr_t {
 
 private:
   /** Log a write of a byte string to a page.
-  @param b       buffer page
+  @param block   buffer page
   @param offset  byte offset within page
   @param data    data to be written
   @param len     length of the data, in bytes */
-  inline void memcpy_low(const buf_page_t &bpage, uint16_t offset,
+  inline void memcpy_low(const buf_block_t &block, uint16_t offset,
                          const void *data, size_t len);
   /**
   Write a log record.

@@ -363,7 +363,6 @@ private:
   uint m_rec_length;                     // Local copy of record length
 
   bool m_ordered;                        // Ordered/Unordered index scan
-  bool m_pkey_is_clustered;              // Is primary key clustered
   bool m_create_handler;                 // Handler used to create table
   bool m_is_sub_partitioned;             // Is subpartitioned
   bool m_ordered_scan_ongoing;
@@ -685,7 +684,7 @@ public:
     Bind the table/handler thread to track table i/o.
   */
   virtual void unbind_psi();
-  virtual void rebind_psi();
+  virtual int rebind();
 #endif
   /*
     -------------------------------------------------------------------------
@@ -1049,8 +1048,10 @@ public:
     For the given range how many records are estimated to be in this range.
     Used by optimiser to calculate cost of using a particular index.
   */
-  ha_rows records_in_range(uint inx, key_range * min_key, key_range * max_key)
-    override;
+  ha_rows records_in_range(uint inx,
+                           const key_range * min_key,
+                           const key_range * max_key,
+                           page_range *pages) override;
 
   /*
     Upper bound of number records returned in scan is sum of all
@@ -1333,12 +1334,6 @@ public:
   uint max_supported_key_length() const override;
   uint max_supported_key_part_length() const override;
   uint min_record_length(uint options) const override;
-
-  /*
-    Primary key is clustered can only be true if all underlying handlers have
-    this feature.
-  */
-  bool primary_key_is_clustered() override { return m_pkey_is_clustered; }
 
   /*
     -------------------------------------------------------------------------

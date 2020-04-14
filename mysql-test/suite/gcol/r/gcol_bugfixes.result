@@ -241,7 +241,7 @@ pk >= 8
 HAVING x > '2000-02-06'
 ORDER BY col_time_nokey, pk;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	c	ALL	PRIMARY,col_varchar_key,col_varchar_key_2	NULL	NULL	NULL	6	Using where
+1	SIMPLE	c	index_merge	PRIMARY,col_varchar_key,col_varchar_key_2	col_varchar_key,PRIMARY	5,4	NULL	2	Using union(col_varchar_key,PRIMARY); Using where
 SELECT COUNT(DISTINCT col_varchar_key) AS x
 FROM c
 WHERE col_varchar_key IN ('rr', 'rr') OR

@@ -79,7 +79,7 @@ count(*)
 set @g1 = ST_GeomFromText('Polygon((2 2,2 800,800 800,800 2,2 2))');
 select count(*) from t1 where MBRWithin(t1.c2, @g1);
 count(*)
-65536
+57344
 set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
 select count(*) from t1 where MBRWithin(t1.c2, @g1);
 count(*)
@@ -87,5 +87,5 @@ count(*)
 set @g1 = ST_GeomFromText('Polygon((2 2,2 800,800 800,800 2,2 2))');
 select count(*) from t1 where MBRWithin(t1.c2, @g1);
 count(*)
-65536
+57344
 drop table t1;

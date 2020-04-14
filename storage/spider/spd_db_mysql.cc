@@ -12690,8 +12690,8 @@ int spider_mbase_handler::append_truncate(
 }
 
 int spider_mbase_handler::append_explain_select_part(
-  key_range *start_key,
-  key_range *end_key,
+  const key_range *start_key,
+  const key_range *end_key,
   ulong sql_type,
   int link_idx
 ) {
@@ -12714,8 +12714,8 @@ int spider_mbase_handler::append_explain_select_part(
 
 int spider_mbase_handler::append_explain_select(
   spider_string *str,
-  key_range *start_key,
-  key_range *end_key,
+  const key_range *start_key,
+  const key_range *end_key,
   ulong sql_type,
   int link_idx
 ) {
@@ -14354,8 +14354,8 @@ int spider_mbase_handler::show_last_insert_id(
 }
 
 ha_rows spider_mbase_handler::explain_select(
-  key_range *start_key,
-  key_range *end_key,
+  const key_range *start_key,
+  const key_range *end_key,
   int link_idx
 ) {
   int error_num;

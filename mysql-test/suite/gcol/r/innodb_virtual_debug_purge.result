@@ -12,7 +12,7 @@ CREATE TABLE `t` (
 INSERT INTO t VALUES (REPEAT('g', 16000), REPEAT('x', 16000), DEFAULT, "kk", 1);
 INSERT INTO t VALUES (REPEAT('a', 16000), REPEAT('b', 16000), DEFAULT, "mm", 2);
 CREATE INDEX idx ON t(c(100));
-SET global debug_dbug="+d,ib_purge_virtual_index_callback";
+SET global debug_dbug="d,ib_purge_virtual_index_callback";
 UPDATE t SET a = REPEAT('m', 16000) WHERE a like "aaa%";
 InnoDB		0 transactions not purged
 SET global debug_dbug=@old_dbug;
@@ -27,7 +27,7 @@ i INT
 INSERT INTO t VALUES (REPEAT('g', 100), REPEAT('x', 100), DEFAULT, "kk", 1);
 INSERT INTO t VALUES (REPEAT('a', 100), REPEAT('b', 100), DEFAULT, "mm", 2);
 CREATE INDEX idx ON t(c(100));
-SET global debug_dbug="+d,ib_purge_virtual_index_callback";
+SET global debug_dbug="d,ib_purge_virtual_index_callback";
 UPDATE t SET a = REPEAT('m', 100) WHERE a like "aaa%";
 InnoDB		0 transactions not purged
 SET global debug_dbug=@old_dbug;
@@ -48,7 +48,7 @@ insert into t1 values(3, 4, default);
 insert into t1 values(3, 12, default);
 insert into t1 values(4, 18, default);
 CREATE INDEX idx ON t1(x);
-SET global debug_dbug="+d,ib_purge_virtual_index_callback";
+SET global debug_dbug="d,ib_purge_virtual_index_callback";
 UPDATE t1 SET id = 10 WHERE id = 1;
 InnoDB		0 transactions not purged
 SET global debug_dbug=@old_dbug;
@@ -138,7 +138,7 @@ DROP TABLE t0, t1;
 create table t (a blob, b blob, c blob as (concat(a,b)), h varchar(10), index (c(100)));
 insert t(a,b,h) values (repeat('g', 16000), repeat('x', 16000), "kk");
 insert t(a,b,h) values (repeat('a', 16000), repeat('b', 16000), "mm");
-set global debug_dbug="+d,ib_purge_virtual_index_callback";
+set global debug_dbug="d,ib_purge_virtual_index_callback";
 connect prevent_purge, localhost, root;
 start transaction with consistent snapshot;
 connection default;
@@ -181,7 +181,7 @@ CREATE TABLE t1 (y YEAR, vy YEAR AS (y) VIRTUAL UNIQUE, pk INT PRIMARY KEY)
 ENGINE=InnoDB;
 INSERT INTO t1 (pk,y) VALUES (1,2022);
 CREATE TABLE t2(f1 INT NOT NULL, PRIMARY KEY(f1))ENGINE=InnoDB;
-SET GLOBAL debug_dbug = '+d,ib_purge_virtual_index_callback';
+SET GLOBAL debug_dbug = 'd,ib_purge_virtual_index_callback';
 BEGIN;
 INSERT INTO t2(f1) VALUES(1);
 connection prevent_purge;

@@ -753,9 +753,8 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   if (!dict_locked)
     mutex_exit(&dict_sys.mutex);
 
-  *db_name_len= db_len;
-
-  filename_to_tablename(db_buf, db_name, MAX_DATABASE_NAME_LEN + 1, true);
+  *db_name_len= filename_to_tablename(db_buf, db_name,
+                                      MAX_DATABASE_NAME_LEN + 1, true);
 
   if (tbl_len > TEMP_FILE_PREFIX_LENGTH
       && !strncmp(tbl_buf, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH))
@@ -764,8 +763,8 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   if (char* is_part= strchr(tbl_buf, '#'))
     *is_part= '\0';
 
-  filename_to_tablename(tbl_buf, tbl_name, MAX_TABLE_NAME_LEN + 1, true);
-  *tbl_name_len= strlen(tbl_name);
+  *tbl_name_len= filename_to_tablename(tbl_buf, tbl_name,
+                                       MAX_TABLE_NAME_LEN + 1, true);
   return true;
 }
 
@@ -1495,7 +1494,7 @@ dict_table_rename_in_cache(
 			return(DB_OUT_OF_MEMORY);
 		}
 
-		fil_delete_tablespace(table->space_id);
+		fil_delete_tablespace(table->space_id, !table->space);
 
 		/* Delete any temp file hanging around. */
 		if (os_file_status(filepath, &exists, &ftype)
@@ -2032,7 +2031,8 @@ dict_index_add_to_cache(
 			   > field->col->max_prefix) {
 			/* Set the max_prefix value based on the
 			prefix_len. */
-			ut_ad(field->prefix_len % field->col->mbmaxlen == 0);
+			ut_ad(field->col->is_binary()
+			      || field->prefix_len % field->col->mbmaxlen == 0);
 			field->col->max_prefix = field->prefix_len;
 		}
 		ut_ad(field->col->ord_part == 1);
@@ -4315,8 +4315,8 @@ dict_index_set_merge_threshold(
 			DICT_FLD__SYS_INDEXES__MERGE_THRESHOLD, &len);
 
 		ut_ad(len == 4);
-		mtr.write<4,mtr_t::OPT>(*btr_cur_get_block(&cursor), field,
-					merge_threshold);
+		mtr.write<4,mtr_t::MAYBE_NOP>(*btr_cur_get_block(&cursor),
+					      field, merge_threshold);
 	}
 
 	mtr_commit(&mtr);

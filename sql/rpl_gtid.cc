@@ -1,4 +1,5 @@
 /* Copyright (c) 2013, Kristian Nielsen and MariaDB Services Ab.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -257,7 +258,7 @@ rpl_slave_state::rpl_slave_state()
 
 rpl_slave_state::~rpl_slave_state()
 {
-  free_gtid_pos_tables((struct gtid_pos_table *)gtid_pos_tables);
+  free_gtid_pos_tables(gtid_pos_tables.load(std::memory_order_relaxed));
   truncate_hash();
   my_hash_free(&hash);
   delete_dynamic(&gtid_sort_array);
@@ -422,12 +423,14 @@ rpl_slave_state::truncate_state_table(THD *thd)
   TABLE_LIST tlist;
   int err= 0;
 
-  tmp_disable_binlog(thd);
-  tlist.init_one_table(&MYSQL_SCHEMA_NAME, &rpl_gtid_slave_state_table_name, NULL, TL_WRITE);
-  if (!(err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
+  tlist.init_one_table(&MYSQL_SCHEMA_NAME, &rpl_gtid_slave_state_table_name,
+                       NULL, TL_WRITE);
+  tlist.mdl_request.set_type(MDL_EXCLUSIVE);
+  if (!(err= open_and_lock_tables(thd, &tlist, FALSE,
+                                  MYSQL_OPEN_IGNORE_LOGGING_FORMAT)))
   {
-    tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED, "mysql",
-                     rpl_gtid_slave_state_table_name.str);
+    DBUG_ASSERT(!tlist.table->file->row_logging);
+    tlist.table->s->tdc->flush(thd, true);
     err= tlist.table->file->ha_truncate();
 
     if (err)
@@ -444,8 +447,6 @@ rpl_slave_state::truncate_state_table(THD *thd)
     }
     thd->mdl_context.release_transactional_locks();
   }
-
-  reenable_binlog(thd);
   return err;
 }
 
@@ -498,21 +499,18 @@ gtid_check_rpl_slave_state_table(TABLE *table)
 void
 rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename)
 {
-  struct gtid_pos_table *list, *table_entry, *default_entry;
-
   /*
     See comments on rpl_slave_state::gtid_pos_tables for rules around proper
     access to the list.
   */
-  list= (struct gtid_pos_table *)
-    my_atomic_loadptr_explicit(&gtid_pos_tables, MY_MEMORY_ORDER_ACQUIRE);
+  auto list= gtid_pos_tables.load(std::memory_order_acquire);
 
   Ha_trx_info *ha_info;
   uint count = 0;
   for (ha_info= thd->transaction.all.ha_list; ha_info; ha_info= ha_info->next())
   {
     void *trx_hton= ha_info->ht();
-    table_entry= list;
+    auto table_entry= list;
 
     if (!ha_info->is_trx_read_write() || trx_hton == binlog_hton)
       continue;
@@ -566,9 +564,8 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename)
     already active in the transaction, or if there is no current transaction
     engines available, we return the default gtid_slave_pos table.
   */
-  default_entry= (struct gtid_pos_table *)
-    my_atomic_loadptr_explicit(&default_gtid_pos_table, MY_MEMORY_ORDER_ACQUIRE);
-  *out_tablename= default_entry->table_name;
+  *out_tablename=
+    default_gtid_pos_table.load(std::memory_order_acquire)->table_name;
   /* Record in status that we failed to find a suitable gtid_pos table. */
   if (count > 0)
   {
@@ -679,6 +676,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   table_opened= true;
   table= tlist.table;
   hton= table->s->db_type();
+  table->file->row_logging= 0;                  // No binary logging
 
   if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;
@@ -822,14 +820,11 @@ rpl_slave_state::gtid_grab_pending_delete_list()
 LEX_CSTRING *
 rpl_slave_state::select_gtid_pos_table(void *hton)
 {
-  struct gtid_pos_table *table_entry;
-
   /*
     See comments on rpl_slave_state::gtid_pos_tables for rules around proper
     access to the list.
   */
-  table_entry= (struct gtid_pos_table *)
-    my_atomic_loadptr_explicit(&gtid_pos_tables, MY_MEMORY_ORDER_ACQUIRE);
+  auto table_entry= gtid_pos_tables.load(std::memory_order_acquire);
 
   while (table_entry)
   {
@@ -841,9 +836,7 @@ rpl_slave_state::select_gtid_pos_table(void *hton)
     table_entry= table_entry->next;
   }
 
-  table_entry= (struct gtid_pos_table *)
-    my_atomic_loadptr_explicit(&default_gtid_pos_table, MY_MEMORY_ORDER_ACQUIRE);
-  return &table_entry->table_name;
+  return &default_gtid_pos_table.load(std::memory_order_acquire)->table_name;
 }
 
 
@@ -1442,13 +1435,10 @@ void
 rpl_slave_state::set_gtid_pos_tables_list(rpl_slave_state::gtid_pos_table *new_list,
                                           rpl_slave_state::gtid_pos_table *default_entry)
 {
-  gtid_pos_table *old_list;
-
   mysql_mutex_assert_owner(&LOCK_slave_state);
-  old_list= (struct gtid_pos_table *)gtid_pos_tables;
-  my_atomic_storeptr_explicit(&gtid_pos_tables, new_list, MY_MEMORY_ORDER_RELEASE);
-  my_atomic_storeptr_explicit(&default_gtid_pos_table, default_entry,
-                              MY_MEMORY_ORDER_RELEASE);
+  auto old_list= gtid_pos_tables.load(std::memory_order_relaxed);
+  gtid_pos_tables.store(new_list, std::memory_order_release);
+  default_gtid_pos_table.store(default_entry, std::memory_order_release);
   free_gtid_pos_tables(old_list);
 }
 
@@ -1457,8 +1447,8 @@ void
 rpl_slave_state::add_gtid_pos_table(rpl_slave_state::gtid_pos_table *entry)
 {
   mysql_mutex_assert_owner(&LOCK_slave_state);
-  entry->next= (struct gtid_pos_table *)gtid_pos_tables;
-  my_atomic_storeptr_explicit(&gtid_pos_tables, entry, MY_MEMORY_ORDER_RELEASE);
+  entry->next= gtid_pos_tables.load(std::memory_order_relaxed);
+  gtid_pos_tables.store(entry, std::memory_order_release);
 }
 
 
@@ -2565,7 +2555,8 @@ gtid_waiting::wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us)
       /* fall through */
     case 0:
       status_var_add(thd->status_var.master_gtid_wait_time,
-                     microsecond_interval_timer() - before);
+                     static_cast<ulong>
+                     (microsecond_interval_timer() - before));
   }
   my_free(wait_pos);
   return err;

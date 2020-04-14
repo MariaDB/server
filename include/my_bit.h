@@ -70,6 +70,16 @@ static inline CONSTEXPR uint my_bit_log2_uint64(ulonglong value)
          my_bit_log2_uint32((uint32) (value >> 32)) + 32 :
          my_bit_log2_uint32((uint32) value);
 }
+static inline CONSTEXPR uint my_bit_log2_size_t(size_t value)
+{
+#ifdef __cplusplus
+  static_assert(sizeof(size_t) <= sizeof(ulonglong),
+                "size_t <= ulonglong is an assumption that needs to be fixed "
+                "for this architecture. Please create an issue on "
+                "https://jira.mariadb.org");
+#endif
+  return my_bit_log2_uint64((ulonglong) value);
+}
 
 
 /*

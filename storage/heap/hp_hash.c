@@ -55,8 +55,9 @@ static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key);
 			the range.
 */
 
-ha_rows hp_rb_records_in_range(HP_INFO *info, int inx,  key_range *min_key,
-                               key_range *max_key)
+ha_rows hp_rb_records_in_range(HP_INFO *info, int inx,
+                               const key_range *min_key,
+                               const key_range *max_key)
 {
   ha_rows start_pos, end_pos;
   HP_KEYDEF *keyinfo= info->s->keydef + inx;

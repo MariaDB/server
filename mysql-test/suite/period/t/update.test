@@ -163,3 +163,13 @@ drop function f;
 drop function g;
 drop function h;
 drop procedure log;
+
+--echo #
+--echo # MDEV-21471 ER_CRASHED_ON_USAGE upon UPDATE FOR PORTION on Aria table
+--echo #
+create table t1 (s date, e date, period for app(s,e), f varchar(8)) engine=aria row_format=fixed;
+insert into t1 values ('2024-05-13','2026-03-25','foo');
+update t1 for portion of app from '2024-04-02' to '2026-03-15' set f = 'bar';
+
+# cleanup
+drop table t1;

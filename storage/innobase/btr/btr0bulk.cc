@@ -97,9 +97,9 @@ PageBulk::init()
 			page_create(new_block, &m_mtr,
 				    m_index->table->not_redundant());
 			m_mtr.memset(*new_block, FIL_PAGE_PREV, 8, 0xff);
-			m_mtr.write<2,mtr_t::OPT>(*new_block,
-						  PAGE_HEADER + PAGE_LEVEL
-						  + new_page, m_level);
+			m_mtr.write<2,mtr_t::MAYBE_NOP>(*new_block, PAGE_HEADER
+							+ PAGE_LEVEL
+							+ new_page, m_level);
 			m_mtr.write<8>(*new_block, index_id, m_index->id);
 		}
 	} else {

@@ -91,13 +91,7 @@ static int locale_info_plugin_init_locales(void *p)
   schema->fields_info= Show::locale_info_locale_fields_info;
   schema->fill_table= locale_info_fill_table_locale;
 
-#if defined(_WIN64)
-  locale_list = (MY_LOCALE **)GetProcAddress(GetModuleHandle(NULL), "?my_locales@@3PAPEAVMY_LOCALE@@A");
-#elif defined(_WIN32)
-  locale_list = (MY_LOCALE **)GetProcAddress(GetModuleHandle(NULL), "?my_locales@@3PAPAVMY_LOCALE@@A");
-#else
   locale_list = my_locales;
-#endif
 
   return 0;
 }

@@ -653,7 +653,7 @@ ibuf_bitmap_page_set_bits(
 #endif
 	}
 
-	mtr->write<1,mtr_t::OPT>(*block, map_byte, b);
+	mtr->write<1,mtr_t::MAYBE_NOP>(*block, map_byte, b);
 }
 
 /** Calculates the bitmap page number for a given page number.
@@ -4714,7 +4714,8 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 			return DB_CORRUPTION;
 		}
 
-		if (buf_page_is_zeroes(bitmap_page->frame, physical_size)) {
+		if (buf_is_zeroes(span<const byte>(bitmap_page->frame,
+						   physical_size))) {
 			/* This means we got all-zero page instead of
 			ibuf bitmap page. The subsequent page should be
 			all-zero pages. */
@@ -4726,7 +4727,9 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 					page_id_t(space->id, curr_page),
 					zip_size, RW_S_LATCH, &mtr);
 	                        page_t*	page = buf_block_get_frame(block);
-				ut_ad(buf_page_is_zeroes(page, physical_size));
+				ut_ad(buf_is_zeroes(span<const byte>(
+							    page,
+							    physical_size)));
 			}
 #endif /* UNIV_DEBUG */
 			ibuf_exit(&mtr);

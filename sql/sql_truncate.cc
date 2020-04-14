@@ -336,7 +336,10 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     }
 #endif
 
-    tdc_release_share(share);
+    if (!versioned)
+      tdc_remove_referenced_share(thd, share);
+    else
+      tdc_release_share(share);
 
     if (hton == view_pseudo_hton)
     {
@@ -372,13 +375,6 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     if (*hton_can_recreate)
       close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
   }
-  else
-  {
-    /* Table is already locked exclusively. Remove cached instances. */
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table_ref->db.str,
-                     table_ref->table_name.str);
-  }
-
   DBUG_RETURN(FALSE);
 }
 

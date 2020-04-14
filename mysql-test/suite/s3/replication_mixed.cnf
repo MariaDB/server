@@ -1,0 +1,2 @@
+!include ../rpl/my.cnf
+!include ./my.cnf

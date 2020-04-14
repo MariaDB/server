@@ -100,6 +100,7 @@ int injector::transaction::commit()
 }
 
 
+#ifdef TO_BE_DELETED
 int injector::transaction::use_table(server_id_type sid, table tbl)
 {
   DBUG_ENTER("injector::transaction::use_table");
@@ -111,12 +112,12 @@ int injector::transaction::use_table(server_id_type sid, table tbl)
 
   server_id_type save_id= m_thd->variables.server_id;
   m_thd->set_server_id(sid);
-  error= m_thd->binlog_write_table_map(tbl.get_table(),
-                                       tbl.is_transactional());
+  DBUG_ASSERT(tbl.is_transactional() == tbl.get_table()->file->row_logging_has_trans);
+  error= m_thd->binlog_write_table_map(tbl.get_table(), 0);
   m_thd->set_server_id(save_id);
   DBUG_RETURN(error);
 }
-
+#endif
 
 
 injector::transaction::binlog_pos injector::transaction::start_pos() const

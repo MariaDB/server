@@ -50,6 +50,8 @@ Created 2012-02-08 by Sunny Bains.
 #include <my_aes.h>
 #endif
 
+using st_::span;
+
 /** The size of the buffer to use for IO.
 @param n physical page size
 @return number of pages */
@@ -1913,6 +1915,23 @@ PageConverter::update_index_page(
 		return(DB_SUCCESS);
 	}
 
+	if (m_index && block->page.id.page_no() == m_index->m_page_no) {
+		byte *b = FIL_PAGE_DATA + PAGE_BTR_SEG_LEAF + FSEG_HDR_SPACE
+			+ page;
+		mach_write_to_4(b, block->page.id.space());
+
+		memcpy(FIL_PAGE_DATA + PAGE_BTR_SEG_TOP + FSEG_HDR_SPACE
+		       + page, b, 4);
+		if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+			memcpy(&block->page.zip.data[FIL_PAGE_DATA
+						     + PAGE_BTR_SEG_TOP
+						     + FSEG_HDR_SPACE], b, 4);
+			memcpy(&block->page.zip.data[FIL_PAGE_DATA
+						     + PAGE_BTR_SEG_LEAF
+						     + FSEG_HDR_SPACE], b, 4);
+		}
+	}
+
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!block->page.zip.data || page_zip_validate(&block->page.zip, page,
 							m_index->m_srv_index));
@@ -3457,7 +3476,8 @@ fil_iterate(
 			byte*	src = readptr + i * size;
 			const ulint page_no = page_get_page_no(src);
 			if (!page_no && block->page.id.page_no()) {
-				if (!buf_page_is_zeroes(src, size)) {
+				if (!buf_is_zeroes(span<const byte>(src,
+								    size))) {
 					goto page_corrupted;
 				}
 				/* Proceed to the next page,

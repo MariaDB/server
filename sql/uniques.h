@@ -72,13 +72,14 @@ public:
   bool get(TABLE *table);
   
   /* Cost of searching for an element in the tree */
-  inline static double get_search_cost(ulonglong tree_elems, uint compare_factor)
+  inline static double get_search_cost(ulonglong tree_elems,
+                                       double compare_factor)
   {
     return log((double) tree_elems) / (compare_factor * M_LN2);
   }  
 
   static double get_use_cost(uint *buffer, size_t nkeys, uint key_size,
-                             size_t max_in_memory_size, uint compare_factor,
+                             size_t max_in_memory_size, double compare_factor,
                              bool intersect_fl, bool *in_memory);
   inline static int get_cost_calc_buff_size(size_t nkeys, uint key_size,
                                             size_t max_in_memory_size)

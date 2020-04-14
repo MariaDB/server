@@ -1,4 +1,3 @@
 #!/usr/bin/dh-exec
-usr/bin/mariadb_config usr/bin/mysql_config
 usr/include/mariadb usr/include/mysql
 usr/lib/${DEB_HOST_MULTIARCH}/pkgconfig/mariadb.pc usr/lib/${DEB_HOST_MULTIARCH}/pkgconfig/mysqlclient.pc

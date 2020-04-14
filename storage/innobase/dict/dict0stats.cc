@@ -3332,16 +3332,18 @@ transient:
 	return(DB_SUCCESS);
 }
 
-/*********************************************************************//**
-Removes the information for a particular index's stats from the persistent
+/** Remove the information for a particular index's stats from the persistent
 storage if it exists and if there is data stored for this index.
 This function creates its own trx and commits it.
-A note from Marko why we cannot edit user and sys_* tables in one trx:
-marko: The problem is that ibuf merges should be disabled while we are
-rolling back dict transactions.
-marko: If ibuf merges are not disabled, we need to scan the *.ibd files.
-But we shouldn't open *.ibd files before we have rolled back dict
-transactions and opened the SYS_* records for the *.ibd files.
+
+We must modify system tables in a separate transaction in order to
+adhere to the InnoDB design constraint that dict_sys.latch prevents
+lock waits on system tables. If we modified system and user tables in
+the same transaction, we should exclusively hold dict_sys.latch until
+the transaction is committed, and effectively block other transactions
+that will attempt to open any InnoDB tables. Because we have no
+guarantee that user transactions will be committed fast, we cannot
+afford to keep the system tables locked in a user transaction.
 @return DB_SUCCESS or error code */
 dberr_t
 dict_stats_drop_index(

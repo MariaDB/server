@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
   if (maria_init() ||
       (init_pagecache(maria_pagecache, maria_block_size * 16, 0, 0,
                       maria_block_size, 0, MY_WME) == 0) ||
-      ma_control_file_open(TRUE, TRUE) ||
+      ma_control_file_open(TRUE, TRUE, TRUE) ||
       (init_pagecache(maria_log_pagecache,
                       TRANSLOG_PAGECACHE_SIZE, 0, 0,
                       TRANSLOG_PAGE_SIZE, 0, MY_WME) == 0) ||
@@ -142,6 +142,7 @@ static int run_test(const char *filename)
   uchar read_record[MAX_REC_LENGTH];
   int upd= 10;
   ha_rows hrows;
+  page_range pages;
 
   bzero(&uniquedef, sizeof(uniquedef));
   bzero(&create_info, sizeof(create_info));
@@ -427,7 +428,7 @@ static int run_test(const char *filename)
   range.key= record+1;
   range.length= 1000;                           /* Big enough */
   range.flag= HA_READ_MBR_INTERSECT;
-  hrows= maria_records_in_range(file,0, &range, (key_range*) 0);
+  hrows= maria_records_in_range(file,0, &range, (key_range*) 0, &pages);
   if (!silent)
     printf("     %ld rows\n", (long) hrows);
 

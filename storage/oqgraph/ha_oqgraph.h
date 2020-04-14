@@ -99,7 +99,8 @@ public:
   int extra(enum ha_extra_function operation);
   int external_lock(THD *thd, int lock_type);
   int delete_all_rows(void);
-  ha_rows records_in_range(uint inx, key_range *min_key, key_range *max_key);
+  ha_rows records_in_range(uint inx, const key_range *min_key,
+                           const key_range *max_key, page_range *pages);
   int delete_table(const char *from);
   int rename_table(const char * from, const char * to);
   int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info);

@@ -572,8 +572,8 @@ void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
 	mtr->write<2>(*block, block->frame + FIL_PAGE_TYPE,
 		      FIL_PAGE_TYPE_FSP_HDR);
 
-	mtr->write<4,mtr_t::OPT>(*block, FSP_HEADER_OFFSET + FSP_SPACE_ID
-				 + block->frame, space->id);
+	mtr->write<4,mtr_t::MAYBE_NOP>(*block, FSP_HEADER_OFFSET + FSP_SPACE_ID
+				       + block->frame, space->id);
 	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_NOT_USED
 				    + block->frame));
 	/* recv_sys_t::parse() expects to find a WRITE record that
@@ -584,9 +584,10 @@ void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
 				   + block->frame, size);
 	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
 				    + block->frame));
-	mtr->write<4,mtr_t::OPT>(*block, FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
-				 + block->frame,
-				 space->flags & ~FSP_FLAGS_MEM_MASK);
+	mtr->write<4,mtr_t::MAYBE_NOP>(*block,
+				       FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
+				       + block->frame,
+				       space->flags & ~FSP_FLAGS_MEM_MASK);
 	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_FRAG_N_USED
 				    + block->frame));
 
@@ -1794,8 +1795,8 @@ fseg_create(
 	mtr->write<4>(*block, byte_offset + FSEG_HDR_PAGE_NO
 		      + block->frame, iblock->page.id.page_no());
 
-	mtr->write<4,mtr_t::OPT>(*block, byte_offset + FSEG_HDR_SPACE
-				 + block->frame, space->id);
+	mtr->write<4,mtr_t::MAYBE_NOP>(*block, byte_offset + FSEG_HDR_SPACE
+				       + block->frame, space->id);
 
 funct_exit:
 	if (!has_done_reservation) {
@@ -1971,7 +1972,8 @@ fseg_alloc_free_extent(
 		seg_id = mach_read_from_8(inode + FSEG_ID);
 
 		xdes_set_state(**xdes, descr, XDES_FSEG, mtr);
-		mtr->write<8,mtr_t::OPT>(**xdes, descr + XDES_ID, seg_id);
+		mtr->write<8,mtr_t::MAYBE_NOP>(**xdes, descr + XDES_ID,
+					       seg_id);
 		flst_add_last(iblock,
 			      static_cast<uint16_t>(inode - iblock->frame
 						    + FSEG_FREE), *xdes,
@@ -2081,7 +2083,8 @@ take_hinted_page:
 		ut_a(ret_descr == descr);
 
 		xdes_set_state(*xdes, ret_descr, XDES_FSEG, mtr);
-		mtr->write<8,mtr_t::OPT>(*xdes, ret_descr + XDES_ID, seg_id);
+		mtr->write<8,mtr_t::MAYBE_NOP>(*xdes, ret_descr + XDES_ID,
+					       seg_id);
 		flst_add_last(iblock,
 			      static_cast<uint16_t>(seg_inode - iblock->frame
 						    + FSEG_FREE), xdes,
@@ -2602,6 +2605,8 @@ fseg_free_page_low(
 			    xdes, xoffset, mtr);
 		fsp_free_extent(space, offset, mtr);
 	}
+
+	mtr->free(page_id_t(space->id, offset));
 }
 
 #ifndef BTR_CUR_HASH_ADAPT

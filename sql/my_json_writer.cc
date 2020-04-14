@@ -1,4 +1,4 @@
-/* Copyright (C) 2014 SkySQL Ab, MariaDB Corporation Ab
+/* Copyright (C) 2014, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -180,6 +180,9 @@ void Json_writer::add_size(longlong val)
 void Json_writer::add_double(double val)
 {
   char buf[64];
+#if __has_feature(memory_sanitizer)  // FIXME: remove this workaround for
+  __msan_unpoison(&val, sizeof val); // main.range_mrr_icp & many other tests
+#endif
   size_t len= my_snprintf(buf, sizeof(buf), "%lg", val);
   add_unquoted_str(buf, len);
 }

@@ -5,6 +5,7 @@ CREATE TABLE t1
 b blob,
 c blob,
 KEY (b(200))) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+BEGIN;
 INSERT INTO t1 (b, c) values (repeat("ab", 200), repeat("bc", 200));
 INSERT INTO t1 (b, c) values (repeat("bc", 200), repeat("cd", 200));
 INSERT INTO t1 (b, c) values (repeat("cd", 200), repeat("ef", 200));
@@ -17,6 +18,7 @@ INSERT INTO t1 (b, c) values (repeat("ij", 200), repeat("kl", 200));
 INSERT INTO t1 (b, c) values (repeat("jk", 200), repeat("lm", 200));
 INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
 INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
+COMMIT;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 40
@@ -85,6 +87,7 @@ ST_GeomFromText('LINESTRING(15 15,24 10,31 20)'));
 INSERT INTO t1(c2,c3) VALUES(
 ST_GeomFromText('POINT(60 50)'),
 ST_GeomFromText('LINESTRING(10 15,20 44,35 32)'));
+BEGIN;
 INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
 INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
 INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
@@ -96,6 +99,7 @@ INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
 INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
 INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
 INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+COMMIT;
 FLUSH TABLE t1 FOR EXPORT;
 # List before copying files
 db.opt

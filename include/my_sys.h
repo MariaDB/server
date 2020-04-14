@@ -176,15 +176,13 @@ extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf My
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
 
-#ifdef HAVE_LINUX_LARGE_PAGES
-extern uint my_get_large_page_size(void);
-extern uchar * my_large_malloc(size_t size, myf my_flags);
-extern void my_large_free(uchar *ptr);
-#else
-#define my_get_large_page_size() (0)
-#define my_large_malloc(A,B) my_malloc_lock((A),(B))
-#define my_large_free(A) my_free_lock((A))
-#endif /* HAVE_LINUX_LARGE_PAGES */
+int my_init_large_pages(my_bool super_large_pages);
+uchar *my_large_malloc(size_t *size, myf my_flags);
+void my_large_free(void *ptr, size_t size);
+
+#ifdef _WIN32
+extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
+#endif
 
 void my_init_atomic_write(void);
 #ifdef __linux__
@@ -241,11 +239,6 @@ extern int sf_leaking_memory; /* set to 1 to disable memleak detection */
 
 extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
                               const char *, const char *, const unsigned int);
-
-#ifdef HAVE_LINUX_LARGE_PAGES
-extern my_bool my_use_large_pages;
-extern uint    my_large_page_size;
-#endif
 
 /* charsets */
 #define MY_ALL_CHARSETS_SIZE 2048
@@ -984,6 +977,12 @@ extern ulonglong my_getcputime(void);
 #endif
 #ifndef MAP_NORESERVE
 #define MAP_NORESERVE 0         /* For irix and AIX */
+#endif
+
+/* Compatibility with pre linux 3.8 distributions */
+#ifdef __linux__
+#define MAP_HUGE_SHIFT 26
+#define MAP_HUGETLB 0x40000
 #endif
 
 #ifdef HAVE_MMAP64

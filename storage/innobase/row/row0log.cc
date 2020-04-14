@@ -211,11 +211,13 @@ struct row_log_t {
 	row_log_buf_t	tail;	/*!< writer context;
 				protected by mutex and index->lock S-latch,
 				or by index->lock X-latch only */
+	size_t		crypt_tail_size; /*!< size of crypt_tail_size*/
 	byte*		crypt_tail; /*!< writer context;
 				temporary buffer used in encryption,
 				decryption or NULL*/
 	row_log_buf_t	head;	/*!< reader context; protected by MDL only;
 				modifiable by row_log_apply_ops() */
+	size_t		crypt_head_size; /*!< size of crypt_tail_size*/
 	byte*		crypt_head; /*!< reader context;
 				temporary buffer used in encryption,
 				decryption or NULL */
@@ -314,8 +316,7 @@ row_log_block_free(
 	DBUG_ENTER("row_log_block_free");
 	if (log_buf.block != NULL) {
 		ut_allocator<byte>(mem_key_row_log_buf).deallocate_large(
-			log_buf.block, &log_buf.block_pfx,
-			log_buf.size);
+			log_buf.block, &log_buf.block_pfx);
 		log_buf.block = NULL;
 	}
 	DBUG_VOID_RETURN;
@@ -3243,9 +3244,11 @@ row_log_allocate(
 	index->online_log = log;
 
 	if (log_tmp_is_encrypted()) {
-		ulint size = srv_sort_buf_size;
-		log->crypt_head = static_cast<byte *>(os_mem_alloc_large(&size));
-		log->crypt_tail = static_cast<byte *>(os_mem_alloc_large(&size));
+		log->crypt_head_size = log->crypt_tail_size = srv_sort_buf_size;
+		log->crypt_head = static_cast<byte *>(
+			my_large_malloc(&log->crypt_head_size, MYF(MY_WME)));
+		log->crypt_tail = static_cast<byte *>(
+			my_large_malloc(&log->crypt_tail_size, MYF(MY_WME)));
 
 		if (!log->crypt_head || !log->crypt_tail) {
 			row_log_free(log);
@@ -3277,11 +3280,11 @@ row_log_free(
 	row_merge_file_destroy_low(log->fd);
 
 	if (log->crypt_head) {
-		os_mem_free_large(log->crypt_head, srv_sort_buf_size);
+		my_large_free(log->crypt_head, log->crypt_head_size);
 	}
 
 	if (log->crypt_tail) {
-		os_mem_free_large(log->crypt_tail, srv_sort_buf_size);
+		my_large_free(log->crypt_tail, log->crypt_tail_size);
 	}
 
 	mutex_free(&log->mutex);

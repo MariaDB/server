@@ -1159,10 +1159,10 @@ with cte as
 union
 (select a from t1 where a < 2);
 a
+1
 4
 5
 7
-1
 prepare stmt from "with cte as
 (select a from t1 where a between 4 and 7 group by a)
 (select a from cte where exists( select a from t1 where cte.a=t1.a ))
@@ -1170,16 +1170,16 @@ union
 (select a from t1 where a < 2)";
 execute stmt;
 a
+1
 4
 5
 7
-1
 execute stmt;
 a
+1
 4
 5
 7
-1
 deallocate prepare stmt;
 with cte as
 (select a from t1 where a between 4 and 7 group by a)
@@ -1216,9 +1216,9 @@ union
 (select a from cte where exists( select a from t1 where cte.a=t1.a ));
 a
 1
-7
-5
 4
+5
+7
 prepare stmt from "with cte as
 (select a from t1 where a between 4 and 7)
 (select a from t1 where a < 2)
@@ -1227,15 +1227,15 @@ union
 execute stmt;
 a
 1
-7
-5
 4
+5
+7
 execute stmt;
 a
 1
-7
-5
 4
+5
+7
 deallocate prepare stmt;
 with cte as
 (select a from t1 where a between 4 and 7)
@@ -1244,9 +1244,9 @@ where exists( select a from t1 where t1.a < 2 and cte.a=t1.a ))
 union
 (select a from cte where exists( select a from t1 where cte.a=t1.a ));
 a
-7
-5
 4
+5
+7
 prepare stmt from "with cte as
 (select a from t1 where a between 4 and 7)
 (select a from cte
@@ -1255,14 +1255,14 @@ union
 (select a from cte where exists( select a from t1 where cte.a=t1.a ))";
 execute stmt;
 a
-7
-5
 4
+5
+7
 execute stmt;
 a
-7
-5
 4
+5
+7
 deallocate prepare stmt;
 drop table t1;
 #

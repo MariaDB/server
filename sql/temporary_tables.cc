@@ -748,11 +748,7 @@ void THD::mark_tmp_tables_as_free_for_reuse()
     while ((table= tables_it++))
     {
       if ((table->query_id == query_id) && !table->open_by_handler)
-      {
-        if (table->update_handler)
-          table->delete_update_handler();
         mark_tmp_table_as_free_for_reuse(table);
-      }
     }
   }
 
@@ -1128,12 +1124,10 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
 
   table->reginfo.lock_type= TL_WRITE;           /* Simulate locked */
   table->grant.privilege= TMP_TABLE_ACLS;
+  table->query_id= query_id;
   share->tmp_table= (table->file->has_transaction_manager() ?
                      TRANSACTIONAL_TMP_TABLE : NON_TRANSACTIONAL_TMP_TABLE);
   share->not_usable_by_query_cache= 1;
-
-  table->pos_in_table_list= 0;
-  table->query_id= query_id;
 
   /* Add table to the head of table list. */
   share->all_tmp_tables.push_front(table);

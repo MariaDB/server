@@ -843,8 +843,8 @@ public:
     ulong sql_type
   );
   int append_explain_select_part(
-    key_range *start_key,
-    key_range *end_key,
+    const key_range *start_key,
+    const key_range *end_key,
     ulong sql_type,
     int link_idx
   );
@@ -966,8 +966,8 @@ public:
     ulonglong &last_insert_id
   );
   ha_rows explain_select(
-    key_range *start_key,
-    key_range *end_key,
+    const key_range *start_key,
+    const key_range *end_key,
     int link_idx
   );
   int lock_tables(

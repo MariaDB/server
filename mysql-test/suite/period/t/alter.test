@@ -1,3 +1,5 @@
+--source include/have_partition.inc
+
 set @s= '1992-01-01';
 set @e= '1999-12-31';
 
@@ -131,3 +133,37 @@ alter table t add constraint mytime_1 check (x > 2);
 insert t values (3, @e, @s);
 
 drop table t;
+
+--echo #
+--echo # MDEV-20494 ER_NOT_FORM_FILE or assertion upon adding partition to period table
+--echo #
+create table t1 (f date, t date, period for app(f,t)) with system versioning partition by system_time ( partition p1 history, partition pn current );
+lock table t1 write;
+alter table t1 add partition (partition p2 history);
+unlock tables;
+
+create or replace table t1 (x int, s date, e date, period for app(s,e));
+insert into t1 values(1, '2020-03-01', '2020-03-02');
+insert into t1 values(1, '2020-03-01', '2020-03-02');
+--error ER_DUP_ENTRY
+alter table t1 add primary key(x, s, e);
+alter table t1 add system versioning;
+
+# cleanup
+drop table t1;
+
+--echo #
+--echo # MDEV-21941 RENAME doesn't work for system time or period fields
+--echo #
+create or replace table t1 (
+  a int, s date, e date,
+  period for mytime(s, e));
+
+alter table t1 rename column s to x;
+alter table t1 rename column e to y;
+
+show create table t1;
+# cleanup
+drop table t1;
+
+--echo # End of 10.5 tests

@@ -55,26 +55,27 @@ trx_rseg_write_wsrep_checkpoint(
 	DBUG_ASSERT(xid->bqual_length >= 0);
 	DBUG_ASSERT(xid->gtrid_length + xid->bqual_length < XIDDATASIZE);
 
-	mtr->write<4,mtr_t::OPT>(*rseg_header,
-				 TRX_RSEG + TRX_RSEG_WSREP_XID_FORMAT
-				 + rseg_header->frame,
-				 uint32_t(xid->formatID));
+	mtr->write<4,mtr_t::MAYBE_NOP>(*rseg_header,
+				       TRX_RSEG + TRX_RSEG_WSREP_XID_FORMAT
+				       + rseg_header->frame,
+				       uint32_t(xid->formatID));
 
-	mtr->write<4,mtr_t::OPT>(*rseg_header,
-				 TRX_RSEG + TRX_RSEG_WSREP_XID_GTRID_LEN
-				 + rseg_header->frame,
-				 uint32_t(xid->gtrid_length));
+	mtr->write<4,mtr_t::MAYBE_NOP>(*rseg_header,
+				       TRX_RSEG + TRX_RSEG_WSREP_XID_GTRID_LEN
+				       + rseg_header->frame,
+				       uint32_t(xid->gtrid_length));
 
-	mtr->write<4,mtr_t::OPT>(*rseg_header,
-				 TRX_RSEG + TRX_RSEG_WSREP_XID_BQUAL_LEN
-				 + rseg_header->frame,
-				 uint32_t(xid->bqual_length));
+	mtr->write<4,mtr_t::MAYBE_NOP>(*rseg_header,
+				       TRX_RSEG + TRX_RSEG_WSREP_XID_BQUAL_LEN
+				       + rseg_header->frame,
+				       uint32_t(xid->bqual_length));
 
 	const ulint xid_length = static_cast<ulint>(xid->gtrid_length
 						    + xid->bqual_length);
-	mtr->memcpy<mtr_t::OPT>(*rseg_header,
-				TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
-				+ rseg_header->frame, xid->data, xid_length);
+	mtr->memcpy<mtr_t::MAYBE_NOP>(*rseg_header,
+				      TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
+				      + rseg_header->frame,
+				      xid->data, xid_length);
 	if (xid_length < XIDDATASIZE
 	    && memcmp(TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
 		      + rseg_header->frame, field_ref_zero,
@@ -340,12 +341,12 @@ trx_rseg_header_create(
 		/* Add the rollback segment info to the free slot in
 		the trx system header */
 
-		mtr->write<4,mtr_t::OPT>(
+		mtr->write<4,mtr_t::MAYBE_NOP>(
 			*sys_header,
 			TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_SPACE
 			+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
 			+ sys_header->frame, space->id);
-		mtr->write<4,mtr_t::OPT>(
+		mtr->write<4,mtr_t::MAYBE_NOP>(
 			*sys_header,
 			TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO
 			+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
@@ -739,10 +740,10 @@ void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
 		return;
 	}
 
-	mtr->write<8,mtr_t::OPT>(*rseg_header,
-				 TRX_RSEG + TRX_RSEG_BINLOG_OFFSET
-				 + rseg_header->frame,
-				 trx->mysql_log_offset);
+	mtr->write<8,mtr_t::MAYBE_NOP>(*rseg_header,
+				       TRX_RSEG + TRX_RSEG_BINLOG_OFFSET
+				       + rseg_header->frame,
+				       trx->mysql_log_offset);
 
 	void* name = TRX_RSEG + TRX_RSEG_BINLOG_NAME + rseg_header->frame;
 

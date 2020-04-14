@@ -84,14 +84,14 @@ FLUSH LOGS;
 ###            (should show just one binlog)
 
 RESET MASTER;
-SET GLOBAL debug_dbug="+d,error_unique_log_filename";
+SET @@global.debug_dbug="d,error_unique_log_filename";
 -- error ER_NO_UNIQUE_LOGFILE
 FLUSH LOGS;
 -- echo # assert: must show one binlog
 -- source include/show_binary_logs.inc
 
 ### ACTION: clean up and move to next test
-SET GLOBAL debug_dbug=@old_debug;
+SET @@global.debug_dbug=@old_debug;
 RESET MASTER;
 
 -- echo ###################### TEST #3
@@ -116,7 +116,7 @@ RESET MASTER;
 -- source include/show_binary_logs.inc
 
 # clean up the table and the binlog to be used in next part of test
-SET GLOBAL debug_dbug=@old_debug;
+SET @@global.debug_dbug=@old_debug;
 DELETE FROM t2;
 RESET MASTER;
 
@@ -127,7 +127,7 @@ RESET MASTER;
 ###            changes performed despite the fact that it reported an
 ###            error.
 
-SET GLOBAL debug_dbug="+d,error_unique_log_filename";
+SET @@global.debug_dbug="d,error_unique_log_filename";
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- error ER_NO_UNIQUE_LOGFILE
 -- eval LOAD DATA INFILE '$load_file' INTO TABLE t2
@@ -137,7 +137,7 @@ SET GLOBAL debug_dbug="+d,error_unique_log_filename";
 SELECT count(*) FROM t2;
 
 # clean up the table and the binlog to be used in next part of test
-SET GLOBAL debug_dbug=@old_debug;
+SET @@global.debug_dbug=@old_debug;
 DELETE FROM t2;
 RESET MASTER;
 
@@ -146,7 +146,7 @@ RESET MASTER;
 ### ASSERTION: load the small file into a transactional table and
 ###            check that it succeeds
 
-SET GLOBAL debug_dbug="+d,error_unique_log_filename";
+SET @@global.debug_dbug="d,error_unique_log_filename";
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- eval LOAD DATA INFILE '$load_file2' INTO TABLE t2
 
@@ -155,7 +155,7 @@ SET GLOBAL debug_dbug="+d,error_unique_log_filename";
 SELECT count(*) FROM t2;
 
 # clean up the table and the binlog to be used in next part of test
-SET GLOBAL debug_dbug=@old_debug;
+SET @@global.debug_dbug=@old_debug;
 DELETE FROM t2;
 RESET MASTER;
 
@@ -166,7 +166,7 @@ RESET MASTER;
 ###            fails we get the error. Transaction is not rolledback
 ###            because rotation happens after the commit.
 
-SET GLOBAL debug_dbug="+d,error_unique_log_filename";
+SET @@global.debug_dbug="d,error_unique_log_filename";
 SET AUTOCOMMIT=0;
 INSERT INTO t2 VALUES ('muse');
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
@@ -181,7 +181,7 @@ SELECT count(*) FROM t2;
 
 ### ACTION: clean up and move to the next test 
 SET AUTOCOMMIT= 1;
-SET GLOBAL debug_dbug=@old_debug;
+SET @@global.debug_dbug=@old_debug;
 DELETE FROM t2;
 RESET MASTER;
 
@@ -191,7 +191,7 @@ RESET MASTER;
 ###            fails then an error is reported and an incident event
 ###            is written to the current binary log.
 
-SET GLOBAL debug_dbug="+d,error_unique_log_filename";
+SET @@global.debug_dbug="d,error_unique_log_filename";
 
 # Disable logging Annotate_rows events to preserve events count.
 let $binlog_annotate_row_events_saved= `SELECT @@binlog_annotate_row_events`;
@@ -206,7 +206,7 @@ SELECT count(*) FROM t4;
 SELECT count(*) FROM t4;
 
 -- echo ### check that the incident event is written to the current log
-SET GLOBAL debug_dbug=@old_debug;
+SET @@global.debug_dbug=@old_debug;
 if (!$binlog_limit)
 {
     -- let $binlog_limit= 4,1
@@ -227,7 +227,7 @@ RESET MASTER;
 ### ASSERTION: check that statements end up in error but they succeed
 ###            on changing the data. 
 
-SET GLOBAL debug_dbug="+d,error_unique_log_filename";
+SET @@global.debug_dbug="d,error_unique_log_filename";
 -- echo # must show 0 entries
 SELECT count(*) FROM t4;
 SELECT count(*) FROM t2;
@@ -258,13 +258,13 @@ SELECT count(*) FROM t4;
 SELECT count(*) FROM t2;
 
 # remove fault injection
-SET GLOBAL debug_dbug=@old_debug;
+SET @@global.debug_dbug=@old_debug;
 
 -- echo ###################### TEST #9
 
 ### ASSERTION: check that if we disable binlogging, then statements
 ###            succeed.
-SET GLOBAL debug_dbug="+d,error_unique_log_filename";
+SET @@global.debug_dbug="d,error_unique_log_filename";
 SET SQL_LOG_BIN=0;
 INSERT INTO t2 VALUES ('aaa'), ('bbb'), ('ccc'), ('ddd');
 INSERT INTO t4 VALUES ('eee'), ('fff'), ('ggg'), ('hhh');
@@ -277,7 +277,7 @@ DELETE FROM t4;
 SELECT count(*) FROM t2;
 SELECT count(*) FROM t4;
 SET SQL_LOG_BIN=1;
-SET GLOBAL debug_dbug=@old_debug;
+SET @@global.debug_dbug=@old_debug;
 
 -- echo ###################### TEST #10
 
@@ -292,11 +292,11 @@ RESET MASTER;
 SHOW WARNINGS;
 
 # +d,fault_injection_registering_index => injects fault on MYSQL_BIN_LOG::open
-SET GLOBAL debug_dbug="+d,fault_injection_registering_index";
+SET @@global.debug_dbug="d,fault_injection_registering_index";
 -- replace_regex /\.[\\\/]master/master/
 -- error ER_CANT_OPEN_FILE
 FLUSH LOGS;
-SET GLOBAL debug_dbug=@old_debug;
+SET @@global.debug_dbug=@old_debug;
 
 -- error ER_NO_BINARY_LOGGING
 SHOW BINARY LOGS;
@@ -321,11 +321,11 @@ flush tables;
 --source include/rpl_restart_server.inc
 
 # +d,fault_injection_openning_index => injects fault on MYSQL_BIN_LOG::open_index_file
-SET GLOBAL debug_dbug="+d,fault_injection_openning_index";
+SET @@global.debug_dbug="d,fault_injection_openning_index";
 -- replace_regex /\.[\\\/]master/master/
 -- error ER_CANT_OPEN_FILE
 FLUSH LOGS;
-SET GLOBAL debug_dbug=@old_debug;
+SET @@global.debug_dbug=@old_debug;
 
 -- error ER_FLUSH_MASTER_BINLOG_CLOSED
 RESET MASTER;
@@ -350,10 +350,10 @@ flush tables;
 ###            file.
 
 # +d,fault_injection_new_file_rotate_event => injects fault on MYSQL_BIN_LOG::MYSQL_BIN_LOG::new_file_impl
-SET GLOBAL debug_dbug="+d,fault_injection_new_file_rotate_event";
+SET @@global.debug_dbug="d,fault_injection_new_file_rotate_event";
 -- error ER_ERROR_ON_WRITE
 FLUSH LOGS;
-SET GLOBAL debug_dbug=@old_debug;
+SET @@global.debug_dbug=@old_debug;
 
 -- error ER_FLUSH_MASTER_BINLOG_CLOSED
 RESET MASTER;

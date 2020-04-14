@@ -306,10 +306,10 @@ my_bool	srv_print_all_deadlocks;
 INFORMATION_SCHEMA.innodb_cmp_per_index */
 my_bool	srv_cmp_per_index_enabled;
 
-/** innodb_fast_shutdown; if 1 then we do not run purge and insert buffer
-merge to completion before shutdown. If it is set to 2, do not even flush the
-buffer pool to data files at the shutdown: we effectively 'crash'
-InnoDB (but lose no committed transactions). */
+/** innodb_fast_shutdown=1 skips purge and change buffer merge.
+innodb_fast_shutdown=2 effectively crashes the server (no log checkpoint).
+innodb_fast_shutdown=3 is a clean shutdown that skips the rollback
+of active transaction (to be done on restart). */
 uint	srv_fast_shutdown;
 
 /** copy of innodb_status_file; generate a innodb_status.<pid> file */
@@ -807,7 +807,6 @@ srv_boot(void)
 /*==========*/
 {
 	sync_check_init();
-	recv_sys_var_init();
 	trx_pool_init();
 	row_mysql_init();
 	srv_init();
@@ -1950,10 +1949,10 @@ srv_master_do_idle_tasks(void)
 				       counter_time);
 }
 
-/** Perform shutdown tasks.
-@param[in]	ibuf_merge	whether to complete the change buffer merge */
-void
-srv_shutdown(bool ibuf_merge)
+/**
+Complete the shutdown tasks such as background DROP TABLE,
+and optionally change buffer merge (on innodb_fast_shutdown=0). */
+void srv_shutdown(bool ibuf_merge)
 {
 	ulint		n_bytes_merged	= 0;
 	ulint		n_tables_to_drop;

@@ -608,5 +608,5 @@ struct Query_cache_query_flags
 #define query_cache_is_cacheable_query(L) 0
 #endif /*HAVE_QUERY_CACHE*/
 
-extern Query_cache query_cache;
+extern MYSQL_PLUGIN_IMPORT Query_cache query_cache;
 #endif

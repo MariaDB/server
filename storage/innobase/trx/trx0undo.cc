@@ -401,8 +401,9 @@ trx_undo_seg_create(fil_space_t *space, buf_block_t *rseg_hdr, ulint *id,
 	mtr->write<2>(*block, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
 		      + block->frame,
 		      TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE);
-	mtr->write<2,mtr_t::OPT>(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG
-				 + block->frame, 0U);
+	mtr->write<2,mtr_t::MAYBE_NOP>(*block,
+				       TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG
+				       + block->frame, 0U);
 
 	flst_init(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + block->frame,
 		  mtr);
@@ -434,7 +435,7 @@ static uint16_t trx_undo_header_create(buf_block_t *undo_page, trx_id_t trx_id,
   byte *undo_type= my_assume_aligned<2>
     (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE + undo_page->frame);
   ut_ad(mach_read_from_2(undo_type) <= TRX_UNDO_UPDATE);
-  mtr->write<2,mtr_t::OPT>(*undo_page, undo_type, 0U);
+  mtr->write<2,mtr_t::MAYBE_NOP>(*undo_page, undo_type, 0U);
   byte *start= my_assume_aligned<4>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START +
                                     undo_page->frame);
   const uint16_t free= mach_read_from_2(start + 2);
@@ -468,15 +469,15 @@ static uint16_t trx_undo_header_create(buf_block_t *undo_page, trx_id_t trx_id,
   memcpy_aligned<2>(buf + 2, start, 2);
   static_assert(TRX_UNDO_NEEDS_PURGE + 2 == TRX_UNDO_LOG_START,
                 "compatibility");
-  mtr->memcpy(*undo_page, free + TRX_UNDO_NEEDS_PURGE + undo_page->frame,
-              buf, 4);
+  mtr->memcpy<mtr_t::MAYBE_NOP>(*undo_page, free + TRX_UNDO_NEEDS_PURGE +
+                                undo_page->frame, buf, 4);
   /* Initialize all fields TRX_UNDO_XID_EXISTS to TRX_UNDO_HISTORY_NODE. */
   if (prev_log)
   {
     mtr->memset(undo_page, free + TRX_UNDO_XID_EXISTS,
                 TRX_UNDO_PREV_LOG - TRX_UNDO_XID_EXISTS, 0);
-    mtr->write<2,mtr_t::OPT>(*undo_page, free + TRX_UNDO_PREV_LOG +
-                             undo_page->frame, prev_log);
+    mtr->write<2,mtr_t::MAYBE_NOP>(*undo_page, free + TRX_UNDO_PREV_LOG +
+                                   undo_page->frame, prev_log);
     static_assert(TRX_UNDO_PREV_LOG + 2 == TRX_UNDO_HISTORY_NODE,
                   "compatibility");
     mtr->memset(undo_page, free + TRX_UNDO_HISTORY_NODE, FLST_NODE_SIZE, 0);
@@ -508,12 +509,12 @@ static void trx_undo_write_xid(buf_block_t *block, uint16_t offset,
 
   trx_ulogf_t* log_hdr= block->frame + offset;
 
-  mtr->write<4,mtr_t::OPT>(*block, log_hdr + TRX_UNDO_XA_FORMAT,
-                           static_cast<uint32_t>(xid.formatID));
-  mtr->write<4,mtr_t::OPT>(*block, log_hdr + TRX_UNDO_XA_TRID_LEN,
-                           static_cast<uint32_t>(xid.gtrid_length));
-  mtr->write<4,mtr_t::OPT>(*block, log_hdr + TRX_UNDO_XA_BQUAL_LEN,
-                           static_cast<uint32_t>(xid.bqual_length));
+  mtr->write<4,mtr_t::MAYBE_NOP>(*block, log_hdr + TRX_UNDO_XA_FORMAT,
+                                 static_cast<uint32_t>(xid.formatID));
+  mtr->write<4,mtr_t::MAYBE_NOP>(*block, log_hdr + TRX_UNDO_XA_TRID_LEN,
+                                 static_cast<uint32_t>(xid.gtrid_length));
+  mtr->write<4,mtr_t::MAYBE_NOP>(*block, log_hdr + TRX_UNDO_XA_BQUAL_LEN,
+                                 static_cast<uint32_t>(xid.bqual_length));
   const ulint xid_length= static_cast<ulint>(xid.gtrid_length
                                              + xid.bqual_length);
   mtr->memcpy(*block, &block->frame[offset + TRX_UNDO_XA_XID],
@@ -1061,10 +1062,11 @@ trx_undo_create(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 	case TRX_DICT_OP_TABLE:
 		(*undo)->table_id = trx->table_id;
 		(*undo)->dict_operation = TRUE;
-		mtr->write<1,mtr_t::OPT>(*block, block->frame + offset
-					 + TRX_UNDO_DICT_TRANS, 1U);
-		mtr->write<8,mtr_t::OPT>(*block, block->frame + offset
-					 + TRX_UNDO_TABLE_ID, trx->table_id);
+		mtr->write<1,mtr_t::MAYBE_NOP>(*block, block->frame + offset
+					       + TRX_UNDO_DICT_TRANS, 1U);
+		mtr->write<8,mtr_t::MAYBE_NOP>(*block, block->frame + offset
+					       + TRX_UNDO_TABLE_ID,
+					       trx->table_id);
 	}
 
 	*err = DB_SUCCESS;
@@ -1127,10 +1129,11 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 	case TRX_DICT_OP_TABLE:
 		undo->table_id = trx->table_id;
 		undo->dict_operation = TRUE;
-		mtr->write<1,mtr_t::OPT>(*block, block->frame + offset
-					 + TRX_UNDO_DICT_TRANS, 1U);
-		mtr->write<8,mtr_t::OPT>(*block, block->frame + offset
-					 + TRX_UNDO_TABLE_ID, trx->table_id);
+		mtr->write<1,mtr_t::MAYBE_NOP>(*block, block->frame + offset
+					       + TRX_UNDO_DICT_TRANS, 1U);
+		mtr->write<8,mtr_t::MAYBE_NOP>(*block, block->frame + offset
+					       + TRX_UNDO_TABLE_ID,
+					       trx->table_id);
 	}
 
 	return block;

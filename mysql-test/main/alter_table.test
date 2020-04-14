@@ -2110,6 +2110,9 @@ ALTER TABLE t1 RENAME COLUMN a TO a;
 --replace_result $default_engine DEFAULT_ENGINE " PAGE_CHECKSUM=1" ""
 SHOW CREATE TABLE t1;
 ALTER TABLE t1 RENAME COLUMN a TO m;
+--error ER_BAD_FIELD_ERROR
+ALTER TABLE t1 RENAME COLUMN a TO m;
+ALTER TABLE t1 RENAME COLUMN IF EXISTS a TO m;
 --replace_result $default_engine DEFAULT_ENGINE " PAGE_CHECKSUM=1" ""
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
@@ -2291,13 +2294,14 @@ show create table t1;
 
 --echo # 1.b) It should be impossible to rename index that doesn't
 --echo #      exists, dropped or added within the same ALTER TABLE.
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 alter table t1 rename key d to e;
+alter table t1 rename key if exists d to e;
 show create table t1;
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 alter table t1 drop key c, rename key c to d;
 show create table t1;
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 alter table t1 add key d(j), rename key d to e;
 show create table t1;
 
@@ -2456,3 +2460,15 @@ drop table t1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # ALTER TABLE IF EXISTS
+--echo #
+
+create table t1 (a int);
+alter table if exists t1 add column b int;
+alter table if exists t2 add column c int;
+alter table if exists t9 rename t1;
+alter table if exists t1 rename t2;
+show create table t2;
+drop table t2;

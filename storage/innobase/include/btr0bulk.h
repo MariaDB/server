@@ -210,7 +210,7 @@ public:
 		return(m_err);
 	}
 
-	void set_modified() { m_mtr.set_modified(); }
+	void set_modified() { m_mtr.set_modified(*m_block); }
 
 	/* Memory heap for internal allocation */
 	mem_heap_t*	m_heap;

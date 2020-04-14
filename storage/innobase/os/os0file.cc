@@ -1928,12 +1928,12 @@ os_file_flush_func(
 /** Retrieves the last error number if an error occurs in a file io function.
 The number should be retrieved before any other OS calls (because they may
 overwrite the error number). If the number is not known to this program,
-the OS error number + 100 is returned.
+then OS error number + OS_FILE_ERROR_MAX is returned.
 @param[in]	report_all_errors	true if we want an error message printed
 					of all errors
 @param[in]	on_error_silent		true then don't print any diagnostic
 					to the log
-@return error number, or OS error number + 100 */
+@return error number, or OS error number + OS_FILE_ERROR_MAX */
 static
 ulint
 os_file_get_last_error_low(

@@ -56,10 +56,4 @@ in the index record. */
 #define BTR_EXTERN_LOCAL_STORED_MAX_SIZE	\
 	(BTR_EXTERN_FIELD_REF_SIZE * 2)
 
-/** A field reference full of zero, for use in assertions and checks,
-and dummy default values of instantly dropped columns.
-Initially, BLOB field references are set to zero, in
-dtuple_convert_big_rec(). */
-extern const byte field_ref_zero[UNIV_PAGE_SIZE_MAX];
-
 #endif

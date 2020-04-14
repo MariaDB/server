@@ -52,8 +52,8 @@ id	msg
 SELECT * FROM t2 WHERE id >= 3;
 id	msg
 3	Trois
-5	Cinq
 4	Four
+5	Cinq
 6	Six
 SELECT * FROM t2 WHERE id < 3;
 id	msg

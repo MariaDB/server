@@ -3,7 +3,8 @@
 # Simple test for the partition storage engine
 # Focuses on range partitioning tests
 # 
--- source include/have_partition.inc
+--source include/have_partition.inc
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t1, t2;
@@ -12,19 +13,23 @@ drop table if exists t1, t2;
 --echo #
 --echo # Bug#48229: group by performance issue of partitioned table
 --echo #
-CREATE TABLE t1 (
- a INT,
- b INT,
- KEY a (a,b)
-)
-PARTITION BY HASH (a) PARTITIONS 1;
 
-# insert some rows (i.e. so that rows/blocks > 1)
-INSERT INTO t1 VALUES (0, 580092), (3, 894076), (4, 805483), (4, 913540), (6, 611137), (8, 171602), (9, 599495), (9, 746305), (10, 272829), (10, 847519), (12, 258869), (12, 929028), (13, 288970), (15, 20971), (15, 105839), (16, 788272), (17, 76914), (18, 827274), (19, 802258), (20, 123677), (20, 587729), (22, 701449), (25, 31565), (25, 230782), (25, 442887), (25, 733139), (25, 851020);
+CREATE TABLE t1 (a INT,b INT,KEY a (a,b));
+INSERT INTO `t1` VALUES (0,580092),(3000,894076),(4000,805483),(4000,913540),(6000,611137),(8000,171602),(9000,599495),(9000,746305),(10000,272829),(10000,847519),(12000,258869),(12000,929028),(13000,288970),(15000,20971),(15000,105839),(16000,788272),(17000,76914),(18000,827274),(19000,802258),(20000,123677),(20000,587729),(22000,701449),(25000,31565),(25000,230782),(25000,442887),(25000,733139),(25000,851020);
 
-# Before the fix the 'Extra' column showed 'Using index for group-by'
-EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10, 100, 3) GROUP BY a;
+EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
 
+alter table t1 partition by hash(a) partitions 1;
+EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
+alter table t1 remove partitioning;
+
+insert into t1 (a,b) select seq,seq from seq_4001_to_4100;
+insert into t1 (a,b) select seq,seq from seq_10001_to_10100;
+
+EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
+
+alter table t1 partition by hash(a) partitions 1;
+EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
 DROP TABLE t1;
 
 #

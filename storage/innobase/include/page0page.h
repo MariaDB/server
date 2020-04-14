@@ -433,8 +433,8 @@ inline void page_rec_set_n_owned(buf_block_t *block, rec_t *rec, ulint n_owned,
   else
   {
     rec-= comp ? REC_NEW_N_OWNED : REC_OLD_N_OWNED;
-    mtr->write<1,mtr_t::OPT>(*block, rec, (*rec & ~REC_N_OWNED_MASK) |
-                             (n_owned << REC_N_OWNED_SHIFT));
+    mtr->write<1,mtr_t::MAYBE_NOP>(*block, rec, (*rec & ~REC_N_OWNED_MASK) |
+                                   (n_owned << REC_N_OWNED_SHIFT));
   }
 }
 

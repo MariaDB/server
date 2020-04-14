@@ -5,10 +5,7 @@
 /***********************************************************************/
 #pragma once
 
-#if defined(__WIN__)
-static PCSZ slash = "\\";
-#else // !__WIN__
-static PCSZ slash = "/";
+#ifndef __WIN__
 #define stricmp strcasecmp
 #endif // !__WIN__
 

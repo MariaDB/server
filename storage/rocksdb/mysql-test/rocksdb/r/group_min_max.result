@@ -1808,10 +1808,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	idx_t1_2	147	NULL	128	Using where; Using index
 explain select distinct a1 from t1 where a1 in ('a', 'd') and a2 = 'b';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_1	130	NULL	5	Using where; Using index for group-by
+1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_2	130	NULL	5	Using where; Using index for group-by
 explain select distinct a1 from t1 where a1 in ('a', 'd') and a2 = 'e';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_1	130	NULL	5	Using where; Using index for group-by
+1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_2	130	NULL	5	Using where; Using index for group-by
 explain select distinct a1,a2,b from t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	range	NULL	idx_t2_2	146	NULL	#	Using index for group-by
@@ -1978,10 +1978,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	NULL	idx_t1_2	147	NULL	17	Using where; Using index for group-by; Using temporary; Using filesort
 explain select distinct a1 from t1 where a1 in ('a', 'd') and a2 = 'b' group by a1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_1	130	NULL	5	Using where; Using index for group-by
+1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_2	130	NULL	5	Using where; Using index for group-by
 explain select distinct a1 from t1 where a1 in ('a', 'd') and a2 = 'e' group by a1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_1	130	NULL	5	Using where; Using index for group-by
+1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_2	130	NULL	5	Using where; Using index for group-by
 explain select distinct a1,a2,b from t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	range	NULL	idx_t2_2	146	NULL	#	Using index for group-by
@@ -2131,7 +2131,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_1	147	NULL	17	Using where; Using index for group-by
 explain select concat(ord(min(b)),ord(max(b))),min(b),max(b) from t1 group by a1,a2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	147	NULL	9	Using index for group-by
+1	SIMPLE	t1	range	NULL	idx_t1_2	147	NULL	9	Using index for group-by
 select a1,a2,b, concat(min(c), max(c)) from t1 where a1 < 'd' group by a1,a2,b;
 a1	a2	b	concat(min(c), max(c))
 a	a	a	a111d111
@@ -2285,7 +2285,7 @@ c
 d
 explain select a1 from t1 where a2 = 'b' group by a1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	130	NULL	5	Using where; Using index for group-by
+1	SIMPLE	t1	range	NULL	idx_t1_2	130	NULL	5	Using where; Using index for group-by
 select a1 from t1 where a2 = 'b' group by a1;
 a1
 a
@@ -2294,7 +2294,7 @@ c
 d
 explain select distinct a1 from t1 where a2 = 'b';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	130	NULL	5	Using where; Using index for group-by
+1	SIMPLE	t1	range	NULL	idx_t1_2	130	NULL	5	Using where; Using index for group-by
 select distinct a1 from t1 where a2 = 'b';
 a1
 a

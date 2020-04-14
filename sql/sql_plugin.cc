@@ -1593,6 +1593,9 @@ int plugin_init(int *argc, char **argv, int flags)
   MEM_ROOT tmp_root;
   bool reaped_mandatory_plugin= false;
   bool mandatory= true;
+  I_List_iterator<i_string> opt_plugin_load_list_iter(opt_plugin_load_list);
+  char plugin_table_engine_name_buf[NAME_CHAR_LEN + 1];
+  LEX_CSTRING plugin_table_engine_name= { plugin_table_engine_name_buf, 0 };
   LEX_CSTRING MyISAM= { STRING_WITH_LEN("MyISAM") };
   DBUG_ENTER("plugin_init");
 
@@ -1704,35 +1707,23 @@ int plugin_init(int *argc, char **argv, int flags)
     global_system_variables.table_plugin =
       intern_plugin_lock(NULL, plugin_int_to_ref(plugin_ptr));
     DBUG_SLOW_ASSERT(plugin_ptr->ref_count == 1);
-
   }
   mysql_mutex_unlock(&LOCK_plugin);
 
   /* Register (not initialize!) all dynamic plugins */
-  if (!(flags & PLUGIN_INIT_SKIP_DYNAMIC_LOADING))
-  {
-    I_List_iterator<i_string> iter(opt_plugin_load_list);
-    i_string *item;
-    if (global_system_variables.log_warnings >= 9)
-      sql_print_information("Initializing plugins specified on the command line");
-    while (NULL != (item= iter++))
-      plugin_load_list(&tmp_root, item->ptr);
+  if (global_system_variables.log_warnings >= 9)
+    sql_print_information("Initializing plugins specified on the command line");
+  while (i_string *item= opt_plugin_load_list_iter++)
+    plugin_load_list(&tmp_root, item->ptr);
 
-    if (!(flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE))
-    {
-      char path[FN_REFLEN + 1];
-      build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
-      char engine_name_buf[NAME_CHAR_LEN + 1];
-      LEX_CSTRING maybe_myisam= { engine_name_buf, 0 };
-      bool is_sequence;
-      Table_type frm_type= dd_frm_type(NULL, path, &maybe_myisam, &is_sequence);
-      /* if mysql.plugin table is MyISAM - load it right away */
-      if (frm_type == TABLE_TYPE_NORMAL && !strcasecmp(maybe_myisam.str, "MyISAM"))
-      {
-        plugin_load(&tmp_root);
-        flags|= PLUGIN_INIT_SKIP_PLUGIN_TABLE;
-      }
-    }
+  if (!(flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE))
+  {
+    char path[FN_REFLEN + 1];
+    build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
+    bool dummy;
+    Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name, &dummy);
+    if (ttype != TABLE_TYPE_NORMAL)
+      plugin_table_engine_name=empty_clex_str;
   }
 
   /*
@@ -1753,8 +1744,12 @@ int plugin_init(int *argc, char **argv, int flags)
         plugin_ptr= (struct st_plugin_int *) my_hash_element(hash, idx);
         if (plugin_ptr->state == PLUGIN_IS_UNINITIALIZED)
         {
-          if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv,
-                                (flags & PLUGIN_INIT_SKIP_INITIALIZATION)))
+          bool plugin_table_engine= lex_string_eq(&plugin_table_engine_name,
+                                                  &plugin_ptr->name);
+          bool opts_only= flags & PLUGIN_INIT_SKIP_INITIALIZATION &&
+                         (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE ||
+                          !plugin_table_engine);
+          if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv, opts_only))
           {
             plugin_ptr->state= PLUGIN_IS_DYING;
             *(reap++)= plugin_ptr;
@@ -1788,7 +1783,7 @@ int plugin_init(int *argc, char **argv, int flags)
 
   mysql_mutex_unlock(&LOCK_plugin);
   my_afree(reap);
-  if (reaped_mandatory_plugin)
+  if (reaped_mandatory_plugin && !opt_help)
     goto err;
 
   free_root(&tmp_root, MYF(0));
@@ -1856,11 +1851,13 @@ static void plugin_load(MEM_ROOT *tmp_root)
   {
     DBUG_PRINT("error",("Can't open plugin table"));
     if (!opt_help)
-      sql_print_error("Could not open mysql.plugin table. "
-                      "Some plugins may be not loaded");
+      sql_print_error("Could not open mysql.plugin table: \"%s\". "
+                      "Some plugins may be not loaded",
+                      new_thd->get_stmt_da()->message());
     else
-      sql_print_warning("Could not open mysql.plugin table. "
-                        "Some options may be missing from the help text");
+      sql_print_warning("Could not open mysql.plugin table: \"%s\". "
+                        "Some options may be missing from the help text",
+                        new_thd->get_stmt_da()->message());
     goto end;
   }
 
@@ -2168,14 +2165,13 @@ static bool finalize_install(THD *thd, TABLE *table, const LEX_CSTRING *name,
     of the insert into the plugin table, so that it is not replicated in
     row based mode.
   */
-  tmp_disable_binlog(thd);
+  DBUG_ASSERT(!table->file->row_logging);
   table->use_all_columns();
   restore_record(table, s->default_values);
   table->field[0]->store(name->str, name->length, system_charset_info);
   table->field[1]->store(tmp->plugin_dl->dl.str, tmp->plugin_dl->dl.length,
                          files_charset_info);
   error= table->file->ha_write_row(table->record[0]);
-  reenable_binlog(thd);
   if (unlikely(error))
   {
     table->file->print_error(error, MYF(0));
@@ -2322,9 +2318,8 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
       of the delete from the plugin table, so that it is not replicated in
       row based mode.
     */
-    tmp_disable_binlog(thd);
+    table->file->row_logging= 0;                // No logging    
     error= table->file->ha_delete_row(table->record[0]);
-    reenable_binlog(thd);
     if (unlikely(error))
     {
       table->file->print_error(error, MYF(0));
@@ -4190,7 +4185,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   */
   if (disable_plugin)
   {
-    if (global_system_variables.log_warnings)
+    if (global_system_variables.log_warnings && !opt_help)
       sql_print_information("Plugin '%s' is disabled.",
                             tmp->name.str);
     goto err;

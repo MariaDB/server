@@ -22,8 +22,10 @@ SELECT col_int_key FROM t1;
 DELETE FROM t1 WHERE col_int_key IN (1, 40000000);
 
 --connection default
+--disable_warnings
 --error 0,ER_LOCK_DEADLOCK,ER_LOCK_WAIT_TIMEOUT
 --reap 
+--enable_warnings
 
 --disconnect con1
 drop table t1;

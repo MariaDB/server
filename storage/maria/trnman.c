@@ -238,7 +238,7 @@ void trnman_destroy()
 static TrID new_trid()
 {
   DBUG_ENTER("new_trid");
-  DBUG_ASSERT(global_trid_generator < 0xffffffffffffLL);
+  DBUG_ASSERT(global_trid_generator < MAX_INTERNAL_TRID);
   DBUG_PRINT("info", ("mysql_mutex_assert_owner LOCK_trn_list"));
   mysql_mutex_assert_owner(&LOCK_trn_list);
   DBUG_RETURN(++global_trid_generator);

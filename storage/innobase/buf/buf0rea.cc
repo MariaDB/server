@@ -747,9 +747,12 @@ buf_read_recv_pages(
 	for (ulint i = 0; i < n_stored; i++) {
 		const page_id_t	cur_page_id(space_id, page_nos[i]);
 
-		for (ulint count = 0, limit = recv_sys.max_blocks() / 2;
-		     buf_pool.n_pend_reads >= limit; ) {
+		ulint limit = 0;
+		for (ulint j = 0; j < buf_pool.n_chunks; j++) {
+			limit += buf_pool.chunks[j].size / 2;
+		}
 
+		for (ulint count = 0; buf_pool.n_pend_reads >= limit; ) {
 			os_thread_sleep(10000);
 
 			if (!(++count % 1000)) {

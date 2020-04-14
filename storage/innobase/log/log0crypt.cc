@@ -27,6 +27,7 @@ MDEV-11782: Rewritten for MariaDB 10.2 by Marko Mäkelä, MariaDB Corporation.
 #include <my_global.h>
 #include "log0crypt.h"
 #include <mysql/service_my_crypt.h>
+#include "assume_aligned.h"
 
 #include "log0crypt.h"
 #include "log0recv.h"  // for recv_sys

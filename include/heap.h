@@ -239,8 +239,9 @@ extern int heap_disable_indexes(HP_INFO *info);
 extern int heap_enable_indexes(HP_INFO *info);
 extern int heap_indexes_are_disabled(HP_INFO *info);
 extern void heap_update_auto_increment(HP_INFO *info, const uchar *record);
-ha_rows hp_rb_records_in_range(HP_INFO *info, int inx, key_range *min_key,
-                               key_range *max_key);
+ha_rows hp_rb_records_in_range(HP_INFO *info, int inx,
+                               const key_range *min_key,
+                               const key_range *max_key);
 int hp_panic(enum ha_panic_function flag);
 int heap_rkey(HP_INFO *info, uchar *record, int inx, const uchar *key,
               key_part_map keypart_map, enum ha_rkey_function find_flag);

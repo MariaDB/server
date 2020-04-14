@@ -194,10 +194,10 @@ static int stats_fill_table(THD* thd, TABLE_LIST* tables, COND*)
     table->field[4]->store(counters->wakes_due_to_stall, true);
     table->field[5]->store(counters->throttles, true);
     table->field[6]->store(counters->stalls, true);
-    table->field[7]->store(counters->polls_by_listener, true);
-    table->field[8]->store(counters->polls_by_worker, true);
-    table->field[9]->store(counters->dequeues_by_listener, true);
-    table->field[10]->store(counters->dequeues_by_worker, true);
+    table->field[7]->store(counters->polls[(int)operation_origin::LISTENER], true);
+    table->field[8]->store(counters->polls[(int)operation_origin::WORKER], true);
+    table->field[9]->store(counters->dequeues[(int)operation_origin::LISTENER], true);
+    table->field[10]->store(counters->dequeues[(int)operation_origin::WORKER], true);
     mysql_mutex_unlock(&group->mutex);
     if (schema_table_store_record(thd, table))
       return 1;
@@ -207,6 +207,9 @@ static int stats_fill_table(THD* thd, TABLE_LIST* tables, COND*)
 
 static int stats_reset_table()
 {
+  if (!all_groups)
+    return 0;
+
   for (uint i = 0; i < threadpool_max_size && all_groups[i].pollfd != INVALID_HANDLE_VALUE; i++)
   {
     thread_group_t* group = &all_groups[i];

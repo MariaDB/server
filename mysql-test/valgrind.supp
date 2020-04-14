@@ -1604,6 +1604,15 @@
    obj:/usr/lib64/libcrypto.so*
 }
 
+{
+   OpenSSL 1.1.0i wrong jump
+   Memcheck:Cond
+   fun:bcmp
+   fun:fips_rsa_encrypt_test
+   ...   
+   fun:OPENSSL_init_library
+}
+
 #
 # libmarias3 problems
 #

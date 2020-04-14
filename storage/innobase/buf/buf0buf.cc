@@ -31,6 +31,7 @@ The database buffer buf_pool
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
+#include "assume_aligned.h"
 #include "mtr0types.h"
 #include "mach0data.h"
 #include "buf0buf.h"
@@ -67,6 +68,8 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0dump.h"
 #include <map>
 #include <sstream>
+
+using st_::span;
 
 #ifdef HAVE_LIBNUMA
 #include <numa.h>
@@ -157,16 +160,6 @@ block contains a read-write lock.
 The buffer frames have to be aligned so that the start memory
 address of a frame is divisible by the universal page size, which
 is a power of two.
-
-We intend to make the buffer buf_pool size on-line reconfigurable,
-that is, the buf_pool size can be changed without closing the database.
-Then the database administarator may adjust it to be bigger
-at night, for example. The control block array must
-contain enough control blocks for the maximum buffer buf_pool size
-which is used in the particular database.
-If the buf_pool size is cut, we exploit the virtual memory mechanism of
-the OS, and just refrain from using frames at high addresses. Then the OS
-can swap them to disk.
 
 The control blocks containing file pages are put to a hash table
 according to the file address of the page.
@@ -345,7 +338,7 @@ on the io_type */
 @return true if temporary tablespace decrypted, false if not */
 static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 {
-	if (buf_page_is_zeroes(src_frame, srv_page_size)) {
+	if (buf_is_zeroes(span<const byte>(src_frame, srv_page_size))) {
 		return true;
 	}
 
@@ -725,20 +718,14 @@ static void buf_page_check_lsn(bool check_lsn, const byte* read_buf)
 #endif /* !UNIV_INNOCHECKSUM */
 }
 
-/** Check if a page is all zeroes.
-@param[in]	read_buf	database page
-@param[in]	page_size	page frame size
-@return whether the page is all zeroes */
-bool buf_page_is_zeroes(const void* read_buf, size_t page_size)
+
+/** Check if a buffer is all zeroes.
+@param[in]	buf	data to check
+@return whether the buffer is all zeroes */
+bool buf_is_zeroes(span<const byte> buf)
 {
-	const ulint* b = reinterpret_cast<const ulint*>(read_buf);
-	const ulint* const e = b + page_size / sizeof *b;
-	do {
-		if (*b++) {
-			return false;
-		}
-	} while (b != e);
-	return true;
+  ut_ad(buf.size() <= sizeof field_ref_zero);
+  return memcmp(buf.data(), field_ref_zero, buf.size()) == 0;
 }
 
 /** Check if a page is corrupt.
@@ -767,7 +754,7 @@ buf_page_is_corrupted(
 		uint crc32 = mach_read_from_4(end);
 
 		if (!crc32 && size == srv_page_size
-		    && buf_page_is_zeroes(read_buf, size)) {
+		    && buf_is_zeroes(span<const byte>(read_buf, size))) {
 			return false;
 		}
 
@@ -863,8 +850,9 @@ buf_page_is_corrupted(
 	static_assert(FIL_PAGE_LSN % 8 == 0, "alignment");
 
 	/* A page filled with NUL bytes is considered not corrupted.
-	The FIL_PAGE_FILE_FLUSH_LSN field may be written nonzero for
-	the first page of each file of the system tablespace.
+	Before MariaDB Server 10.1.25 (MDEV-12113) or 10.2.2 (or MySQL 5.7),
+	the FIL_PAGE_FILE_FLUSH_LSN field may have been written nonzero
+	for the first page of each file of the system tablespace.
 	We want to ignore it for the system tablespace, but because
 	we do not know the expected tablespace here, we ignore the
 	field for all data files, except for
@@ -1392,6 +1380,8 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
 
   /* Align a pointer to the first frame.  Note that when
   opt_large_page_size is smaller than srv_page_size,
+  (with max srv_page_size at 64k don't think any hardware
+  makes this true),
   we may allocate one fewer block than requested.  When
   it is bigger, we may allocate more blocks than requested. */
   static_assert(sizeof(byte*) == sizeof(ulint), "pointer size");
@@ -1522,8 +1512,7 @@ bool buf_pool_t::create()
   n_chunks= srv_buf_pool_size / srv_buf_pool_chunk_unit;
   const size_t chunk_size= srv_buf_pool_chunk_unit;
 
-  chunks= static_cast<buf_pool_t::chunk_t*>(ut_zalloc_nokey(n_chunks *
-                                                            sizeof *chunks));
+  chunks= static_cast<chunk_t*>(ut_zalloc_nokey(n_chunks * sizeof *chunks));
   UT_LIST_INIT(free, &buf_page_t::list);
   curr_size= 0;
   auto chunk= chunks;
@@ -1539,8 +1528,7 @@ bool buf_pool_t::create()
           for (auto i= chunk->size; i--; block++)
           buf_block_free_mutexes(block);
 
-          allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx,
-                                            chunk->mem_size());
+          allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
         }
         ut_free(chunks);
         chunks= nullptr;
@@ -1666,8 +1654,7 @@ void buf_pool_t::close()
     for (auto i= chunk->size; i--; block++)
       buf_block_free_mutexes(block);
 
-    allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx,
-                                      chunk->mem_size());
+    allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
   }
 
   for (ulint i= BUF_FLUSH_LRU; i < BUF_FLUSH_N_TYPES; ++i)
@@ -2292,8 +2279,7 @@ withdraw_retry:
 			}
 
 			allocator.deallocate_large_dodump(
-				chunk->mem, &chunk->mem_pfx,
-				chunk->mem_size());
+				chunk->mem, &chunk->mem_pfx);
 			sum_freed += chunk->size;
 			++chunk;
 		}
@@ -2318,7 +2304,7 @@ withdraw_retry:
 			ut_zalloc_nokey_nofatal(new_chunks_size));
 
 		DBUG_EXECUTE_IF("buf_pool_resize_chunk_null",
-				{ ut_free(new_chunks); new_chunks= nullptr; });
+				ut_free(new_chunks); new_chunks= nullptr; );
 
 		if (!new_chunks) {
 			ib::error() << "failed to allocate"
@@ -2526,18 +2512,12 @@ void buf_resize_shutdown()
 }
 
 
-/********************************************************************//**
-Relocate a buffer control block.  Relocates the block on the LRU list
-and in buf_pool.page_hash.  Does not relocate bpage->list.
-The caller must take care of relocating bpage->list. */
-static
-void
-buf_relocate(
-/*=========*/
-	buf_page_t*	bpage,	/*!< in/out: control block being relocated;
-				buf_page_get_state(bpage) must be
-				BUF_BLOCK_ZIP_DIRTY or BUF_BLOCK_ZIP_PAGE */
-	buf_page_t*	dpage)	/*!< in/out: destination control block */
+/** Relocate a ROW_FORMAT=COMPRESSED block in the LRU list and
+buf_pool.page_hash.
+The caller must relocate bpage->list.
+@param bpage   control block in BUF_BLOCK_ZIP_DIRTY or BUF_BLOCK_ZIP_PAGE
+@param dpage   destination control block */
+static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage)
 {
 	buf_page_t*	b;
 
@@ -2755,27 +2735,20 @@ page_found:
 }
 
 /** Remove the sentinel block for the watch before replacing it with a
-real block. buf_page_watch_clear() or buf_page_watch_occurred() will notice
+real block. buf_pool_watch_unset() or buf_pool_watch_occurred() will notice
 that the block has been replaced with the real block.
 @param[in,out]	watch		sentinel for watch
 @return reference count, to be added to the replacement block */
-static
-void
-buf_pool_watch_remove(buf_page_t* watch)
+static void buf_pool_watch_remove(buf_page_t *watch)
 {
-#ifdef UNIV_DEBUG
-	/* We must also own the appropriate hash_bucket mutex. */
-	rw_lock_t* hash_lock = buf_page_hash_lock_get(watch->id);
-	ut_ad(rw_lock_own(hash_lock, RW_LOCK_X));
-#endif /* UNIV_DEBUG */
+  ut_ad(rw_lock_own(buf_page_hash_lock_get(watch->id), RW_LOCK_X));
+  ut_ad(mutex_own(&buf_pool.mutex));
 
-	ut_ad(mutex_own(&buf_pool.mutex));
-
-	HASH_DELETE(buf_page_t, hash, buf_pool.page_hash, watch->id.fold(),
-		    watch);
-	ut_d(watch->in_page_hash = FALSE);
-	watch->buf_fix_count = 0;
-	watch->state = BUF_BLOCK_POOL_WATCH;
+  ut_ad(watch->in_page_hash);
+  ut_d(watch->in_page_hash= FALSE);
+  HASH_DELETE(buf_page_t, hash, buf_pool.page_hash, watch->id.fold(), watch);
+  watch->buf_fix_count= 0;
+  watch->state= BUF_BLOCK_POOL_WATCH;
 }
 
 /** Stop watching if the page has been read in.
@@ -2783,27 +2756,31 @@ buf_pool_watch_set(same_page_id) must have returned NULL before.
 @param[in]	page_id	page id */
 void buf_pool_watch_unset(const page_id_t page_id)
 {
-	buf_page_t*	bpage;
-	/* We only need to have buf_pool.mutex in case where we end
-	up calling buf_pool_watch_remove but to obey latching order
-	we acquire it here before acquiring hash_lock. This should
-	not cause too much grief as this function is only ever
-	called from the purge thread. */
-	mutex_enter(&buf_pool.mutex);
+  /* FIXME: We only need buf_pool.mutex during the HASH_DELETE
+  because it protects watch->in_page_hash. */
+  mutex_enter(&buf_pool.mutex);
 
-	rw_lock_t*	hash_lock = buf_page_hash_lock_get(page_id);
-	rw_lock_x_lock(hash_lock);
+  rw_lock_t *hash_lock= buf_page_hash_lock_get(page_id);
+  rw_lock_x_lock(hash_lock);
 
-	/* The page must exist because buf_pool_watch_set()
-	increments buf_fix_count. */
-	bpage = buf_page_hash_get_low(page_id);
+  /* The page must exist because buf_pool_watch_set() increments
+  buf_fix_count. */
+  buf_page_t *watch= buf_page_hash_get_low(page_id);
 
-	if (bpage->unfix() == 0 && buf_pool_watch_is_sentinel(bpage)) {
-		buf_pool_watch_remove(bpage);
-	}
-
-	mutex_exit(&buf_pool.mutex);
-	rw_lock_x_unlock(hash_lock);
+  if (watch->unfix() == 0 && buf_pool_watch_is_sentinel(watch))
+  {
+    /* The following is based on buf_pool_watch_remove(). */
+    ut_d(watch->in_page_hash= FALSE);
+    HASH_DELETE(buf_page_t, hash, buf_pool.page_hash, page_id.fold(), watch);
+    rw_lock_x_unlock(hash_lock);
+    /* Now that the watch is no longer reachable via buf_pool.page_hash,
+    release it to buf_pool.watch[] for reuse. */
+    watch->buf_fix_count= 0;
+    watch->state= BUF_BLOCK_POOL_WATCH;
+  }
+  else
+    rw_lock_x_unlock(hash_lock);
+  mutex_exit(&buf_pool.mutex);
 }
 
 /** Check if the page has been read in.
@@ -3238,7 +3215,45 @@ buf_wait_for_read(
 	}
 }
 
-/** This is the general function used to get access to a database page.
+/** Lock the page with the given latch type.
+@param[in,out]	block		block to be locked
+@param[in]	rw_latch	RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
+@param[in]	mtr		mini-transaction
+@param[in]	file		file name
+@param[in]	line		line where called
+@return pointer to locked block */
+static buf_block_t* buf_page_mtr_lock(buf_block_t *block,
+                                      ulint rw_latch,
+                                      mtr_t* mtr,
+                                      const char *file,
+                                      unsigned line)
+{
+  mtr_memo_type_t fix_type;
+  switch (rw_latch)
+  {
+  case RW_NO_LATCH:
+    fix_type= MTR_MEMO_BUF_FIX;
+    break;
+  case RW_S_LATCH:
+    rw_lock_s_lock_inline(&block->lock, 0, file, line);
+    fix_type= MTR_MEMO_PAGE_S_FIX;
+    break;
+  case RW_SX_LATCH:
+    rw_lock_sx_lock_inline(&block->lock, 0, file, line);
+    fix_type= MTR_MEMO_PAGE_SX_FIX;
+    break;
+  default:
+    ut_ad(rw_latch == RW_X_LATCH);
+    rw_lock_x_lock_inline(&block->lock, 0, file, line);
+    fix_type= MTR_MEMO_PAGE_X_FIX;
+    break;
+  }
+
+  mtr_memo_push(mtr, block, fix_type);
+  return block;
+}
+
+/** Low level function used to get access to a database page.
 @param[in]	page_id			page id
 @param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
@@ -3255,7 +3270,7 @@ then it makes sure that it does merging of change buffer changes while
 reading the page from file.
 @return pointer to the block or NULL */
 buf_block_t*
-buf_page_get_gen(
+buf_page_get_low(
 	const page_id_t		page_id,
 	ulint			zip_size,
 	ulint			rw_latch,
@@ -3793,7 +3808,7 @@ evict_from_pool:
 			if (block != NULL) {
 				/* Either the page has been read in or
 				a watch was set on that in the window
-				where we released the buf_pool::mutex
+				where we released the buf_pool.mutex
 				and before we acquire the hash_lock
 				above. Try again. */
 				guess = block;
@@ -3910,28 +3925,8 @@ evict_from_pool:
 		}
 	} else {
 get_latch:
-		mtr_memo_type_t fix_type;
-
-		switch (rw_latch) {
-		case RW_NO_LATCH:
-			fix_type = MTR_MEMO_BUF_FIX;
-			break;
-		case RW_S_LATCH:
-			rw_lock_s_lock_inline(&fix_block->lock, 0, file, line);
-			fix_type = MTR_MEMO_PAGE_S_FIX;
-			break;
-		case RW_SX_LATCH:
-			rw_lock_sx_lock_inline(&fix_block->lock, 0, file, line);
-			fix_type = MTR_MEMO_PAGE_SX_FIX;
-			break;
-		default:
-			ut_ad(rw_latch == RW_X_LATCH);
-			rw_lock_x_lock_inline(&fix_block->lock, 0, file, line);
-			fix_type = MTR_MEMO_PAGE_X_FIX;
-			break;
-		}
-
-		mtr->memo_push(block, fix_type);
+		fix_block = buf_page_mtr_lock(fix_block, rw_latch, mtr,
+					      file, line);
 	}
 
 	if (mode != BUF_PEEK_IF_IN_POOL && !access_time) {
@@ -3945,6 +3940,45 @@ get_latch:
 				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	return(fix_block);
+}
+
+/** Get access to a database page. Buffered redo log may be applied.
+@param[in]	page_id			page id
+@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
+@param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
+@param[in]	guess			guessed block or NULL
+@param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
+BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
+@param[in]	file			file name
+@param[in]	line			line where called
+@param[in]	mtr			mini-transaction
+@param[out]	err			DB_SUCCESS or error code
+@param[in]	allow_ibuf_merge	Allow change buffer merge while
+reading the pages from file.
+@return pointer to the block or NULL */
+buf_block_t*
+buf_page_get_gen(
+	const page_id_t		page_id,
+	ulint			zip_size,
+	ulint			rw_latch,
+	buf_block_t*		guess,
+	ulint			mode,
+	const char*		file,
+	unsigned		line,
+	mtr_t*			mtr,
+	dberr_t*		err,
+	bool			allow_ibuf_merge)
+{
+  if (buf_block_t *block= recv_sys.recover(page_id))
+  {
+    block->fix();
+    ut_ad(rw_lock_s_lock_nowait(block->debug_latch, file, line));
+    block= buf_page_mtr_lock(block, rw_latch, mtr, file, line);
+    return block;
+  }
+
+  return buf_page_get_low(page_id, zip_size, rw_latch,
+                          guess, mode, file, line, mtr, err, allow_ibuf_merge);
 }
 
 /********************************************************************//**
@@ -4197,17 +4231,9 @@ static void buf_page_init(const page_id_t page_id, ulint zip_size,
 
 		buf_pool_watch_remove(hash_page);
 	} else {
-
-		ib::error() << "Page " << page_id
+		ib::fatal() << "Page " << page_id
 			<< " already found in the hash table: "
 			<< hash_page << ", " << block;
-
-		ut_d(buf_page_mutex_exit(block));
-		ut_d(mutex_exit(&buf_pool.mutex));
-		ut_d(buf_pool.print());
-		ut_d(buf_LRU_print());
-		ut_d(buf_LRU_validate());
-		ut_error;
 	}
 
 	ut_ad(!block->page.in_zip_hash);
@@ -4821,7 +4847,8 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 	/* If traditional checksums match, we assume that page is
 	not anymore encrypted. */
 	if (space->full_crc32()
-	    && !buf_page_is_zeroes(dst_frame, space->physical_size())
+	    && !buf_is_zeroes(span<const byte>(dst_frame,
+					       space->physical_size()))
 	    && (key_version || space->is_compressed()
 		|| space->purpose == FIL_TYPE_TEMPORARY)) {
 		if (buf_page_full_crc32_is_corrupted(
@@ -5208,7 +5235,7 @@ void buf_pool_invalidate()
 void buf_pool_t::validate()
 {
 	buf_page_t*	b;
-	buf_pool_t::chunk_t*	chunk;
+	chunk_t*	chunk;
 	ulint		i;
 	ulint		n_lru_flush	= 0;
 	ulint		n_page_flush	= 0;
@@ -5429,7 +5456,7 @@ void buf_pool_t::print()
 	ulint		j;
 	index_id_t	id;
 	ulint		n_found;
-	buf_pool_t::chunk_t*	chunk;
+	chunk_t*	chunk;
 	dict_index_t*	index;
 
 	size = curr_size;

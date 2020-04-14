@@ -1,4 +1,4 @@
-/* Copyright (C) 2012, 2019, MariaDB Corporation.
+/* Copyright (C) 2012, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@
 #include <sql_audit.h>
 #include <debug_sync.h>
 #include <threadpool.h>
-#include <my_counter.h>
 
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"

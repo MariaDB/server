@@ -512,8 +512,9 @@ public:
   );
   ha_rows records_in_range(
     uint inx,
-    key_range *start_key,
-    key_range *end_key
+    const key_range *start_key,
+    const key_range *end_key,
+    page_range *pages
   );
   int check_crd();
   int pre_records();

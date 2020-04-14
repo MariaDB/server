@@ -1435,7 +1435,7 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
                                  Log_event_type event_type)
   :Log_event(buf, description_event), data_buf(0), query(NullS),
    db(NullS), catalog_len(0), status_vars_len(0),
-   flags2_inited(0), sql_mode_inited(0), charset_inited(0),
+   flags2_inited(0), sql_mode_inited(0), charset_inited(0), flags2(0),
    auto_increment_increment(1), auto_increment_offset(1),
    time_zone_len(0), lc_time_names_number(0), charset_database_number(0),
    table_map_for_update(0), master_data_written(0)

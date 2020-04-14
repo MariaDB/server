@@ -1932,16 +1932,14 @@ ALTER TABLE t2 ADD PRIMARY KEY(c1);
 SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 c1
 a
-a
 SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 c1
-a
 a
 # t2 should NOT be eliminated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
+1	SIMPLE	t2	range	PRIMARY	PRIMARY	1	NULL	1	Using where; Using index
 DROP TABLE IF EXISTS t1,t2;
 CREATE TABLE t1 (c1 SET('a') CHARACTER SET latin1 PRIMARY KEY);
 INSERT INTO t1 VALUES ('a');
@@ -1959,16 +1957,14 @@ ALTER TABLE t2 ADD PRIMARY KEY(c1);
 SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 c1
 a
-a
 SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 c1
-a
 a
 # t2 should NOT be eliminated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
+1	SIMPLE	t2	range	PRIMARY	PRIMARY	1	NULL	1	Using where; Using index
 DROP TABLE IF EXISTS t1,t2;
 CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET latin1 PRIMARY KEY);
 INSERT INTO t1 VALUES ('a');
@@ -1986,16 +1982,14 @@ ALTER TABLE t2 ADD PRIMARY KEY(c1);
 SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 c1
 a
-a
 SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 c1
-a
 a
 # t2 should NOT be eliminated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
+1	SIMPLE	t2	range	PRIMARY	PRIMARY	1	NULL	1	Using where; Using index
 DROP TABLE IF EXISTS t1,t2;
 #
 # MDEV-6991 GROUP_MIN_MAX optimization is erroneously applied in some cases

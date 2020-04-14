@@ -641,7 +641,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       if ((handler->keyno= find_type(keyname, &table->s->keynames,
                                      FIND_TYPE_NO_PREFIX) - 1) < 0)
       {
-        my_error(ER_KEY_DOES_NOT_EXITS, MYF(0), keyname,
+        my_error(ER_KEY_DOES_NOT_EXISTS, MYF(0), keyname,
                  handler->handler_name.str);
         return 1;
       }

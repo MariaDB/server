@@ -391,6 +391,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE);
   if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
     DBUG_RETURN(TRUE);
+
   if (setup_tables_and_check_access(thd,
                                     &thd->lex->first_select_lex()->context,
                                     &thd->lex->first_select_lex()->
@@ -439,6 +440,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 #ifndef EMBEDDED_LIBRARY
   is_concurrent= (table_list->lock_type == TL_WRITE_CONCURRENT_INSERT);
 #endif
+
+  if (check_duplic_insert_without_overlaps(thd, table, handle_duplicates) != 0)
+    DBUG_RETURN(true);
 
   if (!fields_vars.elements)
   {
@@ -647,10 +651,14 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
-    if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS) &&
-        (error= table_list->table->file->ha_rnd_init_with_error(0)))
-      goto err;
-
+    bool create_lookup_handler= handle_duplicates != DUP_ERROR;
+    if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS))
+    {
+      create_lookup_handler= true;
+      if ((error= table_list->table->file->ha_rnd_init_with_error(0)))
+        goto err;
+    }
+    table->file->prepare_for_insert(create_lookup_handler);
     thd_progress_init(thd, 2);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
     {

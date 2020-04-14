@@ -8828,9 +8828,21 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "<derived2>",
+      "table_name": "t1",
       "access_type": "ALL",
-      "rows": 3,
+      "rows": 4,
+      "filtered": 100,
+      "attached_condition": "t1.id2 is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["id2"],
+      "ref": ["test.t1.id2"],
+      "rows": 2,
       "filtered": 100,
       "attached_condition": "vc.ct > 0",
       "materialized": {
@@ -8850,18 +8862,6 @@ EXPLAIN
           }
         }
       }
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t1",
-        "access_type": "ALL",
-        "rows": 4,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "163",
-      "join_type": "BNL",
-      "attached_condition": "t1.id2 = vc.id2"
     }
   }
 }
@@ -9078,9 +9078,8 @@ WHERE d_tab.e>1
 )
 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.a,test.t1.b	2	FirstMatch(t1)
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a,t1.b) IN
@@ -9103,44 +9102,33 @@ EXPLAIN
       "table_name": "t1",
       "access_type": "ALL",
       "rows": 5,
-      "filtered": 100
+      "filtered": 100,
+      "attached_condition": "t1.a > 1 and t1.a is not null and t1.b is not null"
     },
     "table": {
-      "table_name": "<subquery2>",
-      "access_type": "eq_ref",
-      "possible_keys": ["distinct_key"],
-      "key": "distinct_key",
-      "key_length": "8",
+      "table_name": "<derived3>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "10",
       "used_key_parts": ["e", "max_f"],
-      "ref": ["func", "func"],
-      "rows": 1,
+      "ref": ["test.t1.a", "test.t1.b"],
+      "rows": 2,
       "filtered": 100,
+      "first_match": "t1",
       "materialized": {
-        "unique": 1,
         "query_block": {
-          "select_id": 2,
-          "table": {
-            "table_name": "<derived3>",
-            "access_type": "ALL",
-            "rows": 5,
-            "filtered": 100,
-            "attached_condition": "d_tab.e > 1",
-            "materialized": {
-              "query_block": {
-                "select_id": 3,
-                "having_condition": "max_f > 18",
-                "filesort": {
-                  "sort_key": "t2.e",
-                  "temporary_table": {
-                    "table": {
-                      "table_name": "t2",
-                      "access_type": "ALL",
-                      "rows": 5,
-                      "filtered": 100,
-                      "attached_condition": "t2.e > 1"
-                    }
-                  }
-                }
+          "select_id": 3,
+          "having_condition": "max_f > 18",
+          "filesort": {
+            "sort_key": "t2.e",
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 5,
+                "filtered": 100,
+                "attached_condition": "t2.e > 1"
               }
             }
           }
@@ -9179,9 +9167,8 @@ WHERE d_tab.max_f<25
 )
 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.a,test.t1.b	2	FirstMatch(t1)
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a,t1.b) IN
@@ -9204,43 +9191,32 @@ EXPLAIN
       "table_name": "t1",
       "access_type": "ALL",
       "rows": 5,
-      "filtered": 100
+      "filtered": 100,
+      "attached_condition": "t1.b < 25 and t1.a is not null and t1.b is not null"
     },
     "table": {
-      "table_name": "<subquery2>",
-      "access_type": "eq_ref",
-      "possible_keys": ["distinct_key"],
-      "key": "distinct_key",
-      "key_length": "8",
+      "table_name": "<derived3>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "10",
       "used_key_parts": ["e", "max_f"],
-      "ref": ["func", "func"],
-      "rows": 1,
+      "ref": ["test.t1.a", "test.t1.b"],
+      "rows": 2,
       "filtered": 100,
+      "first_match": "t1",
       "materialized": {
-        "unique": 1,
         "query_block": {
-          "select_id": 2,
-          "table": {
-            "table_name": "<derived3>",
-            "access_type": "ALL",
-            "rows": 5,
-            "filtered": 100,
-            "attached_condition": "d_tab.max_f < 25",
-            "materialized": {
-              "query_block": {
-                "select_id": 3,
-                "having_condition": "max_f > 18 and max_f < 25",
-                "filesort": {
-                  "sort_key": "t2.e",
-                  "temporary_table": {
-                    "table": {
-                      "table_name": "t2",
-                      "access_type": "ALL",
-                      "rows": 5,
-                      "filtered": 100
-                    }
-                  }
-                }
+          "select_id": 3,
+          "having_condition": "max_f > 18 and max_f < 25",
+          "filesort": {
+            "sort_key": "t2.e",
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 5,
+                "filtered": 100
               }
             }
           }
@@ -10578,6 +10554,18 @@ a	b	max_c	a	b	dayname(v1.b)
 DROP VIEW v1;
 DROP TABLE t1, t2;
 SET optimizer_switch=DEFAULT;
+#
+# MDEV-17177: an attempt to push down IN predicate when one of
+#             the arguments is too complex to be cloned
+#
+CREATE TABLE t1 (a VARCHAR(8));
+INSERT INTO t1 VALUES ('abc'),('def');
+CREATE VIEW v1 AS SELECT * FROM t1 GROUP BY a;
+SELECT * FROM v1 WHERE IF( a REGEXP 'def', 'foo', a ) IN ('abc', 'foobar');
+a
+abc
+DROP VIEW v1;
+DROP TABLE t1;
 # End of 10.2 tests
 #
 # MDEV-14579: pushdown conditions into materialized views/derived tables
@@ -14045,16 +14033,16 @@ a	b	max_c	a	b	c
 1	21	345	3	21	231
 select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 a	b	max_c	a	b	c
-2	33	7	5	33	207
 4	33	123	5	33	207
-2	33	7	8	33	117
+2	33	7	5	33	207
 4	33	123	8	33	117
-1	21	345	3	21	231
+2	33	7	8	33	117
 3	21	500	3	21	231
+1	21	345	3	21	231
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
 2	DERIVED	t3	range	i1	i1	5	NULL	5	Using index condition
 explain format=json select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 EXPLAIN
@@ -14062,9 +14050,21 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "<derived2>",
+      "table_name": "t2",
       "access_type": "ALL",
-      "rows": 5,
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.b is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["b"],
+      "ref": ["test.t2.b"],
+      "rows": 2,
       "filtered": 100,
       "attached_condition": "v1.a < 5",
       "materialized": {
@@ -14083,18 +14083,6 @@ EXPLAIN
           }
         }
       }
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 9,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "173",
-      "join_type": "BNL",
-      "attached_condition": "t2.b = v1.b"
     }
   }
 }
@@ -16912,6 +16900,91 @@ Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` semi join ((/* select#3 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`ro_id` = `test`.`t1`.`id` and `test`.`t2`.`flag` = 1) where `test`.`t1`.`id` = `test`.`t1`.`id` group by `test`.`t1`.`id`) `dt`) where `dt`.`id` = `test`.`t1`.`id`
 drop view v1;
 drop table t1,t2;
+#
+# MDEV-21883: potentially splittable materialized derived
+#             that uses a join of 32 tables
+#
+CREATE TABLE t (id INT NOT NULL PRIMARY KEY);
+INSERT INTO t values (1),(2),(3);
+set statement optimizer_switch='split_materialized=off' for SELECT t.id FROM t
+LEFT JOIN (
+SELECT t0.id FROM t AS t0
+LEFT JOIN t AS t1 ON 0=1
+LEFT JOIN t AS t2 ON 0=1
+LEFT JOIN t AS t3 ON 0=1
+LEFT JOIN t AS t4 ON 0=1
+LEFT JOIN t AS t5 ON 0=1
+LEFT JOIN t AS t6 ON 0=1
+LEFT JOIN t AS t7 ON 0=1
+LEFT JOIN t AS t8 ON 0=1
+LEFT JOIN t AS t9 ON 0=1
+LEFT JOIN t AS t10 ON 0=1
+LEFT JOIN t AS t11 ON 0=1
+LEFT JOIN t AS t12 ON 0=1
+LEFT JOIN t AS t13 ON 0=1
+LEFT JOIN t AS t14 ON 0=1
+LEFT JOIN t AS t15 ON 0=1
+LEFT JOIN t AS t16 ON 0=1
+LEFT JOIN t AS t17 ON 0=1
+LEFT JOIN t AS t18 ON 0=1
+LEFT JOIN t AS t19 ON 0=1
+LEFT JOIN t AS t20 ON 0=1
+LEFT JOIN t AS t21 ON 0=1
+LEFT JOIN t AS t22 ON 0=1
+LEFT JOIN t AS t23 ON 0=1
+LEFT JOIN t AS t24 ON 0=1
+LEFT JOIN t AS t25 ON 0=1
+LEFT JOIN t AS t26 ON 0=1
+LEFT JOIN t AS t27 ON 0=1
+LEFT JOIN t AS t28 ON 0=1
+LEFT JOIN t AS t29 ON 0=1
+LEFT JOIN t AS t30 ON 0=1
+LEFT JOIN t AS t31 ON 0=1
+GROUP BY t0.id) AS dt ON dt.id = t.id;
+id
+1
+2
+3
+set statement optimizer_switch='split_materialized=on' for SELECT t.id FROM t
+LEFT JOIN (
+SELECT t0.id FROM t AS t0
+LEFT JOIN t AS t1 ON 0=1
+LEFT JOIN t AS t2 ON 0=1
+LEFT JOIN t AS t3 ON 0=1
+LEFT JOIN t AS t4 ON 0=1
+LEFT JOIN t AS t5 ON 0=1
+LEFT JOIN t AS t6 ON 0=1
+LEFT JOIN t AS t7 ON 0=1
+LEFT JOIN t AS t8 ON 0=1
+LEFT JOIN t AS t9 ON 0=1
+LEFT JOIN t AS t10 ON 0=1
+LEFT JOIN t AS t11 ON 0=1
+LEFT JOIN t AS t12 ON 0=1
+LEFT JOIN t AS t13 ON 0=1
+LEFT JOIN t AS t14 ON 0=1
+LEFT JOIN t AS t15 ON 0=1
+LEFT JOIN t AS t16 ON 0=1
+LEFT JOIN t AS t17 ON 0=1
+LEFT JOIN t AS t18 ON 0=1
+LEFT JOIN t AS t19 ON 0=1
+LEFT JOIN t AS t20 ON 0=1
+LEFT JOIN t AS t21 ON 0=1
+LEFT JOIN t AS t22 ON 0=1
+LEFT JOIN t AS t23 ON 0=1
+LEFT JOIN t AS t24 ON 0=1
+LEFT JOIN t AS t25 ON 0=1
+LEFT JOIN t AS t26 ON 0=1
+LEFT JOIN t AS t27 ON 0=1
+LEFT JOIN t AS t28 ON 0=1
+LEFT JOIN t AS t29 ON 0=1
+LEFT JOIN t AS t30 ON 0=1
+LEFT JOIN t AS t31 ON 0=1
+GROUP BY t0.id) AS dt ON dt.id = t.id;
+id
+1
+2
+3
+DROP TABLE t;
 # End of 10.3 tests
 #
 # MDEV-18679: materialized view with SELECT S containing materialized

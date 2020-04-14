@@ -401,15 +401,19 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
   uint i;
   char *default_name;
   bool result= TRUE;
+  bool alter= false;
   DBUG_ENTER("partition_info::set_up_default_partitions");
 
   if (part_type == VERSIONING_PARTITION)
   {
-    if (use_default_num_partitions)
+    if (start_no > 0)
     {
-      num_parts= 2;
-      use_default_num_partitions= false;
+      start_no--;
+      alter= true;
     }
+    else if (use_default_num_partitions)
+      num_parts= 2;
+    use_default_num_partitions= false;
   }
   else if (part_type != HASH_PARTITION)
   {
@@ -451,7 +455,7 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
       default_name+=MAX_PART_NAME_SIZE;
       if (part_type == VERSIONING_PARTITION)
       {
-        if (i < num_parts - 1) {
+        if (alter || i < num_parts - 1) {
           part_elem->type= partition_element::HISTORY;
         } else {
           part_elem->type= partition_element::CURRENT;

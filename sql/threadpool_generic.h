@@ -1,4 +1,4 @@
-/* Copyright(C) 2019 MariaDB
+/* Copyright(C) 2019, 2020, MariaDB
  *
  * This program is free software; you can redistribute itand /or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,8 +17,8 @@
 #include <my_global.h>
 #include <sql_plist.h>
 #include <my_pthread.h>
-#include <threadpool.h>
 #include <mysqld.h>
+#include <threadpool.h>
 #include <violite.h>
 
 #ifdef _WIN32
@@ -108,6 +108,12 @@ typedef I_P_List<TP_connection_generic,
 
 const int NQUEUES = 2; /* We have high and low priority queues*/
 
+enum class operation_origin
+{
+  WORKER,
+  LISTENER
+};
+
 struct thread_group_counters_t
 {
   ulonglong thread_creations;
@@ -116,10 +122,8 @@ struct thread_group_counters_t
   ulonglong wakes_due_to_stall;
   ulonglong throttles;
   ulonglong stalls;
-  ulonglong dequeues_by_worker;
-  ulonglong dequeues_by_listener;
-  ulonglong polls_by_listener;
-  ulonglong polls_by_worker;
+  ulonglong dequeues[2];
+  ulonglong polls[2];
 };
 
 struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) thread_group_t
@@ -143,7 +147,7 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) thread_group_t
   thread_group_counters_t counters;
 };
 
-#define TP_INCREMENT_GROUP_COUNTER(group,var) group->counters.var++;
+#define TP_INCREMENT_GROUP_COUNTER(group,var) do {group->counters.var++;}while(0)
 
 extern thread_group_t* all_groups;
 #endif

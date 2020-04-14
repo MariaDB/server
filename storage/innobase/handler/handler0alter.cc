@@ -58,6 +58,8 @@ Smart ALTER TABLE
 #include "span.h"
 
 using st_::span;
+/** File format constraint for ALTER TABLE */
+extern ulong innodb_instant_alter_column_allowed;
 
 static const char *MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN=
 			"INPLACE ADD or DROP of virtual columns cannot be "
@@ -1960,6 +1962,37 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	const char* reason_rebuild = NULL;
 
+	switch (innodb_instant_alter_column_allowed) {
+	case 0: /* never */
+		if ((ha_alter_info->handler_flags
+		     & (ALTER_ADD_STORED_BASE_COLUMN
+			| ALTER_STORED_COLUMN_ORDER
+			| ALTER_DROP_STORED_COLUMN))
+		    || m_prebuilt->table->is_instant()) {
+			reason_rebuild =
+				"innodb_instant_alter_column_allowed=never";
+innodb_instant_alter_column_allowed_reason:
+			if (ha_alter_info->handler_flags
+			    & ALTER_RECREATE_TABLE) {
+				reason_rebuild = NULL;
+			} else {
+				ha_alter_info->handler_flags
+					|= ALTER_RECREATE_TABLE;
+				ha_alter_info->unsupported_reason
+					= reason_rebuild;
+			}
+		}
+		break;
+	case 1: /* add_last */
+		if ((ha_alter_info->handler_flags
+		     & (ALTER_STORED_COLUMN_ORDER | ALTER_DROP_STORED_COLUMN))
+		    || m_prebuilt->table->instant) {
+			reason_rebuild = "innodb_instant_atler_column_allowed="
+				"add_last";
+			goto innodb_instant_alter_column_allowed_reason;
+		}
+	}
+
 	switch (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
 	case ALTER_OPTIONS:
 		if (alter_options_need_rebuild(ha_alter_info, table)) {
@@ -2450,6 +2483,7 @@ cannot_create_many_fulltext_index:
 	}
 
 	if (need_rebuild || fts_need_rebuild) {
+		ha_alter_info->handler_flags |= ALTER_RECREATE_TABLE;
 		DBUG_RETURN(online
 			    ? HA_ALTER_INPLACE_COPY_NO_LOCK
 			    : HA_ALTER_INPLACE_COPY_LOCK);
@@ -10186,7 +10220,7 @@ commit_cache_norebuild(
 					    space->zip_size(),
 					    RW_X_LATCH, &mtr)) {
 					mtr.set_named_space(space);
-					mtr.write<4,mtr_t::OPT>(
+					mtr.write<4,mtr_t::MAYBE_NOP>(
 						*b,
 						FSP_HEADER_OFFSET
 						+ FSP_SPACE_FLAGS + b->frame,

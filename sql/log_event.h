@@ -524,11 +524,11 @@ class String;
 */
 #define OPTIONS_WRITTEN_TO_BIN_LOG \
   (OPTION_AUTO_IS_NULL | OPTION_NO_FOREIGN_KEY_CHECKS |  \
-   OPTION_RELAXED_UNIQUE_CHECKS | OPTION_NOT_AUTOCOMMIT)
+   OPTION_RELAXED_UNIQUE_CHECKS | OPTION_NOT_AUTOCOMMIT | OPTION_IF_EXISTS)
 
 /* Shouldn't be defined before */
 #define EXPECTED_OPTIONS \
-  ((1ULL << 14) | (1ULL << 26) | (1ULL << 27) | (1ULL << 19))
+  ((1ULL << 14) | (1ULL << 26) | (1ULL << 27) | (1ULL << 19) | (1ULL << 28))
 
 #if OPTIONS_WRITTEN_TO_BIN_LOG != EXPECTED_OPTIONS
 #error OPTIONS_WRITTEN_TO_BIN_LOG must NOT change their values!
@@ -932,6 +932,8 @@ typedef struct st_print_event_info
 
 class Log_event_writer
 {
+  /* Log_event_writer is updated when ctx is set */
+  int (Log_event_writer::*encrypt_or_write)(const uchar *pos, size_t len);
 public:
   ulonglong bytes_written;
   void *ctx;         ///< Encryption context or 0 if no encryption is needed
@@ -942,10 +944,14 @@ public:
   int write_footer();
   my_off_t pos() { return my_b_safe_tell(file); }
   void add_status(enum_logged_status status);
+  void set_incident();
+  void set_encrypted_writer()
+  { encrypt_or_write= &Log_event_writer::encrypt_and_write; }
 
   Log_event_writer(IO_CACHE *file_arg, binlog_cache_data *cache_data_arg,
                    Binlog_crypt_data *cr= 0)
-  : bytes_written(0), ctx(0),
+    :encrypt_or_write(&Log_event_writer::write_internal),
+    bytes_written(0), ctx(0),
     file(file_arg), cache_data(cache_data_arg), crypto(cr) { }
 
 private:

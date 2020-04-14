@@ -1727,7 +1727,7 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
                      (ulong) rows, size));
 
   /* don't enable row cache if too few rows */
-  if (! rows || (rows > MI_MIN_ROWS_TO_USE_WRITE_CACHE))
+  if ((!rows || rows > MI_MIN_ROWS_TO_USE_WRITE_CACHE) && !has_long_unique())
     mi_extra(file, HA_EXTRA_WRITE_CACHE, (void*) &size);
 
   can_enable_indexes= mi_is_all_keys_active(file->s->state.key_map,
@@ -2089,7 +2089,8 @@ int ha_myisam::info(uint flag)
 
     ref_length= misam_info.reflength;
     share->db_options_in_use= misam_info.options;
-    stats.block_size= myisam_block_size;        /* record block size */
+    /* record block size. We adjust with IO_SIZE to not make it too small */
+    stats.block_size= MY_MAX(myisam_block_size, IO_SIZE);
 
     if (table_share->tmp_table == NO_TMP_TABLE)
       mysql_mutex_lock(&table_share->LOCK_share);
@@ -2120,7 +2121,8 @@ int ha_myisam::info(uint flag)
 
 int ha_myisam::extra(enum ha_extra_function operation)
 {
-  if (operation == HA_EXTRA_MMAP && !opt_myisam_use_mmap)
+  if ((operation == HA_EXTRA_MMAP && !opt_myisam_use_mmap) ||
+      (operation == HA_EXTRA_WRITE_CACHE && has_long_unique()))
     return 0;
   return mi_extra(file, operation, 0);
 }
@@ -2336,6 +2338,8 @@ void ha_myisam::get_auto_increment(ulonglong offset, ulonglong increment,
     inx			Index to use
     min_key		Start of range.  Null pointer if from first key
     max_key		End of range. Null pointer if to last key
+    pages               Store first and last page for the range in case of
+                        b-trees. In other cases it's not touched.
 
   NOTES
     min_key.flag can have one of the following values:
@@ -2353,10 +2357,12 @@ void ha_myisam::get_auto_increment(ulonglong offset, ulonglong increment,
 			the range.
 */
 
-ha_rows ha_myisam::records_in_range(uint inx, key_range *min_key,
-                                    key_range *max_key)
+ha_rows ha_myisam::records_in_range(uint inx, const key_range *min_key,
+                                    const key_range *max_key,
+                                    page_range *pages)
 {
-  return (ha_rows) mi_records_in_range(file, (int) inx, min_key, max_key);
+  return (ha_rows) mi_records_in_range(file, (int) inx, min_key, max_key,
+                                       pages);
 }
 
 

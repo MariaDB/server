@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,8 +24,8 @@ Row operation global types
 Created 12/27/1996 Heikki Tuuri
 *******************************************************/
 
-#ifndef row0types_h
-#define row0types_h
+#pragma once
+#include "buf0types.h"
 
 struct plan_t;
 
@@ -52,5 +52,3 @@ struct row_log_t;
 
 /* MySQL data types */
 struct TABLE;
-
-#endif

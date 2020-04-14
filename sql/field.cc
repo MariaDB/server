@@ -7530,12 +7530,13 @@ uint Field_string::max_packed_col_length(uint max_length)
 }
 
 
-uint Field_string::get_key_image(uchar *buff, uint length, imagetype type_arg)
+uint Field_string::get_key_image(uchar *buff, uint length, const uchar *ptr_arg,
+                                 imagetype type_arg) const
 {
-  size_t bytes= field_charset()->charpos((char*) ptr,
-                                         (char*) ptr + field_length,
+  size_t bytes= field_charset()->charpos((char*) ptr_arg,
+                                         (char*) ptr_arg + field_length,
                                          length / mbmaxlen());
-  memcpy(buff, ptr, bytes);
+  memcpy(buff, ptr_arg, bytes);
   if (bytes < length)
     field_charset()->fill((char*) buff + bytes,
                           length - bytes,
@@ -7915,18 +7916,19 @@ uint Field_varstring::max_packed_col_length(uint max_length)
   return (max_length > 255 ? 2 : 1)+max_length;
 }
 
+void Field_varstring::val_str_from_ptr(String *val, const uchar *ptr) const
+{
+  val->set((const char*) get_data(ptr), get_length(ptr), field_charset());
+}
+
 uint Field_varstring::get_key_image(uchar *buff, uint length,
-                                    imagetype type_arg)
+                                    const uchar *ptr_arg,
+                                    imagetype type_arg) const
 {
   String val;
-  uint local_char_length;
-  my_bitmap_map *old_map;
+  val_str_from_ptr(&val, ptr_arg);
 
-  old_map= dbug_tmp_use_all_columns(table, table->read_set);
-  val_str(&val, &val);
-  dbug_tmp_restore_column_map(table->read_set, old_map);
-
-  local_char_length= val.charpos(length / mbmaxlen());
+  uint local_char_length= val.charpos(length / mbmaxlen());
   if (local_char_length < val.length())
     val.length(local_char_length);
   /* Key is always stored with 2 bytes */
@@ -8170,6 +8172,11 @@ int Field_varstring_compressed::store(const char *from, size_t length,
                    Field_varstring_compressed::char_length());
   store_length(compressed_length);
   return rc;
+}
+
+void Field_varstring_compressed::val_str_from_ptr(String *val, const uchar *ptr) const
+{
+  uncompress(val, val, get_data(ptr), get_length(ptr));
 }
 
 
@@ -8499,10 +8506,11 @@ int Field_blob::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
 
 /* The following is used only when comparing a key */
 
-uint Field_blob::get_key_image_itRAW(uchar *buff, uint length)
+uint Field_blob::get_key_image_itRAW(const uchar *ptr_arg, uchar *buff,
+                                     uint length) const
 {
-  size_t blob_length= get_length(ptr);
-  uchar *blob= get_ptr();
+  size_t blob_length= get_length(ptr_arg);
+  const uchar *blob= get_ptr(ptr_arg);
   size_t local_char_length= length / mbmaxlen();
   local_char_length= field_charset()->charpos(blob, blob + blob_length,
                                               local_char_length);
@@ -8670,9 +8678,7 @@ void Field_blob::sql_type(String &res) const
 
 uchar *Field_blob::pack(uchar *to, const uchar *from, uint max_length)
 {
-  uchar *save= ptr;
-  ptr= (uchar*) from;
-  uint32 length=get_length();			// Length of from string
+  uint32 length=get_length(from, packlength);			// Length of from string
 
   /*
     Store max length, which will occupy packlength bytes. If the max
@@ -8686,10 +8692,9 @@ uchar *Field_blob::pack(uchar *to, const uchar *from, uint max_length)
    */
   if (length > 0)
   {
-    from= get_ptr();
+    from= get_ptr(from);
     memcpy(to+packlength, from,length);
   }
-  ptr=save;					// Restore org row pointer
   return to+packlength+length;
 }
 
@@ -9706,11 +9711,12 @@ int Field_bit::cmp_offset(my_ptrdiff_t row_offset)
 }
 
 
-uint Field_bit::get_key_image(uchar *buff, uint length, imagetype type_arg)
+uint Field_bit::get_key_image(uchar *buff, uint length, const uchar *ptr_arg, imagetype type_arg) const
 {
   if (bit_len)
   {
-    uchar bits= get_rec_bits(bit_ptr, bit_ofs, bit_len);
+    const uchar *bit_ptr_for_arg= ptr_arg + (bit_ptr - ptr);
+    uchar bits= get_rec_bits(bit_ptr_for_arg, bit_ofs, bit_len);
     *buff++= bits;
     length--;
   }
@@ -11071,3 +11077,20 @@ void Field::print_key_value_binary(String *out, const uchar* key, uint32 length)
 {
   out->append_semi_hex((const char*)key, length, charset());
 }
+
+
+Virtual_column_info* Virtual_column_info::clone(THD *thd)
+{
+  Virtual_column_info* dst= new (thd->mem_root) Virtual_column_info(*this);
+  if (!dst)
+    return NULL;
+  if (expr)
+  {
+    dst->expr= expr->get_copy(thd);
+    if (!dst->expr)
+      return NULL;
+  }
+  if (!thd->make_lex_string(&dst->name, name.str, name.length))
+    return NULL;
+  return dst;
+};

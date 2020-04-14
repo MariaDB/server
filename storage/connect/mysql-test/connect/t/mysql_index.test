@@ -50,6 +50,7 @@ SELECT * FROM t2 WHERE id = 3;
 SELECT * FROM t2 WHERE id IN (2,4);
 SELECT * FROM t2 WHERE id IN (2,4) AND msg = 'Two';
 SELECT * FROM t2 WHERE id > 4;
+--sorted_result
 SELECT * FROM t2 WHERE id >= 3;
 SELECT * FROM t2 WHERE id < 3;
 SELECT * FROM t2 WHERE id < 2 OR id > 4;

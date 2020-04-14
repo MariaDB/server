@@ -461,7 +461,8 @@ public:
   uint max_supported_key_length()      const mrn_override;
   uint max_supported_key_part_length() const mrn_override;
 
-  ha_rows records_in_range(uint inx, key_range *min_key, key_range *max_key) mrn_override;
+  ha_rows records_in_range(uint inx, const key_range *min_key,
+                           const key_range *max_key, page_range *pages) mrn_override;
   int index_init(uint idx, bool sorted) mrn_override;
   int index_end() mrn_override;
 #ifndef MRN_HANDLER_HAVE_HA_INDEX_READ_MAP
@@ -617,7 +618,6 @@ protected:
   int index_last(uchar *buf) mrn_override;
 #endif
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share_arg) mrn_override;
-  bool primary_key_is_clustered() mrn_override;
   bool is_fk_defined_on_table_or_index(uint index) mrn_override;
   char *get_foreign_key_create_info() mrn_override;
 #ifdef MRN_HANDLER_HAVE_GET_TABLESPACE_NAME
@@ -631,7 +631,7 @@ protected:
   void free_foreign_key_create_info(char* str) mrn_override;
 #ifdef MRN_HAVE_HA_REBIND_PSI
   void unbind_psi() mrn_override;
-  void rebind_psi() mrn_override;
+  int rebind() mrn_override;
 #endif
   my_bool register_query_cache_table(THD *thd,
                                      const char *table_key,
@@ -985,12 +985,14 @@ private:
   int storage_rnd_pos(uchar *buf, uchar *pos);
   void wrapper_position(const uchar *record);
   void storage_position(const uchar *record);
-  ha_rows wrapper_records_in_range(uint key_nr, key_range *range_min,
-                                   key_range *range_max);
-  ha_rows storage_records_in_range(uint key_nr, key_range *range_min,
-                                   key_range *range_max);
-  ha_rows generic_records_in_range_geo(uint key_nr, key_range *range_min,
-                                       key_range *range_max);
+  ha_rows wrapper_records_in_range(uint key_nr, const key_range *range_min,
+                                   const key_range *range_max,
+                                   page_range *pages);
+  ha_rows storage_records_in_range(uint key_nr, const key_range *range_min,
+                                   const key_range *range_max,
+                                   page_range *pages);
+  ha_rows generic_records_in_range_geo(uint key_nr, const key_range *range_min,
+                                       const key_range *range_max);
   int wrapper_index_init(uint idx, bool sorted);
   int storage_index_init(uint idx, bool sorted);
   int wrapper_index_end();
@@ -1260,8 +1262,6 @@ private:
   int storage_start_stmt(THD *thd, thr_lock_type lock_type);
   void wrapper_change_table_ptr(TABLE *table_arg, TABLE_SHARE *share_arg);
   void storage_change_table_ptr(TABLE *table_arg, TABLE_SHARE *share_arg);
-  bool wrapper_primary_key_is_clustered();
-  bool storage_primary_key_is_clustered();
   bool wrapper_is_fk_defined_on_table_or_index(uint index);
   bool storage_is_fk_defined_on_table_or_index(uint index);
   char *wrapper_get_foreign_key_create_info();
@@ -1290,8 +1290,8 @@ private:
 #ifdef MRN_HAVE_HA_REBIND_PSI
   void wrapper_unbind_psi();
   void storage_unbind_psi();
-  void wrapper_rebind_psi();
-  void storage_rebind_psi();
+  int wrapper_rebind();
+  void storage_rebind();
 #endif
   my_bool wrapper_register_query_cache_table(THD *thd,
                                              const char *table_key,

@@ -33,6 +33,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "mtr0types.h"
 #include "buf0types.h"
+#include "span.h"
 #ifndef UNIV_INNOCHECKSUM
 #include "hash0hash.h"
 #include "ut0byte.h"
@@ -297,7 +298,7 @@ the same set of mutexes or latches.
 @return pointer to the block */
 buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size);
 
-/** This is the general function used to get access to a database page.
+/** Get access to a database page. Buffered redo log may be applied.
 @param[in]	page_id			page id
 @param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
@@ -323,6 +324,35 @@ buf_page_get_gen(
 	mtr_t*			mtr,
 	dberr_t*		err = NULL,
 	bool			allow_ibuf_merge = false);
+
+/** This is the low level function used to get access to a database page.
+@param[in]	page_id			page id
+@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
+@param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
+@param[in]	guess			guessed block or NULL
+@param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
+BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
+@param[in]	file			file name
+@param[in]	line			line where called
+@param[in]	mtr			mini-transaction
+@param[out]	err			DB_SUCCESS or error code
+@param[in]	allow_ibuf_merge	Allow change buffer merge to happen
+while reading the page from file
+then it makes sure that it does merging of change buffer changes while
+reading the page from file.
+@return pointer to the block or NULL */
+buf_block_t*
+buf_page_get_low(
+	const page_id_t		page_id,
+	ulint			zip_size,
+	ulint			rw_latch,
+	buf_block_t*		guess,
+	ulint			mode,
+	const char*		file,
+	unsigned		line,
+	mtr_t*			mtr,
+	dberr_t*		err,
+	bool			allow_ibuf_merge);
 
 /** Initialize a page in the buffer pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one
@@ -460,11 +490,10 @@ buf_block_buf_fix_inc_func(
 # endif /* UNIV_DEBUG */
 #endif /* !UNIV_INNOCHECKSUM */
 
-/** Check if a page is all zeroes.
-@param[in]	read_buf	database page
-@param[in]	page_size	page frame size
-@return whether the page is all zeroes */
-bool buf_page_is_zeroes(const void* read_buf, size_t page_size);
+/** Check if a buffer is all zeroes.
+@param[in]	buf	data to check
+@return whether the buffer is all zeroes */
+bool buf_is_zeroes(st_::span<const byte> buf);
 
 /** Checks if the page is in crc32 checksum format.
 @param[in]	read_buf		database page
@@ -1153,7 +1182,9 @@ public:
 					used for encryption/compression
 					or NULL */
 #ifdef UNIV_DEBUG
-	ibool		in_page_hash;	/*!< TRUE if in buf_pool.page_hash */
+	/** whether the page is in buf_pool.page_hash;
+	protected by buf_pool.mutex(!) and the hash bucket rw-latch */
+	ibool		in_page_hash;
 	ibool		in_zip_hash;	/*!< TRUE if in buf_pool.zip_hash */
 #endif /* UNIV_DEBUG */
 
@@ -2004,15 +2035,15 @@ public:
 					block list, when withdrawing */
 
 	/** "hazard pointer" used during scan of LRU while doing
-	LRU list batch.  Protected by buf_pool::mutex */
+	LRU list batch.  Protected by buf_pool_t::mutex. */
 	LRUHp		lru_hp;
 
 	/** Iterator used to scan the LRU list when searching for
-	replacable victim. Protected by buf_pool::mutex. */
+	replacable victim. Protected by buf_pool_t::mutex. */
 	LRUItr		lru_scan_itr;
 
 	/** Iterator used to scan the LRU list when searching for
-	single page flushing victim.  Protected by buf_pool::mutex. */
+	single page flushing victim.  Protected by buf_pool_t::mutex. */
 	LRUItr		single_scan_itr;
 
 	UT_LIST_BASE_NODE_T(buf_page_t) LRU;

@@ -96,7 +96,15 @@ s3_pagecache_division_limit	X
 s3_pagecache_file_hash_size	X
 s3_protocol_version	X
 s3_region	X
+s3_replicate_alter_as_create_select	X
 s3_secret_key	X
+s3_slave_ignore_updates	X
+show variables like "s3_slave%";
+Variable_name	Value
+s3_slave_ignore_updates	OFF
+show variables like "s3_replicate%";
+Variable_name	Value
+s3_replicate_alter_as_create_select	ON
 show status like "s3%";
 Variable_name	Value
 S3_pagecache_blocks_not_flushed	X

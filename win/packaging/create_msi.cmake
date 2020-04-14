@@ -311,9 +311,11 @@ ENDFUNCTION()
 SET(CPACK_WIX_COMPONENTS)
 SET(CPACK_WIX_COMPONENT_GROUPS)
 GET_FILENAME_COMPONENT(abs . ABSOLUTE)
+
 FOREACH(d ${DIRS})
   GET_FILENAME_COMPONENT(d ${d} ABSOLUTE)
   GET_FILENAME_COMPONENT(d_name ${d} NAME)
+
   MAKE_WIX_IDENTIFIER("${d_name}" d_name)
   FILE(WRITE ${abs}/${d_name}_component_group.wxs 
   "<ComponentGroup Id='componentgroup.${d_name}'>")

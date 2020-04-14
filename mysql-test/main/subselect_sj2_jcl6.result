@@ -315,7 +315,7 @@ from t0 where a in
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	10	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func	1	Using where
-2	MATERIALIZED	t1	index	a	a	5	NULL	10	Using where; Using index
+2	MATERIALIZED	t1	range	a	a	5	NULL	10	Using where; Using index
 2	MATERIALIZED	t2	ref	a	a	5	test.t1.a	1	Using index
 2	MATERIALIZED	t3	ref	a	a	5	test.t1.a	1	Using index
 drop table t0, t1,t2,t3;
@@ -970,9 +970,9 @@ SELECT d FROM t2, t1
 WHERE a = d AND ( pk < 2 OR d = 'z' )
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	b	NULL	NULL	NULL	19	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t2	index	PRIMARY,d	d	9	NULL	17	Using where; Using index
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
+1	PRIMARY	t1	ref	b	b	4	test.t2.d	1	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+2	MATERIALIZED	t2	index_merge	PRIMARY,d	d,PRIMARY	4,4	NULL	2	Using sort_union(d,PRIMARY); Using where
 2	MATERIALIZED	t1	ref	a	a	5	test.t2.d	1	Using where; Using index
 SELECT * FROM t1 WHERE b IN (
 SELECT d FROM t2, t1

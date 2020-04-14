@@ -1443,7 +1443,7 @@ EXPLAIN EXTENDED
 SELECT * FROM t1, t2
 WHERE  a <> 'USARussian' AND b IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref	PRIMARY,b	b	5	const	2	66.67	Using where; Using index
+1	SIMPLE	t1	range	PRIMARY,b	b	23	NULL	2	100.00	Using where; Using index
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	14	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`i` AS `i` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` <> 'USARussian' and `test`.`t1`.`b` is null
@@ -1860,7 +1860,7 @@ WHERE A.a=t1.a AND t2.b < 20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	a	5	NULL	100	Using where; Using index
 2	DEPENDENT SUBQUERY	A	ref	PRIMARY,a	a	5	test.t1.a	1	Using index
-2	DEPENDENT SUBQUERY	t2	ref	a,b	a	5	test.A.id	1	Using where
+2	DEPENDENT SUBQUERY	t2	ref|filter	a,b	a|b	5|5	test.A.id	1 (19%)	Using where; Using rowid filter
 EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	A	const	PRIMARY,a	PRIMARY	4	const	1	
@@ -1872,7 +1872,7 @@ WHERE A.a=t1.a AND t2.b < 20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	a	5	NULL	100	Using where; Using index
 2	DEPENDENT SUBQUERY	A	ref	PRIMARY,a	a	5	test.t1.a	1	Using index
-2	DEPENDENT SUBQUERY	t2	ref	a,b	a	5	test.A.id	1	Using where
+2	DEPENDENT SUBQUERY	t2	ref|filter	a,b	a|b	5|5	test.A.id	1 (19%)	Using where; Using rowid filter
 set optimizer_switch= @save_optimizer_switch;
 set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 drop table t1,t2;

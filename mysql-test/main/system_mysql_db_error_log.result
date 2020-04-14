@@ -91,6 +91,10 @@ FLUSH PRIVILEGES;
 SHOW GRANTS FOR good_version_id_100400@localhost;
 Grants for good_version_id_100400@localhost
 GRANT ALL PRIVILEGES ON *.* TO `good_version_id_100400`@`localhost` WITH GRANT OPTION
+GRANT REPLICATION MASTER ADMIN ON *.* TO good_version_id_100400@localhost;
+SHOW GRANTS FOR good_version_id_100400@localhost;
+Grants for good_version_id_100400@localhost
+GRANT ALL PRIVILEGES ON *.* TO `good_version_id_100400`@`localhost` WITH GRANT OPTION
 DROP USER good_version_id_100400@localhost;
 CREATE USER good_version_id_100500@localhost;
 GRANT SUPER  ON *.* to good_version_id_100500@localhost;

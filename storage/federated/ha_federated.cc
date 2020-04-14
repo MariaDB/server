@@ -1603,8 +1603,10 @@ static int free_share(FEDERATED_SHARE *share)
 }
 
 
-ha_rows ha_federated::records_in_range(uint inx, key_range *start_key,
-                                       key_range *end_key)
+ha_rows ha_federated::records_in_range(uint inx,
+                                       const key_range *start_key,
+                                       const key_range *end_key,
+                                       page_range *pages)
 {
   /*
 

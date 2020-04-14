@@ -27,7 +27,7 @@ a	b	c	d
 11	110	1100	11000
 explain select * from t1 where c > 850;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	c	NULL	NULL	NULL	NULL;	Using where
+1	SIMPLE	t1	range	c	c	5	NULL	NULL;	Using where
 select * from t1 where c > 850;
 a	b	c	d
 9	90	900	9000

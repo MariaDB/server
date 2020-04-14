@@ -798,8 +798,12 @@ my_bool Log_event::need_checksum()
 
 int Log_event_writer::write_internal(const uchar *pos, size_t len)
 {
+  DBUG_ASSERT(!ctx || encrypt_or_write == &Log_event_writer::encrypt_and_write);
   if (my_b_safe_write(file, pos, len))
+  {
+    DBUG_PRINT("error", ("write to log failed: %d", my_errno));
     return 1;
+  }
   bytes_written+= len;
   return 0;
 }
@@ -823,35 +827,37 @@ int Log_event_writer::maybe_write_event_len(uchar *pos, size_t len)
 
 int Log_event_writer::encrypt_and_write(const uchar *pos, size_t len)
 {
-  uchar *dst= 0;
-  size_t dstsize= 0;
+  uchar *dst;
+  size_t dstsize;
+  uint dstlen;
+  int res;                                      // Safe as res is always set
+  DBUG_ASSERT(ctx);
 
-  if (ctx)
+  if (!len)
+    return 0;
+
+  dstsize= encryption_encrypted_length((uint)len, ENCRYPTION_KEY_SYSTEM_DATA,
+                                       crypto->key_version);
+  if (!(dst= (uchar*)my_safe_alloca(dstsize)))
+    return 1;
+
+  if (encryption_ctx_update(ctx, pos, (uint)len, dst, &dstlen))
   {
-    dstsize= encryption_encrypted_length((uint)len, ENCRYPTION_KEY_SYSTEM_DATA,
-                                         crypto->key_version);
-    if (!(dst= (uchar*)my_safe_alloca(dstsize)))
-      return 1;
-
-    uint dstlen;
-    if (len == 0)
-      dstlen= 0;
-    else if (encryption_ctx_update(ctx, pos, (uint)len, dst, &dstlen))
-      goto err;
-
-    if (maybe_write_event_len(dst, dstlen))
-      return 1;
-    pos= dst;
-    len= dstlen;
-  }
-  if (write_internal(pos, len))
+    res= 1;
     goto err;
+  }
 
-  my_safe_afree(dst, dstsize);
-  return 0;
+  if (maybe_write_event_len(dst, dstlen))
+  {
+    res= 1;
+    goto err;
+  }
+
+  res= write_internal(dst, dstlen);
+
 err:
   my_safe_afree(dst, dstsize);
-  return 1;
+  return res;
 }
 
 int Log_event_writer::write_header(uchar *pos, size_t len)
@@ -887,7 +893,7 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
     pos+= 4;
     len-= 4;
   }
-  DBUG_RETURN(encrypt_and_write(pos, len));
+  DBUG_RETURN((this->*encrypt_or_write)(pos, len));
 }
 
 int Log_event_writer::write_data(const uchar *pos, size_t len)
@@ -896,7 +902,7 @@ int Log_event_writer::write_data(const uchar *pos, size_t len)
   if (checksum_len)
     crc= my_checksum(crc, pos, len);
 
-  DBUG_RETURN(encrypt_and_write(pos, len));
+  DBUG_RETURN((this->*encrypt_or_write)(pos, len));
 }
 
 int Log_event_writer::write_footer()
@@ -906,7 +912,7 @@ int Log_event_writer::write_footer()
   {
     uchar checksum_buf[BINLOG_CHECKSUM_LEN];
     int4store(checksum_buf, crc);
-    if (encrypt_and_write(checksum_buf, BINLOG_CHECKSUM_LEN))
+    if ((this->*encrypt_or_write)(checksum_buf, BINLOG_CHECKSUM_LEN))
       DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
   if (ctx)
@@ -1023,6 +1029,24 @@ void Query_log_event::pack_info(Protocol *protocol)
     buf.append(STRING_WITH_LEN("use "));
     append_identifier(protocol->thd, &buf, db, db_len);
     buf.append(STRING_WITH_LEN("; "));
+  }
+  if (flags2 & (OPTION_NO_FOREIGN_KEY_CHECKS | OPTION_AUTO_IS_NULL |
+                OPTION_RELAXED_UNIQUE_CHECKS |
+                OPTION_NO_CHECK_CONSTRAINT_CHECKS |
+                OPTION_IF_EXISTS))
+  {
+    buf.append(STRING_WITH_LEN("set "));
+    if (flags2 & OPTION_NO_FOREIGN_KEY_CHECKS)
+      buf.append(STRING_WITH_LEN("foreign_key_checks=1, "));
+    if (flags2 & OPTION_AUTO_IS_NULL)
+      buf.append(STRING_WITH_LEN("sql_auto_is_null, "));
+    if (flags2 & OPTION_RELAXED_UNIQUE_CHECKS)
+      buf.append(STRING_WITH_LEN("unique_checks=1, "));
+    if (flags2 & OPTION_NO_CHECK_CONSTRAINT_CHECKS)
+      buf.append(STRING_WITH_LEN("check_constraint_checks=1, "));
+    if (flags2 & OPTION_IF_EXISTS)
+      buf.append(STRING_WITH_LEN("@@sql_if_exists=1, "));
+    buf[buf.length()-2]=';';
   }
   if (query && q_len)
     buf.append(query, q_len);
@@ -1343,7 +1367,8 @@ Query_log_event::Query_log_event()
   Creates an event for binlogging
   The value for `errcode' should be supplied by caller.
 */
-Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg, size_t query_length, bool using_trans,
+Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
+                                 size_t query_length, bool using_trans,
 				 bool direct, bool suppress_use, int errcode)
 
   :Log_event(thd_arg,
@@ -1356,7 +1381,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg, size_t que
    thread_id(thd_arg->thread_id),
    /* save the original thread id; we already know the server id */
    slave_proxy_id((ulong)thd_arg->variables.pseudo_thread_id),
-   flags2_inited(1), sql_mode_inited(1), charset_inited(1),
+   flags2_inited(1), sql_mode_inited(1), charset_inited(1), flags2(0),
    sql_mode(thd_arg->variables.sql_mode),
    auto_increment_increment(thd_arg->variables.auto_increment_increment),
    auto_increment_offset(thd_arg->variables.auto_increment_offset),
@@ -1661,15 +1686,18 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     {
       thd->slave_expected_error= expected_error;
       if (flags2_inited)
+      {
         /*
-          all bits of thd->variables.option_bits which are 1 in OPTIONS_WRITTEN_TO_BIN_LOG
-          must take their value from flags2.
+          all bits of thd->variables.option_bits which are 1 in
+          OPTIONS_WRITTEN_TO_BIN_LOG must take their value from
+          flags2.
         */
         thd->variables.option_bits= flags2|(thd->variables.option_bits & ~OPTIONS_WRITTEN_TO_BIN_LOG);
+      }
       /*
         else, we are in a 3.23/4.0 binlog; we previously received a
-        Rotate_log_event which reset thd->variables.option_bits and sql_mode etc, so
-        nothing to do.
+        Rotate_log_event which reset thd->variables.option_bits and
+        sql_mode etc, so nothing to do.
       */
       /*
         We do not replicate MODE_NO_DIR_IN_CREATE. That is, if the master is a
@@ -6135,13 +6163,10 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
               (tbl->s->db.str[tbl->s->db.length] == 0));
   DBUG_ASSERT(tbl->s->table_name.str[tbl->s->table_name.length] == 0);
 
-#ifdef MYSQL_SERVER
   binlog_type_info_array= (Binlog_type_info *)thd->alloc(m_table->s->fields *
                                                    sizeof(Binlog_type_info));
   for (uint i= 0; i <  m_table->s->fields; i++)
     binlog_type_info_array[i]= m_table->field[i]->binlog_type_info();
-#endif
-
 
   m_data_size=  TABLE_MAP_HEADER_LEN;
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master", m_data_size= 6;);
@@ -7061,14 +7086,14 @@ bool Rows_log_event::process_triggers(trg_event_type event,
   m_table->triggers->mark_fields_used(event);
   if (slave_run_triggers_for_rbr == SLAVE_RUN_TRIGGERS_FOR_RBR_YES)
   {
-    tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
     result= m_table->triggers->process_triggers(thd, event,
-                                              time_type, old_row_is_record1);
-    reenable_binlog(thd);
+                                                time_type,
+                                                old_row_is_record1);
   }
   else
     result= m_table->triggers->process_triggers(thd, event,
-                                              time_type, old_row_is_record1);
+                                                time_type,
+                                                old_row_is_record1);
 
   DBUG_RETURN(result);
 }

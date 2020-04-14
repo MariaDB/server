@@ -803,7 +803,7 @@ struct TABLE_SHARE
 #endif
 
   /**
-    System versioning support.
+    System versioning and application-time periods support.
   */
   struct period_info_t
   {
@@ -811,6 +811,7 @@ struct TABLE_SHARE
     uint16 end_fieldno;
     Lex_ident name;
     Lex_ident constr_name;
+    uint unique_keys;
     Field *start_field(TABLE_SHARE *s) const
     {
       return s->field[start_fieldno];
@@ -830,12 +831,26 @@ struct TABLE_SHARE
 
   Field *vers_start_field()
   {
+    DBUG_ASSERT(versioned);
     return field[vers.start_fieldno];
   }
 
   Field *vers_end_field()
   {
+    DBUG_ASSERT(versioned);
     return field[vers.end_fieldno];
+  }
+
+  Field *period_start_field() const
+  {
+    DBUG_ASSERT(period.name);
+    return field[period.start_fieldno];
+  }
+
+  Field *period_end_field() const
+  {
+    DBUG_ASSERT(period.name);
+    return field[period.end_fieldno];
   }
 
   /**
@@ -1151,9 +1166,6 @@ public:
   THD	*in_use;                        /* Which thread uses this */
 
   uchar *record[3];			/* Pointer to records */
-  /* record buf to resolve hash collisions for long UNIQUE constraints */
-  uchar *check_unique_buf;
-  handler *update_handler;  /* Handler used in case of update */
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */
@@ -1579,6 +1591,7 @@ public:
 
   void init_cost_info_for_usable_range_rowid_filters(THD *thd);
   void prune_range_rowid_filters();
+  void trace_range_rowid_filters(THD *thd) const;
   Range_rowid_filter_cost_info *
   best_range_rowid_filter_for_partial_join(uint access_key_no,
                                            double records,
@@ -1591,13 +1604,11 @@ public:
 
   bool versioned() const
   {
-    DBUG_ASSERT(s);
     return s->versioned;
   }
 
   bool versioned(vers_kind_t type) const
   {
-    DBUG_ASSERT(s);
     DBUG_ASSERT(type);
     return s->versioned == type;
   }
@@ -1617,15 +1628,28 @@ public:
 
   Field *vers_start_field() const
   {
-    DBUG_ASSERT(s && s->versioned);
+    DBUG_ASSERT(s->versioned);
     return field[s->vers.start_fieldno];
   }
 
   Field *vers_end_field() const
   {
-    DBUG_ASSERT(s && s->versioned);
+    DBUG_ASSERT(s->versioned);
     return field[s->vers.end_fieldno];
   }
+
+  Field *period_start_field() const
+  {
+    DBUG_ASSERT(s->period.name);
+    return field[s->period.start_fieldno];
+  }
+
+  Field *period_end_field() const
+  {
+    DBUG_ASSERT(s->period.name);
+    return field[s->period.end_fieldno];
+  }
+
 
   ulonglong vers_start_id() const;
   ulonglong vers_end_id() const;
@@ -1635,13 +1659,11 @@ public:
   int insert_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
                              ha_rows *rows_inserted);
   bool vers_check_update(List<Item> &items);
-
+  static bool check_period_overlaps(const KEY &key, const uchar *lhs, const uchar *rhs);
   int delete_row();
   void vers_update_fields();
   void vers_update_end();
   void find_constraint_correlated_indexes();
-  void clone_handler_for_update();
-  void delete_update_handler();
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
@@ -1775,10 +1797,18 @@ class IS_table_read_plan;
 
 /** number of bytes used by field positional indexes in frm */
 constexpr uint frm_fieldno_size= 2;
+/** number of bytes used by key position number in frm */
+constexpr uint frm_keyno_size= 2;
 static inline uint16 read_frm_fieldno(const uchar *data)
 { return uint2korr(data); }
-static inline void store_frm_fieldno(const uchar *data, uint16 fieldno)
+static inline void store_frm_fieldno(uchar *data, uint16 fieldno)
 { int2store(data, fieldno); }
+static inline uint16 read_frm_keyno(const uchar *data)
+{ return uint2korr(data); }
+static inline void store_frm_keyno(uchar *data, uint16 fieldno)
+{ int2store(data, fieldno); }
+static inline size_t extra2_str_size(size_t len)
+{ return (len > 255 ? 3 : 1) + len; }
 
 class select_unit;
 class TMP_TABLE_PARAM;
@@ -2981,6 +3011,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        uint ha_open_flags, TABLE *outparam,
                        bool is_create_table,
                        List<String> *partitions_to_open= NULL);
+bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root);
 bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
 bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
                                     Virtual_column_info *vcol);

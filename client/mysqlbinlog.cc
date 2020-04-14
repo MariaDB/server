@@ -41,6 +41,7 @@
 /* That one is necessary for defines of OPTION_NO_FOREIGN_KEY_CHECKS etc */
 #include "sql_priv.h"
 #include "sql_basic_types.h"
+#include <atomic>
 #include "log_event.h"
 #include "compat56.h"
 #include "sql_common.h"
@@ -77,7 +78,10 @@ DYNAMIC_ARRAY binlog_events; // Storing the events output string
 DYNAMIC_ARRAY events_in_stmt; // Storing the events that in one statement
 String stop_event_string; // Storing the STOP_EVENT output string
 
+extern "C" {
 char server_version[SERVER_VERSION_LENGTH];
+}
+
 ulong server_id = 0;
 
 // needed by net_serv.c

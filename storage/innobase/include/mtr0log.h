@@ -200,14 +200,14 @@ inline bool mtr_t::write(const buf_block_t &block, void *ptr, V val)
     {
       if (p == end)
       {
-        ut_ad(w == OPT);
+        ut_ad(w == MAYBE_NOP);
         return false;
       }
     }
     p--;
   }
   ::memcpy(ptr, buf, l);
-  memcpy_low(block.page, static_cast<uint16_t>
+  memcpy_low(block, static_cast<uint16_t>
              (ut_align_offset(p, srv_page_size)), p, end - p);
   return true;
 }
@@ -220,7 +220,7 @@ inline bool mtr_t::write(const buf_block_t &block, void *ptr, V val)
 inline void mtr_t::memset(const buf_block_t &b, ulint ofs, ulint len, byte val)
 {
   ut_ad(len);
-  set_modified();
+  set_modified(b);
   if (m_log_mode != MTR_LOG_ALL)
     return;
 
@@ -257,7 +257,7 @@ inline void mtr_t::memset(const buf_block_t &b, ulint ofs, size_t len,
 {
   ut_ad(size);
   ut_ad(len > size); /* use mtr_t::memcpy() for shorter writes */
-  set_modified();
+  set_modified(b);
   if (m_log_mode != MTR_LOG_ALL)
     return;
 
@@ -303,30 +303,31 @@ inline void mtr_t::memcpy(const buf_block_t &b, ulint offset, ulint len)
   ut_ad(len);
   ut_ad(offset <= ulint(srv_page_size));
   ut_ad(offset + len <= ulint(srv_page_size));
-  memcpy_low(b.page, uint16_t(offset), &b.frame[offset], len);
+  memcpy_low(b, uint16_t(offset), &b.frame[offset], len);
 }
 
 /** Log a write of a byte string to a page.
-@param id      page identifier
+@param block   page
 @param offset  byte offset within page
 @param data    data to be written
 @param len     length of the data, in bytes */
-inline void mtr_t::memcpy_low(const buf_page_t &bpage, uint16_t offset,
+inline void mtr_t::memcpy_low(const buf_block_t &block, uint16_t offset,
                               const void *data, size_t len)
 {
   ut_ad(len);
-  set_modified();
+  set_modified(block);
   if (m_log_mode != MTR_LOG_ALL)
     return;
   if (len < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5))
   {
-    byte *end= log_write<WRITE>(bpage.id, &bpage, len, true, offset);
+    byte *end= log_write<WRITE>(block.page.id, &block.page, len, true, offset);
     ::memcpy(end, data, len);
     m_log.close(end + len);
   }
   else
   {
-    m_log.close(log_write<WRITE>(bpage.id, &bpage, len, false, offset));
+    m_log.close(log_write<WRITE>(block.page.id, &block.page, len, false,
+                                 offset));
     m_log.push(static_cast<const byte*>(data), static_cast<uint32_t>(len));
   }
   m_last_offset= static_cast<uint16_t>(offset + len);
@@ -348,7 +349,7 @@ inline void mtr_t::memmove(const buf_block_t &b, ulint d, ulint s, ulint len)
   ut_ad(d <= ulint(srv_page_size));
   ut_ad(d + len <= ulint(srv_page_size));
 
-  set_modified();
+  set_modified(b);
   if (m_log_mode != MTR_LOG_ALL)
     return;
   static_assert(MIN_4BYTE > UNIV_PAGE_SIZE_MAX, "consistency");
@@ -426,7 +427,7 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
     if (oend + len > &log_ptr[16])
     {
       len+= oend - log_ptr - 15;
-      if (len >= MIN_3BYTE)
+      if (len >= MIN_3BYTE - 1)
         len+= 2;
       else if (len >= MIN_2BYTE)
         len++;
@@ -447,7 +448,7 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
   else if (len >= 3 && end + len > &log_ptr[16])
   {
     len+= end - log_ptr - 15;
-    if (len >= MIN_3BYTE)
+    if (len >= MIN_3BYTE - 1)
       len+= 2;
     else if (len >= MIN_2BYTE)
       len++;
@@ -493,7 +494,7 @@ inline void mtr_t::memcpy(const buf_block_t &b, void *dest, const void *str,
     {
       if (d == end)
       {
-        ut_ad(w == OPT);
+        ut_ad(w == MAYBE_NOP);
         return;
       }
     }
@@ -534,7 +535,7 @@ inline void mtr_t::free(const page_id_t id)
 @param type   extended record subtype; @see mrec_ext_t */
 inline void mtr_t::log_write_extended(const buf_block_t &block, byte type)
 {
-  set_modified();
+  set_modified(block);
   if (m_log_mode != MTR_LOG_ALL)
     return;
   byte *l= log_write<EXTENDED>(block.page.id, &block.page, 1, true);
@@ -561,7 +562,7 @@ inline void mtr_t::page_delete(const buf_block_t &block, ulint prev_rec)
 {
   ut_ad(!block.zip_size());
   ut_ad(prev_rec < block.physical_size());
-  set_modified();
+  set_modified(block);
   if (m_log_mode != MTR_LOG_ALL)
     return;
   size_t len= (prev_rec < MIN_2BYTE ? 2 : prev_rec < MIN_3BYTE ? 3 : 4);
@@ -585,7 +586,7 @@ inline void mtr_t::page_delete(const buf_block_t &block, ulint prev_rec,
                                size_t hdr_size, size_t data_size)
 {
   ut_ad(!block.zip_size());
-  set_modified();
+  set_modified(block);
   ut_ad(hdr_size < MIN_3BYTE);
   ut_ad(prev_rec < block.physical_size());
   ut_ad(data_size < block.physical_size());
@@ -620,7 +621,7 @@ inline void mtr_t::undo_append(const buf_block_t &block,
                                const void *data, size_t len)
 {
   ut_ad(len > 2);
-  set_modified();
+  set_modified(block);
   if (m_log_mode != MTR_LOG_ALL)
     return;
   const bool small= len + 1 < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5);

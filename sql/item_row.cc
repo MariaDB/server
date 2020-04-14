@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2002, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -184,16 +185,20 @@ void Item_row::bring_value()
 
 Item* Item_row::build_clone(THD *thd)
 {
-  Item_row *copy= (Item_row *) get_copy(thd);
-  if (!copy)
+  Item **copy_args= static_cast<Item**>
+    (alloc_root(thd->mem_root, sizeof(Item*) * arg_count));
+  if (unlikely(!copy_args))
     return 0;
-  copy->args= (Item**) alloc_root(thd->mem_root, sizeof(Item*) * arg_count);
   for (uint i= 0; i < arg_count; i++)
   {
     Item *arg_clone= args[i]->build_clone(thd);
     if (!arg_clone)
       return 0;
-    copy->args[i]= arg_clone;
+    copy_args[i]= arg_clone;
   }
+  Item_row *copy= (Item_row *) get_copy(thd);
+  if (unlikely(!copy))
+    return 0;
+  copy->args= copy_args;
   return copy;
 }

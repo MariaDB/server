@@ -608,10 +608,20 @@ struct inuse_relaylog {
   /* Number of events in this relay log queued for worker threads. */
   int64 queued_count;
   /* Number of events completed by worker threads. */
-  volatile int64 dequeued_count;
+  Atomic_counter<int64> dequeued_count;
   /* Set when all events have been read from a relaylog. */
   bool completed;
   char name[FN_REFLEN];
+
+  inuse_relaylog(Relay_log_info *rli_arg, rpl_gtid *relay_log_state_arg,
+                 uint32 relay_log_state_count_arg,
+                 const char *name_arg):
+    next(0), rli(rli_arg), relay_log_state(relay_log_state_arg),
+    relay_log_state_count(relay_log_state_count_arg), queued_count(0),
+    dequeued_count(0), completed(false)
+  {
+    strmake_buf(name, name_arg);
+  }
 };
 
 

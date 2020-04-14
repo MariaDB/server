@@ -435,8 +435,8 @@ public:
   int delete_all_rows(void);
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info);                      //required
-  ha_rows records_in_range(uint inx, key_range *start_key,
-                                   key_range *end_key);
+  ha_rows records_in_range(uint inx, const key_range *start_key,
+                           const key_range *end_key, page_range *pages);
   uint8 table_cache_type() { return HA_CACHE_TBL_NOCACHE; }
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,

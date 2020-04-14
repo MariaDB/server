@@ -199,9 +199,6 @@ static ulong	innodb_flush_method;
 stopword table to be used */
 static char*	innobase_server_stopword_table;
 
-/* Below we have boolean-valued start-up parameters, and their default
-values */
-
 static my_bool	innobase_use_atomic_writes;
 static my_bool	innobase_rollback_on_timeout;
 static my_bool	innobase_create_status_file;
@@ -216,6 +213,9 @@ extern uint srv_n_fil_crypt_iops;
 #ifdef UNIV_DEBUG
 my_bool innodb_evict_tables_on_commit_debug;
 #endif
+
+/** File format constraint for ALTER TABLE */
+ulong innodb_instant_alter_column_allowed;
 
 /** Note we cannot use rec_format_enum because we do not allow
 COMPRESSED row format for innodb_default_row_format option. */
@@ -392,6 +392,22 @@ static TYPELIB innodb_change_buffering_typelib = {
 	array_elements(innodb_change_buffering_names) - 1,
 	"innodb_change_buffering_typelib",
 	innodb_change_buffering_names,
+	NULL
+};
+
+/** Allowed values of innodb_instant_alter_column_allowed */
+const char* innodb_instant_alter_column_allowed_names[] = {
+	"never", /* compatible with MariaDB 5.5 to 10.2 */
+	"add_last",/* allow instant ADD COLUMN ... LAST */
+	"add_drop_reorder", /* allow instant ADD anywhere & DROP & reorder */
+	NullS
+};
+
+/** Enumeration of innodb_instant_alter_column_allowed */
+static TYPELIB innodb_instant_alter_column_allowed_typelib = {
+	array_elements(innodb_instant_alter_column_allowed_names) - 1,
+	"innodb_instant_alter_column_allowed_typelib",
+	innodb_instant_alter_column_allowed_names,
 	NULL
 };
 
@@ -1074,6 +1090,8 @@ static SHOW_VAR innodb_status_variables[]= {
    &export_vars.innodb_n_temp_blocks_encrypted, SHOW_LONGLONG},
   {"encryption_n_temp_blocks_decrypted",
    &export_vars.innodb_n_temp_blocks_decrypted, SHOW_LONGLONG},
+  {"encryption_num_key_requests", &export_vars.innodb_encryption_key_requests,
+   SHOW_LONGLONG},
 
   {NullS, NullS, SHOW_LONG}
 };
@@ -3428,26 +3446,32 @@ static const char* innodb_page_cleaners_msg
 = "The parameter innodb_page_cleaners is deprecated and has no effect.";
 
 ulong srv_n_log_files;
+static const char* srv_n_log_files_msg
+= "The parameter innodb_log_files_in_group is deprecated and has no effect.";
 
 static my_bool innodb_background_scrub_data_uncompressed;
 
 static const char* innodb_background_scrub_data_uncompressed_msg
-= "The parameter innodb_background_scrub_data_uncompressed is deprecated and has no effect.";
+= "The parameter innodb_background_scrub_data_uncompressed is deprecated and"
+  " has no effect.";
 
 static my_bool innodb_background_scrub_data_compressed;
 
 static const char* innodb_background_scrub_data_compressed_msg
-= "The parameter innodb_background_scrub_data_compressed is deprecated and has no effect.";
+= "The parameter innodb_background_scrub_data_compressed is deprecated and"
+  " has no effect.";
 
 static uint innodb_background_scrub_data_check_interval;
 
 static const char* innodb_background_scrub_data_check_interval_msg
-= "The parameter innodb_background_scrub_data_check_interval is deprecated and has no effect.";
+= "The parameter innodb_background_scrub_data_check_interval is deprecated and"
+  " has no effect.";
 
 static uint innodb_background_scrub_data_interval;
 
 static const char* innodb_background_scrub_data_interval_msg
-= "The parameter innodb_background_scrub_data_interval is deprecated and has no effect.";
+= "The parameter innodb_background_scrub_data_interval is deprecated and"
+  " has no effect.";
 } // namespace deprecated
 
 /** Initialize, validate and normalize the InnoDB startup parameters.
@@ -3472,6 +3496,54 @@ static int innodb_init_params()
 				  " It may be removed in future releases."
 				  " See https://mariadb.com/kb/en/library/"
 				  "xtradbinnodb-file-format/", p);
+	}
+
+	if (UNIV_UNLIKELY(!deprecated::innodb_log_checksums)) {
+		sql_print_warning(deprecated::innodb_log_checksums_msg);
+		deprecated::innodb_log_checksums = TRUE;
+	}
+
+	if (UNIV_UNLIKELY(!deprecated::innodb_log_compressed_pages)) {
+		sql_print_warning(deprecated::innodb_log_compressed_pages_msg);
+		deprecated::innodb_log_compressed_pages = TRUE;
+	}
+
+	if (UNIV_UNLIKELY(deprecated::innodb_log_optimize_ddl)) {
+		sql_print_warning(deprecated::innodb_log_optimize_ddl_msg);
+		deprecated::innodb_log_optimize_ddl = FALSE;
+	}
+
+	if (UNIV_UNLIKELY(deprecated::innodb_scrub_log)) {
+		sql_print_warning(deprecated::innodb_scrub_log_msg);
+		deprecated::innodb_scrub_log = FALSE;
+	}
+
+	if (UNIV_UNLIKELY(deprecated::innodb_scrub_log_speed != 256)) {
+		sql_print_warning(deprecated::innodb_scrub_log_speed_msg);
+		deprecated::innodb_scrub_log_speed = 256;
+	}
+
+	if (UNIV_UNLIKELY(deprecated::innodb_buffer_pool_instances)) {
+		sql_print_warning("The parameter innodb_buffer_pool_instances"
+				  " is deprecated and has no effect.");
+	}
+
+	if (UNIV_UNLIKELY(deprecated::innodb_page_cleaners)) {
+		sql_print_warning(deprecated::innodb_page_cleaners_msg);
+	}
+
+	if (UNIV_UNLIKELY(deprecated::srv_n_log_files != 1)) {
+		sql_print_warning(deprecated::srv_n_log_files_msg);
+		deprecated::srv_n_log_files = 1;
+	}
+
+	deprecated::innodb_buffer_pool_instances = 1;
+
+	deprecated::innodb_page_cleaners = 1;
+
+	if (UNIV_UNLIKELY(deprecated::innodb_undo_logs != TRX_SYS_N_RSEGS)) {
+		sql_print_warning(deprecated::innodb_undo_logs_msg);
+		deprecated::innodb_undo_logs = TRX_SYS_N_RSEGS;
 	}
 
 	/* Check that values don't overflow on 32-bit systems. */
@@ -3747,49 +3819,6 @@ static int innodb_init_params()
 	}
 
 	srv_buf_pool_size = ulint(innobase_buffer_pool_size);
-
-	if (UNIV_UNLIKELY(!deprecated::innodb_log_checksums)) {
-		sql_print_warning(deprecated::innodb_log_checksums_msg);
-		deprecated::innodb_log_checksums = TRUE;
-	}
-
-	if (UNIV_UNLIKELY(!deprecated::innodb_log_compressed_pages)) {
-		sql_print_warning(deprecated::innodb_log_compressed_pages_msg);
-		deprecated::innodb_log_compressed_pages = TRUE;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_log_optimize_ddl)) {
-		sql_print_warning(deprecated::innodb_log_optimize_ddl_msg);
-		deprecated::innodb_log_optimize_ddl = FALSE;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_scrub_log)) {
-		sql_print_warning(deprecated::innodb_scrub_log_msg);
-		deprecated::innodb_scrub_log = FALSE;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_scrub_log_speed != 256)) {
-		sql_print_warning(deprecated::innodb_scrub_log_speed_msg);
-		deprecated::innodb_scrub_log_speed = 256;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_buffer_pool_instances)) {
-		sql_print_warning("The parameter innodb_buffer_pool_instances"
-				  " is deprecated and has no effect.");
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_page_cleaners)) {
-		sql_print_warning(deprecated::innodb_page_cleaners_msg);
-	}
-
-	deprecated::innodb_buffer_pool_instances = 1;
-
-	deprecated::innodb_page_cleaners = 1;
-
-	if (UNIV_UNLIKELY(deprecated::innodb_undo_logs != TRX_SYS_N_RSEGS)) {
-		sql_print_warning(deprecated::innodb_undo_logs_msg);
-		deprecated::innodb_undo_logs = TRX_SYS_N_RSEGS;
-	}
 
 	row_rollback_on_timeout = (ibool) innobase_rollback_on_timeout;
 
@@ -5086,13 +5115,6 @@ ha_innobase::table_cache_type()
 /****************************************************************//**
 Determines if the primary key is clustered index.
 @return true */
-
-bool
-ha_innobase::primary_key_is_clustered()
-/*===================================*/
-{
-	return(true);
-}
 
 /** Normalizes a table name string.
 A normalized name consists of the database name catenated to '/'
@@ -12425,7 +12447,8 @@ create_table_info_t::create_foreign_keys()
 			/* How could one make a referenced table to be a
 			 * partition? */
 			ut_ad(0);
-			my_error(ER_FOREIGN_KEY_ON_PARTITIONED, MYF(0));
+			my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING,
+				 MYF(0), "FOREIGN KEY");
 			return (DB_CANNOT_ADD_CONSTRAINT);
 		}
 
@@ -13932,10 +13955,11 @@ ha_rows
 ha_innobase::records_in_range(
 /*==========================*/
 	uint			keynr,		/*!< in: index number */
-	key_range		*min_key,	/*!< in: start key value of the
+	const key_range		*min_key,	/*!< in: start key value of the
 						range, may also be 0 */
-	key_range		*max_key)	/*!< in: range end key val, may
+	const key_range		*max_key,	/*!< in: range end key val, may
 						also be 0 */
+        page_range              *pages)
 {
 	KEY*		key;
 	dict_index_t*	index;
@@ -14024,8 +14048,12 @@ ha_innobase::records_in_range(
 			n_rows = rtr_estimate_n_rows_in_range(
 				index, range_start, mode1);
 		} else {
+                        btr_pos_t tuple1(range_start, mode1, pages->first_page);
+                        btr_pos_t tuple2(range_end,   mode2, pages->last_page);
 			n_rows = btr_estimate_n_rows_in_range(
-				index, range_start, mode1, range_end, mode2);
+                                 index, &tuple1, &tuple2);
+                        pages->first_page= tuple1.page_id.raw();
+                        pages->last_page=  tuple2.page_id.raw();
 		}
 	} else {
 
@@ -14881,7 +14909,7 @@ ha_innobase::optimize(
 	calls to OPTIMIZE, which is undesirable. */
 	bool try_alter = true;
 
-	if (srv_defragment) {
+	if (!m_prebuilt->table->is_temporary() && srv_defragment) {
 		int err= defragment_table(
 			m_prebuilt->table->name.m_name, NULL, false);
 
@@ -18251,10 +18279,8 @@ innodb_buffer_pool_evict_uncompressed()
 		ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 		ut_ad(block->in_unzip_LRU_list);
 		ut_ad(block->page.in_LRU_list);
-		mutex_enter(&block->mutex);
 
 		if (!buf_LRU_free_page(&block->page, false)) {
-			mutex_exit(&block->mutex);
 			all_evicted = false;
 		}
 		block = prev_block;
@@ -19147,6 +19173,12 @@ static MYSQL_SYSVAR_BOOL(stats_include_delete_marked,
   "Include delete marked records when calculating persistent statistics",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_ENUM(instant_alter_column_allowed,
+			 innodb_instant_alter_column_allowed,
+  PLUGIN_VAR_RQCMDARG,
+  "File format constraint for ALTER TABLE", NULL, NULL, 2/*add_drop_reorder*/,
+  &innodb_instant_alter_column_allowed_typelib);
+
 static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
   PLUGIN_VAR_RQCMDARG,
   "Number of IOPs the server can do. Tunes the background IO rate",
@@ -19714,8 +19746,6 @@ static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   "Size of each log file in a log group.",
   NULL, NULL, 96 << 20, 1 << 20, std::numeric_limits<ulonglong>::max(),
   UNIV_PAGE_SIZE_MAX);
-/* OS_FILE_LOG_BLOCK_SIZE would be more appropriate than UNIV_PAGE_SIZE_MAX,
-but fil_space_t is being used for the redo log, and it uses data pages. */
 
 static MYSQL_SYSVAR_ULONG(log_files_in_group, deprecated::srv_n_log_files,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -20329,6 +20359,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(random_read_ahead),
   MYSQL_SYSVAR(read_ahead_threshold),
   MYSQL_SYSVAR(read_only),
+  MYSQL_SYSVAR(instant_alter_column_allowed),
   MYSQL_SYSVAR(io_capacity),
   MYSQL_SYSVAR(io_capacity_max),
   MYSQL_SYSVAR(page_cleaners),

@@ -55,7 +55,10 @@ const char *globerrs[GLOBERRS]=
   "Can't change permissions of the file '%s' (Errcode: %M)",
   "Can't seek in file '%s' (Errcode: %M)",
   "Can't change mode for file '%s' to 0x%lx (Errcode: %M)",
-  "Warning: Can't copy ownership for file '%s' (Errcode: %M)"
+  "Warning: Can't copy ownership for file '%s' (Errcode: %M)",
+  "Failed to release memory pointer %p, %zu bytes (Errcode: %M)",
+  "Lock Pages in memory access rights required",
+  "Memcntl %s cmd %s error"
 };
 
 void init_glob_errs(void)
@@ -101,6 +104,9 @@ void init_glob_errs()
   EE(EE_CANT_SEEK)      = "Can't seek in file '%s' (Errcode: %M)";
   EE(EE_CANT_CHMOD)    = "Can't change mode for file '%s' to 0x%lx (Errcode: %M)";
   EE(EE_CANT_COPY_OWNERSHIP)= "Warning: Can't copy ownership for file '%s' (Errcode: %M)";
+  EE(EE_BADMEMORYRELEASE)= "Failed to release memory pointer %p, %zu bytes (Errcode: %M)";
+  EE(EE_PERM_LOCK_MEMORY)= "Lock Pages in memory access rights required";
+  EE(EE_MEMCNTL)         = "Memcntl %s cmd %s error";
 }
 #endif
 

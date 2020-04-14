@@ -1034,6 +1034,14 @@ class User_table_tabular: public User_table
     if (access & SUPER_ACL)
       access|= GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS;
 
+    /*
+      The SHOW SLAVE HOSTS statement :
+      - required REPLICATION SLAVE privilege prior to 10.5.2
+      - requires REPLICATION MASTER ADMIN privilege since 10.5.2
+      There is no a way to GRANT MASTER ADMIN with User_table_tabular.
+      So let's automatically add REPLICATION MASTER ADMIN for all users
+      that had REPLICATION SLAVE. This will allow to do SHOW SLAVE HOSTS.
+    */
     if (access & REPL_SLAVE_ACL)
       access|= REPL_MASTER_ADMIN_ACL;
 
@@ -1518,11 +1526,26 @@ class User_table_json: public User_table
     }
     else // 100501 or earlier
     {
+      /*
+        Address changes in SUPER and REPLICATION SLAVE made in 10.5.2.
+        This also covers a special case: if the user had ALL PRIVILEGES before
+        the upgrade, it gets ALL PRIVILEGES after the upgrade.
+      */
       if (access & SUPER_ACL)
+      {
+        if (access & REPL_SLAVE_ACL)
+        {
+          /*
+            The user could do both before the upgrade:
+            - set global variables       (because of SUPER_ACL)
+            - execute "SHOW SLAVE HOSTS" (because of REPL_SLAVE_ACL)
+            Grant all new privileges that were splitted from SUPER (in 10.5.2),
+            and REPLICATION MASTER ADMIN, so it still can do "SHOW SLAVE HOSTS".
+          */
+          access|= REPL_MASTER_ADMIN_ACL;
+        }
         access|= GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS;
-
-      if (access & REPL_SLAVE_ACL)
-        access|= REPL_MASTER_ADMIN_ACL;
+      }
     }
 
     if (orig_access & ~mask)
@@ -1943,7 +1966,9 @@ class Grant_tables
     if (res)
       DBUG_RETURN(res);
 
-    if (lock_tables(thd, first, counter, MYSQL_LOCK_IGNORE_TIMEOUT))
+    if (lock_tables(thd, first, counter,
+                    MYSQL_LOCK_IGNORE_TIMEOUT |
+                    MYSQL_OPEN_IGNORE_LOGGING_FORMAT))
       DBUG_RETURN(-1);
 
     p_user_table->set_table(tables[USER_TABLE].table);
@@ -4398,7 +4423,8 @@ static USER_AUTH auth_no_password;
 
 static int replace_user_table(THD *thd, const User_table &user_table,
                               LEX_USER * const combo, privilege_t rights,
-                              const bool revoke_grant, const bool can_create_user,
+                              const bool revoke_grant,
+                              const bool can_create_user,
                               const bool no_auto_create)
 {
   int error = -1;
@@ -5427,6 +5453,7 @@ static int replace_column_table(GRANT_TABLE *g_t,
 
   List_iterator <LEX_COLUMN> iter(columns);
   class LEX_COLUMN *column;
+
   int error= table->file->ha_index_init(0, 1);
   if (unlikely(error))
   {
@@ -5777,7 +5804,7 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
   */
 
   table->use_all_columns();
-  restore_record(table, s->default_values);		// Get empty record
+  restore_record(table, s->default_values);            // Get empty record
   table->field[0]->store(combo.host.str,combo.host.length, &my_charset_latin1);
   table->field[1]->store(db,(uint) strlen(db), &my_charset_latin1);
   table->field[2]->store(combo.user.str,combo.user.length, &my_charset_latin1);

@@ -173,9 +173,9 @@ extern "C" {
        char version[]= "Version 1.07.0001 November 12, 2019";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0001 " __DATE__ " "  __TIME__;
-       char slash= '\\';
+       static char slash= '\\';
 #else   // !__WIN__
-       char slash= '/';
+       static char slash= '/';
 #endif  // !__WIN__
 } // extern "C"
 
@@ -5232,8 +5232,11 @@ int ha_connect::rename_table(const char *from, const char *to)
   @see
   check_quick_keys() in opt_range.cc
 */
-ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
-                                               key_range *max_key)
+ha_rows ha_connect::records_in_range(uint inx,
+                                     const key_range *min_key,
+                                     const key_range *max_key,
+                                     page_range *pages)
+
 {
   ha_rows rows;
   DBUG_ENTER("ha_connect::records_in_range");

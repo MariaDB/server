@@ -162,6 +162,7 @@ typedef struct st_simple_key_cache_cb
   my_bool resize_in_flush;       /* true during flush of resize operation    */
   my_bool can_be_used;           /* usage of cache for read/write is allowed */
   size_t key_cache_mem_size;     /* specified size of the cache memory       */
+  size_t allocated_mem_size;     /* size of the memory actually allocated    */
   uint key_cache_block_size;     /* size of the page buffer of a cache block */
   ulong min_warm_blocks;         /* min number of warm blocks;               */
   ulong age_threshold;           /* age threshold for hot blocks             */
@@ -545,10 +546,9 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
                        sizeof(BLOCK_LINK*)* (changed_blocks_hash_size*2))) +
              ((size_t) blocks * keycache->key_cache_block_size) > use_mem && blocks > 8)
         blocks--;
-      /* Allocate memory for cache page buffers */
-      if ((keycache->block_mem=
-	   my_large_malloc((size_t) blocks * keycache->key_cache_block_size,
-			  MYF(0))))
+      keycache->allocated_mem_size= blocks * keycache->key_cache_block_size;
+      if ((keycache->block_mem= my_large_malloc(&keycache->allocated_mem_size,
+                                                MYF(0))))
       {
         /*
 	  Allocate memory for blocks, hash_links and hash entries;
@@ -570,7 +570,7 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
                                                changed_blocks_hash_size),
                                   NullS))
           break;
-        my_large_free(keycache->block_mem);
+        my_large_free(keycache->block_mem, keycache->allocated_mem_size);
         keycache->block_mem= 0;
       }
       if (blocks < 8)
@@ -631,7 +631,7 @@ err:
   keycache->blocks=  0;
   if (keycache->block_mem)
   {
-    my_large_free((uchar*) keycache->block_mem);
+    my_large_free((uchar*) keycache->block_mem, keycache->allocated_mem_size);
     keycache->block_mem= NULL;
   }
   if (keycache->block_root)
@@ -965,7 +965,7 @@ void end_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, my_bool cleanup)
   {
     if (keycache->block_mem)
     {
-      my_large_free((uchar*) keycache->block_mem);
+      my_large_free((uchar*) keycache->block_mem, keycache->allocated_mem_size);
       keycache->block_mem= NULL;
       my_free(keycache->block_root);
       keycache->block_root= NULL;

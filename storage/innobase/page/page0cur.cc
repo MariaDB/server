@@ -1104,7 +1104,7 @@ inline void mtr_t::page_insert(const buf_block_t &block, bool reuse,
   ut_ad((n_fields_s >> 1) <= REC_MAX_N_FIELDS);
   ut_ad(data_l + data_c <= REDUNDANT_REC_MAX_DATA_SIZE);
 
-  set_modified();
+  set_modified(block);
 
   static_assert(REC_INFO_MIN_REC_FLAG == 0x10, "compatibility");
   static_assert(REC_INFO_DELETED_FLAG == 0x20, "compatibility");
@@ -1201,7 +1201,7 @@ inline void mtr_t::page_insert(const buf_block_t &block, bool reuse,
   }
 #endif
 
-  set_modified();
+  set_modified(block);
 
   static_assert(REC_INFO_MIN_REC_FLAG == 0x10, "compatibility");
   static_assert(REC_INFO_DELETED_FLAG == 0x20, "compatibility");
@@ -1551,7 +1551,6 @@ inc_dir:
   /* Insert the record, possibly copying from the preceding record. */
   ut_ad(mtr->get_log_mode() == MTR_LOG_ALL);
 
-  if (data_size)
   {
     const byte *r= rec;
     const byte *c= cur->rec;
@@ -1562,13 +1561,10 @@ inc_dir:
       c_end= std::min<const byte*>(c_end, block->frame + srv_page_size -
                                    PAGE_DIR - PAGE_DIR_SLOT_SIZE *
                                    page_dir_get_n_slots(block->frame));
-    size_t data_common= 0;
+    size_t data_common;
     /* Copy common data bytes of the preceding record. */
-    if (c != c_end)
-    {
-      for (; *r == *c && c++ != c_end; r++);
-      data_common= static_cast<size_t>(r - rec);
-    }
+    for (; c != c_end && *r == *c; c++, r++);
+    data_common= static_cast<size_t>(r - rec);
 
     if (comp)
       mtr->page_insert(*block, reuse,
@@ -2886,7 +2882,11 @@ corrupted:
   ulint slot_owned;
   for (ulint i= n_recs; !(slot_owned= rec_get_n_owned_new(s)); )
   {
-    n= static_cast<uint16_t>(n + mach_read_from_2(s - REC_NEXT));
+    const uint16_t next= mach_read_from_2(s - REC_NEXT);
+    if (UNIV_UNLIKELY(next < REC_N_NEW_EXTRA_BYTES ||
+                      next > static_cast<uint16_t>(-REC_N_NEW_EXTRA_BYTES)))
+      goto corrupted;
+    n= static_cast<uint16_t>(n + next);
     s= block.frame + n;
     if (n == PAGE_NEW_SUPREMUM);
     else if (UNIV_UNLIKELY(n < PAGE_NEW_SUPREMUM_END + REC_N_NEW_EXTRA_BYTES ||

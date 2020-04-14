@@ -55,7 +55,7 @@ ENDIF()
 
 ADD_DEFINITIONS(-DPCRE_STATIC=1)
 ADD_DEFINITIONS(${SSL_DEFINES})
-MYSQL_ADD_EXECUTABLE(mariabackup
+MYSQL_ADD_EXECUTABLE(mariadb-backup
   xtrabackup.cc
   innobackupex.cc
   changed_page_bitmap.cc
@@ -82,17 +82,13 @@ MYSQL_ADD_EXECUTABLE(mariabackup
   COMPONENT backup
   )
 
-
-
-
 # Export all symbols on Unix, for better crash callstacks
-SET_TARGET_PROPERTIES(mariabackup PROPERTIES ENABLE_EXPORTS TRUE)
+SET_TARGET_PROPERTIES(mariadb-backup PROPERTIES ENABLE_EXPORTS TRUE)
 ADD_SUBDIRECTORY(crc)
 
-
-TARGET_LINK_LIBRARIES(mariabackup sql sql_builtins crc)
+TARGET_LINK_LIBRARIES(mariadb-backup sql sql_builtins crc)
 IF(NOT HAVE_SYSTEM_REGEX)
-  TARGET_LINK_LIBRARIES(mariabackup pcre2-posix)
+  TARGET_LINK_LIBRARIES(mariadb-backup pcre2-posix)
 ENDIF()
 
 

@@ -524,9 +524,9 @@ bool LEX::add_alter_list(LEX_CSTRING name, Virtual_column_info *expr,
 }
 
 
-bool LEX::add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name)
+bool LEX::add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists)
 {
-  Alter_column *ac= new (thd->mem_root) Alter_column(name, new_name);
+  Alter_column *ac= new (thd->mem_root) Alter_column(name, new_name, exists);
   if (unlikely(ac == NULL))
     return true;
   alter_info.alter_list.push_back(ac, thd->mem_root);

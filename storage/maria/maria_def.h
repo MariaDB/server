@@ -16,6 +16,12 @@
 /* This file is included by all internal maria files */
 
 #include <my_global.h>
+
+#ifdef EMBEDDED_LIBRARY
+#undef WITH_S3_STORAGE_ENGINE
+#endif
+
+C_MODE_START
 #include "maria.h"				/* Structs & some defines */
 #include "ma_pagecache.h"
 #include <myisampack.h>				/* packing of keys */
@@ -952,7 +958,7 @@ extern char *maria_data_root;
 extern uchar maria_zero_string[];
 extern my_bool maria_inited, maria_in_ha_maria, maria_recovery_changed_data;
 extern my_bool maria_recovery_verbose, maria_checkpoint_disabled;
-extern my_bool maria_assert_if_crashed_table;
+extern my_bool maria_assert_if_crashed_table, aria_readonly;
 extern ulong maria_checkpoint_min_log_activity;
 extern HASH maria_stored_state;
 extern int (*maria_create_trn_hook)(MARIA_HA *);
@@ -1378,7 +1384,7 @@ void _ma_remap_file(MARIA_HA *info, my_off_t size);
 MARIA_RECORD_POS _ma_write_init_default(MARIA_HA *info, const uchar *record);
 my_bool _ma_write_abort_default(MARIA_HA *info);
 int maria_delete_table_files(const char *name, my_bool temporary,
-                             myf sync_dir);
+                             myf flags);
 
 /*
   This cannot be in my_base.h as it clashes with HA_SPATIAL.
@@ -1387,7 +1393,6 @@ int maria_delete_table_files(const char *name, my_bool temporary,
 */
 #define HA_RTREE_INDEX	        16384	/* For RTREE search */
 
-C_MODE_START
 #define MARIA_FLUSH_DATA  1
 #define MARIA_FLUSH_INDEX 2
 int _ma_flush_table_files(MARIA_HA *info, uint flush_data_or_index,
@@ -1407,7 +1412,6 @@ void _ma_check_print_warning(HA_CHECK *param, const char *fmt, ...)
 void _ma_check_print_info(HA_CHECK *param, const char *fmt, ...)
   ATTRIBUTE_FORMAT(printf, 2, 3);
 my_bool write_log_record_for_repair(const HA_CHECK *param, MARIA_HA *info);
-C_MODE_END
 
 int _ma_flush_pending_blocks(MARIA_SORT_PARAM *param);
 int _ma_sort_ft_buf_flush(MARIA_SORT_PARAM *sort_param);
@@ -1470,3 +1474,4 @@ static inline void unmap_file(MARIA_HA *info __attribute__((unused)))
     _ma_unmap_file(info);
 #endif
 }
+C_MODE_END

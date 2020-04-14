@@ -23,7 +23,6 @@
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */
 #include "mysql_com.h"                     /* SERVER_VERSION_LENGTH */
-#include "my_atomic.h"
 #include "my_counter.h"
 #include "mysql/psi/mysql_file.h"          /* MYSQL_FILE */
 #include "mysql/psi/mysql_socket.h"        /* MYSQL_SOCKET */
@@ -123,6 +122,7 @@ extern my_bool redirect_enabled;
 extern const char *redirect_server_host;
 extern uint redirect_server_port;
 extern uint redirect_server_ttl;
+extern MYSQL_PLUGIN_IMPORT bool volatile abort_loop;
 extern Atomic_counter<uint> connection_count;
 extern my_bool opt_safe_user_create;
 extern my_bool opt_safe_show_db, opt_local_infile, opt_myisam_use_mmap;
@@ -148,7 +148,7 @@ extern ulong use_stat_tables;
 extern my_bool opt_old_style_user_limits, trust_function_creators;
 extern uint opt_crash_binlog_innodb;
 extern const char *shared_memory_base_name;
-extern char *mysqld_unix_port;
+extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
 extern my_bool opt_enable_shared_memory;
 extern ulong opt_replicate_events_marked_for_skip;
 extern char *default_tz_name;
@@ -173,7 +173,8 @@ extern my_bool relay_log_purge, opt_innodb_safe_binlog, opt_innodb;
 extern my_bool relay_log_recovery;
 extern uint select_errors,ha_open_options;
 extern ulonglong test_flags;
-extern uint protocol_version, mysqld_port, dropping_tables;
+extern uint protocol_version, dropping_tables;
+extern MYSQL_PLUGIN_IMPORT uint mysqld_port;
 extern ulong delay_key_write_options;
 extern char *opt_logname, *opt_slow_logname, *opt_bin_logname, 
             *opt_relay_logname;
@@ -286,7 +287,8 @@ extern handlerton *heap_hton;
 extern const char *load_default_groups[];
 extern struct my_option my_long_options[];
 int handle_early_options();
-extern int mysqld_server_started, mysqld_server_initialized;
+extern int MYSQL_PLUGIN_IMPORT mysqld_server_started;
+extern int mysqld_server_initialized;
 extern "C" MYSQL_PLUGIN_IMPORT int orig_argc;
 extern "C" MYSQL_PLUGIN_IMPORT char **orig_argv;
 extern pthread_attr_t connection_attrib;
@@ -757,8 +759,8 @@ extern mysql_mutex_t LOCK_start_thread;
 extern char* des_key_file;
 extern mysql_mutex_t LOCK_des_key_file;
 #endif
-extern mysql_mutex_t LOCK_server_started;
-extern mysql_cond_t COND_server_started;
+extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_server_started;
+extern MYSQL_PLUGIN_IMPORT mysql_cond_t COND_server_started;
 extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 extern mysql_rwlock_t LOCK_ssl_refresh;
 extern mysql_prlock_t LOCK_system_variables_hash;
@@ -896,17 +898,17 @@ enum enum_query_type
 
 
 /* query_id */
-extern query_id_t global_query_id;
+extern Atomic_counter<query_id_t> global_query_id;
 
 /* increment query_id and return it.  */
 inline __attribute__((warn_unused_result)) query_id_t next_query_id()
 {
-  return my_atomic_add64_explicit(&global_query_id, 1, MY_MEMORY_ORDER_RELAXED);
+  return global_query_id++;
 }
 
 inline query_id_t get_query_id()
 {
-  return my_atomic_load64_explicit(&global_query_id, MY_MEMORY_ORDER_RELAXED);
+  return global_query_id;
 }
 
 /* increment global_thread_id and return it.  */

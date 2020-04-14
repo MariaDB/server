@@ -67,7 +67,7 @@ int main(int argc, char **argv)
     goto end;
   }
   /* we don't want to create a control file, it MUST exist */
-  if (ma_control_file_open(FALSE, TRUE))
+  if (ma_control_file_open(FALSE, TRUE, TRUE))
   {
     fprintf(stderr, "Can't open control file (%d)\n", errno);
     goto err;

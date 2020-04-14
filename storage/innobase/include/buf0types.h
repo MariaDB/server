@@ -141,6 +141,7 @@ public:
     ut_ad(page_no <= 0xFFFFFFFFU);
   }
 
+  page_id_t(ulonglong id) : m_id(id) {}
   bool operator==(const page_id_t& rhs) const { return m_id == rhs.m_id; }
   bool operator!=(const page_id_t& rhs) const { return m_id != rhs.m_id; }
 
@@ -169,10 +170,17 @@ public:
   /** Set the FIL_NULL for the space and page_no */
   void set_corrupt_id() { m_id= ~uint64_t{0}; }
 
+  ulonglong raw() { return m_id; }
 private:
   /** The page identifier */
   uint64_t m_id;
 };
+
+/** A field reference full of zero, for use in assertions and checks,
+and dummy default values of instantly dropped columns.
+Initially, BLOB field references are set to zero, in
+dtuple_convert_big_rec(). */
+extern const byte field_ref_zero[UNIV_PAGE_SIZE_MAX];
 
 #ifndef UNIV_INNOCHECKSUM
 

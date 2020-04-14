@@ -215,7 +215,7 @@ static CONTROL_FILE_ERROR create_control_file(const char *name,
   file.
 */
 
-static int lock_control_file(const char *name)
+static int lock_control_file(const char *name, my_bool do_retry)
 {
   /*
     On Windows, my_lock() uses locking() which is mandatory locking and so
@@ -228,6 +228,8 @@ static int lock_control_file(const char *name)
   */
 #ifndef __WIN__
   uint retry= 0;
+  uint retry_count= do_retry ? MARIA_MAX_CONTROL_FILE_LOCK_RETRY : 0;
+
   /*
     We can't here use the automatic wait in my_lock() as the alarm thread
     may not yet exists.
@@ -239,8 +241,8 @@ static int lock_control_file(const char *name)
       my_printf_error(HA_ERR_INITIALIZATION,
                       "Can't lock aria control file '%s' for exclusive use, "
                       "error: %d. Will retry for %d seconds", 0,
-                      name, my_errno, MARIA_MAX_CONTROL_FILE_LOCK_RETRY);
-    if (retry++ > MARIA_MAX_CONTROL_FILE_LOCK_RETRY)
+                      name, my_errno, retry_count);
+    if (++retry > retry_count)
       return 1;
     sleep(1);
   }
@@ -269,7 +271,8 @@ static int lock_control_file(const char *name)
 */
 
 CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
-                                        my_bool print_error)
+                                        my_bool print_error,
+                                        my_bool wait_for_lock)
 {
   uchar buffer[CF_MAX_SIZE];
   char name[FN_REFLEN], errmsg_buff[256];
@@ -311,8 +314,9 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
       errmsg= "Can't create file";
       goto err;
     }
-    if (lock_control_file(name))
+    if (lock_control_file(name, wait_for_lock))
     {
+      error= CONTROL_FILE_LOCKED;
       errmsg= lock_failed_errmsg;
       goto err;
     }
@@ -320,7 +324,6 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
   }
 
   /* Otherwise, file exists */
-
   if ((control_file_fd= mysql_file_open(key_file_control, name,
                                         open_flags, MYF(MY_WME))) < 0)
   {
@@ -328,8 +331,10 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
     goto err;
   }
 
-  if (lock_control_file(name)) /* lock it before reading content */
+  /* lock it before reading content */
+  if (lock_control_file(name, wait_for_lock))
   {
+    error= CONTROL_FILE_LOCKED;
     errmsg= lock_failed_errmsg;
     goto err;
   }

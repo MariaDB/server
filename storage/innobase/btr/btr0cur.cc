@@ -3985,7 +3985,7 @@ static void btr_cur_upd_rec_sys(buf_block_t *block, rec_t *rec,
   }
 
   if (UNIV_LIKELY(len)) /* extra safety, to avoid corrupting the log */
-    mtr->memcpy<mtr_t::OPT>(*block, dest, sys + d, len);
+    mtr->memcpy<mtr_t::MAYBE_NOP>(*block, dest, sys + d, len);
 }
 
 /*************************************************************//**
@@ -4128,9 +4128,10 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 				       ? -REC_NEW_INFO_BITS
 				       : -REC_OLD_INFO_BITS];
 
-		mtr->write<1,mtr_t::OPT>(*block, info_bits,
-			      (*info_bits & ~REC_INFO_BITS_MASK)
-			      | update->info_bits);
+		mtr->write<1,mtr_t::MAYBE_NOP>(*block, info_bits,
+					       (*info_bits
+						& ~REC_INFO_BITS_MASK)
+					       | update->info_bits);
 	}
 
 	for (ulint i = 0; i < update->n_fields; i++) {
@@ -4192,8 +4193,8 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 		}
 
 		if (len) {
-			mtr->memcpy<mtr_t::OPT>(*block, data, uf->new_val.data,
-						len);
+			mtr->memcpy<mtr_t::MAYBE_NOP>(*block, data,
+						      uf->new_val.data, len);
 		}
 	}
 
@@ -5307,7 +5308,7 @@ void btr_rec_set_deleted(buf_block_t *block, rec_t *rec, mtr_t *mtr)
     const byte v = flag
       ? (*b | REC_INFO_DELETED_FLAG)
       : (*b & byte(~REC_INFO_DELETED_FLAG));
-    mtr->write<1,mtr_t::OPT>(*block, b, v);
+    mtr->write<1,mtr_t::MAYBE_NOP>(*block, b, v);
   }
 }
 
@@ -6135,10 +6136,8 @@ static const ha_rows	rows_in_range_arbitrary_ret_val = 10;
 
 /** Estimates the number of rows in a given index range.
 @param[in]	index		index
-@param[in]	tuple1		range start, may also be empty tuple
-@param[in]	mode1		search mode for range start
-@param[in]	tuple2		range end, may also be empty tuple
-@param[in]	mode2		search mode for range end
+@param[in]	tuple1		range start
+@param[in]	tuple2		range end
 @param[in]	nth_attempt	if the tree gets modified too much while
 we are trying to analyze it, then we will retry (this function will call
 itself, incrementing this parameter)
@@ -6151,10 +6150,8 @@ static
 ha_rows
 btr_estimate_n_rows_in_range_low(
 	dict_index_t*	index,
-	const dtuple_t*	tuple1,
-	page_cur_mode_t	mode1,
-	const dtuple_t*	tuple2,
-	page_cur_mode_t	mode2,
+	btr_pos_t*	tuple1,
+	btr_pos_t*	tuple2,
 	unsigned	nth_attempt)
 {
 	btr_path_t	path1[BTR_PATH_ARRAY_N_SLOTS];
@@ -6170,6 +6167,7 @@ btr_estimate_n_rows_in_range_low(
 	ulint		i;
 	mtr_t		mtr;
 	ha_rows		table_n_rows;
+        page_cur_mode_t mode2= tuple2->mode;
 
 	table_n_rows = dict_table_get_n_rows(index->table);
 
@@ -6188,9 +6186,10 @@ btr_estimate_n_rows_in_range_low(
 
 	bool	should_count_the_left_border;
 
-	if (dtuple_get_n_fields(tuple1) > 0) {
+	if (dtuple_get_n_fields(tuple1->tuple) > 0) {
 
-		btr_cur_search_to_nth_level(index, 0, tuple1, mode1,
+              btr_cur_search_to_nth_level(index, 0, tuple1->tuple,
+                                            tuple1->mode,
 					    BTR_SEARCH_LEAF | BTR_ESTIMATE,
 					    &cursor, 0,
 					    __FILE__, __LINE__, &mtr);
@@ -6230,6 +6229,8 @@ btr_estimate_n_rows_in_range_low(
 		should_count_the_left_border = false;
 	}
 
+        tuple1->page_id= cursor.page_cur.block->page.id;
+
 	mtr_commit(&mtr);
 
 	if (!index->is_readable()) {
@@ -6242,9 +6243,10 @@ btr_estimate_n_rows_in_range_low(
 
 	bool	should_count_the_right_border;
 
-	if (dtuple_get_n_fields(tuple2) > 0) {
+	if (dtuple_get_n_fields(tuple2->tuple) > 0) {
 
-		btr_cur_search_to_nth_level(index, 0, tuple2, mode2,
+		btr_cur_search_to_nth_level(index, 0, tuple2->tuple,
+                                            mode2,
 					    BTR_SEARCH_LEAF | BTR_ESTIMATE,
 					    &cursor, 0,
 					    __FILE__, __LINE__, &mtr);
@@ -6256,7 +6258,7 @@ btr_estimate_n_rows_in_range_low(
 		should_count_the_right_border
 			= (mode2 == PAGE_CUR_LE /* if the range is '<=' */
 			   /* and the record was found */
-			   && cursor.low_match >= dtuple_get_n_fields(tuple2))
+			   && cursor.low_match >= dtuple_get_n_fields(tuple2->tuple))
 			|| (mode2 == PAGE_CUR_L /* or if the range is '<' */
 			    /* and there are any records to match the criteria,
 			    i.e. if the minimum record on the tree is 5 and
@@ -6299,6 +6301,8 @@ btr_estimate_n_rows_in_range_low(
 		page, which must not be counted. */
 		should_count_the_right_border = false;
 	}
+
+        tuple2->page_id= cursor.page_cur.block->page.id;
 
 	mtr_commit(&mtr);
 
@@ -6438,8 +6442,8 @@ btr_estimate_n_rows_in_range_low(
 				}
 
 				return btr_estimate_n_rows_in_range_low(
-					index, tuple1, mode1,
-					tuple2, mode2, nth_attempt + 1);
+                                       index, tuple1, tuple2,
+                                       nth_attempt + 1);
 			}
 
 			diverged = true;
@@ -6510,13 +6514,11 @@ btr_estimate_n_rows_in_range_low(
 ha_rows
 btr_estimate_n_rows_in_range(
 	dict_index_t*	index,
-	const dtuple_t*	tuple1,
-	page_cur_mode_t	mode1,
-	const dtuple_t*	tuple2,
-	page_cur_mode_t	mode2)
+        btr_pos_t       *tuple1,
+        btr_pos_t       *tuple2)
 {
 	return btr_estimate_n_rows_in_range_low(
-		index, tuple1, mode1, tuple2, mode2, 1);
+		index, tuple1, tuple2, 1);
 }
 
 /*******************************************************************//**
@@ -6957,9 +6959,8 @@ btr_cur_set_ownership_of_extern_field(
 		mach_write_to_1(data + local_len + BTR_EXTERN_LEN, byte_val);
 		page_zip_write_blob_ptr(block, rec, index, offsets, i, mtr);
 	} else {
-		mtr->write<1,mtr_t::OPT>(*block,
-					 data + local_len + BTR_EXTERN_LEN,
-					 byte_val);
+		mtr->write<1,mtr_t::MAYBE_NOP>(*block, data + local_len
+					       + BTR_EXTERN_LEN, byte_val);
 	}
 }
 
@@ -7044,44 +7045,25 @@ btr_blob_get_next_page_no(
 	return(mach_read_from_4(blob_header + BTR_BLOB_HDR_NEXT_PAGE_NO));
 }
 
-/*******************************************************************//**
-Deallocate a buffer block that was reserved for a BLOB part. */
-static
-void
-btr_blob_free(
-/*==========*/
-	buf_block_t*	block,	/*!< in: buffer block */
-	ibool		all,	/*!< in: TRUE=remove also the compressed page
-				if there is one */
-	mtr_t*		mtr)	/*!< in: mini-transaction to commit */
+/** Deallocate a buffer block that was reserved for a BLOB part.
+@param block   buffer block
+@param all     flag whether to remove a ROW_FORMAT=COMPRESSED page
+@param mtr     mini-transaction to commit */
+static void btr_blob_free(buf_block_t *block, bool all, mtr_t *mtr)
 {
-	ulint		space = block->page.id.space();
-	ulint		page_no	= block->page.id.page_no();
+  const page_id_t page_id= block->page.id;
+  ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+  mtr->commit();
 
-	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+  mutex_enter(&buf_pool.mutex);
+  /* Free the block if it is still allocated to the same file page. */
+  if (block->page.state == BUF_BLOCK_FILE_PAGE && block->page.id == page_id &&
+      !buf_LRU_free_page(&block->page, all) && all && block->page.zip.data)
+    /* Attempt to deallocate the redundant copy of the uncompressed page
+    if the whole ROW_FORMAT=COMPRESSED block cannot be deallocted. */
+    buf_LRU_free_page(&block->page, false);
 
-	mtr_commit(mtr);
-
-	mutex_enter(&buf_pool.mutex);
-
-	/* Only free the block if it is still allocated to
-	the same file page. */
-
-	if (buf_block_get_state(block)
-	    == BUF_BLOCK_FILE_PAGE
-	    && block->page.id.space() == space
-	    && block->page.id.page_no() == page_no) {
-
-		if (!buf_LRU_free_page(&block->page, all)
-		    && all && block->page.zip.data) {
-			/* Attempt to deallocate the uncompressed page
-			if the whole block cannot be deallocted. */
-
-			buf_LRU_free_page(&block->page, false);
-		}
-	}
-
-	mutex_exit(&buf_pool.mutex);
+  mutex_exit(&buf_pool.mutex);
 }
 
 /** Helper class used while writing blob pages, during insert or update. */
@@ -7506,7 +7488,7 @@ next_zip_page:
 					store_len = extern_len;
 				}
 
-				mtr.memcpy<mtr_t::OPT>(
+				mtr.memcpy<mtr_t::MAYBE_NOP>(
 					*block,
 					FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE
 					+ block->frame,
@@ -7532,7 +7514,7 @@ next_zip_page:
 
 				if (prev_page_no == FIL_NULL) {
 					ut_ad(blob_npages == 0);
-					mtr.write<4,mtr_t::OPT>(
+					mtr.write<4,mtr_t::MAYBE_NOP>(
 						*rec_block,
 						field_ref + BTR_EXTERN_SPACE_ID,
 						space_id);
@@ -7766,9 +7748,10 @@ btr_free_externally_stored_field(
 				mtr.write<4>(*block,
 					     BTR_EXTERN_PAGE_NO + field_ref,
 					     next_page_no);
-				mtr.write<4,mtr_t::OPT>(*block,
-							BTR_EXTERN_LEN + 4
-							+ field_ref, 0U);
+				mtr.write<4,mtr_t::MAYBE_NOP>(*block,
+							      BTR_EXTERN_LEN
+							      + 4 + field_ref,
+							      0U);
 			}
 		} else {
 			ut_ad(!block->page.zip.data);
@@ -7786,9 +7769,9 @@ btr_free_externally_stored_field(
 			trx_rollback_all_recovered() could
 			dereference the half-deleted BLOB, fetching a
 			wrong prefix for the BLOB. */
-			mtr.write<4,mtr_t::OPT>(*block,
-						BTR_EXTERN_LEN + 4 + field_ref,
-						0U);
+			mtr.write<4,mtr_t::MAYBE_NOP>(*block,
+						      BTR_EXTERN_LEN + 4
+						      + field_ref, 0U);
 		}
 
 		/* Commit mtr and release the BLOB block to save memory. */

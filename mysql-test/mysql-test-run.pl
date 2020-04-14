@@ -2,7 +2,7 @@
 # -*- cperl -*-
 
 # Copyright (c) 2004, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2018, MariaDB Corporation
+# Copyright (c) 2009, 2020, MariaDB Corporation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -626,7 +626,8 @@ sub main {
     else
     {
       my $sys_info= My::SysInfo->new();
-      $opt_parallel= $sys_info->num_cpus();
+      $opt_parallel= $sys_info->num_cpus() +
+        int($sys_info->min_bogomips()/500) - 4;
       for my $limit (2000, 1500, 1000, 500){
         $opt_parallel-- if ($sys_info->min_bogomips() < $limit);
       }
@@ -1797,7 +1798,7 @@ sub command_line_setup {
   # $ENV{ASAN_OPTIONS}= "log_path=${opt_vardir}/log/asan:" . $ENV{ASAN_OPTIONS};
 
   # Add leak suppressions
-  $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp"
+  $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp:print_suppressions=0"
     if -f "$glob_mysql_test_dir/lsan.supp" and not IS_WINDOWS;
 
   if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || 
@@ -2153,7 +2154,7 @@ sub find_mysqld {
 
   my ($mysqld_basedir)= $ENV{MTR_BINDIR}|| @_;
 
-  my @mysqld_names= ("mysqld", "mysqld-max-nt", "mysqld-max",
+  my @mysqld_names= ("mariadbd", "mysqld", "mysqld-max-nt", "mysqld-max",
 		     "mysqld-nt");
 
   if ( $opt_debug_server ){
@@ -4671,7 +4672,7 @@ sub extract_warning_lines ($$) {
 
   my @patterns =
     (
-     qr/^Warning|mysqld: Warning|\[Warning\]/,
+     qr/^Warning|(mysqld|mariadbd): Warning|\[Warning\]/,
      qr/^Error:|\[ERROR\]/,
      qr/^==\d+==\s+\S/, # valgrind errors
      qr/InnoDB: Warning|InnoDB: Error/,
@@ -4746,7 +4747,7 @@ sub extract_warning_lines ($$) {
      qr|Access denied for user|,
      qr|Aborted connection|,
      qr|table.*is full|,
-     qr|\[ERROR\] mysqld: \Z|,  # Warning from Aria recovery
+     qr/\[ERROR\] (mysqld|mariadbd): \Z/,  # Warning from Aria recovery
      qr|Linux Native AIO|, # warning that aio does not work on /dev/shm
      qr|InnoDB: io_setup\(\) attempt|,
      qr|InnoDB: io_setup\(\) failed with EAGAIN|,
@@ -4778,7 +4779,9 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Table .*mysql.*innodb_table_stats.* not found./,
      qr/InnoDB: User stopword table .* does not exist./,
      qr/Dump thread [0-9]+ last sent to server [0-9]+ binlog file:pos .+/,
-     qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/
+     qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/,
+     qr/WSREP: Failed to guess base node address/,
+     qr/WSREP: Guessing address for incoming client/,
     );
 
   my $matched_lines= [];
@@ -6276,7 +6279,7 @@ sub valgrind_arguments {
   my $exe=  shift;
 
   # Ensure the jemalloc works with mysqld
-  if ($$exe =~ /mysqld/)
+  if ($$exe =~ /(mysqld|mariadbd)/)
   {
     my %somalloc=(
       'system jemalloc' => 'libjemalloc*',

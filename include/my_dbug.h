@@ -131,7 +131,7 @@ extern int (*dbug_sanity)(void);
 #define DBUG_ABORT() (_db_flush_(),\
                      (void)_CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE),\
                      (void)_CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR),\
-                     _exit(3))
+                     TerminateProcess(GetCurrentProcess(),3))
 #endif
 
 /*

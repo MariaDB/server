@@ -20,22 +20,28 @@
 #include "mrn_table_fields_offset_mover.hpp"
 
 namespace mrn {
-  TableFieldsOffsetMover::TableFieldsOffsetMover(TABLE *table,
-                                                 my_ptrdiff_t diff)
-    : table_(table),
-      diff_(diff) {
-    uint n_columns = table_->s->fields;
+  FieldTableChanger::FieldTableChanger(TABLE *table,
+                                       TABLE *new_table)
+    : old_table_(table),
+      new_table_(new_table) {
+    my_ptrdiff_t diff =
+            PTR_BYTE_DIFF(new_table_->record[0], old_table_->record[0]);
+    uint n_columns = old_table_->s->fields;
     for (uint i = 0; i < n_columns; ++i) {
-      Field *field = table_->field[i];
-      field->move_field_offset(diff_);
+      Field *field = old_table_->field[i];
+      field->move_field_offset(diff);
+      field->table = new_table;
     }
   }
 
-  TableFieldsOffsetMover::~TableFieldsOffsetMover() {
-    uint n_columns = table_->s->fields;
+  FieldTableChanger::~FieldTableChanger() {
+    my_ptrdiff_t diff =
+            PTR_BYTE_DIFF(new_table_->record[0], old_table_->record[0]);
+    uint n_columns = old_table_->s->fields;
     for (uint i = 0; i < n_columns; ++i) {
-      Field *field = table_->field[i];
-      field->move_field_offset(-diff_);
+      Field *field = old_table_->field[i];
+      field->move_field_offset(-diff);
+      field->table = old_table_;
     }
   }
 }

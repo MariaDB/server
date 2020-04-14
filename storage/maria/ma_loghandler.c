@@ -1,4 +1,5 @@
 /* Copyright (C) 2007 MySQL AB & Sanja Belkin. 2010 Monty Program Ab.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -469,7 +470,6 @@ static ulonglong flush_start= 0;
 #define TRANSLOG_CLSN_LEN_BITS 0xC0    /* Mask to get compressed LSN length */
 
 
-#include <my_atomic.h>
 /* an array that maps id of a MARIA_SHARE to this MARIA_SHARE */
 static MARIA_SHARE **id_to_share= NULL;
 
@@ -5446,15 +5446,15 @@ static uchar *translog_get_LSN_from_diff(LSN base_lsn, uchar *src, uchar *dst)
                           src + 1 + LSN_STORE_SIZE));
       DBUG_RETURN(src + 1 + LSN_STORE_SIZE);
     }
-    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 8) + *((uint8*)src));
+    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 8) | *((uint8*)src));
     break;
   case 1:
     diff= uint2korr(src);
-    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 16) + diff);
+    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 16) | diff);
     break;
   case 2:
     diff= uint3korr(src);
-    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 24) + diff);
+    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 24) | diff);
     break;
   case 3:
   {

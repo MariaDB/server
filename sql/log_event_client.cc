@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1093,7 +1093,7 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
   Table_map_log_event *map;
   table_def *td;
   DYNAMIC_ARRAY rows_arr;
-  uchar *swap_buff1, *swap_buff2;
+  uchar *swap_buff1;
   uchar *rows_pos= rows_buff + m_rows_before_size;
 
   if (!(map= print_event_info->m_table_map.get_table(m_table_id)) ||
@@ -1142,7 +1142,7 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
       }
       value+= length2;
 
-      swap_buff2= (uchar *) my_malloc(PSI_NOT_INSTRUMENTED, length2, MYF(0));
+      void *swap_buff2= my_malloc(PSI_NOT_INSTRUMENTED, length2, MYF(0));
       if (!swap_buff2)
       {
         fprintf(stderr, "\nError: Out of memory. "
@@ -1150,21 +1150,14 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
         exit(1);
       }
       memcpy(swap_buff2, start_pos + length1, length2); // WHERE part
-    }
 
-    if (ev_type == UPDATE_ROWS_EVENT ||
-        ev_type == UPDATE_ROWS_EVENT_V1)
-    {
       /* Swap SET and WHERE part */
       memcpy(start_pos, swap_buff2, length2);
       memcpy(start_pos + length2, swap_buff1, length1);
+      my_free(swap_buff2);
     }
 
-    /* Free tmp buffers */
     my_free(swap_buff1);
-    if (ev_type == UPDATE_ROWS_EVENT ||
-        ev_type == UPDATE_ROWS_EVENT_V1)
-      my_free(swap_buff2);
 
     /* Copying one row into a buff, and pushing into the array */
     LEX_STRING one_row;
@@ -1875,9 +1868,10 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
   }
 
   /*
-    If flags2_inited==0, this is an event from 3.23 or 4.0; nothing to
-    print (remember we don't produce mixed relay logs so there cannot be
-    5.0 events before that one so there is nothing to reset).
+    If flags2_inited==0, this is an event from 3.23 or 4.0 or a dummy
+    event from the mtr test suite; nothing to print (remember we don't
+    produce mixed relay logs so there cannot be 5.0 events before that
+    one so there is nothing to reset).
   */
   if (likely(flags2_inited)) /* likely as this will mainly read 5.0 logs */
   {
@@ -1906,6 +1900,8 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
           print_set_option(file, tmp, OPTION_NO_CHECK_CONSTRAINT_CHECKS,
                            ~flags2,
                            "@@session.check_constraint_checks", &need_comma) ||
+          print_set_option(file, tmp, OPTION_IF_EXISTS, flags2,
+                           "@@session.sql_if_exists", &need_comma)||
           my_b_printf(file,"%s\n", print_event_info->delimiter))
         goto err;
       print_event_info->flags2= flags2;
@@ -3766,6 +3762,7 @@ st_print_event_info::st_print_event_info()
   delimiter[0]= ';';
   delimiter[1]= 0;
   flags2_inited= 0;
+  flags2= 0;
   sql_mode_inited= 0;
   row_events= 0;
   sql_mode= 0;

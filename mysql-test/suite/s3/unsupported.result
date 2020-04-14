@@ -6,3 +6,10 @@ create temporary table t1 (a int);
 alter table t1 engine=S3;
 ERROR HY000: Can't create table `database`.`t1` (errno: 131 "Command not supported by the engine")
 drop temporary table t1;
+#
+# CREATE of S3 table
+#
+create or replace table t1 (a int, b int, key (a)) engine=S3;
+ERROR HY000: Can't create table `database`.`t1` (errno: 131 "Command not supported by the engine")
+select * from t1;
+ERROR 42S02: Table 'database.t1' doesn't exist

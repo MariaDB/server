@@ -228,40 +228,6 @@ void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
   free(filename);
 }
 
-/*
-  wsrep exploits binlog's caches even if binlogging itself is not
-  activated. In such case connection close needs calling
-  actual binlog's method.
-  Todo: split binlog hton from its caches to use ones by wsrep
-  without referring to binlog's stuff.
-*/
-int wsrep_binlog_close_connection(THD* thd)
-{
-  DBUG_ENTER("wsrep_binlog_close_connection");
-  if (thd_get_ha_data(thd, binlog_hton) != NULL)
-    binlog_hton->close_connection (binlog_hton, thd);
-  DBUG_RETURN(0);
-}
-
-int wsrep_binlog_savepoint_set(THD *thd,  void *sv)
-{
-  if (!wsrep_emulate_bin_log) return 0;
-  int rcode= binlog_hton->savepoint_set(binlog_hton, thd, sv);
-  return rcode;
-}
-
-int wsrep_binlog_savepoint_rollback(THD *thd, void *sv)
-{
-  if (!wsrep_emulate_bin_log) return 0;
-  int rcode= binlog_hton->savepoint_rollback(binlog_hton, thd, sv);
-  return rcode;
-}
-
-void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end)
-{
-  thd->binlog_flush_pending_rows_event(stmt_end);
-}
-
 /* Dump replication buffer along with header to a file. */
 void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
                                     size_t buf_len)
@@ -342,8 +308,6 @@ cleanup1:
 
   DBUG_VOID_RETURN;
 }
-
-#include "log_event.h"
 
 int wsrep_write_skip_event(THD* thd)
 {

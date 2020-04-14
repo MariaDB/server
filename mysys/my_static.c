@@ -91,12 +91,6 @@ const char *soundex_map=	  "01230120022455012623010202";
 USED_MEM* my_once_root_block=0;			/* pointer to first block */
 uint	  my_once_extra=ONCE_ALLOC_INIT;	/* Memory to alloc / block */
 
-	/* from my_largepage.c */
-#ifdef HAVE_LINUX_LARGE_PAGES
-my_bool my_use_large_pages= 0;
-uint    my_large_page_size= 0;
-#endif
-
 	/* from my_alarm */
 int volatile my_have_got_alarm=0;	/* declare variable to reset */
 ulong my_time_to_wait_for_lock=2;	/* In seconds */

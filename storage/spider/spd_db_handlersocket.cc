@@ -5421,8 +5421,8 @@ int spider_handlersocket_handler::append_delete_all_rows_part(
 }
 
 int spider_handlersocket_handler::append_explain_select_part(
-  key_range *start_key,
-  key_range *end_key,
+  const key_range *start_key,
+  const key_range *end_key,
   ulong sql_type,
   int link_idx
 ) {

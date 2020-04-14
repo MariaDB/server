@@ -23,7 +23,6 @@
 
 #include <my_global.h>
 #include <my_sys.h>
-#include <my_atomic.h>
 #include <lf.h>
 #include "../tablockman.h"
 

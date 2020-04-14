@@ -29,6 +29,7 @@ class THD;
 struct TABLE;
 struct handlerton;
 class handler;
+class String;
 typedef struct st_ha_check_opt HA_CHECK_OPT;
 struct HA_CREATE_INFO;
 struct Table_specification_st;
@@ -154,6 +155,8 @@ uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen);
 bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
                         Table_specification_st *create_info,
                         Alter_info *alter_info);
+bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
+                          const LEX_CSTRING *add);
 
 /*
   mysql_create_table_no_lock can be called in one of the following
@@ -217,11 +220,13 @@ bool mysql_prepare_alter_table(THD *thd, TABLE *table,
                                Alter_table_ctx *alter_ctx);
 bool mysql_trans_prepare_alter_copy_data(THD *thd);
 bool mysql_trans_commit_alter_copy_data(THD *thd);
-bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *new_name,
+bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
+                       const LEX_CSTRING *new_name,
                        HA_CREATE_INFO *create_info,
                        TABLE_LIST *table_list,
                        Alter_info *alter_info,
-                       uint order_num, ORDER *order, bool ignore);
+                       uint order_num, ORDER *order, bool ignore,
+                       bool if_exists);
 bool mysql_compare_tables(TABLE *table,
                           Alter_info *alter_info,
                           HA_CREATE_INFO *create_info,
@@ -240,11 +245,12 @@ bool mysql_restore_table(THD* thd, TABLE_LIST* table_list);
 bool mysql_checksum_table(THD* thd, TABLE_LIST* table_list,
                           HA_CHECK_OPT* check_opt);
 bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
-                    bool drop_temporary, bool drop_sequence);
+                    bool drop_temporary, bool drop_sequence,
+                    bool dont_log_query);
 int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool drop_temporary, bool drop_view,
                             bool drop_sequence,
-                            bool log_query, bool dont_free_locks);
+                            bool dont_log_query, bool dont_free_locks);
 bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
                     const LEX_CSTRING *table_name, bool temporary_table);
 bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,

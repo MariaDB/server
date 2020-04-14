@@ -306,7 +306,7 @@ void tp_win_callback_prolog()
     /* Running in new  worker thread*/
     FlsSetValue(fls, (void *)1);
     statistic_increment(thread_created, &LOCK_status);
-    InterlockedIncrement((volatile long *)&tp_stats.num_worker_threads);
+    tp_stats.num_worker_threads++;
     my_thread_init();
   }
 }
@@ -329,7 +329,7 @@ static VOID WINAPI thread_destructor(void *data)
 {
   if(data)
   {
-    InterlockedDecrement((volatile long *)&tp_stats.num_worker_threads);
+    tp_stats.num_worker_threads--;
     my_thread_end();
   }
 }

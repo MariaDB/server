@@ -1091,7 +1091,8 @@ ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
 double ha_maria::scan_time()
 {
   if (file->s->data_file_type == BLOCK_RECORD)
-    return ulonglong2double(stats.data_file_length - file->s->block_size) / MY_MAX(file->s->block_size / 2, IO_SIZE) + 2;
+    return (ulonglong2double(stats.data_file_length - file->s->block_size) /
+            file->s->block_size) + 2;
   return handler::scan_time();
 }
 
@@ -1146,6 +1147,9 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
     test_if_locked|= HA_OPEN_ABORT_IF_CRASHED;
   }
 
+  if (aria_readonly)
+    test_if_locked|= HA_OPEN_IGNORE_MOVED_STATE;
+
   if (!(file= maria_open(name, mode, test_if_locked | HA_OPEN_FROM_SQL_LAYER,
                          s3_open_args())))
   {
@@ -1157,6 +1161,8 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
     }
     return (my_errno ? my_errno : -1);
   }
+  if (aria_readonly)
+    file->s->options|= HA_OPTION_READ_ONLY_DATA;
 
   file->s->chst_invalidator= query_cache_invalidate_by_MyISAM_filename_ref;
   /* Set external_ref, mainly for temporary tables */
@@ -2090,7 +2096,7 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
   DBUG_PRINT("info", ("start_bulk_insert: rows %lu", (ulong) rows));
 
   /* don't enable row cache if too few rows */
-  if (!rows || (rows > MARIA_MIN_ROWS_TO_USE_WRITE_CACHE))
+  if ((!rows || rows > MARIA_MIN_ROWS_TO_USE_WRITE_CACHE) && !has_long_unique())
   {
     ulonglong size= thd->variables.read_buff_size, tmp;
     if (rows)
@@ -2270,7 +2276,8 @@ bool ha_maria::check_and_repair(THD *thd)
   check_opt.flags= T_MEDIUM | T_AUTO_REPAIR;
 
   error= 1;
-  if ((file->s->state.changed & (STATE_CRASHED_FLAGS | STATE_MOVED)) ==
+  if (!aria_readonly &&
+      (file->s->state.changed & (STATE_CRASHED_FLAGS | STATE_MOVED)) ==
       STATE_MOVED)
   {
     /* Remove error about crashed table */
@@ -2605,6 +2612,8 @@ int ha_maria::extra(enum ha_extra_function operation)
   if (operation == HA_EXTRA_MMAP && !opt_maria_use_mmap)
     return 0;
 #endif
+  if (operation == HA_EXTRA_WRITE_CACHE && has_long_unique())
+    return 0;
 
   /*
     We have to set file->trn here because in some cases we call
@@ -3288,6 +3297,8 @@ void ha_maria::get_auto_increment(ulonglong offset, ulonglong increment,
     inx                 Index to use
     min_key             Start of range.  Null pointer if from first key
     max_key             End of range. Null pointer if to last key
+    pages               Store first and last page for the range in case of
+                        b-trees. In other cases it's not touched.
 
   NOTES
     min_key.flag can have one of the following values:
@@ -3305,11 +3316,12 @@ void ha_maria::get_auto_increment(ulonglong offset, ulonglong increment,
                         the range.
 */
 
-ha_rows ha_maria::records_in_range(uint inx, key_range *min_key,
-                                   key_range *max_key)
+ha_rows ha_maria::records_in_range(uint inx, const key_range *min_key,
+                                   const key_range *max_key, page_range *pages)
 {
   register_handler(file);
-  return (ha_rows) maria_records_in_range(file, (int) inx, min_key, max_key);
+  return (ha_rows) maria_records_in_range(file, (int) inx, min_key, max_key,
+                                          pages);
 }
 
 
@@ -3367,7 +3379,7 @@ static int maria_hton_panic(handlerton *hton, ha_panic_function flag)
   /* If no background checkpoints, we need to do one now */
   int ret=0;
 
-  if (!checkpoint_interval)
+  if (!checkpoint_interval && !aria_readonly)
     ret= ma_checkpoint_execute(CHECKPOINT_FULL, FALSE);
 
   ret|= maria_panic(flag);
@@ -3637,8 +3649,18 @@ bool ha_maria::is_changed() const
 
 static int ha_maria_init(void *p)
 {
-  int res;
+  int res= 0, tmp;
   const char *log_dir= maria_data_root;
+
+  /*
+    If aria_readonly is set, then we don't run recovery and we don't allow
+    opening of tables that are crashed. Used by mysqld --help
+   */
+  if ((aria_readonly= opt_help != 0))
+  {
+    maria_recover_options= 0;
+    checkpoint_interval= 0;
+  }
 
 #ifdef HAVE_PSI_INTERFACE
   init_aria_psi_keys();
@@ -3664,8 +3686,14 @@ static int ha_maria_init(void *p)
   maria_hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
   bzero(maria_log_pagecache, sizeof(*maria_log_pagecache));
   maria_tmpdir= &mysql_tmpdir_list;             /* For REDO */
-  res= maria_upgrade() || maria_init() || ma_control_file_open(TRUE, TRUE) ||
-    ((force_start_after_recovery_failures != 0) &&
+
+  if (!aria_readonly)
+    res= maria_upgrade();
+  res= res || maria_init();
+  tmp= ma_control_file_open(!aria_readonly, !aria_readonly, !aria_readonly);
+  res= res || aria_readonly ? tmp == CONTROL_FILE_LOCKED : tmp != 0;
+  res= res ||
+    ((force_start_after_recovery_failures != 0 && !aria_readonly) &&
      mark_recovery_start(log_dir)) ||
     !init_pagecache(maria_pagecache,
                     (size_t) pagecache_buffer_size, pagecache_division_limit,
@@ -3674,13 +3702,16 @@ static int ha_maria_init(void *p)
     !init_pagecache(maria_log_pagecache,
                     TRANSLOG_PAGECACHE_SIZE, 0, 0,
                     TRANSLOG_PAGE_SIZE, 0, 0) ||
-    translog_init(maria_data_root, log_file_size,
-                  MYSQL_VERSION_ID, server_id, maria_log_pagecache,
-                  TRANSLOG_DEFAULT_FLAGS, 0) ||
-    maria_recovery_from_log() ||
-    ((force_start_after_recovery_failures != 0 ||
-      maria_recovery_changed_data || recovery_failures) &&
-     mark_recovery_success()) ||
+    (!aria_readonly &&
+     translog_init(maria_data_root, log_file_size,
+                   MYSQL_VERSION_ID, server_id, maria_log_pagecache,
+                   TRANSLOG_DEFAULT_FLAGS, 0)) ||
+    (!aria_readonly &&
+     (maria_recovery_from_log() ||
+      ((force_start_after_recovery_failures != 0 ||
+        maria_recovery_changed_data || recovery_failures) &&
+       mark_recovery_success()))) ||
+    (aria_readonly && trnman_init(MAX_INTERNAL_TRID-16)) ||
     ma_checkpoint_init(checkpoint_interval);
   maria_multi_threaded= maria_in_ha_maria= TRUE;
   maria_create_trn_hook= maria_create_trn_for_mysql;
@@ -3691,6 +3722,8 @@ static int ha_maria_init(void *p)
     maria_hton= 0;
 
   ma_killed= ma_killed_in_mariadb;
+  if (res)
+    maria_panic(HA_PANIC_CLOSE);
 
   return res ? HA_ERR_INITIALIZATION : 0;
 }

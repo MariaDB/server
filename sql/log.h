@@ -1144,6 +1144,7 @@ File open_binlog(IO_CACHE *log, const char *log_file_name,
 
 void make_default_log_name(char **out, const char* log_ext, bool once);
 void binlog_reset_cache(THD *thd);
+bool write_annotated_row(THD *thd);
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 extern handlerton *binlog_hton;
@@ -1223,6 +1224,7 @@ static inline TC_LOG *get_tc_log_implementation()
 #ifdef WITH_WSREP
 IO_CACHE* wsrep_get_trans_cache(THD *);
 void wsrep_thd_binlog_trx_reset(THD * thd);
+void wsrep_thd_binlog_stmt_rollback(THD * thd);
 #endif /* WITH_WSREP */
 
 class Gtid_list_log_event;

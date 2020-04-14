@@ -3159,11 +3159,11 @@ class Rdb_transaction_impl : public Rdb_transaction {
 
   virtual bool is_writebatch_trx() const override { return false; }
 
-  bool is_prepared() {
+  bool is_prepared() override {
     return m_rocksdb_tx && rocksdb::Transaction::PREPARED == m_rocksdb_tx->GetState();
   }
 
-  void detach_prepared_tx() {
+  void detach_prepared_tx() override {
     DBUG_ASSERT(rocksdb::Transaction::PREPARED == m_rocksdb_tx->GetState());
     m_rocksdb_tx = nullptr;
   }
@@ -11344,7 +11344,6 @@ ulonglong ha_rocksdb::table_flags() const
 }
 
 
-
 /**
   @return
     HA_EXIT_SUCCESS  OK
@@ -11911,8 +11910,9 @@ int ha_rocksdb::extra(enum ha_extra_function operation) {
   Given a starting key and an ending key, estimate the number of rows that
   will exist between the two keys.
 */
-ha_rows ha_rocksdb::records_in_range(uint inx, key_range *const min_key,
-                                     key_range *const max_key) {
+ha_rows ha_rocksdb::records_in_range(uint inx, const key_range *const min_key,
+                                     const key_range *const max_key,
+                                     page_range *pages) {
   DBUG_ENTER_FUNC();
 
   ha_rows ret = THDVAR(ha_thd(), records_in_range);

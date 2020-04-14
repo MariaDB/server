@@ -298,8 +298,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		       static_cast<uint16_t>(undo->hdr_offset
 					     + TRX_UNDO_HISTORY_NODE), mtr);
 
-	mtr->write<8,mtr_t::OPT>(*undo_page, undo_header + TRX_UNDO_TRX_NO,
-				 trx->no);
+	mtr->write<8,mtr_t::MAYBE_NOP>(*undo_page,
+				       undo_header + TRX_UNDO_TRX_NO, trx->no);
 	/* This is needed for upgrading old undo log pages from
 	before MariaDB 10.3.1. */
 	if (UNIV_UNLIKELY(!mach_read_from_2(undo_header
@@ -362,8 +362,8 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 	again. The list of pages in the undo log tail gets
 	inconsistent during the freeing of the segment, and therefore
 	purge should not try to access them again. */
-	mtr.write<2,mtr_t::OPT>(*block, block->frame + hdr_addr.boffset
-				+ TRX_UNDO_NEEDS_PURGE, 0U);
+	mtr.write<2,mtr_t::MAYBE_NOP>(*block, block->frame + hdr_addr.boffset
+				      + TRX_UNDO_NEEDS_PURGE, 0U);
 
 	while (!fseg_free_step_not_header(
 		       TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER

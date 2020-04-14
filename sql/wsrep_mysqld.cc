@@ -1744,7 +1744,8 @@ bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list)
   {
     for (const TABLE_LIST* it= table_list; it; it= it->next_global)
     {
-      if (!wsrep_should_replicate_ddl(thd, it->table->s->db_type()->db_type))
+      if (it->table &&
+          !wsrep_should_replicate_ddl(thd, it->table->s->db_type()->db_type))
         return false;
     }
   }

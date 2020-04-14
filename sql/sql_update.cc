@@ -463,6 +463,7 @@ int mysql_update(THD *thd,
       my_error(ER_NOT_CONSTANT_EXPRESSION, MYF(0), "FOR PORTION OF");
       DBUG_RETURN(true);
     }
+    table->no_cache= true;
   }
 
   old_covering_keys= table->covering_keys;		// Keys used in WHERE
@@ -967,6 +968,9 @@ update_begin:
   */
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
+
+  table->file->prepare_for_insert(1);
+  DBUG_ASSERT(table->file->inited != handler::NONE);
 
   THD_STAGE_INFO(thd, stage_updating);
   while (!(error=info.read_record()) && !thd->killed)
@@ -1496,8 +1500,8 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
     if (!tl->is_jtbm() && (tl->table->map & tables_for_update))
     {
       TABLE *table1= tl->table;
-      bool primkey_clustered= (table1->file->primary_key_is_clustered() &&
-                               table1->s->primary_key != MAX_KEY);
+      bool primkey_clustered= (table1->file->
+                               pk_is_clustering_key(table1->s->primary_key));
 
       bool table_partitioned= false;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -1848,9 +1852,8 @@ int mysql_multi_update_prepare(THD *thd)
   /* now lock and fill tables */
   if (!thd->stmt_arena->is_stmt_prepare() &&
       lock_tables(thd, table_list, table_count, 0))
-  {
     DBUG_RETURN(TRUE);
-  }
+
   (void) read_statistics_for_tables_if_needed(thd, table_list);
   /* @todo: downgrade the metadata locks here. */
 
@@ -2026,13 +2029,14 @@ int multi_update::prepare(List<Item> &not_used_values,
     {
       table->read_set= &table->def_read_set;
       bitmap_union(table->read_set, &table->tmp_set);
+      table->file->prepare_for_insert(1);
     }
   }
   if (unlikely(error))
     DBUG_RETURN(1);    
 
   /*
-    Save tables beeing updated in update_tables
+    Save tables being updated in update_tables
     update_table->shared is position for table
     Don't use key read on tables that are updated
   */

@@ -75,7 +75,7 @@ static void flst_zero_both(const buf_block_t& b, byte *addr, mtr_t *mtr)
 {
   if (mach_read_from_4(addr + FIL_ADDR_PAGE) != FIL_NULL)
     mtr->memset(&b, ulint(addr - b.frame) + FIL_ADDR_PAGE, 4, 0xff);
-  mtr->write<2,mtr_t::OPT>(b, addr + FIL_ADDR_BYTE, 0U);
+  mtr->write<2,mtr_t::MAYBE_NOP>(b, addr + FIL_ADDR_BYTE, 0U);
   /* Initialize the other address by (MEMMOVE|0x80,offset,FIL_ADDR_SIZE,source)
   which is 4 bytes, or less than FIL_ADDR_SIZE. */
   memcpy(addr + FIL_ADDR_SIZE, addr, FIL_ADDR_SIZE);
@@ -230,7 +230,7 @@ void flst_init(const buf_block_t& block, byte *base, mtr_t *mtr)
 {
   ut_ad(mtr->memo_contains_page_flagged(base, MTR_MEMO_PAGE_X_FIX |
                                         MTR_MEMO_PAGE_SX_FIX));
-  mtr->write<4,mtr_t::OPT>(block, base + FLST_LEN, 0U);
+  mtr->write<4,mtr_t::MAYBE_NOP>(block, base + FLST_LEN, 0U);
   static_assert(FLST_LAST == FLST_FIRST + FIL_ADDR_SIZE, "compatibility");
   flst_zero_both(block, base + FLST_FIRST, mtr);
 }

@@ -75,14 +75,15 @@ void set_thd_stage_info(void *thd,
 #include "wsrep_condition_variable.h"
 
 class Wsrep_applier_service;
-
 #endif /* WITH_WSREP */
+
 class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
 class Rpl_filter;
 class Query_log_event;
 class Load_log_event;
+class Log_event_writer;
 class sp_rcontext;
 class sp_cache;
 class Lex_input_stream;
@@ -340,8 +341,8 @@ public:
   bool alter_if_exists;
   Alter_column(LEX_CSTRING par_name, Virtual_column_info *expr, bool par_exists)
     :name(par_name), new_name{NULL, 0}, default_value(expr), alter_if_exists(par_exists) {}
-  Alter_column(LEX_CSTRING par_name, LEX_CSTRING _new_name)
-    :name(par_name), new_name(_new_name), default_value(NULL), alter_if_exists(false) {}
+  Alter_column(LEX_CSTRING par_name, LEX_CSTRING _new_name, bool exists)
+    :name(par_name), new_name(_new_name), default_value(NULL), alter_if_exists(exists) {}
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
@@ -361,9 +362,10 @@ class Alter_rename_key : public Sql_alloc
 public:
   LEX_CSTRING old_name;
   LEX_CSTRING new_name;
+  bool alter_if_exists;
 
-  Alter_rename_key(LEX_CSTRING old_name_arg, LEX_CSTRING new_name_arg)
-      : old_name(old_name_arg), new_name(new_name_arg) {}
+  Alter_rename_key(LEX_CSTRING old_name_arg, LEX_CSTRING new_name_arg, bool exists)
+      : old_name(old_name_arg), new_name(new_name_arg), alter_if_exists(exists) {}
 
   Alter_rename_key *clone(MEM_ROOT *mem_root) const
     { return new (mem_root) Alter_rename_key(*this); }
@@ -381,13 +383,15 @@ public:
   engine_option_value *option_list;
   bool generated;
   bool invisible;
+  bool without_overlaps;
+  Lex_ident period;
 
   Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
       ha_key_alg algorithm_arg, bool generated_arg, DDL_options_st ddl_options)
     :DDL_options(ddl_options),
      type(type_par), key_create_info(default_key_create_info),
     name(*name_arg), option_list(NULL), generated(generated_arg),
-    invisible(false)
+    invisible(false), without_overlaps(false)
   {
     key_create_info.algorithm= algorithm_arg;
   }
@@ -398,7 +402,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(*key_info_arg), columns(*cols),
     name(*name_arg), option_list(create_opt), generated(generated_arg),
-    invisible(false)
+    invisible(false), without_overlaps(false)
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() {}
@@ -737,11 +741,6 @@ typedef struct system_variables
   my_bool query_cache_strip_comments;
   my_bool sql_log_slow;
   my_bool sql_log_bin;
-  /*
-    A flag to help detect whether binary logging was temporarily disabled
-    (see tmp_disable_binlog(A) macro).
-  */
-  my_bool sql_log_bin_off;
   my_bool binlog_annotate_row_events;
   my_bool binlog_direct_non_trans_update;
   my_bool column_compression_zlib_wrap;
@@ -913,9 +912,9 @@ typedef struct system_status_var
   ulong feature_window_functions;   /* +1 when window functions are used */
 
   /* From MASTER_GTID_WAIT usage */
-  ulonglong master_gtid_wait_timeouts;          /* Number of timeouts */
-  ulonglong master_gtid_wait_time;              /* Time in microseconds */
-  ulonglong master_gtid_wait_count;
+  ulong master_gtid_wait_timeouts;          /* Number of timeouts */
+  ulong master_gtid_wait_time;              /* Time in microseconds */
+  ulong master_gtid_wait_count;
 
   ulong empty_queries;
   ulong access_denied_errors;
@@ -2576,14 +2575,17 @@ public:
   */
   void binlog_start_trans_and_stmt();
   void binlog_set_stmt_begin();
-  int binlog_write_table_map(TABLE *table, bool is_transactional,
-                             my_bool *with_annotate= 0);
   int binlog_write_row(TABLE* table, bool is_transactional,
                        const uchar *buf);
   int binlog_delete_row(TABLE* table, bool is_transactional,
                         const uchar *buf);
   int binlog_update_row(TABLE* table, bool is_transactional,
                         const uchar *old_data, const uchar *new_data);
+  bool prepare_handlers_for_update(uint flag);
+  bool binlog_write_annotated_row(Log_event_writer *writer);
+  void binlog_prepare_for_row_logging();
+  bool binlog_write_table_maps();
+  bool binlog_write_table_map(TABLE *table, bool with_annotate);
   static void binlog_prepare_row_images(TABLE* table);
 
   void set_server_id(uint32 sid) { variables.server_id = sid; }
@@ -2677,22 +2679,20 @@ private:
   */
   enum_binlog_format current_stmt_binlog_format;
 
-  /*
-    Number of outstanding table maps, i.e., table maps in the
-    transaction cache.
-  */
-  uint binlog_table_maps;
 public:
+
+  /* 1 if binlog table maps has been written */
+  bool binlog_table_maps;
+
   void issue_unsafe_warnings();
   void reset_unsafe_warnings()
   { binlog_unsafe_warning_flags= 0; }
 
-  uint get_binlog_table_maps() const {
-    return binlog_table_maps;
-  }
-  void clear_binlog_table_maps() {
+  void reset_binlog_for_next_statement()
+  {
     binlog_table_maps= 0;
   }
+
 #endif /* MYSQL_CLIENT */
 
 public:
@@ -5170,11 +5170,10 @@ my_eof(THD *thd)
 #define tmp_disable_binlog(A)                                              \
   {ulonglong tmp_disable_binlog__save_options= (A)->variables.option_bits; \
   (A)->variables.option_bits&= ~OPTION_BIN_LOG;                            \
-  (A)->variables.sql_log_bin_off= 1;
+  (A)->variables.option_bits|= OPTION_BIN_TMP_LOG_OFF;
 
 #define reenable_binlog(A)                                                  \
-  (A)->variables.option_bits= tmp_disable_binlog__save_options;             \
-  (A)->variables.sql_log_bin_off= 0;}
+  (A)->variables.option_bits= tmp_disable_binlog__save_options; }
 
 
 inline date_conv_mode_t sql_mode_for_dates(THD *thd)
@@ -5702,7 +5701,6 @@ public:
     {}
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
 
-  int binlog_show_create_table(TABLE **tables, uint count);
   void store_values(List<Item> &values);
   bool send_eof();
   virtual void abort_result_set();
@@ -6963,6 +6961,11 @@ inline int handler::ha_update_tmp_row(const uchar *old_data, uchar *new_data)
           { error= update_row(old_data, new_data);})
   MYSQL_UPDATE_ROW_DONE(error);
   return error;
+}
+
+inline bool handler::has_long_unique()
+{
+  return table->s->long_unique_table;
 }
 
 extern pthread_attr_t *get_connection_attrib(void);

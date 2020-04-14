@@ -375,7 +375,7 @@ page_zip_calc_checksum(
 @param data    ROW_FORMAT=COMPRESSED page
 @param size    size of the page, in bytes
 @return whether the stored checksum matches innodb_checksum_algorithm */
-bool page_zip_verify_checksum(const void *data, size_t size);
+bool page_zip_verify_checksum(const byte *data, size_t size);
 
 #ifndef UNIV_INNOCHECKSUM
 /**********************************************************************//**
