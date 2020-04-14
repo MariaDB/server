@@ -35,16 +35,9 @@ ENGINE=InnoDB STATS_PERSISTENT=0;
 SET GLOBAL innodb_change_buffering_debug = 1;
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
-# The removed function page_copy_rec_list_end_to_created_page() would create
-# less dense pages than the remaining part of page_copy_rec_list_end().
-# For the INSERT after the DELETE to be buffered, the leftmost page
-# must not be too densely packed.
-SET GLOBAL innodb_limit_optimistic_insert_debug=700;
-
 # Create enough rows for the table, so that the change buffer will be
 # used for modifying the secondary index page. There must be multiple
 # index pages, because changes to the root page are never buffered.
-
 INSERT INTO t1 SELECT 0,'x',1 FROM seq_1_to_8192;
 
 BEGIN;

@@ -41,7 +41,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -3
-+4
++5
  connection default;
  ALTER TABLE big ADD COLUMN
  (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
@@ -50,7 +50,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -7
-+12
++13
  connection default;
  ROLLBACK;
  CHECKSUM TABLE big;
@@ -59,7 +59,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -3
-+4
++5
  connection default;
  InnoDB		0 transactions not purged
  DROP TABLE t1,t2,t3,big;
@@ -104,7 +104,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -3
-+4
++5
  connection default;
  ALTER TABLE big ADD COLUMN
  (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
@@ -113,7 +113,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -7
-+12
++13
  connection default;
  ROLLBACK;
  CHECKSUM TABLE big;
@@ -122,7 +122,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -3
-+4
++5
  connection default;
  InnoDB		0 transactions not purged
  DROP TABLE t1,t2,t3,big;
@@ -167,7 +167,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -3
-+4
++5
  connection default;
  ALTER TABLE big ADD COLUMN
  (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
@@ -176,7 +176,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -7
-+12
++13
  connection default;
  ROLLBACK;
  CHECKSUM TABLE big;
@@ -185,7 +185,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -3
-+4
++5
  connection default;
  InnoDB		0 transactions not purged
  DROP TABLE t1,t2,t3,big;

@@ -562,8 +562,11 @@ page_copy_rec_list_end(
 
 	const mtr_log_t log_mode = new_page_zip
 		? mtr->set_log_mode(MTR_LOG_NONE) : MTR_LOG_NONE;
-	ut_d(const bool was_empty = page_dir_get_n_heap(new_page)
-	     == PAGE_HEAP_NO_USER_LOW);
+	const bool was_empty = page_dir_get_n_heap(new_page)
+		== PAGE_HEAP_NO_USER_LOW;
+	alignas(2) byte h[PAGE_N_DIRECTION + 2 - PAGE_LAST_INSERT];
+	memcpy_aligned<2>(h, PAGE_HEADER + PAGE_LAST_INSERT + new_page,
+			  sizeof h);
 
 	if (index->is_spatial()) {
 		ulint	max_to_move = page_get_n_recs(
@@ -584,6 +587,11 @@ page_copy_rec_list_end(
 	} else {
 		page_copy_rec_list_end_no_locks(new_block, block, rec,
 						index, mtr);
+		if (was_empty) {
+			mtr->memcpy<mtr_t::MAYBE_NOP>(*new_block, PAGE_HEADER
+						      + PAGE_LAST_INSERT
+						      + new_page, h, sizeof h);
+		}
 	}
 
 	/* Update PAGE_MAX_TRX_ID on the uncompressed page.

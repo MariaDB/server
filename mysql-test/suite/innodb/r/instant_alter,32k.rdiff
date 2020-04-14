@@ -44,7 +44,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -7
-+4
++5
  connection default;
  ROLLBACK;
  CHECKSUM TABLE big;
@@ -71,7 +71,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -7
-+4
++5
  connection default;
  ROLLBACK;
  CHECKSUM TABLE big;
@@ -98,7 +98,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -7
-+4
++5
  connection default;
  ROLLBACK;
  CHECKSUM TABLE big;

@@ -466,28 +466,20 @@ inline void PageBulk::finishPage()
   }
 
   ut_ad(!m_index->is_spatial());
-  ut_ad(!page_get_instant(m_page));
-  ut_ad(!mach_read_from_2(PAGE_HEADER + PAGE_N_DIRECTION + m_page));
 
   if (fmt != COMPRESSED)
   {
     static_assert(PAGE_N_DIR_SLOTS == 0, "compatibility");
-    alignas(8) byte page_header[PAGE_N_RECS + 2];
+    alignas(8) byte page_header[PAGE_N_HEAP + 2];
     mach_write_to_2(page_header + PAGE_N_DIR_SLOTS,
                     1 + (slot0 - slot) / PAGE_DIR_SLOT_SIZE);
     mach_write_to_2(page_header + PAGE_HEAP_TOP, m_heap_top - m_page);
     mach_write_to_2(page_header + PAGE_N_HEAP,
                     (PAGE_HEAP_NO_USER_LOW + m_rec_no) |
                     uint16_t{fmt != REDUNDANT} << 15);
-    memset_aligned<2>(page_header + PAGE_FREE, 0, 4);
-    static_assert(PAGE_GARBAGE == PAGE_FREE + 2, "compatibility");
-    mach_write_to_2(page_header + PAGE_LAST_INSERT, m_cur_rec - m_page);
-    mach_write_to_2(page_header + PAGE_DIRECTION_B - 1, PAGE_RIGHT);
-    mach_write_to_2(page_header + PAGE_N_DIRECTION, m_rec_no);
-    memcpy_aligned<2>(page_header + PAGE_N_RECS,
-                      page_header + PAGE_N_DIRECTION, 2);
     m_mtr.memcpy(*m_block, PAGE_HEADER + m_page, page_header,
                  sizeof page_header);
+    m_mtr.write<2>(*m_block, PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
     m_mtr.memcpy(*m_block, page_offset(slot), slot0 - slot);
   }
   else
@@ -501,14 +493,7 @@ inline void PageBulk::finishPage()
     mach_write_to_2(PAGE_HEADER + PAGE_N_HEAP + m_page,
                     (PAGE_HEAP_NO_USER_LOW + m_rec_no) | 1U << 15);
     mach_write_to_2(PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
-    mach_write_to_2(PAGE_HEADER + PAGE_LAST_INSERT + m_page,
-                    static_cast<ulint>(m_cur_rec - m_page));
-    mach_write_to_2(PAGE_HEADER + PAGE_DIRECTION_B - 1 + m_page, PAGE_RIGHT);
   }
-
-  ut_ad(m_total_data + page_dir_calc_reserved_space(m_rec_no) <=
-        page_get_free_space_of_empty(m_is_comp));
-  m_block->skip_flush_check= false;
 }
 
 /** Mark end of insertion to the page. Scan all records to set page dirs,
@@ -522,6 +507,15 @@ inline void PageBulk::finish()
     finishPage<DYNAMIC>();
   else
     finishPage<REDUNDANT>();
+
+  ut_ad(!page_header_get_field(m_page, PAGE_FREE));
+  ut_ad(!page_header_get_field(m_page, PAGE_GARBAGE));
+  ut_ad(!page_header_get_field(m_page, PAGE_LAST_INSERT));
+  ut_ad(page_header_get_field(m_page, PAGE_INSTANT) == PAGE_NO_DIRECTION);
+  ut_ad(!page_header_get_field(m_page, PAGE_N_DIRECTION));
+  ut_ad(m_total_data + page_dir_calc_reserved_space(m_rec_no) <=
+        page_get_free_space_of_empty(m_is_comp));
+  m_block->skip_flush_check= false;
 }
 
 /** Commit inserts done to the page

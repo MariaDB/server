@@ -115,5 +115,4 @@ insert into t2 values (201, REPEAT('A', 16), REPEAT('B', 32));
 insert into t2 values (202, REPEAT('A', 16), REPEAT('B', 32));
 insert into t2 values (203, REPEAT('A', 16), REPEAT('B', 32));
 insert into t2 values (204, REPEAT('A', 16), REPEAT('B', 32));
-Too little space is reserved on second index.
 DROP TABLE t2;

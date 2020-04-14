@@ -36,7 +36,7 @@ select count(*) from innodb_page_compressed9;
 count(*)
 10000
 # innodb_normal expected FOUND
-FOUND 24000 /AaAaAaAa/ in innodb_normal.ibd
+FOUND 24084 /AaAaAaAa/ in innodb_normal.ibd
 # innodb_page_compressed1 page compressed expected NOT FOUND
 NOT FOUND /AaAaAaAa/ in innodb_page_compressed1.ibd
 # innodb_page_compressed2 page compressed expected NOT FOUND

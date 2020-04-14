@@ -4,23 +4,17 @@ INSERT INTO t1 VALUES(1, 'sql'), (2, 'server'), (3, 'mariadb'),
 (4, 'mariadb'), (5, 'test1'), (6, 'test2'), (7, 'test3'),
 (8, 'test4'), (9, 'test5'), (10, 'test6'), (11, 'test7'),
 (12, 'test8');
-FLUSH TABLE t1 FOR EXPORT;
-UNLOCK TABLES;
-SET GLOBAL innodb_log_checkpoint_now=ON;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 12
 UPDATE t1 SET c='best8' WHERE pk=12;
 # Kill the server
 # Corrupt the pages
-# restart
 SELECT * FROM t1 WHERE PK = 1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-# restart: --innodb-force-recovery=1
 SELECT * FROM t1 WHERE PK = 1;
 pk	c
 1	sql
 SELECT * FROM t1 WHERE pk = 12;
-ERROR HY000: Got error 168 "Unknown (generic) error from engine" from storage engine InnoDB
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
 DROP TABLE t1;
-# restart

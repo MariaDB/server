@@ -100,5 +100,5 @@ NOT FOUND /verysecretmessage/ in t3.ibd
 # t4 page compressed and encrypted expecting NOT FOUND
 NOT FOUND /verysecretmessage/ in t4.ibd
 # t5 normal expecting FOUND
-FOUND 256 /verysecretmessage/ in t5.ibd
+FOUND 289 /verysecretmessage/ in t5.ibd
 DROP TABLE t1,t2,t3,t4,t5,t6;

@@ -14,7 +14,7 @@ SELECT NULL, REPEAT('b', 64), REPEAT('c', 256) FROM seq_1_to_16382;
 SELECT COUNT(*) FROM information_schema.innodb_buffer_page_lru
 WHERE table_name = '`test`.`ib_bp_test`';
 COUNT(*)
-594
+596
 SET GLOBAL innodb_buffer_pool_dump_now = ON;
 SET GLOBAL innodb_fast_shutdown=0;
 # restart
@@ -32,7 +32,7 @@ Buffer pool(s) load completed at TIMESTAMP_NOW
 SELECT COUNT(*) FROM information_schema.innodb_buffer_page_lru
 WHERE table_name = '`test`.`ib_bp_test`';
 COUNT(*)
-594
+596
 call mtr.add_suppression("InnoDB: Error parsing");
 SET GLOBAL innodb_buffer_pool_load_now = ON;
 # Re-write some valid pages to the dump file, make sure the space
