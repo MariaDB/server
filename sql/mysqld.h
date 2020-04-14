@@ -117,7 +117,6 @@ extern bool opt_skip_name_resolve;
 extern bool opt_ignore_builtin_innodb;
 extern my_bool opt_character_set_client_handshake;
 extern my_bool debug_assert_on_not_freed_memory;
-extern bool volatile abort_loop;
 extern my_bool redirect_enabled;
 extern const char *redirect_server_host;
 extern uint redirect_server_port;
