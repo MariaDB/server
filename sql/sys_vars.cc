@@ -6701,7 +6701,7 @@ static Sys_var_uint Sys_redirect_server_port(
        "redirect_server_port",
        "The server host port that client can choose to redirect to.",
        READ_ONLY GLOBAL_VAR(redirect_server_port), CMD_LINE(OPT_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, 65536), DEFAULT(0), BLOCK_SIZE(1));
 
 static Sys_var_uint Sys_redirect_server_ttl(
        "redirect_server_ttl",
