@@ -12739,14 +12739,21 @@ int spider_oracle_handler::append_list_item_select(
 ) {
   int error_num;
   uint dbton_id = spider_dbton_oracle.dbton_id, length;
+  uint32 begin;
   List_iterator_fast<Item> it(*select);
   Item *item;
   Field *field;
   const char *item_name;
   DBUG_ENTER("spider_oracle_handler::append_list_item_select");
   DBUG_PRINT("info",("spider this=%p", this));
+  begin = str->length();
   while ((item = it++))
   {
+    if (item->const_item())
+    {
+      DBUG_PRINT("info",("spider const item"));
+      continue;
+    }
     if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
       alias, alias_length, dbton_id, use_fields, fields)))
     {
@@ -12774,7 +12781,17 @@ int spider_oracle_handler::append_list_item_select(
     }
     str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
   }
-  str->length(str->length() - SPIDER_SQL_COMMA_LEN);
+  if (begin == str->length())
+  {
+    /* no columns */
+    if (str->reserve(SPIDER_SQL_ONE_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_SQL_ONE_STR, SPIDER_SQL_ONE_LEN);
+  } else {
+    str->length(str->length() - SPIDER_SQL_COMMA_LEN);
+  }
   DBUG_RETURN(0);
 }
 
