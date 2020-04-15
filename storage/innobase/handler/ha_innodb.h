@@ -969,3 +969,15 @@ ib_push_frm_error(
 @return true if index column length exceeds limit */
 MY_ATTRIBUTE((warn_unused_result))
 bool too_big_key_part_length(size_t max_field_len, const KEY& key);
+
+/** This function is used to rollback one X/Open XA distributed transaction
+which is in the prepared state
+
+@param[in] hton InnoDB handlerton
+@param[in] xid X/Open XA transaction identification
+
+@return 0 or error number */
+int innobase_rollback_by_xid(handlerton* hton, XID* xid);
+
+/** Free tablespace resources allocated. */
+void innobase_space_shutdown();

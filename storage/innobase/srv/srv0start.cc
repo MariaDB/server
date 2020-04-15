@@ -868,6 +868,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 			break;
 		}
 		/* fall through */
+	case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_EXPORT:
 		ut_ad(!create_new_db);
@@ -1215,6 +1216,7 @@ srv_shutdown_all_bg_threads()
 		case SRV_OPERATION_RESTORE_DELTA:
 			break;
 		case SRV_OPERATION_NORMAL:
+		case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 		case SRV_OPERATION_RESTORE:
 		case SRV_OPERATION_RESTORE_EXPORT:
 			if (!buf_page_cleaner_is_active
@@ -1397,8 +1399,7 @@ dberr_t srv_start(bool create_new_db)
 	unsigned	i = 0;
 
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+	      || is_mariabackup_restore_or_export());
 
 
 	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
@@ -1737,14 +1738,9 @@ dberr_t srv_start(bool create_new_db)
 				srv_read_only_mode);
 
 			if (err == DB_NOT_FOUND) {
-				if (i == 0) {
-					if (srv_operation
-					    == SRV_OPERATION_RESTORE
-					    || srv_operation
-					    == SRV_OPERATION_RESTORE_EXPORT) {
-						return(DB_SUCCESS);
-					}
-				}
+				if (i == 0
+				    && is_mariabackup_restore_or_export())
+					return (DB_SUCCESS);
 
 				/* opened all files */
 				break;
@@ -1771,10 +1767,7 @@ dberr_t srv_start(bool create_new_db)
 
 			if (i == 0) {
 				if (size == 0
-				    && (srv_operation
-					== SRV_OPERATION_RESTORE
-					|| srv_operation
-					== SRV_OPERATION_RESTORE_EXPORT)) {
+				    && is_mariabackup_restore_or_export()) {
 					/* Tolerate an empty ib_logfile0
 					from a previous run of
 					mariabackup --prepare. */
@@ -1980,6 +1973,7 @@ files_checked:
 
 		switch (srv_operation) {
 		case SRV_OPERATION_NORMAL:
+		case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 		case SRV_OPERATION_RESTORE_EXPORT:
 			/* Initialize the change buffer. */
 			err = dict_boot();
@@ -2104,8 +2098,7 @@ files_checked:
 
 		recv_recovery_from_checkpoint_finish();
 
-		if (srv_operation == SRV_OPERATION_RESTORE
-		    || srv_operation == SRV_OPERATION_RESTORE_EXPORT) {
+		if (is_mariabackup_restore_or_export()) {
 			/* After applying the redo log from
 			SRV_OPERATION_BACKUP, flush the changes
 			to the data files and truncate or delete the log.
@@ -2119,8 +2112,7 @@ files_checked:
 			ut_ad(!buf_pool_check_no_pending_io());
 			fil_close_log_files(true);
 			if (err == DB_SUCCESS) {
-				bool trunc = srv_operation
-					== SRV_OPERATION_RESTORE;
+				bool trunc = is_mariabackup_restore();
 				/* Delete subsequent log files. */
 				delete_log_files(logfilename, dirnamelen,
 						 (uint)srv_n_log_files_found, trunc);
@@ -2411,7 +2403,9 @@ skip_monitors:
 		}
 	}
 
-	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL
+	if (!srv_read_only_mode
+	    && (srv_operation == SRV_OPERATION_NORMAL
+		|| srv_operation == SRV_OPERATION_RESTORE_ROLLBACK_XA)
 	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 
 		thread_handles[5 + SRV_MAX_N_IO_THREADS] = os_thread_create(
@@ -2547,6 +2541,7 @@ void innodb_shutdown()
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_DELTA:
 	case SRV_OPERATION_RESTORE_EXPORT:
+	case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 		fil_close_all_files();
 		break;
 	case SRV_OPERATION_NORMAL:

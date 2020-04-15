@@ -221,32 +221,20 @@ static int wsrep_prepare(handlerton *hton, THD *thd, bool all)
   DBUG_RETURN(0);
 }
 
+/*
+  Empty callbacks to support SAVEPOINT callbacks.
+*/
+
 static int wsrep_savepoint_set(handlerton *hton, THD *thd,  void *sv)
 {
   DBUG_ENTER("wsrep_savepoint_set");
-
-  if (thd->wsrep_exec_mode == REPL_RECV)
-  {
-    DBUG_RETURN(0);
-  }
-
-  if (!wsrep_emulate_bin_log) DBUG_RETURN(0);
-  int rcode = wsrep_binlog_savepoint_set(thd, sv);
-  DBUG_RETURN(rcode);
+  DBUG_RETURN(0);
 }
 
 static int wsrep_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 {
   DBUG_ENTER("wsrep_savepoint_rollback");
-
-  if (thd->wsrep_exec_mode == REPL_RECV)
-  {
-    DBUG_RETURN(0);
-  }
-
-  if (!wsrep_emulate_bin_log) DBUG_RETURN(0);
-  int rcode = wsrep_binlog_savepoint_rollback(thd, sv);
-  DBUG_RETURN(rcode);
+  DBUG_RETURN(0);
 }
 
 static int wsrep_rollback(handlerton *hton, THD *thd, bool all)

@@ -2700,10 +2700,45 @@ select count(*) from t2;
 --remove_file $MYSQLTEST_VARDIR/tmp/t2.txt
 drop tables t2, t1;
 
+
+--echo #
+--echo # MDEV-22037: Add ability to skip content of some tables
+--echo # (work around for MDEV-20939)
+--echo #
+
+use mysql;
+
+--echo # check that all tables we need are not empty
+
+select count(*) >=  1 from  mysql.proc;
+select count(*) >=  1 from  mysql.db;
+
+
+--exec $MYSQL_DUMP mysql --ignore-table-data=mysql.db >$MYSQLTEST_VARDIR/tmp/MDEV-20939.sql
+
+
+--echo # for proc we have CREATE and INSERT for all other only CREATE
+
+let SEARCH_RANGE=500000000;
+let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/MDEV-20939.sql;
+let SEARCH_PATTERN=INSERT INTO `proc`;
+source include/search_pattern_in_file.inc;
+let SEARCH_PATTERN=INSERT INTO `db`;
+source include/search_pattern_in_file.inc;
+let SEARCH_PATTERN=CREATE TABLE `db`;
+source include/search_pattern_in_file.inc;
+let SEARCH_PATTERN=CREATE TABLE `proc`;
+source include/search_pattern_in_file.inc;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/MDEV-20939.sql
+use test;
+
+--echo # End of 10.1 tests
+
 --echo #
 --echo # Test for --add-drop-trigger
 --echo #
-use test;
+
 CREATE TABLE t1 (a int, b int);
 CREATE TRIGGER tt1_t1 BEFORE INSERT ON t1 FOR EACH ROW 
   SET NEW.b=NEW.a + 10;
@@ -2711,6 +2746,9 @@ CREATE TRIGGER tt1_t1 BEFORE INSERT ON t1 FOR EACH ROW
 INSERT INTO t1 (a) VALUES (1),(2),(3);
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --triggers --no-data --no-create-info --add-drop-trigger --skip-comments --databases test
 DROP TABLE t1;
+
+--echo # End of 10.2 tests
+
 --echo #
 --echo # Test for Invisible columns
 --echo #
@@ -2754,3 +2792,5 @@ select * from t2;
 select * from t3;
 desc t3;
 drop database d;
+
+--echo # End of 10.3 tests

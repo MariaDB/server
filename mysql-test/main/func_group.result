@@ -2110,8 +2110,8 @@ avg(export_set( 3, 'y', sha(i)))	group_concat(d)
 0	2008-10-02
 0	2010-12-12
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'y,y,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428ab,3'
-Warning	1292	Truncated incorrect DOUBLE value: 'y,y,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b0,d'
+Warning	1292	Truncated incorrect DOUBLE value: 'y,y,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428a...'
+Warning	1292	Truncated incorrect DOUBLE value: 'y,y,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b...'
 drop table t1;
 #
 # MDEV-4290: crash in st_select_lex::mark_as_dependent

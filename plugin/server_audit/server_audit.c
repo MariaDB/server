@@ -763,7 +763,7 @@ static int user_coll_fill(struct user_coll *c, char *users,
       if (cmp_user && take_over_cmp)
       {
         ADD_ATOMIC(internal_stop_logging, 1);
-        CLIENT_ERROR(1, "User '%.*s' was removed from the"
+        CLIENT_ERROR(1, "User '%.*b' was removed from the"
             " server_audit_excl_users.",
             MYF(ME_JUST_WARNING), (int) cmp_length, users);
         ADD_ATOMIC(internal_stop_logging, -1);
@@ -773,7 +773,7 @@ static int user_coll_fill(struct user_coll *c, char *users,
       else if (cmp_user)
       {
         ADD_ATOMIC(internal_stop_logging, 1);
-        CLIENT_ERROR(1, "User '%.*s' is in the server_audit_incl_users, "
+        CLIENT_ERROR(1, "User '%.*b' is in the server_audit_incl_users, "
             "so wasn't added.", MYF(ME_JUST_WARNING), (int) cmp_length, users);
         ADD_ATOMIC(internal_stop_logging, -1);
         remove_user(users);

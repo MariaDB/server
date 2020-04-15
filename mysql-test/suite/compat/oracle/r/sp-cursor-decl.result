@@ -102,7 +102,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 BEGIN
 var1:='';
 insert into t1 values (1);
-SELE' at line 10
+S...' at line 10
 drop table t1;
 #
 # Condition after handler declaration
@@ -130,7 +130,7 @@ $$
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'divide_by_zero CONDITION FOR SQLSTATE '22012';
 BEGIN
 var1:='';
-insert into t1 va' at line 11
+insert into t1...' at line 11
 drop table t1;
 #
 # Variable after handler declaration
@@ -158,7 +158,7 @@ $$
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'divide_by_zero CONDITION FOR SQLSTATE '22012';
 BEGIN
 var1:='';
-insert into t1 va' at line 11
+insert into t1...' at line 11
 drop table t1;
 #
 # Variable after cursor (inner block)

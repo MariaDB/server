@@ -1381,18 +1381,6 @@ innobase_commit_by_xid(
 	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	XID*		xid);		/*!< in: X/Open XA transaction
 					identification */
-/*******************************************************************//**
-This function is used to rollback one X/Open XA distributed transaction
-which is in the prepared state
-@return 0 or error number */
-static
-int
-innobase_rollback_by_xid(
-/*=====================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
-	XID*		xid);		/*!< in: X/Open XA transaction
-					identification */
-
 /** Remove all tables in the named database inside InnoDB.
 @param[in]	hton	handlerton from InnoDB
 @param[in]	path	Database path; Inside InnoDB the name of the last
@@ -3531,12 +3519,8 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	reset_template();
 }
 
-/*********************************************************************//**
-Free tablespace resources allocated. */
-static
-void
-innobase_space_shutdown()
-/*=====================*/
+/** Free tablespace resources allocated. */
+void innobase_space_shutdown()
 {
 	DBUG_ENTER("innobase_space_shutdown");
 
@@ -17240,17 +17224,14 @@ innobase_commit_by_xid(
 	}
 }
 
-/*******************************************************************//**
-This function is used to rollback one X/Open XA distributed transaction
+/** This function is used to rollback one X/Open XA distributed transaction
 which is in the prepared state
+
+@param[in] hton InnoDB handlerton
+@param[in] xid X/Open XA transaction identification
+
 @return 0 or error number */
-static
-int
-innobase_rollback_by_xid(
-/*=====================*/
-	handlerton*	hton,	/*!< in: InnoDB handlerton */
-	XID*		xid)	/*!< in: X/Open XA transaction
-				identification */
+int innobase_rollback_by_xid(handlerton* hton, XID* xid)
 {
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 

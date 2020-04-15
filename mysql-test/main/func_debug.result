@@ -1671,6 +1671,6 @@ a
 2
 9
 Warnings:
-Note	1105	DBUG: Item_subselect::exec (select max(`test`.`t1`.`a`) from `test`.`t1`)
+Note	1105	DBUG: Item_subselect::exec (select max(`test`.`t1`.`a`) from `test`.`t...
 DROP TABLE t1;
 SET SESSION debug_dbug="-d,Item_subselect";

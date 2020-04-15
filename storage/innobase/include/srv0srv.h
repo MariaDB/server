@@ -494,6 +494,8 @@ enum srv_operation_mode {
 	SRV_OPERATION_BACKUP,
 	/** Mariabackup restoring a backup for subsequent --copy-back */
 	SRV_OPERATION_RESTORE,
+	/** Mariabackup restoring a backup with rolling back prepared XA's*/
+	SRV_OPERATION_RESTORE_ROLLBACK_XA,
 	/** Mariabackup restoring the incremental part of a backup */
 	SRV_OPERATION_RESTORE_DELTA,
 	/** Mariabackup restoring a backup for subsequent --export */
@@ -502,6 +504,21 @@ enum srv_operation_mode {
 
 /** Current mode of operation */
 extern enum srv_operation_mode srv_operation;
+
+inline bool is_mariabackup_restore()
+{
+	/* To rollback XA's trx_sys must be initialized, the rest is the same
+	as regular backup restore, that is why we join this two operations in
+	the most cases. */
+	return srv_operation == SRV_OPERATION_RESTORE
+	       || srv_operation == SRV_OPERATION_RESTORE_ROLLBACK_XA;
+}
+
+inline bool is_mariabackup_restore_or_export()
+{
+	return is_mariabackup_restore()
+	       || srv_operation == SRV_OPERATION_RESTORE_EXPORT;
+}
 
 extern my_bool	srv_print_innodb_monitor;
 extern my_bool	srv_print_innodb_lock_monitor;
