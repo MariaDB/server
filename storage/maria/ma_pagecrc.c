@@ -244,14 +244,14 @@ my_bool maria_page_crc_check_index(int res, PAGECACHE_IO_HOOK_ARGS *args)
   pgcache_page_no_t page_no= args->pageno;
   MARIA_SHARE *share= (MARIA_SHARE *)args->data;
   uint length= _ma_get_page_used(share, page);
+
   if (res)
-  {
     return 1;
-  }
   if (length > share->block_size - CRC_SIZE)
   {
     DBUG_PRINT("error", ("Wrong page length: %u", length));
-    return (my_errno= HA_ERR_WRONG_CRC);
+    my_errno= HA_ERR_WRONG_CRC;
+    return 1;
   }
   return maria_page_crc_check(page, (uint32) page_no, share,
                                MARIA_NO_CRC_NORMAL_PAGE,
@@ -260,7 +260,7 @@ my_bool maria_page_crc_check_index(int res, PAGECACHE_IO_HOOK_ARGS *args)
 
 
 /**
-  @brief Maria pages dumme read callback for temporary tables
+  @brief Maria pages dummy read callback for temporary tables
 
   @retval 0 OK
   @retval 1 Error
