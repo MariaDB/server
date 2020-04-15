@@ -11232,20 +11232,25 @@ TABLE_LIST *ha_partition::get_next_global_for_child()
 
 const COND *ha_partition::cond_push(const COND *cond)
 {
-  handler **file= m_file;
+  uint i;
   COND *res_cond= NULL;
   DBUG_ENTER("ha_partition::cond_push");
 
-  do
+  for (i= bitmap_get_first_set(&m_partitions_to_reset);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_partitions_to_reset, i))
   {
-    if ((*file)->pushed_cond != cond)
+    if (bitmap_is_set(&m_opened_partitions, i))
     {
-      if ((*file)->cond_push(cond))
-        res_cond= (COND *) cond;
-      else
-        (*file)->pushed_cond= cond;
+      if (m_file[i]->pushed_cond != cond)
+      {
+        if (m_file[i]->cond_push(cond))
+          res_cond= (COND *) cond;
+        else
+          m_file[i]->pushed_cond= cond;
+      }
     }
-  } while (*(++file));
+  }
   DBUG_RETURN(res_cond);
 }
 
@@ -11257,13 +11262,18 @@ const COND *ha_partition::cond_push(const COND *cond)
 
 void ha_partition::cond_pop()
 {
-  handler **file= m_file;
+  uint i;
   DBUG_ENTER("ha_partition::cond_pop");
 
-  do
+  for (i= bitmap_get_first_set(&m_partitions_to_reset);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_partitions_to_reset, i))
   {
-    (*file)->cond_pop();
-  } while (*(++file));
+    if (bitmap_is_set(&m_opened_partitions, i))
+    {
+      m_file[i]->cond_pop();
+    }
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -11853,16 +11863,22 @@ int ha_partition::pre_direct_delete_rows()
 
 int ha_partition::info_push(uint info_type, void *info)
 {
-  int error= 0;
-  handler **file= m_file;
+  int error= 0, tmp;
+  uint i;
   DBUG_ENTER("ha_partition::info_push");
 
-  do
+  for (i= bitmap_get_first_set(&m_partitions_to_reset);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_partitions_to_reset, i))
   {
-    int tmp;
-    if ((tmp= (*file)->info_push(info_type, info)))
-      error= tmp;
-  } while (*(++file));
+    if (bitmap_is_set(&m_opened_partitions, i))
+    {
+      if ((tmp= m_file[i]->info_push(info_type, info)))
+      {
+        error= tmp;
+      }
+    }
+  }
   DBUG_RETURN(error);
 }
 
