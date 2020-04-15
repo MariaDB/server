@@ -18,6 +18,7 @@
 #include "my_static.h"
 #include <errno.h>
 #include "mysys_err.h"
+#include "my_atomic.h"
 
 static void make_ftype(char * to,int flag);
 

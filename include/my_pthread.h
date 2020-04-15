@@ -23,8 +23,6 @@
 #define ETIME ETIMEDOUT				/* For FreeBSD */
 #endif
 
-#include <my_atomic.h>
-
 #ifdef  __cplusplus
 #define EXTERNC extern "C"
 extern "C" {

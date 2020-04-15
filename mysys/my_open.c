@@ -17,6 +17,7 @@
 #include "mysys_err.h"
 #include <m_string.h>
 #include <errno.h>
+#include "my_atomic.h"
 
 CREATE_NOSYMLINK_FUNCTION(
   open_nosymlinks(const char *pathname, int flags, int mode),

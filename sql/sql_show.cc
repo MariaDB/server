@@ -64,6 +64,7 @@
 #endif
 #include "transaction.h"
 #include "opt_trace.h"
+#include "my_cpu.h"
 
 enum enum_i_s_events_fields
 {

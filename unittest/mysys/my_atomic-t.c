@@ -14,6 +14,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "thr_template.c"
+#include "my_atomic.h"
 
 volatile uint32 b32;
 volatile int32  c32;

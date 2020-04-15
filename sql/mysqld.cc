@@ -54,6 +54,7 @@
 #include <m_ctype.h>
 #include <my_dir.h>
 #include <my_bit.h>
+#include "my_cpu.h"
 #include "slave.h"
 #include "rpl_mi.h"
 #include "sql_repl.h"

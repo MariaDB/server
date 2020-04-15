@@ -175,6 +175,7 @@
 #include <my_global.h>
 #include <waiting_threads.h>
 #include <m_string.h>
+#include "my_cpu.h"
 
 /* status variables */
 

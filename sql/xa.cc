@@ -19,6 +19,7 @@
 #include "mariadb.h"
 #include "sql_class.h"
 #include "transaction.h"
+#include "my_cpu.h"
 
 
 /***************************************************************************

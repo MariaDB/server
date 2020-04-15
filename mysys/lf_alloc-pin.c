@@ -102,6 +102,7 @@
 #include <my_global.h>
 #include <my_sys.h>
 #include <lf.h>
+#include "my_cpu.h"
 
 /*
   when using alloca() leave at least that many bytes of the stack -
