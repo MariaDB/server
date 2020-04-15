@@ -105,7 +105,7 @@ int my_close(File fd, myf MyFlags)
   {
     my_free(name);
   }
-  thread_safe_decrement32(&my_file_opened);
+  my_atomic_add32_explicit(&my_file_opened, -1, MY_MEMORY_ORDER_RELAXED);
   DBUG_RETURN(err);
 } /* my_close */
 
@@ -133,7 +133,7 @@ File my_register_filename(File fd, const char *FileName, enum file_type
   DBUG_ENTER("my_register_filename");
   if ((int) fd >= MY_FILE_MIN)
   {
-    thread_safe_increment32(&my_file_opened);
+    my_atomic_add32_explicit(&my_file_opened, 1, MY_MEMORY_ORDER_RELAXED);
     if ((uint) fd >= my_file_limit)
       DBUG_RETURN(fd);
     my_file_info[fd].name = (char*) my_strdup(FileName, MyFlags);
