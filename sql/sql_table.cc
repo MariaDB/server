@@ -4330,11 +4330,8 @@ bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
   if (comment->length == 0)
     DBUG_RETURN(false);
 
-  if (max_len > comment->length)
-    max_len= comment->length;
-
   size_t tmp_len=
-      Well_formed_prefix(system_charset_info, comment->str, max_len).length();
+      Well_formed_prefix(system_charset_info, *comment, max_len).length();
   if (tmp_len < comment->length)
   {
     if (thd->is_strict_mode())
