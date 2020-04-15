@@ -3438,7 +3438,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     {
       protocol->store((uint32)    mi->rli.retried_trans);
       protocol->store((ulonglong) mi->rli.max_relay_log_size);
-      protocol->store((uint32)    mi->rli.executed_entries);
+      protocol->store(mi->rli.executed_entries);
       protocol->store((uint32)    mi->received_heartbeats);
       protocol->store((double)    mi->heartbeat_period, 3, &tmp);
       protocol->store(gtid_pos->ptr(), gtid_pos->length(), &my_charset_bin);
@@ -4537,7 +4537,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       }
     }
 
-    thread_safe_increment64(&rli->executed_entries);
+    rli->executed_entries++;
 #ifdef WITH_WSREP
     wsrep_after_statement(thd);
 #endif /* WITH_WSREP */

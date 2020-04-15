@@ -347,7 +347,7 @@ public:
     Number of executed events for SLAVE STATUS.
     Protected by slave_executed_entries_lock
   */
-  int64 executed_entries;
+  Atomic_counter<uint32_t> executed_entries;
 
   /*
     If the end of the hot relay log is made of master's events ignored by the
