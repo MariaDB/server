@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1353,8 +1353,8 @@ uncompressed:
 		return(DB_ERROR);
 	} else if (m_table->n_cols != m_n_cols) {
 		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
-			"Number of columns don't match, table has %u"
-			" columns but the tablespace meta-data file has "
+			"Number of columns don't match, table has %u "
+			"columns but the tablespace meta-data file has "
 			ULINTPF " columns",
 			m_table->n_cols, m_n_cols);
 
@@ -1922,6 +1922,23 @@ PageConverter::update_index_page(
 	then ignore the error. */
 	if (m_cfg->m_missing && (m_index == 0 || m_index->m_srv_index == 0)) {
 		return(DB_SUCCESS);
+	}
+
+	if (m_index && block->page.offset == m_index->m_page_no) {
+		byte *b = FIL_PAGE_DATA + PAGE_BTR_SEG_LEAF + FSEG_HDR_SPACE
+			+ page;
+		mach_write_to_4(b, block->page.space);
+
+		memcpy(FIL_PAGE_DATA + PAGE_BTR_SEG_TOP + FSEG_HDR_SPACE
+		       + page, b, 4);
+		if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+			memcpy(&block->page.zip.data[FIL_PAGE_DATA
+						     + PAGE_BTR_SEG_TOP
+						     + FSEG_HDR_SPACE], b, 4);
+			memcpy(&block->page.zip.data[FIL_PAGE_DATA
+						     + PAGE_BTR_SEG_LEAF
+						     + FSEG_HDR_SPACE], b, 4);
+		}
 	}
 
 #ifdef UNIV_ZIP_DEBUG
