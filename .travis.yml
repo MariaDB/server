@@ -1,7 +1,12 @@
 # vim ft=yaml
 # travis-ci.org definition
 
-dist: bionic
+# NOTE TO MERGERS: Most of the contents in the Travis-CI configuration has been
+# tailored for a specific release or MariaDB. As a general rule, do not merge
+# changes in this file across MariaDB branches to avoid breaking the CI. Updates
+# the the Travis-CI pipeline are most of the time better done manually.
+
+dist: focal
 
 git:
   depth: 2
@@ -15,27 +20,25 @@ cache:
 
 addons:
   apt:
-    # NOTE: Travis-CI Ubuntu Xenial builders have GCC 5 and Clang 7 available by default
-    # NOTE: Travis-CI Ubuntu Ubuntu builders have GCC 7 and Clang 7 available by default
     sources: &add-sources
-      - ubuntu-toolchain-r-test # Includes e.g. gcc4-9 for xenial, gcc9 for bionic
-      # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/test/+packages?field.name_filter=&field.status_filter=published&field.series_filter=xenial
-      - llvm-toolchain-xenial-7 # NOTE: This repo has no clang-7 for s390x
+      # Remember to document well what packages each extra repository is used for
+      - ubuntu-toolchain-r-test
+      # => gcc-9 and gcc-10 for Ubuntu Bionic
+      # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/test/+packages?field.name_filter=&field.status_filter=published&field.series_filter=bionic
       - sourceline: 'ppa:maria-captains/travis-ci-helper-repo'
-      # https://launchpad.net/~maria-captains/+archive/ubuntu/travis-ci-helper-repo/+packages
+      # => galera-4 for Ubuntu Bionic
+      # https://launchpad.net/~maria-captains/+archive/ubuntu/travis-ci-helper-repo/+packages?field.name_filter=&field.status_filter=published&field.series_filter=bionic
     packages: &common-packages
-      # make sure these include all compilers and all build dependencies (see list above)
+      # Remember to update this list if the Debian build dependencies are updated
       - bison
       - chrpath
-      - clang-7 # bionic-updates, llvm-toolchain-xenial-6.0 (amd64 only, not s390x)
-      - clang-8 # xenial, bionic
+      - clang-7  # In suites: focal, bionic-updates
+      - clang-10 # In suites: focal, bionic
       - cmake
       - cracklib-runtime
-      - galera-4
-      - g++-5 # xenial, bionic, ubuntu-toolchain-r/test (xenial)
-      - g++-7 # bionic, ubuntu-toolchain-r/test (xenial)
-      - g++-8 # bionic, ubuntu-toolchain-r/test (xenial)
-      - g++-9 # ubuntu-toolchain-r/test (xenial and bionic)
+      - galera-4 # In suites: focal, bionic (via ppa:maria-captains/travis-ci-helper-repo)
+      - g++-7    # In suites: focal, bionic
+      - g++-10   # In suites: focal, bionic (via ppa:ubuntu-toolchain-r/test)
       - gdb
       - libaio-dev
       - libboost-atomic-dev
@@ -69,9 +72,6 @@ addons:
       - zlib1g-dev
       # libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
   homebrew:
-    # Temporary workaround, remove when this is solved:
-    # https://travis-ci.community/t/macos-build-fails-because-of-homebrew-bundle-unknown-command/7296/20
-    update: true
     # OSX builds are not properly maintained on Travis-CI nor buildbot and
     # thus this list of dependencies is likely to be inaccurate.
     packages:
@@ -104,9 +104,9 @@ addons:
 # and 'env'. Ensure there is a good variation of architectures and at least the
 # main suite is run on all architectures, as the main test suite needs to pass
 # on all architectures (amd64, arm64, ppc64le, s390x) before a release is made.
-# All test suites should also run on the clang build at least on one
-# arch/platform. In gcc and clang versions prefer 7, which is very widely used,
-# and after that prioritize newer versions (8, 9 etc) above older versions (5, 6).
+#
+# In gcc and clang use a fairly old version and one very recent and assume that
+# if both of them built successfully all the intermediate version work as well.
 arch: amd64
 os: linux
 compiler:
@@ -116,15 +116,14 @@ env:
   - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
   - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb,versioning,rpl
   - CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
-  - CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
+  - CC_VERSION=10 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
 
 jobs:
   # Define extra jobs that are run in addition to the main jobs matrix
   include:
     - os: linux
-      dist: xenial
       compiler: gcc
-      env: DebPackages=xenial
+      env: DebPackages=focal
       addons: &deb-addons
         apt:
           sources: *add-sources
@@ -144,8 +143,10 @@ jobs:
             - unixodbc-dev
       script: &deb-script
         - ${CC} --version ; ${CXX} --version
+        - apt-cache policy
         - env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
     - os: linux
+      dist: bionic
       arch: s390x
       compiler: gcc
       env: DebPackages=bionic
@@ -155,12 +156,12 @@ jobs:
     - os: osx
       osx_image: xcode12u
       compiler: clang
-      env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
+      env: CC_VERSION=10 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
       # Some chosen ones with s390x and gcc
     - os: linux
       arch: s390x
       compiler: gcc
-      env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
+      env: CC_VERSION=10 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
     - os: linux
       arch: s390x
       compiler: gcc
@@ -173,7 +174,7 @@ jobs:
     - os: linux
       arch: s390x
       compiler: clang
-      env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
+      env: CC_VERSION=10 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
     # Extra tests to ensure IBM Power and ARM 64 work
     - os: linux
       arch: ppc64le
@@ -185,13 +186,12 @@ jobs:
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
 
   allow_failures:
-    # Permanently fails on main.thread_pool_info test (MDEV-20372)
+    # Permanently fails on main.column_compression 'innodb' test (MDEV-23954)
     - os: linux
-      arch: amd64
-      compiler: clang
-      env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
-    # Sporadically fails on main.thread_pool_info test (MDEV-20372)
-    - arch: ppc64le
+      arch: s390x
+      compiler: gcc
+      env: CC_VERSION=10 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
+    # Sporadically fails on main.multi_update_big test (MDEV-23955)
     - arch: arm64
     # Until OSX becomes a bit more stable
     - os: osx
