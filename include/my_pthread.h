@@ -817,16 +817,6 @@ extern uint thd_lib_detected;
 #define statistic_sub(V,C,L)     (V)-=(C)
 #endif /* SAFE_STATISTICS */
 
-static inline void thread_safe_increment32(int32 *value)
-{
-  (void) my_atomic_add32_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-static inline void thread_safe_decrement32(int32 *value)
-{
-  (void) my_atomic_add32_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
-}
-
 /*
   No locking needed, the counter is owned by the thread
 */

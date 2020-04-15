@@ -459,7 +459,7 @@ uint lower_case_table_names;
 ulong tc_heuristic_recover= 0;
 Atomic_counter<uint32_t> thread_count;
 bool shutdown_wait_for_slaves;
-int32 slave_open_temp_tables;
+Atomic_counter<uint32_t> slave_open_temp_tables;
 ulong thread_created;
 ulong back_log, connect_timeout, concurrency, server_id;
 ulong what_to_log;
@@ -7198,18 +7198,6 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
-/* How many slaves are connected to this master */
-
-static int show_slaves_connected(THD *thd, SHOW_VAR *var, char *buff)
-{
-
-  var->type= SHOW_LONGLONG;
-  var->value= buff;
-  *((longlong*) buff)= uint32_t(binlog_dump_thread_count);
-  return 0;
-}
-
-
 /* How many masters this slave is connected to */
 
 
@@ -7785,9 +7773,9 @@ SHOW_VAR status_vars[]= {
   {"Select_range",             (char*) offsetof(STATUS_VAR, select_range_count_), SHOW_LONG_STATUS},
   {"Select_range_check",       (char*) offsetof(STATUS_VAR, select_range_check_count_), SHOW_LONG_STATUS},
   {"Select_scan",	       (char*) offsetof(STATUS_VAR, select_scan_count_), SHOW_LONG_STATUS},
-  {"Slave_open_temp_tables",   (char*) &slave_open_temp_tables, SHOW_INT},
+  {"Slave_open_temp_tables",   (char*) &slave_open_temp_tables, SHOW_ATOMIC_COUNTER_UINT32_T},
 #ifdef HAVE_REPLICATION
-  {"Slaves_connected",        (char*) &show_slaves_connected, SHOW_SIMPLE_FUNC },
+  {"Slaves_connected",        (char*) &binlog_dump_thread_count, SHOW_ATOMIC_COUNTER_UINT32_T},
   {"Slaves_running",          (char*) &show_slaves_running, SHOW_SIMPLE_FUNC },
   {"Slave_connections",       (char*) offsetof(STATUS_VAR, com_register_slave), SHOW_LONG_STATUS},
   {"Slave_heartbeat_period",   (char*) &show_heartbeat_period, SHOW_SIMPLE_FUNC},
