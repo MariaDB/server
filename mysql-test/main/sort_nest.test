@@ -968,6 +968,43 @@ eval EXPLAIN $query;
 eval $query;
 
 set @@optimizer_switch= @save_optimizer_switch;
+
+
+--echo #
+--echo # Semi join materialization lookup
+--echo #
+
+let $query=
+SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2
+  WHERE t1.a=t2.a AND
+        t1.b IN (SELECT t4.a FROM t3,t4 WHERE t4.a <= 5)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+--echo #
+--echo # Loosescan strategy
+--echo #
+
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='materialization=off,firstmatch=off';
+
+let $query=
+SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2
+  WHERE t1.a=t2.a AND
+        t1.b IN (SELECT t4.a FROM t4)
+ORDER BY t2.a DESC, t1.b DESC
+LIMIT 5;
+
+ALTER TABLE t1 ADD KEY b(b);
+eval EXPLAIN $query;
+eval $query;
+set @@optimizer_switch= @save_optimizer_switch;
+
 drop table t0,t1,t2,t3,t4;
 
 --echo
