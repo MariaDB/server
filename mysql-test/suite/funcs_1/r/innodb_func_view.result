@@ -2099,7 +2099,7 @@ IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: ''
-Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Truncated incorrect DOUBLE value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -2115,7 +2115,7 @@ IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: ''
-Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Truncated incorrect DOUBLE value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 DROP VIEW v1;
 
@@ -2169,7 +2169,7 @@ IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: ''
-Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Truncated incorrect DOUBLE value: ' ---äÖüß@µ*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -2185,7 +2185,7 @@ IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: ''
-Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Truncated incorrect DOUBLE value: ' ---äÖüß@µ*$-- '
 DROP VIEW v1;
 
@@ -2687,7 +2687,7 @@ NULL	NULL	1
 18446744073709551615	-1	5
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: ''
-Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Truncated incorrect INTEGER value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
 SHOW CREATE VIEW v1;
@@ -2704,7 +2704,7 @@ NULL	NULL	1
 18446744073709551615	-1	5
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: ''
-Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Truncated incorrect INTEGER value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
 DROP VIEW v1;
@@ -2761,7 +2761,7 @@ NULL	NULL	1
 18446744073709551615	-1	5
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: ''
-Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Truncated incorrect INTEGER value: ' ---äÖüß@µ*$-- '
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
 SHOW CREATE VIEW v1;
@@ -2778,7 +2778,7 @@ NULL	NULL	1
 18446744073709551615	-1	5
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: ''
-Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Truncated incorrect INTEGER value: ' ---äÖüß@µ*$-- '
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
 DROP VIEW v1;
@@ -3053,7 +3053,7 @@ NULL	NULL	1
 -1	-1	5
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: ''
-Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Truncated incorrect INTEGER value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -3069,7 +3069,7 @@ NULL	NULL	1
 -1	-1	5
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: ''
-Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Truncated incorrect INTEGER value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 DROP VIEW v1;
 
@@ -3123,7 +3123,7 @@ NULL	NULL	1
 -1	-1	5
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: ''
-Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Truncated incorrect INTEGER value: ' ---äÖüß@µ*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -3139,7 +3139,7 @@ NULL	NULL	1
 -1	-1	5
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: ''
-Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect INTEGER value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Truncated incorrect INTEGER value: ' ---äÖüß@µ*$-- '
 DROP VIEW v1;
 
@@ -3414,7 +3414,7 @@ Warnings:
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ''
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
-Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 SHOW CREATE VIEW v1;
@@ -3434,7 +3434,7 @@ Warnings:
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ''
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
-Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 DROP VIEW v1;
@@ -3502,7 +3502,7 @@ Warnings:
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ''
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
-Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ' ---äÖüß@µ*$-- '
 SHOW CREATE VIEW v1;
@@ -3522,7 +3522,7 @@ Warnings:
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ''
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
-Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ' ---äÖüß@µ*$-- '
 DROP VIEW v1;
@@ -3782,7 +3782,7 @@ NULL	 ---äÖüß@µ*$-- 	4
 41:58:00	1 17:58	23
 Warnings:
 Warning	1292	Incorrect time value: ''
-Warning	1292	Incorrect time value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect time value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -3799,7 +3799,7 @@ NULL	 ---äÖüß@µ*$-- 	4
 41:58:00	1 17:58	23
 Warnings:
 Warning	1292	Incorrect time value: ''
-Warning	1292	Incorrect time value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect time value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 DROP VIEW v1;
 
@@ -3858,7 +3858,7 @@ NULL	 ---äÖüß@µ*$-- 	4
 41:58:00	1 17:58	21
 Warnings:
 Warning	1292	Incorrect time value: ''
-Warning	1292	Incorrect time value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect time value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -3875,7 +3875,7 @@ NULL	 ---äÖüß@µ*$-- 	4
 41:58:00	1 17:58	21
 Warnings:
 Warning	1292	Incorrect time value: ''
-Warning	1292	Incorrect time value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect time value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 DROP VIEW v1;
 
@@ -4136,7 +4136,7 @@ NULL	-1	5
 2005-06-27 17:58:00	2005-06-27 17:58	17
 Warnings:
 Warning	1292	Incorrect datetime value: ''
-Warning	1292	Incorrect datetime value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect datetime value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Incorrect datetime value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 Warning	1292	Incorrect datetime value: '-1'
 SHOW CREATE VIEW v1;
@@ -4154,7 +4154,7 @@ NULL	-1	5
 2005-06-27 17:58:00	2005-06-27 17:58	17
 Warnings:
 Warning	1292	Incorrect datetime value: ''
-Warning	1292	Incorrect datetime value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect datetime value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Incorrect datetime value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 Warning	1292	Incorrect datetime value: '-1'
 DROP VIEW v1;
@@ -4214,7 +4214,7 @@ NULL	-1	5
 2005-06-27 17:58:00	2005-06-27 17:58	15
 Warnings:
 Warning	1292	Incorrect datetime value: ''
-Warning	1292	Incorrect datetime value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect datetime value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Incorrect datetime value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 Warning	1292	Incorrect datetime value: '-1'
 SHOW CREATE VIEW v1;
@@ -4232,7 +4232,7 @@ NULL	-1	5
 2005-06-27 17:58:00	2005-06-27 17:58	15
 Warnings:
 Warning	1292	Incorrect datetime value: ''
-Warning	1292	Incorrect datetime value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect datetime value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Incorrect datetime value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 Warning	1292	Incorrect datetime value: '-1'
 DROP VIEW v1;
@@ -4492,7 +4492,7 @@ NULL	-1	5
 2005-06-27	2005-06-27	11
 Warnings:
 Warning	1292	Incorrect datetime value: ''
-Warning	1292	Incorrect datetime value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect datetime value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Incorrect datetime value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 Warning	1292	Incorrect datetime value: '-1'
 SHOW CREATE VIEW v1;
@@ -4510,7 +4510,7 @@ NULL	-1	5
 2005-06-27	2005-06-27	11
 Warnings:
 Warning	1292	Incorrect datetime value: ''
-Warning	1292	Incorrect datetime value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect datetime value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Incorrect datetime value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 Warning	1292	Incorrect datetime value: '-1'
 DROP VIEW v1;
@@ -4570,7 +4570,7 @@ NULL	-1	5
 2005-06-27	2005-06-27	9
 Warnings:
 Warning	1292	Incorrect datetime value: ''
-Warning	1292	Incorrect datetime value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect datetime value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Incorrect datetime value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 Warning	1292	Incorrect datetime value: '-1'
 SHOW CREATE VIEW v1;
@@ -4588,7 +4588,7 @@ NULL	-1	5
 2005-06-27	2005-06-27	9
 Warnings:
 Warning	1292	Incorrect datetime value: ''
-Warning	1292	Incorrect datetime value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect datetime value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
 Warning	1292	Incorrect datetime value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 Warning	1292	Incorrect datetime value: '-1'
 DROP VIEW v1;

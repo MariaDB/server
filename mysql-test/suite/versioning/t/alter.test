@@ -581,3 +581,15 @@ alter table t
   change column b b int without system versioning;
 
 drop table t;
+
+--echo #
+--echo # MDEV-21688 Assertion or ER_WARN_DATA_OUT_OF_RANGE upon ALTER on previously versioned table
+--echo #
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (128);
+delete from t1;
+set statement system_versioning_alter_history=keep for
+alter table t1 drop system versioning, modify column a tinyint;
+
+# cleanup
+drop table t1;

@@ -401,8 +401,7 @@ fil_name_process(
 	}
 
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+	      || is_mariabackup_restore_or_export());
 
 	/* We will also insert space=NULL into the map, so that
 	further checks can ensure that a MLOG_FILE_NAME record was
@@ -2273,8 +2272,7 @@ buf_block_t* recv_recovery_create_page_low(const page_id_t page_id)
 void recv_apply_hashed_log_recs(bool last_batch)
 {
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+	      || is_mariabackup_restore_or_export());
 
 	mutex_enter(&recv_sys.mutex);
 
@@ -2292,9 +2290,8 @@ void recv_apply_hashed_log_recs(bool last_batch)
 
 	ut_ad(!last_batch == log_mutex_own());
 
-	recv_no_ibuf_operations = !last_batch
-		|| srv_operation == SRV_OPERATION_RESTORE
-		|| srv_operation == SRV_OPERATION_RESTORE_EXPORT;
+	recv_no_ibuf_operations
+		= !last_batch || is_mariabackup_restore_or_export();
 
 	ut_d(recv_no_log_write = recv_no_ibuf_operations);
 
@@ -3388,9 +3385,9 @@ static
 dberr_t
 recv_init_missing_space(dberr_t err, const recv_spaces_t::const_iterator& i)
 {
-	if (srv_operation == SRV_OPERATION_RESTORE
-	    || srv_operation == SRV_OPERATION_RESTORE_EXPORT) {
-		if (i->second.name.find(TEMP_TABLE_PATH_PREFIX) != std::string::npos) {
+	if (is_mariabackup_restore_or_export()) {
+		if (i->second.name.find(TEMP_TABLE_PATH_PREFIX)
+		    != std::string::npos) {
 			ib::warn() << "Tablespace " << i->first << " was not"
 				" found at " << i->second.name << " when"
 				" restoring a (partial?) backup. All redo log"
@@ -3567,8 +3564,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	dberr_t		err = DB_SUCCESS;
 
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+	      || is_mariabackup_restore_or_export());
 
 	/* Initialize red-black tree for fast insertions into the
 	flush_list during recovery process. */

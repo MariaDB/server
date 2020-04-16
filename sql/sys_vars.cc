@@ -5814,7 +5814,7 @@ vio_keepalive_opts opt_vio_keepalive;
 
 static Sys_var_int Sys_keepalive_time(
        "tcp_keepalive_time",
-       "Timeout, in milliseconds, with no activity until the first TCP keep-alive packet is sent."
+       "Timeout, in seconds, with no activity until the first TCP keep-alive packet is sent."
        "If set to 0, system dependent default is used.",
        AUTO_SET GLOBAL_VAR(opt_vio_keepalive.idle),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000), DEFAULT(0),

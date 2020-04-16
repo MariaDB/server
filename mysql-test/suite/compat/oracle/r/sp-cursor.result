@@ -776,7 +776,7 @@ FETCH c INTO a, b;
 EXIT WHEN c%NOTFOUND;
 SELECT a, b;
 END LOOP;
-CLOSE ' at line 5
+CLO...' at line 5
 DROP TABLE t1;
 #
 # MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations

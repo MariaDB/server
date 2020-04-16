@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -240,10 +240,21 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 	case TRX_STATE_PREPARED_RECOVERED:
 		ut_ad(!trx_is_autocommit_non_locking(trx));
 		if (trx->rsegs.m_redo.undo || trx->rsegs.m_redo.old_insert) {
-			/* Change the undo log state back from
-			TRX_UNDO_PREPARED to TRX_UNDO_ACTIVE
-			so that if the system gets killed,
-			recovery will perform the rollback. */
+			/* The XA ROLLBACK of a XA PREPARE transaction
+			will consist of multiple mini-transactions.
+
+			As the very first step of XA ROLLBACK, we must
+			change the undo log state back from
+			TRX_UNDO_PREPARED to TRX_UNDO_ACTIVE, in order
+			to ensure that recovery will complete the
+			rollback.
+
+			Failure to perform this step could cause a
+			situation where we would roll back part of
+			a XA PREPARE transaction, the server would be
+			killed, and finally, the transaction would be
+			recovered in XA PREPARE state, with some of
+			the actions already having been rolled back. */
 			ut_ad(!trx->rsegs.m_redo.undo
 			      || trx->rsegs.m_redo.undo->rseg
 			      == trx->rsegs.m_redo.rseg);
@@ -262,29 +273,15 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 							      &mtr);
 			}
 			mutex_exit(&trx->rsegs.m_redo.rseg->mutex);
-			/* Persist the XA ROLLBACK, so that crash
-			recovery will replay the rollback in case
-			the redo log gets applied past this point. */
+			/* Write the redo log for the XA ROLLBACK
+			state change to the global buffer. It is
+			not necessary to flush the redo log. If
+			a durable log write of a later mini-transaction
+			takes place for whatever reason, then this state
+			change will be durable as well. */
 			mtr.commit();
 			ut_ad(mtr.commit_lsn() > 0);
 		}
-#ifdef ENABLED_DEBUG_SYNC
-		if (trx->mysql_thd == NULL) {
-			/* We could be executing XA ROLLBACK after
-			XA PREPARE and a server restart. */
-		} else if (!trx->has_logged_persistent()) {
-			/* innobase_close_connection() may roll back a
-			transaction that did not generate any
-			persistent undo log. The DEBUG_SYNC
-			would cause an assertion failure for a
-			disconnected thread.
-
-			NOTE: InnoDB will not know about the XID
-			if no persistent undo log was generated. */
-		} else {
-			DEBUG_SYNC_C("trx_xa_rollback");
-		}
-#endif /* ENABLED_DEBUG_SYNC */
 		return(trx_rollback_for_mysql_low(trx));
 
 	case TRX_STATE_COMMITTED_IN_MEMORY:

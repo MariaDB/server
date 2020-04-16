@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB
+   Copyright (c) 2011, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2589,6 +2589,9 @@ int multi_update::send_data(List<Item> &not_used_values)
       TABLE *tmp_table= tmp_tables[offset];
       if (copy_funcs(tmp_table_param[offset].items_to_copy, thd))
         DBUG_RETURN(1);
+      /* rowid field is NULL if join tmp table has null row from outer join */
+      if (tmp_table->field[0]->is_null())
+        continue;
       /* Store regular updated fields in the row. */
       DBUG_ASSERT(1 + unupdated_check_opt_tables.elements ==
                   tmp_table_param[offset].func_count);
@@ -2786,6 +2789,7 @@ int multi_update::do_updates()
       uint field_num= 0;
       do
       {
+        DBUG_ASSERT(!tmp_table->field[field_num]->is_null());
         String rowid;
         tmp_table->field[field_num]->val_str(&rowid);
         if (unlikely((local_error= tbl->file->ha_rnd_pos(tbl->record[0],

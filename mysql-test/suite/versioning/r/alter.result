@@ -54,7 +54,7 @@ add column trx_end timestamp(6) not null as row end invisible,
 add period for system_time(trx_start, trx_end),
 add system versioning;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'as row start invisible,
-add column trx_end timestamp(6) not null as row end invi' at line 2
+add column trx_end timestamp(6) not null as row end i...' at line 2
 alter table t
 add column trx_start timestamp(6) as row start invisible,
 add column trx_end timestamp(6) as row end invisible,
@@ -687,3 +687,12 @@ add column c int without system versioning,
 change column c c int,
 change column b b int without system versioning;
 drop table t;
+#
+# MDEV-21688 Assertion or ER_WARN_DATA_OUT_OF_RANGE upon ALTER on previously versioned table
+#
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (128);
+delete from t1;
+set statement system_versioning_alter_history=keep for
+alter table t1 drop system versioning, modify column a tinyint;
+drop table t1;

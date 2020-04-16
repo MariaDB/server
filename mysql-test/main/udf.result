@@ -552,19 +552,19 @@ pk	a	sum	price	avg2(sum, price) over (partition by a order by pk ROWS BETWEEN 1 
 select pk, a, sum, price, tttttttt(sprice,sum) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
 from t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
-from ' at line 1
+fr...' at line 1
 select pk, a, sum, price, myfunc_double(sum) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
 from t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
-from ' at line 1
+fr...' at line 1
 select pk, a, sum, price, round(sprice,sum) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
 from t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
-from ' at line 1
+fr...' at line 1
 select pk, a, sum, price, myfunc_double(sum) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
 from t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
-from ' at line 1
+fr...' at line 1
 set @save_sql_mode = @@sql_mode;
 set sql_mode="oracle";
 select pk, a, sum, price, avg2(sum, price) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)

@@ -46,6 +46,32 @@ explain select * from t0 left join t2 on t2.a <t0.a and t2.b between 50 and 250;
 
 drop table t0,t1,t2;
 
+
+--echo #
+--echo # MDEV-10466: constructing an invalid SEL_ARG
+--echo #
+
+create table t1 (
+  pk int, a int, b int,
+  primary key (pk), index idx1(b), index idx2(b)
+) engine=innodb;
+insert into t1 values (1,6,0),(2,1,0),(3,5,2),(4,8,0);
+create table t2 (c int) engine=innodb;
+insert into t2 values (1),(2);
+create table t3 (d int) engine=innodb;
+insert into t3 values (3),(-1),(4);
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='extended_keys=on';
+
+explain
+select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
+select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
+
+set optimizer_switch=@save_optimizer_switch;
+
+drop table t1,t2,t3;
+
 CREATE TABLE t1 (
   pk INT PRIMARY KEY, f1 INT, f2 CHAR(1), f3 CHAR(1),
   KEY(f1), KEY(f2)
@@ -89,6 +115,8 @@ DROP TABLE t0,t1;
 SET @@GLOBAL.debug_dbug = @saved_dbug;
 set @@optimizer_switch= @optimizer_switch_save;
 
+--echo # End of 10.1 tests
+
 --echo #
 --echo # MDEV-19634: Assertion `0' failed in row_sel_convert_mysql_key_to_innobase,
 --echo # [Warning] InnoDB: Using a partial-field key prefix in search
@@ -107,3 +135,5 @@ INSERT INTO t1 VALUES (1,'a',1),(2,'b',2);
 explain SELECT a FROM t1 WHERE pk < 0 AND a <= 'w' and b > 0;
 SELECT a FROM t1 WHERE pk < 0 AND a <= 'w' and b > 0;
 drop table t1;
+
+-- echo # End of 10.4 tests

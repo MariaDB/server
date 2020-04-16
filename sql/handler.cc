@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1994,29 +1994,33 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit)
 
 
 #ifndef DBUG_OFF
-/**
-  @note
-    This does not need to be multi-byte safe or anything
-*/
-static char* xid_to_str(char *buf, XID *xid)
+/** Converts XID to string.
+
+@param[out] buf output buffer
+@param[in] xid XID to convert
+
+@return pointer to converted string
+
+@note This does not need to be multi-byte safe or anything */
+char *xid_to_str(char *buf, const XID &xid)
 {
   int i;
   char *s=buf;
   *s++='\'';
-  for (i=0; i < xid->gtrid_length+xid->bqual_length; i++)
+  for (i= 0; i < xid.gtrid_length + xid.bqual_length; i++)
   {
-    uchar c=(uchar)xid->data[i];
+    uchar c= (uchar) xid.data[i];
     /* is_next_dig is set if next character is a number */
     bool is_next_dig= FALSE;
     if (i < XIDDATASIZE)
     {
-      char ch= xid->data[i+1];
+      char ch= xid.data[i + 1];
       is_next_dig= (ch >= '0' && ch <='9');
     }
-    if (i == xid->gtrid_length)
+    if (i == xid.gtrid_length)
     {
       *s++='\'';
-      if (xid->bqual_length)
+      if (xid.bqual_length)
       {
         *s++='.';
         *s++='\'';
@@ -2139,7 +2143,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
         {
           DBUG_EXECUTE("info",{
             char buf[XIDDATASIZE*4+6];
-            _db_doprnt_("ignore xid %s", xid_to_str(buf, info->list+i));
+            _db_doprnt_("ignore xid %s", xid_to_str(buf, info->list[i]));
             });
           xid_cache_insert(info->list + i);
           info->found_foreign_xids++;
@@ -2166,7 +2170,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           {
             DBUG_EXECUTE("info",{
               char buf[XIDDATASIZE*4+6];
-              _db_doprnt_("commit xid %s", xid_to_str(buf, info->list+i));
+              _db_doprnt_("commit xid %s", xid_to_str(buf, info->list[i]));
               });
           }
         }
@@ -2177,7 +2181,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           {
             DBUG_EXECUTE("info",{
               char buf[XIDDATASIZE*4+6];
-              _db_doprnt_("rollback xid %s", xid_to_str(buf, info->list+i));
+              _db_doprnt_("rollback xid %s", xid_to_str(buf, info->list[i]));
               });
           }
         }

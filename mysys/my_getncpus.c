@@ -39,7 +39,11 @@ int my_getncpus(void)
       configured via core affinity.
     */
 #if (defined(__linux__) || defined(__FreeBSD__)) && defined(HAVE_PTHREAD_GETAFFINITY_NP)
+#ifdef __linux__
     cpu_set_t set;
+#else
+    cpuset_t set;
+#endif
     if (pthread_getaffinity_np(pthread_self(), sizeof(set), &set) == 0)
     {
 #ifdef CPU_COUNT

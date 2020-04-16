@@ -489,8 +489,7 @@ DECLARE CONTINUE HANDLER FOR condname1 SET x1 = 1;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CHECK SQLSTATE '23000';
 END;
-DECLARE CONTINUE HANDLER FOR condname1 SET x1 = 1;
-' at line 5
+DECLARE CONTINUE HANDLER FOR condname1 SET x1 = ...' at line 5
 CREATE PROCEDURE h1 ()
 BEGIN
 DECLARE x1 INT DEFAULT 0;
@@ -523,8 +522,7 @@ SELECT 'end of 1';
 end;//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'undo handler for sqlexception select '1';
 select * from tqq;
-SELECT 'end of 1';
-' at line 3
+SELECT 'end of 1...' at line 3
 create procedure p1 ()
 begin
 declare exit handler for sqlexception select 'exit handler 1';

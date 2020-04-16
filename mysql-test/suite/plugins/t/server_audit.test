@@ -5,6 +5,13 @@ if (!$SERVER_AUDIT_SO) {
   skip No SERVER_AUDIT plugin;
 }
 
+# An unfortunate wait for check-testcase.test to complete disconnect.
+let count_sessions= 1;
+source include/wait_until_count_sessions.inc;
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+let SEARCH_FILE= $MYSQLD_DATADIR/server_audit.log;
+
 install plugin server_audit soname 'server_audit';
 
 show variables like 'server_audit%';
@@ -20,18 +27,21 @@ show variables like 'server_audit_incl_users';
 --error ER_WRONG_VALUE_FOR_VAR
 set global server_audit_excl_users= repeat("'root',", 10000);
 show variables like 'server_audit_excl_users';
+let SEARCH_COUNT= 5;
+source include/wait_for_line_count_in_file.inc;
 
---sleep 2
 connect (con1,localhost,root,,mysql);
-connection default;
 disconnect con1;
---sleep 2
---sleep 2
+let SEARCH_COUNT= 7;
+source include/wait_for_line_count_in_file.inc;
+
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
 connect (con1,localhost,no_such_user,,mysql);
+let SEARCH_COUNT= 9;
+source include/wait_for_line_count_in_file.inc;
+
 connection default;
---sleep 2
 set global server_audit_incl_users='odin, dva, tri';
 create table t1 (id int);
 set global server_audit_incl_users='odin, root, dva, tri';
@@ -61,11 +71,10 @@ show variables like 'server_audit%';
 set global server_audit_mode=1;
 set global server_audit_events='';
 create database sa_db;
---sleep 2
+let SEARCH_COUNT= 47;
+source include/wait_for_line_count_in_file.inc;
+
 connect (con1,localhost,root,,test);
-connection con1;
---sleep 2
---sleep 2
 create table t1 (id2 int);
 insert into t1 values (1), (2);
 select * from t1;
@@ -75,10 +84,11 @@ create table sa_t1(id int);
 insert into sa_t1 values (1), (2);
 drop table sa_t1;
 drop database sa_db;
-connection default;
 disconnect con1;
---sleep 2
---sleep 2
+let SEARCH_COUNT= 80;
+source include/wait_for_line_count_in_file.inc;
+
+connection default;
 create database sa_db;
 use sa_db;
 CREATE USER u1 IDENTIFIED BY 'pwd-123';
@@ -146,10 +156,10 @@ connect (cn1,localhost,user1,,sa_db);
 connection cn1;
 
 create table t1(id int) engine=myisam;
-insert delayed into t1 values (1), (2);
+insert delayed into t1 values (1);
 connection default;
 --echo # Waiting until INSERT DELAYED thread does the insert.
-let $wait_condition= SELECT COUNT(*) = 2 FROM t1;
+let $wait_condition= SELECT COUNT(*) = 1 FROM t1;
 --source include/wait_condition.inc
 drop table t1;
 
@@ -182,7 +192,6 @@ show status like 'server_audit_current_log';
 show variables like 'server_audit%';
 uninstall plugin server_audit;
 
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
 # replace the timestamp and the hostname with constant values
 --replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9][0-9]*\,/,1,/ /\,[1-9][0-9]*/,ID/
 cat_file $MYSQLD_DATADIR/server_audit.log;
