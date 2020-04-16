@@ -3138,6 +3138,11 @@ int spider_db_fetch_table(
     } else {
       if (result_list->current_row_num < result_list->quick_page_size)
       {
+        if (!current->first_position)
+        {
+          table->status = STATUS_NOT_FOUND;
+          DBUG_RETURN(HA_ERR_END_OF_FILE);
+        }
         row = current->first_position[result_list->current_row_num].row;
       } else {
         if ((error_num = spider_db_get_row_from_tmp_tbl(
@@ -3336,6 +3341,11 @@ int spider_db_fetch_key(
   } else {
     if (result_list->current_row_num < result_list->quick_page_size)
     {
+      if (!current->first_position)
+      {
+        table->status = STATUS_NOT_FOUND;
+        DBUG_RETURN(HA_ERR_END_OF_FILE);
+      }
       row = current->first_position[result_list->current_row_num].row;
     } else {
       if ((error_num = spider_db_get_row_from_tmp_tbl(
@@ -3446,6 +3456,11 @@ int spider_db_fetch_minimum_columns(
     {
       DBUG_PRINT("info", ("spider current=%p", current));
       DBUG_PRINT("info", ("spider first_position=%p", current->first_position));
+      if (!current->first_position)
+      {
+        table->status = STATUS_NOT_FOUND;
+        DBUG_RETURN(HA_ERR_END_OF_FILE);
+      }
       DBUG_PRINT("info", ("spider current_row_num=%lld", result_list->current_row_num));
       DBUG_PRINT("info", ("spider first_position[]=%p", &current->first_position[result_list->current_row_num]));
       row = current->first_position[result_list->current_row_num].row;
