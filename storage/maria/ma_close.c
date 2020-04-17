@@ -20,7 +20,7 @@
    to open other files during the time we flush the cache and close this file
 */
 
-#include "maria_def.h"
+#include "ma_ftdefs.h"
 #include "ma_crypt.h"
 
 int maria_close(register MARIA_HA *info)
@@ -86,6 +86,7 @@ int maria_close(register MARIA_HA *info)
     share->open_list= list_delete(share->open_list, &info->share_list);
   }
 
+  maria_ftparser_call_deinitializer(info);
   my_free(info->rec_buff);
   (*share->end)(info);
 

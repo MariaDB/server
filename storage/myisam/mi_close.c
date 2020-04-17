@@ -20,7 +20,7 @@
    to open other files during the time we flush the cache and close this file
 */
 
-#include "myisamdef.h"
+#include "ftdefs.h"
 
 int mi_close(register MI_INFO *info)
 {
@@ -60,6 +60,8 @@ int mi_close(register MI_INFO *info)
   mysql_mutex_unlock(&share->intern_lock);
 
   my_free(mi_get_rec_buff_ptr(info, info->rec_buff));
+  ftparser_call_deinitializer(info);
+
   if (flag)
   {
     DBUG_EXECUTE_IF("crash_before_flush_keys",
