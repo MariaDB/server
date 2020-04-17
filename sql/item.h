@@ -5358,21 +5358,23 @@ class Item_default_value : public Item_field
   void calculate();
 public:
   Item *arg;
+  Field *cached_field;
   Item_default_value(THD *thd, Name_resolution_context *context_arg)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                (const char *)NULL),
-     arg(NULL) {}
+    arg(NULL), cached_field(NULL) {}
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                 (const char *)NULL),
-     arg(a) {}
+    arg(a), cached_field(NULL) {}
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Field *a)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                 (const char *)NULL),
-     arg(NULL) {}
+    arg(NULL),cached_field(NULL) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
   bool fix_fields(THD *, Item **);
+  void cleanup();
   void print(String *str, enum_query_type query_type);
   String *val_str(String *str);
   double val_real();
