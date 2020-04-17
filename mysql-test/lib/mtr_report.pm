@@ -466,6 +466,7 @@ sub mtr_report_stats ($$$$) {
       }
 
       $test_time = sprintf("%.3f", $test->{timer} / 1000);
+      $test->{'name'} =~ s/$current_suite\.//;
       $xml_report .= qq(\t\t<testcase assertions="" classname="$current_suite" name="$test->{'name'}" status="$test->{'result'}" time="$test_time");
 
       my $comment = $test->{'comment'};
