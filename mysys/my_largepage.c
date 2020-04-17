@@ -197,7 +197,6 @@ int my_init_large_pages(my_bool super_large_pages)
                     "Lock Pages in memory access rights required for use with"
                     " large-pages, see https://mariadb.com/kb/en/library/"
                     "mariadb-memory-allocation/#huge-pages", MYF(MY_WME));
-    return 1;
   }
   my_large_page_size= GetLargePageMinimum();
 #endif
@@ -291,8 +290,7 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
       {
         my_printf_error(EE_OUTOFMEMORY,
                         "Couldn't allocate %zu bytes (MEM_LARGE_PAGES page "
-                        "size %zu); Windows error %lu; fallback to "
-                        "conventional pages failed",
+                        "size %zu); Windows error %lu",
                         MYF(ME_WARNING | ME_ERROR_LOG_ONLY), *size,
                         my_large_page_size, GetLastError());
       }
