@@ -260,8 +260,10 @@ our %gprof_dirs;
 
 our $glob_debugger= 0;
 our $opt_gdb;
+our $opt_rr;
 our $opt_client_gdb;
 my $opt_boot_gdb;
+my $opt_boot_rr;
 our $opt_dbx;
 our $opt_client_dbx;
 my $opt_boot_dbx;
@@ -332,6 +334,7 @@ my $opt_callgrind;
 my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
+my @rr_record_args;
 
 sub testcase_timeout ($) {
   my ($tinfo)= @_;
@@ -1309,10 +1312,13 @@ sub command_line_setup {
              'debug-common'             => \$opt_debug_common,
              'debug-server'             => \$opt_debug_server,
              'gdb=s'                    => \$opt_gdb,
+             'rr'                       => \$opt_rr,
+             'rr_option=s'              => \@rr_record_args,
              'client-gdb'               => \$opt_client_gdb,
              'manual-gdb'               => \$opt_manual_gdb,
              'manual-lldb'              => \$opt_manual_lldb,
 	     'boot-gdb'                 => \$opt_boot_gdb,
+	     'boot-rr'                  => \$opt_boot_rr,
              'manual-debug'             => \$opt_manual_debug,
              'ddd'                      => \$opt_ddd,
              'client-ddd'               => \$opt_client_ddd,
@@ -1775,8 +1781,8 @@ sub command_line_setup {
   # --------------------------------------------------------------------------
   # Check debug related options
   # --------------------------------------------------------------------------
-  if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || 
-       $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd || 
+  if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || $opt_rr ||
+       @rr_record_args || $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd ||
        $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx || 
        $opt_debugger || $opt_client_debugger )
   {
@@ -2433,6 +2439,7 @@ sub environment_setup {
   $ENV{'MYSQL_TEST_DIR'}=     $glob_mysql_test_dir;
   $ENV{'DEFAULT_MASTER_PORT'}= $mysqld_variables{'port'};
   $ENV{'MYSQL_TMP_DIR'}=      $opt_tmpdir;
+  $ENV{'_RR_TRACE_DIR'}=      "$opt_vardir/rr";
   $ENV{'MYSQLTEST_VARDIR'}=   $opt_vardir;
   $ENV{'MYSQL_BINDIR'}=       $bindir;
   $ENV{'MYSQL_SHAREDIR'}=     $path_language;
@@ -2742,6 +2749,7 @@ sub setup_vardir() {
   # Create var/tmp and tmp - they might be different
   mkpath("$opt_vardir/tmp");
   mkpath($opt_tmpdir) if ($opt_tmpdir ne "$opt_vardir/tmp");
+  mkpath("$opt_vardir/rr");
 
   # On some operating systems, there is a limit to the length of a
   # UNIX domain socket's path far below PATH_MAX.
@@ -3389,6 +3397,10 @@ sub mysql_install_db {
     if ($opt_boot_ddd) {
       ddd_arguments(\$args, \$exe_mysqld_bootstrap, $mysqld->name(),
         $bootstrap_sql_file);
+    }
+    if ($opt_boot_rr) {
+      $args= ["record", "$exe_mysqld_bootstrap", @$args];
+      $exe_mysqld_bootstrap= "rr";
     }
 
     my $path_sql= my_find_file($install_basedir,
@@ -5360,6 +5372,18 @@ sub mysqld_start ($$) {
      # Indicate the exe should not be started
     $exe= undef;
   }
+  elsif ( $opt_rr || @rr_record_args)
+  {
+    if (@rr_record_args)
+    {
+      $args= ["record", @rr_record_args, "$exe", @$args];
+    }
+    else
+    {
+      $args= ["record", "$exe", @$args];
+    }
+    $exe= "rr";
+  }
   else
   {
     # Default to not wait until pid file has been created
@@ -6543,6 +6567,12 @@ Options for strace
   strace-option=ARGS    Option to give strace, appends to existing options.
   stracer=<EXE>         Specify name and path to the trace program to use.
                         Default is "strace". Example: $0 --stracer=ktrace.
+
+Options for rr(Record and Replay)
+  rr                    Run the "mysqld" executables using rr. Default run
+                        option is "rr record mysqld mysqld_options"
+  boot-rr               Start bootstrap server in rr
+  rr_option=ARG         Option to give rr record, can be specified more then once
 
 Misc options
   user=USER             User for connecting to mysqld(default: $opt_user)
