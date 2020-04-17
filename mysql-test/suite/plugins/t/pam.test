@@ -40,19 +40,19 @@ EOF
 --echo # athentication is unsuccessful
 --echo #
 --error 1
---exec $MYSQL_TEST -u test_pam --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_ugly.txt
+--exec $MYSQL_TEST -u test_pam < $MYSQLTEST_VARDIR/tmp/pam_ugly.txt
 
 --echo #
 --echo # athentication is successful
 --echo #
 --error 0
---exec $MYSQL_TEST -u test_pam -pgoodpassword --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
+--exec $MYSQL_TEST -u test_pam -pgoodpassword < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
 
 --echo #
 --echo # athentication is unsuccessful
 --echo #
 --error 1
---exec $MYSQL_TEST -u test_pam -pbadpassword --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
+--exec $MYSQL_TEST -u test_pam -pbadpassword < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
 
 drop user test_pam;
 drop user pam_test;
