@@ -716,7 +716,7 @@ public:
     DBUG_ASSERT(ds->str);
 
 #ifdef EXTRA_DEBUG
-    DBUG_PRINT("extra", ("str: %*b", (int) ds->length, ds->str));
+    DBUG_DUMP("extra", (uchar*) ds->str, ds->length);
 #endif
 
     if (fwrite(ds->str, 1, ds->length, m_file) != ds->length)
