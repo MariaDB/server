@@ -183,7 +183,7 @@ void Json_writer::add_double(double val)
 #if __has_feature(memory_sanitizer)  // FIXME: remove this workaround for
   __msan_unpoison(&val, sizeof val); // main.range_mrr_icp & many other tests
 #endif
-  size_t len= my_snprintf(buf, sizeof(buf), "%lg", val);
+  size_t len= my_snprintf(buf, sizeof(buf), "%-.11lg", val);
   add_unquoted_str(buf, len);
 }
 

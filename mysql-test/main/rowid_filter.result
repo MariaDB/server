@@ -79,10 +79,10 @@ EXPLAIN
           "used_key_parts": ["l_quantity"]
         },
         "rows": 702,
-        "selectivity_pct": 11.69
+        "selectivity_pct": 11.69025812
       },
       "rows": 509,
-      "filtered": 11.69,
+      "filtered": 11.69025803,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
     }
@@ -115,9 +115,9 @@ ANALYZE
           "used_key_parts": ["l_quantity"]
         },
         "rows": 702,
-        "selectivity_pct": 11.69,
+        "selectivity_pct": 11.69025812,
         "r_rows": 605,
-        "r_selectivity_pct": 3.6855,
+        "r_selectivity_pct": 3.685503686,
         "r_buffer_size": "REPLACED",
         "r_filling_time_ms": "REPLACED"
       },
@@ -126,7 +126,7 @@ ANALYZE
       "r_rows": 60,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 11.69,
+      "filtered": 11.69025803,
       "r_filtered": 100,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
@@ -217,7 +217,7 @@ EXPLAIN
       "key_length": "4",
       "used_key_parts": ["l_shipDATE"],
       "rows": 509,
-      "filtered": 11.69,
+      "filtered": 11.69025803,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
     }
@@ -249,8 +249,8 @@ ANALYZE
       "r_rows": 510,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 11.69,
-      "r_filtered": 11.765,
+      "filtered": 11.69025803,
+      "r_filtered": 11.76470588,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
     }
@@ -368,7 +368,7 @@ EXPLAIN
         "selectivity_pct": 4.6
       },
       "rows": 1,
-      "filtered": 4.6,
+      "filtered": 4.599999905,
       "attached_condition": "orders.o_totalprice between 200000 and 230000"
     }
   }
@@ -427,16 +427,16 @@ ANALYZE
         "rows": 69,
         "selectivity_pct": 4.6,
         "r_rows": 71,
-        "r_selectivity_pct": 10.417,
+        "r_selectivity_pct": 10.41666667,
         "r_buffer_size": "REPLACED",
         "r_filling_time_ms": "REPLACED"
       },
       "r_loops": 98,
       "rows": 1,
-      "r_rows": 0.1122,
+      "r_rows": 0.112244898,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 4.6,
+      "filtered": 4.599999905,
       "r_filtered": 100,
       "attached_condition": "orders.o_totalprice between 200000 and 230000"
     }
@@ -498,7 +498,7 @@ EXPLAIN
       "used_key_parts": ["o_orderkey"],
       "ref": ["dbt3_s001.lineitem.l_orderkey"],
       "rows": 1,
-      "filtered": 4.6,
+      "filtered": 4.599999905,
       "attached_condition": "orders.o_totalprice between 200000 and 230000"
     }
   }
@@ -554,8 +554,8 @@ ANALYZE
       "r_rows": 1,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 4.6,
-      "r_filtered": 11.224,
+      "filtered": 4.599999905,
+      "r_filtered": 11.2244898,
       "attached_condition": "orders.o_totalprice between 200000 and 230000"
     }
   }
@@ -612,10 +612,10 @@ EXPLAIN
           "used_key_parts": ["l_quantity"]
         },
         "rows": 702,
-        "selectivity_pct": 11.69
+        "selectivity_pct": 11.69025812
       },
       "rows": 509,
-      "filtered": 11.69,
+      "filtered": 11.69025803,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
     },
@@ -633,10 +633,10 @@ EXPLAIN
           "used_key_parts": ["o_totalprice"]
         },
         "rows": 139,
-        "selectivity_pct": 9.2667
+        "selectivity_pct": 9.266666667
       },
       "rows": 1,
-      "filtered": 9.2667,
+      "filtered": 9.266666412,
       "attached_condition": "orders.o_totalprice between 180000 and 230000"
     }
   }
@@ -679,9 +679,9 @@ ANALYZE
           "used_key_parts": ["l_quantity"]
         },
         "rows": 702,
-        "selectivity_pct": 11.69,
+        "selectivity_pct": 11.69025812,
         "r_rows": 605,
-        "r_selectivity_pct": 3.6855,
+        "r_selectivity_pct": 3.685503686,
         "r_buffer_size": "REPLACED",
         "r_filling_time_ms": "REPLACED"
       },
@@ -690,7 +690,7 @@ ANALYZE
       "r_rows": 60,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 11.69,
+      "filtered": 11.69025803,
       "r_filtered": 100,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
@@ -709,18 +709,18 @@ ANALYZE
           "used_key_parts": ["o_totalprice"]
         },
         "rows": 139,
-        "selectivity_pct": 9.2667,
+        "selectivity_pct": 9.266666667,
         "r_rows": 144,
-        "r_selectivity_pct": 25.424,
+        "r_selectivity_pct": 25.42372881,
         "r_buffer_size": "REPLACED",
         "r_filling_time_ms": "REPLACED"
       },
       "r_loops": 60,
       "rows": 1,
-      "r_rows": 0.2667,
+      "r_rows": 0.266666667,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 9.2667,
+      "filtered": 9.266666412,
       "r_filtered": 100,
       "attached_condition": "orders.o_totalprice between 180000 and 230000"
     }
@@ -779,7 +779,7 @@ EXPLAIN
       "key_length": "4",
       "used_key_parts": ["l_shipDATE"],
       "rows": 509,
-      "filtered": 11.69,
+      "filtered": 11.69025803,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
     },
@@ -792,7 +792,7 @@ EXPLAIN
       "used_key_parts": ["o_orderkey"],
       "ref": ["dbt3_s001.lineitem.l_orderkey"],
       "rows": 1,
-      "filtered": 9.2667,
+      "filtered": 9.266666412,
       "attached_condition": "orders.o_totalprice between 180000 and 230000"
     }
   }
@@ -834,8 +834,8 @@ ANALYZE
       "r_rows": 510,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 11.69,
-      "r_filtered": 11.765,
+      "filtered": 11.69025803,
+      "r_filtered": 11.76470588,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
     },
@@ -852,8 +852,8 @@ ANALYZE
       "r_rows": 1,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 9.2667,
-      "r_filtered": 26.667,
+      "filtered": 9.266666412,
+      "r_filtered": 26.66666667,
       "attached_condition": "orders.o_totalprice between 180000 and 230000"
     }
   }
@@ -925,10 +925,10 @@ EXPLAIN
           "used_key_parts": ["l_shipDATE"]
         },
         "rows": 509,
-        "selectivity_pct": 8.4763
+        "selectivity_pct": 8.476269775
       },
       "rows": 4,
-      "filtered": 8.4763,
+      "filtered": 8.476269722,
       "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
     }
   }
@@ -985,18 +985,18 @@ ANALYZE
           "used_key_parts": ["l_shipDATE"]
         },
         "rows": 509,
-        "selectivity_pct": 8.4763,
+        "selectivity_pct": 8.476269775,
         "r_rows": 510,
-        "r_selectivity_pct": 7.7731,
+        "r_selectivity_pct": 7.773109244,
         "r_buffer_size": "REPLACED",
         "r_filling_time_ms": "REPLACED"
       },
       "r_loops": 71,
       "rows": 4,
-      "r_rows": 0.5211,
+      "r_rows": 0.521126761,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 8.4763,
+      "filtered": 8.476269722,
       "r_filtered": 100,
       "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
     }
@@ -1084,7 +1084,7 @@ EXPLAIN
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "rows": 4,
-      "filtered": 8.4763,
+      "filtered": 8.476269722,
       "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
     }
   }
@@ -1137,11 +1137,11 @@ ANALYZE
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "r_loops": 71,
       "rows": 4,
-      "r_rows": 6.7042,
+      "r_rows": 6.704225352,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 8.4763,
-      "r_filtered": 7.7731,
+      "filtered": 8.476269722,
+      "r_filtered": 7.773109244,
       "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
     }
   }
@@ -1228,7 +1228,7 @@ EXPLAIN
       "key_length": "4",
       "used_key_parts": ["l_receiptDATE"],
       "rows": 18,
-      "filtered": 0.5662,
+      "filtered": 0.566194832,
       "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
     },
@@ -1241,7 +1241,7 @@ EXPLAIN
       "used_key_parts": ["o_orderkey"],
       "ref": ["dbt3_s001.lineitem.l_orderkey"],
       "rows": 1,
-      "filtered": 7.4667,
+      "filtered": 7.466666698,
       "attached_condition": "orders.o_totalprice between 200000 and 250000"
     }
   }
@@ -1285,8 +1285,8 @@ ANALYZE
       "r_rows": 18,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 0.5662,
-      "r_filtered": 38.889,
+      "filtered": 0.566194832,
+      "r_filtered": 38.88888889,
       "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
     },
@@ -1303,8 +1303,8 @@ ANALYZE
       "r_rows": 1,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 7.4667,
-      "r_filtered": 14.286,
+      "filtered": 7.466666698,
+      "r_filtered": 14.28571429,
       "attached_condition": "orders.o_totalprice between 200000 and 250000"
     }
   }
@@ -1350,7 +1350,7 @@ EXPLAIN
       "key_length": "4",
       "used_key_parts": ["l_receiptDATE"],
       "rows": 18,
-      "filtered": 0.5662,
+      "filtered": 0.566194832,
       "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
     },
@@ -1363,7 +1363,7 @@ EXPLAIN
       "used_key_parts": ["o_orderkey"],
       "ref": ["dbt3_s001.lineitem.l_orderkey"],
       "rows": 1,
-      "filtered": 7.4667,
+      "filtered": 7.466666698,
       "attached_condition": "orders.o_totalprice between 200000 and 250000"
     }
   }
@@ -1407,8 +1407,8 @@ ANALYZE
       "r_rows": 18,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 0.5662,
-      "r_filtered": 38.889,
+      "filtered": 0.566194832,
+      "r_filtered": 38.88888889,
       "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
     },
@@ -1425,8 +1425,8 @@ ANALYZE
       "r_rows": 1,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 7.4667,
-      "r_filtered": 14.286,
+      "filtered": 7.466666698,
+      "r_filtered": 14.28571429,
       "attached_condition": "orders.o_totalprice between 200000 and 250000"
     }
   }
@@ -1473,7 +1473,7 @@ EXPLAIN
       "key_length": "9",
       "used_key_parts": ["o_totaldiscount"],
       "rows": 39,
-      "filtered": 3.2,
+      "filtered": 3.200000048,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000"
     },
@@ -1491,7 +1491,7 @@ EXPLAIN
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "rows": 4,
-      "filtered": 3.0475,
+      "filtered": 3.047460556,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1529,8 +1529,8 @@ ANALYZE
       "r_rows": 41,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 3.2,
-      "r_filtered": 2.439,
+      "filtered": 3.200000048,
+      "r_filtered": 2.43902439,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000"
     },
@@ -1552,8 +1552,8 @@ ANALYZE
       "r_rows": 6,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 3.0475,
-      "r_filtered": 66.667,
+      "filtered": 3.047460556,
+      "r_filtered": 66.66666667,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1596,7 +1596,7 @@ EXPLAIN
       "key_length": "9",
       "used_key_parts": ["o_totaldiscount"],
       "rows": 39,
-      "filtered": 3.2,
+      "filtered": 3.200000048,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000"
     },
@@ -1614,7 +1614,7 @@ EXPLAIN
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "rows": 4,
-      "filtered": 3.0475,
+      "filtered": 3.047460556,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1652,8 +1652,8 @@ ANALYZE
       "r_rows": 41,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 3.2,
-      "r_filtered": 2.439,
+      "filtered": 3.200000048,
+      "r_filtered": 2.43902439,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000"
     },
@@ -1675,8 +1675,8 @@ ANALYZE
       "r_rows": 6,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 3.0475,
-      "r_filtered": 66.667,
+      "filtered": 3.047460556,
+      "r_filtered": 66.66666667,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1727,7 +1727,7 @@ EXPLAIN
       "key_length": "9",
       "used_key_parts": ["o_totaldiscount"],
       "rows": 39,
-      "filtered": 1.9499,
+      "filtered": 1.949866652,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
     },
@@ -1745,7 +1745,7 @@ EXPLAIN
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "rows": 4,
-      "filtered": 3.0475,
+      "filtered": 3.047460556,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1788,8 +1788,8 @@ ANALYZE
       "r_rows": 41,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 1.9499,
-      "r_filtered": 2.439,
+      "filtered": 1.949866652,
+      "r_filtered": 2.43902439,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
     },
@@ -1811,8 +1811,8 @@ ANALYZE
       "r_rows": 6,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 3.0475,
-      "r_filtered": 66.667,
+      "filtered": 3.047460556,
+      "r_filtered": 66.66666667,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1860,7 +1860,7 @@ EXPLAIN
       "key_length": "9",
       "used_key_parts": ["o_totaldiscount"],
       "rows": 39,
-      "filtered": 1.9499,
+      "filtered": 1.949866652,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
     },
@@ -1878,7 +1878,7 @@ EXPLAIN
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "rows": 4,
-      "filtered": 3.0475,
+      "filtered": 3.047460556,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1921,8 +1921,8 @@ ANALYZE
       "r_rows": 41,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 1.9499,
-      "r_filtered": 2.439,
+      "filtered": 1.949866652,
+      "r_filtered": 2.43902439,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
     },
@@ -1944,8 +1944,8 @@ ANALYZE
       "r_rows": 6,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 3.0475,
-      "r_filtered": 66.667,
+      "filtered": 3.047460556,
+      "r_filtered": 66.66666667,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }

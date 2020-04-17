@@ -516,7 +516,7 @@ ANALYZE
               "buffer_size": "119",
               "join_type": "BNL",
               "attached_condition": "t5.a = t6.a",
-              "r_filtered": 21.429
+              "r_filtered": 21.42857143
             }
           }
         }

@@ -117,7 +117,7 @@ select * from v1	{
                 "table": "t1",
                 "table_scan": {
                   "rows": 2,
-                  "cost": 2.0044
+                  "cost": 2.004394531
                 }
               }
             ]
@@ -132,19 +132,19 @@ select * from v1	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 1,
-                      "cost": 2.2044,
+                      "cost": 2.204394531,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 1,
-                    "cost": 2.2044,
+                    "cost": 2.204394531,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 1,
-                "cost_for_plan": 2.4044,
+                "cost_for_plan": 2.404394531,
                 "estimated_join_cardinality": 1
               }
             ]
@@ -262,7 +262,7 @@ select * from (select * from t1 where t1.a=1)q	{
                 "table": "t1",
                 "table_scan": {
                   "rows": 2,
-                  "cost": 2.0044
+                  "cost": 2.004394531
                 }
               }
             ]
@@ -277,19 +277,19 @@ select * from (select * from t1 where t1.a=1)q	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 1,
-                      "cost": 2.2044,
+                      "cost": 2.204394531,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 1,
-                    "cost": 2.2044,
+                    "cost": 2.204394531,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 1,
-                "cost_for_plan": 2.4044,
+                "cost_for_plan": 2.404394531,
                 "estimated_join_cardinality": 1
               }
             ]
@@ -412,7 +412,7 @@ select * from v2	{
                       "table": "t1",
                       "table_scan": {
                         "rows": 2,
-                        "cost": 2.0044
+                        "cost": 2.004394531
                       }
                     }
                   ]
@@ -427,7 +427,7 @@ select * from v2	{
                           {
                             "access_type": "scan",
                             "resulting_rows": 1,
-                            "cost": 2.2044,
+                            "cost": 2.204394531,
                             "chosen": true,
                             "use_tmp_table": true
                           }
@@ -435,12 +435,12 @@ select * from v2	{
                         "chosen_access_method": {
                           "type": "scan",
                           "records": 1,
-                          "cost": 2.2044,
+                          "cost": 2.204394531,
                           "uses_join_buffering": false
                         }
                       },
                       "rows_for_plan": 1,
-                      "cost_for_plan": 2.4044,
+                      "cost_for_plan": 2.404394531,
                       "estimated_join_cardinality": 1
                     }
                   ]
@@ -618,7 +618,7 @@ explain select * from v2	{
                 "table": "t2",
                 "table_scan": {
                   "rows": 10,
-                  "cost": 2.022
+                  "cost": 2.021972656
                 }
               }
             ]
@@ -633,19 +633,19 @@ explain select * from v2	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 10,
-                      "cost": 2.022,
+                      "cost": 2.021972656,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 10,
-                    "cost": 2.022,
+                    "cost": 2.021972656,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 10,
-                "cost_for_plan": 4.022,
+                "cost_for_plan": 4.021972656,
                 "estimated_join_cardinality": 10
               }
             ]
@@ -736,7 +736,7 @@ explain select * from v1	{
                       "table": "t1",
                       "table_scan": {
                         "rows": 10,
-                        "cost": 2.022
+                        "cost": 2.021972656
                       }
                     }
                   ]
@@ -751,7 +751,7 @@ explain select * from v1	{
                           {
                             "access_type": "scan",
                             "resulting_rows": 10,
-                            "cost": 2.022,
+                            "cost": 2.021972656,
                             "chosen": true,
                             "use_tmp_table": true
                           }
@@ -759,12 +759,12 @@ explain select * from v1	{
                         "chosen_access_method": {
                           "type": "scan",
                           "records": 10,
-                          "cost": 2.022,
+                          "cost": 2.021972656,
                           "uses_join_buffering": false
                         }
                       },
                       "rows_for_plan": 10,
-                      "cost_for_plan": 4.022,
+                      "cost_for_plan": 4.021972656,
                       "estimated_join_cardinality": 10
                     }
                   ]
@@ -967,14 +967,14 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                 "table": "t1",
                 "table_scan": {
                   "rows": 100,
-                  "cost": 2.3174
+                  "cost": 2.317382812
                 }
               },
               {
                 "table": "t2",
                 "table_scan": {
                   "rows": 100,
-                  "cost": 2.3174
+                  "cost": 2.317382812
                 }
               }
             ]
@@ -989,19 +989,19 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 100,
-                      "cost": 2.3174,
+                      "cost": 2.317382812,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 100,
-                    "cost": 2.3174,
+                    "cost": 2.317382812,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 100,
-                "cost_for_plan": 22.317,
+                "cost_for_plan": 22.31738281,
                 "rest_of_plan": [
                   {
                     "plan_prefix": ["t1"],
@@ -1014,25 +1014,25 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                           "used_range_estimates": false,
                           "cause": "not available",
                           "rows": 1,
-                          "cost": 200.06,
+                          "cost": 200.0585794,
                           "chosen": true
                         },
                         {
                           "access_type": "scan",
                           "resulting_rows": 100,
-                          "cost": 2.3174,
+                          "cost": 2.317382812,
                           "chosen": false
                         }
                       ],
                       "chosen_access_method": {
                         "type": "ref",
                         "records": 1,
-                        "cost": 200.06,
+                        "cost": 200.0585794,
                         "uses_join_buffering": false
                       }
                     },
                     "rows_for_plan": 100,
-                    "cost_for_plan": 242.38,
+                    "cost_for_plan": 242.3759623,
                     "estimated_join_cardinality": 100
                   }
                 ]
@@ -1045,19 +1045,19 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 100,
-                      "cost": 2.3174,
+                      "cost": 2.317382812,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 100,
-                    "cost": 2.3174,
+                    "cost": 2.317382812,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 100,
-                "cost_for_plan": 22.317,
+                "cost_for_plan": 22.31738281,
                 "rest_of_plan": [
                   {
                     "plan_prefix": ["t2"],
@@ -1070,25 +1070,25 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                           "used_range_estimates": false,
                           "cause": "not available",
                           "rows": 1,
-                          "cost": 200.06,
+                          "cost": 200.0585794,
                           "chosen": true
                         },
                         {
                           "access_type": "scan",
                           "resulting_rows": 100,
-                          "cost": 2.3174,
+                          "cost": 2.317382812,
                           "chosen": false
                         }
                       ],
                       "chosen_access_method": {
                         "type": "ref",
                         "records": 1,
-                        "cost": 200.06,
+                        "cost": 200.0585794,
                         "uses_join_buffering": false
                       }
                     },
                     "rows_for_plan": 100,
-                    "cost_for_plan": 242.38,
+                    "cost_for_plan": 242.3759623,
                     "pruned_by_cost": true
                   }
                 ]
@@ -1172,7 +1172,7 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
                 "range_analysis": {
                   "table_scan": {
                     "rows": 65536,
-                    "cost": 13255
+                    "cost": 13255.2
                   },
                   "potential_range_indexes": [
                     {
@@ -1188,7 +1188,7 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
                   ],
                   "best_covering_index_scan": {
                     "index": "a",
-                    "cost": 13377,
+                    "cost": 13377.39141,
                     "chosen": false,
                     "cause": "cost"
                   },
@@ -1361,7 +1361,7 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                 "range_analysis": {
                   "table_scan": {
                     "rows": 7,
-                    "cost": 5.4291
+                    "cost": 5.429052734
                   },
                   "potential_range_indexes": [
                     {
@@ -1372,7 +1372,7 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                   ],
                   "best_covering_index_scan": {
                     "index": "a",
-                    "cost": 2.4092,
+                    "cost": 2.409226263,
                     "chosen": true
                   },
                   "setup_range_conditions": [],
@@ -1554,7 +1554,7 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                 "range_analysis": {
                   "table_scan": {
                     "rows": 16,
-                    "cost": 7.2313
+                    "cost": 7.23125
                   },
                   "potential_range_indexes": [
                     {
@@ -1565,7 +1565,7 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                   ],
                   "best_covering_index_scan": {
                     "index": "id",
-                    "cost": 4.2117,
+                    "cost": 4.21171589,
                     "chosen": true
                   },
                   "setup_range_conditions": [],
@@ -1736,7 +1736,7 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                 "range_analysis": {
                   "table_scan": {
                     "rows": 16,
-                    "cost": 7.2313
+                    "cost": 7.23125
                   },
                   "potential_range_indexes": [
                     {
@@ -1747,7 +1747,7 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                   ],
                   "best_covering_index_scan": {
                     "index": "id",
-                    "cost": 4.2117,
+                    "cost": 4.21171589,
                     "chosen": true
                   },
                   "setup_range_conditions": [],
@@ -1964,7 +1964,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "range_analysis": {
                   "table_scan": {
                     "rows": 1000,
-                    "cost": 232.56
+                    "cost": 232.5644531
                   },
                   "potential_range_indexes": [
                     {
@@ -1993,7 +1993,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 180,
-                        "cost": 216.29,
+                        "cost": 216.2943776,
                         "chosen": true
                       },
                       {
@@ -2003,7 +2003,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 21,
-                        "cost": 25.362,
+                        "cost": 25.36242739,
                         "chosen": true
                       }
                     ],
@@ -2024,7 +2024,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       "ranges": ["(1,2) <= (a,b) <= (1,2)"]
                     },
                     "rows_for_plan": 21,
-                    "cost_for_plan": 25.362,
+                    "cost_for_plan": 25.36242739,
                     "chosen": true
                   }
                 }
@@ -2034,12 +2034,12 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "rowid_filters": [
                   {
                     "key": "a_b",
-                    "build_cost": 0.8868,
+                    "build_cost": 0.886777098,
                     "rows": 21
                   },
                   {
                     "key": "a_c",
-                    "build_cost": 10.522,
+                    "build_cost": 10.52169992,
                     "rows": 180
                   }
                 ]
@@ -2054,11 +2054,11 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "selectivity_for_columns": [
                   {
                     "column_name": "a",
-                    "selectivity_from_histogram": 0.1797
+                    "selectivity_from_histogram": 0.1796875
                   },
                   {
                     "column_name": "b",
-                    "selectivity_from_histogram": 0.0156
+                    "selectivity_from_histogram": 0.015625
                   }
                 ],
                 "cond_selectivity": 0.021
@@ -2077,7 +2077,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       "index": "a_c",
                       "used_range_estimates": true,
                       "rows": 180,
-                      "cost": 180.27,
+                      "cost": 180.2743776,
                       "chosen": true
                     },
                     {
@@ -2085,7 +2085,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       "index": "a_b",
                       "used_range_estimates": true,
                       "rows": 21,
-                      "cost": 21.142,
+                      "cost": 21.14242739,
                       "chosen": true
                     },
                     {
@@ -2097,12 +2097,12 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "chosen_access_method": {
                     "type": "ref",
                     "records": 21,
-                    "cost": 21.142,
+                    "cost": 21.14242739,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 21,
-                "cost_for_plan": 25.342,
+                "cost_for_plan": 25.34242739,
                 "estimated_join_cardinality": 21
               }
             ]
@@ -2126,7 +2126,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
             "reconsidering_access_paths_for_index_ordering": {
               "clause": "ORDER BY",
               "fanout": 1,
-              "read_time": 21.143,
+              "read_time": 21.14342739,
               "table": "t1",
               "rows_estimation": 21,
               "possible_keys": [
@@ -2142,8 +2142,8 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "index": "a_c",
                   "can_resolve_order": true,
                   "updated_limit": 47,
-                  "range_scan_time": 4.331,
-                  "index_scan_time": 4.331,
+                  "range_scan_time": 4.331020747,
+                  "index_scan_time": 4.331020747,
                   "records": 180,
                   "chosen": true
                 },
@@ -2160,7 +2160,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
             "range_analysis": {
               "table_scan": {
                 "rows": 1000,
-                "cost": 2e308
+                "cost": 1.79769e308
               },
               "potential_range_indexes": [
                 {
@@ -2189,7 +2189,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     "using_mrr": false,
                     "index_only": false,
                     "rows": 180,
-                    "cost": 216.29,
+                    "cost": 216.2943776,
                     "chosen": true
                   }
                 ],
@@ -2210,7 +2210,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "ranges": ["(1) <= (a) <= (1)"]
                 },
                 "rows_for_plan": 180,
-                "cost_for_plan": 216.29,
+                "cost_for_plan": 216.2943776,
                 "chosen": true
               }
             }
@@ -2309,7 +2309,7 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
                 "table": "t1",
                 "table_scan": {
                   "rows": 4,
-                  "cost": 2.0068
+                  "cost": 2.006835938
                 }
               },
               {
@@ -2330,19 +2330,19 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 4,
-                      "cost": 2.0068,
+                      "cost": 2.006835938,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 4,
-                    "cost": 2.0068,
+                    "cost": 2.006835938,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 4,
-                "cost_for_plan": 2.8068,
+                "cost_for_plan": 2.806835937,
                 "estimated_join_cardinality": 4
               }
             ]
@@ -2434,14 +2434,14 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                 "table": "t1",
                 "table_scan": {
                   "rows": 4,
-                  "cost": 2.0068
+                  "cost": 2.006835938
                 }
               },
               {
                 "table": "t2",
                 "table_scan": {
                   "rows": 2,
-                  "cost": 2.0044
+                  "cost": 2.004394531
                 }
               }
             ]
@@ -2456,19 +2456,19 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 4,
-                      "cost": 2.0068,
+                      "cost": 2.006835938,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 4,
-                    "cost": 2.0068,
+                    "cost": 2.006835938,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 4,
-                "cost_for_plan": 2.8068,
+                "cost_for_plan": 2.806835937,
                 "rest_of_plan": [
                   {
                     "plan_prefix": ["t1"],
@@ -2485,7 +2485,7 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                         {
                           "access_type": "scan",
                           "resulting_rows": 2,
-                          "cost": 8.0176,
+                          "cost": 8.017578125,
                           "chosen": false
                         }
                       ],
@@ -2497,7 +2497,7 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                       }
                     },
                     "rows_for_plan": 4,
-                    "cost_for_plan": 7.6068,
+                    "cost_for_plan": 7.606835937,
                     "estimated_join_cardinality": 4
                   }
                 ]
@@ -2618,7 +2618,7 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
                 "table": "t1",
                 "table_scan": {
                   "rows": 4,
-                  "cost": 2.0068
+                  "cost": 2.006835938
                 }
               },
               {
@@ -2645,19 +2645,19 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
                     {
                       "access_type": "scan",
                       "resulting_rows": 4,
-                      "cost": 2.0068,
+                      "cost": 2.006835938,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 4,
-                    "cost": 2.0068,
+                    "cost": 2.006835938,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 4,
-                "cost_for_plan": 2.8068,
+                "cost_for_plan": 2.806835937,
                 "estimated_join_cardinality": 4
               }
             ]
@@ -2817,14 +2817,14 @@ explain extended select * from t1 where a in (select pk from t10)	{
                 "table": "t1",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.0066
+                  "cost": 2.006591797
                 }
               },
               {
                 "table": "t10",
                 "table_scan": {
                   "rows": 10,
-                  "cost": 2.022
+                  "cost": 2.021972656
                 }
               }
             ]
@@ -2847,19 +2847,19 @@ explain extended select * from t1 where a in (select pk from t10)	{
                           {
                             "access_type": "scan",
                             "resulting_rows": 10,
-                            "cost": 2.022,
+                            "cost": 2.021972656,
                             "chosen": true
                           }
                         ],
                         "chosen_access_method": {
                           "type": "scan",
                           "records": 10,
-                          "cost": 2.022,
+                          "cost": 2.021972656,
                           "uses_join_buffering": false
                         }
                       },
                       "rows_for_plan": 10,
-                      "cost_for_plan": 4.022,
+                      "cost_for_plan": 4.021972656,
                       "estimated_join_cardinality": 10
                     }
                   ]
@@ -2877,19 +2877,19 @@ explain extended select * from t1 where a in (select pk from t10)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.0066,
+                      "cost": 2.006591797,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.0066,
+                    "cost": 2.006591797,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6066,
+                "cost_for_plan": 2.606591797,
                 "semijoin_strategy_choice": [],
                 "rest_of_plan": [
                   {
@@ -2900,34 +2900,34 @@ explain extended select * from t1 where a in (select pk from t10)	{
                         {
                           "access_type": "scan",
                           "resulting_rows": 10,
-                          "cost": 2.022,
+                          "cost": 2.021972656,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 10,
-                        "cost": 2.022,
+                        "cost": 2.021972656,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 30,
-                    "cost_for_plan": 10.629,
+                    "cost_for_plan": 10.62856445,
                     "semijoin_strategy_choice": [
                       {
                         "strategy": "FirstMatch",
                         "records": 3,
-                        "read_time": 10.629
+                        "read_time": 10.62856445
                       },
                       {
                         "strategy": "SJ-Materialization",
                         "records": 3,
-                        "read_time": 5.2786
+                        "read_time": 5.278564453
                       },
                       {
                         "strategy": "DuplicateWeedout",
                         "records": 3,
-                        "read_time": 27.129
+                        "read_time": 27.12856445
                       },
                       {
                         "chosen_strategy": "SJ-Materialization"
@@ -2945,19 +2945,19 @@ explain extended select * from t1 where a in (select pk from t10)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 10,
-                      "cost": 2.022,
+                      "cost": 2.021972656,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 10,
-                    "cost": 2.022,
+                    "cost": 2.021972656,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 10,
-                "cost_for_plan": 4.022,
+                "cost_for_plan": 4.021972656,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               }
@@ -3133,7 +3133,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                 "range_analysis": {
                   "table_scan": {
                     "rows": 10,
-                    "cost": 6.0317
+                    "cost": 6.031738281
                   },
                   "potential_range_indexes": [
                     {
@@ -3154,7 +3154,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                   ],
                   "best_covering_index_scan": {
                     "index": "pk_a_b",
-                    "cost": 3.0107,
+                    "cost": 3.010739566,
                     "chosen": true
                   },
                   "setup_range_conditions": [],
@@ -3167,7 +3167,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1,
-                        "cost": 1.3456,
+                        "cost": 1.345585794,
                         "chosen": true
                       },
                       {
@@ -3177,7 +3177,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1,
-                        "cost": 1.3458,
+                        "cost": 1.345829876,
                         "chosen": false,
                         "cause": "cost"
                       },
@@ -3188,7 +3188,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                         "using_mrr": false,
                         "index_only": true,
                         "rows": 1,
-                        "cost": 0.3461,
+                        "cost": 0.346073957,
                         "chosen": true
                       }
                     ],
@@ -3196,10 +3196,10 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       "intersecting_indexes": [
                         {
                           "index": "pk",
-                          "index_scan_cost": 1.0006,
-                          "cumulated_index_scan_cost": 1.0006,
-                          "disk_sweep_cost": 0.9008,
-                          "cumulative_total_cost": 1.9014,
+                          "index_scan_cost": 1.000585794,
+                          "cumulated_index_scan_cost": 1.000585794,
+                          "disk_sweep_cost": 0.90078125,
+                          "cumulative_total_cost": 1.901367044,
                           "usable": true,
                           "matching_rows_now": 1,
                           "intersect_covering_with_this_index": false,
@@ -3237,7 +3237,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       "ranges": ["(2,5,1) <= (pk,a,b) <= (2,5,1)"]
                     },
                     "rows_for_plan": 1,
-                    "cost_for_plan": 0.3461,
+                    "cost_for_plan": 0.346073957,
                     "chosen": true
                   }
                 }
@@ -3247,17 +3247,17 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                 "rowid_filters": [
                   {
                     "key": "pk",
-                    "build_cost": 0.1306,
+                    "build_cost": 0.130585794,
                     "rows": 1
                   },
                   {
                     "key": "pk_a",
-                    "build_cost": 0.1308,
+                    "build_cost": 0.130829876,
                     "rows": 1
                   },
                   {
                     "key": "pk_a_b",
-                    "build_cost": 0.1311,
+                    "build_cost": 0.131073957,
                     "rows": 1
                   }
                 ]
@@ -3295,7 +3295,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       "index": "pk",
                       "used_range_estimates": true,
                       "rows": 1,
-                      "cost": 1.1256,
+                      "cost": 1.125585794,
                       "chosen": true
                     },
                     {
@@ -3303,7 +3303,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       "index": "pk_a",
                       "used_range_estimates": true,
                       "rows": 1,
-                      "cost": 1.1258,
+                      "cost": 1.125829876,
                       "chosen": false,
                       "cause": "cost"
                     },
@@ -3312,7 +3312,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       "index": "pk_a_b",
                       "used_range_estimates": true,
                       "rows": 1,
-                      "cost": 0.1261,
+                      "cost": 0.126073957,
                       "chosen": true
                     },
                     {
@@ -3324,12 +3324,12 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                   "chosen_access_method": {
                     "type": "ref",
                     "records": 1,
-                    "cost": 0.1261,
+                    "cost": 0.126073957,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 1,
-                "cost_for_plan": 0.3261,
+                "cost_for_plan": 0.326073957,
                 "estimated_join_cardinality": 1
               }
             ]
@@ -3426,7 +3426,7 @@ select f1(a) from t1	{
                 "table": "t1",
                 "table_scan": {
                   "rows": 4,
-                  "cost": 2.0068
+                  "cost": 2.006835938
                 }
               }
             ]
@@ -3441,19 +3441,19 @@ select f1(a) from t1	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 4,
-                      "cost": 2.0068,
+                      "cost": 2.006835938,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 4,
-                    "cost": 2.0068,
+                    "cost": 2.006835938,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 4,
-                "cost_for_plan": 2.8068,
+                "cost_for_plan": 2.806835937,
                 "estimated_join_cardinality": 4
               }
             ]
@@ -3524,7 +3524,7 @@ select f2(a) from t1	{
                 "table": "t1",
                 "table_scan": {
                   "rows": 4,
-                  "cost": 2.0068
+                  "cost": 2.006835938
                 }
               }
             ]
@@ -3539,19 +3539,19 @@ select f2(a) from t1	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 4,
-                      "cost": 2.0068,
+                      "cost": 2.006835938,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 4,
-                    "cost": 2.0068,
+                    "cost": 2.006835938,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 4,
-                "cost_for_plan": 2.8068,
+                "cost_for_plan": 2.806835937,
                 "estimated_join_cardinality": 4
               }
             ]
@@ -3599,7 +3599,7 @@ a
 2
 select length(trace) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 length(trace)
-2163
+2183
 set optimizer_trace_max_mem_size=100;
 select * from t1;
 a
@@ -3613,7 +3613,7 @@ select * from t1	{
       "join_preparation": {
         "select_id": 1,
         "steps": [
-        	2063	0
+        	2083	0
 set optimizer_trace_max_mem_size=0;
 select * from t1;
 a
@@ -3621,7 +3621,7 @@ a
 2
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
-select * from t1		2163	0
+select * from t1		2183	0
 drop table t1;
 set optimizer_trace='enabled=off';
 set @@optimizer_trace_max_mem_size= @save_optimizer_trace_max_mem_size;
@@ -3646,7 +3646,7 @@ explain delete from t0 where t0.a<3	{
       "range_analysis": {
         "table_scan": {
           "rows": 10,
-          "cost": 6.022
+          "cost": 6.021972656
         },
         "potential_range_indexes": [
           {
@@ -3665,7 +3665,7 @@ explain delete from t0 where t0.a<3	{
               "using_mrr": false,
               "index_only": false,
               "rows": 3,
-              "cost": 3.7468,
+              "cost": 3.746757383,
               "chosen": true
             }
           ],
@@ -3683,7 +3683,7 @@ explain delete from t0 where t0.a<3	{
             "ranges": ["(NULL) < (a) < (3)"]
           },
           "rows_for_plan": 3,
-          "cost_for_plan": 3.7468,
+          "cost_for_plan": 3.746757383,
           "chosen": true
         }
       }
@@ -3784,7 +3784,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 "range_analysis": {
                   "table_scan": {
                     "rows": 10,
-                    "cost": 6.022
+                    "cost": 6.021972656
                   },
                   "potential_range_indexes": [
                     {
@@ -3795,7 +3795,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                   ],
                   "best_covering_index_scan": {
                     "index": "a",
-                    "cost": 3.0059,
+                    "cost": 3.005857945,
                     "chosen": true
                   },
                   "setup_range_conditions": [],
@@ -3808,7 +3808,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                         "using_mrr": false,
                         "index_only": true,
                         "rows": 3,
-                        "cost": 0.7468,
+                        "cost": 0.746757383,
                         "chosen": true
                       }
                     ],
@@ -3829,7 +3829,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       "ranges": ["(NULL) < (a) < (3)"]
                     },
                     "rows_for_plan": 3,
-                    "cost_for_plan": 0.7468,
+                    "cost_for_plan": 0.746757383,
                     "chosen": true
                   }
                 }
@@ -3849,7 +3849,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 "range_analysis": {
                   "table_scan": {
                     "rows": 10,
-                    "cost": 6.022
+                    "cost": 6.021972656
                   },
                   "potential_range_indexes": [
                     {
@@ -3860,7 +3860,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                   ],
                   "best_covering_index_scan": {
                     "index": "a",
-                    "cost": 3.0059,
+                    "cost": 3.005857945,
                     "chosen": true
                   },
                   "setup_range_conditions": [],
@@ -3873,7 +3873,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                         "using_mrr": false,
                         "index_only": true,
                         "rows": 3,
-                        "cost": 0.7468,
+                        "cost": 0.746757383,
                         "chosen": true
                       }
                     ],
@@ -3894,7 +3894,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       "ranges": ["(NULL) < (a) < (3)"]
                     },
                     "rows_for_plan": 3,
-                    "cost_for_plan": 0.7468,
+                    "cost_for_plan": 0.746757383,
                     "chosen": true
                   }
                 }
@@ -3921,19 +3921,19 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     {
                       "access_type": "range",
                       "resulting_rows": 3,
-                      "cost": 0.7468,
+                      "cost": 0.746757383,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "range",
                     "records": 3,
-                    "cost": 0.7468,
+                    "cost": 0.746757383,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 1.3468,
+                "cost_for_plan": 1.346757383,
                 "rest_of_plan": [
                   {
                     "plan_prefix": ["t0"],
@@ -3946,7 +3946,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           "used_range_estimates": false,
                           "cause": "not better than ref estimates",
                           "rows": 1,
-                          "cost": 3.0018,
+                          "cost": 3.001757383,
                           "chosen": true
                         },
                         {
@@ -3958,12 +3958,12 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       "chosen_access_method": {
                         "type": "ref",
                         "records": 1,
-                        "cost": 3.0018,
+                        "cost": 3.001757383,
                         "uses_join_buffering": false
                       }
                     },
                     "rows_for_plan": 3,
-                    "cost_for_plan": 4.9485,
+                    "cost_for_plan": 4.948514767,
                     "estimated_join_cardinality": 3
                   }
                 ]
@@ -3976,19 +3976,19 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     {
                       "access_type": "range",
                       "resulting_rows": 3,
-                      "cost": 0.7468,
+                      "cost": 0.746757383,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "range",
                     "records": 3,
-                    "cost": 0.7468,
+                    "cost": 0.746757383,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 1.3468,
+                "cost_for_plan": 1.346757383,
                 "rest_of_plan": [
                   {
                     "plan_prefix": ["t1"],
@@ -4001,7 +4001,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           "used_range_estimates": false,
                           "cause": "not better than ref estimates",
                           "rows": 2,
-                          "cost": 3.0035,
+                          "cost": 3.003514767,
                           "chosen": true
                         },
                         {
@@ -4013,12 +4013,12 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       "chosen_access_method": {
                         "type": "ref",
                         "records": 2,
-                        "cost": 3.0035,
+                        "cost": 3.003514767,
                         "uses_join_buffering": false
                       }
                     },
                     "rows_for_plan": 6,
-                    "cost_for_plan": 5.5503,
+                    "cost_for_plan": 5.55027215,
                     "pruned_by_cost": true
                   }
                 ]
@@ -4130,7 +4130,7 @@ explain select * from (select rand() from t1)q	{
                       "table": "t1",
                       "table_scan": {
                         "rows": 3,
-                        "cost": 2.0051
+                        "cost": 2.005126953
                       }
                     }
                   ]
@@ -4145,19 +4145,19 @@ explain select * from (select rand() from t1)q	{
                           {
                             "access_type": "scan",
                             "resulting_rows": 3,
-                            "cost": 2.0051,
+                            "cost": 2.005126953,
                             "chosen": true
                           }
                         ],
                         "chosen_access_method": {
                           "type": "scan",
                           "records": 3,
-                          "cost": 2.0051,
+                          "cost": 2.005126953,
                           "uses_join_buffering": false
                         }
                       },
                       "rows_for_plan": 3,
-                      "cost_for_plan": 2.6051,
+                      "cost_for_plan": 2.605126953,
                       "estimated_join_cardinality": 3
                     }
                   ]
@@ -4382,21 +4382,21 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                 "table": "t1",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.0051
+                  "cost": 2.005126953
                 }
               },
               {
                 "table": "t_inner_1",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.0051
+                  "cost": 2.005126953
                 }
               },
               {
                 "table": "t_inner_2",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.0051
+                  "cost": 2.005126953
                 }
               }
             ]
@@ -4419,19 +4419,19 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                           {
                             "access_type": "scan",
                             "resulting_rows": 3,
-                            "cost": 2.0051,
+                            "cost": 2.005126953,
                             "chosen": true
                           }
                         ],
                         "chosen_access_method": {
                           "type": "scan",
                           "records": 3,
-                          "cost": 2.0051,
+                          "cost": 2.005126953,
                           "uses_join_buffering": false
                         }
                       },
                       "rows_for_plan": 3,
-                      "cost_for_plan": 2.6051,
+                      "cost_for_plan": 2.605126953,
                       "rest_of_plan": [
                         {
                           "plan_prefix": ["t_inner_1"],
@@ -4441,19 +4441,19 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                               {
                                 "access_type": "scan",
                                 "resulting_rows": 3,
-                                "cost": 2.0051,
+                                "cost": 2.005126953,
                                 "chosen": true
                               }
                             ],
                             "chosen_access_method": {
                               "type": "scan",
                               "records": 3,
-                              "cost": 2.0051,
+                              "cost": 2.005126953,
                               "uses_join_buffering": true
                             }
                           },
                           "rows_for_plan": 9,
-                          "cost_for_plan": 6.4103,
+                          "cost_for_plan": 6.410253906,
                           "estimated_join_cardinality": 9
                         }
                       ]
@@ -4466,19 +4466,19 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                           {
                             "access_type": "scan",
                             "resulting_rows": 3,
-                            "cost": 2.0051,
+                            "cost": 2.005126953,
                             "chosen": true
                           }
                         ],
                         "chosen_access_method": {
                           "type": "scan",
                           "records": 3,
-                          "cost": 2.0051,
+                          "cost": 2.005126953,
                           "uses_join_buffering": false
                         }
                       },
                       "rows_for_plan": 3,
-                      "cost_for_plan": 2.6051,
+                      "cost_for_plan": 2.605126953,
                       "pruned_by_heuristic": true
                     }
                   ]
@@ -4496,19 +4496,19 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.0051,
+                      "cost": 2.005126953,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.0051,
+                    "cost": 2.005126953,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051,
+                "cost_for_plan": 2.605126953,
                 "semijoin_strategy_choice": [],
                 "rest_of_plan": [
                   {
@@ -4519,19 +4519,19 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                         {
                           "access_type": "scan",
                           "resulting_rows": 3,
-                          "cost": 2.0051,
+                          "cost": 2.005126953,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 3,
-                        "cost": 2.0051,
+                        "cost": 2.005126953,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 9,
-                    "cost_for_plan": 6.4103,
+                    "cost_for_plan": 6.410253906,
                     "semijoin_strategy_choice": [],
                     "rest_of_plan": [
                       {
@@ -4542,34 +4542,34 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                             {
                               "access_type": "scan",
                               "resulting_rows": 3,
-                              "cost": 2.0051,
+                              "cost": 2.005126953,
                               "chosen": true
                             }
                           ],
                           "chosen_access_method": {
                             "type": "scan",
                             "records": 3,
-                            "cost": 2.0051,
+                            "cost": 2.005126953,
                             "uses_join_buffering": true
                           }
                         },
                         "rows_for_plan": 27,
-                        "cost_for_plan": 13.815,
+                        "cost_for_plan": 13.81538086,
                         "semijoin_strategy_choice": [
                           {
                             "strategy": "FirstMatch",
                             "records": 3,
-                            "read_time": 33.867
+                            "read_time": 33.86665039
                           },
                           {
                             "strategy": "SJ-Materialization",
                             "records": 3,
-                            "read_time": 7.2154
+                            "read_time": 7.215380859
                           },
                           {
                             "strategy": "DuplicateWeedout",
                             "records": 3,
-                            "read_time": 18.315
+                            "read_time": 18.31538086
                           },
                           {
                             "chosen_strategy": "SJ-Materialization"
@@ -4587,19 +4587,19 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                         {
                           "access_type": "scan",
                           "resulting_rows": 3,
-                          "cost": 2.0051,
+                          "cost": 2.005126953,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 3,
-                        "cost": 2.0051,
+                        "cost": 2.005126953,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 9,
-                    "cost_for_plan": 6.4103,
+                    "cost_for_plan": 6.410253906,
                     "semijoin_strategy_choice": [],
                     "pruned_by_heuristic": true
                   }
@@ -4613,19 +4613,19 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.0051,
+                      "cost": 2.005126953,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.0051,
+                    "cost": 2.005126953,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051,
+                "cost_for_plan": 2.605126953,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               },
@@ -4637,19 +4637,19 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.0051,
+                      "cost": 2.005126953,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.0051,
+                    "cost": 2.005126953,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051,
+                "cost_for_plan": 2.605126953,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               }
@@ -4880,42 +4880,42 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                 "table": "t_outer_1",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.0051
+                  "cost": 2.005126953
                 }
               },
               {
                 "table": "t_outer_2",
                 "table_scan": {
                   "rows": 9,
-                  "cost": 2.0154
+                  "cost": 2.015380859
                 }
               },
               {
                 "table": "t_inner_2",
                 "table_scan": {
                   "rows": 9,
-                  "cost": 2.0154
+                  "cost": 2.015380859
                 }
               },
               {
                 "table": "t_inner_1",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.0051
+                  "cost": 2.005126953
                 }
               },
               {
                 "table": "t_inner_3",
                 "table_scan": {
                   "rows": 9,
-                  "cost": 2.0154
+                  "cost": 2.015380859
                 }
               },
               {
                 "table": "t_inner_4",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.0051
+                  "cost": 2.005126953
                 }
               }
             ]
@@ -4945,19 +4945,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.0051,
+                      "cost": 2.005126953,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.0051,
+                    "cost": 2.005126953,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051,
+                "cost_for_plan": 2.605126953,
                 "semijoin_strategy_choice": [],
                 "rest_of_plan": [
                   {
@@ -4968,19 +4968,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         {
                           "access_type": "scan",
                           "resulting_rows": 3,
-                          "cost": 2.0051,
+                          "cost": 2.005126953,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 3,
-                        "cost": 2.0051,
+                        "cost": 2.005126953,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 9,
-                    "cost_for_plan": 6.4103,
+                    "cost_for_plan": 6.410253906,
                     "semijoin_strategy_choice": [],
                     "rest_of_plan": [
                       {
@@ -4991,29 +4991,29 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             {
                               "access_type": "scan",
                               "resulting_rows": 9,
-                              "cost": 2.0154,
+                              "cost": 2.015380859,
                               "chosen": true
                             }
                           ],
                           "chosen_access_method": {
                             "type": "scan",
                             "records": 9,
-                            "cost": 2.0154,
+                            "cost": 2.015380859,
                             "uses_join_buffering": true
                           }
                         },
                         "rows_for_plan": 81,
-                        "cost_for_plan": 24.626,
+                        "cost_for_plan": 24.62563477,
                         "semijoin_strategy_choice": [
                           {
                             "strategy": "FirstMatch",
                             "records": 3,
-                            "read_time": 44.759
+                            "read_time": 44.75893555
                           },
                           {
                             "strategy": "DuplicateWeedout",
                             "records": 3,
-                            "read_time": 37.226
+                            "read_time": 37.22563477
                           },
                           {
                             "chosen_strategy": "DuplicateWeedout"
@@ -5028,19 +5028,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 9,
-                                  "cost": 2.0154,
+                                  "cost": 2.015380859,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 27,
-                            "cost_for_plan": 44.641,
+                            "cost_for_plan": 44.64101563,
                             "semijoin_strategy_choice": [],
                             "rest_of_plan": [
                               {
@@ -5056,19 +5056,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 3,
-                                      "cost": 2.0051,
+                                      "cost": 2.005126953,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 3,
-                                    "cost": 2.0051,
+                                    "cost": 2.005126953,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 81,
-                                "cost_for_plan": 62.846,
+                                "cost_for_plan": 62.84614258,
                                 "semijoin_strategy_choice": [],
                                 "rest_of_plan": [
                                   {
@@ -5085,29 +5085,29 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         {
                                           "access_type": "scan",
                                           "resulting_rows": 9,
-                                          "cost": 2.0154,
+                                          "cost": 2.015380859,
                                           "chosen": true
                                         }
                                       ],
                                       "chosen_access_method": {
                                         "type": "scan",
                                         "records": 9,
-                                        "cost": 2.0154,
+                                        "cost": 2.015380859,
                                         "uses_join_buffering": true
                                       }
                                     },
                                     "rows_for_plan": 729,
-                                    "cost_for_plan": 210.66,
+                                    "cost_for_plan": 210.6615234,
                                     "semijoin_strategy_choice": [
                                       {
                                         "strategy": "FirstMatch",
                                         "records": 27,
-                                        "read_time": 424.03
+                                        "read_time": 424.025293
                                       },
                                       {
                                         "strategy": "DuplicateWeedout",
                                         "records": 27,
-                                        "read_time": 324.06
+                                        "read_time": 324.0615234
                                       },
                                       {
                                         "chosen_strategy": "DuplicateWeedout"
@@ -5130,19 +5130,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 243,
-                                "cost_for_plan": 95.256,
+                                "cost_for_plan": 95.25639648,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_heuristic": true
                               }
@@ -5156,19 +5156,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 3,
-                                  "cost": 2.0051,
+                                  "cost": 2.005126953,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 3,
-                                "cost": 2.0051,
+                                "cost": 2.005126953,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 9,
-                            "cost_for_plan": 41.031,
+                            "cost_for_plan": 41.03076172,
                             "semijoin_strategy_choice": [],
                             "rest_of_plan": [
                               {
@@ -5184,19 +5184,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 81,
-                                "cost_for_plan": 59.246,
+                                "cost_for_plan": 59.24614258,
                                 "semijoin_strategy_choice": [],
                                 "rest_of_plan": [
                                   {
@@ -5213,24 +5213,24 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         {
                                           "access_type": "scan",
                                           "resulting_rows": 9,
-                                          "cost": 2.0154,
+                                          "cost": 2.015380859,
                                           "chosen": true
                                         }
                                       ],
                                       "chosen_access_method": {
                                         "type": "scan",
                                         "records": 9,
-                                        "cost": 2.0154,
+                                        "cost": 2.015380859,
                                         "uses_join_buffering": true
                                       }
                                     },
                                     "rows_for_plan": 729,
-                                    "cost_for_plan": 207.06,
+                                    "cost_for_plan": 207.0615234,
                                     "semijoin_strategy_choice": [
                                       {
                                         "strategy": "DuplicateWeedout",
                                         "records": 27,
-                                        "read_time": 320.46
+                                        "read_time": 320.4615234
                                       },
                                       {
                                         "chosen_strategy": "DuplicateWeedout"
@@ -5253,19 +5253,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 81,
-                                "cost_for_plan": 59.246,
+                                "cost_for_plan": 59.24614258,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_heuristic": true
                               }
@@ -5279,19 +5279,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 9,
-                                  "cost": 2.0154,
+                                  "cost": 2.015380859,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 27,
-                            "cost_for_plan": 44.641,
+                            "cost_for_plan": 44.64101563,
                             "semijoin_strategy_choice": [],
                             "pruned_by_heuristic": true
                           }
@@ -5305,19 +5305,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             {
                               "access_type": "scan",
                               "resulting_rows": 9,
-                              "cost": 2.0154,
+                              "cost": 2.015380859,
                               "chosen": true
                             }
                           ],
                           "chosen_access_method": {
                             "type": "scan",
                             "records": 9,
-                            "cost": 2.0154,
+                            "cost": 2.015380859,
                             "uses_join_buffering": true
                           }
                         },
                         "rows_for_plan": 81,
-                        "cost_for_plan": 24.626,
+                        "cost_for_plan": 24.62563477,
                         "semijoin_strategy_choice": [],
                         "rest_of_plan": [
                           {
@@ -5328,24 +5328,24 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 9,
-                                  "cost": 2.0154,
+                                  "cost": 2.015380859,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 729,
-                            "cost_for_plan": 172.44,
+                            "cost_for_plan": 172.4410156,
                             "semijoin_strategy_choice": [
                               {
                                 "strategy": "DuplicateWeedout",
                                 "records": 27,
-                                "read_time": 285.84
+                                "read_time": 285.8410156
                               },
                               {
                                 "chosen_strategy": "DuplicateWeedout"
@@ -5365,19 +5365,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 3,
-                                      "cost": 2.0051,
+                                      "cost": 2.005126953,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 3,
-                                    "cost": 2.0051,
+                                    "cost": 2.005126953,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 81,
-                                "cost_for_plan": 304.05,
+                                "cost_for_plan": 304.0461426,
                                 "semijoin_strategy_choice": [],
                                 "rest_of_plan": [
                                   {
@@ -5394,24 +5394,24 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         {
                                           "access_type": "scan",
                                           "resulting_rows": 9,
-                                          "cost": 2.0154,
+                                          "cost": 2.015380859,
                                           "chosen": true
                                         }
                                       ],
                                       "chosen_access_method": {
                                         "type": "scan",
                                         "records": 9,
-                                        "cost": 2.0154,
+                                        "cost": 2.015380859,
                                         "uses_join_buffering": true
                                       }
                                     },
                                     "rows_for_plan": 729,
-                                    "cost_for_plan": 451.86,
+                                    "cost_for_plan": 451.8615234,
                                     "semijoin_strategy_choice": [
                                       {
                                         "strategy": "DuplicateWeedout",
                                         "records": 27,
-                                        "read_time": 565.26
+                                        "read_time": 565.2615234
                                       },
                                       {
                                         "chosen_strategy": "DuplicateWeedout"
@@ -5434,19 +5434,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 243,
-                                "cost_for_plan": 336.46,
+                                "cost_for_plan": 336.4563965,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               }
@@ -5460,19 +5460,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 3,
-                                  "cost": 2.0051,
+                                  "cost": 2.005126953,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 3,
-                                "cost": 2.0051,
+                                "cost": 2.005126953,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 243,
-                            "cost_for_plan": 75.231,
+                            "cost_for_plan": 75.23076172,
                             "semijoin_strategy_choice": [],
                             "rest_of_plan": [
                               {
@@ -5488,19 +5488,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 2187,
-                                "cost_for_plan": 514.65,
+                                "cost_for_plan": 514.6461426,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               },
@@ -5517,19 +5517,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 2187,
-                                "cost_for_plan": 514.65,
+                                "cost_for_plan": 514.6461426,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               }
@@ -5543,19 +5543,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 9,
-                                  "cost": 2.0154,
+                                  "cost": 2.015380859,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 729,
-                            "cost_for_plan": 172.44,
+                            "cost_for_plan": 172.4410156,
                             "semijoin_strategy_choice": [],
                             "rest_of_plan": [
                               {
@@ -5571,24 +5571,24 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 3,
-                                      "cost": 2.0051,
+                                      "cost": 2.005126953,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 3,
-                                    "cost": 2.0051,
+                                    "cost": 2.005126953,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 2187,
-                                "cost_for_plan": 611.85,
+                                "cost_for_plan": 611.8461426,
                                 "semijoin_strategy_choice": [
                                   {
                                     "strategy": "FirstMatch",
                                     "records": 81,
-                                    "read_time": 2232.8
+                                    "read_time": 2232.809033
                                   },
                                   {
                                     "chosen_strategy": "FirstMatch"
@@ -5609,19 +5609,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 6561,
-                                "cost_for_plan": 1486.7,
+                                "cost_for_plan": 1486.656396,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               }
@@ -5637,19 +5637,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             {
                               "access_type": "scan",
                               "resulting_rows": 3,
-                              "cost": 2.0051,
+                              "cost": 2.005126953,
                               "chosen": true
                             }
                           ],
                           "chosen_access_method": {
                             "type": "scan",
                             "records": 3,
-                            "cost": 2.0051,
+                            "cost": 2.005126953,
                             "uses_join_buffering": true
                           }
                         },
                         "rows_for_plan": 27,
-                        "cost_for_plan": 13.815,
+                        "cost_for_plan": 13.81538086,
                         "semijoin_strategy_choice": [],
                         "rest_of_plan": [
                           {
@@ -5660,19 +5660,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 9,
-                                  "cost": 2.0154,
+                                  "cost": 2.015380859,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 243,
-                            "cost_for_plan": 64.431,
+                            "cost_for_plan": 64.43076172,
                             "semijoin_strategy_choice": [],
                             "rest_of_plan": [
                               {
@@ -5688,19 +5688,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 2187,
-                                "cost_for_plan": 503.85,
+                                "cost_for_plan": 503.8461426,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               },
@@ -5717,19 +5717,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 2187,
-                                "cost_for_plan": 503.85,
+                                "cost_for_plan": 503.8461426,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               }
@@ -5743,19 +5743,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 9,
-                                  "cost": 2.0154,
+                                  "cost": 2.015380859,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 243,
-                            "cost_for_plan": 64.431,
+                            "cost_for_plan": 64.43076172,
                             "semijoin_strategy_choice": [],
                             "pruned_by_heuristic": true
                           },
@@ -5767,19 +5767,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 9,
-                                  "cost": 2.0154,
+                                  "cost": 2.015380859,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 243,
-                            "cost_for_plan": 64.431,
+                            "cost_for_plan": 64.43076172,
                             "semijoin_strategy_choice": [],
                             "pruned_by_heuristic": true
                           }
@@ -5793,19 +5793,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             {
                               "access_type": "scan",
                               "resulting_rows": 9,
-                              "cost": 2.0154,
+                              "cost": 2.015380859,
                               "chosen": true
                             }
                           ],
                           "chosen_access_method": {
                             "type": "scan",
                             "records": 9,
-                            "cost": 2.0154,
+                            "cost": 2.015380859,
                             "uses_join_buffering": true
                           }
                         },
                         "rows_for_plan": 81,
-                        "cost_for_plan": 24.626,
+                        "cost_for_plan": 24.62563477,
                         "semijoin_strategy_choice": [],
                         "rest_of_plan": [
                           {
@@ -5816,19 +5816,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 9,
-                                  "cost": 2.0154,
+                                  "cost": 2.015380859,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 729,
-                            "cost_for_plan": 172.44,
+                            "cost_for_plan": 172.4410156,
                             "semijoin_strategy_choice": [],
                             "rest_of_plan": [
                               {
@@ -5844,19 +5844,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 3,
-                                      "cost": 2.0051,
+                                      "cost": 2.005126953,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 3,
-                                    "cost": 2.0051,
+                                    "cost": 2.005126953,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 2187,
-                                "cost_for_plan": 611.85,
+                                "cost_for_plan": 611.8461426,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               },
@@ -5873,19 +5873,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 6561,
-                                "cost_for_plan": 1486.7,
+                                "cost_for_plan": 1486.656396,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               }
@@ -5899,19 +5899,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 3,
-                                  "cost": 2.0051,
+                                  "cost": 2.005126953,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 3,
-                                "cost": 2.0051,
+                                "cost": 2.005126953,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 243,
-                            "cost_for_plan": 75.231,
+                            "cost_for_plan": 75.23076172,
                             "semijoin_strategy_choice": [],
                             "rest_of_plan": [
                               {
@@ -5927,19 +5927,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 2187,
-                                "cost_for_plan": 514.65,
+                                "cost_for_plan": 514.6461426,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               },
@@ -5956,19 +5956,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 2187,
-                                "cost_for_plan": 514.65,
+                                "cost_for_plan": 514.6461426,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               }
@@ -5982,19 +5982,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 9,
-                                  "cost": 2.0154,
+                                  "cost": 2.015380859,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 729,
-                            "cost_for_plan": 172.44,
+                            "cost_for_plan": 172.4410156,
                             "semijoin_strategy_choice": [],
                             "pruned_by_heuristic": true
                           }
@@ -6010,19 +6010,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         {
                           "access_type": "scan",
                           "resulting_rows": 9,
-                          "cost": 2.0154,
+                          "cost": 2.015380859,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 9,
-                        "cost": 2.0154,
+                        "cost": 2.015380859,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 27,
-                    "cost_for_plan": 10.021,
+                    "cost_for_plan": 10.02050781,
                     "semijoin_strategy_choice": [],
                     "pruned_by_heuristic": true
                   },
@@ -6034,19 +6034,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         {
                           "access_type": "scan",
                           "resulting_rows": 9,
-                          "cost": 2.0154,
+                          "cost": 2.015380859,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 9,
-                        "cost": 2.0154,
+                        "cost": 2.015380859,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 27,
-                    "cost_for_plan": 10.021,
+                    "cost_for_plan": 10.02050781,
                     "semijoin_strategy_choice": [],
                     "pruned_by_heuristic": true
                   },
@@ -6058,19 +6058,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         {
                           "access_type": "scan",
                           "resulting_rows": 3,
-                          "cost": 2.0051,
+                          "cost": 2.005126953,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 3,
-                        "cost": 2.0051,
+                        "cost": 2.005126953,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 9,
-                    "cost_for_plan": 6.4103,
+                    "cost_for_plan": 6.410253906,
                     "semijoin_strategy_choice": [],
                     "pruned_by_heuristic": true
                   },
@@ -6082,19 +6082,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         {
                           "access_type": "scan",
                           "resulting_rows": 9,
-                          "cost": 2.0154,
+                          "cost": 2.015380859,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 9,
-                        "cost": 2.0154,
+                        "cost": 2.015380859,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 27,
-                    "cost_for_plan": 10.021,
+                    "cost_for_plan": 10.02050781,
                     "semijoin_strategy_choice": [],
                     "pruned_by_heuristic": true
                   }
@@ -6108,19 +6108,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.0051,
+                      "cost": 2.005126953,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.0051,
+                    "cost": 2.005126953,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051,
+                "cost_for_plan": 2.605126953,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               },
@@ -6132,19 +6132,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 9,
-                      "cost": 2.0154,
+                      "cost": 2.015380859,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 9,
-                    "cost": 2.0154,
+                    "cost": 2.015380859,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 9,
-                "cost_for_plan": 3.8154,
+                "cost_for_plan": 3.815380859,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               },
@@ -6156,19 +6156,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 9,
-                      "cost": 2.0154,
+                      "cost": 2.015380859,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 9,
-                    "cost": 2.0154,
+                    "cost": 2.015380859,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 9,
-                "cost_for_plan": 3.8154,
+                "cost_for_plan": 3.815380859,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               },
@@ -6180,19 +6180,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.0051,
+                      "cost": 2.005126953,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.0051,
+                    "cost": 2.005126953,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051,
+                "cost_for_plan": 2.605126953,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               },
@@ -6204,19 +6204,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 9,
-                      "cost": 2.0154,
+                      "cost": 2.015380859,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 9,
-                    "cost": 2.0154,
+                    "cost": 2.015380859,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 9,
-                "cost_for_plan": 3.8154,
+                "cost_for_plan": 3.815380859,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               }
@@ -6455,42 +6455,42 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                 "table": "t_outer_1",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.0051
+                  "cost": 2.005126953
                 }
               },
               {
                 "table": "t_outer_2",
                 "table_scan": {
                   "rows": 9,
-                  "cost": 2.0154
+                  "cost": 2.015380859
                 }
               },
               {
                 "table": "t_inner_2",
                 "table_scan": {
                   "rows": 9,
-                  "cost": 2.0154
+                  "cost": 2.015380859
                 }
               },
               {
                 "table": "t_inner_1",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.0051
+                  "cost": 2.005126953
                 }
               },
               {
                 "table": "t_inner_3",
                 "table_scan": {
                   "rows": 9,
-                  "cost": 2.0154
+                  "cost": 2.015380859
                 }
               },
               {
                 "table": "t_inner_4",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.0051
+                  "cost": 2.005126953
                 }
               }
             ]
@@ -6518,19 +6518,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           {
                             "access_type": "scan",
                             "resulting_rows": 3,
-                            "cost": 2.0051,
+                            "cost": 2.005126953,
                             "chosen": true
                           }
                         ],
                         "chosen_access_method": {
                           "type": "scan",
                           "records": 3,
-                          "cost": 2.0051,
+                          "cost": 2.005126953,
                           "uses_join_buffering": false
                         }
                       },
                       "rows_for_plan": 3,
-                      "cost_for_plan": 2.6051,
+                      "cost_for_plan": 2.605126953,
                       "rest_of_plan": [
                         {
                           "plan_prefix": ["t_inner_1"],
@@ -6540,19 +6540,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               {
                                 "access_type": "scan",
                                 "resulting_rows": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "chosen": true
                               }
                             ],
                             "chosen_access_method": {
                               "type": "scan",
                               "records": 9,
-                              "cost": 2.0154,
+                              "cost": 2.015380859,
                               "uses_join_buffering": true
                             }
                           },
                           "rows_for_plan": 27,
-                          "cost_for_plan": 10.021,
+                          "cost_for_plan": 10.02050781,
                           "estimated_join_cardinality": 27
                         }
                       ]
@@ -6565,19 +6565,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           {
                             "access_type": "scan",
                             "resulting_rows": 9,
-                            "cost": 2.0154,
+                            "cost": 2.015380859,
                             "chosen": true
                           }
                         ],
                         "chosen_access_method": {
                           "type": "scan",
                           "records": 9,
-                          "cost": 2.0154,
+                          "cost": 2.015380859,
                           "uses_join_buffering": false
                         }
                       },
                       "rows_for_plan": 9,
-                      "cost_for_plan": 3.8154,
+                      "cost_for_plan": 3.815380859,
                       "pruned_by_heuristic": true
                     }
                   ]
@@ -6592,19 +6592,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           {
                             "access_type": "scan",
                             "resulting_rows": 3,
-                            "cost": 2.0051,
+                            "cost": 2.005126953,
                             "chosen": true
                           }
                         ],
                         "chosen_access_method": {
                           "type": "scan",
                           "records": 3,
-                          "cost": 2.0051,
+                          "cost": 2.005126953,
                           "uses_join_buffering": false
                         }
                       },
                       "rows_for_plan": 3,
-                      "cost_for_plan": 2.6051,
+                      "cost_for_plan": 2.605126953,
                       "rest_of_plan": [
                         {
                           "plan_prefix": ["t_inner_4"],
@@ -6614,19 +6614,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               {
                                 "access_type": "scan",
                                 "resulting_rows": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "chosen": true
                               }
                             ],
                             "chosen_access_method": {
                               "type": "scan",
                               "records": 9,
-                              "cost": 2.0154,
+                              "cost": 2.015380859,
                               "uses_join_buffering": true
                             }
                           },
                           "rows_for_plan": 27,
-                          "cost_for_plan": 10.021,
+                          "cost_for_plan": 10.02050781,
                           "estimated_join_cardinality": 27
                         }
                       ]
@@ -6639,19 +6639,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           {
                             "access_type": "scan",
                             "resulting_rows": 9,
-                            "cost": 2.0154,
+                            "cost": 2.015380859,
                             "chosen": true
                           }
                         ],
                         "chosen_access_method": {
                           "type": "scan",
                           "records": 9,
-                          "cost": 2.0154,
+                          "cost": 2.015380859,
                           "uses_join_buffering": false
                         }
                       },
                       "rows_for_plan": 9,
-                      "cost_for_plan": 3.8154,
+                      "cost_for_plan": 3.815380859,
                       "pruned_by_heuristic": true
                     }
                   ]
@@ -6669,19 +6669,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.0051,
+                      "cost": 2.005126953,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.0051,
+                    "cost": 2.005126953,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051,
+                "cost_for_plan": 2.605126953,
                 "semijoin_strategy_choice": [],
                 "rest_of_plan": [
                   {
@@ -6692,19 +6692,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         {
                           "access_type": "scan",
                           "resulting_rows": 3,
-                          "cost": 2.0051,
+                          "cost": 2.005126953,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 3,
-                        "cost": 2.0051,
+                        "cost": 2.005126953,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 9,
-                    "cost_for_plan": 6.4103,
+                    "cost_for_plan": 6.410253906,
                     "semijoin_strategy_choice": [],
                     "rest_of_plan": [
                       {
@@ -6715,34 +6715,34 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             {
                               "access_type": "scan",
                               "resulting_rows": 9,
-                              "cost": 2.0154,
+                              "cost": 2.015380859,
                               "chosen": true
                             }
                           ],
                           "chosen_access_method": {
                             "type": "scan",
                             "records": 9,
-                            "cost": 2.0154,
+                            "cost": 2.015380859,
                             "uses_join_buffering": true
                           }
                         },
                         "rows_for_plan": 81,
-                        "cost_for_plan": 24.626,
+                        "cost_for_plan": 24.62563477,
                         "semijoin_strategy_choice": [
                           {
                             "strategy": "FirstMatch",
                             "records": 3,
-                            "read_time": 44.759
+                            "read_time": 44.75893555
                           },
                           {
                             "strategy": "SJ-Materialization",
                             "records": 3,
-                            "read_time": 8.1256
+                            "read_time": 8.125634766
                           },
                           {
                             "strategy": "DuplicateWeedout",
                             "records": 3,
-                            "read_time": 37.226
+                            "read_time": 37.22563477
                           },
                           {
                             "chosen_strategy": "SJ-Materialization"
@@ -6757,19 +6757,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 9,
-                                  "cost": 2.0154,
+                                  "cost": 2.015380859,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 27,
-                            "cost_for_plan": 15.541,
+                            "cost_for_plan": 15.54101562,
                             "semijoin_strategy_choice": [],
                             "rest_of_plan": [
                               {
@@ -6785,19 +6785,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 3,
-                                      "cost": 2.0051,
+                                      "cost": 2.005126953,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 3,
-                                    "cost": 2.0051,
+                                    "cost": 2.005126953,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 81,
-                                "cost_for_plan": 33.746,
+                                "cost_for_plan": 33.74614258,
                                 "semijoin_strategy_choice": [],
                                 "rest_of_plan": [
                                   {
@@ -6814,34 +6814,34 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         {
                                           "access_type": "scan",
                                           "resulting_rows": 9,
-                                          "cost": 2.0154,
+                                          "cost": 2.015380859,
                                           "chosen": true
                                         }
                                       ],
                                       "chosen_access_method": {
                                         "type": "scan",
                                         "records": 9,
-                                        "cost": 2.0154,
+                                        "cost": 2.015380859,
                                         "uses_join_buffering": true
                                       }
                                     },
                                     "rows_for_plan": 729,
-                                    "cost_for_plan": 181.56,
+                                    "cost_for_plan": 181.5615234,
                                     "semijoin_strategy_choice": [
                                       {
                                         "strategy": "FirstMatch",
                                         "records": 27,
-                                        "read_time": 394.93
+                                        "read_time": 394.925293
                                       },
                                       {
                                         "strategy": "SJ-Materialization",
                                         "records": 27,
-                                        "read_time": 22.262
+                                        "read_time": 22.26152344
                                       },
                                       {
                                         "strategy": "DuplicateWeedout",
                                         "records": 27,
-                                        "read_time": 294.96
+                                        "read_time": 294.9615234
                                       },
                                       {
                                         "chosen_strategy": "SJ-Materialization"
@@ -6864,19 +6864,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 243,
-                                "cost_for_plan": 66.156,
+                                "cost_for_plan": 66.15639648,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               }
@@ -6890,19 +6890,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 3,
-                                  "cost": 2.0051,
+                                  "cost": 2.005126953,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 3,
-                                "cost": 2.0051,
+                                "cost": 2.005126953,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 9,
-                            "cost_for_plan": 11.931,
+                            "cost_for_plan": 11.93076172,
                             "semijoin_strategy_choice": [],
                             "rest_of_plan": [
                               {
@@ -6918,19 +6918,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 81,
-                                "cost_for_plan": 30.146,
+                                "cost_for_plan": 30.14614258,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               },
@@ -6947,19 +6947,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     {
                                       "access_type": "scan",
                                       "resulting_rows": 9,
-                                      "cost": 2.0154,
+                                      "cost": 2.015380859,
                                       "chosen": true
                                     }
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
                                     "records": 9,
-                                    "cost": 2.0154,
+                                    "cost": 2.015380859,
                                     "uses_join_buffering": true
                                   }
                                 },
                                 "rows_for_plan": 81,
-                                "cost_for_plan": 30.146,
+                                "cost_for_plan": 30.14614258,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               }
@@ -6973,19 +6973,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 {
                                   "access_type": "scan",
                                   "resulting_rows": 9,
-                                  "cost": 2.0154,
+                                  "cost": 2.015380859,
                                   "chosen": true
                                 }
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
                                 "records": 9,
-                                "cost": 2.0154,
+                                "cost": 2.015380859,
                                 "uses_join_buffering": true
                               }
                             },
                             "rows_for_plan": 27,
-                            "cost_for_plan": 15.541,
+                            "cost_for_plan": 15.54101562,
                             "semijoin_strategy_choice": [],
                             "pruned_by_heuristic": true
                           }
@@ -6999,19 +6999,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             {
                               "access_type": "scan",
                               "resulting_rows": 9,
-                              "cost": 2.0154,
+                              "cost": 2.015380859,
                               "chosen": true
                             }
                           ],
                           "chosen_access_method": {
                             "type": "scan",
                             "records": 9,
-                            "cost": 2.0154,
+                            "cost": 2.015380859,
                             "uses_join_buffering": true
                           }
                         },
                         "rows_for_plan": 81,
-                        "cost_for_plan": 24.626,
+                        "cost_for_plan": 24.62563477,
                         "semijoin_strategy_choice": [],
                         "pruned_by_cost": true
                       },
@@ -7023,19 +7023,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             {
                               "access_type": "scan",
                               "resulting_rows": 3,
-                              "cost": 2.0051,
+                              "cost": 2.005126953,
                               "chosen": true
                             }
                           ],
                           "chosen_access_method": {
                             "type": "scan",
                             "records": 3,
-                            "cost": 2.0051,
+                            "cost": 2.005126953,
                             "uses_join_buffering": true
                           }
                         },
                         "rows_for_plan": 27,
-                        "cost_for_plan": 13.815,
+                        "cost_for_plan": 13.81538086,
                         "semijoin_strategy_choice": [],
                         "pruned_by_heuristic": true
                       },
@@ -7047,19 +7047,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             {
                               "access_type": "scan",
                               "resulting_rows": 9,
-                              "cost": 2.0154,
+                              "cost": 2.015380859,
                               "chosen": true
                             }
                           ],
                           "chosen_access_method": {
                             "type": "scan",
                             "records": 9,
-                            "cost": 2.0154,
+                            "cost": 2.015380859,
                             "uses_join_buffering": true
                           }
                         },
                         "rows_for_plan": 81,
-                        "cost_for_plan": 24.626,
+                        "cost_for_plan": 24.62563477,
                         "semijoin_strategy_choice": [],
                         "pruned_by_cost": true
                       }
@@ -7073,19 +7073,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         {
                           "access_type": "scan",
                           "resulting_rows": 9,
-                          "cost": 2.0154,
+                          "cost": 2.015380859,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 9,
-                        "cost": 2.0154,
+                        "cost": 2.015380859,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 27,
-                    "cost_for_plan": 10.021,
+                    "cost_for_plan": 10.02050781,
                     "semijoin_strategy_choice": [],
                     "pruned_by_heuristic": true
                   },
@@ -7097,19 +7097,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         {
                           "access_type": "scan",
                           "resulting_rows": 9,
-                          "cost": 2.0154,
+                          "cost": 2.015380859,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 9,
-                        "cost": 2.0154,
+                        "cost": 2.015380859,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 27,
-                    "cost_for_plan": 10.021,
+                    "cost_for_plan": 10.02050781,
                     "semijoin_strategy_choice": [],
                     "pruned_by_heuristic": true
                   },
@@ -7121,19 +7121,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         {
                           "access_type": "scan",
                           "resulting_rows": 3,
-                          "cost": 2.0051,
+                          "cost": 2.005126953,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 3,
-                        "cost": 2.0051,
+                        "cost": 2.005126953,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 9,
-                    "cost_for_plan": 6.4103,
+                    "cost_for_plan": 6.410253906,
                     "semijoin_strategy_choice": [],
                     "pruned_by_heuristic": true
                   },
@@ -7145,19 +7145,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         {
                           "access_type": "scan",
                           "resulting_rows": 9,
-                          "cost": 2.0154,
+                          "cost": 2.015380859,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
                         "records": 9,
-                        "cost": 2.0154,
+                        "cost": 2.015380859,
                         "uses_join_buffering": true
                       }
                     },
                     "rows_for_plan": 27,
-                    "cost_for_plan": 10.021,
+                    "cost_for_plan": 10.02050781,
                     "semijoin_strategy_choice": [],
                     "pruned_by_heuristic": true
                   }
@@ -7171,19 +7171,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.0051,
+                      "cost": 2.005126953,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.0051,
+                    "cost": 2.005126953,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051,
+                "cost_for_plan": 2.605126953,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               },
@@ -7195,19 +7195,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 9,
-                      "cost": 2.0154,
+                      "cost": 2.015380859,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 9,
-                    "cost": 2.0154,
+                    "cost": 2.015380859,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 9,
-                "cost_for_plan": 3.8154,
+                "cost_for_plan": 3.815380859,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               },
@@ -7219,19 +7219,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 9,
-                      "cost": 2.0154,
+                      "cost": 2.015380859,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 9,
-                    "cost": 2.0154,
+                    "cost": 2.015380859,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 9,
-                "cost_for_plan": 3.8154,
+                "cost_for_plan": 3.815380859,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               },
@@ -7243,19 +7243,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.0051,
+                      "cost": 2.005126953,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.0051,
+                    "cost": 2.005126953,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051,
+                "cost_for_plan": 2.605126953,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               },
@@ -7267,19 +7267,19 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 9,
-                      "cost": 2.0154,
+                      "cost": 2.015380859,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 9,
-                    "cost": 2.0154,
+                    "cost": 2.015380859,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 9,
-                "cost_for_plan": 3.8154,
+                "cost_for_plan": 3.815380859,
                 "semijoin_strategy_choice": [],
                 "pruned_by_heuristic": true
               }
@@ -7419,7 +7419,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": true,
                 "rows": 1,
-                "cost": 0.3458,
+                "cost": 0.345829876,
                 "chosen": true
             }
         ],
@@ -7453,7 +7453,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": true,
                 "rows": 107,
-                "cost": 21.634,
+                "cost": 21.63379668,
                 "chosen": true
             }
         ],
@@ -7490,7 +7490,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1000,
-                "cost": 1203.9,
+                "cost": 1203.877243,
                 "chosen": true
             }
         ],
@@ -7535,7 +7535,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 4,
-                "cost": 4.9487,
+                "cost": 4.948710032,
                 "chosen": true
             }
         ],
@@ -7574,7 +7574,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 1.3462,
+                "cost": 1.346171589,
                 "chosen": true
             }
         ],
@@ -7608,7 +7608,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 1.3462,
+                "cost": 1.346171589,
                 "chosen": true
             }
         ],
@@ -7650,7 +7650,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 1.3459,
+                "cost": 1.345927508,
                 "chosen": true
             }
         ],
@@ -7685,7 +7685,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 1.3459,
+                "cost": 1.345878692,
                 "chosen": true
             }
         ],
@@ -7720,7 +7720,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 1.3459,
+                "cost": 1.345927508,
                 "chosen": true
             }
         ],
@@ -7758,7 +7758,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 1.3459,
+                "cost": 1.345878692,
                 "chosen": true
             }
         ],
@@ -7799,7 +7799,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 1.3943,
+                "cost": 1.394255553,
                 "chosen": true
             }
         ],
@@ -7838,7 +7838,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 2,
-                "cost": 2.5469,
+                "cost": 2.546855016,
                 "chosen": true
             }
         ],
@@ -7894,7 +7894,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1000,
-                "cost": 1203.9,
+                "cost": 1203.877243,
                 "chosen": true
             }
         ],
@@ -7959,7 +7959,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                     {
                         "access_type": "scan",
                         "resulting_rows": 5.9375,
-                        "cost": 2.8296,
+                        "cost": 2.829589844,
                         "chosen": true
                     }
                 ],
@@ -7967,12 +7967,12 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 {
                     "type": "scan",
                     "records": 5.9375,
-                    "cost": 2.8296,
+                    "cost": 2.829589844,
                     "uses_join_buffering": false
                 }
             },
             "rows_for_plan": 5.9375,
-            "cost_for_plan": 4.0171,
+            "cost_for_plan": 4.017089844,
             "rest_of_plan": 
             [
                 
@@ -7989,22 +7989,22 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                             
                             {
                                 "access_type": "scan",
-                                "resulting_rows": 804.69,
-                                "cost": 256.85,
+                                "resulting_rows": 804.6875,
+                                "cost": 256.8548584,
                                 "chosen": true
                             }
                         ],
                         "chosen_access_method": 
                         {
                             "type": "scan",
-                            "records": 804.69,
-                            "cost": 256.85,
+                            "records": 804.6875,
+                            "cost": 256.8548584,
                             "uses_join_buffering": false
                         }
                     },
-                    "rows_for_plan": 4777.8,
-                    "cost_for_plan": 1216.4,
-                    "estimated_join_cardinality": 4777.8
+                    "rows_for_plan": 4777.832031,
+                    "cost_for_plan": 1216.438354,
+                    "estimated_join_cardinality": 4777.832031
                 }
             ]
         },
@@ -8021,21 +8021,21 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                     
                     {
                         "access_type": "scan",
-                        "resulting_rows": 804.69,
-                        "cost": 43.26,
+                        "resulting_rows": 804.6875,
+                        "cost": 43.25976562,
                         "chosen": true
                     }
                 ],
                 "chosen_access_method": 
                 {
                     "type": "scan",
-                    "records": 804.69,
-                    "cost": 43.26,
+                    "records": 804.6875,
+                    "cost": 43.25976562,
                     "uses_join_buffering": false
                 }
             },
-            "rows_for_plan": 804.69,
-            "cost_for_plan": 204.2,
+            "rows_for_plan": 804.6875,
+            "cost_for_plan": 204.1972656,
             "pruned_by_heuristic": true
         }
     ]
@@ -8065,7 +8065,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                     {
                         "access_type": "scan",
                         "resulting_rows": 10,
-                        "cost": 2.0171,
+                        "cost": 2.017089844,
                         "chosen": true
                     }
                 ],
@@ -8073,12 +8073,12 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 {
                     "type": "scan",
                     "records": 10,
-                    "cost": 2.0171,
+                    "cost": 2.017089844,
                     "uses_join_buffering": false
                 }
             },
             "rows_for_plan": 10,
-            "cost_for_plan": 4.0171,
+            "cost_for_plan": 4.017089844,
             "rest_of_plan": 
             [
                 
@@ -8099,14 +8099,14 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                 "used_range_estimates": false,
                                 "cause": "not available",
                                 "rows": 1,
-                                "cost": 20.006,
+                                "cost": 20.00585794,
                                 "chosen": true
                             },
                             
                             {
                                 "access_type": "scan",
-                                "resulting_rows": 804.69,
-                                "cost": 43.26,
+                                "resulting_rows": 804.6875,
+                                "cost": 43.25976562,
                                 "chosen": false
                             }
                         ],
@@ -8114,14 +8114,14 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                         {
                             "type": "ref",
                             "records": 1,
-                            "cost": 20.006,
+                            "cost": 20.00585794,
                             "uses_join_buffering": false
                         }
                     },
                     "rows_for_plan": 10,
-                    "cost_for_plan": 26.023,
-                    "selectivity": 0.8047,
-                    "estimated_join_cardinality": 8.0469
+                    "cost_for_plan": 26.02294779,
+                    "selectivity": 0.8046875,
+                    "estimated_join_cardinality": 8.046875
                 }
             ]
         },
@@ -8138,21 +8138,21 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                     
                     {
                         "access_type": "scan",
-                        "resulting_rows": 804.69,
-                        "cost": 43.26,
+                        "resulting_rows": 804.6875,
+                        "cost": 43.25976562,
                         "chosen": true
                     }
                 ],
                 "chosen_access_method": 
                 {
                     "type": "scan",
-                    "records": 804.69,
-                    "cost": 43.26,
+                    "records": 804.6875,
+                    "cost": 43.25976562,
                     "uses_join_buffering": false
                 }
             },
-            "rows_for_plan": 804.69,
-            "cost_for_plan": 204.2,
+            "rows_for_plan": 804.6875,
+            "cost_for_plan": 204.1972656,
             "pruned_by_cost": true
         }
     ]
@@ -8186,7 +8186,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 1.3579,
+                "cost": 1.357887479,
                 "chosen": true
             }
         ],
@@ -8228,4 +8228,102 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.semijoin_table_pullout'))
     }
 ]
 drop table t1,t2,t3;
+#
+# Test many rows to see output of big cost numbers
+#
+select count(*) from seq_1_to_10000000;
+count(*)
+10000000
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+select count(*) from seq_1_to_10000000	{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "expanded_query": "select count(0) AS `count(*)` from seq_1_to_10000000"
+          }
+        ]
+      }
+    },
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": [
+          {
+            "table_dependencies": [
+              {
+                "table": "seq_1_to_10000000",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              }
+            ]
+          },
+          {
+            "rows_estimation": [
+              {
+                "table": "seq_1_to_10000000",
+                "table_scan": {
+                  "rows": 10000000,
+                  "cost": 10000000
+                }
+              }
+            ]
+          },
+          {
+            "considered_execution_plans": [
+              {
+                "plan_prefix": [],
+                "table": "seq_1_to_10000000",
+                "best_access_path": {
+                  "considered_access_paths": [
+                    {
+                      "access_type": "scan",
+                      "resulting_rows": 10000000,
+                      "cost": 10000000,
+                      "chosen": true
+                    }
+                  ],
+                  "chosen_access_method": {
+                    "type": "scan",
+                    "records": 10000000,
+                    "cost": 10000000,
+                    "uses_join_buffering": false
+                  }
+                },
+                "rows_for_plan": 10000000,
+                "cost_for_plan": 12000000,
+                "estimated_join_cardinality": 10000000
+              }
+            ]
+          },
+          {
+            "best_join_order": ["seq_1_to_10000000"]
+          },
+          {
+            "attaching_conditions_to_tables": {
+              "original_condition": null,
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "seq_1_to_10000000",
+                  "attached": null
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": []
+      }
+    }
+  ]
+}	0	0
 set optimizer_trace='enabled=off';

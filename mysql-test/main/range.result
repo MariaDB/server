@@ -2611,10 +2611,10 @@ EXPLAIN
           "used_key_parts": ["e"]
         },
         "rows": 15,
-        "selectivity_pct": 14.423
+        "selectivity_pct": 14.42307692
       },
       "rows": 8,
-      "filtered": 14.423,
+      "filtered": 14.42307663,
       "index_condition": "t2.d is not null",
       "attached_condition": "(t2.d,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
     },
@@ -2716,10 +2716,10 @@ EXPLAIN
           "used_key_parts": ["e"]
         },
         "rows": 7,
-        "selectivity_pct": 6.7308
+        "selectivity_pct": 6.730769231
       },
       "rows": 7,
-      "filtered": 6.7308,
+      "filtered": 6.730769157,
       "index_condition": "t2.d is not null",
       "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
     },

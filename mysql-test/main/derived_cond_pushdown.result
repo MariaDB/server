@@ -15165,7 +15165,7 @@ EXPLAIN
       "access_type": "ALL",
       "possible_keys": ["idx_b"],
       "rows": 12,
-      "filtered": 83.333,
+      "filtered": 83.33333588,
       "attached_condition": "t1.b <= 5 and t1.a is not null"
     },
     "table": {
@@ -15438,7 +15438,7 @@ EXPLAIN
       "access_type": "ALL",
       "possible_keys": ["idx_b"],
       "rows": 12,
-      "filtered": 83.333,
+      "filtered": 83.33333588,
       "attached_condition": "t3.b <= 15 and t3.a is not null and t3.c is not null"
     },
     "table": {
@@ -15590,7 +15590,7 @@ EXPLAIN
       "access_type": "ALL",
       "possible_keys": ["idx_b"],
       "rows": 12,
-      "filtered": 83.333,
+      "filtered": 83.33333588,
       "attached_condition": "t3.b <= 15 and t3.a is not null and t3.c is not null"
     },
     "table": {
@@ -15821,7 +15821,7 @@ EXPLAIN
       "table_name": "t2",
       "access_type": "ALL",
       "rows": 90,
-      "filtered": 63.281,
+      "filtered": 63.28125,
       "attached_condition": "t2.b < 40 and t2.a is not null"
     },
     "table": {
@@ -16317,7 +16317,7 @@ EXPLAIN
       "table_name": "t2",
       "access_type": "ALL",
       "rows": 90,
-      "filtered": 63.281,
+      "filtered": 63.28125,
       "attached_condition": "t2.b < 40 and t2.a is not null"
     },
     "table": {

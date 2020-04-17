@@ -192,7 +192,7 @@ ANALYZE
       "buffer_size": "1Kb",
       "join_type": "BNL",
       "attached_condition": "tbl1.c > tbl2.c",
-      "r_filtered": 15.833
+      "r_filtered": 15.83333333
     }
   }
 }
@@ -421,7 +421,7 @@ ANALYZE
         "r_table_time_ms": "REPLACED",
         "r_other_time_ms": "REPLACED",
         "filtered": 100,
-        "r_filtered": 98.135
+        "r_filtered": 98.13542689
       }
     }
   }

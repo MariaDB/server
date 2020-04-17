@@ -1,4 +1,5 @@
 --source include/not_embedded.inc
+--source include/have_sequence.inc
 SELECT table_name, column_name FROM information_schema.columns where table_name="OPTIMIZER_TRACE";
 show variables like 'optimizer_trace';
 set optimizer_trace="enabled=on";
@@ -567,4 +568,12 @@ select * from t3 where (a,a) in (select t1.a, t2.a from t1, t2 where t1.b=t2.b);
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.semijoin_table_pullout')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 drop table t1,t2,t3;
+
+--echo #
+--echo # Test many rows to see output of big cost numbers
+--echo #
+
+select count(*) from seq_1_to_10000000;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
 set optimizer_trace='enabled=off';
