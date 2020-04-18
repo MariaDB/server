@@ -358,7 +358,7 @@ remove_test_database() {
     fi
 
     echo " - Removing privileges on test database..."
-    do_query "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'"
+    do_query "DELETE FROM mysql.db WHERE Db='test' OR Db LIKE 'test\\_%'"
     if [ $? -eq 0 ]; then
 	echo " ... Success!"
     else
