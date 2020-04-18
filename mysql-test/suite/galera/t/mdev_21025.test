@@ -1,0 +1,22 @@
+#
+# MDEV-21205
+#
+# Start transaction after INSERT IGNORE which had no effect and
+# kept the transaction open caused an assertion on the following
+# START TRANSACTION because the empty transaction was not properly
+# terminated.
+#
+
+--source include/galera_cluster.inc
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+START TRANSACTION;
+INSERT INTO t1 (f1) VALUES (1);
+
+START TRANSACTION;
+# This INSERT succeeds with duplicate key warning due to IGNORE clause
+# and keeps the transaction open. The following START TRANSACTION causes
+# an assertion if the bug is present.
+INSERT IGNORE INTO t1 (f1) VALUES (1);
+START TRANSACTION;
+
+DROP TABLE t1;

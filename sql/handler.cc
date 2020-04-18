@@ -1705,7 +1705,8 @@ end:
     thd->mdl_context.release_lock(mdl_request.ticket);
   }
 #ifdef WITH_WSREP
-  if (wsrep_is_active(thd) && is_real_trans && !error && (rw_ha_count == 0) &&
+  if (wsrep_is_active(thd) && is_real_trans && !error &&
+      (rw_ha_count == 0 || all) &&
       wsrep_not_committed(thd))
   {
     wsrep_commit_empty(thd, all);
