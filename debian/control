@@ -528,10 +528,6 @@ Conflicts: mariadb-server (<< ${source:Version}),
            mariadb-server-5.2,
            mariadb-server-5.3,
            mariadb-server-5.5,
-           mariadb-tokudb-engine-10.0,
-           mariadb-tokudb-engine-10.1,
-           mariadb-tokudb-engine-10.2,
-           mariadb-tokudb-engine-5.5,
            mysql-client-5.5 (<< ${source:Version}),
            mysql-client-5.6 (<< ${source:Version}),
            mysql-client-5.7 (<< ${source:Version}),
@@ -558,10 +554,6 @@ Replaces: libmariadbclient-dev (<< 5.5.0),
           mariadb-server-5.2,
           mariadb-server-5.3,
           mariadb-server-5.5,
-          mariadb-tokudb-engine-10.0,
-          mariadb-tokudb-engine-10.1,
-          mariadb-tokudb-engine-10.2,
-          mariadb-tokudb-engine-5.5,
           mysql-client-5.5 (<< ${source:Version}),
           mysql-client-5.6 (<< ${source:Version}),
           mysql-client-5.7 (<< ${source:Version}),
@@ -684,28 +676,6 @@ Description: OQGraph storage engine for MariaDB
  The OQGraph engine is a computation engine plugin for handling hierarchies
  (trees) and graphs (friend-of-a-friend, etc) cleanly through standard SQL.
  This package contains the OQGraph plugin for MariaDB.
-
-Package: mariadb-plugin-tokudb
-Architecture: amd64
-Depends: libjemalloc1 (>= 3.0.0~) | libjemalloc2,
-         mariadb-server-10.5 (= ${binary:Version}),
-         ${misc:Depends},
-         ${shlibs:Depends}
-Breaks: mariadb-server-10.0,
-        mariadb-server-10.1,
-        mariadb-server-10.2,
-        mariadb-server-10.3,
-        mariadb-server-10.4
-Replaces: mariadb-server-10.0,
-          mariadb-server-10.1,
-          mariadb-server-10.2,
-          mariadb-server-10.3,
-          mariadb-server-10.4
-Description: TokuDB storage engine for MariaDB
- The TokuDB storage engine is for use in high-performance and write-intensive
- environments, offering increased compression and better performance based
- on fractal indexes.
- This package contains the TokuDB plugin for MariaDB.
 
 Package: mariadb-plugin-mroonga
 Architecture: any-alpha any-amd64 any-arm any-arm64 any-i386 any-ia64 any-mips64el any-mips64r6el any-mipsel any-mipsr6el any-nios2 any-powerpcel any-ppc64el any-sh3 any-sh4 any-tilegx

@@ -86,9 +86,6 @@ then
   sed '/Package: mariadb-plugin-cassandra/,/^$/d' -i debian/control
 fi
 
-# Don't include TokuDB package as it is not built anymore by default (MDEV-19780)
-sed -i -e "/Package: mariadb-plugin-tokudb/,/^$/d" debian/control
-
 # If libpcre2-dev is not available (before Debian Stretch and Ubuntu Xenial)
 # attempt to build using older libpcre3-dev (SIC!)
 if ! apt-cache madison libpcre2-dev | grep --quiet 'libpcre2-dev'
