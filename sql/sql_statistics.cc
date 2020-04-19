@@ -2172,6 +2172,9 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
     Index_statistics *index_stats;
     ulong *idx_avg_frequency;
 
+    init_sql_alloc(PSI_INSTRUMENT_ME, &stats_cb->mem_root,
+                   TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+
     if (!multi_alloc_root(&stats_cb->mem_root,
                           &table_stats, sizeof(*table_stats),
                           &column_stats, sizeof(*column_stats) * (fields + 1),
@@ -2997,6 +3000,7 @@ void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
       delete column_stats->max_value;
     }
   }
+  free_root(&table_share->stats_cb.mem_root, MYF(0));
 }
 
 
