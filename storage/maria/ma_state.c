@@ -282,7 +282,7 @@ void _ma_reset_state(MARIA_HA *info)
 			(THR_WRITE_CONCURRENT_INSERT was used)
 */
 
-void _ma_get_status(void* param, my_bool concurrent_insert)
+my_bool _ma_get_status(void* param, my_bool concurrent_insert)
 {
   MARIA_HA *info=(MARIA_HA*) param;
   DBUG_ENTER("_ma_get_status");
@@ -301,7 +301,7 @@ void _ma_get_status(void* param, my_bool concurrent_insert)
   info->state= &info->state_save;
   info->state->changed= 0;
   info->append_insert_at_end= concurrent_insert;
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 
@@ -359,7 +359,7 @@ void _ma_update_status_with_lock(MARIA_HA *info)
     locked= 1;
     mysql_mutex_lock(&info->s->lock.mutex);
   }
-  (*info->s->lock.update_status)(info);
+  (*info->s->lock.update_status)(info->lock.status_param);
   if (locked)
     mysql_mutex_unlock(&info->s->lock.mutex);
 }
@@ -379,11 +379,12 @@ void _ma_copy_status(void* to, void *from)
 }
 
 
-void _ma_reset_update_flag(void *param,
-                           my_bool concurrent_insert __attribute__((unused)))
+my_bool _ma_reset_update_flag(void *param,
+                              my_bool concurrent_insert __attribute__((unused)))
 {
   MARIA_HA *info=(MARIA_HA*) param;
   info->state->changed= 0;
+  return 0;
 }
 
 my_bool _ma_start_trans(void* param)
@@ -627,7 +628,7 @@ void _ma_remove_table_from_trnman(MARIA_HA *info)
 			(THR_WRITE_CONCURRENT_INSERT was used)
 */
 
-void _ma_block_get_status(void* param, my_bool concurrent_insert)
+my_bool _ma_block_get_status(void* param, my_bool concurrent_insert)
 {
   MARIA_HA *info=(MARIA_HA*) param;
   DBUG_ENTER("_ma_block_get_status");
@@ -645,7 +646,7 @@ void _ma_block_get_status(void* param, my_bool concurrent_insert)
   {
     DBUG_ASSERT(info->lock.type != TL_WRITE_CONCURRENT_INSERT);
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 

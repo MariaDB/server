@@ -15,3 +15,17 @@
 
 SET(CSV_SOURCES  ha_tina.cc ha_tina.h transparent_file.cc transparent_file.h)
 MYSQL_ADD_PLUGIN(csv ${CSV_SOURCES} STORAGE_ENGINE MANDATORY)
+
+#
+# Cache
+#
+INCLUDE (CheckIncludeFiles)
+
+SET(CACHE_SOURCES ha_cache.cc)
+
+IF(TARGET cache)
+  ADD_DEFINITIONS(-DWITH_CACHE_STORAGE_ENGINE)
+  TARGET_LINK_LIBRARIES(csv cache)
+ENDIF()
+
+MYSQL_ADD_PLUGIN(cache ${CACHE_SOURCES} STORAGE_ENGINE MANDATORY)

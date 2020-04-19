@@ -1361,7 +1361,7 @@ my_bool _ma_cmp_dynamic_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
                                const uchar *record, MARIA_RECORD_POS pos);
 my_bool _ma_unique_comp(MARIA_UNIQUEDEF *def, const uchar *a, const uchar *b,
                         my_bool null_are_equal);
-void _ma_get_status(void *param, my_bool concurrent_insert);
+my_bool _ma_get_status(void *param, my_bool concurrent_insert);
 void _ma_update_status(void *param);
 void _ma_restore_status(void *param);
 void _ma_copy_status(void *to, void *from);

@@ -1,0 +1,27 @@
+select * from information_schema.engines where engine="columnstore_cache";
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+Columnstore_cache	YES	Insert cache for ColumnStore	NO	NO	NO
+create table t1 (a int, b varchar(10)) engine=columnstore_cache;
+ERROR 42000: The storage engine for the table doesn't support nullable columns
+create table t1 (a int not null, b varchar(10) not null) engine=columnstore_cache;
+select * from t1;
+a	b
+insert into t1 values(1,"hello");
+insert into t1 values(2,"world"),(3,"!");
+select * from t1;
+a	b
+1	hello
+2	world
+3	!
+insert into t1 values(4,"qqq"), (5,"to_be_deleted");
+Warnings:
+Warning	1406	Data too long for column 'b' at row 2
+update t1 set b="updated" where a=4;
+delete from t1 where a=5;
+select * from t1;
+a	b
+4	updated
+1	hello
+2	world
+3	!
+drop table t1;

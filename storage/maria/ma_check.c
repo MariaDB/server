@@ -2367,7 +2367,7 @@ static int initialize_variables_for_repair(HA_CHECK *param,
 
   /* Repair code relies on share->state.state so we have to update it here */
   if (share->lock.update_status)
-    (*share->lock.update_status)(info);
+    (*share->lock.update_status)(info->lock.status_param);
 
   bzero((char*) sort_info,  sizeof(*sort_info));
   bzero((char*) sort_param, sizeof(*sort_param));

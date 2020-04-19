@@ -1,0 +1,24 @@
+--source "have_cache.inc"
+
+#
+# Basic test for columnstore_cache engine
+#
+
+select * from information_schema.engines where engine="columnstore_cache";
+
+# Table doesn't support nullable columns
+--error ER_CHECK_NOT_IMPLEMENTED
+create table t1 (a int, b varchar(10)) engine=columnstore_cache;
+
+create table t1 (a int not null, b varchar(10) not null) engine=columnstore_cache;
+select * from t1;
+insert into t1 values(1,"hello");
+insert into t1 values(2,"world"),(3,"!");
+select * from t1;
+
+insert into t1 values(4,"qqq"), (5,"to_be_deleted");
+update t1 set b="updated" where a=4;
+delete from t1 where a=5;
+select * from t1;
+
+drop table t1;

@@ -4836,9 +4836,9 @@ private:
     DBUG_ASSERT(!(ha_table_flags() & HA_CAN_REPAIR));
     return HA_ADMIN_NOT_IMPLEMENTED;
   }
+protected:
   virtual void start_bulk_insert(ha_rows rows, uint flags) {}
   virtual int end_bulk_insert() { return 0; }
-protected:
   virtual int index_read(uchar * buf, const uchar * key, uint key_len,
                          enum ha_rkey_function find_flag)
    { return  HA_ERR_WRONG_COMMAND; }

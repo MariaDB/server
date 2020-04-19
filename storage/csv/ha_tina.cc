@@ -883,10 +883,11 @@ err:
   for CSV engine. For more details see mysys/thr_lock.c
 */
 
-void tina_get_status(void* param, my_bool concurrent_insert)
+my_bool tina_get_status(void* param, my_bool concurrent_insert)
 {
   ha_tina *tina= (ha_tina*) param;
   tina->get_status();
+  return 0;
 }
 
 void tina_update_status(void* param)
