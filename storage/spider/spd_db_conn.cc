@@ -10453,7 +10453,7 @@ int spider_db_udf_direct_sql(
               if (table->file->has_transactions())
 #endif
               {
-                table->file->ha_external_lock(table->in_use, F_UNLCK);
+                table->file->ha_external_unlock(table->in_use);
 #if MYSQL_VERSION_ID < 50500
 #else
                 if (

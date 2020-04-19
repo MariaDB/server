@@ -11322,7 +11322,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     ha_enable_transaction(thd, TRUE);
   }
 
-  if (to->file->ha_external_lock(thd,F_UNLCK))
+  if (to->file->ha_external_unlock(thd))
     error=1;
   if (error < 0 && !from->s->tmp_table &&
       to->file->extra(HA_EXTRA_PREPARE_FOR_RENAME))

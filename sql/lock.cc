@@ -396,7 +396,7 @@ static int lock_external(THD *thd, TABLE **tables, uint count)
       while (--i)
       {
         tables--;
-	(*tables)->file->ha_external_lock(thd, F_UNLCK);
+	(*tables)->file->ha_external_unlock(thd);
 	(*tables)->current_lock=F_UNLCK;
       }
       DBUG_RETURN(error);
@@ -724,7 +724,7 @@ static int unlock_external(THD *thd, TABLE **table,uint count)
     if ((*table)->current_lock != F_UNLCK)
     {
       (*table)->current_lock = F_UNLCK;
-      if (unlikely((error=(*table)->file->ha_external_lock(thd, F_UNLCK))))
+      if (unlikely((error=(*table)->file->ha_external_unlock(thd))))
       {
         error_code= error;
         (*table)->file->print_error(error, MYF(0));

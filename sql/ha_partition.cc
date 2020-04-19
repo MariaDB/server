@@ -1701,7 +1701,7 @@ void ha_partition::cleanup_new_partition(uint part_count)
     handler **file= m_added_file;
     while ((part_count > 0) && (*file))
     {
-      (*file)->ha_external_lock(thd, F_UNLCK);
+      (*file)->ha_external_unlock(thd);
       (*file)->ha_close();
 
       /* Leave the (*file)->ha_delete_table(part_name) to the ddl-log */
@@ -4055,7 +4055,7 @@ err_handler:
        j < i;
        j= bitmap_get_next_set(&m_locked_partitions, j))
   {
-    (void) m_file[j]->ha_external_lock(thd, F_UNLCK);
+    (void) m_file[j]->ha_external_unlock(thd);
   }
   bitmap_clear_all(&m_locked_partitions);
   DBUG_RETURN(error);

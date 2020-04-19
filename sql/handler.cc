@@ -6556,7 +6556,7 @@ int handler::ha_reset()
   clear_top_table_fields();
   if (lookup_handler != this)
   {
-    lookup_handler->ha_external_lock(table->in_use, F_UNLCK);
+    lookup_handler->ha_external_unlock(table->in_use);
     lookup_handler->close();
     delete lookup_handler;
     lookup_handler= this;
