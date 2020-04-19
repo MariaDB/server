@@ -1,3 +1,4 @@
+# restart: --large-pages
 call mtr.add_suppression("\\[Warning\\] (mysqld|mariadbd): Couldn't allocate [0-9]+ bytes \\((Large/HugeTLB memory|MEMLOCK) page size [0-9]+\\).*");
 create table t1 (
 a int not null auto_increment,

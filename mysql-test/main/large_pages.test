@@ -1,8 +1,12 @@
-# Test of large pages (or at least the fallback to conventional allocation)
+# Test of large pages
 
 # Windows needs SeLockMemoryPrivilege
 --source include/not_windows.inc
 --source include/have_innodb.inc
+--source include/have_large_pages.inc
+
+-- let $restart_parameters=--large-pages
+-- source include/restart_mysqld.inc
 
 call mtr.add_suppression("\\[Warning\\] (mysqld|mariadbd): Couldn't allocate [0-9]+ bytes \\((Large/HugeTLB memory|MEMLOCK) page size [0-9]+\\).*");
 

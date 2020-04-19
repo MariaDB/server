@@ -76,17 +76,21 @@ static size_t my_large_page_sizes[my_large_page_sizes_length];
   Linux-specific function to determine the sizes of large pages
 */
 #ifdef __linux__
-static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
+static my_bool my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
 {
   DIR *dirp;
   struct dirent *r;
   int i= 0;
+  long available_pages= 0, pages;
+  char fn[NAME_MAX];
+  int fd, len;
   DBUG_ENTER("my_get_large_page_sizes");
 
   dirp= opendir("/sys/kernel/mm/hugepages");
   if (dirp == NULL)
   {
     my_error(EE_DIR, MYF(ME_BELL), "/sys/kernel/mm/hugepages", errno);
+    DBUG_RETURN(0);
   }
   else
   {
@@ -104,6 +108,24 @@ static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
           sizes[i]= 0;
           continue;
         }
+
+        len= snprintf(fn, sizeof(fn), "/sys/kernel/mm/hugepages/%s/free_hugepages", r->d_name);
+        if ((fd= my_open(fn, O_RDONLY, MYF(0))) >= 0 && len < sizeof(fn))
+        {
+          len= my_read(fd, fn, sizeof(fn),  MYF(0));
+          fn[len]= '\0';
+          pages= strtol(fn, NULL, 10);
+          if (errno == 0)
+          {
+            available_pages+= pages;
+            my_printf_error(0,
+                            "large page size %zu has %ld pages currently available"
+                            , MYF(ME_NOTE | ME_ERROR_LOG_ONLY),
+                            sizes[i], pages);
+          }
+          my_close(fd, MYF(0));
+        }
+
         ++i;
       }
     }
@@ -113,12 +135,12 @@ static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
     }
     qsort(sizes, i, sizeof(size_t), size_t_cmp);
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(sizes[0] != 0 && available_pages != 0);
 }
 
 
 #elif defined(HAVE_GETPAGESIZES)
-static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
+static my_bool my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
 {
   int nelem;
 
@@ -131,19 +153,26 @@ static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
   {
     sizes[nelem]= 0;
   }
+  return sizes[0] != 0;
 }
 
 
 #elif defined(_WIN32)
-#define my_large_page_sizes_length 0
-#define my_get_large_page_sizes(A) do {} while(0)
+#define my_large_page_sizes_length 1
+static size_t my_large_page_sizes[my_large_page_sizes_length];
+static my_bool my_get_large_page_sizes(size_t sizes[])
+{
+  my_large_page_size= GetLargePageMinimum();
+  return my_large_page_size != 0;
+}
 
 #else
 #define my_large_page_sizes_length 1
 static size_t my_large_page_sizes[my_large_page_sizes_length];
-static void my_get_large_page_sizes(size_t sizes[])
+static my_bool my_get_large_page_sizes(size_t sizes[])
 {
   sizes[0]= my_getpagesize();
+  return sizes[0] != 0;
 }
 #endif
 
@@ -197,12 +226,17 @@ int my_init_large_pages(my_bool super_large_pages)
                     "Lock Pages in memory access rights required for use with"
                     " large-pages, see https://mariadb.com/kb/en/library/"
                     "mariadb-memory-allocation/#huge-pages", MYF(MY_WME));
+    return 1;
   }
-  my_large_page_size= GetLargePageMinimum();
 #endif
 
+  if (!my_get_large_page_sizes(my_large_page_sizes))
+  {
+    my_printf_error(EE_OUTOFMEMORY, "No large pages available",
+                    MYF(MY_WME));
+    return 1;
+  }
   my_use_large_pages= 1;
-  my_get_large_page_sizes(my_large_page_sizes);
 
 #ifndef HAVE_LARGE_PAGES
   my_printf_error(EE_OUTOFMEMORY, "No large page support on this platform",
