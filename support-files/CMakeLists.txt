@@ -120,8 +120,15 @@ IF(UNIX)
   IF(HAVE_SYSTEMD)
     CONFIGURE_FILE(mariadb.service.in
                    ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service @ONLY)
+    EXECUTE_PROCESS(
+    COMMAND ${CMAKE_COMMAND} -E create_symlink ./mariadb.service mysql.service
+    COMMAND ${CMAKE_COMMAND} -E create_symlink ./mariadb.service mysqld.service
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
     INSTALL(FILES use_galera_new_cluster.conf
             ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
+            ${CMAKE_CURRENT_BINARY_DIR}/mysql.service
+            ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
             DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
 
     # @ in directory name broken between CMake version 2.8.12.2 and 3.3
@@ -134,7 +141,10 @@ IF(UNIX)
     ENDIF()
 
     IF(INSTALL_SYSTEMD_UNITDIR)
-      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
+      INSTALL(FILES
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
+              ${CMAKE_CURRENT_BINARY_DIR}/mysql.service
+              ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
               DESTINATION ${INSTALL_SYSTEMD_UNITDIR} COMPONENT Server)
 
       # http://public.kitware.com/Bug/view.php?id=14782
