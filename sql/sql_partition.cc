@@ -6783,7 +6783,7 @@ static bool alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
 
 static int alter_close_table(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
-  int error;
+  int error= 0;
   DBUG_ENTER("alter_close_table");
 
   if (lpt->table->db_stat)
