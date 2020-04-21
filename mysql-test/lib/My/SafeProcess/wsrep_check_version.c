@@ -13,122 +13,39 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
  */
 
-#include <stdlib.h>
-#include <stdio.h>
+#include <my_global.h>
 #include <string.h>
-#include <errno.h>
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-#ifdef _WIN32
-#include <windows.h>
-#define dlsym(lib, name) GetProcAddress((HMODULE)lib, name)
-#define dlopen(libname, unused) LoadLibraryEx(libname, NULL, 0)
-#define dlclose(lib) FreeLibrary((HMODULE)lib)
-#elif defined(HAVE_DLFCN_H)
-#include <dlfcn.h>
-#else
-#define NO_DLL
-#endif
-
-#ifndef NO_DLL
-
 #include "../../../../wsrep-lib/wsrep-API/v26/wsrep_api.h"
-
-/**************************************************************************
- * Library loader
- **************************************************************************/
-
-static int wsrep_check_iface_version(const char *found, const char *iface_ver)
-{
-    if (strcmp(found, iface_ver)) {
-        return ERANGE;
-    }
-    return 0;
-}
-
-typedef int (*wsrep_loader_fun)(wsrep_t*);
-
-static wsrep_loader_fun wsrep_dlf(void *dlh, const char *sym)
-{
-    union {
-        wsrep_loader_fun dlfun;
-        void *obj;
-    } alias;
-    alias.obj = dlsym(dlh, sym);
-    return alias.dlfun;
-}
-
-static int wsrep_check_version_symbol(void *dlh)
-{
-    char** dlversion = NULL;
-    dlversion = (char**) dlsym(dlh, "wsrep_interface_version");
-    if (dlversion == NULL)
-        return EINVAL;
-    return wsrep_check_iface_version(*dlversion, WSREP_INTERFACE_VERSION);
-}
-
-static int wsrep_print_version(void *dlh)
-{
-    char** dlversion = NULL;
-    dlversion = (char**) dlsym(dlh, "wsrep_interface_version");
-    if (dlversion == NULL)
-        return EINVAL;
-    printf("found: %s, need: %s\n", *dlversion, WSREP_INTERFACE_VERSION);
-    return 0;
-}
 
 int main(int argc, char **argv)
 {
-    int rc = EINVAL;
-    void *dlh;
-    wsrep_loader_fun dlfun;
-    const char *provider= getenv("WSREP_PROVIDER");
+  int rc= 1;
+  void *dlh;
+  const char *provider= getenv("WSREP_PROVIDER");
+  char** dlversion= NULL;
 
-    if (!provider)
-    {
-      fprintf(stderr, "WSREP_PROVIDER is not set\n");
-      return 1;
-    }
-    if (!(dlh = dlopen(provider, RTLD_NOW | RTLD_LOCAL)))
-    {
-      fprintf(stderr, "Can't open WSREP_PROVIDER (%s) library, error: %s\n",
-              provider, dlerror());
-      goto err;
-    }
-
-    if (!(dlfun = wsrep_dlf(dlh, "wsrep_loader")))
-    {
-      fprintf(stderr, "Can't find 'wsrep_loader' symbol in %s\n",
-              provider);
-       goto err;
-    }
-
-    if (argc < 2 || strcmp(argv[1], "-p")) {
-        rc = wsrep_check_version_symbol(dlh);
-    }
-    else {
-        rc = wsrep_print_version(dlh);
-    }
-
-err:
-    if (dlh) dlclose(dlh);
-
-    if (rc == 0)
-        return 0;
-    else if (rc == ERANGE)
-        return 2;
-    else
-        return 1;
-}
-
-#else
-
-int main(void)
-{
+  if (!provider || !*provider)
+  {
+    printf("WSREP_PROVIDER is not set\n");
     return 1;
-}
+  }
+  if (!(dlh= dlopen(provider, RTLD_NOW | RTLD_LOCAL)))
+  {
+    printf("Can't open WSREP_PROVIDER (%s) library, error: %s\n",
+           provider, dlerror());
+    return 1;
+  }
 
-#endif
+  dlversion= (char**) dlsym(dlh, "wsrep_interface_version");
+  if (dlversion && *dlversion)
+  {
+    rc= strcmp(*dlversion, WSREP_INTERFACE_VERSION) ? 2 : 0;
+    if (rc)
+      printf("Wrong wsrep provider library version, found: %s, need: %s\n", *dlversion, WSREP_INTERFACE_VERSION);
+  }
+  else
+    printf("Galera library does not contain a version symbol");
+
+  dlclose(dlh);
+  return rc;
+}

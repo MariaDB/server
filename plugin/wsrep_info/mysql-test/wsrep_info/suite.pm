@@ -4,15 +4,9 @@ use My::Find;
 
 @ISA = qw(My::Suite);
 
-return "Not run for embedded server" if $::opt_embedded_server;
-
-return "WSREP is not compiled in" if not ::have_wsrep();
-
-return "No wsrep provider library" unless ::have_wsrep_provider();
-
-return ::wsrep_version_message() unless ::check_wsrep_version();
-
-return "No WSREP_INFO plugin" unless $ENV{WSREP_INFO_SO};
+use lib 'suite';
+use wsrep::common;
+return wsrep_not_ok() if wsrep_not_ok();
 
 push @::global_suppressions,
   (

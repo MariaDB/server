@@ -1,16 +1,11 @@
 package My::Suite::Galera;
-use File::Basename;
-use My::Find;
+
+use lib 'suite';
+use wsrep::common;
 
 @ISA = qw(My::Suite);
 
-return "Not run for embedded server" if $::opt_embedded_server;
-
-return "WSREP is not compiled in" if not ::have_wsrep();
-
-return "No wsrep provider library" unless ::have_wsrep_provider();
-
-return ::wsrep_version_message() unless ::check_wsrep_version();
+return wsrep_not_ok() if wsrep_not_ok();
 
 push @::global_suppressions,
   (
@@ -68,5 +63,11 @@ push @::global_suppressions,
      qr(WSREP: Failed to remove page file .*),
      qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
    );
+
+sub skip_combinations {
+  my %skip = ();
+  $skip{'include/have_mariabackup.inc'} = 'Need ss' unless `ss -V`;
+  %skip;
+}
 
 bless { };

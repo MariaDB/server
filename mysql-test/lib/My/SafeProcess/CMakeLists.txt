@@ -14,6 +14,8 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
+
 IF (WIN32)
   ADD_EXECUTABLE(my_safe_process safe_process_win.cc)
   ADD_EXECUTABLE(my_safe_kill safe_kill_win.cc)
