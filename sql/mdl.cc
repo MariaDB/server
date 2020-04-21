@@ -1215,11 +1215,11 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
       wsrep_thd_is_BF(ticket->get_ctx()->get_thd(), false))
   {
     Ticket_iterator itw(ticket->get_lock()->m_waiting);
-
-    DBUG_ASSERT(WSREP_ON);
     MDL_ticket *waiting;
     MDL_ticket *prev=NULL;
     bool added= false;
+
+    DBUG_ASSERT(WSREP(ticket->get_ctx()->get_thd()));
 
     while ((waiting= itw++) && !added)
     {

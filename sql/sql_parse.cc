@@ -1753,7 +1753,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   {
     mysqld_stmt_bulk_execute(thd, packet, packet_length);
 #ifdef WITH_WSREP
-    if (WSREP_ON)
+    if (WSREP(thd))
     {
         (void)wsrep_after_statement(thd);
     }
@@ -1764,7 +1764,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   {
     mysqld_stmt_execute(thd, packet, packet_length);
 #ifdef WITH_WSREP
-    if (WSREP_ON)
+    if (WSREP(thd))
     {
         (void)wsrep_after_statement(thd);
     }
@@ -1822,7 +1822,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
 
 #ifdef WITH_WSREP
-    if (WSREP_ON)
+    if (WSREP(thd))
     {
       if (wsrep_mysql_parse(thd, thd->query(), thd->query_length(),
                             &parser_state,
@@ -1924,7 +1924,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       parser_state.reset(beginning_of_next_stmt, length);
 
 #ifdef WITH_WSREP
-      if (WSREP_ON)
+      if (WSREP(thd))
       {
         if (wsrep_mysql_parse(thd, beginning_of_next_stmt,
                               length, &parser_state,

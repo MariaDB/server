@@ -732,6 +732,7 @@ void wsrep_init_globals()
 {
   wsrep_init_sidno(Wsrep_server_state::instance().connected_gtid().id());
   wsrep_init_schema();
+
   if (WSREP_ON)
   {
     Wsrep_server_state::instance().initialized();
@@ -768,6 +769,11 @@ int wsrep_init()
   }
 
   global_system_variables.wsrep_on= 1;
+
+  if (wsrep_provider && strcmp(wsrep_provider, WSREP_NONE))
+    WSREP_ON= true;
+  else
+    WSREP_ON= false;
 
   if (wsrep_gtid_mode && opt_bin_log && !opt_log_slave_updates)
   {

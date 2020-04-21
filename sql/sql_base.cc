@@ -4480,7 +4480,7 @@ restart:
   }
 
 #ifdef WITH_WSREP
-  if (WSREP_ON                                         &&
+  if (WSREP(thd)                                       &&
       wsrep_replicate_myisam                           &&
       (*start)                                         &&
       (*start)->table                                  &&

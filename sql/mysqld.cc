@@ -1136,6 +1136,8 @@ PSI_file_key key_file_binlog_state;
 PSI_statement_info stmt_info_new_packet;
 #endif
 
+my_bool WSREP_ON= false;
+
 #ifndef EMBEDDED_LIBRARY
 void net_before_header_psi(struct st_net *net, void *thd, size_t /* unused: count */)
 {
@@ -1874,6 +1876,9 @@ extern "C" void unireg_abort(int exit_code)
   disable_log_notes= 1;
 
 #ifdef WITH_WSREP
+  // Note that we do not have thd here, thus can't use
+  // WSREP(thd)
+
   if (WSREP_ON &&
       Wsrep_server_state::is_inited() &&
       Wsrep_server_state::instance().state() != wsrep::server_state::s_disconnected)
@@ -1889,6 +1894,7 @@ extern "C" void unireg_abort(int exit_code)
     sleep(1); /* so give some time to exit for those which can */
     WSREP_INFO("Some threads may fail to exit.");
   }
+
   if (WSREP_ON)
   {
     /* In bootstrap mode we deinitialize wsrep here. */
@@ -4860,7 +4866,6 @@ static int init_default_storage_engine_impl(const char *opt_name,
   return 0;
 }
 
-
 static int
 init_gtid_pos_auto_engines(void)
 {
@@ -4886,7 +4891,6 @@ init_gtid_pos_auto_engines(void)
   mysql_mutex_unlock(&LOCK_global_system_variables);
   return 0;
 }
-
 
 static int init_server_components()
 {
@@ -5717,6 +5721,14 @@ int mysqld_main(int argc, char **argv)
 #endif
       set_user(mysqld_user, user_info);
   }
+
+#ifdef WITH_WSREP
+  WSREP_ON= (global_system_variables.wsrep_on &&
+          wsrep_provider &&
+          strcmp(wsrep_provider, WSREP_NONE));
+#else
+  WSREP_ON= false;
+#endif
 
   if (WSREP_ON && wsrep_check_opts()) unireg_abort(1);
 
