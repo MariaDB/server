@@ -306,12 +306,6 @@ Replaces: mariadb-client-10.0,
           mysql-client-core-8.0,
           virtual-mysql-client-core
 Provides: default-mysql-client-core,
-          mysql-client-core,
-          mysql-client-core-5.1,
-          mysql-client-core-5.5,
-          mysql-client-core-5.6,
-          mysql-client-core-5.7,
-          mysql-client-core-8.0,
           virtual-mysql-client-core
 Description: MariaDB database core client binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
@@ -395,11 +389,6 @@ Replaces: mariadb-client (<< ${source:Version}),
           mytop,
           virtual-mysql-client
 Provides: default-mysql-client,
-          mysql-client,
-          mysql-client-5.5,
-          mysql-client-5.6,
-          mysql-client-5.7,
-          mysql-client-8.0,
           virtual-mysql-client
 Recommends: libdbd-mariadb-perl | libdbd-mysql-perl,
             libdbi-perl,
@@ -477,12 +466,6 @@ Replaces: mariadb-client-10.0,
           mysql-server-core-8.0,
           virtual-mysql-server-core
 Provides: default-mysql-server-core,
-          mysql-server-core,
-          mysql-server-core-5.1,
-          mysql-server-core-5.5,
-          mysql-server-core-5.6,
-          mysql-server-core-5.7,
-          mysql-server-core-8.0,
           virtual-mysql-server-core
 Description: MariaDB database core server files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
