@@ -20886,6 +20886,14 @@ static void test_explain_meta()
   mct_close_log();
 }
 
+static void test_execute_direct()
+{
+  MYSQL_STMT* stmt= mysql_stmt_init(mysql);
+  int rc= mariadb_stmt_execute_direct(stmt,"do 1",-1);
+  myquery(rc);
+  mysql_stmt_close(stmt);
+}
+
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
@@ -21179,6 +21187,7 @@ static struct my_tests_st my_tests[]= {
 #endif
   { "test_explain_meta", test_explain_meta },
   { "test_mdev18408", test_mdev18408 },
+  { "test_execute_direct", test_execute_direct},
   { 0, 0 }
 };
 
