@@ -2982,8 +2982,6 @@ fil_ibd_open(
 		ut_ad(srv_log_file_size != 0);
 	}
 
-	ut_ad(fil_type_is_data(purpose));
-
 	/* Table flags can be ULINT_UNDEFINED if
 	dict_tf_to_fsp_flags_failure is set. */
 	if (flags == ULINT_UNDEFINED) {
@@ -4017,8 +4015,7 @@ fil_io(
 
 	/* Open file if closed */
 	if (!fil_node_prepare_for_io(node, space)) {
-		if (fil_type_is_data(space->purpose)
-		    && fil_is_user_tablespace_id(space->id)) {
+		if (fil_is_user_tablespace_id(space->id)) {
 			mutex_exit(&fil_system.mutex);
 
 			if (!ignore) {
@@ -4044,11 +4041,7 @@ fil_io(
 		ut_a(0);
 	}
 
-	/* Check that at least the start offset is within the bounds of a
-	single-table tablespace, including rollback tablespaces. */
-	if (node->size <= cur_page_no
-	    && space->id != TRX_SYS_SPACE
-	    && fil_type_is_data(space->purpose)) {
+	if (space->id && node->size <= cur_page_no) {
 		if (ignore) {
 			/* If we can tolerate the non-existent pages, we
 			should return with DB_ERROR and let caller decide

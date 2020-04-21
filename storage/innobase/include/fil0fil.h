@@ -60,21 +60,6 @@ enum fil_type_t {
 	FIL_TYPE_TABLESPACE,
 };
 
-/** Check if fil_type is any of FIL_TYPE_TEMPORARY, FIL_TYPE_IMPORT
-or FIL_TYPE_TABLESPACE.
-@param[in]	type	variable of type fil_type_t
-@return true if any of FIL_TYPE_TEMPORARY, FIL_TYPE_IMPORT
-or FIL_TYPE_TABLESPACE */
-inline
-bool
-fil_type_is_data(
-	fil_type_t	type)
-{
-	return(type == FIL_TYPE_TEMPORARY
-	       || type == FIL_TYPE_IMPORT
-	       || type == FIL_TYPE_TABLESPACE);
-}
-
 struct fil_node_t;
 
 #endif
