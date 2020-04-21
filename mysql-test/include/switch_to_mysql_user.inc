@@ -1,3 +1,4 @@
+echo # switching from mysql.global_priv to mysql.user;
 disable_query_log;
 rename table mysql.user to mysql.user_bak;
 CREATE TABLE mysql.user (

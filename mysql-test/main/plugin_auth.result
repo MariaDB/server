@@ -354,6 +354,7 @@ uplain@localhost	uplain@localhost
 connection default;
 disconnect cleartext_con;
 DROP USER uplain@localhost;
+# switching from mysql.global_priv to mysql.user
 drop view mysql.user_bak;
 #
 # Bug #59038 : mysql.user.authentication_string column 
