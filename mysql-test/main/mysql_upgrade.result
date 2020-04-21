@@ -630,4 +630,12 @@ drop table mysql.innodb_index_stats, mysql.innodb_table_stats;
 # mysql_upgrade --force --silent 2>&1
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
+drop view mysql.user_bak;
+alter table mysql.user change authentication_string auth_string text collate utf8_bin not null;
+# mysql_upgrade --force --silent 2>&1
+select count(*) from mysql.global_priv;
+count(*)
+4
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
 # End of 10.4 tests

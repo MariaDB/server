@@ -282,4 +282,17 @@ drop table mysql.innodb_index_stats, mysql.innodb_table_stats;
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 
+#
+# MDEV-21244 mysql_upgrade creating empty global_priv table
+#
+--source include/switch_to_mysql_user.inc
+drop view mysql.user_bak;
+alter table mysql.user change authentication_string auth_string text collate utf8_bin not null;
+--echo # mysql_upgrade --force --silent 2>&1
+--exec $MYSQL_UPGRADE --force --silent 2>&1
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+select count(*) from mysql.global_priv;
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+
 --echo # End of 10.4 tests
