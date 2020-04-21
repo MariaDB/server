@@ -1459,7 +1459,7 @@ static int run_sql_command(THD *thd, const char *query)
     return -1;
   }
 
-  mysql_parse(thd, thd->query(), thd->query_length(), &ps, FALSE, FALSE);
+  mysql_parse(thd, thd->query(), thd->query_length(), &ps);
   if (thd->is_error())
   {
     int const err= thd->get_stmt_da()->sql_errno();

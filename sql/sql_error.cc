@@ -302,7 +302,6 @@ void
 Diagnostics_area::reset_diagnostics_area()
 {
   DBUG_ENTER("reset_diagnostics_area");
-  m_skip_flush= FALSE;
 #ifdef DBUG_OFF
   m_can_overwrite_status= FALSE;
   /** Don't take chances in production */

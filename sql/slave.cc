@@ -347,8 +347,7 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
   err= parser_state.init(thd, thd->query(), thd->query_length());
   if (err)
     goto end;
-  mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
-              FALSE, FALSE);
+  mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
   if (unlikely(thd->is_error()))
     err= 1;
   /* The warning is relevant to 10.3 and earlier. */

@@ -36,7 +36,7 @@ static const unsigned int PACKET_BUFFER_EXTRA_ALLOC= 1024;
 bool net_send_error_packet(THD *, uint, const char *, const char *);
 /* Declared non-static only because of the embedded library. */
 bool net_send_ok(THD *, uint, uint, ulonglong, ulonglong, const char *,
-                 bool, bool);
+                 bool);
 /* Declared non-static only because of the embedded library. */
 bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count);
 #ifndef EMBEDDED_LIBRARY
@@ -211,8 +211,7 @@ bool
 net_send_ok(THD *thd,
             uint server_status, uint statement_warn_count,
             ulonglong affected_rows, ulonglong id, const char *message,
-            bool is_eof,
-            bool skip_flush)
+            bool is_eof)
 {
   NET *net= &thd->net;
   StringBuffer<MYSQL_ERRMSG_SIZE + 10> store;
@@ -285,7 +284,7 @@ net_send_ok(THD *thd,
   DBUG_ASSERT(store.length() <= MAX_PACKET_LENGTH);
 
   error= my_net_write(net, (const unsigned char*)store.ptr(), store.length());
-  if (likely(!error) && (!skip_flush || is_eof))
+  if (likely(!error))
     error= net_flush(net);
 
   thd->server_status&= ~SERVER_SESSION_STATE_CHANGED;
@@ -340,7 +339,7 @@ net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
       (thd->get_command() != COM_BINLOG_DUMP ))
   {
     error= net_send_ok(thd, server_status, statement_warn_count, 0, 0, NULL,
-                       true, false);
+                       true);
     DBUG_RETURN(error);
   }
 
@@ -607,16 +606,14 @@ void Protocol::end_statement()
                    thd->get_stmt_da()->statement_warn_count(),
                    thd->get_stmt_da()->affected_rows(),
                    thd->get_stmt_da()->last_insert_id(),
-                   thd->get_stmt_da()->message(),
-                   thd->get_stmt_da()->skip_flush());
+                   thd->get_stmt_da()->message());
     break;
   case Diagnostics_area::DA_DISABLED:
     break;
   case Diagnostics_area::DA_EMPTY:
   default:
     DBUG_ASSERT(0);
-    error= send_ok(thd->server_status, 0, 0, 0, NULL,
-                   thd->get_stmt_da()->skip_flush());
+    error= send_ok(thd->server_status, 0, 0, 0, NULL);
     break;
   }
   if (likely(!error))
@@ -635,12 +632,12 @@ void Protocol::end_statement()
 
 bool Protocol::send_ok(uint server_status, uint statement_warn_count,
                        ulonglong affected_rows, ulonglong last_insert_id,
-                       const char *message, bool skip_flush)
+                       const char *message)
 {
   DBUG_ENTER("Protocol::send_ok");
   const bool retval=
     net_send_ok(thd, server_status, statement_warn_count,
-                affected_rows, last_insert_id, message, false, skip_flush);
+                affected_rows, last_insert_id, message, false);
   DBUG_RETURN(retval);
 }
 

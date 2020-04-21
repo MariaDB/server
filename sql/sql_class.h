@@ -824,7 +824,6 @@ typedef struct system_status_var
   ulong com_create_tmp_table;
   ulong com_drop_tmp_table;
   ulong com_other;
-  ulong com_multi;
 
   ulong com_stmt_prepare;
   ulong com_stmt_reprepare;
@@ -6852,10 +6851,6 @@ public:
 #define CF_SKIP_WSREP_CHECK     0
 #endif /* WITH_WSREP */
 
-/**
-  Do not allow it for COM_MULTI batch
-*/
-#define CF_NO_COM_MULTI         (1U << 3)
 
 /* Inline functions */
 

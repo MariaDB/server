@@ -18,7 +18,7 @@ enum enum_server_command
   COM_SLAVE_WORKER=251,
   COM_SLAVE_IO=252,
   COM_SLAVE_SQL=253,
-  COM_MULTI=254,
+  COM_RESERVED_1=254,
   COM_END=255
 };
 enum enum_indicator_type
