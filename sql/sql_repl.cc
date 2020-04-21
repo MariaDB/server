@@ -3940,7 +3940,7 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
   }
 
 #ifdef WITH_WSREP
-  if (WSREP_ON)
+  if (WSREP(thd))
   {
     /* RESET MASTER will initialize GTID sequence, and that would happen locally
        in this node, so better reject it

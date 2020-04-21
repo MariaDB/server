@@ -88,6 +88,15 @@ static bool refresh_provider_options()
   }
 }
 
+static void wsrep_set_wsrep_on(void)
+{
+  if (global_system_variables.wsrep_on && wsrep_provider &&
+      strcmp(wsrep_provider, WSREP_NONE))
+    WSREP_ON= true;
+  else
+    WSREP_ON= false;
+}
+
 /* This is intentionally declared as a weak global symbol, so that
 linking will succeed even if the server is built with a dynamically
 linked InnoDB. */
@@ -121,6 +130,8 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 
     thd->variables.wsrep_on= global_system_variables.wsrep_on= saved_wsrep_on;
   }
+
+  wsrep_set_wsrep_on();
 
   return false;
 }
@@ -378,6 +389,7 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
   if (!rcode)
     refresh_provider_options();
 
+  wsrep_set_wsrep_on();
   mysql_mutex_lock(&LOCK_global_system_variables);
 
   return rcode;
@@ -397,6 +409,7 @@ void wsrep_provider_init (const char* value)
 
   if (wsrep_provider) my_free((void *)wsrep_provider);
   wsrep_provider= my_strdup(value, MYF(0));
+  wsrep_set_wsrep_on();
 }
 
 bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
@@ -875,6 +888,8 @@ static void export_wsrep_status_to_mysql(THD* thd)
 
 int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff)
 {
+  /* Note that we should allow show status like 'wsrep%' even
+  when WSREP(thd) is false. */
   if (WSREP_ON)
   {
     export_wsrep_status_to_mysql(thd);

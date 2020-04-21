@@ -320,10 +320,15 @@ int wsrep_abort_thd(THD *bf_thd_ptr, THD *victim_thd_ptr, my_bool signal)
   DBUG_ENTER("wsrep_abort_thd");
   THD *victim_thd= (THD *) victim_thd_ptr;
   THD *bf_thd= (THD *) bf_thd_ptr;
+
   mysql_mutex_lock(&victim_thd->LOCK_thd_data);
-  if ( (WSREP(bf_thd) ||
-         ( (WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU) &&
-           wsrep_thd_is_toi(bf_thd)) )                         &&
+
+  /* Note that when you use RSU node is desynced from cluster, thus WSREP(thd)
+  might not be true.
+  */
+  if ((WSREP(bf_thd) ||
+       ((WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU) &&
+	 wsrep_thd_is_toi(bf_thd))) &&
        victim_thd &&
        !wsrep_thd_is_aborting(victim_thd))
   {
@@ -337,6 +342,7 @@ int wsrep_abort_thd(THD *bf_thd_ptr, THD *victim_thd_ptr, my_bool signal)
   {
     WSREP_DEBUG("wsrep_abort_thd not effective: %p %p", bf_thd, victim_thd);
   }
+
   mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   DBUG_RETURN(1);
 }

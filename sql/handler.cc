@@ -2131,6 +2131,11 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
          the prepare.
       */
       my_xid wsrep_limit __attribute__((unused))= 0;
+
+      /* Note that we could call this for binlog also that
+         will not have WSREP(thd) but global wsrep on might
+         be true.
+      */
       if (WSREP_ON)
         wsrep_limit= wsrep_order_and_check_continuity(info->list, got);
 

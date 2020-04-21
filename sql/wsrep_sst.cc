@@ -367,6 +367,7 @@ void wsrep_sst_received (THD*                thd,
       my_pthread_setspecific_ptr(THR_THD, NULL);
     }
 
+    /* During sst WSREP(thd) is not yet set for joiner. */
     if (WSREP_ON)
     {
       int const rcode(seqno < 0 ? seqno : 0);

@@ -18,6 +18,8 @@
 
 #include <wsrep.h>
 
+extern my_bool WSREP_ON;
+
 #ifdef WITH_WSREP
 
 #include <mysql/plugin.h>
@@ -213,15 +215,11 @@ extern void wsrep_prepend_PATH (const char* path);
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
-#define WSREP_ON                         \
-  ((global_system_variables.wsrep_on) && \
-   wsrep_provider                     && \
-   strcmp(wsrep_provider, WSREP_NONE))
 
 /* use xxxxxx_NNULL macros when thd pointer is guaranteed to be non-null to
  * avoid compiler warnings (GCC 6 and later) */
-#define WSREP_NNULL(thd) \
-  (WSREP_ON && thd->variables.wsrep_on)
+
+#define WSREP_NNULL(thd) (WSREP_ON && thd->variables.wsrep_on)
 
 #define WSREP(thd) \
   (thd && WSREP_NNULL(thd))
@@ -484,7 +482,6 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
 
 #define WSREP(T)  (0)
 #define WSREP_NNULL(T) (0)
-#define WSREP_ON  (0)
 #define WSREP_EMULATE_BINLOG(thd) (0)
 #define WSREP_EMULATE_BINLOG_NNULL(thd) (0)
 #define WSREP_BINLOG_FORMAT(my_format) ((ulong)my_format)
