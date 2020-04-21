@@ -8,6 +8,8 @@ etc/apparmor.d/usr.sbin.mysqld
 etc/security/user_map.conf
 lib/*/security/pam_user_map.so
 lib/systemd/system/mariadb@bootstrap.service.d/use_galera_new_cluster.conf
+lib/systemd/system/mysql.service
+lib/systemd/system/mysqld.service
 usr/bin/aria_chk
 usr/bin/aria_dump_log
 usr/bin/aria_ftdump

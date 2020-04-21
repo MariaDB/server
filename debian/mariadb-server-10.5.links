@@ -1,5 +1,3 @@
-lib/systemd/system/mariadb.service lib/systemd/system/mysql.service
-lib/systemd/system/mariadb.service lib/systemd/system/mysqld.service
 usr/bin/mariadb-binlog usr/bin/mysqlbinlog
 usr/bin/mariadb-convert-table-format usr/bin/mysql_convert_table_format
 usr/bin/mariadb-hotcopy usr/bin/mysqlhotcopy
