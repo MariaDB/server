@@ -8146,8 +8146,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   Field **f_ptr,*field;
   MY_BITMAP *dropped_fields= NULL; // if it's NULL - no dropped fields
   bool drop_period= false;
-  LEX_CSTRING period_start_name;
-  LEX_CSTRING period_end_name;
+  LEX_CSTRING period_start_name= {nullptr, 0};
+  LEX_CSTRING period_end_name= {nullptr, 0};
   if (table->s->period.name)
   {
     period_start_name= table->s->period_start_field()->field_name;
