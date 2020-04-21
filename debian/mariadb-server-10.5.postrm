@@ -89,3 +89,8 @@ if [ "$1" = "purge" ] && [ -f "/var/lib/mysql/debian-$MAJOR_VER.flag" ]; then
 fi
 
 #DEBHELPER#
+
+# Modified dh_systemd_start snippet that's not added automatically
+if [ -d /run/systemd/system ]; then
+	systemctl --system daemon-reload >/dev/null || true
+fi
