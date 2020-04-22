@@ -614,7 +614,8 @@ private:
 #ifdef UNIV_DEBUG
 public:
   /** @return whether the mini-transaction is active */
-  bool is_active() const { ut_ad(!m_commit || m_start); return m_start; }
+  bool is_active() const
+  { ut_ad(!m_commit || m_start); return m_start && !m_commit; }
   /** @return whether the mini-transaction has been committed */
   bool has_committed() const { ut_ad(!m_commit || m_start); return m_commit; }
 private:

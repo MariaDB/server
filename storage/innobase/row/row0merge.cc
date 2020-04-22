@@ -1984,7 +1984,7 @@ row_merge_read_clustered_index(
 				os_thread_yield();
 scan_next:
 				ut_ad(!mtr_started);
-				ut_ad(mtr.is_active());
+				ut_ad(!mtr.is_active());
 				mtr.start();
 				mtr_started = true;
 				/* Restore position on the record, or its
