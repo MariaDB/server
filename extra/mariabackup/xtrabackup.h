@@ -195,4 +195,14 @@ void mdl_lock_init();
 void mdl_lock_table(ulint space_id);
 void mdl_unlock_all();
 bool ends_with(const char *str, const char *suffix);
+
+typedef void (*insert_entry_func_t)(const char*);
+
+/* Scan string and load filter entries from it.
+@param[in] list string representing a list
+@param[in] delimiters delimiters of entries
+@param[in] ins callback to add entry */
+void xb_load_list_string(char *list, const char *delimiters,
+                         insert_entry_func_t ins);
+void register_ignore_db_dirs_filter(const char *name);
 #endif /* XB_XTRABACKUP_H */

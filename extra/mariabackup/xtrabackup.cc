@@ -3643,6 +3643,11 @@ xb_register_exclude_filter_entry(
 				 &tables_exclude_hash);
 }
 
+void register_ignore_db_dirs_filter(const char *name)
+{
+  xb_add_filter(name, &databases_exclude_hash);
+}
+
 /***********************************************************************
 Register new table for the filter.  */
 static
@@ -3705,26 +3710,24 @@ xb_register_exclude_regex(
 
 typedef void (*insert_entry_func_t)(const char*);
 
-/***********************************************************************
-Scan string and load filter entries from it.  */
-static
-void
-xb_load_list_string(
-/*================*/
-	char* list,			/*!< in: string representing a list */
-	const char* delimiters,		/*!< in: delimiters of entries */
-	insert_entry_func_t ins)	/*!< in: callback to add entry */
+/* Scan string and load filter entries from it.
+@param[in] list string representing a list
+@param[in] delimiters delimiters of entries
+@param[in] ins callback to add entry */
+void xb_load_list_string(char *list, const char *delimiters,
+                         insert_entry_func_t ins)
 {
-	char*	p;
-	char*	saveptr;
+  char *p;
+  char *saveptr;
 
-	p = strtok_r(list, delimiters, &saveptr);
-	while (p) {
+  p= strtok_r(list, delimiters, &saveptr);
+  while (p)
+  {
 
-		ins(p);
+    ins(p);
 
-		p = strtok_r(NULL, delimiters, &saveptr);
-	}
+    p= strtok_r(NULL, delimiters, &saveptr);
+  }
 }
 
 /***********************************************************************
