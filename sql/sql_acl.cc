@@ -1425,9 +1425,12 @@ class User_table_json: public User_table
 
   bool set_auth(const ACL_USER &u) const
   {
-    StringBuffer<JSON_SIZE> json(m_table->field[2]->charset());
-    if (u.nauth == 1)
+    size_t array_len;
+    const char *array;
+    if (u.nauth == 1 && get_value("auth_or", JSV_ARRAY, &array, &array_len))
       return set_auth1(u, 0);
+
+    StringBuffer<JSON_SIZE> json(m_table->field[2]->charset());
     bool top_done = false;
     json.append('[');
     for (uint i=0; i < u.nauth; i++)
