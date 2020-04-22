@@ -12,6 +12,9 @@ INSERT INTO t1 VALUES ('node1_committed_before');
 COMMIT;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
+
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node2_committed_before');
