@@ -9349,8 +9349,10 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   }
   if (!(def_field= (Field*) thd->alloc(field_arg->field->size_of())))
     goto error;
+  cached_field= def_field;
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
+  def_field->reset_fields();
   // If non-constant default value expression
   if (def_field->default_value && def_field->default_value->flags)
   {
@@ -9378,6 +9380,12 @@ error:
   return TRUE;
 }
 
+void Item_default_value::cleanup()
+{
+  delete cached_field;                        // Free cached blob data
+  cached_field= 0;
+  Item_field::cleanup();
+}
 
 void Item_default_value::print(String *str, enum_query_type query_type)
 {

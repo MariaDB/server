@@ -235,7 +235,9 @@ wsrep_recover_position() {
   fi
 
   if [ -f $wr_logfile ]; then
-    [ "$euid" = "0" ] && chown $user $wr_logfile
+    # NOTE! Do not change ownership of the temporary file, as on newer kernel
+    # versions fs.protected_regular is set to '2' and redirecting output with >
+    # as root to a file not owned by root will fail with "Permission denied"
     chmod 600 $wr_logfile
   else
     log_error "WSREP: mktemp failed"
@@ -249,6 +251,11 @@ wsrep_recover_position() {
   log_notice "WSREP: Running position recovery with $wr_options"
 
   eval "$mysqld_cmd --wsrep_recover $wr_options 2> $wr_logfile"
+
+  if [ ! -s "$wr_logfile" ]; then
+    log_error "Log file $wr_logfile was empty, cannot proceed. Is system running fs.protected_regular?"
+    exit 1
+  fi
 
   local rp="$(grep 'WSREP: Recovered position:' $wr_logfile)"
   if [ -z "$rp" ]; then
