@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4680,6 +4680,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   double roru_index_costs;
   ha_rows roru_total_records;
   double roru_intersect_part= 1.0;
+  bool only_ror_scans_required= FALSE;
   size_t n_child_scans;
   DBUG_ENTER("get_best_disjunct_quick");
   DBUG_PRINT("info", ("Full table scan cost: %g", read_time));
@@ -4706,6 +4707,9 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                              sizeof(TRP_RANGE*)*
                                              n_child_scans)))
     DBUG_RETURN(NULL);
+
+  only_ror_scans_required= !optimizer_flag(param->thd,
+                                      OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION);
   /*
     Collect best 'range' scan for each of disjuncts, and, while doing so,
     analyze possibility of ROR scans. Also calculate some values needed by
@@ -4718,7 +4722,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     DBUG_EXECUTE("info", print_sel_tree(param, *ptree, &(*ptree)->keys_map,
                                         "tree in SEL_IMERGE"););
     if (!(*cur_child= get_key_scans_params(param, *ptree, TRUE, FALSE,
-                                           read_time, TRUE)))
+                                           read_time,
+                                           only_ror_scans_required)))
     {
       /*
         One of index scans in this index_merge is more expensive than entire
@@ -5040,7 +5045,7 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
          index merge retrievals are not well calibrated
     */
     trp= get_key_scans_params(param, *imerge->trees, FALSE, TRUE,
-                              read_time, TRUE);
+                              read_time, FALSE);
   }
 
   DBUG_RETURN(trp); 
@@ -6768,7 +6773,8 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
       index_read_must_be_used if TRUE, assume 'index only' option will be set
                              (except for clustered PK indexes)
       read_time    don't create read plans with cost > read_time.
-      ror_scans_required           set to TRUE for index merge
+      only_ror_scans_required         set to TRUE when we are only interested
+                                      in ROR scan
   RETURN
     Best range read plan
     NULL if no plan found or error occurred
@@ -6778,7 +6784,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used, 
                                        bool update_tbl_stats,
                                        double read_time,
-                                       bool ror_scans_required)
+                                       bool only_ror_scans_required)
 {
   uint idx, UNINIT_VAR(best_idx);
   SEL_ARG *key_to_read= NULL;
@@ -6826,8 +6832,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                         update_tbl_stats, &mrr_flags,
                                         &buf_size, &cost);
 
-      if (ror_scans_required && !param->is_ror_scan &&
-          !optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION))
+      if (only_ror_scans_required && !param->is_ror_scan)
       {
         /* The scan is not a ROR-scan, just skip it */
         continue;

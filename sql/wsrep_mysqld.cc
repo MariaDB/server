@@ -259,6 +259,17 @@ static void wsrep_log_cb(wsrep_log_level_t level, const char *msg) {
   }
 }
 
+void wsrep_log(void (*fun)(const char *, ...), const char *format, ...)
+{
+  va_list args;
+  char msg[1024];
+  va_start(args, format);
+  vsnprintf(msg, sizeof(msg) - 1, format, args);
+  va_end(args);
+  (fun)("WSREP: %s", msg);
+}
+
+
 static void wsrep_log_states (wsrep_log_level_t   const level,
                               const wsrep_uuid_t* const group_uuid,
                               wsrep_seqno_t       const group_seqno,
