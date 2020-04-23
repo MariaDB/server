@@ -1675,6 +1675,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     {
       table= best_table;
       table->query_id= thd->query_id;
+      table->init(thd, table_list);
       DBUG_PRINT("info",("Using locked table"));
       goto reset;
     }
@@ -1959,11 +1960,12 @@ retry_share:
   }
 
   table->mdl_ticket= mdl_ticket;
+  table->reginfo.lock_type=TL_READ;		/* Assume read */
+
+  table->init(thd, table_list);
 
   table->next= thd->open_tables;		/* Link into simple list */
   thd->set_open_tables(table);
-
-  table->reginfo.lock_type=TL_READ;		/* Assume read */
 
  reset:
   /*
@@ -1988,8 +1990,6 @@ retry_share:
     DBUG_RETURN(true);
   }
 #endif
-
-  table->init(thd, table_list);
 
   DBUG_RETURN(FALSE);
 
