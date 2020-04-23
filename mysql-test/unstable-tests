@@ -173,7 +173,6 @@ main.status                           : MDEV-13255 - Wrong result
 main.subselect                        : MDEV-20551 - Valgrind failure
 main.subselect_innodb                 : MDEV-10614 - Wrong result
 main.tc_heuristic_recover             : MDEV-14189 - Wrong result
-main.thread_pool_info                 : MDEV-20372 - thread_pool_info fails randomly in 10.5
 main.timezone2                        : Modified in 10.4.12
 main.tls_version                      : MDEV-21965 - old TLS versions don't work on latest Debian and Ubuntu releases
 main.tls_version1                     : MDEV-21965 - old TLS versions don't work on latest Debian and Ubuntu releases
