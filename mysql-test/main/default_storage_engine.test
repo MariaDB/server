@@ -5,6 +5,8 @@ if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'in
 
 let $cmd=`select replace("$MYSQLD_BOOTSTRAP_CMD --skip-innodb", " --default-storage-engine=myisam", "")`;
 
+--source include/kill_mysqld.inc
+
 #
 # Now it *must* fail, because if InnoDB is compiled in, it is used as a default
 # storage engine. but $cmd includes --skip-innodb
@@ -14,3 +16,4 @@ exec $cmd;
 
 echo "all ok"; # to not have zero-length result file
 
+--source include/start_mysqld.inc
