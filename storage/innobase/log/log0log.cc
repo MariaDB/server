@@ -773,7 +773,7 @@ void log_t::file::write_header_durable(lsn_t lsn)
         log_sys.log.format == log_t::FORMAT_ENC_10_5);
 
   // man 2 open suggests this buffer to be aligned by 512 for O_DIRECT
-  alignas(OS_FILE_LOG_BLOCK_SIZE) byte buf[OS_FILE_LOG_BLOCK_SIZE] = {0};
+  MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE) byte buf[OS_FILE_LOG_BLOCK_SIZE] = {0};
 
   mach_write_to_4(buf + LOG_HEADER_FORMAT, log_sys.log.format);
   mach_write_to_4(buf + LOG_HEADER_SUBFORMAT, log_sys.log.subformat);
