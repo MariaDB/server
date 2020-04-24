@@ -2206,6 +2206,7 @@ row_upd_store_v_row(
 @param[in]	thd		mysql thread handle
 @param[in,out]	mysql_table	NULL, or mysql table object when
 				user thread invokes dml */
+static
 void
 row_upd_store_row(
 	upd_node_t*	node,
