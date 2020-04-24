@@ -770,10 +770,7 @@ int wsrep_init()
 
   global_system_variables.wsrep_on= 1;
 
-  if (wsrep_provider && strcmp(wsrep_provider, WSREP_NONE))
-    WSREP_ON= true;
-  else
-    WSREP_ON= false;
+  WSREP_ON_= wsrep_provider && strcmp(wsrep_provider, WSREP_NONE);
 
   if (wsrep_gtid_mode && opt_bin_log && !opt_log_slave_updates)
   {

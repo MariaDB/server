@@ -18,9 +18,8 @@
 
 #include <wsrep.h>
 
-extern my_bool WSREP_ON;
-
 #ifdef WITH_WSREP
+extern bool WSREP_ON_;
 
 #include <mysql/plugin.h>
 #include "mysql/service_wsrep.h"
@@ -215,6 +214,7 @@ extern void wsrep_prepend_PATH (const char* path);
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
+#define WSREP_ON unlikely(WSREP_ON_)
 
 /* use xxxxxx_NNULL macros when thd pointer is guaranteed to be non-null to
  * avoid compiler warnings (GCC 6 and later) */
@@ -480,6 +480,7 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
 /* These macros are needed to compile MariaDB without WSREP support
  * (e.g. embedded) */
 
+#define WSREP_ON false
 #define WSREP(T)  (0)
 #define WSREP_NNULL(T) (0)
 #define WSREP_EMULATE_BINLOG(thd) (0)

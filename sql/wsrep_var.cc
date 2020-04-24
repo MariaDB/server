@@ -88,13 +88,10 @@ static bool refresh_provider_options()
   }
 }
 
-static void wsrep_set_wsrep_on(void)
+static void wsrep_set_wsrep_on()
 {
-  if (global_system_variables.wsrep_on && wsrep_provider &&
-      strcmp(wsrep_provider, WSREP_NONE))
-    WSREP_ON= true;
-  else
-    WSREP_ON= false;
+  WSREP_ON_= global_system_variables.wsrep_on && wsrep_provider &&
+    strcmp(wsrep_provider, WSREP_NONE);
 }
 
 /* This is intentionally declared as a weak global symbol, so that
