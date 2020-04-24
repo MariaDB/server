@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -62,11 +62,13 @@
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
 // set that from field length in acl_load?
 const uint max_hostname_length= 60;
 const uint max_dbname_length= 64;
 
 #include "sql_acl_getsort.ic"
+#endif
 
 static LEX_CSTRING native_password_plugin_name= {
   STRING_WITH_LEN("mysql_native_password")
