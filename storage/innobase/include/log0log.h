@@ -523,7 +523,7 @@ struct log_t{
 
 private:
   /** The log sequence number of the last change of durable InnoDB files */
-  alignas(CACHE_LINE_SIZE)
+  MY_ALIGNED(CACHE_LINE_SIZE)
   std::atomic<lsn_t> lsn;
   /** the first guaranteed-durable log sequence number */
   std::atomic<lsn_t> flushed_to_disk_lsn;
