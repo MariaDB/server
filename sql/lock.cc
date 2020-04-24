@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1102,13 +1103,15 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
   {
     Wsrep_server_state& server_state= Wsrep_server_state::instance();
     if (server_state.state() == Wsrep_server_state::s_donor ||
-        (wsrep_on(thd) && server_state.state() != Wsrep_server_state::s_synced))
+        (WSREP_NNULL(thd) &&
+         server_state.state() != Wsrep_server_state::s_synced))
     {
       /* TODO: maybe redundant here?: */
       wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
       server_state.resume();
     }
-    else if (wsrep_on(thd) && server_state.state() == Wsrep_server_state::s_synced)
+    else if (WSREP_NNULL(thd) &&
+             server_state.state() == Wsrep_server_state::s_synced)
     {
       server_state.resume_and_resync();
     }
@@ -1164,11 +1167,13 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   Wsrep_server_state& server_state= Wsrep_server_state::instance();
   wsrep::seqno paused_seqno;
   if (server_state.state() == Wsrep_server_state::s_donor ||
-      (wsrep_on(thd) && server_state.state() != Wsrep_server_state::s_synced))
+      (WSREP_NNULL(thd) &&
+       server_state.state() != Wsrep_server_state::s_synced))
   {
     paused_seqno= server_state.pause();
   }
-  else if (wsrep_on(thd) && server_state.state() == Wsrep_server_state::s_synced)
+  else if (WSREP_NNULL(thd) &&
+           server_state.state() == Wsrep_server_state::s_synced)
   {
     paused_seqno= server_state.desync_and_pause();
   }

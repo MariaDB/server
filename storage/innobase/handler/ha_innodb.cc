@@ -4366,7 +4366,7 @@ innobase_commit_low(
 #ifdef WITH_WSREP
 	THD* thd = (THD*)trx->mysql_thd;
 	const char* tmp = 0;
-	if (thd && wsrep_on(thd)) {
+	if (wsrep_on(thd)) {
 #ifdef WSREP_PROC_INFO
 		char info[64];
 		info[sizeof(info) - 1] = '\0';
@@ -4386,7 +4386,7 @@ innobase_commit_low(
 	}
 	trx->will_lock = 0;
 #ifdef WITH_WSREP
-	if (thd && wsrep_on(thd)) { thd_proc_info(thd, tmp); }
+	if (wsrep_on(thd)) { thd_proc_info(thd, tmp); }
 #endif /* WITH_WSREP */
 }
 
