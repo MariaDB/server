@@ -60,7 +60,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
     rgi->last_master_timestamp= ev->when + (time_t)ev->exec_time;
   err= apply_event_and_update_pos_for_parallel(ev, thd, rgi);
 
-  thread_safe_increment64(&rli->executed_entries);
+  rli->executed_entries++;
 #ifdef WITH_WSREP
   if (wsrep_after_statement(thd))
   {

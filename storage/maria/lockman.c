@@ -109,6 +109,7 @@
 #include <my_sys.h>
 #include <my_bit.h>
 #include <lf.h>
+#include "my_cpu.h"
 #include "lockman.h"
 
 /*

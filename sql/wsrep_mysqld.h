@@ -19,6 +19,7 @@
 #include <wsrep.h>
 
 #ifdef WITH_WSREP
+extern bool WSREP_ON_;
 
 #include <mysql/plugin.h>
 #include "mysql/service_wsrep.h"
@@ -214,15 +215,12 @@ extern void wsrep_prepend_PATH (const char* path);
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
-#define WSREP_ON                         \
-  ((global_system_variables.wsrep_on) && \
-   wsrep_provider                     && \
-   strcmp(wsrep_provider, WSREP_NONE))
+#define WSREP_ON unlikely(WSREP_ON_)
 
 /* use xxxxxx_NNULL macros when thd pointer is guaranteed to be non-null to
  * avoid compiler warnings (GCC 6 and later) */
-#define WSREP_NNULL(thd) \
-  (thd->variables.wsrep_on && WSREP_ON)
+
+#define WSREP_NNULL(thd) (WSREP_ON && thd->variables.wsrep_on)
 
 #define WSREP(thd) \
   (thd && WSREP_NNULL(thd))
@@ -243,13 +241,9 @@ extern wsrep_seqno_t wsrep_locked_seqno;
    ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?     \
    wsrep_forced_binlog_format : my_format)
 
-// prefix all messages with "WSREP"
-#define WSREP_LOG(fun, ...)                                       \
-    do {                                                          \
-        char msg[1024]= {'\0'};                                  \
-        snprintf(msg, sizeof(msg) - 1, ## __VA_ARGS__);           \
-        fun("WSREP: %s", msg);                                    \
-    } while(0)
+/* A wrapper function for MySQL log functions. The call will prefix
+   the log message with WSREP and forward the result buffer to fun. */
+void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...);
 
 #define WSREP_DEBUG(...)                                                \
     if (wsrep_debug)     sql_print_information( "WSREP: " __VA_ARGS__)
@@ -615,9 +609,9 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
 /* These macros are needed to compile MariaDB without WSREP support
  * (e.g. embedded) */
 
+#define WSREP_ON false
 #define WSREP(T)  (0)
 #define WSREP_NNULL(T) (0)
-#define WSREP_ON  (0)
 #define WSREP_EMULATE_BINLOG(thd) (0)
 #define WSREP_EMULATE_BINLOG_NNULL(thd) (0)
 #define WSREP_BINLOG_FORMAT(my_format) ((ulong)my_format)

@@ -86,7 +86,7 @@ public:
   Well_formed_prefix(CHARSET_INFO *cs, const char *str, size_t length)
    :Well_formed_prefix_status(cs, str, str + length, length), m_str(str)
   { }
-  Well_formed_prefix(CHARSET_INFO *cs, LEX_STRING str, size_t nchars)
+  Well_formed_prefix(CHARSET_INFO *cs, LEX_CSTRING str, size_t nchars)
    :Well_formed_prefix_status(cs, str.str, str.str + str.length, nchars),
     m_str(str.str)
   { }

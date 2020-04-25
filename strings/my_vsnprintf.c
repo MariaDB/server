@@ -153,12 +153,15 @@ static const char *check_longlong(const char *fmt, uint *have_longlong)
 */
 
 static char *backtick_string(CHARSET_INFO *cs, char *to, const char *end,
-                             char *par, size_t par_len, char quote_char)
+                             char *par, size_t par_len, char quote_char,
+                             my_bool cut)
 {
+  char *last[3]= {0,0,0};
   uint char_len;
   char *start= to;
   char *par_end= par + par_len;
   size_t buff_length= (size_t) (end - to);
+  uint index= 0;
 
   if (buff_length <= par_len)
     goto err;
@@ -167,6 +170,11 @@ static char *backtick_string(CHARSET_INFO *cs, char *to, const char *end,
   for ( ; par < par_end; par+= char_len)
   {
     uchar c= *(uchar *) par;
+    if (cut)
+    {
+      last[index]= start;
+      index= (index + 1) % 3;
+    }
     char_len= my_ci_charlen_fix(cs, (const uchar *) par, (const uchar *) par_end);
     if (char_len == 1 && c == (uchar) quote_char )
     {
@@ -178,9 +186,30 @@ static char *backtick_string(CHARSET_INFO *cs, char *to, const char *end,
       goto err;
     start= strnmov(start, par, char_len);
   }
-    
+
   if (start + 1 >= end)
     goto err;
+
+  if (cut)
+  {
+    uint dots= 0;
+    start= NULL;
+    for (; dots < 3; dots++)
+    {
+      if (index == 0)
+        index= 2;
+      else
+        index--;
+      if (!last[index])
+        break;
+      start= last[index];
+    }
+    if (start == NULL)
+      goto err; // there was no characters at all
+    for (; dots; dots--)
+      *start++= '.';
+
+  }
   *start++= quote_char;
   return start;
 
@@ -198,18 +227,45 @@ static char *process_str_arg(CHARSET_INFO *cs, char *to, const char *end,
                              size_t width, char *par, uint print_type)
 {
   int well_formed_error;
-  size_t plen, left_len= (size_t) (end - to) + 1;
+  uint dots= 0;
+  size_t plen, left_len= (size_t) (end - to) + 1, slen=0;
   if (!par)
     par = (char*) "(null)";
 
-  plen= strnlen(par, width);
+  plen= slen= strnlen(par, width + 1);
+  if (plen > width)
+    plen= width;
   if (left_len <= plen)
     plen = left_len - 1;
+  if ((slen > plen))
+  {
+    if (plen < 3)
+    {
+      dots= (uint) plen;
+      plen= 0;
+    }
+    else
+    {
+      dots= 3;
+      plen-= 3;
+    }
+  }
+
   plen= my_well_formed_length(cs, par, par + plen, width, &well_formed_error);
   if (print_type & ESCAPED_ARG)
-    to= backtick_string(cs, to, end, par, plen, '`');
+  {
+    to= backtick_string(cs, to, end, par, plen + dots, '`', MY_TEST(dots));
+    dots= 0;
+  }
   else
     to= strnmov(to,par,plen);
+
+  if (dots)
+  {
+    for (; dots; dots--)
+      *(to++)= '.';
+    *(to)= 0;
+  }
   return to;
 }
 

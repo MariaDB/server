@@ -1329,7 +1329,7 @@ select group_concat(grp limit "sdjadjs") from t1
 select grp,group_concat(c limit 5.5) from t1 group by grp ;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"sdjadjs") from t1
 --error ER_PARSE_ERROR
-select grp,group_concat(c limit 5.5) f' at line 1
+select grp,group_concat(c limit 5.5...' at line 1
 select grp,group_concat(distinct c limit 1,10 ) from t1 group by grp;
 grp	group_concat(distinct c limit 1,10 )
 1	c

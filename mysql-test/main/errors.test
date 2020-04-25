@@ -203,6 +203,8 @@ drop table t1;
 #
 # errors caused by max_session_mem_used
 #
+set @max_session_mem_used_save= @@max_session_mem_used;
+
 --disable_result_log
 set max_session_mem_used = 50000;
 --error 0,ER_OPTION_PREVENTS_STATEMENT
@@ -214,6 +216,24 @@ select * from seq_1_to_1000;
 # We may not be able to execute any more queries with this connection
 # because of too little memory#
 
+set max_session_mem_used = @max_session_mem_used_save;
+
+--echo #
+--echo # MDEV-20604: Duplicate key value is silently truncated to 64
+--echo # characters in print_keydup_error
+--echo #
+
+create table t1 (a varchar(100), UNIQUE KEY akey (a));
+
+insert into t1 values ("1234567890123456789012345678901234567890123456789012345678901234567890_end");
+--echo # The value in the error message should show truncation with "..."
+--error ER_DUP_ENTRY
+insert into t1 values ("1234567890123456789012345678901234567890123456789012345678901234567890_end");
+
+drop table t1;
+
+
+--echo # End of 10.2 tests
 
 --echo #
 --echo # MDEV-14269 errors.test fails with valgrind (Conditional jump or move depends on uninitialised value)
@@ -224,3 +244,5 @@ SET NAMES utf8;
 SELECT UPDATEXML(-73 * -2465717823867977728,@@global.auto_increment_increment,null);
 --error ER_DATA_OUT_OF_RANGE
 SELECT UPDATEXML(-73 * -2465717823867977728,@@global.long_query_time,null);
+
+-- echo # End of 10.3 tests

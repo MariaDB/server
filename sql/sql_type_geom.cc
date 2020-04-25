@@ -872,7 +872,7 @@ int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
 
       my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0),
                Geometry::ci_collection[m_type_handler->geometry_type()]->m_name.str,
-	       wkt.c_ptr(),
+	       wkt.c_ptr_safe(),
                db, tab_name, field_name.str,
                (ulong) table->in_use->get_stmt_da()->
                current_row_for_warning());

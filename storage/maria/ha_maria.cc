@@ -3719,7 +3719,10 @@ static int ha_maria_init(void *p)
   maria_assert_if_crashed_table= debug_assert_if_crashed_table;
 
   if (res)
+  {
     maria_hton= 0;
+    maria_panic(HA_PANIC_CLOSE);
+  }
 
   ma_killed= ma_killed_in_mariadb;
   if (res)

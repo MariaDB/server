@@ -13,7 +13,7 @@ enum Wsrep_service_key_type
 
 #else
 
-/* Copyright (c) 2015 MariaDB Corporation Ab
+/* Copyright (c) 2015, 2020, MariaDB Corporation Ab
                  2018 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
@@ -100,7 +100,7 @@ extern struct wsrep_service_st {
 #define wsrep_is_wsrep_xid(X) wsrep_service->wsrep_is_wsrep_xid_func(X)
 #define wsrep_xid_seqno(X) wsrep_service->wsrep_xid_seqno_func(X)
 #define wsrep_xid_uuid(X) wsrep_service->wsrep_xid_uuid_func(X)
-#define wsrep_on(X) wsrep_service->wsrep_on_func(X)
+#define wsrep_on(thd) (thd) && WSREP_ON && wsrep_service->wsrep_on_func(thd)
 #define wsrep_prepare_key_for_innodb(A,B,C,D,E,F,G) wsrep_service->wsrep_prepare_key_for_innodb_func(A,B,C,D,E,F,G)
 #define wsrep_thd_LOCK(T) wsrep_service->wsrep_thd_LOCK_func(T)
 #define wsrep_thd_UNLOCK(T) wsrep_service->wsrep_thd_UNLOCK_func(T)

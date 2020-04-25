@@ -22,17 +22,16 @@ set global server_audit_file_path='server_audit.log';
 set global server_audit_output_type=file;
 set global server_audit_logging=on;
 set global server_audit_incl_users= repeat("'root',", 10000);
-ERROR 42000: Variable 'server_audit_incl_users' can't be set to the value of ''root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','roo'
+ERROR 42000: Variable 'server_audit_incl_users' can't be set to the value of ''root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','...'
 show variables like 'server_audit_incl_users';
 Variable_name	Value
 server_audit_incl_users	
 set global server_audit_excl_users= repeat("'root',", 10000);
-ERROR 42000: Variable 'server_audit_excl_users' can't be set to the value of ''root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','roo'
+ERROR 42000: Variable 'server_audit_excl_users' can't be set to the value of ''root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','...'
 show variables like 'server_audit_excl_users';
 Variable_name	Value
 server_audit_excl_users	
 connect  con1,localhost,root,,mysql;
-connection default;
 disconnect con1;
 connect(localhost,no_such_user,,mysql,MASTER_PORT,MASTER_SOCKET);
 connect  con1,localhost,no_such_user,,mysql;
@@ -99,7 +98,6 @@ set global server_audit_mode=1;
 set global server_audit_events='';
 create database sa_db;
 connect  con1,localhost,root,,test;
-connection con1;
 create table t1 (id2 int);
 insert into t1 values (1), (2);
 select * from t1;
@@ -112,8 +110,8 @@ create table sa_t1(id int);
 insert into sa_t1 values (1), (2);
 drop table sa_t1;
 drop database sa_db;
-connection default;
 disconnect con1;
+connection default;
 create database sa_db;
 use sa_db;
 CREATE USER u1 IDENTIFIED BY 'pwd-123';
@@ -219,7 +217,7 @@ grant all on sa_db.* to user1@localhost;
 connect  cn1,localhost,user1,,sa_db;
 connection cn1;
 create table t1(id int) engine=myisam;
-insert delayed into t1 values (1), (2);
+insert delayed into t1 values (1);
 connection default;
 # Waiting until INSERT DELAYED thread does the insert.
 drop table t1;

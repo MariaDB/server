@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #include "mariadb.h"
 #include "sql_class.h"
 #include "transaction.h"
+#include "my_cpu.h"
 #include <pfs_transaction_provider.h>
 #include <mysql/psi/mysql_transaction.h>
 

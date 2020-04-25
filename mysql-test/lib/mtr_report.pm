@@ -20,7 +20,9 @@
 # same name.
 
 package mtr_report;
+
 use strict;
+use Sys::Hostname;
 
 use base qw(Exporter);
 our @EXPORT= qw(report_option mtr_print_line mtr_print_thick_line
@@ -253,6 +255,7 @@ sub mtr_report_stats ($$$$) {
   # Find out how we where doing
   # ----------------------------------------------------------------------
 
+  my $tot_disabled = 0;
   my $tot_skipped= 0;
   my $tot_skipdetect= 0;
   my $tot_passed= 0;
@@ -273,6 +276,7 @@ sub mtr_report_stats ($$$$) {
     {
       # Test was skipped (disabled not counted)
       $tot_skipped++ unless $tinfo->{'disable'};
+      $tot_disabled++ if $tinfo->{'disable'};
       $tot_skipdetect++ if $tinfo->{'skip_detected_by_test'};
     }
     elsif ( $tinfo->{'result'} eq 'MTR_RES_PASSED' )
@@ -400,6 +404,92 @@ sub mtr_report_stats ($$$$) {
   else
   {
     print "All $tot_tests tests were successful.\n\n";
+  }
+
+  if ($::opt_xml_report) {
+    my $xml_report = "";
+    my @sorted_tests = sort {$a->{'name'} cmp $b->{'name'}} @$tests;
+    my $last_suite = "";
+    my $current_suite = "";
+    my $timest = isotime(time);
+    my %suite_totals;
+    my %suite_time;
+    my %suite_tests;
+    my %suite_failed;
+    my %suite_disabled;
+    my %suite_skipped;
+    my $host = hostname;
+    my $suiteNo = 0;
+
+    # loop through test results to count totals
+    foreach my $test ( @sorted_tests ) {
+      $current_suite = $test->{'suite'}->{'name'};
+
+      if ($test->{'timer'} eq "") {
+        $test->{'timer'} = 0;
+      }
+
+      $suite_time{$current_suite} = $suite_time{$current_suite} + $test->{'timer'};
+      $suite_tests{$current_suite} = $suite_tests{$current_suite} + 1;
+
+      if ($test->{'result'} eq "MTR_RES_FAILED") {
+        $suite_failed{$current_suite} = $suite_failed{$current_suite} + 1;
+      } elsif ($test->{'result'} eq "MTR_RES_SKIPPED" && $test->{'disable'}) {
+        $suite_disabled{$current_suite} = $suite_disabled{$current_suite} + 1;
+      } elsif ($test->{'result'} eq "MTR_RES_SKIPPED") {
+        $suite_skipped{$current_suite} = $suite_skipped{$current_suite} + 1;
+      }
+
+      $suite_totals{"all_time"} = $suite_totals{"all_time"} + $test->{'timer'};
+    }
+
+    my $all_time = sprintf("%.3f", $suite_totals{"all_time"} / 1000);
+    my $suite_time = 0;
+    my $test_time = 0;
+
+    # generate xml
+    $xml_report = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    $xml_report .= qq(<testsuites disabled="$tot_disabled" errors="" failures="$tot_failed" name="" tests="$tot_tests" time="$all_time">\n);
+
+    foreach my $test ( @sorted_tests ) {
+      $current_suite = $test->{'suite'}->{'name'};
+
+      if ($current_suite ne $last_suite) {
+        if ($last_suite ne "") {
+          $xml_report .= "\t</testsuite>\n";
+          $suiteNo++;
+        }
+
+        $suite_time = sprintf("%.3f", $suite_time{$current_suite} / 1000);
+        $xml_report .= qq(\t<testsuite disabled="$suite_disabled{$current_suite}" errors="" failures="$suite_failed{$current_suite}" hostname="$host" id="$suiteNo" name="$current_suite" package="" skipped="$suite_skipped{$current_suite}" tests="$suite_tests{$current_suite}" time="$suite_time" timestamp="$timest">\n);
+        $last_suite = $current_suite;
+      }
+
+      $test_time = sprintf("%.3f", $test->{timer} / 1000);
+      $xml_report .= qq(\t\t<testcase assertions="" classname="$current_suite" name="$test->{'name'}" status="$test->{'result'}" time="$test_time");
+
+      my $comment = $test->{'comment'};
+      $comment =~ s/[\"]//g;
+
+      if ($test->{'result'} eq "MTR_RES_FAILED") {
+        $xml_report .= qq(>\n\t\t\t<failure message="" type="$test->{'result'}">\n<![CDATA[$test->{'logfile'}]]>\n\t\t\t</failure>\n\t\t</testcase>\n);
+      } elsif ($test->{'result'} eq "MTR_RES_SKIPPED" && $test->{'disable'}) {
+        $xml_report .= qq(>\n\t\t\t<disabled message="$comment" type="$test->{'result'}"/>\n\t\t</testcase>\n);
+      } elsif ($test->{'result'} eq "MTR_RES_SKIPPED") {
+        $xml_report .= qq(>\n\t\t\t<skipped message="$comment" type="$test->{'result'}"/>\n\t\t</testcase>\n);
+      } else {
+        $xml_report .= " />\n";
+      }
+    }
+
+    $xml_report .= "\t</testsuite>\n</testsuites>\n";
+
+    # save to file
+    my $xml_file = $::opt_xml_report;
+
+    open XML_FILE, ">", $xml_file or die "Cannot create file $xml_file: $!";
+    print XML_FILE $xml_report;
+    close XML_FILE;
   }
 
   if (@$extra_warnings)

@@ -356,7 +356,8 @@ QUICK_RANGE_SELECT *get_quick_select(PARAM *param,uint index,
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used,
                                        bool update_tbl_stats,
-                                       double read_time);
+                                       double read_time,
+                                       bool ror_scans_required);
 static
 TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
                                               double read_time);
@@ -2632,7 +2633,7 @@ static int fill_used_fields_bitmap(PARAM *param)
      force_quick_range is really needed.
 
   RETURN
-   -1 if impossible select (i.e. certainly no rows will be selected)
+   -1 if error or impossible select (i.e. certainly no rows will be selected)
     0 if can't use quick_select
     1 if found usable ranges and quick select has been successfully created.
 */
@@ -2745,7 +2746,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     {
       thd->no_errors=0;
       free_root(&alloc,MYF(0));			// Return memory & allocator
-      DBUG_RETURN(0);				// Can't use range
+      DBUG_RETURN(-1);				// Error
     }
     key_parts= param.key_parts;
 
@@ -2813,7 +2814,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     {
       thd->no_errors=0;
       free_root(&alloc,MYF(0));			// Return memory & allocator
-      DBUG_RETURN(0);				// Can't use range
+      DBUG_RETURN(-1);				// Error
     }
 
     thd->mem_root= &alloc;
@@ -2873,6 +2874,13 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
           tree= NULL;
         }
       }
+      else if (thd->is_error())
+      {
+        thd->no_errors=0;
+        thd->mem_root= param.old_root;
+        free_root(&alloc, MYF(0));
+        DBUG_RETURN(-1);
+      }
     }
 
     if (tree)
@@ -2896,7 +2904,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       /* Get best 'range' plan and prepare data for making other plans */
       if ((range_trp= get_key_scans_params(&param, tree,
                                            only_single_index_range_scan, TRUE,
-                                           best_read_time)))
+                                           best_read_time, FALSE)))
       {
         best_trp= range_trp;
         best_read_time= best_trp->read_cost;
@@ -5050,8 +5058,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   double roru_index_costs;
   ha_rows roru_total_records;
   double roru_intersect_part= 1.0;
-  double limit_read_time= read_time;
   size_t n_child_scans;
+  double limit_read_time= read_time;
   THD *thd= param->thd;
   DBUG_ENTER("get_best_disjunct_quick");
   DBUG_PRINT("info", ("Full table scan cost: %g", read_time));
@@ -5078,6 +5086,10 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                              sizeof(TRP_RANGE*)*
                                              n_child_scans)))
     DBUG_RETURN(NULL);
+
+  const bool only_ror_scans_required= !optimizer_flag(param->thd,
+                                      OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION);
+
   Json_writer_object trace_best_disjunct(thd);
   Json_writer_array to_merge(thd, "indexes_to_merge");
   /*
@@ -5092,7 +5104,9 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     DBUG_EXECUTE("info", print_sel_tree(param, *ptree, &(*ptree)->keys_map,
                                         "tree in SEL_IMERGE"););
     Json_writer_object trace_idx(thd);
-    if (!(*cur_child= get_key_scans_params(param, *ptree, TRUE, FALSE, read_time)))
+    if (!(*cur_child= get_key_scans_params(param, *ptree, TRUE, FALSE,
+                                           read_time,
+                                           only_ror_scans_required)))
     {
       /*
         One of index scans in this index_merge is more expensive than entire
@@ -5452,7 +5466,7 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
          index merge retrievals are not well calibrated
     */
     trp= get_key_scans_params(param, *imerge->trees, FALSE, TRUE,
-                              read_time);
+                              read_time, FALSE);
   }
 
   DBUG_RETURN(trp); 
@@ -7338,6 +7352,8 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
       index_read_must_be_used if TRUE, assume 'index only' option will be set
                              (except for clustered PK indexes)
       read_time    don't create read plans with cost > read_time.
+      only_ror_scans_required         set to TRUE when we are only interested
+                                      in ROR scan
   RETURN
     Best range read plan
     NULL if no plan found or error occurred
@@ -7346,7 +7362,8 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used, 
                                        bool update_tbl_stats,
-                                       double read_time)
+                                       double read_time,
+                                       bool only_ror_scans_required)
 {
   uint idx, UNINIT_VAR(best_idx);
   SEL_ARG *key_to_read= NULL;
@@ -7400,8 +7417,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       found_records= check_quick_select(param, idx, read_index_only, key,
                                         update_tbl_stats, &mrr_flags,
                                         &buf_size, &cost, &is_ror_scan);
-      if (!is_ror_scan &&
-          !optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION))
+      if (only_ror_scans_required && !is_ror_scan)
         continue;
 
       if (found_records != HA_POS_ERROR && tree->index_scans &&
@@ -9789,7 +9805,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       if (key2->next_key_part)
       {
 	key1->use_count--;			// Incremented in and_all_keys
-	return and_all_keys(param, key1, key2, clone_flag);
+        return and_all_keys(param, key1, key2->next_key_part, clone_flag);
       }
       key2->use_count--;			// Key2 doesn't have a tree
     }

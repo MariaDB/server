@@ -64,6 +64,7 @@
 #endif
 #include "transaction.h"
 #include "opt_trace.h"
+#include "my_cpu.h"
 
 enum enum_i_s_events_fields
 {
@@ -3630,6 +3631,11 @@ const char* get_one_variable(THD *thd,
         end= pos + ls->length;
       break;
     }
+  case SHOW_ATOMIC_COUNTER_UINT32_T:
+    end= int10_to_str(
+           static_cast<long>(*static_cast<Atomic_counter<uint32_t>*>(value)),
+           buff, 10);
+    break;
   case SHOW_UNDEF:
     break;                                        // Return empty string
   case SHOW_SYS:                                  // Cannot happen

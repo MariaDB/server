@@ -101,6 +101,7 @@
 */
 #include "mysys_priv.h"
 #include <lf.h>
+#include "my_cpu.h"
 
 /*
   when using alloca() leave at least that many bytes of the stack -

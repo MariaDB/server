@@ -53,7 +53,7 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"symbols-file", 's', "Use specified symbols file.", &sym_fname,
+  {"symbols-file", 's', "Use specified symbols file", &sym_fname,
    &sym_fname, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"numeric-dump-file", 'n', "Read the dump from specified file.",
    &dump_fname, &dump_fname, 0, GET_STR, REQUIRED_ARG,
@@ -63,7 +63,7 @@ static struct my_option my_long_options[] =
 
 
 static void verify_sort();
-
+static void clean_up();
 
 static void print_version(void)
 {
@@ -97,7 +97,16 @@ static void die(const char* fmt, ...)
   vfprintf(stderr, fmt, args);
   fprintf(stderr, "\n");
   va_end(args);
+  clean_up();
+  my_end(0);
   exit(1);
+}
+
+void local_exit(int error)
+{
+  clean_up();
+  my_end(0);
+  exit(error);
 }
 
 
@@ -109,10 +118,12 @@ get_one_option(const struct my_option *opt,
   switch(opt->id) {
   case 'V':
     print_version();
-    exit(0);
+    local_exit(0);
+    break;
   case '?':
     usage();
-    exit(0);
+    local_exit(0);
+    break;
   }
   return 0;
 }
@@ -123,7 +134,7 @@ static int parse_args(int argc, char **argv)
   int ho_error;
 
   if ((ho_error=handle_options(&argc, &argv, my_long_options, get_one_option)))
-    exit(ho_error);
+    local_exit(ho_error);
 
   /*
     The following code is to make the command compatible with the old
@@ -144,13 +155,13 @@ static int parse_args(int argc, char **argv)
     else
     {
       usage();
-      exit(1);
+      local_exit(1);
     }
   }
   else if (argc != 0 || !sym_fname)
   {
     usage();
-    exit(1);
+    local_exit(1);
   }
   return 0;
 }
@@ -243,6 +254,10 @@ static void init_sym_table()
 static void clean_up()
 {
   delete_dynamic(&sym_table);
+  if (fp_dump && fp_dump != stdin)
+    my_fclose(fp_dump, MYF(0));
+  if (fp_sym)
+    my_fclose(fp_sym, MYF(0));
 }
 
 static void verify_sort()
@@ -284,7 +299,7 @@ static SYM_ENTRY* resolve_addr(uchar* addr, SYM_ENTRY* se)
 
 
 /*
-  Resolve anything that starts with [0x or (+0x or start of line and 0x
+  Resolve anything that starts with [0x or (+0x or 0x
   Skip '_end' as this is an indication of a wrong symbol (stack?)
 */
 
@@ -300,9 +315,7 @@ static void do_resolve()
         found= 3;
       if (p[0] == '(' && p[1] == '+' && p[2] == '0' && p[3] == 'x')
         found= 4;
-
-      /* For stdin */
-      if (p == buf && p[0] == '0' && p[1] == 'x')
+      if (p[0] == '0' && p[1] == 'x')
         found= 2;
 
       if (found)
@@ -313,14 +326,15 @@ static void do_resolve()
         addr= (uchar*)read_addr(&tmp);
         if (resolve_addr(addr, &se) && strcmp(se.symbol, "_end"))
         {
-          fprintf(fp_out, "%c%p %s + %d", *p, addr, se.symbol,
-                  (int) (addr - se.addr));
+          found-= 2;               /* Don't print 0x as it's added by %p */
+          while (found--)
+            fputc(*p++, stdout);
+          fprintf(fp_out, "%p %s + %d", addr,
+                  se.symbol, (int) (addr - se.addr));
           p= tmp-1;
         }
         else
-        {
           fputc(*p, stdout);
-        }
       }
       else
         fputc(*p, stdout);
@@ -337,5 +351,6 @@ int main(int argc, char** argv)
   init_sym_table();
   do_resolve();
   clean_up();
+  my_end(0);
   return 0;
 }

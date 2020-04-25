@@ -2664,6 +2664,15 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED DEFAULT '' COMPRESSED);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 #
+# MDEV-21348 - Memory leak in Storage-Engine Independent Column
+#              Compression
+#
+CREATE TABLE t1(a BLOB COMPRESSED);
+SET column_compression_threshold=0;
+INSERT INTO t1 VALUES('aa');
+SET column_compression_threshold=DEFAULT;
+DROP TABLE t1;
+#
 # End of 10.3 tests
 #
 #

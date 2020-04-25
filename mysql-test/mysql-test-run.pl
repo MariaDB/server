@@ -130,6 +130,7 @@ our $path_testlog;
 our $default_vardir;
 our $opt_vardir;                # Path to use for var/ dir
 our $plugindir;
+our $opt_xml_report;            # XML output
 our $client_plugindir;
 my $path_vardir_trace;          # unix formatted opt_vardir for trace files
 my $opt_tmpdir;                 # Path to use for tmp/ dir
@@ -627,11 +628,7 @@ sub main {
     else
     {
       my $sys_info= My::SysInfo->new();
-      $opt_parallel= $sys_info->num_cpus() +
-        int($sys_info->min_bogomips()/500) - 4;
-      for my $limit (2000, 1500, 1000, 500){
-        $opt_parallel-- if ($sys_info->min_bogomips() < $limit);
-      }
+      $opt_parallel= $sys_info->num_cpus()+int($sys_info->min_bogomips()/500)-4;
     }
     my $max_par= $ENV{MTR_MAX_PARALLEL} || 8;
     $opt_parallel= $max_par if ($opt_parallel > $max_par);
@@ -747,7 +744,6 @@ sub main {
   mtr_print_line();
 
   print_total_times($opt_parallel) if $opt_report_times;
-
   mtr_report_stats($prefix, $fail, $completed, $extra_warnings);
 
   if ($opt_gcov) {
@@ -1250,6 +1246,7 @@ sub print_global_resfile {
   resfile_global("warnings", $opt_warnings ? 1 : 0);
   resfile_global("max-connections", $opt_max_connections);
   resfile_global("product", "MySQL");
+  resfile_global("xml-report", $opt_xml_report);
   # Somewhat hacky code to convert numeric version back to dot notation
   my $v1= int($mysql_version_id / 10000);
   my $v2= int(($mysql_version_id % 10000)/100);
@@ -1416,7 +1413,8 @@ sub command_line_setup {
              'help|h'                   => \$opt_usage,
 	     # list-options is internal, not listed in help
 	     'list-options'             => \$opt_list_options,
-             'skip-test-list=s'         => \@opt_skip_test_list
+             'skip-test-list=s'         => \@opt_skip_test_list,
+             'xml-report=s'             => \$opt_xml_report
            );
 
   # fix options (that take an optional argument and *only* after = sign
@@ -3634,8 +3632,11 @@ sub do_before_run_mysqltest($)
     # to be able to distinguish them from manually created
     # version-controlled results, and to ignore them in git.
     my $dest = "$base_file$suites.result~";
-    my @cmd = ($exe_patch, qw/--binary -r - -f -s -o/,
-               $dest, $base_result, $resfile);
+    my @cmd = ($exe_patch);
+    if ($^O eq "MSWin32") {
+      push @cmd, '--binary';
+    }
+    push @cmd, (qw/-r - -f -s -o/, $dest, $base_result, $resfile);
     if (-w $resdir) {
       # don't rebuild a file if it's up to date
       unless (-e $dest and -M $dest < -M $resfile
@@ -6681,6 +6682,7 @@ Misc options
                         phases of test execution.
   stress=ARGS           Run stress test, providing options to
                         mysql-stress-test.pl. Options are separated by comma.
+  xml-report=<file>     Output jUnit xml file of the results.
   tail-lines=N          Number of lines of the result to include in a failure
                         report.
 

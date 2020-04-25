@@ -1718,6 +1718,22 @@ select * from t1;
 drop table t1;
 
 --echo #
+--echo # MDEV-22191: Range access is not picked when index_merge_sort_union is turned off
+--echo #
+
+set @save_optimizer_switch=@@optimizer_switch;
+set @save_optimizer_switch="index_merge_sort_union=OFF";
+CREATE TABLE t1 (a INT, INDEX(a));
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+explain
+SELECT * FROM t1 WHERE a > 5;
+SELECT * FROM t1 WHERE a > 5;
+set @@optimizer_switch=@save_optimizer_switch;
+drop table t1;
+
+--echo # End of 5.5 tests
+
+--echo #
 --echo # BUG#13731380: RANGE OPTIMIZER CALLS RECORDS_IN_RANGE() FOR OPEN RANGE
 --echo #
 

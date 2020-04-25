@@ -1796,6 +1796,14 @@ select st_astext(p) from t1;
 drop table t1;
 
 --echo #
+--echo # MDEV-21056 Memory leak after query with DEFAULT on a geometry field
+--echo #
+
+CREATE TABLE t1 (f POINT DEFAULT ST_GEOMFROMTEXT('Point(0 0)'));
+SELECT ST_GEOMFROMTEXT('Point(1 1)') IN ( DEFAULT( `f` ), ST_GEOMFROMTEXT('Point(2 2)') ) AS x FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

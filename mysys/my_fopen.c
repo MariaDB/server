@@ -18,6 +18,7 @@
 #include "my_static.h"
 #include <errno.h>
 #include "mysys_err.h"
+#include "my_atomic.h"
 
 static void make_ftype(char * to,int flag);
 
@@ -222,7 +223,8 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
     {
       if (my_file_info[Filedes].type != UNOPEN)
       {
-        thread_safe_decrement32(&my_file_opened);       /* File is opened with my_open ! */
+        /* File is opened with my_open ! */
+        my_atomic_add32_explicit(&my_file_opened, -1, MY_MEMORY_ORDER_RELAXED);
       }
       else
       {

@@ -4470,9 +4470,9 @@ bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
   DBUG_ENTER("validate_comment_length");
   if (comment->length == 0)
     DBUG_RETURN(false);
-  size_t tmp_len= system_charset_info->charpos(comment->str,
-                                               comment->str + comment->length,
-                                               max_len);
+
+  size_t tmp_len=
+      Well_formed_prefix(system_charset_info, *comment, max_len).length();
   if (tmp_len < comment->length)
   {
     if (thd->is_strict_mode())
@@ -5728,9 +5728,11 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   DBUG_ENTER("mysql_create_like_table");
 
 #ifdef WITH_WSREP
-  if (WSREP_ON && !thd->wsrep_applier &&
+  if (WSREP(thd) && !thd->wsrep_applier &&
       wsrep_create_like_table(thd, table, src_table, create_info))
+  {
     DBUG_RETURN(res);
+  }
 #endif
 
   /*
@@ -10980,7 +10982,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   bool make_versioned= !from->versioned() && to->versioned();
   bool make_unversioned= from->versioned() && !to->versioned();
   bool keep_versioned= from->versioned() && to->versioned();
-  bool drop_history= false; // XXX
   Field *to_row_start= NULL, *to_row_end= NULL, *from_row_end= NULL;
   MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
@@ -11111,10 +11112,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   {
     from_row_end= from->vers_end_field();
   }
-  else if (keep_versioned && drop_history)
-  {
-    from_row_end= from->vers_end_field();
-  }
 
   if (from_row_end)
     bitmap_set_bit(from->read_set, from_row_end->field_index);
@@ -11153,6 +11150,13 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       error= 1;
       break;
     }
+
+    if (make_unversioned)
+    {
+      if (!from_row_end->is_max())
+        continue; // Drop history rows.
+    }
+
     if (unlikely(++thd->progress.counter >= time_to_report_progress))
     {
       time_to_report_progress+= MY_HOW_OFTEN_TO_WRITE/10;
@@ -11172,19 +11176,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       copy_ptr->do_copy(copy_ptr);
     }
 
-    if (drop_history && from_row_end && !from_row_end->is_max())
-      continue;
-
     if (make_versioned)
     {
       to_row_start->set_notnull();
       to_row_start->store_time(&query_start);
       to_row_end->set_max();
-    }
-    else if (make_unversioned)
-    {
-      if (!from_row_end->is_max())
-        continue; // Drop history rows.
     }
 
     prev_insert_id= to->file->next_insert_id;

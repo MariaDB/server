@@ -54,6 +54,7 @@
 #include <m_ctype.h>
 #include <my_dir.h>
 #include <my_bit.h>
+#include "my_cpu.h"
 #include "slave.h"
 #include "rpl_mi.h"
 #include "sql_repl.h"
@@ -446,7 +447,7 @@ uint lower_case_table_names;
 ulong tc_heuristic_recover= 0;
 Atomic_counter<uint32_t> thread_count;
 bool shutdown_wait_for_slaves;
-int32 slave_open_temp_tables;
+Atomic_counter<uint32_t> slave_open_temp_tables;
 ulong thread_created;
 ulong back_log, connect_timeout, server_id;
 ulong what_to_log;
@@ -1134,6 +1135,14 @@ PSI_file_key key_file_map;
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 PSI_statement_info stmt_info_new_packet;
 #endif
+
+#ifdef WITH_WSREP
+/** Whether the Galera write-set replication is enabled. A cached copy of
+global_system_variables.wsrep_on && wsrep_provider &&
+  strcmp(wsrep_provider, WSREP_NONE)
+*/
+bool WSREP_ON_;
+#endif /* WITH_WSREP */
 
 #ifndef EMBEDDED_LIBRARY
 void net_before_header_psi(struct st_net *net, void *thd, size_t /* unused: count */)
@@ -1873,6 +1882,9 @@ extern "C" void unireg_abort(int exit_code)
   disable_log_notes= 1;
 
 #ifdef WITH_WSREP
+  // Note that we do not have thd here, thus can't use
+  // WSREP(thd)
+
   if (WSREP_ON &&
       Wsrep_server_state::is_inited() &&
       Wsrep_server_state::instance().state() != wsrep::server_state::s_disconnected)
@@ -1888,6 +1900,7 @@ extern "C" void unireg_abort(int exit_code)
     sleep(1); /* so give some time to exit for those which can */
     WSREP_INFO("Some threads may fail to exit.");
   }
+
   if (WSREP_ON)
   {
     /* In bootstrap mode we deinitialize wsrep here. */
@@ -1932,11 +1945,7 @@ static void mysqld_exit(int exit_code)
   shutdown_performance_schema();        // we do it as late as possible
 #endif
   set_malloc_size_cb(NULL);
-  if (opt_endinfo && global_status_var.global_memory_used)
-    fprintf(stderr, "Warning: Memory not freed: %ld\n",
-            (long) global_status_var.global_memory_used);
-  if (!opt_debugging && !my_disable_leak_check && exit_code == 0 &&
-      debug_assert_on_not_freed_memory)
+  if (global_status_var.global_memory_used)
   {
 #ifdef SAFEMALLOC
     sf_report_leaked_memory(0);
@@ -4645,7 +4654,6 @@ static int init_default_storage_engine_impl(const char *opt_name,
   return 0;
 }
 
-
 static int
 init_gtid_pos_auto_engines(void)
 {
@@ -4671,7 +4679,6 @@ init_gtid_pos_auto_engines(void)
   mysql_mutex_unlock(&LOCK_global_system_variables);
   return 0;
 }
-
 
 static int init_server_components()
 {
@@ -5531,7 +5538,13 @@ int mysqld_main(int argc, char **argv)
       set_user(mysqld_user, user_info);
   }
 
+#ifdef WITH_WSREP
+  WSREP_ON_= (global_system_variables.wsrep_on &&
+          wsrep_provider &&
+          strcmp(wsrep_provider, WSREP_NONE));
+
   if (WSREP_ON && wsrep_check_opts()) unireg_abort(1);
+#endif
 
   /* 
    The subsequent calls may take a long time : e.g. innodb log read.
@@ -6954,18 +6967,6 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
-/* How many slaves are connected to this master */
-
-static int show_slaves_connected(THD *thd, SHOW_VAR *var, char *buff)
-{
-
-  var->type= SHOW_LONGLONG;
-  var->value= buff;
-  *((longlong*) buff)= uint32_t(binlog_dump_thread_count);
-  return 0;
-}
-
-
 /* How many masters this slave is connected to */
 
 
@@ -7531,9 +7532,9 @@ SHOW_VAR status_vars[]= {
   {"Select_range",             (char*) offsetof(STATUS_VAR, select_range_count_), SHOW_LONG_STATUS},
   {"Select_range_check",       (char*) offsetof(STATUS_VAR, select_range_check_count_), SHOW_LONG_STATUS},
   {"Select_scan",	       (char*) offsetof(STATUS_VAR, select_scan_count_), SHOW_LONG_STATUS},
-  {"Slave_open_temp_tables",   (char*) &slave_open_temp_tables, SHOW_INT},
+  {"Slave_open_temp_tables",   (char*) &slave_open_temp_tables, SHOW_ATOMIC_COUNTER_UINT32_T},
 #ifdef HAVE_REPLICATION
-  {"Slaves_connected",        (char*) &show_slaves_connected, SHOW_SIMPLE_FUNC },
+  {"Slaves_connected",        (char*) &binlog_dump_thread_count, SHOW_ATOMIC_COUNTER_UINT32_T},
   {"Slaves_running",          (char*) &show_slaves_running, SHOW_SIMPLE_FUNC },
   {"Slave_connections",       (char*) offsetof(STATUS_VAR, com_register_slave), SHOW_LONG_STATUS},
   {"Slave_heartbeat_period",   (char*) &show_heartbeat_period, SHOW_SIMPLE_FUNC},

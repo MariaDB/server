@@ -431,7 +431,7 @@ static inline void wsrep_after_apply(THD* thd)
 static inline void wsrep_open(THD* thd)
 {
   DBUG_ENTER("wsrep_open");
-  if (wsrep_on(thd))
+  if (WSREP(thd))
   {
     thd->wsrep_cs().open(wsrep::client_id(thd->thread_id));
     thd->wsrep_cs().debug_log_level(wsrep_debug);

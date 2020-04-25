@@ -257,6 +257,16 @@ CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED BINARY COMPRESSED);
 CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED DEFAULT '' COMPRESSED);
 
 --echo #
+--echo # MDEV-21348 - Memory leak in Storage-Engine Independent Column
+--echo #              Compression
+--echo #
+CREATE TABLE t1(a BLOB COMPRESSED);
+SET column_compression_threshold=0;
+INSERT INTO t1 VALUES('aa');
+SET column_compression_threshold=DEFAULT;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 

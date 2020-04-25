@@ -116,17 +116,23 @@ my_hash_init2(PSI_memory_key psi_key, HASH *hash, uint growth_size,
 static inline void my_hash_free_elements(HASH *hash)
 {
   uint records= hash->records;
+  if (records == 0)
+    return;
+
   /*
     Set records to 0 early to guard against anyone looking at the structure
     during the free process
   */
   hash->records= 0;
+
   if (hash->free)
   {
     HASH_LINK *data=dynamic_element(&hash->array,0,HASH_LINK*);
     HASH_LINK *end= data + records;
-    while (data < end)
+    do
+    {
       (*hash->free)((data++)->data);
+    } while (data < end);
   }
 }
 

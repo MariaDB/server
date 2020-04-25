@@ -269,6 +269,45 @@ char* wsrep_cluster_capabilities    = NULL;
 
 wsp::Config_state *wsrep_config_state;
 
+void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...)
+{
+  /* Allocate short buffer from stack. If the vsnprintf() return value
+     indicates that the message was truncated, a new buffer will be allocated
+     dynamically and the message will be reprinted. */
+  char msg[128] = {'\0'};
+  va_list arglist;
+  va_start(arglist, fmt);
+  int n= vsnprintf(msg, sizeof(msg) - 1, fmt, arglist);
+  va_end(arglist);
+  if (n < 0)
+  {
+    sql_print_warning("WSREP: Printing message failed");
+  }
+  else if (n < (int)sizeof(msg))
+  {
+    fun("WSREP: %s", msg);
+  }
+  else
+  {
+    size_t dynbuf_size= std::max(n, 4096);
+    char* dynbuf= (char*) my_malloc(PSI_NOT_INSTRUMENTED, dynbuf_size, MYF(0));
+    if (dynbuf)
+    {
+      va_start(arglist, fmt);
+      (void)vsnprintf(&dynbuf[0], dynbuf_size - 1, fmt, arglist);
+      va_end(arglist);
+      dynbuf[dynbuf_size - 1] = '\0';
+      fun("WSREP: %s", &dynbuf[0]);
+      my_free(dynbuf);
+    }
+    else
+    {
+      /* Memory allocation for vector failed, print truncated message. */
+      fun("WSREP: %s", msg);
+    }
+  }
+}
+
 
 wsrep_uuid_t               local_uuid       = WSREP_UUID_UNDEFINED;
 wsrep_seqno_t              local_seqno      = WSREP_SEQNO_UNDEFINED;
@@ -756,6 +795,7 @@ void wsrep_init_globals()
     wsrep_gtid_server.seqno(gtid.seqno);
   }
   wsrep_init_schema();
+
   if (WSREP_ON)
   {
     Wsrep_server_state::instance().initialized();
@@ -792,6 +832,8 @@ int wsrep_init()
   }
 
   global_system_variables.wsrep_on= 1;
+
+  WSREP_ON_= wsrep_provider && strcmp(wsrep_provider, WSREP_NONE);
 
   if (wsrep_gtid_mode && opt_bin_log && !opt_log_slave_updates)
   {
@@ -2217,8 +2259,10 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   DBUG_ASSERT(wsrep_thd_is_local(thd));
   DBUG_ASSERT(thd->wsrep_trx().ws_meta().seqno().is_undefined());
 
-  if (thd->global_read_lock.is_acquired())
+  if (Wsrep_server_state::instance().desynced_on_pause())
   {
+    my_message(ER_UNKNOWN_COM_ERROR,
+               "Aborting TOI: Global Read-Lock (FTWRL) in place.", MYF(0));
     WSREP_DEBUG("Aborting TOI: Global Read-Lock (FTWRL) in place: %s %llu",
                 wsrep_thd_query(thd), thd->thread_id);
     return -1;

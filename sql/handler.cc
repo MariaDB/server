@@ -1808,7 +1808,8 @@ end:
     thd->mdl_context.release_lock(mdl_request.ticket);
   }
 #ifdef WITH_WSREP
-  if (wsrep_is_active(thd) && is_real_trans && !error && (rw_ha_count == 0) &&
+  if (wsrep_is_active(thd) && is_real_trans && !error &&
+      (rw_ha_count == 0 || all) &&
       wsrep_not_committed(thd))
   {
     wsrep_commit_empty(thd, all);
@@ -2105,29 +2106,33 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit)
 
 
 #ifndef DBUG_OFF
-/**
-  @note
-    This does not need to be multi-byte safe or anything
-*/
-static char* xid_to_str(char *buf, XID *xid)
+/** Converts XID to string.
+
+@param[out] buf output buffer
+@param[in] xid XID to convert
+
+@return pointer to converted string
+
+@note This does not need to be multi-byte safe or anything */
+static char *xid_to_str(char *buf, const XID &xid)
 {
   int i;
   char *s=buf;
   *s++='\'';
-  for (i=0; i < xid->gtrid_length+xid->bqual_length; i++)
+  for (i= 0; i < xid.gtrid_length + xid.bqual_length; i++)
   {
-    uchar c=(uchar)xid->data[i];
+    uchar c= (uchar) xid.data[i];
     /* is_next_dig is set if next character is a number */
     bool is_next_dig= FALSE;
     if (i < XIDDATASIZE)
     {
-      char ch= xid->data[i+1];
+      char ch= xid.data[i + 1];
       is_next_dig= (ch >= '0' && ch <='9');
     }
-    if (i == xid->gtrid_length)
+    if (i == xid.gtrid_length)
     {
       *s++='\'';
-      if (xid->bqual_length)
+      if (xid.bqual_length)
       {
         *s++='.';
         *s++='\'';
@@ -2237,6 +2242,11 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
          the prepare.
       */
       my_xid wsrep_limit __attribute__((unused))= 0;
+
+      /* Note that we could call this for binlog also that
+         will not have WSREP(thd) but global wsrep on might
+         be true.
+      */
       if (WSREP_ON)
         wsrep_limit= wsrep_order_and_check_continuity(info->list, got);
 
@@ -2250,7 +2260,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
         {
           DBUG_EXECUTE("info",{
             char buf[XIDDATASIZE*4+6];
-            _db_doprnt_("ignore xid %s", xid_to_str(buf, info->list+i));
+            _db_doprnt_("ignore xid %s", xid_to_str(buf, info->list[i]));
             });
           xid_cache_insert(info->list + i);
           info->found_foreign_xids++;
@@ -2277,7 +2287,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           {
             DBUG_EXECUTE("info",{
               char buf[XIDDATASIZE*4+6];
-              _db_doprnt_("commit xid %s", xid_to_str(buf, info->list+i));
+              _db_doprnt_("commit xid %s", xid_to_str(buf, info->list[i]));
               });
           }
         }
@@ -2288,7 +2298,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           {
             DBUG_EXECUTE("info",{
               char buf[XIDDATASIZE*4+6];
-              _db_doprnt_("rollback xid %s", xid_to_str(buf, info->list+i));
+              _db_doprnt_("rollback xid %s", xid_to_str(buf, info->list[i]));
               });
           }
         }

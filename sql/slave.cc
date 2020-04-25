@@ -3476,7 +3476,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     {
       protocol->store((uint32)    mi->rli.retried_trans);
       protocol->store((ulonglong) mi->rli.max_relay_log_size);
-      protocol->store((uint32)    mi->rli.executed_entries);
+      protocol->store(mi->rli.executed_entries);
       protocol->store((uint32)    mi->received_heartbeats);
       protocol->store((double)    mi->heartbeat_period, 3, &tmp);
       protocol->store(gtid_pos->ptr(), gtid_pos->length(), &my_charset_bin);
@@ -3996,7 +3996,8 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
     exec_res= ev->apply_event(rgi);
 
 #ifdef WITH_WSREP
-  if (WSREP_ON) {
+  if (WSREP(thd)) {
+
     if (exec_res) {
       mysql_mutex_lock(&thd->LOCK_thd_data);
       switch(thd->wsrep_trx().state()) {
@@ -4574,7 +4575,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       }
     }
 
-    thread_safe_increment64(&rli->executed_entries);
+    rli->executed_entries++;
 #ifdef WITH_WSREP
     wsrep_after_statement(thd);
 #endif /* WITH_WSREP */
@@ -5650,7 +5651,7 @@ pthread_handler_t handle_slave_sql(void *arg)
     if (exec_relay_log_event(thd, rli, serial_rgi))
     {
 #ifdef WITH_WSREP
-      if (WSREP_ON)
+      if (WSREP(thd))
       {
         mysql_mutex_lock(&thd->LOCK_thd_data);
 
@@ -5668,8 +5669,10 @@ pthread_handler_t handle_slave_sql(void *arg)
       if (!sql_slave_killed(serial_rgi))
       {
         slave_output_error_info(serial_rgi, thd);
-        if (WSREP_ON && rli->last_error().number == ER_UNKNOWN_COM_ERROR)
+        if (WSREP(thd) && rli->last_error().number == ER_UNKNOWN_COM_ERROR)
+        {
           wsrep_node_dropped= TRUE;
+        }
       }
       goto err;
     }
@@ -5806,7 +5809,7 @@ err_during_init:
     If slave stopped due to node going non primary, we set global flag to
     trigger automatic restart of slave when node joins back to cluster.
   */
-  if (WSREP_ON && wsrep_node_dropped && wsrep_restart_slave)
+  if (WSREP(thd) && wsrep_node_dropped && wsrep_restart_slave)
   {
     if (wsrep_ready_get())
     {

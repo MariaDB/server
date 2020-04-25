@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -109,7 +110,7 @@ static char *directory_file_name (char * dst, const char *src)
 
 MY_DIR	*my_dir(const char *path, myf MyFlags)
 {
-  MY_DIR_HANDLE *dirh= 0;
+  MY_DIR_HANDLE *dirh;
   FILEINFO      finfo;
   DIR		*dirp;
   struct dirent *dp;
@@ -122,11 +123,14 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   tmp_file= directory_file_name(tmp_path, path);
 
   if (!(dirp= opendir(tmp_path)))
-    goto error;
+  {
+    my_errno= errno;
+    goto err_open;
+  }
 
   if (!(dirh= my_malloc(key_memory_MY_DIR, sizeof(*dirh),
                         MYF(MyFlags | MY_ZEROFILL))))
-    goto error;
+    goto err_alloc;
   
   if (my_init_dynamic_array(key_memory_MY_DIR, &dirh->array, sizeof(FILEINFO),
                             ENTRIES_START_SIZE, ENTRIES_INCREMENT,
@@ -180,11 +184,11 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   
   DBUG_RETURN(&dirh->dir);
 
- error:
-  my_errno=errno;
-  if (dirp)
-    (void) closedir(dirp);
+error:
   my_dirend(&dirh->dir);
+err_alloc:
+  (void) closedir(dirp);
+err_open:
   if (MyFlags & (MY_FAE | MY_WME))
     my_error(EE_DIR, MYF(ME_BELL), path, my_errno);
   DBUG_RETURN(NULL);

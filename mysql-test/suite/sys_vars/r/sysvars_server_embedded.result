@@ -3516,7 +3516,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	TCP_KEEPALIVE_TIME
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT
-VARIABLE_COMMENT	Timeout, in milliseconds, with no activity until the first TCP keep-alive packet is sent.If set to 0, system dependent default is used.
+VARIABLE_COMMENT	Timeout, in seconds, with no activity until the first TCP keep-alive packet is sent.If set to 0, system dependent default is used.
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	2147483
 NUMERIC_BLOCK_SIZE	1

@@ -245,6 +245,55 @@ DROP TABLE t1;
 set optimizer_switch= @optimizer_switch_save;
 
 --echo #
+--echo # MDEV-21932: ROR union with index_merge_sort_union=off
+--echo #
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+insert into t0 select a+10 from t0;
+insert into t0 select a+20 from t0;
+insert into t0 select a+40 from t0;
+insert into t0 select a+80 from t0;
+insert into t0 select a+160 from t0;
+delete from t0 where a > 300;
+
+create table t1 (
+  f1 int, f2 int, f3 int, f4 int,
+  primary key (f1),  key (f3),  key(f4)
+) engine=myisam;
+insert into t1 select a+100, a+100, a+100, a+100 from t0;
+insert into t1 VALUES (9,0,2,6), (9930,0,0,NULL);
+analyze table t1;
+
+set optimizer_switch='index_merge_sort_union=off';
+set optimizer_switch='index_merge_union=on';
+
+let $q1=
+select * from t1
+   where (( f3 = 1 or f1 = 7 )  and f1 < 10) or
+              (f3 between 2 and 2 and ( f3 = 1 or f4 < 7 ));
+eval explain $q1;
+eval $q1;
+
+insert into t1 values (52,0,1,0),(53,0,1,0);
+insert into t1 values (50,0,1,0),(51,0,1,0);
+insert into t1 values (48,0,1,0),(49,0,1,0);
+insert into t1 values (46,0,1,0),(47,0,1,0);
+insert into t1 values (44,0,1,0),(45,0,1,0);
+analyze table t1;
+
+let $q2=
+select * from t1
+   where (( f3 = 1 or f1 = 7 )  and f1 < 10) or
+              (f3 between 2 and 2 and ( f3 = 1 or f4 < 7 ));
+eval explain $q2;
+eval $q2;
+
+drop table t0,t1;
+
+set optimizer_switch= @optimizer_switch_save;
+
+--echo #
 --echo # MDEV-16695: Estimate for rows of derived tables is very high when we are using index_merge union
 --echo #
 
@@ -272,43 +321,4 @@ select * from (select * from t0 where key1 = 3 or key2 =3) as Z where Z.key8 > 5
 set @@optimizer_switch= @optimizer_switch_save;
 drop table t0;
 
-#
-# MDEV-21932: ROR union with index_merge_sort_union=off
-#
-create table t0 (a int);
-insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-insert into t0 select a+10 from t0;
-insert into t0 select a+20 from t0;
-insert into t0 select a+40 from t0;
-insert into t0 select a+80 from t0;
-insert into t0 select a+160 from t0;
-delete from t0 where a > 300;
-create table t1 (
-f1 int, f2 int, f3 int, f4 int,
-primary key (f1),  key (f3),  key(f4)
-) engine=myisam;
-insert into t1 select a+100, a+100, a+100, a+100 from t0;
-insert into t1 VALUES (9,0,2,6), (9930,0,0,NULL);
-analyze table t1;
-set optimizer_switch='index_merge_sort_union=off';
-set optimizer_switch='index_merge_union=on';
-explain select * from t1
-where (( f3 = 1 or f1 = 7 )  and f1 < 10) or
-(f3 between 2 and 2 and ( f3 = 1 or f4 < 7 ));
-select * from t1
-where (( f3 = 1 or f1 = 7 )  and f1 < 10) or
-(f3 between 2 and 2 and ( f3 = 1 or f4 < 7 ));
-insert into t1 values (52,0,1,0),(53,0,1,0);
-insert into t1 values (50,0,1,0),(51,0,1,0);
-insert into t1 values (48,0,1,0),(49,0,1,0);
-insert into t1 values (46,0,1,0),(47,0,1,0);
-insert into t1 values (44,0,1,0),(45,0,1,0);
-analyze table t1;
-explain select * from t1
-where (( f3 = 1 or f1 = 7 )  and f1 < 10) or
-(f3 between 2 and 2 and ( f3 = 1 or f4 < 7 ));
-select * from t1
-where (( f3 = 1 or f1 = 7 )  and f1 < 10) or
-(f3 between 2 and 2 and ( f3 = 1 or f4 < 7 ));
-drop table t0,t1;
-set optimizer_switch= @optimizer_switch_save;
+--echo # End of 10.1 tests

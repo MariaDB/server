@@ -171,6 +171,14 @@ ALTER TABLE user
 ALTER TABLE user
   ADD Password char(41) character set latin1 collate latin1_bin NOT NULL default '' AFTER User;
 
+# In MySQL the Unix socket authentication plugin has a different name. Thus the
+# references to it need to be renamed in the user table. Thanks to the WHERE
+# clauses this applies only to MySQL->MariaDB upgrades and nothing else.
+UPDATE user
+  SET plugin='unix_socket' WHERE plugin='auth_socket';
+DELETE FROM plugin
+  WHERE name='auth_socket';
+
 ALTER TABLE user
   MODIFY Password char(41) character set latin1 collate latin1_bin NOT NULL default '',
   MODIFY Select_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,

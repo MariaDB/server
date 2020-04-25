@@ -1356,10 +1356,10 @@ The following specify which files/extra groups are read (specified before remain
  application layer.If set to 0, system dependent default
  is used. (Automatically configured unless set explicitly)
  --tcp-keepalive-time=# 
- Timeout, in milliseconds, with no activity until the
- first TCP keep-alive packet is sent.If set to 0, system
- dependent default is used. (Automatically configured
- unless set explicitly)
+ Timeout, in seconds, with no activity until the first TCP
+ keep-alive packet is sent.If set to 0, system dependent
+ default is used. (Automatically configured unless set
+ explicitly)
  --tcp-nodelay       Set option TCP_NODELAY (disable Nagle's algorithm) on
  socket
  (Defaults to on; use --skip-tcp-nodelay to disable.)

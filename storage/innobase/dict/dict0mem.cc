@@ -611,9 +611,10 @@ dict_mem_table_col_rename_low(
 				foreign->foreign_col_names,
 				foreign->n_fields, NULL, true, false,
 				NULL, NULL, NULL);
-			/* There must be an equivalent index in this case. */
-			ut_ad(new_index != NULL);
 
+			/* New index can be null if InnoDB already dropped
+			the foreign index when FOREIGN_KEY_CHECKS is
+			disabled */
 			foreign->foreign_index = new_index;
 
 		} else {

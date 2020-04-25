@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -490,6 +490,12 @@ row_undo_step(
 	}
 
 	err = row_undo(node, thr);
+
+#ifdef ENABLED_DEBUG_SYNC
+	if (trx->mysql_thd) {
+		DEBUG_SYNC_C("trx_after_rollback_row");
+	}
+#endif /* ENABLED_DEBUG_SYNC */
 
 	trx->error_state = err;
 

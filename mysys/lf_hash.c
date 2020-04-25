@@ -27,6 +27,7 @@
 #include <mysys_err.h>
 #include <my_bit.h>
 #include <lf.h>
+#include "my_cpu.h"
 
 /* An element of the list */
 typedef struct {

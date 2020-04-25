@@ -8083,7 +8083,8 @@ Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
   if (unlikely(!(item= new (thd->mem_root)
                  Item_splocal(thd, rh, &sa,
                               spv->offset, spv->type_handler(),
-                              pos.pos(), pos.length()))))
+                              clone_spec_offset ? 0 : pos.pos(),
+                              clone_spec_offset ? 0 : pos.length()))))
     return NULL;
 #ifdef DBUG_ASSERT_EXISTS
   item->m_sp= sphead;
@@ -8183,14 +8184,15 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
     }
 
     Query_fragment pos(thd, sphead, start, end);
+    uint f_pos= clone_spec_offset ? 0 : pos.pos();
+    uint f_length= clone_spec_offset ? 0 : pos.length();
     Item_splocal *splocal= spv->field_def.is_column_type_ref() ?
       new (thd->mem_root) Item_splocal_with_delayed_data_type(thd, rh, name,
                                                               spv->offset,
-                                                              pos.pos(),
-                                                              pos.length()) :
+                                                              f_pos, f_length) :
       new (thd->mem_root) Item_splocal(thd, rh, name,
                                        spv->offset, spv->type_handler(),
-                                       pos.pos(), pos.length());
+                                       f_pos, f_length);
     if (unlikely(splocal == NULL))
       return NULL;
 #ifdef DBUG_ASSERT_EXISTS
