@@ -9558,7 +9558,7 @@ do_continue:;
   */
   if (!(alter_info->flags & ~(ALTER_RENAME | ALTER_KEYS_ONOFF)) &&
       alter_info->partition_flags == 0 &&
-      alter_info->requested_algorithm !=
+      alter_info->algorithm(thd) !=
       Alter_info::ALTER_TABLE_ALGORITHM_COPY)   // No need to touch frm.
   {
     bool res;
@@ -9636,7 +9636,7 @@ do_continue:;
                "LOCK=DEFAULT");
       DBUG_RETURN(true);
     }
-    else if (alter_info->requested_algorithm !=
+    else if (alter_info->algorithm(thd) !=
              Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
     {
       my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
@@ -9676,20 +9676,21 @@ do_continue:;
       using in-place API.
   */
   if ((thd->variables.alter_algorithm == Alter_info::ALTER_TABLE_ALGORITHM_COPY &&
-       alter_info->requested_algorithm !=
+       alter_info->algorithm(thd) !=
        Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
       || is_inplace_alter_impossible(table, create_info, alter_info)
       || IF_PARTITIONING((partition_changed &&
           !(table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
   {
-    if (alter_info->requested_algorithm ==
+    if (alter_info->algorithm(thd) ==
         Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
     {
       my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
                "ALGORITHM=INPLACE", "ALGORITHM=COPY");
       DBUG_RETURN(true);
     }
-    alter_info->requested_algorithm= Alter_info::ALTER_TABLE_ALGORITHM_COPY;
+    alter_info->set_requested_algorithm(
+      Alter_info::ALTER_TABLE_ALGORITHM_COPY);
   }
 
   /*
@@ -9809,7 +9810,7 @@ do_continue:;
   /* Remember that we have not created table in storage engine yet. */
   bool no_ha_table= true;
 
-  if (alter_info->requested_algorithm != Alter_info::ALTER_TABLE_ALGORITHM_COPY)
+  if (alter_info->algorithm(thd) != Alter_info::ALTER_TABLE_ALGORITHM_COPY)
   {
     Alter_inplace_info ha_alter_info(create_info, alter_info,
                                      key_info, key_count,
@@ -9900,7 +9901,7 @@ do_continue:;
     // If SHARED lock and no particular algorithm was requested, use COPY.
     if (inplace_supported == HA_ALTER_INPLACE_EXCLUSIVE_LOCK &&
         alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED &&
-         alter_info->requested_algorithm ==
+         alter_info->algorithm(thd) ==
                  Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
          thd->variables.alter_algorithm ==
                  Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
@@ -10743,7 +10744,8 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
   alter_info.flags= (ALTER_CHANGE_COLUMN | ALTER_RECREATE);
 
   if (table_copy)
-    alter_info.requested_algorithm= Alter_info::ALTER_TABLE_ALGORITHM_COPY;
+    alter_info.set_requested_algorithm(
+      Alter_info::ALTER_TABLE_ALGORITHM_COPY);
 
   bool res= mysql_alter_table(thd, &null_clex_str, &null_clex_str, &create_info,
                                 table_list, &alter_info, 0,
