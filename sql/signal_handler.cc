@@ -57,6 +57,10 @@ static inline void output_core_info()
   int fd;
   if ((len= readlink("/proc/self/cwd", buff, sizeof(buff))) >= 0)
   {
+    if (len < sizeof(buff))
+    {
+      buff[len]= '\0';
+    }
     my_safe_printf_stderr("Writing a core file...\nWorking directory at %.*s\n",
                           (int) len, buff);
   }
