@@ -82,6 +82,7 @@ Null	YES
 Index_type	HASH
 Comment	
 Index_comment	
+Ignore	NO
 insert into t1 values(1,1);
 ERROR 23000: Duplicate entry '1' for key 'a'
 DROP TABLE t1;
@@ -128,6 +129,7 @@ Null
 Index_type	BTREE
 Comment	
 Index_comment	
+Ignore	NO
 ALTER TABLE t1 ADD INDEX (pk);
 DROP TABLE t1;
 CREATE TABLE t1 (b int, a  varchar(4000));

@@ -7961,3 +7961,5 @@ ER_KEY_CONTAINS_PERIOD_FIELDS
         eng "Key %`s cannot explicitly include column %`s"
 ER_KEY_CANT_HAVE_WITHOUT_OVERLAPS
         eng "Key %`s cannot have WITHOUT OVERLAPS"
+ER_PK_INDEX_CANT_BE_IGNORED
+        eng "A primary key cannot be marked as IGNORE"
