@@ -68,19 +68,21 @@ void* my_multi_malloc(PSI_memory_key key, myf myFlags, ...)
   Same as my_multi_malloc, but each entry can be over 4G
 
   SYNOPSIS
-    my_multi_malloc()
+    my_multi_malloc_large()
       myFlags              Flags
 	ptr1, length1      Multiple arguments terminated by null ptr
 	ptr2, length2      ...
         ...
 	NULL
+        ptr_total          size_t pointer that gets the size allocated
 */
 
-void *my_multi_malloc_large(PSI_memory_key key, myf myFlags, ...)
+void *my_multi_malloc_large(myf myFlags, ...)
 {
   va_list args;
   char **ptr,*start,*res;
-  ulonglong tot_length,length;
+  size_t tot_length, length;
+  size_t *ret_total_length;
   DBUG_ENTER("my_multi_malloc");
 
   va_start(args,myFlags);
@@ -90,9 +92,11 @@ void *my_multi_malloc_large(PSI_memory_key key, myf myFlags, ...)
     length=va_arg(args,ulonglong);
     tot_length+=ALIGN_SIZE(length);
   }
+  ret_total_length= va_arg(args, size_t *);
+  *ret_total_length= tot_length;
   va_end(args);
 
-  if (!(start=(char *) my_malloc(key, (size_t) tot_length, myFlags)))
+  if (!(start=(char *) my_large_malloc(ret_total_length, myFlags)))
     DBUG_RETURN(0); /* purecov: inspected */
 
   va_start(args,myFlags);
