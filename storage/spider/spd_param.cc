@@ -3450,6 +3450,32 @@ bool spider_param_sync_sql_mode(
   DBUG_RETURN(THDVAR(thd, sync_sql_mode));
 }
 
+/*
+ -1 : use table parameter
+  0 : do not strict
+  1 : do strict
+ */
+static MYSQL_THDVAR_INT(
+  strict_group_by, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Use columns in select clause strictly for group by clause",
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  1, /* max */
+  0 /* blk */
+);
+
+int spider_param_strict_group_by(
+  THD *thd,
+  int strict_group_by
+) {
+  DBUG_ENTER("spider_param_strict_group_by");
+  DBUG_RETURN(THDVAR(thd, strict_group_by) == -1 ?
+    strict_group_by : THDVAR(thd, strict_group_by));
+}
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -3604,6 +3630,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(remote_wait_timeout),
   MYSQL_SYSVAR(wait_timeout),
   MYSQL_SYSVAR(sync_sql_mode),
+  MYSQL_SYSVAR(strict_group_by),
   NULL
 };
 

@@ -913,6 +913,8 @@ int spider_free_share_alloc(
     spider_free(spider_current_trx, share->access_balances, MYF(0));
   if (share->bka_table_name_types)
     spider_free(spider_current_trx, share->bka_table_name_types, MYF(0));
+  if (share->strict_group_bys)
+    spider_free(spider_current_trx, share->strict_group_bys, MYF(0));
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   if (share->monitoring_bg_interval)
     spider_free(spider_current_trx, share->monitoring_bg_interval, MYF(0));
@@ -2390,6 +2392,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_STR_LIST("scp", tgt_ssl_capaths);
           SPIDER_PARAM_STR_LIST("scr", tgt_ssl_certs);
           SPIDER_PARAM_INT_WITH_MAX("sdc", skip_default_condition, 0, 1);
+          SPIDER_PARAM_LONG_LIST_WITH_MAX("sgb", strict_group_bys, 0, 1);
           SPIDER_PARAM_DOUBLE("siv", sts_interval, 0);
           SPIDER_PARAM_STR_LIST("sky", tgt_ssl_keys);
           SPIDER_PARAM_STR_LIST("sli", static_link_ids);
@@ -2561,6 +2564,8 @@ int spider_parse_connect_info(
 #endif
           SPIDER_PARAM_LONG_LIST_WITH_MAX("connect_timeout", connect_timeouts,
             0, 2147483647);
+          SPIDER_PARAM_LONG_LIST_WITH_MAX("strict_group_by",
+            strict_group_bys, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX("error_read_mode", error_read_mode, 0, 1);
           error_num = connect_string_parse.print_param_error();
           goto error;
@@ -2796,6 +2801,8 @@ int spider_parse_connect_info(
     share->all_link_count = share->access_balances_length;
   if (share->all_link_count < share->bka_table_name_types_length)
     share->all_link_count = share->bka_table_name_types_length;
+  if (share->all_link_count < share->strict_group_bys_length)
+    share->all_link_count = share->strict_group_bys_length;
   if ((error_num = spider_increase_string_list(
     &share->server_names,
     &share->server_names_lengths,
@@ -3057,6 +3064,11 @@ int spider_parse_connect_info(
   if ((error_num = spider_increase_long_list(
     &share->bka_table_name_types,
     &share->bka_table_name_types_length,
+    share->all_link_count)))
+    goto error;
+  if ((error_num = spider_increase_long_list(
+    &share->strict_group_bys,
+    &share->strict_group_bys_length,
     share->all_link_count)))
     goto error;
 
@@ -3922,6 +3934,8 @@ int spider_set_connect_info_default(
       share->access_balances[roop_count] = 100;
     if (share->bka_table_name_types[roop_count] == -1)
       share->bka_table_name_types[roop_count] = 0;
+    if (share->strict_group_bys[roop_count] == -1)
+      share->strict_group_bys[roop_count] = 1;
   }
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -8557,6 +8571,7 @@ void spider_set_tmp_share_pointer(
   tmp_long[15] = -1;
   tmp_share->access_balances = &tmp_long[17];
   tmp_share->bka_table_name_types = &tmp_long[18];
+  tmp_share->strict_group_bys = &tmp_long[19];
   tmp_share->monitoring_limit = &tmp_longlong[0];
   tmp_share->monitoring_sid = &tmp_longlong[1];
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -8634,6 +8649,7 @@ void spider_set_tmp_share_pointer(
   tmp_share->net_write_timeouts_length = 1;
   tmp_share->access_balances_length = 1;
   tmp_share->bka_table_name_types_length = 1;
+  tmp_share->strict_group_bys_length = 1;
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   tmp_share->monitoring_bg_flag[0] = -1;

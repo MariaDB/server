@@ -258,7 +258,7 @@ const char SPIDER_empty_string = "";
 
 #define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     21
 #define SPIDER_TMP_SHARE_UINT_COUNT         SPIDER_TMP_SHARE_CHAR_PTR_COUNT
-#define SPIDER_TMP_SHARE_LONG_COUNT         19
+#define SPIDER_TMP_SHARE_LONG_COUNT         20
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
 #define SPIDER_MEM_CALC_LIST_NUM           314
@@ -1164,6 +1164,7 @@ typedef struct st_spider_share
   long               *net_write_timeouts;
   long               *access_balances;
   long               *bka_table_name_types;
+  long               *strict_group_bys;
 
   uint               *server_names_lengths;
   uint               *tgt_table_names_lengths;
@@ -1277,6 +1278,7 @@ typedef struct st_spider_share
   uint               net_write_timeouts_length;
   uint               access_balances_length;
   uint               bka_table_name_types_length;
+  uint               strict_group_bys_length;
 
   /* for dbton */
   uchar              dbton_bitmap[spider_bitmap_size(SPIDER_DBTON_SIZE)];
