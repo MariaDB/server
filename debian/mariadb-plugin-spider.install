@@ -1,2 +1,2 @@
+etc/mysql/conf.d/spider.cnf  etc/mysql/mariadb.conf.d
 usr/lib/mysql/plugin/ha_spider.so
-usr/share/mysql/install_spider.sql
