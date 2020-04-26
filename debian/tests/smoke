@@ -29,10 +29,10 @@ set -ex
 # be started manually.
 if ! which systemctl
 then
-  if ! /etc/init.d/mysql status
+  if ! /etc/init.d/mariadb status
   then
     echo "Did not find systemctl and deamon was not running, starting it.."
-    /etc/init.d/mysql start
+    /etc/init.d/mariadb start
   fi
 else
   # If systemd (and systemctl) is available, but the service did not start, then

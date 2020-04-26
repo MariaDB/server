@@ -33,14 +33,14 @@ stop_server() {
     if ! pgrep -x --ns $$ mysqld > /dev/null; then return; fi
 
     set +e
-    systemctl stop mysql
+    invoke-rc.d mariadb stop
     errno=$?
     set -e
 
-    # 0=ok, 100=no init script (fresh install)
+    # systemctl could emit exit code 100=no init script (fresh install)
     if [ "$errno" != 0 -a "$errno" != 100 ]; then
-      echo "'systemctl stop mysql' returned $errno" 1>&2
-      echo "There is a MySQL server running, but we failed in our attempts to stop it." 1>&2
+      echo "Attempt to stop MariaDB/MySQL server returned exitcode $errno" 1>&2
+      echo "There is a MariaDB/MySQL server running, but we failed in our attempts to stop it." 1>&2
       echo "Stop it yourself and try again!" 1>&2
       db_stop
       exit 1

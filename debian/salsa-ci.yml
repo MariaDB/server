@@ -110,7 +110,7 @@ fresh install:
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mysql status
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5
     - mkdir -p debug # Ensure dir exists before using it
     - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
     - cp -ra /etc/mysql debug/etc-mysql
@@ -147,7 +147,7 @@ mariadb-10.3.x to mariadb-10.5.y upgrade:
     - mariadb --skip-column-names -e "select @@version, @@version_comment"
     - echo 'SHOW DATABASES;' | mysql
     # Install MariaDB built in this commit
-    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    - apt-get install -o Dpkg::Options::=--force-confnew -y ./*.deb || true # Allow to proceed so debug artifacts get collected
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
@@ -192,7 +192,7 @@ mariadb-10.3.x buster to mariadb-10.5 upgrade:
     - sed '/sid-updates/d' -i /etc/apt/sources.list # Remove repositories that don't exist for Sid
     - sed '/security/d' -i /etc/apt/sources.list # Remove repositories that don't exist for Sid
     - apt-get update; apt-get install -y apt # Uprade minimal stack first
-    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    - apt-get install -o Dpkg::Options::=--force-confnew -y ./*.deb || true # Allow to proceed so debug artifacts get collected
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
@@ -237,7 +237,7 @@ mariadb-10.1 to mariadb-10.5 upgrade:
     - sed '/sid-updates/d' -i /etc/apt/sources.list # Remove repositories that don't exist for Sid
     - sed '/security/d' -i /etc/apt/sources.list # Remove repositories that don't exist for Sid
     - apt-get update; apt-get install -y apt # Uprade minimal stack first
-    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    - apt-get install -o Dpkg::Options::=--force-confnew -y ./*.deb || true # Allow to proceed so debug artifacts get collected
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
@@ -275,7 +275,7 @@ test basic features:
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mysql status
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5
     - mkdir -p debug # Ensure dir exists before using it
     - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
     - cp -ra /etc/mysql debug/etc-mysql
@@ -516,7 +516,7 @@ mysql-5.5 to mariadb-10.5 upgrade:
     - sed '/security/d' -i /etc/apt/sources.list # Remove repositories that don't exist for Sid
     - apt-get update; apt-get install -y apt || true # Install apt 1.4.9 so the wildcard command below works
     - apt-get dist-upgrade -y || true # Upgrade all to avoid udev/systemd failures
-    - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
+    - apt-get install -o Dpkg::Options::=--force-confnew -y ./*.deb || true # Allow to proceed so debug artifacts get collected
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
@@ -648,14 +648,16 @@ mariadb.org-10.5.x to mariadb-10.5 upgrade:
     - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
     - apt-get update
     - apt install -y curl systemctl # systemctl shim needed on platforms that don't have systemd
-    - curl https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb [arch=amd64,i386] http://mirror.one.com/mariadb/repo/10.5/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.5
     # Verify installation of MySQL from Sid
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
-    - service mysql status || true # Currently does not support service name 'mysql'
-    - service mariadb status
+    # MariaDB.org version of 10.4 and early 10.5 do not install an init file, so
+    # it must be installed here manually
+    - cp /usr/share/mysql/mysql.init /etc/init.d/mysql; chmod +x /etc/init.d/mysql; service mysql start; sleep 5
+    - service mysql status
     - mysql --skip-column-names -e "SELECT @@version, @@version_comment"
     - mysql -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
     - mysql -e "SELECT * FROM plugin;" mysql
@@ -665,7 +667,7 @@ mariadb.org-10.5.x to mariadb-10.5 upgrade:
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mysql status || true # Currently does not support service name 'mysql'
+    - service mysql status
     - service mariadb status
     - mkdir -p debug # Ensure dir exists before using it
     - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
@@ -698,14 +700,16 @@ mariadb.org-10.4 to mariadb-10.5 upgrade:
     - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
     - apt-get update
     - apt install -y curl systemctl # systemctl shim needed on platforms that don't have systemd
-    - curl https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb [arch=amd64,i386] http://mirror.one.com/mariadb/repo/10.4/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.4
     # Verify installation of MySQL from Sid
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
-    - service mysql status || true # Currently does not support service name 'mysql'
-    - service mariadb status
+    # MariaDB.org version of 10.4 and early 10.5 do not install an init file, so
+    # it must be installed here manually
+    - cp /usr/share/mysql/mysql.init /etc/init.d/mysql; chmod +x /etc/init.d/mysql; service mysql start; sleep 5
+    - service mysql status
     - mysql --skip-column-names -e "SELECT @@version, @@version_comment"
     - mysql -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
     - mysql -e "SELECT * FROM plugin;" mysql
@@ -715,7 +719,7 @@ mariadb.org-10.4 to mariadb-10.5 upgrade:
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mysql status || true # Currently does not support service name 'mysql'
+    - service mysql status
     - service mariadb status
     - mkdir -p debug # Ensure dir exists before using it
     - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
@@ -748,7 +752,7 @@ mariadb.org-10.3 to mariadb-10.5 upgrade:
     - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
     - apt-get update
     - apt install -y curl
-    - curl https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb [arch=amd64,i386] http://mirror.one.com/mariadb/repo/10.3/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.3
@@ -760,14 +764,11 @@ mariadb.org-10.3 to mariadb-10.5 upgrade:
     - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
     - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM plugin;" mysql
     - echo 'SHOW DATABASES;' | mysql --defaults-file=/etc/mysql/debian.cnf
-    # Additional systemctl hack since there is no real systemctl in Docker
-    - ln -s /bin/true /bin/systemctl
     # Install MariaDB built in this commit
     - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mysql restart # Needed due to systemctl hack and lack of real init support
     - service mysql status
     - mkdir -p debug # Ensure dir exists before using it
     - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
@@ -800,7 +801,7 @@ mariadb.org-10.2 to mariadb-10.5 upgrade:
     - cd ${WORKING_DIR} # Don't repeat this step, it's just cd ./debian/output
     - apt-get update
     - apt install -y curl
-    - curl https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb [arch=amd64,i386] http://mirror.one.com/mariadb/repo/10.2/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.2
@@ -812,14 +813,11 @@ mariadb.org-10.2 to mariadb-10.5 upgrade:
     - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
     - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM plugin;" mysql
     - echo 'SHOW DATABASES;' | mysql --defaults-file=/etc/mysql/debian.cnf
-    # Additional systemctl hack since there is no real systemctl in Docker
-    - ln -s /bin/true /bin/systemctl
     # Install MariaDB built in this commit
     - apt-get install -y ./*.deb || true # Allow to proceed so debug artifacts get collected
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mysql restart # Needed due to systemctl hack and lack of real init support
     - service mysql status
     - mkdir -p debug # Ensure dir exists before using it
     - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"

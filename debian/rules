@@ -170,7 +170,7 @@ override_dh_systemd_enable:
 # Start mysql at sequence number 19 before 20 where apache, proftpd etc gets
 # started which might depend on a running database server.
 override_dh_installinit-arch:
-	#dh_installinit --name=mysql -- defaults 19 21
+	dh_installinit --name=mariadb --no-start -- defaults 19 21
 	dh_systemd_start --restart-after-upgrade
 
 

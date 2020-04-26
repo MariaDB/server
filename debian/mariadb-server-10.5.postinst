@@ -18,17 +18,42 @@ ERR_LOGGER="logger -p daemon.err -t mariadb-server-$MAJOR_VER.postinst -i"
 # the install, rather than failing silently and leaving a broken install.
 set -o pipefail
 
-invoke() {
-  systemctl $1 mysql
-}
-
 case "$1" in
   configure)
-    # This is needed because mysql_install_db removes the pid file in /var/run
+    # This is needed because mysql_install_db removes the pid file in /run
     # and because changed configuration options should take effect immediately.
     # In case the server wasn't running at all it should be ok if the stop
-    # script fails. I can't tell at this point because of the cleaned /var/run.
-    set +e; invoke stop; set -e
+    # script fails. I can't tell at this point because of the cleaned /run.
+    set +e; invoke-rc.d mariadb stop; set -e
+
+    # An existing /etc/init.d/mysql might be on the system if there was a
+    # previous MySQL or MariaDB installation, since /etc/init.d files are
+    # considered config files and stay around even after the package is removed.
+    #
+    # The install step of this package adds a new /etc/init.d/mariadb file. As
+    # we also want to ensure that there are no old (and potentially outdated)
+    # versions of /etc/init.d/mysql we simply replace it using a copy of the
+    # latest 'mariadb' file. This has also the added benefit that anything that
+    # invokes traditional sysv init with either 'mysql' or 'mariadb' will end up
+    # controlling this newly installed MariaDB, and thus we maintain better
+    # backwards compatiblity.
+    #
+    # Note that the 'Provides' line is also updated to avoid 'insserv' exiting
+    # on failure (when it is run by update-rc.d) because of duplicate service
+    # names.
+    if [ -f "/etc/init.d/mysql" ] && [ -f "/etc/init.d/mariadb" ]
+    then
+      # Copy init file and rename the service name and filename on the fly
+      sed 's/Provides:          mariadb/Provides:          mysql/g' /etc/init.d/mariadb > /etc/init.d/mysql
+      # NOTE: Number of spaces/tabs is important here!
+      # Confirm if the sed worked
+      if ! grep --quiet "Provides:          mysql" /etc/init.d/mysql
+      then
+        # If not, then delete the file to avoid failures later on
+        rm -f /etc/init.d/mysql
+        echo "Warning! Failed creating a mysql named copy of mariadb init.d file"
+      fi
+    fi
 
     mysql_statedir=/usr/share/mysql
     mysql_datadir=/var/lib/mysql
@@ -126,7 +151,7 @@ EOF
 
     # initiate databases. Output is not allowed by debconf :-(
     # This will fail if we are upgrading an existing database; in this case
-    # mysql_upgrade, called from the /etc/init.d/mysql start script, will
+    # mysql_upgrade, called from the /etc/init.d/mariadb start script, will
     # handle things.
     # Debian: beware of the bashisms...
     # Debian: can safely run on upgrades with existing databases
@@ -187,8 +212,9 @@ EOF
   triggered)
     if [ -x "$(command -v systemctl)" ]; then
       systemctl daemon-reload
+    else
+      invoke-rc.d mariadb restart
     fi
-    invoke restart
   ;;
 
   *)
@@ -199,7 +225,7 @@ esac
 
 db_stop # in case invoke failes
 
-# dh_systemd_start doesn't emit anything since we still ship /etc/init.d/mysql.
+# dh_systemd_start doesn't emit anything since we still ship /etc/init.d/mariadb.
 # Thus MariaDB server is started via init.d script, which in turn redirects to
 # systemctl. If we upgrade from MySQL mysql.service may be masked, which also
 # means init.d script is disabled. Unmask mysql service explicitly.

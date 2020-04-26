@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 ### BEGIN INIT INFO
-# Provides:          mysql
+# Provides:          mariadb
 # Required-Start:    $remote_fs $syslog
 # Required-Stop:     $remote_fs $syslog
 # Should-Start:      $network $named $time
@@ -26,10 +26,17 @@ SELF=$(cd $(dirname $0); pwd -P)/$(basename $0)
 MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
 
 # priority can be overridden and "-s" adds output to stderr
-ERR_LOGGER="logger -p daemon.err -t /etc/init.d/mysql -i"
+ERR_LOGGER="logger -p daemon.err -t /etc/init.d/mariadb -i"
 
 if [ -f /etc/default/mysql ]; then
   . /etc/default/mysql
+fi
+
+# Also source default/mariadb in case the installation was upgraded from
+# packages originally installed from MariaDB.org repositories, which have
+# had support for reading /etc/default/mariadb since March 2016.
+if [ -f /etc/default/mariadb ]; then
+  . /etc/default/mariadb
 fi
 
 # Safeguard (relative paths, core dumps..)
@@ -108,7 +115,7 @@ case "${1:-''}" in
    log_end_msg 0
   else
     # Could be removed during boot
-    test -e /var/run/mysqld || install -m 755 -o mysql -g root -d /var/run/mysqld
+    test -e /run/mysqld || install -m 755 -o mysql -g root -d /run/mysqld
 
     # Start MariaDB!
     /usr/bin/mysqld_safe "${@:2}" 2>&1 >/dev/null | $ERR_LOGGER &
@@ -185,6 +192,13 @@ case "${1:-''}" in
     exit 3
   fi
   ;;
+
+  'bootstrap')
+	# Bootstrap the cluster, start the first node
+	# that initiates the cluster
+	log_daemon_msg "Bootstrapping the cluster" "mysqld"
+	$SELF start "${@:2}" --wsrep-new-cluster
+	;;
 
   *)
   echo "Usage: $SELF start|stop|restart|reload|force-reload|status"

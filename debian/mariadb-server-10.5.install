@@ -1,7 +1,6 @@
 debian/additions/debian-start etc/mysql
 debian/additions/debian-start.inc.sh usr/share/mysql
 debian/additions/echo_stderr usr/share/mysql
-debian/additions/mysql.init usr/share/mysql
 debian/additions/mysqld_safe_syslog.cnf etc/mysql/conf.d
 debian/additions/source_mariadb-10.5.py usr/share/apport/package-hooks
 etc/apparmor.d/usr.sbin.mysqld
