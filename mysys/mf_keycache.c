@@ -163,6 +163,7 @@ typedef struct st_simple_key_cache_cb
   my_bool can_be_used;           /* usage of cache for read/write is allowed */
   size_t key_cache_mem_size;     /* specified size of the cache memory       */
   size_t allocated_mem_size;     /* size of the memory actually allocated    */
+  size_t block_root_size;        /* size of the memory allocated at block_root */
   uint key_cache_block_size;     /* size of the page buffer of a cache block */
   size_t min_warm_blocks;        /* min number of warm blocks;               */
   size_t age_threshold;          /* age threshold for hot blocks             */
@@ -568,7 +569,7 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
                                   &keycache->file_blocks,
                                   (ulonglong) (sizeof(BLOCK_LINK*) *
                                                changed_blocks_hash_size),
-                                  NullS))
+                                  NullS, &keycache->block_root_size))
           break;
         my_large_free(keycache->block_mem, keycache->allocated_mem_size);
         keycache->block_mem= 0;
@@ -636,7 +637,8 @@ err:
   }
   if (keycache->block_root)
   {
-    my_free(keycache->block_root);
+    my_large_free(my_psi_key_free(keycache->block_root),
+                  keycache->block_root_size);
     keycache->block_root= NULL;
   }
   my_errno= error;
@@ -967,7 +969,8 @@ void end_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, my_bool cleanup)
     {
       my_large_free((uchar*) keycache->block_mem, keycache->allocated_mem_size);
       keycache->block_mem= NULL;
-      my_free(keycache->block_root);
+      my_large_free(my_psi_key_free(keycache->block_root),
+                    keycache->block_root_size);
       keycache->block_root= NULL;
     }
     keycache->disk_blocks= -1;

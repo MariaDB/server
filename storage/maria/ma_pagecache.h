@@ -162,6 +162,7 @@ typedef struct st_pagecache
   size_t warm_blocks;            /* number of blocks in warm sub-chain       */
   size_t cnt_for_resize_op;      /* counter to block resize operation        */
   size_t blocks_available;       /* number of blocks available in the LRU chain */
+  size_t block_root_size;        /* size of memory allocated to block_root   */
   ssize_t blocks;                /* max number of blocks in the cache        */
   uint32 block_size;             /* size of the page buffer of a cache block */
   PAGECACHE_HASH_LINK **hash_root;/* arr. of entries into hash table buckets */
