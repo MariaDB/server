@@ -89,7 +89,7 @@ void *my_multi_malloc_large(myf myFlags, ...)
   tot_length=0;
   while ((ptr=va_arg(args, char **)))
   {
-    length=va_arg(args,ulonglong);
+    length=va_arg(args,size_t);
     tot_length+=ALIGN_SIZE(length);
   }
   ret_total_length= va_arg(args, size_t *);

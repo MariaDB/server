@@ -557,18 +557,15 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
         */
         if (my_multi_malloc_large(MYF(MY_ZEROFILL),
                                   &keycache->block_root,
-                                  (ulonglong) (blocks * sizeof(BLOCK_LINK)),
+                                  blocks * sizeof(BLOCK_LINK),
                                   &keycache->hash_root,
-                                  (ulonglong) (sizeof(HASH_LINK*) *
-                                               keycache->hash_entries),
+                                  sizeof(HASH_LINK*) * keycache->hash_entries,
                                   &keycache->hash_link_root,
-                                  (ulonglong) (hash_links * sizeof(HASH_LINK)),
+                                  hash_links * sizeof(HASH_LINK),
                                   &keycache->changed_blocks,
-                                  (ulonglong) (sizeof(BLOCK_LINK*) *
-                                               changed_blocks_hash_size),
+                                  sizeof(BLOCK_LINK*) * changed_blocks_hash_size,
                                   &keycache->file_blocks,
-                                  (ulonglong) (sizeof(BLOCK_LINK*) *
-                                               changed_blocks_hash_size),
+                                  sizeof(BLOCK_LINK*) * changed_blocks_hash_size,
                                   NullS,
                                   &keycache->block_root_size))
           break;
