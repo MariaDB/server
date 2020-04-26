@@ -195,7 +195,7 @@ SET(INSTALL_SUPPORTFILESDIR_DEB         "share/mysql")
 #
 SET(INSTALL_MYSQLDATADIR_DEB            "/var/lib/mysql")
 
-SET(INSTALL_UNIX_ADDRDIR_DEB            "/var/run/mysqld/mysqld.sock")
+SET(INSTALL_UNIX_ADDRDIR_DEB            "/run/mysqld/mysqld.sock")
 SET(INSTALL_SYSTEMD_UNITDIR_DEB         "/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_DEB     "/usr/lib/sysusers.d")
 SET(INSTALL_SYSTEMD_TMPFILESDIR_DEB     "/usr/lib/tmpfiles.d")
