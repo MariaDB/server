@@ -96,7 +96,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_GROUP_COMMIT_INTERVAL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Interval between commite in microseconds (1/1000000c). 0 stands for no waiting for other threads to come and do a commit in "hard" mode and no sync()/commit at all in "soft" mode.  Option has only an effect if aria_group_commit is used
+VARIABLE_COMMENT	Interval between commits in microseconds (1/1000000 sec). 0 stands for no waiting for other threads to come and do a commit in "hard" mode and no sync()/commit at all in "soft" mode.  Option has only an effect if aria_group_commit is used
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1

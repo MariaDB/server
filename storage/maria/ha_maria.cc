@@ -210,7 +210,7 @@ static MYSQL_SYSVAR_ENUM(group_commit, maria_group_commit,
 
 static MYSQL_SYSVAR_ULONG(group_commit_interval, maria_group_commit_interval,
        PLUGIN_VAR_RQCMDARG,
-       "Interval between commite in microseconds (1/1000000c)."
+       "Interval between commits in microseconds (1/1000000 sec)."
        " 0 stands for no waiting"
        " for other threads to come and do a commit in \"hard\" mode and no"
        " sync()/commit at all in \"soft\" mode.  Option has only an effect"
