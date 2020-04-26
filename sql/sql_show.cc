@@ -2479,6 +2479,9 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
       append_unescaped(packet, key_info->comment.str, 
                        key_info->comment.length);
     }
+
+    if (key_info->is_ignored)
+      packet->append(STRING_WITH_LEN(" IGNORE"));
   }
 }
 
@@ -6667,6 +6670,12 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
         if (key_info->flags & HA_USES_COMMENT)
           table->field[15]->store(key_info->comment.str, 
                                   key_info->comment.length, cs);
+
+        // IGNORE column
+        const char *is_ignored= key_info->is_ignored ? "YES" : "NO";
+        table->field[16]->store(is_ignored, strlen(is_ignored), cs);
+        table->field[16]->set_notnull();
+
         if (schema_table_store_record(thd, table))
           DBUG_RETURN(1);
       }
@@ -9033,6 +9042,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("COMMENT",       Varchar(16), NULLABLE, "Comment",     OPEN_FRM_ONLY),
   Column("INDEX_COMMENT", Varchar(INDEX_COMMENT_MAXLEN),
                                        NOT_NULL, "Index_comment",OPEN_FRM_ONLY),
+  Column("IGNORE",      Varchar(3),  NOT_NULL, "Ignore",        OPEN_FRM_ONLY),
   CEnd()
 };
 
