@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2012, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -218,8 +218,7 @@ srv_conc_enter_innodb_with_atomics(
 	for (;;) {
 		ulint	sleep_in_us;
 #ifdef WITH_WSREP
-		if (wsrep_on(trx->mysql_thd) && 
-		    wsrep_trx_is_aborting(trx->mysql_thd)) {
+		if (trx->is_wsrep() && wsrep_trx_is_aborting(trx->mysql_thd)) {
 			if (wsrep_debug)
 		  		fprintf(stderr,	
 					"srv_conc_enter due to MUST_ABORT");
@@ -430,8 +429,7 @@ retry:
 		return;
 	}
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) && 
-	    wsrep_thd_is_brute_force(trx->mysql_thd)) {
+	if (trx->is_wsrep() && wsrep_thd_is_brute_force(trx->mysql_thd)) {
 		srv_conc_force_enter_innodb(trx);
 		return;
 	}
@@ -514,8 +512,7 @@ retry:
 	srv_conc.n_waiting++;
 
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) && 
-	    wsrep_trx_is_aborting(trx->mysql_thd)) {
+	if (trx->is_wsrep() && wsrep_trx_is_aborting(trx->mysql_thd)) {
 		os_fast_mutex_unlock(&srv_conc_mutex);
 		if (wsrep_debug)
 			fprintf(stderr, "srv_conc_enter due to MUST_ABORT");

@@ -464,7 +464,7 @@ func_exit:
 
 inline bool wsrep_must_process_fk(const upd_node_t* node, const trx_t* trx)
 {
-	if (!wsrep_on_trx(trx)) {
+	if (!trx->is_wsrep()) {
 		return false;
 	}
 	return que_node_get_type(node->common.parent) != QUE_NODE_UPDATE

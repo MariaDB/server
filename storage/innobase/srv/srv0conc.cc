@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -122,8 +122,7 @@ srv_conc_enter_innodb_with_atomics(
 	for (;;) {
 		ulint	sleep_in_us;
 #ifdef WITH_WSREP
-		if (wsrep_on(trx->mysql_thd) &&
-		    wsrep_trx_is_aborting(trx->mysql_thd)) {
+		if (trx->is_wsrep() && wsrep_trx_is_aborting(trx->mysql_thd)) {
 			if (wsrep_debug) {
 				ib::info() <<
 					"srv_conc_enter due to MUST_ABORT";

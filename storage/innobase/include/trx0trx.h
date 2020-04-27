@@ -873,6 +873,13 @@ public:
 	rolled back by trx_rollback_or_clean_recovered().
 	Protected by trx_t::mutex for transactions that are in trx_sys. */
 	bool		is_recovered;
+#ifdef WITH_WSREP
+	/** whether wsrep_on(mysql_thd) held at the start of transaction */
+	bool		wsrep;
+	bool is_wsrep() const { return UNIV_UNLIKELY(wsrep); }
+#else /* WITH_WSREP */
+	bool is_wsrep() const { return false; }
+#endif /* WITH_WSREP */
 
 	ReadView*	read_view;	/*!< consistent read view used in the
 					transaction, or NULL if not yet set */

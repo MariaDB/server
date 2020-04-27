@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -815,15 +815,21 @@ struct trx_t{
 	ro_trx_list the first time they try to acquire a lock ie. by default
 	we treat all read-only transactions as non-locking.  */
 	trx_state_t	state;
-
 	trx_lock_t	lock;		/*!< Information about the transaction
 					locks and state. Protected by
 					trx->mutex or lock_sys->mutex
 					or both */
-	ulint		is_recovered;	/*!< 0=normal transaction,
-					1=recovered, must be rolled back,
+	bool		is_recovered;	/*!< false=normal transaction,
+					true=recovered, must be rolled back,
 					protected by trx_sys->mutex when
 					trx->in_rw_trx_list holds */
+#ifdef WITH_WSREP
+	/** whether wsrep_on(mysql_thd) held at the start of transaction */
+	bool		wsrep;
+	bool is_wsrep() const { return UNIV_UNLIKELY(wsrep); }
+#else /* WITH_WSREP */
+	bool is_wsrep() const { return false; }
+#endif /* WITH_WSREP */
 
 	/* These fields are not protected by any mutex. */
 	const char*	op_info;	/*!< English text describing the

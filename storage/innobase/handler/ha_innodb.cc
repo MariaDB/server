@@ -1715,19 +1715,13 @@ thd_trx_is_auto_commit(
 /** Enter InnoDB engine after checking the max number of user threads
 allowed, else the thread is put into sleep.
 @param[in,out]	prebuilt	row prebuilt handler */
-static inline
-void
-innobase_srv_conc_enter_innodb(
-	row_prebuilt_t*	prebuilt)
+static inline void innobase_srv_conc_enter_innodb(row_prebuilt_t *prebuilt)
 {
-#ifdef WITH_WSREP
-	if (wsrep_on(prebuilt->trx->mysql_thd) &&
-	    wsrep_thd_is_BF(prebuilt->trx->mysql_thd, FALSE)) {
-		return;
-	}
-#endif /* WITH_WSREP */
+	trx_t* trx = prebuilt->trx;
 
-	trx_t*	trx	= prebuilt->trx;
+#ifdef WITH_WSREP
+	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) return;
+#endif /* WITH_WSREP */
 
 	if (srv_thread_concurrency) {
 		if (trx->n_tickets_to_enter_innodb > 0) {
@@ -1755,21 +1749,15 @@ innobase_srv_conc_enter_innodb(
 /** Note that the thread wants to leave InnoDB only if it doesn't have
 any spare tickets.
 @param[in,out]	m_prebuilt	row prebuilt handler */
-static inline
-void
-innobase_srv_conc_exit_innodb(
-	row_prebuilt_t*	prebuilt)
+static inline void innobase_srv_conc_exit_innodb(row_prebuilt_t *prebuilt)
 {
 	ut_ad(!sync_check_iterate(sync_check()));
 
-#ifdef WITH_WSREP
-	if (wsrep_on(prebuilt->trx->mysql_thd) &&
-	    wsrep_thd_is_BF(prebuilt->trx->mysql_thd, FALSE)) {
-		return;
-	}
-#endif /* WITH_WSREP */
+	trx_t* trx = prebuilt->trx;
 
-	trx_t*			trx = prebuilt->trx;
+#ifdef WITH_WSREP
+	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) return;
+#endif /* WITH_WSREP */
 
 	/* This is to avoid making an unnecessary function call. */
 	if (trx->declared_to_be_inside_innodb
@@ -2763,6 +2751,9 @@ innobase_trx_init(
 
 	trx->check_unique_secondary = !thd_test_options(
 		thd, OPTION_RELAXED_UNIQUE_CHECKS);
+#ifdef WITH_WSREP
+	trx->wsrep = wsrep_on(thd);
+#endif
 
 	DBUG_VOID_RETURN;
 }
@@ -4475,19 +4466,17 @@ innobase_commit_low(
 	trx_t*	trx)	/*!< in: transaction handle */
 {
 #ifdef WITH_WSREP
-	THD* thd = (THD*)trx->mysql_thd;
 	const char* tmp = 0;
-	if (thd && wsrep_on(thd)) {
+	if (trx->is_wsrep()) {
 #ifdef WSREP_PROC_INFO
 		char info[64];
 		info[sizeof(info) - 1] = '\0';
 		snprintf(info, sizeof(info) - 1,
 			 "innobase_commit_low():trx_commit_for_mysql(%lld)",
-			 (long long) wsrep_thd_trx_seqno(thd));
-		tmp = thd_proc_info(thd, info);
-
+			 (long long) wsrep_thd_trx_seqno(trx->mysql_thd));
+		tmp = thd_proc_info(trx->mysql_thd, info);
 #else
-		tmp = thd_proc_info(thd, "innobase_commit_low()");
+		tmp = thd_proc_info(trx->mysql_thd, "innobase_commit_low()");
 #endif /* WSREP_PROC_INFO */
 	}
 #endif /* WITH_WSREP */
@@ -4497,7 +4486,7 @@ innobase_commit_low(
 	}
 	trx->will_lock = 0;
 #ifdef WITH_WSREP
-	if (thd && wsrep_on(thd)) { thd_proc_info(thd, tmp); }
+	if (trx->is_wsrep()) { thd_proc_info(trx->mysql_thd, tmp); }
 #endif /* WITH_WSREP */
 }
 
@@ -8113,7 +8102,7 @@ ha_innobase::write_row(
 {
 	dberr_t		error;
 #ifdef WITH_WSREP
-	ibool		auto_inc_inserted= FALSE; /* if NULL was inserted */
+	bool		wsrep_auto_inc_inserted= false;
 #endif
 	int		error_result = 0;
 	bool		auto_inc_used = false;
@@ -8144,7 +8133,7 @@ ha_innobase::write_row(
 	}
 
 #ifdef WITH_WSREP
-	if (wsrep_is_load_multi_commit(m_user_thd))
+	if (trx->is_wsrep() && wsrep_is_load_multi_commit(m_user_thd))
 	{
 		/* Note that this transaction is still active. */
 		trx_register_for_2pc(m_prebuilt->trx);
@@ -8161,7 +8150,9 @@ ha_innobase::write_row(
 		m_prebuilt->autoinc_error = DB_SUCCESS;
 
 #ifdef WITH_WSREP
-		auto_inc_inserted= (table->next_number_field->val_int() == 0);
+		wsrep_auto_inc_inserted = trx->is_wsrep()
+			&& wsrep_drupal_282555_workaround
+			&& table->next_number_field->val_int() == 0;
 #endif
 
 		if ((error_result = update_auto_increment())) {
@@ -8255,18 +8246,14 @@ ha_innobase::write_row(
 				      m_prebuilt->autoinc_offset,
 				      m_prebuilt->autoinc_increment);
 
-                               if (wsrep_on(m_user_thd)                      &&
-                                   auto_inc_inserted                         &&
-                                   wsrep_drupal_282555_workaround            &&
+                               if (wsrep_auto_inc_inserted &&
                                    wsrep_thd_retry_counter(m_user_thd) == 0  &&
 				    !thd_test_options(m_user_thd,
 						      OPTION_NOT_AUTOCOMMIT |
 						      OPTION_BEGIN)) {
 					WSREP_DEBUG(
 					    "retrying insert: %s",
-					    (*wsrep_thd_query(m_user_thd)) ?
-						wsrep_thd_query(m_user_thd) :
-						(char *)"void");
+					    wsrep_thd_query(m_user_thd));
 					error= DB_SUCCESS;
 					wsrep_thd_set_conflict_state(
 						m_user_thd, MUST_ABORT);
@@ -8306,7 +8293,7 @@ set_max_autoinc:
 					m_prebuilt autoinc values don't get
 					properly assigned. Fetch values from
 					server side. */
-					if (wsrep_on(m_user_thd) &&
+					if (trx->is_wsrep() &&
 					    wsrep_thd_exec_mode(m_user_thd) == REPL_RECV)
 					{
 					    wsrep_thd_auto_increment_variables(
@@ -8355,8 +8342,7 @@ report_error:
 		error, m_prebuilt->table->flags, m_user_thd);
 
 #ifdef WITH_WSREP
-	if (!error_result
-	    && wsrep_on(m_user_thd)
+	if (!error_result && trx->is_wsrep()
 	    && wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE
 	    && !wsrep_consistency_check(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)) {
@@ -8364,10 +8350,9 @@ report_error:
 				      NULL)) {
 			DBUG_PRINT("wsrep", ("row key failed"));
 			error_result = HA_ERR_INTERNAL_ERROR;
-			goto wsrep_error;
+			goto func_exit;
 		}
 	}
-wsrep_error:
 #endif /* WITH_WSREP */
 
 	if (error_result == HA_FTS_INVALID_DOCID) {
@@ -9000,7 +8985,7 @@ ha_innobase::update_row(
 		m_prebuilt autoinc values don't get
 		properly assigned. Fetch values from
 		server side. */
-		if (wsrep_on(m_user_thd) &&
+		if (trx->is_wsrep() && 
 		    wsrep_thd_exec_mode(m_user_thd) == REPL_RECV)
 		{
 		    wsrep_thd_auto_increment_variables(
@@ -9051,9 +9036,8 @@ func_exit:
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS                            &&
+	if (error == DB_SUCCESS && trx->is_wsrep() &&
 	    wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE &&
-	    wsrep_on(m_user_thd)                           &&
 	    !wsrep_thd_ignore_table(m_user_thd)) {
 		DBUG_PRINT("wsrep", ("update row key"));
 
@@ -9061,13 +9045,10 @@ func_exit:
 				      new_row)) {
 			WSREP_DEBUG("WSREP: UPDATE_ROW_KEY FAILED");
 			DBUG_PRINT("wsrep", ("row key failed"));
-			err = HA_ERR_INTERNAL_ERROR;
-			goto wsrep_error;
+			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 		}
 	}
-wsrep_error:
 #endif /* WITH_WSREP */
-
 
 	DBUG_RETURN(err);
 }
@@ -9115,18 +9096,15 @@ ha_innobase::delete_row(
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS
+	if (error == DB_SUCCESS && trx->is_wsrep()
 	    && wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE
-	    && wsrep_on(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)) {
 		if (wsrep_append_keys(m_user_thd, WSREP_KEY_EXCLUSIVE, record,
 			              NULL)) {
 			DBUG_PRINT("wsrep", ("delete fail"));
-			error = (dberr_t) HA_ERR_INTERNAL_ERROR;
-			goto wsrep_error;
+			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 		}
 	}
-wsrep_error:
 #endif /* WITH_WSREP */
 	DBUG_RETURN(convert_error_code_to_mysql(
 			    error, m_prebuilt->table->flags, m_user_thd));
@@ -10320,29 +10298,26 @@ wsrep_append_foreign_key(
 	wsrep_key_type	key_type)	/*!< in: access type of this key
 					(shared, exclusive, semi...) */
 {
-	ut_a(trx);
-	THD*  thd = (THD*)trx->mysql_thd;
+	THD*  thd = trx->mysql_thd;
+
+	if (!trx->is_wsrep() || wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
+		return DB_SUCCESS;
+	}
+
+	if (!foreign ||
+	    (!foreign->referenced_table && !foreign->foreign_table)) {
+		WSREP_INFO("FK: %s missing in: %s",
+			   (!foreign ? "constraint" :
+			    (!foreign->referenced_table ?
+			     "referenced table" : "foreign table")),
+			   wsrep_thd_query(thd));
+		return DB_ERROR;
+	}
+
 	ulint rcode = DB_SUCCESS;
 	char  cache_key[513] = {'\0'};
 	int   cache_key_len=0;
 	bool const copy = true;
-
-	if (!wsrep_on(trx->mysql_thd) ||
-	    wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
-		return DB_SUCCESS;
-	}
-
-	if (!thd || !foreign ||
-	    (!foreign->referenced_table && !foreign->foreign_table)) {
-		WSREP_INFO("FK: %s missing in: %s",
-			(!thd)      ?  "thread"     :
-			((!foreign) ?  "constraint" :
-			((!foreign->referenced_table) ?
-			     "referenced table" : "foreign table")),
-			   (thd && wsrep_thd_query(thd)) ?
-			   wsrep_thd_query(thd) : "void");
-		return DB_ERROR;
-	}
 
 	if ( !((referenced) ?
 		foreign->referenced_table : foreign->foreign_table)) {
@@ -15975,9 +15950,7 @@ ha_innobase::external_lock(
 	DBUG_PRINT("enter",("lock_type: %d", lock_type));
 
 	update_thd(thd);
-
-	trx_t*		trx = m_prebuilt->trx;
-
+	trx_t* trx = m_prebuilt->trx;
 	ut_ad(m_prebuilt->table);
 
 	/* Statement based binlogging does not work in isolation level
@@ -15992,26 +15965,21 @@ ha_innobase::external_lock(
 	    && thd_binlog_format(thd) == BINLOG_FORMAT_STMT
 	    && thd_binlog_filter_ok(thd)
 	    && thd_sqlcom_can_generate_row_events(thd)) {
-
-		bool	skip = false;
-
+		bool skip = false;
+#ifdef WITH_WSREP
+		skip = trx->is_wsrep()
+			&& wsrep_thd_exec_mode(thd) != LOCAL_STATE;
+#endif /* WITH_WSREP */
 		/* used by test case */
 		DBUG_EXECUTE_IF("no_innodb_binlog_errors", skip = true;);
 
 		if (!skip) {
-#ifdef WITH_WSREP
-			if (!wsrep_on(thd) || wsrep_thd_exec_mode(thd) == LOCAL_STATE)
-			{
-#endif /* WITH_WSREP */
 			my_error(ER_BINLOG_STMT_MODE_AND_ROW_ENGINE, MYF(0),
 			         " InnoDB is limited to row-logging when"
 			         " transaction isolation level is"
 			         " READ COMMITTED or READ UNCOMMITTED.");
 
 			DBUG_RETURN(HA_ERR_LOGGING_IMPOSSIBLE);
-#ifdef WITH_WSREP
-			}
-#endif /* WITH_WSREP */
 		}
 	}
 
