@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2650,19 +2650,20 @@ void Item_func_rand::seed_random(Item *arg)
     TODO: do not do reinit 'rand' for every execute of PS/SP if
     args[0] is a constant.
   */
-  uint32 tmp;
+  uint32 tmp= (uint32) arg->val_int();
 #ifdef WITH_WSREP
-  THD *thd= current_thd;
-  if (WSREP(thd))
+  if (WSREP_ON)
   {
-    if (thd->wsrep_exec_mode==REPL_RECV)
-      tmp= thd->wsrep_rand;
-    else
-      tmp= thd->wsrep_rand= (uint32) arg->val_int();
-   }
-  else
+    THD *thd= current_thd;
+    if (thd->variables.wsrep_on)
+    {
+      if (thd->wsrep_exec_mode==REPL_RECV)
+        tmp= thd->wsrep_rand;
+      else
+        thd->wsrep_rand= tmp;
+    }
+  }
 #endif /* WITH_WSREP */
-    tmp= (uint32) arg->val_int();
 
   my_rnd_init(rand, (uint32) (tmp*0x10001L+55555555L),
              (uint32) (tmp*0x10000001L));

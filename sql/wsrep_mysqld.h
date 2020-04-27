@@ -179,13 +179,7 @@ extern void wsrep_prepend_PATH (const char* path);
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
 
-#define WSREP_ON                         \
-  (global_system_variables.wsrep_on)
-
-#define WSREP_ON_NEW                     \
-  ((global_system_variables.wsrep_on) && \
-   wsrep_provider                     && \
-   strcmp(wsrep_provider, WSREP_NONE))
+#define WSREP_ON unlikely(global_system_variables.wsrep_on)
 
 #define WSREP(thd) \
   (WSREP_ON && thd->variables.wsrep_on)

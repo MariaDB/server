@@ -5,6 +5,7 @@
 #
 --source include/galera_cluster.inc
 --source include/have_binlog_format_row.inc
+--source include/have_debug.inc
 --source include/have_debug_sync.inc
 
 --connection node_2
