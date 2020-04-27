@@ -502,6 +502,7 @@ create_log_files(
 	memset(log_sys.buf, 0, srv_log_buffer_size);
 	log_block_init(log_sys.buf, log_sys.lsn);
 	log_block_set_first_rec_group(log_sys.buf, LOG_BLOCK_HDR_SIZE);
+	memset(log_sys.flush_buf, 0, srv_log_buffer_size);
 
 	log_sys.buf_free = LOG_BLOCK_HDR_SIZE;
 	log_sys.lsn += LOG_BLOCK_HDR_SIZE;

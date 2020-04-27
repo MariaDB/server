@@ -524,19 +524,11 @@ struct log_t{
 					mtr_commit and still ensure that
 					insertions in the flush_list happen
 					in the LSN order. */
-	byte*		buf;		/*!< Memory of double the
-					srv_log_buffer_size is
-					allocated here. This pointer will change
-					however to either the first half or the
-					second half in turns, so that log
-					write/flush to disk don't block
-					concurrent mtrs which will write
-					log to this buffer. Care to switch back
-					to the first half before freeing/resizing
-					must be undertaken. */
-	bool		first_in_use;	/*!< true if buf points to the first
-					half of the buffer, false
-					if the second half */
+	/** log_buffer, append data here */
+	byte*		buf;
+	/** log_buffer, writing data to file from this buffer.
+	Before flushing write_buf is swapped with flush_buf */
+	byte*		flush_buf;
 	ulong		max_buf_free;	/*!< recommended maximum value of
 					buf_free for the buffer in use, after
 					which the buffer is flushed */

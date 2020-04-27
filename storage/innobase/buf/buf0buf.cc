@@ -1246,11 +1246,12 @@ buf_madvise_do_dump()
 
 	/* mirrors allocation in log_t::create() */
 	if (log_sys.buf) {
-		ret+= madvise(log_sys.first_in_use
-			      ? log_sys.buf
-			      : log_sys.buf - srv_log_buffer_size,
-			      srv_log_buffer_size * 2,
-			      MADV_DODUMP);
+		ret += madvise(log_sys.buf,
+			       srv_log_buffer_size,
+			       MADV_DODUMP);
+		ret += madvise(log_sys.flush_buf,
+			       srv_log_buffer_size,
+			       MADV_DODUMP);
 	}
 	/* mirrors recv_sys_init() */
 	if (recv_sys->buf)
