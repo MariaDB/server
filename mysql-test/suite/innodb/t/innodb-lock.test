@@ -219,3 +219,29 @@ reap;
 disconnect con1;
 connection default;
 DROP TABLE t1, t2, t3;
+
+
+--echo #
+--echo # MDEV-17749 - Assertion `thd->transaction.stmt.is_empty()' failed in
+--echo #              Locked_tables_list::unlock_locked_tables upon ALTER killed
+--echo #              under lock
+--echo #
+CREATE TEMPORARY TABLE t1(c INT) ENGINE=InnoDB;
+LOCK TABLES t1 WRITE;
+ALTER TABLE t1 ADD COLUMN c2 INT;
+REPAIR TABLE t1 USE_FRM;
+UNLOCK TABLES;
+DROP TABLE t1;
+
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+
+connect con1, localhost, root;
+LOCK TABLE t1 WRITE;
+let $conid= `SELECT CONNECTION_ID()`;
+send ALTER TABLE t1 ADD COLUMN b INT;
+
+connection default;
+replace_result $conid conid;
+eval KILL $conid;
+disconnect con1;
+DROP TABLE t1;

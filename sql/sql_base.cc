@@ -2391,10 +2391,6 @@ unlink_all_closed_tables(THD *thd, MYSQL_LOCK *lock, size_t reopen_count)
       m_locked_tables_count--;
     }
   }
-
-  /* If no tables left, do an automatic UNLOCK TABLES */
-  if (thd->lock && thd->lock->table_count == 0)
-    unlock_locked_tables(thd);
 }
 
 
