@@ -884,53 +884,65 @@ Function acquires either a backup tables lock, if supported
 by the server, or a global read lock (FLUSH TABLES WITH READ LOCK)
 otherwise.
 @returns true if lock acquired */
-bool
-lock_tables(MYSQL *connection)
+bool lock_tables(MYSQL *connection)
 {
-	if (have_lock_wait_timeout) {
-		/* Set the maximum supported session value for
-		lock_wait_timeout to prevent unnecessary timeouts when the
-		global value is changed from the default */
-		xb_mysql_query(connection,
-			"SET SESSION lock_wait_timeout=31536000", false);
-	}
+  if (have_lock_wait_timeout || opt_lock_wait_timeout)
+  {
+    char buf[FN_REFLEN];
+    /* Set the maximum supported session value for
+    lock_wait_timeout if opt_lock_wait_timeout is not set to prevent
+    unnecessary timeouts when the global value is changed from the default */
+    snprintf(buf, sizeof(buf), "SET SESSION lock_wait_timeout=%u",
+             opt_lock_wait_timeout ? opt_lock_wait_timeout : 31536000);
+    xb_mysql_query(connection, buf, false);
+  }
 
-	if (have_backup_locks) {
-		msg("Executing LOCK TABLES FOR BACKUP...");
-		xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
-		return(true);
-	}
+  if (have_backup_locks)
+  {
+    msg("Executing LOCK TABLES FOR BACKUP...");
+    xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
+    return (true);
+  }
 
-	if (opt_lock_wait_timeout) {
-		if (!wait_for_no_updates(connection, opt_lock_wait_timeout,
-					 opt_lock_wait_threshold)) {
-			return(false);
-		}
-	}
+  if (opt_lock_wait_timeout)
+  {
+    if (!wait_for_no_updates(connection, opt_lock_wait_timeout,
+                             opt_lock_wait_threshold))
+    {
+      return (false);
+    }
+  }
 
-	msg("Acquiring BACKUP LOCKS...");
+  msg("Acquiring BACKUP LOCKS...");
 
-	if (opt_kill_long_queries_timeout) {
-		start_query_killer();
-	}
+  if (opt_kill_long_queries_timeout)
+  {
+    start_query_killer();
+  }
 
-	if (have_galera_enabled) {
-		xb_mysql_query(connection,
-				"SET SESSION wsrep_causal_reads=0", false);
-	}
+  if (have_galera_enabled)
+  {
+    xb_mysql_query(connection, "SET SESSION wsrep_causal_reads=0", false);
+  }
 
-	xb_mysql_query(connection, "BACKUP STAGE START", true);
-	//xb_mysql_query(connection, "BACKUP STAGE FLUSH", true);
-	//xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", true);
-	xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
+  xb_mysql_query(connection, "BACKUP STAGE START", true);
+  // xb_mysql_query(connection, "BACKUP STAGE FLUSH", true);
+  // xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", true);
+  xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
+  /* Set the maximum supported session value for
+  lock_wait_timeout to prevent unnecessary timeouts when the
+  global value is changed from the default */
+  if (opt_lock_wait_timeout)
+    xb_mysql_query(connection, "SET SESSION lock_wait_timeout=31536000",
+                   false);
 
-	if (opt_kill_long_queries_timeout) {
-		stop_query_killer();
-	}
+  if (opt_kill_long_queries_timeout)
+  {
+    stop_query_killer();
+  }
 
-	return(true);
+  return (true);
 }
-
 
 /*********************************************************************//**
 If backup locks are used, execute LOCK BINLOG FOR BACKUP provided that we are
