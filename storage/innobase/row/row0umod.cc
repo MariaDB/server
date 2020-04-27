@@ -1301,8 +1301,8 @@ row_undo_mod(
 			already be holding dict_sys->mutex, which
 			would be acquired when updating statistics. */
 			if (update_statistics && !dict_locked) {
-				dict_stats_update_if_needed(
-					node->table, node->trx->mysql_thd);
+				dict_stats_update_if_needed(node->table,
+							    *node->trx);
 			} else {
 				node->table->stat_modified_counter++;
 			}
