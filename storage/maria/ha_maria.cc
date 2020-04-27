@@ -1477,6 +1477,13 @@ int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
     }
     break;
   }
+  /*
+    Commit is needed in the case of tables are locked to ensure that repair
+    is registered in the recovery log
+  */
+  if (implicit_commit(thd, TRUE))
+    error= HA_ADMIN_COMMIT_ERROR;
+
   if (!error && start_records != file->state->records &&
       !(check_opt->flags & T_VERY_SILENT))
   {

@@ -192,8 +192,10 @@ BACKUP STAGE END;
 SET GLOBAL lock_wait_timeout=0;
 CREATE TABLE t_permanent_innodb (col1 INT) ENGINE = InnoDB;
 CREATE TABLE t_permanent_myisam (col1 INT) ENGINE = MyISAM;
+CREATE TABLE t_permanent_aria  (col1 INT) ENGINE = Aria transactional=1;
 INSERT INTO t_permanent_innodb SET col1 = 1;
 INSERT INTO t_permanent_myisam SET col1 = 1;
+INSERT INTO t_permanent_aria SET col1 = 1;
 CREATE TABLE t_con1_innodb (col1 INT) ENGINE = InnoDB;
 CREATE TABLE t_con1_myisam (col1 INT) ENGINE = MyISAM;
 connect con1,localhost,root,,;
@@ -207,13 +209,23 @@ connection con1;
 UPDATE t_permanent_innodb SET col1 = 8;
 UPDATE t_permanent_myisam SET col1 = 8;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+UPDATE t_permanent_aria SET col1 = 8;
 DROP TABLE t_con1_innodb;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 DROP TABLE t_con1_myisam;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection default;
 BACKUP STAGE END;
-DROP TABLE t_permanent_myisam, t_permanent_innodb;
+select * from t_permanent_innodb;
+col1
+1
+select * from t_permanent_myisam;
+col1
+1
+select * from t_permanent_aria;
+col1
+8
+DROP TABLE t_permanent_myisam, t_permanent_innodb, t_permanent_aria;
 DROP TABLE t_con1_innodb, t_con1_myisam;
 disconnect con1;
 set global lock_wait_timeout=default;

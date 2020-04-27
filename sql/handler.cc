@@ -1531,16 +1531,6 @@ int ha_commit_trans(THD *thd, bool all)
     DBUG_RETURN(2);
   }
 
-#ifdef WITH_ARIA_STORAGE_ENGINE
-  if ((error= ha_maria::implicit_commit(thd, TRUE)))
-  {
-    my_error(ER_ERROR_DURING_COMMIT, MYF(0), error);
-    ha_rollback_trans(thd, all);
-    DBUG_RETURN(1);
-  }
-
-#endif
-
   if (!ha_info)
   {
     /*
@@ -1556,6 +1546,16 @@ int ha_commit_trans(THD *thd, bool all)
     if (wsrep_is_active(thd) && is_real_trans && !error)
       wsrep_commit_empty(thd, all);
 #endif /* WITH_WSREP */
+
+#if defined(WITH_ARIA_STORAGE_ENGINE)
+    /* This is needed to ensure that repair commits properly */
+    if ((error= ha_maria::implicit_commit(thd, TRUE)))
+    {
+      my_error(ER_ERROR_DURING_COMMIT, MYF(0), error);
+      ha_rollback_trans(thd, all);
+      DBUG_RETURN(1);
+    }
+#endif
     DBUG_RETURN(0);
   }
 
@@ -1570,10 +1570,16 @@ int ha_commit_trans(THD *thd, bool all)
   bool rw_trans= is_real_trans &&
                  (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
   MDL_request mdl_request;
+  mdl_request.ticket= 0;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
 
-  if (rw_trans)
+  /*
+    We need to test maria_hton because of plugin_innodb.test that changes
+    the plugin table to innodb and thus plugin_load will call
+    mysql_close_tables() which calls trans_commit_trans() with maria_hton = 0
+  */
+  if (rw_trans || (likely(maria_hton) && thd_get_ha_data(thd, maria_hton)))
   {
     /*
       Acquire a metadata lock which will ensure that COMMIT is blocked
@@ -1587,8 +1593,8 @@ int ha_commit_trans(THD *thd, bool all)
                      MDL_EXPLICIT);
 
     if (!WSREP(thd) &&
-      thd->mdl_context.acquire_lock(&mdl_request,
-                                    thd->variables.lock_wait_timeout))
+        thd->mdl_context.acquire_lock(&mdl_request,
+                                      thd->variables.lock_wait_timeout))
     {
       ha_rollback_trans(thd, all);
       DBUG_RETURN(1);
@@ -1596,6 +1602,13 @@ int ha_commit_trans(THD *thd, bool all)
 
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
+#if defined(WITH_ARIA_STORAGE_ENGINE)
+    if ((error= ha_maria::implicit_commit(thd, TRUE)))
+    {
+      my_error(ER_ERROR_DURING_COMMIT, MYF(0), error);
+      goto err;
+    }
+#endif
 
   if (rw_trans &&
       opt_readonly &&
@@ -1797,7 +1810,7 @@ err:
                 thd->rgi_slave->is_parallel_exec);
   }
 end:
-  if (rw_trans && mdl_request.ticket)
+  if (mdl_request.ticket)
   {
     /*
       We do not always immediately release transactional locks

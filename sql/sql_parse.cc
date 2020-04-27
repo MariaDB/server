@@ -1508,6 +1508,67 @@ uint maria_multi_check(THD *thd, char *packet, size_t packet_length)
 }
 
 
+#if defined(WITH_ARIA_STORAGE_ENGINE)
+class Silence_all_errors : public Internal_error_handler
+{
+  char m_message[MYSQL_ERRMSG_SIZE];
+  int error;
+public:
+  Silence_all_errors():error(0) {}
+  virtual ~Silence_all_errors() {}
+
+  virtual bool handle_condition(THD *thd,
+                                uint sql_errno,
+                                const char* sql_state,
+                                Sql_condition::enum_warning_level *level,
+                                const char* msg,
+                                Sql_condition ** cond_hdl)
+  {
+    error= sql_errno;
+    *cond_hdl= NULL;
+    strmake_buf(m_message, msg);
+    return true;                              // Error handled
+  }
+};
+#endif
+
+/*
+  Do an implict commit into the Aria storage engine
+*/
+
+static inline my_bool aria_implicit_commit(THD *thd)
+{
+#if defined(WITH_ARIA_STORAGE_ENGINE)
+  if (thd_get_ha_data(thd, maria_hton))
+  {
+    MDL_request mdl_request;
+    bool locked;
+    int res;
+    Silence_all_errors error_handler;
+    DBUG_ASSERT(maria_hton);
+
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+                     MDL_EXPLICIT);
+    /*
+      We have to ignore any errors from acquire_lock and continue even if we
+      don't get the lock as Aria can't roll back!
+      This function is also called in some cases when the message is already
+      sent to the user, so we can't even send a warning.
+  */
+    thd->push_internal_handler(& error_handler);
+    locked= !thd->mdl_context.acquire_lock(&mdl_request,
+                                           thd->variables.lock_wait_timeout);
+    thd->pop_internal_handler();
+    res= ha_maria::implicit_commit(thd, FALSE);
+    if (locked)
+      thd->mdl_context.release_lock(mdl_request.ticket);
+    return res;
+  }
+#endif
+  return 0;
+}
+
+
 /**
   Perform one connection-level (COM_XXXX) command.
 
@@ -1860,9 +1921,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       */
       char *beginning_of_next_stmt= (char*) parser_state.m_lip.found_semicolon;
 
-#ifdef WITH_ARIA_STORAGE_ENGINE
-    ha_maria::implicit_commit(thd, FALSE);
-#endif
+      aria_implicit_commit(thd);
 
       /* Finalize server status flags after executing a statement. */
       thd->update_server_status();
@@ -5990,9 +6049,7 @@ finish:
       trans_commit_stmt(thd);
       thd->get_stmt_da()->set_overwrite_status(false);
     }
-#ifdef WITH_ARIA_STORAGE_ENGINE
-    ha_maria::implicit_commit(thd, FALSE);
-#endif
+    aria_implicit_commit(thd);
   }
 
   /* Free tables. Set stage 'closing tables' */

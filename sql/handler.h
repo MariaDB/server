@@ -70,6 +70,7 @@ class Column_definition;
 #define HA_ADMIN_NEEDS_UPGRADE  -10
 #define HA_ADMIN_NEEDS_ALTER    -11
 #define HA_ADMIN_NEEDS_CHECK    -12
+#define HA_ADMIN_COMMIT_ERROR   -13
 
 /**
    Return values for check_if_supported_inplace_alter().
