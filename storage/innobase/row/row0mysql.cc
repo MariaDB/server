@@ -1125,7 +1125,7 @@ row_update_statistics_if_needed(
 		    && dict_stats_auto_recalc_is_enabled(table)) {
 
 #ifdef WITH_WSREP
-			if (wsrep_on(trx->mysql_thd) &&
+			if (trx->is_wsrep() &&
 			    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 				WSREP_DEBUG("Avoiding background statistics"
 					    " calculation for table %s",

@@ -4,7 +4,7 @@ Copyright (c) 2000, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1671,8 +1671,7 @@ innobase_srv_conc_enter_innodb(
 	trx_t*	trx)	/*!< in: transaction handle */
 {
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) && 
-	    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) return;
+	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) return;
 #endif /* WITH_WSREP */
 	if (srv_thread_concurrency) {
 		if (trx->n_tickets_to_enter_innodb > 0) {
@@ -1710,8 +1709,7 @@ innobase_srv_conc_exit_innodb(
 	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
 #endif /* UNIV_SYNC_DEBUG */
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) && 
-	    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) return;
+	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) return;
 #endif /* WITH_WSREP */
 
 	/* This is to avoid making an unnecessary function call. */
@@ -2638,6 +2636,9 @@ innobase_trx_init(
 
 	trx->check_unique_secondary = !thd_test_options(
 		thd, OPTION_RELAXED_UNIQUE_CHECKS);
+#ifdef WITH_WSREP
+	trx->wsrep = wsrep_on(thd);
+#endif
 
 	DBUG_VOID_RETURN;
 }
@@ -4185,19 +4186,17 @@ innobase_commit_low(
 	trx_t*	trx)	/*!< in: transaction handle */
 {
 #ifdef WITH_WSREP
-	THD* thd = (THD*)trx->mysql_thd;
 	const char* tmp = 0;
-	if (thd && wsrep_on(thd)) {
+	if (trx->is_wsrep()) {
 #ifdef WSREP_PROC_INFO
 		char info[64];
 		info[sizeof(info) - 1] = '\0';
 		snprintf(info, sizeof(info) - 1,
 			 "innobase_commit_low():trx_commit_for_mysql(%lld)",
-			 (long long) wsrep_thd_trx_seqno(thd));
-		tmp = thd_proc_info(thd, info);
-
+			 (long long) wsrep_thd_trx_seqno(trx->mysql_thd));
+		tmp = thd_proc_info(trx->mysql_thd, info);
 #else
-		tmp = thd_proc_info(thd, "innobase_commit_low()");
+		tmp = thd_proc_info(trx->mysql_thd, "innobase_commit_low()");
 #endif /* WSREP_PROC_INFO */
 	}
 #endif /* WITH_WSREP */
@@ -4206,7 +4205,7 @@ innobase_commit_low(
 		trx_commit_for_mysql(trx);
 	}
 #ifdef WITH_WSREP
-	if (thd && wsrep_on(thd)) { thd_proc_info(thd, tmp); }
+	if (trx->is_wsrep()) { thd_proc_info(trx->mysql_thd, tmp); }
 #endif /* WITH_WSREP */
 }
 
@@ -8151,19 +8150,19 @@ ha_innobase::write_row(
 
 	sql_command = thd_sql_command(user_thd);
 
-	if ((sql_command == SQLCOM_ALTER_TABLE
-	     || sql_command == SQLCOM_OPTIMIZE
-	     || sql_command == SQLCOM_CREATE_INDEX
+	if (num_write_row >= 10000
+	    && (sql_command == SQLCOM_ALTER_TABLE
+		|| sql_command == SQLCOM_OPTIMIZE
+		|| sql_command == SQLCOM_CREATE_INDEX
 #ifdef WITH_WSREP
-	     || (wsrep_on(user_thd) && wsrep_load_data_splitting &&
-		 sql_command == SQLCOM_LOAD                      &&
-		 !thd_test_options(
-			user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+		|| (sql_command == SQLCOM_LOAD                   &&
+		    trx->is_wsrep() && wsrep_load_data_splitting &&
+		    !thd_test_options(
+			    user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 #endif /* WITH_WSREP */
-	     || sql_command == SQLCOM_DROP_INDEX)
-	    && num_write_row >= 10000) {
+		|| sql_command == SQLCOM_DROP_INDEX)) {
 #ifdef WITH_WSREP
-		if (wsrep_on(user_thd) && sql_command == SQLCOM_LOAD) {
+		if (sql_command == SQLCOM_LOAD && trx->is_wsrep()) {
 			WSREP_DEBUG("forced trx split for LOAD: %s", 
 				    wsrep_thd_query(user_thd));
 		}
@@ -8202,9 +8201,8 @@ no_commit:
 			;
 		} else if (src_table == prebuilt->table) {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd)                              &&
-			    wsrep_load_data_splitting                       &&
-			    sql_command == SQLCOM_LOAD                      &&
+			if (sql_command == SQLCOM_LOAD && trx->is_wsrep() &&
+			    wsrep_load_data_splitting &&
 			    !thd_test_options(user_thd,
 			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 			{
@@ -8234,9 +8232,8 @@ no_commit:
 			prebuilt->sql_stat_start = TRUE;
 		} else {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd)                              &&
-			    wsrep_load_data_splitting                       &&
-			    sql_command == SQLCOM_LOAD                      &&
+			if (sql_command == SQLCOM_LOAD && trx->is_wsrep() &&
+			    wsrep_load_data_splitting &&
 			    !thd_test_options(user_thd,
 			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 			{
@@ -8377,21 +8374,19 @@ no_commit:
 				      prebuilt->autoinc_offset,
 				      prebuilt->autoinc_increment);
 
-                               if (wsrep_on(current_thd)                     &&
+                               if (trx->is_wsrep()                           &&
                                    auto_inc_inserted                         &&
                                    wsrep_drupal_282555_workaround            &&
-                                   wsrep_thd_retry_counter(current_thd) == 0 &&
-				    !thd_test_options(current_thd, 
+                                   wsrep_thd_retry_counter(user_thd) == 0    &&
+				    !thd_test_options(user_thd,
 						      OPTION_NOT_AUTOCOMMIT | 
 						      OPTION_BEGIN)) {
 					WSREP_DEBUG(
 					    "retrying insert: %s",
-					    (*wsrep_thd_query(current_thd)) ? 
-						wsrep_thd_query(current_thd) : 
-						(char *)"void");
+					    wsrep_thd_query(user_thd));
 					error= DB_SUCCESS;
 					wsrep_thd_set_conflict_state(
-						current_thd, MUST_ABORT);
+						user_thd, MUST_ABORT);
                                         innobase_srv_conc_exit_innodb(prebuilt->trx);
                                         /* jump straight to func exit over
                                          * later wsrep hooks */
@@ -8429,7 +8424,7 @@ set_max_autoinc:
 					prebuilt autoinc values don't get
 					properly assigned. Fetch values from
 					server side. */
-					if (wsrep_on(user_thd) &&
+					if (trx->is_wsrep() &&
 					    wsrep_thd_exec_mode(user_thd) == REPL_RECV)
 					{
 					    wsrep_thd_auto_increment_variables(
@@ -8478,8 +8473,7 @@ report_error:
 						   user_thd);
 
 #ifdef WITH_WSREP
-	if (!error_result
-	    && wsrep_on(user_thd)
+	if (!error_result && trx->is_wsrep()
 	    && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE
 	    && !wsrep_consistency_check(user_thd)
 	    && !wsrep_thd_ignore_table(user_thd)) {
@@ -8487,10 +8481,9 @@ report_error:
 				      NULL)) {
 			DBUG_PRINT("wsrep", ("row key failed"));
 			error_result = HA_ERR_INTERNAL_ERROR;
-			goto wsrep_error;
+			goto func_exit;
 		}
 	}
-wsrep_error:
 #endif /* WITH_WSREP */
 
 	if (error_result == HA_FTS_INVALID_DOCID) {
@@ -8973,7 +8966,7 @@ ha_innobase::update_row(
 			prebuilt autoinc values don't get
 			properly assigned. Fetch values from
 			server side. */
-			if (wsrep_on(user_thd) &&
+			if (trx->is_wsrep() &&
 			    wsrep_thd_exec_mode(user_thd) == REPL_RECV)
 			{
 			    wsrep_thd_auto_increment_variables(
@@ -9018,9 +9011,8 @@ func_exit:
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS                          &&
+	if (error == DB_SUCCESS && trx->is_wsrep() &&
 	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
-	    wsrep_on(user_thd)                           &&
 	    !wsrep_thd_ignore_table(user_thd))
         {
 		DBUG_PRINT("wsrep", ("update row key"));
@@ -9029,13 +9021,10 @@ func_exit:
 				      new_row)) {
 			WSREP_DEBUG("WSREP: UPDATE_ROW_KEY FAILED");
 			DBUG_PRINT("wsrep", ("row key failed"));
-			err = HA_ERR_INTERNAL_ERROR;
-			goto wsrep_error;
+			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 		}
 	}
-wsrep_error:
 #endif /* WITH_WSREP */
-
 
 	DBUG_RETURN(err);
 }
@@ -9085,19 +9074,16 @@ ha_innobase::delete_row(
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS                          &&
+	if (error == DB_SUCCESS && trx->is_wsrep() &&
             wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
-            wsrep_on(user_thd)                           &&
             !wsrep_thd_ignore_table(user_thd))
         {
 		if (wsrep_append_keys(user_thd, WSREP_KEY_EXCLUSIVE, record,
 			              NULL)) {
 			DBUG_PRINT("wsrep", ("delete fail"));
-			error = (dberr_t) HA_ERR_INTERNAL_ERROR;
-			goto wsrep_error;
+			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 		}
 	}
-wsrep_error:
 #endif /* WITH_WSREP */
 	DBUG_RETURN(convert_error_code_to_mysql(
 			    error, prebuilt->table->flags, user_thd));
@@ -10370,8 +10356,7 @@ wsrep_append_foreign_key(
 	int   cache_key_len;
     bool const copy = true;
 
-	if (!wsrep_on(trx->mysql_thd) ||
-	    wsrep_thd_exec_mode(thd) != LOCAL_STATE)
+	if (!trx->is_wsrep() || wsrep_thd_exec_mode(thd) != LOCAL_STATE)
 		return DB_SUCCESS;
 
 	if (!thd || !foreign ||
@@ -14921,12 +14906,11 @@ ha_innobase::external_lock(
 	THD*	thd,		/*!< in: handle to the user thread */
 	int	lock_type)	/*!< in: lock type */
 {
-	trx_t*		trx;
-
 	DBUG_ENTER("ha_innobase::external_lock");
 	DBUG_PRINT("enter",("lock_type: %d", lock_type));
 
 	update_thd(thd);
+	trx_t* trx = prebuilt->trx;
 
 	/* Statement based binlogging does not work in isolation level
 	READ UNCOMMITTED and READ COMMITTED since the necessary
@@ -14940,22 +14924,19 @@ ha_innobase::external_lock(
 	    && thd_binlog_format(thd) == BINLOG_FORMAT_STMT
 	    && thd_binlog_filter_ok(thd)
 	    && thd_sqlcom_can_generate_row_events(thd)) {
-		bool skip = 0;
+		bool skip = false;
+#ifdef WITH_WSREP
+		skip = trx->is_wsrep()
+			&& wsrep_thd_exec_mode(thd) != LOCAL_STATE;
+#endif /* WITH_WSREP */
 		/* used by test case */
 		DBUG_EXECUTE_IF("no_innodb_binlog_errors", skip = true;);
 		if (!skip) {
-#ifdef WITH_WSREP
-			if (!wsrep_on(thd) || wsrep_thd_exec_mode(thd) == LOCAL_STATE)
-			{
-#endif /* WITH_WSREP */
 			my_error(ER_BINLOG_STMT_MODE_AND_ROW_ENGINE, MYF(0),
 			         " InnoDB is limited to row-logging when "
 			         "transaction isolation level is "
 			         "READ COMMITTED or READ UNCOMMITTED.");
 			DBUG_RETURN(HA_ERR_LOGGING_IMPOSSIBLE);
-#ifdef WITH_WSREP
-			}
-#endif /* WITH_WSREP */
 		}
 	}
 
@@ -14985,8 +14966,6 @@ ha_innobase::external_lock(
 		}
 
 	}
-
-	trx = prebuilt->trx;
 
 	prebuilt->sql_stat_start = TRUE;
 	prebuilt->hint_need_to_fetch_extra_cols = 0;

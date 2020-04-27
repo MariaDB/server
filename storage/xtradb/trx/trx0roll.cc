@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -379,8 +379,7 @@ trx_rollback_to_savepoint_for_mysql_low(
 	trx->op_info = "";
 
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) &&
-	    trx->lock.was_chosen_as_deadlock_victim) {
+	if (trx->is_wsrep()) {
 		trx->lock.was_chosen_as_deadlock_victim = FALSE;
 	}
 #endif
@@ -1083,12 +1082,6 @@ trx_roll_try_truncate(
 	if (trx->update_undo) {
 		trx_undo_truncate_end(trx, trx->update_undo, limit);
 	}
-
-#ifdef WITH_WSREP_OUT
-	if (wsrep_on(trx->mysql_thd)) {
-		trx->lock.was_chosen_as_deadlock_victim = FALSE;
-	}
-#endif /* WITH_WSREP */
 }
 
 /***********************************************************************//**
