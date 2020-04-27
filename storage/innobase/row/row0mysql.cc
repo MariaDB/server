@@ -1039,7 +1039,7 @@ row_prebuilt_free(
 		rtr_clean_rtr_info(prebuilt->rtr_info, true);
 	}
 	if (prebuilt->table) {
-		dict_table_close(prebuilt->table, dict_locked, TRUE);
+		dict_table_close(prebuilt->table, dict_locked, FALSE);
 	}
 
 	mem_heap_free(prebuilt->heap);
@@ -1575,7 +1575,7 @@ error_exit:
 		memcpy(prebuilt->row_id, node->sys_buf, DATA_ROW_ID_LEN);
 	}
 
-	dict_stats_update_if_needed(table, trx->mysql_thd);
+	dict_stats_update_if_needed(table, *trx);
 	trx->op_info = "";
 
 	if (blob_heap != NULL) {
@@ -1959,7 +1959,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	}
 
 	if (update_statistics) {
-		dict_stats_update_if_needed(prebuilt->table, trx->mysql_thd);
+		dict_stats_update_if_needed(prebuilt->table, *trx);
 	} else {
 		/* Always update the table modification counter. */
 		prebuilt->table->stat_modified_counter++;
@@ -2209,7 +2209,7 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 		case DB_SUCCESS:
 			srv_stats.n_rows_inserted.inc(
 				static_cast<size_t>(trx->id));
-			dict_stats_update_if_needed(table, trx->mysql_thd);
+			dict_stats_update_if_needed(table, *trx);
 			goto exit;
 		}
 	}
@@ -2303,8 +2303,7 @@ row_update_cascade_for_mysql(
 			}
 
 			if (stats) {
-				dict_stats_update_if_needed(node->table,
-							    trx->mysql_thd);
+				dict_stats_update_if_needed(node->table, *trx);
 			} else {
 				/* Always update the table
 				modification counter. */

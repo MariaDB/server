@@ -1,4 +1,4 @@
-/* Copyright (C) 2014 SkySQL Ab.
+/* Copyright (C) 2014, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -135,6 +135,10 @@ my_bool wsrep_get_debug()
 
 void wsrep_commit_ordered(THD* )
 { }
+
+void wsrep_log(void (*)(const char *, ...), const char *, ...)
+{
+}
 
 my_bool wsrep_thd_is_applying(const THD*)
 { return 0;}

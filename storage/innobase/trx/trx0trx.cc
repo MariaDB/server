@@ -109,6 +109,9 @@ trx_init(
 	trx->state = TRX_STATE_NOT_STARTED;
 
 	trx->is_recovered = false;
+#ifdef WITH_WSREP
+	trx->wsrep = false;
+#endif /* WITH_WSREP */
 
 	trx->op_info = "";
 
@@ -1510,9 +1513,7 @@ trx_commit_in_memory(
 
 	trx_mutex_enter(trx);
 	trx->dict_operation = TRX_DICT_OP_NONE;
-#ifdef WITH_WSREP
-	trx->lock.was_chosen_as_wsrep_victim = FALSE;
-#endif
+	trx->lock.was_chosen_as_deadlock_victim = false;
 
 	DBUG_LOG("trx", "Commit in memory: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;

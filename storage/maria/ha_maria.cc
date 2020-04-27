@@ -297,7 +297,7 @@ static MYSQL_SYSVAR_BOOL(encrypt_tables, maria_encrypt_tables, PLUGIN_VAR_OPCMDA
        "and not FIXED/DYNAMIC)",
        0, 0, 0);
 
-#ifdef HAVE_PSI_INTERFACE
+#if defined HAVE_PSI_INTERFACE && !defined EMBEDDED_LIBRARY
 
 static PSI_mutex_info all_aria_mutexes[]=
 {
