@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1814,6 +1814,15 @@ static void close_server_sock()
 #endif
 }
 
+#else /* EMBEDDED LIBRARY */
+# ifndef _WIN32
+/* Unfortunately, ha_innodb.so is by default built WITH_WSREP, and it
+will be used for both the normal and the embedded server, while the
+embedded server library is never built WITH_WSREP. We must define this
+symbol in the embedded library, so that loading a dynamic InnoDB storage
+engine plugin will work in the embedded server library. */
+void wsrep_log(void (*)(const char *, ...), const char *, ...) {}
+# endif
 #endif /*EMBEDDED_LIBRARY*/
 
 
