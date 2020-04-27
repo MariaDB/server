@@ -5929,7 +5929,7 @@ Query_log_event::do_shall_skip(rpl_group_info *rgi)
     }
   }
 #ifdef WITH_WSREP
-  else if (WSREP_ON && wsrep_mysql_replication_bundle && opt_slave_domain_parallel_threads == 0 &&
+  else if (WSREP(thd) && wsrep_mysql_replication_bundle && opt_slave_domain_parallel_threads == 0 &&
            thd->wsrep_mysql_replicated > 0 &&
            (is_begin() || is_commit()))
   {
@@ -5943,7 +5943,7 @@ Query_log_event::do_shall_skip(rpl_group_info *rgi)
       thd->wsrep_mysql_replicated = 0;
     }
   }
-#endif
+#endif /* WITH_WSREP */
   DBUG_RETURN(Log_event::do_shall_skip(rgi));
 }
 
@@ -9043,7 +9043,7 @@ Xid_log_event::do_shall_skip(rpl_group_info *rgi)
     DBUG_RETURN(Log_event::EVENT_SKIP_COUNT);
   }
 #ifdef WITH_WSREP
-  else if (wsrep_mysql_replication_bundle && WSREP_ON &&
+  else if (WSREP(thd) && wsrep_mysql_replication_bundle &&
            opt_slave_domain_parallel_threads == 0)
   {
     if (++thd->wsrep_mysql_replicated < (int)wsrep_mysql_replication_bundle)

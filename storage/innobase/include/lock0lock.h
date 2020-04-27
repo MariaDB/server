@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1043,10 +1043,6 @@ Get lock mode and table/index name
 std::string
 lock_get_info(
 	const lock_t*);
-
-/*******************************************************************//**
-@return whether wsrep_on is true on trx->mysql_thd*/
-#define wsrep_on_trx(trx) ((trx)->mysql_thd && wsrep_on((trx)->mysql_thd))
 
 #endif /* WITH_WSREP */
 

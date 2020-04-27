@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1848,7 +1848,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     if (unlikely(parser_state.init(thd, thd->query(), thd->query_length())))
       break;
 
-    if (WSREP_ON)
+    if (WSREP(thd))
       wsrep_mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
                         is_com_multi, is_next_command);
     else
@@ -1932,12 +1932,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       */
       statistic_increment(thd->status_var.questions, &LOCK_status);
 
-      if(!WSREP(thd))
+      if (!WSREP(thd))
 	thd->set_time(); /* Reset the query start time. */
 
       parser_state.reset(beginning_of_next_stmt, length);
 
-      if (WSREP_ON)
+      if (WSREP(thd))
         wsrep_mysql_parse(thd, beginning_of_next_stmt, length, &parser_state,
                           is_com_multi, is_next_command);
       else

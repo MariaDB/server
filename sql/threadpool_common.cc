@@ -1,4 +1,4 @@
-/* Copyright (C) 2012 Monty Program Ab
+/* Copyright (C) 2012, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,7 +45,6 @@ static void  threadpool_remove_connection(THD *thd);
 static int   threadpool_process_request(THD *thd);
 static THD*  threadpool_add_connection(CONNECT *connect, void *scheduler_data);
 
-extern "C" pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 extern bool do_command(THD*);
 
 static inline TP_connection *get_TP_connection(THD *thd)
@@ -84,14 +83,14 @@ struct Worker_thread_context
 
   void save()
   {
-    psi_thread = PSI_CALL_get_thread();
-    mysys_var= (st_my_thread_var *)pthread_getspecific(THR_KEY_mysys);
+    psi_thread= PSI_CALL_get_thread();
+    mysys_var= my_thread_var;
   }
 
   void restore()
   {
     PSI_CALL_set_thread(psi_thread);
-    pthread_setspecific(THR_KEY_mysys,mysys_var);
+    set_mysys_var(mysys_var);
     pthread_setspecific(THR_THD, 0);
   }
 };
@@ -137,7 +136,7 @@ static inline void set_thd_idle(THD *thd)
 */
 static void thread_attach(THD* thd)
 {
-  pthread_setspecific(THR_KEY_mysys,thd->mysys_var);
+  set_mysys_var(thd->mysys_var);
   thd->thread_stack=(char*)&thd;
   thd->store_globals();
   PSI_CALL_set_thread(thd->event_scheduler.m_psi);
@@ -222,9 +221,9 @@ static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
     Store them in THD.
   */
 
-  pthread_setspecific(THR_KEY_mysys, 0);
+  set_mysys_var(NULL);
   my_thread_init();
-  st_my_thread_var* mysys_var= (st_my_thread_var *)pthread_getspecific(THR_KEY_mysys);
+  st_my_thread_var* mysys_var= my_thread_var;
   if (!mysys_var ||!(thd= connect->create_thd(NULL)))
   {
     /* Out of memory? */

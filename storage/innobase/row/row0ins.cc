@@ -1792,7 +1792,7 @@ row_ins_check_foreign_constraint(
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
-					if (!wsrep_on(trx->mysql_thd)) {
+					if (!trx->is_wsrep()) {
 						goto end_scan;
 					}
 					enum wsrep_key_type key_type;

@@ -1038,7 +1038,7 @@ row_prebuilt_free(
 		rtr_clean_rtr_info(prebuilt->rtr_info, true);
 	}
 	if (prebuilt->table) {
-		dict_table_close(prebuilt->table, dict_locked, TRUE);
+		dict_table_close(prebuilt->table, dict_locked, FALSE);
 	}
 
 	mem_heap_free(prebuilt->heap);
