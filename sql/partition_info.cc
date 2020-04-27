@@ -336,7 +336,8 @@ char *partition_info::create_default_partition_names(THD *thd, uint part_no,
   {
     do
     {
-      sprintf(move_ptr, "p%u", (start_no + i));
+      if (make_partition_name(move_ptr, (start_no + i)))
+        DBUG_RETURN(NULL);
       move_ptr+= MAX_PART_NAME_SIZE;
     } while (++i < num_parts_arg);
   }
@@ -401,17 +402,11 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
   uint i;
   char *default_name;
   bool result= TRUE;
-  bool alter= false;
   DBUG_ENTER("partition_info::set_up_default_partitions");
 
   if (part_type == VERSIONING_PARTITION)
   {
-    if (start_no > 0)
-    {
-      start_no--;
-      alter= true;
-    }
-    else if (use_default_num_partitions)
+    if (start_no == 0 && use_default_num_partitions)
       num_parts= 2;
     use_default_num_partitions= false;
   }
@@ -455,7 +450,7 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
       default_name+=MAX_PART_NAME_SIZE;
       if (part_type == VERSIONING_PARTITION)
       {
-        if (alter || i < num_parts - 1) {
+        if (start_no > 0 || i < num_parts - 1) {
           part_elem->type= partition_element::HISTORY;
         } else {
           part_elem->type= partition_element::CURRENT;

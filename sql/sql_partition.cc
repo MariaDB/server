@@ -5135,7 +5135,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       alt_part_info->part_type= tab_part_info->part_type;
       alt_part_info->subpart_type= tab_part_info->subpart_type;
       if (alt_part_info->set_up_defaults_for_partitioning(thd, table->file, 0,
-                                                    tab_part_info->num_parts))
+                              tab_part_info->next_part_no(num_new_partitions)))
       {
         goto err;
       }

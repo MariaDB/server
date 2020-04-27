@@ -34,6 +34,9 @@ typedef bool (*check_constants_func)(THD *thd, partition_info *part_info);
  
 struct st_ddl_log_memory_entry;
 
+#define MAX_PART_NAME_SIZE 8
+
+
 struct Vers_part_info : public Sql_alloc
 {
   Vers_part_info() :
@@ -415,6 +418,7 @@ public:
     }
     return NULL;
   }
+  uint next_part_no(uint new_parts) const;
 };
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);
@@ -498,6 +502,48 @@ void partition_info::vers_update_el_ids()
         break;
     }
   }
+}
+
+
+inline
+bool make_partition_name(char *move_ptr, uint i)
+{
+  int res= snprintf(move_ptr, MAX_PART_NAME_SIZE + 1, "p%u", i);
+  return res < 0 || res > MAX_PART_NAME_SIZE;
+}
+
+
+inline
+uint partition_info::next_part_no(uint new_parts) const
+{
+  if (part_type != VERSIONING_PARTITION)
+    return num_parts;
+  DBUG_ASSERT(new_parts > 0);
+  /* Choose first non-occupied name suffix */
+  uint32 suffix= num_parts - 1;
+  DBUG_ASSERT(suffix > 0);
+  char part_name[MAX_PART_NAME_SIZE + 1];
+  List_iterator_fast<partition_element> it(table->part_info->partitions);
+  for (uint cur_part= 0; cur_part < new_parts; ++cur_part, ++suffix)
+  {
+    uint32 cur_suffix= suffix;
+    if (make_partition_name(part_name, suffix))
+      return 0;
+    partition_element *el;
+    it.rewind();
+    while ((el= it++))
+    {
+      if (0 == my_strcasecmp(&my_charset_latin1, el->partition_name, part_name))
+      {
+        if (make_partition_name(part_name, ++suffix))
+          return 0;
+        it.rewind();
+      }
+    }
+    if (cur_part > 0 && suffix > cur_suffix)
+      cur_part= 0;
+  }
+  return suffix - new_parts;
 }
 
 #endif /* PARTITION_INFO_INCLUDED */
