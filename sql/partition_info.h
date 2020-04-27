@@ -513,6 +513,7 @@ bool make_partition_name(char *move_ptr, uint i)
 }
 
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 inline
 uint partition_info::next_part_no(uint new_parts) const
 {
@@ -545,5 +546,6 @@ uint partition_info::next_part_no(uint new_parts) const
   }
   return suffix - new_parts;
 }
+#endif
 
 #endif /* PARTITION_INFO_INCLUDED */
