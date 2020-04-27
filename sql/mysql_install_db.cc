@@ -29,6 +29,8 @@
 struct IUnknown;
 #include <shlwapi.h>
 
+#include <string>
+
 #define USAGETEXT \
 "mysql_install_db.exe  Ver 1.00 for Windows\n" \
 "Copyright (C) 2010-2011 Monty Program Ab & Vladislav Vaintroub\n" \
@@ -51,8 +53,6 @@ static char *opt_password;
 static int  opt_port;
 static int  opt_innodb_page_size;
 static char *opt_socket;
-static char *opt_os_user;
-static char *opt_os_password;
 static my_bool opt_default_user;
 static my_bool opt_allow_remote_root_access;
 static my_bool opt_skip_networking;
@@ -196,11 +196,6 @@ int main(int argc, char **argv)
   /* Print some help on errors */
   verbose_errors= TRUE;
 
-  if (!opt_os_user)
-  {
-    opt_os_user= default_os_user;
-    opt_os_password= NULL;
-  }
   /* Workaround WiX bug (strip possible quote character at the end of path) */
   size_t len= strlen(opt_datadir);
   if (len > 0)
@@ -382,7 +377,7 @@ static const char end_of_script[]="-- end.";
 
 /* Register service. Assume my.ini is in datadir */
 
-static int register_service()
+static int register_service(const char *user, const char *passwd)
 {
   char buf[3*MAX_PATH +32]; /* path to mysqld.exe, to my.ini, service name */
   SC_HANDLE sc_manager, sc_service;
@@ -408,7 +403,7 @@ static int register_service()
   /* Create the service. */
   sc_service= CreateService(sc_manager, opt_service,  opt_service,
     SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, 
-    SERVICE_ERROR_NORMAL, buf, NULL, NULL, NULL, opt_os_user, opt_os_password);
+    SERVICE_ERROR_NORMAL, buf, NULL, NULL, NULL, user, passwd);
 
   if (!sc_service) 
   {
@@ -558,6 +553,7 @@ static int create_db_instance()
   FILE *in;
   bool cleanup_datadir= true;
   DWORD last_error;
+  bool service_created= false;
 
   verbose("Running bootstrap");
 
@@ -629,15 +625,28 @@ static int create_db_instance()
     }
   }
 
+  std::string service_user;
+  /* Register service if requested. */
+  if (opt_service && opt_service[0])
+  {
+    /* Run service under virtual account NT SERVICE\service_name.*/
+    service_user.append("NT SERVICE\\").append(opt_service);
+    ret = register_service(service_user.c_str(), NULL);
+    if (ret)
+      goto end;
+    service_created = true;
+  }
   /*
-    Set data directory permissions for both current user and 
+    Set data directory permissions for both current user and
     default_os_user (the one who runs services).
   */
   set_directory_permissions(opt_datadir, NULL);
-  set_directory_permissions(opt_datadir, default_os_user);
+  if (!service_user.empty())
+    set_directory_permissions(opt_datadir, service_user.c_str());
 
   /* Do mysqld --bootstrap. */
   init_bootstrap_command_line(cmdline, sizeof(cmdline));
+
 
   if(opt_verbose_bootstrap)
     printf("Executing %s\n", cmdline);
@@ -723,19 +732,32 @@ static int create_db_instance()
   if (ret)
     goto end;
 
-  /* Register service if requested. */
-  if (opt_service && opt_service[0])
-  {
-    ret= register_service();
-    if (ret)
-      goto end;
-  }
+
 
 end:
-  if (ret && cleanup_datadir)
+  if (!ret)
+    return ret;
+
+  /* Cleanup after error.*/
+  if (cleanup_datadir)
   {
     SetCurrentDirectory(cwd);
     clean_directory(opt_datadir);
+  }
+
+  if (service_created)
+  {
+    auto sc_manager = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+    if (sc_manager)
+    {
+      auto sc_handle= OpenServiceA(sc_manager,opt_service, DELETE);
+      if (sc_handle)
+      {
+        DeleteService(sc_handle);
+        CloseServiceHandle(sc_handle);
+      }
+      CloseServiceHandle(sc_manager);
+    }
   }
   return ret;
 }

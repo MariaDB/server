@@ -58,6 +58,14 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "backup_mysql.h"
 #include <btr0btr.h>
 
+#ifdef _WIN32
+#include <aclapi.h>
+/* During copyback, store datadir permissions,
+ use them to create paths for tables specified
+ with DATA DIRECTORY.*/
+PSECURITY_DESCRIPTOR datadir_security_descriptor;
+#endif
+
 #define ROCKSDB_BACKUP_DIR "#rocksdb"
 
 /* list of files to sync for --rsync mode */
@@ -656,6 +664,19 @@ mkdirp(const char *pathname, int Flags, myf MyFlags)
 		return(-1);
 	}
 
+#ifdef _WIN32
+	SECURITY_ATTRIBUTES sa{};
+	sa.lpSecurityDescriptor= datadir_security_descriptor;
+	sa.nLength= sizeof(sa);
+	if (CreateDirectory(pathname, datadir_security_descriptor?&sa : NULL)
+		|| GetLastError() == ERROR_ALREADY_EXISTS
+		|| GetLastError() == ERROR_ACCESS_DENIED && strlen(pathname) == 2 && pathname[1]==':')
+	{
+		free(parent);
+		return 0;
+	}
+	return -1;
+#else
 	/* make this one if parent has been made */
 	if (my_mkdir(pathname, Flags, MyFlags) == 0) {
 		free(parent);
@@ -667,6 +688,7 @@ mkdirp(const char *pathname, int Flags, myf MyFlags)
 		free(parent);
 		return(0);
 	}
+#endif
 
 	free(parent);
 	return(-1);
@@ -985,64 +1007,6 @@ run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
 	return(ret);
 }
 
-#ifdef _WIN32
-#include <windows.h>
-#include <accctrl.h>
-#include <aclapi.h>
-/*
-  On Windows, fix permission of the file after "copyback"
-  We assume that after copyback, mysqld will run as service as NetworkService
-  user, thus well give full permission on given file to that user.
-*/
-
-static int fix_win_file_permissions(const char *file)
-{
-	struct {
-		TOKEN_USER tokenUser;
-		BYTE buffer[SECURITY_MAX_SID_SIZE];
-	} tokenInfoBuffer;
-	HANDLE hFile = CreateFile(file, READ_CONTROL | WRITE_DAC, 0, NULL, OPEN_EXISTING,
-		FILE_FLAG_BACKUP_SEMANTICS, NULL);
-	if (hFile == INVALID_HANDLE_VALUE)
-		return -1;
-	ACL* pOldDACL;
-	SECURITY_DESCRIPTOR* pSD = NULL;
-	EXPLICIT_ACCESS ea = { 0 };
-	PSID pSid = NULL;
-
-	GetSecurityInfo(hFile, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL,
-		&pOldDACL, NULL, (void**)&pSD);
-	DWORD size = SECURITY_MAX_SID_SIZE;
-	pSid = (PSID)tokenInfoBuffer.buffer;
-	if (!CreateWellKnownSid(WinNetworkServiceSid, NULL, pSid,
-		&size))
-	{
-		return 1;
-	}
-	ea.Trustee.TrusteeForm = TRUSTEE_IS_SID;
-	ea.Trustee.ptstrName = (LPTSTR)pSid;
-
-	ea.grfAccessMode = GRANT_ACCESS;
-	ea.grfAccessPermissions = GENERIC_ALL;
-	ea.grfInheritance = CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE;
-	ea.Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
-	ACL* pNewDACL = 0;
-	DWORD err = SetEntriesInAcl(1, &ea, pOldDACL, &pNewDACL);
-	if (!err)
-	{
-		DBUG_ASSERT(pNewDACL);
-		SetSecurityInfo(hFile, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL,
-			pNewDACL, NULL);
-		LocalFree((HLOCAL)pNewDACL);
-	}
-	if (pSD != NULL)
-		LocalFree((HLOCAL)pSD);
-	CloseHandle(hFile);
-	return 0;
-}
-
-#endif
-
 
 /************************************************************************
 Copy file for backup/restore.
@@ -1091,10 +1055,6 @@ copy_file(ds_ctxt_t *datasink,
 	/* close */
 	msg(thread_n,"        ...done");
 	datafile_close(&cursor);
-#ifdef _WIN32
-	if (xtrabackup_copy_back || xtrabackup_move_back)
-		ut_a(!fix_win_file_permissions(dstfile->path));
-#endif
 	if (ds_close(dstfile)) {
 		goto error_close;
 	}
@@ -1165,10 +1125,6 @@ move_file(ds_ctxt_t *datasink,
 			errbuf);
 		return(false);
 	}
-#ifdef _WIN32
-	if (xtrabackup_copy_back || xtrabackup_move_back)
-		ut_a(!fix_win_file_permissions(dst_file_path_abs));
-#endif
 	msg(thread_n,"        ...done");
 
 	return(true);
@@ -1778,6 +1734,7 @@ apply_log_finish()
 	return(true);
 }
 
+
 bool
 copy_back()
 {
@@ -1798,6 +1755,20 @@ copy_back()
 			return(false);
 		}
 	}
+
+#ifdef _WIN32
+	/* If we create paths for DATA DIRECTORY, they need
+	the same permissions as the datadir, or service won't
+	be able to access the files. */
+	DWORD res = GetNamedSecurityInfoA(mysql_data_home,
+		SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+		NULL, NULL, NULL, NULL,
+		&datadir_security_descriptor);
+	if (res != ERROR_SUCCESS) {
+		msg("Unable to read security descriptor of %s",mysql_data_home);
+	}
+#endif
+
 	if (srv_undo_dir && *srv_undo_dir
 		&& !directory_exists(srv_undo_dir, true)) {
 			return(false);
