@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -624,8 +624,8 @@ row_undo_ins(
 			already be holding dict_sys->mutex, which
 			would be acquired when updating statistics. */
 			if (!dict_locked) {
-				dict_stats_update_if_needed(
-					node->table, node->trx->mysql_thd);
+				dict_stats_update_if_needed(node->table,
+							    *node->trx);
 			}
 		}
 	}

@@ -450,9 +450,8 @@ trx_rollback_to_savepoint_for_mysql_low(
 	trx->op_info = "";
 
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) &&
-	    trx->lock.was_chosen_as_deadlock_victim) {
-		trx->lock.was_chosen_as_deadlock_victim = FALSE;
+	if (trx->is_wsrep()) {
+		trx->lock.was_chosen_as_deadlock_victim = false;
 	}
 #endif
 	return(err);
@@ -911,12 +910,6 @@ trx_roll_try_truncate(trx_t* trx)
 		trx_undo_truncate_end(undo, undo_no, true);
 		mutex_exit(&undo->rseg->mutex);
 	}
-
-#ifdef WITH_WSREP_OUT
-	if (wsrep_on(trx->mysql_thd)) {
-		trx->lock.was_chosen_as_deadlock_victim = FALSE;
-	}
-#endif /* WITH_WSREP */
 }
 
 /***********************************************************************//**
