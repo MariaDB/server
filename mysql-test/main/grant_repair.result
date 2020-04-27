@@ -1,4 +1,4 @@
-call mtr.add_suppression("/mysql/user");
+call mtr.add_suppression("mysql.user");
 # switching from mysql.global_priv to mysql.user
 flush tables;
 flush privileges;
