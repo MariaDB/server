@@ -5379,6 +5379,7 @@ that are reorganised.
           my_error(ER_VERS_WRONG_PARTS, MYF(0), table->s->table_name.str);
           goto err;
         }
+        tab_part_info->use_default_partitions= false;
       }
       else
       {
