@@ -323,7 +323,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
   DBUG_ASSERT(!thd->locked_tables_mode);
 
 #ifdef WITH_WSREP
-  if (WSREP(thd) && hton &&
+  if (WSREP(thd) && hton && hton != view_pseudo_hton &&
       !wsrep_should_replicate_ddl(thd, hton->db_type))
     DBUG_RETURN(1);
 #endif

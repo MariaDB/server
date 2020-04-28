@@ -1,0 +1,5 @@
+connection node_2;
+connection node_1;
+CREATE VIEW v AS SELECT 1;
+RENAME TABLE v TO v2;
+DROP VIEW v2;
