@@ -262,7 +262,6 @@ walk_up_n_right:
   else
   {
     max_key_parts= MY_MAX(cur->min_key_parts, cur->max_key_parts);
-    range->range_flag= cur->min_key_flag | cur->max_key_flag;
     
     range->start_key.key=    seq->param->min_key;
     range->start_key.length= (uint)(cur->min_key - seq->param->min_key);
@@ -298,6 +297,7 @@ walk_up_n_right:
         !memcmp(seq->param->min_key, seq->param->max_key,    // (2)
                 range->start_key.length);
 
+    range->range_flag= 0;
     if (is_eq_range_pred)
     {
       range->range_flag = EQ_RANGE;

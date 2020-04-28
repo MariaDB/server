@@ -567,4 +567,16 @@ select * from t3 where (a,a) in (select t1.a, t2.a from t1, t2 where t1.b=t2.b);
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.semijoin_table_pullout')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-22401: Optimizer trace: multi-component range is not printed correctly
+--echo #
+
+create table t1 (kp1 int, kp2 int, key(kp1, kp2));
+insert into t1 values (1,1),(1,5),(5,1),(5,5);
+set optimizer_trace=1;
+select * from t1 force index(kp1) where (kp1=2 and kp2 >=4);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
 set optimizer_trace='enabled=off';
