@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2019, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
@@ -17850,10 +17850,7 @@ static char* srv_buffer_pool_evict;
 Evict all uncompressed pages of compressed tables from the buffer pool.
 Keep the compressed pages in the buffer pool.
 @return whether all uncompressed pages were evicted */
-static MY_ATTRIBUTE((warn_unused_result))
-bool
-innodb_buffer_pool_evict_uncompressed(void)
-/*=======================================*/
+static bool innodb_buffer_pool_evict_uncompressed()
 {
 	bool	all_evicted = true;
 
@@ -17874,9 +17871,13 @@ innodb_buffer_pool_evict_uncompressed(void)
 
 			if (!buf_LRU_free_page(&block->page, false)) {
 				all_evicted = false;
+				block = prev_block;
+			} else {
+				/* Because buf_LRU_free_page() may release
+				and reacquire buf_pool_t::mutex, prev_block
+				may be invalid. */
+				block = UT_LIST_GET_LAST(buf_pool->unzip_LRU);
 			}
-
-			block = prev_block;
 		}
 
 		buf_pool_mutex_exit(buf_pool);
