@@ -4401,15 +4401,20 @@ int spider_db_store_result(
         result_list->quick_mode == 3 ||
         result_list->limit_num == roop_count
       ) {
-        current->result->free_result();
-        if (!current->result_tmp_tbl)
-        {
-          delete current->result;
-          current->result = NULL;
+        if (
+          result_list->limit_num != roop_count ||
+          conn->db_conn->limit_mode() != 1
+        ) {
+          current->result->free_result();
+          if (!current->result_tmp_tbl)
+          {
+            delete current->result;
+            current->result = NULL;
+          }
+          DBUG_PRINT("info", ("spider conn[%p]->quick_target=NULL", conn));
+          conn->quick_target = NULL;
+          spider->quick_targets[link_idx] = NULL;
         }
-        DBUG_PRINT("info", ("spider conn[%p]->quick_target=NULL", conn));
-        conn->quick_target = NULL;
-        spider->quick_targets[link_idx] = NULL;
       }
 #ifndef WITHOUT_SPIDER_BG_SEARCH
       DBUG_PRINT("info", ("spider bgs_phase=%d", result_list->bgs_phase));
@@ -4667,9 +4672,10 @@ int spider_db_store_result_for_reuse_cursor(
     }
 #endif
   } else {
+    DBUG_ASSERT(current->prev);
+    DBUG_ASSERT(current->prev->result);
     /* has_result() for case of result with result_tmp_tbl */
-    if (current->prev && current->prev->result &&
-      current->prev->result->has_result())
+    if (current->prev->result->has_result())
     {
       current->result = current->prev->result;
       current->result->set_limit(result_list->limit_num);
@@ -4725,11 +4731,10 @@ int spider_db_store_result_for_reuse_cursor(
         result_list->current_row_num = 0;
         table->status = STATUS_NOT_FOUND;
       }
-      if (error_num)
+      if (error_num && error_num != HA_ERR_END_OF_FILE)
         DBUG_RETURN(error_num);
-      else if (result_list->quick_phase > 0)
-        DBUG_RETURN(0);
-      DBUG_RETURN(HA_ERR_END_OF_FILE);
+      /* This shouldn't return HA_ERR_END_OF_FILE */
+      DBUG_RETURN(0);
     }
     SPIDER_DB_ROW *tmp_row;
     uint field_count = current->result->num_fields();
@@ -4880,15 +4885,18 @@ int spider_db_store_result_for_reuse_cursor(
       result_list->quick_mode == 3 ||
       result_list->limit_num == roop_count
     ) {
-      current->result->free_result();
-      if (!current->result_tmp_tbl)
+      if (result_list->limit_num != roop_count)
       {
-        delete current->result;
-        current->result = NULL;
+        current->result->free_result();
+        if (!current->result_tmp_tbl)
+        {
+          delete current->result;
+          current->result = NULL;
+        }
+        DBUG_PRINT("info", ("spider conn[%p]->quick_target=NULL", conn));
+        conn->quick_target = NULL;
+        spider->quick_targets[link_idx] = NULL;
       }
-      DBUG_PRINT("info", ("spider conn[%p]->quick_target=NULL", conn));
-      conn->quick_target = NULL;
-      spider->quick_targets[link_idx] = NULL;
     }
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     DBUG_PRINT("info", ("spider bgs_phase=%d", result_list->bgs_phase));
