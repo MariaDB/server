@@ -215,7 +215,6 @@
 #cmakedefine HAVE_SIGACTION 1
 #cmakedefine HAVE_SIGTHREADMASK 1
 #cmakedefine HAVE_SIGWAIT 1
-#cmakedefine HAVE_SIGWAITINFO 1
 #cmakedefine HAVE_SLEEP 1
 #cmakedefine HAVE_SNPRINTF 1
 #cmakedefine HAVE_STPCPY 1

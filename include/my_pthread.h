@@ -189,19 +189,7 @@ extern int my_pthread_create_detached;
 int sigwait(sigset_t *set, int *sig);
 #endif
 
-static inline int my_sigwait(sigset_t *set, int *sig, int *code)
-{
-#ifdef HAVE_SIGWAITINFO
-  siginfo_t siginfo;
-  *sig= sigwaitinfo(set, &siginfo);
-  *code= siginfo.si_code;
-  return *sig < 0 ?  errno : 0;
-#else
-#define SI_KERNEL 128
-  *code= 0;
-  return sigwait(set, sig);
-#endif
-}
+#define my_sigwait(A,B) sigwait((A),(B))
 
 #if defined(HAVE_SIGTHREADMASK) && !defined(HAVE_PTHREAD_SIGMASK)
 #define pthread_sigmask(A,B,C) sigthreadmask((A),(B),(C))

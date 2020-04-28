@@ -3081,6 +3081,11 @@ void init_signals(void)
   struct sigaction sa;
   DBUG_ENTER("init_signals");
 
+  /*
+    No need to check return value, it is expected to fail only if we're session
+    leader already (e.g. under systemd).
+  */
+  setsid();
   my_sigset(THR_SERVER_ALARM,print_signal_warning); // Should never be called!
 
   if (opt_stack_trace || (test_flags & TEST_CORE_ON_SIGNAL))
@@ -3246,9 +3251,8 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
   for (;;)
   {
     int error;
-    int origin;
 
-    while ((error= my_sigwait(&set, &sig, &origin)) == EINTR) /* no-op */;
+    while ((error= my_sigwait(&set, &sig)) == EINTR) /* no-op */;
     if (cleanup_done)
     {
       DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
@@ -3288,7 +3292,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       }
       break;
     case SIGHUP:
-      if (!abort_loop && origin != SI_KERNEL)
+      if (!abort_loop)
       {
         int not_used;
 	mysql_print_status();		// Print some debug info
