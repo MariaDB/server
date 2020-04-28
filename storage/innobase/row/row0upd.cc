@@ -2810,9 +2810,8 @@ check_fk:
 
 	mtr_commit(mtr);
 
-	err = row_ins_clust_index_entry(index, entry, thr, node->upd_ext
-					? node->upd_ext->n_ext
-					: dtuple_get_n_ext(entry));
+	err = row_ins_clust_index_entry(index, entry, thr,
+					dtuple_get_n_ext(entry));
 	node->state = UPD_NODE_INSERT_CLUSTERED;
 
 	mem_heap_free(heap);

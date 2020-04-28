@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -444,9 +444,9 @@ fts_read_stopword(
 
 /******************************************************************//**
 Load user defined stopword from designated user table
-@return TRUE if load operation is successful */
+@return whether the operation is successful */
 static
-ibool
+bool
 fts_load_user_stopword(
 /*===================*/
 	fts_t*		fts,			/*!< in: FTS struct */
@@ -454,27 +454,26 @@ fts_load_user_stopword(
 						name */
 	fts_stopword_t*	stopword_info)		/*!< in: Stopword info */
 {
-	pars_info_t*	info;
-	que_t*		graph;
-	dberr_t		error = DB_SUCCESS;
-	ibool		ret = TRUE;
-	trx_t*		trx;
-	ibool		has_lock = fts->dict_locked;
-
-	trx = trx_create();
-	trx->op_info = "Load user stopword table into FTS cache";
-
-	if (!has_lock) {
+	if (!fts->dict_locked) {
 		mutex_enter(&dict_sys->mutex);
 	}
 
-	/* Validate the user table existence and in the right
-	format */
+	/* Validate the user table existence in the right format */
+	bool ret= false;
 	stopword_info->charset = fts_valid_stopword_table(stopword_table_name);
 	if (!stopword_info->charset) {
-		ret = FALSE;
-		goto cleanup;
-	} else if (!stopword_info->cached_stopword) {
+cleanup:
+		if (!fts->dict_locked) {
+			mutex_exit(&dict_sys->mutex);
+		}
+
+		return ret;
+	}
+
+	trx_t* trx = trx_create();
+	trx->op_info = "Load user stopword table into FTS cache";
+
+	if (!stopword_info->cached_stopword) {
 		/* Create the stopword RB tree with the stopword column
 		charset. All comparison will use this charset */
 		stopword_info->cached_stopword = rbt_create_arg_cmp(
@@ -483,14 +482,14 @@ fts_load_user_stopword(
 
 	}
 
-	info = pars_info_create();
+	pars_info_t* info = pars_info_create();
 
 	pars_info_bind_id(info, TRUE, "table_stopword", stopword_table_name);
 
 	pars_info_bind_function(info, "my_func", fts_read_stopword,
 				stopword_info);
 
-	graph = fts_parse_sql_no_dict_lock(
+	que_t* graph = fts_parse_sql_no_dict_lock(
 		info,
 		"DECLARE FUNCTION my_func;\n"
 		"DECLARE CURSOR c IS"
@@ -508,14 +507,13 @@ fts_load_user_stopword(
 		"CLOSE c;");
 
 	for (;;) {
-		error = fts_eval_sql(trx, graph);
+		dberr_t error = fts_eval_sql(trx, graph);
 
 		if (error == DB_SUCCESS) {
 			fts_sql_commit(trx);
 			stopword_info->status = STOPWORD_USER_TABLE;
 			break;
 		} else {
-
 			fts_sql_rollback(trx);
 
 			if (error == DB_LOCK_WAIT_TIMEOUT) {
@@ -534,14 +532,9 @@ fts_load_user_stopword(
 	}
 
 	que_graph_free(graph);
-
-cleanup:
-	if (!has_lock) {
-		mutex_exit(&dict_sys->mutex);
-	}
-
 	trx_free(trx);
-	return(ret);
+	ret = true;
+	goto cleanup;
 }
 
 /******************************************************************//**
@@ -3387,7 +3380,7 @@ fts_add_doc_from_tuple(
                        if (table->fts->cache->stopword_info.status
                            & STOPWORD_NOT_INIT) {
                                fts_load_stopword(table, NULL, NULL,
-                                                 NULL, TRUE, TRUE);
+                                                 true, true);
                        }
 
                        fts_cache_add_doc(
@@ -3551,8 +3544,8 @@ fts_add_doc_by_id(
 
 				if (table->fts->cache->stopword_info.status
 				    & STOPWORD_NOT_INIT) {
-					fts_load_stopword(table, NULL, NULL,
-							  NULL, TRUE, TRUE);
+					fts_load_stopword(table, NULL,
+							  NULL, true, true);
 				}
 
 				fts_cache_add_doc(
@@ -7124,20 +7117,18 @@ This function loads the stopword into the FTS cache. It also
 records/fetches stopword configuration to/from FTS configure
 table, depending on whether we are creating or reloading the
 FTS.
-@return TRUE if load operation is successful */
-ibool
+@return true if load operation is successful */
+bool
 fts_load_stopword(
 /*==============*/
 	const dict_table_t*
 			table,			/*!< in: Table with FTS */
 	trx_t*		trx,			/*!< in: Transactions */
-	const char*	global_stopword_table,	/*!< in: Global stopword table
-						name */
 	const char*	session_stopword_table,	/*!< in: Session stopword table
 						name */
-	ibool		stopword_is_on,		/*!< in: Whether stopword
+	bool		stopword_is_on,		/*!< in: Whether stopword
 						option is turned on/off */
-	ibool		reload)			/*!< in: Whether it is
+	bool		reload)			/*!< in: Whether it is
 						for reloading FTS table */
 {
 	fts_table_t	fts_table;
@@ -7153,9 +7144,8 @@ fts_load_stopword(
 
 	cache = table->fts->cache;
 
-	if (!reload && !(cache->stopword_info.status
-			 & STOPWORD_NOT_INIT)) {
-		return(TRUE);
+	if (!reload && !(cache->stopword_info.status & STOPWORD_NOT_INIT)) {
+		return true;
 	}
 
 	if (!trx) {
@@ -7205,12 +7195,11 @@ fts_load_stopword(
 			goto cleanup;
 		}
 
-		if (strlen((char*) str.f_str) > 0) {
+		if (*str.f_str) {
 			stopword_to_use = (const char*) str.f_str;
 		}
 	} else {
-		stopword_to_use = (session_stopword_table)
-			? session_stopword_table : global_stopword_table;
+		stopword_to_use = session_stopword_table;
 	}
 
 	if (stopword_to_use
@@ -7248,7 +7237,7 @@ cleanup:
 			&my_charset_latin1);
 	}
 
-	return(error == DB_SUCCESS);
+	return error == DB_SUCCESS;
 }
 
 /**********************************************************************//**
@@ -7449,7 +7438,7 @@ fts_init_index(
 	} else {
 		if (table->fts->cache->stopword_info.status
 		    & STOPWORD_NOT_INIT) {
-			fts_load_stopword(table, NULL, NULL, NULL, TRUE, TRUE);
+			fts_load_stopword(table, NULL, NULL, true, true);
 		}
 
 		for (ulint i = 0; i < ib_vector_size(cache->get_docs); ++i) {

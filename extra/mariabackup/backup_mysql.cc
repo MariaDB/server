@@ -960,78 +960,92 @@ Function acquires either a backup tables lock, if supported
 by the server, or a global read lock (FLUSH TABLES WITH READ LOCK)
 otherwise.
 @returns true if lock acquired */
-bool
-lock_tables(MYSQL *connection)
+bool lock_tables(MYSQL *connection)
 {
-	if (have_lock_wait_timeout) {
-		/* Set the maximum supported session value for
-		lock_wait_timeout to prevent unnecessary timeouts when the
-		global value is changed from the default */
-		xb_mysql_query(connection,
-			"SET SESSION lock_wait_timeout=31536000", false);
-	}
+  if (have_lock_wait_timeout || opt_lock_wait_timeout)
+  {
+    char buf[FN_REFLEN];
+    /* Set the maximum supported session value for
+    lock_wait_timeout if opt_lock_wait_timeout is not set to prevent
+    unnecessary timeouts when the global value is changed from the default */
+    snprintf(buf, sizeof(buf), "SET SESSION lock_wait_timeout=%u",
+             opt_lock_wait_timeout ? opt_lock_wait_timeout : 31536000);
+    xb_mysql_query(connection, buf, false);
+  }
 
-	if (have_backup_locks) {
-		msg("Executing LOCK TABLES FOR BACKUP...");
-		xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
-		return(true);
-	}
+  if (have_backup_locks)
+  {
+    msg("Executing LOCK TABLES FOR BACKUP...");
+    xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
+    return (true);
+  }
 
-	if (opt_lock_ddl_per_table) {
-		start_mdl_waiters_killer();
-	}
+  if (opt_lock_ddl_per_table)
+  {
+    start_mdl_waiters_killer();
+  }
 
-	if (!opt_lock_wait_timeout && !opt_kill_long_queries_timeout) {
+  if (!opt_lock_wait_timeout && !opt_kill_long_queries_timeout)
+  {
 
-		/* We do first a FLUSH TABLES. If a long update is running, the
-		FLUSH TABLES will wait but will not stall the whole mysqld, and
-		when the long update is done the FLUSH TABLES WITH READ LOCK
-		will start and succeed quickly. So, FLUSH TABLES is to lower
-		the probability of a stage where both mysqldump and most client
-		connections are stalled. Of course, if a second long update
-		starts between the two FLUSHes, we have that bad stall.
+    /* We do first a FLUSH TABLES. If a long update is running, the
+    FLUSH TABLES will wait but will not stall the whole mysqld, and
+    when the long update is done the FLUSH TABLES WITH READ LOCK
+    will start and succeed quickly. So, FLUSH TABLES is to lower
+    the probability of a stage where both mysqldump and most client
+    connections are stalled. Of course, if a second long update
+    starts between the two FLUSHes, we have that bad stall.
 
-		Option lock_wait_timeout serve the same purpose and is not
-		compatible with this trick.
-		*/
+    Option lock_wait_timeout serve the same purpose and is not
+    compatible with this trick.
+    */
 
-		msg("Executing FLUSH NO_WRITE_TO_BINLOG TABLES...");
+    msg("Executing FLUSH NO_WRITE_TO_BINLOG TABLES...");
 
-		xb_mysql_query(connection,
-			       "FLUSH NO_WRITE_TO_BINLOG TABLES", false);
-	}
+    xb_mysql_query(connection, "FLUSH NO_WRITE_TO_BINLOG TABLES", false);
+  }
 
-	if (opt_lock_wait_timeout) {
-		if (!wait_for_no_updates(connection, opt_lock_wait_timeout,
-					 opt_lock_wait_threshold)) {
-			return(false);
-		}
-	}
+  if (opt_lock_wait_timeout)
+  {
+    if (!wait_for_no_updates(connection, opt_lock_wait_timeout,
+                             opt_lock_wait_threshold))
+    {
+      return (false);
+    }
+  }
 
-	msg("Executing FLUSH TABLES WITH READ LOCK...");
+  msg("Executing FLUSH TABLES WITH READ LOCK...");
 
-	if (opt_kill_long_queries_timeout) {
-		start_query_killer();
-	}
+  if (opt_kill_long_queries_timeout)
+  {
+    start_query_killer();
+  }
 
-	if (have_galera_enabled) {
-		xb_mysql_query(connection,
-				"SET SESSION wsrep_causal_reads=0", false);
-	}
+  if (have_galera_enabled)
+  {
+    xb_mysql_query(connection, "SET SESSION wsrep_causal_reads=0", false);
+  }
 
-	xb_mysql_query(connection, "FLUSH TABLES WITH READ LOCK", false);
+  xb_mysql_query(connection, "FLUSH TABLES WITH READ LOCK", false, true);
+  /* Set the maximum supported session value for
+  lock_wait_timeout to prevent unnecessary timeouts when the
+  global value is changed from the default */
+  if (opt_lock_wait_timeout)
+    xb_mysql_query(connection, "SET SESSION lock_wait_timeout=31536000",
+                   false);
 
-	if (opt_lock_ddl_per_table) {
-		stop_mdl_waiters_killer();
-	}
+  if (opt_lock_ddl_per_table)
+  {
+    stop_mdl_waiters_killer();
+  }
 
-	if (opt_kill_long_queries_timeout) {
-		stop_query_killer();
-	}
+  if (opt_kill_long_queries_timeout)
+  {
+    stop_query_killer();
+  }
 
-	return(true);
+  return (true);
 }
-
 
 /*********************************************************************//**
 If backup locks are used, execute LOCK BINLOG FOR BACKUP provided that we are
