@@ -416,10 +416,13 @@ Rpl_filter::set_wild_do_table(const char* table_spec)
 
   status= parse_filter_rule(table_spec, &Rpl_filter::add_wild_do_table);
 
-  if (!wild_do_table.elements)
+  if (wild_do_table_inited && status)
   {
-    delete_dynamic(&wild_do_table);
-    wild_do_table_inited= 0;
+    if (!wild_do_table.elements)
+    {
+      delete_dynamic(&wild_do_table);
+      wild_do_table_inited= 0;
+    }
   }
 
   return status;
@@ -436,10 +439,13 @@ Rpl_filter::set_wild_ignore_table(const char* table_spec)
 
   status= parse_filter_rule(table_spec, &Rpl_filter::add_wild_ignore_table);
 
-  if (!wild_ignore_table.elements)
+  if (wild_ignore_table_inited && status)
   {
-    delete_dynamic(&wild_ignore_table);
-    wild_ignore_table_inited= 0;
+    if (!wild_ignore_table.elements)
+    {
+      delete_dynamic(&wild_ignore_table);
+      wild_ignore_table_inited= 0;
+    }
   }
 
   return status;
