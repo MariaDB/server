@@ -539,7 +539,7 @@ String *Item_func_concat::val_str(String *str)
 	use_as_buff=str;			// Put next arg here
       }
       else if (tmp_value.is_alloced() && res2->ptr() >= tmp_value.ptr() &&
-	       res2->ptr() <= tmp_value.ptr() + tmp_value.alloced_length())
+	       res2->ptr() < tmp_value.ptr() + tmp_value.alloced_length())
       {
 	/*
 	  This happens really seldom:
