@@ -3632,13 +3632,14 @@ String* Item_func_json_arrayagg::convert_to_json(Item *item, String *res)
 
 String* Item_func_json_arrayagg::val_str(String *str)
 {
-  str= Item_func_group_concat::val_str(str);
-  String s;
-  s.append('[');
-  s.swap(*str);
-  str->append(s);
-  str->append(']');
-
+  if ((str= Item_func_group_concat::val_str(str)))
+  {
+    String s;
+    s.append('[');
+    s.swap(*str);
+    str->append(s);
+    str->append(']');
+  }
   return str;
 }
 

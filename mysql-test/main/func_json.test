@@ -732,3 +732,11 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+-- echo #
+-- echo # MDEV-16620 JSON_ARRAYAGG
+-- echo #
+
+CREATE TABLE t1 (a INT);
+SELECT JSON_ARRAYAGG(a) FROM t1;
+DROP TABLE t1;
