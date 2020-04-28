@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -176,7 +176,7 @@ get_buf_dump_dir()
 
 	/* The dump file should be created in the default data directory if
 	innodb_data_home_dir is set as an empty string. */
-	if (strcmp(srv_data_home, "") == 0) {
+	if (!*srv_data_home) {
 		dump_dir = fil_path_to_mysql_datadir;
 	} else {
 		dump_dir = srv_data_home;
@@ -208,9 +208,11 @@ buf_dump(
 	ulint	i;
 	int	ret;
 
+	mysql_mutex_lock(&LOCK_global_system_variables);
 	ut_snprintf(full_filename, sizeof(full_filename),
 		    "%s%c%s", get_buf_dump_dir(), SRV_PATH_SEPARATOR,
 		    srv_buf_dump_filename);
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 
 	ut_snprintf(tmp_filename, sizeof(tmp_filename),
 		    format_name, full_filename);
@@ -514,9 +516,11 @@ buf_load()
 	/* Ignore any leftovers from before */
 	buf_load_abort_flag = FALSE;
 
+	mysql_mutex_lock(&LOCK_global_system_variables);
 	ut_snprintf(full_filename, sizeof(full_filename),
 		    "%s%c%s", get_buf_dump_dir(), SRV_PATH_SEPARATOR,
 		    srv_buf_dump_filename);
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 
 	buf_load_status(STATUS_NOTICE,
 			"Loading buffer pool(s) from %s", full_filename);
