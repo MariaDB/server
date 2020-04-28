@@ -3974,6 +3974,8 @@ buf_page_get_gen(
     block->fix();
     ut_ad(rw_lock_s_lock_nowait(block->debug_latch, file, line));
     block= buf_page_mtr_lock(block, rw_latch, mtr, file, line);
+    if (err)
+      *err= DB_SUCCESS;
     return block;
   }
 
