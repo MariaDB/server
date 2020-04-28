@@ -1291,7 +1291,7 @@ bool do_command(THD *thd)
     Aborted by background rollbacker thread.
     Handle error here and jump straight to out
   */
-  if (wsrep_before_command(thd))
+  if (unlikely(wsrep_service_started) && wsrep_before_command(thd))
   {
     thd->store_globals();
     WSREP_LOG_THD(thd, "enter found BF aborted");
@@ -1368,7 +1368,8 @@ out:
   if (packet_length != packet_error)
   {
     /* there was a command to process, and before_command() has been called */
-    wsrep_after_command_after_result(thd);
+    if (unlikely(wsrep_service_started))
+      wsrep_after_command_after_result(thd);
   }
 #endif /* WITH_WSREP */
   DBUG_RETURN(return_value);
@@ -1659,14 +1660,20 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   {
     thd->status_var.com_other++;
 #ifdef WITH_WSREP
-    wsrep_after_command_ignore_result(thd);
-    wsrep_close(thd);
+    if (unlikely(wsrep_service_started))
+    {
+      wsrep_after_command_ignore_result(thd);
+      wsrep_close(thd);
+    }
 #endif /* WITH_WSREP */
     thd->change_user();
     thd->clear_error();                         // if errors from rollback
 #ifdef WITH_WSREP
-    wsrep_open(thd);
-    wsrep_before_command(thd);
+    if (unlikely(wsrep_service_started))
+    {
+      wsrep_open(thd);
+      wsrep_before_command(thd);
+    }
 #endif /* WITH_WSREP */
     /* Restore original charset from client authentication packet.*/
     if(thd->org_charset)
@@ -1680,13 +1687,19 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     status_var_increment(thd->status_var.com_other);
 
 #ifdef WITH_WSREP
-    wsrep_after_command_ignore_result(thd);
-    wsrep_close(thd);
+    if (unlikely(wsrep_service_started))
+    {
+      wsrep_after_command_ignore_result(thd);
+      wsrep_close(thd);
+    }
 #endif /* WITH_WSREP */
     thd->change_user();
 #ifdef WITH_WSREP
-    wsrep_open(thd);
-    wsrep_before_command(thd);
+    if (unlikely(wsrep_service_started))
+    {
+      wsrep_open(thd);
+      wsrep_before_command(thd);
+    }
 #endif /* WITH_WSREP */
     thd->clear_error();                         // if errors from rollback
 
@@ -2376,45 +2389,51 @@ com_multi_end:
   }
 
 dispatch_end:
+  do_end_of_statement= true;
 #ifdef WITH_WSREP
   /*
-    BF aborted before sending response back to client
+    Next test should really be WSREP(thd), but that causes a failure when doing
+    'set WSREP_ON=0'
   */
-  if (thd->killed == KILL_QUERY)
-  {
-    WSREP_DEBUG("THD is killed at dispatch_end");
-  }
-  wsrep_after_command_before_result(thd);
-  if (wsrep_current_error(thd) &&
-      !(command == COM_STMT_PREPARE          ||
-        command == COM_STMT_FETCH            ||
-        command == COM_STMT_SEND_LONG_DATA   ||
-        command == COM_STMT_CLOSE
-        ))
-  {
-    /* todo: Pass wsrep client state current error to override */
-    wsrep_override_error(thd, wsrep_current_error(thd),
-                         wsrep_current_error_status(thd));
-    WSREP_LOG_THD(thd, "leave");
-  }
-  if (WSREP(thd))
+  if (unlikely(wsrep_service_started))
   {
     /*
-      MDEV-10812
-      In the case of COM_QUIT/COM_STMT_CLOSE thread status should be disabled.
+      BF aborted before sending response back to client
     */
-    DBUG_ASSERT((command != COM_QUIT && command != COM_STMT_CLOSE)
+    if (thd->killed == KILL_QUERY)
+    {
+      WSREP_DEBUG("THD is killed at dispatch_end");
+    }
+    wsrep_after_command_before_result(thd);
+    if (wsrep_current_error(thd) &&
+        !(command == COM_STMT_PREPARE          ||
+          command == COM_STMT_FETCH            ||
+          command == COM_STMT_SEND_LONG_DATA   ||
+          command == COM_STMT_CLOSE
+          ))
+    {
+      /* todo: Pass wsrep client state current error to override */
+      wsrep_override_error(thd, wsrep_current_error(thd),
+                           wsrep_current_error_status(thd));
+      WSREP_LOG_THD(thd, "leave");
+    }
+    if (WSREP(thd))
+    {
+      /*
+        MDEV-10812
+        In the case of COM_QUIT/COM_STMT_CLOSE thread status should be disabled.
+      */
+      DBUG_ASSERT((command != COM_QUIT && command != COM_STMT_CLOSE)
                   || thd->get_stmt_da()->is_disabled());
-    DBUG_ASSERT(thd->wsrep_trx().state() != wsrep::transaction::s_replaying);
-    /* wsrep BF abort in query exec phase */
-    mysql_mutex_lock(&thd->LOCK_thd_kill);
-    do_end_of_statement= thd_is_connection_alive(thd);
-    mysql_mutex_unlock(&thd->LOCK_thd_kill);
+      DBUG_ASSERT(thd->wsrep_trx().state() != wsrep::transaction::s_replaying);
+      /* wsrep BF abort in query exec phase */
+      mysql_mutex_lock(&thd->LOCK_thd_kill);
+      do_end_of_statement= thd_is_connection_alive(thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_kill);
+    }
   }
-  else
-    do_end_of_statement= true;
-
 #endif /* WITH_WSREP */
+
 
   if (do_end_of_statement)
   {

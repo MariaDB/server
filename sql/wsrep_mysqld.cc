@@ -99,6 +99,7 @@ my_bool wsrep_desync;                           // De(re)synchronize the node fr
 my_bool wsrep_strict_ddl;                       // Reject DDL to
                                                 // effected tables not
                                                 // supporting Galera replication
+bool wsrep_service_started;                     // If Galera was initialized
 long wsrep_slave_threads;                       // No. of slave appliers threads
 ulong wsrep_retry_autocommit;                   // Retry aborted autocommit trx
 ulong wsrep_max_ws_size;                        // Max allowed ws (RBR buffer) size
@@ -831,10 +832,6 @@ int wsrep_init()
     return err;
   }
 
-  global_system_variables.wsrep_on= 1;
-
-  WSREP_ON_= wsrep_provider && strcmp(wsrep_provider, WSREP_NONE);
-
   if (wsrep_gtid_mode && opt_bin_log && !opt_log_slave_updates)
   {
     WSREP_ERROR("Option --log-slave-updates is required if "
@@ -865,6 +862,11 @@ int wsrep_init()
     Wsrep_server_state::instance().unload_provider();
     return 1;
   }
+
+  /* Now WSREP is fully initialized */
+  global_system_variables.wsrep_on= 1;
+  WSREP_ON_= wsrep_provider && strcmp(wsrep_provider, WSREP_NONE);
+  wsrep_service_started= 1;
 
   wsrep_init_provider_status_variables();
   wsrep_capabilities_export(Wsrep_server_state::instance().provider().capabilities(),
@@ -1162,18 +1164,21 @@ bool wsrep_start_replication()
 
 bool wsrep_must_sync_wait (THD* thd, uint mask)
 {
-  bool ret;
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-  ret= (thd->variables.wsrep_sync_wait & mask) &&
-    thd->wsrep_client_thread &&
-    thd->variables.wsrep_on &&
-    !(thd->variables.wsrep_dirty_reads &&
-      !is_update_query(thd->lex->sql_command)) &&
-    !thd->in_active_multi_stmt_transaction() &&
-    thd->wsrep_trx().state() !=
-    wsrep::transaction::s_replaying &&
-    thd->wsrep_cs().sync_wait_gtid().is_undefined();
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  bool ret= 0;
+  if (thd->variables.wsrep_on)
+  {
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    ret= (thd->variables.wsrep_sync_wait & mask) &&
+      thd->wsrep_client_thread &&
+      thd->variables.wsrep_on &&
+      !(thd->variables.wsrep_dirty_reads &&
+        !is_update_query(thd->lex->sql_command)) &&
+      !thd->in_active_multi_stmt_transaction() &&
+      thd->wsrep_trx().state() !=
+      wsrep::transaction::s_replaying &&
+      thd->wsrep_cs().sync_wait_gtid().is_undefined();
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
   return ret;
 }
 

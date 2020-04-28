@@ -186,6 +186,7 @@ void wsrep_recover_sr_from_storage(THD *);
 
 // Other wsrep global variables
 extern my_bool     wsrep_inited; // whether wsrep is initialized ?
+extern bool        wsrep_service_started;
 
 extern "C" void wsrep_fire_rollbacker(THD *thd);
 extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
