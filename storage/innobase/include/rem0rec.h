@@ -73,23 +73,23 @@ The status is stored in the low-order bits. */
 
 #ifndef UNIV_INNOCHECKSUM
 /** SQL null flag in a 1-byte offset of ROW_FORMAT=REDUNDANT records */
-static const offset_t REC_1BYTE_SQL_NULL_MASK= 0x80;
+static const rec_offs REC_1BYTE_SQL_NULL_MASK= 0x80;
 /** SQL null flag in a 2-byte offset of ROW_FORMAT=REDUNDANT records */
-static const offset_t REC_2BYTE_SQL_NULL_MASK= 0x8000;
+static const rec_offs REC_2BYTE_SQL_NULL_MASK= 0x8000;
 
 /** In a 2-byte offset of ROW_FORMAT=REDUNDANT records, the second most
 significant bit denotes that the tail of a field is stored off-page. */
-static const offset_t REC_2BYTE_EXTERN_MASK= 0x4000;
+static const rec_offs REC_2BYTE_EXTERN_MASK= 0x4000;
 
 static const size_t RECORD_OFFSET= 2;
 static const size_t INDEX_OFFSET=
-    RECORD_OFFSET + sizeof(rec_t *) / sizeof(offset_t);
+    RECORD_OFFSET + sizeof(rec_t *) / sizeof(rec_offs);
 
 /* Length of the rec_get_offsets() header */
 static const size_t REC_OFFS_HEADER_SIZE=
 #ifdef UNIV_DEBUG
-    sizeof(rec_t *) / sizeof(offset_t) +
-    sizeof(dict_index_t *) / sizeof(offset_t) +
+    sizeof(rec_t *) / sizeof(rec_offs) +
+    sizeof(dict_index_t *) / sizeof(rec_offs) +
 #endif /* UNIV_DEBUG */
     2;
 
@@ -115,27 +115,27 @@ enum field_type_t
 };
 
 /** without 2 upper bits */
-static const offset_t DATA_MASK= 0x3fff;
+static const rec_offs DATA_MASK= 0x3fff;
 /** 2 upper bits */
-static const offset_t TYPE_MASK= ~DATA_MASK;
-inline field_type_t get_type(offset_t n)
+static const rec_offs TYPE_MASK= ~DATA_MASK;
+inline field_type_t get_type(rec_offs n)
 {
   return static_cast<field_type_t>(n & TYPE_MASK);
 }
-inline void set_type(offset_t &n, field_type_t type)
+inline void set_type(rec_offs &n, field_type_t type)
 {
-  n= (n & DATA_MASK) | static_cast<offset_t>(type);
+  n= (n & DATA_MASK) | static_cast<rec_offs>(type);
 }
-inline offset_t get_value(offset_t n) { return n & DATA_MASK; }
-inline offset_t combine(offset_t value, field_type_t type)
+inline rec_offs get_value(rec_offs n) { return n & DATA_MASK; }
+inline rec_offs combine(rec_offs value, field_type_t type)
 {
-  return get_value(value) | static_cast<offset_t>(type);
+  return get_value(value) | static_cast<rec_offs>(type);
 }
 
 /** Compact flag ORed to the extra size returned by rec_offs_base()[0] */
-static const offset_t REC_OFFS_COMPACT= 1 << 15;
+static const rec_offs REC_OFFS_COMPACT= 1 << 15;
 /** External flag in offsets returned by rec_offs_base()[0] */
-static const offset_t REC_OFFS_EXTERNAL= 1 << 14;
+static const rec_offs REC_OFFS_EXTERNAL= 1 << 14;
 
 /******************************************************//**
 The following function is used to get the pointer of the next chained record
@@ -455,7 +455,7 @@ value.
 @return offset of the start of the field, SQL null flag and extern
 storage flag ORed */
 UNIV_INLINE
-offset_t
+rec_offs
 rec_2_get_field_end_info(
 /*=====================*/
 	const rec_t*	rec,	/*!< in: record */
@@ -496,11 +496,11 @@ rec_get_n_extern_new(
 				(ULINT_UNDEFINED to compute all offsets)
 @param[in,out]	heap		memory heap
 @return the new offsets */
-offset_t*
+rec_offs*
 rec_get_offsets_func(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	offset_t*		offsets,
+	rec_offs*		offsets,
 #ifdef UNIV_DEBUG
 	bool			leaf,
 #endif /* UNIV_DEBUG */
@@ -537,7 +537,7 @@ rec_get_offsets_reverse(
 	const dict_index_t*	index,	/*!< in: record descriptor */
 	ulint			node_ptr,/*!< in: nonzero=node pointer,
 					0=leaf node */
-	offset_t*		offsets)/*!< in/out: array consisting of
+	rec_offs*		offsets)/*!< in/out: array consisting of
 					offsets[0] allocated elements */
 	MY_ATTRIBUTE((nonnull));
 #ifdef UNIV_DEBUG
@@ -550,7 +550,7 @@ rec_offs_validate(
 /*==============*/
 	const rec_t*		rec,	/*!< in: record or NULL */
 	const dict_index_t*	index,	/*!< in: record descriptor or NULL */
-	const offset_t*		offsets)/*!< in: array returned by
+	const rec_offs*		offsets)/*!< in: array returned by
 					rec_get_offsets() */
 	MY_ATTRIBUTE((nonnull(3), warn_unused_result));
 /************************************************************//**
@@ -562,7 +562,7 @@ rec_offs_make_valid(
 /*================*/
 	const rec_t*		rec,	/*!< in: record */
 	const dict_index_t*	index,	/*!< in: record descriptor */
-	offset_t*		offsets)/*!< in: array returned by
+	rec_offs*		offsets)/*!< in: array returned by
 					rec_get_offsets() */
 	MY_ATTRIBUTE((nonnull));
 #else
@@ -600,10 +600,10 @@ The following function is used to get an offset to the nth
 data field in a record.
 @return offset from the origin of rec */
 UNIV_INLINE
-offset_t
+rec_offs
 rec_get_nth_field_offs(
 /*===================*/
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint		n,	/*!< in: index of the field */
 	ulint*		len)	/*!< out: length of the field; UNIV_SQL_NULL
 				if SQL null */
@@ -618,7 +618,7 @@ UNIV_INLINE
 ulint
 rec_offs_comp(
 /*==========*/
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************//**
 Determine if the offsets are for a record containing
@@ -628,7 +628,7 @@ UNIV_INLINE
 ulint
 rec_offs_any_extern(
 /*================*/
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************//**
 Determine if the offsets are for a record containing null BLOB pointers.
@@ -638,7 +638,7 @@ const byte*
 rec_offs_any_null_extern(
 /*=====================*/
 	const rec_t*	rec,		/*!< in: record */
-	const offset_t*	offsets)	/*!< in: rec_get_offsets(rec) */
+	const rec_offs*	offsets)	/*!< in: rec_get_offsets(rec) */
 	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************//**
 Returns nonzero if the extern bit is set in nth field of rec.
@@ -647,7 +647,7 @@ UNIV_INLINE
 ulint
 rec_offs_nth_extern(
 /*================*/
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint		n)	/*!< in: nth field */
 	MY_ATTRIBUTE((warn_unused_result));
 
@@ -656,7 +656,7 @@ rec_offs_nth_extern(
 @param[in]	n		nth field */
 void
 rec_offs_make_nth_extern(
-        offset_t*	offsets,
+        rec_offs*	offsets,
         const ulint     n);
 /******************************************************//**
 Returns nonzero if the SQL NULL bit is set in nth field of rec.
@@ -665,7 +665,7 @@ UNIV_INLINE
 ulint
 rec_offs_nth_sql_null(
 /*==================*/
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint		n)	/*!< in: nth field */
 	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************//**
@@ -675,7 +675,7 @@ UNIV_INLINE
 ulint
 rec_offs_nth_size(
 /*==============*/
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint		n)	/*!< in: nth field */
 	MY_ATTRIBUTE((warn_unused_result));
 
@@ -686,7 +686,7 @@ UNIV_INLINE
 ulint
 rec_offs_n_extern(
 /*==============*/
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 /***********************************************************//**
 This is used to modify the value of an already existing field in a record.
@@ -699,7 +699,7 @@ void
 rec_set_nth_field(
 /*==============*/
 	rec_t*		rec,	/*!< in: record */
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint		n,	/*!< in: index number of the field */
 	const void*	data,	/*!< in: pointer to the data if not SQL null */
 	ulint		len)	/*!< in: length of the data or UNIV_SQL_NULL.
@@ -728,7 +728,7 @@ UNIV_INLINE
 ulint
 rec_offs_get_n_alloc(
 /*=================*/
-	const offset_t*	offsets)/*!< in: array for rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array for rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************//**
 The following function sets the number of allocated elements
@@ -737,7 +737,7 @@ UNIV_INLINE
 void
 rec_offs_set_n_alloc(
 /*=================*/
-	offset_t*offsets,	/*!< out: array for rec_get_offsets(),
+	rec_offs*offsets,	/*!< out: array for rec_get_offsets(),
 				must be allocated */
 	ulint	n_alloc)	/*!< in: number of elements */
 	MY_ATTRIBUTE((nonnull));
@@ -750,7 +750,7 @@ UNIV_INLINE
 ulint
 rec_offs_n_fields(
 /*==============*/
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************//**
 The following function returns the data size of a physical
@@ -762,7 +762,7 @@ UNIV_INLINE
 ulint
 rec_offs_data_size(
 /*===============*/
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************//**
 Returns the total size of record minus data size of record.
@@ -773,7 +773,7 @@ UNIV_INLINE
 ulint
 rec_offs_extra_size(
 /*================*/
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************//**
 Returns the total size of a physical record.
@@ -782,7 +782,7 @@ UNIV_INLINE
 ulint
 rec_offs_size(
 /*==========*/
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 #ifdef UNIV_DEBUG
 /**********************************************************//**
@@ -793,7 +793,7 @@ byte*
 rec_get_start(
 /*==========*/
 	const rec_t*	rec,	/*!< in: pointer to record */
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************//**
 Returns a pointer to the end of the record.
@@ -803,7 +803,7 @@ byte*
 rec_get_end(
 /*========*/
 	const rec_t*	rec,	/*!< in: pointer to record */
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 #else /* UNIV_DEBUG */
 # define rec_get_start(rec, offsets) ((rec) - rec_offs_extra_size(offsets))
@@ -820,7 +820,7 @@ rec_t*
 rec_copy(
 	void*		buf,
 	const rec_t*	rec,
-	const offset_t*	offsets);
+	const rec_offs*	offsets);
 
 /** Determine the size of a data tuple prefix in a temporary file.
 @param[in]	index		clustered or secondary index
@@ -844,7 +844,7 @@ rec_init_offsets_temp(
 /*==================*/
 	const rec_t*		rec,	/*!< in: temporary file record */
 	const dict_index_t*	index,	/*!< in: record descriptor */
-	offset_t*		offsets)/*!< in/out: array of offsets;
+	rec_offs*		offsets)/*!< in/out: array of offsets;
 					in: n=rec_offs_n_fields(offsets) */
 	MY_ATTRIBUTE((nonnull));
 
@@ -886,7 +886,7 @@ UNIV_INLINE
 ulint
 rec_fold(
 	const rec_t*	rec,
-	const offset_t*	offsets,
+	const rec_offs*	offsets,
 	ulint		n_fields,
 	ulint		n_bytes,
 	index_id_t	tree_id)
@@ -987,7 +987,7 @@ ibool
 rec_validate(
 /*=========*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((nonnull));
 /***************************************************************//**
 Prints an old-style physical record. */
@@ -1004,7 +1004,7 @@ rec_print_mbr_rec(
 /*==========*/
 	FILE*		file,	/*!< in: file where to print */
 	const rec_t*	rec,	/*!< in: physical record */
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((nonnull));
 /***************************************************************//**
 Prints a physical record. */
@@ -1013,7 +1013,7 @@ rec_print_new(
 /*==========*/
 	FILE*		file,	/*!< in: file where to print */
 	const rec_t*	rec,	/*!< in: physical record */
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((nonnull));
 /***************************************************************//**
 Prints a physical record. */
@@ -1035,7 +1035,7 @@ rec_print(
 	std::ostream&	o,
 	const rec_t*	rec,
 	ulint		info,
-	const offset_t*	offsets);
+	const rec_offs*	offsets);
 
 /** Wrapper for pretty-printing a record */
 struct rec_index_print
@@ -1062,14 +1062,14 @@ operator<<(std::ostream& o, const rec_index_print& r);
 struct rec_offsets_print
 {
 	/** Constructor */
-	rec_offsets_print(const rec_t* rec, const offset_t* offsets) :
+	rec_offsets_print(const rec_t* rec, const rec_offs* offsets) :
 		m_rec(rec), m_offsets(offsets)
 	{}
 
 	/** Record */
 	const rec_t*		m_rec;
 	/** Offsets to each field */
-	const offset_t*		m_offsets;
+	const rec_offs*		m_offsets;
 };
 
 /** Display a record.
@@ -1086,7 +1086,7 @@ public:
 	/** Construct a pretty-printed record.
 	@param rec	record with header
 	@param offsets	rec_get_offsets(rec, ...) */
-	rec_printer(const rec_t* rec, const offset_t* offsets)
+	rec_printer(const rec_t* rec, const rec_offs* offsets)
 		:
 		std::ostringstream ()
 	{
@@ -1099,7 +1099,7 @@ public:
 	@param rec record, possibly lacking header
 	@param info rec_get_info_bits(rec)
 	@param offsets rec_get_offsets(rec, ...) */
-	rec_printer(const rec_t* rec, ulint info, const offset_t* offsets)
+	rec_printer(const rec_t* rec, ulint info, const rec_offs* offsets)
 		:
 		std::ostringstream ()
 	{

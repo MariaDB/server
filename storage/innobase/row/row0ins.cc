@@ -223,7 +223,7 @@ row_ins_sec_index_entry_by_modify(
 				depending on whether mtr holds just a leaf
 				latch or also a tree latch */
 	btr_cur_t*	cursor,	/*!< in: B-tree cursor */
-	offset_t**	offsets,/*!< in/out: offsets on cursor->page_cur.rec */
+	rec_offs**	offsets,/*!< in/out: offsets on cursor->page_cur.rec */
 	mem_heap_t*	offsets_heap,
 				/*!< in/out: memory heap that can be emptied */
 	mem_heap_t*	heap,	/*!< in/out: memory heap */
@@ -318,7 +318,7 @@ row_ins_clust_index_entry_by_modify(
 	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
 				depending on whether mtr holds just a leaf
 				latch or also a tree latch */
-	offset_t**	offsets,/*!< out: offsets on cursor->page_cur.rec */
+	rec_offs**	offsets,/*!< out: offsets on cursor->page_cur.rec */
 	mem_heap_t**	offsets_heap,
 				/*!< in/out: pointer to memory heap that can
 				be emptied, or NULL */
@@ -942,9 +942,9 @@ row_ins_foreign_fill_virtual(
 {
 	THD*		thd = current_thd;
 	row_ext_t*	ext;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
-	const offset_t*	offsets =
+	const rec_offs*	offsets =
 		rec_get_offsets(rec, index, offsets_, true,
 				ULINT_UNDEFINED, &cascade->heap);
 	mem_heap_t*	v_heap = NULL;
@@ -1483,7 +1483,7 @@ row_ins_set_shared_rec_lock(
 	const buf_block_t*	block,	/*!< in: buffer block of rec */
 	const rec_t*		rec,	/*!< in: record */
 	dict_index_t*		index,	/*!< in: index */
-	const offset_t*		offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	que_thr_t*		thr)	/*!< in: query thread */
 {
 	dberr_t	err;
@@ -1514,7 +1514,7 @@ row_ins_set_exclusive_rec_lock(
 	const buf_block_t*	block,	/*!< in: buffer block of rec */
 	const rec_t*		rec,	/*!< in: record */
 	dict_index_t*		index,	/*!< in: index */
-	const offset_t*		offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	que_thr_t*		thr)	/*!< in: query thread */
 {
 	dberr_t	err;
@@ -1561,8 +1561,8 @@ row_ins_check_foreign_constraint(
 	mtr_t		mtr;
 	trx_t*		trx		= thr_get_trx(thr);
 	mem_heap_t*	heap		= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 
 	bool		skip_gap_lock;
 
@@ -2036,7 +2036,7 @@ row_ins_dupl_error_with_rec(
 				the record! */
 	const dtuple_t*	entry,	/*!< in: entry to insert */
 	dict_index_t*	index,	/*!< in: index */
-	const offset_t*	offsets)/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets)/*!< in: rec_get_offsets(rec, index) */
 {
 	ulint	matched_fields;
 	ulint	n_unique;
@@ -2095,8 +2095,8 @@ row_ins_scan_sec_index_for_duplicate(
 	btr_pcur_t	pcur;
 	dberr_t		err		= DB_SUCCESS;
 	ulint		allow_duplicates;
-	offset_t	offsets_[REC_OFFS_SEC_INDEX_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_SEC_INDEX_SIZE];
+	rec_offs*	offsets		= offsets_;
 	DBUG_ENTER("row_ins_scan_sec_index_for_duplicate");
 
 	rec_offs_init(offsets_);
@@ -2229,7 +2229,7 @@ row_ins_duplicate_online(
 	ulint		n_uniq,	/*!< in: offset of DB_TRX_ID */
 	const dtuple_t*	entry,	/*!< in: entry that is being inserted */
 	const rec_t*	rec,	/*!< in: clustered index record */
-	offset_t*	offsets)/*!< in/out: rec_get_offsets(rec) */
+	rec_offs*	offsets)/*!< in/out: rec_get_offsets(rec) */
 {
 	ulint	fields	= 0;
 
@@ -2268,7 +2268,7 @@ row_ins_duplicate_error_in_clust_online(
 	ulint		n_uniq,	/*!< in: offset of DB_TRX_ID */
 	const dtuple_t*	entry,	/*!< in: entry that is being inserted */
 	const btr_cur_t*cursor,	/*!< in: cursor on insert position */
-	offset_t**	offsets,/*!< in/out: rec_get_offsets(rec) */
+	rec_offs**	offsets,/*!< in/out: rec_get_offsets(rec) */
 	mem_heap_t**	heap)	/*!< in/out: heap for offsets */
 {
 	dberr_t		err	= DB_SUCCESS;
@@ -2315,8 +2315,8 @@ row_ins_duplicate_error_in_clust(
 	ulint	n_unique;
 	trx_t*	trx		= thr_get_trx(thr);
 	mem_heap_t*heap		= NULL;
-	offset_t offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t* offsets		= offsets_;
+	rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs* offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(dict_index_is_clust(cursor->index));
@@ -2489,7 +2489,7 @@ dberr_t
 row_ins_index_entry_big_rec(
 	const dtuple_t*		entry,
 	const big_rec_t*	big_rec,
-	offset_t*		offsets,
+	rec_offs*		offsets,
 	mem_heap_t**		heap,
 	dict_index_t*		index,
 	const void*		thd __attribute__((unused)))
@@ -2564,8 +2564,8 @@ row_ins_clust_index_entry_low(
 	mtr_t		mtr;
 	ib_uint64_t	auto_inc	= 0;
 	mem_heap_t*	offsets_heap	= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets         = offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets         = offsets_;
 	rec_offs_init(offsets_);
 
 	DBUG_ENTER("row_ins_clust_index_entry_low");
@@ -2843,8 +2843,8 @@ row_ins_sec_index_entry_low(
 	dberr_t		err		= DB_SUCCESS;
 	ulint		n_unique;
 	mtr_t		mtr;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets         = offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets         = offsets_;
 	rec_offs_init(offsets_);
 	rtr_info_t	rtr_info;
 
