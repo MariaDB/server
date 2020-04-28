@@ -91,7 +91,7 @@ rtr_page_split_and_insert(
 	btr_cur_t*	cursor,	/*!< in/out: cursor at which to insert; when the
 				function returns, the cursor is positioned
 				on the predecessor of the inserted record */
-	offset_t**	offsets,/*!< out: offsets on inserted record */
+	rec_offs**	offsets,/*!< out: offsets on inserted record */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
@@ -153,7 +153,7 @@ rtr_rec_cal_increase(
 				dtuple in some of the common fields, or which
 				has an equal number or more fields than
 				dtuple */
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	double*		area);	/*!< out: increased area */
 
 /****************************************************************//**
@@ -261,7 +261,7 @@ void
 rtr_get_mbr_from_rec(
 /*=================*/
 	const rec_t*	rec,	/*!< in: data tuple */
-	const offset_t*	offsets,/*!< in: offsets array */
+	const rec_offs*	offsets,/*!< in: offsets array */
 	rtr_mbr_t*	mbr);	/*!< out MBR */
 
 /****************************************************************//**
@@ -293,10 +293,10 @@ rtr_page_get_father(
 Returns the father block to a page. It is assumed that mtr holds
 an X or SX latch on the tree.
 @return rec_get_offsets() of the node pointer record */
-offset_t*
+rec_offs*
 rtr_page_get_father_block(
 /*======================*/
-	offset_t*	offsets,/*!< in: work area for the return value */
+	rec_offs*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
 	dict_index_t*	index,	/*!< in: b-tree index */
 	buf_block_t*	block,	/*!< in: child page in the index */
@@ -403,8 +403,8 @@ rtr_merge_and_update_mbr(
 /*=====================*/
 	btr_cur_t*		cursor,		/*!< in/out: cursor */
 	btr_cur_t*		cursor2,	/*!< in: the other cursor */
-	offset_t*		offsets,	/*!< in: rec offsets */
-	offset_t*		offsets2,	/*!< in: rec offsets */
+	rec_offs*		offsets,	/*!< in: rec offsets */
+	rec_offs*		offsets2,	/*!< in: rec offsets */
 	page_t*			child_page,	/*!< in: the child page. */
 	buf_block_t*		merge_block,	/*!< in: page to merge */
 	buf_block_t*		block,		/*!< in: page be merged */
@@ -429,8 +429,8 @@ rtr_merge_mbr_changed(
 /*==================*/
 	btr_cur_t*	cursor,		/*!< in: cursor */
 	btr_cur_t*	cursor2,	/*!< in: the other cursor */
-	offset_t*	offsets,	/*!< in: rec offsets */
-	offset_t*	offsets2,	/*!< in: rec offsets */
+	rec_offs*	offsets,	/*!< in: rec offsets */
+	rec_offs*	offsets2,	/*!< in: rec offsets */
 	rtr_mbr_t*	new_mbr,	/*!< out: MBR to update */
 	buf_block_t*	merge_block,	/*!< in: page to merge */
 	buf_block_t*	block,		/*!< in: page be merged */
@@ -444,7 +444,7 @@ bool
 rtr_update_mbr_field(
 /*=================*/
 	btr_cur_t*	cursor,		/*!< in: cursor pointed to rec.*/
-	offset_t*	offsets,	/*!< in: offsets on rec. */
+	rec_offs*	offsets,	/*!< in: offsets on rec. */
 	btr_cur_t*	cursor2,	/*!< in/out: cursor pointed to rec
 					that should be deleted.
 					this cursor is for btr_compress to

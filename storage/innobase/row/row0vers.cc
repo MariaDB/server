@@ -86,12 +86,12 @@ row_vers_impl_x_locked_low(
 	dict_index_t*	clust_index,
 	const rec_t*	rec,
 	dict_index_t*	index,
-	const offset_t*	offsets,
+	const rec_offs*	offsets,
 	mtr_t*		mtr)
 {
 	rec_t*		prev_version = NULL;
-	offset_t	clust_offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	clust_offsets = clust_offsets_;
+	rec_offs	clust_offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	clust_offsets = clust_offsets_;
 	mem_heap_t*	heap;
 	dtuple_t*	ientry = NULL;
 	mem_heap_t*	v_heap = NULL;
@@ -369,7 +369,7 @@ trx_t*
 row_vers_impl_x_locked(
 	const rec_t*	rec,
 	dict_index_t*	index,
-	const offset_t*	offsets)
+	const rec_offs*	offsets)
 {
 	mtr_t		mtr;
 	trx_t*		trx;
@@ -523,7 +523,7 @@ row_vers_build_cur_vrow_low(
 	bool			in_purge,
 	const rec_t*		rec,
 	dict_index_t*		clust_index,
-	offset_t*		clust_offsets,
+	rec_offs*		clust_offsets,
 	dict_index_t*		index,
 	roll_ptr_t		roll_ptr,
 	trx_id_t		trx_id,
@@ -637,7 +637,7 @@ row_vers_vc_matches_cluster(
 	const rec_t*	rec,
 	const dtuple_t* icentry,
 	dict_index_t*	clust_index,
-	offset_t*	clust_offsets,
+	rec_offs*	clust_offsets,
 	dict_index_t*	index,
 	const dtuple_t* ientry,
 	roll_ptr_t	roll_ptr,
@@ -808,7 +808,7 @@ row_vers_build_cur_vrow(
 	bool			in_purge,
 	const rec_t*		rec,
 	dict_index_t*		clust_index,
-	offset_t**		clust_offsets,
+	rec_offs**		clust_offsets,
 	dict_index_t*		index,
 	const dtuple_t*		ientry,
 	roll_ptr_t		roll_ptr,
@@ -893,7 +893,7 @@ row_vers_old_has_index_entry(
 	const rec_t*	version;
 	rec_t*		prev_version;
 	dict_index_t*	clust_index;
-	offset_t*	clust_offsets;
+	rec_offs*	clust_offsets;
 	mem_heap_t*	heap;
 	mem_heap_t*	heap2;
 	dtuple_t*	row;
@@ -1151,7 +1151,7 @@ row_vers_build_for_consistent_read(
 				of this records */
 	mtr_t*		mtr,	/*!< in: mtr holding the latch on rec */
 	dict_index_t*	index,	/*!< in: the clustered index */
-	offset_t**	offsets,/*!< in/out: offsets returned by
+	rec_offs**	offsets,/*!< in/out: offsets returned by
 				rec_get_offsets(rec, index) */
 	ReadView*	view,	/*!< in: the consistent read view */
 	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
@@ -1266,7 +1266,7 @@ row_vers_build_for_semi_consistent_read(
 				of this records */
 	mtr_t*		mtr,	/*!< in: mtr holding the latch on rec */
 	dict_index_t*	index,	/*!< in: the clustered index */
-	offset_t**	offsets,/*!< in/out: offsets returned by
+	rec_offs**	offsets,/*!< in/out: offsets returned by
 				rec_get_offsets(rec, index) */
 	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
 				the offsets are allocated */
