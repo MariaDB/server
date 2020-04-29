@@ -2033,6 +2033,22 @@ EXPLAIN
   }
 }
 DROP TABLE t1,t2;
+#
+# MDEV-22160: SIGSEGV in st_join_table::save_explain_data on SELECT
+#
+set @save_optimizer_switch= @@optimizer_switch;
+SET @@optimizer_switch="index_merge_sort_union=OFF";
+CREATE TABLE t1 (a INT, b INT, INDEX(a), INDEX(b));
+INSERT INTO t1 VALUES (0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4);
+explain
+SELECT * FROM t1 WHERE a > 0 AND b=0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref|filter	a,b	b|a	5|5	const	2 (14%)	Using where; Using rowid filter
+SELECT * FROM t1 WHERE a > 0 AND b=0;
+a	b
+1	0
+drop table t1;
+SET @@optimizer_switch=@save_optimizer_switch;
 set @@use_stat_tables=@save_use_stat_tables;
 #
 # MDEV-18755: possible RORI-plan and possible plan with range filter
