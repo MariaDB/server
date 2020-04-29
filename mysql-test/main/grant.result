@@ -2764,6 +2764,7 @@ DROP USER dummy@localhost;
 #
 # MDEV-19948 'show grants' return privileges individually
 #
+# switching from mysql.global_priv to mysql.user
 CREATE USER ten2;
 GRANT ALL ON *.* TO ten2;
 SHOW GRANTS FOR ten2;
@@ -2774,6 +2775,7 @@ SHOW GRANTS FOR ten2;
 Grants for ten2@%
 GRANT ALL PRIVILEGES ON *.* TO `ten2`@`%`
 DROP USER ten2;
+# switching back from mysql.user to mysql.global_priv
 #
 # End of 10.3 tests
 #

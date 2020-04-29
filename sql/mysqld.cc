@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1947,10 +1947,10 @@ static void mysqld_exit(int exit_code)
   set_malloc_size_cb(NULL);
   if (global_status_var.global_memory_used)
   {
-#ifdef SAFEMALLOC
-    sf_report_leaked_memory(0);
-#endif
-    DBUG_SLOW_ASSERT(global_status_var.global_memory_used == 0);
+    fprintf(stderr, "Warning: Memory not freed: %lld\n",
+            (longlong) global_status_var.global_memory_used);
+    if (exit_code == 0)
+      SAFEMALLOC_REPORT_MEMORY(0);
   }
   cleanup_tls();
   DBUG_LEAVE;

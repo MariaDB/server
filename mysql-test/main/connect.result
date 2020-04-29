@@ -99,6 +99,7 @@ ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
 connect(localhost,test,zorro,test,MASTER_PORT,MASTER_SOCKET);
 connect  fail_con,localhost,test,zorro,;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
+# switching from mysql.global_priv to mysql.user
 update mysql.user set plugin="", authentication_string="", password=old_password("gambling2") where user=_binary"test";
 flush privileges;
 show grants for test@localhost;
@@ -168,6 +169,7 @@ ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
 connect(localhost,test,zorro,test,MASTER_PORT,MASTER_SOCKET);
 connect  fail_con,localhost,test,zorro,;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
+# switching back from mysql.user to mysql.global_priv
 delete from mysql.user where user=_binary"test";
 connect  con7,localhost,root,,test;
 create table t1 (id integer not null auto_increment primary key);
@@ -363,6 +365,7 @@ connect(localhost,mysqltest_nouser,,test,MASTER_PORT,MASTER_SOCKET);
 connect pcon5,localhost,mysqltest_nouser,,,$MASTER_MYPORT,;
 ERROR 28000: Access denied for user 'mysqltest_nouser'@'localhost' (using password: NO)
 connection default;
+# switching from mysql.global_priv to mysql.user
 update mysql.user set plugin='mysql_native_password' where user = 'mysqltest_up1';
 update mysql.user set plugin='mysql_old_password' where user = 'mysqltest_up2';
 select user, password, plugin, authentication_string from mysql.user
@@ -382,6 +385,7 @@ user()	current_user()
 mysqltest_up2@localhost	mysqltest_up2@%
 disconnect pcon7;
 connection default;
+# switching back from mysql.user to mysql.global_priv
 DROP USER mysqltest_up1@'%';
 DROP USER mysqltest_up2@'%';
 #

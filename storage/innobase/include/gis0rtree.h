@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -161,22 +161,6 @@ rtr_ins_enlarge_mbr(
 /*=================*/
 	btr_cur_t*		cursor,	/*!< in: btr cursor */
 	mtr_t*			mtr);	/*!< in: mtr */
-
-/********************************************************************//**
-*/
-void
-rtr_get_father_node(
-/*================*/
-	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: the tree level of search */
-	const dtuple_t* tuple,	/*!< in: data tuple; NOTE: n_fields_cmp in
-				tuple must be set so that it cannot get
-				compared to the node ptr page number field! */
-	btr_cur_t*	sea_cur,/*!< in: search cursor */
-	btr_cur_t*	cursor,	/*!< in/out: tree cursor; the cursor page is
-				s- or x-latched */
-	ulint		page_no,/*!< in: current page no */
-	mtr_t*		mtr);	/*!< in: mtr */
 
 /**************************************************************//**
 push a nonleaf index node to the search path */

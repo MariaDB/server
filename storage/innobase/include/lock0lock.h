@@ -980,10 +980,6 @@ std::string
 lock_get_info(
 	const lock_t*);
 
-/*******************************************************************//**
-@return whether wsrep_on is true on trx->mysql_thd*/
-#define wsrep_on_trx(trx) wsrep_on((trx)->mysql_thd)
-
 #endif /* WITH_WSREP */
 
 #include "lock0lock.ic"

@@ -55,45 +55,43 @@ bool			trx_rollback_is_active;
 const trx_t*		trx_roll_crash_recv_trx;
 
 /** Finish transaction rollback.
-@param[in,out]	trx	transaction
 @return	whether the rollback was completed normally
 @retval	false	if the rollback was aborted by shutdown  */
-static bool trx_rollback_finish(trx_t* trx)
+inline bool trx_t::rollback_finish()
 {
-	trx->mod_tables.clear();
-	bool finished = trx->error_state == DB_SUCCESS;
-	if (UNIV_LIKELY(finished)) {
-		trx_commit(trx);
-	} else {
-		ut_a(trx->error_state == DB_INTERRUPTED);
-		ut_ad(!srv_is_being_started);
-		ut_a(!srv_undo_sources);
-		ut_ad(srv_fast_shutdown);
-		ut_d(trx->in_rollback = false);
-		if (trx_undo_t*& undo = trx->rsegs.m_redo.old_insert) {
-			UT_LIST_REMOVE(trx->rsegs.m_redo.rseg->old_insert_list,
-				       undo);
-			ut_free(undo);
-			undo = NULL;
-		}
-		if (trx_undo_t*& undo = trx->rsegs.m_redo.undo) {
-			UT_LIST_REMOVE(trx->rsegs.m_redo.rseg->undo_list,
-				       undo);
-			ut_free(undo);
-			undo = NULL;
-		}
-		if (trx_undo_t*& undo = trx->rsegs.m_noredo.undo) {
-			UT_LIST_REMOVE(trx->rsegs.m_noredo.rseg->undo_list,
-				       undo);
-			ut_free(undo);
-			undo = NULL;
-		}
-		trx_commit_low(trx, NULL);
-	}
+  mod_tables.clear();
+  if (UNIV_LIKELY(error_state == DB_SUCCESS))
+  {
+    commit();
+    return true;
+  }
 
-	trx->lock.que_state = TRX_QUE_RUNNING;
-
-	return finished;
+  ut_a(error_state == DB_INTERRUPTED);
+  ut_ad(!srv_is_being_started);
+  ut_a(!srv_undo_sources);
+  ut_ad(srv_fast_shutdown);
+  ut_d(in_rollback= false);
+  if (trx_undo_t *&undo= rsegs.m_redo.old_insert)
+  {
+    UT_LIST_REMOVE(rsegs.m_redo.rseg->old_insert_list, undo);
+    ut_free(undo);
+    undo= nullptr;
+  }
+  if (trx_undo_t *&undo= rsegs.m_redo.undo)
+  {
+    UT_LIST_REMOVE(rsegs.m_redo.rseg->undo_list, undo);
+    ut_free(undo);
+    undo= nullptr;
+  }
+  if (trx_undo_t *&undo= rsegs.m_noredo.undo)
+  {
+    UT_LIST_REMOVE(rsegs.m_noredo.rseg->undo_list, undo);
+    ut_free(undo);
+    undo= nullptr;
+  }
+  commit_low();
+  lock.que_state = TRX_QUE_RUNNING;
+  return false;
 }
 
 /*******************************************************************//**
@@ -144,8 +142,8 @@ trx_rollback_to_savepoint_low(
 				       roll_node->undo_thr->common.parent));
 	}
 
-	if (savept == NULL) {
-		trx_rollback_finish(trx);
+	if (!savept) {
+		trx->rollback_finish();
 		MONITOR_INC(MONITOR_TRX_ROLLBACK);
 	} else {
 		ut_a(trx->error_state == DB_SUCCESS);
@@ -182,8 +180,7 @@ trx_rollback_to_savepoint(
 				complete rollback */
 {
 #ifdef WITH_WSREP
-	if (savept == NULL && wsrep_on(trx->mysql_thd)
-	    && wsrep_thd_is_SR(trx->mysql_thd)) {
+	if (!savept && trx->is_wsrep() && wsrep_thd_is_SR(trx->mysql_thd)) {
 		wsrep_handle_SR_rollback(NULL, trx->mysql_thd);
 	}
 #endif /* WITH_WSREP */
@@ -454,7 +451,7 @@ trx_rollback_to_savepoint_for_mysql_low(
 
 	trx->op_info = "";
 #ifdef WITH_WSREP
-	trx->lock.was_chosen_as_wsrep_victim = FALSE;
+	trx->lock.was_chosen_as_wsrep_victim = false;
 #endif
 	return(err);
 }
@@ -668,7 +665,7 @@ trx_rollback_active(
 	que_graph_free(
 		static_cast<que_t*>(roll_node->undo_thr->common.parent));
 
-	if (UNIV_UNLIKELY(!trx_rollback_finish(trx))) {
+	if (UNIV_UNLIKELY(!trx->rollback_finish())) {
 		ut_ad(!dictionary_locked);
 		goto func_exit;
 	}

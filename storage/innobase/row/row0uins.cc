@@ -578,8 +578,8 @@ row_undo_ins(
 			already be holding dict_sys.mutex, which
 			would be acquired when updating statistics. */
 			if (!dict_locked) {
-				dict_stats_update_if_needed(
-					node->table, node->trx->mysql_thd);
+				dict_stats_update_if_needed(node->table,
+							    *node->trx);
 			}
 		}
 		break;

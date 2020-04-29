@@ -1450,9 +1450,12 @@ class User_table_json: public User_table
 
   bool set_auth(const ACL_USER &u) const
   {
-    StringBuffer<JSON_SIZE> json(m_table->field[2]->charset());
-    if (u.nauth == 1)
+    size_t array_len;
+    const char *array;
+    if (u.nauth == 1 && get_value("auth_or", JSV_ARRAY, &array, &array_len))
       return set_auth1(u, 0);
+
+    StringBuffer<JSON_SIZE> json(m_table->field[2]->charset());
     bool top_done = false;
     json.append('[');
     for (uint i=0; i < u.nauth; i++)
@@ -1949,10 +1952,13 @@ class Grant_tables
     int res= really_open(thd, first, &counter);
 
     /* if User_table_json wasn't found, let's try User_table_tabular */
-    if (!res && (which_tables & Table_user) && !(tables[USER_TABLE].table))
+    if (!res && (which_tables & Table_user) && !tables[USER_TABLE].table)
     {
       uint unused;
       TABLE_LIST *tl= tables + USER_TABLE;
+      TABLE *backup_open_tables= thd->open_tables;
+      thd->set_open_tables(NULL);
+
       tl->init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_TABLE_NAME_USER,
                          NULL, lock_type);
       tl->open_type= OT_BASE_ONLY;
@@ -1961,6 +1967,12 @@ class Grant_tables
       p_user_table= &m_user_table_tabular;
       counter++;
       res= really_open(thd, tl, &unused);
+      thd->set_open_tables(backup_open_tables);
+      if (tables[USER_TABLE].table)
+      {
+        tables[USER_TABLE].table->next= backup_open_tables;
+        thd->set_open_tables(tables[USER_TABLE].table);
+      }
     }
     if (res)
       DBUG_RETURN(res);

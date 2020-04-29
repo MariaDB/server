@@ -432,7 +432,7 @@ func_exit:
 
 inline bool wsrep_must_process_fk(const upd_node_t* node, const trx_t* trx)
 {
-	if (!wsrep_on_trx(trx)) {
+	if (!trx->is_wsrep()) {
 		return false;
 	}
 	return que_node_get_type(node->common.parent) != QUE_NODE_UPDATE
@@ -1884,6 +1884,7 @@ row_upd_store_v_row(
 @param[in]	thd		mysql thread handle
 @param[in,out]	mysql_table	NULL, or mysql table object when
 				user thread invokes dml */
+static
 void
 row_upd_store_row(
 	upd_node_t*	node,
@@ -2498,9 +2499,8 @@ check_fk:
 
 	mtr_commit(mtr);
 
-	err = row_ins_clust_index_entry(index, entry, thr, node->upd_ext
-					? node->upd_ext->n_ext
-					: dtuple_get_n_ext(entry));
+	err = row_ins_clust_index_entry(index, entry, thr,
+					dtuple_get_n_ext(entry));
 	node->state = UPD_NODE_INSERT_CLUSTERED;
 
 	mem_heap_free(heap);

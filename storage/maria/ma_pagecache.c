@@ -156,7 +156,7 @@ struct st_pagecache_hash_link
 
 /* simple states of a block */
 #define PCBLOCK_ERROR       1 /* an error occurred when performing disk i/o  */
-#define PCBLOCK_READ        2 /* the is page in the block buffer             */
+#define PCBLOCK_READ        2 /* there is an active page in the block buffer */
 
 /*
   A tread is reading the data to the page.
@@ -3752,6 +3752,7 @@ restart:
       */
       if (reg_request)
         unreg_request(pagecache, block, 1);
+      dec_counter_for_resize_op(pagecache);
       pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
       DBUG_PRINT("info", ("restarting..."));
       goto restart;
@@ -4028,6 +4029,7 @@ my_bool pagecache_delete_by_link(PAGECACHE *pagecache,
     DBUG_ASSERT((block->status &
                  (PCBLOCK_IN_SWITCH | PCBLOCK_REASSIGNED)) == 0);
 
+    /* This lock is deleted in pagecache_delete_internal() called below */
     inc_counter_for_resize_op(pagecache);
     /*
       make_lock_and_pin() can't fail here, because we are keeping pin on the
@@ -4172,6 +4174,7 @@ restart:
       */
       if (pin == PAGECACHE_PIN)
         unreg_request(pagecache, block, 1);
+      dec_counter_for_resize_op(pagecache);
       pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
       DBUG_PRINT("info", ("restarting..."));
       goto restart;

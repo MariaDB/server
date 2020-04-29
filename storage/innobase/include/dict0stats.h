@@ -115,16 +115,16 @@ dict_stats_deinit(
 /** Update the table modification counter and if necessary,
 schedule new estimates for table and index statistics to be calculated.
 @param[in,out]	table	persistent or temporary table
-@param[in]	thd	current session */
-void dict_stats_update_if_needed(dict_table_t* table, THD* thd)
-	MY_ATTRIBUTE((nonnull(1)));
+@param[in]	trx	transaction */
+void dict_stats_update_if_needed(dict_table_t *table, const trx_t &trx)
+	MY_ATTRIBUTE((nonnull));
 #else
 /** Update the table modification counter and if necessary,
 schedule new estimates for table and index statistics to be calculated.
 @param[in,out]	table	persistent or temporary table */
-void dict_stats_update_if_needed_func(dict_table_t* table)
+void dict_stats_update_if_needed_func(dict_table_t *table)
 	MY_ATTRIBUTE((nonnull));
-# define dict_stats_update_if_needed(t,thd) dict_stats_update_if_needed_func(t)
+# define dict_stats_update_if_needed(t,trx) dict_stats_update_if_needed_func(t)
 #endif
 
 /*********************************************************************//**

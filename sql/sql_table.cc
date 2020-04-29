@@ -10332,7 +10332,7 @@ do_continue:;
     Alter_inplace_info ha_alter_info(create_info, alter_info,
                                      key_info, key_count,
                                      IF_PARTITIONING(thd->work_part_info, NULL),
-                                     ignore);
+                                     ignore, alter_ctx.error_if_not_empty);
     TABLE_SHARE altered_share;
     TABLE altered_table;
     bool use_inplace= true;
@@ -10863,7 +10863,8 @@ err_new_table_cleanup:
                thd->get_stmt_da()->current_row_for_warning()))
   {
     Abort_on_warning_instant_set aws(thd, true);
-    alter_ctx.report_implicit_default_value_error(thd, new_table->s);
+    alter_ctx.report_implicit_default_value_error(thd, new_table
+                                                  ? new_table->s : table->s);
   }
 
   if (new_table)

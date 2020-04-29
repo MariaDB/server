@@ -705,6 +705,11 @@ FULLTEXT(f2),
 FOREIGN KEY(f1) REFERENCES mdev20987_1(f1))ENGINE=InnoDB;
 INSERT INTO mdev20987_1 VALUES(1);
 INSERT INTO mdev20987_2 VALUES(1, 'mariadb');
+CREATE TABLE mdev22358 (a INT, b TEXT, FULLTEXT KEY ftidx (b)) ENGINE=InnoDB;
+ALTER TABLE mdev22358 DROP KEY ftidx;
+INSERT INTO mdev22358 (a) VALUES (2),(2);
+ALTER TABLE mdev22358 ADD UNIQUE KEY uidx (a), ADD FULLTEXT KEY ftidx (b);
+ERROR 23000: Duplicate entry '2' for key 'uidx'
 # restart
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -713,7 +718,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`FTS_DOC_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DELETE FROM t1 WHERE MATCH(char_column) AGAINST ('bbb');
-DROP TABLE t1, t2, mdev20987_2, mdev20987_1;
+DROP TABLE t1, t2, mdev20987_2, mdev20987_1, mdev22358;
 "----------Test28---------"
 create table `fts_test`(`a` text,fulltext key(`a`))engine=innodb;
 set session autocommit=0;

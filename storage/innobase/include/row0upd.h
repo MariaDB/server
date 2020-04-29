@@ -298,16 +298,6 @@ row_upd_changes_some_index_ord_field_binary(
 /*========================================*/
 	const dict_table_t*	table,	/*!< in: table */
 	const upd_t*		update);/*!< in: update vector for the row */
-/** Stores to the heap the row on which the node->pcur is positioned.
-@param[in]	node		row update node
-@param[in]	thd		mysql thread handle
-@param[in,out]	mysql_table	NULL, or mysql table object when
-				user thread invokes dml */
-void
-row_upd_store_row(
-	upd_node_t*	node,
-	THD*		thd,
-	TABLE*		mysql_table);
 /***********************************************************//**
 Updates a row in a table. This is a high-level function used
 in SQL execution graphs.

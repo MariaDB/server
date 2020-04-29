@@ -1051,8 +1051,7 @@ row_purge_record_func(
 			if (node->table->stat_initialized
 			    && srv_stats_include_delete_marked) {
 				dict_stats_update_if_needed(
-					node->table,
-					thr->graph->trx->mysql_thd);
+					node->table, *thr->graph->trx);
 			}
 			MONITOR_INC(MONITOR_N_DEL_ROW_PURGE);
 		}

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -195,8 +195,7 @@ wsrep_is_BF_lock_timeout(
 	const trx_t*	trx,
 	bool		locked = true)
 {
-	if (wsrep_on_trx(trx)
-	    && wsrep_thd_is_BF(trx->mysql_thd, FALSE)
+	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, FALSE)
 	    && trx->error_state != DB_DEADLOCK) {
 		ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx->id)
 			   << " query: " << wsrep_thd_query(trx->mysql_thd);
@@ -403,8 +402,9 @@ lock_wait_suspend_thread(
 	if (lock_wait_timeout < 100000000
 	    && wait_time > (double) lock_wait_timeout
 #ifdef WITH_WSREP
-	    && (!wsrep_on_trx(trx) ||
-	       (!wsrep_is_BF_lock_timeout(trx, false) && trx->error_state != DB_DEADLOCK))
+	    && (!trx->is_wsrep()
+		|| (!wsrep_is_BF_lock_timeout(trx, false)
+		    && trx->error_state != DB_DEADLOCK))
 #endif /* WITH_WSREP */
 	    ) {
 

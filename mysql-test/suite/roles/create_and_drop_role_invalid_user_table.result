@@ -1,3 +1,4 @@
+# switching from mysql.global_priv to mysql.user
 connect  mysql, localhost, root,,;
 use mysql;
 alter table user drop column is_role;
@@ -26,3 +27,4 @@ update user set is_role='N';
 flush privileges;
 create role test_role;
 drop role test_role;
+# switching back from mysql.user to mysql.global_priv

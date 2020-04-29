@@ -25,6 +25,7 @@ Created April 08, 2011 Vasil Dimov
 *******************************************************/
 
 #include "my_global.h"
+#include "mysqld.h"
 #include "my_sys.h"
 
 #include "mysql/psi/mysql_stage.h"
@@ -175,7 +176,7 @@ get_buf_dump_dir()
 
 	/* The dump file should be created in the default data directory if
 	innodb_data_home_dir is set as an empty string. */
-	if (strcmp(srv_data_home, "") == 0) {
+	if (!*srv_data_home) {
 		dump_dir = fil_path_to_mysql_datadir;
 	} else {
 		dump_dir = srv_data_home;
@@ -187,16 +188,14 @@ get_buf_dump_dir()
 /** Generate the path to the buffer pool dump/load file.
 @param[out]	path		generated path
 @param[in]	path_size	size of 'path', used as in snprintf(3). */
-static
-void
-buf_dump_generate_path(
-	char*	path,
-	size_t	path_size)
+static void buf_dump_generate_path(char *path, size_t path_size)
 {
 	char	buf[FN_REFLEN];
 
+	mysql_mutex_lock(&LOCK_global_system_variables);
 	snprintf(buf, sizeof(buf), "%s%c%s", get_buf_dump_dir(),
 		 OS_PATH_SEPARATOR, srv_buf_dump_filename);
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 
 	os_file_type_t	type;
 	bool		exists = false;

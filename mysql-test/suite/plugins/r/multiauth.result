@@ -153,8 +153,10 @@ show create user mysqltest1;
 CREATE USER for mysqltest1@%
 CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING '*BFE3F4604CFD21E6595080A261D92EF0183B5971' OR unix_socket
 drop user mysqltest1;
+# switching from mysql.global_priv to mysql.user
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
 ERROR HY000: Column count of mysql.user is wrong. Expected 3, found 47. Created with MariaDB XX.YY.ZZ, now running XX.YY.ZZ. Please use mariadb-upgrade to fix this error
+# switching back from mysql.user to mysql.global_priv
 create user USER         identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
 create user mysqltest1 identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
 update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
@@ -192,3 +194,16 @@ user()	current_user()	database()
 mysqltest1@localhost	mysqltest1@%	test
 drop user mysqltest1;
 uninstall soname 'auth_ed25519';
+create user mysqltest1 identified via mysql_native_password as password("good") OR unix_socket;
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E' OR unix_socket
+alter user mysqltest1 identified via mysql_native_password as password("better");
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED BY PASSWORD '*6E6CABC9967AB586F009616BA69DAC2953849C88'
+flush privileges;
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED BY PASSWORD '*6E6CABC9967AB586F009616BA69DAC2953849C88'
+drop user mysqltest1;

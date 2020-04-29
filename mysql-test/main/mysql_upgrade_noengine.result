@@ -1,3 +1,4 @@
+# switching from mysql.global_priv to mysql.user
 drop view mysql.user_bak;
 install soname 'ha_blackhole';
 install soname 'ha_archive';
@@ -144,6 +145,7 @@ Code	1286
 Message	Unknown storage engine 'ARCHIVE'
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
+# switching from mysql.global_priv to mysql.user
 drop view mysql.user_bak;
 alter table mysql.user drop column default_role, drop column max_statement_time;
 Phase 1/7: Checking and upgrading mysql database
@@ -236,6 +238,7 @@ Code	1286
 Message	Unknown storage engine 'ARCHIVE'
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
+# switching from mysql.global_priv to mysql.user
 drop view mysql.user_bak;
 alter table mysql.user drop column default_role, drop column max_statement_time;
 Phase 1/7: Checking and upgrading mysql database

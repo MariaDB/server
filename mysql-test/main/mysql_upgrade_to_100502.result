@@ -1,6 +1,7 @@
 #
 #  MDEV-22057 REPLICATION MASTER ADMIN is missing in root account after upgrade
 #
+# switching from mysql.global_priv to mysql.user
 DROP VIEW mysql.user_bak;
 FLUSH PRIVILEGES;
 CREATE USER user_all@localhost;

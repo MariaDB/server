@@ -100,8 +100,6 @@ else
   $bindir = getcwd();
 }
 
-our $wsrep_check_version;
-
 # Find the safe process binary or script
 sub find_bin {
   if (IS_WIN32PERL or IS_CYGWIN)
@@ -121,10 +119,6 @@ sub find_bin {
 			 "my_safe_process");
     push(@safe_process_cmd, $exe);
   }
-  # Wsrep version check utility:
-  $wsrep_check_version=
-    my_find_bin($bindir, ["lib/My/SafeProcess", "My/SafeProcess"],
-                "wsrep_check_version", NOT_REQUIRED);
 }
 
 

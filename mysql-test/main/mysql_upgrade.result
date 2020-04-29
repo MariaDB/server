@@ -575,6 +575,7 @@ SET GLOBAL enforce_storage_engine=NULL;
 # Ensure that mysql_upgrade correctly sets truncate_versioning_priv
 # on upgrade from 10.2
 #
+# switching from mysql.global_priv to mysql.user
 drop view mysql.user_bak;
 CREATE USER 'user3'@'%';
 GRANT USAGE ON *.* TO 'user3'@'%';
@@ -593,6 +594,7 @@ update mysql.db set Delete_history_priv='Y' where db like 'test%';
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 # End of 10.3 tests
+# switching from mysql.global_priv to mysql.user
 drop view mysql.user_bak;
 create user 'user3'@'localhost' identified with mysql_native_password as password('a_password');
 show create user user3@localhost;
@@ -625,9 +627,19 @@ connection default;
 drop user user3@localhost;
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
+# switching from mysql.global_priv to mysql.user
 drop view mysql.user_bak;
 drop table mysql.innodb_index_stats, mysql.innodb_table_stats;
 # mysql_upgrade --force --silent 2>&1
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
+alter table mysql.user change authentication_string auth_string text collate utf8_bin not null;
+# mysql_upgrade --force --silent 2>&1
+select count(*) from mysql.global_priv;
+count(*)
+4
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 # End of 10.4 tests

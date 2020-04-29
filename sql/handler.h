@@ -2496,11 +2496,14 @@ public:
   */
   const char *unsupported_reason;
 
+  /** true when InnoDB should abort the alter when table is not empty */
+  bool error_if_not_empty;
+
   Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
                      Alter_info *alter_info_arg,
                      KEY *key_info_arg, uint key_count_arg,
                      partition_info *modified_part_info_arg,
-                     bool ignore_arg);
+                     bool ignore_arg, bool error_non_empty);
 
   ~Alter_inplace_info()
   {

@@ -606,7 +606,6 @@ row_vers_build_cur_vrow_low(
 /** Check a virtual column value index secondary virtual index matches
 that of current cluster index record, which is recreated from information
 stored in undo log
-@param[in]	in_purge	called by purge thread
 @param[in]	rec		record in the clustered index
 @param[in]	icentry		the index entry built from a cluster row
 @param[in]	clust_index	cluster index
@@ -622,7 +621,6 @@ stored in undo log
 static
 bool
 row_vers_vc_matches_cluster(
-	bool		in_purge,
 	const rec_t*	rec,
 	const dtuple_t* icentry,
 	dict_index_t*	clust_index,
@@ -683,12 +681,6 @@ row_vers_vc_matches_cluster(
 
 	version = rec;
 
-	/* If this is called by purge thread, set TRX_UNDO_PREV_IN_PURGE
-	bit to search the undo log until we hit the current undo log with
-	roll_ptr */
-	ulint	status = (in_purge ? TRX_UNDO_PREV_IN_PURGE : 0)
-			 | TRX_UNDO_GET_OLD_V_VALUE;
-
 	while (n_cmp_v_col < n_fields - n_non_v_col) {
 		heap2 = heap;
 		heap = mem_heap_create(1024);
@@ -696,11 +688,12 @@ row_vers_vc_matches_cluster(
 			version, clust_index, clust_offsets);
 
 		ut_ad(cur_roll_ptr != 0);
-		ut_ad(in_purge == (roll_ptr != 0));
+		ut_ad(roll_ptr != 0);
 
 		trx_undo_prev_version_build(
 			rec, mtr, version, clust_index, clust_offsets,
-			heap, &prev_version, NULL, vrow, status);
+			heap, &prev_version, NULL, vrow,
+			TRX_UNDO_PREV_IN_PURGE | TRX_UNDO_GET_OLD_V_VALUE);
 
 		if (heap2) {
 			mem_heap_free(heap2);
@@ -958,7 +951,7 @@ row_vers_old_has_index_entry(
 				secondary indexes.) */
 
 				if (entry && row_vers_vc_matches_cluster(
-					    also_curr, rec, entry,
+					    rec, entry,
 					    clust_index, clust_offsets,
 					    index, ientry, roll_ptr,
 					    trx_id, NULL, &vrow, mtr)) {

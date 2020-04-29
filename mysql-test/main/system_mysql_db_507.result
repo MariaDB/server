@@ -3,6 +3,7 @@
 #             Fatal error: mysql.user table is damaged or in
 #             unsupported 3.20 format
 #
+# switching from mysql.global_priv to mysql.user
 #
 # Original mysql.user table
 #
@@ -221,3 +222,4 @@ drop user user@localhost;
 #
 # Reset to final original state.
 #
+# switching back from mysql.user to mysql.global_priv

@@ -1073,9 +1073,7 @@ wsrep_kill_victim(
 	ut_ad(trx_mutex_own(lock->trx));
 
 	/* quit for native mysql */
-	if (!wsrep_on(trx->mysql_thd)) {
-		return;
-	}
+	if (!trx->is_wsrep()) return;
 
 	if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		return;
@@ -1157,7 +1155,7 @@ lock_rec_other_has_conflicting(
 
 		if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
 #ifdef WITH_WSREP
-			if (wsrep_on_trx(trx)) {
+			if (trx->is_wsrep()) {
 				trx_mutex_enter(lock->trx);
 				/* Below function will roll back either trx
 				or lock->trx depending on priority of the
@@ -1399,7 +1397,7 @@ lock_rec_create_low(
 	ut_ad(index->table->get_ref_count() > 0 || !index->table->can_be_evicted);
 
 #ifdef WITH_WSREP
-	if (c_lock && wsrep_on_trx(trx)
+	if (c_lock && trx->is_wsrep()
 	    && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		lock_t *hash	= (lock_t *)c_lock->hash;
 		lock_t *prev	= NULL;
@@ -1805,8 +1803,7 @@ lock_rec_add_to_queue(
 #ifdef WITH_WSREP
 		//ut_a(!other_lock || (wsrep_thd_is_BF(trx->mysql_thd, FALSE) &&
                 //                     wsrep_thd_is_BF(other_lock->trx->mysql_thd, TRUE)));
-		if (other_lock &&
-			wsrep_on(trx->mysql_thd) &&
+		if (other_lock && trx->is_wsrep() &&
 			!wsrep_thd_is_BF(trx->mysql_thd, FALSE) &&
 			!wsrep_thd_is_BF(other_lock->trx->mysql_thd, TRUE)) {
 
@@ -3502,7 +3499,7 @@ lock_table_create(
 	UT_LIST_ADD_LAST(trx->lock.trx_locks, lock);
 
 #ifdef WITH_WSREP
-	if (c_lock && wsrep_on_trx(trx)) {
+	if (c_lock && trx->is_wsrep()) {
 		if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 			ut_list_insert(table->locks, c_lock, lock,
 				       TableLockGetNode());
@@ -3732,7 +3729,7 @@ lock_table_enqueue_waiting(
 	}
 
 #ifdef WITH_WSREP
-	if (trx->lock.was_chosen_as_deadlock_victim && wsrep_on_trx(trx)) {
+	if (trx->is_wsrep() && trx->lock.was_chosen_as_deadlock_victim) {
 		return(DB_DEADLOCK);
 	}
 #endif /* WITH_WSREP */
@@ -3805,7 +3802,7 @@ lock_table_other_has_incompatible(
 		    && (wait || !lock_get_wait(lock))) {
 
 #ifdef WITH_WSREP
-			if (wsrep_on(lock->trx->mysql_thd)) {
+			if (lock->trx->is_wsrep()) {
 				if (wsrep_debug) {
 					ib::info() << "WSREP: table lock abort for table:"
 						   << table->name.m_name;
@@ -4872,7 +4869,7 @@ func_exit:
 			explicit granted lock. */
 
 #ifdef WITH_WSREP
-			if (wsrep_on(other_lock->trx->mysql_thd)) {
+			if (other_lock->trx->is_wsrep()) {
 				if (!lock_get_wait(other_lock) ) {
 					ib::info() << "WSREP impl BF lock conflict for my impl lock:\n BF:" <<
 						((wsrep_thd_is_BF(impl_trx->mysql_thd, FALSE)) ? "BF" : "normal") << " exec: " <<
@@ -6754,7 +6751,7 @@ DeadlockChecker::trx_rollback()
 
 	print("*** WE ROLL BACK TRANSACTION (1)\n");
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) && wsrep_thd_is_SR(trx->mysql_thd)) {
+	if (trx->is_wsrep() && wsrep_thd_is_SR(trx->mysql_thd)) {
 		wsrep_handle_SR_rollback(m_start->mysql_thd, trx->mysql_thd);
 	}
 #endif
@@ -6847,8 +6844,7 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 
 		print("*** WE ROLL BACK TRANSACTION (2)\n");
 #ifdef WITH_WSREP
-		if (wsrep_on(trx->mysql_thd)
-		    && wsrep_thd_is_SR(trx->mysql_thd)) {
+		if (trx->is_wsrep() && wsrep_thd_is_SR(trx->mysql_thd)) {
 			wsrep_handle_SR_rollback(trx->mysql_thd,
 						 victim_trx->mysql_thd);
 		}
