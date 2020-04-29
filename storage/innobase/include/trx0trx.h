@@ -181,17 +181,6 @@ trx_start_for_ddl_low(
 	trx_start_for_ddl_low((t), (o))
 #endif /* UNIV_DEBUG */
 
-/****************************************************************//**
-Commits a transaction. */
-void
-trx_commit(
-/*=======*/
-	trx_t*	trx);	/*!< in/out: transaction */
-
-/** Commit a transaction and a mini-transaction.
-@param[in,out]	trx	transaction
-@param[in,out]	mtr	mini-transaction (NULL if no modifications) */
-void trx_commit_low(trx_t* trx, mtr_t* mtr);
 /**********************************************************************//**
 Does the transaction commit for MySQL.
 @return DB_SUCCESS or error number */
@@ -898,10 +887,10 @@ public:
 					defer flush of the logs to disk
 					until after we release the
 					mutex. */
-	bool		must_flush_log_later;/*!< this flag is set to TRUE in
-					trx_commit() if flush_log_later was
-					TRUE, and there were modifications by
-					the transaction; in that case we must
+	bool		must_flush_log_later;/*!< set in commit()
+					if flush_log_later was
+					set and redo log was written;
+					in that case we will
 					flush the log in
 					trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
@@ -1132,11 +1121,20 @@ public:
   @param[in]	table_id	table identifier */
   void evict_table(table_id_t table_id);
 
+private:
+  /** Mark a transaction committed in the main memory data structures. */
+  inline void commit_in_memory(const mtr_t *mtr);
+public:
+  /** Commit the transaction. */
+  void commit();
 
-  bool is_referenced()
-  {
-    return n_ref > 0;
-  }
+  /** Commit the transaction in a mini-transaction.
+  @param mtr  mini-transaction (if there are any persistent modifications) */
+  void commit_low(mtr_t *mtr= nullptr);
+
+
+
+  bool is_referenced() const { return n_ref > 0; }
 
 
   void reference()

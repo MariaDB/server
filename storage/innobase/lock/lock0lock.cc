@@ -6865,7 +6865,7 @@ DeadlockChecker::trx_rollback()
 
 	print("*** WE ROLL BACK TRANSACTION (1)\n");
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) && wsrep_thd_is_SR(trx->mysql_thd)) {
+	if (trx->is_wsrep() && wsrep_thd_is_SR(trx->mysql_thd)) {
 		wsrep_handle_SR_rollback(m_start->mysql_thd, trx->mysql_thd);
 	}
 #endif
@@ -6956,8 +6956,7 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 
 		print("*** WE ROLL BACK TRANSACTION (2)\n");
 #ifdef WITH_WSREP
-		if (wsrep_on(trx->mysql_thd)
-		    && wsrep_thd_is_SR(trx->mysql_thd)) {
+		if (trx->is_wsrep() && wsrep_thd_is_SR(trx->mysql_thd)) {
 			wsrep_handle_SR_rollback(trx->mysql_thd,
 						 victim_trx->mysql_thd);
 		}

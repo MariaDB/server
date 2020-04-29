@@ -7079,7 +7079,7 @@ op_ok:
 			goto error_handling;
 		}
 
-		trx_commit(ctx->trx);
+		ctx->trx->commit();
 		trx_start_for_ddl(ctx->trx, op);
 
 		if (!ctx->new_table->fts
@@ -11101,7 +11101,7 @@ ha_innobase::commit_inplace_alter_table(
 			logical sense the commit in the file-based
 			data structures happens here. */
 
-			trx_commit_low(trx, &mtr);
+			trx->commit_low(&mtr);
 		}
 
 		/* If server crashes here, the dictionary in

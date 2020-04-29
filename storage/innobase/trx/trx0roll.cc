@@ -59,7 +59,7 @@ static bool trx_rollback_finish(trx_t* trx)
 	trx->mod_tables.clear();
 	bool finished = trx->error_state == DB_SUCCESS;
 	if (UNIV_LIKELY(finished)) {
-		trx_commit(trx);
+		trx->commit();
 	} else {
 		ut_a(trx->error_state == DB_INTERRUPTED);
 		ut_ad(!srv_is_being_started);
@@ -84,7 +84,7 @@ static bool trx_rollback_finish(trx_t* trx)
 			ut_free(undo);
 			undo = NULL;
 		}
-		trx_commit_low(trx, NULL);
+		trx->commit_low();
 	}
 
 	trx->lock.que_state = TRX_QUE_RUNNING;
