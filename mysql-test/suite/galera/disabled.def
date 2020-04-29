@@ -25,7 +25,6 @@ galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails
 galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
 galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
 galera_sst_mariabackup_encrypt_with_key : MDEV-21484 galera_sst_mariabackup_encrypt_with_key
-galera_sst_mariabackup_table_options: MDEV-19741 Galera test failure on galera.galera_sst_mariabackup_table_options	 
 galera_var_innodb_disallow_writes : MDEV-20928 galera.galera_var_innodb_disallow_writes
 galera_var_node_address : MDEV-20485 Galera test failure
 galera_wan : MDEV-17259 Test failure on galera.galera_wan
