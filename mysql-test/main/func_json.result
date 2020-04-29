@@ -1221,3 +1221,14 @@ SELECT JSON_ARRAYAGG(a) FROM t1;
 JSON_ARRAYAGG(a)
 NULL
 DROP TABLE t1;
+#
+# MDEV-21915 Server crashes in copy_fields,Item_func_group_concat::add
+while using json_arrayagg() as a window function
+#
+select json_arrayagg(a) over () from (select 1 a) t;
+ERROR 42000: This version of MariaDB doesn't yet support 'JSON_ARRAYAGG() aggregate as window function'
+select json_objectagg(a, b) over () from (select 1 a, 2 b) t;
+ERROR 42000: This version of MariaDB doesn't yet support 'JSON_OBJECTAGG() aggregate as window function'
+#
+# End of 10.5 tests
+#

@@ -579,7 +579,7 @@ public:
   bool is_json_type() { return true; }
   void cleanup();
 
-  enum Sumfunctype sum_func () const {return GROUP_CONCAT_FUNC;}
+  enum Sumfunctype sum_func () const {return JSON_OBJECTAGG_FUNC;}
   const char *func_name() const { return "json_objectagg("; }
   const Type_handler *type_handler() const
   {

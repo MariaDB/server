@@ -740,3 +740,19 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 SELECT JSON_ARRAYAGG(a) FROM t1;
 DROP TABLE t1;
+
+-- echo #
+-- echo # MDEV-21915 Server crashes in copy_fields,Item_func_group_concat::add
+-- echo       while using json_arrayagg() as a window function
+-- echo #
+
+--error ER_NOT_SUPPORTED_YET
+select json_arrayagg(a) over () from (select 1 a) t;
+
+--error ER_NOT_SUPPORTED_YET
+select json_objectagg(a, b) over () from (select 1 a, 2 b) t;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+

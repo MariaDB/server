@@ -2936,6 +2936,14 @@ bool Window_func_runner::add_function_to_run(Item_window_func *win_func)
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
                "COUNT(DISTINCT) aggregate as window function");
       return true;
+    case Item_sum::JSON_ARRAYAGG_FUNC:
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "JSON_ARRAYAGG() aggregate as window function");
+      return true;
+    case Item_sum::JSON_OBJECTAGG_FUNC:
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "JSON_OBJECTAGG() aggregate as window function");
+      return true;
     default:
       break;
   }
