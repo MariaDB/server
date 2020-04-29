@@ -1693,7 +1693,7 @@ void Session_tracker::store(THD *thd, String *buf)
   }
 
   size_t length= buf->length() - start;
-  uchar *data= (uchar *)(buf->ptr() + start);
+  uchar *data;
   uint size;
 
   if ((size= net_length_size(length)) != 1)
@@ -1703,8 +1703,16 @@ void Session_tracker::store(THD *thd, String *buf)
       buf->length(start); // it is safer to have 0-length block in case of error
       return;
     }
+
+    /*
+      The 'buf->reserve()' can change the buf->ptr() so we cannot
+      calculate the 'data' earlier.
+    */
+    data= (uchar *)(buf->ptr() + start);
     memmove(data + (size - 1), data, length);
   }
+  else
+    data= (uchar *)(buf->ptr() + start);
 
   net_store_length(data - 1, length);
 }
