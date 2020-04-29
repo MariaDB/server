@@ -412,7 +412,10 @@ Rpl_filter::set_wild_do_table(const char* table_spec)
   int status;
 
   if (wild_do_table_inited)
+  {
     free_string_array(&wild_do_table);
+    wild_do_table_inited= 0;
+  }
 
   status= parse_filter_rule(table_spec, &Rpl_filter::add_wild_do_table);
 
@@ -435,7 +438,10 @@ Rpl_filter::set_wild_ignore_table(const char* table_spec)
   int status;
 
   if (wild_ignore_table_inited)
+  {
     free_string_array(&wild_ignore_table);
+    wild_ignore_table_inited= 0;
+  }
 
   status= parse_filter_rule(table_spec, &Rpl_filter::add_wild_ignore_table);
 
