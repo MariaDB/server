@@ -1,5 +1,5 @@
 /* Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2016, MariaDB
+   Copyright (c) 2016, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1198,11 +1198,10 @@ bool User_variables_tracker::store(THD *thd, String *buf)
     auto var= m_changed_user_variables.at(i);
     String value_str;
     bool null_value;
-    uint length;
 
     var->val_str(&null_value, &value_str, DECIMAL_MAX_SCALE);
 
-    length= net_length_size(var->name.length) + var->name.length;
+    size_t length= net_length_size(var->name.length) + var->name.length;
     if (!null_value)
       length+= net_length_size(value_str.length()) + value_str.length();
 
