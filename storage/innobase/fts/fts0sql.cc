@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -260,33 +260,4 @@ fts_get_select_columns_str(
 	}
 
 	return(str);
-}
-
-/******************************************************************//**
-Commit a transaction.
-@return DB_SUCCESS or error code */
-dberr_t
-fts_sql_commit(
-/*===========*/
-	trx_t*		trx)		/*!< in: transaction */
-{
-	dberr_t	error;
-
-	error = trx_commit_for_mysql(trx);
-
-	/* Commit should always succeed */
-	ut_a(error == DB_SUCCESS);
-
-	return(DB_SUCCESS);
-}
-
-/******************************************************************//**
-Rollback a transaction.
-@return DB_SUCCESS or error code */
-dberr_t
-fts_sql_rollback(
-/*=============*/
-	trx_t*		trx)		/*!< in: transaction */
-{
-	return(trx_rollback_to_savepoint(trx, NULL));
 }

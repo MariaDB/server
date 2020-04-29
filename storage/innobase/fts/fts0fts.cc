@@ -6384,6 +6384,7 @@ fts_rename_aux_tables_to_hex_format(
 	trx_rename->dict_operation_lock_mode = 0;
 
 	if (err != DB_SUCCESS) {
+		fts_sql_rollback(trx_rename);
 
 		ib::warn() << "Rollback operations on all aux tables of "
 			"table "<< parent_table->name << ". All the fts index "
@@ -6391,18 +6392,13 @@ fts_rename_aux_tables_to_hex_format(
 			"Please rebuild the index again.";
 
 		/* Corrupting the fts index related to parent table. */
-		trx_t*	trx_corrupt;
-		trx_corrupt = trx_create();
-		trx_corrupt->dict_operation_lock_mode = RW_X_LATCH;
-		trx_start_for_ddl(trx_corrupt, TRX_DICT_OP_TABLE);
-		fts_parent_all_index_set_corrupt(trx_corrupt, parent_table);
-		trx_corrupt->dict_operation_lock_mode = 0;
-		fts_sql_commit(trx_corrupt);
-		trx_free(trx_corrupt);
-	} else {
-		fts_sql_commit(trx_rename);
+		trx_rename->dict_operation_lock_mode = RW_X_LATCH;
+		trx_start_for_ddl(trx_rename, TRX_DICT_OP_TABLE);
+		fts_parent_all_index_set_corrupt(trx_rename, parent_table);
+		trx_rename->dict_operation_lock_mode = 0;
 	}
 
+	fts_sql_commit(trx_rename);
 	trx_free(trx_rename);
 	ib_vector_reset(aux_tables);
 }

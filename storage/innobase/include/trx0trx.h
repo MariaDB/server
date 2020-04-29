@@ -1101,6 +1101,13 @@ public:
   @param[in]	table_id	table identifier */
   void evict_table(table_id_t table_id);
 
+  /** Initiate rollback.
+  @param savept     savepoint to which to roll back
+  @return error code or DB_SUCCESS */
+  dberr_t rollback(trx_savept_t *savept= nullptr);
+  /** Roll back an active transaction.
+  @param savept     savepoint to which to roll back */
+  inline void rollback_low(trx_savept_t *savept= nullptr);
   /** Finish rollback.
   @return whether the rollback was completed normally
   @retval false if the rollback was aborted by shutdown */

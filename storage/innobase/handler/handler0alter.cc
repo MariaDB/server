@@ -6250,7 +6250,7 @@ prepare_inplace_alter_table_dict(
 			    user_table, ctx->drop_fk, ctx->num_to_drop_fk)) {
 new_clustered_failed:
 			DBUG_ASSERT(ctx->trx != ctx->prebuilt->trx);
-			trx_rollback_to_savepoint(ctx->trx, NULL);
+			ctx->trx->rollback();
 
 			ut_ad(user_table->get_ref_count() == 1);
 

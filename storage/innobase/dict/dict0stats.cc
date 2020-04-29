@@ -319,7 +319,7 @@ dict_stats_exec_sql(
 	} else {
 		trx->op_info = "rollback of internal trx on stats tables";
 		trx->dict_operation_lock_mode = RW_X_LATCH;
-		trx_rollback_to_savepoint(trx, NULL);
+		trx->rollback();
 		trx->dict_operation_lock_mode = 0;
 		trx->op_info = "";
 		ut_a(trx->error_state == DB_SUCCESS);

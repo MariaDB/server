@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -102,17 +102,6 @@ trx_rollback_last_sql_stat_for_mysql(
 /*=================================*/
 	trx_t*	trx)	/*!< in/out: transaction */
 	MY_ATTRIBUTE((nonnull));
-/*******************************************************************//**
-Rollback a transaction to a given savepoint or do a complete rollback.
-@return error code or DB_SUCCESS */
-dberr_t
-trx_rollback_to_savepoint(
-/*======================*/
-	trx_t*		trx,	/*!< in: transaction handle */
-	trx_savept_t*	savept)	/*!< in: pointer to savepoint undo number, if
-				partial rollback requested, or NULL for
-				complete rollback */
-	MY_ATTRIBUTE((nonnull(1)));
 /*******************************************************************//**
 Rolls back a transaction back to a named savepoint. Modifications after the
 savepoint are undone but InnoDB does NOT release the corresponding locks

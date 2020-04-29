@@ -731,7 +731,7 @@ handle_new_error:
 			/* Roll back the latest, possibly incomplete insertion
 			or update */
 
-			trx_rollback_to_savepoint(trx, savept);
+			trx->rollback(savept);
 		}
 		/* MySQL will roll back the latest SQL statement */
 		break;
@@ -754,7 +754,7 @@ handle_new_error:
 		/* Roll back the whole transaction; this resolution was added
 		to version 3.23.43 */
 
-		trx_rollback_to_savepoint(trx, NULL);
+		trx->rollback();
 		break;
 
 	case DB_MUST_GET_MORE_FILE_SPACE:
@@ -2425,7 +2425,7 @@ err_exit:
 		break;
 	case DB_OUT_OF_FILE_SPACE:
 		trx->error_state = DB_SUCCESS;
-		trx_rollback_to_savepoint(trx, NULL);
+		trx->rollback();
 
 		ib::warn() << "Cannot create table "
 			<< table->name
@@ -2456,7 +2456,7 @@ err_exit:
 	case DB_TABLESPACE_EXISTS:
 	default:
 		trx->error_state = DB_SUCCESS;
-		trx_rollback_to_savepoint(trx, NULL);
+		trx->rollback();
 		dict_mem_table_free(table);
 		break;
 	}
@@ -3793,7 +3793,7 @@ do_drop:
 			<< ut_get_name(trx, tablename) << ".";
 
 		trx->error_state = DB_SUCCESS;
-		trx_rollback_to_savepoint(trx, NULL);
+		trx->rollback();
 		trx->error_state = DB_SUCCESS;
 
 		/* Mark all indexes available in the data dictionary
@@ -4525,7 +4525,7 @@ end:
 				" succeed.";
 		}
 		trx->error_state = DB_SUCCESS;
-		trx_rollback_to_savepoint(trx, NULL);
+		trx->rollback();
 		trx->error_state = DB_SUCCESS;
 	} else {
 		/* The following call will also rename the .ibd data file if
@@ -4535,7 +4535,7 @@ end:
 			table, new_name, !new_is_tmp);
 		if (err != DB_SUCCESS) {
 			trx->error_state = DB_SUCCESS;
-			trx_rollback_to_savepoint(trx, NULL);
+			trx->rollback();
 			trx->error_state = DB_SUCCESS;
 			goto funct_exit;
 		}
@@ -4577,7 +4577,7 @@ end:
 			}
 
 			trx->error_state = DB_SUCCESS;
-			trx_rollback_to_savepoint(trx, NULL);
+			trx->rollback();
 			trx->error_state = DB_SUCCESS;
 		}
 
@@ -4589,7 +4589,7 @@ end:
 			ut_a(DB_SUCCESS == dict_table_rename_in_cache(
 				table, old_name, FALSE));
 			trx->error_state = DB_SUCCESS;
-			trx_rollback_to_savepoint(trx, NULL);
+			trx->rollback();
 			trx->error_state = DB_SUCCESS;
 			goto funct_exit;
 		}
