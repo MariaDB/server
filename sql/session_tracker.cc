@@ -1198,12 +1198,18 @@ bool User_variables_tracker::store(THD *thd, String *buf)
     auto var= m_changed_user_variables.at(i);
     String value_str;
     bool null_value;
+    uint length;
 
     var->val_str(&null_value, &value_str, DECIMAL_MAX_SCALE);
-    buf->q_append(static_cast<char>(SESSION_TRACK_USER_VARIABLES));
-    ulonglong length= net_length_size(var->name.length) + var->name.length;
+
+    length= net_length_size(var->name.length) + var->name.length;
     if (!null_value)
       length+= net_length_size(value_str.length()) + value_str.length();
+
+    if (buf->reserve(sizeof(char) + length + net_length_size(length)))
+      return true;
+
+    buf->q_append(static_cast<char>(SESSION_TRACK_USER_VARIABLES));
     buf->q_net_store_length(length);
     buf->q_net_store_data(reinterpret_cast<const uchar*>(var->name.str),
                           var->name.length);
@@ -1259,7 +1265,7 @@ void Session_tracker::store(THD *thd, String *buf)
   }
 
   size_t length= buf->length() - start;
-  uchar *data= (uchar *)(buf->ptr() + start);
+  uchar *data;
   uint size;
 
   if ((size= net_length_size(length)) != 1)
@@ -1269,8 +1275,16 @@ void Session_tracker::store(THD *thd, String *buf)
       buf->length(start); // it is safer to have 0-length block in case of error
       return;
     }
+
+    /*
+      The 'buf->reserve()' can change the buf->ptr() so we cannot
+      calculate the 'data' earlier.
+    */
+    data= (uchar *)(buf->ptr() + start);
     memmove(data + (size - 1), data, length);
   }
+  else
+    data= (uchar *)(buf->ptr() + start);
 
   net_store_length(data - 1, length);
 }

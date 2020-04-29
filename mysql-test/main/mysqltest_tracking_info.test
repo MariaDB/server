@@ -34,3 +34,15 @@ SET @b=NULL;
 SELECT @c:=10;
 --disable_session_track_info
 SET @@session.session_track_user_variables=0;
+
+--echo #
+--echo # mdev-22337 Assertion `Alloced_length >= (str_length + length +
+--echo        net_length_size(length))' failed in Binary_string::q_net_store_data
+--echo        on long MULTIPOLYGON query with session_track_user_variables=1
+--echo        (optimized builds)
+--echo #
+set @@session.session_track_user_variables=1;
+--enable_session_track_info
+set @a=repeat('X', 1029);
+--disable_session_track_info
+set @@session.session_track_user_variables=0;

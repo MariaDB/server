@@ -39,3 +39,12 @@ SELECT @c:=10;
 @c:=10
 10
 SET @@session.session_track_user_variables=0;
+#
+# mdev-22337 Assertion `Alloced_length >= (str_length + length +
+net_length_size(length))' failed in Binary_string::q_net_store_data
+on long MULTIPOLYGON query with session_track_user_variables=1
+(optimized builds)
+#
+set @@session.session_track_user_variables=1;
+set @a=repeat('X', 1029);
+set @@session.session_track_user_variables=0;
