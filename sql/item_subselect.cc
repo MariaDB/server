@@ -2704,9 +2704,28 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
       and_args= ((Item_cond*) join_arg->conds)->argument_list();
       if (join_arg->cond_equal)
         and_args->disjoin((List<Item> *) &join_arg->cond_equal->current_level);
-    }
 
-    where_item= and_items(thd, join_arg->conds, where_item);
+      /*
+        If subquery's WHERE is an Item_cond_and, add the injected conditions
+        into it manually. If we just called and_items(...) that could
+        potentially replace the top-level Item_cond_and and current top-level
+        Item_cond_and::m_cond_equal will be lost.
+      */
+      if (where_item->type() == Item::COND_ITEM &&
+          ((Item_cond*)where_item)->functype() == Item_func::COND_AND_FUNC)
+      {
+        List_iterator<Item> it(*((Item_cond*)where_item)->argument_list());
+        while (Item *item=it++)
+          and_args->push_back(item);
+      }
+      else
+        and_args->push_back(where_item);
+
+      where_item= join_arg->conds;
+    }
+    else
+      where_item= and_items(thd, join_arg->conds, where_item);
+
     if (where_item->fix_fields_if_needed(thd, 0))
       DBUG_RETURN(true);
     // TIMOUR TODO: call optimize_cond() for the new where clause
@@ -2719,12 +2738,15 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     {
       /* The argument list of the top-level AND may change after fix fields. */
       and_args= ((Item_cond*) join_arg->conds)->argument_list();
-      List_iterator<Item_equal> li(join_arg->cond_equal->current_level);
-      Item_equal *elem;
-      while ((elem= li++))
-      {
-        and_args->push_back(elem, thd->mem_root);
-      }
+
+      /*
+        Note that Item_equal objects must be present in this form:
+        Item_cond::conds list must have the end of the list to be the
+        same linked list as join_arg->cond_equal->current_level.
+        The code in substitute_for_best_equal_field depends on it (see the
+        disjoin() call).
+      */
+      and_args->append((List<Item> *)&join_arg->cond_equal->current_level);
     }
   }
 

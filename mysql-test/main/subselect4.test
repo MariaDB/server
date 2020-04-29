@@ -2115,6 +2115,32 @@ where exists (select * from t2 where t2.a=t1.a order by t2.b limit 2,3);
 explain
 select * from t1 where t1.a in (select t2.a from t2 order by t2.b);
 
-
 drop table t0, t1, t2;
+
+--echo #
+--echo # MDEV-22377: Subquery in an UPDATE query uses full scan instead of range
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(nkey1 int, col1 int);
+insert into t1 select A.a+10*B.a+100*C.a, A.a+10*B.a+100*C.a from t0 A, t0 B, t0 C;
+
+create table t2(key1 int, col1 int, key(key1));
+insert into t2 select A.a+10*B.a, A.a+10*B.a from t0 A, t0 B;
+
+alter table t0 add b int;
+--echo #  This must use the join order of t0,t2,t1
+--echo #  And table t2 must use range access, not full scan:
+explain
+select *
+from t0 
+where 
+  a not in (SELECT t1.col1 
+            FROM t1 JOIN t2 ON t2.key1 = t1.nkey1 
+            WHERE 
+              t1.nkey1 IN (1,2,3,4,5) and t2.col1>t0.b
+            );
+drop table t0, t1, t2;
+
 

@@ -2349,7 +2349,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select 3 AS `f` from dual where !<expr_cache><3>(<in_optimizer>(3,<exists>(/* select#2 */ select `test`.`t1`.`b` from `test`.`t1` where (`test`.`t1`.`c` = 'USA' or `test`.`t1`.`c` <> 'USA') and trigcond(<cache>(3) = `test`.`t1`.`b` or `test`.`t1`.`b` is null) and `test`.`t1`.`b` = `test`.`t1`.`a` having trigcond(`test`.`t1`.`b` is null))))
+Note	1003	/* select#1 */ select 3 AS `f` from dual where !<expr_cache><3>(<in_optimizer>(3,<exists>(/* select#2 */ select `test`.`t1`.`b` from `test`.`t1` where `test`.`t1`.`b` = `test`.`t1`.`a` and (`test`.`t1`.`c` = 'USA' or `test`.`t1`.`c` <> 'USA') and trigcond(<cache>(3) = `test`.`t1`.`b` or `test`.`t1`.`b` is null) having trigcond(`test`.`t1`.`b` is null))))
 SELECT * FROM t2 
 WHERE f NOT IN (SELECT b FROM t1
 WHERE 0 OR (c IN ('USA') OR c NOT IN ('USA')) AND a = b);
@@ -2581,4 +2581,30 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	100	
+drop table t0, t1, t2;
+#
+# MDEV-22377: Subquery in an UPDATE query uses full scan instead of range
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(nkey1 int, col1 int);
+insert into t1 select A.a+10*B.a+100*C.a, A.a+10*B.a+100*C.a from t0 A, t0 B, t0 C;
+create table t2(key1 int, col1 int, key(key1));
+insert into t2 select A.a+10*B.a, A.a+10*B.a from t0 A, t0 B;
+alter table t0 add b int;
+#  This must use the join order of t0,t2,t1
+#  And table t2 must use range access, not full scan:
+explain
+select *
+from t0 
+where 
+a not in (SELECT t1.col1 
+FROM t1 JOIN t2 ON t2.key1 = t1.nkey1 
+WHERE 
+t1.nkey1 IN (1,2,3,4,5) and t2.col1>t0.b
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	t2	range	key1	key1	5	NULL	5	Using index condition; Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where; Using join buffer (flat, BNL join)
 drop table t0, t1, t2;
