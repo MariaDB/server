@@ -452,9 +452,6 @@ trx_rollback_to_savepoint_for_mysql_low(
 	trx_mark_sql_stat_end(trx);
 
 	trx->op_info = "";
-#ifdef WITH_WSREP
-	trx->lock.was_chosen_as_wsrep_victim = false;
-#endif
 	return(err);
 }
 

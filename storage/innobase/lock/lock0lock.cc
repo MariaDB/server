@@ -1085,11 +1085,10 @@ wsrep_kill_victim(
 {
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(lock->trx));
-
-	/* quit for native mysql */
-	if (!trx->is_wsrep()) return;
+	ut_ad(trx->is_wsrep());
 
 	if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+		trx_mutex_exit(lock->trx);
 		return;
 	}
 
@@ -1106,6 +1105,7 @@ wsrep_kill_victim(
 			}
 			/* cannot release lock, until our lock
 			is in the queue*/
+			trx_mutex_exit(lock->trx);
 		} else if (lock->trx != trx) {
 			if (wsrep_log_conflicts) {
 				ib::info() << "*** Priority TRANSACTION:";
@@ -1133,9 +1133,15 @@ wsrep_kill_victim(
 					   << wsrep_thd_query(lock->trx->mysql_thd);
 			}
 
-			wsrep_innobase_kill_one_trx(trx->mysql_thd,
-						    trx, lock->trx, TRUE);
+			lock->trx->reference();
+			trx_mutex_exit(lock->trx);
+			lock_mutex_exit();
+			wsrep_innobase_kill_one_trx(trx->mysql_thd, lock->trx, true);
+			lock_mutex_enter();
+			lock->trx->release_reference();
 		}
+	} else {
+		trx_mutex_exit(lock->trx);
 	}
 }
 #endif /* WITH_WSREP */
@@ -1175,7 +1181,8 @@ lock_rec_other_has_conflicting(
 				or lock->trx depending on priority of the
 				transaction. */
 				wsrep_kill_victim(const_cast<trx_t*>(trx), lock);
-				trx_mutex_exit(lock->trx);
+				ut_ad(lock_mutex_own());
+				ut_ad(!trx_mutex_own(lock->trx));
 			}
 #endif /* WITH_WSREP */
 			return(lock);
@@ -3827,7 +3834,8 @@ lock_table_other_has_incompatible(
 				}
 				trx_mutex_enter(lock->trx);
 				wsrep_kill_victim((trx_t *)trx, (lock_t *)lock);
-				trx_mutex_exit(lock->trx);
+				ut_ad(lock_mutex_own());
+				ut_ad(!trx_mutex_own(lock->trx));
 			}
 #endif /* WITH_WSREP */
 
@@ -6255,12 +6263,6 @@ lock_trx_handle_wait(
 /*=================*/
 	trx_t*	trx)	/*!< in/out: trx lock state */
 {
-#ifdef WITH_WSREP
-	/* We already own mutexes */
-	if (trx->lock.was_chosen_as_wsrep_victim) {
-		return lock_trx_handle_wait_low(trx);
-	}
-#endif /* WITH_WSREP */
 	lock_mutex_enter();
 	trx_mutex_enter(trx);
 	dberr_t err = lock_trx_handle_wait_low(trx);

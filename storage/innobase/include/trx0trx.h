@@ -549,11 +549,6 @@ struct trx_lock_t {
 					lock_sys.mutex. Otherwise, this may
 					only be modified by the thread that is
 					serving the running transaction. */
-#ifdef WITH_WSREP
-	bool		was_chosen_as_wsrep_victim;
-					/*!< high priority wsrep thread has
-					marked this trx to abort */
-#endif /* WITH_WSREP */
 
 	/** Pre-allocated record locks */
 	struct {
