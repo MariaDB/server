@@ -1,0 +1,273 @@
+#
+# Tests handling of several configuration changes while a joiner gets
+# state transfer
+#
+# Variant B: sending of state transfer request is immediate but completion
+#            of IST delayed until two more primary configuration changes happen
+#
+# Refs codersihp/galera-bugs#454
+#
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+--source suite/galera/include/galera_have_debug_sync.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, node INT) ENGINE=innodb;
+INSERT INTO t1 VALUES (1, 1);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+
+#
+# Isolate node_1 and update cluster state to force node 1 into joiner mode
+#
+--connection node_1
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_3
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+INSERT INTO t1 VALUES (2, 3);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t1;
+--source include/wait_condition.inc
+
+#
+# Now reconnect node_1 but first make it block before sending state transfer
+# request
+#
+# THIS IS PC1
+#
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET wsrep_sync_wait = 0;
+SET wsrep_on = OFF;
+--let $galera_sync_point = after_shift_to_joining
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+INSERT INTO t1 VALUES (3, 2);
+
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+#
+# At this point every node thinks that node_1 is in a JOINER state
+#
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 3 FROM t1;
+--source include/wait_condition.inc
+
+#
+# Now that node_1 sent state request and became JOINER isolate node_1 again
+# and commit one more action, so that node_1 loses JOINER state
+#
+--connection node_1
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_3
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+INSERT INTO t1 VALUES (4, 3);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
+--source include/wait_condition.inc
+
+#
+# Reconnect node_1 again
+#
+# THIS IS PC2
+#
+--connection node_1
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+#
+# After this point node_1 is no longer JOINER and is required to start the
+# whole procedure over because it missed some actions (4th insert into t1)
+#
+
+INSERT INTO t1 VALUES (5, 2);
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1;
+--source include/wait_condition.inc
+
+#
+# Now let node_1 continue with IST and finish processing PC1, but make it
+# block when processing PC2 right after progressing to JOINER state and
+# before IST happens.
+#
+--connection node_1a
+--let $galera_sync_point = before_send_state_request
+--source include/galera_set_sync_point.inc
+--let $galera_sync_point = after_shift_to_joining
+--source include/galera_signal_sync_point.inc
+--let $galera_sync_point = before_send_state_request
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+# Here node_1 is processing PC2 just before sending state request
+
+# since PC1 has been processed node_1 must have 3 rows in t1
+# 2 were there before PC1 and one was added while in PC1
+--let $wait_condition = SELECT COUNT(*) = 3 FROM t1;
+--source include/wait_condition.inc
+
+# Proceed to sending state transfer request and block right after
+--source include/galera_signal_sync_point.inc # before_send_state_request
+--let $galera_sync_point = after_shift_to_joining
+--source include/galera_wait_sync_point.inc
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters';
+
+#
+# Now disconnect and reconnect node_1 again to get PC3
+# It is blocked right after shifting to JOINING state.
+#
+--connection node_1
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_3
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+INSERT INTO t1 VALUES (6, 3);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 6 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_1
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+#
+# This is PC3
+#
+
+INSERT INTO t1 VALUES (7, 2);
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 7 FROM t1;
+--source include/wait_condition.inc
+
+#
+# Now disconnect and reconnect node_1 again to get PC4 and allow node_1
+# to continue with IST.
+# Note that node_1 still processes PC2 and is joining.
+#
+--connection node_1
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_3
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+INSERT INTO t1 VALUES (8, 3);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 8 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_1
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+#
+# This is PC4. node_1 is still processing PC2, waiting to send state trasfer
+# request
+#
+--connection node_1a
+--let $galera_sync_point = process_primary_configuration
+--source include/galera_set_sync_point.inc
+--let $galera_sync_point = after_shift_to_joining
+--source include/galera_signal_sync_point.inc
+# continue with IST prepared for in PC2
+
+--let $galera_sync_point = process_primary_configuration
+--source include/galera_wait_sync_point.inc
+#
+# Now node_1 is processing PC3, and should have finished state transfer
+# State tranfer request was dilivered before PC3, so node_1 should have
+# received IST up to 4 rows in t1 (what was there before PC2) plus one more
+# INSERT while in PC2.
+#
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_2
+INSERT INTO t1 VALUES (9, 2);
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 9 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_1a
+#--let $galera_sync_point = process_primary_configuration
+--source include/galera_signal_sync_point.inc
+--source include/galera_wait_sync_point.inc
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters';
+#
+# Now node_1 is processing PC4, still must have 8 rows in t1
+#
+--let $wait_condition = SELECT COUNT(*) = 8 FROM t1;
+--source include/wait_condition.inc
+
+#--let $galera_sync_point = process_primary_configuration
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--let $wait_condition = SELECT COUNT(*) = 9 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+--source include/wait_condition.inc
+
+DROP TABLE t1;
+
+call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+
+--connection node_2
+call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+
+--connection node_3
+call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
