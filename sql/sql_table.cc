@@ -10023,7 +10023,7 @@ do_continue:;
     Alter_inplace_info ha_alter_info(create_info, alter_info,
                                      key_info, key_count,
                                      IF_PARTITIONING(thd->work_part_info, NULL),
-                                     ignore);
+                                     ignore, alter_ctx.error_if_not_empty);
     TABLE_SHARE altered_share;
     TABLE altered_table;
     bool use_inplace= true;
@@ -10468,8 +10468,8 @@ err_new_table_cleanup:
     bool save_abort_on_warning= thd->abort_on_warning;
     thd->abort_on_warning= true;
     thd->push_warning_truncated_value_for_field(Sql_condition::WARN_LEVEL_WARN,
-                                                f_type, f_val,
-                                                new_table->s,
+                                                f_type, f_val, new_table
+                                                ? new_table->s : table->s,
                                                 alter_ctx.datetime_field->
                                                 field_name.str);
     thd->abort_on_warning= save_abort_on_warning;

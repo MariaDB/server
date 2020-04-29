@@ -1910,6 +1910,63 @@ innobase_fts_check_doc_id_col(
 	return(false);
 }
 
+/** Check whether the table is empty.
+@param[in]	table	table to be checked
+@return true if table is empty */
+static bool innobase_table_is_empty(const dict_table_t *table)
+{
+  dict_index_t *clust_index= dict_table_get_first_index(table);
+  mtr_t mtr;
+  btr_pcur_t pcur;
+  buf_block_t *block;
+  page_cur_t *cur;
+  const rec_t *rec;
+  bool next_page= false;
+
+  mtr.start();
+  btr_pcur_open_at_index_side(true, clust_index, BTR_SEARCH_LEAF,
+                              &pcur, true, 0, &mtr);
+  btr_pcur_move_to_next_user_rec(&pcur, &mtr);
+  if (!rec_is_metadata(btr_pcur_get_rec(&pcur), *clust_index))
+    btr_pcur_move_to_prev_on_page(&pcur);
+scan_leaf:
+  cur= btr_pcur_get_page_cur(&pcur);
+  page_cur_move_to_next(cur);
+next_page:
+  if (next_page)
+  {
+    uint32_t next_page_no= btr_page_get_next(page_cur_get_page(cur));
+    if (next_page_no == FIL_NULL)
+    {
+      mtr.commit();
+      return true;
+    }
+
+    next_page= false;
+    block= page_cur_get_block(cur);
+    block= btr_block_get(page_id_t(block->page.id.space(), next_page_no),
+                         block->page.zip_size(), BTR_SEARCH_LEAF, clust_index,
+                         &mtr);
+    btr_leaf_page_release(page_cur_get_block(cur), BTR_SEARCH_LEAF, &mtr);
+    page_cur_set_before_first(block, cur);
+    page_cur_move_to_next(cur);
+  }
+
+  rec= page_cur_get_rec(cur);
+  if (rec_get_deleted_flag(rec, dict_table_is_comp(table)));
+  else if (!page_rec_is_supremum(rec))
+  {
+    mtr.commit();
+    return false;
+  }
+  else
+  {
+    next_page= true;
+    goto next_page;
+  }
+  goto scan_leaf;
+}
+
 /** Check if InnoDB supports a particular alter table in-place
 @param altered_table TABLE object for new version of table.
 @param ha_alter_info Structure describing changes to be done
@@ -2130,6 +2187,13 @@ innodb_instant_alter_column_allowed_reason:
 		ib_push_frm_error(m_user_thd, m_prebuilt->table, altered_table,
 			n_indexes, true);
 
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
+
+	/* '0000-00-00' value isn't allowed for datetime datatype
+	for newly added column when table is not empty */
+	if (ha_alter_info->error_if_not_empty
+	    && !innobase_table_is_empty(m_prebuilt->table)) {
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
