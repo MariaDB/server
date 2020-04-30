@@ -40,7 +40,7 @@ void get_file_version(const char *path, int *major, int *minor, int *patch)
   *major= *minor= *patch= 0;
 
   size= GetFileVersionInfoSize(path, &version_handle);
-  if (size == 0) 
+  if (size == 0)
     return;
   ver= (char *)malloc(size);
   if(!GetFileVersionInfo(path, version_handle, size, ver))
@@ -65,7 +65,7 @@ void normalize_path(char *path, size_t size)
     char *p;
     strcpy_s(buf, MAX_PATH, path+1);
     p= strchr(buf, '"');
-    if (p) 
+    if (p)
       *p=0;
   }
   else
@@ -118,15 +118,15 @@ BOOL exclude_service(mysqld_service_properties *props)
 
 /*
   Retrieve some properties from windows mysqld service binary path.
-  We're interested in ini file location and datadir, and also in version of 
+  We're interested in ini file location and datadir, and also in version of
   the data. We tolerate missing mysqld.exe.
 
-  Note that this function carefully avoids using mysql libraries (e.g dbug), 
+  Note that this function carefully avoids using mysql libraries (e.g dbug),
   since it is  used in unusual environments (windows installer, MFC), where we
-  do not have much control over how threads are created and destroyed, so we 
+  do not have much control over how threads are created and destroyed, so we
   cannot assume MySQL thread initilization here.
 */
-int get_mysql_service_properties(const wchar_t *bin_path, 
+int get_mysql_service_properties(const wchar_t *bin_path,
   mysqld_service_properties *props)
 {
   int numargs;
@@ -174,7 +174,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
   if(wcsstr(mysqld_path, L".exe") == NULL)
     wcscat(mysqld_path, L".exe");
 
-  if(wcsicmp(file_part, L"mysqld.exe") != 0 && 
+  if(wcsicmp(file_part, L"mysqld.exe") != 0 &&
     wcsicmp(file_part, L"mysqld-debug.exe") != 0 &&
     wcsicmp(file_part, L"mysqld-nt.exe") != 0 &&
     wcsicmp(file_part, L"mariadbd.exe") != 0)
@@ -187,7 +187,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
   /* If mysqld.exe exists, try to get its version from executable */
   if (GetFileAttributes(props->mysqld_exe) != INVALID_FILE_ATTRIBUTES)
   {
-     get_file_version(props->mysqld_exe, &props->version_major, 
+     get_file_version(props->mysqld_exe, &props->version_major,
       &props->version_minor, &props->version_patch);
   }
 
@@ -198,7 +198,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
     normalize_path(props->inifile, MAX_PATH);
     if (GetFileAttributes(props->inifile) != INVALID_FILE_ATTRIBUTES)
     {
-      GetPrivateProfileString("mysqld", "datadir", NULL, props->datadir, MAX_PATH, 
+      GetPrivateProfileString("mysqld", "datadir", NULL, props->datadir, MAX_PATH,
         props->inifile);
     }
     else
@@ -217,7 +217,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
   {
     /*
       Hard, although a rare case, we're guessing datadir and defaults-file.
-      On Windows, defaults-file is traditionally install-root\my.ini 
+      On Windows, defaults-file is traditionally install-root\my.ini
       and datadir is install-root\data
     */
     char install_root[MAX_PATH];
@@ -276,7 +276,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
   }
 
   /*
-    If version could not be determined so far, try mysql_upgrade_info in 
+    If version could not be determined so far, try mysql_upgrade_info in
     database directory.
   */
   if(props->version_major == 0)
