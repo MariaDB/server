@@ -511,8 +511,11 @@ code and no mutex is required when the query thread is no longer waiting. */
 /** The locks and state of an active transaction. Protected by
 lock_sys.mutex, trx->mutex or both. */
 struct trx_lock_t {
-	ulint		n_active_thrs;	/*!< number of active query threads */
-
+#ifdef UNIV_DEBUG
+	/** number of active query threads; at most 1, except for the
+	dummy transaction in trx_purge() */
+	ulint n_active_thrs;
+#endif
 	trx_que_t	que_state;	/*!< valid when trx->state
 					== TRX_STATE_ACTIVE: TRX_QUE_RUNNING,
 					TRX_QUE_LOCK_WAIT, ... */

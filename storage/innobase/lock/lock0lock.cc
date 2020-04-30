@@ -4037,7 +4037,7 @@ lock_table_for_trx(
 		que_fork_get_first_thr(
 			static_cast<que_fork_t*>(que_node_get_parent(thr))));
 
-	que_thr_move_to_run_state_for_mysql(thr, trx);
+	thr->start_running();
 
 run_again:
 	thr->run_node = thr;
@@ -4048,7 +4048,7 @@ run_again:
 	trx->error_state = err;
 
 	if (UNIV_LIKELY(err == DB_SUCCESS)) {
-		que_thr_stop_for_mysql_no_error(thr, trx);
+		thr->stop_no_error();
 	} else {
 		que_thr_stop_for_mysql(thr);
 

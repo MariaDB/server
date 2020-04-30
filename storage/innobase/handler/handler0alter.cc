@@ -7034,7 +7034,7 @@ op_ok:
 	row_mysql_unlock_data_dictionary(ctx->trx);
 	dict_locked = false;
 
-	ut_a(ctx->trx->lock.n_active_thrs == 0);
+	ut_ad(!ctx->trx->lock.n_active_thrs);
 
 	if (ctx->old_table->fts) {
 		fts_sync_during_ddl(ctx->old_table);

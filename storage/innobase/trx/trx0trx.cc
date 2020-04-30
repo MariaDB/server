@@ -1607,7 +1607,7 @@ trx_commit_or_rollback_prepare(
 			trx->lock.que_state = TRX_QUE_RUNNING;
 		}
 
-		ut_a(trx->lock.n_active_thrs == 1);
+		ut_ad(trx->lock.n_active_thrs == 1);
 		return;
 
 	case TRX_STATE_COMMITTED_IN_MEMORY:

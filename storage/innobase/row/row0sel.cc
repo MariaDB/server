@@ -4525,7 +4525,7 @@ early_not_found:
 
 	thr = que_fork_get_first_thr(prebuilt->sel_graph);
 
-	que_thr_move_to_run_state_for_mysql(thr, trx);
+	thr->start_running();
 
 	clust_index = dict_table_get_first_index(prebuilt->table);
 
@@ -5676,10 +5676,10 @@ normal_return:
 	{
 		/* handler_index_cond_check() may pull TR_table search
 		   which initates another row_search_mvcc(). */
-		ulint n_active_thrs= trx->lock.n_active_thrs;
-		trx->lock.n_active_thrs= 1;
-		que_thr_stop_for_mysql_no_error(thr, trx);
-		trx->lock.n_active_thrs= n_active_thrs - 1;
+		ut_d(ulint n_active_thrs= trx->lock.n_active_thrs);
+		ut_d(trx->lock.n_active_thrs= 1);
+		thr->stop_no_error();
+		ut_d(trx->lock.n_active_thrs= n_active_thrs - 1);
 	}
 
 	mtr.commit();

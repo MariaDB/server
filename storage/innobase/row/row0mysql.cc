@@ -1189,7 +1189,7 @@ row_lock_table_autoinc_for_mysql(
 
 	thr = que_fork_get_first_thr(prebuilt->ins_graph);
 
-	que_thr_move_to_run_state_for_mysql(thr, trx);
+	thr->start_running();
 
 run_again:
 	thr->run_node = node;
@@ -1218,7 +1218,7 @@ run_again:
 		return(err);
 	}
 
-	que_thr_stop_for_mysql_no_error(thr, trx);
+	thr->stop_no_error();
 
 	trx->op_info = "";
 
@@ -1248,7 +1248,7 @@ row_lock_table(row_prebuilt_t* prebuilt)
 
 	thr = que_fork_get_first_thr(prebuilt->sel_graph);
 
-	que_thr_move_to_run_state_for_mysql(thr, trx);
+	thr->start_running();
 
 run_again:
 	thr->run_node = thr;
@@ -1280,7 +1280,7 @@ run_again:
 		return(err);
 	}
 
-	que_thr_stop_for_mysql_no_error(thr, trx);
+	thr->stop_no_error();
 
 	trx->op_info = "";
 
@@ -1453,7 +1453,7 @@ row_insert_for_mysql(
 		node->state = INS_NODE_ALLOC_ROW_ID;
 	}
 
-	que_thr_move_to_run_state_for_mysql(thr, trx);
+	thr->start_running();
 
 run_again:
 	thr->run_node = node;
@@ -1555,7 +1555,7 @@ error_exit:
 		}
 	}
 
-	que_thr_stop_for_mysql_no_error(thr, trx);
+	thr->stop_no_error();
 
 	if (table->is_system_db) {
 		srv_stats.n_system_rows_inserted.inc(size_t(trx->id));
@@ -1868,7 +1868,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	ut_ad(!prebuilt->sql_stat_start);
 
-	que_thr_move_to_run_state_for_mysql(thr, trx);
+	thr->start_running();
 
 	ut_ad(!prebuilt->versioned_write || node->table->versioned());
 
@@ -1913,7 +1913,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 		}
 	}
 
-	que_thr_stop_for_mysql_no_error(thr, trx);
+	thr->stop_no_error();
 
 	if (dict_table_has_fts_index(table)
 	    && trx->fts_next_doc_id != UINT64_UNDEFINED) {
@@ -3188,7 +3188,7 @@ row_mysql_lock_table(
 	thr = que_fork_get_first_thr(
 		static_cast<que_fork_t*>(que_node_get_parent(thr)));
 
-	que_thr_move_to_run_state_for_mysql(thr, trx);
+	thr->start_running();
 
 run_again:
 	thr->run_node = thr;
@@ -3199,7 +3199,7 @@ run_again:
 	trx->error_state = err;
 
 	if (err == DB_SUCCESS) {
-		que_thr_stop_for_mysql_no_error(thr, trx);
+		thr->stop_no_error();
 	} else {
 		que_thr_stop_for_mysql(thr);
 
