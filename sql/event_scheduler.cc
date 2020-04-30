@@ -128,11 +128,12 @@ bool
 post_init_event_thread(THD *thd)
 {
   (void) init_new_connection_handler_thread();
-  if (init_thr_lock() || thd->store_globals())
+  if (init_thr_lock())
   {
     thd->cleanup();
     return TRUE;
   }
+  thd->store_globals();
   return FALSE;
 }
 

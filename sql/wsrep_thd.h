@@ -162,7 +162,7 @@ void wsrep_restore_threadvars(const Wsrep_threadvars&);
 /**
    Store variables into thread local storage.
 */
-int wsrep_store_threadvars(THD *);
+void wsrep_store_threadvars(THD *);
 
 /**
    Reset thread local storage.

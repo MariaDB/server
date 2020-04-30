@@ -82,7 +82,7 @@ void decrease_user_connections(USER_CONN *uc);
 #define decrease_user_connections(X) do { } while(0)       /* nothing */
 #endif
 bool thd_init_client_charset(THD *thd, uint cs_number);
-bool setup_connection_thread_globals(THD *thd);
+void setup_connection_thread_globals(THD *thd);
 bool thd_prepare_connection(THD *thd);
 bool thd_is_connection_alive(THD *thd);
 int thd_set_peer_addr(THD *thd, sockaddr_storage *addr,

@@ -437,7 +437,7 @@ static void emb_free_embedded_thd(MYSQL *mysql)
   thd->clear_data_list();
   thd->store_globals();
   delete thd;
-  my_pthread_setspecific_ptr(THR_THD,  0);
+  set_current_thd(nullptr);
   mysql->thd=0;
 }
 
@@ -683,11 +683,7 @@ void *create_embedded_thd(int client_flag)
   THD * thd= new THD(next_thread_id());
 
   thd->thread_stack= (char*) &thd;
-  if (thd->store_globals())
-  {
-    fprintf(stderr,"store_globals failed.\n");
-    goto err;
-  }
+  thd->store_globals();
   lex_start(thd);
 
   /* TODO - add init_connect command execution */
@@ -714,9 +710,6 @@ void *create_embedded_thd(int client_flag)
   thd->mysys_var= 0;
   thd->reset_globals();
   return thd;
-err:
-  delete(thd);
-  return NULL;
 }
 
 

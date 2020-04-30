@@ -4173,8 +4173,7 @@ THD *spider_create_tmp_thd()
   thd->thread_id = thd->variables.pseudo_thread_id = 0;
 #endif
   thd->thread_stack = (char*) &thd;
-  if (thd->store_globals())
-    DBUG_RETURN(NULL);
+  thd->store_globals();
   lex_start(thd);
   DBUG_RETURN(thd);
 }

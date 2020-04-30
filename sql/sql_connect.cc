@@ -1105,16 +1105,9 @@ static int check_connection(THD *thd)
         In this case we will close the connection and increment status
 */
 
-bool setup_connection_thread_globals(THD *thd)
+void setup_connection_thread_globals(THD *thd)
 {
-  if (thd->store_globals())
-  {
-    close_connection(thd, ER_OUT_OF_RESOURCES);
-    statistic_increment(aborted_connects,&LOCK_status);
-    statistic_increment(connection_errors_internal, &LOCK_status);
-    return 1;                                   // Error
-  }
-  return 0;
+  thd->store_globals();
 }
 
 
@@ -1397,12 +1390,7 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
     stack overruns.
   */
   thd->thread_stack= (char*) &thd;
-  if (setup_connection_thread_globals(thd))
-  {
-    unlink_thd(thd);
-    delete thd;
-    return;
-  }
+  setup_connection_thread_globals(thd);
 
   for (;;)
   {

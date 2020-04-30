@@ -360,22 +360,8 @@ size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize);
 
 #ifdef MYSQL_CLIENT
 #define _current_thd() NULL
-#elif defined(_WIN32)
-#ifdef __cplusplus
-extern "C"
-#endif
-MYSQL_THD _current_thd_noinline();
-#define _current_thd() _current_thd_noinline()
 #else
-/*
-  THR_THD is a key which will be used to set/get THD* for a thread,
-  using my_pthread_setspecific_ptr()/my_thread_getspecific_ptr().
-*/
-extern pthread_key(MYSQL_THD, THR_THD);
-static inline MYSQL_THD _current_thd(void)
-{
-  return my_pthread_getspecific_ptr(MYSQL_THD,THR_THD);
-}
+MYSQL_THD _current_thd();
 #endif
 
 /* safe_mutex adds checking to mutex for easier debugging */

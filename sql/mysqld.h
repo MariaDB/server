@@ -769,8 +769,6 @@ extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
   *opt_ssl_key, *opt_ssl_crl, *opt_ssl_crlpath;
 extern ulonglong tls_version;
 
-extern MYSQL_PLUGIN_IMPORT pthread_key(THD*, THR_THD);
-
 #ifdef MYSQL_SERVER
 
 /**
@@ -928,11 +926,7 @@ inline void table_case_convert(char * name, uint length)
 extern void set_server_version(char *buf, size_t size);
 
 #define current_thd _current_thd()
-inline int set_current_thd(THD *thd)
-{
-  return my_pthread_setspecific_ptr(THR_THD, thd);
-}
-
+void set_current_thd(THD *thd);
 
 /*
   @todo remove, make it static in ha_maria.cc

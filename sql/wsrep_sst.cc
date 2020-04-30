@@ -364,7 +364,7 @@ void wsrep_sst_received (THD*                thd,
       wsrep_store_threadvars(thd);
     }
     else {
-      my_pthread_setspecific_ptr(THR_THD, NULL);
+      set_current_thd(nullptr);
     }
 
     /* During sst WSREP(thd) is not yet set for joiner. */

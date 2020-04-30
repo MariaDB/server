@@ -3390,7 +3390,7 @@ public:
   void cleanup_after_query();
   void free_connection();
   void reset_for_reuse();
-  bool store_globals();
+  void store_globals();
   void reset_globals();
   bool trace_started()
   {

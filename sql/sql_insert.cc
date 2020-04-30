@@ -3087,14 +3087,15 @@ pthread_handler_t handle_delayed_insert(void *arg)
   {
     DBUG_ENTER("handle_delayed_insert");
     thd->thread_stack= (char*) &thd;
-    if (init_thr_lock() || thd->store_globals())
+    if (init_thr_lock())
     {
-      /* Can't use my_error since store_globals has perhaps failed */
       thd->get_stmt_da()->set_error_status(ER_OUT_OF_RESOURCES);
       di->handler_thread_initialized= TRUE;
       thd->fatal_error();
       goto err;
     }
+
+    thd->store_globals();
 
     thd->lex->sql_command= SQLCOM_INSERT;        // For innodb::store_lock()
 

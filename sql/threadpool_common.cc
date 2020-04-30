@@ -96,7 +96,7 @@ struct Worker_thread_context
   {
     PSI_CALL_set_thread(psi_thread);
     set_mysys_var(mysys_var);
-    pthread_setspecific(THR_THD, 0);
+    set_current_thd(nullptr);
   }
 };
 
@@ -255,8 +255,7 @@ static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
   thd->start_utime= now;
   thd->thr_create_utime= now;
 
-  if (setup_connection_thread_globals(thd))
-    goto end;
+  setup_connection_thread_globals(thd);
 
   if (thd_prepare_connection(thd))
     goto end;

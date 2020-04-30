@@ -302,7 +302,7 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
       thd->db.length= sizeof("handlersocket")-1;
     }
     thd->variables.option_bits |= OPTION_TABLE_LOCK;
-    my_pthread_setspecific_ptr(THR_THD, thd);
+    set_current_thd(thd);
     DBG_THR(fprintf(stderr, "HNDSOCK x0 %p\n", thd));
   }
   {
@@ -339,7 +339,7 @@ dbcontext::term_thread()
 {
   DBG_THR(fprintf(stderr, "HNDSOCK thread end %p\n", thd));
   close_tables_if();
-  my_pthread_setspecific_ptr(THR_THD, 0);
+  set_current_thd(nullptr);
   {
     delete thd;
     thd = 0;

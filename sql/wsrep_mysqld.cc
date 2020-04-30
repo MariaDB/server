@@ -1103,7 +1103,7 @@ void wsrep_shutdown_replication()
   node_uuid= WSREP_UUID_UNDEFINED;
 
   /* Undocking the thread specific data. */
-  my_pthread_setspecific_ptr(THR_THD, NULL);
+  set_current_thd(nullptr);
 }
 
 bool wsrep_start_replication()
@@ -2926,15 +2926,7 @@ void* start_wsrep_THD(void *arg)
 
   thd->thread_stack= (char*) &thd;
   wsrep_assign_from_threadvars(thd);
-  if (wsrep_store_threadvars(thd))
-  {
-    close_connection(thd, ER_OUT_OF_RESOURCES);
-    statistic_increment(aborted_connects,&LOCK_status);
-    unlink_thd(thd);
-    delete thd;
-    delete thd_args;
-    goto error;
-  }
+  wsrep_store_threadvars(thd);
 
   thd->system_thread= SYSTEM_THREAD_SLAVE_SQL;
   thd->security_ctx->skip_grants();

@@ -436,7 +436,7 @@ thd::~thd ()
   if (ptr)
   {
     delete ptr;
-    my_pthread_setspecific_ptr (THR_THD, 0);
+    set_current_thd(nullptr);
   }
 }
 

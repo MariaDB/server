@@ -6021,9 +6021,6 @@ int main(int argc, char **argv)
 	init_signals();
 	MY_INIT(argv[0]);
 
-	pthread_key_create(&THR_THD, NULL);
-	my_pthread_setspecific_ptr(THR_THD, NULL);
-
 	xb_regex_init();
 
 	capture_tool_command(argc, argv);
@@ -6069,9 +6066,6 @@ int main(int argc, char **argv)
 		DBUG_END();
 	}
 #endif
-
-	if (THR_THD)
-		(void) pthread_key_delete(THR_THD);
 
 	logger.cleanup_base();
 	cleanup_errmsgs();

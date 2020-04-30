@@ -666,7 +666,10 @@ static std::atomic<char*> shutdown_user;
 
 /* Thread specific variables */
 
-pthread_key(THD*, THR_THD);
+static thread_local THD *THR_THD;
+
+MYSQL_THD _current_thd() { return THR_THD; }
+void set_current_thd(THD *thd) { THR_THD= thd; }
 
 /*
   LOCK_start_thread is used to syncronize thread start and stop with
@@ -1917,13 +1920,6 @@ extern "C" void unireg_abort(int exit_code)
 }
 
 
-static void cleanup_tls()
-{
-  if (THR_THD)
-    (void)pthread_key_delete(THR_THD);
-}
-
-
 static void mysqld_exit(int exit_code)
 {
   DBUG_ENTER("mysqld_exit");
@@ -1952,7 +1948,6 @@ static void mysqld_exit(int exit_code)
     if (exit_code == 0)
       SAFEMALLOC_REPORT_MEMORY(0);
   }
-  cleanup_tls();
   DBUG_LEAVE;
   sd_notify(0, "STATUS=MariaDB server is down");
   exit(exit_code); /* purecov: inspected */
@@ -3691,11 +3686,6 @@ static const char *rpl_make_log_name(PSI_memory_key key, const char *opt,
 
 static int init_early_variables()
 {
-  if (pthread_key_create(&THR_THD, NULL))
-  {
-    fprintf(stderr, "Fatal error: Can't create thread-keys\n");
-    return 1;
-  }
   set_current_thd(0);
   set_malloc_size_cb(my_malloc_size_cb_func);
   global_status_var.global_memory_used= 0;

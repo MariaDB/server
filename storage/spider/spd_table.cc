@@ -9967,7 +9967,7 @@ void *spider_table_bg_sts_action(
     thread->killed = FALSE;
     pthread_mutex_unlock(&thread->mutex);
 #if !defined(MYSQL_DYNAMIC_PLUGIN) || !defined(_WIN32)
-    my_pthread_setspecific_ptr(THR_THD, NULL);
+    set_current_thd(nullptr);
 #endif
     my_thread_end();
     DBUG_RETURN(NULL);
@@ -10034,7 +10034,7 @@ void *spider_table_bg_sts_action(
       pthread_cond_signal(&thread->sync_cond);
       pthread_mutex_unlock(&thread->mutex);
 #if !defined(MYSQL_DYNAMIC_PLUGIN) || !defined(_WIN32)
-      my_pthread_setspecific_ptr(THR_THD, NULL);
+      set_current_thd(nullptr);
 #endif
       my_thread_end();
       DBUG_RETURN(NULL);
@@ -10166,7 +10166,7 @@ void *spider_table_bg_crd_action(
     thread->killed = FALSE;
     pthread_mutex_unlock(&thread->mutex);
 #if !defined(MYSQL_DYNAMIC_PLUGIN) || !defined(_WIN32)
-    my_pthread_setspecific_ptr(THR_THD, NULL);
+    set_current_thd(nullptr);
 #endif
     my_thread_end();
     DBUG_RETURN(NULL);
@@ -10186,7 +10186,7 @@ void *spider_table_bg_crd_action(
       pthread_cond_signal(&thread->sync_cond);
       pthread_mutex_unlock(&thread->mutex);
 #if !defined(MYSQL_DYNAMIC_PLUGIN) || !defined(_WIN32)
-      my_pthread_setspecific_ptr(THR_THD, NULL);
+      set_current_thd(nullptr);
 #endif
       my_thread_end();
       DBUG_RETURN(NULL);

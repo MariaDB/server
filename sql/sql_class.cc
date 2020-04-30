@@ -1214,11 +1214,6 @@ void thd_gmt_sec_to_TIME(MYSQL_THD thd, MYSQL_TIME *ltime, my_time_t t)
 
 
 #ifdef _WIN32
-extern "C"   THD *_current_thd_noinline(void)
-{
-  return my_pthread_getspecific_ptr(THD*,THR_THD);
-}
-
 extern "C" my_thread_id next_thread_id_noinline()
 {
 #undef next_thread_id
@@ -2152,7 +2147,7 @@ void THD::reset_killed()
   the structure for the net buffer
 */
 
-bool THD::store_globals()
+void THD::store_globals()
 {
   /*
     Assert that thread_stack is initialized: it's necessary to be able
@@ -2160,8 +2155,7 @@ bool THD::store_globals()
   */
   DBUG_ASSERT(thread_stack);
 
-  if (set_current_thd(this))
-    return 1;
+  set_current_thd(this);
   /*
     mysys_var is concurrently readable by a killer thread.
     It is protected by LOCK_thd_kill, it is not needed to lock while the
@@ -2203,8 +2197,6 @@ bool THD::store_globals()
     created in another thread
   */
   thr_lock_info_init(&lock_info, mysys_var);
-
-  return 0;
 }
 
 /**
