@@ -7,6 +7,7 @@ stop slave;
 SET GLOBAL slave_parallel_threads=10;
 set global slave_parallel_mode=optimistic;
 set global debug_dbug="+d,start_alter_delay_slave";
+change master to master_use_gtid= current_pos;
 start slave;
 
 
@@ -14,6 +15,7 @@ start slave;
 set global debug_dbug="+d,start_alter_delay_master";
 set global binlog_split_alter=true;
 create table t1( a int primary key, b int) engine=innodb;
+set gtid_domain_id=10;
 create table t2( a int primary key, b int) engine=innodb;
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
@@ -22,11 +24,13 @@ connect (con4,localhost,root,,);
 --connection con1
 --send alter table t1 add column c int, force, algorithm=inplace;
 --connection con2
+set gtid_domain_id=10;
 --send alter table t2 add column c int, force, algorithm=inplace;
 --sleep 1
 --connection con3
 --send insert into t1 values(1,2);
 --connection con4
+set gtid_domain_id=10;
 --send insert into t2 values(1,2);
 
 #--source include/kill_mysqld.inc
@@ -34,8 +38,8 @@ connect (con4,localhost,root,,);
 #--source include/rpl_stop_server.inc
 --connection con1
 --reap
-#--connection con2
-#--reap
+--connection con2
+--reap
 --connection con3
 --reap
 --connection con4
@@ -44,6 +48,11 @@ create table t3( a int primary key, b int) engine=innodb;
 
 show binlog events;
 
+--sleep 5
+--connection slave
+show binlog events;
+
+--connection master
 --sync_slave_with_master
 show binlog events;
 show create table t1;

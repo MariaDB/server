@@ -6,18 +6,23 @@ set global binlog_split_alter=true;
 --connection slave
 set global gtid_strict_mode=1;
 
---echo #Legacy Master Slave
---source include/start_alter_include.test
+#--echo #Legacy Master Slave
+#--source include/start_alter_include.test
 
 --connection slave
 --source include/stop_slave.inc
-SET GLOBAL slave_parallel_threads=10;
+SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
+change master to master_use_gtid=slave_pos;
 --source include/start_slave.inc
 
 --echo #Parallel Slave
 --connection master
+--let $master_server= "master"
+--let $domain_1=11
+--let $domain_2=12
 --source include/start_alter_include.test
+--sync_slave_with_master
 
 
 --source include/stop_slave.inc

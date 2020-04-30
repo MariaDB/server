@@ -9426,7 +9426,6 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
     thd->wakeup_subsequent_commits(0);
     //Finish event group
     thd->rpt->__finish_event_group(thd->rgi_slave);
-    thd->rpt->loc_free_rgi(thd->rgi_slave);
     if (thd->slave_shutdown)
       return true;
     return false;

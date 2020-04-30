@@ -378,7 +378,9 @@ static int process_start_alter(THD *thd, uint64 thread_id)
 {
   //No Slave, Normal Slave, Start Alter under Worker 1 will simple binlog and exit
   if(!thd->slave_thread || !thd->rpt
-            || thd->rpt == thd->rgi_slave->parallel_entry->rpl_threads[0])
+            ||((thd->rpt == thd->rgi_slave->parallel_entry->rpl_threads[0]) &&
+             thd->rpt->current_owner && (thd->rpt->current_owner ==
+             thd->rgi_slave->parallel_entry->rpl_threads)))
   {
     /*
      We will just write the binlog and move to next event , because COMMIT
@@ -418,11 +420,15 @@ static int process_commit_alter(THD *thd, uint64 thread_id)
     //unnecessary binlogging or spawn new thread because there is no start
     //alter context
     thd->direct_commit_alter= 1;
+    if (thd->open_temporary_tables(thd->lex->query_tables))
+      return START_ALTER_ERROR;
     return START_ALTER_PARSE;
   }
   /*
    start_alter_state must be ::REGISTERED
    */
+  //Close the temporarty table
+  thd->close_temporary_tables();
   DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
   mysql_mutex_lock(&mi->start_alter_lock);
   info->state= start_alter_state::COMMIT_ALTER;
@@ -467,6 +473,8 @@ static int process_rollback_alter(THD *thd, uint64 thread_id)
   /*
    start_alter_state must be ::REGISTERED
    */
+  //Close the temporarty table
+  thd->close_temporary_tables();
   DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
   mysql_mutex_lock(&mi->start_alter_lock);
   info->state= start_alter_state::ROLLBACK_ALTER;

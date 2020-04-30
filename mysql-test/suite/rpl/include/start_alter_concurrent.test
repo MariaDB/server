@@ -1,13 +1,15 @@
 #
 # ==== Purpose ====
 #
-# Run concurrent split alter on different storage engine
+# Run concurrent split alter on given storage engine
 #
 # ==== Usage ====
 #
 # --let $alter_engine= Engine Name (myisam , innodb ...)
 # --let $alter_algorithm= ...
 # --let $alter_online =  [][ONLINE]
+# --let $domain_1=
+# --let $domain_2=
 #
 
 SET @old_debug= @@global.debug;
@@ -22,16 +24,40 @@ insert into t3 values(1,1),(2,2);
 insert into t4 values(1,1),(2,2);
 --eval create table t5( a int primary key, b int) engine=$alter_engine
 insert into t5 values(1,1),(2,2);
+--eval create table t6( a int primary key, b int) engine=$alter_engine
+insert into t6 values(1,1),(2,2);
+--eval create table t7( a int primary key, b int) engine=$alter_engine
+insert into t7 values(1,1),(2,2);
+--eval create table t8( a int primary key, b int) engine=$alter_engine
+insert into t8 values(1,1),(2,2);
+--eval create table t9( a int primary key, b int) engine=$alter_engine
+insert into t9 values(1,1),(2,2);
+--eval create table t10( a int primary key, b int) engine=$alter_engine
+insert into t10 values(1,1),(2,2);
+--eval set global gtid_domain_id= $domain_1;
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
 connect (con3,localhost,root,,);
 connect (con4,localhost,root,,);
 connect (con5,localhost,root,,);
+--eval set global gtid_domain_id= $domain_2;
 connect (con6,localhost,root,,);
 connect (con7,localhost,root,,);
 connect (con8,localhost,root,,);
 connect (con9,localhost,root,,);
 connect (con10,localhost,root,,);
+--eval set global gtid_domain_id= $domain_1;
+connect (con11,localhost,root,,);
+connect (con12,localhost,root,,);
+connect (con13,localhost,root,,);
+connect (con14,localhost,root,,);
+connect (con15,localhost,root,,);
+--eval set global gtid_domain_id= $domain_2;
+connect (con16,localhost,root,,);
+connect (con17,localhost,root,,);
+connect (con18,localhost,root,,);
+connect (con19,localhost,root,,);
+connect (con20,localhost,root,,);
 --connection con1
 --send_eval alter $alter_online table t1 add column c int, force, algorithm=$alter_algorithm
 --connection con2
@@ -42,6 +68,16 @@ connect (con10,localhost,root,,);
 --send_eval alter $alter_online table t4 add column c int, force, algorithm=$alter_algorithm
 --connection con5
 --send_eval alter $alter_online table t5 add column c int, force, algorithm=$alter_algorithm
+--connection con6
+--send_eval alter $alter_online table t6 add column c int, force, algorithm=$alter_algorithm
+--connection con7
+--send_eval alter $alter_online table t7 add column c int, force, algorithm=$alter_algorithm
+--connection con8
+--send_eval alter $alter_online table t8 add column c int, force, algorithm=$alter_algorithm
+--connection con9
+--send_eval alter $alter_online table t9 add column c int, force, algorithm=$alter_algorithm
+--connection con10
+--send_eval alter $alter_online table t10 add column c int, force, algorithm=$alter_algorithm
 
 --connection con1
 --reap
@@ -52,6 +88,16 @@ connect (con10,localhost,root,,);
 --connection con4
 --reap
 --connection con5
+--reap
+--connection con6
+--reap
+--connection con7
+--reap
+--connection con8
+--reap
+--connection con9
+--reap
+--connection con10
 --reap
 
 --echo #Concurrent DML
@@ -65,30 +111,60 @@ connect (con10,localhost,root,,);
 --send_eval alter table t4 add column d int, force, algorithm=$alter_algorithm
 --connection con5
 --send_eval alter table t5 add column d int, force, algorithm=$alter_algorithm
+--connection con6
+--send_eval alter  table t6 add column d int, force, algorithm=$alter_algorithm
+--connection con7
+--send_eval alter  table t7 add column d int, force, algorithm=$alter_algorithm
+--connection con8
+--send_eval alter  table t8 add column d int, force, algorithm=$alter_algorithm
+--connection con9
+--send_eval alter  table t9 add column d int, force, algorithm=$alter_algorithm
+--connection con10
+--send_eval alter table t10 add column d int, force, algorithm=$alter_algorithm
 
 if ($alter_algorithm == "inplace")
 {
 --sleep 1
---connection con6
+--connection con11
 --send insert into t1 values(5,5,5);
---connection con7
+--connection con12
 --send insert into t2 values(5,5,5);
---connection con8
+--connection con13
 --send insert into t3 values(5,5,5);
---connection con9
+--connection con14
 --send insert into t4 values(5,5,5);
---connection con10
+--connection con15
 --send insert into t5 values(5,5,5);
+--connection con16
+--send insert into t6 values(5,5,5);
+--connection con17
+--send insert into t7 values(5,5,5);
+--connection con18
+--send insert into t8 values(5,5,5);
+--connection con19
+--send insert into t9 values(5,5,5);
+--connection con20
+--send insert into t10 values(5,5,5);
 
---connection con6
+--connection con11
 --reap
---connection con7
+--connection con12
 --reap
---connection con8
+--connection con13
 --reap
---connection con9
+--connection con14
 --reap
---connection con10
+--connection con15
+--reap
+--connection con16
+--reap
+--connection con17
+--reap
+--connection con18
+--reap
+--connection con19
+--reap
+--connection con20
 --reap
 }
 --connection con1
@@ -100,6 +176,16 @@ if ($alter_algorithm == "inplace")
 --connection con4
 --reap
 --connection con5
+--reap
+--connection con6
+--reap
+--connection con7
+--reap
+--connection con8
+--reap
+--connection con9
+--reap
+--connection con10
 --reap
 
 --echo # Rollback tests
@@ -118,10 +204,27 @@ insert into t4 values(3,2,1,1);
 --connection con5
 insert into t5 values(3,2,1,1);
 --send_eval alter table t5 change b b int unique, force, algorithm=$alter_algorithm
+--connection con6
+insert into t6 values(3,2,1,1);
+--send_eval alter table t6 change b b int unique, force, algorithm=$alter_algorithm
+--connection con7
+insert into t7 values(3,2,1,1);
+--send_eval alter table t7 change b b int unique, force, algorithm=$alter_algorithm
+--connection con8
+insert into t8 values(3,2,1,1);
+--send_eval alter table t8 change b b int unique, force, algorithm=$alter_algorithm
+--connection con9
+insert into t9 values(3,2,1,1);
+--send_eval alter table t9 change b b int unique, force, algorithm=$alter_algorithm
+--connection con10
+insert into t10 values(3,2,1,1);
+--send_eval alter table t10 change b b int unique, force, algorithm=$alter_algorithm
 
 --connection con1
 --error ER_DUP_ENTRY
 --reap
+show binlog events;
+--sync_slave_with_master
 --connection con2
 --error ER_DUP_ENTRY
 --reap
@@ -134,8 +237,23 @@ insert into t5 values(3,2,1,1);
 --connection con5
 --error ER_DUP_ENTRY
 --reap
+--connection con6
+--error ER_DUP_ENTRY
+--reap
+--connection con7
+--error ER_DUP_ENTRY
+--reap
+--connection con8
+--error ER_DUP_ENTRY
+--reap
+--connection con9
+--error ER_DUP_ENTRY
+--reap
+--connection con10
+--error ER_DUP_ENTRY
+--reap
 
-drop table t1,t2,t3,t4,t5;
+drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
 --disconnect con1
 --disconnect con2
 --disconnect con3
@@ -146,5 +264,15 @@ drop table t1,t2,t3,t4,t5;
 --disconnect con8
 --disconnect con9
 --disconnect con10
+--disconnect con11
+--disconnect con12
+--disconnect con13
+--disconnect con14
+--disconnect con15
+--disconnect con16
+--disconnect con17
+--disconnect con18
+--disconnect con19
+--disconnect con20
 --connection default
 SET GLOBAL debug_dbug= @old_debug;

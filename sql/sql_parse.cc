@@ -3767,7 +3767,8 @@ mysql_execute_command(THD *thd)
     Pre-open temporary tables to simplify privilege checking
     for statements which need this.
   */
-  if (sql_command_flags[lex->sql_command] & CF_PREOPEN_TMP_TABLES)
+  if (sql_command_flags[lex->sql_command] & CF_PREOPEN_TMP_TABLES
+      && lex->alter_info.alter_state <= Alter_info::ALTER_TABLE_START)
   {
     if (thd->open_temporary_tables(all_tables))
       goto error;

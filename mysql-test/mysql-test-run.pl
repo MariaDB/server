@@ -1801,7 +1801,7 @@ sub command_line_setup {
   $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp"
     if -f "$glob_mysql_test_dir/lsan.supp";
 
-  if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || $opt_rr
+  if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || $opt_rr ||
        $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd || 
        $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx || 
        $opt_debugger || $opt_client_debugger )

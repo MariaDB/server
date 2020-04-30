@@ -3,10 +3,12 @@
 --source include/master-slave.inc
 
 --connection slave
+call mtr.add_suppression("Warning:   72 bytes lost at .*");
 set global debug_dbug="+d,start_alter_delay_slave";
 stop slave;
 SET GLOBAL slave_parallel_threads=10;
 set global slave_parallel_mode=optimistic;
+change master to master_use_gtid=slave_pos;
 start slave;
 
 
@@ -41,21 +43,32 @@ create table t4( a int primary key, b int) engine=innodb;
 insert into t4 values(1,1),(2,2);
 create table t5( a int primary key, b int) engine=innodb;
 insert into t5 values(1,1),(2,2);
+create table t6( a int primary key, b int) engine=innodb;
+insert into t6 values(1,1),(2,2);
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
 connect (con3,localhost,root,,);
 connect (con4,localhost,root,,);
 connect (con5,localhost,root,,);
+connect (con6,localhost,root,,);
 --connection con1
+set gtid_domain_id=22;
 --send alter table t1 add column c int, force, algorithm=inplace;
 --connection con2
+set gtid_domain_id=22;
 --send alter table t2 add column c int, force, algorithm=inplace;
 --connection con3
+set gtid_domain_id=22;
 --send alter table t3 add column c int, force, algorithm=inplace;
 --connection con4
+set gtid_domain_id=24;
 --send alter table t4 add column c int, force, algorithm=inplace;
 --connection con5
+set gtid_domain_id=24;
 --send alter table t5 add column c int, force, algorithm=inplace;
+--connection con6
+set gtid_domain_id=24;
+--send alter table t6 add column c int, force, algorithm=inplace;
 
 --connection con1
 --reap
@@ -66,6 +79,8 @@ connect (con5,localhost,root,,);
 --connection con4
 --reap
 --connection con5
+--reap
+--connection con6
 --reap
 --connection con1
 --send alter table t1 add column d int, force, algorithm=inplace;
@@ -77,6 +92,8 @@ connect (con5,localhost,root,,);
 --send alter table t4 add column d int, force, algorithm=inplace;
 --connection con5
 --send alter table t5 add column d int, force, algorithm=inplace;
+--connection con6
+--send alter table t6 add column d int, force, algorithm=inplace;
 
 --connection con1
 --reap
@@ -88,32 +105,26 @@ connect (con5,localhost,root,,);
 --reap
 --connection con5
 --reap
-
+--connection con6
+--reap
+--connection master
 show binlog events;
-show create table t5;
-select @@gtid_slave_pos;
-select @@gtid_binlog_state;
 
---sleep 20
 --connection slave
 select @@gtid_slave_pos;
-select @@gtid_binlog_state;
-select master_gtid_wait('0-1-10');
-show binlog events;
-
 --connection master
 --sync_slave_with_master
-#show create table t5;
-show binlog events;
-
+select @@gtid_slave_pos;
 
 --connection master
-drop table t1,t2,t3,t4,t5;
-set global binlog_split_alter=true;
+drop table t1,t2,t3,t4,t5,t6;
+set global binlog_split_alter=false;
+set global debug_dbug="";
 
 --connection slave
 stop slave;
 SET GLOBAL slave_parallel_threads=0;
 set global slave_parallel_mode=conservative;
+set global debug_dbug="";
 start slave;
 --source include/rpl_end.inc
