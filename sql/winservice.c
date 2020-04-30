@@ -176,7 +176,8 @@ int get_mysql_service_properties(const wchar_t *bin_path,
 
   if(wcsicmp(file_part, L"mysqld.exe") != 0 && 
     wcsicmp(file_part, L"mysqld-debug.exe") != 0 &&
-    wcsicmp(file_part, L"mysqld-nt.exe") != 0)
+    wcsicmp(file_part, L"mysqld-nt.exe") != 0 &&
+    wcsicmp(file_part, L"mariadbd.exe") != 0)
   {
     /* The service executable is not mysqld. */
     goto end;
