@@ -1195,13 +1195,13 @@ bool User_variables_tracker::store(THD *thd, String *buf)
 {
   for (ulong i= 0; i < m_changed_user_variables.size(); i++)
   {
-    auto var= m_changed_user_variables.at(i);
+    const user_var_entry *var= m_changed_user_variables.at(i);
     String value_str;
     bool null_value;
+    size_t length;
 
     var->val_str(&null_value, &value_str, DECIMAL_MAX_SCALE);
-
-    size_t length= net_length_size(var->name.length) + var->name.length;
+    length= net_length_size(var->name.length) + var->name.length;
     if (!null_value)
       length+= net_length_size(value_str.length()) + value_str.length();
 
