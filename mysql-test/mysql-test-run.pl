@@ -380,6 +380,8 @@ my $set_titlebar;
        $have_win32_console = 1;
      };
      eval 'sub HAVE_WIN32_CONSOLE { $have_win32_console }';
+   } else {
+     sub HAVE_WIN32_CONSOLE { 0 };
    }
 }
 
