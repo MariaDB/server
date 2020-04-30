@@ -71,6 +71,7 @@
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
 #endif
+#include "repl_failsafe.h"
 
 /*
   The following is used to initialise Table_ident with a internal
@@ -1593,6 +1594,7 @@ THD::~THD()
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
   my_free(semisync_info);
+  unregister_slave(this, true, true);
 #endif
   main_lex.free_set_stmt_mem_root();
   free_root(&main_mem_root, MYF(0));
