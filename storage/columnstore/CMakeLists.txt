@@ -1,4 +1,4 @@
-set(PLUGIN_COLUMNSTORE "NO" CACHE STRING "Enable ColumnStore engine")
+#set(PLUGIN_COLUMNSTORE "NO" CACHE STRING "Enable ColumnStore engine")
 
 if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}")
   return()
