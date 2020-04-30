@@ -500,7 +500,7 @@ enum {
 #if (defined (SUPPORT_PCRE8) + defined (SUPPORT_PCRE16) + \
      defined (SUPPORT_PCRE32)) >= 2
 
-#define CHAR_SIZE (1 << pcre_mode)
+#define CHAR_SIZE (1U << pcre_mode)
 
 /* There doesn't seem to be an easy way of writing these macros that can cope
 with the 3 pairs of bit sizes plus all three bit sizes. So just handle all the
@@ -4443,7 +4443,7 @@ while (!done)
 
           /* If there is study data, write it. */
 
-          if (extra != NULL)
+          if (extra != NULL && (extra->flags & PCRE_EXTRA_STUDY_DATA) != 0)
             {
             if (fwrite(extra->study_data, 1, true_study_size, f) <
                 true_study_size)
@@ -4735,7 +4735,7 @@ while (!done)
         if (isdigit(*p))    /* Set copy string */
           {
           while(isdigit(*p)) n = n * 10 + *p++ - '0';
-          copystrings |= 1 << n;
+          copystrings |= 1U << n;
           }
         else if (isalnum(*p))
           {
@@ -4798,7 +4798,7 @@ while (!done)
         if (isdigit(*p))
           {
           while(isdigit(*p)) n = n * 10 + *p++ - '0';
-          getstrings |= 1 << n;
+          getstrings |= 1U << n;
           }
         else if (isalnum(*p))
           {
@@ -5335,7 +5335,7 @@ while (!done)
 
         for (i = 0; i < 32; i++)
           {
-          if ((copystrings & (1 << i)) != 0)
+          if ((copystrings & (1U << i)) != 0)
             {
             int rc;
             char copybuffer[256];
@@ -5400,7 +5400,7 @@ while (!done)
 
         for (i = 0; i < 32; i++)
           {
-          if ((getstrings & (1 << i)) != 0)
+          if ((getstrings & (1U << i)) != 0)
             {
             int rc;
             const char *substring;
