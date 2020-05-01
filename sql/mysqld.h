@@ -79,8 +79,6 @@ void close_connection(THD *thd, uint sql_errno= 0);
 void handle_connection_in_main_thread(CONNECT *thd);
 void create_thread_to_handle_connection(CONNECT *connect);
 void unlink_thd(THD *thd);
-CONNECT *cache_thread(THD *thd);
-void flush_thread_cache();
 void refresh_status(THD *thd);
 bool is_secure_file_path(char *path);
 extern void init_net_server_extension(THD *thd);
@@ -237,7 +235,6 @@ extern ulong slave_trans_retries;
 extern ulong slave_trans_retry_interval;
 extern uint  slave_net_timeout;
 extern int max_user_connections;
-extern volatile ulong cached_thread_count;
 extern ulong what_to_log,flush_time;
 extern uint max_prepared_stmt_count, prepared_stmt_count;
 extern MYSQL_PLUGIN_IMPORT ulong open_files_limit;
@@ -373,8 +370,7 @@ extern PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_relay_log_info_start_cond, key_relay_log_info_stop_cond,
   key_rpl_group_info_sleep_cond,
   key_TABLE_SHARE_cond, key_user_level_lock_cond,
-  key_COND_start_thread,
-  key_COND_thread_cache, key_COND_flush_thread_cache;
+  key_COND_start_thread;
 extern PSI_cond_key key_RELAYLOG_COND_relay_log_updated,
   key_RELAYLOG_COND_bin_log_updated, key_COND_wakeup_ready,
   key_COND_wait_commit;

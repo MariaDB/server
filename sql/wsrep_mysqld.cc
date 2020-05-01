@@ -46,6 +46,8 @@
 #include <cstdlib>
 #include <string>
 #include "log_event.h"
+#include "sql_connect.h"
+#include "thread_cache.h"
 
 #include <sstream>
 
@@ -64,8 +66,6 @@ const char *wsrep_SR_store_types[]= { "none", "table", NullS };
  */
 
 extern my_bool plugins_are_initialized;
-extern uint kill_cached_threads;
-extern mysql_cond_t COND_thread_cache;
 
 /* System variables. */
 const char *wsrep_provider;
@@ -2593,8 +2593,7 @@ static my_bool kill_remaining_threads(THD *thd, THD *caller_thd)
 void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
 {
   /* Clear thread cache */
-  kill_cached_threads++;
-  flush_thread_cache();
+  thread_cache.final_flush();
   
   /*
     First signal all threads that it's time to die

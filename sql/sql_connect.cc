@@ -28,6 +28,7 @@
 #endif
 #include "sql_audit.h"
 #include "sql_connect.h"
+#include "thread_cache.h"
 #include "probes_mysql.h"
 #include "sql_parse.h"                          // sql_command_flags,
                                                 // execute_init_command,
@@ -1420,7 +1421,7 @@ end_thread:
 
     unlink_thd(thd);
     if (IF_WSREP(thd->wsrep_applier, false) || !put_in_cache ||
-        !(connect= cache_thread(thd)))
+        !(connect= thread_cache.park()))
       break;
 
     /* Create new instrumentation for the new THD job */

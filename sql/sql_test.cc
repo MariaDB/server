@@ -27,6 +27,8 @@
 #include "my_json_writer.h"
 #include <hash.h>
 #include <thr_alarm.h>
+#include "sql_connect.h"
+#include "thread_cache.h"
 #if defined(HAVE_MALLINFO) && defined(HAVE_MALLOC_H)
 #include <malloc.h>
 #elif defined(HAVE_MALLINFO) && defined(HAVE_SYS_MALLOC_H)
@@ -568,7 +570,7 @@ void mysql_print_status()
   (void) my_getwd(current_dir, sizeof(current_dir),MYF(0));
   printf("Current dir: %s\n", current_dir);
   printf("Running threads: %d  Cached threads: %lu  Stack size: %ld\n",
-         count, cached_thread_count,
+         count, thread_cache.size(),
 	 (long) my_thread_stack_size);
 #ifdef EXTRA_DEBUG
   thr_print_locks();				// Write some debug info
@@ -641,7 +643,8 @@ Memory allocated by threads:             %s\n",
 	 llstr(info.uordblks, llbuff[4]),
 	 llstr(info.fordblks, llbuff[5]),
 	 llstr(info.keepcost, llbuff[6]),
-	 llstr((count + cached_thread_count)* my_thread_stack_size + info.hblkhd + info.arena, llbuff[7]),
+         llstr((count + thread_cache.size()) * my_thread_stack_size +
+               info.hblkhd + info.arena, llbuff[7]),
          llstr(tmp.global_memory_used, llbuff[8]),
          llstr(tmp.local_memory_used, llbuff[9]));
 

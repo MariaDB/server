@@ -22,6 +22,7 @@
 #include "sql_acl.h"     // acl_reload
 #include "sql_servers.h" // servers_reload
 #include "sql_connect.h" // reset_mqh
+#include "thread_cache.h"
 #include "sql_base.h"    // close_cached_tables
 #include "sql_db.h"      // my_dbopt_cleanup
 #include "hostname.h"    // hostname_cache_refresh
@@ -351,7 +352,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
   if (thd && (options & REFRESH_STATUS))
     refresh_status(thd);
   if (options & REFRESH_THREADS)
-    flush_thread_cache();
+    thread_cache.flush();
 #ifdef HAVE_REPLICATION
   if (options & REFRESH_MASTER)
   {
