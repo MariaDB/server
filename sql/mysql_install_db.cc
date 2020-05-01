@@ -26,6 +26,7 @@
 #include <shellapi.h>
 #include <accctrl.h>
 #include <aclapi.h>
+#include <ntsecapi.h>
 struct IUnknown;
 #include <shlwapi.h>
 
@@ -58,6 +59,7 @@ static my_bool opt_allow_remote_root_access;
 static my_bool opt_skip_networking;
 static my_bool opt_verbose_bootstrap;
 static my_bool verbose_errors;
+static my_bool opt_large_pages;
 
 #define DEFAULT_INNODB_PAGE_SIZE 16*1024
 
@@ -73,14 +75,14 @@ static struct my_option my_long_options[]=
   &opt_password, &opt_password, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"port", 'P', "mysql port",
   &opt_port, &opt_port, 0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"socket", 'W', 
+  {"socket", 'W',
   "named pipe name (if missing, it will be set the same as service)",
   &opt_socket, &opt_socket, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"default-user", 'D', "Create default user",
   &opt_default_user, &opt_default_user, 0 , GET_BOOL, OPT_ARG, 0, 0, 0, 0, 0, 0},
-  {"allow-remote-root-access", 'R', 
+  {"allow-remote-root-access", 'R',
   "Allows remote access from network for user root",
-  &opt_allow_remote_root_access, &opt_allow_remote_root_access, 0 , GET_BOOL, 
+  &opt_allow_remote_root_access, &opt_allow_remote_root_access, 0 , GET_BOOL,
   OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-networking", 'N', "Do not use TCP connections, use pipe instead",
   &opt_skip_networking, &opt_skip_networking, 0 , GET_BOOL, OPT_ARG, 0, 0, 0, 0,
@@ -91,6 +93,9 @@ static struct my_option my_long_options[]=
    &opt_silent, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose-bootstrap", 'o', "Include mysqld bootstrap output",&opt_verbose_bootstrap,
    &opt_verbose_bootstrap, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"large-pages",'l', "Use large pages", &opt_large_pages,
+    &opt_large_pages, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -135,7 +140,7 @@ ATTRIBUTE_NORETURN  static void die(const char *fmt, ...)
 }
 
 
-static void verbose(const char *fmt, ...)
+static void verbose( const char *fmt, ...)
 {
   va_list args;
 
@@ -318,7 +323,7 @@ static int create_myini()
     if (!opt_socket)
       opt_socket= opt_service;
   }
-  enable_named_pipe= (my_bool) 
+  enable_named_pipe= (my_bool)
     ((opt_socket && opt_socket[0]) || opt_skip_networking);
 
   if (enable_named_pipe)
@@ -337,6 +342,10 @@ static int create_myini()
   if (opt_innodb_page_size != DEFAULT_INNODB_PAGE_SIZE)
   {
     fprintf(myini, "innodb-page-size=%d\n", opt_innodb_page_size);
+  }
+  if (opt_large_pages)
+  {
+    fprintf(myini, "large-pages=ON\n");
   }
   /* Write out client settings. */
   fprintf(myini, "[client]\n");
@@ -374,6 +383,76 @@ static const char allow_remote_root_access_cmd[]=
   "INSERT INTO global_priv SELECT * FROM tmp_user;\n"
   "DROP TABLE tmp_user;\n";
 static const char end_of_script[]="-- end.";
+
+/*
+Add or remove privilege for a user
+@param[in] account_name - user name, Windows style, e.g "NT SERVICE\mariadb", or ".\joe"
+@param[in] privilege name - standard Windows privilege name, e.g "SeLockMemoryPrivilege"
+@param[in] add - when true, add privilege, otherwise remove it
+
+In special case where privilege name is NULL, and add is false
+all privileges for the user are removed.
+*/
+static int handle_user_privileges(const char *account_name, const wchar_t *privilege_name, bool add)
+{
+  LSA_OBJECT_ATTRIBUTES attr{};
+  LSA_HANDLE lsa_handle;
+  auto status= LsaOpenPolicy(
+      0, &attr, POLICY_LOOKUP_NAMES | POLICY_CREATE_ACCOUNT, &lsa_handle);
+  if (status)
+  {
+    verbose("LsaOpenPolicy returned %lu", LsaNtStatusToWinError(status));
+    return 1;
+  }
+  BYTE sidbuf[SECURITY_MAX_SID_SIZE];
+  PSID sid= (PSID) sidbuf;
+  SID_NAME_USE name_use;
+  char domain_name[256];
+  DWORD cbSid= sizeof(sidbuf);
+  DWORD cbDomain= sizeof(domain_name);
+  BOOL ok= LookupAccountNameA(0, account_name, sid, &cbSid, domain_name,
+                              &cbDomain, &name_use);
+  if (!ok)
+  {
+    verbose("LsaOpenPolicy returned %lu", LsaNtStatusToWinError(status));
+    return 1;
+  }
+
+  if (privilege_name)
+  {
+    LSA_UNICODE_STRING priv{};
+    priv.Buffer= (PWSTR) privilege_name;
+    priv.Length= (USHORT) wcslen(privilege_name) * sizeof(wchar_t);
+    priv.MaximumLength= priv.Length;
+    if (add)
+    {
+      status= LsaAddAccountRights(lsa_handle, sid, &priv, 1);
+      if (status)
+      {
+        verbose("LsaAddAccountRights returned %lu/%lu", status,
+                LsaNtStatusToWinError(status));
+        return 1;
+      }
+    }
+    else
+    {
+      status= LsaRemoveAccountRights(lsa_handle, sid, FALSE, &priv, 1);
+      if (status)
+      {
+        verbose("LsaRemoveRights returned %lu/%lu",
+                LsaNtStatusToWinError(status));
+        return 1;
+      }
+    }
+  }
+  else
+  {
+    DBUG_ASSERT(!add);
+    status= LsaRemoveAccountRights(lsa_handle, sid, TRUE, 0, 0);
+  }
+  LsaClose(lsa_handle);
+  return 0;
+}
 
 /* Register service. Assume my.ini is in datadir */
 
@@ -636,17 +715,22 @@ static int create_db_instance()
       goto end;
     service_created = true;
   }
+  if (opt_large_pages)
+  {
+    handle_user_privileges(service_user.c_str(), L"SeLockMemoryPrivilege", true);
+  }
   /*
     Set data directory permissions for both current user and
     default_os_user (the one who runs services).
   */
   set_directory_permissions(opt_datadir, NULL);
   if (!service_user.empty())
+  {
     set_directory_permissions(opt_datadir, service_user.c_str());
-
+    set_directory_permissions("mysql",service_user.c_str());
+  }
   /* Do mysqld --bootstrap. */
   init_bootstrap_command_line(cmdline, sizeof(cmdline));
-
 
   if(opt_verbose_bootstrap)
     printf("Executing %s\n", cmdline);
@@ -732,8 +816,6 @@ static int create_db_instance()
   if (ret)
     goto end;
 
-
-
 end:
   if (!ret)
     return ret;
@@ -757,6 +839,13 @@ end:
         CloseServiceHandle(sc_handle);
       }
       CloseServiceHandle(sc_manager);
+    }
+
+    /*Remove all service user privileges for the user.*/
+    if(strncmp(service_user.c_str(), "NT SERVICE\\",
+         sizeof("NT SERVICE\\")-1)
+    {
+      handle_user_privileges(service_user.c_str(), 0, false);
     }
   }
   return ret;
