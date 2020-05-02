@@ -88,7 +88,7 @@ mysql-test/lib/My/SafeProcess/my_safe_process
 mysql-test/lib/My/SafeProcess/wsrep_check_version
 mysql-test/mtr
 mysql-test/mysql-test-run
-mysql-test/var
+mysql-test/var*
 mysql-test-gcov.err
 mysql-test-gcov.msg
 mysys/test_hash
