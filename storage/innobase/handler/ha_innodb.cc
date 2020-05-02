@@ -55,6 +55,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
 #include "field.h"
+#include "scope.h"
 
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 // MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
@@ -10881,6 +10882,7 @@ create_table_info_t::create_table_def()
 	}
 
 	heap = mem_heap_create(1000);
+	auto _ = make_scope_exit([heap]() { mem_heap_free(heap); });
 
 	ut_d(bool have_vers_start = false);
 	ut_d(bool have_vers_end = false);
@@ -10941,7 +10943,6 @@ create_table_info_t::create_table_def()
 					" must be below 256."
 					" Unsupported code " ULINTPF ".",
 					charset_no);
-				mem_heap_free(heap);
 				dict_mem_table_free(table);
 
 				DBUG_RETURN(ER_CANT_CREATE_TABLE);
@@ -10972,7 +10973,6 @@ create_table_info_t::create_table_def()
 				 field->field_name.str);
 err_col:
 			dict_mem_table_free(table);
-			mem_heap_free(heap);
 			ut_ad(trx_state_eq(m_trx, TRX_STATE_NOT_STARTED));
 			DBUG_RETURN(HA_ERR_GENERIC);
 		}
@@ -11099,8 +11099,6 @@ err_col:
 		DBUG_EXECUTE_IF("ib_crash_during_create_for_encryption",
 				DBUG_SUICIDE(););
 	}
-
-	mem_heap_free(heap);
 
 	DBUG_EXECUTE_IF("ib_create_err_tablespace_exist",
 			err = DB_TABLESPACE_EXISTS;);
