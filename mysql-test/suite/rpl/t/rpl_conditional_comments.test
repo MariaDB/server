@@ -68,7 +68,17 @@ sync_slave_with_master;
 --echo # comments
 --connection master
 --error 1064
-SELECT c1 FROM /*!999999 t1 WHEREN;
+SELECT c1 FROM /*!999999 t1 WHEREN; #*/
+
+#
+# Bug#28388217 - SERVER CAN FAIL WHILE REPLICATING CONDITIONAL COMMENTS
+#
+insert t1 values (/*!50505 1 /* foo */ */ + 2);
+insert t1 values (/*!999999 10 /* foo */ */ + 20);
+source include/show_binlog_events.inc;
+sync_slave_with_master;
+select * from t1;
+connection master;
 
 DROP TABLE t1;
 --source include/rpl_end.inc
