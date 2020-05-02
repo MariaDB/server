@@ -1765,6 +1765,14 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 */
 #define HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE (1 << 15)
 
+/*
+  True if handler cannot rollback transactions. If not true, the transaction
+  will be put in the transactional binlog cache.
+  For some engines, like Aria, the rollback can happen in case of crash, but
+  not trough a handler rollback call.
+*/
+#define HTON_NO_ROLLBACK (1 << 16)
+
 class Ha_trx_info;
 
 struct THD_TRANS
@@ -3541,9 +3549,12 @@ public:
   virtual const key_map *keys_to_use_for_scanning() { return &key_map_empty; }
 
   /*
-    True if changes to the table is persistent (no rollback)
-    This is mainly used to decide how to log changes to the table in
-    the binary log.
+    True if changes to the table is persistent (if there are no rollback)
+    This is used to decide:
+    - If the table is stored in the transaction or non transactional binary
+      log
+    - How things are tracked in trx and in add_changed_table().
+    - If we can combine several statements under one commit in the binary log.
   */
   bool has_transactions()
   {
@@ -3551,11 +3562,31 @@ public:
             == 0);
   }
   /*
-    True if the underlaying table doesn't support transactions
+    True if table has both transactions and rollback. This is used to decide
+    if we should write the changes to the binary log.  If this is true,
+    we don't have to write failed statements to the log as they can be
+    rolled back.
+  */
+  bool has_transactions_and_rollback()
+  {
+    return has_transactions() && has_rollback();
+  }
+  /*
+    True if the underlaying table support transactions and rollback
   */
   bool has_transaction_manager()
   {
-    return ((ha_table_flags() & HA_NO_TRANSACTIONS) == 0);
+    return ((ha_table_flags() & HA_NO_TRANSACTIONS) == 0 && has_rollback());
+  }
+
+  /*
+    True if table has rollback. Used to check if an update on the table
+    can be killed fast.
+  */
+
+  bool has_rollback()
+  {
+    return ((ht->flags & HTON_NO_ROLLBACK) == 0);
   }
 
   /**
@@ -4975,7 +5006,6 @@ public:
   inline int ha_update_tmp_row(const uchar * old_data, uchar * new_data);
 
   virtual void set_lock_type(enum thr_lock_type lock);
-
   friend check_result_t handler_index_cond_check(void* h_arg);
   friend check_result_t handler_rowid_filter_check(void *h_arg);
 

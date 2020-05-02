@@ -1,0 +1,26 @@
+#
+# Test that checks transactions and MVCC
+#
+
+#
+# This is a taken from parts.partition_auto_increment_maria. It originally
+# crashde because con1 could read the first record from t1, which confused
+# the optimizer.
+#
+
+connect(con1, localhost, root,,);
+connection default;
+CREATE TABLE t1 (c1 INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (c1))
+  ENGINE = aria;
+START TRANSACTION;
+INSERT INTO t1 (c1) VALUES (2);
+INSERT INTO t1 (c1) VALUES (4);
+connection con1;
+START TRANSACTION;
+# When Aria proparly supports MVCC, the following two queries will not see
+# any rows
+select * from t1;
+select * from t1 where c1=2;
+disconnect con1;
+connection default;
+drop table t1;

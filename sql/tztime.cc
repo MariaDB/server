@@ -2330,16 +2330,21 @@ my_tz_find(THD *thd, const String *name)
     else if (time_zone_tables_exist)
     {
       TABLE_LIST tz_tables[MY_TZ_TABLES_COUNT];
-      Open_tables_backup open_tables_state_backup;
 
+      /*
+        Allocate start_new_trans with malloc as it's > 4000 bytes and this
+        function can be called deep inside a stored procedure
+      */
+      start_new_trans *new_trans= new start_new_trans(thd);
       tz_init_table_list(tz_tables);
       init_mdl_requests(tz_tables);
-      if (!open_system_tables_for_read(thd, tz_tables,
-                                       &open_tables_state_backup))
+      if (!open_system_tables_for_read(thd, tz_tables))
       {
         result_tz= tz_load_from_open_tables(name, tz_tables);
-        close_system_tables(thd, &open_tables_state_backup);
+        thd->commit_whole_transaction_and_close_tables();
       }
+      new_trans->restore_old_transaction();
+      delete new_trans;
     }
   }
 

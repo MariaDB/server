@@ -4731,10 +4731,12 @@ SPIDER_SHARE *spider_get_share(
         {
           SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
           init_mem_root = TRUE;
+
+          start_new_trans new_trans(thd);
           if (
             !(table_tables = spider_open_sys_table(
               thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-              SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, &open_tables_backup,
+              SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, 0,
               FALSE, error_num))
           ) {
             for (roop_count = 0;
@@ -4771,21 +4773,19 @@ SPIDER_SHARE *spider_get_share(
               share->init_error_time = (time_t) time((time_t*) 0);
               share->init = TRUE;
               spider_free_share(share);
-              goto error_get_link_statuses;
+              thd->commit_whole_transaction_and_close_tables();
+              new_trans.restore_old_transaction();
+              goto error_open_sys_table;
             }
           } else {
             memcpy(share->alter_table.tmp_link_statuses, share->link_statuses,
               sizeof(long) * share->all_link_count);
             share->link_status_init = TRUE;
           }
+          thd->commit_whole_transaction_and_close_tables();
+          new_trans.restore_old_transaction();
         }
         share->have_recovery_link = spider_conn_check_recovery_link(share);
-        if (table_tables)
-        {
-          spider_close_sys_table(thd, table_tables,
-            &open_tables_backup, FALSE);
-          table_tables = NULL;
-        }
         if (init_mem_root)
         {
           free_root(&mem_root, MYF(0));
@@ -5269,6 +5269,7 @@ SPIDER_SHARE *spider_get_share(
       }
       if (!share->link_status_init)
       {
+        DBUG_ASSERT(!table_tables);
         /*
           The link statuses need to be refreshed from the spider_tables table
           if the operation:
@@ -5285,10 +5286,12 @@ SPIDER_SHARE *spider_get_share(
         {
           SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
           init_mem_root = TRUE;
+          start_new_trans new_trans(thd);
+
           if (
             !(table_tables = spider_open_sys_table(
               thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-              SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, &open_tables_backup,
+              SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, 0,
               FALSE, error_num))
           ) {
             for (roop_count = 0;
@@ -5319,21 +5322,20 @@ SPIDER_SHARE *spider_get_share(
               }
               pthread_mutex_unlock(&share->mutex);
               spider_free_share(share);
-              goto error_get_link_statuses;
+              thd->commit_whole_transaction_and_close_tables();
+              new_trans.restore_old_transaction();
+              goto error_open_sys_table;
             }
           } else {
             memcpy(share->alter_table.tmp_link_statuses, share->link_statuses,
               sizeof(long) * share->all_link_count);
             share->link_status_init = TRUE;
           }
+          thd->commit_whole_transaction_and_close_tables();
+          new_trans.restore_old_transaction();
+          table_tables= 0;
         }
         share->have_recovery_link = spider_conn_check_recovery_link(share);
-        if (table_tables)
-        {
-          spider_close_sys_table(thd, table_tables,
-            &open_tables_backup, FALSE);
-          table_tables = NULL;
-        }
         if (init_mem_root)
         {
           free_root(&mem_root, MYF(0));
@@ -5776,13 +5778,6 @@ error_hash_insert:
   spider_free_share_resource_only(share);
 error_alloc_share:
   pthread_mutex_unlock(&spider_tbl_mutex);
-error_get_link_statuses:
-  if (table_tables)
-  {
-    spider_close_sys_table(thd, table_tables,
-      &open_tables_backup, FALSE);
-    table_tables = NULL;
-  }
 error_open_sys_table:
 #ifndef WITHOUT_SPIDER_BG_SEARCH
 error_crd_spider_init:

@@ -6105,7 +6105,7 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
       table->field[1]->store(option_name, strlen(option_name), scs);
       table->field[2]->store(plugin_decl(plugin)->descr,
                              strlen(plugin_decl(plugin)->descr), scs);
-      tmp= &yesno[MY_TEST(hton->commit)];
+      tmp= &yesno[MY_TEST(hton->commit && !(hton->flags & HTON_NO_ROLLBACK))];
       table->field[3]->store(tmp->str, tmp->length, scs);
       table->field[3]->set_notnull();
       tmp= &yesno[MY_TEST(hton->prepare)];
@@ -6492,7 +6492,6 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   TABLE *table= tables->table;
   bool full_access;
   char definer[USER_HOST_BUFF_SIZE];
-  Open_tables_backup open_tables_state_backup;
   enum enum_schema_tables schema_table_idx=
     get_schema_table_idx(tables->schema_table);
   DBUG_ENTER("fill_schema_proc");
@@ -6507,8 +6506,12 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   proc_tables.lock_type= TL_READ;
   full_access= !check_table_access(thd, SELECT_ACL, &proc_tables, FALSE,
                                    1, TRUE);
-  if (!(proc_table= open_proc_table_for_read(thd, &open_tables_state_backup)))
+
+  start_new_trans new_trans(thd);
+
+  if (!(proc_table= open_proc_table_for_read(thd)))
   {
+    new_trans.restore_old_transaction();
     DBUG_RETURN(1);
   }
 
@@ -6550,7 +6553,9 @@ err:
   if (proc_table->file->inited)
     (void) proc_table->file->ha_index_end();
 
-  close_system_tables(thd, &open_tables_state_backup);
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
+
   thd->variables.sql_mode = sql_mode_was;
   DBUG_RETURN(res);
 }

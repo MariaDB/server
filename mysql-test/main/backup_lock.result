@@ -193,23 +193,51 @@ SET GLOBAL lock_wait_timeout=0;
 CREATE TABLE t_permanent_innodb (col1 INT) ENGINE = InnoDB;
 CREATE TABLE t_permanent_myisam (col1 INT) ENGINE = MyISAM;
 CREATE TABLE t_permanent_aria  (col1 INT) ENGINE = Aria transactional=1;
+CREATE TABLE t_permanent_aria2  (col1 INT) ENGINE = Aria transactional=0;
 INSERT INTO t_permanent_innodb SET col1 = 1;
 INSERT INTO t_permanent_myisam SET col1 = 1;
 INSERT INTO t_permanent_aria SET col1 = 1;
+INSERT INTO t_permanent_aria2 SET col1 = 1;
 CREATE TABLE t_con1_innodb (col1 INT) ENGINE = InnoDB;
 CREATE TABLE t_con1_myisam (col1 INT) ENGINE = MyISAM;
 connect con1,localhost,root,,;
-SET AUTOCOMMIT = 0;
 connection default;
 BACKUP STAGE START;
 BACKUP STAGE FLUSH;
 BACKUP STAGE BLOCK_DDL;
 BACKUP STAGE BLOCK_COMMIT;
 connection con1;
+SET AUTOCOMMIT = 1;
+UPDATE t_permanent_aria SET col1 = 1;
+UPDATE t_permanent_innodb SET col1 = 1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 UPDATE t_permanent_innodb SET col1 = 8;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 UPDATE t_permanent_myisam SET col1 = 8;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 UPDATE t_permanent_aria SET col1 = 8;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+UPDATE t_permanent_aria2 SET col1 = 8;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+select * from t_permanent_innodb;
+col1
+1
+select * from t_permanent_myisam;
+col1
+1
+select * from t_permanent_aria;
+col1
+8
+select * from t_permanent_aria2;
+col1
+1
+SET AUTOCOMMIT = 0;
+UPDATE t_permanent_innodb SET col1 = 9;
+UPDATE t_permanent_aria SET col1 = 9;
+UPDATE t_permanent_myisam SET col1 = 9;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+UPDATE t_permanent_aria2 SET col1 = 9;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 DROP TABLE t_con1_innodb;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 DROP TABLE t_con1_myisam;
@@ -224,8 +252,11 @@ col1
 1
 select * from t_permanent_aria;
 col1
-8
-DROP TABLE t_permanent_myisam, t_permanent_innodb, t_permanent_aria;
+9
+select * from t_permanent_aria2;
+col1
+1
+DROP TABLE t_permanent_myisam, t_permanent_innodb, t_permanent_aria, t_permanent_aria2;
 DROP TABLE t_con1_innodb, t_con1_myisam;
 disconnect con1;
 set global lock_wait_timeout=default;

@@ -535,20 +535,17 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
                               share, share->in_trans));
         }
       }
-      share->in_trans--;
-      mysql_mutex_unlock(&share->intern_lock);
+      /* The following calls frees &share->intern_lock */
+      decrement_share_in_trans(share);
     }
     else
     {
-#ifdef DBUG_ASSERT_EXISTS
       /*
-        We need to keep share->in_trans correct in the debug library
-        because of the assert in maria_close()
+        We need to keep share->in_trans correct because of the check
+        in free_maria_share()
       */
       mysql_mutex_lock(&share->intern_lock);
-      share->in_trans--;
-      mysql_mutex_unlock(&share->intern_lock);
-#endif
+      decrement_share_in_trans(share);
     }
     my_free(tables);
   }
@@ -590,6 +587,10 @@ void _ma_remove_table_from_trnman(MARIA_HA *info)
     if (tables->share == share)
     {
       *prev= tables->next;
+      /*
+        We don't have to and can't call decrement_share_in_trans(share) here
+        as we know there is an active MARIA_HA handler around.
+      */
       share->in_trans--;
       my_free(tables);
       break;
@@ -635,9 +636,10 @@ void _ma_block_get_status(void* param, my_bool concurrent_insert)
 
   info->row_base_length= info->s->base_length;
   info->row_flag= info->s->base.default_row_flag;
-  if (concurrent_insert)
+  DBUG_ASSERT(!concurrent_insert ||
+              info->lock.type == TL_WRITE_CONCURRENT_INSERT);
+  if (concurrent_insert || !info->autocommit)
   {
-    DBUG_ASSERT(info->lock.type == TL_WRITE_CONCURRENT_INSERT);
     info->row_flag|= ROW_FLAG_TRANSID;
     info->row_base_length+= TRANSID_SIZE;
   }

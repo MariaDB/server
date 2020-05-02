@@ -246,7 +246,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
       inspite of errors.
      */
     if (error == HA_ERR_WRONG_COMMAND ||
-        table_ref->table->file->has_transactions())
+        table_ref->table->file->has_transactions_and_rollback())
       DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
     else
       DBUG_RETURN(TRUNCATE_FAILED_BUT_BINLOG);

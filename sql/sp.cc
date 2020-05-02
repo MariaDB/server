@@ -30,6 +30,7 @@
 #include "sql_table.h"                          // write_bin_log
 #include "sp_head.h"
 #include "sp_cache.h"
+#include "transaction.h"
 #include "lock.h"                               // lock_object_name
 
 #include <my_user.h>
@@ -470,27 +471,31 @@ static Proc_table_intact proc_table_intact;
                  currently open tables will be saved, and from which will be
                  restored when we will end work with mysql.proc.
 
+  NOTES
+    On must have a start_new_trans object active when calling this function
+
   @retval
     0	Error
   @retval
     \#	Pointer to TABLE object of mysql.proc
 */
 
-TABLE *open_proc_table_for_read(THD *thd, Open_tables_backup *backup)
+TABLE *open_proc_table_for_read(THD *thd)
 {
   TABLE_LIST table;
-
   DBUG_ENTER("open_proc_table_for_read");
+
+  DBUG_ASSERT(thd->internal_transaction());
 
   table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PROC_NAME, NULL, TL_READ);
 
-  if (open_system_tables_for_read(thd, &table, backup))
+  if (open_system_tables_for_read(thd, &table))
     DBUG_RETURN(NULL);
 
   if (!proc_table_intact.check(table.table, &proc_table_def))
     DBUG_RETURN(table.table);
 
-  close_system_tables(thd, backup);
+  thd->commit_whole_transaction_and_close_tables();
 
   DBUG_RETURN(NULL);
 }
@@ -503,6 +508,10 @@ TABLE *open_proc_table_for_read(THD *thd, Open_tables_backup *backup)
 
   @note
     Table opened with this call should closed using close_thread_tables().
+
+    We don't need to use the start_new_transaction object when calling this
+    as there can't be any active transactions when we create or alter
+    stored procedures
 
   @retval
     0	Error
@@ -517,7 +526,10 @@ static TABLE *open_proc_table_for_update(THD *thd)
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   DBUG_ENTER("open_proc_table_for_update");
 
-  table_list.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PROC_NAME, NULL, TL_WRITE);
+  DBUG_ASSERT(!thd->internal_transaction());
+
+  table_list.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PROC_NAME, NULL,
+                            TL_WRITE);
 
   if (!(table= open_system_table_for_update(thd, &table_list)))
     DBUG_RETURN(NULL);
@@ -525,7 +537,7 @@ static TABLE *open_proc_table_for_update(THD *thd)
   if (!proc_table_intact.check(table, &proc_table_def))
     DBUG_RETURN(table);
 
-  close_thread_tables(thd);
+  thd->commit_whole_transaction_and_close_tables();
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
   DBUG_RETURN(NULL);
@@ -683,22 +695,25 @@ Sp_handler::db_find_routine(THD *thd,
   longlong modified;
   Sp_chistics chistics;
   bool saved_time_zone_used= thd->time_zone_used;
+  bool trans_commited= 0;
   sql_mode_t sql_mode;
-  Open_tables_backup open_tables_state_backup;
   Stored_program_creation_ctx *creation_ctx;
   AUTHID definer;
-
   DBUG_ENTER("db_find_routine");
   DBUG_PRINT("enter", ("type: %s name: %.*s",
 		       type_str(),
 		       (int) name->m_name.length, name->m_name.str));
 
   *sphp= 0;                                     // In case of errors
-  if (!(table= open_proc_table_for_read(thd, &open_tables_state_backup)))
-    DBUG_RETURN(SP_OPEN_TABLE_FAILED);
 
-  /* Reset sql_mode during data dictionary operations. */
+  start_new_trans new_trans(thd);
   Sql_mode_instant_set sms(thd, 0);
+
+  if (!(table= open_proc_table_for_read(thd)))
+  {
+    ret= SP_OPEN_TABLE_FAILED;
+    goto done;
+  }
 
   if ((ret= db_find_routine_aux(thd, name, table)) != SP_OK)
     goto done;
@@ -741,8 +756,9 @@ Sp_handler::db_find_routine(THD *thd,
 
   creation_ctx= Stored_routine_creation_ctx::load_from_db(thd, name, table);
 
-  close_system_tables(thd, &open_tables_state_backup);
-  table= 0;
+  trans_commited= 1;
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
 
   ret= db_load_routine(thd, name, sphp,
                        sql_mode, params, returns, body, chistics, definer,
@@ -753,8 +769,12 @@ Sp_handler::db_find_routine(THD *thd,
     does not affect replication.
   */  
   thd->time_zone_used= saved_time_zone_used;
-  if (table)
-    close_system_tables(thd, &open_tables_state_backup);
+  if (!trans_commited)
+  {
+    if (table)
+      thd->commit_whole_transaction_and_close_tables();
+    new_trans.restore_old_transaction();
+  }
   DBUG_RETURN(ret);
 }
 
@@ -1727,7 +1747,6 @@ bool lock_db_routines(THD *thd, const char *db)
 {
   TABLE *table;
   uint key_len;
-  Open_tables_backup open_tables_state_backup;
   MDL_request_list mdl_requests;
   Lock_db_routines_error_handler err_handler;
   uchar keybuf[MAX_KEY_LENGTH];
@@ -1735,13 +1754,15 @@ bool lock_db_routines(THD *thd, const char *db)
 
   DBUG_SLOW_ASSERT(ok_for_lower_case_names(db));
 
+  start_new_trans new_trans(thd);
+
   /*
     mysql.proc will be re-opened during deletion, so we can ignore
     errors when opening the table here. The error handler is
     used to avoid getting the same warning twice.
   */
   thd->push_internal_handler(&err_handler);
-  table= open_proc_table_for_read(thd, &open_tables_state_backup);
+  table= open_proc_table_for_read(thd);
   thd->pop_internal_handler();
   if (!table)
   {
@@ -1750,6 +1771,7 @@ bool lock_db_routines(THD *thd, const char *db)
       or is outdated. We therefore only abort mysql_rm_db() if we
       have errors not handled by the error handler.
     */
+    new_trans.restore_old_transaction();
     DBUG_RETURN(thd->is_error() || thd->killed);
   }
 
@@ -1760,11 +1782,10 @@ bool lock_db_routines(THD *thd, const char *db)
   if (nxtres)
   {
     table->file->print_error(nxtres, MYF(0));
-    close_system_tables(thd, &open_tables_state_backup);
-    DBUG_RETURN(true);
+    goto error;
   }
 
-  if (! table->file->ha_index_read_map(table->record[0], keybuf, (key_part_map)1,
+  if (!table->file->ha_index_read_map(table->record[0], keybuf, (key_part_map)1,
                                        HA_READ_KEY_EXACT))
   {
     do
@@ -1789,10 +1810,10 @@ bool lock_db_routines(THD *thd, const char *db)
   if (nxtres != 0 && nxtres != HA_ERR_END_OF_FILE)
   {
     table->file->print_error(nxtres, MYF(0));
-    close_system_tables(thd, &open_tables_state_backup);
-    DBUG_RETURN(true);
+    goto error;
   }
-  close_system_tables(thd, &open_tables_state_backup);
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
 
   /* We should already hold a global IX lock and a schema X lock. */
   DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
@@ -1801,6 +1822,10 @@ bool lock_db_routines(THD *thd, const char *db)
                                              MDL_EXCLUSIVE));
   DBUG_RETURN(thd->mdl_context.acquire_locks(&mdl_requests,
                                              thd->variables.lock_wait_timeout));
+error:
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
+  DBUG_RETURN(true);
 }
 
 
@@ -1879,6 +1904,7 @@ sp_drop_db_routines(THD *thd, const char *db)
   table->file->ha_index_end();
 
 err_idx_init:
+  trans_commit_stmt(thd);
   close_thread_tables(thd);
   /*
     Make sure to only release the MDL lock on mysql.proc, not other

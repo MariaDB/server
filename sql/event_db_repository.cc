@@ -30,6 +30,7 @@
 #include "events.h"
 #include "sql_show.h"
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_TIMEOUT
+#include "transaction.h"
 
 /**
   @addtogroup Event_Scheduler
@@ -533,23 +534,26 @@ Event_db_repository::fill_schema_events(THD *thd, TABLE_LIST *i_s_table,
                                         const char *db)
 {
   TABLE *schema_table= i_s_table->table;
-  Open_tables_backup open_tables_backup;
   TABLE_LIST event_table;
   int ret= 0;
-
   DBUG_ENTER("Event_db_repository::fill_schema_events");
   DBUG_PRINT("info",("db=%s", db? db:"(null)"));
 
+  start_new_trans new_trans(thd);
+
   event_table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
 
-  if (open_system_tables_for_read(thd, &event_table, &open_tables_backup))
+  if (open_system_tables_for_read(thd, &event_table))
+  {
+    new_trans.restore_old_transaction();
     DBUG_RETURN(TRUE);
+  }
 
   if (table_intact.check(event_table.table, &event_table_def))
   {
-    close_system_tables(thd, &open_tables_backup);
     my_error(ER_EVENT_OPEN_TABLE_FAILED, MYF(0));
-    DBUG_RETURN(TRUE);
+    ret= 1;
+    goto err;
   }
 
   /*
@@ -566,7 +570,9 @@ Event_db_repository::fill_schema_events(THD *thd, TABLE_LIST *i_s_table,
   else
     ret= table_scan_all_for_i_s(thd, schema_table, event_table.table);
 
-  close_system_tables(thd, &open_tables_backup);
+err:
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
 
   DBUG_PRINT("info", ("Return code=%d", ret));
   DBUG_RETURN(ret);
@@ -612,7 +618,8 @@ Event_db_repository::open_event_table(THD *thd, enum thr_lock_type lock_type,
 
   if (table_intact.check(*table, &event_table_def))
   {
-    close_thread_tables(thd);
+    thd->commit_whole_transaction_and_close_tables();
+    *table= 0;                                  // Table is now closed
     my_error(ER_EVENT_OPEN_TABLE_FAILED, MYF(0));
     DBUG_RETURN(TRUE);
   }
@@ -742,7 +749,8 @@ Event_db_repository::create_event(THD *thd, Event_parse_data *parse_data,
   ret= 0;
 
 end:
-  close_thread_tables(thd);
+  if (table)
+    thd->commit_whole_transaction_and_close_tables();
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
   thd->variables.sql_mode= saved_mode;
@@ -784,7 +792,6 @@ Event_db_repository::update_event(THD *thd, Event_parse_data *parse_data,
   */
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   int ret= 1;
-
   DBUG_ENTER("Event_db_repository::update_event");
 
   /* None or both must be set */
@@ -857,7 +864,8 @@ Event_db_repository::update_event(THD *thd, Event_parse_data *parse_data,
   ret= 0;
 
 end:
-  close_thread_tables(thd);
+  if (table)
+    thd->commit_whole_transaction_and_close_tables();
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
   thd->variables.sql_mode= saved_mode;
@@ -919,7 +927,8 @@ Event_db_repository::drop_event(THD *thd, const LEX_CSTRING *db,
   ret= 0;
 
 end:
-  close_thread_tables(thd);
+  if (table)
+    thd->commit_whole_transaction_and_close_tables();
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
   DBUG_RETURN(MY_TEST(ret));
@@ -999,12 +1008,16 @@ Event_db_repository::drop_schema_events(THD *thd, const LEX_CSTRING *schema)
   TABLE *table= NULL;
   READ_RECORD read_record_info;
   enum enum_events_table_field field= ET_FIELD_DB;
-  MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   DBUG_ENTER("Event_db_repository::drop_schema_events");
   DBUG_PRINT("enter", ("field: %d  schema: %s", field, schema->str));
 
+  start_new_trans new_trans(thd);
+
   if (open_event_table(thd, TL_WRITE, &table))
+  {
+    new_trans.restore_old_transaction();
     DBUG_VOID_RETURN;
+  }
 
   /* only enabled events are in memory, so we go now and delete the rest */
   if (init_read_record(&read_record_info, thd, table, NULL, NULL, 1, 0, FALSE))
@@ -1033,13 +1046,8 @@ Event_db_repository::drop_schema_events(THD *thd, const LEX_CSTRING *schema)
   end_read_record(&read_record_info);
 
 end:
-  close_thread_tables(thd);
-  /*
-    Make sure to only release the MDL lock on mysql.event, not other
-    metadata locks DROP DATABASE might have acquired.
-  */
-  thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
-
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
   DBUG_VOID_RETURN;
 }
 
@@ -1060,17 +1068,16 @@ Event_db_repository::load_named_event(THD *thd, const LEX_CSTRING *dbname,
                                       Event_basic *etn)
 {
   bool ret;
-  Open_tables_backup open_tables_backup;
   TABLE_LIST event_table;
-
   DBUG_ENTER("Event_db_repository::load_named_event");
   DBUG_PRINT("enter",("thd: %p  name: %*s", thd,
                       (int) name->length, name->str));
 
-  event_table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
-
+  start_new_trans new_trans(thd);
   /* Reset sql_mode during data dictionary operations. */
   Sql_mode_instant_set sms(thd, 0);
+
+  event_table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
 
   /*
     We don't use open_event_table() here to make sure that SHOW
@@ -1078,11 +1085,12 @@ Event_db_repository::load_named_event(THD *thd, const LEX_CSTRING *dbname,
     does not release transactional metadata locks when the
     event table is closed.
   */
-  if (!(ret= open_system_tables_for_read(thd, &event_table, &open_tables_backup)))
+  if (!(ret= open_system_tables_for_read(thd, &event_table)))
   {
     if (table_intact.check(event_table.table, &event_table_def))
     {
-      close_system_tables(thd, &open_tables_backup);
+      thd->commit_whole_transaction_and_close_tables();
+      new_trans.restore_old_transaction();
       my_error(ER_EVENT_OPEN_TABLE_FAILED, MYF(0));
       DBUG_RETURN(TRUE);
     }
@@ -1091,9 +1099,9 @@ Event_db_repository::load_named_event(THD *thd, const LEX_CSTRING *dbname,
       my_error(ER_EVENT_DOES_NOT_EXIST, MYF(0), name->str);
     else if ((ret= etn->load_from_row(thd, event_table.table)))
       my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(0), "mysql", "event");
-
-    close_system_tables(thd, &open_tables_backup);
+    thd->commit_whole_transaction_and_close_tables();
   }
+  new_trans.restore_old_transaction();
 
   DBUG_RETURN(ret);
 }
@@ -1117,22 +1125,20 @@ update_timing_fields_for_event(THD *thd,
   TABLE *table= NULL;
   Field **fields;
   int ret= 1;
-  enum_binlog_format save_binlog_format;
   MYSQL_TIME time;
   DBUG_ENTER("Event_db_repository::update_timing_fields_for_event");
-
-  /*
-    Turn off row binlogging of event timing updates. These are not used
-    for RBR of events replicated to the slave.
-  */
-  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
   DBUG_ASSERT(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY);
 
   if (open_event_table(thd, TL_WRITE, &table))
-    goto end;
+    DBUG_RETURN(1);
 
   fields= table->field;
+  /*
+    Turn off row binlogging of event timing updates. These are not used
+    for RBR of events replicated to the slave.
+  */
+  table->file->row_logging= 0;
 
   if (find_named_event(event_db_name, event_name, table))
     goto end;
@@ -1153,12 +1159,9 @@ update_timing_fields_for_event(THD *thd,
   }
 
   ret= 0;
-
 end:
-  if (table)
-    close_mysql_tables(thd);
-
-  thd->restore_stmt_binlog_format(save_binlog_format);
+  if (thd->commit_whole_transaction_and_close_tables())
+    ret= 1;
 
   DBUG_RETURN(MY_TEST(ret));
 }

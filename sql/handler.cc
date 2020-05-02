@@ -1547,15 +1547,6 @@ int ha_commit_trans(THD *thd, bool all)
       wsrep_commit_empty(thd, all);
 #endif /* WITH_WSREP */
 
-#if defined(WITH_ARIA_STORAGE_ENGINE)
-    /* This is needed to ensure that repair commits properly */
-    if ((error= ha_maria::implicit_commit(thd, TRUE)))
-    {
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), error);
-      ha_rollback_trans(thd, all);
-      DBUG_RETURN(1);
-    }
-#endif
     DBUG_RETURN(0);
   }
 
@@ -1579,7 +1570,7 @@ int ha_commit_trans(THD *thd, bool all)
     the plugin table to innodb and thus plugin_load will call
     mysql_close_tables() which calls trans_commit_trans() with maria_hton = 0
   */
-  if (rw_trans || (likely(maria_hton) && thd_get_ha_data(thd, maria_hton)))
+  if (rw_trans)
   {
     /*
       Acquire a metadata lock which will ensure that COMMIT is blocked
@@ -1602,14 +1593,6 @@ int ha_commit_trans(THD *thd, bool all)
 
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
-#if defined(WITH_ARIA_STORAGE_ENGINE)
-    if ((error= ha_maria::implicit_commit(thd, TRUE)))
-    {
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), error);
-      goto err;
-    }
-#endif
-
   if (rw_trans &&
       opt_readonly &&
       !(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
@@ -2001,7 +1984,8 @@ int ha_rollback_trans(THD *thd, bool all)
       int err;
       handlerton *ht= ha_info->ht();
       if ((err= ht->rollback(ht, thd, all)))
-      { // cannot happen
+      {
+        // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
 #ifdef WITH_WSREP
@@ -4514,7 +4498,6 @@ void handler::mark_trx_read_write_internal()
   */
   if (ha_info->is_started())
   {
-    DBUG_ASSERT(has_transaction_manager());
     /*
       table_share can be NULL in ha_delete_table(). See implementation
       of standalone function ha_delete_table() in sql_base.cc.
@@ -6180,7 +6163,7 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
   THD *thd= h->table->in_use;
   check_result_t res;
 
-  enum thd_kill_levels abort_at= h->has_transactions() ?
+  enum thd_kill_levels abort_at= h->has_rollback() ?
     THD_ABORT_SOFTLY : THD_ABORT_ASAP;
   if (thd_kill_level(thd) > abort_at)
     return CHECK_ABORTED_BY_USER;
@@ -6947,7 +6930,7 @@ bool handler::prepare_for_row_logging()
     row_logging_has_trans=
       ((sql_command_flags[table->in_use->lex->sql_command] &
         (CF_SCHEMA_CHANGE | CF_ADMIN_COMMAND)) ||
-       table->file->has_transactions());
+       table->file->has_transactions_and_rollback());
   }
   else
   {

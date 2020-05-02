@@ -73,11 +73,10 @@ static bool trans_check(THD *thd)
 
   if (unlikely(thd->in_sub_stmt))
     my_error(ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0));
-  if (thd->transaction->xid_state.is_explicit_XA())
-    thd->transaction->xid_state.er_xaer_rmfail();
-  else
+  if (!thd->transaction->xid_state.is_explicit_XA())
     DBUG_RETURN(FALSE);
 
+  thd->transaction->xid_state.er_xaer_rmfail();
   DBUG_RETURN(TRUE);
 }
 
@@ -261,10 +260,10 @@ bool trans_commit(THD *thd)
   mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
   mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 
-    /*
-      if res is non-zero, then ha_commit_trans has rolled back the
-      transaction, so the hooks for rollback will be called.
-    */
+  /*
+    if res is non-zero, then ha_commit_trans has rolled back the
+    transaction, so the hooks for rollback will be called.
+  */
 #ifdef HAVE_REPLICATION
   if (res)
     repl_semisync_master.wait_after_rollback(thd, FALSE);

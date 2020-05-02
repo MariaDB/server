@@ -72,6 +72,7 @@
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
 #include "opt_trace.h"
+#include <mysql/psi/mysql_transaction.h>
 
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
@@ -2589,7 +2590,8 @@ void THD::add_changed_table(TABLE *table)
 {
   DBUG_ENTER("THD::add_changed_table(table)");
 
-  DBUG_ASSERT(in_multi_stmt_transaction_mode() && table->file->has_transactions());
+  DBUG_ASSERT(in_multi_stmt_transaction_mode() &&
+              table->file->has_transactions());
   add_changed_table(table->s->table_cache_key.str,
                     (long) table->s->table_cache_key.length);
   DBUG_VOID_RETURN;
@@ -5739,6 +5741,92 @@ void THD::mark_transaction_to_rollback(bool all)
   if (in_sub_stmt)
     is_fatal_sub_stmt_error= true;
   transaction_rollback_request= all;
+}
+
+
+/**
+  Commit the whole transaction (both statment and all)
+
+  This is used mainly to commit an independent transaction,
+  like reading system tables.
+
+  @return  0  0k
+  @return <>0 error code. my_error() has been called()
+*/
+
+int THD::commit_whole_transaction_and_close_tables()
+{
+  int error, error2;
+  DBUG_ENTER("THD::commit_whole_transaction_and_close_tables");
+
+  /*
+    This can only happened if we failed to open any table in the
+    new transaction
+  */
+  DBUG_ASSERT(open_tables);
+
+  if (!open_tables)                             // Safety for production usage
+    DBUG_RETURN(0);
+
+  /*
+    Ensure table was locked (opened with open_and_lock_tables()). If not
+    the THD can't be part of any transactions and doesn't have to call
+    this function.
+  */
+  DBUG_ASSERT(lock);
+
+  error= ha_commit_trans(this, FALSE);
+  /* This will call external_lock to unlock all tables */
+  if ((error2= mysql_unlock_tables(this, lock)))
+  {
+    my_error(ER_ERROR_DURING_COMMIT, MYF(0), error2);
+    error= error2;
+  }
+  lock= 0;
+  if ((error2= ha_commit_trans(this, TRUE)))
+    error= error2;
+  close_thread_tables(this);
+  DBUG_RETURN(error);
+}
+
+/**
+   Start a new independent transaction
+*/
+
+start_new_trans::start_new_trans(THD *thd)
+{
+  org_thd= thd;
+  mdl_savepoint= thd->mdl_context.mdl_savepoint();
+  memcpy(old_ha_data, thd->ha_data, sizeof(old_ha_data));
+  thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
+  bzero(thd->ha_data, sizeof(thd->ha_data));
+  old_transaction= thd->transaction;
+  thd->transaction= &new_transaction;
+  new_transaction.on= 1;
+  in_sub_stmt= thd->in_sub_stmt;
+  thd->in_sub_stmt= 0;
+  server_status= thd->server_status;
+  m_transaction_psi= thd->m_transaction_psi;
+  thd->m_transaction_psi= 0;
+  thd->server_status&= ~(SERVER_STATUS_IN_TRANS |
+                         SERVER_STATUS_IN_TRANS_READONLY);
+  thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
+}
+
+
+void start_new_trans::restore_old_transaction()
+{
+  org_thd->transaction= old_transaction;
+  org_thd->restore_backup_open_tables_state(&open_tables_state_backup);
+  ha_close_connection(org_thd);
+  memcpy(org_thd->ha_data, old_ha_data, sizeof(old_ha_data));
+  org_thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+  org_thd->in_sub_stmt= in_sub_stmt;
+  org_thd->server_status= server_status;
+  if (org_thd->m_transaction_psi)
+    MYSQL_COMMIT_TRANSACTION(org_thd->m_transaction_psi);
+  org_thd->m_transaction_psi= m_transaction_psi;
+  org_thd= 0;
 }
 
 

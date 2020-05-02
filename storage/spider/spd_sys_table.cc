@@ -584,7 +584,8 @@ void spider_sys_close_table(
 ) {
   DBUG_ENTER("spider_sys_close_table");
   close_thread_tables(thd);
-  thd->restore_backup_open_tables_state(open_tables_backup);
+  if (open_tables_backup)
+    thd->restore_backup_open_tables_state(open_tables_backup);
   DBUG_VOID_RETURN;
 }
 #endif
@@ -3294,15 +3295,15 @@ int spider_sys_get_table_crd(
   TABLE *table_crd = NULL;
 #if MYSQL_VERSION_ID < 50500
   Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
 #endif
   DBUG_ENTER("spider_sys_get_table_crd");
+
+  start_new_trans new_trans(thd);
   if (
     !(table_crd = spider_open_sys_table(
       thd, SPIDER_SYS_TABLE_CRD_TABLE_NAME_STR,
       SPIDER_SYS_TABLE_CRD_TABLE_NAME_LEN, TRUE,
-      &open_tables_backup, need_lock, &error_num))
+      0, need_lock, &error_num))
   ) {
     goto error;
   }
@@ -3335,15 +3336,17 @@ int spider_sys_get_table_crd(
     goto error;
   }
 
-  spider_close_sys_table(thd, table_crd, &open_tables_backup, need_lock);
-  table_crd = NULL;
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
   DBUG_RETURN(0);
 
 error:
   if (index_inited)
     spider_sys_index_end(table_crd);
+
   if (table_crd)
-    spider_close_sys_table(thd, table_crd, &open_tables_backup, need_lock);
+    thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
   DBUG_RETURN(error_num);
 }
 

@@ -590,10 +590,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
            table->triggers->create_trigger(thd, tables, &stmt_query):
            table->triggers->drop_trigger(thd, tables, &stmt_query));
 
-  if (result)
-    goto end;
-
   close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
+
   /*
     Reopen the table if we were under LOCK TABLES.
     Ignore the return value for now. It's better to

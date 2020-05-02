@@ -1144,7 +1144,7 @@ values_loop_end:
         table->file->ha_rnd_end();
     }
 
-    transactional_table= table->file->has_transactions();
+    transactional_table= table->file->has_transactions_and_rollback();
 
     if (likely(changed= (info.copied || info.deleted || info.updated)))
     {
@@ -2055,7 +2055,7 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
             info->deleted++;
           else
             info->updated++;
-          if (!table->file->has_transactions())
+          if (!table->file->has_transactions_and_rollback())
             thd->transaction->stmt.modified_non_trans_table= TRUE;
           if (table->triggers &&
               table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
@@ -2121,7 +2121,7 @@ ok:
 after_trg_or_ignored_err:
   if (key)
     my_safe_afree(key,table->s->max_unique_length);
-  if (!table->file->has_transactions())
+  if (!table->file->has_transactions_and_rollback())
     thd->transaction->stmt.modified_non_trans_table= TRUE;
   DBUG_RETURN(trg_error);
 
@@ -4104,13 +4104,13 @@ void select_insert::store_values(List<Item> &values)
 bool select_insert::prepare_eof()
 {
   int error;
-  bool const trans_table= table->file->has_transactions();
+  bool const trans_table= table->file->has_transactions_and_rollback();
   bool changed;
   bool binary_logged= 0;
   killed_state killed_status= thd->killed;
 
   DBUG_ENTER("select_insert::prepare_eof");
-  DBUG_PRINT("enter", ("trans_table=%d, table_type='%s'",
+  DBUG_PRINT("enter", ("trans_table: %d, table_type: '%s'",
                        trans_table, table->file->table_type()));
 
 #ifdef WITH_WSREP
@@ -4273,7 +4273,7 @@ void select_insert::abort_result_set()
       zero, so no check for that is made.
     */
     changed= (info.copied || info.deleted || info.updated);
-    transactional_table= table->file->has_transactions();
+    transactional_table= table->file->has_transactions_and_rollback();
     if (thd->transaction->stmt.modified_non_trans_table ||
         thd->log_current_statement)
     {

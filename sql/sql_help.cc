@@ -709,8 +709,9 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
     Reset and backup the current open tables state to
     make it possible.
   */
-  Open_tables_backup open_tables_state_backup;
-  if (open_system_tables_for_read(thd, tables, &open_tables_state_backup))
+  start_new_trans new_trans(thd);
+
+  if (open_system_tables_for_read(thd, tables))
     goto error2;
 
   /*
@@ -843,11 +844,13 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
   }
   my_eof(thd);
 
-  close_system_tables(thd, &open_tables_state_backup);
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
   DBUG_RETURN(FALSE);
 
 error:
-  close_system_tables(thd, &open_tables_state_backup);
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
 
 error2:
   DBUG_RETURN(TRUE);

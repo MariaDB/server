@@ -90,7 +90,6 @@ MARIA_HA *_ma_test_if_reopen(const char *filename)
     0   Error
 */
 
-
 static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
                                       int mode, File data_file,
                                       uint internal_table,
@@ -152,7 +151,8 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
   info.last_loop=   share->state.update_count;
 #endif
   info.errkey= -1;
-  info.page_changed=1;
+  info.page_changed= 1;
+  info.autocommit= 1;
   info.keyread_buff= info.buff + share->base.max_key_block_length;
 
   info.lock_type= F_UNLCK;

@@ -437,16 +437,13 @@ bool stmt_causes_implicit_commit(THD *thd, uint mask)
     DBUG_RETURN(FALSE);
 
   switch (lex->sql_command) {
-  case SQLCOM_DROP_TABLE:
-  case SQLCOM_DROP_SEQUENCE:
-    skip= (lex->tmp_table() ||
-           (thd->variables.option_bits & OPTION_GTID_BEGIN));
-    break;
   case SQLCOM_ALTER_TABLE:
   case SQLCOM_ALTER_SEQUENCE:
     /* If ALTER TABLE of non-temporary table, do implicit commit */
     skip= (lex->tmp_table());
     break;
+  case SQLCOM_DROP_TABLE:
+  case SQLCOM_DROP_SEQUENCE:
   case SQLCOM_CREATE_TABLE:
   case SQLCOM_CREATE_SEQUENCE:
     /*
@@ -1532,42 +1529,6 @@ public:
 };
 #endif
 
-/*
-  Do an implict commit into the Aria storage engine
-*/
-
-static inline my_bool aria_implicit_commit(THD *thd)
-{
-#if defined(WITH_ARIA_STORAGE_ENGINE)
-  if (thd_get_ha_data(thd, maria_hton))
-  {
-    MDL_request mdl_request;
-    bool locked;
-    int res;
-    Silence_all_errors error_handler;
-    DBUG_ASSERT(maria_hton);
-
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_EXPLICIT);
-    /*
-      We have to ignore any errors from acquire_lock and continue even if we
-      don't get the lock as Aria can't roll back!
-      This function is also called in some cases when the message is already
-      sent to the user, so we can't even send a warning.
-  */
-    thd->push_internal_handler(& error_handler);
-    locked= !thd->mdl_context.acquire_lock(&mdl_request,
-                                           thd->variables.lock_wait_timeout);
-    thd->pop_internal_handler();
-    res= ha_maria::implicit_commit(thd, FALSE);
-    if (locked)
-      thd->mdl_context.release_lock(mdl_request.ticket);
-    return res;
-  }
-#endif
-  return 0;
-}
-
 
 /**
   Perform one connection-level (COM_XXXX) command.
@@ -1920,8 +1881,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         Multiple queries exist, execute them individually
       */
       char *beginning_of_next_stmt= (char*) parser_state.m_lip.found_semicolon;
-
-      aria_implicit_commit(thd);
 
       /* Finalize server status flags after executing a statement. */
       thd->update_server_status();
@@ -3170,14 +3129,13 @@ mysql_create_routine(THD *thd, LEX *lex)
       statement takes metadata locks should be detected by a deadlock
       detector in MDL subsystem and reported as errors.
 
-      No need to commit/rollback statement transaction, it's not started.
-
       TODO: Long-term we should either ensure that implicit GRANT statement
             is written into binary log as a separate statement or make both
             creation of routine and implicit GRANT parts of one fully atomic
             statement.
       */
-    DBUG_ASSERT(thd->transaction->stmt.is_empty());
+    if (trans_commit_stmt(thd))
+      goto wsrep_error_label;
     close_thread_tables(thd);
     /*
       Check if the definer exists on slave,
@@ -3221,7 +3179,9 @@ mysql_create_routine(THD *thd, LEX *lex)
 #endif
     return false;
   }
-#ifdef WITH_WSREP
+  (void) trans_commit_stmt(thd);
+
+#if !defined(NO_EMBEDDED_ACCESS_CHECKS) || defined(WITH_WSREP)
 wsrep_error_label:
 #endif
   return true;
@@ -6049,7 +6009,6 @@ finish:
       trans_commit_stmt(thd);
       thd->get_stmt_da()->set_overwrite_status(false);
     }
-    aria_implicit_commit(thd);
   }
 
   /* Free tables. Set stage 'closing tables' */
@@ -6571,14 +6530,13 @@ drop_routine(THD *thd, LEX *lex)
     statement takes metadata locks should be detected by a deadlock
     detector in MDL subsystem and reported as errors.
 
-    No need to commit/rollback statement transaction, it's not started.
-
     TODO: Long-term we should either ensure that implicit REVOKE statement
     is written into binary log as a separate statement or make both
     dropping of routine and implicit REVOKE parts of one fully atomic
     statement.
   */
-  DBUG_ASSERT(thd->transaction->stmt.is_empty());
+  if (trans_commit_stmt(thd))
+    sp_result= SP_INTERNAL_ERROR;
   close_thread_tables(thd);
 
   if (sp_result != SP_KEY_NOT_FOUND &&

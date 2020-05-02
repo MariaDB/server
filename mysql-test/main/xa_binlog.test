@@ -24,9 +24,38 @@ INSERT INTO t1 VALUES (3);
 COMMIT;
 
 SELECT * FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+#
+# MDEV-22607 Assertion `ha_info->ht() != binlog_hton' failed in
+# MYSQL_BIN_LOG::unlog_xa_prepare
+#
+
+CREATE TABLE t1 (a INT) ENGINE=Aria;
+INSERT INTO t1 VALUES (1),(2);
+XA BEGIN 'x';
+DELETE FROM t1;
+XA END 'x';
+XA PREPARE 'x';
+
+# Cleanup
+XA COMMIT 'x';
+
+SELECT * from t1;
+
+XA BEGIN 'x';
+INSERT INTO t1 VALUES (3),(4);
+XA END 'x';
+XA PREPARE 'x';
+XA ROLLBACK 'x';
+
+SELECT * from t1;
+DROP TABLE t1;
+
+#
+# Time to check the log
+#
 
 --replace_column 2 # 5 #
 --replace_regex /xid=[0-9]+/xid=XX/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/
-SHOW BINLOG EVENTS LIMIT 3,12;
-
-DROP TABLE t1;
+SHOW BINLOG EVENTS LIMIT 3,100;

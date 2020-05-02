@@ -3741,6 +3741,8 @@ public:
   {
     return server_status & SERVER_STATUS_IN_TRANS;
   }
+  /* Commit both statement and full transaction */
+  int commit_whole_transaction_and_close_tables();
   void give_protection_error();
   inline bool has_read_only_protection()
   {
@@ -4765,6 +4767,7 @@ public:
   }
 
   void mark_transaction_to_rollback(bool all);
+  bool internal_transaction() { return transaction != &default_transaction; }
 private:
 
   /** The current internal error handler for this thread, or NULL. */
@@ -5147,6 +5150,40 @@ public:
   Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
+};
+
+
+/*
+  Start a new independent transaction for the THD.
+  The old one is stored in this object and restored when calling
+  restore_old_transaction() or when the object is freed
+*/
+
+class start_new_trans
+{
+  /* container for handler's private per-connection data */
+  Ha_data old_ha_data[MAX_HA];
+  struct THD::st_transactions *old_transaction, new_transaction;
+  Open_tables_backup open_tables_state_backup;
+  MDL_savepoint mdl_savepoint;
+  PSI_transaction_locker *m_transaction_psi;
+  THD *org_thd;
+  uint in_sub_stmt;
+  uint server_status;
+
+public:
+  start_new_trans(THD *thd);
+  ~start_new_trans()
+  {
+    destroy();
+  }
+  void destroy()
+  {
+    if (org_thd)                                // Safety
+      restore_old_transaction();
+    new_transaction.free();
+  }
+  void restore_old_transaction();
 };
 
 /** A short cut for thd->get_stmt_da()->set_ok_status(). */

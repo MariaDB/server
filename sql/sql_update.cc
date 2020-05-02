@@ -931,7 +931,7 @@ update_begin:
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   thd->cuted_fields=0L;
 
-  transactional_table= table->file->has_transactions();
+  transactional_table= table->file->has_transactions_and_rollback();
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
   if (do_direct_update)
@@ -2572,7 +2572,7 @@ int multi_update::send_data(List<Item> &not_used_values)
           }
           /* non-transactional or transactional table got modified   */
           /* either multi_update class' flag is raised in its branch */
-          if (table->file->has_transactions())
+          if (table->file->has_transactions_and_rollback())
             transactional_tables= TRUE;
           else
           {
@@ -2891,7 +2891,7 @@ int multi_update::do_updates()
 
     if (updated != org_updated)
     {
-      if (table->file->has_transactions())
+      if (table->file->has_transactions_and_rollback())
         transactional_tables= TRUE;
       else
       {
@@ -2928,7 +2928,7 @@ err2:
 
   if (updated != org_updated)
   {
-    if (table->file->has_transactions())
+    if (table->file->has_transactions_and_rollback())
       transactional_tables= TRUE;
     else
     {

@@ -1701,7 +1701,7 @@ int binlog_init(void *p)
     // recover needs to be set to make xa{commit,rollback}_handlerton effective
     binlog_hton->recover= binlog_xa_recover_dummy;
   }
-  binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN;
+  binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN | HTON_NO_ROLLBACK;
   return 0;
 }
 
@@ -5611,7 +5611,8 @@ trans_has_updated_trans_table(const THD* thd)
 
   @param thd The client thread that executed the current statement.
   @return
-    @c true if a transactional table was updated, @c false otherwise.
+    @c true if a transactional table with rollback was updated,
+    @c false otherwise.
 */
 bool
 stmt_has_updated_trans_table(const THD *thd)
@@ -5621,7 +5622,8 @@ stmt_has_updated_trans_table(const THD *thd)
   for (ha_info= thd->transaction->stmt.ha_list; ha_info;
        ha_info= ha_info->next())
   {
-    if (ha_info->is_trx_read_write() && ha_info->ht() != binlog_hton)
+    if (ha_info->is_trx_read_write() &&
+        !(ha_info->ht()->flags & HTON_NO_ROLLBACK))
       return (TRUE);
   }
   return (FALSE);
@@ -10125,14 +10127,31 @@ int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
     uint rw_count= ha_count_rw_all(thd, &ha_info);
     bool rc= false;
 
+#ifndef DBUG_OFF
+    if (rw_count > 1)
+    {
+      /*
+        There must be no binlog_hton used in a transaction consisting of more
+        than 1 engine, *when* (at this point) this transaction has not been
+        binlogged. The one exception is if there is an engine without a
+        prepare method, as in this case the engine doesn't support XA and
+        we have to ignore this check.
+      */
+      bool binlog= false, exist_hton_without_prepare= false;
+      for (ha_info= thd->transaction->all.ha_list; ha_info;
+           ha_info= ha_info->next())
+      {
+        if (ha_info->ht() == binlog_hton)
+          binlog= true;
+        if (!ha_info->ht()->prepare)
+          exist_hton_without_prepare= true;
+      }
+      DBUG_ASSERT(!binlog || exist_hton_without_prepare);
+    }
+#endif
     if (rw_count > 0)
     {
       /* an empty XA-prepare event group is logged */
-#ifndef DBUG_OFF
-      for (ha_info= thd->transaction->all.ha_list; rw_count > 1 && ha_info;
-           ha_info= ha_info->next())
-        DBUG_ASSERT(ha_info->ht() != binlog_hton);
-#endif
       rc= write_empty_xa_prepare(thd, cache_mngr); // normally gains need_unlog
       trans_register_ha(thd, true, binlog_hton, 0); // do it for future commmit
     }

@@ -436,7 +436,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   }
 
   table= table_list->table;
-  transactional_table= table->file->has_transactions();
+  transactional_table= table->file->has_transactions_and_rollback();
 #ifndef EMBEDDED_LIBRARY
   is_concurrent= (table_list->lock_type == TL_WRITE_CONCURRENT_INSERT);
 #endif
@@ -1212,7 +1212,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   bool no_trans_update_stmt;
   DBUG_ENTER("read_xml_field");
   
-  no_trans_update_stmt= !table->file->has_transactions();
+  no_trans_update_stmt= !table->file->has_transactions_and_rollback();
   
   for ( ; ; it.rewind())
   {

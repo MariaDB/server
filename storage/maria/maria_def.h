@@ -724,6 +724,8 @@ struct st_maria_handler
   my_bool once_flags;			/* For MARIA_MRG */
   /* For bulk insert enable/disable transactions control */
   my_bool switched_transactional;
+  /* If transaction will autocommit */
+  my_bool autocommit;
 #ifdef _WIN32
   my_bool owned_by_merge;               /* This Maria table is part of a merge union */
 #endif
@@ -1466,6 +1468,7 @@ extern my_bool ma_yield_and_check_if_killed(MARIA_HA *info, int inx);
 extern my_bool ma_killed_standalone(MARIA_HA *);
 
 extern uint _ma_file_callback_to_id(void *callback_data);
+extern void free_maria_share(MARIA_SHARE *share);
 
 static inline void unmap_file(MARIA_HA *info __attribute__((unused)))
 {
@@ -1473,5 +1476,15 @@ static inline void unmap_file(MARIA_HA *info __attribute__((unused)))
   if (info->s->file_map)
     _ma_unmap_file(info);
 #endif
+}
+
+static inline void decrement_share_in_trans(MARIA_SHARE *share)
+{
+  /* Internal tables doesn't have transactions */
+  DBUG_ASSERT(!share->internal_table);
+  if (!--share->in_trans)
+    free_maria_share(share);
+  else
+    mysql_mutex_unlock(&share->intern_lock);
 }
 C_MODE_END

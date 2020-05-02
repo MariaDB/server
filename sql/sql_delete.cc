@@ -875,7 +875,7 @@ cleanup:
   deltempfile=NULL;
   delete select;
   select= NULL;
-  transactional_table= table->file->has_transactions();
+  transactional_table= table->file->has_transactions_and_rollback();
 
   if (!transactional_table && deleted > 0)
     thd->transaction->stmt.modified_non_trans_table=
@@ -1388,7 +1388,7 @@ void multi_delete::abort_result_set()
   */
   if (do_delete && normal_tables &&
       (table_being_deleted != delete_tables ||
-       !table_being_deleted->table->file->has_transactions()))
+       !table_being_deleted->table->file->has_transactions_and_rollback()))
   {
     /*
       We have to execute the recorded do_deletes() and write info into the
@@ -1537,7 +1537,7 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
       table->file->print_error(local_error, MYF(0));
     }
   }
-  if (last_deleted != deleted && !table->file->has_transactions())
+  if (last_deleted != deleted && !table->file->has_transactions_and_rollback())
     thd->transaction->stmt.modified_non_trans_table= TRUE;
 
   end_read_record(&info);

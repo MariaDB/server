@@ -301,8 +301,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   if (!temporary_table)
   {
     /*
-      The following code works like open_system_tables_for_read() and
-      close_system_tables()
+      The following code works like open_system_tables_for_read()
       The idea is:
       - Copy the table_list object for the sequence that was created
       - Backup the current state of open tables and create a new

@@ -11014,9 +11014,9 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
 
           /*
             If the engine supports transactions, the failure will be
-            rollbacked.
+            rolled back
           */
-          if (!m_file[correct_part_id]->has_transactions())
+          if (!m_file[correct_part_id]->has_transactions_and_rollback())
           {
             /* Log this error, so the DBA can notice it and fix it! */
             sql_print_error("Table '%-192s' failed to move/insert a row"
@@ -11040,7 +11040,7 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
         /* Delete row from wrong partition. */
         if ((result= m_file[read_part_id]->ha_delete_row(m_rec0)))
         {
-          if (m_file[correct_part_id]->has_transactions())
+          if (m_file[correct_part_id]->has_transactions_and_rollback())
             break;
           /*
             We have introduced a duplicate, since we failed to remove it

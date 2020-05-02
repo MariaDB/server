@@ -1,0 +1,186 @@
+call mtr.add_suppression("Table '.*' is marked as crashed and should be repaired");
+call mtr.add_suppression("Checking table: .*");
+create table t1 (a int primary key auto_increment, b int) engine=aria transactional= 1;
+create table t2 (a int primary key auto_increment, b int) engine=aria transactional= 0;
+create sequence s1 cache=2 engine=aria;
+insert into t1 (b) values (1),(2),(3),(4);
+insert into t2 (b) values (1),(2),(3),(4);
+select NEXT VALUE for s1,seq from seq_1_to_4;
+NEXT VALUE for s1	seq
+1	1
+2	2
+3	3
+4	4
+begin;
+insert into t1 (b) values (5),(6);
+insert into t1 (b) values (7),(8);
+insert into t2 (b) values (5),(6);
+insert into t2 (b) values (7),(8);
+commit;
+begin;
+insert into t1 (b) values (10),(11),(12);
+update t1 set b=100 where a=2;
+delete from t1 where a between 3 and 4;
+insert into t2 (b) values (10),(11),(12);
+update t2 set b=100 where a=2;
+delete from t2 where a between 3 and 4;
+select NEXT VALUE for s1,seq from seq_1_to_4;
+NEXT VALUE for s1	seq
+5	1
+6	2
+7	3
+8	4
+# Kill and restart
+select * from t1 order by a;
+a	b
+1	1
+2	100
+5	5
+6	6
+7	7
+8	8
+9	10
+10	11
+11	12
+select * from t2 order by a;
+a	b
+1	1
+2	100
+5	5
+6	6
+7	7
+8	8
+9	10
+10	11
+11	12
+Warnings:
+Error	145	Table './test/t2' is marked as crashed and should be repaired
+Warning	1034	1 client is using or hasn't closed the table properly
+Note	1034	Table is fixed
+insert into t1 (b) values (100),(200);
+insert into t2 (b) values (100),(200);
+select * from t1 order by a;
+a	b
+1	1
+2	100
+5	5
+6	6
+7	7
+8	8
+9	10
+10	11
+11	12
+12	100
+13	200
+select * from t2 order by a;
+a	b
+1	1
+2	100
+5	5
+6	6
+7	7
+8	8
+9	10
+10	11
+11	12
+12	100
+13	200
+select NEXT VALUE for s1,seq from seq_1_to_4;
+NEXT VALUE for s1	seq
+9	1
+10	2
+11	3
+12	4
+Warnings:
+Error	145	Table './test/s1' is marked as crashed and should be repaired
+Warning	1034	1 client is using or hasn't closed the table properly
+Note	1034	Table is fixed
+drop table t1,t2;
+drop sequence s1;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `mtr`; INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'Table \'.*\' is marked as crashed and should be repaired' COLLATE 'latin1_swedish_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `mtr`; INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'Checking table: .*' COLLATE 'latin1_swedish_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; create table t1 (a int primary key auto_increment, b int) engine=aria transactional= 1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; create table t2 (a int primary key auto_increment, b int) engine=aria transactional= 0
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; create sequence s1 cache=2 engine=aria
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Intvar	#	#	INSERT_ID=1
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 (b) values (1),(2),(3),(4)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Intvar	#	#	INSERT_ID=1
+master-bin.000001	#	Query	#	#	use `test`; insert into t2 (b) values (1),(2),(3),(4)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	select NEXT VALUE for s1,seq from seq_1_to_4
+master-bin.000001	#	Table_map	#	#	table_id: # (test.s1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Intvar	#	#	INSERT_ID=5
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 (b) values (5),(6)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Intvar	#	#	INSERT_ID=7
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 (b) values (7),(8)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Intvar	#	#	INSERT_ID=5
+master-bin.000001	#	Query	#	#	use `test`; insert into t2 (b) values (5),(6)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Intvar	#	#	INSERT_ID=7
+master-bin.000001	#	Query	#	#	use `test`; insert into t2 (b) values (7),(8)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Intvar	#	#	INSERT_ID=9
+master-bin.000001	#	Query	#	#	use `test`; insert into t1 (b) values (10),(11),(12)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; update t1 set b=100 where a=2
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; delete from t1 where a between 3 and 4
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Intvar	#	#	INSERT_ID=9
+master-bin.000001	#	Query	#	#	use `test`; insert into t2 (b) values (10),(11),(12)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; update t2 set b=100 where a=2
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; delete from t2 where a between 3 and 4
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	select NEXT VALUE for s1,seq from seq_1_to_4
+master-bin.000001	#	Table_map	#	#	table_id: # (test.s1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Intvar	#	#	INSERT_ID=12
+master-bin.000002	#	Query	#	#	use `test`; insert into t1 (b) values (100),(200)
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Intvar	#	#	INSERT_ID=12
+master-bin.000002	#	Query	#	#	use `test`; insert into t2 (b) values (100),(200)
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	#	#	select NEXT VALUE for s1,seq from seq_1_to_4
+master-bin.000002	#	Table_map	#	#	table_id: # (test.s1)
+master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; DROP TABLE `t1`,`t2` /* generated by server */
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; DROP SEQUENCE `s1` /* generated by server */
