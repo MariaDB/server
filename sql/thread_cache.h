@@ -33,6 +33,8 @@ class Thread_cache
   ulong cached_thread_count;
   /** Number of active flush requests. */
   uint32_t kill_cached_threads;
+  /** Number of connections that haven't registered in server_threads. */
+  Atomic_counter<uint32_t> unregistered_connections;
   /**
     PFS stuff, only used during initialization.
     Unfortunately needs to survive till destruction.
@@ -64,6 +66,7 @@ public:
     list.empty();
     kill_cached_threads= 0;
     cached_thread_count= 0;
+    unregistered_connections= 0;
   }
 
 
@@ -71,6 +74,7 @@ public:
   {
     DBUG_ASSERT(cached_thread_count == 0);
     DBUG_ASSERT(list.is_empty());
+    DBUG_ASSERT(unregistered_connections == 0);
     mysql_cond_destroy(&COND_flush_thread_cache);
     mysql_cond_destroy(&COND_thread_cache);
     mysql_mutex_destroy(&LOCK_thread_cache);
@@ -106,6 +110,8 @@ public:
   {
     kill_cached_threads++;
     flush();
+    while (unregistered_connections)
+      my_sleep(1010);
   }
 
 
@@ -118,6 +124,7 @@ public:
   */
   bool enqueue(CONNECT *connect)
   {
+    unregistered_connections++;
     mysql_mutex_lock(&LOCK_thread_cache);
     if (cached_thread_count)
     {
@@ -205,6 +212,14 @@ public:
     mysql_mutex_unlock(&LOCK_thread_cache);
     return r;
   }
+
+
+  /**
+    Informs thread cache that connection reached killable state.
+
+    In other words THD was added to the server_threads list.
+  */
+  void reset_unregistered() { unregistered_connections--; }
 };
 
 extern Thread_cache thread_cache;

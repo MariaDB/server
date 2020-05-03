@@ -1377,6 +1377,8 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
 
   /* Make THD visible in show processlist */
   server_threads.insert(thd);
+  if (put_in_cache)
+    thread_cache.reset_unregistered();
   
   thd->thr_create_utime= thr_create_utime;
   /* We need to set this because of time_out_user_resource_limits */
@@ -1448,6 +1450,7 @@ end_thread:
     thd->start_utime= thd->thr_create_utime;
 
     server_threads.insert(thd);
+    thread_cache.reset_unregistered();
   }
   delete thd;
 }

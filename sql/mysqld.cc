@@ -5957,6 +5957,7 @@ void create_thread_to_handle_connection(CONNECT *connect)
                 ER_DEFAULT(ER_CANT_CREATE_THREAD), error);
     connect->close_with_error(ER_CANT_CREATE_THREAD, error_message_buff,
                               ER_OUT_OF_RESOURCES);
+    thread_cache.reset_unregistered();
     DBUG_VOID_RETURN;
     /* purecov: end */
   }
