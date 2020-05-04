@@ -198,6 +198,12 @@ EOF
       fi
     fi
 
+    # @TODO: Remove once buildbot.askmonty.org has been updated not to expect this file
+    mkdir -p /etc/systemd/system/mariadb.service.d/
+    # Note that file cannot be empty, otherwise systemd version in Ubuntu Bionic
+    # will think the service is masked
+    echo "# empty placeholder" > /etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
+
   ;;
 
   abort-upgrade|abort-remove|abort-configure)
