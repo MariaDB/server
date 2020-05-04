@@ -4383,8 +4383,8 @@ innobase_commit_low(
 #ifdef WITH_WSREP
 	if (is_wsrep) {
 		thd_proc_info(thd, tmp);
-#endif /* WITH_WSREP */
 	}
+#endif /* WITH_WSREP */
 }
 
 /*****************************************************************//**
