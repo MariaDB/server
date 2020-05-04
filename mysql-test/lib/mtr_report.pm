@@ -472,12 +472,15 @@ sub mtr_report_stats ($$$$) {
       my $comment = $test->{'comment'};
       $comment =~ s/[\"]//g;
 
-      if ($test->{'result'} eq "MTR_RES_FAILED") {
-        $xml_report .= qq(>\n\t\t\t<failure message="" type="$test->{'result'}">\n<![CDATA[$test->{'logfile'}]]>\n\t\t\t</failure>\n\t\t</testcase>\n);
+      # if a test case has to be retried it should have the result MTR_RES_FAILED in jUnit XML
+      if ($test->{'result'} eq "MTR_RES_FAILED" || $test->{'retries'}) {
+        my $logcontents = $test->{'logfile-failed'} || $test->{'logfile'};
+
+        $xml_report .= qq(>\n\t\t\t<failure message="" type="MTR_RES_FAILED">\n<![CDATA[$logcontents]]>\n\t\t\t</failure>\n\t\t</testcase>\n);
       } elsif ($test->{'result'} eq "MTR_RES_SKIPPED" && $test->{'disable'}) {
-        $xml_report .= qq(>\n\t\t\t<disabled message="$comment" type="$test->{'result'}"/>\n\t\t</testcase>\n);
+        $xml_report .= qq(>\n\t\t\t<disabled message="$comment" type="MTR_RES_SKIPPED"/>\n\t\t</testcase>\n);
       } elsif ($test->{'result'} eq "MTR_RES_SKIPPED") {
-        $xml_report .= qq(>\n\t\t\t<skipped message="$comment" type="$test->{'result'}"/>\n\t\t</testcase>\n);
+        $xml_report .= qq(>\n\t\t\t<skipped message="$comment" type="MTR_RES_SKIPPED"/>\n\t\t</testcase>\n);
       } else {
         $xml_report .= " />\n";
       }
