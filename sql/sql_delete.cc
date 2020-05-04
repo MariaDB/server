@@ -753,8 +753,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
           && !table->versioned()
           && table->file->has_transactions();
 
-  if (table->versioned(VERS_TIMESTAMP) ||
-      (table_list->has_period() && !portion_of_time_through_update))
+  if (table->versioned(VERS_TIMESTAMP) || (table_list->has_period()))
     table->file->prepare_for_insert(1);
   DBUG_ASSERT(table->file->inited != handler::NONE);
 

@@ -368,3 +368,7 @@ drop procedure sp;
 drop table t,t2,t3,log_tbl;
 drop view v;
 drop procedure log;
+create table t1 (pk int, s date, e date,  period for se (s,e), primary key (pk,se without overlaps));
+insert into t1 values (1,'2020-01-01','2020-02-20');
+delete from t1 for portion of se from '2020-01-30' to '2020-01-31';
+drop table t1;
