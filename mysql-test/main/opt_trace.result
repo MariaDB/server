@@ -8292,4 +8292,5 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
     ]
 ]
 drop table t1;
+# End of 10.4 tests
 set optimizer_trace='enabled=off';

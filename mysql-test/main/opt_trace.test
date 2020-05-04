@@ -579,4 +579,6 @@ select * from t1 force index(kp1) where (kp1=2 and kp2 >=4);
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t1;
 
+--echo # End of 10.4 tests
+
 set optimizer_trace='enabled=off';
