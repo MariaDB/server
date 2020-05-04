@@ -7009,7 +7009,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);
-  if (table->s->long_unique_table &&
+  if (table->s->long_unique_table && this == table->file &&
       (error= check_duplicate_long_entries_update(new_data)))
   {
     return error;

@@ -337,3 +337,7 @@ a	b
 1	foo
 3	bar
 drop table if exists t1, t2;
+create table t1 (a int, b int, unique (b) using hash) engine=innodb partition by key (a) partitions 2;
+insert into t1 values (1,10),(2,20);
+update t1 set b = 30 limit 1;
+drop table t1;

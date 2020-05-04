@@ -402,3 +402,11 @@ create or replace table t2 (a int, b blob, unique(b)) replace as select * from t
   select * from t2;
 
 drop table if exists t1, t2;
+
+#
+# MDEV-22185 Failing assertion: node->pcur->rel_pos == BTR_PCUR_ON or ER_KEY_NOT_FOUND or Assertion `inited==NONE' failed in handler::ha_index_init
+#
+create table t1 (a int, b int, unique (b) using hash) engine=innodb partition by key (a) partitions 2;
+insert into t1 values (1,10),(2,20);
+update t1 set b = 30 limit 1;
+drop table t1;
