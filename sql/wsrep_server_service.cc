@@ -201,6 +201,7 @@ void Wsrep_server_service::log_view(
   wsrep_update_cluster_state_uuid(os.str().c_str());
   mysql_mutex_unlock(&LOCK_status);
   wsrep_config_state->set(view);
+  wsrep_cluster_conf_id= view.view_seqno().get();
 
   if (view.status() == wsrep::view::primary)
   {

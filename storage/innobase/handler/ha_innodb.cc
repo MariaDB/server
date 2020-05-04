@@ -4134,27 +4134,35 @@ innobase_commit_low(
 {
 #ifdef WITH_WSREP
 	const char* tmp = 0;
-	if (trx->is_wsrep()) {
+	const bool is_wsrep = trx->is_wsrep();
+	THD* thd = trx->mysql_thd;
+	if (is_wsrep) {
 #ifdef WSREP_PROC_INFO
 		char info[64];
 		info[sizeof(info) - 1] = '\0';
 		snprintf(info, sizeof(info) - 1,
 			 "innobase_commit_low():trx_commit_for_mysql(%lld)",
-			 (long long) wsrep_thd_trx_seqno(trx->mysql_thd));
-		tmp = thd_proc_info(trx->mysql_thd, info);
+			 (long long) wsrep_thd_trx_seqno(thd));
+		tmp = thd_proc_info(thd, info);
 #else
-		tmp = thd_proc_info(trx->mysql_thd, "innobase_commit_low()");
+		tmp = thd_proc_info(thd, "innobase_commit_low()");
 #endif /* WSREP_PROC_INFO */
 	}
 #endif /* WITH_WSREP */
 	if (trx_is_started(trx)) {
-
 		trx_commit_for_mysql(trx);
-	}
-	trx->will_lock = 0;
+	} else {
+		trx->will_lock = 0;
 #ifdef WITH_WSREP
-	if (trx->is_wsrep()) { thd_proc_info(trx->mysql_thd, tmp); }
+		trx->wsrep = false;
 #endif /* WITH_WSREP */
+	}
+
+#ifdef WITH_WSREP
+	if (is_wsrep) {
+		thd_proc_info(thd, tmp);
+#endif /* WITH_WSREP */
+	}
 }
 
 /*****************************************************************//**
@@ -4820,22 +4828,12 @@ static int innobase_close_connection(handlerton *hton, THD *thd)
   DBUG_ASSERT(hton == innodb_hton_ptr);
   if (auto trx= thd_to_trx(thd))
   {
-    if (trx->state == TRX_STATE_PREPARED)
+    if (trx->state == TRX_STATE_PREPARED && trx->has_logged_persistent())
     {
-      if (trx->has_logged_persistent())
-      {
-        trx_disconnect_prepared(trx);
-        return 0;
-      }
-      innobase_rollback_trx(trx);
+      trx_disconnect_prepared(trx);
+      return 0;
     }
-    /*
-      in theory it may fire if preceding rollback failed,
-      but what can we do about it?
-    */
-    DBUG_ASSERT(!trx_is_started(trx));
-    /* some bad guy missed to reset trx->will_lock somewhere, reset it here */
-    trx->will_lock= 0;
+    innobase_rollback_trx(trx);
     trx_free(trx);
   }
   return 0;
@@ -5809,7 +5807,6 @@ ha_innobase::open(const char* name, int, uint)
 			sql_print_error("Failed to open table %s.\n",
 					norm_name);
 		}
-no_such_table:
 		set_my_errno(ENOENT);
 
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
@@ -5835,7 +5832,8 @@ no_such_table:
 		ib_table->file_unreadable = true;
 		ib_table->corrupted = true;
 		dict_table_close(ib_table, FALSE, FALSE);
-		goto no_such_table;
+		set_my_errno(ENOENT);
+		DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
 	}
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);

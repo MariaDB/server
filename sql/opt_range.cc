@@ -3223,8 +3223,18 @@ double records_in_column_ranges(PARAM *param, uint idx,
     key_range *min_endp, *max_endp;
     min_endp= range.start_key.length? &range.start_key : NULL;
     max_endp= range.end_key.length? &range.end_key : NULL;
-    rows= get_column_range_cardinality(field, min_endp, max_endp,
-                                       range.range_flag);
+    int range_flag= range.range_flag;
+
+    if (!range.start_key.length)
+      range_flag |= NO_MIN_RANGE;
+    if (!range.end_key.length)
+      range_flag |= NO_MAX_RANGE;
+    if (range.start_key.flag == HA_READ_AFTER_KEY)
+      range_flag |= NEAR_MIN;
+    if (range.start_key.flag == HA_READ_BEFORE_KEY)
+      range_flag |= NEAR_MAX;
+
+    rows= get_column_range_cardinality(field, min_endp, max_endp, range_flag);
     if (DBL_MAX == rows)
     {
       total_rows= DBL_MAX;
@@ -15830,24 +15840,29 @@ void print_range(String *out, const KEY_PART_INFO *key_part,
     return;
   }
 
-  if (!(flag & NO_MIN_RANGE))
+  if (range->start_key.length)
   {
     print_key_value(out, key_part, range->start_key.key,
                     range->start_key.length);
-    if (flag & NEAR_MIN)
+    if (range->start_key.flag == HA_READ_AFTER_KEY)
       out->append(STRING_WITH_LEN(" < "));
-    else
+    else if (range->start_key.flag == HA_READ_KEY_EXACT ||
+             range->start_key.flag == HA_READ_KEY_OR_NEXT)
       out->append(STRING_WITH_LEN(" <= "));
+    else
+      out->append(STRING_WITH_LEN(" ? "));
   }
 
   print_keyparts_name(out, key_part, n_key_parts, keypart_map);
 
-  if (!(flag & NO_MAX_RANGE))
+  if (range->end_key.length)
   {
-    if (flag & NEAR_MAX)
+    if (range->end_key.flag == HA_READ_BEFORE_KEY)
       out->append(STRING_WITH_LEN(" < "));
-    else
+    else if (range->end_key.flag == HA_READ_AFTER_KEY)
       out->append(STRING_WITH_LEN(" <= "));
+    else
+      out->append(STRING_WITH_LEN(" ? "));
     print_key_value(out, key_part, range->end_key.key,
                     range->end_key.length);
   }

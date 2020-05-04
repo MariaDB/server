@@ -631,7 +631,13 @@ typedef struct st_key_multi_range
   key_range start_key;
   key_range end_key;
   range_id_t ptr;                 /* Free to use by caller (ptr to row etc) */
-  uint  range_flag;           /* key range flags see above */
+  /*
+    A set of range flags that describe both endpoints: UNIQUE_RANGE,
+    NULL_RANGE, EQ_RANGE, GEOM_FLAG.
+    (Flags that describe one endpoint, NO_{MIN|MAX}_RANGE, NEAR_{MIN|MAX} will
+     not be set here)
+  */
+  uint  range_flag;
 } KEY_MULTI_RANGE;
 
 

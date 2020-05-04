@@ -1,0 +1,7 @@
+--source include/galera_cluster.inc
+
+--connection node_1
+show status like 'wsrep_cluster_conf_id';
+
+--connection node_2
+show status like 'wsrep_cluster_conf_id';

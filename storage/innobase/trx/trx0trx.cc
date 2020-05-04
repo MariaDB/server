@@ -109,9 +109,6 @@ trx_init(
 	trx->state = TRX_STATE_NOT_STARTED;
 
 	trx->is_recovered = false;
-#ifdef WITH_WSREP
-	trx->wsrep = false;
-#endif /* WITH_WSREP */
 
 	trx->op_info = "";
 
@@ -1489,6 +1486,17 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   DBUG_LOG("trx", "Commit in memory: " << this);
   state= TRX_STATE_NOT_STARTED;
 
+#ifdef WITH_WSREP
+  /* Serialization history has been written and the transaction is
+  committed in memory, which makes this commit ordered. Release commit
+  order critical section. */
+  if (wsrep)
+  {
+    wsrep= false;
+    wsrep_commit_ordered(mysql_thd);
+  }
+#endif /* WITH_WSREP */
+
   assert_trx_is_free(this);
   trx_init(this);
   trx_mutex_exit(this);
@@ -1566,13 +1574,6 @@ void trx_t::commit()
     local_mtr.start();
   }
   commit_low(mtr);
-#ifdef WITH_WSREP
-  /* Serialization history has been written and the transaction is
-  committed in memory, which makes this commit ordered. Release commit
-  order critical section. */
-  if (mtr && is_wsrep())
-    wsrep_commit_ordered(mysql_thd);
-#endif /* WITH_WSREP */
 }
 
 /****************************************************************//**

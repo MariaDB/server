@@ -570,10 +570,25 @@ select JSON_DETAILED(JSON_EXTRACT(trace, '$**.semijoin_table_pullout')) from INF
 drop table t1,t2,t3;
 
 --echo #
+--echo # MDEV-22401: Optimizer trace: multi-component range is not printed correctly
+--echo #
+
+create table t1 (kp1 int, kp2 int, key(kp1, kp2));
+insert into t1 values (1,1),(1,5),(5,1),(5,5);
+set optimizer_trace=1;
+select * from t1 force index(kp1) where (kp1=2 and kp2 >=4);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+--echo # End of 10.4 tests
+
+
+--echo #
 --echo # Test many rows to see output of big cost numbers
 --echo #
 
 select count(*) from seq_1_to_10000000;
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
+--echo # End of 10.5 tests
 set optimizer_trace='enabled=off';

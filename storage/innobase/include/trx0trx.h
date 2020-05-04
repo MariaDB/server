@@ -442,6 +442,7 @@ Check transaction state */
 	ut_ad(!(t)->id);						\
 	ut_ad(!(t)->has_logged());					\
 	ut_ad(!(t)->is_referenced());					\
+	ut_ad(!(t)->is_wsrep());					\
 	ut_ad(!(t)->read_view.is_open());				\
 	ut_ad((t)->lock.wait_thr == NULL);				\
 	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
