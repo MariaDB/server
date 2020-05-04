@@ -102,9 +102,6 @@ trx_init(
 	trx->state = TRX_STATE_NOT_STARTED;
 
 	trx->is_recovered = false;
-#ifdef WITH_WSREP
-	trx->wsrep = false;
-#endif /* WITH_WSREP */
 
 	trx->op_info = "";
 
@@ -1821,6 +1818,9 @@ trx_commit_in_memory(
 
 	DBUG_LOG("trx", "Commit in memory: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
+#ifdef WITH_WSREP
+	trx->wsrep = false;
+#endif
 
 	/* trx->in_mysql_trx_list would hold between
 	trx_allocate_for_mysql() and trx_free_for_mysql(). It does not

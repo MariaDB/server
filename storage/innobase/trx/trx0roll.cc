@@ -189,6 +189,9 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 	case TRX_STATE_NOT_STARTED:
 		trx->will_lock = 0;
 		ut_ad(trx->in_mysql_trx_list);
+#ifdef WITH_WSREP
+		trx->wsrep = false;
+#endif
 		return(DB_SUCCESS);
 
 	case TRX_STATE_ACTIVE:
