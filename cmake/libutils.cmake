@@ -330,3 +330,15 @@ FUNCTION(RESTRICT_SYMBOL_EXPORTS target)
       COMPILE_FLAGS "${COMPILE_FLAGS} ${VISIBILITY_HIDDEN_FLAG}")
   ENDIF()
 ENDFUNCTION()
+
+# The MSVC /GL flag, used for link-time code generation
+# creates objects files with a format not readable by tools
+# i.e exporting all symbols is not possible with IPO
+# To workaround this, we disable INTERPROCEDURAL_OPTIMIZATION
+# for some static libraries.
+
+FUNCTION (MAYBE_DISABLE_IPO target)
+  IF(MSVC AND NOT CLANG_CL)
+    SET_TARGET_PROPERTIES(${target} PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
+  ENDIF()
+ENDFUNCTION()

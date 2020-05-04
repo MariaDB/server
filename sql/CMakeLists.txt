@@ -188,6 +188,7 @@ MYSQL_ADD_PLUGIN(sql_sequence ha_sequence.cc STORAGE_ENGINE MANDATORY STATIC_ONL
 RECOMPILE_FOR_EMBEDDED)
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
+MAYBE_DISABLE_IPO(sql)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql
   mysys mysys_ssl dbug strings vio pcre2-8
@@ -234,13 +235,13 @@ IF(MSVC)
     IF(deps)
       LIST(APPEND all_deps ${deps})
     ENDIF()
-  ENDFOREACH()  
+  ENDFOREACH()
   LIST(REMOVE_DUPLICATES all_deps)
   FOREACH(lib ${libs_to_export_symbols})
     LIST(REMOVE_ITEM all_deps ${lib})
   ENDFOREACH()
 
-  TARGET_LINK_LIBRARIES(server
+  TARGET_LINK_LIBRARIES(server PRIVATE
    ${all_deps}
    sql_builtins
   )
