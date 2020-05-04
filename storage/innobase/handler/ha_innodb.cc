@@ -4356,27 +4356,35 @@ innobase_commit_low(
 {
 #ifdef WITH_WSREP
 	const char* tmp = 0;
-	if (trx->is_wsrep()) {
+	const bool is_wsrep = trx->is_wsrep();
+	THD* thd = trx->mysql_thd;
+	if (is_wsrep) {
 #ifdef WSREP_PROC_INFO
 		char info[64];
 		info[sizeof(info) - 1] = '\0';
 		snprintf(info, sizeof(info) - 1,
 			 "innobase_commit_low():trx_commit_for_mysql(%lld)",
-			 (long long) wsrep_thd_trx_seqno(trx->mysql_thd));
-		tmp = thd_proc_info(trx->mysql_thd, info);
+			 (long long) wsrep_thd_trx_seqno(thd));
+		tmp = thd_proc_info(thd, info);
 #else
-		tmp = thd_proc_info(trx->mysql_thd, "innobase_commit_low()");
+		tmp = thd_proc_info(thd, "innobase_commit_low()");
 #endif /* WSREP_PROC_INFO */
 	}
 #endif /* WITH_WSREP */
 	if (trx_is_started(trx)) {
-
 		trx_commit_for_mysql(trx);
-	}
-	trx->will_lock = 0;
+	} else {
+		trx->will_lock = 0;
 #ifdef WITH_WSREP
-	if (trx->is_wsrep()) { thd_proc_info(trx->mysql_thd, tmp); }
+		trx->wsrep = false;
 #endif /* WITH_WSREP */
+	}
+
+#ifdef WITH_WSREP
+	if (is_wsrep) {
+		thd_proc_info(thd, tmp);
+#endif /* WITH_WSREP */
+	}
 }
 
 /*****************************************************************//**
@@ -4739,6 +4747,9 @@ innobase_rollback_trx(
 
 	if (!trx->has_logged()) {
 		trx->will_lock = 0;
+#ifdef WITH_WSREP
+		trx->wsrep = false;
+#endif
 		DBUG_RETURN(0);
 	}
 
