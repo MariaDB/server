@@ -109,9 +109,6 @@ trx_init(
 	trx->state = TRX_STATE_NOT_STARTED;
 
 	trx->is_recovered = false;
-#ifdef WITH_WSREP
-	trx->wsrep = false;
-#endif /* WITH_WSREP */
 
 	trx->op_info = "";
 
@@ -1484,6 +1481,9 @@ trx_commit_in_memory(
 
 	DBUG_LOG("trx", "Commit in memory: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
+#ifdef WITH_WSREP
+	trx->wsrep = false;
+#endif
 
 	assert_trx_is_free(trx);
 
