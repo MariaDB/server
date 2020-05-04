@@ -4441,6 +4441,13 @@ innobase_add_instant_try(
 		return true;
 	}
 
+	/* If the table has been discarded then change the metadata alone
+	and make the index to non-instant format */
+	if (!user_table->space) {
+		index->remove_instant();
+		return false;
+	}
+
 	unsigned i = unsigned(user_table->n_cols) - DATA_N_SYS_COLS;
 	byte trx_id[DATA_TRX_ID_LEN], roll_ptr[DATA_ROLL_PTR_LEN];
 	dfield_set_data(dtuple_get_nth_field(row, i++), field_ref_zero,
