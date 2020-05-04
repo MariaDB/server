@@ -294,6 +294,8 @@ deallocate prepare stmt;
 
 --echo # auto_increment
 alter table t add pk int primary key auto_increment;
+--sorted_result
+select * from t;
 
 replace t(id, s, e, val) values (2, '2003-06-01', '2003-08-15', 23);
 --sorted_result
