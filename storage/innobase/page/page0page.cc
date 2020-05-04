@@ -582,8 +582,8 @@ page_copy_rec_list_end_no_locks(
 	page_cur_t	cur1;
 	rec_t*		cur2;
 	mem_heap_t*	heap		= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	page_cur_position(rec, block, &cur1);
@@ -815,8 +815,8 @@ page_copy_rec_list_start(
 	rtr_rec_move_t*	rec_move	= NULL;
 	rec_t*		ret
 		= page_rec_get_prev(page_get_supremum_rec(new_page));
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	/* Here, "ret" may be pointing to a user record or the
@@ -1052,8 +1052,8 @@ page_delete_rec_list_end(
 	page_zip_des_t*	page_zip	= buf_block_get_page_zip(block);
 	page_t*		page		= page_align(rec);
 	mem_heap_t*	heap		= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(size == ULINT_UNDEFINED || size < srv_page_size);
@@ -1254,8 +1254,8 @@ page_delete_rec_list_start(
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	page_cur_t	cur1;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	mem_heap_t*	heap		= NULL;
 
 	rec_offs_init(offsets_);
@@ -1742,7 +1742,7 @@ void
 page_rec_print(
 /*===========*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const offset_t*	offsets)/*!< in: record descriptor */
+	const rec_offs*	offsets)/*!< in: record descriptor */
 {
 	ut_a(!page_rec_is_comp(rec) == !rec_offs_comp(offsets));
 	rec_print_new(stderr, rec, offsets);
@@ -1817,8 +1817,8 @@ page_print_list(
 	ulint		count;
 	ulint		n_recs;
 	mem_heap_t*	heap		= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_a((ibool)!!page_is_comp(page) == dict_table_is_comp(index->table));
@@ -1928,7 +1928,7 @@ ibool
 page_rec_validate(
 /*==============*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ulint		n_owned;
 	ulint		heap_no;
@@ -2413,10 +2413,10 @@ bool page_validate(const page_t* page, const dict_index_t* index)
 	ulint			n_slots;
 	ibool			ret		= TRUE;
 	ulint			i;
-	offset_t		offsets_1[REC_OFFS_NORMAL_SIZE];
-	offset_t		offsets_2[REC_OFFS_NORMAL_SIZE];
-	offset_t*		offsets		= offsets_1;
-	offset_t*		old_offsets	= offsets_2;
+	rec_offs		offsets_1[REC_OFFS_NORMAL_SIZE];
+	rec_offs		offsets_2[REC_OFFS_NORMAL_SIZE];
+	rec_offs*		offsets		= offsets_1;
+	rec_offs*		old_offsets	= offsets_2;
 
 	rec_offs_init(offsets_1);
 	rec_offs_init(offsets_2);
@@ -2847,7 +2847,7 @@ page_delete_rec(
 		page_zip/*!< in: compressed page descriptor */
 #endif
 	,
-	const offset_t*		offsets)/*!< in: offsets for record */
+	const rec_offs*		offsets)/*!< in: offsets for record */
 {
 	bool		no_compress_needed;
 	buf_block_t*	block = pcur->block;

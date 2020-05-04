@@ -168,8 +168,8 @@ row_undo_search_clust_to_pcur(
 	row_ext_t**	ext;
 	const rec_t*	rec;
 	mem_heap_t*	heap		= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(!node->table->skip_alter_undo);

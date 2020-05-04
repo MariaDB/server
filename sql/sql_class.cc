@@ -73,6 +73,7 @@
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
 #endif
+#include "repl_failsafe.h"
 
 /*
   The following is used to initialise Table_ident with a internal
@@ -1523,6 +1524,10 @@ void THD::cleanup(void)
   DBUG_ASSERT(!mdl_context.has_locks());
 
   apc_target.destroy();
+#ifdef HAVE_REPLICATION
+  unregister_slave(this, true, true);
+#endif
+
   cleanup_done=1;
   DBUG_VOID_RETURN;
 }

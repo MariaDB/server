@@ -277,13 +277,13 @@ void
 rec_init_offsets_comp_ordinary(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	offset_t*		offsets,
+	rec_offs*		offsets,
 	ulint			n_core,
 	const dict_col_t::def_t*def_val,
 	rec_leaf_format		format)
 {
-	offset_t	offs		= 0;
-	offset_t	any		= 0;
+	rec_offs	offs		= 0;
+	rec_offs	any		= 0;
 	const byte*	nulls		= rec;
 	const byte*	lens		= NULL;
 	ulint		n_fields	= n_core;
@@ -348,7 +348,7 @@ ordinary:
 			= dict_index_get_nth_field(index, i);
 		const dict_col_t*	col
 			= dict_field_get_col(field);
-		offset_t		len;
+		rec_offs		len;
 
 		/* set default value flag */
 		if (i < n_fields) {
@@ -435,7 +435,7 @@ resolved:
 	} while (++i < rec_offs_n_fields(offsets));
 
 	*rec_offs_base(offsets)
-		= static_cast<offset_t>(rec - (lens + 1)) | REC_OFFS_COMPACT | any;
+		= static_cast<rec_offs>(rec - (lens + 1)) | REC_OFFS_COMPACT | any;
 }
 
 #ifdef UNIV_DEBUG
@@ -449,7 +449,7 @@ rec_offs_make_valid(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	bool			leaf,
-	offset_t*		offsets)
+	rec_offs*		offsets)
 {
 	ut_ad(rec_offs_n_fields(offsets)
 	      <= (leaf
@@ -484,7 +484,7 @@ bool
 rec_offs_validate(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	const offset_t*		offsets)
+	const rec_offs*		offsets)
 {
 	ulint	i	= rec_offs_n_fields(offsets);
 	ulint	last	= ULINT_MAX;
@@ -566,10 +566,10 @@ rec_init_offsets(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	bool			leaf,
-	offset_t*		offsets)
+	rec_offs*		offsets)
 {
 	ulint	i	= 0;
-	offset_t	offs;
+	rec_offs	offs;
 
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	ut_d(memcpy(&offsets[RECORD_OFFSET], &rec, sizeof(rec)));
@@ -631,7 +631,7 @@ rec_init_offsets(
 
 		/* read the lengths of fields 0..n */
 		do {
-			offset_t len;
+			rec_offs len;
 			if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
 				len = offs += REC_NODE_PTR_SIZE;
 				goto resolved;
@@ -701,17 +701,17 @@ resolved:
 		} while (++i < rec_offs_n_fields(offsets));
 
 		*rec_offs_base(offsets)
-			= static_cast<offset_t>(rec - (lens + 1))
+			= static_cast<rec_offs>(rec - (lens + 1))
 			  | REC_OFFS_COMPACT;
 	} else {
 		/* Old-style record: determine extra size and end offsets */
 		offs = REC_N_OLD_EXTRA_BYTES;
 		const ulint n_fields = rec_get_n_fields_old(rec);
 		const ulint n = std::min(n_fields, rec_offs_n_fields(offsets));
-		offset_t any;
+		rec_offs any;
 
 		if (rec_get_1byte_offs_flag(rec)) {
-			offs += static_cast<offset_t>(n_fields);
+			offs += static_cast<rec_offs>(n_fields);
 			any = offs;
 			/* Determine offsets to fields */
 			do {
@@ -723,7 +723,7 @@ resolved:
 				rec_offs_base(offsets)[1 + i] = offs;
 			} while (++i < n);
 		} else {
-			offs += 2 * static_cast<offset_t>(n_fields);
+			offs += 2 * static_cast<rec_offs>(n_fields);
 			any = offs;
 			/* Determine offsets to fields */
 			do {
@@ -770,11 +770,11 @@ resolved:
 				(ULINT_UNDEFINED to compute all offsets)
 @param[in,out]	heap		memory heap
 @return the new offsets */
-offset_t*
+rec_offs*
 rec_get_offsets_func(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	offset_t*		offsets,
+	rec_offs*		offsets,
 	bool			leaf,
 	ulint			n_fields,
 #ifdef UNIV_DEBUG
@@ -859,7 +859,7 @@ rec_get_offsets_func(
 			*heap = mem_heap_create_at(size * sizeof(*offsets),
 						   file, line);
 		}
-		offsets = static_cast<offset_t*>(
+		offsets = static_cast<rec_offs*>(
 			mem_heap_alloc(*heap, size * sizeof(*offsets)));
 
 		rec_offs_set_n_alloc(offsets, size);
@@ -883,13 +883,13 @@ rec_get_offsets_reverse(
 	const dict_index_t*	index,	/*!< in: record descriptor */
 	ulint			node_ptr,/*!< in: nonzero=node pointer,
 					0=leaf node */
-	offset_t*		offsets)/*!< in/out: array consisting of
+	rec_offs*		offsets)/*!< in/out: array consisting of
 					offsets[0] allocated elements */
 {
 	ulint		n;
 	ulint		i;
-	offset_t	offs;
-	offset_t	any_ext = 0;
+	rec_offs	offs;
+	rec_offs	any_ext = 0;
 	const byte*	nulls;
 	const byte*	lens;
 	dict_field_t*	field;
@@ -918,7 +918,7 @@ rec_get_offsets_reverse(
 
 	/* read the lengths of fields 0..n */
 	do {
-		offset_t len;
+		rec_offs len;
 		if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
 			len = offs += REC_NODE_PTR_SIZE;
 			goto resolved;
@@ -978,7 +978,7 @@ rec_get_offsets_reverse(
 
 			len = offs += len;
 		} else {
-			len = offs += static_cast<offset_t>(field->fixed_len);
+			len = offs += static_cast<rec_offs>(field->fixed_len);
 		}
 resolved:
 		rec_offs_base(offsets)[i + 1] = len;
@@ -986,7 +986,7 @@ resolved:
 
 	ut_ad(lens >= extra);
 	*rec_offs_base(offsets)
-		= static_cast<offset_t>(lens - extra + REC_N_NEW_EXTRA_BYTES)
+		= static_cast<rec_offs>(lens - extra + REC_N_NEW_EXTRA_BYTES)
 		  | REC_OFFS_COMPACT | any_ext;
 }
 
@@ -1682,7 +1682,7 @@ void
 rec_init_offsets_temp(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	offset_t*		offsets,
+	rec_offs*		offsets,
 	ulint			n_core,
 	const dict_col_t::def_t*def_val,
 	rec_comp_status_t	status)
@@ -1708,7 +1708,7 @@ void
 rec_init_offsets_temp(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	offset_t*		offsets)
+	rec_offs*		offsets)
 {
 	ut_ad(!index->is_instant());
 	rec_init_offsets_comp_ordinary(rec, index, offsets,
@@ -1751,8 +1751,8 @@ rec_copy_prefix_to_dtuple(
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets	= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets	= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(is_leaf || n_fields
@@ -2048,7 +2048,7 @@ ibool
 rec_validate(
 /*=========*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ulint		len;
 	ulint		n_fields;
@@ -2157,7 +2157,7 @@ rec_print_comp(
 /*===========*/
 	FILE*		file,	/*!< in: file where to print */
 	const rec_t*	rec,	/*!< in: physical record */
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ulint	i;
 
@@ -2283,7 +2283,7 @@ rec_print_mbr_rec(
 /*==============*/
 	FILE*		file,	/*!< in: file where to print */
 	const rec_t*	rec,	/*!< in: physical record */
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 	ut_ad(!rec_offs_any_default(offsets));
@@ -2351,7 +2351,7 @@ rec_print_new(
 /*==========*/
 	FILE*		file,	/*!< in: file where to print */
 	const rec_t*	rec,	/*!< in: physical record */
-	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 
@@ -2391,7 +2391,7 @@ rec_print(
 		return;
 	} else {
 		mem_heap_t*	heap	= NULL;
-		offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+		rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 		rec_offs_init(offsets_);
 
 		rec_print_new(file, rec,
@@ -2414,7 +2414,7 @@ rec_print(
 	std::ostream&	o,
 	const rec_t*	rec,
 	ulint		info,
-	const offset_t*	offsets)
+	const rec_offs*	offsets)
 {
 	const ulint	comp	= rec_offs_comp(offsets);
 	const ulint	n	= rec_offs_n_fields(offsets);
@@ -2471,7 +2471,7 @@ std::ostream&
 operator<<(std::ostream& o, const rec_index_print& r)
 {
 	mem_heap_t*	heap	= NULL;
-	offset_t*	offsets	= rec_get_offsets(
+	rec_offs*	offsets	= rec_get_offsets(
 		r.m_rec, r.m_index, NULL, page_rec_is_leaf(r.m_rec),
 		ULINT_UNDEFINED, &heap);
 	rec_print(o, r.m_rec,
@@ -2509,9 +2509,9 @@ rec_get_trx_id(
 	const byte*	trx_id;
 	ulint		len;
 	mem_heap_t*	heap		= NULL;
-	offset_t offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+	rec_offs offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 	rec_offs_init(offsets_);
-	offset_t* offsets = offsets_;
+	rec_offs* offsets = offsets_;
 
 	ut_ad(trx_id_col <= MAX_REF_PARTS);
 	ut_ad(dict_index_is_clust(index));
@@ -2538,7 +2538,7 @@ rec_get_trx_id(
 @param[in]	n		nth field */
 void
 rec_offs_make_nth_extern(
-	offset_t*	offsets,
+	rec_offs*	offsets,
 	const ulint	n)
 {
 	ut_ad(!rec_offs_nth_sql_null(offsets, n));
@@ -2562,8 +2562,8 @@ wsrep_rec_get_foreign_key(
 	ulint		i;
 	uint            key_parts;
 	mem_heap_t*	heap	= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	const offset_t* offsets;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	const rec_offs* offsets;
 
 	ut_ad(index_for);
 	ut_ad(index_ref);

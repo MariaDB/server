@@ -1,0 +1,19 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+set @old_dbug=@@global.debug_dbug;
+set global debug_dbug='d,fail_com_register_slave';
+stop slave;
+reset slave;
+include/wait_for_slave_to_stop.inc
+start slave;
+stop slave;
+include/wait_for_slave_to_stop.inc
+set global debug_dbug=@old_dbug;
+connection master;
+kill DUMP_THREAD;
+show slave hosts;
+Server_id	Host	Port	Master_id
+connection slave;
+start slave;
+include/rpl_end.inc

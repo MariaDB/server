@@ -478,7 +478,7 @@ btr_pessimistic_scrub(
 	/* arguments to btr_page_split_and_insert */
 	mem_heap_t* heap = NULL;
 	dtuple_t* entry = NULL;
-	offset_t* offsets = NULL;
+	rec_offs* offsets = NULL;
 	ulint n_ext = 0;
 	ulint flags = BTR_MODIFY_TREE;
 

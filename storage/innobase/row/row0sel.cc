@@ -171,10 +171,10 @@ row_sel_sec_rec_is_for_clust_rec(
 	ulint		n;
 	ulint		i;
 	mem_heap_t*	heap		= NULL;
-	offset_t	clust_offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t	sec_offsets_[REC_OFFS_SMALL_SIZE];
-	offset_t*	clust_offs	= clust_offsets_;
-	offset_t*	sec_offs	= sec_offsets_;
+	rec_offs	clust_offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs	sec_offsets_[REC_OFFS_SMALL_SIZE];
+	rec_offs*	clust_offs	= clust_offsets_;
+	rec_offs*	sec_offs	= sec_offsets_;
 	ibool		is_equal	= TRUE;
 	VCOL_STORAGE*	vcol_storage= 0;
 	byte*		record;
@@ -493,7 +493,7 @@ row_sel_fetch_columns(
 	dict_index_t*	index,	/*!< in: record index */
 	const rec_t*	rec,	/*!< in: record in a clustered or non-clustered
 				index; must be protected by a page latch */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	sym_node_t*	column)	/*!< in: first column in a column list, or
 				NULL */
 {
@@ -759,7 +759,7 @@ row_sel_build_prev_vers(
 	ReadView*	read_view,	/*!< in: read view */
 	dict_index_t*	index,		/*!< in: plan node for table */
 	rec_t*		rec,		/*!< in: record in a clustered index */
-	offset_t**	offsets,	/*!< in/out: offsets returned by
+	rec_offs**	offsets,	/*!< in/out: offsets returned by
 					rec_get_offsets(rec, plan->index) */
 	mem_heap_t**	offset_heap,	/*!< in/out: memory heap from which
 					the offsets are allocated */
@@ -794,7 +794,7 @@ row_sel_build_committed_vers_for_mysql(
 	dict_index_t*	clust_index,	/*!< in: clustered index */
 	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct */
 	const rec_t*	rec,		/*!< in: record in a clustered index */
-	offset_t**	offsets,	/*!< in/out: offsets returned by
+	rec_offs**	offsets,	/*!< in/out: offsets returned by
 					rec_get_offsets(rec, clust_index) */
 	mem_heap_t**	offset_heap,	/*!< in/out: memory heap from which
 					the offsets are allocated */
@@ -908,8 +908,8 @@ row_sel_get_clust_rec(
 	rec_t*		old_vers;
 	dberr_t		err;
 	mem_heap_t*	heap		= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	*out_rec = NULL;
@@ -1068,7 +1068,7 @@ sel_set_rtr_rec_lock(
 	btr_pcur_t*		pcur,	/*!< in: cursor */
 	const rec_t*		first_rec,/*!< in: record */
 	dict_index_t*		index,	/*!< in: index */
-	const offset_t*		offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint			mode,	/*!< in: lock mode */
 	ulint			type,	/*!< in: LOCK_ORDINARY, LOCK_GAP, or
 					LOC_REC_NOT_GAP */
@@ -1080,8 +1080,8 @@ sel_set_rtr_rec_lock(
 	dberr_t		err = DB_SUCCESS;
 	trx_t*		trx = thr_get_trx(thr);
 	buf_block_t*	cur_block = btr_pcur_get_block(pcur);
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	my_offsets = const_cast<offset_t*>(offsets);
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	my_offsets = const_cast<rec_offs*>(offsets);
 	rec_t*		rec = const_cast<rec_t*>(first_rec);
 	rtr_rec_vector*	match_rec;
 	rtr_rec_vector::iterator end;
@@ -1234,7 +1234,7 @@ sel_set_rec_lock(
 	btr_pcur_t*		pcur,	/*!< in: cursor */
 	const rec_t*		rec,	/*!< in: record */
 	dict_index_t*		index,	/*!< in: index */
-	const offset_t*		offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint			mode,	/*!< in: lock mode */
 	ulint			type,	/*!< in: LOCK_ORDINARY, LOCK_GAP, or
 					LOC_REC_NOT_GAP */
@@ -1509,8 +1509,8 @@ exhausted:
 	a previous version of the record */
 
 	mem_heap_t*	heap		= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 	offsets = rec_get_offsets(rec, index, offsets, true,
 				  ULINT_UNDEFINED, &heap);
@@ -1593,8 +1593,8 @@ row_sel(
 	to the next non-clustered record */
 	dberr_t		err;
 	mem_heap_t*	heap				= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets				= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets				= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(thr->run_node == node);
@@ -2701,7 +2701,7 @@ row_sel_store_row_id_to_prebuilt(
 	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt */
 	const rec_t*		index_rec,	/*!< in: record */
 	const dict_index_t*	index,		/*!< in: index of the record */
-	const offset_t*		offsets)	/*!< in: rec_get_offsets
+	const rec_offs*		offsets)	/*!< in: rec_get_offsets
 						(index_rec, index) */
 {
 	const byte*	data;
@@ -2927,7 +2927,7 @@ row_sel_store_mysql_field(
 	row_prebuilt_t*		prebuilt,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	const offset_t*		offsets,
+	const rec_offs*		offsets,
 	ulint			field_no,
 	const mysql_row_templ_t*templ)
 {
@@ -3083,7 +3083,7 @@ static bool row_sel_store_mysql_rec(
 	const dtuple_t*	vrow,
 	bool		rec_clust,
 	const dict_index_t* index,
-	const offset_t*	offsets)
+	const rec_offs*	offsets)
 {
 	DBUG_ENTER("row_sel_store_mysql_rec");
 
@@ -3214,7 +3214,7 @@ row_sel_build_prev_vers_for_mysql(
 	dict_index_t*	clust_index,	/*!< in: clustered index */
 	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct */
 	const rec_t*	rec,		/*!< in: record in a clustered index */
-	offset_t**	offsets,	/*!< in/out: offsets returned by
+	rec_offs**	offsets,	/*!< in/out: offsets returned by
 					rec_get_offsets(rec, clust_index) */
 	mem_heap_t**	offset_heap,	/*!< in/out: memory heap from which
 					the offsets are allocated */
@@ -3252,7 +3252,7 @@ public:
 
 	dberr_t operator()(row_prebuilt_t *prebuilt, dict_index_t *sec_index,
 			const rec_t *rec, que_thr_t *thr, const rec_t **out_rec,
-			offset_t **offsets, mem_heap_t **offset_heap,
+			rec_offs **offsets, mem_heap_t **offset_heap,
 			dtuple_t **vrow, mtr_t *mtr);
 };
 
@@ -3275,7 +3275,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 				it, NULL if the old version did not exist
 				in the read view, i.e., it was a fresh
 				inserted version */
-	offset_t**	offsets,/*!< in: offsets returned by
+	rec_offs**	offsets,/*!< in: offsets returned by
 				rec_get_offsets(rec, sec_index);
 				out: offsets returned by
 				rec_get_offsets(out_rec, clust_index) */
@@ -3856,7 +3856,7 @@ row_sel_try_search_shortcut_for_mysql(
 /*==================================*/
 	const rec_t**	out_rec,/*!< out: record if found */
 	row_prebuilt_t*	prebuilt,/*!< in: prebuilt struct */
-	offset_t**	offsets,/*!< in/out: for rec_get_offsets(*out_rec) */
+	rec_offs**	offsets,/*!< in/out: for rec_get_offsets(*out_rec) */
 	mem_heap_t**	heap,	/*!< in/out: heap for rec_get_offsets() */
 	mtr_t*		mtr)	/*!< in: started mtr */
 {
@@ -3930,7 +3930,7 @@ row_search_idx_cond_check(
 	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt struct
 						for the table handle */
 	const rec_t*		rec,		/*!< in: InnoDB record */
-	const offset_t*		offsets)	/*!< in: rec_get_offsets() */
+	const rec_offs*		offsets)	/*!< in: rec_get_offsets() */
 {
 	ICP_RESULT	result;
 	ulint		i;
@@ -4018,8 +4018,8 @@ row_sel_fill_vrow(
 	dtuple_t**		vrow,
 	mem_heap_t*		heap)
 {
-	offset_t offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t* offsets	= offsets_;
+	rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs* offsets	= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(!(*vrow));
@@ -4073,7 +4073,7 @@ rec_field_len_in_chars(
 	const dict_col_t*	col,
 	const ulint		field_no,
 	const rec_t*		rec,
-	const offset_t*		offsets)
+	const rec_offs*		offsets)
 {
 	const ulint cset = dtype_get_charset_coll(col->prtype);
 	const CHARSET_INFO* cs = all_charsets[cset];
@@ -4100,7 +4100,7 @@ static
 bool row_search_with_covering_prefix(
 	row_prebuilt_t*	prebuilt,
 	const rec_t*	rec,
-	const offset_t*	offsets)
+	const rec_offs*	offsets)
 {
 	const dict_index_t*	index = prebuilt->index;
 	ut_ad(!dict_index_is_clust(index));
@@ -4230,8 +4230,8 @@ row_search_mvcc(
 	ibool		same_user_rec;
 	mtr_t		mtr;
 	mem_heap_t*	heap				= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets				= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets				= offsets_;
 	ibool		table_lock_waited		= FALSE;
 	byte*		next_buf			= 0;
 	bool		spatial_search			= false;
@@ -5931,8 +5931,8 @@ row_search_autoinc_read_column(
 	const byte*	data;
 	ib_uint64_t	value;
 	mem_heap_t*	heap = NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets	= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets	= offsets_;
 
 	rec_offs_init(offsets_);
 	ut_ad(page_rec_is_leaf(rec));

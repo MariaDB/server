@@ -60,7 +60,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #if defined(HAVE_SYS_SYSCALL_H)
 # include <sys/syscall.h>
 #endif
-#if defined(HAVE_SYS_SYSCTL_H)
+#if defined(HAVE_SYS_SYSCTL_H) && !defined(_SC_PHYS_PAGES)
 # include <sys/sysctl.h>
 #endif
 #if defined(HAVE_PTHREAD_H)

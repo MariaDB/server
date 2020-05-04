@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation
+/* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2020, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1241,17 +1241,27 @@ static inline uint int_token(const char *str,uint length)
 */
 bool Lex_input_stream::consume_comment(int remaining_recursions_permitted)
 {
+  // only one level of nested comments are allowed
+  DBUG_ASSERT(remaining_recursions_permitted == 0 ||
+              remaining_recursions_permitted == 1);
   uchar c;
   while (!eof())
   {
     c= yyGet();
 
-    if (remaining_recursions_permitted > 0)
+    if (remaining_recursions_permitted == 1)
     {
       if ((c == '/') && (yyPeek() == '*'))
       {
-        yySkip(); // Eat asterisk
-        consume_comment(remaining_recursions_permitted - 1);
+        yyUnput('(');  // Replace nested "/*..." with "(*..."
+        yySkip();      // and skip "("
+
+        yySkip(); /* Eat asterisk */
+        if (consume_comment(0))
+          return true;
+
+        yyUnput(')');  // Replace "...*/" with "...*)"
+        yySkip();      // and skip ")"
         continue;
       }
     }

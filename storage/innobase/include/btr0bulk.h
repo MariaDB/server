@@ -104,7 +104,7 @@ public:
 	/** Insert a record in the page.
 	@param[in]	rec		record
 	@param[in]	offsets		record offsets */
-	void insert(const rec_t* rec, offset_t* offsets);
+	void insert(const rec_t* rec, rec_offs* offsets);
 
 	/** Mark end of insertion to the page. Scan all records to set page
 	dirs, and set page header members. */
@@ -128,7 +128,7 @@ public:
 	@param[in]	big_rec		external recrod
 	@param[in]	offsets		record offsets
 	@return	error code */
-	dberr_t storeExt(const big_rec_t* big_rec, offset_t* offsets);
+	dberr_t storeExt(const big_rec_t* big_rec, rec_offs* offsets);
 
 	/** Get node pointer
 	@return node pointer */

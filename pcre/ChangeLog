@@ -5,6 +5,35 @@ Note that the PCRE 8.xx series (PCRE1) is now in a bugfix-only state. All
 development is happening in the PCRE2 10.xx series.
 
 
+Version 8.44 12 February-2020
+-----------------------------
+
+1. Setting --enable-jit=auto for an out-of-tree build failed because the
+source directory wasn't in the search path for AC_TRY_COMPILE always. Patch
+from Ross Burton.
+
+2. Applied a patch from Michael Shigorin to fix 8.43 build on e2k arch
+with lcc compiler (EDG frontend based); the problem it fixes is:
+
+  lcc: "pcrecpp.cc", line 74: error: declaration aliased to undefined entity
+       "_ZN7pcrecpp2RE6no_argE" [-Werror]
+
+3. Change 2 for 8.43 omitted (*LF) from the list of start-of-pattern items. Now
+added.
+
+4. Fix ARMv5 JIT improper handling of labels right after a constant pool.
+
+5. Small patch to pcreposix.c to set the erroroffset field to -1 immediately
+after a successful compile, instead of at the start of matching to avoid a
+sanitizer complaint (regexec is supposed to be thread safe).
+
+6. Check the size of the number after (?C as it is read, in order to avoid
+integer overflow.
+
+7. Tidy up left shifts to avoid sanitize warnings; also fix one NULL deference
+in pcretest.
+
+
 Version 8.43 23-February-2019
 -----------------------------
 

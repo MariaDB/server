@@ -469,7 +469,7 @@ lock_clust_rec_some_has_impl(
 /*=========================*/
 	const rec_t*		rec,	/*!< in: user record */
 	const dict_index_t*	index,	/*!< in: clustered index */
-	const offset_t*		offsets)/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets)/*!< in: rec_get_offsets(rec, index) */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
