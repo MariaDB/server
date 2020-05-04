@@ -959,7 +959,7 @@ static int maria_create_trn_for_mysql(MARIA_HA *info)
 
   if (!trn)  /* no transaction yet - open it now */
   {
-    trn= trnman_new_trn(& thd->transaction.wt);
+    trn= trnman_new_trn(& thd->transaction->wt);
     if (unlikely(!trn))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     thd_set_ha_data(thd, maria_hton, trn);
@@ -2772,7 +2772,7 @@ int ha_maria::external_lock(THD *thd, int lock_type)
         trnman_increment_locked_tables(file->trn);
       }
 
-      if (!thd->transaction.on)
+      if (!thd->transaction->on)
       {
         /*
           No need to log REDOs/UNDOs. If this is an internal temporary table
@@ -2983,7 +2983,7 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
     tables may be under LOCK TABLES, and so they will start the next
     statement assuming they have a trn (see ha_maria::start_stmt()).
   */
-  trn= trnman_new_trn(& thd->transaction.wt);
+  trn= trnman_new_trn(& thd->transaction->wt);
   thd_set_ha_data(thd, maria_hton, trn);
   if (unlikely(trn == NULL))
   {

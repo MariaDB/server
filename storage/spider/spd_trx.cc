@@ -1939,7 +1939,7 @@ int spider_internal_start_trx(
   if (!trx->trx_start)
   {
     if (
-      thd->transaction.xid_state.is_explicit_XA() &&
+      thd->transaction->xid_state.is_explicit_XA() &&
       spider_param_support_xa()
     ) {
       trx->trx_xa = TRUE;

@@ -682,7 +682,7 @@ int Repl_semi_sync_master::wait_after_commit(THD* thd, bool all)
   my_off_t log_pos;
 
   bool is_real_trans=
-    (all || thd->transaction.all.ha_list == 0);
+    (all || thd->transaction->all.ha_list == 0);
   /*
     The coordinates are propagated to this point having been computed
     in report_binlog_update

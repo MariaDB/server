@@ -2733,6 +2733,10 @@ public:
       free_root(&mem_root,MYF(MY_KEEP_PREALLOC));
       DBUG_VOID_RETURN;
     }
+    void free()
+    {
+      free_root(&mem_root,MYF(0));
+    }
     my_bool is_active()
     {
       return (all.ha_list != NULL);
@@ -2744,7 +2748,7 @@ public:
       init_sql_alloc(key_memory_thd_transactions, &mem_root,
                      ALLOC_ROOT_MIN_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
     }
-  } transaction;
+  } default_transaction, *transaction;
   Global_read_lock global_read_lock;
   Field      *dup_field;
 #ifndef __WIN__
@@ -3582,8 +3586,8 @@ public:
   timeval transaction_time()
   {
     if (!in_multi_stmt_transaction_mode())
-      transaction.start_time.reset(this);
-    return transaction.start_time;
+      transaction->start_time.reset(this);
+    return transaction->start_time;
   }
 
   inline void set_start_time()
@@ -3756,7 +3760,7 @@ public:
   }
   inline void* trans_alloc(size_t size)
   {
-    return alloc_root(&transaction.mem_root,size);
+    return alloc_root(&transaction->mem_root,size);
   }
 
   LEX_CSTRING strmake_lex_cstring(const char *str, size_t length)
@@ -4172,7 +4176,7 @@ public:
   inline bool really_abort_on_warning()
   {
     return (abort_on_warning &&
-            (!transaction.stmt.modified_non_trans_table ||
+            (!transaction->stmt.modified_non_trans_table ||
              (variables.sql_mode & MODE_STRICT_ALL_TABLES)));
   }
   void set_status_var_init();
@@ -4838,9 +4842,9 @@ public:
     if (!wsrep_xid.is_null())
       return &wsrep_xid;
 #endif /* WITH_WSREP */
-    return transaction.xid_state.is_explicit_XA() ?
-          transaction.xid_state.get_xid() :
-          &transaction.implicit_xid;
+    return (transaction->xid_state.is_explicit_XA() ?
+            transaction->xid_state.get_xid() :
+            &transaction->implicit_xid);
   }
 
 /* Members related to temporary tables. */
@@ -5084,10 +5088,10 @@ public:
   /* Copy relevant `stmt` transaction flags to `all` transaction. */
   void merge_unsafe_rollback_flags()
   {
-    if (transaction.stmt.modified_non_trans_table)
-      transaction.all.modified_non_trans_table= TRUE;
-    transaction.all.m_unsafe_rollback_flags|=
-      (transaction.stmt.m_unsafe_rollback_flags &
+    if (transaction->stmt.modified_non_trans_table)
+      transaction->all.modified_non_trans_table= TRUE;
+    transaction->all.m_unsafe_rollback_flags|=
+      (transaction->stmt.m_unsafe_rollback_flags &
        (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
         THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL));
   }
@@ -5097,7 +5101,7 @@ public:
   {
     if (in_active_multi_stmt_transaction())
     {
-      if (transaction.all.is_trx_read_write())
+      if (transaction->all.is_trx_read_write())
       {
         if (variables.idle_write_transaction_timeout > 0)
           return variables.idle_write_transaction_timeout;
@@ -7284,13 +7288,13 @@ class Sp_eval_expr_state
   {
     m_thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
     m_thd->abort_on_warning= m_thd->is_strict_mode();
-    m_thd->transaction.stmt.modified_non_trans_table= false;
+    m_thd->transaction->stmt.modified_non_trans_table= false;
   }
   void stop()
   {
     m_thd->count_cuted_fields= m_count_cuted_fields;
     m_thd->abort_on_warning= m_abort_on_warning;
-    m_thd->transaction.stmt.modified_non_trans_table=
+    m_thd->transaction->stmt.modified_non_trans_table=
       m_stmt_modified_non_trans_table;
   }
 public:
@@ -7298,7 +7302,7 @@ public:
    :m_thd(thd),
     m_count_cuted_fields(thd->count_cuted_fields),
     m_abort_on_warning(thd->abort_on_warning),
-    m_stmt_modified_non_trans_table(thd->transaction.stmt.
+    m_stmt_modified_non_trans_table(thd->transaction->stmt.
                                     modified_non_trans_table)
   {
     start();

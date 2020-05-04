@@ -1244,14 +1244,14 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
 
   if (all)
   {
-    trans= &thd->transaction.all;
+    trans= &thd->transaction->all;
     thd->server_status|= SERVER_STATUS_IN_TRANS;
     if (thd->tx_read_only)
       thd->server_status|= SERVER_STATUS_IN_TRANS_READONLY;
     DBUG_PRINT("info", ("setting SERVER_STATUS_IN_TRANS"));
   }
   else
-    trans= &thd->transaction.stmt;
+    trans= &thd->transaction->stmt;
 
   ha_info= thd->ha_data[ht_arg->slot].ha_info + (all ? 1 : 0);
 
@@ -1263,8 +1263,8 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
   trans->no_2pc|=(ht_arg->prepare==0);
 
   /* Set implicit xid even if there's explicit XA, it will be ignored anyway. */
-  if (thd->transaction.implicit_xid.is_null())
-    thd->transaction.implicit_xid.set(thd->query_id);
+  if (thd->transaction->implicit_xid.is_null())
+    thd->transaction->implicit_xid.set(thd->query_id);
 
 /*
   Register transaction start in performance schema if not done already.
@@ -1327,7 +1327,7 @@ static int prepare_or_error(handlerton *ht, THD *thd, bool all)
 int ha_prepare(THD *thd)
 {
   int error=0, all=1;
-  THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
+  THD_TRANS *trans=all ? &thd->transaction->all : &thd->transaction->stmt;
   Ha_trx_info *ha_info= trans->ha_list;
   DBUG_ENTER("ha_prepare");
 
@@ -1377,7 +1377,7 @@ uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info)
 {
   unsigned rw_ha_count= 0;
 
-  for (auto ha_info= thd->transaction.all.ha_list; ha_info;
+  for (auto ha_info= thd->transaction->all.ha_list; ha_info;
        ha_info= ha_info->next())
   {
     if (ha_info->is_trx_read_write())
@@ -1472,7 +1472,7 @@ int ha_commit_trans(THD *thd, bool all)
     'all' means that this is either an explicit commit issued by
     user, or an implicit commit issued by a DDL.
   */
-  THD_TRANS *trans= all ? &thd->transaction.all : &thd->transaction.stmt;
+  THD_TRANS *trans= all ? &thd->transaction->all : &thd->transaction->stmt;
   /*
     "real" is a nick name for a transaction for which a commit will
     make persistent changes. E.g. a 'stmt' transaction inside a 'all'
@@ -1480,7 +1480,7 @@ int ha_commit_trans(THD *thd, bool all)
     the changes are not durable as they might be rolled back if the
     enclosing 'all' transaction is rolled back.
   */
-  bool is_real_trans= ((all || thd->transaction.all.ha_list == 0) &&
+  bool is_real_trans= ((all || thd->transaction->all.ha_list == 0) &&
                        !(thd->variables.option_bits & OPTION_GTID_BEGIN));
   Ha_trx_info *ha_info= trans->ha_list;
   bool need_prepare_ordered, need_commit_ordered;
@@ -1507,8 +1507,8 @@ int ha_commit_trans(THD *thd, bool all)
     flags will not get propagated to its normal transaction's
     counterpart.
   */
-  DBUG_ASSERT(thd->transaction.stmt.ha_list == NULL ||
-              trans == &thd->transaction.stmt);
+  DBUG_ASSERT(thd->transaction->stmt.ha_list == NULL ||
+              trans == &thd->transaction->stmt);
 
   if (thd->in_sub_stmt)
   {
@@ -1538,7 +1538,7 @@ int ha_commit_trans(THD *thd, bool all)
     */
     if (is_real_trans)
     {
-      thd->transaction.cleanup();
+      thd->transaction->cleanup();
       MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi);
       thd->m_transaction_psi= NULL;
     }
@@ -1649,7 +1649,7 @@ int ha_commit_trans(THD *thd, bool all)
       // Here, the call will not commit inside InnoDB. It is only working
       // around closing thd->transaction.stmt open by TR_table::open().
       if (all)
-        commit_one_phase_2(thd, false, &thd->transaction.stmt, false);
+        commit_one_phase_2(thd, false, &thd->transaction->stmt, false);
     }
   }
 #endif
@@ -1710,11 +1710,11 @@ int ha_commit_trans(THD *thd, bool all)
     goto done;
   }
 
-  DBUG_ASSERT(thd->transaction.implicit_xid.get_my_xid() ==
-              thd->transaction.implicit_xid.quick_get_my_xid());
-  DBUG_ASSERT(!thd->transaction.xid_state.is_explicit_XA() ||
+  DBUG_ASSERT(thd->transaction->implicit_xid.get_my_xid() ==
+              thd->transaction->implicit_xid.quick_get_my_xid());
+  DBUG_ASSERT(!thd->transaction->xid_state.is_explicit_XA() ||
               thd->lex->xa_opt == XA_ONE_PHASE);
-  xid= thd->transaction.implicit_xid.quick_get_my_xid();
+  xid= thd->transaction->implicit_xid.quick_get_my_xid();
 
 #ifdef WITH_WSREP
   if (run_wsrep_hooks && !error)
@@ -1845,7 +1845,7 @@ end:
 
 int ha_commit_one_phase(THD *thd, bool all)
 {
-  THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
+  THD_TRANS *trans=all ? &thd->transaction->all : &thd->transaction->stmt;
   /*
     "real" is a nick name for a transaction for which a commit will
     make persistent changes. E.g. a 'stmt' transaction inside a 'all'
@@ -1859,7 +1859,7 @@ int ha_commit_one_phase(THD *thd, bool all)
     ha_commit_one_phase() can be called with an empty
     transaction.all.ha_list, see why in trans_register_ha()).
   */
-  bool is_real_trans= ((all || thd->transaction.all.ha_list == 0) &&
+  bool is_real_trans= ((all || thd->transaction->all.ha_list == 0) &&
                        !(thd->variables.option_bits & OPTION_GTID_BEGIN));
   int res;
   DBUG_ENTER("ha_commit_one_phase");
@@ -1906,8 +1906,8 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     if (all)
     {
 #ifdef HAVE_QUERY_CACHE
-      if (thd->transaction.changed_tables)
-        query_cache.invalidate(thd, thd->transaction.changed_tables);
+      if (thd->transaction->changed_tables)
+        query_cache.invalidate(thd, thd->transaction->changed_tables);
 #endif
     }
   }
@@ -1915,7 +1915,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   if (is_real_trans)
   {
     thd->has_waiter= false;
-    thd->transaction.cleanup();
+    thd->transaction->cleanup();
     if (count >= 2)
       statistic_increment(transactions_multi_engine, LOCK_status);
   }
@@ -1927,7 +1927,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
 int ha_rollback_trans(THD *thd, bool all)
 {
   int error=0;
-  THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
+  THD_TRANS *trans=all ? &thd->transaction->all : &thd->transaction->stmt;
   Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
   /*
     "real" is a nick name for a transaction for which a commit will
@@ -1942,15 +1942,15 @@ int ha_rollback_trans(THD *thd, bool all)
     ha_commit_one_phase() is called with an empty
     transaction.all.ha_list, see why in trans_register_ha()).
   */
-  bool is_real_trans=all || thd->transaction.all.ha_list == 0;
+  bool is_real_trans=all || thd->transaction->all.ha_list == 0;
   DBUG_ENTER("ha_rollback_trans");
 
   /*
     We must not rollback the normal transaction if a statement
     transaction is pending.
   */
-  DBUG_ASSERT(thd->transaction.stmt.ha_list == NULL ||
-              trans == &thd->transaction.stmt);
+  DBUG_ASSERT(thd->transaction->stmt.ha_list == NULL ||
+              trans == &thd->transaction->stmt);
 
 #ifdef HAVE_REPLICATION
   if (is_real_trans)
@@ -1967,7 +1967,7 @@ int ha_rollback_trans(THD *thd, bool all)
       builds, we explicitly do the signalling before rolling back.
     */
     DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit) ||
-                thd->transaction.xid_state.is_explicit_XA());
+                thd->transaction->xid_state.is_explicit_XA());
     if (thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)
       thd->rgi_slave->unmark_start_commit();
   }
@@ -2042,10 +2042,10 @@ int ha_rollback_trans(THD *thd, bool all)
       transaction hasn't been started in any transactional storage engine.
     */
     if (thd->transaction_rollback_request)
-      thd->transaction.xid_state.set_error(thd->get_stmt_da()->sql_errno());
+      thd->transaction->xid_state.set_error(thd->get_stmt_da()->sql_errno());
 
     thd->has_waiter= false;
-    thd->transaction.cleanup();
+    thd->transaction->cleanup();
   }
   if (all)
     thd->transaction_rollback_request= FALSE;
@@ -2063,7 +2063,7 @@ int ha_rollback_trans(THD *thd, bool all)
     it doesn't matter if a warning is pushed to a system thread or not:
     No one will see it...
   */
-  if (is_real_trans && thd->transaction.all.modified_non_trans_table &&
+  if (is_real_trans && thd->transaction->all.modified_non_trans_table &&
       !thd->slave_thread && thd->killed < KILL_CONNECTION)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
@@ -2405,8 +2405,8 @@ commit_checkpoint_notify_ha(handlerton *hton, void *cookie)
 bool ha_rollback_to_savepoint_can_release_mdl(THD *thd)
 {
   Ha_trx_info *ha_info;
-  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction.stmt :
-                                        &thd->transaction.all);
+  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction->stmt :
+                                        &thd->transaction->all);
 
   DBUG_ENTER("ha_rollback_to_savepoint_can_release_mdl");
 
@@ -2430,8 +2430,8 @@ bool ha_rollback_to_savepoint_can_release_mdl(THD *thd)
 int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
 {
   int error=0;
-  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction.stmt :
-                                        &thd->transaction.all);
+  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction->stmt :
+                                        &thd->transaction->all);
   Ha_trx_info *ha_info, *ha_info_next;
 
   DBUG_ENTER("ha_rollback_to_savepoint");
@@ -2516,8 +2516,8 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
   }
 #endif /* WITH_WSREP */
   int error=0;
-  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction.stmt :
-                                        &thd->transaction.all);
+  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction->stmt :
+                                        &thd->transaction->all);
   Ha_trx_info *ha_info= trans->ha_list;
   DBUG_ENTER("ha_savepoint");
 
@@ -5021,7 +5021,7 @@ int ha_enable_transaction(THD *thd, bool on)
   DBUG_ENTER("ha_enable_transaction");
   DBUG_PRINT("enter", ("on: %d", (int) on));
 
-  if ((thd->transaction.on= on))
+  if ((thd->transaction->on= on))
   {
     /*
       Now all storage engines should have transaction handling enabled.

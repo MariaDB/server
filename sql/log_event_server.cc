@@ -2045,7 +2045,7 @@ compare_errors:
     DBUG_EXECUTE_IF("stop_slave_middle_group",
                     if (!current_stmt_is_commit && is_begin() == 0)
                     {
-                      if (thd->transaction.all.modified_non_trans_table)
+                      if (thd->transaction->all.modified_non_trans_table)
                         const_cast<Relay_log_info*>(rli)->abort_slave= 1;
                     };);
   }
@@ -2366,7 +2366,7 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
     original place when it comes to us; we'll know this by checking
     log_pos ("artificial" events have log_pos == 0).
   */
-  if (!is_artificial_event() && created && thd->transaction.all.ha_list)
+  if (!is_artificial_event() && created && thd->transaction->all.ha_list)
   {
     /* This is not an error (XA is safe), just an information */
     rli->report(INFORMATION_LEVEL, 0, NULL,
@@ -3238,13 +3238,13 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
 {
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
-  if (thd_arg->transaction.stmt.trans_did_wait() ||
-      thd_arg->transaction.all.trans_did_wait())
+  if (thd_arg->transaction->stmt.trans_did_wait() ||
+      thd_arg->transaction->all.trans_did_wait())
     flags2|= FL_WAITED;
-  if (thd_arg->transaction.stmt.trans_did_ddl() ||
-      thd_arg->transaction.stmt.has_created_dropped_temp_table() ||
-      thd_arg->transaction.all.trans_did_ddl() ||
-      thd_arg->transaction.all.has_created_dropped_temp_table())
+  if (thd_arg->transaction->stmt.trans_did_ddl() ||
+      thd_arg->transaction->stmt.has_created_dropped_temp_table() ||
+      thd_arg->transaction->all.trans_did_ddl() ||
+      thd_arg->transaction->all.has_created_dropped_temp_table())
     flags2|= FL_DDL;
   else if (is_transactional && !is_tmp_table)
     flags2|= FL_TRANSACTIONAL;
@@ -3254,7 +3254,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   if (thd_arg->rgi_slave)
     flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
 
-  XID_STATE &xid_state= thd->transaction.xid_state;
+  XID_STATE &xid_state= thd->transaction->xid_state;
   if (is_transactional && xid_state.is_explicit_XA() &&
       (thd->lex->sql_command == SQLCOM_XA_PREPARE ||
        xid_state.get_state_code() == XA_PREPARED))
@@ -3925,7 +3925,7 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
     sub_id= rgi->gtid_sub_id;
     gtid= rgi->current_gtid;
 
-    if (!thd->transaction.xid_state.is_explicit_XA())
+    if (!thd->transaction->xid_state.is_explicit_XA())
     {
       if ((err= do_record_gtid(thd, rgi, true /* in_trans */, &hton)))
         return err;
@@ -3945,7 +3945,7 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
   res= do_commit();
   if (!res && rgi->gtid_pending)
   {
-    DBUG_ASSERT(!thd->transaction.xid_state.is_explicit_XA());
+    DBUG_ASSERT(!thd->transaction->xid_state.is_explicit_XA());
 
     if ((err= do_record_gtid(thd, rgi, false, &hton)))
       return err;
@@ -3964,7 +3964,7 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
   /*
     Increment the global status commit count variable
   */
-  enum enum_sql_command cmd= !thd->transaction.xid_state.is_explicit_XA() ?
+  enum enum_sql_command cmd= !thd->transaction->xid_state.is_explicit_XA() ?
     SQLCOM_COMMIT : SQLCOM_XA_PREPARE;
   status_var_increment(thd->status_var.com_stat[cmd]);
 
@@ -5337,8 +5337,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       has not yet modified anything. Note, all.modified is reset
       by THD::reset_for_next_command().
     */
-    thd->transaction.stmt.modified_non_trans_table= FALSE;
-    thd->transaction.stmt.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+    thd->transaction->stmt.modified_non_trans_table= FALSE;
+    thd->transaction->stmt.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
     /*
       This is a row injection, so we flag the "statement" as
       such. Note that this code is called both when the slave does row
@@ -5699,8 +5699,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       m_curr_row= m_curr_row_end;
  
       if (likely(error == 0) && !transactional_table)
-        thd->transaction.all.modified_non_trans_table=
-          thd->transaction.stmt.modified_non_trans_table= TRUE;
+        thd->transaction->all.modified_non_trans_table=
+          thd->transaction->stmt.modified_non_trans_table= TRUE;
     } // row processing loop
     while (error == 0 && (m_curr_row != m_rows_end));
 
@@ -5716,7 +5716,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
          to shutdown trying to finish incomplete events group.
      */
       DBUG_EXECUTE_IF("stop_slave_middle_group",
-                      if (thd->transaction.all.modified_non_trans_table)
+                      if (thd->transaction->all.modified_non_trans_table)
                         const_cast<Relay_log_info*>(rli)->abort_slave= 1;);
     }
 
@@ -5869,8 +5869,8 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
     */
     if (!thd->in_multi_stmt_transaction_mode())
     {
-      thd->transaction.all.modified_non_trans_table= 0;
-      thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+      thd->transaction->all.modified_non_trans_table= 0;
+      thd->transaction->all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
     }
 
     rgi->cleanup_context(thd, 0);

@@ -2232,7 +2232,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
       trans_rollback above does not rollback XA transactions
       (todo/fixme consider to do so.
     */
-    if (thd->transaction.xid_state.is_explicit_XA())
+    if (thd->transaction->xid_state.is_explicit_XA())
       xa_trans_force_rollback(thd);
 
     thd->mdl_context.release_transactional_locks();

@@ -1813,7 +1813,7 @@ long long spider_direct_sql_body(
       if (conn->bg_init)
         pthread_mutex_unlock(&conn->bg_conn_mutex);
       if (direct_sql->modified_non_trans_table)
-        thd->transaction.stmt.modified_non_trans_table = TRUE;
+        thd->transaction->stmt.modified_non_trans_table = TRUE;
       if (error_num == HA_ERR_OUT_OF_MEM)
         my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
       goto error;
@@ -1821,7 +1821,7 @@ long long spider_direct_sql_body(
     if (conn->bg_init)
       pthread_mutex_unlock(&conn->bg_conn_mutex);
     if (direct_sql->modified_non_trans_table)
-      thd->transaction.stmt.modified_non_trans_table = TRUE;
+      thd->transaction->stmt.modified_non_trans_table = TRUE;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   }
   if (!bg)
@@ -1930,7 +1930,7 @@ void spider_direct_sql_deinit_body(
     if (bg_direct_sql->modified_non_trans_table)
     {
       THD *thd = current_thd;
-      thd->transaction.stmt.modified_non_trans_table = TRUE;
+      thd->transaction->stmt.modified_non_trans_table = TRUE;
     }
     pthread_cond_destroy(&bg_direct_sql->bg_cond);
     pthread_mutex_destroy(&bg_direct_sql->bg_mutex);
@@ -1961,7 +1961,7 @@ long long spider_direct_sql_bg_end(
     pthread_cond_wait(&bg_direct_sql->bg_cond, &bg_direct_sql->bg_mutex);
   pthread_mutex_unlock(&bg_direct_sql->bg_mutex);
   if (bg_direct_sql->modified_non_trans_table)
-    thd->transaction.stmt.modified_non_trans_table = TRUE;
+    thd->transaction->stmt.modified_non_trans_table = TRUE;
   if (bg_direct_sql->bg_error)
   {
     my_message(bg_direct_sql->bg_error, bg_direct_sql->bg_error_msg, MYF(0));

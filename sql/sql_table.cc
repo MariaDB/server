@@ -2616,7 +2616,7 @@ err:
       trans_tmp_table_deleted || non_tmp_table_deleted)
   {
     if (non_trans_tmp_table_deleted || trans_tmp_table_deleted)
-      thd->transaction.stmt.mark_dropped_temp_table();
+      thd->transaction->stmt.mark_dropped_temp_table();
 
     query_cache_invalidate3(thd, tables, 0);
     if (!dont_log_query && mysql_bin_log.is_open())
@@ -5391,7 +5391,7 @@ err:
   }
 
   if (create_info->tmp_table())
-    thd->transaction.stmt.mark_created_temp_table();
+    thd->transaction->stmt.mark_created_temp_table();
 
   /* Write log if no error or if we already deleted a table */
   if (likely(!result) || thd->log_current_statement)
@@ -6009,7 +6009,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
                 res, create_info->tmp_table(), local_create_info.table));
     if (create_info->tmp_table())
     {
-      thd->transaction.stmt.mark_created_temp_table();
+      thd->transaction->stmt.mark_created_temp_table();
       if (!res && local_create_info.table)
       {
         /*
@@ -10931,7 +10931,7 @@ bool mysql_trans_commit_alter_copy_data(THD *thd)
   DBUG_ENTER("mysql_trans_commit_alter_copy_data");
 
   /* Save flags as trans_commit_implicit are deleting them */
-  save_unsafe_rollback_flags= thd->transaction.stmt.m_unsafe_rollback_flags;
+  save_unsafe_rollback_flags= thd->transaction->stmt.m_unsafe_rollback_flags;
 
   DEBUG_SYNC(thd, "alter_table_copy_trans_commit");
 
@@ -10949,7 +10949,7 @@ bool mysql_trans_commit_alter_copy_data(THD *thd)
   if (trans_commit_implicit(thd))
     error= TRUE;
 
-  thd->transaction.stmt.m_unsafe_rollback_flags= save_unsafe_rollback_flags;
+  thd->transaction->stmt.m_unsafe_rollback_flags= save_unsafe_rollback_flags;
   DBUG_RETURN(error);
 }
 

@@ -793,7 +793,7 @@ int close_thread_tables(THD *thd)
     DEBUG_SYNC(thd, "before_close_thread_tables");
 #endif
 
-  DBUG_ASSERT(thd->transaction.stmt.is_empty() || thd->in_sub_stmt ||
+  DBUG_ASSERT(thd->transaction->stmt.is_empty() || thd->in_sub_stmt ||
               (thd->state_flags & Open_tables_state::BACKUPS_AVAIL));
 
   for (table= thd->open_tables; table; table= table->next)
@@ -2351,7 +2351,7 @@ Locked_tables_list::unlock_locked_tables(THD *thd)
 
   TRANSACT_TRACKER(clear_trx_state(thd, TX_LOCKED_TABLES));
 
-  DBUG_ASSERT(thd->transaction.stmt.is_empty());
+  DBUG_ASSERT(thd->transaction->stmt.is_empty());
   error= close_thread_tables(thd);
 
   /*
@@ -4117,7 +4117,7 @@ bool open_tables(THD *thd, const DDL_options_st &options,
   DBUG_ENTER("open_tables");
 
   /* Data access in XA transaction is only allowed when it is active. */
-  if (*start && thd->transaction.xid_state.check_has_uncommitted_xa())
+  if (*start && thd->transaction->xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(true);
 
   thd->current_tablenr= 0;
@@ -5186,7 +5186,7 @@ end:
     table on the fly, and thus mustn't manipulate with the
     transaction of the enclosing statement.
   */
-  DBUG_ASSERT(thd->transaction.stmt.is_empty() ||
+  DBUG_ASSERT(thd->transaction->stmt.is_empty() ||
               (thd->state_flags & Open_tables_state::BACKUPS_AVAIL));
   close_thread_tables(thd);
   /* Don't keep locks for a failed statement. */
@@ -5583,7 +5583,7 @@ void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
     table on the fly, and thus mustn't manipulate with the
     transaction of the enclosing statement.
   */
-  DBUG_ASSERT(thd->transaction.stmt.is_empty() ||
+  DBUG_ASSERT(thd->transaction->stmt.is_empty() ||
               (thd->state_flags & Open_tables_state::BACKUPS_AVAIL));
   close_thread_tables(thd);
   thd->mdl_context.rollback_to_savepoint(start_of_statement_svp);

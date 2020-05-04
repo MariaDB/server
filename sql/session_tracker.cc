@@ -741,7 +741,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
   if ((thd->variables.session_track_transaction_info == TX_TRACK_CHISTICS) &&
       (tx_changed & TX_CHG_CHISTICS))
   {
-    bool is_xa= thd->transaction.xid_state.is_explicit_XA();
+    bool is_xa= thd->transaction->xid_state.is_explicit_XA();
     size_t start;
 
     /* 2 length by 1 byte and code */
@@ -918,7 +918,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
 
       if ((tx_curr_state & TX_EXPLICIT) && is_xa)
       {
-        XID *xid= thd->transaction.xid_state.get_xid();
+        XID *xid= thd->transaction->xid_state.get_xid();
         long glen, blen;
 
         buf->append(STRING_WITH_LEN("XA START"));

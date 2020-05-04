@@ -739,7 +739,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
           
           /* since there is already an error, the possible error of
              writing binary log will be ignored */
-	  if (thd->transaction.stmt.modified_non_trans_table)
+	  if (thd->transaction->stmt.modified_non_trans_table)
             (void) write_execute_load_query_log_event(thd, ex,
                                                       table_list->db.str,
                                                       table_list->table_name.str,
@@ -764,10 +764,10 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 	  (ulong) (info.records - info.copied),
           (long) thd->get_stmt_da()->current_statement_warn_count());
 
-  if (thd->transaction.stmt.modified_non_trans_table)
-    thd->transaction.all.modified_non_trans_table= TRUE;
-  thd->transaction.all.m_unsafe_rollback_flags|=
-    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
+  if (thd->transaction->stmt.modified_non_trans_table)
+    thd->transaction->all.modified_non_trans_table= TRUE;
+  thd->transaction->all.m_unsafe_rollback_flags|=
+    (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 #ifndef EMBEDDED_LIBRARY
   if (mysql_bin_log.is_open())
   {
@@ -816,7 +816,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   my_ok(thd, info.copied + info.deleted, 0L, name);
 err:
   DBUG_ASSERT(transactional_table || !(info.copied || info.deleted) ||
-              thd->transaction.stmt.modified_non_trans_table);
+              thd->transaction->stmt.modified_non_trans_table);
   table->file->ha_release_auto_increment();
   table->auto_increment_field_not_null= FALSE;
   thd->abort_on_warning= 0;
@@ -1300,7 +1300,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       We don't need to reset auto-increment field since we are restoring
       its default value at the beginning of each loop iteration.
     */
-    thd->transaction.stmt.modified_non_trans_table= no_trans_update_stmt;
+    thd->transaction->stmt.modified_non_trans_table= no_trans_update_stmt;
     thd->get_stmt_da()->inc_current_row_for_warning();
     continue_loop:;
   }

@@ -82,7 +82,7 @@ static inline bool wsrep_not_committed(THD* thd)
  */
 static inline bool wsrep_is_real(THD* thd, bool all)
 {
-  return (all || thd->transaction.all.ha_list == 0);
+  return (all || thd->transaction->all.ha_list == 0);
 }
 
 /*

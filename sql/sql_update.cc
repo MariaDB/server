@@ -1227,7 +1227,7 @@ update_end:
   table->file->try_semi_consistent_read(0);
 
   if (!transactional_table && updated > 0)
-    thd->transaction.stmt.modified_non_trans_table= TRUE;
+    thd->transaction->stmt.modified_non_trans_table= TRUE;
 
   end_read_record(&info);
   delete select;
@@ -1246,10 +1246,10 @@ update_end:
     query_cache_invalidate3(thd, table_list, 1);
   }
   
-  if (thd->transaction.stmt.modified_non_trans_table)
-      thd->transaction.all.modified_non_trans_table= TRUE;
-  thd->transaction.all.m_unsafe_rollback_flags|=
-    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
+  if (thd->transaction->stmt.modified_non_trans_table)
+      thd->transaction->all.modified_non_trans_table= TRUE;
+  thd->transaction->all.m_unsafe_rollback_flags|=
+    (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
   /*
     error < 0 means really no error at all: we processed all rows until the
@@ -1260,7 +1260,7 @@ update_end:
     Sometimes we want to binlog even if we updated no rows, in case user used
     it to be sure master and slave are in same state.
   */
-  if (likely(error < 0) || thd->transaction.stmt.modified_non_trans_table)
+  if (likely(error < 0) || thd->transaction->stmt.modified_non_trans_table)
   {
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
@@ -1281,7 +1281,7 @@ update_end:
       }
     }
   }
-  DBUG_ASSERT(transactional_table || !updated || thd->transaction.stmt.modified_non_trans_table);
+  DBUG_ASSERT(transactional_table || !updated || thd->transaction->stmt.modified_non_trans_table);
   free_underlaid_joins(thd, select_lex);
   delete file_sort;
   if (table->file->pushed_cond)
@@ -2452,7 +2452,7 @@ multi_update::~multi_update()
     delete [] copy_field;
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;		// Restore this setting
   DBUG_ASSERT(trans_safe || !updated || 
-              thd->transaction.all.modified_non_trans_table);
+              thd->transaction->all.modified_non_trans_table);
 }
 
 
@@ -2577,7 +2577,7 @@ int multi_update::send_data(List<Item> &not_used_values)
           else
           {
             trans_safe= FALSE;
-            thd->transaction.stmt.modified_non_trans_table= TRUE;
+            thd->transaction->stmt.modified_non_trans_table= TRUE;
           }
         }
       }
@@ -2632,7 +2632,7 @@ void multi_update::abort_result_set()
 {
   /* the error was handled or nothing deleted and no side effects return */
   if (unlikely(error_handled ||
-               (!thd->transaction.stmt.modified_non_trans_table && !updated)))
+               (!thd->transaction->stmt.modified_non_trans_table && !updated)))
     return;
 
   /* Something already updated so we have to invalidate cache */
@@ -2645,14 +2645,14 @@ void multi_update::abort_result_set()
 
   if (! trans_safe)
   {
-    DBUG_ASSERT(thd->transaction.stmt.modified_non_trans_table);
+    DBUG_ASSERT(thd->transaction->stmt.modified_non_trans_table);
     if (do_update && table_count > 1)
     {
       /* Add warning here */
       (void) do_updates();
     }
   }
-  if (thd->transaction.stmt.modified_non_trans_table)
+  if (thd->transaction->stmt.modified_non_trans_table)
   {
     /*
       The query has to binlog because there's a modified non-transactional table
@@ -2671,11 +2671,11 @@ void multi_update::abort_result_set()
                         thd->query(), thd->query_length(),
                         transactional_tables, FALSE, FALSE, errcode);
     }
-    thd->transaction.all.modified_non_trans_table= TRUE;
+    thd->transaction->all.modified_non_trans_table= TRUE;
   }
-  thd->transaction.all.m_unsafe_rollback_flags|=
-    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
-  DBUG_ASSERT(trans_safe || !updated || thd->transaction.stmt.modified_non_trans_table);
+  thd->transaction->all.m_unsafe_rollback_flags|=
+    (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
+  DBUG_ASSERT(trans_safe || !updated || thd->transaction->stmt.modified_non_trans_table);
 }
 
 
@@ -2896,7 +2896,7 @@ int multi_update::do_updates()
       else
       {
         trans_safe= FALSE;				// Can't do safe rollback
-        thd->transaction.stmt.modified_non_trans_table= TRUE;
+        thd->transaction->stmt.modified_non_trans_table= TRUE;
       }
     }
     (void) table->file->ha_rnd_end();
@@ -2933,7 +2933,7 @@ err2:
     else
     {
       trans_safe= FALSE;
-      thd->transaction.stmt.modified_non_trans_table= TRUE;
+      thd->transaction->stmt.modified_non_trans_table= TRUE;
     }
   }
   DBUG_RETURN(1);
@@ -2980,13 +2980,13 @@ bool multi_update::send_eof()
     either from the query's list or via a stored routine: bug#13270,23333
   */
 
-  if (thd->transaction.stmt.modified_non_trans_table)
-    thd->transaction.all.modified_non_trans_table= TRUE;
-  thd->transaction.all.m_unsafe_rollback_flags|=
-    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
+  if (thd->transaction->stmt.modified_non_trans_table)
+    thd->transaction->all.modified_non_trans_table= TRUE;
+  thd->transaction->all.m_unsafe_rollback_flags|=
+    (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
   if (likely(local_error == 0 ||
-             thd->transaction.stmt.modified_non_trans_table))
+             thd->transaction->stmt.modified_non_trans_table))
   {
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
@@ -3018,7 +3018,7 @@ bool multi_update::send_eof()
     }
   }
   DBUG_ASSERT(trans_safe || !updated ||
-              thd->transaction.stmt.modified_non_trans_table);
+              thd->transaction->stmt.modified_non_trans_table);
 
   if (likely(local_error != 0))
     error_handled= TRUE; // to force early leave from ::abort_result_set()

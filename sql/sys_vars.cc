@@ -2999,7 +2999,7 @@ static Sys_var_charptr_fscs Sys_tmpdir(
 static bool fix_trans_mem_root(sys_var *self, THD *thd, enum_var_type type)
 {
   if (type != OPT_GLOBAL)
-    reset_root_defaults(&thd->transaction.mem_root,
+    reset_root_defaults(&thd->transaction->mem_root,
                         thd->variables.trans_alloc_block_size,
                         thd->variables.trans_prealloc_size);
   return false;
@@ -4326,8 +4326,8 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     thd->variables.option_bits&=
                  ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT |
                    OPTION_GTID_BEGIN);
-    thd->transaction.all.modified_non_trans_table= false;
-    thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+    thd->transaction->all.modified_non_trans_table= false;
+    thd->transaction->all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
     thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
     return false;
   }
@@ -4336,8 +4336,8 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
        (OPTION_AUTOCOMMIT |OPTION_NOT_AUTOCOMMIT)) == 0)
   {
     // disabling autocommit
-    thd->transaction.all.modified_non_trans_table= false;
-    thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+    thd->transaction->all.modified_non_trans_table= false;
+    thd->transaction->all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
     thd->server_status&= ~SERVER_STATUS_AUTOCOMMIT;
     thd->variables.option_bits|= OPTION_NOT_AUTOCOMMIT;
     return false;

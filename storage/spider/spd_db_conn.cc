@@ -10219,7 +10219,7 @@ int spider_db_udf_direct_sql(
       need_trx_end = TRUE;
     } else {
 #endif
-      if (c_thd->transaction.stmt.ha_list)
+      if (c_thd->transaction->stmt.ha_list)
         need_trx_end = FALSE;
       else
         need_trx_end = TRUE;

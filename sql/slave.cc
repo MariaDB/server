@@ -1535,7 +1535,7 @@ static bool sql_slave_killed(rpl_group_info *rgi)
       rli->is_in_group().
     */
 
-    if ((thd->transaction.all.modified_non_trans_table ||
+    if ((thd->transaction->all.modified_non_trans_table ||
          (thd->variables.option_bits & OPTION_KEEP_LOG)) &&
         rli->is_in_group())
     {
@@ -1549,7 +1549,7 @@ static bool sql_slave_killed(rpl_group_info *rgi)
 
       DBUG_PRINT("info", ("modified_non_trans_table: %d  OPTION_BEGIN: %d  "
                           "OPTION_KEEP_LOG: %d  is_in_group: %d",
-                          thd->transaction.all.modified_non_trans_table,
+                          thd->transaction->all.modified_non_trans_table,
                           MY_TEST(thd->variables.option_bits & OPTION_BEGIN),
                           MY_TEST(thd->variables.option_bits & OPTION_KEEP_LOG),
                           rli->is_in_group()));
@@ -4386,7 +4386,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                           (LOG_EVENT_IS_QUERY(typ) &&
                            strcmp("COMMIT", ((Query_log_event *) ev)->query) == 0))
                       {
-                        DBUG_ASSERT(thd->transaction.all.modified_non_trans_table);
+                        DBUG_ASSERT(thd->transaction->all.modified_non_trans_table);
                         rli->abort_slave= 1;
                         mysql_mutex_unlock(&rli->data_lock);
                         delete ev;

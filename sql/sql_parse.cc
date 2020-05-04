@@ -1104,7 +1104,7 @@ int bootstrap(MYSQL_FILE *file)
 
     thd->reset_kill_query();  /* Ensure that killed_errmsg is released */
     free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
-    free_root(&thd->transaction.mem_root,MYF(MY_KEEP_PREALLOC));
+    thd->transaction->free();
     thd->lex->restore_set_statement_var();
   }
   delete thd;
@@ -2118,7 +2118,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     mysqld_list_fields(thd,&table_list,fields);
     thd->lex->unit.cleanup();
     /* No need to rollback statement transaction, it's not started. */
-    DBUG_ASSERT(thd->transaction.stmt.is_empty());
+    DBUG_ASSERT(thd->transaction->stmt.is_empty());
     close_thread_tables(thd);
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
@@ -3177,7 +3177,7 @@ mysql_create_routine(THD *thd, LEX *lex)
             creation of routine and implicit GRANT parts of one fully atomic
             statement.
       */
-    DBUG_ASSERT(thd->transaction.stmt.is_empty());
+    DBUG_ASSERT(thd->transaction->stmt.is_empty());
     close_thread_tables(thd);
     /*
       Check if the definer exists on slave,
@@ -3398,7 +3398,7 @@ mysql_execute_command(THD *thd)
     DBUG_RETURN(1);
   }
 
-  DBUG_ASSERT(thd->transaction.stmt.is_empty() || thd->in_sub_stmt);
+  DBUG_ASSERT(thd->transaction->stmt.is_empty() || thd->in_sub_stmt);
   /*
     Each statement or replication event which might produce deadlock
     should handle transaction rollback on its own. So by the start of
@@ -3625,7 +3625,7 @@ mysql_execute_command(THD *thd)
   thd->progress.report_to_client= MY_TEST(sql_command_flags[lex->sql_command] &
                                           CF_REPORT_PROGRESS);
 
-  DBUG_ASSERT(thd->transaction.stmt.modified_non_trans_table == FALSE);
+  DBUG_ASSERT(thd->transaction->stmt.modified_non_trans_table == FALSE);
 
   /* store old value of binlog format */
   enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
@@ -3782,7 +3782,7 @@ mysql_execute_command(THD *thd)
     */
     DBUG_ASSERT(! thd->in_sub_stmt);
     /* Statement transaction still should not be started. */
-    DBUG_ASSERT(thd->transaction.stmt.is_empty());
+    DBUG_ASSERT(thd->transaction->stmt.is_empty());
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
     {
       /* Commit the normal transaction if one is active. */
@@ -3796,7 +3796,7 @@ mysql_execute_command(THD *thd)
         goto error;
       }
     }
-    thd->transaction.stmt.mark_trans_did_ddl();
+    thd->transaction->stmt.mark_trans_did_ddl();
 #ifdef WITH_WSREP
     /* Clean up the previous transaction on implicit commit */
     if (wsrep_thd_is_local(thd) && wsrep_after_statement(thd))
@@ -6578,7 +6578,7 @@ drop_routine(THD *thd, LEX *lex)
     dropping of routine and implicit REVOKE parts of one fully atomic
     statement.
   */
-  DBUG_ASSERT(thd->transaction.stmt.is_empty());
+  DBUG_ASSERT(thd->transaction->stmt.is_empty());
   close_thread_tables(thd);
 
   if (sp_result != SP_KEY_NOT_FOUND &&
@@ -7581,7 +7581,7 @@ void THD::reset_for_next_command(bool do_clear_error)
   if (!in_multi_stmt_transaction_mode())
   {
     variables.option_bits&= ~OPTION_KEEP_LOG;
-    transaction.all.reset();
+    transaction->all.reset();
   }
   DBUG_ASSERT(security_ctx== &main_security_ctx);
   thread_specific_used= FALSE;
