@@ -6084,7 +6084,6 @@ ha_innobase::open(const char* name, int, uint)
 			sql_print_error("Failed to open table %s.\n",
 					norm_name);
 		}
-no_such_table:
 		set_my_errno(ENOENT);
 
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
@@ -6110,7 +6109,8 @@ no_such_table:
 		ib_table->file_unreadable = true;
 		ib_table->corrupted = true;
 		dict_table_close(ib_table, FALSE, FALSE);
-		goto no_such_table;
+		set_my_errno(ENOENT);
+		DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
 	}
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);
