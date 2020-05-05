@@ -1,16 +1,11 @@
 package My::Suite::GALERA_3NODES_SR;
-use File::Basename;
-use My::Find;
+
+use lib 'suite';
+use wsrep::common;
 
 @ISA = qw(My::Suite);
 
-return "Not run for embedded server" if $::opt_embedded_server;
-
-return "WSREP is not compiled in" if not ::have_wsrep();
-
-return "No wsrep provider library" unless ::have_wsrep_provider();
-
-return ::wsrep_version_message() unless ::check_wsrep_version();
+return wsrep_not_ok() if wsrep_not_ok();
 
 push @::global_suppressions,
   (
