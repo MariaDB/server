@@ -4,12 +4,12 @@ Code status:
 * [![Travis CI status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.5)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.5 branch)
 * [![Appveyor CI status](https://ci.appveyor.com/api/projects/status/4u6pexmtpuf8jq66?svg=true)](https://ci.appveyor.com/project/rasmushoj/server) ci.appveyor.com
 
-## MariaDB: drop-in replacement for MySQL
+## MariaDB: The open source relational database 
 
-MariaDB is designed as a drop-in replacement of MySQL(R) with more
+MariaDB was designed as a drop-in replacement of MySQL(R) with more
 features, new storage engines, fewer bugs, and better performance.
 
-MariaDB is brought to you by the MariaDB Foundation and the MariaDB corporation.
+MariaDB is brought to you by the MariaDB Foundation and the MariaDB Corporation.
 Please read the CREDITS file for details about the MariaDB Foundation,
 and who is developing MariaDB.
 
@@ -24,24 +24,22 @@ list of active contributors.
 
 A description of the MariaDB project and a manual can be found at:
 
+https://mariadb.org
+
 https://mariadb.com/kb/en/
 
 https://mariadb.com/kb/en/mariadb-vs-mysql-features/
 
 https://mariadb.com/kb/en/mariadb-versus-mysql-compatibility/
 
-https://mariadb.com/kb/en/library/new-and-old-releases/
-
-https://mariadb.org/
-
-As MariaDB is a full replacement of MySQL, the MySQL manual at
-http://dev.mysql.com/doc is generally applicable.
+https://mariadb.com/kb/en/new-and-old-releases/
 
 Help
 -----
 
 More help is available from the Maria Discuss mailing list
-https://launchpad.net/~maria-discuss
+https://launchpad.net/~maria-discuss, MariaDB's Zulip
+instance, https://mariadb.zulipchat.com/ 
 and the #maria IRC channel on Freenode.
 
 Live QA for beginner contributors
@@ -77,9 +75,6 @@ https://jira.mariadb.org
 
 For reporting security vulnerabilities see:
 https://mariadb.org/about/security-policy/
-
-Bugs in the MySQL code can also be submitted at:
-https://bugs.mysql.com
 
 The code for MariaDB, including all revision history, can be found at:
 https://github.com/MariaDB/server
