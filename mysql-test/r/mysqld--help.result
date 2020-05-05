@@ -1277,7 +1277,6 @@ max-binlog-cache-size 18446744073709547520
 max-binlog-size 1073741824
 max-binlog-stmt-cache-size 18446744073709547520
 max-connect-errors 100
-max-connections 151
 max-delayed-threads 20
 max-digest-length 1024
 max-error-count 64
@@ -1442,9 +1441,7 @@ sync-master-info 10000
 sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
-table-cache 421
 table-definition-cache 400
-table-open-cache 421
 tc-heuristic-recover OFF
 thread-cache-size 0
 thread-pool-idle-timeout 60
