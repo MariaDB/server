@@ -356,9 +356,8 @@ QUICK_RANGE_SELECT *get_quick_select(PARAM *param,uint index,
                                      uint mrr_buf_size, MEM_ROOT *alloc);
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used,
-                                       bool update_tbl_stats,
-                                       double read_time,
-                                       bool ror_scans_required);
+                                       bool for_range_access,
+                                       double read_time);
 static
 TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
                                               double read_time);
@@ -2907,7 +2906,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         It is possible to use a range-based quick select (but it might be
         slower than 'all' table scan).
       */
-      TRP_RANGE         *range_trp;
       TRP_ROR_INTERSECT *rori_trp;
       TRP_INDEX_INTERSECT *intersect_trp;
       bool can_build_covering= FALSE;
@@ -2916,9 +2914,9 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       remove_nonrange_trees(&param, tree);
 
       /* Get best 'range' plan and prepare data for making other plans */
-      if ((range_trp= get_key_scans_params(&param, tree,
-                                           only_single_index_range_scan, TRUE,
-                                           best_read_time, FALSE)))
+      if (auto range_trp= get_key_scans_params(&param, tree,
+                                               only_single_index_range_scan,
+                                               true, best_read_time))
       {
         best_trp= range_trp;
         best_read_time= best_trp->read_cost;
@@ -5083,9 +5081,6 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                              n_child_scans)))
     DBUG_RETURN(NULL);
 
-  const bool only_ror_scans_required= !optimizer_flag(param->thd,
-                                      OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION);
-
   Json_writer_object trace_best_disjunct(thd);
   Json_writer_array to_merge(thd, "indexes_to_merge");
   /*
@@ -5101,8 +5096,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                         "tree in SEL_IMERGE"););
     Json_writer_object trace_idx(thd);
     if (!(*cur_child= get_key_scans_params(param, *ptree, TRUE, FALSE,
-                                           read_time,
-                                           only_ror_scans_required)))
+                                           read_time)))
     {
       /*
         One of index scans in this index_merge is more expensive than entire
@@ -5462,9 +5456,12 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
          a random order
       2. the functions that estimate the cost of a range scan and an
          index merge retrievals are not well calibrated
+
+      As the best range access has been already chosen it does not
+      make sense to evaluate the one obtained from a degenerated
+      index merge.
     */
-    trp= get_key_scans_params(param, *imerge->trees, FALSE, TRUE,
-                              read_time, FALSE);
+    trp= 0;
   }
 
   DBUG_RETURN(trp); 
@@ -7347,9 +7344,9 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
       tree         make range select for this SEL_TREE
       index_read_must_be_used if TRUE, assume 'index only' option will be set
                              (except for clustered PK indexes)
+      for_range_access     if TRUE the function is called to get the best range
+                           plan for range access, not for index merge access
       read_time    don't create read plans with cost > read_time.
-      only_ror_scans_required         set to TRUE when we are only interested
-                                      in ROR scan
   RETURN
     Best range read plan
     NULL if no plan found or error occurred
@@ -7357,9 +7354,8 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
 
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used, 
-                                       bool update_tbl_stats,
-                                       double read_time,
-                                       bool only_ror_scans_required)
+                                       bool for_range_access,
+                                       double read_time)
 {
   uint idx, UNINIT_VAR(best_idx);
   SEL_ARG *key_to_read= NULL;
@@ -7387,7 +7383,8 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       (INDEX_SCAN_INFO **) alloc_root(param->mem_root,
                                       sizeof(INDEX_SCAN_INFO *) * param->keys);
   }
-  tree->index_scans_end= tree->index_scans;                                                  
+  tree->index_scans_end= tree->index_scans;
+
   for (idx= 0; idx < param->keys; idx++)
   {
     SEL_ARG *key= tree->keys[idx];
@@ -7411,10 +7408,15 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       trace_idx.add("index", param->table->key_info[keynr].name);
 
       found_records= check_quick_select(param, idx, read_index_only, key,
-                                        update_tbl_stats, &mrr_flags,
+                                        for_range_access, &mrr_flags,
                                         &buf_size, &cost, &is_ror_scan);
-      if (only_ror_scans_required && !is_ror_scan)
+
+      if (!for_range_access && !is_ror_scan &&
+          !optimizer_flag(param->thd,OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION))
+      {
+        /* The scan is not a ROR-scan, just skip it */
         continue;
+      }
 
       if (found_records != HA_POS_ERROR && tree->index_scans &&
           (index_scan= (INDEX_SCAN_INFO *)alloc_root(param->mem_root,
@@ -7443,7 +7445,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                  .add("index_only", read_index_only)
                  .add("rows", found_records)
                  .add("cost", cost.total_cost());
-      }        
+      }
       if ((found_records != HA_POS_ERROR) && is_ror_scan)
       {
         tree->n_ror_scans++;

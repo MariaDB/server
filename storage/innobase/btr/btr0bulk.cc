@@ -175,7 +175,7 @@ PageBulk::init()
 void
 PageBulk::insert(
 	const rec_t*		rec,
-	offset_t*		offsets)
+	rec_offs*		offsets)
 {
 	ulint		rec_size;
 
@@ -188,7 +188,7 @@ PageBulk::insert(
 	/* Check whether records are in order. */
 	if (!page_rec_is_infimum(m_cur_rec)) {
 		rec_t*	old_rec = m_cur_rec;
-		offset_t* old_offsets = rec_get_offsets(
+		rec_offs* old_offsets = rec_get_offsets(
 			old_rec, m_index, NULL,	is_leaf,
 			ULINT_UNDEFINED, &m_heap);
 
@@ -401,7 +401,7 @@ rec_t*
 PageBulk::getSplitRec()
 {
 	rec_t*		rec;
-	offset_t*	offsets;
+	rec_offs*	offsets;
 	ulint		total_used_size;
 	ulint		total_recs_size;
 	ulint		n_recs;
@@ -447,7 +447,7 @@ PageBulk::copyIn(
 {
 
 	rec_t*		rec = split_rec;
-	offset_t*	offsets = NULL;
+	rec_offs*	offsets = NULL;
 
 	ut_ad(m_rec_no == 0);
 	ut_ad(page_rec_is_user_rec(rec));
@@ -493,7 +493,7 @@ PageBulk::copyOut(
 	ut_ad(n > 0);
 
 	/* Set last record's next in page */
-	offset_t*	offsets = NULL;
+	rec_offs*	offsets = NULL;
 	rec = page_rec_get_prev(split_rec);
 	offsets = rec_get_offsets(rec, m_index, offsets,
 				  page_rec_is_leaf(split_rec),
@@ -603,7 +603,7 @@ the blob data is logged first, then the record is logged in bulk mode.
 dberr_t
 PageBulk::storeExt(
 	const big_rec_t*	big_rec,
-	offset_t*		offsets)
+	rec_offs*		offsets)
 {
 	/* Note: not all fileds are initialized in btr_pcur. */
 	btr_pcur_t	btr_pcur;
@@ -863,7 +863,7 @@ BtrBulk::insert(
 	ulint		rec_size = rec_get_converted_size(m_index, tuple, n_ext);
 	big_rec_t*	big_rec = NULL;
 	rec_t*		rec = NULL;
-	offset_t*	offsets = NULL;
+	rec_offs*	offsets = NULL;
 
 	if (page_bulk->needExt(tuple, rec_size)) {
 		/* The record is so big that we have to store some fields

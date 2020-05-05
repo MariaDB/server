@@ -974,7 +974,7 @@ page_mem_free(
 	rec_t*			rec,	/*!< in: pointer to the (origin of)
 					record */
 	const dict_index_t*	index,	/*!< in: index of rec */
-	const offset_t*		offsets);/*!< in: array returned by
+	const rec_offs*		offsets);/*!< in: array returned by
 					 rec_get_offsets() */
 
 /** Read the PAGE_DIRECTION field from a byte.
@@ -1221,7 +1221,7 @@ void
 page_rec_print(
 /*===========*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const offset_t*	offsets);/*!< in: record descriptor */
+	const rec_offs*	offsets);/*!< in: record descriptor */
 # ifdef UNIV_BTR_PRINT
 /***************************************************************//**
 This is used to print the contents of the directory for
@@ -1268,7 +1268,7 @@ ibool
 page_rec_validate(
 /*==============*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const offset_t*	offsets);/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets);/*!< in: array returned by rec_get_offsets() */
 #ifdef UNIV_DEBUG
 /***************************************************************//**
 Checks that the first directory slot points to the infimum record and

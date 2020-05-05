@@ -4,6 +4,10 @@
 
 char *push1=0;
 
+#ifndef DBUG_TRACE
+#define DBUG_TRACE
+#endif
+
 #include <my_global.h>  /* This includes dbug.h */
 #include <my_sys.h>
 #include <my_pthread.h>

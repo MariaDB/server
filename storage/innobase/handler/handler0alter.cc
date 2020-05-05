@@ -3289,7 +3289,7 @@ innobase_rec_to_mysql(
 	struct TABLE*		table,	/*!< in/out: MySQL table */
 	const rec_t*		rec,	/*!< in: record */
 	const dict_index_t*	index,	/*!< in: index */
-	const offset_t*		offsets)/*!< in: rec_get_offsets(
+	const rec_offs*		offsets)/*!< in: rec_get_offsets(
 					rec, index, ...) */
 {
 	uint	n_fields	= table->s->fields;
@@ -5853,6 +5853,14 @@ add_all_virtual:
 		return true;
         }
 
+	if (!user_table->space) {
+		/* In case of ALTER TABLE...DISCARD TABLESPACE,
+		update only the metadata and transform the dictionary
+		cache entry to the canonical format. */
+		index->clear_instant_alter();
+		return false;
+	}
+
 	unsigned i = unsigned(user_table->n_cols) - DATA_N_SYS_COLS;
 	DBUG_ASSERT(i >= altered_table->s->stored_fields);
 	DBUG_ASSERT(i <= altered_table->s->stored_fields + 1);
@@ -5953,7 +5961,7 @@ add_all_virtual:
 
 		ut_ad(j == n + f);
 
-		offset_t* offsets = NULL;
+		rec_offs* offsets = NULL;
 		mem_heap_t* offsets_heap = NULL;
 		big_rec_t* big_rec;
 		err = btr_cur_pessimistic_update(

@@ -1745,7 +1745,7 @@ analyze table t1;
 set myisam_stats_method=@tmp1;
 show keys from t1;
 
---echo # t1 must use ref(t1.a=t0.a) and rows must be 1 (and not 45):
+--echo # t1 must use eq_ref(t1.a=t0.a) and rows must be 1 (and not 45):
 explain select * from t0,t1 where t0.a=t1.a;
 
 drop table t0,t1;

@@ -152,7 +152,7 @@ page_cur_tuple_insert(
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const dtuple_t*	tuple,	/*!< in: pointer to a data tuple */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	offset_t**	offsets,/*!< out: offsets on *rec */
+	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
@@ -176,7 +176,7 @@ page_cur_rec_insert(
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const rec_t*	rec,	/*!< in: record to insert */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr);	/*!< in: mini-transaction handle, or NULL */
 /***********************************************************//**
 Inserts a record next to page cursor on an uncompressed page.
@@ -190,7 +190,7 @@ page_cur_insert_rec_low(
 				which the new record is inserted */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
-	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
 	MY_ATTRIBUTE((nonnull(1,2,3,4), warn_unused_result));
 
@@ -212,7 +212,7 @@ page_cur_insert_rec_zip(
 	page_cur_t*	cursor,	/*!< in/out: page cursor */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
-	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
 	MY_ATTRIBUTE((nonnull(1,2,3,4), warn_unused_result));
 /*************************************************************//**
@@ -238,7 +238,7 @@ page_cur_delete_rec(
 /*================*/
 	page_cur_t*		cursor,	/*!< in/out: a page cursor */
 	const dict_index_t*	index,	/*!< in: record descriptor */
-	const offset_t*		offsets,/*!< in: rec_get_offsets(
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(
 					cursor->rec, index) */
 	mtr_t*			mtr);	/*!< in: mini-transaction handle */
 
@@ -386,14 +386,14 @@ page_delete_rec(
 	page_cur_t*		pcur,	/*!< in/out: page cursor on record
 					to delete */
 	page_zip_des_t*		page_zip,/*!< in: compressed page descriptor */
-	const offset_t*		offsets);/*!< in: offsets for record */
+	const rec_offs*		offsets);/*!< in: offsets for record */
 
 /** Index page cursor */
 
 struct page_cur_t{
 	const dict_index_t*	index;
 	rec_t*		rec;	/*!< pointer to a record on page */
-	offset_t*	offsets;
+	rec_offs*	offsets;
 	buf_block_t*	block;	/*!< pointer to the block containing rec */
 };
 

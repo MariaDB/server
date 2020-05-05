@@ -6004,7 +6004,7 @@ the generated partition syntax in a correct manner.
         */
         if (alter_info->partition_flags != ALTER_PARTITION_INFO ||
             !table->part_info ||
-            alter_info->requested_algorithm !=
+            alter_info->algorithm(thd) !=
               Alter_info::ALTER_TABLE_ALGORITHM_INPLACE ||
             !table->part_info->has_same_partitioning(part_info))
         {

@@ -262,7 +262,7 @@ page_zip_write_rec(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	const byte*	rec,	/*!< in: record being written */
 	dict_index_t*	index,	/*!< in: the index the record belongs to */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		create)	/*!< in: nonzero=insert, zero=update */
 	MY_ATTRIBUTE((nonnull));
 
@@ -287,7 +287,7 @@ page_zip_write_blob_ptr(
 	const byte*	rec,	/*!< in/out: record whose data is being
 				written */
 	dict_index_t*	index,	/*!< in: index of the page */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		n,	/*!< in: column index */
 	mtr_t*		mtr);	/*!< in: mini-transaction handle,
 				or NULL if no logging is needed */
@@ -326,7 +326,7 @@ void
 page_zip_write_trx_id_and_roll_ptr(
 	page_zip_des_t*	page_zip,
 	byte*		rec,
-	const offset_t*	offsets,
+	const rec_offs*	offsets,
 	ulint		trx_id_col,
 	trx_id_t	trx_id,
 	roll_ptr_t	roll_ptr,
@@ -347,7 +347,6 @@ page_zip_parse_write_trx_id(
 	page_t*		page,
 	page_zip_des_t*	page_zip)
 	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
-
 /**********************************************************************//**
 Write the "deleted" flag of a record on a compressed page.  The flag must
 already have been written on the uncompressed page. */
@@ -390,7 +389,7 @@ page_zip_dir_delete(
 	page_zip_des_t*		page_zip,	/*!< in/out: compressed page */
 	byte*			rec,		/*!< in: deleted record */
 	const dict_index_t*	index,		/*!< in: index of rec */
-	const offset_t*		offsets,	/*!< in: rec_get_offsets(rec) */
+	const rec_offs*		offsets,	/*!< in: rec_get_offsets(rec) */
 	const byte*		free)		/*!< in: previous start of
 						the free list */
 	MY_ATTRIBUTE((nonnull(1,2,3,4)));

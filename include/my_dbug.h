@@ -67,6 +67,7 @@ extern void dbug_free_code_state(void **code_state_store);
 extern  const char* _db_get_func_(void);
 extern int (*dbug_sanity)(void);
 
+#ifdef DBUG_TRACE
 #define DBUG_LEAVE do { \
     _db_stack_frame_.line= __LINE__; \
     _db_return_ (&_db_stack_frame_); \
@@ -83,6 +84,13 @@ extern int (*dbug_sanity)(void);
         _db_enter_ (a,__FILE__,__LINE__,&_db_stack_frame_)
 #define DBUG_RETURN(a1) do {DBUG_LEAVE; return(a1);} while(0)
 #define DBUG_VOID_RETURN do {DBUG_LEAVE; return;} while(0)
+#endif
+
+#else
+#define DBUG_LEAVE
+#define DBUG_ENTER(a)
+#define DBUG_RETURN(a1) return(a1)
+#define DBUG_VOID_RETURN return
 #endif
 
 #define DBUG_EXECUTE(keyword,a1) \

@@ -53,10 +53,12 @@ SELECT COUNT(DISTINCT f1) FROM t1;
 --connection node_2
 --reap
 --disconnect node_1a
---let $wait_condition = select count(*)=30000 from t1;
+
+--let $wait_condition = SELECT COUNT(*) = 30000 FROM t1;
 --source include/wait_condition.inc
-SELECT COUNT(*) FROM t1;
-SELECT COUNT(DISTINCT f1) FROM t1;
+
+SELECT COUNT(*) AS EXPECT_30000 FROM t1;
+SELECT COUNT(DISTINCT f1) AS  EXPECT_30000 FROM t1;
 
 --disable_query_log
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;

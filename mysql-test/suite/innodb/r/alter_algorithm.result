@@ -41,6 +41,9 @@ info: Records: 1  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 ENGINE=INNODB;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
 DROP TABLE t1;
 affected rows: 0
 CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
@@ -97,7 +100,8 @@ affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Rename table
 ALTER TABLE t1 RENAME t3;
-affected rows: 0
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
 # Drop Virtual Column
 ALTER TABLE t3 DROP COLUMN vcol;
 affected rows: 1
