@@ -2474,7 +2474,8 @@ next_column:
 		}
 	}
 
-	if (supports_instant) {
+	if (supports_instant && !(ha_alter_info->handler_flags
+				  & INNOBASE_ALTER_NOREBUILD)) {
 		DBUG_RETURN(HA_ALTER_INPLACE_INSTANT);
 	}
 
@@ -2584,7 +2585,7 @@ cannot_create_many_fulltext_index:
 		online = false;
 	}
 
-	if (need_rebuild || fts_need_rebuild) {
+	if ((need_rebuild && !supports_instant) || fts_need_rebuild) {
 		ha_alter_info->handler_flags |= ALTER_RECREATE_TABLE;
 		DBUG_RETURN(online
 			    ? HA_ALTER_INPLACE_COPY_NO_LOCK

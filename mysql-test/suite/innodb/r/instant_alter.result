@@ -2812,11 +2812,19 @@ CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=DYNAMI
 ALTER TABLE t1 MODIFY b INT FIRST;
 DROP TABLE t1;
 disconnect analyze;
+#
+# MDEV-22465: DROP COLUMN is wrongly claimed to be ALGORITHM=INSTANT
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: DROP INDEX. Try ALGORITHM=NOCOPY
+ALTER TABLE t1 DROP b, ALGORITHM=NOCOPY;
+DROP TABLE t1;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-205
+206
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
 SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;
 #
