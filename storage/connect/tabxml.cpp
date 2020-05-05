@@ -817,12 +817,15 @@ bool TDBXML::Initialize(PGLOBAL g)
   if (Void)
     return false;
 
-  if (Columns && !Bufdone) {
+  if (Columns) {
     // Allocate the buffers that will contain node values
     for (colp = (PXMLCOL)Columns; colp; colp = (PXMLCOL)colp->GetNext())
-      if (!colp->IsSpecial())            // Not a pseudo column
-        if (colp->AllocBuf(g, Mode == MODE_INSERT))
-          return true;
+			if (!colp->IsSpecial()) {            // Not a pseudo column
+				if (!Bufdone && colp->AllocBuf(g, Mode == MODE_INSERT))
+					return true;
+
+				colp->Nx = colp->Sx = -1;
+			} // endif Special
 
     Bufdone = true;
     } // endif Bufdone

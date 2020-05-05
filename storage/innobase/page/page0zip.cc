@@ -898,7 +898,7 @@ page_zip_compress_node_ptrs(
 	mem_heap_t*	heap)		/*!< in: temporary memory heap */
 {
 	int	err	= Z_OK;
-	offset_t* offsets = NULL;
+	rec_offs* offsets = NULL;
 
 	do {
 		const rec_t*	rec = *recs++;
@@ -1003,7 +1003,7 @@ page_zip_compress_clust_ext(
 	FILE_LOGFILE
 	z_stream*	c_stream,	/*!< in/out: compressed page stream */
 	const rec_t*	rec,		/*!< in: record */
-	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec) */
+	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec) */
 	ulint		trx_id_col,	/*!< in: position of of DB_TRX_ID */
 	byte*		deleted,	/*!< in: dense directory entry pointing
 					to the head of the free list */
@@ -1142,7 +1142,7 @@ page_zip_compress_clust(
 	mem_heap_t*	heap)		/*!< in: temporary memory heap */
 {
 	int	err		= Z_OK;
-	offset_t* offsets		= NULL;
+	rec_offs* offsets		= NULL;
 	/* BTR_EXTERN_FIELD_REF storage */
 	byte*	externs		= storage - n_dense
 		* (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
@@ -1958,7 +1958,7 @@ const byte*
 page_zip_apply_log_ext(
 /*===================*/
 	rec_t*		rec,		/*!< in/out: record */
-	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec) */
+	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec) */
 	ulint		trx_id_col,	/*!< in: position of of DB_TRX_ID */
 	const byte*	data,		/*!< in: modification log */
 	const byte*	end)		/*!< in: end of modification log */
@@ -2059,7 +2059,7 @@ page_zip_apply_log(
 				/*!< in: heap_no and status bits for
 				the next record to uncompress */
 	dict_index_t*	index,	/*!< in: index of the page */
-	offset_t*	offsets)/*!< in/out: work area for
+	rec_offs*	offsets)/*!< in/out: work area for
 				rec_get_offsets_reverse() */
 {
 	const byte* const end = data + size;
@@ -2127,7 +2127,7 @@ page_zip_apply_log(
 		if (val & 1) {
 			/* Clear the data bytes of the record. */
 			mem_heap_t*	heap	= NULL;
-			offset_t*	offs;
+			rec_offs*	offs;
 			offs = rec_get_offsets(rec, index, offsets, is_leaf,
 					       ULINT_UNDEFINED, &heap);
 			memset(rec, 0, rec_offs_data_size(offs));
@@ -2281,7 +2281,7 @@ page_zip_decompress_node_ptrs(
 					sorted by address */
 	ulint		n_dense,	/*!< in: size of recs[] */
 	dict_index_t*	index,		/*!< in: the index of the page */
-	offset_t*	offsets,	/*!< in/out: temporary offsets */
+	rec_offs*	offsets,	/*!< in/out: temporary offsets */
 	mem_heap_t*	heap)		/*!< in: temporary memory heap */
 {
 	ulint		heap_status = REC_STATUS_NODE_PTR
@@ -2471,7 +2471,7 @@ page_zip_decompress_sec(
 					sorted by address */
 	ulint		n_dense,	/*!< in: size of recs[] */
 	dict_index_t*	index,		/*!< in: the index of the page */
-	offset_t*	offsets)	/*!< in/out: temporary offsets */
+	rec_offs*	offsets)	/*!< in/out: temporary offsets */
 {
 	ulint	heap_status	= REC_STATUS_ORDINARY
 		| PAGE_HEAP_NO_USER_LOW << REC_HEAP_NO_SHIFT;
@@ -2604,7 +2604,7 @@ page_zip_decompress_clust_ext(
 /*==========================*/
 	z_stream*	d_stream,	/*!< in/out: compressed page stream */
 	rec_t*		rec,		/*!< in/out: record */
-	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec) */
+	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec) */
 	ulint		trx_id_col)	/*!< in: position of of DB_TRX_ID */
 {
 	ulint	i;
@@ -2719,7 +2719,7 @@ page_zip_decompress_clust(
 	ulint		n_dense,	/*!< in: size of recs[] */
 	dict_index_t*	index,		/*!< in: the index of the page */
 	ulint		trx_id_col,	/*!< index of the trx_id column */
-	offset_t*	offsets,	/*!< in/out: temporary offsets */
+	rec_offs*	offsets,	/*!< in/out: temporary offsets */
 	mem_heap_t*	heap)		/*!< in: temporary memory heap */
 {
 	int		err;
@@ -3023,7 +3023,7 @@ page_zip_decompress_low(
 	ulint		n_dense;/* number of user records on the page */
 	ulint		trx_id_col = ULINT_UNDEFINED;
 	mem_heap_t*	heap;
-	offset_t*	offsets;
+	rec_offs*	offsets;
 
 	ut_ad(page_zip_simple_validate(page_zip));
 	UNIV_MEM_ASSERT_W(page, srv_page_size);
@@ -3149,7 +3149,7 @@ zlib_error:
 		ulint	n = 1 + 1/* node ptr */ + REC_OFFS_HEADER_SIZE
 			+ dict_index_get_n_fields(index);
 
-		offsets = static_cast<offset_t*>(
+		offsets = static_cast<rec_offs*>(
 			mem_heap_alloc(heap, n * sizeof(ulint)));
 
 		rec_offs_set_n_alloc(offsets, n);
@@ -3386,7 +3386,7 @@ page_zip_validate_low(
 		committed.  Let us tolerate that difference when we
 		are performing a sloppy validation. */
 
-		offset_t*	offsets;
+		rec_offs*	offsets;
 		mem_heap_t*	heap;
 		const rec_t*	rec;
 		const rec_t*	trec;
@@ -3553,7 +3553,7 @@ page_zip_write_rec_ext(
 	buf_block_t*	block,		/*!< in/out: compressed page */
 	const byte*	rec,		/*!< in: record being written */
 	const dict_index_t*index,	/*!< in: record descriptor */
-	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec, index) */
 	ulint		create,		/*!< in: nonzero=insert, zero=update */
 	ulint		trx_id_col,	/*!< in: position of DB_TRX_ID */
 	ulint		heap_no,	/*!< in: heap number of rec */
@@ -3681,7 +3681,7 @@ The data must already have been written to the uncompressed page.
 @param[in]	create		nonzero=insert, zero=update
 @param[in,out]	mtr		mini-transaction */
 void page_zip_write_rec(buf_block_t *block, const byte *rec,
-                        const dict_index_t *index, const offset_t *offsets,
+                        const dict_index_t *index, const rec_offs *offsets,
                         ulint create, mtr_t *mtr)
 {
 	const page_t* const page = block->frame;
@@ -3862,7 +3862,7 @@ page_zip_write_blob_ptr(
 	const byte*	rec,	/*!< in/out: record whose data is being
 				written */
 	dict_index_t*	index,	/*!< in: index of the page */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		n,	/*!< in: column index */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
@@ -3971,7 +3971,7 @@ void
 page_zip_write_trx_id_and_roll_ptr(
 	buf_block_t*	block,
 	byte*		rec,
-	const offset_t*	offsets,
+	const rec_offs*	offsets,
 	ulint		trx_id_col,
 	trx_id_t	trx_id,
 	roll_ptr_t	roll_ptr,
@@ -4072,7 +4072,7 @@ page_zip_clear_rec(
 	buf_block_t*	block,		/*!< in/out: compressed page */
 	byte*		rec,		/*!< in: record to clear */
 	const dict_index_t*	index,	/*!< in: index of rec */
-	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 {
 	ulint	heap_no;
@@ -4297,7 +4297,7 @@ when a record is deleted.
 @param[in]      free    previous start of the free list
 @param[in,out]  mtr     mini-transaction */
 void page_zip_dir_delete(buf_block_t *block, byte *rec,
-                         const dict_index_t *index, const offset_t *offsets,
+                         const dict_index_t *index, const rec_offs *offsets,
                          const byte *free, mtr_t *mtr)
 {
   ut_ad(page_align(rec) == block->frame);

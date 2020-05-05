@@ -99,7 +99,7 @@ public:
 	/** Insert a record in the page.
 	@param[in]	rec		record
 	@param[in]	offsets		record offsets */
-	inline void insert(const rec_t* rec, offset_t* offsets);
+	inline void insert(const rec_t* rec, rec_offs* offsets);
 private:
 	/** Page format */
 	enum format { REDUNDANT, DYNAMIC, COMPRESSED };
@@ -111,7 +111,7 @@ private:
 	@tparam format  the page format
 	@param[in,out]	rec		record
 	@param[in]	offsets		record offsets */
-	template<format> inline void insertPage(rec_t* rec, offset_t* offsets);
+	template<format> inline void insertPage(rec_t* rec, rec_offs* offsets);
 
 public:
 	/** Mark end of insertion to the page. Scan all records to set page
@@ -136,7 +136,7 @@ public:
 	@param[in]	big_rec		external recrod
 	@param[in]	offsets		record offsets
 	@return	error code */
-	dberr_t storeExt(const big_rec_t* big_rec, offset_t* offsets);
+	dberr_t storeExt(const big_rec_t* big_rec, rec_offs* offsets);
 
 	/** Get node pointer
 	@return node pointer */

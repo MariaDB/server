@@ -71,6 +71,10 @@ bool Alter_info::set_requested_algorithm(const LEX_CSTRING *str)
   return false;
 }
 
+void Alter_info::set_requested_algorithm(enum_alter_table_algorithm algo_val)
+{
+  requested_algorithm= algo_val;
+}
 
 bool Alter_info::set_requested_lock(const LEX_CSTRING *str)
 {
@@ -88,13 +92,16 @@ bool Alter_info::set_requested_lock(const LEX_CSTRING *str)
   return false;
 }
 
-const char* Alter_info::algorithm() const
+const char* Alter_info::algorithm_clause(THD *thd) const
 {
-  switch (requested_algorithm) {
+  switch (algorithm(thd)) {
   case ALTER_TABLE_ALGORITHM_INPLACE:
     return "ALGORITHM=INPLACE";
   case ALTER_TABLE_ALGORITHM_COPY:
     return "ALGORITHM=COPY";
+  case ALTER_TABLE_ALGORITHM_NONE:
+    DBUG_ASSERT(0);
+    /* Fall through */
   case ALTER_TABLE_ALGORITHM_DEFAULT:
     return "ALGORITHM=DEFAULT";
   case ALTER_TABLE_ALGORITHM_NOCOPY:
@@ -125,9 +132,6 @@ const char* Alter_info::lock() const
 bool Alter_info::supports_algorithm(THD *thd, enum_alter_inplace_result result,
                                     const Alter_inplace_info *ha_alter_info)
 {
-  if (requested_algorithm == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
-    requested_algorithm = (Alter_info::enum_alter_table_algorithm) thd->variables.alter_algorithm;
-
   switch (result) {
   case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:
   case HA_ALTER_INPLACE_SHARED_LOCK:
@@ -136,16 +140,16 @@ bool Alter_info::supports_algorithm(THD *thd, enum_alter_inplace_result result,
      return false;
   case HA_ALTER_INPLACE_COPY_NO_LOCK:
   case HA_ALTER_INPLACE_COPY_LOCK:
-    if (requested_algorithm >= Alter_info::ALTER_TABLE_ALGORITHM_NOCOPY)
+    if (algorithm(thd) >= Alter_info::ALTER_TABLE_ALGORITHM_NOCOPY)
     {
-      ha_alter_info->report_unsupported_error(algorithm(),
+      ha_alter_info->report_unsupported_error(algorithm_clause(thd),
                                               "ALGORITHM=INPLACE");
       return true;
     }
     return false;
   case HA_ALTER_INPLACE_NOCOPY_NO_LOCK:
   case HA_ALTER_INPLACE_NOCOPY_LOCK:
-    if (requested_algorithm == Alter_info::ALTER_TABLE_ALGORITHM_INSTANT)
+    if (algorithm(thd) == Alter_info::ALTER_TABLE_ALGORITHM_INSTANT)
     {
       ha_alter_info->report_unsupported_error("ALGORITHM=INSTANT",
                                               "ALGORITHM=NOCOPY");
@@ -153,9 +157,9 @@ bool Alter_info::supports_algorithm(THD *thd, enum_alter_inplace_result result,
     }
     return false;
   case HA_ALTER_INPLACE_NOT_SUPPORTED:
-    if (requested_algorithm >= Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
+    if (algorithm(thd) >= Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
     {
-      ha_alter_info->report_unsupported_error(algorithm(),
+      ha_alter_info->report_unsupported_error(algorithm_clause(thd),
 					      "ALGORITHM=COPY");
       return true;
     }
@@ -176,7 +180,7 @@ bool Alter_info::supports_lock(THD *thd, enum_alter_inplace_result result,
   case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:
     // If SHARED lock and no particular algorithm was requested, use COPY.
     if (requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED &&
-        requested_algorithm == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
+        algorithm(thd) == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
         thd->variables.alter_algorithm ==
                 Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
          return false;
@@ -237,6 +241,14 @@ bool Alter_info::vers_prohibited(THD *thd) const
     }
   }
   return false;
+}
+
+Alter_info::enum_alter_table_algorithm
+Alter_info::algorithm(const THD *thd) const
+{
+  if (requested_algorithm == ALTER_TABLE_ALGORITHM_NONE)
+   return (Alter_info::enum_alter_table_algorithm) thd->variables.alter_algorithm;
+  return requested_algorithm;
 }
 
 

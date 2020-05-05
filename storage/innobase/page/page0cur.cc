@@ -67,8 +67,8 @@ page_cur_try_search_shortcut(
 	ibool		success		= FALSE;
 	const page_t*	page		= buf_block_get_frame(block);
 	mem_heap_t*	heap		= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(dtuple_check_typed(tuple));
@@ -151,8 +151,8 @@ page_cur_try_search_shortcut_bytes(
 	ibool		success		= FALSE;
 	const page_t*	page		= buf_block_get_frame(block);
 	mem_heap_t*	heap		= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(dtuple_check_typed(tuple));
@@ -223,7 +223,7 @@ page_cur_rec_field_extends(
 /*=======================*/
 	const dtuple_t*	tuple,	/*!< in: data tuple */
 	const rec_t*	rec,	/*!< in: record */
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint		n)	/*!< in: compare nth field */
 {
 	const dtype_t*	type;
@@ -299,8 +299,8 @@ page_cur_search_with_match(
 	const page_zip_des_t*	page_zip = buf_block_get_page_zip(block);
 #endif /* UNIV_ZIP_DEBUG */
 	mem_heap_t*	heap		= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(dtuple_validate(tuple));
@@ -558,8 +558,8 @@ page_cur_search_with_match_bytes(
 	const page_zip_des_t*	page_zip = buf_block_get_page_zip(block);
 #endif /* UNIV_ZIP_DEBUG */
 	mem_heap_t*	heap		= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(dtuple_validate(tuple));
@@ -1278,7 +1278,7 @@ page_cur_insert_rec_low(
 	const page_cur_t*cur,	/*!< in: page cursor */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: record to insert after cur */
-	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
   buf_block_t* block= cur->block;
@@ -1328,12 +1328,12 @@ page_cur_insert_rec_low(
   if (rec_t* free_rec= page_header_get_ptr(block->frame, PAGE_FREE))
   {
     /* Try to reuse the head of PAGE_FREE. */
-    offset_t foffsets_[REC_OFFS_NORMAL_SIZE];
+    rec_offs foffsets_[REC_OFFS_NORMAL_SIZE];
     mem_heap_t *heap= nullptr;
 
     rec_offs_init(foffsets_);
 
-    offset_t *foffsets= rec_get_offsets(free_rec, index, foffsets_,
+    rec_offs *foffsets= rec_get_offsets(free_rec, index, foffsets_,
                                         page_is_leaf(block->frame),
                                         ULINT_UNDEFINED, &heap);
     const ulint fextra_size= rec_offs_extra_size(foffsets);
@@ -1679,7 +1679,7 @@ page_cur_insert_rec_zip(
 	page_cur_t*	cursor,	/*!< in/out: page cursor */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
-	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
   page_zip_des_t * const page_zip= page_cur_get_page_zip(cursor);
@@ -1816,12 +1816,12 @@ page_cur_insert_rec_zip(
   if (free_rec)
   {
     /* Try to allocate from the head of the free list. */
-    offset_t foffsets_[REC_OFFS_NORMAL_SIZE];
+    rec_offs foffsets_[REC_OFFS_NORMAL_SIZE];
     mem_heap_t *heap= nullptr;
 
     rec_offs_init(foffsets_);
 
-    offset_t *foffsets= rec_get_offsets(cursor->block->frame + free_rec, index,
+    rec_offs *foffsets= rec_get_offsets(cursor->block->frame + free_rec, index,
                                         foffsets_,
                                         page_is_leaf(cursor->block->frame),
                                         ULINT_UNDEFINED, &heap);
@@ -2107,7 +2107,7 @@ page_cur_delete_rec(
 /*================*/
 	page_cur_t*		cursor,	/*!< in/out: a page cursor */
 	const dict_index_t*	index,	/*!< in: record descriptor */
-	const offset_t*		offsets,/*!< in: rec_get_offsets(
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(
 					cursor->rec, index) */
 	mtr_t*			mtr)	/*!< in/out: mini-transaction */
 {

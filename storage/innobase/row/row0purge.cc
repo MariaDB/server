@@ -118,10 +118,10 @@ row_purge_remove_clust_if_poss_low(
 	}
 
 	rec_t* rec = btr_pcur_get_rec(&node->pcur);
-	offset_t offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 	mem_heap_t* heap = NULL;
-	offset_t* offsets = rec_get_offsets(
+	rec_offs* offsets = rec_get_offsets(
 		rec, index, offsets_, true, ULINT_UNDEFINED, &heap);
 	bool success = true;
 
@@ -665,9 +665,9 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 		mem_heap_t*	heap = NULL;
 		/* Reserve enough offsets for the PRIMARY KEY and 2 columns
 		so that we can access DB_TRX_ID, DB_ROLL_PTR. */
-		offset_t offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+		rec_offs offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 		rec_offs_init(offsets_);
-		offset_t*	offsets = rec_get_offsets(
+		rec_offs*	offsets = rec_get_offsets(
 			rec, index, offsets_, true, trx_id_pos + 2, &heap);
 		ut_ad(heap == NULL);
 
@@ -1199,7 +1199,7 @@ purge_node_t::validate_pcur()
 
 	dict_index_t*	clust_index = pcur.btr_cur.index;
 
-	offset_t* offsets = rec_get_offsets(
+	rec_offs* offsets = rec_get_offsets(
 		pcur.old_rec, clust_index, NULL, true,
 		pcur.old_n_fields, &heap);
 

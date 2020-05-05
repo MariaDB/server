@@ -889,6 +889,17 @@ dec $format;
 let $redundant_4k= 0;
 }
 disconnect analyze;
+
+--echo #
+--echo # MDEV-22465: DROP COLUMN is wrongly claimed to be ALGORITHM=INSTANT
+--echo #
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+ALTER TABLE t1 DROP b, ALGORITHM=NOCOPY;
+DROP TABLE t1;
+
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';

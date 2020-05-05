@@ -596,7 +596,7 @@ doc_id_t
 fts_get_doc_id_from_rec(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	const offset_t*		offsets);
+	const rec_offs*		offsets);
 
 /** Add new fts doc id to the update vector.
 @param[in]	table		the table that contains the FTS index.

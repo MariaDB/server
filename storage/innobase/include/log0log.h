@@ -537,33 +537,22 @@ private:
   std::atomic<bool> check_flush_or_checkpoint_;
 public:
 
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	LogSysMutex	mutex;		/*!< mutex protecting the log */
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	FlushOrderMutex	log_flush_order_mutex;/*!< mutex to serialize access to
-					the flush list when we are putting
-					dirty blocks in the list. The idea
-					behind this mutex is to be able
-					to release log_sys.mutex during
-					mtr_commit and still ensure that
-					insertions in the flush_list happen
-					in the LSN order. */
-	byte*		buf;		/*!< Memory of double the
-					srv_log_buffer_size is
-					allocated here. This pointer will change
-					however to either the first half or the
-					second half in turns, so that log
-					write/flush to disk don't block
-					concurrent mtrs which will write
-					log to this buffer. Care to switch back
-					to the first half before freeing/resizing
-					must be undertaken. */
-	bool		first_in_use;	/*!< true if buf points to the first
-					half of the buffer, false
-					if the second half */
-	size_t		max_buf_free;	/*!< recommended maximum value of
-					buf_free for the buffer in use, after
-					which the buffer is flushed */
+  /** mutex protecting the log */
+  MY_ALIGNED(CACHE_LINE_SIZE)
+  LogSysMutex mutex;
+  /** mutex to serialize access to the flush list when we are putting
+  dirty blocks in the list. The idea behind this mutex is to be able
+  to release log_sys.mutex during mtr_commit and still ensure that
+  insertions in the flush_list happen in the LSN order. */
+  MY_ALIGNED(CACHE_LINE_SIZE) FlushOrderMutex
+  log_flush_order_mutex;
+  /** log_buffer, append data here */
+  byte *buf;
+  /** log_buffer, writing data to file from this buffer.
+  Before flushing write_buf is swapped with flush_buf */
+  byte *flush_buf;
+  /** recommended maximum size of buf, after which the buffer is flushed */
+  size_t max_buf_free;
   /** Log file stuff. Protected by mutex or write_mutex. */
   struct file {
     /** format of the redo log: e.g., FORMAT_10_5 */

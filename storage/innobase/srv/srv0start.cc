@@ -337,6 +337,7 @@ static dberr_t create_log_file(lsn_t lsn, std::string& logfile0)
 	memset(log_sys.buf, 0, srv_log_buffer_size);
 	log_block_init(log_sys.buf, lsn);
 	log_block_set_first_rec_group(log_sys.buf, LOG_BLOCK_HDR_SIZE);
+	memset(log_sys.flush_buf, 0, srv_log_buffer_size);
 
 	log_sys.buf_free = LOG_BLOCK_HDR_SIZE;
 

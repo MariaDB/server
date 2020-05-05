@@ -119,16 +119,20 @@ log_buf_pool_get_oldest_modification(void)
 void log_buffer_extend(ulong len)
 {
 	const size_t new_buf_size = ut_calc_align(len, srv_page_size);
-	byte* new_buf = static_cast<byte*>(
-		ut_malloc_dontdump(new_buf_size * 2, PSI_INSTRUMENT_ME));
-	TRASH_ALLOC(new_buf, new_buf_size * 2);
+	byte* new_buf = static_cast<byte*>
+		(ut_malloc_dontdump(new_buf_size, PSI_INSTRUMENT_ME));
+	TRASH_ALLOC(new_buf, new_buf_size);
+	byte* new_flush_buf = static_cast<byte*>
+		(ut_malloc_dontdump(new_buf_size, PSI_INSTRUMENT_ME));
+	TRASH_ALLOC(new_flush_buf, new_buf_size);
 
 	log_mutex_enter();
 
 	if (len <= srv_log_buffer_size) {
 		/* Already extended enough by the others */
 		log_mutex_exit();
-		ut_free_dodump(new_buf, new_buf_size * 2);
+		ut_free_dodump(new_buf, new_buf_size);
+		ut_free_dodump(new_flush_buf, new_buf_size);
 		return;
 	}
 
@@ -136,14 +140,13 @@ void log_buffer_extend(ulong len)
 		" exceeds innodb_log_buffer_size="
 		<< srv_log_buffer_size << " / 2). Trying to extend it.";
 
-	const byte* old_buf_begin = log_sys.buf;
+	byte* old_buf = log_sys.buf;
+	byte* old_flush_buf = log_sys.flush_buf;
 	const ulong old_buf_size = srv_log_buffer_size;
-	byte* old_buf = log_sys.first_in_use
-		? log_sys.buf : log_sys.buf - old_buf_size;
 	srv_log_buffer_size = static_cast<ulong>(new_buf_size);
 	log_sys.buf = new_buf;
-	log_sys.first_in_use = true;
-	memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(log_sys.buf, old_buf_begin,
+	log_sys.flush_buf = new_flush_buf;
+	memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(new_buf, old_buf,
 					       log_sys.buf_free);
 
 	log_sys.max_buf_free = new_buf_size / LOG_BUF_FLUSH_RATIO
@@ -152,6 +155,7 @@ void log_buffer_extend(ulong len)
 	log_mutex_exit();
 
 	ut_free_dodump(old_buf, old_buf_size);
+	ut_free_dodump(old_flush_buf, old_buf_size);
 
 	ib::info() << "innodb_log_buffer_size was extended to "
 		<< new_buf_size << ".";
@@ -501,10 +505,12 @@ void log_t::create()
   ut_ad(srv_log_buffer_size >= 16 * OS_FILE_LOG_BLOCK_SIZE);
   ut_ad(srv_log_buffer_size >= 4U << srv_page_size_shift);
 
-  buf= static_cast<byte*>(ut_malloc_dontdump(srv_log_buffer_size * 2, PSI_INSTRUMENT_ME));
-  TRASH_ALLOC(buf, srv_log_buffer_size * 2);
-
-  first_in_use= true;
+  buf= static_cast<byte*>(ut_malloc_dontdump(srv_log_buffer_size,
+                                             PSI_INSTRUMENT_ME));
+  TRASH_ALLOC(buf, srv_log_buffer_size);
+  flush_buf= static_cast<byte*>(ut_malloc_dontdump(srv_log_buffer_size,
+                                                   PSI_INSTRUMENT_ME));
+  TRASH_ALLOC(flush_buf, srv_log_buffer_size);
 
   max_buf_free= srv_log_buffer_size / LOG_BUF_FLUSH_RATIO -
     LOG_BUF_FLUSH_MARGIN;
@@ -941,8 +947,8 @@ static void log_write_flush_to_disk_low(lsn_t lsn)
   log_sys.set_flushed_lsn(lsn);
 }
 
-/** Switch the log buffer in use, and copy the content of last block
-from old log buffer to the head of the to be used one. Thus, buf_free and
+/** Swap log buffers, and copy the content of last block
+from old buf to the head of the new buf. Thus, buf_free and
 buf_next_to_write would be changed accordingly */
 static inline
 void
@@ -951,26 +957,16 @@ log_buffer_switch()
 	ut_ad(log_mutex_own());
 	ut_ad(log_write_lock_own());
 
-	const byte*	old_buf = log_sys.buf;
 	size_t		area_end = ut_calc_align<size_t>(
 		log_sys.buf_free, OS_FILE_LOG_BLOCK_SIZE);
 
-	if (log_sys.first_in_use) {
-		log_sys.first_in_use = false;
-		ut_ad(log_sys.buf == ut_align_down(log_sys.buf,
-						   OS_FILE_LOG_BLOCK_SIZE));
-		log_sys.buf += srv_log_buffer_size;
-	} else {
-		log_sys.first_in_use = true;
-		log_sys.buf -= srv_log_buffer_size;
-		ut_ad(log_sys.buf == ut_align_down(log_sys.buf,
-						   OS_FILE_LOG_BLOCK_SIZE));
-	}
-
 	/* Copy the last block to new buf */
 	memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(
-		log_sys.buf, old_buf + area_end - OS_FILE_LOG_BLOCK_SIZE,
+		log_sys.flush_buf,
+		log_sys.buf + area_end - OS_FILE_LOG_BLOCK_SIZE,
 		OS_FILE_LOG_BLOCK_SIZE);
+
+	std::swap(log_sys.buf, log_sys.flush_buf);
 
 	log_sys.buf_free %= OS_FILE_LOG_BLOCK_SIZE;
 	log_sys.buf_next_to_write = log_sys.buf_free;
@@ -1851,10 +1847,10 @@ void log_t::close()
   m_initialised = false;
   log.close();
 
-  if (!first_in_use)
-    buf -= srv_log_buffer_size;
-  ut_free_dodump(buf, srv_log_buffer_size * 2);
+  ut_free_dodump(buf, srv_log_buffer_size);
   buf = NULL;
+  ut_free_dodump(flush_buf, srv_log_buffer_size);
+  flush_buf = NULL;
 
   mutex_free(&mutex);
   mutex_free(&log_flush_order_mutex);

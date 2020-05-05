@@ -324,7 +324,7 @@ lock_report_trx_id_insanity(
 	trx_id_t	trx_id,		/*!< in: trx id */
 	const rec_t*	rec,		/*!< in: user record */
 	dict_index_t*	index,		/*!< in: index */
-	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec, index) */
 	trx_id_t	max_trx_id)	/*!< in: trx_sys.get_max_trx_id() */
 {
 	ut_ad(rec_offs_validate(rec, index, offsets));
@@ -348,7 +348,7 @@ lock_check_trx_id_sanity(
 	trx_id_t	trx_id,		/*!< in: trx id */
 	const rec_t*	rec,		/*!< in: user record */
 	dict_index_t*	index,		/*!< in: index */
-	const offset_t*	offsets)	/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets)	/*!< in: rec_get_offsets(rec, index) */
 {
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec_is_metadata(rec, *index));
@@ -374,7 +374,7 @@ lock_clust_rec_cons_read_sees(
 	const rec_t*	rec,	/*!< in: user record which should be read or
 				passed over by a read cursor */
 	dict_index_t*	index,	/*!< in: clustered index */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ReadView*	view)	/*!< in: consistent read view */
 {
 	ut_ad(dict_index_is_clust(index));
@@ -1185,7 +1185,7 @@ lock_sec_rec_some_has_impl(
 	trx_t*		caller_trx,/*!<in/out: trx of current thread */
 	const rec_t*	rec,	/*!< in: user record */
 	dict_index_t*	index,	/*!< in: secondary index */
-	const offset_t*	offsets)/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets)/*!< in: rec_get_offsets(rec, index) */
 {
 	trx_t*		trx;
 	trx_id_t	max_trx_id;
@@ -4447,8 +4447,8 @@ static void lock_rec_print(FILE* file, const lock_t* lock, mtr_t& mtr)
 	putc('\n', file);
 
 	mem_heap_t*		heap		= NULL;
-	offset_t		offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*		offsets		= offsets_;
+	rec_offs		offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*		offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	mtr.start();
@@ -4796,7 +4796,7 @@ lock_rec_queue_validate(
 	const buf_block_t*	block,	/*!< in: buffer block containing rec */
 	const rec_t*		rec,	/*!< in: record to look at */
 	const dict_index_t*	index,	/*!< in: index, or NULL if not known */
-	const offset_t*		offsets)/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets)/*!< in: rec_get_offsets(rec, index) */
 {
 	const lock_t*	lock;
 	ulint		heap_no;
@@ -4963,8 +4963,8 @@ lock_rec_validate_page(
 	ulint		nth_bit		= 0;
 	ulint		i;
 	mem_heap_t*	heap		= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(!lock_mutex_own());
@@ -5333,8 +5333,8 @@ lock_rec_insert_check_and_lock(
 #ifdef UNIV_DEBUG
 	{
 		mem_heap_t*	heap		= NULL;
-		offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-		const offset_t*	offsets;
+		rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+		const rec_offs*	offsets;
 		rec_offs_init(offsets_);
 
 		offsets = rec_get_offsets(next_rec, index, offsets_, true,
@@ -5493,7 +5493,7 @@ lock_rec_convert_impl_to_expl(
 	const buf_block_t*	block,
 	const rec_t*		rec,
 	dict_index_t*		index,
-	const offset_t*		offsets)
+	const rec_offs*		offsets)
 {
 	trx_t*		trx;
 
@@ -5564,7 +5564,7 @@ lock_clust_rec_modify_check_and_lock(
 	const rec_t*		rec,	/*!< in: record which should be
 					modified */
 	dict_index_t*		index,	/*!< in: clustered index */
-	const offset_t*		offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	que_thr_t*		thr)	/*!< in: query thread */
 {
 	dberr_t	err;
@@ -5656,8 +5656,8 @@ lock_sec_rec_modify_check_and_lock(
 #ifdef UNIV_DEBUG
 	{
 		mem_heap_t*	heap		= NULL;
-		offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-		const offset_t*	offsets;
+		rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+		const rec_offs*	offsets;
 		rec_offs_init(offsets_);
 
 		offsets = rec_get_offsets(rec, index, offsets_, true,
@@ -5701,7 +5701,7 @@ lock_sec_rec_read_check_and_lock(
 					be read or passed over by a
 					read cursor */
 	dict_index_t*		index,	/*!< in: secondary index */
-	const offset_t*		offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	lock_mode		mode,	/*!< in: mode of the lock which
 					the read cursor should set on
 					records: LOCK_S or LOCK_X; the
@@ -5771,7 +5771,7 @@ lock_clust_rec_read_check_and_lock(
 					be read or passed over by a
 					read cursor */
 	dict_index_t*		index,	/*!< in: clustered index */
-	const offset_t*		offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	lock_mode		mode,	/*!< in: mode of the lock which
 					the read cursor should set on
 					records: LOCK_S or LOCK_X; the
@@ -5849,8 +5849,8 @@ lock_clust_rec_read_check_and_lock_alt(
 	que_thr_t*		thr)	/*!< in: query thread */
 {
 	mem_heap_t*	tmp_heap	= NULL;
-	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t*	offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	dberr_t		err;
 	rec_offs_init(offsets_);
 

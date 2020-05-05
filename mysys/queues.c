@@ -70,10 +70,9 @@
 */
 
 int init_queue(QUEUE *queue, uint max_elements, uint offset_to_key,
-	       pbool max_at_top, int (*compare) (void *, uchar *, uchar *),
+	       my_bool max_at_top, int (*compare) (void *, uchar *, uchar *),
 	       void *first_cmp_arg, uint offset_to_queue_pos,
                uint auto_extent)
-               
 {
   DBUG_ENTER("init_queue");
   if ((queue->root= (uchar **) my_malloc(key_memory_QUEUE,
@@ -110,7 +109,7 @@ int init_queue(QUEUE *queue, uint max_elements, uint offset_to_key,
 */
 
 int reinit_queue(QUEUE *queue, uint max_elements, uint offset_to_key,
-		 pbool max_at_top, int (*compare) (void *, uchar *, uchar *),
+		 my_bool max_at_top, int (*compare) (void *, uchar *, uchar *),
 		 void *first_cmp_arg, uint offset_to_queue_pos,
                  uint auto_extent)
 {
@@ -183,6 +182,28 @@ void delete_queue(QUEUE *queue)
 }
 
 
+static void insert_at(QUEUE *queue, uchar *element, uint idx)
+{
+  uint next_index, offset_to_key= queue->offset_to_key;
+  uint offset_to_queue_pos= queue->offset_to_queue_pos;
+  /* max_at_top swaps the comparison if we want to order by desc */
+  while ((next_index= idx >> 1) > 0 &&
+          queue->compare(queue->first_cmp_arg,
+                         element + offset_to_key,
+                         queue->root[next_index] + offset_to_key) *
+          queue->max_at_top < 0)
+  {
+    queue->root[idx]= queue->root[next_index];
+    if (offset_to_queue_pos)
+      (*(uint*) (queue->root[idx] + offset_to_queue_pos-1))= idx;
+    idx= next_index;
+  }
+  queue->root[idx]= element;
+  if (offset_to_queue_pos)
+    (*(uint*) (element + offset_to_queue_pos-1))= idx;
+}
+
+
 /*
   Insert element in queue
 
@@ -192,28 +213,10 @@ void delete_queue(QUEUE *queue)
     element		Element to insert
 */
 
-void queue_insert(register QUEUE *queue, uchar *element)
+void queue_insert(QUEUE *queue, uchar *element)
 {
-  reg2 uint idx, next;
-  uint offset_to_queue_pos= queue->offset_to_queue_pos;
   DBUG_ASSERT(queue->elements < queue->max_elements);
-
-  idx= ++queue->elements;
-  /* max_at_top swaps the comparison if we want to order by desc */
-  while (idx > 1 &&
-         (queue->compare(queue->first_cmp_arg,
-                         element + queue->offset_to_key,
-                         queue->root[(next= idx >> 1)] +
-                         queue->offset_to_key) * queue->max_at_top) < 0)
-  {
-    queue->root[idx]= queue->root[next];
-    if (offset_to_queue_pos)
-      (*(uint*) (queue->root[idx] + offset_to_queue_pos-1))= idx;
-    idx= next;
-  }
-  queue->root[idx]= element;
-  if (offset_to_queue_pos)
-    (*(uint*) (element+ offset_to_queue_pos-1))= idx;
+  insert_at(queue, element, ++queue->elements);
 }
 
 
@@ -231,7 +234,7 @@ void queue_insert(register QUEUE *queue, uchar *element)
     2   auto_extend is 0; No insertion done
 */
 
-int queue_insert_safe(register QUEUE *queue, uchar *element)
+int queue_insert_safe(QUEUE *queue, uchar *element)
 {
 
   if (queue->elements == queue->max_elements)
@@ -241,7 +244,7 @@ int queue_insert_safe(register QUEUE *queue, uchar *element)
     if (resize_queue(queue, queue->max_elements + queue->auto_extent))
       return 1;
   }
-  
+
   queue_insert(queue, element);
   return 0;
 }
@@ -260,81 +263,55 @@ int queue_insert_safe(register QUEUE *queue, uchar *element)
    pointer to removed element
 */
 
-uchar *queue_remove(register QUEUE *queue, uint idx)
+uchar *queue_remove(QUEUE *queue, uint idx)
 {
   uchar *element;
-  DBUG_ASSERT(idx >= 1 && idx <= queue->elements);
+  DBUG_ASSERT(idx >= 1);
+  DBUG_ASSERT(idx <= queue->elements);
   element= queue->root[idx];
-  _downheap(queue, idx, queue->root[queue->elements--]);
+  queue->root[idx]= queue->root[queue->elements--];
+  queue_replace(queue, idx);
   return element;
 }
 
 
 /*
-  Add element to fixed position and update heap
+  Restores the heap property from idx down the heap
 
   SYNOPSIS
     _downheap()
     queue	Queue to use
     idx         Index of element to change
-    element     Element to store at 'idx'
-
-  NOTE
-    This only works if element is >= all elements <= start_idx
 */
 
-void _downheap(register QUEUE *queue, uint start_idx, uchar *element)
+void _downheap(QUEUE *queue, uint idx)
 {
-  uint elements,half_queue,offset_to_key, next_index, offset_to_queue_pos;
-  register uint idx= start_idx;
-  my_bool first= TRUE;
-
-  offset_to_key=queue->offset_to_key;
-  offset_to_queue_pos= queue->offset_to_queue_pos;
-  half_queue= (elements= queue->elements) >> 1;
+  uchar *element= queue->root[idx];
+  uint   next_index,
+         elements= queue->elements,
+         half_queue= elements >> 1,
+         offset_to_key= queue->offset_to_key,
+         offset_to_queue_pos= queue->offset_to_queue_pos;
 
   while (idx <= half_queue)
   {
-    next_index=idx+idx;
+    next_index= idx+idx;
     if (next_index < elements &&
-	(queue->compare(queue->first_cmp_arg,
-			queue->root[next_index]+offset_to_key,
-			queue->root[next_index+1]+offset_to_key) *
-	 queue->max_at_top) > 0)
+        (queue->compare(queue->first_cmp_arg,
+                        queue->root[next_index]+offset_to_key,
+                        queue->root[next_index+1]+offset_to_key) *
+         queue->max_at_top) > 0)
       next_index++;
-    if (first && 
-        (((queue->compare(queue->first_cmp_arg,
-                          queue->root[next_index]+offset_to_key,
-                          element+offset_to_key) * queue->max_at_top) >= 0)))
-    {
-      queue->root[idx]= element;
-      if (offset_to_queue_pos)
-        (*(uint*) (element + offset_to_queue_pos-1))= idx;
-      return;
-    }
-    first= FALSE;
-    queue->root[idx]= queue->root[next_index];
-    if (offset_to_queue_pos)
-      (*(uint*) (queue->root[idx] + offset_to_queue_pos-1))= idx;
-    idx=next_index;
-  }
-
-  /*
-    Insert the element into the right position. This is the same code
-    as we have in queue_insert()
-  */
-  while ((next_index= (idx >> 1)) > start_idx &&
-         queue->compare(queue->first_cmp_arg,
-                        element+offset_to_key,
-                        queue->root[next_index]+offset_to_key)*
-         queue->max_at_top < 0)
-  {
+    if ((queue->compare(queue->first_cmp_arg,
+                        queue->root[next_index]+offset_to_key,
+                        element+offset_to_key) * queue->max_at_top) >= 0)
+      break;
     queue->root[idx]= queue->root[next_index];
     if (offset_to_queue_pos)
       (*(uint*) (queue->root[idx] + offset_to_queue_pos-1))= idx;
     idx= next_index;
   }
-  queue->root[idx]= element;
+  queue->root[idx]=element;
   if (offset_to_queue_pos)
     (*(uint*) (element + offset_to_queue_pos-1))= idx;
 }
@@ -352,7 +329,7 @@ void queue_fix(QUEUE *queue)
 {
   uint i;
   for (i= queue->elements >> 1; i > 0; i--)
-    _downheap(queue, i, queue_element(queue, i));
+    _downheap(queue, i);
 }
 
 
@@ -363,13 +340,47 @@ void queue_fix(QUEUE *queue)
     queue_replace()
     queue	Queue to use
     idx         Index of element to change
-    element     Element to store at 'idx'
+
+  NOTE
+    optimized for the case when the new position is close to the end of the
+    heap (typical for queue_remove() replacements).
 */
 
 void queue_replace(QUEUE *queue, uint idx)
 {
   uchar *element= queue->root[idx];
-  DBUG_ASSERT(idx >= 1 && idx <= queue->elements);
-  queue_remove(queue, idx);
-  queue_insert(queue, element);
+  uint next_index,
+       elements= queue->elements,
+       half_queue= elements>>1,
+       offset_to_key= queue->offset_to_key,
+       offset_to_queue_pos= queue->offset_to_queue_pos;
+  my_bool first= TRUE;
+
+  while (idx <= half_queue)
+  {
+    next_index= idx + idx;
+    if (next_index < elements &&
+	queue->compare(queue->first_cmp_arg,
+			queue->root[next_index]+offset_to_key,
+			queue->root[next_index+1]+offset_to_key) *
+	 queue->max_at_top > 0)
+      next_index++;
+    if (first &&
+        queue->compare(queue->first_cmp_arg,
+                        queue->root[next_index]+offset_to_key,
+                        element+offset_to_key) * queue->max_at_top >= 0)
+    {
+      queue->root[idx]= element;
+      if (offset_to_queue_pos)
+        (*(uint*) (element + offset_to_queue_pos-1))= idx;
+      break;
+    }
+    first= FALSE;
+    queue->root[idx]= queue->root[next_index];
+    if (offset_to_queue_pos)
+      (*(uint*) (queue->root[idx] + offset_to_queue_pos-1))= idx;
+    idx=next_index;
+  }
+
+  insert_at(queue, element, idx);
 }

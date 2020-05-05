@@ -254,7 +254,7 @@ page_cur_tuple_insert(
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const dtuple_t*	tuple,	/*!< in: pointer to a data tuple */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	offset_t**	offsets,/*!< out: offsets on *rec */
+	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */

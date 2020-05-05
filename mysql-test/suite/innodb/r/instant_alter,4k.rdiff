@@ -318,8 +318,8 @@
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';
  instants
--208
-+210
+-209
++211
  SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
  SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;
  #

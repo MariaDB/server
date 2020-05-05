@@ -247,7 +247,7 @@ row_merge_fts_sel_propagate(
 	int*		sel_tree,	/*<! in: selection tree */
 	ulint		level,		/*<! in: selection tree level */
 	const mrec_t**	 mrec,		/*<! in: sort record */
-	offset_t**	offsets,	/*<! in: record offsets */
+	rec_offs**	offsets,	/*<! in: record offsets */
 	dict_index_t*	index);		/*<! in: FTS index */
 /********************************************************************//**
 Read sorted file containing index data tuples and insert these data

@@ -377,6 +377,32 @@ my $opt_stop_keep_alive= $ENV{MTR_STOP_KEEP_ALIVE};
 select(STDOUT);
 $| = 1; # Automatically flush STDOUT
 
+my $set_titlebar;
+
+
+ BEGIN {
+   if (IS_WINDOWS) {
+     my $have_win32_console= 0;
+     eval {
+       require Win32::Console;
+       Win32::Console->import();
+       $have_win32_console = 1;
+     };
+     eval 'sub HAVE_WIN32_CONSOLE { $have_win32_console }';
+   } else {
+     sub HAVE_WIN32_CONSOLE { 0 };
+   }
+}
+
+if (-t STDOUT) {
+  if (IS_WINDOWS and HAVE_WIN32_CONSOLE) {
+    $set_titlebar = sub {Win32::Console::Title $_[0];};
+  } elsif (defined $ENV{TERM} and $ENV{TERM} =~ /xterm/) {
+    $set_titlebar = sub { print "\e];$_[0]\a"; };
+  }
+}
+
+
 main();
 
 sub main {
@@ -882,7 +908,7 @@ sub run_test_server ($$$) {
 	  delete $next->{reserved};
 	}
 
-        xterm_stat(scalar(@$tests));
+	titlebar_stat(scalar(@$tests)) if $set_titlebar;
 
 	if ($next) {
 	  # We don't need this any more
@@ -6558,19 +6584,16 @@ sub time_format($) {
 
 our $num_tests;
 
-sub xterm_stat {
-  if (-t STDOUT and defined $ENV{TERM} and $ENV{TERM} =~ /xterm/) {
-    my ($left) = @_;
+sub titlebar_stat {
+  my ($left) = @_;
 
-    # 2.5 -> best by test
-    $num_tests = $left + 2.5 unless $num_tests;
+  # 2.5 -> best by test
+  $num_tests = $left + 2.5 unless $num_tests;
 
-    my $done = $num_tests - $left;
-    my $spent = time - $^T;
+  my $done = $num_tests - $left;
+  my $spent = time - $^T;
 
-    syswrite STDOUT, sprintf
-           "\e];mtr: spent %s on %d tests. %s (%d tests) left\a",
+  &$set_titlebar(sprintf "mtr: spent %s on %d tests. %s (%d tests) left",
            time_format($spent), $done,
-           time_format($spent/$done * $left), $left;
-  }
+           time_format($spent/$done * $left), $left);
 }

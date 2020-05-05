@@ -147,7 +147,7 @@ page_cur_tuple_insert(
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const dtuple_t*	tuple,	/*!< in: pointer to a data tuple */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	offset_t**	offsets,/*!< out: offsets on *rec */
+	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
@@ -163,7 +163,7 @@ page_cur_insert_rec_low(
 	const page_cur_t*cur,	/*!< in: page cursor */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: record to insert after cur */
-	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
@@ -185,7 +185,7 @@ page_cur_insert_rec_zip(
 	page_cur_t*	cursor,	/*!< in/out: page cursor */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
-	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************//**
@@ -196,7 +196,7 @@ page_cur_delete_rec(
 /*================*/
 	page_cur_t*		cursor,	/*!< in/out: a page cursor */
 	const dict_index_t*	index,	/*!< in: record descriptor */
-	const offset_t*		offsets,/*!< in: rec_get_offsets(
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(
 					cursor->rec, index) */
 	mtr_t*			mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
@@ -341,7 +341,7 @@ page_cur_open_on_rnd_user_rec(
 struct page_cur_t{
 	const dict_index_t*	index;
 	rec_t*		rec;	/*!< pointer to a record on page */
-	offset_t*	offsets;
+	rec_offs*	offsets;
 	buf_block_t*	block;	/*!< pointer to the block containing rec */
 };
 

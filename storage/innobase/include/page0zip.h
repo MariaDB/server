@@ -239,7 +239,7 @@ The data must already have been written to the uncompressed page.
 @param[in]	create		nonzero=insert, zero=update
 @param[in,out]	mtr		mini-transaction */
 void page_zip_write_rec(buf_block_t *block, const byte *rec,
-                        const dict_index_t *index, const offset_t *offsets,
+                        const dict_index_t *index, const rec_offs *offsets,
                         ulint create, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull));
 
@@ -253,7 +253,7 @@ page_zip_write_blob_ptr(
 	const byte*	rec,	/*!< in/out: record whose data is being
 				written */
 	dict_index_t*	index,	/*!< in: index of the page */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		n,	/*!< in: column index */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
@@ -282,7 +282,7 @@ void
 page_zip_write_trx_id_and_roll_ptr(
 	buf_block_t*	block,
 	byte*		rec,
-	const offset_t*	offsets,
+	const rec_offs*	offsets,
 	ulint		trx_id_col,
 	trx_id_t	trx_id,
 	roll_ptr_t	roll_ptr,
@@ -319,7 +319,7 @@ when a record is deleted.
 @param[in]	free	previous start of the free list
 @param[in,out]  mtr     mini-transaction */
 void page_zip_dir_delete(buf_block_t *block, byte *rec,
-                         const dict_index_t *index, const offset_t *offsets,
+                         const dict_index_t *index, const rec_offs *offsets,
                          const byte *free, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull(1,2,3,4,6)));
 

@@ -606,16 +606,14 @@ dict_mem_table_col_rename_low(
 				}
 			}
 
-			dict_index_t* new_index = dict_foreign_find_index(
+			/* New index can be null if InnoDB already dropped
+			the foreign index when FOREIGN_KEY_CHECKS is
+			disabled */
+			foreign->foreign_index = dict_foreign_find_index(
 				foreign->foreign_table, NULL,
 				foreign->foreign_col_names,
 				foreign->n_fields, NULL, true, false,
 				NULL, NULL, NULL);
-
-			/* New index can be null if InnoDB already dropped
-			the foreign index when FOREIGN_KEY_CHECKS is
-			disabled */
-			foreign->foreign_index = new_index;
 
 		} else {
 
@@ -638,7 +636,41 @@ dict_mem_table_col_rename_low(
 
 		foreign = *it;
 
-		ut_ad(foreign->referenced_index != NULL);
+		if (!foreign->referenced_index) {
+			/* Referenced index could have been dropped
+			when foreign_key_checks is disabled. In that case,
+			rename the corresponding referenced_col_names and
+			find the equivalent referenced index also */
+			for (unsigned f = 0; f < foreign->n_fields; f++) {
+
+				const char*& rc =
+					foreign->referenced_col_names[f];
+				if (strcmp(rc, from)) {
+					continue;
+				}
+
+				if (to_len <= strlen(rc)) {
+					memcpy(const_cast<char*>(rc), to,
+					       to_len + 1);
+				} else {
+					rc = static_cast<char*>(
+						mem_heap_dup(
+							foreign->heap,
+							to, to_len + 1));
+				}
+			}
+
+			/* New index can be null if InnoDB already dropped
+			the referenced index when FOREIGN_KEY_CHECKS is
+			disabled */
+			foreign->referenced_index = dict_foreign_find_index(
+				foreign->referenced_table, NULL,
+				foreign->referenced_col_names,
+				foreign->n_fields, NULL, true, false,
+				NULL, NULL, NULL);
+			return;
+		}
+
 
 		for (unsigned f = 0; f < foreign->n_fields; f++) {
 			/* foreign->referenced_col_names[] need to be
@@ -1288,7 +1320,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 bool
 dict_index_t::vers_history_row(
 	const rec_t*		rec,
-	const offset_t*		offsets)
+	const rec_offs*		offsets)
 {
 	ut_ad(is_primary());
 
@@ -1319,8 +1351,8 @@ dict_index_t::vers_history_row(
 	bool error = false;
 	mem_heap_t* heap = NULL;
 	dict_index_t* clust_index = NULL;
-	offset_t offsets_[REC_OFFS_NORMAL_SIZE];
-	offset_t* offsets = offsets_;
+	rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs* offsets = offsets_;
 	rec_offs_init(offsets_);
 
 	mtr_t mtr;

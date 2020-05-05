@@ -546,7 +546,7 @@ put_nth_field(
 	ulint			n,	/*!< in: number of field */
 	const dict_index_t*	index,	/*!< in: index */
 	const rec_t*		rec,	/*!< in: record */
-	const offset_t*		offsets)/*!< in: record offsets, returned
+	const rec_offs*		offsets)/*!< in: record offsets, returned
 					by rec_get_offsets() */
 {
 	const byte*	data;
@@ -627,8 +627,8 @@ fill_lock_data(
 	const dict_index_t*	index;
 	ulint			n_fields;
 	mem_heap_t*		heap;
-	offset_t		offsets_onstack[REC_OFFS_NORMAL_SIZE];
-	offset_t*		offsets;
+	rec_offs		offsets_onstack[REC_OFFS_NORMAL_SIZE];
+	rec_offs*		offsets;
 	char			buf[TRX_I_S_LOCK_DATA_MAX_LEN];
 	ulint			buf_used;
 	ulint			i;

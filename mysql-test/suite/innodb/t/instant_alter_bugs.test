@@ -172,6 +172,42 @@ ALTER TABLE t2
     CHANGE b d INT UNSIGNED,
     ADD c INT;
 DROP TABLE t2, t1;
+
+--echo #
+--echo # MDEV-22446 InnoDB aborts while adding instant column
+--echo # for discarded tablespace
+--echo #
+
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+CREATE TABLE t1(c1 INT NOT NULL, c2 INT NOT NULL DEFAULT 0)ENGINE=InnoDB;
+INSERT INTO t1(c1) VALUES(1);
+
+ALTER TABLE t1 ADD COLUMN c3 INT DEFAULT 10;
+--replace_regex /, .*\).*t1.cfg/, Bad file descriptor) t1.cfg/
+FLUSH TABLES t1 FOR EXPORT;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+UNLOCK TABLES;
+DROP TABLE t1;
+
+# Restore of instant table
+CREATE TABLE t1(c1 INT NOT NULL)Engine=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+FLUSH TABLES;
+ALTER TABLE t1 ADD COLUMN c2 INT NOT NULL;
+ALTER TABLE t1 ADD COLUMN c3 INT DEFAULT 10;
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+ALTER TABLE t1 IMPORT TABLESPACE;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
 --echo # End of 10.3 tests
 
 

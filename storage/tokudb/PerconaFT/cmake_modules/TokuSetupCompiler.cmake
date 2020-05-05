@@ -161,9 +161,9 @@ if (NOT CMAKE_CXX_COMPILER_ID STREQUAL Clang)
   set_cflags_if_supported(-Wcast-align)
 endif ()
 
-## always want these in debug builds
-set(CMAKE_C_FLAGS_DEBUG "-Wall -Werror ${CMAKE_C_FLAGS_DEBUG}")
-set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Werror ${CMAKE_CXX_FLAGS_DEBUG}")
+## never want these
+set(CMAKE_C_FLAGS "-Wno-error ${CMAKE_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "-Wno-error ${CMAKE_CXX_FLAGS}")
 
 # pick language dialect
 set(CMAKE_C_FLAGS "-std=c99 ${CMAKE_C_FLAGS}")

@@ -934,7 +934,7 @@ static my_bool socket_peek_read(Vio *vio, uint *bytes)
   @param timeout  Interval (in milliseconds) to wait for an I/O event.
                   A negative timeout value means an infinite timeout.
 
-  @remark sock_errno is set to SOCKET_ETIMEDOUT on timeout.
+  @remark socket_errno is set to SOCKET_ETIMEDOUT on timeout.
 
   @return A three-state value which indicates the operation status.
   @retval -1  Failure, socket_errno indicates the error.

@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2019, MariaDB Corporation.
+# Copyright (c) 2008, 2020, MariaDB Corporation.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -253,6 +253,11 @@ ENDIF()
 INCLUDE(wsrep)
 INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
+
+OPTION(WITH_DBUG_TRACE "Enable DBUG_ENTER()/DBUG_EXIT()" ON)
+IF(WITH_DBUG_TRACE)
+  ADD_DEFINITIONS(-DDBUG_TRACE)
+ENDIF()
 
 # Always enable debug sync for debug builds.
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")

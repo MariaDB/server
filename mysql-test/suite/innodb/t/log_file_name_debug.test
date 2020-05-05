@@ -39,7 +39,7 @@ SELECT * FROM t1;
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
---let SEARCH_PATTERN= srv_prepare_to_delete_redo_log_file: ib_log: FILE_CHECKPOINT.* written
+--let SEARCH_PATTERN= ib_log: FILE_CHECKPOINT.* written
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters=

@@ -171,6 +171,41 @@ DROP FOREIGN KEY fk1,
 CHANGE b d INT UNSIGNED,
 ADD c INT;
 DROP TABLE t2, t1;
+#
+# MDEV-22446 InnoDB aborts while adding instant column
+# for discarded tablespace
+#
+CREATE TABLE t1(c1 INT NOT NULL, c2 INT NOT NULL DEFAULT 0)ENGINE=InnoDB;
+INSERT INTO t1(c1) VALUES(1);
+ALTER TABLE t1 ADD COLUMN c3 INT DEFAULT 10;
+FLUSH TABLES t1 FOR EXPORT;
+backup: t1
+UNLOCK TABLES;
+DROP TABLE t1;
+CREATE TABLE t1(c1 INT NOT NULL)Engine=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+FLUSH TABLES;
+ALTER TABLE t1 ADD COLUMN c2 INT NOT NULL;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t1`
+ALTER TABLE t1 ADD COLUMN c3 INT DEFAULT 10;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t1`
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL,
+  `c2` int(11) NOT NULL,
+  `c3` int(11) DEFAULT 10
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+c1	c2	c3
+1	0	10
+DROP TABLE t1;
 # End of 10.3 tests
 create table t (
 a varchar(9),

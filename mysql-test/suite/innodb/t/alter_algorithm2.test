@@ -1,0 +1,63 @@
+--source include/have_innodb.inc
+CREATE TABLE t1 (a INT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+
+# alter_algorithm variable doesn't affect when ALTER stmt
+# during PREPARE PHASE or CREATE PROCEDURE
+# Only when execution/call happens, alter uses the alter_algorithm
+# variable when user does not mention algorithm explicitly.
+
+--enable_info
+SET alter_algorithm='INPLACE';
+PREPARE stmt FROM 'ALTER TABLE t1 ADD KEY idx(a)';
+PREPARE stmt1 FROM 'ALTER TABLE t1 DROP KEY idx';
+DELIMITER |;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  ALTER TABLE t1 ADD KEY idx2(a);
+END|
+
+CREATE OR REPLACE PROCEDURE p2()
+BEGIN
+  ALTER TABLE t1 DROP KEY idx2;
+END|
+DELIMITER ;|
+
+SET alter_algorithm='COPY';
+EXECUTE stmt;
+EXECUTE stmt1;
+call p1();
+call p2();
+
+SET alter_algorithm='NOCOPY';
+EXECUTE stmt;
+EXECUTE stmt1;
+call p1();
+call p2();
+
+SET alter_algorithm='INSTANT';
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+EXECUTE stmt;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+call p1();
+
+DROP TABLE t1;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+SET @save_allowed= @@GLOBAL.innodb_instant_alter_column_allowed;
+SET GLOBAL innodb_instant_alter_column_allowed=never;
+
+CREATE TABLE t1(id INT PRIMARY KEY,
+	        col1 INT UNSIGNED NOT NULL UNIQUE)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,1),(2,2),(3,3);
+SET ALTER_ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 DROP COLUMN col1;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 DROP COLUMN col1, ALGORITHM=NOCOPY;
+ALTER TABLE t1 DROP COLUMN col1, ALGORITHM=DEFAULT;
+ALTER TABLE t1 DROP PRIMARY KEY, ALGORITHM=DEFAULT;
+DROP TABLE t1;
+--disable_info
+SET GLOBAL innodb_instant_alter_column_allowed=@save_allowed;

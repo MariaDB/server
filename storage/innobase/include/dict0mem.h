@@ -1256,7 +1256,7 @@ struct dict_index_t {
 	@param[in]	offsets	offsets
 	@return true if row is historical */
 	bool
-	vers_history_row(const rec_t* rec, const offset_t* offsets);
+	vers_history_row(const rec_t* rec, const rec_offs* offsets);
 
 	/** Check if record in secondary index is historical row.
 	@param[in]	rec	record in a secondary index

@@ -12,7 +12,7 @@ FOUND 1 /InnoDB: Tablespace 4294967280 was not found at .*, but there were no mo
 # restart: --debug=d,innodb_log_abort_3,ib_log --innodb-log-file-size=4194304
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 1 /srv_prepare_to_delete_redo_log_file: ib_log: FILE_CHECKPOINT.* written/ in mysqld.1.err
+FOUND 1 /ib_log: FILE_CHECKPOINT.* written/ in mysqld.1.err
 # restart
 # restart
 DROP TABLE t1;

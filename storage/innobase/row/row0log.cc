@@ -646,7 +646,7 @@ row_log_table_delete(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec,index) */
 	const byte*	sys)	/*!< in: DB_TRX_ID,DB_ROLL_PTR that should
 				be logged, or NULL to use those in rec */
 {
@@ -937,7 +937,7 @@ row_log_table_low(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec,index) */
 	bool		insert,	/*!< in: true if insert, false if update */
 	const dtuple_t*	old_pk)	/*!< in: old PRIMARY KEY value (if !insert
 				and a PRIMARY KEY is being created) */
@@ -1106,7 +1106,7 @@ row_log_table_update(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec,index) */
 	const dtuple_t*	old_pk)	/*!< in: row_log_table_get_pk()
 				before the update */
 {
@@ -1158,7 +1158,7 @@ row_log_table_get_pk_col(
 	dfield_t*		dfield,
 	mem_heap_t*		heap,
 	const rec_t*		rec,
-	const offset_t*		offsets,
+	const rec_offs*		offsets,
 	ulint			i,
 	ulint			zip_size,
 	ulint			max_len,
@@ -1233,7 +1233,7 @@ row_log_table_get_pk(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec,index) */
 	byte*		sys,	/*!< out: DB_TRX_ID,DB_ROLL_PTR for
 				row_log_table_delete(), or NULL */
 	mem_heap_t**	heap)	/*!< in/out: memory heap where allocated */
@@ -1437,7 +1437,7 @@ row_log_table_insert(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const offset_t*	offsets)/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets)/*!< in: rec_get_offsets(rec,index) */
 {
 	row_log_table_low(rec, index, offsets, true, NULL);
 }
@@ -1528,7 +1528,7 @@ row_log_table_apply_convert_mrec(
 /*=============================*/
 	const mrec_t*		mrec,		/*!< in: merge record */
 	dict_index_t*		index,		/*!< in: index of mrec */
-	const offset_t*		offsets,	/*!< in: offsets of mrec */
+	const rec_offs*		offsets,	/*!< in: offsets of mrec */
 	row_log_t*		log,		/*!< in: rebuild context */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
 	dberr_t*		error)		/*!< out: DB_SUCCESS or
@@ -1780,7 +1780,7 @@ row_log_table_apply_insert(
 /*=======================*/
 	que_thr_t*		thr,		/*!< in: query graph */
 	const mrec_t*		mrec,		/*!< in: record to insert */
-	const offset_t*		offsets,	/*!< in: offsets of mrec */
+	const rec_offs*		offsets,	/*!< in: offsets of mrec */
 	mem_heap_t*		offsets_heap,	/*!< in/out: memory heap
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
@@ -1832,7 +1832,7 @@ row_log_table_apply_delete_low(
 /*===========================*/
 	btr_pcur_t*		pcur,		/*!< in/out: B-tree cursor,
 						will be trashed */
-	const offset_t*		offsets,	/*!< in: offsets on pcur */
+	const rec_offs*		offsets,	/*!< in: offsets on pcur */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
 	mtr_t*			mtr)		/*!< in/out: mini-transaction,
 						will be committed */
@@ -1925,7 +1925,7 @@ row_log_table_apply_delete(
 						DB_TRX_ID in the new
 						clustered index */
 	const mrec_t*		mrec,		/*!< in: merge record */
-	const offset_t*		moffsets,	/*!< in: offsets of mrec */
+	const rec_offs*		moffsets,	/*!< in: offsets of mrec */
 	mem_heap_t*		offsets_heap,	/*!< in/out: memory heap
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
@@ -1936,7 +1936,7 @@ row_log_table_apply_delete(
 	dtuple_t*	old_pk;
 	mtr_t		mtr;
 	btr_pcur_t	pcur;
-	offset_t*	offsets;
+	rec_offs*	offsets;
 
 	ut_ad(rec_offs_n_fields(moffsets) == index->first_user_field());
 	ut_ad(!rec_offs_any_extern(moffsets));
@@ -2047,7 +2047,7 @@ row_log_table_apply_update(
 						DB_TRX_ID in the new
 						clustered index */
 	const mrec_t*		mrec,		/*!< in: new value */
-	const offset_t*		offsets,	/*!< in: offsets of mrec */
+	const rec_offs*		offsets,	/*!< in: offsets of mrec */
 	mem_heap_t*		offsets_heap,	/*!< in/out: memory heap
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
@@ -2184,7 +2184,7 @@ func_exit_committed:
 	}
 
 	/* Prepare to update (or delete) the record. */
-	offset_t*		cur_offsets	= rec_get_offsets(
+	rec_offs*		cur_offsets	= rec_get_offsets(
 		btr_pcur_get_rec(&pcur), index, NULL, true,
 		ULINT_UNDEFINED, &offsets_heap);
 
@@ -2422,7 +2422,7 @@ row_log_table_apply_op(
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
 	const mrec_t*		mrec,		/*!< in: merge record */
 	const mrec_t*		mrec_end,	/*!< in: end of buffer */
-	offset_t*		offsets)	/*!< in/out: work area
+	rec_offs*		offsets)	/*!< in/out: work area
 						for parsing mrec */
 {
 	row_log_t*	log	= dup->index->online_log;
@@ -2754,7 +2754,7 @@ row_log_table_apply_ops(
 	const mrec_t*	next_mrec_end;
 	mem_heap_t*	heap;
 	mem_heap_t*	offsets_heap;
-	offset_t*	offsets;
+	rec_offs*	offsets;
 	bool		has_index_lock;
 	dict_index_t*	index		= const_cast<dict_index_t*>(
 		dup->index);
@@ -2781,7 +2781,7 @@ row_log_table_apply_ops(
 
 	UNIV_MEM_INVALID(&mrec_end, sizeof mrec_end);
 
-	offsets = static_cast<offset_t*>(ut_malloc_nokey(i * sizeof *offsets));
+	offsets = static_cast<rec_offs*>(ut_malloc_nokey(i * sizeof *offsets));
 	rec_offs_set_n_alloc(offsets, i);
 	rec_offs_set_n_fields(offsets, dict_index_get_n_fields(index));
 
@@ -3330,7 +3330,7 @@ row_log_apply_op_low(
 {
 	mtr_t		mtr;
 	btr_cur_t	cursor;
-	offset_t*	offsets = NULL;
+	rec_offs*	offsets = NULL;
 
 	ut_ad(!dict_index_is_clust(index));
 
@@ -3564,7 +3564,7 @@ row_log_apply_op(
 					in exclusive mode */
 	const mrec_t*	mrec,		/*!< in: merge record */
 	const mrec_t*	mrec_end,	/*!< in: end of buffer */
-	offset_t*	offsets)	/*!< in/out: work area for
+	rec_offs*	offsets)	/*!< in/out: work area for
 					rec_init_offsets_temp() */
 
 {
@@ -3682,7 +3682,7 @@ row_log_apply_ops(
 	const mrec_t*	next_mrec_end;
 	mem_heap_t*	offsets_heap;
 	mem_heap_t*	heap;
-	offset_t*	offsets;
+	rec_offs*	offsets;
 	bool		has_index_lock;
 	const ulint	i	= 1 + REC_OFFS_HEADER_SIZE
 		+ dict_index_get_n_fields(index);
@@ -3693,7 +3693,7 @@ row_log_apply_ops(
 	ut_ad(index->online_log);
 	UNIV_MEM_INVALID(&mrec_end, sizeof mrec_end);
 
-	offsets = static_cast<offset_t*>(ut_malloc_nokey(i * sizeof *offsets));
+	offsets = static_cast<rec_offs*>(ut_malloc_nokey(i * sizeof *offsets));
 	rec_offs_set_n_alloc(offsets, i);
 	rec_offs_set_n_fields(offsets, dict_index_get_n_fields(index));
 

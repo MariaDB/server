@@ -191,7 +191,7 @@ trx_undo_report_row_operation(
 	const rec_t*	rec,		/*!< in: case of an update or delete
 					marking, the record in the clustered
 					index; NULL if insert */
-	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec) */
+	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec) */
 	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
 					undo log record */
 	MY_ATTRIBUTE((nonnull(1,2,8), warn_unused_result));
@@ -224,7 +224,7 @@ trx_undo_prev_version_build(
 				index_rec page and purge_view */
 	const rec_t*	rec,	/*!< in: version of a clustered index record */
 	dict_index_t*	index,	/*!< in: clustered index */
-	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
 				needed is allocated */
 	rec_t**		old_vers,/*!< out, own: previous version, or NULL if

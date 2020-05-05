@@ -4914,6 +4914,7 @@ connected:
         goto err;
       goto connected;
     }
+    DBUG_EXECUTE_IF("fail_com_register_slave", goto err;);
   }
 
   DBUG_PRINT("info",("Starting reading binary log from master"));

@@ -1,6 +1,7 @@
 --disable_warnings
 drop table if exists t1,t2,t3;
 --enable_warnings
+--source include/have_sequence.inc
 SET SQL_WARNINGS=1;
 
 #
@@ -582,3 +583,23 @@ EXPLAIN SELECT a, SUM( b ) FROM t1 FORCE INDEX( a ) GROUP BY a;
 SHOW STATUS LIKE 'Last_query_cost';
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-21480: Unique key using ref access though eq_ref access can be used
+--echo #
+
+create table t1(a int, b int,c int,  primary key(a), unique key(b,c));
+insert into t1 select seq, seq, seq from seq_1_to_10;
+
+create table t2(a int, b int,c int);
+insert into t2 select seq, seq, seq+1 from seq_1_to_100;
+
+EXPLAIN SELECT t1.c, t2.c FROM t1, t2 WHERE t1.b=t2.a and t1.c=t2.b;
+SELECT t1.c, t2.c FROM t1, t2 WHERE t1.b=t2.a and t1.c=t2.b;
+
+alter table t1 drop PRIMARY KEY;
+alter table t1 add PRIMARY KEY(b,c);
+EXPLAIN SELECT t1.c, t2.c FROM t1, t2 WHERE t1.b=t2.a and t1.c=t2.b;
+SELECT t1.c, t2.c FROM t1, t2 WHERE t1.b=t2.a and t1.c=t2.b;
+
+drop table t1,t2;
