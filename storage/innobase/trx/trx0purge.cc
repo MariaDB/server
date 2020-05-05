@@ -43,6 +43,8 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0trx.h"
 #include <mysql/service_wsrep.h>
 
+#include <unordered_map>
+
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
 ulong		srv_max_purge_lag = 0;
 
@@ -1136,7 +1138,7 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 	i = 0;
 
 	const ulint		batch_size = srv_purge_batch_size;
-	std::map<table_id_t, purge_node_t*>	table_id_map;
+	std::unordered_map<table_id_t, purge_node_t*> table_id_map;
 	mem_heap_empty(purge_sys.heap);
 
 	while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown) {
@@ -1170,10 +1172,10 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 		table_id_t table_id = trx_undo_rec_get_table_id(
 			purge_rec.undo_rec);
 
-		auto it = table_id_map.find(table_id);
+		purge_node_t *& table_node = table_id_map[table_id];
 
-		if (it != table_id_map.end()) {
-			node = it->second;
+		if (table_node) {
+			node = table_node;
 		} else {
 			thr = UT_LIST_GET_NEXT(thrs, thr);
 
@@ -1183,7 +1185,7 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 			}
 
 			ut_a(thr != NULL);
-			table_id_map.insert({table_id, node});
+			table_node = node;
 		}
 
 		node->undo_recs.push(purge_rec);
