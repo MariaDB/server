@@ -389,7 +389,7 @@ if (-t STDOUT) {
   if (IS_WINDOWS and HAVE_WIN32_CONSOLE) {
     $set_titlebar = sub {Win32::Console::Title $_[0];};
   } elsif (defined $ENV{TERM} and $ENV{TERM} =~ /xterm/) {
-    $set_titlebar = sub { print "\e];$_[0]\a"; };
+    $set_titlebar = sub { syswrite STDOUT, "\e];$_[0]\a"; };
   }
 }
 
