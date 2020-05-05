@@ -65,6 +65,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    gtid_skip_flag(GTID_SKIP_NOT), inited(0), abort_slave(0), stop_for_until(0),
    slave_running(MYSQL_SLAVE_NOT_RUN), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
+   until_relay_log_names_defer(false),
    m_flags(0)
 {
   DBUG_ENTER("Relay_log_info::Relay_log_info");
@@ -512,6 +513,8 @@ void Relay_log_info::clear_until_condition()
   until_condition= Relay_log_info::UNTIL_NONE;
   until_log_name[0]= 0;
   until_log_pos= 0;
+  until_relay_log_names_defer= false;
+
   DBUG_VOID_RETURN;
 }
 
@@ -997,7 +1000,6 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     {
       group_relay_log_pos= rgi->future_event_relay_log_pos;
       strmake_buf(group_relay_log_name, rgi->event_relay_log_name);
-      notify_group_relay_log_name_update();
     } else if (cmp == 0 && group_relay_log_pos < rgi->future_event_relay_log_pos)
       group_relay_log_pos= rgi->future_event_relay_log_pos;
 
@@ -1258,29 +1260,78 @@ err:
      autoincrement or if we have transactions).
 
      Should be called ONLY if until_condition != UNTIL_NONE !
+
+     In the parallel execution mode and UNTIL_MASTER_POS the file name is
+     presented by future_event_master_log_name which may be ahead of
+     group_master_log_name. Log_event::log_pos does relate to it nevertheless
+     so the pair comprises a correct binlog coordinate.
+     Internal group events and events that have zero log_pos also
+     produce the zero for the local log_pos which may not lead to the
+     function falsely return true.
+     In UNTIL_RELAY_POS the original caching and notification are simplified
+     to straightforward files comparison when the current event can't be
+     a part of an event group.
+
    RETURN VALUE
      true - condition met or error happened (condition seems to have
             bad log file name)
      false - condition not met
 */
 
-bool Relay_log_info::is_until_satisfied(my_off_t master_beg_pos)
+bool Relay_log_info::is_until_satisfied(Log_event *ev)
 {
   const char *log_name;
   ulonglong log_pos;
+  /* Prevents stopping within transaction; needed solely for Relay UNTIL. */
+  bool in_trans= false;
+
   DBUG_ENTER("Relay_log_info::is_until_satisfied");
 
   if (until_condition == UNTIL_MASTER_POS)
   {
     log_name= (mi->using_parallel() ? future_event_master_log_name
                                     : group_master_log_name);
-    log_pos= master_beg_pos;
+    log_pos= (get_flag(Relay_log_info::IN_TRANSACTION) || !ev || !ev->log_pos) ?
+      (mi->using_parallel() ? 0 : group_master_log_pos) :
+      ev->log_pos - ev->data_written;
   }
   else
   {
     DBUG_ASSERT(until_condition == UNTIL_RELAY_POS);
-    log_name= group_relay_log_name;
-    log_pos= group_relay_log_pos;
+    if (!mi->using_parallel())
+    {
+      log_name= group_relay_log_name;
+      log_pos= group_relay_log_pos;
+    }
+    else
+    {
+      log_name= event_relay_log_name;
+      log_pos=  event_relay_log_pos;
+      in_trans= get_flag(Relay_log_info::IN_TRANSACTION);
+      /*
+        until_log_names_cmp_result is set to UNKNOWN either
+        -  by a non-group event *and* only when it is in the middle of a group
+        -  or by a group event when the preceding group made the above
+           non-group event to defer the resetting.
+      */
+      if ((ev && !Log_event::is_group_event(ev->get_type_code())))
+      {
+        if (in_trans)
+        {
+          until_relay_log_names_defer= true;
+        }
+        else
+        {
+          until_log_names_cmp_result= UNTIL_LOG_NAMES_CMP_UNKNOWN;
+          until_relay_log_names_defer= false;
+        }
+      }
+      else if (!in_trans && until_relay_log_names_defer)
+      {
+        until_log_names_cmp_result= UNTIL_LOG_NAMES_CMP_UNKNOWN;
+        until_relay_log_names_defer= false;
+      }
+    }
   }
 
   DBUG_PRINT("info", ("group_master_log_name='%s', group_master_log_pos=%llu",
@@ -1334,8 +1385,8 @@ bool Relay_log_info::is_until_satisfied(my_off_t master_beg_pos)
   }
 
   DBUG_RETURN(((until_log_names_cmp_result == UNTIL_LOG_NAMES_CMP_EQUAL &&
-           log_pos >= until_log_pos) ||
-          until_log_names_cmp_result == UNTIL_LOG_NAMES_CMP_GREATER));
+                (log_pos >= until_log_pos && !in_trans)) ||
+               until_log_names_cmp_result == UNTIL_LOG_NAMES_CMP_GREATER));
 }
 
 

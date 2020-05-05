@@ -402,7 +402,7 @@ public:
   void close_temporary_tables();
 
   /* Check if UNTIL condition is satisfied. See slave.cc for more. */
-  bool is_until_satisfied(my_off_t);
+  bool is_until_satisfied(Log_event *ev);
   inline ulonglong until_pos()
   {
     DBUG_ASSERT(until_condition == UNTIL_MASTER_POS ||
@@ -410,7 +410,13 @@ public:
     return ((until_condition == UNTIL_MASTER_POS) ? group_master_log_pos :
 	    group_relay_log_pos);
   }
-
+  inline char *until_name()
+  {
+    DBUG_ASSERT(until_condition == UNTIL_MASTER_POS ||
+                until_condition == UNTIL_RELAY_POS);
+    return ((until_condition == UNTIL_MASTER_POS) ? group_master_log_name :
+	    group_relay_log_name);
+  }
   /**
     Helper function to do after statement completion.
 
@@ -483,6 +489,15 @@ public:
   }
 
 private:
+  /*
+    Hint for when to stop event distribution by sql driver thread.
+    The flag is set ON by a non-group event when this event is in the middle
+    of a group (e.g a transaction group) so it's too early
+    to refresh the current-relay-log vs until-log cached comparison result.
+    And it is checked and to decide whether it's a right time to do so
+    when the being processed group has been fully scheduled.
+  */
+  bool until_relay_log_names_defer;
 
   /*
     Holds the state of the data in the relay log.
