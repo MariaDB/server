@@ -2427,5 +2427,25 @@ SELECT MAX(1) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
 drop table t1;
 
 --echo #
+--echo # MDEV-22461: JOIN::make_aggr_tables_info(): Assertion `select_options & (1ULL << 17)' failed.
+--echo #
+
+CREATE TEMPORARY TABLE t0 (a INT PRIMARY KEY ) ;
+INSERT INTO t0 VALUES (1),(2),(3);
+
+SELECT a FROM t0
+WHERE a < 8
+GROUP BY 1.5
+WINDOW v2 AS ( PARTITION BY a ORDER BY a DESC );
+
+SELECT a, ROW_NUMBER() OVER v2
+FROM t0
+WHERE a < 8
+GROUP BY 1.5
+WINDOW v2 AS ( PARTITION BY a ORDER BY a DESC );
+
+drop table t0;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
