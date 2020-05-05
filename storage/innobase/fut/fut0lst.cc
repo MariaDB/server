@@ -149,7 +149,7 @@ static void flst_insert_after(buf_block_t *base, uint16_t boffset,
   flst_write_addr(*add, add->frame + aoffset + FLST_NEXT,
                   next_addr.page, next_addr.boffset, mtr);
 
-  if (fil_addr_is_null(next_addr))
+  if (next_addr.page == FIL_NULL)
     flst_write_addr(*base, base->frame + boffset + FLST_LAST,
                     add->page.id.page_no(), aoffset, mtr);
   else
@@ -203,7 +203,7 @@ static void flst_insert_before(buf_block_t *base, uint16_t boffset,
   flst_write_addr(*add, add->frame + aoffset + FLST_NEXT,
 		  cur->page.id.page_no(), coffset, mtr);
 
-  if (fil_addr_is_null(prev_addr))
+  if (prev_addr.page == FIL_NULL)
     flst_write_addr(*base, base->frame + boffset + FLST_FIRST,
                     add->page.id.page_no(), aoffset, mtr);
   else
@@ -326,7 +326,7 @@ void flst_remove(buf_block_t *base, uint16_t boffset,
   const fil_addr_t prev_addr= flst_get_prev_addr(cur->frame + coffset);
   const fil_addr_t next_addr= flst_get_next_addr(cur->frame + coffset);
 
-  if (fil_addr_is_null(prev_addr))
+  if (prev_addr.page == FIL_NULL)
     flst_write_addr(*base, base->frame + boffset + FLST_FIRST,
                     next_addr.page, next_addr.boffset, mtr);
   else
@@ -340,7 +340,7 @@ void flst_remove(buf_block_t *base, uint16_t boffset,
                     next_addr.page, next_addr.boffset, mtr);
   }
 
-  if (fil_addr_is_null(next_addr))
+  if (next_addr.page == FIL_NULL)
     flst_write_addr(*base, base->frame + boffset + FLST_LAST,
                     prev_addr.page, prev_addr.boffset, mtr);
   else
@@ -388,7 +388,7 @@ void flst_validate(const buf_block_t *base, uint16_t boffset, mtr_t *mtr)
     mtr2.commit();
   }
 
-  ut_ad(fil_addr_is_null(addr));
+  ut_ad(addr.page == FIL_NULL);
 
   addr= flst_get_last(base->frame + boffset);
 
@@ -402,6 +402,6 @@ void flst_validate(const buf_block_t *base, uint16_t boffset, mtr_t *mtr)
     mtr2.commit();
   }
 
-  ut_ad(fil_addr_is_null(addr));
+  ut_ad(addr.page == FIL_NULL);
 }
 #endif

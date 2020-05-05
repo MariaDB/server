@@ -1348,7 +1348,7 @@ bool log_checkpoint()
 #ifdef _WIN32
 	case SRV_ALL_O_DIRECT_FSYNC:
 #endif
-		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
+		fil_flush_file_spaces();
 	}
 
 	log_mutex_enter();

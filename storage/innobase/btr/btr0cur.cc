@@ -3308,28 +3308,22 @@ upd_sys:
 /**
 Prefetch siblings of the leaf for the pessimistic operation.
 @param block	leaf page */
-static
-void
-btr_cur_prefetch_siblings(
-	buf_block_t*	block)
+static void btr_cur_prefetch_siblings(const buf_block_t* block)
 {
-	page_t*	page = buf_block_get_frame(block);
+  const page_t *page= block->frame;
+  ut_ad(page_is_leaf(page));
 
-	ut_ad(page_is_leaf(page));
+  uint32_t left_page_no= mach_read_from_4(my_assume_aligned<4>
+                                          (page + FIL_PAGE_PREV));
+  uint32_t right_page_no= mach_read_from_4(my_assume_aligned<4>
+                                           (page + FIL_PAGE_NEXT));
 
-	ulint left_page_no = fil_page_get_prev(page);
-	ulint right_page_no = fil_page_get_next(page);
-
-	if (left_page_no != FIL_NULL) {
-		buf_read_page_background(
-			page_id_t(block->page.id.space(), left_page_no),
-			block->zip_size(), false);
-	}
-	if (right_page_no != FIL_NULL) {
-		buf_read_page_background(
-			page_id_t(block->page.id.space(), right_page_no),
-			block->zip_size(), false);
-	}
+  if (left_page_no != FIL_NULL)
+    buf_read_page_background(page_id_t(block->page.id.space(), left_page_no),
+                             block->zip_size(), false);
+  if (right_page_no != FIL_NULL)
+    buf_read_page_background(page_id_t(block->page.id.space(), right_page_no),
+                             block->zip_size(), false);
 }
 
 /*************************************************************//**

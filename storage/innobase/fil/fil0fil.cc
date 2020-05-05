@@ -916,7 +916,7 @@ fil_mutex_enter_and_prepare_for_io(
 					os_thread_sleep(20000);
 					/* Flush tablespaces so that we can
 					close modified files in the LRU list */
-					fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
+					fil_flush_file_spaces();
 
 					count++;
 					mutex_enter(&fil_system.mutex);
@@ -1722,7 +1722,7 @@ fil_write_flushed_lsn(
 		}
 
 		err = fil_write(page_id, 0, 0, srv_page_size, buf);
-		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
+		fil_flush_file_spaces();
 	}
 
 	aligned_free(buf);
@@ -4220,16 +4220,11 @@ fil_flush(fil_space_t* space)
 }
 
 /** Flush to disk the writes in file spaces of the given type
-possibly cached by the OS.
-@param[in]	purpose	FIL_TYPE_TABLESPACE */
-void
-fil_flush_file_spaces(
-	fil_type_t	purpose)
+possibly cached by the OS. */
+void fil_flush_file_spaces()
 {
 	ulint*		space_ids;
 	ulint		n_space_ids;
-
-	ut_ad(purpose == FIL_TYPE_TABLESPACE);
 
 	mutex_enter(&fil_system.mutex);
 
@@ -4250,7 +4245,7 @@ fil_flush_file_spaces(
 	     end = fil_system.unflushed_spaces.end();
 	     it != end; ++it) {
 
-		if (it->purpose == purpose && !it->is_stopping()) {
+		if (it->purpose == FIL_TYPE_TABLESPACE && !it->is_stopping()) {
 			space_ids[n_space_ids++] = it->id;
 		}
 	}
@@ -4306,9 +4301,7 @@ struct	Check {
 /******************************************************************//**
 Checks the consistency of the tablespace cache.
 @return true if ok */
-bool
-fil_validate(void)
-/*==============*/
+bool fil_validate()
 {
 	fil_space_t*	space;
 	fil_node_t*	fil_node;
@@ -4347,39 +4340,6 @@ fil_validate(void)
 	mutex_exit(&fil_system.mutex);
 
 	return(true);
-}
-
-/********************************************************************//**
-Returns true if file address is undefined.
-@return true if undefined */
-bool
-fil_addr_is_null(
-/*=============*/
-	fil_addr_t	addr)	/*!< in: address */
-{
-	return(addr.page == FIL_NULL);
-}
-
-/********************************************************************//**
-Get the predecessor of a file page.
-@return FIL_PAGE_PREV */
-ulint
-fil_page_get_prev(
-/*==============*/
-	const byte*	page)	/*!< in: file page */
-{
-	return(mach_read_from_4(page + FIL_PAGE_PREV));
-}
-
-/********************************************************************//**
-Get the successor of a file page.
-@return FIL_PAGE_NEXT */
-ulint
-fil_page_get_next(
-/*==============*/
-	const byte*	page)	/*!< in: file page */
-{
-	return(mach_read_from_4(page + FIL_PAGE_NEXT));
 }
 
 /*********************************************************************//**

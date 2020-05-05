@@ -1398,38 +1398,12 @@ void
 fil_flush(fil_space_t* space);
 
 /** Flush to disk the writes in file spaces of the given type
-possibly cached by the OS.
-@param[in]	purpose	FIL_TYPE_TABLESPACE */
-void
-fil_flush_file_spaces(
-	fil_type_t	purpose);
+possibly cached by the OS. */
+void fil_flush_file_spaces();
 /******************************************************************//**
 Checks the consistency of the tablespace cache.
 @return true if ok */
-bool
-fil_validate(void);
-/*==============*/
-/********************************************************************//**
-Returns true if file address is undefined.
-@return true if undefined */
-bool
-fil_addr_is_null(
-/*=============*/
-	fil_addr_t	addr);	/*!< in: address */
-/********************************************************************//**
-Get the predecessor of a file page.
-@return FIL_PAGE_PREV */
-ulint
-fil_page_get_prev(
-/*==============*/
-	const byte*	page);	/*!< in: file page */
-/********************************************************************//**
-Get the successor of a file page.
-@return FIL_PAGE_NEXT */
-ulint
-fil_page_get_next(
-/*==============*/
-	const byte*	page);	/*!< in: file page */
+bool fil_validate();
 /*********************************************************************//**
 Sets the file page type. */
 void

@@ -630,9 +630,10 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 	prevent deadlocks. Even if we read values which are nonsense, the
 	algorithm will work. */
 
-	pred_offset = fil_page_get_prev(frame);
-	succ_offset = fil_page_get_next(frame);
-
+	pred_offset = mach_read_from_4(my_assume_aligned<4>(FIL_PAGE_PREV
+							    + frame));
+	succ_offset = mach_read_from_4(my_assume_aligned<4>(FIL_PAGE_NEXT
+							    + frame));
 	mutex_exit(&buf_pool.mutex);
 
 	if ((page_id.page_no() == low)

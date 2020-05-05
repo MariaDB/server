@@ -662,7 +662,7 @@ bad:
 
 	recv_dblwr.pages.clear();
 
-	fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
+	fil_flush_file_spaces();
 	aligned_free(read_buf);
 }
 
@@ -714,7 +714,7 @@ buf_dblwr_update(
 			mutex_exit(&buf_dblwr->mutex);
 			/* This will finish the batch. Sync data files
 			to the disk. */
-			fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
+			fil_flush_file_spaces();
 			mutex_enter(&buf_dblwr->mutex);
 
 			/* We can now reuse the doublewrite memory buffer: */
@@ -912,7 +912,7 @@ buf_dblwr_flush_buffered_writes()
 		/* Sync the writes to the disk. */
 		buf_dblwr_sync_datafiles();
 		/* Now we flush the data to disk (for example, with fsync) */
-		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
+		fil_flush_file_spaces();
 		return;
 	}
 

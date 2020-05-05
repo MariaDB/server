@@ -990,16 +990,14 @@ fsp_alloc_free_extent(
 		first = flst_get_first(FSP_HEADER_OFFSET + FSP_FREE
 				       + header->frame);
 
-		if (fil_addr_is_null(first)) {
+		if (first.page == FIL_NULL) {
 			fsp_fill_free_list(false, space, header, mtr);
 
 			first = flst_get_first(FSP_HEADER_OFFSET + FSP_FREE
 					       + header->frame);
-		}
-
-		if (fil_addr_is_null(first)) {
-
-			return(NULL);	/* No free extents left */
+			if (first.page == FIL_NULL) {
+				return nullptr;	/* No free extents left */
+			}
 		}
 
 		descr = xdes_lst_get_descriptor(space, first, &desc_block,
@@ -1125,7 +1123,7 @@ fsp_alloc_free_page(
 		first = flst_get_first(FSP_HEADER_OFFSET + FSP_FREE_FRAG
 				       + block->frame);
 
-		if (fil_addr_is_null(first)) {
+		if (first.page == FIL_NULL) {
 			/* There are no partially full fragments: allocate
 			a free extent and add it to the FREE_FRAG list. NOTE
 			that the allocation may have as a side-effect that an

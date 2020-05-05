@@ -229,14 +229,6 @@ void buf_flush_sync();
 @param[in]	lsn_limit	upper limit of LSN to be flushed */
 void buf_flush_request_force(lsn_t lsn_limit);
 
-/** Start a buffer flush batch for LRU or flush list
-@param[in]	flush_type	BUF_FLUSH_LRU or BUF_FLUSH_LIST
-@return	whether the flush batch was started (was not already running) */
-bool buf_flush_start(buf_flush_t flush_type);
-/** End a buffer flush batch.
-@param[in]	flush_type	BUF_FLUSH_LRU or BUF_FLUSH_LIST */
-void buf_flush_end(buf_flush_t flush_type);
-
 #include "buf0flu.ic"
 
 #endif

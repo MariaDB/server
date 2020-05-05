@@ -1927,7 +1927,7 @@ buf_flush_stats(
 /** Start a buffer flush batch for LRU or flush list
 @param[in]	flush_type	BUF_FLUSH_LRU or BUF_FLUSH_LIST
 @return	whether the flush batch was started (was not already running) */
-bool buf_flush_start(buf_flush_t flush_type)
+static bool buf_flush_start(buf_flush_t flush_type)
 {
 	ut_ad(flush_type == BUF_FLUSH_LRU || flush_type == BUF_FLUSH_LIST);
 
@@ -1954,7 +1954,7 @@ bool buf_flush_start(buf_flush_t flush_type)
 
 /** End a buffer flush batch.
 @param[in]	flush_type	BUF_FLUSH_LRU or BUF_FLUSH_LIST */
-void buf_flush_end(buf_flush_t flush_type)
+static void buf_flush_end(buf_flush_t flush_type)
 {
 	mutex_enter(&buf_pool.mutex);
 
