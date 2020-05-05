@@ -35,7 +35,7 @@
 ########################################################################## 
 
 SET @start_value = @@global.table_open_cache ;
-SELECT @start_value;
+SELECT @start_value > 400;
 
 
 --echo '#--------------------FN_DYNVARS_001_01------------------------#'
@@ -165,7 +165,7 @@ SELECT table_open_cache = @@session.table_open_cache ;
 ##############################
 
 SET @@global.table_open_cache = @start_value;
-SELECT @@global.table_open_cache ;
+SELECT @@global.table_open_cache = @start_value ;
 
 
 ##################################################################
