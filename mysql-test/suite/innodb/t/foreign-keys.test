@@ -158,3 +158,26 @@ connection default;
 SET debug_sync='reset';
 SHOW OPEN TABLES FROM test;
 DROP TABLE t1, t2;
+
+#
+# MDEV-22180 Planner opens unnecessary tables when updated table is referenced by foreign keys
+#
+source include/have_innodb.inc;
+
+create table t1 (pk int primary key, data int) engine=innodb;
+insert t1 values (1,1),(2,2),(3,3);
+create table t2 (t1_pk int, foreign key (t1_pk) references t1 (pk)) engine=innodb;
+insert t2 values (1),(2);
+error ER_NO_REFERENCED_ROW_2;
+insert t2 values (10);
+flush tables;
+flush status;
+# with ON UPDATE RESTRICT child tables are not opened
+update t1 set data=10 where pk+1>10;
+show status like '%opened_tab%';
+flush tables;
+flush status;
+# neither are parent tables
+update t2 set t1_pk=11 where t1_pk+1>10;
+show status like '%opened_tab%';
+drop table t2, t1;

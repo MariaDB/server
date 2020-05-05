@@ -1813,6 +1813,9 @@ struct TABLE_LIST
     open_type= routine ? OT_TEMPORARY_OR_BASE : OT_BASE_ONLY;
     belong_to_view= belong_to_view_arg;
     trg_event_map= trg_event_map_arg;
+    /* MDL is enough for read-only FK checks, we don't need the table */
+    if (prelocking_placeholder == FK && lock_type < TL_WRITE_ALLOW_WRITE)
+      open_strategy= OPEN_STUB;
 
     **last_ptr= this;
     prev_global= *last_ptr;
