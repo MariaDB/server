@@ -2122,7 +2122,6 @@ static Exit_status safe_connect()
     return ERROR_STOP;
   }
 
-#ifdef HAVE_OPENSSL
   if (opt_use_ssl)
   {
     mysql_ssl_set(mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
@@ -2133,7 +2132,6 @@ static Exit_status safe_connect()
   }
   mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);
-#endif /*HAVE_OPENSSL*/
 
   if (opt_plugindir && *opt_plugindir)
     mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugindir);

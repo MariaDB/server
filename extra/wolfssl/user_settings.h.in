@@ -21,13 +21,25 @@
 #define NO_WOLFSSL_STUB
 #define OPENSSL_ALL
 #define WOLFSSL_ALLOW_TLSV10
+#define FP_MAX_BITS 16384
+#define HAVE_FFDHE_8192
+#define HAVE_FFDHE_6144
+#define HAVE_FFDHE_4096
+#define HAVE_FFDHE_3072
+#define HAVE_FFDHE_2048
+#define WOLFSSL_TLS13
+#define WC_RSA_PSS
+#define HAVE_HKDF
+#define HAVE_AEAD
+#define HAVE_SUPPORTED_CURVES
+#define HAVE_AESGCM
+#define WOLFSSL_AES_256
 
 #cmakedefine WOLFSSL_AESNI
 #cmakedefine USE_FAST_MATH
 #cmakedefine TFM_TIMING_RESISTANT
 #cmakedefine HAVE_INTEL_RDSEED
 #cmakedefine USE_INTEL_SPEEDUP
-#cmakedefine FP_MAX_BITS @FP_MAX_BITS@
 #cmakedefine USE_FAST_MATH
 #cmakedefine WOLFSSL_X86_64_BUILD
 

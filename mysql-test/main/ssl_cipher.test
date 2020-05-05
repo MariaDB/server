@@ -14,16 +14,16 @@ create user ssl_user3@localhost require cipher 'AES256-SHA' AND SUBJECT '/C=FI/S
 create user ssl_user4@localhost require cipher 'AES256-SHA' AND SUBJECT '/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB/CN=client' ISSUER '/CN=cacert/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB';
 create user ssl_user5@localhost require cipher 'AES256-SHA' AND SUBJECT 'xxx';
 
-connect (con1,localhost,ssl_user1,,,,,SSL-CIPHER=AES256-SHA);
+connect (con1,localhost,ssl_user1,,,,,SSL-CIPHER=AES256-SHA TLS-VERSION=TLSv1.1);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect (con2,localhost,ssl_user2,,,,,SSL-CIPHER=AES128-SHA);
-connect (con2,localhost,ssl_user2,,,,,SSL-CIPHER=AES256-SHA);
-connect (con3,localhost,ssl_user3,,,,,SSL-CIPHER=AES256-SHA);
-connect (con4,localhost,ssl_user4,,,,,SSL-CIPHER=AES256-SHA);
+connect (con2,localhost,ssl_user2,,,,,SSL-CIPHER=AES128-SHA TLS-VERSION=TLSv1.1);
+connect (con2,localhost,ssl_user2,,,,,SSL-CIPHER=AES256-SHA TLS-VERSION=TLSv1.1);
+connect (con3,localhost,ssl_user3,,,,,SSL-CIPHER=AES256-SHA TLS-VERSION=TLSv1.1);
+connect (con4,localhost,ssl_user4,,,,,SSL-CIPHER=AES256-SHA TLS-VERSION=TLSv1.1);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect (con5,localhost,ssl_user5,,,,,SSL-CIPHER=AES256-SHA);
+connect (con5,localhost,ssl_user5,,,,,SSL-CIPHER=AES256-SHA TLS-VERSION=TLSv1.1);
 
 connection con1;
 SHOW STATUS LIKE 'Ssl_cipher';
@@ -96,7 +96,7 @@ drop user mysqltest_1@localhost;
 #
 let $restart_parameters=--ssl-cipher=AES128-SHA;
 source include/restart_mysqld.inc;
-connect (ssl_con,localhost,root,,,,,SSL);
+connect (ssl_con,localhost,root,,,,,SSL TLS-VERSION=TLSv1.1);
 SHOW STATUS LIKE 'Ssl_cipher';
 SHOW STATUS LIKE 'Ssl_cipher_list';
 disconnect ssl_con;
