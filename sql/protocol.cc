@@ -1194,7 +1194,7 @@ bool Protocol::store_warning(const char *from, size_t length)
 {
   BinaryStringBuffer<MYSQL_ERRMSG_SIZE> tmp;
   CHARSET_INFO *cs= thd->variables.character_set_results;
-  if (cs == &my_charset_bin)
+  if (!cs || cs == &my_charset_bin)
     cs= system_charset_info;
   if (tmp.copy_printable_hhhh(cs, system_charset_info, from, length))
     return net_store_data((const uchar*)"", 0);
