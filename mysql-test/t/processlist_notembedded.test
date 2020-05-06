@@ -11,7 +11,7 @@ connect (con1,localhost,root,,);
 
 connection con1;
 
-let $q= `select CONCAT("SELECT user sleep FROM mysql.user WHERE user ='some", CHAR(0), "'")`;
+let $q= `select CONCAT("SELECT user FROM mysql.user WHERE user ='some", CHAR(0), "sleep'")`;
 
 SET DEBUG_SYNC= 'before_join_optimize SIGNAL in_sync WAIT_FOR go';
 --disable_query_log
