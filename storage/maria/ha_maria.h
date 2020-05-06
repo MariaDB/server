@@ -32,7 +32,7 @@
 #define HA_RECOVER_QUICK        8       /* Don't check rows in data file */
 
 C_MODE_START
-ICP_RESULT index_cond_func_maria(void *arg);
+check_result_t index_cond_func_maria(void *arg);
 C_MODE_END
 
 extern TYPELIB maria_recover_typelib;
@@ -187,7 +187,7 @@ public:
   int find_unique_row(uchar *record, uint unique_idx);
 private:
   DsMrr_impl ds_mrr;
-  friend ICP_RESULT index_cond_func_maria(void *arg);
+  friend check_result_t index_cond_func_maria(void *arg);
   friend void reset_thd_trn(THD *thd);
 };
 

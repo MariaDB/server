@@ -34,7 +34,7 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
   HA_KEYSEG *last_used_keyseg;
   uint32 nextflag;
   MARIA_KEY key;
-  ICP_RESULT icp_res= ICP_MATCH;
+  check_result_t check= CHECK_POS;
   DBUG_ENTER("maria_rkey");
   DBUG_PRINT("enter", ("base:%p  buf:%p  inx: %d  search_flag: %d",
                        info, buf, inx, search_flag));
@@ -115,7 +115,7 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
         not satisfied with an out-of-range condition.
       */
       if ((*share->row_is_visible)(info) && 
-          ((icp_res= ma_check_index_cond(info, inx, buf)) != ICP_NO_MATCH))
+          ((check= ma_check_index_cond(info, inx, buf)) != CHECK_NEG))
         break;
 
       /* The key references a concurrently inserted record. */
@@ -174,7 +174,7 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
         }
 
       } while (!(*share->row_is_visible)(info) || 
-               ((icp_res= ma_check_index_cond(info, inx, buf)) == 0));
+               ((check= ma_check_index_cond(info, inx, buf)) == 0));
     }
     else
     {
@@ -186,7 +186,7 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
 
   if (info->cur_row.lastpos == HA_OFFSET_ERROR)
   {
-    if (icp_res == ICP_OUT_OF_RANGE)
+    if (check == CHECK_OUT_OF_RANGE)
     {
       /* We don't want HA_ERR_END_OF_FILE in this particular case */
       my_errno= HA_ERR_KEY_NOT_FOUND;

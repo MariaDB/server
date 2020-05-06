@@ -469,6 +469,14 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
       covering_keys.is_set(access_key_no))
     return 0;
 
+  // Disallow use of range filter if the key contains partially-covered
+  // columns.
+  for (uint i= 0; i < key_info[access_key_no].usable_key_parts; i++)
+  {
+    if (key_info[access_key_no].key_part[i].field->type() == MYSQL_TYPE_BLOB)
+      return 0;
+  }
+
   /*
     Currently we do not support usage of range filters if the table
     is accessed by the clustered primary key. It does not make sense

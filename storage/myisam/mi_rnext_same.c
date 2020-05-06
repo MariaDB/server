@@ -30,7 +30,7 @@ int mi_rnext_same(MI_INFO *info, uchar *buf)
   int error;
   uint inx,not_used[2];
   MI_KEYDEF *keyinfo;
-  ICP_RESULT icp_res= ICP_MATCH;
+  check_result_t check= CHECK_POS;
   DBUG_ENTER("mi_rnext_same");
 
   if ((int) (inx=info->lastinx) < 0 || info->lastpos == HA_OFFSET_ERROR)
@@ -94,10 +94,7 @@ int mi_rnext_same(MI_INFO *info, uchar *buf)
            - rows that don't match index condition
         */
         if (info->lastpos < info->state->data_file_length && 
-            (!info->index_cond_func || 
-             (icp_res= mi_check_index_cond(info, inx, buf)) != ICP_NO_MATCH) &&
-            (!mi_check_rowid_filter_is_active(info) ||
-	     mi_check_rowid_filter(info)))
+            (check= mi_check_index_tuple(info, inx, buf)) != CHECK_NEG)
           break;
       }
   }
@@ -109,7 +106,7 @@ int mi_rnext_same(MI_INFO *info, uchar *buf)
   info->update&= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
   info->update|= HA_STATE_NEXT_FOUND | HA_STATE_RNEXT_SAME;
 
-  if (error || icp_res != ICP_MATCH)
+  if (error || check != CHECK_POS)
   {
     fast_mi_writeinfo(info);
     if (my_errno == HA_ERR_KEY_NOT_FOUND)
