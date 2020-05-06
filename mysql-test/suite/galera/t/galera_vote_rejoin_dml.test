@@ -73,14 +73,14 @@ SET SESSION wsrep_on=OFF;
 --connection node_1
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
 SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
-CALL mtr.add_suppression("mysqld: Can't find record in 't1'");
+CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
 CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows");
 CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno [0-9]*");
 
 --connection node_2
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
 SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
-CALL mtr.add_suppression("mysqld: Can't find record in 't1'");
+CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
 CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows");
 CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno [0-9]*");
 
