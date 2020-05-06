@@ -490,57 +490,82 @@ int _mi_read_key_record(MI_INFO *info, my_off_t filepos, uchar *buf)
 }
 
 
-/*
-  Save current key tuple to record and call index condition check function
-
-  SYNOPSIS
-    mi_check_index_cond()
-      info    MyISAM handler
-      keynr   Index we're running a scan on
-      record  Record buffer to use (it is assumed that index check function 
-              will look for column values there)
-
-  RETURN
-    ICP_ERROR         Error 
-    ICP_NO_MATCH      Index condition is not satisfied, continue scanning
-    ICP_MATCH         Index condition is satisfied
-    ICP_OUT_OF_RANGE  Index condition is not satisfied, end the scan. 
-*/
-
-ICP_RESULT mi_check_index_cond(register MI_INFO *info, uint keynr,
-                               uchar *record)
+static
+int mi_unpack_index_tuple(MI_INFO *info, uint keynr, uchar *record)
 {
-  ICP_RESULT res;
   if (_mi_put_key_in_record(info, keynr, FALSE, record))
   {
     /* Impossible case; Can only happen if bug in code */
     mi_print_error(info->s, HA_ERR_CRASHED);
     info->lastpos= HA_OFFSET_ERROR;             /* No active record */
     my_errno= HA_ERR_CRASHED;
-    res= ICP_ERROR;
+    return 1;
   }
-  else if ((res= info->index_cond_func(info->index_cond_func_arg)) ==
-           ICP_OUT_OF_RANGE)
-  {
-    /* We got beyond the end of scanned range */
-    info->lastpos= HA_OFFSET_ERROR;             /* No active record */
-    my_errno= HA_ERR_END_OF_FILE;
-  }
-  return res;
+  return 0;
 }
 
 
-int mi_check_rowid_filter(MI_INFO *info)
-{
-  return info->rowid_filter_func(info->rowid_filter_func_arg);
-}
-
-int mi_check_rowid_filter_is_active(MI_INFO *info)
+static int mi_check_rowid_filter_is_active(MI_INFO *info)
 {
   if (info->rowid_filter_is_active_func == NULL)
     return 0;
   return info->rowid_filter_is_active_func(info->rowid_filter_func_arg);
 }
+
+
+/*
+  Check the current index tuple: Check ICP condition and/or Rowid Filter
+
+  SYNOPSIS
+    mi_check_index_tuple()
+      info    MyISAM handler
+      keynr   Index we're running a scan on
+      record  Record buffer to use (it is assumed that index check function 
+              will look for column values there)
+
+  RETURN
+    Check result according to check_result_t definition
+*/
+
+check_result_t mi_check_index_tuple(MI_INFO *info, uint keynr, uchar *record)
+{
+  int need_unpack= TRUE;
+  check_result_t res= CHECK_POS;
+
+  if (info->index_cond_func)
+  {
+    if (mi_unpack_index_tuple(info, keynr, record))
+      res= CHECK_ERROR;
+    else if ((res= info->index_cond_func(info->index_cond_func_arg)) ==
+              CHECK_OUT_OF_RANGE)
+    {
+      /* We got beyond the end of scanned range */
+      info->lastpos= HA_OFFSET_ERROR;             /* No active record */
+      my_errno= HA_ERR_END_OF_FILE;
+    }
+
+    /*
+      If we got an error, out-of-range condition, or ICP condition computed to
+      FALSE - we don't need to check the Rowid Filter.
+    */
+    if (res != CHECK_POS)
+      return res;
+
+    need_unpack= FALSE;
+  }
+
+  /* Check the Rowid Filter, if present */
+  if (mi_check_rowid_filter_is_active(info))
+  {
+    /* Unpack the index tuple if we haven't done it already */
+    if (need_unpack && mi_unpack_index_tuple(info, keynr, record))
+      res= CHECK_ERROR;
+    else
+      res= info->rowid_filter_func(info->rowid_filter_func_arg);
+  }
+  return res;
+}
+
 
 /*
   Retrieve auto_increment info

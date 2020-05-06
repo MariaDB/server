@@ -8680,17 +8680,18 @@ int ha_rocksdb::find_icp_matching_index_rec(const bool move_forward,
         return err;
       }
 
-      const enum icp_result icp_status= handler_index_cond_check(this);
-      if (icp_status == ICP_NO_MATCH) {
+      const check_result_t icp_status= handler_index_cond_check(this);
+      if (icp_status == CHECK_NEG) {
         rocksdb_smart_next(!move_forward, m_scan_it);
         continue; /* Get the next (or prev) index tuple */
       }
-      else if (icp_status == ICP_OUT_OF_RANGE || icp_status == ICP_ABORTED_BY_USER) {
+      else if (icp_status == CHECK_OUT_OF_RANGE ||
+               icp_status == CHECK_ABORTED_BY_USER) {
         /* We have walked out of range we are scanning */
         table->status = STATUS_NOT_FOUND;
         return HA_ERR_END_OF_FILE;
       } 
-      else /* icp_status == ICP_MATCH */
+      else /* icp_status == CHECK_POS */
       {
         /* Index Condition is satisfied. We have rc==0, proceed to fetch the
          * row. */

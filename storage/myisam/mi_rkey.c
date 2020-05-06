@@ -30,7 +30,7 @@ int mi_rkey(MI_INFO *info, uchar *buf, int inx, const uchar *key,
   MI_KEYDEF *keyinfo;
   HA_KEYSEG *last_used_keyseg;
   uint pack_key_length, use_key_length, nextflag;
-  ICP_RESULT res= ICP_NO_MATCH;
+  check_result_t res= CHECK_NEG;
   DBUG_ENTER("mi_rkey");
   DBUG_PRINT("enter", ("base: %p  buf: %p  inx: %d  search_flag: %d",
                        info, buf, inx, search_flag));
@@ -119,10 +119,7 @@ int mi_rkey(MI_INFO *info, uchar *buf, int inx, const uchar *key,
       while ((info->lastpos >= info->state->data_file_length &&
               (search_flag != HA_READ_KEY_EXACT ||
               last_used_keyseg != keyinfo->seg + keyinfo->keysegs)) ||
-             (info->index_cond_func && 
-              (res= mi_check_index_cond(info, inx, buf)) == ICP_NO_MATCH) ||
-	     (mi_check_rowid_filter_is_active(info) &&
-	      !mi_check_rowid_filter(info)))
+              (res= mi_check_index_tuple(info, inx, buf)) == CHECK_NEG)
       {
         uint not_used[2];
         /*
@@ -162,12 +159,12 @@ int mi_rkey(MI_INFO *info, uchar *buf, int inx, const uchar *key,
           /* Aborted by user */
           DBUG_ASSERT(info->lastpos == HA_OFFSET_ERROR &&
                       my_errno == HA_ERR_ABORTED_BY_USER);
-          res= ICP_ERROR;
+          res= CHECK_ERROR;
           buf= 0;                               /* Fast abort */
           break;
         }
       }
-      if (res == ICP_OUT_OF_RANGE)
+      if (res == CHECK_OUT_OF_RANGE)
       {
         /* Change error from HA_ERR_END_OF_FILE */
         DBUG_ASSERT(info->lastpos == HA_OFFSET_ERROR);

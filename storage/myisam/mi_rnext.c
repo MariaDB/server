@@ -28,7 +28,7 @@ int mi_rnext(MI_INFO *info, uchar *buf, int inx)
 {
   int error,changed;
   uint flag;
-  ICP_RESULT icp_res= ICP_MATCH;
+  check_result_t check= CHECK_POS;
   uint update_mask= HA_STATE_NEXT_FOUND;
   DBUG_ENTER("mi_rnext");
 
@@ -101,10 +101,7 @@ int mi_rnext(MI_INFO *info, uchar *buf, int inx)
   {
     while ((info->s->concurrent_insert &&
             info->lastpos >= info->state->data_file_length) ||
-           (info->index_cond_func &&
-            (icp_res= mi_check_index_cond(info, inx, buf)) == ICP_NO_MATCH) ||
-           (mi_check_rowid_filter_is_active(info) &&
-	    !mi_check_rowid_filter(info)))
+           (check= mi_check_index_tuple(info, inx, buf)) == CHECK_NEG)
     {
       /*
         If we are at the last key on the key page, allow writers to
@@ -137,7 +134,7 @@ int mi_rnext(MI_INFO *info, uchar *buf, int inx)
   info->update&= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
   info->update|= update_mask;
 
-  if (error || icp_res != ICP_MATCH)
+  if (error || check != CHECK_POS)
   {
     fast_mi_writeinfo(info);
     if (my_errno == HA_ERR_KEY_NOT_FOUND)
