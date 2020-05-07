@@ -629,13 +629,28 @@ class TABLE_STATISTICS_CB
       return state.load(std::memory_order_acquire) == READY;
     }
 
-    /** Sets mutual exclusion for data loading */
+    /**
+      Sets mutual exclusion for data loading
+
+      If stats are in LOADING state, waits until state change.
+
+      @return
+        @retval true atomic EMPTY -> LOADING transfer completed, ok to load
+        @retval false stats are in READY state, no need to load
+    */
     bool start_load()
     {
-      state_codes expected= EMPTY;
-      return state.compare_exchange_weak(expected, LOADING,
-                                         std::memory_order_relaxed,
-                                         std::memory_order_relaxed);
+      for (;;)
+      {
+        state_codes expected= EMPTY;
+        if (state.compare_exchange_weak(expected, LOADING,
+                                        std::memory_order_relaxed,
+                                        std::memory_order_relaxed))
+          return true;
+        if (expected == READY)
+          return false;
+        ut_delay(1);
+      }
     }
 
     /** Marks data available for subsequent use */
