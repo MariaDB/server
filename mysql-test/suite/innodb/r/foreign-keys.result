@@ -144,4 +144,32 @@ show status like '%opened_tab%';
 Variable_name	Value
 Opened_table_definitions	1
 Opened_tables	1
+flush tables;
+flush status;
+lock tables t1 write;
+show status like '%opened_tab%';
+Variable_name	Value
+Opened_table_definitions	2
+Opened_tables	2
+insert t1 values (4,4);
+show status like '%opened_tab%';
+Variable_name	Value
+Opened_table_definitions	2
+Opened_tables	2
+unlock tables;
+create function foo() returns int
+begin
+insert t1 values (5,5);
+return 5;
+end|
+flush tables;
+flush status;
+select foo();
+foo()
+5
+show status like '%opened_tab%';
+Variable_name	Value
+Opened_table_definitions	2
+Opened_tables	2
+drop function foo;
 drop table t2, t1;

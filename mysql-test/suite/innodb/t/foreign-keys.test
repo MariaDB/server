@@ -162,7 +162,6 @@ DROP TABLE t1, t2;
 #
 # MDEV-22180 Planner opens unnecessary tables when updated table is referenced by foreign keys
 #
-source include/have_innodb.inc;
 
 create table t1 (pk int primary key, data int) engine=innodb;
 insert t1 values (1,1),(2,2),(3,3);
@@ -180,4 +179,24 @@ flush status;
 # neither are parent tables
 update t2 set t1_pk=11 where t1_pk+1>10;
 show status like '%opened_tab%';
+# under LOCK TABLES
+flush tables;
+flush status;
+lock tables t1 write;
+show status like '%opened_tab%';
+insert t1 values (4,4);
+show status like '%opened_tab%';
+unlock tables;
+delimiter |;
+create function foo() returns int
+begin
+  insert t1 values (5,5);
+  return 5;
+end|
+delimiter ;|
+flush tables;
+flush status;
+select foo();
+show status like '%opened_tab%';
+drop function foo;
 drop table t2, t1;
