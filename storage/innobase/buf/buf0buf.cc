@@ -3298,6 +3298,7 @@ buf_page_get_low(
 	      || (rw_latch == RW_NO_LATCH));
 	ut_ad(!allow_ibuf_merge
 	      || mode == BUF_GET
+	      || mode == BUF_GET_POSSIBLY_FREED
 	      || mode == BUF_GET_IF_IN_POOL
 	      || mode == BUF_GET_IF_IN_POOL_OR_WATCH);
 
@@ -3907,7 +3908,8 @@ evict_from_pool:
 		return NULL;
 	}
 
-	if (allow_ibuf_merge
+	if (fix_block->page.status != buf_page_t::FREED
+	    && allow_ibuf_merge
 	    && fil_page_get_type(fix_block->frame) == FIL_PAGE_INDEX
 	    && page_is_leaf(fix_block->frame)) {
 		rw_lock_x_lock_inline(&fix_block->lock, 0, file, line);
@@ -3974,9 +3976,27 @@ buf_page_get_gen(
   {
     block->fix();
     ut_ad(rw_lock_s_lock_nowait(block->debug_latch, file, line));
-    block= buf_page_mtr_lock(block, rw_latch, mtr, file, line);
     if (err)
       *err= DB_SUCCESS;
+    const bool must_merge= allow_ibuf_merge &&
+      ibuf_page_exists(page_id, block->zip_size());
+    if (block->page.status == buf_page_t::FREED)
+      ut_ad(mode == BUF_GET_POSSIBLY_FREED || mode == BUF_PEEK_IF_IN_POOL);
+    else if (must_merge && fil_page_get_type(block->frame) == FIL_PAGE_INDEX &&
+	     page_is_leaf(block->frame))
+    {
+      rw_lock_x_lock_inline(&block->lock, 0, file, line);
+      block->page.ibuf_exist= false;
+      ibuf_merge_or_delete_for_page(block, page_id, block->zip_size(), true);
+
+      if (rw_latch == RW_X_LATCH)
+      {
+        mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
+	return block;
+      }
+      rw_lock_x_unlock(&block->lock);
+    }
+    block= buf_page_mtr_lock(block, rw_latch, mtr, file, line);
     return block;
   }
 

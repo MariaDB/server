@@ -2325,8 +2325,8 @@ tablespace_deleted:
 			mtr.start();
 			dberr_t err;
 			buf_page_get_gen(page_id_t(space_id, page_nos[i]),
-					 zip_size,
-					 RW_X_LATCH, NULL, BUF_GET,
+					 zip_size, RW_X_LATCH, nullptr,
+					 BUF_GET_POSSIBLY_FREED,
 					 __FILE__, __LINE__, &mtr, &err, true);
 			mtr.commit();
 			if (err == DB_TABLESPACE_DELETED) {
@@ -4221,8 +4221,9 @@ ibuf_merge_or_delete_for_page(
 	ulint		mops[IBUF_OP_COUNT];
 	ulint		dops[IBUF_OP_COUNT];
 
-	ut_ad(block == NULL || page_id == block->page.id);
+	ut_ad(!block || page_id == block->page.id);
 	ut_ad(!block || buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
+	ut_ad(!block || block->page.status == buf_page_t::NORMAL);
 
 	if (trx_sys_hdr_page(page_id)
 	    || fsp_is_system_temporary(page_id.space())) {
