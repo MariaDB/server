@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -62,6 +62,7 @@ UNIV_INTERN my_bool	srv_ibuf_disable_background_merge;
 #include "que0que.h"
 #include "srv0start.h" /* srv_shutdown_state */
 #include "ha_prototypes.h"
+#include "ut0crc32.h"
 #include "rem0cmp.h"
 
 /*	STRUCTURE OF AN INSERT BUFFER RECORD
@@ -2885,42 +2886,28 @@ ibuf_contract_after_insert(
 	} while (size > 0 && sum_sizes < entry_size);
 }
 
-/*********************************************************************//**
-Determine if an insert buffer record has been encountered already.
-@return	TRUE if a new record, FALSE if possible duplicate */
-static
-ibool
-ibuf_get_volume_buffered_hash(
-/*==========================*/
-	const rec_t*	rec,	/*!< in: ibuf record in post-4.1 format */
-	const byte*	types,	/*!< in: fields */
-	const byte*	data,	/*!< in: start of user record data */
-	ulint		comp,	/*!< in: 0=ROW_FORMAT=REDUNDANT,
-				nonzero=ROW_FORMAT=COMPACT */
-	ulint*		hash,	/*!< in/out: hash array */
-	ulint		size)	/*!< in: number of elements in hash array */
+/** Determine if a change buffer record has been encountered already.
+@param rec   change buffer record in the MySQL 5.5 format
+@param hash  hash table of encountered records
+@param size  number of elements in hash
+@retval true if a distinct record
+@retval false if this may be duplicating an earlier record */
+static bool ibuf_get_volume_buffered_hash(const rec_t *rec, ulint *hash,
+                                          ulint size)
 {
-	ulint		len;
-	ulint		fold;
-	ulint		bitmask;
+  ut_ad(rec_get_n_fields_old(rec) > IBUF_REC_FIELD_USER);
+  const ulint start= rec_get_field_start_offs(rec, IBUF_REC_FIELD_USER);
+  const ulint len= rec_get_data_size_old(rec) - start;
+  const uint32_t fold= ut_crc32(rec + start, len);
+  hash+= (fold / (CHAR_BIT * sizeof *hash)) % size;
+  ulint bitmask= static_cast<ulint>(1) << (fold % (CHAR_BIT * sizeof(*hash)));
 
-	len = ibuf_rec_get_size(
-		rec, types,
-		rec_get_n_fields_old(rec) - IBUF_REC_FIELD_USER, comp);
-	fold = ut_fold_binary(data, len);
+  if (*hash & bitmask)
+    return false;
 
-	hash += (fold / (CHAR_BIT * sizeof *hash)) % size;
-	bitmask = static_cast<ulint>(1) << (fold % (CHAR_BIT * sizeof(*hash)));
-
-	if (*hash & bitmask) {
-
-		return(FALSE);
-	}
-
-	/* We have not seen this record yet.  Insert it. */
-	*hash |= bitmask;
-
-	return(TRUE);
+  /* We have not seen this record yet. Remember it. */
+  *hash|= bitmask;
+  return true;
 }
 
 #ifdef UNIV_DEBUG
@@ -3012,11 +2999,7 @@ ibuf_get_volume_buffered_count_func(
 	case IBUF_OP_DELETE_MARK:
 		/* There must be a record to delete-mark.
 		See if this record has been already buffered. */
-		if (n_recs && ibuf_get_volume_buffered_hash(
-			    rec, types + IBUF_REC_INFO_SIZE,
-			    types + len,
-			    types[IBUF_REC_OFFSET_FLAGS] & IBUF_REC_COMPACT,
-			    hash, size)) {
+		if (n_recs && ibuf_get_volume_buffered_hash(rec, hash, size)) {
 			(*n_recs)++;
 		}
 
