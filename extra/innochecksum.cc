@@ -467,7 +467,7 @@ is_page_corrupted(
 	/* use to store LSN values. */
 	ulint logseq;
 	ulint logseqfield;
-	ulint page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
+	const uint16_t page_type = fil_page_get_type(buf);
 	uint key_version = buf_page_get_key_version(buf, flags);
 	ulint space_id = mach_read_from_4(
 		buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
@@ -835,7 +835,7 @@ parse_page(
 		strcpy(str, "-");
 	}
 
-	switch (mach_read_from_2(page + FIL_PAGE_TYPE)) {
+	switch (fil_page_get_type(page)) {
 
 	case FIL_PAGE_INDEX: {
 		uint key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
@@ -1933,7 +1933,7 @@ first_non_zero:
 				skip_page = false;
 			}
 
-			ulint cur_page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
+			const uint16_t cur_page_type = fil_page_get_type(buf);
 
 			/* FIXME: Page compressed or Page compressed and encrypted
 			pages do not contain checksum. */

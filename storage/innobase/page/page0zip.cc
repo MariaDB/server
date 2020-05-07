@@ -370,8 +370,8 @@ page_zip_dir_get(
 @param[in]      len     length of the data to write */
 inline void mtr_t::zmemcpy(const buf_block_t &b, ulint offset, ulint len)
 {
-  ut_ad(mach_read_from_2(b.page.zip.data + FIL_PAGE_TYPE) == FIL_PAGE_INDEX ||
-        mach_read_from_2(b.page.zip.data + FIL_PAGE_TYPE) == FIL_PAGE_RTREE);
+  ut_ad(fil_page_get_type(b.page.zip.data) == FIL_PAGE_INDEX ||
+        fil_page_get_type(b.page.zip.data) == FIL_PAGE_RTREE);
   ut_ad(page_zip_simple_validate(&b.page.zip));
   ut_ad(offset + len <= page_zip_get_size(&b.page.zip));
 

@@ -276,7 +276,7 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 	byte tmp_frame[UNIV_PAGE_SIZE_MAX];
 	byte tmp_page[UNIV_PAGE_SIZE_MAX];
 	const ulint page_size = cursor->page_size;
-	ulint page_type = mach_read_from_2(page + FIL_PAGE_TYPE);
+	uint16_t page_type = fil_page_get_type(page);
 
 	/* We ignore the doublewrite buffer pages.*/
 	if (cursor->space_id == TRX_SYS_SPACE
@@ -359,7 +359,7 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 	    || page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		ulint decomp = fil_page_decompress(tmp_frame, tmp_page,
 						   space->flags);
-		page_type = mach_read_from_2(tmp_page + FIL_PAGE_TYPE);
+		page_type = fil_page_get_type(tmp_page);
 
 		return (!decomp
 			|| (decomp != srv_page_size

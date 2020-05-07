@@ -455,8 +455,8 @@ static byte* fil_encrypt_buf_for_non_full_checksum(
 	ut_ad(!ut_align_offset(src_frame, 8));
 	ut_ad(!ut_align_offset(dst_frame, 8));
 
-	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
-	ibool page_compressed = (orig_page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
+	const bool page_compressed = fil_page_get_type(src_frame)
+		== FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED;
 	uint header_len = FIL_PAGE_DATA;
 
 	if (page_compressed) {
@@ -609,9 +609,9 @@ byte* fil_encrypt_buf(
 @return true if it is valid page type */
 static bool fil_space_encrypt_valid_page_type(
 	const fil_space_t*	space,
-	byte*			src_frame)
+	const byte*		src_frame)
 {
-	switch (mach_read_from_2(src_frame+FIL_PAGE_TYPE)) {
+	switch (fil_page_get_type(src_frame)) {
 	case FIL_PAGE_RTREE:
 		return space->full_crc32();
 	case FIL_PAGE_TYPE_FSP_HDR:
@@ -735,10 +735,9 @@ static bool fil_space_decrypt_for_non_full_checksum(
 	byte*			src_frame,
 	dberr_t*		err)
 {
-	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	uint key_version = mach_read_from_4(
 			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-	bool page_compressed = (page_type
+	bool page_compressed = (fil_page_get_type(src_frame)
 				== FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 	uint offset = mach_read_from_4(src_frame + FIL_PAGE_OFFSET);
 	uint space = mach_read_from_4(
@@ -2439,8 +2438,7 @@ bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 	/* Compressed and encrypted pages do not have checksum. Assume not
 	corrupted. Page verification happens after decompression in
 	buf_page_io_complete() using buf_page_is_corrupted(). */
-	if (mach_read_from_2(page + FIL_PAGE_TYPE)
-	    == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+	if (fil_page_get_type(page) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		return true;
 	}
 

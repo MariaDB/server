@@ -794,7 +794,7 @@ buf_page_is_corrupted(
 	bool		crc32_inited = false;
 	bool		crc32_chksum = false;
 	const ulint zip_size = fil_space_t::zip_size(fsp_flags);
-	ulint page_type = mach_read_from_2(read_buf + FIL_PAGE_TYPE);
+	const uint16_t page_type = fil_page_get_type(read_buf);
 
 	/* We can trust page type if page compression is set on tablespace
 	flags because page compression flag means file must have been
@@ -3908,8 +3908,7 @@ evict_from_pool:
 	}
 
 	if (allow_ibuf_merge
-	    && mach_read_from_2(fix_block->frame + FIL_PAGE_TYPE)
-	    == FIL_PAGE_INDEX
+	    && fil_page_get_type(fix_block->frame) == FIL_PAGE_INDEX
 	    && page_is_leaf(fix_block->frame)) {
 		rw_lock_x_lock_inline(&fix_block->lock, 0, file, line);
 

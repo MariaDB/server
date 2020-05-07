@@ -581,10 +581,9 @@ ulint fil_page_decompress_for_non_full_crc32(
 	byte*	tmp_buf,
 	byte*	buf)
 {
-	const unsigned	ptype = mach_read_from_2(buf+FIL_PAGE_TYPE);
 	ulint header_len;
 	uint comp_algo;
-	switch (ptype) {
+	switch (fil_page_get_type(buf)) {
 	case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
 		header_len= FIL_PAGE_DATA + FIL_PAGE_ENCRYPT_COMP_METADATA_LEN;
 		comp_algo = mach_read_from_2(

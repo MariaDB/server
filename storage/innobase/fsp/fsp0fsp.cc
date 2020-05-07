@@ -1782,7 +1782,7 @@ fseg_create(
 		}
 
 		ut_ad(rw_lock_get_sx_lock_count(&block->lock) == 1);
-		ut_ad(!mach_read_from_2(FIL_PAGE_TYPE + block->frame));
+		ut_ad(!fil_page_get_type(block->frame));
 		mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
 			      FIL_PAGE_TYPE_SYS);
 	}

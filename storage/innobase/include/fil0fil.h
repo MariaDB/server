@@ -28,6 +28,8 @@ Created 10/25/1995 Heikki Tuuri
 #define fil0fil_h
 
 #include "fsp0types.h"
+#include "mach0data.h"
+#include "assume_aligned.h"
 
 #ifndef UNIV_INNOCHECKSUM
 
@@ -826,6 +828,14 @@ enum fil_encryption_t {
 	/** Not encrypted */
 	FIL_ENCRYPTION_OFF
 };
+
+/** Get the file page type.
+@param[in]	page	file page
+@return page type */
+inline uint16_t fil_page_get_type(const byte *page)
+{
+  return mach_read_from_2(my_assume_aligned<2>(page + FIL_PAGE_TYPE));
+}
 
 #ifndef UNIV_INNOCHECKSUM
 

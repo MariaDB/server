@@ -588,8 +588,7 @@ stored in page type.
 @return true if page is compressed. */
 inline bool buf_page_is_compressed(const byte* read_buf, ulint fsp_flags)
 {
-  uint16_t page_type= mach_read_from_2(my_assume_aligned<2>
-                                       (read_buf + FIL_PAGE_TYPE));
+  uint16_t page_type= fil_page_get_type(read_buf);
   return fil_space_t::full_crc32(fsp_flags)
     ? !!(page_type & 1U << FIL_PAGE_COMPRESS_FCRC32_MARKER)
     : page_type == FIL_PAGE_PAGE_COMPRESSED;
@@ -602,7 +601,7 @@ inline bool buf_page_is_compressed(const byte* read_buf, ulint fsp_flags)
 @return the payload size in the file page */
 inline uint buf_page_full_crc32_size(const byte* buf, bool* comp, bool* cr)
 {
-	uint t = mach_read_from_2(my_assume_aligned<2>(buf + FIL_PAGE_TYPE));
+	uint t = fil_page_get_type(buf);
 	uint page_size = uint(srv_page_size);
 
 	if (!(t & 1U << FIL_PAGE_COMPRESS_FCRC32_MARKER)) {
