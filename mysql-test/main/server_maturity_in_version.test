@@ -1,0 +1,5 @@
+--echo #
+--echo # MDEV - 14558: Indicate maturity level of the server.
+--echo #
+SELECT @@version;
+SELECT version();
