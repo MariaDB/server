@@ -34004,6 +34004,15 @@ size_t my_numcells_sjis(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+static int
+my_wc_to_printable_sjis(CHARSET_INFO *cs, my_wc_t wc,
+                        uchar *str, uchar *end)
+{
+  return my_wc_to_printable_ex(cs, wc, str, end,
+                               '\\', 2, 1);
+}
+
+
 /*
   sjis_chinese_ci and sjis_bin sort character blocks in this order:
   1. [00..7F]                - 7BIT characters (ASCII)
@@ -34135,6 +34144,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_well_formed_char_length_sjis,
   my_copy_fix_mb,
   my_native_to_mb_sjis,
+  my_wc_to_printable_sjis
 };
 
 

@@ -5466,6 +5466,7 @@ MY_CHARSET_HANDLER my_charset_utf8mb3_handler=
     my_well_formed_char_length_utf8mb3,
     my_copy_fix_mb,
     my_uni_utf8mb3,
+    my_wc_to_printable_generic
 };
 
 
@@ -7030,6 +7031,16 @@ my_charlen_filename(CHARSET_INFO *cs, const uchar *str, const uchar *end)
 }
 
 
+static int
+my_wc_to_printable_filename(CHARSET_INFO *cs, my_wc_t wc,
+                        uchar *str, uchar *end)
+{
+  return my_wc_to_printable_ex(cs, wc, str, end,
+                               '\\', 5, 1);
+}
+
+
+
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _filename
 #define CHARLEN(cs,str,end)       my_charlen_filename(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -7102,6 +7113,7 @@ static MY_CHARSET_HANDLER my_charset_filename_handler=
     my_well_formed_char_length_filename,
     my_copy_fix_mb,
     my_wc_mb_filename,
+    my_wc_to_printable_filename
 };
 
 
@@ -7792,6 +7804,7 @@ MY_CHARSET_HANDLER my_charset_utf8mb4_handler=
   my_well_formed_char_length_utf8mb4,
   my_copy_fix_mb,
   my_wc_mb_utf8mb4,
+  my_wc_to_printable_generic
 };
 
 

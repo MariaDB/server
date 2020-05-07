@@ -3635,3 +3635,21 @@ SET DEFAULT_STORAGE_ENGINE=Default;
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-22043 Special character leads to assertion in my_wc_to_printable_generic on 10.5.2 (debug)
+#
+SET NAMES swe7;
+SELECT `Ｔ`;
+ERROR HY000: Invalid swe7 character string: '.xEF.xBC.xB4'
+SET NAMES swe7;
+SELECT `龔`;
+ERROR HY000: Invalid swe7 character string: '.xE9.xBE.x94'
+SET NAMES swe7;
+EXECUTE IMMEDIATE _swe7 0x01;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.0001' at line 1
+#
+# End of 10.5 tests
+#

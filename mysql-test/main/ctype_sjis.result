@@ -19296,3 +19296,25 @@ SET DEFAULT_STORAGE_ENGINE=Default;
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-22043 Special character leads to assertion in my_wc_to_printable_generic on 10.5.2 (debug)
+#
+SET NAMES sjis;
+SET @@CHARACTER_SET_CLIENT='cp1257';
+(a(b '—Ç'));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'a(b 'Å_0143Å_201A'))' at line 1
+SET NAMES sjis;
+SET @@CHARACTER_SET_CLIENT='cp1257';
+'—Ç';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''Å_0143Å_201A'' at line 1
+SET NAMES sjis;
+SET @@CHARACTER_SET_CLIENT='cp1257';
+EXECUTE IMMEDIATE _cp1257 0xD182;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'Å_0143Å_201A' at line 1
+SET NAMES sjis;
+#
+# End of 10.5 tests
+#

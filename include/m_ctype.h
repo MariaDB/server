@@ -541,6 +541,7 @@ struct my_charset_handler_st
     my_ci_native_to_mb() rather than my_ci_wc_mb().
   */
   my_charset_conv_wc_mb native_to_mb;
+  my_charset_conv_wc_mb wc_to_printable;
 };
 
 extern MY_CHARSET_HANDLER my_charset_8bit_handler;
@@ -658,6 +659,11 @@ struct charset_info_st
   int native_to_mb(my_wc_t wc, uchar *s, uchar *e) const
   {
     return (cset->native_to_mb)(this, wc, s, e);
+  }
+
+  int wc_to_printable(my_wc_t wc, uchar *s, uchar *e) const
+  {
+    return (cset->wc_to_printable)(this, wc, s, e);
   }
 
   int ctype(int *to, const uchar *s, const uchar *e) const
@@ -1248,9 +1254,6 @@ int my_wc_mb_bin(CHARSET_INFO *cs,my_wc_t wc, uchar *s, uchar *e);
 
 int my_mb_ctype_8bit(CHARSET_INFO *,int *, const uchar *,const uchar *);
 int my_mb_ctype_mb(CHARSET_INFO *,int *, const uchar *,const uchar *);
-
-int my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
-                               uchar *s, uchar *e);
 
 size_t my_scan_8bit(CHARSET_INFO *cs, const char *b, const char *e, int sq);
 

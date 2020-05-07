@@ -1591,6 +1591,7 @@ MY_CHARSET_HANDLER my_charset_utf16_handler=
   my_well_formed_char_length_utf16,
   my_copy_fix_mb2_or_mb4,
   my_uni_utf16,
+  my_wc_to_printable_generic
 };
 
 
@@ -1931,6 +1932,7 @@ static MY_CHARSET_HANDLER my_charset_utf16le_handler=
   my_well_formed_char_length_utf16,
   my_copy_fix_mb2_or_mb4,
   my_uni_utf16le,
+  my_wc_to_printable_generic
 };
 
 
@@ -2753,6 +2755,7 @@ MY_CHARSET_HANDLER my_charset_utf32_handler=
   my_well_formed_char_length_utf32,
   my_copy_fix_mb2_or_mb4,
   my_uni_utf32,
+  my_wc_to_printable_generic
 };
 
 
@@ -3343,6 +3346,7 @@ MY_CHARSET_HANDLER my_charset_ucs2_handler=
     my_well_formed_char_length_ucs2,
     my_copy_fix_mb2_or_mb4,
     my_uni_ucs2,
+    my_wc_to_printable_generic
 };
 
 

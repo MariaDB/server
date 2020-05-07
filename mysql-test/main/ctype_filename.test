@@ -27,3 +27,22 @@ select convert(convert(',' using filename) using binary);
 --echo #
 SET NAMES utf8;
 SELECT @a:=CONVERT('aя' USING filename) AS `@a`, BINARY @a, REVERSE(@a), HEX(@a), HEX(REVERSE(@a));
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-22043 Special character leads to assertion in my_wc_to_printable_generic on 10.5.2 (debug)
+--echo #
+
+SET NAMES filename;
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE _latin1 0x01;
+SET NAMES utf8;
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

@@ -1020,7 +1020,7 @@ my_is_printable(my_wc_t wc)
 }
 
 
-static uint to_printable_8bit(uchar *dst, my_wc_t wc)
+static uint to_printable_8bit(uchar *dst, my_wc_t wc, uint bs)
 {
   /*
     This function is used only in context of error messages for now.
@@ -1028,12 +1028,18 @@ static uint to_printable_8bit(uchar *dst, my_wc_t wc)
     when a message is put into diagnostics area.
   */
   DBUG_ASSERT(wc < 0x10000);
-  *dst++= '\\';
+  *dst++= (char) bs;
   *dst++= _dig_vec_upper[(wc >> 12) & 0x0F];
   *dst++= _dig_vec_upper[(wc >> 8) & 0x0F];
   *dst++= _dig_vec_upper[(wc >> 4) & 0x0F];
   *dst++= _dig_vec_upper[wc & 0x0F];
   return MY_CS_PRINTABLE_CHAR_LENGTH;
+}
+
+
+static uint my_printable_length(uint bslen, uint diglen)
+{
+  return bslen + (MY_CS_PRINTABLE_CHAR_LENGTH - 1) * diglen;
 }
 
 
@@ -1043,12 +1049,13 @@ static uint to_printable_8bit(uchar *dst, my_wc_t wc)
   ASCII-incompatible multi-byte character sets, e.g. ucs2, utf16, utf32.
 */
 int
-my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
-                           uchar *str, uchar *end)
+my_wc_to_printable_ex(CHARSET_INFO *cs, my_wc_t wc,
+                      uchar *str, uchar *end,
+                      uint bs, uint bslen, uint diglen)
 {
   uchar *str0;
   uint i, length;
-  uchar tmp[MY_CS_PRINTABLE_CHAR_LENGTH];
+  uchar tmp[MY_CS_PRINTABLE_CHAR_LENGTH * MY_CS_MBMAXLEN];
 
   if (my_is_printable(wc))
   {
@@ -1057,24 +1064,59 @@ my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
       return mblen;
   }
 
-  if (str + MY_CS_PRINTABLE_CHAR_LENGTH * cs->mbminlen > end)
-    return MY_CS_TOOSMALLN(MY_CS_PRINTABLE_CHAR_LENGTH * cs->mbminlen);
+  if (str + my_printable_length(bslen, diglen) > end)
+    return MY_CS_TOOSMALLN(my_printable_length(bslen, diglen));
 
   if ((cs->state & MY_CS_NONASCII) == 0)
-    return to_printable_8bit(str, wc);
+    return to_printable_8bit(str, wc, bs);
 
-  length= to_printable_8bit(tmp, wc);
+  length= to_printable_8bit(tmp, wc, bs);
   str0= str;
   for (i= 0; i < length; i++)
   {
-    if (my_ci_wc_mb(cs, tmp[i], str, end) != (int) cs->mbminlen)
+    uint expected_length= i == 0 ? bslen : diglen;
+    if (my_ci_wc_mb(cs, tmp[i], str, end) != (int) expected_length)
     {
       DBUG_ASSERT(0);
       return MY_CS_ILSEQ;
     }
-    str+= cs->mbminlen;
+    str+= expected_length;
   }
   return (int) (str - str0);
+}
+
+
+int
+my_wc_to_printable_8bit(CHARSET_INFO *cs, my_wc_t wc,
+                        uchar *str, uchar *end)
+{
+  /*
+    Special case: swe7 does not have the backslash character.
+    Use dot instead of backslash for escaping.
+  */
+  uint bs= cs->tab_to_uni && cs->tab_to_uni['\\'] != '\\' ? '.' : '\\';
+  DBUG_ASSERT(cs->mbminlen == 1);
+  /*
+    Additionally, if the original swe7 string contains backslashes,
+    replace them to dots, so this error message:
+      Invalid swe7 character string: '\xEF\xBC\xB4'
+    is displayed as:
+      Invalid swe7 character string: '.xEF.xBC.xB4'
+    which is more readable than what would happen without '\'-to-dot mapping:
+      Invalid swe7 character string: '.005CxEF.005CxBC.005CxB4'
+  */
+  if (bs == '.' && wc == '\\')
+    wc= '.';
+  return my_wc_to_printable_ex(cs, wc, str, end, bs, 1, 1);
+}
+
+
+int
+my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
+                           uchar *str, uchar *end)
+{
+  return my_wc_to_printable_ex(cs, wc, str, end, '\\',
+                               cs->mbminlen, cs->mbminlen);
 }
 
 

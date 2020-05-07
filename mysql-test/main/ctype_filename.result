@@ -21,3 +21,16 @@ SET NAMES utf8;
 SELECT @a:=CONVERT('aя' USING filename) AS `@a`, BINARY @a, REVERSE(@a), HEX(@a), HEX(REVERSE(@a));
 @a	BINARY @a	REVERSE(@a)	HEX(@a)	HEX(REVERSE(@a))
 aя	a@r1	яa	61407231	40723161
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-22043 Special character leads to assertion in my_wc_to_printable_generic on 10.5.2 (debug)
+#
+SET NAMES filename;
+EXECUTE IMMEDIATE _latin1 0x01;
+ERROR 42000: You@0020have@0020an@0020error@0020in@0020your@0020SQL@0020syntax@003b@0020check@0020the@0020manual@0020that@0020corresponds@0020to@0020your@0020MariaDB@0020server@0020version@0020for@0020the@0020right@0020syntax@0020to@0020use@0020near@0020@0027@005c0001@0027@0020at@0020line@00201
+SET NAMES utf8;
+#
+# End of 10.5 tests
+#

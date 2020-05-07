@@ -791,7 +791,7 @@ bool Binary_string::copy_printable_hhhh(CHARSET_INFO *to_cs,
   if (bytes_needed >= UINT_MAX32 || alloc((size_t) bytes_needed))
     return true;
   str_length= my_convert_using_func(Ptr, Alloced_length, to_cs,
-                                    my_wc_to_printable_generic,
+                                    to_cs->cset->wc_to_printable,
                                     from, from_length,
                                     from_cs,
                                     from_cs->cset->mb_wc,

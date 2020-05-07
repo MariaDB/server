@@ -117,4 +117,17 @@ uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs);
 #define MY_HASH_ADD_16(A, B, value) \
   do { MY_HASH_ADD(A, B, ((value) & 0xFF)) ; MY_HASH_ADD(A, B, ((value >>8 ))); } while(0) 
 
-#endif
+
+#define my_wc_t ulong
+
+int my_wc_to_printable_ex(CHARSET_INFO *cs, my_wc_t wc,
+                          uchar *s, uchar *e,
+                          uint bs, uint bslen, uint diglen);
+
+int my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
+                               uchar *s, uchar *e);
+
+int my_wc_to_printable_8bit(CHARSET_INFO *cs, my_wc_t wc,
+                            uchar *s, uchar *e);
+
+#endif /*STRINGS_DEF_INCLUDED */

@@ -850,7 +850,7 @@ extern "C" int my_wc_mb_utf8_null_terminated(CHARSET_INFO *cs,
                                              my_wc_t wc, uchar *r, uchar *e)
 {
   return wc == '\0' ?
-         my_wc_to_printable_generic(cs, wc, r, e) :
+         cs->wc_to_printable(wc, r, e) :
          my_charset_utf8mb3_handler.wc_mb(cs, wc, r, e);
 }
 
@@ -951,7 +951,7 @@ size_t convert_error_message(char *to, size_t to_length, CHARSET_INFO *to_cs,
     to_cs= system_charset_info;
   uint32 cnv_length= my_convert_using_func(to, to_length,
                                            to_cs,
-                                           my_wc_to_printable_generic,
+                                           to_cs->cset->wc_to_printable,
                                            from, from_length,
                                            from_cs, from_cs->cset->mb_wc,
                                            errors);

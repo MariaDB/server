@@ -10733,6 +10733,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_well_formed_char_length_gbk,
   my_copy_fix_mb,
   my_native_to_mb_gbk,
+  my_wc_to_printable_generic
 };
 
 

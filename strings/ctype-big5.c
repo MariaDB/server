@@ -6800,6 +6800,7 @@ static MY_CHARSET_HANDLER my_charset_big5_handler=
   my_well_formed_char_length_big5,
   my_copy_fix_mb,
   my_native_to_mb_big5,
+  my_wc_to_printable_generic
 };
 
 struct charset_info_st my_charset_big5_chinese_ci=

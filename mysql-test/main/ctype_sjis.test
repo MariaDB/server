@@ -260,3 +260,33 @@ let $coll_pad='sjis_bin';
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-22043 Special character leads to assertion in my_wc_to_printable_generic on 10.5.2 (debug)
+--echo #
+
+SET NAMES sjis;
+SET @@CHARACTER_SET_CLIENT='cp1257';
+--error ER_PARSE_ERROR
+(a(b 'т'));
+
+SET NAMES sjis;
+SET @@CHARACTER_SET_CLIENT='cp1257';
+--error ER_PARSE_ERROR
+'т';
+
+SET NAMES sjis;
+SET @@CHARACTER_SET_CLIENT='cp1257';
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE _cp1257 0xD182;
+
+SET NAMES sjis;
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
