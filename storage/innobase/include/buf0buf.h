@@ -34,6 +34,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "mtr0types.h"
 #include "buf0types.h"
 #include "span.h"
+#include "assume_aligned.h"
 #ifndef UNIV_INNOCHECKSUM
 #include "hash0hash.h"
 #include "ut0byte.h"
@@ -572,10 +573,11 @@ stored in 26th position.
 @return key version of the page. */
 inline uint32_t buf_page_get_key_version(const byte* read_buf, ulint fsp_flags)
 {
-	return fil_space_t::full_crc32(fsp_flags)
-		? mach_read_from_4(read_buf + FIL_PAGE_FCRC32_KEY_VERSION)
-		: mach_read_from_4(read_buf
-				   + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+  static_assert(FIL_PAGE_FCRC32_KEY_VERSION == 0, "compatibility");
+  return fil_space_t::full_crc32(fsp_flags)
+    ? mach_read_from_4(my_assume_aligned<4>(read_buf))
+    : mach_read_from_4(my_assume_aligned<2>
+		       (read_buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION));
 }
 
 /** Read the compression info from the page. In full crc32 format,
@@ -586,10 +588,11 @@ stored in page type.
 @return true if page is compressed. */
 inline bool buf_page_is_compressed(const byte* read_buf, ulint fsp_flags)
 {
-	ulint page_type = mach_read_from_2(read_buf + FIL_PAGE_TYPE);
-	return fil_space_t::full_crc32(fsp_flags)
-		? !!(page_type & 1U << FIL_PAGE_COMPRESS_FCRC32_MARKER)
-		: page_type == FIL_PAGE_PAGE_COMPRESSED;
+  uint16_t page_type= mach_read_from_2(my_assume_aligned<2>
+                                       (read_buf + FIL_PAGE_TYPE));
+  return fil_space_t::full_crc32(fsp_flags)
+    ? !!(page_type & 1U << FIL_PAGE_COMPRESS_FCRC32_MARKER)
+    : page_type == FIL_PAGE_PAGE_COMPRESSED;
 }
 
 /** Get the compressed or uncompressed size of a full_crc32 page.
@@ -599,7 +602,7 @@ inline bool buf_page_is_compressed(const byte* read_buf, ulint fsp_flags)
 @return the payload size in the file page */
 inline uint buf_page_full_crc32_size(const byte* buf, bool* comp, bool* cr)
 {
-	uint t = mach_read_from_2(buf + FIL_PAGE_TYPE);
+	uint t = mach_read_from_2(my_assume_aligned<2>(buf + FIL_PAGE_TYPE));
 	uint page_size = uint(srv_page_size);
 
 	if (!(t & 1U << FIL_PAGE_COMPRESS_FCRC32_MARKER)) {

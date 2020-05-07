@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2019, MariaDB Corporation.
+Copyright (C) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -201,7 +201,7 @@ static ulint fil_page_compress_for_full_crc32(
 	ulint		block_size,
 	bool		encrypted)
 {
-	ulint comp_level = fsp_flags_get_page_compression_level(flags);
+	ulint comp_level = FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags);
 
 	if (comp_level == 0) {
 		comp_level = page_zip_level;
@@ -284,7 +284,8 @@ static ulint fil_page_compress_for_non_full_crc32(
 	ulint		block_size,
 	bool		encrypted)
 {
-	int comp_level = int(fsp_flags_get_page_compression_level(flags));
+	uint comp_level = static_cast<uint>(
+		FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags));
 	ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMP_METADATA_LEN;
 	/* Cache to avoid change during function execution */
 	ulint comp_algo = innodb_compression_algorithm;
@@ -296,7 +297,7 @@ static ulint fil_page_compress_for_non_full_crc32(
 	/* If no compression level was provided to this table, use system
 	default level */
 	if (comp_level == 0) {
-		comp_level = int(page_zip_level);
+		comp_level = page_zip_level;
 	}
 
 	ulint write_size = fil_page_compress_low(
@@ -334,8 +335,14 @@ static ulint fil_page_compress_for_non_full_crc32(
 
 #ifdef UNIV_DEBUG
 	/* Verify */
-	ut_ad(fil_page_is_compressed(out_buf)
-	      || fil_page_is_compressed_encrypted(out_buf));
+	switch (fil_page_get_type(out_buf)) {
+	case FIL_PAGE_PAGE_COMPRESSED:
+	case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
+		break;
+	default:
+		ut_ad("wrong page type" == 0);
+		break;
+	}
 
 	ut_ad(mach_read_from_4(out_buf + FIL_PAGE_SPACE_OR_CHKSUM)
 	      == BUF_NO_CHECKSUM_MAGIC);

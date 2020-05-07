@@ -282,7 +282,8 @@ btr_page_get_index_id(
 @retval 0 for leaf pages */
 inline uint16_t btr_page_get_level(const page_t *page)
 {
-  uint16_t level = mach_read_from_2(page + PAGE_HEADER + PAGE_LEVEL);
+  uint16_t level= mach_read_from_2(my_assume_aligned<2>
+                                   (PAGE_HEADER + PAGE_LEVEL + page));
   ut_ad(level <= BTR_MAX_NODE_LEVEL);
   return level;
 } MY_ATTRIBUTE((warn_unused_result))
@@ -292,7 +293,7 @@ inline uint16_t btr_page_get_level(const page_t *page)
 @return previous page number */
 inline uint32_t btr_page_get_next(const page_t* page)
 {
-  return mach_read_from_4(page + FIL_PAGE_NEXT);
+  return mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_NEXT));
 }
 
 /** Read FIL_PAGE_PREV.
@@ -300,7 +301,7 @@ inline uint32_t btr_page_get_next(const page_t* page)
 @return previous page number */
 inline uint32_t btr_page_get_prev(const page_t* page)
 {
-  return mach_read_from_4(page + FIL_PAGE_PREV);
+  return mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_PREV));
 }
 
 /**************************************************************//**

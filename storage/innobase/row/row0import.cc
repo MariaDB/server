@@ -3500,14 +3500,15 @@ page_corrupted:
 					src + FIL_PAGE_SPACE_ID);
 			}
 
+			const uint16_t type = fil_page_get_type(src);
 			const bool page_compressed =
 				(full_crc32
 				 && fil_space_t::is_compressed(
 					callback.get_space_flags())
 				 && buf_page_is_compressed(
 					src, callback.get_space_flags()))
-				|| (fil_page_is_compressed_encrypted(src)
-				    || fil_page_is_compressed(src));
+				|| type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+				|| type == FIL_PAGE_PAGE_COMPRESSED;
 
 			if (page_compressed && block->page.zip.data) {
 				goto page_corrupted;

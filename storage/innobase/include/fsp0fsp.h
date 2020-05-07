@@ -307,11 +307,10 @@ inline bool xdes_is_free(const xdes_t *descr, ulint offset)
 @param[in]	page	first page of a tablespace
 @param[in]	field	the header field
 @return the contents of the header field */
-inline
-ulint
-fsp_header_get_field(const page_t* page, ulint field)
+inline uint32_t fsp_header_get_field(const page_t* page, ulint field)
 {
-	return(mach_read_from_4(FSP_HEADER_OFFSET + field + page));
+  return mach_read_from_4(FSP_HEADER_OFFSET + field +
+			  my_assume_aligned<UNIV_ZIP_SIZE_MIN>(page));
 }
 
 /** Read the flags from the tablespace header page.

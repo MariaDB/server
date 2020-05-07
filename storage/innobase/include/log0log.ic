@@ -25,7 +25,7 @@ Created 12/9/1995 Heikki Tuuri
 *******************************************************/
 
 #include "mach0data.h"
-#include "srv0mon.h"
+#include "assume_aligned.h"
 #include "ut0crc32.h"
 
 extern ulong srv_log_buffer_size;
@@ -39,13 +39,10 @@ log_block_get_flush_bit(
 /*====================*/
 	const byte*	log_block)	/*!< in: log block */
 {
-	if (LOG_BLOCK_FLUSH_BIT_MASK
-	    & mach_read_from_4(log_block + LOG_BLOCK_HDR_NO)) {
+  static_assert(LOG_BLOCK_HDR_NO == 0, "compatibility");
+  static_assert(LOG_BLOCK_FLUSH_BIT_MASK == 0x80000000, "compatibility");
 
-		return(TRUE);
-	}
-
-	return(FALSE);
+  return *log_block & 0x80;
 }
 
 /************************************************************//**
@@ -57,17 +54,13 @@ log_block_set_flush_bit(
 	byte*	log_block,	/*!< in/out: log block */
 	ibool	val)		/*!< in: value to set */
 {
-	ulint	field;
+  static_assert(LOG_BLOCK_HDR_NO == 0, "compatibility");
+  static_assert(LOG_BLOCK_FLUSH_BIT_MASK == 0x80000000, "compatibility");
 
-	field = mach_read_from_4(log_block + LOG_BLOCK_HDR_NO);
-
-	if (val) {
-		field = field | LOG_BLOCK_FLUSH_BIT_MASK;
-	} else {
-		field = field & ~LOG_BLOCK_FLUSH_BIT_MASK;
-	}
-
-	mach_write_to_4(log_block + LOG_BLOCK_HDR_NO, field);
+  if (val)
+    *log_block|= 0x80;
+  else
+    *log_block&= 0x7f;
 }
 
 /************************************************************//**
@@ -79,8 +72,9 @@ log_block_get_hdr_no(
 /*=================*/
 	const byte*	log_block)	/*!< in: log block */
 {
-	return(~LOG_BLOCK_FLUSH_BIT_MASK
-	       & mach_read_from_4(log_block + LOG_BLOCK_HDR_NO));
+  static_assert(LOG_BLOCK_HDR_NO == 0, "compatibility");
+  return mach_read_from_4(my_assume_aligned<4>(log_block)) &
+    ~LOG_BLOCK_FLUSH_BIT_MASK;
 }
 
 /************************************************************//**
@@ -94,10 +88,11 @@ log_block_set_hdr_no(
 	ulint	n)		/*!< in: log block number: must be > 0 and
 				< LOG_BLOCK_FLUSH_BIT_MASK */
 {
-	ut_ad(n > 0);
-	ut_ad(n < LOG_BLOCK_FLUSH_BIT_MASK);
+  static_assert(LOG_BLOCK_HDR_NO == 0, "compatibility");
+  ut_ad(n > 0);
+  ut_ad(n < LOG_BLOCK_FLUSH_BIT_MASK);
 
-	mach_write_to_4(log_block + LOG_BLOCK_HDR_NO, n);
+  mach_write_to_4(my_assume_aligned<4>(log_block), n);
 }
 
 /************************************************************//**
@@ -109,7 +104,8 @@ log_block_get_data_len(
 /*===================*/
 	const byte*	log_block)	/*!< in: log block */
 {
-	return(mach_read_from_2(log_block + LOG_BLOCK_HDR_DATA_LEN));
+  return mach_read_from_2(my_assume_aligned<2>
+                          (log_block + LOG_BLOCK_HDR_DATA_LEN));
 }
 
 /************************************************************//**
@@ -121,7 +117,8 @@ log_block_set_data_len(
 	byte*	log_block,	/*!< in/out: log block */
 	ulint	len)		/*!< in: data length */
 {
-	mach_write_to_2(log_block + LOG_BLOCK_HDR_DATA_LEN, len);
+  mach_write_to_2(my_assume_aligned<2>(log_block + LOG_BLOCK_HDR_DATA_LEN),
+                  len);
 }
 
 /************************************************************//**
@@ -134,7 +131,8 @@ log_block_get_first_rec_group(
 /*==========================*/
 	const byte*	log_block)	/*!< in: log block */
 {
-	return(mach_read_from_2(log_block + LOG_BLOCK_FIRST_REC_GROUP));
+  return mach_read_from_2(my_assume_aligned<2>
+                          (log_block + LOG_BLOCK_FIRST_REC_GROUP));
 }
 
 /************************************************************//**
@@ -146,7 +144,8 @@ log_block_set_first_rec_group(
 	byte*	log_block,	/*!< in/out: log block */
 	ulint	offset)		/*!< in: offset, 0 if none */
 {
-	mach_write_to_2(log_block + LOG_BLOCK_FIRST_REC_GROUP, offset);
+  mach_write_to_2(my_assume_aligned<2>
+                  (log_block + LOG_BLOCK_FIRST_REC_GROUP), offset);
 }
 
 /************************************************************//**
@@ -158,7 +157,8 @@ log_block_get_checkpoint_no(
 /*========================*/
 	const byte*	log_block)	/*!< in: log block */
 {
-	return(mach_read_from_4(log_block + LOG_BLOCK_CHECKPOINT_NO));
+  return mach_read_from_4(my_assume_aligned<4>
+                          (log_block + LOG_BLOCK_CHECKPOINT_NO));
 }
 
 /************************************************************//**
@@ -170,7 +170,8 @@ log_block_set_checkpoint_no(
 	byte*		log_block,	/*!< in/out: log block */
 	ib_uint64_t	no)		/*!< in: checkpoint no */
 {
-	mach_write_to_4(log_block + LOG_BLOCK_CHECKPOINT_NO, (ulint) no);
+  mach_write_to_4(my_assume_aligned<4>(log_block + LOG_BLOCK_CHECKPOINT_NO),
+                  static_cast<uint32_t>(no));
 }
 
 /************************************************************//**
@@ -204,8 +205,9 @@ log_block_get_checksum(
 /*===================*/
 	const byte*	log_block)	/*!< in: log block */
 {
-	return(mach_read_from_4(log_block + OS_FILE_LOG_BLOCK_SIZE
-				- LOG_BLOCK_CHECKSUM));
+  return mach_read_from_4(my_assume_aligned<4>
+                          (OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM +
+                           log_block));
 }
 
 /************************************************************//**
@@ -217,9 +219,9 @@ log_block_set_checksum(
 	byte*	log_block,	/*!< in/out: log block */
 	ulint	checksum)	/*!< in: checksum */
 {
-	mach_write_to_4(log_block + OS_FILE_LOG_BLOCK_SIZE
-			- LOG_BLOCK_CHECKSUM,
-			checksum);
+  mach_write_to_4(my_assume_aligned<4>
+                  (OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM +
+                   log_block), checksum);
 }
 
 /************************************************************//**

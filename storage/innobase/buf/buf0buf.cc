@@ -61,7 +61,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0mon.h"
 #include "log0crypt.h"
 #include "fil0pagecompress.h"
-#include "fsp0pagecompress.h"
 #endif /* !UNIV_INNOCHECKSUM */
 #include "page0zip.h"
 #include "sync0sync.h"
@@ -470,12 +469,14 @@ decrypt_failed:
 		ut_d(fil_page_type_validate(space, dst_frame));
 
 		if ((space->full_crc32() && page_compressed)
-		    || fil_page_is_compressed_encrypted(dst_frame)) {
+		    || fil_page_get_type(dst_frame)
+		    == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 			goto decompress_with_slot;
 		}
 
 		slot->release();
-	} else if (fil_page_is_compressed_encrypted(dst_frame)) {
+	} else if (fil_page_get_type(dst_frame)
+		   == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		goto decompress;
 	}
 

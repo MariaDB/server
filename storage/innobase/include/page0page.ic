@@ -305,8 +305,8 @@ page_get_page_no(
 /*=============*/
 	const page_t*	page)	/*!< in: page */
 {
-	ut_ad(page == page_align((page_t*) page));
-	return(mach_read_from_4(page + FIL_PAGE_OFFSET));
+  ut_ad(page == page_align((page_t*) page));
+  return mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_OFFSET));
 }
 
 #ifndef UNIV_INNOCHECKSUM
@@ -319,8 +319,9 @@ page_get_space_id(
 /*==============*/
 	const page_t*	page)	/*!< in: page */
 {
-	ut_ad(page == page_align((page_t*) page));
-	return(mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID));
+  ut_ad(page == page_align((page_t*) page));
+  return mach_read_from_4(my_assume_aligned<2>
+                          (page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID));
 }
 
 #endif /* !UNIV_INNOCHECKSUM */

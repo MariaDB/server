@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -59,14 +59,6 @@ UNIV_INLINE
 row_id_t
 dict_sys_get_new_row_id(void);
 /*=========================*/
-/**********************************************************************//**
-Reads a row id from a record or other 6-byte stored form.
-@return row id */
-UNIV_INLINE
-row_id_t
-dict_sys_read_row_id(
-/*=================*/
-	const byte*	field);	/*!< in: record field */
 /**********************************************************************//**
 Writes a row id to a record or other 6-byte stored form. */
 UNIV_INLINE
