@@ -23,6 +23,9 @@ gtid_binlog_state_equal
 #cleanup
 connection node_1;
 DROP TABLE t1;
+connection node_2;
+connection node_3;
+connection node_1;
 reset master;
 connection node_2;
 STOP SLAVE;
