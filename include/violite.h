@@ -146,9 +146,9 @@ int vio_getnameinfo(const struct sockaddr *sa,
 /* Set yaSSL to use same type as MySQL do for socket handles */
 typedef my_socket YASSL_SOCKET_T;
 #define YASSL_SOCKET_T_DEFINED
-#define Timeval WOLFSSL_Timeval
+#define template _template /* bug in WolfSSL 4.4.0, see also my_crypt.cc */
 #include <openssl/ssl.h>
-#undef Timeval
+#undef template
 #include <openssl/err.h>
 #ifdef DEPRECATED
 #undef DEPRECATED
