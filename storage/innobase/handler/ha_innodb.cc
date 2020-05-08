@@ -20568,20 +20568,6 @@ ha_innobase::multi_range_read_explain_info(
 for purge thread */
 static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 {
-	DBUG_EXECUTE_IF(
-		"ib_purge_virtual_mdev_16222_1",
-		DBUG_ASSERT(!debug_sync_set_action(
-			    thd,
-			    STRING_WITH_LEN("ib_purge_virtual_latch_released "
-					    "SIGNAL latch_released "
-					    "WAIT_FOR drop_started"))););
-	DBUG_EXECUTE_IF(
-		"ib_purge_virtual_mdev_16222_2",
-		DBUG_ASSERT(!debug_sync_set_action(
-			    thd,
-			    STRING_WITH_LEN("ib_purge_virtual_got_no_such_table "
-					    "SIGNAL got_no_such_table"))););
-
 	TABLE *mysql_table;
 	const bool  bg_thread = THDVAR(thd, background_thread);
 
