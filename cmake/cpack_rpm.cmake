@@ -227,6 +227,14 @@ ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
   ALTERNATIVE_NAME("test"   "mariadb-test")
 ELSEIF(RPM MATCHES "(rhel|centos)8")
   SET(PYTHON_SHEBANG "/usr/bin/python3")
+ELSEIF(RPM MATCHES "sles")
+  ALTERNATIVE_NAME("server" "mariadb")
+  SETA(CPACK_RPM_server_PACKAGE_PROVIDES
+    "mysql = %{version}-%{release}"
+    "mariadb_${MAJOR_VERSION}${MINOR_VERSION} = %{version}-%{release}"
+    "mariadb-${MAJOR_VERSION}${MINOR_VERSION} = %{version}-%{release}"
+    "mariadb-server = %{version}-%{release}"
+  )
 ENDIF()
 
 # If we want to build build MariaDB-shared-compat,
