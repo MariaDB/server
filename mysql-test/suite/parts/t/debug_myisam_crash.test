@@ -10,5 +10,6 @@
 
 let $engine= 'MyISAM';
 
---echo # Test crash and failure recovery in fast_alter_partition_table.
+--echo # Test crash in fast_alter_partition_table.
+let $do_crash=1;
 --source suite/parts/inc/partition_mgm_crash.inc
