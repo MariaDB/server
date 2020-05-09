@@ -11339,7 +11339,7 @@ create_table_info_t::check_table_options()
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: invalid PAGE_COMPRESSION_LEVEL = %lu."
+				"InnoDB: invalid PAGE_COMPRESSION_LEVEL = %llu."
 				" Valid values are [1, 2, 3, 4, 5, 6, 7, 8, 9]",
 				options->page_compression_level);
 			return "PAGE_COMPRESSION_LEVEL";
@@ -18815,9 +18815,8 @@ innodb_encrypt_tables_update(THD*, st_mysql_sys_var*, void*, const void* save)
 static void
 innodb_log_checksums_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 {
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			    HA_ERR_UNSUPPORTED,
-			    deprecated::innodb_log_checksums_msg);
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+		     HA_ERR_UNSUPPORTED, deprecated::innodb_log_checksums_msg);
 }
 
 /** Issue a deprecation warning for SET GLOBAL innodb_log_compressed_pages.
@@ -18826,9 +18825,8 @@ static void
 innodb_log_compressed_pages_warn(THD* thd, st_mysql_sys_var*, void*,
 				 const void*)
 {
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			    HA_ERR_UNSUPPORTED,
-			    deprecated::innodb_log_compressed_pages_msg);
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
+                     deprecated::innodb_log_compressed_pages_msg);
 }
 
 /** Issue a deprecation warning for SET GLOBAL innodb_log_optimize_ddl.
@@ -18836,9 +18834,8 @@ innodb_log_compressed_pages_warn(THD* thd, st_mysql_sys_var*, void*,
 static void
 innodb_log_optimize_ddl_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 {
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			    HA_ERR_UNSUPPORTED,
-			    deprecated::innodb_log_optimize_ddl_msg);
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
+                     deprecated::innodb_log_optimize_ddl_msg);
 }
 
 /** Issue a deprecation warning for SET GLOBAL innodb_page_cleaners.
@@ -18846,9 +18843,8 @@ innodb_log_optimize_ddl_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 static void
 innodb_page_cleaners_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 {
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			    HA_ERR_UNSUPPORTED,
-			    deprecated::innodb_page_cleaners_msg);
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
+		     deprecated::innodb_page_cleaners_msg);
 }
 
 /** Issue a deprecation warning for SET GLOBAL innodb_undo_logs.
@@ -18856,9 +18852,8 @@ innodb_page_cleaners_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 static void
 innodb_undo_logs_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 {
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			    HA_ERR_UNSUPPORTED,
-			    deprecated::innodb_undo_logs_msg);
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
+                     deprecated::innodb_undo_logs_msg);
 }
 
 /** Issue a deprecation warning for SET GLOBAL innodb_scrub_log_speed.
@@ -18866,49 +18861,40 @@ innodb_undo_logs_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 static void
 innodb_scrub_log_speed_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 {
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			    HA_ERR_UNSUPPORTED,
-			    deprecated::innodb_scrub_log_speed_msg);
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
+                     deprecated::innodb_scrub_log_speed_msg);
 }
 
 static void
 innodb_background_scrub_data_uncompressed_warn(THD* thd, st_mysql_sys_var*,
 					       void*, const void*)
 {
-	push_warning_printf(
-		thd, Sql_condition::WARN_LEVEL_WARN,
-		HA_ERR_UNSUPPORTED,
-		deprecated::innodb_background_scrub_data_uncompressed_msg);
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
+                     deprecated::innodb_background_scrub_data_uncompressed_msg);
 }
 
 static void
 innodb_background_scrub_data_compressed_warn(THD* thd, st_mysql_sys_var*,
 					     void*, const void*)
 {
-	push_warning_printf(
-		thd, Sql_condition::WARN_LEVEL_WARN,
-		HA_ERR_UNSUPPORTED,
-		deprecated::innodb_background_scrub_data_compressed_msg);
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
+                     deprecated::innodb_background_scrub_data_compressed_msg);
 }
 
 static void
 innodb_background_scrub_data_check_interval_warn(
 	THD* thd, st_mysql_sys_var*, void*, const void*)
 {
-	push_warning_printf(
-		thd, Sql_condition::WARN_LEVEL_WARN,
-		HA_ERR_UNSUPPORTED,
-		deprecated::innodb_background_scrub_data_check_interval_msg);
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
+                     deprecated::innodb_background_scrub_data_check_interval_msg);
 }
 
 static void
 innodb_background_scrub_data_interval_warn(
 	THD* thd, st_mysql_sys_var*, void*, const void*)
 {
-	push_warning_printf(
-		thd, Sql_condition::WARN_LEVEL_WARN,
-		HA_ERR_UNSUPPORTED,
-		deprecated::innodb_background_scrub_data_interval_msg);
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
+                     deprecated::innodb_background_scrub_data_interval_msg);
 }
 
 static SHOW_VAR innodb_status_variables_export[]= {
@@ -21598,7 +21584,7 @@ ib_push_warning(
 		buf = (char *)my_malloc(PSI_INSTRUMENT_ME, MAX_BUF_SIZE, MYF(MY_WME));
 		vsprintf(buf,format, args);
 
-		push_warning_printf(
+		push_warning(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
 		my_free(buf);
@@ -21629,7 +21615,7 @@ ib_push_warning(
 		buf = (char *)my_malloc(PSI_INSTRUMENT_ME, MAX_BUF_SIZE, MYF(MY_WME));
 		vsprintf(buf,format, args);
 
-		push_warning_printf(
+		push_warning(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
 		my_free(buf);
@@ -21675,7 +21661,7 @@ ib_foreign_warn(trx_t*	    trx,   /*!< in: trx */
 	if (trx && trx->mysql_thd) {
 		THD* thd = (THD*)trx->mysql_thd;
 
-		push_warning_printf(
+		push_warning(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
 	}

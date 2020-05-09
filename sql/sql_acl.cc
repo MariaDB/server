@@ -11823,9 +11823,9 @@ void Sql_cmd_grant::warn_hostname_requires_resolving(THD *thd,
   {
     if (specialflag & SPECIAL_NO_RESOLVE &&
         hostname_requires_resolving(user->host.str))
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARN_HOSTNAME_WONT_WORK,
-                          ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   ER_WARN_HOSTNAME_WONT_WORK,
+                   ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));
   }
 }
 

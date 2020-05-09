@@ -185,8 +185,7 @@ String *Item_func_geometry_from_json::val_str(String *str)
     if (code)
     {
       THD *thd= current_thd;
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, code,
-                          ER_THD(thd, code));
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, code, ER_THD(thd, code));
     }
     return 0;
   }

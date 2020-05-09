@@ -1266,7 +1266,8 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
                   uint code, const char *msg);
 
 void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
-                         uint code, const char *format, ...);
+                         uint code, const char *format, ...)
+                         __attribute__((format(printf,4,5)));
 
 bool mysqld_show_warnings(THD *thd, ulong levels_to_show);
 

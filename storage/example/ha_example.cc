@@ -979,7 +979,7 @@ ha_example::check_if_supported_inplace_alter(TABLE* altered_table,
       if (f_new)
       {
         push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
-                            ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: Field %`s COMPLEX '%s' -> '%s'",
+                            ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: Field `%s` COMPLEX '%s' -> '%s'",
                             table->s->field[i]->field_name.str,
                             f_old->complex_param_to_parse_it_in_engine,
                             f_new->complex_param_to_parse_it_in_engine);
