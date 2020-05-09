@@ -41,4 +41,4 @@ GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO `r1`
 set password='';
 drop role r1;
-update mysql.global_priv set priv=@root_priv;
+update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

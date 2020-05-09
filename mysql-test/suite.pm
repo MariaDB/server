@@ -74,6 +74,9 @@ sub skip_combinations {
   $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
     unless $openssl_ver ge "1.0.2";
 
+  $skip{'main/tls_version1.test'} = 'https://github.com/wolfSSL/wolfssl/issues/2960'
+    if $ssl_lib =~ /WolfSSL 4.4.0/;
+
   %skip;
 }
 

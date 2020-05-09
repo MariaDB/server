@@ -18,7 +18,9 @@
 #include <my_global.h>
 #include <string.h>
 
+#define template _template /* bug in WolfSSL 4.4.0, see also violite.h */
 #include <openssl/evp.h>
+#undef template
 #include <openssl/aes.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>

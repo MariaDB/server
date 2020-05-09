@@ -668,20 +668,20 @@ int _ma_read_key_record(MARIA_HA *info, uchar *buf, MARIA_RECORD_POS filepos)
               will look for column values there)
 
   RETURN
-    ICP_ERROR         Error ; my_errno set to HA_ERR_CRASHED
-    ICP_NO_MATCH      Index condition is not satisfied, continue scanning
-    ICP_MATCH         Index condition is satisfied
-    ICP_OUT_OF_RANGE  Index condition is not satisfied, end the scan.
+    CHECK_ERROR         Error ; my_errno set to HA_ERR_CRASHED
+    CHECK_NEG           Index condition is not satisfied, continue scanning
+    CHECK_POS           Index condition is satisfied
+    CHECK_OUT_OF_RANGE  Index condition is not satisfied, end the scan.
                       my_errno set to HA_ERR_END_OF_FILE
 
-    info->cur_row.lastpos is set to HA_OFFSET_ERROR in case of ICP_ERROR or
-    ICP_OUT_OF_RANGE to indicate that we don't have any active row.
+    info->cur_row.lastpos is set to HA_OFFSET_ERROR in case of CHECK_ERROR or
+    CHECK_OUT_OF_RANGE to indicate that we don't have any active row.
 */
 
-ICP_RESULT ma_check_index_cond(register MARIA_HA *info, uint keynr,
-                               uchar *record)
+check_result_t ma_check_index_cond(register MARIA_HA *info, uint keynr,
+                                   uchar *record)
 {
-  ICP_RESULT res= ICP_MATCH;
+  check_result_t res= CHECK_POS;
   if (info->index_cond_func)
   {
     if (_ma_put_key_in_record(info, keynr, FALSE, record))
@@ -690,10 +690,10 @@ ICP_RESULT ma_check_index_cond(register MARIA_HA *info, uint keynr,
       maria_print_error(info->s, HA_ERR_CRASHED);
       info->cur_row.lastpos= HA_OFFSET_ERROR;   /* No active record */
       my_errno= HA_ERR_CRASHED;
-      res= ICP_ERROR;
+      res= CHECK_ERROR;
     }
     else if ((res= info->index_cond_func(info->index_cond_func_arg)) ==
-             ICP_OUT_OF_RANGE)
+             CHECK_OUT_OF_RANGE)
     {
       /* We got beyond the end of scanned range */
       info->cur_row.lastpos= HA_OFFSET_ERROR;   /* No active record */

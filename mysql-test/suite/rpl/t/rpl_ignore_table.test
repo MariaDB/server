@@ -77,10 +77,15 @@ GRANT INSERT ON *.* TO mysqltest6@localhost;
 GRANT INSERT ON test.* TO mysqltest6@localhost;
 GRANT INSERT ON test.t1 TO mysqltest6@localhost;
 
+--sorted_result
 show grants for mysqltest1@localhost;
+--sorted_result
 show grants for mysqltest2@localhost;
+--sorted_result
 show grants for mysqltest3@localhost;
+--sorted_result
 show grants for mysqltest4@localhost;
+--sorted_result
 show grants for mysqltest6@localhost;
 
 flush privileges;
@@ -92,10 +97,15 @@ sync_slave_with_master;
 --echo **** Checking grants on slave ****
 
 # Check that grants are replicated to slave
+--sorted_result
 show grants for mysqltest2@localhost;
+--sorted_result
 show grants for mysqltest3@localhost;
+--sorted_result
 show grants for mysqltest4@localhost;
+--sorted_result
 show grants for mysqltest5@somehost;
+--sorted_result
 show grants for mysqltest6@localhost;
 
 # mysqltest1 should not be on slave
@@ -109,8 +119,11 @@ REVOKE SELECT ON mysqltest2.t2 FROM mysqltest4@localhost;
 REVOKE select(a) on t4
  from mysqltest3@localhost;
 
+--sorted_result
 show grants for mysqltest1@localhost;
+--sorted_result
 show grants for mysqltest3@localhost;
+--sorted_result
 show grants for mysqltest4@localhost;
 
 sync_slave_with_master;

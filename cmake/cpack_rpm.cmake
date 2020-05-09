@@ -114,12 +114,16 @@ SET(ignored
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib/systemd"
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib/systemd/system"
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib/tmpfiles.d"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/lib/sysusers.d"
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib64"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig"
   "%ignore ${CMAKE_INSTALL_PREFIX}/sbin"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/aclocal"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/doc"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/man"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man1"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man8"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man1*"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man8*"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/pkgconfig"
@@ -192,9 +196,10 @@ SET(CPACK_RPM_compat_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/
 SET(CPACK_RPM_compat_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
 
 MACRO(ALTERNATIVE_NAME real alt)
-  SET(ver "%{version}-%{release}")
-  IF (${epoch})
-    SET(ver "${epoch}:${ver}")
+  IF(${ARGC} GREATER 2)
+    SET(ver ${ARGV2})
+  ELSE()
+    SET(ver "${epoch}%{version}-%{release}")
   ENDIF()
 
   SET(p "CPACK_RPM_${real}_PACKAGE_PROVIDES")
@@ -209,17 +214,40 @@ ALTERNATIVE_NAME("test"   "mysql-test")
 
 # Argh! Different distributions call packages differently, to be a drop-in
 # replacement we have to fake distribution-specific dependencies
+# NOTE, use ALTERNATIVE_NAME when a package has a different name
+# in some distribution, it's not for adding new PROVIDES
 
 IF(RPM MATCHES "(rhel|centos)6")
   ALTERNATIVE_NAME("client" "mysql")
 ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
-  SET(epoch 1) # this is fedora
+  SET(epoch 1:) # this is fedora
   ALTERNATIVE_NAME("client" "mariadb")
   ALTERNATIVE_NAME("client" "mysql")
   ALTERNATIVE_NAME("devel"  "mariadb-devel")
   ALTERNATIVE_NAME("server" "mariadb-server")
   ALTERNATIVE_NAME("server" "mysql-compat-server")
   ALTERNATIVE_NAME("test"   "mariadb-test")
+ELSEIF(RPM MATCHES "(rhel|centos)8")
+  SET(epoch 3:)
+  ALTERNATIVE_NAME("backup" "mariadb-backup")
+  ALTERNATIVE_NAME("client" "mariadb")
+  ALTERNATIVE_NAME("common" "mariadb-common")
+  ALTERNATIVE_NAME("common" "mariadb-errmsg")
+  ALTERNATIVE_NAME("server" "mariadb-server")
+  ALTERNATIVE_NAME("server" "mariadb-server-utils")
+  ALTERNATIVE_NAME("shared" "mariadb-connector-c" ${MARIADB_CONNECTOR_C_VERSION}-1)
+  ALTERNATIVE_NAME("shared" "mariadb-connector-c-config" ${MARIADB_CONNECTOR_C_VERSION}-1)
+  SETA(CPACK_RPM_client_PACKAGE_PROVIDES "mariadb-galera = 3:%{version}-%{release}")
+  SETA(CPACK_RPM_common_PACKAGE_PROVIDES "mariadb-galera-common = 3:%{version}-%{release}")
+  SETA(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-shared")
+ELSEIF(RPM MATCHES "sles")
+  ALTERNATIVE_NAME("server" "mariadb")
+  SETA(CPACK_RPM_server_PACKAGE_PROVIDES
+    "mysql = %{version}-%{release}"
+    "mariadb_${MAJOR_VERSION}${MINOR_VERSION} = %{version}-%{release}"
+    "mariadb-${MAJOR_VERSION}${MINOR_VERSION} = %{version}-%{release}"
+    "mariadb-server = %{version}-%{release}"
+  )
 ENDIF()
 IF(RPM MATCHES "fedora31" OR RPM MATCHES "(rhel|centos)8")
   SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")

@@ -639,7 +639,7 @@ alter table mysql.user change authentication_string auth_string text collate utf
 # mysql_upgrade --force --silent 2>&1
 select count(*) from mysql.global_priv;
 count(*)
-4
+5
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 # End of 10.4 tests

@@ -557,7 +557,7 @@ GRANT INSERT ON *.* TO CURRENT_USER() IDENTIFIED BY 'keksdose';
 SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
 User	Host	Password	plugin	authentication_string	Insert_priv
 root	localhost	*0BB7188CF0DE9B403BA66E9DD810D82652D002EB	mysql_native_password	*0BB7188CF0DE9B403BA66E9DD810D82652D002EB	Y
-UPDATE global_priv SET priv=@root_priv;
+UPDATE global_priv SET priv=@root_priv where user='root' and host='localhost';
 FLUSH PRIVILEGES;
 USE test;
 End of 5.1 tests

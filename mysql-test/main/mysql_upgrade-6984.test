@@ -11,13 +11,13 @@
 # In this setup MYSQL_UPGRADE cannot continue after issuing FLUSH PRIVILEGES
 #
 
-update mysql.global_priv set priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', password('foo'));
+update mysql.global_priv set priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', password('foo')) where user='root';
 
 --exec $MYSQL_UPGRADE
 
 connect(con1,localhost,root,foo,,,);
 
-update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin', '$.authentication_string'));
+update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin', '$.authentication_string'))  where user='root';
 flush privileges;
 # Load event table
 set global event_scheduler=OFF;
