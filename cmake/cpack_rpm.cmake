@@ -240,6 +240,14 @@ ELSEIF(RPM MATCHES "(rhel|centos)8")
   SETA(CPACK_RPM_client_PACKAGE_PROVIDES "mariadb-galera = 3:%{version}-%{release}")
   SETA(CPACK_RPM_common_PACKAGE_PROVIDES "mariadb-galera-common = 3:%{version}-%{release}")
   SETA(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-shared")
+ELSEIF(RPM MATCHES "sles")
+  ALTERNATIVE_NAME("server" "mariadb")
+  SETA(CPACK_RPM_server_PACKAGE_PROVIDES
+    "mysql = %{version}-%{release}"
+    "mariadb_${MAJOR_VERSION}${MINOR_VERSION} = %{version}-%{release}"
+    "mariadb-${MAJOR_VERSION}${MINOR_VERSION} = %{version}-%{release}"
+    "mariadb-server = %{version}-%{release}"
+  )
 ENDIF()
 IF(RPM MATCHES "fedora31" OR RPM MATCHES "(rhel|centos)8")
   SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
