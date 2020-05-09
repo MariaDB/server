@@ -6886,22 +6886,20 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
       if (drop_partition)
       {
         /* Table is still ok, but we left a shadow frm file behind. */
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 1,
-                            "%s %s",
-                            "Operation was unsuccessful, table is still "
-                            "intact, but it is possible that a shadow frm "
-                            "file was left behind");
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 1,
+                     "Operation was unsuccessful, table is still "
+                     "intact, but it is possible that a shadow frm "
+                     "file was left behind");
       }
       else
       {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 1,
-                            "%s %s %s %s",
-                            "Operation was unsuccessful, table is still "
-                            "intact, but it is possible that a shadow frm "
-                            "file was left behind.",
-                            "It is also possible that temporary partitions "
-                            "are left behind, these could be empty or more "
-                            "or less filled with records");
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 1,
+                     "Operation was unsuccessful, table is still "
+                     "intact, but it is possible that a shadow frm "
+                     "file was left behind. "
+                     "It is also possible that temporary partitions "
+                     "are left behind, these could be empty or more "
+                     "or less filled with records");
       }
     }
     else
@@ -6912,12 +6910,11 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
           Failed during install of shadow frm file, table isn't intact
           and dropped partitions are still there
         */
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 1,
-                            "%s %s %s",
-                            "Failed during alter of partitions, table is no "
-                            "longer intact.",
-                            "The frm file is in an unknown state, and a "
-                            "backup is required.");
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 1,
+                     "Failed during alter of partitions, table is no "
+                     "longer intact. "
+                     "The frm file is in an unknown state, and a "
+                     "backup is required.");
       }
       else if (drop_partition)
       {
@@ -6927,11 +6924,10 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
           ask the user to perform the action manually. We remove the log
           records and ask the user to perform the action manually.
         */
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 1,
-                            "%s %s",
-                            "Failed during drop of partitions, table is "
-                            "intact.",
-                            "Manual drop of remaining partitions is required");
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 1,
+                     "Failed during drop of partitions, table is "
+                     "intact. "
+                     "Manual drop of remaining partitions is required");
       }
       else
       {
@@ -6940,12 +6936,11 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
           certainly in a very bad state so we give user warning and disable
           the table by writing an ancient frm version into it.
         */
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 1,
-                            "%s %s %s",
-                            "Failed during renaming of partitions. We are now "
-                            "in a position where table is not reusable",
-                            "Table is disabled by writing ancient frm file "
-                            "version into it");
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 1,
+                     "Failed during renaming of partitions. We are now "
+                     "in a position where table is not reusable "
+                     "Table is disabled by writing ancient frm file "
+                     "version into it");
       }
     }
   }
@@ -6970,9 +6965,9 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
         even though we reported an error the operation was successfully
         completed.
       */
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 1,"%s %s",
-                          "Operation was successfully completed by failure "
-                          "handling, after failure of normal operation");
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 1,
+                   "Operation was successfully completed by failure "
+                   "handling, after failure of normal operation");
     }
   }
 
