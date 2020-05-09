@@ -1,5 +1,7 @@
 --echo #
 --echo # MDEV - 14558: Indicate maturity level of the server.
 --echo #
-SELECT @@version;
-SELECT version();
+SELECT @@version RLIKE 'unknown|experimental|alpha|beta|gamma' AS MATURITY_INDICATED;
+SELECT @@version RLIKE 'debug' AS DEBUG_BUILD;
+SELECT version() RLIKE 'unknown|experimental|alpha|beta|gamma' AS MATURITY_INDICATED;
+SELECT version() RLIKE 'debug' AS DEBUG_BUILD;

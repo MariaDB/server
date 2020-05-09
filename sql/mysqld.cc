@@ -8821,24 +8821,33 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 }
 
 /*
-  This function uses the maturity codes from _ and returns the respective maturity string as in
-  -unknown  -experimental -alpha -beta -gamma 
-  Note we do not display anything for stable versions*/
+  This function uses the maturity codes from _ and returns the
+  respective maturity string as in
+  -unknown -experimental -alpha -beta -gamma
+  Note we do not display anything for stable versions
+*/
   
-  const char* get_server_maturity_string(int maturity_code){
+  const char* get_server_maturity_string(int maturity_code)
+  {
     switch (maturity_code)
     {
-    case 0: return "-unknown";
+    case 0: 
+            return "-unknown";
             break;
-    case 1: return "-experimental";
+    case 1: 
+            return "-experimental";
             break;  
-    case 2: return "-alpha";
+    case 2: 
+            return "-alpha";
             break;
-    case 3: return "-beta";
+    case 3: 
+            return "-beta";
             break;
-    case 4: return "-gamma";
+    case 4: 
+            return "-gamma";
             break;
-    default:return NULL;
+    default:
+            return NULL;
             break;
     }
   }

@@ -1,9 +1,15 @@
 #
 # MDEV - 14558: Indicate maturity level of the server.
 #
-SELECT @@version;
-@@version
-10.5.2-MariaDB-beta-debug-log
-SELECT version();
-version()
-10.5.2-MariaDB-beta-debug-log
+SELECT @@version RLIKE 'unknown|experimental|alpha|beta|gamma' AS MATURITY_INDICATED;
+MATURITY_INDICATED
+1
+SELECT @@version RLIKE 'debug' AS DEBUG_BUILD;
+DEBUG_BUILD
+1
+SELECT version() RLIKE 'unknown|experimental|alpha|beta|gamma' AS MATURITY_INDICATED;
+MATURITY_INDICATED
+1
+SELECT version() RLIKE 'debug' AS DEBUG_BUILD;
+DEBUG_BUILD
+1
