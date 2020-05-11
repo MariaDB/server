@@ -140,8 +140,6 @@ INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
 INCLUDE(wsrep)
-INCLUDE(cpack_rpm)
-INCLUDE(cpack_deb)
 
 # Add macros
 INCLUDE(character_sets)
@@ -374,8 +372,6 @@ MYSQL_CHECK_SSL()
 MYSQL_CHECK_READLINE()
 
 SET(MALLOC_LIBRARY "system")
-SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
-MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 CHECK_PCRE()
 
@@ -412,6 +408,12 @@ SET (MYSQLD_STATIC_PLUGIN_LIBS "" CACHE INTERNAL "")
 
 INCLUDE(submodules)
 INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
+
+INCLUDE(cpack_rpm)
+INCLUDE(cpack_deb)
+
+SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
+MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 # Add storage engines and plugins.
 CONFIGURE_PLUGINS()
