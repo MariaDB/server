@@ -2283,7 +2283,8 @@ sub environment_setup {
   $ENV{'LC_CTYPE'}=           "C";
   $ENV{'LC_COLLATE'}=         "C";
 
-  $ENV{'OPENSSL_CONF'}=       "/dev/null";
+  $ENV{'OPENSSL_CONF'}= $mysqld_variables{'version-ssl-library'} gt 'OpenSSL 1.1.1'
+                       ? "$glob_mysql_test_dir/lib/openssl.cnf" : '/dev/null';
 
   $ENV{'USE_RUNNING_SERVER'}= using_extern();
   $ENV{'MYSQL_TEST_DIR'}=     $glob_mysql_test_dir;

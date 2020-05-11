@@ -3877,9 +3877,9 @@ exhausted:
 
 /*********************************************************************//**
 Check a pushed-down index condition.
-@return ICP_NO_MATCH, ICP_MATCH, or ICP_OUT_OF_RANGE */
+@return CHECK_NEG, CHECK_POS, or CHECK_OUT_OF_RANGE */
 static
-ICP_RESULT
+check_result_t
 row_search_idx_cond_check(
 /*======================*/
 	byte*			mysql_rec,	/*!< out: record
@@ -3897,7 +3897,7 @@ row_search_idx_cond_check(
 
 	if (!prebuilt->idx_cond) {
 		if (!handler_rowid_filter_is_active(prebuilt->pk_filter)) {
-			return(ICP_MATCH);
+			return(CHECK_POS);
 		}
 	} else {
 		MONITOR_INC(MONITOR_ICP_ATTEMPTS);
@@ -3922,7 +3922,7 @@ row_search_idx_cond_check(
 					       rec, prebuilt->index, offsets,
 					       templ->icp_rec_field_no,
 					       templ)) {
-			return(ICP_NO_MATCH);
+			return(CHECK_NEG);
 		}
 	}
 
@@ -3932,12 +3932,12 @@ row_search_idx_cond_check(
 	index, if the case of the column has been updated in
 	the past, or a record has been deleted and a record
 	inserted in a different case. */
-	ICP_RESULT result = prebuilt->idx_cond
+	check_result_t result = prebuilt->idx_cond
 		? handler_index_cond_check(prebuilt->idx_cond)
-		: ICP_MATCH;
+		: CHECK_POS;
 
 	switch (result) {
-	case ICP_MATCH:
+	case CHECK_POS:
 	        if (handler_rowid_filter_is_active(prebuilt->pk_filter)) {
 		        ut_ad(!prebuilt->index->is_primary());
 		        if (prebuilt->clust_index_was_generated) {
@@ -3952,9 +3952,18 @@ row_search_idx_cond_check(
                                ut_ad(len == DATA_ROW_ID_LEN);
                                memcpy(prebuilt->row_id, data, DATA_ROW_ID_LEN);
                         }
-                        if (!handler_rowid_filter_check(prebuilt->pk_filter)) {
-			        MONITOR_INC(MONITOR_ICP_MATCH);
-			        return(ICP_NO_MATCH);
+                        result = handler_rowid_filter_check(prebuilt->pk_filter);
+                        switch (result) {
+                        case CHECK_NEG:
+			        MONITOR_INC(MONITOR_ICP_NO_MATCH);
+                                return(result);
+                        case CHECK_OUT_OF_RANGE:
+                                MONITOR_INC(MONITOR_ICP_OUT_OF_RANGE);
+                                return(result);
+                        case CHECK_POS:
+                                break;
+                        default:
+                                ut_error;
                         }
 		}
 		/* Convert the remaining fields to MySQL format.
@@ -3966,19 +3975,19 @@ row_search_idx_cond_check(
 				    mysql_rec, prebuilt, rec, NULL, false,
 				    prebuilt->index, offsets)) {
 				ut_ad(dict_index_is_clust(prebuilt->index));
-				return(ICP_NO_MATCH);
+				return(CHECK_NEG);
 			}
 		}
 		MONITOR_INC(MONITOR_ICP_MATCH);
 		return(result);
-	case ICP_NO_MATCH:
+	case CHECK_NEG:
 		MONITOR_INC(MONITOR_ICP_NO_MATCH);
 		return(result);
-	case ICP_OUT_OF_RANGE:
+	case CHECK_OUT_OF_RANGE:
 		MONITOR_INC(MONITOR_ICP_OUT_OF_RANGE);
 		return(result);
-        case ICP_ERROR:
-        case ICP_ABORTED_BY_USER:
+        case CHECK_ERROR:
+        case CHECK_ABORTED_BY_USER:
 		return(result);
 	}
 
@@ -4414,12 +4423,12 @@ row_search_mvcc(
 					switch (row_search_idx_cond_check(
 							buf, prebuilt,
 							rec, offsets)) {
-					case ICP_NO_MATCH:
-					case ICP_OUT_OF_RANGE:
-                                        case ICP_ABORTED_BY_USER:
-                                        case ICP_ERROR:
+					case CHECK_NEG:
+					case CHECK_OUT_OF_RANGE:
+                                        case CHECK_ABORTED_BY_USER:
+                                        case CHECK_ERROR:
 						goto shortcut_mismatch;
-					case ICP_MATCH:
+					case CHECK_POS:
 						goto shortcut_match;
 					}
 				}
@@ -5198,14 +5207,14 @@ no_gap_lock:
 				index entry. */
 				switch (row_search_idx_cond_check(
 						buf, prebuilt, rec, offsets)) {
-				case ICP_NO_MATCH:
+				case CHECK_NEG:
 					goto next_rec;
-				case ICP_OUT_OF_RANGE:
-                                case ICP_ABORTED_BY_USER:
-                                case ICP_ERROR:
+				case CHECK_OUT_OF_RANGE:
+                                case CHECK_ABORTED_BY_USER:
+                                case CHECK_ERROR:
 					err = DB_RECORD_NOT_FOUND;
 					goto idx_cond_failed;
-				case ICP_MATCH:
+				case CHECK_POS:
 					goto requires_clust_rec;
 				}
 
@@ -5255,17 +5264,17 @@ locks_ok_del_marked:
 
 	/* Check if the record matches the index condition. */
 	switch (row_search_idx_cond_check(buf, prebuilt, rec, offsets)) {
-	case ICP_NO_MATCH:
+	case CHECK_NEG:
 		if (did_semi_consistent_read) {
 			row_unlock_for_mysql(prebuilt, TRUE);
 		}
 		goto next_rec;
-	case ICP_OUT_OF_RANGE:
-        case ICP_ABORTED_BY_USER:
-        case ICP_ERROR:
+	case CHECK_OUT_OF_RANGE:
+        case CHECK_ABORTED_BY_USER:
+        case CHECK_ERROR:
 		err = DB_RECORD_NOT_FOUND;
 		goto idx_cond_failed;
-	case ICP_MATCH:
+	case CHECK_POS:
 		break;
 	}
 

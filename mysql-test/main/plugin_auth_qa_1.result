@@ -1,6 +1,7 @@
 CREATE DATABASE test_user_db;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 ========== test 1.1.3.2 ====================================
 CREATE USER plug_user IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
@@ -23,6 +24,7 @@ GRANT ALL PRIVILEGES ON test_user_db.* TO plug_dest IDENTIFIED BY 'plug_dest_pas
 GRANT PROXY ON plug_dest TO plug_user;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 plug_user	test_plugin_server	plug_dest
 1)
@@ -74,6 +76,7 @@ GRANT PROXY ON new_dest TO plug_user;
 ERROR 1045 (28000): Access denied for user 'plug_user'@'localhost' (using password: YES)
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 new_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 plug_user	test_plugin_server	plug_dest
 DROP USER plug_user,new_dest;
@@ -92,6 +95,7 @@ GRANT PROXY ON new_dest TO plug_user;
 ERROR 1045 (28000): Access denied for user 'plug_user'@'localhost' (using password: YES)
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 new_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 plug_user	test_plugin_server	plug_dest
 DROP USER plug_user,new_dest;
@@ -113,6 +117,7 @@ new_user@localhost	plug_dest@%
 connection default;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 new_user	test_plugin_server	plug_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 disconnect plug_user;
@@ -120,6 +125,7 @@ UPDATE mysql.global_priv SET user='plug_user' WHERE user='new_user';
 FLUSH PRIVILEGES;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 plug_user	test_plugin_server	plug_dest
 DROP USER plug_dest,plug_user;
@@ -136,24 +142,28 @@ connection default;
 disconnect plug_user;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 plug_user	test_plugin_server	plug_dest
 UPDATE mysql.global_priv SET user='new_user' WHERE user='plug_user';
 FLUSH PRIVILEGES;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 new_user	test_plugin_server	plug_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 UPDATE mysql.global_priv SET priv=JSON_SET(priv, '$.authentication_string', 'new_dest') WHERE user='new_user';
 FLUSH PRIVILEGES;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 new_user	test_plugin_server	new_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 UPDATE mysql.global_priv SET priv=JSON_SET(priv, '$.plugin', 'new_plugin_server') WHERE user='new_user';
 FLUSH PRIVILEGES;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 new_user	new_plugin_server	new_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 ERROR HY000: Plugin 'new_plugin_server' is not loaded
@@ -163,6 +173,7 @@ FLUSH PRIVILEGES;
 GRANT PROXY ON new_dest TO new_user;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 new_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 new_user	test_plugin_server	new_dest
 connect plug_user,localhost,new_user,new_dest;
@@ -176,6 +187,7 @@ FLUSH PRIVILEGES;
 CREATE USER new_dest IDENTIFIED BY 'new_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
+mariadb.sys	mysql_native_password	
 new_dest	mysql_native_password	*01422E86A6FFF84618914AF149F9AEF64B84170A
 new_user	test_plugin_server	new_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
@@ -193,6 +205,7 @@ CREATE USER proxied_user IDENTIFIED BY 'proxied_user_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
 	test_plugin_server	proxied_user
+mariadb.sys	mysql_native_password	
 proxied_user	mysql_native_password	*D7A51428CD38DB3C5293B9321DA1228BFB1611DD
 connect proxy_con,localhost,proxied_user,proxied_user_passwd;
 SELECT USER(),CURRENT_USER();
@@ -229,6 +242,7 @@ CREATE USER proxied_user IDENTIFIED BY 'proxied_user_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
 	test_plugin_server	proxied_user
+mariadb.sys	mysql_native_password	
 proxied_user	mysql_native_password	*D7A51428CD38DB3C5293B9321DA1228BFB1611DD
 connect proxy_con,localhost,proxied_user,proxied_user_passwd;
 SELECT USER(),CURRENT_USER();
@@ -271,6 +285,7 @@ GRANT PROXY ON proxied_user_5 TO ''@'%%';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 User	plugin	authentication_string
 	test_plugin_server	proxied_user
+mariadb.sys	mysql_native_password	
 proxied_user_1	mysql_native_password	*551D5A5177FCC3340F7D2FB0F4D8D1EEA7F7EF71
 proxied_user_2	mysql_native_password	*3D948F77C6A988AFDCA9755AB2A6724362557220
 proxied_user_3	mysql_native_password	*41A18925D237DEE738C76581153990B037F462E3

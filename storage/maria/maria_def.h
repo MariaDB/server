@@ -1433,7 +1433,7 @@ extern my_bool maria_flush_log_for_page_none(PAGECACHE_IO_HOOK_ARGS *args);
 extern PAGECACHE *maria_log_pagecache;
 extern void ma_set_index_cond_func(MARIA_HA *info, index_cond_func_t func,
                                    void *func_arg);
-ICP_RESULT ma_check_index_cond(MARIA_HA *info, uint keynr, uchar *record);
+check_result_t ma_check_index_cond(MARIA_HA *info, uint keynr, uchar *record);
 
 extern my_bool ma_yield_and_check_if_killed(MARIA_HA *info, int inx);
 extern my_bool ma_killed_standalone(MARIA_HA *);

@@ -2913,9 +2913,9 @@ public:
   {}
 };
 
-extern "C" enum icp_result handler_index_cond_check(void* h_arg);
+extern "C" check_result_t handler_index_cond_check(void* h_arg);
 
-extern "C" int handler_rowid_filter_check(void* h_arg);
+extern "C" check_result_t handler_rowid_filter_check(void* h_arg);
 extern "C" int handler_rowid_filter_is_active(void* h_arg);
 
 uint calculate_key_len(TABLE *, uint, const uchar *, key_part_map);
@@ -4837,7 +4837,8 @@ public:
 
   virtual void set_lock_type(enum thr_lock_type lock);
 
-  friend enum icp_result handler_index_cond_check(void* h_arg);
+  friend check_result_t handler_index_cond_check(void* h_arg);
+  friend check_result_t handler_rowid_filter_check(void *h_arg);
 
   /**
     Find unique record by index or unique constrain

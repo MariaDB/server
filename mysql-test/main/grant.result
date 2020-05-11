@@ -656,9 +656,9 @@ GRANT ALL PRIVILEGES ON mysqltest.dummytable TO dummy@localhost;
 GRANT ALL PRIVILEGES ON mysqltest.dummyview TO dummy@localhost;
 SHOW GRANTS FOR dummy@localhost;
 Grants for dummy@localhost
-GRANT USAGE ON *.* TO `dummy`@`localhost`
-GRANT ALL PRIVILEGES ON `mysqltest`.`dummyview` TO `dummy`@`localhost`
 GRANT ALL PRIVILEGES ON `mysqltest`.`dummytable` TO `dummy`@`localhost`
+GRANT ALL PRIVILEGES ON `mysqltest`.`dummyview` TO `dummy`@`localhost`
+GRANT USAGE ON *.* TO `dummy`@`localhost`
 use INFORMATION_SCHEMA;
 SELECT TABLE_SCHEMA, TABLE_NAME, GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY
 PRIVILEGE_TYPE SEPARATOR ', ') AS PRIVILEGES FROM TABLE_PRIVILEGES WHERE GRANTEE
@@ -669,9 +669,9 @@ mysqltest	dummyview	ALTER, CREATE, CREATE VIEW, DELETE, DELETE HISTORY, DROP, IN
 FLUSH PRIVILEGES;
 SHOW GRANTS FOR dummy@localhost;
 Grants for dummy@localhost
-GRANT USAGE ON *.* TO `dummy`@`localhost`
-GRANT ALL PRIVILEGES ON `mysqltest`.`dummyview` TO `dummy`@`localhost`
 GRANT ALL PRIVILEGES ON `mysqltest`.`dummytable` TO `dummy`@`localhost`
+GRANT ALL PRIVILEGES ON `mysqltest`.`dummyview` TO `dummy`@`localhost`
+GRANT USAGE ON *.* TO `dummy`@`localhost`
 SELECT TABLE_SCHEMA, TABLE_NAME, GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY
 PRIVILEGE_TYPE SEPARATOR ', ') AS PRIVILEGES FROM TABLE_PRIVILEGES WHERE GRANTEE
 = '\'dummy\'@\'localhost\'' GROUP BY TABLE_SCHEMA, TABLE_NAME;
@@ -700,9 +700,9 @@ GRANT CREATE VIEW ON mysqltest.dummytable TO dummy@localhost;
 GRANT CREATE VIEW ON mysqltest.dummyview TO dummy@localhost;
 SHOW GRANTS FOR dummy@localhost;
 Grants for dummy@localhost
-GRANT USAGE ON *.* TO `dummy`@`localhost`
-GRANT CREATE VIEW ON `mysqltest`.`dummyview` TO `dummy`@`localhost`
 GRANT CREATE VIEW ON `mysqltest`.`dummytable` TO `dummy`@`localhost`
+GRANT CREATE VIEW ON `mysqltest`.`dummyview` TO `dummy`@`localhost`
+GRANT USAGE ON *.* TO `dummy`@`localhost`
 use INFORMATION_SCHEMA;
 SELECT TABLE_SCHEMA, TABLE_NAME, GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY
 PRIVILEGE_TYPE SEPARATOR ', ') AS PRIVILEGES FROM TABLE_PRIVILEGES WHERE GRANTEE
@@ -713,9 +713,9 @@ mysqltest	dummyview	CREATE VIEW
 FLUSH PRIVILEGES;
 SHOW GRANTS FOR dummy@localhost;
 Grants for dummy@localhost
-GRANT USAGE ON *.* TO `dummy`@`localhost`
-GRANT CREATE VIEW ON `mysqltest`.`dummyview` TO `dummy`@`localhost`
 GRANT CREATE VIEW ON `mysqltest`.`dummytable` TO `dummy`@`localhost`
+GRANT CREATE VIEW ON `mysqltest`.`dummyview` TO `dummy`@`localhost`
+GRANT USAGE ON *.* TO `dummy`@`localhost`
 SELECT TABLE_SCHEMA, TABLE_NAME, GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY
 PRIVILEGE_TYPE SEPARATOR ', ') AS PRIVILEGES FROM TABLE_PRIVILEGES WHERE GRANTEE
 = '\'dummy\'@\'localhost\'' GROUP BY TABLE_SCHEMA, TABLE_NAME;
@@ -735,8 +735,8 @@ GRANT SHOW VIEW ON mysqltest.dummyview TO dummy@localhost;
 SHOW GRANTS FOR dummy@localhost;
 Grants for dummy@localhost
 GRANT USAGE ON *.* TO `dummy`@`localhost`
-GRANT SHOW VIEW ON `mysqltest`.`dummyview` TO `dummy`@`localhost`
 GRANT SHOW VIEW ON `mysqltest`.`dummytable` TO `dummy`@`localhost`
+GRANT SHOW VIEW ON `mysqltest`.`dummyview` TO `dummy`@`localhost`
 use INFORMATION_SCHEMA;
 SELECT TABLE_SCHEMA, TABLE_NAME, GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY
 PRIVILEGE_TYPE SEPARATOR ', ') AS PRIVILEGES FROM TABLE_PRIVILEGES WHERE GRANTEE
@@ -748,8 +748,8 @@ FLUSH PRIVILEGES;
 SHOW GRANTS FOR dummy@localhost;
 Grants for dummy@localhost
 GRANT USAGE ON *.* TO `dummy`@`localhost`
-GRANT SHOW VIEW ON `mysqltest`.`dummyview` TO `dummy`@`localhost`
 GRANT SHOW VIEW ON `mysqltest`.`dummytable` TO `dummy`@`localhost`
+GRANT SHOW VIEW ON `mysqltest`.`dummyview` TO `dummy`@`localhost`
 SELECT TABLE_SCHEMA, TABLE_NAME, GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY
 PRIVILEGE_TYPE SEPARATOR ', ') AS PRIVILEGES FROM TABLE_PRIVILEGES WHERE GRANTEE
 = '\'dummy\'@\'localhost\'' GROUP BY TABLE_SCHEMA, TABLE_NAME;
@@ -967,6 +967,9 @@ GRANT UPDATE ON `test`.`t1` TO `mysqltest_8`@`%`
 select * from  information_schema.table_privileges;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_8'@'%'	def	test	t1	UPDATE	NO
+'mariadb.sys'@'localhost'	def	mysql	global_priv	SELECT	NO
+'mariadb.sys'@'localhost'	def	mysql	global_priv	UPDATE	NO
+'mariadb.sys'@'localhost'	def	mysql	global_priv	DELETE	NO
 connect  conn5,localhost,mysqltest_8,,;
 select * from t1;
 a
@@ -981,6 +984,9 @@ Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
 select * from  information_schema.table_privileges;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
+'mariadb.sys'@'localhost'	def	mysql	global_priv	SELECT	NO
+'mariadb.sys'@'localhost'	def	mysql	global_priv	UPDATE	NO
+'mariadb.sys'@'localhost'	def	mysql	global_priv	DELETE	NO
 flush privileges;
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%

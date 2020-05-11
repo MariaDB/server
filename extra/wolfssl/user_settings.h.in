@@ -20,14 +20,19 @@
 #define WOLFSSL_AES_COUNTER
 #define NO_WOLFSSL_STUB
 #define OPENSSL_ALL
-#define WOLFSSL_ALLOW_TLSV10
+#undef WOLFSSL_ALLOW_TLSV10 /* see https://github.com/wolfSSL/wolfssl/issues/2960 */
+#define NO_OLD_TIMEVAL_NAME
+/*
+  FP_MAX_BITS is set high solely to satisfy ssl_8k_key.test
+  WolfSSL will use more stack space with it, with fastmath
+*/
+#define FP_MAX_BITS 16384
 
 #cmakedefine WOLFSSL_AESNI
 #cmakedefine USE_FAST_MATH
 #cmakedefine TFM_TIMING_RESISTANT
 #cmakedefine HAVE_INTEL_RDSEED
 #cmakedefine USE_INTEL_SPEEDUP
-#cmakedefine FP_MAX_BITS @FP_MAX_BITS@
 #cmakedefine USE_FAST_MATH
 #cmakedefine WOLFSSL_X86_64_BUILD
 

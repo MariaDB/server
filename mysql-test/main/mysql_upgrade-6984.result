@@ -1,4 +1,4 @@
-update mysql.global_priv set priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', password('foo'));
+update mysql.global_priv set priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', password('foo')) where user='root';
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
 mysql
@@ -63,6 +63,6 @@ test
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 connect con1,localhost,root,foo,,,;
-update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin', '$.authentication_string'));
+update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin', '$.authentication_string'))  where user='root';
 flush privileges;
 set global event_scheduler=OFF;

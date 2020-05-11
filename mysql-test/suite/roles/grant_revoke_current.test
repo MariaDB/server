@@ -29,4 +29,4 @@ set password='';
 
 #cleanup
 drop role r1;
-update mysql.global_priv set priv=@root_priv;
+update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';
