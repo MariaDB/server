@@ -104,6 +104,25 @@ static int my_get_open_flags(File fd)
 
 
 /*
+  Default security attributes for files and directories
+  Usually NULL, but can be set
+  - by either mysqld --bootstrap when started from
+    mysql_install_db.exe, and creating windows service
+  - or by mariabackup --copy-back.
+
+  The objective in both cases is to fix file or directory
+  privileges for those files that are outside of the usual
+  datadir, so that unprivileged service account has full
+  access to the files.
+*/
+LPSECURITY_ATTRIBUTES my_win_file_secattr()
+{
+  return my_dir_security_attributes.lpSecurityDescriptor?
+    &my_dir_security_attributes : NULL;
+}
+
+
+/*
   Open a file with sharing. Similar to _sopen() from libc, but allows managing
   share delete on win32
 
@@ -128,7 +147,6 @@ File my_win_sopen(const char *path, int oflag, int shflag, int pmode)
   DWORD fileshare;                        /* OS file sharing mode */
   DWORD filecreate;                       /* OS method of opening/creating */
   DWORD fileattrib;                       /* OS file attribute flags */
-  SECURITY_ATTRIBUTES SecurityAttributes;
 
   DBUG_ENTER("my_win_sopen");
 
@@ -137,9 +155,6 @@ File my_win_sopen(const char *path, int oflag, int shflag, int pmode)
     errno= EACCES;
     DBUG_RETURN(-1);
   }
-  SecurityAttributes.nLength= sizeof(SecurityAttributes);
-  SecurityAttributes.lpSecurityDescriptor= NULL;
-  SecurityAttributes.bInheritHandle= !(oflag & _O_NOINHERIT);
 
   /* decode the access flags  */
   switch (oflag & (_O_RDONLY | _O_WRONLY | _O_RDWR)) {
@@ -247,7 +262,7 @@ File my_win_sopen(const char *path, int oflag, int shflag, int pmode)
     fileattrib|= FILE_FLAG_RANDOM_ACCESS;
 
   /* try to open/create the file  */
-  if ((osfh= CreateFile(path, fileaccess, fileshare, &SecurityAttributes, 
+  if ((osfh= CreateFile(path, fileaccess, fileshare,my_win_file_secattr(),
     filecreate, fileattrib, NULL)) == INVALID_HANDLE_VALUE)
   {
     /*

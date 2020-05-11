@@ -123,6 +123,7 @@
 
 #ifdef _WIN32
 #include <handle_connections_win.h>
+#include <sddl.h>
 #endif
 
 #include <my_service_manager.h>
@@ -8166,6 +8167,23 @@ mysqld_get_one_option(const struct my_option *opt, char *argument,
     break;
   case OPT_BOOTSTRAP:
     opt_noacl=opt_bootstrap=1;
+#ifdef _WIN32
+    {
+      /*
+       Check if security descriptor is passed from
+       mysql_install_db.exe.
+       Used by Windows installer to correctly setup
+       privileges on the new directories.
+      */
+      char* dir_sddl = getenv("MARIADB_NEW_DIRECTORY_SDDL");
+      if (dir_sddl)
+      {
+        ConvertStringSecurityDescriptorToSecurityDescriptor(
+          dir_sddl, SDDL_REVISION_1, &my_dir_security_attributes.lpSecurityDescriptor, NULL);
+        DBUG_ASSERT(my_dir_security_attributes.lpSecurityDescriptor);
+      }
+    }
+#endif
     break;
   case OPT_SERVER_ID:
     ::server_id= global_system_variables.server_id;

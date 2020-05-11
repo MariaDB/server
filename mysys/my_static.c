@@ -63,7 +63,9 @@ char		curr_dir[FN_REFLEN]= {0},
 ulong		my_stream_opened=0,my_tmp_file_created=0;
 ulong           my_file_total_opened= 0;
 int		my_umask=0664, my_umask_dir=0777;
-
+#ifdef _WIN32
+SECURITY_ATTRIBUTES my_dir_security_attributes= {sizeof(SECURITY_ATTRIBUTES),NULL,FALSE};
+#endif
 myf             my_global_flags= 0;
 #ifndef DBUG_OFF
 my_bool         my_assert= 1;

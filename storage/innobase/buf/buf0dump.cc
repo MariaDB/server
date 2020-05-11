@@ -233,6 +233,7 @@ static void buf_dump_generate_path(char *path, size_t path_size)
 	}
 }
 
+
 /*****************************************************************//**
 Perform a buffer pool dump into the file specified by
 innodb_buffer_pool_filename. If any errors occur then the value of
@@ -262,7 +263,10 @@ buf_dump(
 	buf_dump_status(STATUS_INFO, "Dumping buffer pool(s) to %s",
 			full_filename);
 
-#if defined(__GLIBC__) || defined(__WIN__) || O_CLOEXEC == 0
+#ifdef _WIN32
+	/* use my_fopen() for correct permissions during bootstrap*/
+	f = my_fopen(tmp_filename, O_RDWR|O_TRUNC|O_CREAT, 0);
+#elif defined(__GLIBC__) || defined(__WIN__) || O_CLOEXEC == 0
 	f = fopen(tmp_filename, "w" STR_O_CLOEXEC);
 #else
 	{
@@ -375,7 +379,7 @@ buf_dump(
 	ut_free(dump);
 
 done:
-	ret = fclose(f);
+	ret = IF_WIN(my_fclose(f,0),fclose(f));
 	if (ret != 0) {
 		buf_dump_status(STATUS_ERR,
 				"Cannot close '%s': %s",

@@ -60,11 +60,8 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 #ifdef _WIN32
 #include <aclapi.h>
-/* During copyback, store datadir permissions,
- use them to create paths for tables specified
- with DATA DIRECTORY.*/
-PSECURITY_DESCRIPTOR datadir_security_descriptor;
 #endif
+
 
 #define ROCKSDB_BACKUP_DIR "#rocksdb"
 
@@ -664,19 +661,6 @@ mkdirp(const char *pathname, int Flags, myf MyFlags)
 		return(-1);
 	}
 
-#ifdef _WIN32
-	SECURITY_ATTRIBUTES sa{};
-	sa.lpSecurityDescriptor= datadir_security_descriptor;
-	sa.nLength= sizeof(sa);
-	if (CreateDirectory(pathname, datadir_security_descriptor?&sa : NULL)
-		|| GetLastError() == ERROR_ALREADY_EXISTS
-		|| GetLastError() == ERROR_ACCESS_DENIED && strlen(pathname) == 2 && pathname[1]==':')
-	{
-		free(parent);
-		return 0;
-	}
-	return -1;
-#else
 	/* make this one if parent has been made */
 	if (my_mkdir(pathname, Flags, MyFlags) == 0) {
 		free(parent);
@@ -688,7 +672,6 @@ mkdirp(const char *pathname, int Flags, myf MyFlags)
 		free(parent);
 		return(0);
 	}
-#endif
 
 	free(parent);
 	return(-1);
@@ -1757,13 +1740,12 @@ copy_back()
 	}
 
 #ifdef _WIN32
-	/* If we create paths for DATA DIRECTORY, they need
-	the same permissions as the datadir, or service won't
-	be able to access the files. */
+	/* Initialize security descriptor for the new directories
+	to be the same as for datadir */
 	DWORD res = GetNamedSecurityInfoA(mysql_data_home,
 		SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
 		NULL, NULL, NULL, NULL,
-		&datadir_security_descriptor);
+		&my_dir_security_attributes.lpSecurityDescriptor);
 	if (res != ERROR_SUCCESS) {
 		msg("Unable to read security descriptor of %s",mysql_data_home);
 	}

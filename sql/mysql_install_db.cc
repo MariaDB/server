@@ -27,6 +27,7 @@
 #include <accctrl.h>
 #include <aclapi.h>
 #include <ntsecapi.h>
+#include <sddl.h>
 struct IUnknown;
 #include <shlwapi.h>
 
@@ -729,6 +730,26 @@ static int create_db_instance()
     set_directory_permissions(opt_datadir, service_user.c_str());
     set_directory_permissions("mysql",service_user.c_str());
   }
+
+  /*
+  Get security descriptor for the new directory.
+  It will be passed, as SDDL text, to the mysqld bootstrap subprocess,
+  to allow for correct subdirectory permissions.
+  */
+  PSECURITY_DESCRIPTOR pSD;
+  if (GetNamedSecurityInfoA(opt_datadir,SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+    0,0,0,0,&pSD) == ERROR_SUCCESS)
+  {
+    char* string_sd = NULL;
+    if (ConvertSecurityDescriptorToStringSecurityDescriptor(pSD, SDDL_REVISION_1,
+      DACL_SECURITY_INFORMATION,&string_sd,0))
+    {
+      _putenv_s("MARIADB_NEW_DIRECTORY_SDDL",string_sd);
+      LocalFree(string_sd);
+    }
+    LocalFree(pSD);
+  }
+
   /* Do mysqld --bootstrap. */
   init_bootstrap_command_line(cmdline, sizeof(cmdline));
 
@@ -843,7 +864,7 @@ end:
 
     /*Remove all service user privileges for the user.*/
     if(strncmp(service_user.c_str(), "NT SERVICE\\",
-         sizeof("NT SERVICE\\")-1)
+         sizeof("NT SERVICE\\")-1))
     {
       handle_user_privileges(service_user.c_str(), 0, false);
     }
