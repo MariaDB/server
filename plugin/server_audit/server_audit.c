@@ -15,7 +15,7 @@
 
 
 #define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.8"
+#define PLUGIN_STR_VERSION "1.4.sup1"
 
 #define _my_thread_var loc_thread_var
 
@@ -1287,8 +1287,8 @@ static void change_connection(struct connection_info *cn,
 static int write_log(const char *message, size_t len, int take_lock)
 {
   int result= 0;
-  if (take_lock)
-    flogger_mutex_lock(&lock_operations);
+  //if (take_lock)
+    //flogger_mutex_lock(&lock_operations);
 
   if (output_type == OUTPUT_FILE)
   {
@@ -1305,8 +1305,8 @@ static int write_log(const char *message, size_t len, int take_lock)
            "%s %.*s", syslog_info, (int) len, message);
   }
 exit:
-  if (take_lock)
-    flogger_mutex_unlock(&lock_operations);
+  //if (take_lock)
+    //flogger_mutex_unlock(&lock_operations);
   return result;
 }
 
@@ -1525,8 +1525,8 @@ static int do_log_user(const char *name, int take_lock)
     return 0;
   len= strlen(name);
 
-  if (take_lock)
-    flogger_mutex_lock(&lock_operations);
+  //if (take_lock)
+    //flogger_mutex_lock(&lock_operations);
 
   if (incl_user_coll.n_users)
     result= coll_search(&incl_user_coll, name, len) != 0;
@@ -1535,8 +1535,8 @@ static int do_log_user(const char *name, int take_lock)
   else
     result= 1;
 
-  if (take_lock)
-    flogger_mutex_unlock(&lock_operations);
+  //if (take_lock)
+    //flogger_mutex_unlock(&lock_operations);
   return result;
 }
 
