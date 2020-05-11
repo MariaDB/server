@@ -1475,10 +1475,9 @@ retry_page_get:
 				node_seq_t      root_seq_no;
 
 				root_seq_no = page_get_ssn_id(page);
-
-				mutex_enter(&(index->rtr_ssn.mutex));
-				index->rtr_ssn.seq_no = root_seq_no + 1;
-				mutex_exit(&(index->rtr_ssn.mutex));
+				my_atomic_store32_explicit(
+					&index->rtr_ssn, root_seq_no + 1,
+					MY_MEMORY_ORDER_RELAXED);
 			}
 
 			/* Save the MBR */

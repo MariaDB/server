@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -383,8 +383,7 @@ private:
 	{
 		return(latch->get_id() == LATCH_ID_RTR_ACTIVE_MUTEX
 		       || latch->get_id() == LATCH_ID_RTR_PATH_MUTEX
-		       || latch->get_id() == LATCH_ID_RTR_MATCH_MUTEX
-		       || latch->get_id() == LATCH_ID_RTR_SSN_MUTEX);
+		       || latch->get_id() == LATCH_ID_RTR_MATCH_MUTEX);
 	}
 
 private:
@@ -1374,8 +1373,6 @@ sync_latch_meta_init()
 			SYNC_NO_ORDER_CHECK,
 			rw_lock_debug_mutex_key);
 #endif /* UNIV_DEBUG */
-
-	LATCH_ADD_MUTEX(RTR_SSN_MUTEX, SYNC_ANY_LATCH, rtr_ssn_mutex_key);
 
 	LATCH_ADD_MUTEX(RTR_ACTIVE_MUTEX, SYNC_ANY_LATCH,
 			rtr_active_mutex_key);
