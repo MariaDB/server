@@ -2135,10 +2135,13 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
   }
   else
   {
+    /*
+      No need to use real_item for the item, as the ref items that are possible
+      in the subquery either belong to views or to the parent select.
+      For such case we need to refer to the reference and not to the original
+      item.
+    */
     Item *item= (Item*) select_lex->item_list.head();
-    if (item->type() != REF_ITEM ||
-        ((Item_ref*)item)->ref_type() != Item_ref::VIEW_REF)
-      item= item->real_item();
 
     if (select_lex->table_list.elements)
     {
