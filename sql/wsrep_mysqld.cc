@@ -1,4 +1,5 @@
 /* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2368,7 +2369,7 @@ void wsrep_to_isolation_end(THD *thd)
 */
 
 void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
-                               MDL_ticket *ticket,
+                               const MDL_ticket *ticket,
                                const MDL_key *key)
 {
   /* Fallback to the non-wsrep behaviour */

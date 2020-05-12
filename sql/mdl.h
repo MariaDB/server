@@ -1,6 +1,7 @@
 #ifndef MDL_H
 #define MDL_H
 /* Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,6 +17,7 @@
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "sql_plist.h"
+#include "ilist.h"
 #include <my_sys.h>
 #include <m_string.h>
 #include <mysql_com.h>
@@ -685,7 +687,7 @@ public:
           threads/contexts.
 */
 
-class MDL_ticket : public MDL_wait_for_subgraph
+class MDL_ticket : public MDL_wait_for_subgraph, public ilist_node<>
 {
 public:
   /**
@@ -694,15 +696,9 @@ public:
   */
   MDL_ticket *next_in_context;
   MDL_ticket **prev_in_context;
-  /**
-    Pointers for participating in the list of satisfied/pending requests
-    for the lock. Externally accessible.
-  */
-  MDL_ticket *next_in_lock;
-  MDL_ticket **prev_in_lock;
 public:
 #ifdef WITH_WSREP
-  void wsrep_report(bool debug);
+  void wsrep_report(bool debug) const;
 #endif /* WITH_WSREP */
   bool has_pending_conflicting_lock() const;
 

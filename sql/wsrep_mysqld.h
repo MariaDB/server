@@ -1,4 +1,5 @@
 /* Copyright 2008-2017 Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -527,7 +528,7 @@ void wsrep_keys_free(wsrep_key_arr_t* key_arr);
 
 extern void
 wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
-                          MDL_ticket *ticket,
+                          const MDL_ticket *ticket,
                           const MDL_key *key);
 
 enum wsrep_thread_type {
