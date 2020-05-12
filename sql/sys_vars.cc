@@ -818,7 +818,7 @@ static Sys_var_ulong Sys_connect_timeout(
 
 static Sys_var_charptr Sys_datadir(
        "datadir", "Path to the database root directory",
-       READ_ONLY GLOBAL_VAR(mysql_real_data_home_ptr),
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(mysql_real_data_home_ptr),
        CMD_LINE(REQUIRED_ARG, 'h'), IN_FS_CHARSET, DEFAULT(mysql_real_data_home));
 
 #ifndef DBUG_OFF

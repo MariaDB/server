@@ -4538,8 +4538,10 @@ static int init_common_variables()
     get corrupted if accesses with names of different case.
   */
   DBUG_PRINT("info", ("lower_case_table_names: %d", lower_case_table_names));
+  if(mysql_real_data_home_ptr == NULL || *mysql_real_data_home_ptr == 0)
+    mysql_real_data_home_ptr= mysql_real_data_home;
   SYSVAR_AUTOSIZE(lower_case_file_system,
-                  test_if_case_insensitive(mysql_real_data_home));
+                  test_if_case_insensitive(mysql_real_data_home_ptr));
   if (!lower_case_table_names && lower_case_file_system == 1)
   {
     if (lower_case_table_names_used)
@@ -4556,7 +4558,7 @@ static int init_common_variables()
     {
       if (global_system_variables.log_warnings)
 	sql_print_warning("Setting lower_case_table_names=2 because file "
-                  "system for %s is case insensitive", mysql_real_data_home);
+                  "system for %s is case insensitive", mysql_real_data_home_ptr);
       SYSVAR_AUTOSIZE(lower_case_table_names, 2);
     }
   }
@@ -4567,7 +4569,7 @@ static int init_common_variables()
       sql_print_warning("lower_case_table_names was set to 2, even though your "
                         "the file system '%s' is case sensitive.  Now setting "
                         "lower_case_table_names to 0 to avoid future problems.",
-			mysql_real_data_home);
+			mysql_real_data_home_ptr);
     SYSVAR_AUTOSIZE(lower_case_table_names, 0);
   }
   else
