@@ -980,7 +980,7 @@ void _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
         if (memcmp(buff, last, count))
         {
           memcpy(last, buff, count);
-          len= sprintf(out, "%8lu: ", (ulong) page - count);
+          len= sprintf(out, "%8lu: ", (ulong) (page - count));
           memcpy(out+len, buff, count);
           out+= len + count + 1;
           out[-1]= '\n';
@@ -996,7 +996,7 @@ void _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
       page++;
     }
   }
-  len= sprintf(out, "%8lu: ", (ulong) page - count);
+  len= sprintf(out, "%8lu: ", (ulong) (page - count));
   memcpy(out+len, buff, count);
   out[len + count]= '\n';
   out[len + count + 1]= 0;

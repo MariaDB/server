@@ -1214,7 +1214,7 @@ static void fsp_free_page(fil_space_t* space, page_no_t offset, mtr_t* mtr)
 	/* fprintf(stderr, "Freeing page %lu in space %lu\n", page, space); */
 
 	buf_block_t* header = fsp_get_header(space, mtr);
-	buf_block_t* xdes;
+	buf_block_t* xdes= 0;
 
 	descr = xdes_get_descriptor_with_space_hdr(header, space, offset,
 						   &xdes, mtr);
@@ -1299,7 +1299,7 @@ static void fsp_free_extent(fil_space_t* space, page_no_t offset, mtr_t* mtr)
   ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_X_LOCK));
 
   buf_block_t *block= fsp_get_header(space, mtr);
-  buf_block_t *xdes;
+  buf_block_t *xdes= 0;
 
   xdes_t* descr= xdes_get_descriptor_with_space_hdr(block, space, offset,
                                                     &xdes, mtr);
