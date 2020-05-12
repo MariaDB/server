@@ -402,7 +402,7 @@ bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
                                    bool with_grant);
 int acl_setrole(THD *thd, char *rolename, ulonglong access);
 int acl_check_setrole(THD *thd, char *rolename, ulonglong *access);
-int acl_check_set_default_role(THD *thd, const char *host, const char *user);
+int acl_check_set_default_role(THD *thd, const char *host, const char *user, const char *role);
 int acl_set_default_role(THD *thd, const char *host, const char *user,
                          const char *rolename);
 

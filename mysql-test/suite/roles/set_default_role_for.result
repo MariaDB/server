@@ -14,7 +14,7 @@ set default role role_a for user_a@localhost;
 set default role invalid_role for user_a@localhost;
 ERROR OP000: Invalid role specification `invalid_role`.
 set default role role_b for user_a@localhost;
-ERROR OP000: Invalid role specification `role_b`.
+ERROR OP000: User `user_a@localhost` has not been granted role `role_b`
 set default role role_b for user_b@localhost;
 show grants;
 Grants for user_a@localhost
@@ -36,7 +36,7 @@ user	host	default_role
 user_a	localhost	role_a
 user_b	localhost	role_b
 set default role role_b for current_user;
-ERROR OP000: Invalid role specification `role_b`.
+ERROR OP000: User `user_a@localhost` has not been granted role `role_b`
 show grants;
 Grants for user_b@localhost
 GRANT role_b TO 'user_b'@'localhost'

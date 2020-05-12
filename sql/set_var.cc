@@ -923,8 +923,17 @@ int set_var_default_role::check(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   real_user= get_current_user(thd, user);
-  int status= acl_check_set_default_role(thd, real_user->host.str, real_user->user.str);
-  return status;
+  real_role= role.str;
+  if (role.str == current_role.str)
+  {
+    if (!thd->security_ctx->priv_role[0])
+      real_role= "NONE";
+    else
+      real_role= thd->security_ctx->priv_role;
+  }
+
+  return acl_check_set_default_role(thd, real_user->host.str,
+                                    real_user->user.str, real_role);
 #else
   return 0;
 #endif
@@ -935,7 +944,8 @@ int set_var_default_role::update(THD *thd)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
   thd->m_reprepare_observer= 0;
-  int res= acl_set_default_role(thd, real_user->host.str, real_user->user.str, role.str);
+  int res= acl_set_default_role(thd, real_user->host.str, real_user->user.str,
+                                real_role);
   thd->m_reprepare_observer= save_reprepare_observer;
   return res;
 #else
