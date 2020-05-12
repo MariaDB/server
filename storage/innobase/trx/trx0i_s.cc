@@ -450,7 +450,6 @@ fill_trx_row(
 						which to copy volatile
 						strings */
 {
-	size_t		stmt_len;
 	const char*	s;
 
 	ut_ad(lock_mutex_own());
@@ -485,16 +484,14 @@ fill_trx_row(
 	row->trx_mysql_thread_id = thd_get_thread_id(trx->mysql_thd);
 
 	char	query[TRX_I_S_TRX_QUERY_MAX_LEN + 1];
-	stmt_len = innobase_get_stmt_safe(trx->mysql_thd, query, sizeof(query));
-
-	if (stmt_len > 0) {
-
+	if (size_t stmt_len = thd_query_safe(trx->mysql_thd, query,
+					     sizeof query)) {
 		row->trx_query = static_cast<const char*>(
 			ha_storage_put_memlim(
 				cache->storage, query, stmt_len + 1,
 				MAX_ALLOWED_FOR_STORAGE(cache)));
 
-		row->trx_query_cs = innobase_get_charset(trx->mysql_thd);
+		row->trx_query_cs = thd_charset(trx->mysql_thd);
 
 		if (row->trx_query == NULL) {
 

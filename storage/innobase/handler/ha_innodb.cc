@@ -2299,17 +2299,6 @@ innobase_casedn_str(
 	my_casedn_str(system_charset_info, a);
 }
 
-/**********************************************************************//**
-Determines the connection character set.
-@return connection character set */
-CHARSET_INFO*
-innobase_get_charset(
-/*=================*/
-	THD*	mysql_thd)	/*!< in: MySQL thread handle */
-{
-	return(thd_charset(mysql_thd));
-}
-
 /** Determines the current SQL statement.
 Thread unsafe, can only be called from the thread owning the THD.
 @param[in]	thd	MySQL thread handle
@@ -2327,22 +2316,6 @@ innobase_get_stmt_unsafe(
 
 	*length = 0;
 	return NULL;
-}
-
-/** Determines the current SQL statement.
-Thread safe, can be called from any thread as the string is copied
-into the provided buffer.
-@param[in]	thd	MySQL thread handle
-@param[out]	buf	Buffer containing SQL statement
-@param[in]	buflen	Length of provided buffer
-@return			Length of the SQL statement */
-size_t
-innobase_get_stmt_safe(
-	THD*	thd,
-	char*	buf,
-	size_t	buflen)
-{
-	return thd_query_safe(thd, buf, buflen);
 }
 
 /**********************************************************************//**

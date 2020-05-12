@@ -508,8 +508,6 @@ size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
 
 extern "C" {
 
-struct charset_info_st *thd_charset(MYSQL_THD thd);
-
 /** Check if a user thread is a replication slave thread
 @param thd user thread
 @retval 0 the user thread is not a replication slave thread
