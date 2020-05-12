@@ -669,7 +669,7 @@ SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHE
 GRANT INSERT ON *.* TO CURRENT_USER() IDENTIFIED BY 'keksdose';
 SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
 
-UPDATE global_priv SET priv=@root_priv;
+UPDATE global_priv SET priv=@root_priv where user='root' and host='localhost';
 FLUSH PRIVILEGES;
 
 USE test;

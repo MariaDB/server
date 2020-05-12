@@ -39,6 +39,16 @@ set statement optimizer_switch='rowid_filter=on' for;
 let $without_filter=
 set statement optimizer_switch='rowid_filter=off' for;
 
+select
+  100 *
+  (select count(*) from lineitem
+   WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND l_quantity > 45
+  )
+  /
+  (select count(*) from lineitem
+   where l_shipdate BETWEEN '1997-01-01' AND '1997-06-30')
+  as correct_r_filtered_when_using_l_shipdate;
+
 let $q1=
 SELECT l_orderkey, l_linenumber, l_shipdate, l_quantity FROM lineitem
   WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
@@ -338,6 +348,42 @@ eval EXPLAIN EXTENDED $q;
 eval EXPLAIN FORMAT=JSON $q;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-21794: Optimizer flag rowid_filter leads to long query
+--echo #
+create table t10(a int);
+insert into t10 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t11(a int);
+insert into t11 select A.a + B.a* 10 + C.a * 100 from t10 A, t10 B, t10 C;
+
+CREATE TABLE t1 (
+  el_id int(10) unsigned NOT NULL ,
+  el_index blob NOT NULL,
+  el_index_60 varbinary(60) NOT NULL,
+  filler blob,
+
+  PRIMARY KEY (el_id),
+  KEY el_index (el_index(60)),
+  KEY el_index_60 (el_index_60,el_id)
+);
+
+insert into t1
+select
+  A.a+1000*B.a,
+  A.a+1000*B.a + 10000,
+  A.a+1000*B.a + 10000,
+  'filler-data-filler-data'
+from
+  t11 A, t10 B;
+
+--echo # This must not use rowid_filter with key=el_index|el_index_60:
+explain
+select * from t1
+where el_index like '10%' and (el_index_60 like '10%' or el_index_60 like '20%');
+
+drop table t10, t11, t1;
 
 
 --echo #

@@ -5223,10 +5223,10 @@ static int smart_dbt_bf_callback(
             info->key_to_compare);
 }
 
-enum icp_result ha_tokudb::toku_handler_index_cond_check(
+check_result_t ha_tokudb::toku_handler_index_cond_check(
     Item* pushed_idx_cond) {
 
-    enum icp_result res;
+    check_result_t res;
     if (end_range) {
         int cmp;
 #ifdef MARIADB_BASE_VERSION
@@ -5235,10 +5235,10 @@ enum icp_result ha_tokudb::toku_handler_index_cond_check(
         cmp = compare_key_icp(end_range);
 #endif
         if (cmp > 0) {
-            return ICP_OUT_OF_RANGE;
+            return CHECK_OUT_OF_RANGE;
         }
     }
-    res = pushed_idx_cond->val_int() ? ICP_MATCH : ICP_NO_MATCH;
+    res = pushed_idx_cond->val_int() ? CHECK_POS : CHECK_NEG;
     return res;
 }
 
@@ -5278,19 +5278,19 @@ int ha_tokudb::fill_range_query_buf(
     if (toku_pushed_idx_cond &&
         (tokudb_active_index == toku_pushed_idx_cond_keyno)) {
         unpack_key(buf, key, tokudb_active_index);
-        enum icp_result result =
+        check_result_t result =
             toku_handler_index_cond_check(toku_pushed_idx_cond);
 
         // If we have reason to stop, we set icp_went_out_of_range and get out
         // otherwise, if we simply see that the current key is no match,
         // we tell the cursor to continue and don't store
         // the key locally
-        if (result == ICP_OUT_OF_RANGE || thd_kill_level(thd)) {
+        if (result == CHECK_OUT_OF_RANGE || thd_kill_level(thd)) {
             icp_went_out_of_range = true;
             error = 0;
             DEBUG_SYNC(ha_thd(), "tokudb_icp_asc_scan_out_of_range");
             goto cleanup;
-        } else if (result == ICP_NO_MATCH) {
+        } else if (result == CHECK_NEG) {
             // Optimizer change for MyRocks also benefits us here in TokuDB as
             // opt_range.cc QUICK_SELECT::get_next now sets end_range during
             // descending scan. We should not ever hit this condition, but

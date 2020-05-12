@@ -808,4 +808,9 @@ IF 'BASE TABLE' = (select table_type from information_schema.tables where table_
   FROM user;
   DROP TABLE user;
 END IF//
+
+IF 1 = (SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def' and TABLE_SCHEMA = 'mysql' and TABLE_NAME='user' and DEFINER = 'root@localhost') THEN
+  DROP VIEW IF EXISTS mysql.user;
+END IF//
+
 DELIMITER ;

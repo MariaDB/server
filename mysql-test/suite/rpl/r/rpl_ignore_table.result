@@ -39,27 +39,27 @@ GRANT INSERT ON test.* TO mysqltest6@localhost;
 GRANT INSERT ON test.t1 TO mysqltest6@localhost;
 show grants for mysqltest1@localhost;
 Grants for mysqltest1@localhost
-GRANT USAGE ON *.* TO `mysqltest1`@`localhost`
 GRANT SELECT ON `test`.`t1` TO `mysqltest1`@`localhost`
+GRANT USAGE ON *.* TO `mysqltest1`@`localhost`
 show grants for mysqltest2@localhost;
 Grants for mysqltest2@localhost
-GRANT USAGE ON *.* TO `mysqltest2`@`localhost`
-GRANT SELECT, INSERT, UPDATE, REFERENCES ON `test`.`t1` TO `mysqltest2`@`localhost`
 GRANT INSERT ON `test`.`t4` TO `mysqltest2`@`localhost`
+GRANT SELECT, INSERT, UPDATE, REFERENCES ON `test`.`t1` TO `mysqltest2`@`localhost`
+GRANT USAGE ON *.* TO `mysqltest2`@`localhost`
 show grants for mysqltest3@localhost;
 Grants for mysqltest3@localhost
-GRANT USAGE ON *.* TO `mysqltest3`@`localhost`
-GRANT SELECT ON `test`.* TO `mysqltest3`@`localhost`
 GRANT SELECT (a), INSERT, INSERT (a), UPDATE (a), REFERENCES (a) ON `test`.`t4` TO `mysqltest3`@`localhost`
+GRANT SELECT ON `test`.* TO `mysqltest3`@`localhost`
+GRANT USAGE ON *.* TO `mysqltest3`@`localhost`
 show grants for mysqltest4@localhost;
 Grants for mysqltest4@localhost
-GRANT USAGE ON *.* TO `mysqltest4`@`localhost` IDENTIFIED BY PASSWORD '*196BDEDE2AE4F84CA44C47D54D78478C7E2BD7B7'
 GRANT SELECT ON `mysqltest2`.`t2` TO `mysqltest4`@`localhost`
+GRANT USAGE ON *.* TO `mysqltest4`@`localhost` IDENTIFIED BY PASSWORD '*196BDEDE2AE4F84CA44C47D54D78478C7E2BD7B7'
 show grants for mysqltest6@localhost;
 Grants for mysqltest6@localhost
-GRANT SELECT, INSERT ON *.* TO `mysqltest6`@`localhost`
 GRANT INSERT ON `test`.* TO `mysqltest6`@`localhost`
 GRANT INSERT ON `test`.`t1` TO `mysqltest6`@`localhost`
+GRANT SELECT, INSERT ON *.* TO `mysqltest6`@`localhost`
 flush privileges;
 show grants for mysqltest5@somehost;
 Grants for mysqltest5@somehost
@@ -69,24 +69,24 @@ connection slave;
 **** Checking grants on slave ****
 show grants for mysqltest2@localhost;
 Grants for mysqltest2@localhost
-GRANT USAGE ON *.* TO `mysqltest2`@`localhost`
 GRANT INSERT ON `test`.`t4` TO `mysqltest2`@`localhost`
+GRANT USAGE ON *.* TO `mysqltest2`@`localhost`
 show grants for mysqltest3@localhost;
 Grants for mysqltest3@localhost
-GRANT USAGE ON *.* TO `mysqltest3`@`localhost`
-GRANT SELECT ON `test`.* TO `mysqltest3`@`localhost`
 GRANT SELECT (a), INSERT, INSERT (a), UPDATE (a), REFERENCES (a) ON `test`.`t4` TO `mysqltest3`@`localhost`
+GRANT SELECT ON `test`.* TO `mysqltest3`@`localhost`
+GRANT USAGE ON *.* TO `mysqltest3`@`localhost`
 show grants for mysqltest4@localhost;
 Grants for mysqltest4@localhost
-GRANT USAGE ON *.* TO `mysqltest4`@`localhost` IDENTIFIED BY PASSWORD '*196BDEDE2AE4F84CA44C47D54D78478C7E2BD7B7'
 GRANT SELECT ON `mysqltest2`.`t2` TO `mysqltest4`@`localhost`
+GRANT USAGE ON *.* TO `mysqltest4`@`localhost` IDENTIFIED BY PASSWORD '*196BDEDE2AE4F84CA44C47D54D78478C7E2BD7B7'
 show grants for mysqltest5@somehost;
 Grants for mysqltest5@somehost
 GRANT USAGE ON *.* TO `mysqltest5`@`somehost`
 show grants for mysqltest6@localhost;
 Grants for mysqltest6@localhost
-GRANT SELECT, INSERT ON *.* TO `mysqltest6`@`localhost`
 GRANT INSERT ON `test`.* TO `mysqltest6`@`localhost`
+GRANT SELECT, INSERT ON *.* TO `mysqltest6`@`localhost`
 show grants for mysqltest1@localhost;
 ERROR 42000: There is no such grant defined for user 'mysqltest1' on host 'localhost'
 **** Revoking grants on master ****
@@ -100,9 +100,9 @@ Grants for mysqltest1@localhost
 GRANT USAGE ON *.* TO `mysqltest1`@`localhost`
 show grants for mysqltest3@localhost;
 Grants for mysqltest3@localhost
-GRANT USAGE ON *.* TO `mysqltest3`@`localhost`
-GRANT SELECT ON `test`.* TO `mysqltest3`@`localhost`
 GRANT INSERT, INSERT (a), UPDATE (a), REFERENCES (a) ON `test`.`t4` TO `mysqltest3`@`localhost`
+GRANT SELECT ON `test`.* TO `mysqltest3`@`localhost`
+GRANT USAGE ON *.* TO `mysqltest3`@`localhost`
 show grants for mysqltest4@localhost;
 Grants for mysqltest4@localhost
 GRANT USAGE ON *.* TO `mysqltest4`@`localhost` IDENTIFIED BY PASSWORD '*196BDEDE2AE4F84CA44C47D54D78478C7E2BD7B7'

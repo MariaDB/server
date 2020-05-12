@@ -11,8 +11,8 @@ grant select on mysqltest.t9 to second_user@localhost
 identified by 'looser' ;
 show grants for second_user@localhost ;
 Grants for second_user@localhost
-GRANT USAGE ON *.* TO `second_user`@`localhost` IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 GRANT SELECT ON `mysqltest`.`t9` TO `second_user`@`localhost`
+GRANT USAGE ON *.* TO `second_user`@`localhost` IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 connect  con3,localhost,second_user,looser,mysqltest;
 connection con3;
 select current_user();
@@ -34,21 +34,21 @@ grant select on mysqltest.t1 to second_user@localhost
 identified by 'looser' ;
 show grants for second_user@localhost ;
 Grants for second_user@localhost
-GRANT USAGE ON *.* TO `second_user`@`localhost` IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
-GRANT SELECT ON `mysqltest`.`t9` TO `second_user`@`localhost`
 GRANT SELECT ON `mysqltest`.`t1` TO `second_user`@`localhost`
+GRANT SELECT ON `mysqltest`.`t9` TO `second_user`@`localhost`
+GRANT USAGE ON *.* TO `second_user`@`localhost` IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 drop table mysqltest.t9 ;
 show grants for second_user@localhost ;
 Grants for second_user@localhost
-GRANT USAGE ON *.* TO `second_user`@`localhost` IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
-GRANT SELECT ON `mysqltest`.`t9` TO `second_user`@`localhost`
 GRANT SELECT ON `mysqltest`.`t1` TO `second_user`@`localhost`
+GRANT SELECT ON `mysqltest`.`t9` TO `second_user`@`localhost`
+GRANT USAGE ON *.* TO `second_user`@`localhost` IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 connection con3;
 show grants for second_user@localhost ;
 Grants for second_user@localhost
-GRANT USAGE ON *.* TO `second_user`@`localhost` IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
-GRANT SELECT ON `mysqltest`.`t9` TO `second_user`@`localhost`
 GRANT SELECT ON `mysqltest`.`t1` TO `second_user`@`localhost`
+GRANT SELECT ON `mysqltest`.`t9` TO `second_user`@`localhost`
+GRANT USAGE ON *.* TO `second_user`@`localhost` IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 prepare s_t1 from 'select a as my_col from t1' ;
 execute s_t1 ;
 my_col
@@ -63,13 +63,13 @@ connection default;
 revoke all privileges on mysqltest.t1 from second_user@localhost;
 show grants for second_user@localhost ;
 Grants for second_user@localhost
-GRANT USAGE ON *.* TO `second_user`@`localhost` IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 GRANT SELECT ON `mysqltest`.`t9` TO `second_user`@`localhost`
+GRANT USAGE ON *.* TO `second_user`@`localhost` IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 connection con3;
 show grants for second_user@localhost ;
 Grants for second_user@localhost
-GRANT USAGE ON *.* TO `second_user`@`localhost` IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 GRANT SELECT ON `mysqltest`.`t9` TO `second_user`@`localhost`
+GRANT USAGE ON *.* TO `second_user`@`localhost` IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 execute s_t1 ;
 ERROR 42000: SELECT command denied to user 'second_user'@'localhost' for table 't1'
 connection default;

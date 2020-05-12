@@ -1025,7 +1025,7 @@ private:
     int get_next(uchar* buf, int direction, DBT* key_to_compare, bool do_key_read);
     int read_data_from_range_query_buff(uchar* buf, bool need_val, bool do_key_read);
     // for ICP, only in MariaDB and MySQL 5.6
-    enum icp_result toku_handler_index_cond_check(Item* pushed_idx_cond);
+    check_result_t toku_handler_index_cond_check(Item* pushed_idx_cond);
     void invalidate_bulk_fetch();
     void invalidate_icp();
     int delete_all_rows_internal();

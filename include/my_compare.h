@@ -128,31 +128,32 @@ extern HA_KEYSEG *ha_find_null(HA_KEYSEG *keyseg, const uchar *a);
 #endif
 
 /**
-  Return values of index_cond_func_xxx functions.
+  Return values for pushed index condition or rowid filter check functions.
 
-  0=ICP_NO_MATCH  - index tuple doesn't satisfy the pushed index condition (the
-                    engine should discard the tuple and go to the next one)
-  1=ICP_MATCH     - index tuple satisfies the pushed index condition (the
-                    engine should fetch and return the record)
-  2=ICP_OUT_OF_RANGE - index tuple is out range that we're scanning, e.g. this
-                      if we're scanning "t.key BETWEEN 10 AND 20" and got a
-                      "t.key=21" tuple (the engine should stop scanning and
-                      return HA_ERR_END_OF_FILE right away).
-  3=ICP_ABORTED_BY_USER - engine must stop scanning and should return 
-                         HA_ERR_ABORTED_BY_USER right away
- -1= ICP_ERROR    - Reserved for internal errors in engines. Should not be
-                    returned by index_cond_func_xxx
+  0=CHECK_NEG  - The filter is not satisfied. The engine should discard this
+                 index tuple and continue the scan.
+  1=CHECK_POS  - The filter is statisfied. Current index tuple should be
+                 returned to the SQL layer.
+  2=CHECK_OUT_OF_RANGE - the index tuple is outside of the range that we're
+                 scanning. (Example: if we're scanning "t.key BETWEEN 10 AND
+                 20" and got a "t.key=21" tuple) Tthe engine should stop
+                 scanning and return HA_ERR_END_OF_FILE right away).
+  3=CHECK_ABORTED_BY_USER - the engine must stop scanning and should return
+                            HA_ERR_ABORTED_BY_USER right away
+ -1=CHECK_ERROR - Reserved for internal errors in engines. Should not be
+                  returned by ICP or rowid filter check functions.
 */
 
-typedef enum icp_result {
-  ICP_ERROR=-1,
-  ICP_NO_MATCH=0,
-  ICP_MATCH=1,
-  ICP_OUT_OF_RANGE=2,
-  ICP_ABORTED_BY_USER=3
-} ICP_RESULT;
+typedef enum check_result {
+  CHECK_ERROR=-1,
+  CHECK_NEG=0,
+  CHECK_POS=1,
+  CHECK_OUT_OF_RANGE=2,
+  CHECK_ABORTED_BY_USER=3
+} check_result_t;
 
-typedef ICP_RESULT (*index_cond_func_t)(void *param);
-typedef int (*rowid_filter_func_t)(void *param);
+typedef check_result_t (*index_cond_func_t)(void *param);
+typedef check_result_t (*rowid_filter_func_t)(void *param);
+typedef int (*rowid_filter_is_active_func_t)(void *param);
 
 #endif /* _my_compare_h */

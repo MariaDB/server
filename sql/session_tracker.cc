@@ -1269,7 +1269,7 @@ void Session_tracker::store(THD *thd, String *buf)
 
   if ((size= net_length_size(length)) != 1)
   {
-    if (buf->reserve(size - 1, EXTRA_ALLOC))
+    if (buf->reserve(size - 1, 0))
     {
       buf->length(start); // it is safer to have 0-length block in case of error
       return;
@@ -1279,6 +1279,7 @@ void Session_tracker::store(THD *thd, String *buf)
       The 'buf->reserve()' can change the buf->ptr() so we cannot
       calculate the 'data' earlier.
     */
+    buf->length(buf->length() + (size - 1));
     data= (uchar *)(buf->ptr() + start);
     memmove(data + (size - 1), data, length);
   }

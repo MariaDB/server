@@ -30,7 +30,7 @@ int maria_rnext(MARIA_HA *info, uchar *buf, int inx)
   uint flag;
   MARIA_SHARE *share= info->s;
   MARIA_KEYDEF *keyinfo;
-  ICP_RESULT icp_res= ICP_MATCH;
+  check_result_t check= CHECK_POS;
   uint update_mask= HA_STATE_NEXT_FOUND;
   DBUG_ENTER("maria_rnext");
 
@@ -107,7 +107,7 @@ int maria_rnext(MARIA_HA *info, uchar *buf, int inx)
   if (!error)
   {
     while (!(*share->row_is_visible)(info) ||
-           ((icp_res= ma_check_index_cond(info, inx, buf)) == ICP_NO_MATCH))
+           ((check= ma_check_index_cond(info, inx, buf)) == CHECK_NEG))
     {
       /*
         If we are at the last key on the key page, allow writers to
@@ -135,7 +135,7 @@ int maria_rnext(MARIA_HA *info, uchar *buf, int inx)
   info->update&= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
   info->update|= update_mask;
   
-  if (error || icp_res != ICP_MATCH)
+  if (error || check != CHECK_POS)
   {
     fast_ma_writeinfo(info);
     if (my_errno == HA_ERR_KEY_NOT_FOUND)
