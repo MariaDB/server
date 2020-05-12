@@ -3,10 +3,9 @@
 --source include/master-slave.inc
 
 --connection slave
-call mtr.add_suppression("Warning:   72 bytes lost at .*");
 set global debug_dbug="+d,start_alter_delay_slave";
 stop slave;
-SET GLOBAL slave_parallel_threads=10;
+SET GLOBAL slave_parallel_threads=2;
 set global slave_parallel_mode=optimistic;
 change master to master_use_gtid=slave_pos;
 start slave;
@@ -61,13 +60,13 @@ set gtid_domain_id=22;
 set gtid_domain_id=22;
 --send alter table t3 add column c int, force, algorithm=inplace;
 --connection con4
-set gtid_domain_id=24;
+set gtid_domain_id=23;
 --send alter table t4 add column c int, force, algorithm=inplace;
 --connection con5
-set gtid_domain_id=24;
+set gtid_domain_id=23;
 --send alter table t5 add column c int, force, algorithm=inplace;
 --connection con6
-set gtid_domain_id=24;
+set gtid_domain_id=23;
 --send alter table t6 add column c int, force, algorithm=inplace;
 
 --connection con1
@@ -115,6 +114,7 @@ select @@gtid_slave_pos;
 --connection master
 --sync_slave_with_master
 select @@gtid_slave_pos;
+show binlog events;
 
 --connection master
 drop table t1,t2,t3,t4,t5,t6;

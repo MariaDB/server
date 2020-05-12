@@ -7651,8 +7651,11 @@ static int mysql_inplace_alter_table(THD *thd,
   }
   if (write_start_alter(thd, partial_alter, info))
     DBUG_RETURN(true);
-    DBUG_EXECUTE_IF("start_alter_delay_slave", {
+  DBUG_EXECUTE_IF("start_alter_delay_slave", {
       my_sleep(5000000);
+      });
+  DBUG_EXECUTE_IF("start_alter_kill", {
+      DBUG_SUICIDE();
       });
 
   /*
@@ -7672,7 +7675,7 @@ static int mysql_inplace_alter_table(THD *thd,
   // It's now safe to take the table level lock.
   if (lock_tables(thd, table_list, alter_ctx->tables_opened, 0))
     goto cleanup;
-    DBUG_EXECUTE_IF("start_alter_delay_master", {
+  DBUG_EXECUTE_IF("start_alter_delay_master", {
       my_sleep(5000000);
       });
   DEBUG_SYNC(thd, "alter_table_inplace_after_lock_upgrade");
@@ -9422,10 +9425,12 @@ static bool write_start_alter(THD *thd, bool* partial_alter, start_alter_info *i
     mysql_mutex_unlock(&mi->start_alter_list_lock);
     mysql_cond_broadcast(&mi->start_alter_list_cond);
     thd->start_alter_ev->update_pos(thd->rgi_slave);
+    thd->rgi_slave->commit_orderer.wait_for_prior_commit(thd);
     thd->rgi_slave->mark_start_commit();
     thd->wakeup_subsequent_commits(0);
     //Finish event group
     thd->rpt->__finish_event_group(thd->rgi_slave);
+    thd->rgi_slave->finish_event_group_called= true;
     if (thd->slave_shutdown)
       return true;
     return false;
@@ -9460,6 +9465,34 @@ start_alter_info *get_new_start_alter_info(THD *thd)
   mysql_cond_init(0, &info->start_alter_cond, NULL);
 //  info->start_alter_cond.m_psi= NULL;
   return info;
+}
+//Will happen if there is restart in between
+void check_and_remove_duplicate_alter(Master_info *mi, char *table_name)
+{
+  start_alter_info *info;
+  mysql_mutex_lock(&mi->start_alter_list_lock);
+  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+  while ((info= info_iterator++))
+  {
+    if(info->state == start_alter_state::REGISTERED &&
+              !my_strcasecmp(system_charset_info, info->table_name, table_name))
+    {
+      info_iterator.remove();
+      mysql_mutex_lock(&mi->start_alter_lock);
+      info->state= start_alter_state::ROLLBACK_ALTER;
+      mysql_mutex_unlock(&mi->start_alter_lock);
+      mysql_cond_broadcast(&info->start_alter_cond);
+      mysql_mutex_lock(&mi->start_alter_lock);
+      while(info->state != start_alter_state::COMMITTED )
+        mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
+      mysql_mutex_unlock(&mi->start_alter_lock);
+      mysql_cond_destroy(&info->start_alter_cond);
+      my_free(info);
+      break;
+    }
+  }
+  mysql_mutex_unlock(&mi->start_alter_list_lock);
+  return;
 }
 
 /**
@@ -9569,6 +9602,12 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   thd->open_options|= HA_OPEN_FOR_ALTER;
   thd->mdl_backup_ticket= 0;
+  char *complete_table_name= (char *)thd->alloc(table_list->table_name.length +
+                              new_db->length + 2);
+  sprintf(complete_table_name,"%s.%s",table_list->table_name.str, new_db->str);
+  info->table_name= complete_table_name;
+  if (mi)
+    check_and_remove_duplicate_alter(mi, complete_table_name);
   bool error= open_tables(thd, &table_list, &tables_opened, 0,
                           &alter_prelocking_strategy);
   thd->open_options&= ~HA_OPEN_FOR_ALTER;
@@ -10305,7 +10344,7 @@ do_continue:;
   //If issues by binlog/master complete the prepare phase of alter and then commit
   if (write_start_alter(thd, &partial_alter, info))
     DBUG_RETURN(true);
-    DBUG_EXECUTE_IF("start_alter_delay_master", {
+  DBUG_EXECUTE_IF("start_alter_delay_master", {
       my_sleep(5000000);
       });
   // It's now safe to take the table level lock.
@@ -10422,7 +10461,7 @@ do_continue:;
       if(write_bin_log(thd, false, send_query, strlen(send_query)))
         DBUG_RETURN(true);
     }
-    else if(start_alter_id)
+    else if(start_alter_id && !thd->direct_commit_alter)
     {
       //if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
        // DBUG_RETURN(true);
@@ -10631,7 +10670,7 @@ end_inplace:
     if(write_bin_log(thd, false, send_query, strlen(send_query)))
       DBUG_RETURN(true);
   }
-  else if(start_alter_id)
+  else if(start_alter_id && !thd->direct_commit_alter)
   {
     //if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
     //  DBUG_RETURN(true);

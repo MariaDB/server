@@ -21,6 +21,7 @@
 #include "sql_alter.h"
 #include "rpl_mi.h"
 #include "slave.h"
+#include "debug_sync.h"
 #include "wsrep_mysqld.h"
 
 Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
@@ -377,15 +378,14 @@ void Alter_table_ctx::report_implicit_default_value_error(THD *thd,
 static int process_start_alter(THD *thd, uint64 thread_id)
 {
   //No Slave, Normal Slave, Start Alter under Worker 1 will simple binlog and exit
-  if(!thd->slave_thread || !thd->rpt
-            ||((thd->rpt == thd->rgi_slave->parallel_entry->rpl_threads[0]) &&
-             thd->rpt->current_owner && (thd->rpt->current_owner ==
-             thd->rgi_slave->parallel_entry->rpl_threads)))
+  if(!thd->slave_thread || !thd->rpt || thd->rgi_slave->reserved_start_alter_thread)
   {
     /*
      We will just write the binlog and move to next event , because COMMIT
      Alter will take care of actual work
     */
+    if (thd->rgi_slave)
+      thd->rgi_slave->reserved_start_alter_thread= false;
     if (write_bin_log(thd, false, thd->query(), thd->query_length()))
       return START_ALTER_ERROR;
     return START_ALTER_SKIP;
@@ -397,6 +397,10 @@ static int process_start_alter(THD *thd, uint64 thread_id)
 static int process_commit_alter(THD *thd, uint64 thread_id)
 {
   DBUG_ASSERT(thd->rgi_slave);
+  DBUG_EXECUTE_IF("rpl_slave_stop_CA", {
+  debug_sync_set_action(thd,
+                    STRING_WITH_LEN("now signal CA_1_processing WAIT_FOR proceed_CA_1"));
+  });
   thd->gtid_flags3|= Gtid_log_event::FL_START_ALTER_E1;
   Master_info *mi= thd->rgi_slave->rli->mi;
   start_alter_info *info=NULL;

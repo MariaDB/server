@@ -165,6 +165,7 @@ struct start_alter_info
     TODO maybe used later ?
   */
   uint error;
+  char* table_name;
   enum start_alter_state state;
   /* We are not using mysql_cond_t because we do not need PSI */
   mysql_cond_t start_alter_cond;
