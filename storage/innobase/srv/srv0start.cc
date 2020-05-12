@@ -2777,11 +2777,15 @@ innodb_shutdown()
 	ut_ad(!srv_undo_sources);
 
 	switch (srv_operation) {
+	case SRV_OPERATION_RESTORE_ROLLBACK_XA:
+		if (dberr_t err = fil_write_flushed_lsn(log_sys->lsn))
+			ib::error() << "Writing flushed lsn " << log_sys->lsn
+				    << " failed; error=" << err;
+		/* fall through */
 	case SRV_OPERATION_BACKUP:
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_DELTA:
 	case SRV_OPERATION_RESTORE_EXPORT:
-	case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 		fil_close_all_files();
 		break;
 	case SRV_OPERATION_NORMAL:
