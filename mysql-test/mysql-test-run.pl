@@ -382,7 +382,7 @@ my $set_titlebar;
      };
      eval 'sub HAVE_WIN32_CONSOLE { $have_win32_console }';
    } else {
-     sub HAVE_WIN32_CONSOLE { 0 };
+     eval 'sub HAVE_WIN32_CONSOLE { 0 }';
    }
 }
 
@@ -390,7 +390,7 @@ if (-t STDOUT) {
   if (IS_WINDOWS and HAVE_WIN32_CONSOLE) {
     $set_titlebar = sub {Win32::Console::Title $_[0];};
   } elsif (defined $ENV{TERM} and $ENV{TERM} =~ /xterm/) {
-    $set_titlebar = sub { print "\e];$_[0]\a"; };
+    $set_titlebar = sub { syswrite STDOUT, "\e];$_[0]\a"; };
   }
 }
 
@@ -941,6 +941,7 @@ sub run_test_server ($$$) {
               if ( $result->is_failed() ) {
                 my $worker_logdir= $result->{savedir};
                 my $log_file_name=dirname($worker_logdir)."/".$result->{shortname}.".log";
+                $result->{'logfile-failed'} = mtr_lastlinesfromfile($log_file_name, 20);
                 rename $log_file_name,$log_file_name.".failed";
               }
 	      delete($result->{result});
