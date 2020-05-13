@@ -211,6 +211,7 @@ public:
     select_lex(NULL),
 #endif
     linkage(UNSPECIFIED_TYPE),
+    is_lateral(false),
     message(NULL),
     having(NULL), having_value(Item::COND_UNDEF),
     using_temporary(false), using_filesort(false),
@@ -226,6 +227,7 @@ public:
 #endif
   const char *select_type;
   enum sub_select_type linkage;
+  bool is_lateral;
 
   /*
     If message != NULL, this is a degenerate join plan, and all subsequent

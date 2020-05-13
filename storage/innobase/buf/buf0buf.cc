@@ -551,16 +551,13 @@ decompress:
 decompress_with_slot:
 		ut_d(fil_page_type_validate(space, dst_frame));
 
-		bpage->write_size = fil_page_decompress(
+		ulint write_size = fil_page_decompress(
 			slot->crypt_buf, dst_frame, space->flags);
 		slot->release();
 
-		ut_ad(!bpage->write_size
-		      || fil_page_type_validate(space, dst_frame));
-
+		ut_ad(!write_size || fil_page_type_validate(space, dst_frame));
 		ut_ad(space->pending_io());
-
-		return bpage->write_size != 0;
+		return write_size != 0;
 	}
 
 	if (key_version && space->crypt_data) {
@@ -1549,7 +1546,6 @@ buf_block_init(
 	block->page.io_fix = BUF_IO_NONE;
 	block->page.flush_observer = NULL;
 	block->page.real_size = 0;
-	block->page.write_size = 0;
 	block->modify_clock = 0;
 	block->page.slot = NULL;
 
@@ -5263,7 +5259,6 @@ buf_page_init_low(
 	bpage->access_time = 0;
 	bpage->newest_modification = 0;
 	bpage->oldest_modification = 0;
-	bpage->write_size = 0;
 	bpage->real_size = 0;
 	bpage->slot = NULL;
 

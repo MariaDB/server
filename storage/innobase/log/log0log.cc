@@ -1671,7 +1671,7 @@ wait_suspend_loop:
 			"Waiting for %s to exit", thread_name);
 		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
 			ib::info() << "Waiting for " << thread_name
-				   << "to exit";
+				   << " to exit";
 			count = 0;
 		}
 		goto loop;

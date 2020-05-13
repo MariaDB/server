@@ -3,6 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -80,7 +81,6 @@ extern mysql_pfs_key_t	recv_writer_mutex_key;
 extern mysql_pfs_key_t	rtr_active_mutex_key;
 extern mysql_pfs_key_t	rtr_match_mutex_key;
 extern mysql_pfs_key_t	rtr_path_mutex_key;
-extern mysql_pfs_key_t	rtr_ssn_mutex_key;
 extern mysql_pfs_key_t	redo_rseg_mutex_key;
 extern mysql_pfs_key_t	noredo_rseg_mutex_key;
 extern mysql_pfs_key_t page_zip_stat_per_index_mutex_key;

@@ -191,23 +191,8 @@ rtr_non_leaf_insert_stack_push(
 	double			mbr_inc);	/*!< in: MBR needs to be
 						enlarged */
 
-/*****************************************************************//**
-Allocates a new Split Sequence Number.
-@return new SSN id */
-UNIV_INLINE
-node_seq_t
-rtr_get_new_ssn_id(
-/*===============*/
-	dict_index_t*	index);		/*!< in: the index struct */
-
-/*****************************************************************//**
-Get the current Split Sequence Number.
-@return current SSN id */
-UNIV_INLINE
-node_seq_t
-rtr_get_current_ssn_id(
-/*===================*/
-	dict_index_t*	index);		/*!< in/out: the index struct */
+#define rtr_get_new_ssn_id(index) (index)->assign_ssn()
+#define rtr_get_current_ssn_id(index) (index)->ssn()
 
 /********************************************************************//**
 Create a RTree search info structure */

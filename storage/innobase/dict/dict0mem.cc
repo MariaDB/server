@@ -785,7 +785,6 @@ dict_mem_index_create(
 	mutex_create(LATCH_ID_ZIP_PAD_MUTEX, &index->zip_pad.mutex);
 
 	if (type & DICT_SPATIAL) {
-		mutex_create(LATCH_ID_RTR_SSN_MUTEX, &index->rtr_ssn.mutex);
 		index->rtr_track = new
 			(mem_heap_alloc(heap, sizeof *index->rtr_track))
 			rtr_info_track_t();
@@ -1098,7 +1097,7 @@ dict_mem_index_free(
 		for (auto& rtr_info : index->rtr_track->rtr_active) {
 			rtr_info->index = NULL;
 		}
-		mutex_destroy(&index->rtr_ssn.mutex);
+
 		mutex_destroy(&index->rtr_track->rtr_active_mutex);
 		index->rtr_track->~rtr_info_track_t();
 	}

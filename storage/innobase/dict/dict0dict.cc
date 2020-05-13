@@ -4521,7 +4521,7 @@ dict_create_foreign_constraints(
 	heap = mem_heap_create(10000);
 
 	err = dict_create_foreign_constraints_low(
-		trx, heap, innobase_get_charset(trx->mysql_thd),
+		trx, heap, thd_charset(trx->mysql_thd),
 		str, name, reject_fks);
 
 	mem_heap_free(heap);
@@ -4556,7 +4556,7 @@ dict_foreign_parse_drop_constraints(
 
 	ut_a(trx->mysql_thd);
 
-	cs = innobase_get_charset(trx->mysql_thd);
+	cs = thd_charset(trx->mysql_thd);
 
 	*n = 0;
 

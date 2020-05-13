@@ -1821,18 +1821,11 @@ retry_page_get:
 		if (dict_index_is_spatial(index)) {
 			ut_ad(cursor->rtr_info);
 
-			node_seq_t      seq_no = rtr_get_current_ssn_id(index);
-
 			/* If SSN in memory is not initialized, fetch
 			it from root page */
-			if (seq_no < 1) {
-				node_seq_t      root_seq_no;
-
-				root_seq_no = page_get_ssn_id(page);
-
-				mutex_enter(&(index->rtr_ssn.mutex));
-				index->rtr_ssn.seq_no = root_seq_no + 1;
-				mutex_exit(&(index->rtr_ssn.mutex));
+			if (!rtr_get_current_ssn_id(index)) {
+				/* FIXME: do this in dict_load_table_one() */
+				index->set_ssn(page_get_ssn_id(page) + 1);
 			}
 
 			/* Save the MBR */
