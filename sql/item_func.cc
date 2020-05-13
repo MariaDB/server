@@ -2337,6 +2337,9 @@ void Item_func_int_val::fix_length_and_dec()
     if ((args[0]->max_length - args[0]->decimals) >=
         (DECIMAL_LONGLONG_DIGITS - 2))
     {
+      fix_char_length(
+        my_decimal_precision_to_length_no_truncation(
+          args[0]->decimal_int_part(), 0, false));
       set_handler_by_result_type(DECIMAL_RESULT);
     }
     else

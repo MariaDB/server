@@ -720,6 +720,53 @@ SELECT -9223372036854775808 MOD  9223372036854775808;
 SELECT -9223372036854775808 MOD -9223372036854775808;
 
 
+--echo #
+--echo # MDEV-22503 MDB limits DECIMAL column precision to 16 doing CTAS with floor/ceil over DECIMAL(X,Y) where X > 16
+--echo #
+
+CREATE TABLE t44 (d1 decimal(38,0) DEFAULT NULL);
+INSERT INTO t44 VALUES (12345678901234567890123456789012345678);
+SELECT FLOOR(d1) FROM t44;
+CREATE TABLE t45 AS SELECT FLOOR(d1) FROM t44;
+SELECT * FROM t45;
+SHOW CREATE TABLE t45;
+DROP TABLE t44, t45;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(prec INT, scale INT)
+BEGIN
+  DECLARE maxval VARCHAR(128) DEFAULT '';
+  SET @type= CONCAT('DECIMAL(', prec, ',', scale,')');
+  SET @stmt= CONCAT('CREATE TABLE t1 (a ', @type, ',b ', @type, 'unsigned)');
+  PREPARE stmt FROM @stmt;
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+  SET maxval= CONCAT(REPEAT('9', prec-scale), '.', REPEAT('9',scale));
+  INSERT INTO t1 VALUES (maxval, maxval);
+  CREATE TABLE t2 AS SELECT a, b, FLOOR(a) AS fa, FLOOR(b) AS fb FROM t1;
+  SHOW CREATE TABLE t2;
+  SELECT * FROM t2;
+  DROP TABLE t1, t2;
+END;
+$$
+CREATE PROCEDURE p2(prec INT)
+BEGIN
+  DECLARE scale INT DEFAULT 0;
+  WHILE scale < prec AND scale <= 30 DO
+    CALL p1(prec, scale);
+    SET scale= scale + 1;
+  END WHILE;
+END;
+$$
+DELIMITER ;$$
+--vertical_results
+CALL p2(38);
+CALL p2(30);
+--horizontal_results
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
 
 --echo #
 --echo # End of 10.1 tests
