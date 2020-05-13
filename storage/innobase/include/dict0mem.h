@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -983,7 +983,8 @@ struct dict_index_t{
 				/* in which slot the next sample should be
 				saved. */
 	/* @} */
-	rtr_ssn_t	rtr_ssn;/*!< Node sequence number for RTree */
+	/** R-tree split sequence number */
+	volatile int32	rtr_ssn;
 	rtr_info_track_t*
 			rtr_track;/*!< tracking all R-Tree search cursors */
 	trx_id_t	trx_id; /*!< id of the transaction that created this

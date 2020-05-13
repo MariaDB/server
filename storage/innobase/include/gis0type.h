@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -142,12 +142,6 @@ typedef struct	rtr_info_track {
 						/*!< mutex to protect
 						rtr_active */
 } rtr_info_track_t;
-
-/* Node Sequence Number and mutex protects it. */
-typedef struct rtree_ssn {
-        ib_mutex_t      mutex;          /*!< mutex protect the seq num */
-        node_seq_t      seq_no;         /*!< the SSN (node sequence number) */
-} rtr_ssn_t;
 
 /* This is to record the record movement between pages. Used for corresponding
 lock movement */

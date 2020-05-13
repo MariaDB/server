@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020 MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1507,11 +1507,6 @@ public:
 					state == BUF_BLOCK_ZIP_PAGE and
 					zip.data == NULL means an active
 					buf_pool->watch */
-
-	ulint           write_size;	/* Write size is set when this
-					page is first time written and then
-					if written again we check is TRIM
-					operation needed. */
 
 	ulint           real_size;	/*!< Real size of the page
 					Normal pages == srv_page_size
