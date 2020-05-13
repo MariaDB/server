@@ -2929,7 +2929,7 @@ innobase_get_foreign_key_info(
 	char*		referenced_table_name = NULL;
 	ulint		num_fk = 0;
 	Alter_info*	alter_info = ha_alter_info->alter_info;
-	const CHARSET_INFO*	cs = innobase_get_charset(trx->mysql_thd);
+	const CHARSET_INFO*	cs = thd_charset(trx->mysql_thd);
 
 	DBUG_ENTER("innobase_get_foreign_key_info");
 

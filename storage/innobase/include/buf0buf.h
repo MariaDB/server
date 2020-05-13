@@ -1169,11 +1169,6 @@ public:
 					zip.data == NULL means an active
 					buf_pool.watch */
 
-	ulint           write_size;	/* Write size is set when this
-					page is first time written and then
-					if written again we check is TRIM
-					operation needed. */
-
 	ulint           real_size;	/*!< Real size of the page
 					Normal pages == srv_page_size
 					page compressed pages, payload

@@ -3560,7 +3560,7 @@ dict_foreign_parse_drop_constraints(
 
 	ut_a(trx->mysql_thd);
 
-	cs = innobase_get_charset(trx->mysql_thd);
+	cs = thd_charset(trx->mysql_thd);
 
 	*n = 0;
 

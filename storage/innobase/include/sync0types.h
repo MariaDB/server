@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -314,7 +314,6 @@ enum latch_id_t {
 	LATCH_ID_REDO_RSEG,
 	LATCH_ID_NOREDO_RSEG,
 	LATCH_ID_RW_LOCK_DEBUG,
-	LATCH_ID_RTR_SSN_MUTEX,
 	LATCH_ID_RTR_ACTIVE_MUTEX,
 	LATCH_ID_RTR_MATCH_MUTEX,
 	LATCH_ID_RTR_PATH_MUTEX,

@@ -237,13 +237,7 @@ ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
                              unsigned int buf_length);
 #endif /* WITH_WSREP */
 
-/**********************************************************************//**
-Determines the connection character set.
-@return connection character set */
-CHARSET_INFO*
-innobase_get_charset(
-/*=================*/
-	THD*	thd);	/*!< in: MySQL thread handle */
+extern "C" struct charset_info_st *thd_charset(THD *thd);
 
 /** Determines the current SQL statement.
 Thread unsafe, can only be called from the thread owning the THD.
@@ -254,19 +248,6 @@ const char*
 innobase_get_stmt_unsafe(
 	THD*	thd,
 	size_t*	length);
-
-/** Determines the current SQL statement.
-Thread safe, can be called from any thread as the string is copied
-into the provided buffer.
-@param[in]	thd	MySQL thread handle
-@param[out]	buf	Buffer containing SQL statement
-@param[in]	buflen	Length of provided buffer
-@return			Length of the SQL statement */
-size_t
-innobase_get_stmt_safe(
-	THD*	thd,
-	char*	buf,
-	size_t	buflen);
 
 /******************************************************************//**
 This function is used to find the storage length in bytes of the first n

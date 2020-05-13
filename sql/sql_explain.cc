@@ -1884,6 +1884,11 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     /* This is a derived table. Print its contents here */
     writer->add_member("materialized").start_object();
     Explain_node *node= query->get_node(derived_select_number);
+    if (node->get_type() == Explain_node::EXPLAIN_SELECT &&
+        ((Explain_select*)node)->is_lateral)
+    {
+      writer->add_member("lateral").add_ll(1);
+    }
     node->print_explain_json(query, writer, is_analyze);
     writer->end_object();
   }

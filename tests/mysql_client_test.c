@@ -20886,6 +20886,53 @@ static void test_explain_meta()
   mct_close_log();
 }
 
+
+/*
+  MDEV-20261 NULL passed to String::eq, SEGV, server crash, regression in 10.4
+*/
+static void test_mdev20261()
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND param[1];
+  const char *query= "SELECT * FROM t1 WHERE f = ? OR f = 'foo'";
+  char val[]= "";
+  my_bool is_null= TRUE;
+
+  myheader("test_mdev20261");
+
+  rc= mysql_query(mysql, "CREATE OR REPLACE TABLE t1 (f varchar(64)) ENGINE=MyISAM");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+
+  verify_param_count(stmt, 1);
+
+  bzero((char*) param, sizeof(param));
+
+  param[0].buffer= &val;
+  param[0].buffer_type= MYSQL_TYPE_STRING;
+  param[0].is_null= &is_null;
+
+  rc= mysql_stmt_bind_param(stmt, param);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
+
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
@@ -21179,6 +21226,7 @@ static struct my_tests_st my_tests[]= {
 #endif
   { "test_explain_meta", test_explain_meta },
   { "test_mdev18408", test_mdev18408 },
+  { "test_mdev20261", test_mdev20261 },
   { 0, 0 }
 };
 

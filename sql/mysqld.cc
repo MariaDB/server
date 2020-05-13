@@ -4425,7 +4425,11 @@ static void init_ssl()
     {
       ulong err;
       while ((err= ERR_get_error()))
-        sql_print_warning("SSL error: %s", ERR_error_string(err, NULL));
+      {
+        char buf[256];
+        ERR_error_string_n(err, buf, sizeof(buf));
+        sql_print_warning("SSL error: %s",buf);
+      }
     }
     else
       ERR_remove_state(0);

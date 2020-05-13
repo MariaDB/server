@@ -570,7 +570,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(rtr_active_mutex),
 	PSI_KEY(rtr_match_mutex),
 	PSI_KEY(rtr_path_mutex),
-	PSI_KEY(rtr_ssn_mutex),
 	PSI_KEY(trx_sys_mutex),
 	PSI_KEY(zip_pad_mutex)
 };
@@ -2126,17 +2125,6 @@ innobase_casedn_str(
 	my_casedn_str(system_charset_info, a);
 }
 
-/**********************************************************************//**
-Determines the connection character set.
-@return connection character set */
-CHARSET_INFO*
-innobase_get_charset(
-/*=================*/
-	THD*	mysql_thd)	/*!< in: MySQL thread handle */
-{
-	return(thd_charset(mysql_thd));
-}
-
 /** Determines the current SQL statement.
 Thread unsafe, can only be called from the thread owning the THD.
 @param[in]	thd	MySQL thread handle
@@ -2154,22 +2142,6 @@ innobase_get_stmt_unsafe(
 
 	*length = 0;
 	return NULL;
-}
-
-/** Determines the current SQL statement.
-Thread safe, can be called from any thread as the string is copied
-into the provided buffer.
-@param[in]	thd	MySQL thread handle
-@param[out]	buf	Buffer containing SQL statement
-@param[in]	buflen	Length of provided buffer
-@return			Length of the SQL statement */
-size_t
-innobase_get_stmt_safe(
-	THD*	thd,
-	char*	buf,
-	size_t	buflen)
-{
-	return thd_query_safe(thd, buf, buflen);
 }
 
 /**********************************************************************//**
@@ -12177,7 +12149,7 @@ create_table_info_t::create_foreign_keys()
 	dict_index_t*	      err_index	  = NULL;
 	ulint		      err_col;
 	const bool	      tmp_table = m_flags2 & DICT_TF2_TEMPORARY;
-	const CHARSET_INFO*   cs	= innobase_get_charset(m_thd);
+	const CHARSET_INFO*   cs	= thd_charset(m_thd);
 	const char*	      operation = "Create ";
 	const char*	      name	= m_table_name;
 
@@ -20031,7 +20003,7 @@ static MYSQL_SYSVAR_UINT(data_file_size_debug,
   srv_sys_space_size_debug,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "InnoDB system tablespace size to be set in recovery.",
-  NULL, NULL, 0, 0, UINT_MAX32, 0);
+  NULL, NULL, 0, 0, 256U << 20, 0);
 
 static MYSQL_SYSVAR_ULONG(fil_make_page_dirty_debug,
   srv_fil_make_page_dirty_debug, PLUGIN_VAR_OPCMDARG,

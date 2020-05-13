@@ -38,7 +38,6 @@ galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
 galera_split_brain : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
 galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
 galera_sst_mariabackup_encrypt_with_key : MDEV-21484 galera_sst_mariabackup_encrypt_with_key
-galera_sst_mariabackup_table_options: MDEV-19741 Galera test failure on galera.galera_sst_mariabackup_table_options	 
 galera_toi_ddl_nonconflicting : MDEV-21518 galera.galera_toi_ddl_nonconflicting
 galera_var_innodb_disallow_writes : MDEV-20928 galera.galera_var_innodb_disallow_writes
 galera_var_node_address : MDEV-20485 Galera test failure
@@ -46,7 +45,6 @@ galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
 galera_var_reject_queries : assertion in inline_mysql_socket_send
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
 galera_wan : MDEV-17259 Test failure on galera.galera_wan
-galera_wsrep_new_cluster : MDEV-21515 galera.galera_wsrep_new_cluster
 mysql-wsrep#198 : MDEV-18935 Galera test mysql-wsrep#198 sporaric assertion transaction.cpp:362: int wsrep::transaction::before_commit(): Assertion `state() == s_executing || state() == s_committing || state() == s_must_abort || state() == s_replaying' failed.
 lp1376747-4 : MDEV-21911 Galera test failure on lp1376747-4
 partition : MDEV-19958 Galera test failure on galera.partition

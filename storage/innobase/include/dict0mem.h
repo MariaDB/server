@@ -1103,7 +1103,22 @@ struct dict_index_t {
 				/* in which slot the next sample should be
 				saved. */
 	/* @} */
-	rtr_ssn_t	rtr_ssn;/*!< Node sequence number for RTree */
+private:
+  /** R-tree split sequence number */
+  std::atomic<node_seq_t> rtr_ssn;
+public:
+
+  void set_ssn(node_seq_t ssn)
+  {
+    rtr_ssn.store(ssn, std::memory_order_relaxed);
+  }
+  node_seq_t assign_ssn()
+  {
+    node_seq_t ssn= rtr_ssn.fetch_add(1, std::memory_order_relaxed);
+    return ssn + 1;
+  }
+  node_seq_t ssn() const { return rtr_ssn.load(std::memory_order_relaxed); }
+
 	rtr_info_track_t*
 			rtr_track;/*!< tracking all R-Tree search cursors */
 	trx_id_t	trx_id; /*!< id of the transaction that created this

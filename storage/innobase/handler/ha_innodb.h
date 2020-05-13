@@ -528,12 +528,7 @@ the definitions are bracketed with #ifdef INNODB_COMPATIBILITY_HOOKS */
 #error InnoDB needs MySQL to be built with #define INNODB_COMPATIBILITY_HOOKS
 #endif
 
-LEX_STRING* thd_query_string(MYSQL_THD thd);
-size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
-
 extern "C" {
-
-struct charset_info_st *thd_charset(MYSQL_THD thd);
 
 /** Check if a user thread is a replication slave thread
 @param thd user thread

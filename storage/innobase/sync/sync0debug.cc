@@ -384,8 +384,7 @@ private:
 	{
 		return(latch->get_id() == LATCH_ID_RTR_ACTIVE_MUTEX
 		       || latch->get_id() == LATCH_ID_RTR_PATH_MUTEX
-		       || latch->get_id() == LATCH_ID_RTR_MATCH_MUTEX
-		       || latch->get_id() == LATCH_ID_RTR_SSN_MUTEX);
+		       || latch->get_id() == LATCH_ID_RTR_MATCH_MUTEX);
 	}
 
 private:
@@ -1360,8 +1359,6 @@ sync_latch_meta_init()
 			SYNC_NO_ORDER_CHECK,
 			rw_lock_debug_mutex_key);
 #endif /* UNIV_DEBUG */
-
-	LATCH_ADD_MUTEX(RTR_SSN_MUTEX, SYNC_ANY_LATCH, rtr_ssn_mutex_key);
 
 	LATCH_ADD_MUTEX(RTR_ACTIVE_MUTEX, SYNC_ANY_LATCH,
 			rtr_active_mutex_key);

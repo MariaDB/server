@@ -4936,6 +4936,7 @@ extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd)
   @param buflen  Length of the buffer
 
   @return Length of the query
+  @retval 0 if LOCK_thd_data cannot be acquired without waiting
 
   @note This function is thread safe as the query string is
         accessed under mutex protection and the string is copied
@@ -4944,10 +4945,19 @@ extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd)
 
 extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen)
 {
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-  size_t len= MY_MIN(buflen - 1, thd->query_length());
-  memcpy(buf, thd->query(), len);
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  size_t len= 0;
+  /* InnoDB invokes this function while holding internal mutexes.
+  THD::awake() will hold LOCK_thd_data while invoking an InnoDB
+  function that would acquire the internal mutex. Because this
+  function is a non-essential part of information_schema view output,
+  we will break the deadlock by avoiding a mutex wait here
+  and returning the empty string if a wait would be needed. */
+  if (!mysql_mutex_trylock(&thd->LOCK_thd_data))
+  {
+    len= MY_MIN(buflen - 1, thd->query_length());
+    memcpy(buf, thd->query(), len);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
   buf[len]= '\0';
   return len;
 }

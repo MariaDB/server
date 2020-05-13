@@ -15073,6 +15073,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "outer_ref_condition": "t1.a is not null",
@@ -15179,6 +15180,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "outer_ref_condition": "t1.a is not null",
@@ -15378,6 +15380,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "outer_ref_condition": "t3.a is not null and t3.c is not null",
@@ -15530,6 +15533,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "outer_ref_condition": "t3.a is not null and t3.c is not null",
@@ -15705,6 +15709,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "outer_ref_condition": "t3.c is not null",
@@ -15952,6 +15957,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "outer_ref_condition": "t3.c is not null",
@@ -16440,6 +16446,7 @@ EXPLAIN
       "filtered": 100,
       "first_match": "t4",
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 3,
           "const_condition": "1",
@@ -16586,6 +16593,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "table": {

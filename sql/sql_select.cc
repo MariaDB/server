@@ -27013,6 +27013,8 @@ int JOIN::save_explain_data_intern(Explain_query *output,
     xpl_sel->select_id= join->select_lex->select_number;
     xpl_sel->select_type= join->select_lex->type;
     xpl_sel->linkage= select_lex->get_linkage();
+    xpl_sel->is_lateral= ((select_lex->get_linkage() == DERIVED_TABLE_TYPE) &&
+                          (select_lex->uncacheable & UNCACHEABLE_DEPENDENT));
     if (select_lex->master_unit()->derived)
       xpl_sel->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
     

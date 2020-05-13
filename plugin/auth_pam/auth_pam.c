@@ -90,6 +90,8 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
     PAM_DEBUG((stderr, "PAM: execute pam sandbox [%s].\n", toolpath));
     (void) execl(toolpath, toolpath, NULL);
     PAM_DEBUG((stderr, "PAM: exec() failed.\n"));
+    my_printf_error(1, "PAM: Cannot execute %s (errno: %M)", ME_ERROR_LOG_ONLY,
+                    toolpath, errno);
     exit(-1);
   }
 

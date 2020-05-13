@@ -3492,8 +3492,20 @@ bool Item_basic_value::eq(const Item *item, bool binary_cmp) const
             (h0= type_handler())->type_handler_for_comparison() ==
             (h1= item->type_handler())->type_handler_for_comparison() &&
             h0->cast_to_int_type_handler()->type_handler_for_comparison() ==
-            h1->cast_to_int_type_handler()->type_handler_for_comparison() &&
-            h0->Item_const_eq(c0, c1, binary_cmp);
+            h1->cast_to_int_type_handler()->type_handler_for_comparison();
+  if (res)
+  {
+    switch (c0->const_is_null() + c1->const_is_null()) {
+    case 2:       // Two NULLs
+      res= true;
+      break;
+    case 1:       // NULL and non-NULL
+      res= false;
+      break;
+    case 0:       // Two non-NULLs
+      res= h0->Item_const_eq(c0, c1, binary_cmp);
+    }
+  }
   DBUG_EXECUTE_IF("Item_basic_value",
                   push_warning_printf(current_thd,
                   Sql_condition::WARN_LEVEL_NOTE,

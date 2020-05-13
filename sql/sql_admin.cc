@@ -772,31 +772,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         (table->table->s->table_category == TABLE_CATEGORY_USER &&
          (check_eits_collection_allowed(thd) ||
           lex->with_persistent_for_clause));
-
-
-      if (!lex->index_list)
-      {
-        tab->keys_in_use_for_query.init(tab->s->keys);
-      }
-      else
-      {
-        int pos;
-        LEX_STRING *index_name;
-        List_iterator_fast<LEX_STRING> it(*lex->index_list);
-   
-        tab->keys_in_use_for_query.clear_all();  
-        while ((index_name= it++))
-	{
-          if (tab->s->keynames.type_names == 0 ||
-              (pos= find_type(&tab->s->keynames, index_name->str,
-                              index_name->length, 1)) <= 0)
-          {
-            compl_result_code= result_code= HA_ADMIN_INVALID;
-            break;
-          }
-          tab->keys_in_use_for_query.set_bit(--pos);
-        }  
-      }
     }
 
     if (result_code == HA_ADMIN_OK)
@@ -881,6 +856,27 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                   column_name->str);
           }
           tab->file->column_bitmaps_signal();
+        }
+        if (!lex->index_list)
+          tab->keys_in_use_for_query.init(tab->s->keys);
+        else
+        {
+          int pos;
+          LEX_STRING *index_name;
+          List_iterator_fast<LEX_STRING> it(*lex->index_list);
+
+          tab->keys_in_use_for_query.clear_all();
+          while ((index_name= it++))
+          {
+            if (tab->s->keynames.type_names == 0 ||
+                (pos= find_type(&tab->s->keynames, index_name->str,
+                                index_name->length, 1)) <= 0)
+            {
+              compl_result_code= result_code= HA_ADMIN_INVALID;
+              break;
+            }
+            tab->keys_in_use_for_query.set_bit(--pos);
+          }
         }
         if (!(compl_result_code=
               alloc_statistics_for_table(thd, table->table)) &&
