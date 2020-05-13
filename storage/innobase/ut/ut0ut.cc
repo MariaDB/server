@@ -624,9 +624,13 @@ warn::~warn()
 	sql_print_warning("InnoDB: %s", m_oss.str().c_str());
 }
 
+/** true if error::~error() was invoked, false otherwise */
+bool error::logged;
+
 error::~error()
 {
 	sql_print_error("InnoDB: %s", m_oss.str().c_str());
+	logged = true;
 }
 
 #ifdef _MSC_VER
