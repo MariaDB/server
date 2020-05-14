@@ -3050,7 +3050,7 @@ btr_cur_optimistic_insert(
 	page_t*		page;
 	rec_t*		dummy;
 	ibool		leaf;
-	ibool		reorg;
+	ibool		reorg __attribute__((unused));
 	ibool		inherit = TRUE;
 	ulint		rec_size;
 	dberr_t		err;
