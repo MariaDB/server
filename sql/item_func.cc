@@ -2433,6 +2433,8 @@ void Item_func_round::fix_length_and_dec_decimal(uint decimals_to_set)
   set_handler(&type_handler_newdecimal);
   unsigned_flag= args[0]->unsigned_flag;
   decimals= decimals_to_set;
+  if (!precision)
+    precision= 1; // DECIMAL(0,0) -> DECIMAL(1,0)
   max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                            decimals,
                                                            unsigned_flag);
