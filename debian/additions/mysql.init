@@ -158,7 +158,7 @@ case "${1:-''}" in
 
   if ! mysqld_status check_dead warn; then
     log_end_msg 1
-    log_failure_msg "Please stop MariaDB manually and read /usr/share/doc/mariadb-server-10.5/README.Debian.gz!"
+    log_failure_msg "Please stop MariaDB manually and read /usr/share/doc/mariadb-server-10.6/README.Debian.gz!"
     exit -1
   else
     log_end_msg 0

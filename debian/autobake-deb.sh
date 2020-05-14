@@ -90,7 +90,7 @@ then
   sed -i -e "/Package: mariadb-plugin-mroonga/,/^$/d" debian/control
   sed -i -e "/Package: mariadb-plugin-spider/,/^$/d" debian/control
   sed -i -e "/Package: mariadb-plugin-oqgraph/,/^$/d" debian/control
-  sed -i -e "/usr\/lib\/mysql\/plugin\/ha_sphinx.so/d" debian/mariadb-server-10.5.install
+  sed -i -e "/usr\/lib\/mysql\/plugin\/ha_sphinx.so/d" debian/mariadb-server-10.6.install
   sed -i -e "/Package: libmariadbd-dev/,/^$/d" debian/control
 fi
 
