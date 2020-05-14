@@ -4431,7 +4431,7 @@ sp_instr_agg_cfetch::execute(THD *thd, uint *nextp)
   else
   {
     thd->spcont->pause_state= FALSE;
-    if (thd->server_status == SERVER_STATUS_LAST_ROW_SENT)
+    if (thd->server_status & SERVER_STATUS_LAST_ROW_SENT)
     {
       my_message(ER_SP_FETCH_NO_DATA,
                  ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
