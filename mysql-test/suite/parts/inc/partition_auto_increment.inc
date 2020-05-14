@@ -861,6 +861,17 @@ SELECT * FROM t1;
 DROP TABLE t1;
 }
 
+if (!$skip_update)
+{
+--echo #
+--echo # MDEV-19622 Assertion failures in
+--echo # ha_partition::set_auto_increment_if_higher upon UPDATE on Aria table
+--echo #
+CREATE OR REPLACE TABLE t1 (pk INT AUTO_INCREMENT, a INT, KEY(pk)) ENGINE=myisam PARTITION BY HASH(a);
+INSERT INTO t1 VALUES (1,1),(2,2);
+UPDATE t1 SET pk = 0;
+DROP TABLE t1;
+}
 
 --echo ##############################################################################
 }
