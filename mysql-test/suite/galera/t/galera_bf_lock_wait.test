@@ -1,6 +1,10 @@
 --source include/galera_cluster.inc
 --source include/big_test.inc
- 
+
+--connection node_1
+
+call mtr.add_suppression("WSREP: Trying to continue unpaused monitor");
+
 CREATE TABLE t1 ENGINE=InnoDB select 1 as a, 1 as b union select 2, 2;
 ALTER TABLE t1 add primary key(a);
  
@@ -28,7 +32,7 @@ send call p1;
 --connect node_2_p2, 127.0.0.1, root, , test, $NODE_MYPORT_2
 send call p1;
  
-connection default;
+connection node_1;
 let $counter=10;
 let $sleep_period=10;
  
