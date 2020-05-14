@@ -98,8 +98,6 @@ fi
 if [[ $CMAKEFLAGS != *"COLUMNSTORE=YES"* ]]
 then
     sed -i -e "/Package: mariadb-plugin-columnstore/,/^$/d" debian/control
-    sed -i -e "/Package: mariadb-columnstore-libs/,/^$/d" debian/control
-    sed -i -e "/Package: mariadb-columnstore-platform/,/^$/d" debian/control
 fi
 
 # Adjust changelog, add new version

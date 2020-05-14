@@ -1,0 +1,6 @@
+#!/bin/bash -e
+
+columnstore-pre-uninstall
+
+exit 0
+

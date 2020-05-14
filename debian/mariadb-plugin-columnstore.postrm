@@ -1,0 +1,8 @@
+#!/bin/bash -e
+
+if [ "$1" = "purge" ]; then
+    rm -rf /var/lib/columnstore
+    rm -f /etc/rsyslog.d/49-columnstore.conf
+    rm -rf /etc/columnstore
+fi
+
