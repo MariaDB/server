@@ -2512,6 +2512,8 @@ bool Item_func_round::fix_length_and_dec()
 
     precision-= decimals_delta - length_increase;
     decimals= MY_MIN(decimals_to_set, DECIMAL_MAX_SCALE);
+    if (!precision)
+      precision= 1; // DECIMAL(0,0) -> DECIMAL(1,0)
     max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                              decimals,
                                                              unsigned_flag);
