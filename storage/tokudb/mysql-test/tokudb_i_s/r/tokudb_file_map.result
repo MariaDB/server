@@ -1,9 +1,0 @@
-SHOW CREATE TABLE INFORMATION_SCHEMA.TOKUDB_FILE_MAP;
-Table	Create Table
-TokuDB_file_map	CREATE TEMPORARY TABLE `TokuDB_file_map` (
-  `dictionary_name` varchar(256) NOT NULL DEFAULT '',
-  `internal_file_name` varchar(256) NOT NULL DEFAULT '',
-  `table_schema` varchar(256) NOT NULL DEFAULT '',
-  `table_name` varchar(256) NOT NULL DEFAULT '',
-  `table_dictionary_name` varchar(256) NOT NULL DEFAULT ''
-) ENGINE=MEMORY DEFAULT CHARSET=utf8

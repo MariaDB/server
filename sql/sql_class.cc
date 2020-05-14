@@ -5008,7 +5008,7 @@ thd_need_wait_reports(const MYSQL_THD thd)
 }
 
 /*
-  Used by storage engines (currently TokuDB and InnoDB) to report that
+  Used by storage engines (currently InnoDB) to report that
   one transaction THD is about to go to wait for a transactional lock held by
   another transactions OTHER_THD.
 

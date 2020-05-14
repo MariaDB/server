@@ -1057,7 +1057,7 @@ struct TABLE_SHARE
   bool write_frm_image(const uchar *frm_image, size_t frm_length);
   bool write_par_image(const uchar *par_image, size_t par_length);
 
-  /* Only used by tokudb */
+  /* Only used by S3 */
   bool write_frm_image(void)
   { return frm_image ? write_frm_image(frm_image->str, frm_image->length) : 0; }
 

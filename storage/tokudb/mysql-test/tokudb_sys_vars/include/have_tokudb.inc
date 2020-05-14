@@ -1,1 +1,0 @@
-let $datadir=`select @@datadir`;
