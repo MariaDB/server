@@ -201,7 +201,11 @@ get_transfer()
                 tcmd="nc ${REMOTEIP} ${TSST_PORT}"
             elif nc -h 2>&1 | grep -q -- '-d\>';then
                 # Debian netcat
-                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+                if nc -h 2>&1 | grep -q -- '-N\>';then
+                   tcmd="nc -N ${REMOTEIP} ${TSST_PORT}"
+                else
+                   tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+                fi
             else
                 # traditional netcat
                 tcmd="nc -q0 ${REMOTEIP} ${TSST_PORT}"
