@@ -199,7 +199,7 @@ trx_rollback_for_mysql_low(
 @return error code or DB_SUCCESS */
 dberr_t trx_rollback_for_mysql(trx_t* trx)
 {
-	/* We are reading trx->state without holding trx_sys.mutex
+	/* We are reading trx->state without holding trx->mutex
 	here, because the rollback should be invoked for a running
 	active MySQL transaction (or recovered prepared transaction)
 	that is associated with the current thread. */
@@ -286,7 +286,7 @@ trx_rollback_last_sql_stat_for_mysql(
 {
 	dberr_t	err;
 
-	/* We are reading trx->state without holding trx_sys.mutex
+	/* We are reading trx->state without holding trx->mutex
 	here, because the statement rollback should be invoked for a
 	running active MySQL transaction that is associated with the
 	current thread. */
@@ -460,7 +460,7 @@ trx_rollback_to_savepoint_for_mysql(
 {
 	trx_named_savept_t*	savep;
 
-	/* We are reading trx->state without holding trx_sys.mutex
+	/* We are reading trx->state without holding trx->mutex
 	here, because the savepoint rollback should be invoked for a
 	running active MySQL transaction that is associated with the
 	current thread. */

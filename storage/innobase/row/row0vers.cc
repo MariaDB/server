@@ -396,7 +396,6 @@ row_vers_impl_x_locked(
 	dict_index_t*	clust_index;
 
 	ut_ad(!lock_mutex_own());
-	ut_ad(!mutex_own(&trx_sys.mutex));
 
 	mtr_start(&mtr);
 

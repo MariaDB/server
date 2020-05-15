@@ -241,8 +241,7 @@ trx_commit_step(
 	que_thr_t*	thr);	/*!< in: query thread */
 
 /**********************************************************************//**
-Prints info about a transaction.
-Caller must hold trx_sys.mutex. */
+Prints info about a transaction. */
 void
 trx_print_low(
 /*==========*/
@@ -262,7 +261,6 @@ trx_print_low(
 
 /**********************************************************************//**
 Prints info about a transaction.
-The caller must hold lock_sys.mutex and trx_sys.mutex.
 When possible, use trx_print() instead. */
 void
 trx_print_latched(
@@ -304,7 +302,7 @@ trx_set_dict_operation(
 
 /**********************************************************************//**
 Determines if a transaction is in the given state.
-The caller must hold trx_sys.mutex, or it must be the thread
+The caller must hold trx->mutex, or it must be the thread
 that is serving a running transaction.
 A running RW transaction must be in trx_sys.rw_trx_hash.
 @return TRUE if trx->state == state */
@@ -740,9 +738,10 @@ public:
 					max trx id shortly before the
 					transaction is moved to
 					COMMITTED_IN_MEMORY state.
-					Protected by trx_sys_t::mutex
-					when trx is in rw_trx_hash. Initially
-					set to TRX_ID_MAX. */
+					Accessed exclusively by trx owner
+					thread. Should be removed in favour of
+					trx->rw_trx_hash_element->no.
+					Initially set to TRX_ID_MAX. */
 
 	/** State of the trx from the point of view of concurrency control
 	and the valid state transitions.
@@ -783,7 +782,7 @@ public:
 	XA (2PC) transactions are always treated as non-autocommit.
 
 	Transitions to ACTIVE or NOT_STARTED occur when transaction
-	is not in rw_trx_hash (no trx_sys.mutex needed).
+	is not in rw_trx_hash.
 
 	Autocommit non-locking read-only transactions move between states
 	without holding any mutex. They are not in rw_trx_hash.
@@ -799,7 +798,7 @@ public:
 	in rw_trx_hash.
 
 	ACTIVE->PREPARED->COMMITTED is only possible when trx is in rw_trx_hash.
-	The transition ACTIVE->PREPARED is protected by trx_sys.mutex.
+	The transition ACTIVE->PREPARED is protected by trx->mutex.
 
 	ACTIVE->COMMITTED is possible when the transaction is in
 	rw_trx_hash.

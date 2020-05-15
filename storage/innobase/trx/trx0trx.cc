@@ -650,7 +650,7 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   trx_state_t state;
   /*
     This is single-threaded startup code, we do not need the
-    protection of trx->mutex or trx_sys.mutex here.
+    protection of trx->mutex here.
   */
   switch (undo->state)
   {
@@ -804,7 +804,7 @@ trx_lists_init_at_db_start()
 
 		ib::info() << "Trx id counter is " << trx_sys.get_max_trx_id();
 	}
-	trx_sys.clone_oldest_view();
+	purge_sys.clone_oldest_view();
 }
 
 /** Assign a persistent rollback segment in a round-robin fashion,
@@ -974,9 +974,8 @@ trx_start_low(
 	ut_a(ib_vector_is_empty(trx->autoinc_locks));
 	ut_a(trx->lock.table_locks.empty());
 
-	/* No other thread can access this trx object through rw_trx_hash, thus
-	we don't need trx_sys.mutex protection for that purpose. Still this
-	trx can be found through trx_sys.trx_list, which means state
+	/* No other thread can access this trx object through rw_trx_hash,
+	still it can be found through trx_sys.trx_list, which means state
 	change must be protected by e.g. trx->mutex.
 
 	For now we update it without mutex protection, because original code
@@ -1582,7 +1581,7 @@ trx_commit_or_rollback_prepare(
 /*===========================*/
 	trx_t*	trx)		/*!< in/out: transaction */
 {
-	/* We are reading trx->state without holding trx_sys.mutex
+	/* We are reading trx->state without holding trx->mutex
 	here, because the commit or rollback should be invoked for a
 	running (or recovered prepared) transaction that is associated
 	with the current thread. */
@@ -1789,9 +1788,6 @@ trx_print_low(
 
 	fprintf(f, "TRANSACTION " TRX_ID_FMT, trx_get_id_for_print(trx));
 
-	/* trx->state cannot change from or to NOT_STARTED while we
-	are holding the trx_sys.mutex. It may change from ACTIVE to
-	PREPARED or COMMITTED. */
 	switch (trx->state) {
 	case TRX_STATE_NOT_STARTED:
 		fputs(", not started", f);
@@ -2365,13 +2361,6 @@ trx_set_rw_mode(
 	if (high_level_read_only) {
 		return;
 	}
-
-	/* Function is promoting existing trx from ro mode to rw mode.
-	In this process it has acquired trx_sys.mutex as it plan to
-	move trx from ro list to rw list. If in future, some other thread
-	looks at this trx object while it is being promoted then ensure
-	that both threads are synced by acquring trx->mutex to avoid decision
-	based on in-consistent view formed during promotion. */
 
 	trx->rsegs.m_redo.rseg = trx_assign_rseg_low();
 	ut_ad(trx->rsegs.m_redo.rseg != 0);

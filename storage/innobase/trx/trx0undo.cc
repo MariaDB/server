@@ -74,9 +74,9 @@ can still remove old versions from the bottom of the stack. */
    -------------------------------------------------------------------
 latches?
 -------
-The contention of the trx_sys.mutex should be minimized. When a transaction
-does its first insert or modify in an index, an undo log is assigned for it.
-Then we must have an x-latch to the rollback segment header.
+When a transaction does its first insert or modify in the clustered index, an
+undo log is assigned for it. Then we must have an x-latch to the rollback
+segment header.
 	When the transaction performs modifications or rolls back, its
 undo log is protected by undo page latches.
 Only the thread that is associated with the transaction may hold multiple
