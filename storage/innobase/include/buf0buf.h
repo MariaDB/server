@@ -71,11 +71,13 @@ struct fil_addr_t;
 /* @} */
 /** @name Modes for buf_page_get_known_nowait */
 /* @{ */
-#define BUF_MAKE_YOUNG	51		/*!< Move the block to the
+#ifdef BTR_CUR_HASH_ADAPT
+# define BUF_MAKE_YOUNG	51		/*!< Move the block to the
 					start of the LRU list if there
 					is a danger that the block
 					would drift out of the buffer
 					pool*/
+#endif /* BTR_CUR_HASH_ADAPT */
 #define BUF_KEEP_OLD	52		/*!< Preserve the current LRU
 					position of the block. */
 /* @} */
@@ -281,12 +283,6 @@ when waked up either performs a resizing and sleeps again.
 extern "C"
 os_thread_ret_t
 DECLARE_THREAD(buf_resize_thread)(void*);
-
-#ifdef BTR_CUR_HASH_ADAPT
-/** Clear the adaptive hash index on all pages in the buffer pool. */
-void
-buf_pool_clear_hash_index();
-#endif /* BTR_CUR_HASH_ADAPT */
 
 /*********************************************************************//**
 Gets the current size of buffer buf_pool in bytes.

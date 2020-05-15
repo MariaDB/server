@@ -590,7 +590,7 @@ rtr_pcur_open_low(
 	}
 
 	btr_cur_search_to_nth_level(index, level, tuple, mode, latch_mode,
-				    btr_cursor, 0, file, line, mtr);
+				    btr_cursor, 0, file, line, mtr, 0);
 	cursor->pos_state = BTR_PCUR_IS_POSITIONED;
 
 	cursor->trx_if_known = NULL;
@@ -759,7 +759,7 @@ static void rtr_get_father_node(
 		btr_cur_search_to_nth_level(
 			index, level, tuple, PAGE_CUR_RTREE_LOCATE,
 			BTR_CONT_MODIFY_TREE, btr_cur, 0,
-			__FILE__, __LINE__, mtr);
+			__FILE__, __LINE__, mtr, 0);
 
 	} else {
 		/* btr_validate */
@@ -769,7 +769,7 @@ static void rtr_get_father_node(
 		btr_cur_search_to_nth_level(
 			index, level, tuple, PAGE_CUR_RTREE_LOCATE,
 			BTR_CONT_MODIFY_TREE, btr_cur, 0,
-			__FILE__, __LINE__, mtr);
+			__FILE__, __LINE__, mtr, 0);
 
 		rec = btr_cur_get_rec(btr_cur);
 		n_fields = dtuple_get_n_fields_cmp(tuple);

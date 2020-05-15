@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -136,15 +136,22 @@ btr_pcur_open_with_no_init_func(
 				page, but assume that the caller uses his
 				btr search latch to protect the record! */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
+#ifdef BTR_CUR_HASH_ADAPT
 	ulint		has_search_latch,
 				/*!< in: latch mode the caller
 				currently has on search system:
 				RW_S_LATCH, or 0 */
+#endif /* BTR_CUR_HASH_ADAPT */
 	const char*	file,	/*!< in: file name */
 	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mtr */
-#define btr_pcur_open_with_no_init(ix,t,md,l,cur,has,m)			\
+#ifdef BTR_CUR_HASH_ADAPT
+# define btr_pcur_open_with_no_init(ix,t,md,l,cur,has,m)		\
 	btr_pcur_open_with_no_init_func(ix,t,md,l,cur,has,__FILE__,__LINE__,m)
+#else /* BTR_CUR_HASH_ADAPT */
+# define btr_pcur_open_with_no_init(ix,t,md,l,cur,has,m)		\
+	btr_pcur_open_with_no_init_func(ix,t,md,l,cur,__FILE__,__LINE__,m)
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /*****************************************************************//**
 Opens a persistent cursor at either end of an index. */

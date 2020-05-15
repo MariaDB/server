@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1289,22 +1289,16 @@ void
 row_sel_open_pcur(
 /*==============*/
 	plan_t*		plan,		/*!< in: table plan */
-	ibool		search_latch_locked,
-					/*!< in: TRUE if the thread currently
-					has the search latch locked in
-					s-mode */
+#ifdef BTR_CUR_HASH_ADAPT
+	ulint		has_search_latch,
+#endif
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	dict_index_t*	index;
 	func_node_t*	cond;
 	que_node_t*	exp;
 	ulint		n_fields;
-	ulint		has_search_latch = 0;	/* RW_S_LATCH or 0 */
 	ulint		i;
-
-	if (search_latch_locked) {
-		has_search_latch = RW_S_LATCH;
-	}
 
 	index = plan->index;
 
@@ -1356,6 +1350,11 @@ row_sel_open_pcur(
 
 	plan->pcur_is_open = TRUE;
 }
+
+#ifndef BTR_CUR_HASH_ADAPT
+# define row_sel_open_pcur(plan, has_search_latch, mtr)	\
+	row_sel_open_pcur(plan, mtr)
+#endif /* !BTR_CUR_HASH_ADAPT */
 
 /*********************************************************************//**
 Restores a stored pcur position to a table index.
@@ -1618,12 +1617,6 @@ row_sel(
 
 	ut_ad(thr->run_node == node);
 
-#ifdef BTR_CUR_HASH_ADAPT
-	ibool		search_latch_locked = FALSE;
-#else /* BTR_CUR_HASH_ADAPT */
-# define search_latch_locked false
-#endif /* BTR_CUR_HASH_ADAPT */
-
 	if (node->read_view) {
 		/* In consistent reads, we try to do with the hash index and
 		not to use the buffer page get. This is to reduce memory bus
@@ -1648,6 +1641,10 @@ table_loop:
 
 	plan = sel_node_get_nth_plan(node, node->fetch_table);
 	index = plan->index;
+#ifdef BTR_CUR_HASH_ADAPT
+	ulint has_search_latch = 0;
+	rw_lock_t* const latch = btr_get_search_latch(index);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (plan->n_rows_prefetched > 0) {
 		sel_dequeue_prefetched_row(plan);
@@ -1672,26 +1669,22 @@ table_loop:
 #ifdef BTR_CUR_HASH_ADAPT
 	if (consistent_read && plan->unique_search && !plan->pcur_is_open
 	    && !plan->must_get_clust) {
-		if (!search_latch_locked) {
-			btr_search_s_lock(index);
-
-			search_latch_locked = TRUE;
-		} else if (rw_lock_get_writer(btr_get_search_latch(index))
-				== RW_LOCK_X_WAIT) {
-
+		if (!has_search_latch) {
+			has_search_latch = RW_S_LATCH;
+			rw_lock_s_lock(latch);
+		} else if (rw_lock_get_writer(latch) == RW_LOCK_X_WAIT) {
 			/* There is an x-latch request waiting: release the
 			s-latch for a moment; as an s-latch here is often
 			kept for some 10 searches before being released,
 			a waiting x-latch request would block other threads
 			from acquiring an s-latch for a long time, lowering
 			performance significantly in multiprocessors. */
-
-			btr_search_s_unlock(index);
-			btr_search_s_lock(index);
+			rw_lock_s_unlock(latch);
+			rw_lock_s_lock(latch);
 		}
 
 		switch (row_sel_try_search_shortcut(node, plan,
-						    search_latch_locked,
+						    has_search_latch,
 						    &mtr)) {
 		case SEL_FOUND:
 			goto next_table;
@@ -1709,10 +1702,9 @@ table_loop:
 		mtr.start();
 	}
 
-	if (search_latch_locked) {
-		btr_search_s_unlock(index);
-
-		search_latch_locked = FALSE;
+	if (has_search_latch) {
+		has_search_latch = 0;
+		rw_lock_s_unlock(latch);
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -1720,7 +1712,7 @@ table_loop:
 		/* Evaluate the expressions to build the search tuple and
 		open the cursor */
 
-		row_sel_open_pcur(plan, search_latch_locked, &mtr);
+		row_sel_open_pcur(plan, has_search_latch, &mtr);
 
 		cursor_just_opened = TRUE;
 
@@ -2117,7 +2109,9 @@ skip_lock:
 	}
 
 next_rec:
-	ut_ad(!search_latch_locked);
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(!has_search_latch);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (mtr_has_extra_clust_latch) {
 
@@ -2156,8 +2150,9 @@ next_table:
 
 		plan->cursor_at_end = TRUE;
 	} else {
-		ut_ad(!search_latch_locked);
-
+#ifdef BTR_CUR_HASH_ADAPT
+		ut_ad(!has_search_latch);
+#endif /* BTR_CUR_HASH_ADAPT */
 		plan->stored_cursor_rec_processed = TRUE;
 
 		btr_pcur_store_position(&(plan->pcur), &mtr);
@@ -2248,8 +2243,9 @@ stop_for_a_while:
 	inserted new records which should have appeared in the result set,
 	which would result in the phantom problem. */
 
-	ut_ad(!search_latch_locked);
-
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(!has_search_latch);
+#endif /* BTR_CUR_HASH_ADAPT */
 	plan->stored_cursor_rec_processed = FALSE;
 	btr_pcur_store_position(&(plan->pcur), &mtr);
 
@@ -2266,7 +2262,9 @@ commit_mtr_for_a_while:
 
 	plan->stored_cursor_rec_processed = TRUE;
 
-	ut_ad(!search_latch_locked);
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(!has_search_latch);
+#endif /* BTR_CUR_HASH_ADAPT */
 	btr_pcur_store_position(&(plan->pcur), &mtr);
 
 	mtr.commit();
@@ -2280,7 +2278,9 @@ lock_wait_or_error:
 	/* See the note at stop_for_a_while: the same holds for this case */
 
 	ut_ad(!btr_pcur_is_before_first_on_page(&plan->pcur) || !node->asc);
-	ut_ad(!search_latch_locked);
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(!has_search_latch);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	plan->stored_cursor_rec_processed = FALSE;
 	btr_pcur_store_position(&(plan->pcur), &mtr);
@@ -2289,8 +2289,8 @@ lock_wait_or_error:
 
 func_exit:
 #ifdef BTR_CUR_HASH_ADAPT
-	if (search_latch_locked) {
-		btr_search_s_unlock(index);
+	if (has_search_latch) {
+		rw_lock_s_unlock(latch);
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(!sync_check_iterate(dict_sync_check()));
@@ -4460,7 +4460,6 @@ row_search_mvcc(
 	    && !prebuilt->templ_contains_blob
 	    && !prebuilt->used_in_HANDLER
 	    && (prebuilt->mysql_row_len < UNIV_PAGE_SIZE / 8)) {
-
 		mode = PAGE_CUR_GE;
 
 		if (trx->mysql_n_tables_locked == 0
@@ -4480,7 +4479,8 @@ row_search_mvcc(
 			and if we try that, we can deadlock on the adaptive
 			hash index semaphore! */
 
-			rw_lock_s_lock(btr_get_search_latch(index));
+			rw_lock_t* const latch = btr_get_search_latch(index);
+			rw_lock_s_lock(latch);
 
 			switch (row_sel_try_search_shortcut_for_mysql(
 					&rec, prebuilt, &offsets, &heap,
@@ -4534,7 +4534,7 @@ row_search_mvcc(
 
 				err = DB_SUCCESS;
 
-				rw_lock_s_unlock(btr_get_search_latch(index));
+				rw_lock_s_unlock(latch);
 
 				goto func_exit;
 
@@ -4544,7 +4544,7 @@ row_search_mvcc(
 
 				err = DB_RECORD_NOT_FOUND;
 
-				rw_lock_s_unlock(btr_get_search_latch(index));
+				rw_lock_s_unlock(latch);
 
 				/* NOTE that we do NOT store the cursor
 				position */
@@ -4561,7 +4561,7 @@ row_search_mvcc(
 			mtr.commit();
 			mtr.start();
 
-                        rw_lock_s_unlock(btr_get_search_latch(index));
+                        rw_lock_s_unlock(latch);
 		}
 	}
 #endif /* BTR_CUR_HASH_ADAPT */

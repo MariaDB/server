@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -723,8 +723,10 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 {
 	ut_ad(mtr_is_block_fix(mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
 #ifdef BTR_CUR_HASH_ADAPT
-	ut_ad(!block->index || !blob);
-	ut_ad(!block->index || page_is_leaf(block->frame));
+	if (block->index && !block->index->freed()) {
+		ut_ad(!blob);
+		ut_ad(page_is_leaf(block->frame));
+	}
 #endif
 	ut_ad(index->space == block->page.id.space());
 	/* The root page is freed by btr_free_root(). */
@@ -751,7 +753,7 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 	fseg_free_page(seg_header,
 		       block->page.id.space(),
 		       block->page.id.page_no(),
-		       block->index != NULL, mtr);
+		       mtr);
 
 	/* The page was marked free in the allocation bitmap, but it
 	should remain exclusively latched until mtr_t::commit() or until it
@@ -876,7 +878,7 @@ btr_page_get_father_node_ptr_func(
 	err = btr_cur_search_to_nth_level(
 		index, level + 1, tuple,
 		PAGE_CUR_LE, latch_mode, cursor, 0,
-		file, line, mtr);
+		file, line, mtr, 0);
 
 	if (err != DB_SUCCESS) {
 		ib::warn() << " Error code: " << err
@@ -1005,7 +1007,7 @@ static void btr_free_root(buf_block_t* block, mtr_t* mtr, bool invalidate)
 			BTR_FREED_INDEX_ID, mtr);
 	}
 
-	while (!fseg_free_step(header, true, mtr)) {
+	while (!fseg_free_step(header, mtr)) {
 		/* Free the entire segment in small steps. */
 	}
 }
@@ -1254,7 +1256,7 @@ leaf_loop:
 	fsp0fsp. */
 
 	finished = fseg_free_step(root + PAGE_HEADER + PAGE_BTR_SEG_LEAF,
-				  true, &mtr);
+				  &mtr);
 	mtr_commit(&mtr);
 
 	if (!finished) {
@@ -1274,7 +1276,7 @@ top_loop:
 #endif /* UNIV_BTR_DEBUG */
 
 	finished = fseg_free_step_not_header(
-		root + PAGE_HEADER + PAGE_BTR_SEG_TOP, true, &mtr);
+		root + PAGE_HEADER + PAGE_BTR_SEG_TOP, &mtr);
 	mtr_commit(&mtr);
 
 	if (!finished) {
@@ -2342,7 +2344,7 @@ btr_insert_on_non_leaf_level_func(
 		dberr_t err = btr_cur_search_to_nth_level(
 			index, level, tuple, PAGE_CUR_LE,
 			BTR_CONT_MODIFY_TREE,
-			&cursor, 0, file, line, mtr);
+			&cursor, 0, file, line, mtr, 0);
 
 		if (err != DB_SUCCESS) {
 			ib::warn() << " Error code: " << err
@@ -2363,7 +2365,7 @@ btr_insert_on_non_leaf_level_func(
 		btr_cur_search_to_nth_level(index, level, tuple,
 					    PAGE_CUR_RTREE_INSERT,
 					    BTR_CONT_MODIFY_TREE,
-					    &cursor, 0, file, line, mtr);
+					    &cursor, 0, file, line, mtr, 0);
 	}
 
 	ut_ad(cursor.flag == BTR_CUR_BINARY);

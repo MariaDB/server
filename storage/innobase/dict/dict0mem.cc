@@ -126,6 +126,9 @@ dict_mem_table_create(
 	lock_table_lock_list_init(&table->locks);
 
 	UT_LIST_INIT(table->indexes, &dict_index_t::indexes);
+#ifdef BTR_CUR_HASH_ADAPT
+	UT_LIST_INIT(table->freed_indexes, &dict_index_t::indexes);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	table->heap = heap;
 
@@ -181,6 +184,10 @@ dict_mem_table_free(
 {
 	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+	ut_ad(UT_LIST_GET_LEN(table->indexes) == 0);
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(UT_LIST_GET_LEN(table->freed_indexes) == 0);
+#endif /* BTR_CUR_HASH_ADAPT */
 	ut_d(table->cached = FALSE);
 
 	if (dict_table_has_fts_index(table)

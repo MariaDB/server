@@ -2109,7 +2109,7 @@ ibuf_remove_free_page(void)
 	page from it. */
 
 	fseg_free_page(header_page + IBUF_HEADER + IBUF_TREE_SEG_HEADER,
-		       IBUF_SPACE_ID, page_no, false, &mtr);
+		       IBUF_SPACE_ID, page_no, &mtr);
 
 	const page_id_t	page_id(IBUF_SPACE_ID, page_no);
 

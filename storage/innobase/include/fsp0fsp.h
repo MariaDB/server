@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -568,22 +568,11 @@ fsp_get_available_space_in_free_extents(
 /**********************************************************************//**
 Frees a single page of a segment. */
 void
-fseg_free_page_func(
+fseg_free_page(
 	fseg_header_t*	seg_header, /*!< in: segment header */
 	ulint		space_id, /*!< in: space id */
 	ulint		page,	/*!< in: page offset */
-#ifdef BTR_CUR_HASH_ADAPT
-	bool		ahi,	/*!< in: whether we may need to drop
-				the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr);	/*!< in/out: mini-transaction */
-#ifdef BTR_CUR_HASH_ADAPT
-# define fseg_free_page(header, space_id, page, ahi, mtr)	\
-	fseg_free_page_func(header, space_id, page, ahi, mtr)
-#else /* BTR_CUR_HASH_ADAPT */
-# define fseg_free_page(header, space_id, page, ahi, mtr)	\
-	fseg_free_page_func(header, space_id, page, mtr)
-#endif /* BTR_CUR_HASH_ADAPT */
 /** Determine whether a page is free.
 @param[in,out]	space	tablespace
 @param[in]	page	page number
@@ -596,45 +585,25 @@ Frees part of a segment. This function can be used to free a segment
 by repeatedly calling this function in different mini-transactions.
 Doing the freeing in a single mini-transaction might result in
 too big a mini-transaction.
-@return TRUE if freeing completed */
-ibool
-fseg_free_step_func(
+@return whether the freeing was completed */
+bool
+fseg_free_step(
 	fseg_header_t*	header,	/*!< in, own: segment header; NOTE: if the header
 				resides on the first page of the frag list
 				of the segment, this pointer becomes obsolete
 				after the last freeing step */
-#ifdef BTR_CUR_HASH_ADAPT
-	bool		ahi,	/*!< in: whether we may need to drop
-				the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
-#ifdef BTR_CUR_HASH_ADAPT
-# define fseg_free_step(header, ahi, mtr) fseg_free_step_func(header, ahi, mtr)
-#else /* BTR_CUR_HASH_ADAPT */
-# define fseg_free_step(header, ahi, mtr) fseg_free_step_func(header, mtr)
-#endif /* BTR_CUR_HASH_ADAPT */
 /**********************************************************************//**
 Frees part of a segment. Differs from fseg_free_step because this function
 leaves the header page unfreed.
-@return TRUE if freeing completed, except the header page */
-ibool
-fseg_free_step_not_header_func(
+@return whether the freeing was completed, except for the header page */
+bool
+fseg_free_step_not_header(
 	fseg_header_t*	header,	/*!< in: segment header which must reside on
 				the first fragment page of the segment */
-#ifdef BTR_CUR_HASH_ADAPT
-	bool		ahi,	/*!< in: whether we may need to drop
-				the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
-#ifdef BTR_CUR_HASH_ADAPT
-# define fseg_free_step_not_header(header, ahi, mtr)	\
-	fseg_free_step_not_header_func(header, ahi, mtr)
-#else /* BTR_CUR_HASH_ADAPT */
-# define fseg_free_step_not_header(header, ahi, mtr)	\
-	fseg_free_step_not_header_func(header, mtr)
-#endif /* BTR_CUR_HASH_ADAPT */
 
 /** Reset the page type.
 Data files created before MySQL 5.1.48 may contain garbage in FIL_PAGE_TYPE.
