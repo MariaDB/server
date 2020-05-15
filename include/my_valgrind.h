@@ -1,4 +1,4 @@
-/* Copyright (C) 2010, 2019, MariaDB Corporation.
+/* Copyright (C) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@
 
 #if defined(HAVE_VALGRIND_MEMCHECK_H) && defined(HAVE_valgrind)
 # include <valgrind/memcheck.h>
+# define HAVE_valgrind_or_MSAN
 # define MEM_UNDEFINED(a,len) VALGRIND_MAKE_MEM_UNDEFINED(a,len)
 # define MEM_MAKE_DEFINED(a,len) VALGRIND_MAKE_MEM_DEFINED(a,len)
 # define MEM_NOACCESS(a,len) VALGRIND_MAKE_MEM_NOACCESS(a,len)
@@ -50,6 +51,7 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define REDZONE_SIZE 8
 #elif __has_feature(memory_sanitizer)
 # include <sanitizer/msan_interface.h>
+# define HAVE_valgrind_or_MSAN
 # define MEM_UNDEFINED(a,len) __msan_allocated_memory(a,len)
 # define MEM_MAKE_DEFINED(a,len) __msan_unpoison(a,len)
 # define MEM_NOACCESS(a,len) ((void) 0)

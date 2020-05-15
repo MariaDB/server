@@ -1,7 +1,7 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -850,13 +850,17 @@ public:
             enum_check_fields check_level);
   int store(const LEX_STRING *ls, CHARSET_INFO *cs)
   { return store(ls->str, (uint32) ls->length, cs); }
-  /*
+#ifdef HAVE_valgrind_or_MSAN
+  /**
     Mark unused memory in the field as defined. Mainly used to ensure
     that if we write full field to disk (for example in
     Count_distinct_field::add(), we don't write unitalized data to
     disk which would confuse valgrind or MSAN.
   */
   virtual void mark_unused_memory_as_defined() {}
+#else
+  void mark_unused_memory_as_defined() {}
+#endif
 
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
@@ -3250,7 +3254,9 @@ public:
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(longlong nr, bool unsigned_val);
   int  store(double nr) { return Field_str::store(nr); } /* QQ: To be deleted */
+#ifdef HAVE_valgrind_or_MSAN
   void mark_unused_memory_as_defined();
+#endif /* HAVE_valgrind_or_MSAN */
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
