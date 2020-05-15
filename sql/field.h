@@ -850,6 +850,14 @@ public:
             enum_check_fields check_level);
   int store(const LEX_STRING *ls, CHARSET_INFO *cs)
   { return store(ls->str, (uint32) ls->length, cs); }
+  /*
+    Mark unused memory in the field as defined. Mainly used to ensure
+    that if we write full field to disk (for example in
+    Count_distinct_field::add(), we don't write unitalized data to
+    disk which would confuse valgrind or MSAN.
+  */
+  virtual void mark_unused_memory_as_defined() {}
+
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
   /*
@@ -3242,6 +3250,7 @@ public:
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(longlong nr, bool unsigned_val);
   int  store(double nr) { return Field_str::store(nr); } /* QQ: To be deleted */
+  void mark_unused_memory_as_defined();
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
