@@ -91,6 +91,9 @@ extern "C" {
 #include <conio.h>
 #else
 #include <readline.h>
+#if !defined(USE_LIBEDIT_INTERFACE)
+#include <history.h>
+#endif
 #define HAVE_READLINE
 #define USE_POPEN
 #endif
@@ -1043,22 +1046,6 @@ static const char *embedded_server_groups[]=
 { "server", "embedded", "mysql_SERVER", "mariadb_SERVER", 0 };
 
 #ifdef HAVE_READLINE
-/*
- HIST_ENTRY is defined for libedit, but not for the real readline
- Need to redefine it for real readline to find it
-*/
-#if !defined(HAVE_HIST_ENTRY)
-typedef struct _hist_entry {
-  const char      *line;
-  const char      *data;
-} HIST_ENTRY; 
-#endif
-
-extern "C" int add_history(const char *command); /* From readline directory */
-extern "C" int read_history(const char *command);
-extern "C" int write_history(const char *command);
-extern "C" HIST_ENTRY *history_get(int num);
-extern "C" int history_length;
 static int not_in_history(const char *line);
 static void initialize_readline ();
 static void fix_history(String *final_command);
