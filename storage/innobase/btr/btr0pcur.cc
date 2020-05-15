@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -353,8 +353,11 @@ btr_pcur_restore_position_func(
 		mode = PAGE_CUR_UNSUPP;
 	}
 
-	btr_pcur_open_with_no_init_func(index, tuple, mode, latch_mode,
-					cursor, 0, file, line, mtr);
+	btr_pcur_open_with_no_init_func(index, tuple, mode, latch_mode, cursor,
+#ifdef BTR_CUR_HASH_ADAPT
+					0,
+#endif /* BTR_CUR_HASH_ADAPT */
+					file, line, mtr);
 
 	/* Restore the old search mode */
 	cursor->search_mode = old_mode;

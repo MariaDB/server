@@ -46,6 +46,9 @@ Completed by Sunny Bains and Marko Makela
 #include "row0vers.h"
 #include "handler0alter.h"
 #include "btr0bulk.h"
+#ifdef BTR_CUR_ADAPT
+# include "btr0sea.h"
+#endif /* BTR_CUR_ADAPT */
 #include "ut0stage.h"
 #include "fil0crypt.h"
 
@@ -162,7 +165,7 @@ public:
 						    PAGE_CUR_RTREE_INSERT,
 						    BTR_MODIFY_LEAF, &ins_cur,
 						    0, __FILE__, __LINE__,
-						    &mtr);
+						    &mtr, 0);
 
 			/* It need to update MBR in parent entry,
 			so change search mode to BTR_MODIFY_TREE */
@@ -178,7 +181,7 @@ public:
 					m_index, 0, dtuple,
 					PAGE_CUR_RTREE_INSERT,
 					BTR_MODIFY_TREE, &ins_cur, 0,
-					__FILE__, __LINE__, &mtr);
+					__FILE__, __LINE__, &mtr, 0);
 			}
 
 			error = btr_cur_optimistic_insert(
@@ -201,8 +204,7 @@ public:
 					PAGE_CUR_RTREE_INSERT,
 					BTR_MODIFY_TREE,
 					&ins_cur, 0,
-					__FILE__, __LINE__, &mtr);
-
+					__FILE__, __LINE__, &mtr, 0);
 
 				error = btr_cur_pessimistic_insert(
 						flag, &ins_cur, &ins_offsets,
@@ -3770,6 +3772,9 @@ row_merge_drop_indexes(
 					we should exclude FTS entries from
 					prebuilt->ins_node->entry_list
 					in ins_node_create_entry_list(). */
+#ifdef BTR_CUR_HASH_ADAPT
+					ut_ad(!index->search_info->ref_count);
+#endif /* BTR_CUR_HASH_ADAPT */
 					dict_index_remove_from_cache(
 						table, index);
 					index = prev;

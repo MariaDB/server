@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -53,15 +53,6 @@ btr_search_disable(
 /** Enable the adaptive hash search system. */
 void
 btr_search_enable();
-
-/** Returns the value of ref_count. The value is protected by latch.
-@param[in]	info		search info
-@param[in]	index		index identifier
-@return ref_count value. */
-ulint
-btr_search_info_get_ref_count(
-	btr_search_t*	info,
-	dict_index_t*	index);
 
 /*********************************************************************//**
 Updates the search info. */
@@ -156,18 +147,6 @@ btr_search_update_hash_on_delete(btr_cur_t* cursor);
 bool
 btr_search_validate();
 
-/** X-Lock the search latch (corresponding to given index)
-@param[in]	index	index handler */
-UNIV_INLINE
-void
-btr_search_x_lock(const dict_index_t* index);
-
-/** X-Unlock the search latch (corresponding to given index)
-@param[in]	index	index handler */
-UNIV_INLINE
-void
-btr_search_x_unlock(const dict_index_t* index);
-
 /** Lock all search latches in exclusive mode. */
 UNIV_INLINE
 void
@@ -177,18 +156,6 @@ btr_search_x_lock_all();
 UNIV_INLINE
 void
 btr_search_x_unlock_all();
-
-/** S-Lock the search latch (corresponding to given index)
-@param[in]	index	index handler */
-UNIV_INLINE
-void
-btr_search_s_lock(const dict_index_t* index);
-
-/** S-Unlock the search latch (corresponding to given index)
-@param[in]	index	index handler */
-UNIV_INLINE
-void
-btr_search_s_unlock(const dict_index_t* index);
 
 /** Lock all search latches in shared mode. */
 UNIV_INLINE
@@ -236,12 +203,8 @@ btr_get_search_table(const dict_index_t* index);
 #else /* BTR_CUR_HASH_ADAPT */
 # define btr_search_sys_create(size)
 # define btr_search_drop_page_hash_index(block)
-# define btr_search_s_lock(index)
-# define btr_search_s_unlock(index)
 # define btr_search_s_lock_all(index)
 # define btr_search_s_unlock_all(index)
-# define btr_search_x_lock(index)
-# define btr_search_x_unlock(index)
 # define btr_search_info_update(index, cursor)
 # define btr_search_move_or_delete_hash_entries(new_block, block, index)
 # define btr_search_update_hash_on_insert(cursor)
@@ -327,6 +290,18 @@ struct btr_search_t{
 };
 
 #ifdef BTR_CUR_HASH_ADAPT
+/** @return number of leaf pages pointed to by the adaptive hash index */
+inline ulint dict_index_t::n_ahi_pages() const
+{
+  if (!btr_search_enabled)
+    return 0;
+  rw_lock_t *latch = btr_get_search_latch(this);
+  rw_lock_s_lock(latch);
+  ulint ref_count= search_info->ref_count;
+  rw_lock_s_unlock(latch);
+  return ref_count;
+}
+
 /** The hash index system */
 struct btr_search_sys_t{
 	hash_table_t**	hash_tables;	/*!< the adaptive hash tables,

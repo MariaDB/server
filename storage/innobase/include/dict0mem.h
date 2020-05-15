@@ -831,6 +831,9 @@ struct dict_index_t{
 	dict_table_t*	table;	/*!< back pointer to table */
 	unsigned	space:32;
 				/*!< space where the index tree is placed */
+	/** root page number, or FIL_NULL if the index has been detached
+	from storage (DISCARD TABLESPACE or similar),
+	or 1 if the index is in table->freed_indexes */
 	unsigned	page:32;/*!< index tree root page number */
 	unsigned	merge_threshold:6;
 				/*!< In the pessimistic delete, if the page
@@ -1021,10 +1024,22 @@ struct dict_index_t{
 			for (unsigned i = 0; i < n_fields; i++) {
 				fields[i].col->detach(*this);
 			}
-
-			n_fields = 0;
 		}
 	}
+
+#ifdef BTR_CUR_HASH_ADAPT
+  /** @return a clone of this */
+  dict_index_t* clone() const;
+  /** Clone this index for lazy dropping of the adaptive hash index.
+  @return this or a clone */
+  dict_index_t* clone_if_needed();
+  /** @return number of leaf pages pointed to by the adaptive hash index */
+  inline ulint n_ahi_pages() const;
+  /** @return whether mark_freed() had been invoked */
+  bool freed() const { return UNIV_UNLIKELY(page == 1); }
+  /** Note that the index is waiting for btr_search_lazy_free() */
+  void set_freed() { ut_ad(!freed()); page= 1; }
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/** This ad-hoc class is used by record_size_info only.	*/
 	class record_size_info_t {
@@ -1605,6 +1620,11 @@ struct dict_table_t {
 
 	/** List of indexes of the table. */
 	UT_LIST_BASE_NODE_T(dict_index_t)	indexes;
+#ifdef BTR_CUR_HASH_ADAPT
+	/** List of detached indexes that are waiting to be freed along with
+	the last adaptive hash index entry */
+	UT_LIST_BASE_NODE_T(dict_index_t)	freed_indexes;
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/** List of foreign key constraints in the table. These refer to
 	columns in other tables. */

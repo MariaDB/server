@@ -3165,66 +3165,6 @@ DECLARE_THREAD(buf_resize_thread)(void*)
 	OS_THREAD_DUMMY_RETURN;
 }
 
-#ifdef BTR_CUR_HASH_ADAPT
-/** Clear the adaptive hash index on all pages in the buffer pool. */
-void
-buf_pool_clear_hash_index()
-{
-	ulint	p;
-
-	ut_ad(btr_search_own_all(RW_LOCK_X));
-	ut_ad(!buf_pool_resizing);
-	ut_ad(!btr_search_enabled);
-
-	for (p = 0; p < srv_buf_pool_instances; p++) {
-		buf_pool_t*	buf_pool = buf_pool_from_array(p);
-		buf_chunk_t*	chunks	= buf_pool->chunks;
-		buf_chunk_t*	chunk	= chunks + buf_pool->n_chunks;
-
-		while (--chunk >= chunks) {
-			buf_block_t*	block	= chunk->blocks;
-			ulint		i	= chunk->size;
-
-			for (; i--; block++) {
-				dict_index_t*	index	= block->index;
-				assert_block_ahi_valid(block);
-
-				/* We can set block->index = NULL
-				and block->n_pointers = 0
-				when btr_search_own_all(RW_LOCK_X);
-				see the comments in buf0buf.h */
-
-				if (!index) {
-# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-					ut_a(!block->n_pointers);
-# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-					continue;
-				}
-
-				ut_d(buf_page_state state
-				     = buf_block_get_state(block));
-				/* Another thread may have set the
-				state to BUF_BLOCK_REMOVE_HASH in
-				buf_LRU_block_remove_hashed().
-
-				The state change in buf_page_realloc()
-				is not observable here, because in
-				that case we would have !block->index.
-
-				In the end, the entire adaptive hash
-				index will be removed. */
-				ut_ad(state == BUF_BLOCK_FILE_PAGE
-				      || state == BUF_BLOCK_REMOVE_HASH);
-# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-				block->n_pointers = 0;
-# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-				block->index = NULL;
-			}
-		}
-	}
-}
-#endif /* BTR_CUR_HASH_ADAPT */
-
 /********************************************************************//**
 Relocate a buffer control block.  Relocates the block on the LRU list
 and in buf_pool->page_hash.  Does not relocate bpage->list.
@@ -4207,7 +4147,7 @@ static buf_block_t* buf_page_mtr_lock(buf_block_t *block,
   {
   case RW_NO_LATCH:
     fix_type= MTR_MEMO_BUF_FIX;
-    break;
+    goto done;
   case RW_S_LATCH:
     rw_lock_s_lock_inline(&block->lock, 0, file, line);
     fix_type= MTR_MEMO_PAGE_S_FIX;
@@ -4223,6 +4163,15 @@ static buf_block_t* buf_page_mtr_lock(buf_block_t *block,
     break;
   }
 
+#ifdef BTR_CUR_HASH_ADAPT
+  {
+    dict_index_t *index= block->index;
+    if (index && index->freed())
+      btr_search_drop_page_hash_index(block);
+  }
+#endif /* BTR_CUR_HASH_ADAPT */
+
+done:
   mtr_memo_push(mtr, block, fix_type);
   return block;
 }
@@ -4540,6 +4489,7 @@ evict_from_pool:
 			buf_pool_mutex_exit(buf_pool);
 			return(NULL);
 		}
+
 		break;
 
 	case BUF_BLOCK_ZIP_PAGE:
@@ -5087,9 +5037,11 @@ buf_page_get_known_nowait(
 
 	buf_pool = buf_pool_from_block(block);
 
+#ifdef BTR_CUR_HASH_ADAPT
 	if (mode == BUF_MAKE_YOUNG) {
 		buf_page_make_young_if_needed(&block->page);
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	ut_ad(!ibuf_inside(mtr) || mode == BUF_KEEP_OLD);
 
@@ -5132,9 +5084,12 @@ buf_page_get_known_nowait(
 		deleting a record from SYS_INDEXES. This check will be
 		skipped in recv_recover_page() as well. */
 
-		buf_page_mutex_enter(block);
-		ut_a(!block->page.file_page_was_freed);
-		buf_page_mutex_exit(block);
+# ifdef BTR_CUR_HASH_ADAPT
+		ut_ad(!block->page.file_page_was_freed
+		      || (block->index && block->index->freed()));
+# else /* BTR_CUR_HASH_ADAPT */
+		ut_ad(!block->page.file_page_was_freed);
+# endif /* BTR_CUR_HASH_ADAPT */
 	}
 #endif /* UNIV_DEBUG */
 
@@ -5627,6 +5582,12 @@ buf_page_create(
 		rw_lock_x_unlock(hash_lock);
 
 		buf_block_free(free_block);
+#ifdef BTR_CUR_HASH_ADAPT
+		if (block->page.state == BUF_BLOCK_FILE_PAGE
+		    && UNIV_LIKELY_NULL(block->index)) {
+			btr_search_drop_page_hash_index(block);
+		}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 		if (!recv_recovery_is_on()) {
 			return buf_page_get_with_no_latch(page_id, page_size,

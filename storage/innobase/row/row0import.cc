@@ -26,6 +26,9 @@ Created 2012-02-08 by Sunny Bains.
 
 #include "row0import.h"
 #include "btr0pcur.h"
+#ifdef BTR_CUR_HASH_ADAPT
+# include "btr0sea.h"
+#endif
 #include "que0que.h"
 #include "dict0boot.h"
 #include "dict0load.h"
@@ -4017,15 +4020,12 @@ row_import_for_mysql(
 	index entries that point to cached garbage pages in the buffer
 	pool, because PageConverter::operator() only evicted those
 	pages that were replaced by the imported pages. We must
-	discard all remaining adaptive hash index entries, because the
+	detach any remaining adaptive hash index entries, because the
 	adaptive hash index must be a subset of the table contents;
 	false positives are not tolerated. */
-	while (buf_LRU_drop_page_hash_for_tablespace(table)) {
-		if (trx_is_interrupted(trx)
-		    || srv_shutdown_state != SRV_SHUTDOWN_NONE) {
-			err = DB_INTERRUPTED;
-			break;
-		}
+	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes); index;
+	     index = UT_LIST_GET_NEXT(indexes, index)) {
+		index = index->clone_if_needed();
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 

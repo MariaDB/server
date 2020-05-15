@@ -864,8 +864,7 @@ search tuple should be performed in the B-tree. InnoDB does an insert
 immediately after the cursor. Thus, the cursor may end up on a user record,
 or on a page infimum record. */
 dberr_t
-btr_cur_search_to_nth_level(
-/*========================*/
+btr_cur_search_to_nth_level_func(
 	dict_index_t*	index,	/*!< in: index */
 	ulint		level,	/*!< in: the tree level of search */
 	const dtuple_t*	tuple,	/*!< in: data tuple; NOTE: n_fields_cmp in
@@ -887,10 +886,12 @@ btr_cur_search_to_nth_level(
 				to protect the record! */
 	btr_cur_t*	cursor, /*!< in/out: tree cursor; the cursor page is
 				s- or x-latched, but see also above! */
+#ifdef BTR_CUR_HASH_ADAPT
 	ulint		has_search_latch,
 				/*!< in: info on the latch mode the
 				caller currently has on search system:
 				RW_S_LATCH, or 0 */
+#endif /* BTR_CUR_HASH_ADAPT */
 	const char*	file,	/*!< in: file name */
 	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr,	/*!< in: mtr */
@@ -1053,6 +1054,7 @@ btr_cur_search_to_nth_level(
 	}
 
 #ifdef BTR_CUR_HASH_ADAPT
+	rw_lock_t* const search_latch = btr_get_search_latch(index);
 
 # ifdef UNIV_SEARCH_PERF_STAT
 	info->n_searches++;
@@ -1073,8 +1075,7 @@ btr_cur_search_to_nth_level(
 	    will have to check it again. */
 	    && btr_search_enabled
 	    && !modify_external
-	    && rw_lock_get_writer(btr_get_search_latch(index))
-	    == RW_LOCK_NOT_LOCKED
+	    && rw_lock_get_writer(search_latch) == RW_LOCK_NOT_LOCKED
 	    && btr_search_guess_on_hash(index, info, tuple, mode,
 					latch_mode, cursor,
 					has_search_latch, mtr)) {
@@ -1098,10 +1099,12 @@ btr_cur_search_to_nth_level(
 	/* If the hash search did not succeed, do binary search down the
 	tree */
 
+#ifdef BTR_CUR_HASH_ADAPT
 	if (has_search_latch) {
 		/* Release possible search latch to obey latching order */
-		btr_search_s_unlock(index);
+		rw_lock_s_unlock(search_latch);
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* Store the position of the tree latch we push to mtr so that we
 	know how to release it when we have latched leaf node(s) */
@@ -2155,9 +2158,11 @@ func_exit:
 		ut_free(prev_tree_savepoints);
 	}
 
+#ifdef BTR_CUR_HASH_ADAPT
 	if (has_search_latch) {
-		btr_search_s_lock(index);
+		rw_lock_s_lock(search_latch);
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (mbr_adj) {
 		/* remember that we will need to adjust parent MBR */
@@ -5746,7 +5751,7 @@ btr_estimate_n_rows_in_range_low(
 		btr_cur_search_to_nth_level(index, 0, tuple1, mode1,
 					    BTR_SEARCH_LEAF | BTR_ESTIMATE,
 					    &cursor, 0,
-					    __FILE__, __LINE__, &mtr);
+					    __FILE__, __LINE__, &mtr, 0);
 
 		ut_ad(!page_rec_is_infimum(btr_cur_get_rec(&cursor)));
 
@@ -5800,7 +5805,7 @@ btr_estimate_n_rows_in_range_low(
 		btr_cur_search_to_nth_level(index, 0, tuple2, mode2,
 					    BTR_SEARCH_LEAF | BTR_ESTIMATE,
 					    &cursor, 0,
-					    __FILE__, __LINE__, &mtr);
+					    __FILE__, __LINE__, &mtr, 0);
 
 		const rec_t*	rec = btr_cur_get_rec(&cursor);
 

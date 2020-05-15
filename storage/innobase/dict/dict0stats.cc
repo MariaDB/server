@@ -424,6 +424,9 @@ dict_stats_table_clone_create(
 	dict_table_stats_latch_create(t, false);
 
 	UT_LIST_INIT(t->indexes, &dict_index_t::indexes);
+#ifdef BTR_CUR_HASH_ADAPT
+	UT_LIST_INIT(t->freed_indexes, &dict_index_t::indexes);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	for (index = dict_table_get_first_index(table);
 	     index != NULL;
@@ -4005,6 +4008,9 @@ test_dict_stats_save()
 	table.stat_clustered_index_size = TEST_CLUSTERED_INDEX_SIZE;
 	table.stat_sum_of_other_index_sizes = TEST_SUM_OF_OTHER_INDEX_SIZES;
 	UT_LIST_INIT(table.indexes, &dict_index_t::indexes);
+#ifdef BTR_CUR_HASH_ADAPT
+	UT_LIST_INIT(table.freed_indexes, &dict_index_t::indexes);
+#endif /* BTR_CUR_HASH_ADAPT */
 	UT_LIST_ADD_LAST(table.indexes, &index1);
 	UT_LIST_ADD_LAST(table.indexes, &index2);
 	ut_d(table.magic_n = DICT_TABLE_MAGIC_N);
@@ -4154,6 +4160,9 @@ test_dict_stats_fetch_from_ps()
 	/* craft a dummy dict_table_t */
 	table.name.m_name = (char*) (TEST_DATABASE_NAME "/" TEST_TABLE_NAME);
 	UT_LIST_INIT(table.indexes, &dict_index_t::indexes);
+#ifdef BTR_CUR_HASH_ADAPT
+	UT_LIST_INIT(table.freed_indexes, &dict_index_t::indexes);
+#endif /* BTR_CUR_HASH_ADAPT */
 	UT_LIST_ADD_LAST(table.indexes, &index1);
 	UT_LIST_ADD_LAST(table.indexes, &index2);
 	ut_d(table.magic_n = DICT_TABLE_MAGIC_N);

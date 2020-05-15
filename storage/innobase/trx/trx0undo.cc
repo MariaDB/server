@@ -869,7 +869,7 @@ trx_undo_free_page(
 		    undo_page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE, mtr);
 
 	fseg_free_page(header_page + TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER,
-		       space, page_no, false, mtr);
+		       space, page_no, mtr);
 
 	last_addr = flst_get_last(header_page + TRX_UNDO_SEG_HDR
 				  + TRX_UNDO_PAGE_LIST, mtr);
@@ -1092,7 +1092,7 @@ trx_undo_seg_free(
 
 		file_seg = seg_header + TRX_UNDO_FSEG_HEADER;
 
-		finished = fseg_free_step(file_seg, false, &mtr);
+		finished = fseg_free_step(file_seg, &mtr);
 
 		if (finished) {
 			/* Update the rseg header */

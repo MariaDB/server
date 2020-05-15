@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -39,6 +39,7 @@ Created 2013-04-12 Sunny Bains
 #include "os0file.h"
 #include "que0que.h"
 #include "trx0undo.h"
+#include "btr0sea.h"
 
 /* FIXME: For temporary tables, use a simple approach of btr_free()
 and btr_create() of each index tree. */
@@ -1953,7 +1954,6 @@ dberr_t row_truncate_table_for_mysql(dict_table_t* table, trx_t* trx)
 		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 		     index != NULL;
 		     index = UT_LIST_GET_NEXT(indexes, index)) {
-
 			err = dict_truncate_index_tree_in_mem(index);
 
 			if (err != DB_SUCCESS) {
@@ -2002,6 +2002,15 @@ dberr_t row_truncate_table_for_mysql(dict_table_t* table, trx_t* trx)
 			log_buffer_flush_to_disk();
 			os_thread_sleep(2000000);
 			DBUG_SUICIDE(););
+
+#ifdef BTR_CUR_HASH_ADAPT
+	dict_table_x_unlock_indexes(table);
+	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes); index;
+	     index = UT_LIST_GET_NEXT(indexes, index)) {
+		index = index->clone_if_needed();
+	}
+	dict_table_x_lock_indexes(table);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* Step-10: Re-create new indexes. */
 	if (!dict_table_is_temporary(table)) {
