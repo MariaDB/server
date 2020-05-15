@@ -1128,6 +1128,13 @@ public:
     a constant expression. Used in the optimizer to propagate basic constants.
   */
   virtual bool basic_const_item() const { return 0; }
+  /*
+    Determines if the expression is allowed as
+    a virtual column assignment source:
+      INSERT INTO t1 (vcol) VALUES (10)    -> error
+      INSERT INTO t1 (vcol) VALUES (NULL)  -> ok
+  */
+  virtual bool vcol_assignment_allowed_value() const { return false; }
   /* cloning of constant items (0 if it is not const) */
   virtual Item *clone_item(THD *thd) { return 0; }
   virtual cond_result eq_cmp_result() const { return COND_OK; }
@@ -2626,6 +2633,7 @@ public:
     collation.set(cs, DERIVATION_IGNORABLE, MY_REPERTOIRE_ASCII);
   }
   enum Type type() const { return NULL_ITEM; }
+  bool vcol_assignment_allowed_value() const { return true; }
   bool eq(const Item *item, bool binary_cmp) const { return null_eq(item); }
   double val_real();
   longlong val_int();
@@ -2698,6 +2706,8 @@ public:
     STRING_VALUE, TIME_VALUE, LONG_DATA_VALUE,
     DECIMAL_VALUE
   } state;
+
+  bool vcol_assignment_allowed_value() const { return state == NULL_VALUE; }
 
   /*
     A buffer for string and long data values. Historically all allocated
@@ -4837,6 +4847,7 @@ public:
                 (const char *)NULL),
      arg(a) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
+  bool vcol_assignment_allowed_value() const { return arg == NULL; }
   bool eq(const Item *item, bool binary_cmp) const;
   bool fix_fields(THD *, Item **);
   virtual void print(String *str, enum_query_type query_type);

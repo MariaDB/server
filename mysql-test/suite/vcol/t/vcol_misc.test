@@ -365,6 +365,36 @@ SELECT COLUMN_GET(@aaa, 'price' AS DECIMAL) aaa;
 SELECT COLUMN_GET(@aaa, 'price' AS INT) aaa;
 SELECT COLUMN_GET(@aaa, 'price' AS DOUBLE) aaa;
 
+
+--echo #
+--echo # MDEV-22579 No error when inserting DEFAULT(non_virtual_column) into a virtual column
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE OR REPLACE TABLE t1 (
+ a INT NOT NULL DEFAULT 10,
+ b INT AS (a+1) VIRTUAL
+) ENGINE=MyISAM;
+
+# Testing with a column list
+
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN
+INSERT INTO t1 (b) VALUES (10);
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN
+INSERT INTO t1 (b) VALUES (DEFAULT(a));
+INSERT INTO t1 (b) VALUES (DEFAULT);
+
+# Testing without a column list
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN
+INSERT INTO t1 VALUES (10,10);
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN
+INSERT INTO t1 VALUES (10,DEFAULT(a));
+INSERT INTO t1 VALUES (10, DEFAULT);
+
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
 --echo #
 --echo # End of 10.1 tests
 --echo #
