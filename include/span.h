@@ -24,11 +24,33 @@ this program; if not, write to the Free Software Foundation, Inc.,
 namespace st_
 {
 
+namespace detail
+{
+
+template <class T> struct remove_cv
+{
+  typedef T type;
+};
+template <class T> struct remove_cv<const T>
+{
+  typedef T type;
+};
+template <class T> struct remove_cv<volatile T>
+{
+  typedef T type;
+};
+template <class T> struct remove_cv<const volatile T>
+{
+  typedef T type;
+};
+
+} // namespace detail
+
 template <class ElementType> class span
 {
 public:
   typedef ElementType element_type;
-  typedef ElementType value_type;
+  typedef typename detail::remove_cv<ElementType>::type value_type;
   typedef size_t size_type;
   typedef ptrdiff_t difference_type;
   typedef element_type *pointer;
@@ -38,7 +60,6 @@ public:
   typedef pointer iterator;
   typedef const_pointer const_iterator;
   typedef std::reverse_iterator<iterator> reverse_iterator;
-  typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 
   span() : data_(NULL), size_(0) {}
 
@@ -64,73 +85,72 @@ public:
 
   span &operator=(const span &other)
   {
-    data_= other.data_;
-    size_= other.size_;
+    data_= other.data();
+    size_= other.size();
     return *this;
   }
 
   template <size_t Count> span<element_type> first() const
   {
     assert(!empty());
-    return span(data_, 1);
+    return span(data(), 1);
   }
   template <size_t Count> span<element_type> last() const
   {
     assert(!empty());
-    return span(data_ + size() - 1, 1);
+    return span(data() + size() - 1, 1);
   }
 
   span<element_type> first(size_type count) const
   {
     assert(!empty());
-    return span(data_, 1);
+    return span(data(), 1);
   }
   span<element_type> last(size_type count) const
   {
     assert(!empty());
-    return span(data_ + size() - 1, 1);
+    return span(data() + size() - 1, 1);
   }
   span<element_type> subspan(size_type offset, size_type count) const
   {
     assert(!empty());
     assert(size() >= offset + count);
-    return span(data_ + offset, count);
+    return span(data() + offset, count);
   }
 
   size_type size() const { return size_; }
-  size_type size_bytes() const { return size_ * sizeof(ElementType); }
-  bool empty() const __attribute__((warn_unused_result)) { return size_ == 0; }
+  size_type size_bytes() const { return size() * sizeof(ElementType); }
+  bool empty() const __attribute__((warn_unused_result))
+  {
+    return size() == 0;
+  }
 
   reference operator[](size_type idx) const
   {
     assert(size() > idx);
-    return data_[idx];
+    return data()[idx];
   }
   reference front() const
   {
     assert(!empty());
-    return data_[0];
+    return data()[0];
   }
   reference back() const
   {
     assert(!empty());
-    return data_[size() - 1];
+    return data()[size() - 1];
   }
-  pointer data() const
-  {
-    assert(!empty());
-    return data_;
-  }
+  pointer data() const { return data_; }
 
   iterator begin() const { return data_; }
   iterator end() const { return data_ + size_; }
   reverse_iterator rbegin() const
   {
-    return std::reverse_iterator<iterator>(std::advance(end(), -1));
+    return std::reverse_iterator<iterator>(end());
   }
   reverse_iterator rend() const
   {
-    return std::reverse_iterator<iterator>(std::advance(begin(), -1));
+    return std::reverse_iterator<iterator>(begin());
   }
 
 private:

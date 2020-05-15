@@ -6109,9 +6109,8 @@ buf_page_io_complete(buf_page_t* bpage, bool dblwr, bool evict)
 
 		err = buf_page_check_corrupt(bpage, space);
 
-database_corrupted:
-
 		if (err != DB_SUCCESS) {
+database_corrupted:
 			/* Not a real corruption if it was triggered by
 			error injection */
 			DBUG_EXECUTE_IF(
@@ -6127,6 +6126,11 @@ database_corrupted:
 				err = DB_SUCCESS;
 				goto page_not_corrupt;
 			);
+
+			if (uncompressed && bpage->zip.data) {
+				memset(reinterpret_cast<buf_block_t*>(bpage)
+				       ->frame, 0, srv_page_size);
+			}
 
 			if (err == DB_PAGE_CORRUPTED) {
 				ib::error()

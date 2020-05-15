@@ -1124,13 +1124,6 @@ struct srv_slot_t{
 						to do */
 	que_thr_t*	thr;			/*!< suspended query thread
 						(only used for user threads) */
-#ifdef UNIV_DEBUG
-	struct debug_sync_t {
-		UT_LIST_NODE_T(debug_sync_t) debug_sync_list;
-	};
-	UT_LIST_BASE_NODE_T(debug_sync_t) debug_sync;
-	rw_lock_t debug_sync_lock;
-#endif
 };
 
 #ifdef UNIV_DEBUG

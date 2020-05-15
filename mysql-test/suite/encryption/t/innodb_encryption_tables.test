@@ -1,6 +1,8 @@
 -- source include/have_innodb.inc
 -- source include/have_example_key_management_plugin.inc
 -- source include/not_embedded.inc
+# We can't run this test under valgrind as it 'takes forever'
+-- source include/not_valgrind.inc
 
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact;

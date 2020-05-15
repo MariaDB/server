@@ -2515,13 +2515,6 @@ DECLARE_THREAD(srv_worker_thread)(
 
 	slot = srv_reserve_slot(SRV_WORKER);
 
-#ifdef UNIV_DEBUG
-	UT_LIST_INIT(slot->debug_sync,
-		     &srv_slot_t::debug_sync_t::debug_sync_list);
-	rw_lock_create(PFS_NOT_INSTRUMENTED, &slot->debug_sync_lock,
-		       SYNC_NO_ORDER_CHECK);
-#endif
-
 	ut_a(srv_n_purge_threads > 1);
 	ut_a(ulong(my_atomic_loadlint(&srv_sys.n_threads_active[SRV_WORKER]))
 	     < srv_n_purge_threads);
@@ -2743,12 +2736,6 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	slot = srv_reserve_slot(SRV_PURGE);
 
-#ifdef UNIV_DEBUG
-	UT_LIST_INIT(slot->debug_sync,
-		     &srv_slot_t::debug_sync_t::debug_sync_list);
-	rw_lock_create(PFS_NOT_INSTRUMENTED, &slot->debug_sync_lock,
-		       SYNC_NO_ORDER_CHECK);
-#endif
 	ulint	rseg_history_len = trx_sys.history_size();
 
 	do {

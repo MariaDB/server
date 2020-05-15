@@ -27,7 +27,6 @@ Updated 14/02/2015
 #include "fil0fil.h"
 #include "fil0pagecompress.h"
 
-#include <debug_sync.h>
 #include <my_dbug.h>
 
 #include "mem0mem.h"

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3007,7 +3007,6 @@ fseg_free_extent(
 #endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*			mtr)
 {
-	ulint	first_page_in_extent;
 	xdes_t*	descr;
 	ulint	not_full_n_used;
 	ulint	descr_n_used;
@@ -3022,7 +3021,9 @@ fseg_free_extent(
 	      == FSEG_MAGIC_N_VALUE);
 	ut_d(space->modify_check(*mtr));
 
-	first_page_in_extent = page - (page % FSP_EXTENT_SIZE);
+#if defined BTR_CUR_HASH_ADAPT || defined UNIV_DEBUG
+	const ulint first_page_in_extent = page - (page % FSP_EXTENT_SIZE);
+#endif /* BTR_CUR_HASH_ADAPT || UNIV_DEBUG */
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (ahi) {

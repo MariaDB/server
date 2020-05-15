@@ -1382,7 +1382,7 @@ void Field::error_generated_column_function_is_not_allowed(THD *thd,
                                 QT_ITEM_IDENT_SKIP_TABLE_NAMES));
   my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED,
            MYF(error ? 0 : ME_JUST_WARNING),
-           tmp.c_ptr(), vcol_info->get_vcol_type_name(),
+           tmp.c_ptr_safe(), vcol_info->get_vcol_type_name(),
            const_cast<const char*>(field_name.str));
 }
 
@@ -7674,6 +7674,15 @@ my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
   return decimal_value;
 
 }
+
+
+#ifdef HAVE_valgrind_or_MSAN
+void Field_varstring::mark_unused_memory_as_defined()
+{
+  uint used_length= get_length();
+  MEM_MAKE_DEFINED(get_data() + used_length, field_length - used_length);
+}
+#endif
 
 
 int Field_varstring::cmp_max(const uchar *a_ptr, const uchar *b_ptr,

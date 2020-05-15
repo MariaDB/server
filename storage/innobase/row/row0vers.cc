@@ -465,7 +465,6 @@ row_vers_build_clust_v_col(
 		vcol_info->set_used();
 		maria_table = vcol_info->table();
 	}
-	DEBUG_SYNC(current_thd, "ib_clust_v_col_before_row_allocated");
 
 	innobase_allocate_row_for_vcol(thd, index,
 				       &local_heap,

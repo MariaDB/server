@@ -1669,6 +1669,7 @@ public:
   */
   virtual bool add()
   {
+    table_field->mark_unused_memory_as_defined();
     return tree->unique_add(table_field->ptr);
   }
   
