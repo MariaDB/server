@@ -126,7 +126,7 @@ struct thread_group_counters_t
   ulonglong polls[2];
 };
 
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) thread_group_t
+struct thread_group_t
 {
   mysql_mutex_t mutex;
   connection_queue_t queues[NQUEUES];
@@ -145,6 +145,7 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) thread_group_t
   bool shutdown;
   bool stalled;
   thread_group_counters_t counters;
+  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
 };
 
 #define TP_INCREMENT_GROUP_COUNTER(group,var) do {group->counters.var++;}while(0)
