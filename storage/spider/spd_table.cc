@@ -406,7 +406,7 @@ extern ulonglong  spider_free_mem_count[SPIDER_MEM_CALC_LIST_NUM];
 static char spider_wild_many = '%', spider_wild_one = '_',
   spider_wild_prefix='\\';
 
-static char spider_unique_id_buf[1 + 12 + 1 + 16 + 1 + 1];
+static char spider_unique_id_buf[1 + 12 + 1 + (16 * 2) + 1 + 1];
 LEX_CSTRING spider_unique_id;
 
 // for spider_open_tables
@@ -7244,7 +7244,7 @@ int spider_db_init(
 ) {
   int error_num = HA_ERR_OUT_OF_MEM, roop_count;
   uint dbton_id = 0;
-  char addr[6];
+  uchar addr[6];
   handlerton *spider_hton = (handlerton *)p;
   DBUG_ENTER("spider_db_init");
   spider_hton_ptr = spider_hton;
