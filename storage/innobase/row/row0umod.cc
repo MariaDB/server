@@ -216,8 +216,7 @@ static bool row_undo_mod_must_purge(undo_node_t* node, mtr_t* mtr)
 
 	mtr->s_lock(&purge_sys.latch, __FILE__, __LINE__);
 
-	if (!purge_sys.view.changes_visible(node->new_trx_id,
-					    node->table->name)) {
+	if (!purge_sys.changes_visible(node->new_trx_id, node->table->name)) {
 		return false;
 	}
 
@@ -422,8 +421,8 @@ row_undo_mod_clust(
 		}
 		rec_t* rec = btr_pcur_get_rec(pcur);
 		mtr.s_lock(&purge_sys.latch, __FILE__, __LINE__);
-		if (!purge_sys.view.changes_visible(node->new_trx_id,
-						   node->table->name)) {
+		if (!purge_sys.changes_visible(node->new_trx_id,
+					       node->table->name)) {
 			goto mtr_commit_exit;
 		}
 

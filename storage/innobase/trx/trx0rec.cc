@@ -2174,11 +2174,9 @@ trx_undo_get_undo_rec(
 	const table_name_t&	name,
 	trx_undo_rec_t**	undo_rec)
 {
-	bool		missing_history;
-
 	rw_lock_s_lock(&purge_sys.latch);
 
-	missing_history = purge_sys.view.changes_visible(trx_id, name);
+	bool missing_history = purge_sys.changes_visible(trx_id, name);
 	if (!missing_history) {
 		*undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
 	}
@@ -2344,7 +2342,7 @@ trx_undo_prev_version_build(
 
 			rw_lock_s_lock(&purge_sys.latch);
 
-			missing_extern = purge_sys.view.changes_visible(
+			missing_extern = purge_sys.changes_visible(
 				trx_id,	index->table->name);
 
 			rw_lock_s_unlock(&purge_sys.latch);

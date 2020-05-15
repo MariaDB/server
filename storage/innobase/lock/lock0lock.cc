@@ -4595,15 +4595,7 @@ lock_trx_print_wait_and_mvcc_state(FILE* file, const trx_t* trx, time_t now)
 	fprintf(file, "---");
 
 	trx_print_latched(file, trx, 600);
-
-	/* Note: read_view->get_state() check is race condition. But it
-	should "kind of work" because read_view is freed only at shutdown.
-	Worst thing that may happen is that it'll get transferred to
-	another thread and print wrong values. */
-
-	if (trx->read_view.get_state() == READ_VIEW_STATE_OPEN) {
-		trx->read_view.print_limits(file);
-	}
+	trx->read_view.print_limits(file);
 
 	if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 
@@ -5169,8 +5161,8 @@ lock_validate()
 				    (lock_validate_table_locks), 0);
 
 	/* Iterate over all the record locks and validate the locks. We
-	don't want to hog the lock_sys_t::mutex and the trx_sys_t::mutex.
-	Release both mutexes during the validation check. */
+	don't want to hog the lock_sys_t::mutex. Release it during the
+	validation check. */
 
 	for (ulint i = 0; i < hash_get_n_cells(lock_sys.rec_hash); i++) {
 		ib_uint64_t	limit = 0;

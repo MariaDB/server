@@ -435,7 +435,6 @@ row_build_low(
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
 	ut_ad(dict_index_is_clust(index));
-	ut_ad(!mutex_own(&trx_sys.mutex));
 	ut_ad(!col_map || col_table);
 
 	if (!offsets) {

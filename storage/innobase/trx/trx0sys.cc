@@ -48,7 +48,7 @@ trx_sys_t		trx_sys;
 @param[in]	id              transaction id to check
 @param[in]      name            table name */
 void
-ReadView::check_trx_id_sanity(
+ReadViewBase::check_trx_id_sanity(
 	trx_id_t		id,
 	const table_name_t&	name)
 {

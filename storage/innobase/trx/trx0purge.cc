@@ -555,9 +555,9 @@ static void trx_purge_truncate_history()
 	purge_sys_t::iterator& head = purge_sys.head.commit
 		? purge_sys.head : purge_sys.tail;
 
-	if (head.trx_no() >= purge_sys.view.low_limit_no()) {
+	if (head.trx_no() >= purge_sys.low_limit_no()) {
 		/* This is sometimes necessary. TODO: find out why. */
-		head.reset_trx_no(purge_sys.view.low_limit_no());
+		head.reset_trx_no(purge_sys.low_limit_no());
 		head.undo_no = 0;
 	}
 
@@ -978,7 +978,7 @@ trx_purge_get_next_rec(
 	mtr_t		mtr;
 
 	ut_ad(purge_sys.next_stored);
-	ut_ad(purge_sys.tail.trx_no() < purge_sys.view.low_limit_no());
+	ut_ad(purge_sys.tail.trx_no() < purge_sys.low_limit_no());
 
 	const ulint space = purge_sys.rseg->space->id;
 	const uint32_t page_no = purge_sys.page_no;
@@ -1068,7 +1068,7 @@ trx_purge_fetch_next_rec(
 		}
 	}
 
-	if (purge_sys.tail.trx_no() >= purge_sys.view.low_limit_no()) {
+	if (purge_sys.tail.trx_no() >= purge_sys.low_limit_no()) {
 
 		return(NULL);
 	}
@@ -1213,9 +1213,7 @@ trx_purge_dml_delay(void)
 	thread. */
 	ulint	delay = 0; /* in microseconds; default: no delay */
 
-	/* If purge lag is set (ie. > 0) then calculate the new DML delay.
-	Note: we do a dirty read of the trx_sys_t data structure here,
-	without holding trx_sys.mutex. */
+	/* If purge lag is set then calculate the new DML delay. */
 
 	if (srv_max_purge_lag > 0) {
 		double ratio = static_cast<double>(trx_sys.rseg_history_len) /
@@ -1273,9 +1271,7 @@ ulint trx_purge(ulint n_tasks, bool truncate)
 
 	srv_dml_needed_delay = trx_purge_dml_delay();
 
-	rw_lock_x_lock(&purge_sys.latch);
-	trx_sys.clone_oldest_view();
-	rw_lock_x_unlock(&purge_sys.latch);
+	purge_sys.clone_oldest_view();
 
 #ifdef UNIV_DEBUG
 	if (srv_purge_view_update_only_debug) {

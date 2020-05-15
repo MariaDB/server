@@ -671,8 +671,6 @@ trx_rseg_create(ulint space_id)
 
 	mtr.start();
 
-	/* To obey the latching order, acquire the file space
-	x-latch before the trx_sys.mutex. */
 	fil_space_t*	space = mtr_x_lock_space(space_id, &mtr);
 	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
 

@@ -814,7 +814,7 @@ public:
   */
   MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<uint32_t> rseg_history_len;
 
-  /** Mutex protecting trx_list. */
+  /** Mutex protecting trx_list AND NOTHING ELSE. */
   MY_ALIGNED(CACHE_LINE_SIZE) mutable TrxSysMutex mutex;
 
   /** List of all transactions. */
@@ -1086,7 +1086,7 @@ public:
     in. This function is called by purge thread to determine whether it should
     purge the delete marked record or not.
   */
-  void clone_oldest_view();
+  void clone_oldest_view(ReadViewBase *view) const;
 
 
   /** @return the number of active views */
@@ -1098,7 +1098,7 @@ public:
     for (const trx_t *trx= UT_LIST_GET_FIRST(trx_list); trx;
          trx= UT_LIST_GET_NEXT(trx_list, trx))
     {
-      if (trx->read_view.get_state() == READ_VIEW_STATE_OPEN)
+      if (trx->read_view.is_open())
         ++count;
     }
     mutex_exit(&mutex);

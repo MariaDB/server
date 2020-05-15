@@ -128,8 +128,11 @@ class purge_sys_t
 public:
 	/** latch protecting view, m_enabled */
 	MY_ALIGNED(CACHE_LINE_SIZE)
-	rw_lock_t	latch;
+	mutable rw_lock_t		latch;
 private:
+	/** The purge will not remove undo logs which are >= this view */
+	MY_ALIGNED(CACHE_LINE_SIZE)
+	ReadViewBase	view;
 	/** whether purge is enabled; protected by latch and std::atomic */
 	std::atomic<bool>		m_enabled;
 	/** number of pending stop() calls without resume() */
@@ -137,9 +140,6 @@ private:
 public:
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	ReadView	view;		/*!< The purge will not remove undo logs
-					which are >= this view (purge view) */
 
 	/** Iterator to the undo log records of committed transactions */
 	struct iterator
@@ -246,6 +246,27 @@ public:
   void stop();
   /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
   void resume();
+  /** A wrapper around ReadView::changes_visible(). */
+  bool changes_visible(trx_id_t id, const table_name_t &name) const
+  {
+    ut_ad(rw_lock_own(&latch, RW_LOCK_S));
+    return view.changes_visible(id, name);
+  }
+  /** A wrapper around ReadView::low_limit_no(). */
+  trx_id_t low_limit_no() const
+  {
+#if 0 /* Unfortunately we don't hold this assertion, see MDEV-22718. */
+    ut_ad(rw_lock_own(&latch, RW_LOCK_S));
+#endif
+    return view.low_limit_no();
+  }
+  /** A wrapper around trx_sys_t::clone_oldest_view(). */
+  void clone_oldest_view()
+  {
+    rw_lock_x_lock(&latch);
+    trx_sys.clone_oldest_view(&view);
+    rw_lock_x_unlock(&latch);
+  }
 };
 
 /** The global data structure coordinating a purge */
