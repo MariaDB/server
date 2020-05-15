@@ -1,24 +1,10 @@
-Running bootstrap
-Creating my.ini file
-Removing default user
-Allowing remote access for user root
-Setting root password
-Creation of the database was successful
-# Kill the server
-# restart: --datadir=MYSQLTEST_VARDIR/tmp/ddir --loose-innodb
-connect root,localhost,root,foo;
-SELECT @@datadir;
-@@datadir
-DATADIR/
-# Kill the server
-connection default;
 [mysqld]
 long_query_time=15.000000
 #slow_query_log_file=l:/errorlog/mariadb.slow.log
 slow_query_log_file=BASEDIR/data/slow_query_log_01.log
-datadir=BASEDIR/data
+datadir=BASEDIR/data/
 server-id=1
-port=3307
+port=3306
 #tmpdir=C:/mysql_tmpdir
 tmpdir=BASEDIR/temp
 innodb_data_file_path=ibdata1:10M;ibdata2:10M:autoextend
@@ -30,6 +16,3 @@ skip-name-resolve
 #*********************************************************
 performance_schema=OFF
 
-[client]
-port=3307
-# restart
