@@ -11086,7 +11086,7 @@ Virtual_column_info* Virtual_column_info::clone(THD *thd)
     return NULL;
   if (expr)
   {
-    dst->expr= expr->get_copy(thd);
+    dst->expr= expr->build_clone(thd);
     if (!dst->expr)
       return NULL;
   }

@@ -2730,6 +2730,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.imerge_cost_buff_size= 0;
     param.using_real_indexes= TRUE;
     param.remove_jump_scans= TRUE;
+    param.max_key_parts= 0;
     param.remove_false_where_parts= remove_false_parts_of_where;
     param.force_default_mrr= ordered_output;
     param.possible_keys.clear_all();
@@ -3451,6 +3452,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     param.using_real_indexes= FALSE;
     param.real_keynr[0]= 0;
     param.alloced_sel_args= 0;
+    param.max_key_parts= 0;
 
     thd->no_errors=1;		    
 

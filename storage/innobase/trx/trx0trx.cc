@@ -351,14 +351,13 @@ trx_t *trx_create()
 {
 	trx_t*	trx = trx_pools->get();
 
-	assert_trx_is_free(trx);
+	trx->assert_freed();
 
 	mem_heap_t*	heap;
 	ib_alloc_t*	alloc;
 
 	/* We just got trx from pool, it should be non locking */
 	ut_ad(trx->will_lock == 0);
-	ut_ad(trx->state == TRX_STATE_NOT_STARTED);
 	ut_ad(!trx->rw_trx_hash_pins);
 
 	DBUG_LOG("trx", "Create: " << trx);
@@ -381,7 +380,7 @@ trx_t *trx_create()
 	ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
 
 #ifdef WITH_WSREP
-	trx->wsrep_event = NULL;
+	trx->wsrep_event= NULL;
 #endif /* WITH_WSREP */
 
 	trx_sys.register_trx(trx);
@@ -430,11 +429,11 @@ void trx_free(trx_t*& trx)
 	}
 
 	trx->dict_operation = TRX_DICT_OP_NONE;
-	assert_trx_is_inactive(trx);
+	ut_ad(!trx->dict_operation_lock_mode);
 
 	trx_sys.deregister_trx(trx);
 
-	assert_trx_is_free(trx);
+	trx->assert_freed();
 
 	trx_sys.rw_trx_hash.put_pins(trx);
 	trx->mysql_thd = 0;
@@ -1481,7 +1480,6 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
 
   trx_mutex_enter(this);
   dict_operation= TRX_DICT_OP_NONE;
-  lock.was_chosen_as_deadlock_victim= false;
 
   DBUG_LOG("trx", "Commit in memory: " << this);
   state= TRX_STATE_NOT_STARTED;
@@ -1495,9 +1493,10 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
     wsrep= false;
     wsrep_commit_ordered(mysql_thd);
   }
+  lock.was_chosen_as_wsrep_victim= false;
 #endif /* WITH_WSREP */
 
-  assert_trx_is_free(this);
+  assert_freed();
   trx_init(this);
   trx_mutex_exit(this);
 

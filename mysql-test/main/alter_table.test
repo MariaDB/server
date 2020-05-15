@@ -2078,6 +2078,44 @@ drop view v1;
 --echo #
 
 --echo #
+--echo # MDEV-22563 Segfault on duplicate free of Item_func_in::array
+--echo #
+create or replace table person_principal (
+  person_id bigint not null,
+  insurant_id varchar(10) not null,
+  principal_id bigint not null,
+  principal_officer_id bigint not null,
+  nursing_degree tinyint null,
+  nursing_degree_valid_from date not null default cast(current_timestamp(6) as date),
+  carma_user_id bigint not null,
+  current_date_time timestamp(6) not null default current_timestamp(6) on update current_timestamp(6),
+  constraint pk_person_principal primary key (person_id asc),
+  constraint ck_person_principal_nursing_degree check (nursing_degree in (1,2,3,4,5)));
+
+create or replace table person_principal_hist (
+  person_id bigint not null,
+  insurant_id varchar(10) not null,
+  principal_id bigint not null,
+  principal_officer_id bigint not null,
+  nursing_degree tinyint null,
+  nursing_degree_valid_from date not null default cast(now() as date),
+  carma_user_id bigint not null,
+  orig_date_time datetime(6) not null,
+  constraint pk_person_principal_hist primary key (person_id asc, orig_date_time asc),
+  constraint ck_person_principal_hist_nursing_degree check (nursing_degree in (1,2,3,4,5)));
+
+insert into person_principal (person_id, insurant_id, principal_id, principal_officer_id, nursing_degree, nursing_degree_valid_from, carma_user_id)
+values (1, 'A123456789', 5, 1, 1, '2018-05-06', 1);
+alter table person_principal add column if not exists date_mask tinyint null;
+update person_principal set date_mask = 0;
+alter table person_principal modify column date_mask tinyint not null;
+drop tables person_principal_hist, person_principal;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+--echo #
 --echo # MDEV-16290 ALTER TABLE ... RENAME COLUMN syntax
 --echo #
 SET @save_default_engine= @@DEFAULT_STORAGE_ENGINE;
@@ -2456,10 +2494,6 @@ select i.name as k, f.name as c from information_schema.innodb_sys_tables as t,
 where t.name='test/t1' and t.table_id = i.table_id and i.index_id = f.index_id
 order by k, c;
 drop table t1;
-
---echo #
---echo # End of 10.5 tests
---echo #
 
 --echo #
 --echo # ALTER TABLE IF EXISTS
