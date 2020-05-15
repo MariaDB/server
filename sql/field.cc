@@ -1438,7 +1438,7 @@ void Field::error_generated_column_function_is_not_allowed(THD *thd,
                                 QT_ITEM_IDENT_SKIP_TABLE_NAMES));
   my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED,
            MYF(error ? 0 : ME_JUST_WARNING),
-           tmp.c_ptr(), vcol_info->get_vcol_type_name(),
+           tmp.c_ptr_safe(), vcol_info->get_vcol_type_name(),
            const_cast<const char*>(field_name));
 }
 
