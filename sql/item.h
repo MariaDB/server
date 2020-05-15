@@ -1586,6 +1586,7 @@ public:
   virtual bool is_order_clause_position() const { return false; }
   /* cloning of constant items (0 if it is not const) */
   virtual Item *clone_item(THD *thd) { return 0; }
+  /* deep copy item */
   virtual Item* build_clone(THD *thd) { return get_copy(thd); }
   virtual cond_result eq_cmp_result() const { return COND_OK; }
   inline uint float_length(uint decimals_par) const
@@ -2031,6 +2032,10 @@ public:
   virtual bool check_index_dependence(void *arg) { return 0; }
   /*============== End of Item processor list ======================*/
 
+  /*
+    Does not guarantee deep copy (depends on copy ctor).
+    See build_clone() for deep copy.
+  */
   virtual Item *get_copy(THD *thd)=0;
 
   bool cache_const_expr_analyzer(uchar **arg);
