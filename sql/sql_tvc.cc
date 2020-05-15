@@ -52,7 +52,14 @@ bool fix_fields_for_tvc(THD *thd, List_iterator_fast<List_item> &li)
 
     while ((item= it++))
     {
-      if (item->fix_fields(thd, 0))
+      /*
+        Some items have already been fixed.
+        For example Item_splocal items get fixed in
+        Item_splocal::append_for_log(), which is called from subst_spvars()
+        while replacing their values to NAME_CONST()s.
+        So fix only those that have not been.
+      */
+      if (item->fix_fields_if_needed(thd, 0))
 	DBUG_RETURN(true);
     }
   }

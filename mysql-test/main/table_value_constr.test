@@ -1326,3 +1326,16 @@ create view v1 as with t(a) as (values (2), (1)) select a from t;
 show create view v1;
 select * from v1;
 drop view v1;
+
+
+--echo #
+--echo # MDEV-22560 Crash on a table value constructor with an SP variable
+--echo #
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a INT DEFAULT 0;
+  VALUES (a) UNION SELECT 1;
+END;
+$$
+DELIMITER ;$$
