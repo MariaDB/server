@@ -245,10 +245,10 @@ void _ma_bitmap_set_pagecache_callbacks(PAGECACHE_FILE *file,
 void _ma_print_bitmap(MARIA_FILE_BITMAP *bitmap, uchar *data,
                       pgcache_page_no_t page);
 #endif
-void _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
-                                uchar *bitmap_data,
-                                pgcache_page_no_t page,
-                                char *out);
+size_t _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
+                                  uchar *bitmap_data,
+                                  pgcache_page_no_t page,
+                                  char *out);
 
 uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
                                             uint page_type,

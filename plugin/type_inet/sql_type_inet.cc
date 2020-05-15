@@ -1411,7 +1411,7 @@ void Type_handler_inet6::sort_length(THD *thd,
                                      const Type_std_attributes *item,
                                      SORT_FIELD_ATTR *attr) const
 {
-  attr->length= Inet6::binary_length();
+  attr->original_length= attr->length= Inet6::binary_length();
   attr->suffix_length= 0;
 }
 

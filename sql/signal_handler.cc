@@ -52,8 +52,9 @@ static inline void output_core_info()
   char buff[PATH_MAX];
   ssize_t len;
   int fd;
-  if ((len= readlink("/proc/self/cwd", buff, sizeof(buff))) >= 0)
+  if ((len= readlink("/proc/self/cwd", buff, sizeof(buff)-1)) >= 0)
   {
+    buff[len]= 0;
     my_safe_printf_stderr("Writing a core file...\nWorking directory at %.*s\n",
                           (int) len, buff);
   }

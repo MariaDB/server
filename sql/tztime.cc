@@ -1900,7 +1900,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
       Most probably user has mistyped time zone name, so no need to bark here
       unless we need it for debugging.
     */
-     sql_print_error("Can't find description of time zone '%.*s'", 
+     sql_print_error("Can't find description of time zone '%.*b'",
                      tz_name->length(), tz_name->ptr());
 #endif
     goto end;

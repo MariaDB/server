@@ -2238,7 +2238,7 @@ prototype_redo_exec_hook(CLR_END)
 
 prototype_redo_exec_hook(DEBUG_INFO)
 {
-  uchar *data;
+  char *data;
   enum translog_debug_info_type debug_info;
 
   enlarge_buffer(rec);
@@ -2251,11 +2251,10 @@ prototype_redo_exec_hook(DEBUG_INFO)
     return 1;
   }
   debug_info= (enum translog_debug_info_type) log_record_buffer.str[0];
-  data= log_record_buffer.str + 1;
+  data= (char*) log_record_buffer.str + 1;
   switch (debug_info) {
   case LOGREC_DEBUG_INFO_QUERY:
-    tprint(tracef, "Query: %.*s\n", rec->record_length - 1,
-           (char*) data);
+    tprint(tracef, "Query: %.*b\n", (int) rec->record_length - 1, data);
     break;
   default:
     DBUG_ASSERT(0);
