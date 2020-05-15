@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -722,8 +722,10 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 {
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 #ifdef BTR_CUR_HASH_ADAPT
-	ut_ad(!block->index || !blob);
-	ut_ad(!block->index || page_is_leaf(block->frame));
+	if (block->index && !block->index->freed()) {
+		ut_ad(!blob);
+		ut_ad(page_is_leaf(block->frame));
+	}
 #endif
 	ut_ad(index->table->space_id == block->page.id.space());
 	/* The root page is freed by btr_free_root(). */
@@ -748,8 +750,7 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 					  ? PAGE_HEADER + PAGE_BTR_SEG_LEAF
 					  : PAGE_HEADER + PAGE_BTR_SEG_TOP];
 	fseg_free_page(seg_header,
-		       index->table->space, block->page.id.page_no(),
-		       block->index != NULL, mtr);
+		       index->table->space, block->page.id.page_no(), mtr);
 
 	/* The page was marked free in the allocation bitmap, but it
 	should remain exclusively latched until mtr_t::commit() or until it
@@ -1004,7 +1005,7 @@ static void btr_free_root(buf_block_t* block, mtr_t* mtr, bool invalidate)
 			BTR_FREED_INDEX_ID, mtr);
 	}
 
-	while (!fseg_free_step(header, true, mtr)) {
+	while (!fseg_free_step(header, mtr)) {
 		/* Free the entire segment in small steps. */
 	}
 }
@@ -1251,7 +1252,7 @@ leaf_loop:
 	fsp0fsp. */
 
 	finished = fseg_free_step(root + PAGE_HEADER + PAGE_BTR_SEG_LEAF,
-				  true, &mtr);
+				  &mtr);
 	mtr_commit(&mtr);
 
 	if (!finished) {
@@ -1271,7 +1272,7 @@ top_loop:
 #endif /* UNIV_BTR_DEBUG */
 
 	finished = fseg_free_step_not_header(
-		root + PAGE_HEADER + PAGE_BTR_SEG_TOP, true, &mtr);
+		root + PAGE_HEADER + PAGE_BTR_SEG_TOP, &mtr);
 	mtr_commit(&mtr);
 
 	if (!finished) {
