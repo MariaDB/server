@@ -8042,10 +8042,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     if (table->next_number_field &&
         rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
-    Item::Type type= value->type();
     if (rfield->vcol_info &&
-        type != Item::DEFAULT_VALUE_ITEM &&
-        type != Item::NULL_ITEM &&
+        !value->vcol_assignment_allowed_value() &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -8289,18 +8287,14 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     value=v++;
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
-    if (field->vcol_info)
+    if (field->vcol_info &&
+        !value->vcol_assignment_allowed_value() &&
+        table->s->table_category != TABLE_CATEGORY_TEMPORARY)
     {
-      Item::Type type= value->type();
-      if (type != Item::DEFAULT_VALUE_ITEM &&
-          type != Item::NULL_ITEM &&
-          table->s->table_category != TABLE_CATEGORY_TEMPORARY)
-      {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN,
-                            ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
-                            field->field_name, table->s->table_name.str);
-      }
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN,
+                          ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
+                          field->field_name, table->s->table_name.str);
     }
 
     if (use_value)
