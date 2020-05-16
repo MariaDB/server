@@ -286,10 +286,13 @@ rw_lock_s_lock_spin(
 
 	ut_ad(rw_lock_validate(lock));
 
+	rw_lock_stats.rw_s_spin_wait_count.inc();
+
 lock_loop:
 
 	/* Spin waiting for the writer field to become free */
 	HMT_low();
+	ulint j = i;
 	while (i < srv_n_spin_wait_rounds &&
 	       lock->lock_word <= 0) {
 		ut_delay(srv_spin_wait_delay);
@@ -301,7 +304,7 @@ lock_loop:
 		os_thread_yield();
 	}
 
-	++spin_count;
+	spin_count += lint(i - j);
 
 	/* We try once again to obtain the lock */
 	if (rw_lock_s_lock_low(lock, pass, file_name, line)) {
@@ -421,7 +424,7 @@ rw_lock_x_lock_wait_func(
 		}
 
 		/* If there is still a reader, then go to sleep.*/
-		++n_spins;
+		n_spins += i;
 
 		sync_cell_t*	cell;
 
@@ -651,6 +654,12 @@ rw_lock_x_lock_func(
 	ut_ad(rw_lock_validate(lock));
 	ut_ad(!rw_lock_own(lock, RW_LOCK_S));
 
+	if (rw_lock_x_lock_low(lock, pass, file_name, line)) {
+		/* Locking succeeded */
+		return;
+	}
+	rw_lock_stats.rw_x_spin_wait_count.inc();
+
 lock_loop:
 
 	if (rw_lock_x_lock_low(lock, pass, file_name, line)) {
@@ -670,6 +679,7 @@ lock_loop:
 
 		/* Spin waiting for the lock_word to become free */
 		HMT_low();
+		ulint j = i;
 		while (i < srv_n_spin_wait_rounds
 		       && lock->lock_word <= X_LOCK_HALF_DECR) {
 			ut_delay(srv_spin_wait_delay);
@@ -677,7 +687,7 @@ lock_loop:
 		}
 
 		HMT_medium();
-		spin_count += lint(i);
+		spin_count += lint(i - j);
 
 		if (i >= srv_n_spin_wait_rounds) {
 
@@ -745,10 +755,16 @@ rw_lock_sx_lock_func(
 	sync_array_t*	sync_arr;
 	lint		spin_count = 0;
 	int64_t		count_os_wait = 0;
-	lint		spin_wait_count = 0;
 
 	ut_ad(rw_lock_validate(lock));
 	ut_ad(!rw_lock_own(lock, RW_LOCK_S));
+
+	if (rw_lock_sx_lock_low(lock, pass, file_name, line)) {
+		/* Locking succeeded */
+		return;
+	}
+
+	rw_lock_stats.rw_sx_spin_wait_count.inc();
 
 lock_loop:
 
@@ -761,23 +777,21 @@ lock_loop:
 		}
 
 		rw_lock_stats.rw_sx_spin_round_count.add(spin_count);
-		rw_lock_stats.rw_sx_spin_wait_count.add(spin_wait_count);
 
 		/* Locking succeeded */
 		return;
 
 	} else {
 
-		++spin_wait_count;
-
 		/* Spin waiting for the lock_word to become free */
+		ulint j = i;
 		while (i < srv_n_spin_wait_rounds
 		       && lock->lock_word <= X_LOCK_HALF_DECR) {
 			ut_delay(srv_spin_wait_delay);
 			i++;
 		}
 
-		spin_count += lint(i);
+		spin_count += lint(i - j);
 
 		if (i >= srv_n_spin_wait_rounds) {
 
@@ -809,7 +823,6 @@ lock_loop:
 		}
 
 		rw_lock_stats.rw_sx_spin_round_count.add(spin_count);
-		rw_lock_stats.rw_sx_spin_wait_count.add(spin_wait_count);
 
 		/* Locking succeeded */
 		return;

@@ -2079,6 +2079,30 @@ select (select c1 from t1 group by c1,c2 order by c1 limit 1) as x;
 drop table t1;
 
 --echo #
+--echo # MDEV-22498: SIGSEGV in Bitmap<64u>::merge on SELECT
+--echo #
+
+set @save_sql_select_limit= @@sql_select_limit;
+SET sql_select_limit=0;
+
+CREATE TABLE t1(b INT, c INT);
+CREATE TABLE t2(a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+INSERT INTO t2 VALUES (1,1),(2,2),(3,3);
+
+let $query=
+SELECT sum(a), t2.a, t2.b FROM t2 HAVING t2.a IN (SELECT t2.b FROM t1);
+
+eval EXPLAIN EXTENDED $query;
+eval $query;
+
+SET @@sql_select_limit= @save_sql_select_limit;
+
+eval EXPLAIN EXTENDED $query;
+eval $query;
+DROP TABLE t1,t2;
+
+--echo #
 --echo # MDEV-19134: EXISTS() slower if ORDER BY is defined
 --echo #
 create table t0 (a int);
@@ -2118,3 +2142,4 @@ select * from t1 where t1.a in (select t2.a from t2 order by t2.b);
 
 drop table t0, t1, t2;
 
+--echo # End of 10.4 tests

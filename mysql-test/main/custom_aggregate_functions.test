@@ -1001,6 +1001,8 @@ drop database another_schema;
 
 USE test;
 
+--echo # End of 10.3 tests
+
 --echo #
 --echo # MDEV-18813 PROCEDURE and anonymous blocks silently ignore FETCH GROUP NEXT ROW
 --echo #
