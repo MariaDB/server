@@ -998,3 +998,7 @@ SELECT common_schema.sum_ints(seq) FROM (SELECT 1 seq UNION ALL SELECT 2) t;
 
 drop database common_schema;
 drop database another_schema;
+
+USE test;
+
+--echo # End of 10.3 tests

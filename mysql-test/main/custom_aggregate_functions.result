@@ -1186,3 +1186,5 @@ common_schema.sum_ints(seq)
 3
 drop database common_schema;
 drop database another_schema;
+USE test;
+# End of 10.3 tests
