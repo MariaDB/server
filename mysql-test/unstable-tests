@@ -217,6 +217,7 @@ main.type_int                           : Modified in 10.4.12
 main.type_newdecimal                    : MDEV-20532 - Floating point differences
 main.type_ranges                        : MDEV-20532 - Floating point differences
 main.type_time                          : Modified in 10.4.12
+main.udf                                : MDEV-21976: Fails on Ubuntu Bionic 18.04, our Travis-CI platform
 main.union_crash-714                    : Modified in 10.4.12
 main.upgrade_MDEV-19650                 : Added in 10.4.13
 main.userstat                           : MDEV-12904 - SSL errors
