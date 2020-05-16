@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -47,15 +47,6 @@ void btr_search_sys_free();
 void btr_search_disable(bool need_mutex);
 /** Enable the adaptive hash search system. */
 void btr_search_enable();
-
-/** Returns the value of ref_count. The value is protected by latch.
-@param[in]	info		search info
-@param[in]	index		index identifier
-@return ref_count value. */
-ulint
-btr_search_info_get_ref_count(
-	btr_search_t*	info,
-	dict_index_t*	index);
 
 /*********************************************************************//**
 Updates the search info. */
@@ -272,6 +263,18 @@ struct btr_search_t{
 };
 
 #ifdef BTR_CUR_HASH_ADAPT
+/** @return number of leaf pages pointed to by the adaptive hash index */
+inline ulint dict_index_t::n_ahi_pages() const
+{
+  if (!btr_search_enabled)
+    return 0;
+  rw_lock_t *latch = btr_get_search_latch(this);
+  rw_lock_s_lock(latch);
+  ulint ref_count= search_info->ref_count;
+  rw_lock_s_unlock(latch);
+  return ref_count;
+}
+
 /** The hash index system */
 struct btr_search_sys_t{
 	hash_table_t**	hash_tables;	/*!< the adaptive hash tables,

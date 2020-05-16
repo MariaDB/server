@@ -587,9 +587,10 @@ ATTRIBUTE_NORETURN
 static void cleanup_and_exit(int exit_code);
 
 ATTRIBUTE_NORETURN
-void really_die(const char *msg);
+static void really_die(const char *msg);
 void report_or_die(const char *fmt, ...);
-void die(const char *fmt, ...);
+ATTRIBUTE_NORETURN
+static void die(const char *fmt, ...);
 static void make_error_message(char *buf, size_t len, const char *fmt, va_list args);
 ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
 void abort_not_supported_test(const char *fmt, ...);
@@ -1540,7 +1541,7 @@ static void make_error_message(char *buf, size_t len, const char *fmt, va_list a
   s+= my_snprintf(s, end -s, "\n");
 }
 
-void die(const char *fmt, ...)
+static void die(const char *fmt, ...)
 {
   char buff[DIE_BUFF_SIZE];
   va_list args;
@@ -1549,7 +1550,7 @@ void die(const char *fmt, ...)
   really_die(buff);
 }
 
-void really_die(const char *msg)
+static void really_die(const char *msg)
 {
   static int dying= 0;
   fflush(stdout);

@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -191,15 +191,8 @@ static
 void
 btr_search_check_free_space_in_heap(const dict_index_t* index)
 {
-	hash_table_t*	table;
-	mem_heap_t*	heap;
-
-	ut_ad(!btr_search_own_any(RW_LOCK_S));
-	ut_ad(!btr_search_own_any(RW_LOCK_X));
-
-	table = btr_get_search_table(index);
-
-	heap = table->heap;
+	hash_table_t* table = btr_get_search_table(index);
+	mem_heap_t* heap = table->heap;
 
 	/* Note that we peek the value of heap->free_block without reserving
 	the latch: this is ok, because we will not guarantee that there will
@@ -335,20 +328,86 @@ void btr_search_sys_free()
 
 /** Set index->ref_count = 0 on all indexes of a table.
 @param[in,out]	table	table handler */
-static
-void
-btr_search_disable_ref_count(
-	dict_table_t*	table)
+static void btr_search_disable_ref_count(dict_table_t *table)
 {
-	dict_index_t*	index;
+  for (dict_index_t *index= dict_table_get_first_index(table); index;
+       index= dict_table_get_next_index(index))
+    index->search_info->ref_count= 0;
+}
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+/** Lazily free detached metadata when removing the last reference. */
+ATTRIBUTE_COLD static void btr_search_lazy_free(dict_index_t *index)
+{
+  ut_ad(index->freed());
+  dict_table_t *table= index->table;
+  /* Perform the skipped steps of dict_index_remove_from_cache_low(). */
+  UT_LIST_REMOVE(table->freed_indexes, index);
+  rw_lock_free(&index->lock);
+  dict_mem_index_free(index);
 
-	for (index = dict_table_get_first_index(table);
-	     index != NULL;
-	     index = dict_table_get_next_index(index)) {
-		index->search_info->ref_count = 0;
-	}
+  if (!UT_LIST_GET_LEN(table->freed_indexes) &&
+      !UT_LIST_GET_LEN(table->indexes))
+  {
+    ut_ad(table->id == 0);
+    dict_mem_table_free(table);
+  }
+}
+
+/** Clear the adaptive hash index on all pages in the buffer pool. */
+static void buf_pool_clear_hash_index()
+{
+  ut_ad(btr_search_own_all(RW_LOCK_X));
+  ut_ad(!btr_search_enabled);
+
+  std::set<dict_index_t*> garbage;
+
+  for (ulong p = 0; p < srv_buf_pool_instances; p++)
+  {
+    buf_pool_t *buf_pool= buf_pool_from_array(p);
+    buf_chunk_t *chunks= buf_pool->chunks;
+    buf_chunk_t *chunk= chunks + buf_pool->n_chunks;
+
+    while (--chunk >= chunks)
+    {
+      buf_block_t *block= chunk->blocks;
+      for (ulint i= chunk->size; i--; block++)
+      {
+        dict_index_t *index= block->index;
+        assert_block_ahi_valid(block);
+
+        /* We can clear block->index and block->n_pointers when
+        btr_search_own_all(RW_LOCK_X); see the comments in buf0buf.h */
+
+        if (!index)
+        {
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+          ut_a(!block->n_pointers);
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+          continue;
+        }
+
+        ut_d(buf_page_state state= buf_block_get_state(block));
+        /* Another thread may have set the state to
+        BUF_BLOCK_REMOVE_HASH in buf_LRU_block_remove_hashed().
+
+        The state change in buf_page_realloc() is not observable here,
+        because in that case we would have !block->index.
+
+        In the end, the entire adaptive hash index will be removed. */
+        ut_ad(state == BUF_BLOCK_FILE_PAGE || state == BUF_BLOCK_REMOVE_HASH);
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+        block->n_pointers= 0;
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+        if (index->freed())
+          garbage.insert(index);
+        block->index= NULL;
+      }
+    }
+  }
+
+  for (std::set<dict_index_t*>::iterator i= garbage.begin();
+       i != garbage.end(); i++)
+    btr_search_lazy_free(*i);
 }
 
 /** Disable the adaptive hash search system and empty the index.
@@ -418,31 +477,6 @@ void btr_search_enable()
 	btr_search_x_lock_all();
 	btr_search_enabled = true;
 	btr_search_x_unlock_all();
-}
-
-/** Returns the value of ref_count. The value is protected by latch.
-@param[in]	info		search info
-@param[in]	index		index identifier
-@return ref_count value. */
-ulint
-btr_search_info_get_ref_count(
-	btr_search_t*	info,
-	dict_index_t*	index)
-{
-	ulint ret = 0;
-
-	if (!btr_search_enabled) {
-		return(ret);
-	}
-
-	ut_ad(info);
-
-	rw_lock_t* ahi_latch = btr_get_search_latch(index);
-	rw_lock_s_lock(ahi_latch);
-	ret = info->ref_count;
-	rw_lock_s_unlock(ahi_latch);
-
-	return(ret);
 }
 
 /** Updates the search info of an index about hash successes. NOTE that info
@@ -641,28 +675,25 @@ btr_search_update_hash_ref(
 	buf_block_t*		block,
 	const btr_cur_t*	cursor)
 {
-	dict_index_t*	index;
-	ulint		fold;
-	rec_t*		rec;
-
 	ut_ad(cursor->flag == BTR_CUR_HASH_FAIL);
-	ut_ad(rw_lock_own(btr_get_search_latch(cursor->index), RW_LOCK_X));
+
 	ut_ad(rw_lock_own_flagged(&block->lock,
 				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	ut_ad(page_align(btr_cur_get_rec(cursor)) == block->frame);
 	ut_ad(page_is_leaf(block->frame));
 	assert_block_ahi_valid(block);
 
-	index = block->index;
+	dict_index_t* index = block->index;
 
 	if (!index) {
-
 		return;
 	}
 
 	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_ad(index == cursor->index);
 	ut_ad(!dict_index_is_ibuf(index));
+	rw_lock_t* const latch = btr_get_search_latch(index);
+	rw_lock_x_lock(latch);
 
 	if ((info->n_hash_potential > 0)
 	    && (block->curr_n_fields == info->n_fields)
@@ -672,18 +703,18 @@ btr_search_update_hash_ref(
 		rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 		rec_offs_init(offsets_);
 
-		rec = btr_cur_get_rec(cursor);
+		const rec_t* rec = btr_cur_get_rec(cursor);
 
 		if (!page_rec_is_user_rec(rec)) {
-
-			return;
+			goto func_exit;
 		}
 
-		fold = rec_fold(rec,
-				rec_get_offsets(rec, index, offsets_, true,
-						ULINT_UNDEFINED, &heap),
-				block->curr_n_fields,
-				block->curr_n_bytes, index->id);
+		ulint fold = rec_fold(
+			rec,
+			rec_get_offsets(rec, index, offsets_, true,
+					ULINT_UNDEFINED, &heap),
+			block->curr_n_fields,
+			block->curr_n_bytes, index->id);
 		if (UNIV_LIKELY_NULL(heap)) {
 			mem_heap_free(heap);
 		}
@@ -693,6 +724,9 @@ btr_search_update_hash_ref(
 
 		MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
 	}
+
+func_exit:
+	rw_lock_x_unlock(latch);
 }
 
 /** Checks if a guessed position for a tree cursor is right. Note that if
@@ -873,7 +907,6 @@ btr_search_guess_on_hash(
 	rw_lock_t*	ahi_latch,
 	mtr_t*		mtr)
 {
-	const rec_t*	rec;
 	ulint		fold;
 	index_id_t	index_id;
 #ifdef notdefined
@@ -884,7 +917,7 @@ btr_search_guess_on_hash(
 		      ahi_latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	if (!btr_search_enabled) {
-		return(FALSE);
+		return false;
 	}
 
 	ut_ad(index && info && tuple && cursor && mtr);
@@ -900,16 +933,14 @@ btr_search_guess_on_hash(
 	any latch here! */
 
 	if (info->n_hash_potential == 0) {
-
-		return(FALSE);
+		return false;
 	}
 
 	cursor->n_fields = info->n_fields;
 	cursor->n_bytes = info->n_bytes;
 
 	if (dtuple_get_n_fields(tuple) < btr_search_get_n_fields(cursor)) {
-
-		return(FALSE);
+		return false;
 	}
 
 	index_id = index->id;
@@ -923,6 +954,7 @@ btr_search_guess_on_hash(
 	cursor->flag = BTR_CUR_HASH;
 
 	rw_lock_t* use_latch = ahi_latch ? NULL : btr_get_search_latch(index);
+	const rec_t* rec;
 
 	if (use_latch) {
 		rw_lock_s_lock(use_latch);
@@ -935,47 +967,55 @@ btr_search_guess_on_hash(
 		ut_ad(rw_lock_own(ahi_latch, RW_LOCK_S));
 	}
 
-	rec = (rec_t*) ha_search_and_get_data(
-		btr_get_search_table(index), fold);
+	rec = static_cast<const rec_t*>(
+		ha_search_and_get_data(btr_get_search_table(index), fold));
 
-	if (rec == NULL) {
+	if (!rec) {
 		if (use_latch) {
 fail:
 			rw_lock_s_unlock(use_latch);
 		}
 
 		btr_search_failure(info, cursor);
-
-		return(FALSE);
+		return false;
 	}
 
 	buf_block_t*	block = buf_block_from_ahi(rec);
 
 	if (use_latch) {
-
 		if (!buf_page_get_known_nowait(
 			latch_mode, block, BUF_MAKE_YOUNG,
 			__FILE__, __LINE__, mtr)) {
 			goto fail;
 		}
 
+		const bool fail = index != block->index
+			&& index_id == block->index->id;
+		ut_a(!fail || block->index->freed());
 		rw_lock_s_unlock(use_latch);
 
 		buf_block_dbg_add_level(block, SYNC_TREE_NODE_FROM_HASH);
+		if (UNIV_UNLIKELY(fail)) {
+			btr_search_drop_page_hash_index(block);
+			goto fail_and_release_page;
+		}
+	} else if (UNIV_UNLIKELY(index != block->index
+				 && index_id == block->index->id)) {
+		ut_a(block->index->freed());
+		goto fail_and_release_page;
 	}
 
 	if (buf_block_get_state(block) != BUF_BLOCK_FILE_PAGE) {
 
 		ut_ad(buf_block_get_state(block) == BUF_BLOCK_REMOVE_HASH);
 
+fail_and_release_page:
 		if (!ahi_latch) {
-
 			btr_leaf_page_release(block, latch_mode, mtr);
 		}
 
 		btr_search_failure(info, cursor);
-
-		return(FALSE);
+		return false;
 	}
 
 	ut_ad(page_rec_is_user_rec(rec));
@@ -991,14 +1031,7 @@ fail:
 	right. */
 	if (index_id != btr_page_get_index_id(block->frame)
 	    || !btr_search_check_guess(cursor, !!ahi_latch, tuple, mode)) {
-
-		if (!ahi_latch) {
-			btr_leaf_page_release(block, latch_mode, mtr);
-		}
-
-		btr_search_failure(info, cursor);
-
-		return(FALSE);
+		goto fail_and_release_page;
 	}
 
 	if (info->n_hash_potential < BTR_SEARCH_BUILD_LIMIT + 5) {
@@ -1059,7 +1092,7 @@ fail:
 		++buf_pool->stat.n_page_gets;
 	}
 
-	return(TRUE);
+	return true;
 }
 
 /** Drop any adaptive hash index entries that point to an index page.
@@ -1081,32 +1114,28 @@ void btr_search_drop_page_hash_index(buf_block_t* block)
 	ulint*			folds;
 	ulint			i;
 	mem_heap_t*		heap;
-	const dict_index_t*	index;
 	rec_offs*		offsets;
 	rw_lock_t*		latch;
-	btr_search_t*		info;
 
 retry:
-	/* Do a dirty check on block->index, return if the block is
-	not in the adaptive hash index. */
-	index = block->index;
 	/* This debug check uses a dirty read that could theoretically cause
 	false positives while buf_pool_clear_hash_index() is executing. */
 	assert_block_ahi_valid(block);
 	ut_ad(!btr_search_own_any(RW_LOCK_S));
 	ut_ad(!btr_search_own_any(RW_LOCK_X));
 
-	if (index == NULL) {
+	if (!block->index) {
 		return;
 	}
 
 	ut_ad(block->page.buf_fix_count == 0
 	      || buf_block_get_state(block) == BUF_BLOCK_REMOVE_HASH
 	      || rw_lock_own_flagged(&block->lock,
-				     RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
+				     RW_LOCK_FLAG_X | RW_LOCK_FLAG_S
+				     | RW_LOCK_FLAG_SX));
 	ut_ad(page_is_leaf(block->frame));
 
-	/* We must not dereference index here, because it could be freed
+	/* We must not dereference block->index here, because it could be freed
 	if (index->table->n_ref_count == 0 && !mutex_own(&dict_sys.mutex)).
 	Determine the ahi_slot based on the block contents. */
 
@@ -1121,18 +1150,12 @@ retry:
 	rw_lock_s_lock(latch);
 	assert_block_ahi_valid(block);
 
-	if (block->index == NULL) {
+	if (!block->index) {
 		rw_lock_s_unlock(latch);
 		return;
 	}
 
-	/* The index associated with a block must remain the
-	same, because we are holding block->lock or the block is
-	not accessible by other threads (BUF_BLOCK_REMOVE_HASH),
-	or the index is not accessible to other threads
-	(buf_fix_count == 0 when DROP TABLE or similar is executing
-	buf_LRU_drop_page_hash_for_tablespace()). */
-	ut_a(index == block->index);
+	dict_index_t* index = block->index;
 #ifdef MYSQL_INDEX_DISABLE_AHI
 	ut_ad(!index->disable_ahi);
 #endif
@@ -1140,7 +1163,7 @@ retry:
 
 	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_a(index_id == index->id);
-	ut_a(!dict_index_is_ibuf(index));
+	ut_ad(!dict_index_is_ibuf(index));
 #ifdef UNIV_DEBUG
 	switch (dict_index_get_online_status(index)) {
 	case ONLINE_INDEX_CREATION:
@@ -1248,9 +1271,14 @@ next_rec:
 			folds[i], page);
 	}
 
-	info = btr_search_get_info(block->index);
-	ut_a(info->ref_count > 0);
-	info->ref_count--;
+	switch (index->search_info->ref_count--) {
+	case 0:
+		ut_error;
+	case 1:
+		if (index->freed()) {
+			btr_search_lazy_free(index);
+		}
+	}
 
 	block->index = NULL;
 
@@ -1351,11 +1379,12 @@ btr_search_build_page_hash_index(
 	ut_ad(ahi_latch == btr_get_search_latch(index));
 	ut_ad(index);
 	ut_ad(block->page.id.space() == index->table->space_id);
-	ut_a(!dict_index_is_ibuf(index));
+	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(page_is_leaf(block->frame));
 
 	ut_ad(rw_lock_own_flagged(&block->lock,
 				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
+	ut_ad(block->page.id.page_no() >= 3);
 
 	rw_lock_s_lock(ahi_latch);
 
@@ -1548,11 +1577,7 @@ btr_search_info_update_slow(btr_search_t* info, btr_cur_t* cursor)
 		btr_search_n_hash_fail++;
 #endif /* UNIV_SEARCH_PERF_STAT */
 
-		rw_lock_x_lock(ahi_latch);
-
 		btr_search_update_hash_ref(info, block, cursor);
-
-		rw_lock_x_unlock(ahi_latch);
 	}
 
 	if (build_index) {
@@ -1670,7 +1695,7 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_a(index == cursor->index);
 	ut_a(block->curr_n_fields > 0 || block->curr_n_bytes > 0);
-	ut_a(!dict_index_is_ibuf(index));
+	ut_ad(!dict_index_is_ibuf(index));
 
 	table = btr_get_search_table(index);
 
@@ -1741,7 +1766,7 @@ btr_search_update_hash_node_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 	}
 
 	ut_a(cursor->index == index);
-	ut_a(!dict_index_is_ibuf(index));
+	ut_ad(!dict_index_is_ibuf(index));
 	rw_lock_x_lock(ahi_latch);
 
 	if (!block->index) {
@@ -1794,8 +1819,6 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 	ulint		next_fold = 0; /* remove warning (??? bug ???) */
 	ulint		n_fields;
 	ulint		n_bytes;
-	ibool		left_side;
-	bool		locked		= false;
 	mem_heap_t*	heap		= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
@@ -1835,11 +1858,11 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 	ut_a(!index->disable_ahi);
 #endif
 	ut_a(index == cursor->index);
-	ut_a(!dict_index_is_ibuf(index));
+	ut_ad(!dict_index_is_ibuf(index));
 
 	n_fields = block->curr_n_fields;
 	n_bytes = block->curr_n_bytes;
-	left_side = block->curr_left_side;
+	const bool left_side = block->curr_left_side;
 
 	ins_rec = page_rec_get_next_const(rec);
 	next_rec = page_rec_get_next_const(ins_rec);
@@ -1855,6 +1878,8 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 		next_fold = rec_fold(next_rec, offsets, n_fields,
 				     n_bytes, index->id);
 	}
+
+	bool locked = false;
 
 	if (!page_rec_is_infimum(rec) && !rec_is_metadata(rec, *index)) {
 		offsets = rec_get_offsets(
@@ -1914,7 +1939,6 @@ check_next_rec:
 	}
 
 	if (ins_fold != next_fold) {
-
 		if (!locked) {
 			locked = true;
 			rw_lock_x_lock(ahi_latch);
@@ -2044,7 +2068,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 				     == BUF_BLOCK_REMOVE_HASH);
 			}
 
-			ut_a(!dict_index_is_ibuf(block->index));
+			ut_ad(!dict_index_is_ibuf(block->index));
 			ut_ad(block->page.id.space()
 			      == block->index->table->space_id);
 
