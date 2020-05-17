@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -832,7 +832,7 @@ static void fil_flush_low(fil_space_t* space, bool metadata = false)
 
 		/* No need to flush. User has explicitly disabled
 		buffering. */
-		ut_ad(!space->is_in_unflushed_spaces());
+		ut_ad(!space->is_in_unflushed_spaces);
 		ut_ad(fil_space_is_flushed(space));
 		ut_ad(space->n_pending_flushes == 0);
 
@@ -895,10 +895,11 @@ static void fil_flush_low(fil_space_t* space, bool metadata = false)
 skip_flush:
 #endif /* _WIN32 */
 		if (!node->needs_flush) {
-			if (space->is_in_unflushed_spaces()
+			if (space->is_in_unflushed_spaces
 			    && fil_space_is_flushed(space)) {
 
 				fil_system->unflushed_spaces.remove(*space);
+				space->is_in_unflushed_spaces = false;
 			}
 		}
 
@@ -1193,13 +1194,14 @@ fil_node_close_to_free(
 
 		if (fil_buffering_disabled(space)) {
 
-			ut_ad(!space->is_in_unflushed_spaces());
+			ut_ad(!space->is_in_unflushed_spaces);
 			ut_ad(fil_space_is_flushed(space));
 
-		} else if (space->is_in_unflushed_spaces()
+		} else if (space->is_in_unflushed_spaces
 			   && fil_space_is_flushed(space)) {
 
 			fil_system->unflushed_spaces.remove(*space);
+			space->is_in_unflushed_spaces = false;
 		}
 
 		fil_node_close_file(node);
@@ -1226,16 +1228,18 @@ fil_space_detach(
 	HASH_DELETE(fil_space_t, name_hash, fil_system->name_hash,
 		    ut_fold_string(space->name), space);
 
-	if (space->is_in_unflushed_spaces()) {
+	if (space->is_in_unflushed_spaces) {
 
 		ut_ad(!fil_buffering_disabled(space));
 
 		fil_system->unflushed_spaces.remove(*space);
+		space->is_in_unflushed_spaces = false;
 	}
 
-	if (space->is_in_rotation_list()) {
+	if (space->is_in_rotation_list) {
 
 		fil_system->rotation_list.remove(*space);
+		space->is_in_rotation_list = false;
 	}
 
 	UT_LIST_REMOVE(fil_system->space_list, space);
@@ -1462,6 +1466,7 @@ fil_space_create(
 		/* Key rotation is not enabled, need to inform background
 		encryption threads. */
 		fil_system->rotation_list.push_back(*space);
+		space->is_in_rotation_list = true;
 		mutex_exit(&fil_system->mutex);
 		mutex_enter(&fil_crypt_threads_mutex);
 		os_event_set(fil_crypt_threads_event);
@@ -4751,16 +4756,17 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 			/* We don't need to keep track of unflushed
 			changes as user has explicitly disabled
 			buffering. */
-			ut_ad(!node->space->is_in_unflushed_spaces());
+			ut_ad(!node->space->is_in_unflushed_spaces);
 			ut_ad(node->needs_flush == false);
 
 		} else {
 			node->needs_flush = true;
 
-			if (!node->space->is_in_unflushed_spaces()) {
+			if (!node->space->is_in_unflushed_spaces) {
 
 				fil_system->unflushed_spaces.push_front(
 					*node->space);
+				node->space->is_in_unflushed_spaces = true;
 			}
 		}
 	}
@@ -5247,7 +5253,7 @@ fil_flush_file_spaces(
 
 	n_space_ids = 0;
 
-	for (intrusive::list<fil_space_t, unflushed_spaces_tag_t>::iterator it
+	for (sized_ilist<fil_space_t, unflushed_spaces_tag_t>::iterator it
 	     = fil_system->unflushed_spaces.begin(),
 	     end = fil_system->unflushed_spaces.end();
 	     it != end; ++it) {
@@ -5974,9 +5980,10 @@ fil_space_remove_from_keyrotation(fil_space_t* space)
 	ut_ad(mutex_own(&fil_system->mutex));
 	ut_ad(space);
 
-	if (space->n_pending_ops == 0 && space->is_in_rotation_list()) {
+	if (space->n_pending_ops == 0 && space->is_in_rotation_list) {
 		ut_a(!fil_system->rotation_list.empty());
 		fil_system->rotation_list.remove(*space);
+		space->is_in_rotation_list = false;
 	}
 }
 
@@ -6005,7 +6012,7 @@ fil_space_t *fil_system_t::keyrotate_next(fil_space_t *prev_space,
   don't remove the last processed tablespace from the rotation list. */
   const bool remove= (!recheck || prev_space->crypt_data) &&
                      !key_version == !srv_encrypt_tables;
-  intrusive::list<fil_space_t, rotation_list_tag_t>::iterator it=
+  sized_ilist<fil_space_t, rotation_list_tag_t>::iterator it=
       prev_space == NULL ? fil_system->rotation_list.end() : prev_space;
 
   if (it == fil_system->rotation_list.end())
@@ -6116,25 +6123,4 @@ fil_space_set_punch_hole(
 	bool			val)
 {
 	node->space->punch_hole = val;
-}
-
-/** Checks that this tablespace in a list of unflushed tablespaces.
-@return true if in a list */
-bool fil_space_t::is_in_unflushed_spaces() const
-{
-  ut_ad(mutex_own(&fil_system->mutex));
-
-  return static_cast<const intrusive::list_node<unflushed_spaces_tag_t> *>(
-             this)
-      ->next;
-}
-
-/** Checks that this tablespace needs key rotation.
-@return true if in a rotation list */
-bool fil_space_t::is_in_rotation_list() const
-{
-  ut_ad(mutex_own(&fil_system->mutex));
-
-  return static_cast<const intrusive::list_node<rotation_list_tag_t> *>(this)
-      ->next;
 }
