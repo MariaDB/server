@@ -9,5 +9,6 @@ alter table t1 disable keys;
 insert into t1 values  (1,1);
 error 192;
 alter table t1 enable keys;
+repair table t1 use_frm;
 drop table t1;
 set global aria_encrypt_tables= default;
