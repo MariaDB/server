@@ -1,0 +1,30 @@
+# NOTE: This file is read only by the traditional SysV init script, not systemd.
+# MariaDB systemd does _not_ utilize mysqld_safe nor read this file.
+#
+# For similar behaviour, systemd users should create the following file:
+# /etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
+#
+# To achieve the same result as the default 50-mysqld_safe.cnf, please create
+# /etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
+# with the following contents:
+#
+# [Service]
+# User=mysql
+# StandardOutput=syslog
+# StandardError=syslog
+# SyslogFacility=daemon
+# SyslogLevel=err
+# SyslogIdentifier=mysqld
+#
+# For more information, please read https://mariadb.com/kb/en/mariadb/systemd/
+#
+
+[mysqld_safe]
+# This will be passed to all mysql clients
+# It has been reported that passwords should be enclosed with ticks/quotes
+# especially if they contain "#" chars...
+# Remember to edit /etc/mysql/debian.cnf when changing the socket location.
+socket		= /var/run/mysqld/mysqld.sock
+nice		= 0
+skip_log_error
+syslog

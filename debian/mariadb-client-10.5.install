@@ -1,5 +1,8 @@
 debian/additions/innotop/innotop usr/bin/
 debian/additions/mariadb-report usr/bin/
+debian/additions/mariadb.conf.d/50-client.cnf etc/mysql/mariadb.conf.d
+debian/additions/mariadb.conf.d/50-mysql-clients.cnf etc/mysql/mariadb.conf.d
+debian/additions/mariadb.conf.d/60-galera.cnf etc/mysql/mariadb.conf.d
 usr/bin/mariadb-access
 usr/bin/mariadb-admin
 usr/bin/mariadb-conv
