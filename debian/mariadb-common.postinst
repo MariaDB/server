@@ -1,0 +1,29 @@
+#!/bin/sh
+
+set -e
+
+case "$1" in
+  configure)
+    # New packaging paradigm for my.cnf handling among MySQL variants
+    # Used in Ubuntu since Dec-2014 and in Debian since Jul-2015
+    #
+    # If the new mysql-common package does not provide
+    # the update-alternatives facility, notify user about manual fall back
+    if [ -f /usr/share/mysql-common/configure-symlinks ]
+    then
+      /usr/share/mysql-common/configure-symlinks install mariadb "/etc/mysql/mariadb.cnf"
+    else
+      # As configure can be called many times, don't re-create the symlink
+      # if it is there already
+      if [ ! -L /etc/mysql/my.cnf ]
+      then
+        echo "Notice: configure-symlinks trigger could not be called."
+        echo "Please manually create symlinks by running: "
+        echo "  mv -f /etc/mysql/my.cnf /etc/mysql/my.cnf.old"
+        echo "  ln -sf mariadb.cnf /etc/mysql/my.cnf"
+      fi
+    fi
+  ;;
+esac
+
+#DEBHELPER#
