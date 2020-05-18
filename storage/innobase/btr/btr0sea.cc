@@ -648,7 +648,7 @@ btr_search_update_hash_ref(
 
 	dict_index_t* index = block->index;
 
-	if (!index) {
+	if (!index || !info->n_hash_potential) {
 		return;
 	}
 
@@ -657,8 +657,9 @@ btr_search_update_hash_ref(
 	ut_ad(!dict_index_is_ibuf(index));
 	rw_lock_t* const latch = btr_get_search_latch(index);
 	rw_lock_x_lock(latch);
+	ut_ad(!block->index || block->index == index);
 
-	if ((info->n_hash_potential > 0)
+	if (block->index
 	    && (block->curr_n_fields == info->n_fields)
 	    && (block->curr_n_bytes == info->n_bytes)
 	    && (block->curr_left_side == info->left_side)) {
