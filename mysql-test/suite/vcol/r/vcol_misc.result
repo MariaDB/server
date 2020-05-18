@@ -427,6 +427,26 @@ aaa
 Warnings:
 Warning	1918	Encountered illegal value '\xF0\xF1\xF2\xF3\xF4\xF5\xF6\xF7' when converting to DOUBLE
 #
+# MDEV-22579 No error when inserting DEFAULT(non_virtual_column) into a virtual column
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE OR REPLACE TABLE t1 (
+a INT NOT NULL DEFAULT 10,
+b INT AS (a+1) VIRTUAL
+) ENGINE=MyISAM;
+INSERT INTO t1 (b) VALUES (10);
+ERROR HY000: The value specified for generated column 'b' in table 't1' has been ignored
+INSERT INTO t1 (b) VALUES (DEFAULT(a));
+ERROR HY000: The value specified for generated column 'b' in table 't1' has been ignored
+INSERT INTO t1 (b) VALUES (DEFAULT);
+INSERT INTO t1 VALUES (10,10);
+ERROR HY000: The value specified for generated column 'b' in table 't1' has been ignored
+INSERT INTO t1 VALUES (10,DEFAULT(a));
+ERROR HY000: The value specified for generated column 'b' in table 't1' has been ignored
+INSERT INTO t1 VALUES (10, DEFAULT);
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
 # End of 10.1 tests
 #
 #
@@ -480,6 +500,38 @@ Warnings:
 Warning	1264	Out of range value for column 'vi' at row 1
 DROP TABLE t1;
 SET @sql_mode=@old_sql_mode;
+#
+# MDEV-22579 No error when inserting DEFAULT(non_virtual_column) into a virtual column
+# 10.2+ specific part
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE OR REPLACE TABLE t1 (
+a INT NOT NULL DEFAULT 10,
+b INT AS (a+1) VIRTUAL
+) ENGINE=MyISAM;
+EXECUTE IMMEDIATE 'INSERT INTO t1 (b) VALUES(?)' USING DEFAULT;
+EXECUTE IMMEDIATE 'INSERT INTO t1 (b) VALUES(?)' USING IGNORE;
+INSERT INTO t1 (b) VALUES (DEFAULT);
+INSERT INTO t1 (b) VALUES (IGNORE);
+SELECT * FROM t1;
+a	b
+10	11
+10	11
+10	11
+10	11
+DELETE FROM t1;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES(10,?)' USING DEFAULT;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES(11,?)' USING IGNORE;
+INSERT INTO t1 VALUES (12,DEFAULT);
+INSERT INTO t1 VALUES (13,IGNORE);
+SELECT * FROM t1;
+a	b
+10	11
+11	12
+12	13
+13	14
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
 #
 # End of 10.2 tests
 #
