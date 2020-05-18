@@ -76,6 +76,8 @@ IF(SSL_DEFINES)
 ENDIF()
 
 SET (SQL_SOURCE
+               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
               ../sql-common/client.c compat56.cc derror.cc des_key_file.cc
                discover.cc ../sql-common/errmsg.c
                field.cc field_conv.cc field_comp.cc
@@ -156,8 +158,6 @@ SET (SQL_SOURCE
                opt_trace.cc
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc backup.cc xa.cc
-               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}
