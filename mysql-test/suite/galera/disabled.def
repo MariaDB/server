@@ -15,8 +15,6 @@ GCF-939 : MDEV-21520 galera.GCF-939
 MDEV-16509 : MDEV-21523 galera.MDEV-16509
 MDEV-20225 : MDEV-20886 galera.MDEV-20225
 MW-286 : MDEV-18464 Killing thread can cause mutex deadlock if done concurrently with Galera/replication victim kill
-MW-328A : MDEV-21483 galera.MW-328A galera.MW-328B
-MW-328B : MDEV-21483 galera.MW-328A galera.MW-328B
 MW-329 : MDEV-19962 Galera test failure on MW-329
 galera.galera_defaults : MDEV-21494 Galera test sporadic failure on galera.galera_defaults
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()

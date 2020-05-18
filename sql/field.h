@@ -977,6 +977,19 @@ public:
     DBUG_ASSERT(ls.length < UINT_MAX32);
     return store(ls.str, (uint) ls.length, cs);
   }
+
+#ifdef HAVE_valgrind_or_MSAN
+  /**
+    Mark unused memory in the field as defined. Mainly used to ensure
+    that if we write full field to disk (for example in
+    Count_distinct_field::add(), we don't write unitalized data to
+    disk which would confuse valgrind or MSAN.
+  */
+  virtual void mark_unused_memory_as_defined() {}
+#else
+  void mark_unused_memory_as_defined() {}
+#endif
+
   virtual double val_real()=0;
   virtual longlong val_int()=0;
   /*
@@ -4096,6 +4109,9 @@ public:
   }
   int  store(const char *to,size_t length,CHARSET_INFO *charset) override;
   using Field_str::store;
+#ifdef HAVE_valgrind_or_MSAN
+  void mark_unused_memory_as_defined() override;
+#endif
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *, String *) override;

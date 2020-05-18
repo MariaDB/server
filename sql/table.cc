@@ -7219,6 +7219,12 @@ void TABLE::mark_columns_needed_for_update()
     }
     need_signal= true;
   }
+  else
+  {
+    if (found_next_number_field)
+      mark_auto_increment_column();
+  }
+
   if (file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_DELETE)
   {
     /*

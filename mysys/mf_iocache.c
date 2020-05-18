@@ -515,8 +515,11 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
       if (info->type == WRITE_CACHE)
 	info->end_of_file= my_b_tell(info);
       else
-	info->end_of_file= mysql_file_seek(info->file, 0L, MY_SEEK_END,
-					   MYF(0));
+      {
+        if (!(info->myflags & MY_ENCRYPT))
+          info->end_of_file= mysql_file_seek(info->file, 0L,
+                                             MY_SEEK_END, MYF(0));
+      }
     }
     /* flush cache if we want to reuse it */
     if (!clear_cache && my_b_flush_io_cache(info,1))

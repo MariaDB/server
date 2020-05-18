@@ -2184,6 +2184,12 @@ longlong Item_func_bit_neg::val_int()
 
 void Item_func_int_val::fix_length_and_dec_int_or_decimal()
 {
+  /*
+    The INT branch of this code should be revised.
+    It creates too large data types, e.g.
+      CREATE OR REPLACE TABLE t2 AS SELECT FLOOR(9999999.999) AS fa;
+    results in a BININT(10) column, while INT(7) should probably be enough.
+  */
   ulonglong tmp_max_length= (ulonglong ) args[0]->max_length - 
     (args[0]->decimals ? args[0]->decimals + 1 : 0) + 2;
   max_length= tmp_max_length > (ulonglong) UINT_MAX32 ?
@@ -2198,6 +2204,9 @@ void Item_func_int_val::fix_length_and_dec_int_or_decimal()
   */
   if (args[0]->max_length - args[0]->decimals >= DECIMAL_LONGLONG_DIGITS - 2)
   {
+    fix_char_length(
+      my_decimal_precision_to_length_no_truncation(
+        args[0]->decimal_int_part(), 0, false));
     set_handler(&type_handler_newdecimal);
   }
   else
@@ -2314,6 +2323,8 @@ void Item_func_round::fix_length_and_dec_decimal(uint decimals_to_set)
   set_handler(&type_handler_newdecimal);
   unsigned_flag= args[0]->unsigned_flag;
   decimals= decimals_to_set;
+  if (!precision)
+    precision= 1; // DECIMAL(0,0) -> DECIMAL(1,0)
   max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                            decimals,
                                                            unsigned_flag);

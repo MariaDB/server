@@ -1024,6 +1024,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		for (ulint i = 0; i < num_to_add_index; i++) {
 			if (!add_index[i]->is_committed()) {
 				add_index[i]->detach_columns();
+				add_index[i]->n_fields = 0;
 			}
 		}
 	}
@@ -11117,21 +11118,14 @@ foreign_fail:
 	    || (ctx0->is_instant()
 		&& m_prebuilt->table->n_v_cols
 		&& ha_alter_info->handler_flags & ALTER_STORED_COLUMN_ORDER)) {
+		/* FIXME: this workaround does not seem to work with
+		partitioned tables */
 		DBUG_ASSERT(ctx0->old_table->get_ref_count() == 1);
 
 		trx_commit_for_mysql(m_prebuilt->trx);
-#ifdef BTR_CUR_HASH_ADAPT
-		if (btr_search_enabled) {
-			btr_search_disable(false);
-			btr_search_enable();
-		}
-#endif /* BTR_CUR_HASH_ADAPT */
 
-		char	tb_name[FN_REFLEN];
+		char	tb_name[NAME_LEN * 2 + 1 + 1];
 		strcpy(tb_name, m_prebuilt->table->name.m_name);
-
-		tb_name[strlen(m_prebuilt->table->name.m_name)] = 0;
-
 		dict_table_close(m_prebuilt->table, true, false);
 		if (ctx0->is_instant()) {
 			for (unsigned i = ctx0->old_n_v_cols; i--; ) {

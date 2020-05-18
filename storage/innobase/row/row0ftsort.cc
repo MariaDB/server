@@ -1497,10 +1497,11 @@ row_fts_build_sel_tree(
 		sel_tree[i + start] = int(i);
 	}
 
-	for (i = treelevel; --i; ) {
+	i = treelevel;
+	do {
 		row_fts_build_sel_tree_level(
-			sel_tree, i, mrec, offsets, index);
-	}
+			sel_tree, --i, mrec, offsets, index);
+	} while (i > 0);
 
 	return(treelevel);
 }

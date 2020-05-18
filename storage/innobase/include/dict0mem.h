@@ -932,7 +932,7 @@ an uncompressed page should be left as padding to avoid compression
 failures. This estimate is based on a self-adapting heuristic. */
 struct zip_pad_info_t {
 	SysMutex	mutex;	/*!< mutex protecting the info */
-	Atomic_counter<ulint>
+	Atomic_relaxed<ulint>
 			pad;	/*!< number of bytes used as pad */
 	ulint		success;/*!< successful compression ops during
 				current round */
@@ -960,7 +960,10 @@ struct dict_index_t {
 	mem_heap_t*	heap;	/*!< memory heap */
 	id_name_t	name;	/*!< index name */
 	dict_table_t*	table;	/*!< back pointer to table */
-	unsigned	page:32;/*!< index tree root page number */
+	/** root page number, or FIL_NULL if the index has been detached
+	from storage (DISCARD TABLESPACE or similar),
+	or 1 if the index is in table->freed_indexes */
+	unsigned	page:32;
 	unsigned	merge_threshold:6;
 				/*!< In the pessimistic delete, if the page
 				data size drops below this limit in percent,
@@ -1105,19 +1108,11 @@ struct dict_index_t {
 	/* @} */
 private:
   /** R-tree split sequence number */
-  std::atomic<node_seq_t> rtr_ssn;
+  Atomic_relaxed<node_seq_t> rtr_ssn;
 public:
-
-  void set_ssn(node_seq_t ssn)
-  {
-    rtr_ssn.store(ssn, std::memory_order_relaxed);
-  }
-  node_seq_t assign_ssn()
-  {
-    node_seq_t ssn= rtr_ssn.fetch_add(1, std::memory_order_relaxed);
-    return ssn + 1;
-  }
-  node_seq_t ssn() const { return rtr_ssn.load(std::memory_order_relaxed); }
+  void set_ssn(node_seq_t ssn) { rtr_ssn= ssn; }
+  node_seq_t assign_ssn() { return rtr_ssn.fetch_add(1) + 1; }
+  node_seq_t ssn() const { return rtr_ssn; }
 
 	rtr_info_track_t*
 			rtr_track;/*!< tracking all R-Tree search cursors */
@@ -1216,8 +1211,6 @@ public:
 			for (unsigned i = 0; i < n_fields; i++) {
 				fields[i].col->detach(*this);
 			}
-
-			n_fields = 0;
 		}
 	}
 
@@ -1280,15 +1273,29 @@ public:
 	bool
 	vers_history_row(const rec_t* rec, bool &history_row);
 
-	/** Reconstruct the clustered index fields. */
-	inline void reconstruct_fields();
+  /** Reconstruct the clustered index fields. */
+  inline void reconstruct_fields();
 
-	/** Check if the index contains a column or a prefix of that column.
-	@param[in]	n		column number
-	@param[in]	is_virtual	whether it is a virtual col
-	@return whether the index contains the column or its prefix */
-	bool contains_col_or_prefix(ulint n, bool is_virtual) const
-	MY_ATTRIBUTE((warn_unused_result));
+  /** Check if the index contains a column or a prefix of that column.
+  @param[in]	n		column number
+  @param[in]	is_virtual	whether it is a virtual col
+  @return whether the index contains the column or its prefix */
+  bool contains_col_or_prefix(ulint n, bool is_virtual) const
+  MY_ATTRIBUTE((warn_unused_result));
+
+#ifdef BTR_CUR_HASH_ADAPT
+  /** @return a clone of this */
+  dict_index_t* clone() const;
+  /** Clone this index for lazy dropping of the adaptive hash index.
+  @return this or a clone */
+  dict_index_t* clone_if_needed();
+  /** @return number of leaf pages pointed to by the adaptive hash index */
+  inline ulint n_ahi_pages() const;
+  /** @return whether mark_freed() had been invoked */
+  bool freed() const { return UNIV_UNLIKELY(page == 1); }
+  /** Note that the index is waiting for btr_search_lazy_free() */
+  void set_freed() { ut_ad(!freed()); page= 1; }
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/** This ad-hoc class is used by record_size_info only.	*/
 	class record_size_info_t {
@@ -2062,6 +2069,11 @@ public:
 
 	/** List of indexes of the table. */
 	UT_LIST_BASE_NODE_T(dict_index_t)	indexes;
+#ifdef BTR_CUR_HASH_ADAPT
+	/** List of detached indexes that are waiting to be freed along with
+	the last adaptive hash index entry */
+	UT_LIST_BASE_NODE_T(dict_index_t)	freed_indexes;
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/** List of foreign key constraints in the table. These refer to
 	columns in other tables. */

@@ -717,8 +717,10 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 {
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 #ifdef BTR_CUR_HASH_ADAPT
-	ut_ad(!block->index || !blob);
-	ut_ad(!block->index || page_is_leaf(block->frame));
+	if (block->index && !block->index->freed()) {
+		ut_ad(!blob);
+		ut_ad(page_is_leaf(block->frame));
+	}
 #endif
 	ut_ad(index->table->space_id == block->page.id.space());
 	/* The root page is freed by btr_free_root(). */
@@ -743,8 +745,7 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 					  ? PAGE_HEADER + PAGE_BTR_SEG_LEAF
 					  : PAGE_HEADER + PAGE_BTR_SEG_TOP];
 	fseg_free_page(seg_header,
-		       index->table->space, block->page.id.page_no(),
-		       block->index != NULL, mtr);
+		       index->table->space, block->page.id.page_no(), mtr);
 
 	/* The page was marked free in the allocation bitmap, but it
 	should remain exclusively latched until mtr_t::commit() or until it
@@ -987,8 +988,7 @@ static void btr_free_root(buf_block_t *block, mtr_t *mtr, bool invalidate)
   }
 
   /* Free the entire segment in small steps. */
-  while (!fseg_free_step(PAGE_HEADER + PAGE_BTR_SEG_TOP + block->frame,
-			 true, mtr));
+  while (!fseg_free_step(PAGE_HEADER + PAGE_BTR_SEG_TOP + block->frame, mtr));
 }
 
 /** Prepare to free a B-tree.
@@ -1204,7 +1204,7 @@ leaf_loop:
 	fsp0fsp. */
 
 	bool finished = fseg_free_step(root + PAGE_HEADER + PAGE_BTR_SEG_LEAF,
-				       true, &mtr);
+				       &mtr);
 	mtr_commit(&mtr);
 
 	if (!finished) {
@@ -1224,7 +1224,7 @@ top_loop:
 #endif /* UNIV_BTR_DEBUG */
 
 	finished = fseg_free_step_not_header(
-		root + PAGE_HEADER + PAGE_BTR_SEG_TOP, true, &mtr);
+		root + PAGE_HEADER + PAGE_BTR_SEG_TOP, &mtr);
 	mtr_commit(&mtr);
 
 	if (!finished) {

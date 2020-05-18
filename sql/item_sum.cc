@@ -1387,10 +1387,12 @@ Item_sum_sp::execute()
   bool res;
   uint old_server_status= thd->server_status;
 
-  /* We set server status so we can send a signal to exit from the
-     function with the return value. */
+  /*
+    We set server status so we can send a signal to exit from the
+    function with the return value.
+  */
 
-  thd->server_status= SERVER_STATUS_LAST_ROW_SENT;
+  thd->server_status|= SERVER_STATUS_LAST_ROW_SENT;
   res= Item_sp::execute(thd, &null_value, args, arg_count);
   thd->server_status= old_server_status;
   return res;

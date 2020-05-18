@@ -32,6 +32,7 @@
 
 #if defined(HAVE_VALGRIND_MEMCHECK_H) && defined(HAVE_valgrind)
 # include <valgrind/memcheck.h>
+# define HAVE_valgrind_or_MSAN
 # define MEM_UNDEFINED(a,len) VALGRIND_MAKE_MEM_UNDEFINED(a,len)
 # define MEM_MAKE_DEFINED(a,len) VALGRIND_MAKE_MEM_DEFINED(a,len)
 # define MEM_NOACCESS(a,len) VALGRIND_MAKE_MEM_NOACCESS(a,len)
@@ -50,6 +51,7 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define REDZONE_SIZE 8
 #elif __has_feature(memory_sanitizer)
 # include <sanitizer/msan_interface.h>
+# define HAVE_valgrind_or_MSAN
 # define MEM_UNDEFINED(a,len) __msan_allocated_memory(a,len)
 # define MEM_MAKE_DEFINED(a,len) __msan_unpoison(a,len)
 # define MEM_NOACCESS(a,len) ((void) 0)
@@ -65,16 +67,19 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define REDZONE_SIZE 0
 #endif /* HAVE_VALGRIND_MEMCHECK_H */
 
-#if defined(TRASH_FREED_MEMORY)
-/* NOTE: Do not invoke TRASH_FILL directly! Use TRASH_ALLOC or TRASH_FREE.
-
-The MEM_UNDEFINED() call before memset() is for canceling the effect
-of any previous MEM_NOACCESS(). We must invoke MEM_UNDEFINED() after
-writing the dummy pattern, unless MEM_NOACCESS() is going to be invoked.
-On AddressSanitizer, the MEM_UNDEFINED() in TRASH_ALLOC() has no effect. */
+#ifdef TRASH_FREED_MEMORY
+/*
+  TRASH_FILL() has to call MEM_UNDEFINED() to cancel any effect of TRASH_FREE().
+  This can happen in the case one does
+  TRASH_ALLOC(A,B) ; TRASH_FREE(A,B) ; TRASH_ALLOC(A,B)
+  to reuse the same memory in an internal memory allocator like MEM_ROOT.
+  For my_malloc() and safemalloc() the extra MEM_UNDEFINED is bit of an
+  overkill.
+  TRASH_FILL() is an internal function and should not be used externally.
+*/
 #define TRASH_FILL(A,B,C) do { const size_t trash_tmp= (B); MEM_UNDEFINED(A, trash_tmp); memset(A, C, trash_tmp); } while (0)
 #else
-#define TRASH_FILL(A,B,C) while (0)
+#define TRASH_FILL(A,B,C) do { MEM_UNDEFINED((A), (B)); } while (0)
 #endif
 /** Note that some memory became allocated or uninitialized. */
 #define TRASH_ALLOC(A,B) do { TRASH_FILL(A,B,0xA5); MEM_UNDEFINED(A,B); } while(0)

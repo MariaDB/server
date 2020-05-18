@@ -1,0 +1,23 @@
+--echo #
+--echo # Tests when the temporary files are encrypted
+--echo #
+
+source include/have_file_key_management_plugin.inc;
+source include/have_sequence.inc;
+source include/have_innodb.inc;
+ 
+select @@encrypt_tmp_files;
+
+--echo #
+--echo # MDEV-22556: Incorrect result for window function when using encrypt-tmp-files=ON
+--echo #
+
+set @save_sort_buffer_size=@@sort_buffer_size;
+set sort_buffer_size= 2000;
+create table t1( a DECIMAL(12,0) DEFAULT NULL, b VARCHAR(20) DEFAULT NULL, c DECIMAL(12,0) DEFAULT NULL)engine=INNODB;
+insert into t1 select seq, seq, seq from seq_1_to_5000;
+select count(*) from (select a, b, c, ROW_NUMBER() OVER (PARTITION BY a) FROM t1)q;
+
+set @@sort_buffer_size=@save_sort_buffer_size;
+ 
+drop table t1;

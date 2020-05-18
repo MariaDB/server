@@ -369,7 +369,7 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 
 	while (!fseg_free_step_not_header(
 		       TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
-		       + block->frame, false, &mtr)) {
+		       + block->frame, &mtr)) {
 		mutex_exit(&rseg->mutex);
 
 		mtr.commit();
@@ -405,7 +405,7 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 		fsp0fsp.cc. */
 
 	} while (!fseg_free_step(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
-				 + block->frame, false, &mtr));
+				 + block->frame, &mtr));
 
 	byte* hist = TRX_RSEG + TRX_RSEG_HISTORY_SIZE + rseg_hdr->frame;
 	ut_ad(mach_read_from_4(hist) >= seg_size);

@@ -2599,3 +2599,14 @@ a
 2
 1
 drop view v1;
+#
+# MDEV-22560 Crash on a table value constructor with an SP variable
+#
+BEGIN NOT ATOMIC
+DECLARE a INT DEFAULT 0;
+VALUES (a) UNION SELECT 1;
+END;
+$$
+a
+0
+1

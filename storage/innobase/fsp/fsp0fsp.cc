@@ -2485,8 +2485,6 @@ try_to_extend:
 @param[in]	seg_inode	segment inode
 @param[in,out]	space		tablespace
 @param[in]	offset		page number
-@param[in]	ahi		whether we may need to drop the adaptive
-hash index
 @param[in,out]	mtr		mini-transaction */
 static
 void
@@ -2495,9 +2493,6 @@ fseg_free_page_low(
 	buf_block_t*		iblock,
 	fil_space_t*		space,
 	page_no_t		offset,
-#ifdef BTR_CUR_HASH_ADAPT
-	bool			ahi,
-#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*			mtr)
 {
 	ib_id_t	descr_id;
@@ -2510,15 +2505,6 @@ fseg_free_page_low(
 	ut_ad(!((page_offset(seg_inode) - FSEG_ARR_OFFSET) % FSEG_INODE_SIZE));
 	ut_ad(iblock->frame == page_align(seg_inode));
 	ut_d(space->modify_check(*mtr));
-#ifdef BTR_CUR_HASH_ADAPT
-	/* Drop search system page hash index if the page is found in
-	the pool and is hashed */
-
-	if (ahi) {
-		btr_search_drop_page_hash_when_freed(
-			page_id_t(space->id, offset));
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	buf_block_t* xdes;
 	xdes_t* descr = xdes_get_descriptor(space, offset, &xdes, mtr);
@@ -2607,26 +2593,16 @@ fseg_free_page_low(
 	mtr->free(page_id_t(space->id, offset));
 }
 
-#ifndef BTR_CUR_HASH_ADAPT
-# define fseg_free_page_low(inode, space, offset, ahi, mtr)	\
-	fseg_free_page_low(inode, space, offset, mtr)
-#endif /* !BTR_CUR_HASH_ADAPT */
-
 /** Free a page in a file segment.
 @param[in,out]	seg_header	file segment header
 @param[in,out]	space		tablespace
 @param[in]	offset		page number
-@param[in]	ahi		whether we may need to drop the adaptive
-hash index
 @param[in,out]	mtr		mini-transaction */
 void
-fseg_free_page_func(
+fseg_free_page(
 	fseg_header_t*	seg_header,
 	fil_space_t*	space,
 	ulint		offset,
-#ifdef BTR_CUR_HASH_ADAPT
-	bool		ahi,
-#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr)
 {
 	DBUG_ENTER("fseg_free_page");
@@ -2644,7 +2620,7 @@ fseg_free_page_func(
 		fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
 	}
 
-	fseg_free_page_low(seg_inode, iblock, space, offset, ahi, mtr);
+	fseg_free_page_low(seg_inode, iblock, space, offset, mtr);
 
 	buf_page_free(page_id_t(space->id, offset), mtr, __FILE__, __LINE__);
 
@@ -2683,8 +2659,6 @@ fseg_page_is_free(fil_space_t* space, unsigned page)
 @param[in,out]	seg_inode	segment inode
 @param[in,out]	space		tablespace
 @param[in]	page		page number in the extent
-@param[in]	ahi		whether we may need to drop
-				the adaptive hash index
 @param[in,out]	mtr		mini-transaction */
 MY_ATTRIBUTE((nonnull))
 static
@@ -2694,12 +2668,8 @@ fseg_free_extent(
 	buf_block_t*		iblock,
 	fil_space_t*		space,
 	ulint			page,
-#ifdef BTR_CUR_HASH_ADAPT
-	bool			ahi,
-#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*			mtr)
 {
-	ulint	first_page_in_extent;
 
 	ut_ad(mtr != NULL);
 
@@ -2712,23 +2682,9 @@ fseg_free_extent(
 	      == FSEG_MAGIC_N_VALUE);
 	ut_d(space->modify_check(*mtr));
 
-	first_page_in_extent = page - (page % FSP_EXTENT_SIZE);
-
-#ifdef BTR_CUR_HASH_ADAPT
-	if (ahi) {
-		for (ulint i = 0; i < FSP_EXTENT_SIZE; i++) {
-			if (!xdes_is_free(descr, i)) {
-				/* Drop search system page hash index
-				if the page is found in the pool and
-				is hashed */
-
-				btr_search_drop_page_hash_when_freed(
-					page_id_t(space->id,
-						  first_page_in_extent + i));
-			}
-		}
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
+#if defined BTR_CUR_HASH_ADAPT || defined UNIV_DEBUG
+	const ulint first_page_in_extent = page - (page % FSP_EXTENT_SIZE);
+#endif /* BTR_CUR_HASH_ADAPT || UNIV_DEBUG */
 
 	const uint16_t xoffset= uint16_t(descr - xdes->frame + XDES_FLST_NODE);
 	const uint16_t ioffset= uint16_t(seg_inode - iblock->frame);
@@ -2762,27 +2718,18 @@ fseg_free_extent(
 	}
 }
 
-#ifndef BTR_CUR_HASH_ADAPT
-# define fseg_free_extent(inode, iblock, space, page, ahi, mtr)	\
-	fseg_free_extent(inode, iblock, space, page, mtr)
-#endif /* !BTR_CUR_HASH_ADAPT */
-
 /**********************************************************************//**
 Frees part of a segment. This function can be used to free a segment by
 repeatedly calling this function in different mini-transactions. Doing
 the freeing in a single mini-transaction might result in too big a
 mini-transaction.
-@return true if freeing completed */
+@return whether the freeing was completed */
 bool
-fseg_free_step_func(
+fseg_free_step(
 	fseg_header_t*	header,	/*!< in, own: segment header; NOTE: if the header
 				resides on the first page of the frag list
 				of the segment, this pointer becomes obsolete
 				after the last freeing step */
-#ifdef BTR_CUR_HASH_ADAPT
-	bool		ahi,	/*!< in: whether we may need to drop
-				the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	ulint		n;
@@ -2822,7 +2769,7 @@ fseg_free_step_func(
 	if (descr != NULL) {
 		/* Free the extent held by the segment */
 		page = xdes_get_offset(descr);
-		fseg_free_extent(inode, iblock, space, page, ahi, mtr);
+		fseg_free_extent(inode, iblock, space, page, mtr);
 		DBUG_RETURN(false);
 	}
 
@@ -2839,7 +2786,7 @@ fseg_free_step_func(
 	fseg_free_page_low(
 		inode, iblock, space,
 		fseg_get_nth_frag_page_no(inode, n, mtr),
-		ahi, mtr);
+		mtr);
 
 	n = fseg_find_last_used_frag_page_slot(inode, mtr);
 
@@ -2856,15 +2803,11 @@ fseg_free_step_func(
 /**********************************************************************//**
 Frees part of a segment. Differs from fseg_free_step because this function
 leaves the header page unfreed.
-@return true if freeing completed, except the header page */
+@return whether the freeing was completed, except for the header page */
 bool
-fseg_free_step_not_header_func(
+fseg_free_step_not_header(
 	fseg_header_t*	header,	/*!< in: segment header which must reside on
 				the first fragment page of the segment */
-#ifdef BTR_CUR_HASH_ADAPT
-	bool		ahi,	/*!< in: whether we may need to drop
-				the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	ulint		n;
@@ -2891,30 +2834,24 @@ fseg_free_step_not_header_func(
 	if (descr != NULL) {
 		/* Free the extent held by the segment */
 		page = xdes_get_offset(descr);
-
-		fseg_free_extent(inode, iblock, space, page, ahi, mtr);
-
-		return(false);
+		fseg_free_extent(inode, iblock, space, page, mtr);
+		return false;
 	}
 
 	/* Free a frag page */
 
 	n = fseg_find_last_used_frag_page_slot(inode, mtr);
 
-	if (n == ULINT_UNDEFINED) {
-		ut_error;
-	}
+	ut_a(n != ULINT_UNDEFINED);
 
 	page_no = fseg_get_nth_frag_page_no(inode, n, mtr);
 
 	if (page_no == page_get_page_no(page_align(header))) {
-
-		return(true);
+		return true;
 	}
 
-	fseg_free_page_low(inode, iblock, space, page_no, ahi, mtr);
-
-	return(false);
+	fseg_free_page_low(inode, iblock, space, page_no, mtr);
+	return false;
 }
 
 /** Returns the first extent descriptor for a segment.

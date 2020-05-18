@@ -2563,6 +2563,9 @@ row_create_index_for_mysql(
 				UT_BITS_IN_BYTES(unsigned(index->n_nullable)));
 
 			err = dict_create_index_tree_in_mem(index, trx);
+#ifdef BTR_CUR_HASH_ADAPT
+			ut_ad(!index->search_info->ref_count);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 			if (err != DB_SUCCESS) {
 				dict_index_remove_from_cache(table, index);
@@ -3400,35 +3403,6 @@ row_drop_table_for_mysql(
 	ut_ad(!(table->stats_bg_flag & BG_STAT_IN_PROGRESS));
 	if (!table->no_rollback()) {
 		if (table->space != fil_system.sys_space) {
-#ifdef BTR_CUR_HASH_ADAPT
-			/* On DISCARD TABLESPACE, we would not drop the
-			adaptive hash index entries. If the tablespace is
-			missing here, delete-marking the record in SYS_INDEXES
-			would not free any pages in the buffer pool. Thus,
-			dict_index_remove_from_cache() would hang due to
-			adaptive hash index entries existing in the buffer
-			pool.  To prevent this hang, and also to guarantee
-			that btr_search_drop_page_hash_when_freed() will avoid
-			calling btr_search_drop_page_hash_index() while we
-			hold the InnoDB dictionary lock, we will drop any
-			adaptive hash index entries upfront. */
-			const bool immune = is_temp_name
-				|| create_failed
-				|| sqlcom == SQLCOM_CREATE_TABLE
-				|| strstr(table->name.m_name, "/FTS");
-
-			while (buf_LRU_drop_page_hash_for_tablespace(table)) {
-				if ((!immune && trx_is_interrupted(trx))
-				    || srv_shutdown_state
-				    != SRV_SHUTDOWN_NONE) {
-					err = DB_INTERRUPTED;
-					table->to_be_dropped = false;
-					dict_table_close(table, true, false);
-					goto funct_exit;
-				}
-			}
-#endif /* BTR_CUR_HASH_ADAPT */
-
 			/* Delete the link file if used. */
 			if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 				RemoteDatafile::delete_link_file(name);

@@ -2173,7 +2173,6 @@ void release_thd(THD *thd, void *ctx)
 }
 
 
-
 /*
   Called by timer when purge coordinator decides
   to delay processing of purge records.

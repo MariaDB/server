@@ -46,6 +46,9 @@ Completed by Sunny Bains and Marko Makela
 #include "row0vers.h"
 #include "handler0alter.h"
 #include "btr0bulk.h"
+#ifdef BTR_CUR_ADAPT
+# include "btr0sea.h"
+#endif /* BTR_CUR_ADAPT */
 #include "ut0stage.h"
 #include "fil0crypt.h"
 
@@ -196,7 +199,6 @@ public:
 					BTR_MODIFY_TREE,
 					&ins_cur, 0,
 					__FILE__, __LINE__, &mtr);
-
 
 				error = btr_cur_pessimistic_insert(
 						flag, &ins_cur, &ins_offsets,
@@ -1957,8 +1959,7 @@ row_merge_read_clustered_index(
 				goto scan_next;
 			}
 
-			if (clust_index->lock.waiters.load(
-						std::memory_order_relaxed)) {
+			if (clust_index->lock.waiters) {
 				/* There are waiters on the clustered
 				index tree lock, likely the purge
 				thread. Store and restore the cursor
@@ -3872,6 +3873,9 @@ row_merge_drop_indexes(
 					we should exclude FTS entries from
 					prebuilt->ins_node->entry_list
 					in ins_node_create_entry_list(). */
+#ifdef BTR_CUR_HASH_ADAPT
+					ut_ad(!index->search_info->ref_count);
+#endif /* BTR_CUR_HASH_ADAPT */
 					dict_index_remove_from_cache(
 						table, index);
 					index = prev;

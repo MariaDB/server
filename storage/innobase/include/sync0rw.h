@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -568,11 +568,11 @@ struct rw_lock_t
 	: public latch_t
 #endif /* UNIV_DEBUG */
 {
-	/** Holds the state of the lock. */
-	std::atomic<int32_t>	lock_word;
+  /** Holds the state of the lock. */
+  Atomic_relaxed<int32_t> lock_word;
 
-	/** 1: there are waiters */
-	std::atomic<int32_t>	waiters;
+  /** 0=no waiters, 1=waiters for X or SX lock exist */
+  Atomic_relaxed<uint32_t> waiters;
 
 	/** number of granted SX locks. */
 	volatile ulint	sx_recursive;

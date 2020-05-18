@@ -26,7 +26,9 @@ Created 1/8/1996 Heikki Tuuri
 
 #include "dict0crea.h"
 #include "btr0pcur.h"
-#include "btr0btr.h"
+#ifdef BTR_CUR_HASH_ADAPT
+# include "btr0sea.h"
+#endif /* BTR_CUR_HASH_ADAPT */
 #include "page0page.h"
 #include "mach0data.h"
 #include "dict0boot.h"
@@ -1300,6 +1302,9 @@ dict_create_index_step(
 					&node->table->fts->cache->init_lock);
 			}
 
+#ifdef BTR_CUR_HASH_ADAPT
+			ut_ad(!node->index->search_info->ref_count);
+#endif /* BTR_CUR_HASH_ADAPT */
 			dict_index_remove_from_cache(node->table, node->index);
 			node->index = NULL;
 
