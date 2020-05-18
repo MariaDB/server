@@ -63,9 +63,9 @@ IF(MINGW AND CMAKE_SIZEOF_VOID_P EQUAL 4)
   ADD_DEFINITIONS(-march=i486)
 ENDIF()
 
-FUNCTION(ENABLE_ASAN)
-  IF(NOT CLANG_CL)
-    MESSAGE(FATAL_ERROR "clang-cl is necessary to enable asan")
+MACRO(ENABLE_SANITIZERS)
+  IF(NOT  MSVC)
+    MESSAGE(FATAL_ERROR "clang-cl or MSVC necessary to enable asan/ubsan")
   ENDIF()
   # currently, asan is broken with static CRT.
   IF(NOT(MSVC_CRT_TYPE STREQUAL "/MD"))
@@ -74,25 +74,38 @@ FUNCTION(ENABLE_ASAN)
     ENDIF()
   ENDIF()
   IF(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    MESSAGE(FATAL_ERROR "-DWITH_ASAN on Windows requires 64bit build")
+    SET(ASAN_ARCH i386)
+  ELSE()
+    IF(NOT CLANG_CL)
+      MESSAGE(FATAL_ERROR "sanitizers do not yet work on MSVC x64, try 32  bit or clang-cl")
+    ENDIF()
+    SET(ASAN_ARCH x86_64)
   ENDIF()
-  # After installation, clang lib directory should be added to PATH
+
+   # After installation, clang lib directory should be added to PATH
   # (e.g C:/Program Files/LLVM/lib/clang/5.0.1/lib/windows)
-  FIND_LIBRARY(CLANG_RT_ASAN_DYNAMIC clang_rt.asan_dynamic-x86_64.lib)
-  IF(NOT CLANG_RT_ASAN_DYNAMIC)
-    MESSAGE(FATAL_ERROR "Can't enable ASAN : missing clang_rt.asan_dynamic-x86_64.lib")
+  SET(SANITIZER_LIBS)
+  SET(SANITIZER_LINK_LIBRARIES)
+  SET(SANITIZER_COMPILE_FLAGS)
+  IF(WITH_ASAN)
+    LIST(APPEND SANITIZER_LIBS
+      clang_rt.asan_dynamic-${ASAN_ARCH}.lib clang_rt.asan_dynamic_runtime_thunk-${ASAN_ARCH}.lib)
+    STRING(APPEND SANITIZER_COMPILE_FLAGS " -fsanitize=address")
   ENDIF()
-
-  FIND_LIBRARY(CLANG_RT_ASAN_DYNAMIC_THUNK clang_rt.asan_dynamic_runtime_thunk-x86_64.lib)
-  IF(NOT CLANG_RT_ASAN_DYNAMIC_THUNK)
-     MESSAGE(FATAL_ERROR "Can't enable ASAN : missing clang_rt.asan_dynamic_runtime_thunk-x86_64.lib")
+  IF(WITH_UBSAN)
+    STRING(APPEND SANITIZER_COMPILE_FLAGS " -fsanitize=undefined -fno-sanitize=alignment")
   ENDIF()
+  FOREACH(lib ${SANITIZER_LIBS})
+    FIND_LIBRARY(${lib}_fullpath ${lib})
+    IF(NOT ${lib}_fullpath)
+      MESSAGE(FATAL_ERROR "Can't enable sanitizer : missing ${lib}")
+    ENDIF()
+    LIST(APPEND CMAKE_REQUIRED_LIBRARIES ${${lib}_fullpath})
+    STRING(APPEND CMAKE_C_STANDARD_LIBRARIES " \"${${lib}_fullpath}\" ")
+    STRING(APPEND CMAKE_CXX_STANDARD_LIBRARIES " \"${${lib}_fullpath}\" ")
+  ENDFOREACH()
 
-  STRING(APPEND CMAKE_C_FLAGS " -fsanitize=address")
-  STRING(APPEND CMAKE_CXX_FLAGS " -fsanitize=address")
-
-  LINK_LIBRARIES(${CLANG_RT_ASAN_DYNAMIC} ${CLANG_RT_ASAN_DYNAMIC_THUNK})
-ENDFUNCTION()
+ENDMACRO()
 
 
 IF(MSVC)
@@ -120,12 +133,6 @@ IF(MSVC)
   OPTION(DYNAMIC_UCRT_LINK "Link Universal CRT dynamically, if MSVC_CRT_TYPE=/MT" ON)
   SET(DYNAMIC_UCRT_LINKER_OPTION " /NODEFAULTLIB:libucrt.lib /DEFAULTLIB:ucrt.lib")
 
-  IF(WITH_ASAN)
-    # Workaround something Linux specific
-    SET(SECURITY_HARDENED 0 CACHE INTERNAL "" FORCE)
-    ENABLE_ASAN()
-  ENDIF()
-
   # Enable debug info also in Release build,
   # and create PDB to be able to analyze crashes.
   FOREACH(type EXE SHARED MODULE)
@@ -141,7 +148,9 @@ IF(MSVC)
   FOREACH(lang C CXX)
     SET(CMAKE_${lang}_FLAGS_RELEASE "${CMAKE_${lang}_FLAGS_RELEASE} /Zi")
   ENDFOREACH()
-  FOREACH(flag 
+  FOREACH(flag
+   CMAKE_C_FLAGS CMAKE_CXX_FLAGS
+   CMAKE_C_FLAGS_INIT CMAKE_CXX_FLAGS_INIT
    CMAKE_C_FLAGS_RELEASE    CMAKE_C_FLAGS_RELWITHDEBINFO 
    CMAKE_C_FLAGS_DEBUG      CMAKE_C_FLAGS_DEBUG_INIT 
    CMAKE_CXX_FLAGS_RELEASE  CMAKE_CXX_FLAGS_RELWITHDEBINFO
@@ -155,6 +164,12 @@ IF(MSVC)
    ENDIF()
   ENDFOREACH()
 
+  IF(WITH_ASAN OR WITH_UBSAN)
+    # Workaround something Linux specific
+    SET(SECURITY_HARDENED 0 CACHE INTERNAL "" FORCE)
+    ENABLE_SANITIZERS()
+  ENDIF()
+
   IF(CLANG_CL)
      SET(CLANG_CL_FLAGS
 "-Wno-unknown-warning-option -Wno-unused-private-field \
@@ -163,8 +178,8 @@ IF(MSVC)
 -Wno-deprecated-register -Wno-missing-braces \
 -Wno-unused-function -Wno-unused-local-typedef -msse4.2 "
     )
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CLANG_CL_FLAGS}")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CLANG_CL_FLAGS}")
+    STRING(APPEND CMAKE_C_FLAGS " ${CLANG_CL_FLAGS} ${MSVC_CRT_TYPE}")
+    STRING(APPEND CMAKE_CXX_FLAGS " ${CLANG_CL_FLAGS}  ${MSVC_CRT_TYPE}")
   ENDIF()
 
   FOREACH(type EXE SHARED MODULE)

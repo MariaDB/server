@@ -24,11 +24,13 @@ MACRO(BUNDLE_PCRE2)
     SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${file} ${file_d})
     SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${file})
   ENDFOREACH()
-  FOREACH(v "" "_DEBUG" "_RELWITHDEBINFO" "_RELEASE" "_MINZISEREL")
+  FOREACH(v "" "_DEBUG" "_RELWITHDEBINFO" "_RELEASE" "_MINSIZEREL")
     STRING(REPLACE "/WX" "" pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
     IF(MSVC)
       # Suppress a warning
       STRING(APPEND pcre2_flags${v} " /wd4244 " )
+      # Need this only for ASAN support
+      SET(stdlibs "-DCMAKE_C_STANDARD_LIBRARIES=${CMAKE_C_STANDARD_LIBRARIES}")
     ENDIF()
   ENDFOREACH()
   ExternalProject_Add(
@@ -48,6 +50,7 @@ MACRO(BUNDLE_PCRE2)
       "-DCMAKE_C_FLAGS_RELEASE=${pcre2_flags_RELEASE}"
       "-DCMAKE_C_FLAGS_MINSIZEREL=${pcre2_flags_MINSIZEREL}"
       "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
+      ${stdlibs}
       ${byproducts}
   )
 SET_TARGET_PROPERTIES(pcre2 PROPERTIES EXCLUDE_FROM_ALL TRUE)
