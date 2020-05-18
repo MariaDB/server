@@ -1000,6 +1000,7 @@ public:
     return StringPack::packed_col_length(data_ptr, length);
   }
 
+
   /**********/
   uint size_of() const override { return sizeof(*this); }
 };

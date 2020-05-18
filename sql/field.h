@@ -977,6 +977,26 @@ public:
     DBUG_ASSERT(ls.length < UINT_MAX32);
     return store(ls.str, (uint) ls.length, cs);
   }
+
+  /*
+    @brief
+      Store minimum/maximum value of a column in the statistics table.
+    @param
+      field                  statistical table field
+      str                    value buffer
+  */
+  virtual int store_to_statistical_minmax_field(Field *field, String *str);
+
+  /*
+    @brief
+      Store minimum/maximum value of a column from the statistical table.
+
+    @param
+      field                  statistical table field
+      str                    value buffer
+  */
+  virtual int store_from_statistical_minmax_field(Field *field, String *str);
+
   virtual double val_real()=0;
   virtual longlong val_int()=0;
   /*
@@ -4946,6 +4966,8 @@ public:
                             static_cast<uint16>((field_length & 7) |
                                                 ((field_length / 8) << 8)), 2);
   }
+  int store_to_statistical_minmax_field(Field *fld, String *str) override;
+  int store_from_statistical_minmax_field(Field *fld, String *str) override;
 
 private:
   size_t do_last_null_byte() const override;
