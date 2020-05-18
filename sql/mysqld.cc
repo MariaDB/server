@@ -8820,6 +8820,36 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   return 0;
 }
 
+/*
+This function uses the maturity codes from _ and returns the
+respective maturity string as in
+-unknown -experimental -alpha -beta -gamma
+Note we do not display anything for stable versions
+*/
+const char* get_server_maturity_string(int maturity_code)
+{
+  switch (maturity_code)
+  {
+    case 0: 
+          return "-unknown";
+          break;
+    case 1: 
+          return "-experimental";
+          break;  
+    case 2: 
+          return "-alpha";
+          break;
+    case 3: 
+          return "-beta";
+          break;
+    case 4: 
+          return "-gamma";
+          break;
+    default:
+          return "";
+          break;
+    }
+}
 
 /*
   Create version name for running mysqld version
@@ -8832,8 +8862,10 @@ void set_server_version(char *buf, size_t size)
 {
   bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
   bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
+  const char* maturity_string= get_server_maturity_string(SERVER_MATURITY_LEVEL);
   strxnmov(buf, size - 1,
            MYSQL_SERVER_VERSION,
+           maturity_string,
            MYSQL_SERVER_SUFFIX_STR,
            IF_EMBEDDED("-embedded", ""),
            is_debug ? "-debug" : "",
