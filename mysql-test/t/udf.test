@@ -47,7 +47,7 @@ select lookup();
 select lookup("127.0.0.1");
 --error ER_CANT_INITIALIZE_UDF
 select lookup(127,0,0,1);
-select lookup("localhost");
+select lookup("localhost") rlike '^127\.\\d+\.\\d+.\\d+$';
 --error ER_CANT_INITIALIZE_UDF
 select reverse_lookup();
 
