@@ -242,7 +242,16 @@ my $dsn;
 
 ## Socket takes precedence.
 
-$dsn ="DBI:MariaDB:database=$config{db};mariadb_read_default_group=mytop;";
+eval "use DBD::MariaDB";
+if($@)
+{
+    # MariaDB DBI driver is not available, using the 'mysql' driver
+    $dsn = "DBI:mysql:database=$config{db};mariadb_read_default_group=mytop;";
+}
+else
+{
+    $dsn = "DBI:MariaDB:database=$config{db};mariadb_read_default_group=mytop;";
+}
 
 if ($config{socket} and -S $config{socket})
 {
