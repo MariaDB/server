@@ -242,7 +242,11 @@ my $dsn;
 
 ## Socket takes precedence.
 
-$dsn ="DBI:MariaDB:database=$config{db};mariadb_read_default_group=mytop;";
+if (eval {DBI->install_driver("MariaDB")}) {
+  $dsn = "DBI:MariaDB:database=$config{db};mariadb_read_default_group=mytop;";
+} else {
+  $dsn = "DBI:mysql:database=$config{db};mysql_read_default_group=mytop;";
+}
 
 if ($config{socket} and -S $config{socket})
 {
@@ -2095,7 +2099,7 @@ following:
 
   * Perl 5.005 or newer
   * Getopt::Long
-  * DBI and DBD::MariaDB
+  * DBI and DBD::MariaDB or DBD::mysql
   * Term::ReadKey from CPAN
 
 Most systems are likely to have all of those installed--except for
