@@ -569,10 +569,10 @@ struct rw_lock_t
 #endif /* UNIV_DEBUG */
 {
   /** Holds the state of the lock. */
-  Atomic_counter<int32_t> lock_word;
+  Atomic_relaxed<int32_t> lock_word;
 
-  /** 1: there are waiters */
-  Atomic_counter<uint32_t> waiters;
+  /** 0=no waiters, 1=waiters for X or SX lock exist */
+  Atomic_relaxed<uint32_t> waiters;
 
 	/** number of granted SX locks. */
 	volatile ulint	sx_recursive;

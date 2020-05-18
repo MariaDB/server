@@ -931,7 +931,7 @@ an uncompressed page should be left as padding to avoid compression
 failures. This estimate is based on a self-adapting heuristic. */
 struct zip_pad_info_t {
 	SysMutex	mutex;	/*!< mutex protecting the info */
-	Atomic_counter<ulint>
+	Atomic_relaxed<ulint>
 			pad;	/*!< number of bytes used as pad */
 	ulint		success;/*!< successful compression ops during
 				current round */
@@ -1107,10 +1107,10 @@ struct dict_index_t {
 	/* @} */
 private:
   /** R-tree split sequence number */
-  Atomic_counter<node_seq_t> rtr_ssn;
+  Atomic_relaxed<node_seq_t> rtr_ssn;
 public:
   void set_ssn(node_seq_t ssn) { rtr_ssn= ssn; }
-  node_seq_t assign_ssn() { return ++rtr_ssn; }
+  node_seq_t assign_ssn() { return rtr_ssn.fetch_add(1) + 1; }
   node_seq_t ssn() const { return rtr_ssn; }
 
 	rtr_info_track_t*

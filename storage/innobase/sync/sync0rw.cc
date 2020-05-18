@@ -528,10 +528,10 @@ rw_lock_x_lock_low(
 				exists. Add another. */
 				if (lock_word == 0
 				    || lock_word == -X_LOCK_HALF_DECR) {
-					lock->lock_word -= X_LOCK_DECR;
+					lock->lock_word.fetch_sub(X_LOCK_DECR);
 				} else {
 					ut_ad(lock_word <= -X_LOCK_DECR);
-					lock->lock_word--;
+					lock->lock_word.fetch_sub(1);
 				}
 			}
 

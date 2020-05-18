@@ -6158,10 +6158,7 @@ dict_index_zip_pad_update(
 		beyond max pad size. */
 		if (info->pad + ZIP_PAD_INCR
 		    < (srv_page_size * zip_pad_max) / 100) {
-			/* Use atomics even though we have the mutex.
-			This is to ensure that we are able to read
-			info->pad atomically. */
-			info->pad += ZIP_PAD_INCR;
+			info->pad.fetch_add(ZIP_PAD_INCR);
 
 			MONITOR_INC(MONITOR_PAD_INCREMENTS);
 		}
@@ -6178,11 +6175,7 @@ dict_index_zip_pad_update(
 		padding. */
 		if (info->n_rounds >= ZIP_PAD_SUCCESSFUL_ROUND_LIMIT
 		    && info->pad > 0) {
-
-			/* Use atomics even though we have the mutex.
-			This is to ensure that we are able to read
-			info->pad atomically. */
-			info->pad -= ZIP_PAD_INCR;
+			info->pad.fetch_sub(ZIP_PAD_INCR);
 
 			info->n_rounds = 0;
 

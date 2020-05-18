@@ -355,16 +355,15 @@ rw_lock_s_unlock_func(
 	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_S));
 
 	/* Increment lock_word to indicate 1 less reader */
-	int32_t lock_word = ++lock->lock_word;
+	int32_t lock_word = lock->lock_word.fetch_add(1);
 
-	if (lock_word == 0 || lock_word == -X_LOCK_HALF_DECR) {
+	if (lock_word == -1 || lock_word == -X_LOCK_HALF_DECR - 1) {
 		/* wait_ex waiter exists. It may not be asleep, but we signal
 		anyway. We do not wake other waiters, because they can't
 		exist without wait_ex waiter and wait_ex waiter goes first.*/
 		os_event_set(lock->wait_ex_event);
 		sync_array_object_signalled();
 	} else {
-		ut_ad(--lock_word);
 		ut_ad(lock_word > -X_LOCK_DECR);
 		ut_ad(lock_word < X_LOCK_DECR);
 	}
@@ -414,11 +413,11 @@ rw_lock_x_unlock_func(
 	} else if (lock_word == -X_LOCK_DECR
 		   || lock_word == -(X_LOCK_DECR + X_LOCK_HALF_DECR)) {
 		/* There are 2 x-locks */
-		lock->lock_word += X_LOCK_DECR;
+		lock->lock_word.fetch_add(X_LOCK_DECR);
 	} else {
 		/* There are more than 2 x-locks. */
 		ut_ad(lock_word < -X_LOCK_DECR);
-		lock->lock_word++;
+		lock->lock_word.fetch_add(1);
 	}
 
 	ut_ad(rw_lock_validate(lock));
@@ -470,7 +469,7 @@ rw_lock_sx_unlock_func(
 			/* still has x-lock */
 			ut_ad(lock_word == -X_LOCK_HALF_DECR ||
 			      lock_word <= -(X_LOCK_DECR + X_LOCK_HALF_DECR));
-			lock->lock_word += X_LOCK_HALF_DECR;
+			lock->lock_word.fetch_add(X_LOCK_HALF_DECR);
 		}
 	}
 
