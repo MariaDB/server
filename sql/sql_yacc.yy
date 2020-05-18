@@ -13673,13 +13673,13 @@ expr_or_default:
           expr { $$= $1;}
         | DEFAULT
           {
-            $$= new (thd->mem_root) Item_default_value(thd, Lex->current_context());
+            $$= new (thd->mem_root) Item_default_specification(thd);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
         | IGNORE_SYM
           {
-            $$= new (thd->mem_root) Item_ignore_value(thd, Lex->current_context());
+            $$= new (thd->mem_root) Item_ignore_specification(thd);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }

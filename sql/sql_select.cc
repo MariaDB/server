@@ -17202,6 +17202,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   }
   case Item::FIELD_ITEM:
   case Item::DEFAULT_VALUE_ITEM:
+  case Item::CONTEXTUALLY_TYPED_VALUE_ITEM:
   case Item::INSERT_VALUE_ITEM:
   case Item::TRIGGER_FIELD_ITEM:
   {
