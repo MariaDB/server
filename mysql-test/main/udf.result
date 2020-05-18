@@ -30,9 +30,9 @@ lookup("127.0.0.1")
 127.0.0.1
 select lookup(127,0,0,1);
 ERROR HY000: Can't initialize function 'lookup'; Wrong arguments to lookup;  Use the source
-select lookup("localhost");
-lookup("localhost")
-127.0.0.1
+select lookup("localhost") rlike '^127\.\\d+\.\\d+.\\d+$';
+lookup("localhost") rlike '^127\.\\d+\.\\d+.\\d+$'
+1
 select reverse_lookup();
 ERROR HY000: Can't initialize function 'reverse_lookup'; Wrong number of arguments to reverse_lookup;  Use the source
 select reverse_lookup("127.0.0.1");
