@@ -5170,6 +5170,7 @@ class start_new_trans
   THD *org_thd;
   uint in_sub_stmt;
   uint server_status;
+  my_bool wsrep_on;
 
 public:
   start_new_trans(THD *thd);

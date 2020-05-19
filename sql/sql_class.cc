@@ -5808,6 +5808,8 @@ start_new_trans::start_new_trans(THD *thd)
   server_status= thd->server_status;
   m_transaction_psi= thd->m_transaction_psi;
   thd->m_transaction_psi= 0;
+  wsrep_on= thd->variables.wsrep_on;
+  thd->variables.wsrep_on= 0;
   thd->server_status&= ~(SERVER_STATUS_IN_TRANS |
                          SERVER_STATUS_IN_TRANS_READONLY);
   thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
@@ -5826,6 +5828,7 @@ void start_new_trans::restore_old_transaction()
   if (org_thd->m_transaction_psi)
     MYSQL_COMMIT_TRANSACTION(org_thd->m_transaction_psi);
   org_thd->m_transaction_psi= m_transaction_psi;
+  org_thd->variables.wsrep_on= wsrep_on;
   org_thd= 0;
 }
 

@@ -3075,6 +3075,7 @@ void wsrep_commit_empty(THD* thd, bool all)
   if (wsrep_is_real(thd, all) &&
       wsrep_thd_is_local(thd) &&
       thd->wsrep_trx().active() &&
+      !thd->internal_transaction() &&
       thd->wsrep_trx().state() != wsrep::transaction::s_committed)
   {
     /* @todo CTAS with STATEMENT binlog format and empty result set

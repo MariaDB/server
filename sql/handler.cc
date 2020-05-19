@@ -61,6 +61,7 @@
 #include "wsrep_xid.h"
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h" /* wsrep transaction hooks */
+#include "wsrep_var.h"            /* wsrep_hton_check() */
 #endif /* WITH_WSREP */
 
 /**
@@ -6582,6 +6583,9 @@ int handler::ha_reset()
 static int wsrep_after_row(THD *thd)
 {
   DBUG_ENTER("wsrep_after_row");
+  if (thd->internal_transaction())
+    DBUG_RETURN(0);
+
   /* enforce wsrep_max_ws_rows */
   thd->wsrep_affected_rows++;
   if (wsrep_max_ws_rows &&
