@@ -7961,3 +7961,5 @@ ER_KEY_CONTAINS_PERIOD_FIELDS
         eng "Key %`s cannot explicitly include column %`s"
 ER_KEY_CANT_HAVE_WITHOUT_OVERLAPS
         eng "Key %`s cannot have WITHOUT OVERLAPS"
+ER_NOT_ALLOWED_IN_THIS_CONTEXT
+        eng "'%-.128s' is not allowed in this context"

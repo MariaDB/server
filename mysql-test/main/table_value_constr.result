@@ -2610,3 +2610,14 @@ $$
 a
 0
 1
+#
+# MDEV-21995 Server crashes in Item_field::real_type_handler with table value constructor
+#
+VALUES (IGNORE);
+ERROR HY000: 'ignore' is not allowed in this context
+VALUES (DEFAULT);
+ERROR HY000: 'default' is not allowed in this context
+EXECUTE IMMEDIATE 'VALUES (?)' USING IGNORE;
+ERROR HY000: 'ignore' is not allowed in this context
+EXECUTE IMMEDIATE 'VALUES (?)' USING DEFAULT;
+ERROR HY000: 'default' is not allowed in this context

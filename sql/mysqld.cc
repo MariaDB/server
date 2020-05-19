@@ -3607,7 +3607,7 @@ static void get_win_tzname(char* buf, size_t size)
     {0,0}
   };
   DYNAMIC_TIME_ZONE_INFORMATION  tzinfo;
-  if (GetDynamicTimeZoneInformation(&tzinfo) == TIME_ZONE_ID_UNKNOWN)
+  if (GetDynamicTimeZoneInformation(&tzinfo) == TIME_ZONE_ID_INVALID)
   {
     strncpy(buf, "unknown", size);
     return;
