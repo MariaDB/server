@@ -200,6 +200,16 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
 extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
                                       my_bool signal)
 {
+  DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
+                 {
+                   const char act[]=
+                     "now "
+                     "SIGNAL sync.before_wsrep_thd_abort_reached "
+                     "WAIT_FOR signal.before_wsrep_thd_abort";
+                   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
+                                                      STRING_WITH_LEN(act)));
+                 };);
+
   my_bool ret= wsrep_bf_abort(bf_thd, victim_thd);
   /*
     Send awake signal if victim was BF aborted or does not
@@ -211,6 +221,14 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
     mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_data);
     mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_kill);
     mysql_mutex_lock(&victim_thd->LOCK_thd_data);
+
+    if (victim_thd->wsrep_killed)
+    {
+      mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
+      return false;
+    }
+    victim_thd->wsrep_killed = true;
+
     mysql_mutex_lock(&victim_thd->LOCK_thd_kill);
     victim_thd->awake_no_mutex(KILL_QUERY);
     mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
@@ -302,4 +320,14 @@ extern "C" void wsrep_commit_ordered(THD *thd)
     DEBUG_SYNC(thd, "before_wsrep_ordered_commit");
     thd->wsrep_cs().ordered_commit();
   }
+}
+
+extern "C" bool wsrep_thd_set_wsrep_killed(THD *thd)
+{
+  if (thd->wsrep_killed)
+  {
+    return true;
+  }
+  thd->wsrep_killed = true;
+  return false;
 }

@@ -84,6 +84,7 @@ extern struct wsrep_service_st {
   my_bool                     (*wsrep_get_debug_func)();
   void                        (*wsrep_commit_ordered_func)(MYSQL_THD thd);
   my_bool                     (*wsrep_thd_is_applying_func)(const MYSQL_THD thd);
+  bool                        (*wsrep_thd_set_wsrep_killed_func)(MYSQL_THD thd);
 } *wsrep_service;
 
 #define MYSQL_SERVICE_WSREP_INCLUDED
@@ -124,6 +125,7 @@ extern struct wsrep_service_st {
 #define wsrep_get_debug() wsrep_service->wsrep_get_debug_func()
 #define wsrep_commit_ordered(T) wsrep_service->wsrep_commit_ordered_func(T)
 #define wsrep_thd_is_applying(T) wsrep_service->wsrep_thd_is_applying_func(T)
+#define wsrep_thd_set_wsrep_killed(T) wsrep_service->wsrep_thd_set_wsrep_killed_func(T)
 
 #else
 
@@ -176,6 +178,8 @@ extern "C" my_bool wsrep_thd_is_local(const MYSQL_THD thd);
 /* Return true if thd is in high priority mode */
 /* todo: rename to is_high_priority() */
 extern "C" my_bool wsrep_thd_is_applying(const MYSQL_THD thd);
+/* set wsrep_killed flag for the target THD */
+extern "C" bool wsrep_thd_set_wsrep_killed(MYSQL_THD thd);
 /* Return true if thd is in TOI mode */
 extern "C" my_bool wsrep_thd_is_toi(const MYSQL_THD thd);
 /* Return true if thd is in replicating TOI mode */
@@ -216,6 +220,7 @@ extern "C" my_bool wsrep_get_debug();
 
 extern "C" void wsrep_commit_ordered(MYSQL_THD thd);
 extern "C" my_bool wsrep_thd_is_applying(const MYSQL_THD thd);
+extern "C" bool wsrep_thd_set_wsrep_killed(MYSQL_THD thd);
 
 #endif
 #endif /* MYSQL_SERVICE_WSREP_INCLUDED */

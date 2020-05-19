@@ -173,7 +173,8 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_get_sr_table_name,
   wsrep_get_debug,
   wsrep_commit_ordered,
-  wsrep_thd_is_applying
+  wsrep_thd_is_applying,
+  wsrep_thd_set_wsrep_killed
 };
 
 static struct thd_specifics_service_st thd_specifics_handler=

@@ -674,6 +674,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_has_ignored_error(false),
    wsrep_replicate_GTID(false),
    wsrep_ignore_table(false),
+   wsrep_killed(false),
 
 /* wsrep-lib */
    m_wsrep_next_trx_id(WSREP_UNDEFINED_TRX_ID),
@@ -1288,6 +1289,7 @@ void THD::init()
   wsrep_affected_rows     = 0;
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_replicate_GTID    = false;
+  wsrep_killed            = false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -2126,6 +2128,9 @@ void THD::reset_killed()
     killed_err= 0;
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
+#ifdef WITH_WSREP
+  wsrep_killed = false;
+#endif /* WITH_WSREP */
   DBUG_VOID_RETURN;
 }
 

@@ -18705,10 +18705,17 @@ wsrep_innobase_kill_one_trx(
 
 	/* Mark transaction as a victim for Galera abort */
 	victim_trx->lock.was_chosen_as_wsrep_victim= true;
+	if (wsrep_thd_set_wsrep_killed(thd))
+	{
+	  WSREP_DEBUG("innodb kill transaction skipped due to wsrep_killed");
+	  wsrep_thd_UNLOCK(thd);
+	  DBUG_RETURN(0);
+	}
 
 	/* Note that we need to release this as it will be acquired
 	below in wsrep-lib */
 	wsrep_thd_UNLOCK(thd);
+	DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
 
 	if (wsrep_thd_bf_abort(bf_thd, thd, signal))
 	{
