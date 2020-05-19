@@ -2147,7 +2147,7 @@ void dict_index_remove_from_v_col_list(dict_index_t* index)
 
                 for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
                         col =  dict_index_get_nth_col(index, i);
-                        if (col->is_virtual()) {
+                        if (col && col->is_virtual()) {
                                 vcol = reinterpret_cast<const dict_v_col_t*>(
                                         col);
 				/* This could be NULL, when we do add
@@ -2319,7 +2319,9 @@ dict_index_remove_from_cache_low(
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(table->id);
+#ifdef BTR_CUR_HASH_ADAPT
 	ut_ad(!index->freed());
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* No need to acquire the dict_index_t::lock here because
 	there can't be any active operations on this index (or table). */

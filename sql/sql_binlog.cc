@@ -158,8 +158,9 @@ int binlog_defragment(THD *thd)
     memcpy(const_cast<char*>(thd->lex->comment.str) + gathered_length, entry[k]->value,
            entry[k]->length);
     gathered_length += entry[k]->length;
-    update_hash(entry[k], true, NULL, 0, STRING_RESULT, &my_charset_bin, 0);
   }
+  for (uint k=0; k < 2; k++)
+    update_hash(entry[k], true, NULL, 0, STRING_RESULT, &my_charset_bin, 0);
 
   DBUG_ASSERT(gathered_length == thd->lex->comment.length);
 

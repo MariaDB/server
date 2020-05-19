@@ -574,71 +574,72 @@ struct dict_col_t{
 					3072 (REC_VERSION_56_MAX_INDEX_COL_LEN)
 					bytes. */
 
-	/** Detach the column from an index.
-	@param[in]	index	index to be detached from */
-	inline void detach(const dict_index_t& index);
+  /** Detach a virtual column from an index.
+  @param index  being-freed index */
+  inline void detach(const dict_index_t &index);
 
-	/** Data for instantly added columns */
-	struct def_t {
-		/** original default value of instantly added column */
-		const void*	data;
-		/** len of data, or UNIV_SQL_DEFAULT if unavailable */
-		ulint		len;
-	} def_val;
+  /** Data for instantly added columns */
+  struct def_t
+  {
+    /** original default value of instantly added column */
+    const void *data;
+    /** len of data, or UNIV_SQL_DEFAULT if unavailable */
+    ulint len;
+  } def_val;
 
-	/** Retrieve the column name.
-	@param[in]	table	the table of this column */
-	const char* name(const dict_table_t& table) const;
+  /** Retrieve the column name.
+  @param[in]	table	the table of this column */
+  const char *name(const dict_table_t &table) const;
 
-	/** @return whether this is a virtual column */
-	bool is_virtual() const { return prtype & DATA_VIRTUAL; }
-	/** @return whether NULL is an allowed value for this column */
-	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
+  /** @return whether this is a virtual column */
+  bool is_virtual() const { return prtype & DATA_VIRTUAL; }
+  /** @return whether NULL is an allowed value for this column */
+  bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
 
-	/** @return whether table of this system field is TRX_ID-based */
-	bool vers_native() const
-	{
-		ut_ad(vers_sys_start() || vers_sys_end());
-		ut_ad(mtype == DATA_INT || mtype == DATA_FIXBINARY);
-		return mtype == DATA_INT;
-	}
-	/** @return whether this is system versioned */
-	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
-	/** @return whether this is the system version start */
-	bool vers_sys_start() const
-	{
-		return (prtype & DATA_VERSIONED) == DATA_VERS_START;
-	}
-	/** @return whether this is the system version end */
-	bool vers_sys_end() const
-	{
-		return (prtype & DATA_VERSIONED) == DATA_VERS_END;
-	}
+  /** @return whether table of this system field is TRX_ID-based */
+  bool vers_native() const
+  {
+    ut_ad(vers_sys_start() || vers_sys_end());
+    ut_ad(mtype == DATA_INT || mtype == DATA_FIXBINARY);
+    return mtype == DATA_INT;
+  }
+  /** @return whether this is system versioned */
+  bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
+  /** @return whether this is the system version start */
+  bool vers_sys_start() const
+  {
+    return (prtype & DATA_VERSIONED) == DATA_VERS_START;
+  }
+  /** @return whether this is the system version end */
+  bool vers_sys_end() const
+  {
+    return (prtype & DATA_VERSIONED) == DATA_VERS_END;
+  }
 
-	/** @return whether this is an instantly-added column */
-	bool is_instant() const
-	{
-		DBUG_ASSERT(def_val.len != UNIV_SQL_DEFAULT || !def_val.data);
-		return def_val.len != UNIV_SQL_DEFAULT;
-	}
-	/** Get the default value of an instantly-added column.
-	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
-	@return	default value
-	@retval	NULL	if the default value is SQL NULL (len=UNIV_SQL_NULL) */
-	const byte* instant_value(ulint* len) const
-	{
-		DBUG_ASSERT(is_instant());
-		*len = def_val.len;
-		return static_cast<const byte*>(def_val.data);
-	}
+  /** @return whether this is an instantly-added column */
+  bool is_instant() const
+  {
+    DBUG_ASSERT(def_val.len != UNIV_SQL_DEFAULT || !def_val.data);
+    return def_val.len != UNIV_SQL_DEFAULT;
+  }
+  /** Get the default value of an instantly-added column.
+  @param[out] len   value length (in bytes), or UNIV_SQL_NULL
+  @return default value
+  @retval NULL if the default value is SQL NULL (len=UNIV_SQL_NULL) */
+  const byte *instant_value(ulint *len) const
+  {
+    DBUG_ASSERT(is_instant());
+    *len= def_val.len;
+    return static_cast<const byte*>(def_val.data);
+  }
 
-	/** Remove the 'instant ADD' status of the column */
-	void remove_instant()
-	{
-		DBUG_ASSERT(is_instant());
-		def_val.len = UNIV_SQL_DEFAULT;
-		def_val.data = NULL;
-	}
+  /** Remove the 'instant ADD' status of the column */
+  void remove_instant()
+  {
+    DBUG_ASSERT(is_instant());
+    def_val.len= UNIV_SQL_DEFAULT;
+    def_val.data= NULL;
+  }
 };
 
 /** Index information put in a list of virtual column structure. Index
@@ -1046,15 +1047,22 @@ struct dict_index_t{
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
 
-	/** Detach the columns from the index that is to be freed. */
-	void detach_columns()
-	{
-		if (has_virtual()) {
-			for (unsigned i = 0; i < n_fields; i++) {
-				fields[i].col->detach(*this);
-			}
-		}
-	}
+  /** Detach the virtual columns from the index that is to be removed.
+  @param   whether to reset fields[].col */
+  void detach_columns(bool clear= false)
+  {
+    if (!has_virtual())
+      return;
+    for (unsigned i= 0; i < n_fields; i++)
+    {
+      dict_col_t* col= fields[i].col;
+      if (!col || !col->is_virtual())
+        continue;
+      col->detach(*this);
+      if (clear)
+        fields[i].col= NULL;
+    }
+  }
 
 	/** Determine how many fields of a given prefix can be set NULL.
 	@param[in]	n_prefix	number of fields in the prefix
@@ -1194,24 +1202,24 @@ struct dict_index_t{
 	inline record_size_info_t record_size_info() const;
 };
 
-/** Detach a column from an index.
-@param[in]	index	index to be detached from */
-inline void dict_col_t::detach(const dict_index_t& index)
+/** Detach a virtual column from an index.
+@param index  being-freed index */
+inline void dict_col_t::detach(const dict_index_t &index)
 {
-	if (!is_virtual()) {
-		return;
-	}
+  ut_ad(is_virtual());
 
-	if (dict_v_idx_list* v_indexes = reinterpret_cast<const dict_v_col_t*>
-	    (this)->v_indexes) {
-		for (dict_v_idx_list::iterator i = v_indexes->begin();
-		     i != v_indexes->end(); i++) {
-			if (i->index == &index) {
-				v_indexes->erase(i);
-				return;
-			}
-		}
-	}
+  if (dict_v_idx_list *v_indexes= reinterpret_cast<const dict_v_col_t*>(this)
+      ->v_indexes)
+  {
+    for (dict_v_idx_list::iterator i= v_indexes->begin();
+         i != v_indexes->end(); i++)
+    {
+      if (i->index == &index) {
+        v_indexes->erase(i);
+        return;
+      }
+    }
+  }
 }
 
 /** The status of online index creation */
