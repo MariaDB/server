@@ -1,3 +1,5 @@
+--source include/not_embedded.inc
+
 #
 # MDEV-18457 Assertion `(bitmap->map + (bitmap->full_head_size/6*6)) <=
 #            full_head_end' failed in _ma_check_bitmap
