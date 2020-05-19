@@ -3140,7 +3140,6 @@ public:
 
   enum Type type() const
   {
-    DBUG_ASSERT(fixed || state == NO_VALUE);
     return item_type;
   }
 
