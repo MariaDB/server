@@ -159,7 +159,7 @@ static inline int wsrep_start_trx_if_not_started(THD* thd)
 
   Return zero on succes, non-zero on failure.
  */
-static inline int wsrep_after_row(THD* thd, bool)
+static inline int wsrep_after_row_internal(THD* thd)
 {
   if (thd->wsrep_cs().state() != wsrep::client_state::s_none  &&
       wsrep_thd_is_local(thd))
