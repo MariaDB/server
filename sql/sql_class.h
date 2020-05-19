@@ -5013,7 +5013,8 @@ public:
     table updates from being replicated to other nodes via galera replication.
   */
   bool                      wsrep_ignore_table;
-  
+  /* thread who has started kill for this THD protected by LOCK_thd_data*/
+  my_thread_id              wsrep_aborter;
 
   /*
     Transaction id:

@@ -9149,7 +9149,6 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   uint error= (type == KILL_TYPE_QUERY ? ER_NO_SUCH_QUERY : ER_NO_SUCH_THREAD);
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
-  WSREP_DEBUG("kill_one_thread %llu", thd->thread_id);
   if (id && (tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
   {
     /*
@@ -9182,12 +9181,29 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
         thd->security_ctx->user_matches(tmp->security_ctx))
 #endif /* WITH_WSREP */
     {
-      tmp->awake_no_mutex(kill_signal);
-      error=0;
+#ifdef WITH_WSREP
+      DEBUG_SYNC(thd, "before_awake_no_mutex");
+      if (tmp->wsrep_aborter && tmp->wsrep_aborter != thd->thread_id)
+      {
+        /* victim is in hit list already, bail out */
+	WSREP_DEBUG("victim has wsrep aborter: %lu, skipping awake()",
+                    tmp->wsrep_aborter);
+        error= 0;
+      }
+      else
+#endif /* WITH_WSREP */
+      {
+      WSREP_DEBUG("kill_one_thread %llu, victim: %llu wsrep_aborter %llu by signal %d",
+                  thd->thread_id, id, tmp->wsrep_aborter, kill_signal);
+        tmp->awake_no_mutex(kill_signal);
+        WSREP_DEBUG("victim: %llu taken care of", id);
+        error= 0;
+      }
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
                                         ER_KILL_DENIED_ERROR);
+
     if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
     mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   }

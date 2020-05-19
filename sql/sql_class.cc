@@ -706,6 +706,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_affected_rows(0),
    wsrep_has_ignored_error(false),
    wsrep_ignore_table(false),
+   wsrep_aborter(0),
 
 /* wsrep-lib */
    m_wsrep_next_trx_id(WSREP_UNDEFINED_TRX_ID),
@@ -1308,6 +1309,7 @@ void THD::init()
   wsrep_rbr_buf           = NULL;
   wsrep_affected_rows     = 0;
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
+  wsrep_aborter           = 0;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -2139,11 +2141,19 @@ void THD::reset_killed()
   DBUG_ENTER("reset_killed");
   if (killed != NOT_KILLED)
   {
+    mysql_mutex_assert_not_owner(&LOCK_thd_kill);
     mysql_mutex_lock(&LOCK_thd_kill);
     killed= NOT_KILLED;
     killed_err= 0;
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
+#ifdef WITH_WSREP
+  mysql_mutex_assert_not_owner(&LOCK_thd_data);
+  mysql_mutex_lock(&LOCK_thd_data);
+  wsrep_aborter= 0;
+  mysql_mutex_unlock(&LOCK_thd_data);
+#endif /* WITH_WSREP */
+
   DBUG_VOID_RETURN;
 }
 
