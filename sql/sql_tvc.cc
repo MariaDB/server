@@ -59,7 +59,8 @@ bool fix_fields_for_tvc(THD *thd, List_iterator_fast<List_item> &li)
         while replacing their values to NAME_CONST()s.
         So fix only those that have not been.
       */
-      if (item->fix_fields_if_needed(thd, 0))
+      if (item->fix_fields_if_needed(thd, 0) ||
+          item->check_is_evaluable_expression_or_error())
 	DBUG_RETURN(true);
     }
   }

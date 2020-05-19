@@ -1339,3 +1339,17 @@ BEGIN NOT ATOMIC
 END;
 $$
 DELIMITER ;$$
+
+
+--echo #
+--echo # MDEV-21995 Server crashes in Item_field::real_type_handler with table value constructor
+--echo #
+
+--error ER_UNKNOWN_ERROR
+VALUES (IGNORE);
+--error ER_UNKNOWN_ERROR
+VALUES (DEFAULT);
+--error ER_UNKNOWN_ERROR
+EXECUTE IMMEDIATE 'VALUES (?)' USING IGNORE;
+--error ER_UNKNOWN_ERROR
+EXECUTE IMMEDIATE 'VALUES (?)' USING DEFAULT;
