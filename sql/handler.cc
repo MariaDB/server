@@ -6579,7 +6579,7 @@ static int wsrep_after_row(THD *thd)
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
-  else if (wsrep_after_row(thd, false))
+  else if (wsrep_after_row_internal(thd))
   {
     DBUG_RETURN(ER_LOCK_DEADLOCK);
   }
@@ -6778,7 +6778,8 @@ int handler::ha_write_row(const uchar *buf)
     error= binlog_log_row(table, 0, buf, log_func);
 #ifdef WITH_WSREP
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
+        WSREP(ha_thd()) && ht->flags & HTON_WSREP_REPLICATION &&
+        !error && (error= wsrep_after_row(ha_thd())))
     {
       DBUG_RETURN(error);
     }
@@ -6836,7 +6837,8 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
       }
     }
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        is_wsrep && (error= wsrep_after_row(thd)))
+        is_wsrep && ht->flags & HTON_WSREP_REPLICATION &&
+        !error && (error= wsrep_after_row(thd)))
     {
       return error;
     }
@@ -6911,7 +6913,8 @@ int handler::ha_delete_row(const uchar *buf)
       }
     }
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        is_wsrep && (error= wsrep_after_row(thd)))
+        is_wsrep && ht->flags & HTON_WSREP_REPLICATION &&
+        !error && (error= wsrep_after_row(thd)))
     {
       return error;
     }
