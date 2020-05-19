@@ -1288,10 +1288,6 @@ void
 row_sel_open_pcur(
 /*==============*/
 	plan_t*		plan,	/*!< in: table plan */
-#ifdef BTR_CUR_HASH_ADAPT
-	rw_lock_t*	ahi_latch,
-				/*!< in: the adaptive hash index latch */
-#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	dict_index_t*	index;
@@ -1335,7 +1331,7 @@ row_sel_open_pcur(
 
 		btr_pcur_open_with_no_init(index, plan->tuple, plan->mode,
 					   BTR_SEARCH_LEAF, &plan->pcur,
-					   ahi_latch, mtr);
+					   NULL, mtr);
 	} else {
 		/* Open the cursor to the start or the end of the index
 		(FALSE: no init) */
@@ -1480,16 +1476,12 @@ row_sel_try_search_shortcut(
 	ut_ad(plan->unique_search);
 	ut_ad(!plan->must_get_clust);
 
-	rw_lock_t* ahi_latch = btr_get_search_latch(index);
-	rw_lock_s_lock(ahi_latch);
-
-	row_sel_open_pcur(plan, ahi_latch, mtr);
+	row_sel_open_pcur(plan, mtr);
 
 	const rec_t* rec = btr_pcur_get_rec(&(plan->pcur));
 
 	if (!page_rec_is_user_rec(rec) || rec_is_metadata(rec, index)) {
 retry:
-		rw_lock_s_unlock(ahi_latch);
 		return(SEL_RETRY);
 	}
 
@@ -1501,7 +1493,6 @@ retry:
 
 	if (btr_pcur_get_up_match(&(plan->pcur)) < plan->n_exact_match) {
 exhausted:
-		rw_lock_s_unlock(ahi_latch);
 		return(SEL_EXHAUSTED);
 	}
 
@@ -1547,7 +1538,6 @@ exhausted:
 	ut_ad(plan->pcur.latch_mode == BTR_SEARCH_LEAF);
 
 	plan->n_rows_fetched++;
-	rw_lock_s_unlock(ahi_latch);
 
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
@@ -1669,11 +1659,7 @@ table_loop:
 	if (!plan->pcur_is_open) {
 		/* Evaluate the expressions to build the search tuple and
 		open the cursor */
-		row_sel_open_pcur(plan,
-#ifdef BTR_CUR_HASH_ADAPT
-				  NULL,
-#endif /* BTR_CUR_HASH_ADAPT */
-				  &mtr);
+		row_sel_open_pcur(plan, &mtr);
 
 		cursor_just_opened = TRUE;
 
