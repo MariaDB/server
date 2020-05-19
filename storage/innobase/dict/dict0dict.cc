@@ -2200,7 +2200,7 @@ dict_index_remove_from_v_col_list(dict_index_t* index) {
 
                 for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
                         col =  dict_index_get_nth_col(index, i);
-                        if (dict_col_is_virtual(col)) {
+                        if (col && col->is_virtual()) {
                                 vcol = reinterpret_cast<const dict_v_col_t*>(
                                         col);
 				/* This could be NULL, when we do add

@@ -634,12 +634,12 @@ struct dict_col_t{
 					this column. Our current max limit is
 					3072 for Barracuda table */
 
-	/** @return whether this is a virtual column */
-	bool is_virtual() const { return prtype & DATA_VIRTUAL; }
+  /** @return whether this is a virtual column */
+  bool is_virtual() const { return prtype & DATA_VIRTUAL; }
 
-	/** Detach the column from an index.
-	@param[in]	index	index to be detached from */
-	inline void detach(const dict_index_t& index);
+  /** Detach a virtual column from an index.
+  @param index  being-freed index */
+  inline void detach(const dict_index_t &index);
 };
 
 /** Index information put in a list of virtual column structure. Index
@@ -1017,15 +1017,22 @@ struct dict_index_t{
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
 
-	/** Detach the columns from the index that is to be freed. */
-	void detach_columns()
-	{
-		if (has_virtual()) {
-			for (unsigned i = 0; i < n_fields; i++) {
-				fields[i].col->detach(*this);
-			}
-		}
-	}
+  /** Detach the virtual columns from the index that is to be removed.
+  @param   whether to reset fields[].col */
+  void detach_columns(bool clear= false)
+  {
+    if (!has_virtual())
+      return;
+    for (unsigned i= 0; i < n_fields; i++)
+    {
+      dict_col_t* col= fields[i].col;
+      if (!col || !col->is_virtual())
+        continue;
+      col->detach(*this);
+      if (clear)
+        fields[i].col= NULL;
+    }
+  }
 
 #ifdef BTR_CUR_HASH_ADAPT
   /** @return a clone of this */
@@ -1102,24 +1109,24 @@ struct dict_index_t{
 	inline record_size_info_t record_size_info() const;
 };
 
-/** Detach a column from an index.
-@param[in]	index	index to be detached from */
-inline void dict_col_t::detach(const dict_index_t& index)
+/** Detach a virtual column from an index.
+@param index  being-freed index */
+inline void dict_col_t::detach(const dict_index_t &index)
 {
-	if (!is_virtual()) {
-		return;
-	}
+  ut_ad(is_virtual());
 
-	if (dict_v_idx_list* v_indexes = reinterpret_cast<const dict_v_col_t*>
-	    (this)->v_indexes) {
-		for (dict_v_idx_list::iterator i = v_indexes->begin();
-		     i != v_indexes->end(); i++) {
-			if (i->index == &index) {
-				v_indexes->erase(i);
-				return;
-			}
-		}
-	}
+  if (dict_v_idx_list *v_indexes= reinterpret_cast<const dict_v_col_t*>(this)
+      ->v_indexes)
+  {
+    for (dict_v_idx_list::iterator i= v_indexes->begin();
+         i != v_indexes->end(); i++)
+    {
+      if (i->index == &index) {
+        v_indexes->erase(i);
+        return;
+      }
+    }
+  }
 }
 
 /** The status of online index creation */

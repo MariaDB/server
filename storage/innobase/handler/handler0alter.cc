@@ -248,16 +248,12 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	@return whether the table will be rebuilt */
 	bool need_rebuild () const { return(old_table != new_table); }
 
-	/** Clear uncommmitted added indexes after a failed operation. */
-	void clear_added_indexes()
-	{
-		for (ulint i = 0; i < num_to_add_index; i++) {
-			if (!add_index[i]->is_committed()) {
-				add_index[i]->detach_columns();
-				add_index[i]->n_fields = 0;
-			}
-		}
-	}
+  /** Clear uncommmitted added indexes after a failed operation. */
+  void clear_added_indexes()
+  {
+    for (ulint i= 0; i < num_to_add_index; i++)
+      add_index[i]->detach_columns(true);
+  }
 
 	/** Share context between partitions.
 	@param[in] ctx	context from another partition of the table */
