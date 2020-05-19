@@ -769,8 +769,14 @@ sub run_test_server ($$$) {
               if ( $result->is_failed() ) {
                 my $worker_logdir= $result->{savedir};
                 my $log_file_name=dirname($worker_logdir)."/".$result->{shortname}.".log";
-                $result->{'logfile-failed'} = mtr_lastlinesfromfile($log_file_name, 20);
-                rename $log_file_name,$log_file_name.".failed";
+
+                if (-e $log_file_name) {
+                  $result->{'logfile-failed'} = mtr_lastlinesfromfile($log_file_name, 20);
+                } else {
+                  $result->{'logfile-failed'} = "";
+                }
+
+                rename $log_file_name, $log_file_name.".failed";
               }
 	      delete($result->{result});
 	      $result->{retries}= $retries+1;
