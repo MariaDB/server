@@ -303,9 +303,21 @@ wsrep::gtid Wsrep_server_service::get_position(wsrep::client_service&)
   return wsrep_get_SE_checkpoint();
 }
 
-void Wsrep_server_service::set_position(wsrep::client_service&,
+void Wsrep_server_service::set_position(wsrep::client_service& c WSREP_UNUSED,
                                         const wsrep::gtid& gtid)
 {
+  Wsrep_client_service& cs WSREP_UNUSED (static_cast<Wsrep_client_service&>(c));
+  DBUG_ASSERT(cs.m_client_state.transaction().state()
+              == wsrep::transaction::s_aborted);
+  // Wait until all prior committers have finished.
+  wsrep::gtid wait_for(gtid.id(),
+                       wsrep::seqno(gtid.seqno().get() - 1));
+  if (auto err = Wsrep_server_state::instance().provider()
+      .wait_for_gtid(wait_for, std::numeric_limits<int>::max()))
+  {
+    WSREP_WARN("Wait for gtid returned error %d while waiting for "
+               "prior transactions to commit before setting position", err);
+  }
   wsrep_set_SE_checkpoint(gtid);
 }
 
