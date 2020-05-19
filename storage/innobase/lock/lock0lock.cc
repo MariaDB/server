@@ -6636,7 +6636,8 @@ lock_table_locks_lookup(
 			ut_a(lock->trx == trx);
 
 			if (lock_get_type_low(lock) == LOCK_REC) {
-				ut_ad(!dict_index_is_online_ddl(lock->index)
+				ut_ad(lock->index->online_status
+				      != ONLINE_INDEX_CREATION
 				      || dict_index_is_clust(lock->index));
 				if (lock->index->table == table) {
 					break;
