@@ -1970,7 +1970,9 @@ dict_index_remove_from_cache_low(
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_ad(table->id);
+#ifdef BTR_CUR_HASH_ADAPT
 	ut_ad(!index->freed());
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* No need to acquire the dict_index_t::lock here because
 	there can't be any active operations on this index (or table). */

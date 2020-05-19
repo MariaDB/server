@@ -41,6 +41,11 @@ SET @binlog_fragment_0='012345';
 --error ER_WRONG_TYPE_FOR_VAR
 BINLOG @binlog_fragment_0, @binlog_fragment_not_exist;
 
+# MDEV-22520
+SET @a= '42';
+--error ER_SYNTAX_ERROR
+BINLOG @a, @a;
+
 --echo # Cleanup
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
 DROP TABLE t;
