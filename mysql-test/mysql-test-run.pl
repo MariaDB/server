@@ -567,6 +567,7 @@ sub main {
     # Create minimalistic "test" for the reporting
     my $tinfo = My::Test->new
       (
+       suite          => { name => 'valgrind', },
        name           => 'valgrind_report',
       );
     # Set dummy worker id to align report with normal tests
