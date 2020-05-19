@@ -394,9 +394,38 @@ static int io_poll_associate_fd(TP_file_handle pollfd, TP_file_handle fd, void *
 }
 
 
+typedef LONG NTSTATUS;
+
+typedef struct _IO_STATUS_BLOCK {
+  union {
+    NTSTATUS Status;
+    PVOID Pointer;
+  };
+  ULONG_PTR Information;
+} IO_STATUS_BLOCK, * PIO_STATUS_BLOCK;
+
+struct FILE_COMPLETION_INFORMATION {
+  HANDLE Port;
+  PVOID Key;
+};
+
+enum FILE_INFORMATION_CLASS {
+  FileReplaceCompletionInformation = 0x3D
+};
+
+
+typedef NTSTATUS(WINAPI* pNtSetInformationFile)(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FILE_INFORMATION_CLASS);
+
 int io_poll_disassociate_fd(TP_file_handle pollfd, TP_file_handle fd)
 {
-  /* Not possible to unbind/rebind file descriptor in IOCP. */
+  static pNtSetInformationFile my_NtSetInformationFile = (pNtSetInformationFile)
+    GetProcAddress(GetModuleHandle("ntdll"), "NtSetInformationFile");
+  if (!my_NtSetInformationFile)
+    return -1; /* unexpected, we only support Windows 8.1+*/
+  IO_STATUS_BLOCK iosb{};
+  FILE_COMPLETION_INFORMATION fci{};
+  if (my_NtSetInformationFile(fd,&iosb,&fci,sizeof(fci),FileReplaceCompletionInformation))
+    return -1;
   return 0;
 }
 
@@ -1409,7 +1438,6 @@ void TP_connection_generic::set_io_timeout(int timeout_sec)
 }
 
 
-#ifndef HAVE_IOCP
 /**
   Handle a (rare) special case,where connection needs to 
   migrate to a different group because group_count has changed
@@ -1444,11 +1472,9 @@ static int change_group(TP_connection_generic *c,
   mysql_mutex_unlock(&new_group->mutex);
   return ret;
 }
-#endif
 
 int TP_connection_generic::start_io()
 {
-#ifndef HAVE_IOCP
   /*
     Usually, connection will stay in the same group for the entire
     connection's life. However, we do allow group_count to
@@ -1467,7 +1493,6 @@ int TP_connection_generic::start_io()
     if (change_group(this, thread_group, group))
       return -1;
   }
-#endif
 
   /* 
     Bind to poll descriptor if not yet done. 
