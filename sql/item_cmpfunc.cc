@@ -2106,6 +2106,31 @@ bool Item_func_between::count_sargable_conds(void *arg)
   return 0;
 }
 
+bool Item_func_between::predicate_selectivity_checker(void *arg)
+{
+  if (arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
+  {
+    if (is_range_predicate(args[0], args[1]) &&
+        is_range_predicate(args[0], args[2]))
+    {
+      return args[0]->dep_on_one_column(arg);
+    }
+    return true;
+  }
+
+  for (uint i= 1 ; i < arg_count ; i++)
+  {
+    if (arguments()[i]->real_item()->type() == Item::FIELD_ITEM)
+    {
+      if (!is_range_predicate(args[i], args[0]))
+        return true;
+      if (args[i]->dep_on_one_column(arg))
+        return true;
+    }
+  }
+  return false;
+}
+
 
 void Item_func_between::fix_after_pullout(st_select_lex *new_parent,
                                           Item **ref, bool merge)
@@ -4290,6 +4315,16 @@ bool Item_func_in::count_sargable_conds(void *arg)
 }
 
 
+bool Item_func_in::predicate_selectivity_checker(void *arg)
+{
+  if (!all_items_are_consts(args + 1, arg_count - 1))
+    return true;
+  if (key_item()->dep_on_one_column(arg))
+    return true;
+  return false;
+}
+
+
 bool Item_func_in::list_contains_null()
 {
   Item **arg,**arg_end;
@@ -5516,6 +5551,16 @@ bool Item_func_null_predicate::count_sargable_conds(void *arg)
 }
 
 
+bool Item_func_null_predicate::predicate_selectivity_checker(void *arg)
+{
+  if (is_range_predicate(args[0], NULL))
+  {
+    return args[0]->dep_on_one_column(arg);
+  }
+  return true;
+}
+
+
 longlong Item_func_isnull::val_int()
 {
   DBUG_ASSERT(fixed == 1);
@@ -5596,6 +5641,17 @@ bool Item_bool_func2::count_sargable_conds(void *arg)
   ((SELECT_LEX*) arg)->cond_count++;
   return 0;
 }
+
+
+bool Item_bool_func2::predicate_selectivity_checker(void *arg)
+{
+  if (is_range_predicate(args[0], args[1]))
+    return args[0]->dep_on_one_column(arg);
+  if (is_range_predicate(args[1], args[0]))
+    return args[1]->dep_on_one_column(arg);
+  return true;
+}
+
 
 void Item_func_like::print(String *str, enum_query_type query_type)
 {
@@ -5696,8 +5752,18 @@ SEL_TREE *Item_func_like::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   bool sargable_pattern= with_sargable_pattern();
   param->thd->mem_root= tmp_root;
   return sargable_pattern ?
-    Item_bool_func2::get_mm_tree(param, cond_ptr) :
-    Item_func::get_mm_tree(param, cond_ptr);
+         Item_bool_func2::get_mm_tree(param, cond_ptr) :
+         Item_func::get_mm_tree(param, cond_ptr);
+}
+
+
+bool Item_func_like::predicate_selectivity_checker(void *arg)
+{
+  if (with_sargable_pattern())
+  {
+      return args[0]->dep_on_one_column(arg);
+  }
+  return true;
 }
 
 
@@ -7136,6 +7202,49 @@ bool Item_equal::count_sargable_conds(void *arg)
   uint m= equal_items.elements;
   sel->cond_count+= m*(m-1);
   return 0;
+}
+
+
+bool Item_equal::predicate_selectivity_checker(void *arg)
+{
+  /*
+    For equality conditions like tbl1.col = tbl2.col
+    we only want to know if the number of distinct values (ndv) is
+    available for all the fields in the multiple equality or not.
+  */
+  Item_equal_fields_iterator it(*this);
+  while (it++)
+  {
+    Field *field= it.get_curr_field();
+    if (!(field->is_ndv_available()))
+      return true;
+  }
+
+  it.rewind();
+  Item *item;
+  SAME_FIELD *same_field= (SAME_FIELD *) arg;
+  while ((item= it++))
+  {
+    if (same_field->item)
+      return item->dep_on_one_column(arg);
+    item->dep_on_one_column(arg);
+    break;
+  }
+  return false;
+}
+
+
+bool Item_equal::is_statistics_available_for_range_predicates()
+{
+  bool found= false;
+  Item_equal_fields_iterator it(*this);
+  while (it++)
+  {
+    Field *field= it.get_curr_field();
+    if (field->is_statistics_available_for_range_predicates())
+      found= true;
+  }
+  return found;
 }
 
 

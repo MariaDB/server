@@ -200,6 +200,7 @@ explain select * from t1 where a=1 or b=1	{
             ]
           },
           {
+            "cardinality_accurate": false,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],

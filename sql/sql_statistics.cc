@@ -31,7 +31,6 @@
 #include "opt_range.h"
 #include "uniques.h"
 #include "sql_show.h"
-#include "sql_partition.h"
 
 /*
   The system variable 'use_stat_tables' can take one of the
@@ -3159,7 +3158,10 @@ static void dump_stats_from_share_to_table(TABLE *table)
   Field **field_ptr= table_share->field;
   Field **table_field_ptr= table->field;
   for ( ; *field_ptr; field_ptr++, table_field_ptr++)
+  {
     (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
+    (*table_field_ptr)->stats_available= (*field_ptr)->stats_available;
+  }
   table->stats_is_read= true;
 }
 
@@ -3977,38 +3979,4 @@ bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table)
     }
   }
   return false;
-}
-
-/*
-  Check wheter we can use EITS statistics for a field or not
-
-  TRUE : Use EITS for the columns
-  FALSE: Otherwise
-*/
-
-bool is_eits_usable(Field *field)
-{
-  Column_statistics* col_stats= field->read_stats;
-  
-  // check if column_statistics was allocated for this field
-  if (!col_stats)
-    return false;
-
-  DBUG_ASSERT(field->table->stats_is_read);
-
-  /*
-    (1): checks if we have EITS statistics for a particular column
-    (2): Don't use EITS for GEOMETRY columns
-    (3): Disabling reading EITS statistics for columns involved in the
-         partition list of a table. We assume the selecticivity for
-         such columns would be handled during partition pruning.
-  */
-
-  return !col_stats->no_stat_values_provided() &&        //(1)
-    field->type() != MYSQL_TYPE_GEOMETRY &&              //(2)
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    (!field->table->part_info ||
-     !field->table->part_info->field_in_partition_expr(field)) &&     //(3)
-#endif
-    true;
 }
