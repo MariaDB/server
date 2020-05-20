@@ -101,7 +101,6 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "encryption_plugin.h"
 #include <sql_plugin.h>
 #include <srv0srv.h>
-#include <crc_glue.h>
 #include <log.h>
 #include <derror.h>
 #include <thr_timer.h>
@@ -4034,7 +4033,7 @@ fail:
 	trx_pool_init();
 
 	ut_crc32_init();
-	crc_init();
+	my_checksum_init();
 	recv_sys.create();
 
 #ifdef WITH_INNODB_DISALLOW_WRITES

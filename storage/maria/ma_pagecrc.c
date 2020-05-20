@@ -28,7 +28,7 @@
 
 static uint32 maria_page_crc(uint32 start, uchar *data, uint length)
 {
-  uint32 crc= crc32(start, data, length);
+  uint32 crc= my_checksum(start, data, length);
 
   /* we need this assert to get following comparison working */
   compile_time_assert(MARIA_NO_CRC_BITMAP_PAGE ==

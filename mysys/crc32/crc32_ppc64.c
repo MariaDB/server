@@ -151,6 +151,7 @@ __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len) {
 		0xffffffffffffffffUL};
 
 #ifdef REFLECT
+	__vector unsigned char vsht_splat;
 	const __vector unsigned long long vmask_32bit =
 		(__vector unsigned long long)vec_sld((__vector unsigned char)vzero,
 			(__vector unsigned char)vones, 4);
@@ -598,7 +599,7 @@ __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len) {
 
 #ifdef REFLECT
 	/* shift left one bit */
-	__vector unsigned char vsht_splat = vec_splat_u8 (1);
+	vsht_splat = vec_splat_u8 (1);
 	v0 = (__vector unsigned long long)vec_sll ((__vector unsigned char)v0,
 			vsht_splat);
 #endif

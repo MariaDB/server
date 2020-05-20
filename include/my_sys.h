@@ -921,8 +921,18 @@ extern int my_compress_buffer(uchar *dest, size_t *destLen,
 extern int packfrm(const uchar *, size_t, uchar **, size_t *);
 extern int unpackfrm(uchar **, size_t *, const uchar *);
 
-extern ha_checksum my_checksum(ha_checksum crc, const uchar *mem,
-                               size_t count);
+void my_checksum_init(void);
+#ifdef HAVE_CRC32_VPMSUM
+extern my_checksum(ha_checksum, const void *, size_t);
+#else
+typedef ha_checksum (*my_crc32_t)(ha_checksum, const void *, size_t);
+extern my_crc32_t my_checksum;
+#endif
+
+#if defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
+int crc32_aarch64_available(void);
+#endif
+
 #ifdef DBUG_ASSERT_EXISTS
 extern void my_debug_put_break_here(void);
 #else
@@ -930,7 +940,6 @@ extern void my_debug_put_break_here(void);
 #endif
 
 extern void my_sleep(ulong m_seconds);
-extern ulong crc32(ulong crc, const uchar *buf, uint len);
 extern uint my_set_max_open_files(uint files);
 void my_free_open_file_info(void);
 
