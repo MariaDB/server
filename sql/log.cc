@@ -3379,6 +3379,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
                                  log_type_arg, io_cache_type_arg))
   {
     sql_print_error("MYSQL_BIN_LOG::open failed to generate new file name.");
+    if (!is_relay_log)
+      goto err;
     DBUG_RETURN(1);
   }
 
@@ -3740,7 +3742,7 @@ err:
   sql_print_error("Could not use %s for logging (error %d). \
 Turning logging off for the whole duration of the MySQL server process. \
 To turn it on again: fix the cause, \
-shutdown the MySQL server and restart it.", name, errno);
+shutdown the MySQL server and restart it.", (name) ? name : log_name, errno);
   if (new_xid_list_entry)
     delete new_xid_list_entry;
   if (file >= 0)
