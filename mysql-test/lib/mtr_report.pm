@@ -467,7 +467,17 @@ sub mtr_report_stats ($$$$) {
 
       $test_time = sprintf("%.3f", $test->{timer} / 1000);
       $test->{'name'} =~ s/$current_suite\.//;
-      $xml_report .= qq(\t\t<testcase assertions="" classname="$current_suite" name="$test->{'name'}" status="$test->{'result'}" time="$test_time");
+
+      my $test_result;
+
+      # if a test case has to be retried it should have the result MTR_RES_FAILED in jUnit XML
+      if ($test->{'retries'} > 0) {
+        $test_result = "MTR_RES_FAILED";
+      } else {
+        $test_result = $test->{'result'};
+      }
+
+      $xml_report .= qq(\t\t<testcase assertions="" classname="$current_suite" name="$test->{'name'}" status="$test_result" time="$test_time");
 
       my $comment = $test->{'comment'};
       $comment =~ s/[\"]//g;
