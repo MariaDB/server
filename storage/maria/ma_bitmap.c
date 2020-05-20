@@ -1288,6 +1288,7 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
     uint byte= 6 * (last_insert_page / 16);
     first_pattern= last_insert_page % 16;
     data= bitmap->map+byte;
+    first_found= 0;                         /* Don't update full_head_size */
     DBUG_ASSERT(data <= end);
   }
   else

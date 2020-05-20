@@ -6207,7 +6207,7 @@ static my_bool lock_table_locks_lookup(rw_trx_hash_element_t *element,
         ut_ad(lock->trx == element->trx);
         if (lock_get_type_low(lock) == LOCK_REC)
         {
-          ut_ad(!dict_index_is_online_ddl(lock->index) ||
+          ut_ad(lock->index->online_status != ONLINE_INDEX_CREATION ||
                 lock->index->is_primary());
           ut_ad(lock->index->table != table);
         }

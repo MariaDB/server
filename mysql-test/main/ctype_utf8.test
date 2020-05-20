@@ -2257,6 +2257,13 @@ INSERT INTO t1 VALUES (1);
 SELECT x AS 5天内最近一次登录时间 FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-22391 Assertion `0' failed in Item_type_holder::val_str on utf16 charset table query
+--echo #
+
+SET NAMES utf8;
+VALUES (_latin1 0xDF) UNION SELECT _utf8'a' COLLATE utf8_bin;
+VALUES (_latin1 0xDF) UNION VALUES(_utf8'a' COLLATE utf8_bin);
 
 --echo #
 --echo # End of 10.3 tests

@@ -4005,7 +4005,7 @@ static bool is_linux_native_aio_supported()
 
 	case -EINVAL:
 	case -ENOSYS:
-		ib::error()
+		ib::warn()
 			<< "Linux Native AIO not supported. You can either"
 			" move "
 			<< (srv_read_only_mode ? log_file_path : "tmpdir")
@@ -4015,7 +4015,7 @@ static bool is_linux_native_aio_supported()
 
 		/* fall through. */
 	default:
-		ib::error()
+		ib::warn()
 			<< "Linux Native AIO check on "
 			<< (srv_read_only_mode ? log_file_path : "tmpdir")
 			<< "returned error[" << -err << "]";

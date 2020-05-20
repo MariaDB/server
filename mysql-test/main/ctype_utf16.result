@@ -2815,6 +2815,31 @@ SET DEFAULT_STORAGE_ENGINE=Default;
 # End of 10.2 tests
 #
 #
+# Start of 10.3 tests
+#
+#
+# MDEV-22391 Assertion `0' failed in Item_type_holder::val_str on utf16 charset table query
+#
+SET NAMES utf8;
+CREATE TABLE t1 (a TEXT CHARACTER SET utf16);
+SELECT * FROM (VALUES (1) UNION SELECT * FROM t1) AS t;
+1
+1
+DROP TABLE t1;
+VALUES (1) UNION SELECT _utf16 0x0020;
+1
+1
+ 
+VALUES ('') UNION SELECT _utf16 0x0020 COLLATE utf16_bin;
+
+
+VALUES ('') UNION VALUES ( _utf16 0x0020 COLLATE utf16_bin);
+
+
+#
+# End of 10.3 tests
+#
+#
 # Start of 10.5 tests
 #
 #

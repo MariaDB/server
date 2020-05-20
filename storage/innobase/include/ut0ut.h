@@ -411,6 +411,14 @@ class error : public logger {
 public:
 	ATTRIBUTE_COLD
 	~error();
+	/** Indicates that error::~error() was invoked. Can be used to
+	determine if error messages were logged during innodb code execution.
+	@return true if there were error messages, false otherwise. */
+	static bool was_logged() { return logged; }
+
+private:
+	/** true if error::~error() was invoked, false otherwise */
+	static bool logged;
 };
 
 /** The class fatal is used to emit an error message and stop the server

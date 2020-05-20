@@ -5535,7 +5535,7 @@ static bool xtrabackup_prepare_func(char** argv)
 
 error_cleanup:
 	xb_filters_free();
-	return ok;
+        return ok && !ib::error::was_logged();
 }
 
 /**************************************************************************

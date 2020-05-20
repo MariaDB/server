@@ -2681,10 +2681,7 @@ fseg_free_extent(
 	ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N)
 	      == FSEG_MAGIC_N_VALUE);
 	ut_d(space->modify_check(*mtr));
-
-#if defined BTR_CUR_HASH_ADAPT || defined UNIV_DEBUG
-	const ulint first_page_in_extent = page - (page % FSP_EXTENT_SIZE);
-#endif /* BTR_CUR_HASH_ADAPT || UNIV_DEBUG */
+	ut_d(ulint first_page_in_extent = page - (page % FSP_EXTENT_SIZE));
 
 	const uint16_t xoffset= uint16_t(descr - xdes->frame + XDES_FLST_NODE);
 	const uint16_t ioffset= uint16_t(seg_inode - iblock->frame);

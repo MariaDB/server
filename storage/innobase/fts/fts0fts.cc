@@ -583,7 +583,7 @@ fts_cache_init(
 
 	mutex_enter((ib_mutex_t*) &cache->deleted_lock);
 	cache->deleted_doc_ids = ib_vector_create(
-		cache->sync_heap, sizeof(fts_update_t), 4);
+		cache->sync_heap, sizeof(doc_id_t), 4);
 	mutex_exit((ib_mutex_t*) &cache->deleted_lock);
 
 	/* Reset the cache data for all the FTS indexes. */
@@ -2592,11 +2592,11 @@ dberr_t
 fts_cmp_set_sync_doc_id(
 /*====================*/
 	const dict_table_t*	table,		/*!< in: table */
-	doc_id_t		doc_id_cmp,	/*!< in: Doc ID to compare */
+	doc_id_t		cmp_doc_id,	/*!< in: Doc ID to compare */
 	ibool			read_only,	/*!< in: TRUE if read the
 						synced_doc_id only */
 	doc_id_t*		doc_id)		/*!< out: larger document id
-						after comparing "doc_id_cmp"
+						after comparing "cmp_doc_id"
 						to the one stored in CONFIG
 						table */
 {
@@ -2667,10 +2667,10 @@ retry:
 		goto func_exit;
 	}
 
-	if (doc_id_cmp == 0 && *doc_id) {
+	if (cmp_doc_id == 0 && *doc_id) {
 		cache->synced_doc_id = *doc_id - 1;
 	} else {
-		cache->synced_doc_id = ut_max(doc_id_cmp, *doc_id);
+		cache->synced_doc_id = ut_max(cmp_doc_id, *doc_id);
 	}
 
 	mutex_enter(&cache->doc_id_lock);
@@ -2681,7 +2681,7 @@ retry:
 	}
 	mutex_exit(&cache->doc_id_lock);
 
-	if (doc_id_cmp > *doc_id) {
+	if (cmp_doc_id > *doc_id) {
 		error = fts_update_sync_doc_id(
 			table, cache->synced_doc_id, trx);
 	}
@@ -2803,7 +2803,7 @@ fts_doc_ids_create(void)
 	fts_doc_ids->self_heap = ib_heap_allocator_create(heap);
 
 	fts_doc_ids->doc_ids = static_cast<ib_vector_t*>(ib_vector_create(
-		fts_doc_ids->self_heap, sizeof(fts_update_t), 32));
+		fts_doc_ids->self_heap, sizeof(doc_id_t), 32));
 
 	return(fts_doc_ids);
 }
@@ -3878,7 +3878,7 @@ fts_sync_add_deleted_cache(
 
 	ut_a(ib_vector_size(doc_ids) > 0);
 
-	ib_vector_sort(doc_ids, fts_update_doc_id_cmp);
+	ib_vector_sort(doc_ids, fts_doc_id_cmp);
 
 	info = pars_info_create();
 
@@ -3896,13 +3896,13 @@ fts_sync_add_deleted_cache(
 		"BEGIN INSERT INTO $table_name VALUES (:doc_id);");
 
 	for (i = 0; i < n_elems && error == DB_SUCCESS; ++i) {
-		fts_update_t*	update;
+		doc_id_t*	update;
 		doc_id_t	write_doc_id;
 
-		update = static_cast<fts_update_t*>(ib_vector_get(doc_ids, i));
+		update = static_cast<doc_id_t*>(ib_vector_get(doc_ids, i));
 
 		/* Convert to "storage" byte order. */
-		fts_write_doc_id((byte*) &write_doc_id, update->doc_id);
+		fts_write_doc_id((byte*) &write_doc_id, *update);
 		fts_bind_doc_id(info, "doc_id", &write_doc_id);
 
 		error = fts_eval_sql(sync->trx, graph);
@@ -5193,12 +5193,12 @@ fts_cache_append_deleted_doc_ids(
 
 
 	for (ulint i = 0; i < ib_vector_size(cache->deleted_doc_ids); ++i) {
-		fts_update_t*	update;
+		doc_id_t*	update;
 
-		update = static_cast<fts_update_t*>(
+		update = static_cast<doc_id_t*>(
 			ib_vector_get(cache->deleted_doc_ids, i));
 
-		ib_vector_push(vector, &update->doc_id);
+		ib_vector_push(vector, &update);
 	}
 
 	mutex_exit((ib_mutex_t*) &cache->deleted_lock);

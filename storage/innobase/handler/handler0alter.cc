@@ -1018,16 +1018,12 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	@return whether the table will be rebuilt */
 	bool need_rebuild () const { return(old_table != new_table); }
 
-	/** Clear uncommmitted added indexes after a failed operation. */
-	void clear_added_indexes()
-	{
-		for (ulint i = 0; i < num_to_add_index; i++) {
-			if (!add_index[i]->is_committed()) {
-				add_index[i]->detach_columns();
-				add_index[i]->n_fields = 0;
-			}
-		}
-	}
+  /** Clear uncommmitted added indexes after a failed operation. */
+  void clear_added_indexes()
+  {
+    for (ulint i= 0; i < num_to_add_index; i++)
+      add_index[i]->detach_columns(true);
+  }
 
 	/** Convert table-rebuilding ALTER to instant ALTER. */
 	void prepare_instant()
@@ -6190,6 +6186,7 @@ prepare_inplace_alter_table_dict(
 	create_table_info_t info(ctx->prebuilt->trx->mysql_thd, altered_table,
 				 ha_alter_info->create_info, NULL, NULL,
 				 srv_file_per_table);
+	ut_d(bool stats_wait = false);
 
 	/* The primary index would be rebuilt if a FTS Doc ID
 	column is to be added, and the primary index definition
@@ -6241,6 +6238,7 @@ prepare_inplace_alter_table_dict(
 	XXX what may happen if bg stats opens the table after we
 	have unlocked data dictionary below? */
 	dict_stats_wait_bg_to_stop_using_table(user_table, ctx->trx);
+	ut_d(stats_wait = true);
 
 	online_retry_drop_indexes_low(ctx->new_table, ctx->trx);
 
@@ -7123,7 +7121,8 @@ error_handled:
 		/* n_ref_count must be 1, because purge cannot
 		be executing on this very table as we are
 		holding dict_sys.latch X-latch. */
-		DBUG_ASSERT(user_table->get_ref_count() == 1 || ctx->online);
+		ut_ad(!stats_wait || ctx->online
+		      || user_table->get_ref_count() == 1);
 
 		online_retry_drop_indexes_with_trx(user_table, ctx->trx);
 	} else {

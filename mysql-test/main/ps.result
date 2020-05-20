@@ -5472,6 +5472,23 @@ drop procedure p;
 drop view v1;
 drop table t1;
 #
+# MDEV-22591 Debug build crashes on EXECUTE IMMEDIATE '... WHERE ?' USING IGNORE
+#
+CREATE TABLE t1 (a INT);
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE ?' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT * FROM t1 HAVING ?' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE ?' USING 0;
+a
+EXECUTE IMMEDIATE 'SELECT * FROM t1 HAVING ?' USING 0;
+a
+DROP TABLE t1;
+EXECUTE IMMEDIATE 'SHOW DATABASES WHERE ?' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SHOW DATABASES WHERE ?' USING 0;
+Database
+#
 # End of 10.2 tests
 #
 #
