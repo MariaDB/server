@@ -656,6 +656,7 @@ public:
   bool statement_should_be_aborted() const
   {
     return
+      thd->killed ||
       thd->is_fatal_error ||
       thd->is_error() ||
       alloced_sel_args > SEL_ARG::MAX_SEL_ARGS;
