@@ -6661,7 +6661,7 @@ Item_float::Item_float(THD *thd, const char *str_arg, uint length):
                     &error);
   if (error)
   {
-    char tmp[NAME_LEN + 1];
+    char tmp[NAME_LEN + 2];
     my_snprintf(tmp, sizeof(tmp), "%.*s", length, str_arg);
     my_error(ER_ILLEGAL_VALUE_FOR_TYPE, MYF(0), "double", tmp);
   }

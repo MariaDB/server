@@ -997,11 +997,16 @@ static Item *create_comparator(MY_XPATH *xpath,
            b->type() == Item::XPATH_NODESET)
   {
     uint len= (uint)(xpath->query.end - context->beg);
-    set_if_smaller(len, 32);
-    my_printf_error(ER_UNKNOWN_ERROR,
-                    "XPATH error: "
-                    "comparison of two nodesets is not supported: '%.*s'",
-                    MYF(0), len, context->beg);
+    if (len <= 32)
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "XPATH error: "
+                      "comparison of two nodesets is not supported: '%.*s'",
+                      MYF(0), len, context->beg);
+    else
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "XPATH error: "
+                      "comparison of two nodesets is not supported: '%.32T'",
+                      MYF(0), context->beg);
 
     return 0; // TODO: Comparison of two nodesets
   }
@@ -2634,9 +2639,12 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
       xpath->item= NULL;
       DBUG_ASSERT(xpath->query.end > dollar_pos);
       uint len= (uint)(xpath->query.end - dollar_pos);
-      set_if_smaller(len, 32);
-      my_printf_error(ER_UNKNOWN_ERROR, "Unknown XPATH variable at: '%.*s'", 
-                      MYF(0), len, dollar_pos);
+      if (len <= 32)
+        my_printf_error(ER_UNKNOWN_ERROR, "Unknown XPATH variable at: '%.*s'",
+                        MYF(0), len, dollar_pos);
+      else
+        my_printf_error(ER_UNKNOWN_ERROR, "Unknown XPATH variable at: '%.32T'",
+                        MYF(0), dollar_pos);
     }
   }
   return xpath->item ? 1 : 0;
@@ -2767,9 +2775,13 @@ bool Item_xml_str_func::fix_fields(THD *thd, Item **ref)
   if (!rc)
   {
     uint clen= (uint)(xpath.query.end - xpath.lasttok.beg);
-    set_if_smaller(clen, 32);
-    my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.*s'",
-                    MYF(0), clen, xpath.lasttok.beg);
+    if (clen <= 32)
+      my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.*s'",
+                      MYF(0), clen, xpath.lasttok.beg);
+    else
+      my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.32T'",
+                      MYF(0), xpath.lasttok.beg);
+
     return true;
   }
 
