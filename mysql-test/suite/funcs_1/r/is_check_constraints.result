@@ -5,8 +5,8 @@ CREATE user boo1;
 GRANT select,create,alter,drop on foo.* to boo1;
 SHOW GRANTS for boo1;
 Grants for boo1@%
-GRANT USAGE ON *.* TO `boo1`@`%`
-GRANT SELECT, CREATE, DROP, ALTER ON `foo`.* TO `boo1`@`%`
+GRANT USAGE ON *.* TO 'boo1'@'%'
+GRANT SELECT, CREATE, DROP, ALTER ON `foo`.* TO 'boo1'@'%'
 CREATE user boo2;
 create database foo;
 CONNECT con1,localhost, boo1,, foo;
@@ -130,8 +130,8 @@ INSERT INTO t1 VALUES (1, 2), (2, 3);
 GRANT SELECT (a) ON t1 TO foo;
 SHOW GRANTS FOR foo;
 Grants for foo@%
-GRANT USAGE ON *.* TO `foo`@`%`
-GRANT SELECT (a) ON `db`.`t1` TO `foo`@`%`
+GRANT USAGE ON *.* TO 'foo'@'%'
+GRANT SELECT (a) ON `db`.`t1` TO 'foo'@'%'
 SELECT * FROM information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 def	db	t1	CONSTRAINT_1	`b` > 0

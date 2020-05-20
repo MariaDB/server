@@ -313,8 +313,8 @@ Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 SHOW GRANTS FOR 'user3'@'%';
 Grants for user3@%
-GRANT USAGE ON *.* TO `user3`@`%`
-GRANT ALL PRIVILEGES ON `roelt`.`test2` TO `user3`@`%`
+GRANT USAGE ON *.* TO 'user3'@'%'
+GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%'
 DROP USER 'user3'@'%';
 End of 5.1 tests
 The --upgrade-system-tables option was used, user tables won't be touched.
@@ -586,7 +586,7 @@ Run mysql_upgrade with all privileges on a user
 flush privileges;
 SHOW GRANTS FOR 'user3'@'%';
 Grants for user3@%
-GRANT USAGE ON *.* TO `user3`@`%`
-GRANT ALL PRIVILEGES ON `roelt`.`test2` TO `user3`@`%`
+GRANT USAGE ON *.* TO 'user3'@'%'
+GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%'
 DROP USER 'user3'@'%';
 update mysql.db set Delete_history_priv='Y' where db like 'test%';
