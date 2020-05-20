@@ -39,6 +39,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
  *
  */
 
+#include <my_global.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -508,4 +510,41 @@ crc32_intel_pclmul (u32 *pcrc, const byte *inbuf, size_t inlen)
 #endif
 }
 
+static inline uint32_t cpuid(uint32_t *ecx, uint32_t *edx)
+{
+  uint32_t level;
+
+  asm("cpuid" : "=a"(level) : "a"(0) : "ebx", "ecx", "edx");
+
+  if (level < 1)
+  {
+    return level;
+  }
+
+  asm("cpuid" : "=c"(*ecx), "=d"(*edx) : "a"(1) : "ebx");
+
+  return level;
+}
+
+int is_pclmul_enabled()
+{
+  int pclmul_enabled= 0;
+  uint32_t ecx, edx;
+
+  if (cpuid(&ecx, &edx) > 0)
+  {
+    pclmul_enabled= ((ecx >> 19) & 1) && ((ecx >> 1) & 1);
+  }
+
+  return (pclmul_enabled);
+}
+
+unsigned long crc32_pclmul(unsigned long crc32, const unsigned char *buf,
+                           unsigned int len)
+{
+  uint32_t crc= (uint32_t) crc32;
+  crc= ~crc;
+  crc32_intel_pclmul(&crc, buf, len);
+  return (~crc);
+}
 #endif

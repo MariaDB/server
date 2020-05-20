@@ -18,6 +18,49 @@
 #include <my_sys.h>
 #include <zlib.h>
 
+/* TODO: remove this once zlib adds inherent support for hardware accelerated
+crc32 for all architectures. */
+typedef unsigned long (*my_crc32_func_t)(unsigned long crc,
+                                         const unsigned char *ptr,
+                                         unsigned int len);
+my_crc32_func_t my_crc32= crc32;
+
+#if __GNUC__ >= 4 && defined(__x86_64__) && defined(HAVE_CLMUL_INSTRUCTION)
+/*----------------------------- x86_64 ---------------------------------*/
+extern int is_pclmul_enabled();
+extern unsigned long crc32_pclmul(unsigned long crc32,
+                                  const unsigned char *buf, unsigned int len);
+void my_crc32_init()
+{
+  my_crc32= is_pclmul_enabled() ? crc32_pclmul : crc32;
+}
+#elif defined(__GNUC__) && defined(__linux__) && defined(HAVE_ARMV8_CRC)
+/*----------------------------- aarch64 --------------------------------*/
+extern unsigned int crc32_aarch64_available(void);
+extern unsigned long crc32_aarch64(unsigned long crc32,
+                                   const unsigned char *buf, unsigned int len);
+
+/* Ideally all ARM 64 bit processor should support crc32 but if some model
+doesn't support better to find it out through auxillary vector. */
+void my_crc32_init()
+{
+  my_crc32= crc32_aarch64_available() ? crc32_aarch64 : crc32;
+}
+#elif HAVE_CRC32_VPMSUM
+/*----------------------------- powerpc ---------------------------------*/
+extern unsigned int crc32ieee_vpmsum(unsigned int crc, const unsigned char *p,
+                                     unsigned long len);
+void my_crc32_init()
+{
+  my_crc32= (ha_checksum) crc32ieee_vpmsum((uint) crc, pos, (uint) length);
+}
+#else
+void my_crc32_init()
+{
+  my_crc32= crc32;
+}
+#endif
+
 /*
   Calculate a long checksum for a memoryblock.
 
@@ -30,13 +73,7 @@
 
 ha_checksum my_checksum(ha_checksum crc, const uchar *pos, size_t length)
 {
-#ifdef HAVE_CRC32_VPMSUM
-  extern unsigned int crc32ieee_vpmsum(unsigned int crc, const unsigned char *p,
-                                    unsigned long len);
-  crc= (ha_checksum) crc32ieee_vpmsum((uint) crc, pos, (uint) length);
-#else
-  crc= (ha_checksum) crc32((uint)crc, pos, (uint) length);
-#endif
+  crc= my_crc32((uint)crc, pos, (uint) length);
   DBUG_PRINT("info", ("crc: %lu", (ulong) crc));
   return crc;
 }

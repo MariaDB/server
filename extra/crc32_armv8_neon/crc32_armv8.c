@@ -1,5 +1,6 @@
 #include <my_global.h>
 #include <string.h>
+#include <stdint.h>
 
 
 #if defined(__GNUC__) && defined(__linux__) && defined(HAVE_ARMV8_CRC)
@@ -15,6 +16,13 @@ unsigned int crc32c_aarch64_available(void)
 {
 	unsigned long auxv = getauxval(AT_HWCAP);
 	return (auxv & HWCAP_CRC32) != 0;
+}
+
+/* implementation is same just alias it to avoid confusion between crc32 and
+ * crc32c.*/
+unsigned int crc32_aarch64_available(void)
+{
+	return crc32c_aarch64_available();
 }
 
 #endif
@@ -298,4 +306,36 @@ uint32_t crc32c_aarch64(uint32_t crc, const unsigned char *buffer, uint64_t len)
 	}
 
 	return (~crc);
+}
+
+/* There are multiple approaches to calculate crc.
+Approach-1: Process 8 bytes then 4 bytes then 2 bytes and then 1 bytes
+Approach-2: Process 8 bytes and remaining workload using 1 bytes
+Apporach-3: Process 64 bytes at once by issuing 8 crc call and remaining
+            using 8/1 combination.
+
+Based on micro-benchmark testing we found that Approach-2 works best especially
+given small chunk of variable data. */
+unsigned long crc32_aarch64(unsigned long crc32, const unsigned char *buf,
+                             unsigned int len)
+{
+  uint32_t crc= (uint32_t) crc32;
+  const uint64_t *buf8= (const uint64_t *) buf;
+  const uint8_t *buf1= 0;
+
+  crc= ~crc;
+  while (len >= sizeof(uint64_t))
+  {
+    crc= __crc32d(crc, *buf8++);
+    len-= sizeof(uint64_t);
+  }
+
+  buf1= (const uint8_t *) buf8;
+  while (len >= sizeof(uint8_t))
+  {
+    crc= __crc32b(crc, *buf1++);
+    len-= sizeof(uint8_t);
+  }
+
+  return (~crc);
 }

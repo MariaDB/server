@@ -109,6 +109,9 @@
 #cmakedefine HAVE_ARMV8_CRYPTO 1
 #cmakedefine HAVE_ARMV8_CRC_CRYPTO_INTRINSICS 1
 
+/* Support for carry-less multiplication (CLMUL) on x86 */
+#cmakedefine HAVE_CLMUL_INSTRUCTION 1
+
 /* Does "struct timespec" have a "sec" and "nsec" field? */
 #cmakedefine HAVE_TIMESPEC_TS_SEC 1
 

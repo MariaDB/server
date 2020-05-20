@@ -59,6 +59,8 @@ static ulong atoi_octal(const char *str)
 MYSQL_FILE *mysql_stdin= NULL;
 static MYSQL_FILE instrumented_stdin;
 
+/* To initialize CPU architecture specific hardware based crc32 optimization */
+extern void my_crc32_init();
 
 /**
   Initialize my_sys functions, resources and variables
@@ -100,6 +102,9 @@ my_bool my_init(void)
 
   /* Initialize our mutex handling */
   my_mutex_init();
+
+  /* Initialize CPU architecture specific hardware based crc32 optimization */
+  my_crc32_init();
 
   if (my_thread_global_init())
     return 1;

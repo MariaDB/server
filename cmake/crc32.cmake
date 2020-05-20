@@ -34,3 +34,21 @@ IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
   SET(CRC32_LIBRARY crc32-vpmsum)
   ADD_SUBDIRECTORY(extra/crc32-vpmsum)
 ENDIF()
+
+IF(NOT CMAKE_CROSSCOMPILING AND NOT MSVC)
+  STRING(TOLOWER ${CMAKE_SYSTEM_PROCESSOR}  processor)
+  IF(processor MATCHES "86" OR processor MATCHES "amd64" OR processor MATCHES "x64")
+  #Check for PCLMUL instruction
+  CHECK_C_SOURCE_RUNS("
+  int main()
+  {
+    asm volatile (\"pclmulqdq \\$0x00, %%xmm1, %%xmm0\":::\"cc\");
+    return 0;
+  }"  HAVE_CLMUL_INSTRUCTION)
+  ENDIF()
+
+  IF(HAVE_CLMUL_INSTRUCTION)
+    SET(CRC32_LIBRARY crc32-x86-pclmul)
+    ADD_SUBDIRECTORY(extra/crc32-x86-pclmul)
+  ENDIF()
+ENDIF()
