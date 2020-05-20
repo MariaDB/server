@@ -3614,6 +3614,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
                                  LOG_BIN, io_cache_type_arg))
   {
     sql_print_error("MYSQL_BIN_LOG::open failed to generate new file name.");
+    if (!is_relay_log)
+      goto err;
     DBUG_RETURN(1);
   }
 
@@ -3978,7 +3980,7 @@ err:
     purge_index_entry(NULL, NULL, need_mutex);
   close_purge_index_file();
 #endif
-  sql_print_error(fatal_log_error, name, tmp_errno);
+  sql_print_error(fatal_log_error, (name) ? name : log_name, tmp_errno);
   if (new_xid_list_entry)
     delete new_xid_list_entry;
   if (file >= 0)
