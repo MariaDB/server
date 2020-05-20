@@ -239,7 +239,7 @@ Do a binary search for a doc id in the array
 int
 fts_bsearch(
 /*========*/
-	fts_update_t*	array,		/*!< in: array to sort */
+	doc_id_t*	array,		/*!< in: array to sort */
 	int		lower,		/*!< in: lower bound of array*/
 	int		upper,		/*!< in: upper bound of array*/
 	doc_id_t	doc_id)		/*!< in: doc id to lookup */

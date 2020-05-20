@@ -2920,10 +2920,7 @@ fseg_free_extent(
 	ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N)
 	      == FSEG_MAGIC_N_VALUE);
 	ut_d(space->modify_check(*mtr));
-
-#if defined BTR_CUR_HASH_ADAPT || defined UNIV_DEBUG
-	const ulint first_page_in_extent = page - (page % FSP_EXTENT_SIZE);
-#endif /* BTR_CUR_HASH_ADAPT || UNIV_DEBUG */
+	ut_d(ulint first_page_in_extent = page - (page % FSP_EXTENT_SIZE));
 
 	if (xdes_is_full(descr, mtr)) {
 		flst_remove(seg_inode + FSEG_FULL,

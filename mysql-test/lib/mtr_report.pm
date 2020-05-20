@@ -473,7 +473,7 @@ sub mtr_report_stats ($$$$) {
       $comment =~ s/[\"]//g;
 
       # if a test case has to be retried it should have the result MTR_RES_FAILED in jUnit XML
-      if ($test->{'result'} eq "MTR_RES_FAILED" || $test->{'retries'}) {
+      if ($test->{'result'} eq "MTR_RES_FAILED" || $test->{'retries'} > 0) {
         my $logcontents = $test->{'logfile-failed'} || $test->{'logfile'};
 
         $xml_report .= qq(>\n\t\t\t<failure message="" type="MTR_RES_FAILED">\n<![CDATA[$logcontents]]>\n\t\t\t</failure>\n\t\t</testcase>\n);
@@ -639,6 +639,8 @@ sub mtr_error (@) {
   }
   else
   {
+    use Carp qw(cluck);
+    cluck "Error happened" if $verbose > 0;
     exit(1);
   }
 }

@@ -7215,6 +7215,23 @@ public:
 
   enum Type type() const { return TYPE_HOLDER; }
   TYPELIB *get_typelib() const { return enum_set_typelib; }
+  /*
+    When handling a query like this:
+      VALUES ('') UNION VALUES( _utf16 0x0020 COLLATE utf16_bin);
+    Item_type_holder can be passed to
+      Type_handler_xxx::Item_hybrid_func_fix_attributes()
+    We don't want the latter to perform character set conversion of a
+    Item_type_holder by calling its val_str(), which calls DBUG_ASSERT(0).
+    Let's override const_item() and is_expensive() to avoid this.
+    Note, Item_hybrid_func_fix_attributes() could probably
+    have a new argument to distinguish what we need:
+    - (a) aggregate data type attributes only
+    - (b) install converters after attribute aggregation
+    So st_select_lex_unit::join_union_type_attributes() could
+    ask it to do (a) only, without (b).
+  */
+  bool const_item() const { return false; }
+  bool is_expensive() { return true; }
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
