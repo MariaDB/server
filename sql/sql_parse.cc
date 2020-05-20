@@ -4840,6 +4840,9 @@ mysql_execute_command(THD *thd)
     int result;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
 
+    if (thd->lex && lex->is_force_drop && (check_global_access(thd, SUPER_ACL)))
+      goto error;
+
     thd->open_options|= HA_OPEN_FOR_REPAIR;
     result= thd->open_temporary_tables(all_tables);
     thd->open_options&= ~HA_OPEN_FOR_REPAIR;

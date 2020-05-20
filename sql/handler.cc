@@ -151,6 +151,20 @@ static int commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans,
                               bool is_real_trans);
 
 
+/**
+  Structure used by SE during force drop table.
+*/
+struct st_force_drop_table_params
+{
+  THD *thd;
+  const char *path;
+  const char *db;
+  const char *alias;
+  bool generate_warning;
+
+  int error;
+};
+
 static plugin_ref ha_default_plugin(THD *thd)
 {
   if (thd->variables.table_plugin)
@@ -2732,6 +2746,49 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
   delete file;
 
   DBUG_RETURN(error);
+}
+
+static my_bool delete_table_force(THD *thd, plugin_ref plugin, void *arg)
+{
+  handlerton *hton = plugin_hton(plugin);
+  st_force_drop_table_params *param = (st_force_drop_table_params *)arg;
+  int error;
+
+  if (hton->db_type == DB_TYPE_INNODB)
+  {
+    const LEX_CSTRING db= {param->db, strlen(param->db)};
+    const LEX_CSTRING name= {param->alias, strlen(param->alias) };
+    error= ha_delete_table(param->thd, hton, param->path, &db, &name, param->generate_warning);
+    if (error == HA_ERR_ROW_IS_REFERENCED || error == HA_ERR_NO_SUCH_TABLE)
+      param->error= error;
+    else
+      param->error= 0;
+
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+/** @brief
+  Traverse all plugins to delete table when .frm file is missing.
+  Return HA_ERR_ROW_IS_REFERENCED if foreign key reference is encountered,
+  otherwise return 0.
+*/
+int ha_delete_table_force(THD *thd, const char *path, const char *db,
+                          const char *alias, bool generate_warning, int default_error)
+{
+  st_force_drop_table_params param;
+
+  param.thd              = thd;
+  param.path             = path;
+  param.db               = db;
+  param.alias            = alias;
+  param.generate_warning = generate_warning;
+  param.error            = default_error;
+
+  plugin_foreach(thd, delete_table_force, MYSQL_STORAGE_ENGINE_PLUGIN, &param);
+  return param.error;
 }
 
 /****************************************************************************

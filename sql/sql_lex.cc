@@ -1301,6 +1301,7 @@ void LEX::start(THD *thd_arg)
   period_conditions.empty();
 
   is_lex_started= TRUE;
+  is_force_drop= FALSE;
 
   next_is_main= FALSE;
   next_is_down= FALSE;

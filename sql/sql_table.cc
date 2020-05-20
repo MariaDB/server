@@ -2546,6 +2546,43 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       non_tmp_error|= MY_TEST(error);
     }
 
+
+    /*
+      If drop force command is used, and table is not temporary, force drop
+      table from engine layer here.
+    */
+    if (error && error != HA_ERR_ROW_IS_REFERENCED &&
+        thd->lex && thd->lex->is_force_drop && !drop_temporary)
+    {
+      char *end;
+
+      error = 0;
+
+      /* Remove extension for delete */
+      *(end = path + path_length - reg_ext_length) = '\0';
+      error = ha_delete_table_force(thd, path, db.str,
+                                    table->table_name.str,
+                                    !dont_log_query, error);
+
+      if (error != HA_ERR_ROW_IS_REFERENCED)
+      {
+        if ((error == HA_ERR_NO_SUCH_TABLE) && if_exists)
+          error = 0;
+
+        non_tmp_table_deleted = TRUE;
+        non_tmp_error= MY_TEST(error);
+        /* Delete the table definition file */
+        strcpy(end, reg_ext);
+        mysql_file_delete(key_file_frm, path, MYF(MY_WME));
+        Table_triggers_list::drop_all_triggers(thd, &db,
+                                               &table->table_name);
+      }
+      else
+      {
+        non_tmp_error= TRUE;
+      }
+    }
+
     if (error)
     {
       if (wrong_tables.length())

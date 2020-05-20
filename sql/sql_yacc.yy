@@ -1369,7 +1369,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 
 %type <num>
         order_dir lock_option
-        udf_type opt_local opt_no_write_to_binlog
+        udf_type opt_force opt_local opt_no_write_to_binlog
         opt_temporary all_or_any opt_distinct opt_glimit_clause
         opt_ignore_leaves fulltext_options union_option
         opt_not
@@ -12631,8 +12631,10 @@ drop:
             YYPS->m_lock_type= TL_UNLOCK;
             YYPS->m_mdl_type= MDL_EXCLUSIVE;
           }
-          table_list opt_lock_wait_timeout opt_restrict
-          {}
+          table_list opt_lock_wait_timeout opt_force opt_restrict
+          {
+            Lex->is_force_drop = $8;
+          }
         | DROP INDEX_SYM
           {
             if (Lex->main_select_push())
@@ -12790,6 +12792,10 @@ opt_if_exists:
           $$.set(DDL_options_st::OPT_IF_EXISTS);
         }
         ;
+
+opt_force:
+          /* empty */ { $$= 0; }
+        | FORCE_SYM { $$= 1; }
 
 opt_temporary:
           /* empty */ { $$= 0; }

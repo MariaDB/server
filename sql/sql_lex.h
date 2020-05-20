@@ -3374,6 +3374,7 @@ public:
   uint8 context_analysis_only;
   bool local_file;
   bool check_exists;
+  bool is_force_drop;
   bool autocommit;
   bool verbose, no_write_to_binlog;
 

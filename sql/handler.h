@@ -5105,6 +5105,9 @@ int ha_create_table(THD *thd, const char *path,
                     HA_CREATE_INFO *create_info, LEX_CUSTRING *frm);
 int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
                     const LEX_CSTRING *db, const LEX_CSTRING *alias, bool generate_warning);
+int ha_delete_table_force(THD *thd, const char *path, const char *db,
+                          const char *alias, bool generate_warning, int default_error);
+
 void ha_prepare_for_backup();
 void ha_end_backup();
 void ha_pre_shutdown();
