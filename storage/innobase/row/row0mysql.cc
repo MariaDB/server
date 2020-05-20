@@ -99,6 +99,23 @@ static ib_mutex_t row_drop_list_mutex;
 /** Flag: has row_mysql_drop_list been initialized? */
 static ibool	row_mysql_drop_list_inited	= FALSE;
 
+/** Chain node of the list of files to truncate in the background. */
+struct row_mysql_truncate_t{
+	char* file_name; /*!< file name */
+	/** file handle (valid if is_open) */
+	pfs_os_file_t   handle;
+	int fail_count; /*!< failed times for stat() */
+	UT_LIST_NODE_T(row_mysql_truncate_t)
+		row_mysql_truncate_list; /*!< list chain node */
+};
+
+/** @brief List of files we should truncate in background.
+ Protected by row_truncate_list_mutex. */
+static UT_LIST_BASE_NODE_T(row_mysql_truncate_t) row_mysql_truncate_list;
+
+/** Mutex protecting the background file truncate list. */
+static ib_mutex_t row_truncate_list_mutex;
+
 /*******************************************************************//**
 Determine if the given name is a name reserved for MySQL system tables.
 @return TRUE if name is a MySQL system table name */
@@ -2819,6 +2836,228 @@ func_exit:
 	return added;
 }
 
+#define MAX_TRUNCATE_FAIL_COUNT 5
+/** The master thread in srv0srv.cc calls this regularly to truncate files which
+we must delete in background after DROP TABLE have ended. Such lazy dropping of files
+is needed to alleviate I/O and dict_sys->mutex bottleneck of DROP TABLE.
+@return false if all files are deleted */
+bool
+row_truncate_file_for_mysql_in_background(void)
+{
+	MY_STAT st;
+
+	DBUG_EXECUTE_IF("ib_enter_row_truncate_file",
+			os_thread_sleep(20000000););
+	if (!srv_async_truncate_work_enabled) {
+		return false;
+	}
+	row_mysql_truncate_t* trun;
+
+	mutex_enter(&row_truncate_list_mutex);
+	trun = UT_LIST_GET_FIRST(row_mysql_truncate_list);
+	mutex_exit(&row_truncate_list_mutex);
+
+	if (trun == NULL) {
+		/* All files dropped */
+		return false;
+        }
+
+	DBUG_EXECUTE_IF("ib_before_row_truncate_file",
+			os_thread_sleep(3000000););
+
+	if (my_stat(trun->file_name, &st, MYF(MY_WME)) == NULL) {
+		trun->fail_count++;
+		if (trun->fail_count > MAX_TRUNCATE_FAIL_COUNT) {
+			/* no more retry on this file */
+			goto already_dropped;
+		} else {
+			/* master thread would retry */
+			return true;
+		}
+	}
+
+	if ((long)st.st_size <= (long)srv_async_truncate_size*1024*1024) {
+		os_file_close(trun->handle);
+		os_file_delete(innodb_data_file_key, trun->file_name);
+	} else {
+		os_file_truncate(trun->file_name, trun->handle,
+				 st.st_size - srv_async_truncate_size*1024*1024,
+				 true);
+		return true;
+	}
+
+already_dropped:
+	mutex_enter(&row_truncate_list_mutex);
+	UT_LIST_REMOVE(row_mysql_truncate_list, trun);
+	mutex_exit(&row_truncate_list_mutex);
+
+	ut_free(trun->file_name);
+	ut_free(trun);
+
+	return true;
+}
+
+/** The master thread in srv0srv.cc calls this when shutdown innodb, we delete all
+temp files left by unlink now, instead of truncate
+@return false if all files are deleted */
+bool
+row_truncate_file_for_mysql_in_background_shutdown(void)
+{
+        row_mysql_truncate_t *truncate, *next;
+
+        mutex_enter(&row_truncate_list_mutex);
+
+        /* Look if the file already is in the truncate list */
+        for (truncate = UT_LIST_GET_FIRST(row_mysql_truncate_list);
+             truncate != NULL;) {
+                next = UT_LIST_GET_NEXT(row_mysql_truncate_list, truncate);
+                UT_LIST_REMOVE(row_mysql_truncate_list, truncate);
+                unlink(truncate->file_name);
+                ut_free(truncate->file_name);
+                ut_free(truncate);
+                truncate = next;
+        }
+
+	mutex_exit(&row_truncate_list_mutex);
+	ut_a(UT_LIST_GET_LEN(row_mysql_truncate_list) == 0);
+	return false;
+}
+
+/** try process one trash name
+build_tmp_name first and then try add to background task list
+@param[in]      to be processed ibd_file path
+@return TRUE if process success */
+dberr_t
+row_process_async_drop(const char *ibd_filepath)
+{
+	dberr_t err = DB_SUCCESS;
+	char *trash_name = fil_make_filepath(ibd_filepath, NULL, TRH, false);
+	if (trash_name != NULL) {
+		row_lock_truncate_list();
+		char *tmp_name = build_tmp_name(trash_name);
+		if (tmp_name != NULL) {
+			bool exist = true;
+			if (!os_file_rename_if_exists(
+				innodb_data_file_key, ibd_filepath,
+				tmp_name, &exist)) {
+				err = DB_IO_ERROR;
+			} else if (exist) {
+				row_add_file_to_background_truncate_list(tmp_name);
+			}
+			ut_free(tmp_name);
+		} else {
+			err = DB_IO_ERROR;
+			ib::info() << "build_tmp_name failed for " << ibd_filepath;
+		}
+		row_unlock_truncate_list();
+		ut_free(trash_name);
+	} else {
+		err = DB_OUT_OF_MEMORY;
+		ib::info() << "fil_make_filpath failed for " << ibd_filepath;
+	}
+	return err;
+}
+
+/** If a file is not yet in the truncate list, adds the file to the list of files
+which the master thread truncates in background.
+CAUTION: this func should be called under row_truncate_list_mutex protect
+@return TRUE if the file was not yet in the list, and was added there */
+bool
+row_add_file_to_background_truncate_list(
+/*==================================*/
+        const char*     name)   /*!< in: file name */
+{
+	row_mysql_truncate_t* truncate;
+	bool		success;
+
+        /* Look if the file already is in the truncate list */
+	for (truncate = UT_LIST_GET_FIRST(row_mysql_truncate_list);
+	     truncate != NULL;
+	     truncate = UT_LIST_GET_NEXT(row_mysql_truncate_list, truncate)) {
+		if (strcmp(truncate->file_name, name) == 0) {
+			/* Already in the list */
+			return false;
+		}
+	}
+
+	truncate = static_cast<row_mysql_truncate_t*>(
+		ut_malloc_nokey(sizeof(row_mysql_truncate_t)));
+
+	truncate->file_name = mem_strdup(name);
+	truncate->handle = os_file_create(
+		innodb_data_file_key, name,
+		OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
+		OS_FILE_NORMAL, OS_DATA_FILE, false, &success);
+
+	ut_a(success);
+
+	truncate->fail_count = 0;
+
+	UT_LIST_ADD_LAST(row_mysql_truncate_list, truncate);
+
+	return true;
+}
+
+bool
+row_lock_truncate_list()
+{
+        mutex_enter(&row_truncate_list_mutex);
+        return false;
+}
+
+bool
+row_unlock_truncate_list()
+{
+        mutex_exit(&row_truncate_list_mutex);
+        return false;
+}
+
+ulint
+row_truncate_list_size()
+{
+        return (UT_LIST_GET_LEN(row_mysql_truncate_list));
+}
+
+/** add files under specific directory to the list which master thread would
+truncate in background. This is called in InnoDB bootstrap, to clean up orphan
+files left of last shutdown, so lock protection and duplicate check is not needed.
+ */
+void
+init_mysql_truncate_list(char* dir_path)
+{
+	row_mysql_truncate_t *truncate = NULL;
+	os_file_dir_t dir;
+	os_file_stat_t fileinfo;
+	dberr_t err = DB_SUCCESS;
+
+	dir = os_file_opendir(dir_path, true);
+	if (dir == NULL)
+		return;
+
+	while (fil_file_readdir_next_file(&err, dir_path, dir, &fileinfo) == 0) {
+		if (fileinfo.type != OS_FILE_TYPE_FILE ||
+		    strstr(fileinfo.name, ".ibd.trash.") == NULL)
+			continue;
+
+		char *full_name = static_cast<char *>(
+			ut_malloc_nokey(strlen(dir_path) + strlen(fileinfo.name) + 2));
+		full_name[strlen(dir_path) + strlen(fileinfo.name) + 1] = '\0';
+		sprintf(full_name, "%s/%s", dir_path, fileinfo.name);
+
+		truncate = static_cast<row_mysql_truncate_t*>(
+			ut_malloc_nokey(sizeof(row_mysql_truncate_t)));
+		truncate->file_name = mem_strdup(full_name);
+		truncate->fail_count = 0;
+		UT_LIST_ADD_LAST(row_mysql_truncate_list, truncate);
+
+		ut_free(full_name);
+	}
+
+	os_file_closedir(dir);
+}
+
+
+
 /** Reassigns the table identifier of a table.
 @param[in,out]	table	table
 @param[in,out]	trx	transaction
@@ -4824,6 +5063,14 @@ row_mysql_init(void)
 		&row_mysql_drop_t::row_mysql_drop_list);
 
 	row_mysql_drop_list_inited = TRUE;
+
+	mutex_create(LATCH_ID_ROW_TRUNCATE_LIST, &row_truncate_list_mutex);
+	UT_LIST_INIT(row_mysql_truncate_list,
+		     &row_mysql_truncate_t::row_mysql_truncate_list);
+	if (srv_async_drop_tmp_dir != NULL &&
+	    strcmp(srv_async_drop_tmp_dir, "") != 0) {
+		init_mysql_truncate_list(srv_async_drop_tmp_dir);
+	}
 }
 
 /*********************************************************************//**
@@ -4838,4 +5085,6 @@ row_mysql_close(void)
 		mutex_free(&row_drop_list_mutex);
 		row_mysql_drop_list_inited = FALSE;
 	}
+
+	mutex_free(&row_truncate_list_mutex);
 }

@@ -251,6 +251,14 @@ extern	ulong	srv_thread_sleep_delay;
 /** Maximum sleep delay (in micro-seconds), value of 0 disables it.*/
 extern	ulong	srv_adaptive_max_sleep_delay;
 
+/** MBs of file to be truncated each time by master thread in background */
+extern ulong srv_async_truncate_size;
+/** Directory to store tmp files of async DROP TABLE; if set, DROP TABLE will
+ * only rename ibd file, the file is deleted in background asynchronously */
+extern char *srv_async_drop_tmp_dir;
+/** Enable or Disable the truncate work in master thread */
+extern my_bool srv_async_truncate_work_enabled;
+
 /** Sort buffer size in index creation */
 extern ulong	srv_sort_buf_size;
 /** Maximum modification log file size for online index creation */

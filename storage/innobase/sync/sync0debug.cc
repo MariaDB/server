@@ -1502,6 +1502,8 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(RW_TRX_HASH_ELEMENT, SYNC_RW_TRX_HASH_ELEMENT,
 			rw_trx_hash_element_mutex_key);
 	LATCH_ADD_MUTEX(READ_VIEW, SYNC_READ_VIEW, read_view_mutex_key);
+	LATCH_ADD_MUTEX(ROW_TRUNCATE_LIST, SYNC_NO_ORDER_CHECK,
+			row_truncate_list_mutex_key);
 
 	latch_id_t	id = LATCH_ID_NONE;
 

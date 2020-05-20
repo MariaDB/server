@@ -979,3 +979,4 @@ int innobase_rollback_by_xid(handlerton* hton, XID* xid);
 
 /** Free tablespace resources allocated. */
 void innobase_space_shutdown();
+

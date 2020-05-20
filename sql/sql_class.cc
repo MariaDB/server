@@ -7879,3 +7879,4 @@ THD_list_iterator *THD_list_iterator::iterator()
 {
   return &server_threads;
 }
+

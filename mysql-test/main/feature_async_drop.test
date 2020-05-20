@@ -1,0 +1,141 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+
+let $TMP_DIR= `SELECT @@innodb_async_drop_tmp_dir`;
+if ($TMP_DIR != "")
+{
+  die TMP_DIR not empty;
+}
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+let $TMP_DIR= $MYSQLD_DATADIR/droptmp;
+--mkdir $TMP_DIR
+--echo update by common user not change the value
+select @@innodb_async_drop_tmp_dir;
+--replace_result $TMP_DIR TMP_DIR
+eval set global innodb_async_drop_tmp_dir='$TMP_DIR';
+
+use test;
+create table tbl_async_drop(id int) engine=innodb;
+
+--error ER_GLOBAL_VARIABLE
+set session innodb_async_drop_tmp_dir='';
+
+--echo === now try to set global innodb_async_drop_tmp_dir ===
+set global innodb_async_truncate_work_enabled=1;
+--replace_result $TMP_DIR TMP_DIR
+eval set global innodb_async_drop_tmp_dir='$TMP_DIR';
+
+set @old_truncate_size= @@innodb_async_truncate_size;
+
+set @old_debug= @@global.debug;
+set global debug_dbug='d,ib_before_row_truncate_file';
+
+drop table tbl_async_drop;
+
+--echo here should see trash file
+--exec if [ -f $MYSQLD_DATADIR/test/tbl_async_drop.ibd ]; then echo "[ERROR]Found .ibd"; else echo "no .ibd"; fi;
+--exec if [ -f $TMP_DIR/._test_tbl_async_drop.ibd.trash* ]; then echo "Found ibd.trash"; else echo "[ERROR]no ibd.trash"; fi;
+
+--exec sleep 5;
+--echo here should NOT see trash file
+--exec if [ -f $MYSQLD_DATADIR/test/tbl_async_drop.ibd ]; then echo "[ERROR]Found .ibd"; else echo "no .ibd"; fi;
+--exec if [ -f $TMP_DIR/._test_tbl_async_drop.ibd.trash* ]; then echo "[ERROR]Found ibd.trash"; else echo "no ibd.trash"; fi;
+
+--echo === now change the param dynamically ===
+create table at(c1 int) engine=innodb;
+insert into at values(1),(2);
+--replace_result $TMP_DIR TMP_DIR
+eval set global innodb_async_drop_tmp_dir='$TMP_DIR';
+set global debug_dbug='d,ib_before_row_truncate_file';
+drop table at;
+--echo below set fail coz truncate task list not empty
+--replace_result $TMP_DIR TMP_DIR
+--error ER_WRONG_VALUE_FOR_VAR
+eval set global innodb_async_drop_tmp_dir='$TMP_DIR';
+--echo here should see trash file
+--exec if [ -f $MYSQLD_DATADIR/test/at.ibd ]; then echo "[ERROR]Found .ibd"; else echo "no .ibd"; fi;
+--exec if [ -f $TMP_DIR/._test_at.ibd.trash* ]; then echo "Found ibd.trash"; else echo "error"; fi;
+
+--exec sleep 5;
+--echo here should NOT see trash file
+--exec if [ -f $MYSQLD_DATADIR/test/at.ibd ]; then echo "[ERROR]Found .ibd"; else echo "no .ibd"; fi;
+--exec if [ -f $TMP_DIR/._test_at.ibd.trash* ]; then echo "[ERROR]Found ibd.trash"; else echo "no ibd.trash"; fi;
+
+--echo === now check truncate size
+
+--error ER_GLOBAL_VARIABLE
+set session innodb_async_truncate_size=256;
+set global innodb_async_truncate_size=256;
+select @@innodb_async_truncate_size;
+
+set global innodb_async_drop_tmp_dir="";
+--echo === now try drop if disabled ===
+create table dt(c1 int) engine=innodb;
+insert into dt values(1),(2);
+set global innodb_async_drop_tmp_dir="";
+set global innodb_async_drop_tmp_dir="";
+set global innodb_async_drop_tmp_dir="";
+set global innodb_async_drop_tmp_dir="";
+set global innodb_async_drop_tmp_dir="";
+let $TMP_DIR= `SELECT @@innodb_async_drop_tmp_dir`;
+set global debug_dbug='d,ib_before_row_truncate_file';
+drop table dt;
+--echo here should NOT see trash file
+--exec if [ -f $TMP_DIR/._test_dt.ibd.trash* ]; then echo "[ERROR]Found ibd.trash"; else echo "normal no trash"; fi;
+
+--exec sleep 5;
+--echo here should NOT see trash file
+--exec if [ -f $TMP_DIR/._test_dt.ibd.trash* ]; then echo "[ERROR]Found ibd.trash"; else echo "normal no trash"; fi;
+
+###
+--echo test innodb_async_truncate_work_enabled set to 0
+create table dt(c1 int) engine=innodb;
+insert into dt values(1),(2);
+--echo change innodb_async_drop_tmp_dir to valid dir
+--let $TMP_DIR= $MYSQLD_DATADIR/droptmp
+--replace_result $TMP_DIR TMP_DIR
+eval set global innodb_async_drop_tmp_dir='$TMP_DIR';
+let $TMP_DIR= `SELECT @@innodb_async_drop_tmp_dir`;
+--echo change innodb_async_truncate_work_enabled to 0
+set global innodb_async_truncate_work_enabled=0;
+set global debug_dbug='d,ib_before_row_truncate_file';
+drop table dt;
+--echo here should NOT see trash file
+--exec if [ -f $TMP_DIR/._test_dt.ibd.trash* ]; then echo "[ERROR]Found ibd.trash"; else echo "normal no trash"; fi;
+--exec sleep 5;
+--echo here should NOT see trash file
+--exec if [ -f $TMP_DIR/._test_dt.ibd.trash* ]; then echo "[ERROR]Found ibd.trash"; else echo "normal no trash"; fi;
+
+--echo test innodb_async_truncate_work_enabled set to 1 and then to 0
+create table dt(c1 int) engine=innodb;
+insert into dt values(1),(2);
+set global innodb_async_truncate_work_enabled=1;
+set global debug_dbug='d,ib_enter_row_truncate_file';
+drop table dt;
+--echo after drop reset innodb_async_truncate_work_enabled to 0
+set global innodb_async_truncate_work_enabled=0;
+set global debug_dbug='';
+
+
+--echo here should see trash file
+--exec if [ -f $MYSQLD_DATADIR/test/dt.ibd ]; then echo "[ERROR]Found .ibd"; else echo "no .ibd"; fi;
+--exec if [ -f $TMP_DIR/._test_dt.ibd.trash* ]; then echo "as Exp Found ibd.trash"; else echo "error no trash"; fi;
+--exec sleep 5;
+--echo here should STILL see trash file
+--exec if [ -f $MYSQLD_DATADIR/test/dt.ibd ]; then echo "[ERROR]Found .ibd"; else echo "no .ibd"; fi;
+--exec if [ -f $TMP_DIR/._test_dt.ibd.trash* ]; then echo "as Exp Found ibd.trash"; else echo "error no trash"; fi;
+
+set global innodb_async_truncate_work_enabled=1;
+
+--exec sleep 5;
+--echo here should not see trash file
+--exec if [ -f $MYSQLD_DATADIR/test/dt.ibd ]; then echo "[ERROR]Found .ibd"; else echo "no .ibd"; fi;
+--exec if [ -f $TMP_DIR/._test_dt.ibd.trash* ]; then echo "[ERROR]Found ibd.trash"; else echo "no trash"; fi;
+
+##clean
+set global innodb_async_truncate_size=@old_truncate_size;
+set global debug_dbug=@old_debug;
+set global innodb_async_drop_tmp_dir='';
+set global innodb_async_truncate_work_enabled=0;
+--rmdir $TMP_DIR

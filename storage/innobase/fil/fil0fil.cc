@@ -160,7 +160,7 @@ it is an absolute path. */
 const char*	fil_path_to_mysql_datadir;
 
 /** Common InnoDB file extensions */
-const char* dot_ext[] = { "", ".ibd", ".isl", ".cfg" };
+const char* dot_ext[] = { "", ".ibd", ".isl", ".cfg",".trash" };
 
 /** Number of pending tablespace flushes */
 ulint	fil_n_pending_tablespace_flushes	= 0;
@@ -178,6 +178,11 @@ UNIV_INTERN extern ib_mutex_t fil_crypt_threads_mutex;
 	((s)->purpose == FIL_TYPE_TABLESPACE	\
 	 && srv_file_flush_method	\
 	 == SRV_O_DIRECT_NO_FSYNC)
+
+/** Check if dir_input is valid for async_drop_tmp_dir, return
+0 if OK to reset to empty, return 1 if valid, otherwise, return -1 */
+extern int
+check_async_drop_tmp_dir(THD *thd, const char *dir_input);
 
 /** Determine if the space id is a user tablespace id or not.
 @param[in]	space_id	Space ID to check
@@ -2253,6 +2258,56 @@ bool fil_table_accessible(const dict_table_t* table)
 	return accessible;
 }
 
+/** build a name for temp file to be renamed to in async DROP TABLE
+@return file name or NULL on error */
+char *
+build_tmp_name(char *name)
+{
+	DBUG_ASSERT(srv_async_drop_tmp_dir != NULL &&
+		    strlen(srv_async_drop_tmp_dir) > 0);
+
+	char time_str[24] = "";
+	ulint full_len, time_len, dir_len;
+	uint i;
+	ulint time = ut_time_ms();
+
+	sprintf(time_str, "%ju", time);
+	time_len = strlen(time_str);
+
+	if (check_async_drop_tmp_dir(NULL, srv_async_drop_tmp_dir) != 1)
+		return NULL;
+
+	if (srv_async_drop_tmp_dir[strlen(srv_async_drop_tmp_dir) - 1]
+	    == OS_PATH_SEPARATOR)
+	{
+		dir_len = strlen(srv_async_drop_tmp_dir);
+	} else {
+		dir_len = strlen(srv_async_drop_tmp_dir) + 1;
+	}
+
+	full_len = dir_len + strlen(name) + time_len + 1;
+
+	char *tmp_name = static_cast<char *>(ut_malloc_nokey(full_len + 1));
+	if (tmp_name == NULL) {
+		return NULL;
+	}
+
+	memcpy(tmp_name, srv_async_drop_tmp_dir, dir_len);
+	tmp_name[dir_len - 1] = OS_PATH_SEPARATOR;
+
+	for (i = 0; i < strlen(name); i++) {
+		if (*(name + i) == OS_PATH_SEPARATOR) {
+			*(tmp_name + dir_len + i) = '_';
+		} else {
+			*(tmp_name + dir_len + i) = *(name + i);
+		}
+	}
+	tmp_name[dir_len + strlen(name)] = '.';
+	memcpy(tmp_name + dir_len + strlen(name) + 1, time_str, strlen(time_str));
+	tmp_name[full_len] = '\0';
+	return tmp_name;
+}
+
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	if_exists	whether to ignore missing tablespace
@@ -2355,14 +2410,26 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists)
 		log_mutex_exit();
 		fil_space_free_low(space);
 
-		if (!os_file_delete(innodb_data_file_key, path)
-		    && !os_file_delete_if_exists(
-			    innodb_data_file_key, path, NULL)) {
 
-			/* Note: This is because we have removed the
-			tablespace instance from the cache. */
+		if (srv_async_truncate_work_enabled
+		    && srv_async_drop_tmp_dir != NULL
+		    && strcmp(srv_async_drop_tmp_dir, "") != 0) {
+			dberr_t err = row_process_async_drop(path);
+			if (DB_SUCCESS != err) {
+				ib::error() << "Creating async drop task"
+					<< "for tablespace failed path="
+					<< path << " error=" << err;
+			}
+		} else {
+			if (!os_file_delete(innodb_data_file_key, path)
+			    && !os_file_delete_if_exists(
+					innodb_data_file_key, path, NULL)) {
 
-			err = DB_IO_ERROR;
+				/* Note: This is because we have removed the
+				  tablespace instance from the cache. */
+
+				err = DB_IO_ERROR;
+			}
 		}
 	} else {
 		mutex_exit(&fil_system.mutex);
@@ -4369,7 +4436,19 @@ fil_delete_file(
 	/* Force a delete of any stale .ibd files that are lying around. */
 
 	ib::info() << "Deleting " << ibd_filepath;
-	os_file_delete_if_exists(innodb_data_file_key, ibd_filepath, NULL);
+
+	if (srv_async_truncate_work_enabled
+	    && srv_async_drop_tmp_dir != NULL
+	    && strcmp(srv_async_drop_tmp_dir, "") != 0) {
+		dberr_t err = row_process_async_drop(ibd_filepath);
+		if (DB_SUCCESS != err) {
+			ib::error() << "Creating async drop task"
+				<< "for table ibd failed path="
+				<< ibd_filepath << " error=" << err;
+		}
+	} else {
+		os_file_delete_if_exists(innodb_data_file_key, ibd_filepath, NULL);
+	}
 
 	char*	cfg_filepath = fil_make_filepath(
 		ibd_filepath, NULL, CFG, false);

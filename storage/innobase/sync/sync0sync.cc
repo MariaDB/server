@@ -94,6 +94,7 @@ mysql_pfs_key_t	sync_array_mutex_key;
 mysql_pfs_key_t	thread_mutex_key;
 mysql_pfs_key_t zip_pad_mutex_key;
 mysql_pfs_key_t row_drop_list_mutex_key;
+mysql_pfs_key_t row_truncate_list_mutex_key;
 mysql_pfs_key_t	rw_trx_hash_element_mutex_key;
 mysql_pfs_key_t	read_view_mutex_key;
 #endif /* UNIV_PFS_MUTEX */

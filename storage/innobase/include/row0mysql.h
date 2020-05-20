@@ -396,6 +396,33 @@ row_get_background_drop_list_len_low(void);
 void
 row_mysql_drop_garbage_tables();
 
+bool
+row_truncate_file_for_mysql_in_background(void);
+
+bool
+row_truncate_file_for_mysql_in_background_shutdown(void);
+
+bool
+row_add_file_to_background_truncate_list(const char* name);
+
+bool
+row_lock_truncate_list();
+
+bool
+row_unlock_truncate_list();
+
+ulint
+row_truncate_list_size();
+
+void
+init_mysql_truncate_list(char* dir_path);
+
+char *
+build_tmp_name(char *name);
+
+dberr_t
+row_process_async_drop(const char *ibd_filepath);
+
 /*********************************************************************//**
 Sets an exclusive lock on a table.
 @return error code or DB_SUCCESS */

@@ -133,6 +133,14 @@ my_bool	srv_file_per_table;
 is greater than SRV_FORCE_NO_TRX_UNDO. */
 my_bool	high_level_read_only;
 
+/** MBs of file to be truncated each time by master thread in background */
+ulong srv_async_truncate_size;
+/** Directory to store tmp files of async DROP TABLE; if set, DROP TABLE will
+only rename ibd file, the file is deleted in background asynchronously */
+char *srv_async_drop_tmp_dir;
+/** Enable or Disable the truncate work in master thread */
+my_bool srv_async_truncate_work_enabled;
+
 /** Sort buffer size in index creation */
 ulong	srv_sort_buf_size;
 /** Maximum modification log file size for online index creation */
@@ -1819,6 +1827,9 @@ srv_master_do_active_tasks(void)
 		return;
 	}
 
+	srv_main_thread_op_info = "doing background file truncate";
+	row_truncate_file_for_mysql_in_background();
+
 	/* make sure that there is enough reusable space in the redo
 	log files */
 	srv_main_thread_op_info = "checking free log space";
@@ -1905,6 +1916,9 @@ srv_master_do_idle_tasks(void)
 		return;
 	}
 
+	srv_main_thread_op_info = "doing background file truncate";
+	row_truncate_file_for_mysql_in_background();
+
 	/* make sure that there is enough reusable space in the redo
 	log files */
 	srv_main_thread_op_info = "checking free log space";
@@ -1957,6 +1971,9 @@ void srv_shutdown(bool ibuf_merge)
 	ulint		n_bytes_merged	= 0;
 	ulint		n_tables_to_drop;
 	time_t		now = time(NULL);
+
+	srv_main_thread_op_info = "doing background file truncate";
+	row_truncate_file_for_mysql_in_background_shutdown();
 
 	do {
 		ut_ad(!srv_read_only_mode);

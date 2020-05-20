@@ -571,7 +571,8 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(rtr_match_mutex),
 	PSI_KEY(rtr_path_mutex),
 	PSI_KEY(trx_sys_mutex),
-	PSI_KEY(zip_pad_mutex)
+	PSI_KEY(zip_pad_mutex),
+	PSI_KEY(row_truncate_list_mutex)
 };
 # endif /* UNIV_PFS_MUTEX */
 
@@ -3421,6 +3422,72 @@ static const char* innodb_background_scrub_data_interval_msg
   " has no effect.";
 } // namespace deprecated
 
+/** Check if dir_input is valid for async_drop_tmp_dir, return
+0 if OK to reset to empty, return 1 if valid, otherwise, return -1 */
+int
+check_async_drop_tmp_dir(THD *thd, const char *dir_input)
+{
+        if (!dir_input || strcmp(dir_input, "") == 0) {
+                return(0);
+        }
+
+        if (strlen(dir_input) > FN_REFLEN) {
+                if (thd) {
+                        push_warning_printf(
+                                thd, Sql_condition::WARN_LEVEL_WARN,
+                                ER_WRONG_ARGUMENTS,
+                                "Path length should not exceed %d bytes", FN_REFLEN);
+                }
+                return(-1);
+        }
+
+        if (my_access(dir_input, F_OK)) {
+                if (thd) {
+                        push_warning_printf(
+                                thd, Sql_condition::WARN_LEVEL_WARN,
+                                ER_WRONG_ARGUMENTS,
+                                "InnoDB: Path doesn't exist.");
+                }
+                return(-1);
+        } else if (my_access(dir_input, R_OK | W_OK)) {
+                if (thd) {
+                        push_warning_printf(
+                                thd, Sql_condition::WARN_LEVEL_WARN,
+                                ER_WRONG_ARGUMENTS,
+                                "InnoDB: Server doesn't have permission in "
+                                "the given location.");
+                }
+                return(-1);
+        }
+
+        MY_STAT tmp_stat, cur_stat;
+        if (my_stat(dir_input, &tmp_stat, MYF(0)) == NULL ||
+                (tmp_stat.st_mode & S_IFDIR) != S_IFDIR) {
+                if (thd) {
+                        push_warning_printf(
+                                thd, Sql_condition::WARN_LEVEL_WARN,
+                                ER_WRONG_ARGUMENTS,
+                                "Given path is not a directory.");
+                }
+                return(-1);
+        }
+
+        if (my_stat(fil_path_to_mysql_datadir, &cur_stat, MYF(0)) == NULL ||
+                cur_stat.st_dev != tmp_stat.st_dev) {
+                if (thd) {
+                        push_warning_printf(
+                                thd, Sql_condition::WARN_LEVEL_WARN,
+                                ER_WRONG_ARGUMENTS,
+                                "Given path has different mount point with datadir.");
+                }
+                return(-1);
+        }
+
+        return(1);
+}
+
+
+
 /** Initialize, validate and normalize the InnoDB startup parameters.
 @return failure code
 @retval 0 on success
@@ -3604,6 +3671,13 @@ static int innodb_init_params()
 	ut_a(default_path);
 
 	fil_path_to_mysql_datadir = default_path;
+
+	if (srv_async_drop_tmp_dir != NULL &&
+	    check_async_drop_tmp_dir(NULL, srv_async_drop_tmp_dir) == -1) {
+		sql_print_error("InnoDB: invalid"
+				" innodb_async_drop_tmp_dir value");
+		DBUG_RETURN(innodb_init_abort());
+	}
 
 	/* Set InnoDB initialization parameters according to the values
 	read from MySQL .cnf file */
@@ -17479,6 +17553,135 @@ innodb_max_dirty_pages_pct_lwm_update(
 	srv_max_dirty_pages_pct_lwm = in_val;
 }
 
+/****************************************************************/
+static int innodb_async_drop_tmp_dir_check(
+/*=============================*/
+        THD*                            thd,    /*!< in: thread handle */
+        struct st_mysql_sys_var*        var,    /*!< in: pointer to system
+                                                variable */
+        void*                           save,   /*!< out: immediate result
+                                                for update function */
+        struct st_mysql_value*          value)  /*!< in: incoming string */
+{
+        ut_a(save != NULL);
+        ut_a(value != NULL);
+
+	char    buff[STRING_BUFFER_USUAL_SIZE];
+        int             len = sizeof(buff);
+        const char *dest_dir = value->val_str(value, buff, &len);
+        if (NULL == dest_dir) {
+                if (thd) {
+                        push_warning_printf(
+                                thd, Sql_condition::WARN_LEVEL_WARN,
+                                ER_WRONG_ARGUMENTS,
+                                "Total path length should not exceed %d bytes",
+				STRING_BUFFER_USUAL_SIZE);
+                }
+                *static_cast<const char**>(save) = NULL;
+                return 1;
+        }
+
+        /**
+         default check_func_str will set save value, if exceeded check_func_str will not report
+         error but set save pointer value to NULL
+         */
+        if (check_async_drop_tmp_dir(thd, dest_dir) == -1) {
+                sql_print_error("InnoDB: invalid innodb_async_drop_tmp_dir value=%s", 
+                dest_dir);
+                *static_cast<const char**>(save) = NULL;
+                return 1;
+        }
+
+        /**
+          check task list empty or not
+          acctually check and update func not called at once, so this check will not ensure
+          update func things list still empty ...
+          this plugin_var code really hard to use ...
+         */
+        {
+                int err = 0;
+                row_lock_truncate_list();
+                if (row_truncate_list_size() != 0) {
+                        if (thd) {
+                                push_warning_printf(
+                                        thd,
+					Sql_condition::WARN_LEVEL_WARN,
+                                        HA_ERR_NOT_ALLOWED_COMMAND,
+                                        "Truncate task list not empty, "
+                                        "please wait truncate "
+					"finish and then reset, task=%lu",
+					row_truncate_list_size());
+                        }
+                        err = 1;
+                }
+                row_unlock_truncate_list();
+                if (err) {
+                        *static_cast<const char**>(save) = NULL;
+                        return err;
+                }
+        }
+
+	*static_cast<const char**>(save) = dest_dir;
+
+	return 0;
+}
+
+static
+void
+innodb_async_drop_tmp_dir_update(
+/*===========================*/
+  THD*                          thd,            /*!< in: thread handle */
+  struct st_mysql_sys_var*      var,            /*!< in: pointer to
+                                                        system variable */
+  void*                         var_ptr,        /*!< out: where the
+                                                        formal string goes */
+  const void*                   save)           /*!< in: immediate result
+                                                        from check function */
+{
+	ut_a(var_ptr != NULL);
+	ut_a(save != NULL);
+
+
+	char *old_dir = (*(char **) var_ptr);
+	char *new_dir = (*(char **) save);
+
+	/**
+	  row_process_async_drop will hold truncate list lock
+	 */
+	DBUG_EXECUTE_IF("async_drop_update_sleep",
+			{
+			sql_print_information("async_drop_update_sleep begin");
+			os_thread_sleep(2 * 1000 * 1000);
+			sql_print_information("async_drop_update_sleep finished");
+			});
+	row_lock_truncate_list();
+	if (row_truncate_list_size() != 0) {
+		sql_print_error("async drop bigtable, new task=%lu "
+				"generated between var check and update, check "
+				" old_dir=%s for possible residual",
+				row_truncate_list_size(),
+				(NULL == old_dir ? "" : old_dir));
+	}
+	row_unlock_truncate_list();
+
+	if (new_dir) {
+		*(char**) var_ptr= my_strdup(key_memory_global_system_variables,
+					     new_dir, MYF(0));
+	} else {
+		*(char**) var_ptr= 0;
+	}
+
+	my_free(old_dir);
+
+	if (strcmp(new_dir, "") != 0) {
+		sql_print_information("async_drop tmp dir changed to=%s, "
+			"try to truncate list from new_dir", new_dir);
+	} else {
+		sql_print_information("async_drop tmp dir changed to empty, "
+			"async drop disabled");
+	}
+}
+
 /*************************************************************//**
 Don't allow to set innodb_fast_shutdown=0 if purge threads are
 already down.
@@ -19228,6 +19431,27 @@ static MYSQL_SYSVAR_UINT(fast_shutdown, srv_fast_shutdown,
   " values are 0, 1 (faster), 2 (crash-like), 3 (fastest clean).",
   fast_shutdown_validate, NULL, 1, 0, 3, 0);
 
+static MYSQL_SYSVAR_ULONG(async_truncate_size, srv_async_truncate_size,
+  PLUGIN_VAR_OPCMDARG,
+  "MBs of file to be truncated each time by master thread in background.",
+  NULL, NULL,
+  128,                  /* Default setting */
+  128,                  /* Minimum value */
+  2048, 0);             /* Maximum value */
+
+static MYSQL_SYSVAR_STR(async_drop_tmp_dir, srv_async_drop_tmp_dir,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
+  "Directory to store temp files of async drop table; if set, DROP TABLE "
+  "will only rename ibd file when this values is true, "
+  "the file is dropped in background asynchronously",
+  innodb_async_drop_tmp_dir_check, innodb_async_drop_tmp_dir_update, NULL);
+
+static MYSQL_SYSVAR_BOOL(async_truncate_work_enabled,
+  srv_async_truncate_work_enabled,
+  PLUGIN_VAR_OPCMDARG,
+  "Enable or Disable async background truncate work",
+  NULL, NULL, FALSE);
+
 static MYSQL_SYSVAR_BOOL(file_per_table, srv_file_per_table,
   PLUGIN_VAR_NOCMDARG,
   "Stores each InnoDB table to an .ibd file in the database dir.",
@@ -20247,6 +20471,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(fast_shutdown),
   MYSQL_SYSVAR(read_io_threads),
   MYSQL_SYSVAR(write_io_threads),
+  MYSQL_SYSVAR(async_truncate_size),
+  MYSQL_SYSVAR(async_drop_tmp_dir),
+  MYSQL_SYSVAR(async_truncate_work_enabled),
   MYSQL_SYSVAR(file_per_table),
   MYSQL_SYSVAR(file_format), /* deprecated in MariaDB 10.2; no effect */
   MYSQL_SYSVAR(flush_log_at_timeout),

@@ -594,6 +594,19 @@ file is closed before calling this function.
 bool
 os_file_rename_func(const char* oldpath, const char* newpath);
 
+/** NOTE! Use the corresponding macro os_file_rename_if_exists(), not directly this
+function!
+Renames a file (can also move it to another directory). It is safest that the
+file is closed before calling this function.
+@param[in]      oldpath         old file path as a null-terminated string
+@param[in]      newpath         new file path
+@return true if success */
+bool
+os_file_rename_if_exists_func(
+	const char*	oldpath,
+	const char*	newpath,
+	bool*		exist);
+
 /** NOTE! Use the corresponding macro os_file_close(), not directly this
 function!
 Closes a file handle. In case of error, error number can be retrieved with
@@ -746,6 +759,9 @@ The wrapper functions have the prefix of "innodb_". */
 
 # define os_file_rename(key, oldpath, newpath)				\
 	pfs_os_file_rename_func(key, oldpath, newpath, __FILE__, __LINE__)
+
+# define os_file_rename_if_exists(key, oldpath, newpath, exist)		\
+	pfs_os_file_rename_if_exists_func(key, oldpath, newpath, exist, __FILE__, __LINE__)
 
 # define os_file_delete(key, name)					\
 	pfs_os_file_delete_func(key, name, __FILE__, __LINE__)
@@ -1009,6 +1025,27 @@ pfs_os_file_rename_func(
 	const char*	src_file,
 	uint		src_line);
 
+/** NOTE! Please use the corresponding macro os_file_rename_if_exists(), not directly
+this function!
+This is the performance schema instrumented wrapper function for
+os_file_rename_if_exists()
+@param[in]      key             Performance Schema Key
+@param[in]      oldpath         old file path as a null-terminated string
+@param[in]      newpath         new file path
+@param[out] exist               return if old file exists
+@param[in]      src_file        file name where func invoked
+@param[in]      src_line        line where the func invoked
+@return true if success */
+UNIV_INLINE
+bool
+pfs_os_file_rename_if_exists_func(
+        mysql_pfs_key_t key,
+        const char*	oldpath,
+        const char*	newpath,
+        bool*		exist,
+        const char*	src_file,
+        uint		src_line);
+
 /**
 NOTE! Please use the corresponding macro os_file_delete(), not directly
 this function!
@@ -1086,6 +1123,9 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_rename(key, oldpath, newpath)				\
 	os_file_rename_func(oldpath, newpath)
+
+# define os_file_rename_if_exists(key, oldpath, newpath, exist)         \
+	os_file_rename_if_exists_func(oldpath, newpath, exist)
 
 # define os_file_delete(key, name)	os_file_delete_func(name)
 

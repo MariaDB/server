@@ -1,0 +1,95 @@
+update by common user not change the value
+select @@innodb_async_drop_tmp_dir;
+@@innodb_async_drop_tmp_dir
+NULL
+set global innodb_async_drop_tmp_dir='TMP_DIR';
+use test;
+create table tbl_async_drop(id int) engine=innodb;
+set session innodb_async_drop_tmp_dir='';
+ERROR HY000: Variable 'innodb_async_drop_tmp_dir' is a GLOBAL variable and should be set with SET GLOBAL
+=== now try to set global innodb_async_drop_tmp_dir ===
+set global innodb_async_truncate_work_enabled=1;
+set global innodb_async_drop_tmp_dir='TMP_DIR';
+set @old_truncate_size= @@innodb_async_truncate_size;
+set @old_debug= @@global.debug;
+set global debug_dbug='d,ib_before_row_truncate_file';
+drop table tbl_async_drop;
+here should see trash file
+no .ibd
+Found ibd.trash
+here should NOT see trash file
+no .ibd
+no ibd.trash
+=== now change the param dynamically ===
+create table at(c1 int) engine=innodb;
+insert into at values(1),(2);
+set global innodb_async_drop_tmp_dir='TMP_DIR';
+set global debug_dbug='d,ib_before_row_truncate_file';
+drop table at;
+below set fail coz truncate task list not empty
+set global innodb_async_drop_tmp_dir='TMP_DIR';
+ERROR 42000: Variable 'innodb_async_drop_tmp_dir' can't be set to the value of 'TMP_DIR'
+here should see trash file
+no .ibd
+Found ibd.trash
+here should NOT see trash file
+no .ibd
+no ibd.trash
+=== now check truncate size
+set session innodb_async_truncate_size=256;
+ERROR HY000: Variable 'innodb_async_truncate_size' is a GLOBAL variable and should be set with SET GLOBAL
+set global innodb_async_truncate_size=256;
+select @@innodb_async_truncate_size;
+@@innodb_async_truncate_size
+256
+set global innodb_async_drop_tmp_dir="";
+=== now try drop if disabled ===
+create table dt(c1 int) engine=innodb;
+insert into dt values(1),(2);
+set global innodb_async_drop_tmp_dir="";
+set global innodb_async_drop_tmp_dir="";
+set global innodb_async_drop_tmp_dir="";
+set global innodb_async_drop_tmp_dir="";
+set global innodb_async_drop_tmp_dir="";
+set global debug_dbug='d,ib_before_row_truncate_file';
+drop table dt;
+here should NOT see trash file
+normal no trash
+here should NOT see trash file
+normal no trash
+test innodb_async_truncate_work_enabled set to 0
+create table dt(c1 int) engine=innodb;
+insert into dt values(1),(2);
+change innodb_async_drop_tmp_dir to valid dir
+set global innodb_async_drop_tmp_dir='TMP_DIR';
+change innodb_async_truncate_work_enabled to 0
+set global innodb_async_truncate_work_enabled=0;
+set global debug_dbug='d,ib_before_row_truncate_file';
+drop table dt;
+here should NOT see trash file
+normal no trash
+here should NOT see trash file
+normal no trash
+test innodb_async_truncate_work_enabled set to 1 and then to 0
+create table dt(c1 int) engine=innodb;
+insert into dt values(1),(2);
+set global innodb_async_truncate_work_enabled=1;
+set global debug_dbug='d,ib_enter_row_truncate_file';
+drop table dt;
+after drop reset innodb_async_truncate_work_enabled to 0
+set global innodb_async_truncate_work_enabled=0;
+set global debug_dbug='';
+here should see trash file
+no .ibd
+as Exp Found ibd.trash
+here should STILL see trash file
+no .ibd
+as Exp Found ibd.trash
+set global innodb_async_truncate_work_enabled=1;
+here should not see trash file
+no .ibd
+no trash
+set global innodb_async_truncate_size=@old_truncate_size;
+set global debug_dbug=@old_debug;
+set global innodb_async_drop_tmp_dir='';
+set global innodb_async_truncate_work_enabled=0;
