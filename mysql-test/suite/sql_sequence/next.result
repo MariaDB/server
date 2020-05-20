@@ -534,3 +534,71 @@ select next value for s;
 next value for s
 -999
 drop sequence s;
+#
+# MDEV-13010 Next value expressions should increment
+# sequence only once per SQL Statement
+#
+create sequence s1;
+create sequence s2;
+select nextval(s1);
+nextval(s1)
+1
+select nextval(s2);
+nextval(s2)
+1
+select nextval(s1), nextval(s1);
+nextval(s1)	nextval(s1)
+2	2
+select nextval(s1), nextval(s2);
+nextval(s1)	nextval(s2)
+3	2
+create function sf_using_nextval() returns int
+return nextval(s1);
+select sf_using_nextval(), sf_using_nextval();
+sf_using_nextval()	sf_using_nextval()
+4	5
+select nextval(s1), sf_using_nextval();
+ERROR HY000: Can't update table 's1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
+create sequence s;
+create table t (a int);
+insert into t values (1), (2), (3);
+select a, nextval(s), nextval(s) from t;
+a	nextval(s)	nextval(s)
+1	1	1
+2	2	2
+3	3	3
+drop sequence s;
+select nextval(s1), a + nextval(s1) from t;
+nextval(s1)	a + nextval(s1)
+7	8
+8	10
+9	12
+select nextval(s1), sum(nextval(s1)) from t;
+nextval(s1)	sum(nextval(s1))
+10	30
+select nextval(s1), avg(nextval(s1)) over (partition by a) from t;
+nextval(s1)	avg(nextval(s1)) over (partition by a)
+11	13.0000
+12	13.0000
+13	13.0000
+select nextval(s1), T.nv from (select nextval(s1) as nv, a from t) as T;
+nextval(s1)	nv
+17	14
+18	15
+19	16
+create view v1 as
+select a, nextval(s1), T.nv from (select nextval(s1) as nv, a from t) as T;
+select lastval(s1);
+lastval(s1)
+19
+select * from v1 where a<3;
+a	nextval(s1)	nv
+1	23	20
+2	24	21
+select lastval(s1);
+lastval(s1)
+24
+drop view v1;
+drop function sf_using_nextval;
+drop sequence s1, s2;
+drop table t;

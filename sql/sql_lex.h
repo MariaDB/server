@@ -1328,6 +1328,8 @@ public:
   /* The object used to organize execution of the query by a foreign engine */
   Pushdown_select *pushdown_select;
 
+  bool with_nextval; /* sequence nextval present */
+
   /** System Versioning */
 public:
   uint versioned_tables;
@@ -4661,6 +4663,8 @@ public:
                               const LEX_CSTRING *constraint_name,
                               Table_ident *ref_table_name,
                               DDL_options ddl_options);
+
+  bool sequence_nextval_item_found(const LEX_CSTRING &table_name);
 };
 
 

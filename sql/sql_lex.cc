@@ -3008,6 +3008,7 @@ void st_select_lex::init_select()
   in_tvc= false;
   versioned_tables= 0;
   nest_flags= 0;
+  with_nextval= false;
 }
 
 /*
@@ -7935,6 +7936,23 @@ my_var *LEX::create_outvar(THD *thd,
     new (thd->mem_root) my_var_sp_row_field(rh, a, b, t->offset,
                                             row_field_offset, sphead) :
     NULL /* EXPLAIN */;
+}
+
+
+bool LEX::sequence_nextval_item_found(const LEX_CSTRING &table_name)
+{
+  List_iterator<Item> li(current_select->item_list);
+  Item *item;
+
+  while ((item= li++)) {
+    if (item->type() == Item::FUNC_ITEM &&
+        static_cast<Item_func*>(item)->functype() == Item_func::NEXTVAL_FUNC &&
+        !my_strcasecmp(table_alias_charset,
+                       static_cast<Item_func_nextval*>(item)->table_name(),
+                       table_name.str))
+    { return true; }
+  }
+  return false;
 }
 
 
