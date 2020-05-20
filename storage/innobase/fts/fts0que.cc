@@ -730,10 +730,10 @@ fts_query_union_doc_id(
 {
 	ib_rbt_bound_t	parent;
 	ulint		size = ib_vector_size(query->deleted->doc_ids);
-	fts_update_t*	array = (fts_update_t*) query->deleted->doc_ids->data;
+	doc_id_t*	updates = (doc_id_t*) query->deleted->doc_ids->data;
 
 	/* Check if the doc id is deleted and it's not already in our set. */
-	if (fts_bsearch(array, 0, static_cast<int>(size), doc_id) < 0
+	if (fts_bsearch(updates, 0, static_cast<int>(size), doc_id) < 0
 	    && rbt_search(query->doc_ids, &parent, &doc_id) != 0) {
 
 		fts_ranking_t	ranking;
@@ -761,10 +761,10 @@ fts_query_remove_doc_id(
 {
 	ib_rbt_bound_t	parent;
 	ulint		size = ib_vector_size(query->deleted->doc_ids);
-	fts_update_t*	array = (fts_update_t*) query->deleted->doc_ids->data;
+	doc_id_t*	updates = (doc_id_t*) query->deleted->doc_ids->data;
 
 	/* Check if the doc id is deleted and it's in our set. */
-	if (fts_bsearch(array, 0, static_cast<int>(size), doc_id) < 0
+	if (fts_bsearch(updates, 0, static_cast<int>(size), doc_id) < 0
 	    && rbt_search(query->doc_ids, &parent, &doc_id) == 0) {
 		ut_free(rbt_remove_node(query->doc_ids, parent.last));
 
@@ -791,10 +791,10 @@ fts_query_change_ranking(
 {
 	ib_rbt_bound_t	parent;
 	ulint		size = ib_vector_size(query->deleted->doc_ids);
-	fts_update_t*	array = (fts_update_t*) query->deleted->doc_ids->data;
+	doc_id_t*	updates = (doc_id_t*) query->deleted->doc_ids->data;
 
 	/* Check if the doc id is deleted and it's in our set. */
-	if (fts_bsearch(array, 0, static_cast<int>(size), doc_id) < 0
+	if (fts_bsearch(updates, 0, static_cast<int>(size), doc_id) < 0
 	    && rbt_search(query->doc_ids, &parent, &doc_id) == 0) {
 
 		fts_ranking_t*	ranking;
@@ -828,7 +828,7 @@ fts_query_intersect_doc_id(
 {
 	ib_rbt_bound_t	parent;
 	ulint		size = ib_vector_size(query->deleted->doc_ids);
-	fts_update_t*	array = (fts_update_t*) query->deleted->doc_ids->data;
+	doc_id_t*	updates = (doc_id_t*) query->deleted->doc_ids->data;
 	fts_ranking_t*	ranking= NULL;
 
 	/* There are three types of intersect:
@@ -840,7 +840,7 @@ fts_query_intersect_doc_id(
 	      if it matches 'b' and it's in doc_ids.(multi_exist = true). */
 
 	/* Check if the doc id is deleted and it's in our set */
-	if (fts_bsearch(array, 0, static_cast<int>(size), doc_id) < 0) {
+	if (fts_bsearch(updates, 0, static_cast<int>(size), doc_id) < 0) {
 		fts_ranking_t	new_ranking;
 
 		if (rbt_search(query->doc_ids, &parent, &doc_id) != 0) {
@@ -3649,8 +3649,8 @@ fts_query_prepare_result(
 	if (query->flags == FTS_OPT_RANKING) {
 		fts_word_freq_t*	word_freq;
 		ulint		size = ib_vector_size(query->deleted->doc_ids);
-		fts_update_t*	array =
-			(fts_update_t*) query->deleted->doc_ids->data;
+		doc_id_t*	updates =
+			(doc_id_t*) query->deleted->doc_ids->data;
 
 		node = rbt_first(query->word_freqs);
 		ut_ad(node);
@@ -3665,7 +3665,7 @@ fts_query_prepare_result(
 			doc_freq = rbt_value(fts_doc_freq_t, node);
 
 			/* Don't put deleted docs into result */
-			if (fts_bsearch(array, 0, static_cast<int>(size),
+			if (fts_bsearch(updates, 0, static_cast<int>(size),
 					doc_freq->doc_id) >= 0) {
 				/* one less matching doc count */
 				--word_freq->doc_count;
@@ -4016,7 +4016,7 @@ fts_query(
 	DEBUG_SYNC_C("fts_deleted_doc_ids_append");
 
 	/* Sort the vector so that we can do a binary search over the ids. */
-	ib_vector_sort(query.deleted->doc_ids, fts_update_doc_id_cmp);
+	ib_vector_sort(query.deleted->doc_ids, fts_doc_id_cmp);
 
 	/* Convert the query string to lower case before parsing. We own
 	the ut_malloc'ed result and so remember to free it before return. */
