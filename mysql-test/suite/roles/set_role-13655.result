@@ -18,7 +18,7 @@ create role admin;
 grant simple to admin;
 show grants for admin;
 Grants for admin
-GRANT simple TO 'admin'
+GRANT 'simple' TO 'admin'
 GRANT USAGE ON *.* TO 'admin'
 GRANT USAGE ON *.* TO 'simple'
 GRANT SELECT, INSERT, UPDATE, DELETE, LOCK TABLES, EXECUTE ON `t`.* TO 'simple'
@@ -37,9 +37,9 @@ ERROR 42000: Access denied for user 'foo'@'%' to database 't'
 set role admin;
 show grants;
 Grants for foo@%
-GRANT admin TO 'foo'@'%'
+GRANT 'admin' TO 'foo'@'%'
 GRANT USAGE ON *.* TO 'foo'@'%'
-GRANT simple TO 'admin'
+GRANT 'simple' TO 'admin'
 GRANT USAGE ON *.* TO 'admin'
 GRANT ALL PRIVILEGES ON `t`.* TO 'admin'
 GRANT USAGE ON *.* TO 'simple'

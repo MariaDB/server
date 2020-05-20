@@ -35,11 +35,11 @@ GRANT `client` TO `usertestjohn`@`%`;
 #
 SHOW GRANTS FOR `john`@`%`;
 Grants for john@%
-GRANT client TO 'john'@'%'
+GRANT 'client' TO 'john'@'%'
 GRANT USAGE ON *.* TO 'john'@'%'
 SHOW GRANTS FOR `usertestjohn`@`%`;
 Grants for usertestjohn@%
-GRANT client TO 'usertestjohn'@'%'
+GRANT 'client' TO 'usertestjohn'@'%'
 GRANT USAGE ON *.* TO 'usertestjohn'@'%'
 SHOW GRANTS FOR `client`;
 Grants for client
@@ -84,7 +84,7 @@ information_schema
 test
 show grants;
 Grants for usertestjohn@%
-GRANT client TO 'usertestjohn'@'%'
+GRANT 'client' TO 'usertestjohn'@'%'
 GRANT USAGE ON *.* TO 'usertestjohn'@'%'
 GRANT USAGE ON *.* TO 'client'
 GRANT SELECT ON `bug_db`.`t0` TO 'client'

@@ -1615,7 +1615,7 @@ mysqld_list_fields(THD *thd, TABLE_LIST *table_list, const char *wild)
     0	No conflicting character
 */
 
-static const char *require_quotes(const char *name, uint name_length)
+const char *require_quotes(const char *name, uint name_length)
 {
   bool pure_digit= TRUE;
   const char *end= name + name_length;
