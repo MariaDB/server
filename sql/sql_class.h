@@ -3729,7 +3729,8 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        if ((killed_err= (err_info*) alloc(sizeof(*killed_err))))
+        killed_err= (err_info*) alloc_root(&main_mem_root, sizeof(*killed_err));
+        if (killed_err)
         {
           killed_err->no= killed_errno_arg;
           ::strmake((char*) killed_err->msg, killed_err_msg_arg,
