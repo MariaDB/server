@@ -17,13 +17,12 @@ set global debug_dbug=@old_dbug;
 
 connection master;
 
-### Dump thread is hanging despite slave has gracefully exited.
 let $id=`SELECT id from information_schema.processlist where command='Binlog Dump'`;
 
 if ($id) {
   replace_result $id DUMP_THREAD;
   eval kill $id;
-  let $wait_condition= SELECT count(*)=0 from information_schema.processlist where command='Binlog Dump';
+  let $wait_condition= SELECT count(*)=0 from information_schema.processlist where command='Killed';
   source include/wait_condition.inc;
 }
 
