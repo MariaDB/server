@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "common.h"
 #include "xbstream.h"
 #include "datasink.h"
+#include <my_checksum.h>
 
 #define XBSTREAM_VERSION "1.0"
 #define XBSTREAM_BUFFER_SIZE (10 * 1024 * 1024UL)
@@ -91,12 +92,6 @@ static int mode_create(int argc, char **argv);
 static int mode_extract(int n_threads, int argc, char **argv);
 static my_bool get_one_option(const struct my_option *opt,
 			      char *argument, const char *filename);
-
-/* To initialize CPU architecture specific hardware based crc32 optimization */
-extern "C"
-{
-  extern void my_crc32_init();
-}
 
 int
 main(int argc, char **argv)

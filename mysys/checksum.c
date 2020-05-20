@@ -71,7 +71,7 @@ void my_crc32_init()
       length    length of the block
 */
 
-ha_checksum my_checksum(ha_checksum crc, const uchar *pos, size_t length)
+inline ha_checksum my_checksum(ha_checksum crc, const uchar *pos, size_t length)
 {
   crc= my_crc32((uint)crc, pos, (uint) length);
   DBUG_PRINT("info", ("crc: %lu", (ulong) crc));

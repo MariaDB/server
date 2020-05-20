@@ -18,6 +18,7 @@
 #include "mysys_priv.h"
 #include "my_static.h"
 #include "mysys_err.h"
+#include <my_checksum.h>
 #include <m_string.h>
 #include <m_ctype.h>
 #include <signal.h>

@@ -104,12 +104,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <log.h>
 #include <derror.h>
 #include <thr_timer.h>
-
-/* To initialize CPU architecture specific hardware based crc32 optimization */
-extern "C"
-{
-  extern void my_crc32_init();
-}
+#include <my_checksum.h>
 
 int sys_var_init();
 
