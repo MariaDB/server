@@ -683,6 +683,9 @@ buf_block_t* buf_LRU_get_free_only()
 			>= buf_pool.withdraw_target
 		    || !buf_pool.will_be_withdrawn(block->page)) {
 			/* found valid free block */
+			if (block->locks_inited == false) {
+				buf_block_init_locks(block);
+			}
 			buf_page_mutex_enter(block);
 			/* No adaptive hash index entries may point to
 			a free block. */

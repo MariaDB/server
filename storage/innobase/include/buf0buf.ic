@@ -804,6 +804,10 @@ inline buf_page_t *buf_page_hash_get_low(page_id_t page_id)
 		ut_a(buf_page_in_file(bpage));
 		ut_ad(bpage->in_page_hash);
 		ut_ad(!bpage->in_zip_hash);
+		ut_ad(buf_page_get_state(bpage) == BUF_BLOCK_ZIP_DIRTY
+		      || buf_page_get_state(bpage) == BUF_BLOCK_ZIP_PAGE
+		      || buf_page_get_state(bpage) == BUF_BLOCK_POOL_WATCH
+		      || ((buf_block_t*)bpage)->locks_inited);
 	}
 
 	return(bpage);

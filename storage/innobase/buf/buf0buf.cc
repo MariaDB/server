@@ -1272,45 +1272,13 @@ pfs_register_buffer_block(
 }
 # endif /* PFS_GROUP_BUFFER_SYNC */
 
-/** Initialize a buffer page descriptor.
-@param[in,out]	block	buffer page descriptor
-@param[in]	frame	buffer page frame */
-static
+/********************************************************************//**
+Initializes mutex and rwlock of a buffer control block */
 void
-buf_block_init(buf_block_t* block, byte* frame)
+buf_block_init_locks(
+/*===========*/
+        buf_block_t*    block)          /*!< in: pointer to control block */
 {
-	UNIV_MEM_DESC(frame, srv_page_size);
-
-	/* This function should only be executed at database startup or by
-	buf_pool.resize(). Either way, adaptive hash index must not exist. */
-	assert_block_ahi_empty_on_init(block);
-
-	block->frame = frame;
-
-	block->page.flush_type = BUF_FLUSH_LRU;
-	block->page.state = BUF_BLOCK_NOT_USED;
-	block->page.buf_fix_count = 0;
-	block->page.io_fix = BUF_IO_NONE;
-	block->page.real_size = 0;
-	block->modify_clock = 0;
-	block->page.slot = NULL;
-	block->page.status = buf_page_t::NORMAL;
-
-#ifdef BTR_CUR_HASH_ADAPT
-	block->index = NULL;
-#endif /* BTR_CUR_HASH_ADAPT */
-	block->skip_flush_check = false;
-
-	ut_d(block->page.in_page_hash = FALSE);
-	ut_d(block->page.in_zip_hash = FALSE);
-	ut_d(block->page.in_flush_list = FALSE);
-	ut_d(block->page.in_free_list = FALSE);
-	ut_d(block->page.in_LRU_list = FALSE);
-	ut_d(block->in_unzip_LRU_list = FALSE);
-	ut_d(block->in_withdraw_list = FALSE);
-
-	page_zip_des_init(&block->page.zip);
-
 	mutex_create(LATCH_ID_BUF_BLOCK_MUTEX, &block->mutex);
 	ut_d(block->debug_latch = (rw_lock_t *) ut_malloc_nokey(sizeof(rw_lock_t)));
 
@@ -1339,6 +1307,48 @@ buf_block_init(buf_block_t* block, byte* frame)
 	block->lock.is_block_lock = 1;
 
 	ut_ad(rw_lock_validate(&(block->lock)));
+	block->locks_inited = true;
+}
+
+/** Initialize a buffer page descriptor.
+@param[in,out]	block	buffer page descriptor
+@param[in]	frame	buffer page frame */
+static
+void
+buf_block_init(buf_block_t* block, byte* frame)
+{
+	UNIV_MEM_DESC(frame, srv_page_size);
+
+	/* This function should only be executed at database startup or by
+	buf_pool.resize(). Either way, adaptive hash index must not exist. */
+	assert_block_ahi_empty_on_init(block);
+
+	block->frame = frame;
+
+	block->page.flush_type = BUF_FLUSH_LRU;
+	block->page.state = BUF_BLOCK_NOT_USED;
+	block->page.buf_fix_count = 0;
+	block->page.io_fix = BUF_IO_NONE;
+	block->page.real_size = 0;
+	block->modify_clock = 0;
+	block->locks_inited = FALSE;
+	block->page.slot = NULL;
+	block->page.status = buf_page_t::NORMAL;
+
+#ifdef BTR_CUR_HASH_ADAPT
+	block->index = NULL;
+#endif /* BTR_CUR_HASH_ADAPT */
+	block->skip_flush_check = false;
+
+	ut_d(block->page.in_page_hash = FALSE);
+	ut_d(block->page.in_zip_hash = FALSE);
+	ut_d(block->page.in_flush_list = FALSE);
+	ut_d(block->page.in_free_list = FALSE);
+	ut_d(block->page.in_LRU_list = FALSE);
+	ut_d(block->in_unzip_LRU_list = FALSE);
+	ut_d(block->in_withdraw_list = FALSE);
+
+	page_zip_des_init(&block->page.zip);
 }
 
 /** Allocate a chunk of buffer frames.
@@ -1481,10 +1491,12 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
 @param[in,out]	block	buffer pool block descriptor */
 static void buf_block_free_mutexes(buf_block_t* block)
 {
-	mutex_free(&block->mutex);
-	rw_lock_free(&block->lock);
-	ut_d(rw_lock_free(block->debug_latch));
-	ut_d(ut_free(block->debug_latch));
+  if (block->locks_inited) {
+    mutex_free(&block->mutex);
+    rw_lock_free(&block->lock);
+    ut_d(rw_lock_free(block->debug_latch));
+    ut_d(ut_free(block->debug_latch));
+  }
 }
 
 /** Create the buffer pool.
@@ -5297,7 +5309,9 @@ void buf_pool_t::validate()
 
 		for (j = chunk->size; j--; block++) {
 
-			buf_page_mutex_enter(block);
+			if (block->locks_inited) {
+				buf_page_mutex_enter(block);
+			}
 
 			switch (buf_block_get_state(block)) {
 			case BUF_BLOCK_POOL_WATCH:
@@ -5361,7 +5375,9 @@ assert_s_latched:
 				break;
 			}
 
-			buf_page_mutex_exit(block);
+			if (block->locks_inited) {
+				buf_page_mutex_exit(block);
+			}
 		}
 	}
 

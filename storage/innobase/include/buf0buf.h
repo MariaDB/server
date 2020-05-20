@@ -233,6 +233,13 @@ buf_block_free(
 /*===========*/
 	buf_block_t*	block);	/*!< in, own: block to be freed */
 
+/*********************************************************************//**
+Init buffer block mutex and rwlocks */
+void
+buf_block_init_locks(
+/*===========*/
+        buf_block_t*    block); /*!< in, out: block to be inited */
+
 /**************************************************************//**
 NOTE! The following macros should be used instead of buf_page_get_gen,
 to improve debugging. Only values RW_S_LATCH and RW_X_LATCH are allowed
@@ -1487,6 +1494,9 @@ struct buf_block_t{
 					and accessed; we introduce this new
 					mutex in InnoDB-5.1 to relieve
 					contention on the buffer pool mutex */
+	bool            locks_inited;   /* Mark if this block's locks has been
+					inited. */
+
 
   void fix() { page.fix(); }
   uint32_t unfix() { return page.unfix(); }
@@ -2152,6 +2162,7 @@ Use these instead of accessing buffer pool mutexes directly. */
 
 /** Acquire the block->mutex. */
 #define buf_page_mutex_enter(b) do {			\
+	ut_ad(b->locks_inited);				\
 	mutex_enter(&(b)->mutex);			\
 } while (0)
 
