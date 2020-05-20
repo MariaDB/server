@@ -19919,7 +19919,7 @@ static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,
 			 "scrubbing",
 			 NULL,
 			 innodb_encryption_threads_update,
-			 srv_n_fil_crypt_threads, 0, UINT_MAX32, 0);
+			 0, 0, 255, 0);
 
 static MYSQL_SYSVAR_UINT(encryption_rotate_key_age,
 			 srv_fil_crypt_rotate_key_age,
