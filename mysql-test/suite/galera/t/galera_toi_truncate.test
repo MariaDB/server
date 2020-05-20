@@ -4,50 +4,42 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 --source include/have_debug_sync.inc
---source include/not_embedded.inc
+--source include/have_debug.inc
 
 #
 # INSERT and TRUNCATE on different nodes
 #
 
 --connection node_1
-CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 
-# Insert 1m rows
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 10 FROM ten;
 --source include/wait_condition.inc
 
 # Prevent autocommit retring from masking the deadlock error we expect to get
 SET SESSION wsrep_retry_autocommit = 0;
-INSERT INTO t1(f1) SELECT 1 FROM ten as a1, ten AS a2;
-
-set debug_sync='ha_commit_trans_after_prepare WAIT_FOR go';
---send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6;
+--send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6, ten AS a7, ten AS a8
 
 --connection node_1
-# Wait for a above insert to start
---let $wait_condition = SELECT COUNT(*) >= 100 from t1;
---source include/wait_condition.inc
-
 --send TRUNCATE TABLE t1;
-
---connection node_1
---reap
 
 --connection node_2
 --error ER_LOCK_DEADLOCK
 --reap
 
+--connection node_1
+--reap
+
 --connection node_2
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
 
 --connection node_1
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+
 DROP TABLE t1;
 DROP TABLE ten;
