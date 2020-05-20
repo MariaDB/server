@@ -183,6 +183,8 @@ public:
 					record */
 	uint16_t	hdr_offset;	/*!< Header byte offset on the page */
 
+	ulint           curr_index;     /* Inidcate which rseg is being inited */
+	std::vector<ulint> rsegs_queue;
 
 	TrxUndoRsegsIterator
 			rseg_iter;	/*!< Iterator to get the next rseg

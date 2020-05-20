@@ -19885,6 +19885,11 @@ static MYSQL_SYSVAR_ENUM(stats_method, srv_innodb_stats_method,
   " NULLS_UNEQUAL and NULLS_IGNORED",
    NULL, NULL, SRV_STATS_NULLS_EQUAL, &innodb_stats_method_typelib);
 
+static MYSQL_SYSVAR_ULONG(rseg_init_threads, srv_n_rseg_init_threads,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  "Init undo log segments in parallel mode using assigned threads",
+  NULL, NULL, 1, 1, 128, 0);
+
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 static MYSQL_SYSVAR_BOOL(change_buffer_dump, ibuf_dump,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
@@ -20371,6 +20376,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_failure_threshold_pct),
   MYSQL_SYSVAR(compression_pad_pct_max),
   MYSQL_SYSVAR(default_row_format),
+  MYSQL_SYSVAR(rseg_init_threads),
 #ifdef UNIV_DEBUG
   MYSQL_SYSVAR(simulate_comp_failures),
   MYSQL_SYSVAR(trx_rseg_n_slots_debug),

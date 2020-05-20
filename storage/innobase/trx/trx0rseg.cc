@@ -40,6 +40,7 @@ static long long wsrep_seqno = -1;
 #endif /* UNIV_DEBUG */
 /** The latest known WSREP XID UUID */
 static unsigned char wsrep_uuid[16];
+static ulint active_rseg_threads = 0;
 
 /** Write the WSREP XID information into rollback segment header.
 @param[in,out]	rseg_header	rollback segment header
@@ -444,8 +445,12 @@ static ulint trx_undo_lists_init(trx_rseg_t *rseg, trx_id_t &max_trx_id,
 @param[in,out]	mtr		mini-transaction */
 static
 void
-trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
+trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id,
+		     mtr_t* mtr, bool parallel)
 {
+
+	trx_id_t tmp_max_trx_id = parallel ? rseg->max_trx_id : max_trx_id;
+
 	buf_block_t* rseg_hdr = trx_rsegf_get_new(
 		rseg->space->id, rseg->page_no, mtr);
 
@@ -453,8 +458,8 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 		trx_id_t id = mach_read_from_8(TRX_RSEG + TRX_RSEG_MAX_TRX_ID
 					       + rseg_hdr->frame);
 
-		if (id > max_trx_id) {
-			max_trx_id = id;
+		if (id > tmp_max_trx_id) {
+			tmp_max_trx_id = id;
 		}
 
 		const char* binlog_name = TRX_RSEG + TRX_RSEG_BINLOG_NAME
@@ -505,7 +510,7 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 
 	rseg->curr_size = mach_read_from_4(TRX_RSEG + TRX_RSEG_HISTORY_SIZE
 					   + rseg_hdr->frame)
-		+ 1 + trx_undo_lists_init(rseg, max_trx_id, rseg_hdr);
+		+ 1 + trx_undo_lists_init(rseg, tmp_max_trx_id, rseg_hdr);
 
 	if (auto len = flst_get_len(TRX_RSEG + TRX_RSEG_HISTORY
 				    + rseg_hdr->frame)) {
@@ -525,13 +530,13 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 
 		trx_id_t id = mach_read_from_8(block->frame + node_addr.boffset
 					       + TRX_UNDO_TRX_ID);
-		if (id > max_trx_id) {
-			max_trx_id = id;
+		if (id > tmp_max_trx_id) {
+			tmp_max_trx_id = id;
 		}
 		id = mach_read_from_8(block->frame + node_addr.boffset
 				      + TRX_UNDO_TRX_NO);
-		if (id > max_trx_id) {
-			max_trx_id = id;
+		if (id > tmp_max_trx_id) {
+			tmp_max_trx_id = id;
 		}
 		unsigned purge = mach_read_from_2(block->frame
 						  + node_addr.boffset
@@ -546,6 +551,12 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 			mutex because we are still bootstrapping. */
 			purge_sys.purge_queue.push(*rseg);
 		}
+	}
+
+	if (parallel) {
+		rseg->max_trx_id = tmp_max_trx_id;
+	} else {
+		max_trx_id = tmp_max_trx_id;
 	}
 }
 
@@ -570,9 +581,57 @@ static void trx_rseg_init_binlog_info(const page_t* page)
 #endif
 }
 
+/**
+@return OS_THREAD_DUMMY_RETURN */
+extern "C"
+os_thread_ret_t
+DECLARE_THREAD(trx_rseg_init_thread)(void* arg)
+{
+	trx_rseg_t*     rseg = NULL;
+
+	trx_rseg_t**    rseg_array = ((trx_rseg_t**) trx_sys.rseg_array);
+	trx_id_t	max_trx_id = 0;
+
+	while (true) {
+		mutex_enter(&purge_sys.pq_mutex);
+		if (purge_sys.curr_index >= purge_sys.rsegs_queue.size()) {
+			mutex_exit(&purge_sys.pq_mutex);
+			break;
+		} else {
+			mtr_t           mtr;
+			rseg = rseg_array[purge_sys.rsegs_queue.at(purge_sys.curr_index)];
+
+			purge_sys.curr_index++ ;
+			mutex_exit(&purge_sys.pq_mutex);
+
+			mtr_start(&mtr);
+			trx_rseg_mem_restore(rseg, max_trx_id, &mtr, true);
+			mtr_commit(&mtr);
+		}
+	}
+	__sync_fetch_and_sub(&active_rseg_threads, 1);
+	os_thread_exit();
+	OS_THREAD_DUMMY_RETURN;
+}
+
+void
+trx_rseg_array_parallel_init()
+{
+	purge_sys.curr_index = 0;
+	active_rseg_threads = srv_n_rseg_init_threads;
+
+	for (ulint i = 0; i < srv_n_rseg_init_threads; i++)
+		os_thread_create(trx_rseg_init_thread, NULL, NULL);
+
+	while (__sync_fetch_and_add(&active_rseg_threads, 0) != 0) {
+		os_thread_sleep(100);
+	}
+}
+
+
 /** Initialize the rollback segments in memory at database startup. */
 void
-trx_rseg_array_init()
+trx_rseg_array_init(bool parallel)
 {
 	trx_id_t max_trx_id = 0;
 
@@ -614,7 +673,13 @@ trx_rseg_array_init()
 				ut_ad(rseg->id == rseg_id);
 				ut_ad(!trx_sys.rseg_array[rseg_id]);
 				trx_sys.rseg_array[rseg_id] = rseg;
-				trx_rseg_mem_restore(rseg, max_trx_id, &mtr);
+				if (parallel) {
+					purge_sys.rsegs_queue.push_back(rseg_id);
+					rseg->max_trx_id = max_trx_id;
+				} else {
+					trx_rseg_mem_restore(rseg, max_trx_id, &mtr, false);
+				}
+
 #ifdef WITH_WSREP
 				if (!wsrep_sys_xid.is_null() &&
 				    !wsrep_sys_xid.eq(&trx_sys.recovered_wsrep_xid)) {
@@ -655,6 +720,16 @@ trx_rseg_array_init()
 		mtr.commit();
 	}
 #endif
+
+	if (parallel) {
+		trx_rseg_array_parallel_init();
+		for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
+			trx_rseg_t* rseg = trx_sys.rseg_array[rseg_id];
+			if (rseg && max_trx_id < rseg->max_trx_id) {
+				max_trx_id = rseg->max_trx_id;
+			}
+		}
+	}
 
 	trx_sys.init_max_trx_id(max_trx_id + 1);
 }

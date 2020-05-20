@@ -724,7 +724,7 @@ trx_lists_init_at_db_start()
 		/* mariabackup --prepare only deals with
 		the redo log and the data files, not with
 		transactions or the data dictionary. */
-		trx_rseg_array_init();
+		trx_rseg_array_init(false);
 		return;
 	}
 
@@ -733,7 +733,7 @@ trx_lists_init_at_db_start()
 	}
 
 	purge_sys.create();
-	trx_rseg_array_init();
+	trx_rseg_array_init((srv_n_rseg_init_threads > 1));
 
 	/* Look from the rollback segments if there exist undo logs for
 	transactions. */
