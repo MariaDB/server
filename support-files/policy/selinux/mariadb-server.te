@@ -77,6 +77,7 @@ allow mysqld_t user_tmp_t:dir { write add_name };
 allow mysqld_t user_tmp_t:file create;
 allow mysqld_t bin_t:lnk_file read;
 allow mysqld_t tmp_t:file { append create read write open getattr unlink setattr };
+allow mysqld_t usermodehelper_t:file { read open };
 
 # Allows too much leeway - the xtrabackup/wsrep rules in fc should fix it, but
 # keep for the moment.
