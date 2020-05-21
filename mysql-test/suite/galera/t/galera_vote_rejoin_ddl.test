@@ -6,6 +6,17 @@
 --source include/galera_cluster.inc
 --source include/big_test.inc
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+# The following has to be set hard as these connection doesn't yet exists and
+# the auto_increment_offset value changes during the lifetime of the servers.
+--let $node_3=node_3
+--let $auto_increment_offset_node_3 = 3;
+--let $node_4=node_4
+--let $auto_increment_offset_node_4 = 4;
+
 # Isolate node #3
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
@@ -81,3 +92,5 @@ SELECT COUNT(*) AS expect_1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't
 CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on .* is inconsistent with group. Leaving cluster.");
 
 DROP TABLE t2;
+
+--source include/auto_increment_offset_restore.inc
