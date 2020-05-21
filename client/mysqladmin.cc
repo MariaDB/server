@@ -109,7 +109,7 @@ enum commands {
   ADMIN_FLUSH_TABLE_STATISTICS, ADMIN_FLUSH_INDEX_STATISTICS,
   ADMIN_FLUSH_USER_STATISTICS, ADMIN_FLUSH_CLIENT_STATISTICS,
   ADMIN_FLUSH_USER_RESOURCES,
-  ADMIN_FLUSH_ALL_STATUS, ADMIN_FLUSH_ALL_STATISTICS
+  ADMIN_FLUSH_ALL_STATUS, ADMIN_FLUSH_ALL_STATISTICS, ADMIN_FLUSH_SSL
 };
 static const char *command_names[]= {
   "create",               "drop",                "shutdown",
@@ -124,7 +124,7 @@ static const char *command_names[]= {
   "flush-error-log", "flush-general-log", "flush-relay-log", "flush-slow-log",
   "flush-table-statistics", "flush-index-statistics",
   "flush-user-statistics", "flush-client-statistics", "flush-user-resources",
-  "flush-all-status", "flush-all-statistics",
+  "flush-all-status", "flush-all-statistics", "flush-ssl",
   NullS
 };
 
@@ -1055,6 +1055,16 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       }
       break;
     }
+    case ADMIN_FLUSH_SSL:
+    {
+      if (flush(mysql, "ssl"))
+      {
+	my_printf_error(0, "flush failed; error: '%s'", error_flags,
+			mysql_error(mysql));
+	return -1;
+      }
+      break;
+    }
     case ADMIN_FLUSH_USER_STATISTICS:
     {
       if (flush(mysql, "user_statistics"))
@@ -1413,6 +1423,7 @@ static void usage(void)
   flush-general-log       Flush general log\n\
   flush-relay-log         Flush relay log\n\
   flush-slow-log          Flush slow query log\n\
+  flush-ssl               Flush SSL certificates\n\
   flush-status            Clear status variables\n\
   flush-table-statistics  Clear table statistics\n\
   flush-tables            Flush all tables\n\
