@@ -1160,11 +1160,6 @@ dberr_t srv_start(bool create_new_db)
 	ib::info() << "!!!!!!!! UNIV_IBUF_DEBUG switched on !!!!!!!!!";
 #endif
 
-#ifdef _WIN32
-	ib::info() << "Mutexes and rw_locks use Windows interlocked functions";
-#else
-	ib::info() << "Mutexes and rw_locks use GCC atomic builtins";
-#endif
 	ib::info() << MUTEX_TYPE;
 
 	ib::info() << "Compressed tables use zlib " ZLIB_VERSION
