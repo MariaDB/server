@@ -442,6 +442,13 @@ static
 void print_range(String *out, const KEY_PART_INFO *key_part,
                  KEY_MULTI_RANGE *range, uint n_key_parts);
 
+static
+void print_range_for_non_indexed_field(String *out, Field *field,
+                                       KEY_MULTI_RANGE *range);
+
+static void print_min_range_operator(String *out, const ha_rkey_function flag);
+static void print_max_range_operator(String *out, const ha_rkey_function flag);
+
 
 /*
   SEL_IMERGE is a list of possible ways to do index merge, i.e. it is
@@ -3174,6 +3181,7 @@ static
 double records_in_column_ranges(PARAM *param, uint idx, 
                                 SEL_ARG *tree)
 {
+  THD *thd= param->thd;
   SEL_ARG_RANGE_SEQ seq;
   KEY_MULTI_RANGE range;
   range_seq_t seq_it;
@@ -3200,6 +3208,8 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
   seq_it= seq_if.init((void *) &seq, 0, flags);
 
+  Json_writer_array range_trace(thd, "ranges");
+
   while (!seq_if.next(seq_it, &range))
   {
     key_range *min_endp, *max_endp;
@@ -3215,6 +3225,13 @@ double records_in_column_ranges(PARAM *param, uint idx,
       range_flag |= NEAR_MIN;
     if (range.start_key.flag == HA_READ_BEFORE_KEY)
       range_flag |= NEAR_MAX;
+
+    if (unlikely(thd->trace_started()))
+    {
+      StringBuffer<128> range_info(system_charset_info);
+      print_range_for_non_indexed_field(&range_info, field, &range);
+      range_trace.add(range_info.c_ptr_safe(), range_info.length());
+    }
 
     rows= get_column_range_cardinality(field, min_endp, max_endp, range_flag);
     if (DBL_MAX == rows)
@@ -15804,6 +15821,37 @@ void QUICK_GROUP_MIN_MAX_SELECT::dbug_dump(int indent, bool verbose)
 
 #endif /* !DBUG_OFF */
 
+
+/*
+  @brief Print the comparison operator for the min range
+*/
+
+static void print_min_range_operator(String *out, const ha_rkey_function flag)
+{
+    if (flag == HA_READ_AFTER_KEY)
+      out->append(STRING_WITH_LEN(" < "));
+    else if (flag == HA_READ_KEY_EXACT || flag == HA_READ_KEY_OR_NEXT)
+      out->append(STRING_WITH_LEN(" <= "));
+    else
+      out->append(STRING_WITH_LEN(" ? "));
+}
+
+
+/*
+  @brief Print the comparison operator for the max range
+*/
+
+static void print_max_range_operator(String *out, const ha_rkey_function flag)
+{
+  if (flag == HA_READ_BEFORE_KEY)
+    out->append(STRING_WITH_LEN(" < "));
+  else if (flag == HA_READ_AFTER_KEY)
+    out->append(STRING_WITH_LEN(" <= "));
+  else
+    out->append(STRING_WITH_LEN(" ? "));
+}
+
+
 static
 void print_range(String *out, const KEY_PART_INFO *key_part,
                  KEY_MULTI_RANGE *range, uint n_key_parts)
@@ -15832,29 +15880,54 @@ void print_range(String *out, const KEY_PART_INFO *key_part,
   {
     print_key_value(out, key_part, range->start_key.key,
                     range->start_key.length);
-    if (range->start_key.flag == HA_READ_AFTER_KEY)
-      out->append(STRING_WITH_LEN(" < "));
-    else if (range->start_key.flag == HA_READ_KEY_EXACT ||
-             range->start_key.flag == HA_READ_KEY_OR_NEXT)
-      out->append(STRING_WITH_LEN(" <= "));
-    else
-      out->append(STRING_WITH_LEN(" ? "));
+    print_min_range_operator(out, range->start_key.flag);
   }
 
   print_keyparts_name(out, key_part, n_key_parts, keypart_map);
 
   if (range->end_key.length)
   {
-    if (range->end_key.flag == HA_READ_BEFORE_KEY)
-      out->append(STRING_WITH_LEN(" < "));
-    else if (range->end_key.flag == HA_READ_AFTER_KEY)
-      out->append(STRING_WITH_LEN(" <= "));
-    else
-      out->append(STRING_WITH_LEN(" ? "));
+    print_max_range_operator(out, range->end_key.flag);
     print_key_value(out, key_part, range->end_key.key,
                     range->end_key.length);
   }
 }
+
+
+/*
+  @brief Print range created for non-indexed columns
+
+  @param
+    out                   output string
+    field                 field for which the range is printed
+    range                 range for the field
+*/
+
+static
+void print_range_for_non_indexed_field(String *out, Field *field,
+                                       KEY_MULTI_RANGE *range)
+{
+  TABLE *table= field->table;
+  my_bitmap_map *old_sets[2];
+  dbug_tmp_use_all_columns(table, old_sets, table->read_set, table->write_set);
+
+  if (range->start_key.length)
+  {
+    field->print_key_part_value(out, range->start_key.key, field->key_length());
+    print_min_range_operator(out, range->start_key.flag);
+  }
+
+  out->append(field->field_name);
+
+  if (range->end_key.length)
+  {
+    print_max_range_operator(out, range->end_key.flag);
+    field->print_key_part_value(out, range->end_key.key, field->key_length());
+  }
+  dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_sets);
+}
+
+
 
 /*
 
@@ -15927,30 +16000,8 @@ static void print_key_value(String *out, const KEY_PART_INFO *key_part,
     field= key_part->field;
     store_length= key_part->store_length;
 
-    if (field->real_maybe_null())
-    {
-      /*
-        Byte 0 of key is the null-byte. If set, key is NULL.
-        Otherwise, print the key value starting immediately after the
-        null-byte
-      */
-      if (*key)
-      {
-        out->append(STRING_WITH_LEN("NULL"));
-        goto next;
-      }
-      key++;  // Skip null byte
-      store_length--;
-    }
+    field->print_key_part_value(out, key, key_part->length);
 
-    field->set_key_image(key, key_part->length);
-    field->print_key_value(&tmp, key_part->length);
-    if (field->charset() == &my_charset_bin)
-      out->append(tmp.ptr(), tmp.length(), tmp.charset());
-    else
-      tmp.print(out, system_charset_info);
-
-  next:
     if (key + store_length < key_end)
       out->append(STRING_WITH_LEN(","));
   }

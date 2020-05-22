@@ -594,6 +594,22 @@ EXPLAIN SELECT * FROM t1, t2 WHERE t1.a=t2.a ORDER BY t2.b;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 DROP TABLE t1,t2;
 
---echo # End of 10.4 tests
+--echo #
+--echo # MDEV-22665: Print ranges in the optimizer trace created for non-indexed columns when
+--echo # optimizer_use_condition_selectivity >2
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+SET optimizer_trace=1;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+EXPLAIN EXTENDED SELECT * from t1 WHERE a between 1 and 5 and b <= 5;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN EXTENDED SELECT * from t1 WHERE a != 5;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN EXTENDED SELECT * from t1 WHERE b >= 10 and b < 25;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
 
 set optimizer_trace='enabled=off';
+--echo # End of 10.4 tests
