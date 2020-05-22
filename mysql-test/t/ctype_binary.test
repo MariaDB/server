@@ -137,3 +137,44 @@ CREATE TABLE t1 (a ENUM('a',0x0061), b ENUM('b'));
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
+--echo # 10.2 tests
+--echo #
+
+SET NAMES latin1;
+CREATE TABLE t1(c ENUM(0x0061) CHARACTER SET 'Binary', d JSON);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (c) VALUES (1);
+SELECT HEX(c) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(
+  c ENUM(0x0061) CHARACTER SET 'Binary',
+  d INT DEFAULT NULL CHECK (d>0)
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1,1);
+SELECT HEX(c), d FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(c ENUM(0x0061) CHARACTER SET 'Binary' CHECK (c>0));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1);
+SELECT HEX(c) FROM t1;
+DROP TABLE t1;
+
+
+
+
+
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
