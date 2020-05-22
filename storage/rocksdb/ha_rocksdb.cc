@@ -114,7 +114,6 @@ int thd_binlog_format(const MYSQL_THD thd);
 bool thd_binlog_filter_ok(const MYSQL_THD thd);
 }
 
-MYSQL_PLUGIN_IMPORT bool my_disable_leak_check;
 extern my_bool opt_core_file;
 
 // Needed in rocksdb_init_func
@@ -5687,13 +5686,6 @@ static int rocksdb_init_func(void *const p) {
         "global statistics will use thread_id_indexer_t instead");
   }
 #endif
-
-  /**
-    Rocksdb does not always shutdown its threads, when
-    plugin is shut down. Disable server's leak check
-    at exit to avoid crash.
-  */
-  my_disable_leak_check = true;
 
   err = my_error_register(rdb_get_error_messages, HA_ERR_ROCKSDB_FIRST,
                           HA_ERR_ROCKSDB_LAST);
