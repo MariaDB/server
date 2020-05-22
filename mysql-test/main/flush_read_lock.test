@@ -1698,9 +1698,11 @@ insert into t3_trans values (2);
 xa end 'test2';
 xa prepare 'test2';
 --echo # Disconnect temporary connection
+set debug_sync='thread_end SIGNAL detached';
 disconnect con_tmp;
 --echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
+set debug_sync='now WAIT_FOR detached';
 flush tables with read lock;
 --echo # Switching to connection 'default'.
 connection default;
