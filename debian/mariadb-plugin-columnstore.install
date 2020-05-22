@@ -112,6 +112,7 @@ usr/bin/remote_command.sh
 usr/bin/remote_command_verify.sh
 usr/bin/remote_scp_get.sh
 usr/bin/remote_scp_put.sh
+usr/bin/mcs-stop-controllernode.sh
 usr/bin/remotessh.exp
 usr/bin/reset_locks
 usr/bin/resourceReport.sh
