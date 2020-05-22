@@ -5998,7 +5998,8 @@ finish:
   lex->unit.cleanup();
 
   /* close/reopen tables that were marked to need reopen under LOCK TABLES */
-  if (! thd->lex->requires_prelocking())
+  if (unlikely(thd->locked_tables_list.some_table_marked_for_reopen) &&
+      !thd->lex->requires_prelocking())
     thd->locked_tables_list.reopen_tables(thd, true);
 
   if (! thd->in_sub_stmt)

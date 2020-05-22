@@ -8647,3 +8647,14 @@ void TABLE::initialize_quick_structures()
   bzero(quick_costs, sizeof(quick_costs));
   bzero(quick_n_ranges, sizeof(quick_n_ranges));
 }
+
+/*
+  Mark table to be reopened after query
+*/
+
+void TABLE::mark_table_for_reopen()
+{
+  THD *thd= in_use;
+  DBUG_ASSERT(thd);
+  thd->locked_tables_list.mark_table_for_reopen(thd, this);
+}

@@ -7783,7 +7783,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (field->default_value)
         field->default_value->expr->walk(&Item::rename_fields_processor, 1,
                                          &column_rename_param);
-      table->m_needs_reopen= 1; // because new column name is on thd->mem_root
+      // Force reopen because new column name is on thd->mem_root
+      table->mark_table_for_reopen();
     }
 
     /* Check if field is changed */
@@ -8195,7 +8196,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         {
           check->expr->walk(&Item::rename_fields_processor, 1,
                             &column_rename_param);
-          table->m_needs_reopen= 1; // because new column name is on thd->mem_root
+          // Force reopen because new column name is on thd->mem_root
+          table->mark_table_for_reopen();
         }
         new_constraint_list.push_back(check, thd->mem_root);
       }

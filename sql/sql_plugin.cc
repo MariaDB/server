@@ -1844,7 +1844,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
     sql_print_error(ER_THD(new_thd, ER_GET_ERRNO), my_errno,
                            table->file->table_type());
   end_read_record(&read_record_info);
-  table->m_needs_reopen= TRUE;                  // Force close to free memory
+  table->mark_table_for_reopen();
   close_mysql_tables(new_thd);
 end:
   delete new_thd;

@@ -1065,7 +1065,7 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
         case TMP_TABLE_ANY:        found= true;                 break;
         }
       }
-      if (table && unlikely(table->m_needs_reopen))
+      if (table && unlikely(table->needs_reopen()))
       {
         share->all_tmp_tables.remove(table);
         free_temporary_table(table);

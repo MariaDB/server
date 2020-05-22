@@ -1087,7 +1087,7 @@ send_result_message:
         }
         /* Make sure this table instance is not reused after the operation. */
         if (table->table)
-          table->table->m_needs_reopen= true;
+          table->table->mark_table_for_reopen();
       }
       result_code= result_code ? HA_ADMIN_FAILED : HA_ADMIN_OK;
       table->next_local= save_next_local;
@@ -1212,7 +1212,7 @@ err:
     trans_rollback(thd);
   if (table && table->table)
   {
-    table->table->m_needs_reopen= true;
+    table->table->mark_table_for_reopen();
     table->table= 0;
   }
   close_thread_tables(thd);			// Shouldn't be needed

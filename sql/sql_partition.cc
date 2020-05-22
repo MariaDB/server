@@ -4592,7 +4592,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         {
           *fast_alter_table= true;
           /* Force table re-open for consistency with the main case. */
-          table->m_needs_reopen= true;
+          table->mark_table_for_reopen();
         }
         else
         {
@@ -4640,7 +4640,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         must be reopened.
       */
       *fast_alter_table= true;
-      table->m_needs_reopen= true;
+      table->mark_table_for_reopen();
     }
     else
     {
@@ -6418,7 +6418,7 @@ void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
   THD *thd= lpt->thd;
   TABLE *table= lpt->table;
   DBUG_ENTER("handle_alter_part_error");
-  DBUG_ASSERT(table->m_needs_reopen);
+  DBUG_ASSERT(table->needs_reopen());
 
   if (close_table)
   {
@@ -6637,7 +6637,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   bool frm_install= FALSE;
   MDL_ticket *mdl_ticket= table->mdl_ticket;
   DBUG_ENTER("fast_alter_partition_table");
-  DBUG_ASSERT(table->m_needs_reopen);
+  DBUG_ASSERT(table->needs_reopen());
 
   part_info= table->part_info;
   lpt->thd= thd;

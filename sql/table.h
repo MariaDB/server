@@ -1290,8 +1290,8 @@ public:
   bool insert_or_update;             /* Can be used by the handler */
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
-  bool m_needs_reopen;
 private:
+  bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
 public:
 #ifdef HAVE_REPLICATION
@@ -1401,6 +1401,16 @@ public:
   /** Should this instance of the table be reopened? */
   inline bool needs_reopen()
   { return !db_stat || m_needs_reopen; }
+  /*
+    Mark that all current connection instances of the table should be
+    reopen at end of statement
+  */
+  void mark_table_for_reopen();
+  /* Should only be called from Locked_tables_list::mark_table_for_reopen() */
+  void internal_set_needs_reopen(bool value)
+  {
+    m_needs_reopen= value;
+  }
 
   bool alloc_keys(uint key_count);
   bool check_tmp_key(uint key, uint key_parts,
