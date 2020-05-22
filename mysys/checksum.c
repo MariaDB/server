@@ -46,13 +46,12 @@ void my_crc32_init()
 {
   my_crc32= crc32_aarch64_available() ? crc32_aarch64 : crc32;
 }
-#elif HAVE_CRC32_VPMSUM
-/*----------------------------- powerpc ---------------------------------*/
+#elif defined(HAVE_CRC32_VPMSUM)
+/*----------------------------- ppc64{,le} ---------------------------------*/
 extern unsigned int crc32ieee_vpmsum(unsigned int crc, const unsigned char *p,
                                      unsigned long len);
 void my_crc32_init()
 {
-  my_crc32= (ha_checksum) crc32ieee_vpmsum((uint) crc, pos, (uint) length);
 }
 #else
 void my_crc32_init()
@@ -73,7 +72,11 @@ void my_crc32_init()
 
 inline ha_checksum my_checksum(ha_checksum crc, const uchar *pos, size_t length)
 {
+#if defined(HAVE_CRC32_VPMSUM)
+  crc= crc32ieee_vpmsum(crc, pos, length);
+#else
   crc= my_crc32((uint)crc, pos, (uint) length);
+#endif
   DBUG_PRINT("info", ("crc: %lu", (ulong) crc));
   return crc;
 }
