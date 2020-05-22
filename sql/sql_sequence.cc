@@ -355,8 +355,10 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   seq->reserved_until= seq->start;
   error= seq->write_initial_sequence(table);
 
-  trans_commit_stmt(thd);
-  trans_commit_implicit(thd);
+  if (trans_commit_stmt(thd))
+    error= 1;
+  if (trans_commit_implicit(thd))
+    error= 1;
 
   if (!temporary_table)
   {
