@@ -1,0 +1,17 @@
+#
+# MDEV-22370 safe_mutex: Trying to lock uninitialized mutex at
+#   /data/src/10.4-bug/sql/rpl_parallel.cc, line 470 upon shutdown during FTWRL
+#
+# Purpose of this test case to test crash while FTWRL and shutdown is in race
+# condition
+# Shutdown can execute first and destroy the mutex making mutex_lock in pool_mark_busy
+# to crash
+
+--source include/have_debug.inc
+--connect (con1,localhost,root,,)
+SET DEBUG_DBUG='+d,mark_busy_mdev_22370';
+--send
+  FLUSH TABLES WITH READ LOCK;
+
+--connection default
+--source include/restart_mysqld.inc
