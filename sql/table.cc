@@ -3684,7 +3684,7 @@ fix_type_pointers(const char ***typelib_value_names,
         if (!vend)
           return true;            // Bad format
         *((*typelib_value_names)++)= ptr;
-        *((*typelib_value_lengths)++)= vend - ptr;
+        *((*typelib_value_lengths)++)= (uint) (vend - ptr);
         *vend= '\0';              // Change sep to '\0'
         ptr= vend + 1;            // Shift from sep to the next byte
         /*
