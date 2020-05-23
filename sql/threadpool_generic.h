@@ -89,6 +89,7 @@ struct TP_connection_generic :public TP_connection
   TP_file_handle fd;
   bool bound_to_poll_descriptor;
   int waiting;
+  bool fix_group;
 #ifdef HAVE_IOCP
   OVERLAPPED overlapped;
 #endif
