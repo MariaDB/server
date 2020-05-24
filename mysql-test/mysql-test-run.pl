@@ -369,32 +369,6 @@ my $opt_stop_keep_alive= $ENV{MTR_STOP_KEEP_ALIVE};
 select(STDOUT);
 $| = 1; # Automatically flush STDOUT
 
-my $set_titlebar;
-
-
- BEGIN {
-   if (IS_WINDOWS) {
-     my $have_win32_console= 0;
-     eval {
-       require Win32::Console;
-       Win32::Console->import();
-       $have_win32_console = 1;
-     };
-     eval 'sub HAVE_WIN32_CONSOLE { $have_win32_console }';
-   } else {
-     eval 'sub HAVE_WIN32_CONSOLE { 0 }';
-   }
-}
-
-if (-t STDOUT) {
-  if (IS_WINDOWS and HAVE_WIN32_CONSOLE) {
-    $set_titlebar = sub {Win32::Console::Title $_[0];};
-  } elsif (defined $ENV{TERM} and $ENV{TERM} =~ /xterm/) {
-    $set_titlebar = sub { syswrite STDOUT, "\e];$_[0]\a"; };
-  }
-}
-
-
 main();
 
 sub have_wsrep() {
@@ -632,7 +606,7 @@ sub main {
   }
   
   #######################################################################
-  my $num_tests= @$tests;
+  my $num_tests= $mtr_report::tests_total= @$tests;
   if ( $opt_parallel eq "auto" ) {
     # Try to find a suitable value for number of workers
     if (IS_WINDOWS)
@@ -1072,8 +1046,6 @@ sub run_test_server ($$$) {
 	  $next= splice(@$tests, $second_best, 1);
 	  delete $next->{reserved};
 	}
-
-	titlebar_stat(scalar(@$tests)) if $set_titlebar;
 
 	if ($next) {
 	  # We don't need this any more
@@ -6665,24 +6637,4 @@ sub list_options ($) {
   }
 
   exit(1);
-}
-
-sub time_format($) {
-  sprintf '%d:%02d:%02d', $_[0]/3600, ($_[0]/60)%60, $_[0]%60;
-}
-
-our $num_tests;
-
-sub titlebar_stat {
-  my ($left) = @_;
-
-  # 2.5 -> best by test
-  $num_tests = $left + 2.5 unless $num_tests;
-
-  my $done = $num_tests - $left;
-  my $spent = time - $^T;
-
-  &$set_titlebar(sprintf "mtr: spent %s on %d tests. %s (%d tests) left",
-           time_format($spent), $done,
-           time_format($spent/$done * $left), $left);
 }

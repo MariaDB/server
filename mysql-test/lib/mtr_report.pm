@@ -37,8 +37,20 @@ use My::Platform;
 use POSIX qw[ _exit ];
 use IO::Handle qw[ flush ];
 use mtr_results;
-
 use Term::ANSIColor;
+use English;
+
+my $tot_real_time= 0;
+my $tests_done= 0;
+my $tests_failed= 0;
+
+our $timestamp= 0;
+our $timediff= 0;
+our $name;
+our $verbose;
+our $verbose_restart= 0;
+our $timer= 1;
+our $tests_total;
 
 my %color_map = qw/pass green
                    retry-pass green
@@ -47,20 +59,39 @@ my %color_map = qw/pass green
                    disabled bright_black
                    skipped yellow
                    reset reset/;
-sub xterm_color {
-  if (-t STDOUT and defined $ENV{TERM} and $ENV{TERM} =~ /xterm/) {
-    syswrite STDOUT, color($color_map{$_[0]});
+
+my $set_titlebar;
+my $set_color= sub { };
+
+if (-t STDOUT) {
+  if (IS_WINDOWS) {
+    eval {
+      require Win32::Console;
+      $set_titlebar = sub { &Win32::Console::Title($_[0]);};
+    }
+  } elsif ($ENV{TERM} =~ /xterm/) {
+    $set_titlebar = sub { syswrite STDOUT, "\e]0;$_[0]\a"; };
+    $set_color = sub { syswrite STDOUT, color($color_map{$_[0]}); }
   }
 }
 
-my $tot_real_time= 0;
+sub titlebar_stat($) {
 
-our $timestamp= 0;
-our $timediff= 0;
-our $name;
-our $verbose;
-our $verbose_restart= 0;
-our $timer= 1;
+  sub time_format($) {
+    sprintf '%d:%02d:%02d', $_[0]/3600, ($_[0]/60)%60, $_[0]%60;
+  }
+
+  $tests_done++;
+  $tests_failed++ if $_[0] =~ /fail/;
+  $tests_total++ if $_[0] =~ /retry/;
+
+  my $spent = time - $BASETIME;
+  my $left = $tests_total - $tests_done;
+
+  &$set_titlebar(sprintf "mtr: spent %s on %d tests. %s (%d tests) left, %d failed",
+           time_format($spent), $tests_done,
+           time_format($spent/$tests_done * $left), $left, $tests_failed);
+}
 
 sub report_option {
   my ($opt, $value)= @_;
@@ -321,8 +352,6 @@ sub mtr_report_stats ($$$$) {
 
   if ( $timer )
   {
-    use English;
-
     mtr_report("Spent", sprintf("%.3f", $tot_real_time),"of",
 	       time - $BASETIME, "seconds executing testcases");
   }
@@ -620,10 +649,11 @@ sub mtr_report (@) {
     my @s = split /\[ (\S+) \]/, _name() . "@_\n";
     if (@s > 1) {
       print $s[0];
-      xterm_color($s[1]);
+      &$set_color($s[1]);
       print "[ $s[1] ]";
-      xterm_color('reset');
+      &$set_color('reset');
       print $s[2];
+      titlebar_stat($s[1]) if $set_titlebar;
     } else {
       print $s[0];
     }
