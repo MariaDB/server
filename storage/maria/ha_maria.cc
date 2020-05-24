@@ -3450,7 +3450,10 @@ static int maria_rollback(handlerton *hton, THD *thd, bool all)
                         ER_DATA_WAS_COMMITED_UNDER_ROLLBACK,
                         ER_THD(thd, ER_DATA_WAS_COMMITED_UNDER_ROLLBACK),
                         "Aria");
-  DBUG_RETURN(maria_commit(hton, thd, all));
+  if (all)
+    DBUG_RETURN(maria_commit(hton, thd, all));
+  /* Statement rollbacks are ignored. Commit will happen in external_lock */
+  DBUG_RETURN(0);
 }
 
 #else
