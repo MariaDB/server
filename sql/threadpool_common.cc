@@ -211,12 +211,11 @@ void tp_callback(TP_connection *c)
 
 error:
   c->thd= 0;
-  delete c;
-
   if (thd)
   {
     threadpool_remove_connection(thd);
   }
+  delete c;
   worker_context.restore();
 }
 
@@ -243,9 +242,11 @@ static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
     return NULL;
   }
   delete connect;
+
+  thd->event_scheduler.data = scheduler_data;
   server_threads.insert(thd);
   thd->set_mysys_var(mysys_var);
-  thd->event_scheduler.data= scheduler_data;
+
 
   /* Login. */
   thread_attach(thd);
@@ -280,7 +281,6 @@ end:
 static void threadpool_remove_connection(THD *thd)
 {
   thread_attach(thd);
-  thd->event_scheduler.data= 0;
   thd->net.reading_or_writing = 0;
   end_connection(thd);
   close_connection(thd, 0);
