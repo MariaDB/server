@@ -2183,7 +2183,8 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
         sub_elem= subpart_it++;
         DBUG_ASSERT(sub_elem);
         part= i * num_subparts + j;
-        DBUG_ASSERT(part < m_file_tot_parts && m_file[part]);
+        DBUG_ASSERT(part < m_file_tot_parts);
+        DBUG_ASSERT(m_file[part]);
         dummy_info.data_file_name= dummy_info.index_file_name = NULL;
         m_file[part]->update_create_info(&dummy_info);
         sub_elem->data_file_name = (char*) dummy_info.data_file_name;
@@ -3770,7 +3771,8 @@ int ha_partition::external_lock(THD *thd, int lock_type)
   MY_BITMAP *used_partitions;
   DBUG_ENTER("ha_partition::external_lock");
 
-  DBUG_ASSERT(!auto_increment_lock && !auto_increment_safe_stmt_log_lock);
+  DBUG_ASSERT(!auto_increment_lock);
+  DBUG_ASSERT(!auto_increment_safe_stmt_log_lock);
 
   if (lock_type == F_UNLCK)
     used_partitions= &m_locked_partitions;
@@ -4034,8 +4036,8 @@ void ha_partition::unlock_row()
 bool ha_partition::was_semi_consistent_read()
 {
   DBUG_ENTER("ha_partition::was_semi_consistent_read");
-  DBUG_ASSERT(m_last_part < m_tot_parts &&
-              bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
+  DBUG_ASSERT(m_last_part < m_tot_parts);
+  DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
   DBUG_RETURN(m_file[m_last_part]->was_semi_consistent_read());
 }
 
@@ -5910,8 +5912,8 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
     DBUG_ASSERT(m_part_spec.start_part < m_tot_parts);
     m_ordered_scan_ongoing= m_ordered;
   }
-  DBUG_ASSERT(m_part_spec.start_part < m_tot_parts &&
-              m_part_spec.end_part < m_tot_parts);
+  DBUG_ASSERT(m_part_spec.start_part < m_tot_parts);
+  DBUG_ASSERT(m_part_spec.end_part < m_tot_parts);
   DBUG_RETURN(0);
 }
 
@@ -8653,7 +8655,8 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
   DBUG_PRINT("info", ("offset: %lu inc: %lu desired_values: %lu "
                       "first_value: %lu", (ulong) offset, (ulong) increment,
                       (ulong) nb_desired_values, (ulong) *first_value));
-  DBUG_ASSERT(increment && nb_desired_values);
+  DBUG_ASSERT(increment);
+  DBUG_ASSERT(nb_desired_values);
   *first_value= 0;
   if (table->s->next_number_keypart)
   {

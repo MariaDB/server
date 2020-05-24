@@ -255,7 +255,8 @@ my_bool bitmap_fast_test_and_set(MY_BITMAP *map, uint bitmap_bit)
 my_bool bitmap_test_and_set(MY_BITMAP *map, uint bitmap_bit)
 {
   my_bool res;
-  DBUG_ASSERT(map->bitmap && bitmap_bit < map->n_bits);
+  DBUG_ASSERT(map->bitmap);
+  DBUG_ASSERT(bitmap_bit < map->n_bits);
   bitmap_lock(map);
   res= bitmap_fast_test_and_set(map, bitmap_bit);
   bitmap_unlock(map);
@@ -288,7 +289,8 @@ my_bool bitmap_fast_test_and_clear(MY_BITMAP *map, uint bitmap_bit)
 my_bool bitmap_test_and_clear(MY_BITMAP *map, uint bitmap_bit)
 {
   my_bool res;
-  DBUG_ASSERT(map->bitmap && bitmap_bit < map->n_bits);
+  DBUG_ASSERT(map->bitmap);
+  DBUG_ASSERT(bitmap_bit < map->n_bits);
   bitmap_lock(map);
   res= bitmap_fast_test_and_clear(map, bitmap_bit);
   bitmap_unlock(map);
@@ -317,8 +319,8 @@ void bitmap_set_prefix(MY_BITMAP *map, uint prefix_size)
   uint prefix_bytes, prefix_bits, d;
   uchar *m= (uchar *)map->bitmap;
 
-  DBUG_ASSERT(map->bitmap &&
-	      (prefix_size <= map->n_bits || prefix_size == (uint) ~0));
+  DBUG_ASSERT(map->bitmap);
+  DBUG_ASSERT(prefix_size <= map->n_bits || prefix_size == (uint) ~0);
   set_if_smaller(prefix_size, map->n_bits);
   if ((prefix_bytes= prefix_size / 8))
     memset(m, 0xff, prefix_bytes);
@@ -340,7 +342,8 @@ my_bool bitmap_is_prefix(const MY_BITMAP *map, uint prefix_size)
   uchar *m= (uchar*) map->bitmap;
   uchar *end_prefix= m+(prefix_size-1)/8;
   uchar *end;
-  DBUG_ASSERT(m && prefix_size <= map->n_bits);
+  DBUG_ASSERT(m);
+  DBUG_ASSERT(prefix_size <= map->n_bits);
 
   /* Empty prefix is always true */
   if (!prefix_size)
@@ -393,8 +396,8 @@ my_bool bitmap_is_subset(const MY_BITMAP *map1, const MY_BITMAP *map2)
 {
   my_bitmap_map *m1= map1->bitmap, *m2= map2->bitmap, *end;
 
-  DBUG_ASSERT(map1->bitmap && map2->bitmap &&
-              map1->n_bits==map2->n_bits);
+  DBUG_ASSERT(map1->bitmap && map2->bitmap);
+  DBUG_ASSERT(map1->n_bits==map2->n_bits);
 
   end= map1->last_word_ptr;
   while (m1 < end)
@@ -412,8 +415,9 @@ my_bool bitmap_is_overlapping(const MY_BITMAP *map1, const MY_BITMAP *map2)
 {
   my_bitmap_map *m1= map1->bitmap, *m2= map2->bitmap, *end;
 
-  DBUG_ASSERT(map1->bitmap && map2->bitmap &&
-              map1->n_bits==map2->n_bits);
+  DBUG_ASSERT(map1->bitmap);
+  DBUG_ASSERT(map2->bitmap);
+  DBUG_ASSERT(map1->n_bits==map2->n_bits);
 
   end= map1->last_word_ptr;
   while (m1 < end)
@@ -431,7 +435,8 @@ void bitmap_intersect(MY_BITMAP *map, const MY_BITMAP *map2)
   my_bitmap_map *to= map->bitmap, *from= map2->bitmap, *end;
   uint len= no_words_in_map(map), len2 = no_words_in_map(map2);
 
-  DBUG_ASSERT(map->bitmap && map2->bitmap);
+  DBUG_ASSERT(map->bitmap);
+  DBUG_ASSERT(map2->bitmap);
 
   end= to+MY_MIN(len,len2);
   while (to < end)
@@ -476,7 +481,8 @@ my_bool bitmap_exists_intersection(const MY_BITMAP **bitmap_array,
   uint i, j, start_idx, end_idx;
   my_bitmap_map cur_res;
 
-  DBUG_ASSERT(bitmap_count && end_bit >= start_bit);
+  DBUG_ASSERT(bitmap_count);
+  DBUG_ASSERT(end_bit >= start_bit);
   for (j= 0; j < bitmap_count; j++)
     DBUG_ASSERT(end_bit < bitmap_array[j]->n_bits);
 
@@ -504,8 +510,9 @@ my_bool bitmap_union_is_set_all(const MY_BITMAP *map1, const MY_BITMAP *map2)
 {
   my_bitmap_map *m1= map1->bitmap, *m2= map2->bitmap, *end;
 
-  DBUG_ASSERT(map1->bitmap && map2->bitmap &&
-              map1->n_bits==map2->n_bits);
+  DBUG_ASSERT(map1->bitmap);
+  DBUG_ASSERT(map2->bitmap);
+  DBUG_ASSERT(map1->n_bits==map2->n_bits);
   end= map1->last_word_ptr;
   while ( m1 < end)
     if ((*m1++ | *m2++) != 0xFFFFFFFF)
@@ -550,8 +557,9 @@ void bitmap_set_above(MY_BITMAP *map, uint from_byte, uint use_bit)
 void bitmap_subtract(MY_BITMAP *map, const MY_BITMAP *map2)
 {
   my_bitmap_map *to= map->bitmap, *from= map2->bitmap, *end;
-  DBUG_ASSERT(map->bitmap && map2->bitmap &&
-              map->n_bits==map2->n_bits);
+  DBUG_ASSERT(map->bitmap);
+  DBUG_ASSERT(map2->bitmap);
+  DBUG_ASSERT(map->n_bits==map2->n_bits);
 
   end= map->last_word_ptr;
 
@@ -564,8 +572,9 @@ void bitmap_union(MY_BITMAP *map, const MY_BITMAP *map2)
 {
   my_bitmap_map *to= map->bitmap, *from= map2->bitmap, *end;
 
-  DBUG_ASSERT(map->bitmap && map2->bitmap &&
-              map->n_bits==map2->n_bits);
+  DBUG_ASSERT(map->bitmap);
+  DBUG_ASSERT(map2->bitmap);
+  DBUG_ASSERT(map->n_bits == map2->n_bits);
   end= map->last_word_ptr;
 
   while (to <= end)
@@ -576,8 +585,9 @@ void bitmap_union(MY_BITMAP *map, const MY_BITMAP *map2)
 void bitmap_xor(MY_BITMAP *map, const MY_BITMAP *map2)
 {
   my_bitmap_map *to= map->bitmap, *from= map2->bitmap, *end= map->last_word_ptr;
-  DBUG_ASSERT(map->bitmap && map2->bitmap &&
-              map->n_bits==map2->n_bits);
+  DBUG_ASSERT(map->bitmap);
+  DBUG_ASSERT(map2->bitmap);
+  DBUG_ASSERT(map->n_bits == map2->n_bits);
   while (to <= end)
     *to++ ^= *from++;
 }
@@ -614,8 +624,9 @@ void bitmap_copy(MY_BITMAP *map, const MY_BITMAP *map2)
 {
   my_bitmap_map *to= map->bitmap, *from= map2->bitmap, *end;
 
-  DBUG_ASSERT(map->bitmap && map2->bitmap &&
-              map->n_bits==map2->n_bits);
+  DBUG_ASSERT(map->bitmap);
+  DBUG_ASSERT(map2->bitmap);
+  DBUG_ASSERT(map->n_bits == map2->n_bits);
   end= map->last_word_ptr;
 
   while (to <= end)
@@ -744,7 +755,8 @@ uint bitmap_lock_set_next(MY_BITMAP *map)
 void bitmap_lock_clear_bit(MY_BITMAP *map, uint bitmap_bit)
 {
   bitmap_lock(map);
-  DBUG_ASSERT(map->bitmap && bitmap_bit < map->n_bits);
+  DBUG_ASSERT(map->bitmap);
+  DBUG_ASSERT(bitmap_bit < map->n_bits);
   bitmap_clear_bit(map, bitmap_bit);
   bitmap_unlock(map);
 }
