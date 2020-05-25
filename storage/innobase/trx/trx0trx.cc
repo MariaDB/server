@@ -104,8 +104,6 @@ trx_init(
 /*=====*/
 	trx_t*	trx)
 {
-	trx->no = TRX_ID_MAX;
-
 	trx->state = TRX_STATE_NOT_STARTED;
 
 	trx->is_recovered = false;
@@ -677,7 +675,6 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   trx->state= state;
   ut_d(trx->start_file= __FILE__);
   ut_d(trx->start_line= __LINE__);
-  ut_ad(trx->no == TRX_ID_MAX);
 
   if (is_old_insert)
     trx->rsegs.m_redo.old_insert= undo;
@@ -966,11 +963,6 @@ trx_start_low(
 	trx->xid->null();
 #endif /* WITH_WSREP */
 
-	/* The initial value for trx->no: TRX_ID_MAX is used in
-	read_view_open_now: */
-
-	trx->no = TRX_ID_MAX;
-
 	ut_a(ib_vector_is_empty(trx->autoinc_locks));
 	ut_a(trx->lock.table_locks.empty());
 
@@ -1046,7 +1038,8 @@ trx_serialise(trx_t* trx)
 	already in the rollback segment. User threads only
 	produce events when a rollback segment is empty. */
 	if (rseg->last_page_no == FIL_NULL) {
-		purge_sys.purge_queue.push(TrxUndoRsegs(trx->no, *rseg));
+		purge_sys.purge_queue.push(TrxUndoRsegs(trx->rw_trx_hash_element->no,
+							*rseg));
 		mutex_exit(&purge_sys.pq_mutex);
 	}
 }
