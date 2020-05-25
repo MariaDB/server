@@ -277,3 +277,17 @@ create table t2(id int primary key, a blob, b varchar(20) as (LEFT(a,2)));
 INSERT INTO t2 VALUES (1, 'foo', default);
 DROP TABLE t1, t2;
 SET binlog_row_image= FULL;
+CREATE TABLE t1 (id INT, f TEXT UNIQUE, d DATE, PRIMARY KEY (id)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(1,NULL,'2001-11-16'),
+(2,NULL,'2007-07-01'),
+(3,NULL,'2020-02-03'),
+(4,NULL,'1971-05-24'),
+(5,NULL,'1971-05-24'),
+(6,NULL,'1985-02-07');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'f'
+test.t1	analyze	status	OK
+DROP TABLE t1;

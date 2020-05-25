@@ -1734,6 +1734,22 @@ static void calc_hash_for_unique(ulong &nr1, ulong &nr2, String *str)
   cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
 }
 
+bool Item_func_hash::is_field_read_bitmap_set(Item *item)
+{
+  Field *t_field;
+
+  if (item->type() == Item::FIELD_ITEM)
+    t_field= static_cast<Item_field *>(item)->field;
+  else
+  {
+    Item_func_left *fnc= static_cast<Item_func_left *>(item);
+    t_field= static_cast<Item_field *>(fnc->arguments()[0])->field;
+  }
+  if (bitmap_is_set(t_field->table->read_set, t_field->field_index))
+    return true;
+  return false;
+}
+
 longlong  Item_func_hash::val_int()
 {
   DBUG_EXECUTE_IF("same_long_unique_hash", return 9;);
@@ -1742,16 +1758,18 @@ longlong  Item_func_hash::val_int()
   String * str;
   for(uint i= 0;i<arg_count;i++)
   {
+    if(!is_field_read_bitmap_set(args[i]))
+      goto null_value;
     str = args[i]->val_str();
     if(args[i]->null_value)
-    {
-      null_value= 1;
-      return 0;
-    }
-   calc_hash_for_unique(nr1, nr2, str);
+      goto null_value;
+    calc_hash_for_unique(nr1, nr2, str);
   }
   null_value= 0;
   return   (longlong)nr1;
+null_value:
+  null_value= 1;
+  return 0;
 }
 
 
