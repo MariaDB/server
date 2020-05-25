@@ -139,7 +139,7 @@ static inline ulint ut_crc32c_8(ulint crc, byte data)
 #  ifdef _MSC_VER
   return _mm_crc32_u8(static_cast<uint32_t>(crc), data);
 #  elif __has_feature(memory_sanitizer)
-  return __builtin_ia32_crc32qi(crc, data);
+  return __builtin_ia32_crc32qi(static_cast<uint32_t>(crc), data);
 #  else
   asm("crc32b %1, %0" : "+r" (crc) : "rm" (data));
   return crc;
