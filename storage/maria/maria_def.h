@@ -36,15 +36,22 @@ C_MODE_START
 #include <waiting_threads.h>
 #include <mysql/psi/mysql_file.h>
 
-/* For testing recovery */
-#ifdef TO_BE_REMOVED
-#define IDENTICAL_PAGES_AFTER_RECOVERY 1
-#endif
 /* Do extra sanity checking */
 #define SANITY_CHECKS 1
 #ifdef EXTRA_DEBUG
 #define EXTRA_DEBUG_KEY_CHANGES
+#endif
+/*
+  The following defines can be used when one has problems with redo logging
+  Setting this will log the full key page which can be compared with the
+  redo-changed key page. This will however make the aria log files MUCH bigger.
+*/
+#if defined(EXTRA_ARIA_DEBUG)
 #define EXTRA_STORE_FULL_PAGE_IN_KEY_CHANGES
+#endif
+/* For testing recovery */
+#ifdef TO_BE_REMOVED
+#define IDENTICAL_PAGES_AFTER_RECOVERY 1
 #endif
 
 #define MAX_NONMAPPED_INSERTS 1000
