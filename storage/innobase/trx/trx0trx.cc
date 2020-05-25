@@ -1493,12 +1493,6 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   if (fts_trx)
     trx_finalize_for_fts(this, undo_no != 0);
 
-  trx_mutex_enter(this);
-  dict_operation= TRX_DICT_OP_NONE;
-
-  DBUG_LOG("trx", "Commit in memory: " << this);
-  state= TRX_STATE_NOT_STARTED;
-
 #ifdef WITH_WSREP
   /* Serialization history has been written and the transaction is
   committed in memory, which makes this commit ordered. Release commit
@@ -1510,6 +1504,11 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   }
   lock.was_chosen_as_wsrep_victim= false;
 #endif /* WITH_WSREP */
+  trx_mutex_enter(this);
+  dict_operation= TRX_DICT_OP_NONE;
+
+  DBUG_LOG("trx", "Commit in memory: " << this);
+  state= TRX_STATE_NOT_STARTED;
 
   assert_freed();
   trx_init(this);
