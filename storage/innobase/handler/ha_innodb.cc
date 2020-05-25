@@ -5201,13 +5201,43 @@ static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 	}
 #endif /* WITH_WSREP */
 
-	if (trx_t* trx = thd_to_trx(thd)) {
-		ut_ad(trx->mysql_thd == thd);
-		/* Cancel a pending lock request if there are any */
-		lock_trx_handle_wait(trx);
-	}
+  if (trx_t* trx= thd_to_trx(thd))
+  {
+    lock_mutex_enter();
+    trx_sys_mutex_enter();
+    trx_mutex_enter(trx);
+    /* It is possible that innobase_close_connection() is concurrently
+    being executed on our victim. In that case, trx->mysql_thd would
+    be reset before invoking trx_free(). Even if the trx object is later
+    reused for another client connection or a background transaction,
+    its trx->mysql_thd will differ from our thd.
 
-	DBUG_VOID_RETURN;
+    If trx never performed any changes, nothing is really protecting
+    the trx_free() call or the changes of trx_t::state when the
+    transaction is being rolled back and trx_commit_low() is being
+    executed.
+
+    The function trx_allocate_for_mysql() acquires
+    trx_sys_t::mutex, but trx_allocate_for_background() will not.
+    Luckily, background transactions cannot be read-only, because
+    for read-only transactions, trx_start_low() will avoid acquiring
+    any of the trx_sys_t::mutex, lock_sys_t::mutex, trx_t::mutex before
+    assigning trx_t::state.
+
+    At this point, trx may have been reallocated for another client
+    connection, or for a background operation. In that case, either
+    trx_t::state or trx_t::mysql_thd should not match our expectations. */
+    bool cancel= trx->mysql_thd == thd && trx->state == TRX_STATE_ACTIVE &&
+      !trx->lock.was_chosen_as_deadlock_victim;
+    trx_sys_mutex_exit();
+    if (!cancel);
+    else if (lock_t *lock= trx->lock.wait_lock)
+      lock_cancel_waiting_and_release(lock);
+    lock_mutex_exit();
+    trx_mutex_exit(trx);
+  }
+
+  DBUG_VOID_RETURN;
 }
 
 
