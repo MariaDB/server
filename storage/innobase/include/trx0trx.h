@@ -734,15 +734,6 @@ public:
 
 	trx_id_t	id;		/*!< transaction id */
 
-	trx_id_t	no;		/*!< transaction serialization number:
-					max trx id shortly before the
-					transaction is moved to
-					COMMITTED_IN_MEMORY state.
-					Accessed exclusively by trx owner
-					thread. Should be removed in favour of
-					trx->rw_trx_hash_element->no.
-					Initially set to TRX_ID_MAX. */
-
 	/** State of the trx from the point of view of concurrency control
 	and the valid state transitions.
 

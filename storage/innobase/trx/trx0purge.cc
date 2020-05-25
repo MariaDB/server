@@ -210,7 +210,7 @@ void
 trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 {
 	DBUG_PRINT("trx", ("commit(" TRX_ID_FMT "," TRX_ID_FMT ")",
-			   trx->id, trx->no));
+			   trx->id, trx->rw_trx_hash_element->no));
 	ut_ad(undo == trx->rsegs.m_redo.undo
 	      || undo == trx->rsegs.m_redo.old_insert);
 	trx_rseg_t*	rseg		= trx->rsegs.m_redo.rseg;
@@ -301,7 +301,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 					     + TRX_UNDO_HISTORY_NODE), mtr);
 
 	mtr->write<8,mtr_t::MAYBE_NOP>(*undo_page,
-				       undo_header + TRX_UNDO_TRX_NO, trx->no);
+				       undo_header + TRX_UNDO_TRX_NO,
+				       trx->rw_trx_hash_element->no);
 	/* This is needed for upgrading old undo log pages from
 	before MariaDB 10.3.1. */
 	if (UNIV_UNLIKELY(!mach_read_from_2(undo_header
@@ -313,7 +314,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	if (rseg->last_page_no == FIL_NULL) {
 		rseg->last_page_no = undo->hdr_page_no;
 		rseg->last_offset = undo->hdr_offset;
-		rseg->set_last_trx_no(trx->no, undo == trx->rsegs.m_redo.undo);
+		rseg->set_last_trx_no(trx->rw_trx_hash_element->no,
+				      undo == trx->rsegs.m_redo.undo);
 		rseg->needs_purge = true;
 	}
 
