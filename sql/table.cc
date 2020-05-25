@@ -7039,7 +7039,6 @@ void TABLE::mark_columns_needed_for_update()
   DBUG_ENTER("TABLE::mark_columns_needed_for_update");
   bool need_signal= false;
 
-  mark_columns_per_binlog_row_image();
 
   if (triggers)
     triggers->mark_fields_used(TRG_EVENT_UPDATE);
@@ -7115,6 +7114,7 @@ void TABLE::mark_columns_needed_for_update()
     bitmap_union(read_set, write_set);
     need_signal= true;
   }
+  mark_columns_per_binlog_row_image();
   if (need_signal)
     file->column_bitmaps_signal();
   DBUG_VOID_RETURN;
@@ -7131,7 +7131,6 @@ void TABLE::mark_columns_needed_for_update()
 void TABLE::mark_columns_needed_for_insert()
 {
   DBUG_ENTER("mark_columns_needed_for_insert");
-  mark_columns_per_binlog_row_image();
 
   if (triggers)
   {
@@ -7151,6 +7150,7 @@ void TABLE::mark_columns_needed_for_insert()
   /* Mark virtual columns for insert */
   if (vfield)
     mark_virtual_columns_for_write(TRUE);
+  mark_columns_per_binlog_row_image();
   if (check_constraints)
     mark_check_constraint_columns_for_read();
   DBUG_VOID_RETURN;
