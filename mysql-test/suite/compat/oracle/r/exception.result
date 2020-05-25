@@ -106,7 +106,7 @@ RAISE dup_val_on_index;
 END;
 $$
 CALL p1();
-ERROR 23000: Duplicate entry '%-.192s' for key %d
+ERROR 23000: Duplicate entry '%-.192T' for key %d
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1
 AS

@@ -7166,8 +7166,8 @@ Item_float::Item_float(THD *thd, const char *str_arg, size_t length):
                     &error);
   if (unlikely(error))
   {
-    char tmp[NAME_LEN + 1];
-    my_snprintf(tmp, sizeof(tmp), "%.*s", (int)length, str_arg);
+    char tmp[NAME_LEN + 2];
+    my_snprintf(tmp, sizeof(tmp), "%.*s", static_cast<int>(length), str_arg);
     my_error(ER_ILLEGAL_VALUE_FOR_TYPE, MYF(0), "double", tmp);
   }
   presentation= name.str= str_arg;

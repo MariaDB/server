@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2017, Aliyun and/or its affiliates.
-   Copyright (c) 2017, MariaDB corporation
+   Copyright (c) 2017, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -115,7 +115,7 @@ int ha_sequence::open(const char *name, int mode, uint flags)
         file->ha_close();
     }
     else if (!table->s->tmp_table)
-      table->m_needs_reopen= true;
+      table->internal_set_needs_reopen(true);
 
     /*
       The following is needed to fix comparison of rows in

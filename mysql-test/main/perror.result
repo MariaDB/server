@@ -1,5 +1,5 @@
 Illegal error code: 10000
-MySQL error code 1062 (ER_DUP_ENTRY): Duplicate entry '%-.192s' for key %d
+MySQL error code 1062 (ER_DUP_ENTRY): Duplicate entry '%-.192T' for key %d
 MySQL error code 1408 (ER_STARTUP): %s: ready for connections.
 Version: '%s'  socket: '%s'  port: %d  %s
 MySQL error code 1459 (ER_TABLE_NEEDS_UPGRADE): Upgrade required. Please do "REPAIR %s %`s" or dump/reload to fix it!

@@ -451,12 +451,24 @@ void trx_free(trx_t*& trx)
 	ut_ad(trx->will_lock == 0);
 
 	trx_pools->mem_free(trx);
+#ifdef __SANITIZE_ADDRESS__
 	/* Unpoison the memory for innodb_monitor_set_option;
 	it is operating also on the freed transaction objects. */
 	MEM_UNDEFINED(&trx->mutex, sizeof trx->mutex);
-	/* Declare the contents as initialized for Valgrind;
-	we checked that it was initialized in trx_pools->mem_free(trx). */
+	/* For innobase_kill_connection() */
+	MEM_UNDEFINED(&trx->state, sizeof trx->state);
+	MEM_UNDEFINED(&trx->mysql_thd, sizeof trx->mysql_thd);
+#endif
+#ifdef HAVE_valgrind
+	/* Unpoison the memory for innodb_monitor_set_option;
+	it is operating also on the freed transaction objects.
+	We checked that these were initialized in
+	trx_pools->mem_free(trx). */
 	UNIV_MEM_VALID(&trx->mutex, sizeof trx->mutex);
+	/* For innobase_kill_connection() */
+	UNIV_MEM_VALID(&trx->state, sizeof trx->state);
+	UNIV_MEM_VALID(&trx->mysql_thd, sizeof trx->mysql_thd);
+#endif
 
 	trx = NULL;
 }
