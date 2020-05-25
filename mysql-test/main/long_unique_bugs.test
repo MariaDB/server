@@ -340,3 +340,19 @@ while ($count)
 --eval $insert_stmt
 --enable_query_log
 drop table t1;
+
+#
+# MDEV-21804 Assertion `marked_for_read()' failed upon INSERT into table with long unique blob under binlog_row_image=NOBLOB
+#
+
+--source include/have_binlog_format_row.inc
+SET binlog_row_image= NOBLOB;
+CREATE TABLE t1 (pk INT PRIMARY KEY, a text ,UNIQUE(a) using hash);
+INSERT INTO t1 VALUES (1,'foo');
+
+create table t2(id int primary key, a blob, b varchar(20) as (LEFT(a,2)));
+INSERT INTO t2 VALUES (1, 'foo', default);
+
+# Cleanup
+DROP TABLE t1, t2;
+SET binlog_row_image= FULL;
