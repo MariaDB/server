@@ -949,6 +949,7 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
   char *old_name, *new_name;
   int error= 1;
   MARIA_HA *info= NULL;
+  my_bool from_table_is_crashed= 0;
   DBUG_ENTER("exec_REDO_LOGREC_REDO_RENAME_TABLE");
 
   if (skip_DDLs)
@@ -1018,15 +1019,15 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
     }
     if (maria_is_crashed(info))
     {
-      tprint(tracef, ", is crashed, can't rename it");
-      ALERT_USER();
-      goto end;
+      tprint(tracef, "is crashed, can't be used for rename ; new-name table ");
+      from_table_is_crashed= 1;
     }
     if (close_one_table(info->s->open_file_name.str, rec->lsn) ||
         maria_close(info))
       goto end;
     info= NULL;
-    tprint(tracef, ", is ok for renaming; new-name table ");
+    if (!from_table_is_crashed)
+      tprint(tracef, "is ok for renaming; new-name table ");
   }
   else /* one or two files absent, or header corrupted... */
   {
@@ -1091,11 +1092,19 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
       goto end;
     info= NULL;
     /* abnormal situation */
-    tprint(tracef, ", exists but is older than record, can't rename it");
+    tprint(tracef, "exists but is older than record, can't rename it");
     goto end;
   }
   else /* one or two files absent, or header corrupted... */
-    tprint(tracef, ", can't be opened, probably does not exist");
+    tprint(tracef, "can't be opened, probably does not exist");
+
+  if (from_table_is_crashed)
+  {
+    eprint(tracef, "Aborting rename as old table was crashed");
+    ALERT_USER();
+    goto end;
+  }
+
   tprint(tracef, ", renaming '%s'", old_name);
   if (maria_rename(old_name, new_name))
   {
