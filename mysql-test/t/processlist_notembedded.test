@@ -30,7 +30,10 @@ remove_file $MYSQLTEST_VARDIR/tmp//MDEV-20466.text;
 
 SET DEBUG_SYNC= 'now SIGNAL go';
 
+connection con1;
+reap;
 disconnect con1;
+connection default;
 
 SET DEBUG_SYNC = 'RESET';
 
