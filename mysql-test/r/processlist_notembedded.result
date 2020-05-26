@@ -5,5 +5,6 @@ SET DEBUG_SYNC= 'before_join_optimize SIGNAL in_sync WAIT_FOR go';
 SET DEBUG_SYNC= 'now WAIT_FOR in_sync';
 FOUND /sleep/ in MDEV-20466.text
 SET DEBUG_SYNC= 'now SIGNAL go';
+user
 SET DEBUG_SYNC = 'RESET';
 End of 5.5 tests
