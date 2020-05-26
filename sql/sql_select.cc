@@ -2761,11 +2761,16 @@ int JOIN::optimize_stage2()
   }
 
   need_tmp= test_if_need_tmp_table();
-  //TODO this could probably go in test_if_need_tmp_table.
-  if (this->select_lex->window_specs.elements > 0) {
-    need_tmp= TRUE;
+
+  /*
+    If window functions are present then we can't have simple_order set to
+    TRUE as the window function needs a temp table for computation.
+    ORDER BY is computed after the window function computation is done, so
+    the sort will be done on the temp table.
+  */
+  if (select_lex->have_window_funcs())
     simple_order= FALSE;
-  }
+
 
   /*
     If the hint FORCE INDEX FOR ORDER BY/GROUP BY is used for the table

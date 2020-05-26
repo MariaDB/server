@@ -345,3 +345,16 @@ connection default;
 XA END 'xid1';
 XA ROLLBACK 'xid1';
 DROP TABLE t1, t2, t3;
+XA BEGIN 'xid';
+CREATE TEMPORARY SEQUENCE s;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+XA END 'xid';
+XA ROLLBACK 'xid';
+XA BEGIN 'xid';
+CREATE SEQUENCE s;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+XA END 'xid';
+XA ROLLBACK 'xid';
+#
+# End of 10.3 tests
+#

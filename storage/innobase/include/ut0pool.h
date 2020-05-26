@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -86,11 +87,15 @@ struct Pool {
 		for (Element* elem = m_start; elem != m_last; ++elem) {
 
 			ut_ad(elem->m_pool == this);
+#ifdef __SANITIZE_ADDRESS__
 			/* Unpoison the memory for AddressSanitizer */
 			MEM_UNDEFINED(&elem->m_type, sizeof elem->m_type);
+#endif
+#ifdef HAVE_valgrind
 			/* Declare the contents as initialized for Valgrind;
 			we checked this in mem_free(). */
 			UNIV_MEM_VALID(&elem->m_type, sizeof elem->m_type);
+#endif
 			Factory::destroy(&elem->m_type);
 		}
 
@@ -127,13 +132,18 @@ struct Pool {
 
 #if defined HAVE_valgrind || defined __SANITIZE_ADDRESS__
 		if (elem) {
+# ifdef __SANITIZE_ADDRESS__
 			/* Unpoison the memory for AddressSanitizer */
 			MEM_UNDEFINED(&elem->m_type, sizeof elem->m_type);
+# endif
+# ifdef HAVE_valgrind
+
 			/* Declare the memory initialized for Valgrind.
 			The trx_t that are released to the pool are
 			actually initialized; we checked that by
 			UNIV_MEM_ASSERT_RW() in mem_free() below. */
 			UNIV_MEM_VALID(&elem->m_type, sizeof elem->m_type);
+# endif
 		}
 #endif
 
