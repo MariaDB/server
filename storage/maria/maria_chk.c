@@ -140,16 +140,20 @@ int main(int argc, char **argv)
                     HA_ERR_FIRST+ array_elements(handler_error_messages)-1);
 
   maria_block_size= 0;                 /* Use block size from control file */
-  if (!opt_ignore_control_file &&
-      (ma_control_file_open(FALSE, opt_require_control_file ||
-                            !(check_param.testflag & T_SILENT),
-                            TRUE) &&
-       (opt_require_control_file ||
-        (opt_transaction_logging && (check_param.testflag & T_REP_ANY)))))
+  if (!opt_ignore_control_file)
   {
-    error= 1;
-    goto end;
+    if ((ma_control_file_open(FALSE, opt_require_control_file ||
+                              !(check_param.testflag & T_SILENT),
+                              TRUE) &&
+         (opt_require_control_file ||
+          (opt_transaction_logging && (check_param.testflag & T_REP_ANY)))))
+    {
+      error= 1;
+      goto end;
+    }
   }
+  else
+    opt_warning_for_wrong_transid= 0;
 
   /*
     If we are doing a repair, user may want to store this repair into the log
