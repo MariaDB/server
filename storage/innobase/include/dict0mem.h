@@ -1203,7 +1203,7 @@ public:
   @param   whether to reset fields[].col */
   void detach_columns(bool clear= false)
   {
-    if (!has_virtual())
+    if (!has_virtual() || !cached)
       return;
     for (unsigned i= 0; i < n_fields; i++)
     {
