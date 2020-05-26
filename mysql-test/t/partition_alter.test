@@ -112,3 +112,42 @@ insert into t1 values(0, 1, 1, NULL, now(), now());
 alter online table t1 delay_key_write=1;
 show create table t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-19751 Wrong partitioning by KEY() after key dropped
+--echo #
+create or replace table t1 (pk int, x timestamp(6), primary key (pk, x)) engine innodb
+partition by key() partitions 2;
+insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
+--echo # Inplace for DROP PRIMARY KEY when partitioned by default field list is denied
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 drop primary key, drop column x, add primary key (pk), algorithm=inplace;
+alter table t1 drop primary key, drop column x, add primary key (pk);
+select * from t1 partition (p0);
+drop table t1;
+
+create or replace table t1 (pk int not null, x timestamp(6), unique u(pk, x)) engine innodb
+partition by key() partitions 2;
+insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
+--echo # Same for NOT NULL UNIQUE KEY as this is actually primary key
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 drop key u, drop column x, add unique (pk), algorithm=inplace;
+alter table t1 drop key u, drop column x, add unique (pk);
+select * from t1 partition (p0);
+drop table t1;
+
+create or replace table t1 (pk int, x timestamp(6), primary key (pk)) engine innodb
+partition by key(pk) partitions 2;
+insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
+--echo # Inplace for DROP PRIMARY KEY when partitioned by explicit field list is allowed
+alter table t1 drop primary key, add primary key (pk, x), algorithm=inplace;
+select * from t1 partition (p0);
+drop table t1;
+
+create or replace table t1 (k int, x timestamp(6), unique key u (x, k)) engine innodb
+partition by key(k) partitions 2;
+insert into t1 (k, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
+--echo # Inplace for DROP KEY is allowed
+alter table t1 drop key u, algorithm=inplace;
+select * from t1 partition (p0);
+drop table t1;
