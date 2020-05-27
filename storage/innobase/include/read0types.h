@@ -276,5 +276,22 @@ public:
       to->append(*this);
     mutex_exit(&m_mutex);
   }
+
+
+  /**
+    Unpoison the memory for innodb_monitor_set_option;
+    It is operating also on the freed transaction objects.
+    Declare the contents as initialized for Valgrind;
+    We checked that it was initialized in trx_pools->mem_free(trx).
+  */
+  void mem_valid() const
+  {
+#ifdef __SANITIZE_ADDRESS__
+    MEM_UNDEFINED(&m_mutex, sizeof m_mutex);
+#endif
+#ifdef HAVE_valgrind
+    UNIV_MEM_VALID(&m_mutex, sizeof m_mutex);
+#endif
+  }
 };
 #endif
