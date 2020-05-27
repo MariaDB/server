@@ -62,17 +62,6 @@ static volatile bool	buf_load_should_start;
 
 static bool	buf_load_abort_flag;
 
-/* Used to temporary store dump info in order to avoid IO while holding
-buffer pool mutex during dump and also to sort the contents of the dump
-before reading the pages from disk during load.
-We store the space id in the high 32 bits and page no in low 32 bits. */
-typedef ib_uint64_t	buf_dump_t;
-
-/* Aux macros to create buf_dump_t and to extract space and page from it */
-#define BUF_DUMP_CREATE(space, page)	ut_ull_create(space, page)
-#define BUF_DUMP_SPACE(a)		((ulint) ((a) >> 32))
-#define BUF_DUMP_PAGE(a)		((ulint) ((a) & 0xFFFFFFFFUL))
-
 /** Start the buffer pool dump/load task and instructs it to start a dump. */
 void buf_dump_start()
 {
@@ -283,7 +272,7 @@ buf_dump(
 		return;
 	}
 	const buf_page_t*	bpage;
-	buf_dump_t*		dump;
+	page_id_t*		dump;
 	ulint			n_pages;
 	ulint			j;
 
@@ -317,8 +306,8 @@ buf_dump(
 		}
 	}
 
-	dump = static_cast<buf_dump_t*>(ut_malloc_nokey(
-						n_pages * sizeof(*dump)));
+	dump = static_cast<page_id_t*>(ut_malloc_nokey(
+					       n_pages * sizeof(*dump)));
 
 	if (dump == NULL) {
 		mutex_exit(&buf_pool.mutex);
@@ -336,14 +325,14 @@ buf_dump(
 	     bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
 
 		ut_a(buf_page_in_file(bpage));
+		const page_id_t id(bpage->id);
 
-		if (bpage->id.space() == SRV_TMP_SPACE_ID) {
+		if (id.space() == SRV_TMP_SPACE_ID) {
 			/* Ignore the innodb_temporary tablespace. */
 			continue;
 		}
 
-		dump[j++] = BUF_DUMP_CREATE(bpage->id.space(),
-					    bpage->id.page_no());
+		dump[j++] = id;
 	}
 
 	mutex_exit(&buf_pool.mutex);
@@ -352,9 +341,8 @@ buf_dump(
 	n_pages = j;
 
 	for (j = 0; j < n_pages && !SHOULD_QUIT(); j++) {
-		ret = fprintf(f, ULINTPF "," ULINTPF "\n",
-			      BUF_DUMP_SPACE(dump[j]),
-			      BUF_DUMP_PAGE(dump[j]));
+		ret = fprintf(f, "%u,%u\n",
+			      dump[j].space(), dump[j].page_no());
 		if (ret < 0) {
 			ut_free(dump);
 			fclose(f);
@@ -498,7 +486,7 @@ buf_load()
 	char		full_filename[OS_FILE_MAX_PATH];
 	char		now[32];
 	FILE*		f;
-	buf_dump_t*	dump;
+	page_id_t*	dump;
 	ulint		dump_n;
 	ulint		i;
 	ulint		space_id;
@@ -552,7 +540,7 @@ buf_load()
 	dump_n = std::min(dump_n, buf_pool.get_n_pages());
 
 	if (dump_n != 0) {
-		dump = static_cast<buf_dump_t*>(ut_malloc_nokey(
+		dump = static_cast<page_id_t*>(ut_malloc_nokey(
 				dump_n * sizeof(*dump)));
 	} else {
 		fclose(f);
@@ -609,7 +597,7 @@ buf_load()
 			return;
 		}
 
-		dump[i] = BUF_DUMP_CREATE(space_id, page_no);
+		dump[i] = page_id_t(space_id, page_no);
 	}
 
 	/* Set dump_n to the actual number of initialized elements,
@@ -638,7 +626,7 @@ buf_load()
 	/* Avoid calling the expensive fil_space_acquire_silent() for each
 	page within the same tablespace. dump[] is sorted by (space, page),
 	so all pages from a given tablespace are consecutive. */
-	ulint		cur_space_id = BUF_DUMP_SPACE(dump[0]);
+	ulint		cur_space_id = dump[0].space();
 	fil_space_t*	space = fil_space_acquire_silent(cur_space_id);
 	ulint		zip_size = space ? space->zip_size() : 0;
 
@@ -650,7 +638,7 @@ buf_load()
 	for (i = 0; i < dump_n && !SHUTTING_DOWN(); i++) {
 
 		/* space_id for this iteration of the loop */
-		const ulint	this_space_id = BUF_DUMP_SPACE(dump[i]);
+		const ulint	this_space_id = dump[i].space();
 
 		if (this_space_id == SRV_TMP_SPACE_ID) {
 			/* Ignore the innodb_temporary tablespace. */
@@ -679,10 +667,7 @@ buf_load()
 			continue;
 		}
 
-		buf_read_page_background(
-			page_id_t(this_space_id, BUF_DUMP_PAGE(dump[i])),
-			zip_size, true);
-
+		buf_read_page_background(dump[i], zip_size, true);
 
 		if (buf_load_abort_flag) {
 			if (space != NULL) {

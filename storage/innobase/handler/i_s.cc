@@ -114,8 +114,8 @@ currently cached in the buffer pool. It will be used to populate
 table INFORMATION_SCHEMA.INNODB_BUFFER_PAGE */
 struct buf_page_info_t{
 	ulint		block_id;	/*!< Buffer Pool block ID */
-	unsigned	space_id:32;	/*!< Tablespace ID */
-	unsigned	page_num:32;	/*!< Page number/offset */
+	/** page identifier */
+	page_id_t	id;
 	unsigned	access_time:32;	/*!< Time of first access */
 	unsigned	flush_type:2;	/*!< Flush type */
 	unsigned	io_fix:2;	/*!< type of pending I/O operation */
@@ -3973,10 +3973,10 @@ i_s_innodb_buffer_page_fill(
 			   page_info->block_id, true));
 
 		OK(fields[IDX_BUFFER_PAGE_SPACE]->store(
-			   page_info->space_id, true));
+			   page_info->id.space(), true));
 
 		OK(fields[IDX_BUFFER_PAGE_NUM]->store(
-			   page_info->page_num, true));
+			   page_info->id.page_no(), true));
 
 		OK(field_store_string(
 			   fields[IDX_BUFFER_PAGE_TYPE],
@@ -4135,14 +4135,6 @@ i_s_innodb_set_page_type(
 
 		page_info->page_type = page_type & 0xf;
 	}
-
-	if (page_info->page_type == FIL_PAGE_TYPE_ZBLOB
-	    || page_info->page_type == FIL_PAGE_TYPE_ZBLOB2) {
-		page_info->page_num = mach_read_from_4(
-			frame + FIL_PAGE_OFFSET);
-		page_info->space_id = mach_read_from_4(
-			frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-	}
 }
 /*******************************************************************//**
 Scans pages in the buffer cache, and collect their general information
@@ -4169,9 +4161,7 @@ i_s_innodb_buffer_page_get_info(
 	if (buf_page_in_file(bpage)) {
 		const byte*	frame;
 
-		page_info->space_id = bpage->id.space();
-
-		page_info->page_num = bpage->id.page_no();
+		page_info->id = bpage->id;
 
 		page_info->flush_type = bpage->flush_type;
 
@@ -4488,10 +4478,10 @@ i_s_innodb_buf_page_lru_fill(
 			   page_info->block_id, true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_SPACE]->store(
-			   page_info->space_id, true));
+			   page_info->id.space(), true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_NUM]->store(
-			   page_info->page_num, true));
+			   page_info->id.page_no(), true));
 
 		OK(field_store_string(
 			   fields[IDX_BUF_LRU_PAGE_TYPE],
