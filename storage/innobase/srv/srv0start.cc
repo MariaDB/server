@@ -2847,7 +2847,7 @@ innodb_shutdown()
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (dict_sys) {
-		btr_search_disable(true);
+		btr_search_disable();
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 	if (ibuf) {

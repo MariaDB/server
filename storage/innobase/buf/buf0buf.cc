@@ -2698,7 +2698,7 @@ buf_pool_resize()
 		btr_search_s_unlock_all();
 	}
 
-	btr_search_disable(true);
+	btr_search_disable();
 
 	if (btr_search_disabled) {
 		ib::info() << "disabled adaptive hash index.";
@@ -3072,10 +3072,6 @@ calc_buf_pool_size:
 		srv_lock_table_size = 5 * (srv_buf_pool_size / UNIV_PAGE_SIZE);
 		lock_sys_resize(srv_lock_table_size);
 
-		/* normalize btr_search_sys */
-		btr_search_sys_resize(
-			buf_pool_get_curr_size() / sizeof(void*) / 64);
-
 		/* normalize dict_sys */
 		dict_resize();
 
@@ -3100,7 +3096,7 @@ calc_buf_pool_size:
 #ifdef BTR_CUR_HASH_ADAPT
 	/* enable AHI if needed */
 	if (btr_search_disabled) {
-		btr_search_enable();
+		btr_search_enable(true);
 		ib::info() << "Re-enabled adaptive hash index.";
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
