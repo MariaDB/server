@@ -25,21 +25,6 @@ SELECT VARIABLE_VALUE INTO @ssl_not_after FROM INFORMATION_SCHEMA.SESSION_STATUS
 # Check new certificate used by new connection
 Result
 OK
-# Check that existing SSL connection still works, and uses old certificate, even if new one is loaded in FLUSH SSL
-connection ssl_con;
-SELECT IF(VARIABLE_VALUE=@ssl_not_after,'OK','FAIL') as Result FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_server_not_after';
-Result
-OK
-disconnect ssl_con;
-connection default;
-SELECT VARIABLE_NAME NAME, VARIABLE_VALUE VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME in ('Ssl_accepts', 'Ssl_finished_accepts');
-NAME	VALUE
-SSL_ACCEPTS	1
-SSL_FINISHED_ACCEPTS	1
-SELECT VARIABLE_NAME NAME, VARIABLE_VALUE VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME in ('Ssl_accepts', 'Ssl_finished_accepts');
-NAME	VALUE
-SSL_ACCEPTS	0
-SSL_FINISHED_ACCEPTS	0
 # Cleanup
 # Kill the server
 # restart

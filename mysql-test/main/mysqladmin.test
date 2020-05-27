@@ -54,14 +54,10 @@ EOF
 
 #
 # MDEV-19168 Reload SSL certificate
-# From mysql-test/main/flush_ssl.test
-# This test reloads server SSL certs ./mysqladmin flush-ssl, and checks that 
-# 1. old SSL connections (that existed before FLUSH) still work and use old certificate
-# 2. new SSL connection use new certificate
-# 3. if ./mysqladmin flush-ssl runs into error, SSL is still functioning
+# This test reloads server SSL certs ./mysqladmin flush-ssl, and checks that new SSL
+# connection use new certificate.
 # SWtatus variable Ssl_server_not_after is used to tell the old certificate from new.
 #
-
 
 source include/have_ssl_communication.inc;
 
@@ -94,18 +90,6 @@ copy_file $MYSQL_TEST_DIR/std_data/server-new-cert.pem $ssl_cert;
 
 --echo # Check new certificate used by new connection
 exec $MYSQL --ssl  -e  "SELECT IF(VARIABLE_VALUE <> '$ssl_not_after', 'OK', 'FAIL') as Result FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_server_not_after'";
-
---echo # Check that existing SSL connection still works, and uses old certificate, even if new one is loaded in FLUSH SSL
-connection ssl_con;
-SELECT IF(VARIABLE_VALUE=@ssl_not_after,'OK','FAIL') as Result FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_server_not_after';
-
-disconnect ssl_con;
-connection default;
-
-SELECT VARIABLE_NAME NAME, VARIABLE_VALUE VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME in ('Ssl_accepts', 'Ssl_finished_accepts');
---exec $MYSQLADMIN --default-character-set=latin1 -S $MASTER_MYSOCK -P $MASTER_MYPORT  -u root --password= flush-ssl 2>&1
-#Check that accepts are zeroed by FLUSH SSL.
-SELECT VARIABLE_NAME NAME, VARIABLE_VALUE VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME in ('Ssl_accepts', 'Ssl_finished_accepts');
 
 --echo # Cleanup
 remove_file $ssl_cert;
