@@ -474,12 +474,12 @@ xdes_get_offset(
 void fsp_apply_init_file_page(buf_block_t *block)
 {
   memset_aligned<UNIV_PAGE_SIZE_MIN>(block->frame, 0, srv_page_size);
+  const page_id_t id(block->page.id());
 
-  mach_write_to_4(block->frame + FIL_PAGE_OFFSET, block->page.id.page_no());
+  mach_write_to_4(block->frame + FIL_PAGE_OFFSET, id.page_no());
   if (log_sys.is_physical())
     memset_aligned<8>(block->frame + FIL_PAGE_PREV, 0xff, 8);
-  mach_write_to_4(block->frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-                  block->page.id.space());
+  mach_write_to_4(block->frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, id.space());
   if (page_zip_des_t* page_zip= buf_block_get_page_zip(block))
   {
     memset_aligned<UNIV_ZIP_SIZE_MIN>(page_zip->data, 0,
@@ -799,7 +799,7 @@ ATTRIBUTE_COLD
 void fil_block_reset_type(const buf_block_t& block, ulint type, mtr_t* mtr)
 {
 	ib::info()
-		<< "Resetting invalid page " << block.page.id << " type "
+		<< "Resetting invalid page " << block.page.id() << " type "
 		<< fil_page_get_type(block.frame) << " to " << type << ".";
 	mtr->write<2>(block, block.frame + FIL_PAGE_TYPE, type);
 }
@@ -1385,7 +1385,7 @@ static
 bool
 fsp_alloc_seg_inode_page(fil_space_t *space, buf_block_t *header, mtr_t *mtr)
 {
-  ut_ad(header->page.id.space() == space->id);
+  ut_ad(header->page.id().space() == space->id);
   buf_block_t *block= fsp_alloc_free_page(space, 0, RW_SX_LATCH, mtr, mtr);
 
   if (!block)
@@ -1500,7 +1500,7 @@ static void fsp_free_seg_inode(
 		/* There are no other used headers left on the page: free it */
 		flst_remove(header, FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE,
 			    iblock, FSEG_INODE_PAGE_NODE, mtr);
-		fsp_free_page(space, iblock->page.id.page_no(), mtr);
+		fsp_free_page(space, iblock->page.id().page_no(), mtr);
 	}
 }
 
@@ -1791,7 +1791,7 @@ fseg_create(
 		      + block->frame, page_offset(inode));
 
 	mtr->write<4>(*block, byte_offset + FSEG_HDR_PAGE_NO
-		      + block->frame, iblock->page.id.page_no());
+		      + block->frame, iblock->page.id().page_no());
 
 	mtr->write<4,mtr_t::MAYBE_NOP>(*block, byte_offset + FSEG_HDR_SPACE
 				       + block->frame, space->id);
@@ -1847,7 +1847,7 @@ ulint fseg_n_reserved_pages(const buf_block_t &block,
 {
   ut_ad(page_align(header) == block.frame);
   return fseg_n_reserved_pages_low(fseg_inode_get(header,
-                                                  block.page.id.space(),
+                                                  block.page.id().space(),
                                                   block.zip_size(), mtr),
                                    used, mtr);
 }
@@ -2162,8 +2162,8 @@ take_hinted_page:
 			ut_a(n != ULINT_UNDEFINED);
 
 			fseg_set_nth_frag_page_no(
-				seg_inode, iblock, n, block->page.id.page_no(),
-				mtr);
+				seg_inode, iblock, n,
+				block->page.id().page_no(), mtr);
 		}
 
 		/* fsp_alloc_free_page() invoked fsp_init_file_page()

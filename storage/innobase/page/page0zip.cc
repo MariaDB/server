@@ -1388,7 +1388,7 @@ page_zip_compress(
 			<< " index "
 			<< index->name()
 			<< " page "
-			<< block->page.id.page_no()
+			<< block->page.id().page_no()
 			<< "("
 			<< (page_is_leaf(page) ? "leaf" : "non-leaf")
 			<< ")";

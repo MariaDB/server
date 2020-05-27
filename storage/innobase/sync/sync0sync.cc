@@ -38,9 +38,7 @@ Created 9/5/1995 Heikki Tuuri
 #ifdef UNIV_PFS_MUTEX
 /* Key to register autoinc_mutex with performance schema */
 mysql_pfs_key_t	autoinc_mutex_key;
-mysql_pfs_key_t	buffer_block_mutex_key;
 mysql_pfs_key_t	buf_pool_mutex_key;
-mysql_pfs_key_t	buf_pool_zip_mutex_key;
 mysql_pfs_key_t	cache_last_read_mutex_key;
 mysql_pfs_key_t	dict_foreign_err_mutex_key;
 mysql_pfs_key_t	dict_sys_mutex_key;

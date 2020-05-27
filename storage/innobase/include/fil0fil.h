@@ -46,6 +46,53 @@ struct rotation_list_tag_t;
 
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
+
+/** Possible values of innodb_flush_method */
+enum srv_flush_t
+{
+  /** fsync, the default */
+  SRV_FSYNC= 0,
+  /** open log files in O_DSYNC mode */
+  SRV_O_DSYNC,
+  /** do not call os_file_flush() when writing data files, but do flush
+  after writing to log files */
+  SRV_LITTLESYNC,
+  /** do not flush after writing */
+  SRV_NOSYNC,
+  /** invoke os_file_set_nocache() on data files. This implies using
+  non-buffered IO but still using fsync, the reason for which is that
+  some FS do not flush meta-data when unbuffered IO happens */
+  SRV_O_DIRECT,
+  /** do not use fsync() when using direct IO i.e.: it can be set to
+  avoid the fsync() call that we make when using SRV_UNIX_O_DIRECT.
+  However, in this case user/DBA should be sure about the integrity of
+  the meta-data */
+  SRV_O_DIRECT_NO_FSYNC
+#ifdef _WIN32
+  /** Traditional Windows appoach to open all files without caching,
+  and do FileFlushBuffers() */
+  ,SRV_ALL_O_DIRECT_FSYNC
+#endif
+};
+
+/** innodb_flush_method */
+extern ulong srv_file_flush_method;
+
+/** Undo tablespaces starts with space_id. */
+extern	ulint	srv_undo_space_id_start;
+/** The number of UNDO tablespaces that are open and ready to use. */
+extern ulint	srv_undo_tablespaces_open;
+
+/** Check whether given space id is undo tablespace id
+@param[in]	space_id	space id to check
+@return true if it is undo tablespace else false. */
+inline bool srv_is_undo_tablespace(ulint space_id)
+{
+  return srv_undo_space_id_start > 0 &&
+    space_id >= srv_undo_space_id_start &&
+    space_id < srv_undo_space_id_start + srv_undo_tablespaces_open;
+}
+
 extern struct buf_dblwr_t* buf_dblwr;
 class page_id_t;
 
@@ -249,6 +296,24 @@ struct fil_space_t
 	void release_for_io() { ut_ad(pending_io()); n_pending_ios--; }
 	/** @return whether I/O is pending */
 	bool pending_io() const { return n_pending_ios; }
+
+  /** @return whether the tablespace file can be closed and reopened */
+  bool belongs_in_lru() const
+  {
+    switch (purpose) {
+    case FIL_TYPE_TEMPORARY:
+      ut_ad(id == SRV_TMP_SPACE_ID);
+      return false;
+    case FIL_TYPE_IMPORT:
+      ut_ad(id != SRV_TMP_SPACE_ID);
+      return true;
+    case FIL_TYPE_TABLESPACE:
+      ut_ad(id != SRV_TMP_SPACE_ID);
+      return id && !srv_is_undo_tablespace(id);
+    }
+    ut_ad(0);
+    return false;
+  }
 #endif /* !UNIV_INNOCHECKSUM */
 	/** FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
 	check fsp0types.h to more info about flags. */
@@ -586,8 +651,13 @@ struct fil_node_t {
 #endif
 			   );
 
-	/** Close the file handle. */
-	void close();
+  /** Close the file handle. */
+  void close();
+  /** Prepare to free a file from fil_system. */
+  inline void close_to_free();
+
+  /** Update the data structures on I/O completion */
+  inline void complete_io(bool write= false);
 };
 
 /** Value of fil_node_t::magic_n */
@@ -903,6 +973,9 @@ public:
   }
 #endif
 public:
+  /** Detach a tablespace from the cache and close the files. */
+  inline void detach(fil_space_t *space);
+
 	ib_mutex_t	mutex;		/*!< The mutex protecting the cache */
 	fil_space_t*	sys_space;	/*!< The innodb_system tablespace */
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
@@ -978,6 +1051,38 @@ public:
 
 /** The tablespace memory cache. */
 extern fil_system_t	fil_system;
+
+/** Update the data structures on I/O completion */
+inline void fil_node_t::complete_io(bool write)
+{
+  ut_ad(mutex_own(&fil_system.mutex));
+
+  if (write)
+  {
+    if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)
+    {
+      /* We don't need to keep track of unflushed changes as user has
+      explicitly disabled buffering. */
+      ut_ad(!space->is_in_unflushed_spaces());
+      ut_ad(!needs_flush);
+    }
+    else if (!space->is_stopping())
+    {
+      needs_flush= true;
+      if (!space->is_in_unflushed_spaces())
+        fil_system.unflushed_spaces.push_front(*space);
+    }
+  }
+
+  switch (n_pending--) {
+  case 0:
+    ut_error;
+  case 1:
+    if (space->belongs_in_lru())
+      /* The node must be put back to the LRU list */
+      UT_LIST_ADD_FIRST(fil_system.LRU, this);
+  }
+}
 
 #include "fil0crypt.h"
 
@@ -1191,15 +1296,10 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists= false);
 @retval	NULL if the tablespace does not exist */
 fil_space_t* fil_truncate_prepare(ulint space_id);
 
-/*******************************************************************//**
-Closes a single-table tablespace. The tablespace must be cached in the
-memory cache. Free all pages used by the tablespace.
-@return DB_SUCCESS or error */
-dberr_t
-fil_close_tablespace(
-/*=================*/
-	trx_t*	trx,	/*!< in/out: Transaction covering the close */
-	ulint	id);	/*!< in: space id */
+/** Close a single-table tablespace on failed IMPORT TABLESPACE.
+The tablespace must be cached in the memory cache.
+Free all pages used by the tablespace. */
+void fil_close_tablespace(ulint id);
 
 /*******************************************************************//**
 Allocates and builds a file name from a path, a table or tablespace name
@@ -1350,6 +1450,14 @@ fil_space_extend(
 	fil_space_t*	space,
 	ulint		size);
 
+struct fil_io_t
+{
+  /** error code */
+  dberr_t err;
+  /** file; node->space->release_for_io() must follow fil_io(sync=true) call */
+  fil_node_t *node;
+};
+
 /** Reads or writes data. This operation could be asynchronous (aio).
 
 @param[in]	type		IO context
@@ -1366,12 +1474,11 @@ fil_space_extend(
 				aligned
 @param[in]	message		message for aio handler if non-sync aio
 				used, else ignored
-@param[in]	ignore		whether to ignore out-of-bounds page_id
+@param[in]	ignore		whether to ignore errors
 @param[in]	punch_hole	punch the hole to the file for page_compressed
 				tablespace
-@return DB_SUCCESS, or DB_TABLESPACE_DELETED
-if we are trying to do i/o on a tablespace which does not exist */
-dberr_t
+@return status and file descriptor */
+fil_io_t
 fil_io(
 	const IORequest&	type,
 	bool			sync,

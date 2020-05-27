@@ -199,6 +199,42 @@ static const ulint MAX_N_POINTERS
 	= UNIV_PAGE_SIZE_MAX / REC_N_NEW_EXTRA_BYTES;
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 
+# ifdef UNIV_DEBUG
+/** Assert that the synchronization object in a hash operation involving
+possible change in the hash table is held in exclusive mode */
+void hash_assert_can_modify(hash_table_t *table, ulint fold)
+{
+  switch (table->type) {
+  case HASH_TABLE_SYNC_MUTEX:
+    ut_ad(mutex_own(hash_get_mutex(table, fold)));
+    return;
+  case HASH_TABLE_SYNC_RW_LOCK:
+    ut_ad(buf_pool.page_hash_lock_own_flagged(fold, RW_LOCK_FLAG_X));
+    return;
+  case HASH_TABLE_SYNC_NONE:
+    return;
+  }
+  ut_ad(0);
+}
+
+/** Assert that the synchronization object in a hash operation involving
+possible change in the hash table is held in share dor exclusive mode */
+void hash_assert_can_search(hash_table_t *table, ulint fold)
+{
+  switch (table->type) {
+  case HASH_TABLE_SYNC_MUTEX:
+    ut_ad(mutex_own(hash_get_mutex(table, fold)));
+    return;
+  case HASH_TABLE_SYNC_RW_LOCK:
+    ut_ad(buf_pool.page_hash_lock_own_flagged(fold, RW_LOCK_FLAG_X |
+                                              RW_LOCK_FLAG_S));
+    return;
+  case HASH_TABLE_SYNC_NONE:
+    return;
+  }
+}
+# endif
+
 /*************************************************************//**
 Inserts an entry into a hash table. If an entry with the same fold number
 is found, its node is updated to point to the new data, and no new node

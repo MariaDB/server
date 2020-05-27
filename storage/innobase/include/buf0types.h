@@ -44,16 +44,6 @@ struct buf_dblwr_t;
 /** A buffer frame. @see page_t */
 typedef	byte	buf_frame_t;
 
-/** Flags for flush types */
-enum buf_flush_t {
-	BUF_FLUSH_LRU = 0,		/*!< flush via the LRU list */
-	BUF_FLUSH_LIST,			/*!< flush via the flush list
-					of dirty blocks */
-	BUF_FLUSH_SINGLE_PAGE,		/*!< flush via the LRU list
-					but only a single page */
-	BUF_FLUSH_N_TYPES		/*!< index of last element + 1  */
-};
-
 /** Flags for io_fix types */
 enum buf_io_fix {
 	BUF_IO_NONE = 0,		/**< no pending I/O */
@@ -141,11 +131,30 @@ public:
     ut_ad(page_no <= 0xFFFFFFFFU);
   }
 
-  page_id_t(ulonglong id) : m_id(id) {}
+  page_id_t(uint64_t id) : m_id(id) {}
   bool operator==(const page_id_t& rhs) const { return m_id == rhs.m_id; }
   bool operator!=(const page_id_t& rhs) const { return m_id != rhs.m_id; }
-
   bool operator<(const page_id_t& rhs) const { return m_id < rhs.m_id; }
+  bool operator>(const page_id_t& rhs) const { return m_id > rhs.m_id; }
+  bool operator<=(const page_id_t& rhs) const { return m_id <= rhs.m_id; }
+  bool operator>=(const page_id_t& rhs) const { return m_id >= rhs.m_id; }
+  page_id_t &operator--() { ut_ad(page_no()); m_id--; return *this; }
+  page_id_t &operator++()
+  {
+    ut_ad(page_no() < 0xFFFFFFFFU);
+    m_id++;
+    return *this;
+  }
+  page_id_t operator-(uint32_t i) const
+  {
+    ut_ad(page_no() >= i);
+    return page_id_t(m_id - i);
+  }
+  page_id_t operator+(uint32_t i) const
+  {
+    ut_ad(page_no() < ~i);
+    return page_id_t(m_id + i);
+  }
 
   /** Retrieve the tablespace id.
   @return tablespace id */
@@ -167,9 +176,6 @@ public:
     m_id= (m_id & ~uint64_t{0} << 32) | page_no;
   }
 
-  /** Set the FIL_NULL for the space and page_no */
-  void set_corrupt_id() { m_id= ~uint64_t{0}; }
-
   ulonglong raw() { return m_id; }
 private:
   /** The page identifier */
@@ -187,10 +193,8 @@ extern const byte field_ref_zero[UNIV_PAGE_SIZE_MAX];
 #include "ut0mutex.h"
 #include "sync0rw.h"
 
-typedef ib_bpmutex_t BPageMutex;
 typedef ib_mutex_t BufPoolMutex;
 typedef ib_mutex_t FlushListMutex;
-typedef BPageMutex BufPoolZipMutex;
 typedef rw_lock_t BPageLock;
 #endif /* !UNIV_INNOCHECKSUM */
 

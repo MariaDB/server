@@ -350,7 +350,7 @@ trx_rseg_header_create(
 			*sys_header,
 			TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO
 			+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
-			+ sys_header->frame, block->page.id.page_no());
+			+ sys_header->frame, block->page.id().page_no());
 	}
 
 	return block;
@@ -683,7 +683,8 @@ trx_rseg_create(ulint space_id)
 			ut_ad(trx_sysf_rseg_get_space(sys_header, rseg_id)
 			      == space_id);
 			rseg = trx_rseg_mem_create(rseg_id, space,
-						   rblock->page.id.page_no());
+						   rblock->page.id().
+						   page_no());
 			ut_ad(rseg->id == rseg_id);
 			ut_ad(rseg->is_persistent());
 			ut_ad(!trx_sys.rseg_array[rseg->id]);
@@ -710,7 +711,7 @@ trx_temp_rseg_create()
 		buf_block_t* rblock = trx_rseg_header_create(
 			fil_system.temp_space, i, NULL, &mtr);
 		trx_rseg_t* rseg = trx_rseg_mem_create(
-			i, fil_system.temp_space, rblock->page.id.page_no());
+			i, fil_system.temp_space, rblock->page.id().page_no());
 		ut_ad(!rseg->is_persistent());
 		ut_ad(!trx_sys.temp_rsegs[i]);
 		trx_sys.temp_rsegs[i] = rseg;

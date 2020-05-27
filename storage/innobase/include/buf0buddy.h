@@ -56,8 +56,7 @@ buf_buddy_get_slot(ulint size)
 byte *buf_buddy_alloc_low(ulint i, bool *lru) MY_ATTRIBUTE((malloc));
 
 /** Allocate a ROW_FORMAT=COMPRESSED block.
-The caller must not hold buf_pool.mutex nor buf_pool.zip_mutex nor any
-block->mutex.
+The caller must not hold buf_pool.mutex.
 @param[in]	size	compressed page size
 @param[out]	lru	whether buf_pool.mutex was temporarily released
 @return allocated block, never NULL */

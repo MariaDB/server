@@ -226,7 +226,7 @@ inline void mtr_t::memset(const buf_block_t &b, ulint ofs, ulint len, byte val)
 
   static_assert(MIN_4BYTE > UNIV_PAGE_SIZE_MAX, "consistency");
   size_t lenlen= (len < MIN_2BYTE ? 1 + 1 : len < MIN_3BYTE ? 2 + 1 : 3 + 1);
-  byte *l= log_write<MEMSET>(b.page.id, &b.page, lenlen, true, ofs);
+  byte *l= log_write<MEMSET>(b.page.id(), &b.page, lenlen, true, ofs);
   l= mlog_encode_varint(l, len);
   *l++= val;
   m_log.close(l);
@@ -263,7 +263,7 @@ inline void mtr_t::memset(const buf_block_t &b, ulint ofs, size_t len,
 
   static_assert(MIN_4BYTE > UNIV_PAGE_SIZE_MAX, "consistency");
   size_t lenlen= (len < MIN_2BYTE ? 1 : len < MIN_3BYTE ? 2 : 3);
-  byte *l= log_write<MEMSET>(b.page.id, &b.page, lenlen + size, true, ofs);
+  byte *l= log_write<MEMSET>(b.page.id(), &b.page, lenlen + size, true, ofs);
   l= mlog_encode_varint(l, len);
   ::memcpy(l, str, size);
   l+= size;
@@ -320,13 +320,14 @@ inline void mtr_t::memcpy_low(const buf_block_t &block, uint16_t offset,
     return;
   if (len < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5))
   {
-    byte *end= log_write<WRITE>(block.page.id, &block.page, len, true, offset);
+    byte *end= log_write<WRITE>(block.page.id(), &block.page, len, true,
+                                offset);
     ::memcpy(end, data, len);
     m_log.close(end + len);
   }
   else
   {
-    m_log.close(log_write<WRITE>(block.page.id, &block.page, len, false,
+    m_log.close(log_write<WRITE>(block.page.id(), &block.page, len, false,
                                  offset));
     m_log.push(static_cast<const byte*>(data), static_cast<uint32_t>(len));
   }
@@ -363,7 +364,7 @@ inline void mtr_t::memmove(const buf_block_t &b, ulint d, ulint s, ulint len)
   /* The source offset 0 is not possible. */
   s-= 1 << 1;
   size_t slen= (s < MIN_2BYTE ? 1 : s < MIN_3BYTE ? 2 : 3);
-  byte *l= log_write<MEMMOVE>(b.page.id, &b.page, lenlen + slen, true, d);
+  byte *l= log_write<MEMMOVE>(b.page.id(), &b.page, lenlen + slen, true, d);
   l= mlog_encode_varint(l, len);
   l= mlog_encode_varint(l, s);
   m_log.close(l);
@@ -386,7 +387,7 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
   static_assert(!(type & 15) && type != RESERVED && type != OPTION &&
                 type <= FILE_CHECKPOINT, "invalid type");
   ut_ad(type >= FILE_CREATE || is_named_space(id.space()));
-  ut_ad(!bpage || bpage->id == id);
+  ut_ad(!bpage || bpage->id() == id);
   constexpr bool have_len= type != INIT_PAGE && type != FREE_PAGE;
   constexpr bool have_offset= type == WRITE || type == MEMSET ||
     type == MEMMOVE;
@@ -518,7 +519,7 @@ inline void mtr_t::init(buf_block_t *b)
     return;
   }
 
-  m_log.close(log_write<INIT_PAGE>(b->page.id, &b->page));
+  m_log.close(log_write<INIT_PAGE>(b->page.id(), &b->page));
   m_last_offset= FIL_PAGE_TYPE;
 }
 
@@ -538,7 +539,7 @@ inline void mtr_t::log_write_extended(const buf_block_t &block, byte type)
   set_modified(block);
   if (m_log_mode != MTR_LOG_ALL)
     return;
-  byte *l= log_write<EXTENDED>(block.page.id, &block.page, 1, true);
+  byte *l= log_write<EXTENDED>(block.page.id(), &block.page, 1, true);
   *l++= type;
   m_log.close(l);
   m_last_offset= FIL_PAGE_TYPE;
@@ -566,7 +567,7 @@ inline void mtr_t::page_delete(const buf_block_t &block, ulint prev_rec)
   if (m_log_mode != MTR_LOG_ALL)
     return;
   size_t len= (prev_rec < MIN_2BYTE ? 2 : prev_rec < MIN_3BYTE ? 3 : 4);
-  byte *l= log_write<EXTENDED>(block.page.id, &block.page, len, true);
+  byte *l= log_write<EXTENDED>(block.page.id(), &block.page, len, true);
   ut_d(byte *end= l + len);
   *l++= DELETE_ROW_FORMAT_REDUNDANT;
   l= mlog_encode_varint(l, prev_rec);
@@ -595,7 +596,7 @@ inline void mtr_t::page_delete(const buf_block_t &block, ulint prev_rec,
   size_t len= prev_rec < MIN_2BYTE ? 2 : prev_rec < MIN_3BYTE ? 3 : 4;
   len+= hdr_size < MIN_2BYTE ? 1 : 2;
   len+= data_size < MIN_2BYTE ? 1 : data_size < MIN_3BYTE ? 2 : 3;
-  byte *l= log_write<EXTENDED>(block.page.id, &block.page, len, true);
+  byte *l= log_write<EXTENDED>(block.page.id(), &block.page, len, true);
   ut_d(byte *end= l + len);
   *l++= DELETE_ROW_FORMAT_DYNAMIC;
   l= mlog_encode_varint(l, prev_rec);
@@ -625,7 +626,7 @@ inline void mtr_t::undo_append(const buf_block_t &block,
   if (m_log_mode != MTR_LOG_ALL)
     return;
   const bool small= len + 1 < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5);
-  byte *end= log_write<EXTENDED>(block.page.id, &block.page, len + 1, small);
+  byte *end= log_write<EXTENDED>(block.page.id(), &block.page, len + 1, small);
   if (UNIV_LIKELY(small))
   {
     *end++= UNDO_APPEND;

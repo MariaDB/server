@@ -400,7 +400,7 @@ page_create_empty(
 
 	ut_ad(fil_page_index_page_check(block->frame));
 	ut_ad(!index->is_dummy);
-	ut_ad(block->page.id.space() == index->table->space->id);
+	ut_ad(block->page.id().space() == index->table->space->id);
 
 	/* Multiple transactions cannot simultaneously operate on the
 	same temp-table in parallel.
@@ -411,7 +411,7 @@ page_create_empty(
 	    && page_is_leaf(block->frame)) {
 		max_trx_id = page_get_max_trx_id(block->frame);
 		ut_ad(max_trx_id);
-	} else if (block->page.id.page_no() == index->page) {
+	} else if (block->page.id().page_no() == index->page) {
 		/* Preserve PAGE_ROOT_AUTO_INC. */
 		max_trx_id = page_get_max_trx_id(block->frame);
 	} else {

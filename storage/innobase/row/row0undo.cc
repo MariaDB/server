@@ -348,7 +348,7 @@ static bool row_undo_rec_get(undo_node_t* node)
 			trx->pages_undone++;
 		}
 
-		undo->top_page_no = prev_page->page.id.page_no();
+		undo->top_page_no = prev_page->page.id().page_no();
 		undo->top_offset  = page_offset(prev_rec);
 		undo->top_undo_no = trx_undo_rec_get_undo_no(prev_rec);
 		ut_ad(!undo->empty());

@@ -164,8 +164,8 @@ lock_rec_get_first_on_page(
 {
 	ut_ad(lock_mutex_own());
 
-	ulint	space	= block->page.id.space();
-	ulint	page_no	= block->page.id.page_no();
+	ulint	space	= block->page.id().space();
+	ulint	page_no	= block->page.id().page_no();
 	ulint	hash = buf_block_get_lock_hash_val(block);
 
 	for (lock_t* lock = static_cast<lock_t*>(

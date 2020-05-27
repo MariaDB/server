@@ -163,7 +163,7 @@ trx_sysf_create(
 			    mtr);
 	buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
 
-	ut_a(block->page.id.page_no() == TRX_SYS_PAGE_NO);
+	ut_a(block->page.id().page_no() == TRX_SYS_PAGE_NO);
 
 	mtr->write<2>(*block, FIL_PAGE_TYPE + block->frame,
 		      FIL_PAGE_TYPE_TRX_SYS);
@@ -195,7 +195,7 @@ trx_sysf_create(
 						     slot_no, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
-	ut_a(rblock->page.id.page_no() == FSP_FIRST_RSEG_PAGE_NO);
+	ut_a(rblock->page.id().page_no() == FSP_FIRST_RSEG_PAGE_NO);
 }
 
 /** Create the instance */

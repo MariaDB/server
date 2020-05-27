@@ -491,7 +491,7 @@ row_purge_remove_sec_if_poss_leaf(
 				const buf_block_t* block = btr_cur_get_block(
 					btr_cur);
 
-				if (block->page.id.page_no()
+				if (block->page.id().page_no()
 				    != index->page
 				    && page_get_n_recs(block->frame) < 2
 				    && !lock_test_prdt_page_lock(
@@ -500,8 +500,8 @@ row_purge_remove_sec_if_poss_leaf(
 					    ? thr_get_trx(
 						    btr_cur->rtr_info->thr)
 					    : NULL,
-					    block->page.id.space(),
-					    block->page.id.page_no())) {
+					    block->page.id().space(),
+					    block->page.id().page_no())) {
 					/* this is the last record on page,
 					and it has a "page" lock on it,
 					which mean search is still depending
@@ -509,7 +509,7 @@ row_purge_remove_sec_if_poss_leaf(
 					DBUG_LOG("purge",
 						 "skip purging last"
 						 " record on page "
-						 << block->page.id);
+						 << block->page.id());
 
 					btr_pcur_close(&pcur);
 					mtr.commit();

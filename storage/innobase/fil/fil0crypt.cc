@@ -1100,7 +1100,7 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 		do {
 			ulint n_pages = 0;
 			success = buf_flush_lists(ULINT_MAX, end_lsn, &n_pages);
-			buf_flush_wait_batch_end(BUF_FLUSH_LIST);
+			buf_flush_wait_batch_end(false);
 			sum_pages += n_pages;
 		} while (!success);
 
@@ -1894,7 +1894,7 @@ fil_crypt_flush_space(
 
 		do {
 			success = buf_flush_lists(ULINT_MAX, end_lsn, &n_pages);
-			buf_flush_wait_batch_end(BUF_FLUSH_LIST);
+			buf_flush_wait_batch_end(false);
 			sum_pages += n_pages;
 		} while (!success && !space->is_stopping());
 
@@ -2437,7 +2437,7 @@ bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 
 	/* Compressed and encrypted pages do not have checksum. Assume not
 	corrupted. Page verification happens after decompression in
-	buf_page_io_complete() using buf_page_is_corrupted(). */
+	buf_page_read_complete() using buf_page_is_corrupted(). */
 	if (fil_page_get_type(page) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		return true;
 	}

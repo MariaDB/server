@@ -112,8 +112,8 @@ btr_pcur_store_position(
 
 	rec = page_cur_get_rec(page_cursor);
 	offs = rec - block->frame;
-	ut_ad(block->page.id.page_no() == page_get_page_no(block->frame));
-	ut_ad(block->page.buf_fix_count);
+	ut_ad(block->page.id().page_no() == page_get_page_no(block->frame));
+	ut_ad(block->page.buf_fix_count());
 	/* For spatial index, when we do positioning on parent
 	buffer if necessary, it might not hold latches, but the
 	tree must be locked to prevent change on the page */
@@ -134,7 +134,7 @@ btr_pcur_store_position(
 
 		ut_a(!page_has_siblings(block->frame));
 		ut_ad(page_is_leaf(block->frame));
-		ut_ad(block->page.id.page_no() == index->page);
+		ut_ad(block->page.id().page_no() == index->page);
 
 		if (page_rec_is_supremum_low(offs)) {
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
@@ -483,7 +483,7 @@ btr_pcur_move_to_next_page(
 #ifdef UNIV_BTR_DEBUG
 	ut_a(page_is_comp(next_page) == page_is_comp(page));
 	ut_a(btr_page_get_prev(next_page)
-	     == btr_pcur_get_block(cursor)->page.id.page_no());
+	     == btr_pcur_get_block(cursor)->page.id().page_no());
 #endif /* UNIV_BTR_DEBUG */
 
 	btr_leaf_page_release(btr_pcur_get_block(cursor), mode, mtr);

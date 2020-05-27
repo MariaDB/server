@@ -1891,7 +1891,8 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 		ut_ad(undo);
 		for (ut_d(int loop_count = 0);;) {
 			ut_ad(loop_count++ < 2);
-			ut_ad(undo->last_page_no == block->page.id.page_no());
+			ut_ad(undo->last_page_no
+			      == block->page.id().page_no());
 
 			if (uint16_t offset = trx_undo_page_report_rename(
 				    trx, table, block, &mtr)) {
@@ -2048,7 +2049,7 @@ trx_undo_report_row_operation(
 			undo->withdraw_clock = buf_pool.withdraw_clock();
 			mtr_commit(&mtr);
 
-			undo->top_page_no = undo_block->page.id.page_no();
+			undo->top_page_no = undo_block->page.id().page_no();
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
@@ -2080,7 +2081,7 @@ trx_undo_report_row_operation(
 			return(DB_SUCCESS);
 		}
 
-		ut_ad(undo_block->page.id.page_no() == undo->last_page_no);
+		ut_ad(undo_block->page.id().page_no() == undo->last_page_no);
 
 		/* We have to extend the undo log by one page */
 

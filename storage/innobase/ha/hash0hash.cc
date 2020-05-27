@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,67 +27,6 @@ Created 5/20/1997 Heikki Tuuri
 #include "hash0hash.h"
 #include "mem0mem.h"
 #include "sync0sync.h"
-
-/************************************************************//**
-Reserves all the locks of a hash table, in an ascending order. */
-void
-hash_lock_x_all(
-/*============*/
-	hash_table_t*	table)	/*!< in: hash table */
-{
-	ut_ad(table->type == HASH_TABLE_SYNC_RW_LOCK);
-
-	for (ulint i = 0; i < table->n_sync_obj; i++) {
-
-		rw_lock_t* lock = table->sync_obj.rw_locks + i;
-
-		ut_ad(!rw_lock_own(lock, RW_LOCK_S));
-		ut_ad(!rw_lock_own(lock, RW_LOCK_X));
-
-		rw_lock_x_lock(lock);
-	}
-}
-
-/************************************************************//**
-Releases all the locks of a hash table, in an ascending order. */
-void
-hash_unlock_x_all(
-/*==============*/
-	hash_table_t*	table)	/*!< in: hash table */
-{
-	ut_ad(table->type == HASH_TABLE_SYNC_RW_LOCK);
-
-	for (ulint i = 0; i < table->n_sync_obj; i++) {
-
-		rw_lock_t* lock = table->sync_obj.rw_locks + i;
-
-		ut_ad(rw_lock_own(lock, RW_LOCK_X));
-
-		rw_lock_x_unlock(lock);
-	}
-}
-
-/************************************************************//**
-Releases all but passed in lock of a hash table, */
-void
-hash_unlock_x_all_but(
-/*==================*/
-	hash_table_t*	table,		/*!< in: hash table */
-	rw_lock_t*	keep_lock)	/*!< in: lock to keep */
-{
-	ut_ad(table->type == HASH_TABLE_SYNC_RW_LOCK);
-
-	for (ulint i = 0; i < table->n_sync_obj; i++) {
-
-		rw_lock_t* lock = table->sync_obj.rw_locks + i;
-
-		ut_ad(rw_lock_own(lock, RW_LOCK_X));
-
-		if (keep_lock != lock) {
-			rw_lock_x_unlock(lock);
-		}
-	}
-}
 
 /*************************************************************//**
 Creates a hash table with >= n array cells. The actual number of cells is
