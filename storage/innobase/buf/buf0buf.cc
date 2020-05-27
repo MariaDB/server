@@ -3782,12 +3782,10 @@ buf_page_try_get_func(
 @param zip_size ROW_FORMAT=COMPRESSED page size, or 0 */
 void buf_block_t::initialise(const page_id_t page_id, ulint zip_size)
 {
-  ut_a(page.state() != BUF_BLOCK_FILE_PAGE);
-
+  ut_ad(page.state() != BUF_BLOCK_FILE_PAGE);
   buf_block_init_low(this);
   lock_hash_val= lock_rec_hash(page_id.space(), page_id.page_no());
   page.init();
-  page.state_= BUF_BLOCK_FILE_PAGE;
   page.id_= page_id;
   page_zip_set_size(&page.zip, zip_size);
 }
@@ -3821,8 +3819,6 @@ buf_page_create(const page_id_t page_id, ulint zip_size, mtr_t *mtr)
   {
     /* Page can be found in buf_pool */
     rw_lock_x_unlock(hash_lock);
-
-    ut_d(free_block->page.set_state(BUF_BLOCK_MEMORY));
     buf_LRU_block_free_non_file_page(free_block);
     mutex_exit(&buf_pool.mutex);
 
@@ -3855,6 +3851,7 @@ buf_page_create(const page_id_t page_id, ulint zip_size, mtr_t *mtr)
   buf_block_buf_fix_inc(block, __FILE__, __LINE__);
 
   /* The block must be put to the LRU list */
+  block->page.set_state(BUF_BLOCK_FILE_PAGE);
   buf_LRU_add_block(&block->page, false);
   ut_d(block->page.in_page_hash= true);
   HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, page_id.fold(),
@@ -4428,12 +4425,6 @@ void buf_pool_t::validate()
 				break;
 
 			case BUF_BLOCK_FILE_PAGE:
-				if (!block->page.in_page_hash) {
-					/* buf_block_t::initialise()
-					is called before the block
-					is added to LRU or page_hash */
-					break;
-				}
 				ut_ad(page_hash_get_low(block->page.id())
 				      == &block->page);
 				/* buf_page_read_complete() may execute

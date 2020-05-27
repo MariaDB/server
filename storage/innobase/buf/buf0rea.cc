@@ -118,10 +118,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     /* The page is already in the buffer pool. */
     rw_lock_x_unlock(hash_lock);
     if (block)
-    {
-      ut_d(block->page.set_state(BUF_BLOCK_MEMORY));
       buf_LRU_block_free_non_file_page(block);
-    }
     goto func_exit;
   }
 
@@ -139,6 +136,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
       buf_pool.watch_remove(hash_page);
     }
 
+    block->page.set_state(BUF_BLOCK_FILE_PAGE);
     ut_ad(!bpage->in_page_hash);
     ut_d(bpage->in_page_hash= true);
     HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, page_id.fold(), bpage);
