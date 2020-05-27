@@ -64,6 +64,7 @@
 #include "sql_callback.h"
 #include "lock.h"
 #include "sql_connect.h"
+#include "repl_failsafe.h"
 
 /*
   The following is used to initialise Table_ident with a internal
@@ -1535,6 +1536,7 @@ THD::~THD()
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
   my_free(semisync_info);
+  unregister_slave(this, true, true);
 #endif
 
   free_root(&main_mem_root, MYF(0));

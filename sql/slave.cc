@@ -3860,9 +3860,6 @@ pthread_handler_t handle_slave_io(void *arg)
   bool suppress_warnings;
   int ret;
   rpl_io_thread_info io_info;
-#ifndef DBUG_OFF
-  uint retry_count_reg= 0, retry_count_dump= 0, retry_count_event= 0;
-#endif
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
   DBUG_ENTER("handle_slave_io");
@@ -4043,16 +4040,7 @@ connected:
         goto err;
       goto connected;
     }
-    DBUG_EXECUTE_IF("FORCE_SLAVE_TO_RECONNECT_REG", 
-      if (!retry_count_reg)
-      {
-        retry_count_reg++;
-        sql_print_information("Forcing to reconnect slave I/O thread");
-        if (try_to_reconnect(thd, mysql, mi, &retry_count, suppress_warnings,
-                             reconnect_messages[SLAVE_RECON_ACT_REG]))
-          goto err;
-        goto connected;
-      });
+    DBUG_EXECUTE_IF("fail_com_register_slave", goto err;);
   }
 
   DBUG_PRINT("info",("Starting reading binary log from master"));
@@ -4068,16 +4056,6 @@ connected:
         goto err;
       goto connected;
     }
-    DBUG_EXECUTE_IF("FORCE_SLAVE_TO_RECONNECT_DUMP", 
-      if (!retry_count_dump)
-      {
-        retry_count_dump++;
-        sql_print_information("Forcing to reconnect slave I/O thread");
-        if (try_to_reconnect(thd, mysql, mi, &retry_count, suppress_warnings,
-                             reconnect_messages[SLAVE_RECON_ACT_DUMP]))
-          goto err;
-        goto connected;
-      });
     const char *event_buf;
 
     mi->slave_running= MYSQL_SLAVE_RUN_READING;
@@ -4095,16 +4073,6 @@ connected:
       event_len= read_event(mysql, mi, &suppress_warnings);
       if (check_io_slave_killed(mi, NullS))
         goto err;
-      DBUG_EXECUTE_IF("FORCE_SLAVE_TO_RECONNECT_EVENT",
-        if (!retry_count_event)
-        {
-          retry_count_event++;
-          sql_print_information("Forcing to reconnect slave I/O thread");
-          if (try_to_reconnect(thd, mysql, mi, &retry_count, suppress_warnings,
-                               reconnect_messages[SLAVE_RECON_ACT_EVENT]))
-            goto err;
-          goto connected;
-        });
 
       if (event_len == packet_error)
       {

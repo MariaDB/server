@@ -206,7 +206,7 @@ int main(int argc, const char** argv )
     } else {
       if (strcmp(arg, "--verbose") == 0)
         verbose++;
-      else if (strncmp(arg, "--parent-pid", 10) == 0)
+      else if (strncmp(arg, "--parent-pid", 12) == 0)
       {
             /* Override parent_pid with a value provided by user */
         const char* start;
