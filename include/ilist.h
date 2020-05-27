@@ -210,7 +210,7 @@ public:
 
   sized_ilist() : size_(0) {}
 
-  size_type size() const { return size_; }
+  std::size_t size() const { return size_; }
 
   void clear()
   {
@@ -218,25 +218,30 @@ public:
     size_= 0;
   }
 
-  iterator insert(iterator pos, reference value)
+  typename ilist<T, Tag>::iterator
+  insert(typename ilist<T, Tag>::iterator pos,
+         typename ilist<T, Tag>::reference value)
   {
     ++size_;
     return BASE::insert(pos, value);
   }
 
-  iterator erase(iterator pos)
+  typename ilist<T, Tag>::iterator erase(typename ilist<T, Tag>::iterator pos)
   {
     --size_;
     return BASE::erase(pos);
   }
 
-  void push_back(reference value) { insert(BASE::end(), value); }
+  void push_back(typename ilist<T, Tag>::reference value)
+  { insert(BASE::end(), value); }
   void pop_back() { erase(BASE::end()); }
 
-  void push_front(reference value) { insert(BASE::begin(), value); }
+  void push_front(typename ilist<T, Tag>::reference value)
+  { insert(BASE::begin(), value); }
   void pop_front() { erase(BASE::begin()); }
 
-  void remove(reference value) { erase(iterator(&value)); }
+  void remove(typename ilist<T, Tag>::reference value)
+  { erase(iterator(&value)); }
 
 private:
   size_t size_;
