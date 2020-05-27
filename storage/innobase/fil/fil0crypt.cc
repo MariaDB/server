@@ -2248,7 +2248,7 @@ static void fil_crypt_rotation_list_fill()
 	     space != NULL;
 	     space = UT_LIST_GET_NEXT(space_list, space)) {
 		if (space->purpose != FIL_TYPE_TABLESPACE
-		    || space->is_in_rotation_list()
+		    || space->is_in_rotation_list
 		    || space->is_stopping()
 		    || UT_LIST_GET_LEN(space->chain) == 0) {
 			continue;
@@ -2295,6 +2295,7 @@ static void fil_crypt_rotation_list_fill()
 		}
 
 		fil_system.rotation_list.push_back(*space);
+		space->is_in_rotation_list = true;
 	}
 }
 
