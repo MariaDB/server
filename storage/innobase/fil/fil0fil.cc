@@ -3119,10 +3119,10 @@ fil_reinit_space_header_for_table(
 	dict_table_x_unlock_indexes(table);
 	row_mysql_unlock_data_dictionary(trx);
 
+	DEBUG_SYNC_C("buffer_pool_scan");
 	/* Lock the search latch in shared mode to prevent user
 	from disabling AHI during the scan */
 	btr_search_s_lock_all();
-	DEBUG_SYNC_C("buffer_pool_scan");
 	buf_LRU_flush_or_remove_pages(id, NULL);
 	btr_search_s_unlock_all();
 
