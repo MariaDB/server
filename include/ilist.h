@@ -25,8 +25,8 @@
 template <class Tag= void> struct ilist_node
 {
   ilist_node()
-      :
 #ifndef DBUG_OFF
+      :
         next(NULL), prev(NULL)
 #endif
   {
