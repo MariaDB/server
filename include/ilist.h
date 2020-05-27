@@ -196,21 +196,21 @@ template <class T, class Tag= void> class sized_ilist : public ilist<T, Tag>
 public:
   // All containers in C++ should define these types to implement generic
   // container interface.
-  using typename BASE::const_iterator;
-  using typename BASE::const_pointer;
-  using typename BASE::const_reference;
-  using typename BASE::const_reverse_iterator;
-  using typename BASE::difference_type;
-  using typename BASE::iterator;
-  using typename BASE::pointer;
-  using typename BASE::reference;
-  using typename BASE::reverse_iterator;
-  using typename BASE::size_type;
-  using typename BASE::value_type;
+  typedef T value_type;
+  typedef std::size_t size_type;
+  typedef std::ptrdiff_t difference_type;
+  typedef value_type &reference;
+  typedef const value_type &const_reference;
+  typedef T *pointer;
+  typedef const T *const_pointer;
+  typedef typename BASE::Iterator iterator;
+  typedef const typename BASE::Iterator const_iterator;
+  typedef std::reverse_iterator<iterator> reverse_iterator;
+  typedef std::reverse_iterator<const iterator> const_reverse_iterator;
 
   sized_ilist() : size_(0) {}
 
-  std::size_t size() const { return size_; }
+  size_type size() const { return size_; }
 
   void clear()
   {
@@ -218,31 +218,26 @@ public:
     size_= 0;
   }
 
-  typename ilist<T, Tag>::iterator
-  insert(typename ilist<T, Tag>::iterator pos,
-         typename ilist<T, Tag>::reference value)
+  iterator insert(iterator pos, reference value)
   {
     ++size_;
     return BASE::insert(pos, value);
   }
 
-  typename ilist<T, Tag>::iterator erase(typename ilist<T, Tag>::iterator pos)
+  iterator erase(iterator pos)
   {
     --size_;
     return BASE::erase(pos);
   }
 
-  void push_back(typename ilist<T, Tag>::reference value)
-  { insert(BASE::end(), value); }
+  void push_back(reference value) { insert(BASE::end(), value); }
   void pop_back() { erase(BASE::end()); }
 
-  void push_front(typename ilist<T, Tag>::reference value)
-  { insert(BASE::begin(), value); }
+  void push_front(reference value) { insert(BASE::begin(), value); }
   void pop_front() { erase(BASE::begin()); }
 
-  void remove(typename ilist<T, Tag>::reference value)
-  { erase(iterator(&value)); }
+  void remove(reference value) { erase(iterator(&value)); }
 
 private:
-  size_t size_;
+  size_type size_;
 };
