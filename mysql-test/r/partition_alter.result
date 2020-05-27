@@ -165,3 +165,4 @@ select * from t1 partition (p0);
 k	x
 1	2000-01-01 00:00:00.000000
 drop table t1;
+# End of 10.2 tests

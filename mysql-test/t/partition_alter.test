@@ -151,3 +151,5 @@ insert into t1 (k, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
 alter table t1 drop key u, algorithm=inplace;
 select * from t1 partition (p0);
 drop table t1;
+
+--echo # End of 10.2 tests
