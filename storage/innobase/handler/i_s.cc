@@ -4612,14 +4612,12 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 
 	/* Print error message if malloc fail */
 	info_buffer = (buf_page_info_t*) my_malloc(PSI_INSTRUMENT_ME,
-		lru_len * sizeof *info_buffer, MYF(MY_WME));
+		lru_len * sizeof *info_buffer, MYF(MY_WME | MY_ZEROFILL));;
 
 	if (!info_buffer) {
 		status = 1;
 		goto exit;
 	}
-
-	memset(info_buffer, 0, lru_len * sizeof *info_buffer);
 
 	/* Walk through Pool's LRU list and print the buffer page
 	information */
