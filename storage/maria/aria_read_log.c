@@ -50,11 +50,11 @@ static MY_TMPDIR maria_chk_tmpdir;
 static ulonglong get_lsn(const char *lsn_str)
 {
   ulong file;
-  ulonglong pos;
-  if (sscanf(lsn_str, " %lu,0x%Lx", &file, &pos) == 2)
+  ulong pos;
+  if (sscanf(lsn_str, " %lu,0x%lx", &file, &pos) == 2)
     return MAKE_LSN(file, pos);
-  if (sscanf(lsn_str, " %Lu", &pos) == 1)
-    return pos;
+  if (sscanf(lsn_str, " %lu", &pos) == 1)
+    return (ulonglong) pos;
   return ~(ulonglong) 0;                        /* Error */
 }
 

@@ -55,20 +55,20 @@ MYSQL_ADD_PLUGIN(aria ${ARIA_SOURCES} STORAGE_ENGINE MANDATORY
                  LINK_LIBRARIES myisam mysys mysys_ssl
                  RECOMPILE_FOR_EMBEDDED)
 
-MYSQL_ADD_EXECUTABLE(aria_ftdump maria_ftdump.c COMPONENT Server)
+MYSQL_ADD_EXECUTABLE(aria_ftdump aria_ftdump.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_ftdump aria)
 
-MYSQL_ADD_EXECUTABLE(aria_chk maria_chk.c COMPONENT Server)
+MYSQL_ADD_EXECUTABLE(aria_chk aria_chk.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_chk aria)
 
-MYSQL_ADD_EXECUTABLE(aria_read_log maria_read_log.c COMPONENT Server)
+MYSQL_ADD_EXECUTABLE(aria_read_log aria_read_log.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_read_log aria)
 
-MYSQL_ADD_EXECUTABLE(aria_dump_log  maria_dump_log.c unittest/ma_loghandler_examples.c COMPONENT Server)
+MYSQL_ADD_EXECUTABLE(aria_dump_log aria_dump_log.c unittest/ma_loghandler_examples.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_dump_log aria)
 SET_TARGET_PROPERTIES(aria_dump_log PROPERTIES COMPILE_FLAGS "-DMARIA_DUMP_LOG")
 
-MYSQL_ADD_EXECUTABLE(aria_pack maria_pack.c COMPONENT Server)
+MYSQL_ADD_EXECUTABLE(aria_pack aria_pack.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_pack aria)
 
 IF(WITH_UNIT_TESTS)
