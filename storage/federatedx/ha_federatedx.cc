@@ -3611,6 +3611,9 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   char buf[1024];
   String query(buf, sizeof(buf), cs);
   static LEX_CSTRING cut_clause={STRING_WITH_LEN(" WITH SYSTEM VERSIONING")};
+  static LEX_CSTRING cut_start={STRING_WITH_LEN("GENERATED ALWAYS AS ROW START")};
+  static LEX_CSTRING cut_end={STRING_WITH_LEN("GENERATED ALWAYS AS ROW END")};
+  static LEX_CSTRING set_ts={STRING_WITH_LEN("DEFAULT TIMESTAMP'1971-01-01 00:00:00'")};
   int cut_offset;
   MYSQL_RES *res;
   MYSQL_ROW rdata;
@@ -3649,7 +3652,21 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   cut_offset= (int)query.length() - (int)cut_clause.length;
   if (cut_offset > 0 && !memcmp(query.ptr() + cut_offset,
                                 cut_clause.str, cut_clause.length))
+  {
     query.length(cut_offset);
+    const char *ptr= strstr(query.ptr(), cut_start.str);
+    if (ptr)
+    {
+      query.replace((uint32) (ptr - query.ptr()), (uint32) cut_start.length,
+                    set_ts.str, (uint32) set_ts.length);
+    }
+    ptr= strstr(query.ptr(), cut_end.str);
+    if (ptr)
+    {
+      query.replace((uint32) (ptr - query.ptr()), (uint32) cut_end.length,
+                    set_ts.str, (uint32) set_ts.length);
+    }
+  }
   query.append(STRING_WITH_LEN(" CONNECTION='"), cs);
   query.append_for_single_quote(table_s->connect_string.str,
                                 table_s->connect_string.length);

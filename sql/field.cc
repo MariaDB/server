@@ -11456,6 +11456,13 @@ bool Field::save_in_field_default_value(bool view_error_processing)
 {
   THD *thd= table->in_use;
 
+  /*
+     TODO: MDEV-19597 Refactor TABLE::vers_update_fields() via stored virtual columns
+     This condition will go away as well as other conditions with vers_sys_field().
+  */
+  if (vers_sys_field())
+    return false;
+
   if (unlikely(flags & NO_DEFAULT_VALUE_FLAG &&
                real_type() != MYSQL_TYPE_ENUM))
   {
