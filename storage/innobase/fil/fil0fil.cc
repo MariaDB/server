@@ -511,32 +511,41 @@ fail:
 /** Close the file handle. */
 void fil_node_t::close()
 {
-	bool	ret;
+  prepare_to_close_or_detach();
 
-	ut_ad(mutex_own(&fil_system.mutex));
-	ut_a(is_open());
-	ut_a(n_pending == 0);
-	ut_a(n_pending_flushes == 0);
-	ut_a(!being_extended);
-	ut_a(!needs_flush
-	     || space->purpose == FIL_TYPE_TEMPORARY
-	     || srv_fast_shutdown == 2
-	     || !srv_was_started);
+  /* printf("Closing file %s\n", name); */
+  int ret= os_file_close(handle);
+  ut_a(ret);
+  handle= OS_FILE_CLOSED;
+}
 
-	ret = os_file_close(handle);
-	ut_a(ret);
+pfs_os_file_t fil_node_t::detach()
+{
+  prepare_to_close_or_detach();
 
-	/* printf("Closing file %s\n", name); */
+  pfs_os_file_t result= handle;
+  handle= OS_FILE_CLOSED;
+  return result;
+}
 
-	handle = OS_FILE_CLOSED;
-	ut_ad(!is_open());
-	ut_a(fil_system.n_open > 0);
-	fil_system.n_open--;
+void fil_node_t::prepare_to_close_or_detach()
+{
+  ut_ad(mutex_own(&fil_system.mutex));
+  ut_a(is_open());
+  ut_a(n_pending == 0);
+  ut_a(n_pending_flushes == 0);
+  ut_a(!being_extended);
+  ut_a(!needs_flush || space->purpose == FIL_TYPE_TEMPORARY ||
+       srv_fast_shutdown == 2 || !srv_was_started);
 
-	if (fil_space_belongs_in_lru(space)) {
-		ut_a(UT_LIST_GET_LEN(fil_system.LRU) > 0);
-		UT_LIST_REMOVE(fil_system.LRU, this);
-	}
+  ut_a(fil_system.n_open > 0);
+  fil_system.n_open--;
+
+  if (fil_space_belongs_in_lru(space))
+  {
+    ut_a(UT_LIST_GET_LEN(fil_system.LRU) > 0);
+    UT_LIST_REMOVE(fil_system.LRU, this);
+  }
 }
 
 /** Tries to close a file in the LRU list. The caller must hold the fil_sys
@@ -917,7 +926,7 @@ fil_space_extend(
 }
 
 /** Prepare to free a file from fil_system. */
-inline void fil_node_t::close_to_free()
+pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
 {
   ut_ad(mutex_own(&fil_system.mutex));
   ut_a(magic_n == FIL_NODE_MAGIC_N);
@@ -958,15 +967,24 @@ inline void fil_node_t::close_to_free()
     }
     ut_a(!n_pending_flushes);
     ut_a(!being_extended);
+    if (detach_handle)
+    {
+      auto result= handle;
+      handle= OS_FILE_CLOSED;
+      return result;
+    }
     bool ret= os_file_close(handle);
     ut_a(ret);
     handle= OS_FILE_CLOSED;
     break;
   }
+
+  return OS_FILE_CLOSED;
 }
 
 /** Detach a tablespace from the cache and close the files. */
-inline void fil_system_t::detach(fil_space_t *space)
+std::vector<pfs_os_file_t> fil_system_t::detach(fil_space_t *space,
+                                                bool detach_handle)
 {
   ut_ad(mutex_own(&fil_system.mutex));
   HASH_DELETE(fil_space_t, hash, spaces, space->id, space);
@@ -1000,9 +1018,18 @@ inline void fil_system_t::detach(fil_space_t *space)
       n_open--;
     }
 
+  std::vector<pfs_os_file_t> handles;
+  handles.reserve(UT_LIST_GET_LEN(space->chain));
+
   for (fil_node_t* node= UT_LIST_GET_FIRST(space->chain); node;
        node= UT_LIST_GET_NEXT(chain, node))
-    node->close_to_free();
+  {
+    auto handle= node->close_to_free(detach_handle);
+    if (handle != OS_FILE_CLOSED)
+      handles.push_back(handle);
+  }
+
+  return handles;
 }
 
 /** Free a tablespace object on which fil_system_t::detach() was invoked.
@@ -2180,11 +2207,14 @@ bool fil_table_accessible(const dict_table_t* table)
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	if_exists	whether to ignore missing tablespace
+@param[in,out]	detached_handles	return detached handles if not nullptr
 @return	DB_SUCCESS or error */
-dberr_t fil_delete_tablespace(ulint id, bool if_exists)
+dberr_t fil_delete_tablespace(ulint id, bool if_exists,
+			      std::vector<pfs_os_file_t>* detached_handles)
 {
 	char* path = NULL;
 	ut_ad(!is_system_tablespace(id));
+	ut_ad(!detached_handles || detached_handles->empty());
 
 	dberr_t err;
 	fil_space_t *space = fil_check_pending_operations(id, false, &path);
@@ -2260,7 +2290,11 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists)
 		ut_a(s == space);
 		ut_a(!space->referenced());
 		ut_a(UT_LIST_GET_LEN(space->chain) == 1);
-		fil_system.detach(space);
+		auto handles = fil_system.detach(space,
+						 detached_handles != nullptr);
+		if (detached_handles) {
+			*detached_handles = std::move(handles);
+		}
 		mutex_exit(&fil_system.mutex);
 
 		log_mutex_enter();
