@@ -314,11 +314,11 @@ buf_flush_block_cmp(
 
 	ut_ad(mutex_own(&buf_pool.flush_list_mutex));
 
-	ut_ad(b1->in_flush_list);
-	ut_ad(b2->in_flush_list);
-
 	const lsn_t m1 = b1->oldest_modification(),
 		m2 = b2->oldest_modification();
+
+	ut_ad(m1);
+	ut_ad(m2);
 
 	if (m2 > m1) {
 		return(1);
@@ -442,7 +442,7 @@ void buf_flush_remove(buf_page_t* bpage)
 	}
 
 	/* Must be done after we have removed it from the flush_rbt
-	because we assert on in_flush_list in comparison function. */
+	because we assert on it in buf_flush_block_cmp(). */
 	bpage->clear_oldest_modification();
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
@@ -490,7 +490,7 @@ buf_flush_relocate_on_flush_list(
 	is guaranteed to be in the flush list. We need to check if
 	this will work without the assumption of block removing code
 	having the buf_pool mutex. */
-	ut_ad(dpage->in_flush_list);
+	ut_ad(dpage->oldest_modification());
 
 	/* If recovery is active we must swap the control blocks in
 	the flush_rbt as well. */
@@ -504,14 +504,14 @@ buf_flush_relocate_on_flush_list(
 	buf_pool.flush_hp.adjust(bpage);
 
 	/* Must be done after we have removed it from the flush_rbt
-	because we assert on in_flush_list in comparison function. */
+	because we assert on it in buf_flush_block_cmp(). */
 	bpage->clear_oldest_modification();
 
 	prev = UT_LIST_GET_PREV(list, bpage);
 	UT_LIST_REMOVE(buf_pool.flush_list, bpage);
 
 	if (prev) {
-		ut_ad(prev->in_flush_list);
+		ut_ad(prev->oldest_modification());
 		UT_LIST_INSERT_AFTER( buf_pool.flush_list, prev, dpage);
 	} else {
 		UT_LIST_ADD_FIRST(buf_pool.flush_list, dpage);
@@ -1592,7 +1592,6 @@ static ulint buf_do_flush_list_batch(ulint min_n, lsn_t lsn_limit)
     if (oldest_modification >= lsn_limit)
       break;
     ut_a(oldest_modification);
-    ut_ad(bpage->in_flush_list);
 
     buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
     buf_pool.flush_hp.set(prev);
@@ -1783,7 +1782,6 @@ void buf_flush_wait_flushed(lsn_t new_oldest)
 		mutex_enter(&buf_pool.flush_list_mutex);
 
 		buf_page_t*	bpage;
-
 		/* FIXME: Keep temporary tablespace pages in a separate flush
 		list. We would only need to write out temporary pages if the
 		page is about to be evicted from the buffer pool, and the page
@@ -1791,7 +1789,7 @@ void buf_flush_wait_flushed(lsn_t new_oldest)
 		for (bpage = UT_LIST_GET_LAST(buf_pool.flush_list);
 		     bpage && fsp_is_system_temporary(bpage->id().space());
 		     bpage = UT_LIST_GET_PREV(list, bpage)) {
-			ut_ad(bpage->in_flush_list);
+			ut_ad(bpage->oldest_modification());
 		}
 
 		lsn_t oldest = bpage ? bpage->oldest_modification() : 0;
@@ -2884,7 +2882,7 @@ void buf_flush_request_force(lsn_t lsn_limit)
 struct	Check {
 	void operator()(const buf_page_t* elem) const
 	{
-		ut_a(elem->in_flush_list);
+		ut_a(elem->oldest_modification());
 	}
 };
 
@@ -2909,8 +2907,6 @@ static void buf_flush_validate_low()
 
 	while (bpage != NULL) {
 		const lsn_t	om = bpage->oldest_modification();
-		ut_ad(bpage->in_flush_list);
-
 		/* A page in buf_pool.flush_list can be in
 		BUF_BLOCK_REMOVE_HASH state. This happens when a page
 		is in the middle of being relocated. In that case the

@@ -903,10 +903,6 @@ public:
   /** whether this is in buf_pool.page_hash (in_file() holds);
   protected by buf_pool.mutex */
   bool in_page_hash;
-  /** whether this->list in buf_pool.flush_list
-  (oldest_modification() != 0);
-  protected by buf_pool.mutex and buf_pool.flush_list_mutex */
-  bool in_flush_list;
   /** whether this->list is in buf_pool.free (state() == BUF_BLOCK_NOT_USED);
   protected by buf_pool.flush_list_mutex */
   bool in_free_list;
@@ -923,7 +919,7 @@ public:
   state() == BUF_BLOCK_ZIP_PAGE && !oldest_modification(): buf_pool.zip_clean
 
   The contents is undefined if
-  !in_flush_list && state() == BUF_BLOCK_FILE_PAGE,
+  !oldest_modification() && state() == BUF_BLOCK_FILE_PAGE,
   or if state() is not any of the above. */
   UT_LIST_NODE_T(buf_page_t) list;
 
@@ -1000,7 +996,6 @@ public:
     ibuf_exist= false;
     status= NORMAL;
     ut_d(in_zip_hash= false);
-    ut_d(in_flush_list= false);
     ut_d(in_free_list= false);
     ut_d(in_LRU_list= false);
     ut_d(in_page_hash= false);
@@ -1363,7 +1358,7 @@ public:
     if (is_hp(bpage))
       m_hp= UT_LIST_GET_PREV(list, m_hp);
 
-    ut_ad(!m_hp || m_hp->in_flush_list);
+    ut_ad(!m_hp || m_hp->oldest_modification());
   }
 };
 
@@ -2157,10 +2152,8 @@ inline void buf_page_t::set_corrupt_id()
 inline void buf_page_t::set_oldest_modification(lsn_t lsn)
 {
   ut_ad(mutex_own(&buf_pool.flush_list_mutex));
-  ut_ad(!in_flush_list);
   ut_ad(!oldest_modification());
   oldest_modification_= lsn;
-  ut_d(in_flush_list= true);
 }
 
 /** Clear oldest_modification when removing from buf_pool.flush_list */
@@ -2171,9 +2164,7 @@ inline void buf_page_t::clear_oldest_modification()
   ut_ad(state == BUF_BLOCK_FILE_PAGE || state == BUF_BLOCK_ZIP_PAGE ||
         state == BUF_BLOCK_REMOVE_HASH);
   ut_ad(oldest_modification());
-  ut_ad(in_flush_list);
   oldest_modification_= 0;
-  ut_d(in_flush_list= false);
 }
 
 /** @return whether the block is modified and ready for flushing */

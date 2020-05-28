@@ -489,7 +489,6 @@ buf_pool_get_oldest_modification()
 	mutex_enter(&buf_pool.flush_list_mutex);
 
 	buf_page_t*	bpage;
-
 	/* FIXME: Keep temporary tablespace pages in a separate flush
 	list. We would only need to write out temporary pages if the
 	page is about to be evicted from the buffer pool, and the page
@@ -497,7 +496,7 @@ buf_pool_get_oldest_modification()
 	for (bpage = UT_LIST_GET_LAST(buf_pool.flush_list);
 	     bpage != NULL && fsp_is_system_temporary(bpage->id().space());
 	     bpage = UT_LIST_GET_PREV(list, bpage)) {
-		ut_ad(bpage->in_flush_list);
+		ut_ad(bpage->oldest_modification());
 	}
 
 	lsn_t oldest_lsn = bpage ? bpage->oldest_modification() : 0;
@@ -505,7 +504,6 @@ buf_pool_get_oldest_modification()
 
 	/* The returned answer may be out of date: the flush_list can
 	change after the mutex has been released. */
-
 	return(oldest_lsn);
 }
 #endif /* !UNIV_INNOCHECKSUM */
@@ -1792,7 +1790,7 @@ inline bool buf_pool_t::withdraw_blocks()
 		while (block != NULL
 		       && UT_LIST_GET_LEN(withdraw) < withdraw_target) {
 			ut_ad(block->page.in_free_list);
-			ut_ad(!block->page.in_flush_list);
+			ut_ad(!block->page.oldest_modification());
 			ut_ad(!block->page.in_LRU_list);
 			ut_a(!block->page.in_file());
 
@@ -3321,8 +3319,6 @@ evict_from_pool:
 
 		UNIV_MEM_DESC(&block->page.zip.data,
 			      page_zip_get_size(&block->page.zip));
-		ut_ad(block->page.in_flush_list
-		      == !!block->page.oldest_modification());
 
 		if (!block->page.oldest_modification()) {
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
@@ -4468,7 +4464,6 @@ void buf_pool_t::validate()
 	mutex_enter(&flush_list_mutex);
 	for (buf_page_t* b = UT_LIST_GET_FIRST(flush_list); b;
 	     b = UT_LIST_GET_NEXT(list, b)) {
-		ut_ad(b->in_flush_list);
 		ut_ad(b->oldest_modification());
 		n_flushing++;
 
@@ -4666,7 +4661,6 @@ ulint buf_get_latched_pages_number()
 	mutex_enter(&buf_pool.flush_list_mutex);
 	for (b = UT_LIST_GET_FIRST(buf_pool.flush_list); b;
 	     b = UT_LIST_GET_NEXT(list, b)) {
-		ut_ad(b->in_flush_list);
 		ut_ad(b->oldest_modification());
 
 		switch (b->state()) {

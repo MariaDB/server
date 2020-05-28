@@ -213,7 +213,7 @@ The current page is "fixed" before the release of the mutexes and then
 static void buf_flush_yield(buf_page_t *bpage)
 {
   mutex_exit(&buf_pool.flush_list_mutex);
-  ut_ad(bpage->in_flush_list);
+  ut_ad(bpage->oldest_modification());
   ut_ad(bpage->in_file());
   ut_ad(bpage->io_fix() == BUF_IO_NONE);
   /** Make the block sticky, so that even after we release buf_pool.mutex:
@@ -233,7 +233,7 @@ static void buf_flush_yield(buf_page_t *bpage)
   /* Should not have been removed from the flush
   list during the yield. However, this check is
   not sufficient to catch a remove -> add. */
-  ut_ad(bpage->in_flush_list);
+  ut_ad(bpage->oldest_modification());
 }
 
 /******************************************************************//**
@@ -432,7 +432,6 @@ static void buf_flush_dirty_pages(ulint id, bool flush, ulint first)
          bpage= UT_LIST_GET_NEXT(list, bpage))
     {
       ut_ad(bpage->in_file());
-      ut_ad(bpage->in_flush_list);
       ut_ad(bpage->oldest_modification());
       ut_ad(id != bpage->id().space());
     }
@@ -616,7 +615,6 @@ buf_block_t* buf_LRU_get_free_only()
 		ut_ad(block->page.in_free_list);
 		ut_d(block->page.in_free_list = FALSE);
 		ut_ad(!block->page.oldest_modification());
-		ut_ad(!block->page.in_flush_list);
 		ut_ad(!block->page.in_LRU_list);
 		ut_a(!block->page.in_file());
 		UT_LIST_REMOVE(buf_pool.free, &block->page);
@@ -1197,7 +1195,6 @@ func_exit:
 	ut_ad(mutex_own(&buf_pool.mutex));
 	ut_ad(bpage->in_file());
 	ut_ad(bpage->in_LRU_list);
-	ut_ad(!bpage->in_flush_list == !bpage->oldest_modification());
 
 	DBUG_PRINT("ib_buf", ("free page %u:%u",
 			      id.space(), id.page_no()));
@@ -1367,7 +1364,6 @@ buf_LRU_block_free_non_file_page(
 	assert_block_ahi_empty(block);
 	ut_ad(!block->page.in_free_list);
 	ut_ad(!block->page.oldest_modification());
-	ut_ad(!block->page.in_flush_list);
 	ut_ad(!block->page.in_LRU_list);
 
 	block->page.set_state(BUF_BLOCK_NOT_USED);
@@ -1519,7 +1515,6 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 	switch (bpage->state()) {
 	case BUF_BLOCK_ZIP_PAGE:
 		ut_ad(!bpage->in_free_list);
-		ut_ad(!bpage->in_flush_list);
 		ut_ad(!bpage->in_LRU_list);
 		ut_a(bpage->zip.data);
 		ut_a(bpage->zip.ssize);
@@ -1577,7 +1572,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 			bpage->zip.data = NULL;
 
 			ut_ad(!bpage->in_free_list);
-			ut_ad(!bpage->in_flush_list);
+			ut_ad(!bpage->oldest_modification());
 			ut_ad(!bpage->in_LRU_list);
 			buf_pool_mutex_exit_forbid();
 
