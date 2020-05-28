@@ -130,7 +130,7 @@ struct buf_page_info_t{
 					buf_pool.freed_page_clock */
 	unsigned	zip_ssize:PAGE_ZIP_SSIZE_BITS;
 					/*!< Compressed page size */
-	unsigned	page_state:BUF_PAGE_STATE_BITS; /*!< Page state */
+	unsigned	page_state:3; /*!< Page state */
 	unsigned	page_type:I_S_PAGE_TYPE_BITS;	/*!< Page type */
 	unsigned	num_recs:UNIV_PAGE_SIZE_SHIFT_MAX-2;
 					/*!< Number of records on Page */
@@ -3839,13 +3839,13 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_stats =
         STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
-/** These must correspond to the last values of buf_page_state */
+/** These must correspond to the first values of buf_page_state */
 static const LEX_CSTRING page_state_values[] =
 {
-	{ STRING_WITH_LEN("NOT_USED") },
-	{ STRING_WITH_LEN("FILE_PAGE") },
-	{ STRING_WITH_LEN("MEMORY") },
-	{ STRING_WITH_LEN("REMOVE_HASH") }
+  { STRING_WITH_LEN("NOT_USED") },
+  { STRING_WITH_LEN("MEMORY") },
+  { STRING_WITH_LEN("REMOVE_HASH") },
+  { STRING_WITH_LEN("FILE_PAGE") },
 };
 
 static const TypelibBuffer<4> page_state_values_typelib(page_state_values);
@@ -4055,15 +4055,10 @@ i_s_innodb_buffer_page_fill(
 			   page_info->zip_ssize
 			   ? (UNIV_ZIP_SIZE_MIN >> 1) << page_info->zip_ssize
 			   : 0, true));
-		compile_time_assert(BUF_PAGE_STATE_BITS == 3);
 
-		/* First three states are for compression pages and
-		are not states we would get as we scan pages through
-		buffer blocks */
 		OK(fields[IDX_BUFFER_PAGE_STATE]->store(
-			   page_info->page_state >= BUF_BLOCK_NOT_USED
-			   ? page_info->page_state - (BUF_BLOCK_NOT_USED - 1)
-			   : 0, true));
+			   1 + std::min<unsigned>(page_info->page_state,
+						  BUF_BLOCK_FILE_PAGE), true));
 
 		OK(fields[IDX_BUFFER_PAGE_IO_FIX]->store(
 			   1 + page_info->io_fix, true));
@@ -4150,12 +4145,24 @@ i_s_innodb_buffer_page_get_info(
 {
 	page_info->block_id = pos;
 
-	page_info->page_state = bpage->state() & 7;
+	compile_time_assert(BUF_BLOCK_NOT_USED == 0);
+	compile_time_assert(BUF_BLOCK_MEMORY == 1);
+	compile_time_assert(BUF_BLOCK_REMOVE_HASH == 2);
+	compile_time_assert(BUF_BLOCK_FILE_PAGE == 3);
+	compile_time_assert(BUF_BLOCK_ZIP_DIRTY == 4);
+	compile_time_assert(BUF_BLOCK_ZIP_PAGE == 5);
 
-	/* Only fetch information for buffers that map to a tablespace,
-	that is, buffer page with state BUF_BLOCK_ZIP_PAGE,
-	BUF_BLOCK_ZIP_DIRTY or BUF_BLOCK_FILE_PAGE */
-	if (bpage->in_file()) {
+	auto state = bpage->state();
+	ut_ad(unsigned{state} <= unsigned{BUF_BLOCK_ZIP_PAGE});
+	page_info->page_state= unsigned{state} & 7;
+
+	switch (state) {
+	default:
+		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
+		break;
+	case BUF_BLOCK_ZIP_DIRTY:
+	case BUF_BLOCK_FILE_PAGE:
+	case BUF_BLOCK_ZIP_PAGE:
 		const byte*	frame;
 
 		page_info->id = bpage->id();
@@ -4185,7 +4192,7 @@ i_s_innodb_buffer_page_get_info(
 			return;
 		}
 
-		if (page_info->page_state == BUF_BLOCK_FILE_PAGE) {
+		if (state == BUF_BLOCK_FILE_PAGE) {
 			const buf_block_t*block;
 
 			block = reinterpret_cast<const buf_block_t*>(bpage);
@@ -4204,8 +4211,6 @@ i_s_innodb_buffer_page_get_info(
 
 		page_info->newest_mod = mach_read_from_8(FIL_PAGE_LSN + frame);
 		i_s_innodb_set_page_type(page_info, frame);
-	} else {
-		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
 	}
 }
 
@@ -4606,14 +4611,12 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 
 	/* Print error message if malloc fail */
 	info_buffer = (buf_page_info_t*) my_malloc(PSI_INSTRUMENT_ME,
-		lru_len * sizeof *info_buffer, MYF(MY_WME));
+		lru_len * sizeof *info_buffer, MYF(MY_WME|MY_ZEROFILL));
 
 	if (!info_buffer) {
 		status = 1;
 		goto exit;
 	}
-
-	memset(info_buffer, 0, lru_len * sizeof *info_buffer);
 
 	/* Walk through Pool's LRU list and print the buffer page
 	information */

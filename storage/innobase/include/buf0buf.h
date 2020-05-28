@@ -70,9 +70,6 @@ struct fil_addr_t;
 #define BUF_EVICT_IF_IN_POOL	20	/*!< evict a clean block if found */
 /* @} */
 
-#define BUF_POOL_WATCH_SIZE		(srv_n_purge_threads + 1)
-					/*!< Maximum number of concurrent
-					buffer pool watches */
 #define MAX_PAGE_HASH_LOCKS	1024	/*!< The maximum number of
 					page_hash locks */
 
@@ -81,25 +78,25 @@ extern my_bool	buf_disable_resize_buffer_pool_debug; /*!< if TRUE, resizing
 					buffer pool is not allowed. */
 # endif /* UNIV_DEBUG */
 
-/** @brief States of a control block
-@see buf_page_t
-
-The enumeration values must be 0..7. */
-enum buf_page_state {
-	BUF_BLOCK_POOL_WATCH,		/*!< a sentinel for the buffer pool
-					watch, element of buf_pool.watch[] */
-	BUF_BLOCK_ZIP_PAGE,		/*!< contains a clean
-					compressed page */
-	BUF_BLOCK_ZIP_DIRTY,		/*!< contains a compressed
-					page that is in the
-					buf_pool.flush_list */
-
-	BUF_BLOCK_NOT_USED,		/*!< is in the free list */
-	BUF_BLOCK_FILE_PAGE,		/*!< contains a buffered file page */
-	BUF_BLOCK_MEMORY,		/*!< contains some main memory
-					object */
-	BUF_BLOCK_REMOVE_HASH		/*!< hash index should be removed
-					before putting to the free list */
+/** buf_page_t::state() values, distinguishing buf_page_t and buf_block_t */
+enum buf_page_state
+{
+  /** available in buf_pool.free or buf_pool.watch */
+  BUF_BLOCK_NOT_USED,
+  /** allocated for something else than a file page */
+  BUF_BLOCK_MEMORY,
+  /** a previously allocated file page, in transit to NOT_USED */
+  BUF_BLOCK_REMOVE_HASH,
+  /** a buf_block_t that is also in buf_pool.LRU */
+  BUF_BLOCK_FILE_PAGE,
+  /** the buf_page_t of a ROW_FORMAT=COMPRESSED page
+  whose uncompressed page frame has been evicted
+  and which IS in buf_pool.flush_list */
+  BUF_BLOCK_ZIP_DIRTY,
+  /** the buf_page_t of a ROW_FORMAT=COMPRESSED page
+  whose uncompressed page frame has been evicted
+  and which is NOT in the buf_pool.flush_list */
+  BUF_BLOCK_ZIP_PAGE
 };
 
 /** This structure defines information we will fetch from each buffer pool. It
@@ -861,9 +858,6 @@ public:
 /** The common buffer control block structure
 for compressed and uncompressed frames */
 
-/** Number of bits used for buffer page states. */
-#define BUF_PAGE_STATE_BITS	3
-
 class buf_pool_t;
 
 class buf_page_t
@@ -960,7 +954,7 @@ public:
 					purposes without holding any
 					mutex or latch */
 	/* @} */
-	Atomic_counter<unsigned>(access_time);	/*!< time of first access, or
+	Atomic_counter<unsigned> access_time;	/*!< time of first access, or
 					0 if the block was never accessed
 					in the buffer pool.
 
@@ -990,6 +984,12 @@ public:
     be overwritten with zeroes. */
     FREED
   } status;
+
+  buf_page_t() : id_(0)
+  {
+    static_assert(BUF_BLOCK_NOT_USED == 0, "compatibility");
+    memset((void*) this, 0, sizeof *this);
+  }
 
   /** Initialize some fields */
   void init()
@@ -1077,8 +1077,6 @@ public:
   bool in_file() const
   {
     switch (state_) {
-    case BUF_BLOCK_POOL_WATCH:
-      break;
     case BUF_BLOCK_ZIP_PAGE:
     case BUF_BLOCK_ZIP_DIRTY:
     case BUF_BLOCK_FILE_PAGE:
@@ -1757,7 +1755,7 @@ public:
                               RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
     ut_ad(bpage.in_file());
 
-    if (&bpage < &watch[0] || &bpage >= &watch[BUF_POOL_WATCH_SIZE])
+    if (&bpage < &watch[0] || &bpage >= &watch[UT_ARR_SIZE(watch)])
     {
       ut_ad(bpage.state() != BUF_BLOCK_ZIP_PAGE || bpage.zip.data);
       return false;
@@ -1811,7 +1809,7 @@ public:
       // Now that the watch is detached from page_hash, release it to watch[].
       mutex_enter(&mutex);
       watch->set_buf_fix_count(0);
-      watch->set_state(BUF_BLOCK_POOL_WATCH);
+      watch->set_state(BUF_BLOCK_NOT_USED);
       mutex_exit(&mutex);
     }
     else
@@ -2050,12 +2048,9 @@ public:
 #endif
 	/* @} */
 
-	buf_page_t*			watch;
-					/*!< Sentinel records for buffer
-					pool watches. Protected by
-					buf_pool.mutex. */
-
-
+  /** Sentinels to detect if pages are read into the buffer pool while
+  a delete-buffering operation is pending. Protected by mutex. */
+  buf_page_t watch[33];
   /** Reserve a buffer. */
   buf_tmp_buffer_t *io_buf_reserve() { return io_buf.reserve(); }
 private:
@@ -2145,7 +2140,6 @@ inline void buf_page_t::set_corrupt_id()
   case BUF_BLOCK_FILE_PAGE:
     ut_ad(rw_lock_own(buf_pool.hash_lock_get(id_), RW_LOCK_X));
     break;
-  case BUF_BLOCK_POOL_WATCH:
   case BUF_BLOCK_ZIP_DIRTY:
   case BUF_BLOCK_NOT_USED:
   case BUF_BLOCK_MEMORY:

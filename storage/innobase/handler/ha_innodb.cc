@@ -19208,7 +19208,7 @@ static MYSQL_SYSVAR_ULONG(purge_batch_size, srv_purge_batch_size,
 static MYSQL_SYSVAR_UINT(purge_threads, srv_n_purge_threads,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Number of tasks for purging transaction history",
-  NULL, NULL, 4, 1, 32, 0);
+  NULL, NULL, 4, 1, UT_ARR_SIZE(buf_pool.watch) - 1, 0);
 
 static MYSQL_SYSVAR_ULONG(sync_array_size, srv_sync_array_size,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,

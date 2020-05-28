@@ -437,7 +437,6 @@ void buf_flush_remove(buf_page_t* bpage)
 	buf_pool.flush_hp.adjust(bpage);
 
 	switch (bpage->state()) {
-	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_ZIP_PAGE:
 		/* Clean compressed pages should not be on the flush list */
 	case BUF_BLOCK_NOT_USED:

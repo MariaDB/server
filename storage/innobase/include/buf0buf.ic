@@ -165,7 +165,6 @@ buf_block_get_frame(
 	}
 
 	switch (block->page.state()) {
-	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
@@ -479,7 +478,6 @@ buf_page_release_zip(
 		reinterpret_cast<buf_block_t*>(bpage)->unfix();
 		return;
 
-	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_NOT_USED:
 	case BUF_BLOCK_MEMORY:
 	case BUF_BLOCK_REMOVE_HASH:

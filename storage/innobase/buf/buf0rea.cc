@@ -59,7 +59,7 @@ inline void buf_pool_t::watch_remove(buf_page_t *watch)
   ut_d(watch->in_page_hash= false);
   HASH_DELETE(buf_page_t, hash, page_hash, watch->id().fold(), watch);
   watch->set_buf_fix_count(0);
-  watch->set_state(BUF_BLOCK_POOL_WATCH);
+  watch->set_state(BUF_BLOCK_NOT_USED);
 }
 
 /** Initialize a page for read to the buffer buf_pool. If the page is

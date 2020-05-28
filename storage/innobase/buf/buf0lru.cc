@@ -1510,7 +1510,6 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		ut_a(!bpage->oldest_modification());
 		UNIV_MEM_ASSERT_W(bpage->zip.data, bpage->zip_size());
 		break;
-	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
 	case BUF_BLOCK_MEMORY:
@@ -1595,7 +1594,6 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 
 		return(true);
 
-	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
 	case BUF_BLOCK_MEMORY:
@@ -1736,7 +1734,6 @@ void buf_LRU_validate()
              bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
 
 		switch (bpage->state()) {
-		case BUF_BLOCK_POOL_WATCH:
 		case BUF_BLOCK_NOT_USED:
 		case BUF_BLOCK_MEMORY:
 		case BUF_BLOCK_REMOVE_HASH:

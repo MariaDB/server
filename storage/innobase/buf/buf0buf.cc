@@ -1403,7 +1403,6 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
   for (auto i= size; i--; block++)
   {
     switch (block->page.state()) {
-    case BUF_BLOCK_POOL_WATCH:
     case BUF_BLOCK_ZIP_PAGE:
     case BUF_BLOCK_ZIP_DIRTY:
       /* The uncompressed buffer pool should never
@@ -1546,9 +1545,6 @@ bool buf_pool_t::create()
   for (int i= 0; i < 3; i++)
     no_flush[i]= os_event_create(0);
 
-  watch= static_cast<buf_page_t*>
-    (ut_zalloc_nokey(sizeof *watch * BUF_POOL_WATCH_SIZE));
-
   try_LRU_scan= true;
 
   ut_d(flush_hp.m_mutex= &flush_list_mutex;);
@@ -1603,9 +1599,6 @@ void buf_pool_t::close()
       buf_page_free_descriptor(bpage);
     }
   }
-
-  ut_free(watch);
-  watch= nullptr;
 
   for (auto chunk= chunks + n_chunks; --chunk >= chunks; )
   {
@@ -2452,7 +2445,6 @@ static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage)
 	ut_ad(!buf_pool.watch_is_sentinel(*bpage));
 #ifdef UNIV_DEBUG
 	switch (bpage->state()) {
-	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_NOT_USED:
 	case BUF_BLOCK_FILE_PAGE:
 	case BUF_BLOCK_MEMORY:
@@ -2535,11 +2527,10 @@ retry:
   mutex_enter(&mutex);
 
   /* The maximum number of purge tasks should never exceed
-  BUF_POOL_WATCH_SIZE, and there is no way for a purge task to hold a
+  the UT_ARR_SIZE(watch) - 1, and there is no way for a purge task to hold a
   watch when setting another watch. */
-  for (ulint i= 0; i < BUF_POOL_WATCH_SIZE; i++)
+  for (buf_page_t *w= &watch[UT_ARR_SIZE(watch)]; w-- >= watch; )
   {
-    buf_page_t *w = &watch[i];
     ut_ad(w->access_time == 0);
     ut_ad(!w->oldest_modification());
     ut_ad(!w->zip.data);
@@ -2547,7 +2538,7 @@ retry:
     if (w->state() == BUF_BLOCK_ZIP_PAGE)
       /* This watch may be in use for some other page. */
       continue;
-    ut_ad(w->state() == BUF_BLOCK_POOL_WATCH);
+    ut_ad(w->state() == BUF_BLOCK_NOT_USED);
     ut_ad(!w->buf_fix_count());
     /* w is pointing to watch[], which is protected by mutex.
     Normally, buf_page_t::id for objects that are reachable by
@@ -2563,7 +2554,7 @@ retry:
     if (UNIV_LIKELY_NULL(bpage))
     {
       mutex_enter(&mutex);
-      w->set_state(BUF_BLOCK_POOL_WATCH);
+      w->set_state(BUF_BLOCK_NOT_USED);
       mutex_exit(&mutex);
       goto retry;
     }
@@ -4416,7 +4407,6 @@ void buf_pool_t::validate()
 
 		for (j = chunk->size; j--; block++) {
 			switch (block->page.state()) {
-			case BUF_BLOCK_POOL_WATCH:
 			case BUF_BLOCK_ZIP_PAGE:
 			case BUF_BLOCK_ZIP_DIRTY:
 				/* These should only occur on
@@ -4494,7 +4484,6 @@ void buf_pool_t::validate()
 		case BUF_BLOCK_FILE_PAGE:
 			/* uncompressed page */
 			break;
-		case BUF_BLOCK_POOL_WATCH:
 		case BUF_BLOCK_ZIP_PAGE:
 		case BUF_BLOCK_NOT_USED:
 		case BUF_BLOCK_MEMORY:
@@ -4692,7 +4681,6 @@ ulint buf_get_latched_pages_number()
 		case BUF_BLOCK_FILE_PAGE:
 			/* uncompressed page */
 			break;
-		case BUF_BLOCK_POOL_WATCH:
 		case BUF_BLOCK_ZIP_PAGE:
 		case BUF_BLOCK_NOT_USED:
 		case BUF_BLOCK_MEMORY:
