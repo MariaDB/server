@@ -201,9 +201,6 @@ LEX_STRING current_user= { C_STRING_WITH_LEN("*current_user") };
 LEX_STRING current_role= { C_STRING_WITH_LEN("*current_role") };
 LEX_STRING current_user_and_current_role= { C_STRING_WITH_LEN("*current_user_and_current_role") };
 
-class ACL_USER;
-static ACL_USER *find_user_or_anon(const char *host, const char *user, const char *ip);
-
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static plugin_ref old_password_plugin;
 #endif
@@ -2047,6 +2044,28 @@ static int check_role_is_granted_callback(ACL_USER_BASE *grantee, void *data)
   return 0;
 }
 
+/*
+  unlike find_user_exact and find_user_wild,
+  this function finds anonymous users too, it's when a
+  user is not empty, but priv_user (acl_user->user) is empty.
+*/
+static ACL_USER *find_user_or_anon(const char *host, const char *user, const char *ip)
+{
+  ACL_USER *result= NULL;
+  mysql_mutex_assert_owner(&acl_cache->lock);
+  for (uint i=0; i < acl_users.elements; i++)
+  {
+    ACL_USER *acl_user_tmp= dynamic_element(&acl_users, i, ACL_USER*);
+    if ((!acl_user_tmp->user.str ||
+         !strcmp(user, acl_user_tmp->user.str)) &&
+         compare_hostname(&acl_user_tmp->host, host, ip))
+    {
+      result= acl_user_tmp;
+      break;
+    }
+  }
+  return result;
+}
 
 static int check_user_can_set_role(THD *thd, const char *user, const char *host,
                                    const char *ip, const char *rolename,
@@ -3127,31 +3146,6 @@ bool is_acl_user(const char *host, const char *user)
   mysql_mutex_unlock(&acl_cache->lock);
   return res;
 }
-
-
-/*
-  unlike find_user_exact and find_user_wild,
-  this function finds anonymous users too, it's when a
-  user is not empty, but priv_user (acl_user->user) is empty.
-*/
-static ACL_USER *find_user_or_anon(const char *host, const char *user, const char *ip)
-{
-  ACL_USER *result= NULL;
-  mysql_mutex_assert_owner(&acl_cache->lock);
-  for (uint i=0; i < acl_users.elements; i++)
-  {
-    ACL_USER *acl_user_tmp= dynamic_element(&acl_users, i, ACL_USER*);
-    if ((!acl_user_tmp->user.str ||
-         !strcmp(user, acl_user_tmp->user.str)) &&
-         compare_hostname(&acl_user_tmp->host, host, ip))
-    {
-      result= acl_user_tmp;
-      break;
-    }
-  }
-  return result;
-}
-
 
 /*
   Find first entry that matches the specified user@host pair
