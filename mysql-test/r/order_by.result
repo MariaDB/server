@@ -3237,3 +3237,68 @@ o	15
 p	16
 set @@sort_buffer_size= @save_sort_buffer_size;
 drop table t1;
+#
+# MDEV-22715: SIGSEGV in radixsort_for_str_ptr and in native_compare/my_qsort2 (optimized builds)
+#
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_sort_length= @@max_sort_length;
+SET max_sort_length=8;
+SET sort_buffer_size=1024;
+CREATE TABLE t1(a INT, b DECIMAL(65), c BLOB);
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+SELECT * FROM t1 ORDER BY a,b;
+a	b	c
+1	1	1
+1	1	1
+2	2	2
+2	2	2
+3	3	3
+3	3	3
+4	4	4
+4	4	4
+5	5	5
+5	5	5
+6	6	6
+6	6	6
+7	7	7
+7	7	7
+8	8	8
+8	8	8
+9	9	9
+9	9	9
+10	10	10
+10	10	10
+11	11	11
+11	11	11
+12	12	12
+12	12	12
+13	13	13
+13	13	13
+14	14	14
+14	14	14
+15	15	15
+15	15	15
+16	16	16
+16	16	16
+17	17	17
+17	17	17
+18	18	18
+18	18	18
+19	19	19
+19	19	19
+20	20	20
+20	20	20
+21	21	21
+21	21	21
+22	22	22
+22	22	22
+23	23	23
+23	23	23
+24	24	24
+24	24	24
+25	25	25
+25	25	25
+SET @@sort_buffer_size= @save_sort_buffer_size;
+SET @@max_sort_length= @save_max_sort_length;
+DROP TABLE t1;

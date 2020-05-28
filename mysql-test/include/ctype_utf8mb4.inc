@@ -1576,7 +1576,7 @@ drop table t1;
 --echo #
 --echo # Check strnxfrm() with odd length
 --echo #
-set max_sort_length=5;
+set max_sort_length=9;
 select @@max_sort_length;
 eval create table t1 (a varchar(128) character set utf8mb4 collate utf8mb4_general_ci) engine $engine;
 insert into t1 values ('a'),('b'),('c');

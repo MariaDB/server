@@ -12,6 +12,8 @@ call mtr.add_suppression("Out of sort memory; increase server sort buffer size")
 # Test old ORDER BY bug
 #
 
+--source include/have_sequence.inc
+
 CREATE TABLE t1 (
   id int(6) DEFAULT '0' NOT NULL,
   idservice int(5),
@@ -2157,3 +2159,18 @@ select * from t1 order  by b;
 set @@sort_buffer_size= @save_sort_buffer_size;
 drop table t1;
 
+--echo #
+--echo # MDEV-22715: SIGSEGV in radixsort_for_str_ptr and in native_compare/my_qsort2 (optimized builds)
+--echo #
+
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_sort_length= @@max_sort_length;
+SET max_sort_length=8;
+SET sort_buffer_size=1024;
+CREATE TABLE t1(a INT, b DECIMAL(65), c BLOB);
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+SELECT * FROM t1 ORDER BY a,b;
+SET @@sort_buffer_size= @save_sort_buffer_size;
+SET @@max_sort_length= @save_max_sort_length;
+DROP TABLE t1;

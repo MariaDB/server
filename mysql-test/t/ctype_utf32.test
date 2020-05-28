@@ -778,7 +778,7 @@ CREATE TABLE t1 AS SELECT repeat('a',2) as s1 LIMIT 0;
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES ('ab'),('AE'),('ab'),('AE');
 SELECT * FROM t1 ORDER BY s1;
-SET max_sort_length=4;
+SET max_sort_length=8;
 SELECT * FROM t1 ORDER BY s1;
 DROP TABLE t1;
 SET max_sort_length=DEFAULT;

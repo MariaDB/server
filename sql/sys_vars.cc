@@ -2178,7 +2178,7 @@ static Sys_var_ulong Sys_max_sort_length(
        "the first max_sort_length bytes of each value are used; the rest "
        "are ignored)",
        SESSION_VAR(max_sort_length), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(4, 8192*1024L), DEFAULT(1024), BLOCK_SIZE(1));
+       VALID_RANGE(8, 8192*1024L), DEFAULT(1024), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_max_sp_recursion_depth(
        "max_sp_recursion_depth",

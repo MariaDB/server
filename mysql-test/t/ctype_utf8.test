@@ -1756,7 +1756,7 @@ set @@collation_connection=utf8_bin;
 --echo #
 --echo # Checking strnxfrm() with odd length
 --echo #
-set max_sort_length=5;
+set max_sort_length=9;
 select @@max_sort_length;
 create table t1 (a varchar(128) character set utf8 collate utf8_general_ci);
 insert into t1 values ('a'),('b'),('c');
