@@ -93,6 +93,7 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_INPLACE_IGNORE
 	| Alter_inplace_info::ALTER_COLUMN_COLUMN_FORMAT
 	| Alter_inplace_info::ALTER_COLUMN_STORAGE_TYPE
 	| Alter_inplace_info::ALTER_VIRTUAL_GCOL_EXPR
+	| Alter_inplace_info::ALTER_DROP_CHECK_CONSTRAINT	
 	| Alter_inplace_info::ALTER_RENAME
 	| Alter_inplace_info::ALTER_COLUMN_INDEX_LENGTH;
 
