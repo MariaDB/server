@@ -650,6 +650,26 @@ pk	f
 update t1 set f=pk;
 delete from t1;
 drop table t1;
-# Test cleanup
-drop database test;
-create database test;
+#
+# MDEV-22413 Server hangs upon UPDATE/DELETE on a view reading from versioned partitioned table
+#
+create or replace table t1 (f char(6)) engine innodb with system versioning;
+insert into t1 values (null);
+update t1 set f= 'foo';
+update t1 set f= 'bar';
+create or replace view v1 as select * from t1 for system_time all;
+update v1 set f = '';
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+create or replace table t1 (f char(6)) engine innodb with system versioning
+partition by system_time limit 1
+(partition p1 history, partition p2 history, partition pn current);
+insert into t1 values (null);
+update t1 set f= 'foo';
+update t1 set f= 'bar';
+create or replace view v1 as select * from t1 for system_time all;
+update v1 set f= '';
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+delete from v1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+drop view v1;
+drop table t1;

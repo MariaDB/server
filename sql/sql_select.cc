@@ -832,10 +832,16 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 
     if (vers_conditions.is_set())
     {
+      if (vers_conditions.was_set() &&
+          table->lock_type > TL_READ_NO_INSERT &&
+          !vers_conditions.delete_history)
+      {
+        my_error(ER_TABLE_NOT_LOCKED_FOR_WRITE, MYF(0), table->alias.str);
+        DBUG_RETURN(-1);
+      }
+
       if (vers_conditions.type == SYSTEM_TIME_ALL)
         continue;
-
-      lock_type= TL_READ; // ignore TL_WRITE, history is immutable anyway
     }
 
     const LEX_CSTRING *fstart=

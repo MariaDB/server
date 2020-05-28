@@ -583,7 +583,6 @@ update t1 left join t2 on a > b set b= 2 order by b;
 # cleanup
 drop table t1, t2;
 
---source suite/versioning/common_finish.inc
 --echo #
 --echo # MDEV-17091 Assertion `old_part_id == m_last_part' failed in
 --echo # ha_partition::update_row or `part_id == m_last_part' in
@@ -605,6 +604,35 @@ update t1 set f=pk;
 delete from t1;
 drop table t1;
 
---echo # Test cleanup
-drop database test;
-create database test;
+--echo #
+--echo # MDEV-22413 Server hangs upon UPDATE/DELETE on a view reading from versioned partitioned table
+--echo #
+create or replace table t1 (f char(6)) engine innodb with system versioning;
+
+insert into t1 values (null);
+update t1 set f= 'foo';
+update t1 set f= 'bar';
+
+create or replace view v1 as select * from t1 for system_time all;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+update v1 set f = '';
+
+create or replace table t1 (f char(6)) engine innodb with system versioning
+partition by system_time limit 1
+(partition p1 history, partition p2 history, partition pn current);
+
+insert into t1 values (null);
+update t1 set f= 'foo';
+update t1 set f= 'bar';
+
+create or replace view v1 as select * from t1 for system_time all;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+update v1 set f= '';
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+delete from v1;
+
+# cleanup
+drop view v1;
+drop table t1;
+
+--source suite/versioning/common_finish.inc
