@@ -1967,6 +1967,37 @@ int Field::store_timestamp_dec(const timeval &ts, uint dec)
   return store_time_dec(Datetime(get_thd(), ts).get_mysql_time(), dec);
 }
 
+
+int Field::store_to_statistical_minmax_field(Field *field, String *val)
+{
+  val_str(val);
+  size_t length= Well_formed_prefix(val->charset(), val->ptr(),
+                 MY_MIN(val->length(), field->field_length)).length();
+  return field->store(val->ptr(), length, &my_charset_bin);
+}
+
+
+int Field::store_from_statistical_minmax_field(Field *stat_field, String *str)
+{
+  stat_field->val_str(str);
+  return store_text(str->ptr(), str->length(), &my_charset_bin);
+}
+
+
+int Field_bit::store_to_statistical_minmax_field(Field *field, String *str)
+{
+  longlong nr= val_int();
+  return field->store(nr, TRUE);
+}
+
+
+int Field_bit::store_from_statistical_minmax_field(Field *stat_field,
+                                        String *str  __attribute__((unused)))
+{
+  return store(stat_field->val_int(), TRUE);
+}
+
+
 /**
    Pack the field into a format suitable for storage and transfer.
 

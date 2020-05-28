@@ -1037,27 +1037,17 @@ public:
         stat_field->set_notnull();
         switch (i) {
         case COLUMN_STAT_MIN_VALUE:
-          if (table_field->type() == MYSQL_TYPE_BIT)
-            stat_field->store(table_field->collected_stats->min_value->val_int(),true);
-          else
-          {
-            table_field->collected_stats->min_value->val_str(&val);
-            size_t length= Well_formed_prefix(val.charset(), val.ptr(),
-                           MY_MIN(val.length(), stat_field->field_length)).length();
-            stat_field->store(val.ptr(), length, &my_charset_bin);
-          }
+        {
+          Field *field= table_field->collected_stats->min_value;
+          field->store_to_statistical_minmax_field(stat_field, &val);
           break;
+        }
         case COLUMN_STAT_MAX_VALUE:
-          if (table_field->type() == MYSQL_TYPE_BIT)
-            stat_field->store(table_field->collected_stats->max_value->val_int(),true);
-          else
-          {
-            table_field->collected_stats->max_value->val_str(&val);
-            size_t length= Well_formed_prefix(val.charset(), val.ptr(),
-                            MY_MIN(val.length(), stat_field->field_length)).length();
-            stat_field->store(val.ptr(), length, &my_charset_bin);
-          }
+        {
+          Field *field= table_field->collected_stats->max_value;
+          field->store_to_statistical_minmax_field(stat_field, &val);
           break;
+        }
         case COLUMN_STAT_NULLS_RATIO:
           stat_field->store(table_field->collected_stats->get_nulls_ratio());
           break;
@@ -1134,17 +1124,19 @@ public:
 
           switch (i) {
           case COLUMN_STAT_MIN_VALUE:
-	    table_field->read_stats->min_value->set_notnull();
-            stat_field->val_str(&val);
-            table_field->read_stats->min_value->store(val.ptr(), val.length(),
-                                                      &my_charset_bin);
+          {
+            Field *field= table_field->read_stats->min_value;
+            field->set_notnull();
+            field->store_from_statistical_minmax_field(stat_field, &val);
             break;
+          }
           case COLUMN_STAT_MAX_VALUE:
-	    table_field->read_stats->max_value->set_notnull();
-            stat_field->val_str(&val);
-            table_field->read_stats->max_value->store(val.ptr(), val.length(),
-                                                      &my_charset_bin);
+          {
+            Field *field= table_field->read_stats->max_value;
+            field->set_notnull();
+            field->store_from_statistical_minmax_field(stat_field, &val);
             break;
+          }
           case COLUMN_STAT_NULLS_RATIO:
             table_field->read_stats->set_nulls_ratio(stat_field->val_real());
             break;
