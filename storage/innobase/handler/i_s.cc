@@ -4152,8 +4152,7 @@ i_s_innodb_buffer_page_get_info(
 	compile_time_assert(BUF_BLOCK_ZIP_PAGE == 4);
 
 	auto state = bpage->state();
-	ut_ad(unsigned{state} <= unsigned{BUF_BLOCK_ZIP_PAGE});
-	page_info->page_state= unsigned{state} & 7;
+	page_info->page_state= int{state} & 7;
 
 	switch (state) {
 	default:
