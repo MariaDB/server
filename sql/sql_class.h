@@ -2670,7 +2670,7 @@ public:
 
 #ifndef MYSQL_CLIENT
   binlog_cache_mngr *  binlog_setup_trx_data();
-
+  void reset_binlog_completed_by_xid();
   /*
     Public interface to write RBR events to the binlog
   */

@@ -1335,7 +1335,14 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
   if (ha_info->is_started())
     DBUG_VOID_RETURN; /* already registered, return */
 
-  ha_info->register_ha(trans, ht_arg);
+  /*
+    when true, typically at a second engine gets involved into user xa
+    transaction the handlerton is inserted into the list past its head.
+  */
+  bool link_past_head=
+    unlikely(thd->transaction.xid_state.is_explicit_XA() &&
+             trans->ha_list && trans->ha_list->ht() == binlog_hton);
+  ha_info->register_ha(trans, ht_arg, link_past_head);
 
   trans->no_2pc|=(ht_arg->prepare==0);
 
@@ -2192,8 +2199,24 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit)
   xaop.xid= xid;
   xaop.result= 1;
 
+  if (binlog_hton->recover)
+  {
+    /*
+      When the binlogging service is enabled complete the transaction
+      by it first.
+    */
+    if (commit)
+      binlog_hton->commit_by_xid(binlog_hton, xid);
+    else
+      binlog_hton->rollback_by_xid(binlog_hton, xid);
+  }
   plugin_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
                  MYSQL_STORAGE_ENGINE_PLUGIN, &xaop);
+  if (binlog_hton->recover)
+  {
+    THD *thd= current_thd;
+    thd->reset_binlog_completed_by_xid();
+  }
 
   return xaop.result;
 }
