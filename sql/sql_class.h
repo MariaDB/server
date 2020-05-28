@@ -2984,6 +2984,7 @@ public:
   */
   ulonglong binlog_xid;
 
+  void reset_binlog_completed_by_xid();
   /*
     Public interface to write RBR events to the binlog
   */
