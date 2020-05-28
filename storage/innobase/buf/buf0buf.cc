@@ -1404,7 +1404,6 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
   {
     switch (block->page.state()) {
     case BUF_BLOCK_ZIP_PAGE:
-    case BUF_BLOCK_ZIP_DIRTY:
       /* The uncompressed buffer pool should never
       contain ROW_FORMAT=COMPRESSED block descriptors. */
       ut_error;
@@ -1587,15 +1586,13 @@ void buf_pool_t::close()
        bpage= prev_bpage)
   {
     prev_bpage= UT_LIST_GET_PREV(LRU, bpage);
-    buf_page_state state= bpage->state();
-
     ut_ad(bpage->in_file());
     ut_ad(bpage->in_LRU_list);
 
-    if (state != BUF_BLOCK_FILE_PAGE)
+    if (bpage->state() != BUF_BLOCK_FILE_PAGE)
     {
       /* We must not have any dirty block except during a fast shutdown. */
-      ut_ad(state == BUF_BLOCK_ZIP_PAGE || srv_fast_shutdown == 2);
+      ut_ad(!bpage->oldest_modification() || srv_fast_shutdown == 2);
       buf_page_free_descriptor(bpage);
     }
   }
@@ -1704,13 +1701,14 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
 		UNIV_MEM_INVALID(block->frame, srv_page_size);
 		block->page.set_state(BUF_BLOCK_REMOVE_HASH);
-		block->page.set_corrupt_id();
 
 		/* Relocate flush_list. */
 		if (block->page.oldest_modification()) {
 			buf_flush_relocate_on_flush_list(
 				&block->page, &new_block->page);
 		}
+
+		block->page.set_corrupt_id();
 
 		/* set other flags of buf_block_t */
 
@@ -2433,10 +2431,11 @@ void buf_resize_shutdown()
 /** Relocate a ROW_FORMAT=COMPRESSED block in the LRU list and
 buf_pool.page_hash.
 The caller must relocate bpage->list.
-@param bpage   control block in BUF_BLOCK_ZIP_DIRTY or BUF_BLOCK_ZIP_PAGE
+@param bpage   BUF_BLOCK_ZIP_PAGE block
 @param dpage   destination control block */
 static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage)
 {
+	ut_ad(bpage->state() == BUF_BLOCK_ZIP_PAGE);
 	ut_ad(mutex_own(&buf_pool.mutex));
 	ut_ad(rw_lock_own(buf_pool.hash_lock_get(bpage->id()), RW_LOCK_X));
 	ut_a(bpage->io_fix() == BUF_IO_NONE);
@@ -2450,7 +2449,6 @@ static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage)
 	case BUF_BLOCK_MEMORY:
 	case BUF_BLOCK_REMOVE_HASH:
 		ut_error;
-	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_ZIP_PAGE:
 		break;
 	}
@@ -2721,7 +2719,6 @@ err_exit:
 
 	switch (bpage->state()) {
 	case BUF_BLOCK_ZIP_PAGE:
-	case BUF_BLOCK_ZIP_DIRTY:
 		bpage->fix();
 		goto got_block;
 	case BUF_BLOCK_FILE_PAGE:
@@ -3242,7 +3239,6 @@ evict_from_pool:
 		break;
 
 	case BUF_BLOCK_ZIP_PAGE:
-	case BUF_BLOCK_ZIP_DIRTY:
 		if (UNIV_UNLIKELY(mode == BUF_EVICT_IF_IN_POOL)) {
 			goto evict_from_pool;
 		}
@@ -3325,12 +3321,13 @@ evict_from_pool:
 
 		UNIV_MEM_DESC(&block->page.zip.data,
 			      page_zip_get_size(&block->page.zip));
+		ut_ad(block->page.in_flush_list
+		      == !!block->page.oldest_modification());
 
-		if (block->page.state() == BUF_BLOCK_ZIP_PAGE) {
+		if (!block->page.oldest_modification()) {
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 			UT_LIST_REMOVE(buf_pool.zip_clean, &block->page);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-			ut_ad(!block->page.in_flush_list);
 		} else {
 			/* Relocate buf_pool.flush_list. */
 			buf_flush_relocate_on_flush_list(bpage, &block->page);
@@ -4408,7 +4405,6 @@ void buf_pool_t::validate()
 		for (j = chunk->size; j--; block++) {
 			switch (block->page.state()) {
 			case BUF_BLOCK_ZIP_PAGE:
-			case BUF_BLOCK_ZIP_DIRTY:
 				/* These should only occur on
 				zip_clean, zip_free[], or flush_list. */
 				ut_error;
@@ -4445,6 +4441,7 @@ void buf_pool_t::validate()
 	for (buf_page_t* b = UT_LIST_GET_FIRST(zip_clean); b;
 	     b = UT_LIST_GET_NEXT(list, b)) {
 		ut_ad(b->state() == BUF_BLOCK_ZIP_PAGE);
+		ut_ad(!b->oldest_modification());
 		switch (b->io_fix()) {
 		case BUF_IO_NONE:
 		case BUF_IO_PIN:
@@ -4461,7 +4458,6 @@ void buf_pool_t::validate()
 			break;
 		}
 
-		ut_ad(!b->oldest_modification());
 		ut_ad(page_hash_get_low(b->id()) == b);
 		n_lru++;
 		n_zip++;
@@ -4477,14 +4473,13 @@ void buf_pool_t::validate()
 		n_flushing++;
 
 		switch (b->state()) {
-		case BUF_BLOCK_ZIP_DIRTY:
+		case BUF_BLOCK_ZIP_PAGE:
 			n_lru++;
 			n_zip++;
 			break;
 		case BUF_BLOCK_FILE_PAGE:
 			/* uncompressed page */
 			break;
-		case BUF_BLOCK_ZIP_PAGE:
 		case BUF_BLOCK_NOT_USED:
 		case BUF_BLOCK_MEMORY:
 		case BUF_BLOCK_REMOVE_HASH:
@@ -4660,6 +4655,7 @@ ulint buf_get_latched_pages_number()
 	for (b = UT_LIST_GET_FIRST(buf_pool.zip_clean); b;
 	     b = UT_LIST_GET_NEXT(list, b)) {
 		ut_a(b->state() == BUF_BLOCK_ZIP_PAGE);
+		ut_a(!b->oldest_modification());
 		ut_a(b->io_fix() != BUF_IO_WRITE);
 
 		if (b->buf_fix_count() || b->io_fix() != BUF_IO_NONE) {
@@ -4671,23 +4667,23 @@ ulint buf_get_latched_pages_number()
 	for (b = UT_LIST_GET_FIRST(buf_pool.flush_list); b;
 	     b = UT_LIST_GET_NEXT(list, b)) {
 		ut_ad(b->in_flush_list);
+		ut_ad(b->oldest_modification());
 
 		switch (b->state()) {
-		case BUF_BLOCK_ZIP_DIRTY:
+		case BUF_BLOCK_ZIP_PAGE:
 			if (b->buf_fix_count() || b->io_fix() != BUF_IO_NONE) {
 				fixed_pages_number++;
 			}
-			break;
+			continue;
 		case BUF_BLOCK_FILE_PAGE:
 			/* uncompressed page */
-			break;
-		case BUF_BLOCK_ZIP_PAGE:
+			continue;
 		case BUF_BLOCK_NOT_USED:
 		case BUF_BLOCK_MEMORY:
 		case BUF_BLOCK_REMOVE_HASH:
-			ut_error;
 			break;
 		}
+		ut_error;
 	}
 
 	mutex_exit(&buf_pool.flush_list_mutex);

@@ -4149,8 +4149,7 @@ i_s_innodb_buffer_page_get_info(
 	compile_time_assert(BUF_BLOCK_MEMORY == 1);
 	compile_time_assert(BUF_BLOCK_REMOVE_HASH == 2);
 	compile_time_assert(BUF_BLOCK_FILE_PAGE == 3);
-	compile_time_assert(BUF_BLOCK_ZIP_DIRTY == 4);
-	compile_time_assert(BUF_BLOCK_ZIP_PAGE == 5);
+	compile_time_assert(BUF_BLOCK_ZIP_PAGE == 4);
 
 	auto state = bpage->state();
 	ut_ad(unsigned{state} <= unsigned{BUF_BLOCK_ZIP_PAGE});
@@ -4160,7 +4159,6 @@ i_s_innodb_buffer_page_get_info(
 	default:
 		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
 		break;
-	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_FILE_PAGE:
 	case BUF_BLOCK_ZIP_PAGE:
 		const byte*	frame;
@@ -4563,8 +4561,7 @@ i_s_innodb_buf_page_lru_fill(
 			   ? 512 << page_info->zip_ssize : 0, true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_STATE]->store(
-			   page_info->page_state == BUF_BLOCK_ZIP_PAGE
-			   || page_info->page_state == BUF_BLOCK_ZIP_DIRTY,
+			   page_info->page_state == BUF_BLOCK_ZIP_PAGE,
 			   true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_IO_FIX]->store(

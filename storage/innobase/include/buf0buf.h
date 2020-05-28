@@ -90,12 +90,7 @@ enum buf_page_state
   /** a buf_block_t that is also in buf_pool.LRU */
   BUF_BLOCK_FILE_PAGE,
   /** the buf_page_t of a ROW_FORMAT=COMPRESSED page
-  whose uncompressed page frame has been evicted
-  and which IS in buf_pool.flush_list */
-  BUF_BLOCK_ZIP_DIRTY,
-  /** the buf_page_t of a ROW_FORMAT=COMPRESSED page
-  whose uncompressed page frame has been evicted
-  and which is NOT in the buf_pool.flush_list */
+  whose uncompressed page frame has been evicted */
   BUF_BLOCK_ZIP_PAGE
 };
 
@@ -909,7 +904,7 @@ public:
   protected by buf_pool.mutex */
   bool in_page_hash;
   /** whether this->list in buf_pool.flush_list
-  (state() == BUF_BLOCK_FILE_PAGE || state() == BUF_BLOCK_ZIP_DIRTY);
+  (oldest_modification() != 0);
   protected by buf_pool.mutex and buf_pool.flush_list_mutex */
   bool in_flush_list;
   /** whether this->list is in buf_pool.free (state() == BUF_BLOCK_NOT_USED);
@@ -921,10 +916,11 @@ public:
 
   state() == BUF_BLOCK_NOT_USED: buf_pool.free or buf_pool.withdraw
 
-  state() == BUF_BLOCK_FILE_PAGE || state() == BUF_BLOCK_ZIP_DIRTY:
+  state() == BUF_BLOCK_FILE_PAGE ||
+  (state() == BUF_BLOCK_ZIP_PAGE && !oldest_modification()):
   buf_pool.flush_list (protected by buf_pool.flush_list_mutex)
 
-  state() == BUF_BLOCK_ZIP_PAGE: buf_pool.zip_clean
+  state() == BUF_BLOCK_ZIP_PAGE && !oldest_modification(): buf_pool.zip_clean
 
   The contents is undefined if
   !in_flush_list && state() == BUF_BLOCK_FILE_PAGE,
@@ -1052,6 +1048,15 @@ public:
   /** Clear oldest_modification when removing from buf_pool.flush_list */
   inline void clear_oldest_modification();
 
+  /** Prepare to release a file page to buf_pool.free. */
+  void free_file_page()
+  {
+    ut_ad(state() == BUF_BLOCK_REMOVE_HASH);
+    ut_d(oldest_modification_= 0); /* for buf_LRU_free_page(this, false) */
+    set_corrupt_id();
+    ut_d(set_state(BUF_BLOCK_MEMORY));
+  }
+
   void fix() { buf_fix_count_++; }
   uint32_t unfix()
   {
@@ -1078,7 +1083,6 @@ public:
   {
     switch (state_) {
     case BUF_BLOCK_ZIP_PAGE:
-    case BUF_BLOCK_ZIP_DIRTY:
     case BUF_BLOCK_FILE_PAGE:
       return true;
     case BUF_BLOCK_NOT_USED:
@@ -2132,6 +2136,7 @@ inline void buf_page_t::set_io_fix(buf_io_fix io_fix)
 
 inline void buf_page_t::set_corrupt_id()
 {
+  ut_ad(!oldest_modification());
 #ifdef UNIV_DEBUG
   switch (state()) {
   case BUF_BLOCK_REMOVE_HASH:
@@ -2140,7 +2145,6 @@ inline void buf_page_t::set_corrupt_id()
   case BUF_BLOCK_FILE_PAGE:
     ut_ad(rw_lock_own(buf_pool.hash_lock_get(id_), RW_LOCK_X));
     break;
-  case BUF_BLOCK_ZIP_DIRTY:
   case BUF_BLOCK_NOT_USED:
   case BUF_BLOCK_MEMORY:
     ut_ad("invalid state" == 0);
@@ -2163,6 +2167,11 @@ inline void buf_page_t::set_oldest_modification(lsn_t lsn)
 inline void buf_page_t::clear_oldest_modification()
 {
   ut_ad(mutex_own(&buf_pool.flush_list_mutex));
+  ut_d(const auto state= state_);
+  ut_ad(state == BUF_BLOCK_FILE_PAGE || state == BUF_BLOCK_ZIP_PAGE ||
+        state == BUF_BLOCK_REMOVE_HASH);
+  ut_ad(oldest_modification());
+  ut_ad(in_flush_list);
   oldest_modification_= 0;
   ut_d(in_flush_list= false);
 }

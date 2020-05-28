@@ -140,7 +140,6 @@ buf_page_get_block(
 		case BUF_BLOCK_FILE_PAGE:
 			return reinterpret_cast<buf_block_t*>(bpage);
 		case BUF_BLOCK_ZIP_PAGE:
-		case BUF_BLOCK_ZIP_DIRTY:
 			return nullptr;
 		default:
 			ut_ad(0);
@@ -166,7 +165,6 @@ buf_block_get_frame(
 
 	switch (block->page.state()) {
 	case BUF_BLOCK_ZIP_PAGE:
-	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
 		ut_error;
 		break;
@@ -474,7 +472,6 @@ buf_page_release_zip(
 #endif /* UNIV_DEBUG */
 		/* Fall through */
 	case BUF_BLOCK_ZIP_PAGE:
-	case BUF_BLOCK_ZIP_DIRTY:
 		reinterpret_cast<buf_block_t*>(bpage)->unfix();
 		return;
 

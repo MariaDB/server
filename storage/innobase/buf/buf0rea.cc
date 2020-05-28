@@ -635,7 +635,6 @@ hard_fail:
         f= reinterpret_cast<const buf_block_t*>(bpage)->frame;
         break;
       case BUF_BLOCK_ZIP_PAGE:
-      case BUF_BLOCK_ZIP_DIRTY:
         f= bpage->zip.data;
         break;
       default:

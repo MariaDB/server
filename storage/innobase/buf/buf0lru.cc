@@ -126,7 +126,9 @@ uint	buf_LRU_old_threshold_ms;
 /* @} */
 
 /** Remove bpage from buf_pool.LRU and buf_pool.page_hash.
-If bpage->state() == BUF_BLOCK_ZIP_PAGE, the object will be freed.
+
+If bpage->state() == BUF_BLOCK_ZIP_PAGE && !bpage->oldest_modification(),
+the object will be freed.
 
 @param bpage      buffer block
 @param id         page identifier
@@ -144,11 +146,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 /** Free a block to buf_pool */
 static void buf_LRU_block_free_hashed_page(buf_block_t *block)
 {
-  if (!buf_pool.flush_rbt)
-    /* FIXME: do this in the caller */
-    block->page.set_corrupt_id();
-
-  ut_d(block->page.set_state(BUF_BLOCK_MEMORY));
+  block->page.free_file_page();
   buf_LRU_block_free_non_file_page(block);
 }
 
@@ -474,6 +472,7 @@ buf_LRU_insert_zip_clean(
 {
 	ut_ad(mutex_own(&buf_pool.mutex));
 	ut_ad(bpage->state() == BUF_BLOCK_ZIP_PAGE);
+	ut_ad(!bpage->oldest_modification());
 
 	/* Find the first successor of bpage in the LRU list
 	that is in the zip_clean list. */
@@ -481,7 +480,8 @@ buf_LRU_insert_zip_clean(
 
 	do {
 		b = UT_LIST_GET_NEXT(LRU, b);
-	} while (b && b->state() != BUF_BLOCK_ZIP_PAGE);
+	} while (b && (b->state() != BUF_BLOCK_ZIP_PAGE
+		       || b->oldest_modification()));
 
 	/* Insert bpage before b, i.e., after the predecessor of b. */
 	if (b != NULL) {
@@ -613,9 +613,9 @@ buf_block_t* buf_LRU_get_free_only()
 		UT_LIST_GET_FIRST(buf_pool.free));
 
 	while (block != NULL) {
-
 		ut_ad(block->page.in_free_list);
 		ut_d(block->page.in_free_list = FALSE);
+		ut_ad(!block->page.oldest_modification());
 		ut_ad(!block->page.in_flush_list);
 		ut_ad(!block->page.in_LRU_list);
 		ut_a(!block->page.in_file());
@@ -1183,9 +1183,6 @@ buf_LRU_free_page(
 		}
 	} else if (bpage->oldest_modification()
 		   && bpage->state() != BUF_BLOCK_FILE_PAGE) {
-
-		ut_ad(bpage->state() == BUF_BLOCK_ZIP_DIRTY);
-
 func_exit:
 		rw_lock_x_unlock(hash_lock);
 		return(false);
@@ -1194,6 +1191,7 @@ func_exit:
 		b = buf_page_alloc_descriptor();
 		ut_a(b);
 		new (b) buf_page_t(*bpage);
+		b->set_state(BUF_BLOCK_ZIP_PAGE);
 	}
 
 	ut_ad(mutex_own(&buf_pool.mutex));
@@ -1227,11 +1225,6 @@ func_exit:
 		rw_lock_x_lock(hash_lock);
 
 		ut_ad(!buf_pool.page_hash_get_low(id));
-
-		b->set_state(b->oldest_modification()
-			     ? BUF_BLOCK_ZIP_DIRTY
-			     : BUF_BLOCK_ZIP_PAGE);
-
 		ut_ad(b->zip_size());
 
 		UNIV_MEM_DESC(b->zip.data, b->zip_size());
@@ -1299,7 +1292,7 @@ func_exit:
 			buf_LRU_add_block(b, b->old);
 		}
 
-		if (b->state() == BUF_BLOCK_ZIP_PAGE) {
+		if (!b->oldest_modification()) {
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 			buf_LRU_insert_zip_clean(b);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
@@ -1373,6 +1366,7 @@ buf_LRU_block_free_non_file_page(
 	ut_ad(block->page.state() == BUF_BLOCK_MEMORY);
 	assert_block_ahi_empty(block);
 	ut_ad(!block->page.in_free_list);
+	ut_ad(!block->page.oldest_modification());
 	ut_ad(!block->page.in_flush_list);
 	ut_ad(!block->page.in_LRU_list);
 
@@ -1422,7 +1416,9 @@ buf_LRU_block_free_non_file_page(
 }
 
 /** Remove bpage from buf_pool.LRU and buf_pool.page_hash.
-If bpage->state() == BUF_BLOCK_ZIP_PAGE, the object will be freed.
+
+If bpage->state() == BUF_BLOCK_ZIP_PAGE && !bpage->oldest_modification(),
+the object will be freed.
 
 @param bpage      buffer block
 @param id         page identifier
@@ -1510,7 +1506,6 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		ut_a(!bpage->oldest_modification());
 		UNIV_MEM_ASSERT_W(bpage->zip.data, bpage->zip_size());
 		break;
-	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
 	case BUF_BLOCK_MEMORY:
 	case BUF_BLOCK_REMOVE_HASH:
@@ -1528,6 +1523,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		ut_ad(!bpage->in_LRU_list);
 		ut_a(bpage->zip.data);
 		ut_a(bpage->zip.ssize);
+		ut_ad(!bpage->oldest_modification());
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 		UT_LIST_REMOVE(buf_pool.zip_clean, bpage);
@@ -1594,7 +1590,6 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 
 		return(true);
 
-	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
 	case BUF_BLOCK_MEMORY:
 	case BUF_BLOCK_REMOVE_HASH:
@@ -1744,7 +1739,6 @@ void buf_LRU_validate()
 			      ->in_unzip_LRU_list
 			      == bpage->belongs_to_unzip_LRU());
 		case BUF_BLOCK_ZIP_PAGE:
-		case BUF_BLOCK_ZIP_DIRTY:
 			break;
 		}
 

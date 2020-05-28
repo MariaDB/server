@@ -430,31 +430,11 @@ void buf_flush_remove(buf_page_t* bpage)
 #endif
 	ut_ad(mutex_own(&buf_pool.mutex));
 	mutex_enter(&buf_pool.flush_list_mutex);
-	ut_ad(bpage->in_flush_list);
 
 	/* Important that we adjust the hazard pointer before removing
 	the bpage from flush list. */
 	buf_pool.flush_hp.adjust(bpage);
-
-	switch (bpage->state()) {
-	case BUF_BLOCK_ZIP_PAGE:
-		/* Clean compressed pages should not be on the flush list */
-	case BUF_BLOCK_NOT_USED:
-	case BUF_BLOCK_MEMORY:
-	case BUF_BLOCK_REMOVE_HASH:
-		ut_error;
-		return;
-	case BUF_BLOCK_ZIP_DIRTY:
-		bpage->set_state(BUF_BLOCK_ZIP_PAGE);
-		UT_LIST_REMOVE(buf_pool.flush_list, bpage);
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-		buf_LRU_insert_zip_clean(bpage);
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-		break;
-	case BUF_BLOCK_FILE_PAGE:
-		UT_LIST_REMOVE(buf_pool.flush_list, bpage);
-		break;
-	}
+	UT_LIST_REMOVE(buf_pool.flush_list, bpage);
 
 	/* If the flush_rbt is active then delete from there as well. */
 	if (UNIV_LIKELY_NULL(buf_pool.flush_rbt)) {
@@ -464,6 +444,12 @@ void buf_flush_remove(buf_page_t* bpage)
 	/* Must be done after we have removed it from the flush_rbt
 	because we assert on in_flush_list in comparison function. */
 	bpage->clear_oldest_modification();
+
+#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+	if (bpage->state() == BUF_BLOCK_ZIP_PAGE) {
+		buf_LRU_insert_zip_clean(bpage);
+	}
+#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
 	buf_pool.stat.flush_list_bytes -= bpage->physical_size();
 
@@ -504,7 +490,6 @@ buf_flush_relocate_on_flush_list(
 	is guaranteed to be in the flush list. We need to check if
 	this will work without the assumption of block removing code
 	having the buf_pool mutex. */
-	ut_ad(bpage->in_flush_list);
 	ut_ad(dpage->in_flush_list);
 
 	/* If recovery is active we must swap the control blocks in
@@ -520,7 +505,7 @@ buf_flush_relocate_on_flush_list(
 
 	/* Must be done after we have removed it from the flush_rbt
 	because we assert on in_flush_list in comparison function. */
-	ut_d(bpage->in_flush_list = false);
+	bpage->clear_oldest_modification();
 
 	prev = UT_LIST_GET_PREV(list, bpage);
 	UT_LIST_REMOVE(buf_pool.flush_list, bpage);
@@ -1133,7 +1118,7 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
   ut_ad(bpage->io_fix() == BUF_IO_WRITE);
   ut_ad(bpage->oldest_modification());
   ut_ad(bpage->state() ==
-        (rw_lock ? BUF_BLOCK_FILE_PAGE : BUF_BLOCK_ZIP_DIRTY));
+        (rw_lock ? BUF_BLOCK_FILE_PAGE : BUF_BLOCK_ZIP_PAGE));
 
   /* Because bpage->status can only be changed while buf_block_t
   exists, it cannot be modified for ROW_FORMAT=COMPRESSED pages
