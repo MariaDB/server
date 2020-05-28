@@ -10810,3 +10810,25 @@ void spider_table_remove_share_from_crd_thread(
   DBUG_VOID_RETURN;
 }
 #endif
+
+uchar *spider_duplicate_char(
+  uchar *dst,
+  uchar esc,
+  uchar *src,
+  uint src_lgt
+) {
+  uchar *ed = src + src_lgt;
+  DBUG_ENTER("spider_duplicate_char");
+  while (src < ed)
+  {
+    *dst = *src;
+    if (*src == esc)
+    {
+      ++dst;
+      *dst = esc;
+    }
+    ++dst;
+    ++src;
+  }
+  DBUG_RETURN(dst);
+}

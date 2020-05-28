@@ -738,3 +738,9 @@ void spider_table_remove_share_from_crd_thread(
   SPIDER_SHARE *share
 );
 #endif
+uchar *spider_duplicate_char(
+  uchar *dst,
+  uchar esc,
+  uchar *src,
+  uint src_lgt
+);
