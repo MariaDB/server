@@ -528,7 +528,8 @@ public:
                     ulong *param_ptr_binlog_stmt_cache_disk_use,
                     ulong *param_ptr_binlog_cache_use,
                     ulong *param_ptr_binlog_cache_disk_use)
-    : last_commit_pos_offset(0), using_xa(FALSE), xa_xid(0)
+    : last_commit_pos_offset(0), using_xa(FALSE), xa_xid(0),
+      completed_by_xid(false)
   {
      stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
                                       param_ptr_binlog_stmt_cache_use,
@@ -562,6 +563,8 @@ public:
     return (is_transactional ? &trx_cache.cache_log : &stmt_cache.cache_log);
   }
 
+  void reset_completed_by_xid() { completed_by_xid= false; }
+
   binlog_cache_data stmt_cache;
 
   binlog_cache_data trx_cache;
@@ -590,7 +593,11 @@ public:
   ulong binlog_id;
   /* Set if we get an error during commit that must be returned from unlog(). */
   bool delayed_error;
-
+  /*
+    The flag is for controling that binlog is the first hton to
+    commit/rollback the user xa.
+  */
+  bool completed_by_xid;
 private:
 
   binlog_cache_mngr& operator=(const binlog_cache_mngr& info);
@@ -2019,28 +2026,49 @@ static int binlog_xa_recover_dummy(handlerton *hton __attribute__((unused)),
   return 0;
 }
 
-
+/*
+  The function invokes binlog_commit() and returns its result
+  when it has not yet called it already.
+  binlog_cache_mngr::completed_by_xid remembers the fact of
+  the 1st of maximum two subsequent calls.
+*/
 static int binlog_commit_by_xid(handlerton *hton, XID *xid)
 {
+  int rc= 0;
   THD *thd= current_thd;
-
-  (void) thd->binlog_setup_trx_data();
+  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT);
 
-  return binlog_commit(hton, thd, TRUE);
+  if (!cache_mngr->completed_by_xid)
+  {
+    rc= binlog_commit(hton, thd, TRUE);
+    cache_mngr->completed_by_xid= true;
+  }
+
+  return rc;
 }
 
-
+/*
+  The function invokes binlog_rollback() and returns its results similarly
+  to a commit branch.
+*/
 static int binlog_rollback_by_xid(handlerton *hton, XID *xid)
 {
+  int rc= 0;
   THD *thd= current_thd;
-
-  (void) thd->binlog_setup_trx_data();
+  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
               (thd->transaction.xid_state.get_state_code() == XA_ROLLBACK_ONLY));
-  return binlog_rollback(hton, thd, TRUE);
+
+  if (!cache_mngr->completed_by_xid)
+  {
+    rc= binlog_rollback(hton, thd, TRUE);
+    cache_mngr->completed_by_xid= true;
+  }
+
+  return rc;
 }
 
 
@@ -5747,6 +5775,14 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
                                 &binlog_cache_use,
                                 &binlog_cache_disk_use);
   DBUG_RETURN(cache_mngr);
+}
+
+/*
+  XA completion flag resetter for ha_commit_or_rollback_by_xid().
+*/
+void THD::reset_binlog_completed_by_xid()
+{
+  binlog_setup_trx_data()->reset_completed_by_xid();
 }
 
 /*
