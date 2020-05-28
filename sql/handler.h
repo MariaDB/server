@@ -1879,7 +1879,7 @@ class Ha_trx_info
 {
 public:
   /** Register this storage engine in the given transaction context. */
-  void register_ha(THD_TRANS *trans, handlerton *ht_arg)
+  void register_ha(THD_TRANS *trans, handlerton *ht_arg, bool past_head= false)
   {
     DBUG_ASSERT(m_flags == 0);
     DBUG_ASSERT(m_ht == NULL);
@@ -1888,8 +1888,18 @@ public:
     m_ht= ht_arg;
     m_flags= (int) TRX_READ_ONLY; /* Assume read-only at start. */
 
-    m_next= trans->ha_list;
-    trans->ha_list= this;
+    if (likely(!past_head))
+    {
+      m_next= trans->ha_list;
+      trans->ha_list= this;
+    }
+    else
+    {
+      DBUG_ASSERT(trans->ha_list);
+
+      m_next= trans->ha_list->m_next;
+      trans->ha_list->m_next= this;
+    }
   }
 
   /** Clear, prepare for reuse. */
