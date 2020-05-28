@@ -1187,6 +1187,9 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
     */
     int_table_flags|= HA_CAN_INSERT_DELAYED | HA_NO_TRANSACTIONS;
   }
+  else
+    int_table_flags|= HA_CRASH_SAFE;
+
   if (file->s->options & (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD))
     int_table_flags |= HA_HAS_NEW_CHECKSUM;
 
@@ -3728,7 +3731,8 @@ static int ha_maria_init(void *p)
 
   /* TODO: decide if we support Maria being used for log tables */
   maria_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES |
-                      HTON_NO_ROLLBACK);
+                      HTON_NO_ROLLBACK |
+                      HTON_TRANSACTIONAL_AND_NON_TRANSACTIONAL);
   bzero(maria_log_pagecache, sizeof(*maria_log_pagecache));
   maria_tmpdir= &mysql_tmpdir_list;             /* For REDO */
 

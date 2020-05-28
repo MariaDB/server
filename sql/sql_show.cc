@@ -5504,10 +5504,25 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       str.qs_append(STRING_WITH_LEN(" partitioned"));
 #endif
 
-    if (share->transactional != HA_CHOICE_UNDEF)
+    /*
+      Write transactional=0|1 for tables where the user has specified the
+      option or for tables that supports both transactional and non
+      transactional tables
+    */
+    if (share->transactional != HA_CHOICE_UNDEF ||
+        (share->db_type() &&
+         share->db_type()->flags & HTON_TRANSACTIONAL_AND_NON_TRANSACTIONAL &&
+         file))
     {
+      uint choice= share->transactional;
+      if (choice == HA_CHOICE_UNDEF)
+        choice= ((file->ha_table_flags() &
+                  (HA_NO_TRANSACTIONS | HA_CRASH_SAFE)) ==
+                 HA_NO_TRANSACTIONS ?
+                 HA_CHOICE_NO : HA_CHOICE_YES);
+
       str.qs_append(STRING_WITH_LEN(" transactional="));
-      str.qs_append(ha_choice_values[(uint) share->transactional]);
+      str.qs_append(ha_choice_values[choice]);
     }
     append_create_options(thd, &str, share->option_list, false, 0);
 

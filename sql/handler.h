@@ -340,8 +340,9 @@ enum chf_create_flags {
 #define HA_CAN_ONLINE_BACKUPS (1ULL << 56)
 
 /* Support native hash index */
-#define HA_CAN_HASH_KEYS        (1ULL << 58)
-#define HA_LAST_TABLE_FLAG HA_CAN_HASH_KEYS
+#define HA_CAN_HASH_KEYS        (1ULL << 57)
+#define HA_CRASH_SAFE           (1ULL << 58)
+#define HA_LAST_TABLE_FLAG HA_CRASH_SAFE
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -1772,6 +1773,12 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
   not trough a handler rollback call.
 */
 #define HTON_NO_ROLLBACK (1 << 16)
+
+/*
+  This storage engine can support both transactional and non transactional
+  tables
+*/
+#define HTON_TRANSACTIONAL_AND_NON_TRANSACTIONAL (1 << 17)
 
 class Ha_trx_info;
 
