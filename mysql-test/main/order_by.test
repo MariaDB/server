@@ -2413,3 +2413,21 @@ insert into t1 select repeat('d', 256);
 
 SELECT IF( 0, NULL, a ) AS f FROM t1 GROUP BY f WITH ROLLUP;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22303: Incorrect ordering with REGEXP_REPLACE and OFFSET/LIMIT
+--echo #
+
+CREATE TABLE t1 (name VARCHAR(20) CHARACTER SET utf8 NOT NULL);
+INSERT INTO t1 (name) VALUES ('Charles Dickens'), ('Roald Dahl');
+
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC;
+
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC LIMIT 1;
+
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC LIMIT 1 OFFSET 1;
+
+DROP TABLE t1;
