@@ -11568,6 +11568,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   {
     master_had_triggers= table->master_had_triggers;
     bool transactional_table= table->file->has_transactions();
+    table->file->prepare_for_insert();
     /*
       table == NULL means that this table should not be replicated
       (this was set up by Table_map_log_event::do_apply_event()
@@ -14344,6 +14345,7 @@ end:
     issue_long_find_row_warning(get_general_type_code(), m_table->alias.c_ptr(), 
                                 is_index_scan, rgi);
   table->default_column_bitmaps();
+  table->file->prepare_for_insert();
   DBUG_RETURN(error);
 }
 

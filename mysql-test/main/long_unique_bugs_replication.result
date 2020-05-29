@@ -1,0 +1,10 @@
+include/master-slave.inc
+[connection master]
+create table t1 (i1 int, a1 text, unique key i1 (a1)) engine=myisam;
+insert into t1 values (1,1);
+update t1 set a1 = 'd' limit 1;
+connection slave;
+connection slave;
+connection master;
+drop table t1;
+include/rpl_end.inc
