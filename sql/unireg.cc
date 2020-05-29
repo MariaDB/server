@@ -991,9 +991,10 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
 
 
 static bool make_empty_rec_store_default(THD *thd, Field *regfield,
-                                         Virtual_column_info *default_value)
+                                         Create_field *field)
 {
-  if (default_value && !default_value->flags)
+  Virtual_column_info *default_value= field->default_value;
+  if (!field->vers_sys_field() && default_value && !default_value->flags)
   {
     Item *expr= default_value->expr;
     // may be already fixed if ALTER TABLE
@@ -1075,7 +1076,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
         !f_bit_as_char(field->pack_flag))
       null_count+= field->length & 7;
 
-    error= make_empty_rec_store_default(thd, regfield, field->default_value);
+    error= make_empty_rec_store_default(thd, regfield, field);
     delete regfield; // Avoid memory leaks
     if (error)
       goto err;

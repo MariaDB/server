@@ -8686,7 +8686,7 @@ bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
   for (Field **fld= field; *fld; fld++)
   {
     if (!bitmap_is_set(write_set, (*fld)->field_index) &&
-        !((*fld)->flags & NO_DEFAULT_VALUE_FLAG))
+        !((*fld)->flags & (NO_DEFAULT_VALUE_FLAG | VERS_SYSTEM_FIELD)))
     {
       if (!(*fld)->is_null_in_record(s->default_values) &&
           (*fld)->validate_value_in_record_with_warn(thd, s->default_values) &&
