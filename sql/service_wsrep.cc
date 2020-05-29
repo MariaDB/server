@@ -299,6 +299,7 @@ extern "C" void wsrep_commit_ordered(THD *thd)
       thd->wsrep_trx().state() == wsrep::transaction::s_committing &&
       !wsrep_commit_will_write_binlog(thd))
   {
+    DEBUG_SYNC(thd, "before_wsrep_ordered_commit");
     thd->wsrep_cs().ordered_commit();
   }
 }
