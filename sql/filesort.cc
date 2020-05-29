@@ -309,12 +309,6 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     tracker->report_sort_keys_format(param.using_packed_sortkeys());
     param.using_pq= false;
 
-    if ((multi_byte_charset || param.using_packed_sortkeys()) &&
-        !(param.tmp_buffer= (char*) my_malloc(key_memory_Sort_param_tmp_buffer, param.sort_length,
-                                              MYF(MY_WME | MY_THREAD_SPECIFIC))))
-      goto err;
-
-
     size_t min_sort_memory= MY_MAX(MIN_SORT_MEMORY,
                                    param.sort_length*MERGEBUFF2);
     set_if_bigger(min_sort_memory, sizeof(Merge_chunk*)*MERGEBUFF2);
@@ -344,6 +338,12 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     // report information whether addon fields are packed or not
     tracker->report_addon_fields_format(param.using_packed_addons());
   }
+
+  if ((multi_byte_charset || param.using_packed_sortkeys()) &&
+      !(param.tmp_buffer= (char*) my_malloc(key_memory_Sort_param_tmp_buffer,
+                                            param.sort_length,
+                                            MYF(MY_WME | MY_THREAD_SPECIFIC))))
+      goto err;
 
   if (open_cached_file(&buffpek_pointers,mysql_tmpdir,TEMP_PREFIX,
 		       DISK_BUFFER_SIZE, MYF(MY_WME)))

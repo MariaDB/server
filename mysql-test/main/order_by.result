@@ -3866,3 +3866,22 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 NULL
 DROP TABLE t1;
+#
+# MDEV-22303: Incorrect ordering with REGEXP_REPLACE and OFFSET/LIMIT
+#
+CREATE TABLE t1 (name VARCHAR(20) CHARACTER SET utf8 NOT NULL);
+INSERT INTO t1 (name) VALUES ('Charles Dickens'), ('Roald Dahl');
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC;
+name	surname_first
+Roald Dahl	Dahl, Roald
+Charles Dickens	Dickens, Charles
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC LIMIT 1;
+name	surname_first
+Roald Dahl	Dahl, Roald
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC LIMIT 1 OFFSET 1;
+name	surname_first
+Charles Dickens	Dickens, Charles
+DROP TABLE t1;
