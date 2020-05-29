@@ -669,11 +669,6 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
   char *buf= thd->strmake(init_command->str, len);
   mysql_rwlock_unlock(var_lock);
 
-#if defined(ENABLED_PROFILING)
-  thd->profiling.start_new_query();
-  thd->profiling.set_query_source(buf, len);
-#endif
-
   THD_STAGE_INFO(thd, stage_execution_of_init_command);
   save_client_capabilities= thd->client_capabilities;
   thd->client_capabilities|= CLIENT_MULTI_QUERIES;
@@ -688,9 +683,6 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
   thd->client_capabilities= save_client_capabilities;
   thd->net.vio= save_vio;
 
-#if defined(ENABLED_PROFILING)
-  thd->profiling.finish_current_query();
-#endif
 }
 
 
