@@ -3755,7 +3755,6 @@ restart:
         unreg_request(pagecache, block, 1);
       dec_counter_for_resize_op(pagecache);
       pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
-      dec_counter_for_resize_op(pagecache);
       DBUG_PRINT("info", ("restarting..."));
       goto restart;
     }
