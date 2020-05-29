@@ -138,7 +138,7 @@ struct TP_pool
 #ifdef _WIN32
 struct TP_pool_win:TP_pool
 {
-  TP_pool_win(); 
+  TP_pool_win();
   virtual int init();
   virtual ~TP_pool_win();
   virtual TP_connection *new_connection(CONNECT *c);

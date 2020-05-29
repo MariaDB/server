@@ -24,7 +24,7 @@
 #ifdef _WIN32
 #include <windows.h>
 /* AIX may define this, too ?*/
-#define HAVE_IOCP 
+#define HAVE_IOCP
 #endif
 
 
