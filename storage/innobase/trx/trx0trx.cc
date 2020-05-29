@@ -2135,8 +2135,7 @@ int trx_recover_for_mysql(XID *xid_list, uint len)
   ut_ad(len);
 
   /* Fill xid_list with PREPARED transactions. */
-  trx_sys.rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
-                                      (trx_recover_for_mysql_callback), &arg);
+  trx_sys.rw_trx_hash.iterate_no_dups(trx_recover_for_mysql_callback, &arg);
   if (arg.count)
   {
     ib::info() << arg.count
@@ -2146,8 +2145,7 @@ int trx_recover_for_mysql(XID *xid_list, uint len)
     transactions twice, by first calling tc_log->open() and then
     ha_recover() directly. */
     if (arg.count <= len)
-      trx_sys.rw_trx_hash.iterate(reinterpret_cast<my_hash_walk_action>
-                                  (trx_recover_reset_callback), NULL);
+      trx_sys.rw_trx_hash.iterate(trx_recover_reset_callback);
   }
   return int(std::min(arg.count, len));
 }
@@ -2201,8 +2199,7 @@ trx_t* trx_get_trx_by_xid(const XID* xid)
   trx_get_trx_by_xid_callback_arg arg= { xid, 0 };
 
   if (xid)
-    trx_sys.rw_trx_hash.iterate(reinterpret_cast<my_hash_walk_action>
-                                (trx_get_trx_by_xid_callback), &arg);
+    trx_sys.rw_trx_hash.iterate(trx_get_trx_by_xid_callback, &arg);
   return arg.trx;
 }
 

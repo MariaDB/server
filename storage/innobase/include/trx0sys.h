@@ -385,6 +385,10 @@ class rw_trx_hash_t
   LF_HASH hash;
 
 
+  template <typename T>
+  using walk_action= my_bool(rw_trx_hash_element_t *element, T *action);
+
+
   /**
     Constructor callback for lock-free allocator.
 
@@ -487,18 +491,19 @@ class rw_trx_hash_t
   }
 
 
-  struct eliminate_duplicates_arg
+  template <typename T> struct eliminate_duplicates_arg
   {
     trx_ids_t ids;
-    my_hash_walk_action action;
-    void *argument;
-    eliminate_duplicates_arg(size_t size, my_hash_walk_action act, void* arg):
+    walk_action<T> *action;
+    T *argument;
+    eliminate_duplicates_arg(size_t size, walk_action<T> *act, T *arg):
       action(act), argument(arg) { ids.reserve(size); }
   };
 
 
+  template <typename T>
   static my_bool eliminate_duplicates(rw_trx_hash_element_t *element,
-                                      eliminate_duplicates_arg *arg)
+                                      eliminate_duplicates_arg<T> *arg)
   {
     for (trx_ids_t::iterator it= arg->ids.begin(); it != arg->ids.end(); it++)
     {
@@ -525,15 +530,16 @@ class rw_trx_hash_t
   }
 
 
-  struct debug_iterator_arg
+  template <typename T> struct debug_iterator_arg
   {
-    my_hash_walk_action action;
-    void *argument;
+    walk_action<T> *action;
+    T *argument;
   };
 
 
+  template <typename T>
   static my_bool debug_iterator(rw_trx_hash_element_t *element,
-                                debug_iterator_arg *arg)
+                                debug_iterator_arg<T> *arg)
   {
     mutex_enter(&element->mutex);
     if (element->trx)
@@ -748,23 +754,28 @@ public:
       @retval 1 iteration was interrupted (action returned 1)
   */
 
-  int iterate(trx_t *caller_trx, my_hash_walk_action action, void *argument)
+  template <typename T>
+  int iterate(trx_t *caller_trx, walk_action<T> *action, T *argument= nullptr)
   {
     LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
     ut_a(pins);
 #ifdef UNIV_DEBUG
-    debug_iterator_arg debug_arg= { action, argument };
-    action= reinterpret_cast<my_hash_walk_action>(debug_iterator);
-    argument= &debug_arg;
+    debug_iterator_arg<T> debug_arg= { action, argument };
+    action= reinterpret_cast<decltype(action)>(debug_iterator<T>);
+    argument= reinterpret_cast<T*>(&debug_arg);
 #endif
-    int res= lf_hash_iterate(&hash, pins, action, argument);
+    int res= lf_hash_iterate(&hash, pins,
+                             reinterpret_cast<my_hash_walk_action>(action),
+                             const_cast<void*>(static_cast<const void*>
+                             (argument)));
     if (!caller_trx)
       lf_hash_put_pins(pins);
     return res;
   }
 
 
-  int iterate(my_hash_walk_action action, void *argument)
+  template <typename T>
+  int iterate(walk_action<T> *action, T *argument= nullptr)
   {
     return iterate(current_trx(), action, argument);
   }
@@ -776,16 +787,17 @@ public:
     @sa iterate()
   */
 
-  int iterate_no_dups(trx_t *caller_trx, my_hash_walk_action action,
-                      void *argument)
+  template <typename T>
+  int iterate_no_dups(trx_t *caller_trx, walk_action<T> *action,
+                      T *argument= nullptr)
   {
-    eliminate_duplicates_arg arg(size() + 32, action, argument);
-    return iterate(caller_trx, reinterpret_cast<my_hash_walk_action>
-                   (eliminate_duplicates), &arg);
+    eliminate_duplicates_arg<T> arg(size() + 32, action, argument);
+    return iterate(caller_trx, eliminate_duplicates<T>, &arg);
   }
 
 
-  int iterate_no_dups(my_hash_walk_action action, void *argument)
+  template <typename T>
+  int iterate_no_dups(walk_action<T> *action, T *argument= nullptr)
   {
     return iterate_no_dups(current_trx(), action, argument);
   }
@@ -881,8 +893,7 @@ public:
   trx_id_t get_min_trx_id()
   {
     trx_id_t id= get_max_trx_id();
-    rw_trx_hash.iterate(reinterpret_cast<my_hash_walk_action>
-                        (get_min_trx_id_callback), &id);
+    rw_trx_hash.iterate(get_min_trx_id_callback, &id);
     return id;
   }
 
@@ -976,9 +987,7 @@ public:
 
     ids->clear();
     ids->reserve(rw_trx_hash.size() + 32);
-    rw_trx_hash.iterate(caller_trx,
-                        reinterpret_cast<my_hash_walk_action>(copy_one_id),
-                        &arg);
+    rw_trx_hash.iterate(caller_trx, copy_one_id, &arg);
 
     *max_trx_id= arg.m_id;
     *min_trx_no= arg.m_no;

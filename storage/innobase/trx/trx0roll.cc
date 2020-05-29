@@ -717,8 +717,7 @@ void trx_roll_report_progress()
 		rows they modified. Numbers must be accurate, because only this
 		thread is allowed to touch recovered transactions. */
 		trx_sys.rw_trx_hash.iterate_no_dups(
-			reinterpret_cast<my_hash_walk_action>
-			(trx_roll_count_callback), &arg);
+			trx_roll_count_callback, &arg);
 
 		if (arg.n_rows > 0) {
 			service_manager_extend_timeout(
@@ -776,8 +775,7 @@ void trx_rollback_recovered(bool all)
     other thread is allowed to modify or remove these transactions from
     rw_trx_hash.
   */
-  trx_sys.rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
-                                      (trx_rollback_recovered_callback),
+  trx_sys.rw_trx_hash.iterate_no_dups(trx_rollback_recovered_callback,
                                       &trx_list);
 
   while (!trx_list.empty())
