@@ -12118,7 +12118,7 @@ public:
 					*(ptr++) = ' ';
 				}
 			} else {
-				ut_ad((size_t)(ptr - buf) < MAX_TEXT - 4);
+				ut_ad((size_t)(ptr - buf) <= MAX_TEXT - 4);
 				memcpy(ptr, "...", 3);
 				ptr += 3;
 				break;
