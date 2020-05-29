@@ -82,7 +82,6 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 {
   mtr_t mtr;
   bool lru= false;
-  void *data;
 
   if (mode == BUF_READ_IBUF_PAGES_ONLY)
   {
@@ -140,9 +139,9 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     ut_ad(!bpage->in_page_hash);
     ut_d(bpage->in_page_hash= true);
     HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, page_id.fold(), bpage);
+    bpage->set_io_fix(BUF_IO_READ);
     rw_lock_x_unlock(hash_lock);
 
-    bpage->set_io_fix(BUF_IO_READ);
     /* The block must be put to the LRU list, to the old blocks */
     buf_LRU_add_block(bpage, true/* to old blocks */);
 
@@ -157,21 +156,21 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
     rw_lock_x_lock_gen(&block->lock, BUF_IO_READ);
 
-    if (zip_size) {
-	    /* buf_pool.mutex may be released and
-	    reacquired by buf_buddy_alloc(). We must defer this
-	    operation until after the block descriptor has
-	    been added to buf_pool.LRU and
-	    buf_pool.page_hash. */
-	    data = buf_buddy_alloc(zip_size, &lru);
-	    block->page.zip.data = (page_zip_t*) data;
+    if (UNIV_UNLIKELY(zip_size))
+    {
+      /* buf_pool.mutex may be released and reacquired by
+      buf_buddy_alloc(). We must defer this operation until after the
+      block descriptor has been added to buf_pool.LRU and
+      buf_pool.page_hash. */
+      block->page.zip.data= static_cast<page_zip_t*>
+        (buf_buddy_alloc(zip_size, &lru));
 
-	    /* To maintain the invariant
-	    block->in_unzip_LRU_list == block->page.belongs_to_unzip_LRU()
-	    we have to add this block to unzip_LRU
-	    after block->page.zip.data is set. */
-	    ut_ad(block->page.belongs_to_unzip_LRU());
-	    buf_unzip_LRU_add_block(block, TRUE);
+      /* To maintain the invariant
+      block->in_unzip_LRU_list == block->page.belongs_to_unzip_LRU()
+      we have to add this block to unzip_LRU
+      after block->page.zip.data is set. */
+      ut_ad(block->page.belongs_to_unzip_LRU());
+      buf_unzip_LRU_add_block(block, TRUE);
     }
   }
   else
@@ -225,9 +224,8 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     ut_ad(!bpage->in_page_hash);
     ut_d(bpage->in_page_hash= true);
     HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, page_id.fold(), bpage);
-    rw_lock_x_unlock(hash_lock);
-
     bpage->set_io_fix(BUF_IO_READ);
+    rw_lock_x_unlock(hash_lock);
 
     /* The block must be put to the LRU list, to the old blocks.
     The zip size is already set into the page zip */
