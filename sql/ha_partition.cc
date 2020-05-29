@@ -3657,11 +3657,13 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
 
 err_handler:
   DEBUG_SYNC(ha_thd(), "partition_open_error");
-  file= &m_file[m_tot_parts - 1];
-  while (file-- != m_file)
+  DBUG_ASSERT(m_tot_parts > 0);
+  for (uint i= m_tot_parts - 1; ; --i)
   {
-    if (bitmap_is_set(&m_opened_partitions, (uint)(file - m_file)))
-      (*file)->ha_close();
+    if (bitmap_is_set(&m_opened_partitions, i))
+      m_file[i]->ha_close();
+    if (!i)
+      break;
   }
 err_alloc:
   free_partition_bitmaps();
