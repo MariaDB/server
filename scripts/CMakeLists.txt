@@ -254,7 +254,6 @@ SET(mysql_config_COMPONENT COMPONENT Development)
 SET(msql2mysql_COMPONENT COMPONENT Client)
 SET(mysqlaccess_COMPONENT COMPONENT Client)
 SET(mysql_find_rows_COMPONENT COMPONENT Client)
-SET(mytop_COMPONENT Mytop)
 
 IF(WIN32)
   # On Windows, some .sh and some .pl.in files are configured
@@ -314,7 +313,6 @@ ELSE()
     mariadb-convert-table-format
     mariadb-find-rows
     mysql_config
-    mytop
     mariadb-hotcopy
     ${SERVER_SCRIPTS}
     ${WSREP_SCRIPTS}

@@ -347,7 +347,6 @@ Conflicts: mariadb-client (<< ${source:Version}),
            mysql-client-core-5.6 (<< ${source:Version}),
            mysql-client-core-5.7 (<< ${source:Version}),
            mysql-client-core-8.0 (<< ${source:Version}),
-           mytop,
            virtual-mysql-client
 Breaks: mariadb-client-core-10.0,
         mariadb-client-core-10.1,
@@ -386,7 +385,6 @@ Replaces: mariadb-client (<< ${source:Version}),
           mysql-client-core-5.6 (<< ${source:Version}),
           mysql-client-core-5.7 (<< ${source:Version}),
           mysql-client-core-8.0 (<< ${source:Version}),
-          mytop,
           virtual-mysql-client
 Provides: default-mysql-client,
           virtual-mysql-client

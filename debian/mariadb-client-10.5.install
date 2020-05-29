@@ -11,7 +11,6 @@ usr/bin/mariadb-import
 usr/bin/mariadb-show
 usr/bin/mariadb-slap
 usr/bin/mariadb-waitpid
-usr/bin/mytop
 usr/share/man/man1/mariadb-access.1
 usr/share/man/man1/mariadb-admin.1
 usr/share/man/man1/mariadb-conv.1
@@ -33,4 +32,3 @@ usr/share/man/man1/mysqldumpslow.1
 usr/share/man/man1/mysqlimport.1
 usr/share/man/man1/mysqlshow.1
 usr/share/man/man1/mysqlslap.1
-usr/share/man/man1/mytop.1
