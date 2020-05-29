@@ -749,7 +749,6 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
 
   size_t tbl_len= strlen(name.m_name + db_len);
   memcpy(tbl_buf, name.m_name + db_len + 1, tbl_len);
-  tbl_len--;
   if (!dict_locked)
     mutex_exit(&dict_sys.mutex);
 
@@ -883,7 +882,17 @@ is_unaccessible:
 
   size_t db1_len, tbl1_len;
 
-  table->parse_name<!trylock>(db_buf1, tbl_buf1, &db1_len, &tbl1_len);
+  if (!table->parse_name<!trylock>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
+  {
+    /* The table was renamed to #sql prefix.
+    Release MDL (if any) for the old name and return. */
+    if (*mdl)
+    {
+      mdl_context->release_lock(*mdl);
+      *mdl= nullptr;
+    }
+    return table;
+  }
 
   if (*mdl)
   {

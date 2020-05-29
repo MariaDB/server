@@ -1,5 +1,6 @@
 /* Copyright (C) 2007 MySQL AB
    Copyright (C) 2010 Monty Program Ab
+   Copyright (C) 2020 MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -29,14 +30,50 @@ const char *default_dbug_option= "d:t:O,\\aria_read_log.trace";
 const char *default_dbug_option= "d:t:o,/tmp/aria_read_log.trace";
 #endif
 #endif /* DBUG_OFF */
-static my_bool opt_display_only, opt_apply, opt_apply_undo, opt_silent;
-static my_bool opt_check;
+static my_bool opt_display_only, opt_apply, opt_silent, opt_apply_undo;
+static my_bool opt_check, opt_start_from_checkpoint;
 static my_bool opt_print_aria_log_control;
 static const char *opt_tmpdir;
 static ulong opt_translog_buffer_size;
 static ulonglong opt_page_buffer_size;
-static ulonglong opt_start_from_lsn, opt_end_lsn, opt_start_from_checkpoint;
+static ulonglong opt_start_from_lsn, opt_lsn_redo_end, opt_lsn_undo_end;
+static char *start_from_lsn_buf, *lsn_redo_end_buf, *lsn_undo_end_buf;
 static MY_TMPDIR maria_chk_tmpdir;
+
+/*
+  Get lsn from file number and offset
+  Format supported:
+  ulonglong
+  uint,0xhex
+*/
+
+static ulonglong get_lsn(const char *lsn_str)
+{
+  ulong file;
+  ulong pos;
+  if (sscanf(lsn_str, " %lu,0x%lx", &file, &pos) == 2)
+    return MAKE_LSN(file, pos);
+  if (sscanf(lsn_str, " %lu", &pos) == 1)
+    return (ulonglong) pos;
+  return ~(ulonglong) 0;                        /* Error */
+}
+
+static my_bool get_lsn_arg(const char *lsn_string, ulonglong *lsn,
+                           const char *name)
+{
+  ulonglong value;
+  value= get_lsn(lsn_string);
+  if (value != ~(ulonglong) 0)
+  {
+    *lsn= value;
+    return 0;
+  }
+  fprintf(stderr,
+          "Wrong value '%s' for option %s. Value should be in format: "
+          "number,0xhexnumber\n",
+          lsn_string, name);
+  return 1;
+}
 
 
 int main(int argc, char **argv)
@@ -136,17 +173,12 @@ int main(int argc, char **argv)
             LSN_IN_PARTS(lsn));
   }
 
-  if (opt_end_lsn != LSN_IMPOSSIBLE)
-  {
-    /* We can't apply undo if we use end_lsn */
-    opt_apply_undo= 0;
-  }
-
   fprintf(stdout, "TRACE of the last aria_read_log\n");
-  if (maria_apply_log(lsn, opt_end_lsn, opt_apply ?  MARIA_LOG_APPLY :
+  if (maria_apply_log(lsn, opt_lsn_redo_end, opt_lsn_undo_end,
+                      opt_apply ?  MARIA_LOG_APPLY :
                       (opt_check ? MARIA_LOG_CHECK :
                        MARIA_LOG_DISPLAY_HEADER), opt_silent ? NULL : stdout,
-                      opt_apply_undo, FALSE, FALSE, &warnings_count))
+                      FALSE, FALSE, &warnings_count))
     goto err;
   if (warnings_count == 0)
     fprintf(stdout, "%s: SUCCESS\n", my_progname_short);
@@ -204,9 +236,16 @@ static struct my_option my_long_options[] =
   {"display-only", 'd', "display brief info read from records' header",
    &opt_display_only, &opt_display_only, 0, GET_BOOL,
    NO_ARG,0, 0, 0, 0, 0, 0},
-  { "end-lsn", 'e', "Stop applying at this lsn. If end-lsn is used, UNDO:s "
-    "will not be applied", &opt_end_lsn, &opt_end_lsn,
-    0, GET_ULL, REQUIRED_ARG, 0, 0, ~(longlong) 0, 0, 0, 0 },
+  { "end-lsn", 'e', "Alias for lsn-redo-end",
+    &lsn_redo_end_buf, &lsn_redo_end_buf, 0, GET_STR, REQUIRED_ARG, 0, 0,
+    0, 0, 0, 0 },
+  { "lsn-redo-end", 'e', "Stop applying at this lsn during redo. If "
+    "this option is used UNDO:s will not be applied unless --lsn-undo-end is "
+    "given", &lsn_redo_end_buf,
+    &lsn_redo_end_buf, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
+  { "lsn-undo-end", 'E', "Stop applying undo after this lsn has been applied",
+    &lsn_undo_end_buf, &lsn_undo_end_buf, 0, GET_STR, REQUIRED_ARG, 0, 0,
+    0, 0, 0, 0 },
   {"aria-log-dir-path", 'h',
     "Path to the directory where to store transactional log",
     (uchar **) &maria_data_root, (uchar **) &maria_data_root, 0,
@@ -246,7 +285,9 @@ static struct my_option my_long_options[] =
     GET_ULONG, REQUIRED_ARG, (long) TRANSLOG_PAGECACHE_SIZE,
     1024L*1024L, (long) ~(ulong) 0, (long) MALLOC_OVERHEAD,
     (long) IO_SIZE, 0},
-  {"undo", 'u', "Apply UNDO records to tables. (disable with --disable-undo)",
+  {"undo", 'u',
+   "Apply UNDO records to tables. (disable with --disable-undo). "
+   "Will be automatically set if lsn-undo-end is used",
    (uchar **) &opt_apply_undo, (uchar **) &opt_apply_undo, 0,
    GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"verbose", 'v', "Print more information during apply/undo phase",
@@ -257,10 +298,9 @@ static struct my_option my_long_options[] =
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
-
 static void print_version(void)
 {
-  printf("%s Ver 1.4 for %s on %s\n",
+  printf("%s Ver 1.5 for %s on %s\n",
               my_progname_short, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
@@ -268,7 +308,7 @@ static void print_version(void)
 static void usage(void)
 {
   print_version();
-  puts("Copyright (C) 2007 MySQL AB, 2009-2011 Monty Program Ab");
+  puts("Copyright (C) 2007 MySQL AB, 2009-2011 Monty Program Ab, 2020 MariaDB Corporation");
   puts("This software comes with ABSOLUTELY NO WARRANTY. This is free software,");
   puts("and you are welcome to modify and redistribute it under the GPL license\n");
 
@@ -312,6 +352,9 @@ get_one_option(const struct my_option *opt,
   case 'V':
     print_version();
     exit(0);
+  case 'E':
+    opt_apply_undo= TRUE;
+    break;
   case 'T':
   {
     char *pos;
@@ -341,13 +384,34 @@ get_one_option(const struct my_option *opt,
 static void get_options(int *argc,char ***argv)
 {
   int ho_error;
-  my_bool need_help= 0;
+  my_bool need_help= 0, need_abort= 0;
 
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
     exit(ho_error);
 
+  if (start_from_lsn_buf)
+  {
+    if (get_lsn_arg(start_from_lsn_buf, &opt_start_from_lsn,
+                    "start-from-lsn"))
+      need_abort= 1;
+  }
+  if (lsn_redo_end_buf)
+  {
+    if (get_lsn_arg(lsn_redo_end_buf, &opt_lsn_redo_end,
+                    "lsn-redo-end"))
+      need_abort= 1;
+  }
+  if (lsn_undo_end_buf)
+  {
+    if (get_lsn_arg(lsn_undo_end_buf, &opt_lsn_undo_end,
+                    "lsn-undo-end"))
+      need_abort= 1;
+  }
+
   if (!opt_apply)
     opt_apply_undo= FALSE;
+  if (!opt_apply_undo)
+    opt_lsn_undo_end= LSN_MAX;
 
   if (*argc > 0)
   {
@@ -356,21 +420,20 @@ static void get_options(int *argc,char ***argv)
   }
   if ((opt_display_only + opt_apply + opt_print_aria_log_control) != 1)
   {
-    need_help= 1;
+    need_abort= 1;
     fprintf(stderr,
             "You must use one and only one of the options 'display-only', \n"
             "'print-log-control-file' and 'apply'\n");
   }
 
-  if (need_help)
+  if (need_help || need_abort)
   {
     fflush(stderr);
-    need_help =1;
-    usage();
+    if (need_help)
+      usage();
     exit(1);
   }
   if (init_tmpdir(&maria_chk_tmpdir, opt_tmpdir))
     exit(1);
   maria_tmpdir= &maria_chk_tmpdir;
 }
-

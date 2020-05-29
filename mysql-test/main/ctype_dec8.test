@@ -1,0 +1,15 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-22625 SIGSEGV in intern_find_sys_var (optimized builds)
+--echo #
+
+SET NAMES dec8;
+SET @seq=_dec8 0xD0;
+--source include/ctype_ident_sys.inc
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

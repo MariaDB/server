@@ -457,6 +457,7 @@ void trx_free(trx_t*& trx)
 	/* Declare the contents as initialized for Valgrind;
 	we checked that it was initialized in trx_pools->mem_free(trx). */
 	UNIV_MEM_VALID(&trx->mutex, sizeof trx->mutex);
+	trx->read_view.mem_valid();
 
 	trx = NULL;
 }

@@ -62,9 +62,6 @@ extern void tp_set_threadpool_stall_limit(uint val);
 extern int tp_get_idle_thread_count();
 extern int tp_get_thread_count();
 
-/* Activate threadpool scheduler */
-extern void tp_scheduler(void);
-
 
 enum  TP_PRIORITY {
   TP_PRIORITY_HIGH,
@@ -138,7 +135,7 @@ struct TP_pool
 #ifdef _WIN32
 struct TP_pool_win:TP_pool
 {
-  TP_pool_win(); 
+  TP_pool_win();
   virtual int init();
   virtual ~TP_pool_win();
   virtual TP_connection *new_connection(CONNECT *c);
