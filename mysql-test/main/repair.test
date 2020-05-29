@@ -1,6 +1,7 @@
 #
 # Test of repair table
 #
+--source include/have_sequence.inc
 --source include/default_charset.inc
 
 call mtr.add_suppression("character set is multi-byte");
@@ -246,3 +247,23 @@ UNLOCK TABLES;
 DROP TABLE t1;
 
 --echo # End of 10.0 tests
+
+#
+# MDEV-17153 server crash on repair table ... use_frm
+#
+# Note, this test case doesn't crash, but shows spurios warnings
+# unless the bug is fixed
+#
+create table t1 (a int, b varchar(200));
+insert t1 select seq, repeat(200, seq) from seq_1_to_30;
+delete from t1 where a % 13 = 0;
+repair table t1 use_frm;
+delete from t1 where a % 11 = 0;
+repair table t1 extended use_frm;
+delete from t1 where a % 7 = 0;
+set myisam_repair_threads = 2;
+repair table t1 use_frm;
+set myisam_repair_threads = default;
+drop table t1;
+
+--echo # End of 10.2 tests

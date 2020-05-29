@@ -30,6 +30,7 @@ grn_rc grn_tokenizers_init(void);
 grn_rc grn_tokenizers_fin(void);
 
 grn_rc grn_db_init_mecab_tokenizer(grn_ctx *ctx);
+void grn_db_fin_mecab_tokenizer(grn_ctx *ctx);
 grn_rc grn_db_init_builtin_tokenizers(grn_ctx *ctx);
 
 #ifdef __cplusplus
