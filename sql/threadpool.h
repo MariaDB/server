@@ -62,9 +62,6 @@ extern void tp_set_threadpool_stall_limit(uint val);
 extern int tp_get_idle_thread_count();
 extern int tp_get_thread_count();
 
-/* Activate threadpool scheduler */
-extern void tp_scheduler(void);
-
 
 enum  TP_PRIORITY {
   TP_PRIORITY_HIGH,
