@@ -16176,13 +16176,15 @@ set_stmt_option:
           ident_cli equal set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_system_variable(Lex->option_type, &tmp, $3)))
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_system_variable(Lex->option_type, &tmp, $3)))
               MYSQL_YYABORT;
           }
         | ident_cli '.' ident equal set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_system_variable(thd, Lex->option_type, &tmp, &$3, $5)))
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_system_variable(thd, Lex->option_type, &tmp, &$3, $5)))
               MYSQL_YYABORT;
           }
         | DEFAULT '.' ident equal set_expr_or_default
@@ -16203,7 +16205,8 @@ option_value_following_option_type:
           set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_system_variable(Lex->option_type, &tmp, $4)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_system_variable(Lex->option_type, &tmp, $4)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -16215,7 +16218,8 @@ option_value_following_option_type:
           set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_system_variable(thd, Lex->option_type, &tmp, &$3, $6)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_system_variable(thd, Lex->option_type, &tmp, &$3, $6)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -16242,7 +16246,8 @@ option_value_no_option_type:
           set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_variable(&tmp, $4)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_variable(&tmp, $4)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -16254,7 +16259,8 @@ option_value_no_option_type:
           set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_variable(&tmp, &$3, $6)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_variable(&tmp, &$3, $6)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -16422,7 +16428,8 @@ option_value_no_option_type:
           set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_variable(&tmp, $4)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_variable(&tmp, $4)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -18150,14 +18157,16 @@ sp_statement:
           {
             // Direct procedure call (without the CALL keyword)
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->call_statement_start(thd, &tmp)))
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->call_statement_start(thd, &tmp)))
               MYSQL_YYABORT;
           }
           opt_sp_cparam_list
         | ident_cli_directly_assignable '.' ident
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->call_statement_start(thd, &tmp, &$3)))
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->call_statement_start(thd, &tmp, &$3)))
               MYSQL_YYABORT;
           }
           opt_sp_cparam_list
@@ -18371,7 +18380,8 @@ set_assign:
           set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_variable(&tmp, $4)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_variable(&tmp, $4)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY,
                                                     false)))
               MYSQL_YYABORT;
@@ -18388,7 +18398,8 @@ set_assign:
             LEX *lex= Lex;
             DBUG_ASSERT(lex->var_list.is_empty());
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(lex->set_variable(&tmp, &$3, $6)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(lex->set_variable(&tmp, &$3, $6)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY,
                                                     false)))
               MYSQL_YYABORT;
