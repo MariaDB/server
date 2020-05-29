@@ -740,7 +740,7 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
       for ( ; my_isspace(&my_charset_latin1,end[-1]) ; end--) ;
       end[0]=0;
 
-      strmake(curr_gr, ptr, MY_MIN((size_t) (end-ptr)+1, sizeof(curr_gr)-1));
+      strmake(curr_gr, ptr, MY_MIN((size_t) (end-ptr), sizeof(curr_gr)-1));
       found_group= find_type(curr_gr, ctx->group, FIND_TYPE_NO_PREFIX)
                    ? PARSE : SKIP;
       continue;
