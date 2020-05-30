@@ -1543,6 +1543,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
                  admin_option_for_role user_maybe_role
 
 %type <user_auth> opt_auth_str auth_expression auth_token
+                  text_or_password
 
 %type <charset>
         opt_collate
@@ -16433,24 +16434,29 @@ option_value_no_option_type:
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
-        | PASSWORD_SYM opt_for_user text_or_password
+        | PASSWORD_SYM equal
           {
             if (sp_create_assignment_lex(thd, $1.pos()))
               MYSQL_YYABORT;
-            LEX *lex = Lex;
-            set_var_password *var= (new (thd->mem_root)
-                                    set_var_password(lex->definer));
-            if (unlikely(var == NULL) ||
-                unlikely(lex->var_list.push_back(var, thd->mem_root)))
+          }
+          text_or_password
+          {
+            if (unlikely(Lex->sp_create_set_password_instr(thd, $4,
+                                                           yychar == YYEMPTY)))
               MYSQL_YYABORT;
-            lex->autocommit= TRUE;
-            if (lex->sphead)
-              lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
-            if (unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
+          }
+        | PASSWORD_SYM FOR_SYM
+          {
+            if (sp_create_assignment_lex(thd, $1.pos()))
+              MYSQL_YYABORT;
+          }
+          user equal text_or_password
+          {
+            if (unlikely(Lex->sp_create_set_password_instr(thd, $4, $6,
+                                                           yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
         ;
-
 
 transaction_characteristics:
           transaction_access_mode
@@ -16508,42 +16514,25 @@ isolation_types:
         | SERIALIZABLE_SYM         { $$= ISO_SERIALIZABLE; }
         ;
 
-opt_for_user:
-        equal
-          {
-            LEX *lex= thd->lex;
-            sp_pcontext *spc= lex->spcont;
-            LEX_CSTRING pw= { STRING_WITH_LEN("password") };
-
-            if (unlikely(spc && spc->find_variable(&pw, false)))
-              my_yyabort_error((ER_SP_BAD_VAR_SHADOW, MYF(0), pw.str));
-            if (unlikely(!(lex->definer= (LEX_USER*)
-                           thd->calloc(sizeof(LEX_USER)))))
-              MYSQL_YYABORT;
-            lex->definer->user= current_user;
-            lex->definer->auth= new (thd->mem_root) USER_AUTH();
-          }
-        | FOR_SYM user equal { Lex->definer= $2; }
-        ;
 
 text_or_password:
           TEXT_STRING
           {
-            Lex->definer->auth= new (thd->mem_root) USER_AUTH();
-            Lex->definer->auth->auth_str= $1;
+            $$= new (thd->mem_root) USER_AUTH();
+            $$->auth_str= $1;
           }
         | PASSWORD_SYM '(' TEXT_STRING ')'
           {
-            Lex->definer->auth= new (thd->mem_root) USER_AUTH();
-            Lex->definer->auth->pwtext= $3;
+            $$= new (thd->mem_root) USER_AUTH();
+            $$->pwtext= $3;
           }
         | OLD_PASSWORD_SYM '(' TEXT_STRING ')'
           {
-            Lex->definer->auth= new (thd->mem_root) USER_AUTH();
-            Lex->definer->auth->pwtext= $3;
-            Lex->definer->auth->auth_str.str= Item_func_password::alloc(thd,
+            $$= new (thd->mem_root) USER_AUTH();
+            $$->pwtext= $3;
+            $$->auth_str.str= Item_func_password::alloc(thd,
                                    $3.str, $3.length, Item_func_password::OLD);
-            Lex->definer->auth->auth_str.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+            $$->auth_str.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
           }
         ;
 
