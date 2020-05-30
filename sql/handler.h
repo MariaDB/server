@@ -3301,13 +3301,7 @@ public:
     start_bulk_insert(rows, flags);
     DBUG_VOID_RETURN;
   }
-  int ha_end_bulk_insert()
-  {
-    DBUG_ENTER("handler::ha_end_bulk_insert");
-    estimation_rows_to_insert= 0;
-    int ret= end_bulk_insert();
-    DBUG_RETURN(ret);
-  }
+  int ha_end_bulk_insert();
   int ha_bulk_update_row(const uchar *old_data, const uchar *new_data,
                          ha_rows *dup_key_found);
   int ha_delete_all_rows();

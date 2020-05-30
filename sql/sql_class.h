@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4013,7 +4013,8 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        if (likely((killed_err= (err_info*) alloc(sizeof(*killed_err)))))
+        killed_err= (err_info*) alloc_root(&main_mem_root, sizeof(*killed_err));
+        if (likely(killed_err))
         {
           killed_err->no= killed_errno_arg;
           ::strmake((char*) killed_err->msg, killed_err_msg_arg,

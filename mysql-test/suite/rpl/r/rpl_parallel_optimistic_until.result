@@ -1,0 +1,291 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+RESET MASTER;
+RESET SLAVE;
+connection master;
+RESET MASTER;
+CREATE TABLE t1 (a int primary key, b text) ENGINE=InnoDB;
+INSERT INTO t1 SET a=25, b='trx0';
+connection slave;
+include/start_slave.inc
+connection master;
+connection slave;
+include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=2;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode='optimistic';
+connection slave;
+SET @old_max_relay_log_size = @@global.max_relay_log_size;
+SET @@global.max_relay_log_size=4096;
+connection master;
+BEGIN;
+INSERT INTO t1 SET a=1, b='trx1';
+INSERT INTO t1 SET a=2, b='trx1';
+INSERT INTO t1 SET a=3, b='trx1';
+INSERT INTO t1 SET a=4, b='trx1';
+INSERT INTO t1 SET a=5, b='trx1';
+INSERT INTO t1 SET a=6, b='trx1';
+INSERT INTO t1 SET a=7, b='trx1';
+INSERT INTO t1 SET a=8, b='trx1';
+INSERT INTO t1 SET a=9, b='trx1';
+INSERT INTO t1 SET a=10, b='trx1';
+INSERT INTO t1 SET a=11, b='trx1';
+INSERT INTO t1 SET a=12, b='trx1';
+INSERT INTO t1 SET a=13, b='trx1';
+INSERT INTO t1 SET a=14, b='trx1';
+INSERT INTO t1 SET a=15, b='trx1';
+INSERT INTO t1 SET a=16, b='trx1';
+INSERT INTO t1 SET a=17, b='trx1';
+INSERT INTO t1 SET a=18, b='trx1';
+INSERT INTO t1 SET a=19, b='trx1';
+INSERT INTO t1 SET a=20, b='trx1';
+INSERT INTO t1 SET a=21, b='trx1';
+INSERT INTO t1 SET a=22, b='trx1';
+INSERT INTO t1 SET a=23, b='trx1';
+INSERT INTO t1 SET a=24, b='trx1';
+COMMIT;
+FLUSH LOGS;
+BEGIN;
+UPDATE t1 SET b='trx2_0' WHERE a = 25;
+UPDATE t1 SET b='trx2' WHERE a = 25;
+COMMIT;
+INSERT INTO t1 SET a=26,b='trx3';
+*** case 1 UNTIL inside trx2
+connection slave1;
+BEGIN;
+INSERT INTO t1 SET a= 1;
+connection slave;
+SELECT <pos_0> <= <pos_until> AND <pos_until> < <pos_trx2> as "pos_until < trx0 and is within trx2";
+pos_until < trx0 and is within trx2
+1
+CHANGE MASTER TO MASTER_USE_GTID=no;
+START SLAVE UNTIL MASTER_LOG_FILE = 'file_2', MASTER_LOG_POS = <pos_until>;
+connection slave1;
+ROLLBACK;
+Proof 1: Correct stop
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+SELECT count(*) = 1 as 'trx2 is committed' FROM t1 WHERE b = 'trx2';
+trx2 is committed
+1
+SELECT count(*) = 0 as 'trx3 is not committed' FROM t1 WHERE b = 'trx3';
+trx3 is not committed
+1
+Proof 2: Resume works out
+include/start_slave.inc
+connection master;
+connection slave;
+*** case 2 UNTIL inside trx2
+connection slave;
+DELETE FROM t1 WHERE a <> 25;
+UPDATE t1 SET b='trx0' WHERE a = 25;
+connection slave1;
+BEGIN;
+INSERT INTO t1 SET a= 1;
+connection slave;
+include/stop_slave.inc
+SELECT <pos_0> <= <pos_until> AND <pos_until> < <pos_trx2> as "pos_until >= trx0 and is within trx2";
+pos_until >= trx0 and is within trx2
+1
+CHANGE MASTER TO MASTER_LOG_FILE = 'file_1', MASTER_LOG_POS = <pos_trx0>, MASTER_USE_GTID=no;
+START SLAVE UNTIL MASTER_LOG_FILE = 'file_2', MASTER_LOG_POS = <pos_until>;
+connection slave1;
+ROLLBACK;
+Proof 1: Correct stop
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+SELECT count(*) = 1 as 'trx2 is committed' FROM t1 WHERE b = 'trx2';
+trx2 is committed
+1
+SELECT count(*) = 0 as 'trx3 is not committed' FROM t1 WHERE b = 'trx3';
+trx3 is not committed
+1
+Proof 2: Resume works out
+include/start_slave.inc
+connection master;
+connection slave;
+*** case 3 UNTIL inside trx1
+connection slave;
+DELETE FROM t1 WHERE a <> 25;
+UPDATE t1 SET b='trx0' WHERE a = 25;
+connection slave1;
+BEGIN;
+INSERT INTO t1 SET a= 1; # block trx1;
+connection slave;
+include/stop_slave.inc
+SELECT <pos_until> < <pos_0> as "pos_until before trx2 start position";
+pos_until before trx2 start position
+1
+CHANGE MASTER TO MASTER_LOG_FILE = 'file_1', MASTER_LOG_POS = <pos_trx0>, MASTER_USE_GTID=no;
+START SLAVE UNTIL MASTER_LOG_FILE = 'file_2', MASTER_LOG_POS = <pos_until>;
+connection slave1;
+ROLLBACK;
+Proof 1: Correct stop
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+SELECT count(*) = 25-1 as 'trx1 is committed' FROM t1 WHERE b = 'trx1';
+trx1 is committed
+1
+SELECT count(*) = 0 as 'trx2 is not committed' FROM t1 WHERE b = 'trx2';
+trx2 is not committed
+1
+Proof 2: Resume works out
+include/start_slave.inc
+connection master;
+connection slave;
+*** case 4 Relay-log UNTIL inside trx1
+connection slave;
+DELETE FROM t1 WHERE a <> 25;
+UPDATE t1 SET b='trx0' WHERE a = 25;
+connection slave1;
+BEGIN;
+INSERT INTO t1 SET a= 1; # block trx1;
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_LOG_FILE = 'file_1', MASTER_LOG_POS = <pos_trx0>, MASTER_USE_GTID=no;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+START SLAVE UNTIL RELAY_LOG_FILE = 'file_2', RELAY_LOG_POS = <pos_until>;
+connection slave1;
+ROLLBACK;
+Proof 1: Correct stop
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+SELECT count(*) = 25-1 as 'trx1 is committed' FROM t1 WHERE b = 'trx1';
+trx1 is committed
+1
+SELECT count(*) = 0 as 'trx2 is not committed' FROM t1 WHERE b = 'trx2';
+trx2 is not committed
+1
+Proof 2: Resume works out
+include/start_slave.inc
+connection master;
+connection slave;
+*** case 5 Relay-log UNTIL inside a "big" trx that spawns few relay logs
+connection master;
+CREATE TABLE t2 (a TEXT) ENGINE=InnoDB;
+FLUSH LOGS;
+connection slave;
+connection slave;
+include/stop_slave.inc
+connection master;
+BEGIN;
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+INSERT INTO t2 SET a=repeat('a',1024);
+COMMIT;
+INSERT INTO t2 SET a='a';
+connection slave;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+START SLAVE UNTIL RELAY_LOG_FILE = 'file_2', RELAY_LOG_POS = <pos_until>;
+Proof 1: Correct stop
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+Proof 2: Resume works out
+include/start_slave.inc
+connection master;
+connection slave;
+include/diff_tables.inc [master:t2,slave:t2]
+*** case 6 Relay-log UNTIL inside a small trx inside a sequence of relay logs
+connection slave;
+include/stop_slave.inc
+connection master;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+BEGIN;
+DELETE FROM t2 LIMIT 1;
+COMMIT;
+COMMIT;
+connection slave;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection master;
+include/sync_slave_io_with_master.inc
+connection slave;
+START SLAVE UNTIL RELAY_LOG_FILE = 'file_2', RELAY_LOG_POS = <pos_until>;
+Proof 1: Correct stop
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+Proof 2: Resume works out
+include/start_slave.inc
+connection master;
+connection slave;
+include/diff_tables.inc [master:t2,slave:t2]
+connection slave;
+include/stop_slave.inc
+SET GLOBAL max_relay_log_size=@old_max_relay_log_size;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+connection master;
+DROP TABLE t1, t2;
+connection slave;
+include/rpl_end.inc

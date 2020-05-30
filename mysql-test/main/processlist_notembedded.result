@@ -8,6 +8,9 @@ connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR in_sync';
 FOUND 1 /sleep/ in MDEV-20466.text
 SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+User
 disconnect con1;
+connection default;
 SET DEBUG_SYNC = 'RESET';
 End of 5.5 tests

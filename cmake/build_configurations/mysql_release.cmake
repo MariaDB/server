@@ -106,6 +106,7 @@ ELSEIF(DEB)
   SET(PLUGIN_AUTH_SOCKET YES CACHE STRING "")
 ELSE()
   SET(WITH_SSL bundled CACHE STRING "")
+  SET(WITH_PCRE bundled CACHE STRING "")
   SET(WITH_ZLIB bundled CACHE STRING "")
   SET(WITH_JEMALLOC static CACHE STRING "")
   SET(PLUGIN_AUTH_SOCKET STATIC CACHE STRING "")
@@ -141,7 +142,7 @@ IF(UNIX)
           RedHat/Fedora/Oracle Linux: yum install libaio-devel
           SuSE:                       zypper install libaio-devel
 
-        If you really do not want it, pass -DIGNORE_AIO_CHECK to cmake.
+          If you really do not want it, pass -DIGNORE_AIO_CHECK=ON to cmake.
         ")
       ENDIF()
 
