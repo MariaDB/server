@@ -673,3 +673,4 @@ delete from v1;
 ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 drop view v1;
 drop table t1;
+# End of 10.3 tests

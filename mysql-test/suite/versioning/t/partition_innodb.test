@@ -89,4 +89,6 @@ replace into t1 select * from t1;
 select * from t1 where i > 0 or pk = 1000 limit 1;
 drop table t1;
 
+--echo # End of 10.3 tests
+
 --source suite/versioning/common_finish.inc

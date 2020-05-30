@@ -635,4 +635,6 @@ delete from v1;
 drop view v1;
 drop table t1;
 
+--echo # End of 10.3 tests
+
 --source suite/versioning/common_finish.inc

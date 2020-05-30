@@ -77,3 +77,4 @@ select * from t1 where i > 0 or pk = 1000 limit 1;
 pk	i	c
 1	1	a
 drop table t1;
+# End of 10.3 tests
