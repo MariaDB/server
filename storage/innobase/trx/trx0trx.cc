@@ -451,13 +451,31 @@ void trx_free(trx_t*& trx)
 	ut_ad(trx->will_lock == 0);
 
 	trx_pools->mem_free(trx);
+	trx->read_view.mem_valid();
+#ifdef __SANITIZE_ADDRESS__
 	/* Unpoison the memory for innodb_monitor_set_option;
 	it is operating also on the freed transaction objects. */
 	MEM_UNDEFINED(&trx->mutex, sizeof trx->mutex);
-	/* Declare the contents as initialized for Valgrind;
-	we checked that it was initialized in trx_pools->mem_free(trx). */
+	/* For innobase_kill_connection() */
+# ifdef WITH_WSREP
+	MEM_UNDEFINED(&trx->wsrep, sizeof trx->wsrep);
+# endif
+	MEM_UNDEFINED(&trx->state, sizeof trx->state);
+	MEM_UNDEFINED(&trx->mysql_thd, sizeof trx->mysql_thd);
+#endif
+#ifdef HAVE_valgrind
+	/* Unpoison the memory for innodb_monitor_set_option;
+	it is operating also on the freed transaction objects.
+	We checked that these were initialized in
+	trx_pools->mem_free(trx). */
 	UNIV_MEM_VALID(&trx->mutex, sizeof trx->mutex);
-	trx->read_view.mem_valid();
+	/* For innobase_kill_connection() */
+# ifdef WITH_WSREP
+	UNIV_MEM_VALID(&trx->wsrep, sizeof trx->wsrep);
+# endif
+	UNIV_MEM_VALID(&trx->state, sizeof trx->state);
+	UNIV_MEM_VALID(&trx->mysql_thd, sizeof trx->mysql_thd);
+#endif
 
 	trx = NULL;
 }
@@ -1471,12 +1489,6 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   if (fts_trx)
     trx_finalize_for_fts(this, undo_no != 0);
 
-  trx_mutex_enter(this);
-  dict_operation= TRX_DICT_OP_NONE;
-
-  DBUG_LOG("trx", "Commit in memory: " << this);
-  state= TRX_STATE_NOT_STARTED;
-
 #ifdef WITH_WSREP
   /* Serialization history has been written and the transaction is
   committed in memory, which makes this commit ordered. Release commit
@@ -1488,6 +1500,11 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   }
   lock.was_chosen_as_wsrep_victim= false;
 #endif /* WITH_WSREP */
+  trx_mutex_enter(this);
+  dict_operation= TRX_DICT_OP_NONE;
+
+  DBUG_LOG("trx", "Commit in memory: " << this);
+  state= TRX_STATE_NOT_STARTED;
 
   assert_freed();
   trx_init(this);
@@ -2135,8 +2152,7 @@ int trx_recover_for_mysql(XID *xid_list, uint len)
   ut_ad(len);
 
   /* Fill xid_list with PREPARED transactions. */
-  trx_sys.rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
-                                      (trx_recover_for_mysql_callback), &arg);
+  trx_sys.rw_trx_hash.iterate_no_dups(trx_recover_for_mysql_callback, &arg);
   if (arg.count)
   {
     ib::info() << arg.count
@@ -2146,8 +2162,7 @@ int trx_recover_for_mysql(XID *xid_list, uint len)
     transactions twice, by first calling tc_log->open() and then
     ha_recover() directly. */
     if (arg.count <= len)
-      trx_sys.rw_trx_hash.iterate(reinterpret_cast<my_hash_walk_action>
-                                  (trx_recover_reset_callback), NULL);
+      trx_sys.rw_trx_hash.iterate(trx_recover_reset_callback);
   }
   return int(std::min(arg.count, len));
 }
@@ -2201,8 +2216,7 @@ trx_t* trx_get_trx_by_xid(const XID* xid)
   trx_get_trx_by_xid_callback_arg arg= { xid, 0 };
 
   if (xid)
-    trx_sys.rw_trx_hash.iterate(reinterpret_cast<my_hash_walk_action>
-                                (trx_get_trx_by_xid_callback), &arg);
+    trx_sys.rw_trx_hash.iterate(trx_get_trx_by_xid_callback, &arg);
   return arg.trx;
 }
 

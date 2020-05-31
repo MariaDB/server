@@ -29,7 +29,7 @@ Created 2013-03-16 Sunny Bains
 
 #include "mem0mem.h"
 #include "dyn0types.h"
-#include "intrusive_list.h"
+#include "ilist.h"
 
 
 /** Class that manages dynamic buffers. It uses a UT_LIST of
@@ -43,9 +43,9 @@ class mtr_buf_t {
 public:
 	/** SIZE - sizeof(m_node) + sizeof(m_used) */
 	enum { MAX_DATA_SIZE = DYN_ARRAY_DATA_SIZE
-	       - sizeof(intrusive::list_node<>) + sizeof(uint32_t) };
+	       - sizeof(ilist_node<>) + sizeof(uint32_t) };
 
-	class block_t : public intrusive::list_node<> {
+	class block_t : public ilist_node<> {
 	public:
 
 		block_t()
@@ -160,7 +160,7 @@ public:
 		friend class mtr_buf_t;
 	};
 
-	typedef intrusive::list<block_t> list_t;
+	typedef sized_ilist<block_t> list_t;
 
 	/** Default constructor */
 	mtr_buf_t()

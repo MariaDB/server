@@ -224,7 +224,8 @@ err:
 */
 
 static char *process_str_arg(CHARSET_INFO *cs, char *to, const char *end,
-                             size_t width, char *par, uint print_type)
+                             size_t width, char *par, uint print_type,
+                             my_bool nice_cut)
 {
   int well_formed_error;
   uint dots= 0;
@@ -232,23 +233,33 @@ static char *process_str_arg(CHARSET_INFO *cs, char *to, const char *end,
   if (!par)
     par = (char*) "(null)";
 
-  plen= slen= strnlen(par, width + 1);
-  if (plen > width)
-    plen= width;
-  if (left_len <= plen)
-    plen = left_len - 1;
-  if ((slen > plen))
+  if (nice_cut)
   {
-    if (plen < 3)
+    plen= slen= strnlen(par, width + 1);
+    if (plen > width)
+      plen= width;
+    if (left_len <= plen)
+      plen = left_len - 1;
+    if ((slen > plen))
     {
-      dots= (uint) plen;
-      plen= 0;
+      if (plen < 3)
+      {
+        dots= (uint) plen;
+        plen= 0;
+      }
+      else
+      {
+        dots= 3;
+        plen-= 3;
+      }
     }
-    else
-    {
-      dots= 3;
-      plen-= 3;
-    }
+  }
+  else
+  {
+    plen= slen= strnlen(par, width);
+    dots= 0;
+    if (left_len <= plen)
+      plen = left_len - 1;
   }
 
   plen= my_well_formed_length(cs, par, par + plen, width, &well_formed_error);
@@ -446,6 +457,7 @@ start:
       switch (args_arr[i].arg_type) {
       case 's':
       case 'b':
+      case 'T':
         args_arr[i].str_arg= va_arg(ap, char *);
         break;
       case 'f':
@@ -480,12 +492,14 @@ start:
       size_t width= 0, length= 0;
       switch (print_arr[i].arg_type) {
       case 's':
+      case 'T':
       {
         char *par= args_arr[print_arr[i].arg_idx].str_arg;
         width= (print_arr[i].flags & WIDTH_ARG)
           ? (size_t)args_arr[print_arr[i].width].longlong_arg
           : print_arr[i].width;
-        to= process_str_arg(cs, to, end, width, par, print_arr[i].flags);
+        to= process_str_arg(cs, to, end, width, par, print_arr[i].flags,
+                            (print_arr[i].arg_type == 'T'));
         break;
       }
       case 'b':
@@ -552,7 +566,7 @@ start:
           *to++= '"';
           my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
           to= process_str_arg(cs, to, real_end, width, errmsg_buff,
-                              print_arr[i].flags);
+                              print_arr[i].flags, 1);
           if (real_end > to) *to++= '"';
         }
         break;
@@ -676,10 +690,10 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
 
     fmt= check_longlong(fmt, &have_longlong);
 
-    if (*fmt == 's')				/* String parameter */
+    if (*fmt == 's' || *fmt == 'T')			/* String parameter */
     {
       reg2 char *par= va_arg(ap, char *);
-      to= process_str_arg(cs, to, end, width, par, print_type);
+      to= process_str_arg(cs, to, end, width, par, print_type, (*fmt == 'T'));
       continue;
     }
     else if (*fmt == 'b')				/* Buffer parameter */
@@ -731,7 +745,8 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
         *to++= ' ';
         *to++= '"';
         my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
-        to= process_str_arg(cs, to, real_end, width, errmsg_buff, print_type);
+        to= process_str_arg(cs, to, real_end, width, errmsg_buff,
+                            print_type, 1);
         if (real_end > to) *to++= '"';
       }
       continue;

@@ -1,0 +1,465 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/master-slave.inc
+# Format is restricted because the test expects a specific result of
+# relay-logging that splits a transaction into two different files.
+--source include/have_binlog_format_row.inc
+
+#
+# MDEV-15152 Optimistic parallel slave doesn't cope well with START SLAVE UNTIL
+#
+--connection slave
+--source include/stop_slave.inc
+RESET MASTER;
+RESET SLAVE;
+
+--connection master
+RESET MASTER;
+CREATE TABLE t1 (a int primary key, b text) ENGINE=InnoDB;
+--let $a0 = 25
+--eval INSERT INTO t1 SET a=$a0, b='trx0'
+# Memorize the position for replication restart from it
+--let $pos_trx0 = query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--connection slave
+--source include/start_slave.inc
+
+--connection master
+# --connection slave
+--sync_slave_with_master
+--source include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=2;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode='optimistic';
+
+# Run the slave in the following modes one by one.
+#
+# 1. the until position is set in the middle of trx2
+#    below $pos_trx0 of the last exec position in the first file
+# 2. and above $pos_trx0
+#    In either case trx2 must commit before slave stops.
+# 3. the until postion is inside trx1
+# 4. RELAY log until inside trx1
+# 5. RELAY log until inside a "big" trx
+# 6. RELAY log until inside a trx within a sequence of relay logs
+#
+# Execution flaw for Until_Master_Pos cases follows as:
+# create the transaction trx1, trx2
+# logged at the beginning of two subsequent binlog files.
+# Set the until position to at the middle of the 2rd transaction.
+# Engage the optimistic scheduler while having trx1 execution blocked.
+# Lift the block after trx2 has reached waiting its order to commit.
+# *Proof 1*
+#  Observe that the slave applier stops at a correct position.
+#   In the bug condition it would stop prematurely having the stop position
+#   in the first file, therefore trx2 not committed.
+# Specifically, an internal transaction position until makes the applier to run
+# beyond it to commit commit the current transaction.
+# *Proof 2*
+# Observe the following START SLAVE resumes OK.
+#
+# Auxiliary third trx3 on master is just for triggering the actual stop
+# (whihc is a legacy UNTIL's property).
+# trx0 is to produce a specific value of the last executed binlog file:pos
+# to emulate the bug condition.
+#
+# Intermediate checks via SELECT are supposed to succeed
+# with putting out value 1.
+#
+# NOTE: Relay log until tests have to use explicit log names and position
+# which may require to adjust with future changes to event formats etc.
+#
+
+--connection slave
+SET @old_max_relay_log_size = @@global.max_relay_log_size;
+SET @@global.max_relay_log_size=4096;
+
+--connection master
+# trx1
+--let $a=1
+BEGIN;
+while (`SELECT $a < $a0`)
+{
+  --eval INSERT INTO t1 SET a=$a, b='trx1'
+--inc $a
+}
+COMMIT;
+--let $fil_1    = query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pos_trx1 = query_get_value(SHOW MASTER STATUS, Position, 1)
+
+FLUSH LOGS;
+
+# $pos_0 the offset of the first event of trx2 in new file
+--let $pos_0=query_get_value(SHOW MASTER STATUS, Position, 1)
+# trx2
+--let $a=$a0
+BEGIN;
+--eval UPDATE t1 SET b='trx2_0' WHERE a = $a
+--eval UPDATE t1 SET b='trx2' WHERE a = $a
+COMMIT;
+--let $fil_2=query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pos_trx2=query_get_value(SHOW MASTER STATUS, Position, 1)
+
+# trx3
+--let $a=$a0
+--inc $a
+--eval INSERT INTO t1 SET a=$a,b='trx3'
+--let $pos_trx3=query_get_value(SHOW MASTER STATUS, Position, 1)
+--let $a=
+
+
+--echo *** case 1 UNTIL inside trx2
+
+--connection slave1
+# Blocker to hold off EXEC_MASTER_LOG_POS advance
+BEGIN;
+  --eval INSERT INTO t1 SET a= 1
+--connection slave
+--let $pos_until=`SELECT $pos_trx0 - 1`
+--replace_result $pos_0 <pos_0> $pos_until <pos_until> $pos_trx2 <pos_trx2>
+--eval SELECT $pos_0 <= $pos_until AND $pos_until < $pos_trx2 as "pos_until < trx0 and is within trx2"
+CHANGE MASTER TO MASTER_USE_GTID=no;
+--replace_result $fil_2 file_2 $pos_until <pos_until>
+--eval START SLAVE UNTIL MASTER_LOG_FILE = '$fil_2', MASTER_LOG_POS = $pos_until
+
+--let $wait_condition= SELECT COUNT(*) > 0 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+--connection slave1
+# unblock to see the slave applier stops at $until
+ROLLBACK;
+
+--echo Proof 1: Correct stop
+--connection slave
+--source include/wait_for_slave_sql_to_stop.inc
+--let $file_stop= query_get_value(SHOW SLAVE STATUS, Relay_Master_Log_File, 1)
+--let $pos_stop=  query_get_value(SHOW SLAVE STATUS, Exec_Master_Log_Pos, 1)
+if (`SELECT "$file_stop" != "$fil_2" OR $pos_stop < $pos_until`)
+{
+  --echo *** ERROR: Slave stopped at $file_stop:$pos_stop which is not $fil_2:$pos_until.
+  --die
+}
+--eval SELECT count(*) = 1 as 'trx2 is committed' FROM t1 WHERE b = 'trx2'
+--eval SELECT count(*) = 0 as 'trx3 is not committed' FROM t1 WHERE b = 'trx3'
+
+--echo Proof 2: Resume works out
+--source include/start_slave.inc
+--connection master
+--sync_slave_with_master
+
+
+--echo *** case 2 UNTIL inside trx2
+
+--connection slave
+--eval DELETE FROM t1 WHERE a <> $a0
+--eval UPDATE t1 SET b='trx0' WHERE a = $a0
+
+--connection slave1
+# Blocker to hold off EXEC_MASTER_LOG_POS advance
+BEGIN;
+  --eval INSERT INTO t1 SET a= 1
+
+--connection slave
+--source include/stop_slave.inc
+
+--let $pos_until=`SELECT $pos_trx2 - 1`
+--replace_result $pos_trx0 <pos_0> $pos_until <pos_until> $pos_trx2 <pos_trx2>
+--eval SELECT $pos_trx0 <= $pos_until AND $pos_until < $pos_trx2 as "pos_until >= trx0 and is within trx2"
+--replace_result $fil_1 file_1 $pos_trx0 <pos_trx0>
+--eval CHANGE MASTER TO MASTER_LOG_FILE = '$fil_1', MASTER_LOG_POS = $pos_trx0, MASTER_USE_GTID=no
+--replace_result  $fil_2 file_2 $pos_until <pos_until>
+--eval START SLAVE UNTIL MASTER_LOG_FILE = '$fil_2', MASTER_LOG_POS = $pos_until
+
+--let $wait_condition= SELECT COUNT(*) > 0 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+--connection slave1
+# unblock to see the slave applier stops at $until
+ROLLBACK;
+
+--echo Proof 1: Correct stop
+--connection slave
+--source include/wait_for_slave_sql_to_stop.inc
+--let $file_stop= query_get_value(SHOW SLAVE STATUS, Relay_Master_Log_File, 1)
+--let $pos_stop=  query_get_value(SHOW SLAVE STATUS, Exec_Master_Log_Pos, 1)
+if (`SELECT "$file_stop" != "$fil_2" OR $pos_stop < $pos_until`)
+{
+  --echo *** ERROR: Slave stopped at $file_stop:$pos_stop which is not $fil_2:$pos_until.
+  --die
+}
+--eval SELECT count(*) = 1 as 'trx2 is committed' FROM t1 WHERE b = 'trx2'
+--eval SELECT count(*) = 0 as 'trx3 is not committed' FROM t1 WHERE b = 'trx3'
+
+--echo Proof 2: Resume works out
+--source include/start_slave.inc
+--connection master
+--sync_slave_with_master
+
+
+--echo *** case 3 UNTIL inside trx1
+
+--connection slave
+--eval DELETE FROM t1 WHERE a <> $a0
+--eval UPDATE t1 SET b='trx0' WHERE a = $a0
+
+
+--connection slave1
+# Blocker to hold off EXEC_MASTER_LOG_POS advance
+BEGIN;
+  --eval INSERT INTO t1 SET a= 1; # block trx1
+
+--connection slave
+--source include/stop_slave.inc
+
+--let $pos_until=`SELECT $pos_0 - 1`
+--replace_result $pos_0 <pos_0> $pos_until <pos_until> $pos_trx2 <pos_trx2>
+--eval SELECT $pos_until < $pos_0 as "pos_until before trx2 start position"
+--replace_result $fil_1 file_1 $pos_trx0 <pos_trx0>
+--eval CHANGE MASTER TO MASTER_LOG_FILE = '$fil_1', MASTER_LOG_POS = $pos_trx0, MASTER_USE_GTID=no
+--replace_result  $fil_2 file_2 $pos_until <pos_until>
+--eval START SLAVE UNTIL MASTER_LOG_FILE = '$fil_2', MASTER_LOG_POS = $pos_until
+
+--connection slave1
+# unblock to see the slave applier stops at $until
+ROLLBACK;
+
+--echo Proof 1: Correct stop
+--connection slave
+--source include/wait_for_slave_sql_to_stop.inc
+--let $file_stop= query_get_value(SHOW SLAVE STATUS, Relay_Master_Log_File, 1)
+--let $pos_stop=  query_get_value(SHOW SLAVE STATUS, Exec_Master_Log_Pos, 1)
+if (`SELECT "$file_stop" != "$fil_2" OR $pos_stop < $pos_until`)
+{
+  --echo *** ERROR: Slave stopped at $file_stop:$pos_stop which is not $fil_2:$pos_until.
+  --die
+}
+--eval SELECT count(*) = $a0-1 as 'trx1 is committed' FROM t1 WHERE b = 'trx1'
+--eval SELECT count(*) = 0 as 'trx2 is not committed' FROM t1 WHERE b = 'trx2'
+
+--echo Proof 2: Resume works out
+--source include/start_slave.inc
+--connection master
+--sync_slave_with_master
+
+
+--echo *** case 4 Relay-log UNTIL inside trx1
+
+--connection slave
+--eval DELETE FROM t1 WHERE a <> $a0
+--eval UPDATE t1 SET b='trx0' WHERE a = $a0
+
+--connection slave1
+# Blocker to hold off EXEC_MASTER_LOG_POS advance
+BEGIN;
+  --eval INSERT INTO t1 SET a= 1; # block trx1
+
+--connection slave
+--source include/stop_slave.inc
+--replace_result $fil_1 file_1 $pos_trx0 <pos_trx0>
+--eval CHANGE MASTER TO MASTER_LOG_FILE = '$fil_1', MASTER_LOG_POS = $pos_trx0, MASTER_USE_GTID=no
+START SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_start.inc
+
+# The following test sets the stop coordinate is set to inside the first event
+# of a relay log that holds events of a transaction started in an earlier log.
+# Peek the stop position in the middle of trx1, not even on a event boundary.
+--let $pos_until=255
+--let $file_rl=slave-relay-bin.000003
+--let $binlog_file=$file_rl
+
+--let $pos_xid=508
+--let $info= query_get_value(SHOW RELAYLOG EVENTS IN '$file_rl' FROM $pos_xid LIMIT 1, Info, 1)
+
+if (`SELECT "$info" NOT LIKE "COMMIT /* xid=% */" OR $pos_xid < $pos_until`)
+{
+  --echo *** Unexpected offset. Refine it to point to the correct XID event!
+  --die
+}
+
+--replace_result  $file_rl file_2 $pos_until <pos_until>
+--eval START SLAVE UNTIL RELAY_LOG_FILE = '$file_rl', RELAY_LOG_POS = $pos_until
+
+--connection slave1
+# unblock to see the slave applier stops at $until
+ROLLBACK;
+
+--echo Proof 1: Correct stop
+--connection slave
+--source include/wait_for_slave_sql_to_stop.inc
+--let $file_stop= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1)
+--let $pos_stop=  query_get_value(SHOW SLAVE STATUS, Relay_Log_Pos, 1)
+if (`SELECT strcmp("$file_rl","$file_stop") > -1`)
+{
+  --echo *** ERROR: Slave stopped at $file_stop:$pos_stop which is not $file_rl:$pos_until.
+  --die
+}
+
+--eval SELECT count(*) = $a0-1 as 'trx1 is committed' FROM t1 WHERE b = 'trx1'
+--eval SELECT count(*) = 0 as 'trx2 is not committed' FROM t1 WHERE b = 'trx2'
+
+--echo Proof 2: Resume works out
+--source include/start_slave.inc
+--connection master
+--sync_slave_with_master
+
+
+
+--echo *** case 5 Relay-log UNTIL inside a "big" trx that spawns few relay logs
+
+--connection master
+CREATE TABLE t2 (a TEXT) ENGINE=InnoDB;
+FLUSH LOGS;
+
+--sync_slave_with_master
+--let $file_stop= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1)
+--let $pos_stop=  query_get_value(SHOW SLAVE STATUS, Relay_Log_Pos, 1)
+--let $records=`SELECT floor(4*@@global.max_relay_log_size / 1024) + 1`
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+# trx4
+BEGIN;
+--let $i=$records
+while ($i)
+{
+ INSERT INTO t2 SET a=repeat('a',1024);
+
+--dec $i
+}
+COMMIT;
+
+# slave will stop there:
+--let $file_trx4 = query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pos_trx4  = query_get_value(SHOW MASTER STATUS, Position, 1)
+
+# trx5
+INSERT INTO t2 SET a='a';
+--let $pos_trx5  = query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--connection slave
+START SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_start.inc
+
+# Set position inside the transaction though the value
+# specified is beyond that relay log file.
+# The coordianate may point to in a different event in future changes
+# but should not move away from inside this big group of events.
+# So we don't test which event in the transaction it points to.
+--let $pos_until= 4500
+--let $file_rl= slave-relay-bin.000010
+
+--replace_result  $file_rl file_2 $pos_until <pos_until>
+--eval START SLAVE UNTIL RELAY_LOG_FILE = '$file_rl', RELAY_LOG_POS = $pos_until
+
+--echo Proof 1: Correct stop
+--connection slave
+--source include/wait_for_slave_sql_to_stop.inc
+--let $file_stop= query_get_value(SHOW SLAVE STATUS, Relay_Master_Log_File, 1)
+--let $pos_stop=  query_get_value(SHOW SLAVE STATUS, Exec_Master_Log_Pos, 1)
+# It's showed the actual stop occurred before trx5
+if (`SELECT strcmp("$file_trx4", "$file_stop") <> 0 OR $pos_stop >= $pos_trx5 OR count(*) <> $records FROM t2`)
+{
+  --echo *** ERROR: Slave stopped at *binlog* $file_stop:$pos_stop which is not $file_trx4:$pos_trx4.
+  --die
+}
+
+--echo Proof 2: Resume works out
+--source include/start_slave.inc
+--connection master
+--sync_slave_with_master
+
+--let $diff_tables=master:t2,slave:t2
+--source include/diff_tables.inc
+
+
+
+--echo *** case 6 Relay-log UNTIL inside a small trx inside a sequence of relay logs
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+# trx6
+--let $records=`SELECT count(*) FROM t2`
+while ($records)
+{
+  BEGIN;
+    DELETE FROM t2 LIMIT 1;
+  COMMIT;
+--dec $records
+}
+COMMIT;
+
+--connection slave
+START SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_start.inc
+
+--connection master
+--source include/sync_slave_io_with_master.inc
+
+--connection slave
+# The relay-log coordinate is not at an event boundary and
+# also may change across the server version.
+# The test makes its best to check its coherance.
+--let $pos_until= 3130
+--let $file_rl= slave-relay-bin.000018
+
+--let $pos_gtid = 2987
+--let $info= query_get_value(SHOW RELAYLOG EVENTS IN '$file_rl' FROM $pos_gtid LIMIT 1, Info, 1)
+
+if (`SELECT "$info" != "BEGIN GTID 0-1-23"`)
+{
+  --echo *** Unexpected offset. Refine it to point to the correct GTID!
+  --die
+}
+--let $pos_event = 3120
+--let $type= query_get_value(SHOW RELAYLOG EVENTS IN '$file_rl' FROM $pos_event LIMIT 1, Event_type, 1)
+if (`SELECT "$type" != "Delete_rows_v1"`)
+{
+  --echo *** Unexpected offset. Refine it to point to the expected event!
+  --die
+}
+
+--replace_result  $file_rl file_2 $pos_until <pos_until>
+--eval START SLAVE UNTIL RELAY_LOG_FILE = '$file_rl', RELAY_LOG_POS = $pos_until
+
+--echo Proof 1: Correct stop
+--connection slave
+--source include/wait_for_slave_sql_to_stop.inc
+--let $file_stop= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1)
+--let $pos_stop=  query_get_value(SHOW SLAVE STATUS, Relay_Log_Pos, 1)
+if (`SELECT strcmp("$file_stop", "$file_rl") = -1 OR
+            strcmp("$file_stop", "$file_rl") =  0 AND $pos_stop < $pos_until`)
+{
+  --echo *** ERROR: Slave stopped at *relay* $file_stop:$pos_stop which is not $file_rl:$pos_until.
+  --die
+}
+
+--echo Proof 2: Resume works out
+--source include/start_slave.inc
+--connection master
+--sync_slave_with_master
+
+--let $diff_tables=master:t2,slave:t2
+--source include/diff_tables.inc
+
+#
+# Clean up.
+#
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL max_relay_log_size=@old_max_relay_log_size;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1, t2;
+
+--sync_slave_with_master
+--source include/rpl_end.inc

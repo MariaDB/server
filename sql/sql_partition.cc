@@ -4936,7 +4936,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         {
           *fast_alter_table= true;
           /* Force table re-open for consistency with the main case. */
-          table->m_needs_reopen= true;
+          table->mark_table_for_reopen();
         }
         else
         {
@@ -4984,7 +4984,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         must be reopened.
       */
       *fast_alter_table= true;
-      table->m_needs_reopen= true;
+      table->mark_table_for_reopen();
     }
     else
     {
@@ -5885,6 +5885,37 @@ the generated partition syntax in a correct manner.
           *partition_changed= TRUE;
         }
       }
+      /*
+        Prohibit inplace when partitioned by primary key and the primary key is changed.
+      */
+      if (!*partition_changed &&
+          tab_part_info->part_field_array &&
+          !tab_part_info->part_field_list.elements &&
+          table->s->primary_key != MAX_KEY)
+      {
+
+        if (alter_info->flags & (ALTER_DROP_SYSTEM_VERSIONING |
+                                 ALTER_ADD_SYSTEM_VERSIONING))
+        {
+          *partition_changed= true;
+        }
+        else
+        {
+          KEY *primary_key= table->key_info + table->s->primary_key;
+          List_iterator_fast<Alter_drop> drop_it(alter_info->drop_list);
+          const char *primary_name= primary_key->name.str;
+          const Alter_drop *drop;
+          drop_it.rewind();
+          while ((drop= drop_it++))
+          {
+            if (drop->type == Alter_drop::KEY &&
+                0 == my_strcasecmp(system_charset_info, primary_name, drop->name))
+              break;
+          }
+          if (drop)
+            *partition_changed= TRUE;
+        }
+      }
     }
     if (thd->work_part_info)
     {
@@ -5917,23 +5948,6 @@ the generated partition syntax in a correct manner.
         }
       }
 
-      // In case of PARTITION BY KEY(), check if primary key has changed
-      // System versioning also implicitly adds/removes primary key parts
-      if (alter_info->partition_flags == 0 && part_info->list_of_part_fields
-          && part_info->part_field_list.elements == 0)
-      {
-        if (alter_info->flags & (ALTER_DROP_SYSTEM_VERSIONING |
-                                 ALTER_ADD_SYSTEM_VERSIONING))
-          *partition_changed= true;
-
-        List_iterator<Key> it(alter_info->key_list);
-        Key *key;
-        while((key= it++) && !*partition_changed)
-        {
-          if (key->type == Key::PRIMARY)
-            *partition_changed= true;
-        }
-      }
       /*
         Set up partition default_engine_type either from the create_info
         or from the previus table
@@ -6834,7 +6848,7 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
   partition_info *part_info= lpt->part_info->get_clone(thd);
   TABLE *table= lpt->table;
   DBUG_ENTER("handle_alter_part_error");
-  DBUG_ASSERT(table->m_needs_reopen);
+  DBUG_ASSERT(table->needs_reopen());
 
   /*
     All instances of this table needs to be closed.
@@ -7050,7 +7064,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   /* option_bits is used to mark if we should log the query with IF EXISTS */
   ulonglong save_option_bits= thd->variables.option_bits;
   DBUG_ENTER("fast_alter_partition_table");
-  DBUG_ASSERT(table->m_needs_reopen);
+  DBUG_ASSERT(table->needs_reopen());
 
   part_info= table->part_info;
   lpt->thd= thd;

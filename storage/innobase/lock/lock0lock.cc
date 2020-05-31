@@ -5156,8 +5156,7 @@ lock_validate()
 	lock_mutex_enter();
 
 	/* Validate table locks */
-	trx_sys.rw_trx_hash.iterate(reinterpret_cast<my_hash_walk_action>
-				    (lock_validate_table_locks), 0);
+	trx_sys.rw_trx_hash.iterate(lock_validate_table_locks);
 
 	/* Iterate over all the record locks and validate the locks. We
 	don't want to hog the lock_sys_t::mutex. Release it during the
@@ -5451,9 +5450,7 @@ static void lock_rec_other_trx_holds_expl(trx_t *caller_trx, trx_t *trx,
     lock_rec_other_trx_holds_expl_arg arg= { page_rec_get_heap_no(rec), block,
                                              trx };
     trx_sys.rw_trx_hash.iterate(caller_trx,
-                                reinterpret_cast<my_hash_walk_action>
-                                (lock_rec_other_trx_holds_expl_callback),
-                                &arg);
+                                lock_rec_other_trx_holds_expl_callback, &arg);
     lock_mutex_exit();
   }
 }
@@ -6232,10 +6229,7 @@ lock_table_has_locks(
 
 #ifdef UNIV_DEBUG
 	if (!has_locks) {
-		trx_sys.rw_trx_hash.iterate(
-			reinterpret_cast<my_hash_walk_action>
-			(lock_table_locks_lookup),
-			const_cast<dict_table_t*>(table));
+		trx_sys.rw_trx_hash.iterate(lock_table_locks_lookup, table);
 	}
 #endif /* UNIV_DEBUG */
 

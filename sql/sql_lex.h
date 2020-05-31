@@ -3864,6 +3864,21 @@ public:
                                                    const Column_definition &ref,
                                                    Row_definition_list *fields,
                                                    Item *def);
+
+  LEX_USER *current_user_for_set_password(THD *thd);
+  bool sp_create_set_password_instr(THD *thd,
+                                    LEX_USER *user,
+                                    USER_AUTH *auth,
+                                    bool no_lookahead);
+  bool sp_create_set_password_instr(THD *thd,
+                                    USER_AUTH *auth,
+                                    bool no_lookahead)
+  {
+    LEX_USER *user;
+    return !(user= current_user_for_set_password(thd)) ||
+           sp_create_set_password_instr(thd, user, auth, no_lookahead);
+  }
+
   bool sp_handler_declaration_init(THD *thd, int type);
   bool sp_handler_declaration_finalize(THD *thd, int type);
 

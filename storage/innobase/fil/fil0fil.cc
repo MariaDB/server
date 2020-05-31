@@ -613,7 +613,7 @@ static void fil_flush_low(fil_space_t* space, bool metadata = false)
 	if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC) {
 		/* No need to flush. User has explicitly disabled
 		buffering. */
-		ut_ad(!space->is_in_unflushed_spaces());
+		ut_ad(!space->is_in_unflushed_spaces);
 		ut_ad(fil_space_is_flushed(space));
 		ut_ad(space->n_pending_flushes == 0);
 
@@ -666,10 +666,11 @@ static void fil_flush_low(fil_space_t* space, bool metadata = false)
 skip_flush:
 #endif /* _WIN32 */
 		if (!node->needs_flush) {
-			if (space->is_in_unflushed_spaces()
+			if (space->is_in_unflushed_spaces
 			    && fil_space_is_flushed(space)) {
 
 				fil_system.unflushed_spaces.remove(*space);
+				space->is_in_unflushed_spaces = false;
 			}
 		}
 
@@ -924,9 +925,10 @@ inline void fil_node_t::close_to_free()
 
   while (is_open())
   {
-    if (space->is_in_unflushed_spaces())
+    if (space->is_in_unflushed_spaces)
     {
       ut_ad(srv_file_flush_method != SRV_O_DIRECT_NO_FSYNC);
+      space->is_in_unflushed_spaces= false;
       fil_system.unflushed_spaces.remove(*space);
     }
 
@@ -940,11 +942,14 @@ inline void fil_node_t::close_to_free()
 
     if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)
     {
-      ut_ad(!space->is_in_unflushed_spaces());
+      ut_ad(!space->is_in_unflushed_spaces);
       ut_ad(fil_space_is_flushed(space));
     }
-    else if (space->is_in_unflushed_spaces() && fil_space_is_flushed(space))
+    else if (space->is_in_unflushed_spaces && fil_space_is_flushed(space))
+    {
+      space->is_in_unflushed_spaces= false;
       fil_system.unflushed_spaces.remove(*space);
+    }
 
     if (fil_space_belongs_in_lru(space))
     {
@@ -966,14 +971,18 @@ inline void fil_system_t::detach(fil_space_t *space)
   ut_ad(mutex_own(&fil_system.mutex));
   HASH_DELETE(fil_space_t, hash, spaces, space->id, space);
 
-  if (space->is_in_unflushed_spaces())
+  if (space->is_in_unflushed_spaces)
   {
     ut_ad(srv_file_flush_method != SRV_O_DIRECT_NO_FSYNC);
+    space->is_in_unflushed_spaces= false;
     unflushed_spaces.remove(*space);
   }
 
-  if (space->is_in_rotation_list())
+  if (space->is_in_rotation_list)
+  {
+    space->is_in_rotation_list= false;
     rotation_list.remove(*space);
+  }
   UT_LIST_REMOVE(space_list, space);
   if (space == sys_space)
     sys_space= nullptr;
@@ -1189,6 +1198,7 @@ fil_space_create(
 		/* Key rotation is not enabled, need to inform background
 		encryption threads. */
 		fil_system.rotation_list.push_back(*space);
+		space->is_in_rotation_list = true;
 		mutex_exit(&fil_system.mutex);
 		os_event_set(fil_crypt_threads_event);
 	} else {
@@ -4067,7 +4077,7 @@ void fil_flush_file_spaces()
 
 	n_space_ids = 0;
 
-	for (intrusive::list<fil_space_t, unflushed_spaces_tag_t>::iterator it
+	for (sized_ilist<fil_space_t, unflushed_spaces_tag_t>::iterator it
 	     = fil_system.unflushed_spaces.begin(),
 	     end = fil_system.unflushed_spaces.end();
 	     it != end; ++it) {
@@ -4454,7 +4464,8 @@ fil_space_remove_from_keyrotation(fil_space_t* space)
 	ut_ad(mutex_own(&fil_system.mutex));
 	ut_ad(space);
 
-	if (!space->referenced() && space->is_in_rotation_list()) {
+	if (!space->referenced() && space->is_in_rotation_list) {
+		space->is_in_rotation_list = false;
 		ut_a(!fil_system.rotation_list.empty());
 		fil_system.rotation_list.remove(*space);
 	}
@@ -4484,8 +4495,8 @@ fil_space_t *fil_system_t::keyrotate_next(fil_space_t *prev_space,
   don't remove the last processed tablespace from the rotation list. */
   const bool remove= (!recheck || prev_space->crypt_data) &&
                      !key_version == !srv_encrypt_tables;
-  intrusive::list<fil_space_t, rotation_list_tag_t>::iterator it=
-      prev_space == NULL ? fil_system.rotation_list.end() : prev_space;
+  sized_ilist<fil_space_t, rotation_list_tag_t>::iterator it=
+    prev_space ? prev_space : fil_system.rotation_list.end();
 
   if (it == fil_system.rotation_list.end())
     it= fil_system.rotation_list.begin();
@@ -4561,25 +4572,4 @@ fil_space_found_by_id(
 
 	mutex_exit(&fil_system.mutex);
 	return space;
-}
-
-/** Checks that this tablespace in a list of unflushed tablespaces.
-@return true if in a list */
-bool fil_space_t::is_in_unflushed_spaces() const
-{
-  ut_ad(mutex_own(&fil_system.mutex));
-
-  return static_cast<const intrusive::list_node<unflushed_spaces_tag_t> *>(
-             this)
-      ->next;
-}
-
-/** Checks that this tablespace needs key rotation.
-@return true if in a rotation list */
-bool fil_space_t::is_in_rotation_list() const
-{
-  ut_ad(mutex_own(&fil_system.mutex));
-
-  return static_cast<const intrusive::list_node<rotation_list_tag_t> *>(this)
-      ->next;
 }

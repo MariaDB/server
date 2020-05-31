@@ -4355,12 +4355,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
          rli->until_condition == Relay_log_info::UNTIL_RELAY_POS) &&
         (ev->server_id != global_system_variables.server_id ||
          rli->replicate_same_server_id) &&
-        rli->is_until_satisfied((rli->get_flag(Relay_log_info::IN_TRANSACTION) || !ev->log_pos)
-                                ? rli->group_master_log_pos
-                                : ev->log_pos - ev->data_written))
+        rli->is_until_satisfied(ev))
     {
-      sql_print_information("Slave SQL thread stopped because it reached its"
-                            " UNTIL position %llu", rli->until_pos());
       /*
         Setting abort_slave flag because we do not want additional
         message about error in query execution to be printed.
@@ -5607,10 +5603,14 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   if ((rli->until_condition == Relay_log_info::UNTIL_MASTER_POS ||
        rli->until_condition == Relay_log_info::UNTIL_RELAY_POS) &&
-      rli->is_until_satisfied(rli->group_master_log_pos))
+      rli->is_until_satisfied(NULL))
   {
     sql_print_information("Slave SQL thread stopped because it reached its"
-                          " UNTIL position %llu", rli->until_pos());
+                          " UNTIL position %llu in %s %s file",
+                          rli->until_pos(), rli->until_name(),
+                          rli->until_condition ==
+                          Relay_log_info::UNTIL_MASTER_POS ?
+                          "binlog" : "relaylog");
     mysql_mutex_unlock(&rli->data_lock);
     goto err;
   }
@@ -5689,7 +5689,24 @@ pthread_handler_t handle_slave_sql(void *arg)
  err:
   if (mi->using_parallel())
     rli->parallel.wait_for_done(thd, rli);
+  /* Gtid_list_log_event::do_apply_event has already reported the GTID until */
+  if (rli->stop_for_until && rli->until_condition != Relay_log_info::UNTIL_GTID)
+  {
+    if (global_system_variables.log_warnings > 2)
+      sql_print_information("Slave SQL thread UNTIL stop was requested at position "
+                            "%llu in %s %s file",
+                            rli->until_log_pos, rli->until_log_name,
+                            rli->until_condition ==
+                            Relay_log_info::UNTIL_MASTER_POS ?
+                            "binlog" : "relaylog");
+    sql_print_information("Slave SQL thread stopped because it reached its"
+                          " UNTIL position %llu in %s %s file",
+                          rli->until_pos(), rli->until_name(),
+                          rli->until_condition ==
+                          Relay_log_info::UNTIL_MASTER_POS ?
+                          "binlog" : "relaylog");
 
+  };
   /* Thread stopped. Print the current replication position to the log */
   {
     StringBuffer<100> tmp;

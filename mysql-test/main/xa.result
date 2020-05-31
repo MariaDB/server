@@ -403,6 +403,22 @@ XA ROLLBACK 'xid1';
 #
 XA START 'gtrid', 'bqual', 0x80000000;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '0x80000000' at line 1
+XA BEGIN 'xid';
+CREATE TEMPORARY SEQUENCE s;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+XA END 'xid';
+XA ROLLBACK 'xid';
+XA BEGIN 'xid';
+CREATE SEQUENCE s;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+XA END 'xid';
+XA ROLLBACK 'xid';
+#
+# End of 10.3 tests
+#
+#
+# Start of 10.5 tests
+#
 # MDEV-7974 related
 # Check XA state when lock_wait_timeout happens
 # More tests added to flush_read_lock.test
@@ -461,3 +477,6 @@ formatID	gtrid_length	bqual_length	data
 drop table asd;
 disconnect con_tmp;
 connection default;
+#
+# End of 10.5 tests
+#

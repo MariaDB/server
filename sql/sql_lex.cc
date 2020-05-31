@@ -11393,3 +11393,36 @@ bool LEX::stmt_revoke_proxy(THD *thd, LEX_USER *user)
   return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_proxy(sql_command,
                                                               NO_ACL));
 }
+
+
+LEX_USER *LEX::current_user_for_set_password(THD *thd)
+{
+  LEX_CSTRING pw= { STRING_WITH_LEN("password") };
+  if (unlikely(spcont && spcont->find_variable(&pw, false)))
+  {
+    my_error(ER_SP_BAD_VAR_SHADOW, MYF(0), pw.str);
+    return NULL;
+  }
+  LEX_USER *res;
+  if (unlikely(!(res= (LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
+    return NULL;
+  res->user= current_user;
+  return res;
+}
+
+
+bool LEX::sp_create_set_password_instr(THD *thd,
+                                       LEX_USER *user,
+                                       USER_AUTH *auth,
+                                       bool no_lookahead)
+{
+  user->auth= auth;
+  set_var_password *var= new (thd->mem_root) set_var_password(user);
+  if (unlikely(var == NULL) ||
+      unlikely(var_list.push_back(var, thd->mem_root)))
+    return true;
+  autocommit= true;
+  if (sphead)
+    sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
+  return sp_create_assignment_instr(thd, no_lookahead);
+}

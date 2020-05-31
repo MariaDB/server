@@ -544,6 +544,37 @@ XA START 'gtrid', 'bqual', 0x80000000;
 
 --source include/wait_until_count_sessions.inc
 
+#
+# MDEV-22002 Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())'
+# failed upon CREATE TEMPORARY SEQUENCE under XA
+#
+
+XA BEGIN 'xid';
+
+--error ER_XAER_RMFAIL
+CREATE TEMPORARY SEQUENCE s;
+
+XA END 'xid';
+
+XA ROLLBACK 'xid';
+
+XA BEGIN 'xid';
+
+--error ER_XAER_RMFAIL
+CREATE SEQUENCE s;
+
+XA END 'xid';
+
+XA ROLLBACK 'xid';
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
 --echo # MDEV-7974 related
 --echo # Check XA state when lock_wait_timeout happens
 --echo # More tests added to flush_read_lock.test
@@ -590,3 +621,7 @@ drop table asd;
 disconnect con_tmp;
 --source include/wait_until_disconnected.inc
 connection default;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

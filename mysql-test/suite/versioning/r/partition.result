@@ -1021,6 +1021,88 @@ insert into t2 values (0), (2);
 update t1 left join t2 on a > b set b= 2 order by b;
 drop table t1, t2;
 #
+# MDEV-17091 Assertion `old_part_id == m_last_part' failed in
+# ha_partition::update_row or `part_id == m_last_part' in
+# ha_partition::delete_row upon UPDATE/DELETE after dropping versioning
+#
+create or replace table t1 (pk int primary key, f int) engine=innodb
+with system versioning
+partition by key() partitions 2;
+insert into t1 values (1,10),(2,20);
+# expected to hit same partition
+select * from t1 partition (p0);
+pk	f
+1	10
+2	20
+alter table t1 drop system versioning;
+# 1 and 2 are expected to be in different partitions
+select * from t1 partition(p0);
+pk	f
+1	10
+select * from t1 partition(p1);
+pk	f
+2	20
+update t1 set f=pk;
+delete from t1;
+drop table t1;
+#
+# MDEV-22413 Server hangs upon UPDATE/DELETE on a view reading from versioned partitioned table
+#
+create or replace table t1 (f char(6)) engine innodb with system versioning;
+insert into t1 values (null);
+update t1 set f= 'foo';
+update t1 set f= 'bar';
+create or replace view v1 as select * from t1 for system_time all;
+update v1 set f = '';
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+create or replace table t1 (f char(6)) engine innodb with system versioning
+partition by system_time limit 1
+(partition p1 history, partition p2 history, partition pn current);
+insert into t1 values (null);
+update t1 set f= 'foo';
+update t1 set f= 'bar';
+create or replace view v1 as select * from t1 for system_time all;
+update v1 set f= '';
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+delete from v1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+drop view v1;
+drop table t1;
+# End of 10.3 tests
+#
+# MDEV-22283 Server crashes in key_copy or unexpected error 156: The table already existed in the storage engine
+#
+create table t1 (a int primary key) engine=aria page_checksum=0
+with system versioning
+partition by system_time (partition p1 history, partition pn current);
+alter table t1 add partition (partition p2 history);
+Warnings:
+Warning	4115	Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
+show table status;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Got error 174 "Fatal error during initialization of handler" from storage engine Aria	NULL	NULL
+Warnings:
+Warning	1030	Got error 174 "Fatal error during initialization of handler" from storage engine Aria
+drop table t1;
+create table t1 (b int) engine=aria row_format=dynamic with system versioning
+partition by system_time (partition p1 history, partition pn current);
+insert into t1 values (1);
+replace into t1 values (1);
+drop table t1;
+#
+# MDEV-18794 Assertion `!m_innodb' failed in ha_partition::cmp_ref upon SELECT from partitioned table
+#
+create or replace table t1 (pk int auto_increment, i int, c char(1), primary key (pk), key(i))
+engine=innodb with system versioning partition by key() partitions 2;
+insert into t1 (i, c) values (1, 'a'), (2, 'b'), (null, 'c'), (null, 'b');
+alter table t1 drop system versioning;
+replace into t1 select * from t1;
+select * from t1 where i > 0 or pk = 1000 limit 1;
+pk	i	c
+1	1	a
+drop table t1;
+# End of 10.4 tests
+#
 # MDEV-22153 ALTER add default history partitions makes table inaccessible
 #
 create or replace table t1 (x int) with system versioning partition by system_time;
@@ -1055,31 +1137,6 @@ t1	CREATE TABLE `t1` (
  PARTITION BY SYSTEM_TIME 
 PARTITIONS 8
 drop tables t1;
-#
-# MDEV-17091 Assertion `old_part_id == m_last_part' failed in
-# ha_partition::update_row or `part_id == m_last_part' in
-# ha_partition::delete_row upon UPDATE/DELETE after dropping versioning
-#
-create or replace table t1 (pk int primary key, f int) engine=innodb
-with system versioning
-partition by key() partitions 2;
-insert into t1 values (1,10),(2,20);
-# expected to hit same partition
-select * from t1 partition (p0);
-pk	f
-1	10
-2	20
-alter table t1 drop system versioning;
-# 1 and 2 are expected to be in different partitions
-select * from t1 partition(p0);
-pk	f
-1	10
-select * from t1 partition(p1);
-pk	f
-2	20
-update t1 set f=pk;
-delete from t1;
-drop table t1;
 #
 # MDEV-22207 Drop default history partitions renders table inaccessible
 #
@@ -1149,3 +1206,6 @@ t1	CREATE TABLE `t1` (
  PARTITION `p16` HISTORY ENGINE = DEFAULT_ENGINE,
  PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
 drop tables t1;
+#
+# End of 10.5 tests
+#

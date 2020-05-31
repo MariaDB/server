@@ -788,6 +788,7 @@ static ha_checksum checksum_format_specifier(const char* msg)
       case 'x':
       case 's':
       case 'M':
+      case 'T':
         start= 0; /* Not in format specifier anymore */
         break;
       }
