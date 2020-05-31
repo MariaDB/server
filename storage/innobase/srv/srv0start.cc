@@ -947,6 +947,8 @@ srv_init_abort_low(
 #endif /* UNIV_DEBUG */
 	dberr_t		err)
 {
+	ut_ad(srv_is_being_started);
+
 	if (create_new_db) {
 		ib::error() << "Database creation was aborted"
 #ifdef UNIV_DEBUG

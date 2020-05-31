@@ -1586,13 +1586,14 @@ void buf_pool_t::close()
     prev_bpage= UT_LIST_GET_PREV(LRU, bpage);
     ut_ad(bpage->in_file());
     ut_ad(bpage->in_LRU_list);
+    /* The buffer pool must be clean during normal shutdown.
+    Only on aborted startup (with recovery) or with innodb_fast_shutdown=2
+    we may discard changes. */
+    ut_ad(!bpage->oldest_modification() || srv_is_being_started ||
+          srv_fast_shutdown == 2);
 
     if (bpage->state() != BUF_BLOCK_FILE_PAGE)
-    {
-      /* We must not have any dirty block except during a fast shutdown. */
-      ut_ad(!bpage->oldest_modification() || srv_fast_shutdown == 2);
       buf_page_free_descriptor(bpage);
-    }
   }
 
   for (auto chunk= chunks + n_chunks; --chunk >= chunks; )
@@ -4025,6 +4026,7 @@ void buf_pool_t::corrupted_evict(buf_page_t *bpage)
   rw_lock_x_lock(hash_lock);
 
   ut_ad(bpage->io_fix() == BUF_IO_READ);
+  ut_ad(!bpage->oldest_modification());
   bpage->set_corrupt_id();
   bpage->io_unfix();
 
