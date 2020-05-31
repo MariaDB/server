@@ -318,7 +318,7 @@ ENDIF(CONNECT_WITH_MONGO)
 OPTION(CONNECT_WITH_REST "Compile CONNECT storage engine with REST support" ON)
 
 IF(CONNECT_WITH_REST)
-  MESSAGE(STATUS "=====> REST support is ON")
+  MESSAGE_ONCE(CONNECT_WITH_REST "REST support is ON")
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp tabrest.h)
   add_definitions(-DREST_SUPPORT)
   FIND_PACKAGE(cpprestsdk QUIET)
