@@ -2111,6 +2111,16 @@ update person_principal set date_mask = 0;
 alter table person_principal modify column date_mask tinyint not null;
 drop tables person_principal_hist, person_principal;
 
+#
+# The following ALTER TABLE caused crash in 10.4.13 (Reported on freenode)
+#
+
+CREATE OR REPLACE TABLE `t1` (   `id` varchar(64) NOT NULL,   `name` varchar(255) NOT NULL,   `extra` text DEFAULT NULL,   `password` varchar(128) DEFAULT NULL,   `enabled` tinyint(1) DEFAULT NULL,   `domain_id` varchar(64) NOT NULL,   `default_project_id` varchar(64) DEFAULT NULL,   PRIMARY KEY (`id`),  CONSTRAINT `CONSTRAINT_1` CHECK (`enabled` in (0,1)) ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+insert into t1 (id,name,enabled,domain_id) values (1,"Monty",1,"domain_id");
+insert into t1 (id,name,enabled,domain_id) values (2,"Monty2",1,"domain_id2");
+ALTER TABLE t1 ADD CONSTRAINT ixu_user2_name_domain_id UNIQUE (domain_id, name);
+DROP TABLE t1;
+
 --echo #
 --echo # End of 10.4 tests
 --echo #
@@ -2506,3 +2516,7 @@ alter table if exists t9 rename t1;
 alter table if exists t1 rename t2;
 show create table t2;
 drop table t2;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

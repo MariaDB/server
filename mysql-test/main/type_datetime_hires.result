@@ -889,5 +889,16 @@ Warning	1411	Incorrect date value: '0000-02-28' for function round(datetime)
 Warning	1411	Incorrect date value: '0000-12-31' for function round(datetime)
 DROP TABLE t1;
 #
+# MDEV-20984 Possibly wrong result or Assertion `args[0]->type_handler()->mysql_timestamp_type() == MYSQL_TIMESTAMP_DATETIME' failed in Item_func_round::date_op
+#
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES ('1979-01-03 10:33:32'),('2012-12-12 12:12:12');
+SELECT ROUND(a) AS f FROM t1 GROUP BY a WITH ROLLUP;
+f
+1979-01-03 10:33:32
+2012-12-12 12:12:12
+NULL
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #

@@ -1951,20 +1951,23 @@ private:
   TABLE_LIST *m_locked_tables;
   TABLE_LIST **m_locked_tables_last;
   /** An auxiliary array used only in reopen_tables(). */
-  TABLE **m_reopen_array;
+  TABLE_LIST **m_reopen_array;
   /**
     Count the number of tables in m_locked_tables list. We can't
     rely on thd->lock->table_count because it excludes
     non-transactional temporary tables. We need to know
     an exact number of TABLE objects.
   */
-  size_t m_locked_tables_count;
+  uint m_locked_tables_count;
 public:
+  bool some_table_marked_for_reopen;
+
   Locked_tables_list()
     :m_locked_tables(NULL),
     m_locked_tables_last(&m_locked_tables),
     m_reopen_array(NULL),
-    m_locked_tables_count(0)
+    m_locked_tables_count(0),
+    some_table_marked_for_reopen(0)
   {
     init_sql_alloc(key_memory_locked_table_list, &m_locked_tables_root,
                    MEM_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
@@ -1987,6 +1990,7 @@ public:
   bool restore_lock(THD *thd, TABLE_LIST *dst_table_list, TABLE *table,
                     MYSQL_LOCK *lock);
   void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
+  void mark_table_for_reopen(THD *thd, TABLE *table);
 };
 
 
@@ -4146,7 +4150,8 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        if (likely((killed_err= (err_info*) alloc(sizeof(*killed_err)))))
+        killed_err= (err_info*) alloc_root(&main_mem_root, sizeof(*killed_err));
+        if (likely(killed_err))
         {
           killed_err->no= killed_errno_arg;
           ::strmake((char*) killed_err->msg, killed_err_msg_arg,

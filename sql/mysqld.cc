@@ -327,7 +327,6 @@ static bool lower_case_table_names_used= 0;
 static bool volatile select_thread_in_use, signal_thread_in_use;
 static my_bool opt_debugging= 0, opt_external_locking= 0, opt_console= 0;
 static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
-bool my_disable_leak_check= false;
 
 ulong max_used_connections;
 static char *mysqld_user, *mysqld_chroot;

@@ -1699,7 +1699,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
   {
     tl->table->use_all_columns();
     /* Force close at the end of the function to free memory. */
-    tl->table->m_needs_reopen= TRUE;
+    tl->table->mark_table_for_reopen();
   }
 
   /*

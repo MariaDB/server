@@ -3679,9 +3679,11 @@ public:
   Field *result_field;
   Item_null_result(THD *thd): Item_null(thd), result_field(0) {}
   bool is_result_field() { return result_field != 0; }
-  enum_field_types field_type() const
+  const Type_handler *type_handler() const
   {
-    return result_field->type();
+    if (result_field)
+      return result_field->type_handler();
+    return &type_handler_null;
   }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)

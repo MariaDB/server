@@ -1178,19 +1178,15 @@ row_log_table_get_pk_col(
 			return(DB_INVALID_NULL);
 		}
 
-		ulint new_i = dict_col_get_clust_pos(ifield->col, index);
-
-		if (UNIV_UNLIKELY(new_i >= log->defaults->n_fields)) {
-			ut_ad(0);
-			return DB_INVALID_NULL;
-		}
+		unsigned col_no= ifield->col->ind;
+		ut_ad(col_no < log->defaults->n_fields);
 
 		field = static_cast<const byte*>(
-			log->defaults->fields[new_i].data);
+			log->defaults->fields[col_no].data);
 		if (!field) {
 			return(DB_INVALID_NULL);
 		}
-		len = log->defaults->fields[new_i].len;
+		len = log->defaults->fields[col_no].len;
 	}
 
 	if (rec_offs_nth_extern(offsets, i)) {
@@ -1672,10 +1668,12 @@ blob_done:
 
 			const dfield_t& default_field
 				= log->defaults->fields[col_no];
-			Field* field = log->old_table->field[col_no];
+
+			Field* field = log->old_table->field[col->ind];
 
 			field->set_warning(Sql_condition::WARN_LEVEL_WARN,
-					   WARN_DATA_TRUNCATED, 1, ulong(log->n_rows));
+					   WARN_DATA_TRUNCATED, 1,
+					   ulong(log->n_rows));
 
 			if (!log->allow_not_null) {
 				/* We got a NULL value for a NOT NULL column. */

@@ -3192,7 +3192,7 @@ ha_innobase::reset_template(void)
 	/* Force table to be freed in close_thread_table(). */
 	DBUG_EXECUTE_IF("free_table_in_fts_query",
 		if (m_prebuilt->in_fts_query) {
-			table->m_needs_reopen = true;
+                  table->mark_table_for_reopen();
 		}
 	);
 
@@ -4819,9 +4819,8 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
 {
   DBUG_ENTER("innobase_kill_query");
 
-  if (trx_t *trx= thd_to_trx(thd))
+  if (trx_t* trx= thd_to_trx(thd))
   {
-    ut_ad(trx->mysql_thd == thd);
 #ifdef WITH_WSREP
     if (trx->is_wsrep() && wsrep_thd_is_aborting(thd))
       /* if victim has been signaled by BF thread and/or aborting is already
@@ -4829,8 +4828,29 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
       Also, BF thread should own trx mutex for the victim. */
       DBUG_VOID_RETURN;
 #endif /* WITH_WSREP */
-    /* Cancel a pending lock request if there are any */
-    lock_trx_handle_wait(trx);
+    lock_mutex_enter();
+    mutex_enter(&trx_sys.mutex);
+    trx_mutex_enter(trx);
+    /* It is possible that innobase_close_connection() is concurrently
+    being executed on our victim. Even if the trx object is later
+    reused for another client connection or a background transaction,
+    its trx->mysql_thd will differ from our thd.
+
+    trx_t::state changes are protected by trx_t::mutex, and
+    trx_sys.trx_list is protected by trx_sys.mutex, in
+    both trx_create() and trx_free().
+
+    At this point, trx may have been reallocated for another client
+    connection, or for a background operation. In that case, either
+    trx_t::state or trx_t::mysql_thd should not match our expectations. */
+    bool cancel= trx->mysql_thd == thd && trx->state == TRX_STATE_ACTIVE &&
+      !trx->lock.was_chosen_as_deadlock_victim;
+    mutex_exit(&trx_sys.mutex);
+    if (!cancel);
+    else if (lock_t *lock= trx->lock.wait_lock)
+      lock_cancel_waiting_and_release(lock);
+    lock_mutex_exit();
+    trx_mutex_exit(trx);
   }
 
   DBUG_VOID_RETURN;
