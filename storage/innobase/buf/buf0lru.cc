@@ -1617,27 +1617,6 @@ func_exit:
 	UNIV_MEM_INVALID(((buf_block_t*) bpage)->frame,
 			 UNIV_PAGE_SIZE);
 
-	if (b != NULL) {
-
-		/* Compute and stamp the compressed page
-		checksum while not holding any mutex.  The
-		block is already half-freed
-		(BUF_BLOCK_REMOVE_HASH) and removed from
-		buf_pool->page_hash, thus inaccessible by any
-		other thread. */
-
-		ut_ad(b->size.is_compressed());
-
-		const uint32_t	checksum = page_zip_calc_checksum(
-			b->zip.data,
-			b->size.physical(),
-			static_cast<srv_checksum_algorithm_t>(
-				srv_checksum_algorithm));
-
-		mach_write_to_4(b->zip.data + FIL_PAGE_SPACE_OR_CHKSUM,
-				checksum);
-	}
-
 	buf_pool_mutex_enter(buf_pool);
 
 	if (b != NULL) {
