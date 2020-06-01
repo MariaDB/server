@@ -1701,7 +1701,10 @@ int binlog_init(void *p)
     // recover needs to be set to make xa{commit,rollback}_handlerton effective
     binlog_hton->recover= binlog_xa_recover_dummy;
   }
-  binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN | HTON_NO_ROLLBACK;
+  binlog_hton->flags= (HTON_NOT_USER_SELECTABLE |
+                       HTON_HIDDEN |
+                       HTON_NO_ROLLBACK |
+                       HTON_AUTOMATIC_DELETE_TABLE);
   return 0;
 }
 
