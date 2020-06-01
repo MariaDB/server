@@ -295,13 +295,11 @@ buf_pool_t::chunk_t::map *buf_pool_t::chunk_t::map_ref;
 #ifdef UNIV_DEBUG
 /** Disable resizing buffer pool to make assertion code not expensive. */
 my_bool			buf_disable_resize_buffer_pool_debug = TRUE;
-#endif /* UNIV_DEBUG */
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /** This is used to insert validation operations in execution
 in the debug version */
-static ulint	buf_dbg_counter	= 0;
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+static ulint buf_dbg_counter;
+#endif /* UNIV_DEBUG */
 
 #if defined UNIV_PFS_MUTEX || defined UNIV_PFS_RWLOCK
 # ifndef PFS_SKIP_BUFFER_MUTEX_RWLOCK
@@ -1507,9 +1505,7 @@ bool buf_pool_t::create()
   UT_LIST_INIT(flush_list, &buf_page_t::list);
   UT_LIST_INIT(unzip_LRU, &buf_block_t::unzip_LRU);
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-  UT_LIST_INIT(zip_clean, &buf_page_t::list);
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+  ut_d(UT_LIST_INIT(zip_clean, &buf_page_t::list));
 
   for (size_t i= 0; i < UT_ARR_SIZE(zip_free); ++i)
     UT_LIST_INIT(zip_free[i], &buf_buddy_free_t::list);
@@ -2383,9 +2379,7 @@ calc_buf_pool_size:
 			" finished resizing at %s.", now);
 	}
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-	validate();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+	ut_d(validate());
 
 	return;
 }
@@ -2700,9 +2694,9 @@ lookup:
 			goto err_exit;
 		}
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 		if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 	}
 
 	ut_ad(rw_lock_own(buf_pool.hash_lock_get(bpage->id()), RW_LOCK_S));
@@ -2750,11 +2744,11 @@ got_block:
 
 	buf_page_make_young_if_needed(bpage);
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 	if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
-	ut_a(bpage->buf_fix_count());
-	ut_a(bpage->in_file());
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
+	ut_ad(bpage->buf_fix_count());
+	ut_ad(bpage->in_file());
 
 	if (must_read) {
 		/* Let us wait until the read operation
@@ -3178,9 +3172,9 @@ lookup:
 				" See https://mariadb.com/kb/en/library/innodb-recovery-modes/";
 		}
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 		if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 		goto loop;
 	} else {
 		fix_block = block;
@@ -3322,9 +3316,7 @@ evict_from_pool:
 			      page_zip_get_size(&block->page.zip));
 
 		if (!block->page.oldest_modification()) {
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-			UT_LIST_REMOVE(buf_pool.zip_clean, &block->page);
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+			ut_d(UT_LIST_REMOVE(buf_pool.zip_clean, &block->page));
 		} else {
 			/* Relocate buf_pool.flush_list. */
 			buf_flush_relocate_on_flush_list(bpage, &block->page);
@@ -3479,10 +3471,10 @@ evict_from_pool:
 		buf_page_make_young_if_needed(&fix_block->page);
 	}
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 	if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
-	ut_a(fix_block->page.state() == BUF_BLOCK_FILE_PAGE);
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
+	ut_ad(fix_block->page.state() == BUF_BLOCK_FILE_PAGE);
 
 	/* We have to wait here because the IO_READ state was set
 	under the protection of the hash_lock and not block->lock. */
@@ -3671,11 +3663,11 @@ buf_page_optimistic_get(
 
 	mtr_memo_push(mtr, block, fix_type);
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 	if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
-	ut_a(block->page.buf_fix_count());
-	ut_a(block->page.state() == BUF_BLOCK_FILE_PAGE);
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
+	ut_ad(block->page.buf_fix_count());
+	ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
 
 	if (first_access) {
 		/* In the case of a first access, try to apply linear
@@ -3722,10 +3714,8 @@ buf_page_try_get_func(
 
 	ut_ad(!buf_pool.watch_is_sentinel(block->page));
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-	ut_a(block->page.state() == BUF_BLOCK_FILE_PAGE);
-	ut_a(page_id == block->page.id());
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+	ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
+	ut_ad(page_id == block->page.id());
 	buf_block_buf_fix_inc(block, file, line);
 	rw_lock_s_unlock(hash_lock);
 
@@ -3749,11 +3739,11 @@ buf_page_try_get_func(
 
 	mtr_memo_push(mtr, block, fix_type);
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 	if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
-	ut_a(block->page.buf_fix_count());
-	ut_a(block->page.state() == BUF_BLOCK_FILE_PAGE);
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
+	ut_ad(block->page.buf_fix_count());
+	ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
 
 	buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
 
@@ -3893,9 +3883,9 @@ buf_page_create(const page_id_t page_id, ulint zip_size, mtr_t *mtr)
   memset(block->frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
   memset_aligned<8>(block->frame + FIL_PAGE_LSN, 0, 8);
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
   return block;
 }
 
@@ -4379,7 +4369,7 @@ void buf_pool_invalidate()
 	mutex_exit(&buf_pool.mutex);
 }
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /** Validate the buffer pool. */
 void buf_pool_t::validate()
 {
@@ -4514,9 +4504,9 @@ void buf_pool_t::validate()
 	ut_d(buf_LRU_validate());
 	ut_d(buf_flush_validate());
 }
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 
-#if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG
 /** Write information of the buf_pool to the error log. */
 void buf_pool_t::print()
 {
@@ -4620,7 +4610,7 @@ void buf_pool_t::print()
 
 	validate();
 }
-#endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG */
 
 #ifdef UNIV_DEBUG
 /** @return the number of latched pages in the buffer pool */

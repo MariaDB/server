@@ -230,9 +230,9 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     /* The block must be put to the LRU list, to the old blocks.
     The zip size is already set into the page zip */
     buf_LRU_add_block(bpage, true/* to old blocks */);
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
     buf_LRU_insert_zip_clean(bpage);
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
   }
 
   mutex_exit(&buf_pool.mutex);

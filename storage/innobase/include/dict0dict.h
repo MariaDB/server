@@ -1197,7 +1197,7 @@ dict_index_get_if_in_cache_low(
 /*===========================*/
 	index_id_t	index_id)	/*!< in: index id */
 	MY_ATTRIBUTE((warn_unused_result));
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /**********************************************************************//**
 Returns an index object if it is found in the dictionary cache.
 @return index, NULL if not found */
@@ -1206,8 +1206,6 @@ dict_index_get_if_in_cache(
 /*=======================*/
 	index_id_t	index_id)	/*!< in: index id */
 	MY_ATTRIBUTE((warn_unused_result));
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-#ifdef UNIV_DEBUG
 /**********************************************************************//**
 Checks that a tuple has n_fields_cmp value in a sensible range, so that
 no comparison can occur with the page number field in a node pointer.

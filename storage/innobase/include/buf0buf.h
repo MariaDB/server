@@ -1829,14 +1829,14 @@ public:
                     std::min(curr_size, old_size) / 4);
   }
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
   /** Validate the buffer pool. */
   void validate();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-#if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#endif /* UNIV_DEBUG */
+#if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG
   /** Write information of the buf_pool to the error log. */
   void print();
-#endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG */
 
   /** Remove a block from the LRU list.
   @return the predecessor in the LRU list */
@@ -1868,8 +1868,6 @@ public:
 #ifdef UNIV_DEBUG
 	ulint		buddy_n_frames; /*!< Number of frames allocated from
 					the buffer pool to the buddy system */
-#endif
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 	ulint		mutex_exit_forbidden; /*!< Forbid release mutex */
 #endif
 	ut_allocator<unsigned char>	allocator;	/*!< Allocator used for
@@ -2035,11 +2033,11 @@ public:
 	frames and buf_page_t descriptors of blocks that exist
 	in the buffer pool only in compressed form. */
 	/* @{ */
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 	/** unmodified ROW_FORMAT=COMPRESSED pages;
 	protected by buf_pool.mutex */
 	UT_LIST_BASE_NODE_T(buf_page_t)	zip_clean;
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 	UT_LIST_BASE_NODE_T(buf_buddy_free_t) zip_free[BUF_BUDDY_SIZES_MAX];
 					/*!< buddy free lists */
 #if BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN
@@ -2224,7 +2222,7 @@ inline void buf_page_t::set_old(bool old)
   this->old= old;
 }
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /** Forbid the release of the buffer pool mutex. */
 # define buf_pool_mutex_exit_forbid() do {	\
 	ut_ad(mutex_own(&buf_pool.mutex));	\
@@ -2297,7 +2295,7 @@ inline buf_page_t *LRUItr::start()
   return m_hp;
 }
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /** Functor to validate the LRU list. */
 struct	CheckInLRUList {
 	void	operator()(const buf_page_t* elem) const
@@ -2337,7 +2335,7 @@ struct	CheckUnzipLRUAndLRUList {
 				 CheckUnzipLRUAndLRUList());
 	}
 };
-#endif /* UNIV_DEBUG || defined UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 
 #include "buf0buf.ic"
 

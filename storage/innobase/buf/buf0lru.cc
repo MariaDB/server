@@ -461,7 +461,7 @@ void buf_LRU_flush_or_remove_pages(ulint id, bool flush, ulint first)
 	}
 }
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /********************************************************************//**
 Insert a compressed block into buf_pool.zip_clean in the LRU order. */
 void
@@ -493,7 +493,7 @@ buf_LRU_insert_zip_clean(
 		UT_LIST_ADD_FIRST(buf_pool.zip_clean, bpage);
 	}
 }
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 
 /** Try to free an uncompressed page of a compressed block from the unzip
 LRU list.  The compressed page is preserved, and it need not be clean.
@@ -1290,9 +1290,9 @@ func_exit:
 		}
 
 		if (!b->oldest_modification()) {
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 			buf_LRU_insert_zip_clean(b);
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 		} else {
 			/* Relocate on buf_pool.flush_list. */
 			buf_flush_relocate_on_flush_list(bpage, b);
@@ -1520,9 +1520,9 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		ut_a(bpage->zip.ssize);
 		ut_ad(!bpage->oldest_modification());
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 		UT_LIST_REMOVE(buf_pool.zip_clean, bpage);
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 		rw_lock_x_unlock(hash_lock);
 		buf_pool_mutex_exit_forbid();
 
@@ -1690,7 +1690,7 @@ func_exit:
 	memset(&buf_LRU_stat_cur, 0, sizeof buf_LRU_stat_cur);
 }
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /** Validate the LRU list. */
 void buf_LRU_validate()
 {
@@ -1777,9 +1777,9 @@ void buf_LRU_validate()
 
 	mutex_exit(&buf_pool.mutex);
 }
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 
-#if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG
 /** Dump the LRU list to stderr. */
 void buf_LRU_print()
 {
@@ -1834,4 +1834,4 @@ void buf_LRU_print()
 
 	mutex_exit(&buf_pool.mutex);
 }
-#endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG */

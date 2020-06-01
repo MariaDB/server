@@ -47,14 +47,14 @@ These are low-level functions
 @param[in]	first		first page to be flushed or evicted */
 void buf_LRU_flush_or_remove_pages(ulint id, bool flush, ulint first = 0);
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /********************************************************************//**
 Insert a compressed block into buf_pool.zip_clean in the LRU order. */
 void
 buf_LRU_insert_zip_clean(
 /*=====================*/
 	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 
 /******************************************************************//**
 Try to free a block.  If bpage is a descriptor of a compressed-only
@@ -168,14 +168,14 @@ void buf_LRU_free_one_page(buf_page_t *bpage, const page_id_t id,
                            rw_lock_t *hash_lock)
   MY_ATTRIBUTE((nonnull));
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /** Validate the LRU list. */
 void buf_LRU_validate();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-#if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#endif /* UNIV_DEBUG */
+#if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG
 /** Dump the LRU list to stderr. */
 void buf_LRU_print();
-#endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG */
 
 /** @name Heuristics for detecting index scan @{ */
 /** The denominator of buf_pool.LRU_old_ratio. */

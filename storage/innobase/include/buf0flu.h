@@ -159,10 +159,10 @@ void buf_flush_page_cleaner_init();
 /** Wait for any possible LRU flushes to complete. */
 void buf_flush_wait_LRU_batch_end();
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /** Validate the flush list. */
 void buf_flush_validate();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 
 /********************************************************************//**
 Initialize the red-black tree to speed up insertions into the flush_list

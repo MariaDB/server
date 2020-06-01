@@ -209,7 +209,7 @@ static inline void incr_flush_list_size_in_bytes(const buf_block_t* block)
 	ut_ad(buf_pool.stat.flush_list_bytes <= buf_pool.curr_pool_size);
 }
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /** Validate the flush list. */
 static void buf_flush_validate_low();
 
@@ -234,7 +234,7 @@ static void buf_flush_validate_skip()
 	buf_flush_validate_count = BUF_FLUSH_VALIDATE_SKIP;
 	buf_flush_validate_low();
 }
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 
 /******************************************************************//**
 Insert a block in the flush_rbt and returns a pointer to its
@@ -358,9 +358,7 @@ buf_flush_free_flush_rbt(void)
 /*==========================*/
 {
 	mutex_enter(&buf_pool.flush_list_mutex);
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-	buf_flush_validate_low();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+	ut_d(buf_flush_validate_low());
 	rbt_free(buf_pool.flush_rbt);
 	buf_pool.flush_rbt = NULL;
 	mutex_exit(&buf_pool.flush_list_mutex);
@@ -408,10 +406,7 @@ void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 
 	UT_LIST_ADD_FIRST(buf_pool.flush_list, &block->page);
 func_exit:
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-	buf_flush_validate_skip();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-
+	ut_d(buf_flush_validate_skip());
 	mutex_exit(&buf_pool.flush_list_mutex);
 }
 
@@ -445,17 +440,17 @@ void buf_flush_remove(buf_page_t* bpage)
 	because we assert on it in buf_flush_block_cmp(). */
 	bpage->clear_oldest_modification();
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 	if (bpage->state() == BUF_BLOCK_ZIP_PAGE) {
 		buf_LRU_insert_zip_clean(bpage);
 	}
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 
 	buf_pool.stat.flush_list_bytes -= bpage->physical_size();
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 	buf_flush_validate_skip();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 
 	mutex_exit(&buf_pool.flush_list_mutex);
 }
@@ -519,12 +514,8 @@ buf_flush_relocate_on_flush_list(
 
 	/* Just an extra check. Previous in flush_list
 	should be the same control block as in flush_rbt. */
-	ut_a(buf_pool.flush_rbt == NULL || prev_b == prev);
-
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-	buf_flush_validate_low();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-
+	ut_a(!buf_pool.flush_rbt || prev_b == prev);
+	ut_d(buf_flush_validate_low());
 	mutex_exit(&buf_pool.flush_list_mutex);
 }
 
@@ -2876,8 +2867,8 @@ void buf_flush_request_force(lsn_t lsn_limit)
 
 	os_event_set(buf_flush_event);
 }
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 
+#ifdef UNIV_DEBUG
 /** Functor to validate the flush list. */
 struct	Check {
 	void operator()(const buf_page_t* elem) const
@@ -2945,5 +2936,4 @@ void buf_flush_validate()
 	buf_flush_validate_low();
 	mutex_exit(&buf_pool.flush_list_mutex);
 }
-
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
