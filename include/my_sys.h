@@ -68,6 +68,7 @@ typedef struct my_aio_result {
 #define MY_WME		16U	/* Write message on error */
 #define MY_WAIT_IF_FULL 32U	/* Wait and try again if disk full error */
 #define MY_IGNORE_BADFD 32U     /* my_sync(): ignore 'bad descriptor' errors */
+#define MY_IGNORE_ENOENT 32U    /* my_delete() ignores ENOENT (no such file) */
 #define MY_ENCRYPT      64U     /* Encrypt IO_CACHE temporary files */
 #define MY_NOSYMLINKS  512U     /* my_open(): don't follow symlinks */
 #define MY_FULL_IO     512U     /* my_read(): loop until I/O is complete */

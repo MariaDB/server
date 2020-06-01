@@ -227,7 +227,7 @@ public:
 
   static bool check_n_load(THD *thd, const char *db, const char *table_name,
                            TABLE *table, bool names_only);
-  static bool drop_all_triggers(THD *thd, char *db, char *table_name);
+  static bool drop_all_triggers(THD *thd, char *db, char *table_name, myf MyFlags);
   static bool change_table_name(THD *thd, const char *db,
                                 const char *old_alias,
                                 const char *old_table,

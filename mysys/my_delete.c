@@ -43,9 +43,12 @@ int my_delete(const char *name, myf MyFlags)
     err= unlink(name);
 #endif
 
-  if(err)
+  if ((MyFlags & MY_IGNORE_ENOENT) && errno == ENOENT)
+    DBUG_RETURN(0);
+
+  if (err)
   {
-    my_errno=errno;
+    my_errno= errno;
     if (MyFlags & (MY_FAE+MY_WME))
       my_error(EE_DELETE,MYF(ME_BELL+ME_WAITTANG+(MyFlags & ME_NOINPUT)),
 	       name,errno);

@@ -689,10 +689,10 @@ bool THD::rm_temporary_table(handlerton *base, const char *path)
   char frm_path[FN_REFLEN + 1];
 
   strxnmov(frm_path, sizeof(frm_path) - 1, path, reg_ext, NullS);
-  if (mysql_file_delete(key_file_frm, frm_path, MYF(0)))
-  {
+  if (mysql_file_delete(key_file_frm, frm_path,
+                        MYF(MY_WME | MY_IGNORE_ENOENT)))
     error= true;
-  }
+
   file= get_new_handler((TABLE_SHARE*) 0, current_thd->mem_root, base);
   if (file && file->ha_delete_table(path))
   {
