@@ -326,7 +326,7 @@ static bool IsPortInUse(unsigned short port)
   }
 
   bool in_use = false;
-  if (bind(ip_sock, a->ai_addr, a->ai_addrlen) == SOCKET_ERROR)
+  if (bind(ip_sock, a->ai_addr, (int)a->ai_addrlen) == SOCKET_ERROR)
   {
     DWORD last_error = WSAGetLastError();
     in_use = (last_error ==  WSAEADDRINUSE || last_error == WSAEACCES);
