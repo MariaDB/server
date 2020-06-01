@@ -5308,5 +5308,12 @@ def					COALESCE(gc,gc)	255 (type=geometrycollection)	4294967295	0	Y	128	0	63
 COALESCE(gc,p)	COALESCE(gc,ls)	COALESCE(gc,pl)	COALESCE(gc,mp)	COALESCE(gc,mls)	COALESCE(gc,mpl)	COALESCE(gc,g)	COALESCE(gc,gc)
 DROP TABLE t1;
 #
+# MDEV-20809 EXTRACT from INET6 value does not produce any warnings
+#
+CREATE TABLE t1 (a GEOMETRY);
+SELECT EXTRACT(DAY FROM a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'extract(day)'
+DROP TABLE t1;
+#
 # End of 10.5 tests
 #
