@@ -67,6 +67,47 @@ update t set e= '2003-05-01' where s = '2003-01-01';
 
 select * from t where year(s) = 2003;
 
+--echo # UPDATE ... FOR PORTION test
+insert t values (2, '2003-04-15', '2003-05-01');
+
+update t for portion of p from '2003-01-01' to '2003-01-15'
+         set id= 2;
+--sorted_result
+select * from t;
+
+update t for portion of p from '2003-01-15' to '2003-02-01'
+         set id= 2;
+--sorted_result
+select * from t;
+
+--echo # Next, test UPDATE ... FOR PORTION resulting with an error
+--echo # Since MyISAM/Aria engines lack atomicity, the results would differ with
+--echo # innodb. So a table is going to be copied to one with explicit engine.
+
+create table t_myisam (id int, s date, e date,
+                     period for p(s,e),
+                     primary key(id, p without overlaps))
+                     engine=myisam
+                     select * from t;
+--error ER_DUP_ENTRY
+update t_myisam for portion of p from '2003-04-01' to '2003-06-01'
+         set id= 2 order by s desc;
+--sorted_result
+select * from t_myisam;
+
+create table t_innodb (id int, s date, e date,
+                     period for p(s,e),
+                     primary key(id, p without overlaps))
+                     engine=innodb
+                     select * from t;
+--error ER_DUP_ENTRY
+update t_innodb for portion of p from '2003-04-01' to '2003-06-01'
+         set id= 2 order by s desc;
+--sorted_result
+select * from t_innodb;
+
+drop table t_myisam, t_innodb;
+
 --error ER_PERIOD_NOT_FOUND
 create or replace table t(id int, s date, e date,
                           period for p(s,e),
