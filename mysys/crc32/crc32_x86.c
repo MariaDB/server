@@ -39,6 +39,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
  *
  */
 
+#include <my_global.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -55,7 +57,7 @@ typedef uint8_t byte;
 
 # define _gcry_bswap32 __builtin_bswap32
 
-#if __GNUC__ >= 4 && defined(__x86_64__) && defined(HAVE_CLMUL_INSTRUCTION)
+#if __GNUC__ >= 4 && defined(__x86_64__)
 
 #if defined(_GCRY_GCC_VERSION) && _GCRY_GCC_VERSION >= 40400 /* 4.4 */
 /* Prevent compiler from issuing SSE instructions between asm blocks. */
@@ -508,4 +510,36 @@ crc32_intel_pclmul (u32 *pcrc, const byte *inbuf, size_t inlen)
 #endif
 }
 
+#ifdef __GNUC__
+int crc32_pclmul_enabled(void)
+{
+  int eax, ecx;
+  /* We assume that the CPUID instruction and its parameter 1 are available.
+  We do not support any precursors of the Intel 80486. */
+  asm("cpuid" : "=a"(eax), "=c"(ecx) : "0"(1) : "ebx", "edx");
+  return !(~ecx & (1 << 19 | 1 << 1));
+}
+#elif 0 /* defined _MSC_VER */ /* FIXME: implement the pclmul interface */
+#include <intrin.h>
+int crc32_pclmul_enabled(void)
+{
+  /* We assume that the CPUID instruction and its parameter 1 are available.
+  We do not support any precursors of the Intel 80486. */
+  int regs[4];
+  __cpuid(regs, 1);
+  return !(~regs[2] & (1 << 19 | 1 << 1));
+}
+#else
+int crc32_pclmul_enabled(void)
+{
+  return 0;
+}
+#endif
+
+unsigned int crc32_pclmul(unsigned int crc32, const void *buf, size_t len)
+{
+  crc32= ~crc32;
+  crc32_intel_pclmul(&crc32, buf, len);
+  return ~crc32;
+}
 #endif

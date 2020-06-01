@@ -97,11 +97,9 @@ unsigned int crc32c_vpmsum(unsigned int crc, const unsigned char *p, unsigned lo
 ut_crc32_func_t ut_crc32_low= crc32c_vpmsum;
 const char*	ut_crc32_implementation = "Using POWER8 crc32 instructions";
 #else
-# if defined(__GNUC__) && defined(__linux__) && defined(HAVE_ARMV8_CRC)
+# if defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
 extern "C" {
 uint32_t crc32c_aarch64(uint32_t crc, const unsigned char *buffer, uint64_t len);
-/* For runtime check  */
-unsigned int crc32c_aarch64_available(void);
 };
 # elif defined(_MSC_VER)
 #  define TRY_SSE4_2
@@ -343,8 +341,8 @@ allocations, would not hurt if called twice, but would be pointless. */
 void ut_crc32_init()
 {
 #ifndef HAVE_CRC32_VPMSUM
-# if defined(__GNUC__) && defined(__linux__) && defined(HAVE_ARMV8_CRC)
-  if (crc32c_aarch64_available())
+# if defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
+  if (crc32_aarch64_available())
   {
     ut_crc32_low= crc32c_aarch64;
     ut_crc32_implementation= "Using ARMv8 crc32 instructions";
