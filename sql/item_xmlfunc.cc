@@ -815,7 +815,6 @@ String *Item_nodeset_func_attributebyname::val_nodeset(String *nodeset)
 String *Item_nodeset_func_predicate::val_nodeset(String *str)
 {
   Item_nodeset_func *nodeset_func= (Item_nodeset_func*) args[0];
-  Item_func *comp_func= (Item_func*)args[1];
   uint pos= 0, size;
   prepare(str);
   size= (uint)(fltend - fltbeg);
@@ -825,7 +824,7 @@ String *Item_nodeset_func_predicate::val_nodeset(String *str)
     ((XPathFilter*)(&nodeset_func->context_cache))->append_element(flt->num,
                                                                    flt->pos,
                                                                    size);
-    if (comp_func->val_int())
+    if (args[1]->val_int())
       ((XPathFilter*)str)->append_element(flt->num, pos++);
   }
   return str;
