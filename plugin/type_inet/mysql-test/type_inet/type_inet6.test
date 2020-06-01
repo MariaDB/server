@@ -1494,3 +1494,25 @@ DROP TABLE t2;
 
 DROP TABLE t1;
 DROP FUNCTION aggregate_min_inet6;
+
+
+--echo #
+--echo # MDEV-20280 PERCENTILE_DISC() rejects temporal and string input
+--echo #
+
+CREATE TABLE t1 (name CHAR(30), star_rating INET6);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', '::5');
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', '::3');
+INSERT INTO t1 VALUES ('Lady of the Flies', '::1');
+INSERT INTO t1 VALUES ('Lady of the Flies', '::2');
+INSERT INTO t1 VALUES ('Lady of the Flies', '::5');
+SELECT name, PERCENTILE_DISC(0.5)
+  WITHIN GROUP (ORDER BY star_rating)
+  OVER (PARTITION BY name) AS pc FROM t1;
+SELECT name, PERCENTILE_DISC(0)
+  WITHIN GROUP (ORDER BY star_rating)
+  OVER (PARTITION BY name) AS pc FROM t1;
+SELECT name, PERCENTILE_DISC(1)
+  WITHIN GROUP (ORDER BY star_rating)
+  OVER (PARTITION BY name) AS pc FROM t1;
+DROP TABLE t1;

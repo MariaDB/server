@@ -779,10 +779,21 @@ public:
     if (get_row_count() == 0 || get_arg(0)->is_null())
     {
       null_value= true;
-      return 0;
+      return true;
     }
     null_value= false;
     return value->get_date(thd, ltime, fuzzydate);
+  }
+
+  bool val_native(THD *thd, Native *to)
+  {
+    if (get_row_count() == 0 || get_arg(0)->is_null())
+    {
+      null_value= true;
+      return true;
+    }
+    null_value= false;
+    return value->val_native(thd, to);
   }
 
   bool add()
