@@ -1575,7 +1575,7 @@ void free_table_map_log_event(Table_map_log_event *event)
 */
 bool Log_event::print_base64(IO_CACHE* file,
                              PRINT_EVENT_INFO* print_event_info,
-                             bool do_print_encoded)
+                             bool do_print_encoded, bool is_more)
 {
   uchar *ptr= (uchar *)temp_buf;
   uint32 size= uint4korr(ptr + EVENT_LEN_OFFSET);
@@ -1761,9 +1761,9 @@ bool Log_event::print_base64(IO_CACHE* file,
           TODO: fix MDEV-10362 to remove this workaround.
         */
         if (print_event_info->base64_output_mode !=
-            BASE64_OUTPUT_DECODE_ROWS)
+            BASE64_OUTPUT_DECODE_ROWS && !is_more)
           my_b_printf(file, "'%s\n", print_event_info->delimiter);
-        error= ev->print_verbose(file, print_event_info);
+        error= ev->print_verbose(&print_event_info->footer_cache, print_event_info);
       }
       else
       {
@@ -2958,6 +2958,7 @@ bool Rows_log_event::print_helper(FILE *file,
 {
   IO_CACHE *const head= &print_event_info->head_cache;
   IO_CACHE *const body= &print_event_info->body_cache;
+  IO_CACHE *const footer= &print_event_info->footer_cache;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   IO_CACHE *const sql= &print_event_info->review_sql_cache;
 #endif
@@ -2978,7 +2979,7 @@ bool Rows_log_event::print_helper(FILE *file,
       goto err;
   }
   if (!print_event_info->short_form || print_event_info->print_row_count)
-    if (print_base64(body, print_event_info, do_print_encoded))
+    if (print_base64(body, print_event_info, do_print_encoded,!last_stmt_event))
       goto err;
 
   if (last_stmt_event)
@@ -2988,29 +2989,37 @@ bool Rows_log_event::print_helper(FILE *file,
       if (copy_event_cache_to_file_and_reinit(head, file) ||
           copy_cache_to_file_wrapped(body, file, do_print_encoded,
                                      print_event_info->delimiter,
-                                     print_event_info->verbose))
+                                     print_event_info->verbose) ||
+          copy_event_cache_to_file_and_reinit(footer, file))
         goto err;
     }
     else
     {
-    LEX_STRING tmp_str;
+      LEX_STRING tmp_str;
 
-    if (copy_event_cache_to_string_and_reinit(head, &tmp_str))
-      return 1;
-    output_buf.append(tmp_str.str, tmp_str.length);  // Not \0 terminated);
-    my_free(tmp_str.str);
+      if (copy_event_cache_to_string_and_reinit(head, &tmp_str))
+        return 1;
+      output_buf.append(tmp_str.str, tmp_str.length);  // Not \0 terminated);
+      my_free(tmp_str.str);
 
-    if (copy_cache_to_string_wrapped(body, &tmp_str, do_print_encoded,
-                                     print_event_info->delimiter,
-                                     print_event_info->verbose))
-      return 1;
-    output_buf.append(tmp_str.str, tmp_str.length);
-    my_free(tmp_str.str);
+      if (copy_cache_to_string_wrapped(body, &tmp_str, do_print_encoded,
+                                       print_event_info->delimiter,
+                                       print_event_info->verbose))
+        return 1;
+      output_buf.append(tmp_str.str, tmp_str.length);
+      my_free(tmp_str.str);
+
+      if(print_event_info->verbose) { // --verbose
+        if (copy_event_cache_to_string_and_reinit(footer, &tmp_str))
+          return 1;
+        output_buf.append(tmp_str.str, tmp_str.length);  // Not \0 terminated);
+        my_free(tmp_str.str);
+      }
 #ifdef WHEN_FLASHBACK_REVIEW_READY
-    if (copy_event_cache_to_string_and_reinit(sql, &tmp_str))
-      return 1;
-    output_buf.append(tmp_str.str, tmp_str.length);
-    my_free(tmp_str.str);
+      if (copy_event_cache_to_string_and_reinit(sql, &tmp_str))
+        return 1;
+      output_buf.append(tmp_str.str, tmp_str.length);
+      my_free(tmp_str.str);
 #endif
     }
   }
@@ -3788,6 +3797,7 @@ st_print_event_info::st_print_event_info()
   base64_output_mode=BASE64_OUTPUT_UNSPEC;
   open_cached_file(&head_cache, NULL, NULL, 0, flags);
   open_cached_file(&body_cache, NULL, NULL, 0, flags);
+  open_cached_file(&footer_cache, NULL, NULL, 0, flags);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   open_cached_file(&review_sql_cache, NULL, NULL, 0, flags);
 #endif

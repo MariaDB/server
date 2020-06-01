@@ -896,6 +896,7 @@ typedef struct st_print_event_info
    */
   IO_CACHE head_cache;
   IO_CACHE body_cache;
+  IO_CACHE footer_cache;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   /* Storing the SQL for reviewing */
   IO_CACHE review_sql_cache;
@@ -906,20 +907,23 @@ typedef struct st_print_event_info
   ~st_print_event_info() {
     close_cached_file(&head_cache);
     close_cached_file(&body_cache);
+    close_cached_file(&footer_cache);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
     close_cached_file(&review_sql_cache);
 #endif
   }
   bool init_ok() /* tells if construction was successful */
-    { return my_b_inited(&head_cache) && my_b_inited(&body_cache)
+    { return my_b_inited(&head_cache) && my_b_inited(&body_cache) && my_b_inited(&footer_cache)
 #ifdef WHEN_FLASHBACK_REVIEW_READY
       && my_b_inited(&review_sql_cache)
 #endif
     ; }
   void flush_for_error()
   {
-    if (!copy_event_cache_to_file_and_reinit(&head_cache, file))
+    if (!copy_event_cache_to_file_and_reinit(&head_cache, file)){
       copy_event_cache_to_file_and_reinit(&body_cache, file);
+      copy_event_cache_to_file_and_reinit(&footer_cache, file);
+    }
     fflush(file);
   }
 } PRINT_EVENT_INFO;
@@ -1278,7 +1282,7 @@ public:
   bool print_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
                     bool is_more);
   bool print_base64(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
-                    bool do_print_encoded);
+                    bool do_print_encoded,bool is_more=false);
 #endif /* MYSQL_SERVER */
 
   /* The following code used for Flashback */

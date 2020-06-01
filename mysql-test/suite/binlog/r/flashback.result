@@ -702,6 +702,116 @@ include/assert.inc [Table t1 should have 0 rows.]
 # 6- Rows must be present upon restoring from flashback
 include/assert.inc [Table t1 should have six rows.]
 DROP TABLE t1;
+# < CASE 8 >
+# Update join, Delete join
+#
+create table school(
+schoolID int not null default 0 primary key,
+schoolName blob not null
+)ENGINE=InnoDB;
+create table class(
+classID int not null default 0 primary key,
+className blob not null,
+schoolID int not null default 0
+)ENGINE=InnoDB;
+create table student(
+stdID int not null default 0 primary key,
+stdName blob not null,
+classID int not null default 0,
+schoolID int not null default 0
+)ENGINE=InnoDB;
+INSERT INTO school (schoolID,schoolName) VALUES (1,"S-a"),(2,"S-b");
+INSERT INTO class(classID,className,schoolID) VALUES (1,"C-a",1),(2,"C-b",1),(3,"C-c",1),(4,"C-d",1);
+INSERT INTO student(stdID,stdName,classID,schoolID) VALUES (1,"S-a",1,1),(2,"S-b",1,1),(3,"S-c",1,1),(4,"S-d",4,1),(5,"S-e",2,1),(6,"S-f",3,1),(7,"S-g",4,1);
+SELECT * FROM school;
+schoolID	schoolName
+1	S-a
+2	S-b
+SELECT * FROM class;
+classID	className	schoolID
+1	C-a	1
+2	C-b	1
+3	C-c	1
+4	C-d	1
+SELECT * FROM student;
+stdID	stdName	classID	schoolID
+1	S-a	1	1
+2	S-b	1	1
+3	S-c	1	1
+4	S-d	4	1
+5	S-e	2	1
+6	S-f	3	1
+7	S-g	4	1
+RESET MASTER;
+BEGIN;
+UPDATE school,student,class 
+SET school.schoolName='school_deleted',student.schoolID=2,class.schoolID=2
+WHERE school.schoolID= class.schoolID AND class.schoolID = student.schoolID AND school.schoolID=1;
+DELETE school,student,class
+FROM school INNER JOIN student INNER JOIN class  
+WHERE school.schoolID IN (2);
+COMMIT;
+SELECT * FROM school;
+schoolID	schoolName
+1	school_deleted
+SELECT * FROM class;
+classID	className	schoolID
+SELECT * FROM student;
+stdID	stdName	classID	schoolID
+FLUSH LOGS;
+# < CASE 8 >
+# Flashback & Check the result
+#
+SELECT * FROM school;
+schoolID	schoolName
+1	school_deleted
+SELECT * FROM class;
+classID	className	schoolID
+1	C-a	1
+2	C-b	1
+3	C-c	1
+4	C-d	1
+SELECT * FROM student;
+stdID	stdName	classID	schoolID
+1	S-a	1	1
+2	S-b	1	1
+3	S-c	1	1
+4	S-d	4	1
+5	S-e	2	1
+6	S-f	3	1
+7	S-g	4	1
+DROP TABLE school;
+DROP TABLE class;
+DROP TABLE student;
+# < CASE 9 >
+# log_bin_compress = ON
+#
+SET GLOBAL log_bin_compress = ON;
+CREATE TABLE t1 (
+c01 tinyint,
+c02 TEXT
+) ENGINE=InnoDB;
+# < CASE 9 >
+# Insert data to t1
+#
+INSERT INTO t1 VALUES(1, repeat('a', 512));
+RESET MASTER;
+# < CASE 9 >
+# Update t1
+#
+UPDATE t1 SET c02 = repeat('b',512);
+DELETE FROM t1;
+SELECT * FROM t1;
+c01	c02
+FLUSH LOGS;
+# < CASE 9 >
+# Flashback & Check the result
+#
+SELECT * FROM t1;
+c01	c02
+1	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+SET GLOBAL log_bin_compress = OFF;
+DROP TABLE t1;
 SET binlog_format=statement;
 Warnings:
 Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMENT

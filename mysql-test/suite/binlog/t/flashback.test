@@ -364,6 +364,124 @@ FLUSH LOGS;
 
 DROP TABLE t1;
 
+--echo # < CASE 8 >
+--echo # Update join, Delete join
+--echo #
+
+create table school(
+        schoolID int not null default 0 primary key,
+        schoolName blob not null
+)ENGINE=InnoDB;
+create table class(
+        classID int not null default 0 primary key,
+        className blob not null,
+        schoolID int not null default 0
+)ENGINE=InnoDB;
+create table student(
+        stdID int not null default 0 primary key,
+        stdName blob not null,
+        classID int not null default 0,
+        schoolID int not null default 0
+)ENGINE=InnoDB;
+INSERT INTO school (schoolID,schoolName) VALUES (1,"S-a"),(2,"S-b");
+INSERT INTO class(classID,className,schoolID) VALUES (1,"C-a",1),(2,"C-b",1),(3,"C-c",1),(4,"C-d",1);
+INSERT INTO student(stdID,stdName,classID,schoolID) VALUES (1,"S-a",1,1),(2,"S-b",1,1),(3,"S-c",1,1),(4,"S-d",4,1),(5,"S-e",2,1),(6,"S-f",3,1),(7,"S-g",4,1);
+
+SELECT * FROM school;
+
+SELECT * FROM class;
+
+SELECT * FROM student;
+
+RESET MASTER;
+
+# Update and Delete test data
+BEGIN;
+
+UPDATE school,student,class 
+SET school.schoolName='school_deleted',student.schoolID=2,class.schoolID=2
+WHERE school.schoolID= class.schoolID AND class.schoolID = student.schoolID AND school.schoolID=1;
+
+DELETE school,student,class
+FROM school INNER JOIN student INNER JOIN class  
+WHERE school.schoolID IN (2);
+
+COMMIT;
+
+SELECT * FROM school;
+
+SELECT * FROM class;
+
+SELECT * FROM student;
+
+FLUSH LOGS;
+
+--echo # < CASE 8 >
+--echo # Flashback & Check the result
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_BINLOG  -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_8.sql
+--exec $MYSQL_BINLOG --flashback --flashback-tables=student,class -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_8.sql
+--exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_8.sql;"
+
+SELECT * FROM school;
+
+SELECT * FROM class;
+
+SELECT * FROM student;
+
+DROP TABLE school;
+DROP TABLE class;
+DROP TABLE student;
+
+--echo # < CASE 9 >
+--echo # log_bin_compress = ON
+--echo #
+
+SET GLOBAL log_bin_compress = ON;
+
+CREATE TABLE t1 (
+  c01 tinyint,
+  c02 TEXT
+) ENGINE=InnoDB;
+
+--echo # < CASE 9 >
+--echo # Insert data to t1
+--echo #
+
+INSERT INTO t1 VALUES(1, repeat('a', 512));
+
+RESET MASTER;
+
+--echo # < CASE 9 >
+--echo # Update t1
+--echo #
+
+UPDATE t1 SET c02 = repeat('b',512);
+
+DELETE FROM t1;
+
+SELECT * FROM t1;
+
+FLUSH LOGS;
+
+--echo # < CASE 9 >
+--echo # Flashback & Check the result
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_BINLOG -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_9.sql
+--exec $MYSQL_BINLOG -B -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_9.sql
+--exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_9.sql;"
+
+SELECT * FROM t1;
+
+SET GLOBAL log_bin_compress = OFF;
+DROP TABLE t1;
+
 ## Clear
 SET binlog_format=statement;
 --error ER_FLASHBACK_NOT_SUPPORTED

@@ -1850,6 +1850,7 @@ bool Old_rows_log_event::print_helper(FILE *file,
 {
   IO_CACHE *const head= &print_event_info->head_cache;
   IO_CACHE *const body= &print_event_info->body_cache;
+  IO_CACHE *const footer= &print_event_info->footer_cache;
   bool do_print_encoded=
     print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
     print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
@@ -1870,7 +1871,8 @@ bool Old_rows_log_event::print_helper(FILE *file,
     if (copy_event_cache_to_file_and_reinit(head, file) ||
         copy_cache_to_file_wrapped(body, file, do_print_encoded,
                                      print_event_info->delimiter,
-                                     print_event_info->verbose))
+                                     print_event_info->verbose) ||
+        copy_event_cache_to_file_and_reinit(footer, file))
       goto err;
   }
   return 0;
