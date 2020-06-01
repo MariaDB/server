@@ -44,6 +44,9 @@
 #include "transaction.h"       // trans_commit_stmt
 #include "sql_audit.h"
 #include "debug_sync.h"
+#ifdef WITH_WSREP
+#include "wsrep_thd.h"
+#endif /* WITH_WSREP */
 
 /*
   Sufficient max length of printed destinations and frame offsets (all uints).
@@ -1307,7 +1310,93 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     thd->m_digest= NULL;
 
     err_status= i->execute(thd, &ip);
+#ifdef WITH_WSREP
+    if (m_type == TYPE_ENUM_PROCEDURE)
+    {
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+      if (thd->wsrep_conflict_state == MUST_REPLAY)
+      {
+        wsrep_replay_sp_transaction(thd);
+        err_status= thd->get_stmt_da()->is_set();
+        thd->wsrep_conflict_state= NO_CONFLICT;
+      }
+      else if (thd->wsrep_conflict_state == ABORTED ||
+               thd->wsrep_conflict_state == CERT_FAILURE)
+      {
+        /*
+          If the statement execution was BF aborted or was aborted
+          due to certification failure, clean up transaction here
+          and reset conflict state to NO_CONFLICT and thd->killed
+          to THD::NOT_KILLED. Error handling is done based on err_status
+          below. Error must have been raised by wsrep hton code before
+          entering here.
+         */
+        DBUG_ASSERT(err_status);
+        DBUG_ASSERT(thd->get_stmt_da()->is_error());
+        thd->wsrep_conflict_state= NO_CONFLICT;
+        thd->killed= NOT_KILLED;
+      }
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+    }
+#endif /* WITH_WSREP */
+#ifdef WITH_WSREP_NO
+    if (WSREP(thd))
+    {
+      if (((thd->wsrep_trx().state() == wsrep::transaction::s_executing) &&
+           (thd->is_fatal_error || thd->killed)))
+      {
+        WSREP_DEBUG("SP abort err status %d in sub %d trx state %d",
+                    err_status, thd->in_sub_stmt, thd->wsrep_trx().state());
+        err_status= 1;
+        thd->is_fatal_error= 1;
+        /*
+          SP was killed, and it is not due to a wsrep conflict.
+          We skip after_command hook at this point because
+          otherwise it clears the error, and cleans up the
+          whole transaction. For now we just return and finish
+          our handling once we are back to mysql_parse.
+        */
+        WSREP_DEBUG("Skipping after_command hook for killed SP");
+      }
+      else
+      {
+        const bool must_replay= wsrep_must_replay(thd);
+        if (must_replay)
+        {
+          WSREP_DEBUG("MUST_REPLAY set after SP, err_status %d trx state: %d",
+                      err_status, thd->wsrep_trx().state());
+        }
+        (void) wsrep_after_statement(thd);
 
+        /*
+          Reset the return code to zero if the transaction was
+          replayed succesfully.
+        */
+        if (must_replay && !wsrep_current_error(thd))
+        {
+          err_status= 0;
+          thd->get_stmt_da()->reset_diagnostics_area();
+        }
+        /*
+          Final wsrep error status for statement is known only after
+          wsrep_after_statement() call. If the error is set, override
+          error in thd diagnostics area and reset wsrep client_state error
+          so that the error does not get propagated via client-server protocol.
+        */
+        if (wsrep_current_error(thd))
+        {
+          wsrep_override_error(thd, wsrep_current_error(thd),
+                               wsrep_current_error_status(thd));
+          thd->wsrep_cs().reset_error();
+          /* Reset also thd->killed if it has been set during BF abort. */
+          if (thd->killed == KILL_QUERY)
+            thd->killed= NOT_KILLED;
+          /* if failed transaction was not replayed, must return with error from here */
+          if (!must_replay) err_status = 1;
+        }
+      }
+    }
+#endif /* WITH_WSREP */
     thd->m_digest= parent_digest;
 
     if (i->free_list)
