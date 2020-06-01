@@ -2203,7 +2203,7 @@ int ha_connect::MakeRecord(char *buf)
           case TYPE_DECIM:
             p= value->GetCharString(val);
             charset= tdbp->data_charset();
-            rc= fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
+            rc= fp->store_text(p, strlen(p), charset, CHECK_FIELD_WARN);
             break;
 					case TYPE_BIN:
 						p= value->GetCharValue();
