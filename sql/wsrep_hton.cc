@@ -37,6 +37,8 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd);
 void wsrep_cleanup_transaction(THD *thd)
 {
   if (!WSREP(thd)) return;
+  DBUG_ASSERT(thd->wsrep_conflict_state != MUST_REPLAY &&
+              thd->wsrep_conflict_state != REPLAYING);
 
   if (wsrep_emulate_bin_log) thd_binlog_trx_reset(thd);
   thd->wsrep_ws_handle.trx_id= WSREP_UNDEFINED_TRX_ID;
@@ -136,7 +138,11 @@ void wsrep_post_commit(THD* thd, bool all)
       /* non-InnoDB statements may have populated events in stmt cache
         => cleanup
       */
-      WSREP_DEBUG("cleanup transaction for LOCAL_STATE");
+      if (thd->wsrep_conflict_state != MUST_REPLAY)
+     {
+       WSREP_DEBUG("cleanup transaction for LOCAL_STATE: %s",
+                   WSREP_QUERY(thd));
+     }
       /*
         Run post-rollback hook to clean up in the case if
         some keys were populated for the transaction in provider
@@ -145,13 +151,18 @@ void wsrep_post_commit(THD* thd, bool all)
         rolls back to savepoint after first operation.
       */
       if (all && thd->wsrep_conflict_state != MUST_REPLAY &&
-          wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
+         thd->wsrep_conflict_state != REPLAYING &&
+         wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
       {
         WSREP_WARN("post_rollback fail: %llu %d",
 		(long long)thd->thread_id, thd->get_stmt_da()->status());
       }
-      wsrep_cleanup_transaction(thd);
-      break;
+      if (thd->wsrep_conflict_state != MUST_REPLAY &&
+         thd->wsrep_conflict_state != REPLAYING)
+     {
+       wsrep_cleanup_transaction(thd);
+     }
+     break;
     }
     default: break;
   }
@@ -575,7 +586,8 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
     /* fall through */
   case WSREP_TRX_FAIL:
-    WSREP_DEBUG("commit failed for reason: %d", rcode);
+    WSREP_DEBUG("commit failed for reason: %d conf %d",
+		rcode, thd->wsrep_conflict_state);
     DBUG_PRINT("wsrep", ("replicating commit fail"));
 
     thd->wsrep_query_state= QUERY_EXEC;
