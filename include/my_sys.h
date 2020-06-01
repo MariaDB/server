@@ -926,7 +926,7 @@ void my_checksum_init(void);
 extern my_checksum(ha_checksum, const void *, size_t);
 #else
 typedef ha_checksum (*my_crc32_t)(ha_checksum, const void *, size_t);
-extern my_crc32_t my_checksum;
+extern MYSQL_PLUGIN_IMPORT my_crc32_t my_checksum;
 #endif
 
 #if defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
