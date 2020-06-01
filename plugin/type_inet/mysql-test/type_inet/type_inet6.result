@@ -1986,3 +1986,38 @@ ERROR HY000: Illegal parameter data type inet6 for operation 'extract(day)'
 DROP TABLE t1;
 SELECT EXTRACT(DAY FROM CAST('::' AS INET6));
 ERROR HY000: Illegal parameter data type inet6 for operation 'extract(day)'
+#
+# MDEV-22764 Crash with a stored aggregate function returning INET6
+#
+CREATE OR REPLACE AGGREGATE FUNCTION aggregate_min_inet6(x INET6) RETURNS INET6
+BEGIN
+DECLARE res INET6 DEFAULT NULL;
+DECLARE CONTINUE HANDLER FOR NOT FOUND
+RETURN res;
+LOOP
+FETCH GROUP NEXT ROW;
+IF (res IS NULL) OR (res > x) THEN
+SET res= x;
+END IF;
+END LOOP;
+END;
+$$
+CREATE OR REPLACE TABLE t1 (name CHAR(30), val INET6);
+INSERT INTO t1 VALUES ('a', '::05');
+INSERT INTO t1 VALUES ('a', '::03');
+INSERT INTO t1 VALUES ('b', '::01');
+INSERT INTO t1 VALUES ('b', '::02');
+INSERT INTO t1 VALUES ('b', '::05');
+SELECT name, aggregate_min_inet6(val) pc FROM t1 GROUP BY name;
+name	pc
+a	::3
+b	::1
+CREATE OR REPLACE TABLE t2 (name CHAR(30), val INET6);
+INSERT INTO t2 SELECT name, aggregate_min_inet6(val) pc FROM t1 GROUP BY name;
+SELECT * FROM t2;
+name	val
+a	::3
+b	::1
+DROP TABLE t2;
+DROP TABLE t1;
+DROP FUNCTION aggregate_min_inet6;
