@@ -139,7 +139,7 @@ log_get_max_modified_age_async(void);
 /*================================*/
 
 /** Calculate the recommended highest values for lsn - last_checkpoint_lsn
-and lsn - buf_get_oldest_modification().
+and lsn - buf_pool.get_oldest_modification().
 @param[in]	file_size	requested innodb_log_file_size
 @retval true on success
 @retval false if the smallest log is too small to
@@ -667,13 +667,13 @@ public:
 	lsn_t		max_modified_age_async;
 					/*!< when this recommended
 					value for lsn -
-					buf_pool_get_oldest_modification()
+					buf_pool.get_oldest_modification()
 					is exceeded, we start an
 					asynchronous preflush of pool pages */
 	lsn_t		max_modified_age_sync;
 					/*!< when this recommended
 					value for lsn -
-					buf_pool_get_oldest_modification()
+					buf_pool.get_oldest_modification()
 					is exceeded, we start a
 					synchronous preflush of pool pages */
 	lsn_t		max_checkpoint_age_async;

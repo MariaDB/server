@@ -26,7 +26,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "common.h"
 #include "xbstream.h"
 #include "datasink.h"
-#include "crc_glue.h"
 
 #define XBSTREAM_VERSION "1.0"
 #define XBSTREAM_BUFFER_SIZE (10 * 1024 * 1024UL)
@@ -98,7 +97,7 @@ main(int argc, char **argv)
 {
 	MY_INIT(argv[0]);
 
-	crc_init();
+	my_checksum_init();
 
 	if (get_options(&argc, &argv)) {
 		goto err;

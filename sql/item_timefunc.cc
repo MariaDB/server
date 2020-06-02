@@ -2109,6 +2109,21 @@ void Item_extract::print(String *str, enum_query_type query_type)
   str->append(')');
 }
 
+
+bool Item_extract::check_arguments() const
+{
+  if (!args[0]->type_handler()->can_return_extract_source(int_type))
+  {
+    char tmp[64];
+    my_snprintf(tmp, sizeof(tmp), "extract(%s)", interval_names[int_type]);
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             args[0]->type_handler()->name().ptr(), tmp);
+    return true;
+  }
+  return false;
+}
+
+
 bool Item_extract::fix_length_and_dec()
 {
   maybe_null=1;					// If wrong date

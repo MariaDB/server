@@ -1002,6 +1002,7 @@ class Item_extract :public Item_int_func,
   longlong val_int();
   enum Functype functype() const { return EXTRACT_FUNC; }
   const char *func_name() const { return "extract"; }
+  bool check_arguments() const;
   bool fix_length_and_dec();
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);

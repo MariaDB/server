@@ -1,8 +1,8 @@
 #include <my_global.h>
 #include <string.h>
+#include <stdint.h>
 
-
-#if defined(__GNUC__) && defined(__linux__) && defined(HAVE_ARMV8_CRC)
+#if defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
 
 #include <sys/auxv.h>
 #include <asm/hwcap.h>
@@ -11,12 +11,13 @@
 #define HWCAP_CRC32 (1 << 7)
 #endif
 
-unsigned int crc32c_aarch64_available(void)
+/* ARM made crc32 default from ARMv8.1 but optional in ARMv8A
+so the runtime check. */
+int crc32_aarch64_available(void)
 {
-	unsigned long auxv = getauxval(AT_HWCAP);
-	return (auxv & HWCAP_CRC32) != 0;
+  unsigned long auxv= getauxval(AT_HWCAP);
+  return (auxv & HWCAP_CRC32) != 0;
 }
-
 #endif
 
 #ifndef HAVE_ARMV8_CRC_CRYPTO_INTRINSICS
@@ -298,4 +299,36 @@ uint32_t crc32c_aarch64(uint32_t crc, const unsigned char *buffer, uint64_t len)
 	}
 
 	return (~crc);
+}
+
+/* There are multiple approaches to calculate crc.
+Approach-1: Process 8 bytes then 4 bytes then 2 bytes and then 1 bytes
+Approach-2: Process 8 bytes and remaining workload using 1 bytes
+Apporach-3: Process 64 bytes at once by issuing 8 crc call and remaining
+            using 8/1 combination.
+
+Based on micro-benchmark testing we found that Approach-2 works best especially
+given small chunk of variable data. */
+unsigned int crc32_aarch64(unsigned int crc, const void *buf, size_t len)
+{
+  const uint8_t *buf1= buf;
+  const uint64_t *buf8= (const uint64_t *) (((uintptr_t) buf + 7) & ~7);
+
+  crc= ~crc;
+
+  /* if start pointer is not 8 bytes aligned */
+  while ((buf1 != (const uint8_t *) buf8) && len)
+  {
+    crc= __crc32b(crc, *buf1++);
+    len--;
+  }
+
+  for (; len >= 8; len-= 8)
+    crc= __crc32d(crc, *buf8++);
+
+  buf1= (const uint8_t *) buf8;
+  while (len--)
+    crc= __crc32b(crc, *buf1++);
+
+  return ~crc;
 }

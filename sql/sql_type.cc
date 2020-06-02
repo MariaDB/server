@@ -8994,6 +8994,11 @@ bool Type_handler::partition_field_append_value(
 }
 
 
+bool Type_handler::can_return_extract_source(interval_type int_type) const
+{
+  return type_collection() == &type_collection_std;
+}
+
 /***************************************************************************/
 
 LEX_CSTRING Charset::collation_specific_name() const

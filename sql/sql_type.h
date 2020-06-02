@@ -3616,6 +3616,7 @@ public:
   virtual bool can_return_text() const { return true; }
   virtual bool can_return_date() const { return true; }
   virtual bool can_return_time() const { return true; }
+  virtual bool can_return_extract_source(interval_type type) const;
   virtual bool is_bool_type() const { return false; }
   virtual bool is_general_purpose_string_type() const { return false; }
   virtual uint Item_time_precision(THD *thd, Item *item) const;

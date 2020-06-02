@@ -98,7 +98,7 @@ static lsn_t log_buf_pool_get_oldest_modification()
 {
   ut_ad(log_mutex_own());
   log_flush_order_mutex_enter();
-  lsn_t lsn= buf_pool_get_oldest_modification();
+  lsn_t lsn= buf_pool.get_oldest_modification();
   log_flush_order_mutex_exit();
 
   return lsn ? lsn : log_sys.get_lsn();
@@ -409,7 +409,7 @@ log_close(void)
 		goto function_exit;
 	}
 
-	oldest_lsn = buf_pool_get_oldest_modification();
+	oldest_lsn = log_buf_pool_get_oldest_modification();
 
 	if (!oldest_lsn
 	    || lsn - oldest_lsn > log_sys.max_modified_age_sync
@@ -422,7 +422,7 @@ function_exit:
 }
 
 /** Calculate the recommended highest values for lsn - last_checkpoint_lsn
-and lsn - buf_get_oldest_modification().
+and lsn - buf_pool.get_oldest_modification().
 @param[in]	file_size	requested innodb_log_file_size
 @retval true on success
 @retval false if the smallest log group is too small to

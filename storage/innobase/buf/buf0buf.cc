@@ -480,29 +480,27 @@ decrypt_failed:
 
 /**
 @return the smallest oldest_modification lsn for any page.
-@retval 0	if all modified persistent pages have been flushed */
-lsn_t
-buf_pool_get_oldest_modification()
+@retval 0 if all modified persistent pages have been flushed */
+lsn_t buf_pool_t::get_oldest_modification()
 {
-	mutex_enter(&buf_pool.flush_list_mutex);
+  mutex_enter(&flush_list_mutex);
 
-	buf_page_t*	bpage;
-	/* FIXME: Keep temporary tablespace pages in a separate flush
-	list. We would only need to write out temporary pages if the
-	page is about to be evicted from the buffer pool, and the page
-	contents is still needed (the page has not been freed). */
-	for (bpage = UT_LIST_GET_LAST(buf_pool.flush_list);
-	     bpage != NULL && fsp_is_system_temporary(bpage->id().space());
-	     bpage = UT_LIST_GET_PREV(list, bpage)) {
-		ut_ad(bpage->oldest_modification());
-	}
+  /* FIXME: Keep temporary tablespace pages in a separate flush
+  list. We would only need to write out temporary pages if the
+  page is about to be evicted from the buffer pool, and the page
+  contents is still needed (the page has not been freed). */
+  const buf_page_t *bpage;
+  for (bpage= UT_LIST_GET_LAST(flush_list);
+       bpage && fsp_is_system_temporary(bpage->id().space());
+       bpage= UT_LIST_GET_PREV(list, bpage))
+    ut_ad(bpage->oldest_modification());
 
-	lsn_t oldest_lsn = bpage ? bpage->oldest_modification() : 0;
-	mutex_exit(&buf_pool.flush_list_mutex);
+  lsn_t oldest_lsn= bpage ? bpage->oldest_modification() : 0;
+  mutex_exit(&flush_list_mutex);
 
-	/* The returned answer may be out of date: the flush_list can
-	change after the mutex has been released. */
-	return(oldest_lsn);
+  /* The result may become stale as soon as we released the mutex.
+  On log checkpoint, also log_sys.flush_order_mutex will be needed. */
+  return oldest_lsn;
 }
 #endif /* !UNIV_INNOCHECKSUM */
 

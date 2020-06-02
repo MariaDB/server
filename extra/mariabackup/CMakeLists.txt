@@ -33,7 +33,6 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/sql
   ${CMAKE_CURRENT_SOURCE_DIR}/quicklz
   ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/crc
   )
 
 IF(NOT HAVE_SYSTEM_REGEX)
@@ -84,9 +83,8 @@ MYSQL_ADD_EXECUTABLE(mariadb-backup
 
 # Export all symbols on Unix, for better crash callstacks
 SET_TARGET_PROPERTIES(mariadb-backup PROPERTIES ENABLE_EXPORTS TRUE)
-ADD_SUBDIRECTORY(crc)
 
-TARGET_LINK_LIBRARIES(mariadb-backup sql sql_builtins crc)
+TARGET_LINK_LIBRARIES(mariadb-backup sql sql_builtins)
 IF(NOT HAVE_SYSTEM_REGEX)
   TARGET_LINK_LIBRARIES(mariadb-backup pcre2-posix)
 ENDIF()
@@ -109,7 +107,6 @@ MYSQL_ADD_EXECUTABLE(mbstream
 
 TARGET_LINK_LIBRARIES(mbstream
   mysys
-  crc
 )
 ADD_DEPENDENCIES(mbstream GenError)
 

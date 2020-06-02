@@ -58,7 +58,6 @@ static bool save_index(Sort_param *param, uint count,
                        SORT_INFO *table_sort);
 static uint suffix_length(ulong string_length);
 static uint sortlength(THD *thd, Sort_keys *sortorder,
-                       bool *multi_byte_charset,
                        bool *allow_packing_for_sortkeys);
 static Addon_fields *get_addon_fields(TABLE *table, uint sortlength,
                                       uint *addon_length,
@@ -200,7 +199,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   ha_rows num_rows= HA_POS_ERROR;
   IO_CACHE tempfile, buffpek_pointers, *outfile; 
   Sort_param param;
-  bool multi_byte_charset, allow_packing_for_sortkeys;
+  bool allow_packing_for_sortkeys;
   Bounded_queue<uchar, uchar> pq;
   SQL_SELECT *const select= filesort->select;
   ha_rows max_rows= filesort->limit;
@@ -248,8 +247,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   sort->found_rows= HA_POS_ERROR;
 
   param.sort_keys= sort_keys;
-  uint sort_len= sortlength(thd, sort_keys, &multi_byte_charset,
-                            &allow_packing_for_sortkeys);
+  uint sort_len= sortlength(thd, sort_keys, &allow_packing_for_sortkeys);
 
   param.init_for_filesort(sort_len, table, max_rows, filesort->sort_positions);
 
@@ -309,12 +307,6 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     tracker->report_sort_keys_format(param.using_packed_sortkeys());
     param.using_pq= false;
 
-    if ((multi_byte_charset || param.using_packed_sortkeys()) &&
-        !(param.tmp_buffer= (char*) my_malloc(key_memory_Sort_param_tmp_buffer, param.sort_length,
-                                              MYF(MY_WME | MY_THREAD_SPECIFIC))))
-      goto err;
-
-
     size_t min_sort_memory= MY_MAX(MIN_SORT_MEMORY,
                                    param.sort_length*MERGEBUFF2);
     set_if_bigger(min_sort_memory, sizeof(Merge_chunk*)*MERGEBUFF2);
@@ -344,6 +336,9 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     // report information whether addon fields are packed or not
     tracker->report_addon_fields_format(param.using_packed_addons());
   }
+
+  if (param.tmp_buffer.alloc(param.sort_length))
+    goto err;
 
   if (open_cached_file(&buffpek_pointers,mysql_tmpdir,TEMP_PREFIX,
 		       DISK_BUFFER_SIZE, MYF(MY_WME)))
@@ -438,7 +433,6 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   error= 0;
 
   err:
-  my_free(param.tmp_buffer);
   if (!subselect || !subselect->is_uncacheable())
   {
     if (!param.using_addon_fields())
@@ -1101,10 +1095,8 @@ Type_handler_string_result::make_sort_key_part(uchar *to, Item *item,
 
   if (maybe_null)
     *to++= 1;
-  char *tmp_buffer= param->tmp_buffer ? param->tmp_buffer : (char*) to;
-  String tmp(tmp_buffer, param->tmp_buffer ? param->sort_length :
-                                             sort_field->length, cs);
-  String *res= item->str_result(&tmp);
+
+  String *res= item->str_result(&param->tmp_buffer);
   if (!res)
   {
     if (maybe_null)
@@ -2181,8 +2173,6 @@ Type_handler_decimal_result::sort_length(THD *thd,
   @param thd			  Thread handler
   @param sortorder		  Order of items to sort
   @param s_length	          Number of items to sort
-  @param[out] multi_byte_charset Set to 1 if we are using multi-byte charset
-                                 (In which case we have to use strxnfrm())
   @param allow_packing_for_sortkeys [out]  set to false if packing sort keys is not
                                      allowed
 
@@ -2196,11 +2186,9 @@ Type_handler_decimal_result::sort_length(THD *thd,
 */
 
 static uint
-sortlength(THD *thd, Sort_keys *sort_keys, bool *multi_byte_charset,
-           bool *allow_packing_for_sortkeys)
+sortlength(THD *thd, Sort_keys *sort_keys, bool *allow_packing_for_sortkeys)
 {
   uint length;
-  *multi_byte_charset= 0;
   *allow_packing_for_sortkeys= true;
   bool allow_packing_for_keys= true;
 
@@ -2226,10 +2214,8 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *multi_byte_charset,
       sortorder->cs= cs;
 
       if (use_strnxfrm((cs=sortorder->field->sort_charset())))
-      {
-        *multi_byte_charset= true;
         sortorder->length= (uint) cs->strnxfrmlen(sortorder->length);
-      }
+
       if (sortorder->is_variable_sized() && allow_packing_for_keys)
       {
         allow_packing_for_keys= sortorder->check_if_packing_possible(thd);
@@ -2243,17 +2229,12 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *multi_byte_charset,
     }
     else
     {
-      CHARSET_INFO *cs;
       sortorder->item->type_handler()->sort_length(thd, sortorder->item,
                                                    sortorder);
       sortorder->type= sortorder->item->type_handler()->is_packable() ?
                        SORT_FIELD_ATTR::VARIABLE_SIZE :
                        SORT_FIELD_ATTR::FIXED_SIZE;
-      if (use_strnxfrm((cs=sortorder->item->collation.collation)))
-      {
-        *multi_byte_charset= true;
-      }
-      sortorder->cs= cs;
+      sortorder->cs= sortorder->item->collation.collation;
       if (sortorder->is_variable_sized() && allow_packing_for_keys)
       {
         allow_packing_for_keys= sortorder->check_if_packing_possible(thd);
@@ -2565,8 +2546,7 @@ Type_handler_string_result::make_packed_sort_key_part(uchar *to, Item *item,
   if (maybe_null)
     *to++= 1;
 
-  String tmp(param->tmp_buffer, param->sort_length, cs);
-  String *res= item->str_result(&tmp);
+  String *res= item->str_result(&param->tmp_buffer);
   if (!res)
   {
     if (maybe_null)

@@ -2160,7 +2160,7 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 		sum_pages = 0;
 	}
 
-	oldest_lsn = buf_pool_get_oldest_modification();
+	oldest_lsn = buf_pool.get_oldest_modification();
 
 	ut_ad(oldest_lsn <= log_get_lsn());
 
