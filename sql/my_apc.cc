@@ -176,6 +176,11 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
       /* Request was successfully executed and dequeued by the target thread */
       res= FALSE;
     }
+#ifdef WITH_WSREP
+    /* If lock ptr is set due WSREP thread we need to unlock it*/
+    if (LOCK_thd_data_ptr)
+      mysql_mutex_unlock(LOCK_thd_data_ptr);
+#endif
     /* 
       exit_cond() will call mysql_mutex_unlock(LOCK_thd_kill_ptr) for us:
     */
@@ -186,6 +191,10 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
   }
   else
   {
+#ifdef WITH_WSREP
+    if (LOCK_thd_data_ptr)
+      mysql_mutex_unlock(LOCK_thd_data_ptr);
+#endif
     mysql_mutex_unlock(LOCK_thd_kill_ptr);
   }
   return res;

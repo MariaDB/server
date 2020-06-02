@@ -3169,12 +3169,14 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
                                                    tmp_sctx->user)))
     {
       my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "PROCESS");
+      if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
       mysql_mutex_unlock(&tmp->LOCK_thd_kill);
       DBUG_RETURN(1);
     }
 
     if (tmp == thd)
     {
+      if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
       mysql_mutex_unlock(&tmp->LOCK_thd_kill);
       my_error(ER_TARGET_NOT_EXPLAINABLE, MYF(0));
       DBUG_RETURN(1);
@@ -3196,10 +3198,19 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     explain_req.target_thd= tmp;
     explain_req.request_thd= thd;
     explain_req.failed_to_produce= FALSE;
-    
+
+#ifdef WITH_WSREP
+    /* If WSREP thread we have lock on target->LOCK_thd_data this needs
+       to be unlocked in APC call */
+    if(WSREP(tmp))
+      tmp->apc_target.LOCK_thd_data_ptr= &tmp->LOCK_thd_data;
+#endif
     /* Ok, we have a lock on target->LOCK_thd_kill, can call: */
     bres= tmp->apc_target.make_apc_call(thd, &explain_req, timeout_sec, &timed_out);
-
+#ifdef WITH_WSREP
+    if(WSREP(tmp))
+      tmp->apc_target.LOCK_thd_data_ptr= NULL;
+#endif
     if (bres || explain_req.failed_to_produce)
     {
       if (thd->killed)
