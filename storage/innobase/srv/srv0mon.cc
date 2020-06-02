@@ -2002,7 +2002,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:
-		value = (mon_type_t) buf_pool_get_oldest_modification();
+		value = (mon_type_t) buf_pool.get_oldest_modification();
 		break;
 
 	case MONITOR_OVLD_LSN_CHECKPOINT:

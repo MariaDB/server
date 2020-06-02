@@ -91,27 +91,17 @@ should be bigger than LOG_POOL_PREFLUSH_RATIO_SYNC */
 the previous */
 #define LOG_POOL_PREFLUSH_RATIO_ASYNC	8
 
-/****************************************************************//**
-Returns the oldest modified block lsn in the pool, or log_sys.lsn if none
-exists.
+/** Return the oldest modified LSN in buf_pool.flush_list,
+or the latest LSN if all pages are clean.
 @return LSN of oldest modification */
-static
-lsn_t
-log_buf_pool_get_oldest_modification(void)
-/*======================================*/
+static lsn_t log_buf_pool_get_oldest_modification()
 {
-	lsn_t	lsn;
+  ut_ad(log_mutex_own());
+  log_flush_order_mutex_enter();
+  lsn_t lsn= buf_pool.get_oldest_modification();
+  log_flush_order_mutex_exit();
 
-	ut_ad(log_mutex_own());
-
-	lsn = buf_pool_get_oldest_modification();
-
-	if (!lsn) {
-
-		lsn = log_sys.get_lsn();
-	}
-
-	return(lsn);
+  return lsn ? lsn : log_sys.get_lsn();
 }
 
 /** Extends the log buffer.
@@ -419,7 +409,7 @@ log_close(void)
 		goto function_exit;
 	}
 
-	oldest_lsn = buf_pool_get_oldest_modification();
+	oldest_lsn = log_buf_pool_get_oldest_modification();
 
 	if (!oldest_lsn
 	    || lsn - oldest_lsn > log_sys.max_modified_age_sync
@@ -432,7 +422,7 @@ function_exit:
 }
 
 /** Calculate the recommended highest values for lsn - last_checkpoint_lsn
-and lsn - buf_get_oldest_modification().
+and lsn - buf_pool.get_oldest_modification().
 @param[in]	file_size	requested innodb_log_file_size
 @retval true on success
 @retval false if the smallest log group is too small to

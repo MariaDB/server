@@ -198,11 +198,6 @@ UNIV_INLINE
 ulint
 buf_pool_get_curr_size(void);
 /*========================*/
-/**
-@return the smallest oldest_modification lsn for any page.
-@retval 0	if all modified persistent pages have been flushed */
-lsn_t
-buf_pool_get_oldest_modification();
 
 /********************************************************************//**
 Allocates a buf_page_t descriptor. This function must succeed. In case
@@ -1867,6 +1862,11 @@ public:
   { return is_block_field(reinterpret_cast<const void*>(m)); }
   bool is_block_lock(const BPageLock *l) const
   { return is_block_field(reinterpret_cast<const void*>(l)); }
+
+  /**
+  @return the smallest oldest_modification lsn for any page
+  @retval 0 if all modified persistent pages have been flushed */
+  lsn_t get_oldest_modification();
 
   /** Determine if a buffer block was created by chunk_t::create().
   @param block  block descriptor (not dereferenced)
