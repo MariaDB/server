@@ -154,7 +154,7 @@ before_first:
 			ut_ad(index->table->instant);
 			ut_ad(page_get_n_recs(block->frame) == 1);
 			ut_ad(page_is_leaf(block->frame));
-			ut_ad(page_get_page_no(block->frame) == index->page);
+			ut_ad(!page_has_siblings(block->frame));
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
 			return;
 		}
