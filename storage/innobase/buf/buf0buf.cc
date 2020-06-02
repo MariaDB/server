@@ -3615,10 +3615,16 @@ buf_page_optimistic_get(
 	ut_ad(mtr->is_active());
 	ut_ad(rw_latch == RW_S_LATCH || rw_latch == RW_X_LATCH);
 
+	if (UNIV_UNLIKELY(block->page.state() != BUF_BLOCK_FILE_PAGE
+			  || block->page.io_fix() != BUF_IO_NONE)) {
+		return FALSE;
+	}
+
 	rw_lock_t *hash_lock = buf_pool.hash_lock_get(block->page.id());
 	rw_lock_s_lock(hash_lock);
 
-	if (UNIV_UNLIKELY(block->page.state() != BUF_BLOCK_FILE_PAGE)) {
+	if (UNIV_UNLIKELY(block->page.state() != BUF_BLOCK_FILE_PAGE
+			  || block->page.io_fix() != BUF_IO_NONE)) {
 		rw_lock_s_unlock(hash_lock);
 		return(FALSE);
 	}
