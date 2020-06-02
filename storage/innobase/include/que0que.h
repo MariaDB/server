@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -169,16 +169,6 @@ trx_t*
 thr_get_trx(
 /*========*/
 	que_thr_t*	thr);	/*!< in: query thread */
-/*******************************************************************//**
-Determines if this thread is rolling back an incomplete transaction
-in crash recovery.
-@return TRUE if thr is rolling back an incomplete transaction in crash
-recovery */
-UNIV_INLINE
-ibool
-thr_is_recv(
-/*========*/
-	const que_thr_t*	thr);	/*!< in: query thread */
 /***********************************************************************//**
 Gets the type of a graph node. */
 UNIV_INLINE

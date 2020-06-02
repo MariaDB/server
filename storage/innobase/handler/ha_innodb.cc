@@ -3688,7 +3688,7 @@ static int innodb_init_params()
 	pages, even for larger pages */
 	if (srv_page_size > UNIV_PAGE_SIZE_DEF
 	    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
-		ib::info() << "innodb_page_size="
+		ib::error() << "innodb_page_size="
 			<< srv_page_size << " requires "
 			<< "innodb_buffer_pool_size > 24M current "
 			<< innobase_buffer_pool_size;

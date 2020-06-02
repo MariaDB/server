@@ -4677,7 +4677,7 @@ evict_from_pool:
 		buf_pool->mutex or block->mutex. */
 
 		{
-			bool	success = buf_zip_decompress(block, TRUE);
+			bool	success = buf_zip_decompress(block, false);
 
 			if (!success) {
 				buf_pool_mutex_enter(buf_pool);

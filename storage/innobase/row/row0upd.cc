@@ -1884,7 +1884,8 @@ row_upd_changes_ord_field_binary_func(
 					when the server had crashed before
 					storing the field. */
 					ut_ad(thr->graph->trx->is_recovered);
-					ut_ad(trx_is_recv(thr->graph->trx));
+					ut_ad(thr->graph->trx
+					      == trx_roll_crash_recv_trx);
 					return(TRUE);
 				}
 
