@@ -2495,13 +2495,11 @@ inline buf_page_t *buf_pool_t::watch_set(const page_id_t id,
                                          rw_lock_t **hash_lock)
 {
   const ulint fold= id.fold();
-retry:
   ut_ad(*hash_lock == hash_lock_get_low(fold));
   ut_ad(rw_lock_own(*hash_lock, RW_LOCK_X));
 
-  buf_page_t *bpage= page_hash_get_low(id);
-
-  if (bpage)
+retry:
+  if (buf_page_t *bpage= page_hash_get_low(id))
   {
     if (!watch_is_sentinel(*bpage))
       /* The page was loaded meanwhile. */
@@ -2539,11 +2537,14 @@ retry:
     rw_lock_x_lock(*hash_lock);
     mutex_exit(&mutex);
 
-    bpage= page_hash_get_low(id);
+    buf_page_t *bpage= page_hash_get_low(id);
     if (UNIV_LIKELY_NULL(bpage))
     {
+      rw_lock_x_unlock(*hash_lock);
       mutex_enter(&mutex);
       w->set_state(BUF_BLOCK_NOT_USED);
+      *hash_lock= hash_lock_get_low(fold);
+      rw_lock_x_lock(*hash_lock);
       mutex_exit(&mutex);
       goto retry;
     }
