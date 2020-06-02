@@ -833,3 +833,17 @@ Description: MariaDB database regression test suite - data files
  ease of use.
  .
  This package has the architecture independent data files for the test suite.
+
+Package: mytop
+Architecture: all
+Depends: libconfig-inifiles-perl,
+         libdbd-mysql-perl,
+         libdbi-perl,
+         libterm-readkey-perl,
+         ${misc:Depends},
+         ${perl:Depends}
+Recommends: libtime-hires-perl
+Description: top like query monitor for MySQL
+ Mytop is a console-based tool for monitoring queries and the performance
+ of MySQL and MariaDB.
+ It's written in Perl and support connections using TCP/IP and UNIX sockets.
