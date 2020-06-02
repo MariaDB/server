@@ -3743,5 +3743,50 @@ a	ROW_NUMBER() OVER v2
 1	1
 drop table t0;
 #
+# MDEV-16230:Server crashes when Analyze format=json is run with a window function with
+# empty PARTITION BY and ORDER BY clauses
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+ANALYZE FORMAT=JSON SELECT row_number() OVER() FROM t1;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "`row_number() OVER()`",
+          "r_loops": 1,
+          "r_total_time_ms": "REPLACED",
+          "r_used_priority_queue": false,
+          "r_output_rows": 3,
+          "r_buffer_size": "REPLACED"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 3,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+SELECT row_number() OVER() FROM t1;
+row_number() OVER()
+1
+2
+3
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
