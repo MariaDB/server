@@ -55,11 +55,16 @@ inline void buf_pool_t::watch_remove(buf_page_t *watch)
 {
   ut_ad(rw_lock_own(hash_lock_get(watch->id()), RW_LOCK_X));
   ut_a(watch_is_sentinel(*watch));
-  ut_ad(watch->in_page_hash);
-  ut_d(watch->in_page_hash= false);
-  HASH_DELETE(buf_page_t, hash, page_hash, watch->id().fold(), watch);
-  watch->set_buf_fix_count(0);
+  if (watch->buf_fix_count())
+  {
+    ut_ad(watch->in_page_hash);
+    ut_d(watch->in_page_hash= false);
+    HASH_DELETE(buf_page_t, hash, page_hash, watch->id().fold(), watch);
+    watch->set_buf_fix_count(0);
+  }
+  ut_ad(!watch->in_page_hash);
   watch->set_state(BUF_BLOCK_NOT_USED);
+  watch->id_= page_id_t(~0ULL);
 }
 
 /** Initialize a page for read to the buffer buf_pool. If the page is
@@ -214,10 +219,10 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
     if (hash_page)
     {
-      /* Preserve the reference count. */
-      auto buf_fix_count= hash_page->buf_fix_count();
-      ut_ad(buf_fix_count > 0);
-      bpage->add_buf_fix_count(buf_fix_count);
+      /* Preserve the reference count. It can be 0 if
+      buf_pool_t::watch_unset() is executing concurrently,
+      waiting for buf_pool.mutex, which we are holding. */
+      bpage->add_buf_fix_count(hash_page->buf_fix_count());
       buf_pool.watch_remove(hash_page);
     }
 

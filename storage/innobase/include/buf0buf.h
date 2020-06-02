@@ -1807,8 +1807,13 @@ public:
       rw_lock_x_unlock(hash_lock);
       // Now that the watch is detached from page_hash, release it to watch[].
       mutex_enter(&mutex);
-      watch->set_buf_fix_count(0);
-      watch->set_state(BUF_BLOCK_NOT_USED);
+      /* It is possible that watch_remove() already removed the watch. */
+      if (watch->id_ == id)
+      {
+        ut_ad(!watch->buf_fix_count());
+        ut_ad(watch->state() == BUF_BLOCK_ZIP_PAGE);
+        watch->set_state(BUF_BLOCK_NOT_USED);
+      }
       mutex_exit(&mutex);
     }
     else
