@@ -987,7 +987,7 @@ uint Rdb_key_def::get_memcmp_sk_parts(const TABLE *table,
   Convert index tuple into storage (i.e. mem-comparable) format
 
   @detail
-    Currently this is done by unpacking into table->record[0] and then
+    Currently this is done by unpacking into record_buffer and then
     packing index columns into storage format.
 
   @param pack_buffer Temporary area for packing varchar columns. Its
@@ -996,6 +996,7 @@ uint Rdb_key_def::get_memcmp_sk_parts(const TABLE *table,
 
 uint Rdb_key_def::pack_index_tuple(TABLE *const tbl, uchar *const pack_buffer,
                                    uchar *const packed_tuple,
+                                   uchar *const record_buffer,
                                    const uchar *const key_tuple,
                                    const key_part_map &keypart_map) const {
   DBUG_ASSERT(tbl != nullptr);
@@ -1005,13 +1006,13 @@ uint Rdb_key_def::pack_index_tuple(TABLE *const tbl, uchar *const pack_buffer,
 
   /* We were given a record in KeyTupleFormat. First, save it to record */
   const uint key_len = calculate_key_len(tbl, m_keyno, key_tuple, keypart_map);
-  key_restore(tbl->record[0], key_tuple, &tbl->key_info[m_keyno], key_len);
+  key_restore(record_buffer, key_tuple, &tbl->key_info[m_keyno], key_len);
 
   uint n_used_parts = my_count_bits(keypart_map);
   if (keypart_map == HA_WHOLE_KEY) n_used_parts = 0;  // Full key is used
 
   /* Then, convert the record into a mem-comparable form */
-  return pack_record(tbl, pack_buffer, tbl->record[0], packed_tuple, nullptr,
+  return pack_record(tbl, pack_buffer, record_buffer, packed_tuple, nullptr,
                      false, 0, n_used_parts);
 }
 

@@ -6328,6 +6328,7 @@ ha_rocksdb::ha_rocksdb(my_core::handlerton *const hton,
       m_dup_sk_packed_tuple(nullptr),
       m_dup_sk_packed_tuple_old(nullptr),
       m_pack_buffer(nullptr),
+      m_record_buffer(nullptr),
       m_lock_rows(RDB_LOCK_NONE),
       m_keyread_only(false),
       m_insert_with_update(false),
@@ -6542,6 +6543,7 @@ int ha_rocksdb::alloc_key_buffers(const TABLE *const table_arg,
   uint key_len = 0;
   uint max_packed_sk_len = 0;
   uint pack_key_len = 0;
+  uint record_len = table->s->reclength + table->s->null_bytes;
 
   m_pk_descr = kd_arr[pk_index(table_arg, tbl_def_arg)];
   if (has_hidden_pk(table_arg)) {
@@ -6586,6 +6588,8 @@ int ha_rocksdb::alloc_key_buffers(const TABLE *const table_arg,
       reinterpret_cast<uchar *>(my_malloc(PSI_INSTRUMENT_ME, max_packed_sk_len, MYF(0)));
   m_pack_buffer =
       reinterpret_cast<uchar *>(my_malloc(PSI_INSTRUMENT_ME, max_packed_sk_len, MYF(0)));
+  m_record_buffer =
+      reinterpret_cast<uchar *>(my_malloc(PSI_INSTRUMENT_ME, record_len, MYF(0)));
 
   m_scan_it_lower_bound =
       reinterpret_cast<uchar *>(my_malloc(PSI_INSTRUMENT_ME, max_packed_sk_len, MYF(0)));
@@ -6607,6 +6611,7 @@ int ha_rocksdb::alloc_key_buffers(const TABLE *const table_arg,
       m_sk_packed_tuple == nullptr || m_sk_packed_tuple_old == nullptr ||
       m_end_key_packed_tuple == nullptr || m_pack_buffer == nullptr ||
       m_scan_it_upper_bound == nullptr || m_scan_it_lower_bound == nullptr ||
+      m_record_buffer == nullptr ||
       (alloc_alter_buffers && (m_dup_sk_packed_tuple == nullptr ||
                                m_dup_sk_packed_tuple_old == nullptr))) {
     // One or more of the above allocations failed.  Clean up and exit
@@ -6639,6 +6644,9 @@ void ha_rocksdb::free_key_buffers() {
 
   my_free(m_pack_buffer);
   m_pack_buffer = nullptr;
+
+  my_free(m_record_buffer);
+  m_record_buffer = nullptr;
 
   my_free(m_dup_sk_packed_tuple);
   m_dup_sk_packed_tuple = nullptr;
@@ -8051,7 +8059,8 @@ int ha_rocksdb::position_to_correct_key(
           rc = HA_ERR_KEY_NOT_FOUND;
         } else if (find_flag == HA_READ_PREFIX_LAST) {
           uint size = kd.pack_index_tuple(table, m_pack_buffer,
-                                          m_sk_packed_tuple, key, keypart_map);
+                                          m_sk_packed_tuple, m_record_buffer,
+                                          key, keypart_map);
           rocksdb::Slice lookup_tuple(
               reinterpret_cast<char *>(m_sk_packed_tuple), size);
 
@@ -8091,7 +8100,7 @@ int ha_rocksdb::calc_eq_cond_len(const Rdb_key_def &kd,
   if (end_key) {
     *end_key_packed_size =
         kd.pack_index_tuple(table, m_pack_buffer, m_end_key_packed_tuple,
-                            end_key->key, end_key->keypart_map);
+                            m_record_buffer, end_key->key, end_key->keypart_map);
 
     /*
       Calculating length of the equal conditions here. 4 byte index id is
@@ -8462,7 +8471,8 @@ int ha_rocksdb::index_read_map_impl(uchar *const buf, const uchar *const key,
       This is a special case, use DB::Get.
     */
     const uint size = kd.pack_index_tuple(table, m_pack_buffer,
-                                          m_pk_packed_tuple, key, keypart_map);
+                                          m_pk_packed_tuple, m_record_buffer,
+                                          key, keypart_map);
     bool skip_lookup = is_blind_delete_enabled();
 
     rc = get_row_by_rowid(buf, m_pk_packed_tuple, size, skip_lookup, false);
@@ -8488,14 +8498,14 @@ int ha_rocksdb::index_read_map_impl(uchar *const buf, const uchar *const key,
                                                    .user_defined_key_parts) -
                            1;
     packed_size = kd.pack_index_tuple(table, m_pack_buffer, m_sk_packed_tuple,
-                                      key, tmp_map);
+                                      m_record_buffer, key, tmp_map);
     if (table->key_info[active_index].user_defined_key_parts !=
         kd.get_key_parts()) {
       using_full_key = false;
     }
   } else {
     packed_size = kd.pack_index_tuple(table, m_pack_buffer, m_sk_packed_tuple,
-                                      key, keypart_map);
+                                      m_record_buffer, key, keypart_map);
   }
 
   if ((pushed_idx_cond && pushed_idx_cond_keyno == active_index) &&
@@ -11924,6 +11934,7 @@ ha_rows ha_rocksdb::records_in_range(uint inx, const key_range *const min_key,
   uint size1 = 0;
   if (min_key) {
     size1 = kd.pack_index_tuple(table, m_pack_buffer, m_sk_packed_tuple,
+                                m_record_buffer,
                                 min_key->key, min_key->keypart_map);
     if (min_key->flag == HA_READ_PREFIX_LAST_OR_PREV ||
         min_key->flag == HA_READ_PREFIX_LAST ||
@@ -11937,6 +11948,7 @@ ha_rows ha_rocksdb::records_in_range(uint inx, const key_range *const min_key,
   uint size2 = 0;
   if (max_key) {
     size2 = kd.pack_index_tuple(table, m_pack_buffer, m_sk_packed_tuple_old,
+                                m_record_buffer,
                                 max_key->key, max_key->keypart_map);
     if (max_key->flag == HA_READ_PREFIX_LAST_OR_PREV ||
         max_key->flag == HA_READ_PREFIX_LAST ||
