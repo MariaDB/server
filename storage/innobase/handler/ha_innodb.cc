@@ -18214,30 +18214,38 @@ Keep the compressed pages in the buffer pool.
 @return whether all uncompressed pages were evicted */
 static bool innodb_buffer_pool_evict_uncompressed()
 {
-	bool	all_evicted = true;
+  bool all_evicted= true;
 
-	mutex_enter(&buf_pool.mutex);
+  mutex_enter(&buf_pool.mutex);
 
-	for (buf_block_t* block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
-	     block != NULL; ) {
-		buf_block_t*	prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
-		ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
-		ut_ad(block->in_unzip_LRU_list);
-		ut_ad(block->page.in_LRU_list);
+  for (buf_block_t *block= UT_LIST_GET_LAST(buf_pool.unzip_LRU); block; )
+  {
+    buf_block_t *prev_block= UT_LIST_GET_PREV(unzip_LRU, block);
+    ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
+    ut_ad(block->in_unzip_LRU_list);
+    ut_ad(block->page.in_LRU_list);
 
-		if (!buf_LRU_free_page(&block->page, false)) {
-			all_evicted = false;
-			block = prev_block;
-		} else {
-			/* Because buf_LRU_free_page() may release
-			and reacquire buf_pool.mutex, prev_block
-			may be invalid. */
-			block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
-		}
-	}
+    if (block->page.can_relocate())
+    {
+      rw_lock_t *hash_lock= buf_pool.hash_lock_get(block->page.id());
+      rw_lock_x_lock(hash_lock);
 
-	mutex_exit(&buf_pool.mutex);
-	return(all_evicted);
+      if (buf_LRU_free_page(&block->page, hash_lock, false))
+      {
+        /* Because buf_LRU_free_page() may release and reacquire
+	buf_pool.mutex, prev_block may be invalid. */
+        block= UT_LIST_GET_LAST(buf_pool.unzip_LRU);
+	continue;
+      }
+      rw_lock_x_unlock(hash_lock);
+    }
+
+    block= prev_block;
+    all_evicted= false;
+  }
+
+  mutex_exit(&buf_pool.mutex);
+  return all_evicted;
 }
 
 /****************************************************************//**

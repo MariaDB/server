@@ -56,23 +56,19 @@ buf_LRU_insert_zip_clean(
 	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
 #endif /* UNIV_DEBUG */
 
-/******************************************************************//**
-Try to free a block.  If bpage is a descriptor of a compressed-only
-page, the descriptor object will be freed as well.
+/** Try to free a block. If bpage is a descriptor of a compressed-only
+ROW_FORMAT=COMPRESSED page, the buf_page_t object will be freed as well.
 
-NOTE: If this function returns true, it will temporarily
-release buf_pool.mutex.  Furthermore, the page frame will no longer be
-accessible via bpage.
-
-The caller must hold buf_pool.mutex when calling this function.
-@return true if freed, false otherwise. */
-bool
-buf_LRU_free_page(
-/*==============*/
-	buf_page_t*	bpage,	/*!< in: block to be freed */
-	bool		zip)	/*!< in: true if should remove also the
-				compressed page of an uncompressed page */
-	MY_ATTRIBUTE((nonnull));
+The caller must hold buf_pool.mutex and hash_lock X-latch.
+@param bpage      block to be freed
+@param hash_lock  buf_pool.get_page_hash(bpage->id()); X-latched
+@param zip        whether to remove also the compressed copy of
+                  a ROW_FORMAT=COMPRESSED page
+@retval true if the page was freed: hash_lock was released, and
+buf_pool.mutex was temporarily released
+@retval false if the page was not freed */
+bool buf_LRU_free_page(buf_page_t *bpage, rw_lock_t *hash_lock, bool zip)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Try to free a replaceable block.
 @param[in]	scan_all	true=scan the whole LRU list,

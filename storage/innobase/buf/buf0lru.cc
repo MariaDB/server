@@ -509,23 +509,30 @@ static bool buf_LRU_free_from_unzip_LRU_list(bool scan_all)
 	}
 
 	ulint	scanned = 0;
+	const ulint limit = scan_all ? ULINT_UNDEFINED : srv_LRU_scan_depth;
 	bool	freed = false;
 
 	for (buf_block_t* block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
-	     block != NULL
-	     && !freed
-	     && (scan_all || scanned < srv_LRU_scan_depth);
-	     ++scanned) {
-
-		buf_block_t*	prev_block;
-
-		prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
+	     block && scanned < limit; ++scanned) {
+		buf_block_t* prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
 
 		ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
 		ut_ad(block->in_unzip_LRU_list);
 		ut_ad(block->page.in_LRU_list);
 
-		freed = buf_LRU_free_page(&block->page, false);
+		if (block->page.can_relocate()) {
+			rw_lock_t* hash_lock = buf_pool.hash_lock_get(
+				block->page.id());
+			rw_lock_x_lock(hash_lock);
+
+			freed = buf_LRU_free_page(&block->page, hash_lock,
+						  false);
+			if (freed) {
+				break;
+			} else {
+				rw_lock_x_unlock(hash_lock);
+			}
+		}
 
 		block = prev_block;
 	}
@@ -562,8 +569,13 @@ static bool buf_LRU_free_from_common_LRU_list(bool scan_all)
 		freed = bpage->ready_for_replace();
 
 		if (freed) {
-			freed = buf_LRU_free_page(bpage, true);
+			rw_lock_t* hash_lock = buf_pool.hash_lock_get(
+				bpage->id());
+			rw_lock_x_lock(hash_lock);
+			freed = buf_LRU_free_page(bpage, hash_lock, true);
+
 			if (!freed) {
+				rw_lock_x_unlock(hash_lock);
 				continue;
 			}
 
@@ -1140,36 +1152,30 @@ buf_LRU_make_block_young(
 	buf_LRU_add_block(bpage, false);
 }
 
-/******************************************************************//**
-Try to free a block.  If bpage is a descriptor of a compressed-only
-page, the descriptor object will be freed as well.
+/** Try to free a block. If bpage is a descriptor of a compressed-only
+ROW_FORMAT=COMPRESSED page, the buf_page_t object will be freed as well.
 
-NOTE: If this function returns true, it will temporarily
-release buf_pool.mutex.  Furthermore, the page frame will no longer be
-accessible via bpage.
-
-The caller must hold buf_pool.mutex when calling this function.
-@return true if freed, false otherwise. */
-bool
-buf_LRU_free_page(
-/*===============*/
-	buf_page_t*	bpage,	/*!< in: block to be freed */
-	bool		zip)	/*!< in: true if should remove also the
-				compressed page of an uncompressed page */
+The caller must hold buf_pool.mutex and hash_lock X-latch.
+@param bpage      block to be freed
+@param hash_lock  buf_pool.get_page_hash(bpage->id()); X-latched
+@param zip        whether to remove also the compressed copy of
+                  a ROW_FORMAT=COMPRESSED page
+@retval true if the page was freed: hash_lock was released, and
+buf_pool.mutex was temporarily released
+@retval false if the page was not freed */
+bool buf_LRU_free_page(buf_page_t *bpage, rw_lock_t *hash_lock, bool zip)
 {
 	const page_id_t id(bpage->id());
 	buf_page_t*	b = nullptr;
 
 	ut_ad(mutex_own(&buf_pool.mutex));
+	ut_ad(rw_lock_own(hash_lock, RW_LOCK_X));
 	ut_ad(bpage->in_file());
 	ut_ad(bpage->in_LRU_list);
 
-	rw_lock_t* hash_lock = buf_pool.hash_lock_get(id);
-	rw_lock_x_lock(hash_lock);
-
 	if (!bpage->can_relocate()) {
 		/* Do not free buffer fixed and I/O-fixed blocks. */
-		goto func_exit;
+		return false;
 	}
 
 	if (zip || !bpage->zip.data) {
@@ -1177,14 +1183,11 @@ buf_LRU_free_page(
 		/* Do not completely free dirty blocks. */
 
 		if (bpage->oldest_modification()) {
-			goto func_exit;
+			return false;
 		}
 	} else if (bpage->oldest_modification()
 		   && bpage->state() != BUF_BLOCK_FILE_PAGE) {
-func_exit:
-		rw_lock_x_unlock(hash_lock);
-		return(false);
-
+		return false;
 	} else if (bpage->state() == BUF_BLOCK_FILE_PAGE) {
 		b = buf_page_alloc_descriptor();
 		ut_a(b);
@@ -1202,7 +1205,7 @@ func_exit:
 	ut_ad(bpage->can_relocate());
 
 	if (!buf_LRU_block_remove_hashed(bpage, id, hash_lock, zip)) {
-		return(true);
+		return true;
 	}
 
 	/* buf_LRU_block_remove_hashed() releases the hash_lock */

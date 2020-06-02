@@ -2629,23 +2629,21 @@ The caller should not be holding any mutexes when this function is called.
 @param[in]	page_id	page id */
 static void buf_block_try_discard_uncompressed(const page_id_t page_id)
 {
-	buf_page_t*	bpage;
+  const ulint fold= page_id.fold();
 
-	/* Since we need to acquire buf_pool mutex to discard
-	the uncompressed frame and because page_hash mutex resides
-	below buf_pool mutex in sync ordering therefore we must
-	first release the page_hash mutex. This means that the
-	block in question can move out of page_hash. Therefore
-	we need to check again if the block is still in page_hash. */
-	mutex_enter(&buf_pool.mutex);
+  mutex_enter(&buf_pool.mutex);
 
-	bpage = buf_page_hash_get(page_id);
+  rw_lock_t *hash_lock= buf_pool.hash_lock_get(fold);
+  rw_lock_x_lock(hash_lock);
 
-	if (bpage) {
-		buf_LRU_free_page(bpage, false);
-	}
+  buf_page_t *bpage= buf_pool.page_hash_get_low(page_id);
 
-	mutex_exit(&buf_pool.mutex);
+  const bool released= bpage && buf_pool.watch_is_sentinel(*bpage) &&
+    buf_LRU_free_page(bpage, hash_lock, false);
+  mutex_exit(&buf_pool.mutex);
+
+  if (!released)
+    rw_lock_x_unlock(hash_lock);
 }
 
 /** Get read access to a compressed page (usually of type
@@ -3214,10 +3212,13 @@ got_block:
 evict_from_pool:
 			ut_ad(!fix_block->page.oldest_modification());
 			mutex_enter(&buf_pool.mutex);
+			rw_lock_x_lock(hash_lock);
 			fix_block->unfix();
 
-			if (!buf_LRU_free_page(&fix_block->page, true)) {
+			if (!buf_LRU_free_page(&fix_block->page, hash_lock,
+					       true)) {
 				ut_ad(0);
+				rw_lock_x_unlock(hash_lock);
 			}
 
 			mutex_exit(&buf_pool.mutex);
@@ -3386,13 +3387,13 @@ evict_from_pool:
 		insert buffer (change buffer) as much as possible. */
 
 		mutex_enter(&buf_pool.mutex);
-
+		rw_lock_x_lock(hash_lock);
 		fix_block->unfix();
 
 		/* Blocks cannot be relocated or enter or exit the
 		buf_pool while we are holding the buf_pool.mutex. */
 
-		if (buf_LRU_free_page(&fix_block->page, true)) {
+		if (buf_LRU_free_page(&fix_block->page, hash_lock, true)) {
 			space->release_for_io();
 			hash_lock = buf_pool.hash_lock_get_low(fold);
 			rw_lock_x_lock(hash_lock);
@@ -3418,6 +3419,8 @@ evict_from_pool:
 			}
 
 			return(NULL);
+		} else {
+			rw_lock_x_unlock(hash_lock);
 		}
 
 		bool flushed = fix_block->page.ready_for_flush()
