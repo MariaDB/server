@@ -31,7 +31,7 @@ then
   sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
 
   # Also skip building RocksDB, Mroonga etc to save even more time and disk space
-  sed 's|-DDEB|-DPLUGIN_MROONGA=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -DDEB|' -i debian/rules
+  sed 's|-DDEB|-DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -DDEB|' -i debian/rules
 fi
 
 # Convert gcc version to numberical value. Format is Mmmpp where M is Major
@@ -75,6 +75,7 @@ fi
 if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
 then
   sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
+  sed -i 's|-DPLUGIN_ROCKSDB=YES|-DPLUGIN_ROCKSDB=NO|' debian/rules
 fi
 
 # If libpcre2-dev is not available (before Debian Stretch and Ubuntu Xenial)
@@ -94,10 +95,11 @@ then
   sed -i -e "/Package: libmariadbd-dev/,/^$/d" debian/control
 fi
 
-# Don't package ColumnStore if it wasn't turned on to build
-if [[ $CMAKEFLAGS != *"COLUMNSTORE=YES"* ]]
+if [[ $TRAVIS ]] || ! [[ $(arch) =~ 86 ]]
 then
-    sed -i -e "/Package: mariadb-plugin-columnstore/,/^$/d" debian/control
+  sed -i -e "/Package: mariadb-plugin-columnstore/,/^$/d" debian/control
+  sed -i '/flex/d' debian/control
+  sed -i 's|-DPLUGIN_COLUMNSTORE=YES|-DPLUGIN_COLUMNSTORE=NO|' debian/rules
 fi
 
 # Adjust changelog, add new version

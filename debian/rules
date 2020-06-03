@@ -39,10 +39,6 @@ else
     TESTSUITE_FAIL_CMD:=exit 1
 endif
 
-ifeq (32,$(DEB_HOST_ARCH_BITS))
-    CMAKEFLAGS += -DWITHOUT_ROCKSDB=true
-endif
-
 # Add extra flag to avoid WolfSSL code crashing the entire mariadbd on s390x. This
 # can be removed once upstream has made the code s390x compatible, see
 # https://jira.mariadb.org/browse/MDEV-21705 and
@@ -85,8 +81,10 @@ endif
 	    -DSYSTEM_TYPE="debian-$(DEB_HOST_GNU_SYSTEM)" \
 	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_HOST_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
-	    -DWITHOUT_TOKUDB=true \
-	    -DWITHOUT_CASSANDRA=true \
+	    -DPLUGIN_TOKUDB=NO \
+	    -DPLUGIN_CASSANDRA=NO \
+	    -DPLUGIN_COLUMNSTORE=YES \
+	    -DPLUGIN_ROCKSDB=YES \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
 	    -WITH_EMBEDDED_SERVER=OFF \
 	    -DDEB=$(DEB_VENDOR) ..'
