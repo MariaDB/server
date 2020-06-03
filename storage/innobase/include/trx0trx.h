@@ -1183,11 +1183,6 @@ inline bool trx_is_started(const trx_t* trx)
 						converted to LOCK IN SHARE
 						MODE reads */
 
-/* Treatment of duplicate values (trx->duplicates; for example, in inserts).
-Multiple flags can be combined with bitwise OR. */
-#define TRX_DUP_IGNORE	1U	/* duplicate rows are to be updated */
-#define TRX_DUP_REPLACE	2U	/* duplicate rows are to be replaced */
-
 
 /** Commit node states */
 enum commit_node_state {
