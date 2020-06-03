@@ -428,7 +428,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
                       setup_tables_done_option,
 		      result, unit, select_lex);
   }
-  DBUG_PRINT("info",("res: %d  report_error: %d", res,
+  DBUG_PRINT("info",("res: %d  is_error(): %d", res,
 		     thd->is_error()));
   res|= thd->is_error();
   if (unlikely(res))
@@ -20671,8 +20671,8 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
 
   DBUG_ENTER("evaluate_join_record");
   DBUG_PRINT("enter",
-             ("evaluate_join_record join: %p join_tab: %p"
-              " cond: %p error: %d  alias %s",
+             ("evaluate_join_record join: %p  join_tab: %p  "
+              "cond: %p  abort: %d  alias %s",
               join, join_tab, select_cond, error,
               join_tab->table->alias.ptr()));
 
