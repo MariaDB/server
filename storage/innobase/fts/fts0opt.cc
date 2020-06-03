@@ -42,6 +42,7 @@ ib_wqueue_t* fts_optimize_wq;
 static void fts_optimize_callback(void *);
 static void timer_callback(void*);
 static tpool::timer* timer;
+
 static tpool::task_group task_group(1);
 static tpool::task task(fts_optimize_callback,0, &task_group);
 
@@ -3014,6 +3015,7 @@ fts_optimize_shutdown()
 	/* We tell the OPTIMIZE thread to switch to state done, we
 	can't delete the work queue here because the add thread needs
 	deregister the FTS tables. */
+	timer->disarm();
 	task_group.cancel_pending(&task);
 
 	msg = fts_optimize_create_msg(FTS_MSG_STOP, NULL);
