@@ -2516,18 +2516,20 @@ srv_purge_should_exit(ulint n_purged)
 		return(true);
 	}
 	/* Slow shutdown was requested. */
-	if (n_purged) {
-#if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
+	if (ulint history_size = n_purged ? trx_sys->rseg_history_len : 0) {
 		static time_t progress_time;
 		time_t now = time(NULL);
 		if (now - progress_time >= 15) {
 			progress_time = now;
+#if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
 			service_manager_extend_timeout(
 				INNODB_EXTEND_TIMEOUT_INTERVAL,
 				"InnoDB: to purge " ULINTPF " transactions",
-				trx_sys->rseg_history_len);
-		}
+				history_size);
 #endif
+			ib::info() << "to purge " << history_size
+				   << " transactions";
+		}
 		/* The previous round still did some work. */
 		return(false);
 	}
