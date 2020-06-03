@@ -2058,3 +2058,54 @@ Lady of the Flies	::5
 Lord of the Ladybirds	::5
 Lord of the Ladybirds	::5
 DROP TABLE t1;
+#
+# MDEV-22758 Assertion `!item->null_value' failed in Type_handler_inet6::make_sort_key_part
+#
+CREATE TABLE t1 (a VARCHAR(8) NOT NULL, b INET6 NOT NULL);
+INSERT INTO t1 VALUES ('foo','::'),('bar','1::1');
+SELECT * FROM t1 ORDER BY CASE WHEN a THEN b ELSE a END;
+a	b
+foo	::
+bar	1::1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Incorrect inet6 value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'bar'
+Warning	1292	Incorrect inet6 value: 'bar'
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a VARCHAR(8) NOT NULL);
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT * FROM t1 ORDER BY CAST(a AS INET6);
+a
+foo
+bar
+Warnings:
+Warning	1292	Incorrect inet6 value: 'foo'
+Warning	1292	Incorrect inet6 value: 'bar'
+DROP TABLE t1;
+CREATE TABLE t1 (a INET6 NOT NULL, b VARCHAR(32) NOT NULL);
+CREATE TABLE t2 AS SELECT CAST(a AS INET6) AS ca, CAST(b AS INET6) AS cb FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ca` inet6 NOT NULL,
+  `cb` inet6 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT COALESCE(a,a), COALESCE(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,a)` inet6 NOT NULL,
+  `COALESCE(a,b)` inet6 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT a AS ca,a AS cb FROM t1 UNION SELECT a,b FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ca` inet6 NOT NULL DEFAULT '::',
+  `cb` inet6 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;

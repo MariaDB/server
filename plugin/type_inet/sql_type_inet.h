@@ -137,7 +137,7 @@ class Inet6
 {
 protected:
   char m_buffer[IN6_ADDR_SIZE];
-  bool make_from_item(Item *item);
+  bool make_from_item(Item *item, bool warn);
   bool ascii_to_ipv6(const char *str, size_t str_length);
   bool character_string_to_ipv6(const char *str, size_t str_length,
                                 CHARSET_INFO *cs)
@@ -152,7 +152,7 @@ protected:
     }
     return ascii_to_ipv6(str, str_length);
   }
-  bool make_from_character_or_binary_string(const String *str);
+  bool make_from_character_or_binary_string(const String *str, bool warn);
   bool binary_to_ipv6(const char *str, size_t length)
   {
     if (length != sizeof(m_buffer))
@@ -182,11 +182,17 @@ public:
     return true;
   }
 
+  /*
+    Check at Item's fix_fields() time if "item" can return a nullable value
+    on conversion to INET6, or conversion produces a NOT NULL INET6 value.
+  */
+  static bool fix_fields_maybe_null_on_conversion_to_inet6(Item *item);
+
 public:
 
-  Inet6(Item *item, bool *error)
+  Inet6(Item *item, bool *error, bool warn= true)
   {
-    *error= make_from_item(item);
+    *error= make_from_item(item, warn);
   }
   void to_binary(char *str, size_t str_size) const
   {
@@ -264,8 +270,8 @@ public:
    :Inet6_null(str.ptr(), str.length())
   { }
   // Initialize from an Item
-  Inet6_null(Item *item)
-   :Null_flag(make_from_item(item))
+  Inet6_null(Item *item, bool warn= true)
+   :Null_flag(make_from_item(item, warn))
   { }
 public:
   const Inet6& to_inet6() const
@@ -714,6 +720,14 @@ public:
   {
     attr->Type_std_attributes::operator=(Type_std_attributes_inet6());
     h->set_handler(this);
+    for (uint i= 0; i < nitems; i++)
+    {
+      if (Inet6::fix_fields_maybe_null_on_conversion_to_inet6(items[i]))
+      {
+        attr->set_maybe_null(true);
+        break;
+      }
+    }
     return false;
   }
   bool Item_func_min_max_fix_attributes(THD *thd,
