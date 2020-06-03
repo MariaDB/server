@@ -35,15 +35,6 @@ extern bool		trx_rollback_is_active;
 extern const trx_t*	trx_roll_crash_recv_trx;
 
 /*******************************************************************//**
-Determines if this transaction is rolling back an incomplete transaction
-in crash recovery.
-@return TRUE if trx is an incomplete transaction that is being rolled
-back in crash recovery */
-ibool
-trx_is_recv(
-/*========*/
-	const trx_t*	trx);	/*!< in: transaction */
-/*******************************************************************//**
 Returns a transaction savepoint taken at this point in time.
 @return savepoint */
 trx_savept_t

@@ -18,6 +18,7 @@
 #include <my_sys.h>
 #include <zlib.h>
 
+#if !defined(HAVE_CRC32_VPMSUM)
 /* TODO: remove this once zlib adds inherent support for hardware accelerated
 crc32 for all architectures. */
 static unsigned int my_crc32_zlib(unsigned int crc, const void *data,
@@ -26,7 +27,6 @@ static unsigned int my_crc32_zlib(unsigned int crc, const void *data,
   return (unsigned int) crc32(crc, data, (unsigned int) len);
 }
 
-#if !defined(HAVE_CRC32_VPMSUM)
 my_crc32_t my_checksum= my_crc32_zlib;
 #endif
 

@@ -1140,12 +1140,16 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
   page_t *frame= bpage->zip.data;
   size_t size, orig_size;
 
-  if (UNIV_UNLIKELY(!rw_lock))
+  if (UNIV_UNLIKELY(!rw_lock)) /* ROW_FORMAT=COMPRESSED */
   {
+    ut_ad(!space->full_crc32());
+    ut_ad(!space->is_compressed()); /* not page_compressed */
     orig_size= size= bpage->zip_size();
-    ut_a(page_zip_verify_checksum(frame, size));
     if (status != buf_page_t::FREED)
+    {
+      buf_flush_update_zip_checksum(frame, orig_size);
       frame= buf_page_encrypt(space, bpage, frame, &size);
+    }
     ut_ad(size == bpage->zip_size());
   }
   else

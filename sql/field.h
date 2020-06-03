@@ -978,6 +978,24 @@ public:
     return store(ls.str, (uint) ls.length, cs);
   }
 
+  /*
+    @brief
+      Store minimum/maximum value of a column in the statistics table.
+    @param
+      field                  statistical table field
+      str                    value buffer
+  */
+  virtual int store_to_statistical_minmax_field(Field *field, String *str);
+
+  /*
+    @brief
+      Store minimum/maximum value of a column from the statistical table.
+    @param
+      field                  statistical table field
+      str                    value buffer
+  */
+  virtual int store_from_statistical_minmax_field(Field *field, String *str);
+
 #ifdef HAVE_valgrind_or_MSAN
   /**
     Mark unused memory in the field as defined. Mainly used to ensure

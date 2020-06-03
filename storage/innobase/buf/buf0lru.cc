@@ -1327,28 +1327,11 @@ bool buf_LRU_free_page(buf_page_t *bpage, rw_lock_t *hash_lock, bool zip)
 			 srv_page_size);
 
 	if (UNIV_LIKELY_NULL(b)) {
-		/* Compute and stamp the compressed page
-		checksum while not holding any mutex.  The
-		block is already half-freed
-		(BUF_BLOCK_REMOVE_HASH) and removed from
-		buf_pool.page_hash, thus inaccessible by any
-		other thread. */
-
 		ut_ad(b->zip_size());
-
-		const uint32_t	checksum = page_zip_calc_checksum(
-			b->zip.data,
-			b->zip_size(),
-			static_cast<srv_checksum_algorithm_t>(
-				srv_checksum_algorithm));
-
-		mach_write_to_4(b->zip.data + FIL_PAGE_SPACE_OR_CHKSUM,
-				checksum);
 		b->io_unfix();
 	}
 
 	mutex_enter(&buf_pool.mutex);
-
 	buf_LRU_block_free_hashed_page((buf_block_t*) bpage);
 
 	return(true);

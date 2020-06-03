@@ -788,7 +788,6 @@ bool Item_nodeset_func_attributebyname::val_native(THD *thd, Native *nodeset)
 bool Item_nodeset_func_predicate::val_native(THD *thd, Native *str)
 {
   Item_nodeset_func *nodeset_func= (Item_nodeset_func*) args[0];
-  Item_func *comp_func= (Item_func*)args[1];
   uint pos= 0, size;
   prepare(thd, str);
   size= (uint)(fltend - fltbeg);
@@ -797,7 +796,7 @@ bool Item_nodeset_func_predicate::val_native(THD *thd, Native *str)
     nodeset_func->context_cache.length(0);
     MY_XPATH_FLT(flt->num, flt->pos, size).
       append_to(&nodeset_func->context_cache);
-    if (comp_func->val_int())
+    if (args[1]->val_int())
       MY_XPATH_FLT(flt->num, pos++).append_to(str);
   }
   return false;
