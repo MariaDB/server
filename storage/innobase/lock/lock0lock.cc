@@ -2423,9 +2423,7 @@ lock_rec_inherit_to_gap(
 	     lock = lock_rec_get_next(heap_no, lock)) {
 
 		if (!lock_rec_get_insert_intention(lock)
-		    && (lock->trx->isolation_level > TRX_ISO_READ_COMMITTED
-			|| lock_get_mode(lock) !=
-			(lock->trx->duplicates ? LOCK_S : LOCK_X))) {
+		    && (lock->trx->isolation_level > TRX_ISO_READ_COMMITTED)) {
 			lock_rec_add_to_queue(
 				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
 				heir_block, heir_heap_no, lock->index,
