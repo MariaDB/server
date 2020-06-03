@@ -1773,21 +1773,26 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
 	type=share->columndef[field].base_type;
       else
 	type=(enum en_fieldtype) share->columndef[field].type;
-      end=strmov(buff,field_pack[type]);
+      end= strmov(buff, field_pack[type]);
+      if (end != buff)
+      {
+        *(end++)=',';
+        *(end++)=' ';
+      }
       if (share->options & HA_OPTION_COMPRESS_RECORD)
       {
 	if (share->columndef[field].pack_type & PACK_TYPE_SELECTED)
-	  end=strmov(end,", not_always");
+	  end=strmov(end,"not_always, ");
 	if (share->columndef[field].pack_type & PACK_TYPE_SPACE_FIELDS)
-	  end=strmov(end,", no empty");
+	  end=strmov(end,"no empty, ");
 	if (share->columndef[field].pack_type & PACK_TYPE_ZERO_FILL)
 	{
-	  sprintf(end,", zerofill(%d)",share->columndef[field].space_length_bits);
+	  sprintf(end,"zerofill(%d), ",share->columndef[field].space_length_bits);
 	  end=strend(end);
 	}
       }
-      if (buff[0] == ',')
-	strmov(buff,buff+2);
+      if (end != buff)
+        end[-2]= 0;
       int10_to_str((long) share->columndef[field].length,length,10);
       null_bit[0]=null_pos[0]=0;
       if (share->columndef[field].null_bit)

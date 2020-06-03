@@ -1427,20 +1427,25 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
       else
 	type=(enum en_fieldtype) share->rec[field].type;
       end=strmov(buff,field_pack[type]);
+      if (end != buff)
+      {
+        *(end++)=',';
+        *(end++)=' ';
+      }
       if (share->options & HA_OPTION_COMPRESS_RECORD)
       {
 	if (share->rec[field].pack_type & PACK_TYPE_SELECTED)
-	  end=strmov(end,", not_always");
+	  end=strmov(end,"not_always, ");
 	if (share->rec[field].pack_type & PACK_TYPE_SPACE_FIELDS)
-	  end=strmov(end,", no empty");
+	  end=strmov(end,"no empty, ");
 	if (share->rec[field].pack_type & PACK_TYPE_ZERO_FILL)
 	{
-	  sprintf(end,", zerofill(%d)",share->rec[field].space_length_bits);
+	  sprintf(end,"zerofill(%d), ",share->rec[field].space_length_bits);
 	  end=strend(end);
 	}
       }
-      if (buff[0] == ',')
-	strmov(buff,buff+2);
+      if (end != buff)
+        end[-2]= 0;                               /* Remove ", " */
       int10_to_str((long) share->rec[field].length,length,10);
       null_bit[0]=null_pos[0]=0;
       if (share->rec[field].null_bit)

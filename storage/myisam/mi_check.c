@@ -1175,6 +1175,7 @@ int chk_data_link(HA_CHECK *param, MI_INFO *info, my_bool extend)
       if (_mi_read_cache(&param->read_cache,(uchar*) info->rec_buff,
 			block_info.filepos, block_info.rec_len, READING_NEXT))
 	goto err;
+      info->rec_buff[block_info.rec_len]= 0;  /* Keep valgrind happy */
       if (_mi_pack_rec_unpack(info, &info->bit_buff, record,
                               info->rec_buff, block_info.rec_len))
       {
@@ -3632,6 +3633,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 			      llstr(sort_param->pos,llbuff));
 	continue;
       }
+      sort_param->rec_buff[block_info.rec_len]= 0;  /* Keep valgrind happy */
       if (_mi_pack_rec_unpack(info, &sort_param->bit_buff, sort_param->record,
                               sort_param->rec_buff, block_info.rec_len))
       {

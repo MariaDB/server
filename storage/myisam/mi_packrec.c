@@ -725,6 +725,8 @@ int _mi_read_pack_record(MI_INFO *info, my_off_t filepos, uchar *buf)
                       block_info.rec_len - block_info.offset, MYF(MY_NABP)))
     goto panic;
   info->update|= HA_STATE_AKTIV;
+
+  info->rec_buff[block_info.rec_len]= 0; /* Keep valgrind happy */
   DBUG_RETURN(_mi_pack_rec_unpack(info, &info->bit_buff, buf,
                                   info->rec_buff, block_info.rec_len));
 panic:
@@ -1352,8 +1354,9 @@ int _mi_read_rnd_pack_record(MI_INFO *info, uchar *buf,
   info->nextpos=block_info.filepos+block_info.rec_len;
   info->update|= HA_STATE_AKTIV | HA_STATE_KEY_CHANGED;
 
-  DBUG_RETURN (_mi_pack_rec_unpack(info, &info->bit_buff, buf,
-                                   info->rec_buff, block_info.rec_len));
+  info->rec_buff[block_info.rec_len]= 0; /* Keep valgrind happy */
+  DBUG_RETURN(_mi_pack_rec_unpack(info, &info->bit_buff, buf,
+                                  info->rec_buff, block_info.rec_len));
  err:
   DBUG_RETURN(my_errno);
 }
@@ -1372,8 +1375,8 @@ uint _mi_pack_get_block_info(MI_INFO *myisam, MI_BIT_BUFF *bit_buff,
   {
     ref_length=myisam->s->pack.ref_length;
     /*
-      We can't use mysql_file_pread() here because mi_read_rnd_pack_record assumes
-      position is ok
+      We can't use mysql_file_pread() here because mi_read_rnd_pack_record
+      assumes position is ok
     */
     mysql_file_seek(file, filepos, MY_SEEK_SET, MYF(0));
     if (mysql_file_read(file, header, ref_length, MYF(MY_NABP)))
@@ -1408,15 +1411,17 @@ uint _mi_pack_get_block_info(MI_INFO *myisam, MI_BIT_BUFF *bit_buff,
 }
 
 
-	/* rutines for bit buffer */
-	/* Note buffer must be 6 byte bigger than longest row */
+/*
+  Rutines for bit buffer
+  Note: buffer must be 6 byte bigger than longest row
+*/
 
 static void init_bit_buffer(MI_BIT_BUFF *bit_buff, uchar *buffer, uint length)
 {
   bit_buff->pos=buffer;
   bit_buff->end=buffer+length;
   bit_buff->bits=bit_buff->error=0;
-  bit_buff->current_byte=0;			/* Avoid purify errors */
+  bit_buff->current_byte=0;			/* Avoid valgrind errors */
 }
 
 static uint fill_and_get_bits(MI_BIT_BUFF *bit_buff, uint count)
@@ -1562,9 +1567,11 @@ void _mi_unmap_file(MI_INFO *info)
 }
 
 
-static uchar *_mi_mempack_get_block_info(MI_INFO *myisam, MI_BIT_BUFF *bit_buff,
-                                         MI_BLOCK_INFO *info, uchar **rec_buff_p,
-					 uchar *header)
+static uchar *_mi_mempack_get_block_info(MI_INFO *myisam,
+                                         MI_BIT_BUFF *bit_buff,
+                                         MI_BLOCK_INFO *info,
+                                         uchar **rec_buff_p,
+                                         uchar *header)
 {
   header+= read_pack_length((uint) myisam->s->pack.version, header,
                             &info->rec_len);
@@ -1573,7 +1580,7 @@ static uchar *_mi_mempack_get_block_info(MI_INFO *myisam, MI_BIT_BUFF *bit_buff,
     header+= read_pack_length((uint) myisam->s->pack.version, header,
                               &info->blob_len);
     /* mi_alloc_rec_buff sets my_errno on error */
-    if (!(mi_alloc_rec_buff(myisam, info->blob_len,
+    if (!(mi_alloc_rec_buff(myisam, info->blob_len ,
 			    rec_buff_p)))
       return 0;				/* not enough memory */
     bit_buff->blob_pos= (uchar*) *rec_buff_p;
@@ -1598,6 +1605,7 @@ static int _mi_read_mempack_record(MI_INFO *info, my_off_t filepos, uchar *buf)
 						(uchar*) share->file_map+
 						filepos)))
     DBUG_RETURN(-1);
+  /* No need to end-zero pos here for valgrind as data is memory mapped */
   DBUG_RETURN(_mi_pack_rec_unpack(info, &info->bit_buff, buf,
                                   pos, block_info.rec_len));
 }

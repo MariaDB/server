@@ -757,6 +757,8 @@ int _ma_read_pack_record(MARIA_HA *info, uchar *buf, MARIA_RECORD_POS filepos)
 	      block_info.rec_len - block_info.offset, MYF(MY_NABP)))
     goto panic;
   info->update|= HA_STATE_AKTIV;
+
+  info->rec_buff[block_info.rec_len]= 0; /* Keep valgrind happy */
   DBUG_RETURN(_ma_pack_rec_unpack(info,&info->bit_buff, buf,
                                   info->rec_buff, block_info.rec_len));
 panic:
@@ -1397,8 +1399,9 @@ int _ma_read_rnd_pack_record(MARIA_HA *info,
   info->cur_row.nextpos= block_info.filepos+block_info.rec_len;
   info->update|= HA_STATE_AKTIV | HA_STATE_KEY_CHANGED;
 
-  DBUG_RETURN (_ma_pack_rec_unpack(info, &info->bit_buff, buf,
-                                   info->rec_buff, block_info.rec_len));
+  info->rec_buff[block_info.rec_len]= 0; /* Keep valgrind happy */
+  DBUG_RETURN(_ma_pack_rec_unpack(info, &info->bit_buff, buf,
+                                  info->rec_buff, block_info.rec_len));
  err:
   DBUG_RETURN(my_errno);
 }

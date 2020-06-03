@@ -1545,6 +1545,7 @@ static int check_compressed_record(HA_CHECK *param, MARIA_HA *info, int extend,
                             my_errno, llstr(block_info.filepos, llbuff));
       DBUG_RETURN(1);
     }
+    info->rec_buff[block_info.rec_len]= 0;  /* Keep valgrind happy */
     if (_ma_pack_rec_unpack(info, &info->bit_buff, record,
                             info->rec_buff, block_info.rec_len))
     {
@@ -5327,10 +5328,7 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
 			      llstr(sort_param->pos,llbuff));
 	continue;
       }
-#ifdef HAVE_valgrind
-      bzero(sort_param->rec_buff + block_info.rec_len,
-            share->base.extra_rec_buff_size);
-#endif
+      sort_param->rec_buff[block_info.rec_len]= 0;  /* Keep valgrind happy */
       if (_ma_pack_rec_unpack(info, &sort_param->bit_buff, sort_param->record,
                               sort_param->rec_buff, block_info.rec_len))
       {
