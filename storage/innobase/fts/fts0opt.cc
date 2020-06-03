@@ -3014,8 +3014,6 @@ fts_optimize_shutdown()
 	/* We tell the OPTIMIZE thread to switch to state done, we
 	can't delete the work queue here because the add thread needs
 	deregister the FTS tables. */
-	delete timer;
-	timer = NULL;
 	task_group.cancel_pending(&task);
 
 	msg = fts_optimize_create_msg(FTS_MSG_STOP, NULL);
@@ -3026,6 +3024,8 @@ fts_optimize_shutdown()
 
 	os_event_destroy(fts_opt_shutdown_event);
 	fts_opt_thd = NULL;
+	delete timer;
+	timer = NULL;
 }
 
 /** Sync the table during commit phase
