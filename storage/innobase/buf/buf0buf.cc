@@ -3725,7 +3725,7 @@ evict_from_pool:
 		/* Decompress the page while not holding
 		buf_pool.mutex or block->mutex. */
 
-		if (!buf_zip_decompress(block, TRUE)) {
+		if (!buf_zip_decompress(block, false)) {
 			mutex_enter(&buf_pool.mutex);
 			buf_page_mutex_enter(fix_block);
 			buf_block_set_io_fix(fix_block, BUF_IO_NONE);

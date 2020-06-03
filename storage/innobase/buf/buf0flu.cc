@@ -1132,7 +1132,7 @@ buf_flush_write_block_low(
 		break;
 	case BUF_BLOCK_ZIP_DIRTY:
 		frame = bpage->zip.data;
-		ut_a(page_zip_verify_checksum(frame, bpage->zip_size()));
+		buf_flush_update_zip_checksum(frame, bpage->zip_size());
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		frame = bpage->zip.data;
