@@ -860,7 +860,6 @@ public:
 					in that case we will
 					flush the log in
 					trx_commit_complete_for_mysql() */
-	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
 	trx_dict_op_t	dict_operation;	/**< @see enum trx_dict_op_t */
 
 	/* Fields protected by the srv_conc_mutex. */

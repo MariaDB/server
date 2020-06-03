@@ -632,6 +632,7 @@ struct row_prebuilt_t {
 					(VARCHAR can be off-page too) */
 	unsigned	versioned_write:1;/*!< whether this is
 					a versioned write */
+	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
 	mysql_row_templ_t* mysql_template;/*!< template used to transform
 					rows fast between MySQL and Innobase
 					formats; memory for this template

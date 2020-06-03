@@ -3118,7 +3118,7 @@ row_log_table_apply(
 
 	thr_get_trx(thr)->error_key_num = 0;
 	DBUG_EXECUTE_IF("innodb_trx_duplicates",
-			thr_get_trx(thr)->duplicates = TRX_DUP_REPLACE;);
+			thr->prebuilt->duplicates = TRX_DUP_REPLACE;);
 
 	stage->begin_phase_log_table();
 
@@ -3154,7 +3154,7 @@ row_log_table_apply(
 
 	rw_lock_x_unlock(dict_index_get_lock(clust_index));
 	DBUG_EXECUTE_IF("innodb_trx_duplicates",
-			thr_get_trx(thr)->duplicates = 0;);
+			thr->prebuilt->duplicates = 0;);
 
 	return(error);
 }
