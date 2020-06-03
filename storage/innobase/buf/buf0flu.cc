@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1007,11 +1007,8 @@ buf_flush_write_block_low(
 		break;
 	case BUF_BLOCK_ZIP_DIRTY:
 		frame = bpage->zip.data;
-
-		mach_write_to_8(frame + FIL_PAGE_LSN,
-				bpage->newest_modification);
-
-		ut_a(page_zip_verify_checksum(frame, bpage->zip_size()));
+		buf_flush_update_zip_checksum(frame, bpage->zip_size(),
+					      bpage->newest_modification);
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		frame = bpage->zip.data;

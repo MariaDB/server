@@ -4544,7 +4544,7 @@ btr_cur_optimistic_update(
 				   ULINT_UNDEFINED, heap);
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 	ut_a(!rec_offs_any_null_extern(rec, *offsets)
-	     || trx_is_recv(thr_get_trx(thr)));
+	     || thr_get_trx(thr) == trx_roll_crash_recv_trx);
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
 	if (UNIV_LIKELY(!update->is_metadata())

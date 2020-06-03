@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3012,8 +3012,32 @@ bool acl_getroot(Security_context *sctx, const char *user, const char *host,
   DBUG_RETURN(res);
 }
 
-static int check_user_can_set_role(const char *user, const char *host,
-                      const char *ip, const char *rolename, ulonglong *access)
+static int check_role_is_granted_callback(ACL_USER_BASE *grantee, void *data)
+{
+  LEX_CSTRING *rolename= static_cast<LEX_CSTRING *>(data);
+  if (rolename->length == grantee->user.length &&
+      !strcmp(rolename->str, grantee->user.str))
+    return -1; // End search, we've found our role.
+
+  /* Keep looking, we haven't found our role yet. */
+  return 0;
+}
+
+/*
+  unlike find_user_exact and find_user_wild,
+  this function finds anonymous users too, it's when a
+  user is not empty, but priv_user (acl_user->user) is empty.
+*/
+static ACL_USER *find_user_or_anon(const char *host, const char *user, const char *ip)
+{
+  return find_by_username_or_anon<ACL_USER>
+    (reinterpret_cast<ACL_USER*>(acl_users.buffer), acl_users.elements,
+     user, host, ip, NULL, FALSE, NULL);
+}
+
+static int check_user_can_set_role(THD *thd, const char *user, const char *host,
+                                   const char *ip, const char *rolename,
+                                   ulonglong *access)
 {
   ACL_ROLE *role;
   ACL_USER_BASE *acl_user_base;
@@ -3030,10 +3054,7 @@ static int check_user_can_set_role(const char *user, const char *host,
     /* get the current user */
     acl_user= find_user_wild(host, user, ip);
     if (acl_user == NULL)
-    {
-      my_error(ER_INVALID_CURRENT_USER, MYF(0));
-      result= -1;
-    }
+      result= ER_INVALID_CURRENT_USER;
     else if (access)
       *access= acl_user->access;
 
@@ -3043,9 +3064,9 @@ static int check_user_can_set_role(const char *user, const char *host,
   role= find_acl_role(rolename);
 
   /* According to SQL standard, the same error message must be presented */
-  if (role == NULL) {
-    my_error(ER_INVALID_ROLE, MYF(0), rolename);
-    result= -1;
+  if (role == NULL)
+  {
+    result= ER_INVALID_ROLE;
     goto end;
   }
 
@@ -3066,7 +3087,6 @@ static int check_user_can_set_role(const char *user, const char *host,
   /* According to SQL standard, the same error message must be presented */
   if (!is_granted)
   {
-    my_error(ER_INVALID_ROLE, MYF(0), rolename);
     result= 1;
     goto end;
   }
@@ -3075,17 +3095,66 @@ static int check_user_can_set_role(const char *user, const char *host,
   {
     *access = acl_user->access | role->access;
   }
+
 end:
   mysql_mutex_unlock(&acl_cache->lock);
-  return result;
 
+  /* We present different error messages depending if the user has sufficient
+     privileges to know if the INVALID_ROLE exists. */
+  switch (result)
+  {
+    case ER_INVALID_CURRENT_USER:
+      my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
+      break;
+    case ER_INVALID_ROLE:
+      /* Role doesn't exist at all */
+      my_error(ER_INVALID_ROLE, MYF(0), rolename);
+      break;
+    case 1:
+      StringBuffer<1024> c_usr;
+      LEX_CSTRING role_lex;
+      /* First, check if current user can see mysql database. */
+      bool read_access= !check_access(thd, SELECT_ACL, "mysql", NULL, NULL, 1, 1);
+
+      role_lex.str= rolename;
+      role_lex.length= strlen(rolename);
+      mysql_mutex_lock(&acl_cache->lock);
+      ACL_USER *cur_user= find_user_or_anon(thd->security_ctx->priv_host,
+                                            thd->security_ctx->priv_user,
+                                            thd->security_ctx->ip);
+
+      /* If the current user does not have select priv to mysql database,
+         see if the current user can discover the role if it was granted to him.
+      */
+      if (cur_user && (read_access ||
+                       traverse_role_graph_down(cur_user, &role_lex,
+                                                check_role_is_granted_callback,
+                                                NULL) == -1))
+      {
+        /* Role is not granted but current user can see the role */
+        c_usr.append(user, strlen(user));
+        c_usr.append('@');
+        c_usr.append(host, strlen(host));
+        my_printf_error(ER_INVALID_ROLE, "User %`s has not been granted role %`s",
+                        MYF(0), c_usr.c_ptr(), rolename);
+      }
+      else
+      {
+        /* Role is not granted and current user cannot see the role */
+        my_error(ER_INVALID_ROLE, MYF(0), rolename);
+      }
+      mysql_mutex_unlock(&acl_cache->lock);
+      break;
+  }
+
+  return result;
 }
+
 
 int acl_check_setrole(THD *thd, const char *rolename, ulonglong *access)
 {
-    /* Yes! priv_user@host. Don't ask why - that's what check_access() does. */
-  return check_user_can_set_role(thd->security_ctx->priv_user,
-        thd->security_ctx->host, thd->security_ctx->ip, rolename, access);
+  return check_user_can_set_role(thd, thd->security_ctx->priv_user,
+           thd->security_ctx->host, thd->security_ctx->ip, rolename, access);
 }
 
 
@@ -3117,7 +3186,6 @@ static uchar* check_get_key(ACL_USER *buff, size_t *length,
   *length=buff->hostname_length;
   return (uchar*) buff->host.hostname;
 }
-
 
 static void acl_update_role(const char *rolename, ulong privileges)
 {
@@ -3821,9 +3889,12 @@ wsrep_error_label:
   DBUG_RETURN(result);
 }
 
-int acl_check_set_default_role(THD *thd, const char *host, const char *user)
+int acl_check_set_default_role(THD *thd, const char *host, const char *user,
+                               const char *role)
 {
-  return check_alter_user(thd, host, user);
+  DBUG_ENTER("acl_check_set_default_role");
+  DBUG_RETURN(check_alter_user(thd, host, user) ||
+              check_user_can_set_role(thd, user, host, NULL, role, NULL));
 }
 
 int acl_set_default_role(THD *thd, const char *host, const char *user,
@@ -3842,16 +3913,6 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   DBUG_ENTER("acl_set_default_role");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'  rolename: '%s'",
                       user, safe_str(host), safe_str(rolename)));
-
-  if (rolename == current_role.str) {
-    if (!thd->security_ctx->priv_role[0])
-      rolename= "NONE";
-    else
-      rolename= thd->security_ctx->priv_role;
-  }
-
-  if (check_user_can_set_role(user, host, host, rolename, NULL))
-    DBUG_RETURN(result);
 
   if (!strcasecmp(rolename, "NONE"))
     clear_role= TRUE;
@@ -4004,19 +4065,6 @@ bool is_acl_user(const char *host, const char *user)
 
   mysql_mutex_unlock(&acl_cache->lock);
   return res;
-}
-
-
-/*
-  unlike find_user_exact and find_user_wild,
-  this function finds anonymous users too, it's when a
-  user is not empty, but priv_user (acl_user->user) is empty.
-*/
-static ACL_USER *find_user_or_anon(const char *host, const char *user, const char *ip)
-{
-  return find_by_username_or_anon<ACL_USER>
-    (reinterpret_cast<ACL_USER*>(acl_users.buffer), acl_users.elements,
-     user, host, ip, NULL, FALSE, NULL);
 }
 
 
@@ -4305,7 +4353,7 @@ static bool test_if_create_new_users(THD *thd)
     if (!(db_access & INSERT_ACL))
     {
       if (check_grant(thd, INSERT_ACL, &tl, FALSE, UINT_MAX, TRUE))
-	create_new_users=0;
+        create_new_users=0;
     }
   }
   return create_new_users;
@@ -9590,17 +9638,6 @@ void get_mqh(const char *user, const char *host, USER_CONN *uc)
   mysql_mutex_unlock(&acl_cache->lock);
 }
 
-static int check_role_is_granted_callback(ACL_USER_BASE *grantee, void *data)
-{
-  LEX_CSTRING *rolename= static_cast<LEX_CSTRING *>(data);
-  if (rolename->length == grantee->user.length &&
-      !strcmp(rolename->str, grantee->user.str))
-    return -1; // End search, we've found our role.
-
-  /* Keep looking, we haven't found our role yet. */
-  return 0;
-}
-
 /*
   Modify a privilege table.
 
@@ -11472,7 +11509,7 @@ acl_check_proxy_grant_access(THD *thd, const char *host, const char *user,
     Security context in THD contains two pairs of (user,host):
     1. (user,host) pair referring to inbound connection.
     2. (priv_user,priv_host) pair obtained from mysql.user table after doing
-        authnetication of incoming connection.
+        authentication of incoming connection.
     Privileges should be checked wrt (priv_user, priv_host) tuple, because
     (user,host) pair obtained from inbound connection may have different
     values than what is actually stored in mysql.user table and while granting
@@ -11887,7 +11924,7 @@ int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
       ulong j,test_access= want_access & ~GRANT_ACL;
       for (priv_id=0, j = SELECT_ACL;j <= GLOBAL_ACLS; priv_id++,j <<= 1)
       {
-	if (test_access & j)
+        if (test_access & j)
         {
           if (update_schema_privilege(thd, table, buff, 0, 0, 0, 0,
                                       command_array[priv_id],

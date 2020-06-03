@@ -2,7 +2,7 @@
 #define SQL_ACL_INCLUDED
 
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2017, MariaDB Corporation.
+   Copyright (c) 2017, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -417,7 +417,8 @@ bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
                                    bool with_grant);
 int acl_setrole(THD *thd, const char *rolename, ulonglong access);
 int acl_check_setrole(THD *thd, const char *rolename, ulonglong *access);
-int acl_check_set_default_role(THD *thd, const char *host, const char *user);
+int acl_check_set_default_role(THD *thd, const char *host, const char *user,
+                               const char *role);
 int acl_set_default_role(THD *thd, const char *host, const char *user,
                          const char *rolename);
 

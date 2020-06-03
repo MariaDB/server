@@ -2033,10 +2033,9 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 				}
 			}
 		}
-
-		mtr.commit();
 	}
 
+	mtr.commit();
 	return err;
 }
 
