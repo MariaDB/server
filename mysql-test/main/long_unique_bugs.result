@@ -291,3 +291,14 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'f'
 test.t1	analyze	status	OK
 DROP TABLE t1;
+CREATE TABLE t1 (a int, b VARCHAR(1000), UNIQUE (a,b)) ENGINE=MyISAM;
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
+CREATE TABLE t2 (a varchar(900), b VARCHAR(900), UNIQUE (a,b)) ENGINE=MyISAM;
+show index from t2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t2	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
+t2	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
+DROP TABLE t1,t2;
