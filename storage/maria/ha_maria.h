@@ -40,7 +40,9 @@ extern ulonglong maria_recover_options;
 
 class ha_maria :public handler
 {
+public:
   MARIA_HA *file;
+private:
   ulonglong int_table_flags;
   MARIA_RECORD_POS remember_pos;
   char *data_file_name, *index_file_name;
