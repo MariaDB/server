@@ -277,3 +277,14 @@ create table t2(id int primary key, a blob, b varchar(20) as (LEFT(a,2)));
 INSERT INTO t2 VALUES (1, 'foo', default);
 DROP TABLE t1, t2;
 SET binlog_row_image= FULL;
+CREATE TABLE t1 (a int, b VARCHAR(1000), UNIQUE (a,b)) ENGINE=MyISAM;
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
+CREATE TABLE t2 (a varchar(900), b VARCHAR(900), UNIQUE (a,b)) ENGINE=MyISAM;
+show index from t2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t2	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
+t2	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
+DROP TABLE t1,t2;

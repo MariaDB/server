@@ -356,3 +356,15 @@ INSERT INTO t2 VALUES (1, 'foo', default);
 # Cleanup
 DROP TABLE t1, t2;
 SET binlog_row_image= FULL;
+
+#
+# MDEV-22719 Long unique keys are not created when individual key_part->length < max_key_length but SUM(key_parts->length) > max_key_length
+#
+
+CREATE TABLE t1 (a int, b VARCHAR(1000), UNIQUE (a,b)) ENGINE=MyISAM;
+show index from t1;
+CREATE TABLE t2 (a varchar(900), b VARCHAR(900), UNIQUE (a,b)) ENGINE=MyISAM;
+show index from t2;
+
+# Cleanup
+DROP TABLE t1,t2;
