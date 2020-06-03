@@ -7765,7 +7765,7 @@ ha_innobase::write_row(
 
 			switch (thd_sql_command(m_user_thd)) {
 			case SQLCOM_LOAD:
-				if (!m_prebuilt->duplicates) {
+				if (!m_prebuilt->duplicates_allowed()) {
 					break;
 				}
 
@@ -15571,7 +15571,8 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_RESET_STATE:
 		reset_template();
-		m_prebuilt->duplicates = 0;
+		m_prebuilt->on_dup_replace = 0;
+		m_prebuilt->on_dup_ignore = 0;
 		break;
 	case HA_EXTRA_NO_KEYREAD:
 		m_prebuilt->read_just_key = 0;
@@ -15590,16 +15591,16 @@ ha_innobase::extra(
 		either, because the calling threads may change.
 		CAREFUL HERE, OR MEMORY CORRUPTION MAY OCCUR! */
 	case HA_EXTRA_INSERT_WITH_UPDATE:
-		m_prebuilt->duplicates |= TRX_DUP_IGNORE;
+		m_prebuilt->on_dup_ignore = 1;
 		break;
 	case HA_EXTRA_NO_IGNORE_DUP_KEY:
-		m_prebuilt->duplicates &= ~TRX_DUP_IGNORE;
+		m_prebuilt->on_dup_ignore = 0;
 		break;
 	case HA_EXTRA_WRITE_CAN_REPLACE:
-		m_prebuilt->duplicates |= TRX_DUP_REPLACE;
+		m_prebuilt->on_dup_replace = 1;
 		break;
 	case HA_EXTRA_WRITE_CANNOT_REPLACE:
-		m_prebuilt->duplicates &= ~TRX_DUP_REPLACE;
+		m_prebuilt->on_dup_replace = 0;
 		break;
 	case HA_EXTRA_BEGIN_ALTER_COPY:
 		m_prebuilt->table->skip_alter_undo = 1;

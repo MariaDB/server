@@ -2110,7 +2110,7 @@ row_ins_scan_sec_index_for_duplicate(
 		      : BTR_SEARCH_LEAF,
 		      &pcur, mtr);
 
-	allow_duplicates = thr->prebuilt->duplicates;
+	allow_duplicates = thr->prebuilt->duplicates_allowed();
 
 	/* Scan index records and check if there is a duplicate */
 
@@ -2333,7 +2333,7 @@ row_ins_duplicate_error_in_clust(
 			if (flags & BTR_NO_LOCKING_FLAG) {
 				/* Do nothing if no-locking is set */
 				err = DB_SUCCESS;
-			} else if (thr->prebuilt->duplicates) {
+			} else if (thr->prebuilt->duplicates_allowed()) {
 
 				/* If the SQL-query will update or replace
 				duplicate key we will take X-lock for
@@ -2379,7 +2379,7 @@ duplicate:
 						  true,
 						  ULINT_UNDEFINED, &heap);
 
-			if (thr->prebuilt->duplicates) {
+			if (thr->prebuilt->duplicates_allowed()) {
 
 				/* If the SQL-query will update or replace
 				duplicate key we will take X-lock for
