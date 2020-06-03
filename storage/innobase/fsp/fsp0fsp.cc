@@ -2622,8 +2622,6 @@ fseg_free_page(
 
 	fseg_free_page_low(seg_inode, iblock, space, offset, mtr);
 
-	buf_page_free(page_id_t(space->id, offset), mtr, __FILE__, __LINE__);
-
 	DBUG_VOID_RETURN;
 }
 
