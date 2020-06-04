@@ -989,7 +989,6 @@ fail:
 
 		buf_block_dbg_add_level(block, SYNC_TREE_NODE_FROM_HASH);
 		if (UNIV_UNLIKELY(fail)) {
-			btr_search_drop_page_hash_index(block);
 			goto fail_and_release_page;
 		}
 	} else if (UNIV_UNLIKELY(index != block->index
