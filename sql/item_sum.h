@@ -1918,6 +1918,12 @@ protected:
 
   bool repack_tree(THD *thd);
 
+  /*
+    Says whether the function should skip NULL arguments
+    or add them to the result.
+    Redefined in JSON_ARRAYAGG.
+  */
+  virtual bool skip_nulls() const { return true; }
 public:
   // Methods used by ColumnStore
   bool get_distinct() const { return distinct; }
@@ -1947,7 +1953,7 @@ public:
   void clear();
   bool add()
   {
-    return add(true);
+    return add(skip_nulls());
   }
   void reset_field() { DBUG_ASSERT(0); }        // not used
   void update_field() { DBUG_ASSERT(0); }       // not used

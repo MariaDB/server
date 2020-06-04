@@ -3621,12 +3621,12 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
 }
 
 
-String* Item_func_json_arrayagg::convert_to_json(Item *item, String *res)
+String* Item_func_json_arrayagg::convert_to_json(Item *item)
 {
   String tmp;
-  res->length(0);
-  append_json_value(res, item, &tmp);
-  return res;
+  m_tmp_json.length(0);
+  append_json_value(&m_tmp_json, item, &tmp);
+  return &m_tmp_json;
 }
 
 

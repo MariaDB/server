@@ -3674,20 +3674,18 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       else
         res= (*arg)->val_str(&tmp);
     }
-    if (res)
+    if (item->sum_func() == Item_sum::JSON_ARRAYAGG_FUNC)
     {
-      if (item->sum_func() == Item_sum::JSON_ARRAYAGG_FUNC)
-      {
-        /*
-          JSON_ARRAYAGG needs to convert the type into valid JSON before
-          appending it to the result
-        */
-        Item_func_json_arrayagg *arrayagg= (Item_func_json_arrayagg *) item_arg;
-        res= arrayagg->convert_to_json(*arg, res);
-      }
-
-      result->append(*res);
+      /*
+        JSON_ARRAYAGG needs to convert the type into valid JSON before
+        appending it to the result
+      */
+      Item_func_json_arrayagg *arrayagg= (Item_func_json_arrayagg *) item_arg;
+      res= arrayagg->convert_to_json(*arg);
     }
+
+    if (res)
+      result->append(*res);
   }
 
   if (item->limit_clause)
@@ -4151,13 +4149,10 @@ bool Item_func_group_concat::setup(THD *thd)
     Item *item= args[i];
     if (list.push_back(item, thd->mem_root))
       DBUG_RETURN(TRUE);
-    if (item->const_item())
+    if (item->const_item() && item->is_null() && skip_nulls())
     {
-      if (item->is_null())
-      {
-        always_null= 1;
-        DBUG_RETURN(FALSE);
-      }
+      always_null= 1;
+      DBUG_RETURN(FALSE);
     }
   }
 

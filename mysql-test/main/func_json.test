@@ -752,6 +752,9 @@ select json_arrayagg(a) over () from (select 1 a) t;
 --error ER_NOT_SUPPORTED_YET
 select json_objectagg(a, b) over () from (select 1 a, 2 b) t;
 
+SELECT JSON_ARRAYAGG(NULL) FROM (SELECT 1 AS t) AS A;
+SELECT JSON_ARRAYAGG("null") FROM (SELECT 1 AS t) AS A;
+
 --echo #
 --echo # End of 10.5 tests
 --echo #

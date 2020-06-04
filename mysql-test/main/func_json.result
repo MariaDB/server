@@ -1229,6 +1229,12 @@ select json_arrayagg(a) over () from (select 1 a) t;
 ERROR 42000: This version of MariaDB doesn't yet support 'JSON_ARRAYAGG() aggregate as window function'
 select json_objectagg(a, b) over () from (select 1 a, 2 b) t;
 ERROR 42000: This version of MariaDB doesn't yet support 'JSON_OBJECTAGG() aggregate as window function'
+SELECT JSON_ARRAYAGG(NULL) FROM (SELECT 1 AS t) AS A;
+JSON_ARRAYAGG(NULL)
+[null]
+SELECT JSON_ARRAYAGG("null") FROM (SELECT 1 AS t) AS A;
+JSON_ARRAYAGG("null")
+["null"]
 #
 # End of 10.5 tests
 #
