@@ -1243,6 +1243,9 @@ drop view v;
 select json_arrayagg(a order by a asc) from (select 1 a union select 2 a) t;
 json_arrayagg(a order by a asc)
 [1,2]
+select json_object('x', json_arrayagg(json_object('a', 1)));
+json_object('x', json_arrayagg(json_object('a', 1)))
+{"x": [{"a": 1}]}
 #
 # End of 10.5 tests
 #

@@ -761,6 +761,8 @@ drop view v;
 
 select json_arrayagg(a order by a asc) from (select 1 a union select 2 a) t;
 
+select json_object('x', json_arrayagg(json_object('a', 1)));
+
 --echo #
 --echo # End of 10.5 tests
 --echo #
