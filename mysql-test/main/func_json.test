@@ -759,6 +759,8 @@ create view v as (select json_arrayagg(json_object("type", "permPeriod", "id", "
 select * from v; 
 drop view v;
 
+select json_arrayagg(a order by a asc) from (select 1 a union select 2 a) t;
+
 --echo #
 --echo # End of 10.5 tests
 --echo #

@@ -1240,6 +1240,9 @@ select * from v;
 JSON_DATA
 [{"type": "permPeriod", "id": "asd"}]
 drop view v;
+select json_arrayagg(a order by a asc) from (select 1 a union select 2 a) t;
+json_arrayagg(a order by a asc)
+[1,2]
 #
 # End of 10.5 tests
 #

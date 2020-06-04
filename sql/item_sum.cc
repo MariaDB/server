@@ -3660,7 +3660,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       because it contains both order and arg list fields.
      */
     if ((*arg)->const_item())
-      res= (*arg)->val_str(&tmp);
+      res= item->get_str_from_item(*arg, &tmp);
     else
     {
       Field *field= (*arg)->get_tmp_table_field();
@@ -3669,19 +3669,10 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
         uint offset= (field->offset(field->table->record[0]) -
                       table->s->null_bytes);
         DBUG_ASSERT(offset < table->s->reclength);
-        res= field->val_str(&tmp, key + offset);
+        res= item->get_str_from_field(*arg, field, &tmp, key, offset);
       }
       else
-        res= (*arg)->val_str(&tmp);
-    }
-    if (item->sum_func() == Item_sum::JSON_ARRAYAGG_FUNC)
-    {
-      /*
-        JSON_ARRAYAGG needs to convert the type into valid JSON before
-        appending it to the result
-      */
-      Item_func_json_arrayagg *arrayagg= (Item_func_json_arrayagg *) item_arg;
-      res= arrayagg->convert_to_json(*arg);
+        res= item->get_str_from_item(*arg, &tmp);
     }
 
     if (res)
@@ -3980,6 +3971,7 @@ bool Item_func_group_concat::repack_tree(THD *thd)
   tree_len= st.len;
   return 0;
 }
+
 
 /*
   Repacking the tree is expensive. But it keeps the tree small, and

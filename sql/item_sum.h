@@ -1924,6 +1924,11 @@ protected:
     Redefined in JSON_ARRAYAGG.
   */
   virtual bool skip_nulls() const { return true; }
+  virtual String *get_str_from_item(Item *i, String *tmp)
+    { return i->val_str(tmp); }
+  virtual String *get_str_from_field(Item *i, Field *f, String *tmp,
+                                     const uchar *key, size_t offset)
+    { return f->val_str(tmp, key + offset); }
 public:
   // Methods used by ColumnStore
   bool get_distinct() const { return distinct; }
