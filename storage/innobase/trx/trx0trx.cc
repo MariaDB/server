@@ -842,14 +842,9 @@ static trx_rseg_t* trx_assign_rseg_low()
 
 	/* Choose a rollback segment evenly distributed between 0 and
 	innodb_undo_logs-1 in a round-robin fashion, skipping those
-	undo tablespaces that are scheduled for truncation.
-
-	Because rseg_slot is not protected by atomics or any mutex, race
-	conditions are possible, meaning that multiple transactions
-	that start modifications concurrently will write their undo
-	log to the same rollback segment. */
-	static ulong	rseg_slot;
-	ulint		slot = rseg_slot++ % srv_undo_logs;
+	undo tablespaces that are scheduled for truncation. */
+	static Atomic_counter<unsigned>	rseg_slot;
+	ulong	slot = ulong{rseg_slot++} % srv_undo_logs;
 	trx_rseg_t*	rseg;
 
 #ifdef UNIV_DEBUG
@@ -941,11 +936,8 @@ trx_t::assign_temp_rseg()
 	compile_time_assert(ut_is_2pow(TRX_SYS_N_RSEGS));
 
 	/* Choose a temporary rollback segment between 0 and 127
-	in a round-robin fashion. Because rseg_slot is not protected by
-	atomics or any mutex, race conditions are possible, meaning that
-	multiple transactions that start modifications concurrently
-	will write their undo log to the same rollback segment. */
-	static ulong	rseg_slot;
+	in a round-robin fashion. */
+	static Atomic_counter<unsigned> rseg_slot;
 	trx_rseg_t*	rseg = trx_sys.temp_rsegs[
 		rseg_slot++ & (TRX_SYS_N_RSEGS - 1)];
 	ut_ad(!rseg->is_persistent());
