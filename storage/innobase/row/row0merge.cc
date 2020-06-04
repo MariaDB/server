@@ -4917,7 +4917,8 @@ wait_again:
 			goto func_exit;
 		}
 
-		if (indexes[i]->type & DICT_FTS && fts_enable_diag_print) {
+		if (indexes[i]->type & DICT_FTS
+		    && UNIV_UNLIKELY(fts_enable_diag_print)) {
 			ib::info() << "Finished building full-text index "
 				<< indexes[i]->name;
 		}

@@ -782,8 +782,7 @@ handle_new_error:
 			" foreign constraints and try again";
 		goto rollback_to_savept;
 	default:
-		ib::fatal() << "Unknown error code " << err << ": "
-			<< ut_strerr(err);
+		ib::fatal() << "Unknown error " << err;
 	}
 
 	if (trx->error_state != DB_SUCCESS) {
@@ -3161,10 +3160,10 @@ row_drop_ancillary_fts_tables(
 
 		dberr_t err = fts_drop_tables(trx, table);
 
-		if (err != DB_SUCCESS) {
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			ib::error() << " Unable to remove ancillary FTS"
 				" tables for table "
-				<< table->name << " : " << ut_strerr(err);
+				<< table->name << " : " << err;
 
 			return(err);
 		}
@@ -4009,10 +4008,10 @@ loop:
 			table_name, trx, SQLCOM_DROP_DB);
 		trx_commit_for_mysql(trx);
 
-		if (err != DB_SUCCESS) {
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			ib::error() << "DROP DATABASE "
 				<< ut_get_name(trx, name) << " failed"
-				" with error (" << ut_strerr(err) << ") for"
+				" with error (" << err << ") for"
 				" table " << ut_get_name(trx, table_name);
 			ut_free(table_name);
 			break;

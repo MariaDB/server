@@ -1565,9 +1565,7 @@ trx_undo_update_rec_get_update(
 				<< " fields " << BUG_REPORT_MSG
 				<< ". Run also CHECK TABLE "
 				<< index->table->name << "."
-				" n_fields = " << n_fields << ", i = " << i
-				<< ", ptr " << ptr;
-
+				" n_fields = " << n_fields << ", i = " << i;
 			ut_ad(0);
 			*upd = NULL;
 			return(NULL);

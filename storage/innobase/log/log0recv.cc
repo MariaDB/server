@@ -589,7 +589,7 @@ fil_name_parse(
 		ut_ad(0); // the caller checked this
 		/* fall through */
 	case MLOG_FILE_NAME:
-		if (corrupt) {
+		if (UNIV_UNLIKELY(corrupt)) {
 			ib::error() << "MLOG_FILE_NAME incorrect:" << ptr;
 			recv_sys->found_corrupt_log = true;
 			break;
@@ -599,7 +599,7 @@ fil_name_parse(
 			reinterpret_cast<char*>(ptr), len, space_id, false);
 		break;
 	case MLOG_FILE_DELETE:
-		if (corrupt) {
+		if (UNIV_UNLIKELY(corrupt)) {
 			ib::error() << "MLOG_FILE_DELETE incorrect:" << ptr;
 			recv_sys->found_corrupt_log = true;
 			break;
@@ -627,7 +627,7 @@ fil_name_parse(
 		}
 		break;
 	case MLOG_FILE_RENAME2:
-		if (corrupt) {
+		if (UNIV_UNLIKELY(corrupt)) {
 			ib::error() << "MLOG_FILE_RENAME2 incorrect:" << ptr;
 			recv_sys->found_corrupt_log = true;
 		}
@@ -668,7 +668,7 @@ fil_name_parse(
 			}
 		}
 
-		if (corrupt) {
+		if (UNIV_UNLIKELY(corrupt)) {
 			ib::error() << "MLOG_FILE_RENAME2 new_name incorrect:" << ptr
 				    << " new_name: " << new_name;
 			recv_sys->found_corrupt_log = true;
@@ -2697,6 +2697,7 @@ recv_calc_lsn_on_data_add(
 @param[in]	space	tablespace ID (could be garbage)
 @param[in]	page_no	page number (could be garbage)
 @return whether processing should continue */
+ATTRIBUTE_COLD
 static
 bool
 recv_report_corrupt_log(
@@ -2713,7 +2714,8 @@ recv_report_corrupt_log(
 	ib::info() << "Log record type " << type << ", page " << space << ":"
 		<< page_no << ". Log parsing proceeded successfully up to "
 		<< recv_sys->recovered_lsn << ". Previous log record type "
-		<< recv_previous_parsed_rec_type << ", is multi "
+		<< recv_previous_parsed_rec_type
+		<< ", is multi "
 		<< recv_previous_parsed_rec_is_multi << " Recv offset "
 		<< ptr_offset << ", prev "
 		<< recv_previous_parsed_rec_offset;
@@ -2853,12 +2855,12 @@ loop:
 		len = recv_parse_log_rec(&type, ptr, end_ptr, &space,
 					 &page_no, apply, &body);
 
-		if (recv_sys->found_corrupt_log) {
+		if (UNIV_UNLIKELY(recv_sys->found_corrupt_log)) {
 			recv_report_corrupt_log(ptr, type, space, page_no);
 			return(true);
 		}
 
-		if (recv_sys->found_corrupt_fs) {
+		if (UNIV_UNLIKELY(recv_sys->found_corrupt_fs)) {
 			return(true);
 		}
 
@@ -2982,7 +2984,7 @@ loop:
 				&type, ptr, end_ptr, &space, &page_no,
 				false, &body);
 
-			if (recv_sys->found_corrupt_log) {
+			if (UNIV_UNLIKELY(recv_sys->found_corrupt_log)) {
 corrupted_log:
 				recv_report_corrupt_log(
 					ptr, type, space, page_no);
@@ -3075,13 +3077,13 @@ corrupted_log:
 				&type, ptr, end_ptr, &space, &page_no,
 				apply, &body);
 
-			if (recv_sys->found_corrupt_log
+			if (UNIV_UNLIKELY(recv_sys->found_corrupt_log)
 			    && !recv_report_corrupt_log(
 				    ptr, type, space, page_no)) {
 				return(true);
 			}
 
-			if (recv_sys->found_corrupt_fs) {
+			if (UNIV_UNLIKELY(recv_sys->found_corrupt_fs)) {
 				return(true);
 			}
 
@@ -3597,7 +3599,7 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 	for (recv_spaces_t::iterator i = recv_spaces.begin();
 	     i != recv_spaces.end(); i++) {
 
-		if (i->second.status != file_name_t::MISSING) {
+		if (UNIV_LIKELY(i->second.status != file_name_t::MISSING)) {
 			continue;
 		}
 

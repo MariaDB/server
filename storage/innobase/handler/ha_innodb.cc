@@ -8128,8 +8128,7 @@ ha_innobase::write_row(
 	if (high_level_read_only) {
 		ib_senderrf(ha_thd(), IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
-	} else if (m_prebuilt->trx != trx) {
-
+	} else if (UNIV_UNLIKELY(m_prebuilt->trx != trx)) {
 		ib::error() << "The transaction object for the table handle is"
 			" at " << static_cast<const void*>(m_prebuilt->trx)
 			<< ", but for the current thread it is at "
@@ -9989,7 +9988,7 @@ ha_innobase::ft_init_ext(
 	const CHARSET_INFO*	char_set = key->charset();
 	const char*		query = key->ptr();
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		{
 			ib::info	out;
 			out << "keynr=" << keynr << ", '";

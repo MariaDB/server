@@ -458,7 +458,7 @@ btr_pcur_open_low(
 		index, level, tuple, mode, latch_mode,
 		btr_cursor, 0, file, line, mtr, autoinc);
 
-	if (err != DB_SUCCESS) {
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		ib::warn() << " Error code: " << err
 			   << " btr_pcur_open_low "
 			   << " level: " << level

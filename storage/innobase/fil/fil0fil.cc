@@ -3228,12 +3228,12 @@ fil_discard_tablespace(
 	case DB_IO_ERROR:
 		ib::warn() << "While deleting tablespace " << id
 			<< " in DISCARD TABLESPACE. File rename/delete"
-			" failed: " << ut_strerr(err);
+			" failed: " << err;
 		break;
 
 	case DB_TABLESPACE_NOT_FOUND:
 		ib::warn() << "Cannot delete tablespace " << id
-			<< " in DISCARD TABLESPACE: " << ut_strerr(err);
+			<< " in DISCARD TABLESPACE: " << err;
 		break;
 
 	default:
@@ -5177,7 +5177,7 @@ fil_aio_wait(
 				ib::error() << "Failed to read file '"
 					    << node->name
 					    << "' at offset " << offset
-					    << ": " << ut_strerr(err);
+					    << ": " << err;
 			}
 
 			fil_space_release_for_io(space);

@@ -3725,9 +3725,9 @@ lookup:
 		ut_ad(!hash_lock);
 		dberr_t err = buf_read_page(page_id, page_size);
 
-		if (err != DB_SUCCESS) {
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			ib::error() << "Reading compressed page " << page_id
-				<< " failed with error: " << ut_strerr(err);
+				<< " failed with error: " << err;
 
 			goto err_exit;
 		}
@@ -5250,7 +5250,8 @@ buf_page_init(
 
 	if (hash_page == NULL) {
 		/* Block not found in hash table */
-	} else if (buf_pool_watch_is_sentinel(buf_pool, hash_page)) {
+	} else if (UNIV_LIKELY(buf_pool_watch_is_sentinel(buf_pool,
+							  hash_page))) {
 		/* Preserve the reference count. */
 		ib_uint32_t	buf_fix_count = hash_page->buf_fix_count;
 
@@ -5260,18 +5261,8 @@ buf_page_init(
 
 		buf_pool_watch_remove(buf_pool, hash_page);
 	} else {
-
-		ib::error() << "Page " << page_id
-			<< " already found in the hash table: "
-			<< hash_page << ", " << block;
-
-		ut_d(buf_page_mutex_exit(block));
-		ut_d(buf_pool_mutex_exit(buf_pool));
-		ut_d(buf_print());
-		ut_d(buf_LRU_print());
-		ut_d(buf_validate());
-		ut_d(buf_LRU_validate());
-		ut_error;
+		ib::fatal() << "Page already foudn in the hash table: "
+			    << page_id;
 	}
 
 	ut_ad(!block->page.in_zip_hash);
@@ -7253,6 +7244,7 @@ operator<<(
 	return(out);
 }
 
+#if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /** Print the given buf_pool_t object.
 @param[in,out]	out		the output stream
 @param[in]	buf_pool	the buf_pool_t object to be printed
@@ -7280,6 +7272,7 @@ operator<<(
 		<< ", written=" << buf_pool.stat.n_pages_written << "]";
 	return(out);
 }
+#endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
 
 /** Encrypt a buffer of temporary tablespace
 @param[in]	offset		Page offset

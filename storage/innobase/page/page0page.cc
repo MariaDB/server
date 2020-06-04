@@ -2438,7 +2438,10 @@ page_validate(
 	if (UNIV_UNLIKELY((ibool) !!page_is_comp(page)
 			  != dict_table_is_comp(index->table))) {
 		ib::error() << "'compact format' flag mismatch";
-		goto func_exit2;
+func_exit2:
+		ib::error() << "Apparent corruption in space "
+			<< page_get_space_id(page) << " page "
+			<< page_get_page_no(page) << " index " << index->name;
 	}
 	if (page_is_comp(page)) {
 		if (UNIV_UNLIKELY(!page_simple_validate_new(page))) {
@@ -2480,15 +2483,14 @@ page_validate(
 
 	n_slots = page_dir_get_n_slots(page);
 
-	if (UNIV_UNLIKELY(!(page_header_get_ptr(page, PAGE_HEAP_TOP)
-			    <= page_dir_get_nth_slot(page, n_slots - 1)))) {
+	const void* top = page_header_get_ptr(page, PAGE_HEAP_TOP);
+	const void* last_slot = page_dir_get_nth_slot(page, n_slots - 1);
 
+	if (UNIV_UNLIKELY(top > last_slot)) {
 		ib::warn() << "Record heap and dir overlap on space "
 			<< page_get_space_id(page) << " page "
 			<< page_get_page_no(page) << " index " << index->name
-			<< ", " << page_header_get_ptr(page, PAGE_HEAP_TOP)
-			<< ", " << page_dir_get_nth_slot(page, n_slots - 1);
-
+			<< ", " << top << ", " << last_slot;
 		goto func_exit;
 	}
 
@@ -2747,10 +2749,7 @@ func_exit:
 	mem_heap_free(heap);
 
 	if (UNIV_UNLIKELY(ret == FALSE)) {
-func_exit2:
-		ib::error() << "Apparent corruption in space "
-			<< page_get_space_id(page) << " page "
-			<< page_get_page_no(page) << " index " << index->name;
+		goto func_exit2;
 	}
 
 	return(ret);

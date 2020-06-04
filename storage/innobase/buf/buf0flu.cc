@@ -578,18 +578,11 @@ buf_flush_ready_for_replace(
 #endif /* UNIV_DEBUG */
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(bpage->in_LRU_list);
+	ut_a(buf_page_in_file(bpage));
 
-	if (buf_page_in_file(bpage)) {
-
-		return(bpage->oldest_modification == 0
-		       && bpage->buf_fix_count == 0
-		       && buf_page_get_io_fix(bpage) == BUF_IO_NONE);
-	}
-
-	ib::fatal() << "Buffer block " << bpage << " state " <<  bpage->state
-		<< " in the LRU list!";
-
-	return(FALSE);
+	return bpage->oldest_modification == 0
+		&& bpage->buf_fix_count == 0
+		&& buf_page_get_io_fix(bpage) == BUF_IO_NONE;
 }
 
 /********************************************************************//**

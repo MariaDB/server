@@ -119,7 +119,7 @@ row_vers_impl_x_locked_low(
 	if (trx == 0) {
 		/* The transaction that modified or inserted clust_rec is no
 		longer active, or it is corrupt: no implicit lock on rec */
-		if (corrupt) {
+		if (UNIV_UNLIKELY(corrupt)) {
 			lock_report_trx_id_insanity(
 				trx_id, clust_rec, clust_index, clust_offsets,
 				trx_sys_get_max_trx_id());

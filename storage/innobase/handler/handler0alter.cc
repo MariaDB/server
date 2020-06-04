@@ -8826,7 +8826,7 @@ foreign_fail:
 			trx_start_for_ddl(trx, TRX_DICT_OP_TABLE);
 			dberr_t error = row_merge_drop_table(trx, ctx->old_table);
 
-			if (error != DB_SUCCESS) {
+			if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
 				ib::error() << "Inplace alter table " << ctx->old_table->name
 					    << " dropping copy of the old table failed error "
 					    << error

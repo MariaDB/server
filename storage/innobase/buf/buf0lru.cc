@@ -1824,46 +1824,9 @@ buf_LRU_block_remove_hashed(
 	}
 
 	hashed_bpage = buf_page_hash_get_low(buf_pool, bpage->id);
-	if (bpage != hashed_bpage) {
-		ib::error() << "Page " << bpage->id
-			<< " not found in the hash table";
-
-#ifdef UNIV_DEBUG
-
-		
-		ib::error()
-			<< "in_page_hash:" << bpage->in_page_hash
-			<< " in_zip_hash:" << bpage->in_zip_hash
-			//			<< " in_free_list:"<< bpage->in_fee_list
-			<< " in_flush_list:" << bpage->in_flush_list
-			<< " in_LRU_list:" << bpage->in_LRU_list
-			<< " zip.data:" << bpage->zip.data
-			<< " zip_size:" << bpage->size.logical()
-			<< " page_state:" << buf_page_get_state(bpage);
-#else
-		ib::error()
-			<< " zip.data:" << bpage->zip.data
-			<< " zip_size:" << bpage->size.logical()
-			<< " page_state:" << buf_page_get_state(bpage);
-#endif
-
-		if (hashed_bpage) {
-
-			ib::error() << "In hash table we find block "
-				<< hashed_bpage << " of " << hashed_bpage->id
-				<< " which is not " << bpage;
-		}
-
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-		mutex_exit(buf_page_get_mutex(bpage));
-		rw_lock_x_unlock(hash_lock);
-		buf_pool_mutex_exit(buf_pool);
-		buf_print();
-		buf_LRU_print();
-		buf_validate();
-		buf_LRU_validate();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-		ut_error;
+	if (UNIV_UNLIKELY(bpage != hashed_bpage)) {
+		ib::fatal() << "Page not found in the hash table: "
+			    << bpage->id;
 	}
 
 	ut_ad(!bpage->in_zip_hash);
