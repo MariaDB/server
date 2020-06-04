@@ -81,12 +81,6 @@ buf_dblwr_page_inside(
 	ulint	page_no);	/*!< in: page number */
 
 /********************************************************************//**
-Flush a batch of writes to the datafiles that have already been
-written to the dblwr buffer on disk. */
-void
-buf_dblwr_sync_datafiles();
-
-/********************************************************************//**
 Flushes possible buffered writes from the doublewrite memory buffer to disk.
 It is very important to call this function after a batch of writes
 has been posted, and also when we may have to wait for a page latch!

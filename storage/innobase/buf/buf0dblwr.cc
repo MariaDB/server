@@ -82,18 +82,6 @@ inline buf_block_t *buf_dblwr_trx_sys_get(mtr_t *mtr)
   return block;
 }
 
-/********************************************************************//**
-Flush a batch of writes to the datafiles that have already been
-written to the dblwr buffer on disk. */
-void
-buf_dblwr_sync_datafiles()
-/*======================*/
-{
-	/* Wait that all async writes to tablespaces have been posted to
-	the OS */
-	os_aio_wait_until_no_pending_writes();
-}
-
 /****************************************************************//**
 Creates or initialializes the doublewrite buffer at a database start. */
 static void buf_dblwr_init(const byte *doublewrite)
@@ -893,7 +881,7 @@ buf_dblwr_flush_buffered_writes()
 
 	if (!srv_use_doublewrite_buf || buf_dblwr == NULL) {
 		/* Sync the writes to the disk. */
-		buf_dblwr_sync_datafiles();
+		os_aio_wait_until_no_pending_writes();
 		/* Now we flush the data to disk (for example, with fsync) */
 		fil_flush_file_spaces();
 		return;

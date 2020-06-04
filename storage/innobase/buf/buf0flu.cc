@@ -1071,7 +1071,7 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
       which might be holding another buf_block_t::lock. */
       buf_dblwr_flush_buffered_writes();
     else
-      buf_dblwr_sync_datafiles();
+      os_aio_wait_until_no_pending_writes();
 
     rw_lock_sx_lock_gen(rw_lock, BUF_IO_WRITE);
   }
