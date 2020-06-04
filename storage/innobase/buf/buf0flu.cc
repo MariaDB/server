@@ -1441,14 +1441,11 @@ static ulint buf_free_from_unzip_LRU_list_batch(ulint max)
 			released and reacquired */
 			++count;
 			block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
-
+			free_len = UT_LIST_GET_LEN(buf_pool.free);
+			lru_len = UT_LIST_GET_LEN(buf_pool.unzip_LRU);
 		} else {
-
 			block = UT_LIST_GET_PREV(unzip_LRU, block);
 		}
-
-		free_len = UT_LIST_GET_LEN(buf_pool.free);
-		lru_len = UT_LIST_GET_LEN(buf_pool.unzip_LRU);
 	}
 
 	ut_ad(mutex_own(&buf_pool.mutex));

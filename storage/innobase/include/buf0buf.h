@@ -1672,7 +1672,7 @@ public:
   }
 
   /** Get the page_hash latch for a page */
-  rw_lock_t *hash_lock_get(const page_id_t& id) const
+  rw_lock_t *hash_lock_get(const page_id_t id) const
   {
     return hash_lock_get_low(id.fold());
   }

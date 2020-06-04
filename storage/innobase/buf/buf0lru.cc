@@ -509,23 +509,21 @@ static bool buf_LRU_free_from_unzip_LRU_list(bool scan_all)
 	}
 
 	ulint	scanned = 0;
+	const ulint limit = scan_all ? ULINT_UNDEFINED : srv_LRU_scan_depth;
 	bool	freed = false;
 
 	for (buf_block_t* block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
-	     block != NULL
-	     && !freed
-	     && (scan_all || scanned < srv_LRU_scan_depth);
-	     ++scanned) {
-
-		buf_block_t*	prev_block;
-
-		prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
+	     block && scanned < limit; ++scanned) {
+		buf_block_t* prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
 
 		ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
 		ut_ad(block->in_unzip_LRU_list);
 		ut_ad(block->page.in_LRU_list);
 
 		freed = buf_LRU_free_page(&block->page, false);
+		if (freed) {
+			break;
+		}
 
 		block = prev_block;
 	}
@@ -1140,22 +1138,14 @@ buf_LRU_make_block_young(
 	buf_LRU_add_block(bpage, false);
 }
 
-/******************************************************************//**
-Try to free a block.  If bpage is a descriptor of a compressed-only
-page, the descriptor object will be freed as well.
-
-NOTE: If this function returns true, it will temporarily
-release buf_pool.mutex.  Furthermore, the page frame will no longer be
-accessible via bpage.
-
-The caller must hold buf_pool.mutex when calling this function.
-@return true if freed, false otherwise. */
-bool
-buf_LRU_free_page(
-/*===============*/
-	buf_page_t*	bpage,	/*!< in: block to be freed */
-	bool		zip)	/*!< in: true if should remove also the
-				compressed page of an uncompressed page */
+/** Try to free a block. If bpage is a descriptor of a compressed-only
+ROW_FORMAT=COMPRESSED page, the buf_page_t object will be freed as well.
+The caller must hold buf_pool.mutex.
+@param bpage      block to be freed
+@param zip        whether to remove both copies of a ROW_FORMAT=COMPRESSED page
+@retval true if freed and buf_pool.mutex may have been temporarily released
+@retval false if the page was not freed */
+bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 {
 	const page_id_t id(bpage->id());
 	buf_page_t*	b = nullptr;
