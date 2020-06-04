@@ -163,6 +163,7 @@ update t set id= nextval(seq), u= nextval(seq), s='2003-05-01', e='2003-07-01'
 
 --sorted_result
 select * from t;
+drop sequence seq;
 
 create or replace table t(id int, s date, e date,
                           period for p(s,e));
@@ -270,4 +271,18 @@ load data infile 'tmp_t.txt' replace into table t;
 
 remove_file $MYSQLD_DATADIR/test/tmp_t.txt;
 
-create or replace database test;
+
+--echo # MDEV-22599 WITHOUT OVERLAPS does not work with prefix indexes
+create or replace table t1 (a varchar(6), s timestamp, e timestamp,
+                            period for p(s,e),
+                            unique(a(3), p without overlaps));
+
+insert into t1 values ('foo', '2012-01-01', '2015-12-31');
+--error ER_DUP_ENTRY
+insert into t1 values ('foobar', '2013-01-01', '2014-01-01');
+
+insert into t1 values ('bar', '2012-01-01', '2015-12-31'),
+                      ('baz', '2013-01-01', '2014-01-01');
+select * from t1;
+
+drop table t, t1;

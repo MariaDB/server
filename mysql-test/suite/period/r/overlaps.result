@@ -185,6 +185,7 @@ id	u	s	e
 5	6	2003-05-01	2003-07-01
 7	8	2003-05-01	2003-07-01
 9	10	2003-05-01	2003-07-01
+drop sequence seq;
 create or replace table t(id int, s date, e date,
 period for p(s,e));
 insert into t values (1, '2003-01-01', '2003-03-01'),
@@ -281,4 +282,18 @@ Warnings:
 Warning	1062	Duplicate entry '1-2020-03-05-2020-03-01' for key 'x'
 load data infile 'tmp_t.txt' replace into table t;
 ERROR 42000: This version of MariaDB doesn't yet support 'WITHOUT OVERLAPS'
-create or replace database test;
+# MDEV-22599 WITHOUT OVERLAPS does not work with prefix indexes
+create or replace table t1 (a varchar(6), s timestamp, e timestamp,
+period for p(s,e),
+unique(a(3), p without overlaps));
+insert into t1 values ('foo', '2012-01-01', '2015-12-31');
+insert into t1 values ('foobar', '2013-01-01', '2014-01-01');
+ERROR 23000: Duplicate entry 'foo-2014-01-01 00:00:00-2013-01-01 00:00:00' for key 'a'
+insert into t1 values ('bar', '2012-01-01', '2015-12-31'),
+('baz', '2013-01-01', '2014-01-01');
+select * from t1;
+a	s	e
+foo	2012-01-01 00:00:00	2015-12-31 00:00:00
+bar	2012-01-01 00:00:00	2015-12-31 00:00:00
+baz	2013-01-01 00:00:00	2014-01-01 00:00:00
+drop table t, t1;
