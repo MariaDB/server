@@ -1,0 +1,9 @@
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--echo # Check for unknown options
+--disable_result_log
+--error 7
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --unknown-option=xxx --target-dir=$targetdir;
+--error 2
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --unknown-option --target-dir=$targetdir;
+--enable_result_log

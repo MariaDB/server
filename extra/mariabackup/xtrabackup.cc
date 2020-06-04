@@ -93,7 +93,6 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "changed_page_bitmap.h"
 #include "read_filt.h"
 #include "backup_wsrep.h"
-#include "innobackupex.h"
 #include "backup_mysql.h"
 #include "backup_copy.h"
 #include "backup_mysql.h"
@@ -279,8 +278,6 @@ my_bool xb_close_files;
 ds_ctxt_t       *ds_data     = NULL;
 ds_ctxt_t       *ds_meta     = NULL;
 ds_ctxt_t       *ds_redo     = NULL;
-
-static bool	innobackupex_mode = false;
 
 /* String buffer used by --print-param to accumulate server options as they are
 parsed from the defaults file */
@@ -6076,10 +6073,19 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	int	argc_client = argc;
 	int	argc_server = argc;
 
+	std::vector<char *> argv_to_check;
+	int argc_to_check = argc;
+
+	argv_to_check.push_back(argv[0]);
 	/* scan options for group and config file to load defaults from */
 	for (i = 1; i < argc; i++) {
 
 		char *optend = strcend(argv[i], '=');
+
+                if (strncmp(argv[i], "--defaults-file", optend - argv[i]))
+                  argv_to_check.push_back(argv[i]);
+                else
+                  --argc_to_check;
 
 		if (strncmp(argv[i], "--defaults-group",
 			    optend - argv[i]) == 0) {
@@ -6115,6 +6121,23 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 			target_dir = argv[i];
 		}
 	}
+
+// Check for unknown command line options
+        std::vector<my_option> options_to_check;
+        my_option *option;
+        for (option= xb_server_options; option->name; ++option)
+          options_to_check.push_back(*option);
+        for (option= xb_client_options; option->name; ++option)
+          options_to_check.push_back(*option);
+        options_to_check.push_back(*option);
+
+        char **argv_to_check_arr= &argv_to_check[0];
+        my_getopt_skip_unknown= FALSE;
+
+        if (argc > 0 && (ho_error= handle_options(
+                             &argc_to_check, &argv_to_check_arr,
+                             &options_to_check[0], xb_get_one_option)))
+          exit(ho_error);
 
 	snprintf(conf_file, sizeof(conf_file), "my");
 
@@ -6182,14 +6205,6 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	for (n = 0; (*argv_client)[n]; n++) {};
  	argc_client = n;
 
-	if (innobackupex_mode && argc_client > 0) {
-		/* emulate innobackupex script */
-		innobackupex_mode = true;
-		if (!ibx_handle_options(&argc_client, argv_client)) {
-			exit(EXIT_FAILURE);
-		}
-	}
-
 	if (argc_client > 0
 	    && (ho_error=handle_options(&argc_client, argv_client,
 					xb_client_options, xb_get_one_option)))
@@ -6247,14 +6262,8 @@ int main(int argc, char **argv)
 			argv[0]+=2;
 			return mysqld_main(argc, argv);
 		}
-		if(strcmp(argv[1], "--innobackupex") == 0)
-		{
-			argv++;
-			argc--;
-			innobackupex_mode = true;
-		}
 	}
-  
+
 	if (argc > 1)
 		strncpy(orig_argv1,argv[1],sizeof(orig_argv1) -1);
 
@@ -6294,10 +6303,6 @@ int main(int argc, char **argv)
 
 	backup_cleanup();
 
-	if (innobackupex_mode) {
-		ibx_cleanup();
-	}
-
 	free_defaults(client_defaults);
 	free_defaults(server_defaults);
 
@@ -6324,12 +6329,6 @@ int main(int argc, char **argv)
 
 static int main_low(char** argv)
 {
-	if (innobackupex_mode) {
-		if (!ibx_init()) {
-			return(EXIT_FAILURE);
-		}
-	}
-
 	if (!xtrabackup_print_param && !xtrabackup_prepare
 	    && !strcmp(mysql_data_home, "./")) {
 		if (!xtrabackup_print_param)

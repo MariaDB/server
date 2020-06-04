@@ -20,9 +20,9 @@ COMMIT;
 echo # xtrabackup backup;
 --disable_result_log
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
-exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --no-timestamp $targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
 drop table t1;
-exec $INNOBACKUPEX --apply-log $targetdir;
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
 
 -- source include/restart_and_restore.inc
 --enable_result_log

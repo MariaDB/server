@@ -40,7 +40,7 @@ EOF
 
 echo # xtrabackup prepare;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$server_cnf --defaults-group-suffix=.1 --prepare --export --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$server_cnf --prepare --export --target-dir=$targetdir;
 --enable_result_log
 
 list_files $targetdir/test *.cfg;

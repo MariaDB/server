@@ -22,7 +22,7 @@ INSERT INTO t1 VALUES (1), (101), (201), (301);
 
 echo # xtrabackup prepare;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group-suffix=.1 --prepare --export --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --prepare --export --target-dir=$targetdir;
 --enable_result_log
 
 
