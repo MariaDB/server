@@ -1510,14 +1510,9 @@ void log_check_margins()
 }
 
 extern void buf_resize_shutdown();
-/****************************************************************//**
-Makes a checkpoint at the latest lsn and writes it to first page of each
-data file in the database, so that we know that the file spaces contain
-all modifications up to that lsn. This can only be called at database
-shutdown. This function also writes log in log file to the log archive. */
-void
-logs_empty_and_mark_files_at_shutdown(void)
-/*=======================================*/
+
+/** Make a checkpoint at the latest lsn on shutdown. */
+void logs_empty_and_mark_files_at_shutdown()
 {
 	lsn_t			lsn;
 	ulint			count = 0;
@@ -1699,10 +1694,6 @@ wait_suspend_loop:
 		}
 
 		srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
-
-		if (fil_system.is_initialised()) {
-			fil_close_all_files();
-		}
 		return;
 	}
 
@@ -1726,8 +1717,6 @@ wait_suspend_loop:
 			goto loop;
 		}
 
-		/* Ensure that all buffered changes are written to the
-		redo log before fil_close_all_files(). */
 		log_sys.log.flush();
 	} else {
 		lsn = recv_sys.recovered_lsn;
@@ -1761,8 +1750,6 @@ wait_suspend_loop:
 				<< " failed; error=" << err;
 		}
 	}
-
-	fil_close_all_files();
 
 	/* Make some checks that the server really is quiet */
 	ut_ad(!srv_any_background_activity());

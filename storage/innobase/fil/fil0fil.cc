@@ -1570,20 +1570,20 @@ fil_open_system_tablespace_files()
 	mutex_exit(&fil_system.mutex);
 }
 
-/*******************************************************************//**
-Closes all open files. There must not be any pending i/o's or not flushed
-modifications in the files. */
-void
-fil_close_all_files(void)
-/*=====================*/
+/** Close all tablespace files at shutdown */
+void fil_close_all_files()
 {
+	if (!fil_system.is_initialised()) {
+		return;
+	}
+
 	fil_space_t*	space;
 
 	/* At shutdown, we should not have any files in this list. */
-	ut_ad(fil_system.is_initialised());
 	ut_ad(srv_fast_shutdown == 2
 	      || !srv_was_started
 	      || UT_LIST_GET_LEN(fil_system.named_spaces) == 0);
+	fil_flush_file_spaces();
 
 	mutex_enter(&fil_system.mutex);
 

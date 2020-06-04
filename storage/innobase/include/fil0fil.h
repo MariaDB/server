@@ -1159,14 +1159,9 @@ database server shutdown. This should be called at a server startup after the
 space objects for the system tablespace have been created. The
 purpose of this operation is to make sure we never run out of file descriptors
 if we need to read from the insert buffer. */
-void
-fil_open_system_tablespace_files();
-/*==========================================*/
-/*******************************************************************//**
-Closes all open files. There must not be any pending i/o's or not flushed
-modifications in the files. */
-void
-fil_close_all_files(void);
+void fil_open_system_tablespace_files();
+/** Close all tablespace files at shutdown */
+void fil_close_all_files();
 /*******************************************************************//**
 Sets the max tablespace id counter if the given number is bigger than the
 previous value. */

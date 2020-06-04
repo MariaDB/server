@@ -175,14 +175,9 @@ bool log_checkpoint();
 /** Make a checkpoint */
 void log_make_checkpoint();
 
-/****************************************************************//**
-Makes a checkpoint at the latest lsn and writes it to first page of each
-data file in the database, so that we know that the file spaces contain
-all modifications up to that lsn. This can only be called at database
-shutdown. This function also writes all log in log file to the log archive. */
-void
-logs_empty_and_mark_files_at_shutdown(void);
-/*=======================================*/
+/** Make a checkpoint at the latest lsn on shutdown. */
+void logs_empty_and_mark_files_at_shutdown();
+
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
 @param[in]	end_lsn	start LSN of the FILE_CHECKPOINT mini-transaction */
 void log_write_checkpoint_info(lsn_t end_lsn);
