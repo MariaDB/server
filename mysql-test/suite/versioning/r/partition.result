@@ -673,4 +673,14 @@ delete from v1;
 ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 drop view v1;
 drop table t1;
+#
+# MDEV-22112 Assertion `tab_part_info->part_type == RANGE_PARTITION || tab_part_info->part_type == LIST_PARTITION' failed in prep_alter_part_table
+#
+create table t1 (a int) with system versioning partition by system_time;
+ERROR HY000: For SYSTEM_TIME partitions each partition must be defined
+create table t1 (a int) with system versioning partition by system_time
+(partition p1 history, partition pn current);
+alter table t1 add partition (partition p2);
+ERROR HY000: Wrong partitioning type, expected type: `SYSTEM_TIME`
+drop table t1;
 # End of 10.3 tests
