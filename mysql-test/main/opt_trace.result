@@ -441,6 +441,7 @@ select * from v2	{
                       },
                       "rows_for_plan": 1,
                       "cost_for_plan": 2.4044,
+                      "cost_for_sorting": 1,
                       "estimated_join_cardinality": 1
                     }
                   ]
@@ -765,6 +766,7 @@ explain select * from v1	{
                       },
                       "rows_for_plan": 10,
                       "cost_for_plan": 4.022,
+                      "cost_for_sorting": 10,
                       "estimated_join_cardinality": 10
                     }
                   ]
@@ -1449,6 +1451,7 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                 },
                 "rows_for_plan": 0.5849,
                 "cost_for_plan": 3.4291,
+                "cost_for_sorting": 0.5849,
                 "estimated_join_cardinality": 0.5849
               }
             ]
@@ -1650,6 +1653,7 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                 },
                 "rows_for_plan": 16,
                 "cost_for_plan": 5.2313,
+                "cost_for_sorting": 16,
                 "estimated_join_cardinality": 16
               }
             ]
@@ -1840,6 +1844,7 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                 },
                 "rows_for_plan": 16,
                 "cost_for_plan": 5.2313,
+                "cost_for_sorting": 16,
                 "estimated_join_cardinality": 16
               }
             ]
@@ -8292,5 +8297,173 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
     ]
 ]
 drop table t1;
+#
+# MDEV-21626: Optimizer misses the details about the picked join order
+#
+CREATE TABLE t1(a INT, b INT, key(a));
+INSERT INTO t1 SELECT seq, seq from seq_1_to_10;
+CREATE TABLE t2(a INT, b INT, key(a));
+INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
+SET OPTIMIZER_TRACE=1;
+EXPLAIN SELECT * FROM t1, t2 WHERE t1.a=t2.a ORDER BY t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	ref	a	a	5	test.t1.a	1	
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
+[
+    
+    [
+        
+        {
+            "plan_prefix": 
+            [
+            ],
+            "table": "t1",
+            "best_access_path": 
+            {
+                "considered_access_paths": 
+                [
+                    
+                    {
+                        "access_type": "scan",
+                        "resulting_rows": 10,
+                        "cost": 2.022,
+                        "chosen": true
+                    }
+                ],
+                "chosen_access_method": 
+                {
+                    "type": "scan",
+                    "records": 10,
+                    "cost": 2.022,
+                    "uses_join_buffering": false
+                }
+            },
+            "rows_for_plan": 10,
+            "cost_for_plan": 4.022,
+            "rest_of_plan": 
+            [
+                
+                {
+                    "plan_prefix": 
+                    [
+                        "t1"
+                    ],
+                    "table": "t2",
+                    "best_access_path": 
+                    {
+                        "considered_access_paths": 
+                        [
+                            
+                            {
+                                "access_type": "ref",
+                                "index": "a",
+                                "used_range_estimates": false,
+                                "cause": "not available",
+                                "rows": 1,
+                                "cost": 20,
+                                "chosen": true
+                            },
+                            
+                            {
+                                "access_type": "scan",
+                                "resulting_rows": 100,
+                                "cost": 2.2197,
+                                "chosen": false
+                            }
+                        ],
+                        "chosen_access_method": 
+                        {
+                            "type": "ref",
+                            "records": 1,
+                            "cost": 20,
+                            "uses_join_buffering": false
+                        }
+                    },
+                    "rows_for_plan": 10,
+                    "cost_for_plan": 26.022,
+                    "cost_for_sorting": 10,
+                    "estimated_join_cardinality": 10
+                }
+            ]
+        },
+        
+        {
+            "plan_prefix": 
+            [
+            ],
+            "table": "t2",
+            "best_access_path": 
+            {
+                "considered_access_paths": 
+                [
+                    
+                    {
+                        "access_type": "scan",
+                        "resulting_rows": 100,
+                        "cost": 2.2197,
+                        "chosen": true,
+                        "use_tmp_table": true
+                    }
+                ],
+                "chosen_access_method": 
+                {
+                    "type": "scan",
+                    "records": 100,
+                    "cost": 2.2197,
+                    "uses_join_buffering": false
+                }
+            },
+            "rows_for_plan": 100,
+            "cost_for_plan": 22.22,
+            "rest_of_plan": 
+            [
+                
+                {
+                    "plan_prefix": 
+                    [
+                        "t2"
+                    ],
+                    "table": "t1",
+                    "best_access_path": 
+                    {
+                        "considered_access_paths": 
+                        [
+                            
+                            {
+                                "access_type": "ref",
+                                "index": "a",
+                                "used_range_estimates": false,
+                                "cause": "not available",
+                                "rows": 1,
+                                "cost": 200,
+                                "chosen": true
+                            },
+                            
+                            {
+                                "access_type": "scan",
+                                "resulting_rows": 10,
+                                "cost": 2.022,
+                                "chosen": true
+                            }
+                        ],
+                        "chosen_access_method": 
+                        {
+                            "type": "scan",
+                            "records": 10,
+                            "cost": 2.022,
+                            "uses_join_buffering": true
+                        }
+                    },
+                    "rows_for_plan": 1000,
+                    "cost_for_plan": 224.24,
+                    "pruned_by_cost": true
+                }
+            ]
+        }
+    ]
+]
+DROP TABLE t1,t2;
 # End of 10.4 tests
 set optimizer_trace='enabled=off';

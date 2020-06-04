@@ -1,4 +1,5 @@
 --source include/not_embedded.inc
+--source include/have_sequence.inc
 SELECT table_name, column_name FROM information_schema.columns where table_name="OPTIMIZER_TRACE";
 show variables like 'optimizer_trace';
 set optimizer_trace="enabled=on";
@@ -578,6 +579,20 @@ set optimizer_trace=1;
 select * from t1 force index(kp1) where (kp1=2 and kp2 >=4);
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t1;
+
+--echo #
+--echo # MDEV-21626: Optimizer misses the details about the picked join order
+--echo #
+
+CREATE TABLE t1(a INT, b INT, key(a));
+INSERT INTO t1 SELECT seq, seq from seq_1_to_10;
+CREATE TABLE t2(a INT, b INT, key(a));
+INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
+
+SET OPTIMIZER_TRACE=1;
+EXPLAIN SELECT * FROM t1, t2 WHERE t1.a=t2.a ORDER BY t2.b;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+DROP TABLE t1,t2;
 
 --echo # End of 10.4 tests
 
