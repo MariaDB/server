@@ -296,4 +296,28 @@ a	s	e
 foo	2012-01-01 00:00:00	2015-12-31 00:00:00
 bar	2012-01-01 00:00:00	2015-12-31 00:00:00
 baz	2013-01-01 00:00:00	2014-01-01 00:00:00
+# MDEV-22753 Server crashes in handler::ha_check_overlaps or error 190
+# "Incompatible key or row definition" upon INSERT into versioned
+# partitioned table with WITHOUT OVERLAPS
+create or replace table t1 (f int, s date, e date, period for p(s,e),
+unique(f, p without overlaps)
+) engine=innodb with system versioning
+partition by system_time limit 1000
+(partition p1 history, partition pn current);
+alter table t1 add partition (partition p2 history);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` int(11) DEFAULT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `p` (`s`, `e`),
+  UNIQUE KEY `f` (`f`,`p` WITHOUT OVERLAPS)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1000
+(PARTITION `p1` HISTORY ENGINE = InnoDB,
+ PARTITION `p2` HISTORY ENGINE = InnoDB,
+ PARTITION `pn` CURRENT ENGINE = InnoDB)
+insert into t1 values (1,'2013-01-12','2015-11-04'),
+(2,'2016-03-15','2024-11-09');
 drop table t, t1;

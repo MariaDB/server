@@ -75,6 +75,9 @@ static int copy_data_between_tables(THD *, TABLE *,TABLE *,
                                     ha_rows *, ha_rows *,
                                     Alter_info::enum_enable_or_disable,
                                     Alter_table_ctx *);
+static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
+                                    Alter_info *alter_info, KEY **key_info,
+                                    uint key_count);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int);
 static uint blob_length_by_type(enum_field_types type);
@@ -1821,6 +1824,10 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
   strxmov(shadow_frm_name, shadow_path, reg_ext, NullS);
   if (flags & WFRM_WRITE_SHADOW)
   {
+    if (append_system_key_parts(lpt->thd, lpt->create_info, lpt->alter_info,
+                                &lpt->key_info_buffer, 0))
+      DBUG_RETURN(true);
+
     if (mysql_prepare_create_table(lpt->thd, lpt->create_info, lpt->alter_info,
                                    &lpt->db_options, lpt->table->file,
                                    &lpt->key_info_buffer, &lpt->key_count,

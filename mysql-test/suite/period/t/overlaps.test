@@ -285,4 +285,19 @@ insert into t1 values ('bar', '2012-01-01', '2015-12-31'),
                       ('baz', '2013-01-01', '2014-01-01');
 select * from t1;
 
+--echo # MDEV-22753 Server crashes in handler::ha_check_overlaps or error 190
+--echo # "Incompatible key or row definition" upon INSERT into versioned
+--echo # partitioned table with WITHOUT OVERLAPS
+create or replace table t1 (f int, s date, e date, period for p(s,e),
+                 unique(f, p without overlaps)
+                 ) engine=innodb with system versioning
+                 partition by system_time limit 1000
+                 (partition p1 history, partition pn current);
+alter table t1 add partition (partition p2 history);
+show create table t1;
+insert into t1 values (1,'2013-01-12','2015-11-04'),
+                      (2,'2016-03-15','2024-11-09');
+
+
+
 drop table t, t1;
