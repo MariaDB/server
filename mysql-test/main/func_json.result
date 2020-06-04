@@ -1229,6 +1229,23 @@ select json_arrayagg(a) over () from (select 1 a) t;
 ERROR 42000: This version of MariaDB doesn't yet support 'JSON_ARRAYAGG() aggregate as window function'
 select json_objectagg(a, b) over () from (select 1 a, 2 b) t;
 ERROR 42000: This version of MariaDB doesn't yet support 'JSON_OBJECTAGG() aggregate as window function'
+SELECT JSON_ARRAYAGG(NULL) FROM (SELECT 1 AS t) AS A;
+JSON_ARRAYAGG(NULL)
+[null]
+SELECT JSON_ARRAYAGG("null") FROM (SELECT 1 AS t) AS A;
+JSON_ARRAYAGG("null")
+["null"]
+create view v as (select json_arrayagg(json_object("type", "permPeriod", "id", "asd")) as JSON_DATA);
+select * from v;
+JSON_DATA
+[{"type": "permPeriod", "id": "asd"}]
+drop view v;
+select json_arrayagg(a order by a asc) from (select 1 a union select 2 a) t;
+json_arrayagg(a order by a asc)
+[1,2]
+select json_object('x', json_arrayagg(json_object('a', 1)));
+json_object('x', json_arrayagg(json_object('a', 1)))
+{"x": [{"a": 1}]}
 #
 # End of 10.5 tests
 #

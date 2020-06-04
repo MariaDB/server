@@ -2060,7 +2060,7 @@ public:
 
   /** Sentinels to detect if pages are read into the buffer pool while
   a delete-buffering operation is pending. Protected by mutex. */
-  buf_page_t watch[33];
+  buf_page_t watch[innodb_purge_threads_MAX + 1];
   /** Reserve a buffer. */
   buf_tmp_buffer_t *io_buf_reserve() { return io_buf.reserve(); }
 private:

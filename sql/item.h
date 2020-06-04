@@ -5325,6 +5325,7 @@ public:
   {
     return ref ? (*ref)->get_typelib() : NULL;
   }
+  bool is_json_type() { return (*ref)->is_json_type(); }
 
   bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
