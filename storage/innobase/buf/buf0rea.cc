@@ -109,6 +109,15 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
   {
     block= buf_LRU_get_free_block(false);
     block->initialise(page_id, zip_size);
+    /* We set a pass-type x-lock on the frame because then
+    the same thread which called for the read operation
+    (and is running now at this point of code) can wait
+    for the read to complete by waiting for the x-lock on
+    the frame; if the x-lock were recursive, the same
+    thread would illegally get the x-lock before the page
+    read is completed.  The x-lock will be released
+    in buf_page_read_complete() by the io-handler thread. */
+    rw_lock_x_lock_gen(&block->lock, BUF_IO_READ);
   }
 
   mutex_enter(&buf_pool.mutex);
@@ -122,7 +131,10 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     /* The page is already in the buffer pool. */
     rw_lock_x_unlock(hash_lock);
     if (block)
+    {
+      rw_lock_x_unlock_gen(&block->lock, BUF_IO_READ);
       buf_LRU_block_free_non_file_page(block);
+    }
     goto func_exit;
   }
 
@@ -149,17 +161,6 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
     /* The block must be put to the LRU list, to the old blocks */
     buf_LRU_add_block(bpage, true/* to old blocks */);
-
-    /* We set a pass-type x-lock on the frame because then
-    the same thread which called for the read operation
-    (and is running now at this point of code) can wait
-    for the read to complete by waiting for the x-lock on
-    the frame; if the x-lock were recursive, the same
-    thread would illegally get the x-lock before the page
-    read is completed.  The x-lock is cleared by the
-    io-handler thread. */
-
-    rw_lock_x_lock_gen(&block->lock, BUF_IO_READ);
 
     if (UNIV_UNLIKELY(zip_size))
     {
