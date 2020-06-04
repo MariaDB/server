@@ -3352,9 +3352,9 @@ evict_from_pool:
 		buf_pool.mutex. */
 
 		if (!buf_zip_decompress(block, false)) {
+			rw_lock_x_unlock(&fix_block->lock);
 			fix_block->page.io_unfix();
 			fix_block->unfix();
-			rw_lock_x_unlock(&fix_block->lock);
 			--buf_pool.n_pend_unzip;
 
 			if (err) {
@@ -3363,8 +3363,8 @@ evict_from_pool:
 			return NULL;
 		}
 
-		fix_block->page.io_unfix();
 		rw_lock_x_unlock(&block->lock);
+		fix_block->page.io_unfix();
 		--buf_pool.n_pend_unzip;
 		break;
 	}
@@ -4026,11 +4026,12 @@ void buf_pool_t::corrupted_evict(buf_page_t *bpage)
   ut_ad(bpage->io_fix() == BUF_IO_READ);
   ut_ad(!bpage->oldest_modification());
   bpage->set_corrupt_id();
-  bpage->io_unfix();
 
   if (bpage->state() == BUF_BLOCK_FILE_PAGE)
     rw_lock_x_unlock_gen(&reinterpret_cast<buf_block_t*>(bpage)->lock,
                          BUF_IO_READ);
+
+  bpage->io_unfix();
 
   /* remove from LRU and page_hash */
   buf_LRU_free_one_page(bpage, id, hash_lock);
@@ -4294,19 +4295,17 @@ release_page:
     buf_page_monitor(bpage, BUF_IO_READ);
   DBUG_PRINT("ib_buf", ("read page %u:%u",
                         id.space(), id.page_no()));
-  bpage->io_unfix();
-
-  /* NOTE that the call to ibuf may have moved the ownership of the
-  x-latch to this thread */
-  ut_d(auto n=) buf_pool.n_pend_reads--;
-  ut_ad(n > 0);
-  buf_pool.stat.n_pages_read++;
 
   /* Because this thread which does the unlocking might not be the same that
   did the locking, we use a pass value != 0 in unlock, which simply
   removes the newest lock debug record, without checking the thread id. */
   if (bpage->state() == BUF_BLOCK_FILE_PAGE)
     rw_lock_x_unlock_gen(&((buf_block_t*) bpage)->lock, BUF_IO_READ);
+  bpage->io_unfix();
+
+  ut_d(auto n=) buf_pool.n_pend_reads--;
+  ut_ad(n > 0);
+  buf_pool.stat.n_pages_read++;
 
   return DB_SUCCESS;
 }
@@ -4409,14 +4408,6 @@ void buf_pool_t::validate()
 			case BUF_BLOCK_FILE_PAGE:
 				ut_ad(page_hash_get_low(block->page.id())
 				      == &block->page);
-				/* buf_page_read_complete() may execute
-				concurrently, invoking buf_page_t::io_unfix()
-				and releasing block->lock. We must check
-				the predicates in the reverse order. */
-				ut_ad(rw_lock_is_locked(&block->lock,
-							RW_LOCK_X)
-				      || block->page.io_fix() != BUF_IO_READ);
-
 				n_lru++;
 				break;
 

@@ -1270,7 +1270,15 @@ struct buf_block_t{
 	/* @} */
 # endif
   void fix() { page.fix(); }
-  uint32_t unfix() { return page.unfix(); }
+  uint32_t unfix()
+  {
+    uint32_t fix_count= page.unfix();
+    ut_ad(fix_count || page.io_fix() != BUF_IO_NONE ||
+          page.state() == BUF_BLOCK_ZIP_PAGE ||
+          !rw_lock_own_flagged(&lock, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S |
+                               RW_LOCK_FLAG_SX));
+    return fix_count;
+  }
 
   /** @return the physical size, in bytes */
   ulint physical_size() const { return page.physical_size(); }
