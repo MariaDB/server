@@ -1235,6 +1235,11 @@ JSON_ARRAYAGG(NULL)
 SELECT JSON_ARRAYAGG("null") FROM (SELECT 1 AS t) AS A;
 JSON_ARRAYAGG("null")
 ["null"]
+create view v as (select json_arrayagg(json_object("type", "permPeriod", "id", "asd")) as JSON_DATA);
+select * from v;
+JSON_DATA
+[{"type": "permPeriod", "id": "asd"}]
+drop view v;
 #
 # End of 10.5 tests
 #

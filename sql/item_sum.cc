@@ -4305,7 +4305,7 @@ String* Item_func_group_concat::val_str(String* str)
 
 void Item_func_group_concat::print(String *str, enum_query_type query_type)
 {
-  str->append(STRING_WITH_LEN("group_concat("));
+  str->append(func_name());
   if (distinct)
     str->append(STRING_WITH_LEN("distinct "));
   for (uint i= 0; i < arg_count_field; i++)
@@ -4328,9 +4328,13 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
         str->append(STRING_WITH_LEN(" DESC"));
     }
   }
-  str->append(STRING_WITH_LEN(" separator \'"));
-  str->append_for_single_quote(separator->ptr(), separator->length());
-  str->append(STRING_WITH_LEN("\'"));
+
+  if (sum_func() == GROUP_CONCAT_FUNC)
+  {
+    str->append(STRING_WITH_LEN(" separator \'"));
+    str->append_for_single_quote(separator->ptr(), separator->length());
+    str->append(STRING_WITH_LEN("\'"));
+  }
 
   if (limit_clause)
   {
