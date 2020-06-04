@@ -1388,6 +1388,7 @@ static ulint dict_check_sys_tables()
 
 	for (rec = dict_startscan_system(&pcur, &mtr, SYS_TABLES);
 	     rec != NULL;
+	     mtr.commit(), mtr.start(),
 	     rec = dict_getnext_system(&pcur, &mtr)) {
 		const byte*	field;
 		ulint		len;
