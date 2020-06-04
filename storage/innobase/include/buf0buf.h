@@ -1042,7 +1042,7 @@ public:
   void free_file_page()
   {
     ut_ad(state() == BUF_BLOCK_REMOVE_HASH);
-    ut_d(oldest_modification_= 0); /* for buf_LRU_free_page(..., false) */
+    ut_d(oldest_modification_= 0); /* for buf_LRU_free_page(this, false) */
     set_corrupt_id();
     ut_d(set_state(BUF_BLOCK_MEMORY));
   }
@@ -1672,7 +1672,7 @@ public:
   }
 
   /** Get the page_hash latch for a page */
-  rw_lock_t *hash_lock_get(const page_id_t id) const
+  rw_lock_t *hash_lock_get(const page_id_t& id) const
   {
     return hash_lock_get_low(id.fold());
   }

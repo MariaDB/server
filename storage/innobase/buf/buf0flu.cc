@@ -585,13 +585,8 @@ void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
 
   buf_pool.stat.n_pages_written++;
 
-  if (evict && !bpage->buf_fix_count())
-  {
-    rw_lock_t *hash_lock= buf_pool.hash_lock_get(bpage->id());
-    rw_lock_x_lock(hash_lock);
-    if (!buf_LRU_free_page(bpage, hash_lock, true))
-      rw_lock_x_unlock(hash_lock);
-  }
+  if (evict)
+    buf_LRU_free_page(bpage, true);
 
   mutex_exit(&buf_pool.mutex);
 }
@@ -1441,26 +1436,19 @@ static ulint buf_free_from_unzip_LRU_list_batch(ulint max)
 	       && lru_len > UT_LIST_GET_LEN(buf_pool.LRU) / 10) {
 
 		++scanned;
-		if (block->page.can_relocate()) {
-			rw_lock_t* hash_lock = buf_pool.hash_lock_get(
-				block->page.id());
-			rw_lock_x_lock(hash_lock);
+		if (buf_LRU_free_page(&block->page, false)) {
+			/* Block was freed. buf_pool.mutex potentially
+			released and reacquired */
+			++count;
+			block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
 
-			if (buf_LRU_free_page(&block->page, hash_lock, false)) {
-				/* The block was freed and buf_pool.mutex
-				potentially released and reacquired. */
-				ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X));
-				++count;
-				block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
-				free_len = UT_LIST_GET_LEN(buf_pool.free);
-				lru_len = UT_LIST_GET_LEN(buf_pool.unzip_LRU);
-				continue;
-			} else {
-				rw_lock_x_unlock(hash_lock);
-			}
+		} else {
+
+			block = UT_LIST_GET_PREV(unzip_LRU, block);
 		}
 
-		block = UT_LIST_GET_PREV(unzip_LRU, block);
+		free_len = UT_LIST_GET_LEN(buf_pool.free);
+		lru_len = UT_LIST_GET_LEN(buf_pool.unzip_LRU);
 	}
 
 	ut_ad(mutex_own(&buf_pool.mutex));
@@ -1501,23 +1489,19 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
   {
     buf_page_t *prev= UT_LIST_GET_PREV(LRU, bpage);
     buf_pool.lru_hp.set(prev);
-    const page_id_t page_id(bpage->id());
 
     if (bpage->ready_for_replace())
     {
-      rw_lock_t *hash_lock= buf_pool.hash_lock_get(page_id);
-      rw_lock_x_lock(hash_lock);
       /* block is ready for eviction i.e., it is clean and is not
       IO-fixed or buffer fixed. */
-      if (buf_LRU_free_page(bpage, hash_lock, true))
+      if (buf_LRU_free_page(bpage, true))
         ++n->evicted;
-      else
-        rw_lock_x_unlock(hash_lock);
     }
     else if (bpage->ready_for_flush())
     {
       /* Block is ready for flush. Dispatch an IO request. The IO
       helper thread will put it on free list in IO completion routine. */
+      const page_id_t page_id(bpage->id());
       mutex_exit(&buf_pool.mutex);
       n->flushed+= buf_flush_try_neighbors(page_id, IORequest::LRU, n->flushed,
                                            max);
@@ -1873,22 +1857,13 @@ bool buf_flush_single_page_from_LRU()
 			continue;
 		}
 
-		if (!bpage->buf_fix_count()) {
-			rw_lock_t *hash_lock = buf_pool.hash_lock_get(
-				bpage->id());
-			rw_lock_x_lock(hash_lock);
-
-			if (buf_LRU_free_page(bpage, hash_lock, true)) {
-				/* block is ready for eviction i.e., it is
-				clean and is not IO-fixed or buffer fixed. */
-				freed = true;
-				break;
-			} else {
-				rw_lock_x_unlock(hash_lock);
-				goto try_flush;
-			}
+		if (!bpage->buf_fix_count()
+		    && buf_LRU_free_page(bpage, true)) {
+			/* block is ready for eviction i.e., it is
+			clean and is not IO-fixed or buffer fixed. */
+			freed = true;
+			break;
 		} else {
-try_flush:
 			/* Block is ready for flush. Try and dispatch an IO
 			request. We'll put it on free list in IO completion
 			routine if it is not buffer fixed. The following call
