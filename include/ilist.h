@@ -99,8 +99,14 @@ public:
     reference operator*() { return *static_cast<pointer>(node_); }
     pointer operator->() { return static_cast<pointer>(node_); }
 
-    bool operator==(const Iterator &rhs) { return node_ == rhs.node_; }
-    bool operator!=(const Iterator &rhs) { return !(*this == rhs); }
+    friend bool operator==(const Iterator &lhs, const Iterator &rhs)
+    {
+      return lhs.node_ == rhs.node_;
+    }
+    friend bool operator!=(const Iterator &lhs, const Iterator &rhs)
+    {
+      return !(lhs == rhs);
+    }
 
   private:
     ListNode *node_;
