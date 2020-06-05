@@ -686,7 +686,9 @@ int ha_partition::create_partitioning_metadata(const char *path,
   if (m_part_info)
   {
     part= m_part_info->partitions.head();
-    if ((part->engine_type)->create_partitioning_metadata &&
+    /* part->engine_type may be 0 when we failed to create the partition */
+    if (part->engine_type &&
+        (part->engine_type)->create_partitioning_metadata &&
         ((part->engine_type)->create_partitioning_metadata)(path, old_path,
                                                             action_flag))
     {
