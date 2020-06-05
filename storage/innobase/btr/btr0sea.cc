@@ -203,23 +203,33 @@ btr_search_sys_create(ulint hash_size)
 }
 
 /** Frees the adaptive search system at a database shutdown. */
-void
-btr_search_sys_free()
+void btr_search_sys_free()
 {
-	ut_ad(btr_search_sys != NULL && btr_search_latches != NULL);
+  ut_ad(btr_search_sys);
+  ut_ad(btr_search_latches);
 
-	ut_free(btr_search_sys);
-	btr_search_sys = NULL;
+  if (btr_search_sys->hash_tables)
+  {
+    for (ulint i= 0; i < btr_ahi_parts; ++i)
+    {
+      mem_heap_free(btr_search_sys->hash_tables[i]->heap);
+      hash_table_free(btr_search_sys->hash_tables[i]);
+    }
+    ut_free(btr_search_sys->hash_tables);
+  }
 
-	/* Free all latches. */
-	for (ulint i = 0; i < btr_ahi_parts; ++i) {
+  ut_free(btr_search_sys);
+  btr_search_sys= NULL;
 
-		rw_lock_free(btr_search_latches[i]);
-		ut_free(btr_search_latches[i]);
-	}
+  /* Free all latches. */
+  for (ulint i= 0; i < btr_ahi_parts; ++i)
+  {
+    rw_lock_free(btr_search_latches[i]);
+    ut_free(btr_search_latches[i]);
+  }
 
-	ut_free(btr_search_latches);
-	btr_search_latches = NULL;
+  ut_free(btr_search_latches);
+  btr_search_latches= NULL;
 }
 
 /** Set index->ref_count = 0 on all indexes of a table.
