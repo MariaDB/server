@@ -582,7 +582,7 @@ fil_name_parse(
 		ut_ad(0); // the caller checked this
 		/* fall through */
 	case MLOG_FILE_NAME:
-		if (corrupt) {
+		if (UNIV_UNLIKELY(corrupt)) {
 			ib::error() << "MLOG_FILE_NAME incorrect:" << ptr;
 			recv_sys.found_corrupt_log = true;
 			break;
@@ -593,7 +593,7 @@ fil_name_parse(
 			false);
 		break;
 	case MLOG_FILE_DELETE:
-		if (corrupt) {
+		if (UNIV_UNLIKELY(corrupt)) {
 			ib::error() << "MLOG_FILE_DELETE incorrect:" << ptr;
 			recv_sys.found_corrupt_log = true;
 			break;
@@ -621,7 +621,7 @@ fil_name_parse(
 		}
 		break;
 	case MLOG_FILE_RENAME2:
-		if (corrupt) {
+		if (UNIV_UNLIKELY(corrupt)) {
 			ib::error() << "MLOG_FILE_RENAME2 incorrect:" << ptr;
 			recv_sys.found_corrupt_log = true;
 		}
@@ -662,7 +662,7 @@ fil_name_parse(
 			}
 		}
 
-		if (corrupt) {
+		if (UNIV_UNLIKELY(corrupt)) {
 			ib::error() << "MLOG_FILE_RENAME2 new_name incorrect:" << ptr
 				    << " new_name: " << new_name;
 			recv_sys.found_corrupt_log = true;
@@ -2577,6 +2577,7 @@ recv_calc_lsn_on_data_add(
 @param[in]	space	tablespace ID (could be garbage)
 @param[in]	page_no	page number (could be garbage)
 @return whether processing should continue */
+ATTRIBUTE_COLD
 static
 bool
 recv_report_corrupt_log(
@@ -2732,12 +2733,12 @@ loop:
 		len = recv_parse_log_rec(&type, ptr, end_ptr, &space,
 					 &page_no, apply, &body);
 
-		if (recv_sys.found_corrupt_log) {
+		if (UNIV_UNLIKELY(recv_sys.found_corrupt_log)) {
 			recv_report_corrupt_log(ptr, type, space, page_no);
 			return(true);
 		}
 
-		if (recv_sys.found_corrupt_fs) {
+		if (UNIV_UNLIKELY(recv_sys.found_corrupt_fs)) {
 			return(true);
 		}
 
@@ -2859,7 +2860,7 @@ loop:
 				&type, ptr, end_ptr, &space, &page_no,
 				false, &body);
 
-			if (recv_sys.found_corrupt_log) {
+			if (UNIV_UNLIKELY(recv_sys.found_corrupt_log)) {
 corrupted_log:
 				recv_report_corrupt_log(
 					ptr, type, space, page_no);
@@ -2952,13 +2953,13 @@ corrupted_log:
 				&type, ptr, end_ptr, &space, &page_no,
 				apply, &body);
 
-			if (recv_sys.found_corrupt_log
+			if (UNIV_UNLIKELY(recv_sys.found_corrupt_log)
 			    && !recv_report_corrupt_log(
 				    ptr, type, space, page_no)) {
 				return(true);
 			}
 
-			if (recv_sys.found_corrupt_fs) {
+			if (UNIV_UNLIKELY(recv_sys.found_corrupt_fs)) {
 				return(true);
 			}
 
@@ -3467,7 +3468,7 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 	entire redo log. If rescan is needed or innodb_force_recovery
 	is set, we can ignore missing tablespaces. */
 	for (const recv_spaces_t::value_type& rs : recv_spaces) {
-		if (rs.second.status != file_name_t::MISSING) {
+		if (UNIV_LIKELY(rs.second.status != file_name_t::MISSING)) {
 			continue;
 		}
 

@@ -626,6 +626,23 @@ delete from v1;
 drop view v1;
 drop table t1;
 
+--echo #
+--echo # MDEV-22112 Assertion `tab_part_info->part_type == RANGE_PARTITION || tab_part_info->part_type == LIST_PARTITION' failed in prep_alter_part_table
+--echo #
+
+### TMP: Please remove this error check in 10.5 (MDEV-19903)
+--error ER_PARTITIONS_MUST_BE_DEFINED_ERROR
+create table t1 (a int) with system versioning partition by system_time;
+### TMP end
+
+create table t1 (a int) with system versioning partition by system_time
+(partition p1 history, partition pn current);
+--error ER_PARTITION_WRONG_TYPE
+alter table t1 add partition (partition p2);
+
+# Cleanup
+drop table t1;
+
 --echo # End of 10.3 tests
 
 --echo #

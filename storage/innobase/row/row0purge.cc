@@ -1098,7 +1098,7 @@ try_again:
 
 			dict_table_close(node->table, FALSE, FALSE);
 			rw_lock_s_unlock(&dict_sys.latch);
-			if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+			if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 				return(false);
 			}
 			os_thread_sleep(1000000);
@@ -1268,7 +1268,7 @@ row_purge(
 			ut_ad(!rw_lock_own(&dict_sys.latch, RW_LOCK_S));
 
 			if (purged
-			    || srv_shutdown_state != SRV_SHUTDOWN_NONE
+			    || srv_shutdown_state > SRV_SHUTDOWN_INITIATED
 			    || node->vcol_op_failed()) {
 				return;
 			}

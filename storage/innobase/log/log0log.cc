@@ -1000,7 +1000,7 @@ loop:
 		}
 	}
 
-	if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE)) {
+	if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED)) {
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 					       "InnoDB log write: "
 					       LSN_PF "," LSN_PF,
@@ -1221,7 +1221,7 @@ log_group_checkpoint(lsn_t end_lsn)
 	ut_ad(end_lsn == 0 || end_lsn >= log_sys.next_checkpoint_lsn);
 	ut_ad(end_lsn <= log_sys.lsn);
 	ut_ad(end_lsn + SIZE_OF_MLOG_CHECKPOINT <= log_sys.lsn
-	      || srv_shutdown_state != SRV_SHUTDOWN_NONE);
+	      || srv_shutdown_state > SRV_SHUTDOWN_INITIATED);
 
 	DBUG_PRINT("ib_log", ("checkpoint " UINT64PF " at " LSN_PF
 			      " written",
@@ -1381,7 +1381,7 @@ bool log_checkpoint(bool sync)
 	if (oldest_lsn
 	    > log_sys.last_checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT) {
 		/* Some log has been written since the previous checkpoint. */
-	} else if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	} else if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		/* MariaDB 10.3 startup expects the redo log file to be
 		logically empty (not even containing a MLOG_CHECKPOINT record)
 		after a clean shutdown. Perform an extra checkpoint at
@@ -1406,7 +1406,7 @@ bool log_checkpoint(bool sync)
 	lsn_t		flush_lsn	= oldest_lsn;
 	const lsn_t	end_lsn		= log_sys.lsn;
 	const bool	do_write
-		= srv_shutdown_state == SRV_SHUTDOWN_NONE
+		= srv_shutdown_state <= SRV_SHUTDOWN_INITIATED
 		|| flush_lsn != end_lsn;
 
 	if (fil_names_clear(flush_lsn, do_write)) {

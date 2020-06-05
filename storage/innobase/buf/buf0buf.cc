@@ -2721,7 +2721,7 @@ buf_pool_resize()
 		btr_search_s_unlock_all();
 	}
 
-	btr_search_disable(true);
+	btr_search_disable();
 
 	if (btr_search_disabled) {
 		ib::info() << "disabled adaptive hash index.";
@@ -3087,15 +3087,9 @@ calc_buf_pool_size:
 
 		buf_resize_status("Resizing also other hash tables.");
 
-		/* normalize lock_sys */
 		srv_lock_table_size = 5
 			* (srv_buf_pool_size >> srv_page_size_shift);
 		lock_sys.resize(srv_lock_table_size);
-
-		/* normalize btr_search_sys */
-		btr_search_sys_resize(
-			buf_pool_get_curr_size() / sizeof(void*) / 64);
-
 		dict_sys.resize();
 
 		ib::info() << "Resized hash tables at lock_sys,"
@@ -3119,7 +3113,7 @@ calc_buf_pool_size:
 #ifdef BTR_CUR_HASH_ADAPT
 	/* enable AHI if needed */
 	if (btr_search_disabled) {
-		btr_search_enable();
+		btr_search_enable(true);
 		ib::info() << "Re-enabled adaptive hash index.";
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -3747,9 +3741,9 @@ lookup:
 		ut_ad(!hash_lock);
 		dberr_t err = buf_read_page(page_id, zip_size);
 
-		if (err != DB_SUCCESS) {
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			ib::error() << "Reading compressed page " << page_id
-				<< " failed with error: " << ut_strerr(err);
+				<< " failed with error: " << err;
 
 			goto err_exit;
 		}
@@ -4143,6 +4137,46 @@ buf_wait_for_read(
 	}
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
+/** If a stale adaptive hash index exists on the block, drop it.
+Multiple executions of btr_search_drop_page_hash_index() on the
+same block must be prevented by exclusive page latch. */
+ATTRIBUTE_COLD
+static void buf_defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
+{
+  switch (fix_type) {
+  case MTR_MEMO_BUF_FIX:
+    /* We do not drop the adaptive hash index, because safely doing
+    so would require acquiring block->lock, and that is not safe
+    to acquire in some RW_NO_LATCH access paths. Those code paths
+    should have no business accessing the adaptive hash index anyway. */
+    break;
+  case MTR_MEMO_PAGE_S_FIX:
+    /* Temporarily release our S-latch. */
+    rw_lock_s_unlock(&block->lock);
+    rw_lock_x_lock(&block->lock);
+    if (dict_index_t *index= block->index)
+      if (index->freed())
+        btr_search_drop_page_hash_index(block);
+    rw_lock_x_unlock(&block->lock);
+    rw_lock_s_lock(&block->lock);
+    break;
+  case MTR_MEMO_PAGE_SX_FIX:
+    rw_lock_sx_unlock(&block->lock);
+    rw_lock_x_lock(&block->lock);
+    if (dict_index_t *index= block->index)
+      if (index->freed())
+        btr_search_drop_page_hash_index(block);
+    rw_lock_x_unlock(&block->lock);
+    rw_lock_sx_lock(&block->lock);
+    break;
+  default:
+    ut_ad(fix_type == MTR_MEMO_PAGE_X_FIX);
+    btr_search_drop_page_hash_index(block);
+  }
+}
+#endif /* BTR_CUR_HASH_ADAPT */
+
 /** Lock the page with the given latch type.
 @param[in,out]	block		block to be locked
 @param[in]	rw_latch	RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
@@ -4181,7 +4215,7 @@ static buf_block_t* buf_page_mtr_lock(buf_block_t *block,
   {
     dict_index_t *index= block->index;
     if (index && index->freed())
-      btr_search_drop_page_hash_index(block);
+      buf_defer_drop_ahi(block, fix_type);
   }
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -5271,7 +5305,8 @@ buf_page_init(
 
 	if (hash_page == NULL) {
 		/* Block not found in hash table */
-	} else if (buf_pool_watch_is_sentinel(buf_pool, hash_page)) {
+	} else if (UNIV_LIKELY(buf_pool_watch_is_sentinel(buf_pool,
+							  hash_page))) {
 		/* Preserve the reference count. */
 		ib_uint32_t	buf_fix_count = hash_page->buf_fix_count;
 
@@ -5281,18 +5316,8 @@ buf_page_init(
 
 		buf_pool_watch_remove(buf_pool, hash_page);
 	} else {
-
-		ib::error() << "Page " << page_id
-			<< " already found in the hash table: "
-			<< hash_page << ", " << block;
-
-		ut_d(buf_page_mutex_exit(block));
-		ut_d(buf_pool_mutex_exit(buf_pool));
-		ut_d(buf_print());
-		ut_d(buf_LRU_print());
-		ut_d(buf_validate());
-		ut_d(buf_LRU_validate());
-		ut_error;
+		ib::fatal() << "Page already foudn in the hash table: "
+			    << page_id;
 	}
 
 	ut_ad(!block->page.in_zip_hash);
@@ -7325,6 +7350,7 @@ operator<<(
 	return(out);
 }
 
+#if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /** Print the given buf_pool_t object.
 @param[in,out]	out		the output stream
 @param[in]	buf_pool	the buf_pool_t object to be printed
@@ -7352,6 +7378,7 @@ operator<<(
 		<< ", written=" << buf_pool.stat.n_pages_written << "]";
 	return(out);
 }
+#endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
 
 /** Encrypt a buffer of temporary tablespace
 @param[in]	offset		Page offset

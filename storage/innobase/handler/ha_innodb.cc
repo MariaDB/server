@@ -9824,7 +9824,7 @@ ha_innobase::ft_init_ext(
 	const CHARSET_INFO*	char_set = key->charset();
 	const char*		query = key->ptr();
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		{
 			ib::info	out;
 			out << "keynr=" << keynr << ", '";
@@ -17419,7 +17419,7 @@ innodb_adaptive_hash_index_update(THD*, st_mysql_sys_var*, void*,
 	if (*(my_bool*) save) {
 		btr_search_enable();
 	} else {
-		btr_search_disable(true);
+		btr_search_disable();
 	}
 	mysql_mutex_lock(&LOCK_global_system_variables);
 }

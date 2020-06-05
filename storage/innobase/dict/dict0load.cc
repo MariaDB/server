@@ -905,7 +905,7 @@ dict_update_filepath(
 	trx->dict_operation_lock_mode = 0;
 	trx_free(trx);
 
-	if (err == DB_SUCCESS) {
+	if (UNIV_LIKELY(err == DB_SUCCESS)) {
 		/* We just updated SYS_DATAFILES due to the contents in
 		a link file.  Make a note that we did this. */
 		ib::info() << "The InnoDB data dictionary table SYS_DATAFILES"
@@ -915,7 +915,7 @@ dict_update_filepath(
 		ib::warn() << "Error occurred while updating InnoDB data"
 			" dictionary table SYS_DATAFILES for tablespace ID "
 			<< space_id << " to file " << filepath << ": "
-			<< ut_strerr(err) << ".";
+			<< err << ".";
 	}
 
 	return(err);
@@ -1360,6 +1360,7 @@ static ulint dict_check_sys_tables()
 
 	for (rec = dict_startscan_system(&pcur, &mtr, SYS_TABLES);
 	     rec != NULL;
+	     mtr.commit(), mtr.start(),
 	     rec = dict_getnext_system(&pcur, &mtr)) {
 		const byte*	field;
 		ulint		len;

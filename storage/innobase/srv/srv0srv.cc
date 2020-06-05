@@ -1276,7 +1276,8 @@ srv_printf_innodb_monitor(
 	ibuf_print(file);
 
 #ifdef BTR_CUR_HASH_ADAPT
-	for (ulint i = 0; i < btr_ahi_parts; ++i) {
+	btr_search_x_lock_all();
+	for (ulint i = 0; i < btr_ahi_parts && btr_search_enabled; ++i) {
 		const hash_table_t* table = btr_search_sys->hash_tables[i];
 
 		ut_ad(table->magic_n == HASH_TABLE_MAGIC_N);
@@ -1300,6 +1301,7 @@ srv_printf_innodb_monitor(
 			", node heap has " ULINTPF " buffer(s)\n",
 			table->n_cells, heap->base.count - !heap->free_block);
 	}
+	btr_search_x_unlock_all();
 
 	fprintf(file,
 		"%.2f hash searches/s, %.2f non-hash searches/s\n",
@@ -1740,7 +1742,7 @@ loop:
 
 	srv_refresh_innodb_monitor_stats();
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		goto exit_func;
 	}
 
@@ -1852,7 +1854,7 @@ loop:
 
 	os_event_wait_time_low(srv_error_event, 1000000, sig_count);
 
-	if (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 
 		goto loop;
 	}
@@ -2137,7 +2139,7 @@ srv_master_do_active_tasks(void)
 
 	ut_d(srv_master_do_disabled_loop());
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -2162,7 +2164,7 @@ srv_master_do_active_tasks(void)
 	/* Now see if various tasks that are performed at defined
 	intervals need to be performed. */
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -2187,7 +2189,7 @@ srv_master_do_active_tasks(void)
 	early and often to avoid those situations. */
 	DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", return;);
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -2230,7 +2232,7 @@ srv_master_do_idle_tasks(void)
 
 	ut_d(srv_master_do_disabled_loop());
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -2246,7 +2248,7 @@ srv_master_do_idle_tasks(void)
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -2274,7 +2276,7 @@ srv_master_do_idle_tasks(void)
 	early and often to avoid those situations. */
 	DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", return;);
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -2372,8 +2374,7 @@ DECLARE_THREAD(srv_master_thread)(
 	ut_a(slot == srv_sys.sys_threads);
 
 loop:
-	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
-
+	while (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 		srv_master_sleep();
 
 		MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
@@ -2388,6 +2389,7 @@ loop:
 
 	switch (srv_shutdown_state) {
 	case SRV_SHUTDOWN_NONE:
+	case SRV_SHUTDOWN_INITIATED:
 		break;
 	case SRV_SHUTDOWN_FLUSH_PHASE:
 	case SRV_SHUTDOWN_LAST_PHASE:
@@ -2418,33 +2420,33 @@ loop:
 /** @return whether purge should exit due to shutdown */
 static bool srv_purge_should_exit()
 {
-	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_NONE
-	      || srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
+  ut_ad(srv_shutdown_state <= SRV_SHUTDOWN_CLEANUP);
 
-	if (srv_undo_sources) {
-		return(false);
-	}
-	if (srv_fast_shutdown) {
-		return(true);
-	}
-	/* Slow shutdown was requested. */
-	uint32_t history_size = trx_sys.rseg_history_len;
-	if (history_size) {
+  if (srv_undo_sources)
+    return false;
+
+  if (srv_fast_shutdown)
+    return true;
+
+  /* Slow shutdown was requested. */
+  if (const uint32_t history_size= trx_sys.rseg_history_len)
+  {
+    static time_t progress_time;
+    time_t now= time(NULL);
+    if (now - progress_time >= 15)
+    {
+      progress_time= now;
 #if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
-		static time_t progress_time;
-		time_t now = time(NULL);
-		if (now - progress_time >= 15) {
-			progress_time = now;
-			service_manager_extend_timeout(
-				INNODB_EXTEND_TIMEOUT_INTERVAL,
-				"InnoDB: to purge %u transactions",
-				history_size);
-		}
+      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+				     "InnoDB: to purge %u transactions",
+				     history_size);
+      ib::info() << "to purge " << history_size << " transactions";
 #endif
-		return false;
-	}
+    }
+    return false;
+  }
 
-	return !trx_sys.any_active_transactions();
+  return !trx_sys.any_active_transactions();
 }
 
 /*********************************************************************//**

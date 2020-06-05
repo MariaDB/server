@@ -2457,7 +2457,7 @@ row_upd_sec_index_entry(
 					err = DB_SUCCESS;
 					break;
 				case DB_LOCK_WAIT:
-					if (wsrep_debug) {
+					if (UNIV_UNLIKELY(wsrep_debug)) {
 						ib::warn() << "WSREP: sec index FK lock wait"
 							   << " index " << index->name
 							   << " table " << index->table->name
@@ -2465,7 +2465,7 @@ row_upd_sec_index_entry(
 					}
 					break;
 				case DB_DEADLOCK:
-					if (wsrep_get_debug()) {
+					if (UNIV_UNLIKELY(wsrep_debug)) {
 						ib::warn() << "WSREP: sec index FK check fail for deadlock"
 							   << " index " << index->name
 							   << " table " << index->table->name
@@ -2473,7 +2473,7 @@ row_upd_sec_index_entry(
 					}
 					break;
 				default:
-					ib::error() << "WSREP: referenced FK check fail: " << ut_strerr(err)
+					ib::error() << "WSREP: referenced FK check fail: " << err
 						    << " index " << index->name
 						    << " table " << index->table->name
 						    << " query " << wsrep_thd_query(trx->mysql_thd);
@@ -2784,14 +2784,14 @@ check_fk:
 				err = DB_SUCCESS;
 				break;
 			case DB_DEADLOCK:
-				if (wsrep_get_debug()) {
+				if (UNIV_UNLIKELY(wsrep_debug)) {
 					ib::warn() << "WSREP: sec index FK check fail for deadlock"
 						   << " index " << index->name
 						   << " table " << index->table->name;
 				}
 				goto err_exit;
 			default:
-				ib::error() << "WSREP: referenced FK check fail: " << ut_strerr(err)
+				ib::error() << "WSREP: referenced FK check fail: " << err
 					    << " index " << index->name
 					    << " table " << index->table->name;
 				goto err_exit;
@@ -3010,14 +3010,14 @@ row_upd_del_mark_clust_rec(
 			err = DB_SUCCESS;
 			break;
 		case DB_DEADLOCK:
-			if (wsrep_get_debug()) {
+			if (UNIV_UNLIKELY(wsrep_debug)) {
 				ib::warn() << "WSREP: sec index FK check fail for deadlock"
 					   << " index " << index->name
 					   << " table " << index->table->name;
 			}
 			break;
 		default:
-			ib::error() << "WSREP: referenced FK check fail: " << ut_strerr(err)
+			ib::error() << "WSREP: referenced FK check fail: " << err
 				    << " index " << index->name
 				    << " table " << index->table->name;
 

@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2388,7 +2388,7 @@ bool page_validate(const page_t* page, const dict_index_t* index)
 	const rec_t*		rec;
 	const rec_t*		old_rec		= NULL;
 	const rec_t*		first_rec	= NULL;
-	ulint			offs;
+	ulint			offs = 0;
 	ulint			n_slots;
 	ibool			ret		= TRUE;
 	ulint			i;

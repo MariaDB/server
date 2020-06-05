@@ -401,9 +401,8 @@ void trx_free(trx_t*& trx)
 	ut_ad(!trx->mysql_n_tables_locked);
 	ut_ad(!trx->internal);
 
-	if (trx->declared_to_be_inside_innodb) {
-
-		ib::error() << "Freeing a trx (" << trx << ", "
+	if (UNIV_UNLIKELY(trx->declared_to_be_inside_innodb)) {
+		ib::error() << "Freeing a trx ("
 			<< trx_get_id_for_print(trx) << ") which is declared"
 			" to be processing inside InnoDB";
 
