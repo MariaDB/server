@@ -2790,8 +2790,7 @@ fts_optimize_thread(
 	/* Assign number of tables added in fts_slots_t to n_tables */
 	n_tables = ib_vector_size(fts_slots);
 
-	while (!done && srv_shutdown_state == SRV_SHUTDOWN_NONE) {
-
+	while (!done && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 		/* If there is no message in the queue and we have tables
 		to optimize then optimize the tables. */
 

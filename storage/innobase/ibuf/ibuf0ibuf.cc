@@ -2614,7 +2614,7 @@ ibuf_merge(
 	when a slow shutdown is being executed. During a slow
 	shutdown, the insert buffer merge must be completed. */
 
-	if (ibuf->empty && !srv_shutdown_state) {
+	if (ibuf->empty && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 		return(0);
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 	} else if (ibuf_debug) {
