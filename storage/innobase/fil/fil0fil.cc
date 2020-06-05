@@ -4007,8 +4007,7 @@ write_completed:
       recv_sys.found_corrupt_fs= true;
 
     ib::error() << "Failed to read page " << id.page_no()
-                << " from file '" << node->name << "': "
-                << ut_strerr(err);
+                << " from file '" << node->name << "': " << err;
   }
 
   mutex_enter(&fil_system.mutex);

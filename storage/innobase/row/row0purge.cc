@@ -956,7 +956,7 @@ already_locked:
 		if (!mysqld_server_started) {
 
 			node->close_table();
-			if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+			if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 				return(false);
 			}
 			os_thread_sleep(1000000);
@@ -1110,7 +1110,7 @@ row_purge(
 				node, undo_rec, thr, updated_extern);
 
 			if (purged
-			    || srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+			    || srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 				return;
 			}
 

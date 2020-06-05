@@ -2965,7 +2965,7 @@ i_s_fts_index_table_fill_selected(
 	for (;;) {
 		error = fts_eval_sql(trx, graph);
 
-		if (error == DB_SUCCESS) {
+		if (UNIV_LIKELY(error == DB_SUCCESS)) {
 			fts_sql_commit(trx);
 
 			break;
@@ -2979,7 +2979,7 @@ i_s_fts_index_table_fill_selected(
 				trx->error_state = DB_SUCCESS;
 			} else {
 				ib::error() << "Error occurred while reading"
-					" FTS index: " << ut_strerr(error);
+					" FTS index: " << error;
 				break;
 			}
 		}
@@ -6571,9 +6571,7 @@ i_s_dict_fill_sys_tablespaces(
 			break;
 
 		default:
-			ib::error()
-				<< "File '" << filepath << "' "
-				<< ut_strerr(err);
+			ib::error() << "File '" << filepath << "' " << err;
 			break;
 		}
 

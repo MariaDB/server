@@ -544,11 +544,11 @@ buf_dblwr_process()
 			page_id, zip_size,
 			0, physical_size, read_buf, NULL);
 
-		if (fio.err != DB_SUCCESS) {
+		if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
 			ib::warn()
 				<< "Double write buffer recovery: "
 				<< page_id << " read failed with "
-				<< "error: " << ut_strerr(fio.err);
+				<< "error: " << fio.err;
 		}
 
 		if (fio.node) {

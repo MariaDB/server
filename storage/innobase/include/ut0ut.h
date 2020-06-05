@@ -328,48 +328,41 @@ operator<<(
 It contains a std::ostringstream object.  The main purpose of this class is
 to forward operator<< to the underlying std::ostringstream object.  Do not
 use this class directly, instead use one of the derived classes. */
-class logger {
-public:
-	template<typename T>
-	ATTRIBUTE_COLD
-	logger& operator<<(const T& rhs)
-	{
-		m_oss << rhs;
-		return(*this);
-	}
-
-	/** Write the given buffer to the internal string stream object.
-	@param[in]	buf	the buffer whose contents will be logged.
-	@param[in]	count	the length of the buffer buf.
-	@return the output stream into which buffer was written. */
-	ATTRIBUTE_COLD
-	std::ostream&
-	write(
-		const char*		buf,
-		std::streamsize		count)
-	{
-		return(m_oss.write(buf, count));
-	}
-
-	/** Write the given buffer to the internal string stream object.
-	@param[in]	buf	the buffer whose contents will be logged.
-	@param[in]	count	the length of the buffer buf.
-	@return the output stream into which buffer was written. */
-	ATTRIBUTE_COLD
-	std::ostream&
-	write(
-		const byte*		buf,
-		std::streamsize		count)
-	{
-		return(m_oss.write(reinterpret_cast<const char*>(buf), count));
-	}
-
-	std::ostringstream	m_oss;
+class logger
+{
 protected:
-	/* This class must not be used directly, hence making the default
-	constructor protected. */
-	ATTRIBUTE_COLD
-	logger() {}
+  /* This class must not be used directly */
+  ATTRIBUTE_COLD ATTRIBUTE_NOINLINE logger() {}
+public:
+  template<typename T> ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+  logger& operator<<(const T& rhs)
+  {
+    m_oss << rhs;
+    return *this;
+  }
+
+  /** Handle a fixed character string in the same way as a pointer to
+  an unknown-length character string, to reduce object code bloat. */
+  template<size_t N> logger& operator<<(const char (&rhs)[N])
+  { return *this << static_cast<const char*>(rhs); }
+
+  /** Output an error code name */
+  ATTRIBUTE_COLD logger& operator<<(dberr_t err);
+
+  /** Append a string.
+  @param buf   string buffer
+  @param size  buffer size
+  @return the output stream */
+  ATTRIBUTE_COLD __attribute__((noinline))
+  std::ostream &write(const char *buf, std::streamsize size)
+  {
+    return m_oss.write(buf, size);
+  }
+
+  std::ostream &write(const byte *buf, std::streamsize size)
+  { return write(reinterpret_cast<const char*>(buf), size); }
+
+  std::ostringstream m_oss;
 };
 
 /** The class info is used to emit informational log messages.  It is to be

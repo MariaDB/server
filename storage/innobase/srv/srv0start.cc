@@ -954,7 +954,7 @@ srv_init_abort_low(
 #ifdef UNIV_DEBUG
 			" at " << innobase_basename(file) << "[" << line << "]"
 #endif /* UNIV_DEBUG */
-			" with error " << ut_strerr(err) << ". You may need"
+			" with error " << err << ". You may need"
 			" to delete the ibdata1 file before trying to start"
 			" up again.";
 	} else {
@@ -962,7 +962,7 @@ srv_init_abort_low(
 #ifdef UNIV_DEBUG
 			" at " << innobase_basename(file) << "[" << line << "]"
 #endif /* UNIV_DEBUG */
-			" with error " << ut_strerr(err);
+			" with error " << err;
 	}
 
 	srv_shutdown_bg_undo_sources();
@@ -2042,6 +2042,7 @@ void srv_shutdown_bg_undo_sources()
 {
 	if (srv_undo_sources) {
 		ut_ad(!srv_read_only_mode);
+		srv_shutdown_state = SRV_SHUTDOWN_INITIATED;
 		fts_optimize_shutdown();
 		dict_stats_shutdown();
 		while (row_get_background_drop_list_len_low()) {
@@ -2147,7 +2148,7 @@ void innodb_shutdown()
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (dict_sys.is_initialised()) {
-		btr_search_disable(true);
+		btr_search_disable();
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 	ibuf_close();

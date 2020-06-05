@@ -2349,14 +2349,14 @@ dict_stats_save_index_stat(
 		");\n"
 		"END;", trx);
 
-	if (ret != DB_SUCCESS) {
+	if (UNIV_UNLIKELY(ret != DB_SUCCESS)) {
 		if (innodb_index_stats_not_found == false &&
 		    index->stats_error_printed == false) {
 		ib::error() << "Cannot save index statistics for table "
 			<< index->table->name
 			<< ", index " << index->name
 			<< ", stat name \"" << stat_name << "\": "
-			<< ut_strerr(ret);
+			<< ret;
 			index->stats_error_printed = true;
 		}
 	}
@@ -2466,9 +2466,9 @@ dict_stats_save(
 		");\n"
 		"END;", NULL);
 
-	if (ret != DB_SUCCESS) {
+	if (UNIV_UNLIKELY(ret != DB_SUCCESS)) {
 		ib::error() << "Cannot save table statistics for table "
-			<< table->name << ": " << ut_strerr(ret);
+			<< table->name << ": " << ret;
 func_exit:
 		dict_sys_unlock();
 		dict_stats_snapshot_free(table);
@@ -3314,7 +3314,7 @@ dict_stats_update(
 					" for table "
 					<< table->name
 					<< " from " TABLE_STATS_NAME_PRINT " and "
-					INDEX_STATS_NAME_PRINT ": " << ut_strerr(err)
+					INDEX_STATS_NAME_PRINT ": " << err
 					<< ". Using transient stats method instead.";
 			}
 

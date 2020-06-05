@@ -35,18 +35,15 @@ Created 2/17/1996 Heikki Tuuri
 @param[in]	hash_size	hash table size. */
 void btr_search_sys_create(ulint hash_size);
 
-/** Resize hash index hash table.
-@param[in]	hash_size	hash index hash table size */
-void btr_search_sys_resize(ulint hash_size);
-
 /** Frees the adaptive search system at a database shutdown. */
 void btr_search_sys_free();
 
-/** Disable the adaptive hash search system and empty the index.
-@param  need_mutex      need to acquire dict_sys.mutex */
-void btr_search_disable(bool need_mutex);
-/** Enable the adaptive hash search system. */
-void btr_search_enable();
+/** Disable the adaptive hash search system and empty the index. */
+void btr_search_disable();
+
+/** Enable the adaptive hash search system.
+@param resize whether buf_pool_t::resize() is the caller */
+void btr_search_enable(bool resize= false);
 
 /*********************************************************************//**
 Updates the search info. */
@@ -186,7 +183,6 @@ static inline hash_table_t* btr_get_search_table(const dict_index_t* index);
 # define btr_search_move_or_delete_hash_entries(new_block, block)
 # define btr_search_update_hash_on_insert(cursor, ahi_latch)
 # define btr_search_update_hash_on_delete(cursor)
-# define btr_search_sys_resize(hash_size)
 #endif /* BTR_CUR_HASH_ADAPT */
 
 #ifdef BTR_CUR_ADAPT

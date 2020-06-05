@@ -1204,7 +1204,7 @@ fail:
 				}
 			});
 
-		if (crc != cksum) {
+		if (UNIV_UNLIKELY(crc != cksum)) {
 			ib::error() << "Invalid log block checksum."
 				    << " block: " << block_number
 				    << " checkpoint no: "
@@ -1482,7 +1482,7 @@ static dberr_t recv_log_recover_10_4()
 	ulint crc = log_block_calc_checksum_crc32(buf);
 	ulint cksum = log_block_get_checksum(buf);
 
-	if (crc != cksum) {
+	if (UNIV_UNLIKELY(crc != cksum)) {
 		ib::error() << "Invalid log block checksum."
 			    << " block: "
 			    << log_block_get_hdr_no(buf)
@@ -3183,7 +3183,7 @@ func_exit:
 	entire redo log. If rescan is needed or innodb_force_recovery
 	is set, we can ignore missing tablespaces. */
 	for (const recv_spaces_t::value_type& rs : recv_spaces) {
-		if (rs.second.status != file_name_t::MISSING) {
+		if (UNIV_LIKELY(rs.second.status != file_name_t::MISSING)) {
 			continue;
 		}
 

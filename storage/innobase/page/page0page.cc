@@ -1994,7 +1994,7 @@ bool page_validate(const page_t* page, const dict_index_t* index)
 	const rec_t*		rec;
 	const rec_t*		old_rec		= NULL;
 	const rec_t*		first_rec	= NULL;
-	ulint			offs;
+	ulint			offs = 0;
 	ulint			n_slots;
 	ibool			ret		= TRUE;
 	ulint			i;

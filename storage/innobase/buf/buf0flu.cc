@@ -2541,7 +2541,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 	ulint	last_activity = srv_get_activity_count();
 	ulint	last_pages = 0;
 
-	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
+	while (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 		ulint	curr_time = ut_time_ms();
 
 		/* The page_cleaner skips sleep if the server is
@@ -2558,7 +2558,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 			ret_sleep = 0;
 		}
 
-		if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+		if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 			break;
 		}
 
@@ -2727,7 +2727,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 		ut_d(buf_flush_page_cleaner_disabled_loop());
 	}
 
-	ut_ad(srv_shutdown_state > 0);
+	ut_ad(srv_shutdown_state > SRV_SHUTDOWN_INITIATED);
 	if (srv_fast_shutdown == 2
 	    || srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS) {
 		/* In very fast shutdown or when innodb failed to start, we

@@ -7039,13 +7039,12 @@ static void btr_blob_free(buf_block_t *block, bool all, mtr_t *mtr)
   mtr->commit();
 
   mutex_enter(&buf_pool.mutex);
-  /* Free the block if it is still allocated to the same file page. */
-  if (block->page.state() == BUF_BLOCK_FILE_PAGE &&
-      block->page.id() == page_id &&
-      !buf_LRU_free_page(&block->page, all) && all && block->page.zip.data)
-    /* Attempt to deallocate the redundant copy of the uncompressed page
-    if the whole ROW_FORMAT=COMPRESSED block cannot be deallocted. */
-    buf_LRU_free_page(&block->page, false);
+
+  if (buf_page_t *bpage= buf_pool.page_hash_get_low(page_id))
+    if(!buf_LRU_free_page(bpage, all) && all && bpage->zip.data)
+      /* Attempt to deallocate the redundant copy of the uncompressed page
+      if the whole ROW_FORMAT=COMPRESSED block cannot be deallocted. */
+      buf_LRU_free_page(bpage, false);
 
   mutex_exit(&buf_pool.mutex);
 }

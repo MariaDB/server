@@ -531,7 +531,7 @@ fts_index_fetch_nodes(
 	for (;;) {
 		error = fts_eval_sql(trx, *graph);
 
-		if (error == DB_SUCCESS) {
+		if (UNIV_LIKELY(error == DB_SUCCESS)) {
 			fts_sql_commit(trx);
 
 			break;				/* Exit the loop. */
@@ -544,7 +544,7 @@ fts_index_fetch_nodes(
 
 				trx->error_state = DB_SUCCESS;
 			} else {
-				ib::error() << "(" << ut_strerr(error)
+				ib::error() << "(" << error
 					<< ") while reading FTS index.";
 
 				break;			/* Exit the loop. */
@@ -866,7 +866,7 @@ fts_index_fetch_words(
 				error = fts_eval_sql(optim->trx, graph);
 			}
 
-			if (error == DB_SUCCESS) {
+			if (UNIV_LIKELY(error == DB_SUCCESS)) {
 				//FIXME fts_sql_commit(optim->trx);
 				break;
 			} else {
@@ -883,7 +883,7 @@ fts_index_fetch_words(
 
 					optim->trx->error_state = DB_SUCCESS;
 				} else {
-					ib::error() << "(" << ut_strerr(error)
+					ib::error() << "(" << error
 						<< ") while reading document.";
 
 					break;	/* Exit the loop. */
@@ -1362,12 +1362,6 @@ fts_optimize_word(
 	enc.src_last_doc_id = 0;
 	enc.src_ilist_ptr = NULL;
 
-	if (fts_enable_diag_print) {
-		word->text.f_str[word->text.f_len] = 0;
-		ib::info() << "FTS_OPTIMIZE: optimize \"" << word->text.f_str
-			<< "\"";
-	}
-
 	while (i < size) {
 		ulint		copied;
 		fts_node_t*	src_node;
@@ -1445,11 +1439,6 @@ fts_optimize_write_word(
 
 	ut_ad(fts_table->charset);
 
-	if (fts_enable_diag_print) {
-		ib::info() << "FTS_OPTIMIZE: processed \"" << word->f_str
-			<< "\"";
-	}
-
 	pars_info_bind_varchar_literal(
 		info, "word", word->f_str, word->f_len);
 
@@ -1467,8 +1456,8 @@ fts_optimize_write_word(
 
 	error = fts_eval_sql(trx, graph);
 
-	if (error != DB_SUCCESS) {
-		ib::error() << "(" << ut_strerr(error) << ") during optimize,"
+	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+		ib::error() << "(" << error << ") during optimize,"
 			" when deleting a word from the FTS index.";
 	}
 
@@ -1491,8 +1480,8 @@ fts_optimize_write_word(
 			error = fts_write_node(
 				trx, &graph, fts_table, word, node);
 
-			if (error != DB_SUCCESS) {
-				ib::error() << "(" << ut_strerr(error) << ")"
+			if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+				ib::error() << "(" << error << ")"
 					" during optimize, while adding a"
 					" word to the FTS index.";
 			}
@@ -1881,9 +1870,8 @@ fts_optimize_index_completed(
 	error = fts_config_set_index_value(
 		optim->trx, index, FTS_LAST_OPTIMIZED_WORD, &word);
 
-	if (error != DB_SUCCESS) {
-
-		ib::error() << "(" << ut_strerr(error) << ") while updating"
+	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+		ib::error() << "(" << error << ") while updating"
 			" last optimized word!";
 	}
 
@@ -2435,7 +2423,7 @@ fts_optimize_table(
 	fts_optimize_t*	optim = NULL;
 	fts_t*		fts = table->fts;
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		ib::info() << "FTS start optimize " << table->name;
 	}
 
@@ -2487,7 +2475,7 @@ fts_optimize_table(
 		if (error == DB_SUCCESS
 		    && optim->n_completed == ib_vector_size(fts->indexes)) {
 
-			if (fts_enable_diag_print) {
+			if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 				ib::info() << "FTS_OPTIMIZE: Completed"
 					" Optimize, cleanup DELETED table";
 			}
@@ -2510,7 +2498,7 @@ fts_optimize_table(
 
 	fts_optimize_free(optim);
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		ib::info() << "FTS end optimize " << table->name;
 	}
 
@@ -2709,7 +2697,7 @@ static bool fts_optimize_del_table(const dict_table_t* table)
 		slot = static_cast<fts_slot_t*>(ib_vector_get(fts_slots, i));
 
 		if (slot->table == table) {
-			if (fts_enable_diag_print) {
+			if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 				ib::info() << "FTS Optimize Removing table "
 					<< table->name;
 			}
@@ -2836,8 +2824,7 @@ static void fts_optimize_callback(void *)
 	static ulint		n_tables = ib_vector_size(fts_slots);
 	static ulint		n_optimize = 0;
 
-	while (!done && srv_shutdown_state == SRV_SHUTDOWN_NONE) {
-
+	while (!done && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 		/* If there is no message in the queue and we have tables
 		to optimize then optimize the tables. */
 

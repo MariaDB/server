@@ -545,6 +545,12 @@ ut_basename_noext(
 
 namespace ib {
 
+ATTRIBUTE_COLD logger& logger::operator<<(dberr_t err)
+{
+  m_oss << ut_strerr(err);
+  return *this;
+}
+
 info::~info()
 {
 	sql_print_information("InnoDB: %s", m_oss.str().c_str());

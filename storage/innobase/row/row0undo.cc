@@ -499,15 +499,8 @@ row_undo_step(
 
 	trx->error_state = err;
 
-	if (err != DB_SUCCESS) {
-		/* SQL error detected */
-
-		if (err == DB_OUT_OF_FILE_SPACE) {
-			ib::fatal() << "Out of tablespace during rollback."
-				" Consider increasing your tablespace.";
-		}
-
-		ib::fatal() << "Error (" << ut_strerr(err) << ") in rollback.";
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+		ib::fatal() << "Error (" << err << ") in rollback.";
 	}
 
 	return(thr);

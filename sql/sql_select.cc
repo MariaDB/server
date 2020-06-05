@@ -9654,12 +9654,15 @@ best_extension_by_limited_search(JOIN      *join,
         if (join->sort_by_table &&
             join->sort_by_table !=
             join->positions[join->const_tables].table->table)
+        {
           /*
              We may have to make a temp table, note that this is only a
              heuristic since we cannot know for sure at this point.
              Hence it may be wrong.
           */
+          trace_one_table.add("cost_for_sorting", current_record_count);
           current_read_time= COST_ADD(current_read_time, current_record_count);
+        }
         trace_one_table.add("estimated_join_cardinality",
                             partial_join_cardinality);
         if (current_read_time < join->best_read)

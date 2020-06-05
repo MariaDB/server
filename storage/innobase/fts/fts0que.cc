@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2448,9 +2448,8 @@ fts_query_match_document(
 		get_doc, match->doc_id, NULL, FTS_FETCH_DOC_BY_ID_EQUAL,
 		fts_query_fetch_document, &phrase);
 
-	if (error != DB_SUCCESS) {
-		ib::error() << "(" << ut_strerr(error)
-			<< ") matching document.";
+	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+		ib::error() << "(" << error << ") matching document.";
 	} else {
 		*found = phrase.found;
 	}
@@ -2496,8 +2495,8 @@ fts_query_is_in_proximity_range(
 		&get_doc, match[0]->doc_id, NULL, FTS_FETCH_DOC_BY_ID_EQUAL,
 		fts_query_fetch_document, &phrase);
 
-	if (err != DB_SUCCESS) {
-		ib::error() << "(" << ut_strerr(err) << ") in verification"
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+		ib::error() << "(" << err << ") in verification"
 			" phase of proximity search";
 	}
 
@@ -3503,14 +3502,6 @@ fts_query_calculate_idf(
 						word_freq->doc_count));
 			}
 		}
-
-		if (fts_enable_diag_print) {
-			ib::info() << "'" << word_freq->word.f_str << "' -> "
-				<< query->total_docs << "/"
-				<< word_freq->doc_count << " "
-				<< std::setw(6) << std::setprecision(5)
-				<< word_freq->idf;
-		}
 	}
 }
 
@@ -3886,7 +3877,7 @@ fts_query_parse(
 	} else {
 		query->root = state.root;
 
-		if (fts_enable_diag_print && query->root != NULL) {
+		if (UNIV_UNLIKELY(fts_enable_diag_print) && query->root) {
 			fts_ast_node_print(query->root);
 		}
 	}
@@ -4110,7 +4101,7 @@ fts_query(
 
 	ut_free(lc_query_str);
 
-	if (fts_enable_diag_print && (*result)) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print) && (*result)) {
 		ulint	diff_time = ut_time_ms() - start_time_ms;
 
 		ib::info() << "FTS Search Processing time: "
@@ -4266,7 +4257,7 @@ fts_expand_query(
 
 	query->total_size += SIZEOF_RBT_CREATE;
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		fts_print_doc_id(query);
 	}
 
