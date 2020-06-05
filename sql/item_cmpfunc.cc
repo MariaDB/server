@@ -4733,43 +4733,73 @@ void Item_func_in::mark_as_condition_AND_part(TABLE_LIST *embedding)
 }
 
 
-longlong Item_func_bit_or::val_int()
+class Func_handler_bit_or_int_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
 {
-  DBUG_ASSERT(fixed == 1);
-  ulonglong arg1= (ulonglong) args[0]->val_int();
-  if (args[0]->null_value)
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    null_value=1; /* purecov: inspected */
-    return 0; /* purecov: inspected */
+    DBUG_ASSERT(item->is_fixed());
+    Longlong_null a= item->arguments()[0]->to_longlong_null();
+    return a.is_null() ? a : a | item->arguments()[1]->to_longlong_null();
   }
-  ulonglong arg2= (ulonglong) args[1]->val_int();
-  if (args[1]->null_value)
+};
+
+
+class Func_handler_bit_or_dec_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    null_value=1;
-    return 0;
+    DBUG_ASSERT(item->is_fixed());
+    VDec a(item->arguments()[0]);
+    return a.is_null() ? Longlong_null() :
+      a.to_xlonglong_null() | VDec(item->arguments()[1]).to_xlonglong_null();
   }
-  null_value=0;
-  return (longlong) (arg1 | arg2);
+};
+
+
+bool Item_func_bit_or::fix_length_and_dec()
+{
+  static Func_handler_bit_or_int_to_ulonglong ha_int_to_ull;
+  static Func_handler_bit_or_dec_to_ulonglong ha_dec_to_ull;
+  return fix_length_and_dec_op2_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
 
-longlong Item_func_bit_and::val_int()
+class Func_handler_bit_and_int_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
 {
-  DBUG_ASSERT(fixed == 1);
-  ulonglong arg1= (ulonglong) args[0]->val_int();
-  if (args[0]->null_value)
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    null_value=1; /* purecov: inspected */
-    return 0; /* purecov: inspected */
+    DBUG_ASSERT(item->is_fixed());
+    Longlong_null a= item->arguments()[0]->to_longlong_null();
+    return a.is_null() ? a : a & item->arguments()[1]->to_longlong_null();
   }
-  ulonglong arg2= (ulonglong) args[1]->val_int();
-  if (args[1]->null_value)
+};
+
+
+class Func_handler_bit_and_dec_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    null_value=1; /* purecov: inspected */
-    return 0; /* purecov: inspected */
+    DBUG_ASSERT(item->is_fixed());
+    VDec a(item->arguments()[0]);
+    return a.is_null() ?  Longlong_null() :
+      a.to_xlonglong_null() & VDec(item->arguments()[1]).to_xlonglong_null();
   }
-  null_value=0;
-  return (longlong) (arg1 & arg2);
+};
+
+
+bool Item_func_bit_and::fix_length_and_dec()
+{
+  static Func_handler_bit_and_int_to_ulonglong ha_int_to_ull;
+  static Func_handler_bit_and_dec_to_ulonglong ha_dec_to_ull;
+  return fix_length_and_dec_op2_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
 Item_cond::Item_cond(THD *thd, Item_cond *item)

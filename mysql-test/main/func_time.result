@@ -2795,7 +2795,7 @@ SET sql_mode=DEFAULT;
 DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(UUID()))));
 DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect DECIMAL value: ''
 Warning	1292	Truncated incorrect INTEGER value: ''
 Warning	1292	Truncated incorrect seconds value: '20000101'
 SELECT SEC_TO_TIME(MAKEDATE(0,RAND(~0)));

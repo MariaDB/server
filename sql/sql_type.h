@@ -338,6 +338,10 @@ public:
   double to_double() const { return m_ptr ? m_ptr->to_double() : 0.0; }
   longlong to_longlong(bool unsigned_flag)
   { return m_ptr ? m_ptr->to_longlong(unsigned_flag) : 0; }
+  Longlong_null to_xlonglong_null()
+  {
+    return m_ptr ? Longlong_null(m_ptr->to_xlonglong()) : Longlong_null();
+  }
   bool to_bool() const { return m_ptr ? m_ptr->to_bool() : false; }
   String *to_string(String *to) const
   {
