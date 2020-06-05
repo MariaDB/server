@@ -10208,7 +10208,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
           {
             if ((table->key_info[n_key].flags & HA_NOSAME) &&
                 my_strcasecmp(system_charset_info,
-                              drop->name, table->key_info[n_key].name.str) == 0) // Merge todo: review '.str'
+                              drop->name, table->key_info[n_key].name.str) == 0)
             {
               drop->type= Alter_drop::KEY;
               alter_info->flags|= ALTER_DROP_INDEX;

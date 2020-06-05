@@ -478,7 +478,7 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
           /*
             The change was done without using transid on rows (like in
             bulk insert). In this case this thread is the only one
-            that is using the table and all rows will be visble
+            that is using the table and all rows will be visible
             for all transactions.
           */
           _ma_reset_history(share);
