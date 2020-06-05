@@ -677,12 +677,11 @@ namespace undo {
 
 			os_file_close(handle);
 
-			if (err != DB_SUCCESS) {
-
+			if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 				ib::info()
 					<< "Unable to read '"
 					<< log_file_name << "' : "
-					<< ut_strerr(err);
+					<< err;
 
 				os_file_delete(
 					innodb_log_file_key, log_file_name);

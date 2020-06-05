@@ -1870,7 +1870,7 @@ PageConverter::update_index_page(
 
 		row_index_t*	index = find_index(id);
 
-		if (index == 0) {
+		if (UNIV_UNLIKELY(!index)) {
 			ib::error() << "Page for tablespace " << m_space
 				<< " is index page with id " << id
 				<< " but that index is not found from"
@@ -2135,7 +2135,7 @@ row_import_discard_changes(
 
 	ib::info() << "Discarding tablespace of table "
 		<< prebuilt->table->name
-		<< ": " << ut_strerr(err);
+		<< ": " << err;
 
 	if (trx->dict_operation_lock_mode != RW_X_LATCH) {
 		ut_a(trx->dict_operation_lock_mode == 0);

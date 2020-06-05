@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -317,9 +317,7 @@ fts_config_get_index_ulint(
 	error = fts_config_get_index_value(trx, index, name, &value);
 
 	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-
-		ib::error() << "(" << ut_strerr(error) << ") reading `"
-			<< name << "'";
+		ib::error() << "(" << error << ") reading `" << name << "'";
 	} else {
 		*int_value = strtoul((char*) value.f_str, NULL, 10);
 	}
@@ -357,9 +355,7 @@ fts_config_set_index_ulint(
 	error = fts_config_set_index_value(trx, index, name, &value);
 
 	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-
-		ib::error() << "(" << ut_strerr(error) << ") writing `"
-			<< name << "'";
+		ib::error() << "(" << error << ") writing `" << name << "'";
 	}
 
 	ut_free(value.f_str);
@@ -391,8 +387,7 @@ fts_config_get_ulint(
 	error = fts_config_get_value(trx, fts_table, name, &value);
 
 	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-		ib::error() <<  "(" << ut_strerr(error) << ") reading `"
-			<< name << "'";
+		ib::error() <<  "(" << error << ") reading `" << name << "'";
 	} else {
 		*int_value = strtoul((char*) value.f_str, NULL, 10);
 	}
@@ -430,8 +425,7 @@ fts_config_set_ulint(
 	error = fts_config_set_value(trx, fts_table, name, &value);
 
 	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-		ib::error() <<  "(" << ut_strerr(error) << ") writing `"
-			<< name << "'";
+		ib::error() <<  "(" << error << ") writing `" << name << "'";
 	}
 
 	ut_free(value.f_str);

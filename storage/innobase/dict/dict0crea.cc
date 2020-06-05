@@ -1603,10 +1603,9 @@ dict_create_or_check_foreign_constraint_tables(void)
 		"END;\n",
 		FALSE, trx);
 
-	if (err != DB_SUCCESS) {
-
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		ib::error() << "Creation of SYS_FOREIGN and SYS_FOREIGN_COLS"
-			" failed: " << ut_strerr(err) << ". Tablespace is"
+			" failed: " << err << ". Tablespace is"
 			" full. Dropping incompletely created tables.";
 
 		ut_ad(err == DB_OUT_OF_FILE_SPACE
@@ -1705,10 +1704,9 @@ dict_create_or_check_sys_virtual()
 		"END;\n",
 		FALSE, trx);
 
-	if (err != DB_SUCCESS) {
-
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		ib::error() << "Creation of SYS_VIRTUAL"
-			" failed: " << ut_strerr(err) << ". Tablespace is"
+			" failed: " << err << ". Tablespace is"
 			" full or too many transactions."
 			" Dropping incompletely created tables.";
 
@@ -1786,9 +1784,9 @@ dict_foreign_eval_sql(
 		return(error);
 	}
 
-	if (error != DB_SUCCESS) {
+	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
 		ib::error() << "Foreign key constraint creation failed: "
-			<< ut_strerr(error);
+			<< error;
 
 		mutex_enter(&dict_foreign_err_mutex);
 		ut_print_timestamp(ef);
@@ -2238,10 +2236,9 @@ dict_create_or_check_sys_tablespace(void)
 		"END;\n",
 		FALSE, trx);
 
-	if (err != DB_SUCCESS) {
-
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		ib::error() << "Creation of SYS_TABLESPACES and SYS_DATAFILES"
-			" has failed with error " << ut_strerr(err)
+			" has failed with error " << err
 			<< ". Dropping incompletely created tables.";
 
 		ut_a(err == DB_OUT_OF_FILE_SPACE

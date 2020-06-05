@@ -2447,6 +2447,19 @@ WINDOW v2 AS ( PARTITION BY a ORDER BY a DESC );
 drop table t0;
 
 --echo #
+--echo # MDEV-16230:Server crashes when Analyze format=json is run with a window function with
+--echo # empty PARTITION BY and ORDER BY clauses
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT row_number() OVER() FROM t1;
+SELECT row_number() OVER() FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

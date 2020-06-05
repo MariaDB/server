@@ -99,7 +99,7 @@ static UT_LIST_BASE_NODE_T(row_mysql_drop_t)	row_mysql_drop_list;
 static ib_mutex_t row_drop_list_mutex;
 
 /** Flag: has row_mysql_drop_list been initialized? */
-static ibool	row_mysql_drop_list_inited	= FALSE;
+static bool row_mysql_drop_list_inited;
 
 /*******************************************************************//**
 Determine if the given name is a name reserved for MySQL system tables.
@@ -787,8 +787,7 @@ handle_new_error:
 			" foreign constraints and try again";
 		goto rollback_to_savept;
 	default:
-		ib::fatal() << "Unknown error code " << err << ": "
-			<< ut_strerr(err);
+		ib::fatal() << "Unknown error " << err;
 	}
 
 	if (trx->error_state != DB_SUCCESS) {
@@ -2685,13 +2684,31 @@ next:
 
 	ut_a(!table->can_be_evicted);
 
+	bool skip = false;
+
 	if (!table->to_be_dropped) {
+skip:
 		dict_table_close(table, FALSE, FALSE);
 
 		mutex_enter(&row_drop_list_mutex);
 		UT_LIST_REMOVE(row_mysql_drop_list, drop);
-		UT_LIST_ADD_LAST(row_mysql_drop_list, drop);
+		if (!skip) {
+			UT_LIST_ADD_LAST(row_mysql_drop_list, drop);
+		} else {
+			ut_free(drop);
+		}
 		goto next;
+	}
+
+	if (!srv_fast_shutdown && !trx_sys.any_active_transactions()) {
+		lock_mutex_enter();
+		skip = UT_LIST_GET_LEN(table->locks) != 0;
+		lock_mutex_exit();
+		if (skip) {
+			/* We cannot drop tables that are locked by XA
+			PREPARE transactions. */
+			goto skip;
+		}
 	}
 
 	char* name = mem_strdup(table->name.m_name);
@@ -3247,10 +3264,10 @@ row_drop_ancillary_fts_tables(
 
 		dberr_t err = fts_drop_tables(trx, table);
 
-		if (err != DB_SUCCESS) {
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			ib::error() << " Unable to remove ancillary FTS"
 				" tables for table "
-				<< table->name << " : " << ut_strerr(err);
+				<< table->name << " : " << err;
 
 			return(err);
 		}
@@ -3445,15 +3462,15 @@ row_drop_table_for_mysql(
 			btr_defragment_remove_table(table);
 		}
 
-		/* Remove stats for this table and all of its indexes from the
-		persistent storage if it exists and if there are stats for this
-		table in there. This function creates its own trx and commits
-		it. */
-		char	errstr[1024];
-		err = dict_stats_drop_table(name, errstr, sizeof(errstr));
-
-		if (err != DB_SUCCESS) {
-			ib::warn() << errstr;
+		if (UNIV_LIKELY(!strstr(name, "/" TEMP_FILE_PREFIX_INNODB))) {
+			/* Remove any persistent statistics for this table,
+			in a separate transaction. */
+			char errstr[1024];
+			err = dict_stats_drop_table(name, errstr,
+						    sizeof errstr);
+			if (err != DB_SUCCESS) {
+				ib::warn() << errstr;
+			}
 		}
 	}
 
@@ -4043,10 +4060,10 @@ loop:
 			table_name, trx, SQLCOM_DROP_DB);
 		trx_commit_for_mysql(trx);
 
-		if (err != DB_SUCCESS) {
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			ib::error() << "DROP DATABASE "
 				<< ut_get_name(trx, name) << " failed"
-				" with error (" << ut_strerr(err) << ") for"
+				" with error (" << err << ") for"
 				" table " << ut_get_name(trx, table_name);
 			ut_free(table_name);
 			break;
@@ -4840,19 +4857,22 @@ row_mysql_init(void)
 		row_mysql_drop_list,
 		&row_mysql_drop_t::row_mysql_drop_list);
 
-	row_mysql_drop_list_inited = TRUE;
+	row_mysql_drop_list_inited = true;
 }
 
-/*********************************************************************//**
-Close this module */
-void
-row_mysql_close(void)
-/*================*/
+void row_mysql_close()
 {
-	ut_a(UT_LIST_GET_LEN(row_mysql_drop_list) == 0);
+  ut_ad(!UT_LIST_GET_LEN(row_mysql_drop_list) ||
+        srv_force_recovery >= SRV_FORCE_NO_BACKGROUND);
+  if (row_mysql_drop_list_inited)
+  {
+    row_mysql_drop_list_inited= false;
+    mutex_free(&row_drop_list_mutex);
 
-	if (row_mysql_drop_list_inited) {
-		mutex_free(&row_drop_list_mutex);
-		row_mysql_drop_list_inited = FALSE;
-	}
+    while (row_mysql_drop_t *drop= UT_LIST_GET_FIRST(row_mysql_drop_list))
+    {
+      UT_LIST_REMOVE(row_mysql_drop_list, drop);
+      ut_free(drop);
+    }
+  }
 }

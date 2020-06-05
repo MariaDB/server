@@ -200,6 +200,7 @@ my @DEFAULT_SUITES= qw(
     plugins-
     roles-
     rpl-
+    stress-
     sys_vars-
     sql_sequence-
     unit-

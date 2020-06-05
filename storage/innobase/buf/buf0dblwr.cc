@@ -597,11 +597,11 @@ buf_dblwr_process()
 			page_id, page_size,
 				0, page_size.physical(), read_buf, NULL);
 
-		if (err != DB_SUCCESS) {
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			ib::warn()
 				<< "Double write buffer recovery: "
 				<< page_id << " read failed with "
-				<< "error: " << ut_strerr(err);
+				<< "error: " << err;
 		}
 
 		const bool is_all_zero = buf_is_zeroes(

@@ -318,6 +318,7 @@ static FILE*		lock_latest_err_file;
 
 /*********************************************************************//**
 Reports that a transaction id is insensible, i.e., in the future. */
+ATTRIBUTE_COLD
 void
 lock_report_trx_id_insanity(
 /*========================*/
@@ -331,7 +332,7 @@ lock_report_trx_id_insanity(
 	ut_ad(!rec_is_metadata(rec, index));
 
 	ib::error()
-		<< "Transaction id " << trx_id
+		<< "Transaction id " << ib::hex(trx_id)
 		<< " associated with record" << rec_offsets_print(rec, offsets)
 		<< " in index " << index->name
 		<< " of table " << index->table->name
@@ -356,7 +357,7 @@ lock_check_trx_id_sanity(
 	trx_id_t	max_trx_id = trx_sys.get_max_trx_id();
 	ut_ad(max_trx_id || srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN);
 
-	if (max_trx_id && trx_id >= max_trx_id) {
+	if (UNIV_LIKELY(max_trx_id) && UNIV_UNLIKELY(trx_id >= max_trx_id)) {
 		lock_report_trx_id_insanity(
 			trx_id, rec, index, offsets, max_trx_id);
                 return false;
@@ -748,7 +749,7 @@ lock_rec_has_to_wait(
 	    && wsrep_thd_is_BF(lock2->trx->mysql_thd, TRUE)) {
 		mtr_t mtr;
 
-		if (wsrep_debug) {
+		if (UNIV_UNLIKELY(wsrep_debug)) {
 			ib::info() << "BF-BF lock conflict, locking: "
 				   << for_locking;
 			lock_rec_print(stderr, lock2, mtr);
@@ -762,7 +763,7 @@ lock_rec_has_to_wait(
 					   lock2->trx->mysql_thd)
 		    && (type_mode & LOCK_MODE_MASK) == LOCK_X
 		    && (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X) {
-			if (for_locking || wsrep_debug) {
+			if (for_locking || UNIV_UNLIKELY(wsrep_debug)) {
 				/* exclusive lock conflicts are not
 				   accepted */
 				ib::info()
@@ -798,7 +799,7 @@ lock_rec_has_to_wait(
 					<< ":" << lock2->type_mode
 					<< " idx: " << lock2->index->name()
 					<< " table: "
-					<< lock2->index->table->name.m_name
+					<< lock2->index->table->name
 					<< " n_uniq: " << lock2->index->n_uniq
 					<< " n_user: "
 					<< lock2->index->n_user_defined_cols
@@ -1101,7 +1102,7 @@ wsrep_kill_victim(
 			trx->mysql_thd, lock->trx->mysql_thd))) {
 
 		if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
-			if (wsrep_debug) {
+			if (UNIV_UNLIKELY(wsrep_debug)) {
 				ib::info() << "WSREP: BF victim waiting\n";
 			}
 			/* cannot release lock, until our lock
@@ -1283,13 +1284,14 @@ lock_number_of_tables_locked(
 /*============== RECORD LOCK CREATION AND QUEUE MANAGEMENT =============*/
 
 #ifdef WITH_WSREP
+ATTRIBUTE_COLD
 static
 void
 wsrep_print_wait_locks(
 /*===================*/
 	lock_t*		c_lock) /* conflicting lock to print */
 {
-	if (wsrep_debug &&  c_lock->trx->lock.wait_lock != c_lock) {
+	if (c_lock->trx->lock.wait_lock != c_lock) {
 		mtr_t mtr;
 		ib::info() << "WSREP: c_lock != wait lock";
 		ib::info() << " SQL: "
@@ -1441,7 +1443,7 @@ lock_rec_create_low(
 
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
 
-			if (wsrep_debug) {
+			if (UNIV_UNLIKELY(wsrep_debug)) {
 				wsrep_print_wait_locks(c_lock);
 			}
 
@@ -1468,7 +1470,7 @@ lock_rec_create_low(
 
 			trx_mutex_exit(c_lock->trx);
 
-			if (wsrep_debug) {
+			if (UNIV_UNLIKELY(wsrep_debug)) {
 				ib::info() << "WSREP: c_lock canceled "
 					   << ib::hex(c_lock->trx->id)
 					   << " SQL: "
@@ -1738,7 +1740,7 @@ lock_rec_enqueue_waiting(
 		transaction as a victim, it is possible that we
 		already have the lock now granted! */
 #ifdef WITH_WSREP
-		if (wsrep_debug) {
+		if (UNIV_UNLIKELY(wsrep_debug)) {
 			ib::info() << "WSREP: BF thread got lock granted early, ID " << ib::hex(trx->id)
 				   << " query: " << wsrep_thd_query(trx->mysql_thd);
 		}
@@ -2057,7 +2059,7 @@ lock_rec_has_to_wait_in_queue(
 #ifdef WITH_WSREP
 			if (wsrep_thd_is_BF(wait_lock->trx->mysql_thd, FALSE) &&
 			    wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE)) {
-				if (wsrep_debug) {
+				if (UNIV_UNLIKELY(wsrep_debug)) {
 					mtr_t mtr;
 					ib::info() << "WSREP: waiting BF trx: " << ib::hex(wait_lock->trx->id)
 						   << " query: " << wsrep_thd_query(wait_lock->trx->mysql_thd);
@@ -3523,7 +3525,7 @@ lock_table_create(
 		if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 			ut_list_insert(table->locks, c_lock, lock,
 				       TableLockGetNode());
-			if (wsrep_debug) {
+			if (UNIV_UNLIKELY(wsrep_debug)) {
 				ib::info() << "table lock BF conflict for "
 					   << ib::hex(c_lock->trx->id)
 					   << " SQL: "
@@ -3539,7 +3541,7 @@ lock_table_create(
 		if (c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
 
-			if (wsrep_debug) {
+			if (UNIV_UNLIKELY(wsrep_debug)) {
 				wsrep_print_wait_locks(c_lock);
 			}
 
@@ -3550,7 +3552,7 @@ lock_table_create(
 				c_lock->trx->lock.wait_lock);
 			trx_mutex_enter(trx);
 
-			if (wsrep_debug) {
+			if (UNIV_UNLIKELY(wsrep_debug)) {
 				ib::info() << "WSREP: c_lock canceled "
 					   << ib::hex(c_lock->trx->id)
 					   << " SQL: "
@@ -3823,9 +3825,9 @@ lock_table_other_has_incompatible(
 
 #ifdef WITH_WSREP
 			if (lock->trx->is_wsrep()) {
-				if (wsrep_debug) {
+				if (UNIV_UNLIKELY(wsrep_debug)) {
 					ib::info() << "WSREP: table lock abort for table:"
-						   << table->name.m_name;
+						   << table->name;
 					ib::info() << " SQL: "
 					   << wsrep_thd_query(lock->trx->mysql_thd);
 				}

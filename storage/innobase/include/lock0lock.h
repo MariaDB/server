@@ -541,6 +541,7 @@ lock_has_to_wait(
 				locks are record locks */
 /*********************************************************************//**
 Reports that a transaction id is insensible, i.e., in the future. */
+ATTRIBUTE_COLD
 void
 lock_report_trx_id_insanity(
 /*========================*/
