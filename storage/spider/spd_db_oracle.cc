@@ -336,7 +336,10 @@ SPIDER_DBTON spider_dbton_oracle = {
   spider_oracle_create_copy_table,
   spider_oracle_create_conn,
   spider_oracle_support_direct_join,
-  &spider_db_oracle_utility
+  &spider_db_oracle_utility,
+  "For communicating Oracle using native protocol",
+  "1.0.0",
+  SPIDER_MATURITY_BETA
 };
 
 spider_db_oracle_row::spider_db_oracle_row() :

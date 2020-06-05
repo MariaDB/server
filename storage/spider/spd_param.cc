@@ -35,8 +35,10 @@
 #include "spd_trx.h"
 
 extern struct st_mysql_plugin spider_i_s_alloc_mem;
+extern struct st_mysql_plugin spider_i_s_wrapper_protocols;
 #ifdef MARIADB_BASE_VERSION
 extern struct st_maria_plugin spider_i_s_alloc_mem_maria;
+extern struct st_maria_plugin spider_i_s_wrapper_protocols_maria;
 #endif
 
 extern volatile ulonglong spider_mon_table_cache_version;
@@ -3652,7 +3654,8 @@ mysql_declare_plugin(spider)
   0,
 #endif
 },
-spider_i_s_alloc_mem
+spider_i_s_alloc_mem,
+spider_i_s_wrapper_protocols
 mysql_declare_plugin_end;
 
 #ifdef MARIADB_BASE_VERSION
@@ -3672,6 +3675,7 @@ maria_declare_plugin(spider)
   SPIDER_DETAIL_VERSION,
   MariaDB_PLUGIN_MATURITY_BETA
 },
-spider_i_s_alloc_mem_maria
+spider_i_s_alloc_mem_maria,
+spider_i_s_wrapper_protocols_maria
 maria_declare_plugin_end;
 #endif

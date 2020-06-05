@@ -329,7 +329,10 @@ SPIDER_DBTON spider_dbton_mysql = {
   spider_mysql_create_copy_table,
   spider_mysql_create_conn,
   spider_mysql_support_direct_join,
-  &spider_db_mysql_utility
+  &spider_db_mysql_utility,
+  "For communicating to MySQL using native protocol",
+  "3.4.0",
+  SPIDER_MATURITY_STABLE
 };
 
 SPIDER_DBTON spider_dbton_mariadb = {
@@ -343,7 +346,10 @@ SPIDER_DBTON spider_dbton_mariadb = {
   spider_mariadb_create_copy_table,
   spider_mariadb_create_conn,
   spider_mariadb_support_direct_join,
-  &spider_db_mariadb_utility
+  &spider_db_mariadb_utility,
+  "For communicating to MariaDB using native protocol",
+  "3.4.0",
+  SPIDER_MATURITY_STABLE
 };
 
 spider_db_mbase_row::spider_db_mbase_row(

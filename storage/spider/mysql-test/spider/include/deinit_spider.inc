@@ -33,6 +33,7 @@ DROP FUNCTION spider_copy_tables;
 DROP FUNCTION spider_ping_table;
 DROP FUNCTION spider_bg_direct_sql;
 DROP FUNCTION spider_direct_sql;
+UNINSTALL PLUGIN spider_wrapper_protocols;
 UNINSTALL PLUGIN spider_alloc_mem;
 UNINSTALL PLUGIN spider;
 DROP TABLE IF EXISTS mysql.spider_xa;
