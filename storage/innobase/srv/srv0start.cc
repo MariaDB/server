@@ -2066,8 +2066,14 @@ void innodb_preshutdown()
   if (srv_read_only_mode)
     return;
   if (!srv_fast_shutdown && srv_operation == SRV_OPERATION_NORMAL)
+  {
+    /* Because a slow shutdown must empty the change buffer, we had
+    better prevent any further changes from being buffered. */
+    innodb_change_buffering= 0;
+
     while (trx_sys.any_active_transactions())
       os_thread_sleep(1000);
+  }
   srv_shutdown_bg_undo_sources();
   srv_purge_shutdown();
 }
