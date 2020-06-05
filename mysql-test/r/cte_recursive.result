@@ -3648,3 +3648,165 @@ select * from t1 as t;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	4	
 drop table t1,t2;
+#
+# MDEV-22042: ANALYZE of query using stored function and recursive CTE
+#
+create table t1 (a1 varchar(20),a2 varchar(20)) engine=myisam;
+insert into t1 values (1,1),(2,2),(3,3);
+create table t2 (
+a2 varchar(20) primary key, b1 varchar(20), key (b1)
+) engine=myisam;
+insert into t2 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7);
+insert into t2 values (11,11),(12,12),(13,13),(14,14),(15,15),(16,16),(17,17);
+create  function f1(id varchar(20)) returns varchar(50)
+begin
+declare res  varchar (50);
+select a2 into res from t2 where a2=id and b1=1 limit 1;
+return res;
+end$$
+select fv
+from (select t1.a1, f1(t1.a2) fv from t1) dt
+where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
+   union select tt2.a2 from t2 tt2 join cte on tt2.b1=cte.a2)
+select a2 from cte);
+fv
+NULL
+explain select fv
+from (select t1.a1, f1(t1.a2) fv from t1) dt
+where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
+   union select tt2.a2 from t2 tt2 join cte on tt2.b1=cte.a2)
+select a2 from cte);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery3>	ALL	distinct_key	NULL	NULL	NULL	2	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+3	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	
+4	DERIVED	t2	const	PRIMARY	PRIMARY	22	const	1	Using index
+5	RECURSIVE UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	2	
+5	RECURSIVE UNION	tt2	ref	b1	b1	23	cte.a2	2	
+NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
+analyze format=json select fv
+from (select t1.a1, f1(t1.a2) fv from t1) dt
+where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
+   union select tt2.a2 from t2 tt2 join cte on tt2.b1=cte.a2)
+select a2 from cte);
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "<subquery3>",
+      "access_type": "ALL",
+      "possible_keys": ["distinct_key"],
+      "r_loops": 1,
+      "rows": 2,
+      "r_rows": 1,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "<derived4>",
+            "access_type": "ALL",
+            "r_loops": 1,
+            "rows": 2,
+            "r_rows": 1,
+            "r_total_time_ms": "REPLACED",
+            "filtered": 100,
+            "r_filtered": 100,
+            "materialized": {
+              "query_block": {
+                "recursive_union": {
+                  "table_name": "<union4,5>",
+                  "access_type": "ALL",
+                  "r_loops": 0,
+                  "r_rows": null,
+                  "query_specifications": [
+                    {
+                      "query_block": {
+                        "select_id": 4,
+                        "r_loops": 1,
+                        "r_total_time_ms": "REPLACED",
+                        "table": {
+                          "table_name": "t2",
+                          "access_type": "const",
+                          "possible_keys": ["PRIMARY"],
+                          "key": "PRIMARY",
+                          "key_length": "22",
+                          "used_key_parts": ["a2"],
+                          "ref": ["const"],
+                          "r_loops": 0,
+                          "rows": 1,
+                          "r_rows": null,
+                          "filtered": 100,
+                          "r_filtered": null,
+                          "using_index": true
+                        }
+                      }
+                    },
+                    {
+                      "query_block": {
+                        "select_id": 5,
+                        "r_loops": 1,
+                        "r_total_time_ms": "REPLACED",
+                        "table": {
+                          "table_name": "<derived4>",
+                          "access_type": "ALL",
+                          "r_loops": 1,
+                          "rows": 2,
+                          "r_rows": 1,
+                          "r_total_time_ms": "REPLACED",
+                          "filtered": 100,
+                          "r_filtered": 100
+                        },
+                        "table": {
+                          "table_name": "tt2",
+                          "access_type": "ref",
+                          "possible_keys": ["b1"],
+                          "key": "b1",
+                          "key_length": "23",
+                          "used_key_parts": ["b1"],
+                          "ref": ["cte.a2"],
+                          "r_loops": 1,
+                          "rows": 2,
+                          "r_rows": 1,
+                          "r_total_time_ms": "REPLACED",
+                          "filtered": 100,
+                          "r_filtered": 100
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t1",
+        "access_type": "ALL",
+        "r_loops": 1,
+        "rows": 3,
+        "r_rows": 3,
+        "r_total_time_ms": "REPLACED",
+        "filtered": 100,
+        "r_filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "attached_condition": "t1.a1 = cte.a2",
+      "r_filtered": 33.333
+    }
+  }
+}
+drop function f1;
+drop table t1,t2;
+End of 10.2 tests
