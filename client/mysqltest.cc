@@ -354,7 +354,7 @@ enum enum_commands {
   Q_INC,		    Q_DEC,
   Q_SOURCE,	    Q_DISCONNECT,
   Q_LET,		    Q_ECHO,
-  Q_WHILE,	    Q_END_BLOCK,
+  Q_WHILE,	    Q_END_BLOCK, Q_BREAK,
   Q_SYSTEM,	    Q_RESULT,
   Q_REQUIRE,	    Q_SAVE_MASTER_POS,
   Q_SYNC_WITH_MASTER,
@@ -424,6 +424,7 @@ const char *command_names[]=
   "echo",
   "while",
   "end",
+  "break",
   "system",
   "result",
   "require",
@@ -6306,6 +6307,33 @@ enum block_op find_operand(const char *start)
  return ILLEG_OP;
 }
 
+/*
+  do_break
+
+  DESCRIPTION
+  Instruction to stop execution of the current loop
+*/
+void do_break(struct st_command* command)
+{
+  int depth= 0;
+  cur_block->ok= false;
+
+  /* Disable every outer block until while found or block stack ends */
+  while (cur_block->cmd != cmd_while && cur_block > block_stack)
+  {
+    cur_block--;
+    cur_block->ok= false;
+    depth++;
+  }
+
+  /*  Check if the top block is not 'while' */
+  if (cur_block->cmd != cmd_while)
+  {
+    die("Stray break was found");
+  }
+  /* Set current block back */
+  cur_block+= depth;
+}
 
 /*
   Process start of a "if" or "while" statement
@@ -10059,6 +10087,7 @@ int main(int argc, char **argv)
       case Q_INC: do_modify_var(command, DO_INC); break;
       case Q_DEC: do_modify_var(command, DO_DEC); break;
       case Q_ECHO: do_echo(command); command_executed++; break;
+      case Q_BREAK: do_break(command); break;
       case Q_SYSTEM: do_system(command); break;
       case Q_REMOVE_FILE: do_remove_file(command); break;
       case Q_REMOVE_FILES_WILDCARD: do_remove_files_wildcard(command); break;
