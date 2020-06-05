@@ -4890,6 +4890,8 @@ mysql_execute_command(THD *thd)
     }
     else
     {
+      if (thd->transaction->xid_state.check_has_uncommitted_xa())
+        goto error;
       status_var_decrement(thd->status_var.com_stat[lex->sql_command]);
       status_var_increment(thd->status_var.com_drop_tmp_table);
 
