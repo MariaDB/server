@@ -1,7 +1,6 @@
 drop table if exists t1,t2;
 Warnings:
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t1,test.t2'
 create table t1 (id int(10) unsigned not null auto_increment primary key, v varchar(1000), b blob) row_format=page max_rows=2 engine=aria;
 create table t2 (id int(10) unsigned not null auto_increment primary key, v varchar(1000), b blob) row_format=page max_rows=20000000 engine=aria;
 lock tables t1 write,t2 write;

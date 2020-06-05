@@ -54,7 +54,7 @@ id
 40
 DROP TABLE IF EXISTS v1;
 Warnings:
-Note	1051	Unknown table 'test.v1'
+Note	1965	'test.v1' is a view
 DROP VIEW IF EXISTS v1;
 DROP VIEW IF EXISTS v1;
 Warnings:

@@ -1,3 +1,5 @@
+--source include/have_innodb.inc
+
 call mtr.add_suppression("table or database name 'abc`def'");
 
 # Initialise
