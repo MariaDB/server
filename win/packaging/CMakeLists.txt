@@ -273,4 +273,9 @@ ADD_CUSTOM_TARGET(
 )
 
 ADD_CUSTOM_TARGET(win_package DEPENDS win_package_zip win_package_debuginfo)
-
+SET_TARGET_PROPERTIES(
+  win_package win_package_zip win_package_debuginfo
+  PROPERTIES
+  EXCLUDE_FROM_ALL TRUE
+  EXCLUDE_FROM_DEFAULT_BUILD TRUE
+)
