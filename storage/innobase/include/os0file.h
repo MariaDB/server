@@ -189,9 +189,26 @@ static const ulint OS_FILE_ERROR_MAX = 200;
 #define IORequestWrite		IORequest(IORequest::WRITE)
 
 /**
-The IO Context that is passed down to the low level IO code */
-class IORequest {
+The I/O context that is passed down to the low level IO code */
+class IORequest
+{
 public:
+  /** Buffer pool flush types */
+  enum flush_t
+  {
+    /** via buf_pool.LRU */
+    LRU= 0,
+    /** via buf_pool.flush_list */
+    FLUSH_LIST,
+    /** single page of buf_poof.LRU */
+    SINGLE_PAGE
+  };
+
+  IORequest(ulint type= READ, buf_page_t *bpage= nullptr,
+            flush_t flush_type= LRU) :
+    m_bpage(bpage), m_type(static_cast<uint16_t>(type)),
+    m_flush_type(flush_type) {}
+
 	/** Flags passed in the request, they can be ORred together. */
 	enum {
 		READ = 1,
@@ -211,25 +228,6 @@ public:
 		/** Use punch hole if available*/
 		PUNCH_HOLE = 64,
 	};
-
-	/**
-	@param[in]	type		Request type, can be a value that is
-					ORed from the above enum
-	@param[in]	bpage		Page to be written */
-	IORequest(ulint type= READ, buf_page_t *bpage= nullptr)
-		: m_bpage(bpage), m_type(static_cast<uint16_t>(type))
-	{
-		if (bpage && buf_page_should_punch_hole(bpage)) {
-			set_punch_hole();
-		}
-
-		if (!is_punch_hole_supported()) {
-			clear_punch_hole();
-		}
-	}
-
-	/** Destructor */
-	~IORequest() { }
 
 	/** @return true if it is a read request */
 	bool is_read() const
@@ -342,6 +340,9 @@ public:
 	@return DB_SUCCESS or error code */
 	dberr_t punch_hole(os_file_t fh, os_offset_t off, ulint len);
 
+  /** @return the flush type */
+  flush_t flush_type() const { return m_flush_type; }
+
 private:
 	/** Page to be written on write operation. */
 	buf_page_t* const	m_bpage= nullptr;
@@ -351,6 +352,9 @@ private:
 
 	/** Request type bit flags */
 	uint16_t		m_type= READ;
+
+  /** for writes, type of page flush */
+  flush_t m_flush_type= LRU;
 };
 
 /* @} */

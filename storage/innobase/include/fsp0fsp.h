@@ -580,7 +580,7 @@ inline void fsp_init_file_page(
 	buf_block_t* block, mtr_t* mtr)
 {
 	ut_d(space->modify_check(*mtr));
-	ut_ad(space->id == block->page.id.space());
+	ut_ad(space->id == block->page.id().space());
 	fsp_apply_init_file_page(block);
 	mtr->init(block);
 }

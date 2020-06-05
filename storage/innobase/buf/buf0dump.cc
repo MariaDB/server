@@ -324,8 +324,8 @@ buf_dump(
 	     bpage != NULL && j < n_pages;
 	     bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
 
-		ut_a(buf_page_in_file(bpage));
-		const page_id_t id(bpage->id);
+		ut_a(bpage->in_file());
+		const page_id_t id(bpage->id());
 
 		if (id.space() == SRV_TMP_SPACE_ID) {
 			/* Ignore the innodb_temporary tablespace. */

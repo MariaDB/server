@@ -947,6 +947,8 @@ srv_init_abort_low(
 #endif /* UNIV_DEBUG */
 	dberr_t		err)
 {
+	ut_ad(srv_is_being_started);
+
 	if (create_new_db) {
 		ib::error() << "Database creation was aborted"
 #ifdef UNIV_DEBUG
@@ -2081,7 +2083,6 @@ void innodb_shutdown()
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_DELTA:
 	case SRV_OPERATION_RESTORE_EXPORT:
-		fil_close_all_files();
 		break;
 	case SRV_OPERATION_NORMAL:
 		/* Shut down the persistent files. */
@@ -2094,6 +2095,8 @@ void innodb_shutdown()
 		}
 	}
 
+	os_aio_free();
+	fil_close_all_files();
 	/* Exit any remaining threads. */
 	srv_shutdown_all_bg_threads();
 
@@ -2157,7 +2160,6 @@ void innodb_shutdown()
 	}
 
 	dict_sys.close();
-	os_aio_free();
 	btr_search_sys_free();
 	row_mysql_close();
 	srv_free();

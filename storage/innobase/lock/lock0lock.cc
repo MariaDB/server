@@ -519,12 +519,10 @@ void lock_sys_t::resize(ulint n_cells)
 	mutex_enter(&buf_pool.mutex);
 	for (buf_page_t* bpage = UT_LIST_GET_FIRST(buf_pool.LRU);
 	     bpage; bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
-		if (buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE) {
-			buf_block_t*	block = reinterpret_cast<buf_block_t*>(
-				bpage);
-
-			block->lock_hash_val = lock_rec_hash(
-				bpage->id.space(), bpage->id.page_no());
+		if (bpage->state() == BUF_BLOCK_FILE_PAGE) {
+			const page_id_t id(bpage->id());
+			reinterpret_cast<buf_block_t*>(bpage)->lock_hash_val
+				= lock_rec_hash(id.space(), id.page_no());
 		}
 	}
 	mutex_exit(&buf_pool.mutex);
@@ -2327,8 +2325,8 @@ lock_rec_free_all_from_discard_page(
 
 	ut_ad(lock_mutex_own());
 
-	space = block->page.id.space();
-	page_no = block->page.id.page_no();
+	space = block->page.id().space();
+	page_no = block->page.id().page_no();
 
 	lock_rec_free_all_from_discard_page_low(
 		space, page_no, lock_sys.rec_hash);
@@ -3078,9 +3076,10 @@ lock_update_merge_right(
 
 	/* there should exist no page lock on the left page,
 	otherwise, it will be blocked from merge */
-	ut_ad(!lock_rec_get_first_on_page_addr(lock_sys.prdt_page_hash,
-					       left_block->page.id.space(),
-					       left_block->page.id.page_no()));
+	ut_ad(!lock_rec_get_first_on_page_addr(
+		      lock_sys.prdt_page_hash,
+		      left_block->page.id().space(),
+		      left_block->page.id().page_no()));
 
 	lock_rec_free_all_from_discard_page(left_block);
 
@@ -3201,8 +3200,8 @@ lock_update_merge_left(
 	otherwise, it will be blocked from merge */
 	ut_ad(!lock_rec_get_first_on_page_addr(
 		      lock_sys.prdt_page_hash,
-		      right_block->page.id.space(),
-		      right_block->page.id.page_no()));
+		      right_block->page.id().space(),
+		      right_block->page.id().page_no()));
 
 	lock_rec_free_all_from_discard_page(right_block);
 
@@ -3291,14 +3290,14 @@ lock_update_discard(
 		}
 
 		lock_rec_free_all_from_discard_page_low(
-			block->page.id.space(), block->page.id.page_no(),
+			block->page.id().space(), block->page.id().page_no(),
 			lock_sys.rec_hash);
 	} else {
 		lock_rec_free_all_from_discard_page_low(
-			block->page.id.space(), block->page.id.page_no(),
+			block->page.id().space(), block->page.id().page_no(),
 			lock_sys.prdt_hash);
 		lock_rec_free_all_from_discard_page_low(
-			block->page.id.space(), block->page.id.page_no(),
+			block->page.id().space(), block->page.id().page_no(),
 			lock_sys.prdt_page_hash);
 	}
 
@@ -4965,7 +4964,7 @@ lock_rec_validate_page(
 loop:
 	lock = lock_rec_get_first_on_page_addr(
 		lock_sys.rec_hash,
-		block->page.id.space(), block->page.id.page_no());
+		block->page.id().space(), block->page.id().page_no());
 
 	if (!lock) {
 		goto function_exit;

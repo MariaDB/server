@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -136,14 +136,6 @@ ulint
 ut_2_exp(
 /*=====*/
 	ulint	n);	/*!< in: number */
-/*************************************************************//**
-Calculates fast the number rounded up to the nearest power of 2.
-@return first power of 2 which is >= n */
-ulint
-ut_2_power_up(
-/*==========*/
-	ulint	n)	/*!< in: number != 0 */
-	MY_ATTRIBUTE((const));
 
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The

@@ -577,9 +577,9 @@ rtr_adjust_upper_level(
 	level = btr_page_get_level(buf_block_get_frame(block));
 	ut_ad(level == btr_page_get_level(buf_block_get_frame(new_block)));
 
-	page_no = block->page.id.page_no();
+	page_no = block->page.id().page_no();
 
-	new_page_no = new_block->page.id.page_no();
+	new_page_no = new_block->page.id().page_no();
 
 	/* Set new mbr for the old page on the upper level. */
 	/* Look up the index for the node pointer to page */
@@ -653,7 +653,7 @@ rtr_adjust_upper_level(
 
 	lock_prdt_update_parent(block, new_block, &prdt, &new_prdt,
 				index->table->space_id,
-				page_cursor->block->page.id.page_no());
+				page_cursor->block->page.id().page_no());
 
 	mem_heap_free(heap);
 
@@ -668,7 +668,7 @@ rtr_adjust_upper_level(
 		ut_a(page_is_comp(next_block->frame)
 		     == page_is_comp(block->frame));
 		ut_a(btr_page_get_prev(next_block->frame)
-		     == block->page.id.page_no());
+		     == block->page.id().page_no());
 #endif /* UNIV_BTR_DEBUG */
 
 		btr_page_set_prev(next_block, new_page_no, mtr);
@@ -931,7 +931,7 @@ func_start:
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(page_get_n_recs(page) >= 1);
 
-	page_no = block->page.id.page_no();
+	page_no = block->page.id().page_no();
 
 	if (!page_has_prev(page) && !page_is_leaf(page)) {
 		first_rec = page_rec_get_next(
@@ -1395,9 +1395,9 @@ rtr_page_copy_rec_list_end_no_locks(
 		ins_rec = page_cur_insert_rec_low(&page_cur, index,
 						  cur1_rec, offsets1, mtr);
 		if (UNIV_UNLIKELY(!ins_rec)) {
-			fprintf(stderr, "page number %ld and %ld\n",
-				(long)new_block->page.id.page_no(),
-				(long)block->page.id.page_no());
+			fprintf(stderr, "page number %u and %u\n",
+				new_block->page.id().page_no(),
+				block->page.id().page_no());
 
 			ib::fatal() << "rec offset " << page_offset(rec)
 				<< ", cur1 offset "
@@ -1515,7 +1515,7 @@ rtr_page_copy_rec_list_start_no_locks(
 		ins_rec = page_cur_insert_rec_low(&page_cur, index,
 						  cur1_rec, offsets1, mtr);
 		if (UNIV_UNLIKELY(!ins_rec)) {
-			ib::fatal() << new_block->page.id
+			ib::fatal() << new_block->page.id()
 				<< "rec offset " << page_offset(rec)
 				<< ", cur1 offset "
 				<<  page_offset(page_cur_get_rec(&cur1))
@@ -1653,7 +1653,7 @@ rtr_check_same_block(
 	mem_heap_t*	heap)	/*!< in: memory heap */
 
 {
-	ulint		page_no = childb->page.id.page_no();
+	ulint		page_no = childb->page.id().page_no();
 	rec_offs*	offsets;
 	rec_t*		rec = page_rec_get_next(page_get_infimum_rec(
 				buf_block_get_frame(parentb)));

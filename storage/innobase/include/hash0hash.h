@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -404,15 +404,6 @@ hash_get_nth_mutex(
 	hash_table_t*	table,	/*!< in: hash table */
 	ulint		i);	/*!< in: index of the mutex */
 /************************************************************//**
-Gets the nth rw_lock in a hash table.
-@return rw_lock */
-UNIV_INLINE
-rw_lock_t*
-hash_get_nth_lock(
-/*==============*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		i);	/*!< in: index of the rw_lock */
-/************************************************************//**
 Gets the mutex for a fold value in a hash table.
 @return mutex */
 UNIV_INLINE
@@ -421,61 +412,6 @@ hash_get_mutex(
 /*===========*/
 	hash_table_t*	table,	/*!< in: hash table */
 	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-Gets the rw_lock for a fold value in a hash table.
-@return rw_lock */
-UNIV_INLINE
-rw_lock_t*
-hash_get_lock(
-/*==========*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-
-/** If not appropriate rw_lock for a fold value in a hash table,
-relock S-lock the another rw_lock until appropriate for a fold value.
-@param[in]	hash_lock	latched rw_lock to be confirmed
-@param[in]	table		hash table
-@param[in]	fold		fold value
-@return	latched rw_lock */
-UNIV_INLINE
-rw_lock_t*
-hash_lock_s_confirm(
-	rw_lock_t*	hash_lock,
-	hash_table_t*	table,
-	ulint		fold);
-
-/** If not appropriate rw_lock for a fold value in a hash table,
-relock X-lock the another rw_lock until appropriate for a fold value.
-@param[in]	hash_lock	latched rw_lock to be confirmed
-@param[in]	table		hash table
-@param[in]	fold		fold value
-@return	latched rw_lock */
-UNIV_INLINE
-rw_lock_t*
-hash_lock_x_confirm(
-	rw_lock_t*	hash_lock,
-	hash_table_t*	table,
-	ulint		fold);
-
-/************************************************************//**
-Reserves all the locks of a hash table, in an ascending order. */
-void
-hash_lock_x_all(
-/*============*/
-	hash_table_t*	table);	/*!< in: hash table */
-/************************************************************//**
-Releases all the locks of a hash table, in an ascending order. */
-void
-hash_unlock_x_all(
-/*==============*/
-	hash_table_t*	table);	/*!< in: hash table */
-/************************************************************//**
-Releases all but passed in lock of a hash table, */
-void
-hash_unlock_x_all_but(
-/*==================*/
-	hash_table_t*	table,		/*!< in: hash table */
-	rw_lock_t*	keep_lock);	/*!< in: lock to keep */
 
 struct hash_cell_t{
 	void*	node;	/*!< hash chain node, NULL if none */
@@ -503,9 +439,9 @@ struct hash_table_t {
 		ib_mutex_t*	mutexes;/* NULL, or an array of mutexes
 					used to protect segments of the
 					hash table */
-		rw_lock_t*	rw_locks;/* NULL, or an array of rw_lcoks
+		rw_lock_t*	rw_locks;/* NULL, or an array of rw_locks
 					used to protect segments of the
-					hash table */
+					buf_pool.page_hash */
 	} sync_obj;
 
 	mem_heap_t**		heaps;	/*!< if this is non-NULL, hash

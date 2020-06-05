@@ -457,11 +457,7 @@ struct TTASEventMutex {
 
 				sync_cell_t*	cell;
 				sync_array_t *sync_arr = sync_array_get_and_reserve_cell(
-					this,
-					(m_policy.get_id() == LATCH_ID_BUF_BLOCK_MUTEX
-					 || m_policy.get_id() == LATCH_ID_BUF_POOL_ZIP)
-					? SYNC_BUF_BLOCK
-					: SYNC_MUTEX,
+					this, SYNC_MUTEX,
 					filename, line, &cell);
 
 				uint32_t oldval = MUTEX_STATE_LOCKED;

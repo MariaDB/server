@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -216,27 +216,6 @@ ut_print_buf(
 	}
 
 	ut_print_buf_hex(o, buf, len);
-}
-
-/*************************************************************//**
-Calculates fast the number rounded up to the nearest power of 2.
-@return first power of 2 which is >= n */
-ulint
-ut_2_power_up(
-/*==========*/
-	ulint	n)	/*!< in: number != 0 */
-{
-	ulint	res;
-
-	res = 1;
-
-	ut_ad(n > 0);
-
-	while (res < n) {
-		res = res * 2;
-	}
-
-	return(res);
 }
 
 /** Get a fixed-length string, quoted as an SQL identifier.

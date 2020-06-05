@@ -77,7 +77,6 @@ infinite wait The error_monitor thread scans the global wait array to signal
 any waiting threads who have missed the signal. */
 
 typedef TTASEventMutex<GenericPolicy> WaitMutex;
-typedef TTASEventMutex<BlockMutexPolicy> BlockWaitMutex;
 
 /** The latch types that use the sync array. */
 union sync_object_t {
@@ -87,9 +86,6 @@ union sync_object_t {
 
 	/** Mutex instance */
 	WaitMutex*	mutex;
-
-	/** Block mutex instance */
-	BlockWaitMutex*	bpmutex;
 };
 
 /** A cell where an individual thread may wait suspended until a resource
@@ -294,22 +290,12 @@ sync_cell_get_event(
 /*================*/
 	sync_cell_t*	cell) /*!< in: non-empty sync array cell */
 {
-	ulint	type = cell->request_type;
-
-	if (type == SYNC_MUTEX) {
-
+	switch(cell->request_type) {
+	case SYNC_MUTEX:
 		return(cell->latch.mutex->event());
-
-	} else if (type == SYNC_BUF_BLOCK) {
-
-		return(cell->latch.bpmutex->event());
-
-	} else if (type == RW_LOCK_X_WAIT) {
-
+	case RW_LOCK_X_WAIT:
 		return(cell->latch.lock->wait_ex_event);
-
-	} else { /* RW_LOCK_S and RW_LOCK_X wait on the same event */
-
+	default:
 		return(cell->latch.lock->event);
 	}
 }
@@ -362,8 +348,6 @@ sync_array_reserve_cell(
 
 	if (cell->request_type == SYNC_MUTEX) {
 		cell->latch.mutex = reinterpret_cast<WaitMutex*>(object);
-	} else if (cell->request_type == SYNC_BUF_BLOCK) {
-		cell->latch.bpmutex = reinterpret_cast<BlockWaitMutex*>(object);
 	} else {
 		cell->latch.lock = reinterpret_cast<rw_lock_t*>(object);
 	}
@@ -499,65 +483,13 @@ sync_array_cell_print(
 		innobase_basename(cell->file), (ulong) cell->line,
 		difftime(time(NULL), cell->reservation_time));
 
-	if (type == SYNC_MUTEX) {
-		WaitMutex*	mutex = cell->latch.mutex;
-		const WaitMutex::MutexPolicy&	policy = mutex->policy();
-#ifdef UNIV_DEBUG
-		const char*	name = policy.context.get_enter_filename();
-		if (name == NULL) {
-			/* The mutex might have been released. */
-			name = "NULL";
-		}
-#endif /* UNIV_DEBUG */
-
-		if (mutex) {
-		fprintf(file,
-			"Mutex at %p, %s, lock var %x\n"
-#ifdef UNIV_DEBUG
-			"Last time reserved in file %s line %u"
-#endif /* UNIV_DEBUG */
-			"\n",
-			(void*) mutex,
-			policy.to_string().c_str(),
-			mutex->state()
-#ifdef UNIV_DEBUG
-			,name,
-			policy.context.get_enter_line()
-#endif /* UNIV_DEBUG */
-			);
-		}
-	} else if (type == SYNC_BUF_BLOCK) {
-		BlockWaitMutex*	mutex = cell->latch.bpmutex;
-
-		const BlockWaitMutex::MutexPolicy&	policy =
-			mutex->policy();
-#ifdef UNIV_DEBUG
-		const char*	name = policy.context.get_enter_filename();
-		if (name == NULL) {
-			/* The mutex might have been released. */
-			name = "NULL";
-		}
-#endif /* UNIV_DEBUG */
-
-		fprintf(file,
-			"Mutex at %p, %s, lock var %lu\n"
-#ifdef UNIV_DEBUG
-			"Last time reserved in file %s line %lu"
-#endif /* UNIV_DEBUG */
-			"\n",
-			(void*) mutex,
-			policy.to_string().c_str(),
-			(ulong) mutex->state()
-#ifdef UNIV_DEBUG
-			,name,
-			(ulong) policy.context.get_enter_line()
-#endif /* UNIV_DEBUG */
-		       );
-	} else if (type == RW_LOCK_X
-		   || type == RW_LOCK_X_WAIT
-		   || type == RW_LOCK_SX
-		   || type == RW_LOCK_S) {
-
+	switch (type) {
+	default:
+		ut_error;
+	case RW_LOCK_X:
+	case RW_LOCK_X_WAIT:
+	case RW_LOCK_SX:
+	case RW_LOCK_S:
 		fputs(type == RW_LOCK_X ? "X-lock on"
 		      : type == RW_LOCK_X_WAIT ? "X-lock (wait_ex) on"
 		      : type == RW_LOCK_SX ? "SX-lock on"
@@ -606,9 +538,35 @@ sync_array_cell_print(
 #endif
 				);
 		}
+		break;
+	case SYNC_MUTEX:
+		WaitMutex*	mutex = cell->latch.mutex;
+		const WaitMutex::MutexPolicy&	policy = mutex->policy();
+#ifdef UNIV_DEBUG
+		const char*	name = policy.context.get_enter_filename();
+		if (name == NULL) {
+			/* The mutex might have been released. */
+			name = "NULL";
+		}
+#endif /* UNIV_DEBUG */
 
-	} else {
-		ut_error;
+		if (mutex) {
+		fprintf(file,
+			"Mutex at %p, %s, lock var %x\n"
+#ifdef UNIV_DEBUG
+			"Last time reserved in file %s line %u"
+#endif /* UNIV_DEBUG */
+			"\n",
+			(void*) mutex,
+			policy.to_string().c_str(),
+			mutex->state()
+#ifdef UNIV_DEBUG
+			,name,
+			policy.context.get_enter_line()
+#endif /* UNIV_DEBUG */
+			);
+		}
+		break;
 	}
 
 	if (!cell->waiting) {
@@ -780,52 +738,6 @@ sync_array_detect_deadlock(
 		/* No deadlock */
 		return(false);
 		}
-
-	case SYNC_BUF_BLOCK: {
-
-		BlockWaitMutex*	mutex = cell->latch.bpmutex;
-
-		const BlockWaitMutex::MutexPolicy&	policy =
-			mutex->policy();
-
-		if (mutex->state() != MUTEX_STATE_UNLOCKED) {
-			thread = policy.context.get_thread_id();
-
-			/* Note that mutex->thread_id above may be
-			also OS_THREAD_ID_UNDEFINED, because the
-			thread which held the mutex maybe has not
-			yet updated the value, or it has already
-			released the mutex: in this case no deadlock
-			can occur, as the wait array cannot contain
-			a thread with ID_UNDEFINED value. */
-			ret = sync_array_deadlock_step(
-				arr, start, thread, 0, depth);
-
-			if (ret) {
-				const char*	name;
-
-				name = policy.context.get_enter_filename();
-
-				if (name == NULL) {
-					/* The mutex might have been
-					released. */
-					name = "NULL";
-				}
-
-				ib::info()
-					<< "Mutex " << mutex << " owned by"
-					" thread " << os_thread_pf(thread)
-					<< " file " << name << " line "
-					<< policy.context.get_enter_line();
-
-
-				return(true);
-			}
-		}
-
-		/* No deadlock */
-		return(false);
-	}
 
 	case RW_LOCK_X:
 	case RW_LOCK_X_WAIT:

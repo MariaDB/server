@@ -1041,8 +1041,8 @@ lock_prdt_page_free_from_discard(
 
 	ut_ad(lock_mutex_own());
 
-	space = block->page.id.space();
-	page_no = block->page.id.page_no();
+	space = block->page.id().space();
+	page_no = block->page.id().page_no();
 
 	lock = lock_rec_get_first_on_page_addr(lock_hash, space, page_no);
 

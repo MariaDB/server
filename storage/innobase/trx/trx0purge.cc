@@ -718,7 +718,7 @@ not_free:
 				rseg->id, sys_header, &mtr);
 			ut_ad(rblock);
 			rseg->page_no = rblock
-				? rblock->page.id.page_no() : FIL_NULL;
+				? rblock->page.id().page_no() : FIL_NULL;
 			ut_ad(old_page == rseg->page_no);
 
 			/* Before re-initialization ensure that we
@@ -927,7 +927,7 @@ trx_purge_read_undo_rec()
 
 			offset = page_offset(undo_rec);
 			undo_no = trx_undo_rec_get_undo_no(undo_rec);
-			page_no = undo_page->page.id.page_no();
+			page_no = undo_page->page.id().page_no();
 		} else {
 			offset = 0;
 			undo_no = 0;
@@ -1029,7 +1029,7 @@ trx_purge_get_next_rec(
 			page_id_t(space, page_no), &mtr);
 	} else {
 		purge_sys.offset = page_offset(rec2);
-		purge_sys.page_no = rec2_page->page.id.page_no();
+		purge_sys.page_no = rec2_page->page.id().page_no();
 		purge_sys.tail.undo_no = trx_undo_rec_get_undo_no(rec2);
 
 		if (undo_page != rec2_page) {

@@ -5905,7 +5905,7 @@ empty_table:
 		/* The table is empty. */
 		ut_ad(fil_page_index_page_check(block->frame));
 		ut_ad(!page_has_siblings(block->frame));
-		ut_ad(block->page.id.page_no() == index->page);
+		ut_ad(block->page.id().page_no() == index->page);
 		/* MDEV-17383: free metadata BLOBs! */
 		btr_page_empty(block, NULL, index, 0, &mtr);
 		if (index->is_instant()) {

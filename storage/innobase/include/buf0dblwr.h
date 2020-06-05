@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -69,13 +69,8 @@ frees doublewrite buffer. */
 void
 buf_dblwr_free();
 
-/********************************************************************//**
-Updates the doublewrite buffer when an IO request is completed. */
-void
-buf_dblwr_update(
-/*=============*/
-	const buf_page_t*	bpage,	/*!< in: buffer block descriptor */
-	buf_flush_t		flush_type);/*!< in: flush type */
+/** Update the doublewrite buffer on write completion. */
+void buf_dblwr_update(const buf_page_t &bpage, bool single_page);
 /****************************************************************//**
 Determines if a page number is located inside the doublewrite buffer.
 @return TRUE if the location is inside the two blocks of the
@@ -84,20 +79,6 @@ ibool
 buf_dblwr_page_inside(
 /*==================*/
 	ulint	page_no);	/*!< in: page number */
-/********************************************************************//**
-Posts a buffer page for writing. If the doublewrite memory buffer is
-full, calls buf_dblwr_flush_buffered_writes and waits for for free
-space to appear. */
-void
-buf_dblwr_add_to_batch(
-/*====================*/
-	buf_page_t*	bpage);	/*!< in: buffer block to write */
-
-/********************************************************************//**
-Flush a batch of writes to the datafiles that have already been
-written to the dblwr buffer on disk. */
-void
-buf_dblwr_sync_datafiles();
 
 /********************************************************************//**
 Flushes possible buffered writes from the doublewrite memory buffer to disk.
@@ -106,20 +87,6 @@ has been posted, and also when we may have to wait for a page latch!
 Otherwise a deadlock of threads can occur. */
 void
 buf_dblwr_flush_buffered_writes();
-
-/********************************************************************//**
-Writes a page to the doublewrite buffer on disk, sync it, then write
-the page to the datafile and sync the datafile. This function is used
-for single page flushes. If all the buffers allocated for single page
-flushes in the doublewrite buffer are in use we wait here for one to
-become free. We are guaranteed that a slot will become free because any
-thread that is using a slot must also release the slot before leaving
-this function. */
-void
-buf_dblwr_write_single_page(
-/*========================*/
-	buf_page_t*	bpage,	/*!< in: buffer block to write */
-	bool		sync);	/*!< in: true if sync IO requested */
 
 /** Doublewrite control struct */
 struct buf_dblwr_t{
@@ -140,9 +107,6 @@ struct buf_dblwr_t{
 				reserved for single page flushes. */
 	os_event_t	s_event;/*!< event where threads wait for a
 				single page flush slot. Protected by mutex. */
-	bool*		in_use;	/*!< flag used to indicate if a slot is
-				in use. Only used for single page
-				flushes. */
 	bool		batch_running;/*!< set to TRUE if currently a batch
 				is being written from the doublewrite
 				buffer. */
@@ -150,9 +114,37 @@ struct buf_dblwr_t{
 				doublewrite buffer, aligned to an
 				address divisible by srv_page_size
 				(which is required by Windows aio) */
-	buf_page_t**	buf_block_arr;/*!< array to store pointers to
-				the buffer blocks which have been
-				cached to write_buf */
+
+  struct element
+  {
+    /** block descriptor */
+    buf_page_t *bpage;
+    /** flush type */
+    IORequest::flush_t flush;
+    /** payload size in bytes */
+    size_t size;
+  };
+
+  /** buffer blocks to be written via write_buf */
+  element *buf_block_arr;
+
+  /** Schedule a page write. If the doublewrite memory buffer is full,
+  buf_dblwr_flush_buffered_writes() will be invoked to make space.
+  @param bpage     buffer pool page to be written
+  @param flush     type of flush
+  @param size      payload size in bytes */
+  void add_to_batch(buf_page_t *bpage, IORequest::flush_t flush, size_t size);
+  /** Write a page to the doublewrite buffer on disk, sync it, then write
+  the page to the datafile and sync the datafile. This function is used
+  for single page flushes. If all the buffers allocated for single page
+  flushes in the doublewrite buffer are in use we wait here for one to
+  become free. We are guaranteed that a slot will become free because any
+  thread that is using a slot must also release the slot before leaving
+  this function.
+  @param bpage   buffer pool page to be written
+  @param sync    whether synchronous operation is requested
+  @param size    payload size in bytes */
+  void write_single_page(buf_page_t *bpage, bool sync, size_t size);
 };
 
 #endif

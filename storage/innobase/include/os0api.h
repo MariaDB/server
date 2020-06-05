@@ -35,15 +35,6 @@ class buf_page_t;
 struct fil_node_t;
 
 /**
-Should we punch hole to deallocate unused portion of the page.
-@param[in]	bpage		Page control block
-@return true if punch hole should be used, false if not */
-bool
-buf_page_should_punch_hole(
-	const buf_page_t* bpage)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/**
 Calculate the length of trim (punch_hole) operation.
 @param[in]	bpage		Page control block
 @param[in]	write_length	Write length

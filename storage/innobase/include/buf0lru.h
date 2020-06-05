@@ -34,10 +34,6 @@ Created 11/5/1995 Heikki Tuuri
 struct trx_t;
 struct fil_space_t;
 
-/** @return whether less than 1/4 of the buffer pool is available */
-bool
-buf_LRU_buf_pool_running_out();
-
 /*#######################################################################
 These are low-level functions
 #########################################################################*/
@@ -51,33 +47,24 @@ These are low-level functions
 @param[in]	first		first page to be flushed or evicted */
 void buf_LRU_flush_or_remove_pages(ulint id, bool flush, ulint first = 0);
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /********************************************************************//**
 Insert a compressed block into buf_pool.zip_clean in the LRU order. */
 void
 buf_LRU_insert_zip_clean(
 /*=====================*/
 	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 
-/******************************************************************//**
-Try to free a block.  If bpage is a descriptor of a compressed-only
-page, the descriptor object will be freed as well.
-
-NOTE: If this function returns true, it will temporarily
-release buf_pool.mutex.  Furthermore, the page frame will no longer be
-accessible via bpage.
-
-The caller must hold buf_pool.mutex and must not hold any
-buf_page_get_mutex() when calling this function.
-@return true if freed, false otherwise. */
-bool
-buf_LRU_free_page(
-/*==============*/
-	buf_page_t*	bpage,	/*!< in: block to be freed */
-	bool		zip)	/*!< in: true if should remove also the
-				compressed page of an uncompressed page */
-	MY_ATTRIBUTE((nonnull));
+/** Try to free a block. If bpage is a descriptor of a compressed-only
+ROW_FORMAT=COMPRESSED page, the buf_page_t object will be freed as well.
+The caller must hold buf_pool.mutex.
+@param bpage      block to be freed
+@param zip        whether to remove both copies of a ROW_FORMAT=COMPRESSED page
+@retval true if freed and buf_pool.mutex may have been temporarily released
+@retval false if the page was not freed */
+bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
+  MY_ATTRIBUTE((nonnull));
 
 /** Try to free a replaceable block.
 @param[in]	scan_all	true=scan the whole LRU list,
@@ -92,6 +79,7 @@ buf_block_t* buf_LRU_get_free_only();
 /** Get a free block from the buf_pool. The block is taken off the
 free list. If free list is empty, blocks are moved from the end of the
 LRU list to the free list.
+
 This function is called from a user thread when it needs a clean
 block to read in a page. Note that we only ever get a block from
 the free list. Even when we flush a page or find a page in LRU scan
@@ -111,8 +99,10 @@ we put it to free list to be used.
     * scan LRU list even if buf_pool.try_LRU_scan is not set
 * iteration > 1:
   * same as iteration 1 but sleep 10ms
-@return the free control block, in state BUF_BLOCK_READY_FOR_USE */
-buf_block_t* buf_LRU_get_free_block()
+
+@param have_mutex  whether buf_pool.mutex is already being held
+@return the free control block, in state BUF_BLOCK_MEMORY */
+buf_block_t* buf_LRU_get_free_block(bool have_mutex)
 	MY_ATTRIBUTE((malloc,warn_unused_result));
 
 /** @return whether the unzip_LRU list should be used for evicting a victim
@@ -131,7 +121,7 @@ void
 buf_LRU_add_block(
 /*==============*/
 	buf_page_t*	bpage,	/*!< in: control block */
-	ibool		old);	/*!< in: TRUE if should be put to the old
+	bool		old);	/*!< in: true if should be put to the old
 				blocks in the LRU list, else put to the
 				start; if the LRU list is very short, added to
 				the start regardless of this parameter */
@@ -163,25 +153,21 @@ void
 buf_LRU_stat_update();
 
 /** Remove one page from LRU list and put it to free list.
-@param[in,out]	bpage		block, must contain a file page and be in
-				a freeable state; there may or may not be a
-				hash index to the page
-@param[in]	old_page_id	page number before bpage->id was invalidated */
-void buf_LRU_free_one_page(buf_page_t* bpage, page_id_t old_page_id)
-	MY_ATTRIBUTE((nonnull));
+@param bpage     file page to be freed
+@param id        page identifier
+@param hash_lock buf_pool.page_hash latch (will be released here) */
+void buf_LRU_free_one_page(buf_page_t *bpage, const page_id_t id,
+                           rw_lock_t *hash_lock)
+  MY_ATTRIBUTE((nonnull));
 
-/** Adjust LRU hazard pointers if needed.
-@param[in]	bpage	buffer page descriptor */
-void buf_LRU_adjust_hp(const buf_page_t* bpage);
-
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /** Validate the LRU list. */
 void buf_LRU_validate();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-#if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#endif /* UNIV_DEBUG */
+#if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG
 /** Dump the LRU list to stderr. */
 void buf_LRU_print();
-#endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG */
 
 /** @name Heuristics for detecting index scan @{ */
 /** The denominator of buf_pool.LRU_old_ratio. */

@@ -147,7 +147,7 @@ btr_cur_compress_recommendation(
 		root page. */
 
 		return cursor->index->page
-			!= btr_cur_get_block(cursor)->page.id.page_no();
+			!= btr_cur_get_block(cursor)->page.id().page_no();
 	}
 
 	return(FALSE);
@@ -182,7 +182,7 @@ btr_cur_can_delete_without_compress(
 		compression if this is not the root page. */
 
 		return cursor->index->page
-			== btr_cur_get_block(cursor)->page.id.page_no();
+			== btr_cur_get_block(cursor)->page.id().page_no();
 	}
 
 	return(TRUE);

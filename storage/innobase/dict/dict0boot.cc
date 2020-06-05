@@ -137,7 +137,7 @@ dict_hdr_create(
 	block = fseg_create(fil_system.sys_space, 0,
 			    DICT_HDR + DICT_HDR_FSEG_HEADER, mtr);
 
-	ut_a(DICT_HDR_PAGE_NO == block->page.id.page_no());
+	ut_a(block->page.id() == page_id_t(DICT_HDR_SPACE, DICT_HDR_PAGE_NO));
 
 	buf_block_t* d = dict_hdr_get(mtr);
 

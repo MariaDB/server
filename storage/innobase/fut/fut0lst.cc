@@ -101,7 +101,7 @@ static void flst_add_to_empty(buf_block_t *base, uint16_t boffset,
   mtr->write<1>(*base, base->frame + boffset + (FLST_LEN + 3), 1U);
   /* Update first and last fields of base node */
   flst_write_addr(*base, base->frame + boffset + FLST_FIRST,
-                  add->page.id.page_no(), aoffset, mtr);
+                  add->page.id().page_no(), aoffset, mtr);
   memcpy(base->frame + boffset + FLST_LAST, base->frame + boffset + FLST_FIRST,
          FIL_ADDR_SIZE);
   /* Initialize FLST_LAST by (MEMMOVE|0x80,offset,FIL_ADDR_SIZE,source)
@@ -145,24 +145,24 @@ static void flst_insert_after(buf_block_t *base, uint16_t boffset,
   fil_addr_t next_addr= flst_get_next_addr(cur->frame + coffset);
 
   flst_write_addr(*add, add->frame + aoffset + FLST_PREV,
-                  cur->page.id.page_no(), coffset, mtr);
+                  cur->page.id().page_no(), coffset, mtr);
   flst_write_addr(*add, add->frame + aoffset + FLST_NEXT,
                   next_addr.page, next_addr.boffset, mtr);
 
   if (next_addr.page == FIL_NULL)
     flst_write_addr(*base, base->frame + boffset + FLST_LAST,
-                    add->page.id.page_no(), aoffset, mtr);
+                    add->page.id().page_no(), aoffset, mtr);
   else
   {
     buf_block_t *block;
-    flst_node_t *next= fut_get_ptr(add->page.id.space(), add->zip_size(),
+    flst_node_t *next= fut_get_ptr(add->page.id().space(), add->zip_size(),
                                    next_addr, RW_SX_LATCH, mtr, &block);
     flst_write_addr(*block, next + FLST_PREV,
-                    add->page.id.page_no(), aoffset, mtr);
+                    add->page.id().page_no(), aoffset, mtr);
   }
 
   flst_write_addr(*cur, cur->frame + coffset + FLST_NEXT,
-                  add->page.id.page_no(), aoffset, mtr);
+                  add->page.id().page_no(), aoffset, mtr);
 
   byte *len= &base->frame[boffset + FLST_LEN];
   mtr->write<4>(*base, len, mach_read_from_4(len) + 1);
@@ -201,22 +201,22 @@ static void flst_insert_before(buf_block_t *base, uint16_t boffset,
   flst_write_addr(*add, add->frame + aoffset + FLST_PREV,
                   prev_addr.page, prev_addr.boffset, mtr);
   flst_write_addr(*add, add->frame + aoffset + FLST_NEXT,
-		  cur->page.id.page_no(), coffset, mtr);
+		  cur->page.id().page_no(), coffset, mtr);
 
   if (prev_addr.page == FIL_NULL)
     flst_write_addr(*base, base->frame + boffset + FLST_FIRST,
-                    add->page.id.page_no(), aoffset, mtr);
+                    add->page.id().page_no(), aoffset, mtr);
   else
   {
     buf_block_t *block;
-    flst_node_t *prev= fut_get_ptr(add->page.id.space(), add->zip_size(),
+    flst_node_t *prev= fut_get_ptr(add->page.id().space(), add->zip_size(),
                                    prev_addr, RW_SX_LATCH, mtr, &block);
     flst_write_addr(*block, prev + FLST_NEXT,
-                    add->page.id.page_no(), aoffset, mtr);
+                    add->page.id().page_no(), aoffset, mtr);
   }
 
   flst_write_addr(*cur, cur->frame + coffset + FLST_PREV,
-                    add->page.id.page_no(), aoffset, mtr);
+                    add->page.id().page_no(), aoffset, mtr);
 
   byte *len= &base->frame[boffset + FLST_LEN];
   mtr->write<4>(*base, len, mach_read_from_4(len) + 1);
@@ -260,9 +260,9 @@ void flst_add_last(buf_block_t *base, uint16_t boffset,
   {
     fil_addr_t addr= flst_get_last(base->frame + boffset);
     buf_block_t *cur= add;
-    const flst_node_t *c= addr.page == add->page.id.page_no()
+    const flst_node_t *c= addr.page == add->page.id().page_no()
       ? add->frame + addr.boffset
-      : fut_get_ptr(add->page.id.space(), add->zip_size(), addr,
+      : fut_get_ptr(add->page.id().space(), add->zip_size(), addr,
                     RW_SX_LATCH, mtr, &cur);
     flst_insert_after(base, boffset, cur,
                       static_cast<uint16_t>(c - cur->frame),
@@ -295,9 +295,9 @@ void flst_add_first(buf_block_t *base, uint16_t boffset,
   {
     fil_addr_t addr= flst_get_first(base->frame + boffset);
     buf_block_t *cur= add;
-    const flst_node_t *c= addr.page == add->page.id.page_no()
+    const flst_node_t *c= addr.page == add->page.id().page_no()
       ? add->frame + addr.boffset
-      : fut_get_ptr(add->page.id.space(), add->zip_size(), addr,
+      : fut_get_ptr(add->page.id().space(), add->zip_size(), addr,
                     RW_SX_LATCH, mtr, &cur);
     flst_insert_before(base, boffset, cur,
                        static_cast<uint16_t>(c - cur->frame),
@@ -332,9 +332,9 @@ void flst_remove(buf_block_t *base, uint16_t boffset,
   else
   {
     buf_block_t *block= cur;
-    flst_node_t *prev= prev_addr.page == cur->page.id.page_no()
+    flst_node_t *prev= prev_addr.page == cur->page.id().page_no()
       ? cur->frame + prev_addr.boffset
-      : fut_get_ptr(cur->page.id.space(), cur->zip_size(), prev_addr,
+      : fut_get_ptr(cur->page.id().space(), cur->zip_size(), prev_addr,
                     RW_SX_LATCH, mtr, &block);
     flst_write_addr(*block, prev + FLST_NEXT,
                     next_addr.page, next_addr.boffset, mtr);
@@ -346,9 +346,9 @@ void flst_remove(buf_block_t *base, uint16_t boffset,
   else
   {
     buf_block_t *block= cur;
-    flst_node_t *next= next_addr.page == cur->page.id.page_no()
+    flst_node_t *next= next_addr.page == cur->page.id().page_no()
       ? cur->frame + next_addr.boffset
-      : fut_get_ptr(cur->page.id.space(), cur->zip_size(), next_addr,
+      : fut_get_ptr(cur->page.id().space(), cur->zip_size(), next_addr,
                     RW_SX_LATCH, mtr, &block);
     flst_write_addr(*block, next + FLST_PREV,
                     prev_addr.page, prev_addr.boffset, mtr);
@@ -381,7 +381,7 @@ void flst_validate(const buf_block_t *base, uint16_t boffset, mtr_t *mtr)
   for (uint32_t i= len; i--; )
   {
     mtr2.start();
-    const flst_node_t *node= fut_get_ptr(base->page.id.space(),
+    const flst_node_t *node= fut_get_ptr(base->page.id().space(),
                                          base->zip_size(), addr,
                                          RW_SX_LATCH, &mtr2);
     addr= flst_get_next_addr(node);
@@ -395,7 +395,7 @@ void flst_validate(const buf_block_t *base, uint16_t boffset, mtr_t *mtr)
   for (uint32_t i= len; i--; )
   {
     mtr2.start();
-    const flst_node_t *node= fut_get_ptr(base->page.id.space(),
+    const flst_node_t *node= fut_get_ptr(base->page.id().space(),
                                          base->zip_size(), addr,
                                          RW_SX_LATCH, &mtr2);
     addr= flst_get_prev_addr(node);

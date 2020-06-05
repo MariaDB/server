@@ -52,11 +52,10 @@ buf_flush_note_modification(
 	lsn_t		end_lsn)	/*!< in: end lsn of the mtr that
 					modified this block */
 {
-	mutex_enter(&block->mutex);
 	ut_ad(!srv_read_only_mode
-	      || fsp_is_system_temporary(block->page.id.space()));
-	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
-	ut_ad(block->page.buf_fix_count > 0);
+	      || fsp_is_system_temporary(block->page.id().space()));
+	ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
+	ut_ad(block->page.buf_fix_count());
 	ut_ad(mach_read_from_8(block->frame + FIL_PAGE_LSN) <= end_lsn);
 	mach_write_to_8(block->frame + FIL_PAGE_LSN, end_lsn);
 	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
@@ -64,13 +63,13 @@ buf_flush_note_modification(
 				  FIL_PAGE_LSN + block->frame, 8);
 	}
 
-	if (block->page.oldest_modification == 0) {
+	const lsn_t oldest_modification = block->page.oldest_modification();
+
+	if (!oldest_modification) {
 		buf_flush_insert_into_flush_list(block, start_lsn);
 	} else {
-		ut_ad(block->page.oldest_modification <= start_lsn);
+		ut_ad(oldest_modification <= start_lsn);
 	}
-
-	mutex_exit(&block->mutex);
 
 	srv_stats.buf_pool_write_requests.inc();
 }

@@ -278,29 +278,10 @@ extern char*	srv_undo_dir;
 /** Number of undo tablespaces to use. */
 extern ulong	srv_undo_tablespaces;
 
-/** The number of UNDO tablespaces that are open and ready to use. */
-extern ulint	srv_undo_tablespaces_open;
-
 /** The number of UNDO tablespaces that are active (hosting some rollback
 segment). It is quite possible that some of the tablespaces doesn't host
 any of the rollback-segment based on configuration used. */
 extern ulint	srv_undo_tablespaces_active;
-
-/** Undo tablespaces starts with space_id. */
-extern	ulint	srv_undo_space_id_start;
-
-/** Check whether given space id is undo tablespace id
-@param[in]	space_id	space id to check
-@return true if it is undo tablespace else false. */
-inline
-bool
-srv_is_undo_tablespace(ulint space_id)
-{
-	return srv_undo_space_id_start > 0
-		&& space_id >= srv_undo_space_id_start
-		&& space_id < (srv_undo_space_id_start
-			       + srv_undo_tablespaces_open);
-}
 
 /** Maximum size of undo tablespace. */
 extern unsigned long long	srv_max_undo_log_size;
@@ -600,37 +581,6 @@ extern PSI_stage_info	srv_stage_alter_table_read_pk_internal_sort;
 /** Performance schema stage event for monitoring buffer pool load progress. */
 extern PSI_stage_info	srv_stage_buffer_pool_load;
 #endif /* HAVE_PSI_STAGE_INTERFACE */
-
-
-/** Alternatives for innodb_flush_method */
-enum srv_flush_t {
-	SRV_FSYNC = 0,	/*!< fsync, the default */
-	SRV_O_DSYNC,	/*!< open log files in O_DSYNC mode */
-	SRV_LITTLESYNC,	/*!< do not call os_file_flush()
-				when writing data files, but do flush
-				after writing to log files */
-	SRV_NOSYNC,	/*!< do not flush after writing */
-	SRV_O_DIRECT,	/*!< invoke os_file_set_nocache() on
-				data files. This implies using
-				non-buffered IO but still using fsync,
-				the reason for which is that some FS
-				do not flush meta-data when
-				unbuffered IO happens */
-	SRV_O_DIRECT_NO_FSYNC
-				/*!< do not use fsync() when using
-				direct IO i.e.: it can be set to avoid
-				the fsync() call that we make when
-				using SRV_UNIX_O_DIRECT. However, in
-				this case user/DBA should be sure about
-				the integrity of the meta-data */
-#ifdef _WIN32
-	,SRV_ALL_O_DIRECT_FSYNC
-				/*!< Traditional Windows appoach to open 
-				all files without caching, and do FileFlushBuffers()*/
-#endif
-};
-/** innodb_flush_method */
-extern ulong srv_file_flush_method;
 
 /** Alternatives for srv_force_recovery. Non-zero values are intended
 to help the user get a damaged database up so that he can dump intact

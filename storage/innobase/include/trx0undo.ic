@@ -133,7 +133,7 @@ inline
 uint16_t trx_undo_page_get_end(const buf_block_t *undo_page, uint32_t page_no,
                                uint16_t offset)
 {
-  if (page_no == undo_page->page.id.page_no())
+  if (page_no == undo_page->page.id().page_no())
     if (uint16_t end = mach_read_from_2(TRX_UNDO_NEXT_LOG + offset +
 					undo_page->frame))
       return end;
