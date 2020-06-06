@@ -3966,10 +3966,9 @@ void fil_aio_callback(os_aio_userdata_t *data)
   buf_page_t *bpage= static_cast<buf_page_t*>(data->message);
   if (!bpage)
   {
-    /* Asynchronous single page writes from the doublewrite buffer
-    don't have access to the page. */
+    /* Asynchronous single page writes from the doublewrite buffer,
+    or calls from buf_flush_freed_page() don't have access to the page. */
     ut_ad(data->type.is_write());
-    ut_ad(node->space == fil_system.sys_space);
     ut_ad(!srv_read_only_mode);
 write_completed:
     mutex_enter(&fil_system.mutex);
