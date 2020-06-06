@@ -86,7 +86,6 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
                                           ulint zip_size, bool unzip)
 {
   mtr_t mtr;
-  bool lru= false;
 
   if (mode == BUF_READ_IBUF_PAGES_ONLY)
   {
@@ -169,7 +168,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
       block descriptor has been added to buf_pool.LRU and
       buf_pool.page_hash. */
       block->page.zip.data= static_cast<page_zip_t*>
-        (buf_buddy_alloc(zip_size, &lru));
+        (buf_buddy_alloc(zip_size));
 
       /* To maintain the invariant
       block->in_unzip_LRU_list == block->page.belongs_to_unzip_LRU()
@@ -187,7 +186,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     control block (bpage), in order to avoid the
     invocation of buf_buddy_relocate_block() on
     uninitialized data. */
-    bool lru;
+    bool lru= false;
     void *data= buf_buddy_alloc(zip_size, &lru);
 
     rw_lock_x_lock(hash_lock);

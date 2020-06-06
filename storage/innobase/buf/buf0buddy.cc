@@ -431,9 +431,9 @@ buf_buddy_alloc_from(void* buf, ulint i, ulint j)
 	return(buf);
 }
 
-/** Allocate a block.
-@param[in]	i	index of buf_pool.zip_free[] or BUF_BUDDY_SIZES
-@param[out]	lru	whether buf_pool.mutex was temporarily released
+/** Allocate a ROW_FORMAT=COMPRESSED block.
+@param i      index of buf_pool.zip_free[] or BUF_BUDDY_SIZES
+@param lru    assigned to true if buf_pool.mutex was temporarily released
 @return allocated block, never NULL */
 byte *buf_buddy_alloc_low(ulint i, bool *lru)
 {
