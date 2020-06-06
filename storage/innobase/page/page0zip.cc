@@ -1756,8 +1756,9 @@ page_zip_fields_decode(
 		if (!val) {
 			val = ULINT_UNDEFINED;
 		} else if (UNIV_UNLIKELY(val >= n)) {
+fail:
 			page_zip_fields_free(index);
-			index = NULL;
+			return NULL;
 		} else {
 			index->type = DICT_CLUSTERED;
 		}
@@ -1766,8 +1767,7 @@ page_zip_fields_decode(
 	} else {
 		/* Decode the number of nullable fields. */
 		if (UNIV_UNLIKELY(index->n_nullable > val)) {
-			page_zip_fields_free(index);
-			index = NULL;
+			goto fail;
 		} else {
 			index->n_nullable = unsigned(val);
 		}
