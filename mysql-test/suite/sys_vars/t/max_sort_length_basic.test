@@ -74,9 +74,9 @@ SELECT @@session.max_sort_length = 1024;
 # Change the value of max_sort_length to a valid value for GLOBAL Scope #
 #########################################################################
 
-SET @@global.max_sort_length = 4;
+SET @@global.max_sort_length = 8;
 SELECT @@global.max_sort_length;
-SET @@global.max_sort_length = 5;
+SET @@global.max_sort_length = 9;
 SELECT @@global.max_sort_length;
 SET @@global.max_sort_length = 8388608;
 SELECT @@global.max_sort_length;
@@ -90,10 +90,10 @@ SELECT @@global.max_sort_length;
 # Change the value of max_sort_length to a valid value for SESSION Scope #
 ##########################################################################
 
-SET @@session.max_sort_length = 4;
+SET @@session.max_sort_length = 8;
 SELECT @@session.max_sort_length;
 
-SET @@session.max_sort_length = 5;
+SET @@session.max_sort_length = 9;
 SELECT @@session.max_sort_length;
 
 SET @@session.max_sort_length = 8388608;
