@@ -3465,10 +3465,9 @@ int Field_new_decimal::cmp(const uchar *a,const uchar*b)
 }
 
 
-void Field_new_decimal::sort_string(uchar *buff,
-                                    uint)
+void Field_new_decimal::sort_string(uchar *buff, uint length)
 {
-  memcpy(buff, ptr, bin_size);
+  memcpy(buff, ptr, length);
 }
 
 
