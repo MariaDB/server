@@ -8743,28 +8743,9 @@ void spider_free_tmp_dbton_handler(
 TABLE_LIST *spider_get_parent_table_list(
   ha_spider *spider
 ) {
-  TABLE *table = spider->get_top_table();
-  TABLE_LIST *current, *parent;
+  TABLE *table = spider->get_table();
   DBUG_ENTER("spider_get_parent_table_list");
-  DBUG_PRINT("info",("spider table=%p", table));
-  if (table->pos_in_table_list)
-  {
-    current = table->pos_in_table_list;
-  } else {
-    current = table->intention_pos_in_table_list;
-  }
-#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
-  if (!spider->set_top_table_fields)
-  {
-#endif
-    while ((parent = current->parent_l))
-    {
-      current = parent;
-    }
-#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
-  }
-#endif
-  DBUG_RETURN(current);
+  DBUG_RETURN(table->pos_in_table_list);
 }
 
 List<Index_hint> *spider_get_index_hints(
@@ -9087,7 +9068,7 @@ bool spider_check_direct_order_limit(
   longlong select_limit;
   longlong offset_limit;
   DBUG_ENTER("spider_check_direct_order_limit");
-  if (spider_check_index_merge(spider->get_top_table(),
+  if (spider_check_index_merge(spider->get_table(),
     spider_get_select_lex(spider)))
   {
     DBUG_PRINT("info",("spider set use_index_merge"));
@@ -9343,22 +9324,9 @@ Field *spider_field_exchange(
 #endif
   DBUG_PRINT("info",("spider in field=%p", field));
   DBUG_PRINT("info",("spider in field->table=%p", field->table));
-#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
-  if (handler->set_top_table_fields)
-  {
-    DBUG_PRINT("info",("spider top_table=%p", handler->top_table));
-    if (field->table != handler->top_table)
-      DBUG_RETURN(NULL);
-    if (!(field = handler->top_table_field[field->field_index]))
-      DBUG_RETURN(NULL);
-  } else {
-#endif
     DBUG_PRINT("info",("spider table=%p", handler->get_table()));
     if (field->table != handler->get_table())
       DBUG_RETURN(NULL);
-#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
-  }
-#endif
   DBUG_PRINT("info",("spider out field=%p", field));
   DBUG_RETURN(field);
 }

@@ -726,8 +726,6 @@ typedef struct st_spider_wide_handler
   List<Item>         *direct_update_fields;
   List<Item>         *direct_update_values;
 #endif
-  TABLE              *top_table;
-  Field              **top_table_field;
   TABLE_SHARE        *top_share;
   enum thr_lock_type lock_type;
   uchar              lock_table_type;
@@ -773,7 +771,6 @@ typedef struct st_spider_wide_handler
   bool               write_can_replace;
   bool               insert_with_update;
   bool               cond_check;
-  bool               set_top_table_fields;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   bool               hs_increment;

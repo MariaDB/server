@@ -7241,8 +7241,6 @@ bool ha_partition::check_parallel_search()
         if (order_field && order_field->table == table_list->table)
         {
           Field *part_field= m_part_info->full_part_field_array[0];
-          if (set_top_table_fields)
-            order_field= top_table_field[order_field->field_index];
           DBUG_PRINT("info",("partition order_field: %p", order_field));
           DBUG_PRINT("info",("partition part_field: %p", part_field));
           if (part_field == order_field)
@@ -7286,8 +7284,6 @@ bool ha_partition::check_parallel_search()
         if (group_field && group_field->table == table_list->table)
         {
           Field *part_field= m_part_info->full_part_field_array[0];
-          if (set_top_table_fields)
-            group_field= top_table_field[group_field->field_index];
           DBUG_PRINT("info",("partition group_field: %p", group_field));
           DBUG_PRINT("info",("partition part_field: %p", part_field));
           if (part_field == group_field)
@@ -11223,22 +11219,6 @@ const COND *ha_partition::cond_push(const COND *cond)
   COND *res_cond= NULL;
   DBUG_ENTER("ha_partition::cond_push");
 
-  if (set_top_table_fields)
-  {
-    /*
-      We want to do this in a separate loop to not come into a situation
-      where we have only done cond_push() to some of the tables
-    */
-    do
-    {
-      if (((*file)->set_top_table_and_fields(top_table,
-                                             top_table_field,
-                                             top_table_fields)))
-        DBUG_RETURN(cond);                      // Abort cond push, no error
-    } while (*(++file));
-    file= m_file;
-  }
-
   do
   {
     if ((*file)->pushed_cond != cond)
@@ -11869,23 +11849,6 @@ int ha_partition::info_push(uint info_type, void *info)
   DBUG_RETURN(error);
 }
 
-
-void ha_partition::clear_top_table_fields()
-{
-  handler **file;
-  DBUG_ENTER("ha_partition::clear_top_table_fields");
-
-  if (set_top_table_fields)
-  {
-    set_top_table_fields= FALSE;
-    top_table= NULL;
-    top_table_field= NULL;
-    top_table_fields= 0;
-    for (file= m_file; *file; file++)
-      (*file)->clear_top_table_fields();
-  }
-  DBUG_VOID_RETURN;
-}
 
 bool
 ha_partition::can_convert_string(const Field_string* field,

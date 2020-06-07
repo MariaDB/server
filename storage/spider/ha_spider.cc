@@ -424,15 +424,7 @@ int ha_spider::open(
     wide_handler->rnd_write_bitmap = rnd_write_bitmap;
     wide_handler->owner = owner;
     if (table_share->tmp_table == NO_TMP_TABLE)
-    {
-      TABLE_LIST *top = spider_get_parent_table_list(this);
-      if (top->intention_table)
-      {
-        wide_handler->top_share = top->intention_table->s;
-      } else {
-        wide_handler->top_share = top->table->s;
-      }
-    }
+      wide_handler->top_share = table->s;
     owner->wide_handler_owner = TRUE;
     memset(wide_handler->ft_discard_bitmap, 0xFF,
       no_bytes_in_map(table->read_set));
@@ -12059,80 +12051,6 @@ bool ha_spider::is_fatal_error(
   DBUG_RETURN(TRUE);
 }
 
-int ha_spider::set_top_table_and_fields(
-  TABLE *top_table,
-  Field **top_table_field,
-  uint top_table_fields
-) {
-  DBUG_ENTER("ha_spider::set_top_table_and_fields");
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (
-    wide_handler->stage == SPD_HND_STAGE_SET_TOP_TABLE_AND_FIELDS &&
-    wide_handler->stage_executor != this)
-  {
-    DBUG_RETURN(0);
-  }
-  wide_handler->stage = SPD_HND_STAGE_SET_TOP_TABLE_AND_FIELDS;
-  wide_handler->stage_executor = this;
-#endif
-  if (!wide_handler->set_top_table_fields)
-  {
-    wide_handler->set_top_table_fields = TRUE;
-    wide_handler->top_table = top_table;
-    wide_handler->top_table_field = top_table_field;
-    wide_handler->top_table_fields = top_table_fields;
-  }
-  DBUG_RETURN(0);
-}
-void ha_spider::clear_top_table_fields()
-{
-  DBUG_ENTER("ha_spider::clear_top_table_fields");
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (
-    wide_handler->stage == SPD_HND_STAGE_CLEAR_TOP_TABLE_FIELDS &&
-    wide_handler->stage_executor != this)
-  {
-    DBUG_VOID_RETURN;
-  }
-  wide_handler->stage = SPD_HND_STAGE_CLEAR_TOP_TABLE_FIELDS;
-  wide_handler->stage_executor = this;
-#endif
-  if (wide_handler->set_top_table_fields)
-  {
-    wide_handler->set_top_table_fields = FALSE;
-    wide_handler->top_table = NULL;
-    wide_handler->top_table_field = NULL;
-    wide_handler->top_table_fields = 0;
-  }
-  DBUG_VOID_RETURN;
-}
-
-Field *ha_spider::get_top_table_field(
-  uint16 field_index
-) {
-  Field *field;
-  DBUG_ENTER("ha_spider::get_top_table_field");
-#ifdef HA_CAN_BULK_ACCESS
-  if (is_bulk_access_clone)
-  {
-    DBUG_RETURN(pt_clone_source_handler->get_top_table_field(field_index));
-  }
-#endif
-  DBUG_PRINT("info",("spider field_index=%u", field_index));
-#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
-  if (wide_handler->set_top_table_fields)
-  {
-    field = wide_handler->top_table->field[field_index];
-  } else {
-#endif
-    field = table->field[field_index];
-#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
-  }
-#endif
-  DBUG_PRINT("info",("spider out field=%p", field));
-  DBUG_RETURN(field);
-}
-
 Field *ha_spider::field_exchange(
   Field *field
 ) {
@@ -12145,22 +12063,9 @@ Field *ha_spider::field_exchange(
 #endif
   DBUG_PRINT("info",("spider in field=%p", field));
   DBUG_PRINT("info",("spider in field->table=%p", field->table));
-#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
-  if (wide_handler->set_top_table_fields)
-  {
-    DBUG_PRINT("info",("spider top_table=%p", wide_handler->top_table));
-    if (field->table != wide_handler->top_table)
-      DBUG_RETURN(NULL);
-    if (!(field = wide_handler->top_table_field[field->field_index]))
-      DBUG_RETURN(NULL);
-  } else {
-#endif
-    DBUG_PRINT("info",("spider table=%p", table));
-    if (field->table != table)
-      DBUG_RETURN(NULL);
-#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
-  }
-#endif
+  DBUG_PRINT("info",("spider table=%p", table));
+  if (field->table != table)
+    DBUG_RETURN(NULL);
   DBUG_PRINT("info",("spider out field=%p", field));
   DBUG_RETURN(field);
 }
@@ -12510,16 +12415,6 @@ void ha_spider::return_record_by_parent()
 TABLE *ha_spider::get_table()
 {
   DBUG_ENTER("ha_spider::get_table");
-  DBUG_RETURN(table);
-}
-
-TABLE *ha_spider::get_top_table()
-{
-  DBUG_ENTER("ha_spider::get_top_table");
-#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
-  if (set_top_table_fields)
-    DBUG_RETURN(top_table);
-#endif
   DBUG_RETURN(table);
 }
 

@@ -1552,7 +1552,6 @@ public:
   */
     const COND *cond_push(const COND *cond) override;
     void cond_pop() override;
-    void clear_top_table_fields() override;
     int info_push(uint info_type, void *info) override;
 
     private:

@@ -1289,9 +1289,6 @@ public:
   /* Table's triggers, 0 if there are no of them */
   Table_triggers_list *triggers;
   TABLE_LIST *pos_in_table_list;/* Element referring to this table */
-  /* This is same as pos_in_table_list, but it is set as soon as possible when
-     TABLE is allocated */
-  TABLE_LIST *intention_pos_in_table_list;
   /* Position in thd->locked_table_list under LOCK TABLES */
   TABLE_LIST *pos_in_locked_tables;
   /* Tables used in DEFAULT and CHECK CONSTRAINT (normally sequence tables) */
@@ -2265,9 +2262,6 @@ struct TABLE_LIST
   /* Index names in a "... JOIN ... USE/IGNORE INDEX ..." clause. */
   List<Index_hint> *index_hints;
   TABLE        *table;                          /* opened table */
-  /* This is same as table, but it is set as soon as possible when
-     TABLE is allocated */
-  TABLE        *intention_table;
   ulonglong         table_id; /* table id (from binlog) for opened table */
   /*
     select_result for derived table to pass it from table creation to table
@@ -3113,8 +3107,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        const LEX_CSTRING *alias, uint db_stat, uint prgflag,
                        uint ha_open_flags, TABLE *outparam,
                        bool is_create_table,
-                       List<String> *partitions_to_open= NULL,
-                       TABLE_LIST *table_list= NULL);
+                       List<String> *partitions_to_open= NULL);
 bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root);
 bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
 bool fix_session_vcol_expr_for_read(THD *thd, Field *field,

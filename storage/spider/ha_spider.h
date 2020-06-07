@@ -855,15 +855,6 @@ public:
     int error_num,
     uint flags
   );
-  int set_top_table_and_fields(
-    TABLE *top_table,
-    Field **top_table_field,
-    uint top_table_fields
-  );
-  void clear_top_table_fields();
-  Field *get_top_table_field(
-    uint16 field_index
-  );
   Field *field_exchange(
     Field *field
   );
@@ -879,7 +870,6 @@ public:
   void return_record_by_parent();
 #endif
   TABLE *get_table();
-  TABLE *get_top_table();
   void set_ft_discard_bitmap();
   void set_searched_bitmap();
   void set_clone_searched_bitmap();

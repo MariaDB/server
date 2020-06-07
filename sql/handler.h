@@ -3238,12 +3238,6 @@ public:
   /** End a batch started with @c start_psi_batch_mode. */
   void end_psi_batch_mode();
 
-  bool set_top_table_fields;
-
-  struct TABLE *top_table;
-  Field **top_table_field;
-  uint top_table_fields;
-
   /* If we have row logging enabled for this table */
   bool row_logging, row_logging_init;
   /* If the row logging should be done in transaction cache */
@@ -3292,8 +3286,6 @@ public:
     m_psi_batch_mode(PSI_BATCH_MODE_NONE),
     m_psi_numrows(0),
     m_psi_locker(NULL),
-    set_top_table_fields(FALSE), top_table(0),
-    top_table_field(0), top_table_fields(0),
     row_logging(0), row_logging_init(0),
     m_lock_type(F_UNLCK), ha_share(NULL), m_prev_insert_id(0)
   {
@@ -4334,36 +4326,6 @@ public:
    Push metadata for the current operation down to the table handler.
  */
  virtual int info_push(uint info_type, void *info) { return 0; };
-
- /**
-    This function is used to get correlating of a parent (table/column)
-    and children (table/column). When conditions are pushed down to child
-    table (like child of myisam_merge), child table needs to know about
-    which table/column is my parent for understanding conditions.
- */
- virtual int set_top_table_and_fields(TABLE *top_table,
-                                      Field **top_table_field,
-                                      uint top_table_fields)
- {
-   if (!set_top_table_fields)
-   {
-     set_top_table_fields= TRUE;
-     this->top_table= top_table;
-     this->top_table_field= top_table_field;
-     this->top_table_fields= top_table_fields;
-   }
-   return 0;
- }
- virtual void clear_top_table_fields()
- {
-   if (set_top_table_fields)
-   {
-     set_top_table_fields= FALSE;
-     top_table= NULL;
-     top_table_field= NULL;
-     top_table_fields= 0;
-   }
- }
 
  /**
    Push down an index condition to the handler.

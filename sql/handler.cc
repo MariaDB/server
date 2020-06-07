@@ -6581,7 +6581,6 @@ int handler::ha_reset()
   cancel_pushed_idx_cond();
   /* Reset information about pushed index conditions */
   cancel_pushed_rowid_filter();
-  clear_top_table_fields();
   if (lookup_handler != this)
   {
     lookup_handler->ha_external_unlock(table->in_use);
