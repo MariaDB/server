@@ -238,3 +238,7 @@ select next value for t1;
 next value for t1
 90
 drop sequence t1;
+CREATE SEQUENCE t1 engine=innodb;
+ALTER IGNORE TABLE t1 ADD CHECK (start_value < minimum_value);
+ERROR HY000: Sequence 'test.t1' table structure is invalid (Sequence tables cannot have any constraints)
+DROP SEQUENCE t1;
