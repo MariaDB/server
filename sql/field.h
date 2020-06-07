@@ -1463,6 +1463,13 @@ public:
                                          const SORT_FIELD_ATTR *sort_field);
 
   virtual void make_send_field(Send_field *);
+
+  /*
+    Some implementations actually may write up to 8 bytes regardless of what
+    size was requested. This is due to the minimum value of the system variable
+    max_sort_length.
+  */
+
   virtual void sort_string(uchar *buff,uint length)=0;
   virtual bool optimize_range(uint idx, uint part) const;
   virtual void free() {}

@@ -15,6 +15,8 @@ call mtr.add_suppression("Out of sort memory; increase server sort buffer size")
 # Test old ORDER BY bug
 #
 
+--source include/have_sequence.inc
+
 CREATE TABLE t1 (
   id int(6) DEFAULT '0' NOT NULL,
   idservice int(5),
@@ -2162,6 +2164,21 @@ select * from t1 order  by b;
 set @@sort_buffer_size= @save_sort_buffer_size;
 drop table t1;
 
+--echo #
+--echo # MDEV-22715: SIGSEGV in radixsort_for_str_ptr and in native_compare/my_qsort2 (optimized builds)
+--echo #
+
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_sort_length= @@max_sort_length;
+SET max_sort_length=8;
+SET sort_buffer_size=1024;
+CREATE TABLE t1(a INT, b DECIMAL(65), c BLOB);
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+SELECT * FROM t1 ORDER BY a,b;
+SET @@sort_buffer_size= @save_sort_buffer_size;
+SET @@max_sort_length= @save_max_sort_length;
+DROP TABLE t1;
 
 --echo #
 --echo # MDEV-13994: Bad join results with orderby_uses_equalities=on
@@ -2206,7 +2223,6 @@ set optimizer_switch= @save_optimizer_switch;
 
 DROP TABLE books, wings;
 
-
 --echo #
 --echo # MDEV-17796: query with DISTINCT, GROUP BY and ORDER BY
 --echo #
@@ -2220,6 +2236,8 @@ GROUP BY id
 ORDER BY id+1 DESC;
 
 DROP TABLE t1;
+
+--echo # End of 10.2 tests
 
 --echo #
 --echo # MDEV-16214: Incorrect plan taken by the optimizer , uses INDEX instead of ref access with ORDER BY
@@ -2258,6 +2276,8 @@ eval $query;
 
 drop table t1,t2;
 
+--echo # End of 10.3 tests
+
 --echo #
 --echo # MDEV-17761: Odd optimizer choice with ORDER BY LIMIT and condition selectivity
 --echo #
@@ -2293,6 +2313,8 @@ set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
     optimizer_use_condition_selectivity=@tmp_o; 
 
 drop table t1,t2,t3,t4;
+
+--echo # End of 10.4 tests
 
 --echo #
 --echo # MDEV-21655: Server crashes in my_qsort2 / Filesort_buffer::sort_buffer
@@ -2431,3 +2453,5 @@ SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FR
 ORDER BY surname_first ASC LIMIT 1 OFFSET 1;
 
 DROP TABLE t1;
+
+--echo # End of 10.5 tests

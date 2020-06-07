@@ -4221,6 +4221,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (key->type == Key::UNIQUE && !(key_info->flags & HA_NULL_PART_KEY))
       unique_key=1;
     key_info->key_length=(uint16) key_length;
+    if (key_info->key_length > max_key_length && key->type == Key::UNIQUE)
+      is_hash_field_needed= true;
     if (key_length > max_key_length && key->type != Key::FULLTEXT &&
         !is_hash_field_needed)
     {
