@@ -747,20 +747,27 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   memcpy(db_buf, name.m_name, db_len);
   db_buf[db_len]= 0;
 
-  size_t tbl_len= strlen(name.m_name + db_len);
+  size_t tbl_len= strlen(name.m_name + db_len + 1);
+
+  const bool is_temp= tbl_len > TEMP_FILE_PREFIX_LENGTH &&
+    !strncmp(name.m_name, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH);
+
+  if (is_temp);
+  else if (const char *is_part= static_cast<const char*>
+           (memchr(name.m_name + db_len + 1, '#', tbl_len)))
+    tbl_len= static_cast<size_t>(is_part - &name.m_name[db_len + 1]);
+
   memcpy(tbl_buf, name.m_name + db_len + 1, tbl_len);
+  tbl_buf[tbl_len]= 0;
+
   if (!dict_locked)
     mutex_exit(&dict_sys.mutex);
 
   *db_name_len= filename_to_tablename(db_buf, db_name,
                                       MAX_DATABASE_NAME_LEN + 1, true);
 
-  if (tbl_len > TEMP_FILE_PREFIX_LENGTH
-      && !strncmp(tbl_buf, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH))
+  if (is_temp)
     return false;
-
-  if (char* is_part= strchr(tbl_buf, '#'))
-    *is_part= '\0';
 
   *tbl_name_len= filename_to_tablename(tbl_buf, tbl_name,
                                        MAX_TABLE_NAME_LEN + 1, true);
