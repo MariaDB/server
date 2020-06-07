@@ -208,6 +208,11 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
     reason= "Sequence tables cannot have any constraints";
     goto err;
   }
+  if (lex->alter_info.flags & ALTER_ORDER)
+  {
+    reason= "ORDER BY";
+    goto err;
+  }
 
   for (field_no= 0; (field= it++); field_no++)
   {
