@@ -12159,7 +12159,8 @@ create_table_info_t::create_foreign_keys()
 	static const unsigned MAX_COLS_PER_FK = 500;
 	const char*	      column_names[MAX_COLS_PER_FK];
 	const char*	      ref_column_names[MAX_COLS_PER_FK];
-	char		      create_name[MAX_TABLE_NAME_LEN + 1];
+	char		      create_name[MAX_DATABASE_NAME_LEN + 1 +
+					  MAX_TABLE_NAME_LEN + 1];
 	dict_index_t*	      index	  = NULL;
 	fkerr_t		      index_error = FK_SUCCESS;
 	dict_index_t*	      err_index	  = NULL;
@@ -12199,14 +12200,18 @@ create_table_info_t::create_foreign_keys()
 		}
 
 		char* bufend = innobase_convert_name(
-			create_name, MAX_TABLE_NAME_LEN, n, strlen(n), m_thd);
+			create_name, sizeof create_name, n, strlen(n), m_thd);
 		create_name[bufend - create_name] = '\0';
 		number				  = highest_id_so_far + 1;
 		mem_heap_free(heap);
 		operation = "Alter ";
+	} else if (strstr(name, "#P#") || strstr(name, "#p#")) {
+		/* Partitioned table */
+		create_name[0] = '\0';
 	} else {
 		char* bufend = innobase_convert_name(create_name,
-						     MAX_TABLE_NAME_LEN, name,
+						     sizeof create_name,
+						     name,
 						     strlen(name), m_thd);
 		create_name[bufend - create_name] = '\0';
 	}
@@ -12240,6 +12245,9 @@ create_table_info_t::create_foreign_keys()
 					m_form->s->table_name.str);
 
 			return (DB_CANNOT_ADD_CONSTRAINT);
+		} else if (!*create_name) {
+			ut_ad("should be unreachable" == 0);
+			return DB_CANNOT_ADD_CONSTRAINT;
 		}
 
 		Foreign_key*   fk = static_cast<Foreign_key*>(key);
