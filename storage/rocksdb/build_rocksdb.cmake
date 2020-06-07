@@ -36,15 +36,15 @@ endif()
 # Optional compression libraries.
 
 foreach(compression_lib LZ4 BZip2 ZSTD snappy)
-  FIND_PACKAGE(${compression_lib} QUIET)
+  FIND_PACKAGE(${compression_lib})
 
   SET(WITH_ROCKSDB_${compression_lib} AUTO CACHE STRING
   "Build RocksDB  with ${compression_lib} compression. Possible values are 'ON', 'OFF', 'AUTO' and default is 'AUTO'")
 
   if(${WITH_ROCKSDB_${compression_lib}} STREQUAL "ON"  AND NOT ${${compression_lib}_FOUND})
     MESSAGE(FATAL_ERROR
-      "${compression_lib} library was not found, but WITH_ROCKSDB${compression_lib} option is ON.\
-      Either set WITH_ROCKSDB${compression_lib} to OFF, or make sure ${compression_lib} is installed")
+      "${compression_lib} library was not found, but WITH_ROCKSDB_${compression_lib} option is ON.\
+      Either set WITH_ROCKSDB_${compression_lib} to OFF, or make sure ${compression_lib} is installed")
   endif()
 endforeach()
 
