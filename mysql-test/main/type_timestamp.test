@@ -854,6 +854,14 @@ SELECT * FROM t1 WHERE (SELECT MIN(b) FROM t1) - a;
 SELECT (SELECT MIN(b) FROM t1) - a FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-22734 Assertion `mon > 0 && mon < 13' failed in sec_since_epoch
+--echo #
+SET time_zone="-02:00";
+CREATE TABLE t1(c TIMESTAMP KEY);
+SELECT * FROM t1 WHERE c='2010-00-01 00:00:00';
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of 10.4 tests
