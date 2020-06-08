@@ -8,6 +8,8 @@
 .*.swp
 *.ninja
 .ninja_*
+*.mri
+*.mri.tpl
 .gdb_history
 .vs/
 errmsg.sys
