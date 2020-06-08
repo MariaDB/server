@@ -1,0 +1,23 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed_or_row.inc
+
+#
+# MDEV-22048 Assertion `binlog_table_maps == 0 ||
+#            locked_tables_mode == LTM_LOCK_TABLES' failed in
+#            THD::reset_for_next_command
+#
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 (a) VALUES (1),(2);
+
+CREATE TABLE t2 (b INT) ENGINE=InnoDB;
+
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW SET @a = 0;
+CREATE TRIGGER tr2 BEFORE INSERT ON t2 FOR EACH ROW DELETE FROM t1 LIMIT 1;
+
+SET AUTOCOMMIT= OFF;
+LOCK TABLES t2 WRITE;
+DELETE FROM t1 LIMIT 1;
+SAVEPOINT A;
+UNLOCK TABLES;
+DROP TABLE t1, t2;

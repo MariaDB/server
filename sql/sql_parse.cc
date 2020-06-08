@@ -5045,6 +5045,7 @@ mysql_execute_command(THD *thd)
         res= 1;
       thd->mdl_context.release_transactional_locks();
       thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
+      thd->reset_binlog_for_next_statement();
     }
     if (thd->global_read_lock.is_acquired() &&
         thd->current_backup_stage == BACKUP_FINISHED)
