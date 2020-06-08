@@ -16,7 +16,7 @@ let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
 
 exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --no-timestamp $targetdir;
-exec $INNOBACKUPEX --apply-log --rebuild-indexes --rebuild-threads=2 $targetdir;
+exec $INNOBACKUPEX --apply-log $targetdir;
 --source include/restart_and_restore.inc
 
 --enable_result_log

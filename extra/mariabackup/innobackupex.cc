@@ -112,6 +112,8 @@ bool ibx_partial_backup = false;
 char *ibx_position_arg = NULL;
 char *ibx_backup_directory = NULL;
 
+extern bool xb_opt_destroy_password;
+
 /* copy of proxied xtrabackup options */
 my_bool ibx_xb_close_files;
 const char *ibx_xtrabackup_compress_alg;
@@ -771,17 +773,7 @@ ibx_get_one_option(int optid,
 		xtrabackup_compress = TRUE;
 		break;
 	case 'p':
-		if (argument)
-		{
-		        char *start = argument;
-			my_free(opt_ibx_password);
-			opt_ibx_password= my_strdup(argument, MYF(MY_FAE));
-			/*  Destroy argument */
-			while (*argument)
-				*argument++= 'x';
-			if (*start)
-				start[1]=0 ;
-		}
+    opt_ibx_password= argument;
 		break;
         }
 	return(0);
