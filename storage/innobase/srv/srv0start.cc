@@ -1092,7 +1092,7 @@ srv_start_wait_for_purge_to_start()
 
 	ut_a(state != PURGE_STATE_DISABLED);
 
-	while (srv_shutdown_state == SRV_SHUTDOWN_NONE
+	while (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED
 	       && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
 	       && state == PURGE_STATE_INIT) {
 
