@@ -33,7 +33,7 @@ select count(*) from t7;
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$incremental_dir --incremental-basedir=$basedir;
 
 --echo # XTRABACKUP PREPARE
-exec $XTRABACKUP --apply-log-only --prepare --target-dir=$basedir;
+exec $XTRABACKUP --prepare --target-dir=$basedir;
 
 --echo # XTRABACKUP INCREMENTAL PREPARE
 exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir;
