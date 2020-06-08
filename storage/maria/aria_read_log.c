@@ -324,7 +324,7 @@ static void usage(void)
          my_progname_short);
   printf("or\n");
   printf("Usage: %s OPTIONS -h `aria_log_directory` "
-         "--print-aria-log-control\n\n",
+         "--print-log-control-file\n\n",
          my_progname_short);
 
   my_print_help(my_long_options);

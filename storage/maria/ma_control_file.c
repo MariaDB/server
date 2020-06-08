@@ -721,7 +721,7 @@ my_bool print_aria_log_control()
   {
     recovery_fails=
       (buffer + new_cf_create_time_size + CF_RECOV_FAIL_OFFSET)[0];
-    printf("recovery_failuers:   %u\n", recovery_fails);
+    printf("recovery_failures:   %u\n", recovery_fails);
   }
 
   DBUG_RETURN(0);
