@@ -286,4 +286,11 @@ select * from t1 order by c1 limit 2,1;
 select found_rows();
 select sql_calc_found_rows * from t1 order by c1 limit 2,1;
 select found_rows();
+
+#
+# MDEV-22830 SQL_CALC_FOUND_ROWS not working properly for single SELECT for DUAL
+#
+SELECT SQL_CALC_FOUND_ROWS 1 FROM DUAL WHERE 0;
+SELECT FOUND_ROWS();
+
 drop table t1;

@@ -362,4 +362,9 @@ c1
 select found_rows();
 found_rows()
 5
+SELECT SQL_CALC_FOUND_ROWS 1 FROM DUAL WHERE 0;
+1
+SELECT FOUND_ROWS();
+FOUND_ROWS()
+1
 drop table t1;
