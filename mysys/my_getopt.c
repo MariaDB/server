@@ -81,6 +81,12 @@ my_bool my_getopt_prefix_matching= 1;
 
 my_getopt_value my_getopt_get_addr= 0;
 
+/*
+   This is a flag that can be set in client programs. 1 means that
+   handle_options()  will not initialize options to default values.
+*/
+my_bool my_handle_options_init_variables = 1;
+
 static void default_reporter(enum loglevel level, const char *format, ...)
 {
   va_list args;
@@ -205,7 +211,8 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
   DBUG_ASSERT(*argv);
   (*argc)--; /* Skip the program name */
   (*argv)++; /*      --- || ----      */
-  init_variables(longopts, init_one_value);
+  if (my_handle_options_init_variables)
+    init_variables(longopts, init_one_value);
 
   is_cmdline_arg= !is_file_marker(**argv);
 

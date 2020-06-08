@@ -106,6 +106,7 @@ extern char *autoset_my_option;
 extern my_bool my_getopt_print_errors;
 extern my_bool my_getopt_skip_unknown;
 extern my_bool my_getopt_prefix_matching;
+extern my_bool my_handle_options_init_variables;
 extern my_error_reporter my_getopt_error_reporter;
 extern my_getopt_value my_getopt_get_addr;
 
