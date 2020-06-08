@@ -44,12 +44,6 @@ Created 12/9/1995 Heikki Tuuri
 
 using st_::span;
 
-/* Margin for the free space in the smallest log, before a new query
-step which modifies the database, is started */
-
-#define LOG_CHECKPOINT_FREE_PER_THREAD	(4U << srv_page_size_shift)
-#define LOG_CHECKPOINT_EXTRA_FREE	(8U << srv_page_size_shift)
-
 static const char LOG_FILE_NAME_PREFIX[] = "ib_logfile";
 static const char LOG_FILE_NAME[] = "ib_logfile0";
 

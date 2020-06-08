@@ -430,6 +430,12 @@ accommodate the number of OS threads in the database server */
 bool
 log_set_capacity(ulonglong file_size)
 {
+	/* Margin for the free space in the smallest log, before a new query
+	step which modifies the database, is started */
+	const size_t LOG_CHECKPOINT_FREE_PER_THREAD = 4U
+						      << srv_page_size_shift;
+	const size_t LOG_CHECKPOINT_EXTRA_FREE = 8U << srv_page_size_shift;
+
 	lsn_t		margin;
 	ulint		free;
 
@@ -445,14 +451,11 @@ log_set_capacity(ulonglong file_size)
 	free = LOG_CHECKPOINT_FREE_PER_THREAD * (10 + srv_thread_concurrency)
 		+ LOG_CHECKPOINT_EXTRA_FREE;
 	if (free >= smallest_capacity / 2) {
-		ib::error() << "Cannot continue operation. " << LOG_FILE_NAME
-			    << " is too small for innodb_thread_concurrency="
-			    << srv_thread_concurrency << ". The size of "
-			    << LOG_FILE_NAME
-			    << " should be bigger than 200 kB * "
-			       "innodb_thread_concurrency. "
+		ib::error() << "Cannot continue operation because log file is "
+			       "too small. Increase innodb_log_file_size "
+			       "or decrease innodb_thread_concurrency. "
 			    << INNODB_PARAMETERS_MSG;
-		return(false);
+		return false;
 	}
 
 	margin = smallest_capacity - free;
