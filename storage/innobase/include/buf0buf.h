@@ -930,18 +930,8 @@ public:
 					purposes without holding any
 					mutex or latch */
 	/* @} */
-	Atomic_counter<unsigned> access_time;	/*!< time of first access, or
-					0 if the block was never accessed
-					in the buffer pool.
-
-					For state==BUF_BLOCK_MEMORY
-					blocks, this field can be repurposed
-					for something else.
-
-					When this field counts log records
-					and bytes allocated for recv_sys.pages,
-					the field is protected by
-					recv_sys_t::mutex. */
+  /** used by recv_sys_t::add() only */
+  unsigned access_time;
   /** Change buffer entries for the page exist.
   Protected by io_fix()==BUF_IO_READ or by buf_block_t::lock. */
   bool ibuf_exist;
@@ -974,7 +964,6 @@ public:
     buf_fix_count_= 0;
     old= 0;
     freed_page_clock= 0;
-    access_time= 0;
     oldest_modification_= 0;
     slot= nullptr;
     ibuf_exist= false;
@@ -1088,15 +1077,10 @@ public:
   inline void set_old(bool old);
   /** Flag a page accessed in buf_pool
   @return whether this is not the first access */
-  bool set_accessed()
-  {
-    if (is_accessed()) return true;
-    access_time= static_cast<uint32_t>(ut_time_ms());
-    return false;
-  }
+  bool set_accessed() const { return false; }
   /** @return ut_time_ms() at the time of first access of a block in buf_pool
   @retval 0 if not accessed */
-  unsigned is_accessed() const { ut_ad(in_file()); return access_time; }
+  unsigned is_accessed() const { ut_ad(in_file()); return 0; }
 };
 
 /** The buffer control block structure */

@@ -2512,7 +2512,6 @@ retry:
   watch when setting another watch. */
   for (buf_page_t *w= &watch[UT_ARR_SIZE(watch)]; w-- >= watch; )
   {
-    ut_ad(w->access_time == 0);
     ut_ad(!w->oldest_modification());
     ut_ad(!w->zip.data);
     ut_ad(!w->in_zip_hash);
@@ -3002,7 +3001,6 @@ buf_page_get_low(
 	bool			allow_ibuf_merge)
 {
 	buf_block_t*	block;
-	unsigned	access_time;
 	ulint		retries = 0;
 	const ulint	fold = page_id.fold();
 
@@ -3356,9 +3354,7 @@ evict_from_pool:
 		rw_lock_x_unlock(hash_lock);
 		buf_pool.n_pend_unzip++;
 
-		access_time = block->page.is_accessed();
-
-		if (!access_time && !recv_no_ibuf_operations
+		if (UNIV_UNLIKELY(!recv_no_ibuf_operations)
 		    && ibuf_page_exists(block->page.id(), zip_size)) {
 			block->page.ibuf_exist = true;
 		}

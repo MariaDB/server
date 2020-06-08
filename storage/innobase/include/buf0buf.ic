@@ -100,23 +100,8 @@ inline bool buf_page_peek_if_too_old(const buf_page_t *bpage)
 		statistics or move blocks in the LRU list.  This is
 		either the warm-up phase or an in-memory workload. */
 		return(FALSE);
-	} else if (buf_LRU_old_threshold_ms && bpage->old) {
-		uint32_t access_time = bpage->is_accessed();
-
-		/* It is possible that the below comparison returns an
-		unexpected result. 2^32 milliseconds pass in about 50 days,
-		so if the difference between ut_time_ms() and access_time
-		is e.g. 50 days + 15 ms, then the below will behave as if
-		it is 15 ms. This is known and fixing it would require to
-		increase buf_page_t::access_time from 32 to 64 bits. */
-		if (access_time
-		    && ((ib_uint32_t) (ut_time_ms() - access_time))
-		    >= buf_LRU_old_threshold_ms) {
-			return(TRUE);
-		}
-
-		buf_pool.stat.n_pages_not_made_young++;
-		return false;
+	} else if (bpage->old && buf_LRU_old_threshold_ms) {
+		return true;
 	} else {
 		return !buf_page_peek_if_young(bpage);
 	}

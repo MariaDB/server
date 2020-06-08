@@ -116,7 +116,6 @@ struct buf_page_info_t{
 	ulint		block_id;	/*!< Buffer Pool block ID */
 	/** page identifier */
 	page_id_t	id;
-	unsigned	access_time:32;	/*!< Time of first access */
 	unsigned	io_fix:2;	/*!< type of pending I/O operation */
 	uint32_t	fix_count;	/*!< Count of how manyfold this block
 					is bufferfixed */
@@ -3996,8 +3995,7 @@ i_s_innodb_buffer_page_fill(
 		OK(fields[IDX_BUFFER_PAGE_OLDEST_MOD]->store(
 			   page_info->oldest_mod, true));
 
-		OK(fields[IDX_BUFFER_PAGE_ACCESS_TIME]->store(
-			   page_info->access_time, true));
+		fields[IDX_BUFFER_PAGE_ACCESS_TIME]->set_null();
 
 		fields[IDX_BUFFER_PAGE_TABLE_NAME]->set_null();
 
@@ -4167,8 +4165,6 @@ i_s_innodb_buffer_page_get_info(
 		page_info->fix_count = bpage->buf_fix_count();
 
 		page_info->oldest_mod = bpage->oldest_modification();
-
-		page_info->access_time = bpage->access_time;
 
 		page_info->zip_ssize = bpage->zip.ssize;
 
@@ -4408,7 +4404,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
   Column("OLDEST_MODIFICATION",ULonglong(), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_ACCESS_TIME	9 + I_S_AHI
-  Column("ACCESS_TIME",ULonglong(), NOT_NULL),
+  Column("ACCESS_TIME",ULonglong(), NULLABLE),
 
 #define IDX_BUF_LRU_PAGE_TABLE_NAME	10 + I_S_AHI
   Column("TABLE_NAME", Varchar(1024), NULLABLE),
@@ -4500,8 +4496,7 @@ i_s_innodb_buf_page_lru_fill(
 		OK(fields[IDX_BUF_LRU_PAGE_OLDEST_MOD]->store(
 			   page_info->oldest_mod, true));
 
-		OK(fields[IDX_BUF_LRU_PAGE_ACCESS_TIME]->store(
-			   page_info->access_time, true));
+		fields[IDX_BUF_LRU_PAGE_ACCESS_TIME]->set_null();
 
 		fields[IDX_BUF_LRU_PAGE_TABLE_NAME]->set_null();
 
