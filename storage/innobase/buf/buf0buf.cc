@@ -2556,22 +2556,6 @@ retry:
   return nullptr;
 }
 
-/********************************************************************//**
-Moves a page to the start of the buffer pool LRU list. This high-level
-function can be used to prevent an important page from slipping out of
-the buffer pool.
-@param[in,out]	bpage	buffer block of a file page */
-void buf_page_make_young(buf_page_t* bpage)
-{
-	mutex_enter(&buf_pool.mutex);
-
-	ut_a(bpage->in_file());
-
-	buf_LRU_make_block_young(bpage);
-
-	mutex_exit(&buf_pool.mutex);
-}
-
 /** Mark the page status as FREED for the given tablespace id and
 page number. If the page is not in the buffer pool then ignore it.
 X-lock should be taken on the page before marking the page status
@@ -4963,22 +4947,6 @@ bool buf_page_verify_crypt_checksum(const byte* page, ulint fsp_flags)
 	}
 
 	return !buf_page_is_corrupted(true, page, fsp_flags);
-}
-
-/** Checks that there currently are no I/O operations pending.
-@return number of pending i/o */
-ulint buf_pool_check_no_pending_io()
-{
-	/* FIXME: use atomics, no mutex */
-	ulint pending_io = buf_pool.n_pend_reads;
-	mutex_enter(&buf_pool.mutex);
-	pending_io +=
-		+ buf_pool.n_flush[IORequest::LRU]
-		+ buf_pool.n_flush[IORequest::FLUSH_LIST]
-		+ buf_pool.n_flush[IORequest::SINGLE_PAGE];
-	mutex_exit(&buf_pool.mutex);
-
-	return(pending_io);
 }
 
 /** Print the given page_id_t object.

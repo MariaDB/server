@@ -269,7 +269,7 @@ static dberr_t create_log_file(lsn_t lsn, std::string& logfile0)
 	}
 
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_6"));
-	ut_ad(!buf_pool_check_no_pending_io());
+	DBUG_ASSERT(!buf_pool.any_io_pending());
 
 	DBUG_EXECUTE_IF("innodb_log_abort_7", return DB_ERROR;);
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_7"));
@@ -979,14 +979,13 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 	DBUG_ENTER("srv_prepare_to_delete_redo_log_file");
 
 	lsn_t	flushed_lsn;
-	ulint	pending_io = 0;
 	ulint	count = 0;
 
 	if (log_sys.log.subformat != 2) {
 		srv_log_file_size = 0;
 	}
 
-	do {
+	for (;;) {
 		/* Clean the buffer pool. */
 		buf_flush_sync();
 
@@ -1043,9 +1042,7 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 
 		/* Check if the buffer pools are clean.  If not
 		retry till it is clean. */
-		pending_io = buf_pool_check_no_pending_io();
-
-		if (pending_io > 0) {
+		if (ulint pending_io = buf_pool.io_pending()) {
 			count++;
 			/* Print a message every 60 seconds if we
 			are waiting to clean the buffer pools */
@@ -1055,10 +1052,13 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 					<< "page I/Os to complete";
 				count = 0;
 			}
-		}
-		os_thread_sleep(100000);
 
-	} while (buf_pool_check_no_pending_io());
+			os_thread_sleep(100000);
+			continue;
+		}
+
+		break;
+	}
 
 	DBUG_RETURN(flushed_lsn);
 }
@@ -1677,7 +1677,7 @@ file_checked:
 			ut_ad(recv_no_log_write);
 			buf_flush_sync();
 			err = fil_write_flushed_lsn(log_get_lsn());
-			ut_ad(!buf_pool_check_no_pending_io());
+			DBUG_ASSERT(!buf_pool.any_io_pending());
 			log_sys.log.close_file();
 			if (err == DB_SUCCESS) {
 				bool trunc = srv_operation
@@ -1721,7 +1721,7 @@ file_checked:
 			threads until creating a log checkpoint at the
 			end of create_log_file(). */
 			ut_d(recv_no_log_write = true);
-			ut_ad(!buf_pool_check_no_pending_io());
+			DBUG_ASSERT(!buf_pool.any_io_pending());
 
 			DBUG_EXECUTE_IF("innodb_log_abort_3",
 					return(srv_init_abort(DB_ERROR)););

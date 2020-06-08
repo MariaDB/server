@@ -133,10 +133,6 @@ buf_unzip_LRU_add_block(
 	buf_block_t*	block,	/*!< in: control block */
 	ibool		old);	/*!< in: TRUE if should be put to the end
 				of the list, else put to the start */
-/******************************************************************//**
-Moves a block to the start of the LRU list. */
-void
-buf_LRU_make_block_young(buf_page_t* bpage);
 
 /** Update buf_pool.LRU_old_ratio.
 @param[in]	old_pct		Reserve this percentage of

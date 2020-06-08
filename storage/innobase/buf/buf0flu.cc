@@ -1936,11 +1936,7 @@ static ulint buf_flush_LRU_list()
 /** Wait for any possible LRU flushes to complete. */
 void buf_flush_wait_LRU_batch_end()
 {
-  mutex_enter(&buf_pool.mutex);
-  bool wait= buf_pool.n_flush[IORequest::LRU] ||
-    buf_pool.init_flush[IORequest::LRU];
-  mutex_exit(&buf_pool.mutex);
-  if (wait)
+  if (buf_pool.n_flush[IORequest::LRU] || buf_pool.init_flush[IORequest::LRU])
     buf_flush_wait_batch_end(true);
 }
 

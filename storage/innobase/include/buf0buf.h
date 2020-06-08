@@ -363,15 +363,8 @@ buf_page_release_latch(
 	buf_block_t*	block,		/*!< in: buffer block */
 	ulint		rw_latch);	/*!< in: RW_S_LATCH, RW_X_LATCH,
 					RW_NO_LATCH */
-/********************************************************************//**
-Moves a page to the start of the buffer pool LRU list. This high-level
-function can be used to prevent an important page from slipping out of
-the buffer pool. */
-void
-buf_page_make_young(
-/*================*/
-	buf_page_t*	bpage);	/*!< in: buffer block of a file page */
-
+/** Move a block to the start of the LRU list. */
+void buf_page_make_young(buf_page_t *bpage);
 /** Mark the page status as FREED for the given tablespace id and
 page number. If the page is not in buffer pool then ignore it.
 @param[in]	page_id	page_id
@@ -653,10 +646,6 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info);
 
 /** Refresh the statistics used to print per-second averages. */
 void buf_refresh_io_stats();
-
-/** Check that there currently are no I/O operations pending.
-@return number of pending i/o */
-ulint buf_pool_check_no_pending_io();
 
 /** Invalidate all pages in the buffer pool.
 All pages must be in a replaceable state (not modified or latched). */
@@ -1441,7 +1430,7 @@ struct buf_pool_stat_t{
 				pages that are evicted without
 				being accessed */
 	ulint	n_pages_made_young; /*!< number of pages made young, in
-				calls to buf_LRU_make_block_young() */
+				buf_page_make_young() */
 	ulint	n_pages_not_made_young; /*!< number of pages not made
 				young because the first access
 				was not long enough ago, in
@@ -1943,9 +1932,8 @@ public:
 	UT_LIST_BASE_NODE_T(buf_page_t) flush_list;
 					/*!< base node of the modified block
 					list */
-	ibool		init_flush[3];
-					/*!< this is TRUE when a flush of the
-					given type is being initialized */
+	/** set if a flush of the type is being initialized */
+	Atomic_relaxed<bool> init_flush[3];
 	/** Number of pending writes of a flush type.
 	The sum of these is approximately the sum of BUF_IO_WRITE blocks. */
 	Atomic_counter<ulint> n_flush[3];
@@ -1978,13 +1966,13 @@ public:
 					to read this for heuristic
 					purposes without holding any
 					mutex or latch */
-	ibool		try_LRU_scan;	/*!< Set to FALSE when an LRU
+	bool		try_LRU_scan;	/*!< Cleared when an LRU
 					scan for free block fails. This
 					flag is used to avoid repeated
 					scans of LRU list when we know
 					that there is no free block
 					available in the scan depth for
-					eviction. Set to TRUE whenever
+					eviction. Set whenever
 					we flush a batch from the
 					buffer pool. Protected by the
 					buf_pool.mutex */
@@ -2063,6 +2051,21 @@ public:
   buf_page_t watch[innodb_purge_threads_MAX + 1];
   /** Reserve a buffer. */
   buf_tmp_buffer_t *io_buf_reserve() { return io_buf.reserve(); }
+
+  /** @return whether any I/O is pending */
+  bool any_io_pending() const
+  {
+    return n_pend_reads ||
+      n_flush[IORequest::LRU] || n_flush[IORequest::FLUSH_LIST] ||
+      n_flush[IORequest::SINGLE_PAGE];
+  }
+  /** @return total amount of pending I/O */
+  ulint io_pending() const
+  {
+    return n_pend_reads +
+      n_flush[IORequest::LRU] + n_flush[IORequest::FLUSH_LIST] +
+      n_flush[IORequest::SINGLE_PAGE];
+  }
 private:
   /** Temporary memory for page_compressed and encrypted I/O */
   struct io_buf_t

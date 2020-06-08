@@ -771,7 +771,7 @@ got_mutex:
 
 	MONITOR_INC( MONITOR_LRU_GET_FREE_LOOPS );
 	freed = false;
-	if (buf_pool.try_LRU_scan || n_iterations > 0) {
+	if (n_iterations || buf_pool.try_LRU_scan) {
 		/* If no block was in the free list, search from the
 		end of the LRU list and try to free a block there.
 		If we are doing for the first time we'll scan only
@@ -784,7 +784,7 @@ got_mutex:
 			in scanning the LRU list. This flag is set to
 			TRUE again when we flush a batch from this
 			buffer pool. */
-			buf_pool.try_LRU_scan = FALSE;
+			buf_pool.try_LRU_scan = false;
 
 			/* Also tell the page_cleaner thread that
 			there is work for it to do. */
@@ -1121,21 +1121,20 @@ buf_LRU_add_block(
 	}
 }
 
-/******************************************************************//**
-Moves a block to the start of the LRU list. */
-void
-buf_LRU_make_block_young(
-/*=====================*/
-	buf_page_t*	bpage)	/*!< in: control block */
+/** Move a block to the start of the LRU list. */
+void buf_page_make_young(buf_page_t *bpage)
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+  ut_ad(bpage->in_file());
 
-	if (bpage->old) {
-		buf_pool.stat.n_pages_made_young++;
-	}
+  mutex_enter(&buf_pool.mutex);
 
-	buf_LRU_remove_block(bpage);
-	buf_LRU_add_block(bpage, false);
+  if (UNIV_UNLIKELY(bpage->old))
+    buf_pool.stat.n_pages_made_young++;
+
+  buf_LRU_remove_block(bpage);
+  buf_LRU_add_block(bpage, false);
+
+  mutex_exit(&buf_pool.mutex);
 }
 
 /** Try to free a block. If bpage is a descriptor of a compressed-only
