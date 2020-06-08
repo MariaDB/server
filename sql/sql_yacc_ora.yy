@@ -4569,7 +4569,7 @@ sp_labeled_block:
           {
             Lex->sp_block_init(thd, &$1);
           }
-          sp_decl_body_list
+          opt_sp_decl_body_list
           {
             if (unlikely(Lex->sp_block_with_exceptions_finalize_declarations(thd)))
               MYSQL_YYABORT;
@@ -4611,7 +4611,7 @@ sp_unlabeled_block:
               MYSQL_YYABORT;
             Lex->sp_block_init(thd);
           }
-          sp_decl_body_list
+          opt_sp_decl_body_list
           {
             if (unlikely(Lex->sp_block_with_exceptions_finalize_declarations(thd)))
               MYSQL_YYABORT;

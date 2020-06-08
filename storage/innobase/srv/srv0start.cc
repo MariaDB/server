@@ -2320,7 +2320,7 @@ skip_monitors:
 			thread_started[5 + i + SRV_MAX_N_IO_THREADS] = true;
 		}
 
-		while (srv_shutdown_state == SRV_SHUTDOWN_NONE
+		while (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED
 		       && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
 		       && !purge_sys.enabled()) {
 			ib::info() << "Waiting for purge to start";

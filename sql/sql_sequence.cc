@@ -203,6 +203,16 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
     reason= "Sequence tables cannot have any keys";
     goto err;
   }
+  if (lex->alter_info.check_constraint_list.elements > 0)
+  {
+    reason= "Sequence tables cannot have any constraints";
+    goto err;
+  }
+  if (lex->alter_info.flags & ALTER_ORDER)
+  {
+    reason= "ORDER BY";
+    goto err;
+  }
 
   for (field_no= 0; (field= it++); field_no++)
   {
@@ -210,7 +220,8 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
     if (my_strcasecmp(system_charset_info, field_def->field_name,
                       field->field_name.str) ||
         field->flags != field_def->flags ||
-        field->type_handler() != field_def->type_handler)
+        field->type_handler() != field_def->type_handler ||
+        field->check_constraint || field->vcol_info)
     {
       reason= field->field_name.str;
       goto err;
