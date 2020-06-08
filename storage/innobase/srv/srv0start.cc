@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2426,7 +2426,7 @@ skip_monitors:
 			thread_started[5 + i + SRV_MAX_N_IO_THREADS] = true;
 		}
 
-		while (srv_shutdown_state == SRV_SHUTDOWN_NONE
+		while (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED
 		       && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
 		       && !purge_sys.enabled()) {
 			ib::info() << "Waiting for purge to start";

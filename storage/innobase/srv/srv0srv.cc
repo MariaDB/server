@@ -2678,7 +2678,7 @@ srv_purge_coordinator_suspend(
 
 		rw_lock_x_lock(&purge_sys.latch);
 
-		stop = srv_shutdown_state == SRV_SHUTDOWN_NONE
+		stop = srv_shutdown_state <= SRV_SHUTDOWN_INITIATED
 			&& purge_sys.paused_latched();
 
 		if (!stop) {
@@ -2743,7 +2743,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 		/* If there are no records to purge or the last
 		purge didn't purge any records then wait for activity. */
 
-		if (srv_shutdown_state == SRV_SHUTDOWN_NONE
+		if (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED
 		    && srv_undo_sources
 		    && (n_total_purged == 0 || purge_sys.paused())) {
 

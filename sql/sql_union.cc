@@ -2030,6 +2030,19 @@ bool st_select_lex::cleanup()
     delete join;
     join= 0;
   }
+  for (TABLE_LIST *tbl= get_table_list(); tbl; tbl= tbl->next_local)
+  {
+    if (tbl->is_recursive_with_table() &&
+        !tbl->is_with_table_recursive_reference())
+    {
+      /*
+        If query is killed before open_and_process_table() for tbl
+        is called then 'with' is already set, but 'derived' is not.
+      */
+      st_select_lex_unit *unit= tbl->with->spec;
+      error|= (bool) error | (uint) unit->cleanup();
+    }
+  }
   for (SELECT_LEX_UNIT *lex_unit= first_inner_unit(); lex_unit ;
        lex_unit= lex_unit->next_unit())
   {

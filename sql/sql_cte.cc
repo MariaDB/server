@@ -1114,6 +1114,7 @@ bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
   {
     derived= with_elem->spec;
     if (derived != select_lex->master_unit() &&
+        !with_elem->is_recursive &&
         !is_with_table_recursive_reference())
     {
        derived->move_as_slave(select_lex);
