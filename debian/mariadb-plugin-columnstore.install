@@ -18,7 +18,7 @@ usr/bin/ProcMon
 usr/bin/ServerMonitor
 usr/bin/StorageManager
 usr/bin/WriteEngineServer
-usr/bin/alarmReport.sh
+usr/bin/dbmsReport.sh
 usr/bin/autoConfigure
 usr/bin/bulklogReport.sh
 usr/bin/clearShm
@@ -83,6 +83,10 @@ usr/bin/softwareReport.sh
 usr/bin/startupTests.sh
 usr/bin/viewtablelock
 usr/bin/workernode
+usr/bin/mcs-start-storagemanager.py
+usr/bin/mcs-loadbrm.py
+usr/bin/mariadb-columnstore-start.sh
+usr/bin/mariadb-columnstore-stop.sh
 usr/lib/*-linux-gnu/libalarmmanager.so
 usr/lib/*-linux-gnu/libbatchloader.so
 usr/lib/*-linux-gnu/libbrm.so
@@ -145,6 +149,7 @@ usr/share/columnstore/mcs-loadbrm.service
 usr/share/columnstore/mcs-primproc.service
 usr/share/columnstore/mcs-workernode.service
 usr/share/columnstore/mcs-writeengineserver.service
+usr/share/columnstore/mcs-storagemanager.service
 usr/share/columnstore/mcstest-001.sh
 usr/share/columnstore/mcstest-002.sh
 usr/share/columnstore/mcstest-003.sh
