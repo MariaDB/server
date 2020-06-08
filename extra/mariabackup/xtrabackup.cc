@@ -1617,24 +1617,11 @@ end:
   return err;
 }
 
+static const char *xb_client_default_groups[]= {
+    "client", "client-server", "client-mariadb", "mariadb-client", 0, 0, 0};
 
-static const char *xb_client_default_groups[]={
-   "xtrabackup", "mariabackup",
-   "client", "client-server",
-   "client-mariadb",
-   0, 0, 0
-};
-
-static const char *xb_server_default_groups[]={
-   "xtrabackup", "mariabackup",
-   "mysqld", "server", MYSQL_BASE_VERSION,
-   "mariadb", MARIADB_BASE_VERSION,
-   "client-server",
-   #ifdef WITH_WSREP
-   "galera",
-   #endif
-   0, 0, 0
-};
+static const char *backup_default_groups[]= {
+    "xtrabackup", "mariabackup", "mariadb-backup", 0, 0, 0};
 
 static void print_version(void)
 {
@@ -1662,7 +1649,7 @@ GNU General Public License for more details.\n\
 You can download full text of the license on http://www.gnu.org/licenses/gpl-2.0.txt\n");
 
   printf("Usage: %s [--defaults-file=#] [--backup | --prepare | --copy-back | --move-back] [OPTIONS]\n",my_progname);
-  print_defaults("my", xb_server_default_groups);
+  print_defaults("my", load_default_groups);
   my_print_help(xb_client_options);
   my_print_help(xb_server_options);
   my_print_variables(xb_server_options);
@@ -5990,11 +5977,10 @@ void setup_error_messages()
 	  die("could not initialize error messages");
 }
 
-void
-handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
+void handle_options(int argc, char **argv, char ***argv_server,
+                    char ***argv_client, char ***argv_backup)
 {
 	/* Setup some variables for Innodb.*/
-
 	srv_operation = SRV_OPERATION_RESTORE;
 
 	files_charset_info = &my_charset_utf8_general_ci;
@@ -6023,8 +6009,18 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	char	conf_file[FN_REFLEN];
 	int	argc_client = argc;
 	int	argc_server = argc;
+        int argc_backup= argc;
 
-	/* scan options for group and config file to load defaults from */
+        // array_elements() will not work for load_defaults, as it is defined
+        // as external symbol, so let's use dynamic array to have ability to
+        // add new server default groups
+        std::vector<const char *> server_default_groups;
+
+        for (const char **default_group= load_default_groups; *default_group;
+             ++default_group)
+          server_default_groups.push_back(*default_group);
+
+/* scan options for group and config file to load defaults from */
 	for (i = 1; i < argc; i++) {
 
 		char *optend = strcend(argv[i], '=');
@@ -6032,9 +6028,7 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 		if (strncmp(argv[i], "--defaults-group",
 			    optend - argv[i]) == 0) {
 			defaults_group = optend + 1;
-			append_defaults_group(defaults_group,
-				xb_server_default_groups,
-				array_elements(xb_server_default_groups));
+                        server_default_groups.push_back(defaults_group);
 		}
 
 		if (strncmp(argv[i], "--login-path",
@@ -6064,6 +6058,7 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 		}
 	}
 
+        server_default_groups.push_back(NULL);
 	snprintf(conf_file, sizeof(conf_file), "my");
 
 	if (prepare && target_dir) {
@@ -6081,8 +6076,10 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 
 	*argv_client = argv;
 	*argv_server = argv;
-	load_defaults_or_exit(conf_file, xb_server_default_groups,
-			      &argc_server, argv_server);
+        *argv_backup = argv;
+
+        load_defaults_or_exit(conf_file, &server_default_groups[0],
+                              &argc_server, argv_server);
 
 	int n;
 	for (n = 0; (*argv_server)[n]; n++) {};
@@ -6131,8 +6128,6 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
  	argc_client = n;
 
 	if (innobackupex_mode && argc_client > 0) {
-		/* emulate innobackupex script */
-		innobackupex_mode = true;
 		if (!ibx_handle_options(&argc_client, argv_client)) {
 			exit(EXIT_FAILURE);
 		}
@@ -6143,18 +6138,50 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 					xb_client_options, xb_get_one_option)))
 		exit(ho_error);
 
+        load_defaults_or_exit(conf_file, backup_default_groups, &argc_backup,
+                              argv_backup);
+        for (n= 0; (*argv_backup)[n]; n++)
+        {
+        };
+        argc_backup= n;
+
+        my_handle_options_init_variables = FALSE;
+
+        if (argc_backup > 0 &&
+            (ho_error= handle_options(&argc_backup, argv_backup,
+                                      xb_server_options, xb_get_one_option)))
+          exit(ho_error);
+
+        /* Add back the program name handle_options removes */
+        ++argc_backup;
+        --(*argv_backup);
+
+        if (innobackupex_mode && argc_backup > 0 &&
+            !ibx_handle_options(&argc_backup, argv_backup))
+          exit(EXIT_FAILURE);
+
+        my_getopt_skip_unknown = FALSE;
+
+        if (argc_backup > 0 &&
+            (ho_error= handle_options(&argc_backup, argv_backup,
+                                      xb_client_options, xb_get_one_option)))
+          exit(ho_error);
+
+        my_getopt_skip_unknown = TRUE;
+        my_handle_options_init_variables = TRUE;
+
 	/* Reject command line arguments that don't look like options, i.e. are
 	not of the form '-X' (single-character options) or '--option' (long
 	options) */
-	for (int i = 0 ; i < argc_client ; i++) {
-		const char * const opt = (*argv_client)[i];
+	for (int i = 0 ; i < argc_backup ; i++) {
+		const char * const opt = (*argv_backup)[i];
 
 		if (strncmp(opt, "--", 2) &&
 		    !(strlen(opt) == 2 && opt[0] == '-')) {
 			bool server_option = true;
 
-			for (int j = 0; j < argc_server; j++) {
-				if (opt == (*argv_server)[j]) {
+			for (int j = 0; j < argc_backup; j++) {
+				if (opt == (*argv_backup)[j]) {
 					server_option = false;
 					break;
 				}
@@ -6175,7 +6202,9 @@ static int get_exepath(char *buf, size_t size, const char *argv0);
 /* ================= main =================== */
 int main(int argc, char **argv)
 {
-	char **client_defaults, **server_defaults;
+  char **server_defaults;
+  char **client_defaults;
+  char **backup_defaults;
 
 	if (get_exepath(mariabackup_exe,FN_REFLEN, argv[0]))
     strncpy(mariabackup_exe,argv[0], FN_REFLEN-1);
@@ -6229,7 +6258,8 @@ int main(int argc, char **argv)
 	mysql_mutex_init(key_LOCK_error_log, &LOCK_error_log,
 			 MY_MUTEX_INIT_FAST);
 
-	handle_options(argc, argv, &client_defaults, &server_defaults);
+        handle_options(argc, argv, &server_defaults, &client_defaults,
+                       &backup_defaults);
 
 #ifndef DBUG_OFF
 	if (dbug_option) {
@@ -6246,8 +6276,9 @@ int main(int argc, char **argv)
 		ibx_cleanup();
 	}
 
-	free_defaults(client_defaults);
 	free_defaults(server_defaults);
+        free_defaults(client_defaults);
+        free_defaults(backup_defaults);
 
 #ifndef DBUG_OFF
 	if (dbug_option) {
