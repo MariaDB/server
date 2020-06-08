@@ -108,8 +108,12 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       MY_TEST(flags & HA_OPEN_INTERNAL_TABLE);
     reset_statistics();
 
-    /* Don't try to read the initial row the call is part of create code */
-    if (!(flags & (HA_OPEN_FOR_CREATE | HA_OPEN_FOR_REPAIR)))
+    /*
+      Don't try to read the initial row if the call is part of CREATE, REPAIR
+      or FLUSH
+    */
+    if (!(flags & (HA_OPEN_FOR_CREATE | HA_OPEN_FOR_REPAIR |
+                   HA_OPEN_FOR_FLUSH)))
     {
       if (unlikely((error= table->s->sequence->read_initial_values(table))))
         file->ha_close();
@@ -121,7 +125,8 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       The following is needed to fix comparison of rows in
       ha_update_first_row() for InnoDB
     */
-    memcpy(table->record[1], table->s->default_values, table->s->reclength);
+    if (!error)
+      memcpy(table->record[1], table->s->default_values, table->s->reclength);
   }
   DBUG_RETURN(error);
 }

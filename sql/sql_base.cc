@@ -598,12 +598,15 @@ bool flush_tables(THD *thd, flush_tables_type flag)
     else
     {
       /*
-        HA_OPEN_FOR_ALTER is used to allow us to open the table even if
-        TABLE_SHARE::incompatible_version is set.
+        HA_OPEN_FOR_FLUSH is used to allow us to open the table even if
+        TABLE_SHARE::incompatible_version is set. It also will tell
+        SEQUENCE engine that we don't have to read the sequence information
+        (which may cause deadlocks with concurrently running ALTER TABLE or
+        ALTER SEQUENCE) as we will close the table at once.
       */
       if (!open_table_from_share(thd, share, &empty_clex_str,
                                  HA_OPEN_KEYFILE, 0,
-                                 HA_OPEN_FOR_ALTER,
+                                 HA_OPEN_FOR_ALTER | HA_OPEN_FOR_FLUSH,
                                  tmp_table, FALSE,
                                  NULL))
       {

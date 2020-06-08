@@ -55,6 +55,10 @@
 */
 #define HA_OPEN_FOR_ALTER		8192U
 
+/* Open table for FLUSH */
+#define HA_OPEN_FOR_FLUSH               8192U
+
+
 /* The following is parameter to ha_rkey() how to use key */
 
 /*
