@@ -1813,7 +1813,8 @@ class Item_func_group_concat : public Item_sum
   bool warning_for_row;
   bool always_null;
   bool force_copy_fields;
-  bool no_appended;
+  /** True if entire result of GROUP_CONCAT has been written to output buffer. */
+  bool result_finalized;
   /** Limits the rows in the result */
   Item *row_limit;
   /** Skips a particular number of rows in from the result*/

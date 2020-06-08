@@ -3619,22 +3619,24 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   ulonglong *offset_limit= &item->copy_offset_limit;
   ulonglong *row_limit = &item->copy_row_limit;
   if (item->limit_clause && !(*row_limit))
+  {
+    item->result_finalized= true;
     return 1;
-
-  if (item->no_appended)
-    item->no_appended= FALSE;
-  else
-    result->append(*item->separator);
+  }
 
   tmp.length(0);
 
   if (item->limit_clause && (*offset_limit))
   {
     item->row_count++;
-    item->no_appended= TRUE;
     (*offset_limit)--;
     return 0;
   }
+
+  if (!item->result_finalized)
+    item->result_finalized= true;
+  else
+    result->append(*item->separator);
 
   for (; arg < arg_end; arg++)
   {
@@ -3890,7 +3892,7 @@ void Item_func_group_concat::clear()
   result.copy();
   null_value= TRUE;
   warning_for_row= FALSE;
-  no_appended= TRUE;
+  result_finalized= FALSE;
   if (offset_limit)
     copy_offset_limit= offset_limit->val_int();
   if (row_limit)
@@ -4023,13 +4025,12 @@ bool Item_func_group_concat::add()
       return 1;
     tree_len+= row_str_len;
   }
+
   /*
-    If the row is not a duplicate (el->count == 1)
-    we can dump the row here in case of GROUP_CONCAT(DISTINCT...)
-    instead of doing tree traverse later.
+    In case of GROUP_CONCAT with DISTINCT or ORDER BY (or both) don't dump the
+    row to the output buffer here. That will be done in val_str.
   */
-  if (row_eligible && !warning_for_row &&
-      (!tree || (el->count == 1 && distinct && !arg_count_order)))
+  if (row_eligible && !warning_for_row && (!tree && !distinct))
     dump_leaf_key(table->record[0] + table->s->null_bytes, 1, this);
 
   return 0;
@@ -4264,9 +4265,18 @@ String* Item_func_group_concat::val_str(String* str)
   DBUG_ASSERT(fixed == 1);
   if (null_value)
     return 0;
-  if (no_appended && tree)
-    /* Tree is used for sorting as in ORDER BY */
-    tree_walk(tree, &dump_leaf_key, this, left_root_right);
+
+  if (!result_finalized) // Result yet to be written.
+  {
+    if (tree != NULL) // order by
+      tree_walk(tree, &dump_leaf_key, this, left_root_right);
+    else if (distinct) // distinct (and no order by).
+      unique_filter->walk(table, &dump_leaf_key, this);
+    else if (row_limit && copy_row_limit == (ulonglong)row_limit->val_int())
+      return &result;
+    else
+      DBUG_ASSERT(false); // Can't happen
+  }
 
   if (table && table->blob_storage && 
       table->blob_storage->is_truncated_value())
