@@ -1160,13 +1160,13 @@ JSON_ARRAYAGG(DISTINCT a)
 [1,2,3]
 SELECT JSON_ARRAYAGG(DISTINCT b) FROM t1;
 JSON_ARRAYAGG(DISTINCT b)
-["Hello","World","This","Will","Work","!",null]
+[null,"!","Hello","This","Will","Work","World"]
 SELECT JSON_ARRAYAGG(DISTINCT a LIMIT 2) FROM t1;
 JSON_ARRAYAGG(DISTINCT a LIMIT 2)
 [1,2]
 SELECT JSON_ARRAYAGG(DISTINCT b LIMIT 2) FROM t1;
 JSON_ARRAYAGG(DISTINCT b LIMIT 2)
-["Hello","World"]
+[null,"!"]
 #
 # JSON aggregation
 #
@@ -1246,6 +1246,43 @@ json_arrayagg(a order by a asc)
 select json_object('x', json_arrayagg(json_object('a', 1)));
 json_object('x', json_arrayagg(json_object('a', 1)))
 {"x": [{"a": 1}]}
+#
+# MDEV-22011: DISTINCT with JSON_ARRAYAGG gives wrong results
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+SELECT JSON_ARRAYAGG(a) FROM t1;
+JSON_ARRAYAGG(a)
+[1,2,3,1,2,3]
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+[1,2,3]
+INSERT INTO t1 VALUES (NULL,NULL), (NULL,NULL);
+SELECT JSON_ARRAYAGG(a) FROM t1;
+JSON_ARRAYAGG(a)
+[1,2,3,1,2,3,null,null]
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+[null,1,2,3]
+DROP TABLE t1;
+CREATE TABLE t1(a VARCHAR(10), b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+SELECT JSON_ARRAYAGG(a) FROM t1;
+JSON_ARRAYAGG(a)
+["1","2","3","1","2","3"]
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+["1","2","3"]
+INSERT INTO t1 VALUES (NULL,NULL), (NULL,NULL);
+SELECT JSON_ARRAYAGG(a) FROM t1;
+JSON_ARRAYAGG(a)
+["1","2","3","1","2","3",null,null]
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+[null,"1","2","3"]
+DROP TABLE t1;
 #
 # End of 10.5 tests
 #

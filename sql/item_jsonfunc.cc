@@ -1461,7 +1461,7 @@ static int append_json_value_from_field(String *str,
     const char *t_f;
     int t_f_len;
 
-    if (f->is_null(offset))
+    if (f->is_null_in_record(key))
       goto append_null;
 
     if (v_int)
@@ -1479,7 +1479,7 @@ static int append_json_value_from_field(String *str,
   }
   {
     String *sv= f->val_str(tmp_val, key + offset);
-    if (f->is_null(offset))
+    if (f->is_null_in_record(key))
       goto append_null;
     if (i->is_json_type())
       return str->append(sv->ptr(), sv->length());

@@ -764,6 +764,37 @@ select json_arrayagg(a order by a asc) from (select 1 a union select 2 a) t;
 select json_object('x', json_arrayagg(json_object('a', 1)));
 
 --echo #
+--echo # MDEV-22011: DISTINCT with JSON_ARRAYAGG gives wrong results
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+
+SELECT JSON_ARRAYAGG(a) FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+
+INSERT INTO t1 VALUES (NULL,NULL), (NULL,NULL);
+
+SELECT JSON_ARRAYAGG(a) FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(a VARCHAR(10), b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+
+SELECT JSON_ARRAYAGG(a) FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+
+INSERT INTO t1 VALUES (NULL,NULL), (NULL,NULL);
+
+SELECT JSON_ARRAYAGG(a) FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 
