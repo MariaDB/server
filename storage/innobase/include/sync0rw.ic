@@ -220,6 +220,7 @@ rw_lock_lock_word_decr(
 
 			return(true);
 		}
+		ut_delay(1);
 	}
 	return(false);
 }
