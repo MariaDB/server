@@ -3955,4 +3955,14 @@ ORDER BY surname_first ASC LIMIT 1 OFFSET 1;
 name	surname_first
 Charles Dickens	Dickens, Charles
 DROP TABLE t1;
+#
+# MDEV-22836: Server crashes in err_conv / ErrBuff::set_str
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(1);
+SELECT * FROM t1 ORDER BY CONVERT(AES_ENCRYPT(1,a), CHAR(4));
+a
+1
+0
+DROP TABLE t1;
 # End of 10.5 tests
