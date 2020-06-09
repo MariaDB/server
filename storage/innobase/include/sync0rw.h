@@ -320,8 +320,7 @@ rw_lock_validate(
 	const rw_lock_t*	lock);	/*!< in: rw-lock */
 #endif /* UNIV_DEBUG */
 /******************************************************************//**
-Low-level function which tries to lock an rw-lock in s-mode. Performs no
-spinning.
+Low-level function which tries to lock an rw-lock in s-mode.
 @return TRUE if success */
 UNIV_INLINE
 ibool

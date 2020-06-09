@@ -220,14 +220,13 @@ rw_lock_lock_word_decr(
 
 			return(true);
 		}
-		ut_delay(1);
+		(void) LF_BACKOFF();
 	}
 	return(false);
 }
 
 /******************************************************************//**
-Low-level function which tries to lock an rw-lock in s-mode. Performs no
-spinning.
+Low-level function which tries to lock an rw-lock in s-mode.
 @return TRUE if success */
 UNIV_INLINE
 ibool

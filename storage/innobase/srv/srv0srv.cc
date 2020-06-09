@@ -209,7 +209,7 @@ const ulint	srv_buf_pool_def_size	= 128 * 1024 * 1024;
 ulong	srv_buf_pool_chunk_unit;
 /** innodb_page_hash_locks (a debug-only parameter);
 number of locks to protect buf_pool.page_hash */
-ulong	srv_n_page_hash_locks = 16;
+ulong	srv_n_page_hash_locks = 64;
 /** innodb_lru_scan_depth; number of blocks scanned in LRU flush batch */
 ulong	srv_LRU_scan_depth;
 /** innodb_flush_neighbors; whether or not to flush neighbors of a block */

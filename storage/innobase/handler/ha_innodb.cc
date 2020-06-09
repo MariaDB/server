@@ -19488,7 +19488,7 @@ static MYSQL_SYSVAR_ULONG(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
 static MYSQL_SYSVAR_ULONG(page_hash_locks, srv_n_page_hash_locks,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Number of rw_locks protecting buffer pool page_hash. Rounded up to the next power of 2",
-  NULL, NULL, 16, 1, MAX_PAGE_HASH_LOCKS, 0);
+  NULL, NULL, 64, 1, MAX_PAGE_HASH_LOCKS, 0);
 
 static MYSQL_SYSVAR_ULONG(doublewrite_batch_size, srv_doublewrite_batch_size,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
