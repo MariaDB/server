@@ -909,6 +909,17 @@ a	GROUP_CONCAT(a ORDER BY a)
 ::2	::2,::2,::2,::2
 DROP TABLE t1;
 #
+# MDEV-21765 Possibly inconsistent behavior of BIT_xx functions with INET6 field
+#
+CREATE TABLE t1 (a INET6);
+SELECT BIT_AND(a) FROM t1;
+ERROR HY000: Illegal parameter data type inet6 for operation 'bit_and('
+SELECT BIT_OR(a) FROM t1;
+ERROR HY000: Illegal parameter data type inet6 for operation 'bit_or('
+SELECT BIT_XOR(a) FROM t1;
+ERROR HY000: Illegal parameter data type inet6 for operation 'bit_xor('
+DROP TABLE t1;
+#
 # Window functions
 #
 CREATE TABLE t1 (a INET6);

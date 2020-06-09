@@ -1208,6 +1208,8 @@ public:
   const Type_handler *type_handler() const { return &type_handler_ulonglong; }
   bool fix_length_and_dec()
   {
+    if (args[0]->check_type_can_return_int(func_name()))
+      return true;
     decimals= 0; max_length=21; unsigned_flag= 1; maybe_null= null_value= 0;
     return FALSE;
   }

@@ -537,6 +537,20 @@ SELECT a, GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-21765 Possibly inconsistent behavior of BIT_xx functions with INET6 field
+--echo #
+
+CREATE TABLE t1 (a INET6);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_AND(a) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_OR(a) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_XOR(a) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # Window functions
 --echo #
 

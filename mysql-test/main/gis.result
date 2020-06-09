@@ -5315,5 +5315,16 @@ SELECT EXTRACT(DAY FROM a) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'extract(day)'
 DROP TABLE t1;
 #
+# MDEV-21765 Possibly inconsistent behavior of BIT_xx functions with INET6 field
+#
+CREATE TABLE t1 (a GEOMETRY);
+SELECT BIT_AND(a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'bit_and('
+SELECT BIT_OR(a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'bit_or('
+SELECT BIT_XOR(a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'bit_xor('
+DROP TABLE t1;
+#
 # End of 10.5 tests
 #
