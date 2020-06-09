@@ -3667,6 +3667,72 @@ int group_concat_key_cmp_with_order(void* arg, const void* key1,
 }
 
 
+/*
+  @brief
+    Comparator function for ORDER BY clause taking into account NULL values.
+
+  @note
+    Used for JSON_ARRAYAGG function
+*/
+
+int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1_arg,
+                                               const void *key2_arg)
+{
+  Item_func_group_concat* grp_item= (Item_func_group_concat*) arg;
+  ORDER **order_item, **end;
+
+  uchar *key1= (uchar*)key1_arg + grp_item->table->s->null_bytes;
+  uchar *key2= (uchar*)key2_arg + grp_item->table->s->null_bytes;
+
+  for (order_item= grp_item->order, end=order_item+ grp_item->arg_count_order;
+       order_item < end;
+       order_item++)
+  {
+    Item *item= *(*order_item)->item;
+    /*
+      If field_item is a const item then either get_tmp_table_field returns 0
+      or it is an item over a const table.
+    */
+    if (item->const_item())
+      continue;
+    /*
+      We have to use get_tmp_table_field() instead of
+      real_item()->get_tmp_table_field() because we want the field in
+      the temporary table, not the original field
+
+      Note that for the case of ROLLUP, field may point to another table
+      tham grp_item->table. This is however ok as the table definitions are
+      the same.
+    */
+    Field *field= item->get_tmp_table_field();
+    if (!field)
+      continue;
+
+    if (field->is_null_in_record((uchar*)key1_arg) &&
+        field->is_null_in_record((uchar*)key2_arg))
+      continue;
+
+    if (field->is_null_in_record((uchar*)key1_arg))
+      return ((*order_item)->direction == ORDER::ORDER_ASC) ?  -1 : 1;
+
+    if (field->is_null_in_record((uchar*)key2_arg))
+      return ((*order_item)->direction == ORDER::ORDER_ASC) ?  1 :  -1;
+
+    uint offset= (field->offset(field->table->record[0]) -
+                  field->table->s->null_bytes);
+    int res= field->cmp((uchar*)key1 + offset, (uchar*)key2 + offset);
+    if (res)
+      return ((*order_item)->direction == ORDER::ORDER_ASC) ? res : -res;
+  }
+  /*
+    We can't return 0 because in that case the tree class would remove this
+    item as double value. This would cause problems for case-changes and
+    if the returned values are not the same we do the sort on.
+  */
+  return 1;
+}
+
+
 /**
   Append data from current leaf to item->result.
 */
@@ -4015,7 +4081,7 @@ bool Item_func_group_concat::repack_tree(THD *thd)
 
   init_tree(&st.tree, (size_t) MY_MIN(thd->variables.max_heap_table_size,
                                       thd->variables.sortbuff_size/16), 0,
-            size, group_concat_key_cmp_with_order, NULL,
+            size, get_comparator_function_for_order_by(), NULL,
             (void*) this, MYF(MY_THREAD_SPECIFIC));
   DBUG_ASSERT(tree->size_of_element == st.tree.size_of_element);
   st.table= table;
@@ -4101,8 +4167,7 @@ bool Item_func_group_concat::add(bool exclude_nulls)
         && tree->elements_in_tree > 1)
       if (repack_tree(thd))
         return 1;
-    el= tree_insert(tree, table->record[0] + table->s->null_bytes, 0,
-                    tree->custom_arg);
+    el= tree_insert(tree, get_record_pointer(), 0, tree->custom_arg);
     /* check if there was enough memory to insert the row */
     if (!el)
       return 1;
@@ -4306,8 +4371,8 @@ bool Item_func_group_concat::setup(THD *thd)
     */
     init_tree(tree, (size_t)MY_MIN(thd->variables.max_heap_table_size,
                                    thd->variables.sortbuff_size/16), 0,
-              tree_key_length,
-              group_concat_key_cmp_with_order, NULL, (void*) this,
+              tree_key_length + get_null_bytes(),
+              get_comparator_function_for_order_by(), NULL, (void*) this,
               MYF(MY_THREAD_SPECIFIC));
     tree_len= 0;
   }
@@ -4381,6 +4446,19 @@ qsort_cmp2 Item_func_group_concat::get_comparator_function_for_distinct()
   return skip_nulls() ?
          group_concat_key_cmp_with_distinct :
          group_concat_key_cmp_with_distinct_with_nulls;
+}
+
+
+/*
+  @brief
+    Get the comparator function for ORDER BY clause
+*/
+
+qsort_cmp2 Item_func_group_concat::get_comparator_function_for_order_by()
+{
+  return skip_nulls() ?
+         group_concat_key_cmp_with_order :
+         group_concat_key_cmp_with_order_with_nulls;
 }
 
 

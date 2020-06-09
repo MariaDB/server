@@ -1853,6 +1853,8 @@ int group_concat_key_cmp_with_distinct_with_nulls(void* arg, const void* key1,
                                                   const void* key2);
 int group_concat_key_cmp_with_order(void* arg, const void* key1,
                                     const void* key2);
+int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1,
+                                               const void *key2);
 int dump_leaf_key(void* key_arg,
                   element_count count __attribute__((unused)),
                   void* item_arg);
@@ -1920,6 +1922,8 @@ protected:
                                                            const void* key2);
   friend int group_concat_key_cmp_with_order(void* arg, const void* key1,
 					     const void* key2);
+  friend int group_concat_key_cmp_with_order_with_nulls(void *arg,
+                                       const void *key1, const void *key2);
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
@@ -2010,6 +2014,7 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_group_concat>(thd, this); }
   qsort_cmp2 get_comparator_function_for_distinct();
+  qsort_cmp2 get_comparator_function_for_order_by();
   uchar* get_record_pointer();
   uint get_null_bytes();
 
