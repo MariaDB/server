@@ -764,6 +764,29 @@ bool Item_field::collect_item_field_processor(void *arg)
 }
 
 
+void Item_ident::undeclared_spvar_error() const
+{
+  /*
+    We assume this is an unknown SP variable, possibly a ROW variable.
+    Print the leftmost name in the error:
+      SET var=a;      -> a
+      SET var=a.b;    -> a
+      SET var=a.b.c;  -> a
+  */
+  my_error(ER_SP_UNDECLARED_VAR, MYF(0),  db_name.str    ? db_name.str :
+                                          table_name.str ? table_name.str :
+                                          field_name.str);
+}
+
+bool Item_field::unknown_splocal_processor(void *arg)
+{
+  DBUG_ENTER("Item_field::unknown_splocal_processor");
+  DBUG_ASSERT(type() == FIELD_ITEM);
+  undeclared_spvar_error();
+  DBUG_RETURN(true);
+}
+
+
 bool Item_field::add_field_to_set_processor(void *arg)
 {
   DBUG_ENTER("Item_field::add_field_to_set_processor");

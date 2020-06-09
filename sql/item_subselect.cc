@@ -661,6 +661,40 @@ bool Item_subselect::is_expensive()
 }
 
 
+bool Item_subselect::unknown_splocal_processor(void *argument)
+{
+  SELECT_LEX *sl= unit->first_select();
+  if (sl->top_join_list.elements)
+    return 0;
+  if (sl->tvc && sl->tvc->walk_values(&Item::unknown_splocal_processor,
+                                      false, argument))
+    return true;
+  for (SELECT_LEX *lex= unit->first_select(); lex; lex= lex->next_select())
+  {
+    /*
+      TODO: walk through GROUP BY and ORDER yet eventually.
+      This will require checking aliases in SELECT list:
+        SELECT 1 AS a GROUP BY a;
+        SELECT 1 AS a ORDER BY a;
+    */
+    List_iterator<Item> li(lex->item_list);
+    Item *item;
+    if (lex->where && (lex->where)->walk(&Item::unknown_splocal_processor,
+                                         false, argument))
+      return true;
+    if (lex->having && (lex->having)->walk(&Item::unknown_splocal_processor,
+                                           false, argument))
+      return true;
+    while ((item=li++))
+    {
+      if (item->walk(&Item::unknown_splocal_processor, false, argument))
+        return true;
+    }
+  }
+  return false;
+}
+
+
 bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
                           void *argument)
 {
