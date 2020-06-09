@@ -349,7 +349,7 @@ enum enum_commands {
   Q_INC,		    Q_DEC,
   Q_SOURCE,	    Q_DISCONNECT,
   Q_LET,		    Q_ECHO,
-  Q_WHILE,	    Q_END_BLOCK,
+  Q_WHILE,	    Q_END_BLOCK,    Q_CONTINUE,
   Q_SYSTEM,	    Q_RESULT,
   Q_REQUIRE,	    Q_SAVE_MASTER_POS,
   Q_SYNC_WITH_MASTER,
@@ -412,6 +412,7 @@ const char *command_names[]=
   "echo",
   "while",
   "end",
+  "continue",
   "system",
   "result",
   "require",
@@ -6170,6 +6171,27 @@ enum block_op find_operand(const char *start)
  return ILLEG_OP;
 }
 
+/*
+  do_continue
+
+  DESCRIPTION
+  Instruction to skip current loop iteration
+*/
+void do_continue(struct st_command* command)
+{
+  while (cur_block->cmd != cmd_while && cur_block > block_stack)
+  {
+    cur_block->ok = false;
+    cur_block--;
+  }
+  /* Check if loop was found in block stack*/
+  if (cur_block->cmd != cmd_while)
+    die("Stray 'continue' was found");
+  
+  /* Start the loop again with skipping the entry point */
+  parser.current_line = cur_block->line + 1;
+}
+
 
 /*
   Process start of a "if" or "while" statement
@@ -9425,6 +9447,7 @@ int main(int argc, char **argv)
       case Q_INC: do_modify_var(command, DO_INC); break;
       case Q_DEC: do_modify_var(command, DO_DEC); break;
       case Q_ECHO: do_echo(command); command_executed++; break;
+      case Q_CONTINUE: do_continue(command); break;
       case Q_SYSTEM: do_system(command); break;
       case Q_REMOVE_FILE: do_remove_file(command); break;
       case Q_REMOVE_FILES_WILDCARD: do_remove_files_wildcard(command); break;
