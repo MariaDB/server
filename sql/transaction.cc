@@ -60,7 +60,14 @@ void trans_reset_one_shot_chistics(THD *thd)
   thd->tx_read_only= thd->variables.tx_read_only;
 }
 
-/* Conditions under which the transaction state must not change. */
+
+/*
+  Conditions under which the transaction state must not change
+
+  @result TRUE  Transaction can not commit
+  @result FALSE Transaction can commit
+*/
+
 static bool trans_check(THD *thd)
 {
   DBUG_ENTER("trans_check");
@@ -72,8 +79,11 @@ static bool trans_check(THD *thd)
   DBUG_ASSERT(thd->transaction->stmt.is_empty());
 
   if (unlikely(thd->in_sub_stmt))
+  {
     my_error(ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0));
-  if (!thd->transaction->xid_state.is_explicit_XA())
+    DBUG_RETURN(TRUE);
+  }
+  if (likely(!thd->transaction->xid_state.is_explicit_XA()))
     DBUG_RETURN(FALSE);
 
   thd->transaction->xid_state.er_xaer_rmfail();
