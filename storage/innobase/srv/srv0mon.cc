@@ -1194,16 +1194,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_SRV_LOG_FLUSH_MICROSECOND},
 
-	{"innodb_mem_validate_usec", "server",
-	 "Time (in microseconds) spent to do memory validation",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_SRV_MEM_VALIDATE_MICROSECOND},
-
-	{"innodb_master_purge_usec", "server",
-	 "Time (in microseconds) spent by master thread to purge records",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_SRV_PURGE_MICROSECOND},
-
 	{"innodb_dict_lru_usec", "server",
 	 "Time (in microseconds) spent to process DICT LRU list",
 	 MONITOR_NONE,
