@@ -558,7 +558,11 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   /* Later on we will need it to downgrade the lock */
   mdl_ticket= table->mdl_ticket;
 
-  if (wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
+  /*
+    RENAME ensures that table is flushed properly and locked tables will
+    be removed from the active transaction
+  */
+  if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
     goto end;
 
   lock_upgrade_done= TRUE;
