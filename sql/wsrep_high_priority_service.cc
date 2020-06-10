@@ -507,6 +507,8 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_executing);
 
   thd_proc_info(thd, "applying write set");
+
+#ifdef ENABLED_DEBUG_SYNC
   /* moved dbug sync point here, after possible THD switch for SR transactions
      has ben done
   */
@@ -520,6 +522,7 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);
+#endif
 
   wsrep_setup_uk_and_fk_checks(thd);
   int ret= apply_events(thd, m_rli, data, err);

@@ -49,6 +49,7 @@ extern uchar *debug_sync_value_ptr(THD *thd);
 static inline void debug_sync_init_thread(THD *thd) {}
 static inline void debug_sync_end_thread(THD *thd) {}
 static inline void debug_sync_reset_thread(THD *thd) {}
+static bool debug_sync_set_action(THD *thd, const char *action_str, size_t len) {return false;}
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
 #endif /* DEBUG_SYNC_INCLUDED */
