@@ -6320,6 +6320,7 @@ public:
   longlong val_int();
   my_decimal *val_decimal(my_decimal *decimal_value);
   bool get_date(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate);
+  bool val_native(THD *thd, Native *to);
   bool send(Protocol *protocol, st_value *buffer);
   int save_in_field(Field *field_arg, bool no_conversions);
   bool save_in_param(THD *thd, Item_param *param)
