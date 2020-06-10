@@ -189,12 +189,12 @@ EOF
     # This allows upgrade from old versions (that have an apparmor profile
     # on by default) to work both to disable a default profile, and to keep
     # any profile installed and maintained by users themselves.
-    profile="/etc/apparmor.d/usr.sbin.mysqld"
+    profile="/etc/apparmor.d/usr.sbin.mariadbd"
     if [ -f "$profile" ] && aa-status --enabled 2>/dev/null; then
-      if grep -q /usr/sbin/mysqld "$profile" 2>/dev/null ; then
+      if grep -q /usr/sbin/mariadbd "$profile" 2>/dev/null ; then
         apparmor_parser -r "$profile" || true
       else
-        echo "/usr/sbin/mysqld { }" | apparmor_parser --remove 2>/dev/null || true
+        echo "/usr/sbin/mariadbd { }" | apparmor_parser --remove 2>/dev/null || true
       fi
     fi
 
