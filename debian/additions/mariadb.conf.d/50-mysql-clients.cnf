@@ -4,8 +4,6 @@
 #
 
 [mysql]
-# Default is Latin1, if you need UTF-8 set this (also in server section)
-default-character-set = utf8mb4
 
 [mysql_upgrade]
 

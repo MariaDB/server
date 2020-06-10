@@ -7,9 +7,6 @@
 # Default is Latin1, if you need UTF-8 set this (also in server section)
 default-character-set = utf8mb4
 
-# socket location
-socket = /run/mysqld/mysqld.sock
-
 # Example of client certificate usage
 # ssl-cert=/etc/mysql/client-cert.pem
 # ssl-key=/etc/mysql/client-key.pem

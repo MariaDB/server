@@ -18,6 +18,9 @@
 #
 [client-server]
 
+socket                  = /run/mysqld/mysqld.sock
+#port                   = 3306
+
 # Import all .cnf files from configuration directory
 !includedir /etc/mysql/conf.d/
 !includedir /etc/mysql/mariadb.conf.d/
