@@ -13,11 +13,11 @@ MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
 
 # Try to stop the server in a sane way. If it does not success let the admin
 # do it himself. No database directories should be removed while the server
-# is running! Another mysqld in e.g. a different chroot is fine for us.
+# is running! Another mariadbd in e.g. a different chroot is fine for us.
 stop_server() {
     # Return immediately if there are no mysql processes running
     # as there is no point in trying to shutdown in that case.
-    if ! pgrep -x mysqld > /dev/null; then return; fi
+    if ! pgrep -x mariadbd > /dev/null; then return; fi
 
     set +e
     invoke-rc.d mariadb stop

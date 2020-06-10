@@ -9,7 +9,7 @@
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: Start and stop the mysql database server daemon
-# Description:       Controls the main MariaDB database server daemon "mysqld"
+# Description:       Controls the main MariaDB database server daemon "mariadbd"
 #                    and its wrapper script "mysqld_safe".
 ### END INIT INFO
 #
@@ -17,7 +17,7 @@ set -e
 set -u
 ${DEBIAN_SCRIPT_DEBUG:+ set -v -x}
 
-test -x /usr/sbin/mysqld || exit 0
+test -x /usr/sbin/mariadbd || exit 0
 
 . /lib/lsb/init-functions
 
@@ -50,16 +50,16 @@ export HOME=/etc/mysql/
 
 ## Fetch a particular option from mysql's invocation.
 #
-# Usage: void mysqld_get_param option
-mysqld_get_param() {
-  /usr/sbin/mysqld --print-defaults \
+# Usage: void mariadbd_get_param option
+mariadbd_get_param() {
+  /usr/sbin/mariadbd --print-defaults \
     | tr " " "\n" \
     | grep -- "--$1" \
     | tail -n 1 \
     | cut -d= -f2
 }
 
-## Do some sanity checks before even trying to start mysqld.
+## Do some sanity checks before even trying to start mariadbd.
 sanity_checks() {
   # check for config file
   if [ ! -r /etc/mysql/my.cnf ]; then
@@ -68,7 +68,7 @@ sanity_checks() {
   fi
 
   # check for diskspace shortage
-  datadir=`mysqld_get_param datadir`
+  datadir=`mariadbd_get_param datadir`
   if LC_ALL=C BLOCKSIZE= df --portability $datadir/. | tail -n 1 | awk '{ exit ($4>4096) }'; then
     log_failure_msg "$0: ERROR: The partition with $datadir is too full!"
     echo                "ERROR: The partition with $datadir is too full!" | $ERR_LOGGER
@@ -79,14 +79,14 @@ sanity_checks() {
 ## Checks if there is a server running and if so if it is accessible.
 #
 # check_alive insists on a pingable server
-# check_dead also fails if there is a lost mysqld in the process list
+# check_dead also fails if there is a lost mariadbd in the process list
 #
-# Usage: boolean mysqld_status [check_alive|check_dead] [warn|nowarn]
-mysqld_status () {
+# Usage: boolean mariadbd_status [check_alive|check_dead] [warn|nowarn]
+mariadbd_status () {
   ping_output=`$MYADMIN ping 2>&1`; ping_alive=$(( ! $? ))
 
   ps_alive=0
-  pidfile=`mysqld_get_param pid-file`
+  pidfile=`mariadbd_get_param pid-file`
   if [ -f "$pidfile" ] && ps `cat $pidfile` >/dev/null 2>&1; then ps_alive=1; fi
 
   if [ "$1" = "check_alive"  -a  $ping_alive = 1 ] ||
@@ -109,8 +109,8 @@ case "${1:-''}" in
   'start')
   sanity_checks;
   # Start daemon
-  log_daemon_msg "Starting MariaDB database server" "mysqld"
-  if mysqld_status check_alive nowarn; then
+  log_daemon_msg "Starting MariaDB database server" "mariadbd"
+  if mariadbd_status check_alive nowarn; then
    log_progress_msg "already running"
    log_end_msg 0
   else
@@ -122,10 +122,10 @@ case "${1:-''}" in
 
     for i in $(seq 1 "${MYSQLD_STARTUP_TIMEOUT:-30}"); do
       sleep 1
-      if mysqld_status check_alive nowarn ; then break; fi
+      if mariadbd_status check_alive nowarn ; then break; fi
       log_progress_msg "."
     done
-    if mysqld_status check_alive warn; then
+    if mariadbd_status check_alive warn; then
       log_end_msg 0
       # Now start mysqlcheck or whatever the admin wants.
       output=$(/etc/mysql/debian-start)
@@ -144,26 +144,26 @@ case "${1:-''}" in
   # at least for cron, we can rely on it here, too. (although we have
   # to specify it explicit as e.g. sudo environments points to the normal
   # users home and not /root)
-  log_daemon_msg "Stopping MariaDB database server" "mysqld"
-  if ! mysqld_status check_dead nowarn; then
+  log_daemon_msg "Stopping MariaDB database server" "mariadbd"
+  if ! mariadbd_status check_dead nowarn; then
     set +e
     shutdown_out=`$MYADMIN shutdown 2>&1`; r=$?
     set -e
     if [ "$r" -ne 0 ]; then
       log_end_msg 1
       [ "$VERBOSE" != "no" ] && log_failure_msg "Error: $shutdown_out"
-      log_daemon_msg "Killing MariaDB database server by signal" "mysqld"
-      killall -15 mysqld
+      log_daemon_msg "Killing MariaDB database server by signal" "mariadbd"
+      killall -15 mariadbd
       server_down=
       for i in `seq 1 600`; do
         sleep 1
-        if mysqld_status check_dead nowarn; then server_down=1; break; fi
+        if mariadbd_status check_dead nowarn; then server_down=1; break; fi
       done
-      if test -z "$server_down"; then killall -9 mysqld; fi
+      if test -z "$server_down"; then killall -9 mariadbd; fi
     fi
   fi
 
-  if ! mysqld_status check_dead warn; then
+  if ! mariadbd_status check_dead warn; then
     log_end_msg 1
     log_failure_msg "Please stop MariaDB manually and read /usr/share/doc/mariadb-server-10.5/README.Debian.gz!"
     exit -1
@@ -179,13 +179,13 @@ case "${1:-''}" in
   ;;
 
   'reload'|'force-reload')
-  log_daemon_msg "Reloading MariaDB database server" "mysqld"
+  log_daemon_msg "Reloading MariaDB database server" "mariadbd"
   $MYADMIN reload
   log_end_msg 0
   ;;
 
   'status')
-  if mysqld_status check_alive nowarn; then
+  if mariadbd_status check_alive nowarn; then
     log_action_msg "$($MYADMIN version)"
   else
     log_action_msg "MariaDB is stopped."
@@ -196,7 +196,7 @@ case "${1:-''}" in
   'bootstrap')
 	# Bootstrap the cluster, start the first node
 	# that initiates the cluster
-	log_daemon_msg "Bootstrapping the cluster" "mysqld"
+	log_daemon_msg "Bootstrapping the cluster" "mariadbd"
 	$SELF start "${@:2}" --wsrep-new-cluster
 	;;
 
