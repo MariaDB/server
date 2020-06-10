@@ -11,6 +11,7 @@ case "$1" in
       /usr/share/mysql-common/configure-symlinks remove mariadb "/etc/mysql/mariadb.cnf"
     fi
   ;;
+  # @TODO: Test is purge runs correctly automatically, or if we need to have a stanza here
 esac
 
 #DEBHELPER#

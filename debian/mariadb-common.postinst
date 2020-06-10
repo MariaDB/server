@@ -15,6 +15,7 @@ case "$1" in
     else
       # As configure can be called many times, don't re-create the symlink
       # if it is there already
+      # @TODO: Run these steps automatically
       if [ ! -L /etc/mysql/my.cnf ]
       then
         echo "Notice: configure-symlinks trigger could not be called."
