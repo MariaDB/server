@@ -127,7 +127,8 @@ ENDMACRO()
 
 # Merge static libraries into a big static lib. The resulting library 
 # should not not have dependencies on other static libraries.
-# We use it in MySQL to merge mysys,dbug,vio etc into mysqlclient
+# We use it in MariaDB to merge mysys,dbug,vio etc into the embedded server
+# mariadbd.
 
 MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
   # To produce a library we need at least one source file.
@@ -196,18 +197,33 @@ MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
       )  
     ELSE()
       # Generic Unix, Cygwin or MinGW. In post-build step, call
-      # script, that extracts objects from archives with "ar x" 
-      # and repacks them with "ar r"
+      # script, that uses a MRI script to append static archives.
+      IF(CMAKE_VERSION VERSION_LESS "3.0")
+        SET(MRI_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.mri")
+      ELSE()
+        SET(MRI_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}-$<CONFIG>.mri")
+      ENDIF()
+      SET(MRI_SCRIPT_TPL "${MRI_SCRIPT}.tpl")
+
+      SET(SCRIPT_CONTENTS "CREATE $<TARGET_FILE:${TARGET}>\n")
+      FOREACH(LIB ${STATIC_LIBS})
+        STRING(APPEND SCRIPT_CONTENTS "ADDLIB ${LIB}\n")
+      ENDFOREACH()
+      STRING(APPEND SCRIPT_CONTENTS "SAVE\nEND\n")
+      FILE(WRITE ${MRI_SCRIPT_TPL} "${SCRIPT_CONTENTS}")
+      FILE(GENERATE OUTPUT ${MRI_SCRIPT} INPUT ${MRI_SCRIPT_TPL})
+
       ADD_CUSTOM_COMMAND(TARGET ${TARGET} POST_BUILD
+        DEPENDS ${MRI_SCRIPT}
         COMMAND ${CMAKE_COMMAND}
-          -DTARGET_LOCATION="$<TARGET_FILE:${TARGET}>"
-          -DTARGET="${TARGET}"
-          -DSTATIC_LIBS="${STATIC_LIBS}"
-          -DCMAKE_CURRENT_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+        ARGS
+          -DTARGET_SCRIPT="${MRI_SCRIPT}"
           -DCMAKE_AR="${CMAKE_AR}"
-          -DCMAKE_RANLIB="${CMAKE_RANLIB}"
           -P "${MYSQL_CMAKE_SCRIPT_DIR}/merge_archives_unix.cmake"
+        COMMAND ${CMAKE_RANLIB}
+        ARGS $<TARGET_FILE:${TARGET}>
       )
+      SET_DIRECTORY_PROPERTIES(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES ${MRI_SCRIPT_TPL})
     ENDIF()
   ENDIF()
 ENDMACRO()
