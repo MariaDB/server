@@ -1845,17 +1845,15 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
                          offsetof(Merge_chunk,m_current_key), 0,
                           (queue_compare) cmp, first_cmp_arg, 0, 0)))
     DBUG_RETURN(1);                                /* purecov: inspected */
+  const size_t chunk_sz = (sort_buffer.size()/((uint) (Tb-Fb) +1));
   for (buffpek= Fb ; buffpek <= Tb ; buffpek++)
   {
-    buffpek->set_buffer(strpos,
-                        strpos + (sort_buffer.size()/((uint) (Tb-Fb) +1)));
-
+    buffpek->set_buffer(strpos, strpos + chunk_sz);
     buffpek->set_max_keys(maxcount);
     bytes_read= read_to_buffer(from_file, buffpek, param, packed_format);
     if (unlikely(bytes_read == (ulong) -1))
       goto err;					/* purecov: inspected */
-    strpos+= bytes_read;
-    buffpek->set_buffer_end(strpos);
+    strpos+= chunk_sz;
     // If less data in buffers than expected
     buffpek->set_max_keys(buffpek->mem_count());
     queue_insert(&queue, (uchar*) buffpek);

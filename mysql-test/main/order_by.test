@@ -2465,4 +2465,40 @@ SELECT * FROM t1 ORDER BY CONVERT(AES_ENCRYPT(1,a), CHAR(4));
 --enable_warnings
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-22819:Wrong result or Assertion `ix > 0' failed in read_to_buffer upon select
+--echo # with GROUP BY and GROUP_CONCAT
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(1000), b CHAR(1));
+
+INSERT INTO t1 VALUES
+    (REPEAT('a',1000),'a'),(REPEAT('t',932),'t'),('x',NULL),('x',NULL),
+    (REPEAT('z',298),'z'),(REPEAT('p',1000),'p'),(REPEAT('k',468),'k'),
+    (REPEAT('c',1000),'c'),(REPEAT('o',648),'o'),('x',NULL),('x',NULL),
+    (REPEAT('c',258),'c'),(REPEAT('t',414),'t'),(REPEAT('f',966),'f'),
+    (REPEAT('y',746),'y'),(REPEAT('f',1000),'f');
+
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET sort_buffer_size= 16384;
+SELECT LEFT(a,1), GROUP_CONCAT(b) FROM t1 GROUP BY a;
+SELECT SUBSTR(a,1,1), LENGTH(a), GROUP_CONCAT(b), COUNT(*) FROM t1 GROUP BY a;
+
+SET @@sort_buffer_size= @save_sort_buffer_size;
+DROP TABLE t1;
+
+CREATE TABLE t1(a VARCHAR(1027), b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_34;
+SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
+SET tmp_memory_table_size= 1056*2;
+SELECT COUNT(DISTINCT a) FROM t1;
+SET @@tmp_memory_table_size= @save_tmp_memory_table_size;
+DROP TABLE t1;
+
+
 --echo # End of 10.5 tests
