@@ -178,13 +178,13 @@ ut_new_boot();
 
 #ifdef UNIV_PFS_MEMORY
 
-/** Retrieve a memory key (registered with PFS), given a portion of the file
-name of the caller.
-@param[in]	file	portion of the filename - basename without an extension
-@return registered memory key or PSI_NOT_INSTRUMENTED if not found */
-PSI_memory_key
-ut_new_get_key_by_file(
-	const char*	file);
+/**
+Retrieve a memory key (registered with PFS),
+given filename hash of the caller
+
+@param[in] filename_hash - FILENAME_HASH value of the caller
+@return registered memory key or PSI_NOT_INSTRUMENTED */
+PSI_memory_key ut_new_get_key_by_file(uint32_t filename_hash);
 
 #endif /* UNIV_PFS_MEMORY */
 
@@ -293,7 +293,7 @@ public:
 		     )
 	{
 #ifdef UNIV_PFS_MEMORY
-		const PSI_memory_key    other_key = other.get_mem_key(NULL);
+		const PSI_memory_key other_key = other.get_mem_key(0);
 
 		m_key = (other_key != mem_key_std)
 			? other_key
@@ -315,7 +315,7 @@ public:
 #endif /* UNIV_PFS_MEMORY */
 	}
 
-	pointer allocate(size_type n) { return allocate(n, NULL, NULL); }
+	pointer allocate(size_type n) { return allocate(n, NULL, 0); }
 
 	/** Allocate a chunk of memory that can hold 'n_elements' objects of
 	type 'T' and trace the allocation.
@@ -333,9 +333,9 @@ public:
 	allocate(
 		size_type	n_elements,
 		const_pointer,
-		const char*
+		uint32_t
 #ifdef UNIV_PFS_MEMORY
-		file /*!< file name of the caller */
+		filename_hash /* filename hash of the caller */
 #endif
 		,
 		bool		set_to_zero = false,
@@ -397,7 +397,7 @@ public:
 #ifdef UNIV_PFS_MEMORY
 		ut_new_pfx_t*	pfx = static_cast<ut_new_pfx_t*>(ptr);
 
-		allocate_trace(total_bytes, file, pfx);
+		allocate_trace(total_bytes, filename_hash, pfx);
 
 		return(reinterpret_cast<pointer>(pfx + 1));
 #else
@@ -479,7 +479,7 @@ public:
 	reallocate(
 		void*		ptr,
 		size_type	n_elements,
-		const char*	file)
+		uint32_t	filename_hash)
 	{
 		if (n_elements == 0) {
 			deallocate(static_cast<pointer>(ptr));
@@ -487,7 +487,7 @@ public:
 		}
 
 		if (ptr == NULL) {
-			return(allocate(n_elements, NULL, file, false, false));
+			return(allocate(n_elements, NULL, filename_hash, false, false));
 		}
 
 		if (n_elements > max_size()) {
@@ -530,7 +530,7 @@ public:
 		deallocate_trace(pfx_new);
 
 		/* pfx_new is set here to describe the new block. */
-		allocate_trace(total_bytes, file, pfx_new);
+		allocate_trace(total_bytes, filename_hash, pfx_new);
 
 		return(reinterpret_cast<pointer>(pfx_new + 1));
 	}
@@ -546,9 +546,10 @@ public:
 	pointer
 	new_array(
 		size_type	n_elements,
-		const char*	file)
+		uint32_t filename_hash
+		)
 	{
-		T*	p = allocate(n_elements, NULL, file, false, false);
+		T*	p = allocate(n_elements, NULL, filename_hash, false, false);
 
 		if (p == NULL) {
 			return(NULL);
@@ -634,7 +635,7 @@ public:
 
 		if (pfx != NULL) {
 #ifdef UNIV_PFS_MEMORY
-			allocate_trace(n_bytes, NULL, pfx);
+			allocate_trace(n_bytes, 0, pfx);
 #endif /* UNIV_PFS_MEMORY */
 			pfx->m_size = n_bytes;
 		}
@@ -687,25 +688,16 @@ public:
 	@return performance schema key */
 	PSI_memory_key
 	get_mem_key(
-		const char*	file) const
+		uint32_t filename_hash) const
 	{
 		if (m_key != PSI_NOT_INSTRUMENTED) {
 			return(m_key);
 		}
 
-		if (file == NULL) {
+		if (filename_hash == 0) {
 			return(mem_key_std);
 		}
-
-		/* e.g. "btr0cur", derived from "/path/to/btr0cur.cc" */
-		char		keyname[FILENAME_MAX];
-		const size_t	len = ut_basename_noext(file, keyname,
-							sizeof(keyname));
-		/* If sizeof(keyname) was not enough then the output would
-		be truncated, assert that this did not happen. */
-		ut_a(len < sizeof(keyname));
-
-		const PSI_memory_key	key = ut_new_get_key_by_file(keyname);
+		const PSI_memory_key	key = ut_new_get_key_by_file(filename_hash);
 
 		if (key != PSI_NOT_INSTRUMENTED) {
 			return(key);
@@ -747,16 +739,16 @@ private:
 	   corresponds to "file", that will be used (see ut_new_boot())
 	4. Otherwise, the name associated with mem_key_other will be used.
 	@param[in]	size	number of bytes that were allocated
-	@param[in]	file	file name of the caller or NULL if unknown
+	@param[in]	filename_hash	FILENAME_HASH of the caller
 	@param[out]	pfx	placeholder to store the info which will be
 	needed when freeing the memory */
 	void
 	allocate_trace(
 		size_t		size,
-		const char*	file,
+		const uint32_t filename_hash,
 		ut_new_pfx_t*	pfx)
 	{
-		const PSI_memory_key	key = get_mem_key(file);
+		const PSI_memory_key	key = get_mem_key(filename_hash);
 
 		pfx->m_key = PSI_MEMORY_CALL(memory_alloc)(key, size, & pfx->m_owner);
 		pfx->m_size = size;
@@ -806,6 +798,41 @@ operator!=(
 
 #ifdef UNIV_PFS_MEMORY
 
+/*
+ constexpr trickery ahead.
+
+ Retrieve the FILENAME_HASH = djb2(basename_noext(__FILE__)) at the compile time.
+ We use the number rather than __FILE__ because integers is better to deal with
+ (hashing, searching)  that C style strings.
+*/
+
+static constexpr const char * basename_helper(const char* s, const char * last_slash)
+{
+  return
+  *s == '\0' ? last_slash :
+  *s == '/' || *s == '\\' ? basename_helper(s + 1, s + 1) :
+   basename_helper(s + 1, last_slash);
+}
+
+static constexpr const char* ut_basename(const char *filename)
+{
+  return basename_helper(filename, filename);
+}
+
+/** Compute djb2 hash for a string. Stop at '.' , or '\0' */
+constexpr uint32_t ut_filename_hash(const char* s, uint32_t h = 5381)
+{
+  return *s == 0 || *s == '.' ? h :
+    ut_filename_hash(s + 1, 33 * h  + (uint8_t)*s);
+}
+
+/* Force constexpr to be evaluated at compile time.*/
+#define FORCE_CONSTEXPR(expr)[&]() \
+{ static constexpr auto x = (expr); return x; }()
+
+#define FILENAME_HASH FORCE_CONSTEXPR(ut_filename_hash(ut_basename(__FILE__)))
+
+
 /** Allocate, trace the allocation and construct an object.
 Use this macro instead of 'new' within InnoDB.
 For example: instead of
@@ -823,7 +850,7 @@ pointer must be passed to UT_DELETE() when no longer needed.
 	object if the passed in pointer is NULL, e.g. if allocate() has
 	failed to allocate memory and has returned NULL. */ \
 	::new(ut_allocator<byte>(key).allocate( \
-		sizeof expr, NULL, __FILE__, false, false)) expr
+		sizeof expr, NULL, FILENAME_HASH, false, false)) expr
 
 /** Allocate, trace the allocation and construct an object.
 Use this macro instead of 'new' within InnoDB and instead of UT_NEW()
@@ -871,7 +898,7 @@ The returned pointer must be passed to UT_DELETE_ARRAY().
 @param[in]	key		performance schema memory tracing key
 @return pointer to the first allocated object or NULL */
 #define UT_NEW_ARRAY(type, n_elements, key) \
-	ut_allocator<type>(key).new_array(n_elements, __FILE__)
+	ut_allocator<type>(key).new_array(n_elements, FILENAME_HASH)
 
 /** Allocate and account 'n_elements' objects of type 'type'.
 Use this macro to allocate memory within InnoDB instead of 'new[]' and
@@ -902,7 +929,7 @@ ut_delete_array(
 
 #define ut_malloc(n_bytes, key)		static_cast<void*>( \
 	ut_allocator<byte>(key).allocate( \
-		n_bytes, NULL, __FILE__, false, false))
+		n_bytes, NULL, FILENAME_HASH, false, false))
 
 #define ut_malloc_dontdump(n_bytes, key) static_cast<void*>( \
 	ut_allocator<byte>(key).allocate_large( \
@@ -910,23 +937,23 @@ ut_delete_array(
 
 #define ut_zalloc(n_bytes, key)		static_cast<void*>( \
 	ut_allocator<byte>(key).allocate( \
-		n_bytes, NULL, __FILE__, true, false))
+		n_bytes, NULL, FILENAME_HASH, true, false))
 
 #define ut_malloc_nokey(n_bytes)	static_cast<void*>( \
 	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).allocate( \
-		n_bytes, NULL, __FILE__, false, false))
+		n_bytes, NULL, FILENAME_HASH, false, false))
 
 #define ut_zalloc_nokey(n_bytes)	static_cast<void*>( \
 	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).allocate( \
-		n_bytes, NULL, __FILE__, true, false))
+		n_bytes, NULL, FILENAME_HASH, true, false))
 
 #define ut_zalloc_nokey_nofatal(n_bytes)	static_cast<void*>( \
 	ut_allocator<byte, false>(PSI_NOT_INSTRUMENTED).allocate( \
-		n_bytes, NULL, __FILE__, true, false))
+		n_bytes, NULL, FILENAME_HASH, true, false))
 
 #define ut_realloc(ptr, n_bytes)	static_cast<void*>( \
 	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).reallocate( \
-		ptr, n_bytes, __FILE__))
+		ptr, n_bytes, FILENAME_HASH))
 
 #define ut_free(ptr)	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).deallocate( \
 	reinterpret_cast<byte*>(ptr))
