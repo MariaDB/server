@@ -8977,6 +8977,7 @@ int ha_rocksdb::get_row_by_rowid(uchar *const buf, const char *const rowid,
   Rdb_transaction *const tx = get_or_create_tx(table->in_use);
   DBUG_ASSERT(tx != nullptr);
 
+#ifdef ENABLED_DEBUG_SYNC
   DEBUG_SYNC(ha_thd(), "rocksdb.get_row_by_rowid");
   DBUG_EXECUTE_IF("dbug.rocksdb.get_row_by_rowid", {
     THD *thd = ha_thd();
@@ -8986,6 +8987,7 @@ int ha_rocksdb::get_row_by_rowid(uchar *const buf, const char *const rowid,
     DBUG_ASSERT(opt_debug_sync_timeout > 0);
     DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
   };);
+#endif /* ENABLED_DEBUG_SYNC */
 
   bool found;
   rocksdb::Status s;
