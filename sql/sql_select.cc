@@ -2647,7 +2647,7 @@ void JOIN::exec_inner()
                          thd->get_sent_row_count());
       }
       else
-        send_records= (select_options & OPTION_FOUND_ROWS) ? 1 : 0;
+        send_records= 0;
       if (!error)
       {
         join_free();                      // Unlock all cursors
