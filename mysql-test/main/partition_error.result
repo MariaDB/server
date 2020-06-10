@@ -754,7 +754,7 @@ ERROR HY000: Field 'c' is of a not allowed type for this type of partitioning
 #
 CREATE TABLE t1 (a INT) PARTITION BY HASH(a);
 CREATE TEMPORARY TABLE tmp_t1 LIKE t1;
-ERROR HY000: Partitioned tables do not support CREATE TEMPORARY TABLE
+ERROR HY000: Table storage engine 'partition' does not support the create option 'TEMPORARY'
 DROP TABLE t1;
 #
 # Bug#42954: SQL MODE 'NO_DIR_IN_CREATE' does not work with

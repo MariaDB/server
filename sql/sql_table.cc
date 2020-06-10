@@ -11470,16 +11470,11 @@ bool check_engine(THD *thd, const char *db_name,
   if (create_info->tmp_table() &&
       ha_check_storage_engine_flag(*new_engine, HTON_TEMPORARY_NOT_SUPPORTED))
   {
-    if (create_info->used_fields & HA_CREATE_USED_ENGINE)
-    {
-      my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
-               hton_name(*new_engine)->str, "TEMPORARY");
-      *new_engine= 0;
-      DBUG_RETURN(true);
-    }
-    *new_engine= myisam_hton;
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
+             hton_name(*new_engine)->str, "TEMPORARY");
+    *new_engine= 0;
+    DBUG_RETURN(true);
   }
-
   lex_string_set(&create_info->new_storage_engine_name,
                  ha_resolve_storage_engine_name(*new_engine));
   DBUG_RETURN(false);

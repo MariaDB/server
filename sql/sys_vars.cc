@@ -741,6 +741,29 @@ static Sys_var_charptr_fscs Sys_character_sets_dir(
        READ_ONLY GLOBAL_VAR(charsets_dir), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
 
+static bool check_engine_supports_temporary(sys_var *self, THD *thd, set_var *var)
+{
+  String str, *res;
+  LEX_CSTRING name;
+  if (!var->value || var->value->is_null())
+    return false;
+  res= var->value->val_str(&str);
+  res->get_value(&name);
+  plugin_ref plugin= ha_resolve_by_name(thd, &name, true);
+  DBUG_ASSERT(plugin);
+  handlerton *hton= plugin_hton(plugin);
+  DBUG_ASSERT(hton);
+  if (ha_check_storage_engine_flag(hton, HTON_TEMPORARY_NOT_SUPPORTED))
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), hton_name(hton)->str,
+             "TEMPORARY");
+    plugin_unlock(thd, plugin);
+    return true;
+  }
+  plugin_unlock(thd, plugin);
+  return false;
+}
+
 static bool check_not_null(sys_var *self, THD *thd, set_var *var)
 {
   return var->value && var->value->is_null();
@@ -4239,7 +4262,8 @@ static Sys_var_plugin Sys_storage_engine(
 static Sys_var_plugin Sys_default_tmp_storage_engine(
        "default_tmp_storage_engine", "The default storage engine for user-created temporary tables",
        SESSION_VAR(tmp_table_plugin), NO_CMD_LINE,
-       MYSQL_STORAGE_ENGINE_PLUGIN, DEFAULT(&default_tmp_storage_engine));
+       MYSQL_STORAGE_ENGINE_PLUGIN, DEFAULT(&default_tmp_storage_engine),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_engine_supports_temporary));
 
 static Sys_var_plugin Sys_enforce_storage_engine(
        "enforce_storage_engine", "Force the use of a storage engine for new tables",
