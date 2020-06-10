@@ -387,7 +387,7 @@ dict_process_sys_tables_rec_and_mtr_commit(
 
 	ut_a(!rec_get_deleted_flag(rec, 0));
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_S_FIX));
 
 	/* Get the table name */
 	table_name_t table_name(mem_heap_strdupl(heap, field, len));

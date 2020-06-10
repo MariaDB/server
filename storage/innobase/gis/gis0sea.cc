@@ -139,10 +139,10 @@ rtr_pcur_getnext_from_path(
 		      || latch_mode & BTR_MODIFY_LEAF);
 		mtr_s_lock_index(index, mtr);
 	} else {
-		ut_ad(mtr_memo_contains_flagged(mtr, &index->lock,
-						MTR_MEMO_SX_LOCK
-						| MTR_MEMO_S_LOCK
-						| MTR_MEMO_X_LOCK));
+		ut_ad(mtr->memo_contains_flagged(&index->lock,
+						 MTR_MEMO_SX_LOCK
+						 | MTR_MEMO_S_LOCK
+						 | MTR_MEMO_X_LOCK));
 	}
 
 	const ulint zip_size = index->table->space->zip_size();
@@ -599,15 +599,14 @@ rtr_pcur_open_low(
 	n_fields = dtuple_get_n_fields(tuple);
 
 	if (latch_mode & BTR_ALREADY_S_LATCHED) {
-		ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
-				  MTR_MEMO_S_LOCK));
+		ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_S_LOCK));
 		tree_latched = true;
 	}
 
 	if (latch_mode & BTR_MODIFY_TREE) {
-		ut_ad(mtr_memo_contains_flagged(mtr, &index->lock,
-						MTR_MEMO_X_LOCK
-						| MTR_MEMO_SX_LOCK));
+		ut_ad(mtr->memo_contains_flagged(&index->lock,
+						 MTR_MEMO_X_LOCK
+						 | MTR_MEMO_SX_LOCK));
 		tree_latched = true;
 	}
 
@@ -707,11 +706,8 @@ static void rtr_get_father_node(
 	/* Try to optimally locate the parent node. Level should always
 	less than sea_cur->tree_height unless the root is splitting */
 	if (sea_cur && sea_cur->tree_height > level) {
-
-		ut_ad(mtr_memo_contains_flagged(mtr,
-						dict_index_get_lock(index),
-						MTR_MEMO_X_LOCK
-						| MTR_MEMO_SX_LOCK));
+		ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
+						 | MTR_MEMO_SX_LOCK));
 		ret = rtr_cur_restore_position(
 			BTR_CONT_MODIFY_TREE, sea_cur, level, mtr);
 
@@ -824,8 +820,8 @@ rtr_page_get_father_node_ptr(
 	index = btr_cur_get_index(cursor);
 
 	ut_ad(srv_read_only_mode
-	      || mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
-					   MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
+	      || mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
+					    | MTR_MEMO_SX_LOCK));
 
 	ut_ad(dict_index_get_page(index) != page_no);
 

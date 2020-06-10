@@ -4423,7 +4423,7 @@ page_zip_reorganize(
 	buf_block_t*	temp_block;
 	page_t*		temp_page;
 
-	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(block->page.zip.data);
 	ut_ad(page_is_comp(page));
 	ut_ad(!dict_index_is_ibuf(index));
@@ -4530,8 +4530,8 @@ page_zip_copy_recs(
 	page_t* page = block->frame;
 	page_zip_des_t* page_zip = &block->page.zip;
 
-	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX));
-	ut_ad(mtr_memo_contains_page(mtr, src, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(src, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(!index->table->is_temporary());
 #ifdef UNIV_ZIP_DEBUG

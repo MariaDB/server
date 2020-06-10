@@ -55,18 +55,6 @@ savepoint. */
 #define mtr_memo_release(m, o, t)					\
 				(m)->memo_release((o), (t))
 
-#ifdef UNIV_DEBUG
-/** Check if memo contains the given item.
-@return	TRUE if contains */
-#define mtr_memo_contains(m, o, t)					\
-				(m)->memo_contains((m)->get_memo(), (o), (t))
-
-/** Check if memo contains the given page.
-@return	TRUE if contains */
-#define mtr_memo_contains_page(m, p, t)					\
-	(m)->memo_contains_page_flagged((p), (t))
-#endif /* UNIV_DEBUG */
-
 /** Print info of an mtr handle. */
 #define mtr_print(m)		(m)->print()
 
@@ -83,12 +71,6 @@ savepoint. */
 #define mtr_s_lock_index(i, m)	(m)->s_lock(&(i)->lock, __FILE__, __LINE__)
 #define mtr_x_lock_index(i, m)	(m)->x_lock(&(i)->lock, __FILE__, __LINE__)
 #define mtr_sx_lock_index(i, m)	(m)->sx_lock(&(i)->lock, __FILE__, __LINE__)
-
-#define mtr_memo_contains_flagged(m, p, l)				\
-				(m)->memo_contains_flagged((p), (l))
-
-#define mtr_memo_contains_page_flagged(m, p, l)				\
-				(m)->memo_contains_page_flagged((p), (l))
 
 #define mtr_release_block_at_savepoint(m, s, b)				\
 				(m)->release_block_at_savepoint((s), (b))
@@ -331,16 +313,12 @@ public:
   bool is_inside_ibuf() const { return m_inside_ibuf; }
 
 #ifdef UNIV_DEBUG
-	/** Check if memo contains the given item.
-	@param memo	memo stack
-	@param object	object to search
-	@param type	type of object
-	@return	true if contains */
-	static bool memo_contains(
-		const mtr_buf_t*	memo,
-		const void*		object,
-		mtr_memo_type_t		type)
-		MY_ATTRIBUTE((warn_unused_result));
+  /** Check if we are holding an rw-latch in this mini-transaction
+  @param lock   latch to search for
+  @param type   held latch type
+  @return whether (lock,type) is contained */
+  bool memo_contains(const rw_lock_t &lock, mtr_memo_type_t type)
+    MY_ATTRIBUTE((warn_unused_result));
 
 	/** Check if memo contains the given item.
 	@param object		object to search

@@ -2245,9 +2245,9 @@ trx_undo_prev_version_build(
 
 	ut_ad(!index->table->is_temporary());
 	ut_ad(!rw_lock_own(&purge_sys.latch, RW_LOCK_S));
-	ut_ad(mtr_memo_contains_page_flagged(index_mtr, index_rec,
-					     MTR_MEMO_PAGE_S_FIX
-					     | MTR_MEMO_PAGE_X_FIX));
+	ut_ad(index_mtr->memo_contains_page_flagged(index_rec,
+						    MTR_MEMO_PAGE_S_FIX
+						    | MTR_MEMO_PAGE_X_FIX));
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_a(index->is_primary());
 

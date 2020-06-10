@@ -576,7 +576,7 @@ ibuf_bitmap_page_get_bits_low(
 	ut_ad(ut_is_2pow(zip_size));
 	ut_ad(bit < IBUF_BITS_PER_PAGE);
 	compile_time_assert(!(IBUF_BITS_PER_PAGE % 2));
-	ut_ad(mtr_memo_contains_page(mtr, page, latch_type));
+	ut_ad(mtr->memo_contains_page_flagged(page, latch_type));
 
 	bit_offset = (page_id.page_no() & (size - 1))
 		* IBUF_BITS_PER_PAGE + bit;
@@ -620,7 +620,7 @@ ibuf_bitmap_page_set_bits(
 
 	static_assert(bit < IBUF_BITS_PER_PAGE, "wrong bit");
 	compile_time_assert(!(IBUF_BITS_PER_PAGE % 2));
-	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr->is_named_space(page_id.space()));
 
 	bit_offset = (page_id.page_no() % physical_size)
@@ -1046,9 +1046,8 @@ ibuf_rec_get_page_no_func(
 	const byte*	field;
 	ulint		len;
 
-	ut_ad(mtr_memo_contains_page_flagged(mtr, rec,
-					     MTR_MEMO_PAGE_X_FIX
-					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
+					      | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(rec_get_n_fields_old(rec) > 2);
 
@@ -1085,8 +1084,8 @@ ibuf_rec_get_space_func(
 	const byte*	field;
 	ulint		len;
 
-	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
-					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
+					      | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(rec_get_n_fields_old(rec) > 2);
 
@@ -1135,8 +1134,8 @@ ibuf_rec_get_info_func(
 	ulint		info_len_local;
 	ulint		counter_local;
 
-	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
-					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
+					      | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	fields = rec_get_n_fields_old(rec);
 	ut_a(fields > IBUF_REC_FIELD_USER);
@@ -1209,8 +1208,8 @@ ibuf_rec_get_op_type_func(
 {
 	ulint		len;
 
-	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
-					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
+					      | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(rec_get_n_fields_old(rec) > 2);
 
@@ -1399,8 +1398,8 @@ ibuf_build_entry_from_ibuf_rec_func(
 	ulint		comp;
 	dict_index_t*	index;
 
-	ut_ad(mtr_memo_contains_page_flagged(mtr, ibuf_rec, MTR_MEMO_PAGE_X_FIX
-					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(ibuf_rec, MTR_MEMO_PAGE_X_FIX
+					      | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 
 	data = rec_get_nth_field_old(ibuf_rec, IBUF_REC_FIELD_MARKER, &len);
@@ -1524,8 +1523,8 @@ ibuf_rec_get_volume_func(
 	ibuf_op_t	op;
 	ulint		info_len;
 
-	ut_ad(mtr_memo_contains_page_flagged(mtr, ibuf_rec, MTR_MEMO_PAGE_X_FIX
-					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(ibuf_rec, MTR_MEMO_PAGE_X_FIX
+					      | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(rec_get_n_fields_old(ibuf_rec) > 2);
 
@@ -2063,8 +2062,8 @@ ibuf_get_merge_page_nos_func(
 	ulint	limit;
 	ulint	n_pages;
 
-	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
-					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
+					      | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 
 	*n_stored = 0;
@@ -2663,8 +2662,8 @@ ibuf_get_volume_buffered_count_func(
 	const byte*	types;
 	ulint		n_fields;
 
-	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
-					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
+					      | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 
 	n_fields = rec_get_n_fields_old(rec);
@@ -3038,8 +3037,8 @@ ibuf_get_entry_counter_low_func(
 	ulint		len;
 
 	ut_ad(ibuf_inside(mtr));
-	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
-					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
+					      | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(rec_get_n_fields_old(rec) > 2);
 
 	field = rec_get_nth_field_old(rec, IBUF_REC_FIELD_MARKER, &len);
@@ -3113,7 +3112,7 @@ ibuf_get_entry_counter_func(
 					in the node pointer */
 {
 	ut_ad(ibuf_inside(mtr));
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(page_validate(page_align(rec), ibuf.index));
 
 	if (page_rec_is_supremum(rec)) {

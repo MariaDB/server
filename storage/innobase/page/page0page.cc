@@ -197,7 +197,7 @@ page_set_max_trx_id(
 	trx_id_t	trx_id,	/*!< in: transaction id */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction, or NULL */
 {
-  ut_ad(!mtr || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+  ut_ad(!mtr || mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
   ut_ad(!page_zip || page_zip == &block->page.zip);
   static_assert((PAGE_HEADER + PAGE_MAX_TRX_ID) % 8 == 0, "alignment");
   byte *max_trx_id= my_assume_aligned<8>(PAGE_MAX_TRX_ID +

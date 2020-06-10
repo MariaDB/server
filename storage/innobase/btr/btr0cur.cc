@@ -260,10 +260,9 @@ btr_cur_latch_leaves(
 	case BTR_MODIFY_TREE:
 		/* It is exclusive for other operations which calls
 		btr_page_set_prev() */
-		ut_ad(mtr_memo_contains_flagged(
-			      mtr,
-			      dict_index_get_lock(cursor->index),
-			      MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
+		ut_ad(mtr->memo_contains_flagged(&cursor->index->lock,
+						 MTR_MEMO_X_LOCK
+						 | MTR_MEMO_SX_LOCK));
 		/* x-latch also siblings from left to right */
 		left_page_no = btr_page_get_prev(block->frame);
 
@@ -913,8 +912,8 @@ btr_cur_will_modify_tree(
 	mtr_t*		mtr)
 {
 	ut_ad(!page_is_leaf(page));
-	ut_ad(mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
-					MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
+	ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
+					 | MTR_MEMO_SX_LOCK));
 
 	/* Pessimistic delete of the first record causes delete & insert
 	of node_ptr at upper level. And a subsequent page shrink is
@@ -1315,10 +1314,8 @@ btr_cur_search_to_nth_level_func(
 
 	ut_ad(!s_latch_by_caller
 	      || srv_read_only_mode
-	      || mtr_memo_contains_flagged(mtr,
-					   dict_index_get_lock(index),
-					   MTR_MEMO_S_LOCK
-					   | MTR_MEMO_SX_LOCK));
+	      || mtr->memo_contains_flagged(&index->lock, MTR_MEMO_S_LOCK
+					    | MTR_MEMO_SX_LOCK));
 
 	/* These flags are mutually exclusive, they are lumped together
 	with the latch mode for historical reasons. It's possible for
@@ -1476,10 +1473,9 @@ x_latch_index:
 	case BTR_CONT_SEARCH_TREE:
 		/* Do nothing */
 		ut_ad(srv_read_only_mode
-		      || mtr_memo_contains_flagged(mtr,
-						   dict_index_get_lock(index),
-						   MTR_MEMO_X_LOCK
-						   | MTR_MEMO_SX_LOCK));
+		      || mtr->memo_contains_flagged(&index->lock,
+						    MTR_MEMO_X_LOCK
+						    | MTR_MEMO_SX_LOCK));
 		if (dict_index_is_spatial(index)
 		    && latch_mode == BTR_CONT_MODIFY_TREE) {
 			/* If we are about to locating parent page for split
@@ -1874,10 +1870,10 @@ retry_page_get:
 				if (n_releases == 0
 				    && (modify_external || autoinc)) {
 					/* keep the root page latch */
-					ut_ad(mtr_memo_contains_flagged(
-						mtr, tree_blocks[n_releases],
-						MTR_MEMO_PAGE_SX_FIX
-						| MTR_MEMO_PAGE_X_FIX));
+					ut_ad(mtr->memo_contains_flagged(
+						      tree_blocks[n_releases],
+						      MTR_MEMO_PAGE_SX_FIX
+						      | MTR_MEMO_PAGE_X_FIX));
 					continue;
 				}
 
@@ -2087,9 +2083,8 @@ need_opposite_intention:
 
 				if (latch_mode == BTR_MODIFY_TREE
 				    && rw_latch == RW_NO_LATCH) {
-					ut_ad(mtr_memo_contains_flagged(
-						mtr, dict_index_get_lock(index),
-						MTR_MEMO_X_LOCK
+					ut_ad(mtr->memo_contains_flagged(
+						&index->lock, MTR_MEMO_X_LOCK
 						| MTR_MEMO_SX_LOCK));
 					rw_lock_s_lock(&block->lock);
 					add_latch = true;
@@ -2245,9 +2240,9 @@ need_opposite_intention:
 		    && !retrying_for_search_prev) {
 			/* block should be latched for consistent
 			   btr_page_get_prev() */
-			ut_ad(mtr_memo_contains_flagged(mtr, block,
-				MTR_MEMO_PAGE_S_FIX
-				| MTR_MEMO_PAGE_X_FIX));
+			ut_ad(mtr->memo_contains_flagged(
+				      block, MTR_MEMO_PAGE_S_FIX
+				      | MTR_MEMO_PAGE_X_FIX));
 
 			if (page_has_prev(page)
 			    && page_rec_is_first(node_ptr, page)) {
@@ -2399,18 +2394,16 @@ need_opposite_intention:
 				? RW_X_LATCH : RW_SX_LATCH, false, mtr);
 			btr_assert_not_corrupted(child_block, index);
 		} else {
-			ut_ad(mtr_memo_contains(mtr, block,
-						static_cast<mtr_memo_type_t>
-						(upper_rw_latch)));
+			ut_ad(mtr->memo_contains_flagged(block,
+							 upper_rw_latch));
 			btr_assert_not_corrupted(block, index);
 
 			if (s_latch_by_caller) {
 				ut_ad(latch_mode == BTR_SEARCH_TREE);
 				/* to exclude modifying tree operations
 				should sx-latch the index. */
-				ut_ad(mtr_memo_contains(
-					mtr, dict_index_get_lock(index),
-					MTR_MEMO_SX_LOCK));
+				ut_ad(mtr->memo_contains(index->lock,
+							 MTR_MEMO_SX_LOCK));
 				/* because has sx-latch of index,
 				can release upper blocks. */
 				for (; n_releases < n_blocks; n_releases++) {
@@ -2589,10 +2582,9 @@ btr_cur_open_at_index_side_func(
 		break;
 	default:
 		ut_ad(!s_latch_by_caller
-		      || mtr_memo_contains_flagged(mtr,
-						 dict_index_get_lock(index),
-						 MTR_MEMO_SX_LOCK
-						 | MTR_MEMO_S_LOCK));
+		      || mtr->memo_contains_flagged(&index->lock,
+						    MTR_MEMO_SX_LOCK
+						    | MTR_MEMO_S_LOCK));
 		if (!srv_read_only_mode) {
 			if (!s_latch_by_caller) {
 				/* BTR_SEARCH_TREE is intended to be used with
@@ -2726,14 +2718,14 @@ btr_cur_open_at_index_side_func(
 			ut_ad(latch_mode == BTR_SEARCH_TREE);
 			ut_ad(s_latch_by_caller);
 			ut_ad(upper_rw_latch == RW_S_LATCH);
-			ut_ad(mtr_memo_contains(mtr, block,
-						MTR_MEMO_PAGE_S_FIX));
+			ut_ad(mtr->memo_contains_flagged(block,
+							 MTR_MEMO_PAGE_S_FIX));
 
 			if (s_latch_by_caller) {
 				/* to exclude modifying tree operations
 				should sx-latch the index. */
-				ut_ad(mtr_memo_contains(mtr, &index->lock,
-							MTR_MEMO_SX_LOCK));
+				ut_ad(mtr->memo_contains(index->lock,
+							 MTR_MEMO_SX_LOCK));
 				/* because has sx-latch of index,
 				can release upper blocks. */
 				for (; n_releases < n_blocks; n_releases++) {
@@ -3185,8 +3177,8 @@ btr_cur_insert_if_possible(
 
 	ut_ad(dtuple_check_typed(tuple));
 
-	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
-			       MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(btr_cur_get_block(cursor),
+					 MTR_MEMO_PAGE_X_FIX));
 	page_cursor = btr_cur_get_page_cur(cursor);
 
 	/* Now, try the insert */
@@ -3367,7 +3359,7 @@ btr_cur_optimistic_insert(
 	page = buf_block_get_frame(block);
 	index = cursor->index;
 
-	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!dict_index_is_online_ddl(index)
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
@@ -3661,11 +3653,10 @@ btr_cur_pessimistic_insert(
 
 	*big_rec = NULL;
 
-	ut_ad(mtr_memo_contains_flagged(
-		      mtr, dict_index_get_lock(btr_cur_get_index(cursor)),
-		      MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
-	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
-			       MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
+					 | MTR_MEMO_SX_LOCK));
+	ut_ad(mtr->memo_contains_flagged(btr_cur_get_block(cursor),
+					 MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!dict_index_is_online_ddl(index)
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
@@ -4521,7 +4512,7 @@ btr_cur_optimistic_update(
 	index = cursor->index;
 	ut_ad(trx_id > 0 || (flags & BTR_KEEP_SYS_FLAG));
 	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
-	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 	/* This is intended only for leaf page updates */
 	ut_ad(page_is_leaf(page));
 	/* The insert buffer tree should never be updated in place. */
@@ -4801,7 +4792,7 @@ btr_cur_pess_upd_restore_supremum(
 #endif /* UNIV_BTR_DEBUG */
 
 	/* We must already have an x-latch on prev_block! */
-	ut_ad(mtr_memo_contains(mtr, prev_block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(prev_block, MTR_MEMO_PAGE_X_FIX));
 
 	lock_rec_reset_and_inherit_gap_locks(prev_block, block,
 					     PAGE_HEAP_NO_SUPREMUM,
@@ -4863,10 +4854,9 @@ btr_cur_pessimistic_update(
 	page_zip = buf_block_get_page_zip(block);
 	index = cursor->index;
 
-	ut_ad(mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
-					MTR_MEMO_X_LOCK |
-					MTR_MEMO_SX_LOCK));
-	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK |
+					 MTR_MEMO_SX_LOCK));
+	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, block->frame, index));
 #endif /* UNIV_ZIP_DEBUG */
@@ -5168,11 +5158,8 @@ btr_cur_pessimistic_update(
 		big_rec, so that row_upd_clust_rec() can store the
 		big_rec in the same mini-transaction. */
 
-		ut_ad(mtr_memo_contains_flagged(mtr,
-						dict_index_get_lock(index),
-						MTR_MEMO_X_LOCK |
-						MTR_MEMO_SX_LOCK));
-
+		ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
+						 | MTR_MEMO_SX_LOCK));
 		mtr_sx_lock_index(index, mtr);
 	}
 
@@ -5392,11 +5379,10 @@ btr_cur_compress_if_useful(
 				cursor position even if compression occurs */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	ut_ad(mtr_memo_contains_flagged(
-		mtr, dict_index_get_lock(btr_cur_get_index(cursor)),
-		MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
-	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
-			       MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(&cursor->index->lock,
+					 MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
+	ut_ad(mtr->memo_contains_flagged(btr_cur_get_block(cursor),
+					 MTR_MEMO_PAGE_X_FIX));
 
 	if (cursor->index->is_spatial()) {
 		const trx_t*	trx = cursor->rtr_info->thr
@@ -5444,8 +5430,8 @@ btr_cur_optimistic_delete_func(
 	rec_offs_init(offsets_);
 
 	ut_ad(flags == 0 || flags == BTR_CREATE_FLAG);
-	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
-				MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(btr_cur_get_block(cursor),
+					 MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr->is_named_space(cursor->index->table->space));
 	ut_ad(!cursor->index->is_dummy);
 
@@ -5634,10 +5620,9 @@ btr_cur_pessimistic_delete(
 	ut_ad(!dict_index_is_online_ddl(index)
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
-	ut_ad(mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
-					MTR_MEMO_X_LOCK
-					| MTR_MEMO_SX_LOCK));
-	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
+					 | MTR_MEMO_SX_LOCK));
+	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr->is_named_space(index->table->space));
 	ut_ad(!index->is_dummy);
 	ut_ad(block->page.id().space() == index->table->space->id);
@@ -5885,8 +5870,8 @@ return_after_reservations:
 @param[in,out]	mtr	mini-transaction */
 void btr_cur_node_ptr_delete(btr_cur_t* parent, mtr_t* mtr)
 {
-	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(parent),
-				MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(btr_cur_get_block(parent),
+					 MTR_MEMO_PAGE_X_FIX));
 	dberr_t err;
 	ibool compressed = btr_cur_pessimistic_delete(&err, TRUE, parent,
 						      BTR_CREATE_FLAG, false,
@@ -7035,7 +7020,7 @@ btr_blob_get_next_page_no(
 static void btr_blob_free(buf_block_t *block, bool all, mtr_t *mtr)
 {
   const page_id_t page_id(block->page.id());
-  ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+  ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
   mtr->commit();
 
   mutex_enter(&buf_pool.mutex);
@@ -7148,9 +7133,9 @@ struct btr_blob_log_check_t {
 		      MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
 
 		ut_ad((m_op == BTR_STORE_INSERT_BULK)
-		      == !mtr_memo_contains_flagged(m_mtr, &index->lock,
-						    MTR_MEMO_SX_LOCK
-						    | MTR_MEMO_X_LOCK));
+		      == !m_mtr->memo_contains_flagged(&index->lock,
+						       MTR_MEMO_SX_LOCK
+						       | MTR_MEMO_X_LOCK));
 	}
 };
 
@@ -7204,10 +7189,9 @@ btr_store_big_rec_extern_fields(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(rec_offs_any_extern(offsets));
 	ut_ad(op == BTR_STORE_INSERT_BULK
-	      || mtr_memo_contains_flagged(btr_mtr, &index->lock,
-					   MTR_MEMO_X_LOCK
-					   | MTR_MEMO_SX_LOCK));
-	ut_ad(mtr_memo_contains(btr_mtr, rec_block, MTR_MEMO_PAGE_X_FIX));
+	      || btr_mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
+						| MTR_MEMO_SX_LOCK));
+	ut_ad(btr_mtr->memo_contains_flagged(rec_block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(buf_block_get_frame(rec_block) == page_align(rec));
 	ut_a(dict_index_is_clust(index));
 
@@ -7624,10 +7608,10 @@ btr_free_externally_stored_field(
 	mtr_t		mtr;
 
 	ut_ad(index->is_primary());
-	ut_ad(mtr_memo_contains_flagged(local_mtr, dict_index_get_lock(index),
-					MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
-	ut_ad(mtr_memo_contains_page(local_mtr, field_ref,
-				     MTR_MEMO_PAGE_X_FIX));
+	ut_ad(local_mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
+					       | MTR_MEMO_SX_LOCK));
+	ut_ad(local_mtr->memo_contains_page_flagged(field_ref,
+						    MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!rec || rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec || field_ref == btr_rec_get_field_ref(rec, offsets, i));
 	ut_ad(local_mtr->is_named_space(
@@ -7782,7 +7766,7 @@ btr_rec_free_externally_stored_fields(
 	ulint	i;
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(index->is_primary());
 	ut_ad(page_rec_is_leaf(rec));
 	/* Free possible externally stored fields in the record */
@@ -7820,7 +7804,7 @@ btr_rec_free_updated_extern_fields(
 	ulint	i;
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX));
 
 	/* Free possible externally stored fields in the record */
 

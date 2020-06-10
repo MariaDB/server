@@ -661,34 +661,31 @@ inline lsn_t mtr_t::finish_write(ulint len)
 }
 
 #ifdef UNIV_DEBUG
-/** Check if memo contains the given item.
-@return	true if contains */
-bool
-mtr_t::memo_contains(
-	const mtr_buf_t*	memo,
-	const void*		object,
-	mtr_memo_type_t		type)
+/** Check if we are holding an rw-latch in this mini-transaction
+@param lock   latch to search for
+@param type   held latch type
+@return whether (lock,type) is contained */
+bool mtr_t::memo_contains(const rw_lock_t &lock, mtr_memo_type_t type)
 {
-	Iterate<Find> iteration(Find(object, type));
-	if (memo->for_each_block_in_reverse(iteration)) {
-		return(false);
-	}
+  Iterate<Find> iteration(Find(&lock, type));
+  if (m_memo.for_each_block_in_reverse(iteration))
+    return false;
 
-	switch (type) {
-	case MTR_MEMO_X_LOCK:
-		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_X));
-		break;
-	case MTR_MEMO_SX_LOCK:
-		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_SX));
-		break;
-	case MTR_MEMO_S_LOCK:
-		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_S));
-		break;
-	default:
-		break;
-	}
+  switch (type) {
+  case MTR_MEMO_X_LOCK:
+    ut_ad(rw_lock_own(const_cast<rw_lock_t*>(&lock), RW_LOCK_X));
+    break;
+  case MTR_MEMO_SX_LOCK:
+    ut_ad(rw_lock_own(const_cast<rw_lock_t*>(&lock), RW_LOCK_SX));
+    break;
+  case MTR_MEMO_S_LOCK:
+    ut_ad(rw_lock_own(const_cast<rw_lock_t*>(&lock), RW_LOCK_S));
+    break;
+  default:
+    break;
+  }
 
-	return(true);
+  return true;
 }
 
 /** Debug check for flags */

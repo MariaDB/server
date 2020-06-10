@@ -117,13 +117,11 @@ btr_pcur_store_position(
 	/* For spatial index, when we do positioning on parent
 	buffer if necessary, it might not hold latches, but the
 	tree must be locked to prevent change on the page */
-	ut_ad(mtr_memo_contains_flagged(mtr, block,
-					MTR_MEMO_PAGE_S_FIX
-					| MTR_MEMO_PAGE_X_FIX)
-	      || (dict_index_is_spatial(index)
-		  && mtr_memo_contains_flagged(
-			  mtr, dict_index_get_lock(index),
-			  MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK)));
+	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_S_FIX
+					 | MTR_MEMO_PAGE_X_FIX)
+	      || (index->is_spatial()
+		  && mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
+						| MTR_MEMO_SX_LOCK)));
 
 	cursor->old_stored = true;
 

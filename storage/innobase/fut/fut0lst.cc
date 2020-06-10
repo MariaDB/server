@@ -90,12 +90,10 @@ static void flst_add_to_empty(buf_block_t *base, uint16_t boffset,
   ut_ad(base != add || boffset != aoffset);
   ut_ad(boffset < base->physical_size());
   ut_ad(aoffset < add->physical_size());
-  ut_ad(mtr_memo_contains_page_flagged(mtr, base->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
-  ut_ad(mtr_memo_contains_page_flagged(mtr, add->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(base, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(add, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
 
   ut_ad(!mach_read_from_4(base->frame + boffset + FLST_LEN));
   mtr->write<1>(*base, base->frame + boffset + (FLST_LEN + 3), 1U);
@@ -132,15 +130,12 @@ static void flst_insert_after(buf_block_t *base, uint16_t boffset,
   ut_ad(boffset < base->physical_size());
   ut_ad(coffset < cur->physical_size());
   ut_ad(aoffset < add->physical_size());
-  ut_ad(mtr_memo_contains_page_flagged(mtr, base->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
-  ut_ad(mtr_memo_contains_page_flagged(mtr, cur->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
-  ut_ad(mtr_memo_contains_page_flagged(mtr, add->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(base, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(cur, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(add, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
 
   fil_addr_t next_addr= flst_get_next_addr(cur->frame + coffset);
 
@@ -186,15 +181,12 @@ static void flst_insert_before(buf_block_t *base, uint16_t boffset,
   ut_ad(boffset < base->physical_size());
   ut_ad(coffset < cur->physical_size());
   ut_ad(aoffset < add->physical_size());
-  ut_ad(mtr_memo_contains_page_flagged(mtr, base->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
-  ut_ad(mtr_memo_contains_page_flagged(mtr, cur->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
-  ut_ad(mtr_memo_contains_page_flagged(mtr, add->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(base, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(cur, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(add, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
 
   fil_addr_t prev_addr= flst_get_prev_addr(cur->frame + coffset);
 
@@ -247,12 +239,10 @@ void flst_add_last(buf_block_t *base, uint16_t boffset,
   ut_ad(base != add || boffset != aoffset);
   ut_ad(boffset < base->physical_size());
   ut_ad(aoffset < add->physical_size());
-  ut_ad(mtr_memo_contains_page_flagged(mtr, base->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
-  ut_ad(mtr_memo_contains_page_flagged(mtr, add->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(base, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(add, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
 
   if (!flst_get_len(base->frame + boffset))
     flst_add_to_empty(base, boffset, add, aoffset, mtr);
@@ -282,12 +272,10 @@ void flst_add_first(buf_block_t *base, uint16_t boffset,
   ut_ad(base != add || boffset != aoffset);
   ut_ad(boffset < base->physical_size());
   ut_ad(aoffset < add->physical_size());
-  ut_ad(mtr_memo_contains_page_flagged(mtr, base->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
-  ut_ad(mtr_memo_contains_page_flagged(mtr, add->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(base, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(add, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
 
   if (!flst_get_len(base->frame + boffset))
     flst_add_to_empty(base, boffset, add, aoffset, mtr);
@@ -316,12 +304,10 @@ void flst_remove(buf_block_t *base, uint16_t boffset,
 {
   ut_ad(boffset < base->physical_size());
   ut_ad(coffset < cur->physical_size());
-  ut_ad(mtr_memo_contains_page_flagged(mtr, base->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
-  ut_ad(mtr_memo_contains_page_flagged(mtr, cur->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(base, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(cur, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
 
   const fil_addr_t prev_addr= flst_get_prev_addr(cur->frame + coffset);
   const fil_addr_t next_addr= flst_get_next_addr(cur->frame + coffset);
@@ -364,9 +350,8 @@ void flst_remove(buf_block_t *base, uint16_t boffset,
 void flst_validate(const buf_block_t *base, uint16_t boffset, mtr_t *mtr)
 {
   ut_ad(boffset < base->physical_size());
-  ut_ad(mtr_memo_contains_page_flagged(mtr, base->frame,
-                                       MTR_MEMO_PAGE_X_FIX |
-                                       MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(base, MTR_MEMO_PAGE_X_FIX |
+                                   MTR_MEMO_PAGE_SX_FIX));
 
   /* We use two mini-transaction handles: the first is used to lock
   the base node, and prevent other threads from modifying the list.

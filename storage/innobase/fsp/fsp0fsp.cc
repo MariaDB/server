@@ -147,7 +147,7 @@ template<bool free>
 inline void xdes_set_free(const buf_block_t &block, xdes_t *descr,
                           ulint offset, mtr_t *mtr)
 {
-  ut_ad(mtr_memo_contains_page(mtr, descr, MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(&block, MTR_MEMO_PAGE_SX_FIX));
   ut_ad(offset < FSP_EXTENT_SIZE);
   ut_ad(page_align(descr) == block.frame);
   compile_time_assert(XDES_BITS_PER_PAGE == 2);
@@ -218,7 +218,7 @@ inline void xdes_set_state(const buf_block_t &block, xdes_t *descr,
   ut_ad(descr && mtr);
   ut_ad(state >= XDES_FREE);
   ut_ad(state <= XDES_FSEG);
-  ut_ad(mtr_memo_contains_page(mtr, descr, MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(&block, MTR_MEMO_PAGE_SX_FIX));
   ut_ad(page_align(descr) == block.frame);
   ut_ad(mach_read_from_4(descr + XDES_STATE) <= XDES_FSEG);
   mtr->write<1>(block, XDES_STATE + 3 + descr, state);
@@ -245,7 +245,7 @@ xdes_get_state(
 Inits an extent descriptor to the free and clean state. */
 inline void xdes_init(const buf_block_t &block, xdes_t *descr, mtr_t *mtr)
 {
-  ut_ad(mtr_memo_contains_page(mtr, descr, MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(&block, MTR_MEMO_PAGE_SX_FIX));
   mtr->memset(&block, uint16_t(descr - block.frame) + XDES_BITMAP,
               XDES_SIZE - XDES_BITMAP, 0xff);
   xdes_set_state(block, descr, XDES_FREE, mtr);
@@ -319,8 +319,8 @@ xdes_get_descriptor_with_space_hdr(
 	ulint	limit;
 	ulint	size;
 	ulint	descr_page_no;
-	ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_X_LOCK));
-	ut_ad(mtr_memo_contains(mtr, header, MTR_MEMO_PAGE_SX_FIX));
+	ut_ad(mtr->memo_contains(space->latch, MTR_MEMO_X_LOCK));
+	ut_ad(mtr->memo_contains_flagged(header, MTR_MEMO_PAGE_SX_FIX));
 	/* Read free limit and space size */
 	limit = mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
 				 + header->frame);
@@ -403,7 +403,7 @@ xdes_get_descriptor_const(
 	page_no_t		offset,
 	mtr_t*			mtr)
 {
-	ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_S_LOCK));
+	ut_ad(mtr->memo_contains(space->latch, MTR_MEMO_S_LOCK));
 	ut_ad(offset < space->free_limit);
 	ut_ad(offset < space->size_in_header);
 
@@ -444,7 +444,7 @@ xdes_lst_get_descriptor(
 	buf_block_t**		block,
 	mtr_t*			mtr)
 {
-	ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_X_LOCK));
+	ut_ad(mtr->memo_contains(space->latch, MTR_MEMO_X_LOCK));
 	return fut_get_ptr(space->id, space->zip_size(),
 			   lst_node, RW_SX_LATCH, mtr, block)
 		- XDES_FLST_NODE;
@@ -1293,7 +1293,7 @@ static void fsp_free_page(fil_space_t* space, page_no_t offset, mtr_t* mtr)
 @param[in,out]  mtr     mini-transaction */
 static void fsp_free_extent(fil_space_t* space, page_no_t offset, mtr_t* mtr)
 {
-  ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_X_LOCK));
+  ut_ad(mtr->memo_contains(space->latch, MTR_MEMO_X_LOCK));
 
   buf_block_t *block= fsp_get_header(space, mtr);
   buf_block_t *xdes= 0;
@@ -1584,7 +1584,7 @@ inline void fseg_set_nth_frag_page_no(fseg_inode_t *inode, buf_block_t *iblock,
                                       ulint n, ulint page_no, mtr_t *mtr)
 {
   ut_ad(n < FSEG_FRAG_ARR_N_SLOTS);
-  ut_ad(mtr_memo_contains_page(mtr, inode, MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(iblock, MTR_MEMO_PAGE_SX_FIX));
   ut_ad(mach_read_from_4(inode + FSEG_MAGIC_N) == FSEG_MAGIC_N_VALUE);
 
   mtr->write<4>(*iblock, inode + FSEG_FRAG_ARR + n * FSEG_FRAG_SLOT_SIZE,

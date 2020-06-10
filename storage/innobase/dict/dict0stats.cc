@@ -1020,8 +1020,7 @@ dict_stats_analyze_index_level(
 	DEBUG_PRINTF("    %s(table=%s, index=%s, level=" ULINTPF ")\n",
 		     __func__, index->table->name, index->name, level);
 
-	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
-				MTR_MEMO_SX_LOCK));
+	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_SX_LOCK));
 
 	n_uniq = dict_index_get_n_unique(index);
 
@@ -1653,8 +1652,7 @@ dict_stats_analyze_index_for_n_prefix(
 		     n_prefix, n_diff_data->n_diff_on_level);
 #endif
 
-	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
-				MTR_MEMO_SX_LOCK));
+	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_SX_LOCK));
 
 	/* Position pcur on the leftmost record on the leftmost page
 	on the desired level. */
