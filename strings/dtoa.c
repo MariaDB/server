@@ -2168,9 +2168,6 @@ static int quorem(Bigint *b, Bigint *S)
 
 static char *dtoa(double dd, int mode, int ndigits, int *decpt, int *sign,
                   char **rve, char *buf, size_t buf_size)
-#if __has_feature(memory_sanitizer)
-  __attribute__((no_sanitize("memory"))) // FIXME: dd is claimed uninitialized
-#endif
 {
   /*
     Arguments ndigits, decpt, sign are similar to those
