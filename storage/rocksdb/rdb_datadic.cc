@@ -3317,7 +3317,9 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
       field->field_length = field->char_length() * cs->mbmaxlen.
     */
     const CHARSET_INFO *cs = field->charset();
-    m_max_image_len = cs->strnxfrmlen(field->field_length);
+    m_max_image_len = cs->strnxfrmlen(type == MYSQL_TYPE_STRING ?
+                                      field->pack_length() :
+                                      field->field_length);
   }
   const bool is_varchar = (type == MYSQL_TYPE_VARCHAR);
   const CHARSET_INFO *cs = field->charset();
