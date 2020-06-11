@@ -899,6 +899,12 @@ then
             tcmd="$scomp | $tcmd"
         fi
 
+        wsrep_log_info "tmpopts: $tmpopts"
+        wsrep_log_info "INNOEXTRA: $INNOEXTRA"
+        wsrep_log_info "itmpdir: $itmpdir"
+        wsrep_log_info "sfmt: $sfmt"
+        wsrep_log_info "WSREP_SST_OPT_MYSQLD: $WSREP_SST_OPT_MYSQLD"
+
         set +e
         timeit "${stagemsg}-SST" "$INNOBACKUP | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
         set -e
@@ -1139,6 +1145,13 @@ then
         fi
 
         wsrep_log_info "Preparing the backup at ${DATA}"
+
+        wsrep_log_info "tmpopts: $tmpopts"
+        wsrep_log_info "INNOEXTRA: $INNOEXTRA"
+        wsrep_log_info "itmpdir: $itmpdir"
+        wsrep_log_info "sfmt: $sfmt"
+        wsrep_log_info "WSREP_SST_OPT_MYSQLD: $WSREP_SST_OPT_MYSQLD"
+
         timeit "Xtrabackup prepare stage" "$INNOAPPLY"
 
         if [ $? -ne 0 ];
@@ -1151,6 +1164,13 @@ then
         set +e
         set -e
         wsrep_log_info "Moving the backup to ${TDATA}"
+
+        wsrep_log_info "tmpopts: $tmpopts"
+        wsrep_log_info "INNOEXTRA: $INNOEXTRA"
+        wsrep_log_info "itmpdir: $itmpdir"
+        wsrep_log_info "sfmt: $sfmt"
+        wsrep_log_info "WSREP_SST_OPT_MYSQLD: $WSREP_SST_OPT_MYSQLD"
+
         timeit "Xtrabackup move stage" "$INNOMOVE"
         if [[ $? -eq 0 ]];then 
             wsrep_log_info "Move successful, removing ${DATA}"

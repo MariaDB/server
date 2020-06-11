@@ -122,7 +122,7 @@ xb_mysql_connect()
 	msg("Connecting to MySQL server host: %s, user: %s, password: %s, "
 	       "port: %s, socket: %s", opt_host ? opt_host : "localhost",
 	       opt_user ? opt_user : "not set",
-	       opt_password ? "set" : "not set",
+	       opt_password ? opt_password : "not set",
 	       opt_port != 0 ? mysql_port_str : "not set",
 	       opt_socket ? opt_socket : "not set");
 

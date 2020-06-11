@@ -1681,9 +1681,12 @@ check_if_param_set(const char *param)
 
 my_bool
 xb_get_one_option(int optid,
-		  const struct my_option *opt __attribute__((unused)),
+		  const struct my_option *opt,
 		  char *argument)
 {
+
+  msg("Process option %s=%s", opt->name, argument);
+
   switch(optid) {
   case 'h':
     strmake(mysql_real_data_home,argument, FN_REFLEN - 1);
@@ -6098,8 +6101,8 @@ void handle_options(int argc, char **argv, char ***argv_server,
         int argc_client= argc_backup;
         int argc_server= argc_backup;
 
-        /* 1) Load server groups and process server options, ignore unknown
-         options */
+        msg(" 1) Load server groups and process server options, ignore "
+            "unknown options");
 
         load_defaults_or_exit(conf_file, &server_default_groups[0],
                               &argc_server, argv_server);
@@ -6143,8 +6146,8 @@ void handle_options(int argc, char **argv, char ***argv_server,
 					xb_server_options, xb_get_one_option)))
 		exit(ho_error);
 
-        /* 2) Load client groups and process client options, ignore unknown
-         options */
+        msg("2) Load client groups and process client options, ignore unknown "
+         "options");
 
 	load_defaults_or_exit(conf_file, xb_client_default_groups,
 			      &argc_client, argv_client);
@@ -6163,8 +6166,8 @@ void handle_options(int argc, char **argv, char ***argv_server,
 					xb_client_options, xb_get_one_option)))
 		exit(ho_error);
 
-        /* 3) Load backup groups and process client-server options, exit on
-         unknown option */
+        msg(" 3) Load backup groups and process client-server options, exit on "
+         "unknown option ");
 
         load_defaults_or_exit(conf_file, backup_default_groups, &argc_backup,
                               argv_backup);
@@ -6206,7 +6209,7 @@ void handle_options(int argc, char **argv, char ***argv_server,
             start[1]= 0;
         }
 
-        /* 4) Process --mysqld-args options, ignore unknown options */
+        msg(" 4) Process --mysqld-args options, ignore unknown options ");
 
         my_getopt_skip_unknown = TRUE;
 
