@@ -820,10 +820,10 @@ static constexpr const char* ut_basename(const char *filename)
 }
 
 /** Compute djb2 hash for a string. Stop at '.' , or '\0' */
-constexpr uint32_t ut_filename_hash(const char* s, uint32_t h = 5381)
+constexpr uint32_t ut_filename_hash(const char *s, uint32_t h= 5381)
 {
   return *s == 0 || *s == '.' ? h :
-    ut_filename_hash(s + 1, 33 * h  + (uint8_t)*s);
+    ut_filename_hash(s + 1, static_cast<uint32_t>(uint64_t{33} * h + *s));
 }
 
 /* Force constexpr to be evaluated at compile time.*/
