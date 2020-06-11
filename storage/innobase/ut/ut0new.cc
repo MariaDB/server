@@ -240,14 +240,15 @@ static PSI_memory_info	pfs_info[] = {
   {&mem_key_std, "std", 0},
 };
 
-static const int NKEYS = static_cast<int>UT_ARR_SIZE(auto_event_names);
+constexpr int NKEYS= static_cast<int>UT_ARR_SIZE(auto_event_names);
 std::pair<uint32_t, PSI_memory_key> search_array[NKEYS];
 
 /** Setup the internal objects needed for UT_NEW() to operate.
 This must be called before the first call to UT_NEW(). */
 void ut_new_boot()
 {
-  PSI_MEMORY_CALL(register_memory)("innodb", pfs_info, UT_ARR_SIZE(pfs_info));
+  PSI_MEMORY_CALL(register_memory)("innodb", pfs_info, static_cast<int>
+                                   UT_ARR_SIZE(pfs_info));
 
   static PSI_memory_key auto_event_keys[NKEYS];
   static PSI_memory_info pfs_info_auto[NKEYS];
