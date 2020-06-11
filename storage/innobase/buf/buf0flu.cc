@@ -978,43 +978,22 @@ not_compressed:
 This function also resets the IO_FIX to IO_NONE and making the
 page status as NORMAL. It initiates the write to the file only after
 releasing the page from flush list and its associated mutex.
-@param[in,out]  bpage       freed buffer page
-@param[in]      space       tablespace object of the freed page */
-static void buf_flush_freed_page(buf_page_t *bpage, const fil_space_t &space)
+@param[in,out]	bpage	freed buffer page */
+static void buf_release_freed_page(buf_page_t *bpage)
 {
   ut_ad(bpage->in_file());
   const bool uncompressed= bpage->state() == BUF_BLOCK_FILE_PAGE;
-  const page_id_t page_id(bpage->id());
-  const auto zip_size= bpage->zip_size();
   mutex_enter(&buf_pool.mutex);
   bpage->set_io_fix(BUF_IO_NONE);
   bpage->status= buf_page_t::NORMAL;
   buf_flush_remove(bpage);
-  buf_pool.stat.n_pages_written++;
-  mutex_exit(&buf_pool.mutex);
 
   if (uncompressed)
     rw_lock_sx_unlock_gen(&reinterpret_cast<buf_block_t*>(bpage)->lock,
                           BUF_IO_WRITE);
 
-  const bool punch_hole=
-#if defined(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
-    space.is_compressed() ||
-#endif
-    false;
-
-  ut_ad(space.id == page_id.space());
-  ut_ad(space.zip_size() == zip_size);
-
-  if (punch_hole || srv_immediate_scrub_data_uncompressed)
-  {
-    fil_io_t fio= fil_io(IORequestWrite, punch_hole, page_id, zip_size, 0,
-                         zip_size ? zip_size : srv_page_size,
-                         const_cast<byte*>(field_ref_zero), nullptr, false,
-                         punch_hole);
-    if (punch_hole && fio.node)
-      fio.node->space->release_for_io();
-  }
+  buf_LRU_free_page(bpage, true);
+  mutex_exit(&buf_pool.mutex);
 }
 
 /** Write a flushable page from buf_pool to a file.
@@ -1192,7 +1171,7 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
   switch (status) {
   default:
     ut_ad(status == buf_page_t::FREED);
-    buf_flush_freed_page(bpage, *space);
+    buf_release_freed_page(bpage);
     goto done;
   case buf_page_t::NORMAL:
     use_doublewrite= space->use_doublewrite();
@@ -1322,7 +1301,64 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
   return i;
 }
 
-/** Flushes to disk all flushable pages within the flush area.
+/** Write punch-hole or zeroes of the freed ranges when
+innodb_immediate_scrub_data_uncompressed from the freed ranges.
+@param[in]	space		tablespace which contains freed ranges
+@param[in]	freed_ranges	freed ranges of the page to be flushed */
+static void buf_flush_freed_pages(fil_space_t *space)
+{
+  ut_ad(space != NULL);
+  if (!srv_immediate_scrub_data_uncompressed && !space->is_compressed())
+    return;
+  lsn_t flush_to_disk_lsn= log_sys.get_flushed_lsn();
+
+  std::unique_lock<std::mutex> freed_lock(space->freed_range_mutex);
+  if (space->freed_ranges.empty()
+      || flush_to_disk_lsn < space->get_last_freed_lsn())
+  {
+    freed_lock.unlock();
+    return;
+  }
+
+  range_set freed_ranges= std::move(space->freed_ranges);
+  freed_lock.unlock();
+  const bool punch_hole=
+#if defined(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
+    space->is_compressed() ||
+#endif
+    false;
+
+  for (const auto &range : freed_ranges)
+  {
+    ulint page_size= space->zip_size();
+    if (!page_size)
+      page_size= srv_page_size;
+
+    if (punch_hole)
+    {
+      const auto len= (range.last - range.first + 1) * page_size;
+      const page_id_t page_id(space->id, range.first);
+      fil_io_t fio= fil_io(IORequestWrite, true, page_id, space->zip_size(),
+                           0, len, nullptr, nullptr, false, true);
+      if (fio.node)
+        fio.node->space->release_for_io();
+    }
+    else if (srv_immediate_scrub_data_uncompressed)
+    {
+      for (auto i= range.first; i <= range.last; i++)
+      {
+        const page_id_t page_id(space->id, i);
+        fil_io(IORequestWrite, false, page_id, space->zip_size(), 0,
+               space->zip_size() ? space->zip_size() : srv_page_size,
+               const_cast<byte*>(field_ref_zero), nullptr, false, false);
+      }
+    }
+    buf_pool.stat.n_pages_written+= (range.last - range.first + 1);
+  }
+}
+
+/** Flushes to disk all flushable pages within the flush area
+and also write zeroes or punch the hole for the freed ranges of pages.
 @param[in]	page_id		page id
 @param[in]	flush		LRU or FLUSH_LIST
 @param[in]	n_flushed	number of pages flushed so far in this batch
@@ -1343,6 +1379,9 @@ buf_flush_try_neighbors(
 	if (!space) {
 		return 0;
 	}
+
+        /* Flush the freed ranges while flushing the neighbors */
+        buf_flush_freed_pages(space);
 
 	page_id_t id = page_id;
 	page_id_t high = (srv_flush_neighbors != 1

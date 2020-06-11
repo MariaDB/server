@@ -2579,12 +2579,13 @@ void buf_page_free(const page_id_t page_id,
   buf_block_t *block= reinterpret_cast<buf_block_t*>
     (buf_pool.page_hash_get_low(page_id));
 
+  if (srv_immediate_scrub_data_uncompressed || mtr->is_page_compressed())
+    mtr->add_freed_offset(page_id);
+
   if (!block || block->page.state() != BUF_BLOCK_FILE_PAGE)
   {
     /* FIXME: if block!=NULL, convert to BUF_BLOCK_FILE_PAGE,
     but avoid buf_zip_decompress() */
-    /* FIXME: If block==NULL, introduce a separate data structure
-    to cover freed page ranges to augment buf_flush_freed_page() */
     rw_lock_s_unlock(hash_lock);
     return;
   }
@@ -3793,16 +3794,20 @@ void buf_block_t::initialise(const page_id_t page_id, ulint zip_size,
 from a file even if it cannot be found in the buffer buf_pool. This is one
 of the functions which perform to a block a state transition NOT_USED =>
 FILE_PAGE (the other is buf_page_get_gen).
-@param[in]	page_id		page id
+@param[in,out]	space		space object
+@param[in]	offset		offset of the tablespace
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in,out]	mtr		mini-transaction
 @return pointer to the block, page bufferfixed */
 buf_block_t*
-buf_page_create(const page_id_t page_id, ulint zip_size, mtr_t *mtr)
+buf_page_create(fil_space_t *space, uint32_t offset,
+                ulint zip_size, mtr_t *mtr)
 {
+  page_id_t page_id(space->id, offset);
   ut_ad(mtr->is_active());
   ut_ad(page_id.space() != 0 || !zip_size);
 
+  space->free_page(offset, false);
   buf_block_t *free_block= buf_LRU_get_free_block(false);
   free_block->initialise(page_id, zip_size, 1);
 
@@ -3831,7 +3836,6 @@ buf_page_create(const page_id_t page_id, ulint zip_size, mtr_t *mtr)
       return buf_page_get_gen(page_id, zip_size, RW_NO_LATCH,
                               block, BUF_GET_POSSIBLY_FREED,
                               __FILE__, __LINE__, mtr);
-
     mutex_exit(&recv_sys.mutex);
     block= buf_page_get_with_no_latch(page_id, zip_size, mtr);
     mutex_enter(&recv_sys.mutex);

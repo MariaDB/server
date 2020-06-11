@@ -312,6 +312,24 @@ public:
   /** @return true if we are inside the change buffer code */
   bool is_inside_ibuf() const { return m_inside_ibuf; }
 
+  /** Note that system tablespace page has been freed. */
+  void freed_system_tablespace_page() { m_freed_in_system_tablespace= true; }
+
+  /** Note that pages has been trimed */
+  void set_trim_pages() { m_trim_pages= true; }
+
+  /** @return true if pages has been trimed */
+  bool is_trim_pages() { return m_trim_pages; }
+
+  /** @return whether a page_compressed table was modified */
+  bool is_page_compressed() const
+  {
+#if defined(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
+    return m_user_space && m_user_space->is_compressed();
+#else
+    return false;
+#endif
+  }
 #ifdef UNIV_DEBUG
   /** Check if we are holding an rw-latch in this mini-transaction
   @param lock   latch to search for
@@ -348,6 +366,12 @@ public:
 
 	/** @return the memo stack */
 	mtr_buf_t* get_memo() { return &m_memo; }
+
+  /** @return true if system tablespace page has been freed */
+  bool is_freed_system_tablespace_page()
+  {
+    return m_freed_in_system_tablespace;
+  }
 #endif /* UNIV_DEBUG */
 
 	/** @return true if a record was added to the mini-transaction */
@@ -470,8 +494,9 @@ public:
   @param[in,out]        b       buffer page */
   void init(buf_block_t *b);
   /** Free a page.
-  @param id      page identifier */
-  inline void free(const page_id_t id);
+  @param[in]      space   tablespace contains page to be freed
+  @param[in]      offset  page offset to be freed */
+  inline void free(fil_space_t &space, uint32_t offset);
   /** Write log for partly initializing a B-tree or R-tree page.
   @param block    B-tree or R-tree page
   @param comp     false=ROW_FORMAT=REDUNDANT, true=COMPACT or DYNAMIC */
@@ -551,6 +576,20 @@ public:
                           const char *path,
                           const char *new_path= nullptr);
 
+  /** Add freed page numbers to freed_pages */
+  void add_freed_offset(page_id_t id)
+  {
+    ut_ad(m_user_space == NULL || id.space() == m_user_space->id);
+    m_freed_ranges.add_value(id.page_no());
+  }
+
+  /** Clear the freed pages */
+  void clear_freed_ranges()
+  {
+    m_freed_ranges.clear();
+    m_freed_in_system_tablespace= 0;
+    m_trim_pages= false;
+  }
 private:
   /** Log a write of a byte string to a page.
   @param block   buffer page
@@ -621,6 +660,12 @@ private:
   to suppress some read-ahead operations, @see ibuf_inside() */
   uint16_t m_inside_ibuf:1;
 
+  /** whether the page has been freed in system tablespace */
+  uint16_t m_freed_in_system_tablespace:1;
+
+  /** whether the pages has been trimmed */
+  uint16_t m_trim_pages:1;
+
 #ifdef UNIV_DEBUG
   /** Persistent user tablespace associated with the
   mini-transaction, or 0 (TRX_SYS_SPACE) if none yet */
@@ -638,6 +683,9 @@ private:
 
   /** LSN at commit time */
   lsn_t m_commit_lsn;
+
+  /** set of freed page ids */
+  range_set m_freed_ranges;
 };
 
 #include "mtr0mtr.ic"

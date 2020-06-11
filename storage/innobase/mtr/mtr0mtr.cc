@@ -372,6 +372,7 @@ void mtr_t::start()
   ut_d(m_user_space_id= TRX_SYS_SPACE);
   m_user_space= nullptr;
   m_commit_lsn= 0;
+  m_freed_in_system_tablespace= m_trim_pages= false;
 }
 
 /** Release the resources */
@@ -381,6 +382,7 @@ inline void mtr_t::release_resources()
   ut_d(m_memo.for_each_block_in_reverse(CIterate<DebugCheck>()));
   m_log.erase();
   m_memo.erase();
+  clear_freed_ranges();
   ut_d(m_commit= true);
 }
 
@@ -413,6 +415,30 @@ void mtr_t::commit()
     to insert into the flush list. */
     log_mutex_exit();
 
+    if (!m_freed_ranges.empty())
+    {
+      fil_space_t *freed_space= m_user_space;
+      /* Get the freed tablespace in case of predefined tablespace */
+      if (!freed_space)
+      {
+        ut_ad(is_freed_system_tablespace_page());
+        freed_space= fil_system.sys_space;
+      }
+
+      ut_ad(memo_contains(freed_space->latch, MTR_MEMO_X_LOCK));
+      /* Update the last freed lsn */
+      freed_space->update_last_freed_lsn(m_commit_lsn);
+
+      for (const auto &range : m_freed_ranges)
+        freed_space->add_free_range(range);
+    }
+
+    if (is_trim_pages())
+    {
+      ut_ad(m_user_space != nullptr);
+      m_user_space->clear_freed_ranges();
+    }
+
     m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
                                      (ReleaseBlocks(start_lsn, m_commit_lsn)));
     if (m_made_dirty)
@@ -441,6 +467,8 @@ void mtr_t::commit_files(lsn_t checkpoint_lsn)
 	ut_ad(!m_made_dirty);
 	ut_ad(m_memo.size() == 0);
 	ut_ad(!srv_read_only_mode);
+	ut_ad(m_freed_ranges.empty());
+	ut_ad(!m_freed_in_system_tablespace);
 
 	if (checkpoint_lsn) {
 		byte*	ptr = m_log.push<byte*>(SIZE_OF_FILE_CHECKPOINT);

@@ -340,12 +340,14 @@ buf_page_get_low(
 from a file even if it cannot be found in the buffer buf_pool. This is one
 of the functions which perform to a block a state transition NOT_USED =>
 FILE_PAGE (the other is buf_page_get_gen).
-@param[in]	page_id		page id
+@param[in,out]	space		space object
+@param[in]	offset		offset of the tablespace
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in,out]	mtr		mini-transaction
 @return pointer to the block, page bufferfixed */
 buf_block_t*
-buf_page_create(const page_id_t page_id, ulint zip_size, mtr_t *mtr);
+buf_page_create(fil_space_t *space, uint32_t offset,
+                ulint zip_size, mtr_t *mtr);
 
 /********************************************************************//**
 Releases a compressed-only page acquired with buf_page_get_zip(). */
