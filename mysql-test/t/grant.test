@@ -2233,6 +2233,18 @@ set GLOBAL sql_mode=default;
 --source include/wait_until_count_sessions.inc
 
 --echo #
+--echo # MDEV-22755 CREATE USER leads to indirect SIGABRT in __stack_chk_fail () from fill_schema_user_privileges + *** stack smashing detected *** (on optimized builds)
+--echo #
+
+SET NAMES utf8;
+SET SQL_MODE='';
+CREATE USER 觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻@localhost;
+SELECT * FROM INFORMATION_SCHEMA.user_privileges WHERE GRANTEE LIKE "'abcdefghijklmnopqrstuvwxyz'%";
+SELECT GRANTEE FROM INFORMATION_SCHEMA.user_privileges WHERE GRANTEE LIKE '%觻%';
+DROP USER  觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻@localhost;
+SET SQL_MODE=DEFAULT;
+
+--echo #
 --echo # Start of 10.2 tests
 --echo #
 

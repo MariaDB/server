@@ -594,7 +594,7 @@ static char *field_escape(char *to,const char *from,uint length)
     else 
     {
       if (*from == '\'' && !end_backslashes)
-	*to++= *from;      /* We want a dublicate of "'" for MySQL */
+	*to++= *from;      /* We want a duplicate of "'" for MySQL */
       end_backslashes=0;
     }
   }
