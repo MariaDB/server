@@ -1568,6 +1568,32 @@ Relay_log_info::update_relay_log_state(rpl_gtid *gtid_list, uint32 count)
 
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+/*
+  Check whether gtid_slave_pos is transactional or not, and load the result
+  into rpl_global_gtid_slave_state->is_gtid_slave_pos_transactional 
+  @@returns
+      0      Success
+      >0      Error while opening gtid_slave_pos table
+*/
+int mysql_gtid_slave_pos_transactional(THD *thd)
+{
+  if(rpl_global_gtid_slave_state->gtid_slave_pos_transactional_cache != -1)
+    return 0;
+  TABLE_LIST tlist;
+  int error;
+  tlist.init_one_table(STRING_WITH_LEN("mysql"),
+                       rpl_gtid_slave_state_table_name.str,
+                       rpl_gtid_slave_state_table_name.length,
+                       NULL, TL_READ);
+  if ((error= open_and_lock_tables(thd, &tlist, FALSE, 0)))
+    return error;
+  rpl_global_gtid_slave_state->gtid_slave_pos_transactional_cache=
+                    !(tlist.table->file->ha_table_flags() & HA_NO_TRANSACTIONS);
+  close_thread_tables(thd);
+  thd->release_transactional_locks();
+  return 0;
+}
+
 int
 rpl_load_gtid_slave_state(THD *thd)
 {

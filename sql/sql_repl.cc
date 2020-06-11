@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <my_global.h>
+#include "mysqld.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_base.h"
@@ -3162,6 +3163,27 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
         push_warning(thd,
                      Sql_condition::WARN_LEVEL_NOTE, ER_UNTIL_COND_IGNORED,
                      ER_THD(thd, ER_UNTIL_COND_IGNORED));
+
+      int result= mysql_gtid_slave_pos_transactional(thd);
+      if(result)
+      {
+        slave_errno= result;
+        goto err;
+      }
+      if(!(rpl_global_gtid_slave_state->gtid_slave_pos_transactional_cache)&&
+              mi->parallel_mode > SLAVE_PARALLEL_CONSERVATIVE &&
+              opt_slave_parallel_threads > 1)
+      {
+        const char *mode= mi->parallel_mode == SLAVE_PARALLEL_OPTIMISTIC ?
+                     "Optimistic" : "Aggressive";
+        sql_print_warning("Non transactional gtid_slave_pos table with %s "
+                          "parallel mode detected, Transactions will be applied "
+                          "in conservative mode.", mode);
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                ER_GTID_SLAVE_POS_NON_TRANS,
+                                ER_THD(thd, ER_GTID_SLAVE_POS_NON_TRANS),
+                                mode);
+      }
 
       if (!slave_errno)
         slave_errno = start_slave_threads(thd,

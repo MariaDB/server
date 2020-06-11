@@ -1,0 +1,70 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression('Non transactional gtid_slave_pos table with *');
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=8;
+set global slave_parallel_mode=optimistic;
+alter table mysql.gtid_slave_pos engine=myisam;
+connection slave;
+include/start_slave.inc
+Warnings:
+Warning	4079	Non transactional gtid_slave_pos table with Optimistic parallel mode detected, Transactions will be applied in conservative mode.
+#Only 1 warning
+FOUND 1 /Non transactional gtid_slave_pos table with/ in mysqld.2.err
+include/stop_slave.inc
+include/start_slave.inc
+Warnings:
+Warning	4079	Non transactional gtid_slave_pos table with Optimistic parallel mode detected, Transactions will be applied in conservative mode.
+#2 warning
+FOUND 2 /Non transactional gtid_slave_pos table with/ in mysqld.2.err
+#Restart , There should be one more warning
+include/rpl_restart_server.inc [server_number=2]
+SET GLOBAL slave_parallel_threads=8;
+set global slave_parallel_mode=optimistic;
+alter table mysql.gtid_slave_pos engine=myisam;
+include/start_slave.inc
+Warnings:
+Warning	4079	Non transactional gtid_slave_pos table with Optimistic parallel mode detected, Transactions will be applied in conservative mode.
+#3 warning
+FOUND 3 /Non transactional gtid_slave_pos table with/ in mysqld.2.err
+##load the failing test on Optimistic mode
+connection master;
+connection master;
+CREATE TABLE t1(a INT NOT NULL AUTO_INCREMENT PRIMARY KEY) engine=innodb;
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+select * from t1 order by a;
+a
+1
+7
+8
+9
+drop table t1;
+connection slave;
+connection master;
+##load the failing test on Aggressive mode
+connection slave;
+include/stop_slave.inc
+set global slave_parallel_mode=aggressive;
+include/start_slave.inc
+Warnings:
+Warning	4079	Non transactional gtid_slave_pos table with Aggressive parallel mode detected, Transactions will be applied in conservative mode.
+connection master;
+connection master;
+CREATE TABLE t1(a INT NOT NULL AUTO_INCREMENT PRIMARY KEY) engine=innodb;
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+select * from t1 order by a;
+a
+1
+7
+8
+9
+drop table t1;
+connection slave;
+connection master;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= 0;
+set global slave_parallel_mode=conservative;
+include/start_slave.inc
+include/rpl_end.inc

@@ -1,0 +1,60 @@
+#
+# MDEV-19157 -Optimistic Parallel Replication fails when gtid_slave_pos table is non
+#  transactional and binlog events are transactional
+# Test if gtid_slave_pos is non transactional we are giving warning to user
+#
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+call mtr.add_suppression('Non transactional gtid_slave_pos table with *');
+--sync_slave_with_master
+--source include/stop_slave.inc
+--let $old_threads= `select @@GLOBAL.slave_parallel_threads`
+--let $old_mode= `select @@GLOBAL.slave_parallel_mode`
+SET GLOBAL slave_parallel_threads=8;
+set global slave_parallel_mode=optimistic;
+alter table mysql.gtid_slave_pos engine=myisam;
+
+
+--connection slave
+--source include/start_slave.inc
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let SEARCH_PATTERN= Non transactional gtid_slave_pos table with
+--echo #Only 1 warning
+source include/search_pattern_in_file.inc;
+
+--source include/stop_slave.inc
+--source include/start_slave.inc
+--echo #2 warning
+source include/search_pattern_in_file.inc;
+
+--echo #Restart , There should be one more warning
+--let $rpl_server_number= 2
+--source include/rpl_restart_server.inc
+SET GLOBAL slave_parallel_threads=8;
+set global slave_parallel_mode=optimistic;
+alter table mysql.gtid_slave_pos engine=myisam;
+--source include/start_slave.inc
+--echo #3 warning
+source include/search_pattern_in_file.inc;
+
+--echo ##load the failing test on Optimistic mode
+--connection master
+--source include/rpl_mdev_19157_failing.inc
+
+--echo ##load the failing test on Aggressive mode
+--connection slave
+--source include/stop_slave.inc
+set global slave_parallel_mode=aggressive;
+--source include/start_slave.inc
+--connection master
+--source include/rpl_mdev_19157_failing.inc
+
+--connection slave
+--source include/stop_slave.inc
+--eval SET GLOBAL slave_parallel_threads= $old_threads
+--eval set global slave_parallel_mode=$old_mode
+
+--source include/start_slave.inc
+--source include/rpl_end.inc

@@ -172,6 +172,13 @@ struct rpl_slave_state
 
   uint64 last_sub_id;
   bool loaded;
+  /*
+   -1 refresh required(maybe mysql_gtid_slave_pos_transactional is called first
+                       time , or gtid_slave_pos engine changed)
+    0 gtid_slave_pos not transactional
+    1       "         transactional
+  */
+  int gtid_slave_pos_transactional_cache;
 
   rpl_slave_state();
   ~rpl_slave_state();

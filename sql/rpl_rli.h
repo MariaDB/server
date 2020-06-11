@@ -992,6 +992,7 @@ public:
 extern struct rpl_slave_state *rpl_global_gtid_slave_state;
 extern gtid_waiting rpl_global_gtid_waiting;
 
+int mysql_gtid_slave_pos_transactional(THD *thd);
 int rpl_load_gtid_slave_state(THD *thd);
 int event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev);
 void delete_or_keep_event_post_apply(rpl_group_info *rgi,

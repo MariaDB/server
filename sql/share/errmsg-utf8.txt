@@ -7744,3 +7744,5 @@ ER_MYROCKS_CANT_NOPAD_COLLATION
   eng "MyRocks doesn't currently support collations with \"No pad\" attribute."
 ER_TRANSACTIONAL_ARIA_LOG_ENGINE
         eng "Only non-transactional Aria table can be used for logging"
+ER_GTID_SLAVE_POS_NON_TRANS
+        eng "Non transactional gtid_slave_pos table with %s parallel mode detected, Transactions will be applied in conservative mode."
