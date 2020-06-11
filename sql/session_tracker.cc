@@ -1183,6 +1183,7 @@ bool Session_state_change_tracker::store(THD *thd, String *buf)
   return false;
 }
 
+#ifdef USER_VAR_TRACKING
 
 bool User_variables_tracker::update(THD *thd, set_var *)
 {
@@ -1204,10 +1205,13 @@ bool User_variables_tracker::store(THD *thd, String *buf)
     length= net_length_size(var->name.length) + var->name.length;
     if (!null_value)
       length+= net_length_size(value_str.length()) + value_str.length();
+    else
+      length+= 1;
 
     if (buf->reserve(sizeof(char) + length + net_length_size(length)))
       return true;
 
+    // TODO: check max packet length MDEV-22709
     buf->q_append(static_cast<char>(SESSION_TRACK_USER_VARIABLES));
     buf->q_net_store_length(length);
     buf->q_net_store_data(reinterpret_cast<const uchar*>(var->name.str),
@@ -1215,10 +1219,16 @@ bool User_variables_tracker::store(THD *thd, String *buf)
     if (!null_value)
       buf->q_net_store_data(reinterpret_cast<const uchar*>(value_str.ptr()),
                             value_str.length());
+    else
+    {
+      char nullbuff[1]= { (char)251 };
+      buf->q_append(nullbuff, sizeof(nullbuff));
+    }
   }
   m_changed_user_variables.clear();
   return false;
 }
+#endif // USER_VAR_TRACKING
 
 ///////////////////////////////////////////////////////////////////////////////
 

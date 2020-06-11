@@ -35,7 +35,9 @@ enum enum_session_tracker
   CURRENT_SCHEMA_TRACKER,                        /* Current schema */
   SESSION_STATE_CHANGE_TRACKER,
   TRANSACTION_INFO_TRACKER,                      /* Transaction state */
+#ifdef USER_VAR_TRACKING
   USER_VARIABLES_TRACKER,
+#endif // USER_VAR_TRACKING
   SESSION_TRACKER_END                            /* must be the last */
 };
 
@@ -395,6 +397,7 @@ private:
   This is a tracker class that enables & manages the tracking of user variables.
 */
 
+#ifdef USER_VAR_TRACKING
 class User_variables_tracker: public State_tracker
 {
   Hash_set<const user_var_entry> m_changed_user_variables;
@@ -415,6 +418,7 @@ public:
   }
   void deinit() { m_changed_user_variables.~Hash_set(); }
 };
+#endif // USER_VAR_TRACKING
 
 
 /**
@@ -445,7 +449,9 @@ public:
   Session_state_change_tracker state_change;
   Transaction_state_tracker transaction_info;
   Session_sysvars_tracker sysvars;
+#ifdef USER_VAR_TRACKING
   User_variables_tracker user_variables;
+#endif // USER_VAR_TRACKING
 
   Session_tracker()
   {
@@ -453,7 +459,9 @@ public:
     m_trackers[CURRENT_SCHEMA_TRACKER]= &current_schema;
     m_trackers[SESSION_STATE_CHANGE_TRACKER]= &state_change;
     m_trackers[TRANSACTION_INFO_TRACKER]= &transaction_info;
+#ifdef USER_VAR_TRACKING
     m_trackers[USER_VARIABLES_TRACKER]= &user_variables;
+#endif // USER_VAR_TRACKING
   }
 
   void enable(THD *thd)

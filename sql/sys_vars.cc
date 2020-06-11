@@ -6647,6 +6647,7 @@ static Sys_var_mybool Sys_session_track_state_change(
        ON_UPDATE(update_session_track_state_change));
 
 
+#ifdef USER_VAR_TRACKING
 static bool update_session_track_user_variables(sys_var *self, THD *thd,
                                                 enum_var_type type)
 {
@@ -6661,6 +6662,7 @@ static Sys_var_mybool Sys_session_track_user_variables(
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(0),
        ON_UPDATE(update_session_track_user_variables));
+#endif // USER_VAR_TRACKING
 
 #endif //EMBEDDED_LIBRARY
 

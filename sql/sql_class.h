@@ -793,7 +793,9 @@ typedef struct system_variables
   ulong session_track_transaction_info;
   my_bool session_track_schema;
   my_bool session_track_state_change;
+#ifdef USER_VAR_TRACKING
   my_bool session_track_user_variables;
+#endif // USER_VAR_TRACKING
   my_bool tcp_nodelay;
 
   ulong threadpool_priority;

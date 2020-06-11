@@ -1151,8 +1151,6 @@ The following specify which files/extra groups are read (specified before remain
  characteristics (isolation level, read only/read
  write,snapshot - but not any work done / data modified
  within the transaction).
- --session-track-user-variables 
- Track changes to user variables.
  --show-slave-auth-info 
  Show user and password in SHOW SLAVE HOSTS on this
  master.
@@ -1758,7 +1756,6 @@ session-track-schema TRUE
 session-track-state-change FALSE
 session-track-system-variables autocommit,character_set_client,character_set_connection,character_set_results,time_zone
 session-track-transaction-info OFF
-session-track-user-variables FALSE
 show-slave-auth-info FALSE
 silent-startup FALSE
 skip-grant-tables TRUE

@@ -7711,6 +7711,28 @@ void append_info(DYNAMIC_STRING *ds, ulonglong affected_rows,
 }
 
 
+#ifndef EMBEDDED_LIBRARY
+static const char *trking_info_desc[SESSION_TRACK_END + 1]=
+{
+  "Tracker : SESSION_TRACK_SYSTEM_VARIABLES\n",
+  "Tracker : SESSION_TRACK_SCHEMA\n",
+  "Tracker : SESSION_TRACK_STATE_CHANGE\n",
+  "Tracker : SESSION_TRACK_GTIDS\n",
+  "Tracker : SESSION_TRACK_TRANSACTION_CHARACTERISTICS\n",
+  "Tracker : SESSION_TRACK_TRANSACTION_TYPE\n"
+#ifdef USER_VAR_TRACKING
+  ,
+  "Tracker : SESSION_TRACK_MYSQL_RESERVED1\n",
+  "Tracker : SESSION_TRACK_MYSQL_RESERVED2\n",
+  "Tracker : SESSION_TRACK_MYSQL_RESERVED3\n",
+  "Tracker : SESSION_TRACK_MYSQL_RESERVED4\n",
+  "Tracker : SESSION_TRACK_MYSQL_RESERVED5\n",
+  "Tracker : SESSION_TRACK_MYSQL_RESERVED6\n",
+  "Tracker : SESSION_TRACK_USER_VARIABLES\n"
+#endif // USER_VAR_TRACKING
+};
+#endif // EMBEDDED_LIBRARY
+
 /**
   @brief Append state change information (received through Ok packet) to the output.
 
@@ -7731,31 +7753,15 @@ static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
                                        &data, &data_length))
     {
       dynstr_append(ds, "-- ");
-      switch (type)
+      if (type <= SESSION_TRACK_END)
       {
-        case SESSION_TRACK_SYSTEM_VARIABLES:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_SYSTEM_VARIABLES\n");
-          break;
-        case SESSION_TRACK_SCHEMA:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_SCHEMA\n");
-          break;
-        case SESSION_TRACK_STATE_CHANGE:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_STATE_CHANGE\n");
-          break;
-        case SESSION_TRACK_GTIDS:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_GTIDS\n");
-          break;
-        case SESSION_TRACK_TRANSACTION_CHARACTERISTICS:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_TRANSACTION_CHARACTERISTICS\n");
-          break;
-        case SESSION_TRACK_TRANSACTION_TYPE:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_TRANSACTION_TYPE\n");
-          break;
-        default:
-          DBUG_ASSERT(0);
-          dynstr_append(ds, "\n");
+        dynstr_append(ds, trking_info_desc[type]);
       }
-
+      else
+      {
+        DBUG_ASSERT(0);
+        dynstr_append(ds, "Tracker???\n");
+      }
 
       dynstr_append(ds, "-- ");
       dynstr_append_mem(ds, data, data_length);
@@ -7767,7 +7773,13 @@ static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
                                         &data, &data_length))
     {
       dynstr_append(ds, "\n-- ");
-      dynstr_append_mem(ds, data, data_length);
+      if (data == NULL)
+      {
+        DBUG_ASSERT(data_length == 0);
+        dynstr_append_mem(ds, "<NULL>", sizeof("<NULL>") - 1);
+      }
+      else
+        dynstr_append_mem(ds, data, data_length);
     }
     dynstr_append(ds, "\n\n");
   }

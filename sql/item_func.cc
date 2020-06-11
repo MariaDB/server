@@ -4787,10 +4787,12 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
     entry->unsigned_flag= unsigned_arg;
   }
   entry->type=type;
+#ifdef USER_VAR_TRACKING
 #ifndef EMBEDDED_LIBRARY
   THD *thd= current_thd;
   thd->session_tracker.user_variables.mark_as_changed(thd, entry);
 #endif
+#endif // USER_VAR_TRACKING
   return 0;
 }
 
