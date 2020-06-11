@@ -940,7 +940,6 @@ static void buf_LRU_old_init()
 	     bpage = UT_LIST_GET_PREV(LRU, bpage)) {
 
 		ut_ad(bpage->in_LRU_list);
-		ut_ad(bpage->in_file());
 
 		/* This loop temporarily violates the
 		assertions of buf_page_t::set_old(). */
@@ -1066,7 +1065,6 @@ buf_LRU_add_block(
 				the start, regardless of this parameter */
 {
 	ut_ad(mutex_own(&buf_pool.mutex));
-	ut_a(bpage->in_file());
 	ut_ad(!bpage->in_LRU_list);
 
 	if (!old || (UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN)) {
@@ -1153,10 +1151,18 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	ut_ad(bpage->in_file());
 	ut_ad(bpage->in_LRU_list);
 
+	/* First, perform a quick check before we acquire hash_lock. */
+	if (!bpage->can_relocate()) {
+		return false;
+	}
+
+	/* We must hold an exclusive hash_lock to prevent
+	bpage->can_relocate() from changing due to a concurrent
+	execution of buf_page_get_low(). */
 	rw_lock_t* hash_lock = buf_pool.hash_lock_get(id);
 	rw_lock_x_lock(hash_lock);
 
-	if (!bpage->can_relocate()) {
+	if (UNIV_UNLIKELY(!bpage->can_relocate())) {
 		/* Do not free buffer fixed and I/O-fixed blocks. */
 		goto func_exit;
 	}

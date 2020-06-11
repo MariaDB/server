@@ -995,6 +995,14 @@ public:
     buf_fix_count_= buf_fix_count;
   }
 
+  /** Initialize some more fields */
+  void init(page_id_t id, uint32_t buf_fix_count= 0)
+  {
+    init();
+    id_= id;
+    buf_fix_count_= buf_fix_count;
+  }
+
 public:
   const page_id_t &id() const { return id_; }
   buf_page_state state() const { return state_; }
@@ -1010,8 +1018,7 @@ public:
   /** @return if this belongs to buf_pool.unzip_LRU */
   bool belongs_to_unzip_LRU() const
   {
-    ut_ad(in_file());
-    return zip.data && state() == BUF_BLOCK_FILE_PAGE;
+    return zip.data && state() != BUF_BLOCK_ZIP_PAGE;
   }
 
   inline void add_buf_fix_count(uint32_t count);
@@ -1277,9 +1284,10 @@ struct buf_block_t{
   ulint zip_size() const { return page.zip_size(); }
 
   /** Initialize the block.
-  @param page_id page id
-  @param zip_size ROW_FORMAT=COMPRESSED page size, or 0 */
-  void initialise(const page_id_t page_id, ulint zip_size);
+  @param page_id  page identifier
+  @param zip_size ROW_FORMAT=COMPRESSED page size, or 0
+  @param fix      initial buf_fix_count() */
+  void initialise(const page_id_t page_id, ulint zip_size, uint32_t fix= 0);
 };
 
 /**********************************************************************//**
@@ -2134,6 +2142,29 @@ inline void buf_page_t::set_buf_fix_count(uint32_t count)
 inline void buf_page_t::set_state(buf_page_state state)
 {
   ut_ad(mutex_own(&buf_pool.mutex));
+#ifdef UNIV_DEBUG
+  switch (state) {
+  case BUF_BLOCK_REMOVE_HASH:
+    /* buf_pool_t::corrupted_evict() invokes set_corrupt_id()
+    before buf_LRU_free_one_page(), so we cannot assert that
+    we are holding the hash_lock. */
+    break;
+  case BUF_BLOCK_MEMORY:
+    if (!in_file()) break;
+    /* fall through */
+  case BUF_BLOCK_FILE_PAGE:
+    ut_ad(rw_lock_own(buf_pool.hash_lock_get(id_), RW_LOCK_X));
+    break;
+  case BUF_BLOCK_NOT_USED:
+    if (!in_file()) break;
+    /* fall through */
+  case BUF_BLOCK_ZIP_PAGE:
+    ut_ad((this >= &buf_pool.watch[0] &&
+           this <= &buf_pool.watch[UT_ARR_SIZE(buf_pool.watch)]) ||
+          rw_lock_own(buf_pool.hash_lock_get(id_), RW_LOCK_X));
+    break;
+  }
+#endif
   state_= state;
 }
 
@@ -2212,7 +2243,6 @@ inline bool buf_page_t::is_old() const
 /** Set whether a block is old in buf_pool.LRU */
 inline void buf_page_t::set_old(bool old)
 {
-  ut_ad(in_file());
   ut_ad(mutex_own(&buf_pool.mutex));
   ut_ad(in_LRU_list);
 

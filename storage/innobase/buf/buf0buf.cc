@@ -3776,15 +3776,16 @@ buf_page_try_get_func(
 }
 
 /** Initialize the block.
-@param page_id page id
-@param zip_size ROW_FORMAT=COMPRESSED page size, or 0 */
-void buf_block_t::initialise(const page_id_t page_id, ulint zip_size)
+@param page_id  page identifier
+@param zip_size ROW_FORMAT=COMPRESSED page size, or 0
+@param fix      initial buf_fix_count() */
+void buf_block_t::initialise(const page_id_t page_id, ulint zip_size,
+                             uint32_t fix)
 {
   ut_ad(page.state() != BUF_BLOCK_FILE_PAGE);
   buf_block_init_low(this);
   lock_hash_val= lock_rec_hash(page_id.space(), page_id.page_no());
-  page.init();
-  page.id_= page_id;
+  page.init(page_id, fix);
   page_zip_set_size(&page.zip, zip_size);
 }
 
@@ -3803,11 +3804,9 @@ buf_page_create(const page_id_t page_id, ulint zip_size, mtr_t *mtr)
   ut_ad(page_id.space() != 0 || !zip_size);
 
   buf_block_t *free_block= buf_LRU_get_free_block(false);
-  free_block->initialise(page_id, zip_size);
+  free_block->initialise(page_id, zip_size, 1);
 
-  rw_lock_t *hash_lock= buf_pool.hash_lock_get(page_id);
   mutex_enter(&buf_pool.mutex);
-  rw_lock_x_lock(hash_lock);
 
   buf_block_t *block= reinterpret_cast<buf_block_t*>
     (buf_pool.page_hash_get_low(page_id));
@@ -3816,7 +3815,6 @@ buf_page_create(const page_id_t page_id, ulint zip_size, mtr_t *mtr)
       !buf_pool.watch_is_sentinel(block->page))
   {
     /* Page can be found in buf_pool */
-    rw_lock_x_unlock(hash_lock);
     buf_LRU_block_free_non_file_page(free_block);
     mutex_exit(&buf_pool.mutex);
 
@@ -3846,11 +3844,17 @@ buf_page_create(const page_id_t page_id, ulint zip_size, mtr_t *mtr)
                         page_id.space(), page_id.page_no()));
 
   block= free_block;
-  buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+
+  /* Duplicate buf_block_buf_fix_inc_func() */
+  ut_ad(block->page.buf_fix_count() == 1);
+  ut_ad(fsp_is_system_temporary(page_id.space()) ||
+        rw_lock_s_lock_nowait(block->debug_latch, __FILE__, __LINE__));
 
   /* The block must be put to the LRU list */
-  block->page.set_state(BUF_BLOCK_FILE_PAGE);
   buf_LRU_add_block(&block->page, false);
+  rw_lock_t *hash_lock= buf_pool.hash_lock_get(page_id);
+  rw_lock_x_lock(hash_lock);
+  block->page.set_state(BUF_BLOCK_FILE_PAGE);
   ut_d(block->page.in_page_hash= true);
   HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, page_id.fold(),
               &block->page);
@@ -4401,7 +4405,6 @@ void buf_pool_t::validate()
 	ulint		n_zip		= 0;
 
 	mutex_enter(&mutex);
-	page_hash_lock_all();
 
 	chunk_t* chunk = chunks;
 
@@ -4492,7 +4495,6 @@ void buf_pool_t::validate()
 
 	ut_ad(UT_LIST_GET_LEN(flush_list) == n_flushing);
 
-	page_hash_unlock_all();
 	mutex_exit(&flush_list_mutex);
 
 	if (curr_size == old_size

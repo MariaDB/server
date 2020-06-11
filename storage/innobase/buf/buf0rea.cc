@@ -121,6 +121,8 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
   mutex_enter(&buf_pool.mutex);
 
+  /* We must acquire hash_lock this early to prevent
+  a race condition with buf_pool_t::watch_remove() */
   rw_lock_t *hash_lock= buf_pool.hash_lock_get(page_id);
   rw_lock_x_lock(hash_lock);
 
@@ -151,8 +153,8 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
       buf_pool.watch_remove(hash_page);
     }
 
-    block->page.set_state(BUF_BLOCK_FILE_PAGE);
     block->page.set_io_fix(BUF_IO_READ);
+    block->page.set_state(BUF_BLOCK_FILE_PAGE);
     ut_ad(!block->page.in_page_hash);
     ut_d(block->page.in_page_hash= true);
     HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, page_id.fold(), bpage);
@@ -202,8 +204,8 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
       {
         /* The block was added by some other thread. */
         rw_lock_x_unlock(hash_lock);
-	buf_buddy_free(data, zip_size);
-	goto func_exit;
+        buf_buddy_free(data, zip_size);
+        goto func_exit;
       }
     }
 

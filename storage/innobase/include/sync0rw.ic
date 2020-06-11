@@ -220,8 +220,31 @@ rw_lock_lock_word_decr(
 
 			return(true);
 		}
+
+		/* Note that lock_copy was reloaded above. We will
+		keep trying if a spurious conflict occurred, typically
+		caused by concurrent executions of
+		rw_lock_s_lock(). */
+
+#if 1 /* FIXME: MDEV-22871 Spurious contention between rw_lock_s_lock() */
+
+		/* When the number of concurrently executing threads
+		exceeds the number of available processor cores,
+		multiple buf_pool.page_hash S-latch requests would
+		conflict here, mostly in buf_page_get_low(). We should
+		implement a simpler rw-lock where the S-latch
+		acquisition would be a simple fetch_add(1) followed by
+		either an optional load() loop to wait for the X-latch
+		to be released, or a fetch_sub(1) and a retry.
+
+		For now, we work around the problem with a delay in
+		this loop. It helped a little on some systems and was
+		reducing performance on others. */
 		(void) LF_BACKOFF();
+#endif
 	}
+
+	/* A real conflict was detected. */
 	return(false);
 }
 
