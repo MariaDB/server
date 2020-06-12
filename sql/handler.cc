@@ -3103,6 +3103,9 @@ int handler::ha_index_next(uchar * buf)
       table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
+
+  DEBUG_SYNC(ha_thd(), "handler_ha_index_next_end");
+
   DBUG_RETURN(result);
 }
 

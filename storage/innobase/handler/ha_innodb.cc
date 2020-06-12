@@ -2669,6 +2669,7 @@ ha_innobase::ha_innobase(
 			  | HA_CAN_FULLTEXT_HINTS
 		*/
 			  | HA_CAN_EXPORT
+                          | HA_ONLINE_ANALYZE
 			  | HA_CAN_RTREEKEYS
                           | HA_CAN_TABLES_WITHOUT_ROLLBACK
                           | HA_CAN_ONLINE_BACKUPS

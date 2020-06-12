@@ -1192,7 +1192,17 @@ int ha_partition::analyze(THD *thd, HA_CHECK_OPT *check_opt)
 {
   DBUG_ENTER("ha_partition::analyze");
 
-  DBUG_RETURN(handle_opt_partitions(thd, check_opt, ANALYZE_PARTS));
+  int result= handle_opt_partitions(thd, check_opt, ANALYZE_PARTS);
+
+  if ((result == 0) && m_file[0]
+      && (m_file[0]->ha_table_flags() & HA_ONLINE_ANALYZE))
+  {
+    /* If this is ANALYZE TABLE that will not force table definition cache
+       eviction, update statistics for the partition handler. */
+    this->info(HA_STATUS_CONST | HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
+  }
+
+  DBUG_RETURN(result);
 }
 
 
