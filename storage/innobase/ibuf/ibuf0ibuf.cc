@@ -3335,7 +3335,7 @@ fail_exit:
 
 	/* We check if the index page is suitable for buffered entries */
 
-	if (buf_page_hash_get(page_id)
+	if (buf_pool.page_hash_contains(page_id)
 	    || lock_rec_expl_exist_on_page(page_id.space(),
 					   page_id.page_no())) {
 
@@ -3576,9 +3576,9 @@ check_watch:
 	would always trigger the buffer pool watch during purge and
 	thus prevent the buffering of delete operations.  We assume
 	that the issuer of IBUF_OP_DELETE has called
-	buf_pool_watch_set(space, page_no). */
+	buf_pool_t::watch_set(). */
 
-	if (buf_page_get_also_watch(page_id)) {
+	if (buf_pool.page_hash_contains<true>(page_id)) {
 		/* A buffer pool watch has been set or the
 		page has been read into the buffer pool.
 		Do not buffer the request.  If a purge operation

@@ -711,72 +711,6 @@ void buf_page_monitor(const buf_page_t *bpage, buf_io_fix io_type);
 @retval DB_DECRYPTION_FAILED    if the page cannot be decrypted */
 dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node);
 
-/** Returns the control block of a file page, NULL if not found.
-If the block is found and lock is not NULL then the appropriate
-page_hash lock is acquired in the specified lock mode. Otherwise,
-mode value is ignored. It is up to the caller to release the
-lock. If the block is found and the lock is NULL then the page_hash
-lock is released by this function.
-@param[in]	page_id		page id
-@param[in,out]	lock		lock of the page hash acquired if bpage is
-found, NULL otherwise. If NULL is passed then the hash_lock is released by
-this function.
-@param[in]	lock_mode	RW_LOCK_X or RW_LOCK_S. Ignored if
-lock == NULL
-@param[in]	watch		if true, return watch sentinel also.
-@return pointer to the bpage or NULL; if NULL, lock is also NULL or
-a watch sentinel. */
-UNIV_INLINE
-buf_page_t*
-buf_page_hash_get_locked(
-	const page_id_t		page_id,
-	rw_lock_t**		lock,
-	ulint			lock_mode,
-	bool			watch = false);
-
-/** Returns the control block of a file page, NULL if not found.
-If the block is found and lock is not NULL then the appropriate
-page_hash lock is acquired in the specified lock mode. Otherwise,
-mode value is ignored. It is up to the caller to release the
-lock. If the block is found and the lock is NULL then the page_hash
-lock is released by this function.
-@param[in]	page_id		page id
-@param[in,out]	lock		lock of the page hash acquired if bpage is
-found, NULL otherwise. If NULL is passed then the hash_lock is released by
-this function.
-@param[in]	lock_mode	RW_LOCK_X or RW_LOCK_S. Ignored if
-lock == NULL
-@return pointer to the block or NULL; if NULL, lock is also NULL. */
-UNIV_INLINE
-buf_block_t*
-buf_block_hash_get_locked(
-	const page_id_t		page_id,
-	rw_lock_t**		lock,
-	ulint			lock_mode);
-
-/* There are four different ways we can try to get a bpage or block
-from the page hash:
-1) Caller already holds the appropriate page hash lock: in the case call
-buf_pool_t::page_hash_get_low().
-2) Caller wants to hold page hash lock in x-mode
-3) Caller wants to hold page hash lock in s-mode
-4) Caller doesn't want to hold page hash lock */
-#define buf_page_hash_get_s_locked(page_id, l)		\
-	buf_page_hash_get_locked(page_id, l, RW_LOCK_S)
-#define buf_page_hash_get_x_locked(page_id, l)		\
-	buf_page_hash_get_locked(page_id, l, RW_LOCK_X)
-#define buf_page_hash_get(page_id)				\
-	buf_page_hash_get_locked(page_id, nullptr, RW_LOCK_S)
-#define buf_page_get_also_watch(page_id)			\
-	buf_page_hash_get_locked(page_id, nullptr, RW_LOCK_S, true)
-
-#define buf_block_hash_get_s_locked(page_id, l)		\
-	buf_block_hash_get_locked(page_id, l, RW_LOCK_S)
-#define buf_block_hash_get_x_locked(page_id, l)		\
-	buf_block_hash_get_locked(page_id, l, RW_LOCK_X)
-#define buf_block_hash_get(page_id)				\
-	buf_block_hash_get_locked(page_id, nullptr, RW_LOCK_S)
-
 /** Calculate aligned buffer pool size based on srv_buf_pool_chunk_unit,
 if needed.
 @param[in]	size	size in bytes
@@ -1649,7 +1583,7 @@ public:
   This function does not return if the block is not identified.
   @param ptr  pointer to within a page frame
   @return pointer to block, never NULL */
-  inline buf_block_t* block_from_ahi(const byte *ptr) const;
+  inline buf_block_t *block_from_ahi(const byte *ptr) const;
 #endif /* BTR_CUR_HASH_ADAPT */
 
   bool is_block_lock(const BPageLock *l) const
@@ -1718,19 +1652,80 @@ public:
   }
 
   /** Look up a block descriptor.
-  @param id  page identifier
+  @param id    page identifier
+  @param fold  id.fold()
   @return block descriptor, possibly in watch[]
   @retval nullptr  if not found*/
-  buf_page_t *page_hash_get_low(const page_id_t id)
+  buf_page_t *page_hash_get_low(const page_id_t id, const ulint fold)
   {
+    ut_ad(id.fold() == fold);
     ut_ad(mutex_own(&mutex) ||
-          rw_lock_own_flagged(hash_lock_get(id),
+          rw_lock_own_flagged(hash_lock_get_low(fold),
                               RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
-    buf_page_t* bpage;
+    buf_page_t *bpage;
     /* Look for the page in the hash table */
-    HASH_SEARCH(hash, page_hash, id.fold(), buf_page_t*, bpage,
+    HASH_SEARCH(hash, page_hash, fold, buf_page_t*, bpage,
                 ut_ad(bpage->in_page_hash), id == bpage->id());
     return bpage;
+  }
+private:
+  /** Look up a block descriptor.
+  @tparam exclusive  whether the latch is to be acquired exclusively
+  @tparam watch      whether to allow watch_is_sentinel()
+  @param page_id     page identifier
+  @param fold        page_id.fold()
+  @param hash_lock   pointer to the acquired latch (to be released by caller)
+  @return pointer to the block
+  @retval nullptr  if no block was found; !lock || !*lock will also hold */
+  template<bool exclusive,bool watch>
+  buf_page_t *page_hash_get_locked(const page_id_t page_id, ulint fold,
+                                   rw_lock_t **hash_lock)
+  {
+    ut_ad(hash_lock || !exclusive);
+    rw_lock_t *latch= page_hash_lock<exclusive>(fold);
+    buf_page_t *bpage= page_hash_get_low(page_id, fold);
+    if (!bpage || watch_is_sentinel(*bpage))
+    {
+      if (exclusive)
+        rw_lock_x_unlock(latch);
+      else
+        rw_lock_s_unlock(latch);
+      if (hash_lock)
+        *hash_lock= nullptr;
+      return watch ? bpage : nullptr;
+    }
+
+    ut_ad(bpage->in_file());
+    ut_ad(page_id == bpage->id());
+
+    if (hash_lock)
+      *hash_lock= latch; /* to be released by the caller */
+    else if (exclusive)
+      rw_lock_x_unlock(latch);
+    else
+      rw_lock_s_unlock(latch);
+    return bpage;
+  }
+public:
+  /** Look up a block descriptor.
+  @tparam exclusive  whether the latch is to be acquired exclusively
+  @param page_id     page identifier
+  @param fold        page_id.fold()
+  @param hash_lock   pointer to the acquired latch (to be released by caller)
+  @return pointer to the block
+  @retval nullptr  if no block was found; !lock || !*lock will also hold */
+  template<bool exclusive>
+  buf_page_t *page_hash_get_locked(const page_id_t page_id, ulint fold,
+                                   rw_lock_t **hash_lock)
+  { return page_hash_get_locked<exclusive,false>(page_id, fold, hash_lock); }
+
+  /** @return whether the buffer pool contains a page
+  @tparam watch      whether to allow watch_is_sentinel()
+  @param page_id     page identifier */
+  template<bool watch= false>
+  bool page_hash_contains(const page_id_t page_id)
+  {
+    return page_hash_get_locked<false,watch>(page_id, page_id.fold(), nullptr);
   }
 
   /** Acquire exclusive latches on all page_hash buckets. */
@@ -1779,9 +1774,10 @@ public:
   @return whether the page was read to the buffer pool */
   bool watch_occurred(const page_id_t id)
   {
-    rw_lock_t *hash_lock= page_hash_lock<false>(id.fold());
+    const ulint fold= id.fold();
+    rw_lock_t *hash_lock= page_hash_lock<false>(fold);
     /* The page must exist because watch_set() increments buf_fix_count. */
-    buf_page_t *bpage= page_hash_get_low(id);
+    buf_page_t *bpage= page_hash_get_low(id, fold);
     const bool is_sentinel= watch_is_sentinel(*bpage);
     rw_lock_s_unlock(hash_lock);
     return !is_sentinel;
@@ -1791,7 +1787,7 @@ public:
   exclusive page hash latch. The *hash_lock may be released,
   relocated, and reacquired.
   @param id         page identifier
-  @param hash_lock  page_hash latch that is held in RW_LOCK_X mode
+  @param hash_lock  exclusively held page_hash latch
   @return a buffer pool block corresponding to id
   @retval nullptr   if the block was not present, and a watch was installed */
   inline buf_page_t *watch_set(const page_id_t id, rw_lock_t **hash_lock);
@@ -1804,7 +1800,7 @@ public:
     const ulint fold= id.fold();
     rw_lock_t *hash_lock= page_hash_lock<true>(fold);
     /* The page must exist because watch_set() increments buf_fix_count. */
-    buf_page_t *watch= page_hash_get_low(id);
+    buf_page_t *watch= page_hash_get_low(id, fold);
     if (watch->unfix() == 0 && watch_is_sentinel(*watch))
     {
       /* The following is based on watch_remove(). */
@@ -1824,7 +1820,7 @@ public:
       mutex_exit(&mutex);
     }
     else
-     rw_lock_x_unlock(hash_lock);
+      rw_lock_x_unlock(hash_lock);
   }
 
   /** Remove the sentinel block for the watch before replacing it with a

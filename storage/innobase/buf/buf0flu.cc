@@ -1230,7 +1230,7 @@ static bool buf_flush_check_neighbor(const page_id_t id,
   ut_ad(flush == IORequest::LRU || flush == IORequest::FLUSH_LIST);
   ut_ad(mutex_own(&buf_pool.mutex));
 
-  buf_page_t *bpage= buf_pool.page_hash_get_low(id);
+  buf_page_t *bpage= buf_pool.page_hash_get_low(id, id.fold());
 
   if (!bpage || buf_pool.watch_is_sentinel(*bpage))
     return false;
@@ -1409,9 +1409,11 @@ buf_flush_try_neighbors(
 			}
 		}
 
+		const ulint fold = id.fold();
+
 		mutex_enter(&buf_pool.mutex);
 
-		bpage = buf_page_hash_get(id);
+		bpage = buf_pool.page_hash_get_low(id, fold);
 
 		if (bpage == NULL) {
 			mutex_exit(&buf_pool.mutex);

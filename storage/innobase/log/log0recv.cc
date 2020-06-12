@@ -2537,7 +2537,7 @@ static void recv_read_in_area(page_id_t page_id)
 	     && i->first.space() == page_id.space()
 	     && i->first.page_no() < up_limit; i++) {
 		if (i->second.state == page_recv_t::RECV_NOT_PROCESSED
-		    && !buf_page_hash_get(i->first)) {
+		    && !buf_pool.page_hash_contains(i->first)) {
 			i->second.state = page_recv_t::RECV_BEING_READ;
 			*p++ = i->first.page_no();
 		}

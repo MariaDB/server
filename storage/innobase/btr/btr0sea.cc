@@ -2074,7 +2074,6 @@ btr_search_hash_table_validate(ulint hash_table_id)
 		for (; node != NULL; node = node->next) {
 			const buf_block_t*	block
 				= buf_pool.block_from_ahi((byte*) node->data);
-			const buf_block_t*	hash_block;
 			index_id_t		page_index_id;
 
 			if (UNIV_LIKELY(block->page.state()
@@ -2085,29 +2084,22 @@ btr_search_hash_table_validate(ulint hash_table_id)
 				the block is being freed
 				(BUF_BLOCK_REMOVE_HASH, see the
 				assertion and the comment below) */
-				hash_block = buf_block_hash_get(
-					block->page.id());
-			} else {
-				hash_block = NULL;
+				const page_id_t id(block->page.id());
+				if (const buf_page_t* hash_page
+				    = buf_pool.page_hash_get_low(
+					    id, id.fold())) {
+					ut_ad(hash_page == &block->page);
+					goto state_ok;
+				}
 			}
 
-			if (hash_block) {
-				ut_a(hash_block == block);
-			} else {
-				/* When a block is being freed,
-				buf_LRU_search_and_free_block() first
-				removes the block from
-				buf_pool.page_hash by calling
-				buf_LRU_block_remove_hashed_page().
-				After that, it invokes
-				btr_search_drop_page_hash_index() to
-				remove the block from
-				btr_search_sys->hash_tables[i]. */
-
-				ut_a(block->page.state()
-				     == BUF_BLOCK_REMOVE_HASH);
-			}
-
+			/* When a block is being freed,
+			buf_LRU_search_and_free_block() first removes
+			the block from buf_pool.page_hash by calling
+			buf_LRU_block_remove_hashed_page(). Then it
+			invokes btr_search_drop_page_hash_index(). */
+			ut_a(block->page.state() == BUF_BLOCK_REMOVE_HASH);
+state_ok:
 			ut_ad(!dict_index_is_ibuf(block->index));
 			ut_ad(block->page.id().space()
 			      == block->index->table->space_id);

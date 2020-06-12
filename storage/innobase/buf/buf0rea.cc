@@ -119,14 +119,16 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     rw_lock_x_lock_gen(&block->lock, BUF_IO_READ);
   }
 
+  const ulint fold= page_id.fold();
+
   mutex_enter(&buf_pool.mutex);
 
   /* We must acquire hash_lock this early to prevent
   a race condition with buf_pool_t::watch_remove() */
-  rw_lock_t *hash_lock= buf_pool.hash_lock_get(page_id);
+  rw_lock_t *hash_lock= buf_pool.hash_lock_get_low(fold);
   rw_lock_x_lock(hash_lock);
 
-  buf_page_t *hash_page= buf_pool.page_hash_get_low(page_id);
+  buf_page_t *hash_page= buf_pool.page_hash_get_low(page_id, fold);
   if (hash_page && !buf_pool.watch_is_sentinel(*hash_page))
   {
     /* The page is already in the buffer pool. */
@@ -157,7 +159,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     block->page.set_state(BUF_BLOCK_FILE_PAGE);
     ut_ad(!block->page.in_page_hash);
     ut_d(block->page.in_page_hash= true);
-    HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, page_id.fold(), bpage);
+    HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, fold, bpage);
     rw_lock_x_unlock(hash_lock);
 
     /* The block must be put to the LRU list, to the old blocks */
@@ -198,7 +200,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     check the page_hash again, as it may have been modified. */
     if (UNIV_UNLIKELY(lru))
     {
-      hash_page= buf_pool.page_hash_get_low(page_id);
+      hash_page= buf_pool.page_hash_get_low(page_id, fold);
 
       if (UNIV_UNLIKELY(hash_page && !buf_pool.watch_is_sentinel(*hash_page)))
       {
@@ -230,7 +232,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
     ut_ad(!bpage->in_page_hash);
     ut_d(bpage->in_page_hash= true);
-    HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, page_id.fold(), bpage);
+    HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, fold, bpage);
     bpage->set_io_fix(BUF_IO_READ);
     rw_lock_x_unlock(hash_lock);
 
@@ -425,7 +427,7 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
   {
     const ulint fold= i.fold();
     rw_lock_t *hash_lock= buf_pool.page_hash_lock<false>(fold);
-    const buf_page_t* bpage= buf_pool.page_hash_get_low(i);
+    const buf_page_t* bpage= buf_pool.page_hash_get_low(i, fold);
     bool found= bpage && bpage->is_accessed() && buf_page_peek_if_young(bpage);
     rw_lock_s_unlock(hash_lock);
     if (found && !--count)
@@ -619,7 +621,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
   {
     const ulint fold= i.fold();
     rw_lock_t *hash_lock= buf_pool.page_hash_lock<false>(fold);
-    const buf_page_t* bpage= buf_pool.page_hash_get_low(i);
+    const buf_page_t* bpage= buf_pool.page_hash_get_low(i, fold);
     if (i == page_id)
     {
       /* Read the natural predecessor and successor page addresses from

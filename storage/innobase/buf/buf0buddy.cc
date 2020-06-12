@@ -508,20 +508,15 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 	ut_ad(space != BUF_BUDDY_STAMP_FREE);
 
 	const page_id_t	page_id(space, offset);
+	const ulint fold= page_id.fold();
 
-	rw_lock_t*	hash_lock = buf_pool.hash_lock_get(page_id);
-
-	rw_lock_x_lock(hash_lock);
-
-	bpage = buf_pool.page_hash_get_low(page_id);
+	bpage = buf_pool.page_hash_get_low(page_id, fold);
 
 	if (!bpage || bpage->zip.data != src) {
 		/* The block has probably been freshly
 		allocated by buf_LRU_get_free_block() but not
 		added to buf_pool.page_hash yet.  Obviously,
 		it cannot be relocated. */
-
-		rw_lock_x_unlock(hash_lock);
 
 		if (!force || space != 0 || offset != 0) {
 			return(false);
@@ -534,8 +529,6 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		while (bpage != NULL) {
 			if (bpage->zip.data == src) {
 				ut_ad(bpage->id() == page_id);
-				hash_lock = buf_pool.hash_lock_get(page_id);
-				rw_lock_x_lock(hash_lock);
 				break;
 			}
 			bpage = UT_LIST_GET_NEXT(LRU, bpage);
@@ -551,15 +544,19 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		have to relocate all blocks covered by src.
 		For the sake of simplicity, give up. */
 		ut_ad(page_zip_get_size(&bpage->zip) < size);
-
-		rw_lock_x_unlock(hash_lock);
-
 		return(false);
 	}
 
 	/* The block must have been allocated, but it may
 	contain uninitialized data. */
 	UNIV_MEM_ASSERT_W(src, size);
+
+	if (!bpage->can_relocate()) {
+		return false;
+	}
+
+	rw_lock_t * hash_lock = buf_pool.hash_lock_get_low(fold);
+	rw_lock_x_lock(hash_lock);
 
 	if (bpage->can_relocate()) {
 		/* Relocate the compressed page. */

@@ -1159,7 +1159,8 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	/* We must hold an exclusive hash_lock to prevent
 	bpage->can_relocate() from changing due to a concurrent
 	execution of buf_page_get_low(). */
-	rw_lock_t* hash_lock = buf_pool.hash_lock_get(id);
+	const ulint fold = id.fold();
+	rw_lock_t* hash_lock = buf_pool.hash_lock_get_low(fold);
 	rw_lock_x_lock(hash_lock);
 
 	if (UNIV_UNLIKELY(!bpage->can_relocate())) {
@@ -1216,7 +1217,7 @@ func_exit:
 
 		rw_lock_x_lock(hash_lock);
 
-		ut_ad(!buf_pool.page_hash_get_low(id));
+		ut_ad(!buf_pool.page_hash_get_low(id, fold));
 		ut_ad(b->zip_size());
 
 		UNIV_MEM_DESC(b->zip.data, b->zip_size());
@@ -1238,8 +1239,7 @@ func_exit:
 		ut_ad(b->in_LRU_list);
 		ut_ad(b->in_page_hash);
 
-		HASH_INSERT(buf_page_t, hash, buf_pool.page_hash,
-			    id.fold(), b);
+		HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, fold, b);
 
 		/* Insert b where bpage was in the LRU list. */
 		if (prev_b) {
