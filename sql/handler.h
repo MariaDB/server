@@ -342,7 +342,15 @@ enum chf_create_flags {
 /* Support native hash index */
 #define HA_CAN_HASH_KEYS        (1ULL << 57)
 #define HA_CRASH_SAFE           (1ULL << 58)
-#define HA_LAST_TABLE_FLAG HA_CRASH_SAFE
+
+/*
+  There is no need to evict the table from the table definition cache having
+  run ANALYZE TABLE on it
+ */
+#define HA_ONLINE_ANALYZE             (1ULL << 59)
+
+#define HA_LAST_TABLE_FLAG HA_ONLINE_ANALYZE
+
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
