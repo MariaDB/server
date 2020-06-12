@@ -432,7 +432,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   if (check_dependencies_in_with_clauses(lex->with_clauses_list))
   {
     res= TRUE;
-    goto err;
+    goto err_no_relink;
   }
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
@@ -449,9 +449,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   if (thd->open_temporary_tables(lex->query_tables) ||
       open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
   {
-    view= lex->unlink_first_table(&link_to_local);
     res= TRUE;
-    goto err;
+    goto err_no_relink;
   }
 
 #ifdef WITH_WSREP
@@ -723,6 +722,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 #ifdef WITH_WSREP
 wsrep_error_label:
   res= true;
+  goto err_no_relink;
 #endif
 
 err:
