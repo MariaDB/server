@@ -442,9 +442,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   if (open_temporary_tables(thd, lex->query_tables) ||
       open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
   {
-    view= lex->unlink_first_table(&link_to_local);
     res= TRUE;
-    goto err;
+    goto err_no_relink;
   }
 
   view= lex->unlink_first_table(&link_to_local);
@@ -694,10 +693,12 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
 WSREP_ERROR_LABEL:
   res= TRUE;
+  goto err_no_relink;
 
 err:
   THD_STAGE_INFO(thd, stage_end);
   lex->link_first_table_back(view, link_to_local);
+err_no_relink:
   unit->cleanup();
   DBUG_RETURN(res || thd->is_error());
 }
