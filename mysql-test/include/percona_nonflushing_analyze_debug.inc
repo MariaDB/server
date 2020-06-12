@@ -16,8 +16,11 @@ send_eval SELECT * FROM $percona_nonflushing_analyze_table;
 
 SET DEBUG_SYNC="now WAIT_FOR idx_scan_in_progress";
 
+set @tmp=@@use_stat_tables;
+set use_stat_tables='preferably_for_queries';
 eval ANALYZE TABLE $percona_nonflushing_analyze_table;
 
+set use_stat_tables=@tmp;
 # With the bug fixed this should not block
 eval SELECT * FROM $percona_nonflushing_analyze_table;
 
