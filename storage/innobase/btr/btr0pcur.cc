@@ -149,7 +149,13 @@ before_first:
 
 		ut_ad(!page_rec_is_infimum(rec));
 		if (UNIV_UNLIKELY(rec_is_metadata(rec, *index))) {
+#if 0 /* MDEV-22867 had to relax this */
+			/* If the table is emptied during an ALGORITHM=NOCOPY
+			DROP COLUMN ... that is not ALGORITHM=INSTANT,
+			then we must preserve any instant ADD metadata. */
 			ut_ad(index->table->instant);
+#endif
+			ut_ad(index->is_instant());
 			ut_ad(page_get_n_recs(block->frame) == 1);
 			ut_ad(page_is_leaf(block->frame));
 			ut_ad(!page_has_siblings(block->frame));

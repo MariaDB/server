@@ -1306,6 +1306,16 @@ public:
   void set_freed() { ut_ad(!freed()); page= 1; }
 #endif /* BTR_CUR_HASH_ADAPT */
 
+  /** @return whether it is forbidden to invoke clear_instant_add() */
+  bool must_avoid_clear_instant_add() const
+  {
+    if (is_instant())
+      for (auto i= this; (i= UT_LIST_GET_NEXT(indexes, i)) != nullptr; )
+        if (i->to_be_dropped /* || i->online_log*/)
+          return true;
+    return false;
+  }
+
 	/** This ad-hoc class is used by record_size_info only.	*/
 	class record_size_info_t {
 	public:

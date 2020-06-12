@@ -5450,7 +5450,8 @@ btr_cur_optimistic_delete_func(
 	if (UNIV_UNLIKELY(block->page.id().page_no() == cursor->index->page
 			  && page_get_n_recs(block->frame) == 1
 			  + (cursor->index->is_instant()
-			     && !rec_is_metadata(rec, *cursor->index)))) {
+			     && !rec_is_metadata(rec, *cursor->index))
+			  && !cursor->index->must_avoid_clear_instant_add())) {
 		/* The whole index (and table) becomes logically empty.
 		Empty the whole page. That is, if we are deleting the
 		only user record, also delete the metadata record
@@ -5687,7 +5688,8 @@ btr_cur_pessimistic_delete(
 				goto discard_page;
 			}
 		} else if (page_get_n_recs(page) == 1
-			   + (index->is_instant() && !is_metadata)) {
+			   + (index->is_instant() && !is_metadata)
+			   && !index->must_avoid_clear_instant_add()) {
 			/* The whole index (and table) becomes logically empty.
 			Empty the whole page. That is, if we are deleting the
 			only user record, also delete the metadata record

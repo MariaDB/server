@@ -3944,11 +3944,14 @@ btr_discard_only_page_on_level(
 	mem_heap_t* heap = NULL;
 	const rec_t* rec = NULL;
 	rec_offs* offsets = NULL;
-	if (index->table->instant) {
+
+	if (index->table->instant || index->must_avoid_clear_instant_add()) {
 		const rec_t* r = page_rec_get_next(page_get_infimum_rec(
 							   block->frame));
 		ut_ad(rec_is_metadata(r, *index) == index->is_instant());
-		if (rec_is_alter_metadata(r, *index)) {
+		if (!rec_is_metadata(r, *index)) {
+		} else if (!index->table->instant
+			   || rec_is_alter_metadata(r, *index)) {
 			heap = mem_heap_create(srv_page_size);
 			offsets = rec_get_offsets(r, index, NULL, true,
 						  ULINT_UNDEFINED, &heap);
