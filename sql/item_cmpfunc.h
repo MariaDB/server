@@ -396,6 +396,7 @@ public:
   { return args[1]; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_in_optimizer>(thd, this); }
+  enum precedence precedence() const { return args[1]->precedence(); }
 };
 
 

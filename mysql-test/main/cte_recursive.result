@@ -3093,7 +3093,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	DEPENDENT SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	with recursive destinations(`city`,`legs`) as (/* select#2 */ select `test`.`a`.`arrival` AS `city`,1 AS `legs` from `test`.`flights` `a` where `test`.`a`.`departure` = 'Cairo' union /* select#3 */ select `test`.`b`.`arrival` AS `arrival`,`r`.`legs` + 1 AS `r.legs + 1` from `destinations` `r` join `test`.`flights` `b` where `r`.`city` = `test`.`b`.`departure` and !<in_optimizer>(`test`.`b`.`arrival`,<exists>(/* select#4 */ select `destinations`.`city` from `destinations` where trigcond(`test`.`b`.`arrival` = `destinations`.`city` or `destinations`.`city` is null) having trigcond(`destinations`.`city` is null))))/* select#1 */ select `destinations`.`city` AS `city`,`destinations`.`legs` AS `legs` from `destinations`
+Note	1003	with recursive destinations(`city`,`legs`) as (/* select#2 */ select `test`.`a`.`arrival` AS `city`,1 AS `legs` from `test`.`flights` `a` where `test`.`a`.`departure` = 'Cairo' union /* select#3 */ select `test`.`b`.`arrival` AS `arrival`,`r`.`legs` + 1 AS `r.legs + 1` from `destinations` `r` join `test`.`flights` `b` where `r`.`city` = `test`.`b`.`departure` and !(<in_optimizer>(`test`.`b`.`arrival`,<exists>(/* select#4 */ select `destinations`.`city` from `destinations` where trigcond(`test`.`b`.`arrival` = `destinations`.`city` or `destinations`.`city` is null) having trigcond(`destinations`.`city` is null)))))/* select#1 */ select `destinations`.`city` AS `city`,`destinations`.`legs` AS `legs` from `destinations`
 set standard_compliant_cte=default;
 drop table flights;
 #
