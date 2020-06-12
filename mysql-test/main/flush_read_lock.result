@@ -49,6 +49,7 @@ set local sql_mode="";
 # used in this test in order to be able to 
 # check that DDL statements on temporary tables
 # are compatible with FTRWL. 
+call mtr.add_suppression("BINLOG_BASE64_EVENT: Error executing row event.*error code: 1223");
 drop tables if exists t1_base, t2_base, t3_trans;
 drop tables if exists tm_base, tm_base_temp;
 drop database if exists mysqltest1;
@@ -438,7 +439,6 @@ Success: Was able to run 'execute stmt1' under FTWRL.
 Success: Was able to run 'execute stmt1' with FTWRL active in another connection.
 Success: Was able to run FTWRL while 'execute stmt1' was active in another connection.
 deallocate prepare stmt1;
-call mtr.add_suppression("Slave SQL.*Can.t execute the query because you have a conflicting read lock., error.* 1223");
 #
 # 9.2.b) EXECUTE for statement which is incompatible with FTWRL
 #        should be also incompatible.
