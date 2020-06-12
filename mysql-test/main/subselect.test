@@ -6190,3 +6190,29 @@ SELECT ROW(1,2) = (1 = ANY (SELECT 1 UNION SELECT 2));
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo # NOT IN: precedence requires parentheses
+CREATE TABLE t1 (i INT);
+CREATE TABLE t2 (j INT);
+INSERT INTO t1 VALUES (10), (20);
+INSERT INTO t2 VALUES (20), (30);
+CREATE VIEW v1 AS SELECT NOT(i IN (SELECT * from t2)) FROM t1;
+CREATE VIEW v2 AS SELECT * FROM t1 WHERE i NOT IN (SELECT * from t2);
+SELECT * FROM v1;
+SELECT * FROM v2;
+SHOW CREATE VIEW v1;
+SHOW CREATE VIEW v2;
+EXPLAIN EXTENDED SELECT NOT(i IN (SELECT * from t2)) FROM t1;
+SHOW WARNINGS;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE i NOT IN (SELECT * from t2);
+SHOW WARNINGS;
+DROP VIEW v1, v2;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
