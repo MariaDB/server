@@ -2056,6 +2056,9 @@ public:
   {
     uint errors;                                /* Bits of possible errors */
     const char *name;                           /* Not supported function */
+    Alter_info *alter_info;
+    vcol_func_processor_result() :
+      errors(0), name(NULL), alter_info(NULL) {}
   };
   struct func_processor_rename
   {
@@ -3506,16 +3509,7 @@ public:
   bool switch_to_nullable_fields_processor(void *arg);
   bool update_vcol_processor(void *arg);
   bool rename_fields_processor(void *arg);
-  bool check_vcol_func_processor(void *arg)
-  {
-    context= 0;
-    if (field && (field->unireg_check == Field::NEXT_NUMBER))
-    {
-      // Auto increment fields are unsupported
-      return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF | VCOL_AUTO_INC);
-    }
-    return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF);
-  }
+  bool check_vcol_func_processor(void *arg);
   bool set_fields_as_dependent_processor(void *arg)
   {
     if (!(used_tables() & OUTER_REF_TABLE_BIT))
@@ -6070,7 +6064,7 @@ public:
   table_map used_tables() const { return (table_map) 1L; }
   bool const_item() const { return 0; }
   bool is_null() { return null_value; }
-  bool check_vcol_func_processor(void *arg) 
+  bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function("copy", arg, VCOL_IMPOSSIBLE);
   }

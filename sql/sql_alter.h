@@ -95,11 +95,6 @@ public:
   List<Alter_rename_key>        alter_rename_key_list;
   // List of columns, used by both CREATE and ALTER TABLE.
   List<Create_field>            create_list;
-
-  enum flags_bits
-  {
-    CHECK_CONSTRAINT_IF_NOT_EXISTS= 1
-  };
   List<Virtual_column_info>     check_constraint_list;
   // Type of ALTER TABLE operation.
   alter_table_operations        flags;

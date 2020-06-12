@@ -1493,6 +1493,37 @@ bool mark_unsupported_function(const char *w1, const char *w2,
 }
 
 
+bool Item_field::check_vcol_func_processor(void *arg)
+{
+  context= 0;
+  vcol_func_processor_result *res= (vcol_func_processor_result *) arg;
+  if (res && res->alter_info)
+  {
+    for (Key &k: res->alter_info->key_list)
+    {
+      if (k.type != Key::FOREIGN_KEY)
+        continue;
+      Foreign_key *fk= (Foreign_key*) &k;
+      if (fk->update_opt != FK_OPTION_CASCADE)
+        continue;
+      for (Key_part_spec& kp: fk->columns)
+      {
+        if (!lex_string_cmp(system_charset_info, &kp.field_name, &field_name))
+        {
+          return mark_unsupported_function(field_name.str, arg, VCOL_IMPOSSIBLE);
+        }
+      }
+    }
+  }
+  if (field && (field->unireg_check == Field::NEXT_NUMBER))
+  {
+    // Auto increment fields are unsupported
+    return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF | VCOL_AUTO_INC);
+  }
+  return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF);
+}
+
+
 Query_fragment::Query_fragment(THD *thd, sp_head *sphead,
                                const char *start, const char *end)
 {

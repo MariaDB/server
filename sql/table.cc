@@ -3574,7 +3574,6 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
     to be part of the virtual column
   */
   Item::vcol_func_processor_result res;
-  res.errors= 0;
 
   int error= func_expr->walk(&Item::check_vcol_func_processor, 0, &res);
   if (unlikely(error || (res.errors & VCOL_IMPOSSIBLE)))

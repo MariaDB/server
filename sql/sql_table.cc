@@ -4292,8 +4292,30 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           key_info->algorithm == HA_KEY_ALG_LONG_HASH)
 
       {
+without_overlaps_err:
         my_error(ER_KEY_CANT_HAVE_WITHOUT_OVERLAPS, MYF(0), key_info->name.str);
         DBUG_RETURN(true);
+      }
+      key_iterator2.rewind();
+      while ((key2 = key_iterator2++))
+      {
+        if (key2->type != Key::FOREIGN_KEY)
+          continue;
+        DBUG_ASSERT(key != key2);
+        Foreign_key *fk= (Foreign_key*) key2;
+        if (fk->update_opt != FK_OPTION_CASCADE)
+          continue;
+        for (Key_part_spec& kp: key->columns)
+        {
+          for (Key_part_spec& kp2: fk->columns)
+          {
+            if (!lex_string_cmp(system_charset_info, &kp.field_name,
+                               &kp2.field_name))
+            {
+              goto without_overlaps_err;
+            }
+          }
+        }
       }
       create_info->period_info.unique_keys++;
     }
@@ -4383,7 +4405,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     while ((check= c_it++))
     {
       if (!check->name.length || check->automatic_name)
+      {
+        if (check_expression(check, &check->name, VCOL_CHECK_TABLE, alter_info))
+          DBUG_RETURN(TRUE);
         continue;
+      }
 
       {
         /* Check that there's no repeating table CHECK constraint names. */
@@ -5538,7 +5564,7 @@ static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
     if (!check)                                 // Found unique name
     {
       name->length= (size_t) (real_end - buff);
-      name->str= thd->strmake(buff, name->length);
+      name->str= strmake_root(thd->stmt_arena->mem_root, buff, name->length);
       return (name->str == NULL);
     }
   }
@@ -6666,7 +6692,7 @@ remove_key:
 
     while ((check=it++))
     {
-      if (!(check->flags & Alter_info::CHECK_CONSTRAINT_IF_NOT_EXISTS) &&
+      if (!(check->flags & VCOL_CHECK_CONSTRAINT_IF_NOT_EXISTS) &&
           check->name.length)
         continue;
       check->flags= 0;

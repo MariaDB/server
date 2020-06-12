@@ -4331,8 +4331,7 @@ public:
                       bool if_not_exists)
   {
     constr->name= name;
-    constr->flags= if_not_exists ?
-                   Alter_info::CHECK_CONSTRAINT_IF_NOT_EXISTS : 0;
+    constr->flags= if_not_exists ? VCOL_CHECK_CONSTRAINT_IF_NOT_EXISTS : 0;
     alter_info.check_constraint_list.push_back(constr);
     return false;
   }
