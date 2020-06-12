@@ -458,7 +458,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   if(!wsrep_should_replicate_ddl_iterate(thd, static_cast<const TABLE_LIST *>(tables)))
   {
     res= TRUE;
-    goto err;
+    goto err_no_relink;
   }
 #endif
 
@@ -727,6 +727,7 @@ wsrep_error_label:
 
 err:
   lex->link_first_table_back(view, link_to_local);
+err_no_relink:
   unit->cleanup();
   DBUG_RETURN(res || thd->is_error());
 }
