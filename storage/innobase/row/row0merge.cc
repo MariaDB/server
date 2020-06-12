@@ -3815,6 +3815,7 @@ row_merge_drop_indexes(
 			ut_error;
 		}
 
+		fts_clear_all(table, trx);
 		return;
 	}
 
@@ -3867,6 +3868,7 @@ row_merge_drop_indexes(
 		}
 	}
 
+	fts_clear_all(table, trx);
 	table->drop_aborted = FALSE;
 	ut_d(dict_table_check_for_dup_indexes(table, CHECK_ALL_COMPLETE));
 }

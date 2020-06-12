@@ -805,6 +805,29 @@ fts_check_cached_index(
 	return(TRUE);
 }
 
+/** Clear all fts resources when there is no internal DOC_ID
+and there are no new fts index to add.
+@param[in,out]	table	table  where fts is to be freed
+@param[in]	trx	transaction to drop all fts tables */
+void fts_clear_all(dict_table_t *table, trx_t *trx)
+{
+  if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID) ||
+      !table->fts ||
+      !ib_vector_is_empty(table->fts->indexes))
+    return;
+
+  for (const dict_index_t *index= dict_table_get_first_index(table);
+       index; index= dict_table_get_next_index(index))
+    if (index->type & DICT_FTS)
+      return;
+
+  fts_optimize_remove_table(table);
+
+  fts_drop_tables(trx, table);
+  fts_free(table);
+  DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS);
+}
+
 /*******************************************************************//**
 Drop auxiliary tables related to an FTS index
 @return DB_SUCCESS or error number */
@@ -821,9 +844,10 @@ fts_drop_index(
 	ut_a(indexes);
 
 	if ((ib_vector_size(indexes) == 1
-	    && (index == static_cast<dict_index_t*>(
-			ib_vector_getp(table->fts->indexes, 0))))
-	   || ib_vector_is_empty(indexes)) {
+	     && (index == static_cast<dict_index_t*>(
+			ib_vector_getp(table->fts->indexes, 0)))
+	     && DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
+	    || ib_vector_is_empty(indexes)) {
 		doc_id_t	current_doc_id;
 		doc_id_t	first_doc_id;
 
@@ -832,27 +856,6 @@ fts_drop_index(
 		fts_optimize_remove_table(table);
 
 		DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS);
-
-		/* If Doc ID column is not added internally by FTS index,
-		we can drop all FTS auxiliary tables. Otherwise, we will
-		need to keep some common table such as CONFIG table, so
-		as to keep track of incrementing Doc IDs */
-		if (!DICT_TF2_FLAG_IS_SET(
-			table, DICT_TF2_FTS_HAS_DOC_ID)) {
-
-			err = fts_drop_tables(trx, table);
-
-			err = fts_drop_index_tables(trx, index);
-
-			while (index->index_fts_syncing
-				&& !trx_is_interrupted(trx)) {
-				DICT_BG_YIELD(trx);
-			}
-
-			fts_free(table);
-
-			return(err);
-		}
 
 		while (index->index_fts_syncing
 		       && !trx_is_interrupted(trx)) {
