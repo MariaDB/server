@@ -207,7 +207,7 @@ public:
     return remove_within_range(range, value);
   }
   /** Add the value within the existing range
-  @param[in]	range_set::add_rangerange	range to be modified
+  @param[in]	range	range to be modified
   @param[in]	value	value to be added */
   range_set_t::iterator add_within_range(range_set_t::iterator range,
                                          uint32_t value)
