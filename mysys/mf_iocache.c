@@ -1566,6 +1566,8 @@ int my_b_append(IO_CACHE *info, const uchar *Buffer, size_t Count)
 {
   size_t rest_length,length;
 
+  MEM_CHECK_DEFINED(Buffer, Count);
+
   /*
     Assert that we cannot come here with a shared cache. If we do one
     day, we might need to add a call to copy_to_read_buffer().
