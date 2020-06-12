@@ -208,8 +208,6 @@ SET @save_sort_buffer_size=@@sort_buffer_size;
 SET @save_innodb_file_format= @@innodb_file_format;
 SET @save_innodb_large_prefix= @@innodb_large_prefix;
 SET sort_buffer_size=2048;
-SET GLOBAL innodb_file_format = BARRACUDA;
-SET GLOBAL innodb_large_prefix = ON;
 
 CREATE TABLE t1 (
   a VARCHAR(1024) CHARACTER SET UTF8 PRIMARY KEY,
@@ -222,8 +220,6 @@ EXPLAIN SELECT * FROM t1 WHERE a='1' OR b < 5;
 SELECT * FROM t1 WHERE a='1' OR b < 5;
 DROP TABLE t1;
 
-SET GLOBAL innodb_file_format = @save_innodb_file_format;
-SET GLOBAL innodb_large_prefix = @save_innodb_large_prefix;
 SET sort_buffer_size= @save_sort_buffer_size;
 
 disconnect disable_purge;
