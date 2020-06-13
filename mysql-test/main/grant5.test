@@ -182,4 +182,21 @@ insert mysql.tables_priv (host,db,user,table_name,grantor,table_priv) values ('l
 flush privileges;
 delete from mysql.tables_priv where db='';
 
+#
+# MDEV-21560 Assertion `grant_table || grant_table_role' failed in check_grant_all_columns
+#
+create database db;
+create table db.t1 (a int);
+insert into db.t1 values (1);
+create user foo;
+grant delete on db.* to foo;
+--connect (con1,localhost,foo,,)
+show create table db.t1;
+--error ER_COLUMNACCESS_DENIED_ERROR
+delete from db.t1 returning *;
+--disconnect con1
+--connection default
+drop database db;
+drop user foo;
+
 --echo # End of 10.4 tests

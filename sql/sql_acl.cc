@@ -8335,7 +8335,8 @@ bool check_grant_all_columns(THD *thd, ulong want_access_arg,
 
         grant_table= grant->grant_table_user;
         grant_table_role= grant->grant_table_role;
-        DBUG_ASSERT (grant_table || grant_table_role);
+        if (!grant_table && !grant_table_role)
+          goto err;
       }
     }
 
