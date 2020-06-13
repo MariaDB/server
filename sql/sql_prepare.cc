@@ -903,6 +903,8 @@ static bool insert_params_with_log(Prepared_statement *stmt, uchar *null_array,
 
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
+
+    param->sync_clones();
   }
   if (acc.finalize())
     DBUG_RETURN(1);
