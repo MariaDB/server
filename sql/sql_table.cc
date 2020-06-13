@@ -1168,7 +1168,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
         }
         else
         {
-          if (unlikely((error= file->ha_delete_table(ddl_log_entry->name))))
+          if (unlikely((error= hton->drop_table(hton, ddl_log_entry->name))))
           {
             if (!non_existing_table_error(error))
               break;

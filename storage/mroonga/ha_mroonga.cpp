@@ -5031,19 +5031,8 @@ int ha_mroonga::wrapper_delete_table(const char *name,
                                      handlerton *wrap_handlerton,
                                      const char *table_name)
 {
-  int error = 0;
   MRN_DBUG_ENTER_METHOD();
-
-  handler *hnd = get_new_handler(NULL, current_thd->mem_root, wrap_handlerton);
-  if (!hnd)
-  {
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  }
-
-  error = hnd->ha_delete_table(name);
-  delete hnd;
-
-  DBUG_RETURN(error);
+  DBUG_RETURN(wrap_handlerton->drop_table(wrap_handlerton, name));
 }
 
 int ha_mroonga::generic_delete_table(const char *name, const char *table_name)
