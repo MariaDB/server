@@ -33,9 +33,9 @@ ST_FIELD_INFO disks_table_fields[]=
 {
     { "Disk",      PATH_MAX, MYSQL_TYPE_STRING, 0, 0 ,0, 0 },
     { "Path",      PATH_MAX, MYSQL_TYPE_STRING, 0, 0 ,0, 0 },
-    { "Total",           32, MYSQL_TYPE_LONG,   0, 0 ,0 ,0 }, // Total amount available
-    { "Used",            32, MYSQL_TYPE_LONG,   0, 0 ,0 ,0 }, // Amount of space used
-    { "Available",       32, MYSQL_TYPE_LONG,   0, 0 ,0 ,0 }, // Amount available to users other than root.
+    { "Total",           32, MYSQL_TYPE_LONGLONG,   0, 0 ,0 ,0 }, // Total amount available
+    { "Used",            32, MYSQL_TYPE_LONGLONG,   0, 0 ,0 ,0 }, // Amount of space used
+    { "Available",       32, MYSQL_TYPE_LONGLONG,   0, 0 ,0 ,0 }, // Amount available to users other than root.
     { 0, 0, MYSQL_TYPE_NULL, 0, 0, 0, 0 }
 };
 
@@ -52,9 +52,10 @@ int disks_table_add_row(THD* pThd,
     // f_bfree    Total number of free blocks.
     // f_bavail   Number of free blocks available to non-privileged process.
 
-    size_t total = (info.f_frsize * info.f_blocks) / 1024;
-    size_t used  = (info.f_frsize * (info.f_blocks - info.f_bfree)) / 1024;
-    size_t avail = (info.f_frsize * info.f_bavail) / 1024;
+    ulonglong total = ((ulonglong)info.f_frsize * info.f_blocks) / 1024;
+    ulonglong used  = ((ulonglong)info.f_frsize *
+                            (info.f_blocks - info.f_bfree)) / 1024;
+    ulonglong avail = ((ulonglong)info.f_frsize * info.f_bavail) / 1024;
 
     pTable->field[0]->store(zDisk, strlen(zDisk), system_charset_info);
     pTable->field[1]->store(zPath, strlen(zPath), system_charset_info);

@@ -2299,7 +2299,7 @@ slap_connect(MYSQL *mysql)
                            opt_mysql_unix_port,
                            connect_flags))
     {
-      /* Connect suceeded */
+      /* Connect succeeded */
       connect_error= 0;
       break;
     }

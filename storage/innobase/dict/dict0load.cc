@@ -1540,7 +1540,7 @@ dict_load_column_low(
 	ulint		pos;
 	ulint		num_base;
 
-	ut_ad(table || column);
+	ut_ad(!table == !!column);
 
 	if (rec_get_deleted_flag(rec, 0)) {
 		return(dict_load_column_del);
@@ -1647,7 +1647,7 @@ err_len:
 	}
 	num_base = mach_read_from_4(field);
 
-	if (column == NULL) {
+	if (table) {
 		if (prtype & DATA_VIRTUAL) {
 #ifdef UNIV_DEBUG
 			dict_v_col_t*	vcol =

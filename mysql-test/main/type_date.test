@@ -635,6 +635,24 @@ DROP TABLE t1;
 --echo #
 
 --echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-21619 Server crash or assertion failures in my_datetime_to_str
+--echo #
+
+CREATE  TABLE t1 (f DATE, KEY(f));
+INSERT INTO t1 VALUES ('2020-01-01'),('2020-01-02');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '2012-12-12';
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
 --echo # Start of 10.3 tests
 --echo #
 

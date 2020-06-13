@@ -747,7 +747,7 @@ static bool shall_skip_database(const char *log_dbname)
 /**
   Print "use <db>" statement when current db is to be changed.
 
-  We have to control emiting USE statements according to rewrite-db options.
+  We have to control emitting USE statements according to rewrite-db options.
   We have to do it here (see process_event() below) and to suppress
   producing USE statements by corresponding log event print-functions.
 */
@@ -779,7 +779,7 @@ print_use_stmt(PRINT_EVENT_INFO* pinfo, const Query_log_event *ev)
   // In case of rewrite rule print USE statement for db_to
   my_fprintf(result_file, "use %`s%s\n", db_to, pinfo->delimiter);
 
-  // Copy the *original* db to pinfo to suppress emiting
+  // Copy the *original* db to pinfo to suppress emitting
   // of USE stmts by log_event print-functions.
   memcpy(pinfo->db, db, db_len + 1);
 }

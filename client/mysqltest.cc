@@ -146,7 +146,7 @@ struct property {
   my_bool *var;			/* Actual variable */
   my_bool set;			/* Has been set for ONE command */
   my_bool old;			/* If set, thus is the old value */
-  my_bool reverse;		/* Varible is true if disabled */
+  my_bool reverse;		/* Variable is true if disabled */
   const char *env_name;		/* Env. variable name */
 };
 
@@ -566,7 +566,7 @@ DYNAMIC_ARRAY regex_arr; /* stores a list of st_regex subsitutions */
 Temporary storage areas for substitutions. To reduce unnessary copying
 and memory freeing/allocation, we pre-allocate two buffers, and alternate
 their use, one for input/one for output, the roles changing on the next
-st_regex substition. At the end of substitutions  buf points to the
+st_regex substitution. At the end of substitutions  buf points to the
 one containing the final result.
 */
 char* buf;
@@ -3110,7 +3110,7 @@ void open_file(const char *name)
       strxnmov(buff, sizeof(buff), opt_overlay_dir, suffix, name, NullS);
 
       /*
-        Overlayed rty/include/thing.inc can contain the line
+        Overlaid rty/include/thing.inc can contain the line
         --source thing.inc
         which would mean to include qwe/include/thing.inc.
         But it looks like including "itself", so don't try to open the file,
@@ -4818,7 +4818,7 @@ int do_save_master_pos()
 	mysql_errno(mysql), mysql_error(mysql));
 
   if (!(res = mysql_store_result(mysql)))
-    die("mysql_store_result() retuned NULL for '%s'", query);
+    die("mysql_store_result() returned NULL for '%s'", query);
   if (!(row = mysql_fetch_row(res)))
     die("empty result in show master status");
   strnmov(master_pos.file, row[0], sizeof(master_pos.file)-1);
@@ -5365,7 +5365,7 @@ void do_get_errcodes(struct st_command *command)
         p++;
       }
 
-      /* Convert the sting to int */
+      /* Convert the string to int */
       if (!str2int(start, 10, (long) INT_MIN, (long) INT_MAX, &val))
 	die("Invalid argument to error: '%s'", command->first_argument);
 
@@ -5757,7 +5757,7 @@ int connect_n_handle_errors(struct st_command *command,
     dynstr_append_mem(ds, delimiter, delimiter_length);
     dynstr_append_mem(ds, "\n", 1);
   }
-  /* Simlified logging if enabled */
+  /* Simplified logging if enabled */
   if (!disable_connect_log && !disable_query_log)
   {
     replace_dynstr_append(ds, command->query);
@@ -8222,7 +8222,7 @@ void handle_no_error(struct st_command *command)
   SYNPOSIS
   run_query_stmt
   mysql - mysql handle
-  command - currrent command pointer
+  command - current command pointer
   query - query string to execute
   query_len - length query string to execute
   ds - output buffer where to store result form query
@@ -8462,7 +8462,7 @@ end:
 /*
   Create a util connection if one does not already exists
   and use that to run the query
-  This is done to avoid implict commit when creating/dropping objects such
+  This is done to avoid implicit commit when creating/dropping objects such
   as view, sp etc.
 */
 
@@ -8503,7 +8503,7 @@ int util_query(MYSQL* org_mysql, const char* query){
   SYNPOSIS
     run_query()
      mysql	mysql handle
-     command	currrent command pointer
+     command	current command pointer
 
   flags control the phased/stages of query execution to be performed
   if QUERY_SEND_FLAG bit is on, the query will be sent. If QUERY_REAP_FLAG
@@ -10264,7 +10264,7 @@ int multi_reg_replace(struct st_replace_regex* r,char* val)
     if (!reg_replace(&out_buf, buf_len_p, re.pattern, re.replace,
                      in_buf, re.icase))
     {
-      /* if the buffer has been reallocated, make adjustements */
+      /* if the buffer has been reallocated, make adjustments */
       if (save_out_buf != out_buf)
       {
         if (save_out_buf == r->even_buf)
@@ -10531,7 +10531,7 @@ typedef struct st_rep_set {
   uint	found_len;			/* Best match to date */
   int	found_offset;
   uint	table_offset;
-  uint	size_of_bits;			/* For convinience */
+  uint	size_of_bits;			/* For convenience */
 } REP_SET;
 
 typedef struct st_rep_sets {
@@ -10634,7 +10634,7 @@ REPLACE *init_replace(char * *from, char * *to,uint count,
     DBUG_RETURN(0);
   }
   (void) make_new_set(&sets);			/* Set starting set */
-  make_sets_invisible(&sets);			/* Hide previus sets */
+  make_sets_invisible(&sets);			/* Hide previous sets */
   used_sets=-1;
   word_states=make_new_set(&sets);		/* Start of new word */
   start_states=make_new_set(&sets);		/* This is first state */

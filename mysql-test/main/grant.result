@@ -2731,6 +2731,19 @@ DROP USER untrusted@localhost;
 DROP DATABASE secret;
 set GLOBAL sql_mode=default;
 #
+# MDEV-22755 CREATE USER leads to indirect SIGABRT in __stack_chk_fail () from fill_schema_user_privileges + *** stack smashing detected *** (on optimized builds)
+#
+SET NAMES utf8;
+SET SQL_MODE='';
+CREATE USER 觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻@localhost;
+SELECT * FROM INFORMATION_SCHEMA.user_privileges WHERE GRANTEE LIKE "'abcdefghijklmnopqrstuvwxyz'%";
+GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
+SELECT GRANTEE FROM INFORMATION_SCHEMA.user_privileges WHERE GRANTEE LIKE '%觻%';
+GRANTEE
+'觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻'@'localhost'
+DROP USER  觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻@localhost;
+SET SQL_MODE=DEFAULT;
+#
 # Start of 10.2 tests
 #
 #

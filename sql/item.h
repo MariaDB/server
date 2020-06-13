@@ -6313,6 +6313,13 @@ public:
   bool cache_value();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int save_in_field(Field *field, bool no_conversions);
+  bool setup(THD *thd, Item *item)
+  {
+    if (Item_cache_int::setup(thd, item))
+      return true;
+    set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
+    return false;
+  }
   void store_packed(longlong val_arg, Item *example);
   /*
     Having a clone_item method tells optimizer that this object

@@ -145,7 +145,7 @@ static char * opt_mysql_unix_port=0;
 static int   first_error=0;
 /*
   multi_source is 0 if old server or 2 if server that support multi source 
-  This is choosen this was as multi_source has 2 extra columns first in
+  This is chosen this was as multi_source has 2 extra columns first in
   SHOW ALL SLAVES STATUS.
 */
 static uint multi_source= 0;
@@ -2075,7 +2075,7 @@ static void print_xml_tag(FILE * xml_file, const char* sbeg,
       <stag_atr="sval" xsi:nil="true"/>
   NOTE
     sval MUST be a NULL terminated string.
-    sval string will be qouted before output.
+    sval string will be quoted before output.
 */
 
 static void print_xml_null_tag(FILE * xml_file, const char* sbeg,
@@ -2147,7 +2147,7 @@ static void print_xml_cdata(FILE *xml_file, const char *str, ulong len)
     Print tag with many attribute to the xml_file. Format is:
       \t\t<row_name Atr1="Val1" Atr2="Val2"... />
   NOTE
-    All atributes and values will be quoted before output.
+    All attributes and values will be quoted before output.
 */
 
 static void print_xml_row(FILE *xml_file, const char *row_name,
@@ -2627,7 +2627,7 @@ static uint dump_routines_for_db(char *db)
             print_comment(sql_file, 1,
                           "-- does %s have permissions on mysql.proc?\n\n",
                           fix_for_comment(current_user));
-            maybe_die(EX_MYSQLERR,"%s has insufficent privileges to %s!",
+            maybe_die(EX_MYSQLERR,"%s has insufficient privileges to %s!",
                       current_user, query_buff);
           }
           else if (strlen(row[2]))
@@ -4154,7 +4154,7 @@ static void dump_table(char *table, char *db, const uchar *hash_key, size_t len)
       }
     }
 
-    /* XML - close table tag and supress regular output */
+    /* XML - close table tag and suppress regular output */
     if (opt_xml)
         fputs("\t</table_data>\n", md_result_file);
     else if (extended_insert && row_break)

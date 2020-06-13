@@ -199,4 +199,27 @@ SELECT sum(col1) FROM t1 FORCE INDEX (key1,key2) WHERE  (key1 between 10 and 819
 drop table t1;
 set optimizer_switch=@tmp_optimizer_switch;
 
+--echo #
+--echo # MDEV-22728: SIGFPE in Unique::get_cost_calc_buff_size from prepare_search_best_index_intersect
+--echo # on optimized builds
+--echo #
+
+SET @save_sort_buffer_size=@@sort_buffer_size;
+SET @save_innodb_file_format= @@innodb_file_format;
+SET @save_innodb_large_prefix= @@innodb_large_prefix;
+SET sort_buffer_size=2048;
+
+CREATE TABLE t1 (
+  a VARCHAR(1024) CHARACTER SET UTF8 PRIMARY KEY,
+  b INT,
+  c INT,
+  INDEX (b)
+) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_100;
+EXPLAIN SELECT * FROM t1 WHERE a='1' OR b < 5;
+SELECT * FROM t1 WHERE a='1' OR b < 5;
+DROP TABLE t1;
+
+SET sort_buffer_size= @save_sort_buffer_size;
+
 disconnect disable_purge;

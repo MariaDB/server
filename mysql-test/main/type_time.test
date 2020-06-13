@@ -815,6 +815,15 @@ DROP FUNCTION  f1;
 
 
 --echo #
+--echo # MDEV-21619 Server crash or assertion failures in my_datetime_to_str
+--echo #
+
+CREATE TABLE t1 (f TIME, KEY(f));
+INSERT INTO t1 VALUES ('10:10:10'),('20:20:20');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '23:59:59';
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
