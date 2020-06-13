@@ -8104,6 +8104,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
       switch(access->check(orig_want_access, &t_ref->grant.privilege))
       {
       case ACL_INTERNAL_ACCESS_GRANTED:
+        t_ref->grant.privilege|= orig_want_access;
+        t_ref->grant.want_privilege= NO_ACL;
         continue;
       case ACL_INTERNAL_ACCESS_DENIED:
         goto err;
