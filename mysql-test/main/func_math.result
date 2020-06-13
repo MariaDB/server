@@ -2251,5 +2251,35 @@ SELECT ROUND( i, 18446744073709551594 ) AS f FROM t1;
 f
 DROP TABLE t1;
 #
+# MDEV-22268 virtual longlong Item_func_div::int_op(): Assertion `0' failed in Item_func_div::int_op
+#
+SET sql_mode='';
+SET @@SESSION.div_precision_increment=0;
+SELECT UTC_TIME / 0;
+UTC_TIME / 0
+NULL
+SELECT TIMESTAMP'2001-01-01 00:00:00'/0;
+TIMESTAMP'2001-01-01 00:00:00'/0
+NULL
+SELECT TIME'00:00:00'/0;
+TIME'00:00:00'/0
+NULL
+CREATE TABLE t1 AS SELECT
+UTC_TIME / 0 AS c1,
+TIMESTAMP'2001-01-01 00:00:00'/0 AS c3,
+TIME'00:00:00'/0 AS c4;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` decimal(7,0) DEFAULT NULL,
+  `c3` decimal(14,0) DEFAULT NULL,
+  `c4` decimal(7,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SELECT(-0 * MOD((UTC_TIME / -0)MOD (ATAN('<img src_x0=x onerror="javascript:alert(0)">') MOD COT(0)),-0)) MOD (0 DIV 0);
+ERROR 22003: DOUBLE value is out of range in 'cot(0)'
+SET @@SESSION.div_precision_increment=DEFAULT;
+SET sql_mode=DEFAULT;
+#
 # End of 10.3 tests
 #
