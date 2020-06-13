@@ -750,7 +750,7 @@ trx_roll_must_shutdown()
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 
 	if (trx_get_dict_operation(trx) == TRX_DICT_OP_NONE
-	    && !srv_is_being_started
+	    && srv_shutdown_state != SRV_SHUTDOWN_NONE
 	    && !srv_undo_sources && srv_fast_shutdown) {
 		return true;
 	}
