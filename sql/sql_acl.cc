@@ -11852,7 +11852,7 @@ int wild_case_compare(CHARSET_INFO *cs, const char *str,const char *wildstr)
 
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-static bool update_schema_privilege(THD *thd, TABLE *table, char *buff,
+static bool update_schema_privilege(THD *thd, TABLE *table, const char *buff,
                                     const char* db, const char* t_name,
                                     const char* column, uint col_length,
                                     const char *priv, uint priv_length,
@@ -11876,6 +11876,21 @@ static bool update_schema_privilege(THD *thd, TABLE *table, char *buff,
 #endif
 
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+class Grantee_str
+{
+  char m_buff[USER_HOST_BUFF_SIZE + 6 /* 4 quotes, @, '\0' */];
+public:
+  Grantee_str(const char *user, const char *host)
+  {
+    DBUG_ASSERT(strlen(user) + strlen(host) + 6 < sizeof(m_buff));
+    strxmov(m_buff, "'", user, "'@'", host, "'", NullS);
+  }
+  operator const char *() const { return m_buff; }
+};
+#endif
+
+
 int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -11883,7 +11898,6 @@ int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
   uint counter;
   ACL_USER *acl_user;
   ulong want_access;
-  char buff[100];
   TABLE *table= tables->table;
   bool no_global_access= check_access(thd, SELECT_ACL, "mysql",
                                       NULL, NULL, 1, 1);
@@ -11908,10 +11922,10 @@ int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
     if (!(want_access & GRANT_ACL))
       is_grantable= "NO";
 
-    strxmov(buff,"'",user,"'@'",host,"'",NullS);
+    Grantee_str grantee(user, host);
     if (!(want_access & ~GRANT_ACL))
     {
-      if (update_schema_privilege(thd, table, buff, 0, 0, 0, 0,
+      if (update_schema_privilege(thd, table, grantee, 0, 0, 0, 0,
                                   STRING_WITH_LEN("USAGE"), is_grantable))
       {
         error= 1;
@@ -11926,7 +11940,7 @@ int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
       {
         if (test_access & j)
         {
-          if (update_schema_privilege(thd, table, buff, 0, 0, 0, 0,
+          if (update_schema_privilege(thd, table, grantee, 0, 0, 0, 0,
                                       command_array[priv_id],
                                       command_lengths[priv_id], is_grantable))
           {
@@ -11954,7 +11968,6 @@ int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
   uint counter;
   ACL_DB *acl_db;
   ulong want_access;
-  char buff[100];
   TABLE *table= tables->table;
   bool no_global_access= check_access(thd, SELECT_ACL, "mysql",
                                       NULL, NULL, 1, 1);
@@ -11983,10 +11996,10 @@ int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
       {
         is_grantable= "NO";
       }
-      strxmov(buff,"'",user,"'@'",host,"'",NullS);
+      Grantee_str grantee(user, host);
       if (!(want_access & ~GRANT_ACL))
       {
-        if (update_schema_privilege(thd, table, buff, acl_db->db, 0, 0,
+        if (update_schema_privilege(thd, table, grantee, acl_db->db, 0, 0,
                                     0, STRING_WITH_LEN("USAGE"), is_grantable))
         {
           error= 1;
@@ -12000,7 +12013,8 @@ int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
         for (cnt=0, j = SELECT_ACL; j <= DB_ACLS; cnt++,j <<= 1)
           if (test_access & j)
           {
-            if (update_schema_privilege(thd, table, buff, acl_db->db, 0, 0, 0,
+            if (update_schema_privilege(thd, table,
+                                        grantee, acl_db->db, 0, 0, 0,
                                         command_array[cnt], command_lengths[cnt],
                                         is_grantable))
             {
@@ -12026,7 +12040,6 @@ int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   int error= 0;
   uint index;
-  char buff[100];
   TABLE *table= tables->table;
   bool no_global_access= check_access(thd, SELECT_ACL, "mysql",
                                       NULL, NULL, 1, 1);
@@ -12059,10 +12072,11 @@ int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
       if (!(table_access & GRANT_ACL))
         is_grantable= "NO";
 
-      strxmov(buff, "'", user, "'@'", host, "'", NullS);
+      Grantee_str grantee(user, host);
       if (!test_access)
       {
-        if (update_schema_privilege(thd, table, buff, grant_table->db,
+        if (update_schema_privilege(thd, table,
+                                    grantee, grant_table->db,
                                     grant_table->tname, 0, 0,
                                     STRING_WITH_LEN("USAGE"), is_grantable))
         {
@@ -12078,7 +12092,8 @@ int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
         {
           if (test_access & j)
           {
-            if (update_schema_privilege(thd, table, buff, grant_table->db,
+            if (update_schema_privilege(thd, table,
+                                        grantee, grant_table->db,
                                         grant_table->tname, 0, 0,
                                         command_array[cnt],
                                         command_lengths[cnt], is_grantable))
@@ -12106,7 +12121,6 @@ int fill_schema_column_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   int error= 0;
   uint index;
-  char buff[100];
   TABLE *table= tables->table;
   bool no_global_access= check_access(thd, SELECT_ACL, "mysql",
                                       NULL, NULL, 1, 1);
@@ -12133,7 +12147,7 @@ int fill_schema_column_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
         is_grantable= "NO";
 
       ulong test_access= table_access & ~GRANT_ACL;
-      strxmov(buff, "'", user, "'@'", host, "'", NullS);
+      Grantee_str grantee(user, host);
       if (!test_access)
         continue;
       else
@@ -12152,7 +12166,9 @@ int fill_schema_column_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
                 my_hash_element(&grant_table->hash_columns,col_index);
               if ((grant_column->rights & j) && (table_access & j))
               {
-                if (update_schema_privilege(thd, table, buff, grant_table->db,
+                if (update_schema_privilege(thd, table,
+                                            grantee,
+                                            grant_table->db,
                                             grant_table->tname,
                                             grant_column->column,
                                             grant_column->key_length,
