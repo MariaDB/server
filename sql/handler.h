@@ -1202,6 +1202,7 @@ struct handlerton
    void (*close_cursor_read_view)(handlerton *hton, THD *thd, void *read_view);
    handler *(*create)(handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root);
    void (*drop_database)(handlerton *hton, char* path);
+   int (*drop_table)(handlerton *hton, const char* path);
    int (*panic)(handlerton *hton, enum ha_panic_function flag);
    int (*start_consistent_snapshot)(handlerton *hton, THD *thd);
    bool (*flush_logs)(handlerton *hton);
@@ -2962,7 +2963,6 @@ public:
   int ha_enable_indexes(uint mode);
   int ha_discard_or_import_tablespace(my_bool discard);
   int ha_rename_table(const char *from, const char *to);
-  int ha_delete_table(const char *name);
   void ha_drop_table(const char *name);
 
   int ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info);
@@ -3994,13 +3994,15 @@ protected:
     provide useful functionality.
   */
   virtual int rename_table(const char *from, const char *to);
+
+
+public:
   /**
     Delete a table in the engine. Called for base as well as temporary
     tables.
   */
   virtual int delete_table(const char *name);
 
-public:
   inline bool check_table_binlog_row_based(bool binlog_row);
   inline void clear_cached_table_binlog_row_based_flag()
   {

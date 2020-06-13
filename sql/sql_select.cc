@@ -18082,8 +18082,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   if (is_duplicate)
     *is_duplicate= FALSE;
 
-  if (table->s->db_type() != heap_hton || 
-      error != HA_ERR_RECORD_FILE_FULL)
+  if (table->s->db_type() != heap_hton || error != HA_ERR_RECORD_FILE_FULL)
   {
     /*
       We don't want this error to be converted to a warning, e.g. in case of
@@ -18096,8 +18095,8 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   share= *table->s;
   new_table.s= &share;
   new_table.s->db_plugin= ha_lock_engine(thd, TMP_ENGINE_HTON);
-  if (!(new_table.file= get_new_handler(&share, &new_table.mem_root,
-                                        new_table.s->db_type())))
+  if (unlikely(!(new_table.file= get_new_handler(&share, &new_table.mem_root,
+                                                 TMP_ENGINE_HTON))))
     DBUG_RETURN(1);				// End of memory
 
   if (new_table.file->set_ha_share_ref(&share.ha_share))
@@ -18191,7 +18190,7 @@ err_killed:
   (void) table->file->ha_rnd_end();
   (void) new_table.file->ha_close();
  err1:
-  new_table.file->ha_delete_table(new_table.s->path.str);
+  TMP_ENGINE_HTON->drop_table(TMP_ENGINE_HTON, new_table.s->path.str);
  err2:
   delete new_table.file;
   thd_proc_info(thd, save_proc_info);
@@ -18214,11 +18213,9 @@ free_tmp_table(THD *thd, TABLE *entry)
 
   if (entry->file && entry->is_created())
   {
+    DBUG_ASSERT(entry->db_stat);
     entry->file->ha_index_or_rnd_end();
-    if (entry->db_stat)
-      entry->file->ha_drop_table(entry->s->path.str);
-    else
-      entry->file->ha_delete_table(entry->s->path.str);
+    entry->file->ha_drop_table(entry->s->path.str);
     delete entry->file;
   }
 

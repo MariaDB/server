@@ -754,7 +754,7 @@ create_error:
   {
     if (!create_partition_name(name_buff, sizeof(name_buff), path,
                                name_buffer_ptr, NORMAL_PART_NAME, FALSE))
-      (void) (*file)->ha_delete_table((const char*) name_buff);
+      (void) (*file)->delete_table((const char*) name_buff);
     name_buffer_ptr= strend(name_buffer_ptr) + 1;
   }
   handler::delete_table(name);
@@ -821,7 +821,7 @@ int ha_partition::drop_partitions(const char *path)
             error= ret_error;
           file= m_file[part];
           DBUG_PRINT("info", ("Drop subpartition %s", part_name_buff));
-          if ((ret_error= file->ha_delete_table(part_name_buff)))
+          if (unlikely((ret_error= file->delete_table(part_name_buff))))
             error= ret_error;
           if (deactivate_ddl_log_entry(sub_elem->log_entry->entry_pos))
             error= 1;
@@ -837,7 +837,7 @@ int ha_partition::drop_partitions(const char *path)
         {
           file= m_file[i];
           DBUG_PRINT("info", ("Drop partition %s", part_name_buff));
-          if ((ret_error= file->ha_delete_table(part_name_buff)))
+          if (unlikely((ret_error= file->delete_table(part_name_buff))))
             error= ret_error;
           if (deactivate_ddl_log_entry(part_elem->log_entry->entry_pos))
             error= 1;
@@ -926,7 +926,7 @@ int ha_partition::rename_partitions(const char *path)
                             sub_elem->partition_name, NORMAL_PART_NAME)))
             error= ret_error;
           DBUG_PRINT("info", ("Delete subpartition %s", norm_name_buff));
-          if ((ret_error= file->ha_delete_table(norm_name_buff)))
+          if (unlikely((ret_error= file->delete_table(norm_name_buff))))
             error= ret_error;
           else if (deactivate_ddl_log_entry(sub_elem->log_entry->entry_pos))
             error= 1;
@@ -944,7 +944,7 @@ int ha_partition::rename_partitions(const char *path)
         else
         {
           DBUG_PRINT("info", ("Delete partition %s", norm_name_buff));
-          if ((ret_error= file->ha_delete_table(norm_name_buff)))
+          if (unlikely((ret_error= file->delete_table(norm_name_buff))))
             error= ret_error;
           else if (deactivate_ddl_log_entry(part_elem->log_entry->entry_pos))
             error= 1;
@@ -1002,7 +1002,7 @@ int ha_partition::rename_partitions(const char *path)
           {
             file= m_reorged_file[part_count++];
             DBUG_PRINT("info", ("Delete subpartition %s", norm_name_buff));
-            if ((ret_error= file->ha_delete_table(norm_name_buff)))
+            if (unlikely((ret_error= file->delete_table(norm_name_buff))))
               error= ret_error;
             else if (deactivate_ddl_log_entry(sub_elem->log_entry->entry_pos))
               error= 1;
@@ -1040,7 +1040,7 @@ int ha_partition::rename_partitions(const char *path)
           {
             file= m_reorged_file[part_count++];
             DBUG_PRINT("info", ("Delete partition %s", norm_name_buff));
-            if ((ret_error= file->ha_delete_table(norm_name_buff)))
+            if (unlikely((ret_error= file->delete_table(norm_name_buff))))
               error= ret_error;
             else if (deactivate_ddl_log_entry(part_elem->log_entry->entry_pos))
               error= 1;
@@ -1576,7 +1576,7 @@ int ha_partition::prepare_new_partition(TABLE *tbl,
 error_external_lock:
   (void) file->ha_close();
 error_open:
-  (void) file->ha_delete_table(part_name);
+  (void) file->delete_table(part_name);
 error_create:
   DBUG_RETURN(error);
 }
@@ -1622,7 +1622,7 @@ void ha_partition::cleanup_new_partition(uint part_count)
       (*file)->ha_external_lock(thd, F_UNLCK);
       (*file)->ha_close();
 
-      /* Leave the (*file)->ha_delete_table(part_name) to the ddl-log */
+      /* Leave the (*file)->delete_table(part_name) to the ddl-log */
 
       file++;
       part_count--;
@@ -2210,7 +2210,7 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
   @param table_arg    TABLE object
   @param share        New share to use
 
-  @note Is used in error handling in ha_delete_table.
+  @note Is used in error handling in delete_table.
   All handlers should exist (lock_partitions should not be used)
 */
 
@@ -2319,7 +2319,7 @@ uint ha_partition::del_ren_table(const char *from, const char *to)
     }
     else                                        // delete branch
     {
-      error= (*file)->ha_delete_table(from_buff);
+      error= (*file)->delete_table(from_buff);
     }
     name_buffer_ptr= strend(name_buffer_ptr) + 1;
     if (error)

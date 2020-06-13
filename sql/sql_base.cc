@@ -8437,7 +8437,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
 my_bool mysql_rm_tmp_tables(void)
 {
   uint i, idx;
-  char	filePath[FN_REFLEN], *tmpdir, filePathCopy[FN_REFLEN];
+  char	path[FN_REFLEN], *tmpdir, path_copy[FN_REFLEN];
   MY_DIR *dirp;
   FILEINFO *file;
   TABLE_SHARE share;
@@ -8465,24 +8465,18 @@ my_bool mysql_rm_tmp_tables(void)
       if (!strncmp(file->name, tmp_file_prefix, tmp_file_prefix_length))
       {
         char *ext= fn_ext(file->name);
-        uint ext_len= strlen(ext);
-        uint filePath_len= my_snprintf(filePath, sizeof(filePath),
+        size_t ext_len= strlen(ext);
+        size_t path_len= my_snprintf(path, sizeof(path),
                                        "%s%c%s", tmpdir, FN_LIBCHAR,
                                        file->name);
         if (!strcmp(reg_ext, ext))
         {
-          handler *handler_file= 0;
           /* We should cut file extention before deleting of table */
-          memcpy(filePathCopy, filePath, filePath_len - ext_len);
-          filePathCopy[filePath_len - ext_len]= 0;
-          init_tmp_table_share(thd, &share, "", 0, "", filePathCopy);
-          if (!open_table_def(thd, &share) &&
-              ((handler_file= get_new_handler(&share, thd->mem_root,
-                                              share.db_type()))))
-          {
-            handler_file->ha_delete_table(filePathCopy);
-            delete handler_file;
-          }
+          memcpy(path_copy, path, path_len - ext_len);
+          path_copy[path_len - ext_len]= 0;
+          init_tmp_table_share(thd, &share, "", 0, "", path_copy);
+          if (!open_table_def(thd, &share))
+            share.db_type()->drop_table(share.db_type(), path_copy);
           free_table_share(&share);
         }
         /*
@@ -8490,7 +8484,7 @@ my_bool mysql_rm_tmp_tables(void)
           So we hide error messages which happnes during deleting of these
           files(MYF(0)).
         */
-        (void) mysql_file_delete(key_file_misc, filePath, MYF(0));
+        (void) mysql_file_delete(key_file_misc, path, MYF(0));
       }
     }
     my_dirend(dirp);

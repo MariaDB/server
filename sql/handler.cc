@@ -509,6 +509,24 @@ static void update_discovery_counters(handlerton *hton, int val)
     my_atomic_add32(&engines_with_discover, val);
 }
 
+int ha_drop_table(THD *thd, handlerton *hton, const char *path)
+{
+  return hton->drop_table(hton, path);
+}
+
+static int hton_drop_table(handlerton *hton, const char *path)
+{
+  char tmp_path[FN_REFLEN];
+  handler *file= get_new_handler(nullptr, current_thd->mem_root, hton);
+  if (!file)
+    return ENOMEM;
+  path= get_canonical_filename(file, path, tmp_path);
+  int error= file->delete_table(path);
+  delete file;
+  return error;
+}
+
+
 int ha_finalize_handlerton(st_plugin_int *plugin)
 {
   handlerton *hton= (handlerton *)plugin->data;
@@ -586,6 +604,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
 
   hton->tablefile_extensions= no_exts;
   hton->discover_table_names= hton_ext_based_table_discovery;
+  hton->drop_table= hton_drop_table;
 
   hton->slot= HA_SLOT_UNDEF;
   /* Historical Requirement */
@@ -2464,28 +2483,18 @@ const char *get_canonical_filename(handler *file, const char *path,
   The .frm file should be deleted by the caller only if we return <= 0.
 */
 
-int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
+int ha_delete_table(THD *thd, handlerton *hton, const char *path,
                     const char *db, const char *alias, bool generate_warning)
 {
-  handler *file;
-  char tmp_path[FN_REFLEN];
   int error;
-  TABLE dummy_table;
-  TABLE_SHARE dummy_share;
   bool is_error= thd->is_error();
   DBUG_ENTER("ha_delete_table");
 
-  /* table_type is NULL in ALTER TABLE when renaming only .frm files */
-  if (table_type == NULL || table_type == view_pseudo_hton ||
-      ! (file=get_new_handler((TABLE_SHARE*)0, thd->mem_root, table_type)))
-    DBUG_RETURN(-1);
+  /* hton is NULL in ALTER TABLE when renaming only .frm files */
+  if (hton == NULL || hton == view_pseudo_hton)
+    DBUG_RETURN(0);
 
-  bzero((char*) &dummy_table, sizeof(dummy_table));
-  bzero((char*) &dummy_share, sizeof(dummy_share));
-  dummy_table.s= &dummy_share;
-
-  path= get_canonical_filename(file, path, tmp_path);
-  if ((error= file->ha_delete_table(path)))
+  if (unlikely((error= hton->drop_table(hton, path))))
   {
     /*
       It's not an error if the table doesn't exist in the engine.
@@ -2494,9 +2503,13 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
     bool intercept= non_existing_table_error(error);
     DBUG_ASSERT(error > 0);
 
-    if (!intercept || generate_warning)
+    if ((!intercept || generate_warning) && !thd->is_error())
     {
-      /* Fill up strucutures that print_error may need */
+      TABLE dummy_table;
+      TABLE_SHARE dummy_share;
+      handler *file= get_new_handler(nullptr, thd->mem_root, hton);
+      bzero((char*) &dummy_table, sizeof(dummy_table));
+      bzero((char*) &dummy_share, sizeof(dummy_share));
       dummy_share.path.str= (char*) path;
       dummy_share.path.length= strlen(path);
       dummy_share.normalized_path= dummy_share.path;
@@ -2508,6 +2521,7 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
                             table_alias_charset);
       file->change_table_ptr(&dummy_table, &dummy_share);
       file->print_error(error, MYF(intercept ? ME_JUST_WARNING : 0));
+      delete file;
     }
     if (intercept)
     {
@@ -2517,7 +2531,6 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
       error= -1;
     }
   }
-  delete file;
 
   DBUG_RETURN(error);
 }
@@ -4227,8 +4240,8 @@ void handler::mark_trx_read_write_internal()
   {
     DBUG_ASSERT(has_transactions());
     /*
-      table_share can be NULL in ha_delete_table(). See implementation
-      of standalone function ha_delete_table() in sql_base.cc.
+      table_share can be NULL, for example, in ha_delete_table() or
+      ha_rename_table().
     */
     if (table_share == NULL || table_share->tmp_table == NO_TMP_TABLE)
       ha_info->set_trx_read_write();
@@ -4554,21 +4567,7 @@ handler::ha_rename_table(const char *from, const char *to)
 }
 
 
-/**
-  Delete table: public interface.
-
-  @sa handler::delete_table()
-*/
-
-int
-handler::ha_delete_table(const char *name)
-{
-  mark_trx_read_write();
-  return delete_table(name);
-}
-
-
-/**
+/*
   Drop table in the engine: public interface.
 
   @sa handler::drop_table()
