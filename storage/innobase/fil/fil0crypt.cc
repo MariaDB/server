@@ -1784,6 +1784,12 @@ fil_crypt_rotate_page(
 			mtr.write<1,mtr_t::FORCED>(*block,
 						   &frame[FIL_PAGE_SPACE_ID],
 						   frame[FIL_PAGE_SPACE_ID]);
+			/* This may be a freed page. Until
+			MDEV-21347 has been fixed, a page on which
+			BtrBulk::finish() invoked btr_page_free() may
+			be an inconsistent B-tree page. For now,
+			let us disable the flush-time check. */
+			block->skip_flush_check = true;
 
 			/* statistics */
 			state->crypt_stat.pages_modified++;
