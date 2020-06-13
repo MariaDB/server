@@ -13187,7 +13187,7 @@ delete_single_table_for_period:
 
 single_multi:
           delete_single_table_for_period
-          opt_where_clause
+          opt_where_clause     
           opt_order_clause
           delete_limit_clause
           opt_returning
@@ -13202,7 +13202,7 @@ single_multi:
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
           }
-          FROM join_table_list opt_where_clause
+          FROM join_table_list opt_where_clause opt_returning
           {
             if (unlikely(multi_delete_set_locks_and_link_aux_tables(Lex)))
               MYSQL_YYABORT;
@@ -13213,7 +13213,7 @@ single_multi:
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
           }
-          USING join_table_list opt_where_clause
+          USING join_table_list opt_where_clause opt_returning
           {
             if (unlikely(multi_delete_set_locks_and_link_aux_tables(Lex)))
               MYSQL_YYABORT;
