@@ -94,6 +94,7 @@ static int pfs_init_func(void *p)
   pfs_hton= reinterpret_cast<handlerton *> (p);
 
   pfs_hton->create= pfs_create_handler;
+  pfs_hton->drop_table= [](handlerton *, const char*) { return 0; };
   pfs_hton->show_status= pfs_show_status;
   pfs_hton->flags= (HTON_ALTER_NOT_SUPPORTED |
                     HTON_TEMPORARY_NOT_SUPPORTED |

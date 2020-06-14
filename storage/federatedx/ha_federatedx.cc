@@ -438,6 +438,7 @@ int federatedx_db_init(void *p)
   federatedx_hton->rollback= ha_federatedx::rollback;
   federatedx_hton->discover_table_structure= ha_federatedx::discover_assisted;
   federatedx_hton->create= federatedx_create_handler;
+  federatedx_hton->drop_table= [](handlerton *, const char*) { return 0; };
   federatedx_hton->flags= (HTON_ALTER_NOT_SUPPORTED |
                            HTON_AUTOMATIC_DELETE_TABLE);
   federatedx_hton->create_derived= create_federatedx_derived_handler;

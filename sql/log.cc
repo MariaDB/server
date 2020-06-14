@@ -1692,6 +1692,7 @@ int binlog_init(void *p)
                                      binlog_savepoint_rollback_can_release_mdl;
   binlog_hton->commit= binlog_commit;
   binlog_hton->rollback= binlog_rollback;
+  binlog_hton->drop_table= [](handlerton *, const char*) { return 0; };
   if (WSREP_ON || opt_bin_log)
   {
     binlog_hton->prepare= binlog_prepare;

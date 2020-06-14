@@ -2512,6 +2512,11 @@ int myisam_panic(handlerton *hton, ha_panic_function flag)
   return mi_panic(flag);
 }
 
+static int myisam_drop_table(handlerton *hton, const char *path)
+{
+  return mi_delete_table(path);
+}
+
 static int myisam_init(void *p)
 {
   handlerton *hton;
@@ -2529,6 +2534,7 @@ static int myisam_init(void *p)
   hton= (handlerton *)p;
   hton->db_type= DB_TYPE_MYISAM;
   hton->create= myisam_create_handler;
+  hton->drop_table= myisam_drop_table;
   hton->panic= myisam_panic;
   hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
   hton->tablefile_extensions= ha_myisam_exts;

@@ -262,6 +262,7 @@ static int example_init_func(void *p)
   example_hton->table_options= example_table_option_list;
   example_hton->field_options= example_field_option_list;
   example_hton->tablefile_extensions= ha_example_exts;
+  example_hton->drop_table= [](handlerton *, const char*) { return 0; };
 
   DBUG_RETURN(0);
 }

@@ -502,6 +502,7 @@ static int init(void *p)
   handlerton *hton= (handlerton *)p;
   sequence_hton= hton;
   hton->create= create_handler;
+  hton->drop_table= [](handlerton *, const char*) { return 0; };
   hton->discover_table= discover_table;
   hton->discover_table_existence= discover_table_existence;
   hton->commit= hton->rollback= dummy_commit_rollback;

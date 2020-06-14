@@ -34,11 +34,17 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
                             HP_CREATE_INFO *hp_create_info);
 
 
-int heap_panic(handlerton *hton, ha_panic_function flag)
+static int heap_panic(handlerton *hton, ha_panic_function flag)
 {
   return hp_panic(flag);
 }
 
+
+static int heap_drop_table(handlerton *hton, const char *path)
+{
+  int error= heap_delete_table(path);
+  return error == ENOENT ? 0 : error;
+}
 
 int heap_init(void *p)
 {
@@ -50,6 +56,7 @@ int heap_init(void *p)
   heap_hton->db_type=    DB_TYPE_HEAP;
   heap_hton->create=     heap_create_handler;
   heap_hton->panic=      heap_panic;
+  heap_hton->drop_table= heap_drop_table;
   heap_hton->flags=      HTON_CAN_RECREATE;
 
   return 0;
@@ -559,8 +566,7 @@ THR_LOCK_DATA **ha_heap::store_lock(THD *thd,
 
 int ha_heap::delete_table(const char *name)
 {
-  int error= heap_delete_table(name);
-  return error == ENOENT ? 0 : error;
+  return heap_drop_table(0, name);
 }
 
 
