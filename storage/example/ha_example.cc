@@ -215,6 +215,8 @@ static void init_example_psi_keys()
   count= array_elements(all_example_mutexes);
   mysql_mutex_register(category, all_example_mutexes, count);
 }
+#else
+static void init_example_psi_keys() { }
 #endif
 
 
@@ -252,9 +254,7 @@ static int example_init_func(void *p)
 {
   DBUG_ENTER("example_init_func");
 
-#ifdef HAVE_PSI_INTERFACE
   init_example_psi_keys();
-#endif
 
   example_hton= (handlerton *)p;
   example_hton->create=  example_create_handler;

@@ -774,6 +774,8 @@ extern PSI_file_key mi_key_file_datatmp, mi_key_file_dfile, mi_key_file_kfile,
 extern PSI_thread_key mi_key_thread_find_all_keys;
 
 void init_myisam_psi_keys();
+#else
+#define init_myisam_psi_keys() do { } while(0)
 #endif /* HAVE_PSI_INTERFACE */
 
 extern PSI_memory_key mi_key_memory_MYISAM_SHARE;

@@ -627,6 +627,7 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
 #define wsrep_thr_deinit() do {} while(0)
 #define wsrep_init_globals() do {} while(0)
 #define wsrep_create_appliers(X) do {} while(0)
+#define wsrep_should_replicate_ddl(X,Y) (1)
 
 #endif /* WITH_WSREP */
 

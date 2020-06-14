@@ -44,9 +44,7 @@ int heap_init(void *p)
 {
   handlerton *heap_hton;
 
-#ifdef HAVE_PSI_INTERFACE
   init_heap_psi_keys();
-#endif
 
   heap_hton= (handlerton *)p;
   heap_hton->db_type=    DB_TYPE_HEAP;

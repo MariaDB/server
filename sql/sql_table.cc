@@ -2443,14 +2443,11 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     else
     {
-#ifdef WITH_WSREP
-      if (WSREP(thd) &&
-	  !wsrep_should_replicate_ddl(thd, table_type->db_type))
+      if (WSREP(thd) && !wsrep_should_replicate_ddl(thd, table_type->db_type))
       {
         error= 1;
         goto err;
       }
-#endif
 
       /*
         It could happen that table's share in the table definition cache

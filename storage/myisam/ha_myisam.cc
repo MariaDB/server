@@ -2516,9 +2516,7 @@ static int myisam_init(void *p)
 {
   handlerton *hton;
 
-#ifdef HAVE_PSI_INTERFACE
   init_myisam_psi_keys();
-#endif
 
   /* Set global variables based on startup options */
   if (myisam_recover_options && myisam_recover_options != HA_RECOVER_OFF)
