@@ -1111,6 +1111,29 @@ CREATE TABLE t1 (i INT(23));
 SELECT ROUND( i, 18446744073709551594 ) AS f FROM t1;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-22268 virtual longlong Item_func_div::int_op(): Assertion `0' failed in Item_func_div::int_op
+--echo #
+
+SET sql_mode='';
+SET @@SESSION.div_precision_increment=0;
+SELECT UTC_TIME / 0;
+SELECT TIMESTAMP'2001-01-01 00:00:00'/0;
+SELECT TIME'00:00:00'/0;
+CREATE TABLE t1 AS SELECT
+  UTC_TIME / 0 AS c1,
+  TIMESTAMP'2001-01-01 00:00:00'/0 AS c3,
+  TIME'00:00:00'/0 AS c4;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error ER_DATA_OUT_OF_RANGE
+SELECT(-0 * MOD((UTC_TIME / -0)MOD (ATAN('<img src_x0=x onerror="javascript:alert(0)">') MOD COT(0)),-0)) MOD (0 DIV 0);
+
+SET @@SESSION.div_precision_increment=DEFAULT;
+SET sql_mode=DEFAULT;
+
 --echo #
 --echo # End of 10.3 tests
 --echo #

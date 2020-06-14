@@ -9402,6 +9402,12 @@ void Item_default_value::calculate()
   DEBUG_SYNC(field->table->in_use, "after_Item_default_value_calculate");
 }
 
+bool Item_default_value::val_native(THD *thd, Native *to)
+{
+  calculate();
+  return Item_field::val_native(thd, to);
+}
+
 String *Item_default_value::val_str(String *str)
 {
   calculate();

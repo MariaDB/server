@@ -5835,7 +5835,9 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
   case ANY_SUBST:
     if (!is_temporal_type_with_date(const_item->field_type()))
     {
-      Datetime dt(thd, const_item, Datetime::Options_cmp(thd));
+      Datetime dt= type_handler()->field_type() == MYSQL_TYPE_TIMESTAMP ?
+        Datetime(thd, const_item, Timestamp::DatetimeOptions(thd)) :
+        Datetime(thd, const_item, Datetime::Options_cmp(thd));
       if (!dt.is_valid_datetime())
         return NULL;
       return new (thd->mem_root)

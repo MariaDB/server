@@ -837,6 +837,15 @@ ALTER TABLE t1 MODIFY a DATETIME;
 SELECT * FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-21619 Server crash or assertion failures in my_datetime_to_str
+--echo #
+
+CREATE  TABLE t1 (f DATETIME, KEY(f));
+INSERT INTO t1 VALUES ('2020-01-01 00:00:00'),('2020-01-02 00:00:00');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '2012-12-12';
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of 10.2 tests

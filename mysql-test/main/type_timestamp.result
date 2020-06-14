@@ -884,8 +884,9 @@ SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=' garbage ';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Warning	1292	Truncated incorrect datetime value: ' garbage '
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'0000-00-00 00:00:00' and <cache>(octet_length(TIMESTAMP'0000-00-00 00:00:00')) = 30 + rand()
+Warning	1292	Incorrect datetime value: ' garbage '
+Warning	1292	Incorrect datetime value: ' garbage '
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where octet_length(`test`.`t1`.`a`) = 30 + rand() and `test`.`t1`.`a` = ' garbage '
 DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP);;
 INSERT INTO t1 VALUES ('2001-01-01 00:00:00'),('2001-01-01 00:00:01');
@@ -1296,6 +1297,28 @@ SELECT (SELECT MIN(b) FROM t1) - a FROM t1;
 -20010101000000.0000
 -20030101000000.0000
 DROP TABLE t1;
+#
+# MDEV-22734 Assertion `mon > 0 && mon < 13' failed in sec_since_epoch
+#
+SET time_zone="-02:00";
+CREATE TABLE t1(c TIMESTAMP KEY);
+SELECT * FROM t1 WHERE c='2010-00-01 00:00:00';
+c
+Warnings:
+Warning	1292	Incorrect datetime value: '2010-00-01 00:00:00'
+DROP TABLE t1;
+#
+# MDEV-22854 Garbage returned with SELECT CASE..DEFAULT(timestamp_field_with_now_as_default)
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.456789');
+CREATE TABLE t1 (a TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP);
+INSERT INTO t1 VALUES ('2019-02-23 11:31:04'),('2023-02-09 00:00:00');
+SELECT CASE WHEN a THEN DEFAULT(a) END FROM t1;
+CASE WHEN a THEN DEFAULT(a) END
+2001-01-01 10:20:30.456
+2001-01-01 10:20:30.456
+DROP TABLE t1;
+SET timestamp=DEFAULT;
 #
 # End of 10.4 tests
 #

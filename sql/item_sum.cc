@@ -3774,7 +3774,6 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   else
     result->append(*item->separator);
 
-
   for (; arg < arg_end; arg++)
   {
     String *res;
@@ -4173,6 +4172,7 @@ bool Item_func_group_concat::add(bool exclude_nulls)
       return 1;
     tree_len+= row_str_len;
   }
+
   /*
     In case of GROUP_CONCAT with DISTINCT or ORDER BY (or both) don't dump the
     row to the output buffer here. That will be done in val_str.

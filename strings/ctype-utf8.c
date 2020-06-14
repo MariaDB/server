@@ -4992,13 +4992,11 @@ static void my_hash_sort_utf8mb3_nopad(CHARSET_INFO *cs, const uchar *s, size_t 
 static void my_hash_sort_utf8mb3(CHARSET_INFO *cs, const uchar *s, size_t slen,
                                  ulong *nr1, ulong *nr2)
 {
-  const uchar *e= s+slen;
   /*
     Remove end space. We have to do this to be able to compare
     'A ' and 'A' as identical
   */
-  while (e > s && e[-1] == ' ')
-    e--;
+  const uchar *e= skip_trailing_space(s, slen);
   my_hash_sort_utf8mb3_nopad(cs, s, e - s, nr1, nr2);
 }
 
@@ -7436,13 +7434,11 @@ static void
 my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
                      ulong *nr1, ulong *nr2)
 {
-  const uchar *e= s + slen;
   /*
     Remove end space. We do this to be able to compare
     'A ' and 'A' as identical
   */
-  while (e > s && e[-1] == ' ')
-    e--;
+  const uchar *e= skip_trailing_space(s, slen);
   my_hash_sort_utf8mb4_nopad(cs, s, e - s, nr1, nr2);
 }
 

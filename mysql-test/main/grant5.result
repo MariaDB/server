@@ -225,4 +225,21 @@ drop user twg@'%';
 insert mysql.tables_priv (host,db,user,table_name,grantor,table_priv) values ('localhost','','otto','t1','root@localhost','select');
 flush privileges;
 delete from mysql.tables_priv where db='';
+create database db;
+create table db.t1 (a int);
+insert into db.t1 values (1);
+create user foo;
+grant delete on db.* to foo;
+connect  con1,localhost,foo,,;
+show create table db.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+delete from db.t1 returning *;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'a' in table 't1'
+disconnect con1;
+connection default;
+drop database db;
+drop user foo;
 # End of 10.4 tests
