@@ -15,7 +15,7 @@ function check_for_crashed_tables() {
 
   # Checking for $? is unreliable so the size of the output is checked.
   # Some table handlers like HEAP do not support CHECK TABLE.
-  tempfile=`tempfile`
+  tempfile=$(mktemp)
 
   # We have to use xargs in this case, because a for loop barfs on the
   # spaces in the thing to be looped over.
