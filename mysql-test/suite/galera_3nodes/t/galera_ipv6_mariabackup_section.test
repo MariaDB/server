@@ -1,7 +1,7 @@
 --source include/galera_cluster.inc
 --source include/check_ipv6.inc
 --source include/have_innodb.inc
---source include/have_mariabackup.inc
+--source ../galera/include/have_mariabackup.inc
 
 # Confirm that initial handshake happened over ipv6
 
