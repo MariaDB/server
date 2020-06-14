@@ -44,175 +44,6 @@ PSI_memory_key	mem_key_row_merge_sort;
 PSI_memory_key	mem_key_std;
 
 #ifdef UNIV_PFS_MEMORY
-static const char* auto_event_names[] =
-{
-  "btr0btr",
-  "btr0bulk",
-  "btr0cur",
-  "btr0defragment",
-  "btr0pcur",
-  "btr0sea",
-  "btr0types",
-  "buf0buddy",
-  "buf0buf",
-  "buf0checksum",
-  "buf0dblwr",
-  "buf0dump",
-  "buf0flu",
-  "buf0lru",
-  "buf0rea",
-  "buf0types",
-  "data0data",
-  "data0type",
-  "data0types",
-  "db0err",
-  "dict0boot",
-  "dict0crea",
-  "dict0defrag_bg",
-  "dict0dict",
-  "dict0load",
-  "dict0mem",
-  "dict0pagecompress",
-  "dict0priv",
-  "dict0stats",
-  "dict0stats_bg",
-  "dict0types",
-  "dyn0buf",
-  "dyn0types",
-  "eval0eval",
-  "eval0proc",
-  "fil0crypt",
-  "fil0fil",
-  "fil0pagecompress",
-  "fsp0file",
-  "fsp0fsp",
-  "fsp0space",
-  "fsp0sysspace",
-  "fsp0types",
-  "fts0ast",
-  "fts0blex",
-  "fts0config",
-  "fts0fts",
-  "fts0opt",
-  "fts0pars",
-  "fts0plugin",
-  "fts0priv",
-  "fts0que",
-  "fts0sql",
-  "fts0tlex",
-  "fts0tokenize",
-  "fts0types",
-  "fts0vlc",
-  "fut0fut",
-  "fut0lst",
-  "gis0geo",
-  "gis0rtree",
-  "gis0sea",
-  "gis0type",
-  "ha0ha",
-  "ha0storage",
-  "ha_innodb",
-  "ha_prototypes",
-  "handler0alter",
-  "hash0hash",
-  "i_s",
-  "ib0mutex",
-  "ibuf0ibuf",
-  "ibuf0types",
-  "lexyy",
-  "lock0iter",
-  "lock0lock",
-  "lock0prdt",
-  "lock0priv",
-  "lock0types",
-  "lock0wait",
-  "log0crypt",
-  "log0log",
-  "log0recv",
-  "log0sync",
-  "log0types",
-  "mach0data",
-  "mem0mem",
-  "mtr0log",
-  "mtr0mtr",
-  "mtr0types",
-  "os0api",
-  "os0event",
-  "os0file",
-  "os0proc",
-  "os0thread",
-  "page0cur",
-  "page0page",
-  "page0types",
-  "page0zip",
-  "pars0grm",
-  "pars0lex",
-  "pars0opt",
-  "pars0pars",
-  "pars0sym",
-  "pars0types",
-  "que0que",
-  "que0types",
-  "read0read",
-  "read0types",
-  "rem0cmp",
-  "rem0rec",
-  "rem0types",
-  "row0ext",
-  "row0ftsort",
-  "row0import",
-  "row0ins",
-  "row0log",
-  "row0merge",
-  "row0mysql",
-  "row0purge",
-  "row0quiesce",
-  "row0row",
-  "row0sel",
-  "row0types",
-  "row0uins",
-  "row0umod",
-  "row0undo",
-  "row0upd",
-  "row0vers",
-  "srv0conc",
-  "srv0mon",
-  "srv0srv",
-  "srv0start",
-  "sync0arr",
-  "sync0debug",
-  "sync0policy",
-  "sync0rw",
-  "sync0sync",
-  "sync0types",
-  "trx0i_s",
-  "trx0purge",
-  "trx0rec",
-  "trx0roll",
-  "trx0rseg",
-  "trx0sys",
-  "trx0trx",
-  "trx0types",
-  "trx0undo",
-  "trx0xa",
-  "ut0byte",
-  "ut0counter",
-  "ut0crc32",
-  "ut0dbg",
-  "ut0list",
-  "ut0lst",
-  "ut0mem",
-  "ut0mutex",
-  "ut0new",
-  "ut0pool",
-  "ut0rbt",
-  "ut0rnd",
-  "ut0sort",
-  "ut0stage",
-  "ut0ut",
-  "ut0vec",
-  "ut0wqueue"
-};
 
 /** Auxiliary array of performance schema 'PSI_memory_info'.
 Each allocation appears in
@@ -240,17 +71,14 @@ static PSI_memory_info	pfs_info[] = {
   {&mem_key_std, "std", 0},
 };
 
-constexpr int NKEYS= static_cast<int>UT_ARR_SIZE(auto_event_names);
-std::pair<uint32_t, PSI_memory_key> search_array[NKEYS];
+static const int NKEYS = static_cast<int>UT_ARR_SIZE(auto_event_names);
+static PSI_memory_key auto_event_keys[NKEYS];
 
 /** Setup the internal objects needed for UT_NEW() to operate.
 This must be called before the first call to UT_NEW(). */
 void ut_new_boot()
 {
-  PSI_MEMORY_CALL(register_memory)("innodb", pfs_info, static_cast<int>
-                                   UT_ARR_SIZE(pfs_info));
-
-  static PSI_memory_key auto_event_keys[NKEYS];
+  PSI_MEMORY_CALL(register_memory)("innodb", pfs_info, UT_ARR_SIZE(pfs_info));
   static PSI_memory_info pfs_info_auto[NKEYS];
   for (int i= 0; i < NKEYS; i++)
   {
@@ -258,58 +86,19 @@ void ut_new_boot()
   }
 
   PSI_MEMORY_CALL(register_memory)("innodb", pfs_info_auto,NKEYS);
-
-  if (auto_event_keys[0] == PSI_NOT_INSTRUMENTED)
-    return; // PSI is off
-
-  for (int i= 0; i < NKEYS; i++)
-  {
-    search_array[i]= {ut_filename_hash(auto_event_names[i]), auto_event_keys[i]};
-  }
-
-  std::sort(search_array, std::end(search_array));
-
-#ifdef UNIV_DEBUG
-  /* assumption that hash value is not 0 in ut0new.h, get_mem_key() */
-  ut_ad(search_array[0].first);
-
-  /* Check for hash duplicates */
-  for(int i= 0; i < NKEYS-1; i++)
-  {
-    if (search_array[i].first == search_array[i + 1].first)
-    {
-      // This can only happen if autoevent_names was updated
-      // previously, or the hash function changed
-      ib::fatal() << __FILE__ "Duplicates found in filename hashes";
-    }
-  }
-#endif
 }
 
-/** Retrieve a memory key (registered with PFS), corresponding to source file hash.
+/** Retrieve a memory key (registered with PFS), corresponding to source file .
 
-@param[in] filename_hash -  hash value (computed at compile time) of a ut_filename_hash
-  for a one of the auto_event_names.
+@param[in] autoevent_idx - offset to the auto_event_names corresponding to the
+file name of the caller.
+
 @return registered memory key or PSI_NOT_INSTRUMENTED
 */
-PSI_memory_key ut_new_get_key_by_file(uint32_t filename_hash)
+PSI_memory_key ut_new_get_key_by_file(uint32_t autoevent_idx)
 {
-  if(search_array[0].second == PSI_NOT_INSTRUMENTED)
-  {
-    // PSI is off.
-    return PSI_NOT_INSTRUMENTED;
-  }
-
-  std::pair<uint32, PSI_memory_key> e{ filename_hash, 0 };
-  auto result= std::lower_bound(search_array, std::end(search_array), e);
-  if (result != std::end(search_array) && result->first == filename_hash)
-    return result->second;
-
-#ifdef UNIV_DEBUG
-  ib::fatal() << __FILE__ " ut_new_get_key_by_file : hash not found";
-#endif
-
-  return PSI_NOT_INSTRUMENTED;
+  ut_ad(autoevent_idx < NKEYS);
+  return auto_event_keys[autoevent_idx];
 }
 
 #else /* UNIV_PFS_MEMORY */
