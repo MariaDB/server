@@ -671,7 +671,7 @@ SQL_SELECT *prepare_select_for_name(THD *thd, const char *mask, size_t mlen,
 
   RETURN VALUES
     FALSE Success
-    TRUE  Error and send_error already commited
+    TRUE  Error and send_error already committed
 */
 
 static bool mysqld_help_internal(THD *thd, const char *mask)
