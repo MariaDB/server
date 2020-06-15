@@ -32,7 +32,7 @@ create table t1(a int) engine=innodb;
 
 # create test user
 create user test identified by '123456';
-grant all privileges on test.t1 to 'test'@'%'identified by '123456' with grant option;
+grant all privileges on test.t1 to 'test'@'%'identified by '123456';
 
 # connect as test
 connect (con_test, localhost, test,'123456', );
@@ -48,13 +48,6 @@ drop table t1;
 
 --disconnect con_test
 drop user test;
-
-# check files in datadir about t1
---list_files  $DATADIR/test/
-
---echo #Test4: drop table can drop consistent table as well
-create table t1(a int) engine=innodb;
-drop table t1;
 
 # check files in datadir about t1
 --list_files  $DATADIR/test/
@@ -106,19 +99,6 @@ drop table if exists t1;
 
 # check files in datadir about t1
 --list_files  $DATADIR/test/
-
---echo #Test8: check compatibility with if exists
-create table t1(a int)engine=innodb;
---remove_file $DATADIR/test/t1.frm
-
-# first drop will success
-drop table t1;
-
-# check files in datadir about t1
---list_files  $DATADIR/test/
-
-# second drop with if exists will success
-drop table if exists t1;
 
 --echo #Test9: check compatibility with restrict/cascade
 # create table with foreign key reference and rm frm

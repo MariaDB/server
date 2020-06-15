@@ -4457,21 +4457,12 @@ int handler::delete_table(const char *name)
 
   // For discovery tables, it's ok if first file doesn't exists
   if (ht->discover_table)
-  {
-    abort_if_first_file_error= 0;
     saved_error= 0;
-    if (!bas_ext())
-    {
-      DBUG_ASSERT(ht->flags & HTON_AUTOMATIC_DELETE_TABLE);
-      DBUG_RETURN(0);                           // Drop succeded
-    }
-  }
 
   for (const char **ext= bas_ext(); *ext ; ext++)
   {
-    int error;
-    if ((error= mysql_file_delete_with_symlink(key_file_misc, name, *ext,
-                                              MYF(0))))
+    int err= mysql_file_delete_with_symlink(key_file_misc, name, *ext, MYF(0));
+    if (err)
     {
       if (my_errno != ENOENT)
       {

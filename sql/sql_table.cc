@@ -2308,7 +2308,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   for (table= tables; table; table= table->next_local)
   {
     bool is_trans= 0, frm_was_deleted= 0, temporary_table_was_dropped= 0;
-    bool table_creation_was_logged= 0, trigger_drop_executed= 0;
+    bool table_creation_was_logged= 0;
     bool local_non_tmp_error= 0, frm_exists= 0, wrong_drop_sequence= 0;
     bool table_dropped= 0;
     LEX_CSTRING db= table->db;
@@ -2363,14 +2363,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       */
       if (!dont_log_query && table_creation_was_logged)
       {
-        /*
-          DROP TEMPORARY succeded. For the moment when we only come
-          here on success (error == 0)
-
-          If there is an error, we don't know the type of the engine
-          at this point. So, we keep it in the trx-cache.
-        */
-        is_trans= error ? TRUE : is_trans;
         if (is_trans)
           trans_tmp_table_deleted= TRUE;
         else
@@ -2416,7 +2408,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
 
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
-    error= 0;
     if (drop_temporary)
     {
       /* "DROP TEMPORARY" but a temporary table was not found */
@@ -2551,16 +2542,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           table_dropped= 1;
         }
       }
-      if (likely(!error) || non_existing_table_error(error))
-      {
-        trigger_drop_executed= 1;
-
-        if (Table_triggers_list::drop_all_triggers(thd, &db,
-                                                   &table->table_name,
-                                                   MYF(MY_WME |
-                                                       MY_IGNORE_ENOENT)))
-          error= error ? error : -1;
-      }
       local_non_tmp_error|= MY_TEST(error);
     }
 
@@ -2568,14 +2549,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       If there was no .frm file and the table is not temporary,
       scan all engines try to drop the table from there.
       This is to ensure we don't have any partial table files left.
-
-      We check for trigger_drop_executed to ensure we don't again try
-      to drop triggers when it failed above (after sucecssfully dropping
-      the table).
     */
     if (non_existing_table_error(error) && !drop_temporary &&
-        table_type != view_pseudo_hton && !trigger_drop_executed &&
-        !wrong_drop_sequence)
+        table_type != view_pseudo_hton && !wrong_drop_sequence)
     {
       int ferror= 0;
 
@@ -2601,14 +2577,16 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                                 MYF(MY_WME | MY_IGNORE_ENOENT)))
             ferror= my_errno;
         }
-        if (Table_triggers_list::drop_all_triggers(thd, &db,
-                                                   &table->table_name,
-                                                   MYF(MY_WME |
-                                                       MY_IGNORE_ENOENT)))
-          ferror= -1;
       }
       if (!error)
         error= ferror;
+    }
+
+    if (likely(!error) || non_existing_table_error(error))
+    {
+      if (Table_triggers_list::drop_all_triggers(thd, &db, &table->table_name,
+                                               MYF(MY_WME | MY_IGNORE_ENOENT)))
+        error= error ? error : -1;
     }
 
     if (error)
