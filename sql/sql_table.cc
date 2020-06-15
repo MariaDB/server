@@ -2236,10 +2236,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool dont_free_locks)
 {
   TABLE_LIST *table;
-  char path[FN_REFLEN + 1], unknown_tables_buff[160];
+  char path[FN_REFLEN + 1];
   LEX_CSTRING alias= null_clex_str;
-  String unknown_tables(unknown_tables_buff, sizeof(unknown_tables_buff)-1,
-                      system_charset_info);
+  StringBuffer<160> unknown_tables(system_charset_info);
   uint not_found_errors= 0;
   int error= 0;
   int non_temp_tables_count= 0;
@@ -2311,14 +2310,15 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     bool table_creation_was_logged= 0;
     bool local_non_tmp_error= 0, frm_exists= 0, wrong_drop_sequence= 0;
     bool table_dropped= 0;
-    LEX_CSTRING db= table->db;
+    const LEX_CSTRING db= table->db;
+    const LEX_CSTRING table_name= table->table_name;
     handlerton *table_type= 0;
     size_t path_length= 0;
     char *path_end= 0;
 
     error= 0;
     DBUG_PRINT("table", ("table_l: '%s'.'%s'  table: %p  s: %p",
-                         table->db.str, table->table_name.str,  table->table,
+                         db.str, table_name.str,  table->table,
                          table->table ?  table->table->s : NULL));
 
     /*
@@ -2381,7 +2381,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           append_identifier(thd, built_ptr_query, &db);
           built_ptr_query->append(".");
         }
-        append_identifier(thd, built_ptr_query, &table->table_name);
+        append_identifier(thd, built_ptr_query, &table_name);
         built_ptr_query->append(",");
       }
       /*
@@ -2396,11 +2396,10 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     {
       non_temp_tables_count++;
 
-      DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db.str,
-                                                 table->table_name.str,
-                                                 MDL_SHARED));
+      DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
+                                                 table_name.str, MDL_SHARED));
 
-      alias= (lower_case_table_names == 2) ? table->alias : table->table_name;
+      alias= (lower_case_table_names == 2) ? table->alias : table_name;
       /* remove .frm file and engine files */
       path_length= build_table_filename(path, sizeof(path) - 1, db.str,
                                         alias.str, reg_ext, 0);
@@ -2466,12 +2465,11 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         table->table= 0;
       }
       else
-        tdc_remove_table(thd, table->db.str, table->table_name.str);
+        tdc_remove_table(thd, db.str, table_name.str);
 
       /* Check that we have an exclusive lock on the table to be dropped. */
-      DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db.str,
-                                                 table->table_name.str,
-                                                 MDL_EXCLUSIVE));
+      DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
+                                                table_name.str, MDL_EXCLUSIVE));
 
       // Remove extension for delete
       *path_end= '\0';
@@ -2482,7 +2480,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 
       thd->replication_flags= 0;
       error= ha_delete_table(thd, table_type, path, &db,
-                             &table->table_name, !dont_log_query);
+                             &table_name, !dont_log_query);
 
       if (!error)
         table_dropped= 1;
@@ -2557,7 +2555,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 
       /* Remove extension for delete */
       *path_end= '\0';
-      ferror= ha_delete_table_force(thd, path, &db, &table->table_name);
+      ferror= ha_delete_table_force(thd, path, &db, &table_name);
       if (!ferror)
       {
         /* Table existed and was deleted */
@@ -2584,22 +2582,21 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 
     if (likely(!error) || non_existing_table_error(error))
     {
-      if (Table_triggers_list::drop_all_triggers(thd, &db, &table->table_name,
+      if (Table_triggers_list::drop_all_triggers(thd, &db, &table_name,
                                                MYF(MY_WME | MY_IGNORE_ENOENT)))
         error= error ? error : -1;
     }
 
     if (error)
     {
-      char buff[FN_REFLEN];
-      String tbl_name(buff, sizeof(buff), system_charset_info);
+      StringBuffer<FN_REFLEN> tbl_name(system_charset_info);
       uint is_note= (if_exists && (was_view || wrong_drop_sequence) ?
                      ME_NOTE : 0);
 
       tbl_name.length(0);
       tbl_name.append(&db);
       tbl_name.append('.');
-      tbl_name.append(&table->table_name);
+      tbl_name.append(&table_name);
 
       if (!non_existing_table_error(error) || is_note)
       {
@@ -2640,9 +2637,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     if (!error && table_dropped)
     {
       PSI_CALL_drop_table_share(temporary_table_was_dropped,
-                                table->db.str, (uint)table->db.length,
-                                table->table_name.str,
-                                (uint)table->table_name.length);
+                                db.str, (uint)db.length,
+                                table_name.str, (uint)table_name.length);
       mysql_audit_drop_table(thd, table);
     }
 
@@ -2660,7 +2656,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         normal_tables.append(".");
       }
 
-      append_identifier(thd, &normal_tables, &table->table_name);
+      append_identifier(thd, &normal_tables, &table_name);
       normal_tables.append(",");
     }
     DBUG_PRINT("table", ("table: %p  s: %p", table->table,

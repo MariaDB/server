@@ -5011,8 +5011,7 @@ static my_bool delete_table_force(THD *thd, plugin_ref plugin, void *arg)
       !(hton->flags & HTON_AUTOMATIC_DELETE_TABLE))
   {
     int error;
-    error= ha_delete_table(thd, hton, param->path, param->db,
-                           param->alias, 0);
+    error= ha_delete_table(thd, hton, param->path, param->db, param->alias, 0);
     if (error > 0 && !non_existing_table_error(error))
       param->error= error;
     if (error == 0)
