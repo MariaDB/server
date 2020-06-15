@@ -9849,6 +9849,13 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       DBUG_RETURN(true);
     }
 
+    if (create_info->db_type == maria_hton &&
+        create_info->transactional != HA_CHOICE_NO)
+    {
+      my_error(ER_TRANSACTIONAL_ARIA_LOG_ENGINE, MYF(0));
+      DBUG_RETURN(true);
+    }
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (alter_info->partition_flags & ALTER_PARTITION_INFO)
     {
