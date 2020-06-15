@@ -88,7 +88,7 @@ endif
 	    -DWITHOUT_TOKUDB=true \
 	    -DWITHOUT_CASSANDRA=true \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
-	    -WITH_EMBEDDED_SERVER=OFF \
+	    -DWITH_EMBEDDED_SERVER=ON \
 	    -DDEB=$(DEB_VENDOR) ..'
 
 # This is needed, otherwise 'make test' will run before binaries have been built
