@@ -5837,27 +5837,28 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     {
       char engine_buf[NAME_CHAR_LEN + 1];
       LEX_CSTRING engine= { engine_buf, 0 };
-      Table_type type;
+      Table_type type= dd_frm_type(thd, path, &engine);
 
-      if ((type= dd_frm_type(thd, path, &engine, is_sequence)) ==
-          TABLE_TYPE_UNKNOWN)
-      {
-        DBUG_PRINT("exit", ("Does not exist"));
+      switch (type) {
+      case TABLE_TYPE_UNKNOWN:
+        DBUG_PRINT("exit", ("Exist, cannot be opened"));
         DBUG_RETURN(true);                      // Frm exists
-      }
-      if (type != TABLE_TYPE_VIEW)
-      {
-        plugin_ref p=  plugin_lock_by_name(thd, &engine,
-                                           MYSQL_STORAGE_ENGINE_PLUGIN);
-        *hton= p ? plugin_hton(p) : NULL;
-        if (*hton)
+      case TABLE_TYPE_VIEW:
+        *hton= view_pseudo_hton;
+        DBUG_PRINT("exit", ("Exist, view"));
+        DBUG_RETURN(true);                      // Frm exists
+      case TABLE_TYPE_SEQUENCE:
+        *is_sequence= true;
+        /* fall through */
+      case TABLE_TYPE_NORMAL:
         {
-          // verify that the table really exists
-          exists= discover_existence(thd, p, &args);
+          plugin_ref p=  plugin_lock_by_name(thd, &engine,
+                                             MYSQL_STORAGE_ENGINE_PLUGIN);
+          *hton= p ? plugin_hton(p) : NULL;
+          if (*hton)      // verify that the table really exists
+            exists= discover_existence(thd, p, &args);
         }
       }
-      else
-        *hton= view_pseudo_hton;
     }
     DBUG_PRINT("exit", (exists ? "Exists" : "Does not exist"));
     DBUG_RETURN(exists);
