@@ -1,0 +1,34 @@
+include/master-slave.inc
+[connection master]
+SET GLOBAL LOG_WARNINGS=2;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=current_pos;
+include/start_slave.inc
+"Test Case 1: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(1), gtid('')"
+FOUND /using_gtid\(1\), gtid\(\'\'\)/ in mysqld.1.err
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=no;
+include/start_slave.inc
+"Test Case 2: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(0), gtid('')"
+FOUND /using_gtid\(0\), gtid\(\'\'\)/ in mysqld.1.err
+CREATE TABLE t (f INT) ENGINE=INNODB;
+INSERT INTO t VALUES(10);
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+"Test Case 3: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(1), gtid('0-1-2')"
+FOUND /using_gtid\(1\), gtid\(\'0-1-2\'\)/ in mysqld.1.err
+SET @@SESSION.gtid_domain_id=10;
+INSERT INTO t VALUES(20);
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+"Test Case 4: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(1), gtid('0-1-2,10-1-1')"
+FOUND /using_gtid\(1\), gtid\(\'0-1-2,10-1-1\'\)/ in mysqld.1.err
+"===== Clean up ====="
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=no;
+include/start_slave.inc
+DROP TABLE t;
+SET GLOBAL LOG_WARNINGS=default;
+include/rpl_end.inc
