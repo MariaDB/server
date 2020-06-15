@@ -4737,6 +4737,10 @@ void mark_join_nest_as_const(JOIN *join,
 {
   List_iterator<TABLE_LIST> it(join_nest->nested_join->join_list);
   TABLE_LIST *tbl;
+  Json_writer_object emb_obj(join->thd);
+  Json_writer_object trace_obj(join->thd, "mark_join_nest_as_const");
+  Json_writer_array trace_array(join->thd, "members");
+
   while ((tbl= it++))
   {
     if (tbl->nested_join)
@@ -4756,6 +4760,8 @@ void mark_join_nest_as_const(JOIN *join,
       *found_const_table_map|= tab->table->map;
       set_position(join,(*const_count)++,tab,(KEYUSE*) 0);
       mark_as_null_row(tab->table);		// All fields are NULL
+
+      trace_array.add_table_name(tab->table);
     }
   }
 }
