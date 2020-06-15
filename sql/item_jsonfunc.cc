@@ -3689,6 +3689,24 @@ String *Item_func_json_arrayagg::get_str_from_field(Item *i,Field *f,
 }
 
 
+void Item_func_json_arrayagg::cut_max_length(String *result,
+       uint old_length, uint max_length) const
+{
+  if (result->length() == 0)
+    return;
+
+  if (result->ptr()[result->length() - 1] != '"' ||
+      max_length == 0)
+  {
+    Item_func_group_concat::cut_max_length(result, old_length, max_length);
+    return;
+  }
+
+  Item_func_group_concat::cut_max_length(result, old_length, max_length-1);
+  result->append('"');
+}
+
+
 String* Item_func_json_arrayagg::val_str(String *str)
 {
   if ((str= Item_func_group_concat::val_str(str)))

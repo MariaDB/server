@@ -3733,6 +3733,37 @@ int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1_arg,
 }
 
 
+static void report_cut_value_error(THD *thd, uint row_count, const char *fname)
+{
+  size_t fn_len= strlen(fname);
+  char *fname_upper= (char *) my_alloca(fn_len + 1);
+  fname_upper[fn_len]= 0;
+  for (; fn_len; fn_len--)
+    fname_upper[fn_len-1]= my_toupper(&my_charset_latin1, fname[fn_len-1]);
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_CUT_VALUE_GROUP_CONCAT,
+                      ER_THD(thd, ER_CUT_VALUE_GROUP_CONCAT),
+                      row_count, fname_upper);
+}
+
+
+void Item_func_group_concat::cut_max_length(String *result,
+        uint old_length, uint max_length) const
+{
+  const char *ptr= result->ptr();
+  /*
+    It's ok to use item->result.length() as the fourth argument
+    as this is never used to limit the length of the data.
+    Cut is done with the third argument.
+  */
+  size_t add_length= Well_formed_prefix(collation.collation,
+                                      ptr + old_length,
+                                      ptr + max_length,
+                                      result->length()).length();
+  result->length(old_length + add_length);
+}
+
+
 /**
   Append data from current leaf to item->result.
 */
@@ -3812,24 +3843,10 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   /* stop if length of result more than max_length */
   if (result->length() > max_length)
   {
-    CHARSET_INFO *cs= item->collation.collation;
-    const char *ptr= result->ptr();
     THD *thd= current_thd;
-    /*
-      It's ok to use item->result.length() as the fourth argument
-      as this is never used to limit the length of the data.
-      Cut is done with the third argument.
-    */
-    size_t add_length= Well_formed_prefix(cs,
-                                        ptr + old_length,
-                                        ptr + max_length,
-                                        result->length()).length();
-    result->length(old_length + add_length);
+    item->cut_max_length(result, old_length, max_length);
     item->warning_for_row= TRUE;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_CUT_VALUE_GROUP_CONCAT,
-                        ER_THD(thd, ER_CUT_VALUE_GROUP_CONCAT),
-                        item->row_count);
+    report_cut_value_error(thd, item->row_count, item->func_name());
 
     /**
        To avoid duplicated warnings in Item_func_group_concat::val_str()
@@ -4427,9 +4444,7 @@ String* Item_func_group_concat::val_str(String* str)
       table->blob_storage->is_truncated_value())
   {
     warning_for_row= true;
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_CUT_VALUE_GROUP_CONCAT, ER(ER_CUT_VALUE_GROUP_CONCAT),
-                        row_count);
+    report_cut_value_error(current_thd, row_count, func_name());
   }
 
   return &result;

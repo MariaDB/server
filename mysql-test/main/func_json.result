@@ -1308,6 +1308,18 @@ SELECT JSON_ARRAYAGG(a ORDER BY a ASC) FROM t1;
 JSON_ARRAYAGG(a ORDER BY a ASC)
 [null,"blue","red"]
 DROP TABLE t1;
+set group_concat_max_len=64;
+create table t1 (a varchar(254));
+insert into t1 values (concat('x64-', repeat('a', 60)));
+insert into t1 values (concat('x64-', repeat('b', 60)));
+insert into t1 values (concat('x64-', repeat('c', 60)));
+select json_arrayagg(a) from t1;
+json_arrayagg(a)
+["x64-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+drop table t1;
+SET group_concat_max_len= default;
 #
 # End of 10.5 tests
 #

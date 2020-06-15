@@ -812,6 +812,14 @@ SELECT JSON_ARRAYAGG(a ORDER BY a DESC) FROM t1;
 SELECT JSON_ARRAYAGG(a ORDER BY a ASC) FROM t1;
 DROP TABLE t1;
 
+set group_concat_max_len=64;
+create table t1 (a varchar(254));
+insert into t1 values (concat('x64-', repeat('a', 60)));
+insert into t1 values (concat('x64-', repeat('b', 60)));                                            insert into t1 values (concat('x64-', repeat('c', 60)));
+select json_arrayagg(a) from t1; 
+drop table t1;
+SET group_concat_max_len= default;
+
 --echo #
 --echo # End of 10.5 tests
 --echo #
