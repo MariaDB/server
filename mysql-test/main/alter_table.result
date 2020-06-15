@@ -3311,5 +3311,16 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t2;
 #
+# MDEV-22881 Unexpected errors, corrupt output, Valgrind / ASAN errors in Item_ident::print or append_identifier
+#
+create table t1 (a int check (a >= 0));
+lock tables t1 write;
+alter table t1 rename column a to a;
+alter table t1 rename key if exists x to xx;
+Warnings:
+Note	1176	Key 'x' doesn't exist in table 't1'
+unlock tables;
+drop table t1;
+#
 # End of 10.5 tests
 #

@@ -2518,5 +2518,17 @@ show create table t2;
 drop table t2;
 
 --echo #
+--echo # MDEV-22881 Unexpected errors, corrupt output, Valgrind / ASAN errors in Item_ident::print or append_identifier
+--echo #
+create table t1 (a int check (a >= 0));
+lock tables t1 write;
+alter table t1 rename column a to a;
+alter table t1 rename key if exists x to xx;
+
+# cleanup
+unlock tables;
+drop table t1;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

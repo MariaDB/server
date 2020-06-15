@@ -2592,7 +2592,8 @@ Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
 
 
   /* Reset flag that some table was marked for reopen */
-  some_table_marked_for_reopen= 0;
+  if (need_reopen)
+    some_table_marked_for_reopen= 0;
 
   for (TABLE_LIST *table_list= m_locked_tables;
        table_list; table_list= table_list->next_global)
