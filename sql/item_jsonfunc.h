@@ -91,6 +91,7 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_valid>(thd, this); }
+  enum Functype functype() const   { return JSON_VALID_FUNC; }
 };
 
 

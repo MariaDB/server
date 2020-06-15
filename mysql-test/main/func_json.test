@@ -820,6 +820,12 @@ select json_arrayagg(a) from t1;
 drop table t1;
 SET group_concat_max_len= default;
 
+create table t1 (col1 json);
+insert into t1 values('{"color":"red", "size":1}' );
+insert into t1 values('{"color":"blue", "size":2}' );
+select JSON_ARRAYAGG(col1) from t1;
+drop table t1;
+
 --echo #
 --echo # End of 10.5 tests
 --echo #

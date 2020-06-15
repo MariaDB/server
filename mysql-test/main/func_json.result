@@ -1320,6 +1320,13 @@ Warnings:
 Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
 drop table t1;
 SET group_concat_max_len= default;
+create table t1 (col1 json);
+insert into t1 values('{"color":"red", "size":1}' );
+insert into t1 values('{"color":"blue", "size":2}' );
+select JSON_ARRAYAGG(col1) from t1;
+JSON_ARRAYAGG(col1)
+[{"color":"red", "size":1},{"color":"blue", "size":2}]
+drop table t1;
 #
 # End of 10.5 tests
 #

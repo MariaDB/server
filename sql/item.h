@@ -3389,6 +3389,7 @@ public:
   my_decimal *val_decimal_result(my_decimal *);
   bool val_bool_result();
   bool is_null_result();
+  bool is_json_type();
   bool send(Protocol *protocol, st_value *buffer);
   Load_data_outvar *get_load_data_outvar()
   {
