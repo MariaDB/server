@@ -895,12 +895,13 @@ constexpr const char* const auto_event_names[] =
   "ut0pool",
   "ut0rbt",
   "ut0wqueue",
-  "xtrabackup"
+  "xtrabackup",
+  nullptr
 };
 
 constexpr uint32_t cexpr_lookup_auto_event_name(const char* name, uint32_t idx = 0)
 {
-  return idx == UT_ARR_SIZE(auto_event_names) ? INVALID_AUTOEVENT_IDX :
+  return !auto_event_names[idx] ? INVALID_AUTOEVENT_IDX :
     cexpr_strequal_ignore_dot(name, auto_event_names[idx]) ? idx :
     cexpr_lookup_auto_event_name(name, idx + 1);
 }
