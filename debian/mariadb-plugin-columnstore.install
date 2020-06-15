@@ -5,7 +5,7 @@ etc/columnstore/ErrorMessage.txt
 etc/columnstore/MessageFile.txt
 etc/columnstore/ProcessConfig.xml
 etc/columnstore/storagemanager.cnf
-etc/mysql/conf.d/columnstore.cnf
+etc/mysql/mariadb.conf.d/columnstore.cnf
 usr/bin/DDLProc
 usr/bin/DMLProc
 usr/bin/ExeMgr
@@ -79,7 +79,6 @@ usr/bin/smcat
 usr/bin/smls
 usr/bin/smput
 usr/bin/smrm
-usr/bin/softwareReport.sh
 usr/bin/startupTests.sh
 usr/bin/viewtablelock
 usr/bin/workernode
