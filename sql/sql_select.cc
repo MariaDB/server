@@ -15823,10 +15823,15 @@ static uint build_bitmap_for_nested_joins(List<TABLE_LIST> *join_list,
 
 
 /**
-  Set NESTED_JOIN::counter=0 in all nested joins in passed list.
+  Set NESTED_JOIN::counter and n_tables in all nested joins in passed list.
 
-    Recursively set NESTED_JOIN::counter=0 for all nested joins contained in
-    the passed join_list.
+  For all nested joins contained in the passed join_list (including its
+  children), set:
+   - nested_join->counter=0
+   - nested_join->n_tables= {number of non-degenerate direct children}.
+
+  Non-degenerate means non-const base table or a join nest that has a
+  non-degenerate child.
 
   @param join_list  List of nested joins to process. It may also contain base
                     tables which will be ignored.
@@ -15849,8 +15854,11 @@ static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list)
       if (!nested_join->n_tables)
         is_eliminated_nest= TRUE;
     }
-    if ((table->nested_join && !is_eliminated_nest) || 
-        (!table->nested_join && (table->table->map & ~join->eliminated_tables)))
+    const table_map removed_tables= join->eliminated_tables |
+                                    join->const_table_map;
+
+    if ((table->nested_join && !is_eliminated_nest) ||
+        (!table->nested_join && (table->table->map & ~removed_tables)))
       n++;
   }
   DBUG_RETURN(n);
