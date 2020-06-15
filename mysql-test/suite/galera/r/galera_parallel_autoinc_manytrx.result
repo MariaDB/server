@@ -16,6 +16,8 @@ COMMIT;
 SET current_num = current_num + 1;
 END WHILE;
 END|
+call p1(1000);
+connection node_1;
 connection node_1a;
 connection node_1b;
 connection node_2;
