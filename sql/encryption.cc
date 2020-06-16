@@ -18,6 +18,7 @@
 #include "log.h"
 #include "sql_plugin.h"
 #include <my_crypt.h>
+#include <violite.h>
 
 /* there can be only one encryption plugin enabled */
 static plugin_ref encryption_manager= 0;
@@ -62,6 +63,8 @@ int initialize_encryption_plugin(st_plugin_int *plugin)
 {
   if (encryption_manager)
     return 1;
+
+  vio_check_ssl_init();
 
   if (plugin->plugin->init && plugin->plugin->init(plugin))
   {

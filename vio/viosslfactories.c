@@ -150,7 +150,7 @@ vio_set_cert_stuff(SSL_CTX *ctx, const char *cert_file, const char *key_file,
 }
 
 
-static void check_ssl_init()
+void vio_check_ssl_init()
 {
   if (!ssl_algorithms_added)
   {
@@ -243,7 +243,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
               crl_file ? crl_file : "NULL",
               crl_path ? crl_path : "NULL"));
 
-  check_ssl_init();
+  vio_check_ssl_init();
 
   if (!(ssl_fd= ((struct st_VioSSLFd*)
                  my_malloc(sizeof(struct st_VioSSLFd),MYF(0)))))
