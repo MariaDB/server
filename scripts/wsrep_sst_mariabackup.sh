@@ -817,7 +817,7 @@ fi
  
     INNOAPPLY="${INNOBACKUPEX_BIN} --prepare $disver $iapts \$INNOEXTRA --target-dir=\${DATA} --mysqld-args \$WSREP_SST_OPT_MYSQLD &> ${INNOAPPLYLOG}"
     INNOMOVE="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --move-back $disver $impts  --move-back --force-non-empty-directories --target-dir=\${DATA} &> ${INNOMOVELOG}"
-    INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --backup $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt --target-dir=\$itmpdir 2> ${INNOBACKUPLOG}"
+    INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --backup $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt --target-dir=\$itmpdir --mysqld-args \$WSREP_SST_OPT_MYSQLD 2> ${INNOBACKUPLOG}"
 fi
 
 get_stream
