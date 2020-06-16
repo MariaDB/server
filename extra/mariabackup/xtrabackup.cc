@@ -1626,7 +1626,7 @@ end:
 }
 
 static const char *xb_client_default_groups[]= {
-    "client", "client-server", "client-mariadb", "mariadb-client", 0, 0, 0};
+    "client", "client-server", "client-mariadb", 0, 0, 0};
 
 static const char *backup_default_groups[]= {
     "xtrabackup", "mariabackup", "mariadb-backup", 0, 0, 0};
