@@ -62,7 +62,7 @@ push @::global_suppressions,
      qr(WSREP: Ignoring error*),
      qr(WSREP: Failed to remove page file .*),
      qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
-     qr(WSREP: .*Transport endpoint is not connected.*),
+     qr|WSREP: Sending JOIN failed: -107 \(Transport endpoint is not connected\). Will retry in new primary component.|,
    );
 
 sub skip_combinations {
