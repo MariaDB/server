@@ -2052,6 +2052,10 @@ void innodb_shutdown()
 	}
 	srv_tmp_space.shutdown();
 
+	if (srv_stats.pages_page_compression_error)
+		ib::warn() << "Page compression errors: "
+			   << srv_stats.pages_page_compression_error;
+
 	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "
 			   << srv_shutdown_lsn

@@ -1734,6 +1734,9 @@ inline bool fil_names_write_if_was_clean(fil_space_t* space)
 	return(was_clean);
 }
 
+
+bool fil_comp_algo_loaded(ulint comp_algo);
+
 /** On a log checkpoint, reset fil_names_dirty_and_write() flags
 and write out FILE_MODIFY and FILE_CHECKPOINT if needed.
 @param[in]	lsn		checkpoint LSN

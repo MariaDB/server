@@ -54,6 +54,12 @@ Created 10/25/1995 Heikki Tuuri
 # include <dirent.h>
 #endif
 
+#include "lz4.h"
+#include "lzo/lzo1x.h"
+#include "lzma.h"
+#include "bzlib.h"
+#include "snappy-c.h"
+
 /** Try to close a file to adhere to the innodb_open_files limit.
 @param print_info   whether to diagnose why a file cannot be closed
 @return whether a file was closed */
@@ -245,26 +251,30 @@ static bool fil_comp_algo_validate(const fil_space_t* space)
 	DBUG_EXECUTE_IF("fil_comp_algo_validate_fail",
 			return false;);
 
-	ulint	comp_algo = space->get_compression_algo();
+	return fil_comp_algo_loaded(space->get_compression_algo());
+}
+
+bool fil_comp_algo_loaded(ulint comp_algo)
+{
 	switch (comp_algo) {
 	case PAGE_UNCOMPRESSED:
 	case PAGE_ZLIB_ALGORITHM:
-#ifdef HAVE_LZ4
-	case PAGE_LZ4_ALGORITHM:
-#endif /* HAVE_LZ4 */
-#ifdef HAVE_LZO
-	case PAGE_LZO_ALGORITHM:
-#endif /* HAVE_LZO */
-#ifdef HAVE_LZMA
-	case PAGE_LZMA_ALGORITHM:
-#endif /* HAVE_LZMA */
-#ifdef HAVE_BZIP2
-	case PAGE_BZIP2_ALGORITHM:
-#endif /* HAVE_BZIP2 */
-#ifdef HAVE_SNAPPY
-	case PAGE_SNAPPY_ALGORITHM:
-#endif /* HAVE_SNAPPY */
 		return true;
+
+	case PAGE_LZ4_ALGORITHM:
+		return provider_service_lz4->is_loaded;
+
+	case PAGE_LZO_ALGORITHM:
+		return provider_service_lzo->is_loaded;
+
+	case PAGE_LZMA_ALGORITHM:
+		return provider_service_lzma->is_loaded;
+
+	case PAGE_BZIP2_ALGORITHM:
+		return provider_service_bzip2->is_loaded;
+
+	case PAGE_SNAPPY_ALGORITHM:
+		return provider_service_snappy->is_loaded;
 	}
 
 	return false;

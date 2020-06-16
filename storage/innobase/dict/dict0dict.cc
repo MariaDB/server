@@ -1114,10 +1114,22 @@ dict_table_open_on_name(
 			dict_sys.prevent_eviction(table);
 
 			if (table->corrupted) {
+				ulint algo = table->space->get_compression_algo();
+				if (algo <= PAGE_ALGORITHM_LAST
+				    && !fil_comp_algo_loaded(algo)) {
+					ib::error() << "Table " << table->name
+						<< " is compressed with "
+						<< page_compression_algorithms[algo] << " (" << algo << "), "
+						"which is not currently loaded. Please load the "
+						"'" << page_compression_algorithms[algo] << "'"
+						" provider plugin to open the table.";
+				}
+				else {
+					ib::error() << "Table " << table->name
+						<< " is corrupted. Please "
+						"drop the table and recreate.";
+				}
 
-				ib::error() << "Table " << table->name
-					<< " is corrupted. Please "
-					"drop the table and recreate.";
 				if (!dict_locked) {
 					dict_sys.mutex_unlock();
 				}

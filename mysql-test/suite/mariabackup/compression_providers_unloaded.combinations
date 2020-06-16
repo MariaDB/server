@@ -1,0 +1,14 @@
+[bzip2]
+plugin-load-add=$PROVIDER_BZIP2_SO
+
+[lz4]
+plugin-load-add=$PROVIDER_LZ4_SO
+
+[lzma]
+plugin-load-add=$PROVIDER_LZMA_SO
+
+[lzo]
+plugin-load-add=$PROVIDER_LZO_SO
+
+[snappy]
+plugin-load-add=$PROVIDER_SNAPPY_SO

@@ -1,0 +1,20 @@
+--- suite/innodb/r/compression_providers_unloaded.result
++++ suite/innodb/r/compression_providers_unloaded.reject
+@@ -1,10 +1,10 @@
+ #
+-# Testing unloaded compression provider: bzip2
++# Testing unloaded compression provider: snappy
+ #
+-# Innodb_have_bzip2 reflects that the provider is not loaded
+-SHOW GLOBAL STATUS WHERE Variable_name = "Innodb_have_bzip2";
++# Innodb_have_snappy reflects that the provider is not loaded
++SHOW GLOBAL STATUS WHERE Variable_name = "Innodb_have_snappy";
+ Variable_name	Value
+-Innodb_have_bzip2	OFF
+-# Innodb_compression_algorithm cannot be set to bzip2
+-SET GLOBAL Innodb_compression_algorithm = bzip2;
+-ERROR 42000: Variable 'innodb_compression_algorithm' can't be set to the value of 'bzip2'
++Innodb_have_snappy	OFF
++# Innodb_compression_algorithm cannot be set to snappy
++SET GLOBAL Innodb_compression_algorithm = snappy;
++ERROR 42000: Variable 'innodb_compression_algorithm' can't be set to the value of 'snappy'
