@@ -3268,6 +3268,29 @@ err:
 }
 
 
+class Turn_errors_to_warnings_handler : public Internal_error_handler
+{
+public:
+  int errors;
+  Turn_errors_to_warnings_handler() : errors(0) {}
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl)
+  {
+    *cond_hdl= NULL;
+    if (*level == Sql_condition::WARN_LEVEL_ERROR)
+    {
+      *level= Sql_condition::WARN_LEVEL_WARN;
+      errors++;
+    }
+    return(0);
+  }
+};
+
+
 static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
                                        const char *sql)
 {
@@ -3339,6 +3362,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   handlerton *hton= plugin_hton(db_plugin);
   LEX_CUSTRING frm= {0,0};
   LEX_CSTRING db_backup= thd->db;
+  Turn_errors_to_warnings_handler silencer;
   DBUG_ENTER("TABLE_SHARE::init_from_sql_statement_string");
 
   /*
@@ -3368,6 +3392,8 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   thd->reset_db(&db);
   lex_start(thd);
 
+  thd->push_internal_handler(&silencer);
+
   if (unlikely((error= parse_sql(thd, & parser_state, NULL) ||
                 sql_unusable_for_discovery(thd, hton, sql_copy))))
     goto ret;
@@ -3395,6 +3421,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   }
 
 ret:
+  thd->pop_internal_handler();
   my_free(const_cast<uchar*>(frm.str));
   lex_end(thd->lex);
   thd->reset_db(&db_backup);
@@ -3403,9 +3430,8 @@ ret:
     thd->restore_active_arena(arena, &backup);
   reenable_binlog(thd);
   thd->variables.character_set_client= old_cs;
-  if (unlikely(thd->is_error() || error))
+  if (silencer.errors || error)
   {
-    thd->clear_error();
     my_error(ER_SQL_DISCOVER_ERROR, MYF(0),
              plugin_name(db_plugin)->str, db.str, table_name.str,
              sql_copy);
@@ -8417,25 +8443,6 @@ bool is_simple_order(ORDER *order)
   }
   return TRUE;
 }
-
-class Turn_errors_to_warnings_handler : public Internal_error_handler
-{
-public:
-  Turn_errors_to_warnings_handler() {}
-  bool handle_condition(THD *thd,
-                        uint sql_errno,
-                        const char* sqlstate,
-                        Sql_condition::enum_warning_level *level,
-                        const char* msg,
-                        Sql_condition ** cond_hdl)
-  {
-    *cond_hdl= NULL;
-    if (*level == Sql_condition::WARN_LEVEL_ERROR)
-      *level= Sql_condition::WARN_LEVEL_WARN;
-    return(0);
-  }
-};
-
 
 /*
   to satisfy marked_for_write_or_computed() Field's assert we temporarily
