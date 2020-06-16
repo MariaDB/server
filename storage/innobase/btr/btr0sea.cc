@@ -1485,17 +1485,9 @@ btr_search_build_page_hash_index(
 
 	btr_search_check_free_space_in_heap(index);
 
-	hash_table_t*	table	= btr_get_search_table(index);
 	rw_lock_x_lock(ahi_latch);
 
 	if (!btr_search_enabled) {
-		goto exit_func;
-	}
-
-	table = btr_get_search_table(index);
-	if (block->index && ((block->curr_n_fields != n_fields)
-			     || (block->curr_n_bytes != n_bytes)
-			     || (block->curr_left_side != left_side))) {
 		goto exit_func;
 	}
 
@@ -1507,6 +1499,10 @@ btr_search_build_page_hash_index(
 	if (!block->index) {
 		assert_block_ahi_empty(block);
 		index->search_info->ref_count++;
+	} else if (block->curr_n_fields != n_fields
+		   || block->curr_n_bytes != n_bytes
+		   || block->curr_left_side != left_side) {
+		goto exit_func;
 	}
 
 	block->n_hash_helps = 0;
@@ -1516,9 +1512,11 @@ btr_search_build_page_hash_index(
 	block->curr_left_side = unsigned(left_side);
 	block->index = index;
 
-	for (i = 0; i < n_cached; i++) {
-
-		ha_insert_for_fold(table, folds[i], block, recs[i]);
+	{
+		hash_table_t*	table = btr_get_search_table(index);
+		for (i = 0; i < n_cached; i++) {
+			ha_insert_for_fold(table, folds[i], block, recs[i]);
+		}
 	}
 
 	MONITOR_INC(MONITOR_ADAPTIVE_HASH_PAGE_ADDED);
