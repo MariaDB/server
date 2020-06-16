@@ -168,8 +168,7 @@ drop table if exists t1,s1,v1,t3,t4;
 Warnings:
 Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
 Note	1965	'test.v1' is a view
-Note	1965	'test.t3' is a view
-Note	1965	'test.t4' is a view
+Note	1051	Unknown table 'test.t3,test.t4'
 drop table if exists s2,v2,t2,t1;
 Warnings:
 Note	1965	'test.v2' is a view
@@ -493,8 +492,7 @@ Warnings:
 Warning	1017	Can't find file: './test/s1.MYI' (errno: 2 "No such file or directory")
 Note	4090	'test.t1' is not a SEQUENCE
 Note	1965	'test.v1' is a view
-Note	1965	'test.t3' is a view
-Note	1965	'test.s4' is a view
+Note	4091	Unknown SEQUENCE: 'test.t3,test.s4'
 drop sequence if exists t2,v2,s2,s1;
 Warnings:
 Note	4090	'test.t2' is not a SEQUENCE

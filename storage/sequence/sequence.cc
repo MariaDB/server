@@ -497,19 +497,27 @@ int ha_seq_group_by_handler::next_row()
   Initialize the interface between the sequence engine and MariaDB
 *****************************************************************************/
 
+static int drop_table(handlerton *hton, const char *path)
+{
+  const char *name= strrchr(path, FN_LIBCHAR)+1;
+  ulonglong from, to, step;
+  if (parse_table_name(name, strlen(name), &from, &to, &step))
+    return ENOENT;
+  return 0;
+}
+
 static int init(void *p)
 {
   handlerton *hton= (handlerton *)p;
   sequence_hton= hton;
   hton->create= create_handler;
-  hton->drop_table= [](handlerton *, const char*) { return 0; };
+  hton->drop_table= drop_table;
   hton->discover_table= discover_table;
   hton->discover_table_existence= discover_table_existence;
   hton->commit= hton->rollback= dummy_commit_rollback;
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=
     dummy_savepoint;
   hton->create_group_by= create_group_by_handler;
-  hton->flags= HTON_AUTOMATIC_DELETE_TABLE;
   return 0;
 }
 
