@@ -51,3 +51,14 @@ exec $XTRABACKUP --defaults-file=$custom_cnf --backup --target-dir=$targetdir;
 --echo # Check if uknown options that follow --mysqld-args are ingored
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --mysqld-args --unknown-option;
 --rmdir $targetdir
+
+--echo # Check if [mariadb-client] group is not loaded (MDEV-22894)
+--copy_file $MYSQLTEST_VARDIR/my.cnf $custom_cnf
+--append_file $custom_cnf
+[mariadb-client]
+user=bla
+password=bla
+EOF
+exec $XTRABACKUP --defaults-file=$custom_cnf --backup --target-dir=$targetdir;
+--remove_file $custom_cnf
+--rmdir $targetdir
