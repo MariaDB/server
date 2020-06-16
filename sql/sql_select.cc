@@ -778,9 +778,12 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
   }
 
   bool is_select= false;
+  bool use_sysvar= false;
   switch (thd->lex->sql_command)
   {
   case SQLCOM_SELECT:
+    use_sysvar= true;
+    /* fall through */
   case SQLCOM_INSERT_SELECT:
   case SQLCOM_REPLACE_SELECT:
   case SQLCOM_DELETE_MULTI:
@@ -824,7 +827,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     }
 
     // propagate system_time from sysvar
-    if (!vers_conditions.is_set() && is_select)
+    if (!vers_conditions.is_set() && use_sysvar)
     {
       if (vers_conditions.init_from_sysvar(thd))
         DBUG_RETURN(-1);
