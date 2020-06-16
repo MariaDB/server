@@ -35,6 +35,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "ut0vec.h"
 #include "fts0fts.h"
 #include "read0types.h"
+#include "ilist.h"
 
 #include <vector>
 #include <set>
@@ -713,7 +714,7 @@ struct trx_rsegs_t {
 	trx_temp_undo_t	m_noredo;
 };
 
-struct trx_t {
+struct trx_t : ilist_node<> {
 private:
   /**
     Count of references.
@@ -909,10 +910,6 @@ public:
 					/*!< how many tables the current SQL
 					statement uses, except those
 					in consistent read */
-	/*------------------------------*/
-	UT_LIST_NODE_T(trx_t) trx_list;	/*!< list of all transactions;
-					protected by trx_sys.mutex */
-	/*------------------------------*/
 	dberr_t		error_state;	/*!< 0 if no error, otherwise error
 					number; NOTE That ONLY the thread
 					doing the transaction is allowed to

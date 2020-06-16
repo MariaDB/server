@@ -4654,15 +4654,14 @@ struct lock_print_info
     purge_trx(purge_sys.query ? purge_sys.query->trx : NULL)
   {}
 
-  void operator()(const trx_t* trx) const
+  void operator()(const trx_t &trx) const
   {
-    ut_ad(mutex_own(&trx_sys.mutex));
-    if (UNIV_UNLIKELY(trx == purge_trx))
+    if (UNIV_UNLIKELY(&trx == purge_trx))
       return;
-    lock_trx_print_wait_and_mvcc_state(file, trx, now);
+    lock_trx_print_wait_and_mvcc_state(file, &trx, now);
 
-    if (trx->will_lock && srv_print_innodb_lock_monitor)
-      lock_trx_print_locks(file, trx);
+    if (trx.will_lock && srv_print_innodb_lock_monitor)
+      lock_trx_print_locks(file, &trx);
   }
 
   FILE* const file;
@@ -4682,11 +4681,8 @@ lock_print_info_all_transactions(
 	ut_ad(lock_mutex_own());
 
 	fprintf(file, "LIST OF TRANSACTIONS FOR EACH SESSION:\n");
-	const time_t now = time(NULL);
 
-	mutex_enter(&trx_sys.mutex);
-	ut_list_map(trx_sys.trx_list, lock_print_info(file, now));
-	mutex_exit(&trx_sys.mutex);
+	trx_sys.trx_list.for_each(lock_print_info(file, time(nullptr)));
 	lock_mutex_exit();
 
 	ut_ad(lock_validate());

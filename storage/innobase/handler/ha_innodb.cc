@@ -4824,23 +4824,23 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
       DBUG_VOID_RETURN;
 #endif /* WITH_WSREP */
     lock_mutex_enter();
-    mutex_enter(&trx_sys.mutex);
+    trx_sys.trx_list.freeze();
     trx_mutex_enter(trx);
     /* It is possible that innobase_close_connection() is concurrently
     being executed on our victim. Even if the trx object is later
     reused for another client connection or a background transaction,
     its trx->mysql_thd will differ from our thd.
 
-    trx_t::state changes are protected by trx_t::mutex, and
-    trx_sys.trx_list is protected by trx_sys.mutex, in
-    both trx_create() and trx_free().
+    trx_sys.trx_list is thread-safe. It's freezed to 'protect'
+    trx_t. However, trx_t::commit_in_memory() changes a trx_t::state
+    of autocommit non-locking transactions without any protection.
 
     At this point, trx may have been reallocated for another client
     connection, or for a background operation. In that case, either
     trx_t::state or trx_t::mysql_thd should not match our expectations. */
     bool cancel= trx->mysql_thd == thd && trx->state == TRX_STATE_ACTIVE &&
       !trx->lock.was_chosen_as_deadlock_victim;
-    mutex_exit(&trx_sys.mutex);
+    trx_sys.trx_list.unfreeze();
     if (!cancel);
     else if (lock_t *lock= trx->lock.wait_lock)
       lock_cancel_waiting_and_release(lock);

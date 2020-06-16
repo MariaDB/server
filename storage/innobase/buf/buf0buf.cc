@@ -2063,6 +2063,40 @@ inline void buf_pool_t::write_unlock_all_page_hash()
     old_page_hash->write_unlock_all();
 }
 
+namespace
+{
+
+struct find_interesting_trx
+{
+  void operator()(const trx_t &trx)
+  {
+    if (trx.state == TRX_STATE_NOT_STARTED)
+      return;
+    if (trx.mysql_thd == nullptr)
+      return;
+    if (withdraw_started <= trx.start_time)
+      return;
+
+    if (!found)
+    {
+      ib::warn() << "The following trx might hold "
+                    "the blocks in buffer pool to "
+                    "be withdrawn. Buffer pool "
+                    "resizing can complete only "
+                    "after all the transactions "
+                    "below release the blocks.";
+      found= true;
+    }
+
+    lock_trx_print_wait_and_mvcc_state(stderr, &trx, current_time);
+  }
+
+  bool &found;
+  time_t withdraw_started;
+  time_t current_time;
+};
+
+} // namespace
 
 /** Resize from srv_buf_pool_old_size to srv_buf_pool_size. */
 inline void buf_pool_t::resize()
@@ -2160,30 +2194,9 @@ withdraw_retry:
 		}
 
 		lock_mutex_enter();
-		mutex_enter(&trx_sys.mutex);
 		bool	found = false;
-		for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys.trx_list);
-		     trx != NULL;
-		     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
-			if (trx->state != TRX_STATE_NOT_STARTED
-			    && trx->mysql_thd != NULL
-			    && withdraw_started > trx->start_time) {
-				if (!found) {
-					ib::warn() <<
-						"The following trx might hold"
-						" the blocks in buffer pool to"
-					        " be withdrawn. Buffer pool"
-						" resizing can complete only"
-						" after all the transactions"
-						" below release the blocks.";
-					found = true;
-				}
-
-				lock_trx_print_wait_and_mvcc_state(
-					stderr, trx, current_time);
-			}
-		}
-		mutex_exit(&trx_sys.mutex);
+		trx_sys.trx_list.for_each(find_interesting_trx{
+			found, withdraw_started, current_time});
 		lock_mutex_exit();
 
 		withdraw_started = current_time;

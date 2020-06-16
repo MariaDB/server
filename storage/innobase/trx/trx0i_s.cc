@@ -1220,19 +1220,13 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
   trx_i_s_cache_clear(cache);
 
   /* Capture the state of transactions */
-  mutex_enter(&trx_sys.mutex);
-  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
-       trx != NULL;
-       trx= UT_LIST_GET_NEXT(trx_list, trx))
-  {
-    if (trx_is_started(trx) && trx != purge_sys.query->trx)
+  trx_sys.trx_list.for_each([cache](const trx_t &trx) {
+    if (!cache->is_truncated && trx_is_started(&trx) &&
+        &trx != purge_sys.query->trx)
     {
-      fetch_data_into_cache_low(cache, trx);
-      if (cache->is_truncated)
-        break;
-     }
-  }
-  mutex_exit(&trx_sys.mutex);
+      fetch_data_into_cache_low(cache, &trx);
+    }
+  });
   cache->is_truncated= false;
 }
 

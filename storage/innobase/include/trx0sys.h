@@ -41,8 +41,7 @@ Created 3/26/1996 Heikki Tuuri
 #ifdef WITH_WSREP
 #include "trx0xa.h"
 #endif /* WITH_WSREP */
-
-typedef UT_LIST_BASE_NODE_T(trx_t) trx_ut_list_t;
+#include "ilist.h"
 
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
@@ -803,6 +802,49 @@ public:
   }
 };
 
+class thread_safe_trx_ilist_t
+{
+public:
+  void create() { mutex_create(LATCH_ID_TRX_SYS, &mutex); }
+  void close() { mutex_free(&mutex); }
+
+  bool empty() const
+  {
+    mutex_enter(&mutex);
+    auto result= trx_list.empty();
+    mutex_exit(&mutex);
+    return result;
+  }
+
+  void push_front(trx_t &trx)
+  {
+    mutex_enter(&mutex);
+    trx_list.push_front(trx);
+    mutex_exit(&mutex);
+  }
+
+  void remove(trx_t &trx)
+  {
+    mutex_enter(&mutex);
+    trx_list.remove(trx);
+    mutex_exit(&mutex);
+  }
+
+  template <typename Callable> void for_each(Callable &&callback) const
+  {
+    mutex_enter(&mutex);
+    for (const auto &trx : trx_list)
+      callback(trx);
+    mutex_exit(&mutex);
+  }
+
+  void freeze() const { mutex_enter(&mutex); }
+  void unfreeze() const { mutex_exit(&mutex); }
+
+private:
+  alignas(CACHE_LINE_SIZE) mutable TrxSysMutex mutex;
+  alignas(CACHE_LINE_SIZE) ilist<trx_t> trx_list;
+};
 
 /** The transaction system central memory data structure. */
 class trx_sys_t
@@ -833,11 +875,8 @@ public:
   */
   MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<uint32_t> rseg_history_len;
 
-  /** Mutex protecting trx_list AND NOTHING ELSE. */
-  MY_ALIGNED(CACHE_LINE_SIZE) mutable TrxSysMutex mutex;
-
   /** List of all transactions. */
-  MY_ALIGNED(CACHE_LINE_SIZE) trx_ut_list_t trx_list;
+  thread_safe_trx_ilist_t trx_list;
 
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	/** Temporary rollback segments */
@@ -978,7 +1017,6 @@ public:
   void snapshot_ids(trx_t *caller_trx, trx_ids_t *ids, trx_id_t *max_trx_id,
                     trx_id_t *min_trx_no)
   {
-    ut_ad(!mutex_own(&mutex));
     snapshot_ids_arg arg(ids);
 
     while ((arg.m_id= get_rw_trx_hash_version()) != get_max_trx_id())
@@ -1075,9 +1113,7 @@ public:
   */
   void register_trx(trx_t *trx)
   {
-    mutex_enter(&mutex);
-    UT_LIST_ADD_FIRST(trx_list, trx);
-    mutex_exit(&mutex);
+    trx_list.push_front(*trx);
   }
 
 
@@ -1088,9 +1124,7 @@ public:
   */
   void deregister_trx(trx_t *trx)
   {
-    mutex_enter(&mutex);
-    UT_LIST_REMOVE(trx_list, trx);
-    mutex_exit(&mutex);
+    trx_list.remove(*trx);
   }
 
 
@@ -1109,14 +1143,11 @@ public:
   {
     size_t count= 0;
 
-    mutex_enter(&mutex);
-    for (const trx_t *trx= UT_LIST_GET_FIRST(trx_list); trx;
-         trx= UT_LIST_GET_NEXT(trx_list, trx))
-    {
-      if (trx->read_view.is_open())
+    trx_list.for_each([&count](const trx_t &trx) {
+      if (trx.read_view.is_open())
         ++count;
-    }
-    mutex_exit(&mutex);
+    });
+
     return count;
   }
 
