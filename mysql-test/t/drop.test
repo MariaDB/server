@@ -175,6 +175,27 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 copy_file $MYSQLD_DATADIR/mysql_test/t1.frm $MYSQLD_DATADIR/mysql_test/#sql-347f_6.frm;
 drop database mysql_test;
 
+#
+# Bug#26704: Failing DROP DATABASE brings mysql-client out of sync.
+#
+
+create database mysql_test;
+use mysql_test;
+create table t1(c int);
+
+write_file $MYSQLD_DATADIR/mysql_test/do_not_delete;
+do_not_delete
+EOF
+
+replace_result $MYSQLD_DATADIR ./ \\ / 41 39;
+error ER_DB_DROP_RMDIR;
+drop database mysql_test;
+select database();
+remove_file $MYSQLD_DATADIR/mysql_test/do_not_delete;
+drop database mysql_test;
+select database();
+use test;
+
 ###########################################################################
 
 --echo
