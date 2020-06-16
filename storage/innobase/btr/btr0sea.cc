@@ -1348,7 +1348,6 @@ btr_search_build_page_hash_index(
 	ulint		n_recs;
 	ulint*		folds;
 	const rec_t**	recs;
-	ulint		i;
 	mem_heap_t*	heap		= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
@@ -1514,7 +1513,7 @@ btr_search_build_page_hash_index(
 
 	{
 		hash_table_t*	table = btr_get_search_table(index);
-		for (i = 0; i < n_cached; i++) {
+		for (ulint i = 0; i < n_cached; i++) {
 			ha_insert_for_fold(table, folds[i], block, recs[i]);
 		}
 	}
