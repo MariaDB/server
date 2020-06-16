@@ -1,0 +1,64 @@
+include/master-slave.inc
+[connection master]
+CALL mtr.add_suppression("The automatically created table .*");
+connection slave;
+include/stop_slave.inc
+alter table mysql.gtid_slave_pos engine=myisam;
+#Warning will be in the logs
+SET GLOBAL slave_parallel_threads=8;
+set global slave_parallel_mode=optimistic;
+connection slave;
+include/start_slave.inc
+#Only 1 warning
+FOUND 1 /Non transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+include/stop_slave.inc
+include/start_slave.inc
+include/stop_slave.inc
+#2 warnings
+FOUND 2 /Non transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+#Limitation of the Patch , Ideally there should be warning
+#but it is mentioned in documentation that only transactional engines are
+#supported. So this should cause any issue
+SET GLOBAL gtid_pos_auto_engines="myisam";
+connection slave;
+include/start_slave.inc
+include/stop_slave.inc
+FOUND 2 /Non transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+#No new warnings
+SET GLOBAL gtid_pos_auto_engines="innodb";
+connection slave;
+include/start_slave.inc
+include/stop_slave.inc
+FOUND 2 /Non transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+#No new warnings
+SET GLOBAL gtid_pos_auto_engines="innodb,rocksdb";
+connection slave;
+include/start_slave.inc
+FOUND 2 /Non transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+connection master;
+create table t1(a int) engine=myisam;
+insert into t1 value(1);
+create table t2(a int) engine=innodb;
+insert into t2 value(1);
+create table t3(a int) engine=rocksdb;
+insert into t3 value(1);
+connection slave;
+connection master;
+drop table t1,t2,t3;
+connection slave;
+include/stop_slave.inc
+#No new warnings
+SET GLOBAL gtid_pos_auto_engines="";
+connection slave;
+include/start_slave.inc
+FOUND 2 /Non transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+##MDEV-25336
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= 0;
+set global slave_parallel_mode=conservative;
+SET GLOBAL gtid_pos_auto_engines="";
+DROP TABLE mysql.gtid_slave_pos_InnoDB;
+DROP TABLE mysql.gtid_slave_pos_ROCKSDB;
+include/start_slave.inc
+include/rpl_end.inc

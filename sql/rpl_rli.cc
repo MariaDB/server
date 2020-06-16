@@ -1987,6 +1987,9 @@ find_gtid_pos_tables_cb(THD *thd, LEX_CSTRING *table_name, void *arg)
   if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
     goto end;
   table= tlist.table;
+  if (!rpl_global_gtid_slave_state->is_gtid_slave_pos_transactional)
+    rpl_global_gtid_slave_state->is_gtid_slave_pos_transactional
+                        = !(table->file->ha_table_flags() & HA_NO_TRANSACTIONS);
 
   if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;
@@ -2012,7 +2015,7 @@ end:
   requiring server restart.
 */
 int
-find_gtid_slave_pos_tables(THD *thd)
+find_gtid_slave_pos_tables(THD *thd, bool is_optimistic)
 {
   int err= 0;
   load_gtid_state_cb_data cb_data;
@@ -2125,6 +2128,17 @@ find_gtid_slave_pos_tables(THD *thd)
 end:
   if (cb_data.table_list)
     rpl_global_gtid_slave_state->free_gtid_pos_tables(cb_data.table_list);
+  /*
+    If we fail in find_gtid_pos_tables_cb in open_and_lock_tables we might
+    print this warning(is_gtid_slave_pos_transactional is false by default),
+    so better to check for err
+   */
+  if (!err && !rpl_global_gtid_slave_state->is_gtid_slave_pos_transactional &&
+          !(opt_gtid_pos_auto_plugins && *opt_gtid_pos_auto_plugins) &&
+          is_optimistic && opt_slave_parallel_threads > 1)
+    sql_print_warning("Non transactional gtid_slave_pos table with"
+                       " Optimistic/Aggressive parallel"
+                       " mode can cause replication failure on slave");
   return err;
 }
 

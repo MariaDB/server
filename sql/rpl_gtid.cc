@@ -245,7 +245,8 @@ rpl_slave_state_free_element(void *arg)
 
 
 rpl_slave_state::rpl_slave_state()
-  : last_sub_id(0), gtid_pos_tables(0), loaded(false)
+  : last_sub_id(0), gtid_pos_tables(0), loaded(false),
+    is_gtid_slave_pos_transactional(false)
 {
   mysql_mutex_init(key_LOCK_slave_state, &LOCK_slave_state,
                    MY_MUTEX_INIT_SLOW);

@@ -222,6 +222,8 @@ struct rpl_slave_state
   /* The default entry in gtid_pos_tables, mysql.gtid_slave_pos. */
   void * volatile default_gtid_pos_table;
   bool loaded;
+  /* If gtid_slave_pos compatible with Optimistic/Aggressive Replication */
+  bool is_gtid_slave_pos_transactional;
 
   rpl_slave_state();
   ~rpl_slave_state();

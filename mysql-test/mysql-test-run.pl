@@ -4505,7 +4505,8 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Cannot open .*ib_buffer_pool.* for reading: No such file or directory*/,
      qr/InnoDB: Table .*mysql.*innodb_table_stats.* not found./,
      qr/InnoDB: User stopword table .* does not exist./,
-     qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/
+     qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/,
+     qr/Non transactional gtid_slave_pos table with Optimistic.*/,
     );
 
   my $matched_lines= [];

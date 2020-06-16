@@ -5336,14 +5336,14 @@ pthread_handler_t handle_slave_sql(void *arg)
       goto err;
   }
   /* Re-load the set of mysql.gtid_slave_posXXX tables available. */
-  if (find_gtid_slave_pos_tables(thd))
+  if (find_gtid_slave_pos_tables(thd, mi->parallel_mode >
+                                      SLAVE_PARALLEL_CONSERVATIVE))
   {
     rli->report(ERROR_LEVEL, thd->get_stmt_da()->sql_errno(), NULL,
                 "Error processing replication GTID position tables: %s",
                 thd->get_stmt_da()->message());
     goto err;
   }
-
   /* execute init_slave variable */
   if (opt_init_slave.length)
   {

@@ -1,0 +1,90 @@
+#
+# MDEV-19157 -Optimistic Parallel Replication fails when gtid_slave_pos table is non
+#  transactional and binlog events are transactional
+# Test if gtid_slave_pos is non transactional we are giving warning to user
+#
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/have_rocksdb.inc
+--source include/master-slave.inc
+CALL mtr.add_suppression("The automatically created table .*");
+
+--sync_slave_with_master
+--source include/stop_slave.inc
+alter table mysql.gtid_slave_pos engine=myisam;
+
+--echo #Warning will be in the logs
+--let $old_threads= `select @@GLOBAL.slave_parallel_threads`
+--let $old_mode= `select @@GLOBAL.slave_parallel_mode`
+SET GLOBAL slave_parallel_threads=8;
+set global slave_parallel_mode=optimistic;
+--connection slave
+--source include/start_slave.inc
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let SEARCH_PATTERN= Non transactional gtid_slave_pos table with Optimistic/Aggressive parallel
+--echo #Only 1 warning
+source include/search_pattern_in_file.inc;
+--source include/stop_slave.inc
+
+--source include/start_slave.inc
+--source include/stop_slave.inc
+--echo #2 warnings
+source include/search_pattern_in_file.inc;
+
+--echo #Limitation of the Patch , Ideally there should be warning
+--echo #but it is mentioned in documentation that only transactional engines are
+--echo #supported. So this should cause any issue
+SET GLOBAL gtid_pos_auto_engines="myisam";
+--connection slave
+--source include/start_slave.inc
+--source include/stop_slave.inc
+source include/search_pattern_in_file.inc;
+
+--echo #No new warnings
+SET GLOBAL gtid_pos_auto_engines="innodb";
+--connection slave
+--source include/start_slave.inc
+--source include/stop_slave.inc
+source include/search_pattern_in_file.inc;
+
+--echo #No new warnings
+SET GLOBAL gtid_pos_auto_engines="innodb,rocksdb";
+--connection slave
+--source include/start_slave.inc
+source include/search_pattern_in_file.inc;
+
+--connection master
+create table t1(a int) engine=myisam;
+insert into t1 value(1);
+create table t2(a int) engine=innodb;
+insert into t2 value(1);
+create table t3(a int) engine=rocksdb;
+insert into t3 value(1);
+--sync_slave_with_master
+--connection master
+drop table t1,t2,t3;
+
+--sync_slave_with_master
+--source include/stop_slave.inc
+
+--echo #No new warnings
+SET GLOBAL gtid_pos_auto_engines="";
+--connection slave
+--source include/start_slave.inc
+source include/search_pattern_in_file.inc;
+
+--echo ##MDEV-25336
+#--echo #No new warnings
+#--let $rpl_server_no= 2
+#--source include/rpl_restart_server.inc
+#source include/search_pattern_in_file.inc;
+
+--connection slave
+--source include/stop_slave.inc
+--eval SET GLOBAL slave_parallel_threads= $old_threads
+--eval set global slave_parallel_mode=$old_mode
+SET GLOBAL gtid_pos_auto_engines="";
+DROP TABLE mysql.gtid_slave_pos_InnoDB;
+DROP TABLE mysql.gtid_slave_pos_ROCKSDB;
+--source include/start_slave.inc
+--source include/rpl_end.inc
