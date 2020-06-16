@@ -42,6 +42,7 @@
 #include <mysql/psi/mysql_table.h>
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_audit.h"
+#include "mysys_err.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -2508,20 +2509,23 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
       TABLE dummy_table;
       TABLE_SHARE dummy_share;
       handler *file= get_new_handler(nullptr, thd->mem_root, hton);
-      bzero((char*) &dummy_table, sizeof(dummy_table));
-      bzero((char*) &dummy_share, sizeof(dummy_share));
-      dummy_share.path.str= (char*) path;
-      dummy_share.path.length= strlen(path);
-      dummy_share.normalized_path= dummy_share.path;
-      dummy_share.db.str= (char*) db;
-      dummy_share.db.length= strlen(db);
-      dummy_share.table_name.str= (char*) alias;
-      dummy_share.table_name.length= strlen(alias);
-      dummy_table.alias.set(alias, dummy_share.table_name.length,
-                            table_alias_charset);
-      file->change_table_ptr(&dummy_table, &dummy_share);
-      file->print_error(error, MYF(intercept ? ME_JUST_WARNING : 0));
-      delete file;
+      if (file)
+      {
+        bzero((char*) &dummy_table, sizeof(dummy_table));
+        bzero((char*) &dummy_share, sizeof(dummy_share));
+        dummy_share.path.str= (char*) path;
+        dummy_share.path.length= strlen(path);
+        dummy_share.normalized_path= dummy_share.path;
+        dummy_share.db.str= (char*) db;
+        dummy_share.db.length= strlen(db);
+        dummy_share.table_name.str= (char*) alias;
+        dummy_share.table_name.length= strlen(alias);
+        dummy_table.alias.set(alias, dummy_share.table_name.length,
+                              table_alias_charset);
+        file->change_table_ptr(&dummy_table, &dummy_share);
+        file->print_error(error, MYF(intercept ? ME_JUST_WARNING : 0));
+        delete file;
+      }
     }
     if (intercept)
     {
@@ -4092,18 +4096,6 @@ int handler::delete_table(const char *name)
   bool some_file_deleted= 0;
   DBUG_ENTER("handler::delete_table");
 
-  // For discovery tables, it's ok if first file doesn't exists
-  if (ht->discover_table)
-  {
-    abort_if_first_file_error= 0;
-    saved_error= 0;
-    if (!bas_ext())
-    {
-      DBUG_ASSERT(ht->flags & HTON_AUTOMATIC_DELETE_TABLE);
-      DBUG_RETURN(0);                           // Drop succeded
-    }
-  }
-
   for (const char **ext= bas_ext(); *ext ; ext++)
   {
     int error;
@@ -4168,7 +4160,9 @@ void handler::drop_table(const char *name)
 
 bool non_existing_table_error(int error)
 {
-  return (error == ENOENT || error == HA_ERR_NO_SUCH_TABLE ||
+  return (error == ENOENT ||
+          (error == EE_DELETE && my_errno == ENOENT) ||
+          error == HA_ERR_NO_SUCH_TABLE ||
           error == HA_ERR_UNSUPPORTED ||
           error == ER_NO_SUCH_TABLE ||
           error == ER_NO_SUCH_TABLE_IN_ENGINE ||
@@ -4613,12 +4607,11 @@ static my_bool delete_table_force(THD *thd, plugin_ref plugin, void *arg)
 
   /*
     We have to ignore HEAP tables as these may not have been created yet
-    We also remove engines that is using discovery (as these will recrate
-    any missing .frm if needed) and tables marked with
+    We also remove engines  marked with
     HTON_AUTOMATIC_DELETE_TABLE as for these we can't check if the table
     ever existed.
   */
-  if (!hton->discover_table && hton->db_type != DB_TYPE_HEAP &&
+  if (hton->db_type != DB_TYPE_HEAP &&
       !(hton->flags & HTON_AUTOMATIC_DELETE_TABLE))
   {
     int error;

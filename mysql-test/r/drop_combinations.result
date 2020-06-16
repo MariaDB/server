@@ -152,8 +152,7 @@ drop table if exists t1,v1,t3,t4;
 Warnings:
 Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
 Note	1965	'test.v1' is a view
-Note	1965	'test.t3' is a view
-Note	1965	'test.t4' is a view
+Note	1051	Unknown table 'test.t3,test.t4'
 drop table if exists v2,t2,t1;
 Warnings:
 Note	1965	'test.v2' is a view
