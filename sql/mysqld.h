@@ -109,6 +109,7 @@ extern my_bool opt_backup_history_log;
 extern my_bool opt_backup_progress_log;
 extern my_bool opt_support_flashback;
 extern ulonglong log_output_options;
+extern ulonglong enabled_compression_libraries;
 extern ulong log_backup_output_options;
 extern bool opt_disable_networking, opt_skip_show_db;
 extern bool opt_skip_name_resolve;
