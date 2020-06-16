@@ -354,9 +354,12 @@ struct mtr_write_log_t {
 /** Start a mini-transaction. */
 void mtr_t::start()
 {
-  MEM_CHECK_DEFINED(&m_freed_ranges, sizeof m_freed_ranges);
+#ifdef HAVE_valgrind_or_MSAN
+  char m_freed_ranges_vbits[sizeof m_freed_ranges];
+#endif
+  MEM_GET_VBITS(&m_freed_ranges, m_freed_ranges_vbits, sizeof m_freed_ranges);
   UNIV_MEM_INVALID(this, sizeof *this);
-  UNIV_MEM_VALID(&m_freed_ranges, sizeof m_freed_ranges);
+  MEM_SET_VBITS(&m_freed_ranges, m_freed_ranges_vbits, sizeof m_freed_ranges);
 
   ut_d(m_start= true);
   ut_d(m_commit= false);
