@@ -2782,6 +2782,7 @@ void MDL_context::find_deadlock()
       context was waiting is concurrently satisfied.
     */
     (void) victim->m_wait.set_status(MDL_wait::VICTIM);
+    victim->inc_deadlock_overweight();
     victim->unlock_deadlock_victim();
 
     if (victim == this)
