@@ -7712,7 +7712,7 @@ btr_free_externally_stored_field(
 			if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 				mach_write_to_4(field_ref + BTR_EXTERN_PAGE_NO,
 						next_page_no);
-				memset(field_ref + BTR_EXTERN_LEN, 0, 4);
+				memset(field_ref + BTR_EXTERN_LEN + 4, 0, 4);
 				page_zip_write_blob_ptr(block, rec, index,
 							offsets, i, &mtr);
 			} else {
