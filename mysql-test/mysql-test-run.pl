@@ -1313,7 +1313,7 @@ sub command_line_setup {
              'debug-server'             => \$opt_debug_server,
              'gdb=s'                    => \$opt_gdb,
              'rr'                       => \$opt_rr,
-             'rr_option=s'              => \@rr_record_args,
+             'rr-arg=s'                 => \@rr_record_args,
              'client-gdb'               => \$opt_client_gdb,
              'manual-gdb'               => \$opt_manual_gdb,
              'manual-lldb'              => \$opt_manual_lldb,
@@ -1778,11 +1778,16 @@ sub command_line_setup {
     mtr_error("Coverage test needs the source - please use source dist");
   }
 
+  if ( @rr_record_args && !$opt_boot_rr )
+  {
+    $opt_rr= 1;
+  }
+
   # --------------------------------------------------------------------------
   # Check debug related options
   # --------------------------------------------------------------------------
   if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || $opt_rr ||
-       @rr_record_args || $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd ||
+       $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd ||
        $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx || 
        $opt_debugger || $opt_client_debugger )
   {
@@ -2439,7 +2444,6 @@ sub environment_setup {
   $ENV{'MYSQL_TEST_DIR'}=     $glob_mysql_test_dir;
   $ENV{'DEFAULT_MASTER_PORT'}= $mysqld_variables{'port'};
   $ENV{'MYSQL_TMP_DIR'}=      $opt_tmpdir;
-  $ENV{'_RR_TRACE_DIR'}=      "$opt_vardir/rr";
   $ENV{'MYSQLTEST_VARDIR'}=   $opt_vardir;
   $ENV{'MYSQL_BINDIR'}=       $bindir;
   $ENV{'MYSQL_SHAREDIR'}=     $path_language;
@@ -2749,7 +2753,6 @@ sub setup_vardir() {
   # Create var/tmp and tmp - they might be different
   mkpath("$opt_vardir/tmp");
   mkpath($opt_tmpdir) if ($opt_tmpdir ne "$opt_vardir/tmp");
-  mkpath("$opt_vardir/rr");
 
   # On some operating systems, there is a limit to the length of a
   # UNIX domain socket's path far below PATH_MAX.
@@ -3399,8 +3402,11 @@ sub mysql_install_db {
         $bootstrap_sql_file);
     }
     if ($opt_boot_rr) {
-      $args= ["record", "$exe_mysqld_bootstrap", @$args];
+      $args= ["record", @rr_record_args, $exe_mysqld_bootstrap, @$args];
       $exe_mysqld_bootstrap= "rr";
+      my $rr_dir= "$opt_vardir/rr.bootstrap";
+      $ENV{'_RR_TRACE_DIR'}= $rr_dir;
+      mkpath($rr_dir);
     }
 
     my $path_sql= my_find_file($install_basedir,
@@ -5372,17 +5378,13 @@ sub mysqld_start ($$) {
      # Indicate the exe should not be started
     $exe= undef;
   }
-  elsif ( $opt_rr || @rr_record_args)
+  elsif ( $opt_rr )
   {
-    if (@rr_record_args)
-    {
-      $args= ["record", @rr_record_args, "$exe", @$args];
-    }
-    else
-    {
-      $args= ["record", "$exe", @$args];
-    }
+    $args= ["record", @rr_record_args, "$exe", @$args];
     $exe= "rr";
+    my $rr_dir= "$opt_vardir/rr". $mysqld->after('mysqld');
+    $ENV{'_RR_TRACE_DIR'}= $rr_dir;
+    mkpath($rr_dir);
   }
   else
   {
@@ -6572,7 +6574,7 @@ Options for rr(Record and Replay)
   rr                    Run the "mysqld" executables using rr. Default run
                         option is "rr record mysqld mysqld_options"
   boot-rr               Start bootstrap server in rr
-  rr_option=ARG         Option to give rr record, can be specified more then once
+  rr-arg=ARG            Option to give rr record, can be specified more then once
 
 Misc options
   user=USER             User for connecting to mysqld(default: $opt_user)
