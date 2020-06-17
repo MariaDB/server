@@ -986,7 +986,7 @@ int s3_get_object(ms3_st *s3_client, const char *aws_bucket,
     block->str= block->alloc_ptr;
     if (compression)
     {
-      size_t length;
+      ulong length;
 
       /* If not compressed */
       if (!block->str[0])
