@@ -3,6 +3,6 @@
 if [ "$1" = "purge" ]; then
     rm -rf /var/lib/columnstore
     rm -rf /etc/columnstore
-    rm -f /etc/mysql/conf.d/columnstore.cnf.rpmsave
+    rm -f /etc/mysql/mariadb.conf.d/columnstore.cnf.rpmsave
 fi
 
