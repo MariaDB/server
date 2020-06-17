@@ -165,8 +165,18 @@ MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
       ENDIF()
     ENDIF()
   ENDFOREACH()
+  # With static libraries the order matter to some linkers.
+  # REMOVE_DUPLICATES will keep the first entry and because
+  # the linker requirement we want to keep the last.
+  IF(STATIC_LIBS)
+    LIST(REVERSE STATIC_LIBS)
+    LIST(REMOVE_DUPLICATES STATIC_LIBS)
+    LIST(REVERSE STATIC_LIBS)
+  ENDIF()
   IF(OSLIBS)
+    LIST(REVERSE OSLIBS)
     LIST(REMOVE_DUPLICATES OSLIBS)
+    LIST(REVERSE OSLIBS)
     TARGET_LINK_LIBRARIES(${TARGET} ${OSLIBS})
   ENDIF()
 
