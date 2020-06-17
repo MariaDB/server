@@ -261,7 +261,9 @@ our %gprof_dirs;
 
 our $glob_debugger= 0;
 our $opt_gdb;
-our $opt_rr;
+my $opt_rr;
+my $opt_rr_dir;
+my @rr_record_args;
 our $opt_client_gdb;
 my $opt_boot_gdb;
 my $opt_boot_rr;
@@ -335,7 +337,6 @@ my $opt_callgrind;
 my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
-my @rr_record_args;
 
 sub testcase_timeout ($) {
   my ($tinfo)= @_;
@@ -1321,6 +1322,7 @@ sub command_line_setup {
              'gdb=s'                    => \$opt_gdb,
              'rr'                       => \$opt_rr,
              'rr-arg=s'                 => \@rr_record_args,
+             'rr-dir=s'                 => \$opt_rr_dir,
              'client-gdb'               => \$opt_client_gdb,
              'manual-gdb'               => \$opt_manual_gdb,
              'manual-lldb'              => \$opt_manual_lldb,
@@ -1783,11 +1785,6 @@ sub command_line_setup {
   if ( ($opt_gcov or $opt_gprof) and ! $source_dist )
   {
     mtr_error("Coverage test needs the source - please use source dist");
-  }
-
-  if ( @rr_record_args )
-  {
-    $opt_rr= 1;
   }
 
   # --------------------------------------------------------------------------
@@ -3412,7 +3409,7 @@ sub mysql_install_db {
     if ($opt_boot_rr) {
       $args= ["record", @rr_record_args, $exe_mysqld_bootstrap, @$args];
       $exe_mysqld_bootstrap= "rr";
-      my $rr_dir= "$opt_vardir/rr.bootstrap";
+      my $rr_dir= $opt_rr_dir ? $opt_rr_dir : "$opt_vardir/rr.boot";
       $ENV{'_RR_TRACE_DIR'}= $rr_dir;
       mkpath($rr_dir);
     }
@@ -5390,7 +5387,7 @@ sub mysqld_start ($$) {
   {
     $args= ["record", @rr_record_args, "$exe", @$args];
     $exe= "rr";
-    my $rr_dir= "$opt_vardir/rr". $mysqld->after('mysqld');
+    my $rr_dir= $opt_rr_dir ? $opt_rr_dir : "$opt_vardir/rr". $mysqld->after('mysqld');
     $ENV{'_RR_TRACE_DIR'}= $rr_dir;
     mkpath($rr_dir);
   }
@@ -6578,11 +6575,14 @@ Options for strace
   stracer=<EXE>         Specify name and path to the trace program to use.
                         Default is "strace". Example: $0 --stracer=ktrace.
 
-Options for rr(Record and Replay)
+Options for rr (Record and Replay)
   rr                    Run the "mysqld" executables using rr. Default run
                         option is "rr record mysqld mysqld_options"
   boot-rr               Start bootstrap server in rr
   rr-arg=ARG            Option to give rr record, can be specified more then once
+  rr-dir=DIR            The directory where rr recordings are stored. Defaults
+                        to 'vardir'/rr.0 (rr.boot for bootstrap instance and
+                        rr.1, ..., rr.N for slave instances).
 
 Misc options
   user=USER             User for connecting to mysqld(default: $opt_user)
