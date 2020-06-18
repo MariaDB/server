@@ -657,9 +657,13 @@ Depends: mariadb-server-10.5 (= ${binary:Version}),
          net-tools,
          libsnappy1 | libsnappy1v5,
          libjemalloc1 | libjemalloc2,
+         python | python2 | python3,
          ${misc:Depends},
          ${shlibs:Depends}
-Recommends: python-mysqldb
+Breaks: mariadb-columnstore-libs,
+        mariadb-columnstore-platform
+Replaces: mariadb-columnstore-libs,
+          mariadb-columnstore-platform
 Description: MariaDB ColumnStore storage engine
  The MariaDB ColumnStore storage engine is a high-performance columnar
  analytical engine, aimed at rapid processing of analytical queries on very
