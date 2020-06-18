@@ -30,9 +30,9 @@ remove_file $backuplog;
 
 --disable_result_log
 echo # Prepare full backup, apply incremental one;
-exec $XTRABACKUP --prepare --verbose --apply-log-only --target-dir=$basedir;
+exec $XTRABACKUP --prepare --verbose --target-dir=$basedir;
 
-exec $XTRABACKUP --prepare --verbose --apply-log-only --target-dir=$basedir --incremental-dir=$incremental_dir ;
+exec $XTRABACKUP --prepare --verbose --target-dir=$basedir --incremental-dir=$incremental_dir ;
 
 echo # Restore and check results;
 let $targetdir=$basedir;
