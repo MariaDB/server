@@ -1231,8 +1231,8 @@ rtr_check_discard_page(
 	mutex_exit(&index->rtr_track->rtr_active_mutex);
 
 	lock_mutex_enter();
-	lock_prdt_page_free_from_discard(block, lock_sys.prdt_hash);
-	lock_prdt_page_free_from_discard(block, lock_sys.prdt_page_hash);
+	lock_prdt_page_free_from_discard(block, &lock_sys.prdt_hash);
+	lock_prdt_page_free_from_discard(block, &lock_sys.prdt_page_hash);
 	lock_mutex_exit();
 }
 

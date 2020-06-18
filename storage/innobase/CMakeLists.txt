@@ -57,7 +57,6 @@ SET(INNOBASE_SOURCES
 	fsp/fsp0sysspace.cc
 	fut/fut0lst.cc
 	ha/ha0storage.cc
-	ha/hash0hash.cc
 	fts/fts0fts.cc
 	fts/fts0ast.cc
 	fts/fts0blex.cc
@@ -163,7 +162,6 @@ SET(INNOBASE_SOURCES
 	include/ha0storage.ic
 	include/handler0alter.h
 	include/hash0hash.h
-	include/hash0hash.ic
 	include/ib0mutex.h
 	include/ibuf0ibuf.h
 	include/ibuf0ibuf.ic

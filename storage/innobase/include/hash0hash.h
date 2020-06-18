@@ -33,22 +33,6 @@ struct hash_cell_t{
 };
 typedef void*	hash_node_t;
 
-/* Fix Bug #13859: symbol collision between imap/mysql */
-#define hash_create hash0_create
-
-/**
-Create a hash table.
-@param n   the minimum number of hash array elements
-@return created table (with n_cells being a prime, at least n) */
-hash_table_t *hash_create(ulint n);
-
-/*************************************************************//**
-Frees a hash table. */
-void
-hash_table_free(
-/*============*/
-	hash_table_t*	table);	/*!< in, own: hash table */
-
 #define hash_calc_hash(FOLD, TABLE) (TABLE)->calc_hash(FOLD)
 
 /*******************************************************************//**
@@ -61,7 +45,7 @@ do {\
 \
 	(DATA)->NAME = NULL;\
 \
-	cell3333 = hash_get_nth_cell(TABLE, hash_calc_hash(FOLD, TABLE));\
+	cell3333 = &(TABLE)->array[(TABLE)->calc_hash(FOLD)];	\
 \
 	if (cell3333->node == NULL) {\
 		cell3333->node = DATA;\
@@ -87,7 +71,7 @@ do {							\
 							\
 	(DATA)->NAME = NULL;				\
 							\
-	cell3333 = hash_get_nth_cell(TABLE, hash_calc_hash(FOLD, TABLE));\
+	cell3333 = &(TABLE)->array[(TABLE)->calc_hash(FOLD)];	\
 							\
 	if (cell3333->node == NULL) {			\
 		cell3333->node = DATA;			\
@@ -116,7 +100,7 @@ do {\
 	hash_cell_t*	cell3333;\
 	TYPE*		struct3333;\
 \
-	cell3333 = hash_get_nth_cell(TABLE, hash_calc_hash(FOLD, TABLE));\
+	cell3333 = &(TABLE)->array[(TABLE)->calc_hash(FOLD)]; \
 \
 	if (cell3333->node == DATA) {\
 		HASH_ASSERT_VALID(DATA->NAME);\
@@ -140,7 +124,7 @@ do {\
 		(DATA_NEW)->NAME = (DATA_OLD)->NAME;                          \
                                                                               \
 		hash_cell_t& cell3333                                         \
-			= TABLE->array[hash_calc_hash(FOLD, TABLE)];          \
+			= (TABLE)->array[(TABLE)->calc_hash(FOLD)]; \
 		TYPE** struct3333 = (TYPE**)&cell3333.node;                   \
 		while (*struct3333 != DATA_OLD) {                             \
 			struct3333 = &((*struct3333)->NAME);                  \
@@ -150,8 +134,7 @@ do {\
 /*******************************************************************//**
 Gets the first struct in a hash chain, NULL if none. */
 
-#define HASH_GET_FIRST(TABLE, HASH_VAL)\
-	(hash_get_nth_cell(TABLE, HASH_VAL)->node)
+#define HASH_GET_FIRST(TABLE, HASH_VAL) (TABLE)->array[HASH_VAL].node
 
 /*******************************************************************//**
 Gets the next struct in a hash chain, NULL if none. */
@@ -202,33 +185,6 @@ do {									\
 	}								\
 } while (0)
 
-/************************************************************//**
-Gets the nth cell in a hash table.
-@return pointer to cell */
-UNIV_INLINE
-hash_cell_t*
-hash_get_nth_cell(
-/*==============*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		n);	/*!< in: cell index */
-
-/*************************************************************//**
-Clears a hash table so that all the cells become empty. */
-UNIV_INLINE
-void
-hash_table_clear(
-/*=============*/
-	hash_table_t*	table);	/*!< in/out: hash table */
-
-/*************************************************************//**
-Returns the number of cells in a hash table.
-@return number of cells */
-UNIV_INLINE
-ulint
-hash_get_n_cells(
-/*=============*/
-	hash_table_t*	table);	/*!< in: table */
-
 /****************************************************************//**
 Move all hash table entries from OLD_TABLE to NEW_TABLE. */
 
@@ -237,7 +193,7 @@ do {\
 	ulint		i2222;\
 	ulint		cell_count2222;\
 \
-	cell_count2222 = hash_get_n_cells(OLD_TABLE);\
+	cell_count2222 = (OLD_TABLE)->n_cells;	\
 \
 	for (i2222 = 0; i2222 < cell_count2222; i2222++) {\
 		NODE_TYPE*	node2222 = static_cast<NODE_TYPE*>(\
@@ -256,7 +212,7 @@ do {\
 	}\
 } while (0)
 
-/** Hash table with singly-linkde overflow lists */
+/** Hash table with singly-linked overflow lists */
 struct hash_table_t
 {
   /** number of elements in array (a prime number) */
@@ -266,9 +222,17 @@ struct hash_table_t
 
   /** Create the hash table.
   @param n  the lower bound of n_cells */
-  void create(ulint n);
+  void create(ulint n)
+  {
+    n_cells= ut_find_prime(n);
+    array= static_cast<hash_cell_t*>(ut_zalloc_nokey(n_cells * sizeof *array));
+  }
+
+  /** Clear the hash table. */
+  void clear() { memset(array, 0, n_cells * sizeof *array); }
+
+  /** Free the hash table. */
+  void free() { ut_free(array); array= nullptr; }
 
   ulint calc_hash(ulint fold) const { return ut_hash_ulint(fold, n_cells); }
 };
-
-#include "hash0hash.ic"

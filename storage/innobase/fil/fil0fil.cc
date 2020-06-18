@@ -257,7 +257,7 @@ fil_space_get_by_id(
 	ut_ad(fil_system.is_initialised());
 	ut_ad(mutex_own(&fil_system.mutex));
 
-	HASH_SEARCH(hash, fil_system.spaces, id,
+	HASH_SEARCH(hash, &fil_system.spaces, id,
 		    fil_space_t*, space,
 		    ut_ad(space->magic_n == FIL_SPACE_MAGIC_N),
 		    space->id == id);
@@ -987,7 +987,7 @@ std::vector<pfs_os_file_t> fil_system_t::detach(fil_space_t *space,
                                                 bool detach_handle)
 {
   ut_ad(mutex_own(&fil_system.mutex));
-  HASH_DELETE(fil_space_t, hash, spaces, space->id, space);
+  HASH_DELETE(fil_space_t, hash, &spaces, space->id, space);
 
   if (space->is_in_unflushed_spaces)
   {
@@ -1210,7 +1210,7 @@ fil_space_create(
 		space->atomic_write_supported = true;
 	}
 
-	HASH_INSERT(fil_space_t, hash, fil_system.spaces, id, space);
+	HASH_INSERT(fil_space_t, hash, &fil_system.spaces, id, space);
 
 	UT_LIST_ADD_LAST(fil_system.space_list, space);
 
@@ -1443,7 +1443,7 @@ void fil_system_t::create(ulint hash_size)
 	ut_ad(!is_initialised());
 	ut_ad(!(srv_page_size % FSP_EXTENT_SIZE));
 	ut_ad(srv_page_size);
-	ut_ad(!spaces);
+	ut_ad(!spaces.array);
 
 	m_initialised = true;
 
@@ -1454,7 +1454,7 @@ void fil_system_t::create(ulint hash_size)
 
 	mutex_create(LATCH_ID_FIL_SYSTEM, &mutex);
 
-	spaces = hash_create(hash_size);
+	spaces.create(hash_size);
 
 	fil_space_crypt_init();
 #ifdef UNIV_LINUX
@@ -1530,13 +1530,12 @@ void fil_system_t::close()
 
 	if (is_initialised()) {
 		m_initialised = false;
-		hash_table_free(spaces);
-		spaces = NULL;
+		spaces.free();
 		mutex_free(&mutex);
 		fil_space_crypt_cleanup();
 	}
 
-	ut_ad(!spaces);
+	ut_ad(!spaces.array);
 }
 
 /** Opens all system tablespace data files. They stay open until the
@@ -4183,10 +4182,10 @@ bool fil_validate()
 
 	/* Look for spaces in the hash table */
 
-	for (ulint i = 0; i < hash_get_n_cells(fil_system.spaces); i++) {
+	for (ulint i = 0; i < fil_system.spaces.n_cells; i++) {
 
 		for (space = static_cast<fil_space_t*>(
-				HASH_GET_FIRST(fil_system.spaces, i));
+				HASH_GET_FIRST(&fil_system.spaces, i));
 		     space != 0;
 		     space = static_cast<fil_space_t*>(
 				HASH_GET_NEXT(hash, space))) {

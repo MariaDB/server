@@ -1432,10 +1432,10 @@ public:
 					header and flushed to a file; in
 					recovery this must be derived from
 					the log records */
-	hash_table_t*	table_hash;	/*!< hash table of the tables, based
+	hash_table_t	table_hash;	/*!< hash table of the tables, based
 					on name */
 	/** hash table of persistent table IDs */
-	hash_table_t*	table_id_hash;
+	hash_table_t	table_id_hash;
 	dict_table_t*	sys_tables;	/*!< SYS_TABLES table */
 	dict_table_t*	sys_columns;	/*!< SYS_COLUMNS table */
 	dict_table_t*	sys_indexes;	/*!< SYS_INDEXES table */
@@ -1454,7 +1454,7 @@ private:
 	/** the sequence of temporary table IDs */
 	std::atomic<table_id_t> temp_table_id;
 	/** hash table of temporary table IDs */
-	hash_table_t*	temp_id_hash;
+	hash_table_t temp_id_hash;
 public:
 	/** @return a new temporary table ID */
 	table_id_t get_temporary_table_id() {
@@ -1471,7 +1471,7 @@ public:
 		ut_ad(mutex_own(&mutex));
 		dict_table_t* table;
 		ulint fold = ut_fold_ull(id);
-		HASH_SEARCH(id_hash, temp_id_hash, fold, dict_table_t*, table,
+		HASH_SEARCH(id_hash, &temp_id_hash, fold, dict_table_t*, table,
 			    ut_ad(table->cached), table->id == id);
 		if (UNIV_LIKELY(table != NULL)) {
 			DBUG_ASSERT(table->is_temporary());
@@ -1490,7 +1490,8 @@ public:
 		ut_ad(mutex_own(&mutex));
 		dict_table_t* table;
 		ulint fold = ut_fold_ull(id);
-		HASH_SEARCH(id_hash, table_id_hash, fold, dict_table_t*, table,
+		HASH_SEARCH(id_hash, &table_id_hash, fold, dict_table_t*,
+			    table,
 			    ut_ad(table->cached), table->id == id);
 		DBUG_ASSERT(!table || !table->is_temporary());
 		return table;
@@ -1592,8 +1593,8 @@ public:
       + (sizeof(dict_col_t) + sizeof(dict_field_t)) * 10
       + sizeof(dict_field_t) * 5 /* total number of key fields */
       + 200; /* arbitrary, covering names and overhead */
-    size += (table_hash->n_cells + table_id_hash->n_cells
-	     + temp_id_hash->n_cells) * sizeof(hash_cell_t);
+    size += (table_hash.n_cells + table_id_hash.n_cells
+	     + temp_id_hash.n_cells) * sizeof(hash_cell_t);
     return size;
   }
 };

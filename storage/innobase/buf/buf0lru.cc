@@ -1239,7 +1239,7 @@ func_exit:
 		ut_ad(b->in_LRU_list);
 		ut_ad(b->in_page_hash);
 
-		HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, fold, b);
+		HASH_INSERT(buf_page_t, hash, &buf_pool.page_hash, fold, b);
 
 		/* Insert b where bpage was in the LRU list. */
 		if (prev_b) {
@@ -1488,7 +1488,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 	}
 
 	ut_ad(!bpage->in_zip_hash);
-	HASH_DELETE(buf_page_t, hash, buf_pool.page_hash, id.fold(), bpage);
+	HASH_DELETE(buf_page_t, hash, &buf_pool.page_hash, id.fold(), bpage);
 
 	switch (bpage->state()) {
 	case BUF_BLOCK_ZIP_PAGE:

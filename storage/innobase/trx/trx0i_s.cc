@@ -152,7 +152,7 @@ struct trx_i_s_cache_t {
 	i_s_table_cache_t innodb_lock_waits;/*!< innodb_lock_waits table */
 /** the hash table size is LOCKS_HASH_CELLS_NUM * sizeof(void*) bytes */
 #define LOCKS_HASH_CELLS_NUM		10000
-	hash_table_t*	locks_hash;	/*!< hash table used to eliminate
+	hash_table_t	locks_hash;	/*!< hash table used to eliminate
 					duplicate entries in the
 					innodb_locks table */
 /** Initial size of the cache storage */
@@ -923,7 +923,7 @@ search_innodb_locks(
 		/* hash_chain->"next" */
 		next,
 		/* the hash table */
-		cache->locks_hash,
+		&cache->locks_hash,
 		/* fold */
 		fold_lock(lock, heap_no),
 		/* the type of the next variable */
@@ -999,7 +999,7 @@ add_lock_to_cache(
 		/* hash_chain->"next" */
 		next,
 		/* the hash table */
-		cache->locks_hash,
+		&cache->locks_hash,
 		/* fold */
 		fold_lock(lock, heap_no),
 		/* add this data to the hash */
@@ -1174,7 +1174,7 @@ trx_i_s_cache_clear(
 	cache->innodb_locks.rows_used = 0;
 	cache->innodb_lock_waits.rows_used = 0;
 
-	hash_table_clear(cache->locks_hash);
+	cache->locks_hash.clear();
 
 	ha_storage_empty(&cache->storage);
 }
@@ -1304,7 +1304,7 @@ trx_i_s_cache_init(
 	table_cache_init(&cache->innodb_lock_waits,
 			 sizeof(i_s_lock_waits_row_t));
 
-	cache->locks_hash = hash_create(LOCKS_HASH_CELLS_NUM);
+	cache->locks_hash.create(LOCKS_HASH_CELLS_NUM);
 
 	cache->storage = ha_storage_create(CACHE_STORAGE_INITIAL_SIZE,
 					   CACHE_STORAGE_HASH_CELLS);
@@ -1324,7 +1324,7 @@ trx_i_s_cache_free(
 	rw_lock_free(&cache->rw_lock);
 	mutex_free(&cache->last_read_mutex);
 
-	hash_table_free(cache->locks_hash);
+	cache->locks_hash.free();
 	ha_storage_free(cache->storage);
 	table_cache_free(&cache->innodb_trx);
 	table_cache_free(&cache->innodb_locks);

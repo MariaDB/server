@@ -492,8 +492,7 @@ static bool ha_insert_for_fold(hash_table_t *table, mem_heap_t* heap,
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
   ut_ad(btr_search_enabled);
 
-  ulint hash = hash_calc_hash(fold, table);
-  hash_cell_t *cell= hash_get_nth_cell(table, hash);
+  hash_cell_t *cell= &table->array[table->calc_hash(fold)];
 
   for (ha_node_t *prev= static_cast<ha_node_t*>(cell->node); prev;
        prev= prev->next)
@@ -564,7 +563,7 @@ static void ha_delete_hash_node(hash_table_t *table, mem_heap_t *heap,
   {
     /* Compact the heap of nodes by moving the top in the place of del_node. */
     *del_node= *top;
-    hash_cell_t *cell= hash_get_nth_cell(table, table->calc_hash(top->fold));
+    hash_cell_t *cell= &table->array[table->calc_hash(top->fold)];
 
     /* Look for the pointer to the top node, to update it */
     if (cell->node == top)
@@ -2163,7 +2162,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 
 	auto &part = btr_search_sys.parts[hash_table_id];
 
-	cell_count = hash_get_n_cells(&part.table);
+	cell_count = part.table.n_cells;
 
 	for (i = 0; i < cell_count; i++) {
 		/* We release search latches every once in a while to
@@ -2184,7 +2183,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 
 			mutex_enter(&buf_pool.mutex);
 
-			ulint curr_cell_count = hash_get_n_cells(&part.table);
+			ulint curr_cell_count = part.table.n_cells;
 
 			if (cell_count != curr_cell_count) {
 
@@ -2196,7 +2195,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 			}
 		}
 
-		node = (ha_node_t*) hash_get_nth_cell(&part.table, i)->node;
+		node = static_cast<ha_node_t*>(part.table.array[i].node);
 
 		for (; node != NULL; node = node->next) {
 			const buf_block_t*	block
@@ -2292,7 +2291,7 @@ state_ok:
 
 			mutex_enter(&buf_pool.mutex);
 
-			ulint curr_cell_count = hash_get_n_cells(&part.table);
+			ulint curr_cell_count = part.table.n_cells;
 
 			if (cell_count != curr_cell_count) {
 

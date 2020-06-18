@@ -1217,9 +1217,8 @@ public:
 	ib_mutex_t	mutex;		/*!< The mutex protecting the cache */
 	fil_space_t*	sys_space;	/*!< The innodb_system tablespace */
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
-	hash_table_t*	spaces;		/*!< The hash table of spaces in the
-					system; they are hashed on the space
-					id */
+  /** Map of fil_space_t::id to fil_space_t* */
+  hash_table_t spaces;
 	UT_LIST_BASE_NODE_T(fil_node_t) LRU;
 					/*!< base node for the LRU list of the
 					most recently used open files with no

@@ -1034,9 +1034,9 @@ void dict_sys_t::create()
   const ulint hash_size = buf_pool_get_curr_size()
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
 
-  table_hash= hash_create(hash_size);
-  table_id_hash= hash_create(hash_size);
-  temp_id_hash= hash_create(hash_size);
+  table_hash.create(hash_size);
+  table_id_hash.create(hash_size);
+  temp_id_hash.create(hash_size);
 
   rw_lock_create(dict_operation_lock_key, &latch, SYNC_DICT_OPERATION);
 
@@ -1198,24 +1198,24 @@ inline void dict_sys_t::add(dict_table_t* table)
 	/* Look for a table with the same name: error if such exists */
 	{
 		dict_table_t*	table2;
-		HASH_SEARCH(name_hash, table_hash, fold,
+		HASH_SEARCH(name_hash, &table_hash, fold,
 			    dict_table_t*, table2, ut_ad(table2->cached),
 			    !strcmp(table2->name.m_name, table->name.m_name));
 		ut_a(table2 == NULL);
 
 #ifdef UNIV_DEBUG
 		/* Look for the same table pointer with a different name */
-		HASH_SEARCH_ALL(name_hash, table_hash,
+		HASH_SEARCH_ALL(name_hash, &table_hash,
 				dict_table_t*, table2, ut_ad(table2->cached),
 				table2 == table);
 		ut_ad(table2 == NULL);
 #endif /* UNIV_DEBUG */
 	}
-	HASH_INSERT(dict_table_t, name_hash, table_hash, fold, table);
+	HASH_INSERT(dict_table_t, name_hash, &table_hash, fold, table);
 
 	/* Look for a table with the same id: error if such exists */
 	hash_table_t* id_hash = table->is_temporary()
-		? temp_id_hash : table_id_hash;
+		? &temp_id_hash : &table_id_hash;
 	const ulint id_fold = ut_fold_ull(table->id);
 	{
 		dict_table_t*	table2;
@@ -1519,7 +1519,7 @@ dict_table_rename_in_cache(
 
 	/* Look for a table with the same name: error if such exists */
 	dict_table_t*	table2;
-	HASH_SEARCH(name_hash, dict_sys.table_hash, fold,
+	HASH_SEARCH(name_hash, &dict_sys.table_hash, fold,
 			dict_table_t*, table2, ut_ad(table2->cached),
 			(strcmp(table2->name.m_name, new_name) == 0));
 	DBUG_EXECUTE_IF("dict_table_rename_in_cache_failure",
@@ -1613,7 +1613,7 @@ dict_table_rename_in_cache(
 	}
 
 	/* Remove table from the hash tables of tables */
-	HASH_DELETE(dict_table_t, name_hash, dict_sys.table_hash,
+	HASH_DELETE(dict_table_t, name_hash, &dict_sys.table_hash,
 		    ut_fold_string(old_name), table);
 
 	if (strlen(new_name) > strlen(table->name.m_name)) {
@@ -1628,7 +1628,7 @@ dict_table_rename_in_cache(
 	strcpy(table->name.m_name, new_name);
 
 	/* Add table to hash table of tables */
-	HASH_INSERT(dict_table_t, name_hash, dict_sys.table_hash, fold,
+	HASH_INSERT(dict_table_t, name_hash, &dict_sys.table_hash, fold,
 		    table);
 
 	if (!rename_also_foreigns) {
@@ -1896,12 +1896,12 @@ dict_table_change_id_in_cache(
 
 	/* Remove the table from the hash table of id's */
 
-	HASH_DELETE(dict_table_t, id_hash, dict_sys.table_id_hash,
+	HASH_DELETE(dict_table_t, id_hash, &dict_sys.table_id_hash,
 		    ut_fold_ull(table->id), table);
 	table->id = new_id;
 
 	/* Add the table back to the hash table */
-	HASH_INSERT(dict_table_t, id_hash, dict_sys.table_id_hash,
+	HASH_INSERT(dict_table_t, id_hash, &dict_sys.table_id_hash,
 		    ut_fold_ull(table->id), table);
 }
 
@@ -1946,11 +1946,11 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 
 	/* Remove table from the hash tables of tables */
 
-	HASH_DELETE(dict_table_t, name_hash, table_hash,
+	HASH_DELETE(dict_table_t, name_hash, &table_hash,
 		    ut_fold_string(table->name.m_name), table);
 
 	hash_table_t* id_hash = table->is_temporary()
-		? temp_id_hash : table_id_hash;
+		? &temp_id_hash : &table_id_hash;
 	const ulint id_fold = ut_fold_ull(table->id);
 	HASH_DELETE(dict_table_t, id_hash, id_hash, id_fold, table);
 
@@ -4880,38 +4880,39 @@ void dict_sys_t::resize()
   mutex_enter(&mutex);
 
   /* all table entries are in table_LRU and table_non_LRU lists */
-  hash_table_free(table_hash);
-  hash_table_free(table_id_hash);
-  hash_table_free(temp_id_hash);
+  table_hash.free();
+  table_id_hash.free();
+  temp_id_hash.free();
 
   const ulint hash_size = buf_pool_get_curr_size()
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
-  table_hash = hash_create(hash_size);
-  table_id_hash = hash_create(hash_size);
-  temp_id_hash = hash_create(hash_size);
+  table_hash.create(hash_size);
+  table_id_hash.create(hash_size);
+  temp_id_hash.create(hash_size);
 
-  for (dict_table_t* table= UT_LIST_GET_FIRST(table_LRU); table;
+  for (dict_table_t *table= UT_LIST_GET_FIRST(table_LRU); table;
        table= UT_LIST_GET_NEXT(table_LRU, table))
   {
     ut_ad(!table->is_temporary());
     ulint fold= ut_fold_string(table->name.m_name);
     ulint id_fold= ut_fold_ull(table->id);
 
-    HASH_INSERT(dict_table_t, name_hash, table_hash, fold, table);
-    HASH_INSERT(dict_table_t, id_hash, table_id_hash, id_fold, table);
+    HASH_INSERT(dict_table_t, name_hash, &table_hash, fold, table);
+    HASH_INSERT(dict_table_t, id_hash, &table_id_hash, id_fold, table);
   }
 
-  for (dict_table_t* table = UT_LIST_GET_FIRST(table_non_LRU); table;
-       table = UT_LIST_GET_NEXT(table_LRU, table)) {
-	  ulint	fold = ut_fold_string(table->name.m_name);
-	  ulint	id_fold = ut_fold_ull(table->id);
+  for (dict_table_t *table = UT_LIST_GET_FIRST(table_non_LRU); table;
+       table= UT_LIST_GET_NEXT(table_LRU, table))
+  {
+    ulint fold= ut_fold_string(table->name.m_name);
+    ulint id_fold= ut_fold_ull(table->id);
 
-	  HASH_INSERT(dict_table_t, name_hash, table_hash, fold, table);
+    HASH_INSERT(dict_table_t, name_hash, &table_hash, fold, table);
 
-	  hash_table_t* id_hash = table->is_temporary()
-	    ? temp_id_hash : table_id_hash;
+    hash_table_t *id_hash= table->is_temporary()
+      ? &temp_id_hash : &table_id_hash;
 
-	  HASH_INSERT(dict_table_t, id_hash, id_hash, id_fold, table);
+    HASH_INSERT(dict_table_t, id_hash, id_hash, id_fold, table);
   }
 
   mutex_exit(&mutex);
@@ -4927,27 +4928,19 @@ void dict_sys_t::close()
 
   /* Free the hash elements. We don't remove them from the table
   because we are going to destroy the table anyway. */
-  for (ulint i = 0; i < hash_get_n_cells(table_hash); i++)
-  {
-    dict_table_t* table = static_cast<dict_table_t*>(HASH_GET_FIRST(table_hash,
-								    i));
+  for (ulint i= table_hash.n_cells; i--; )
+    while (dict_table_t *table= static_cast<dict_table_t*>
+           (HASH_GET_FIRST(&table_hash, i)))
+      dict_sys.remove(table);
 
-    while (table)
-    {
-      dict_table_t* prev_table = table;
-      table = static_cast<dict_table_t*>(HASH_GET_NEXT(name_hash, prev_table));
-      dict_sys.remove(prev_table);
-    }
-  }
-
-  hash_table_free(table_hash);
+  table_hash.free();
 
   /* table_id_hash contains the same elements as in table_hash,
   therefore we don't delete the individual elements. */
-  hash_table_free(table_id_hash);
+  table_id_hash.free();
 
   /* No temporary tables should exist at this point. */
-  hash_table_free(temp_id_hash);
+  temp_id_hash.free();
 
   mutex_exit(&mutex);
   mutex_free(&mutex);

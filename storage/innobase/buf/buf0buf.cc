@@ -1523,11 +1523,11 @@ bool buf_pool_t::create()
   ut_a(srv_n_page_hash_locks != 0);
   ut_a(srv_n_page_hash_locks <= MAX_PAGE_HASH_LOCKS);
 
-  page_hash= hash_create(2 * curr_size);
+  page_hash.create(2 * curr_size);
   for (auto i= srv_n_page_hash_locks; i--; )
     rw_lock_create(hash_table_locks_key, &page_hash_latches[i],
                    SYNC_BUF_PAGE_HASH);
-  zip_hash= hash_create(2 * curr_size);
+  zip_hash.create(2 * curr_size);
   last_printout_time= time(NULL);
 
   mutex_create(LATCH_ID_FLUSH_LIST, &flush_list_mutex);
@@ -1606,8 +1606,8 @@ void buf_pool_t::close()
   chunks= nullptr;
   for (auto i= srv_n_page_hash_locks; i--; )
     rw_lock_free(&page_hash_latches[i]);
-  hash_table_free(page_hash);
-  hash_table_free(zip_hash);
+  page_hash.free();
+  zip_hash.free();
 
   io_buf.close();
   UT_DELETE(chunk_t::map_reg);
@@ -1683,7 +1683,7 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 		const ulint fold = id.fold();
 		ut_ad(&block->page == page_hash_get_low(id, fold));
 		ut_d(block->page.in_page_hash = false);
-		HASH_REPLACE(buf_page_t, hash, page_hash, fold,
+		HASH_REPLACE(buf_page_t, hash, &page_hash, fold,
 			     &block->page, &new_block->page);
 
 		buf_block_modify_clock_inc(block);
@@ -1924,44 +1924,46 @@ inline bool buf_pool_t::withdraw_blocks()
 /** resize page_hash and zip_hash */
 static void buf_pool_resize_hash()
 {
-  hash_table_t *new_hash_table= hash_create(2 * buf_pool.curr_size);
+  hash_table_t new_hash;
+  new_hash.create(2 * buf_pool.curr_size);
 
-  for (ulint i= 0; i < hash_get_n_cells(buf_pool.page_hash); i++)
+  for (ulint i= 0; i < buf_pool.page_hash.n_cells; i++)
   {
     while (buf_page_t *bpage= static_cast<buf_page_t*>
-           (HASH_GET_FIRST(buf_pool.page_hash, i)))
+           (HASH_GET_FIRST(&buf_pool.page_hash, i)))
     {
       buf_page_t *prev_bpage= bpage;
       ut_ad(bpage->in_page_hash);
       bpage= static_cast<buf_page_t*>(HASH_GET_NEXT(hash, prev_bpage));
       const ulint fold= prev_bpage->id().fold();
-      HASH_DELETE(buf_page_t, hash, buf_pool.page_hash, fold, prev_bpage);
-      HASH_INSERT(buf_page_t, hash, new_hash_table, fold, prev_bpage);
+      HASH_DELETE(buf_page_t, hash, &buf_pool.page_hash, fold, prev_bpage);
+      HASH_INSERT(buf_page_t, hash, &new_hash, fold, prev_bpage);
     }
   }
 
-  std::swap(buf_pool.page_hash->array, new_hash_table->array);
-  buf_pool.page_hash->n_cells= new_hash_table->n_cells;
-  hash_table_free(new_hash_table);
+  std::swap(buf_pool.page_hash.array, new_hash.array);
+  buf_pool.page_hash.n_cells= new_hash.n_cells;
+  new_hash.free();
 
   /* recreate zip_hash */
-  new_hash_table= hash_create(2 * buf_pool.curr_size);
+  new_hash.create(2 * buf_pool.curr_size);
 
-  for (ulint i= 0; i < hash_get_n_cells(buf_pool.zip_hash); i++)
+  for (ulint i= 0; i < buf_pool.zip_hash.n_cells; i++)
   {
     while (buf_page_t *bpage= static_cast<buf_page_t*>
-           (HASH_GET_FIRST(buf_pool.zip_hash, i)))
+           (HASH_GET_FIRST(&buf_pool.zip_hash, i)))
     {
       buf_page_t *prev_bpage= bpage;
       bpage= static_cast<buf_page_t*>(HASH_GET_NEXT(hash, prev_bpage));
       const ulint fold= BUF_POOL_ZIP_FOLD_BPAGE(prev_bpage);
-      HASH_DELETE(buf_page_t, hash, buf_pool.zip_hash, fold, prev_bpage);
-      HASH_INSERT(buf_page_t, hash, new_hash_table, fold, prev_bpage);
+      HASH_DELETE(buf_page_t, hash, &buf_pool.zip_hash, fold, prev_bpage);
+      HASH_INSERT(buf_page_t, hash, &new_hash, fold, prev_bpage);
     }
   }
 
-  hash_table_free(buf_pool.zip_hash);
-  buf_pool.zip_hash= new_hash_table;
+  std::swap(buf_pool.zip_hash.array, new_hash.array);
+  buf_pool.zip_hash.n_cells= new_hash.n_cells;
+  new_hash.free();
 }
 
 
@@ -2430,7 +2432,7 @@ static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage)
   ut_ad(bpage->in_page_hash);
   ut_ad(dpage->in_page_hash);
   ut_d(bpage->in_page_hash= false);
-  HASH_REPLACE(buf_page_t, hash, buf_pool.page_hash, fold, bpage, dpage);
+  HASH_REPLACE(buf_page_t, hash, &buf_pool.page_hash, fold, bpage, dpage);
 }
 
 /** Register a watch for a page identifier. The caller must hold an
@@ -2502,7 +2504,7 @@ retry:
     w->buf_fix_count_= 1;
     ut_ad(!w->in_page_hash);
     ut_d(w->in_page_hash= true); /* Not holding buf_pool.mutex here! */
-    HASH_INSERT(buf_page_t, hash, page_hash, fold, w);
+    HASH_INSERT(buf_page_t, hash, &page_hash, fold, w);
     return nullptr;
   }
 
@@ -3772,8 +3774,7 @@ buf_page_create(fil_space_t *space, uint32_t offset,
   rw_lock_x_lock(hash_lock);
   block->page.set_state(BUF_BLOCK_FILE_PAGE);
   ut_d(block->page.in_page_hash= true);
-  HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, page_id.fold(),
-              &block->page);
+  HASH_INSERT(buf_page_t, hash, &buf_pool.page_hash, fold, &block->page);
 
   if (UNIV_UNLIKELY(zip_size))
   {

@@ -1613,7 +1613,7 @@ public:
   rw_lock_t *hash_lock_get_low(ulint fold) const
   {
     return page_hash_latches +
-      ut_2pow_remainder(page_hash->calc_hash(fold),
+      ut_2pow_remainder(page_hash.calc_hash(fold),
                         ulint{srv_n_page_hash_locks});
   }
 private:
@@ -1633,13 +1633,13 @@ public:
   {
     for (;;)
     {
-      auto n_cells= page_hash->n_cells;
+      auto n_cells= page_hash.n_cells;
       rw_lock_t *latch= hash_lock_get_low(fold, n_cells);
       if (exclusive)
         rw_lock_x_lock(latch);
       else
         rw_lock_s_lock(latch);
-      if (UNIV_LIKELY(n_cells == page_hash->n_cells))
+      if (UNIV_LIKELY(n_cells == page_hash.n_cells))
         return latch;
       if (exclusive)
         rw_lock_x_unlock(latch);
@@ -1661,7 +1661,7 @@ public:
                               RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
     buf_page_t *bpage;
     /* Look for the page in the hash table */
-    HASH_SEARCH(hash, page_hash, fold, buf_page_t*, bpage,
+    HASH_SEARCH(hash, &page_hash, fold, buf_page_t*, bpage,
                 ut_ad(bpage->in_page_hash), id == bpage->id());
     return bpage;
   }
@@ -1785,7 +1785,7 @@ public:
       /* The following is based on watch_remove(). */
       ut_ad(watch->in_page_hash);
       ut_d(watch->in_page_hash= false);
-      HASH_DELETE(buf_page_t, hash, page_hash, fold, watch);
+      HASH_DELETE(buf_page_t, hash, &page_hash, fold, watch);
       rw_lock_x_unlock(hash_lock);
       // Now that the watch is detached from page_hash, release it to watch[].
       mutex_enter(&mutex);
@@ -1874,15 +1874,13 @@ public:
 
   /** Hash table of file pages (buf_page_t::in_file() holds),
   indexed by page_id_t. Protected by both mutex and page_hash_latches[]. */
-  hash_table_t *page_hash;
+  hash_table_t page_hash;
   /** Latches protecting page_hash */
   mutable rw_lock_t page_hash_latches[MAX_PAGE_HASH_LOCKS];
 
-	hash_table_t*	zip_hash;	/*!< hash table of buf_block_t blocks
-					whose frames are allocated to the
-					zip buddy system,
-					indexed by block->frame;
-					protected by buf_pool.mutex*/
+  /** map of block->frame to buf_block_t blocks that belong
+  to buf_buddy_alloc(); protected by buf_pool.mutex */
+  hash_table_t zip_hash;
 	/** number of pending read operations */
 	Atomic_counter<ulint> n_pend_reads;
 	Atomic_counter<ulint>

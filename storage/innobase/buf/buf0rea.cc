@@ -59,7 +59,7 @@ inline void buf_pool_t::watch_remove(buf_page_t *watch)
   {
     ut_ad(watch->in_page_hash);
     ut_d(watch->in_page_hash= false);
-    HASH_DELETE(buf_page_t, hash, page_hash, watch->id().fold(), watch);
+    HASH_DELETE(buf_page_t, hash, &page_hash, watch->id().fold(), watch);
     watch->set_buf_fix_count(0);
   }
   ut_ad(!watch->in_page_hash);
@@ -159,7 +159,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     block->page.set_state(BUF_BLOCK_FILE_PAGE);
     ut_ad(!block->page.in_page_hash);
     ut_d(block->page.in_page_hash= true);
-    HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, fold, bpage);
+    HASH_INSERT(buf_page_t, hash, &buf_pool.page_hash, fold, bpage);
     rw_lock_x_unlock(hash_lock);
 
     /* The block must be put to the LRU list, to the old blocks */
@@ -232,7 +232,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
     ut_ad(!bpage->in_page_hash);
     ut_d(bpage->in_page_hash= true);
-    HASH_INSERT(buf_page_t, hash, buf_pool.page_hash, fold, bpage);
+    HASH_INSERT(buf_page_t, hash, &buf_pool.page_hash, fold, bpage);
     bpage->set_io_fix(BUF_IO_READ);
     rw_lock_x_unlock(hash_lock);
 

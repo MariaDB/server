@@ -359,7 +359,7 @@ buf_buddy_block_free(void* buf)
 	ut_ad(mutex_own(&buf_pool.mutex));
 	ut_a(!ut_align_offset(buf, srv_page_size));
 
-	HASH_SEARCH(hash, buf_pool.zip_hash, fold, buf_page_t*, bpage,
+	HASH_SEARCH(hash, &buf_pool.zip_hash, fold, buf_page_t*, bpage,
 		    ut_ad(bpage->state() == BUF_BLOCK_MEMORY
 			  && bpage->in_zip_hash),
 		    ((buf_block_t*) bpage)->frame == buf);
@@ -367,7 +367,7 @@ buf_buddy_block_free(void* buf)
 	ut_a(bpage->state() == BUF_BLOCK_MEMORY);
 	ut_ad(bpage->in_zip_hash);
 	ut_d(bpage->in_zip_hash = false);
-	HASH_DELETE(buf_page_t, hash, buf_pool.zip_hash, fold, bpage);
+	HASH_DELETE(buf_page_t, hash, &buf_pool.zip_hash, fold, bpage);
 
 	ut_d(memset(buf, 0, srv_page_size));
 	UNIV_MEM_INVALID(buf, srv_page_size);
@@ -395,7 +395,7 @@ buf_buddy_block_register(
 
 	ut_ad(!block->page.in_zip_hash);
 	ut_d(block->page.in_zip_hash = true);
-	HASH_INSERT(buf_page_t, hash, buf_pool.zip_hash, fold, &block->page);
+	HASH_INSERT(buf_page_t, hash, &buf_pool.zip_hash, fold, &block->page);
 
 	ut_d(buf_pool.buddy_n_frames++);
 }

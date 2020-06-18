@@ -3349,7 +3349,7 @@ btr_lift_page_up(
 		if (dict_index_is_spatial(index)) {
 			lock_mutex_enter();
 			lock_prdt_page_free_from_discard(
-				block, lock_sys.prdt_page_hash);
+				block, &lock_sys.prdt_page_hash);
 			lock_mutex_exit();
 		}
 		lock_update_copy_and_discard(father_block, block);
@@ -3604,7 +3604,7 @@ retry:
 			/* No GAP lock needs to be worrying about */
 			lock_mutex_enter();
 			lock_prdt_page_free_from_discard(
-				block, lock_sys.prdt_page_hash);
+				block, &lock_sys.prdt_page_hash);
 			lock_rec_free_all_from_discard_page(block);
 			lock_mutex_exit();
 		} else {
@@ -3757,7 +3757,7 @@ retry:
 			}
 			lock_mutex_enter();
 			lock_prdt_page_free_from_discard(
-				block, lock_sys.prdt_page_hash);
+				block, &lock_sys.prdt_page_hash);
 			lock_rec_free_all_from_discard_page(block);
 			lock_mutex_exit();
 		} else {

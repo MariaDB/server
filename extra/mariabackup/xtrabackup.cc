@@ -157,16 +157,16 @@ typedef std::list<regex_t> regex_list_t;
 static regex_list_t regex_include_list;
 static regex_list_t regex_exclude_list;
 
-static hash_table_t* tables_include_hash = NULL;
-static hash_table_t* tables_exclude_hash = NULL;
+static hash_table_t tables_include_hash;
+static hash_table_t tables_exclude_hash;
 
 char *xtrabackup_databases = NULL;
 char *xtrabackup_databases_file = NULL;
 char *xtrabackup_databases_exclude = NULL;
-static hash_table_t* databases_include_hash = NULL;
-static hash_table_t* databases_exclude_hash = NULL;
+static hash_table_t databases_include_hash;
+static hash_table_t databases_exclude_hash;
 
-static hash_table_t* inc_dir_tables_hash;
+static hash_table_t inc_dir_tables_hash;
 
 struct xb_filter_entry_struct{
 	char*		name;
@@ -2256,7 +2256,7 @@ check_if_table_matches_filters(const char *name,
 	const regex_list_t& regex_list,
 	hash_table_t* tables_hash)
 {
-	if (regex_list.empty() && !tables_hash) {
+	if (regex_list.empty() && !tables_hash->array) {
 		return(FALSE);
 	}
 
@@ -2264,11 +2264,8 @@ check_if_table_matches_filters(const char *name,
 		return(TRUE);
 	}
 
-	if (tables_hash && find_filter_in_hashtable(name, tables_hash, NULL)) {
-		return(TRUE);
-	}
-
-	return FALSE;
+	return tables_hash->array &&
+		find_filter_in_hashtable(name, tables_hash, NULL);
 }
 
 enum skip_database_check_result {
@@ -2294,8 +2291,8 @@ check_if_skip_database(
 	/* There are some filters for databases, check them */
 	xb_filter_entry_t*	database = NULL;
 
-	if (databases_exclude_hash &&
-		find_filter_in_hashtable(name, databases_exclude_hash,
+	if (databases_exclude_hash.array &&
+		find_filter_in_hashtable(name, &databases_exclude_hash,
 					 &database) &&
 		!database->has_tables) {
 		/* Database is found and there are no tables specified,
@@ -2303,8 +2300,8 @@ check_if_skip_database(
 		return DATABASE_SKIP;
 	}
 
-	if (databases_include_hash) {
-		if (!find_filter_in_hashtable(name, databases_include_hash,
+	if (databases_include_hash.array) {
+		if (!find_filter_in_hashtable(name, &databases_include_hash,
 					      &database)) {
 		/* Database isn't found, skip the database */
 			return DATABASE_SKIP;
@@ -2328,8 +2325,7 @@ check_if_skip_database_by_path(
 	const char* path /*!< in: path to the db directory. */
 )
 {
-	if (databases_include_hash == NULL &&
-		databases_exclude_hash == NULL) {
+	if (!databases_include_hash.array && !databases_exclude_hash.array) {
 		return(FALSE);
 	}
 
@@ -2373,10 +2369,10 @@ check_if_skip_table(
 
 	if (regex_exclude_list.empty() &&
 		regex_include_list.empty() &&
-		tables_include_hash == NULL &&
-		tables_exclude_hash == NULL &&
-		databases_include_hash == NULL &&
-		databases_exclude_hash == NULL) {
+		!tables_include_hash.array &&
+		!tables_exclude_hash.array &&
+		!databases_include_hash.array &&
+		!databases_exclude_hash.array) {
 		return(FALSE);
 	}
 
@@ -2408,22 +2404,22 @@ check_if_skip_table(
 	without truncating the #P#... suffix so we can backup individual
 	partitions with regexps like '^test[.]t#P#p5' */
 	if (check_if_table_matches_filters(buf, regex_exclude_list,
-					   tables_exclude_hash)) {
+					   &tables_exclude_hash)) {
 		return(TRUE);
 	}
 	if (check_if_table_matches_filters(buf, regex_include_list,
-					   tables_include_hash)) {
+					   &tables_include_hash)) {
 		return(FALSE);
 	}
 	if ((eptr = strstr(buf, "#P#")) != NULL) {
 		*eptr = 0;
 
 		if (check_if_table_matches_filters(buf, regex_exclude_list,
-						   tables_exclude_hash)) {
+						   &tables_exclude_hash)) {
 			return (TRUE);
 		}
 		if (check_if_table_matches_filters(buf, regex_include_list,
-						   tables_include_hash)) {
+						   &tables_include_hash)) {
 			return(FALSE);
 		}
 	}
@@ -2436,7 +2432,7 @@ check_if_skip_table(
 
 	if (skip_database == DATABASE_SKIP_SOME_TABLES ||
 		!regex_include_list.empty() ||
-		tables_include_hash) {
+		tables_include_hash.array) {
 
 		/* Include lists are present, but qualified name
 		   failed to match any.*/
@@ -3461,17 +3457,17 @@ xb_filter_entry_t*
 xb_add_filter(
 /*========================*/
 	const char*	name,	/*!< in: name of table/database */
-	hash_table_t**	hash)	/*!< in/out: hash to insert into */
+	hash_table_t*	hash)	/*!< in/out: hash to insert into */
 {
 	xb_filter_entry_t*	entry;
 
 	entry = xb_new_filter_entry(name);
 
-	if (UNIV_UNLIKELY(*hash == NULL)) {
-		*hash = hash_create(1000);
+	if (UNIV_UNLIKELY(!hash->array)) {
+		hash->create(1000);
 	}
 	HASH_INSERT(xb_filter_entry_t,
-		name_hash, *hash,
+		name_hash, hash,
 		ut_fold_string(entry->name),
 		entry);
 
@@ -3509,8 +3505,8 @@ void
 xb_register_filter_entry(
 /*=====================*/
 	const char*	name,	/*!< in: name */
-	hash_table_t** databases_hash,
-	hash_table_t** tables_hash
+	hash_table_t* databases_hash,
+	hash_table_t* tables_hash
 	)
 {
 	const char*		p;
@@ -3527,8 +3523,8 @@ xb_register_filter_entry(
 		strncpy(dbname, name, p - name);
 		dbname[p - name] = 0;
 
-		if (*databases_hash) {
-			HASH_SEARCH(name_hash, (*databases_hash),
+		if (databases_hash) {
+			HASH_SEARCH(name_hash, databases_hash,
 					ut_fold_string(dbname),
 					xb_filter_entry_t*,
 					db_entry, (void) 0,
@@ -3727,7 +3723,7 @@ xb_filter_hash_free(hash_table_t* hash)
 	ulint	i;
 
 	/* free the hash elements */
-	for (i = 0; i < hash_get_n_cells(hash); i++) {
+	for (i = 0; i < hash->n_cells; i++) {
 		xb_filter_entry_t*	table;
 
 		table = static_cast<xb_filter_entry_t *>
@@ -3745,8 +3741,7 @@ xb_filter_hash_free(hash_table_t* hash)
 		}
 	}
 
-	/* free hash */
-	hash_table_free(hash);
+	hash->free();
 }
 
 static void xb_regex_list_free(regex_list_t* list)
@@ -3766,20 +3761,20 @@ xb_filters_free()
 	xb_regex_list_free(&regex_include_list);
 	xb_regex_list_free(&regex_exclude_list);
 
-	if (tables_include_hash) {
-		xb_filter_hash_free(tables_include_hash);
+	if (tables_include_hash.array) {
+		xb_filter_hash_free(&tables_include_hash);
 	}
 
-	if (tables_exclude_hash) {
-		xb_filter_hash_free(tables_exclude_hash);
+	if (tables_exclude_hash.array) {
+		xb_filter_hash_free(&tables_exclude_hash);
 	}
 
-	if (databases_include_hash) {
-		xb_filter_hash_free(databases_include_hash);
+	if (databases_include_hash.array) {
+		xb_filter_hash_free(&databases_include_hash);
 	}
 
-	if (databases_exclude_hash) {
-		xb_filter_hash_free(databases_exclude_hash);
+	if (databases_exclude_hash.array) {
+		xb_filter_hash_free(&databases_exclude_hash);
 	}
 }
 
@@ -4644,7 +4639,7 @@ exit:
 
 	table->name = ((char*)table) + sizeof(xb_filter_entry_t);
 	strcpy(table->name, dest_space_name);
-	HASH_INSERT(xb_filter_entry_t, name_hash, inc_dir_tables_hash,
+	HASH_INSERT(xb_filter_entry_t, name_hash, &inc_dir_tables_hash,
 			ut_fold_string(table->name), table);
 
 	mutex_enter(&fil_system.mutex);
@@ -5034,7 +5029,7 @@ rm_if_not_found(
 	/* Truncate ".ibd" */
 	name[strlen(name) - 4] = '\0';
 
-	HASH_SEARCH(name_hash, inc_dir_tables_hash, ut_fold_string(name),
+	HASH_SEARCH(name_hash, &inc_dir_tables_hash, ut_fold_string(name),
 		    xb_filter_entry_t*,
 		    table, (void) 0,
 		    !strcmp(table->name, name));
@@ -5410,7 +5405,7 @@ static bool xtrabackup_prepare_func(char** argv)
 			goto error_cleanup;
 		}
 
-		inc_dir_tables_hash = hash_create(1000);
+		inc_dir_tables_hash.create(1000);
 
 		ok = xtrabackup_apply_deltas();
 
@@ -5423,7 +5418,7 @@ static bool xtrabackup_prepare_func(char** argv)
 			xb_process_datadir("./", ".ibd", rm_if_not_found);
 		}
 
-		xb_filter_hash_free(inc_dir_tables_hash);
+		xb_filter_hash_free(&inc_dir_tables_hash);
 
 		fil_system.close();
 #ifdef WITH_INNODB_DISALLOW_WRITES

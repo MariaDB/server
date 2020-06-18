@@ -759,12 +759,12 @@ public:
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	LockMutex	mutex;			/*!< Mutex protecting the
 						locks */
-	hash_table_t*	rec_hash;		/*!< hash table of the record
-						locks */
-	hash_table_t*	prdt_hash;		/*!< hash table of the predicate
-						lock */
-	hash_table_t*	prdt_page_hash;		/*!< hash table of the page
-						lock */
+  /** record locks */
+  hash_table_t rec_hash;
+  /** predicate locks for SPATIAL INDEX */
+  hash_table_t prdt_hash;
+  /** page locks for SPATIAL INDEX */
+  hash_table_t prdt_page_hash;
 
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	LockMutex	wait_mutex;		/*!< Mutex protecting the
