@@ -744,6 +744,7 @@ my_bool Log_event::need_checksum()
 {
   my_bool ret;
   DBUG_ENTER("Log_event::need_checksum");
+
   /* 
      few callers of Log_event::write 
      (incl FD::write, FD constructing code on the slave side, Rotate relay log

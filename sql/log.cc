@@ -6496,12 +6496,15 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
        (WSREP(thd) && !(thd->variables.option_bits & OPTION_BIN_LOG))))
     DBUG_RETURN(0);
 
-  if (thd->variables.option_bits & OPTION_GTID_BEGIN)
+  if (thd->variables.option_bits &
+      (OPTION_GTID_BEGIN | OPTION_BIN_COMMIT_OFF))
   {
     DBUG_PRINT("info", ("OPTION_GTID_BEGIN was set"));
     /* Wait for commit from binary log before we commit */
     direct= 0;
     using_trans= 1;
+    /* Set cache_type to ensure we don't get checksums for this event */
+    event_info->cache_type= Log_event::EVENT_TRANSACTIONAL_CACHE;
   }
 
   if (thd->binlog_evt_union.do_union)

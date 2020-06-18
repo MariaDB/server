@@ -1812,7 +1812,9 @@ static void add_table_options(THD *thd, TABLE *table,
   handlerton *hton;
   HA_CREATE_INFO create_info;
   bool check_options= (!(sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
-                       !create_info_arg);
+                       (!create_info_arg ||
+                        create_info_arg->used_fields &
+                        HA_CREATE_PRINT_ALL_OPTIONS));
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (table->part_info)

@@ -627,6 +627,8 @@ given at all. */
 
 /* Create a sequence */
 #define HA_CREATE_USED_SEQUENCE           (1UL << 25)
+/* Tell binlog_show_create_table to print all engine options */
+#define HA_CREATE_PRINT_ALL_OPTIONS       (1UL << 26)
 
 typedef ulonglong alter_table_operations;
 typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);

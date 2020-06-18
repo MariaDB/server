@@ -10711,7 +10711,7 @@ do_continue:;
         thd->binlog_table_should_be_logged(&new_table->s->db))
     {
       /*
-        We new_table is marked as internal temp table, but we want to have
+        'new_table' is marked as internal temp table, but we want to have
         the logging based on the original table type
       */
       bool res;
@@ -10720,9 +10720,11 @@ do_continue:;
 
       /* Force row logging, even if the table was created as 'temporary' */
       new_table->s->can_do_row_logging= 1;
-
       thd->binlog_start_trans_and_stmt();
-      res= binlog_drop_table(thd, table) || binlog_create_table(thd, new_table);
+      thd->variables.option_bits|= OPTION_BIN_COMMIT_OFF;
+      res= (binlog_drop_table(thd, table) ||
+            binlog_create_table(thd, new_table, 1));
+      thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
       new_table->s->tmp_table= org_tmp_table;
       if (res)
         goto err_new_table_cleanup;

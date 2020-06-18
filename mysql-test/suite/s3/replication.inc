@@ -5,7 +5,7 @@
 # Tests for S3 replication
 #
 
-connection slave;
+sync_slave_with_master;
 let $SLAVE_DATADIR= `select @@datadir`;
 connection master;
 

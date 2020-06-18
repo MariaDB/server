@@ -77,7 +77,6 @@
 #include "sql_audit.h"
 #include "sql_derived.h"                        // mysql_handle_derived
 #include "sql_prepare.h"
-#include "rpl_filter.h"                         // binlog_filter
 #include <my_bit.h>
 
 #include "debug_sync.h"
@@ -4796,8 +4795,12 @@ static int binlog_show_create_table(THD *thd, TABLE *table,
    to a not shared table.
 */
 
-bool binlog_create_table(THD *thd, TABLE *table)
+bool binlog_create_table(THD *thd, TABLE *table, bool replace)
 {
+  Table_specification_st create_info;
+  bool result;
+  ulonglong save_option_bits;
+
   /* Don't log temporary tables in row format */
   if (thd->variables.binlog_format == BINLOG_FORMAT_ROW &&
       table->s->tmp_table)
@@ -4811,7 +4814,19 @@ bool binlog_create_table(THD *thd, TABLE *table)
   */
   thd->set_current_stmt_binlog_format_row();
   table->file->prepare_for_row_logging();
-  return binlog_show_create_table(thd, table, 0) != 0;
+
+  create_info.lex_start();
+  save_option_bits= thd->variables.option_bits;
+  if (replace)
+    create_info.set(DDL_options_st::OPT_OR_REPLACE);
+  /* Ensure we write ENGINE=xxx and CHARSET=... to binary log */
+  create_info.used_fields|= (HA_CREATE_USED_ENGINE |
+                             HA_CREATE_USED_DEFAULT_CHARSET);
+  /* Ensure we write all engine options to binary log */
+  create_info.used_fields|= HA_CREATE_PRINT_ALL_OPTIONS;
+  result= binlog_show_create_table(thd, table, &create_info) != 0;
+  thd->variables.option_bits= save_option_bits;
+  return result;
 }
 
 
