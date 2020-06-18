@@ -72,3 +72,48 @@ make_scope_exit(Callable &&f)
 #define ANONYMOUS_VARIABLE CONCAT(_anonymous_variable, __LINE__)
 
 #define SCOPE_EXIT auto ANONYMOUS_VARIABLE= make_scope_exit
+
+namespace detail
+{
+
+template <typename T> class Scope_value
+{
+public:
+  Scope_value(T &variable, const T &scope_value)
+      : variable_(variable), saved_value_(variable)
+  {
+    variable= scope_value;
+  }
+
+  Scope_value(Scope_value &&rhs)
+      : variable_(rhs.variable_), saved_value_(rhs.saved_value_),
+        engaged_(rhs.engaged_)
+  {
+    rhs.engaged_= false;
+  }
+
+  Scope_value(const Scope_value &)= delete;
+  Scope_value &operator=(const Scope_value &)= delete;
+  Scope_value &operator=(Scope_value &&)= delete;
+
+  ~Scope_value()
+  {
+    if (engaged_)
+      variable_= saved_value_;
+  }
+
+private:
+  T &variable_;
+  T saved_value_;
+  bool engaged_= true;
+};
+
+} // namespace detail
+
+// Use like this:
+// auto _= make_scope_value(var, tmp_value);
+template <typename T>
+detail::Scope_value<T> make_scope_value(T &variable, const T &scope_value)
+{
+  return detail::Scope_value<T>(variable, scope_value);
+}
