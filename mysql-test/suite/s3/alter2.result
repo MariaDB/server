@@ -34,7 +34,7 @@ PARTITION BY KEY(pk) PARTITIONS 2;
 CREATE VIEW v1 AS SELECT * FROM t1;
 INSERT INTO t1 VALUES (NULL,'ill'),(NULL,'loop');
 ALTER TABLE t1 ENGINE=S3;
-connect  con1,localhost,root,,test;
+connect  con1,localhost,root,,$database;
 SELECT * FROM t1 WHERE c BETWEEN 'bar' AND 'foo';
 connection default;
 SELECT pk FROM v1;
