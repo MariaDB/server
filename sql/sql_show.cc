@@ -65,6 +65,7 @@
 #include "transaction.h"
 #include "opt_trace.h"
 #include "my_cpu.h"
+#include "scope.h"
 
 
 #include "lex_symbol.h"
@@ -6409,8 +6410,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   {
     Field *field;
     LEX_CSTRING tmp_string;
-    Sql_mode_save sql_mode_backup(thd);
-    thd->variables.sql_mode= sql_mode;
+    auto _= make_scope_value(thd->variables.sql_mode, sql_mode);
 
     if (sph->type() == SP_TYPE_FUNCTION)
     {
