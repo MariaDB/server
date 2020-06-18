@@ -3561,7 +3561,7 @@ fail_err:
 		ut_ad(index->is_instant());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 	} else {
-		rw_lock_t* ahi_latch = btr_get_search_latch(index);
+		rw_lock_t* ahi_latch = btr_search_sys.get_latch(*index);
 		if (!reorg && cursor->flag == BTR_CUR_HASH) {
 			btr_search_update_hash_node_on_insert(
 				cursor, ahi_latch);
@@ -3772,7 +3772,7 @@ btr_cur_pessimistic_insert(
 			ut_ad(!(flags & BTR_CREATE_FLAG));
 		} else {
 			btr_search_update_hash_on_insert(
-				cursor, btr_get_search_latch(index));
+				cursor, btr_search_sys.get_latch(*index));
 		}
 #endif /* BTR_CUR_HASH_ADAPT */
 		if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
@@ -4274,7 +4274,7 @@ btr_cur_update_in_place(
 #ifdef BTR_CUR_HASH_ADAPT
 	{
 		rw_lock_t* ahi_latch = block->index
-			? btr_get_search_latch(index) : NULL;
+			? btr_search_sys.get_latch(*index) : NULL;
 		if (ahi_latch) {
 			/* TO DO: Can we skip this if none of the fields
 			index->search_info->curr_n_fields

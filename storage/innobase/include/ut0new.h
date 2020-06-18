@@ -859,7 +859,6 @@ constexpr const char* const auto_event_names[] =
   "fts0tlex",
   "gis0sea",
   "ha_innodb",
-  "ha0ha",
   "handler0alter",
   "hash0hash",
   "i_s",

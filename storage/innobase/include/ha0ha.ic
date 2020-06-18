@@ -25,8 +25,6 @@ Created 8/18/1994 Heikki Tuuri
 *************************************************************************/
 
 #ifdef BTR_CUR_HASH_ADAPT
-#include "ut0rnd.h"
-#include "mem0mem.h"
 #include "btr0types.h"
 
 /******************************************************************//**
@@ -154,45 +152,4 @@ ha_search_with_data(
 	return(NULL);
 }
 
-/***********************************************************//**
-Deletes a hash node. */
-void
-ha_delete_hash_node(
-/*================*/
-	hash_table_t*	table,		/*!< in: hash table */
-	ha_node_t*	del_node);	/*!< in: node to be deleted */
-
-#ifdef UNIV_DEBUG
-/** Verify if latch corresponding to the hash table is x-latched
-@param table   hash table */
-void ha_btr_search_latch_x_locked(const hash_table_t* table);
-#endif /* UNIV_DEBUG */
-
-/*********************************************************//**
-Looks for an element when we know the pointer to the data, and deletes
-it from the hash table, if found.
-@return TRUE if found */
-UNIV_INLINE
-ibool
-ha_search_and_delete_if_found(
-/*==========================*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold,	/*!< in: folded value of the searched data */
-	const rec_t*	data)	/*!< in: pointer to the data */
-{
-	ha_node_t*	node;
-
-	ut_d(ha_btr_search_latch_x_locked(table));
-	ut_ad(btr_search_enabled);
-
-	node = ha_search_with_data(table, fold, data);
-
-	if (node) {
-		ha_delete_hash_node(table, node);
-
-		return(TRUE);
-	}
-
-	return(FALSE);
-}
 #endif /* BTR_CUR_HASH_ADAPT */

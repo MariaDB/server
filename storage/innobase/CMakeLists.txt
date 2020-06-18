@@ -56,7 +56,6 @@ SET(INNOBASE_SOURCES
 	fsp/fsp0space.cc
 	fsp/fsp0sysspace.cc
 	fut/fut0lst.cc
-	ha/ha0ha.cc
 	ha/ha0storage.cc
 	ha/hash0hash.cc
 	fts/fts0fts.cc

@@ -1131,7 +1131,7 @@ struct buf_block_t{
 	assigning block->index = NULL (and block->n_pointers = 0)
 	is allowed whenever btr_search_own_all(RW_LOCK_X).
 
-	Another exception is that ha_insert_for_fold_func() may
+	Another exception is that ha_insert_for_fold() may
 	decrement n_pointers without holding the appropriate latch
 	in btr_search_latches[]. Thus, n_pointers must be
 	protected by atomic memory access.

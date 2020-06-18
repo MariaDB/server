@@ -965,29 +965,16 @@ srv_printf_innodb_monitor(
 	ibuf_print(file);
 
 #ifdef BTR_CUR_HASH_ADAPT
-	btr_search_x_lock_all();
 	for (ulint i = 0; i < btr_ahi_parts && btr_search_enabled; ++i) {
-		const hash_table_t* table = btr_search_sys->hash_tables[i];
-
-		ut_ad(table->magic_n == HASH_TABLE_MAGIC_N);
-		ut_ad(table->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
-
-		const mem_heap_t* heap = table->heap;
-		/* The heap may change during the following call,
-		so the data displayed may be garbage. We intentionally
-		avoid acquiring btr_search_latches[] so that the
-		diagnostic output will not stop here even in case another
-		thread hangs while holding btr_search_latches[].
-
-		This should be safe from crashes, because
-		table->heap will be pointing to the same object
-		for the full lifetime of the server. Even during
-		btr_search_disable() the heap will stay valid. */
+		const auto part= &btr_search_sys.parts[i];
+		rw_lock_s_lock(&part->latch);
+		ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
 		fprintf(file, "Hash table size " ULINTPF
 			", node heap has " ULINTPF " buffer(s)\n",
-			table->n_cells, heap->base.count - !heap->free_block);
+			part->table.n_cells,
+			part->heap->base.count - !part->heap->free_block);
+		rw_lock_s_unlock(&part->latch);
 	}
-	btr_search_x_unlock_all();
 
 	fprintf(file,
 		"%.2f hash searches/s, %.2f non-hash searches/s\n",
@@ -1126,22 +1113,15 @@ srv_export_innodb_status(void)
 #ifdef BTR_CUR_HASH_ADAPT
 	ulint mem_adaptive_hash = 0;
 	for (ulong i = 0; i < btr_ahi_parts; i++) {
-		rw_lock_s_lock(btr_search_latches[i]);
-		if (!btr_search_sys->hash_tables) {
-next:
-			rw_lock_s_unlock(btr_search_latches[i]);
-			continue;
+		const auto part= &btr_search_sys.parts[i];
+		rw_lock_s_lock(&part->latch);
+		if (part->heap) {
+			ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
+
+			mem_adaptive_hash += mem_heap_get_size(part->heap)
+				+ part->table.n_cells * sizeof(hash_cell_t);
 		}
-
-		hash_table_t*	ht = btr_search_sys->hash_tables[i];
-
-		ut_ad(ht);
-		ut_ad(ht->heap);
-		ut_ad(ht->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
-
-		mem_adaptive_hash += mem_heap_get_size(ht->heap)
-			+ ht->n_cells * sizeof(hash_cell_t);
-		goto next;
+		rw_lock_s_unlock(&part->latch);
 	}
 	export_vars.innodb_mem_adaptive_hash = mem_adaptive_hash;
 #endif

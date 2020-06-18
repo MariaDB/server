@@ -24,11 +24,8 @@ The simple hash table utility
 Created 5/20/1997 Heikki Tuuri
 *******************************************************/
 
-#ifndef hash0hash_h
-#define hash0hash_h
-
-#include "mem0mem.h"
-#include "sync0rw.h"
+#pragma once
+#include "ut0rnd.h"
 
 struct hash_table_t;
 struct hash_cell_t{
@@ -259,26 +256,19 @@ do {\
 	}\
 } while (0)
 
-/* The hash table structure */
-struct hash_table_t {
-#ifdef BTR_CUR_HASH_ADAPT
-# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-	ibool			adaptive;/* TRUE if this is the hash
-					table of the adaptive hash
-					index */
-# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-#endif /* BTR_CUR_HASH_ADAPT */
-	ulint			n_cells;/* number of cells in the hash table */
-	hash_cell_t*		array;	/*!< pointer to cell array */
-	mem_heap_t*		heap;
-#ifdef UNIV_DEBUG
-	ulint			magic_n;
-# define HASH_TABLE_MAGIC_N	76561114
-#endif /* UNIV_DEBUG */
+/** Hash table with singly-linkde overflow lists */
+struct hash_table_t
+{
+  /** number of elements in array (a prime number) */
+  ulint n_cells;
+  /** the hash array */
+  hash_cell_t *array;
+
+  /** Create the hash table.
+  @param n  the lower bound of n_cells */
+  void create(ulint n);
 
   ulint calc_hash(ulint fold) const { return ut_hash_ulint(fold, n_cells); }
 };
 
 #include "hash0hash.ic"
-
-#endif

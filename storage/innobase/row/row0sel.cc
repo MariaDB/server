@@ -3823,7 +3823,7 @@ row_sel_try_search_shortcut_for_mysql(
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!prebuilt->templ_contains_blob);
 
-	rw_lock_t* ahi_latch = btr_get_search_latch(index);
+	rw_lock_t* ahi_latch = btr_search_sys.get_latch(*index);
 	rw_lock_s_lock(ahi_latch);
 	btr_pcur_open_with_no_init(index, search_tuple, PAGE_CUR_GE,
 				   BTR_SEARCH_LEAF, pcur, ahi_latch, mtr);

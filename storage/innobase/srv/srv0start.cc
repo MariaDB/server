@@ -2127,9 +2127,6 @@ void innodb_shutdown()
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys.is_initialised() || !srv_was_started);
-#ifdef BTR_CUR_HASH_ADAPT
-	ut_ad(btr_search_sys || !srv_was_started);
-#endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(ibuf.index || !srv_was_started);
 
 	dict_stats_deinit();

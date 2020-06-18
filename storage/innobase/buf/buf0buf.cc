@@ -1552,7 +1552,7 @@ bool buf_pool_t::create()
 
   chunk_t::map_ref= chunk_t::map_reg;
   buf_LRU_old_ratio_update(100 * 3 / 8, false);
-  btr_search_sys_create(srv_buf_pool_curr_size / sizeof(void*) / 64);
+  btr_search_sys_create();
   ut_ad(is_initialised());
   return false;
 }
