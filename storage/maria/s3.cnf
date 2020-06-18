@@ -1,12 +1,12 @@
-!include include/default_mysqld.cnf
-!include include/default_client.cnf
-
-[mysqld.1]
+[mariadb]
 plugin-load-add=ha_s3
-s3=ON
+
+#
+# Uncomment and configure the S3 engine
+#
 #s3-host-name=s3.amazonaws.com
 #s3-protocol-version=Amazon
-#s3-bucket=MariaDB
+#s3-bucket=...
 #s3-access-key=...
 #s3-secret-key=...
 #s3-region=eu-north-1

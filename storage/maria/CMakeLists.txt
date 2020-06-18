@@ -1,4 +1,5 @@
 # Copyright (C) 2007 MySQL AB
+# Copyright (C) 2009,2020 MariaDB Corporation Ab
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -105,7 +106,7 @@ OPTION(USE_ARIA_FOR_TMP_TABLES "Use Aria for temporary tables" ON)
 #
 INCLUDE (CheckIncludeFiles)
 
-SET(S3_SOURCES ha_s3.cc s3_func.c
+SET(S3_SOURCES s3_func.c
     libmarias3/src/debug.c libmarias3/src/error.c libmarias3/src/marias3.c
     libmarias3/src/request.c libmarias3/src/response.c libmarias3/src/sha256.c
     libmarias3/src/sha256-internal.c libmarias3/src/xml.c)
@@ -115,18 +116,13 @@ IF(NOT PLUGIN_S3 STREQUAL NO)
 ENDIF()
 
 IF (CURL_FOUND)
-  MYSQL_ADD_PLUGIN(s3 ${S3_SOURCES} STORAGE_ENGINE STATIC_ONLY
-                   LINK_LIBRARIES aria myisam mysys mysys_ssl curl
-                   NOT_EMBEDDED)
+  MYSQL_ADD_PLUGIN(s3 ha_s3.cc ${S3_SOURCES} COMPONENT s3-engine
+    LINK_LIBRARIES curl STORAGE_ENGINE NOT_EMBEDDED CONFIG s3.cnf)
 ENDIF()
 
 IF(TARGET s3)
-  MYSQL_ADD_EXECUTABLE(aria_s3_copy aria_s3_copy.cc COMPONENT Server)
-  TARGET_LINK_LIBRARIES(aria_s3_copy s3)
-
+  MYSQL_ADD_EXECUTABLE(aria_s3_copy aria_s3_copy.cc ${S3_SOURCES} COMPONENT s3-engine)
+  TARGET_LINK_LIBRARIES(aria_s3_copy aria myisam mysys mysys_ssl curl)
   INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/libmarias3)
-
   ADD_DEFINITIONS(-DWITH_S3_STORAGE_ENGINE)
-
-  TARGET_LINK_LIBRARIES(aria s3)
 ENDIF()

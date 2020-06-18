@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+   Copyright (c) 2009, 2020, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -606,6 +607,7 @@ typedef struct st_ma_base_info
   my_bool born_transactional;
 } MARIA_BASE_INFO;
 
+uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base);
 
 /* Structs used intern in database */
 
@@ -1616,7 +1618,7 @@ extern size_t _ma_nommap_pwrite(MARIA_HA *info, const uchar *Buffer,
 #define MA_STATE_INFO_WRITE_FULL_INFO        2
 /* intern_lock taking is needed */
 #define MA_STATE_INFO_WRITE_LOCK             4
-uint _ma_state_info_write(MARIA_SHARE *share, uint pWrite);
+uint _ma_state_info_write(MARIA_SHARE *share, uint pWrite)__attribute__((visibility("default"))) ;
 uint _ma_state_info_write_sub(File file, MARIA_STATE_INFO *state, uint pWrite);
 uint _ma_state_info_read_dsk(File file, MARIA_STATE_INFO *state);
 uint _ma_base_info_write(File file, MARIA_BASE_INFO *base);
@@ -1660,7 +1662,8 @@ void _ma_remap_file(MARIA_HA *info, my_off_t size);
 MARIA_RECORD_POS _ma_write_init_default(MARIA_HA *info, const uchar *record);
 my_bool _ma_write_abort_default(MARIA_HA *info);
 int maria_delete_table_files(const char *name, my_bool temporary,
-                             myf flags);
+                             myf flags)__attribute__((visibility("default"))) ;
+
 
 /*
   This cannot be in my_base.h as it clashes with HA_SPATIAL.

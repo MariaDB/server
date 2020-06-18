@@ -1,0 +1,3 @@
+etc/mysql/mariadb.conf.d/s3.cnf
+usr/bin/aria_s3_copy
+usr/lib/mysql/plugin/ha_s3.so

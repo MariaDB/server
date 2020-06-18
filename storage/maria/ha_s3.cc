@@ -1,4 +1,4 @@
-/* Copyright (C) 2019 MariaDB Corppration AB
+/* Copyright (C) 2019, 2020 MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1008,7 +1008,22 @@ static int ha_s3_init(void *p)
   s3_init_library();
   if (s3_debug)
     ms3_debug();
+
+  struct s3_func s3f_real =
+  {
+    ms3_set_option, s3_free, ms3_deinit, s3_unique_file_number,
+    read_index_header, s3_check_frm_version, s3_info_copy,
+    set_database_and_table_from_path, s3_open_connection
+  };
+  s3f= s3f_real;
+
   return res ? HA_ERR_INITIALIZATION : 0;
+}
+
+static int ha_s3_deinit(void*)
+{
+  bzero(&s3f, sizeof(s3f));
+  return 0;
 }
 
 static SHOW_VAR status_variables[]= {
@@ -1057,7 +1072,7 @@ maria_declare_plugin(s3)
   "ALTER TABLE table_name ENGINE=s3",
   PLUGIN_LICENSE_GPL,
   ha_s3_init,                   /* Plugin Init      */
-  NULL,                         /* Plugin Deinit    */
+  ha_s3_deinit,                 /* Plugin Deinit    */
   0x0100,                       /* 1.0              */
   status_variables,             /* status variables */
   system_variables,             /* system variables */

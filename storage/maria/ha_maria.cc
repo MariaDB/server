@@ -1,6 +1,6 @@
 /* Copyright (C) 2004-2008 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
    Copyright (C) 2008-2009 Sun Microsystems, Inc.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -72,7 +72,7 @@ const char *zerofill_error_msg=
    corrupted.
 */
 ulonglong maria_recover_options= HA_RECOVER_NONE;
-handlerton *maria_hton;
+handlerton __attribute__((visibility("default"))) *maria_hton;
 
 /* bits in maria_recover_options */
 const char *maria_recover_names[]=
@@ -2688,6 +2688,16 @@ int ha_maria::extra_opt(enum ha_extra_function operation, ulong cache_size)
 }
 
 
+bool ha_maria::auto_repair(int error) const
+{
+  /* Always auto-repair moved tables (error == HA_ERR_OLD_FILE) */
+  return ((MY_TEST(maria_recover_options & HA_RECOVER_ANY) &&
+           error == HA_ERR_CRASHED_ON_USAGE) ||
+          error == HA_ERR_OLD_FILE);
+
+}
+
+
 int ha_maria::delete_all_rows()
 {
   THD *thd= table->in_use;
@@ -3345,6 +3355,14 @@ ha_rows ha_maria::records_in_range(uint inx, const key_range *min_key,
   register_handler(file);
   return (ha_rows) maria_records_in_range(file, (int) inx, min_key, max_key,
                                           pages);
+}
+
+
+FT_INFO *ha_maria::ft_init_ext(uint flags, uint inx, String * key)
+{
+  return maria_ft_init_search(flags, file, inx,
+                              (uchar *) key->ptr(), key->length(),
+                              key->charset(), table->record[0]);
 }
 
 

@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+   Copyright (c) 2010, 2020, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -253,7 +254,7 @@ int maria_close(register MARIA_HA *info)
   delete_dynamic(&info->pinned_pages);
 #ifdef WITH_S3_STORAGE_ENGINE
   if (info->s3)
-    ms3_deinit(info->s3);
+    s3f.deinit(info->s3);
 #endif /* WITH_S3_STORAGE_ENGINE */
   my_free(info);
 

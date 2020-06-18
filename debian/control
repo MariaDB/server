@@ -623,6 +623,15 @@ Description: Connect storage engine for MariaDB
  other interesting features.
  This package contains the Connect plugin for MariaDB.
 
+Package: mariadb-plugin-s3
+Architecture: any
+Depends: libcurl4,
+         mariadb-server-10.5 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: S3 storage engine for MariaDB
+ Read only table stored in S3.
+
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el
 Depends: mariadb-server-10.5 (= ${binary:Version}),

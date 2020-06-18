@@ -1,5 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,7 +39,6 @@ static my_bool maria_scan_init_dummy(MARIA_HA *info);
 static void maria_scan_end_dummy(MARIA_HA *info);
 static my_bool maria_once_init_dummy(MARIA_SHARE *, File);
 static my_bool maria_once_end_dummy(MARIA_SHARE *);
-static uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base);
 static uchar *_ma_state_info_read(uchar *ptr, MARIA_STATE_INFO *state);
 
 #define get_next_element(to,pos,size) { memcpy((char*) to,pos,(size_t) size); \
@@ -318,7 +317,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
   else
   {
     strmake(name_buff, name, sizeof(name_buff)-1); /* test_if_reopen() */
-    if (!(s3_client= s3_open_connection(s3)))
+    if (!(s3_client= s3f.open_connection(s3)))
     {
       internal_table= 1;                        /* Avoid unlock on error */
       goto err;
@@ -371,7 +370,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     else
     {
       errpos= 1;
-      if (set_database_and_table_from_path(s3, name_buff))
+      if (s3f.set_database_and_table_from_path(s3, name_buff))
       {
         my_printf_error(HA_ERR_NO_SUCH_TABLE,
                         "Can't find database and path from %s",  MYF(0),
@@ -379,17 +378,17 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
         my_errno= HA_ERR_NO_SUCH_TABLE;
         goto err;
       }
-      if (!(share_s3= share->s3_path= s3_info_copy(s3)))
+      if (!(share_s3= share->s3_path= s3f.info_copy(s3)))
         goto err;                             /* EiOM */
 
       /* Check if table has changed in S3 */
-      if (s3_check_frm_version(s3_client, share_s3) == 1)
+      if (s3f.check_frm_version(s3_client, share_s3) == 1)
       {
         my_errno= HA_ERR_TABLE_DEF_CHANGED;
         goto err;
       }
 
-      if (read_index_header(s3_client, share_s3, &index_header))
+      if (s3f.read_index_header(s3_client, share_s3, &index_header))
         goto err;
       if (index_header.length < head_length)
       {
@@ -398,7 +397,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       }
       memcpy(share->state.header.file_version, index_header.str,
              head_length);
-      kfile= s3_unique_file_number();
+      kfile= s3f.unique_file_number();
     }
 #endif /* WITH_S3_STORAGE_ENGINE */
 
@@ -972,7 +971,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       }
 #ifdef WITH_S3_STORAGE_ENGINE
       else
-        data_file= info.dfile.file= s3_unique_file_number();
+        data_file= info.dfile.file= s3f.unique_file_number();
 #endif /* WITH_S3_STORAGE_ENGINE */
     }
     errpos= 5;
@@ -1149,7 +1148,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     if (s3_client)
     {
       size_t block_size= share->base.s3_block_size;
-      ms3_set_option(s3_client, MS3_OPT_BUFFER_CHUNK_SIZE, &block_size);
+      s3f.set_option(s3_client, MS3_OPT_BUFFER_CHUNK_SIZE, &block_size);
     }
 #endif /* WITH_S3_STORAGE_ENGINE */
   }
@@ -1162,7 +1161,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 
 #ifdef WITH_S3_STORAGE_ENGINE
   if (index_header.alloc_ptr)
-    s3_free(&index_header);
+    s3f.free(&index_header);
 #endif /* WITH_S3_STORAGE_ENGINE */
 
   if (!(m_info= maria_clone_internal(share, mode, data_file,
@@ -1224,9 +1223,9 @@ err:
   }
 #ifdef WITH_S3_STORAGE_ENGINE
   if (s3_client)
-    ms3_deinit(s3_client);
+    s3f.deinit(s3_client);
   if (index_header.alloc_ptr)
-    s3_free(&index_header);
+    s3f.free(&index_header);
 #endif /* WITH_S3_STORAGE_ENGINE */
   if (!internal_table)
     mysql_mutex_unlock(&THR_LOCK_maria);
@@ -1725,7 +1724,7 @@ uint _ma_state_info_read_dsk(File file __attribute__((unused)),
 
 
 /****************************************************************************
-**  store and read of MARIA_BASE_INFO
+**  store MARIA_BASE_INFO
 ****************************************************************************/
 
 uint _ma_base_info_write(File file, MARIA_BASE_INFO *base)
@@ -1774,49 +1773,6 @@ uint _ma_base_info_write(File file, MARIA_BASE_INFO *base)
   return mysql_file_write(file, buff, (size_t) (ptr-buff), MYF(MY_NABP)) != 0;
 }
 
-
-static uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
-{
-  bmove(base->uuid, ptr, MY_UUID_SIZE);                 ptr+= MY_UUID_SIZE;
-  base->keystart= mi_sizekorr(ptr);			ptr+= 8;
-  base->max_data_file_length= mi_sizekorr(ptr); 	ptr+= 8;
-  base->max_key_file_length= mi_sizekorr(ptr);		ptr+= 8;
-  base->records=  (ha_rows) mi_sizekorr(ptr);		ptr+= 8;
-  base->reloc= (ha_rows) mi_sizekorr(ptr);		ptr+= 8;
-  base->mean_row_length= mi_uint4korr(ptr);		ptr+= 4;
-  base->reclength= mi_uint4korr(ptr);			ptr+= 4;
-  base->pack_reclength= mi_uint4korr(ptr);		ptr+= 4;
-  base->min_pack_length= mi_uint4korr(ptr);		ptr+= 4;
-  base->max_pack_length= mi_uint4korr(ptr);		ptr+= 4;
-  base->min_block_length= mi_uint4korr(ptr);		ptr+= 4;
-  base->fields= mi_uint2korr(ptr);			ptr+= 2;
-  base->fixed_not_null_fields= mi_uint2korr(ptr);       ptr+= 2;
-  base->fixed_not_null_fields_length= mi_uint2korr(ptr);ptr+= 2;
-  base->max_field_lengths= mi_uint2korr(ptr);	        ptr+= 2;
-  base->pack_fields= mi_uint2korr(ptr);			ptr+= 2;
-  base->extra_options= mi_uint2korr(ptr);		ptr+= 2;
-  base->null_bytes= mi_uint2korr(ptr);			ptr+= 2;
-  base->original_null_bytes= mi_uint2korr(ptr);		ptr+= 2;
-  base->field_offsets= mi_uint2korr(ptr);		ptr+= 2;
-  base->language= mi_uint2korr(ptr);		        ptr+= 2;
-  base->block_size= mi_uint2korr(ptr);			ptr+= 2;
-
-  base->rec_reflength= *ptr++;
-  base->key_reflength= *ptr++;
-  base->keys=	       *ptr++;
-  base->auto_key=      *ptr++;
-  base->born_transactional= *ptr++;
-  base->compression_algorithm= *ptr++;
-  base->pack_bytes= mi_uint2korr(ptr);			ptr+= 2;
-  base->blobs= mi_uint2korr(ptr);			ptr+= 2;
-  base->max_key_block_length= mi_uint2korr(ptr);	ptr+= 2;
-  base->max_key_length= mi_uint2korr(ptr);		ptr+= 2;
-  base->extra_alloc_bytes= mi_uint2korr(ptr);		ptr+= 2;
-  base->extra_alloc_procent= *ptr++;
-  base->s3_block_size= mi_uint3korr(ptr);               ptr+= 3;
-  ptr+= 13;
-  return ptr;
-}
 
 /*--------------------------------------------------------------------------
   maria_keydef
