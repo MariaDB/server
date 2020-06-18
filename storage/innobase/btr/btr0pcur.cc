@@ -158,7 +158,7 @@ before_first:
 			ut_ad(index->is_instant());
 			ut_ad(page_get_n_recs(block->frame) == 1);
 			ut_ad(page_is_leaf(block->frame));
-			ut_ad(!page_has_siblings(block->frame));
+			ut_ad(!page_has_prev(block->frame));
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
 			return;
 		}

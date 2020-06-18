@@ -11,7 +11,7 @@ INSERT INTO t VALUES(1);
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
 --enable_result_log
 
-exec $XTRABACKUP --prepare --apply-log-only --target-dir=$basedir ;
+exec $XTRABACKUP --prepare --target-dir=$basedir ;
 
 let SEARCH_FILE=$MYSQLTEST_VARDIR/log/current_test;
 --let SEARCH_PATTERN= Rolled back recovered transaction

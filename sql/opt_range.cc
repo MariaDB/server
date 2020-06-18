@@ -15942,15 +15942,6 @@ static void print_key_value(String *out, const KEY_PART_INFO *key_part,
   {
     field= key_part->field;
     store_length= key_part->store_length;
-    if (field->flags & BLOB_FLAG)
-    {
-      // Byte 0 of a nullable key is the null-byte. If set, key is NULL.
-      if (field->real_maybe_null() && *key)
-      {
-        out->append(STRING_WITH_LEN("NULL"));
-        goto next;
-      }
-    }
 
     if (field->real_maybe_null())
     {
