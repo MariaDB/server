@@ -19,7 +19,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /**************************************************//**
 @file include/ha0ha.h
-The hash table with external chains
+The hash table interface for the adaptive hash index
 
 Created 8/18/1994 Heikki Tuuri
 *******************************************************/
@@ -80,41 +80,6 @@ updates the pointer to data if found.
 	ha_search_and_update_if_found_func(table,fold,data,new_data)
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 #endif /* BTR_CUR_HASH_ADAPT */
-
-/*************************************************************//**
-Creates a hash table with at least n array cells.  The actual number
-of cells is chosen to be a prime number slightly bigger than n.
-@return own: created table */
-hash_table_t*
-ib_create(
-/*======*/
-	ulint		n,	/*!< in: number of array cells */
-	latch_id_t	id,	/*!< in: latch ID */
-	ulint		n_mutexes,/*!< in: number of mutexes to protect the
-				hash table: must be a power of 2, or 0 */
-	ulint		type);	/*!< in: type of datastructure for which
-				the memory heap is going to be used e.g.:
-				MEM_HEAP_FOR_BTR_SEARCH or
-				MEM_HEAP_FOR_PAGE_HASH */
-
-/** Recreate a hash table with at least n array cells. The actual number
-of cells is chosen to be a prime number slightly bigger than n.
-The new cells are all cleared. The heaps are recreated.
-The sync objects are reused.
-@param[in,out]	table	hash table to be resuzed (to be freed later)
-@param[in]	n	number of array cells
-@return	resized new table */
-hash_table_t*
-ib_recreate(
-	hash_table_t*	table,
-	ulint		n);
-
-/*************************************************************//**
-Empties a hash table and frees the memory heaps. */
-void
-ha_clear(
-/*=====*/
-	hash_table_t*	table);	/*!< in, own: hash table */
 
 #ifdef BTR_CUR_HASH_ADAPT
 /*************************************************************//**
@@ -207,20 +172,8 @@ struct ha_node_t {
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 	const rec_t*	data;	/*!< pointer to the data */
 };
-#endif /* BTR_CUR_HASH_ADAPT */
-
-#if defined UNIV_DEBUG && defined BTR_CUR_HASH_ADAPT
-/** Assert that the synchronization object in a hash operation involving
-possible change in the hash table is held in exclusive mode */
-void hash_assert_can_modify(hash_table_t *table, ulint fold);
-/** Assert that the synchronization object in a hash operation involving
-possible change in the hash table is held in share dor exclusive mode */
-void hash_assert_can_search(hash_table_t *table, ulint fold);
-#else /* UNIV_DEBUG */
-#define hash_assert_can_modify(t, f)
-#define hash_assert_can_search(t, f)
-#endif /* UNIV_DEBUG */
 
 #include "ha0ha.ic"
+#endif /* BTR_CUR_HASH_ADAPT */
 
 #endif

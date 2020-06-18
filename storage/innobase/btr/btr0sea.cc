@@ -387,9 +387,13 @@ void btr_search_enable(bool resize)
 		ut_malloc(sizeof(hash_table_t*) * btr_ahi_parts, mem_key_ahi));
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
 		btr_search_sys->hash_tables[i] =
-			ib_create((hash_size / btr_ahi_parts),
-				  LATCH_ID_HASH_TABLE_MUTEX,
-				  0, MEM_HEAP_FOR_BTR_SEARCH);
+			hash_create(hash_size / btr_ahi_parts);
+		btr_search_sys->hash_tables[i]->heap = mem_heap_create_typed(
+			std::min<ulong>(4096,
+					MEM_MAX_ALLOC_IN_BUF / 2
+					- MEM_BLOCK_HEADER_SIZE
+					- MEM_SPACE_NEEDED(0)),
+			MEM_HEAP_FOR_BTR_SEARCH);
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
                 btr_search_sys->hash_tables[i]->adaptive = TRUE;
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */

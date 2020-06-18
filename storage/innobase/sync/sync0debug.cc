@@ -1294,9 +1294,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(FTS_PLL_TOKENIZE, SYNC_FTS_TOKENIZE,
 			fts_pll_tokenize_mutex_key);
 
-	LATCH_ADD_MUTEX(HASH_TABLE_MUTEX, SYNC_BUF_PAGE_HASH,
-			hash_table_mutex_key);
-
 	LATCH_ADD_MUTEX(IBUF_BITMAP, SYNC_IBUF_BITMAP_MUTEX,
 			ibuf_bitmap_mutex_key);
 

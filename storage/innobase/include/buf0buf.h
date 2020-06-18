@@ -1612,43 +1612,40 @@ public:
   /** Get a page_hash latch. */
   rw_lock_t *hash_lock_get_low(ulint fold) const
   {
-    return page_hash->sync_obj.rw_locks +
-      hash_get_sync_obj_index(page_hash, fold);
+    return page_hash_latches +
+      ut_2pow_remainder(page_hash->calc_hash(fold),
+                        ulint{srv_n_page_hash_locks});
   }
-#ifdef UNIV_DEBUG
-  /** Check whether a page_hash latch is being held */
-  bool page_hash_lock_own_flagged(ulint fold, rw_lock_flags_t flagged) const
+private:
+  /** Get a page_hash latch. */
+  rw_lock_t *hash_lock_get_low(ulint fold, ulint n_cells) const
   {
-    return rw_lock_own_flagged(hash_lock_get_low(fold), flagged);
+    return page_hash_latches +
+      ut_2pow_remainder(ut_hash_ulint(fold, n_cells),
+                        ulint{srv_n_page_hash_locks});
   }
-#endif
+public:
 
   /** Acquire a page_hash bucket latch, tolerating concurrent resize()
   @tparam exclusive  whether the latch is to be acquired exclusively
   @param fold    hash bucket key */
   template<bool exclusive> rw_lock_t *page_hash_lock(ulint fold)
   {
-    rw_lock_t *latch= hash_lock_get_low(fold);
-    if (exclusive)
-      rw_lock_x_lock(latch);
-    else
-      rw_lock_s_lock(latch);
-    rw_lock_t *l;
-    while ((l= hash_lock_get_low(fold)) != latch)
+    for (;;)
     {
+      auto n_cells= page_hash->n_cells;
+      rw_lock_t *latch= hash_lock_get_low(fold, n_cells);
+      if (exclusive)
+        rw_lock_x_lock(latch);
+      else
+        rw_lock_s_lock(latch);
+      if (UNIV_LIKELY(n_cells == page_hash->n_cells))
+        return latch;
       if (exclusive)
         rw_lock_x_unlock(latch);
       else
         rw_lock_s_unlock(latch);
-      /* FIXME: what if we resize() completes several times while we
-      are not holding any latch here? Is the latch guaranteed to be valid? */
-      if (exclusive)
-        rw_lock_x_lock(l);
-      else
-        rw_lock_s_lock(l);
-      latch= l;
     }
-    return latch;
   }
 
   /** Look up a block descriptor.
@@ -1726,24 +1723,6 @@ public:
   bool page_hash_contains(const page_id_t page_id)
   {
     return page_hash_get_locked<false,watch>(page_id, page_id.fold(), nullptr);
-  }
-
-  /** Acquire exclusive latches on all page_hash buckets. */
-  void page_hash_lock_all() const
-  {
-    ut_ad(page_hash->magic_n == HASH_TABLE_MAGIC_N);
-    ut_ad(page_hash->type == HASH_TABLE_SYNC_RW_LOCK);
-    for (ulint i= 0; i < page_hash->n_sync_obj; i++)
-      rw_lock_x_lock(&page_hash->sync_obj.rw_locks[i]);
-  }
-  /** Release exclusive latches on all the page_hash buckets. */
-  void page_hash_unlock_all() const
-  {
-    ut_ad(page_hash->magic_n == HASH_TABLE_MAGIC_N);
-    ut_ad(page_hash->type == HASH_TABLE_SYNC_RW_LOCK);
-
-    for (ulint i = 0; i < page_hash->n_sync_obj; i++)
-      rw_lock_x_unlock(&page_hash->sync_obj.rw_locks[i]);
   }
 
   /** Determine if a block is a sentinel for a buffer pool watch.
@@ -1894,10 +1873,11 @@ public:
 	Atomic_counter<uint32_t> read_ahead_area;
 
   /** Hash table of file pages (buf_page_t::in_file() holds),
-  indexed by page_id_t. Protected by both mutex and hash_lock_get(id). */
+  indexed by page_id_t. Protected by both mutex and page_hash_latches[]. */
   hash_table_t *page_hash;
-	hash_table_t*	page_hash_old;	/*!< old pointer to page_hash to be
-					freed after resizing buffer pool */
+  /** Latches protecting page_hash */
+  mutable rw_lock_t page_hash_latches[MAX_PAGE_HASH_LOCKS];
+
 	hash_table_t*	zip_hash;	/*!< hash table of buf_block_t blocks
 					whose frames are allocated to the
 					zip buddy system,

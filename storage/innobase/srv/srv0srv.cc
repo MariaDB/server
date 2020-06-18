@@ -970,10 +970,7 @@ srv_printf_innodb_monitor(
 		const hash_table_t* table = btr_search_sys->hash_tables[i];
 
 		ut_ad(table->magic_n == HASH_TABLE_MAGIC_N);
-		/* this is only used for buf_pool.page_hash */
-		ut_ad(!table->heaps);
-		/* this is used for the adaptive hash index */
-		ut_ad(table->heap);
+		ut_ad(table->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
 
 		const mem_heap_t* heap = table->heap;
 		/* The heap may change during the following call,
@@ -1140,10 +1137,7 @@ next:
 
 		ut_ad(ht);
 		ut_ad(ht->heap);
-		/* Multiple mutexes/heaps are currently never used for adaptive
-		hash index tables. */
-		ut_ad(!ht->n_sync_obj);
-		ut_ad(!ht->heaps);
+		ut_ad(ht->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
 
 		mem_adaptive_hash += mem_heap_get_size(ht->heap)
 			+ ht->n_cells * sizeof(hash_cell_t);

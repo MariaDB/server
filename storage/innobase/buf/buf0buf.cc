@@ -1523,11 +1523,10 @@ bool buf_pool_t::create()
   ut_a(srv_n_page_hash_locks != 0);
   ut_a(srv_n_page_hash_locks <= MAX_PAGE_HASH_LOCKS);
 
-  page_hash= ib_create(2 * curr_size,
-                         LATCH_ID_HASH_TABLE_RW_LOCK,
-                         srv_n_page_hash_locks, MEM_HEAP_FOR_PAGE_HASH);
-
-  ut_ad(!page_hash_old);
+  page_hash= hash_create(2 * curr_size);
+  for (auto i= srv_n_page_hash_locks; i--; )
+    rw_lock_create(hash_table_locks_key, &page_hash_latches[i],
+                   SYNC_BUF_PAGE_HASH);
   zip_hash= hash_create(2 * curr_size);
   last_printout_time= time(NULL);
 
@@ -1605,7 +1604,8 @@ void buf_pool_t::close()
 
   ut_free(chunks);
   chunks= nullptr;
-  ha_clear(page_hash);
+  for (auto i= srv_n_page_hash_locks; i--; )
+    rw_lock_free(&page_hash_latches[i]);
   hash_table_free(page_hash);
   hash_table_free(zip_hash);
 
@@ -1924,78 +1924,44 @@ inline bool buf_pool_t::withdraw_blocks()
 /** resize page_hash and zip_hash */
 static void buf_pool_resize_hash()
 {
-	hash_table_t*	new_hash_table;
+  hash_table_t *new_hash_table= hash_create(2 * buf_pool.curr_size);
 
-	ut_ad(buf_pool.page_hash_old == NULL);
+  for (ulint i= 0; i < hash_get_n_cells(buf_pool.page_hash); i++)
+  {
+    while (buf_page_t *bpage= static_cast<buf_page_t*>
+           (HASH_GET_FIRST(buf_pool.page_hash, i)))
+    {
+      buf_page_t *prev_bpage= bpage;
+      ut_ad(bpage->in_page_hash);
+      bpage= static_cast<buf_page_t*>(HASH_GET_NEXT(hash, prev_bpage));
+      const ulint fold= prev_bpage->id().fold();
+      HASH_DELETE(buf_page_t, hash, buf_pool.page_hash, fold, prev_bpage);
+      HASH_INSERT(buf_page_t, hash, new_hash_table, fold, prev_bpage);
+    }
+  }
 
-	/* recreate page_hash */
-	new_hash_table = ib_recreate(
-		buf_pool.page_hash, 2 * buf_pool.curr_size);
+  std::swap(buf_pool.page_hash->array, new_hash_table->array);
+  buf_pool.page_hash->n_cells= new_hash_table->n_cells;
+  hash_table_free(new_hash_table);
 
-	for (ulint i = 0; i < hash_get_n_cells(buf_pool.page_hash); i++) {
-		buf_page_t*	bpage;
+  /* recreate zip_hash */
+  new_hash_table= hash_create(2 * buf_pool.curr_size);
 
-		bpage = static_cast<buf_page_t*>(
-			HASH_GET_FIRST(
-				buf_pool.page_hash, i));
+  for (ulint i= 0; i < hash_get_n_cells(buf_pool.zip_hash); i++)
+  {
+    while (buf_page_t *bpage= static_cast<buf_page_t*>
+           (HASH_GET_FIRST(buf_pool.zip_hash, i)))
+    {
+      buf_page_t *prev_bpage= bpage;
+      bpage= static_cast<buf_page_t*>(HASH_GET_NEXT(hash, prev_bpage));
+      const ulint fold= BUF_POOL_ZIP_FOLD_BPAGE(prev_bpage);
+      HASH_DELETE(buf_page_t, hash, buf_pool.zip_hash, fold, prev_bpage);
+      HASH_INSERT(buf_page_t, hash, new_hash_table, fold, prev_bpage);
+    }
+  }
 
-		while (bpage) {
-			buf_page_t*	prev_bpage = bpage;
-			ulint		fold;
-
-			ut_ad(bpage->in_page_hash);
-			bpage = static_cast<buf_page_t*>(
-				HASH_GET_NEXT(
-					hash, prev_bpage));
-
-			fold = prev_bpage->id().fold();
-
-			HASH_DELETE(buf_page_t, hash,
-				buf_pool.page_hash, fold,
-				prev_bpage);
-
-			HASH_INSERT(buf_page_t, hash,
-				new_hash_table, fold,
-				prev_bpage);
-		}
-	}
-
-	buf_pool.page_hash_old = buf_pool.page_hash;
-	buf_pool.page_hash = new_hash_table;
-
-	/* recreate zip_hash */
-	new_hash_table = hash_create(2 * buf_pool.curr_size);
-
-	for (ulint i = 0; i < hash_get_n_cells(buf_pool.zip_hash); i++) {
-		buf_page_t*	bpage;
-
-		bpage = static_cast<buf_page_t*>(
-			HASH_GET_FIRST(buf_pool.zip_hash, i));
-
-		while (bpage) {
-			buf_page_t*	prev_bpage = bpage;
-			ulint		fold;
-
-			bpage = static_cast<buf_page_t*>(
-				HASH_GET_NEXT(
-					hash, prev_bpage));
-
-			fold = BUF_POOL_ZIP_FOLD(
-				reinterpret_cast<buf_block_t*>(
-					prev_bpage));
-
-			HASH_DELETE(buf_page_t, hash,
-				buf_pool.zip_hash, fold,
-				prev_bpage);
-
-			HASH_INSERT(buf_page_t, hash,
-				new_hash_table, fold,
-				prev_bpage);
-		}
-	}
-
-	hash_table_free(buf_pool.zip_hash);
-	buf_pool.zip_hash = new_hash_table;
+  hash_table_free(buf_pool.zip_hash);
+  buf_pool.zip_hash= new_hash_table;
 }
 
 
@@ -2162,8 +2128,10 @@ withdraw_retry:
 	/* Indicate critical path */
 	resizing.store(true, std::memory_order_relaxed);
 
-	mutex_enter(&mutex);
-	page_hash_lock_all();
+  mutex_enter(&mutex);
+  for (auto i= srv_n_page_hash_locks; i--; )
+    rw_lock_x_lock(&page_hash_latches[i]);
+
 	chunk_t::map_reg = UT_NEW_NOKEY(chunk_t::map());
 
 	/* add/delete chunks */
@@ -2312,13 +2280,9 @@ calc_buf_pool_size:
 		ib::info() << "hash tables were resized";
 	}
 
-	page_hash_unlock_all();
-	mutex_exit(&mutex);
-
-	if (page_hash_old != NULL) {
-		hash_table_free(page_hash_old);
-		page_hash_old = NULL;
-	}
+  mutex_exit(&mutex);
+  for (auto i= srv_n_page_hash_locks; i--; )
+    rw_lock_x_unlock(&page_hash_latches[i]);
 
 	UT_DELETE(chunk_map_old);
 

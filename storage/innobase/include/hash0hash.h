@@ -31,47 +31,19 @@ Created 5/20/1997 Heikki Tuuri
 #include "sync0rw.h"
 
 struct hash_table_t;
-struct hash_cell_t;
-
+struct hash_cell_t{
+	void*	node;	/*!< hash chain node, NULL if none */
+};
 typedef void*	hash_node_t;
 
 /* Fix Bug #13859: symbol collision between imap/mysql */
 #define hash_create hash0_create
 
-/* Differnt types of hash_table based on the synchronization
-method used for it. */
-enum hash_table_sync_t {
-	HASH_TABLE_SYNC_NONE = 0,	/*!< Don't use any internal
-					synchronization objects for
-					this hash_table. */
-	HASH_TABLE_SYNC_MUTEX,		/*!< Use mutexes to control
-					access to this hash_table. */
-	HASH_TABLE_SYNC_RW_LOCK		/*!< Use rw_locks to control
-					access to this hash_table. */
-};
-
-/*************************************************************//**
-Creates a hash table with >= n array cells. The actual number
-of cells is chosen to be a prime number slightly bigger than n.
-@return own: created table */
-hash_table_t*
-hash_create(
-/*========*/
-	ulint	n);	/*!< in: number of array cells */
-
-/*************************************************************//**
-Creates a sync object array array to protect a hash table.
-::sync_obj can be mutexes or rw_locks depening on the type of
-hash table. */
-void
-hash_create_sync_obj(
-/*=================*/
-	hash_table_t*		table,	/*!< in: hash table */
-	hash_table_sync_t	type,	/*!< in: HASH_TABLE_SYNC_MUTEX
-					or HASH_TABLE_SYNC_RW_LOCK */
-	latch_id_t		id,	/*!< in: mutex/rw_lock ID */
-	ulint			n_sync_obj);/*!< in: number of sync objects,
-					must be a power of 2 */
+/**
+Create a hash table.
+@param n   the minimum number of hash array elements
+@return created table (with n_cells being a prime, at least n) */
+hash_table_t *hash_create(ulint n);
 
 /*************************************************************//**
 Frees a hash table. */
@@ -79,20 +51,8 @@ void
 hash_table_free(
 /*============*/
 	hash_table_t*	table);	/*!< in, own: hash table */
-/**************************************************************//**
-Calculates the hash value from a folded value.
-@return hashed value */
-UNIV_INLINE
-ulint
-hash_calc_hash(
-/*===========*/
-	ulint		fold,	/*!< in: folded value */
-	hash_table_t*	table);	/*!< in: hash table */
-/********************************************************************//**
-Assert that the mutex for the table is held */
-#define HASH_ASSERT_OWN(TABLE, FOLD)				\
-	ut_ad((TABLE)->type != HASH_TABLE_SYNC_MUTEX		\
-	      || (mutex_own(hash_get_mutex((TABLE), FOLD))));
+
+#define hash_calc_hash(FOLD, TABLE) (TABLE)->calc_hash(FOLD)
 
 /*******************************************************************//**
 Inserts a struct to a hash table. */
@@ -101,8 +61,6 @@ Inserts a struct to a hash table. */
 do {\
 	hash_cell_t*	cell3333;\
 	TYPE*		struct3333;\
-\
-	HASH_ASSERT_OWN(TABLE, FOLD)\
 \
 	(DATA)->NAME = NULL;\
 \
@@ -129,8 +87,6 @@ Inserts a struct to the head of hash table. */
 do {							\
 	hash_cell_t*	cell3333;			\
 	TYPE*		struct3333;			\
-							\
-	HASH_ASSERT_OWN(TABLE, FOLD)			\
 							\
 	(DATA)->NAME = NULL;				\
 							\
@@ -162,8 +118,6 @@ Deletes a struct from a hash table. */
 do {\
 	hash_cell_t*	cell3333;\
 	TYPE*		struct3333;\
-\
-	HASH_ASSERT_OWN(TABLE, FOLD)\
 \
 	cell3333 = hash_get_nth_cell(TABLE, hash_calc_hash(FOLD, TABLE));\
 \
@@ -211,9 +165,6 @@ Gets the next struct in a hash chain, NULL if none. */
 Looks for a struct in a hash table. */
 #define HASH_SEARCH(NAME, TABLE, FOLD, TYPE, DATA, ASSERTION, TEST)\
 {\
-\
-	HASH_ASSERT_OWN(TABLE, FOLD)\
-\
 	(DATA) = (TYPE) HASH_GET_FIRST(TABLE, hash_calc_hash(FOLD, TABLE));\
 	HASH_ASSERT_VALID(DATA);\
 \
@@ -280,65 +231,6 @@ ulint
 hash_get_n_cells(
 /*=============*/
 	hash_table_t*	table);	/*!< in: table */
-/*******************************************************************//**
-Deletes a struct which is stored in the heap of the hash table, and compacts
-the heap. The fold value must be stored in the struct NODE in a field named
-'fold'. */
-
-#define HASH_DELETE_AND_COMPACT(TYPE, NAME, TABLE, NODE)\
-do {\
-	TYPE*		node111;\
-	TYPE*		top_node111;\
-	hash_cell_t*	cell111;\
-	ulint		fold111;\
-\
-	fold111 = (NODE)->fold;\
-\
-	HASH_DELETE(TYPE, NAME, TABLE, fold111, NODE);\
-\
-	top_node111 = (TYPE*) mem_heap_get_top(\
-				hash_get_heap(TABLE, fold111),\
-							sizeof(TYPE));\
-\
-	/* If the node to remove is not the top node in the heap, compact the\
-	heap of nodes by moving the top node in the place of NODE. */\
-\
-	if (NODE != top_node111) {\
-\
-		/* Copy the top node in place of NODE */\
-\
-		*(NODE) = *top_node111;\
-\
-		cell111 = hash_get_nth_cell(TABLE,\
-				hash_calc_hash(top_node111->fold, TABLE));\
-\
-		/* Look for the pointer to the top node, to update it */\
-\
-		if (cell111->node == top_node111) {\
-			/* The top node is the first in the chain */\
-\
-			cell111->node = NODE;\
-		} else {\
-			/* We have to look for the predecessor of the top\
-			node */\
-			node111 = static_cast<TYPE*>(cell111->node);\
-\
-			while (top_node111 != HASH_GET_NEXT(NAME, node111)) {\
-\
-				node111 = static_cast<TYPE*>(\
-					HASH_GET_NEXT(NAME, node111));\
-			}\
-\
-			/* Now we have the predecessor node */\
-\
-			node111->NAME = NODE;\
-		}\
-	}\
-\
-	/* Free the space occupied by the top node */\
-\
-	mem_heap_free_top(hash_get_heap(TABLE, fold111), sizeof(TYPE));\
-} while (0)
 
 /****************************************************************//**
 Move all hash table entries from OLD_TABLE to NEW_TABLE. */
@@ -367,59 +259,8 @@ do {\
 	}\
 } while (0)
 
-/************************************************************//**
-Gets the sync object index for a fold value in a hash table.
-@return index */
-UNIV_INLINE
-ulint
-hash_get_sync_obj_index(
-/*====================*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-Gets the nth heap in a hash table.
-@return mem heap */
-UNIV_INLINE
-mem_heap_t*
-hash_get_nth_heap(
-/*==============*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		i);	/*!< in: index of the heap */
-/************************************************************//**
-Gets the heap for a fold value in a hash table.
-@return mem heap */
-UNIV_INLINE
-mem_heap_t*
-hash_get_heap(
-/*==========*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-Gets the nth mutex in a hash table.
-@return mutex */
-UNIV_INLINE
-ib_mutex_t*
-hash_get_nth_mutex(
-/*===============*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		i);	/*!< in: index of the mutex */
-/************************************************************//**
-Gets the mutex for a fold value in a hash table.
-@return mutex */
-UNIV_INLINE
-ib_mutex_t*
-hash_get_mutex(
-/*===========*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-
-struct hash_cell_t{
-	void*	node;	/*!< hash chain node, NULL if none */
-};
-
 /* The hash table structure */
 struct hash_table_t {
-	enum hash_table_sync_t	type;	/*<! type of hash_table. */
 #ifdef BTR_CUR_HASH_ADAPT
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	ibool			adaptive;/* TRUE if this is the hash
@@ -429,31 +270,13 @@ struct hash_table_t {
 #endif /* BTR_CUR_HASH_ADAPT */
 	ulint			n_cells;/* number of cells in the hash table */
 	hash_cell_t*		array;	/*!< pointer to cell array */
-
-	ulint			n_sync_obj;/* if sync_objs != NULL, then
-					the number of either the number
-					of mutexes or the number of
-					rw_locks depending on the type.
-					Must be a power of 2 */
-	union {
-		ib_mutex_t*	mutexes;/* NULL, or an array of mutexes
-					used to protect segments of the
-					hash table */
-		rw_lock_t*	rw_locks;/* NULL, or an array of rw_locks
-					used to protect segments of the
-					buf_pool.page_hash */
-	} sync_obj;
-
-	mem_heap_t**		heaps;	/*!< if this is non-NULL, hash
-					chain nodes for external chaining
-					can be allocated from these memory
-					heaps; there are then n_mutexes
-					many of these heaps */
 	mem_heap_t*		heap;
 #ifdef UNIV_DEBUG
 	ulint			magic_n;
 # define HASH_TABLE_MAGIC_N	76561114
 #endif /* UNIV_DEBUG */
+
+  ulint calc_hash(ulint fold) const { return ut_hash_ulint(fold, n_cells); }
 };
 
 #include "hash0hash.ic"
