@@ -5949,7 +5949,7 @@ mysql_execute_command(THD *thd)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
     DBUG_ASSERT(lex->m_sql_cmd != NULL);
     res= lex->m_sql_cmd->execute(thd);
-    DBUG_PRINT("result", ("res: %d  killed: %d  is_error: %d",
+    DBUG_PRINT("result", ("res: %d  killed: %d  is_error(): %d",
                           res, thd->killed, thd->is_error()));
     break;
   default:

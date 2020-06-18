@@ -5850,8 +5850,10 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
 
       if ((type= dd_frm_type(thd, path, &engine, is_sequence)) ==
           TABLE_TYPE_UNKNOWN)
+      {
+        DBUG_PRINT("exit", ("Does not exist"));
         DBUG_RETURN(true);                      // Frm exists
-      
+      }
       if (type != TABLE_TYPE_VIEW)
       {
         plugin_ref p=  plugin_lock_by_name(thd, &engine,
@@ -5866,6 +5868,7 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
       else
         *hton= view_pseudo_hton;
     }
+    DBUG_PRINT("exit", (exists ? "Exists" : "Does not exist"));
     DBUG_RETURN(exists);
   }
 
@@ -5875,13 +5878,16 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
   {
     if (hton)
       *hton= args.hton;
+    DBUG_PRINT("exit", ("discovery found file"));
     DBUG_RETURN(TRUE);
   }
 
   if (need_full_discover_for_existence)
   {
     TABLE_LIST table;
+    bool exists;
     uint flags = GTS_TABLE | GTS_VIEW;
+
     if (!hton)
       flags|= GTS_NOLOCK;
 
@@ -5898,9 +5904,12 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     }
 
     // the table doesn't exist if we've caught ER_NO_SUCH_TABLE and nothing else
-    DBUG_RETURN(!no_such_table_handler.safely_trapped_errors());
+    exists= !no_such_table_handler.safely_trapped_errors();
+    DBUG_PRINT("exit", (exists ? "Exists" : "Does not exist"));
+    DBUG_RETURN(exists);
   }
 
+  DBUG_PRINT("exit", ("Does not exist"));
   DBUG_RETURN(FALSE);
 }
 

@@ -7368,7 +7368,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
         log event is written to the binary log, we pretend that no
         table maps were written.
       */
-      if(binlog_should_compress(query_len))
+      if (binlog_should_compress(query_len))
       {
         Query_compressed_log_event qinfo(this, query_arg, query_len, is_trans, direct,
                             suppress_use, errcode);

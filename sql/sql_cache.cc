@@ -3503,7 +3503,8 @@ my_bool Query_cache::register_all_tables(THD *thd,
 
 my_bool
 Query_cache::insert_table(THD *thd, size_t key_len, const char *key,
-			  Query_cache_block_table *node, size_t db_length, uint8 suffix_length_arg,
+			  Query_cache_block_table *node, size_t db_length,
+                          uint8 suffix_length_arg,
                           uint8 cache_type,
                           qc_engine_callback callback,
                           ulonglong engine_data,

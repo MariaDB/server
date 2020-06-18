@@ -2538,7 +2538,7 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
 
 end_create:
   mysql_mutex_unlock(&LOCK_delayed_create);
-  DBUG_PRINT("exit", ("is_error: %d", thd->is_error()));
+  DBUG_PRINT("exit", ("is_error(): %d", thd->is_error()));
   DBUG_RETURN(thd->is_error());
 }
 

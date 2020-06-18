@@ -1500,7 +1500,7 @@ int s3_check_frm_version(ms3_st *s3_client, S3_INFO *s3_info)
   if (res)
     DBUG_PRINT("error", ("Wrong table version"));
   else
-    DBUG_PRINT("error", ("Version strings matches"));
+    DBUG_PRINT("exit", ("Version strings matches"));
   DBUG_RETURN(res);
 }
 

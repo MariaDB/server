@@ -6557,7 +6557,8 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       nodes. A check has been added to stop them from getting logged into
       binary log files.
     */
-    if (WSREP(thd)) option_bin_log_flag= true;
+    if (WSREP(thd))
+      option_bin_log_flag= true;
 
     if ((!(option_bin_log_flag)) ||
 	(thd->lex->sql_command != SQLCOM_ROLLBACK_TO_SAVEPOINT &&

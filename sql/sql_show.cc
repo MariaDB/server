@@ -1753,7 +1753,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   @param thd             thread handler
   @param packet          string to append
   @param opt             list of options
-  @param check_options   only print known options
+  @param check_options   print all used options
   @param rules           list of known options
 */
 

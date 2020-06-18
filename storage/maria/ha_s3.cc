@@ -770,6 +770,7 @@ static int s3_discover_table_existance(handlerton *hton, const char *db,
 
   res= s3_frm_exists(s3_client, &s3_info);
   s3_deinit(s3_client);
+  DBUG_PRINT("exit", ("exists: %d", res == 0));
   DBUG_RETURN(res == 0);                        // Return 1 if exists
 }
 
