@@ -655,6 +655,7 @@ Package: mariadb-plugin-columnstore
 Architecture: amd64 i386
 Depends: mariadb-server-10.5 (= ${binary:Version}),
          net-tools,
+         binutils,
          libsnappy1 | libsnappy1v5,
          libjemalloc1 | libjemalloc2,
          python | python2 | python3,
