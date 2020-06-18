@@ -228,6 +228,8 @@ static struct thd_mdl_service_st thd_mdl_handler=
   thd_mdl_context
 };
 
+static struct compression_service_lzma_st compression_handler_lzma = {}; // updated in init_compression()
+
 static struct st_service_ref list_of_services[]=
 {
   { "base64_service",              VERSION_base64,              &base64_handler },
@@ -252,6 +254,6 @@ static struct st_service_ref list_of_services[]=
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
   { "json_service",                VERSION_json,                &json_handler },
-  { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler }
+  { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler },
+  { "compression_service_lzma",    VERSION_compression_lzma,    &compression_handler_lzma }
 };
-

@@ -66,6 +66,8 @@
 #include "semisync_slave.h"
 #include <ssl_compat.h>
 
+#include <compression/compression_libs.h>
+
 #define PCRE2_STATIC 1             /* Important on Windows */
 #include "pcre2.h"                 /* pcre2 header file */
 
@@ -4875,15 +4877,6 @@ Sys_proxy_protocol_networks(
     DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
     ON_CHECK(check_proxy_protocol_networks), ON_UPDATE(fix_proxy_protocol_networks));
 
-
-#define COMPRESSION_BZIP2   1 << 0
-#define COMPRESSION_LZ4     1 << 1
-#define COMPRESSION_LZMA    1 << 2
-#define COMPRESSION_LZO     1 << 3
-#define COMPRESSION_SNAPPY  1 << 4
-#define COMPRESSION_ZLIB    1 << 5
-#define COMPRESSION_ZSTD    1 << 6
-#define COMPRESSION_ALL     1 << 7
 
 static const char *compression_libraries[] =
 {

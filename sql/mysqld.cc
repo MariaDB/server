@@ -7316,6 +7316,7 @@ SHOW_VAR status_vars[]= {
   {"Column_decompressions",    (char*) offsetof(STATUS_VAR, column_decompressions), SHOW_LONG_STATUS},
   {"Com",                      (char*) com_status_vars, SHOW_ARRAY},
   {"Compression",              (char*) &show_net_compression, SHOW_SIMPLE_FUNC},
+  {"Compression_loaded_lzma",  (char*) &COMPRESSION_LOADED_LZMA, SHOW_BOOL},
   {"Connections",              (char*) &global_thread_id,         SHOW_LONG_NOFLUSH},
   {"Connection_errors_accept", (char*) &connection_errors_accept, SHOW_LONG},
   {"Connection_errors_internal", (char*) &connection_errors_internal, SHOW_LONG},

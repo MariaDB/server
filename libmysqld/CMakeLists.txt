@@ -136,6 +136,10 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/xa.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
+
+           #Dynamic compression
+           ../sql/compression/compression_libs.cc
+           ../libservices/compression_service_lzma.c
 )
 
 
