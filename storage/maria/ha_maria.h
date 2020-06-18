@@ -21,7 +21,7 @@
 
 /* class for the maria handler */
 
-#include <maria.h>
+#include "maria_def.h"
 #include "handler.h"
 #include "table.h"
 

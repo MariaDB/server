@@ -17,7 +17,7 @@
 /* Written by Alex Barkov, who has a shared copyright to this code */
 
 #include <my_global.h>
-#include "maria.h"
+#include "maria_def.h"
 
 #ifdef HAVE_SPATIAL
 #include "ma_sp_defs.h"
