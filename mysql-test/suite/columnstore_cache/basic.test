@@ -22,3 +22,22 @@ delete from t1 where a=5;
 select * from t1;
 
 drop table t1;
+
+#
+# Test insert select
+#
+
+create table t1 (a int not null , b varchar(10) not null) engine=columnstore_cache;
+create table t2 (a int not null , b varchar(10) not null) engine=columnstore_cache;
+create table t3 (a int, b varchar(10)) engine=Aria;
+insert into t1 values (1,"1"),(2,"2"),(3,"3");
+insert into t2 values (10,"1"),(20,"2"),(30,"3");
+insert into t3 values (100,"1"),(200,"2"),(300,"3");
+insert into t1 select * from t2;
+insert into t1 select * from t3;
+select count(*), sum(a) from t1;
+insert into t1 select * from t1 as t4;
+# This is required by CVS.
+flush tables;
+select count(*), sum(a) from t1;
+drop table t1,t2,t3;

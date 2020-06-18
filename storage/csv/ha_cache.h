@@ -21,6 +21,18 @@
 #include "../maria/ha_maria.h"
 #include <thr_lock.h>
 
+class ha_cache_share
+{
+  ha_cache_share *next;                         /* Next open share */
+  const char *name;
+  uint open_count;
+public:
+  THR_LOCK org_lock;
+  friend ha_cache_share *find_cache_share(const char *name);
+  void close();
+};
+
+
 class ha_cache :public ha_tina
 {
   typedef ha_tina parent;
@@ -28,9 +40,9 @@ class ha_cache :public ha_tina
   bool insert_command;
 
 public:
-  THR_LOCK org_lock;
   uint lock_counter;
   ha_maria *cache_handler;
+  ha_cache_share *share;
 
   ha_cache(handlerton *hton, TABLE_SHARE *table_arg, MEM_ROOT *mem_root);
   ~ha_cache();
