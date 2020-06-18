@@ -130,8 +130,7 @@ my_bool my_disable_flush_pagecache_blocks= 0;
 #define  COND_FOR_REQUESTED 0  /* queue of thread waiting for read operation */
 #define  COND_FOR_SAVED     1  /* queue of thread waiting for flush */
 #define  COND_FOR_WRLOCK    2  /* queue of write lock */
-#define  COND_FOR_BIG_BLOCK 3  /* queue of waiting for big block read */
-#define  COND_SIZE          4  /* number of COND_* queues */
+#define  COND_SIZE          3  /* number of COND_* queues */
 
 typedef mysql_cond_t KEYCACHE_CONDVAR;
 
@@ -2830,7 +2829,7 @@ static void read_big_block(PAGECACHE *pagecache,
       */
       thread= my_thread_var;
       /* Put the request into a queue and wait until it can be processed */
-      wqueue_add_to_queue(&block_to_read->wqueue[COND_FOR_BIG_BLOCK], thread);
+      wqueue_add_to_queue(&block_to_read->wqueue[COND_FOR_REQUESTED], thread);
       do
       {
         DBUG_PRINT("wait",
@@ -2840,7 +2839,7 @@ static void read_big_block(PAGECACHE *pagecache,
                                    &pagecache->cache_lock);
       }
       while (thread->next);
-      // page shoud be read by other  thread
+      // page should be read by other  thread
       DBUG_ASSERT(block->status & PCBLOCK_READ ||
                   block->status & PCBLOCK_ERROR);
       DBUG_ASSERT(block->status & PCBLOCK_BIG_READ);
@@ -2900,7 +2899,12 @@ static void read_big_block(PAGECACHE *pagecache,
     block_to_read->status|= PCBLOCK_READ;
   }
   else
+  {
     DBUG_ASSERT(block_to_read->status & PCBLOCK_READ);
+  }
+  /* Signal that all pending requests for this page now can be processed */
+  if (block_to_read->wqueue[COND_FOR_REQUESTED].last_thread)
+    wqueue_release_queue(&block_to_read->wqueue[COND_FOR_REQUESTED]);
 
   /* Copy the rest of the pages */
   for (offset= pagecache->block_size, page= page_to_read + 1;
@@ -2925,13 +2929,13 @@ static void read_big_block(PAGECACHE *pagecache,
         /*
           We can not get this page easy.
           Maybe we will be lucky with other pages,
-          also among other pages can be page which wated by other thread
+          also among other pages can be page which waited by other thread
         */
         continue;
       }
       DBUG_ASSERT(bl == bl->hash_link->block);
       if ((bl->status & PCBLOCK_ERROR) == 0 &&
-          (page_st == PAGE_TO_BE_READ ||       // page shoud be read
+          (page_st == PAGE_TO_BE_READ ||       // page should be read
            (page_st == PAGE_WAIT_TO_BE_READ &&
             (bl->status & PCBLOCK_BIG_READ)))) // or page waited by other thread
       {
@@ -2940,6 +2944,9 @@ static void read_big_block(PAGECACHE *pagecache,
       }
       remove_reader(bl);
       unreg_request(pagecache, bl, 1);
+      /* Signal that all pending requests for this page now can be processed */
+      if (bl->wqueue[COND_FOR_REQUESTED].last_thread)
+        wqueue_release_queue(&bl->wqueue[COND_FOR_REQUESTED]);
     }
   }
   if (page < our_page)
@@ -2961,8 +2968,6 @@ end:
     remove_reader(block_to_read);
     unreg_request(pagecache, block_to_read, 1);
   }
-  if (block->wqueue[COND_FOR_BIG_BLOCK].last_thread)
-    wqueue_release_queue(&block->wqueue[COND_FOR_BIG_BLOCK]);
   /* Signal that all pending requests for this page now can be processed */
   if (block->wqueue[COND_FOR_REQUESTED].last_thread)
     wqueue_release_queue(&block->wqueue[COND_FOR_REQUESTED]);
@@ -2995,13 +3000,13 @@ error:
         /*
           We can not get this page easy.
           Maybe we will be lucky with other pages,
-          also among other pages can be page which wated by other thread
+          also among other pages can be page which waited by other thread
         */
         continue;
       }
       DBUG_ASSERT(bl == bl->hash_link->block);
       if ((bl->status & PCBLOCK_ERROR) == 0 &&
-          (page_st == PAGE_TO_BE_READ ||       // page shoud be read
+          (page_st == PAGE_TO_BE_READ ||       // page should be read
            (page_st == PAGE_WAIT_TO_BE_READ &&
             (bl->status & PCBLOCK_BIG_READ)))) // or page waited by other thread
       {
@@ -3010,6 +3015,9 @@ error:
       }
       remove_reader(bl);
       unreg_request(pagecache, bl, 1);
+      /* Signal that all pending requests for this page now can be processed */
+      if (bl->wqueue[COND_FOR_REQUESTED].last_thread)
+        wqueue_release_queue(&bl->wqueue[COND_FOR_REQUESTED]);
     }
   }
   goto end;
