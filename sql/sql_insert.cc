@@ -4802,10 +4802,7 @@ bool binlog_create_table(THD *thd, TABLE *table)
   if (thd->variables.binlog_format == BINLOG_FORMAT_ROW &&
       table->s->tmp_table)
     return 0;
-  if (!mysql_bin_log.is_open() ||
-      !(thd->variables.option_bits & OPTION_BIN_LOG) ||
-      (thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
-       !binlog_filter->db_ok(table->s->db.str)))
+  if (!thd->binlog_table_should_be_logged(&table->s->db))
     return 0;
 
   /*
@@ -4834,10 +4831,7 @@ bool binlog_drop_table(THD *thd, TABLE *table)
   /* Don't log temporary tables in row format */
   if (!table->s->table_creation_was_logged)
     return 0;
-  if (!mysql_bin_log.is_open() ||
-      !(thd->variables.option_bits & OPTION_BIN_LOG) ||
-      (thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
-       !binlog_filter->db_ok(table->s->db.str)))
+  if (!thd->binlog_table_should_be_logged(&table->s->db))
     return 0;
 
   query.append("DROP ");

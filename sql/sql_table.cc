@@ -10708,8 +10708,7 @@ do_continue:;
     if ((table->file->partition_ht()->flags &
          HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE) &&
         (table->file->partition_ht() != new_table->file->partition_ht()) &&
-        (mysql_bin_log.is_open() &&
-         (thd->variables.option_bits & OPTION_BIN_LOG)))
+        thd->binlog_table_should_be_logged(&new_table->s->db))
     {
       /*
         We new_table is marked as internal temp table, but we want to have

@@ -2699,6 +2699,7 @@ public:
   {
     binlog_table_maps= 0;
   }
+  bool binlog_table_should_be_logged(const LEX_CSTRING *db);
 
 #endif /* MYSQL_CLIENT */
 

@@ -5964,11 +5964,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
   }
 #endif /* WITH_WSREP */
 
-  if ((WSREP_EMULATE_BINLOG_NNULL(this) ||
-       (mysql_bin_log.is_open() && 
-        (variables.option_bits & OPTION_BIN_LOG))) &&
-      !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
-        !binlog_filter->db_ok(db.str)))
+  if (WSREP_EMULATE_BINLOG_NNULL(this) ||
+      binlog_table_should_be_logged(&db))
   {
     if (is_bulk_op())
     {
@@ -6492,6 +6489,21 @@ exit:;
 }
 
 #ifndef MYSQL_CLIENT
+/**
+  Check if we should log a table DDL to the binlog
+
+  @@return true  yes
+  @@return false no
+*/
+
+bool THD::binlog_table_should_be_logged(const LEX_CSTRING *db)
+{
+  return (mysql_bin_log.is_open() &&
+          (variables.option_bits & OPTION_BIN_LOG) &&
+          (wsrep_binlog_format() != BINLOG_FORMAT_STMT ||
+           binlog_filter->db_ok(db->str)));
+}
+
 /*
   Template member function for ensuring that there is an rows log
   event of the apropriate type before proceeding.
