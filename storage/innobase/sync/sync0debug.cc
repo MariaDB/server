@@ -777,7 +777,7 @@ LatchDebug::check_order(
 	case SYNC_POOL:
 	case SYNC_POOL_MANAGER:
 	case SYNC_RECV_WRITER:
-
+	case SYNC_BUF_PAGE_HASH:
 		basic_check(latches, level, level);
 		break;
 
@@ -824,14 +824,6 @@ LatchDebug::check_order(
 
 		basic_check(latches, level, level - 1);
 		break;
-
-	case SYNC_BUF_PAGE_HASH:
-
-		/* Multiple page_hash locks are only allowed during
-		buf_pool.validate() and that is where buf_pool mutex is already
-		held. */
-
-		/* Fall through */
 
 	case SYNC_REC_LOCK:
 
@@ -1452,9 +1444,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_RWLOCK(DICT_TABLE_STATS, SYNC_INDEX_TREE,
 			 dict_table_stats_key);
-
-	LATCH_ADD_RWLOCK(HASH_TABLE_RW_LOCK, SYNC_BUF_PAGE_HASH,
-		  hash_table_locks_key);
 
 	LATCH_ADD_MUTEX(SYNC_DEBUG_MUTEX, SYNC_NO_ORDER_CHECK,
 			PFS_NOT_INSTRUMENTED);

@@ -141,7 +141,7 @@ caller needs to free the page to the free list
 @retval false if BUF_BLOCK_ZIP_PAGE was removed from page_hash. In
 this case the block is already returned to the buddy allocator. */
 static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
-                                        rw_lock_t *hash_lock, bool zip);
+                                        page_hash_latch *hash_lock, bool zip);
 
 /** Free a block to buf_pool */
 static void buf_LRU_block_free_hashed_page(buf_block_t *block)
@@ -1160,8 +1160,8 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	bpage->can_relocate() from changing due to a concurrent
 	execution of buf_page_get_low(). */
 	const ulint fold = id.fold();
-	rw_lock_t* hash_lock = buf_pool.hash_lock_get_low(fold);
-	rw_lock_x_lock(hash_lock);
+	page_hash_latch* hash_lock = buf_pool.page_hash.lock_get(fold);
+	hash_lock->write_lock();
 
 	if (UNIV_UNLIKELY(!bpage->can_relocate())) {
 		/* Do not free buffer fixed and I/O-fixed blocks. */
@@ -1178,7 +1178,7 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	} else if (bpage->oldest_modification()
 		   && bpage->state() != BUF_BLOCK_FILE_PAGE) {
 func_exit:
-		rw_lock_x_unlock(hash_lock);
+		hash_lock->write_unlock();
 		return(false);
 
 	} else if (bpage->state() == BUF_BLOCK_FILE_PAGE) {
@@ -1201,10 +1201,6 @@ func_exit:
 		return(true);
 	}
 
-	/* buf_LRU_block_remove_hashed() releases the hash_lock */
-	ut_ad(!rw_lock_own_flagged(hash_lock,
-				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
-
 	/* We have just freed a BUF_BLOCK_FILE_PAGE. If b != nullptr
 	then it was a compressed page with an uncompressed frame and
 	we are interested in freeing only the uncompressed frame.
@@ -1215,7 +1211,7 @@ func_exit:
 	if (UNIV_LIKELY_NULL(b)) {
 		buf_page_t*	prev_b	= UT_LIST_GET_PREV(LRU, b);
 
-		rw_lock_x_lock(hash_lock);
+		hash_lock->write_lock();
 
 		ut_ad(!buf_pool.page_hash_get_low(id, fold));
 		ut_ad(b->zip_size());
@@ -1301,7 +1297,7 @@ func_exit:
 		decompressing the block while we release
 		hash_lock. */
 		b->set_io_fix(BUF_IO_PIN);
-		rw_lock_x_unlock(hash_lock);
+		hash_lock->write_unlock();
 	}
 
 	mutex_exit(&buf_pool.mutex);
@@ -1405,10 +1401,10 @@ caller needs to free the page to the free list
 @retval false if BUF_BLOCK_ZIP_PAGE was removed from page_hash. In
 this case the block is already returned to the buddy allocator. */
 static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
-                                        rw_lock_t *hash_lock, bool zip)
+                                        page_hash_latch *hash_lock, bool zip)
 {
 	ut_ad(mutex_own(&buf_pool.mutex));
-        ut_ad(rw_lock_own(hash_lock, RW_LOCK_X));
+        ut_ad(hash_lock->is_write_locked());
 
 	ut_a(bpage->io_fix() == BUF_IO_NONE);
 	ut_a(!bpage->buf_fix_count());
@@ -1501,7 +1497,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 #ifdef UNIV_DEBUG
 		UT_LIST_REMOVE(buf_pool.zip_clean, bpage);
 #endif /* UNIV_DEBUG */
-		rw_lock_x_unlock(hash_lock);
+		hash_lock->write_unlock();
 		buf_pool_mutex_exit_forbid();
 
 		buf_buddy_free(bpage->zip.data, bpage->zip_size());
@@ -1542,7 +1538,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		and by the time we'll release it in the caller we'd
 		have inserted the compressed only descriptor in the
 		page_hash. */
-		rw_lock_x_unlock(hash_lock);
+		hash_lock->write_unlock();
 
 		if (zip && bpage->zip.data) {
 			/* Free the compressed page. */
@@ -1578,20 +1574,15 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 @param id        page identifier
 @param hash_lock buf_pool.page_hash latch (will be released here) */
 void buf_LRU_free_one_page(buf_page_t *bpage, const page_id_t id,
-                           rw_lock_t *hash_lock)
+                           page_hash_latch *hash_lock)
 {
   while (bpage->buf_fix_count())
-  {
     /* Wait for other threads to release the fix count
     before releasing the bpage from LRU list. */
-    ut_delay(1);
-  }
+    (void) LF_BACKOFF();
 
   if (buf_LRU_block_remove_hashed(bpage, id, hash_lock, true))
     buf_LRU_block_free_hashed_page(reinterpret_cast<buf_block_t*>(bpage));
-
-  /* buf_LRU_block_remove_hashed() releases hash_lock */
-  ut_ad(!rw_lock_own_flagged(hash_lock, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 }
 
 /** Update buf_pool.LRU_old_ratio.

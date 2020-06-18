@@ -1085,15 +1085,15 @@ fail:
 	buf_block_t* block = buf_pool.block_from_ahi(rec);
 
 	if (!ahi_latch) {
-		rw_lock_t* hash_lock = buf_pool.hash_lock_get(
+		page_hash_latch* hash_lock = buf_pool.hash_lock_get(
 			block->page.id());
-		rw_lock_s_lock(hash_lock);
+		hash_lock->read_lock();
 
 		if (block->page.state() == BUF_BLOCK_REMOVE_HASH) {
 			/* Another thread is just freeing the block
 			from the LRU list of the buffer pool: do not
 			try to access this page. */
-			rw_lock_s_unlock(hash_lock);
+			hash_lock->read_unlock();
 			goto fail;
 		}
 
@@ -1104,7 +1104,7 @@ fail:
 		DBUG_ASSERT(fail || block->page.status != buf_page_t::FREED);
 
 		buf_block_buf_fix_inc(block, __FILE__, __LINE__);
-		rw_lock_s_unlock(hash_lock);
+		hash_lock->read_unlock();
 		block->page.set_accessed();
 
 		buf_page_make_young_if_needed(&block->page);

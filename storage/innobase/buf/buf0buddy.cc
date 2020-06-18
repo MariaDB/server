@@ -555,8 +555,8 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		return false;
 	}
 
-	rw_lock_t * hash_lock = buf_pool.hash_lock_get_low(fold);
-	rw_lock_x_lock(hash_lock);
+	page_hash_latch *hash_lock = buf_pool.page_hash.lock_get(fold);
+	hash_lock->write_lock();
 
 	if (bpage->can_relocate()) {
 		/* Relocate the compressed page. */
@@ -567,7 +567,7 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		memcpy(dst, src, size);
 		bpage->zip.data = reinterpret_cast<page_zip_t*>(dst);
 
-		rw_lock_x_unlock(hash_lock);
+		hash_lock->write_unlock();
 
 		buf_buddy_mem_invalid(
 			reinterpret_cast<buf_buddy_free_t*>(src), i);
@@ -578,7 +578,7 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		return(true);
 	}
 
-	rw_lock_x_unlock(hash_lock);
+	hash_lock->write_unlock();
 
 	return(false);
 }

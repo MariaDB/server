@@ -192,10 +192,43 @@ extern const byte field_ref_zero[UNIV_PAGE_SIZE_MAX];
 
 #include "ut0mutex.h"
 #include "sync0rw.h"
+#include "rw_lock.h"
 
 typedef ib_mutex_t BufPoolMutex;
 typedef ib_mutex_t FlushListMutex;
 typedef rw_lock_t BPageLock;
+
+class page_hash_latch : public rw_lock
+{
+public:
+  /** Wait for a shared lock */
+  void read_lock_wait();
+  /** Wait for an exclusive lock */
+  void write_lock_wait();
+
+  /** Acquire a shared lock */
+  inline void read_lock();
+  /** Acquire an exclusive lock */
+  inline void write_lock();
+
+  /** Acquire a lock */
+  template<bool exclusive> void acquire()
+  {
+    if (exclusive)
+      write_lock();
+    else
+      read_lock();
+  }
+  /** Release a lock */
+  template<bool exclusive> void release()
+  {
+    if (exclusive)
+      write_unlock();
+    else
+      read_unlock();
+  }
+};
+
 #endif /* !UNIV_INNOCHECKSUM */
 
 #endif /* buf0types.h */

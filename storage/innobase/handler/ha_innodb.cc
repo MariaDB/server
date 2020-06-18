@@ -590,8 +590,7 @@ static PSI_rwlock_info all_innodb_rwlocks[] = {
 	PSI_RWLOCK_KEY(trx_purge_latch),
 	PSI_RWLOCK_KEY(index_tree_rw_lock),
 	PSI_RWLOCK_KEY(index_online_log),
-	PSI_RWLOCK_KEY(dict_table_stats),
-	PSI_RWLOCK_KEY(hash_table_locks)
+	PSI_RWLOCK_KEY(dict_table_stats)
 };
 # endif /* UNIV_PFS_RWLOCK */
 
@@ -19500,11 +19499,6 @@ static MYSQL_SYSVAR_ULONG(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
   128 * 1024 * 1024, 1024 * 1024, LONG_MAX, 1024 * 1024);
 
 #if defined UNIV_DEBUG || defined UNIV_PERF_DEBUG
-static MYSQL_SYSVAR_ULONG(page_hash_locks, srv_n_page_hash_locks,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Number of rw_locks protecting buffer pool page_hash. Rounded up to the next power of 2",
-  NULL, NULL, 64, 1, MAX_PAGE_HASH_LOCKS, 0);
-
 static MYSQL_SYSVAR_ULONG(doublewrite_batch_size, srv_doublewrite_batch_size,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Number of pages reserved in doublewrite buffer for batch flushing",
@@ -20393,7 +20387,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(merge_threshold_set_all_debug),
 #endif /* UNIV_DEBUG */
 #if defined UNIV_DEBUG || defined UNIV_PERF_DEBUG
-  MYSQL_SYSVAR(page_hash_locks),
   MYSQL_SYSVAR(doublewrite_batch_size),
 #endif /* defined UNIV_DEBUG || defined UNIV_PERF_DEBUG */
   MYSQL_SYSVAR(status_output),

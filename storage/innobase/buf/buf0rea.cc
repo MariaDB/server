@@ -53,7 +53,7 @@ that the block has been replaced with the real block.
 @param watch   sentinel */
 inline void buf_pool_t::watch_remove(buf_page_t *watch)
 {
-  ut_ad(rw_lock_own(hash_lock_get(watch->id()), RW_LOCK_X));
+  ut_ad(hash_lock_get(watch->id())->is_write_locked());
   ut_a(watch_is_sentinel(*watch));
   if (watch->buf_fix_count())
   {
@@ -125,14 +125,14 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
   /* We must acquire hash_lock this early to prevent
   a race condition with buf_pool_t::watch_remove() */
-  rw_lock_t *hash_lock= buf_pool.hash_lock_get_low(fold);
-  rw_lock_x_lock(hash_lock);
+  page_hash_latch *hash_lock= buf_pool.page_hash.lock_get(fold);
+  hash_lock->write_lock();
 
   buf_page_t *hash_page= buf_pool.page_hash_get_low(page_id, fold);
   if (hash_page && !buf_pool.watch_is_sentinel(*hash_page))
   {
     /* The page is already in the buffer pool. */
-    rw_lock_x_unlock(hash_lock);
+    hash_lock->write_unlock();
     if (block)
     {
       rw_lock_x_unlock_gen(&block->lock, BUF_IO_READ);
@@ -160,7 +160,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     ut_ad(!block->page.in_page_hash);
     ut_d(block->page.in_page_hash= true);
     HASH_INSERT(buf_page_t, hash, &buf_pool.page_hash, fold, bpage);
-    rw_lock_x_unlock(hash_lock);
+    hash_lock->write_unlock();
 
     /* The block must be put to the LRU list, to the old blocks */
     buf_LRU_add_block(bpage, true/* to old blocks */);
@@ -184,7 +184,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
   }
   else
   {
-    rw_lock_x_unlock(hash_lock);
+    hash_lock->write_unlock();
 
     /* The compressed page must be allocated before the
     control block (bpage), in order to avoid the
@@ -193,7 +193,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     bool lru= false;
     void *data= buf_buddy_alloc(zip_size, &lru);
 
-    rw_lock_x_lock(hash_lock);
+    hash_lock->write_lock();
 
     /* If buf_buddy_alloc() allocated storage from the LRU list,
     it released and reacquired buf_pool.mutex.  Thus, we must
@@ -205,7 +205,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
       if (UNIV_UNLIKELY(hash_page && !buf_pool.watch_is_sentinel(*hash_page)))
       {
         /* The block was added by some other thread. */
-        rw_lock_x_unlock(hash_lock);
+        hash_lock->write_unlock();
         buf_buddy_free(data, zip_size);
         goto func_exit;
       }
@@ -234,7 +234,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     ut_d(bpage->in_page_hash= true);
     HASH_INSERT(buf_page_t, hash, &buf_pool.page_hash, fold, bpage);
     bpage->set_io_fix(BUF_IO_READ);
-    rw_lock_x_unlock(hash_lock);
+    hash_lock->write_unlock();
 
     /* The block must be put to the LRU list, to the old blocks.
     The zip size is already set into the page zip */
@@ -253,7 +253,6 @@ func_exit_no_mutex:
   if (mode == BUF_READ_IBUF_PAGES_ONLY)
     ibuf_mtr_commit(&mtr);
 
-  ut_ad(!rw_lock_own_flagged(hash_lock, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
   ut_ad(!bpage || bpage->in_file());
 
   return bpage;
@@ -426,10 +425,10 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
   for (page_id_t i= low; i < high; ++i)
   {
     const ulint fold= i.fold();
-    rw_lock_t *hash_lock= buf_pool.page_hash_lock<false>(fold);
-    const buf_page_t* bpage= buf_pool.page_hash_get_low(i, fold);
+    page_hash_latch *hash_lock= buf_pool.page_hash.lock<false>(fold);
+    const buf_page_t *bpage= buf_pool.page_hash_get_low(i, fold);
     bool found= bpage && bpage->is_accessed() && buf_page_peek_if_young(bpage);
-    rw_lock_s_unlock(hash_lock);
+    hash_lock->read_unlock();
     if (found && !--count)
       goto read_ahead;
   }
@@ -620,7 +619,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
   for (page_id_t i= low; i != high_1; ++i)
   {
     const ulint fold= i.fold();
-    rw_lock_t *hash_lock= buf_pool.page_hash_lock<false>(fold);
+    page_hash_latch *hash_lock= buf_pool.page_hash.lock<false>(fold);
     const buf_page_t* bpage= buf_pool.page_hash_get_low(i, fold);
     if (i == page_id)
     {
@@ -632,7 +631,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
       if (!bpage)
       {
 hard_fail:
-        rw_lock_s_unlock(hash_lock);
+        hash_lock->read_unlock();
         space->release();
         return 0;
       }
@@ -673,7 +672,7 @@ hard_fail:
     else if (!bpage)
     {
 failed:
-      rw_lock_s_unlock(hash_lock);
+      hash_lock->read_unlock();
       if (--count)
         continue;
       space->release();
@@ -694,7 +693,7 @@ failed:
     prev_accessed= accessed;
     if (fail)
       goto failed;
-    rw_lock_s_unlock(hash_lock);
+    hash_lock->read_unlock();
   }
 
   /* If we got this far, read-ahead can be sensible: do it */

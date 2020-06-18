@@ -333,8 +333,6 @@ extern const ulint	srv_buf_pool_min_size;
 extern const ulint	srv_buf_pool_def_size;
 /** Requested buffer pool chunk size */
 extern ulong		srv_buf_pool_chunk_unit;
-/** Number of locks to protect buf_pool.page_hash */
-extern ulong	srv_n_page_hash_locks;
 /** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
 extern ulong	srv_LRU_scan_depth;
 /** Whether or not to flush neighbors of a block */

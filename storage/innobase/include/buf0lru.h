@@ -153,7 +153,7 @@ buf_LRU_stat_update();
 @param id        page identifier
 @param hash_lock buf_pool.page_hash latch (will be released here) */
 void buf_LRU_free_one_page(buf_page_t *bpage, const page_id_t id,
-                           rw_lock_t *hash_lock)
+                           page_hash_latch *hash_lock)
   MY_ATTRIBUTE((nonnull));
 
 #ifdef UNIV_DEBUG
