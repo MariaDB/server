@@ -21,6 +21,8 @@
 #ifndef _ma_control_file_h
 #define _ma_control_file_h
 
+C_MODE_START
+
 #define CONTROL_FILE_BASE_NAME "aria_log_control"
 /*
   Major version for control file. Should only be changed when doing
@@ -63,7 +65,7 @@ typedef enum enum_control_file_error {
   CONTROL_FILE_UNKNOWN_ERROR /* any other error */
 } CONTROL_FILE_ERROR;
 
-C_MODE_START
+
 CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
                                         my_bool print_error,
                                         my_bool wait_for_lock);
