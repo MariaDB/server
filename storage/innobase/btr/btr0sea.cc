@@ -740,7 +740,7 @@ btr_search_update_hash_ref(
 			mem_heap_free(heap);
 		}
 
-		ha_insert_for_fold(&part->table, heap, fold, block, rec);
+		ha_insert_for_fold(&part->table, part->heap, fold, block, rec);
 
 		MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
 	}

@@ -338,8 +338,12 @@ struct btr_search_sys_t
   void free()
   {
     if (parts)
+    {
       for (ulong i= 0; i < btr_ahi_parts; ++i)
         parts[i].free();
+      ut_free(parts);
+      parts= nullptr;
+    }
   }
 };
 
