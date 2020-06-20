@@ -19,7 +19,7 @@ CMAKE_SYSTEM_PROCESSOR STREQUAL "i686")
             # To untie the python mess across distributions MCS supports.
             IF(RPM MATCHES "(rhel|centos)8|(sles|suse)15|fedora")
                 SET(CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES "${CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES}, MariaDB-server >= 10.5.4, python3, binutils" PARENT_SCOPE)
-            ELSEIF(RPM MATCHES "(centos|rhel)7")
+            ELSEIF(RPM MATCHES "(centos|rhel)7|sles12")
                 SET(CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES "${CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES}, MariaDB-server >= 10.5.4, python, binutils" PARENT_SCOPE)
             ELSE()
                 SET(CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES "${CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES}, MariaDB-server >= 10.5.4, python or python2 or python3, binutils" PARENT_SCOPE)
