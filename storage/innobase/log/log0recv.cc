@@ -1777,6 +1777,7 @@ append:
                   log_phys_t(start_lsn, lsn, l, len));
 }
 
+#if 0 /* FIXME: MDEV-22970 Potential corruption */
 /** Store/remove the freed pages in fil_name_t of recv_spaces.
 @param[in]	page_id		freed or init page_id
 @param[in]	freed		TRUE if page is freed */
@@ -1805,6 +1806,7 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
       i->second.remove_freed_page(page_no);
   }
 }
+#endif
 
 /** Parse and register one mini-transaction in log_t::FORMAT_10_5.
 @param checkpoint_lsn  the log sequence number of the latest checkpoint
@@ -2004,7 +2006,9 @@ same_page:
       case INIT_PAGE:
         last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
+#if 0 /* FIXME: MDEV-22970 Potential corruption */
         store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
+#endif
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
         break;
