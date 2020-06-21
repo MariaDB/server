@@ -243,7 +243,7 @@ Description: MariaDB common configuration files
 
 Package: mariadb-client-core-10.5
 Architecture: any
-Depends: libmariadb3,
+Depends: libmariadb3 (>= 10.5.4),
          mariadb-common (>= ${source:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
