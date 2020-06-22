@@ -394,24 +394,27 @@ static int process_start_alter(THD *thd, uint64 thread_id)
 }
 static int process_commit_alter(THD *thd, uint64 thread_id)
 {
-  DBUG_ASSERT(thd->rgi_slave);
+  start_alter_info *info=NULL;
+  Master_info *mi= NULL;
+  // pseudo_slave_mode is ON
+  if (!thd->rgi_slave)
+    goto direct_commit;
   DBUG_EXECUTE_IF("rpl_slave_stop_CA", {
   debug_sync_set_action(thd,
                     STRING_WITH_LEN("now signal CA_1_processing WAIT_FOR proceed_CA_1"));
   });
   thd->gtid_flags3|= Gtid_log_event::FL_START_ALTER_E1;
-  Master_info *mi= thd->rgi_slave->rli->mi;
-  start_alter_info *info=NULL;
-  uint count=0;
+  mi= thd->rgi_slave->rli->mi;
   mysql_mutex_lock(&mi->start_alter_list_lock);
-  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
-  while ((info= info_iterator++))
   {
-    count++;
-    if(info->thread_id == thread_id)
+    List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+    while ((info= info_iterator++))
     {
-      info_iterator.remove();
-      break;
+      if(info->thread_id == thread_id)
+      {
+        info_iterator.remove();
+        break;
+      }
     }
   }
   mysql_mutex_unlock(&mi->start_alter_list_lock);
@@ -421,10 +424,7 @@ static int process_commit_alter(THD *thd, uint64 thread_id)
     //direct_commit_alter is used so that mysql_alter_table should not do
     //unnecessary binlogging or spawn new thread because there is no start
     //alter context
-    thd->direct_commit_alter= 1;
-    if (thd->open_temporary_tables(thd->lex->query_tables))
-      return START_ALTER_ERROR;
-    return START_ALTER_PARSE;
+    goto direct_commit;
   }
   /*
    start_alter_state must be ::REGISTERED
@@ -446,29 +446,37 @@ static int process_commit_alter(THD *thd, uint64 thread_id)
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
     return START_ALTER_ERROR;
   return START_ALTER_SKIP;
+direct_commit:
+    thd->direct_commit_alter= 1;
+    if (thd->open_temporary_tables(thd->lex->query_tables))
+      return START_ALTER_ERROR;
+    return START_ALTER_PARSE;
 }
 static int process_rollback_alter(THD *thd, uint64 thread_id)
 {
-  DBUG_ASSERT(thd->rgi_slave);
-  Master_info *mi= thd->rgi_slave->rli->mi;
   start_alter_info *info=NULL;
+  Master_info *mi= NULL;
+  // pseudo_slave_mode is ON
+  if (!thd->rgi_slave)
+    goto write_binlog;
+  mi= thd->rgi_slave->rli->mi;
   mysql_mutex_lock(&mi->start_alter_list_lock);
-  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
-  while ((info= info_iterator++))
   {
-    if(info->thread_id == thread_id)
+    List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+    while ((info= info_iterator++))
     {
-      info_iterator.remove();
-      break;
+      if(info->thread_id == thread_id)
+      {
+        info_iterator.remove();
+        break;
+      }
     }
   }
   mysql_mutex_unlock(&mi->start_alter_list_lock);
   if (!info || info->thread_id != thread_id)
   {
     //Just write the binlog because there is nothing to be done
-    if (write_bin_log(thd, true, thd->query(), thd->query_length()))
-      return START_ALTER_ERROR;
-    return START_ALTER_SKIP;
+    goto write_binlog;
   }
   /*
    start_alter_state must be ::REGISTERED
@@ -487,6 +495,7 @@ static int process_rollback_alter(THD *thd, uint64 thread_id)
   mysql_mutex_unlock(&mi->start_alter_lock);
   mysql_cond_destroy(&info->start_alter_cond);
   my_free(info);
+write_binlog:
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
     return START_ALTER_ERROR;
   return START_ALTER_SKIP;
@@ -523,7 +532,6 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   ulong priv=0;
   ulong priv_needed= ALTER_ACL;
   bool result;
-  int alter_res= 0;
 
   DBUG_ENTER("Sql_cmd_alter_table::execute");
 
@@ -644,26 +652,35 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     We will follow a different executation path if it is START ALTER
     or commit/rollback alter
    */
-  switch (alter_info.alter_state)  {
-  case Alter_info::ALTER_TABLE_START:
-    alter_res= process_start_alter(thd, alter_info.alter_identifier);
-    break;
-  case Alter_info::ALTER_TABLE_COMMIT:
-    alter_res= process_commit_alter(thd, alter_info.alter_identifier);
-    break;
-  case Alter_info::ALTER_TABLE_ROLLBACK:
-    alter_res= process_rollback_alter(thd, alter_info.alter_identifier);
-    break;
-  case Alter_info::ALTER_TABLE_NORMAL:
-  default:
-    alter_res= START_ALTER_PARSE;
-    break;
+  // SA/CA will be processed only if we are slave or in pseduo_slave_mode 
+  if (alter_info.alter_state > Alter_info::ALTER_TABLE_NORMAL)
+  {
+    if ( !thd->slave_thread && !thd->variables.pseudo_slave_mode)
+    {
+      my_error(ER_MANUAL_SPLIT_ALTER, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+    int alter_res= 0;
+    switch (alter_info.alter_state)
+    {
+      case Alter_info::ALTER_TABLE_START:
+        alter_res= process_start_alter(thd, alter_info.alter_identifier);
+        break;
+      case Alter_info::ALTER_TABLE_COMMIT:
+        alter_res= process_commit_alter(thd, alter_info.alter_identifier);
+        break;
+      case Alter_info::ALTER_TABLE_ROLLBACK:
+        alter_res= process_rollback_alter(thd, alter_info.alter_identifier);
+        break;
+      default:
+        break;
+    }
+    if (alter_res == START_ALTER_SKIP)
+      DBUG_RETURN(FALSE);
+    else if (alter_res == START_ALTER_ERROR)
+      DBUG_RETURN(TRUE);
   }
-  if (alter_res == START_ALTER_SKIP)
-    DBUG_RETURN(FALSE);
-  else if (alter_res == START_ALTER_ERROR)
-    DBUG_RETURN(TRUE);
-
+  // START_ALTER_PARSE -->
   result= mysql_alter_table(thd, &select_lex->db, &lex->name,
                             &create_info,
                             first_table,
