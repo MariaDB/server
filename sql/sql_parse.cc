@@ -2356,7 +2356,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       size_t next_length_length= packet_start - packet;
       unsigned char *readbuff= net->buff;
 
-      if (net_allocate_new_packet(net, thd, MYF(0)))
+      if (net_allocate_new_packet(net, thd, MYF(MY_THREAD_SPECIFIC)))
         break;
 
       PSI_statement_locker *save_locker= thd->m_statement_psi;

@@ -179,14 +179,26 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   DBUG_RETURN(0);
 }
 
+
+/**
+  Allocate and assign new net buffer
+
+  @note In case of error the old buffer left
+
+  @retval TRUE error
+  @retval FALSE success
+*/
+
 my_bool net_allocate_new_packet(NET *net, void *thd, uint my_flags)
 {
+  uchar *tmp;
   DBUG_ENTER("net_allocate_new_packet");
-  if (!(net->buff=(uchar*) my_malloc(key_memory_NET_buff,
-                                     (size_t) net->max_packet +
-				     NET_HEADER_SIZE + COMP_HEADER_SIZE + 1,
-				     MYF(MY_WME | my_flags))))
+  if (!(tmp= (uchar*) my_malloc(key_memory_NET_buff,
+                                (size_t) net->max_packet +
+				NET_HEADER_SIZE + COMP_HEADER_SIZE + 1,
+				MYF(MY_WME | my_flags))))
     DBUG_RETURN(1);
+  net->buff= tmp;
   net->buff_end=net->buff+net->max_packet;
   net->write_pos=net->read_pos = net->buff;
   DBUG_RETURN(0);

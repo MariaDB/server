@@ -598,6 +598,7 @@ void Protocol::end_statement()
                       thd->get_stmt_da()->get_sqlstate());
     break;
   case Diagnostics_area::DA_EOF:
+  case Diagnostics_area::DA_EOF_BULK:
     error= send_eof(thd->server_status,
                     thd->get_stmt_da()->statement_warn_count());
     break;
