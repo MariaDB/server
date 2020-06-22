@@ -321,6 +321,14 @@ select @var;
 @var
 xxx
 select name into outfile 'tmp.txt' from federated.t1;
+#
+# CLX-251: EXPLAIN with subselect crashes MariaDB server
+#
+explain
+select * from federated.t1
+where name in (select name from federated.t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 DROP TABLE federated.t1, federated.t2, federated.t3, federated.t4;
 connection slave;
 DROP TABLE federated.t1, federated.t2;

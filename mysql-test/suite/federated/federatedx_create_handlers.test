@@ -167,6 +167,13 @@ select name into outfile 'tmp.txt' from federated.t1;
 let $path=`select concat(@@datadir, 'test/tmp.txt')`;
 remove_file $path;
 
+--echo #
+--echo # CLX-251: EXPLAIN with subselect crashes MariaDB server
+--echo #
+explain
+select * from federated.t1
+where name in (select name from federated.t2);
+
 DROP TABLE federated.t1, federated.t2, federated.t3, federated.t4;
 
 connection slave;

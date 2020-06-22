@@ -27097,6 +27097,9 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
   select_result *result=join->result;
   DBUG_ENTER("select_describe");
   
+  if (join->select_lex->pushdown_select)
+    DBUG_VOID_RETURN;
+
   /* Update the QPF with latest values of using_temporary, using_filesort */
   for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
        unit;

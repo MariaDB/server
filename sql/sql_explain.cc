@@ -773,11 +773,13 @@ int Explain_select::print_explain(Explain_query *query,
 
   if (select_type == pushed_derived_text || select_type == pushed_select_text)
   {
-     print_explain_message_line(output, explain_flags, is_analyze,
-                                select_id /*select number*/,
-                                select_type,
-                                NULL, /* rows */
-                                NULL);
+    print_explain_message_line(output, explain_flags, is_analyze,
+                               select_id /*select number*/,
+                               select_type,
+                               NULL, /* rows */
+                               NULL);
+    if (select_type == pushed_select_text)
+      return 0;
   }
   else if (message)
   {
@@ -918,7 +920,8 @@ void Explain_select::print_explain_json(Explain_query *query,
                                           message);
     writer->end_object();
 
-    print_explain_json_for_children(query, writer, is_analyze);
+    if (select_type != pushed_select_text)
+      print_explain_json_for_children(query, writer, is_analyze);
     writer->end_object();
   }
   else
