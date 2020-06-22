@@ -1202,6 +1202,11 @@ struct handlerton
    void (*close_cursor_read_view)(handlerton *hton, THD *thd, void *read_view);
    handler *(*create)(handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root);
    void (*drop_database)(handlerton *hton, char* path);
+   /*
+     return 0 if dropped successfully,
+           -1 if nothing was done by design (as in e.g. blackhole)
+           an error code (e.g. HA_ERR_NO_SUCH_TABLE) otherwise
+   */
    int (*drop_table)(handlerton *hton, const char* path);
    int (*panic)(handlerton *hton, enum ha_panic_function flag);
    int (*start_consistent_snapshot)(handlerton *hton, THD *thd);
@@ -1427,13 +1432,6 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
   If the handler has HTON_CAN_RECREATE, this flag is not used
 */
 #define HTON_REQUIRES_CLOSE_AFTER_TRUNCATE (1 << 18)
-
-/*
-  The engine doesn't keep track of tables, delete_table() is not
-  needed and delete_table() always returns 0 (table deleted). This flag
-  mainly used to skip storage engines in case of ha_delete_table_force()
-*/
-#define HTON_AUTOMATIC_DELETE_TABLE (1 << 19)
 
 class Ha_trx_info;
 

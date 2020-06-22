@@ -41,6 +41,13 @@ int heap_panic(handlerton *hton, ha_panic_function flag)
 }
 
 
+static int heap_drop_table(handlerton *hton, const char *path)
+{
+  int error= heap_delete_table(path);
+  return error == ENOENT ? -1 : error;
+}
+
+
 int heap_init(void *p)
 {
   handlerton *heap_hton;
@@ -54,6 +61,7 @@ int heap_init(void *p)
   heap_hton->db_type=    DB_TYPE_HEAP;
   heap_hton->create=     heap_create_handler;
   heap_hton->panic=      heap_panic;
+  heap_hton->drop_table= heap_drop_table;
   heap_hton->flags=      HTON_CAN_RECREATE;
 
   return 0;

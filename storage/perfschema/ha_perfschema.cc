@@ -103,12 +103,10 @@ static int pfs_init_func(void *p)
 
   pfs_hton->state= SHOW_OPTION_YES;
   pfs_hton->create= pfs_create_handler;
+  pfs_hton->drop_table= [](handlerton *, const char*) { return -1; };
   pfs_hton->show_status= pfs_show_status;
-  pfs_hton->flags= (HTON_ALTER_NOT_SUPPORTED |
-                    HTON_TEMPORARY_NOT_SUPPORTED |
-                    HTON_NO_PARTITION |
-                    HTON_NO_BINLOG_ROW_OPT |
-                    HTON_AUTOMATIC_DELETE_TABLE);
+  pfs_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_TEMPORARY_NOT_SUPPORTED |
+                   HTON_NO_PARTITION | HTON_NO_BINLOG_ROW_OPT;
 
   /*
     As long as the server implementation keeps using legacy_db_type,

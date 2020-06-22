@@ -401,7 +401,8 @@ static int blackhole_init(void *p)
   blackhole_hton->state= SHOW_OPTION_YES;
   blackhole_hton->db_type= DB_TYPE_BLACKHOLE_DB;
   blackhole_hton->create= blackhole_create_handler;
-  blackhole_hton->flags= HTON_CAN_RECREATE | HTON_AUTOMATIC_DELETE_TABLE;
+  blackhole_hton->drop_table= [](handlerton *, const char*) { return -1; };
+  blackhole_hton->flags= HTON_CAN_RECREATE;
 
   mysql_mutex_init(bh_key_mutex_blackhole,
                    &blackhole_mutex, MY_MUTEX_INIT_FAST);
