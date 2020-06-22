@@ -6,7 +6,7 @@ SET @save_sort_buffer_size= @@sort_buffer_size;
 SET sort_buffer_size=1024;
 CREATE TABLE t1(c1 CHAR(255) PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (0), ('a'), ('b');
-ANALYZE TABLE T1 PERSISTENT FOR ALL;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
