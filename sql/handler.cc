@@ -2758,14 +2758,14 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
   if (hton == NULL || hton == view_pseudo_hton)
     DBUG_RETURN(0);
 
-  if (unlikely((error= hton->drop_table(hton, path))))
+  error= hton->drop_table(hton, path);
+  if (error > 0)
   {
     /*
       It's not an error if the table doesn't exist in the engine.
       warn the user, but still report DROP being a success
     */
     bool intercept= non_existing_table_error(error);
-    DBUG_ASSERT(error > 0);
 
     if ((!intercept || generate_warning) && ! thd->is_error())
     {
@@ -5001,24 +5001,14 @@ static my_bool delete_table_force(THD *thd, plugin_ref plugin, void *arg)
   handlerton *hton = plugin_hton(plugin);
   st_force_drop_table_params *param = (st_force_drop_table_params *)arg;
 
-  /*
-    We have to ignore HEAP tables as these may not have been created yet
-    We also remove engines  marked with
-    HTON_AUTOMATIC_DELETE_TABLE as for these we can't check if the table
-    ever existed.
-  */
-  if (hton->db_type != DB_TYPE_HEAP &&
-      !(hton->flags & HTON_AUTOMATIC_DELETE_TABLE))
+  int error;
+  error= ha_delete_table(thd, hton, param->path, param->db, param->alias, 0);
+  if (error > 0 && !non_existing_table_error(error))
+    param->error= error;
+  if (error == 0)
   {
-    int error;
-    error= ha_delete_table(thd, hton, param->path, param->db, param->alias, 0);
-    if (error > 0 && !non_existing_table_error(error))
-      param->error= error;
-    if (error == 0)
-    {
-      param->error= 0;
-      return TRUE;                                // Table was deleted
-    }
+    param->error= 0;
+    return TRUE;                                // Table was deleted
   }
   return FALSE;
 }

@@ -43,7 +43,7 @@ static int heap_panic(handlerton *hton, ha_panic_function flag)
 static int heap_drop_table(handlerton *hton, const char *path)
 {
   int error= heap_delete_table(path);
-  return error == ENOENT ? 0 : error;
+  return error == ENOENT ? -1 : error;
 }
 
 int heap_init(void *p)

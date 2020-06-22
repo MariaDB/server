@@ -749,8 +749,8 @@ static int sphinx_init_func ( void * p )
 		hton->close_connection = sphinx_close_connection;
 		hton->show_status = sphinx_show_status;
 		hton->panic = sphinx_panic;
-		hton->drop_table= [](handlerton *, const char*) { return 0; };
-		hton->flags = HTON_CAN_RECREATE | HTON_AUTOMATIC_DELETE_TABLE;
+		hton->drop_table= [](handlerton *, const char*) { return -1; };
+		hton->flags = HTON_CAN_RECREATE;
 		#endif
 	}
 	SPH_RET(0);

@@ -1692,7 +1692,7 @@ int binlog_init(void *p)
                                      binlog_savepoint_rollback_can_release_mdl;
   binlog_hton->commit= binlog_commit;
   binlog_hton->rollback= binlog_rollback;
-  binlog_hton->drop_table= [](handlerton *, const char*) { return 0; };
+  binlog_hton->drop_table= [](handlerton *, const char*) { return -1; };
   if (WSREP_ON || opt_bin_log)
   {
     binlog_hton->prepare= binlog_prepare;
@@ -1702,10 +1702,7 @@ int binlog_init(void *p)
     // recover needs to be set to make xa{commit,rollback}_handlerton effective
     binlog_hton->recover= binlog_xa_recover_dummy;
   }
-  binlog_hton->flags= (HTON_NOT_USER_SELECTABLE |
-                       HTON_HIDDEN |
-                       HTON_NO_ROLLBACK |
-                       HTON_AUTOMATIC_DELETE_TABLE);
+  binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN | HTON_NO_ROLLBACK;
   return 0;
 }
 

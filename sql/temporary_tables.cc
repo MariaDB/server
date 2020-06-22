@@ -700,7 +700,7 @@ bool THD::rm_temporary_table(handlerton *base, const char *path)
   if (mysql_file_delete(key_file_frm, frm_path,
                         MYF(MY_WME | MY_IGNORE_ENOENT)))
     error= true;
-  if (base->drop_table(base, path))
+  if (base->drop_table(base, path) > 0)
   {
     error= true;
     sql_print_warning("Could not remove temporary table: '%s', error: %d",
