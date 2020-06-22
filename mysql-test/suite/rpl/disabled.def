@@ -15,6 +15,5 @@ rpl_spec_variables        : BUG#11755836 2009-10-27 jasonh rpl_spec_variables fa
 rpl_partition_archive     : MDEV-5077 2013-09-27 svoj Cannot exchange partition with archive table
 rpl_row_binlog_max_cache_size : MDEV-11092
 rpl_row_index_choice      : MDEV-11666
-rpl_parallel2             : fails after MDEV-16172
 rpl_semi_sync_after_sync  : fails after MDEV-16172
 rpl_slave_grp_exec: MDEV-10514
