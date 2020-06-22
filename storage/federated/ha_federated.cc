@@ -3390,23 +3390,6 @@ int ha_federated::execute_simple_query(const char *query, int len)
 struct st_mysql_storage_engine federated_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(federated)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &federated_storage_engine,
-  "FEDERATED",
-  "Patrick Galbraith and Brian Aker, MySQL AB",
-  "Federated MySQL storage engine",
-  PLUGIN_LICENSE_GPL,
-  federated_db_init, /* Plugin Init */
-  federated_done, /* Plugin Deinit */
-  0x0100 /* 1.0 */,
-  NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(federated)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,

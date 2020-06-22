@@ -1094,23 +1094,6 @@ static struct st_mysql_show_var func_status[]=
 struct st_mysql_daemon unusable_example=
 { MYSQL_DAEMON_INTERFACE_VERSION };
 
-mysql_declare_plugin(example)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &example_storage_engine,
-  "EXAMPLE",
-  "Brian Aker, MySQL AB",
-  "Example storage engine",
-  PLUGIN_LICENSE_GPL,
-  example_init_func,                            /* Plugin Init */
-  NULL,                                         /* Plugin Deinit */
-  0x0001 /* 0.1 */,
-  func_status,                                  /* status variables */
-  example_system_variables,                     /* system variables */
-  NULL,                                         /* config options */
-  0,                                            /* flags */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(example)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,

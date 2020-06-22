@@ -2648,23 +2648,6 @@ bool ha_myisam::rowid_filter_push(Rowid_filter* rowid_filter)
 struct st_mysql_storage_engine myisam_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(myisam)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &myisam_storage_engine,
-  "MyISAM",
-  "MySQL AB",
-  "MyISAM storage engine",
-  PLUGIN_LICENSE_GPL,
-  myisam_init, /* Plugin Init */
-  NULL, /* Plugin Deinit */
-  0x0100, /* 1.0 */
-  NULL,                       /* status variables                */
-  myisam_sysvars,             /* system variables                */
-  NULL,
-  0,
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(myisam)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,

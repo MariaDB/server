@@ -219,24 +219,6 @@ struct st_mysql_storage_engine pfs_storage_engine=
 
 const char* pfs_engine_name= "PERFORMANCE_SCHEMA";
 
-mysql_declare_plugin(perfschema)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &pfs_storage_engine,
-  pfs_engine_name,
-  "Marc Alff, Oracle", /* Formerly Sun Microsystems, formerly MySQL */
-  "Performance Schema",
-  PLUGIN_LICENSE_GPL,
-  pfs_init_func,                                /* Plugin Init */
-  pfs_done_func,                                /* Plugin Deinit */
-  0x0001 /* 0.1 */,
-  pfs_status_vars,                              /* status variables */
-  NULL,                                         /* system variables */
-  NULL,                                         /* config options */
-  0,                                            /* flags */
-}
-mysql_declare_plugin_end;
-
 maria_declare_plugin(perfschema)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,

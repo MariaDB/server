@@ -423,23 +423,6 @@ static int blackhole_fini(void *p)
 struct st_mysql_storage_engine blackhole_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(blackhole)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &blackhole_storage_engine,
-  "BLACKHOLE",
-  "MySQL AB",
-  "/dev/null storage engine (anything you write to it disappears)",
-  PLUGIN_LICENSE_GPL,
-  blackhole_init, /* Plugin Init */
-  blackhole_fini, /* Plugin Deinit */
-  0x0100 /* 1.0 */,
-  NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(blackhole)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
