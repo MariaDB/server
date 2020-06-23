@@ -75,7 +75,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "btr0scrub.h"
 
 #include <my_service_manager.h>
-
 /* The following is the maximum allowed duration of a lock wait. */
 UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT;
 

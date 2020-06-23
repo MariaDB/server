@@ -14,6 +14,9 @@
 --source include/have_innodb.inc
 --source include/have_log_bin.inc
 
+--let $datadir= `SELECT @@datadir`
+
+
 # Open a separate connection to be used to run SHOW PROCESSLIST
 --let $galera_connection_name = node_1a
 --let $galera_server_number = 1
@@ -22,23 +25,31 @@
 SET SESSION wsrep_sync_wait = 0;
 
 --connection node_1
-CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+CREATE TABLE t1 (f1 INTEGER, f2 varchar(1024)) Engine=InnoDB;
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
 SET GLOBAL innodb_disallow_writes=ON;
---send INSERT INTO t1 VALUES (1);
+--exec find $datadir -type f-exec md5sum {} \; | md5sum >$MYSQLTEST_VARDIR/tmp/innodb_before
+
+--send INSERT INTO t1 (f2) SELECT 'abcde ' FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+
+--connection node_2
+INSERT INTO t1 (f2) SELECT 'fghij ' FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
 
 --connection node_1a
-SELECT COUNT(*) = 1 FROM t1;
-let $wait_condition = SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'INSERT INTO t1 VALUES (1)' AND State = 'Commit';
---source include/wait_condition.inc
-SELECT COUNT(*) = 1 FROM t1;
+--sleep 5
 
+--exec find $datadir -type f-exec md5sum {} \; | md5sum >$MYSQLTEST_VARDIR/tmp/innodb_after
 SET GLOBAL innodb_disallow_writes=OFF;
 
 --connection node_1
 --reap
 SELECT COUNT(*) = 1 FROM t1;
 
+--diff_files $MYSQLTEST_VARDIR/tmp/innodb_before $MYSQLTEST_VARDIR/tmp/innodb_after
+
 --connection node_2
-SELECT COUNT(*) = 1 FROM t1;
 
 DROP TABLE t1;
+DROP TABLE ten;
