@@ -5,3 +5,4 @@
 # Check for options overwriting
 # Check if uknown options that follow --mysqld-args are ingored
 # Check if [mariadb-client] group is not loaded (MDEV-22894)
+# Check if --help presents
