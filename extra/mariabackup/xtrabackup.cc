@@ -119,6 +119,7 @@ my_bool xtrabackup_move_back;
 my_bool xtrabackup_decrypt_decompress;
 my_bool xtrabackup_print_param;
 my_bool xtrabackup_mysqld_args;
+my_bool help;
 
 my_bool xtrabackup_export;
 
@@ -1413,6 +1414,11 @@ struct my_option xb_server_options[] =
      "options, and if some of them are not supported by mariabackup, they "
      "will be ignored.",
      (G_PTR *) &xtrabackup_mysqld_args, (G_PTR *) &xtrabackup_mysqld_args, 0,
+     GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
+    {"help", '?',
+     "Display this help and exit.",
+     (G_PTR *) &help, (G_PTR *) &help, 0,
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
