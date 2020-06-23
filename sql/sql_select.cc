@@ -26840,24 +26840,33 @@ int JOIN::save_explain_data_intern(Explain_query *output,
     output->add_node(xpl_sel);
   }
 
-  for (SELECT_LEX_UNIT *tmp_unit= join->select_lex->first_inner_unit();
-       tmp_unit;
-       tmp_unit= tmp_unit->next_unit())
+  /*
+    Don't try to add query plans for child selects if this select was pushed
+    down into a Smart Storage Engine:
+    - the entire statement was pushed down ("PUSHED SELECT"), or
+    - this derived table was pushed down ("PUSHED DERIVED")
+  */
+  if (!select_lex->pushdown_select && select_lex->type != pushed_derived_text)
   {
-    /* 
-      Display subqueries only if 
-      (1) they are not parts of ON clauses that were eliminated by table 
-          elimination.
-      (2) they are not merged derived tables
-      (3) they are not hanging CTEs (they are needed for execution)
-    */
-    if (!(tmp_unit->item && tmp_unit->item->eliminated) &&    // (1)
-        (!tmp_unit->derived ||
-         tmp_unit->derived->is_materialized_derived()) &&     // (2)
-        !(tmp_unit->with_element &&
-          (!tmp_unit->derived || !tmp_unit->derived->derived_result))) // (3)
-   {
-      explain->add_child(tmp_unit->first_select()->select_number);
+    for (SELECT_LEX_UNIT *tmp_unit= join->select_lex->first_inner_unit();
+         tmp_unit;
+         tmp_unit= tmp_unit->next_unit())
+    {
+      /*
+        Display subqueries only if
+        (1) they are not parts of ON clauses that were eliminated by table
+            elimination.
+        (2) they are not merged derived tables
+        (3) they are not hanging CTEs (they are needed for execution)
+      */
+      if (!(tmp_unit->item && tmp_unit->item->eliminated) &&    // (1)
+          (!tmp_unit->derived ||
+           tmp_unit->derived->is_materialized_derived()) &&     // (2)
+          !(tmp_unit->with_element &&
+            (!tmp_unit->derived || !tmp_unit->derived->derived_result))) // (3)
+     {
+        explain->add_child(tmp_unit->first_select()->select_number);
+      }
     }
   }
 
@@ -26890,7 +26899,16 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
   THD *thd=join->thd;
   select_result *result=join->result;
   DBUG_ENTER("select_describe");
-  
+
+  if (join->select_lex->pushdown_select)
+  {
+    /*
+      The whole statement was pushed down to a Smart Storage Engine. Do not
+      attempt to produce a query plan locally.
+    */
+    DBUG_VOID_RETURN;
+  }
+
   /* Update the QPF with latest values of using_temporary, using_filesort */
   for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
        unit;
