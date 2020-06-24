@@ -245,10 +245,8 @@ void ReadView::open(trx_t *trx)
 void trx_sys_t::clone_oldest_view(ReadViewBase *view) const
 {
   view->snapshot(nullptr);
-  mutex_enter(&mutex);
   /* Find oldest view. */
-  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_list); trx;
-       trx= UT_LIST_GET_NEXT(trx_list, trx))
-    trx->read_view.append_to(view);
-  mutex_exit(&mutex);
+  trx_list.for_each([view](const trx_t &trx) {
+                      trx.read_view.append_to(view);
+		    });
 }

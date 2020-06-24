@@ -537,22 +537,6 @@ btr_page_alloc_low(
 		seg_header, hint_page_no, file_direction,
 		true, mtr, init_mtr);
 
-#ifdef UNIV_DEBUG_SCRUBBING
-	if (block != NULL) {
-		fprintf(stderr,
-			"alloc %lu:%lu to index: %lu root: %lu\n",
-			buf_block_get_page_no(block),
-			buf_block_get_space(block),
-			index->id,
-			dict_index_get_page(index));
-	} else {
-		fprintf(stderr,
-			"failed alloc index: %lu root: %lu\n",
-			index->id,
-			dict_index_get_page(index));
-	}
-#endif /* UNIV_DEBUG_SCRUBBING */
-
 	return block;
 }
 

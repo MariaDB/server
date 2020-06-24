@@ -354,12 +354,8 @@ struct mtr_write_log_t {
 /** Start a mini-transaction. */
 void mtr_t::start()
 {
-#ifdef HAVE_valgrind_or_MSAN
-  char m_freed_ranges_vbits[sizeof m_freed_ranges];
-#endif
-  MEM_GET_VBITS(&m_freed_ranges, m_freed_ranges_vbits, sizeof m_freed_ranges);
   UNIV_MEM_INVALID(this, sizeof *this);
-  MEM_SET_VBITS(&m_freed_ranges, m_freed_ranges_vbits, sizeof m_freed_ranges);
+  UNIV_MEM_VALID(&m_freed_pages, sizeof(m_freed_pages));
 
   ut_d(m_start= true);
   ut_d(m_commit= false);
@@ -378,6 +374,7 @@ void mtr_t::start()
   m_user_space= nullptr;
   m_commit_lsn= 0;
   m_freed_in_system_tablespace= m_trim_pages= false;
+  ut_ad(!m_freed_pages);
 }
 
 /** Release the resources */
@@ -387,7 +384,6 @@ inline void mtr_t::release_resources()
   ut_d(m_memo.for_each_block_in_reverse(CIterate<DebugCheck>()));
   m_log.erase();
   m_memo.erase();
-  clear_freed_ranges();
   ut_d(m_commit= true);
 }
 
@@ -420,8 +416,9 @@ void mtr_t::commit()
     to insert into the flush list. */
     log_mutex_exit();
 
-    if (!m_freed_ranges.empty())
+    if (m_freed_pages)
     {
+      ut_ad(!m_freed_pages->empty());
       fil_space_t *freed_space= m_user_space;
       /* Get the freed tablespace in case of predefined tablespace */
       if (!freed_space)
@@ -434,14 +431,15 @@ void mtr_t::commit()
       /* Update the last freed lsn */
       freed_space->update_last_freed_lsn(m_commit_lsn);
 
-      for (const auto &range : m_freed_ranges)
-        freed_space->add_free_range(range);
-    }
-
-    if (is_trim_pages())
-    {
-      ut_ad(m_user_space != nullptr);
-      m_user_space->clear_freed_ranges();
+      if (!is_trim_pages())
+        for (const auto &range : *m_freed_pages)
+          freed_space->add_free_range(range);
+      else
+        freed_space->clear_freed_ranges();
+      delete m_freed_pages;
+      m_freed_pages= nullptr;
+      /* Reset of m_trim_pages and m_freed_in_system_tablespace
+      happens in mtr_t::start() */
     }
 
     m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
@@ -472,7 +470,7 @@ void mtr_t::commit_files(lsn_t checkpoint_lsn)
 	ut_ad(!m_made_dirty);
 	ut_ad(m_memo.size() == 0);
 	ut_ad(!srv_read_only_mode);
-	ut_ad(m_freed_ranges.empty());
+	ut_ad(!m_freed_pages);
 	ut_ad(!m_freed_in_system_tablespace);
 
 	if (checkpoint_lsn) {

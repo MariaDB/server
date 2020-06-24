@@ -205,8 +205,7 @@ trx_sys_t::create()
 	ut_ad(this == &trx_sys);
 	ut_ad(!is_initialised());
 	m_initialised = true;
-	mutex_create(LATCH_ID_TRX_SYS, &mutex);
-	UT_LIST_INIT(trx_list, &trx_t::trx_list);
+	trx_list.create();
 	rseg_history_len= 0;
 
 	rw_trx_hash.init();
@@ -320,8 +319,8 @@ trx_sys_t::close()
 		}
 	}
 
-	ut_a(UT_LIST_GET_LEN(trx_list) == 0);
-	mutex_free(&mutex);
+	ut_a(trx_list.empty());
+	trx_list.close();
 	m_initialised = false;
 }
 
@@ -330,15 +329,11 @@ ulint trx_sys_t::any_active_transactions()
 {
   uint32_t total_trx= 0;
 
-  mutex_enter(&mutex);
-  for (trx_t* trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
-       trx != NULL;
-       trx= UT_LIST_GET_NEXT(trx_list, trx))
-  {
-    if (trx->state == TRX_STATE_COMMITTED_IN_MEMORY ||
-        (trx->state == TRX_STATE_ACTIVE && trx->id))
+  trx_sys.trx_list.for_each([&total_trx](const trx_t &trx) {
+    if (trx.state == TRX_STATE_COMMITTED_IN_MEMORY ||
+        (trx.state == TRX_STATE_ACTIVE && trx.id))
       total_trx++;
-  }
-  mutex_exit(&mutex);
+  });
+
   return total_trx;
 }

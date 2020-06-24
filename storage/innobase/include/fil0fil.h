@@ -502,7 +502,8 @@ struct fil_space_t
     last_freed_lsn= lsn;
   }
 
-  /** Clear all freed ranges */
+  /** Clear all freed ranges for undo tablespace when InnoDB
+  encounters TRIM redo log record */
   void clear_freed_ranges()
   {
     std::lock_guard<std::mutex> freed_lock(freed_range_mutex);

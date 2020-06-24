@@ -3565,8 +3565,11 @@ void LEX::print(String *str, enum_query_type query_type)
       value->print(str, query_type);
     }
 
-    str->append(STRING_WITH_LEN(" WHERE "));
-    sel->where->print(str, query_type);
+    if (sel->where)
+    {
+      str->append(STRING_WITH_LEN(" WHERE "));
+      sel->where->print(str, query_type);
+    }
 
     if (sel->order_list.elements)
     {
