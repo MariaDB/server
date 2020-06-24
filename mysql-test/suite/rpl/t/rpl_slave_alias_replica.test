@@ -46,9 +46,15 @@ START REPLICA;
 --source include/wait_for_slave_sql_to_start.inc
 
 --connection master
+--sync_slave_with_master
+
+--connection master
 --echo "Command: SHOW SLAVE HOSTS --> SHOW REPLICA HOSTS"
---replace_result $SLAVE_MYPORT SLAVE_PORT
-SHOW REPLICA HOSTS;
+let $show_statement= SHOW REPLICA HOSTS;
+let $field= Server_id;
+# Slave's server_id 2
+let $condition= ='2';
+source include/wait_show_condition.inc;
 DROP USER 'repl_user';
 --sync_slave_with_master
 

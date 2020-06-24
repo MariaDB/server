@@ -18,10 +18,9 @@ START REPLICA;
 include/wait_for_slave_io_to_start.inc
 include/wait_for_slave_sql_to_start.inc
 connection master;
+connection slave;
+connection master;
 "Command: SHOW SLAVE HOSTS --> SHOW REPLICA HOSTS"
-SHOW REPLICA HOSTS;
-Server_id	Host	Port	Master_id
-2	127.0.0.1	SLAVE_PORT	1
 DROP USER 'repl_user';
 connection slave;
 "Command: SHOW SLAVE IO/SQL THREAD --> SHOW REPLICA IO/SQL THREAD"
