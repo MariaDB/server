@@ -37,6 +37,7 @@ galera_split_brain : MDEV-18280 Galera test failure on galera_split_brain and ga
 galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
 galera_sst_mariabackup_encrypt_with_key : MDEV-21484 galera_sst_mariabackup_encrypt_with_key
 galera_toi_ddl_nonconflicting : MDEV-21518 galera.galera_toi_ddl_nonconflicting
+galera_toi_truncate : MDEV-22996 Hang on galera_toi_truncate test case
 galera_var_innodb_disallow_writes : MDEV-20928 galera.galera_var_innodb_disallow_writes
 galera_var_node_address : MDEV-20485 Galera test failure
 galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
