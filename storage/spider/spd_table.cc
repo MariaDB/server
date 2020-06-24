@@ -10324,13 +10324,22 @@ void *spider_table_bg_sts_action(
       thd->mysys_var->current_mutex = spd_LOCK_server_started;
       if (!(*spd_mysqld_server_started) && !thd->killed)
       {
-        pthread_cond_wait(spd_COND_server_started, spd_LOCK_server_started);
+        do
+        {
+          struct timespec abstime;
+          set_timespec_nsec(abstime, 1000);
+          error_num = pthread_cond_timedwait(spd_COND_server_started,
+            spd_LOCK_server_started, &abstime);
+        } while (
+          (error_num == ETIMEDOUT || error_num == ETIME) &&
+          !(*spd_mysqld_server_started) && !thd->killed && !thread->killed
+        );
       }
       pthread_mutex_unlock(spd_LOCK_server_started);
       thd->mysys_var->current_cond = &thread->cond;
       thd->mysys_var->current_mutex = &thread->mutex;
     }
-    while (spider_init_queries[i].length && !thd->killed)
+    while (spider_init_queries[i].length && !thd->killed && !thread->killed)
     {
       dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
         (uint) spider_init_queries[i].length, FALSE, FALSE);
