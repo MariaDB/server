@@ -39,7 +39,6 @@ galera_sst_mariabackup_encrypt_with_key : MDEV-21484 galera_sst_mariabackup_encr
 galera_toi_ddl_nonconflicting : MDEV-21518 galera.galera_toi_ddl_nonconflicting
 galera_toi_truncate : MDEV-22996 Hang on galera_toi_truncate test case
 galera_var_node_address : MDEV-20485 Galera test failure
-galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
 galera_var_reject_queries : assertion in inline_mysql_socket_send
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
 galera_wan : MDEV-17259 Test failure on galera.galera_wan
