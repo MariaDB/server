@@ -8713,7 +8713,7 @@ static void add_user_parameters(THD *thd, String *result, ACL_USER* acl_user,
       (acl_user->auth->plugin.str == native_password_plugin_name.str ||
        acl_user->auth->plugin.str == old_password_plugin_name.str))
   {
-    if (acl_user->auth->auth_string.length)
+    if (acl_user->auth->auth_string.length && (thd->main_security_ctx.master_access & SUPER_ACL))
     {
       result->append(STRING_WITH_LEN(" IDENTIFIED BY PASSWORD '"));
       result->append(&acl_user->auth->auth_string);
