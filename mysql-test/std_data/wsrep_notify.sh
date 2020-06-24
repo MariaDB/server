@@ -56,7 +56,7 @@ configuration_change()
 
 status_update()
 {
-    echo "SET wsrep_on=0; BEGIN; UPDATE $STATUS_TABLE SET status='$STATUS'; COMMIT;"
+    echo "$BEGIN; UPDATE $STATUS_TABLE SET status='$STATUS'; $END;"
 }
 
 COM=status_update # not a configuration change by default
@@ -89,11 +89,11 @@ do
     shift
 done
 
-# Undefined means node is shutting down
-if [ "$STATUS" != "Undefined" ]
-then
-    $COM | mysql -B -u$USER -h$HOST -P$PORT
-fi
-
-exit 0
-#
+case $STATUS in
+    "joined" | "donor" | "synced")
+        $COM | mysql -B -u$USER -h$HOST -P$PORT
+        ;;
+    *) 
+        exit 0
+        ;;
+esac
