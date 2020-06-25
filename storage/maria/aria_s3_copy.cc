@@ -155,7 +155,7 @@ extern "C" my_bool get_one_option(const struct my_option *opt
 }
 
 
-static void get_options(register int *argc,register char ***argv)
+static void get_options(int *argc, char ***argv)
 {
   int ho_error;
 

@@ -1067,7 +1067,7 @@ int s3_delete_object(ms3_st *s3_client, const char *aws_bucket,
                          const char *name, myf error_flags)
 {
   uint8_t error;
-  int result;
+  int result= 0;
   DBUG_ENTER("s3_delete_object");
   DBUG_PRINT("enter", ("name: %s", name));
 
