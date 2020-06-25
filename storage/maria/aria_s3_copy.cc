@@ -67,7 +67,7 @@ static struct my_option my_long_options[] =
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"compress", 'c', "Use compression", &opt_compression, &opt_compression,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"op", 'o', "Operation to excecute. One of 'from_s3', 'to_s3' or "
+  {"op", 'o', "Operation to execute. One of 'from_s3', 'to_s3' or "
    "'delete_from_s3'",
    &opt_operation, &opt_operation, &op_typelib,
    GET_ENUM, REQUIRED_ARG, OP_IMPOSSIBLE, 0, 0, 0, 0, 0},
