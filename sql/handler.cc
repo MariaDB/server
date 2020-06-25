@@ -4986,6 +4986,7 @@ struct st_force_drop_table_params
   const LEX_CSTRING *db;
   const LEX_CSTRING *alias;
   int error;
+  bool discovering;
 };
 
 
@@ -5001,14 +5002,17 @@ static my_bool delete_table_force(THD *thd, plugin_ref plugin, void *arg)
   handlerton *hton = plugin_hton(plugin);
   st_force_drop_table_params *param = (st_force_drop_table_params *)arg;
 
-  int error;
-  error= ha_delete_table(thd, hton, param->path, param->db, param->alias, 0);
-  if (error > 0 && !non_existing_table_error(error))
-    param->error= error;
-  if (error == 0)
+  if (param->discovering == (hton->discover_table != NULL))
   {
-    param->error= 0;
-    return TRUE;                                // Table was deleted
+    int error;
+    error= ha_delete_table(thd, hton, param->path, param->db, param->alias, 0);
+    if (error > 0 && !non_existing_table_error(error))
+      param->error= error;
+    if (error == 0)
+    {
+      param->error= 0;
+      return TRUE;                                // Table was deleted
+    }
   }
   return FALSE;
 }
@@ -5032,15 +5036,23 @@ int ha_delete_table_force(THD *thd, const char *path, const LEX_CSTRING *db,
   Table_exists_error_handler no_such_table_handler;
   DBUG_ENTER("ha_delete_table_force");
 
-  param.path=             path;
-  param.db=               db;
-  param.alias=            alias;
-  param.error=            -1;                   // Table not found
+  param.path=        path;
+  param.db=          db;
+  param.alias=       alias;
+  param.error=       -1;                   // Table not found
+  param.discovering= true;
 
   thd->push_internal_handler(&no_such_table_handler);
   if (plugin_foreach(thd, delete_table_force, MYSQL_STORAGE_ENGINE_PLUGIN,
                      &param))
     param.error= 0;                            // Delete succeded
+  else
+  {
+    param.discovering= false;
+    if (plugin_foreach(thd, delete_table_force, MYSQL_STORAGE_ENGINE_PLUGIN,
+                       &param))
+      param.error= 0;                            // Delete succeded
+  }
   thd->pop_internal_handler();
   DBUG_RETURN(param.error);
 }
