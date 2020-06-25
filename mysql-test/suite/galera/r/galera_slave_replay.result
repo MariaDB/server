@@ -70,7 +70,6 @@ SET AUTOCOMMIT=ON;
 START TRANSACTION;
 UPDATE t1 SET f2 = 'd' WHERE f1 = 3;
 connection node_2a;
-SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_master_enter_sync';
 SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
 connection node_1;
 UPDATE test.t1 SET f2 = 'e' WHERE f1 = 3;
@@ -82,10 +81,6 @@ connection node_2a;
 SET GLOBAL debug_dbug = "";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 connection node_2a;
-SET GLOBAL wsrep_provider_options = 'dbug=';
-SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_master_enter_sync';
-SET DEBUG_SYNC = "RESET";
-connection node_2a;
 set session wsrep_sync_wait=15;
 SELECT COUNT(*) = 1 FROM test.t1 WHERE f2 = 'e';
 COUNT(*) = 1
@@ -93,6 +88,7 @@ COUNT(*) = 1
 set session wsrep_sync_wait=0;
 STOP SLAVE;
 RESET SLAVE;
+SET DEBUG_SYNC = "RESET";
 DROP TABLE t1;
 connection node_3;
 DROP TABLE t1;
