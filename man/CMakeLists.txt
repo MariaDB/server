@@ -15,6 +15,7 @@
 
 SET(MAN1_SERVER innochecksum.1 my_print_defaults.1 myisam_ftdump.1 myisamchk.1
                 aria_chk.1 aria_dump_log.1 aria_ftdump.1 aria_pack.1 aria_read_log.1
+                aria_s3_copy.1
 		myisamlog.1 myisampack.1 mysql.server.1 mariadb-conv.1
 		mysql_convert_table_format.1 mysql_fix_extensions.1
 		mysql_install_db.1

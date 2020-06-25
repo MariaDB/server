@@ -1,0 +1,52 @@
+.TH ARIA_S3_COPY "1" "June 2020" "aria_s3_copy Ver 1.0" "User Commands"
+.SH NAME
+aria_s3_copy \- Copy an Aria table to and from s3
+.SH DESCRIPTION
+Usage: aria_s3_copy \-\-aws\-access\-key=# \-\-aws\-secret\-access\-key=# \-\-aws\-region=# \-\-op=(from_s3 | to_s3 | delete_from_s3) [OPTIONS] tables[.MAI]
+.TP
+\fB\-?\fR, \fB\-h\fR, \fB\-\-help\fR
+Display help and exit.
+.TP
+\fB\-k\fR, \fB\-\-s3\-access\-key=name\fR
+AWS access key ID
+.TP
+\fB\-r\fR, \fB\-s3\-region=name\fR
+AWS region
+.TP
+\fB\-K\fR, \fB\-s3\-secret\-key=name\fR
+AWS secret access key ID
+.TP
+\fB\-b\fR, \fB\-s3\-bucket=name\fR
+AWS prefix for tables
+.TP
+\fB\-h\fR, \fB\-s3\-host\-name=name\fR
+Host name to S3 provider
+.TP
+\fB\-c\fR, \fB\-compress\fR
+Use compression
+.TP
+\fB\-o\fR, \fB\-op=name\fR
+Operation to execute. One of 'from_s3', 'to_s3' or 'delete_from_s3'
+.TP
+\fB\-d\fR, \fB\-database=name\fR
+Database for copied table (second prefix). If not given, the directory of the table file is used
+.TP
+\fB\-B\fR, \fB\-s3\-block\-size=#\fR
+Block size for data/index blocks in s3
+.TP
+\fB\-L\fR, \fB\-s3\-protocol\-version=name\fR
+Protocol used to communication with S3. One of "Auto", "Amazon" or "Original".
+.TP
+\fB\-f\fR, \fB\-force\fR
+Force copy even if target exists
+.TP
+\fB\-V\fR, \fB\-version\fR
+Print version and exit.
+.TP
+\fB\-\-s3\-debug\fR
+Output debug log from marias3 to stdout
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Be verbose.
+.PP
+For more information, please refer to the MariaDB Knowledge Base page https://mariadb.com/kb/en/aria_s3_copy/
