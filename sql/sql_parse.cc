@@ -9082,17 +9082,18 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
     {
 #ifdef WITH_WSREP
       DEBUG_SYNC(thd, "before_awake_no_mutex");
-      if (tmp->wsrep_killed)
+      if (tmp->wsrep_aborter && tmp->wsrep_aborter != thd->thread_id)
       {
         /* victim is in hit list already, bail out */
-	WSREP_DEBUG("victim has wsrep_killed set, skipping awake()");
+	WSREP_DEBUG("victim has wsrep aborter: %lu, skipping awake()",
+                    tmp->wsrep_aborter);
 	error = 0;
       }
       else
       {
 #endif /* WITH_WSREP */
-      WSREP_DEBUG("kill_one_thread %llu, victim: %llu wsrep_killed %d by signal %d",
-                  thd->thread_id, id, tmp->wsrep_killed, kill_signal);
+      WSREP_DEBUG("kill_one_thread %llu, victim: %llu wsrep_aborter %llu by signal %d",
+                  thd->thread_id, id, tmp->wsrep_aborter, kill_signal);
       tmp->awake_no_mutex(kill_signal);
       WSREP_DEBUG("victim: %llu taken care of", id);
       error=0;
