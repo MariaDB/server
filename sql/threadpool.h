@@ -37,6 +37,8 @@ extern uint threadpool_mode; /* Thread pool implementation , windows or generic 
 #define DEFAULT_THREADPOOL_STALL_LIMIT 500U
 
 struct TP_connection;
+struct st_vio;
+
 extern void tp_callback(TP_connection *c);
 extern void tp_timeout_handler(TP_connection *c);
 
@@ -112,7 +114,7 @@ struct TP_connection
 
   virtual void wait_begin(int type)= 0;
   virtual void wait_end() = 0;
-
+  IF_WIN(virtual,) void init_vio(st_vio *){};
 };
 
 
@@ -133,6 +135,7 @@ struct TP_pool
 };
 
 #ifdef _WIN32
+
 struct TP_pool_win:TP_pool
 {
   TP_pool_win();

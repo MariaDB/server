@@ -28,6 +28,10 @@
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
 
+#ifdef _WIN32
+#include "threadpool_winsockets.h"
+#endif
+
 /* Threadpool parameters */
 
 uint threadpool_min_threads;
@@ -48,7 +52,7 @@ TP_STATISTICS tp_stats;
 
 static void  threadpool_remove_connection(THD *thd);
 static int   threadpool_process_request(THD *thd);
-static THD*  threadpool_add_connection(CONNECT *connect, void *scheduler_data);
+static THD*  threadpool_add_connection(CONNECT *connect, TP_connection *c);
 
 extern bool do_command(THD*);
 
@@ -220,7 +224,7 @@ error:
 }
 
 
-static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
+static THD *threadpool_add_connection(CONNECT *connect, TP_connection *c)
 {
   THD *thd= NULL;
 
@@ -243,7 +247,7 @@ static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
   }
   delete connect;
 
-  thd->event_scheduler.data = scheduler_data;
+  thd->event_scheduler.data = c;
   server_threads.insert(thd);
   thd->set_mysys_var(mysys_var);
 
@@ -260,6 +264,8 @@ static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
 
   if (thd_prepare_connection(thd))
     goto end;
+
+  c->init_vio(thd->net.vio);
 
   /*
     Check if THD is ok, as prepare_new_connection_state()
@@ -397,6 +403,9 @@ static bool tp_init()
     pool= 0;
     return true;
   }
+#ifdef _WIN32
+  init_win_aio_buffers(max_connections);
+#endif
   return false;
 }
 
@@ -484,6 +493,9 @@ static void tp_wait_end(THD *thd)
 static void tp_end()
 {
   delete pool;
+#ifdef _WIN32
+  destroy_win_aio_buffers();
+#endif
 }
 
 static void tp_post_kill_notification(THD *thd)
