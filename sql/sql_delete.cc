@@ -492,7 +492,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   set_statistics_for_table(thd, table);
 
   table->covering_keys.clear_all();
-  table->quick_keys.clear_all();		// Can't use 'only index'
+  table->opt_range_keys.clear_all();
 
   select=make_select(table, 0, 0, conds, (SORT_INFO*) 0, 0, &error);
   if (unlikely(error))
@@ -518,7 +518,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   }
 
   /* If running in safe sql mode, don't allow updates without keys */
-  if (table->quick_keys.is_clear_all())
+  if (table->opt_range_keys.is_clear_all())
   {
     thd->set_status_no_index_used();
     if (safe_update && !using_limit)

@@ -2599,10 +2599,10 @@ static int fill_used_fields_bitmap(PARAM *param)
     In the table struct the following information is updated:
       quick_keys           - Which keys can be used
       quick_rows           - How many rows the key matches
-      quick_condition_rows - E(# rows that will satisfy the table condition)
+      opt_range_condition_rows - E(# rows that will satisfy the table condition)
 
   IMPLEMENTATION
-    quick_condition_rows value is obtained as follows:
+    opt_range_condition_rows value is obtained as follows:
       
       It is a minimum of E(#output rows) for all considered table access
       methods (range and index_merge accesses over various indexes).
@@ -2626,7 +2626,7 @@ static int fill_used_fields_bitmap(PARAM *param)
     which is currently produced.
 
   TODO
-   * Change the value returned in quick_condition_rows from a pessimistic
+   * Change the value returned in opt_range_condition_rows from a pessimistic
      estimate to true E(#rows that satisfy table condition). 
      (we can re-use some of E(#rows) calcuation code from
      index_merge/intersection for this)
@@ -2957,7 +2957,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         {
           best_trp= intersect_trp;
           best_read_time= best_trp->read_cost; 
-          set_if_smaller(param.table->quick_condition_rows, 
+          set_if_smaller(param.table->opt_range_condition_rows,
                          intersect_trp->records);
         }
       }
@@ -2977,7 +2977,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         {
           new_conj_trp= get_best_disjunct_quick(&param, imerge, best_read_time);
           if (new_conj_trp)
-            set_if_smaller(param.table->quick_condition_rows, 
+            set_if_smaller(param.table->opt_range_condition_rows,
                            new_conj_trp->records);
           if (new_conj_trp &&
               (!best_conj_trp || 
@@ -3004,7 +3004,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         restore_nonrange_trees(&param, tree, backup_keys);
       if ((group_trp= get_best_group_min_max(&param, tree, read_time)))
       {
-        param.table->quick_condition_rows= MY_MIN(group_trp->records,
+        param.table->opt_range_condition_rows= MY_MIN(group_trp->records,
                                                   head->stat_records());
         Json_writer_object grp_summary(thd, "best_group_range_summary");
 
@@ -3340,8 +3340,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
   for (keynr= 0;  keynr < table->s->keys; keynr++)
   {
-    if (table->quick_keys.is_set(keynr))
-      set_if_bigger(max_quick_key_parts, table->quick_key_parts[keynr]);
+    if (table->opt_range_keys.is_set(keynr))
+      set_if_bigger(max_quick_key_parts, table->opt_range[keynr].key_parts);
   }
 
   /* 
@@ -3353,13 +3353,13 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   {
     for (keynr= 0;  keynr < table->s->keys; keynr++)
     {
-      if (table->quick_keys.is_set(keynr) &&
-          table->quick_key_parts[keynr] == quick_key_parts)
+      if (table->opt_range_keys.is_set(keynr) &&
+          table->opt_range[keynr].key_parts == quick_key_parts)
       {
         uint i;
-        uint used_key_parts= table->quick_key_parts[keynr];
-        double quick_cond_selectivity= table->quick_rows[keynr] / 
-	                               table_records;
+        uint used_key_parts= table->opt_range[keynr].key_parts;
+        double quick_cond_selectivity= (table->opt_range[keynr].rows /
+                                        table_records);
         KEY *key_info= table->key_info + keynr;
         KEY_PART_INFO* key_part= key_info->key_part;
         /*
@@ -5777,7 +5777,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
       continue;
     }
 
-    cost= table->quick_index_only_costs[(*index_scan)->keynr];
+    cost= table->opt_range[(*index_scan)->keynr].index_only_cost;
 
     idx_scan.add("cost", cost);
 
@@ -7188,7 +7188,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     ha_rows best_rows = double2rows(intersect_best->out_rows);
     if (!best_rows)
       best_rows= 1;
-    set_if_smaller(param->table->quick_condition_rows, best_rows);
+    set_if_smaller(param->table->opt_range_condition_rows, best_rows);
     trp->records= best_rows;
     trp->index_scan_costs= intersect_best->index_scan_costs;
     trp->cpk_scan= cpk_scan;
@@ -7357,7 +7357,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
   trp->read_cost= total_cost;
   trp->records= records;
   trp->cpk_scan= NULL;
-  set_if_smaller(param->table->quick_condition_rows, records); 
+  set_if_smaller(param->table->opt_range_condition_rows, records);
 
   DBUG_PRINT("info",
              ("Returning covering ROR-intersect plan: cost %g, records %lu",
@@ -11083,11 +11083,11 @@ void SEL_ARG::test_use_count(SEL_ARG *root)
                         about range scan we've evaluated.
       mrr_flags   INOUT MRR access flags
       cost        OUT   Scan cost
+      is_ror_scan       is set to reflect if the key scan is a ROR (see
+                        is_key_scan_ror function for more info)
 
   NOTES
-    param->is_ror_scan is set to reflect if the key scan is a ROR (see
-    is_key_scan_ror function for more info)
-    param->table->quick_*, param->range_count (and maybe others) are
+    param->table->opt_range*, param->range_count (and maybe others) are
     updated with data of given key scan, see quick_range_seq_next for details.
 
   RETURN
@@ -11157,6 +11157,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   if (param->table->pos_in_table_list->is_non_derived())
     rows= file->multi_range_read_info_const(keynr, &seq_if, (void*)&seq, 0,
                                             bufsize, mrr_flags, cost);
+  param->quick_rows[keynr]= rows;
   if (rows != HA_POS_ERROR)
   {
     ha_rows table_records= param->table->stat_records();
@@ -11164,30 +11165,30 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
     {
       /*
         For any index the total number of records within all ranges
-        cannot be be bigger than the number of records in the table
+        cannot be be bigger than the number of records in the table.
+        This check is needed as sometimes that table statistics or range
+        estimates may be slightly out of sync.
       */
       rows= table_records;
       set_if_bigger(rows, 1);
+      param->quick_rows[keynr]= rows;
     }
-    param->quick_rows[keynr]= rows;
     param->possible_keys.set_bit(keynr);
     if (update_tbl_stats)
     {
-      param->table->quick_keys.set_bit(keynr);
-      param->table->quick_key_parts[keynr]= param->max_key_parts;
-      param->table->quick_n_ranges[keynr]= param->range_count;
-      param->table->quick_condition_rows=
-        MY_MIN(param->table->quick_condition_rows, rows);
-      param->table->quick_rows[keynr]= rows;
-      param->table->quick_costs[keynr]= cost->total_cost();
+      param->table->opt_range_keys.set_bit(keynr);
+      param->table->opt_range[keynr].key_parts= param->max_key_parts;
+      param->table->opt_range[keynr].ranges= param->range_count;
+      param->table->opt_range_condition_rows=
+        MY_MIN(param->table->opt_range_condition_rows, rows);
+      param->table->opt_range[keynr].rows= rows;
+      param->table->opt_range[keynr].cost= cost->total_cost();
       if (param->table->file->is_clustering_key(keynr))
-	param->table->quick_index_only_costs[keynr]= 0;
+	param->table->opt_range[keynr].index_only_cost= 0;
       else
-        param->table->quick_index_only_costs[keynr]= cost->index_only_cost();
+        param->table->opt_range[keynr].index_only_cost= cost->index_only_cost();
     }
   }
-  else
-    param->quick_rows[keynr]= HA_POS_ERROR;
 
   /* Figure out if the key scan is ROR (returns rows in ROWID order) or not */
   enum ha_key_alg key_alg= param->table->key_info[seq.real_keyno].algorithm;

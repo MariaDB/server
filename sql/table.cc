@@ -3976,6 +3976,15 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                                                   sizeof(Field*)))))
     goto err;                                   /* purecov: inspected */
 
+  /* Allocate storage for range optimizer */
+  if (!multi_alloc_root(&outparam->mem_root,
+                        &outparam->opt_range,
+                        share->keys * sizeof(TABLE::OPT_RANGE),
+                        &outparam->const_key_parts,
+                        share->keys * sizeof(key_part_map),
+                        NullS))
+    goto err;
+
   outparam->field= field_ptr;
 
   record= (uchar*) outparam->record[0]-1;	/* Fieldstart = 1 */
@@ -5383,9 +5392,9 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   range_rowid_filter_cost_info_ptr= NULL;
   range_rowid_filter_cost_info= NULL;
   vers_write= s->versioned;
-  quick_condition_rows=0;
+  opt_range_condition_rows=0;
   no_cache= false;
-  initialize_quick_structures();
+  initialize_opt_range_structures();
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;
@@ -7773,12 +7782,28 @@ void TABLE::restore_blob_values(String *blob_storage)
 
 bool TABLE::alloc_keys(uint key_count)
 {
-  key_info= (KEY*) alloc_root(&mem_root, sizeof(KEY)*(s->keys+key_count));
+  KEY *new_key_info;
+  key_part_map *new_const_key_parts;
+  DBUG_ASSERT(s->tmp_table == INTERNAL_TMP_TABLE);
+
+  if (!multi_alloc_root(&mem_root,
+                        &new_key_info, sizeof(*key_info)*(s->keys+key_count),
+                        &new_const_key_parts,
+                        sizeof(*new_const_key_parts)*(s->keys+key_count),
+                        NullS))
+    return TRUE;
   if (s->keys)
-    memmove(key_info, s->key_info, sizeof(KEY)*s->keys);
-  s->key_info= key_info;
+  {
+    memmove(new_key_info, s->key_info, sizeof(*key_info) * s->keys);
+    memmove(new_const_key_parts, const_key_parts,
+            s->keys * sizeof(const_key_parts));
+  }
+  s->key_info= key_info= new_key_info;
+  const_key_parts= new_const_key_parts;
+  bzero((char*) (const_key_parts + s->keys),
+        sizeof(*const_key_parts) * key_count);
   max_keys= s->keys+key_count;
-  return !(key_info);
+  return FALSE;
 }
 
 
@@ -9898,20 +9923,18 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
 
 /*
   @brief
-    Initialize all the quick structures that are used to stored the
+    Initialize all the opt_range structures that are used to stored the
     estimates when the range optimizer is run.
-  @details
-    This is specifically needed when we read the TABLE structure from the
-    table cache. There can be some garbage data from previous queries
-    that need to be reset here.
+    As these are initialized by the range optimizer for all index
+    marked in opt_range_keys, we only mark the memory as undefined
+    to be able to find wrong usage of data with valgrind or MSAN.
 */
 
-void TABLE::initialize_quick_structures()
+void TABLE::initialize_opt_range_structures()
 {
-  bzero(quick_rows, sizeof(quick_rows));
-  bzero(quick_key_parts, sizeof(quick_key_parts));
-  bzero(quick_costs, sizeof(quick_costs));
-  bzero(quick_n_ranges, sizeof(quick_n_ranges));
+  TRASH_ALLOC(&opt_range_keys, sizeof(opt_range_keys));
+  TRASH_ALLOC(opt_range, s->keys * sizeof(*opt_range));
+  TRASH_ALLOC(const_key_parts, s->keys * sizeof(*const_key_parts));
 }
 
 /*

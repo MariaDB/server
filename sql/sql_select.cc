@@ -4897,7 +4897,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       table->file->print_error(error, MYF(0));
       goto error;
     }
-    table->quick_keys.clear_all();
+    table->opt_range_keys.clear_all();
     table->intersect_keys.clear_all();
     table->reginfo.join_tab=s;
     table->reginfo.not_exists_optimize=0;
@@ -4909,7 +4909,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     s->dependent= tables->dep_tables;
     if (tables->schema_table)
       table->file->stats.records= table->used_stat_records= 2;
-    table->quick_condition_rows= table->stat_records();
+    table->opt_range_condition_rows= table->stat_records();
 
     s->on_expr_ref= &tables->on_expr;
     if (*s->on_expr_ref)
@@ -5376,7 +5376,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         get_delayed_table_estimates(s->table, &s->records, &s->read_time,
                                     &s->startup_cost);
         s->found_records= s->records;
-        table->quick_condition_rows=s->records;
+        table->opt_range_condition_rows=s->records;
       }
       else
         s->scan_time();
@@ -7217,8 +7217,8 @@ double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
       If applicable, get a more accurate estimate. Don't use the two
       heuristics at once.
     */
-  if (s->table->quick_condition_rows != s->found_records)
-    records= s->table->quick_condition_rows;
+  if (s->table->opt_range_condition_rows != s->found_records)
+    records= s->table->opt_range_condition_rows;
 
   dbl_records= (double)records;
   return dbl_records;
@@ -7506,8 +7506,8 @@ best_access_path(JOIN      *join,
             type= JT_EQ_REF;
             trace_access_idx.add("access_type", join_type_str[type])
                             .add("index", keyinfo->name);
-            if (!found_ref && table->quick_keys.is_set(key))
-              tmp= adjust_quick_cost(table->quick_costs[key], 1);
+            if (!found_ref && table->opt_range_keys.is_set(key))
+              tmp= adjust_quick_cost(table->opt_range[key].cost, 1);
             else
               tmp= table->file->avg_io_cost();
             tmp*= prev_record_reads(join_positions, idx, found_ref);
@@ -7537,12 +7537,12 @@ best_access_path(JOIN      *join,
                 quick_cond is equivalent to ref_const_cond (if it was an 
                 empty interval we wouldn't have got here).
               */
-              if (table->quick_keys.is_set(key))
+              if (table->opt_range_keys.is_set(key))
               {
-                records= (double) table->quick_rows[key];
+                records= (double) table->opt_range[key].rows;
                 trace_access_idx.add("used_range_estimates", true);
-                tmp= adjust_quick_cost(table->quick_costs[key],
-                                       table->quick_rows[key]);
+                tmp= adjust_quick_cost(table->opt_range[key].cost,
+                                       table->opt_range[key].rows);
                 goto got_cost;
               }
               else
@@ -7575,19 +7575,19 @@ best_access_path(JOIN      *join,
                 can make an adjustment is a special case of the criteria used
                 in ReuseRangeEstimateForRef-3.
               */
-              if (table->quick_keys.is_set(key) &&
+              if (table->opt_range_keys.is_set(key) &&
                   (const_part &
-                  (((key_part_map)1 << table->quick_key_parts[key])-1)) ==
-                  (((key_part_map)1 << table->quick_key_parts[key])-1) &&
-                  table->quick_n_ranges[key] == 1 &&
-                  records > (double) table->quick_rows[key])
+                   (((key_part_map)1 << table->opt_range[key].key_parts)-1)) ==
+                  (((key_part_map)1 << table->opt_range[key].key_parts)-1) &&
+                  table->opt_range[key].ranges == 1 &&
+                  records > (double) table->opt_range[key].rows)
               {
-                records= (double) table->quick_rows[key];
+                records= (double) table->opt_range[key].rows;
                 trace_access_idx.add("used_range_estimates", true);
               }
               else
               {
-                if (table->quick_keys.is_set(key))
+                if (table->opt_range_keys.is_set(key))
                 {
                   trace_access_idx.add("used_range_estimates",false)
                                   .add("cause",
@@ -7661,13 +7661,13 @@ best_access_path(JOIN      *join,
 
               (C3) "range optimizer used (have ref_or_null?2:1) intervals"
             */
-            if (table->quick_keys.is_set(key) && !found_ref &&          //(C1)
-                table->quick_key_parts[key] == max_key_part &&          //(C2)
-                table->quick_n_ranges[key] == 1 + MY_TEST(ref_or_null_part)) //(C3)
+            if (table->opt_range_keys.is_set(key) && !found_ref &&      //(C1)
+                table->opt_range[key].key_parts == max_key_part &&      //(C2)
+                table->opt_range[key].ranges == 1 + MY_TEST(ref_or_null_part)) //(C3)
             {
-              records= (double) table->quick_rows[key];
-              tmp= adjust_quick_cost(table->quick_costs[key],
-                                     table->quick_rows[key]);
+              records= (double) table->opt_range[key].rows;
+              tmp= adjust_quick_cost(table->opt_range[key].cost,
+                                     table->opt_range[key].rows);
               trace_access_idx.add("used_range_estimates", true);
               goto got_cost2;
             }
@@ -7692,15 +7692,16 @@ best_access_path(JOIN      *join,
                   cheaper in some cases ?
                   TODO: figure this out and adjust the plan choice if needed.
                 */
-                if (table->quick_keys.is_set(key))
+                if (table->opt_range_keys.is_set(key))
                 {
-                  if (table->quick_key_parts[key] >= max_key_part)     // (2)
+                  if (table->opt_range[key].key_parts >= max_key_part) // (2)
                   {
+                    double rows= (double) table->opt_range[key].rows;
                     if (!found_ref &&                                  // (1)
-                        records < (double) table->quick_rows[key])     // (3)
+                        records < rows)                                // (3)
                     {
                       trace_access_idx.add("used_range_estimates", true);
-                      records= (double) table->quick_rows[key];
+                      records= rows;
                     }
                   }
                   else /* (table->quick_key_parts[key] < max_key_part) */
@@ -7766,15 +7767,16 @@ best_access_path(JOIN      *join,
                 optimizer is the same as in ReuseRangeEstimateForRef-3,
                 applied to first table->quick_key_parts[key] key parts.
               */
-              if (table->quick_keys.is_set(key) &&
-                  table->quick_key_parts[key] <= max_key_part &&
+              if (table->opt_range_keys.is_set(key) &&
+                  table->opt_range[key].key_parts <= max_key_part &&
                   const_part &
-                  ((key_part_map)1 << table->quick_key_parts[key]) &&
-                  table->quick_n_ranges[key] == 1 + MY_TEST(ref_or_null_part &
-                                                            const_part) &&
-                  records > (double) table->quick_rows[key])
+                  ((key_part_map)1 << table->opt_range[key].key_parts) &&
+                  table->opt_range[key].ranges == (1 +
+                                                   MY_TEST(ref_or_null_part &
+                                                           const_part)) &&
+                  records > (double) table->opt_range[key].rows)
               {
-                records= (double) table->quick_rows[key];
+                records= (double) table->opt_range[key].rows;
               }
             }
 
@@ -7813,7 +7815,7 @@ best_access_path(JOIN      *join,
           tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
           DBUG_ASSERT(tmp >= 0);
           trace_access_idx.add("rowid_filter_key",
-                               s->table->key_info[filter->key_no].name);
+                               table->key_info[filter->key_no].name);
         }
       }
       trace_access_idx.add("rows", records).add("cost", tmp);
@@ -7928,7 +7930,7 @@ best_access_path(JOIN      *join,
   if ((records >= s->found_records || best > s->read_time) &&            // (1)
       !(best_key && best_key->key == MAX_KEY) &&                         // (2)
       !(s->quick && best_key && s->quick->index == best_key->key &&      // (2)
-        best_max_key_part >= s->table->quick_key_parts[best_key->key]) &&// (2)
+        best_max_key_part >= s->table->opt_range[best_key->key].key_parts) &&// (2)
       !((s->table->file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX) &&   // (3)
         ! s->table->covering_keys.is_clear_all() && best_key && !s->quick) &&// (3)
       !(s->table->force_index && best_key && !s->quick) &&               // (4)
@@ -9193,10 +9195,11 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     /*
       Check if we have a prefix of key=const that matches a quick select.
     */
-    if (!is_hash_join_key_no(key))
+    if (!is_hash_join_key_no(key) && table->opt_range_keys.is_set(key))
     {
-      key_part_map quick_key_map= (key_part_map(1) << table->quick_key_parts[key]) - 1;
-      if (table->quick_rows[key] && 
+      key_part_map quick_key_map= (key_part_map(1) <<
+                                   table->opt_range[key].key_parts) - 1;
+      if (table->opt_range[key].rows &&
           !(quick_key_map & ~table->const_key_parts[key]))
       {
         /* 
@@ -9223,7 +9226,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           However if sel becomes greater than 2 then with high probability
           something went wrong.
 	*/
-        sel /= (double)table->quick_rows[key] / (double) table->stat_records();
+        sel /= (double)table->opt_range[key].rows / (double) table->stat_records();
         set_if_smaller(sel, 1.0);
         used_range_selectivity= true;
       }
@@ -9513,9 +9516,9 @@ best_extension_by_limited_search(JOIN      *join,
   for (JOIN_TAB **pos= join->best_ref + idx ; (s= *pos) ; pos++)
   {
     table_map real_table_bit= s->table->map;
-    if ((remaining_tables & real_table_bit) && 
+    if ((remaining_tables & real_table_bit) &&
         (allowed_tables & real_table_bit) &&
-        !(remaining_tables & s->dependent) && 
+        !(remaining_tables & s->dependent) &&
         (!idx || !check_interleaving_with_nj(s)))
     {
       double current_record_count, current_read_time;
@@ -11721,7 +11724,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	  {
 	    sel->needed_reg=tab->needed_reg;
 	  }
-	  sel->quick_keys= tab->table->quick_keys;
+	  sel->quick_keys= tab->table->opt_range_keys;
 	  if (!sel->quick_keys.is_subset(tab->checked_keys) ||
               !sel->needed_reg.is_subset(tab->checked_keys))
 	  {
@@ -13483,14 +13486,14 @@ double JOIN_TAB::scan_time()
       get_delayed_table_estimates(table, &records, &read_time,
                                     &startup_cost);
       found_records= records;
-      table->quick_condition_rows= records;
+      table->opt_range_condition_rows= records;
     }
     else
     {
       found_records= records= table->stat_records();
       read_time= table->file->scan_time();
       /*
-        table->quick_condition_rows has already been set to
+        table->opt_range_condition_rows has already been set to
         table->file->stats.records
       */
     }
@@ -18262,6 +18265,7 @@ TABLE *Create_tmp_table::start(THD *thd,
   char  *tmpname,path[FN_REFLEN];
   Field **reg_field;
   uint *blob_field;
+  key_part_map *const_key_parts;
   /* Treat sum functions as normal ones when loose index scan is used. */
   m_save_sum_fields|= param->precomputed_group_by;
   DBUG_ENTER("Create_tmp_table::start");
@@ -18358,6 +18362,7 @@ TABLE *Create_tmp_table::start(THD *thd,
                         &m_group_buff, (m_group && ! m_using_unique_constraint ?
                                       param->group_length : 0),
                         &m_bitmaps, bitmap_buffer_size(field_count)*6,
+                        &const_key_parts, sizeof(*const_key_parts),
                         NullS))
   {
     DBUG_RETURN(NULL);				/* purecov: inspected */
@@ -18375,12 +18380,15 @@ TABLE *Create_tmp_table::start(THD *thd,
   bzero((char*) reg_field, sizeof(Field*) * (field_count+1));
   bzero((char*) m_default_field, sizeof(Field*) * (field_count));
   bzero((char*) m_from_field, sizeof(Field*) * field_count);
+  /* const_key_parts is used in sort_and_filter_keyuse */
+  bzero((char*) const_key_parts, sizeof(*const_key_parts));
 
   table->mem_root= own_root;
   mem_root_save= thd->mem_root;
   thd->mem_root= &table->mem_root;
 
   table->field=reg_field;
+  table->const_key_parts= const_key_parts;
   table->alias.set(table_alias->str, table_alias->length, table_alias_charset);
 
   table->reginfo.lock_type=TL_WRITE;	/* Will be updated */
@@ -20596,7 +20604,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   }
   join->thd->get_stmt_da()->reset_current_row_for_warning();
 
-  if (rc != NESTED_LOOP_NO_MORE_ROWS && 
+  if (rc != NESTED_LOOP_NO_MORE_ROWS &&
       (rc= join_tab_execution_startup(join_tab)) < 0)
     DBUG_RETURN(rc);
   
@@ -23403,9 +23411,9 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
           Otherwise, construct a ref access (todo: it's not clear what is the
           win in using ref access when we could use quick select also?)
         */
-        if ((table->quick_keys.is_set(new_ref_key) && 
-             table->quick_key_parts[new_ref_key] > ref_key_parts) ||
-             !(tab->ref.key >= 0))
+        if ((table->opt_range_keys.is_set(new_ref_key) &&
+             table->opt_range[new_ref_key].key_parts > ref_key_parts) ||
+            !(tab->ref.key >= 0))
 	{
           /*
             The range optimizer constructed QUICK_RANGE for ref_key, and
@@ -23508,7 +23516,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
       goto use_filesort;
 
     if (select && // psergey:  why doesn't this use a quick?
-        table->quick_keys.is_set(best_key) && best_key != ref_key)
+        table->opt_range_keys.is_set(best_key) && best_key != ref_key)
     {
       key_map tmp_map;
       tmp_map.clear_all();       // Force the creation of quick select
@@ -28064,14 +28072,14 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
     We need to adjust the estimates if we had a quick select (or ref(const)) on
     index keynr.
   */
-  if (table->quick_keys.is_set(keynr))
+  if (table->opt_range_keys.is_set(keynr))
   {
     /*
       Start from quick select's rows and cost. These are always cheaper than
       full index scan/cost.
     */
-    double best_rows= (double)table->quick_rows[keynr];
-    double best_cost= (double)table->quick_costs[keynr];
+    double best_rows= (double) table->opt_range[keynr].rows;
+    double best_cost= (double) table->opt_range[keynr].cost;
     
     /*
       Check if ref(const) access was possible on this index. 
@@ -28098,8 +28106,8 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
           2. ref(const) uses fewer key parts, becasue there is a
             range_cond(key_part+1).
         */
-        if (kp == table->quick_key_parts[keynr])
-          ref_rows= table->quick_rows[keynr];
+        if (kp == table->opt_range[keynr].key_parts)
+          ref_rows= table->opt_range[keynr].rows;
         else
           ref_rows= (ha_rows) table->key_info[keynr].actual_rec_per_key(kp-1);
 
@@ -28185,7 +28193,7 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
                                       value for further use in QUICK_SELECT_DESC
 
   @note
-    This function takes into account table->quick_condition_rows statistic
+    This function takes into account table->opt_range_condition_rows statistic
     (that is calculated by the make_join_statistics function).
     However, single table procedures such as mysql_update() and mysql_delete()
     never call make_join_statistics, so they have to update it manually
@@ -28220,7 +28228,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   double fanout= 1;
   ha_rows table_records= table->stat_records();
   bool group= join && join->group && order == join->group_list;
-  ha_rows refkey_rows_estimate= table->quick_condition_rows;
+  ha_rows refkey_rows_estimate= table->opt_range_condition_rows;
   const bool has_limit= (select_limit_arg != HA_POS_ERROR);
   THD* thd= join ? join->thd : table->in_use;
 
@@ -28274,7 +28282,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   trace_cheaper_ordering.add("read_time", read_time);
   /*
     Calculate the selectivity of the ref_key for REF_ACCESS. For
-    RANGE_ACCESS we use table->quick_condition_rows.
+    RANGE_ACCESS we use table->opt_range_condition_rows.
   */
   if (ref_key >= 0 && ref_key != MAX_KEY && tab->type == JT_REF)
   {
@@ -28285,9 +28293,9 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     */
     if (tab->ref.const_ref_part_map ==
         make_prev_keypart_map(tab->ref.key_parts) &&
-        table->quick_keys.is_set(ref_key) &&
-        table->quick_key_parts[ref_key] == tab->ref.key_parts)
-      refkey_rows_estimate= table->quick_rows[ref_key];
+        table->opt_range_keys.is_set(ref_key) &&
+        table->opt_range[ref_key].key_parts == tab->ref.key_parts)
+      refkey_rows_estimate= table->opt_range[ref_key].rows;
     else
     {
       const KEY *ref_keyinfo= table->key_info + ref_key;
@@ -28501,8 +28509,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
             possible_key.add("cause", "ref estimates better");
             continue;
           }
-          if (table->quick_keys.is_set(nr))
-            quick_records= table->quick_rows[nr];
+          if (table->opt_range_keys.is_set(nr))
+            quick_records= table->opt_range[nr].rows;
           possible_key.add("records", quick_records);
           if (best_key < 0 ||
               (select_limit <= MY_MIN(quick_records,best_records) ?
@@ -28597,7 +28605,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   @note
     Side effects:
     - may deallocate or deallocate and replace select->quick;
-    - may set table->quick_condition_rows and table->quick_rows[...]
+    - may set table->opt_range_condition_rows and table->quick_rows[...]
       to table->file->stats.records. 
 */
 
@@ -28662,10 +28670,10 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
   { // check if some index scan & LIMIT is more efficient than filesort
     
     /*
-      Update quick_condition_rows since single table UPDATE/DELETE procedures
+      Update opt_range_condition_rows since single table UPDATE/DELETE procedures
       don't call make_join_statistics() and leave this variable uninitialized.
     */
-    table->quick_condition_rows= table->stat_records();
+    table->opt_range_condition_rows= table->stat_records();
     
     int key, direction;
     if (test_if_cheaper_ordering(NULL, order, table,

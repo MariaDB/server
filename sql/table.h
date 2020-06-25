@@ -1257,8 +1257,7 @@ public:
     Map of keys that can be used to retrieve all data from this table 
     needed by the query without reading the row.
   */
-  key_map covering_keys;
-  key_map quick_keys, intersect_keys;
+  key_map covering_keys, intersect_keys;
   /*
     A set of keys that can be used in the query that references this
     table.
@@ -1340,28 +1339,29 @@ public:
   /* The estimate of the number of records in the table used by optimizer */ 
   ha_rows used_stat_records;
 
+  key_map opt_range_keys;
   /* 
-    For each key that has quick_keys.is_set(key) == TRUE: estimate of #records
-    and max #key parts that range access would use.
+    The following structure is filled for each key that has
+    opt_range_keys.is_set(key) == TRUE
   */
-  ha_rows	quick_rows[MAX_KEY];
-  uint          quick_key_parts[MAX_KEY];
-
-  double 	quick_costs[MAX_KEY];
-  /*
-    If there is a range access by i-th index then the cost of
-    index only access for it is stored in quick_index_only_costs[i]
-  */
-  double 	quick_index_only_costs[MAX_KEY];
-
+  struct OPT_RANGE
+  {
+    uint        key_parts;
+    uint        ranges;
+    ha_rows     rows;
+    double      cost;
+    /*
+      If there is a range access by i-th index then the cost of
+      index only access for it is stored in index_only_costs[i]
+    */
+    double      index_only_cost;
+  } *opt_range;
   /* 
-    Bitmaps of key parts that =const for the duration of join execution. If
-    we're in a subquery, then the constant may be different across subquery
-    re-executions.
+     Bitmaps of key parts that =const for the duration of join execution. If
+     we're in a subquery, then the constant may be different across subquery
+     re-executions.
   */
-  key_part_map  const_key_parts[MAX_KEY];
-
-  uint    quick_n_ranges[MAX_KEY];
+  key_part_map *const_key_parts;
 
   /* 
     Estimate of number of records that satisfy SARGable part of the table
@@ -1371,7 +1371,7 @@ public:
     that will pass the table condition (condition that depends on fields of 
     this table and constants)
   */
-  ha_rows       quick_condition_rows;
+  ha_rows       opt_range_condition_rows;
 
   double cond_selectivity;
   List<st_cond_statistic> *cond_selectivity_sampling_explain;
@@ -1637,7 +1637,7 @@ public:
   bool is_filled_at_execution();
 
   bool update_const_key_parts(COND *conds);
-  void initialize_quick_structures();
+  void initialize_opt_range_structures();
 
   my_ptrdiff_t default_values_offset() const
   { return (my_ptrdiff_t) (s->default_values - record[0]); }

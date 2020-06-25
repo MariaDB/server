@@ -443,7 +443,7 @@ int mysql_update(THD *thd,
   
   /* Calculate "table->covering_keys" based on the WHERE */
   table->covering_keys= table->s->keys_in_use;
-  table->quick_keys.clear_all();
+  table->opt_range_keys.clear_all();
 
   query_plan.select_lex= thd->lex->first_select_lex();
   query_plan.table= table;
@@ -577,7 +577,7 @@ int mysql_update(THD *thd,
   }
 
   /* If running in safe sql mode, don't allow updates without keys */
-  if (table->quick_keys.is_clear_all())
+  if (table->opt_range_keys.is_clear_all())
   {
     thd->set_status_no_index_used();
     if (safe_update && !using_limit)
