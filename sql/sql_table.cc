@@ -4770,6 +4770,8 @@ int create_table_impl(THD *thd,
   int		error= 1;
   bool          frm_only= create_table_mode == C_ALTER_TABLE_FRM_ONLY;
   bool          internal_tmp_table= create_table_mode == C_ALTER_TABLE || frm_only;
+  TABLE_LIST table_list;
+
   DBUG_ENTER("mysql_create_table_no_lock");
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d  path: %s",
                        db, table_name, internal_tmp_table, path));
@@ -4849,7 +4851,6 @@ int create_table_impl(THD *thd,
         LEX_STRING tab_name= {(char *) table_name, strlen(table_name)};
         (void) delete_statistics_for_table(thd, &db_name, &tab_name);
 
-        TABLE_LIST table_list;
         table_list.init_one_table(db, strlen(db), table_name,
                                   strlen(table_name), table_name,
                                   TL_WRITE_ALLOW_WRITE);
@@ -4897,6 +4898,29 @@ int create_table_impl(THD *thd,
 
   if (check_engine(thd, orig_db, orig_table_name, create_info))
     goto err;
+
+  table_list.init_one_table(db, strlen(db), table_name, strlen(table_name),
+                            table_name, TL_WRITE_ALLOW_WRITE);
+  table_list.table= create_info->table;
+  if (check_if_log_table(&table_list, FALSE, NullS))
+  {
+    if (!create_info->db_type || /* unknown engine */
+        !(create_info->db_type->flags & HTON_SUPPORT_LOG_TABLES))
+    {
+      my_error(ER_UNSUPORTED_LOG_ENGINE, MYF(0),
+               hton_name(create_info->db_type)->str);
+      goto err;
+    }
+
+    if (create_info->db_type == maria_hton &&
+        create_info->transactional != HA_CHOICE_NO)
+    {
+      my_printf_error(
+          ER_UNSUPORTED_LOG_ENGINE,
+          "Only non-transactional Aria table can be used for logging", MYF(0));
+      goto err;
+    }
+  }
 
   if (create_table_mode == C_ASSISTED_DISCOVERY)
   {
@@ -8898,49 +8922,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 {
   DBUG_ENTER("mysql_alter_table");
 
-  /*
-    Check if we attempt to alter mysql.slow_log or
-    mysql.general_log table and return an error if
-    it is the case.
-    TODO: this design is obsolete and will be removed.
-  */
-  int table_kind= check_if_log_table(table_list, FALSE, NullS);
-
-  if (table_kind)
-  {
-    /* Disable alter of enabled log tables */
-    if (logger.is_log_table_enabled(table_kind))
-    {
-      my_error(ER_BAD_LOG_STATEMENT, MYF(0), "ALTER");
-      DBUG_RETURN(true);
-    }
-
-    /* Disable alter of log tables to unsupported engine */
-    if ((create_info->used_fields & HA_CREATE_USED_ENGINE) &&
-        (!create_info->db_type || /* unknown engine */
-         !(create_info->db_type->flags & HTON_SUPPORT_LOG_TABLES)))
-    {
-      my_error(ER_UNSUPORTED_LOG_ENGINE, MYF(0),
-               hton_name(create_info->db_type)->str);
-      DBUG_RETURN(true);
-    }
-
-    if (create_info->db_type == maria_hton &&
-        create_info->transactional != HA_CHOICE_NO)
-    {
-      my_error(ER_TRANSACTIONAL_ARIA_LOG_ENGINE, MYF(0));
-      DBUG_RETURN(true);
-    }
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (alter_info->flags & Alter_info::ALTER_PARTITION)
-    {
-      my_error(ER_WRONG_USAGE, MYF(0), "PARTITION", "log table");
-      DBUG_RETURN(true);
-    }
-#endif
-  }
-
   THD_STAGE_INFO(thd, stage_init);
 
   /*
@@ -9093,6 +9074,52 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   {
     my_error(ER_ROW_IS_REFERENCED, MYF(0));
     DBUG_RETURN(true);
+  }
+
+  /*
+    Check if we attempt to alter mysql.slow_log or
+    mysql.general_log table and return an error if
+    it is the case.
+    TODO: this design is obsolete and will be removed.
+  */
+  int table_kind= check_if_log_table(table_list, FALSE, NullS);
+
+  if (table_kind)
+  {
+    /* Disable alter of enabled log tables */
+    if (logger.is_log_table_enabled(table_kind))
+    {
+      my_error(ER_BAD_LOG_STATEMENT, MYF(0), "ALTER");
+      DBUG_RETURN(true);
+    }
+
+    /* Disable alter of log tables to unsupported engine */
+    if ((create_info->used_fields & HA_CREATE_USED_ENGINE) &&
+        (!create_info->db_type || /* unknown engine */
+         !(create_info->db_type->flags & HTON_SUPPORT_LOG_TABLES)))
+    {
+      my_error(ER_UNSUPORTED_LOG_ENGINE, MYF(0),
+               hton_name(create_info->db_type)->str);
+      DBUG_RETURN(true);
+    }
+
+    if (create_info->used_fields & HA_CREATE_USED_ENGINE &&
+        create_info->db_type == maria_hton &&
+        create_info->transactional != HA_CHOICE_NO)
+    {
+      my_printf_error(
+          ER_UNSUPORTED_LOG_ENGINE,
+          "Only non-transactional Aria table can be used for logging", MYF(0));
+      DBUG_RETURN(true);
+    }
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (alter_info->flags & Alter_info::ALTER_PARTITION)
+    {
+      my_error(ER_WRONG_USAGE, MYF(0), "PARTITION", "log table");
+      DBUG_RETURN(true);
+    }
+#endif
   }
 
   /*

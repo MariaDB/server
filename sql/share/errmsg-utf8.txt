@@ -7731,5 +7731,3 @@ ER_GEOJSON_EMPTY_COORDINATES
 
 ER_MYROCKS_CANT_NOPAD_COLLATION
   eng "MyRocks doesn't currently support collations with \"No pad\" attribute."
-ER_TRANSACTIONAL_ARIA_LOG_ENGINE
-        eng "Only non-transactional Aria table can be used for logging"

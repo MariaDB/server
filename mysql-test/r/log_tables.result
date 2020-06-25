@@ -265,7 +265,56 @@ ALTER TABLE mysql.general_log ENGINE=Aria transactional = 0;
 ALTER TABLE mysql.slow_log ENGINE=Aria;
 ERROR HY000: Only non-transactional Aria table can be used for logging
 ALTER TABLE mysql.slow_log ENGINE=Aria transactional = 0;
+SET SESSION enforce_storage_engine=InnoDB;
+ALTER TABLE mysql.slow_log ENGINE=MyISAM;
+ERROR HY000: Storage engine InnoDB cannot be used for log tables
+SET SESSION enforce_storage_engine=Aria;
+ALTER TABLE mysql.slow_log ENGINE=Aria;
+ERROR HY000: Only non-transactional Aria table can be used for logging
+SET SESSION enforce_storage_engine=NULL;
 drop table mysql.slow_log;
+drop table mysql.general_log;
+CREATE TABLE `general_log` (
+`event_time` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP 
+ON UPDATE CURRENT_TIMESTAMP,
+`user_host` mediumtext NOT NULL,
+`thread_id` BIGINT(21) UNSIGNED NOT NULL,
+`server_id` int(10) unsigned NOT NULL,
+`command_type` varchar(64) NOT NULL,
+`argument` mediumtext NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='General log';
+ERROR HY000: Storage engine InnoDB cannot be used for log tables
+CREATE TABLE `general_log` (
+`event_time` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP 
+ON UPDATE CURRENT_TIMESTAMP,
+`user_host` mediumtext NOT NULL,
+`thread_id` BIGINT(21) UNSIGNED NOT NULL,
+`server_id` int(10) unsigned NOT NULL,
+`command_type` varchar(64) NOT NULL,
+`argument` mediumtext NOT NULL
+) ENGINE=Aria DEFAULT CHARSET=utf8 COMMENT='General log';
+ERROR HY000: Only non-transactional Aria table can be used for logging
+SET SESSION enforce_storage_engine=InnoDB;
+CREATE TABLE `general_log` (
+`event_time` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP 
+ON UPDATE CURRENT_TIMESTAMP,
+`user_host` mediumtext NOT NULL,
+`thread_id` BIGINT(21) UNSIGNED NOT NULL,
+`server_id` int(10) unsigned NOT NULL,
+`command_type` varchar(64) NOT NULL,
+`argument` mediumtext NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log';
+ERROR HY000: Storage engine InnoDB cannot be used for log tables
+SET SESSION enforce_storage_engine=NULL;
+CREATE TABLE `general_log` (
+`event_time` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP 
+ON UPDATE CURRENT_TIMESTAMP,
+`user_host` mediumtext NOT NULL,
+`thread_id` BIGINT(21) UNSIGNED NOT NULL,
+`server_id` int(10) unsigned NOT NULL,
+`command_type` varchar(64) NOT NULL,
+`argument` mediumtext NOT NULL
+) ENGINE=Aria transactional=0 DEFAULT CHARSET=utf8 COMMENT='General log';
 drop table mysql.general_log;
 drop table mysql.general_log;
 ERROR 42S02: Unknown table 'mysql.general_log'
