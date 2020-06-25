@@ -2338,17 +2338,12 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     {
       table_creation_was_logged= table->table->s->table_creation_was_logged;
       if (thd->drop_temporary_table(table->table, &is_trans, true))
-      {
-        /*
-          This is a very unlikely scenaro as dropping a temporary table
-          should always work. Would be better if we tried to drop all
-          temporary tables before giving the error.
-        */
         error= 1;
-        goto err;
+      else
+      {
+        table->table= 0;
+        temporary_table_was_dropped= 1;
       }
-      table->table= 0;
-      temporary_table_was_dropped= 1;
     }
 
     if ((drop_temporary && if_exists) || temporary_table_was_dropped)
