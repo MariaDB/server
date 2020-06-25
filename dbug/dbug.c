@@ -330,10 +330,13 @@ static void LockMutex(CODE_STATE *cs)
 {
   if (!cs->locked)
     pthread_mutex_lock(&THR_LOCK_dbug);
+  cs->locked++;
 }
 static void UnlockMutex(CODE_STATE *cs)
 {
-  if (!cs->locked)
+  --cs->locked;
+  assert(cs->locked >= 0);
+  if (cs->locked == 0)
     pthread_mutex_unlock(&THR_LOCK_dbug);
 }
 static void LockIfInitSettings(CODE_STATE *cs)
