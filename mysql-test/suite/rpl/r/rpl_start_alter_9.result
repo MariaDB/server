@@ -1,19 +1,17 @@
 include/master-slave.inc
 [connection master]
+connection master;
 set global binlog_split_alter=true;
 connection slave;
-set global gtid_strict_mode=1;
-connection slave;
 include/stop_slave.inc
-SET GLOBAL slave_parallel_threads=10;
-set global slave_parallel_mode=optimistic;
-change master to master_use_gtid=slave_pos;
-include/start_slave.inc
-#Parallel Slave
-connection master;
+change master to master_use_gtid= current_pos;
+set global gtid_strict_mode=1;
+#Legacy Master Slave
 # Myisam
 connect master_node,127.0.0.1,root,,$db_name, $M_port;
+set gtid_domain_id= 0;;
 connect slave_node,127.0.0.1,root,,test, $S_port;
+set gtid_domain_id= 0;;
 connection master_node;
 create table t1( a int, b int) engine=myisam;
 insert into t1 values(1,1);
@@ -24,9 +22,6 @@ alter table t1 add column c int;
 insert into t1 values(1,1, NULL);
 alter table t1 change a a int unique ;
 ERROR 23000: Duplicate entry '1' for key 'a'
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -47,9 +42,6 @@ alter table t1 add column c int;
 insert into t1 values(1,1, NULL);
 alter table t1 change a a int unique ;
 ERROR 23000: Duplicate entry '1' for key 'a'
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -70,9 +62,6 @@ alter table t1 add column c int;
 insert into t1 values(1,1, NULL);
 alter table t1 change a a int unique ;
 ERROR 23000: Duplicate entry '1' for key 'a'
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -106,11 +95,6 @@ create table t9( a int primary key, b int) engine=myisam;
 insert into t9 values(1,1),(2,2);
 create table t10( a int primary key, b int) engine=myisam;
 insert into t10 values(1,1),(2,2);
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 set global gtid_domain_id= 0;;
 connect con1,127.0.0.1,root,,$db_name, $M_port;
 connect con2,127.0.0.1,root,,$db_name, $M_port;
@@ -169,11 +153,6 @@ connection con9;
 connection con10;
 connection master_node;
 set DEBUG_SYNC= 'RESET';
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 #Concurrent DML
 connection con1;
 alter table t1 add column d int, force, algorithm=copy;
@@ -209,11 +188,6 @@ connection con9;
 connection con10;
 connection master_node;
 set DEBUG_SYNC= 'RESET';
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 # Rollback tests
 connection con1;
 insert into t1 values(3,2,1,1);
@@ -269,17 +243,7 @@ connection con10;
 ERROR 23000: Duplicate entry '2' for key 'b'
 connection master_node;
 set DEBUG_SYNC= 'RESET';
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 disconnect con1;
 disconnect con2;
 disconnect con3;
@@ -300,7 +264,7 @@ disconnect con17;
 disconnect con18;
 disconnect con19;
 disconnect con20;
-connection master_node;
+connection default;
 SET GLOBAL debug_dbug= "";
 connection master_node;
 #concurrent alter Aria
@@ -326,11 +290,6 @@ create table t9( a int primary key, b int) engine=aria;
 insert into t9 values(1,1),(2,2);
 create table t10( a int primary key, b int) engine=aria;
 insert into t10 values(1,1),(2,2);
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 set global gtid_domain_id= 0;;
 connect con1,127.0.0.1,root,,$db_name, $M_port;
 connect con2,127.0.0.1,root,,$db_name, $M_port;
@@ -389,11 +348,6 @@ connection con9;
 connection con10;
 connection master_node;
 set DEBUG_SYNC= 'RESET';
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 #Concurrent DML
 connection con1;
 alter table t1 add column d int, force, algorithm=copy;
@@ -429,11 +383,6 @@ connection con9;
 connection con10;
 connection master_node;
 set DEBUG_SYNC= 'RESET';
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 # Rollback tests
 connection con1;
 insert into t1 values(3,2,1,1);
@@ -489,17 +438,7 @@ connection con10;
 ERROR 23000: Duplicate entry '2' for key 'b'
 connection master_node;
 set DEBUG_SYNC= 'RESET';
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 disconnect con1;
 disconnect con2;
 disconnect con3;
@@ -520,7 +459,7 @@ disconnect con17;
 disconnect con18;
 disconnect con19;
 disconnect con20;
-connection master_node;
+connection default;
 SET GLOBAL debug_dbug= "";
 connection master_node;
 #concurrent alter Innodb copy
@@ -546,11 +485,6 @@ create table t9( a int primary key, b int) engine=innodb;
 insert into t9 values(1,1),(2,2);
 create table t10( a int primary key, b int) engine=innodb;
 insert into t10 values(1,1),(2,2);
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 set global gtid_domain_id= 0;;
 connect con1,127.0.0.1,root,,$db_name, $M_port;
 connect con2,127.0.0.1,root,,$db_name, $M_port;
@@ -609,11 +543,6 @@ connection con9;
 connection con10;
 connection master_node;
 set DEBUG_SYNC= 'RESET';
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 #Concurrent DML
 connection con1;
 alter table t1 add column d int, force, algorithm=copy;
@@ -649,11 +578,6 @@ connection con9;
 connection con10;
 connection master_node;
 set DEBUG_SYNC= 'RESET';
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 # Rollback tests
 connection con1;
 insert into t1 values(3,2,1,1);
@@ -709,17 +633,7 @@ connection con10;
 ERROR 23000: Duplicate entry '2' for key 'b'
 connection master_node;
 set DEBUG_SYNC= 'RESET';
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 disconnect con1;
 disconnect con2;
 disconnect con3;
@@ -740,7 +654,7 @@ disconnect con17;
 disconnect con18;
 disconnect con19;
 disconnect con20;
-connection master_node;
+connection default;
 SET GLOBAL debug_dbug= "";
 connection master_node;
 #concurrent alter Innodb Inplace
@@ -766,11 +680,6 @@ create table t9( a int primary key, b int) engine=innodb;
 insert into t9 values(1,1),(2,2);
 create table t10( a int primary key, b int) engine=innodb;
 insert into t10 values(1,1),(2,2);
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 set global gtid_domain_id= 0;;
 connect con1,127.0.0.1,root,,$db_name, $M_port;
 connect con2,127.0.0.1,root,,$db_name, $M_port;
@@ -829,11 +738,6 @@ connection con9;
 connection con10;
 connection master_node;
 set DEBUG_SYNC= 'RESET';
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 #Concurrent DML
 connection con1;
 alter table t1 add column d int, force, algorithm=inplace;
@@ -887,11 +791,6 @@ connection con17;
 connection con18;
 connection con19;
 connection con20;
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 connection master_node;
 set DEBUG_SYNC= "now signal alter_cont";
 connection con1;
@@ -906,11 +805,6 @@ connection con9;
 connection con10;
 connection master_node;
 set DEBUG_SYNC= 'RESET';
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 # Rollback tests
 connection con1;
 insert into t1 values(3,2,1,1);
@@ -966,17 +860,7 @@ connection con10;
 ERROR 23000: Duplicate entry '2' for key 'b'
 connection master_node;
 set DEBUG_SYNC= 'RESET';
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
-#Sync
-include/save_master_gtid.inc
-connection slave_node;
-include/sync_with_master_gtid.inc
-connection master_node;
 disconnect con1;
 disconnect con2;
 disconnect con3;
@@ -997,21 +881,19 @@ disconnect con17;
 disconnect con18;
 disconnect con19;
 disconnect con20;
-connection master_node;
+connection default;
 SET GLOBAL debug_dbug= "";
 disconnect master_node;
 disconnect slave_node;
-connection master;
-include/save_master_gtid.inc
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+0-1-401
+RESET master;
 connection slave;
-include/sync_with_master_gtid.inc
-#cleanup
-include/stop_slave.inc
-SET GLOBAL slave_parallel_threads=0;
-set global slave_domain_parallel_threads=0;
-set global slave_parallel_mode=conservative;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+0-1-401
 set global gtid_strict_mode=0;
-set global gtid_domain_id= 0;
 include/start_slave.inc
 connection master;
 set global binlog_split_alter=false;

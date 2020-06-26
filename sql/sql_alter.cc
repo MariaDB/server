@@ -388,6 +388,7 @@ static int process_start_alter(THD *thd, uint64 thread_id)
       thd->rgi_slave->reserved_start_alter_thread= false;
     if (write_bin_log(thd, false, thd->query(), thd->query_length()))
       return START_ALTER_ERROR;
+    my_ok(thd);
     return START_ALTER_SKIP;
   }
   return START_ALTER_PARSE;
@@ -498,6 +499,7 @@ static int process_rollback_alter(THD *thd, uint64 thread_id)
 write_binlog:
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
     return START_ALTER_ERROR;
+  my_ok(thd);
   return START_ALTER_SKIP;
 }
 bool Sql_cmd_alter_table::execute(THD *thd)

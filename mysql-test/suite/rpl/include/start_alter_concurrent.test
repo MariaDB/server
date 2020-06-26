@@ -354,5 +354,5 @@ if ($sync_slave)
 --disconnect con18
 --disconnect con19
 --disconnect con20
---connection default
+--connection master_node
 SET GLOBAL debug_dbug= "";

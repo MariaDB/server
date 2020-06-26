@@ -301,7 +301,7 @@ disconnect con17;
 disconnect con18;
 disconnect con19;
 disconnect con20;
-connection default;
+connection master_node;
 SET GLOBAL debug_dbug= "";
 connection master_node;
 #concurrent alter Aria
@@ -521,7 +521,7 @@ disconnect con17;
 disconnect con18;
 disconnect con19;
 disconnect con20;
-connection default;
+connection master_node;
 SET GLOBAL debug_dbug= "";
 connection master_node;
 #concurrent alter Innodb copy
@@ -741,7 +741,7 @@ disconnect con17;
 disconnect con18;
 disconnect con19;
 disconnect con20;
-connection default;
+connection master_node;
 SET GLOBAL debug_dbug= "";
 connection master_node;
 #concurrent alter Innodb Inplace
@@ -998,10 +998,11 @@ disconnect con17;
 disconnect con18;
 disconnect con19;
 disconnect con20;
-connection default;
+connection master_node;
 SET GLOBAL debug_dbug= "";
 disconnect master_node;
 disconnect slave_node;
+connection master;
 include/save_master_gtid.inc
 connection slave;
 include/sync_with_master_gtid.inc

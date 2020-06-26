@@ -19,6 +19,7 @@ set global gtid_strict_mode=1;
 --let $sync_slave=1
 
 --source include/start_alter_include.test
+--connection master
 --source include/save_master_gtid.inc
 
 --connection slave

@@ -9365,6 +9365,17 @@ static void wait_for_master(THD *thd, start_alter_info* info)
   return;
 }
 
+static void alter_committed(THD *thd, start_alter_info* info, Master_info *mi)
+{
+  start_alter_state tmp= info->state;  
+  mysql_mutex_lock(&mi->start_alter_lock);
+  info->state= start_alter_state::COMMITTED;
+  mysql_mutex_unlock(&mi->start_alter_lock);
+  mysql_cond_broadcast(&info->start_alter_cond);
+  if (tmp == start_alter_state::ROLLBACK_ALTER)
+    thd->clear_error();
+}
+
 /*
   master_result:- process the info->state recieved from master
   @retval   >=1               Error{ 1= ROLLBACK recieved from master , 2= error
@@ -9380,11 +9391,7 @@ static int master_result(THD *thd, Master_info *mi, start_alter_info *info,
   DBUG_ASSERT(info->state > start_alter_state::REGISTERED);
   if (info->state == start_alter_state::ROLLBACK_ALTER)
   {
-    mysql_mutex_lock(&mi->start_alter_lock);
-    info->state= start_alter_state::COMMITTED;
-    mysql_mutex_unlock(&mi->start_alter_lock);
-    mysql_cond_broadcast(&info->start_alter_cond);
-    thd->clear_error();
+    alter_committed(thd, info, mi);
     return MASTER_RESULT_ROLLBACK;
   }
   else if (info->state == start_alter_state::COMMIT_ALTER && alter_result)
@@ -10288,7 +10295,7 @@ do_continue:;
 
       if (res)
       {
-        if (opt_binlog_split_alter)
+        if (partial_alter)
         {
           thd->gtid_flags3|= Gtid_log_event::FL_ROLLBACK_ALTER_E1;
           sprintf(send_query, "/*!100001  %s EXECUTE = ROLLBACK %ld */", thd->query(),
@@ -10345,8 +10352,10 @@ do_continue:;
     thd->close_unused_temporary_table_instances(table_list);
 
   //If issues by binlog/master complete the prepare phase of alter and then commit
-  if (write_start_alter(thd, &partial_alter, info))
-    DBUG_RETURN(true);
+  if (table->s->tmp_table == NO_TMP_TABLE || (table->s->tmp_table != NO_TMP_TABLE &&
+          !thd->is_current_stmt_binlog_format_row()))
+    if (write_start_alter(thd, &partial_alter, info))
+      DBUG_RETURN(true);
   DBUG_EXECUTE_IF("start_alter_delay_master", {
     debug_sync_set_action(thd,
                           STRING_WITH_LEN("now wait_for alter_cont"));
@@ -10467,12 +10476,7 @@ do_continue:;
     }
     else if(start_alter_id && !thd->direct_commit_alter)
     {
-      //if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
-       // DBUG_RETURN(true);
-      mysql_mutex_lock(&mi->start_alter_lock);
-      info->state= start_alter_state::COMMITTED;
-      mysql_mutex_unlock(&mi->start_alter_lock);
-      mysql_cond_broadcast(&info->start_alter_cond);
+      alter_committed(thd, info, mi);
     }
     /* We don't replicate alter table statement on temporary tables */
     else if (!thd->is_current_stmt_binlog_format_row() &&
@@ -10676,12 +10680,7 @@ end_inplace:
   }
   else if(start_alter_id && !thd->direct_commit_alter)
   {
-    //if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
-    //  DBUG_RETURN(true);
-    mysql_mutex_lock(&mi->start_alter_lock);
-    info->state= start_alter_state::COMMITTED;
-    mysql_mutex_unlock(&mi->start_alter_lock);
-    mysql_cond_broadcast(&info->start_alter_cond);
+    alter_committed(thd, info, mi);
   }
   else if (write_bin_log(thd, true, thd->query(), thd->query_length()))
     DBUG_RETURN(true);
@@ -10733,9 +10732,10 @@ err_new_table_cleanup:
                           (FN_IS_TMP | (no_ha_table ? NO_HA_TABLE : 0)),
                           alter_ctx.get_tmp_path());
   //STODO
+  //Can be the case when master sent CA and on slave we got RA
   if (start_alter_id && !thd->direct_commit_alter)
     master_result(thd, mi, info, 1);
-  else if (opt_binlog_split_alter)
+  else if (partial_alter) //Write only if SA written
   {
     thd->gtid_flags3|= Gtid_log_event::FL_ROLLBACK_ALTER_E1;
     sprintf(send_query, "/*!100001  %s EXECUTE = ROLLBACK %ld */", thd->query(),
