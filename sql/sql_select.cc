@@ -1594,6 +1594,9 @@ int JOIN::optimize()
   join_optimization_state init_state= optimization_state;
   if (select_lex->pushdown_select)
   {
+    // Do same as JOIN::optimize_inner does:
+    fields= &select_lex->item_list;
+
     if (!(select_options & SELECT_DESCRIBE))
     {
       /* Prepare to execute the query pushed into a foreign engine */
