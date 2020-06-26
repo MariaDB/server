@@ -278,6 +278,7 @@ struct st_vio
 #ifdef _WIN32
   HANDLE hPipe;
   OVERLAPPED overlapped;
+  void *tp_ctx; /* threadpool context */
 #endif
 };
 #endif /* vio_violite_h_ */

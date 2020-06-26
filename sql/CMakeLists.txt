@@ -171,7 +171,7 @@ IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
     AND (NOT DISABLE_THREADPOOL))
  ADD_DEFINITIONS(-DHAVE_POOL_OF_THREADS)
  IF(WIN32)
-   SET(SQL_SOURCE ${SQL_SOURCE} threadpool_win.cc)
+   SET(SQL_SOURCE ${SQL_SOURCE} threadpool_win.cc threadpool_winsockets.cc threadpool_winsockets.h)
  ENDIF()
  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_generic.cc)
  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_common.cc)
