@@ -8573,7 +8573,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     /*
       Check if we have a prefix of key=const that matches a quick select.
     */
-    if (!is_hash_join_key_no(key))
+    if (!is_hash_join_key_no(key) && table->quick_keys.is_set(key))
     {
       key_part_map quick_key_map= (key_part_map(1) << table->quick_key_parts[key]) - 1;
       if (table->quick_rows[key] && 

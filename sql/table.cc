@@ -9358,10 +9358,10 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
 
 void TABLE::initialize_quick_structures()
 {
-  bzero(quick_rows, sizeof(quick_rows));
-  bzero(quick_key_parts, sizeof(quick_key_parts));
-  bzero(quick_costs, sizeof(quick_costs));
-  bzero(quick_n_ranges, sizeof(quick_n_ranges));
+  TRASH_ALLOC(quick_rows, sizeof(quick_rows));
+  TRASH_ALLOC(quick_key_parts, sizeof(quick_key_parts));
+  TRASH_ALLOC(quick_costs, sizeof(quick_costs));
+  TRASH_ALLOC(quick_n_ranges, sizeof(quick_n_ranges));
 }
 
 /*
