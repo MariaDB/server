@@ -1138,6 +1138,7 @@ void cleanup_items(Item *item)
   DBUG_VOID_RETURN;
 }
 
+#ifndef EMBEDDED_LIBRARY
 static enum enum_server_command fetch_command(THD *thd, char *packet)
 {
   enum enum_server_command
@@ -1153,6 +1154,7 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
                      command_name[command].str));
   DBUG_RETURN(command);
 }
+#endif
 
 
 #ifdef WITH_WSREP
@@ -1167,7 +1169,6 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
   return true;
 }
 #endif /* WITH_WSREP */
-#ifndef EMBEDDED_LIBRARY
 
 /**
   Read one command from connection and execute it (query or simple command).
@@ -1180,6 +1181,7 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
   @retval
     1  request of thread shutdown (see dispatch_command() description)
 */
+#ifndef EMBEDDED_LIBRARY
 
 bool do_command(THD *thd)
 {

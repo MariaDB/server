@@ -1924,7 +1924,7 @@ public:
   virtual bool limit_index_condition_pushdown_processor(void *arg) { return 0; }
   virtual bool exists2in_processor(void *arg) { return 0; }
   virtual bool find_selective_predicates_list_processor(void *arg) { return 0; }
-  bool cleanup_is_expensive_cache_processor(void *arg)
+  virtual bool cleanup_is_expensive_cache_processor(void *arg)
   {
     is_expensive_cache= (int8)(-1);
     return 0;
@@ -3167,6 +3167,8 @@ public:
   enum Type type() const { return CONST_ITEM; }
   bool check_partition_func_processor(void *int_arg) { return false;}
   bool const_item() const { return true; }
+  bool is_expensive() { return false; }
+  bool cleanup_is_expensive_cache_processor(void *arg) { return 0; }
   bool basic_const_item() const { return true; }
 };
 
@@ -4150,6 +4152,7 @@ public:
     Item_int(thd, str_arg, i, 1) {}
   Item_bool(THD *thd, bool i) :Item_int(thd, (longlong) i, 1) { }
   bool is_bool_literal() const { return true; }
+  void print(String *str, enum_query_type query_type);
   Item *neg_transformer(THD *thd);
   const Type_handler *type_handler() const
   { return &type_handler_bool; }
@@ -4163,6 +4166,16 @@ public:
     */
   }
 };
+
+
+class Item_bool_static :public Item_bool
+{
+public:
+  Item_bool_static(const char *str_arg, longlong i):
+    Item_bool(NULL, str_arg, i) {};
+};
+
+extern Item_bool_static Item_false, Item_true;
 
 
 class Item_uint :public Item_int
