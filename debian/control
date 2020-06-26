@@ -658,7 +658,7 @@ Depends: mariadb-server-10.5 (= ${binary:Version}),
          binutils,
          libsnappy1 | libsnappy1v5,
          libjemalloc1 | libjemalloc2,
-         python | python2 | python3,
+         python3,
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-columnstore-libs,
