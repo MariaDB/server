@@ -4642,7 +4642,8 @@ struct	Check {
 		ut_list_validate(space->chain, check);
 		ut_a(space->size == check.size);
 		ut_ad(space->id != TRX_SYS_SPACE
-		      || space == fil_system.sys_space);
+		      || space == fil_system.sys_space
+		      || fil_system.sys_space == NULL);
 		ut_ad(space->id != SRV_TMP_SPACE_ID
 		      || space == fil_system.temp_space);
 		return(check.n_open);
