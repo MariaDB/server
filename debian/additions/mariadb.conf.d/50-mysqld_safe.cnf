@@ -9,12 +9,12 @@
 # with the following contents:
 #
 # [Service]
-# User=mysql
-# StandardOutput=syslog
-# StandardError=syslog
-# SyslogFacility=daemon
-# SyslogLevel=err
-# SyslogIdentifier=mysqld
+# User = mysql
+# StandardOutput = syslog
+# StandardError = syslog
+# SyslogFacility = daemon
+# SyslogLevel = err
+# SyslogIdentifier = mysqld
 #
 # For more information, please read https://mariadb.com/kb/en/mariadb/systemd/
 
@@ -23,6 +23,6 @@
 # It has been reported that passwords should be enclosed with ticks/quotes
 # especially if they contain "#" chars...
 
-nice   = 0
+nice = 0
 skip_log_error
 syslog
