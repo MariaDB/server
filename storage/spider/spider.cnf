@@ -1,5 +1,7 @@
 [mariadb]
 #
-#  uncomment the following line to enable SPIDER storage engine
+# Uncomment line to enable
 #
-#plugin-load-add=ha_spider.so
+#plugin-load-add = ha_spider
+
+# Read more at https://mariadb.com/kb/en/spider/
