@@ -913,9 +913,13 @@ SysTablespace::open_or_create(
 		} else {
 			ut_ad(!fil_system.sys_space);
 			ut_ad(space_id() == TRX_SYS_SPACE);
-			space = fil_system.sys_space = fil_space_create(
+			space = fil_space_create(
 				name(), TRX_SYS_SPACE, flags(),
 				FIL_TYPE_TABLESPACE, NULL);
+
+			mutex_enter(&fil_system.mutex);
+			fil_system.sys_space = space;
+			mutex_exit(&fil_system.mutex);
 			if (!space) {
 				return DB_ERROR;
 			}
