@@ -2566,3 +2566,21 @@ SELECT sum(a), t2.a, t2.b FROM t2 HAVING t2.a IN (SELECT t2.b FROM t1);
 sum(a)	a	b
 6	1	1
 DROP TABLE t1,t2;
+#
+# MDEV-17606: Query returns wrong results (while using CHARACTER SET utf8)
+#
+CREATE TABLE t1(l1 varchar(10), i2 int);
+INSERT INTO t1 VALUES ('e',2),('o',6),('x',4);
+CREATE TABLE t2 (v1 varchar(10) CHARACTER SET utf8, KEY v1 (v1(3)));
+INSERT INTO t2 VALUES  ('k'),('rid'),('f'),('x');
+EXPLAIN EXTENDED SELECT * FROM t1 where  ( t1.l1 < ANY (SELECT MAX(t2.v1) FROM t2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`l1` AS `l1`,`test`.`t1`.`i2` AS `i2` from `test`.`t1` where <nop>(<in_optimizer>(`test`.`t1`.`l1`,(<max>(select max(`test`.`t2`.`v1`) from `test`.`t2`) > convert(<cache>(`test`.`t1`.`l1`) using utf8))))
+SELECT * FROM t1 where  ( t1.l1 < ANY (SELECT MAX(t2.v1) FROM t2));
+l1	i2
+e	2
+o	6
+DROP TABLE t1, t2;
