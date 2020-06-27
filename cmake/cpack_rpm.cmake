@@ -249,9 +249,7 @@ ELSEIF(RPM MATCHES "sles")
     "mariadb-server = %{version}-%{release}"
   )
 ENDIF()
-IF(RPM MATCHES "fedora31" OR RPM MATCHES "(rhel|centos)8")
-  SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
-ENDIF()
+SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
 
 # If we want to build build MariaDB-shared-compat,
 # extract compat libraries from MariaDB-shared-5.3 rpm
