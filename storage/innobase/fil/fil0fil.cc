@@ -4641,11 +4641,20 @@ struct	Check {
 		Check	check;
 		ut_list_validate(space->chain, check);
 		ut_a(space->size == check.size);
-		ut_ad(space->id != TRX_SYS_SPACE
-		      || space == fil_system.sys_space
-		      || fil_system.sys_space == NULL);
-		ut_ad(space->id != SRV_TMP_SPACE_ID
-		      || space == fil_system.temp_space);
+
+		switch (space->id) {
+		case TRX_SYS_SPACE:
+			ut_ad(fil_system.sys_space == NULL
+			      || fil_system.sys_space == space);
+			break;
+		case SRV_TMP_SPACE_ID:
+			ut_ad(fil_system.temp_space == NULL
+			      || fil_system.temp_space == space);
+			break;
+		default:
+			break;
+		}
+
 		return(check.n_open);
 	}
 };
