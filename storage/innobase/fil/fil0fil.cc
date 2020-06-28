@@ -4789,8 +4789,8 @@ fil_mtr_rename_log(
 {
 	ut_ad(old_table->space != fil_system.temp_space);
 	ut_ad(new_table->space != fil_system.temp_space);
-	ut_ad(old_table->space->id == old_table->space_id);
-	ut_ad(new_table->space->id == new_table->space_id);
+	ut_ad(old_table->space == NULL || old_table->space->id == old_table->space_id);
+	ut_ad(new_table->space == NULL || new_table->space->id == new_table->space_id);
 
 	/* If neither table is file-per-table,
 	there will be no renaming of files. */
@@ -4800,7 +4800,7 @@ fil_mtr_rename_log(
 
 	const bool has_data_dir = DICT_TF_HAS_DATA_DIR(old_table->flags);
 
-	if (old_table->space_id) {
+	if (old_table->space_id && old_table->space) {
 		char*	tmp_path = fil_make_filepath(
 			has_data_dir ? old_table->data_dir_path : NULL,
 			tmp_name, IBD, has_data_dir);
@@ -4823,7 +4823,7 @@ fil_mtr_rename_log(
 		ut_free(tmp_path);
 	}
 
-	if (new_table->space_id) {
+	if (new_table->space_id && new_table->space) {
 		const char* new_path = new_table->space->chain.start->name;
 		char* old_path = fil_make_filepath(
 			has_data_dir ? old_table->data_dir_path : NULL,

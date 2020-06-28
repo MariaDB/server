@@ -1632,7 +1632,7 @@ dict_table_rename_in_cache(
 	/* If the table is stored in a single-table tablespace, rename the
 	.ibd file and rebuild the .isl file if needed. */
 
-	if (!table->space) {
+	if (!table->space || dict_table_is_discarded(table)) {
 		bool		exists;
 		char*		filepath;
 
@@ -1658,6 +1658,7 @@ dict_table_rename_in_cache(
 		}
 
 		fil_delete_tablespace(table->space_id, !table->space);
+		table->space = NULL;
 
 		/* Delete any temp file hanging around. */
 		if (os_file_status(filepath, &exists, &ftype)

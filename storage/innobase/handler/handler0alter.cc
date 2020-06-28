@@ -8639,7 +8639,8 @@ commit_cache_rebuild(
 	DBUG_ENTER("commit_cache_rebuild");
 	DEBUG_SYNC_C("commit_cache_rebuild");
 	DBUG_ASSERT(ctx->need_rebuild());
-	DBUG_ASSERT(!ctx->old_table->space == !ctx->new_table->space);
+	DBUG_ASSERT((!ctx->old_table->space == !ctx->new_table->space)
+	|| dict_table_is_discarded(ctx->old_table) == dict_table_is_discarded(ctx->new_table));
 
 	const char* old_name = mem_heap_strdup(
 		ctx->heap, ctx->old_table->name.m_name);
@@ -9177,6 +9178,7 @@ alter_stats_rebuild(
 	DBUG_ENTER("alter_stats_rebuild");
 
 	if (!table->space
+		|| dict_table_is_discarded(table)
 	    || !dict_stats_is_persistent_enabled(table)) {
 		DBUG_VOID_RETURN;
 	}

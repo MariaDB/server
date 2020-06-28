@@ -4336,7 +4336,8 @@ row_merge_rename_tables_dict(
 	renamed is a single-table tablespace, which must be implicitly
 	renamed along with the table. */
 	if (err == DB_SUCCESS
-	    && old_table->space_id) {
+	    && old_table->space_id
+		&& old_table->space != NULL) {
 		/* Make pathname to update SYS_DATAFILES. */
 		char* tmp_path = row_make_new_pathname(old_table, tmp_name);
 

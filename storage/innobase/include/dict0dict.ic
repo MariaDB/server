@@ -1328,6 +1328,18 @@ dict_table_is_corrupted(
 	return(table->corrupted);
 }
 
+/********************************************************************//**
+Check if the tablespace for the table has been discarded.
+@return true if the tablespace has been discarded. */
+UNIV_INLINE
+bool
+dict_table_is_discarded(
+/*====================*/
+	const dict_table_t*	table)	/*!< in: table to check */
+{
+	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_DISCARDED));
+}
+
 /** Check if the table is found is a file_per_table tablespace.
 This test does not use table flags2 since some REDUNDANT tables in the
 system tablespace may have garbage in the MIX_LEN field where flags2 is

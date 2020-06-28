@@ -1,0 +1,10 @@
+CREATE TABLE t (a INT) ENGINE=INNODB;
+ALTER TABLE t DISCARD TABLESPACE;
+ALTER TABLE t ENGINE INNODB;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t`
+ALTER TABLE t ENGINE INNODB;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t`
+RENAME table t to t1;
+DROP TABLE t1;
