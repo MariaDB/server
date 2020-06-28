@@ -2457,6 +2457,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.imerge_cost_buff_size= 0;
     param.using_real_indexes= TRUE;
     param.remove_jump_scans= TRUE;
+    param.is_ror_scan= 0;
     param.remove_false_where_parts= remove_false_parts_of_where;
     param.force_default_mrr= ordered_output;
     param.possible_keys.clear_all();

@@ -229,7 +229,7 @@ dtuple_validate(
 	const dtuple_t*	tuple)	/*!< in: tuple */
 {
 	ut_ad(tuple->magic_n == DATA_TUPLE_MAGIC_N);
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
 	const ulint n_fields = dtuple_get_n_fields(tuple);
 
 	for (ulint i = 0; i < n_fields; i++) {
@@ -240,7 +240,7 @@ dtuple_validate(
 					  dfield_get_len(field));
 		}
 	}
-#endif /* HAVE_valgrind_or_MSAN */
+#endif /* HAVE_valgrind */
 	ut_ad(dtuple_check_typed(tuple));
 
 	return(TRUE);

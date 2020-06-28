@@ -717,7 +717,7 @@ bool Item_subselect::exec()
 
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
        ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %.*s",
-       print.length(),print.c_ptr());
+       print.length(),print.ptr());
   );
   /*
     Do not execute subselect in case of a fatal error

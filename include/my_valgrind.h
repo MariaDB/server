@@ -24,15 +24,19 @@
 # define __SANITIZE_ADDRESS__ 1
 #endif
 
-#ifdef HAVE_valgrind
-#define IF_VALGRIND(A,B) A
-#else
-#define IF_VALGRIND(A,B) B
-#endif
-
-#if defined(HAVE_VALGRIND_MEMCHECK_H) && defined(HAVE_valgrind)
+#if __has_feature(memory_sanitizer)
+# include <sanitizer/msan_interface.h>
+# define HAVE_valgrind
+# define MEM_UNDEFINED(a,len) __msan_allocated_memory(a,len)
+# define MEM_MAKE_DEFINED(a,len) __msan_unpoison(a,len)
+# define MEM_NOACCESS(a,len) ((void) 0)
+# define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
+# define MEM_CHECK_DEFINED(a,len) __msan_check_mem_is_initialized(a,len)
+# define MEM_GET_VBITS(a,b,len) __msan_copy_shadow(b,a,len)
+# define MEM_SET_VBITS(a,b,len) __msan_copy_shadow(a,b,len)
+# define REDZONE_SIZE 8
+#elif defined(HAVE_VALGRIND_MEMCHECK_H) && defined(HAVE_valgrind)
 # include <valgrind/memcheck.h>
-# define HAVE_valgrind_or_MSAN
 # define MEM_UNDEFINED(a,len) VALGRIND_MAKE_MEM_UNDEFINED(a,len)
 # define MEM_MAKE_DEFINED(a,len) VALGRIND_MAKE_MEM_DEFINED(a,len)
 # define MEM_NOACCESS(a,len) VALGRIND_MAKE_MEM_NOACCESS(a,len)
@@ -53,17 +57,6 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define MEM_GET_VBITS(a,b,len) ((void) 0)
 # define MEM_SET_VBITS(a,b,len) ((void) 0)
 # define REDZONE_SIZE 8
-#elif __has_feature(memory_sanitizer)
-# include <sanitizer/msan_interface.h>
-# define HAVE_valgrind_or_MSAN
-# define MEM_UNDEFINED(a,len) __msan_allocated_memory(a,len)
-# define MEM_MAKE_DEFINED(a,len) __msan_unpoison(a,len)
-# define MEM_NOACCESS(a,len) ((void) 0)
-# define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
-# define MEM_CHECK_DEFINED(a,len) __msan_check_mem_is_initialized(a,len)
-# define MEM_GET_VBITS(a,b,len) __msan_copy_shadow(b,a,len)
-# define MEM_SET_VBITS(a,b,len) __msan_copy_shadow(a,b,len)
-# define REDZONE_SIZE 8
 #else
 # define MEM_UNDEFINED(a,len) ((void) (a), (void) (len))
 # define MEM_MAKE_DEFINED(a,len) ((void) 0)
@@ -73,7 +66,14 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define MEM_GET_VBITS(a,b,len) ((void) 0)
 # define MEM_SET_VBITS(a,b,len) ((void) 0)
 # define REDZONE_SIZE 0
-#endif /* HAVE_VALGRIND_MEMCHECK_H */
+#endif /* __has_feature(memory_sanitizer) */
+
+#ifdef HAVE_valgrind
+#define IF_VALGRIND(A,B) A
+#else
+#define IF_VALGRIND(A,B) B
+#endif
+
 
 #ifdef TRASH_FREED_MEMORY
 /*

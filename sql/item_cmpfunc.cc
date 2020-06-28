@@ -1176,6 +1176,8 @@ longlong Item_func_truth::val_int()
 
 bool Item_in_optimizer::is_top_level_item()
 {
+  if (invisible_mode())
+    return FALSE;
   return ((Item_in_subselect *)args[1])->is_top_level_item();
 }
 

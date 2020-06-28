@@ -1609,13 +1609,13 @@ func_exit:
 	order to avoid bogus Valgrind or MSAN warnings.*/
 	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
 
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
 	MEM_MAKE_DEFINED(block->frame, srv_page_size);
-#endif /* HAVE_valgrind_or_MSAN */
+#endif /* HAVE_valgrind */
 	btr_search_drop_page_hash_index(block);
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
 	MEM_UNDEFINED(block->frame, srv_page_size);
-#endif /* HAVE_valgrind_or_MSAN */
+#endif /* HAVE_valgrind */
 
 	buf_pool_mutex_enter(buf_pool);
 
@@ -1660,9 +1660,9 @@ buf_LRU_block_free_non_file_page(
 
 	buf_block_set_state(block, BUF_BLOCK_NOT_USED);
 
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
 	MEM_UNDEFINED(block->frame, srv_page_size);
-#endif /* HAVE_valgrind_or_MSAN */
+#endif /* HAVE_valgrind */
 	/* Wipe page_no and space_id */
 	memset(block->frame + FIL_PAGE_OFFSET, 0xfe, 4);
 	memset(block->frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xfe, 4);

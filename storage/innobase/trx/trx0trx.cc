@@ -458,7 +458,7 @@ void trx_free(trx_t*& trx)
 	MEM_UNDEFINED(&trx->state, sizeof trx->state);
 	MEM_UNDEFINED(&trx->mysql_thd, sizeof trx->mysql_thd);
 #endif
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
 	/* Unpoison the memory for innodb_monitor_set_option;
 	it is operating also on the freed transaction objects.
 	We checked that these were initialized in

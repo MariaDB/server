@@ -10179,7 +10179,7 @@ void append_replace_regex(char* expr, char *expr_end, struct st_replace_regex* r
     /* Allow variable for the *entire* list of replacements */
     if (*p == '$')
     {
-      const char *v_end;
+      const char *v_end= 0;
       VAR *val= var_get(p, &v_end, 0, 1);
 
       if (val)
@@ -10820,7 +10820,7 @@ REPLACE *init_replace(char * *from, char * *to,uint count,
     for (i=1 ; i <= found_sets ; i++)
     {
       pos=from[found_set[i-1].table_offset];
-      rep_str[i].found= !memcmp(pos, "\\^", 3) ? 2 : 1;
+      rep_str[i].found= !strncmp(pos, "\\^", 3) ? 2 : 1;
       rep_str[i].replace_string=to_array[found_set[i-1].table_offset];
       rep_str[i].to_offset=found_set[i-1].found_offset-start_at_word(pos);
       rep_str[i].from_offset=found_set[i-1].found_offset-replace_len(pos)+
@@ -11132,13 +11132,16 @@ void replace_dynstr_append_mem(DYNAMIC_STRING *ds, const char *val, size_t len)
     {
       /* Convert to lower case, and do this first */
       char *c= lower;
-      for (const char *v= val;  *v;  v++)
+      for (const char *v= val, *end_v= v + len;  v < end_v;  v++)
         *c++= my_tolower(charset_info, *v);
       *c= '\0';
       /* Copy from this buffer instead */
     }
     else
-      memcpy(lower, val, len+1);
+    {
+      memcpy(lower, val, len);
+      lower[len]= 0;
+    }
     fix_win_paths(lower, len);
     val= lower;
   }

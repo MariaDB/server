@@ -1179,12 +1179,12 @@ btr_cur_search_to_nth_level_func(
 	ut_ad(!(index->type & DICT_FTS));
 	ut_ad(index->page != FIL_NULL);
 
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
 	MEM_UNDEFINED(&cursor->up_match, sizeof cursor->up_match);
 	MEM_UNDEFINED(&cursor->up_bytes, sizeof cursor->up_bytes);
 	MEM_UNDEFINED(&cursor->low_match, sizeof cursor->low_match);
 	MEM_UNDEFINED(&cursor->low_bytes, sizeof cursor->low_bytes);
-#endif /* HAVE_valgrind_or_MSAN */
+#endif /* HAVE_valgrind */
 #ifdef UNIV_DEBUG
 	cursor->up_match = ULINT_UNDEFINED;
 	cursor->low_match = ULINT_UNDEFINED;
@@ -3295,12 +3295,12 @@ btr_cur_optimistic_insert(
 
 	const page_size_t&	page_size = block->page.size;
 
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
 	if (page_size.is_compressed()) {
 		MEM_CHECK_DEFINED(page, page_size.logical());
 		MEM_CHECK_DEFINED(block->page.zip.data, page_size.physical());
 	}
-#endif /* HAVE_valgrind_or_MSAN */
+#endif /* HAVE_valgrind */
 
 	leaf = page_is_leaf(page);
 

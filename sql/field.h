@@ -826,7 +826,7 @@ public:
     return store(ls.str, (uint) ls.length, cs);
   }
 
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
   /**
     Mark unused memory in the field as defined. Mainly used to ensure
     that if we write full field to disk (for example in
@@ -3466,7 +3466,7 @@ public:
   bool memcpy_field_possible(const Field *from) const;
   int  store(const char *to,size_t length,CHARSET_INFO *charset);
   using Field_str::store;
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
   void mark_unused_memory_as_defined();
 #endif
   double val_real(void);
@@ -4395,7 +4395,8 @@ public:
    :Type_handler_hybrid_field_type(&type_handler_null),
     compression_method_ptr(0),
     comment(null_clex_str),
-    on_update(NULL), length(0), invisible(VISIBLE), decimals(0),
+    on_update(NULL), length(0), invisible(VISIBLE), char_length(0),
+    decimals(0),
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),

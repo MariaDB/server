@@ -998,14 +998,14 @@ exit:
 					goto func_exit;
 				}
 
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
 				MEM_UNDEFINED(block[i], srv_sort_buf_size);
 
 				if (crypt_block[i]) {
 					MEM_UNDEFINED(crypt_block[i],
 						      srv_sort_buf_size);
 				}
-#endif /* HAVE_valgrind_or_MSAN */
+#endif /* HAVE_valgrind */
 			}
 
 			buf[i] = row_merge_buf_empty(buf[i]);
