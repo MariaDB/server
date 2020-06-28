@@ -1,12 +1,10 @@
 #!/usr/bin/make -f
 
-export DH_VERBOSE=1
-export DEB_BUILD_HARDENING=1
-
-# enable Debian Hardening
-# see: https://wiki.debian.org/Hardening
+# Enable Debian Hardening
+# https://wiki.debian.org/Hardening
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 DPKG_EXPORT_BUILDFLAGS = 1
+# Include all defaults, including buildflags.mk
 include /usr/share/dpkg/default.mk
 # CPPFLAGS are nor read by CMake, so copy them to CXXFLAGS
 # See why at https://cmake.org/Bug/view.php?id=12928
@@ -21,6 +19,12 @@ TMP:=$(CURDIR)/debian/tmp
 
 CC := $(DEB_HOST_GNU_TYPE)-gcc
 CXX := $(DEB_HOST_GNU_TYPE)-g++
+
+# According to Debian Policy version 4.2.0 builds should be as verbose as
+# possible unless 'terse' is specifically passed.
+ifeq (,$(filter terse,$(DEB_BUILD_OPTIONS)))
+    export DH_VERBOSE=1
+endif
 
 # Parallel build support as advised
 # at https://www.debian.org/doc/debian-policy/ch-source.html#s-debianrules-options
