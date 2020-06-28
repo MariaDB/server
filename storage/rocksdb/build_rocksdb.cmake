@@ -35,52 +35,47 @@ endif()
 
 # Optional compression libraries.
 
-foreach(compression_lib LZ4 BZip2 ZSTD snappy)
-  FIND_PACKAGE(${compression_lib})
-
-  SET(WITH_ROCKSDB_${compression_lib} AUTO CACHE STRING
-  "Build RocksDB  with ${compression_lib} compression. Possible values are 'ON', 'OFF', 'AUTO' and default is 'AUTO'")
-
-  if(${WITH_ROCKSDB_${compression_lib}} STREQUAL "ON"  AND NOT ${${compression_lib}_FOUND})
-    MESSAGE(FATAL_ERROR
-      "${compression_lib} library was not found, but WITH_ROCKSDB_${compression_lib} option is ON.\
-      Either set WITH_ROCKSDB_${compression_lib} to OFF, or make sure ${compression_lib} is installed")
-  endif()
-endforeach()
-
-if(LZ4_FOUND AND (NOT WITH_ROCKSDB_LZ4 STREQUAL "OFF"))
-  add_definitions(-DLZ4)
-  include_directories(${LZ4_INCLUDE_DIR})
-  list(APPEND THIRDPARTY_LIBS ${LZ4_LIBRARY})
-endif()
-
-if(BZIP2_FOUND AND (NOT WITH_ROCKSDB_BZip2 STREQUAL "OFF"))
-  add_definitions(-DBZIP2)
-  include_directories(${BZIP2_INCLUDE_DIR})
-  list(APPEND THIRDPARTY_LIBS ${BZIP2_LIBRARIES})
-endif()
-
-if(SNAPPY_FOUND  AND (NOT WITH_ROCKSDB_snappy STREQUAL "OFF"))
-  add_definitions(-DSNAPPY)
-  include_directories(${snappy_INCLUDE_DIR})
-  list(APPEND THIRDPARTY_LIBS ${snappy_LIBRARIES})
-endif()
-
 include(CheckFunctionExists)
-if(ZSTD_FOUND AND (NOT WITH_ROCKSDB_ZSTD STREQUAL "OFF"))
-  SET(CMAKE_REQUIRED_LIBRARIES zstd)
-  CHECK_FUNCTION_EXISTS(ZDICT_trainFromBuffer ZSTD_VALID)
-  UNSET(CMAKE_REQUIRED_LIBRARIES)
-  if (WITH_ROCKSDB_ZSTD STREQUAL "ON" AND NOT ZSTD_VALID)
+macro(check_lib package var)
+  STRING(TOUPPER ${package} PACKAGE_NAME)
+  SET(WITH_ROCKSDB_${package} AUTO CACHE STRING
+        "Build RocksDB  with ${package} compression. Possible values are 'ON', 'OFF', 'AUTO' and default is 'AUTO'")
+
+  IF (NOT ${WITH_ROCKSDB_${package}} STREQUAL "OFF")
+    FIND_PACKAGE(${package} QUIET)
+    IF (${${PACKAGE_NAME}_FOUND})
+      IF(${ARGC} GREATER 2)
+        SET(CMAKE_REQUIRED_LIBRARIES ${${var}_LIBRARIES})
+        CHECK_FUNCTION_EXISTS(${ARGV2} ${var}_VALID)
+        UNSET(CMAKE_REQUIRED_LIBRARIES)
+      ELSE()
+        SET(${var}_VALID TRUE)
+      ENDIF()
+    ENDIF()
+  ENDIF()
+
+  IF(${${var}_VALID})
+    MESSAGE_ONCE(rocksdb_${var} "Found ${package}: ${${var}_LIBRARIES}")
+    add_definitions(-D${PACKAGE_NAME})
+    include_directories(${${var}_INCLUDE_DIR})
+    list(APPEND THIRDPARTY_LIBS ${${var}_LIBRARIES})
+  ELSEIF(${${PACKAGE_NAME}_FOUND})
+    MESSAGE_ONCE(rocksdb_${var} "Found unusable ${package}: ${${var}_LIBRARIES} [${ARGV2}]")
+  ELSE()
+    MESSAGE_ONCE(rocksdb_${var} "Could NOT find ${package}")
+  ENDIF()
+
+  IF (${WITH_ROCKSDB_${package}} STREQUAL "ON"  AND NOT ${${PACKAGE_NAME}_FOUND})
     MESSAGE(FATAL_ERROR
-      "WITH_ROCKSDB_ZSTD is ON and ZSTD library was found, but the version needs to be >= 1.1.3")
+      "${package} library was not found, but WITH_ROCKSDB_${package} option is ON.\
+      Either set WITH_ROCKSDB_${package} to OFF, or make sure ${package} is installed")
   endif()
-  if (ZSTD_VALID)
-    add_definitions(-DZSTD)
-    include_directories(${ZSTD_INCLUDE_DIR})
-    list(APPEND THIRDPARTY_LIBS ${ZSTD_LIBRARIES})
-  endif()
-endif()
+endmacro()
+
+check_lib(LZ4    LZ4)
+check_lib(BZip2  BZIP2)
+check_lib(snappy snappy) # rocksdb/cmake/modules/Findsnappy.cmake violates the convention
+check_lib(ZSTD   ZSTD ZDICT_trainFromBuffer)
 
 add_definitions(-DZLIB)
 list(APPEND THIRDPARTY_LIBS ${ZLIB_LIBRARY})
