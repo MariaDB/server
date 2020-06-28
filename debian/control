@@ -486,8 +486,7 @@ Package: mariadb-server-10.5
 Architecture: any
 Suggests: mailx,
           mariadb-test,
-          netcat-openbsd,
-          tinyca
+          netcat-openbsd
 Recommends: libhtml-template-perl
 Pre-Depends: adduser (>= 3.40),
              debconf,
