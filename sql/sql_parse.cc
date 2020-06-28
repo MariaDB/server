@@ -4998,6 +4998,12 @@ mysql_execute_command(THD *thd)
     if (res)
       goto error;
 
+#ifdef WITH_WSREP
+    /* Clean up the previous transaction on implicit commit. */
+    if (wsrep_on(thd) && !wsrep_not_committed(thd) && wsrep_after_statement(thd))
+      goto error;
+#endif
+
     /* We can't have any kind of table locks while backup is active */
     if (thd->current_backup_stage != BACKUP_FINISHED)
     {
