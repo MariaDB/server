@@ -579,6 +579,7 @@ public:
   Item_func_json_objectagg(THD *thd, Item *key, Item *value) :
     Item_sum(thd, key, value)
   {
+    quick_group= FALSE;
     result.append("{");
   }
 

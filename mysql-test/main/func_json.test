@@ -827,6 +827,18 @@ select JSON_ARRAYAGG(col1) from t1;
 drop table t1;
 
 --echo #
+--echo # MDEV-23029: JSON_OBJECTAGG returns NULL when used together with GROUP BY
+--echo #
+
+CREATE TABLE t1 (e INT, a VARCHAR(255), v VARCHAR(255));
+INSERT INTO t1 VALUES (0, 'a1', '1') , (0, 'a2', '2') , (1, 'b1', '3');
+
+EXPLAIN SELECT B.e, JSON_OBJECTAGG(B.a, B.v) FROM t1 A, t1 B GROUP BY B.e;
+SELECT B.e, JSON_OBJECTAGG(B.a, B.v) FROM t1 A, t1 B GROUP BY B.e;
+
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 

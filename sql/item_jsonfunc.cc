@@ -3725,6 +3725,7 @@ Item_func_json_objectagg::
 Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item)
   :Item_sum(thd, item)
 {
+  quick_group= FALSE;
   result.set_charset(collation.collation);
   result.append("{");
 }
