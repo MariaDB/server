@@ -150,11 +150,8 @@ int get_mysql_service_properties(const wchar_t *bin_path,
       There are rare cases where service config does not have
       --defaults-file in the binary parth . There services were
       registered with plain mysqld --install, the data directory is
-      next to "bin" in this case.  Service name (second parameter)
-      must be MySQL.
+      next to "bin" in this case.
     */
-    if (wcscmp(args[1], L"MySQL") != 0)
-      goto end;
     have_inifile= FALSE;
   }
   else if(numargs == 3)

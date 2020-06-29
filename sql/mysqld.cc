@@ -5822,6 +5822,31 @@ default_service_handling(char **argv,
   return 1;
 }
 
+/* Remove service name from the command line arguments, and pass
+resulting command line to the service via opt_args.*/
+#include <vector>
+static void service_init_cmdline_args(int argc, char **argv)
+{
+  start_mode= 1;
+  use_opt_args= 1;
+
+  if(argc == 1)
+  {
+    opt_argc= argc;
+    opt_argv= argv;
+  }
+  else
+  {
+    static std::vector<char *> argv_no_service;
+    for (int i= 0; argv[i]; i++)
+      argv_no_service.push_back(argv[i]);
+    // Remove the last argument, service name
+    argv_no_service[argv_no_service.size() - 1]= 0;
+    opt_argc= (int)argv_no_service.size() - 1;
+    opt_argv= &argv_no_service[0];
+  }
+  DBUG_ASSERT(!opt_argv[opt_argc]);
+}
 
 int mysqld_main(int argc, char **argv)
 {
@@ -5853,6 +5878,7 @@ int mysqld_main(int argc, char **argv)
   my_path(file_path, argv[0], "");		      /* Find name in path */
   fn_format(file_path,argv[0],file_path,"",   MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_RESOLVE_SYMLINKS);
 
+
   if (argc == 2)
   {
     if (!default_service_handling(argv, MYSQL_SERVICENAME, MYSQL_SERVICENAME,
@@ -5869,7 +5895,7 @@ int mysqld_main(int argc, char **argv)
       */
       if (my_strcasecmp(system_charset_info, argv[1],"mysql"))
         load_default_groups[load_default_groups_sz-2]= argv[1];
-      start_mode= 1;
+      service_init_cmdline_args(argc, argv);
       Service.Init(argv[1], mysql_service);
       return 0;
     }
@@ -5885,12 +5911,9 @@ int mysqld_main(int argc, char **argv)
        mysqld was started as
        mysqld --defaults-file=my_path\my.ini service-name
       */
-      use_opt_args=1;
-      opt_argc= 2;				// Skip service-name
-      opt_argv=argv;
-      start_mode= 1;
       if (my_strcasecmp(system_charset_info, argv[2],"mysql"))
         load_default_groups[load_default_groups_sz-2]= argv[2];
+      service_init_cmdline_args(argc, argv);
       Service.Init(argv[2], mysql_service);
       return 0;
     }
@@ -5923,7 +5946,7 @@ int mysqld_main(int argc, char **argv)
   else if (argc == 1 && Service.IsService(MYSQL_SERVICENAME))
   {
     /* start the default service */
-    start_mode= 1;
+    service_init_cmdline_args(argc, argv);
     Service.Init(MYSQL_SERVICENAME, mysql_service);
     return 0;
   }
