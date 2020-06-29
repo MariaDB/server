@@ -1,8 +1,15 @@
 #set(PLUGIN_COLUMNSTORE "NO" CACHE STRING "Enable ColumnStore engine")
 
-if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}" OR NOT (RPM OR DEB))
+if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}")
   return()
 endif()
+
+# this does everything, gets the var from the correct scope, appends new
+# values, sets in the correct scope
+macro(APPEND_FOR_CPACK V)
+  get_directory_property(var DIRECTORY columnstore DEFINITION ${V})
+  set(${V} "${var}${ARGN}" PARENT_SCOPE)
+endmacro()
 
 IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
 CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64" OR
@@ -13,15 +20,15 @@ CMAKE_SYSTEM_PROCESSOR STREQUAL "i686")
 
     IF(TARGET columnstore)
         # Needed to bump the component changes up to the main scope
-        SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} PARENT_SCOPE)
+        APPEND_FOR_CPACK(CPACK_COMPONENTS_ALL)
         IF (RPM)
-            SET(CPACK_RPM_columnstore-engine_USER_FILELIST ${CPACK_RPM_columnstore-engine_USER_FILELIST} PARENT_SCOPE)
-            # To untie the python mess across distributions MCS supports.
-            SET(CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES "${CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES}, MariaDB-server >= 10.5.4, python3, binutils" PARENT_SCOPE)
-            SET(CPACK_RPM_columnstore-engine_PRE_INSTALL_SCRIPT_FILE ${CPACK_RPM_columnstore-engine_PRE_INSTALL_SCRIPT_FILE} PARENT_SCOPE)
-            SET(CPACK_RPM_columnstore-engine_POST_INSTALL_SCRIPT_FILE ${CPACK_RPM_columnstore-engine_POST_INSTALL_SCRIPT_FILE} PARENT_SCOPE)
-            SET(CPACK_RPM_columnstore-engine_PRE_UNINSTALL_SCRIPT_FILE ${CPACK_RPM_columnstore-engine_PRE_UNINSTALL_SCRIPT_FILE} PARENT_SCOPE)
-            SET(CPACK_RPM_columnstore-engine_PACKAGE_CONFLICTS "thrift, MariaDB-columnstore-engine, MariaDB-columnstore-platform, MariaDB-columnstore-libs" PARENT_SCOPE)
+            APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES " binutils net-tools python3")
+            APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_USER_FILELIST ";%ignore /var/lib;%ignore /var")
+            APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_PACKAGE_CONFLICTS " thrift MariaDB-columnstore-platform MariaDB-columnstore-libs")
+            # these three don't have the list semantics, so no append here
+            SET(CPACK_RPM_columnstore-engine_PRE_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/columnstore/build/preInstall_storage_engine.sh PARENT_SCOPE)
+            SET(CPACK_RPM_columnstore-engine_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/columnstore/build/postInstall_storage_engine.sh PARENT_SCOPE)
+            SET(CPACK_RPM_columnstore-engine_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/columnstore/build/preUn_storage_engine.sh PARENT_SCOPE)
         ENDIF()
         INSTALL_MYSQL_TEST("${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/" "plugin/columnstore")
     ENDIF()
