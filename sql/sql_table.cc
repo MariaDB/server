@@ -7579,9 +7579,9 @@ static int mysql_inplace_alter_table(THD *thd,
   bool reopen_tables= false;
   bool res;
   handlerton *hton;
-  Master_info *mi= NULL;
-  if (thd->slave_thread)
-    mi= thd->rgi_slave->rli->mi;
+//  Master_info *mi= NULL;
+  //if (thd->slave_thread)
+    //mi= thd->rgi_slave->rli->mi;
   int return_result= 0;
   DBUG_ENTER("mysql_inplace_alter_table");
 
@@ -7747,7 +7747,8 @@ static int mysql_inplace_alter_table(THD *thd,
   thd->abort_on_warning= false;
   if (thd->lex->alter_info.alter_identifier && !thd->direct_commit_alter)
   {
-    if ((return_result= master_result(thd, mi, info, res)))
+    wait_for_master(thd, info);
+    if (info->state == start_alter_state::ROLLBACK_ALTER)
       goto rollback;
   }
   if (res)
@@ -10302,6 +10303,10 @@ do_continue:;
                                                         (long)thd->thread_id);
           if(write_bin_log(thd, false, send_query, strlen(send_query), true, true))
             DBUG_RETURN(true);
+        }
+        if (start_alter_id)
+        {
+          master_result(thd, mi, info, res);
         }
         cleanup_table_after_inplace_alter(&altered_table);
         DBUG_RETURN(true);
