@@ -2019,7 +2019,7 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
           ON UPDATE triggers.
         */
         if (last_uniq_key(table,key_nr) &&
-            !table->file->referenced_by_foreign_key() &&
+            !table->s->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {
           if (table->versioned(VERS_TRX_ID))

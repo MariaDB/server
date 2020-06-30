@@ -856,6 +856,15 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
          (check_eits_collection_allowed(thd) ||
           lex->with_persistent_for_clause));
     }
+    else if (!table->table->s->crashed &&
+             operator_func == &handler::ha_check &&
+             !(check_opt->sql_flags & TT_FOR_UPGRADE))
+    {
+      if (table->table->s->fk_check_consistency(thd))
+      {
+        compl_result_code= result_code= HA_ADMIN_FAILED;
+      }
+    }
 
     if (result_code == HA_ADMIN_OK)
     {    

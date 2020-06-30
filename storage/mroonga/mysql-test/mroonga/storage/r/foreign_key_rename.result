@@ -18,11 +18,13 @@ Table	Create Table
 articles2	CREATE TABLE `articles2` (
   `content` text NOT NULL,
   `comment` int(10) unsigned DEFAULT NULL,
-  KEY `comment` (`comment`),
-  CONSTRAINT `comment` FOREIGN KEY (`comment`) REFERENCES `test`.`comments2` (`comment`) ON DELETE RESTRICT ON UPDATE RESTRICT
+  KEY `fk_articles` (`comment`),
+  CONSTRAINT `fk_articles` FOREIGN KEY (`comment`) REFERENCES `comments2` (`comment`)
 ) ENGINE=Mroonga DEFAULT CHARSET=latin1
 SELECT * FROM information_schema.referential_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	UNIQUE_CONSTRAINT_CATALOG	UNIQUE_CONSTRAINT_SCHEMA	UNIQUE_CONSTRAINT_NAME	MATCH_OPTION	UPDATE_RULE	DELETE_RULE	TABLE_NAME	REFERENCED_TABLE_NAME
-def	test	comment	def	test	PRIMARY	NONE	RESTRICT	RESTRICT	articles2	comments2
+def	test	fk_articles	def	test	fk_articles	NONE	???	???	articles2	comments2
+def	mysql	fk_help_relation	def	mysql	fk_help_relation	NONE	???	???	help_relation	help_topic
+def	mysql	fk_help_relation_2	def	mysql	fk_help_relation_2	NONE	???	???	help_relation	help_keyword
 DROP TABLE articles2;
 DROP TABLE comments2;

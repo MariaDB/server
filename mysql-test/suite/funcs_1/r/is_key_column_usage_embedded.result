@@ -99,7 +99,9 @@ def	mysql	name	def	mysql	help_category	name
 def	mysql	PRIMARY	def	mysql	help_keyword	help_keyword_id
 def	mysql	name	def	mysql	help_keyword	name
 def	mysql	PRIMARY	def	mysql	help_relation	help_keyword_id
+def	mysql	fk_help_relation_2	def	mysql	help_relation	help_keyword_id
 def	mysql	PRIMARY	def	mysql	help_relation	help_topic_id
+def	mysql	fk_help_relation	def	mysql	help_relation	help_topic_id
 def	mysql	PRIMARY	def	mysql	help_topic	help_topic_id
 def	mysql	name	def	mysql	help_topic	name
 def	mysql	PRIMARY	def	mysql	index_stats	db_name

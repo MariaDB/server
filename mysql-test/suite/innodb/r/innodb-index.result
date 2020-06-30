@@ -441,8 +441,8 @@ create table t1(a int not null, b int not null, c int, primary key (a), key (b))
 create table t3(a int not null, c int not null, d int, primary key (a), key (c)) engine = innodb;
 create table t4(a int not null, d int not null, e int, primary key (a), key (d)) engine = innodb;
 create table t2(a int not null, b int, c int, d int, e int,
-foreign key (b) references t1(b) on delete set null,
-foreign key (c) references t3(c), foreign key (d) references t4(d) on update set null)
+foreign key b (b) references t1(b) on delete set null,
+foreign key c (c) references t3(c), foreign key d (d) references t4(d) on update set null)
 engine = innodb;
 alter table t1 drop index b;
 ERROR HY000: Cannot drop index 'b': needed in a foreign key constraint
@@ -455,21 +455,21 @@ ERROR HY000: Cannot drop index 'b': needed in a foreign key constraint
 alter table t2 drop index b, drop index c, drop index d;
 ERROR HY000: Cannot drop index 'b': needed in a foreign key constraint
 alter table t2 MODIFY b INT NOT NULL, ALGORITHM=COPY;
-ERROR HY000: Cannot change column 'b': used in a foreign key constraint 't2_ibfk_1'
+ERROR HY000: Cannot change column 'b': used in a foreign key constraint 'b'
 set @old_sql_mode = @@sql_mode;
 set @@sql_mode = 'STRICT_TRANS_TABLES';
 alter table t2 MODIFY b INT NOT NULL, ALGORITHM=INPLACE;
-ERROR HY000: Column 'b' cannot be NOT NULL: needed in a foreign key constraint 'test/t2_ibfk_1' SET NULL
+ERROR HY000: Column 'b' cannot be NOT NULL: needed in a foreign key constraint 'test/b' SET NULL
 set @@sql_mode = @old_sql_mode;
 SET FOREIGN_KEY_CHECKS=0;
 alter table t2 DROP COLUMN b, ALGORITHM=COPY;
-ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint 't2_ibfk_1'
+ERROR 42000: Incorrect foreign key definition for 'b': foreign field not found
 alter table t2 DROP COLUMN b;
-ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint 'test/t2_ibfk_1'
+ERROR 42000: Incorrect foreign key definition for 'b': foreign field not found
 alter table t1 DROP COLUMN b, ALGORITHM=COPY;
-ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint 't2_ibfk_1' of table `test`.`t2`
+ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint 'b' of table `test`.`t2`
 alter table t1 DROP COLUMN b;
-ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint 'test/t2_ibfk_1' of table `test`.`t2`
+ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint 'test/b' of table `test`.`t2`
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 create unique index dc on t2 (d,c);
 affected rows: 0
@@ -480,10 +480,10 @@ info: Records: 0  Duplicates: 0  Warnings: 0
 set @@sql_mode = 'STRICT_TRANS_TABLES';
 alter table t2 add primary key (alpha), change a alpha int,
 change b beta int not null, change c charlie int not null;
-ERROR HY000: Column 'b' cannot be NOT NULL: needed in a foreign key constraint 'test/t2_ibfk_1' SET NULL
+ERROR HY000: Column 'b' cannot be NOT NULL: needed in a foreign key constraint 'test/b' SET NULL
 alter table t2 add primary key (alpha), change a alpha int,
 change c charlie int not null, change d delta int not null;
-ERROR HY000: Column 'd' cannot be NOT NULL: needed in a foreign key constraint 'test/t2_ibfk_3' SET NULL
+ERROR HY000: Column 'd' cannot be NOT NULL: needed in a foreign key constraint 'test/d' SET NULL
 alter table t2 add primary key (alpha), change a alpha int,
 change b beta int, modify c int not null;
 affected rows: 0
@@ -537,9 +537,9 @@ t2	CREATE TABLE `t2` (
   UNIQUE KEY `dc` (`d`,`c`),
   KEY `c` (`c`),
   KEY `beta` (`beta`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`beta`) REFERENCES `t1` (`b`) ON DELETE SET NULL,
-  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`c`) REFERENCES `t3` (`c`),
-  CONSTRAINT `t2_ibfk_3` FOREIGN KEY (`d`) REFERENCES `t4` (`d`) ON UPDATE SET NULL
+  CONSTRAINT `b` FOREIGN KEY (`beta`) REFERENCES `t1` (`b`) ON DELETE SET NULL,
+  CONSTRAINT `c` FOREIGN KEY (`c`) REFERENCES `t3` (`c`),
+  CONSTRAINT `d` FOREIGN KEY (`d`) REFERENCES `t4` (`d`) ON UPDATE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 delete from t1;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t4`, CONSTRAINT `dc` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))

@@ -76,7 +76,7 @@ alter short drop default,
 DROP INDEX utiny,
 DROP INDEX ushort,
 DROP PRIMARY KEY,
-DROP FOREIGN KEY any_name,
+DROP KEY any_name,
 ADD INDEX (auto);
 
 LOCK TABLES t1 WRITE;

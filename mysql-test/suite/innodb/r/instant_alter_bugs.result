@@ -156,7 +156,7 @@ t2	CREATE TABLE `t2` (
   `status` enum('a','b','c') DEFAULT NULL,
   PRIMARY KEY (`f1`),
   KEY `idx1` (`f2`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
+  CONSTRAINT `fk_t2` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 ALTER TABLE t2 CHANGE status status VARCHAR(20) DEFAULT NULL;
 DROP TABLE t2, t1;

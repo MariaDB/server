@@ -174,7 +174,7 @@ create table t2 (b int, constraint foo check (b < 10));
 drop table t1, t2;
 show status like "feature_check_constraint";
 Variable_name	Value
-Feature_check_constraint	2
+Feature_check_constraint	4
 #
 # Feature insert...returning
 #

@@ -37,8 +37,8 @@ CREATE TABLE tables_priv ( Host char(60) binary DEFAULT '' NOT NULL, Db char(64)
 CREATE TABLE columns_priv ( Host char(60) binary DEFAULT '' NOT NULL, Db char(64) binary DEFAULT '' NOT NULL, User char(16) binary DEFAULT '' NOT NULL, Table_name char(64) binary DEFAULT '' NOT NULL, Column_name char(64) binary DEFAULT '' NOT NULL, Timestamp timestamp, Column_priv set('Select','Insert','Update','References') COLLATE utf8_general_ci DEFAULT '' NOT NULL, PRIMARY KEY (Host,Db,User,Table_name,Column_name) ) engine=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Column privileges';
 CREATE TABLE help_topic ( help_topic_id int unsigned not null, name char(64) not null, help_category_id smallint unsigned not null, description text not null, example text not null, url char(128) not null, primary key (help_topic_id), unique index (name) ) engine=MyISAM CHARACTER SET utf8 comment='help topics';
 CREATE TABLE help_category ( help_category_id smallint unsigned not null, name char(64) not null, parent_category_id smallint unsigned null, url char(128) not null, primary key (help_category_id), unique index (name) ) engine=MyISAM CHARACTER SET utf8 comment='help categories';
-CREATE TABLE help_relation ( help_topic_id int unsigned not null references help_topic, help_keyword_id int unsigned not null references help_keyword, primary key (help_keyword_id, help_topic_id) ) engine=MyISAM CHARACTER SET utf8 comment='keyword-topic relation';
 CREATE TABLE help_keyword ( help_keyword_id int unsigned not null, name char(64) not null, primary key (help_keyword_id), unique index (name) ) engine=MyISAM CHARACTER SET utf8 comment='help keywords';
+CREATE TABLE help_relation ( help_topic_id int unsigned not null references help_topic, help_keyword_id int unsigned not null references help_keyword, primary key (help_keyword_id, help_topic_id) ) engine=MyISAM CHARACTER SET utf8 comment='keyword-topic relation';
 CREATE TABLE time_zone_name ( Name char(64) NOT NULL, Time_zone_id int unsigned NOT NULL, PRIMARY KEY Name (Name) ) engine=MyISAM CHARACTER SET utf8 comment='Time zone names';
 CREATE TABLE time_zone ( Time_zone_id int unsigned NOT NULL auto_increment, Use_leap_seconds enum('Y','N') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, PRIMARY KEY TzId (Time_zone_id) ) engine=MyISAM CHARACTER SET utf8 comment='Time zones';
 CREATE TABLE time_zone_transition ( Time_zone_id int unsigned NOT NULL, Transition_time bigint signed NOT NULL, Transition_type_id int unsigned NOT NULL, PRIMARY KEY TzIdTranTime (Time_zone_id, Transition_time) ) engine=MyISAM CHARACTER SET utf8 comment='Time zone transitions';
@@ -59,7 +59,7 @@ INSERT INTO servers VALUES ('test','localhost','test','root','', 0,'','mysql','r
 
 # Drop all tables created by this test
 DROP VIEW user;
-DROP TABLE db, host, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_keyword, help_relation, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, general_log, slow_log, event, proxies_priv, innodb_index_stats, innodb_table_stats, transaction_registry, table_stats, column_stats, index_stats, roles_mapping, gtid_slave_pos, global_priv;
+DROP TABLE db, host, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_relation, help_keyword, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, general_log, slow_log, event, proxies_priv, innodb_index_stats, innodb_table_stats, transaction_registry, table_stats, column_stats, index_stats, roles_mapping, gtid_slave_pos, global_priv;
 
 # check that we dropped all system tables
 show tables;

@@ -1905,8 +1905,8 @@ bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
   header for the list.
 
   When called, the previous log entries have already been written but not yet
-  synched to disk.  We write a couple of log entries that describes
-  action to perform.  This entries are set-up in a linked list,
+  synched to disk.  We write a couple of log entries that describe
+  action to perform.  These entries are set-up in a linked list,
   however only when an execute entry is put as the first entry these will be
   executed during recovery.
 

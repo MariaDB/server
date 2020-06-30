@@ -1285,16 +1285,11 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
     {
       if (!is_temporary_table(table) && table->table)
       {
-        FOREIGN_KEY_INFO *f_key_info;
-        List<FOREIGN_KEY_INFO> f_key_list;
-
-        table->table->file->get_foreign_key_list(thd, &f_key_list);
-        List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
-        while ((f_key_info=it++))
+        for (const FK_info &fk: table->table->s->foreign_keys)
         {
-          WSREP_DEBUG("appended fkey %s", f_key_info->referenced_table->str);
-          keys->push_back(wsrep_prepare_key_for_toi(f_key_info->referenced_db->str,
-                                                    f_key_info->referenced_table->str,
+          WSREP_DEBUG("appended fkey %s", fk.referenced_table.str);
+          keys->push_back(wsrep_prepare_key_for_toi(fk.ref_db().str,
+                                                    fk.referenced_table.str,
                                                     wsrep::key::shared));
         }
       }
@@ -1403,7 +1398,7 @@ static bool wsrep_prepare_keys_for_alter_add_fk(const char* child_table_db,
   List_iterator<Key> key_iterator(const_cast<Alter_info*>(alter_info)->key_list);
   while ((key= key_iterator++))
   {
-    if (key->type == Key::FOREIGN_KEY)
+    if (key->foreign)
     {
       Foreign_key *fk_key= (Foreign_key *)key;
       const char *db_name= fk_key->ref_db.str;
@@ -1544,7 +1539,7 @@ wsrep_prepare_keys_for_alter_add_fk(const char* child_table_db,
   List_iterator<Key> key_iterator(const_cast<Alter_info*>(alter_info)->key_list);
   while ((key= key_iterator++))
   {
-    if (key->type == Key::FOREIGN_KEY)
+    if (key->foreign)
     {
       Foreign_key *fk_key= (Foreign_key *)key;
       const char *db_name= fk_key->ref_db.str;

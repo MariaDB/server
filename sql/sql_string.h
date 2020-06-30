@@ -222,6 +222,23 @@ public:
   inline bool is_empty() const { return (str_length == 0); }
   inline const char *ptr() const { return Ptr; }
   inline const char *end() const { return Ptr + str_length; }
+
+  LEX_STRING lex_string() const
+  {
+    LEX_STRING str = { (char*) ptr(), length() };
+    return str;
+  }
+  LEX_CSTRING lex_cstring() const
+  {
+    LEX_CSTRING skr = { ptr(), length() };
+    return skr;
+  }
+  LEX_CUSTRING lex_custring() const
+  {
+    LEX_CUSTRING str = { (const uchar *) ptr(), length() };
+    return str;
+  }
+
   bool has_8bit_bytes() const
   {
     for (const char *c= ptr(), *c_end= end(); c < c_end; c++)
@@ -958,6 +975,16 @@ public:
   bool append(const LEX_CSTRING &s, CHARSET_INFO *cs)
   {
     return append(s.str, s.length, cs);
+  }
+
+  bool append(longlong num, bool unsigned_flag)
+  {
+    uint l= 20 * charset()->mbmaxlen + 1;
+    int base= unsigned_flag ? 10 : -10;
+    char buf[256];
+    DBUG_ASSERT(l < 256);
+    size_t len= (uint32) (charset()->cset->longlong10_to_str)(charset(), buf, l, base, num);
+    return append(buf, len);
   }
 
   void strip_sp();

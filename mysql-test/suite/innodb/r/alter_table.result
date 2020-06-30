@@ -46,11 +46,11 @@ CREATE TABLE tx (pk INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY (pk), KEY (a), FOREIGN KEY (a) REFERENCES tx (pk)) ENGINE=InnoDB;
 SET FOREIGN_KEY_CHECKS=OFF;
 ALTER TABLE t1 DROP a;
-ERROR HY000: Cannot drop column 'a': needed in a foreign key constraint 'test/t1_ibfk_1'
+ERROR 42000: Incorrect foreign key definition for 'a'
 SET FOREIGN_KEY_CHECKS=ON;
 ALTER TABLE t1 ADD b INT;
 ALTER TABLE t1 DROP a;
-ERROR HY000: Cannot drop index 'a': needed in a foreign key constraint
+ERROR 42000: Incorrect foreign key definition for 'a'
 ALTER TABLE t1 ADD c INT;
 DROP TABLE t1, tx;
 #
