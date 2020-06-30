@@ -638,7 +638,7 @@ execute stmt using @a;
 select t2.id from t2, t1 where (t1.id=1 and t2.t1_id=t1.id);
 
 deallocate prepare stmt;
-drop table t1, t2;
+drop table t2, t1;
 
 #
 # Bug#11060 "Server crashes on calling stored procedure with INSERT SELECT

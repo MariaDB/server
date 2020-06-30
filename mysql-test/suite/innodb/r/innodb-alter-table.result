@@ -131,8 +131,8 @@ child	CREATE TABLE `child` (
   `a` int(11) NOT NULL,
   `c` int(11) NOT NULL,
   PRIMARY KEY (`a`),
-  KEY `c` (`c`),
-  CONSTRAINT `child_ibfk_1` FOREIGN KEY (`c`) REFERENCES `parent` (`a`)
+  KEY `fk_child` (`c`),
+  CONSTRAINT `fk_child` FOREIGN KEY (`c`) REFERENCES `parent` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE child, parent;
 CREATE TABLE IF NOT EXISTS ticket (

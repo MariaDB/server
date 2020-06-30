@@ -64,7 +64,7 @@ drop table t2, t1;
 #
 
 create table t1 (f1 integer primary key) engine=innodb;
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 alter table t1 add constraint c1 foreign key (f1) references t11(f1);
 show warnings;
 drop table t1;
@@ -89,7 +89,7 @@ create temporary table t1(a int not null primary key, b int, key(b)) engine=inno
 --echo Warning	150	Alter  table `mysqld.1`.`t1` with foreign key constraint failed. Referenced table `mysqld.1`.`t1` not found in the data dictionary close to foreign key(b) references t1(a).
 --echo Error	1005	Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
 --echo Warning	1215	Cannot add foreign key constraint
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 create temporary table t2(a int, foreign key(a) references t1(a)) engine=innodb;
 show warnings;
 --error ER_CANT_CREATE_TABLE

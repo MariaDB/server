@@ -154,52 +154,97 @@
 #include "sql_list.h"                           /* List<> */
 #include "field.h"                              /* Create_field */
 
-/*
-  Types of values in the MariaDB extra2 frm segment.
-  Each value is written as
-    type:       1 byte
-    length:     1 byte  (1..255) or \0 and 2 bytes.
-    binary value of the 'length' bytes.
-
-  Older MariaDB servers can ignore values of unknown types if
-  the type code is less than 128 (EXTRA2_ENGINE_IMPORTANT).
-  Otherwise older (but newer than 10.0.1) servers are required
-  to report an error.
-*/
-enum extra2_frm_value_type {
-  EXTRA2_TABLEDEF_VERSION=0,
-  EXTRA2_DEFAULT_PART_ENGINE=1,
-  EXTRA2_GIS=2,
-  EXTRA2_APPLICATION_TIME_PERIOD=3,
-  EXTRA2_PERIOD_FOR_SYSTEM_TIME=4,
-
-#define EXTRA2_ENGINE_IMPORTANT 128
-
-  EXTRA2_ENGINE_TABLEOPTS=128,
-  EXTRA2_FIELD_FLAGS=129,
-  EXTRA2_FIELD_DATA_TYPE_INFO=130,
-  EXTRA2_PERIOD_WITHOUT_OVERLAPS=131,
-};
-
-enum extra2_field_flags {
-  VERS_OPTIMIZED_UPDATE= 1 << INVISIBLE_MAX_BITS,
-};
 
 LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                              HA_CREATE_INFO *create_info,
                              List<Create_field> &create_fields,
-                             uint keys, KEY *key_info, handler *db_file);
+                             uint keys, KEY *key_info, FK_list &foreign_keys,
+                             FK_list &referenced_keys,
+                             handler *db_file);
 
 #define FRM_HEADER_SIZE 64
 #define FRM_FORMINFO_SIZE 288
 #define FRM_MAX_SIZE (1024*1024)
 
-static inline bool is_binary_frm_header(uchar *head)
+static inline bool is_binary_frm_header(const uchar *head)
 {
   return head[0] == 254
       && head[1] == 1
       && head[2] >= FRM_VER
       && head[2] <= FRM_VER_CURRENT;
 }
+
+
+class Key;
+class Foreign_key;
+class Foreign_key_io: public BinaryStringBuffer<512>
+{
+public:
+  static const ulonglong fk_io_version= 0;
+  struct Pos
+  {
+    uchar *pos;
+    const uchar *end;
+    Pos(LEX_CUSTRING& image)
+    {
+      pos= const_cast<uchar *>(image.str);
+      end= pos + image.length;
+    }
+  };
+  /* read */
+private:
+  static bool read_length(size_t &out, Pos &p)
+  {
+    ulonglong num= safe_net_field_length_ll(&p.pos, p.end - p.pos);
+    if (!p.pos || num > UINT_MAX32)
+      return true;
+    out= (uint32_t) num;
+    return false;
+  }
+  static bool read_string(Lex_cstring &to, MEM_ROOT *mem_root, Pos &p)
+  {
+    if (read_length(to.length, p) || p.pos + to.length > p.end)
+      return true; // Not enough data
+    if (!to.length)
+      return false;
+    to.str= strmake_root(mem_root, (char *) p.pos, to.length);
+    if (!to.str)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return true;
+    }
+    p.pos+= to.length;
+    return false;
+  }
+public:
+  Foreign_key_io() {}
+  bool parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING &image);
+
+  /* write */
+private:
+  static uchar *store_length(uchar *pos, ulonglong length)
+  {
+    return net_store_length(pos, length);
+  }
+  static uchar *store_string(uchar *pos, const LEX_CSTRING &str, bool nullable= false)
+  {
+    DBUG_ASSERT(nullable || str.length);
+    pos= store_length(pos, str.length);
+    if (str.length)
+      memcpy(pos, str.str, str.length);
+    return pos + str.length;
+  }
+  static ulonglong string_size(Lex_cstring str)
+  {
+    return net_length_size(str.length) + str.length;
+  }
+
+public:
+  ulonglong fk_size(FK_info &fk);
+  ulonglong hint_size(FK_info &rk);
+  void store_fk(FK_info &fk, uchar *&pos);
+  void store_hint(FK_info &rk, uchar *&pos);
+  bool store(FK_list &foreign_keys, FK_list &referenced_keys);
+};
 
 #endif
