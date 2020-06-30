@@ -289,7 +289,8 @@ int spider_udf_direct_sql_create_conn_key(
       + 1 + 1
       + direct_sql->tgt_default_file_length + 1
       + direct_sql->tgt_default_group_length + 1
-      + direct_sql->tgt_dsn_length;
+      + direct_sql->tgt_dsn_length + 1
+      + direct_sql->tgt_filedsn_length;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   } else {
     direct_sql->conn_key_length
@@ -403,6 +404,13 @@ int spider_udf_direct_sql_create_conn_key(
       tmp_name = strmov(tmp_name + 1, direct_sql->tgt_dsn);
     } else
       tmp_name++;
+    if (direct_sql->tgt_filedsn)
+    {
+      DBUG_PRINT("info",("spider tgt_filedsn=%s",
+        direct_sql->tgt_filedsn));
+      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_filedsn);
+    } else
+      tmp_name++;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   }
 #endif
@@ -422,7 +430,7 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   char *tmp_name, *tmp_host, *tmp_username, *tmp_password, *tmp_socket;
   char *tmp_wrapper, *tmp_db, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
-  char *tmp_dsn;
+  char *tmp_dsn, *tmp_filedsn;
   int *need_mon;
   bool tables_on_different_db_are_joinable = TRUE;
   DBUG_ENTER("spider_udf_direct_sql_create_conn");
@@ -463,6 +471,8 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
           (uint) (direct_sql->tgt_default_group_length + 1),
         &tmp_dsn,
           (uint) (direct_sql->tgt_dsn_length + 1),
+        &tmp_filedsn,
+          (uint) (direct_sql->tgt_filedsn_length + 1),
         &need_mon, (uint) (sizeof(int)),
         NullS))
     ) {
@@ -587,6 +597,14 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
         direct_sql->tgt_dsn_length);
     } else
       conn->tgt_dsn = NULL;
+    conn->tgt_filedsn_length = direct_sql->tgt_filedsn_length;
+    if (conn->tgt_filedsn_length)
+    {
+      conn->tgt_filedsn = tmp_filedsn;
+      memcpy(conn->tgt_filedsn, direct_sql->tgt_filedsn,
+        direct_sql->tgt_filedsn_length);
+    } else
+      conn->tgt_filedsn = NULL;
     conn->tgt_ssl_vsc = direct_sql->tgt_ssl_vsc;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   } else {
@@ -1258,6 +1276,7 @@ int spider_udf_parse_direct_sql_param(
         SPIDER_PARAM_STR("dff", tgt_default_file);
         SPIDER_PARAM_STR("dfg", tgt_default_group);
         SPIDER_PARAM_STR("dsn", tgt_dsn);
+        SPIDER_PARAM_STR("fds", tgt_filedsn);
         SPIDER_PARAM_LONGLONG("prt", priority, 0);
         SPIDER_PARAM_INT("rto", net_read_timeout, 0);
         SPIDER_PARAM_STR("sca", tgt_ssl_ca);
@@ -1290,6 +1309,7 @@ int spider_udf_parse_direct_sql_param(
         error_num = param_string_parse.print_param_error();
         goto error;
       case 7:
+        SPIDER_PARAM_STR("filedsn", tgt_filedsn);
         SPIDER_PARAM_STR("wrapper", tgt_wrapper);
         SPIDER_PARAM_STR("ssl_key", tgt_ssl_key);
         error_num = param_string_parse.print_param_error();
@@ -1684,6 +1704,10 @@ void spider_udf_free_direct_sql_alloc(
   if (direct_sql->tgt_dsn)
   {
     spider_free(spider_current_trx, direct_sql->tgt_dsn, MYF(0));
+  }
+  if (direct_sql->tgt_filedsn)
+  {
+    spider_free(spider_current_trx, direct_sql->tgt_filedsn, MYF(0));
   }
   if (direct_sql->conn_key)
   {
