@@ -1,4 +1,9 @@
 drop table if exists t1,t2;
+create table t2 (
+a int unique, c int unique);
+create table t3 (
+a int unique, c int unique, d int unique,
+r int references t3(d));
 create table t1 (
 a int not null references t2,
 b int not null constraint t2_c references t2 (c),
@@ -12,13 +17,17 @@ foreign key (a,b) references t3 (c,d) on delete set default,
 foreign key (a,b) references t3 (c,d) on update set null);
 create index a on t1 (a);
 create unique index b on t1 (a,b);
-drop table t1;
+drop tables t2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_t1)
+drop tables t3;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_t1_2)
+drop tables t1, t2, t3;
 create table t1 (id int primary key) engine = innodb;
 create table t2 (id int PRIMARY KEY, FOREIGN KEY (id) REFERENCES t1(id)) engine=innodb;
 insert into t1 values (1), (2), (3), (4), (5), (6);
 insert into t2 values (3), (5);
 delete from t1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
 select * from t1;
 id
 1
@@ -29,8 +38,8 @@ id
 6
 delete ignore from t1;
 Warnings:
-Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
-Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
 select row_count();
 row_count()
 -1
@@ -108,3 +117,568 @@ ALTER TABLE tfk ADD CONSTRAINT sid UNIQUE(c2);
 ERROR 42000: Duplicate key name 'sid'
 DROP TABLE tfk;
 DROP TABLE tpk;
+#
+# MDEV-16417 Store Foreign Key metadata outside of InnoDB
+#
+set default_storage_engine= innodb;
+# Check create table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key, foreign key (id) references t1(id));
+select * from t1, t2;
+id	id
+check tables t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+flush tables t1, t2;
+check tables t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+drop table t2, t1;
+create table t1 (id int primary key);
+create table t2 (id int references t1(id)) select id from t1;
+check tables t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+flush tables;
+check tables t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+drop table t2, t1;
+create database D;
+create table D.T1(id int primary key);
+create table t2(id int primary key, f1 int references D.T1(id));
+select * from D.T1;
+id
+check table D.T1;
+Table	Op	Msg_type	Msg_text
+D.T1	check	Note	Found 1 referenced keys
+D.T1	check	status	OK
+drop table t2;
+check table D.T1;
+Table	Op	Msg_type	Msg_text
+D.T1	check	status	OK
+flush tables;
+check table D.T1;
+Table	Op	Msg_type	Msg_text
+D.T1	check	status	OK
+drop table D.T1;
+drop database D;
+# Check rename column, lock tables
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key);
+create or replace table t3 (id int primary key);
+create or replace table ch1 (
+id int, id2 int,
+foreign key (id) references t1 (id),
+foreign key (id2) references t2 (id),
+foreign key (id) references t3 (id));
+select * from t1, t2, t3;
+id	id	id
+connect con1, localhost, root;
+lock tables t3 read;
+connection default;
+set @saved_lock_wait_timeout= @@lock_wait_timeout;
+set lock_wait_timeout= 1;
+alter table ch1 change id2 xid2 int;
+alter table ch1 change id xid int;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set lock_wait_timeout= @saved_lock_wait_timeout;
+connection con1;
+unlock tables;
+disconnect con1;
+connection default;
+alter table ch1 change id xid int;
+select * from ch1;
+xid	xid2
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+drop tables ch1, t2, t1, t3;
+# Rename column on referenced table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1, id2 int references t1(id));
+select * from t2;
+id	id2
+alter table t1 change id xid int;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `id2` int(11) DEFAULT NULL,
+  KEY `fk_t2` (`id`),
+  KEY `fk_t2_2` (`id2`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`xid`),
+  CONSTRAINT `fk_t2_2` FOREIGN KEY (`id2`) REFERENCES `t1` (`xid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t1;
+xid
+check table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 2 foreign keys
+test.t2	check	status	OK
+flush table t2;
+check table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 2 foreign keys
+test.t2	check	status	OK
+alter table t1 rename column xid to yid;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `id2` int(11) DEFAULT NULL,
+  KEY `fk_t2` (`id`),
+  KEY `fk_t2_2` (`id2`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`yid`),
+  CONSTRAINT `fk_t2_2` FOREIGN KEY (`id2`) REFERENCES `t1` (`yid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t1;
+yid
+check table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 2 foreign keys
+test.t2	check	status	OK
+flush table t2;
+check table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 2 foreign keys
+test.t2	check	status	OK
+drop tables t2, t1;
+# Check rename table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1);
+select * from t2, t1;
+id	id
+rename table t2 to t3;
+create table t2 (x int);
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+flush tables t1;
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+drop tables t3, t1, t2;
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key);
+create or replace table t3 (id int primary key);
+select * from t1, t2, t3;
+id	id	id
+create or replace table t4 (
+id int primary key, id2 int references t4(id),
+foreign key (id) references t1 (id),
+foreign key (id2) references t2 (id),
+foreign key (id) references t3 (id));
+select * from t4;
+id	id2
+rename table t4 to xt4;
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+alter table xt4 rename to yt4, algorithm=inplace;
+select * from t1, t2, t3;
+id	id	id
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+alter table yt4 rename to zt4, algorithm=copy;
+select * from t1, t2, t3;
+id	id	id
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+drop tables zt4, t2, t1, t3;
+# Rename of referenced table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1);
+select * from t2;
+id
+rename table t1 to xt1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  KEY `fk_t2` (`id`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `xt1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from xt1;
+id
+check tables t2, xt1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+test.xt1	check	Note	Found 1 referenced keys
+test.xt1	check	status	OK
+flush tables t2, xt1;
+check tables t2, xt1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+test.xt1	check	Note	Found 1 referenced keys
+test.xt1	check	status	OK
+alter table xt1 rename to yt1, algorithm=inplace;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  KEY `fk_t2` (`id`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `yt1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from yt1;
+id
+check tables t2, yt1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+test.yt1	check	Note	Found 1 referenced keys
+test.yt1	check	status	OK
+flush tables t2, yt1;
+check tables t2, yt1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+test.yt1	check	Note	Found 1 referenced keys
+test.yt1	check	status	OK
+alter table yt1 rename to t1, algorithm=copy;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  KEY `fk_t2` (`id`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t1;
+id
+check tables t2, t1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+flush tables t2, t1;
+check tables t2, t1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+drop tables t2, t1;
+# Check drop table
+create or replace table t1 (id int primary key);
+create or replace table ch1 (id int, foreign key (id) references t1 (id));
+select * from t1;
+id
+select * from ch1;
+id
+drop table t1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_ch1)
+drop tables ch1, t1;
+# Check drop database
+create or replace table t1 (id int primary key);
+select * from t1;
+id
+create or replace database test2;
+use test2;
+create or replace table ch1 (
+id int, id2 int,
+foreign key (id) references test.t1 (id));
+select * from ch1;
+id	id2
+use test;
+drop database test2;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+flush tables t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop tables t1;
+# Check add foreign key
+create or replace table t1(fld1 int not null primary key);
+create or replace table t2(fld1 int not null, fld2 int as (fld1) virtual);
+insert into t1 values(1);
+insert into t2 values(1, default);
+set foreign_key_checks= 0;
+alter table t2 add index(fld2), add foreign key (fld1) references t1(fld1)
+on update cascade, algorithm=inplace;
+set foreign_key_checks= 1;
+update t1 set fld1= 2;
+select fld2 from t2;
+fld2
+2
+select * from t2;
+fld1	fld2
+2	2
+drop table t2, t1;
+# Check drop column, drop foreign key
+create or replace table t1 (id int primary key, a int);
+create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id));
+alter table t1 drop id;
+ERROR HY000: Cannot drop column 'id': needed in a foreign key constraint 'fk' of table `test`.`t2`
+alter table t2 drop id;
+ERROR 42000: Incorrect foreign key definition for 'id': foreign field not found
+alter table t2 drop foreign key fk;
+drop tables t1, t2;
+# Check self-references
+create or replace table t1 (id int primary key, id2 int references t1 (id));
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+flush tables t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `id2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_t1` (`id2`),
+  CONSTRAINT `fk_t1` FOREIGN KEY (`id2`) REFERENCES `t1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+insert into t1 values (1, 2);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `fk_t1` FOREIGN KEY (`id2`) REFERENCES `t1` (`id`))
+insert into t1 values (1, 1);
+alter table t1 change id2 id3 int;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+flush tables t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `id3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_t1` (`id3`),
+  CONSTRAINT `fk_t1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+alter table t1 add foreign key (id3) references t1 (id);
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 self-references
+test.t1	check	status	OK
+flush tables t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 self-references
+test.t1	check	status	OK
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `id3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_t1_2` (`id3`),
+  CONSTRAINT `fk_t1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id`),
+  CONSTRAINT `fk_t1_2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+alter table t1 change id id4 int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id4` int(11) NOT NULL,
+  `id3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id4`),
+  KEY `fk_t1_2` (`id3`),
+  CONSTRAINT `fk_t1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`),
+  CONSTRAINT `fk_t1_2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 self-references
+test.t1	check	status	OK
+flush tables t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 self-references
+test.t1	check	status	OK
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id4` int(11) NOT NULL,
+  `id3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id4`),
+  KEY `fk_t1_2` (`id3`),
+  CONSTRAINT `fk_t1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`),
+  CONSTRAINT `fk_t1_2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+alter table t1 drop foreign key fk_t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+flush tables t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id4` int(11) NOT NULL,
+  `id3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id4`),
+  KEY `fk_t1_2` (`id3`),
+  CONSTRAINT `fk_t1_2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+rename table t1 to t2;
+check tables t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+flush tables t2;
+check tables t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id4` int(11) NOT NULL,
+  `id3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id4`),
+  KEY `fk_t1_2` (`id3`),
+  CONSTRAINT `fk_t1_2` FOREIGN KEY (`id3`) REFERENCES `t2` (`id4`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+delete from t2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t1_2` FOREIGN KEY (`id3`) REFERENCES `t2` (`id4`))
+drop table t2;
+set default_storage_engine= default;
+# Prohibit wrong references and fix field name case
+create table t1 (A int unique key, x timestamp references t1(a));
+ERROR 42000: Incorrect foreign key definition for 'x': foreign-referenced fields type mismatch
+create table t1 (A int unique key, x int references t1(b));
+ERROR 42000: Incorrect foreign key definition for 'b': referenced field not found
+create table t1 (A int unique key, x int references t1(a));
+alter table t1 add foreign key(x) references t1(b);
+ERROR 42000: Incorrect foreign key definition for 'b': referenced field not found
+alter table t1 add foreign key(x) references t1(a);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `A` int(11) DEFAULT NULL,
+  `x` int(11) DEFAULT NULL,
+  UNIQUE KEY `A` (`A`),
+  KEY `fk_t1_2` (`x`),
+  CONSTRAINT `fk_t1` FOREIGN KEY (`x`) REFERENCES `t1` (`A`),
+  CONSTRAINT `fk_t1_2` FOREIGN KEY (`x`) REFERENCES `t1` (`A`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create table t2 (AA int, x int references t1(ax));
+ERROR 42000: Incorrect foreign key definition for 'ax': referenced field not found
+create table t2 (AA int, x timestamp references t1(a));
+ERROR 42000: Incorrect foreign key definition for 'x': foreign-referenced fields type mismatch
+create table t2 (AA int, x int references t1(a));
+alter table t2 add foreign key(aa) references t1(b);
+ERROR 42000: Incorrect foreign key definition for 'b': referenced field not found
+alter table t2 add foreign key(aa) references t1(a);
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `AA` int(11) DEFAULT NULL,
+  `x` int(11) DEFAULT NULL,
+  KEY `fk_t2` (`x`),
+  KEY `fk_t2_2` (`AA`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`x`) REFERENCES `t1` (`A`),
+  CONSTRAINT `fk_t2_2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop tables t2, t1;
+# Foreign keys and partitioning
+create table t1 (x int primary key) partition by hash(x) partitions 3;
+create table t2 (y int references t1(x));
+ERROR HY000: Partitioned tables do not support FOREIGN KEY
+create table t2 (y int);
+alter table t2 add foreign key (y) references t1 (x);
+ERROR HY000: Partitioned tables do not support FOREIGN KEY
+drop tables t2, t1;
+create table t1 (x int primary key);
+create table t2 (y int references t1(x)) partition by hash(x) partitions 3;
+ERROR HY000: Partitioned tables do not support FOREIGN KEY
+create table t2 (y int) partition by hash(y) partitions 3;
+alter table t2 add foreign key (y) references t1 (x);
+ERROR HY000: Partitioned tables do not support FOREIGN KEY
+create or replace table t2 (y int references t1(x));
+alter table t1 partition by hash(x) partitions 3;
+ERROR HY000: Partitioned tables do not support FOREIGN KEY
+alter table t2 partition by hash(y) partitions 3;
+ERROR HY000: Partitioned tables do not support FOREIGN KEY
+drop tables t2, t1;

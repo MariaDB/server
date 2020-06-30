@@ -109,7 +109,7 @@ def	mysql	help_category	mysql	name
 def	mysql	help_category	mysql	PRIMARY
 def	mysql	help_keyword	mysql	name
 def	mysql	help_keyword	mysql	PRIMARY
-def	mysql	help_relation	mysql	help_topic_id
+def	mysql	help_relation	mysql	fk_help_relation
 def	mysql	help_relation	mysql	PRIMARY
 def	mysql	help_relation	mysql	PRIMARY
 def	mysql	help_topic	mysql	name

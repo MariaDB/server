@@ -1562,7 +1562,7 @@ ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
 ERROR HY000: Can't create table `test`.`child` (errno: 150 "Foreign key constraint is incorrectly formed")
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`child` with foreign key (p) constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns.
+Warning	150	Alter  table `test`.`child` with foreign key `fk_child` constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns.
 Error	1005	Can't create table `test`.`child` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `child`
 ALTER TABLE parent DROP INDEX idx1;
@@ -1570,7 +1570,7 @@ ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
 Got one of the listed errors
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`child` with foreign key (p) constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns.
+Warning	150	Alter  table `test`.`child` with foreign key `fk_child` constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns.
 Error	1005	Can't create table `test`.`child` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `child`
 ALTER TABLE child DROP INDEX idx2;
@@ -1578,7 +1578,7 @@ ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
 Got one of the listed errors
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`child` with foreign key (p) constraint failed. There is only prefix index in the referenced table where the referenced columns appear as the first columns.
+Warning	150	Alter  table `test`.`child` with foreign key `fk_child` constraint failed. There is only prefix index in the referenced table where the referenced columns appear as the first columns.
 Error	1005	Can't create table `test`.`child` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `child`
 DROP TABLE child, parent;

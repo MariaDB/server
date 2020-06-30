@@ -29,7 +29,7 @@
 --exec $MYSQLD_CMD $args --datadir=$MYSQL_TMP_DIR/help > $MYSQL_TMP_DIR/mysqld--help2.txt 2> $MYSQL_TMP_DIR/mysqld--help2.err
 --replace_regex /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* //
 --cat_file $MYSQL_TMP_DIR/mysqld--help2.err
---list_files $MYSQL_TMP_DIR/help
+--list_files $MYSQL_TMP_DIR/help !(gmon.out)
 
 #
 # Cleanup

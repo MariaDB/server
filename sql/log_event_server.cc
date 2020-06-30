@@ -7410,7 +7410,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
        when triggers are used we want a simple and predictable execution path.
      */
     if (last_uniq_key(table, keynum) && !invoke_triggers &&
-        !table->file->referenced_by_foreign_key())
+        !table->s->referenced_by_foreign_key())
     {
       DBUG_PRINT("info",("Updating row using ha_update_row()"));
       error= table->file->ha_update_row(table->record[1],

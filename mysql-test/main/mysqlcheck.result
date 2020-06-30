@@ -440,9 +440,15 @@ mysql.func                                         Table is already up to date
 mysql.global_priv                                  Table is already up to date
 mysql.gtid_slave_pos                               Table is already up to date
 mysql.help_category                                Table is already up to date
-mysql.help_keyword                                 Table is already up to date
-mysql.help_relation                                Table is already up to date
-mysql.help_topic                                   Table is already up to date
+mysql.help_keyword
+Note     : Found 1 referenced keys
+status   : Table is already up to date
+mysql.help_relation
+Note     : Found 2 foreign keys
+status   : Table is already up to date
+mysql.help_topic
+Note     : Found 1 referenced keys
+status   : Table is already up to date
 mysql.index_stats                                  Table is already up to date
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
@@ -468,6 +474,9 @@ error    : Corrupt
 test.t2                                            Table is already up to date
 
 Repairing tables
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
 mysqltest1.t1                                      OK
 drop table t2;
 drop database mysqltest1;

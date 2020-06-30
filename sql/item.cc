@@ -41,6 +41,7 @@
                                        // find_item_in_list,
                                        // RESOLVED_AGAINST_ALIAS, ...
 #include "sql_expression_cache.h"
+#include "table.h"
 
 const String my_null_string("NULL", 4, default_charset_info);
 const String my_default_string("DEFAULT", 7, default_charset_info);
@@ -1502,7 +1503,7 @@ bool Item_field::check_vcol_func_processor(void *arg)
   {
     for (Key &k: res->alter_info->key_list)
     {
-      if (k.type != Key::FOREIGN_KEY)
+      if (!k.foreign)
         continue;
       Foreign_key *fk= (Foreign_key*) &k;
       if (fk->update_opt != FK_OPTION_CASCADE)
@@ -10538,7 +10539,7 @@ table_map Item_ref_null_helper::used_tables() const
 #ifndef DBUG_OFF
 
 /* Debugger help function */
-static char dbug_item_print_buf[2048];
+static char dbug_item_print_buf[4096];
 
 const char *dbug_print_item(Item *item)
 {
@@ -10606,9 +10607,26 @@ const char *dbug_print_unit(SELECT_LEX_UNIT *un)
     return "Couldn't fit into buffer";
 }
 
+const char *dbug_print_fk(FK_info *fk)
+{
+  char *buf= dbug_item_print_buf;
+  String str(buf, sizeof(dbug_item_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!fk)
+    return "(FK_info *) NULL";
+
+  fk->print(str);
+
+  if (str.c_ptr() == buf)
+    return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+
 const char *dbug_print(Item *x)            { return dbug_print_item(x);   }
 const char *dbug_print(SELECT_LEX *x)      { return dbug_print_select(x); }
 const char *dbug_print(SELECT_LEX_UNIT *x) { return dbug_print_unit(x);   }
+const char *dbug_print(FK_info *x)         { return dbug_print_fk(x); }
 
 #endif /*DBUG_OFF*/
 

@@ -151,12 +151,12 @@ drop table t1;
 
 if(!$skip_foreign_key_check)
 {
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 create table t1 (a int, b int generated always as (a+1) virtual,
                  foreign key (b) references t2(a));
 
 create table t1 (a int, b int generated always as (a+1) virtual);
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 alter table t1 add foreign key (b) references t2(a);
 drop table t1;
 }

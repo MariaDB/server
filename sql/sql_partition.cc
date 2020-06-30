@@ -6470,7 +6470,8 @@ static bool write_log_drop_shadow_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
   char shadow_path[FN_REFLEN + 1];
   DBUG_ENTER("write_log_drop_shadow_frm");
 
-  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
+  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
+                              lpt->db, lpt->table_name);
   mysql_mutex_lock(&LOCK_gdl);
   if (write_log_replace_delete_frm(lpt, 0UL, NULL,
                                   (const char*)shadow_path, FALSE))
@@ -6517,7 +6518,8 @@ static bool write_log_rename_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
 
   part_info->first_log_entry= NULL;
   build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
+  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
+                              lpt->db, lpt->table_name);
   mysql_mutex_lock(&LOCK_gdl);
   if (write_log_replace_delete_frm(lpt, 0UL, shadow_path, path, TRUE))
     goto error;
@@ -6568,7 +6570,8 @@ static bool write_log_drop_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
 
   part_info->first_log_entry= NULL;
   build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1, lpt);
+  build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1,
+                              lpt->db, lpt->table_name);
   mysql_mutex_lock(&LOCK_gdl);
   if (write_log_dropped_partitions(lpt, &next_entry, (const char*)path,
                                    FALSE))
@@ -6626,7 +6629,8 @@ static bool write_log_add_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   DBUG_ENTER("write_log_add_change_partition");
 
   build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1, lpt);
+  build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1,
+                              lpt->db, lpt->table_name);
   mysql_mutex_lock(&LOCK_gdl);
 
   /* Relink the previous drop shadow frm entry */
@@ -6693,7 +6697,8 @@ static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   */
   part_info->first_log_entry= NULL;
   build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
+  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
+                              lpt->db, lpt->table_name);
   mysql_mutex_lock(&LOCK_gdl);
   if (write_log_changed_partitions(lpt, &next_entry, (const char*)path))
     goto error;
@@ -6734,28 +6739,28 @@ error:
     FALSE                    Success
 */
 
-static void write_log_completed(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                bool dont_crash)
+static void write_log_completed(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   partition_info *part_info= lpt->part_info;
-  DDL_LOG_MEMORY_ENTRY *log_entry= part_info->exec_log_entry;
+  DDL_LOG_MEMORY_ENTRY *exec_log_entry= part_info->exec_log_entry;
   DBUG_ENTER("write_log_completed");
 
-  DBUG_ASSERT(log_entry);
+  DBUG_ASSERT(exec_log_entry);
   mysql_mutex_lock(&LOCK_gdl);
-  if (ddl_log_disable_execute_entry(&log_entry))
-  {
-    /*
-      Failed to write, Bad...
-      We have completed the operation but have log records to REMOVE
-      stuff that shouldn't be removed. What clever things could one do
-      here? An error output was written to the error output by the
-      above method so we don't do anything here.
-    */
-    ;
-  }
+  bool error= ddl_log_disable_execute_entry(&exec_log_entry);
+  /*
+    If error == true we failed to write, Bad...
+    We have completed the operation but have log records to REMOVE
+    stuff that shouldn't be removed. What clever things could one do
+    here? An error output was written to the error output by the
+    above method so we don't do anything here.
+  */
   release_part_info_log_entries(part_info->first_log_entry);
-  release_part_info_log_entries(part_info->exec_log_entry);
+  if (!error)
+  {
+    DBUG_ASSERT(!exec_log_entry->next_active_log_entry);
+    ddl_log_release_memory_entry(exec_log_entry);
+  }
   mysql_mutex_unlock(&LOCK_gdl);
   part_info->exec_log_entry= NULL;
   part_info->first_log_entry= NULL;
@@ -6899,8 +6904,7 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
       We couldn't recover from error, most likely manual interaction
       is required.
     */
-    write_log_completed(lpt, FALSE);
-    release_log_entries(part_info);
+    write_log_completed(lpt);
     if (!action_completed)
     {
       if (drop_partition)
@@ -7229,7 +7233,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         mysql_drop_partitions(lpt) ||
         ERROR_INJECT_CRASH("crash_drop_partition_8") ||
         ERROR_INJECT_ERROR("fail_drop_partition_8") ||
-        (write_log_completed(lpt, FALSE), FALSE) ||
+        (write_log_completed(lpt), FALSE) ||
         ERROR_INJECT_CRASH("crash_drop_partition_9") ||
         ERROR_INJECT_ERROR("fail_drop_partition_9"))
     {
@@ -7304,7 +7308,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         (frm_install= FALSE, FALSE) ||
         ERROR_INJECT_CRASH("crash_add_partition_9") ||
         ERROR_INJECT_ERROR("fail_add_partition_9") ||
-        (write_log_completed(lpt, FALSE), FALSE) ||
+        (write_log_completed(lpt), FALSE) ||
         ERROR_INJECT_CRASH("crash_add_partition_10") ||
         ERROR_INJECT_ERROR("fail_add_partition_10"))
     {
@@ -7407,7 +7411,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         mysql_rename_partitions(lpt) ||
         ERROR_INJECT_CRASH("crash_change_partition_11") ||
         ERROR_INJECT_ERROR("fail_change_partition_11") ||
-        (write_log_completed(lpt, FALSE), FALSE) ||
+        (write_log_completed(lpt), FALSE) ||
         ERROR_INJECT_CRASH("crash_change_partition_12") ||
         ERROR_INJECT_ERROR("fail_change_partition_12"))
     {

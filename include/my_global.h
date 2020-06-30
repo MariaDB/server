@@ -92,9 +92,9 @@
 #endif
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-#define IF_PARTITIONING(A,B) A
+#define IF_PARTITIONING(A,B) (A)
 #else
-#define IF_PARTITIONING(A,B) B
+#define IF_PARTITIONING(A,B) (B)
 #endif
 
 #if defined (_WIN32)
