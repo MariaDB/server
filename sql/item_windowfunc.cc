@@ -237,6 +237,7 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
     if ((!item->fixed && item->fix_fields(thd, args)) ||
         (item= args[i])->check_cols(1))
       return TRUE;
+    with_window_func|= item->with_window_func;
   }
   Type_std_attributes::set(args[0]);
   for (uint i= 0; i < arg_count && !with_subselect; i++)
