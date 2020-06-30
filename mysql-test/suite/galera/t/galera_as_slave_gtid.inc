@@ -8,6 +8,7 @@
 #
 
 --source include/have_innodb.inc
+--source include/have_log_bin.inc
 --source include/galera_cluster.inc
 
 # As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
