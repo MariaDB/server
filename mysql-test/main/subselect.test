@@ -2703,7 +2703,7 @@ SELECT SQL_NO_CACHE COUNT(*)
   FROM (SELECT  a, b, (SELECT x FROM t2 WHERE y=b ORDER BY z DESC LIMIT 1) c
           FROM t1) t;
 
-DROP TABLE t1,t2,t3;
+DROP TABLE t2, t1, t3;
 
 #
 # Bug#25219 EXIST subquery with UNION over a mix of

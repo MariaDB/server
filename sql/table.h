@@ -52,6 +52,8 @@ struct TABLE_LIST;
 class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
+class FK_create_vector;
+class Table_name;
 class Table_statistics;
 class With_element;
 struct TDC_element;
@@ -374,7 +376,6 @@ enum __attribute__((packed)) field_visibility_t {
   INVISIBLE_FULL
 };
 
-#define INVISIBLE_MAX_BITS              3
 #define HA_HASH_FIELD_LENGTH            8
 #define HA_HASH_KEY_LENGTH_WITHOUT_NULL 8
 #define HA_HASH_KEY_LENGTH_WITH_NULL    9
@@ -730,6 +731,20 @@ struct TABLE_SHARE
   Field **field;
   Field **found_next_number_field;
   KEY  *key_info;			/* data of keys in database */
+  FK_list foreign_keys;
+  FK_list referenced_keys;
+  Field *find_field_by_name(const LEX_CSTRING n) const;
+  bool fk_handle_create(THD *thd, FK_create_vector &shares);
+  bool fk_check_consistency(THD *thd);
+  bool referenced_by_foreign_key() const
+  {
+    return !referenced_keys.is_empty();
+  }
+  int fk_write_shadow_frm();
+  bool fk_install_shadow_frm();
+  void fk_drop_shadow_frm();
+  bool fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from);
+
   Virtual_column_info **check_constraints;
   uint	*blob_field;			/* Index to blobs in Field arrray*/
   LEX_CUSTRING vcol_defs;              /* definitions of generated columns */
@@ -758,6 +773,16 @@ struct TABLE_SHARE
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
+
+  int cmp_db_table(const LEX_CSTRING &_db, const LEX_CSTRING &_table_name) const
+  {
+    int res= ::cmp_table(_db, db);
+    if (res)
+      return res;
+    return ::cmp_table(_table_name, table_name);
+  }
+
+  int cmp_db_table(const TABLE_LIST &tl) const;
 
   /* 
      Set of keys in use, implemented as a Bitmap.
@@ -828,6 +853,7 @@ struct TABLE_SHARE
   uint next_number_keypart;             /* autoinc keypart number in a key */
   enum open_frm_error error;            /* error from open_table_def() */
   uint open_errno;                      /* error from open_table_def() */
+  uint open_flags;                      /* flags from open_table_def() */
   uint column_bitmap_size;
   uchar frm_version;
 
@@ -1145,7 +1171,7 @@ struct TABLE_SHARE
     returns an frm image for this table.
     the memory is allocated and must be freed later
   */
-  bool read_frm_image(const uchar **frm_image, size_t *frm_length);
+  int read_frm_image(const uchar **frm_image, size_t *frm_length);
 
   /* frees the memory allocated in read_frm_image */
   void free_frm_image(const uchar *frm);
@@ -1811,22 +1837,53 @@ enum enum_schema_table_state
   PROCESSED_BY_JOIN_EXEC
 };
 
-enum enum_fk_option { FK_OPTION_UNDEF, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
+enum enum_fk_option { FK_OPTION_UNDEF= 0, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
                FK_OPTION_SET_NULL, FK_OPTION_NO_ACTION, FK_OPTION_SET_DEFAULT};
+class Foreign_key;
+class Table_name;
 
-typedef struct st_foreign_key_info
+class FK_info : public Sql_alloc
 {
-  LEX_CSTRING *foreign_id;
-  LEX_CSTRING *foreign_db;
-  LEX_CSTRING *foreign_table;
-  LEX_CSTRING *referenced_db;
-  LEX_CSTRING *referenced_table;
+public:
+  Lex_cstring foreign_id;
+  // TODO: use Table_name
+  Lex_cstring foreign_db;
+  Lex_cstring foreign_table;
+  Lex_cstring referenced_db;
+  Lex_cstring referenced_table;
   enum_fk_option update_method;
   enum_fk_option delete_method;
-  LEX_CSTRING *referenced_key_name;
-  List<LEX_CSTRING> foreign_fields;
-  List<LEX_CSTRING> referenced_fields;
-} FOREIGN_KEY_INFO;
+  List<Lex_cstring> foreign_fields;
+  List<Lex_cstring> referenced_fields;
+
+public:
+  FK_info() :
+    update_method(FK_OPTION_UNDEF),
+    delete_method(FK_OPTION_UNDEF)
+  {}
+  Lex_cstring ref_db() const
+  {
+    return referenced_db.str ? referenced_db : foreign_db;
+  }
+  Lex_cstring* ref_db_ptr()
+  {
+    return referenced_db.str ? &referenced_db : &foreign_db;
+  }
+  bool self_ref() const
+  {
+    if (referenced_db.length && 0 != cmp_table(referenced_db, foreign_db))
+      return false;
+    // TODO: keep NULL in referenced_table for self-refs
+    return 0 == cmp_table(referenced_table, foreign_table);
+  }
+  bool assign(Foreign_key &fk, Table_name table);
+  FK_info * clone(MEM_ROOT *mem_root) const;
+  Table_name for_table(MEM_ROOT *mem_root) const;
+  Table_name ref_table(MEM_ROOT *mem_root) const;
+  void print(String &out);
+};
+
+typedef class FK_info FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
 bool fk_modifies_child(enum_fk_option opt);
@@ -3112,7 +3169,8 @@ enum get_table_share_flags {
   GTS_VIEW                 = 2,
   GTS_NOLOCK               = 4,
   GTS_USE_DISCOVERY        = 8,
-  GTS_FORCE_DISCOVERY      = 16
+  GTS_FORCE_DISCOVERY      = 16,
+  GTS_FK_SHALLOW_HINTS     = 32
 };
 
 size_t max_row_length(TABLE *table, MY_BITMAP const *cols, const uchar *data);

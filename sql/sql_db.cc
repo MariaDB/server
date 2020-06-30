@@ -1107,7 +1107,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
   if (!thd->killed &&
       !(tables &&
         mysql_rm_table_no_locks(thd, tables, &rm_db, &ddl_log_state, true, false,
-                                true, false, true, false)))
+                                true, false, true, true, false)))
   {
     debug_crash_here("ddl_log_drop_after_drop_tables");
 

@@ -479,8 +479,9 @@ drop table t1;
 --echo #
 --echo # MDEV-20729 Fix REFERENCES constraint in column definition
 --echo #
-create or replace table t1(
-  id int
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t1(
+  id $sys_datatype_expl
 );
 --echo # system fields can't be foreign keys:
 --replace_result $sys_datatype_expl SYS_DATATYPE

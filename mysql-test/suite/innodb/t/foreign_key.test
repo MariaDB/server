@@ -15,7 +15,7 @@ constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
 create table t2 (f1 int primary key,
    constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 
---error ER_CANT_CREATE_TABLE
+--error ER_DUP_CONSTRAINT_NAME
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 
 set foreign_key_checks = 0;
@@ -159,7 +159,7 @@ CREATE DATABASE best default character set latin1;
 CREATE TABLE t3 (a INT PRIMARY KEY,
 CONSTRAINT t2_ibfk_1 FOREIGN KEY (a) REFERENCES t1(a)) ENGINE=InnoDB;
 CREATE TABLE best.t2 (a INT PRIMARY KEY, b TEXT, FULLTEXT INDEX(b),
-FOREIGN KEY (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
+FOREIGN KEY t2_ibfk_1 (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
 --replace_regex /Table '.*t2'/Table 't2'/
 --error ER_TABLE_EXISTS_ERROR
 RENAME TABLE best.t2 TO test.t2;
@@ -224,18 +224,18 @@ DROP TABLE t2, t1;
 CREATE TABLE t1 (f VARCHAR(256)) ENGINE=InnoDB;
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
 ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
-SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
 DROP TABLE t1;
 
 CREATE TABLE t1 (f VARCHAR(256), FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY)
 ENGINE=InnoDB;
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
 ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
-SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
 DROP TABLE t1;
 
 --echo #
@@ -243,7 +243,7 @@ DROP TABLE t1;
 --echo # in ib_push_warning / dict_create_foreign_constraints_low
 --echo #
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
 SHOW WARNINGS;
 DROP TABLE t1;
@@ -688,7 +688,7 @@ START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 DELETE IGNORE FROM t1 WHERE b = 1;
 
-SELECT a FROM t1 FORCE INDEX(a);
+SELECT a FROM t1 FORCE INDEX(fk_t1);
 # This would wrongly return the empty result if
 # the "goto rollback_to_savept" in row_mysql_handle_errors() is reverted.
 SELECT * FROM t1;
@@ -820,7 +820,7 @@ show create table t3;
 drop tables t3, t2, t1;
 
 create table t1 (id int primary key);
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 create table t2 (id2 int references t1);
 create table t2 (id int references t1);
 show create table t2;

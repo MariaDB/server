@@ -1429,27 +1429,6 @@ public:
     by the partition handler
   */
 
-  /*
-    -------------------------------------------------------------------------
-    MODULE foreign key support
-    -------------------------------------------------------------------------
-    The following methods are used to implement foreign keys as supported by
-    InnoDB. Implement this ??
-    get_foreign_key_create_info is used by SHOW CREATE TABLE to get a textual
-    description of how the CREATE TABLE part to define FOREIGN KEY's is done.
-    free_foreign_key_create_info is used to free the memory area that provided
-    this description.
-    can_switch_engines checks if it is ok to switch to a new engine based on
-    the foreign key info in the table.
-    -------------------------------------------------------------------------
-
-    virtual char* get_foreign_key_create_info()
-    virtual void free_foreign_key_create_info(char* str)
-
-    virtual int get_foreign_key_list(THD *thd,
-    List<FOREIGN_KEY_INFO> *f_key_list)
-    virtual uint referenced_by_foreign_key()
-  */
     bool can_switch_engines() override;
   /*
     -------------------------------------------------------------------------

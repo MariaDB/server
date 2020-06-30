@@ -4610,23 +4610,12 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
                            uint8 op)
 {
   DBUG_ENTER("prepare_fk_prelocking_list");
-  List <FOREIGN_KEY_INFO> fk_list;
-  List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
-  FOREIGN_KEY_INFO *fk;
-  Query_arena *arena, backup;
   TABLE *table= table_list->table;
+  List_iterator<FK_info> fk_list_it(table->s->referenced_keys);
+  FK_info *fk;
+  Query_arena *arena, backup;
 
   arena= thd->activate_stmt_arena_if_needed(&backup);
-
-  table->file->get_parent_foreign_key_list(thd, &fk_list);
-  if (unlikely(thd->is_error()))
-  {
-    if (arena)
-      thd->restore_active_arena(arena, &backup);
-    return TRUE;
-  }
-
-  *need_prelocking= TRUE;
 
   while ((fk= fk_list_it++))
   {
@@ -4634,19 +4623,23 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
     thr_lock_type lock_type;
 
     if ((op & (1 << TRG_EVENT_DELETE) && fk_modifies_child(fk->delete_method))
-        || (op & (1 << TRG_EVENT_UPDATE) && fk_modifies_child(fk->update_method)))
+        || (op & (1 << TRG_EVENT_UPDATE) && fk_modifies_child(fk->update_method))
+        || (table->s->table_category == TABLE_CATEGORY_SYSTEM &&
+            table_list->lock_type >= TL_WRITE_ALLOW_WRITE))
       lock_type= TL_WRITE_ALLOW_WRITE;
     else
       lock_type= TL_READ;
 
     if (table_already_fk_prelocked(prelocking_ctx->query_tables,
-          fk->foreign_db, fk->foreign_table,
+          &fk->foreign_db, &fk->foreign_table,
           lock_type))
       continue;
 
+    *need_prelocking= TRUE;
+
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-    tl->init_one_table_for_prelocking(fk->foreign_db,
-        fk->foreign_table,
+    tl->init_one_table_for_prelocking(&fk->foreign_db,
+        &fk->foreign_table,
         NULL, lock_type,
         TABLE_LIST::PRELOCK_FK,
         table_list->belong_to_view, op,
@@ -4701,7 +4694,7 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
         return TRUE;
     }
 
-    if (table->file->referenced_by_foreign_key())
+    if (table->s->referenced_by_foreign_key())
     {
       if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                      need_prelocking,
@@ -4710,7 +4703,7 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
     }
   }
   else if (table_list->slave_fk_event_map &&
-           table->file->referenced_by_foreign_key())
+           table->s->referenced_by_foreign_key())
   {
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                    need_prelocking,

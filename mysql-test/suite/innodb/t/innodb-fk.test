@@ -95,7 +95,7 @@ CREATE TABLE t1 (
   CONSTRAINT fk1 FOREIGN KEY (f1) REFERENCES t1 (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
---error 1005
+--error ER_NO_SUCH_TABLE
 CREATE TABLE t2 (
   id int(11) NOT NULL AUTO_INCREMENT,
   f2 int(11) NOT NULL,
@@ -115,7 +115,7 @@ CREATE TABLE t2 (
   CONSTRAINT fk2 FOREIGN KEY (f2) REFERENCES t1 (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
---error 1005
+--error ER_NO_SUCH_TABLE
 ALTER TABLE t2 ADD CONSTRAINT fk3 FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE;
 
 show warnings;
@@ -143,7 +143,7 @@ CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES `group` (`Id`)
 
 show create table `kg_test1`.`person`;
 
---error 1005
+--error ER_NO_SUCH_TABLE
 CREATE TABLE `kg_test2`.`person2` (
 `Id` INT(11) NOT NULL AUTO_INCREMENT,
 `Name` VARCHAR(50) NOT NULL,
@@ -198,7 +198,7 @@ CREATE TABLE `boroda` (
 ) ENGINE=INNODB DEFAULT CHARSET=utf8;
 
 ALTER TABLE `boroda`
-  ADD FOREIGN KEY (`b`) REFERENCES `boroda`(`id`);
+  ADD FOREIGN KEY `boroda_ibfk_2` (`b`) REFERENCES `boroda`(`id`);
 
 ALTER TABLE `boroda` DROP FOREIGN KEY `boroda_ibfk_2`;
 
@@ -230,6 +230,7 @@ DROP TABLE `bor#oda`;
 --echo #
 --echo # MDEV-21127 Assertion `(size_t)(ptr - buf) < MAX_TEXT - 4' failed in key_text::key_text
 --echo #
+create table tx (ax char(255) unique, bx char(255) unique) engine innodb;
 --error ER_CANT_CREATE_TABLE
 CREATE TABLE t1 (
     a012345678901234567890123456789012345678901 char(255),
@@ -237,10 +238,12 @@ CREATE TABLE t1 (
     FOREIGN KEY ( a012345678901234567890123456789012345678901, b ) REFERENCES tx (ax, bx)
 ) ENGINE=InnoDB;
 
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 CREATE TABLE t1 (
     a012345678901234567 int,
     b int,
     c0123456789012345678 int,
     FOREIGN KEY (a012345678901234567,c0123456789012345678,b) REFERENCES tx (x1,x2,x3)
 ) ENGINE=InnoDB;
+
+drop table tx;

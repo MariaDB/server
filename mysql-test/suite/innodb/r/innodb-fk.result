@@ -49,12 +49,10 @@ PRIMARY KEY (`id`),
 CONSTRAINT fk2 FOREIGN KEY (f2) REFERENCES t1 (`id`) ON DELETE CASCADE,
 CONSTRAINT fk3 FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42S02: Table 'test.t3' doesn't exist
 show warnings;
 Level	Code	Message
-Warning	150	Create  table `test`.`t2` with foreign key `fk3` constraint failed. Referenced table `test`.`t3` not found in the data dictionary.
-Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `t2`
+Error	1239	Incorrect foreign key definition for 't3': referenced table not found
 CREATE TABLE t2 (
 id int(11) NOT NULL AUTO_INCREMENT,
 f2 int(11) NOT NULL,
@@ -63,12 +61,9 @@ PRIMARY KEY (`id`),
 CONSTRAINT fk2 FOREIGN KEY (f2) REFERENCES t1 (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 ALTER TABLE t2 ADD CONSTRAINT fk3 FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42S02: Table 'test.t3' doesn't exist
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`t2` with foreign key `fk3` constraint failed. Referenced table `test`.`t3` not found in the data dictionary.
-Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `t2`
 drop table t2;
 drop table t1;
 CREATE DATABASE kg_test1;
@@ -96,7 +91,7 @@ CREATE TABLE `kg_test2`.`person2` (
 PRIMARY KEY (`Id`),
 CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES `group` (`Id`)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8;
-ERROR HY000: Can't create table `kg_test2`.`person2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42S02: Table 'kg_test2.group' doesn't exist
 CREATE TABLE `kg_test2`.`person2` (
 `Id` INT(11) NOT NULL AUTO_INCREMENT,
 `Name` VARCHAR(50) NOT NULL,
@@ -133,9 +128,9 @@ Table	Create Table
   `id_depart` int(10) unsigned NOT NULL,
   `id_depart_in` int(10) unsigned NOT NULL,
   PRIMARY KEY (`id_depart`,`id_depart_in`),
-  KEY `id_depart_in` (`id_depart_in`),
+  KEY `fk_#departaments_tree` (`id_depart_in`),
   CONSTRAINT `#departaments_tree_ibfk_1` FOREIGN KEY (`id_depart`) REFERENCES `#departaments` (`id_depart`),
-  CONSTRAINT `#departaments_tree_ibfk_2` FOREIGN KEY (`id_depart_in`) REFERENCES `#departaments` (`id_depart`)
+  CONSTRAINT `fk_#departaments_tree` FOREIGN KEY (`id_depart_in`) REFERENCES `#departaments` (`id_depart`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 DROP TABLE `#departaments_tree`;
 DROP TABLE `#departaments`;
@@ -148,7 +143,7 @@ KEY `a` (`a`),
 CONSTRAINT `boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8;
 ALTER TABLE `boroda`
-  ADD FOREIGN KEY (`b`) REFERENCES `boroda`(`id`);
+  ADD FOREIGN KEY `boroda_ibfk_2` (`b`) REFERENCES `boroda`(`id`);
 ALTER TABLE `boroda` DROP FOREIGN KEY `boroda_ibfk_2`;
 RENAME TABLE `boroda` TO `#boroda`;
 ALTER TABLE `#boroda`
@@ -161,9 +156,9 @@ Table	Create Table
   `b` int(11) unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
-  KEY `b` (`b`),
-  CONSTRAINT `#boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `#boroda` (`id`),
-  CONSTRAINT `#boroda_ibfk_2` FOREIGN KEY (`b`) REFERENCES `#boroda` (`id`)
+  KEY `fk_#boroda` (`b`),
+  CONSTRAINT `boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `#boroda` (`id`),
+  CONSTRAINT `fk_#boroda` FOREIGN KEY (`b`) REFERENCES `#boroda` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 DROP TABLE `#boroda`;
 CREATE TABLE `boroda` (
@@ -185,14 +180,15 @@ bor#oda	CREATE TABLE `bor#oda` (
   `b` int(11) unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
-  KEY `b` (`b`),
-  CONSTRAINT `bor#oda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `bor#oda` (`id`),
-  CONSTRAINT `bor#oda_ibfk_2` FOREIGN KEY (`b`) REFERENCES `bor#oda` (`id`)
+  KEY `fk_bor#oda` (`b`),
+  CONSTRAINT `boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `bor#oda` (`id`),
+  CONSTRAINT `fk_bor#oda` FOREIGN KEY (`b`) REFERENCES `bor#oda` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 DROP TABLE `bor#oda`;
 #
 # MDEV-21127 Assertion `(size_t)(ptr - buf) < MAX_TEXT - 4' failed in key_text::key_text
 #
+create table tx (ax char(255) unique, bx char(255) unique) engine innodb;
 CREATE TABLE t1 (
 a012345678901234567890123456789012345678901 char(255),
 b char(255),
@@ -205,4 +201,5 @@ b int,
 c0123456789012345678 int,
 FOREIGN KEY (a012345678901234567,c0123456789012345678,b) REFERENCES tx (x1,x2,x3)
 ) ENGINE=InnoDB;
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42000: Incorrect foreign key definition for 'x1': referenced field not found
+drop table tx;

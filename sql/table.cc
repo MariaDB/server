@@ -61,21 +61,6 @@ public:
   }
 };
 
-struct extra2_fields
-{
-  LEX_CUSTRING version;
-  LEX_CUSTRING options;
-  Lex_ident engine;
-  LEX_CUSTRING gis;
-  LEX_CUSTRING field_flags;
-  LEX_CUSTRING system_period;
-  LEX_CUSTRING application_period;
-  LEX_CUSTRING field_data_type_info;
-  LEX_CUSTRING without_overlaps;
-  void reset()
-  { bzero((void*)this, sizeof(*this)); }
-};
-
 static Virtual_column_info * unpack_vcol_info_from_frm(THD *, MEM_ROOT *,
               TABLE *, String *, Virtual_column_info **, bool *);
 static bool check_vcol_forward_refs(Field *, Virtual_column_info *,
@@ -357,6 +342,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     share->normalized_path.length= path_length;
     share->table_category= get_table_category(& share->db, & share->table_name);
     share->open_errno= ENOENT;
+    share->foreign_keys.empty();
+    share->referenced_keys.empty();
     /* The following will be updated in open_table_from_share */
     share->can_do_row_logging= 1;
     if (share->table_category == TABLE_CATEGORY_LOG)
@@ -407,7 +394,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
 
   NOTES
     This is different from alloc_table_share() because temporary tables
-    don't have to be shared between threads or put into the table def
+    dap on't have to be shared between threads or put into the table def
     cache, so we can do some things notable simpler and faster
 
     If table is not put in thd->temporary_tables (happens only when
@@ -444,6 +431,8 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   share->frm_version= 		 FRM_VER_CURRENT;
   share->not_usable_by_query_cache= 1;
   share->can_do_row_logging= 0;           // No row logging
+  share->foreign_keys.empty();
+  share->referenced_keys.empty();
 
   /*
     table_map_id is also used for MERGE tables to suppress repeated
@@ -624,6 +613,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
                        share->table_name.str, share->normalized_path.str));
 
   share->error= OPEN_FRM_OPEN_ERROR;
+  share->open_flags= flags;
 
   length=(uint) (strxmov(path, share->normalized_path.str, reg_ext, NullS) -
                  path);
@@ -1507,105 +1497,6 @@ bool TABLE_SHARE::init_period_from_extra2(period_info_t *period,
 }
 
 
-static size_t extra2_read_len(const uchar **extra2, const uchar *extra2_end)
-{
-  size_t length= *(*extra2)++;
-  if (length)
-    return length;
-
-  if ((*extra2) + 2 >= extra2_end)
-    return 0;
-  length= uint2korr(*extra2);
-  (*extra2)+= 2;
-  if (length < 256 || *extra2 + length > extra2_end)
-    return 0;
-  return length;
-}
-
-static
-bool read_extra2_section_once(const uchar *extra2, size_t len, LEX_CUSTRING *section)
-{
-  if (section->str)
-    return true;
-  *section= {extra2, len};
-  return false;
-}
-
-static
-bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
-{
-  const uchar *extra2= frm_image + 64;
-
-  DBUG_ENTER("read_extra2");
-
-  fields->reset();
-
-  if (*extra2 != '/')   // old frm had '/' there
-  {
-    const uchar *e2end= extra2 + len;
-    while (extra2 + 3 <= e2end)
-    {
-      extra2_frm_value_type type= (extra2_frm_value_type)*extra2++;
-      size_t length= extra2_read_len(&extra2, e2end);
-      if (!length)
-        DBUG_RETURN(true);
-
-      bool fail= false;
-      switch (type) {
-        case EXTRA2_TABLEDEF_VERSION:
-          if (fields->version.str) // see init_from_sql_statement_string()
-          {
-            if (length != fields->version.length)
-              DBUG_RETURN(true);
-          }
-          else
-          {
-            fields->version.str= extra2;
-            fields->version.length= length;
-          }
-          break;
-        case EXTRA2_ENGINE_TABLEOPTS:
-          fail= read_extra2_section_once(extra2, length, &fields->options);
-          break;
-        case EXTRA2_DEFAULT_PART_ENGINE:
-          fields->engine.set((const char*)extra2, length);
-          break;
-        case EXTRA2_GIS:
-          fail= read_extra2_section_once(extra2, length, &fields->gis);
-          break;
-        case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
-          fail= read_extra2_section_once(extra2, length, &fields->system_period)
-                  || length != 2 * frm_fieldno_size;
-          break;
-        case EXTRA2_FIELD_FLAGS:
-          fail= read_extra2_section_once(extra2, length, &fields->field_flags);
-          break;
-        case EXTRA2_APPLICATION_TIME_PERIOD:
-          fail= read_extra2_section_once(extra2, length, &fields->application_period);
-          break;
-        case EXTRA2_PERIOD_WITHOUT_OVERLAPS:
-          fail= read_extra2_section_once(extra2, length, &fields->without_overlaps);
-          break;
-        case EXTRA2_FIELD_DATA_TYPE_INFO:
-          fail= read_extra2_section_once(extra2, length, &fields->field_data_type_info);
-          break;
-        default:
-          /* abort frm parsing if it's an unknown but important extra2 value */
-          if (type >= EXTRA2_ENGINE_IMPORTANT)
-            DBUG_RETURN(true);
-      }
-      if (fail)
-        DBUG_RETURN(true);
-
-      extra2+= length;
-    }
-    if (extra2 != e2end)
-      DBUG_RETURN(true);
-  }
-  DBUG_RETURN(false);
-}
-
-
 class Field_data_type_info_array
 {
 public:
@@ -1744,9 +1635,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   plugin_ref se_plugin= 0;
   bool vers_can_native= false, frm_created= 0;
   Field_data_type_info_array field_data_type_info_array;
+  Foreign_key_io foreign_key_io;
+
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
-  extra2_fields extra2;
+  Extra2_info extra2;
+
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   keyinfo= &first_keyinfo;
@@ -1781,10 +1675,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   new_frm_ver= (frm_image[2] - FRM_VER);
   field_pack_length= new_frm_ver < 2 ? 11 : 17;
 
-  /* Length of the MariaDB extra2 segment in the form file. */
-  len = uint2korr(frm_image+4);
-
-  if (read_extra2(frm_image, len, &extra2))
+  if (extra2.read(frm_image, frm_length))
     goto err;
 
   tabledef_version.length= extra2.version.length;
@@ -1805,8 +1696,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
 #endif
 
-  if (frm_length < FRM_HEADER_SIZE + len ||
-      !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
+  if (frm_length < FRM_HEADER_SIZE + extra2.read_size ||
+      !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + extra2.read_size)))
     goto err;
 
   forminfo= frm_image + pos;
@@ -2297,11 +2188,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   {
     const uchar *pos= extra2.application_period.str;
     const uchar *end= pos + extra2.application_period.length;
-    period.name.length= extra2_read_len(&pos, end);
+    period.name.length= dd_extra2_len(&pos, end);
     period.name.str= strmake_root(&mem_root, (char*)pos, period.name.length);
     pos+= period.name.length;
 
-    period.constr_name.length= extra2_read_len(&pos, end);
+    period.constr_name.length= dd_extra2_len(&pos, end);
     period.constr_name.str= strmake_root(&mem_root, (char*)pos,
                                          period.constr_name.length);
     pos+= period.constr_name.length;
@@ -3211,6 +3102,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
   }
 
+  if (extra2.foreign_key_info.length &&
+      foreign_key_io.parse(thd, this, extra2.foreign_key_info))
+    goto err;
+
   /*
     the correct null_bytes can now be set, since bitfields have been taken
     into account
@@ -3362,6 +3257,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   LEX tmp_lex;
   KEY *unused1;
   uint unused2;
+  FK_list foreign_keys, referenced_keys;
   handlerton *hton= plugin_hton(db_plugin);
   LEX_CUSTRING frm= {0,0};
   LEX_CSTRING db_backup= thd->db;
@@ -3407,9 +3303,11 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
     thd->lex->create_info.tabledef_version= tabledef_version;
 
   promote_first_timestamp_column(&thd->lex->alter_info.create_list);
-  file= mysql_create_frm_image(thd, db, table_name,
+  thd->lex->create_info.alter_info= &thd->lex->alter_info;
+  file= mysql_create_frm_image(thd, db, table_name, db, table_name,
                                &thd->lex->create_info, &thd->lex->alter_info,
-                               C_ORDINARY_CREATE, &unused1, &unused2, &frm);
+                               C_ORDINARY_CREATE, &unused1, &unused2,
+                               foreign_keys, referenced_keys, &frm);
   error|= file == 0;
   delete file;
 
@@ -3460,7 +3358,7 @@ bool TABLE_SHARE::write_par_image(const uchar *par, size_t len)
 }
 
 
-bool TABLE_SHARE::read_frm_image(const uchar **frm, size_t *len)
+int TABLE_SHARE::read_frm_image(const uchar **frm, size_t *len)
 {
   if (IF_PARTITIONING(partition_info_str, 0))   // cannot discover a partition
   {
@@ -9511,6 +9409,380 @@ bool fk_modifies_child(enum_fk_option opt)
   return can_write[opt];
 }
 
+int TABLE_SHARE::cmp_db_table(const TABLE_LIST& tl) const
+{
+  return cmp_db_table(tl.db, tl.table_name);
+}
+
+
+class Local_da : public Diagnostics_area
+{
+  THD *thd;
+  Diagnostics_area *saved_da;
+
+public:
+  Local_da(THD *thd_arg) :
+    Diagnostics_area(thd_arg->query_id, false, true),
+    thd(thd_arg), saved_da(thd_arg->get_stmt_da())
+  {
+    thd->set_stmt_da(this);
+  }
+  ~Local_da()
+  {
+    if (saved_da)
+      thd->set_stmt_da(saved_da);
+  }
+  void finish()
+  {
+    DBUG_ASSERT(saved_da && thd);
+    thd->set_stmt_da(saved_da);
+    saved_da= NULL;
+  }
+};
+
+
+bool FK_info::assign(Foreign_key &src, Table_name table)
+{
+  DBUG_ASSERT(src.foreign);
+  DBUG_ASSERT(src.type == Key::MULTIPLE);
+
+  foreign_id= src.constraint_name.str ? src.constraint_name : src.name;
+  foreign_db= table.db;
+  foreign_table= table.name;
+  referenced_db= src.ref_db;
+  referenced_table= src.ref_table;
+  update_method= src.update_opt;
+  delete_method= src.delete_opt;
+
+  List_iterator_fast<Key_part_spec> ref_it(src.ref_columns);
+
+  for (const Key_part_spec &kp: src.columns)
+  {
+    if (foreign_fields.push_back((Lex_cstring *)(&kp.field_name)))
+      return true;
+    Key_part_spec *kp2= ref_it++;
+    if (referenced_fields.push_back((Lex_cstring *)(&kp2->field_name)))
+      return true;
+  }
+  return false;
+}
+
+
+FK_info * FK_info::clone(MEM_ROOT *mem_root) const
+{
+  FK_info *dst= new (mem_root) FK_info();
+  if (!dst)
+    return NULL;
+
+  if (dst->foreign_id.strdup(mem_root, foreign_id))
+    return NULL;
+  if (dst->foreign_db.strdup(mem_root, foreign_db))
+    return NULL;
+  if (dst->foreign_table.strdup(mem_root, foreign_table))
+    return NULL;
+  if (dst->referenced_db.strdup(mem_root, referenced_db))
+    return NULL;
+  if (dst->referenced_table.strdup(mem_root, referenced_table))
+    return NULL;
+  dst->update_method= update_method;
+  dst->delete_method= delete_method;
+
+  for (const Lex_cstring &src_f: foreign_fields)
+  {
+    Lex_cstring *dst_f= new (mem_root) Lex_cstring();
+    if (!dst_f)
+      return NULL;
+    if (dst_f->strdup(mem_root, src_f))
+      return NULL;
+    if (dst->foreign_fields.push_back(dst_f, mem_root))
+      return NULL;
+  }
+
+  for (const Lex_cstring &src_f: referenced_fields)
+  {
+    Lex_cstring *dst_f= new (mem_root) Lex_cstring();
+    if (!dst_f)
+      return NULL;
+    if (dst_f->strdup(mem_root, src_f))
+      return NULL;
+    if (dst->referenced_fields.push_back(dst_f, mem_root))
+      return NULL;
+  }
+
+  DBUG_ASSERT(foreign_fields.elements == referenced_fields.elements);
+  return dst;
+}
+
+
+Table_name FK_info::for_table(MEM_ROOT *mem_root) const
+{
+  Table_name result(foreign_db, foreign_table);
+  if (lower_case_table_names)
+    result.lowercase(mem_root);
+  return result;
+}
+
+
+Table_name FK_info::ref_table(MEM_ROOT *mem_root) const
+{
+  Table_name result(ref_db(), referenced_table);
+  if (lower_case_table_names)
+    result.lowercase(mem_root);
+  return result;
+}
+
+
+void FK_info::print(String& out)
+{
+  out.append(STRING_WITH_LEN("foreign_id: "));
+  out.append(foreign_id.print());
+  out.append(STRING_WITH_LEN("; foreign_db: "));
+  out.append(foreign_db.print());
+  out.append(STRING_WITH_LEN("; foreign_table: "));
+  out.append(foreign_table.print());
+  out.append(STRING_WITH_LEN("; referenced_db: "));
+  out.append(referenced_db.print());
+  out.append(STRING_WITH_LEN("; referenced_table: "));
+  out.append(referenced_table.print());
+  out.append(STRING_WITH_LEN("; update_method: "));
+  out.append(fk_option_name(update_method));
+  out.append(STRING_WITH_LEN("; delete_method: "));
+  out.append(fk_option_name(delete_method));
+  out.append(STRING_WITH_LEN("; foreign_fields: "));
+  uint i= 0;
+  for (const Lex_cstring &fld: foreign_fields)
+  {
+    if (i)
+      out.append(STRING_WITH_LEN("; "));
+    out.append(STRING_WITH_LEN("["));
+    out.append(i++, true);
+    out.append(STRING_WITH_LEN("]: "));
+    out.append(fld.print());
+  }
+  if (!i)
+    out.append(STRING_WITH_LEN("(empty)"));
+  out.append(STRING_WITH_LEN("; referenced_fields: "));
+  i= 0;
+  for (const Lex_cstring &fld: referenced_fields)
+  {
+    if (i)
+      out.append(STRING_WITH_LEN("; "));
+    out.append(STRING_WITH_LEN("["));
+    out.append(i++, true);
+    out.append(STRING_WITH_LEN("]: "));
+    out.append(fld.print());
+  }
+  if (!i)
+    out.append(STRING_WITH_LEN("(empty)"));
+}
+
+
+bool TABLE_SHARE::fk_check_consistency(THD *thd)
+{
+  mbd::set<Table_name> warned;
+  mbd::set<Table_name> warned_self;
+  bool error= false;
+  uint rk_self_refs= 0;
+  uint fk_self_refs= 0;
+  for (FK_info &rk: referenced_keys)
+  {
+    if (rk.self_ref())
+    {
+      if (cmp_table(rk.foreign_db, db) ||
+          cmp_table(rk.foreign_table, table_name))
+      {
+        bool warn;
+        if (!warned_self.insert(Table_name(rk.foreign_db, rk.foreign_table), &warn))
+          return true;
+        if (warn)
+        {
+          my_printf_error(ER_UNKNOWN_ERROR,
+                          "Self-reference in referenced list %s.%s does not point to this table",
+                          MYF(0), rk.foreign_db, rk.foreign_table);
+        }
+        DBUG_ASSERT(warn || error);
+        error= true;
+      }
+      rk_self_refs++;
+    }
+    TABLE_LIST tl;
+    tl.init_one_table(&rk.foreign_db, &rk.foreign_table, NULL, TL_IGNORE);
+    Share_acquire sa(thd, tl);
+    if (!sa.share)
+    {
+      if (!ha_table_exists(thd, &rk.foreign_db, &rk.foreign_table))
+      {
+        my_printf_error(ER_UNKNOWN_ERROR, "Foreign table %s.%s not exists",
+                        MYF(0), rk.foreign_db.str, rk.foreign_table.str);
+      }
+      return true;
+    }
+    List_iterator_fast<FK_info> fk_it(sa.share->foreign_keys);
+    FK_info *fk;
+    bool found_table= false;
+    while ((fk= fk_it++))
+    {
+      if (!cmp_table(fk->ref_db(), db) &&
+          !cmp_table(fk->referenced_table, table_name))
+      {
+        found_table= true;
+        List_iterator_fast<Lex_cstring> rk_fld_it(rk.referenced_fields);
+        List_iterator_fast<Lex_cstring> fk_fld_it(fk->referenced_fields);
+        List_iterator_fast<Lex_cstring> rk_fld2_it(rk.foreign_fields);
+        List_iterator_fast<Lex_cstring> fk_fld2_it(fk->foreign_fields);
+        Lex_cstring *fk_fld;
+        while ((fk_fld= fk_fld_it++))
+        {
+          Lex_cstring *rk_fld= rk_fld_it++;
+          if (!rk_fld || cmp(fk_fld, rk_fld))
+            break;
+          fk_fld= fk_fld2_it++;
+          DBUG_ASSERT(fk_fld);
+          rk_fld= rk_fld2_it++;
+          DBUG_ASSERT(rk_fld);
+          if (cmp(fk_fld, rk_fld))
+            break;
+        }
+        if (!fk_fld)
+          break;
+      }
+    }
+    if (!fk)
+    {
+      bool warn;
+      if (!warned.insert(Table_name(rk.foreign_db, rk.foreign_table), &warn))
+        return true;
+      if (warn)
+      {
+        my_printf_error(ER_UNKNOWN_ERROR,
+                        found_table ?
+                          "Foreign table %s.%s does not match foreign keys with referenced keys" :
+                          "Foreign table %s.%s does not refer this table",
+                        MYF(0), sa.share->db.str, sa.share->table_name.str);
+      }
+      DBUG_ASSERT(warn || error);
+      error= true;
+    }
+  }
+
+  warned.clear();
+  warned_self.clear();
+
+  if (referenced_keys.elements - rk_self_refs)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR,
+                        "Found %u referenced keys",
+                        referenced_keys.elements - rk_self_refs);
+  }
+
+  for (FK_info &fk: foreign_keys)
+  {
+    if (fk.self_ref())
+    {
+      if (cmp_table(fk.foreign_db, db) ||
+          cmp_table(fk.foreign_table, table_name))
+      {
+        bool warn;
+        if (!warned_self.insert(Table_name(fk.foreign_db, fk.foreign_table), &warn))
+          return true;
+        if (warn)
+        {
+          my_printf_error(ER_UNKNOWN_ERROR,
+                          "Self-reference in foreign list %s.%s does not point to this table",
+                          MYF(0), fk.foreign_db, fk.foreign_table);
+        }
+        DBUG_ASSERT(warn || error);
+        error= true;
+      }
+      fk_self_refs++;
+    }
+    TABLE_LIST tl;
+    tl.init_one_table(fk.ref_db_ptr(), &fk.referenced_table, NULL, TL_IGNORE);
+    Share_acquire sa(thd, tl);
+    if (!sa.share)
+    {
+      if (!ha_table_exists(thd, fk.ref_db_ptr(), &fk.referenced_table))
+      {
+        my_printf_error(ER_UNKNOWN_ERROR, "Referenced table %s.%s not exists",
+                        MYF(0), fk.ref_db().str, fk.referenced_table.str);
+      }
+      return true;
+    }
+    List_iterator_fast<FK_info> ref_it(sa.share->referenced_keys);
+    FK_info *rk;
+    bool found_table= false;
+    while ((rk= ref_it++))
+    {
+      if (!cmp_table(rk->foreign_db, db) &&
+          !cmp_table(rk->foreign_table, table_name))
+      {
+        found_table= true;
+        List_iterator_fast<Lex_cstring> rk_fld_it(rk->referenced_fields);
+        List_iterator_fast<Lex_cstring> fk_fld_it(fk.referenced_fields);
+        List_iterator_fast<Lex_cstring> rk_fld2_it(rk->foreign_fields);
+        List_iterator_fast<Lex_cstring> fk_fld2_it(fk.foreign_fields);
+        Lex_cstring *fk_fld;
+        while ((fk_fld= fk_fld_it++))
+        {
+          Lex_cstring *rk_fld= rk_fld_it++;
+          if (!rk_fld || cmp(fk_fld, rk_fld))
+            break;
+          fk_fld= fk_fld2_it++;
+          DBUG_ASSERT(fk_fld);
+          rk_fld= rk_fld2_it++;
+          DBUG_ASSERT(rk_fld);
+          if (cmp(fk_fld, rk_fld))
+            break;
+        }
+        if (!fk_fld)
+          break;
+      }
+    }
+    if (!rk)
+    {
+      bool warn;
+      if (!warned.insert(Table_name(fk.foreign_db, fk.foreign_table), &warn))
+        return true;
+      if (warn)
+      {
+        my_printf_error(ER_UNKNOWN_ERROR,
+                        found_table ?
+                          "Referenced table %s.%s does not match referenced keys with foreign keys" :
+                          "Referenced table %s.%s does not refer this table", MYF(0),
+                        sa.share->db.str, sa.share->table_name.str);
+      }
+      DBUG_ASSERT(warn || error);
+      error= true;
+    }
+  }
+
+  if (foreign_keys.elements - fk_self_refs)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR,
+                        "Found %u foreign keys",
+                        foreign_keys.elements - fk_self_refs);
+  }
+
+  if (fk_self_refs != rk_self_refs)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "Self-references count in foreign list and referenced list do not match: %u vs %u",
+                    MYF(0), fk_self_refs, rk_self_refs);
+  }
+  else if (fk_self_refs)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR,
+                        "Found %u self-references",
+                        fk_self_refs);
+  }
+
+  return error;
+}
+
+
 enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;
 
 TR_table::TR_table(THD* _thd, bool rw) :
@@ -9940,6 +10212,27 @@ Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
       if ((*tmp)->field_name.length == length &&
           !lex_string_cmp(system_charset_info, &(*tmp)->field_name, str))
         return *tmp;
+    }
+  }
+  return NULL;
+}
+
+
+Field *TABLE_SHARE::find_field_by_name(const LEX_CSTRING n) const
+{
+  Field **f;
+  if (name_hash.records)
+  {
+    f= (Field**) my_hash_search(&name_hash, (uchar *) n.str, n.length);
+    return f ? *f : NULL;
+  }
+  else
+  {
+    for (f= field; *f; f++)
+    {
+      if ((*f)->field_name.length == n.length &&
+          0 == cmp_ident((*f)->field_name, n))
+        return *f;
     }
   }
   return NULL;

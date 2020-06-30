@@ -279,7 +279,7 @@ col_1_int	col_2_varchar
 2	a2
 3	a3
 INSERT INTO testdb_wl5522.t1_fk VALUES (100,'a100');
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`testdb_wl5522`.`t1_fk`, CONSTRAINT `t1_fk_ibfk_1` FOREIGN KEY (`col_2_varchar`) REFERENCES `t1` (`col_2_varchar`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`testdb_wl5522`.`t1_fk`, CONSTRAINT `fk_t1_fk` FOREIGN KEY (`col_2_varchar`) REFERENCES `t1` (`col_2_varchar`))
 SET AUTOCOMMIT = 0;
 INSERT INTO testdb_wl5522.t1_fk VALUES (4,'a4'),(5,'a5');
 ROLLBACK;
