@@ -384,7 +384,7 @@ public:
   void set_join_tab_idx(uint join_tab_idx_arg)
   { args[1]->set_join_tab_idx(join_tab_idx_arg); }
   virtual void get_cache_parameters(List<Item> &parameters);
-  bool is_top_level_item();
+  bool is_top_level_item() const override;
   bool eval_not_null_tables(void *opt_arg);
   bool find_not_null_fields(table_map allowed);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
@@ -602,7 +602,7 @@ public:
   Item_func_not(THD *thd, Item *a):
     Item_bool_func(thd, a), abort_on_null(FALSE) {}
   virtual void top_level_item() { abort_on_null= 1; }
-  bool is_top_level_item() { return abort_on_null; }
+  bool is_top_level_item() const override { return abort_on_null; }
   longlong val_int();
   enum Functype functype() const { return NOT_FUNC; }
   const char *func_name() const { return "not"; }
@@ -890,7 +890,7 @@ public:
     Item_bool_func(thd, list), negated(0), pred_level(0) {}
 public:
   inline void top_level_item() { pred_level= 1; }
-  bool is_top_level_item() const { return pred_level; }
+  bool is_top_level_item() const override { return pred_level; }
   Item *neg_transformer(THD *thd)
   {
     negated= !negated;

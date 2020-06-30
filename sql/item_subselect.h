@@ -151,9 +151,7 @@ public:
   virtual subs_type substype() { return UNKNOWN_SUBS; }
   bool is_in_predicate()
   {
-    return (substype() == Item_subselect::IN_SUBS ||
-            substype() == Item_subselect::ALL_SUBS ||
-            substype() == Item_subselect::ANY_SUBS);
+    return get_IN_subquery() != NULL;
   }
 
   /*
@@ -416,7 +414,7 @@ public:
   void print(String *str, enum_query_type query_type);
   bool select_transformer(JOIN *join);
   void top_level_item() { abort_on_null=1; }
-  inline bool is_top_level_item() { return abort_on_null; }
+  bool is_top_level_item() const override { return abort_on_null; }
   bool exists2in_processor(void *opt_arg);
 
   Item* expr_cache_insert_transformer(THD *thd, uchar *unused);
@@ -507,7 +505,6 @@ protected:
   bool create_row_in_to_exists_cond(JOIN * join,
                                     Item **where_item,
                                     Item **having_item);
-public:
   Item *left_expr;
   /*
     Important for PS/SP: left_expr_orig is the item that left_expr originally
@@ -515,6 +512,7 @@ public:
     left_expr could later be changed to something on the execution arena.
   */
   Item *left_expr_orig;
+public:
   /* Priority of this predicate in the convert-to-semi-join-nest process. */
   int sj_convert_priority;
   /* May be TRUE only for the candidates to semi-join conversion */
@@ -752,6 +750,15 @@ public:
 
   bool pushdown_cond_for_in_subquery(THD *thd, Item *cond);
 
+  Item_in_subselect *get_IN_subquery() override
+  { return this; }
+  inline Item** left_exp_ptr()
+  { return &left_expr; }
+  inline Item* left_exp() const
+  { return left_expr; }
+  inline Item* left_exp_orig() const
+  { return left_expr_orig; }
+
   friend class Item_ref_null_helper;
   friend class Item_is_not_null_test;
   friend class Item_in_optimizer;
@@ -964,9 +971,9 @@ public:
 
   // constructor can assign THD because it will be called after JOIN::prepare
   subselect_uniquesubquery_engine(THD *thd_arg, st_join_table *tab_arg,
-				  Item_subselect *subs, Item *where)
+				  Item_in_subselect *subs, Item *where)
     :subselect_engine(subs, 0), tab(tab_arg), cond(where)
-  {}
+  { DBUG_ASSERT(subs); }
   ~subselect_uniquesubquery_engine();
   void cleanup();
   int prepare(THD *);
@@ -1027,12 +1034,12 @@ public:
 
   // constructor can assign THD because it will be called after JOIN::prepare
   subselect_indexsubquery_engine(THD *thd_arg, st_join_table *tab_arg,
-				 Item_subselect *subs, Item *where,
+				 Item_in_subselect *subs, Item *where,
                                  Item *having_arg, bool chk_null)
     :subselect_uniquesubquery_engine(thd_arg, tab_arg, subs, where),
      check_null(chk_null),
      having(having_arg)
-  {}
+  { DBUG_ASSERT(subs); }
   int exec();
   void print (String *str, enum_query_type query_type);
   virtual enum_engine_type engine_type() { return INDEXSUBQUERY_ENGINE; }
@@ -1095,14 +1102,14 @@ public:
   Name_resolution_context *semi_join_conds_context;
 
 
-  subselect_hash_sj_engine(THD *thd_arg, Item_subselect *in_predicate,
+  subselect_hash_sj_engine(THD *thd_arg, Item_in_subselect *in_predicate,
                            subselect_single_select_engine *old_engine)
     : subselect_engine(in_predicate, NULL),
       tmp_table(NULL), is_materialized(FALSE), materialize_engine(old_engine),
       materialize_join(NULL),  semi_join_conds(NULL), lookup_engine(NULL),
       count_partial_match_columns(0), count_null_only_columns(0),
       count_columns_with_nulls(0), strategy(UNDEFINED)
-  {}
+  { DBUG_ASSERT(in_predicate); }
   ~subselect_hash_sj_engine();
 
   bool init(List<Item> *tmp_columns, uint subquery_id);
@@ -1410,7 +1417,7 @@ public:
       from Item_in_optimizer::val_int() sets Item_in_optimizer::null_value
       correctly.
     */
-    return !(((Item_in_subselect *) item)->null_value);
+    return !(item->get_IN_subquery()->null_value);
   }
   void print(String*, enum_query_type);
 

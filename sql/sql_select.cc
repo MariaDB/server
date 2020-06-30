@@ -1425,7 +1425,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY && !group_list &&
       !(select_lex->master_unit()->item &&
         select_lex->master_unit()->item->is_in_predicate() &&
-        ((Item_in_subselect*)select_lex->master_unit()->item)->
+        select_lex->master_unit()->item->get_IN_subquery()->
         test_set_strategy(SUBS_MAXMIN_INJECTED)) &&
       select_lex->non_agg_field_used() &&
       select_lex->agg_func_used())
@@ -5046,7 +5046,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     */
     bool skip_unprefixed_keyparts=
       !(join->is_in_subquery() &&
-        ((Item_in_subselect*)join->unit->item)->test_strategy(SUBS_IN_TO_EXISTS));
+        join->unit->item->get_IN_subquery()->test_strategy(SUBS_IN_TO_EXISTS));
 
     if (keyuse_array->elements &&
         sort_and_filter_keyuse(thd, keyuse_array,
@@ -5799,7 +5799,8 @@ static uint get_semi_join_select_list_index(Field *field)
   {
     Item_in_subselect *subq_pred= emb_sj_nest->sj_subq_pred;
     st_select_lex *subq_lex= subq_pred->unit->first_select();
-    if (subq_pred->left_expr->cols() == 1)
+    uint ncols= subq_pred->left_exp()->cols();
+    if (ncols == 1)
     {
       Item *sel_item= subq_lex->ref_pointer_array[0];
       if (sel_item->type() == Item::FIELD_ITEM &&
@@ -5810,7 +5811,7 @@ static uint get_semi_join_select_list_index(Field *field)
     }
     else
     {
-      for (uint i= 0; i < subq_pred->left_expr->cols(); i++)
+      for (uint i= 0; i < ncols; i++)
       {
         Item *sel_item= subq_lex->ref_pointer_array[i];
         if (sel_item->type() == Item::FIELD_ITEM &&
@@ -21290,7 +21291,7 @@ int join_read_key2(THD *thd, JOIN_TAB *tab, TABLE *table, TABLE_REF *table_ref)
   if (tab && tab->bush_children)
   {
     TABLE_LIST *emb_sj_nest= tab->bush_children->start->emb_sj_nest;
-    emb_sj_nest->sj_subq_pred->left_expr->bring_value();
+    emb_sj_nest->sj_subq_pred->left_exp()->bring_value();
   }
 
   /* TODO: Why don't we do "Late NULLs Filtering" here? */

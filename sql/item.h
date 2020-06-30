@@ -1841,6 +1841,18 @@ public:
   */
   virtual void top_level_item() {}
   /*
+    Return TRUE if it is item of top WHERE level (AND/OR)  and it is
+    important, return FALSE if it not important (we can not use to simplify
+    calculations) or not top level
+  */
+  virtual bool is_top_level_item() const
+  { return FALSE; /* not important */}
+  /*
+    return IN/ALL/ANY subquery or NULL
+  */
+  virtual Item_in_subselect* get_IN_subquery()
+  { return NULL; /* in is not IN/ALL/ANY */ }
+  /*
     set field of temporary table for Item which can be switched on temporary
     table during query processing (grouping and so on)
   */
@@ -2435,7 +2447,8 @@ public:
   }
   bool pushable_cond_checker_for_subquery(uchar *arg)
   {
-    return excl_dep_on_in_subq_left_part((Item_in_subselect *)arg);
+    DBUG_ASSERT(((Item*) arg)->get_IN_subquery());
+    return excl_dep_on_in_subq_left_part(((Item*)arg)->get_IN_subquery());
   }
   Item *build_pushable_cond(THD *thd,
                             Pushdown_checker checker,

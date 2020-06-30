@@ -6328,10 +6328,11 @@ find_field_in_tables(THD *thd, Item_ident *item,
         for (SELECT_LEX *sl= current_sel; sl && sl!=last_select;
              sl=sl->outer_select())
         {
-          Item *subs= sl->master_unit()->item;
-          if (subs->type() == Item::SUBSELECT_ITEM && 
-              ((Item_subselect*)subs)->substype() == Item_subselect::IN_SUBS &&
-              ((Item_in_subselect*)subs)->test_strategy(SUBS_SEMI_JOIN))
+          Item_in_subselect *in_subs=
+            sl->master_unit()->item->get_IN_subquery();
+          if (in_subs &&
+              in_subs->substype() == Item_subselect::IN_SUBS &&
+              in_subs->test_strategy(SUBS_SEMI_JOIN))
           {
             continue;
           }
@@ -8230,7 +8231,7 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
       */
       if (embedded->sj_subq_pred)
       {
-        Item **left_expr= &embedded->sj_subq_pred->left_expr;
+        Item **left_expr= embedded->sj_subq_pred->left_exp_ptr();
         if ((*left_expr)->fix_fields_if_needed(thd, left_expr))
           return TRUE;
       }

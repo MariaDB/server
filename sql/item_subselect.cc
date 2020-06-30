@@ -4141,7 +4141,8 @@ int subselect_uniquesubquery_engine::exec()
   TABLE *table= tab->table;
   empty_result_set= TRUE;
   table->status= 0;
-  Item_in_subselect *in_subs= (Item_in_subselect *) item;
+  Item_in_subselect *in_subs= item->get_IN_subquery();
+  DBUG_ASSERT(in_subs);
 
   if (!tab->preread_init_done && tab->preread_init())
     DBUG_RETURN(1);
@@ -4186,11 +4187,11 @@ int subselect_uniquesubquery_engine::exec()
     table->null_row= 0;
     if (!table->status && (!cond || cond->val_int()))
     {
-      ((Item_in_subselect *) item)->value= 1;
+      in_subs->value= 1;
       empty_result_set= FALSE;
     }
     else
-      ((Item_in_subselect *) item)->value= 0;
+      in_subs->value= 0;
   }
 
   DBUG_RETURN(error != 0);
@@ -4229,9 +4230,9 @@ int subselect_uniquesubquery_engine::index_lookup()
 
   table->null_row= 0;
   if (!error && (!cond || cond->val_int()))
-    ((Item_in_subselect *) item)->value= 1;
+    item->get_IN_subquery()->value= 1;
   else
-    ((Item_in_subselect *) item)->value= 0;
+    item->get_IN_subquery()->value= 0;
 
   DBUG_RETURN(0);
 }
@@ -4301,9 +4302,9 @@ int subselect_indexsubquery_engine::exec()
   int error;
   bool null_finding= 0;
   TABLE *table= tab->table;
-  Item_in_subselect *in_subs= (Item_in_subselect *) item;
+  Item_in_subselect *in_subs= item->get_IN_subquery();
 
-  ((Item_in_subselect *) item)->value= 0;
+  in_subs->value= 0;
   empty_result_set= TRUE;
   table->status= 0;
 
@@ -4311,7 +4312,7 @@ int subselect_indexsubquery_engine::exec()
   {
     /* We need to check for NULL if there wasn't a matching value */
     *tab->ref.null_ref_key= 0;			// Search first for not null
-    ((Item_in_subselect *) item)->was_null= 0;
+    in_subs->was_null= 0;
   }
 
   if (!tab->preread_init_done && tab->preread_init())
@@ -4363,9 +4364,9 @@ int subselect_indexsubquery_engine::exec()
         {
           empty_result_set= FALSE;
           if (null_finding)
-            ((Item_in_subselect *) item)->was_null= 1;
+            in_subs->was_null= 1;
           else
-            ((Item_in_subselect *) item)->value= 1;
+            in_subs->value= 1;
           break;
         }
         error= table->file->ha_index_next_same(table->record[0],
@@ -4751,7 +4752,7 @@ bool subselect_uniquesubquery_engine::no_tables()
 subselect_hash_sj_engine::exec_strategy
 subselect_hash_sj_engine::get_strategy_using_schema()
 {
-  Item_in_subselect *item_in= (Item_in_subselect *) item;
+  Item_in_subselect *item_in= item->get_IN_subquery();
 
   if (item_in->is_top_level_item())
     return COMPLETE_MATCH;
@@ -4798,7 +4799,7 @@ subselect_hash_sj_engine::get_strategy_using_schema()
 subselect_hash_sj_engine::exec_strategy
 subselect_hash_sj_engine::get_strategy_using_data()
 {
-  Item_in_subselect *item_in= (Item_in_subselect *) item;
+  Item_in_subselect *item_in= item->get_IN_subquery();
   select_materialize_with_stats *result_sink=
     (select_materialize_with_stats *) result;
   Item *outer_col;
@@ -5049,8 +5050,9 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
     DBUG_RETURN(TRUE);
 
   result_sink->get_tmp_table_param()->materialized_subquery= true;
-  if (item->substype() == Item_subselect::IN_SUBS && 
-      ((Item_in_subselect*)item)->is_jtbm_merged)
+
+  if (item->substype() == Item_subselect::IN_SUBS &&
+      (item->get_IN_subquery()->is_jtbm_merged))
   {
     result_sink->get_tmp_table_param()->force_not_null_cols= true;
   }
@@ -5090,9 +5092,12 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
   /*
     Make sure there is only one index on the temp table, and it doesn't have
     the extra key part created when s->uniques > 0.
+
+    NOTE: item have to be Item_in_subselect, because class constructor
+    accept Item_in_subselect as the parmeter.
   */
   DBUG_ASSERT(tmp_table->s->keys == 1 &&
-              ((Item_in_subselect *) item)->left_expr->cols() ==
+              item->get_IN_subquery()->left_expr->cols() ==
               tmp_table->key_info->user_defined_key_parts);
 
   if (make_semi_join_conds() ||
@@ -5141,7 +5146,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
   TABLE_LIST *tmp_table_ref;
   /* Name resolution context for all tmp_table columns created below. */
   Name_resolution_context *context;
-  Item_in_subselect *item_in= (Item_in_subselect *) item;
+  Item_in_subselect *item_in= item->get_IN_subquery();
   LEX_CSTRING table_name;
   DBUG_ENTER("subselect_hash_sj_engine::make_semi_join_conds");
   DBUG_ASSERT(semi_join_conds == NULL);
@@ -5203,7 +5208,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
 subselect_uniquesubquery_engine*
 subselect_hash_sj_engine::make_unique_engine()
 {
-  Item_in_subselect *item_in= (Item_in_subselect *) item;
+  Item_in_subselect *item_in= item->get_IN_subquery();
   Item_iterator_row it(item_in->left_expr);
   /* The only index on the temporary table. */
   KEY *tmp_key= tmp_table->key_info;
@@ -5225,7 +5230,7 @@ subselect_hash_sj_engine::make_unique_engine()
   tab->preread_init_done= FALSE;
   tab->ref.tmp_table_index_lookup_init(thd, tmp_key, it, FALSE);
 
-  DBUG_RETURN(new subselect_uniquesubquery_engine(thd, tab, item,
+  DBUG_RETURN(new subselect_uniquesubquery_engine(thd, tab, item_in,
                                                   semi_join_conds));
 }
 
@@ -5272,7 +5277,7 @@ void subselect_hash_sj_engine::cleanup()
     at parse time and stored across executions, while all other materialization
     related engines are created and chosen for each execution.
   */
-  ((Item_in_subselect *) item)->engine= materialize_engine;
+  item->get_IN_subquery()->engine= materialize_engine;
   if (lookup_engine_type == TABLE_SCAN_ENGINE ||
       lookup_engine_type == ROWID_MERGE_ENGINE)
   {
@@ -5512,7 +5517,7 @@ double get_post_group_estimate(JOIN* join, double join_op_rows)
 
 int subselect_hash_sj_engine::exec()
 {
-  Item_in_subselect *item_in= (Item_in_subselect *) item;
+  Item_in_subselect *item_in= item->get_IN_subquery();
   SELECT_LEX *save_select= thd->lex->current_select;
   subselect_partial_match_engine *pm_engine= NULL;
   int res= 0;
@@ -6129,7 +6134,7 @@ subselect_partial_match_engine::subselect_partial_match_engine(
 
 int subselect_partial_match_engine::exec()
 {
-  Item_in_subselect *item_in= (Item_in_subselect *) item;
+  Item_in_subselect *item_in= item->get_IN_subquery();
   int lookup_res;
 
   DBUG_ASSERT(!(item_in->left_expr_has_null() &&
@@ -6251,7 +6256,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
   select_materialize_with_stats *result_sink=
     (select_materialize_with_stats *) result;
   uint cur_keyid= 0;
-  Item_in_subselect *item_in= (Item_in_subselect*) item;
+  Item *left= item->get_IN_subquery()->left_exp();
   int error;
 
   if (merge_keys_count == 0)
@@ -6286,7 +6291,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
   /* Create the only non-NULL key if there is any. */
   if (non_null_key_parts)
   {
-    non_null_key= new Ordered_key(cur_keyid, tmp_table, item_in->left_expr,
+    non_null_key= new Ordered_key(cur_keyid, tmp_table, left,
                                   0, 0, 0, row_num_to_rowid);
     if (non_null_key->init(non_null_key_parts))
       return TRUE;
@@ -6318,7 +6323,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
 
       merge_keys[cur_keyid]= new Ordered_key(
                                      cur_keyid, tmp_table,
-                                     item_in->left_expr->element_index(i),
+                                     left->element_index(i),
                                      result_sink->get_null_count_of_col(i),
                                      result_sink->get_min_null_of_col(i),
                                      result_sink->get_max_null_of_col(i),

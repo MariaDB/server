@@ -4740,7 +4740,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
       }
       if (subquery_predicate->substype() == Item_subselect::IN_SUBS)
       {
-        Item_in_subselect *in_subs= (Item_in_subselect*) subquery_predicate;
+        Item_in_subselect *in_subs= subquery_predicate->get_IN_subquery();
         if (in_subs->is_jtbm_merged)
           continue;
       }
@@ -5167,7 +5167,7 @@ void SELECT_LEX::update_used_tables()
     */
     if (tl->jtbm_subselect)
     {
-      Item *left_expr= tl->jtbm_subselect->left_expr;
+      Item *left_expr= tl->jtbm_subselect->left_exp();
       left_expr->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
     }
 
@@ -5324,7 +5324,7 @@ void st_select_lex::set_explain_type(bool on_the_fly)
   if ((parent_item= master_unit()->item) &&
       parent_item->substype() == Item_subselect::IN_SUBS)
   {
-    Item_in_subselect *in_subs= (Item_in_subselect*)parent_item;
+    Item_in_subselect *in_subs= parent_item->get_IN_subquery();
     /*
       Surprisingly, in_subs->is_set_strategy() can return FALSE here,
       even for the last invocation of this function for the select.
@@ -5613,9 +5613,10 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
        sl=sl->outer_select())
   {
     Item *subs= sl->master_unit()->item;
-    if (subs && subs->type() == Item::SUBSELECT_ITEM && 
+    Item_in_subselect *in_subs= (subs ? subs->get_IN_subquery() : NULL);
+    if (in_subs &&
         ((Item_subselect*)subs)->substype() == Item_subselect::IN_SUBS &&
-        ((Item_in_subselect*)subs)->test_strategy(SUBS_SEMI_JOIN))
+        in_subs->test_strategy(SUBS_SEMI_JOIN))
     {
       continue;
     }
