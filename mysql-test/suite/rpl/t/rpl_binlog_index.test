@@ -43,7 +43,7 @@ FLUSH BINARY LOGS;
 INSERT INTO t1 VALUES (1);
 
 sync_slave_with_master;
-
+--source include/stop_slave.inc
 #
 # Test on master
 #
@@ -58,13 +58,15 @@ source include/rpl_stop_server.inc;
 --move_file $master_datadir/master-bin.index  $tmpdir/master-bin.index
 
 --echo # Restart master with log-bin option set to the new path
---let $rpl_server_parameters=--log-bin=$tmpdir/master-bin
+--let $rpl_server_parameters=--log-bin=$tmpdir/master-bin --log-bin-index=$tmpdir/master-bin
 --let $keep_include_silent=1
 source include/rpl_start_server.inc;
 --let $keep_include_silent=0
 
 --echo # Master has restarted successfully
-
+--connection slave
+--source include/start_slave.inc
+--connection master
 #
 # Test master can handle old format with directory path in index file
 #
@@ -85,7 +87,10 @@ if (!$is_windows)
 --disable_query_log
 source include/write_var_to_file.inc;
 --enable_query_log
+--sync_slave_with_master
+--source include/stop_slave.inc
 
+--connection master
 --echo # Shutdown master
 --let $rpl_server_number=1
 source include/rpl_stop_server.inc;
@@ -99,14 +104,17 @@ source include/rpl_stop_server.inc;
 --remove_file $tmpdir/master-bin.index
 
 --echo # Restart master with log-bin option set to default
---let $rpl_server_parameters=--log-bin=$master_datadir/master-bin
+--let $rpl_server_parameters=--log-bin=$master_datadir/master-bin --log-bin-index=$master_datadir/master-bin
 --let $keep_include_silent=1
 source include/rpl_start_server.inc;
 --let $keep_include_silent=0
 
 --echo # Master has restarted successfully
+--connection slave
+--source include/start_slave.inc
 
-connection slave;
+--connection master
+--sync_slave_with_master
 --echo # stop slave
 --source include/stop_slave.inc
 --let $rpl_server_number= 2
