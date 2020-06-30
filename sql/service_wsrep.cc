@@ -313,7 +313,8 @@ extern "C" void wsrep_commit_ordered(THD *thd)
     {
       thd->wsrep_last_written_gtid_seqno= thd->wsrep_current_gtid_seqno;
     }
-    if (!wsrep_commit_will_write_binlog(thd))
+    if (thd->wsrep_trx().state() != wsrep::transaction::s_ordered_commit &&
+        !wsrep_commit_will_write_binlog(thd))
     {
       DEBUG_SYNC(thd, "before_wsrep_ordered_commit");
       thd->wsrep_cs().ordered_commit();
