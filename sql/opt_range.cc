@@ -2690,10 +2690,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   DBUG_PRINT("info",("Time to scan table: %g", read_time));
 
   Json_writer_object table_records(thd);
-  if (head->reginfo.join_tab)
-    table_records.add_table_name(head->reginfo.join_tab);
-  else
-    table_records.add_table_name(head);
+  table_records.add_table_name(head);
+
   Json_writer_object trace_range(thd, "range_analysis");
   {
     Json_writer_object table_rec(thd, "table_scan");

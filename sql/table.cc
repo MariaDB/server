@@ -5160,6 +5160,8 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   fulltext_searched= 0;
   file->ft_handler= 0;
   reginfo.impossible_range= 0;
+  reginfo.join_tab= NULL;
+  reginfo.not_exists_optimize= FALSE;
   created= TRUE;
   cond_selectivity= 1.0;
   cond_selectivity_sampling_explain= NULL;

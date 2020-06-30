@@ -8559,5 +8559,36 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns'))
     ]
 ]
 drop table t1;
+#
+# MDEV-22910:SIGSEGV in Opt_trace_context::is_started & SIGSEGV in Json_writer::add_table_name
+# (on optimized builds)
+#
+CREATE TABLE t1( a INT, b INT, PRIMARY KEY( a ) );
+SELECT sum(b), row_number() OVER (order by b) FROM t1 WHERE a = 101;
+sum(b)	row_number() OVER (order by b)
+NULL	1
+UPDATE t1 SET b=10 WHERE a=1;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
+[
+    
+    [
+        
+        {
+            "index": "PRIMARY",
+            "ranges": 
+            [
+                "(1) <= (a) <= (1)"
+            ],
+            "rowid_ordered": true,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 0,
+            "cost": 1.125,
+            "chosen": true
+        }
+    ]
+]
+DROP TABLE t1;
 set optimizer_trace='enabled=off';
 # End of 10.4 tests

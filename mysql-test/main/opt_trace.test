@@ -611,5 +611,16 @@ EXPLAIN EXTENDED SELECT * from t1 WHERE b >= 10 and b < 25;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t1;
 
+--echo #
+--echo # MDEV-22910:SIGSEGV in Opt_trace_context::is_started & SIGSEGV in Json_writer::add_table_name
+--echo # (on optimized builds)
+--echo #
+
+CREATE TABLE t1( a INT, b INT, PRIMARY KEY( a ) );
+SELECT sum(b), row_number() OVER (order by b) FROM t1 WHERE a = 101;
+UPDATE t1 SET b=10 WHERE a=1;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+DROP TABLE t1;
+
 set optimizer_trace='enabled=off';
 --echo # End of 10.4 tests
