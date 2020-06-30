@@ -722,8 +722,8 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c2` int(11) NOT NULL,
-  KEY `c2` (`c2`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`c2`) REFERENCES `t1` (`c1`)
+  KEY `fk_t2` (`c2`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`c2`) REFERENCES `t1` (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 ALTER TABLE t1 CHANGE COLUMN c1 C1 INT;
 ALTER TABLE t2 CHANGE COLUMN c2 C2 INT;
@@ -737,8 +737,8 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `C2` int(11) DEFAULT NULL,
-  KEY `c2` (`C2`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`c2`) REFERENCES `t1` (`c1`)
+  KEY `fk_t2` (`C2`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`c2`) REFERENCES `t1` (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 ALTER TABLE t1 CHANGE COLUMN C1 c5 INT;
 ALTER TABLE t2 CHANGE COLUMN C2 c6 INT;
@@ -752,8 +752,8 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c6` int(11) DEFAULT NULL,
-  KEY `c2` (`c6`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`c6`) REFERENCES `t1` (`c5`)
+  KEY `fk_t2` (`c6`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`c6`) REFERENCES `t1` (`c5`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C INNER JOIN
 INFORMATION_SCHEMA.INNODB_SYS_TABLES T ON C.TABLE_ID=T.TABLE_ID
@@ -838,31 +838,31 @@ t2	CREATE TABLE `t2` (
   `BB` int(11) DEFAULT NULL,
   `CC` int(11) DEFAULT NULL,
   `DD` int(11) DEFAULT NULL,
-  KEY `aa` (`AA`),
-  KEY `bb` (`BB`),
-  KEY `CC` (`CC`),
-  KEY `DD` (`DD`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`),
-  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`bb`) REFERENCES `t1` (`b`),
-  CONSTRAINT `t2_ibfk_3` FOREIGN KEY (`cc`) REFERENCES `t1` (`c`),
-  CONSTRAINT `t2_ibfk_4` FOREIGN KEY (`dd`) REFERENCES `t1` (`d`)
+  KEY `fk_t2` (`AA`),
+  KEY `fk_t2_2` (`BB`),
+  KEY `fk_t2_3` (`CC`),
+  KEY `fk_t2_4` (`DD`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`),
+  CONSTRAINT `fk_t2_2` FOREIGN KEY (`bb`) REFERENCES `t1` (`b`),
+  CONSTRAINT `fk_t2_3` FOREIGN KEY (`cc`) REFERENCES `t1` (`c`),
+  CONSTRAINT `fk_t2_4` FOREIGN KEY (`dd`) REFERENCES `t1` (`d`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DELETE FROM t1 WHERE a=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE A=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE b=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE B=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE c=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE C=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE d=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE D=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DROP TABLE t2, t1;
 # virtual columns case too
 CREATE TABLE t1 (a INT, b INT GENERATED ALWAYS AS (a) VIRTUAL) ENGINE = InnoDB;
@@ -916,8 +916,8 @@ t1	CREATE TABLE `t1` (
   `a1` int(11) DEFAULT NULL,
   `a3` int(11) DEFAULT NULL,
   KEY `fk_1` (`a1`,`a3`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`a1`, `a3`) REFERENCES `parent` (`a`, `b`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `fk_a` FOREIGN KEY (`a1`, `a3`) REFERENCES `parent` (`a`, `b`) ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT `fk_a` FOREIGN KEY (`a1`, `a3`) REFERENCES `parent` (`a`, `b`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_1` FOREIGN KEY (`a1`, `a3`) REFERENCES `parent` (`a`, `b`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -929,8 +929,8 @@ t1	CREATE TABLE `t1` (
   `a1` int(11) DEFAULT NULL,
   `a4` int(11) DEFAULT NULL,
   KEY `fk_1` (`a1`,`a4`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`a1`, `a4`) REFERENCES `parent` (`a`, `b`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `fk_a` FOREIGN KEY (`a1`, `a4`) REFERENCES `parent` (`a`, `b`) ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT `fk_a` FOREIGN KEY (`a1`, `a4`) REFERENCES `parent` (`a`, `b`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_1` FOREIGN KEY (`a1`, `a4`) REFERENCES `parent` (`a`, `b`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -942,8 +942,8 @@ t1	CREATE TABLE `t1` (
   `a1` int(11) DEFAULT NULL,
   `a4` int(11) DEFAULT NULL,
   KEY `fk_1` (`a1`,`a4`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`a1`, `a4`) REFERENCES `parent` (`a`, `c`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `fk_a` FOREIGN KEY (`a1`, `a4`) REFERENCES `parent` (`a`, `c`) ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT `fk_a` FOREIGN KEY (`a1`, `a4`) REFERENCES `parent` (`a`, `c`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_1` FOREIGN KEY (`a1`, `a4`) REFERENCES `parent` (`a`, `c`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text

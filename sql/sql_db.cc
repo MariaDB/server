@@ -1063,7 +1063,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists, bool silen
   if (!thd->killed &&
       !(tables &&
         mysql_rm_table_no_locks(thd, tables, true, false, true, false, true,
-                                false)))
+                                true, false)))
   {
     /*
       We temporarily disable the binary log while dropping the objects

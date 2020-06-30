@@ -1722,7 +1722,7 @@ LEFT JOIN pictures p
 ORDER BY gallery_name ASC 
 ; 
 
-drop table galleries, pictures;
+drop table pictures, galleries;
 
 --echo #
 --echo # MDEV-5740: Assertion 

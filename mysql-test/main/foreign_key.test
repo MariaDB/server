@@ -8,6 +8,13 @@
 drop table if exists t1,t2;
 --enable_warnings
 
+create table t2 (
+  a int unique, c int unique);
+
+create table t3 (
+  a int unique, c int unique, d int unique,
+  r int references t3(d));
+
 create table t1 (
 	a int not null references t2,
 	b int not null constraint t2_c references t2 (c),
@@ -22,7 +29,11 @@ create table t1 (
 
 create index a on t1 (a);
 create unique index b on t1 (a,b);
-drop table t1;
+--error ER_ROW_IS_REFERENCED_2
+drop tables t2;
+--error ER_ROW_IS_REFERENCED_2
+drop tables t3;
+drop tables t1, t2, t3;
 
 # End of 4.1 tests
 
@@ -141,4 +152,185 @@ DROP TABLE tfk;
 
 DROP TABLE tpk;
 
+--echo #
+--echo # MDEV-16417 Store Foreign Key metadata outside of InnoDB
+--echo #
+set default_storage_engine= innodb;
 
+--echo # Check create table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key, foreign key (id) references t1(id));
+select * from t1, t2;
+flush tables t1, t2;
+drop table t2, t1;
+
+create table t1 (id int primary key);
+create table t2 (id int references t1(id)) select id from t1;
+flush tables;
+drop table t2, t1;
+
+--echo # Check rename column, lock tables
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key);
+create or replace table t3 (id int primary key);
+create or replace table ch1 (
+  id int, id2 int,
+  foreign key (id) references t1 (id),
+  foreign key (id2) references t2 (id),
+  foreign key (id) references t3 (id));
+select * from t1, t2, t3;
+--connect con1, localhost, root
+lock tables t3 read;
+--connection default
+set @saved_lock_wait_timeout= @@lock_wait_timeout;
+set lock_wait_timeout= 1;
+alter table ch1 change id2 xid2 int;
+--error ER_LOCK_WAIT_TIMEOUT
+alter table ch1 change id xid int;
+set lock_wait_timeout= @saved_lock_wait_timeout;
+--connection con1
+unlock tables;
+--disconnect con1
+--connection default
+alter table ch1 change id xid int;
+select * from ch1;
+flush tables t1, t2, t3;
+drop tables ch1, t2, t1, t3;
+
+--echo # Rename column on referenced table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1);
+select * from t2;
+alter table t1 change id xid int;
+show create table t2;
+select * from t1;
+flush table t2;
+alter table t1 rename column xid to yid;
+show create table t2;
+select * from t1;
+flush table t2;
+drop tables t2, t1;
+
+--echo # Check rename table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1);
+select * from t2, t1;
+rename table t2 to t3;
+create table t2 (x int);
+flush tables t1;
+drop tables t3, t1, t2;
+
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key);
+create or replace table t3 (id int primary key);
+select * from t1, t2, t3;
+create or replace table t4 (
+  id int primary key, id2 int references t4(id),
+  foreign key (id) references t1 (id),
+  foreign key (id2) references t2 (id),
+  foreign key (id) references t3 (id));
+select * from t4;
+rename table t4 to xt4;
+flush tables t1, t2, t3;
+alter table xt4 rename to yt4, algorithm=inplace;
+select * from t1, t2, t3;
+flush tables t1, t2, t3;
+alter table yt4 rename to zt4, algorithm=copy;
+select * from t1, t2, t3;
+flush tables t1, t2, t3;
+drop tables zt4, t2, t1, t3;
+
+--echo # Rename of referenced table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1);
+select * from t2;
+rename table t1 to xt1;
+show create table t2;
+select * from xt1;
+flush tables t2, xt1;
+alter table xt1 rename to yt1, algorithm=inplace;
+show create table t2;
+select * from yt1;
+flush tables t2, yt1;
+alter table yt1 rename to t1, algorithm=copy;
+show create table t2;
+select * from t1;
+flush tables t2, t1;
+drop tables t2, t1;
+
+--echo # Check drop table
+create or replace table t1 (id int primary key);
+create or replace table ch1 (id int, foreign key (id) references t1 (id));
+select * from t1;
+select * from ch1;
+--error ER_ROW_IS_REFERENCED_2
+drop table t1;
+drop tables ch1, t1;
+
+--echo # Check drop database
+create or replace table t1 (id int primary key);
+select * from t1;
+create or replace database test2;
+use test2;
+create or replace table ch1 (
+  id int, id2 int,
+  foreign key (id) references test.t1 (id));
+select * from ch1;
+use test;
+drop database test2;
+flush tables t1;
+drop tables t1;
+
+--echo # Check add foreign key
+create or replace table t1(fld1 int not null primary key);
+create or replace table t2(fld1 int not null, fld2 int as (fld1) virtual);
+insert into t1 values(1);
+insert into t2 values(1, default);
+set foreign_key_checks= 0;
+alter table t2 add index(fld2), add foreign key (fld1) references t1(fld1)
+  on update cascade, algorithm=inplace;
+set foreign_key_checks= 1;
+update t1 set fld1= 2;
+select fld2 from t2;
+select * from t2;
+drop table t2, t1;
+
+--echo # Check drop column, drop foreign key
+create or replace table t1 (id int primary key, a int);
+create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id));
+--error ER_FK_COLUMN_CANNOT_DROP_CHILD
+alter table t1 drop id;
+--error ER_DROP_INDEX_FK
+alter table t2 drop id;
+alter table t2 drop foreign key fk;
+drop tables t1, t2;
+
+--echo # Check self-references
+create or replace table t1 (id int primary key, id2 int references t1 (id));
+flush tables t1;
+show create table t1;
+--error ER_NO_REFERENCED_ROW_2
+insert into t1 values (1, 2);
+insert into t1 values (1, 1);
+alter table t1 change id2 id3 int;
+flush tables t1;
+show create table t1;
+alter table t1 add foreign key (id3) references t1 (id);
+flush tables t1;
+show create table t1;
+alter table t1 change id id4 int;
+show create table t1;
+flush tables t1;
+show create table t1;
+alter table t1 drop foreign key fk_t1;
+flush tables t1;
+show create table t1;
+rename table t1 to t2;
+flush tables t2;
+show create table t2;
+# TODO: actually this should succeed (it fails in upstream too)
+--error ER_ROW_IS_REFERENCED_2
+delete from t2;
+drop table t2;
+
+set default_storage_engine= default;

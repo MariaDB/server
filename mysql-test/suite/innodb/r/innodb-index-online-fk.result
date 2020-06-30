@@ -21,7 +21,7 @@ test/fk_1	a2	b	0
 ALTER TABLE child ADD CONSTRAINT fk_1 FOREIGN KEY (a2)
 REFERENCES parent(b) ON DELETE SET NULL ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
-ERROR HY000: Duplicate FOREIGN KEY constraint name 'test/fk_1'
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'fk_1'
 SET foreign_key_checks = 1;
 INSERT INTO child VALUES(1,2),(2,3);
 INSERT INTO child VALUES(4,4);

@@ -33,7 +33,7 @@ CREATE TABLE comments (
 CREATE TABLE articles (
   content text NOT NULL,
   comment int unsigned,
-  FOREIGN KEY (comment) REFERENCES comments (comment)
+  FOREIGN KEY comment (comment) REFERENCES comments (comment)
 );
 
 ALTER TABLE articles DROP FOREIGN KEY comment;

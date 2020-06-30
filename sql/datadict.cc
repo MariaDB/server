@@ -19,6 +19,7 @@
 #include "sql_class.h"
 #include "sql_table.h"
 #include "ha_sequence.h"
+#include "discover.h"
 
 static int read_string(File file, uchar**to, size_t length)
 {
@@ -194,6 +195,325 @@ bool dd_recreate_table(THD *thd, const char *db, const char *table_name)
   build_table_filename(path_buf, sizeof(path_buf) - 1,
                        db, table_name, "", 0);
   /* Attempt to reconstruct the table. */
-  DBUG_RETURN(ha_create_table(thd, path_buf, db, table_name, &create_info, 0));
+  DBUG_RETURN(ha_create_table(thd, path_buf, db, table_name, &create_info, NULL, 0));
 }
 
+size_t dd_extra2_len(const uchar **pos, const uchar *end)
+{
+  size_t length= *(*pos)++;
+  if (length)
+    return length;
+
+  if ((*pos) + 2 >= end)
+    return 0;
+  length= uint2korr(*pos);
+  (*pos)+= 2;
+  if (length < 256 || *pos + length > end)
+    return 0;
+  return length;
+}
+
+
+bool Extra2_info::read(const uchar *frm_image, size_t frm_size)
+{
+  read_size= uint2korr(frm_image + 4);
+
+  if (frm_size < FRM_HEADER_SIZE + read_size)
+    return true;
+
+  const uchar *pos= frm_image + 64;
+
+  DBUG_ENTER("read_extra2");
+
+  if (*pos == '/')   // old frm had '/' there
+    DBUG_RETURN(false);
+
+  const uchar *e2end= pos + read_size;
+  while (pos + 3 <= e2end)
+  {
+    extra2_frm_value_type type= (extra2_frm_value_type)*pos++;
+    size_t length= dd_extra2_len(&pos, e2end);
+    if (!length)
+      DBUG_RETURN(true);
+    switch (type) {
+      case EXTRA2_TABLEDEF_VERSION:
+        if (version.str) // see init_from_sql_statement_string()
+        {
+          if (length != version.length)
+            DBUG_RETURN(true);
+        }
+        else
+        {
+          version.str= pos;
+          version.length= length;
+        }
+        break;
+      case EXTRA2_ENGINE_TABLEOPTS:
+        if (options.str)
+          DBUG_RETURN(true);
+        options.str= pos;
+        options.length= length;
+        break;
+      case EXTRA2_DEFAULT_PART_ENGINE:
+        engine.set((const char*)pos, length);
+        break;
+      case EXTRA2_GIS:
+        if (gis.str)
+          DBUG_RETURN(true);
+        gis.str= pos;
+        gis.length= length;
+        break;
+      case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
+        if (system_period.str || length != 2 * frm_fieldno_size)
+          DBUG_RETURN(true);
+        system_period.str = pos;
+        system_period.length= length;
+        break;
+      case EXTRA2_FIELD_FLAGS:
+        if (field_flags.str)
+          DBUG_RETURN(true);
+        field_flags.str= pos;
+        field_flags.length= length;
+        break;
+      case EXTRA2_APPLICATION_TIME_PERIOD:
+        if (application_period.str)
+          DBUG_RETURN(true);
+        application_period.str= pos;
+        application_period.length= length;
+        break;
+      case EXTRA2_FIELD_DATA_TYPE_INFO:
+        if (field_data_type_info.str)
+          DBUG_RETURN(true);
+        field_data_type_info.str= pos;
+        field_data_type_info.length= length;
+        break;
+      case EXTRA2_PERIOD_WITHOUT_OVERLAPS:
+        if (without_overlaps.str)
+          DBUG_RETURN(true);
+        without_overlaps.str= pos;
+        without_overlaps.length= length;
+        break;
+      case EXTRA2_FOREIGN_KEY_INFO:
+        if (foreign_key_info.str)
+          DBUG_RETURN(true);
+        foreign_key_info.str= pos;
+        foreign_key_info.length= length;
+        break;
+      default:
+        /* abort frm parsing if it's an unknown but important extra2 value */
+        if (type >= EXTRA2_ENGINE_IMPORTANT)
+          DBUG_RETURN(true);
+    }
+    pos+= length;
+  }
+  if (pos != e2end)
+    DBUG_RETURN(true);
+
+  DBUG_ASSERT(store_size() == read_size);
+  DBUG_RETURN(false);
+}
+
+
+uchar *
+Extra2_info::write(uchar *frm_image, size_t frm_size)
+{
+  // FIXME: what to do with frm_size here (and in read())?
+  uchar *pos;
+  /* write the extra2 segment */
+  pos = frm_image + FRM_HEADER_SIZE;
+  compile_time_assert(EXTRA2_TABLEDEF_VERSION != '/');
+
+  if (version.str)
+    pos= extra2_write(pos, EXTRA2_TABLEDEF_VERSION, version);
+
+  if (engine.str)
+    pos= extra2_write(pos, EXTRA2_DEFAULT_PART_ENGINE, engine);
+
+  if (options.str)
+    pos= extra2_write(pos, EXTRA2_ENGINE_TABLEOPTS, options);
+
+  if (gis.str)
+    pos= extra2_write(pos, EXTRA2_GIS, gis);
+
+  if (field_data_type_info.str)
+    pos= extra2_write(pos, EXTRA2_FIELD_DATA_TYPE_INFO, field_data_type_info);
+
+  if (foreign_key_info.str)
+    pos= extra2_write(pos, EXTRA2_FOREIGN_KEY_INFO, foreign_key_info);
+
+  if (system_period.str)
+    pos= extra2_write(pos, EXTRA2_PERIOD_FOR_SYSTEM_TIME, system_period);
+
+  if (application_period.str)
+    pos= extra2_write(pos, EXTRA2_APPLICATION_TIME_PERIOD, application_period);
+
+  if (without_overlaps.str)
+    pos= extra2_write(pos, EXTRA2_PERIOD_WITHOUT_OVERLAPS, without_overlaps);
+
+  if (field_flags.str)
+    pos= extra2_write(pos, EXTRA2_FIELD_FLAGS, field_flags);
+
+  write_size= pos - frm_image - FRM_HEADER_SIZE;
+  DBUG_ASSERT(write_size == store_size());
+  DBUG_ASSERT(write_size <= 0xffff - FRM_HEADER_SIZE - 4);
+
+#if 0
+  int4store(pos, filepos); // end of the extra2 segment
+#endif
+  return pos;
+}
+
+
+int TABLE_SHARE::fk_write_shadow_frm()
+{
+  const uchar * frm_src;
+  uchar * frm_dst;
+  uchar * pos;
+  size_t frm_size;
+  Extra2_info extra2;
+  Foreign_key_io foreign_key_io;
+
+  int err= read_frm_image(&frm_src, &frm_size);
+  if (err)
+  {
+    char path[FN_REFLEN + 1];
+    strxmov(path, normalized_path.str, reg_ext, NullS);
+    switch (err)
+    {
+    case 1:
+      my_error(ER_CANT_OPEN_FILE, MYF(0), path, my_errno);
+      break;
+    case 2:
+      my_error(ER_FILE_NOT_FOUND, MYF(0), path, my_errno);
+      break;
+    default:
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      break;
+    }
+    return err;
+  }
+
+  Scope_malloc frm_src_freer(frm_src); // read_frm_image() passed ownership to us
+
+  if (frm_size < FRM_HEADER_SIZE + FRM_FORMINFO_SIZE)
+  {
+frm_err:
+    char path[FN_REFLEN + 1];
+    strxmov(path, normalized_path.str, reg_ext, NullS);
+    my_error(ER_NOT_FORM_FILE, MYF(0), path);
+    return 10;
+  }
+
+  if (!is_binary_frm_header(frm_src))
+    goto frm_err;
+
+  if (extra2.read(frm_src, frm_size))
+  {
+    my_printf_error(ER_CANT_CREATE_TABLE,
+                    "Cannot create table %`s: "
+                    "Read of extra2 section failed.",
+                    MYF(0), table_name.str);
+    return 10;
+  }
+
+  const uchar * const rest_src= frm_src + FRM_HEADER_SIZE + extra2.read_size;
+  const size_t rest_size= frm_size - FRM_HEADER_SIZE - extra2.read_size;
+  size_t forminfo_off= uint4korr(rest_src);
+
+  foreign_key_io.store(foreign_keys, referenced_keys);
+  extra2.foreign_key_info= foreign_key_io.lex_custring();
+  if (!extra2.foreign_key_info.length)
+    extra2.foreign_key_info.str= NULL;
+  else if (extra2.foreign_key_info.length > 0xffff - FRM_HEADER_SIZE - 8)
+  {
+    my_printf_error(ER_CANT_CREATE_TABLE,
+                    "Cannot create table %`s: "
+                    "Building the foreign key info image failed.",
+                    MYF(0), table_name.str);
+    return 10;
+  }
+
+  const size_t extra2_increase= extra2.store_size() - extra2.read_size; // FIXME: can be negative
+  frm_size+= extra2_increase;
+
+  if (frm_size > FRM_MAX_SIZE)
+  {
+    my_error(ER_TABLE_DEFINITION_TOO_BIG, MYF(0), table_name.str);
+    return 10;
+  }
+
+  Scope_malloc frm_dst_freer(frm_dst, frm_size, MY_WME);
+  if (!frm_dst)
+    return 10;
+
+  memcpy((void *)frm_dst, (void *)frm_src, FRM_HEADER_SIZE);
+
+  if (!(pos= extra2.write(frm_dst, frm_size)))
+  {
+    my_printf_error(ER_CANT_CREATE_TABLE,
+                    "Cannot create table %`s: "
+                    "Write of extra2 section failed.",
+                    MYF(0), table_name.str);
+    return 10;
+  }
+
+  forminfo_off+= extra2_increase;
+  int4store(pos, forminfo_off);
+  pos+= 4;
+  int2store(frm_dst + 4, extra2.write_size);
+  int2store(frm_dst + 6, FRM_HEADER_SIZE + extra2.write_size + 4); // Position to key information
+  int4store(frm_dst + 10, frm_size);
+  memcpy((void *)pos, rest_src + 4, rest_size - 4);
+
+  char shadow_path[FN_REFLEN + 1];
+  char shadow_frm_name[FN_REFLEN + 1];
+  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
+                              db, table_name);
+  strxnmov(shadow_frm_name, sizeof(shadow_frm_name), shadow_path, reg_ext, NullS);
+  if (writefile(shadow_frm_name, db.str, table_name.str, false, frm_dst, frm_size))
+    return 10;
+
+  return 0;
+}
+
+bool fk_install_shadow_frm(Table_name old_name, Table_name new_name)
+{
+  char shadow_path[FN_REFLEN + 1];
+  char path[FN_REFLEN];
+  char shadow_frm_name[FN_REFLEN + 1];
+  char frm_name[FN_REFLEN + 1];
+  MY_STAT stat_info;
+  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
+                              old_name.db, old_name.name);
+  build_table_filename(path, sizeof(path), new_name.db.str,
+                       new_name.name.str, "", 0);
+  strxnmov(shadow_frm_name, sizeof(shadow_frm_name), shadow_path, reg_ext, NullS);
+  strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
+  if (!mysql_file_stat(key_file_frm, shadow_frm_name, &stat_info, MYF(MY_WME)))
+    return true;
+  if (mysql_file_delete(key_file_frm, frm_name, MYF(MY_WME)))
+    return true;
+  if (mysql_file_rename(key_file_frm, shadow_frm_name, frm_name, MYF(MY_WME)))
+    return true;
+  return false;
+}
+
+bool TABLE_SHARE::fk_install_shadow_frm()
+{
+  return ::fk_install_shadow_frm({db, table_name}, {db, table_name});
+}
+
+void fk_drop_shadow_frm(Table_name table)
+{
+  char shadow_path[FN_REFLEN+1];
+  char shadow_frm_name[FN_REFLEN+1];
+  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
+                              table.db, table.name);
+  strxnmov(shadow_frm_name, sizeof(shadow_frm_name), shadow_path, reg_ext, NullS);
+  mysql_file_delete(key_file_frm, shadow_frm_name, MYF(0));
+}
+
+void TABLE_SHARE::fk_drop_shadow_frm()
+{
+  ::fk_drop_shadow_frm({db, table_name});
+}

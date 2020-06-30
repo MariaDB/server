@@ -155,8 +155,8 @@ create table t1(a int not null, b int not null, c int, primary key (a), key (b))
 create table t3(a int not null, c int not null, d int, primary key (a), key (c)) engine = innodb;
 create table t4(a int not null, d int not null, e int, primary key (a), key (d)) engine = innodb;
 create table t2(a int not null, b int, c int, d int, e int,
-foreign key (b) references t1(b) on delete set null,
-foreign key (c) references t3(c), foreign key (d) references t4(d) on update set null)
+foreign key b (b) references t1(b) on delete set null,
+foreign key c (c) references t3(c), foreign key d (d) references t4(d) on update set null)
 engine = innodb;
 --error ER_DROP_INDEX_FK
 alter table t1 drop index b;
@@ -1127,7 +1127,9 @@ drop table t1;
 
 --source include/no_checkpoint_start.inc
 if ($have_debug) {
+--disable_query_log
 SET GLOBAL DEBUG_DBUG='+d,fil_names_write_bogus';
+--enable_query_log
 }
 CREATE TABLE t1(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 

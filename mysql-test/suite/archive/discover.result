@@ -65,6 +65,7 @@ flush tables;
 rename table t2 to t0;
 db.opt
 t0.ARZ
+t0.frm
 t1.ARZ
 t1.frm
 #
@@ -83,6 +84,7 @@ flush tables;
 drop table t1;
 db.opt
 t0.ARZ
+t0.frm
 #
 # discover of table non-existance on drop
 #
