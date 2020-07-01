@@ -39,3 +39,24 @@ select count(*), sum(a) from t1;
 insert into t1 select * from t1 as t4;
 select count(*), sum(a) from t1;
 drop table t1,t2,t3;
+
+#
+# Test usage of two instances of a table
+#
+
+create table t1 (a int not null , b varchar(10) not null) engine=columnstore_cache;
+insert into t1 values (1,"1"),(2,"2"),(3,"3");
+lock table t1 read;
+select * from t1;
+
+--connect (con1, localhost, root,,)
+select * from t1;
+--send insert into t1 values (11,"1"),(12,"2"),(13,"3");
+--connection default
+unlock tables;
+--connection con1
+reap;
+--disconnect con1
+--connection default
+select * from t1;
+drop table t1;

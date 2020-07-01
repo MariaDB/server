@@ -39,3 +39,32 @@ select count(*), sum(a) from t1;
 count(*)	sum(a)
 18	1332
 drop table t1,t2,t3;
+create table t1 (a int not null , b varchar(10) not null) engine=columnstore_cache;
+insert into t1 values (1,"1"),(2,"2"),(3,"3");
+lock table t1 read;
+select * from t1;
+a	b
+1	1
+2	2
+3	3
+connect  con1, localhost, root,,;
+select * from t1;
+a	b
+1	1
+2	2
+3	3
+insert into t1 values (11,"1"),(12,"2"),(13,"3");;
+connection default;
+unlock tables;
+connection con1;
+disconnect con1;
+connection default;
+select * from t1;
+a	b
+1	1
+2	2
+3	3
+11	1
+12	2
+13	3
+drop table t1;
