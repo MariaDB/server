@@ -150,10 +150,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
       There are rare cases where service config does not have 
       --defaults-filein the binary parth . There services were registered with 
       plain mysqld --install, the data directory is next to "bin" in this case.
-      Service name (second parameter) must be MySQL.
     */
-    if(wcscmp(args[1], L"MySQL") != 0)
-      goto end;
     have_inifile= FALSE;
   }
   else if(numargs == 3)
@@ -211,7 +208,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
     }
   }
 
-  if(!have_inifile)
+  if(!have_inifile || props->datadir[0] == 0)
   {
     /*
       Hard, although a rare case, we're guessing datadir and defaults-file.
@@ -235,22 +232,25 @@ int get_mysql_service_properties(const wchar_t *bin_path,
       *p= 0;
     }
 
-    /* Look for my.ini, my.cnf in the install root */
-    sprintf_s(props->inifile, MAX_PATH, "%s\\my.ini", install_root);
-    if (GetFileAttributes(props->inifile) == INVALID_FILE_ATTRIBUTES)
+    if (!have_inifile)
     {
-      sprintf_s(props->inifile, MAX_PATH, "%s\\my.cnf", install_root);
-    }
-    if (GetFileAttributes(props->inifile) != INVALID_FILE_ATTRIBUTES)
-    {
-      /* Ini file found, get datadir from there */
-      GetPrivateProfileString("mysqld", "datadir", NULL, props->datadir,
-        MAX_PATH, props->inifile);
-    }
-    else
-    {
-      /* No ini file */
-      props->inifile[0]= 0;
+      /* Look for my.ini, my.cnf in the install root */
+      sprintf_s(props->inifile, MAX_PATH, "%s\\my.ini", install_root);
+      if (GetFileAttributes(props->inifile) == INVALID_FILE_ATTRIBUTES)
+      {
+        sprintf_s(props->inifile, MAX_PATH, "%s\\my.cnf", install_root);
+      }
+      if (GetFileAttributes(props->inifile) != INVALID_FILE_ATTRIBUTES)
+      {
+        /* Ini file found, get datadir from there */
+        GetPrivateProfileString("mysqld", "datadir", NULL, props->datadir,
+                                MAX_PATH, props->inifile);
+      }
+      else
+      {
+        /* No ini file */
+        props->inifile[0]= 0;
+      }
     }
 
     /* Try datadir in install directory.*/
