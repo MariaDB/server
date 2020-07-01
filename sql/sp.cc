@@ -1080,7 +1080,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
     {
       if (lex->create_info.or_replace())
       {
-        if ((ret= sp_drop_routine_internal(thd, type, lex->spname, table)))
+        if (sp_drop_routine_internal(thd, type, lex->spname, table))
           goto done;
       }
       else if (lex->create_info.if_not_exists())
