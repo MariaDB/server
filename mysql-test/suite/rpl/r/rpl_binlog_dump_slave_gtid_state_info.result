@@ -8,7 +8,7 @@ CHANGE MASTER TO MASTER_USE_GTID=current_pos;
 include/start_slave.inc
 connection master;
 "Test Case 1: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(1), gtid('')"
-FOUND 1 /using_gtid\(1\), gtid\(\'\'\)/ in mysqld.1.err
+FOUND 1 /using_gtid\(1\), gtid\(\'\'\).*/ in mysqld.1.err
 connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=no;
@@ -25,7 +25,7 @@ CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
 connection master;
 "Test Case 3: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(1), gtid('0-1-2')"
-FOUND 1 /using_gtid\(1\), gtid\(\'0-1-2\'\)/ in mysqld.1.err
+FOUND 1 /using_gtid\(1\), gtid\(\'0-1-2\'\).*/ in mysqld.1.err
 SET @@SESSION.gtid_domain_id=10;
 INSERT INTO t VALUES(20);
 connection slave;
@@ -35,7 +35,7 @@ CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
 connection master;
 "Test Case 4: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(1), gtid('0-1-2,10-1-1')"
-FOUND 1 /using_gtid\(1\), gtid\(\'0-1-2,10-1-1\'\)/ in mysqld.1.err
+FOUND 1 /using_gtid\(1\), gtid\(\'0-1-2,10-1-1\'\).*/ in mysqld.1.err
 "===== Clean up ====="
 connection slave;
 include/stop_slave.inc
