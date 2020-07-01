@@ -961,10 +961,12 @@ btr_cur_search_to_nth_level_func(
 	ut_ad(!(index->type & DICT_FTS));
 	ut_ad(index->page != FIL_NULL);
 
-	UNIV_MEM_INVALID(&cursor->up_match, sizeof cursor->up_match);
-	UNIV_MEM_INVALID(&cursor->up_bytes, sizeof cursor->up_bytes);
-	UNIV_MEM_INVALID(&cursor->low_match, sizeof cursor->low_match);
-	UNIV_MEM_INVALID(&cursor->low_bytes, sizeof cursor->low_bytes);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(&cursor->up_match, sizeof cursor->up_match);
+	MEM_UNDEFINED(&cursor->up_bytes, sizeof cursor->up_bytes);
+	MEM_UNDEFINED(&cursor->low_match, sizeof cursor->low_match);
+	MEM_UNDEFINED(&cursor->low_bytes, sizeof cursor->low_bytes);
+#endif /* HAVE_valgrind_or_MSAN */
 #ifdef UNIV_DEBUG
 	cursor->up_match = ULINT_UNDEFINED;
 	cursor->low_match = ULINT_UNDEFINED;
@@ -3075,12 +3077,12 @@ btr_cur_optimistic_insert(
 
 	const page_size_t&	page_size = block->page.size;
 
-#ifdef UNIV_DEBUG_VALGRIND
+#ifdef HAVE_valgrind_or_MSAN
 	if (page_size.is_compressed()) {
-		UNIV_MEM_ASSERT_RW(page, page_size.logical());
-		UNIV_MEM_ASSERT_RW(block->page.zip.data, page_size.physical());
+		MEM_CHECK_DEFINED(page, page_size.logical());
+		MEM_CHECK_DEFINED(block->page.zip.data, page_size.physical());
 	}
-#endif /* UNIV_DEBUG_VALGRIND */
+#endif /* HAVE_valgrind_or_MSAN */
 
 	leaf = page_is_leaf(page);
 
@@ -6892,9 +6894,7 @@ btr_store_big_rec_extern_fields(
 			     BTR_EXTERN_FIELD_REF_SIZE));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 		extern_len = big_rec_vec->fields[i].len;
-		UNIV_MEM_ASSERT_RW(big_rec_vec->fields[i].data,
-				   extern_len);
-
+		MEM_CHECK_DEFINED(big_rec_vec->fields[i].data, extern_len);
 		ut_a(extern_len > 0);
 
 		prev_page_no = FIL_NULL;
@@ -7561,7 +7561,7 @@ btr_copy_blob_prefix(
 		mtr_commit(&mtr);
 
 		if (page_no == FIL_NULL || copy_len != part_len) {
-			UNIV_MEM_ASSERT_RW(buf, copied_len);
+			MEM_CHECK_DEFINED(buf, copied_len);
 			return(copied_len);
 		}
 
@@ -7717,7 +7717,7 @@ end_of_blob:
 func_exit:
 	inflateEnd(&d_stream);
 	mem_heap_free(heap);
-	UNIV_MEM_ASSERT_RW(buf, d_stream.total_out);
+	MEM_CHECK_DEFINED(buf, d_stream.total_out);
 	return(d_stream.total_out);
 }
 

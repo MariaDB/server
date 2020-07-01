@@ -417,16 +417,16 @@ trx_free(trx_t*& trx)
 	MEM_UNDEFINED(&trx->state, sizeof trx->state);
 	MEM_UNDEFINED(&trx->mysql_thd, sizeof trx->mysql_thd);
 #endif
-#ifdef HAVE_valgrind
+#ifdef HAVE_valgrind_or_MSAN
 	/* Unpoison the memory for innodb_monitor_set_option;
 	it is operating also on the freed transaction objects.
 	We checked that these were initialized in
 	trx_pools->mem_free(trx). */
-	UNIV_MEM_VALID(&trx->mutex, sizeof trx->mutex);
-	UNIV_MEM_VALID(&trx->undo_mutex, sizeof trx->undo_mutex);
+	MEM_MAKE_DEFINED(&trx->mutex, sizeof trx->mutex);
+	MEM_MAKE_DEFINED(&trx->undo_mutex, sizeof trx->undo_mutex);
 	/* For innobase_kill_connection() */
-	UNIV_MEM_VALID(&trx->state, sizeof trx->state);
-	UNIV_MEM_VALID(&trx->mysql_thd, sizeof trx->mysql_thd);
+	MEM_MAKE_DEFINED(&trx->state, sizeof trx->state);
+	MEM_MAKE_DEFINED(&trx->mysql_thd, sizeof trx->mysql_thd);
 #endif
 
 	trx = NULL;

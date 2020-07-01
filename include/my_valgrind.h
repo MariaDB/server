@@ -38,6 +38,8 @@
 # define MEM_NOACCESS(a,len) VALGRIND_MAKE_MEM_NOACCESS(a,len)
 # define MEM_CHECK_ADDRESSABLE(a,len) VALGRIND_CHECK_MEM_IS_ADDRESSABLE(a,len)
 # define MEM_CHECK_DEFINED(a,len) VALGRIND_CHECK_MEM_IS_DEFINED(a,len)
+# define MEM_GET_VBITS(a,b,len) VALGRIND_GET_VBITS(a,b,len)
+# define MEM_SET_VBITS(a,b,len) VALGRIND_SET_VBITS(a,b,len)
 # define REDZONE_SIZE 8
 #elif defined(__SANITIZE_ADDRESS__)
 # include <sanitizer/asan_interface.h>
@@ -48,6 +50,8 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define MEM_NOACCESS(a,len) ASAN_POISON_MEMORY_REGION(a,len)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_CHECK_DEFINED(a,len) ((void) 0)
+# define MEM_GET_VBITS(a,b,len) ((void) 0)
+# define MEM_SET_VBITS(a,b,len) ((void) 0)
 # define REDZONE_SIZE 8
 #elif __has_feature(memory_sanitizer)
 # include <sanitizer/msan_interface.h>
@@ -57,6 +61,8 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define MEM_NOACCESS(a,len) ((void) 0)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_CHECK_DEFINED(a,len) __msan_check_mem_is_initialized(a,len)
+# define MEM_GET_VBITS(a,b,len) __msan_copy_shadow(b,a,len)
+# define MEM_SET_VBITS(a,b,len) __msan_copy_shadow(a,b,len)
 # define REDZONE_SIZE 8
 #else
 # define MEM_UNDEFINED(a,len) ((void) (a), (void) (len))
@@ -64,6 +70,8 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define MEM_NOACCESS(a,len) ((void) 0)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_CHECK_DEFINED(a,len) ((void) 0)
+# define MEM_GET_VBITS(a,b,len) ((void) 0)
+# define MEM_SET_VBITS(a,b,len) ((void) 0)
 # define REDZONE_SIZE 0
 #endif /* HAVE_VALGRIND_MEMCHECK_H */
 

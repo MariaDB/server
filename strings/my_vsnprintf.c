@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2011, Monty Program Ab
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -704,7 +704,13 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
     }
     else if (*fmt == 'f' || *fmt == 'g')
     {
+#if __has_feature(memory_sanitizer)         /* QQ: MSAN has double trouble? */
+      __msan_check_mem_is_initialized(ap, sizeof(double));
+#endif
       double d= va_arg(ap, double);
+#if __has_feature(memory_sanitizer)        /* QQ: MSAN has double trouble? */
+      __msan_unpoison(&d, sizeof(double));
+#endif
       to= process_dbl_arg(to, end, width, d, *fmt);
       continue;
     }

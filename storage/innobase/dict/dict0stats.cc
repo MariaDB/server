@@ -409,7 +409,7 @@ dict_stats_table_clone_create(
 
 	t = (dict_table_t*) mem_heap_alloc(heap, sizeof(*t));
 
-	UNIV_MEM_ASSERT_RW_ABORT(&table->id, sizeof(table->id));
+	MEM_CHECK_DEFINED(&table->id, sizeof(table->id));
 	t->id = table->id;
 
 	t->heap = heap;
@@ -442,7 +442,7 @@ dict_stats_table_clone_create(
 
 		idx = (dict_index_t*) mem_heap_alloc(heap, sizeof(*idx));
 
-		UNIV_MEM_ASSERT_RW_ABORT(&index->id, sizeof(index->id));
+		MEM_CHECK_DEFINED(&index->id, sizeof(index->id));
 		idx->id = index->id;
 
 		idx->name = mem_heap_strdup(heap, index->name);
@@ -589,23 +589,23 @@ dict_stats_assert_initialized_index(
 /*================================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	UNIV_MEM_ASSERT_RW_ABORT(
+	MEM_CHECK_DEFINED(
 		index->stat_n_diff_key_vals,
 		index->n_uniq * sizeof(index->stat_n_diff_key_vals[0]));
 
-	UNIV_MEM_ASSERT_RW_ABORT(
+	MEM_CHECK_DEFINED(
 		index->stat_n_sample_sizes,
 		index->n_uniq * sizeof(index->stat_n_sample_sizes[0]));
 
-	UNIV_MEM_ASSERT_RW_ABORT(
+	MEM_CHECK_DEFINED(
 		index->stat_n_non_null_key_vals,
 		index->n_uniq * sizeof(index->stat_n_non_null_key_vals[0]));
 
-	UNIV_MEM_ASSERT_RW_ABORT(
+	MEM_CHECK_DEFINED(
 		&index->stat_index_size,
 		sizeof(index->stat_index_size));
 
-	UNIV_MEM_ASSERT_RW_ABORT(
+	MEM_CHECK_DEFINED(
 		&index->stat_n_leaf_pages,
 		sizeof(index->stat_n_leaf_pages));
 }
@@ -620,32 +620,32 @@ dict_stats_assert_initialized(
 {
 	ut_a(table->stat_initialized);
 
-	UNIV_MEM_ASSERT_RW_ABORT(&table->stats_last_recalc,
-			   sizeof(table->stats_last_recalc));
+	MEM_CHECK_DEFINED(&table->stats_last_recalc,
+			  sizeof table->stats_last_recalc);
 
-	UNIV_MEM_ASSERT_RW_ABORT(&table->stat_persistent,
-			   sizeof(table->stat_persistent));
+	MEM_CHECK_DEFINED(&table->stat_persistent,
+			  sizeof table->stat_persistent);
 
-	UNIV_MEM_ASSERT_RW_ABORT(&table->stats_auto_recalc,
-			   sizeof(table->stats_auto_recalc));
+	MEM_CHECK_DEFINED(&table->stats_auto_recalc,
+			  sizeof table->stats_auto_recalc);
 
-	UNIV_MEM_ASSERT_RW_ABORT(&table->stats_sample_pages,
-			   sizeof(table->stats_sample_pages));
+	MEM_CHECK_DEFINED(&table->stats_sample_pages,
+			  sizeof table->stats_sample_pages);
 
-	UNIV_MEM_ASSERT_RW_ABORT(&table->stat_n_rows,
-			   sizeof(table->stat_n_rows));
+	MEM_CHECK_DEFINED(&table->stat_n_rows,
+			  sizeof table->stat_n_rows);
 
-	UNIV_MEM_ASSERT_RW_ABORT(&table->stat_clustered_index_size,
-			   sizeof(table->stat_clustered_index_size));
+	MEM_CHECK_DEFINED(&table->stat_clustered_index_size,
+			  sizeof table->stat_clustered_index_size);
 
-	UNIV_MEM_ASSERT_RW_ABORT(&table->stat_sum_of_other_index_sizes,
-			   sizeof(table->stat_sum_of_other_index_sizes));
+	MEM_CHECK_DEFINED(&table->stat_sum_of_other_index_sizes,
+			  sizeof table->stat_sum_of_other_index_sizes);
 
-	UNIV_MEM_ASSERT_RW_ABORT(&table->stat_modified_counter,
-			   sizeof(table->stat_modified_counter));
+	MEM_CHECK_DEFINED(&table->stat_modified_counter,
+			  sizeof table->stat_modified_counter);
 
-	UNIV_MEM_ASSERT_RW_ABORT(&table->stats_bg_flag,
-			   sizeof(table->stats_bg_flag));
+	MEM_CHECK_DEFINED(&table->stats_bg_flag,
+			  sizeof table->stats_bg_flag);
 
 	for (dict_index_t* index = dict_table_get_first_index(table);
 	     index != NULL;
@@ -2312,20 +2312,19 @@ dict_stats_save_index_stat(
 	pars_info_add_str_literal(pinfo, "database_name", db_utf8);
 	pars_info_add_str_literal(pinfo, "table_name", table_utf8);
 	pars_info_add_str_literal(pinfo, "index_name", index->name);
-	UNIV_MEM_ASSERT_RW_ABORT(&last_update, 4);
+	MEM_CHECK_DEFINED(&last_update, 4);
 	pars_info_add_int4_literal(pinfo, "last_update", (lint)last_update);
-	UNIV_MEM_ASSERT_RW_ABORT(stat_name, strlen(stat_name));
+	MEM_CHECK_DEFINED(stat_name, strlen(stat_name));
 	pars_info_add_str_literal(pinfo, "stat_name", stat_name);
-	UNIV_MEM_ASSERT_RW_ABORT(&stat_value, 8);
+	MEM_CHECK_DEFINED(&stat_value, 8);
 	pars_info_add_ull_literal(pinfo, "stat_value", stat_value);
 	if (sample_size != NULL) {
-		UNIV_MEM_ASSERT_RW_ABORT(sample_size, 8);
+		MEM_CHECK_DEFINED(sample_size, 8);
 		pars_info_add_ull_literal(pinfo, "sample_size", *sample_size);
 	} else {
 		pars_info_add_literal(pinfo, "sample_size", NULL,
 				      UNIV_SQL_NULL, DATA_FIXBINARY, 0);
 	}
-	UNIV_MEM_ASSERT_RW_ABORT(stat_description, strlen(stat_description));
 	pars_info_add_str_literal(pinfo, "stat_description",
 				  stat_description);
 

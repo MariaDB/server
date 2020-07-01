@@ -1027,11 +1027,11 @@ row_merge_buf_write(
 	ut_a(b < &block[srv_sort_buf_size]);
 	ut_a(b == &block[0] + buf->total_size);
 	*b++ = 0;
-#ifdef UNIV_DEBUG_VALGRIND
+#ifdef HAVE_valgrind_or_MSAN
 	/* The rest of the block is uninitialized.  Initialize it
 	to avoid bogus warnings. */
 	memset(b, 0xff, &block[srv_sort_buf_size] - b);
-#endif /* UNIV_DEBUG_VALGRIND */
+#endif /* HAVE_valgrind_or_MSAN */
 	DBUG_LOG("ib_merge_sort",
 		 "write " << reinterpret_cast<const void*>(b) << ','
 		 << of->fd << ',' << of->offset << " EOF");
@@ -1425,7 +1425,9 @@ row_merge_write_rec(
 			return(NULL);
 		}
 
-		UNIV_MEM_INVALID(&block[0], srv_sort_buf_size);
+#ifdef HAVE_valgrind_or_MSAN
+		MEM_UNDEFINED(&block[0], srv_sort_buf_size);
+#endif /* HAVE_valgrind_or_MSAN */
 
 		/* Copy the rest. */
 		b = &block[0];
@@ -1466,20 +1468,19 @@ row_merge_write_eof(
 		 ",fd=" << fd << ',' << *foffs);
 
 	*b++ = 0;
-	UNIV_MEM_ASSERT_RW(&block[0], b - &block[0]);
-	UNIV_MEM_ASSERT_W(&block[0], srv_sort_buf_size);
+	MEM_CHECK_DEFINED(&block[0], b - &block[0]);
+	MEM_CHECK_ADDRESSABLE(&block[0], srv_sort_buf_size);
 
-#ifdef UNIV_DEBUG_VALGRIND
-	/* The rest of the block is uninitialized.  Initialize it
-	to avoid bogus warnings. */
-	memset(b, 0xff, &block[srv_sort_buf_size] - b);
-#endif /* UNIV_DEBUG_VALGRIND */
+	/* The rest of the block is uninitialized. Silence warnings. */
+	MEM_MAKE_DEFINED(b, &block[srv_sort_buf_size] - b);
 
 	if (!row_merge_write(fd, (*foffs)++, block, crypt_block, space)) {
 		DBUG_RETURN(NULL);
 	}
 
-	UNIV_MEM_INVALID(&block[0], srv_sort_buf_size);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(&block[0], srv_sort_buf_size);
+#endif
 	DBUG_RETURN(&block[0]);
 }
 
@@ -2550,8 +2551,10 @@ write_buffers:
 						break;
 					}
 
-					UNIV_MEM_INVALID(
+#ifdef HAVE_valgrind_or_MSAN
+					MEM_UNDEFINED(
 						&block[0], srv_sort_buf_size);
+#endif /* HAVE_valgrind_or_MSAN */
 				}
 			}
 			merge_buf[i] = row_merge_buf_empty(buf);
@@ -3034,10 +3037,10 @@ row_merge(
 	ulint		n_run	= 0;
 				/*!< num of runs generated from this merge */
 
-	UNIV_MEM_ASSERT_W(&block[0], 3 * srv_sort_buf_size);
+	MEM_CHECK_ADDRESSABLE(&block[0], 3 * srv_sort_buf_size);
 
 	if (crypt_block) {
-		UNIV_MEM_ASSERT_W(&crypt_block[0], 3 * srv_sort_buf_size);
+		MEM_CHECK_ADDRESSABLE(&crypt_block[0], 3 * srv_sort_buf_size);
 	}
 
 	ut_ad(ihalf < file->offset);
@@ -3058,7 +3061,9 @@ row_merge(
 	foffs0 = 0;
 	foffs1 = ihalf;
 
-	UNIV_MEM_INVALID(run_offset, *num_run * sizeof *run_offset);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(run_offset, *num_run * sizeof *run_offset);
+#endif /* HAVE_valgrind_or_MSAN */
 
 	for (; foffs0 < ihalf && foffs1 < file->offset; foffs0++, foffs1++) {
 
@@ -3139,7 +3144,9 @@ row_merge(
 	*tmpfd = file->fd;
 	*file = of;
 
-	UNIV_MEM_INVALID(&block[0], 3 * srv_sort_buf_size);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(&block[0], 3 * srv_sort_buf_size);
+#endif /* HAVE_valgrind_or_MSAN */
 
 	return(DB_SUCCESS);
 }
@@ -3252,7 +3259,7 @@ row_merge_sort(
 			break;
 		}
 
-		UNIV_MEM_ASSERT_RW(run_offset, num_runs * sizeof *run_offset);
+		MEM_CHECK_DEFINED(run_offset, num_runs * sizeof *run_offset);
 	} while (num_runs > 1);
 
 	ut_free(run_offset);

@@ -1272,8 +1272,10 @@ row_ins_foreign_check_on_constraint(
 
 		update->info_bits = 0;
 		update->n_fields = foreign->n_fields;
-		UNIV_MEM_INVALID(update->fields,
-				 update->n_fields * sizeof *update->fields);
+#ifdef HAVE_valgrind_or_MSAN
+		MEM_UNDEFINED(update->fields,
+			      update->n_fields * sizeof *update->fields);
+#endif /* HAVE_valgrind_or_MSAN */
 
 		bool affects_fulltext = false;
 

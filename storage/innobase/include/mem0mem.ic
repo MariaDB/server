@@ -203,7 +203,7 @@ mem_heap_alloc(
 	mem_block_set_free(block, free + MEM_SPACE_NEEDED(n));
 
 	buf = buf + REDZONE_SIZE;
-	UNIV_MEM_ALLOC(buf, n - REDZONE_SIZE);
+	MEM_UNDEFINED(buf, n - REDZONE_SIZE);
 	return(buf);
 }
 
@@ -267,7 +267,7 @@ mem_heap_free_heap_top(
 	mem_block_set_free(block, old_top - (byte*) block);
 
 	ut_ad(mem_block_get_start(block) <= mem_block_get_free(block));
-	UNIV_MEM_FREE(old_top, (byte*) block + block->len - old_top);
+	MEM_NOACCESS(old_top, (byte*) block + block->len - old_top);
 
 	/* If free == start, we may free the block if it is not the first
 	one */
@@ -341,7 +341,7 @@ mem_heap_free_top(
 				== mem_block_get_start(block))) {
 		mem_heap_block_free(heap, block);
 	} else {
-		UNIV_MEM_FREE((byte*) block + mem_block_get_free(block), n);
+		MEM_NOACCESS((byte*) block + mem_block_get_free(block), n);
 	}
 }
 
