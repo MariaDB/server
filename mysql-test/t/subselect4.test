@@ -2101,3 +2101,15 @@ SET @@sql_select_limit= @save_sql_select_limit;
 eval EXPLAIN EXTENDED $query;
 eval $query;
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-22852: SIGSEGV in sortlength (optimized builds)
+--echo #
+
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='subquery_cache=off';
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (0,0),(0,0);
+SELECT (SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b)) FROM t1 AS t1o;
+SET @@optimizer_switch= @save_optimizer_switch;
+DROP TABLE t1;

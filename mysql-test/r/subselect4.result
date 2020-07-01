@@ -2566,3 +2566,15 @@ SELECT sum(a), t2.a, t2.b FROM t2 HAVING t2.a IN (SELECT t2.b FROM t1);
 sum(a)	a	b
 6	1	1
 DROP TABLE t1,t2;
+#
+# MDEV-22852: SIGSEGV in sortlength (optimized builds)
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='subquery_cache=off';
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (0,0),(0,0);
+SELECT (SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b)) FROM t1 AS t1o;
+(SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b))
+0
+SET @@optimizer_switch= @save_optimizer_switch;
+DROP TABLE t1;
