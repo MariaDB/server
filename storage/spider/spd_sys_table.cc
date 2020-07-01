@@ -65,9 +65,10 @@ extern Time_zone *spd_tz_system;
 #define SPIDER_XA_MEMBER_DEFAULT_GROUP_POS                   17
 #define SPIDER_XA_MEMBER_DSN_POS                             18
 #define SPIDER_XA_MEMBER_FILEDSN_POS                         19
-#define SPIDER_XA_FAILED_LOG_THREAD_ID_POS                   20
-#define SPIDER_XA_FAILED_LOG_STATUS_POS                      21
-#define SPIDER_XA_FAILED_LOG_FAILED_TIME_POS                 22
+#define SPIDER_XA_MEMBER_DRIVER_POS                          20
+#define SPIDER_XA_FAILED_LOG_THREAD_ID_POS                   21
+#define SPIDER_XA_FAILED_LOG_STATUS_POS                      22
+#define SPIDER_XA_FAILED_LOG_FAILED_TIME_POS                 23
 
 #define SPIDER_TABLES_DB_NAME_POS                             0
 #define SPIDER_TABLES_TABLE_NAME_POS                          1
@@ -91,11 +92,12 @@ extern Time_zone *spd_tz_system;
 #define SPIDER_TABLES_DEFAULT_GROUP_POS                      19
 #define SPIDER_TABLES_DSN_POS                                20
 #define SPIDER_TABLES_FILEDSN_POS                            21
-#define SPIDER_TABLES_TGT_DB_NAME_POS                        22
-#define SPIDER_TABLES_TGT_TABLE_NAME_POS                     23
-#define SPIDER_TABLES_LINK_STATUS_POS                        24
-#define SPIDER_TABLES_BLOCK_STATUS_POS                       25
-#define SPIDER_TABLES_STATIC_LINK_ID_POS                     26
+#define SPIDER_TABLES_DRIVER_POS                             22
+#define SPIDER_TABLES_TGT_DB_NAME_POS                        23
+#define SPIDER_TABLES_TGT_TABLE_NAME_POS                     24
+#define SPIDER_TABLES_LINK_STATUS_POS                        25
+#define SPIDER_TABLES_BLOCK_STATUS_POS                       26
+#define SPIDER_TABLES_STATIC_LINK_ID_POS                     27
 
 #define SPIDER_LINK_MON_SERVERS_DB_NAME_POS                   0
 #define SPIDER_LINK_MON_SERVERS_TABLE_NAME_POS                1
@@ -118,6 +120,7 @@ extern Time_zone *spd_tz_system;
 #define SPIDER_LINK_MON_SERVERS_DEFAULT_GROUP_POS            18
 #define SPIDER_LINK_MON_SERVERS_DSN_POS                      19
 #define SPIDER_LINK_MON_SERVERS_FILEDSN_POS                  20
+#define SPIDER_LINK_MON_SERVERS_DRIVER_POS                   21
 
 #define SPIDER_LINK_FAILED_LOG_DB_NAME_POS                    0
 #define SPIDER_LINK_FAILED_LOG_TABLE_NAME_POS                 1
@@ -1120,6 +1123,17 @@ void spider_store_xa_member_info(
     table->field[SPIDER_XA_MEMBER_FILEDSN_POS]->set_null();
     table->field[SPIDER_XA_MEMBER_FILEDSN_POS]->reset();
   }
+  if (conn->tgt_driver)
+  {
+    table->field[SPIDER_XA_MEMBER_DRIVER_POS]->set_notnull();
+    table->field[SPIDER_XA_MEMBER_DRIVER_POS]->store(
+      conn->tgt_driver,
+      (uint) conn->tgt_driver_length,
+      system_charset_info);
+  } else {
+    table->field[SPIDER_XA_MEMBER_DRIVER_POS]->set_null();
+    table->field[SPIDER_XA_MEMBER_DRIVER_POS]->reset();
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -1444,6 +1458,17 @@ void spider_store_tables_connect_info(
   } else {
     table->field[SPIDER_TABLES_FILEDSN_POS]->set_null();
     table->field[SPIDER_TABLES_FILEDSN_POS]->reset();
+  }
+  if (alter_table->tmp_tgt_drivers[link_idx])
+  {
+    table->field[SPIDER_TABLES_DRIVER_POS]->set_notnull();
+    table->field[SPIDER_TABLES_DRIVER_POS]->store(
+      alter_table->tmp_tgt_drivers[link_idx],
+      (uint) alter_table->tmp_tgt_drivers_lengths[link_idx],
+      system_charset_info);
+  } else {
+    table->field[SPIDER_TABLES_DRIVER_POS]->set_null();
+    table->field[SPIDER_TABLES_DRIVER_POS]->reset();
   }
   if (alter_table->tmp_tgt_dbs[link_idx])
   {
@@ -2441,6 +2466,17 @@ int spider_get_sys_server_info(
     share->tgt_filedsns_lengths[link_idx] = 0;
     share->tgt_filedsns[link_idx] = NULL;
   }
+  if (
+    !table->field[SPIDER_XA_MEMBER_DRIVER_POS]->is_null() &&
+    (ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_DRIVER_POS]))
+  ) {
+    share->tgt_drivers_lengths[link_idx] = strlen(ptr);
+    share->tgt_drivers[link_idx] =
+      spider_create_string(ptr, share->tgt_drivers_lengths[link_idx]);
+  } else {
+    share->tgt_drivers_lengths[link_idx] = 0;
+    share->tgt_drivers[link_idx] = NULL;
+  }
   DBUG_RETURN(0);
 }
 
@@ -2709,6 +2745,17 @@ int spider_get_sys_tables_connect_info(
   } else {
     share->tgt_filedsns_lengths[link_idx] = 0;
     share->tgt_filedsns[link_idx] = NULL;
+  }
+  if (
+    !table->field[SPIDER_TABLES_DRIVER_POS]->is_null() &&
+    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_DRIVER_POS]))
+  ) {
+    share->tgt_drivers_lengths[link_idx] = strlen(ptr);
+    share->tgt_drivers[link_idx] =
+      spider_create_string(ptr, share->tgt_drivers_lengths[link_idx]);
+  } else {
+    share->tgt_drivers_lengths[link_idx] = 0;
+    share->tgt_drivers[link_idx] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_TGT_DB_NAME_POS]->is_null() &&
@@ -3316,6 +3363,17 @@ int spider_get_sys_link_mon_connect_info(
   } else {
     share->tgt_filedsns_lengths[link_idx] = 0;
     share->tgt_filedsns[link_idx] = NULL;
+  }
+  if (
+    !table->field[SPIDER_LINK_MON_SERVERS_DRIVER_POS]->is_null() &&
+    (ptr = get_field(mem_root, table->field[SPIDER_LINK_MON_SERVERS_DRIVER_POS]))
+  ) {
+    share->tgt_drivers_lengths[link_idx] = strlen(ptr);
+    share->tgt_drivers[link_idx] =
+      spider_create_string(ptr, share->tgt_drivers_lengths[link_idx]);
+  } else {
+    share->tgt_drivers_lengths[link_idx] = 0;
+    share->tgt_drivers[link_idx] = NULL;
   }
   DBUG_RETURN(error_num);
 }

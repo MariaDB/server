@@ -290,7 +290,8 @@ int spider_udf_direct_sql_create_conn_key(
       + direct_sql->tgt_default_file_length + 1
       + direct_sql->tgt_default_group_length + 1
       + direct_sql->tgt_dsn_length + 1
-      + direct_sql->tgt_filedsn_length;
+      + direct_sql->tgt_filedsn_length + 1
+      + direct_sql->tgt_driver_length;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   } else {
     direct_sql->conn_key_length
@@ -411,6 +412,13 @@ int spider_udf_direct_sql_create_conn_key(
       tmp_name = strmov(tmp_name + 1, direct_sql->tgt_filedsn);
     } else
       tmp_name++;
+    if (direct_sql->tgt_driver)
+    {
+      DBUG_PRINT("info",("spider tgt_driver=%s",
+        direct_sql->tgt_driver));
+      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_driver);
+    } else
+      tmp_name++;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   }
 #endif
@@ -430,7 +438,7 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   char *tmp_name, *tmp_host, *tmp_username, *tmp_password, *tmp_socket;
   char *tmp_wrapper, *tmp_db, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
-  char *tmp_dsn, *tmp_filedsn;
+  char *tmp_dsn, *tmp_filedsn, *tmp_driver;
   int *need_mon;
   bool tables_on_different_db_are_joinable = TRUE;
   DBUG_ENTER("spider_udf_direct_sql_create_conn");
@@ -473,6 +481,8 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
           (uint) (direct_sql->tgt_dsn_length + 1),
         &tmp_filedsn,
           (uint) (direct_sql->tgt_filedsn_length + 1),
+        &tmp_driver,
+          (uint) (direct_sql->tgt_driver_length + 1),
         &need_mon, (uint) (sizeof(int)),
         NullS))
     ) {
@@ -605,6 +615,14 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
         direct_sql->tgt_filedsn_length);
     } else
       conn->tgt_filedsn = NULL;
+    conn->tgt_driver_length = direct_sql->tgt_driver_length;
+    if (conn->tgt_driver_length)
+    {
+      conn->tgt_driver = tmp_driver;
+      memcpy(conn->tgt_driver, direct_sql->tgt_driver,
+        direct_sql->tgt_driver_length);
+    } else
+      conn->tgt_driver = NULL;
     conn->tgt_ssl_vsc = direct_sql->tgt_ssl_vsc;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   } else {
@@ -1275,6 +1293,7 @@ int spider_udf_parse_direct_sql_param(
         SPIDER_PARAM_INT("cto", connect_timeout, 0);
         SPIDER_PARAM_STR("dff", tgt_default_file);
         SPIDER_PARAM_STR("dfg", tgt_default_group);
+        SPIDER_PARAM_STR("drv", tgt_driver);
         SPIDER_PARAM_STR("dsn", tgt_dsn);
         SPIDER_PARAM_STR("fds", tgt_filedsn);
         SPIDER_PARAM_LONGLONG("prt", priority, 0);
@@ -1302,6 +1321,7 @@ int spider_udf_parse_direct_sql_param(
         error_num = param_string_parse.print_param_error();
         goto error;
       case 6:
+        SPIDER_PARAM_STR("driver", tgt_driver);
         SPIDER_PARAM_STR("server", server_name);
         SPIDER_PARAM_STR("socket", tgt_socket);
         SPIDER_PARAM_HINT_WITH_MAX("iop", iop, 3, direct_sql->table_count, 0, 2);
@@ -1708,6 +1728,10 @@ void spider_udf_free_direct_sql_alloc(
   if (direct_sql->tgt_filedsn)
   {
     spider_free(spider_current_trx, direct_sql->tgt_filedsn, MYF(0));
+  }
+  if (direct_sql->tgt_driver)
+  {
+    spider_free(spider_current_trx, direct_sql->tgt_driver, MYF(0));
   }
   if (direct_sql->conn_key)
   {

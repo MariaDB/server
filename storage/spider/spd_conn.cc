@@ -566,7 +566,7 @@ SPIDER_CONN *spider_create_conn(
   char *tmp_name, *tmp_host, *tmp_username, *tmp_password, *tmp_socket;
   char *tmp_wrapper, *tmp_db, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
-  char *tmp_dsn, *tmp_filedsn;
+  char *tmp_dsn, *tmp_filedsn, *tmp_driver;
   DBUG_ENTER("spider_create_conn");
 
   if (unlikely(!UTC))
@@ -620,6 +620,8 @@ SPIDER_CONN *spider_create_conn(
           (uint) (share->tgt_dsns_lengths[link_idx] + 1),
         &tmp_filedsn,
           (uint) (share->tgt_filedsns_lengths[link_idx] + 1),
+        &tmp_driver,
+          (uint) (share->tgt_drivers_lengths[link_idx] + 1),
         &need_mon, (uint) (sizeof(int)),
         NullS))
     ) {
@@ -737,6 +739,15 @@ SPIDER_CONN *spider_create_conn(
         share->tgt_filedsns_lengths[link_idx]);
     } else
       conn->tgt_filedsn = NULL;
+    conn->tgt_driver_length =
+      share->tgt_drivers_lengths[link_idx];
+    if (conn->tgt_driver_length)
+    {
+      conn->tgt_driver = tmp_driver;
+      memcpy(conn->tgt_driver, share->tgt_drivers[link_idx],
+        share->tgt_drivers_lengths[link_idx]);
+    } else
+      conn->tgt_driver = NULL;
     conn->tgt_port = share->tgt_ports[link_idx];
     conn->tgt_ssl_vsc = share->tgt_ssl_vscs[link_idx];
     conn->dbton_id = share->sql_dbton_ids[link_idx];
