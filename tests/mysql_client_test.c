@@ -19889,6 +19889,8 @@ static void test_ps_params_in_ctes()
   rc= mysql_stmt_store_result(stmt);
   check_execute(stmt, rc);
 
+  mysql_stmt_close(stmt);
+
   rc= mysql_query(mysql, "drop table t1");
   myquery(rc);
 }
