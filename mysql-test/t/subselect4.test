@@ -2103,6 +2103,19 @@ eval $query;
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-17606: Query returns wrong results (while using CHARACTER SET utf8)
+--echo #
+
+CREATE TABLE t1(l1 varchar(10), i2 int);
+INSERT INTO t1 VALUES ('e',2),('o',6),('x',4);
+CREATE TABLE t2 (v1 varchar(10) CHARACTER SET utf8, KEY v1 (v1(3)));
+INSERT INTO t2 VALUES  ('k'),('rid'),('f'),('x');
+
+EXPLAIN EXTENDED SELECT * FROM t1 where  ( t1.l1 < ANY (SELECT MAX(t2.v1) FROM t2));
+SELECT * FROM t1 where  ( t1.l1 < ANY (SELECT MAX(t2.v1) FROM t2));
+DROP TABLE t1, t2;
+
+--echo #
 --echo # MDEV-22852: SIGSEGV in sortlength (optimized builds)
 --echo #
 
@@ -2113,3 +2126,5 @@ INSERT INTO t1 VALUES (0,0),(0,0);
 SELECT (SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b)) FROM t1 AS t1o;
 SET @@optimizer_switch= @save_optimizer_switch;
 DROP TABLE t1;
+
+--echo # End of 10.2 tests

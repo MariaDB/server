@@ -486,6 +486,7 @@ static int DbugParse(CODE_STATE *cs, const char *control)
   rel= control[0] == '+' || control[0] == '-';
   if ((!rel || (!stack->out_file && !stack->next)))
   {
+    LockIfInitSettings(cs);
     FreeState(cs, 0);
     stack->flags= 0;
     stack->delay= 0;
@@ -493,10 +494,9 @@ static int DbugParse(CODE_STATE *cs, const char *control)
     stack->sub_level= 0;
     stack->out_file= sstderr;
     stack->functions= NULL;
-    LockIfInitSettings(cs);
     stack->keywords= NULL;
-    UnlockIfInitSettings(cs);
     stack->processes= NULL;
+    UnlockIfInitSettings(cs);
   }
   else if (!stack->out_file)
   {
