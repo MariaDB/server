@@ -82,5 +82,6 @@ public:
   int flush_insert_cache();
   friend my_bool get_status_and_flush_cache(void *param,
                                             my_bool concurrent_insert);
+  friend my_bool cache_start_trans(void *param);
 };
 #endif /* HA_S3_INCLUDED */

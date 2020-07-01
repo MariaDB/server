@@ -1,0 +1,154 @@
+CREATE TABLE cache1 (a int not null, b varchar(44) not null)engine=columnstore_cache;
+INSERT INTO cache1 VALUES (1, 'a');
+SELECT * FROM cache1;
+a	b
+1	a
+DELETE FROM cache1;
+INSERT INTO cache1 VALUES (1, 'a');
+DELETE FROM cache1;
+SELECT * FROM cache1;
+a	b
+INSERT INTO cache1 VALUES (1, 'a'),(2, 'b'),(3, 'c'),(4, 'd'),(5, 'e'),(6, 'f'),(7, 'g'),(8, 'h'),(9, 'i'),(10, 'j');
+UPDATE cache1 SET a=19 WHERE a=9;
+SELECT * FROM cache1;
+a	b
+19	i
+1	a
+2	b
+3	c
+4	d
+5	e
+6	f
+7	g
+8	h
+10	j
+DELETE FROM cache1;
+DROP TABLE IF EXISTS cache_inno1;
+Warnings:
+Note	1051	Unknown table 'test.cache_inno1'
+CREATE TABLE cache_inno1 (a int, b varchar(44));
+INSERT INTO cache_inno1 VALUES (1, 'a'), (2, 'b');
+INSERT INTO cache1 SELECT * FROM cache_inno1;
+flush tables;
+INSERT INTO cache1 SELECT * FROM cache1;
+flush tables;
+SELECT * FROM cache1;
+a	b
+1	a
+2	b
+1	a
+2	b
+DROP TABLE IF EXISTS cache2;
+Warnings:
+Note	1051	Unknown table 'test.cache2'
+CREATE TABLE cache2 (
+C1              BOOLEAN not null,
+C2              TINYINT not null,
+C3              SMALLINT not null,
+C4              INTEGER not null,
+C5              BIGINT not null,
+C6              DECIMAL(1) not null,
+C7              DECIMAL(4) not null,
+C8              DECIMAL(5) not null,
+C9              DECIMAL(9,2) not null,
+C10             DECIMAL(10) not null,
+C11             DECIMAL(18) not null,
+C12             DOUBLE not null,
+C13             FLOAT not null,
+C14             DATE not null,
+C15             DATETIME not null,
+C16             CHAR(1) not null,
+C17             CHAR(4) not null,
+C18             CHAR(5) not null,
+C19             CHAR(6) not null,
+C20             CHAR(8) not null,
+C21             CHAR(64) not null,
+C22             CHAR(255) not null,
+C23             VARCHAR(1) not null,
+C24             VARCHAR(4) not null,
+C25             VARCHAR(5) not null,
+C26             VARCHAR(7) not null,
+C27             VARCHAR(128) not null,
+C28             VARCHAR(255) not null,
+C29             TEXT not null
+)engine=columnstore_cache;
+INSERT INTO cache2 VALUES
+(false,1,32000,214748,-9223372036854775805,1,-2134,-23456,1.23,-847,-32847293,-12.12,1.123,"1970-01-01","2010-02-01 12:10:11","e","gc","sgje","rjyjh","rsdjyjh","sjglkjrlgjlw","arjglkjaglkalkgjwgjlkewrgjlwk","j","jd","ryui","fhggc","gjglkjskglsj","fkasljklsajflkjsalkjflksajflkjasfd","ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg");
+INSERT INTO cache2 VALUES
+(true,2,32000,214748364,-92233720,-6,-9999,99999,0.12,-394872,-238974293732,23.23,120.123,"2000-10-10","2020-03-04 02:01:01","j","ui","jtyrf","rryui","sdsaffa","sjglkjrlgjlw","wiujfwjfglkajmngfksjgfwalkjglsaglsa","d","nj","sgje","jdgrd","sjglkjrlgjlw","fkasljklsajflkjsalkjflksajflkjasfd","jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw");
+INSERT INTO cache2 VALUES
+(true,3,-1000,-214748364,92233720368547,3,9999,-45678,9.99,-394872,-23984732974,23.23,23.23,"1990-10-28","2010-02-01 12:10:11","d","rf","hhnj","fhggc","esdjtyrf","gjglkjskglsj","fkasljklsajflkjsalkjflksajflkjasfd","e","je","ryjh","ejtyrf","wuoiwufjwfjwfekjl","arjglkjaglkalkgjwgjlkewrgjlwk","jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw");
+INSERT INTO cache2 VALUES
+(true,4,-19000,21474836,-9223372036854775,-9,9999,-99999,-9.99,123454,-42983748923784,-12.12,1.123,"1970-01-01","1970-01-01 02:03:06","b","jh","ryjh","ejtyrf","esdhhnj","gjlkjsgljsjdg","fkasljklsajflkjsalkjflksajflkjasfd","e","wg","sfgb","shgje","fjglkjslkgjdsljgljs","wiujfwjfglkajmngfksjgfwalkjglsaglsa","jwijfglkjgflkewrjgl4kjglkrjlkjkljaklsjaklasdjglkasgjlkas");
+INSERT INTO cache2 VALUES
+(true,5,0,2147,922337203,5,-2134,99999,0.12,123203,-238974293732,31.1212,-90.12,"2010-02-01","2020-03-04 02:01:01","g","rf","jtyrf","ehhnj","jdsdgrd","wuoiwufjwfjwfekjl","arjglkjaglkalkgjwgjlkewrgjlwk","a","ui","ryui","rjyjh","sdfsfdsfgsf","fkasljklsajflkjsalkjflksajflkjasfd","ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg");
+INSERT INTO cache2 VALUES
+(true,6,1,214748,-9223372036854775805,-4,-1234,99999,1234.49,-394872,999999999999999999,1.123,120.123,"2010-02-01","1990-10-28 06:02:01","j","je","sgje","shgje","shsdgje","wuoiwufjwfjwfekjl","arjglkjaglkalkgjwgjlkewrgjlwk","i","wg","hggc","fhggc","sdfsfdsfgsf","fkasljklsajflkjsalkjflksajflkjasfd","ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg");
+INSERT INTO cache2 VALUES
+(false,7,1,-214748364,-9223372036854775805,-6,9999,99999,0.12,99999,999999999999999999,120.123,31.1212,"1970-01-01","1990-10-28 06:02:01","j","fa","sffa","saffa","esdhhnj","fjglkjslkgjdsljgljs","arjglkjaglkalkgjwgjlkewrgjlwk","g","fa","sffa","rjyjh","sdfsfdsfgsf","fkasljklsajflkjsalkjflksajflkjasfd","jwijfglkjgflkewrjgl4kjglkrjlkjkljaklsjaklasdjglkasgjlkas");
+INSERT INTO cache2 VALUES
+(false,8,100,2147489,-9223372036854775,1,-1234,1234,-9.99,-394872,348902840328,-12.12,-12.12,"2000-10-10","2000-10-10 11:02:12","f","jd","sfgb","rjyjh","fhggsdc","gjlkjsgljsjdg","wiujfwjfglkajmngfksjgfwalkjglsaglsa","e","nj","jtyrf","rryui","gjlkjsgljsjdg","wiujfwjfglkajmngfksjgfwalkjglsaglsa","jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw");
+INSERT INTO cache2 VALUES
+(false,9,1,-214748364,922337203685,-2,2345,0,-9.99,99999,29348290439248,-90.12,120.123,"2020-03-04","2010-02-01 12:10:11","f","wg","ryjh","sfgcb","hsdjtwg","gjglkjskglsj","wiujfwjfglkajmngfksjgfwalkjglsaglsa","b","jh","sfgb","rryui","sjglkjrlgjlw","wiujfwjfglkajmngfksjgfwalkjglsaglsa","jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw");
+INSERT INTO cache2 VALUES
+(true,10,1,2147,922337203,-6,2345,-12345,-23.34,84723,29348290439248,-12.12,-12.12,"2010-02-01","2010-02-01 12:10:11","i","nj","sffa","rryui","jdsdgrd","sjglkjrlgjlw","arjglkjaglkalkgjwgjlkewrgjlwk","b","nj","hhnj","ejtyrf","gjlkjsgljsjdg","wiujfwjfglkajmngfksjgfwalkjglsaglsa","jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw");
+INSERT INTO cache2 VALUES
+(false,11,32000,214748,-9223372036854775805,1,-2134,-23456,1.23,-847,-32847293,-12.12,1.123,"1970-01-01","2010-02-01 12:10:11","e","gc","sgje","rjyjh","rsdjyjh","sjglkjrlgjlw","arjglkjaglkalkgjwgjlkewrgjlwk","j","jd","ryui","fhggc","gjglkjskglsj","fkasljklsajflkjsalkjflksajflkjasfd","ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg"),
+(true,12,32000,214748364,-92233720,-6,-9999,99999,0.12,-394872,-238974293732,23.23,120.123,"2000-10-10","2020-03-04 02:01:01","j","ui","jtyrf","rryui","sdsaffa","sjglkjrlgjlw","wiujfwjfglkajmngfksjgfwalkjglsaglsa","d","nj","sgje","jdgrd","sjglkjrlgjlw","fkasljklsajflkjsalkjflksajflkjasfd","jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw"),
+(true,13,-1000,-214748364,92233720368547,3,9999,-45678,9.99,-394872,-23984732974,23.23,23.23,"1990-10-28","2010-02-01 12:10:11","d","rf","hhnj","fhggc","esdjtyrf","gjglkjskglsj","fkasljklsajflkjsalkjflksajflkjasfd","e","je","ryjh","ejtyrf","wuoiwufjwfjwfekjl","arjglkjaglkalkgjwgjlkewrgjlwk","jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw"),
+(true,14,-19000,21474836,-9223372036854775,-9,9999,-99999,-9.99,123454,-42983748923784,-12.12,1.123,"1970-01-01","1970-01-01 02:03:06","b","jh","ryjh","ejtyrf","esdhhnj","gjlkjsgljsjdg","fkasljklsajflkjsalkjflksajflkjasfd","e","wg","sfgb","shgje","fjglkjslkgjdsljgljs","wiujfwjfglkajmngfksjgfwalkjglsaglsa","jwijfglkjgflkewrjgl4kjglkrjlkjkljaklsjaklasdjglkasgjlkas"),
+(true,15,0,2147,922337203,5,-2134,99999,0.12,123203,-238974293732,31.1212,-90.12,"2010-02-01","2020-03-04 02:01:01","g","rf","jtyrf","ehhnj","jdsdgrd","wuoiwufjwfjwfekjl","arjglkjaglkalkgjwgjlkewrgjlwk","a","ui","ryui","rjyjh","sdfsfdsfgsf","fkasljklsajflkjsalkjflksajflkjasfd","ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg"),
+(true,16,1,214748,-9223372036854775805,-4,-1234,99999,1234.49,-394872,999999999999999999,1.123,120.123,"2010-02-01","1990-10-28 06:02:01","j","je","sgje","shgje","shsdgje","wuoiwufjwfjwfekjl","arjglkjaglkalkgjwgjlkewrgjlwk","i","wg","hggc","fhggc","sdfsfdsfgsf","fkasljklsajflkjsalkjflksajflkjasfd","ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg"),
+(false,17,1,-214748364,-9223372036854775805,-6,9999,99999,0.12,99999,999999999999999999,120.123,31.1212,"1970-01-01","1990-10-28 06:02:01","j","fa","sffa","saffa","esdhhnj","fjglkjslkgjdsljgljs","arjglkjaglkalkgjwgjlkewrgjlwk","g","fa","sffa","rjyjh","sdfsfdsfgsf","fkasljklsajflkjsalkjflksajflkjasfd","jwijfglkjgflkewrjgl4kjglkrjlkjkljaklsjaklasdjglkasgjlkas"),
+(false,18,100,2147489,-9223372036854775,1,-1234,1234,-9.99,-394872,348902840328,-12.12,-12.12,"2000-10-10","2000-10-10 11:02:12","f","jd","sfgb","rjyjh","fhggsdc","gjlkjsgljsjdg","wiujfwjfglkajmngfksjgfwalkjglsaglsa","e","nj","jtyrf","rryui","gjlkjsgljsjdg","wiujfwjfglkajmngfksjgfwalkjglsaglsa","jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw"),
+(false,19,1,-214748364,922337203685,-2,2345,0,-9.99,99999,29348290439248,-90.12,120.123,"2020-03-04","2010-02-01 12:10:11","f","wg","ryjh","sfgcb","hsdjtwg","gjglkjskglsj","wiujfwjfglkajmngfksjgfwalkjglsaglsa","b","jh","sfgb","rryui","sjglkjrlgjlw","wiujfwjfglkajmngfksjgfwalkjglsaglsa","jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw"),
+(true,20,1,2147,922337203,-6,2345,-12345,-23.34,84723,29348290439248,-12.12,-12.12,"2010-02-01","2010-02-01 12:10:11","i","nj","sffa","rryui","jdsdgrd","sjglkjrlgjlw","arjglkjaglkalkgjwgjlkewrgjlwk","b","nj","hhnj","ejtyrf","gjlkjsgljsjdg","wiujfwjfglkajmngfksjgfwalkjglsaglsa","jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw");
+SELECT * FROM cache2 ORDER BY C2;
+C1	C2	C3	C4	C5	C6	C7	C8	C9	C10	C11	C12	C13	C14	C15	C16	C17	C18	C19	C20	C21	C22	C23	C24	C25	C26	C27	C28	C29
+0	1	32000	214748	-9223372036854775805	1	-2134	-23456	1.23	-847	-32847293	-12.12	1.123	1970-01-01	2010-02-01 12:10:11	e	gc	sgje	rjyjh	rsdjyjh	sjglkjrlgjlw	arjglkjaglkalkgjwgjlkewrgjlwk	j	jd	ryui	fhggc	gjglkjskglsj	fkasljklsajflkjsalkjflksajflkjasfd	ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg
+1	2	32000	214748364	-92233720	-6	-9999	99999	0.12	-394872	-238974293732	23.23	120.123	2000-10-10	2020-03-04 02:01:01	j	ui	jtyrf	rryui	sdsaffa	sjglkjrlgjlw	wiujfwjfglkajmngfksjgfwalkjglsaglsa	d	nj	sgje	jdgrd	sjglkjrlgjlw	fkasljklsajflkjsalkjflksajflkjasfd	jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw
+1	3	-1000	-214748364	92233720368547	3	9999	-45678	9.99	-394872	-23984732974	23.23	23.23	1990-10-28	2010-02-01 12:10:11	d	rf	hhnj	fhggc	esdjtyrf	gjglkjskglsj	fkasljklsajflkjsalkjflksajflkjasfd	e	je	ryjh	ejtyrf	wuoiwufjwfjwfekjl	arjglkjaglkalkgjwgjlkewrgjlwk	jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw
+1	4	-19000	21474836	-9223372036854775	-9	9999	-99999	-9.99	123454	-42983748923784	-12.12	1.123	1970-01-01	1970-01-01 02:03:06	b	jh	ryjh	ejtyrf	esdhhnj	gjlkjsgljsjdg	fkasljklsajflkjsalkjflksajflkjasfd	e	wg	sfgb	shgje	fjglkjslkgjdsljgljs	wiujfwjfglkajmngfksjgfwalkjglsaglsa	jwijfglkjgflkewrjgl4kjglkrjlkjkljaklsjaklasdjglkasgjlkas
+1	5	0	2147	922337203	5	-2134	99999	0.12	123203	-238974293732	31.1212	-90.12	2010-02-01	2020-03-04 02:01:01	g	rf	jtyrf	ehhnj	jdsdgrd	wuoiwufjwfjwfekjl	arjglkjaglkalkgjwgjlkewrgjlwk	a	ui	ryui	rjyjh	sdfsfdsfgsf	fkasljklsajflkjsalkjflksajflkjasfd	ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg
+1	6	1	214748	-9223372036854775805	-4	-1234	99999	1234.49	-394872	999999999999999999	1.123	120.123	2010-02-01	1990-10-28 06:02:01	j	je	sgje	shgje	shsdgje	wuoiwufjwfjwfekjl	arjglkjaglkalkgjwgjlkewrgjlwk	i	wg	hggc	fhggc	sdfsfdsfgsf	fkasljklsajflkjsalkjflksajflkjasfd	ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg
+0	7	1	-214748364	-9223372036854775805	-6	9999	99999	0.12	99999	999999999999999999	120.123	31.1212	1970-01-01	1990-10-28 06:02:01	j	fa	sffa	saffa	esdhhnj	fjglkjslkgjdsljgljs	arjglkjaglkalkgjwgjlkewrgjlwk	g	fa	sffa	rjyjh	sdfsfdsfgsf	fkasljklsajflkjsalkjflksajflkjasfd	jwijfglkjgflkewrjgl4kjglkrjlkjkljaklsjaklasdjglkasgjlkas
+0	8	100	2147489	-9223372036854775	1	-1234	1234	-9.99	-394872	348902840328	-12.12	-12.12	2000-10-10	2000-10-10 11:02:12	f	jd	sfgb	rjyjh	fhggsdc	gjlkjsgljsjdg	wiujfwjfglkajmngfksjgfwalkjglsaglsa	e	nj	jtyrf	rryui	gjlkjsgljsjdg	wiujfwjfglkajmngfksjgfwalkjglsaglsa	jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw
+0	9	1	-214748364	922337203685	-2	2345	0	-9.99	99999	29348290439248	-90.12	120.123	2020-03-04	2010-02-01 12:10:11	f	wg	ryjh	sfgcb	hsdjtwg	gjglkjskglsj	wiujfwjfglkajmngfksjgfwalkjglsaglsa	b	jh	sfgb	rryui	sjglkjrlgjlw	wiujfwjfglkajmngfksjgfwalkjglsaglsa	jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw
+1	10	1	2147	922337203	-6	2345	-12345	-23.34	84723	29348290439248	-12.12	-12.12	2010-02-01	2010-02-01 12:10:11	i	nj	sffa	rryui	jdsdgrd	sjglkjrlgjlw	arjglkjaglkalkgjwgjlkewrgjlwk	b	nj	hhnj	ejtyrf	gjlkjsgljsjdg	wiujfwjfglkajmngfksjgfwalkjglsaglsa	jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw
+0	11	32000	214748	-9223372036854775805	1	-2134	-23456	1.23	-847	-32847293	-12.12	1.123	1970-01-01	2010-02-01 12:10:11	e	gc	sgje	rjyjh	rsdjyjh	sjglkjrlgjlw	arjglkjaglkalkgjwgjlkewrgjlwk	j	jd	ryui	fhggc	gjglkjskglsj	fkasljklsajflkjsalkjflksajflkjasfd	ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg
+1	12	32000	214748364	-92233720	-6	-9999	99999	0.12	-394872	-238974293732	23.23	120.123	2000-10-10	2020-03-04 02:01:01	j	ui	jtyrf	rryui	sdsaffa	sjglkjrlgjlw	wiujfwjfglkajmngfksjgfwalkjglsaglsa	d	nj	sgje	jdgrd	sjglkjrlgjlw	fkasljklsajflkjsalkjflksajflkjasfd	jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw
+1	13	-1000	-214748364	92233720368547	3	9999	-45678	9.99	-394872	-23984732974	23.23	23.23	1990-10-28	2010-02-01 12:10:11	d	rf	hhnj	fhggc	esdjtyrf	gjglkjskglsj	fkasljklsajflkjsalkjflksajflkjasfd	e	je	ryjh	ejtyrf	wuoiwufjwfjwfekjl	arjglkjaglkalkgjwgjlkewrgjlwk	jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw
+1	14	-19000	21474836	-9223372036854775	-9	9999	-99999	-9.99	123454	-42983748923784	-12.12	1.123	1970-01-01	1970-01-01 02:03:06	b	jh	ryjh	ejtyrf	esdhhnj	gjlkjsgljsjdg	fkasljklsajflkjsalkjflksajflkjasfd	e	wg	sfgb	shgje	fjglkjslkgjdsljgljs	wiujfwjfglkajmngfksjgfwalkjglsaglsa	jwijfglkjgflkewrjgl4kjglkrjlkjkljaklsjaklasdjglkasgjlkas
+1	15	0	2147	922337203	5	-2134	99999	0.12	123203	-238974293732	31.1212	-90.12	2010-02-01	2020-03-04 02:01:01	g	rf	jtyrf	ehhnj	jdsdgrd	wuoiwufjwfjwfekjl	arjglkjaglkalkgjwgjlkewrgjlwk	a	ui	ryui	rjyjh	sdfsfdsfgsf	fkasljklsajflkjsalkjflksajflkjasfd	ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg
+1	16	1	214748	-9223372036854775805	-4	-1234	99999	1234.49	-394872	999999999999999999	1.123	120.123	2010-02-01	1990-10-28 06:02:01	j	je	sgje	shgje	shsdgje	wuoiwufjwfjwfekjl	arjglkjaglkalkgjwgjlkewrgjlwk	i	wg	hggc	fhggc	sdfsfdsfgsf	fkasljklsajflkjsalkjflksajflkjasfd	ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg
+0	17	1	-214748364	-9223372036854775805	-6	9999	99999	0.12	99999	999999999999999999	120.123	31.1212	1970-01-01	1990-10-28 06:02:01	j	fa	sffa	saffa	esdhhnj	fjglkjslkgjdsljgljs	arjglkjaglkalkgjwgjlkewrgjlwk	g	fa	sffa	rjyjh	sdfsfdsfgsf	fkasljklsajflkjsalkjflksajflkjasfd	jwijfglkjgflkewrjgl4kjglkrjlkjkljaklsjaklasdjglkasgjlkas
+0	18	100	2147489	-9223372036854775	1	-1234	1234	-9.99	-394872	348902840328	-12.12	-12.12	2000-10-10	2000-10-10 11:02:12	f	jd	sfgb	rjyjh	fhggsdc	gjlkjsgljsjdg	wiujfwjfglkajmngfksjgfwalkjglsaglsa	e	nj	jtyrf	rryui	gjlkjsgljsjdg	wiujfwjfglkajmngfksjgfwalkjglsaglsa	jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw
+0	19	1	-214748364	922337203685	-2	2345	0	-9.99	99999	29348290439248	-90.12	120.123	2020-03-04	2010-02-01 12:10:11	f	wg	ryjh	sfgcb	hsdjtwg	gjglkjskglsj	wiujfwjfglkajmngfksjgfwalkjglsaglsa	b	jh	sfgb	rryui	sjglkjrlgjlw	wiujfwjfglkajmngfksjgfwalkjglsaglsa	jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw
+1	20	1	2147	922337203	-6	2345	-12345	-23.34	84723	29348290439248	-12.12	-12.12	2010-02-01	2010-02-01 12:10:11	i	nj	sffa	rryui	jdsdgrd	sjglkjrlgjlw	arjglkjaglkalkgjwgjlkewrgjlwk	b	nj	hhnj	ejtyrf	gjlkjsgljsjdg	wiujfwjfglkajmngfksjgfwalkjglsaglsa	jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw
+SELECT * FROM cache2 INTO OUTFILE '../../tmp/columnstore_cache_data2.txt' FIELDS TERMINATED BY ',' ENCLOSED BY '"';
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+LOAD DATA INFILE '../../tmp/columnstore_cache_data2.txt' INTO TABLE cache2 FIELDS TERMINATED BY ',' ENCLOSED BY '"';
+SELECT COUNT(*) FROM cache2;
+COUNT(*)
+40
+DROP TABLE IF EXISTS cache_inno2;
+Warnings:
+Note	1051	Unknown table 'test.cache_inno2'
+CREATE TABLE cache_inno2 as SELECT * FROM cache2;
+DELETE FROM cache2;
+INSERT INTO cache2 SELECT * FROM cache_inno2;
+flush tables;
+INSERT INTO cache2 SELECT * FROM cache2;
+flush tables;
+SELECT COUNT(*) FROM cache2;
+COUNT(*)
+80
+SELECT * FROM cache2 ORDER BY C2 limit 5;
+C1	C2	C3	C4	C5	C6	C7	C8	C9	C10	C11	C12	C13	C14	C15	C16	C17	C18	C19	C20	C21	C22	C23	C24	C25	C26	C27	C28	C29
+0	1	32000	214748	-9223372036854775805	1	-2134	-23456	1.23	-847	-32847293	-12.12	1.123	1970-01-01	2010-02-01 12:10:11	e	gc	sgje	rjyjh	rsdjyjh	sjglkjrlgjlw	arjglkjaglkalkgjwgjlkewrgjlwk	j	jd	ryui	fhggc	gjglkjskglsj	fkasljklsajflkjsalkjflksajflkjasfd	ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg
+0	1	32000	214748	-9223372036854775805	1	-2134	-23456	1.23	-847	-32847293	-12.12	1.123	1970-01-01	2010-02-01 12:10:11	e	gc	sgje	rjyjh	rsdjyjh	sjglkjrlgjlw	arjglkjaglkalkgjwgjlkewrgjlwk	j	jd	ryui	fhggc	gjglkjskglsj	fkasljklsajflkjsalkjflksajflkjasfd	ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg
+0	1	32000	214748	-9223372036854775805	1	-2134	-23456	1.23	-847	-32847293	-12.12	1.123	1970-01-01	2010-02-01 12:10:11	e	gc	sgje	rjyjh	rsdjyjh	sjglkjrlgjlw	arjglkjaglkalkgjwgjlkewrgjlwk	j	jd	ryui	fhggc	gjglkjskglsj	fkasljklsajflkjsalkjflksajflkjasfd	ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg
+0	1	32000	214748	-9223372036854775805	1	-2134	-23456	1.23	-847	-32847293	-12.12	1.123	1970-01-01	2010-02-01 12:10:11	e	gc	sgje	rjyjh	rsdjyjh	sjglkjrlgjlw	arjglkjaglkalkgjwgjlkewrgjlwk	j	jd	ryui	fhggc	gjglkjskglsj	fkasljklsajflkjsalkjflksajflkjasfd	ksajflkjlksajflkjsalfkjslakjfwkljfwekljfwlkjgfwlgjlkrjglksjgpwojkgpagjwg
+1	2	32000	214748364	-92233720	-6	-9999	99999	0.12	-394872	-238974293732	23.23	120.123	2000-10-10	2020-03-04 02:01:01	j	ui	jtyrf	rryui	sdsaffa	sjglkjrlgjlw	wiujfwjfglkajmngfksjgfwalkjglsaglsa	d	nj	sgje	jdgrd	sjglkjrlgjlw	fkasljklsajflkjsalkjflksajflkjasfd	jlkgjalkgjnvlkanlkvnmlkawgjklajgpwerjgpwesklgjflskjglw
+drop table cache1, cache2, cache_inno1, cache_inno2;

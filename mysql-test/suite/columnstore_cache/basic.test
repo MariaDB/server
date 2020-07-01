@@ -10,7 +10,7 @@ select * from information_schema.engines where engine="columnstore_cache";
 --error ER_CHECK_NOT_IMPLEMENTED
 create table t1 (a int, b varchar(10)) engine=columnstore_cache;
 
-create table t1 (a int not null, b varchar(10) not null) engine=columnstore_cache;
+create table t1 (a int not null, b varchar(15) not null) engine=columnstore_cache;
 select * from t1;
 insert into t1 values(1,"hello");
 insert into t1 values(2,"world"),(3,"!");
@@ -37,7 +37,5 @@ insert into t1 select * from t2;
 insert into t1 select * from t3;
 select count(*), sum(a) from t1;
 insert into t1 select * from t1 as t4;
-# This is required by CVS.
-flush tables;
 select count(*), sum(a) from t1;
 drop table t1,t2,t3;

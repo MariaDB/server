@@ -67,10 +67,27 @@
 #define CACHE_PREFIX "#cache#"
 
 static handlerton *derived_hton;
-static my_bool (*original_get_status)(void*, my_bool);
 
 my_bool get_status_and_flush_cache(void *param,
                                    my_bool concurrent_insert);
+
+/*
+  These needs to be setup to point to the lock function for the table
+  handler that should be cached.
+
+  The purpose of extern_get_status() is to ensure that all commited
+  data in the cached table is visible for the inserted rows.
+  The purpose of extern_update_status() is to ensure that all rows
+  in the cached table will be visible for this transaction.
+
+  See flush_insert_cache() for how these are used.
+*/
+
+extern "C"
+{
+  my_bool (*extern_get_status)(void *param, my_bool concurrent_insert);
+  void (*extern_update_status)(void *param);
+}
 
 /*
   Create a name for the cache table
@@ -87,7 +104,9 @@ static void create_cache_name(char *to, const char *name)
  THR_LOCK wrapper functions
 
   The idea of these is to highjack 'THR_LOCK->get_status() so that if this
-  is called in a non-insert context then we will flush the cache
+  is called in a non-insert context then we will flush the cache.
+  We also hijack THR_LOCK->start_trans() to free any locks on the cache
+  if the command was not a read command.
 *****************************************************************************/
 
 /*
@@ -101,14 +120,14 @@ my_bool get_status_and_flush_cache(void *param,
   ha_cache *cache= (ha_cache*) param;
   int error;
   enum_sql_command sql_command= cache->table->in_use->lex->sql_command;
-  cache->insert_command= (sql_command == SQLCOM_INSERT &&
+  cache->insert_command= (sql_command == SQLCOM_INSERT ||
                           sql_command == SQLCOM_LOAD);
   /*
     Call first the original Aria get_status function
     All Aria get_status functions takes Maria handler as the parameter
   */
   if (cache->share->org_lock.get_status)
-    (*cache->share->org_lock.get_status)(&cache->cache_handler->file,
+    (*cache->share->org_lock.get_status)(cache->cache_handler->file,
                                          concurrent_insert);
 
   /* If first get_status() call for this table, flush cache if needed */
@@ -125,19 +144,27 @@ my_bool get_status_and_flush_cache(void *param,
       }
     }
   }
-  if (!cache->insert_command)
-    cache->free_locks();
-
   return (0);
 }
 
-/* Pass through functions for all the THR_LOCK virtual functions */
+/*
+  start_trans() is called when all locks has been given
+  If this was not an insert command then we can free the write lock on
+  the cache table and also downgrade external lock for the cached table
+  to F_READ
+*/
 
-static my_bool cache_start_trans(void* param)
+my_bool cache_start_trans(void* param)
 {
   ha_cache *cache= (ha_cache*) param;
+  if (!cache->insert_command)
+    cache->free_locks();
+
   return (*cache->share->org_lock.start_trans)(cache->cache_handler->file);
 }
+
+
+/* Pass through functions for all the THR_LOCK virtual functions */
 
 static void cache_copy_status(void* to, void *from)
 {
@@ -188,6 +215,7 @@ ha_cache_share *find_cache_share(const char *name)
   {
     if (!strcmp(pos->name, name))
     {
+      pos->open_count++;
       mysql_mutex_unlock(&LOCK_cache_share);
       return(pos);
     }
@@ -362,7 +390,7 @@ uint ha_cache::lock_count(void) const
 {
   /*
     If we are doing an insert or if we want to flush the cache, we have to lock
-    both MyISAM table and normal table.
+    both the Aria table and normal table.
   */
   return 2;
 }
@@ -375,8 +403,15 @@ THR_LOCK_DATA **ha_cache::store_lock(THD *thd,
                                      THR_LOCK_DATA **to,
                                      enum thr_lock_type lock_type)
 {
+  THR_LOCK_DATA **tmp, **res;
   to= cache_handler->store_lock(thd, to, TL_WRITE);
-  return parent::store_lock(thd, to, lock_type);
+  tmp= to;
+  res= parent::store_lock(thd, to, lock_type);
+
+  /* Store pointers to extern lock functions used in flush_insert_cache() */
+  extern_get_status=    (*tmp)->lock->get_status;
+  extern_update_status= (*tmp)->lock->update_status;
+  return res;
 }
 
 
@@ -630,8 +665,6 @@ bool ha_cache::rows_cached()
 void ha_cache::free_locks()
 {
   /* We don't need to lock cache_handler anymore as it's already flushed */
-
-  mysql_mutex_unlock(&cache_handler->file->lock.lock->mutex);
   thr_unlock(&cache_handler->file->lock, 0);
 
   /* Restart transaction for columnstore table */
@@ -640,10 +673,8 @@ void ha_cache::free_locks()
     parent::external_lock(table->in_use, F_UNLCK);
     parent::external_lock(table->in_use, original_lock_type);
   }
-
-  /* Needed as we are going back to end of thr_lock() */
-  mysql_mutex_lock(&cache_handler->file->lock.lock->mutex);
 }
+
 
 /**
    Copy data from cache to ColumnStore
@@ -660,6 +691,8 @@ int ha_cache::flush_insert_cache()
   uchar *record= to->table->record[0];
   DBUG_ENTER("flush_insert_cache");
 
+  if (extern_get_status)
+    extern_get_status(to, 0);
   to->start_bulk_insert(from->file->state->records, 0);
   from->rnd_init(1);
   while (!(error= from->rnd_next(record)))
@@ -674,6 +707,8 @@ end:
   from->rnd_end();
   if ((error2= to->end_bulk_insert()) && !error)
     error= error2;
+  if (extern_update_status)
+    extern_update_status(to);
 
   if (!error)
   {
@@ -694,12 +729,6 @@ end:
       to use it.
     */
     from->delete_all_rows();
-
-    /*
-      This was not an insert command, so we can delete the thr lock
-      (We are not going to use the insert cache for this statement anymore)
-    */
-    free_locks();
   }
   DBUG_RETURN(error);
 }
