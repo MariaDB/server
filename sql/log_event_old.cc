@@ -31,6 +31,9 @@
 #include "log_event_old.h"
 #include "rpl_record_old.h"
 #include "transaction.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif /* WITH_WSREP */
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 
@@ -1507,7 +1510,10 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
       TIMESTAMP column to a table with one.
       So we call set_time(), like in SBR. Presently it changes nothing.
     */
-    thd->set_time(when, when_sec_part);
+#ifdef WITH_WSREP
+    if (!wsrep_thd_is_applying(thd))
+#endif
+      thd->set_time(when, when_sec_part);
     /*
       There are a few flags that are replicated with each row event.
       Make sure to set/clear them before executing the main body of

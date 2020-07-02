@@ -17,7 +17,7 @@ a
 select count(*) from mysql.transaction_registry where begin_timestamp='0-0-0';
 count(*)
 0
-select count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
+select count(*) from mysql.transaction_registry where begin_timestamp>commit_timestamp;
 count(*)
 0
 connection node_3;
@@ -34,7 +34,7 @@ a
 select count(*) from mysql.transaction_registry where begin_timestamp='0-0-0';
 count(*)
 0
-select count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
+select count(*) from mysql.transaction_registry where begin_timestamp>commit_timestamp;
 count(*)
 0
 connection node_1;
@@ -50,7 +50,7 @@ a
 select count(*) from mysql.transaction_registry where begin_timestamp='0-0-0';
 count(*)
 0
-select count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
+select count(*) from mysql.transaction_registry where begin_timestamp>commit_timestamp;
 count(*)
 0
 drop table t1;

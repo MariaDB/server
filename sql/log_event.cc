@@ -5554,7 +5554,10 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   */
   if (is_trans_keyword() || rpl_filter->db_ok(thd->db.str))
   {
-    thd->set_time(when, when_sec_part);
+#ifdef WITH_WSREP
+    if (!wsrep_thd_is_applying(thd))
+#endif
+      thd->set_time(when, when_sec_part);
     thd->set_query_and_id((char*)query_arg, q_len_arg,
                           thd->charset(), next_query_id());
     thd->variables.pseudo_thread_id= thread_id;		// for temp tables
@@ -7433,7 +7436,10 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   */
   if (rpl_filter->db_ok(thd->db.str))
   {
-    thd->set_time(when, when_sec_part);
+#ifdef WITH_WSREP
+    if (!wsrep_thd_is_applying(thd))
+#endif
+      thd->set_time(when, when_sec_part);
     thd->set_query_id(next_query_id());
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
 
@@ -11629,7 +11635,10 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       TIMESTAMP column to a table with one.
       So we call set_time(), like in SBR. Presently it changes nothing.
     */
-    thd->set_time(when, when_sec_part);
+#ifdef WITH_WSREP
+    if (!wsrep_thd_is_applying(thd))
+#endif
+      thd->set_time(when, when_sec_part);
 
      if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
