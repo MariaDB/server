@@ -3610,7 +3610,11 @@ public:
   bool is_bulk_op() const { return MY_TEST(bulk_param); }
 
   /// Returns Diagnostics-area for the current statement.
-  Diagnostics_area *get_stmt_da() const
+  Diagnostics_area *get_stmt_da()
+  { return m_stmt_da; }
+
+  /// Returns Diagnostics-area for the current statement.
+  const Diagnostics_area *get_stmt_da() const
   { return m_stmt_da; }
 
   /// Sets Diagnostics-area for the current statement.

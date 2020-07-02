@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5088,16 +5088,16 @@ bool store_schema_shemata(THD* thd, TABLE *table, LEX_STRING *db_name,
 */
 static bool verify_database_directory_exists(const LEX_STRING &dbname)
 {
-  DBUG_ENTER("verity_database_exists");
+  DBUG_ENTER("verify_database_directory_exists");
   char path[FN_REFLEN + 16];
   uint path_len;
   MY_STAT stat_info;
   if (!dbname.str[0])
-    DBUG_RETURN(true); // Empty database name: does not exits.
+    DBUG_RETURN(true); // Empty database name: does not exist.
   path_len= build_table_filename(path, sizeof(path) - 1, dbname.str, "", "", 0);
   path[path_len - 1]= 0;
   if (!mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
-    DBUG_RETURN(true); // The database directory was not found: does not exists.
+    DBUG_RETURN(true); // The database directory was not found: does not exist.
   DBUG_RETURN(false);  // The database directory was found.
 }
 
