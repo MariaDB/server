@@ -330,8 +330,8 @@ drop table t1,t3;
 --echo # String* Field_varstring::val_str(String*, String*)
 --echo #
 
-SET optimizer_switch = REPLACE( @@optimizer_switch, '=on', '=off' );
-SET optimizer_switch='in_to_exists=on,exists_to_in=on';
+SET optimizer_switch = REPLACE(REPLACE(@@optimizer_switch, '=on', '=off'), 'in_to_exists=off', 'in_to_exists=on');
+SET optimizer_switch='exists_to_in=on';
 
 CREATE TABLE t1 ( a VARCHAR(1) );
 INSERT INTO t1 VALUES ('k'),('m');
@@ -466,8 +466,8 @@ explain extended
 SELECT * FROM t1 AS alias
 WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
 
-SET optimizer_switch = REPLACE( @@optimizer_switch, '=on', '=off' );
-SET optimizer_switch = 'exists_to_in=on,materialization=on,semijoin=off';
+SET optimizer_switch = REPLACE(REPLACE(@@optimizer_switch, '=on', '=off'), 'materialization=off', 'materialization=on');
+SET optimizer_switch = 'exists_to_in=on,semijoin=off';
 SELECT * FROM t1 AS alias
 WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
 explain extended
