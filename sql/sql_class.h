@@ -3408,7 +3408,11 @@ public:
   inline bool is_error() const { return m_stmt_da->is_error(); }
 
   /// Returns Diagnostics-area for the current statement.
-  Diagnostics_area *get_stmt_da() const
+  Diagnostics_area *get_stmt_da()
+  { return m_stmt_da; }
+
+  /// Returns Diagnostics-area for the current statement.
+  const Diagnostics_area *get_stmt_da() const
   { return m_stmt_da; }
 
   /// Sets Diagnostics-area for the current statement.
