@@ -4161,10 +4161,20 @@ struct	Check {
 		Check	check;
 		ut_list_validate(space->chain, check);
 		ut_a(space->size == check.size);
-		ut_ad(space->id != TRX_SYS_SPACE
-		      || space == fil_system.sys_space);
-		ut_ad(space->id != SRV_TMP_SPACE_ID
-		      || space == fil_system.temp_space);
+
+		switch (space->id) {
+		case TRX_SYS_SPACE:
+			ut_ad(fil_system.sys_space == NULL
+			      || fil_system.sys_space == space);
+			break;
+		case SRV_TMP_SPACE_ID:
+			ut_ad(fil_system.temp_space == NULL
+			      || fil_system.temp_space == space);
+			break;
+		default:
+			break;
+		}
+
 		return(check.n_open);
 	}
 };
@@ -4174,24 +4184,15 @@ Checks the consistency of the tablespace cache.
 @return true if ok */
 bool fil_validate()
 {
-	fil_space_t*	space;
 	fil_node_t*	fil_node;
 	ulint		n_open		= 0;
 
 	mutex_enter(&fil_system.mutex);
 
-	/* Look for spaces in the hash table */
-
-	for (ulint i = 0; i < fil_system.spaces.n_cells; i++) {
-
-		for (space = static_cast<fil_space_t*>(
-				HASH_GET_FIRST(&fil_system.spaces, i));
-		     space != 0;
-		     space = static_cast<fil_space_t*>(
-				HASH_GET_NEXT(hash, space))) {
-
-			n_open += Check::validate(space);
-		}
+	for (fil_space_t *space = UT_LIST_GET_FIRST(fil_system.space_list);
+	     space != NULL;
+	     space = UT_LIST_GET_NEXT(space_list, space)) {
+		n_open += Check::validate(space);
 	}
 
 	ut_a(fil_system.n_open == n_open);

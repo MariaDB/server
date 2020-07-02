@@ -1,0 +1,50 @@
+CREATE TABLE t1 (pk INT PRIMARY KEY, node INT) ENGINE=innodb;
+INSERT INTO t1 VALUES (1, 1);
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+INSERT INTO t1 VALUES (2, 3);
+SET wsrep_sync_wait = 0;
+SET wsrep_on = OFF;
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_shift_to_joining';
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+INSERT INTO t1 VALUES (3, 2);
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 0;
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+INSERT INTO t1 VALUES (4, 3);
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+INSERT INTO t1 VALUES (5, 2);
+SET GLOBAL wsrep_provider_options = 'dbug=d,before_send_state_request';
+SET GLOBAL wsrep_provider_options = 'signal=after_shift_to_joining';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=before_send_state_request';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 0;
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters';
+VARIABLE_NAME	VARIABLE_VALUE
+WSREP_DEBUG_SYNC_WAITERS	after_shift_to_joining
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+INSERT INTO t1 VALUES (6, 3);
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+INSERT INTO t1 VALUES (7, 2);
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+INSERT INTO t1 VALUES (8, 3);
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+SET GLOBAL wsrep_provider_options = 'dbug=d,process_primary_configuration';
+SET GLOBAL wsrep_provider_options = 'signal=after_shift_to_joining';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 0;
+INSERT INTO t1 VALUES (9, 2);
+SET GLOBAL wsrep_provider_options = 'signal=process_primary_configuration';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 0;
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters';
+VARIABLE_NAME	VARIABLE_VALUE
+WSREP_DEBUG_SYNC_WAITERS	process_primary_configuration
+SET GLOBAL wsrep_provider_options = 'signal=process_primary_configuration';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+DROP TABLE t1;
+call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");

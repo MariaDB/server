@@ -982,9 +982,12 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
   }
 
   bool is_select= false;
+  bool use_sysvar= false;
   switch (thd->lex->sql_command)
   {
   case SQLCOM_SELECT:
+    use_sysvar= true;
+    /* fall through */
   case SQLCOM_INSERT_SELECT:
   case SQLCOM_REPLACE_SELECT:
   case SQLCOM_DELETE_MULTI:
@@ -1028,7 +1031,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     }
 
     // propagate system_time from sysvar
-    if (!vers_conditions.is_set() && is_select)
+    if (!vers_conditions.is_set() && use_sysvar)
     {
       if (vers_conditions.init_from_sysvar(thd))
         DBUG_RETURN(-1);
@@ -6942,6 +6945,7 @@ void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array)
       uint n_tables= my_count_bits(map);
       if (n_tables == 1)			// Only one table
       {
+        DBUG_ASSERT(!(map & PSEUDO_TABLE_BITS)); // Must be a real table
         Table_map_iterator it(map);
         int tablenr= it.next_bit();
         DBUG_ASSERT(tablenr != Table_map_iterator::BITMAP_END);
@@ -16610,10 +16614,15 @@ static uint build_bitmap_for_nested_joins(List<TABLE_LIST> *join_list,
 
 
 /**
-  Set NESTED_JOIN::counter=0 in all nested joins in passed list.
+  Set NESTED_JOIN::counter and n_tables in all nested joins in passed list.
 
-    Recursively set NESTED_JOIN::counter=0 for all nested joins contained in
-    the passed join_list.
+  For all nested joins contained in the passed join_list (including its
+  children), set:
+   - nested_join->counter=0
+   - nested_join->n_tables= {number of non-degenerate direct children}.
+
+  Non-degenerate means non-const base table or a join nest that has a
+  non-degenerate child.
 
   @param join_list  List of nested joins to process. It may also contain base
                     tables which will be ignored.
@@ -16636,8 +16645,11 @@ static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list)
       if (!nested_join->n_tables)
         is_eliminated_nest= TRUE;
     }
-    if ((table->nested_join && !is_eliminated_nest) || 
-        (!table->nested_join && (table->table->map & ~join->eliminated_tables)))
+    const table_map removed_tables= join->eliminated_tables |
+                                    join->const_table_map;
+
+    if ((table->nested_join && !is_eliminated_nest) ||
+        (!table->nested_join && (table->table->map & ~removed_tables)))
       n++;
   }
   DBUG_RETURN(n);
@@ -27062,13 +27074,18 @@ int JOIN::save_explain_data_intern(Explain_query *output,
     output->add_node(xpl_sel);
   }
 
-  for (SELECT_LEX_UNIT *tmp_unit= join->select_lex->first_inner_unit();
-       tmp_unit;
-       tmp_unit= tmp_unit->next_unit())
-  {
-    if (tmp_unit->explainable())
-      explain->add_child(tmp_unit->first_select()->select_number);
-  }
+  /*
+    Don't try to add query plans for child selects if this select was pushed
+    down into a Smart Storage Engine:
+    - the entire statement was pushed down ("PUSHED SELECT"), or
+    - this derived table was pushed down ("PUSHED DERIVED")
+  */
+  if (!select_lex->pushdown_select && select_lex->type != pushed_derived_text)
+    for (SELECT_LEX_UNIT *tmp_unit= join->select_lex->first_inner_unit();
+         tmp_unit;
+         tmp_unit= tmp_unit->next_unit())
+      if (tmp_unit->explainable())
+        explain->add_child(tmp_unit->first_select()->select_number);
 
   if (select_lex->is_top_level_node())
     output->query_plan_ready();
@@ -27099,7 +27116,16 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
   THD *thd=join->thd;
   select_result *result=join->result;
   DBUG_ENTER("select_describe");
-  
+
+  if (join->select_lex->pushdown_select)
+  {
+    /*
+      The whole statement was pushed down to a Smart Storage Engine. Do not
+      attempt to produce a query plan locally.
+    */
+    DBUG_VOID_RETURN;
+  }
+
   /* Update the QPF with latest values of using_temporary, using_filesort */
   for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
        unit;

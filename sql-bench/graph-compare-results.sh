@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 ####
 #### Hello ... this is a heavily hacked script by Luuk 
 #### instead of printing the result it makes a nice gif

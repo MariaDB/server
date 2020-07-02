@@ -7,7 +7,6 @@
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --unknown-option=xxx --target-dir=$targetdir;
 --error 2
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --unknown-option --target-dir=$targetdir;
---enable_result_log
 
 --echo # Check for unknown options in "mariabackup" group
 --write_file $custom_cnf
@@ -62,3 +61,9 @@ EOF
 exec $XTRABACKUP --defaults-file=$custom_cnf --backup --target-dir=$targetdir;
 --remove_file $custom_cnf
 --rmdir $targetdir
+
+--echo # Check if --help presents
+exec $XTRABACKUP --help;
+exec $XTRABACKUP -?;
+--enable_result_log
+

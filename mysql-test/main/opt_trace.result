@@ -108,6 +108,7 @@ select * from v1	{
                 "selectivity_for_columns": [
                   {
                     "column_name": "a",
+                    "ranges": ["1 <= a <= 1"],
                     "selectivity_from_histogram": 0.5
                   }
                 ],
@@ -253,6 +254,7 @@ select * from (select * from t1 where t1.a=1)q	{
                 "selectivity_for_columns": [
                   {
                     "column_name": "a",
+                    "ranges": ["1 <= a <= 1"],
                     "selectivity_from_histogram": 0.5
                   }
                 ],
@@ -403,6 +405,7 @@ select * from v2	{
                       "selectivity_for_columns": [
                         {
                           "column_name": "a",
+                          "ranges": ["1 <= a <= 1"],
                           "selectivity_from_histogram": 0.5
                         }
                       ],
@@ -2059,10 +2062,12 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "selectivity_for_columns": [
                   {
                     "column_name": "a",
+                    "ranges": ["1 <= a <= 1"],
                     "selectivity_from_histogram": 0.1796875
                   },
                   {
                     "column_name": "b",
+                    "ranges": ["2 <= b <= 2"],
                     "selectivity_from_histogram": 0.015625
                   }
                 ],
@@ -3277,10 +3282,12 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                 "selectivity_for_columns": [
                   {
                     "column_name": "a",
+                    "ranges": ["5 <= a <= 5"],
                     "selectivity_from_histogram": 0.1
                   },
                   {
                     "column_name": "b",
+                    "ranges": ["1 <= b <= 1"],
                     "selectivity_from_histogram": 0.1
                   }
                 ],
@@ -8431,6 +8438,122 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
     ]
 ]
 DROP TABLE t1,t2;
+#
+# MDEV-22665: Print ranges in the optimizer trace created for non-indexed columns when
+# optimizer_use_condition_selectivity >2
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+SET optimizer_trace=1;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN EXTENDED SELECT * from t1 WHERE a between 1 and 5 and b <= 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	0.22	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` between 1 and 5 and `test`.`t1`.`b` <= 5
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns'))
+[
+    
+    [
+        
+        {
+            "column_name": "a",
+            "ranges": 
+            [
+                "1 <= a <= 5"
+            ],
+            "selectivity_from_histogram": 0.046875
+        },
+        
+        {
+            "column_name": "b",
+            "ranges": 
+            [
+                "NULL < b <= 5"
+            ],
+            "selectivity_from_histogram": 0.046875
+        }
+    ]
+]
+EXPLAIN EXTENDED SELECT * from t1 WHERE a != 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` <> 5
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns'))
+[
+    
+    [
+        
+        {
+            "column_name": "a",
+            "ranges": 
+            [
+                "NULL < a < 5",
+                "5 < a"
+            ],
+            "selectivity_from_histogram": 1
+        }
+    ]
+]
+EXPLAIN EXTENDED SELECT * from t1 WHERE b >= 10 and b < 25;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	15.62	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` >= 10 and `test`.`t1`.`b` < 25
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns'))
+[
+    
+    [
+        
+        {
+            "column_name": "b",
+            "ranges": 
+            [
+                "10 <= b < 25"
+            ],
+            "selectivity_from_histogram": 0.15625
+        }
+    ]
+]
+drop table t1;
+#
+# MDEV-22910:SIGSEGV in Opt_trace_context::is_started & SIGSEGV in Json_writer::add_table_name
+# (on optimized builds)
+#
+CREATE TABLE t1( a INT, b INT, PRIMARY KEY( a ) );
+SELECT sum(b), row_number() OVER (order by b) FROM t1 WHERE a = 101;
+sum(b)	row_number() OVER (order by b)
+NULL	1
+UPDATE t1 SET b=10 WHERE a=1;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
+[
+    
+    [
+        
+        {
+            "index": "PRIMARY",
+            "ranges": 
+            [
+                "(1) <= (a) <= (1)"
+            ],
+            "rowid_ordered": true,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 0,
+            "cost": 0.145,
+            "chosen": true
+        }
+    ]
+]
+DROP TABLE t1;
 # End of 10.4 tests
 #
 # Test many rows to see output of big cost numbers

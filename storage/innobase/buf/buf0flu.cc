@@ -375,7 +375,7 @@ void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 
 	mutex_enter(&buf_pool.flush_list_mutex);
 	block->page.set_oldest_modification(lsn);
-	UNIV_MEM_ASSERT_RW(block->page.zip.data
+	MEM_CHECK_DEFINED(block->page.zip.data
 			   ? block->page.zip.data : block->frame,
 			   block->physical_size());
 	incr_flush_list_size_in_bytes(block);

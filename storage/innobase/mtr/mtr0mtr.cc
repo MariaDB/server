@@ -354,8 +354,10 @@ struct mtr_write_log_t {
 /** Start a mini-transaction. */
 void mtr_t::start()
 {
-  UNIV_MEM_INVALID(this, sizeof *this);
-  UNIV_MEM_VALID(&m_freed_pages, sizeof(m_freed_pages));
+#ifdef HAVE_valgrind_or_MSAN
+  MEM_UNDEFINED(this, sizeof *this);
+  MEM_MAKE_DEFINED(&m_freed_pages, sizeof(m_freed_pages));
+#endif /* HAVE_valgrind_or_MSAN */
 
   ut_d(m_start= true);
   ut_d(m_commit= false);

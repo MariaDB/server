@@ -1656,7 +1656,6 @@ btr_search_build_page_hash_index(
 		for (ulint i = 0; i < n_cached; i++) {
 			ha_insert_for_fold(&part->table, part->heap,
 					   folds[i], block, recs[i]);
-			MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
 		}
 	}
 

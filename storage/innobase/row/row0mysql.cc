@@ -294,9 +294,7 @@ row_mysql_store_geometry(
 {
 	/* MySQL might assume the field is set to zero except the length and
 	the pointer fields */
-	UNIV_MEM_ASSERT_RW(src, src_len);
-	UNIV_MEM_ASSERT_W(dest, dest_len);
-	UNIV_MEM_INVALID(dest, dest_len);
+	MEM_CHECK_DEFINED(src, src_len);
 
 	memset(dest, '\0', dest_len);
 

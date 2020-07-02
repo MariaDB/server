@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2011, 2012, Monty Program Ab
+   Copyright (c) 2011, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -148,7 +148,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
   {
     /*
       There are rare cases where service config does not have
-      --defaults-file in the binary parth . There services were
+      --defaults-file in the binary path . There services were
       registered with plain mysqld --install, the data directory is
       next to "bin" in this case.
     */
@@ -209,7 +209,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
     }
   }
 
-  if(!have_inifile)
+  if(!have_inifile || props->datadir[0] == 0)
   {
     /*
       Hard, although a rare case, we're guessing datadir and defaults-file.
@@ -233,22 +233,25 @@ int get_mysql_service_properties(const wchar_t *bin_path,
       *p= 0;
     }
 
-    /* Look for my.ini, my.cnf in the install root */
-    sprintf_s(props->inifile, MAX_PATH, "%s\\my.ini", install_root);
-    if (GetFileAttributes(props->inifile) == INVALID_FILE_ATTRIBUTES)
+    if (!have_inifile)
     {
-      sprintf_s(props->inifile, MAX_PATH, "%s\\my.cnf", install_root);
-    }
-    if (GetFileAttributes(props->inifile) != INVALID_FILE_ATTRIBUTES)
-    {
-      /* Ini file found, get datadir from there */
-      GetPrivateProfileString("mysqld", "datadir", NULL, props->datadir,
-        MAX_PATH, props->inifile);
-    }
-    else
-    {
-      /* No ini file */
-      props->inifile[0]= 0;
+      /* Look for my.ini, my.cnf in the install root */
+      sprintf_s(props->inifile, MAX_PATH, "%s\\my.ini", install_root);
+      if (GetFileAttributes(props->inifile) == INVALID_FILE_ATTRIBUTES)
+      {
+        sprintf_s(props->inifile, MAX_PATH, "%s\\my.cnf", install_root);
+      }
+      if (GetFileAttributes(props->inifile) != INVALID_FILE_ATTRIBUTES)
+      {
+        /* Ini file found, get datadir from there */
+        GetPrivateProfileString("mysqld", "datadir", NULL, props->datadir,
+                                MAX_PATH, props->inifile);
+      }
+      else
+      {
+        /* No ini file */
+        props->inifile[0]= 0;
+      }
     }
 
     /* Try datadir in install directory.*/

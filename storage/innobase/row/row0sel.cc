@@ -974,9 +974,11 @@ row_sel_get_clust_rec(
 		switch (err) {
 		case DB_SUCCESS:
 		case DB_SUCCESS_LOCKED_REC:
-			/* Declare the variable uninitialized in Valgrind.
+#ifdef HAVE_valgrind_or_MSAN
+			/* Declare the variable uninitialized.
 			It should be set to DB_SUCCESS at func_exit. */
-			UNIV_MEM_INVALID(&err, sizeof err);
+			MEM_UNDEFINED(&err, sizeof err);
+#endif /* HAVE_valgrind_or_MSAN */
 			break;
 		default:
 			goto err_exit;
@@ -2682,9 +2684,11 @@ row_sel_field_store_in_mysql_format_func(
 #endif /* UNIV_DEBUG */
 
 	ut_ad(len != UNIV_SQL_NULL);
-	UNIV_MEM_ASSERT_RW(data, len);
-	UNIV_MEM_ASSERT_W(dest, templ->mysql_col_len);
-	UNIV_MEM_INVALID(dest, templ->mysql_col_len);
+	MEM_CHECK_DEFINED(data, len);
+	MEM_CHECK_ADDRESSABLE(dest, templ->mysql_col_len);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(dest, templ->mysql_col_len);
+#endif /* HAVE_valgrind_or_MSAN */
 
 	byte* pad = dest + len;
 
@@ -2932,9 +2936,9 @@ row_sel_store_mysql_field(
 			NULL value is set to the default value. */
 			ut_ad(templ->mysql_null_bit_mask);
 
-			UNIV_MEM_ASSERT_RW(prebuilt->default_rec
-					   + templ->mysql_col_offset,
-					   templ->mysql_col_len);
+			MEM_CHECK_DEFINED(prebuilt->default_rec
+					  + templ->mysql_col_offset,
+					  templ->mysql_col_len);
 #if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
@@ -3601,7 +3605,7 @@ row_sel_copy_cached_field_for_mysql(
 	buf += templ->mysql_col_offset;
 	cache += templ->mysql_col_offset;
 
-	UNIV_MEM_ASSERT_W(buf, templ->mysql_col_len);
+	MEM_CHECK_ADDRESSABLE(buf, templ->mysql_col_len);
 
 	if (templ->mysql_type == DATA_MYSQL_TRUE_VARCHAR
 	    && (templ->type != DATA_INT)) {
@@ -3611,7 +3615,9 @@ row_sel_copy_cached_field_for_mysql(
 		row_mysql_read_true_varchar(
 			&len, cache, templ->mysql_length_bytes);
 		len += templ->mysql_length_bytes;
-		UNIV_MEM_INVALID(buf, templ->mysql_col_len);
+#ifdef HAVE_valgrind_or_MSAN
+		MEM_UNDEFINED(buf, templ->mysql_col_len);
+#endif /* HAVE_valgrind_or_MSAN */
 	} else {
 		len = templ->mysql_col_len;
 	}
@@ -3677,7 +3683,7 @@ row_sel_dequeue_cached_row_for_mysql(
 	ut_ad(prebuilt->n_fetch_cached > 0);
 	ut_ad(prebuilt->mysql_prefix_len <= prebuilt->mysql_row_len);
 
-	UNIV_MEM_ASSERT_W(buf, prebuilt->mysql_row_len);
+	MEM_CHECK_ADDRESSABLE(buf, prebuilt->mysql_row_len);
 
 	cached_rec = prebuilt->fetch_cache[prebuilt->fetch_cache_first];
 
@@ -3687,7 +3693,9 @@ row_sel_dequeue_cached_row_for_mysql(
 		/* The record is long. Copy it field by field, in case
 		there are some long VARCHAR column of which only a
 		small length is being used. */
-		UNIV_MEM_INVALID(buf, prebuilt->mysql_prefix_len);
+#ifdef HAVE_valgrind_or_MSAN
+		MEM_UNDEFINED(buf, prebuilt->mysql_prefix_len);
+#endif /* HAVE_valgrind_or_MSAN */
 
 		/* First copy the NULL bits. */
 		memcpy(buf, cached_rec, prebuilt->null_bitmap_len);
@@ -3771,8 +3779,10 @@ row_sel_fetch_last_buf(
 	}
 
 	ut_ad(prebuilt->fetch_cache_first == 0);
-	UNIV_MEM_INVALID(prebuilt->fetch_cache[prebuilt->n_fetch_cached],
-			 prebuilt->mysql_row_len);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(prebuilt->fetch_cache[prebuilt->n_fetch_cached],
+		      prebuilt->mysql_row_len);
+#endif /* HAVE_valgrind_or_MSAN */
 
 	return(prebuilt->fetch_cache[prebuilt->n_fetch_cached]);
 }

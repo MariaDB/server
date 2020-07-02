@@ -888,7 +888,7 @@ loop:
 			goto func_exit;
 		}
 
-		UNIV_MEM_INVALID(block[t_ctx.buf_used], srv_sort_buf_size);
+		MEM_UNDEFINED(block[t_ctx.buf_used], srv_sort_buf_size);
 		buf[t_ctx.buf_used] = row_merge_buf_empty(buf[t_ctx.buf_used]);
 		mycount[t_ctx.buf_used] += t_ctx.rows_added[t_ctx.buf_used];
 		t_ctx.rows_added[t_ctx.buf_used] = 0;
@@ -982,12 +982,14 @@ exit:
 					goto func_exit;
 				}
 
-				UNIV_MEM_INVALID(block[i], srv_sort_buf_size);
+#ifdef HAVE_valgrind_or_MSAN
+				MEM_UNDEFINED(block[i], srv_sort_buf_size);
 
 				if (crypt_block[i]) {
-					UNIV_MEM_INVALID(crypt_block[i],
-							 srv_sort_buf_size);
+					MEM_UNDEFINED(crypt_block[i],
+						      srv_sort_buf_size);
 				}
+#endif /* HAVE_valgrind_or_MSAN */
 			}
 
 			buf[i] = row_merge_buf_empty(buf[i]);

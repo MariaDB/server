@@ -853,6 +853,8 @@ static bool insert_params_with_log(Prepared_statement *stmt, uchar *null_array,
 
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
+
+    param->sync_clones();
   }
   if (acc.finalize())
     DBUG_RETURN(1);
@@ -3130,7 +3132,10 @@ static void reset_stmt_params(Prepared_statement *stmt)
   Item_param **item= stmt->param_array;
   Item_param **end= item + stmt->param_count;
   for (;item < end ; ++item)
+  {
     (**item).reset();
+    (**item).sync_clones();
+  }
 }
 
 

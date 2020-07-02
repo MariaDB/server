@@ -1295,8 +1295,6 @@ static
 void
 buf_block_init(buf_block_t* block, byte* frame)
 {
-	UNIV_MEM_DESC(frame, srv_page_size);
-
 	/* This function should only be executed at database startup or by
 	buf_pool.resize(). Either way, adaptive hash index must not exist. */
 	assert_block_ahi_empty_on_init(block);
@@ -1412,7 +1410,7 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
 
   for (auto i= size; i--; ) {
     buf_block_init(block, frame);
-    UNIV_MEM_INVALID(block->frame, srv_page_size);
+    MEM_UNDEFINED(block->frame, srv_page_size);
     /* Add the block to the free list */
     UT_LIST_ADD_LAST(buf_pool.free, &block->page);
 
@@ -1704,8 +1702,6 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 		if (block->page.zip.data != NULL) {
 			ut_ad(block->in_unzip_LRU_list);
 			ut_d(new_block->in_unzip_LRU_list = true);
-			UNIV_MEM_DESC(&new_block->page.zip.data,
-				      page_zip_get_size(&new_block->page.zip));
 
 			buf_block_t*	prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
 			UT_LIST_REMOVE(unzip_LRU, block);
@@ -1740,7 +1736,9 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 			      "not perfect alignment");
 		memset_aligned<2>(block->frame
 				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
-		UNIV_MEM_INVALID(block->frame, srv_page_size);
+#ifdef HAVE_valgrind_or_MSAN
+		MEM_UNDEFINED(block->frame, srv_page_size);
+#endif /* HAVE_valgrind_or_MSAN */
 		block->page.set_state(BUF_BLOCK_REMOVE_HASH);
 
 		/* Relocate flush_list. */
@@ -3366,9 +3364,6 @@ evict_from_pool:
 		block->lock_hash_val = lock_rec_hash(page_id.space(),
 						     page_id.page_no());
 
-		UNIV_MEM_DESC(&block->page.zip.data,
-			      page_zip_get_size(&block->page.zip));
-
 		if (!block->page.oldest_modification()) {
 			ut_d(UT_LIST_REMOVE(buf_pool.zip_clean, &block->page));
 		} else {
@@ -3387,7 +3382,9 @@ evict_from_pool:
 		block->page.set_io_fix(BUF_IO_READ);
 		rw_lock_x_lock_inline(&block->lock, 0, file, line);
 
-		UNIV_MEM_INVALID(bpage, sizeof *bpage);
+#ifdef HAVE_valgrind_or_MSAN
+		MEM_UNDEFINED(bpage, sizeof *bpage);
+#endif /* HAVE_valgrind_or_MSAN */
 
 		mutex_exit(&buf_pool.mutex);
 		hash_lock->write_unlock();

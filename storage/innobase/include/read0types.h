@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -290,7 +290,7 @@ public:
     MEM_UNDEFINED(&m_mutex, sizeof m_mutex);
 #endif
 #ifdef HAVE_valgrind
-    UNIV_MEM_VALID(&m_mutex, sizeof m_mutex);
+    MEM_MAKE_VALID(&m_mutex, sizeof m_mutex);
 #endif
   }
 };

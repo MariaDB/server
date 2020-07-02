@@ -626,7 +626,7 @@ buf_block_t* buf_LRU_get_free_only()
 			assert_block_ahi_empty(block);
 
 			block->page.set_state(BUF_BLOCK_MEMORY);
-			UNIV_MEM_ALLOC(block->frame, srv_page_size);
+			MEM_UNDEFINED(block->frame, srv_page_size);
 			break;
 		}
 
@@ -1216,8 +1216,6 @@ func_exit:
 		ut_ad(!buf_pool.page_hash_get_low(id, fold));
 		ut_ad(b->zip_size());
 
-		UNIV_MEM_DESC(b->zip.data, b->zip_size());
-
 		/* The field in_LRU_list of
 		the to-be-freed block descriptor should have
 		been cleared in
@@ -1306,13 +1304,16 @@ func_exit:
 	The page was declared uninitialized by
 	buf_LRU_block_remove_hashed().  We need to flag
 	the contents of the page valid (which it still is) in
-	order to avoid bogus Valgrind warnings.*/
+	order to avoid bogus Valgrind or MSAN warnings.*/
+	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
 
-	UNIV_MEM_VALID(((buf_block_t*) bpage)->frame,
-		       srv_page_size);
-	btr_search_drop_page_hash_index((buf_block_t*) bpage);
-	UNIV_MEM_INVALID(((buf_block_t*) bpage)->frame,
-			 srv_page_size);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_MAKE_DEFINED(block->frame, srv_page_size);
+#endif /* HAVE_valgrind_or_MSAN */
+	btr_search_drop_page_hash_index(block);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(block->frame, srv_page_size);
+#endif /* HAVE_valgrind_or_MSAN */
 
 	if (UNIV_LIKELY_NULL(b)) {
 		ut_ad(b->zip_size());
@@ -1320,7 +1321,7 @@ func_exit:
 	}
 
 	mutex_enter(&buf_pool.mutex);
-	buf_LRU_block_free_hashed_page((buf_block_t*) bpage);
+	buf_LRU_block_free_hashed_page(block);
 
 	return(true);
 }
@@ -1342,11 +1343,7 @@ buf_LRU_block_free_non_file_page(
 
 	block->page.set_state(BUF_BLOCK_NOT_USED);
 
-	UNIV_MEM_ALLOC(block->frame, srv_page_size);
-#ifdef UNIV_DEBUG
-	/* Wipe contents of page to reveal possible stale pointers to it */
-	memset(block->frame, '\0', srv_page_size);
-#else
+	MEM_UNDEFINED(block->frame, srv_page_size);
 	/* Wipe page_no and space_id */
 	static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
 	memset_aligned<4>(block->frame + FIL_PAGE_OFFSET, 0xfe, 4);
@@ -1354,7 +1351,6 @@ buf_LRU_block_free_non_file_page(
 		      "not perfect alignment");
 	memset_aligned<2>(block->frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
 			  0xfe, 4);
-#endif /* UNIV_DEBUG */
 	data = block->page.zip.data;
 
 	if (data != NULL) {
@@ -1382,7 +1378,7 @@ buf_LRU_block_free_non_file_page(
 		ut_d(block->page.in_free_list = true);
 	}
 
-	UNIV_MEM_FREE(block->frame, srv_page_size);
+	MEM_NOACCESS(block->frame, srv_page_size);
 }
 
 /** Remove bpage from buf_pool.LRU and buf_pool.page_hash.
@@ -1415,9 +1411,9 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 
 	switch (bpage->state()) {
 	case BUF_BLOCK_FILE_PAGE:
-		UNIV_MEM_ASSERT_W(bpage, sizeof(buf_block_t));
-		UNIV_MEM_ASSERT_W(((buf_block_t*) bpage)->frame,
-				  srv_page_size);
+		MEM_CHECK_ADDRESSABLE(bpage, sizeof(buf_block_t));
+		MEM_CHECK_ADDRESSABLE(((buf_block_t*) bpage)->frame,
+				      srv_page_size);
 		buf_block_modify_clock_inc((buf_block_t*) bpage);
 		if (bpage->zip.data) {
 			const page_t*	page = ((buf_block_t*) bpage)->frame;
@@ -1474,7 +1470,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		/* fall through */
 	case BUF_BLOCK_ZIP_PAGE:
 		ut_a(!bpage->oldest_modification());
-		UNIV_MEM_ASSERT_W(bpage->zip.data, bpage->zip_size());
+		MEM_CHECK_ADDRESSABLE(bpage->zip.data, bpage->zip_size());
 		break;
 	case BUF_BLOCK_NOT_USED:
 	case BUF_BLOCK_MEMORY:
@@ -1515,8 +1511,9 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 			      "not perfect alignment");
 		memset_aligned<2>(reinterpret_cast<buf_block_t*>(bpage)->frame
 				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
-		UNIV_MEM_INVALID(((buf_block_t*) bpage)->frame,
-				 srv_page_size);
+#ifdef HAVE_valgrind_or_MSAN
+		MEM_UNDEFINED(((buf_block_t*) bpage)->frame, srv_page_size);
+#endif /* HAVE_valgrind_or_MSAN */
 		bpage->set_state(BUF_BLOCK_REMOVE_HASH);
 
 		/* Question: If we release hash_lock here

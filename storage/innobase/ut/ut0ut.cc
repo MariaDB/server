@@ -148,8 +148,6 @@ ut_print_buf(
 	const byte*	data;
 	ulint		i;
 
-	UNIV_MEM_ASSERT_RW(buf, len);
-
 	fprintf(file, " len " ULINTPF "; hex ", len);
 
 	for (data = (const byte*) buf, i = 0; i < len; i++) {
@@ -184,8 +182,6 @@ ut_print_buf_hex(
 		'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'
 	};
 
-	UNIV_MEM_ASSERT_RW(buf, len);
-
 	o << "(0x";
 
 	for (data = static_cast<const byte*>(buf), i = 0; i < len; i++) {
@@ -207,8 +203,6 @@ ut_print_buf(
 {
 	const byte*	data;
 	ulint		i;
-
-	UNIV_MEM_ASSERT_RW(buf, len);
 
 	for (data = static_cast<const byte*>(buf), i = 0; i < len; i++) {
 		int	c = static_cast<int>(*data++);

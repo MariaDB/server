@@ -84,6 +84,7 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include <string.h>
 
 #include "ut0crc32.h"
+#include "my_valgrind.h"
 
 #ifdef _MSC_VER
 # include <intrin.h>

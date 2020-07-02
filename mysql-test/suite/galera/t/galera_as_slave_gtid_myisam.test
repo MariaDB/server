@@ -59,6 +59,8 @@ SELECT COUNT(*) AS EXPECT_0 FROM t1;
 --connection node_3
 DROP TABLE t1;
 
+--sleep 1
+
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
@@ -70,8 +72,6 @@ DROP TABLE t1;
 --connection node_3
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
-
---connection node_3
 RESET MASTER;
 
 --connection node_1
@@ -85,3 +85,6 @@ SET GLOBAL WSREP_ON=ON;
 SET GLOBAL WSREP_ON=OFF;
 reset master;
 SET GLOBAL WSREP_ON=ON;
+
+--connection node_3
+RESET MASTER;

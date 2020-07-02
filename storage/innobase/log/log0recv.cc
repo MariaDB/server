@@ -1093,8 +1093,8 @@ create_block:
       ut_calc_align<uint16_t>(static_cast<uint16_t>(len), ALIGNMENT);
     static_assert(ut_is_2pow(ALIGNMENT), "ALIGNMENT must be a power of 2");
     UT_LIST_ADD_FIRST(blocks, block);
-    UNIV_MEM_INVALID(block->frame, len);
-    UNIV_MEM_FREE(block->frame + len, srv_page_size - len);
+    MEM_UNDEFINED(block->frame, len);
+    MEM_NOACCESS(block->frame + len, srv_page_size - len);
     return my_assume_aligned<ALIGNMENT>(block->frame);
   }
 
@@ -1113,7 +1113,7 @@ create_block:
 
   block->page.access_time= ((block->page.access_time >> 16) + 1) << 16 |
     ut_calc_align<uint16_t>(static_cast<uint16_t>(free_offset), ALIGNMENT);
-  UNIV_MEM_ALLOC(block->frame + free_offset - len, len);
+  MEM_UNDEFINED(block->frame + free_offset - len, len);
   return my_assume_aligned<ALIGNMENT>(block->frame + free_offset - len);
 }
 
@@ -1758,7 +1758,7 @@ inline void recv_sys_t::add(const page_id_t page_id,
     {
       /* Use already allocated 'padding' bytes */
 append:
-      UNIV_MEM_ALLOC(end + 1, len);
+      MEM_UNDEFINED(end + 1, len);
       /* Append to the preceding record for the page */
       tail->append(l, len);
       return;

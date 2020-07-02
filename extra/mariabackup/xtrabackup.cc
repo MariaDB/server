@@ -119,7 +119,7 @@ my_bool xtrabackup_move_back;
 my_bool xtrabackup_decrypt_decompress;
 my_bool xtrabackup_print_param;
 my_bool xtrabackup_mysqld_args;
-my_bool help;
+my_bool xtrabackup_help;
 
 my_bool xtrabackup_export;
 
@@ -1418,7 +1418,7 @@ struct my_option xb_server_options[] =
 
     {"help", '?',
      "Display this help and exit.",
-     (G_PTR *) &help, (G_PTR *) &help, 0,
+     (G_PTR *) &xtrabackup_help, (G_PTR *) &xtrabackup_help, 0,
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}

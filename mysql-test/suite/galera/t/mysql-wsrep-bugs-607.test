@@ -1,0 +1,70 @@
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+--source include/have_log_bin.inc
+
+#
+# Test case to stress the order of wsrep XID checkpointing.
+#
+# In buggy version, the transaction which failed certification can
+# rush to record wsrep XID checkpoint before the offending applier,
+# causing assert in innodb sys header update routine
+#
+
+--echo #
+--echo # test the order of wsrep XID storage after certifiation failure
+--echo #
+
+--connection node_1
+set session wsrep_sync_wait=0;
+
+create table t1 (i int primary key, j int);
+
+insert into t1 values (4, 0);
+
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2b
+set session wsrep_sync_wait=0;
+# wait for the last insert to be replicated from node 1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM test.t1;
+--source include/wait_condition.inc
+
+# block applier before applying
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
+
+# send update from node 1, it will pause in the sync point
+--connection node_1
+UPDATE test.t1 set j=1 where i=4;
+
+--connection node_2b
+# wait until applier has reached the sync point
+SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+
+# look number of cert failures so far, and expect one more to happen
+--let $expected_cert_failures = `SELECT VARIABLE_VALUE+1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
+
+# Inject a conflicting update in node 2, it should fail in certification
+--connection node_2
+set session wsrep_sync_wait=0;
+set session wsrep_retry_autocommit=0;
+--send UPDATE test.t1 SET j=2  WHERE i=4
+
+--connection node_2b
+# wait until the update has hit certification failure
+
+--let $wait_condition = SELECT VARIABLE_VALUE = $expected_cert_failures FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
+--source include/wait_condition.inc
+
+# release the applier
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "RESET";
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+--reap
+select * from t1;
+
+DROP TABLE t1;

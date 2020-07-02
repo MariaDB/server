@@ -24,8 +24,7 @@ Full text search header file
 Created 2011/09/02 Sunny Bains
 ***********************************************************************/
 
-#ifndef fts0fts_h
-#define fts0fts_h
+#pragma once
 
 #include "data0type.h"
 #include "data0types.h"
@@ -986,8 +985,12 @@ fts_trx_t*
 fts_trx_create(
 	trx_t*  trx);
 
+/** Clear all fts resources when there is no internal DOC_ID
+and there are no new fts index to add.
+@param[in,out]  table   table  where fts is to be freed
+@param[in]      trx     transaction to drop all fts tables */
+void fts_clear_all(dict_table_t *table, trx_t *trx);
+
 /** Sync the table during commit phase
 @param[in]	table	table to be synced */
 void fts_sync_during_ddl(dict_table_t* table);
-
-#endif /*!< fts0fts.h */

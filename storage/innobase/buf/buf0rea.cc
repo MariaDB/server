@@ -217,8 +217,6 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     page_zip_set_size(&bpage->zip, zip_size);
     bpage->zip.data = (page_zip_t*) data;
 
-    UNIV_MEM_DESC(bpage->zip.data, zip_size);
-
     bpage->init(BUF_BLOCK_ZIP_PAGE, page_id);
 
     if (hash_page)

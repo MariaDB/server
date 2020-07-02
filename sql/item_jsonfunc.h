@@ -241,6 +241,7 @@ public:
   String *val_str(String *);
   longlong val_int();
   double val_real();
+  my_decimal *val_decimal(my_decimal *);
   uint get_n_paths() const { return arg_count - 1; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_extract>(thd, this); }

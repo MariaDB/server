@@ -3789,6 +3789,16 @@ row_number() OVER()
 3
 DROP TABLE t1;
 #
+# MDEV-22984: Throw an error when arguments to window functions are window functions
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+SELECT NTILE(MAX(a) OVER (PARTITION BY a)) OVER (PARTITION BY a ORDER BY b) FROM t1;
+ERROR HY000: Window functions can not be used as arguments to group functions.
+SELECT FIRST_VALUE(MAX(a) OVER (PARTITION BY a)) OVER (ORDER BY a) AS x FROM t1 GROUP BY a;
+ERROR HY000: Window functions can not be used as arguments to group functions.
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #

@@ -11107,6 +11107,46 @@ void Field_blob::print_key_value(String *out, uint32 length)
 }
 
 
+/*
+  @brief Print value of the key part
+
+  @param
+    out                Output string
+    key                value of the key
+    length             Length of field in bytes,
+                       excluding NULL flag and length bytes
+*/
+
+
+void
+Field::print_key_part_value(String *out, const uchar* key, uint32 length)
+{
+  StringBuffer<128> tmp(system_charset_info);
+  uint null_byte= 0;
+  if (real_maybe_null())
+  {
+    /*
+      Byte 0 of key is the null-byte. If set, key is NULL.
+      Otherwise, print the key value starting immediately after the
+      null-byte
+    */
+    if (*key)
+    {
+      out->append(STRING_WITH_LEN("NULL"));
+      return;
+    }
+    null_byte++;  // Skip null byte
+  }
+
+  set_key_image(key + null_byte, length);
+  print_key_value(&tmp, length);
+  if (charset() == &my_charset_bin)
+    out->append(tmp.ptr(), tmp.length(), tmp.charset());
+  else
+    tmp.print(out, system_charset_info);
+}
+
+
 void Field::print_key_value_binary(String *out, const uchar* key, uint32 length)
 {
   out->append_semi_hex((const char*)key, length, charset());
