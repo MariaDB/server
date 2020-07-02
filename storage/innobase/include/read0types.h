@@ -290,7 +290,7 @@ public:
     MEM_UNDEFINED(&m_mutex, sizeof m_mutex);
 #endif
 #ifdef HAVE_valgrind
-    MEM_MAKE_VALID(&m_mutex, sizeof m_mutex);
+    MEM_MAKE_DEFINED(&m_mutex, sizeof m_mutex);
 #endif
   }
 };
