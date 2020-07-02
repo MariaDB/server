@@ -17,7 +17,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
 
 --echo Run it again - should say already completed
---replace_result $MYSQL_SERVER_VERSION VERSION
+--replace_regex /upgraded to .*, use/upgraded to VERSION, use/
 --exec $MYSQL_UPGRADE 2>&1
 
 # It should have created a file in the MySQL Servers datadir

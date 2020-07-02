@@ -1141,6 +1141,7 @@ my_bool STDCALL mysql_embedded(void)
 void my_net_local_init(NET *net)
 {
   net->max_packet=   (uint) net_buffer_length;
+  net->read_timeout= net->write_timeout= 0;
   my_net_set_read_timeout(net, CLIENT_NET_READ_TIMEOUT);
   my_net_set_write_timeout(net, CLIENT_NET_WRITE_TIMEOUT);
   net->retry_count=  1;
