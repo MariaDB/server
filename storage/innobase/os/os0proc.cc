@@ -158,7 +158,7 @@ os_mem_free_large(
 	// And we must unpoison it by ourself as specified in documentation
 	// for __asan_poison_memory_region() in sanitizer/asan_interface.h
 	// munmap() doesn't do it for us automatically.
-	MEM_UNDEFINED(ptr, size);
+	MEM_MAKE_ADDRESSABLE(ptr, size);
 #endif /* __SANITIZE_ADDRESS__ */
 
 #ifdef HAVE_LINUX_LARGE_PAGES

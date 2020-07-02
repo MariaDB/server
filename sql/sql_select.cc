@@ -6585,6 +6585,7 @@ add_ft_keys(DYNAMIC_ARRAY *keyuse_array,
   keyuse.keypart= FT_KEYPART;
   keyuse.used_tables=cond_func->key_item()->used_tables();
   keyuse.optimize= 0;
+  keyuse.ref_table_rows= 0;
   keyuse.keypart_map= 0;
   keyuse.sj_pred_no= UINT_MAX;
   keyuse.validity_ref= 0;
@@ -9154,7 +9155,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     /*
       Check if we have a prefix of key=const that matches a quick select.
     */
-    if (!is_hash_join_key_no(key))
+    if (!is_hash_join_key_no(key) && table->quick_keys.is_set(key))
     {
       key_part_map quick_key_map= (key_part_map(1) << table->quick_key_parts[key]) - 1;
       if (table->quick_rows[key] && 
@@ -18653,25 +18654,31 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
          inherit the default value that is defined for the field referred
          by the Item_field object from which 'field' has been created.
       */
-      const Field *orig_field= default_field[i];
+      Field *orig_field= default_field[i];
       /* Get the value from default_values */
       if (orig_field->is_null_in_record(orig_field->table->s->default_values))
         field->set_null();
       else
       {
+        /*
+          Copy default value. We have to use field_conv() for copy, instead of
+          memcpy(), because bit_fields may be stored differently
+        */
+        my_ptrdiff_t ptr_diff= (orig_field->table->s->default_values -
+                                orig_field->table->record[0]);
         field->set_notnull();
-        memcpy(field->ptr,
-               orig_field->ptr_in_record(orig_field->table->s->default_values),
-               field->pack_length_in_rec());
+        orig_field->move_field_offset(ptr_diff);
+        field_conv(field, orig_field);
+        orig_field->move_field_offset(-ptr_diff);
       }
-    } 
+    }
 
     if (from_field[i])
     {						/* Not a table Item */
       copy->set(field,from_field[i],save_sum_fields);
       copy++;
     }
-    length=field->pack_length();
+    length=field->pack_length_in_rec();
     pos+= length;
 
     /* Make entry for create table */
@@ -18693,6 +18700,9 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     // fix table name in field entry
     field->set_table_name(&table->alias);
   }
+  /* Handle group_null_items */
+  bzero(pos, table->s->reclength - (pos - table->record[0]));
+  MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
 
   param->copy_field_end=copy;
   param->recinfo= recinfo;              	// Pointer to after last field
@@ -18962,8 +18972,9 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       goto err;
   }
 
-  // Make empty record so random data is not written to disk
-  empty_record(table);
+  /* record[0] and share->default_values should now have been set up */
+  MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
+  MEM_CHECK_DEFINED(share->default_values, table->s->reclength);
 
   thd->mem_root= mem_root_save;
 
@@ -19256,7 +19267,11 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       (*recinfo)->type=   FIELD_CHECK;
       (*recinfo)->length= MARIA_UNIQUE_HASH_LENGTH;
       (*recinfo)++;
-      share->reclength+=      MARIA_UNIQUE_HASH_LENGTH;
+
+      /* Avoid warnings from valgrind */
+      bzero(table->record[0]+ share->reclength, MARIA_UNIQUE_HASH_LENGTH);
+      bzero(share->default_values+ share->reclength, MARIA_UNIQUE_HASH_LENGTH);
+      share->reclength+= MARIA_UNIQUE_HASH_LENGTH;
     }
     else
     {
@@ -19450,7 +19465,10 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       (*recinfo)->type= FIELD_CHECK;
       (*recinfo)->length=MI_UNIQUE_HASH_LENGTH;
       (*recinfo)++;
-      share->reclength+=MI_UNIQUE_HASH_LENGTH;
+      /* Avoid warnings from valgrind */
+      bzero(table->record[0]+ share->reclength, MI_UNIQUE_HASH_LENGTH);
+      bzero(share->default_values+ share->reclength, MI_UNIQUE_HASH_LENGTH);
+      share->reclength+= MI_UNIQUE_HASH_LENGTH;
     }
     else
     {
@@ -20042,11 +20060,11 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
       If it is not heap (in-memory) table then convert index to unique
       constrain.
     */
+    MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
     if (create_internal_tmp_table(table, keyinfo, start_recinfo, recinfo,
                                   options))
       return TRUE;
-    // Make empty record so random data is not written to disk
-    empty_record(table);
+    MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
   }
   if (open_tmp_table(table))
     return TRUE;
@@ -28601,7 +28619,6 @@ AGGR_OP::prepare_tmp_table()
                               join->select_options))
       return true;
     (void) table->file->extra(HA_EXTRA_WRITE_CACHE);
-    empty_record(table);
   }
   /* If it wasn't already, start index scan for grouping using table index. */
   if (!table->file->inited && table->group &&

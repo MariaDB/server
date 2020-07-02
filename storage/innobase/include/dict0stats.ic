@@ -187,7 +187,7 @@ dict_stats_deinit(
 
 	table->stat_initialized = FALSE;
 
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
 	MEM_UNDEFINED(&table->stat_n_rows, sizeof table->stat_n_rows);
 	MEM_UNDEFINED(&table->stat_clustered_index_size,
 		      sizeof table->stat_clustered_index_size);
@@ -220,7 +220,7 @@ dict_stats_deinit(
 			&index->stat_n_leaf_pages,
 			sizeof(index->stat_n_leaf_pages));
 	}
-#endif /* HAVE_valgrind_or_MSAN */
+#endif /* HAVE_valgrind */
 
 	rw_lock_x_unlock(&table->stats_latch);
 }

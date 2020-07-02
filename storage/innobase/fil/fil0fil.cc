@@ -2212,7 +2212,8 @@ static ulint fil_check_pending_ops(const fil_space_t* space, ulint count)
 
 	if (ulint n_pending_ops = space->n_pending_ops) {
 
-		if (count > 5000) {
+          /* Give a warning every 10 second, starting after 1 second */
+          if ((count % 500) == 50) {
 			ib::warn() << "Trying to delete"
 				" tablespace '" << space->name
 				<< "' but there are " << n_pending_ops

@@ -1027,11 +1027,11 @@ row_merge_buf_write(
 	ut_a(b < &block[srv_sort_buf_size]);
 	ut_a(b == &block[0] + buf->total_size);
 	*b++ = 0;
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
 	/* The rest of the block is uninitialized.  Initialize it
 	to avoid bogus warnings. */
 	memset(b, 0xff, &block[srv_sort_buf_size] - b);
-#endif /* HAVE_valgrind_or_MSAN */
+#endif /* HAVE_valgrind */
 	DBUG_LOG("ib_merge_sort",
 		 "write " << reinterpret_cast<const void*>(b) << ','
 		 << of->fd << ',' << of->offset << " EOF");
@@ -1424,9 +1424,7 @@ row_merge_write_rec(
 			return(NULL);
 		}
 
-#ifdef HAVE_valgrind_or_MSAN
 		MEM_UNDEFINED(&block[0], srv_sort_buf_size);
-#endif /* HAVE_valgrind_or_MSAN */
 
 		/* Copy the rest. */
 		b = &block[0];
@@ -1477,9 +1475,7 @@ row_merge_write_eof(
 		DBUG_RETURN(NULL);
 	}
 
-#ifdef HAVE_valgrind_or_MSAN
 	MEM_UNDEFINED(&block[0], srv_sort_buf_size);
-#endif
 	DBUG_RETURN(&block[0]);
 }
 
@@ -2679,10 +2675,8 @@ write_buffers:
 						break;
 					}
 
-#ifdef HAVE_valgrind_or_MSAN
 					MEM_UNDEFINED(
 						&block[0], srv_sort_buf_size);
-#endif /* HAVE_valgrind_or_MSAN */
 				}
 			}
 			merge_buf[i] = row_merge_buf_empty(buf);
@@ -3202,9 +3196,7 @@ row_merge(
 	foffs0 = 0;
 	foffs1 = ihalf;
 
-#ifdef HAVE_valgrind_or_MSAN
 	MEM_UNDEFINED(run_offset, *num_run * sizeof *run_offset);
-#endif /* HAVE_valgrind_or_MSAN */
 
 	for (; foffs0 < ihalf && foffs1 < file->offset; foffs0++, foffs1++) {
 
@@ -3285,9 +3277,7 @@ row_merge(
 	*tmpfd = file->fd;
 	*file = of;
 
-#ifdef HAVE_valgrind_or_MSAN
 	MEM_UNDEFINED(&block[0], 3 * srv_sort_buf_size);
-#endif /* HAVE_valgrind_or_MSAN */
 
 	return(DB_SUCCESS);
 }

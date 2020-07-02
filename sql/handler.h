@@ -213,7 +213,8 @@ enum enum_alter_inplace_result {
 #define HA_HAS_NEW_CHECKSUM    (1ULL << 38)
 #define HA_CAN_VIRTUAL_COLUMNS (1ULL << 39)
 #define HA_MRR_CANT_SORT       (1ULL << 40)
-#define HA_RECORD_MUST_BE_CLEAN_ON_WRITE (1ULL << 41) /* unused */
+/* All of VARCHAR is stored, including bytes after real varchar data */
+#define HA_RECORD_MUST_BE_CLEAN_ON_WRITE (1ULL << 41)
 
 /*
   This storage engine supports condition pushdown

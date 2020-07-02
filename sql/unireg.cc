@@ -477,8 +477,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     pos+= create_info->comment.length;
   }
 
-  memcpy(frm_ptr + filepos, forminfo, 288);
-  pos= frm_ptr + filepos + 288;
+  memcpy(frm_ptr + filepos, forminfo, FRM_FORMINFO_SIZE);
+  pos= frm_ptr + filepos + FRM_FORMINFO_SIZE;
   if (pack_fields(&pos, create_fields, create_info, data_offset))
     goto err;
 

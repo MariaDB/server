@@ -212,7 +212,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   uchar* point;
   reg1 USED_MEM *next= 0;
   reg2 USED_MEM **prev;
-  size_t original_length = length;
+  size_t original_length __attribute__((unused)) = length;
   DBUG_ENTER("alloc_root");
   DBUG_PRINT("enter",("root: %p  name: %s", mem_root, mem_root->name));
   DBUG_ASSERT(alloc_root_inited(mem_root));

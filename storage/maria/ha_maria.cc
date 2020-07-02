@@ -1201,7 +1201,7 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
     that all bytes in the row is properly reset.
   */
   if (file->s->data_file_type == STATIC_RECORD &&
-      (file->s->has_varchar_fields | file->s->has_null_fields))
+      (file->s->has_varchar_fields || file->s->has_null_fields))
     int_table_flags|= HA_RECORD_MUST_BE_CLEAN_ON_WRITE;
 
   for (i= 0; i < table->s->keys; i++)

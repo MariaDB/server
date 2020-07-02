@@ -534,6 +534,7 @@ static inline int my_b_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 
 static inline int my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 {
+  MEM_CHECK_DEFINED(Buffer, Count);
   if (info->write_pos + Count <= info->write_end)
   {
     memcpy(info->write_pos, Buffer, Count);
@@ -555,6 +556,7 @@ static inline int my_b_get(IO_CACHE *info)
 
 static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 {
+  MEM_CHECK_DEFINED(&chr, 1);
   if (info->write_pos >= info->write_end)
     if (my_b_flush_io_cache(info, 1))
       return 1;

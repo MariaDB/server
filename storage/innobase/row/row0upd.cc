@@ -1849,9 +1849,7 @@ row_upd_changes_ord_field_binary_func(
 			/* Silence a compiler warning without
 			silencing a Valgrind error. */
 			dfield_len = 0;
-#ifdef HAVE_valgrind_or_MSAN
 			MEM_UNDEFINED(&dfield_len, sizeof dfield_len);
-#endif /* HAVE_valgrind_or_MSAN */
 			/* See if the column is stored externally. */
 			buf = row_ext_lookup(ext, col_no, &dfield_len);
 

@@ -380,16 +380,12 @@ bool Session_sysvars_tracker::enable(THD *thd)
 bool Session_sysvars_tracker::update(THD *thd, set_var *var)
 {
   vars_list tool_list;
-  void *copy;
   size_t length= 1;
-
-  if (var->save_result.string_value.str)
-    copy= my_memdup(var->save_result.string_value.str,
-                    (length= var->save_result.string_value.length + 1),
-                    MYF(MY_WME | MY_THREAD_SPECIFIC));
-    else
-      copy= my_strdup("", MYF(MY_WME | MY_THREAD_SPECIFIC));
-
+  void *copy= var->save_result.string_value.str ?
+              my_memdup(var->save_result.string_value.str,
+                        (length= var->save_result.string_value.length + 1),
+                        MYF(MY_WME | MY_THREAD_SPECIFIC)) :
+              my_strdup("", MYF(MY_WME | MY_THREAD_SPECIFIC));
   if (!copy)
     return true;
 

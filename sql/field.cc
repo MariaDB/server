@@ -7647,6 +7647,17 @@ int Field_varstring::save_field_metadata(uchar *metadata_ptr)
   return 2;
 }
 
+
+bool Field_varstring::memcpy_field_possible(const Field *from) const
+{
+  return (Field_str::memcpy_field_possible(from) &&
+          !compression_method() == !from->compression_method() &&
+          length_bytes == ((Field_varstring*) from)->length_bytes &&
+          (table->file && !(table->file->ha_table_flags() &
+                            HA_RECORD_MUST_BE_CLEAN_ON_WRITE)));
+}
+
+
 int Field_varstring::store(const char *from,size_t length,CHARSET_INFO *cs)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
@@ -7709,7 +7720,7 @@ my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
 }
 
 
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
 void Field_varstring::mark_unused_memory_as_defined()
 {
   uint used_length= get_length();

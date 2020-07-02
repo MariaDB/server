@@ -654,14 +654,14 @@ Use MONITOR_DEC if appropriate mutex protection exists.
 		}							\
 	}
 
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
 # define MONITOR_CHECK_DEFINED(value) do {	\
 	mon_type_t m = value;			\
 	MEM_CHECK_DEFINED(&m, sizeof m);	\
 } while (0)
-#else /* HAVE_valgrind_or_MSAN */
+#else /* HAVE_valgrind */
 # define MONITOR_CHECK_DEFINED(value) (void) 0
-#endif /* HAVE_valgrind_or_MSAN */
+#endif /* HAVE_valgrind */
 
 #define	MONITOR_INC_VALUE(monitor, value)				\
 	MONITOR_CHECK_DEFINED(value);					\

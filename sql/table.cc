@@ -1962,8 +1962,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->rec_buff_length= rec_buff_length;
   if (!(record= (uchar *) alloc_root(&share->mem_root, rec_buff_length)))
     goto err;                          /* purecov: inspected */
-  MEM_NOACCESS(record, rec_buff_length);
-  MEM_UNDEFINED(record, share->reclength);
+  /* Mark bytes after record as not accessable to catch overrun bugs */
+  MEM_NOACCESS(record + share->reclength, rec_buff_length - share->reclength);
   share->default_values= record;
   memcpy(record, frm_image + record_offset, share->reclength);
 
@@ -3690,7 +3690,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (!(record= (uchar*) alloc_root(&outparam->mem_root,
                                       share->rec_buff_length * records)))
       goto err;                                   /* purecov: inspected */
-    MEM_NOACCESS(record, share->rec_buff_length * records);
   }
 
   for (i= 0; i < 3;)
@@ -3699,8 +3698,10 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (++i < records)
       record+= share->rec_buff_length;
   }
+  /* Mark bytes between records as not accessable to catch overrun bugs */
   for (i= 0; i < records; i++)
-    MEM_UNDEFINED(outparam->record[i], share->reclength);
+    MEM_NOACCESS(outparam->record[i] + share->reclength,
+                 share->rec_buff_length - share->reclength);
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
                                           (uint) ((share->fields+1)*
@@ -9700,10 +9701,10 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
 
 void TABLE::initialize_quick_structures()
 {
-  bzero(quick_rows, sizeof(quick_rows));
-  bzero(quick_key_parts, sizeof(quick_key_parts));
-  bzero(quick_costs, sizeof(quick_costs));
-  bzero(quick_n_ranges, sizeof(quick_n_ranges));
+  TRASH_ALLOC(quick_rows, sizeof(quick_rows));
+  TRASH_ALLOC(quick_key_parts, sizeof(quick_key_parts));
+  TRASH_ALLOC(quick_costs, sizeof(quick_costs));
+  TRASH_ALLOC(quick_n_ranges, sizeof(quick_n_ranges));
 }
 
 /*
