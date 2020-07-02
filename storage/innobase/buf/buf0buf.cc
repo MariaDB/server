@@ -3516,7 +3516,7 @@ evict_from_pool:
 	      || mode == BUF_PEEK_IF_IN_POOL
 	      || fix_block->page.status != buf_page_t::FREED);
 
-	const bool first_access = fix_block->page.set_accessed();
+	const bool not_first_access = fix_block->page.set_accessed();
 
 	if (mode != BUF_PEEK_IF_IN_POOL) {
 		buf_page_make_young_if_needed(&fix_block->page);
@@ -3571,7 +3571,7 @@ get_latch:
 					      file, line);
 	}
 
-	if (mode != BUF_PEEK_IF_IN_POOL && first_access) {
+	if (!not_first_access && mode != BUF_PEEK_IF_IN_POOL) {
 		/* In the case of a first access, try to apply linear
 		read-ahead */
 
@@ -3678,7 +3678,7 @@ buf_page_optimistic_get(
 	buf_block_buf_fix_inc(block, file, line);
 	hash_lock->read_unlock();
 
-	const bool first_access = block->page.set_accessed();
+	block->page.set_accessed();
 
 	buf_page_make_young_if_needed(&block->page);
 
@@ -3722,13 +3722,6 @@ buf_page_optimistic_get(
 #endif /* UNIV_DEBUG */
 	ut_ad(block->page.buf_fix_count());
 	ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
-
-	if (first_access) {
-		/* In the case of a first access, try to apply linear
-		read-ahead */
-		buf_read_ahead_linear(block->page.id(), block->zip_size(),
-				      ibuf_inside(mtr));
-	}
 
 	buf_pool.stat.n_page_gets++;
 
