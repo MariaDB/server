@@ -214,6 +214,7 @@ int Wsrep_high_priority_service::start_transaction(
   const wsrep::ws_handle& ws_handle, const wsrep::ws_meta& ws_meta)
 {
   DBUG_ENTER(" Wsrep_high_priority_service::start_transaction");
+  m_thd->set_time();
   DBUG_RETURN(m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta) ||
               trans_begin(m_thd));
 }
@@ -425,6 +426,7 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
                   };);
 #endif
 
+  thd->set_time();
   int ret= apply_events(thd, m_rli, data, err);
   wsrep_thd_set_ignored_error(thd, false);
   trans_commit(thd);
