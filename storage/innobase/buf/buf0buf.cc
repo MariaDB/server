@@ -1531,8 +1531,6 @@ buf_block_init(
 	buf_block_t*	block,		/*!< in: pointer to control block */
 	byte*		frame)		/*!< in: pointer to buffer frame */
 {
-	UNIV_MEM_DESC(frame, srv_page_size);
-
 	/* This function should only be executed at database startup or by
 	buf_pool_resize(). Either way, adaptive hash index must not exist. */
 	assert_block_ahi_empty_on_init(block);
@@ -1676,7 +1674,7 @@ buf_chunk_init(
 	for (i = chunk->size; i--; ) {
 
 		buf_block_init(buf_pool, block, frame);
-		UNIV_MEM_INVALID(block->frame, srv_page_size);
+		MEM_UNDEFINED(block->frame, srv_page_size);
 
 		/* Add the block to the free list */
 		UT_LIST_ADD_LAST(buf_pool->free, &block->page);
@@ -2202,8 +2200,6 @@ buf_page_realloc(
 		if (block->page.zip.data != NULL) {
 			ut_ad(block->in_unzip_LRU_list);
 			ut_d(new_block->in_unzip_LRU_list = TRUE);
-			UNIV_MEM_DESC(&new_block->page.zip.data,
-				      page_zip_get_size(&new_block->page.zip));
 
 			buf_block_t*	prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
 			UT_LIST_REMOVE(buf_pool->unzip_LRU, block);
@@ -2237,7 +2233,7 @@ buf_page_realloc(
 		buf_block_modify_clock_inc(block);
 		memset(block->frame + FIL_PAGE_OFFSET, 0xff, 4);
 		memset(block->frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
-		UNIV_MEM_INVALID(block->frame, srv_page_size);
+		MEM_UNDEFINED(block->frame, srv_page_size);
 		buf_block_set_state(block, BUF_BLOCK_REMOVE_HASH);
 		block->page.id
 		    = page_id_t(ULINT32_UNDEFINED, ULINT32_UNDEFINED);
@@ -4640,9 +4636,6 @@ evict_from_pool:
 		block->lock_hash_val = lock_rec_hash(page_id.space(),
 						     page_id.page_no());
 
-		UNIV_MEM_DESC(&block->page.zip.data,
-			      page_zip_get_size(&block->page.zip));
-
 		if (buf_page_get_state(&block->page) == BUF_BLOCK_ZIP_PAGE) {
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 			UT_LIST_REMOVE(buf_pool->zip_clean, &block->page);
@@ -4664,7 +4657,7 @@ evict_from_pool:
 		buf_block_set_io_fix(block, BUF_IO_READ);
 		rw_lock_x_lock_inline(&block->lock, 0, file, line);
 
-		UNIV_MEM_INVALID(bpage, sizeof *bpage);
+		MEM_UNDEFINED(bpage, sizeof *bpage);
 
 		rw_lock_x_unlock(hash_lock);
 		buf_pool->n_pend_unzip++;
@@ -5283,15 +5276,6 @@ buf_page_init(
 	/* Set the state of the block */
 	buf_block_set_file_page(block, page_id);
 
-#ifdef UNIV_DEBUG_VALGRIND
-	if (is_system_tablespace(page_id.space())) {
-		/* Silence valid Valgrind warnings about uninitialized
-		data being written to data files.  There are some unused
-		bytes on some pages that InnoDB does not initialize. */
-		UNIV_MEM_VALID(block->frame, srv_page_size);
-	}
-#endif /* UNIV_DEBUG_VALGRIND */
-
 	buf_block_init_low(block);
 
 	block->lock_hash_val = lock_rec_hash(page_id.space(),
@@ -5512,7 +5496,6 @@ buf_page_init_for_read(
 		bpage->zip.data = (page_zip_t*) data;
 
 		mutex_enter(&buf_pool->zip_mutex);
-		UNIV_MEM_DESC(bpage->zip.data, zip_size);
 
 		buf_page_init_low(bpage);
 

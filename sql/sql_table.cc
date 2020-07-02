@@ -9449,10 +9449,15 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         (!create_info->db_type || /* unknown engine */
          !(create_info->db_type->flags & HTON_SUPPORT_LOG_TABLES)))
     {
+    unsupported:
       my_error(ER_UNSUPORTED_LOG_ENGINE, MYF(0),
                hton_name(create_info->db_type)->str);
       DBUG_RETURN(true);
     }
+
+    if (create_info->db_type == maria_hton &&
+        create_info->transactional != HA_CHOICE_NO)
+      goto unsupported;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (alter_info->partition_flags & ALTER_PARTITION_INFO)
@@ -10604,6 +10609,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   sql_mode_t save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
   Field **dfield_ptr= to->default_field;
+  uint save_to_s_default_fields= to->s->default_fields;
   bool make_versioned= !from->versioned() && to->versioned();
   bool make_unversioned= from->versioned() && !to->versioned();
   bool keep_versioned= from->versioned() && to->versioned();
@@ -10931,6 +10937,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   *copied= found_count;
   *deleted=delete_count;
   to->file->ha_release_auto_increment();
+  to->s->default_fields= save_to_s_default_fields;
 
   if (!cleanup_done)
   {

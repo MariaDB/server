@@ -975,9 +975,12 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
   }
 
   bool is_select= false;
+  bool use_sysvar= false;
   switch (thd->lex->sql_command)
   {
   case SQLCOM_SELECT:
+    use_sysvar= true;
+    /* fall through */
   case SQLCOM_INSERT_SELECT:
   case SQLCOM_REPLACE_SELECT:
   case SQLCOM_DELETE_MULTI:
@@ -1021,7 +1024,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     }
 
     // propagate system_time from sysvar
-    if (!vers_conditions.is_set() && is_select)
+    if (!vers_conditions.is_set() && use_sysvar)
     {
       if (vers_conditions.init_from_sysvar(thd))
         DBUG_RETURN(-1);
@@ -6965,6 +6968,7 @@ void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array)
       uint n_tables= my_count_bits(map);
       if (n_tables == 1)			// Only one table
       {
+        DBUG_ASSERT(!(map & PSEUDO_TABLE_BITS)); // Must be a real table
         Table_map_iterator it(map);
         int tablenr= it.next_bit();
         DBUG_ASSERT(tablenr != Table_map_iterator::BITMAP_END);
@@ -16560,10 +16564,15 @@ static uint build_bitmap_for_nested_joins(List<TABLE_LIST> *join_list,
 
 
 /**
-  Set NESTED_JOIN::counter=0 in all nested joins in passed list.
+  Set NESTED_JOIN::counter and n_tables in all nested joins in passed list.
 
-    Recursively set NESTED_JOIN::counter=0 for all nested joins contained in
-    the passed join_list.
+  For all nested joins contained in the passed join_list (including its
+  children), set:
+   - nested_join->counter=0
+   - nested_join->n_tables= {number of non-degenerate direct children}.
+
+  Non-degenerate means non-const base table or a join nest that has a
+  non-degenerate child.
 
   @param join_list  List of nested joins to process. It may also contain base
                     tables which will be ignored.
@@ -16586,8 +16595,11 @@ static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list)
       if (!nested_join->n_tables)
         is_eliminated_nest= TRUE;
     }
-    if ((table->nested_join && !is_eliminated_nest) || 
-        (!table->nested_join && (table->table->map & ~join->eliminated_tables)))
+    const table_map removed_tables= join->eliminated_tables |
+                                    join->const_table_map;
+
+    if ((table->nested_join && !is_eliminated_nest) ||
+        (!table->nested_join && (table->table->map & ~removed_tables)))
       n++;
   }
   DBUG_RETURN(n);

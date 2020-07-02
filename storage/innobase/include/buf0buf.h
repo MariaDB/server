@@ -1783,7 +1783,7 @@ struct buf_block_t{
 #  define assert_block_ahi_empty(block)					\
 	ut_a((block)->n_pointers == 0)
 #  define assert_block_ahi_empty_on_init(block) do {			\
-	UNIV_MEM_VALID(&(block)->n_pointers, sizeof (block)->n_pointers); \
+	MEM_MAKE_DEFINED(&(block)->n_pointers, sizeof (block)->n_pointers); \
 	assert_block_ahi_empty(block);					\
 } while (0)
 #  define assert_block_ahi_valid(block)					\

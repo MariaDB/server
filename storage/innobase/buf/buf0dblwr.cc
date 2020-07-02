@@ -1149,14 +1149,13 @@ try_again:
 	void * frame = buf_page_get_frame(bpage);
 
 	if (auto zip_size = bpage->zip_size()) {
-		UNIV_MEM_ASSERT_RW(bpage->zip.data, zip_size);
+		MEM_CHECK_DEFINED(bpage->zip.data, zip_size);
 		/* Copy the compressed page and clear the rest. */
 		memcpy(p, frame, zip_size);
 		memset(p + zip_size, 0x0, srv_page_size - zip_size);
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
-
-		UNIV_MEM_ASSERT_RW(frame, srv_page_size);
+		MEM_CHECK_DEFINED(frame, srv_page_size);
 		memcpy(p, frame, srv_page_size);
 	}
 

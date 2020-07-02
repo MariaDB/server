@@ -3032,9 +3032,11 @@ typedef struct st_nested_join
     Before each use the counters are zeroed by reset_nj_counters.
   */
   uint              counter;
+
   /*
-    Number of elements in join_list that were not (or contain table(s) that 
-    weren't) removed by table elimination.
+    Number of elements in join_list that participate in the join plan choice:
+    - Base tables that were not removed by table elimination
+    - Join nests that were not removed by mark_join_nest_as_const
   */
   uint              n_tables;
   nested_join_map   nj_map;          /* Bit used to identify this nested join*/

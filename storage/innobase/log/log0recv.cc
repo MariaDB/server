@@ -2465,10 +2465,10 @@ recv_parse_log_rec(
 
 	*body = NULL;
 
-	UNIV_MEM_INVALID(type, sizeof *type);
-	UNIV_MEM_INVALID(space, sizeof *space);
-	UNIV_MEM_INVALID(page_no, sizeof *page_no);
-	UNIV_MEM_INVALID(body, sizeof *body);
+	MEM_UNDEFINED(type, sizeof *type);
+	MEM_UNDEFINED(space, sizeof *space);
+	MEM_UNDEFINED(page_no, sizeof *page_no);
+	MEM_UNDEFINED(body, sizeof *body);
 
 	if (ptr == end_ptr) {
 

@@ -19,6 +19,7 @@ innodb_lock_schedule_algorithm=FCFS
 wsrep-on=1
 
 log-slave-updates
+wsrep-on=1
 
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
@@ -44,6 +45,7 @@ innodb_lock_schedule_algorithm=FCFS
 wsrep-on=1
 
 log-slave-updates
+wsrep-on=1
 
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
@@ -69,6 +71,7 @@ innodb_lock_schedule_algorithm=FCFS
 wsrep-on=1
 
 log-slave-updates
+wsrep-on=1
 
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb

@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1248,7 +1248,7 @@ page_cur_insert_rec_low(
 	/* 1. Get the size of the physical record in the page */
 	rec_size = rec_offs_size(offsets);
 
-#ifdef UNIV_DEBUG_VALGRIND
+#ifdef HAVE_valgrind_or_MSAN
 	{
 		const void*	rec_start
 			= rec - rec_offs_extra_size(offsets);
@@ -1259,11 +1259,11 @@ page_cur_insert_rec_low(
 			   : REC_N_OLD_EXTRA_BYTES);
 
 		/* All data bytes of the record must be valid. */
-		UNIV_MEM_ASSERT_RW(rec, rec_offs_data_size(offsets));
+		MEM_CHECK_DEFINED(rec, rec_offs_data_size(offsets));
 		/* The variable-length header must be valid. */
-		UNIV_MEM_ASSERT_RW(rec_start, extra_size);
+		MEM_CHECK_DEFINED(rec_start, extra_size);
 	}
-#endif /* UNIV_DEBUG_VALGRIND */
+#endif /* HAVE_valgrind_or_MSAN */
 
 	/* 2. Try to find suitable space from page memory management */
 
@@ -1365,8 +1365,8 @@ use_heap:
 		rec_set_heap_no_old(insert_rec, heap_no);
 	}
 
-	UNIV_MEM_ASSERT_RW(rec_get_start(insert_rec, offsets),
-			   rec_offs_size(offsets));
+	MEM_CHECK_DEFINED(rec_get_start(insert_rec, offsets),
+			  rec_offs_size(offsets));
 	/* 6. Update the last insertion info in page header */
 
 	last_insert = page_header_get_ptr(page, PAGE_LAST_INSERT);
@@ -1478,7 +1478,7 @@ page_cur_insert_rec_zip(
 	/* 1. Get the size of the physical record in the page */
 	rec_size = rec_offs_size(offsets);
 
-#ifdef UNIV_DEBUG_VALGRIND
+#ifdef HAVE_valgrind_or_MSAN
 	{
 		const void*	rec_start
 			= rec - rec_offs_extra_size(offsets);
@@ -1489,11 +1489,11 @@ page_cur_insert_rec_zip(
 			   : REC_N_OLD_EXTRA_BYTES);
 
 		/* All data bytes of the record must be valid. */
-		UNIV_MEM_ASSERT_RW(rec, rec_offs_data_size(offsets));
+		MEM_CHECK_DEFINED(rec, rec_offs_data_size(offsets));
 		/* The variable-length header must be valid. */
-		UNIV_MEM_ASSERT_RW(rec_start, extra_size);
+		MEM_CHECK_DEFINED(rec_start, extra_size);
 	}
-#endif /* UNIV_DEBUG_VALGRIND */
+#endif /* HAVE_valgrind_or_MSAN */
 
 	const bool reorg_before_insert = page_has_garbage(page)
 		&& rec_size > page_get_max_insert_size(page, 1)
@@ -1815,8 +1815,8 @@ use_heap:
 	rec_set_n_owned_new(insert_rec, NULL, 0);
 	rec_set_heap_no_new(insert_rec, heap_no);
 
-	UNIV_MEM_ASSERT_RW(rec_get_start(insert_rec, offsets),
-			   rec_offs_size(offsets));
+	MEM_CHECK_DEFINED(rec_get_start(insert_rec, offsets),
+			  rec_offs_size(offsets));
 
 	page_zip_dir_insert(page_zip, cursor->rec, free_rec, insert_rec);
 

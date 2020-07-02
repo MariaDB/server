@@ -431,9 +431,9 @@ buf_flush_insert_into_flush_list(
 	ut_d(block->page.in_flush_list = TRUE);
 	ut_ad(!block->page.oldest_modification);
 	block->page.oldest_modification = lsn;
-	UNIV_MEM_ASSERT_RW(block->page.zip.data
-			   ? block->page.zip.data : block->frame,
-			   block->physical_size());
+	MEM_CHECK_DEFINED(block->page.zip.data
+			  ? block->page.zip.data : block->frame,
+			  block->physical_size());
 	incr_flush_list_size_in_bytes(block, buf_pool);
 
 	if (UNIV_LIKELY_NULL(buf_pool->flush_rbt)) {

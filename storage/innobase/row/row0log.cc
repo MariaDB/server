@@ -374,7 +374,9 @@ row_log_online_op(
 		goto err_exit;
 	}
 
-	UNIV_MEM_INVALID(log->tail.buf, sizeof log->tail.buf);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
+#endif /* HAVE_valgrind_or_MSAN */
 
 	ut_ad(log->tail.bytes < srv_sort_buf_size);
 	avail_size = srv_sort_buf_size - log->tail.bytes;
@@ -424,7 +426,7 @@ row_log_online_op(
 			       log->tail.buf, avail_size);
 		}
 
-		UNIV_MEM_ASSERT_RW(buf, srv_sort_buf_size);
+		MEM_CHECK_DEFINED(buf, srv_sort_buf_size);
 
 		if (row_log_tmpfile(log) == OS_FILE_CLOSED) {
 			log->error = DB_OUT_OF_MEMORY;
@@ -459,8 +461,10 @@ write_failed:
 			index->type |= DICT_CORRUPT;
 		}
 
-		UNIV_MEM_INVALID(log->tail.block, srv_sort_buf_size);
-		UNIV_MEM_INVALID(buf, srv_sort_buf_size);
+#ifdef HAVE_valgrind_or_MSAN
+		MEM_UNDEFINED(log->tail.block, srv_sort_buf_size);
+		MEM_UNDEFINED(buf, srv_sort_buf_size);
+#endif /* HAVE_valgrind_or_MSAN */
 
 		memcpy(log->tail.block, log->tail.buf + avail_size,
 		       mrec_size - avail_size);
@@ -470,7 +474,9 @@ write_failed:
 		ut_ad(b == log->tail.block + log->tail.bytes);
 	}
 
-	UNIV_MEM_INVALID(log->tail.buf, sizeof log->tail.buf);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
+#endif /* HAVE_valgrind_or_MSAN */
 err_exit:
 	mutex_exit(&log->mutex);
 }
@@ -502,7 +508,9 @@ row_log_table_open(
 {
 	mutex_enter(&log->mutex);
 
-	UNIV_MEM_INVALID(log->tail.buf, sizeof log->tail.buf);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
+#endif /* HAVE_valgrind_or_MSAN */
 
 	if (log->error != DB_SUCCESS) {
 err_exit:
@@ -562,7 +570,7 @@ row_log_table_close_func(
 			memcpy(buf + log->tail.bytes, log->tail.buf, avail);
 		}
 
-		UNIV_MEM_ASSERT_RW(buf, srv_sort_buf_size);
+		MEM_CHECK_DEFINED(buf, srv_sort_buf_size);
 
 		if (row_log_tmpfile(log) == OS_FILE_CLOSED) {
 			log->error = DB_OUT_OF_MEMORY;
@@ -594,8 +602,10 @@ row_log_table_close_func(
 write_failed:
 			log->error = DB_ONLINE_LOG_TOO_BIG;
 		}
-		UNIV_MEM_INVALID(log->tail.block, srv_sort_buf_size);
-		UNIV_MEM_INVALID(buf, srv_sort_buf_size);
+#ifdef HAVE_valgrind_or_MSAN
+		MEM_UNDEFINED(log->tail.block, srv_sort_buf_size);
+		MEM_UNDEFINED(buf, srv_sort_buf_size);
+#endif /* HAVE_valgrind_or_MSAN */
 		memcpy(log->tail.block, log->tail.buf + avail, size - avail);
 		log->tail.bytes = size - avail;
 	} else {
@@ -604,7 +614,9 @@ write_failed:
 	}
 
 	log->tail.total += size;
-	UNIV_MEM_INVALID(log->tail.buf, sizeof log->tail.buf);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
+#endif /* HAVE_valgrind_or_MSAN */
 err_exit:
 	mutex_exit(&log->mutex);
 
@@ -2777,7 +2789,9 @@ row_log_table_apply_ops(
 	ut_ad(new_trx_id_col > 0);
 	ut_ad(new_trx_id_col != ULINT_UNDEFINED);
 
-	UNIV_MEM_INVALID(&mrec_end, sizeof mrec_end);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(&mrec_end, sizeof mrec_end);
+#endif /* HAVE_valgrind_or_MSAN */
 
 	offsets = static_cast<rec_offs*>(ut_malloc_nokey(i * sizeof *offsets));
 	rec_offs_set_n_alloc(offsets, i);
@@ -3687,7 +3701,9 @@ row_log_apply_ops(
 	ut_ad(!index->is_committed());
 	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
 	ut_ad(index->online_log);
-	UNIV_MEM_INVALID(&mrec_end, sizeof mrec_end);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(&mrec_end, sizeof mrec_end);
+#endif /* HAVE_valgrind_or_MSAN */
 
 	offsets = static_cast<rec_offs*>(ut_malloc_nokey(i * sizeof *offsets));
 	rec_offs_set_n_alloc(offsets, i);

@@ -1911,3 +1911,15 @@ SELECT count(*) FROM information_schema.columns WHERE table_schema='test' AND (t
 SELECT count(*) FROM information_schema.columns WHERE table_schema='test' AND (table_name='tt1' AND column_name='c1') OR (table_name='tt2' AND column_name='c2');
 SELECT column_name FROM information_schema.columns WHERE (table_name, column_name) IN (('tt1','c1'),('tt2', 'c2')) ORDER BY column_name;
 DROP TABLE tt1, tt2;
+
+--echo #
+--echo # MDEV-13242 Wrong results for queries with row constructors and information_schema
+--echo #
+
+SELECT SCHEMA_NAME from information_schema.schemata where schema_name='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+SELECT SCHEMA_NAME from information_schema.schemata where schema_name=REPEAT('a',193);
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

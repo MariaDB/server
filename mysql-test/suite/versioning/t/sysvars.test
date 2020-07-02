@@ -104,6 +104,30 @@ show status like "Feature_system_versioning";
 
 drop table t;
 
+--echo #
+--echo # MDEV-22906 Disallow system_versioning_asof in DML
+--echo #
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int);
+insert into t1 values (1);
+insert into t2 values (1);
+set system_versioning_asof= '1970-01-01 00:00:00';
+delete t1, t2 from t1 join t2 where t1.x = t2.y;
+select * from t1 for system_time as of timestamp now(6);
+
+insert into t1 values (1);
+insert into t2 values (1);
+update t1, t2 set x= 2, y= 2 where x = y;
+select * from t1 for system_time as of timestamp now(6);
+
+replace t2 select x + 1 from t1;
+select * from t2;
+
+insert t2 select x + 2 from t1;
+select * from t2;
+
+drop tables t1, t2;
+
 
 --echo #
 --echo # MDEV-16991 Rounding vs truncation for TIME, DATETIME, TIMESTAMP
@@ -113,3 +137,5 @@ SET sql_mode=TIME_ROUND_FRACTIONAL;
 SET @@global.system_versioning_asof= timestamp'2001-12-31 23:59:59.9999999';
 SELECT @@global.system_versioning_asof;
 SET @@global.system_versioning_asof= DEFAULT;
+
+--echo # End of 10.4 tests

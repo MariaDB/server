@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -904,18 +905,26 @@ SysTablespace::open_or_create(
 		} else if (is_temp) {
 			ut_ad(!fil_system.temp_space);
 			ut_ad(space_id() == SRV_TMP_SPACE_ID);
-			space = fil_system.temp_space = fil_space_create(
+			space = fil_space_create(
 				name(), SRV_TMP_SPACE_ID, flags(),
 				FIL_TYPE_TEMPORARY, NULL);
+
+			mutex_enter(&fil_system.mutex);
+			fil_system.temp_space = space;
+			mutex_exit(&fil_system.mutex);
 			if (!space) {
 				return DB_ERROR;
 			}
 		} else {
 			ut_ad(!fil_system.sys_space);
 			ut_ad(space_id() == TRX_SYS_SPACE);
-			space = fil_system.sys_space = fil_space_create(
+			space = fil_space_create(
 				name(), TRX_SYS_SPACE, it->flags(),
 				FIL_TYPE_TABLESPACE, NULL);
+
+			mutex_enter(&fil_system.mutex);
+			fil_system.sys_space = space;
+			mutex_exit(&fil_system.mutex);
 			if (!space) {
 				return DB_ERROR;
 			}

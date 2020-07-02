@@ -322,8 +322,7 @@ mem_heap_create_block_func(
 		/* Not the first allocation for the heap. This block's
 		total_length field should be set to undefined. */
 		ut_d(block->total_size = ULINT_UNDEFINED);
-		UNIV_MEM_INVALID(&block->total_size,
-				 sizeof block->total_size);
+		MEM_UNDEFINED(&block->total_size, sizeof block->total_size);
 
 		heap->total_size += len;
 	}
@@ -331,7 +330,7 @@ mem_heap_create_block_func(
 	/* Poison all available memory. Individual chunks will be unpoisoned on
 	every mem_heap_alloc() call. */
 	compile_time_assert(MEM_BLOCK_HEADER_SIZE >= sizeof *block);
-	UNIV_MEM_FREE(block + 1, len - sizeof *block);
+	MEM_NOACCESS(block + 1, len - sizeof *block);
 
 	ut_ad((ulint)MEM_BLOCK_HEADER_SIZE < len);
 

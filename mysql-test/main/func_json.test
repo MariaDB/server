@@ -538,6 +538,19 @@ SELECT JSON_MERGE_PATCH('{', '[1,2,3]');
 SELECT JSON_MERGE_PATCH('{"a":"b"}', '[1,');
 
 --echo #
+--echo # MDEV-22976 CAST(JSON_EXTRACT() AS DECIMAL) does not handle boolean values
+--echo #
+
+SELECT
+  CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DOUBLE) AS cf,
+  CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DECIMAL) AS cd;
+
+SELECT
+  CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DOUBLE) AS cf,
+  CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

@@ -188,9 +188,6 @@ endif()
 
 
 TARGET_LINK_LIBRARIES(rocksdb rocksdb_aux_lib)
-  FIND_LIBRARY(LZ4_LIBRARY
-    NAMES liblz4${PIC_EXT}.a lz4
-    HINTS ${WITH_LZ4}/lib)
 
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(HAVE_SCHED_GETCPU)
@@ -250,13 +247,6 @@ IF(MSVC)
   ENDIF()
 ELSEIF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS "-Wno-error")
-ENDIF()
-
-# Enable ZSTD if available. Upstream rocksdb cmake will use WITH_ZSTD and set
-# defines within their code.
-FIND_PACKAGE(zstd)
-IF (ZSTD_FOUND)
-  SET(WITH_ZSTD ON)
 ENDIF()
 
 IF(GIT_EXECUTABLE AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/.git)
