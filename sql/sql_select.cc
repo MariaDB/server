@@ -17460,6 +17460,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   bool  using_unique_constraint= false;
   bool  use_packed_rows= false;
   bool  not_all_columns= !(select_options & TMP_TABLE_ALL_COLUMNS);
+  bool  save_abort_on_warning;
   char  *tmpname,path[FN_REFLEN];
   uchar	*pos, *group_buff, *bitmaps;
   uchar *null_flags;
@@ -17932,6 +17933,11 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   }
   null_count= (blob_count == 0) ? 1 : 0;
   hidden_field_count=param->hidden_field_count;
+
+  /* Protect against warnings in field_conv() in the next loop*/
+  save_abort_on_warning= thd->abort_on_warning;
+  thd->abort_on_warning= 0;
+
   for (i=0,reg_field=table->field; i < field_count; i++,reg_field++,recinfo++)
   {
     Field *field= *reg_field;
@@ -18018,6 +18024,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   bzero(pos, table->s->reclength - (pos - table->record[0]));
   MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
 
+  thd->abort_on_warning= save_abort_on_warning;
   param->copy_field_end=copy;
   param->recinfo= recinfo;              	// Pointer to after last field
   store_record(table,s->default_values);        // Make empty default record
