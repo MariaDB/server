@@ -16,7 +16,6 @@ galera_bf_kill_debug : timeout after 900 seconds
 galera_ssl_upgrade : [Warning] Failed to load slave replication state from table mysql.gtid_slave_pos: 130: Incorrect file format 'gtid_slave_pos'
 galera_insert_bulk : MDEV-30536 no expected deadlock in galera_insert_bulk test
 galera_sequences : MDEV-32561 WSREP FSM failure: no such a transition REPLICATING -> COMMITTED
-versioning_trx_id : MDEV-18590 : galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 galera_concurrent_ctas : MDEV-32779 galera_concurrent_ctas: assertion in the galera::ReplicatorSMM::finish_cert()
 galera_as_slave_replay : MDEV-32780 galera_as_slave_replay: assertion in the wsrep::transaction::before_rollback()
 galera_slave_replay : MDEV-32780 galera_as_slave_replay: assertion in the wsrep::transaction::before_rollback()
