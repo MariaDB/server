@@ -1424,9 +1424,7 @@ row_merge_write_rec(
 			return(NULL);
 		}
 
-#ifdef HAVE_valgrind
 		MEM_UNDEFINED(&block[0], srv_sort_buf_size);
-#endif /* HAVE_valgrind */
 
 		/* Copy the rest. */
 		b = &block[0];
@@ -1477,9 +1475,7 @@ row_merge_write_eof(
 		DBUG_RETURN(NULL);
 	}
 
-#ifdef HAVE_valgrind
 	MEM_UNDEFINED(&block[0], srv_sort_buf_size);
-#endif
 	DBUG_RETURN(&block[0]);
 }
 
@@ -2680,10 +2676,8 @@ write_buffers:
 						break;
 					}
 
-#ifdef HAVE_valgrind
 					MEM_UNDEFINED(
 						&block[0], srv_sort_buf_size);
-#endif /* HAVE_valgrind */
 				}
 			}
 			merge_buf[i] = row_merge_buf_empty(buf);
@@ -3203,9 +3197,7 @@ row_merge(
 	foffs0 = 0;
 	foffs1 = ihalf;
 
-#ifdef HAVE_valgrind
 	MEM_UNDEFINED(run_offset, *num_run * sizeof *run_offset);
-#endif /* HAVE_valgrind */
 
 	for (; foffs0 < ihalf && foffs1 < file->offset; foffs0++, foffs1++) {
 
@@ -3286,9 +3278,7 @@ row_merge(
 	*tmpfd = file->fd;
 	*file = of;
 
-#ifdef HAVE_valgrind
 	MEM_UNDEFINED(&block[0], 3 * srv_sort_buf_size);
-#endif /* HAVE_valgrind */
 
 	return(DB_SUCCESS);
 }

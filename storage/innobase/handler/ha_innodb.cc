@@ -7334,9 +7334,7 @@ build_template_field(
 	ut_ad(clust_index->table == index->table);
 
 	templ = prebuilt->mysql_template + prebuilt->n_template++;
-#ifdef HAVE_valgrind
 	MEM_UNDEFINED(templ, sizeof *templ);
-#endif /* HAVE_valgrind */
 	templ->is_virtual = !field->stored_in_db();
 
 	if (!templ->is_virtual) {
@@ -8454,9 +8452,7 @@ calc_row_difference(
 			/* The field has changed */
 
 			ufield = uvect->fields + n_changed;
-#ifdef HAVE_valgrind
 			MEM_UNDEFINED(ufield, sizeof *ufield);
-#endif /* HAVE_valgrind */
 
 			/* Let us use a dummy dfield to make the conversion
 			from the MySQL column format to the InnoDB format */

@@ -976,7 +976,7 @@ sync_array_print_long_waits_low(
 		return(false);
 	}
 
-#ifdef HAVE_valgrind
+#if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
 	/* Increase the timeouts if running under valgrind because it executes
 	extremely slowly. HAVE_valgrind does not necessary mean that
 	we are running under valgrind but we have no better way to tell.

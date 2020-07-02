@@ -453,12 +453,11 @@ void trx_free(trx_t*& trx)
 #ifdef __SANITIZE_ADDRESS__
 	/* Unpoison the memory for innodb_monitor_set_option;
 	it is operating also on the freed transaction objects. */
-	MEM_UNDEFINED(&trx->mutex, sizeof trx->mutex);
+	MEM_MAKE_ADDRESSABLE(&trx->mutex, sizeof trx->mutex);
 	/* For innobase_kill_connection() */
-	MEM_UNDEFINED(&trx->state, sizeof trx->state);
-	MEM_UNDEFINED(&trx->mysql_thd, sizeof trx->mysql_thd);
+	MEM_MAKE_ADDRESSABLE(&trx->state, sizeof trx->state);
+	MEM_MAKE_ADDRESSABLE(&trx->mysql_thd, sizeof trx->mysql_thd);
 #endif
-#ifdef HAVE_valgrind
 	/* Unpoison the memory for innodb_monitor_set_option;
 	it is operating also on the freed transaction objects.
 	We checked that these were initialized in
@@ -467,7 +466,6 @@ void trx_free(trx_t*& trx)
 	/* For innobase_kill_connection() */
 	MEM_MAKE_DEFINED(&trx->state, sizeof trx->state);
 	MEM_MAKE_DEFINED(&trx->mysql_thd, sizeof trx->mysql_thd);
-#endif
 
 	trx = NULL;
 }

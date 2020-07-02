@@ -28,6 +28,7 @@
 # include <sanitizer/msan_interface.h>
 # define HAVE_valgrind
 # define MEM_UNDEFINED(a,len) __msan_allocated_memory(a,len)
+# define MEM_MAKE_ADDRESSABLE(a,len) MEM_UNDEFINED(a,len)
 # define MEM_MAKE_DEFINED(a,len) __msan_unpoison(a,len)
 # define MEM_NOACCESS(a,len) ((void) 0)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
@@ -38,6 +39,7 @@
 #elif defined(HAVE_VALGRIND_MEMCHECK_H) && defined(HAVE_valgrind)
 # include <valgrind/memcheck.h>
 # define MEM_UNDEFINED(a,len) VALGRIND_MAKE_MEM_UNDEFINED(a,len)
+# define MEM_MAKE_ADDRESSABLE(a,len) MEM_UNDEFINED(a,len)
 # define MEM_MAKE_DEFINED(a,len) VALGRIND_MAKE_MEM_DEFINED(a,len)
 # define MEM_NOACCESS(a,len) VALGRIND_MAKE_MEM_NOACCESS(a,len)
 # define MEM_CHECK_ADDRESSABLE(a,len) VALGRIND_CHECK_MEM_IS_ADDRESSABLE(a,len)
@@ -49,16 +51,19 @@
 # include <sanitizer/asan_interface.h>
 /* How to do manual poisoning:
 https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
-# define MEM_UNDEFINED(a,len) ASAN_UNPOISON_MEMORY_REGION(a,len)
+# define MEM_UNDEFINED(a,len) ((void) 0)
+# define MEM_MAKE_ADDRESSABLE(a,len) ASAN_UNPOISON_MEMORY_REGION(a,len)
 # define MEM_MAKE_DEFINED(a,len) ((void) 0)
 # define MEM_NOACCESS(a,len) ASAN_POISON_MEMORY_REGION(a,len)
-# define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
+# define MEM_CHECK_ADDRESSABLE(a,len) \
+  assert(!__asan_region_is_poisoned((void*) a,len))
 # define MEM_CHECK_DEFINED(a,len) ((void) 0)
 # define MEM_GET_VBITS(a,b,len) ((void) 0)
 # define MEM_SET_VBITS(a,b,len) ((void) 0)
 # define REDZONE_SIZE 8
 #else
-# define MEM_UNDEFINED(a,len) ((void) (a), (void) (len))
+# define MEM_UNDEFINED(a,len) ((void) 0)
+# define MEM_MAKE_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_MAKE_DEFINED(a,len) ((void) 0)
 # define MEM_NOACCESS(a,len) ((void) 0)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
@@ -74,24 +79,22 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 #define IF_VALGRIND(A,B) B
 #endif
 
-
 #ifdef TRASH_FREED_MEMORY
 /*
-  TRASH_FILL() has to call MEM_UNDEFINED() to cancel any effect of TRASH_FREE().
+  _TRASH_FILL() has to call MEM_MAKE_ADDRESSABLE() to cancel any effect of
+  TRASH_FREE().
   This can happen in the case one does
   TRASH_ALLOC(A,B) ; TRASH_FREE(A,B) ; TRASH_ALLOC(A,B)
   to reuse the same memory in an internal memory allocator like MEM_ROOT.
-  For my_malloc() and safemalloc() the extra MEM_UNDEFINED is bit of an
-  overkill.
-  TRASH_FILL() is an internal function and should not be used externally.
+  _TRASH_FILL() is an internal function and should not be used externally.
 */
-#define TRASH_FILL(A,B,C) do { const size_t trash_tmp= (B); MEM_UNDEFINED(A, trash_tmp); memset(A, C, trash_tmp); } while (0)
+#define _TRASH_FILL(A,B,C) do { const size_t trash_tmp= (B); MEM_MAKE_ADDRESSABLE(A, trash_tmp); memset(A, C, trash_tmp); } while (0)
 #else
-#define TRASH_FILL(A,B,C) do { MEM_UNDEFINED((A), (B)); } while (0)
+#define _TRASH_FILL(A,B,C) do { MEM_UNDEFINED((A), (B)); } while (0)
 #endif
-/** Note that some memory became allocated or uninitialized. */
-#define TRASH_ALLOC(A,B) do { TRASH_FILL(A,B,0xA5); MEM_UNDEFINED(A,B); } while(0)
+/** Note that some memory became allocated and/or uninitialized. */
+#define TRASH_ALLOC(A,B) do { _TRASH_FILL(A,B,0xA5); MEM_MAKE_ADDRESSABLE(A,B); } while(0)
 /** Note that some memory became freed. (Prohibit further access to it.) */
-#define TRASH_FREE(A,B) do { TRASH_FILL(A,B,0x8F); MEM_NOACCESS(A,B); } while(0)
+#define TRASH_FREE(A,B) do { _TRASH_FILL(A,B,0x8F); MEM_NOACCESS(A,B); } while(0)
 
 #endif /* MY_VALGRIND_INCLUDED */

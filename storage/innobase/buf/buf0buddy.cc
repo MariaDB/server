@@ -393,9 +393,7 @@ buf_buddy_block_free(
 	HASH_DELETE(buf_page_t, hash, buf_pool->zip_hash, fold, bpage);
 
 	ut_d(memset(buf, 0, srv_page_size));
-#ifdef HAVE_valgrind
 	MEM_UNDEFINED(buf, srv_page_size);
-#endif /* HAVE_valgrind */
 
 	block = (buf_block_t*) bpage;
 	buf_page_mutex_enter(block);

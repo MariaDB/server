@@ -1179,12 +1179,10 @@ btr_cur_search_to_nth_level_func(
 	ut_ad(!(index->type & DICT_FTS));
 	ut_ad(index->page != FIL_NULL);
 
-#ifdef HAVE_valgrind
 	MEM_UNDEFINED(&cursor->up_match, sizeof cursor->up_match);
 	MEM_UNDEFINED(&cursor->up_bytes, sizeof cursor->up_bytes);
 	MEM_UNDEFINED(&cursor->low_match, sizeof cursor->low_match);
 	MEM_UNDEFINED(&cursor->low_bytes, sizeof cursor->low_bytes);
-#endif /* HAVE_valgrind */
 #ifdef UNIV_DEBUG
 	cursor->up_match = ULINT_UNDEFINED;
 	cursor->low_match = ULINT_UNDEFINED;
