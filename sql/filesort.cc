@@ -477,7 +477,14 @@ uint Filesort::make_sortorder(THD *thd, JOIN *join, table_map first_table_bit)
     if (item->type() == Item::FIELD_ITEM)
       pos->field= ((Item_field*) item)->field;
     else if (item->type() == Item::SUM_FUNC_ITEM && !item->const_item())
-      pos->field= ((Item_sum*) item)->get_tmp_table_field();
+    {
+      // Aggregate, or Item_aggregate_ref
+      DBUG_ASSERT(first->type() == Item::SUM_FUNC_ITEM ||
+                  (first->type() == Item::REF_ITEM &&
+                   static_cast<Item_ref*>(first)->ref_type() ==
+                   Item_ref::AGGREGATE_REF));
+      pos->field= first->get_tmp_table_field();
+    }
     else if (item->type() == Item::COPY_STR_ITEM)
     {						// Blob patch
       pos->item= ((Item_copy*) item)->get_item();

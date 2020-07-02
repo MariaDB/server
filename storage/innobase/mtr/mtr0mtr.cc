@@ -378,7 +378,7 @@ mtr_write_log(
 /** Start a mini-transaction. */
 void mtr_t::start()
 {
-  UNIV_MEM_INVALID(this, sizeof *this);
+  MEM_UNDEFINED(this, sizeof *this);
 
   new(&m_memo) mtr_buf_t();
   new(&m_log) mtr_buf_t();

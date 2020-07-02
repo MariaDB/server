@@ -1144,7 +1144,7 @@ try_again:
 	void * frame = buf_page_get_frame(bpage);
 
 	if (bpage->size.is_compressed()) {
-		UNIV_MEM_ASSERT_RW(bpage->zip.data, bpage->size.physical());
+		MEM_CHECK_DEFINED(bpage->zip.data, bpage->size.physical());
 		/* Copy the compressed page and clear the rest. */
 
 		memcpy(p, frame, bpage->size.physical());
@@ -1153,10 +1153,7 @@ try_again:
 		       srv_page_size - bpage->size.physical());
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
-
-		UNIV_MEM_ASSERT_RW(frame,
-				   bpage->size.logical());
-
+		MEM_CHECK_DEFINED(frame, bpage->size.logical());
 		memcpy(p, frame, bpage->size.logical());
 	}
 

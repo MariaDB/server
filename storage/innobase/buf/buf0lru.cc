@@ -806,7 +806,7 @@ buf_LRU_get_free_only(
 			assert_block_ahi_empty(block);
 
 			buf_block_set_state(block, BUF_BLOCK_READY_FOR_USE);
-			UNIV_MEM_ALLOC(block->frame, srv_page_size);
+			MEM_UNDEFINED(block->frame, srv_page_size);
 
 			ut_ad(buf_pool_from_block(block) == buf_pool);
 
@@ -1503,8 +1503,6 @@ func_exit:
 
 		ut_ad(b->size.is_compressed());
 
-		UNIV_MEM_DESC(b->zip.data, b->size.physical());
-
 		/* The fields in_page_hash and in_LRU_list of
 		the to-be-freed block descriptor should have
 		been cleared in
@@ -1608,17 +1606,20 @@ func_exit:
 	The page was declared uninitialized by
 	buf_LRU_block_remove_hashed().  We need to flag
 	the contents of the page valid (which it still is) in
-	order to avoid bogus Valgrind warnings.*/
+	order to avoid bogus Valgrind or MSAN warnings.*/
+	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
 
-	UNIV_MEM_VALID(((buf_block_t*) bpage)->frame,
-		       srv_page_size);
-	btr_search_drop_page_hash_index((buf_block_t*) bpage);
-	UNIV_MEM_INVALID(((buf_block_t*) bpage)->frame,
-			 srv_page_size);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_MAKE_DEFINED(block->frame, srv_page_size);
+#endif /* HAVE_valgrind_or_MSAN */
+	btr_search_drop_page_hash_index(block);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(block->frame, srv_page_size);
+#endif /* HAVE_valgrind_or_MSAN */
 
 	buf_pool_mutex_enter(buf_pool);
 
-	if (b != NULL) {
+	if (b) {
 		mutex_enter(block_mutex);
 
 		buf_page_unset_sticky(b);
@@ -1626,7 +1627,7 @@ func_exit:
 		mutex_exit(block_mutex);
 	}
 
-	buf_LRU_block_free_hashed_page((buf_block_t*) bpage);
+	buf_LRU_block_free_hashed_page(block);
 
 	return(true);
 }
@@ -1659,15 +1660,12 @@ buf_LRU_block_free_non_file_page(
 
 	buf_block_set_state(block, BUF_BLOCK_NOT_USED);
 
-	UNIV_MEM_ALLOC(block->frame, srv_page_size);
-#ifdef UNIV_DEBUG
-	/* Wipe contents of page to reveal possible stale pointers to it */
-	memset(block->frame, '\0', srv_page_size);
-#else
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(block->frame, srv_page_size);
+#endif /* HAVE_valgrind_or_MSAN */
 	/* Wipe page_no and space_id */
 	memset(block->frame + FIL_PAGE_OFFSET, 0xfe, 4);
 	memset(block->frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xfe, 4);
-#endif /* UNIV_DEBUG */
 	data = block->page.zip.data;
 
 	if (data != NULL) {
@@ -1703,7 +1701,7 @@ buf_LRU_block_free_non_file_page(
 		ut_d(block->page.in_free_list = TRUE);
 	}
 
-	UNIV_MEM_FREE(block->frame, srv_page_size);
+	MEM_NOACCESS(block->frame, srv_page_size);
 }
 
 /******************************************************************//**
@@ -1750,9 +1748,9 @@ buf_LRU_block_remove_hashed(
 
 	switch (buf_page_get_state(bpage)) {
 	case BUF_BLOCK_FILE_PAGE:
-		UNIV_MEM_ASSERT_W(bpage, sizeof(buf_block_t));
-		UNIV_MEM_ASSERT_W(((buf_block_t*) bpage)->frame,
-				  srv_page_size);
+		MEM_CHECK_ADDRESSABLE(bpage, sizeof(buf_block_t));
+		MEM_CHECK_ADDRESSABLE(((buf_block_t*) bpage)->frame,
+				      srv_page_size);
 		buf_block_modify_clock_inc((buf_block_t*) bpage);
 		if (bpage->zip.data) {
 			const page_t*	page = ((buf_block_t*) bpage)->frame;
@@ -1808,8 +1806,8 @@ buf_LRU_block_remove_hashed(
 	case BUF_BLOCK_ZIP_PAGE:
 		ut_a(bpage->oldest_modification == 0);
 		if (bpage->size.is_compressed()) {
-			UNIV_MEM_ASSERT_W(bpage->zip.data,
-					  bpage->size.physical());
+			MEM_CHECK_ADDRESSABLE(bpage->zip.data,
+					      bpage->size.physical());
 		}
 		break;
 	case BUF_BLOCK_POOL_WATCH:
@@ -1863,8 +1861,7 @@ buf_LRU_block_remove_hashed(
 		       + FIL_PAGE_OFFSET, 0xff, 4);
 		memset(((buf_block_t*) bpage)->frame
 		       + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
-		UNIV_MEM_INVALID(((buf_block_t*) bpage)->frame,
-				 srv_page_size);
+		MEM_UNDEFINED(((buf_block_t*) bpage)->frame, srv_page_size);
 		buf_page_set_state(bpage, BUF_BLOCK_REMOVE_HASH);
 
 		/* Question: If we release bpage and hash mutex here

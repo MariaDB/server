@@ -225,6 +225,13 @@ id	title	body
 1	MySQL Tutorial	DBMS stands for DataBase ...
 3	Optimizing MySQL	In this tutorial we will show ...
 DROP TABLE articles;
+#
+# MDEV-22811 DDL fails to drop and re-create FTS index
+#
+CREATE TABLE t1 (FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY,
+f1 VARCHAR(200),FULLTEXT fidx(f1))engine=innodb;
+ALTER TABLE t1 DROP index fidx, ADD FULLTEXT INDEX(f1);
+DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(3)) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FULLTEXT KEY(a), ADD COLUMN b VARCHAR(3), ADD FULLTEXT KEY(b);
 DROP TABLE t1;

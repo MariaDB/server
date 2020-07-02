@@ -53,6 +53,8 @@ SELECT COUNT(*) = 0 FROM t1;
 --enable_query_log
 
 --echo #cleanup
+--sleep 1
+
 --connection node_1
 DROP TABLE t1;
 
@@ -63,7 +65,6 @@ DROP TABLE t1;
 --connection node_3
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
-
 --connection node_1
 reset master;
 

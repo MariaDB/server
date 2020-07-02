@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -450,18 +450,9 @@ buf_flush_insert_into_flush_list(
 
 	incr_flush_list_size_in_bytes(block, buf_pool);
 
-#ifdef UNIV_DEBUG_VALGRIND
-	void*	p;
-
-	if (block->page.size.is_compressed()) {
-		p = block->page.zip.data;
-	} else {
-		p = block->frame;
-	}
-
-	UNIV_MEM_ASSERT_RW(p, block->page.size.physical());
-#endif /* UNIV_DEBUG_VALGRIND */
-
+	MEM_CHECK_DEFINED(block->page.size.is_compressed()
+			  ? block->page.zip.data : block->frame,
+			  block->page.size.physical());
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 	ut_a(buf_flush_validate_skip(buf_pool));
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
@@ -511,17 +502,9 @@ buf_flush_insert_sorted_into_flush_list(
 	ut_d(block->page.in_flush_list = TRUE);
 	block->page.oldest_modification = lsn;
 
-#ifdef UNIV_DEBUG_VALGRIND
-	void*	p;
-
-	if (block->page.size.is_compressed()) {
-		p = block->page.zip.data;
-	} else {
-		p = block->frame;
-	}
-
-	UNIV_MEM_ASSERT_RW(p, block->page.size.physical());
-#endif /* UNIV_DEBUG_VALGRIND */
+	MEM_CHECK_DEFINED(block->page.size.is_compressed()
+			  ? block->page.zip.data : block->frame,
+			  block->page.size.physical());
 
 	prev_b = NULL;
 

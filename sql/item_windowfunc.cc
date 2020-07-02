@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2016,2017 MariaDB
+   Copyright (c) 2016, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -349,9 +349,9 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
 
   for (uint i= 0; i < arg_count; i++)
   {
-    // 'item' can be changed during fix_fields
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
+    with_window_func|= args[i]->with_window_func;
   }
 
   for (uint i= 0; i < arg_count && !m_with_subquery; i++)

@@ -4666,24 +4666,15 @@ bool
 fil_validate(void)
 /*==============*/
 {
-	fil_space_t*	space;
 	fil_node_t*	fil_node;
 	ulint		n_open		= 0;
 
 	mutex_enter(&fil_system.mutex);
 
-	/* Look for spaces in the hash table */
-
-	for (ulint i = 0; i < hash_get_n_cells(fil_system.spaces); i++) {
-
-		for (space = static_cast<fil_space_t*>(
-				HASH_GET_FIRST(fil_system.spaces, i));
-		     space != 0;
-		     space = static_cast<fil_space_t*>(
-				HASH_GET_NEXT(hash, space))) {
-
-			n_open += Check::validate(space);
-		}
+	for (fil_space_t *space = UT_LIST_GET_FIRST(fil_system.space_list);
+	     space != NULL;
+	     space = UT_LIST_GET_NEXT(space_list, space)) {
+		n_open += Check::validate(space);
 	}
 
 	ut_a(fil_system.n_open == n_open);
