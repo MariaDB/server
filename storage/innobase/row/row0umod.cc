@@ -216,8 +216,7 @@ static bool row_undo_mod_must_purge(undo_node_t* node, mtr_t* mtr)
 
 	mtr->s_lock(&purge_sys.latch, __FILE__, __LINE__);
 
-	if (!purge_sys.view.changes_visible(node->new_trx_id,
-					    node->table->name)) {
+	if (!purge_sys.changes_visible(node->new_trx_id, node->table->name)) {
 		return false;
 	}
 
@@ -422,8 +421,8 @@ row_undo_mod_clust(
 		}
 		rec_t* rec = btr_pcur_get_rec(pcur);
 		mtr.s_lock(&purge_sys.latch, __FILE__, __LINE__);
-		if (!purge_sys.view.changes_visible(node->new_trx_id,
-						   node->table->name)) {
+		if (!purge_sys.changes_visible(node->new_trx_id,
+					       node->table->name)) {
 			goto mtr_commit_exit;
 		}
 
@@ -965,7 +964,7 @@ row_undo_mod_upd_del_sec(
 			does not exist.  However, this situation may
 			only occur during the rollback of incomplete
 			transactions. */
-			ut_a(thr_is_recv(thr));
+			ut_a(thr_get_trx(thr) == trx_roll_crash_recv_trx);
 		} else {
 			err = row_undo_mod_del_mark_or_remove_sec(
 				node, thr, index, entry);

@@ -584,3 +584,21 @@ ALTER TABLE t1 CHANGE no_such_col1 col1 BIGINT NULL;
 ERROR 42S22: Unknown column 'no_such_col1' in 't1'
 TRUNCATE TABLE t1;
 DROP TEMPORARY TABLE t1;
+#
+# MDEV-21695 Server crashes in TABLE::evaluate_update_default_function upon UPDATE on temporary table
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+CREATE TEMPORARY TABLE t1 (a DATETIME ON UPDATE CURRENT_TIMESTAMP);
+ALTER TABLE t1 ADD b INT;
+INSERT INTO t1 (b) VALUES (1),(2);
+ALTER TABLE t1 CHANGE COLUMN x xx INT;
+ERROR 42S22: Unknown column 'x' in 't1'
+UPDATE t1 SET b = 3;
+SELECT * FROM t1;
+a	b
+2001-01-01 10:20:30	3
+2001-01-01 10:20:30	3
+DROP TEMPORARY TABLE t1;
+#
+# End of 10.2 tests
+#

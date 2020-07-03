@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2017, Aliyun and/or its affiliates.
-   Copyright (c) 2017, MariaDB corporation
+   Copyright (c) 2017, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,13 +19,13 @@
 #include "mariadb.h"
 #include "sql_list.h"
 #include "table.h"
+#include "sql_table.h"
 #include "sql_sequence.h"
 #include "ha_sequence.h"
 #include "sql_plugin.h"
 #include "mysql/plugin.h"
 #include "sql_priv.h"
 #include "sql_parse.h"
-#include "sql_table.h"
 #include "sql_update.h"
 #include "sql_base.h"
 #include "log_event.h"
@@ -108,20 +108,25 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       MY_TEST(flags & HA_OPEN_INTERNAL_TABLE);
     reset_statistics();
 
-    /* Don't try to read the initial row the call is part of create code */
-    if (!(flags & (HA_OPEN_FOR_CREATE | HA_OPEN_FOR_REPAIR)))
+    /*
+      Don't try to read the initial row if the call is part of CREATE, REPAIR
+      or FLUSH
+    */
+    if (!(flags & (HA_OPEN_FOR_CREATE | HA_OPEN_FOR_REPAIR |
+                   HA_OPEN_FOR_FLUSH)))
     {
       if (unlikely((error= table->s->sequence->read_initial_values(table))))
         file->ha_close();
     }
     else if (!table->s->tmp_table)
-      table->m_needs_reopen= true;
+      table->internal_set_needs_reopen(true);
 
     /*
       The following is needed to fix comparison of rows in
       ha_update_first_row() for InnoDB
     */
-    memcpy(table->record[1], table->s->default_values, table->s->reclength);
+    if (!error)
+      memcpy(table->record[1], table->s->default_values, table->s->reclength);
   }
   DBUG_RETURN(error);
 }
@@ -380,6 +385,13 @@ static handler *sequence_create_handler(handlerton *hton,
                                         MEM_ROOT *mem_root)
 {
   DBUG_ENTER("sequence_create_handler");
+  if (unlikely(!share))
+  {
+    /*
+      This can happen if we call get_new_handler with a non existing share
+    */
+    DBUG_RETURN(0);
+  }
   DBUG_RETURN(new (mem_root) ha_sequence(hton, share));
 }
 
@@ -427,7 +439,8 @@ static int sequence_initialize(void *p)
                                HTON_HIDDEN |
                                HTON_TEMPORARY_NOT_SUPPORTED |
                                HTON_ALTER_NOT_SUPPORTED |
-                               HTON_NO_PARTITION);
+                               HTON_NO_PARTITION |
+                               HTON_AUTOMATIC_DELETE_TABLE);
   DBUG_RETURN(0);
 }
 

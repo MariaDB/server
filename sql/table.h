@@ -25,6 +25,7 @@
 
 #ifndef MYSQL_CLIENT
 
+#include "my_cpu.h"                             /* LF_BACKOFF() */
 #include "hash.h"                               /* HASH */
 #include "handler.h"                /* row_type, ha_choice, handler */
 #include "mysql_com.h"              /* enum_field_types */
@@ -607,15 +608,94 @@ enum open_frm_error {
   from persistent statistical tables
 */
 
-struct TABLE_STATISTICS_CB
+class TABLE_STATISTICS_CB
 {
+  class Statistics_state
+  {
+    enum state_codes
+    {
+      EMPTY,   /** data is not loaded */
+      LOADING, /** data is being loaded in some connection */
+      READY    /** data is loaded and available for use */
+    };
+    int32 state;
+
+  public:
+    /** No state copy */
+    Statistics_state &operator=(const Statistics_state &) { return *this; }
+
+    /** Checks if data loading have been completed */
+    bool is_ready() const
+    {
+      return my_atomic_load32_explicit(const_cast<int32*>(&state),
+                                       MY_MEMORY_ORDER_ACQUIRE) == READY;
+    }
+
+    /**
+      Sets mutual exclusion for data loading
+
+      If stats are in LOADING state, waits until state change.
+
+      @return
+        @retval true atomic EMPTY -> LOADING transfer completed, ok to load
+        @retval false stats are in READY state, no need to load
+    */
+    bool start_load()
+    {
+      for (;;)
+      {
+        int32 expected= EMPTY;
+        if (my_atomic_cas32_weak_explicit(&state, &expected, LOADING,
+                                          MY_MEMORY_ORDER_RELAXED,
+                                          MY_MEMORY_ORDER_RELAXED))
+          return true;
+        if (expected == READY)
+          return false;
+        (void) LF_BACKOFF();
+      }
+    }
+
+    /** Marks data available for subsequent use */
+    void end_load()
+    {
+      DBUG_ASSERT(my_atomic_load32_explicit(&state, MY_MEMORY_ORDER_RELAXED) ==
+                  LOADING);
+      my_atomic_store32_explicit(&state, READY, MY_MEMORY_ORDER_RELEASE);
+    }
+
+    /** Restores empty state on error (e.g. OOM) */
+    void abort_load()
+    {
+      DBUG_ASSERT(my_atomic_load32_explicit(&state, MY_MEMORY_ORDER_RELAXED) ==
+                  LOADING);
+      my_atomic_store32_explicit(&state, EMPTY, MY_MEMORY_ORDER_RELAXED);
+    }
+  };
+
+  class Statistics_state stats_state;
+  class Statistics_state hist_state;
+
+public:
   MEM_ROOT  mem_root; /* MEM_ROOT to allocate statistical data for the table */
   Table_statistics *table_stats; /* Structure to access the statistical data */
-  bool stats_can_be_read;        /* Memory for statistical data is allocated */
-  bool stats_is_read;            /* Statistical data for table has been read
-                                    from statistical tables */
-  bool histograms_can_be_read;
-  bool histograms_are_read;   
+  ulong total_hist_size;         /* Total size of all histograms */
+
+  bool histograms_are_ready() const
+  {
+    return !total_hist_size || hist_state.is_ready();
+  }
+
+  bool start_histograms_load()
+  {
+    return total_hist_size && hist_state.start_load();
+  }
+
+  void end_histograms_load() { hist_state.end_load(); }
+  void abort_histograms_load() { hist_state.abort_load(); }
+  bool stats_are_ready() const { return stats_state.is_ready(); }
+  bool start_stats_load() { return stats_state.start_load(); }
+  void end_stats_load() { stats_state.end_load(); }
+  void abort_stats_load() { stats_state.abort_load(); }
 };
 
 /**
@@ -1177,8 +1257,7 @@ public:
     Map of keys that can be used to retrieve all data from this table 
     needed by the query without reading the row.
   */
-  key_map covering_keys;
-  key_map quick_keys, intersect_keys;
+  key_map covering_keys, intersect_keys;
   /*
     A set of keys that can be used in the query that references this
     table.
@@ -1260,28 +1339,29 @@ public:
   /* The estimate of the number of records in the table used by optimizer */ 
   ha_rows used_stat_records;
 
+  key_map opt_range_keys;
   /* 
-    For each key that has quick_keys.is_set(key) == TRUE: estimate of #records
-    and max #key parts that range access would use.
+    The following structure is filled for each key that has
+    opt_range_keys.is_set(key) == TRUE
   */
-  ha_rows	quick_rows[MAX_KEY];
-  uint          quick_key_parts[MAX_KEY];
-
-  double 	quick_costs[MAX_KEY];
-  /*
-    If there is a range access by i-th index then the cost of
-    index only access for it is stored in quick_index_only_costs[i]
-  */
-  double 	quick_index_only_costs[MAX_KEY];
-
+  struct OPT_RANGE
+  {
+    uint        key_parts;
+    uint        ranges;
+    ha_rows     rows;
+    double      cost;
+    /*
+      If there is a range access by i-th index then the cost of
+      index only access for it is stored in index_only_costs[i]
+    */
+    double      index_only_cost;
+  } *opt_range;
   /* 
-    Bitmaps of key parts that =const for the duration of join execution. If
-    we're in a subquery, then the constant may be different across subquery
-    re-executions.
+     Bitmaps of key parts that =const for the duration of join execution. If
+     we're in a subquery, then the constant may be different across subquery
+     re-executions.
   */
-  key_part_map  const_key_parts[MAX_KEY];
-
-  uint    quick_n_ranges[MAX_KEY];
+  key_part_map *const_key_parts;
 
   /* 
     Estimate of number of records that satisfy SARGable part of the table
@@ -1291,7 +1371,7 @@ public:
     that will pass the table condition (condition that depends on fields of 
     this table and constants)
   */
-  ha_rows       quick_condition_rows;
+  ha_rows       opt_range_condition_rows;
 
   double cond_selectivity;
   List<st_cond_statistic> *cond_selectivity_sampling_explain;
@@ -1395,8 +1475,8 @@ public:
   bool insert_or_update;             /* Can be used by the handler */
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
-  bool m_needs_reopen;
 private:
+  bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
 public:
 #ifdef HAVE_REPLICATION
@@ -1507,6 +1587,16 @@ public:
   /** Should this instance of the table be reopened? */
   inline bool needs_reopen()
   { return !db_stat || m_needs_reopen; }
+  /*
+    Mark that all current connection instances of the table should be
+    reopen at end of statement
+  */
+  void mark_table_for_reopen();
+  /* Should only be called from Locked_tables_list::mark_table_for_reopen() */
+  void internal_set_needs_reopen(bool value)
+  {
+    m_needs_reopen= value;
+  }
 
   bool alloc_keys(uint key_count);
   bool check_tmp_key(uint key, uint key_parts,
@@ -1547,7 +1637,7 @@ public:
   bool is_filled_at_execution();
 
   bool update_const_key_parts(COND *conds);
-  void initialize_quick_structures();
+  void initialize_opt_range_structures();
 
   my_ptrdiff_t default_values_offset() const
   { return (my_ptrdiff_t) (s->default_values - record[0]); }
@@ -2894,9 +2984,11 @@ typedef struct st_nested_join
     Before each use the counters are zeroed by reset_nj_counters.
   */
   uint              counter;
+
   /*
-    Number of elements in join_list that were not (or contain table(s) that 
-    weren't) removed by table elimination.
+    Number of elements in join_list that participate in the join plan choice:
+    - Base tables that were not removed by table elimination
+    - Join nests that were not removed by mark_join_nest_as_const
   */
   uint              n_tables;
   nested_join_map   nj_map;          /* Bit used to identify this nested join*/

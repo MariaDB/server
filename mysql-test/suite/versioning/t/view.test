@@ -65,7 +65,7 @@ insert into t1 values (1);
 insert into t2 values (2);
 create or replace view vt12 as select * from t1 cross join t2;
 select * from vt12;
-create or replace view vt12 as select * from t1 for system_time as of timestamp ('0-0-0') cross join t2;
+create or replace view vt12 as select * from t1 for system_time as of timestamp ('1970-01-01 00:00') cross join t2;
 select * from vt12;
 
 --echo # VIEW improvements [tempesta-tech/mariadb#183]

@@ -1,12 +1,4 @@
-IF(NOT MSVC)
-  RETURN()
-ENDIF()
-IF(CMAKE_C_COMPILER_ID MATCHES Clang)
-  # MFC stuff does not compile with clang
-  RETURN()
-ENDIF()
-IF(CMAKE_USING_VC_FREE_TOOLS)
-  # No MFC, so it cannot be built
+IF((NOT MSVC) OR CLANG_CL OR WITH_ASAN)
   RETURN()
 ENDIF()
 

@@ -203,6 +203,16 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
     reason= "Sequence tables cannot have any keys";
     goto err;
   }
+  if (lex->alter_info.check_constraint_list.elements > 0)
+  {
+    reason= "Sequence tables cannot have any constraints";
+    goto err;
+  }
+  if (lex->alter_info.flags & ALTER_ORDER)
+  {
+    reason= "ORDER BY";
+    goto err;
+  }
 
   for (field_no= 0; (field= it++); field_no++)
   {
@@ -210,7 +220,8 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
     if (my_strcasecmp(system_charset_info, field_def->field_name,
                       field->field_name.str) ||
         field->flags != field_def->flags ||
-        field->type_handler() != field_def->type_handler)
+        field->type_handler() != field_def->type_handler ||
+        field->check_constraint || field->vcol_info)
     {
       reason= field->field_name.str;
       goto err;
@@ -301,8 +312,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   if (!temporary_table)
   {
     /*
-      The following code works like open_system_tables_for_read() and
-      close_system_tables()
+      The following code works like open_system_tables_for_read()
       The idea is:
       - Copy the table_list object for the sequence that was created
       - Backup the current state of open tables and create a new
@@ -355,8 +365,10 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   seq->reserved_until= seq->start;
   error= seq->write_initial_sequence(table);
 
-  trans_commit_stmt(thd);
-  trans_commit_implicit(thd);
+  if (trans_commit_stmt(thd))
+    error= 1;
+  if (trans_commit_implicit(thd))
+    error= 1;
 
   if (!temporary_table)
   {
@@ -437,11 +449,11 @@ int SEQUENCE::read_initial_values(TABLE *table)
     MYSQL_LOCK *lock;
     bool mdl_lock_used= 0;
     THD *thd= table->in_use;
-    bool has_active_transaction= !thd->transaction.stmt.is_empty();
+    bool has_active_transaction= !thd->transaction->stmt.is_empty();
     /*
       There is already a mdl_ticket for this table. However, for list_fields
       the MDL lock is of type MDL_SHARED_HIGH_PRIO which is not usable
-      for doing a able lock. Get a proper read lock to solve this.
+      for doing a table lock. Get a proper read lock to solve this.
     */
     if (table->mdl_ticket == 0)
     {
@@ -490,7 +502,7 @@ int SEQUENCE::read_initial_values(TABLE *table)
       But we also don't want to commit the stmt transaction while in a
       substatement, see MDEV-15977.
     */
-    if (!has_active_transaction && !thd->transaction.stmt.is_empty() &&
+    if (!has_active_transaction && !thd->transaction->stmt.is_empty() &&
         !thd->in_sub_stmt)
       trans_commit_stmt(thd);
   }
@@ -917,6 +929,8 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
 
   table= first_table->table;
   seq= table->s->sequence;
+
+  seq->write_lock(table);
   new_seq->reserved_until= seq->reserved_until;
 
   /* Copy from old sequence those fields that the user didn't specified */
@@ -949,18 +963,18 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
              first_table->db.str,
              first_table->table_name.str);
     error= 1;
+    seq->write_unlock(table);
     goto end;
   }
 
-  table->s->sequence->write_lock(table);
   if (likely(!(error= new_seq->write(table, 1))))
   {
     /* Store the sequence values in table share */
-    table->s->sequence->copy(new_seq);
+    seq->copy(new_seq);
   }
   else
     table->file->print_error(error, MYF(0));
-  table->s->sequence->write_unlock(table);
+  seq->write_unlock(table);
   if (trans_commit_stmt(thd))
     error= 1;
   if (trans_commit_implicit(thd))

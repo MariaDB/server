@@ -49,6 +49,7 @@
 call mtr.add_suppression("Can't generate a unique log-filename");
 call mtr.add_suppression("Writing one row to the row-based binary log failed.*");
 call mtr.add_suppression("Error writing file .*");
+call mtr.add_suppression("Could not use master-bin for logging");
 
 SET @old_debug= @@global.debug_dbug;
 

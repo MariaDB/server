@@ -747,21 +747,27 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   memcpy(db_buf, name.m_name, db_len);
   db_buf[db_len]= 0;
 
-  size_t tbl_len= strlen(name.m_name + db_len);
+  size_t tbl_len= strlen(name.m_name + db_len + 1);
+
+  const bool is_temp= tbl_len > TEMP_FILE_PREFIX_LENGTH &&
+    !strncmp(name.m_name, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH);
+
+  if (is_temp);
+  else if (const char *is_part= static_cast<const char*>
+           (memchr(name.m_name + db_len + 1, '#', tbl_len)))
+    tbl_len= static_cast<size_t>(is_part - &name.m_name[db_len + 1]);
+
   memcpy(tbl_buf, name.m_name + db_len + 1, tbl_len);
-  tbl_len--;
+  tbl_buf[tbl_len]= 0;
+
   if (!dict_locked)
     mutex_exit(&dict_sys.mutex);
 
   *db_name_len= filename_to_tablename(db_buf, db_name,
                                       MAX_DATABASE_NAME_LEN + 1, true);
 
-  if (tbl_len > TEMP_FILE_PREFIX_LENGTH
-      && !strncmp(tbl_buf, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH))
+  if (is_temp)
     return false;
-
-  if (char* is_part= strchr(tbl_buf, '#'))
-    *is_part= '\0';
 
   *tbl_name_len= filename_to_tablename(tbl_buf, tbl_name,
                                        MAX_TABLE_NAME_LEN + 1, true);
@@ -883,7 +889,17 @@ is_unaccessible:
 
   size_t db1_len, tbl1_len;
 
-  table->parse_name<!trylock>(db_buf1, tbl_buf1, &db1_len, &tbl1_len);
+  if (!table->parse_name<!trylock>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
+  {
+    /* The table was renamed to #sql prefix.
+    Release MDL (if any) for the old name and return. */
+    if (*mdl)
+    {
+      mdl_context->release_lock(*mdl);
+      *mdl= nullptr;
+    }
+    return table;
+  }
 
   if (*mdl)
   {
@@ -1018,9 +1034,9 @@ void dict_sys_t::create()
   const ulint hash_size = buf_pool_get_curr_size()
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
 
-  table_hash= hash_create(hash_size);
-  table_id_hash= hash_create(hash_size);
-  temp_id_hash= hash_create(hash_size);
+  table_hash.create(hash_size);
+  table_id_hash.create(hash_size);
+  temp_id_hash.create(hash_size);
 
   rw_lock_create(dict_operation_lock_key, &latch, SYNC_DICT_OPERATION);
 
@@ -1182,24 +1198,24 @@ inline void dict_sys_t::add(dict_table_t* table)
 	/* Look for a table with the same name: error if such exists */
 	{
 		dict_table_t*	table2;
-		HASH_SEARCH(name_hash, table_hash, fold,
+		HASH_SEARCH(name_hash, &table_hash, fold,
 			    dict_table_t*, table2, ut_ad(table2->cached),
 			    !strcmp(table2->name.m_name, table->name.m_name));
 		ut_a(table2 == NULL);
 
 #ifdef UNIV_DEBUG
 		/* Look for the same table pointer with a different name */
-		HASH_SEARCH_ALL(name_hash, table_hash,
+		HASH_SEARCH_ALL(name_hash, &table_hash,
 				dict_table_t*, table2, ut_ad(table2->cached),
 				table2 == table);
 		ut_ad(table2 == NULL);
 #endif /* UNIV_DEBUG */
 	}
-	HASH_INSERT(dict_table_t, name_hash, table_hash, fold, table);
+	HASH_INSERT(dict_table_t, name_hash, &table_hash, fold, table);
 
 	/* Look for a table with the same id: error if such exists */
 	hash_table_t* id_hash = table->is_temporary()
-		? temp_id_hash : table_id_hash;
+		? &temp_id_hash : &table_id_hash;
 	const ulint id_fold = ut_fold_ull(table->id);
 	{
 		dict_table_t*	table2;
@@ -1249,25 +1265,12 @@ dict_table_can_be_evicted(
 		}
 
 #ifdef BTR_CUR_HASH_ADAPT
+		/* We cannot really evict the table if adaptive hash
+		index entries are pointing to any of its indexes. */
 		for (dict_index_t* index = dict_table_get_first_index(table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
-
-			btr_search_t*	info = btr_search_get_info(index);
-
-			/* We are not allowed to free the in-memory index
-			struct dict_index_t until all entries in the adaptive
-			hash index that point to any of the page belonging to
-			his b-tree index are dropped. This is so because
-			dropping of these entries require access to
-			dict_index_t struct. To avoid such scenario we keep
-			a count of number of such pages in the search_info and
-			only free the dict_index_t struct when this count
-			drops to zero.
-
-			See also: dict_index_remove_from_cache_low() */
-
-			if (btr_search_info_get_ref_count(info, index) > 0) {
+			if (index->n_ahi_pages()) {
 				return(FALSE);
 			}
 		}
@@ -1278,6 +1281,70 @@ dict_table_can_be_evicted(
 
 	return(FALSE);
 }
+
+#ifdef BTR_CUR_HASH_ADAPT
+/** @return a clone of this */
+dict_index_t *dict_index_t::clone() const
+{
+  ut_ad(n_fields);
+  ut_ad(!(type & (DICT_IBUF | DICT_SPATIAL | DICT_FTS)));
+  ut_ad(online_status == ONLINE_INDEX_COMPLETE);
+  ut_ad(is_committed());
+  ut_ad(!is_dummy);
+  ut_ad(!parser);
+  ut_ad(!online_log);
+  ut_ad(!rtr_track);
+
+  const size_t size= sizeof *this + n_fields * sizeof(*fields) +
+#ifdef BTR_CUR_ADAPT
+    sizeof *search_info +
+#endif
+    1 + strlen(name) +
+    n_uniq * (sizeof *stat_n_diff_key_vals +
+              sizeof *stat_n_sample_sizes +
+              sizeof *stat_n_non_null_key_vals);
+
+  mem_heap_t* heap= mem_heap_create(size);
+  dict_index_t *index= static_cast<dict_index_t*>(mem_heap_dup(heap, this,
+                                                               sizeof *this));
+  *index= *this;
+  rw_lock_create(index_tree_rw_lock_key, &index->lock, SYNC_INDEX_TREE);
+  index->heap= heap;
+  index->name= mem_heap_strdup(heap, name);
+  index->fields= static_cast<dict_field_t*>
+    (mem_heap_dup(heap, fields, n_fields * sizeof *fields));
+#ifdef BTR_CUR_ADAPT
+  index->search_info= btr_search_info_create(index->heap);
+#endif /* BTR_CUR_ADAPT */
+  index->stat_n_diff_key_vals= static_cast<ib_uint64_t*>
+    (mem_heap_zalloc(heap, n_uniq * sizeof *stat_n_diff_key_vals));
+  index->stat_n_sample_sizes= static_cast<ib_uint64_t*>
+    (mem_heap_zalloc(heap, n_uniq * sizeof *stat_n_sample_sizes));
+  index->stat_n_non_null_key_vals= static_cast<ib_uint64_t*>
+    (mem_heap_zalloc(heap, n_uniq * sizeof *stat_n_non_null_key_vals));
+  mutex_create(LATCH_ID_ZIP_PAD_MUTEX, &index->zip_pad.mutex);
+  return index;
+}
+
+/** Clone this index for lazy dropping of the adaptive hash.
+@return this or a clone */
+dict_index_t *dict_index_t::clone_if_needed()
+{
+  if (!search_info->ref_count)
+    return this;
+  dict_index_t *prev= UT_LIST_GET_PREV(indexes, this);
+
+  UT_LIST_REMOVE(table->indexes, this);
+  UT_LIST_ADD_LAST(table->freed_indexes, this);
+  dict_index_t *index= clone();
+  set_freed();
+  if (prev)
+    UT_LIST_INSERT_AFTER(table->indexes, prev, index);
+  else
+    UT_LIST_ADD_FIRST(table->indexes, index);
+  return index;
+}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /**********************************************************************//**
 Make room in the table cache by evicting an unused table. The unused table
@@ -1452,7 +1519,7 @@ dict_table_rename_in_cache(
 
 	/* Look for a table with the same name: error if such exists */
 	dict_table_t*	table2;
-	HASH_SEARCH(name_hash, dict_sys.table_hash, fold,
+	HASH_SEARCH(name_hash, &dict_sys.table_hash, fold,
 			dict_table_t*, table2, ut_ad(table2->cached),
 			(strcmp(table2->name.m_name, new_name) == 0));
 	DBUG_EXECUTE_IF("dict_table_rename_in_cache_failure",
@@ -1546,7 +1613,7 @@ dict_table_rename_in_cache(
 	}
 
 	/* Remove table from the hash tables of tables */
-	HASH_DELETE(dict_table_t, name_hash, dict_sys.table_hash,
+	HASH_DELETE(dict_table_t, name_hash, &dict_sys.table_hash,
 		    ut_fold_string(old_name), table);
 
 	if (strlen(new_name) > strlen(table->name.m_name)) {
@@ -1561,7 +1628,7 @@ dict_table_rename_in_cache(
 	strcpy(table->name.m_name, new_name);
 
 	/* Add table to hash table of tables */
-	HASH_INSERT(dict_table_t, name_hash, dict_sys.table_hash, fold,
+	HASH_INSERT(dict_table_t, name_hash, &dict_sys.table_hash, fold,
 		    table);
 
 	if (!rename_also_foreigns) {
@@ -1829,12 +1896,12 @@ dict_table_change_id_in_cache(
 
 	/* Remove the table from the hash table of id's */
 
-	HASH_DELETE(dict_table_t, id_hash, dict_sys.table_id_hash,
+	HASH_DELETE(dict_table_t, id_hash, &dict_sys.table_id_hash,
 		    ut_fold_ull(table->id), table);
 	table->id = new_id;
 
 	/* Add the table back to the hash table */
-	HASH_INSERT(dict_table_t, id_hash, dict_sys.table_id_hash,
+	HASH_INSERT(dict_table_t, id_hash, &dict_sys.table_id_hash,
 		    ut_fold_ull(table->id), table);
 }
 
@@ -1879,11 +1946,11 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 
 	/* Remove table from the hash tables of tables */
 
-	HASH_DELETE(dict_table_t, name_hash, table_hash,
+	HASH_DELETE(dict_table_t, name_hash, &table_hash,
 		    ut_fold_string(table->name.m_name), table);
 
 	hash_table_t* id_hash = table->is_temporary()
-		? temp_id_hash : table_id_hash;
+		? &temp_id_hash : &table_id_hash;
 	const ulint id_fold = ut_fold_ull(table->id);
 	HASH_DELETE(dict_table_t, id_hash, id_hash, id_fold, table);
 
@@ -1919,9 +1986,19 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 
 	mutex_free(&table->autoinc_mutex);
 
-	if (!keep) {
-		dict_mem_table_free(table);
+	if (keep) {
+		return;
 	}
+
+#ifdef BTR_CUR_HASH_ADAPT
+	if (UNIV_UNLIKELY(UT_LIST_GET_LEN(table->freed_indexes) != 0)) {
+		table->vc_templ = NULL;
+		table->id = 0;
+		return;
+	}
+#endif /* BTR_CUR_HASH_ADAPT */
+
+	dict_mem_table_free(table);
 }
 
 /****************************************************************//**
@@ -2099,6 +2176,10 @@ dict_index_remove_from_cache_low(
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_ad(table->id);
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(!index->freed());
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* No need to acquire the dict_index_t::lock here because
 	there can't be any active operations on this index (or table). */
@@ -2108,13 +2189,22 @@ dict_index_remove_from_cache_low(
 		row_log_free(index->online_log);
 	}
 
+	/* Remove the index from the list of indexes of the table */
+	UT_LIST_REMOVE(table->indexes, index);
+
+	/* The index is being dropped, remove any compression stats for it. */
+	if (!lru_evict && DICT_TF_GET_ZIP_SSIZE(index->table->flags)) {
+		mutex_enter(&page_zip_stat_per_index_mutex);
+		page_zip_stat_per_index.erase(index->id);
+		mutex_exit(&page_zip_stat_per_index_mutex);
+	}
+
+	/* Remove the index from affected virtual column index list */
+	index->detach_columns();
+
 #ifdef BTR_CUR_HASH_ADAPT
 	/* We always create search info whether or not adaptive
 	hash index is enabled or not. */
-	btr_search_t*	info = btr_search_get_info(index);
-	ulint		retries = 0;
-	ut_ad(info);
-
 	/* We are not allowed to free the in-memory index struct
 	dict_index_t until all entries in the adaptive hash index
 	that point to any of the page belonging to his b-tree index
@@ -2124,30 +2214,14 @@ dict_index_remove_from_cache_low(
 	only free the dict_index_t struct when this count drops to
 	zero. See also: dict_table_can_be_evicted() */
 
-	do {
-		if (!btr_search_info_get_ref_count(info, index)
-		    || !buf_LRU_drop_page_hash_for_tablespace(table)) {
-			break;
-		}
-
-		ut_a(++retries < 10000);
-	} while (srv_shutdown_state == SRV_SHUTDOWN_NONE || !lru_evict);
+	if (index->n_ahi_pages()) {
+		index->set_freed();
+		UT_LIST_ADD_LAST(table->freed_indexes, index);
+		return;
+	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	rw_lock_free(&index->lock);
-
-	/* The index is being dropped, remove any compression stats for it. */
-	if (!lru_evict && DICT_TF_GET_ZIP_SSIZE(index->table->flags)) {
-		mutex_enter(&page_zip_stat_per_index_mutex);
-		page_zip_stat_per_index.erase(index->id);
-		mutex_exit(&page_zip_stat_per_index_mutex);
-	}
-
-	/* Remove the index from the list of indexes of the table */
-	UT_LIST_REMOVE(table->indexes, index);
-
-	/* Remove the index from affected virtual column index list */
-	index->detach_columns();
 
 	dict_mem_index_free(index);
 }
@@ -3687,7 +3761,7 @@ dict_index_get_if_in_cache_low(
 	return(dict_index_find_on_id_low(index_id));
 }
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /**********************************************************************//**
 Returns an index object if it is found in the dictionary cache.
 @return index, NULL if not found */
@@ -3710,9 +3784,7 @@ dict_index_get_if_in_cache(
 
 	return(index);
 }
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
-#ifdef UNIV_DEBUG
 /**********************************************************************//**
 Checks that a tuple has n_fields_cmp value in a sensible range, so that
 no comparison can occur with the page number field in a node pointer.
@@ -4808,38 +4880,39 @@ void dict_sys_t::resize()
   mutex_enter(&mutex);
 
   /* all table entries are in table_LRU and table_non_LRU lists */
-  hash_table_free(table_hash);
-  hash_table_free(table_id_hash);
-  hash_table_free(temp_id_hash);
+  table_hash.free();
+  table_id_hash.free();
+  temp_id_hash.free();
 
   const ulint hash_size = buf_pool_get_curr_size()
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
-  table_hash = hash_create(hash_size);
-  table_id_hash = hash_create(hash_size);
-  temp_id_hash = hash_create(hash_size);
+  table_hash.create(hash_size);
+  table_id_hash.create(hash_size);
+  temp_id_hash.create(hash_size);
 
-  for (dict_table_t* table= UT_LIST_GET_FIRST(table_LRU); table;
+  for (dict_table_t *table= UT_LIST_GET_FIRST(table_LRU); table;
        table= UT_LIST_GET_NEXT(table_LRU, table))
   {
     ut_ad(!table->is_temporary());
     ulint fold= ut_fold_string(table->name.m_name);
     ulint id_fold= ut_fold_ull(table->id);
 
-    HASH_INSERT(dict_table_t, name_hash, table_hash, fold, table);
-    HASH_INSERT(dict_table_t, id_hash, table_id_hash, id_fold, table);
+    HASH_INSERT(dict_table_t, name_hash, &table_hash, fold, table);
+    HASH_INSERT(dict_table_t, id_hash, &table_id_hash, id_fold, table);
   }
 
-  for (dict_table_t* table = UT_LIST_GET_FIRST(table_non_LRU); table;
-       table = UT_LIST_GET_NEXT(table_LRU, table)) {
-	  ulint	fold = ut_fold_string(table->name.m_name);
-	  ulint	id_fold = ut_fold_ull(table->id);
+  for (dict_table_t *table = UT_LIST_GET_FIRST(table_non_LRU); table;
+       table= UT_LIST_GET_NEXT(table_LRU, table))
+  {
+    ulint fold= ut_fold_string(table->name.m_name);
+    ulint id_fold= ut_fold_ull(table->id);
 
-	  HASH_INSERT(dict_table_t, name_hash, table_hash, fold, table);
+    HASH_INSERT(dict_table_t, name_hash, &table_hash, fold, table);
 
-	  hash_table_t* id_hash = table->is_temporary()
-	    ? temp_id_hash : table_id_hash;
+    hash_table_t *id_hash= table->is_temporary()
+      ? &temp_id_hash : &table_id_hash;
 
-	  HASH_INSERT(dict_table_t, id_hash, id_hash, id_fold, table);
+    HASH_INSERT(dict_table_t, id_hash, id_hash, id_fold, table);
   }
 
   mutex_exit(&mutex);
@@ -4855,27 +4928,19 @@ void dict_sys_t::close()
 
   /* Free the hash elements. We don't remove them from the table
   because we are going to destroy the table anyway. */
-  for (ulint i = 0; i < hash_get_n_cells(table_hash); i++)
-  {
-    dict_table_t* table = static_cast<dict_table_t*>(HASH_GET_FIRST(table_hash,
-								    i));
+  for (ulint i= table_hash.n_cells; i--; )
+    while (dict_table_t *table= static_cast<dict_table_t*>
+           (HASH_GET_FIRST(&table_hash, i)))
+      dict_sys.remove(table);
 
-    while (table)
-    {
-      dict_table_t* prev_table = table;
-      table = static_cast<dict_table_t*>(HASH_GET_NEXT(name_hash, prev_table));
-      dict_sys.remove(prev_table);
-    }
-  }
-
-  hash_table_free(table_hash);
+  table_hash.free();
 
   /* table_id_hash contains the same elements as in table_hash,
   therefore we don't delete the individual elements. */
-  hash_table_free(table_id_hash);
+  table_id_hash.free();
 
   /* No temporary tables should exist at this point. */
-  hash_table_free(temp_id_hash);
+  temp_id_hash.free();
 
   mutex_exit(&mutex);
   mutex_free(&mutex);
@@ -5075,10 +5140,7 @@ dict_index_zip_pad_update(
 		beyond max pad size. */
 		if (info->pad + ZIP_PAD_INCR
 		    < (srv_page_size * zip_pad_max) / 100) {
-			/* Use atomics even though we have the mutex.
-			This is to ensure that we are able to read
-			info->pad atomically. */
-			info->pad += ZIP_PAD_INCR;
+			info->pad.fetch_add(ZIP_PAD_INCR);
 
 			MONITOR_INC(MONITOR_PAD_INCREMENTS);
 		}
@@ -5095,11 +5157,7 @@ dict_index_zip_pad_update(
 		padding. */
 		if (info->n_rounds >= ZIP_PAD_SUCCESSFUL_ROUND_LIMIT
 		    && info->pad > 0) {
-
-			/* Use atomics even though we have the mutex.
-			This is to ensure that we are able to read
-			info->pad atomically. */
-			info->pad -= ZIP_PAD_INCR;
+			info->pad.fetch_sub(ZIP_PAD_INCR);
 
 			info->n_rounds = 0;
 

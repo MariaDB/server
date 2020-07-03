@@ -282,7 +282,7 @@ void _ma_reset_state(MARIA_HA *info)
 			(THR_WRITE_CONCURRENT_INSERT was used)
 */
 
-void _ma_get_status(void* param, my_bool concurrent_insert)
+my_bool _ma_get_status(void* param, my_bool concurrent_insert)
 {
   MARIA_HA *info=(MARIA_HA*) param;
   DBUG_ENTER("_ma_get_status");
@@ -301,7 +301,7 @@ void _ma_get_status(void* param, my_bool concurrent_insert)
   info->state= &info->state_save;
   info->state->changed= 0;
   info->append_insert_at_end= concurrent_insert;
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 
@@ -359,7 +359,7 @@ void _ma_update_status_with_lock(MARIA_HA *info)
     locked= 1;
     mysql_mutex_lock(&info->s->lock.mutex);
   }
-  (*info->s->lock.update_status)(info);
+  (*info->s->lock.update_status)(info->lock.status_param);
   if (locked)
     mysql_mutex_unlock(&info->s->lock.mutex);
 }
@@ -379,11 +379,12 @@ void _ma_copy_status(void* to, void *from)
 }
 
 
-void _ma_reset_update_flag(void *param,
-                           my_bool concurrent_insert __attribute__((unused)))
+my_bool _ma_reset_update_flag(void *param,
+                              my_bool concurrent_insert __attribute__((unused)))
 {
   MARIA_HA *info=(MARIA_HA*) param;
   info->state->changed= 0;
+  return 0;
 }
 
 my_bool _ma_start_trans(void* param)
@@ -477,7 +478,7 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
           /*
             The change was done without using transid on rows (like in
             bulk insert). In this case this thread is the only one
-            that is using the table and all rows will be visble
+            that is using the table and all rows will be visible
             for all transactions.
           */
           _ma_reset_history(share);
@@ -535,20 +536,17 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
                               share, share->in_trans));
         }
       }
-      share->in_trans--;
-      mysql_mutex_unlock(&share->intern_lock);
+      /* The following calls frees &share->intern_lock */
+      decrement_share_in_trans(share);
     }
     else
     {
-#ifdef DBUG_ASSERT_EXISTS
       /*
-        We need to keep share->in_trans correct in the debug library
-        because of the assert in maria_close()
+        We need to keep share->in_trans correct because of the check
+        in free_maria_share()
       */
       mysql_mutex_lock(&share->intern_lock);
-      share->in_trans--;
-      mysql_mutex_unlock(&share->intern_lock);
-#endif
+      decrement_share_in_trans(share);
     }
     my_free(tables);
   }
@@ -590,6 +588,10 @@ void _ma_remove_table_from_trnman(MARIA_HA *info)
     if (tables->share == share)
     {
       *prev= tables->next;
+      /*
+        We don't have to and can't call decrement_share_in_trans(share) here
+        as we know there is an active MARIA_HA handler around.
+      */
       share->in_trans--;
       my_free(tables);
       break;
@@ -627,7 +629,7 @@ void _ma_remove_table_from_trnman(MARIA_HA *info)
 			(THR_WRITE_CONCURRENT_INSERT was used)
 */
 
-void _ma_block_get_status(void* param, my_bool concurrent_insert)
+my_bool _ma_block_get_status(void* param, my_bool concurrent_insert)
 {
   MARIA_HA *info=(MARIA_HA*) param;
   DBUG_ENTER("_ma_block_get_status");
@@ -635,9 +637,10 @@ void _ma_block_get_status(void* param, my_bool concurrent_insert)
 
   info->row_base_length= info->s->base_length;
   info->row_flag= info->s->base.default_row_flag;
-  if (concurrent_insert)
+  DBUG_ASSERT(!concurrent_insert ||
+              info->lock.type == TL_WRITE_CONCURRENT_INSERT);
+  if (concurrent_insert || !info->autocommit)
   {
-    DBUG_ASSERT(info->lock.type == TL_WRITE_CONCURRENT_INSERT);
     info->row_flag|= ROW_FLAG_TRANSID;
     info->row_base_length+= TRANSID_SIZE;
   }
@@ -645,7 +648,7 @@ void _ma_block_get_status(void* param, my_bool concurrent_insert)
   {
     DBUG_ASSERT(info->lock.type != TL_WRITE_CONCURRENT_INSERT);
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 

@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB
+   Copyright (c) 2011, 2020, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -238,7 +239,7 @@ extern PAGECACHE dflt_pagecache_var, *dflt_pagecache;
 extern size_t init_pagecache(PAGECACHE *pagecache, size_t use_mem,
                             uint division_limit, uint age_threshold,
                             uint block_size, uint changed_blocks_hash_size,
-                            myf my_read_flags);
+                            myf my_read_flags)__attribute__((visibility("default"))) ;
 extern size_t resize_pagecache(PAGECACHE *pagecache,
                               size_t use_mem, uint division_limit,
                               uint age_threshold, uint changed_blocks_hash_size);
@@ -318,7 +319,7 @@ extern int flush_pagecache_blocks_with_filter(PAGECACHE *keycache,
                                               PAGECACHE_FILE *file,
                                               enum flush_type type,
                                               PAGECACHE_FLUSH_FILTER filter,
-                                              void *filter_arg);
+                                              void *filter_arg)__attribute__((visibility("default"))) ;
 extern my_bool pagecache_delete(PAGECACHE *pagecache,
                                 PAGECACHE_FILE *file,
                                 pgcache_page_no_t pageno,
@@ -334,7 +335,7 @@ extern my_bool pagecache_delete_pages(PAGECACHE *pagecache,
                                       uint page_count,
                                       enum pagecache_page_lock lock,
                                       my_bool flush);
-extern void end_pagecache(PAGECACHE *keycache, my_bool cleanup);
+extern void end_pagecache(PAGECACHE *keycache, my_bool cleanup)__attribute__((visibility("default"))) ;
 extern my_bool pagecache_collect_changed_blocks_with_lsn(PAGECACHE *pagecache,
                                                          LEX_STRING *str,
                                                          LSN *min_lsn);
@@ -354,8 +355,6 @@ extern my_bool multi_pagecache_set(const uchar *key, uint length,
 				   PAGECACHE *pagecache);
 extern void multi_pagecache_change(PAGECACHE *old_data,
 				   PAGECACHE *new_data);
-extern int reset_pagecache_counters(const char *name,
-                                    PAGECACHE *pagecache);
 #ifndef DBUG_OFF
 void pagecache_file_no_dirty_page(PAGECACHE *pagecache, PAGECACHE_FILE *file);
 #else

@@ -55,6 +55,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
 #include "field.h"
+#include "scope.h"
 #include "srv0srv.h"
 
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
@@ -519,11 +520,7 @@ performance schema instrumented if "UNIV_PFS_MUTEX"
 is defined */
 static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(autoinc_mutex),
-#  ifndef PFS_SKIP_BUFFER_MUTEX_RWLOCK
-	PSI_KEY(buffer_block_mutex),
-#  endif /* !PFS_SKIP_BUFFER_MUTEX_RWLOCK */
 	PSI_KEY(buf_pool_mutex),
-	PSI_KEY(buf_pool_zip_mutex),
 	PSI_KEY(cache_last_read_mutex),
 	PSI_KEY(dict_foreign_err_mutex),
 	PSI_KEY(dict_sys_mutex),
@@ -535,7 +532,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(fts_optimize_mutex),
 	PSI_KEY(fts_doc_id_mutex),
 	PSI_KEY(log_flush_order_mutex),
-	PSI_KEY(hash_table_mutex),
 	PSI_KEY(ibuf_bitmap_mutex),
 	PSI_KEY(ibuf_mutex),
 	PSI_KEY(ibuf_pessimistic_insert_mutex),
@@ -595,8 +591,7 @@ static PSI_rwlock_info all_innodb_rwlocks[] = {
 	PSI_RWLOCK_KEY(trx_purge_latch),
 	PSI_RWLOCK_KEY(index_tree_rw_lock),
 	PSI_RWLOCK_KEY(index_online_log),
-	PSI_RWLOCK_KEY(dict_table_stats),
-	PSI_RWLOCK_KEY(hash_table_locks)
+	PSI_RWLOCK_KEY(dict_table_stats)
 };
 # endif /* UNIV_PFS_RWLOCK */
 
@@ -2673,6 +2668,7 @@ ha_innobase::ha_innobase(
 			  | HA_CAN_FULLTEXT_HINTS
 		*/
 			  | HA_CAN_EXPORT
+                          | HA_ONLINE_ANALYZE
 			  | HA_CAN_RTREEKEYS
                           | HA_CAN_TABLES_WITHOUT_ROLLBACK
                           | HA_CAN_ONLINE_BACKUPS
@@ -3192,7 +3188,7 @@ ha_innobase::reset_template(void)
 	/* Force table to be freed in close_thread_table(). */
 	DBUG_EXECUTE_IF("free_table_in_fts_query",
 		if (m_prebuilt->in_fts_query) {
-			table->m_needs_reopen = true;
+                  table->mark_table_for_reopen();
 		}
 	);
 
@@ -3507,7 +3503,7 @@ static int innodb_init_params()
 	pages, even for larger pages */
 	if (srv_page_size > UNIV_PAGE_SIZE_DEF
 	    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
-		ib::info() << "innodb_page_size="
+		ib::error() << "innodb_page_size="
 			<< srv_page_size << " requires "
 			<< "innodb_buffer_pool_size > 24M current "
 			<< innobase_buffer_pool_size;
@@ -4819,9 +4815,8 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
 {
   DBUG_ENTER("innobase_kill_query");
 
-  if (trx_t *trx= thd_to_trx(thd))
+  if (trx_t* trx= thd_to_trx(thd))
   {
-    ut_ad(trx->mysql_thd == thd);
 #ifdef WITH_WSREP
     if (trx->is_wsrep() && wsrep_thd_is_aborting(thd))
       /* if victim has been signaled by BF thread and/or aborting is already
@@ -4829,8 +4824,29 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
       Also, BF thread should own trx mutex for the victim. */
       DBUG_VOID_RETURN;
 #endif /* WITH_WSREP */
-    /* Cancel a pending lock request if there are any */
-    lock_trx_handle_wait(trx);
+    lock_mutex_enter();
+    trx_sys.trx_list.freeze();
+    trx_mutex_enter(trx);
+    /* It is possible that innobase_close_connection() is concurrently
+    being executed on our victim. Even if the trx object is later
+    reused for another client connection or a background transaction,
+    its trx->mysql_thd will differ from our thd.
+
+    trx_sys.trx_list is thread-safe. It's freezed to 'protect'
+    trx_t. However, trx_t::commit_in_memory() changes a trx_t::state
+    of autocommit non-locking transactions without any protection.
+
+    At this point, trx may have been reallocated for another client
+    connection, or for a background operation. In that case, either
+    trx_t::state or trx_t::mysql_thd should not match our expectations. */
+    bool cancel= trx->mysql_thd == thd && trx->state == TRX_STATE_ACTIVE &&
+      !trx->lock.was_chosen_as_deadlock_victim;
+    trx_sys.trx_list.unfreeze();
+    if (!cancel);
+    else if (lock_t *lock= trx->lock.wait_lock)
+      lock_cancel_waiting_and_release(lock);
+    lock_mutex_exit();
+    trx_mutex_exit(trx);
   }
 
   DBUG_VOID_RETURN;
@@ -7017,7 +7033,9 @@ build_template_field(
 	ut_ad(clust_index->table == index->table);
 
 	templ = prebuilt->mysql_template + prebuilt->n_template++;
-	UNIV_MEM_INVALID(templ, sizeof *templ);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(templ, sizeof *templ);
+#endif /* HAVE_valgrind_or_MSAN */
 	templ->is_virtual = !field->stored_in_db();
 
 	if (!templ->is_virtual) {
@@ -8128,7 +8146,9 @@ calc_row_difference(
 			/* The field has changed */
 
 			ufield = uvect->fields + n_changed;
-			UNIV_MEM_INVALID(ufield, sizeof *ufield);
+#ifdef HAVE_valgrind_or_MSAN
+			MEM_UNDEFINED(ufield, sizeof *ufield);
+#endif /* HAVE_valgrind_or_MSAN */
 
 			/* Let us use a dummy dfield to make the conversion
 			from the MySQL column format to the InnoDB format */
@@ -9497,7 +9517,7 @@ ha_innobase::ft_init_ext(
 	const CHARSET_INFO*	char_set = key->charset();
 	const char*		query = key->ptr();
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		{
 			ib::info	out;
 			out << "keynr=" << keynr << ", '";
@@ -10551,6 +10571,7 @@ create_table_info_t::create_table_def()
 	}
 
 	heap = mem_heap_create(1000);
+	auto _ = make_scope_exit([heap]() { mem_heap_free(heap); });
 
 	ut_d(bool have_vers_start = false);
 	ut_d(bool have_vers_end = false);
@@ -10587,7 +10608,6 @@ create_table_info_t::create_table_def()
 				table->name.m_name, field->field_name.str);
 err_col:
 			dict_mem_table_free(table);
-			mem_heap_free(heap);
 			ut_ad(trx_state_eq(m_trx, TRX_STATE_NOT_STARTED));
 			DBUG_RETURN(HA_ERR_GENERIC);
 		}
@@ -10615,7 +10635,6 @@ err_col:
 					" must be below 256."
 					" Unsupported code " ULINTPF ".",
 					charset_no);
-				mem_heap_free(heap);
 				dict_mem_table_free(table);
 
 				DBUG_RETURN(ER_CANT_CREATE_TABLE);
@@ -10769,8 +10788,6 @@ err_col:
 		DBUG_EXECUTE_IF("ib_crash_during_create_for_encryption",
 				DBUG_SUICIDE(););
 	}
-
-	mem_heap_free(heap);
 
 	DBUG_EXECUTE_IF("ib_create_err_tablespace_exist",
 			err = DB_TABLESPACE_EXISTS;);
@@ -12118,7 +12135,7 @@ public:
 					*(ptr++) = ' ';
 				}
 			} else {
-				ut_ad((size_t)(ptr - buf) < MAX_TEXT - 4);
+				ut_ad((size_t)(ptr - buf) <= MAX_TEXT - 4);
 				memcpy(ptr, "...", 3);
 				ptr += 3;
 				break;
@@ -12143,7 +12160,8 @@ create_table_info_t::create_foreign_keys()
 	static const unsigned MAX_COLS_PER_FK = 500;
 	const char*	      column_names[MAX_COLS_PER_FK];
 	const char*	      ref_column_names[MAX_COLS_PER_FK];
-	char		      create_name[MAX_TABLE_NAME_LEN + 1];
+	char		      create_name[MAX_DATABASE_NAME_LEN + 1 +
+					  MAX_TABLE_NAME_LEN + 1];
 	dict_index_t*	      index	  = NULL;
 	fkerr_t		      index_error = FK_SUCCESS;
 	dict_index_t*	      err_index	  = NULL;
@@ -12183,14 +12201,18 @@ create_table_info_t::create_foreign_keys()
 		}
 
 		char* bufend = innobase_convert_name(
-			create_name, MAX_TABLE_NAME_LEN, n, strlen(n), m_thd);
+			create_name, sizeof create_name, n, strlen(n), m_thd);
 		create_name[bufend - create_name] = '\0';
 		number				  = highest_id_so_far + 1;
 		mem_heap_free(heap);
 		operation = "Alter ";
+	} else if (strstr(name, "#P#") || strstr(name, "#p#")) {
+		/* Partitioned table */
+		create_name[0] = '\0';
 	} else {
 		char* bufend = innobase_convert_name(create_name,
-						     MAX_TABLE_NAME_LEN, name,
+						     sizeof create_name,
+						     name,
 						     strlen(name), m_thd);
 		create_name[bufend - create_name] = '\0';
 	}
@@ -12224,6 +12246,9 @@ create_table_info_t::create_foreign_keys()
 					m_form->s->table_name.str);
 
 			return (DB_CANNOT_ADD_CONSTRAINT);
+		} else if (!*create_name) {
+			ut_ad("should be unreachable" == 0);
+			return DB_CANNOT_ADD_CONSTRAINT;
 		}
 
 		Foreign_key*   fk = static_cast<Foreign_key*>(key);
@@ -13323,6 +13348,19 @@ ha_innobase::discard_or_import_tablespace(
 }
 
 /**
+   @return 1 if frm file exists
+   @return 0 if it doesn't exists
+*/
+
+static bool frm_file_exists(const char *path)
+{
+  char buff[FN_REFLEN];
+  strxnmov(buff, FN_REFLEN, path, reg_ext, NullS);
+  return !access(buff, F_OK);
+}
+
+
+/**
 Drops a table from an InnoDB database. Before calling this function,
 MySQL calls innobase_commit to commit the transaction of the current user.
 Then the current user cannot have locks set on the table. Drop table
@@ -13422,7 +13460,9 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 		}
 	}
 
-	if (err == DB_TABLE_NOT_FOUND) {
+	if (err == DB_TABLE_NOT_FOUND &&
+            frm_file_exists(name))
+        {
 		/* Test to drop all tables which matches db/tablename + '#'.
 		Only partitions can have '#' as non-first character in
 		the table name!
@@ -17634,7 +17674,7 @@ innodb_adaptive_hash_index_update(THD*, st_mysql_sys_var*, void*,
 	if (*(my_bool*) save) {
 		btr_search_enable();
 	} else {
-		btr_search_disable(true);
+		btr_search_disable();
 	}
 	mysql_mutex_lock(&LOCK_global_system_variables);
 }
@@ -17733,7 +17773,7 @@ func_exit:
 		space->zip_size(), RW_X_LATCH, &mtr);
 
 	if (block != NULL) {
-		ib::info() << "Dirtying page: " << block->page.id;
+		ib::info() << "Dirtying page: " << block->page.id();
 		mtr.write<1,mtr_t::FORCED>(*block,
 					   block->frame + FIL_PAGE_SPACE_ID,
 					   block->frame[FIL_PAGE_SPACE_ID]);
@@ -18205,7 +18245,7 @@ static bool innodb_buffer_pool_evict_uncompressed()
 	for (buf_block_t* block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
 	     block != NULL; ) {
 		buf_block_t*	prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
-		ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
+		ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
 		ut_ad(block->in_unzip_LRU_list);
 		ut_ad(block->page.in_LRU_list);
 
@@ -18907,86 +18947,129 @@ wsrep_abort_slave_trx(
 		(long long)bf_seqno, (long long)victim_seqno);
 	abort();
 }
+
 /*******************************************************************//**
 This function is used to kill one transaction in BF. */
+
+/** This function is used to kill one transaction.
+
+This transaction was open on this node (not-yet-committed), and a
+conflicting writeset from some other node that was being applied
+caused a locking conflict.  First committed (from other node)
+wins, thus open transaction is rolled back.  BF stands for
+brute-force: any transaction can get aborted by galera any time
+it is necessary.
+
+This conflict can happen only when the replicated writeset (from
+other node) is being applied, not when it’s waiting in the queue.
+If our local transaction reached its COMMIT and this conflicting
+writeset was in the queue, then it should fail the local
+certification test instead.
+
+A brute force abort is only triggered by a locking conflict
+between a writeset being applied by an applier thread (slave thread)
+and an open transaction on the node, not by a Galera writeset
+comparison as in the local certification failure.
+
+@param[in]	bf_thd		Brute force (BF) thread
+@param[in,out]	victim_trx	Vimtim trx to be killed
+@param[in]	signal		Should victim be signaled */
+UNIV_INTERN
 int
-wsrep_innobase_kill_one_trx(THD *bf_thd_ptr, const trx_t *bf_trx,
-                            trx_t *victim_trx, bool signal)
+wsrep_innobase_kill_one_trx(THD* bf_thd, trx_t *victim_trx,
+			    bool signal)
 {
-        ut_ad(lock_mutex_own());
-        ut_ad(trx_mutex_own(victim_trx));
-        ut_ad(bf_thd_ptr);
-        ut_ad(victim_trx);
+	ut_ad(bf_thd);
+	ut_ad(victim_trx);
+	ut_ad(lock_mutex_own());
+	ut_ad(trx_mutex_own(victim_trx));
 
 	DBUG_ENTER("wsrep_innobase_kill_one_trx");
-	THD *bf_thd       = bf_thd_ptr ? (THD*) bf_thd_ptr : NULL;
-	THD *thd          = (THD *) victim_trx->mysql_thd;
-	int64_t bf_seqno  = (bf_thd) ? wsrep_thd_trx_seqno(bf_thd) : 0;
 
-	if (!thd) {
-		DBUG_PRINT("wsrep", ("no thd for conflicting lock"));
-		WSREP_WARN("no THD for trx: " TRX_ID_FMT, victim_trx->id);
-		DBUG_RETURN(1);
-	}
+	THD *thd= (THD *) victim_trx->mysql_thd;
+	ut_ad(thd);
+	/* Note that bf_trx might not exist here e.g. on MDL conflict
+	case (test: galera_concurrent_ctas). Similarly, BF thread
+	could be also acquiring MDL-lock causing victim to be
+	aborted. However, we have not yet called innobase_trx_init()
+	for BF transaction (test: galera_many_columns)*/
+	trx_t* bf_trx= thd_to_trx(bf_thd);
+	DBUG_ASSERT(wsrep_on(bf_thd));
 
-	if (!bf_thd) {
-		DBUG_PRINT("wsrep", ("no BF thd for conflicting lock"));
-		WSREP_WARN("no BF THD for trx: " TRX_ID_FMT,
-			   bf_trx ? bf_trx->id : 0);
-		DBUG_RETURN(1);
-	}
-	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 	wsrep_thd_LOCK(thd);
-	WSREP_DEBUG("BF kill (" ULINTPF ", seqno: " INT64PF
-		    "), victim: (%lu) trx: " TRX_ID_FMT,
-		    signal, bf_seqno,
-		    thd_get_thread_id(thd),
-		    victim_trx->id);
 
-	WSREP_DEBUG("Aborting query: %s conf %s trx: %lld",
-		    (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void",
-		    wsrep_thd_transaction_state_str(thd),
-		    wsrep_thd_transaction_id(thd));
+	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
-	/*
-	 * we mark with was_chosen_as_deadlock_victim transaction,
-	 * which is already marked as BF victim
-	 * lock_sys is held until this vicitm has aborted
-	 */
-	victim_trx->lock.was_chosen_as_wsrep_victim = TRUE;
+	WSREP_DEBUG("Aborter %s trx_id: " TRX_ID_FMT " thread: %ld "
+		"seqno: %lld client_state: %s client_mode: %s transaction_mode: %s "
+		"query: %s",
+		wsrep_thd_is_BF(bf_thd, false) ? "BF" : "normal",
+		bf_trx ? bf_trx->id : TRX_ID_MAX,
+		thd_get_thread_id(bf_thd),
+		wsrep_thd_trx_seqno(bf_thd),
+		wsrep_thd_client_state_str(bf_thd),
+		wsrep_thd_client_mode_str(bf_thd),
+		wsrep_thd_transaction_state_str(bf_thd),
+		wsrep_thd_query(bf_thd));
 
+	WSREP_DEBUG("Victim %s trx_id: " TRX_ID_FMT " thread: %ld "
+		"seqno: %lld client_state: %s  client_mode: %s transaction_mode: %s "
+		"query: %s",
+		wsrep_thd_is_BF(thd, false) ? "BF" : "normal",
+		victim_trx->id,
+		thd_get_thread_id(thd),
+		wsrep_thd_trx_seqno(thd),
+		wsrep_thd_client_state_str(thd),
+		wsrep_thd_client_mode_str(thd),
+		wsrep_thd_transaction_state_str(thd),
+		wsrep_thd_query(thd));
+
+	/* Mark transaction as a victim for Galera abort */
+	victim_trx->lock.was_chosen_as_wsrep_victim= true;
+
+	/* Note that we need to release this as it will be acquired
+	below in wsrep-lib */
 	wsrep_thd_UNLOCK(thd);
+
 	if (wsrep_thd_bf_abort(bf_thd, thd, signal))
 	{
-		if (victim_trx->lock.wait_lock) {
+		lock_t*  wait_lock = victim_trx->lock.wait_lock;
+		if (wait_lock) {
+			DBUG_ASSERT(victim_trx->is_wsrep());
 			WSREP_DEBUG("victim has wait flag: %lu",
 				    thd_get_thread_id(thd));
-			lock_t*  wait_lock = victim_trx->lock.wait_lock;
 
-			if (wait_lock) {
-				WSREP_DEBUG("canceling wait lock");
-				victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
-				lock_cancel_waiting_and_release(wait_lock);
-			}
+			WSREP_DEBUG("canceling wait lock");
+			victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
+			lock_cancel_waiting_and_release(wait_lock);
 		}
 	}
 
 	DBUG_RETURN(0);
 }
 
+/** This function forces the victim transaction to abort. Aborting the
+  transaction does NOT end it, it still has to be rolled back.
+
+  @param bf_thd       brute force THD asking for the abort
+  @param victim_thd   victim THD to be aborted
+
+  @return 0 victim was aborted
+  @return -1 victim thread was aborted (no transaction)
+*/
 static
 int
 wsrep_abort_transaction(
-/*====================*/
 	handlerton*,
 	THD *bf_thd,
 	THD *victim_thd,
 	my_bool signal)
 {
 	DBUG_ENTER("wsrep_innobase_abort_thd");
+	ut_ad(bf_thd);
+	ut_ad(victim_thd);
 
 	trx_t* victim_trx	= thd_to_trx(victim_thd);
-	trx_t* bf_trx		= (bf_thd) ? thd_to_trx(bf_thd) : NULL;
 
 	WSREP_DEBUG("abort transaction: BF: %s victim: %s victim conf: %s",
 			wsrep_thd_query(bf_thd),
@@ -18996,7 +19079,7 @@ wsrep_abort_transaction(
 	if (victim_trx) {
 		lock_mutex_enter();
 		trx_mutex_enter(victim_trx);
-		int rcode= wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
+		int rcode= wsrep_innobase_kill_one_trx(bf_thd,
 						       victim_trx, signal);
 		trx_mutex_exit(victim_trx);
 		lock_mutex_exit();
@@ -19169,7 +19252,7 @@ static MYSQL_SYSVAR_ULONG(purge_batch_size, srv_purge_batch_size,
 static MYSQL_SYSVAR_UINT(purge_threads, srv_n_purge_threads,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Number of tasks for purging transaction history",
-  NULL, NULL, 4, 1, 32, 0);
+  NULL, NULL, 4, 1, innodb_purge_threads_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(sync_array_size, srv_sync_array_size,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
@@ -19418,11 +19501,6 @@ static MYSQL_SYSVAR_ULONG(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
   128 * 1024 * 1024, 1024 * 1024, LONG_MAX, 1024 * 1024);
 
 #if defined UNIV_DEBUG || defined UNIV_PERF_DEBUG
-static MYSQL_SYSVAR_ULONG(page_hash_locks, srv_n_page_hash_locks,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Number of rw_locks protecting buffer pool page_hash. Rounded up to the next power of 2",
-  NULL, NULL, 16, 1, MAX_PAGE_HASH_LOCKS, 0);
-
 static MYSQL_SYSVAR_ULONG(doublewrite_batch_size, srv_doublewrite_batch_size,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Number of pages reserved in doublewrite buffer for batch flushing",
@@ -20098,7 +20176,7 @@ static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,
 			 "Number of threads performing background key rotation ",
 			 NULL,
 			 innodb_encryption_threads_update,
-			 srv_n_fil_crypt_threads, 0, UINT_MAX32, 0);
+			 0, 0, 255, 0);
 
 static MYSQL_SYSVAR_UINT(encryption_rotate_key_age,
 			 srv_fil_crypt_rotate_key_age,
@@ -20311,7 +20389,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(merge_threshold_set_all_debug),
 #endif /* UNIV_DEBUG */
 #if defined UNIV_DEBUG || defined UNIV_PERF_DEBUG
-  MYSQL_SYSVAR(page_hash_locks),
   MYSQL_SYSVAR(doublewrite_batch_size),
 #endif /* defined UNIV_DEBUG || defined UNIV_PERF_DEBUG */
   MYSQL_SYSVAR(status_output),

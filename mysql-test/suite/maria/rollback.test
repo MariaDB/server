@@ -1,0 +1,51 @@
+--source include/have_binlog_format_mixed_or_statement.inc
+--source include/have_sequence.inc
+# no-protocol doesn't print warnings about repaired tables
+--source include/no_protocol.inc
+
+call mtr.add_suppression("Table '.*' is marked as crashed and should be repaired");
+call mtr.add_suppression("Checking table: .*");
+
+#
+# Testing rollback after crash
+#
+
+create table t1 (a int primary key auto_increment, b int) engine=aria transactional= 1;
+create table t2 (a int primary key auto_increment, b int) engine=aria transactional= 0;
+create sequence s1 cache=2 engine=aria;
+
+insert into t1 (b) values (1),(2),(3),(4);
+insert into t2 (b) values (1),(2),(3),(4);
+select NEXT VALUE for s1,seq from seq_1_to_4;
+
+begin;
+insert into t1 (b) values (5),(6);
+insert into t1 (b) values (7),(8);
+insert into t2 (b) values (5),(6);
+insert into t2 (b) values (7),(8);
+commit;
+begin;
+insert into t1 (b) values (10),(11),(12);
+update t1 set b=100 where a=2;
+delete from t1 where a between 3 and 4;
+
+insert into t2 (b) values (10),(11),(12);
+update t2 set b=100 where a=2;
+delete from t2 where a between 3 and 4;
+select NEXT VALUE for s1,seq from seq_1_to_4;
+
+--source include/kill_and_restart_mysqld.inc
+
+select * from t1 order by a;
+select * from t2 order by a;
+insert into t1 (b) values (100),(200);
+insert into t2 (b) values (100),(200);
+select * from t1 order by a;
+select * from t2 order by a;
+select NEXT VALUE for s1,seq from seq_1_to_4;
+drop table t1,t2;
+drop sequence s1;
+
+source include/show_binlog_events.inc;
+--let $binlog_file=master-bin.000002
+source include/show_binlog_events.inc;

@@ -18,6 +18,30 @@ SELECT @@datadir;
 # restart in the original datadir again
 --source include/kill_mysqld.inc
 rmdir $ddir;
+
+# MDEV-23052
+# 1. mysql_install_db works on existing, empty directory
+mkdir $ddir;
+exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --password=foo -R > /dev/null;
+rmdir $ddir;
+
+# 2. mysql_install_db rejects existing, non-empty directory, and does not
+# remove it.
+mkdir $ddir;
+write_file $ddir/1;
+EOF
+
+error 1;
+exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --password=foo -R > $MYSQLTEST_VARDIR/tmp/install.log 2>&1;
+list_files $ddir;
+let $log=$MYSQLTEST_VARDIR/tmp/install.log;
+let SEARCH_FILE=$log;
+let SEARCH_PATTERN=is not empty. Only new or empty existing directories are accepted for --datadir;
+--source include/search_pattern_in_file.inc
+remove_file $log;
+
+rmdir $ddir;
+
 let $restart_parameters=;
 connection default;
 

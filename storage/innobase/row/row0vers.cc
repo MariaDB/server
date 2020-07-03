@@ -396,7 +396,6 @@ row_vers_impl_x_locked(
 	dict_index_t*	clust_index;
 
 	ut_ad(!lock_mutex_own());
-	ut_ad(!mutex_own(&trx_sys.mutex));
 
 	mtr_start(&mtr);
 
@@ -458,8 +457,6 @@ row_vers_build_clust_v_col(
 
 	ut_ad(dict_index_has_virtual(index));
 	ut_ad(index->table == clust_index->table);
-
-	DEBUG_SYNC(current_thd, "ib_clust_v_col_before_row_allocated");
 
 	innobase_allocate_row_for_vcol(thd, index,
 				       &local_heap,
@@ -876,8 +873,8 @@ row_vers_old_has_index_entry(
 	mem_heap_t*	v_heap = NULL;
 	dtuple_t*	cur_vrow = NULL;
 
-	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
-					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
+					      | MTR_MEMO_PAGE_S_FIX));
 	clust_index = dict_table_get_first_index(index->table);
 
 	comp = page_rec_is_comp(rec);
@@ -1129,9 +1126,9 @@ row_vers_build_for_consistent_read(
 	byte*		buf;
 	dberr_t		err;
 
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
-					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(index->is_primary());
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
+					      | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
 
 	ut_ad(rec_offs_validate(rec, index, *offsets));
@@ -1242,9 +1239,9 @@ row_vers_build_for_semi_consistent_read(
 	byte*		buf;
 	trx_id_t	rec_trx_id	= 0;
 
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
-					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(index->is_primary());
+	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
+					      | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
 
 	ut_ad(rec_offs_validate(rec, index, *offsets));

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -40,30 +40,21 @@ Created 2012-03-24 Sunny Bains.
 
 # ifdef HAVE_IB_LINUX_FUTEX
 UT_MUTEX_TYPE(TTASFutexMutex, GenericPolicy, FutexMutex);
-UT_MUTEX_TYPE(TTASFutexMutex, BlockMutexPolicy, BlockFutexMutex);
 # endif /* HAVE_IB_LINUX_FUTEX */
 
 UT_MUTEX_TYPE(TTASMutex, GenericPolicy, SpinMutex);
-UT_MUTEX_TYPE(TTASMutex, BlockMutexPolicy, BlockSpinMutex);
-
 UT_MUTEX_TYPE(OSTrackMutex, GenericPolicy, SysMutex);
-UT_MUTEX_TYPE(OSTrackMutex, BlockMutexPolicy, BlockSysMutex);
-
 UT_MUTEX_TYPE(TTASEventMutex, GenericPolicy, SyncArrayMutex);
-UT_MUTEX_TYPE(TTASEventMutex, BlockMutexPolicy, BlockSyncArrayMutex);
 
 #ifdef MUTEX_FUTEX
 /** The default mutex type. */
 typedef FutexMutex ib_mutex_t;
-typedef BlockFutexMutex ib_bpmutex_t;
 #define MUTEX_TYPE	"Uses futexes"
 #elif defined(MUTEX_SYS)
 typedef SysMutex ib_mutex_t;
-typedef BlockSysMutex ib_bpmutex_t;
 #define MUTEX_TYPE	"Uses system mutexes"
 #elif defined(MUTEX_EVENT)
 typedef SyncArrayMutex ib_mutex_t;
-typedef BlockSyncArrayMutex ib_bpmutex_t;
 #define MUTEX_TYPE	"Uses event mutexes"
 #else
 #error "ib_mutex_t type is unknown"

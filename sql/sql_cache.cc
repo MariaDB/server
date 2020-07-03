@@ -3410,7 +3410,7 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
       if (!insert_table(thd, key_length, key, (*block_table),
                         tables_used->view_db.length, 0,
                         HA_CACHE_TBL_NONTRANSACT, 0, 0, TRUE))
-        DBUG_RETURN(0);
+      goto err_cleanup;
       /*
         We do not need to register view tables here because they are already
         present in the global list.
@@ -3434,7 +3434,7 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
                         tables_used->callback_func,
                         tables_used->engine_data,
                         TRUE))
-        DBUG_RETURN(0);
+      goto err_cleanup;
 
       if (tables_used->table->file->
           register_query_cache_dependant_tables(thd, this, block_table, &n))
@@ -3442,6 +3442,11 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
     }
   }
   DBUG_RETURN(n - counter);
+err_cleanup:
+  // Mark failed
+  (*block_table)->next= (*block_table)->prev= NULL;
+  (*block_table)->parent= NULL;
+  DBUG_RETURN(0);
 }
 
 /*
@@ -3475,7 +3480,12 @@ my_bool Query_cache::register_all_tables(THD *thd,
     for (Query_cache_block_table *tmp = block->table(0) ;
 	 tmp != block_table;
 	 tmp++)
-      unlink_table(tmp);
+    {
+      if (tmp->prev) // not marked as failed and unuseable
+        unlink_table(tmp);
+      else
+        break;
+    }
     if (block_table->parent)
       unlink_table(block_table);
   }
@@ -3493,7 +3503,8 @@ my_bool Query_cache::register_all_tables(THD *thd,
 
 my_bool
 Query_cache::insert_table(THD *thd, size_t key_len, const char *key,
-			  Query_cache_block_table *node, size_t db_length, uint8 suffix_length_arg,
+			  Query_cache_block_table *node, size_t db_length,
+                          uint8 suffix_length_arg,
                           uint8 cache_type,
                           qc_engine_callback callback,
                           ulonglong engine_data,

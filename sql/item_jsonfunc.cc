@@ -951,6 +951,41 @@ double Item_func_json_extract::val_real()
 }
 
 
+my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
+{
+  json_value_types type;
+  char *value;
+  int value_len;
+
+  if (read_json(NULL, &type, &value, &value_len) != NULL)
+  {
+    switch (type)
+    {
+      case JSON_VALUE_STRING:
+      case JSON_VALUE_NUMBER:
+      {
+        my_decimal *res= decimal_from_string_with_check(to, collation.collation,
+                                                        value,
+                                                        value + value_len);
+        null_value= res == NULL;
+        return res;
+      }
+      case JSON_VALUE_TRUE:
+        int2my_decimal(E_DEC_FATAL_ERROR, 1, false/*unsigned_flag*/, to);
+        return to;
+      case JSON_VALUE_OBJECT:
+      case JSON_VALUE_ARRAY:
+      case JSON_VALUE_FALSE:
+      case JSON_VALUE_NULL:
+        break;
+    };
+  }
+  int2my_decimal(E_DEC_FATAL_ERROR, 0, false/*unsigned_flag*/, to);
+  return to;
+}
+
+
+
 bool Item_func_json_contains::fix_length_and_dec()
 {
   a2_constant= args[1]->const_item();
@@ -1439,6 +1474,52 @@ static int append_json_value(String *str, Item *item, String *tmp_val)
       return str->append(sv->ptr(), sv->length());
 
     if (item->result_type() == STRING_RESULT)
+    {
+      return str->append("\"", 1) ||
+             st_append_escaped(str, sv) ||
+             str->append("\"", 1);
+    }
+    return st_append_escaped(str, sv);
+  }
+
+append_null:
+  return str->append("null", 4);
+}
+
+
+static int append_json_value_from_field(String *str,
+  Item *i, Field *f, const uchar *key, size_t offset, String *tmp_val)
+{
+  if (i->type_handler()->is_bool_type())
+  {
+    longlong v_int= f->val_int(key + offset);
+    const char *t_f;
+    int t_f_len;
+
+    if (f->is_null_in_record(key))
+      goto append_null;
+
+    if (v_int)
+    {
+      t_f= "true";
+      t_f_len= 4;
+    }
+    else
+    {
+      t_f= "false";
+      t_f_len= 5;
+    }
+
+    return str->append(t_f, t_f_len);
+  }
+  {
+    String *sv= f->val_str(tmp_val, key + offset);
+    if (f->is_null_in_record(key))
+      goto append_null;
+    if (i->is_json_type())
+      return str->append(sv->ptr(), sv->length());
+
+    if (i->result_type() == STRING_RESULT)
     {
       return str->append("\"", 1) ||
              st_append_escaped(str, sv) ||
@@ -3621,12 +3702,43 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
 }
 
 
-String* Item_func_json_arrayagg::convert_to_json(Item *item, String *res)
+String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 {
-  String tmp;
-  res->length(0);
-  append_json_value(res, item, &tmp);
-  return res;
+  m_tmp_json.length(0);
+  if (append_json_value(&m_tmp_json, i, tmp))
+    return NULL;
+  return &m_tmp_json;
+}
+
+
+String *Item_func_json_arrayagg::get_str_from_field(Item *i,Field *f,
+    String *tmp, const uchar *key, size_t offset)
+{
+  m_tmp_json.length(0);
+
+  if (append_json_value_from_field(&m_tmp_json, i, f, key, offset, tmp))
+    return NULL;
+
+  return &m_tmp_json;
+
+}
+
+
+void Item_func_json_arrayagg::cut_max_length(String *result,
+       uint old_length, uint max_length) const
+{
+  if (result->length() == 0)
+    return;
+
+  if (result->ptr()[result->length() - 1] != '"' ||
+      max_length == 0)
+  {
+    Item_func_group_concat::cut_max_length(result, old_length, max_length);
+    return;
+  }
+
+  Item_func_group_concat::cut_max_length(result, old_length, max_length-1);
+  result->append('"');
 }
 
 
@@ -3648,6 +3760,7 @@ Item_func_json_objectagg::
 Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item)
   :Item_sum(thd, item)
 {
+  quick_group= FALSE;
   result.set_charset(collation.collation);
   result.append("{");
 }

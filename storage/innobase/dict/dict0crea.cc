@@ -26,7 +26,9 @@ Created 1/8/1996 Heikki Tuuri
 
 #include "dict0crea.h"
 #include "btr0pcur.h"
-#include "btr0btr.h"
+#ifdef BTR_CUR_HASH_ADAPT
+# include "btr0sea.h"
+#endif /* BTR_CUR_HASH_ADAPT */
 #include "page0page.h"
 #include "mach0data.h"
 #include "dict0boot.h"
@@ -1300,6 +1302,9 @@ dict_create_index_step(
 					&node->table->fts->cache->init_lock);
 			}
 
+#ifdef BTR_CUR_HASH_ADAPT
+			ut_ad(!node->index->search_info->ref_count);
+#endif /* BTR_CUR_HASH_ADAPT */
 			dict_index_remove_from_cache(node->table, node->index);
 			node->index = NULL;
 
@@ -1486,10 +1491,9 @@ dict_create_or_check_foreign_constraint_tables(void)
 		"END;\n",
 		FALSE, trx);
 
-	if (err != DB_SUCCESS) {
-
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		ib::error() << "Creation of SYS_FOREIGN and SYS_FOREIGN_COLS"
-			" failed: " << ut_strerr(err) << ". Tablespace is"
+			" failed: " << err << ". Tablespace is"
 			" full. Dropping incompletely created tables.";
 
 		ut_ad(err == DB_OUT_OF_FILE_SPACE
@@ -1588,10 +1592,9 @@ dict_create_or_check_sys_virtual()
 		"END;\n",
 		FALSE, trx);
 
-	if (err != DB_SUCCESS) {
-
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		ib::error() << "Creation of SYS_VIRTUAL"
-			" failed: " << ut_strerr(err) << ". Tablespace is"
+			" failed: " << err << ". Tablespace is"
 			" full or too many transactions."
 			" Dropping incompletely created tables.";
 
@@ -1669,9 +1672,9 @@ dict_foreign_eval_sql(
 		return(error);
 	}
 
-	if (error != DB_SUCCESS) {
+	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
 		ib::error() << "Foreign key constraint creation failed: "
-			<< ut_strerr(error);
+			<< error;
 
 		mutex_enter(&dict_foreign_err_mutex);
 		ut_print_timestamp(ef);
@@ -2122,10 +2125,9 @@ dict_create_or_check_sys_tablespace(void)
 		"END;\n",
 		FALSE, trx);
 
-	if (err != DB_SUCCESS) {
-
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		ib::error() << "Creation of SYS_TABLESPACES and SYS_DATAFILES"
-			" has failed with error " << ut_strerr(err)
+			" has failed with error " << err
 			<< ". Dropping incompletely created tables.";
 
 		ut_a(err == DB_OUT_OF_FILE_SPACE

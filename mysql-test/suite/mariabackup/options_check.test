@@ -1,0 +1,69 @@
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+--let $custom_cnf=$MYSQLTEST_VARDIR/tmp/custom_my.cnf
+
+--echo # Check for unknown options in command-line
+--disable_result_log
+--error 7
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --unknown-option=xxx --target-dir=$targetdir;
+--error 2
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --unknown-option --target-dir=$targetdir;
+
+--echo # Check for unknown options in "mariabackup" group
+--write_file $custom_cnf
+[mariabackup]
+unknown-option=XXX
+EOF
+--error 7
+exec $XTRABACKUP --defaults-file=$custom_cnf --backup --target-dir=$targetdir;
+--remove_file $custom_cnf
+
+--echo # Check for unknown options in "xtrabackup" group
+--write_file $custom_cnf
+[xtrabackup]
+unknown-option=XXX
+EOF
+--error 7
+exec $XTRABACKUP --defaults-file=$custom_cnf --backup --target-dir=$targetdir;
+--remove_file $custom_cnf
+
+--echo # Check for unknown options in "mariadb-backup" group
+--write_file $custom_cnf
+[mariadb-backup]
+unknown-option=XXX
+EOF
+--error 7
+exec $XTRABACKUP --defaults-file=$custom_cnf --backup --target-dir=$targetdir;
+--remove_file $custom_cnf
+
+--echo # Check for options overwriting
+--write_file $custom_cnf
+[mariadbd]
+innodb-flush-method=O_DIRECT
+
+[mariabackup]
+innodb-flush-method=blablabla
+EOF
+--error 13
+exec $XTRABACKUP --defaults-file=$custom_cnf --backup --target-dir=$targetdir;
+--remove_file $custom_cnf
+
+--echo # Check if uknown options that follow --mysqld-args are ingored
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --mysqld-args --unknown-option;
+--rmdir $targetdir
+
+--echo # Check if [mariadb-client] group is not loaded (MDEV-22894)
+--copy_file $MYSQLTEST_VARDIR/my.cnf $custom_cnf
+--append_file $custom_cnf
+[mariadb-client]
+user=bla
+password=bla
+EOF
+exec $XTRABACKUP --defaults-file=$custom_cnf --backup --target-dir=$targetdir;
+--remove_file $custom_cnf
+--rmdir $targetdir
+
+--echo # Check if --help presents
+exec $XTRABACKUP --help;
+exec $XTRABACKUP -?;
+--enable_result_log
+

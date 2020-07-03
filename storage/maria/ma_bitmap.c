@@ -519,9 +519,10 @@ my_bool _ma_bitmap_flush_all(MARIA_SHARE *share)
 #ifdef EXTRA_DEBUG_BITMAP
     {
       char tmp[MAX_BITMAP_INFO_LENGTH];      
-      _ma_get_bitmap_description(bitmap, bitmap->map, bitmap->page, tmp);
+      size_t len;
+      len= _ma_get_bitmap_description(bitmap, bitmap->map, bitmap->page, tmp);
       (void) translog_log_debug_info(0, LOGREC_DEBUG_INFO_QUERY,
-                                     (uchar*) tmp, strlen(tmp));
+                                     (uchar*) tmp, len);
     }
 #endif
 
@@ -957,13 +958,13 @@ void _ma_print_bitmap(MARIA_FILE_BITMAP *bitmap, uchar *data,
   Return content of bitmap as a printable string
 */
 
-void _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
-                                uchar *bitmap_data,
-                                pgcache_page_no_t page,
-                                char *out)
+size_t _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
+                                  uchar *bitmap_data,
+                                  pgcache_page_no_t page,
+                                  char *out)
 {
   uchar *pos, *end;
-  uint count=0, dot_printed= 0, len;
+  size_t count=0, dot_printed= 0, len;
   char buff[80], last[80];
 
   page++;
@@ -980,7 +981,7 @@ void _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
         if (memcmp(buff, last, count))
         {
           memcpy(last, buff, count);
-          len= sprintf(out, "%8lu: ", (ulong) page - count);
+          len= sprintf(out, "%8lu: ", (ulong) (page - count));
           memcpy(out+len, buff, count);
           out+= len + count + 1;
           out[-1]= '\n';
@@ -996,10 +997,11 @@ void _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
       page++;
     }
   }
-  len= sprintf(out, "%8lu: ", (ulong) page - count);
+  len= sprintf(out, "%8lu: ", (ulong) (page - count));
   memcpy(out+len, buff, count);
   out[len + count]= '\n';
   out[len + count + 1]= 0;
+  return len + count + 1;
 }
 
 
@@ -1288,6 +1290,7 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
     uint byte= 6 * (last_insert_page / 16);
     first_pattern= last_insert_page % 16;
     data= bitmap->map+byte;
+    first_found= 0;                         /* Don't update full_head_size */
     DBUG_ASSERT(data <= end);
   }
   else

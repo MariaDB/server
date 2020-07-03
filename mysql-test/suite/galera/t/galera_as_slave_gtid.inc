@@ -8,6 +8,7 @@
 #
 
 --source include/have_innodb.inc
+--source include/have_log_bin.inc
 --source include/galera_cluster.inc
 
 # As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
@@ -26,6 +27,13 @@ INSERT INTO t1 VALUES(1);
 
 SELECT LENGTH(@@global.gtid_binlog_state) > 1;
 --let $gtid_binlog_state_node1 = `SELECT @@global.gtid_binlog_state;`
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';

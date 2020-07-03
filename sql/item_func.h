@@ -76,7 +76,7 @@ public:
                   SUSERVAR_FUNC, GUSERVAR_FUNC, COLLATE_FUNC,
                   EXTRACT_FUNC, CHAR_TYPECAST_FUNC, FUNC_SP, UDF_FUNC,
                   NEG_FUNC, GSYSVAR_FUNC, IN_OPTIMIZER_FUNC, DYNCOL_FUNC,
-                  JSON_EXTRACT_FUNC,
+                  JSON_EXTRACT_FUNC, JSON_VALID_FUNC,
                   CASE_SEARCHED_FUNC, // Used by ColumnStore/Spider
                   CASE_SIMPLE_FUNC    // Used by ColumnStore/spider
                 };
@@ -641,6 +641,87 @@ public:
   };
 
 
+  class Handler_int: public Handler
+  {
+  public:
+    String *val_str(Item_handled_func *item, String *to) const
+    {
+      longlong nr= val_int(item);
+      if (item->null_value)
+        return 0;
+      to->set_int(nr, item->unsigned_flag, item->collation.collation);
+      return to;
+    }
+    String *val_str_ascii(Item_handled_func *item, String *to) const
+    {
+      return item->Item::val_str_ascii(to);
+    }
+    double val_real(Item_handled_func *item) const
+    {
+      return item->unsigned_flag ? (double) ((ulonglong) val_int(item)) :
+                                   (double) val_int(item);
+    }
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    {
+      return item->val_decimal_from_int(to);
+    }
+    bool get_date(THD *thd, Item_handled_func *item,
+                  MYSQL_TIME *to, date_mode_t fuzzydate) const
+    {
+      return item->get_date_from_int(thd, to, fuzzydate);
+    }
+    longlong val_int(Item_handled_func *item) const
+    {
+      Longlong_null tmp= to_longlong_null(item);
+      item->null_value= tmp.is_null();
+      return tmp.value();
+    }
+    virtual Longlong_null to_longlong_null(Item_handled_func *item) const= 0;
+  };
+
+  class Handler_slong: public Handler_int
+  {
+  public:
+    const Type_handler *return_type_handler(const Item_handled_func *item) const
+    {
+      return &type_handler_slong;
+    }
+    bool fix_length_and_dec(Item_handled_func *item) const
+    {
+      item->unsigned_flag= false;
+      item->collation= DTCollation_numeric();
+      item->fix_char_length(11);
+      return false;
+    }
+  };
+
+  class Handler_slong2: public Handler_slong
+  {
+  public:
+    bool fix_length_and_dec(Item_handled_func *func) const
+    {
+      bool rc= Handler_slong::fix_length_and_dec(func);
+      func->max_length= 2;
+      return rc;
+    }
+  };
+
+  class Handler_ulonglong: public Handler_int
+  {
+  public:
+    const Type_handler *return_type_handler(const Item_handled_func *item) const
+    {
+      return &type_handler_ulonglong;
+    }
+    bool fix_length_and_dec(Item_handled_func *item) const
+    {
+      item->unsigned_flag= true;
+      item->collation= DTCollation_numeric();
+      item->fix_char_length(21);
+      return false;
+    }
+  };
+
 protected:
   const Handler *m_func_handler;
 public:
@@ -1019,11 +1100,11 @@ public:
     decimals= 0;
     set_handler(type_handler_long_or_longlong());
   }
-  void fix_length_and_dec_temporal()
+  void fix_length_and_dec_temporal(bool downcast_decimal_to_int)
   {
     set_handler(&type_handler_newdecimal);
     fix_length_and_dec_decimal();
-    if (decimals == 0)
+    if (decimals == 0 && downcast_decimal_to_int)
       set_handler(type_handler_long_or_longlong());
   }
   bool need_parentheses_in_default() { return true; }
@@ -2188,84 +2269,99 @@ public:
 
 /* Base class for all bit functions: '~', '|', '^', '&', '>>', '<<' */
 
-class Item_func_bit: public Item_longlong_func
+class Item_func_bit_operator: public Item_handled_func
 {
   bool check_arguments() const
   { return check_argument_types_can_return_int(0, arg_count); }
+protected:
+  bool fix_length_and_dec_op1_std(const Handler *ha_int, const Handler *ha_dec)
+  {
+    set_func_handler(args[0]->cmp_type() == INT_RESULT ? ha_int : ha_dec);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+  bool fix_length_and_dec_op2_std(const Handler *ha_int, const Handler *ha_dec)
+  {
+    set_func_handler(args[0]->cmp_type() == INT_RESULT &&
+                     args[1]->cmp_type() == INT_RESULT ? ha_int : ha_dec);
+    return m_func_handler->fix_length_and_dec(this);
+  }
 public:
-  Item_func_bit(THD *thd, Item *a, Item *b): Item_longlong_func(thd, a, b) {}
-  Item_func_bit(THD *thd, Item *a): Item_longlong_func(thd, a) {}
-  bool fix_length_and_dec() { unsigned_flag= 1; return FALSE; }
-
-  virtual inline void print(String *str, enum_query_type query_type)
+  Item_func_bit_operator(THD *thd, Item *a)
+   :Item_handled_func(thd, a) {}
+  Item_func_bit_operator(THD *thd, Item *a, Item *b)
+   :Item_handled_func(thd, a, b) {}
+  void print(String *str, enum_query_type query_type)
   {
     print_op(str, query_type);
   }
   bool need_parentheses_in_default() { return true; }
 };
 
-class Item_func_bit_or :public Item_func_bit
+class Item_func_bit_or :public Item_func_bit_operator
 {
 public:
-  Item_func_bit_or(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
-  longlong val_int();
+  Item_func_bit_or(THD *thd, Item *a, Item *b)
+   :Item_func_bit_operator(thd, a, b) {}
+  bool fix_length_and_dec();
   const char *func_name() const { return "|"; }
   enum precedence precedence() const { return BITOR_PRECEDENCE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_bit_or>(thd, this); }
 };
 
-class Item_func_bit_and :public Item_func_bit
+class Item_func_bit_and :public Item_func_bit_operator
 {
 public:
-  Item_func_bit_and(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
-  longlong val_int();
+  Item_func_bit_and(THD *thd, Item *a, Item *b)
+   :Item_func_bit_operator(thd, a, b) {}
+  bool fix_length_and_dec();
   const char *func_name() const { return "&"; }
   enum precedence precedence() const { return BITAND_PRECEDENCE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_bit_and>(thd, this); }
 };
 
-class Item_func_bit_count :public Item_long_func
+class Item_func_bit_count :public Item_handled_func
 {
   bool check_arguments() const
   { return args[0]->check_type_can_return_int(func_name()); }
 public:
-  Item_func_bit_count(THD *thd, Item *a): Item_long_func(thd, a) {}
-  longlong val_int();
+  Item_func_bit_count(THD *thd, Item *a): Item_handled_func(thd, a) {}
   const char *func_name() const { return "bit_count"; }
-  bool fix_length_and_dec() { max_length=2; return FALSE; }
+  bool fix_length_and_dec();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_bit_count>(thd, this); }
 };
 
-class Item_func_shift_left :public Item_func_bit
+class Item_func_shift_left :public Item_func_bit_operator
 {
 public:
-  Item_func_shift_left(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
-  longlong val_int();
+  Item_func_shift_left(THD *thd, Item *a, Item *b)
+   :Item_func_bit_operator(thd, a, b) {}
+  bool fix_length_and_dec();
   const char *func_name() const { return "<<"; }
   enum precedence precedence() const { return SHIFT_PRECEDENCE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_shift_left>(thd, this); }
 };
 
-class Item_func_shift_right :public Item_func_bit
+class Item_func_shift_right :public Item_func_bit_operator
 {
 public:
-  Item_func_shift_right(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
-  longlong val_int();
+  Item_func_shift_right(THD *thd, Item *a, Item *b)
+   :Item_func_bit_operator(thd, a, b) {}
+  bool fix_length_and_dec();
   const char *func_name() const { return ">>"; }
   enum precedence precedence() const { return SHIFT_PRECEDENCE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_shift_right>(thd, this); }
 };
 
-class Item_func_bit_neg :public Item_func_bit
+class Item_func_bit_neg :public Item_func_bit_operator
 {
 public:
-  Item_func_bit_neg(THD *thd, Item *a): Item_func_bit(thd, a) {}
-  longlong val_int();
+  Item_func_bit_neg(THD *thd, Item *a): Item_func_bit_operator(thd, a) {}
+  bool fix_length_and_dec();
   const char *func_name() const { return "~"; }
   enum precedence precedence() const { return NEG_PRECEDENCE; }
   void print(String *str, enum_query_type query_type)
@@ -3156,11 +3252,12 @@ private:
 };
 
 
-class Item_func_bit_xor : public Item_func_bit
+class Item_func_bit_xor : public Item_func_bit_operator
 {
 public:
-  Item_func_bit_xor(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
-  longlong val_int();
+  Item_func_bit_xor(THD *thd, Item *a, Item *b)
+   :Item_func_bit_operator(thd, a, b) {}
+  bool fix_length_and_dec();
   const char *func_name() const { return "^"; }
   enum precedence precedence() const { return BITXOR_PRECEDENCE; }
   Item *get_copy(THD *thd)

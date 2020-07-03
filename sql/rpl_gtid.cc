@@ -507,7 +507,7 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename)
 
   Ha_trx_info *ha_info;
   uint count = 0;
-  for (ha_info= thd->transaction.all.ha_list; ha_info; ha_info= ha_info->next())
+  for (ha_info= thd->transaction->all.ha_list; ha_info; ha_info= ha_info->next())
   {
     void *trx_hton= ha_info->ht();
     auto table_entry= list;

@@ -44,12 +44,6 @@ Created 12/9/1995 Heikki Tuuri
 
 using st_::span;
 
-/* Margin for the free space in the smallest log, before a new query
-step which modifies the database, is started */
-
-#define LOG_CHECKPOINT_FREE_PER_THREAD	(4U << srv_page_size_shift)
-#define LOG_CHECKPOINT_EXTRA_FREE	(8U << srv_page_size_shift)
-
 static const char LOG_FILE_NAME_PREFIX[] = "ib_logfile";
 static const char LOG_FILE_NAME[] = "ib_logfile0";
 
@@ -139,7 +133,7 @@ log_get_max_modified_age_async(void);
 /*================================*/
 
 /** Calculate the recommended highest values for lsn - last_checkpoint_lsn
-and lsn - buf_get_oldest_modification().
+and lsn - buf_pool.get_oldest_modification().
 @param[in]	file_size	requested innodb_log_file_size
 @retval true on success
 @retval false if the smallest log is too small to
@@ -175,14 +169,9 @@ bool log_checkpoint();
 /** Make a checkpoint */
 void log_make_checkpoint();
 
-/****************************************************************//**
-Makes a checkpoint at the latest lsn and writes it to first page of each
-data file in the database, so that we know that the file spaces contain
-all modifications up to that lsn. This can only be called at database
-shutdown. This function also writes all log in log file to the log archive. */
-void
-logs_empty_and_mark_files_at_shutdown(void);
-/*=======================================*/
+/** Make a checkpoint at the latest lsn on shutdown. */
+void logs_empty_and_mark_files_at_shutdown();
+
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
 @param[in]	end_lsn	start LSN of the FILE_CHECKPOINT mini-transaction */
 void log_write_checkpoint_info(lsn_t end_lsn);
@@ -667,13 +656,13 @@ public:
 	lsn_t		max_modified_age_async;
 					/*!< when this recommended
 					value for lsn -
-					buf_pool_get_oldest_modification()
+					buf_pool.get_oldest_modification()
 					is exceeded, we start an
 					asynchronous preflush of pool pages */
 	lsn_t		max_modified_age_sync;
 					/*!< when this recommended
 					value for lsn -
-					buf_pool_get_oldest_modification()
+					buf_pool.get_oldest_modification()
 					is exceeded, we start a
 					synchronous preflush of pool pages */
 	lsn_t		max_checkpoint_age_async;

@@ -3,6 +3,8 @@
 #
 
 --source include/big_test.inc
+# Test will take more than one hour with valgrind
+--source include/not_valgrind.inc
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 

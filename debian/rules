@@ -39,11 +39,7 @@ else
     TESTSUITE_FAIL_CMD:=exit 1
 endif
 
-ifeq (32,$(DEB_HOST_ARCH_BITS))
-    CMAKEFLAGS += -DWITHOUT_ROCKSDB=true
-endif
-
-# Add extra flag to avoid WolfSSL code crashing the entire mysqld on s390x. This
+# Add extra flag to avoid WolfSSL code crashing the entire mariadbd on s390x. This
 # can be removed once upstream has made the code s390x compatible, see
 # https://jira.mariadb.org/browse/MDEV-21705 and
 # https://github.com/wolfSSL/wolfssl/issues/2828
@@ -85,7 +81,10 @@ endif
 	    -DSYSTEM_TYPE="debian-$(DEB_HOST_GNU_SYSTEM)" \
 	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_HOST_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
-	    -DWITHOUT_CASSANDRA=true \
+	    -DPLUGIN_TOKUDB=NO \
+	    -DPLUGIN_CASSANDRA=NO \
+	    -DPLUGIN_COLUMNSTORE=YES \
+	    -DPLUGIN_ROCKSDB=YES \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
 	    -WITH_EMBEDDED_SERVER=OFF \
 	    -DDEB=$(DEB_VENDOR) ..'
@@ -135,10 +134,10 @@ endif
 
 	# nm numeric soft is not enough, therefore extra sort in command
 	# to satisfy Debian reproducible build requirements
-	nm --defined-only $(BUILDDIR)/sql/mysqld | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.6/mysqld.sym.gz
+	nm --defined-only $(BUILDDIR)/sql/mariadbd | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.6/mariadbd.sym.gz
 
 	# rename and install AppArmor profile
-	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mysqld
+	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mariadbd
 
 	# Install libmariadbclient18 compatibility links
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so
@@ -169,7 +168,7 @@ override_dh_systemd_enable:
 # Start mysql at sequence number 19 before 20 where apache, proftpd etc gets
 # started which might depend on a running database server.
 override_dh_installinit-arch:
-	#dh_installinit --name=mysql -- defaults 19 21
+	dh_installinit --name=mariadb --no-start -- defaults 19 21
 	dh_systemd_start --restart-after-upgrade
 
 

@@ -127,7 +127,10 @@ SPIDER_DBTON spider_dbton_handlersocket = {
   NULL,
   spider_handlersocket_create_conn,
   spider_handlersocket_support_direct_join,
-  &spider_db_handlersocket_utility
+  &spider_db_handlersocket_utility,
+  "For communicating using the handlersocket protocol",
+  "0.1.0",
+  SPIDER_MATURITY_BETA
 };
 
 #ifndef HANDLERSOCKET_MYSQL_UTIL
@@ -1438,6 +1441,7 @@ spider_db_result *spider_db_handlersocket::store_result(
 }
 
 spider_db_result *spider_db_handlersocket::use_result(
+  ha_spider *spider,
   st_spider_db_request_key *request_key,
   int *error_num
 ) {

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -152,7 +152,7 @@ struct trx_i_s_cache_t {
 	i_s_table_cache_t innodb_lock_waits;/*!< innodb_lock_waits table */
 /** the hash table size is LOCKS_HASH_CELLS_NUM * sizeof(void*) bytes */
 #define LOCKS_HASH_CELLS_NUM		10000
-	hash_table_t*	locks_hash;	/*!< hash table used to eliminate
+	hash_table_t	locks_hash;	/*!< hash table used to eliminate
 					duplicate entries in the
 					innodb_locks table */
 /** Initial size of the cache storage */
@@ -162,7 +162,7 @@ struct trx_i_s_cache_t {
 	ha_storage_t*	storage;	/*!< storage for external volatile
 					data that may become unavailable
 					when we release
-					lock_sys.mutex or trx_sys.mutex */
+					lock_sys.mutex */
 	ulint		mem_allocd;	/*!< the amount of memory
 					allocated with mem_alloc*() */
 	bool		is_truncated;	/*!< this is true if the memory
@@ -180,12 +180,12 @@ code in handler/i_s.cc. */
 trx_i_s_cache_t*	trx_i_s_cache = &trx_i_s_cache_static;
 
 /** @return the heap number of a record lock
-@retval 0 for table locks */
-static uint16_t wait_lock_get_heap_no(const lock_t* lock)
+@retval 0xFFFF for table locks */
+static uint16_t wait_lock_get_heap_no(const lock_t *lock)
 {
-	return lock_get_type(lock) == LOCK_REC
-		? static_cast<uint16_t>(lock_rec_find_set_bit(lock))
-		: uint16_t{0};
+  return lock_get_type(lock) == LOCK_REC
+    ? static_cast<uint16_t>(lock_rec_find_set_bit(lock))
+    : uint16_t{0xFFFF};
 }
 
 /*******************************************************************//**
@@ -820,7 +820,7 @@ fold_lock(
 /*======*/
 	const lock_t*	lock,	/*!< in: lock object to fold */
 	ulint		heap_no)/*!< in: lock's record number
-				or ULINT_UNDEFINED if the lock
+				or 0xFFFF if the lock
 				is a table lock */
 {
 #ifdef TEST_LOCK_FOLD_ALWAYS_DIFFERENT
@@ -832,7 +832,7 @@ fold_lock(
 
 	switch (lock_get_type(lock)) {
 	case LOCK_REC:
-		ut_a(heap_no != ULINT_UNDEFINED);
+		ut_a(heap_no != 0xFFFF);
 
 		ret = ut_fold_ulint_pair((ulint) lock->trx->id,
 					 lock->un_member.rec_lock.space);
@@ -847,7 +847,7 @@ fold_lock(
 		/* this check is actually not necessary for continuing
 		correct operation, but something must have gone wrong if
 		it fails. */
-		ut_a(heap_no == ULINT_UNDEFINED);
+		ut_a(heap_no == 0xFFFF);
 
 		ret = (ulint) lock_get_table_id(lock);
 
@@ -870,7 +870,7 @@ locks_row_eq_lock(
 	const i_s_locks_row_t*	row,	/*!< in: innodb_locks row */
 	const lock_t*		lock,	/*!< in: lock object */
 	ulint			heap_no)/*!< in: lock's record number
-					or ULINT_UNDEFINED if the lock
+					or 0xFFFF if the lock
 					is a table lock */
 {
 	ut_ad(i_s_locks_row_validate(row));
@@ -879,7 +879,7 @@ locks_row_eq_lock(
 #else
 	switch (lock_get_type(lock)) {
 	case LOCK_REC:
-		ut_a(heap_no != ULINT_UNDEFINED);
+		ut_a(heap_no != 0xFFFF);
 
 		return(row->lock_trx_id == lock->trx->id
 		       && row->lock_space == lock->un_member.rec_lock.space
@@ -890,7 +890,7 @@ locks_row_eq_lock(
 		/* this check is actually not necessary for continuing
 		correct operation, but something must have gone wrong if
 		it fails. */
-		ut_a(heap_no == ULINT_UNDEFINED);
+		ut_a(heap_no == 0xFFFF);
 
 		return(row->lock_trx_id == lock->trx->id
 		       && row->lock_table_id == lock_get_table_id(lock));
@@ -914,7 +914,7 @@ search_innodb_locks(
 	trx_i_s_cache_t*	cache,	/*!< in: cache */
 	const lock_t*		lock,	/*!< in: lock to search for */
 	uint16_t		heap_no)/*!< in: lock's record number
-					or ULINT_UNDEFINED if the lock
+					or 0xFFFF if the lock
 					is a table lock */
 {
 	i_s_hash_chain_t*	hash_chain;
@@ -923,7 +923,7 @@ search_innodb_locks(
 		/* hash_chain->"next" */
 		next,
 		/* the hash table */
-		cache->locks_hash,
+		&cache->locks_hash,
 		/* fold */
 		fold_lock(lock, heap_no),
 		/* the type of the next variable */
@@ -999,7 +999,7 @@ add_lock_to_cache(
 		/* hash_chain->"next" */
 		next,
 		/* the hash table */
-		cache->locks_hash,
+		&cache->locks_hash,
 		/* fold */
 		fold_lock(lock, heap_no),
 		/* add this data to the hash */
@@ -1174,7 +1174,7 @@ trx_i_s_cache_clear(
 	cache->innodb_locks.rows_used = 0;
 	cache->innodb_lock_waits.rows_used = 0;
 
-	hash_table_clear(cache->locks_hash);
+	cache->locks_hash.clear();
 
 	ha_storage_empty(&cache->storage);
 }
@@ -1220,19 +1220,13 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
   trx_i_s_cache_clear(cache);
 
   /* Capture the state of transactions */
-  mutex_enter(&trx_sys.mutex);
-  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
-       trx != NULL;
-       trx= UT_LIST_GET_NEXT(trx_list, trx))
-  {
-    if (trx_is_started(trx) && trx != purge_sys.query->trx)
+  trx_sys.trx_list.for_each([cache](const trx_t &trx) {
+    if (!cache->is_truncated && trx_is_started(&trx) &&
+        &trx != purge_sys.query->trx)
     {
-      fetch_data_into_cache_low(cache, trx);
-      if (cache->is_truncated)
-        break;
-     }
-  }
-  mutex_exit(&trx_sys.mutex);
+      fetch_data_into_cache_low(cache, &trx);
+    }
+  });
   cache->is_truncated= false;
 }
 
@@ -1304,7 +1298,7 @@ trx_i_s_cache_init(
 	table_cache_init(&cache->innodb_lock_waits,
 			 sizeof(i_s_lock_waits_row_t));
 
-	cache->locks_hash = hash_create(LOCKS_HASH_CELLS_NUM);
+	cache->locks_hash.create(LOCKS_HASH_CELLS_NUM);
 
 	cache->storage = ha_storage_create(CACHE_STORAGE_INITIAL_SIZE,
 					   CACHE_STORAGE_HASH_CELLS);
@@ -1324,7 +1318,7 @@ trx_i_s_cache_free(
 	rw_lock_free(&cache->rw_lock);
 	mutex_free(&cache->last_read_mutex);
 
-	hash_table_free(cache->locks_hash);
+	cache->locks_hash.free();
 	ha_storage_free(cache->storage);
 	table_cache_free(&cache->innodb_trx);
 	table_cache_free(&cache->innodb_locks);

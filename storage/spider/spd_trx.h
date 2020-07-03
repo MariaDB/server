@@ -126,6 +126,10 @@ int spider_start_internal_consistent_snapshot(
 );
 
 int spider_internal_start_trx(
+  ha_spider *spider
+);
+
+int spider_internal_start_trx_for_connection(
   ha_spider *spider,
   SPIDER_CONN *conn,
   int link_idx

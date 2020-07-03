@@ -541,7 +541,7 @@ lock_prdt_insert_check_and_lock(
 	lock_t*		lock;
 
 	/* Only need to check locks on prdt_hash */
-	lock = lock_rec_get_first(lock_sys.prdt_hash, block, PRDT_HEAPNO);
+	lock = lock_rec_get_first(&lock_sys.prdt_hash, block, PRDT_HEAPNO);
 
 	if (lock == NULL) {
 		lock_mutex_exit();
@@ -628,7 +628,7 @@ lock_prdt_update_parent(
 
 	/* Get all locks in parent */
 	for (lock = lock_rec_get_first_on_page_addr(
-			lock_sys.prdt_hash, space, page_no);
+		     &lock_sys.prdt_hash, space, page_no);
 	     lock;
 	     lock = lock_rec_get_next_on_page(lock)) {
 		lock_prdt_t*	lock_prdt;
@@ -815,8 +815,8 @@ lock_prdt_lock(
 	ut_ad(type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE));
 
 	hash_table_t*	hash = type_mode == LOCK_PREDICATE
-		? lock_sys.prdt_hash
-		: lock_sys.prdt_page_hash;
+		? &lock_sys.prdt_hash
+		: &lock_sys.prdt_page_hash;
 
 	/* Another transaction cannot have an implicit lock on the record,
 	because when we come here, we already have modified the clustered
@@ -925,7 +925,7 @@ lock_place_prdt_page_lock(
 	lock_mutex_enter();
 
 	const lock_t*	lock = lock_rec_get_first_on_page_addr(
-		lock_sys.prdt_page_hash, space, page_no);
+		&lock_sys.prdt_page_hash, space, page_no);
 
 	const ulint	mode = LOCK_S | LOCK_PRDT_PAGE;
 	trx_t*		trx = thr_get_trx(thr);
@@ -981,7 +981,7 @@ lock_test_prdt_page_lock(
 	lock_mutex_enter();
 
 	lock = lock_rec_get_first_on_page_addr(
-		lock_sys.prdt_page_hash, space, page_no);
+		&lock_sys.prdt_page_hash, space, page_no);
 
 	lock_mutex_exit();
 
@@ -999,16 +999,10 @@ lock_prdt_rec_move(
 	const buf_block_t*	donator)	/*!< in: buffer block containing
 						the donating record */
 {
-	lock_t* lock;
-
-	if (!lock_sys.prdt_hash) {
-		return;
-	}
-
 	lock_mutex_enter();
 
-	for (lock = lock_rec_get_first(lock_sys.prdt_hash,
-				       donator, PRDT_HEAPNO);
+	for (lock_t *lock = lock_rec_get_first(&lock_sys.prdt_hash,
+					       donator, PRDT_HEAPNO);
 	     lock != NULL;
 	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
 
@@ -1041,8 +1035,8 @@ lock_prdt_page_free_from_discard(
 
 	ut_ad(lock_mutex_own());
 
-	space = block->page.id.space();
-	page_no = block->page.id.page_no();
+	space = block->page.id().space();
+	page_no = block->page.id().page_no();
 
 	lock = lock_rec_get_first_on_page_addr(lock_hash, space, page_no);
 

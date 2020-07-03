@@ -147,7 +147,7 @@ V
 lock_sys_mutex				Mutex protecting lock_sys_t
 |
 V
-trx_sys.mutex				Mutex protecting trx_sys_t
+trx_sys.mutex				Mutex protecting trx_sys.trx_list
 |
 V
 Threads mutex				Background thread scheduling mutex
@@ -194,7 +194,6 @@ enum latch_level_t {
 
 	SYNC_BUF_FLUSH_LIST,
 
-	SYNC_BUF_BLOCK,
 	SYNC_BUF_PAGE_HASH,
 
 	SYNC_BUF_POOL,
@@ -221,6 +220,7 @@ enum latch_level_t {
 	SYNC_THREADS,
 	SYNC_TRX,
 	SYNC_RW_TRX_HASH_ELEMENT,
+	SYNC_READ_VIEW,
 	SYNC_TRX_SYS,
 	SYNC_LOCK_SYS,
 	SYNC_LOCK_WAIT_SYS,
@@ -283,9 +283,7 @@ up its meta-data. See sync0debug.c. */
 enum latch_id_t {
 	LATCH_ID_NONE = 0,
 	LATCH_ID_AUTOINC,
-	LATCH_ID_BUF_BLOCK_MUTEX,
 	LATCH_ID_BUF_POOL,
-	LATCH_ID_BUF_POOL_ZIP,
 	LATCH_ID_CACHE_LAST_READ,
 	LATCH_ID_DICT_FOREIGN_ERR,
 	LATCH_ID_DICT_SYS,
@@ -297,7 +295,6 @@ enum latch_id_t {
 	LATCH_ID_FTS_OPTIMIZE,
 	LATCH_ID_FTS_DOC_ID,
 	LATCH_ID_FTS_PLL_TOKENIZE,
-	LATCH_ID_HASH_TABLE_MUTEX,
 	LATCH_ID_IBUF_BITMAP,
 	LATCH_ID_IBUF,
 	LATCH_ID_IBUF_PESSIMISTIC_INSERT,
@@ -368,6 +365,7 @@ enum latch_id_t {
 	LATCH_ID_FIL_CRYPT_DATA_MUTEX,
 	LATCH_ID_FIL_CRYPT_THREADS_MUTEX,
 	LATCH_ID_RW_TRX_HASH_ELEMENT,
+	LATCH_ID_READ_VIEW,
 	LATCH_ID_TEST_MUTEX,
 	LATCH_ID_MAX = LATCH_ID_TEST_MUTEX
 };

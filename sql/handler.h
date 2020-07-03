@@ -70,6 +70,7 @@ class Column_definition;
 #define HA_ADMIN_NEEDS_UPGRADE  -10
 #define HA_ADMIN_NEEDS_ALTER    -11
 #define HA_ADMIN_NEEDS_CHECK    -12
+#define HA_ADMIN_COMMIT_ERROR   -13
 
 /**
    Return values for check_if_supported_inplace_alter().
@@ -339,8 +340,17 @@ enum chf_create_flags {
 #define HA_CAN_ONLINE_BACKUPS (1ULL << 56)
 
 /* Support native hash index */
-#define HA_CAN_HASH_KEYS        (1ULL << 58)
-#define HA_LAST_TABLE_FLAG HA_CAN_HASH_KEYS
+#define HA_CAN_HASH_KEYS        (1ULL << 57)
+#define HA_CRASH_SAFE           (1ULL << 58)
+
+/*
+  There is no need to evict the table from the table definition cache having
+  run ANALYZE TABLE on it
+ */
+#define HA_ONLINE_ANALYZE             (1ULL << 59)
+
+#define HA_LAST_TABLE_FLAG HA_ONLINE_ANALYZE
+
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -617,6 +627,8 @@ given at all. */
 
 /* Create a sequence */
 #define HA_CREATE_USED_SEQUENCE           (1UL << 25)
+/* Tell binlog_show_create_table to print all engine options */
+#define HA_CREATE_PRINT_ALL_OPTIONS       (1UL << 26)
 
 typedef ulonglong alter_table_operations;
 typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
@@ -1763,6 +1775,27 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
   - DROP TABLE for this engine will have "IF EXISTS" added.
 */
 #define HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE (1 << 15)
+
+/*
+  True if handler cannot rollback transactions. If not true, the transaction
+  will be put in the transactional binlog cache.
+  For some engines, like Aria, the rollback can happen in case of crash, but
+  not trough a handler rollback call.
+*/
+#define HTON_NO_ROLLBACK (1 << 16)
+
+/*
+  This storage engine can support both transactional and non transactional
+  tables
+*/
+#define HTON_TRANSACTIONAL_AND_NON_TRANSACTIONAL (1 << 17)
+
+/*
+  The engine doesn't keep track of tables, delete_table() is not
+  needed and delete_table() always returns 0 (table deleted). This flag
+  mainly used to skip storage engines in case of ha_delete_table_force()
+*/
+#define HTON_AUTOMATIC_DELETE_TABLE (1 << 18)
 
 class Ha_trx_info;
 
@@ -3222,12 +3255,6 @@ public:
   /** End a batch started with @c start_psi_batch_mode. */
   void end_psi_batch_mode();
 
-  bool set_top_table_fields;
-
-  struct TABLE *top_table;
-  Field **top_table_field;
-  uint top_table_fields;
-
   /* If we have row logging enabled for this table */
   bool row_logging, row_logging_init;
   /* If the row logging should be done in transaction cache */
@@ -3276,8 +3303,6 @@ public:
     m_psi_batch_mode(PSI_BATCH_MODE_NONE),
     m_psi_numrows(0),
     m_psi_locker(NULL),
-    set_top_table_fields(FALSE), top_table(0),
-    top_table_field(0), top_table_fields(0),
     row_logging(0), row_logging_init(0),
     m_lock_type(F_UNLCK), ha_share(NULL), m_prev_insert_id(0)
   {
@@ -3415,13 +3440,7 @@ public:
     start_bulk_insert(rows, flags);
     DBUG_VOID_RETURN;
   }
-  int ha_end_bulk_insert()
-  {
-    DBUG_ENTER("handler::ha_end_bulk_insert");
-    estimation_rows_to_insert= 0;
-    int ret= end_bulk_insert();
-    DBUG_RETURN(ret);
-  }
+  int ha_end_bulk_insert();
   int ha_bulk_update_row(const uchar *old_data, const uchar *new_data,
                          ha_rows *dup_key_found);
   int ha_delete_all_rows();
@@ -3540,9 +3559,12 @@ public:
   virtual const key_map *keys_to_use_for_scanning() { return &key_map_empty; }
 
   /*
-    True if changes to the table is persistent (no rollback)
-    This is mainly used to decide how to log changes to the table in
-    the binary log.
+    True if changes to the table is persistent (if there are no rollback)
+    This is used to decide:
+    - If the table is stored in the transaction or non transactional binary
+      log
+    - How things are tracked in trx and in add_changed_table().
+    - If we can combine several statements under one commit in the binary log.
   */
   bool has_transactions()
   {
@@ -3550,11 +3572,31 @@ public:
             == 0);
   }
   /*
-    True if the underlaying table doesn't support transactions
+    True if table has both transactions and rollback. This is used to decide
+    if we should write the changes to the binary log.  If this is true,
+    we don't have to write failed statements to the log as they can be
+    rolled back.
+  */
+  bool has_transactions_and_rollback()
+  {
+    return has_transactions() && has_rollback();
+  }
+  /*
+    True if the underlaying table support transactions and rollback
   */
   bool has_transaction_manager()
   {
-    return ((ha_table_flags() & HA_NO_TRANSACTIONS) == 0);
+    return ((ha_table_flags() & HA_NO_TRANSACTIONS) == 0 && has_rollback());
+  }
+
+  /*
+    True if table has rollback. Used to check if an update on the table
+    can be killed fast.
+  */
+
+  bool has_rollback()
+  {
+    return ((ht->flags & HTON_NO_ROLLBACK) == 0);
   }
 
   /**
@@ -4303,36 +4345,6 @@ public:
  virtual int info_push(uint info_type, void *info) { return 0; };
 
  /**
-    This function is used to get correlating of a parent (table/column)
-    and children (table/column). When conditions are pushed down to child
-    table (like child of myisam_merge), child table needs to know about
-    which table/column is my parent for understanding conditions.
- */
- virtual int set_top_table_and_fields(TABLE *top_table,
-                                      Field **top_table_field,
-                                      uint top_table_fields)
- {
-   if (!set_top_table_fields)
-   {
-     set_top_table_fields= TRUE;
-     this->top_table= top_table;
-     this->top_table_field= top_table_field;
-     this->top_table_fields= top_table_fields;
-   }
-   return 0;
- }
- virtual void clear_top_table_fields()
- {
-   if (set_top_table_fields)
-   {
-     set_top_table_fields= FALSE;
-     top_table= NULL;
-     top_table_field= NULL;
-     top_table_fields= 0;
-   }
- }
-
- /**
    Push down an index condition to the handler.
 
    The server will use this method to push down a condition it wants
@@ -4856,9 +4868,9 @@ private:
     DBUG_ASSERT(!(ha_table_flags() & HA_CAN_REPAIR));
     return HA_ADMIN_NOT_IMPLEMENTED;
   }
+protected:
   virtual void start_bulk_insert(ha_rows rows, uint flags) {}
   virtual int end_bulk_insert() { return 0; }
-protected:
   virtual int index_read(uchar * buf, const uchar * key, uint key_len,
                          enum ha_rkey_function find_flag)
    { return  HA_ERR_WRONG_COMMAND; }
@@ -4974,7 +4986,6 @@ public:
   inline int ha_update_tmp_row(const uchar * old_data, uchar * new_data);
 
   virtual void set_lock_type(enum thr_lock_type lock);
-
   friend check_result_t handler_index_cond_check(void* h_arg);
   friend check_result_t handler_rowid_filter_check(void *h_arg);
 
@@ -5104,7 +5115,11 @@ int ha_create_table(THD *thd, const char *path,
                     const char *db, const char *table_name,
                     HA_CREATE_INFO *create_info, LEX_CUSTRING *frm);
 int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
-                    const LEX_CSTRING *db, const LEX_CSTRING *alias, bool generate_warning);
+                    const LEX_CSTRING *db, const LEX_CSTRING *alias,
+                    bool generate_warning);
+int ha_delete_table_force(THD *thd, const char *path, const LEX_CSTRING *db,
+                          const LEX_CSTRING *alias);
+
 void ha_prepare_for_backup();
 void ha_end_backup();
 void ha_pre_shutdown();
@@ -5293,4 +5308,5 @@ void print_keydup_error(TABLE *table, KEY *key, myf errflag);
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
 int del_global_table_stat(THD *thd, const  LEX_CSTRING *db, const LEX_CSTRING *table);
 uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info);
+bool non_existing_table_error(int error);
 #endif /* HANDLER_INCLUDED */

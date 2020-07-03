@@ -2465,7 +2465,7 @@ static Sys_var_ulong Sys_max_sort_length(
        "the first max_sort_length bytes of each value are used; the rest "
        "are ignored)",
        SESSION_VAR(max_sort_length), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(4, 8192*1024L), DEFAULT(1024), BLOCK_SIZE(1));
+       VALID_RANGE(8, 8192*1024L), DEFAULT(1024), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_max_sp_recursion_depth(
        "max_sp_recursion_depth",
@@ -2999,7 +2999,7 @@ static Sys_var_charptr_fscs Sys_tmpdir(
 static bool fix_trans_mem_root(sys_var *self, THD *thd, enum_var_type type)
 {
   if (type != OPT_GLOBAL)
-    reset_root_defaults(&thd->transaction.mem_root,
+    reset_root_defaults(&thd->transaction->mem_root,
                         thd->variables.trans_alloc_block_size,
                         thd->variables.trans_prealloc_size);
   return false;
@@ -4326,8 +4326,8 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     thd->variables.option_bits&=
                  ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT |
                    OPTION_GTID_BEGIN);
-    thd->transaction.all.modified_non_trans_table= false;
-    thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+    thd->transaction->all.modified_non_trans_table= false;
+    thd->transaction->all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
     thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
     return false;
   }
@@ -4336,8 +4336,8 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
        (OPTION_AUTOCOMMIT |OPTION_NOT_AUTOCOMMIT)) == 0)
   {
     // disabling autocommit
-    thd->transaction.all.modified_non_trans_table= false;
-    thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+    thd->transaction->all.modified_non_trans_table= false;
+    thd->transaction->all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
     thd->server_status&= ~SERVER_STATUS_AUTOCOMMIT;
     thd->variables.option_bits|= OPTION_NOT_AUTOCOMMIT;
     return false;
@@ -6647,6 +6647,7 @@ static Sys_var_mybool Sys_session_track_state_change(
        ON_UPDATE(update_session_track_state_change));
 
 
+#ifdef USER_VAR_TRACKING
 static bool update_session_track_user_variables(sys_var *self, THD *thd,
                                                 enum_var_type type)
 {
@@ -6661,6 +6662,7 @@ static Sys_var_mybool Sys_session_track_user_variables(
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(0),
        ON_UPDATE(update_session_track_user_variables));
+#endif // USER_VAR_TRACKING
 
 #endif //EMBEDDED_LIBRARY
 

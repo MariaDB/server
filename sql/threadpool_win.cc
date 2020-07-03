@@ -59,10 +59,10 @@ PTP_CALLBACK_ENVIRON get_threadpool_win_callback_environ()
 
 */
 
-static void CALLBACK timer_callback(PTP_CALLBACK_INSTANCE instance, 
+static void CALLBACK timer_callback(PTP_CALLBACK_INSTANCE instance,
   PVOID context, PTP_TIMER timer);
 
-static void CALLBACK io_completion_callback(PTP_CALLBACK_INSTANCE instance, 
+static void CALLBACK io_completion_callback(PTP_CALLBACK_INSTANCE instance,
   PVOID context,  PVOID overlapped,  ULONG io_result, ULONG_PTR nbytes, PTP_IO io);
 
 
@@ -251,7 +251,7 @@ static void pre_callback(PVOID context, PTP_CALLBACK_INSTANCE instance)
 
 
 /*
-  Decrement number of threads when a thread exits . 
+  Decrement number of threads when a thread exits.
   On Windows, FlsAlloc() provides the thread destruction callbacks.
 */
 static VOID WINAPI thread_destructor(void *data)
@@ -275,7 +275,7 @@ static inline void tp_callback(PTP_CALLBACK_INSTANCE instance, PVOID context)
 /*
   Handle read completion/notification.
 */
-static VOID CALLBACK io_completion_callback(PTP_CALLBACK_INSTANCE instance, 
+static VOID CALLBACK io_completion_callback(PTP_CALLBACK_INSTANCE instance,
   PVOID context,  PVOID overlapped,  ULONG io_result, ULONG_PTR nbytes, PTP_IO io)
 {
   TP_connection_win *c= (TP_connection_win *)context;

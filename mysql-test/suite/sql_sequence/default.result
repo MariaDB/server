@@ -1,8 +1,6 @@
 drop table if exists t1,s1,s2;
 Warnings:
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.s1'
-Note	1051	Unknown table 'test.s2'
+Note	1051	Unknown table 'test.t1,test.s1,test.s2'
 drop view if exists v1;
 Warnings:
 Note	4092	Unknown VIEW: 'test.v1'

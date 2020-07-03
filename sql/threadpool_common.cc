@@ -64,24 +64,24 @@ static inline TP_connection *get_TP_connection(THD *thd)
 /*
   Worker threads contexts, and THD contexts.
   =========================================
-  
-  Both worker threads and connections have their sets of thread local variables 
-  At the moment it is mysys_var (this has specific data for dbug, my_error and 
+
+  Both worker threads and connections have their sets of thread local variables
+  At the moment it is mysys_var (this has specific data for dbug, my_error and
   similar goodies), and PSI per-client structure.
 
   Whenever query is executed following needs to be done:
 
   1. Save worker thread context.
   2. Change TLS variables to connection specific ones using thread_attach(THD*).
-     This function does some additional work , e.g setting up 
+     This function does some additional work , e.g setting up
      thread_stack/thread_ends_here pointers.
   3. Process query
   4. Restore worker thread context.
 
-  Connection login and termination follows similar schema w.r.t saving and 
-  restoring contexts. 
+  Connection login and termination follows similar schema w.r.t saving and
+  restoring contexts.
 
-  For both worker thread, and for the connection, mysys variables are created 
+  For both worker thread, and for the connection, mysys variables are created
   using my_thread_init() and freed with my_thread_end().
 
 */
@@ -158,7 +158,7 @@ static void thread_attach(THD* thd)
 }
 
 /*
-  Determine connection priority , using current 
+  Determine connection priority , using current
   transaction state and 'threadpool_priority' variable value.
 */
 static TP_PRIORITY get_priority(TP_connection *c)
@@ -166,7 +166,7 @@ static TP_PRIORITY get_priority(TP_connection *c)
   DBUG_ASSERT(c->thd == current_thd);
   TP_PRIORITY prio= (TP_PRIORITY)c->thd->variables.threadpool_priority;
   if (prio == TP_PRIORITY_AUTO)
-    prio= c->thd->transaction.is_active() ? TP_PRIORITY_HIGH : TP_PRIORITY_LOW;
+    prio= c->thd->transaction->is_active() ? TP_PRIORITY_HIGH : TP_PRIORITY_LOW;
 
   return prio;
 }
@@ -215,12 +215,11 @@ void tp_callback(TP_connection *c)
 
 error:
   c->thd= 0;
-  delete c;
-
   if (thd)
   {
     threadpool_remove_connection(thd);
   }
+  delete c;
   worker_context.restore();
 }
 
@@ -248,9 +247,9 @@ static THD *threadpool_add_connection(CONNECT *connect, TP_connection *c)
   }
   delete connect;
 
+  thd->event_scheduler.data= c;
   server_threads.insert(thd);
   thd->set_mysys_var(mysys_var);
-  thd->event_scheduler.data = c;
 
   /* Login. */
   thread_attach(thd);
@@ -287,7 +286,6 @@ end:
 static void threadpool_remove_connection(THD *thd)
 {
   thread_attach(thd);
-  thd->event_scheduler.data= 0;
   thd->net.reading_or_writing = 0;
   end_connection(thd);
   close_connection(thd, 0);
@@ -296,7 +294,7 @@ static void threadpool_remove_connection(THD *thd)
   delete thd;
 
   /*
-    Free resources associated with this connection: 
+    Free resources associated with this connection:
     mysys thread_var and PSI thread.
   */
   my_thread_end();
@@ -330,8 +328,8 @@ static int threadpool_process_request(THD *thd)
 
   if (thd->killed >= KILL_CONNECTION)
   {
-    /* 
-      killed flag was set by timeout handler 
+    /*
+      killed flag was set by timeout handler
       or KILL command. Return error.
     */
     retval= 1;

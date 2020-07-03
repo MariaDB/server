@@ -211,7 +211,7 @@ struct recv_sys_t
   ib_mutex_t mutex;
   /** whether we are applying redo log records during crash recovery */
   bool recovery_on;
-  /** whether recv_recover_page(), invoked from buf_page_io_complete(),
+  /** whether recv_recover_page(), invoked from buf_page_read_complete(),
   should apply log records*/
   bool apply_log_recs;
 
@@ -222,9 +222,8 @@ struct recv_sys_t
 				page cleaner threads */
 	os_event_t		flush_end;/*!< event to signal that the page
 				cleaner has finished the request */
-	buf_flush_t		flush_type;/*!< type of the flush request.
-				BUF_FLUSH_LRU: flush end of LRU, keeping free blocks.
-				BUF_FLUSH_LIST: flush all of blocks. */
+  /** whether to flush from buf_pool.LRU instead of buf_pool.flush_list */
+  bool flush_lru;
 	/** whether recv_apply_hashed_log_recs() is running */
 	bool		apply_batch_on;
 	byte*		buf;	/*!< buffer for parsing log records */

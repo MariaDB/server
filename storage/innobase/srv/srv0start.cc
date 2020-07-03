@@ -269,7 +269,7 @@ static dberr_t create_log_file(lsn_t lsn, std::string& logfile0)
 	}
 
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_6"));
-	ut_ad(!buf_pool_check_no_pending_io());
+	DBUG_ASSERT(!buf_pool.any_io_pending());
 
 	DBUG_EXECUTE_IF("innodb_log_abort_7", return DB_ERROR;);
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_7"));
@@ -947,12 +947,14 @@ srv_init_abort_low(
 #endif /* UNIV_DEBUG */
 	dberr_t		err)
 {
+	ut_ad(srv_is_being_started);
+
 	if (create_new_db) {
 		ib::error() << "Database creation was aborted"
 #ifdef UNIV_DEBUG
 			" at " << innobase_basename(file) << "[" << line << "]"
 #endif /* UNIV_DEBUG */
-			" with error " << ut_strerr(err) << ". You may need"
+			" with error " << err << ". You may need"
 			" to delete the ibdata1 file before trying to start"
 			" up again.";
 	} else {
@@ -960,7 +962,7 @@ srv_init_abort_low(
 #ifdef UNIV_DEBUG
 			" at " << innobase_basename(file) << "[" << line << "]"
 #endif /* UNIV_DEBUG */
-			" with error " << ut_strerr(err);
+			" with error " << err;
 	}
 
 	srv_shutdown_bg_undo_sources();
@@ -977,14 +979,13 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 	DBUG_ENTER("srv_prepare_to_delete_redo_log_file");
 
 	lsn_t	flushed_lsn;
-	ulint	pending_io = 0;
 	ulint	count = 0;
 
 	if (log_sys.log.subformat != 2) {
 		srv_log_file_size = 0;
 	}
 
-	do {
+	for (;;) {
 		/* Clean the buffer pool. */
 		buf_flush_sync();
 
@@ -1041,9 +1042,7 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 
 		/* Check if the buffer pools are clean.  If not
 		retry till it is clean. */
-		pending_io = buf_pool_check_no_pending_io();
-
-		if (pending_io > 0) {
+		if (ulint pending_io = buf_pool.io_pending()) {
 			count++;
 			/* Print a message every 60 seconds if we
 			are waiting to clean the buffer pools */
@@ -1053,10 +1052,13 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 					<< "page I/Os to complete";
 				count = 0;
 			}
-		}
-		os_thread_sleep(100000);
 
-	} while (buf_pool_check_no_pending_io());
+			os_thread_sleep(100000);
+			continue;
+		}
+
+		break;
+	}
 
 	DBUG_RETURN(flushed_lsn);
 }
@@ -1160,11 +1162,6 @@ dberr_t srv_start(bool create_new_db)
 	ib::info() << "!!!!!!!! UNIV_IBUF_DEBUG switched on !!!!!!!!!";
 #endif
 
-#ifdef _WIN32
-	ib::info() << "Mutexes and rw_locks use Windows interlocked functions";
-#else
-	ib::info() << "Mutexes and rw_locks use GCC atomic builtins";
-#endif
 	ib::info() << MUTEX_TYPE;
 
 	ib::info() << "Compressed tables use zlib " ZLIB_VERSION
@@ -1680,7 +1677,7 @@ file_checked:
 			ut_ad(recv_no_log_write);
 			buf_flush_sync();
 			err = fil_write_flushed_lsn(log_get_lsn());
-			ut_ad(!buf_pool_check_no_pending_io());
+			DBUG_ASSERT(!buf_pool.any_io_pending());
 			log_sys.log.close_file();
 			if (err == DB_SUCCESS) {
 				bool trunc = srv_operation
@@ -1724,7 +1721,7 @@ file_checked:
 			threads until creating a log checkpoint at the
 			end of create_log_file(). */
 			ut_d(recv_no_log_write = true);
-			ut_ad(!buf_pool_check_no_pending_io());
+			DBUG_ASSERT(!buf_pool.any_io_pending());
 
 			DBUG_EXECUTE_IF("innodb_log_abort_3",
 					return(srv_init_abort(DB_ERROR)););
@@ -1967,8 +1964,7 @@ skip_monitors:
 
 	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL
 	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
-
-		srv_init_purge_tasks(srv_n_purge_threads);
+		srv_init_purge_tasks();
 		purge_sys.coordinator_startup();
 		srv_wake_purge_thread_if_not_active();
 		srv_start_state_set(SRV_START_STATE_PURGE);
@@ -2046,6 +2042,7 @@ void srv_shutdown_bg_undo_sources()
 {
 	if (srv_undo_sources) {
 		ut_ad(!srv_read_only_mode);
+		srv_shutdown_state = SRV_SHUTDOWN_INITIATED;
 		fts_optimize_shutdown();
 		dict_stats_shutdown();
 		while (row_get_background_drop_list_len_low()) {
@@ -2070,8 +2067,14 @@ void innodb_preshutdown()
   if (srv_read_only_mode)
     return;
   if (!srv_fast_shutdown && srv_operation == SRV_OPERATION_NORMAL)
+  {
+    /* Because a slow shutdown must empty the change buffer, we had
+    better prevent any further changes from being buffered. */
+    innodb_change_buffering= 0;
+
     while (trx_sys.any_active_transactions())
       os_thread_sleep(1000);
+  }
   srv_shutdown_bg_undo_sources();
   srv_purge_shutdown();
 }
@@ -2087,7 +2090,6 @@ void innodb_shutdown()
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_DELTA:
 	case SRV_OPERATION_RESTORE_EXPORT:
-		fil_close_all_files();
 		break;
 	case SRV_OPERATION_NORMAL:
 		/* Shut down the persistent files. */
@@ -2100,6 +2102,8 @@ void innodb_shutdown()
 		}
 	}
 
+	os_aio_free();
+	fil_close_all_files();
 	/* Exit any remaining threads. */
 	srv_shutdown_all_bg_threads();
 
@@ -2123,9 +2127,6 @@ void innodb_shutdown()
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys.is_initialised() || !srv_was_started);
-#ifdef BTR_CUR_HASH_ADAPT
-	ut_ad(btr_search_sys || !srv_was_started);
-#endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(ibuf.index || !srv_was_started);
 
 	dict_stats_deinit();
@@ -2144,7 +2145,7 @@ void innodb_shutdown()
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (dict_sys.is_initialised()) {
-		btr_search_disable(true);
+		btr_search_disable();
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 	ibuf_close();
@@ -2163,7 +2164,6 @@ void innodb_shutdown()
 	}
 
 	dict_sys.close();
-	os_aio_free();
 	btr_search_sys_free();
 	row_mysql_close();
 	srv_free();

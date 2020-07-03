@@ -492,7 +492,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   set_statistics_for_table(thd, table);
 
   table->covering_keys.clear_all();
-  table->quick_keys.clear_all();		// Can't use 'only index'
+  table->opt_range_keys.clear_all();
 
   select=make_select(table, 0, 0, conds, (SORT_INFO*) 0, 0, &error);
   if (unlikely(error))
@@ -518,7 +518,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   }
 
   /* If running in safe sql mode, don't allow updates without keys */
-  if (table->quick_keys.is_clear_all())
+  if (table->opt_range_keys.is_clear_all())
   {
     thd->set_status_no_index_used();
     if (safe_update && !using_limit)
@@ -875,14 +875,14 @@ cleanup:
   deltempfile=NULL;
   delete select;
   select= NULL;
-  transactional_table= table->file->has_transactions();
+  transactional_table= table->file->has_transactions_and_rollback();
 
   if (!transactional_table && deleted > 0)
-    thd->transaction.stmt.modified_non_trans_table=
-      thd->transaction.all.modified_non_trans_table= TRUE;
+    thd->transaction->stmt.modified_non_trans_table=
+      thd->transaction->all.modified_non_trans_table= TRUE;
 
   /* See similar binlogging code in sql_update.cc, for comments */
-  if (likely((error < 0) || thd->transaction.stmt.modified_non_trans_table))
+  if (likely((error < 0) || thd->transaction->stmt.modified_non_trans_table))
   {
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
@@ -911,7 +911,7 @@ cleanup:
       }
     }
   }
-  DBUG_ASSERT(transactional_table || !deleted || thd->transaction.stmt.modified_non_trans_table);
+  DBUG_ASSERT(transactional_table || !deleted || thd->transaction->stmt.modified_non_trans_table);
   
   if (likely(error < 0) ||
       (thd->lex->ignore && !thd->is_error() && !thd->is_fatal_error))
@@ -1332,7 +1332,7 @@ int multi_delete::send_data(List<Item> &values)
       {
         deleted++;
         if (!table->file->has_transactions())
-          thd->transaction.stmt.modified_non_trans_table= TRUE;
+          thd->transaction->stmt.modified_non_trans_table= TRUE;
         if (table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                               TRG_ACTION_AFTER, FALSE))
@@ -1368,17 +1368,17 @@ void multi_delete::abort_result_set()
 
   /* the error was handled or nothing deleted and no side effects return */
   if (error_handled ||
-      (!thd->transaction.stmt.modified_non_trans_table && !deleted))
+      (!thd->transaction->stmt.modified_non_trans_table && !deleted))
     DBUG_VOID_RETURN;
 
   /* Something already deleted so we have to invalidate cache */
   if (deleted)
     query_cache_invalidate3(thd, delete_tables, 1);
 
-  if (thd->transaction.stmt.modified_non_trans_table)
-    thd->transaction.all.modified_non_trans_table= TRUE;
-  thd->transaction.all.m_unsafe_rollback_flags|=
-    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
+  if (thd->transaction->stmt.modified_non_trans_table)
+    thd->transaction->all.modified_non_trans_table= TRUE;
+  thd->transaction->all.m_unsafe_rollback_flags|=
+    (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
   /*
     If rows from the first table only has been deleted and it is
@@ -1388,7 +1388,7 @@ void multi_delete::abort_result_set()
   */
   if (do_delete && normal_tables &&
       (table_being_deleted != delete_tables ||
-       !table_being_deleted->table->file->has_transactions()))
+       !table_being_deleted->table->file->has_transactions_and_rollback()))
   {
     /*
       We have to execute the recorded do_deletes() and write info into the
@@ -1400,7 +1400,7 @@ void multi_delete::abort_result_set()
     DBUG_VOID_RETURN;
   }
 
-  if (thd->transaction.stmt.modified_non_trans_table)
+  if (thd->transaction->stmt.modified_non_trans_table)
   {
     /*
        there is only side effects; to binlog with the error
@@ -1537,8 +1537,8 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
       table->file->print_error(local_error, MYF(0));
     }
   }
-  if (last_deleted != deleted && !table->file->has_transactions())
-    thd->transaction.stmt.modified_non_trans_table= TRUE;
+  if (last_deleted != deleted && !table->file->has_transactions_and_rollback())
+    thd->transaction->stmt.modified_non_trans_table= TRUE;
 
   end_read_record(&info);
 
@@ -1566,10 +1566,10 @@ bool multi_delete::send_eof()
   /* reset used flags */
   THD_STAGE_INFO(thd, stage_end);
 
-  if (thd->transaction.stmt.modified_non_trans_table)
-    thd->transaction.all.modified_non_trans_table= TRUE;
-  thd->transaction.all.m_unsafe_rollback_flags|=
-    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
+  if (thd->transaction->stmt.modified_non_trans_table)
+    thd->transaction->all.modified_non_trans_table= TRUE;
+  thd->transaction->all.m_unsafe_rollback_flags|=
+    (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
   /*
     We must invalidate the query cache before binlog writing and
@@ -1580,7 +1580,7 @@ bool multi_delete::send_eof()
     query_cache_invalidate3(thd, delete_tables, 1);
   }
   if (likely((local_error == 0) ||
-             thd->transaction.stmt.modified_non_trans_table))
+             thd->transaction->stmt.modified_non_trans_table))
   {
     if(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {

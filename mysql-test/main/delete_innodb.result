@@ -1,0 +1,26 @@
+# Tests for delete with INNODB
+#
+# MDEV-22187: SIGSEGV in ha_innobase::cmp_ref on DELETE
+#
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET sort_buffer_size=1024;
+CREATE TABLE t1(c1 CHAR(255) PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0), ('a'), ('b');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM t1;
+c1
+0
+a
+b
+EXPLAIN DELETE b FROM t1 AS a JOIN t1 AS b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	a	index	NULL	PRIMARY	255	NULL	3	Using index
+1	SIMPLE	b	ALL	NULL	NULL	NULL	NULL	3	
+DELETE b FROM t1 AS a JOIN t1 AS b;
+SELECT * FROM t1;
+c1
+SET sort_buffer_size=@save_sort_buffer_size;
+DROP TABLE t1;

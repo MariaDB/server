@@ -538,6 +538,19 @@ SELECT JSON_MERGE_PATCH('{', '[1,2,3]');
 SELECT JSON_MERGE_PATCH('{"a":"b"}', '[1,');
 
 --echo #
+--echo # MDEV-22976 CAST(JSON_EXTRACT() AS DECIMAL) does not handle boolean values
+--echo #
+
+SELECT
+  CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DOUBLE) AS cf,
+  CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DECIMAL) AS cd;
+
+SELECT
+  CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DOUBLE) AS cf,
+  CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -751,6 +764,92 @@ select json_arrayagg(a) over () from (select 1 a) t;
 
 --error ER_NOT_SUPPORTED_YET
 select json_objectagg(a, b) over () from (select 1 a, 2 b) t;
+
+SELECT JSON_ARRAYAGG(NULL) FROM (SELECT 1 AS t) AS A;
+SELECT JSON_ARRAYAGG("null") FROM (SELECT 1 AS t) AS A;
+
+create view v as (select json_arrayagg(json_object("type", "permPeriod", "id", "asd")) as JSON_DATA);
+select * from v; 
+drop view v;
+
+select json_arrayagg(a order by a asc) from (select 1 a union select 2 a) t;
+
+select json_object('x', json_arrayagg(json_object('a', 1)));
+
+--echo #
+--echo # MDEV-22011: DISTINCT with JSON_ARRAYAGG gives wrong results
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+
+SELECT JSON_ARRAYAGG(a) FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+
+INSERT INTO t1 VALUES (NULL,NULL), (NULL,NULL);
+
+SELECT JSON_ARRAYAGG(a) FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(a VARCHAR(10), b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+
+SELECT JSON_ARRAYAGG(a) FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+
+INSERT INTO t1 VALUES (NULL,NULL), (NULL,NULL);
+
+SELECT JSON_ARRAYAGG(a) FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22840: JSON_ARRAYAGG gives wrong results with NULL values and ORDER by clause
+--echo #
+
+CREATE TABLE t1(a VARCHAR(255));
+INSERT INTO t1 VALUES ('red'),('blue');
+
+SELECT JSON_ARRAYAGG(a) FROM t1;
+SELECT JSON_ARRAYAGG(a ORDER BY a DESC) FROM t1;
+SELECT JSON_ARRAYAGG(a ORDER BY a ASC) FROM t1;
+
+INSERT INTO t1 VALUES (NULL);
+
+SELECT JSON_ARRAYAGG(a) FROM t1;
+SELECT JSON_ARRAYAGG(a ORDER BY a DESC) FROM t1;
+SELECT JSON_ARRAYAGG(a ORDER BY a ASC) FROM t1;
+DROP TABLE t1;
+
+set group_concat_max_len=64;
+create table t1 (a varchar(254));
+insert into t1 values (concat('x64-', repeat('a', 60)));
+insert into t1 values (concat('x64-', repeat('b', 60)));                                            insert into t1 values (concat('x64-', repeat('c', 60)));
+select json_arrayagg(a) from t1; 
+drop table t1;
+SET group_concat_max_len= default;
+
+create table t1 (col1 json);
+insert into t1 values('{"color":"red", "size":1}' );
+insert into t1 values('{"color":"blue", "size":2}' );
+select JSON_ARRAYAGG(col1) from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-23029: JSON_OBJECTAGG returns NULL when used together with GROUP BY
+--echo #
+
+CREATE TABLE t1 (e INT, a VARCHAR(255), v VARCHAR(255));
+INSERT INTO t1 VALUES (0, 'a1', '1') , (0, 'a2', '2') , (1, 'b1', '3');
+
+EXPLAIN SELECT B.e, JSON_OBJECTAGG(B.a, B.v) FROM t1 A, t1 B GROUP BY B.e, B.a;
+SELECT B.e, JSON_OBJECTAGG(B.a, B.v) FROM t1 A, t1 B GROUP BY B.e, B.a;
+
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.5 tests

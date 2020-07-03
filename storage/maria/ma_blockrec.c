@@ -3682,6 +3682,15 @@ my_bool _ma_write_abort_block_record(MARIA_HA *info)
   _ma_bitmap_unlock(share);
   if (share->now_transactional)
   {
+    /*
+      Write clr to mark end of aborted row insert.
+      The above delete_head_or_tail() calls will only log redo, not undo.
+      The undo just before the row insert is stored in row->orig_undo_lsn.
+
+      When applying undo's, we can skip all undo records between current
+      lsn and row->orig_undo_lsn as logically things are as before the
+      attempted insert.
+    */
     if (_ma_write_clr(info, info->cur_row.orig_undo_lsn,
                       LOGREC_UNDO_ROW_INSERT,
                       share->calc_checksum != 0,

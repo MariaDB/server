@@ -235,7 +235,7 @@ SELECT COUNT(*) FROM performance_schema.events_transactions_history;
 SELECT fn_err1();
 
 --echo #
---echo ## Expect 0 transactions
+--echo ## Expect 1 transactions
 --connection default
 SELECT COUNT(*) FROM performance_schema.events_transactions_history;
 --connection con1
@@ -255,7 +255,7 @@ DELETE FROM t1 WHERE s1 > 320;
 SELECT fn_err2();
 
 --echo #
---echo ## Expect 0 transactions
+--echo ## Expect 2 transactions
 --connection default
 SELECT COUNT(*) FROM performance_schema.events_transactions_history;
 

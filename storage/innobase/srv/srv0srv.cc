@@ -72,6 +72,7 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
+#include "trx0types.h"
 
 
 #include <my_service_manager.h>
@@ -206,9 +207,6 @@ const ulint	srv_buf_pool_min_size	= 5 * 1024 * 1024;
 const ulint	srv_buf_pool_def_size	= 128 * 1024 * 1024;
 /** Requested buffer pool chunk size */
 ulong	srv_buf_pool_chunk_unit;
-/** innodb_page_hash_locks (a debug-only parameter);
-number of locks to protect buf_pool.page_hash */
-ulong	srv_n_page_hash_locks = 16;
 /** innodb_lru_scan_depth; number of blocks scanned in LRU flush batch */
 ulong	srv_LRU_scan_depth;
 /** innodb_flush_neighbors; whether or not to flush neighbors of a block */
@@ -458,9 +456,6 @@ current_time % 60 == 0 and no tasks will be performed when
 current_time % 5 != 0. */
 
 # define	SRV_MASTER_CHECKPOINT_INTERVAL		(7)
-#ifdef MEM_PERIODIC_CHECK
-# define	SRV_MASTER_MEM_VALIDATE_INTERVAL	(13)
-#endif /* MEM_PERIODIC_CHECK */
 # define	SRV_MASTER_DICT_LRU_INTERVAL		(47)
 
 /** Simulate compression failures. */
@@ -967,29 +962,15 @@ srv_printf_innodb_monitor(
 	ibuf_print(file);
 
 #ifdef BTR_CUR_HASH_ADAPT
-	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		const hash_table_t* table = btr_search_sys->hash_tables[i];
-
-		ut_ad(table->magic_n == HASH_TABLE_MAGIC_N);
-		/* this is only used for buf_pool.page_hash */
-		ut_ad(!table->heaps);
-		/* this is used for the adaptive hash index */
-		ut_ad(table->heap);
-
-		const mem_heap_t* heap = table->heap;
-		/* The heap may change during the following call,
-		so the data displayed may be garbage. We intentionally
-		avoid acquiring btr_search_latches[] so that the
-		diagnostic output will not stop here even in case another
-		thread hangs while holding btr_search_latches[].
-
-		This should be safe from crashes, because
-		table->heap will be pointing to the same object
-		for the full lifetime of the server. Even during
-		btr_search_disable() the heap will stay valid. */
+	for (ulint i = 0; i < btr_ahi_parts && btr_search_enabled; ++i) {
+		const auto part= &btr_search_sys.parts[i];
+		rw_lock_s_lock(&part->latch);
+		ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
 		fprintf(file, "Hash table size " ULINTPF
 			", node heap has " ULINTPF " buffer(s)\n",
-			table->n_cells, heap->base.count - !heap->free_block);
+			part->table.n_cells,
+			part->heap->base.count - !part->heap->free_block);
+		rw_lock_s_unlock(&part->latch);
 	}
 
 	fprintf(file,
@@ -1128,21 +1109,16 @@ srv_export_innodb_status(void)
 
 #ifdef BTR_CUR_HASH_ADAPT
 	ulint mem_adaptive_hash = 0;
-	ut_ad(btr_search_sys->hash_tables);
 	for (ulong i = 0; i < btr_ahi_parts; i++) {
-		rw_lock_s_lock(btr_search_latches[i]);
-		hash_table_t*	ht = btr_search_sys->hash_tables[i];
+		const auto part= &btr_search_sys.parts[i];
+		rw_lock_s_lock(&part->latch);
+		if (part->heap) {
+			ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
 
-		ut_ad(ht);
-		ut_ad(ht->heap);
-		/* Multiple mutexes/heaps are currently never used for adaptive
-		hash index tables. */
-		ut_ad(!ht->n_sync_obj);
-		ut_ad(!ht->heaps);
-
-		mem_adaptive_hash += mem_heap_get_size(ht->heap)
-			+ ht->n_cells * sizeof(hash_cell_t);
-		rw_lock_s_unlock(btr_search_latches[i]);
+			mem_adaptive_hash += mem_heap_get_size(part->heap)
+				+ part->table.n_cells * sizeof(hash_cell_t);
+		}
+		rw_lock_s_unlock(&part->latch);
 	}
 	export_vars.innodb_mem_adaptive_hash = mem_adaptive_hash;
 #endif
@@ -1815,7 +1791,7 @@ srv_master_do_active_tasks(void)
 
 	ut_d(srv_master_do_disabled_loop());
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -1833,7 +1809,7 @@ srv_master_do_active_tasks(void)
 	/* Now see if various tasks that are performed at defined
 	intervals need to be performed. */
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -1858,7 +1834,7 @@ srv_master_do_active_tasks(void)
 	early and often to avoid those situations. */
 	DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", return;);
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -1901,7 +1877,7 @@ srv_master_do_idle_tasks(void)
 
 	ut_d(srv_master_do_disabled_loop());
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -1910,7 +1886,7 @@ srv_master_do_idle_tasks(void)
 	srv_main_thread_op_info = "checking free log space";
 	log_free_check();
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -1938,7 +1914,7 @@ srv_master_do_idle_tasks(void)
 	early and often to avoid those situations. */
 	DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", return;);
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -1991,7 +1967,7 @@ void srv_master_callback(void*)
 {
 	static ulint old_activity_count;
 
-	ut_a(srv_shutdown_state == SRV_SHUTDOWN_NONE);
+	ut_a(srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
 	srv_main_thread_op_info = "";
 	MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
@@ -2007,33 +1983,33 @@ void srv_master_callback(void*)
 /** @return whether purge should exit due to shutdown */
 static bool srv_purge_should_exit()
 {
-	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_NONE
-	      || srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
+  ut_ad(srv_shutdown_state <= SRV_SHUTDOWN_CLEANUP);
 
-	if (srv_undo_sources) {
-		return(false);
-	}
-	if (srv_fast_shutdown) {
-		return(true);
-	}
-	/* Slow shutdown was requested. */
-	uint32_t history_size = trx_sys.rseg_history_len;
-	if (history_size) {
+  if (srv_undo_sources)
+    return false;
+
+  if (srv_fast_shutdown)
+    return true;
+
+  /* Slow shutdown was requested. */
+  if (const uint32_t history_size= trx_sys.rseg_history_len)
+  {
+    static time_t progress_time;
+    time_t now= time(NULL);
+    if (now - progress_time >= 15)
+    {
+      progress_time= now;
 #if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
-		static time_t progress_time;
-		time_t now = time(NULL);
-		if (now - progress_time >= 15) {
-			progress_time = now;
-			service_manager_extend_timeout(
-				INNODB_EXTEND_TIMEOUT_INTERVAL,
-				"InnoDB: to purge %u transactions",
-				history_size);
-		}
+      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+				     "InnoDB: to purge %u transactions",
+				     history_size);
+      ib::info() << "to purge " << history_size << " transactions";
 #endif
-		return false;
-	}
+    }
+    return false;
+  }
 
-	return !trx_sys.any_active_transactions();
+  return !trx_sys.any_active_transactions();
 }
 
 /*********************************************************************//**
@@ -2060,6 +2036,15 @@ static bool srv_task_execute()
 	return false;
 }
 
+std::mutex purge_thread_count_mtx;
+void srv_update_purge_thread_count(uint n)
+{
+	std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
+	srv_n_purge_threads = n;
+	srv_purge_thread_count_changed = 1;
+}
+
+Atomic_counter<int> srv_purge_thread_count_changed;
 
 /** Do the actual purge operation.
 @param[in,out]	n_total_purged	total number of purged pages
@@ -2072,7 +2057,7 @@ static uint32_t srv_do_purge(ulint* n_total_purged)
 	static ulint	n_use_threads = 0;
 	static uint32_t	rseg_history_len = 0;
 	ulint		old_activity_count = srv_get_activity_count();
-	const ulint	n_threads = srv_n_purge_threads;
+	static ulint	n_threads = srv_n_purge_threads;
 
 	ut_a(n_threads > 0);
 	ut_ad(!srv_read_only_mode);
@@ -2088,7 +2073,20 @@ static uint32_t srv_do_purge(ulint* n_total_purged)
 	}
 
 	do {
-		if (trx_sys.rseg_history_len > rseg_history_len
+		if (UNIV_UNLIKELY(srv_purge_thread_count_changed)) {
+			/* Read the fresh value of srv_n_purge_threads, reset
+			the changed flag. Both variables are protected by
+			purge_thread_count_mtx.
+
+			This code does not run concurrently, it is executed
+			by a single purge_coordinator thread, and no races
+			involving srv_purge_thread_count_changed are possible.
+			*/
+
+			std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
+			n_threads = n_use_threads = srv_n_purge_threads;
+			srv_purge_thread_count_changed = 0;
+		} else if (trx_sys.rseg_history_len > rseg_history_len
 		    || (srv_max_purge_lag > 0
 			&& rseg_history_len > srv_max_purge_lag)) {
 
@@ -2136,23 +2134,17 @@ static uint32_t srv_do_purge(ulint* n_total_purged)
 
 static std::queue<THD*> purge_thds;
 static std::mutex purge_thd_mutex;
-
-static void purge_create_background_thds(int n)
-{
-  THD *thd= current_thd;
-  std::unique_lock<std::mutex> lk(purge_thd_mutex);
-  while (n--)
-    purge_thds.push(innobase_create_background_thd("InnoDB purge worker"));
-  set_current_thd(thd);
-}
-
 extern void* thd_attach_thd(THD*);
 extern void thd_detach_thd(void *);
 
 THD* acquire_thd(void **ctx)
 {
 	std::unique_lock<std::mutex> lk(purge_thd_mutex);
-	ut_a(!purge_thds.empty());
+	if (purge_thds.empty()) {
+		THD* thd = current_thd;
+		purge_thds.push(innobase_create_background_thd("InnoDB purge worker"));
+		set_current_thd(thd);
+	}
 	THD* thd = purge_thds.front();
 	purge_thds.pop();
 	lk.unlock();
@@ -2171,7 +2163,6 @@ void release_thd(THD *thd, void *ctx)
 	lk.unlock();
 	set_current_thd(0);
 }
-
 
 
 /*
@@ -2252,10 +2243,8 @@ static void purge_coordinator_callback(void*)
   purge_state.m_running= 0;
 }
 
-void srv_init_purge_tasks(uint n_tasks)
+void srv_init_purge_tasks()
 {
-  purge_task_group.set_max_tasks(n_tasks - 1);
-  purge_create_background_thds(n_tasks);
   purge_coordinator_timer= srv_thread_pool->create_timer
     (purge_coordinator_timer_callback, nullptr);
 }
@@ -2311,10 +2300,11 @@ ulint srv_get_task_queue_length()
 void srv_purge_shutdown()
 {
 	if (purge_sys.enabled()) {
+		srv_update_purge_thread_count(innodb_purge_threads_MAX);
 		while(!srv_purge_should_exit()) {
 			ut_a(!purge_sys.paused());
 			srv_wake_purge_thread_if_not_active();
-			os_thread_sleep(100);
+			os_thread_sleep(1000);
 		}
 		purge_sys.coordinator_shutdown();
 		srv_shutdown_purge_tasks();

@@ -1,18 +1,18 @@
-/etc/init.d/mysql\[[0-9]+\]: [0-9]+ processes alive and '/usr/bin/mysqladmin --defaults-(extra-)?file=/etc/mysql/debian.cnf ping' resulted in$
-/etc/init.d/mysql\[[0-9]+\]: Check that mysqld is running and that the socket: '/var/run/mysqld/mysqld.sock' exists\!$
-/etc/init.d/mysql\[[0-9]+\]: '/usr/bin/mysqladmin --defaults-(extra-)?file=/etc/mysql/debian.cnf ping' resulted in$
+/etc/init.d/mariadb\[[0-9]+\]: [0-9]+ processes alive and '/usr/bin/mysqladmin --defaults-(extra-)?file=/etc/mysql/debian.cnf ping' resulted in$
+/etc/init.d/mariadb\[[0-9]+\]: Check that mariadbd is running and that the socket: '/run/mysqld/mysqld.sock' exists\!$
+/etc/init.d/mariadb\[[0-9]+\]: '/usr/bin/mysqladmin --defaults-(extra-)?file=/etc/mysql/debian.cnf ping' resulted in$
 /etc/mysql/debian-start\[[0-9]+\]: Checking for crashed MySQL tables\.$
-mysqld\[[0-9]+\]: ?$
-mysqld\[[0-9]+\]: .*InnoDB: Shutdown completed
-mysqld\[[0-9]+\]: .*InnoDB: Started;
-mysqld\[[0-9]+\]: .*InnoDB: Starting shutdown\.\.\.$
-mysqld\[[0-9]+\]: .*\[Note\] /usr/sbin/mysqld: Normal shutdown$
-mysqld\[[0-9]+\]: .*\[Note\] /usr/sbin/mysqld: ready for connections\.$
-mysqld\[[0-9]+\]: .*\[Note\] /usr/sbin/mysqld: Shutdown complete$
-mysqld\[[0-9]+\]: /usr/sbin/mysqld: ready for connections\.$
-mysqld\[[0-9]+\]: .*/usr/sbin/mysqld: Shutdown Complete$
-mysqld\[[0-9]+\]: Version: .* socket
-mysqld\[[0-9]+\]: Warning: Ignoring user change to 'mysql' because the user was set to 'mysql' earlier on the command line$
+mariadbd\[[0-9]+\]: ?$
+mariadbd\[[0-9]+\]: .*InnoDB: Shutdown completed
+mariadbd\[[0-9]+\]: .*InnoDB: Started;
+mariadbd\[[0-9]+\]: .*InnoDB: Starting shutdown\.\.\.$
+mariadbd\[[0-9]+\]: .*\[Note\] /usr/sbin/mariadbd: Normal shutdown$
+mariadbd\[[0-9]+\]: .*\[Note\] /usr/sbin/mariadbd: ready for connections\.$
+mariadbd\[[0-9]+\]: .*\[Note\] /usr/sbin/mariadbd: Shutdown complete$
+mariadbd\[[0-9]+\]: /usr/sbin/mariadbd: ready for connections\.$
+mariadbd\[[0-9]+\]: .*/usr/sbin/mariadbd: Shutdown Complete$
+mariadbd\[[0-9]+\]: Version: .* socket
+mariadbd\[[0-9]+\]: Warning: Ignoring user change to 'mysql' because the user was set to 'mysql' earlier on the command line$
 mysqld_safe\[[0-9]+\]: ?$
 mysqld_safe\[[0-9]+\]: able to use the new GRANT command!$
 mysqld_safe\[[0-9]+\]: ended$

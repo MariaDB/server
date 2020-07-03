@@ -3312,6 +3312,71 @@ p	16
 set @@sort_buffer_size= @save_sort_buffer_size;
 drop table t1;
 #
+# MDEV-22715: SIGSEGV in radixsort_for_str_ptr and in native_compare/my_qsort2 (optimized builds)
+#
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_sort_length= @@max_sort_length;
+SET max_sort_length=8;
+SET sort_buffer_size=1024;
+CREATE TABLE t1(a INT, b DECIMAL(65), c BLOB);
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+SELECT * FROM t1 ORDER BY a,b;
+a	b	c
+1	1	1
+1	1	1
+2	2	2
+2	2	2
+3	3	3
+3	3	3
+4	4	4
+4	4	4
+5	5	5
+5	5	5
+6	6	6
+6	6	6
+7	7	7
+7	7	7
+8	8	8
+8	8	8
+9	9	9
+9	9	9
+10	10	10
+10	10	10
+11	11	11
+11	11	11
+12	12	12
+12	12	12
+13	13	13
+13	13	13
+14	14	14
+14	14	14
+15	15	15
+15	15	15
+16	16	16
+16	16	16
+17	17	17
+17	17	17
+18	18	18
+18	18	18
+19	19	19
+19	19	19
+20	20	20
+20	20	20
+21	21	21
+21	21	21
+22	22	22
+22	22	22
+23	23	23
+23	23	23
+24	24	24
+24	24	24
+25	25	25
+25	25	25
+SET @@sort_buffer_size= @save_sort_buffer_size;
+SET @@max_sort_length= @save_max_sort_length;
+DROP TABLE t1;
+#
 # MDEV-13994: Bad join results with orderby_uses_equalities=on
 #
 CREATE TABLE books (
@@ -3372,6 +3437,7 @@ NULLIF(GROUP_CONCAT(v1), null)
 C
 B
 DROP TABLE t1;
+# End of 10.2 tests
 #
 # MDEV-16214: Incorrect plan taken by the optimizer , uses INDEX instead of ref access with ORDER BY
 #
@@ -3429,6 +3495,7 @@ LIMIT 1)
 908-8-123456
 909-9-123456
 drop table t1,t2;
+# End of 10.3 tests
 #
 # MDEV-17761: Odd optimizer choice with ORDER BY LIMIT and condition selectivity
 #
@@ -3466,6 +3533,7 @@ Note	1003	select `test`.`t4`.`a` AS `a`,`test`.`t4`.`b` AS `b`,`test`.`t4`.`c` A
 set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
 optimizer_use_condition_selectivity=@tmp_o;
 drop table t1,t2,t3,t4;
+# End of 10.4 tests
 #
 # MDEV-21655: Server crashes in my_qsort2 / Filesort_buffer::sort_buffer
 #
@@ -3751,6 +3819,8 @@ efg	5	5
 fgh	6	6
 set @save_max_sort_length= @@max_sort_length;
 set max_sort_length=5;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '5'
 #
 # should show sortkey in r_sort_mode as the collation is complex and
 # truncation is not possible
@@ -3866,3 +3936,91 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 NULL
 DROP TABLE t1;
+#
+# MDEV-22303: Incorrect ordering with REGEXP_REPLACE and OFFSET/LIMIT
+#
+CREATE TABLE t1 (name VARCHAR(20) CHARACTER SET utf8 NOT NULL);
+INSERT INTO t1 (name) VALUES ('Charles Dickens'), ('Roald Dahl');
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC;
+name	surname_first
+Roald Dahl	Dahl, Roald
+Charles Dickens	Dickens, Charles
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC LIMIT 1;
+name	surname_first
+Roald Dahl	Dahl, Roald
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC LIMIT 1 OFFSET 1;
+name	surname_first
+Charles Dickens	Dickens, Charles
+DROP TABLE t1;
+#
+# MDEV-22836: Server crashes in err_conv / ErrBuff::set_str
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(1);
+SELECT * FROM t1 ORDER BY CONVERT(AES_ENCRYPT(1,a), CHAR(4));
+a
+1
+0
+DROP TABLE t1;
+#
+# MDEV-22819:Wrong result or Assertion `ix > 0' failed in read_to_buffer upon select
+# with GROUP BY and GROUP_CONCAT
+#
+CREATE TABLE t1 (a VARCHAR(1000), b CHAR(1));
+INSERT INTO t1 VALUES
+(REPEAT('a',1000),'a'),(REPEAT('t',932),'t'),('x',NULL),('x',NULL),
+(REPEAT('z',298),'z'),(REPEAT('p',1000),'p'),(REPEAT('k',468),'k'),
+(REPEAT('c',1000),'c'),(REPEAT('o',648),'o'),('x',NULL),('x',NULL),
+(REPEAT('c',258),'c'),(REPEAT('t',414),'t'),(REPEAT('f',966),'f'),
+(REPEAT('y',746),'y'),(REPEAT('f',1000),'f');
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET sort_buffer_size= 16384;
+SELECT LEFT(a,1), GROUP_CONCAT(b) FROM t1 GROUP BY a;
+LEFT(a,1)	GROUP_CONCAT(b)
+a	a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a
+c	c,c,c,c,c,c,c,c,c,c,c,c,c,c,c,c
+c	c,c,c,c,c,c,c,c,c,c,c,c,c,c,c,c
+f	f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f
+f	f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f
+k	k,k,k,k,k,k,k,k,k,k,k,k,k,k,k,k
+o	o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o
+p	p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p
+t	t,t,t,t,t,t,t,t,t,t,t,t,t,t,t,t
+t	t,t,t,t,t,t,t,t,t,t,t,t,t,t,t,t
+x	NULL
+y	y,y,y,y,y,y,y,y,y,y,y,y,y,y,y,y
+z	z,z,z,z,z,z,z,z,z,z,z,z,z,z,z,z
+SELECT SUBSTR(a,1,1), LENGTH(a), GROUP_CONCAT(b), COUNT(*) FROM t1 GROUP BY a;
+SUBSTR(a,1,1)	LENGTH(a)	GROUP_CONCAT(b)	COUNT(*)
+a	1000	a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a	16
+c	258	c,c,c,c,c,c,c,c,c,c,c,c,c,c,c,c	16
+c	1000	c,c,c,c,c,c,c,c,c,c,c,c,c,c,c,c	16
+f	966	f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f	16
+f	1000	f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f	16
+k	468	k,k,k,k,k,k,k,k,k,k,k,k,k,k,k,k	16
+o	648	o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o	16
+p	1000	p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p	16
+t	414	t,t,t,t,t,t,t,t,t,t,t,t,t,t,t,t	16
+t	932	t,t,t,t,t,t,t,t,t,t,t,t,t,t,t,t	16
+x	1	NULL	64
+y	746	y,y,y,y,y,y,y,y,y,y,y,y,y,y,y,y	16
+z	298	z,z,z,z,z,z,z,z,z,z,z,z,z,z,z,z	16
+SET @@sort_buffer_size= @save_sort_buffer_size;
+DROP TABLE t1;
+CREATE TABLE t1(a VARCHAR(1027), b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_34;
+SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
+SET tmp_memory_table_size= 1056*2;
+SELECT COUNT(DISTINCT a) FROM t1;
+COUNT(DISTINCT a)
+34
+SET @@tmp_memory_table_size= @save_tmp_memory_table_size;
+DROP TABLE t1;
+# End of 10.5 tests

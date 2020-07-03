@@ -3723,6 +3723,82 @@ MAX(1) OVER ()	COUNT(a)	abs(a)
 1	0	NULL
 drop table t1;
 #
+# MDEV-22461: JOIN::make_aggr_tables_info(): Assertion `select_options & (1ULL << 17)' failed.
+#
+CREATE TEMPORARY TABLE t0 (a INT PRIMARY KEY ) ;
+INSERT INTO t0 VALUES (1),(2),(3);
+SELECT a FROM t0
+WHERE a < 8
+GROUP BY 1.5
+WINDOW v2 AS ( PARTITION BY a ORDER BY a DESC );
+a
+1
+SELECT a, ROW_NUMBER() OVER v2
+FROM t0
+WHERE a < 8
+GROUP BY 1.5
+WINDOW v2 AS ( PARTITION BY a ORDER BY a DESC );
+a	ROW_NUMBER() OVER v2
+1	1
+drop table t0;
+#
+# MDEV-16230:Server crashes when Analyze format=json is run with a window function with
+# empty PARTITION BY and ORDER BY clauses
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+ANALYZE FORMAT=JSON SELECT row_number() OVER() FROM t1;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "`row_number() OVER()`",
+          "r_loops": 1,
+          "r_total_time_ms": "REPLACED",
+          "r_used_priority_queue": false,
+          "r_output_rows": 3,
+          "r_buffer_size": "REPLACED",
+          "r_sort_mode": "sort_key,rowid"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 3,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+SELECT row_number() OVER() FROM t1;
+row_number() OVER()
+1
+2
+3
+DROP TABLE t1;
+#
+# MDEV-22984: Throw an error when arguments to window functions are window functions
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+SELECT NTILE(MAX(a) OVER (PARTITION BY a)) OVER (PARTITION BY a ORDER BY b) FROM t1;
+ERROR HY000: Window functions can not be used as arguments to group functions.
+SELECT FIRST_VALUE(MAX(a) OVER (PARTITION BY a)) OVER (ORDER BY a) AS x FROM t1 GROUP BY a;
+ERROR HY000: Window functions can not be used as arguments to group functions.
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #

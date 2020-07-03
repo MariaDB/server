@@ -2326,7 +2326,7 @@ SELECT MAX('x') << 1, CAST(MAX('x') AS DOUBLE), CAST(MAX('x') AS DECIMAL);
 MAX('x') << 1	CAST(MAX('x') AS DOUBLE)	CAST(MAX('x') AS DECIMAL)
 0	0	0
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
 Warning	1292	Truncated incorrect DOUBLE value: 'x'
 Warning	1292	Truncated incorrect DECIMAL value: 'x'
 #

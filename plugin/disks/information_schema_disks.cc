@@ -34,9 +34,9 @@ ST_FIELD_INFO disks_table_fields[]=
 {
   Column("Disk",      Varchar(PATH_MAX), NOT_NULL),
   Column("Path",      Varchar(PATH_MAX), NOT_NULL),
-  Column("Total",     SLong(32),         NOT_NULL), // Total amount available
-  Column("Used",      SLong(32),         NOT_NULL), // Amount of space used
-  Column("Available", SLong(32),         NOT_NULL), // Amount available to users other than root.
+  Column("Total",     SLonglong(32),     NOT_NULL), // Total amount available
+  Column("Used",      SLonglong(32),     NOT_NULL), // Amount of space used
+  Column("Available", SLonglong(32),     NOT_NULL), // Amount available to users other than root.
   CEnd()
 };
 
@@ -55,9 +55,10 @@ int disks_table_add_row(THD* pThd,
     // f_bfree    Total number of free blocks.
     // f_bavail   Number of free blocks available to non-privileged process.
 
-    size_t total = (info.f_frsize * info.f_blocks) / 1024;
-    size_t used  = (info.f_frsize * (info.f_blocks - info.f_bfree)) / 1024;
-    size_t avail = (info.f_frsize * info.f_bavail) / 1024;
+    ulonglong total = ((ulonglong)info.f_frsize * info.f_blocks) / 1024;
+    ulonglong used  = ((ulonglong)info.f_frsize *
+                            (info.f_blocks - info.f_bfree)) / 1024;
+    ulonglong avail = ((ulonglong)info.f_frsize * info.f_bavail) / 1024;
 
     pTable->field[0]->store(zDisk, strlen(zDisk), system_charset_info);
     pTable->field[1]->store(zPath, strlen(zPath), system_charset_info);

@@ -473,6 +473,10 @@ public:
   {
     return m_file;
   }
+  ha_partition *get_clone_source()
+  {
+    return m_is_clone_of;
+  }
   virtual part_id_range *get_part_spec()
   {
     return &m_part_spec;
@@ -1548,7 +1552,6 @@ public:
   */
     const COND *cond_push(const COND *cond) override;
     void cond_pop() override;
-    void clear_top_table_fields() override;
     int info_push(uint info_type, void *info) override;
 
     private:

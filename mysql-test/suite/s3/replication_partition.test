@@ -6,7 +6,7 @@
 --source include/master-slave.inc
 --source create_database.inc
 
-connection slave;
+sync_slave_with_master;
 let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $database database
 --eval use $database

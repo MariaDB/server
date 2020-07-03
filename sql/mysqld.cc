@@ -328,7 +328,6 @@ static bool lower_case_table_names_used= 0;
 static bool volatile select_thread_in_use, signal_thread_in_use;
 static my_bool opt_debugging= 0, opt_external_locking= 0, opt_console= 0;
 static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
-bool my_disable_leak_check= false;
 
 ulong max_used_connections;
 static char *mysqld_user, *mysqld_chroot;
@@ -3608,7 +3607,7 @@ static void get_win_tzname(char* buf, size_t size)
     {0,0}
   };
   DYNAMIC_TIME_ZONE_INFORMATION  tzinfo;
-  if (GetDynamicTimeZoneInformation(&tzinfo) == TIME_ZONE_ID_UNKNOWN)
+  if (GetDynamicTimeZoneInformation(&tzinfo) == TIME_ZONE_ID_INVALID)
   {
     strncpy(buf, "unknown", size);
     return;
@@ -4573,6 +4572,22 @@ init_gtid_pos_auto_engines(void)
   return 0;
 }
 
+#define MYSQL_COMPATIBILITY_OPTION(option) \
+  { option, OPT_MYSQL_COMPATIBILITY, \
+   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
+
+#define MYSQL_TO_BE_IMPLEMENTED_OPTION(option) \
+  { option, OPT_MYSQL_TO_BE_IMPLEMENTED, \
+   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
+
+#define MYSQL_SUGGEST_ANALOG_OPTION(option, str) \
+  { option, OPT_MYSQL_COMPATIBILITY, \
+   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
+
+#define MARIADB_REMOVED_OPTION(option) \
+  { option, OPT_REMOVED_OPTION, \
+   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
+
 static int init_server_components()
 {
   DBUG_ENTER("init_server_components");
@@ -4925,26 +4940,54 @@ static int init_server_components()
     int ho_error;
     struct my_option removed_opts[]=
     {
-      /* All options in this list are accepted by the server for backwards
-         compatibility, but do not have any effect otherwise, they behave
-         as if supplied with --loose. Whenever a deprecated option is removed
-         it should be appended here. */
-      {"multi-range-count", OPT_DEPRECATED_OPTION, "",
-       0, 0, 0, GET_NO_ARG, OPT_ARG, 0, 0, 0, 0, 0, 0},
-      {"skip-bdb", OPT_DEPRECATED_OPTION, "",
-       0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-      {"thread-concurrency", OPT_DEPRECATED_OPTION, "",
-       0, 0, 0, GET_NO_ARG, OPT_ARG, 0, 0, 0, 0, 0, 0},
-      {"timed-mutexes", OPT_DEPRECATED_OPTION, "",
-       0, 0, 0, GET_NO_ARG, OPT_ARG, 0, 0, 0, 0, 0, 0},
+      /* The following options exist in 5.6 but not in 10.0 */
+      MYSQL_COMPATIBILITY_OPTION("log-raw"),
+      MYSQL_COMPATIBILITY_OPTION("log-bin-use-v1-row-events"),
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("default-authentication-plugin"),
+      MYSQL_COMPATIBILITY_OPTION("binlog-max-flush-queue-time"),
+      MYSQL_COMPATIBILITY_OPTION("master-info-repository"),
+      MYSQL_COMPATIBILITY_OPTION("relay-log-info-repository"),
+      MYSQL_SUGGEST_ANALOG_OPTION("binlog-rows-query-log-events", "--binlog-annotate-row-events"),
+      MYSQL_COMPATIBILITY_OPTION("binlog-order-commits"),
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("log-throttle-queries-not-using-indexes"),
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("end-markers-in-json"),
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-features"),     // OPTIMIZER_TRACE
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-offset"),       // OPTIMIZER_TRACE
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-limit"),        // OPTIMIZER_TRACE
+      MYSQL_COMPATIBILITY_OPTION("server-id-bits"),
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("slave-rows-search-algorithms"), // HAVE_REPLICATION
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("slave-allow-batching"),         // HAVE_REPLICATION
+      MYSQL_COMPATIBILITY_OPTION("slave-checkpoint-period"),      // HAVE_REPLICATION
+      MYSQL_COMPATIBILITY_OPTION("slave-checkpoint-group"),       // HAVE_REPLICATION
+      MYSQL_SUGGEST_ANALOG_OPTION("slave-pending-jobs-size-max", "--slave-parallel-max-queued"),  // HAVE_REPLICATION
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("sha256-password-private-key-path"), // HAVE_OPENSSL
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("sha256-password-public-key-path"),  // HAVE_OPENSSL
+
+      /* The following options exist in 5.5 and 5.6 but not in 10.0 */
+      MYSQL_SUGGEST_ANALOG_OPTION("abort-slave-event-count", "--debug-abort-slave-event-count"),
+      MYSQL_SUGGEST_ANALOG_OPTION("disconnect-slave-event-count", "--debug-disconnect-slave-event-count"),
+      MYSQL_SUGGEST_ANALOG_OPTION("exit-info", "--debug-exit-info"),
+      MYSQL_SUGGEST_ANALOG_OPTION("max-binlog-dump-events", "--debug-max-binlog-dump-events"),
+      MYSQL_SUGGEST_ANALOG_OPTION("sporadic-binlog-dump-fail", "--debug-sporadic-binlog-dump-fail"),
+      MYSQL_COMPATIBILITY_OPTION("new"),
+      MYSQL_COMPATIBILITY_OPTION("show_compatibility_56"),
+
+      /* The following options were removed in 10.5 */
 #if defined(__linux__)
-      /*
-        Linux was the only large page OS that we've now removed the (always)
-        unused super-large-pages (because its Solaris only).
-      */
-      {"super-large-pages", OPT_DEPRECATED_OPTION, "",
-       0, 0, 0, GET_NO_ARG, OPT_ARG, 0, 0, 0, 0, 0, 0},
+      MARIADB_REMOVED_OPTION("super-large-pages"),
 #endif
+      MARIADB_REMOVED_OPTION("innodb-locks-unsafe-for-binlog"),
+      MARIADB_REMOVED_OPTION("innodb-rollback-segments"),
+      MARIADB_REMOVED_OPTION("innodb-stats-sample-pages"),
+      MARIADB_REMOVED_OPTION("max-long-data-size"),
+      MARIADB_REMOVED_OPTION("multi-range-count"),
+      MARIADB_REMOVED_OPTION("skip-bdb"),
+      MARIADB_REMOVED_OPTION("thread-concurrency"),
+      MARIADB_REMOVED_OPTION("timed-mutexes"),
+
+      /* The following options were added after 5.6.10 */
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("rpl-stop-slave-timeout"),
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("validate-user-plugins"), // NO_EMBEDDED_ACCESS_CHECKS
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
     /*
@@ -5780,6 +5823,31 @@ default_service_handling(char **argv,
   return 1;
 }
 
+/* Remove service name from the command line arguments, and pass
+resulting command line to the service via opt_args.*/
+#include <vector>
+static void service_init_cmdline_args(int argc, char **argv)
+{
+  start_mode= 1;
+  use_opt_args= 1;
+
+  if(argc == 1)
+  {
+    opt_argc= argc;
+    opt_argv= argv;
+  }
+  else
+  {
+    static std::vector<char *> argv_no_service;
+    for (int i= 0; argv[i]; i++)
+      argv_no_service.push_back(argv[i]);
+    // Remove the last argument, service name
+    argv_no_service[argv_no_service.size() - 1]= 0;
+    opt_argc= (int)argv_no_service.size() - 1;
+    opt_argv= &argv_no_service[0];
+  }
+  DBUG_ASSERT(!opt_argv[opt_argc]);
+}
 
 int mysqld_main(int argc, char **argv)
 {
@@ -5811,6 +5879,7 @@ int mysqld_main(int argc, char **argv)
   my_path(file_path, argv[0], "");		      /* Find name in path */
   fn_format(file_path,argv[0],file_path,"",   MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_RESOLVE_SYMLINKS);
 
+
   if (argc == 2)
   {
     if (!default_service_handling(argv, MYSQL_SERVICENAME, MYSQL_SERVICENAME,
@@ -5827,7 +5896,7 @@ int mysqld_main(int argc, char **argv)
       */
       if (my_strcasecmp(system_charset_info, argv[1],"mysql"))
         load_default_groups[load_default_groups_sz-2]= argv[1];
-      start_mode= 1;
+      service_init_cmdline_args(argc, argv);
       Service.Init(argv[1], mysql_service);
       return 0;
     }
@@ -5843,12 +5912,9 @@ int mysqld_main(int argc, char **argv)
        mysqld was started as
        mysqld --defaults-file=my_path\my.ini service-name
       */
-      use_opt_args=1;
-      opt_argc= 2;				// Skip service-name
-      opt_argv=argv;
-      start_mode= 1;
       if (my_strcasecmp(system_charset_info, argv[2],"mysql"))
         load_default_groups[load_default_groups_sz-2]= argv[2];
+      service_init_cmdline_args(argc, argv);
       Service.Init(argv[2], mysql_service);
       return 0;
     }
@@ -5881,7 +5947,7 @@ int mysqld_main(int argc, char **argv)
   else if (argc == 1 && Service.IsService(MYSQL_SERVICENAME))
   {
     /* start the default service */
-    start_mode= 1;
+    service_init_cmdline_args(argc, argv);
     Service.Init(MYSQL_SERVICENAME, mysql_service);
     return 0;
   }
@@ -6274,24 +6340,6 @@ int handle_early_options()
 
   return ho_error;
 }
-
-
-#define MYSQL_COMPATIBILITY_OPTION(option) \
-  { option, OPT_MYSQL_COMPATIBILITY, \
-   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
-
-#define MYSQL_TO_BE_IMPLEMENTED_OPTION(option) \
-  { option, OPT_MYSQL_TO_BE_IMPLEMENTED, \
-   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
-
-#define MYSQL_SUGGEST_ANALOG_OPTION(option, str) \
-  { option, OPT_MYSQL_COMPATIBILITY, \
-   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
-
-#define MARIADB_REMOVED_OPTION(option) \
-  { option, OPT_REMOVED_OPTION, \
-   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
-
 
 /**
   System variables are automatically command-line options (few
@@ -6742,42 +6790,6 @@ struct my_option my_long_options[]=
    "start.", &wsrep_new_cluster, &wsrep_new_cluster, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
 #endif
-
-  /* The following options exist in 5.6 but not in 10.0 */
-  MYSQL_COMPATIBILITY_OPTION("log-raw"),
-  MYSQL_COMPATIBILITY_OPTION("log-bin-use-v1-row-events"),
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("default-authentication-plugin"),
-  MYSQL_COMPATIBILITY_OPTION("binlog-max-flush-queue-time"),
-  MYSQL_COMPATIBILITY_OPTION("master-info-repository"),
-  MYSQL_COMPATIBILITY_OPTION("relay-log-info-repository"),
-  MYSQL_SUGGEST_ANALOG_OPTION("binlog-rows-query-log-events", "--binlog-annotate-row-events"),
-  MYSQL_COMPATIBILITY_OPTION("binlog-order-commits"),
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("log-throttle-queries-not-using-indexes"),
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("end-markers-in-json"),
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-features"),     // OPTIMIZER_TRACE
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-offset"),       // OPTIMIZER_TRACE
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-limit"),        // OPTIMIZER_TRACE
-  MYSQL_COMPATIBILITY_OPTION("server-id-bits"),
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("slave-rows-search-algorithms"), // HAVE_REPLICATION
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("slave-allow-batching"),         // HAVE_REPLICATION
-  MYSQL_COMPATIBILITY_OPTION("slave-checkpoint-period"),      // HAVE_REPLICATION
-  MYSQL_COMPATIBILITY_OPTION("slave-checkpoint-group"),       // HAVE_REPLICATION
-  MYSQL_SUGGEST_ANALOG_OPTION("slave-pending-jobs-size-max", "--slave-parallel-max-queued"),  // HAVE_REPLICATION
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("sha256-password-private-key-path"), // HAVE_OPENSSL
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("sha256-password-public-key-path"),  // HAVE_OPENSSL
-
-  /* The following options exist in 5.5 and 5.6 but not in 10.0 */
-  MYSQL_SUGGEST_ANALOG_OPTION("abort-slave-event-count", "--debug-abort-slave-event-count"),
-  MYSQL_SUGGEST_ANALOG_OPTION("disconnect-slave-event-count", "--debug-disconnect-slave-event-count"),
-  MYSQL_SUGGEST_ANALOG_OPTION("exit-info", "--debug-exit-info"),
-  MYSQL_SUGGEST_ANALOG_OPTION("max-binlog-dump-events", "--debug-max-binlog-dump-events"),
-  MYSQL_SUGGEST_ANALOG_OPTION("sporadic-binlog-dump-fail", "--debug-sporadic-binlog-dump-fail"),
-  MYSQL_COMPATIBILITY_OPTION("new"),
-  MYSQL_COMPATIBILITY_OPTION("show_compatibility_56"),
-
-  /* The following options were added after 5.6.10 */
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("rpl-stop-slave-timeout"),
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("validate-user-plugins") // NO_EMBEDDED_ACCESS_CHECKS
 };
 
 static int show_queries(THD *thd, SHOW_VAR *var, char *buff,
@@ -7914,12 +7926,9 @@ mysqld_get_one_option(const struct my_option *opt, char *argument,
     sql_print_warning("'%s' is disabled in this build", opt->name);
 #endif
     break;
-  case OPT_DEPRECATED_OPTION:
-    sql_print_warning("'%s' is deprecated. It does nothing and exists only "
-                      "for compatibility with old my.cnf files.",
-                      opt->name);
-    break;
   case OPT_REMOVED_OPTION:
+    sql_print_warning("'%s' was removed. It does nothing now and exists only "
+                      "for compatibility with old my.cnf files.", opt->name);
     break;
   case OPT_MYSQL_COMPATIBILITY:
     sql_print_warning("'%s' is MySQL 5.6 / 5.7 compatible option. Not used or "

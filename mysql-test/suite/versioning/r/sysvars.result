@@ -134,11 +134,11 @@ select * from t for system_time all;
 a
 2
 1
-select * from t for system_time from '0-0-0' to current_timestamp(6);
+select * from t for system_time from '1970-01-01 00:00' to current_timestamp(6);
 a
 2
 1
-select * from t for system_time between '0-0-0' and current_timestamp(6);
+select * from t for system_time between '1970-01-01 00:00' and current_timestamp(6);
 a
 2
 1
@@ -146,6 +146,35 @@ show status like "Feature_system_versioning";
 Variable_name	Value
 Feature_system_versioning	2
 drop table t;
+#
+# MDEV-22906 Disallow system_versioning_asof in DML
+#
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int);
+insert into t1 values (1);
+insert into t2 values (1);
+set system_versioning_asof= '1970-01-01 00:00:00';
+delete t1, t2 from t1 join t2 where t1.x = t2.y;
+select * from t1 for system_time as of timestamp now(6);
+x
+insert into t1 values (1);
+insert into t2 values (1);
+update t1, t2 set x= 2, y= 2 where x = y;
+select * from t1 for system_time as of timestamp now(6);
+x
+2
+replace t2 select x + 1 from t1;
+select * from t2;
+y
+2
+3
+insert t2 select x + 2 from t1;
+select * from t2;
+y
+2
+3
+4
+drop tables t1, t2;
 #
 # MDEV-16991 Rounding vs truncation for TIME, DATETIME, TIMESTAMP
 #
@@ -157,3 +186,4 @@ SELECT @@global.system_versioning_asof;
 @@global.system_versioning_asof
 2002-01-01 00:00:00.000000
 SET @@global.system_versioning_asof= DEFAULT;
+# End of 10.4 tests

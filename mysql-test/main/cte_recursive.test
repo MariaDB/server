@@ -2424,6 +2424,30 @@ select * from cte1, cte2 where cte1.c1 = 3;
 
 eval $q3;
 
+let $q4=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte2, cte1;
+
+eval $q4;
+eval explain extended $q4;
+eval prepare stmt from "$q4";
+execute stmt;
+execute stmt;
+
+drop procedure p;
+drop table t2;
+
+create table t2 (c1 int, c2 int);
+eval create procedure p() insert into t2 $q4;
+call p();
+select * from t2;
+
 drop procedure p;
 drop table t1,t2;
 
@@ -2571,7 +2595,89 @@ select * from t1 as t;
 
 drop table t1,t2;
 
+
+--echo #
+--echo # MDEV-22042: ANALYZE of query using stored function and recursive CTE
+--echo #
+
+create table t1 (a1 varchar(20),a2 varchar(20)) engine=myisam;
+insert into t1 values (1,1),(2,2),(3,3);
+
+create table t2 (
+a2 varchar(20) primary key, b1 varchar(20), key (b1)
+) engine=myisam;
+insert into t2 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7);
+insert into t2 values (11,11),(12,12),(13,13),(14,14),(15,15),(16,16),(17,17);
+
+delimiter $$;
+create  function f1(id varchar(20)) returns varchar(50)
+begin
+  declare res  varchar (50);
+  select a2 into res from t2 where a2=id and b1=1 limit 1;
+  return res;
+end$$
+delimiter ;$$
+
+let q=
+select fv
+from (select t1.a1, f1(t1.a2) fv from t1) dt
+where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
+   union select tt2.a2 from t2 tt2 join cte on tt2.b1=cte.a2)
+select a2 from cte);
+
+eval $q;
+eval explain $q;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+
+drop function f1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-22748: two materialized CTEs using the same recursive CTE
+--echo # (see also test case for MDEV-17024)
+--echo #
+
+CREATE TABLE t1 (YEAR int(4), d1 date , d2 date) ;
+INSERT INTO t1 VALUES (2018,'2018-01-01','2018-09-20');
+CREATE TABLE t2 (id int, tm date);
+INSERT INTO t2 VALUES (1,'2018-08-30'),(2,'2018-08-30'),(3,'2018-08-30');
+CREATE TABLE t3 (id int, tm date);
+INSERT INTO t3 VALUES (1,'2018-08-30'),(2,'2018-08-30');
+
+let $q=
+WITH RECURSIVE
+cte AS
+  (SELECT  YEAR(t1.d1) AS YEAR, t1.d1 AS st, t1.d1 + INTERVAL 1 MONTH AS fn
+     FROM t1
+   UNION ALL
+   SELECT YEAR(cte.st + INTERVAL 1 MONTH),
+          cte.st + INTERVAL 1 MONTH,  t1.d2 + INTERVAL 1 DAY
+     FROM cte JOIN t1
+   WHERE cte.st + INTERVAL 1 MONTH < t1.d2 ),
+cte2 AS (SELECT YEAR, COUNT(*)
+        FROM cte JOIN t2 ON t2.tm BETWEEN cte.st AND cte.fn),
+cte3 AS (SELECT YEAR, COUNT(*)
+        FROM cte JOIN t3 ON t3.tm BETWEEN cte.st AND cte.fn)
+SELECT t1.* FROM t1 JOIN cte2 USING (YEAR) JOIN cte3 USING (YEAR);
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+eval PREPARE stmt FROM "$q";
+EXECUTE stmt;
+EXECUTE stmt;
+
+CREATE TABLE t4 (YEAR int(4), d1 date , d2 date);
+eval CREATE PROCEDURE p() INSERT INTO t4 $q;
+CALL p();
+SELECT * FROM t4;
+
+DROP PROCEDURE p;
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
 --echo # End of 10.2 tests
+--echo #
 
 --echo #
 --echo # MDEV-14217 [db crash] Recursive CTE when SELECT includes new field

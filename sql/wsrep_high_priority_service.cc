@@ -507,10 +507,12 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_executing);
 
   thd_proc_info(thd, "applying write set");
+
   /* moved dbug sync point here, after possible THD switch for SR transactions
      has ben done
   */
   /* Allow tests to block the applier thread using the DBUG facilities */
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.wsrep_apply_cb",
                  {
                    const char act[]=
@@ -520,6 +522,7 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);
+#endif /* ENABLED_DEBUG_SYNC */
 
   wsrep_setup_uk_and_fk_checks(thd);
   int ret= apply_events(thd, m_rli, data, err);

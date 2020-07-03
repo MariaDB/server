@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB Corporation
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -787,6 +787,18 @@ static bool pack_vcols(String *buf, List<Create_field> &create_fields,
 }
 
 
+static uint typelib_values_packed_length(const TYPELIB *t)
+{
+  uint length= 0;
+  for (uint i= 0; t->type_names[i]; i++)
+  {
+    length+= t->type_lengths[i];
+    length++; /* Separator */
+  }
+  return length;
+}
+
+
 /* Make formheader */
 
 static bool pack_header(THD *thd, uchar *forminfo,
@@ -881,9 +893,8 @@ static bool pack_header(THD *thd, uchar *forminfo,
       field->interval_id=get_interval_id(&int_count,create_fields,field);
       if (old_int_count != int_count)
       {
-	for (const char **pos=field->interval->type_names ; *pos ; pos++)
-	  int_length+=(uint) strlen(*pos)+1;	// field + suffix prefix
-	int_parts+=field->interval->count+1;
+        int_length+= typelib_values_packed_length(field->interval);
+        int_parts+= field->interval->count + 1;
       }
     }
     if (f_maybe_null(field->pack_flag))
@@ -972,11 +983,7 @@ static size_t packed_fields_length(List<Create_field> &create_fields)
     {
       int_count= field->interval_id;
       length++;
-      for (int i=0; field->interval->type_names[i]; i++)
-      {
-        length+= field->interval->type_lengths[i];
-        length++;
-      }
+      length+= typelib_values_packed_length(field->interval);
       length++;
     }
 
@@ -1100,9 +1107,10 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
 
 
 static bool make_empty_rec_store_default(THD *thd, Field *regfield,
-                                         Virtual_column_info *default_value)
+                                         Create_field *field)
 {
-  if (default_value && !default_value->flags)
+  Virtual_column_info *default_value= field->default_value;
+  if (!field->vers_sys_field() && default_value && !default_value->flags)
   {
     Item *expr= default_value->expr;
     // may be already fixed if ALTER TABLE
@@ -1184,7 +1192,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
         !f_bit_as_char(field->pack_flag))
       null_count+= field->length & 7;
 
-    error= make_empty_rec_store_default(thd, regfield, field->default_value);
+    error= make_empty_rec_store_default(thd, regfield, field);
     delete regfield; // Avoid memory leaks
     if (error)
       goto err;

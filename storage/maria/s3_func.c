@@ -986,7 +986,7 @@ int s3_get_object(ms3_st *s3_client, const char *aws_bucket,
     block->str= block->alloc_ptr;
     if (compression)
     {
-      size_t length;
+      ulong length;
 
       /* If not compressed */
       if (!block->str[0])
@@ -1067,7 +1067,7 @@ int s3_delete_object(ms3_st *s3_client, const char *aws_bucket,
                          const char *name, myf error_flags)
 {
   uint8_t error;
-  int result;
+  int result= 0;
   DBUG_ENTER("s3_delete_object");
   DBUG_PRINT("enter", ("name: %s", name));
 
@@ -1500,7 +1500,7 @@ int s3_check_frm_version(ms3_st *s3_client, S3_INFO *s3_info)
   if (res)
     DBUG_PRINT("error", ("Wrong table version"));
   else
-    DBUG_PRINT("error", ("Version strings matches"));
+    DBUG_PRINT("exit", ("Version strings matches"));
   DBUG_RETURN(res);
 }
 

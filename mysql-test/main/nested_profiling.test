@@ -1,0 +1,42 @@
+# ==== Purpose ====
+#
+# Test verifies that "init_connect" and "init_slave" system variables work
+# fine when "profiling=on".
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Create regular user without super privilege so that "init_connect"
+#        variable is effective.
+#    1 - Enable profiling.
+#    2 - Start a new connection which will try to execute the statements
+#        specified in "init_connect". No assert should be reported.
+#    3 - Execute SHOW PROFILES to verify that statements specified in
+#        "init_connect" are displayed as part of profiling.
+#
+# ==== References ====
+#
+# MDEV-22706: Assertion `!current' failed in PROFILING::start_new_query
+#
+--source include/not_embedded.inc
+--source include/have_profiling.inc
+
+SET @saved_profiling=@@GLOBAL.profiling;
+SET @saved_init_connect=@@GLOBAL.init_connect;
+SET GLOBAL init_connect="set @a=2;set @b=3";
+SET GLOBAL profiling=on;
+
+create user mysqltest1@localhost;
+connect (con1,localhost,mysqltest1,,);
+connection con1;
+SELECT @a, @b;
+--replace_column 2 #
+SHOW PROFILES;
+
+#========== Clean up ===========
+connection default;
+disconnect con1;
+DROP USER mysqltest1@localhost;
+
+SET GLOBAL profiling=@saved_profiling;
+SET GLOBAL init_connect=@saved_init_connect;

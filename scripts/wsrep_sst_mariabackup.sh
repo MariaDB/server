@@ -56,8 +56,6 @@ sfmt="tar"
 strmcmd=""
 tfmt=""
 tcmd=""
-rebuild=0
-rebuildcmd=""
 payload=0
 pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p' "
 pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE "
@@ -201,7 +199,11 @@ get_transfer()
                 tcmd="nc ${REMOTEIP} ${TSST_PORT}"
             elif nc -h 2>&1 | grep -q -- '-d\>';then
                 # Debian netcat
-                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+                if nc -h 2>&1 | grep -q -- '-N\>';then
+                   tcmd="nc -N ${REMOTEIP} ${TSST_PORT}"
+                else
+                   tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+                fi
             else
                 # traditional netcat
                 tcmd="nc -q0 ${REMOTEIP} ${TSST_PORT}"
@@ -335,7 +337,6 @@ read_cnf()
     encrypt=$(parse_cnf sst encrypt 0)
     sockopt=$(parse_cnf sst sockopt "")
     progress=$(parse_cnf sst progress "")
-    rebuild=$(parse_cnf sst rebuild 0)
     ttime=$(parse_cnf sst time 0)
     cpat=$(parse_cnf sst cpat '.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$')
     [[ $OS == "FreeBSD" ]] && cpat=$(parse_cnf sst cpat '.*galera\.cache$|.*sst_in_progress$|.*\.sst$|.*gvwstate\.dat$|.*grastate\.dat$|.*\.err$|.*\.log$|.*RPM_UPGRADE_MARKER$|.*RPM_UPGRADE_HISTORY$')
@@ -704,7 +705,7 @@ if [[ ${FORCE_FTWRL:-0} -eq 1 ]];then
     iopts+=" --no-backup-locks "
 fi
 
-INNOEXTRA=$WSREP_SST_OPT_MYSQLD
+INNOEXTRA=
 
 INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
 # Try to set INNODB_DATA_HOME_DIR from the command line:
@@ -750,9 +751,9 @@ if [[ $ssyslog -eq 1 ]];then
             logger  -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@" 
         }
 
-        INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-apply"
-        INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move"
-        INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
+        INNOAPPLY="${INNOBACKUPEX_BIN} --prepare $disver $iapts \$INNOEXTRA --target-dir=\${DATA} --mysqld-args \$WSREP_SST_OPT_MYSQLD  2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-apply"
+        INNOMOVE="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --move-back $disver $impts --force-non-empty-directories --target-dir=\${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move"
+        INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --backup $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt --target-dir=\$itmpdir --mysqld-args \$WSREP_SST_OPT_MYSQLD 2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
     fi
 
 else
@@ -814,9 +815,9 @@ then
 
 fi
  
-    INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} &> ${INNOAPPLYLOG}"
-    INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} &> ${INNOMOVELOG}"
-    INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> ${INNOBACKUPLOG}"
+    INNOAPPLY="${INNOBACKUPEX_BIN} --prepare $disver $iapts \$INNOEXTRA --target-dir=\${DATA} --mysqld-args \$WSREP_SST_OPT_MYSQLD &> ${INNOAPPLYLOG}"
+    INNOMOVE="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --move-back $disver $impts  --move-back --force-non-empty-directories --target-dir=\${DATA} &> ${INNOMOVELOG}"
+    INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --backup $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt --target-dir=\$itmpdir --mysqld-args \$WSREP_SST_OPT_MYSQLD 2> ${INNOBACKUPLOG}"
 fi
 
 get_stream
@@ -856,15 +857,6 @@ then
         elif [[ $usrst -eq 1 ]];then
            # Empty password, used for testing, debugging etc.
            INNOEXTRA+=" --password="
-        fi
-
-        get_keys
-        if [[ $encrypt -eq 1 ]];then
-            if [[ -n $ekey ]];then
-                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key=$ekey"
-            else 
-                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key-file=$ekeyfile"
-            fi
         fi
 
         check_extra
@@ -1085,18 +1077,6 @@ then
         if [[ ! -s ${DATA}/xtrabackup_checkpoints ]];then 
             wsrep_log_error "xtrabackup_checkpoints missing, failed innobackupex/SST on donor"
             exit 2
-        fi
-
-        # Rebuild indexes for compact backups
-        if grep -q 'compact = 1' ${DATA}/xtrabackup_checkpoints;then 
-            wsrep_log_info "Index compaction detected"
-            rebuild=1
-        fi
-
-        if [[ $rebuild -eq 1 ]];then 
-            nthreads=$(parse_cnf xtrabackup rebuild-threads $nproc)
-            wsrep_log_info "Rebuilding during prepare with $nthreads threads"
-            rebuildcmd="--rebuild-indexes --rebuild-threads=$nthreads"
         fi
 
         if test -n "$(find ${DATA} -maxdepth 1 -type f -name '*.qp' -print -quit)";then

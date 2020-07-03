@@ -1,4 +1,5 @@
 /* Copyright 2008-2017 Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -186,6 +187,7 @@ void wsrep_recover_sr_from_storage(THD *);
 
 // Other wsrep global variables
 extern my_bool     wsrep_inited; // whether wsrep is initialized ?
+extern bool        wsrep_service_started;
 
 extern "C" void wsrep_fire_rollbacker(THD *thd);
 extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
@@ -526,7 +528,7 @@ void wsrep_keys_free(wsrep_key_arr_t* key_arr);
 
 extern void
 wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
-                          MDL_ticket *ticket,
+                          const MDL_ticket *ticket,
                           const MDL_key *key);
 
 enum wsrep_thread_type {

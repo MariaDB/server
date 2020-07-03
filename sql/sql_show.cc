@@ -1753,7 +1753,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   @param thd             thread handler
   @param packet          string to append
   @param opt             list of options
-  @param check_options   only print known options
+  @param check_options   print all used options
   @param rules           list of known options
 */
 
@@ -1812,7 +1812,9 @@ static void add_table_options(THD *thd, TABLE *table,
   handlerton *hton;
   HA_CREATE_INFO create_info;
   bool check_options= (!(sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
-                       !create_info_arg);
+                       (!create_info_arg ||
+                        create_info_arg->used_fields &
+                        HA_CREATE_PRINT_ALL_OPTIONS));
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (table->part_info)
@@ -5273,6 +5275,29 @@ bool store_schema_schemata(THD* thd, TABLE *table, LEX_CSTRING *db_name,
 }
 
 
+/*
+  Check if the specified database exists on disk.
+
+  @param dbname - the database name
+  @retval true  - on error, the database directory does not exists
+  @retval false - on success, the database directory exists
+*/
+static bool verify_database_directory_exists(const LEX_CSTRING &dbname)
+{
+  DBUG_ENTER("verify_database_directory_exists");
+  char path[FN_REFLEN + 16];
+  uint path_len;
+  MY_STAT stat_info;
+  if (!dbname.str[0])
+    DBUG_RETURN(true); // Empty database name: does not exist.
+  path_len= build_table_filename(path, sizeof(path) - 1, dbname.str, "", "", 0);
+  path[path_len - 1]= 0;
+  if (!mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
+    DBUG_RETURN(true); // The database directory was not found: does not exist.
+  DBUG_RETURN(false);  // The database directory was found.
+}
+
+
 int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   /*
@@ -5301,19 +5326,10 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
     If we have lookup db value we should check that the database exists
   */
   if(lookup_field_vals.db_value.str && !lookup_field_vals.wild_db_value &&
-     db_names.at(0) != &INFORMATION_SCHEMA_NAME)
-  {
-    char path[FN_REFLEN+16];
-    uint path_len;
-    MY_STAT stat_info;
-    if (!lookup_field_vals.db_value.str[0])
-      DBUG_RETURN(0);
-    path_len= build_table_filename(path, sizeof(path) - 1,
-                                   lookup_field_vals.db_value.str, "", "", 0);
-    path[path_len-1]= 0;
-    if (!mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
-      DBUG_RETURN(0);
-  }
+     (!db_names.elements() /* The database name was too long */||
+      (db_names.at(0) != &INFORMATION_SCHEMA_NAME &&
+       verify_database_directory_exists(lookup_field_vals.db_value))))
+    DBUG_RETURN(0);
 
   for (size_t i=0; i < db_names.elements(); i++)
   {
@@ -5504,10 +5520,25 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       str.qs_append(STRING_WITH_LEN(" partitioned"));
 #endif
 
-    if (share->transactional != HA_CHOICE_UNDEF)
+    /*
+      Write transactional=0|1 for tables where the user has specified the
+      option or for tables that supports both transactional and non
+      transactional tables
+    */
+    if (share->transactional != HA_CHOICE_UNDEF ||
+        (share->db_type() &&
+         share->db_type()->flags & HTON_TRANSACTIONAL_AND_NON_TRANSACTIONAL &&
+         file))
     {
+      uint choice= share->transactional;
+      if (choice == HA_CHOICE_UNDEF)
+        choice= ((file->ha_table_flags() &
+                  (HA_NO_TRANSACTIONS | HA_CRASH_SAFE)) ==
+                 HA_NO_TRANSACTIONS ?
+                 HA_CHOICE_NO : HA_CHOICE_YES);
+
       str.qs_append(STRING_WITH_LEN(" transactional="));
-      str.qs_append(ha_choice_values[(uint) share->transactional]);
+      str.qs_append(ha_choice_values[choice]);
     }
     append_create_options(thd, &str, share->option_list, false, 0);
 
@@ -6105,7 +6136,7 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
       table->field[1]->store(option_name, strlen(option_name), scs);
       table->field[2]->store(plugin_decl(plugin)->descr,
                              strlen(plugin_decl(plugin)->descr), scs);
-      tmp= &yesno[MY_TEST(hton->commit)];
+      tmp= &yesno[MY_TEST(hton->commit && !(hton->flags & HTON_NO_ROLLBACK))];
       table->field[3]->store(tmp->str, tmp->length, scs);
       table->field[3]->set_notnull();
       tmp= &yesno[MY_TEST(hton->prepare)];
@@ -6492,7 +6523,6 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   TABLE *table= tables->table;
   bool full_access;
   char definer[USER_HOST_BUFF_SIZE];
-  Open_tables_backup open_tables_state_backup;
   enum enum_schema_tables schema_table_idx=
     get_schema_table_idx(tables->schema_table);
   DBUG_ENTER("fill_schema_proc");
@@ -6507,8 +6537,12 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   proc_tables.lock_type= TL_READ;
   full_access= !check_table_access(thd, SELECT_ACL, &proc_tables, FALSE,
                                    1, TRUE);
-  if (!(proc_table= open_proc_table_for_read(thd, &open_tables_state_backup)))
+
+  start_new_trans new_trans(thd);
+
+  if (!(proc_table= open_proc_table_for_read(thd)))
   {
+    new_trans.restore_old_transaction();
     DBUG_RETURN(1);
   }
 
@@ -6550,7 +6584,9 @@ err:
   if (proc_table->file->inited)
     (void) proc_table->file->ha_index_end();
 
-  close_system_tables(thd, &open_tables_state_backup);
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
+
   thd->variables.sql_mode = sql_mode_was;
   DBUG_RETURN(res);
 }

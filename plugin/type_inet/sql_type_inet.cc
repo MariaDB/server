@@ -508,7 +508,19 @@ size_t Inet6::to_string(char *dst, size_t dstsize) const
 }
 
 
-bool Inet6::make_from_item(Item *item)
+bool Inet6::fix_fields_maybe_null_on_conversion_to_inet6(Item *item)
+{
+  if (item->maybe_null)
+    return true;
+  if (item->type_handler() == &type_handler_inet6)
+    return false;
+  if (!item->const_item() || item->is_expensive())
+    return true;
+  return Inet6_null(item, false).is_null();
+}
+
+
+bool Inet6::make_from_item(Item *item, bool warn)
 {
   if (item->type_handler() == &type_handler_inet6)
   {
@@ -523,18 +535,18 @@ bool Inet6::make_from_item(Item *item)
   }
   StringBufferInet6 tmp;
   String *str= item->val_str(&tmp);
-  return str ? make_from_character_or_binary_string(str) : true;
+  return str ? make_from_character_or_binary_string(str, warn) : true;
 }
 
 
-bool Inet6::make_from_character_or_binary_string(const String *str)
+bool Inet6::make_from_character_or_binary_string(const String *str, bool warn)
 {
   static Name name= type_handler_inet6.name();
   if (str->charset() != &my_charset_bin)
   {
     bool rc= character_string_to_ipv6(str->ptr(), str->length(),
                                       str->charset());
-    if (rc)
+    if (rc && warn)
       current_thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
                                             name.ptr(),
                                             ErrConvString(str).ptr());
@@ -542,9 +554,10 @@ bool Inet6::make_from_character_or_binary_string(const String *str)
   }
   if (str->length() != sizeof(m_buffer))
   {
-    current_thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
-                                          name.ptr(),
-                                          ErrConvString(str).ptr());
+    if (warn)
+      current_thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                            name.ptr(),
+                                            ErrConvString(str).ptr());
     return true;
   }
   DBUG_ASSERT(str->ptr() != m_buffer);
@@ -1036,6 +1049,8 @@ public:
   bool fix_length_and_dec() override
   {
     Type_std_attributes::operator=(Type_std_attributes_inet6());
+    if (Inet6::fix_fields_maybe_null_on_conversion_to_inet6(args[0]))
+      maybe_null= true;
     return false;
   }
   String *val_str(String *to) override
@@ -1411,7 +1426,7 @@ void Type_handler_inet6::sort_length(THD *thd,
                                      const Type_std_attributes *item,
                                      SORT_FIELD_ATTR *attr) const
 {
-  attr->length= Inet6::binary_length();
+  attr->original_length= attr->length= Inet6::binary_length();
   attr->suffix_length= 0;
 }
 

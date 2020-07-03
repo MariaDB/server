@@ -509,7 +509,7 @@ cleanup:
 	for (;;) {
 		dberr_t error = fts_eval_sql(trx, graph);
 
-		if (error == DB_SUCCESS) {
+		if (UNIV_LIKELY(error == DB_SUCCESS)) {
 			fts_sql_commit(trx);
 			stopword_info->status = STOPWORD_USER_TABLE;
 			break;
@@ -522,7 +522,7 @@ cleanup:
 
 				trx->error_state = DB_SUCCESS;
 			} else {
-				ib::error() << "Error '" << ut_strerr(error)
+				ib::error() << "Error '" << error
 					<< "' while reading user stopword"
 					" table.";
 				ret = FALSE;
@@ -583,7 +583,7 @@ fts_cache_init(
 
 	mutex_enter((ib_mutex_t*) &cache->deleted_lock);
 	cache->deleted_doc_ids = ib_vector_create(
-		cache->sync_heap, sizeof(fts_update_t), 4);
+		cache->sync_heap, sizeof(doc_id_t), 4);
 	mutex_exit((ib_mutex_t*) &cache->deleted_lock);
 
 	/* Reset the cache data for all the FTS indexes. */
@@ -804,6 +804,29 @@ fts_check_cached_index(
 	return(TRUE);
 }
 
+/** Clear all fts resources when there is no internal DOC_ID
+and there are no new fts index to add.
+@param[in,out]	table	table  where fts is to be freed
+@param[in]	trx	transaction to drop all fts tables */
+void fts_clear_all(dict_table_t *table, trx_t *trx)
+{
+  if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID) ||
+      !table->fts ||
+      !ib_vector_is_empty(table->fts->indexes))
+    return;
+
+  for (const dict_index_t *index= dict_table_get_first_index(table);
+       index; index= dict_table_get_next_index(index))
+    if (index->type & DICT_FTS)
+      return;
+
+  fts_optimize_remove_table(table);
+
+  fts_drop_tables(trx, table);
+  fts_free(table);
+  DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS);
+}
+
 /*******************************************************************//**
 Drop auxiliary tables related to an FTS index
 @return DB_SUCCESS or error number */
@@ -820,29 +843,14 @@ fts_drop_index(
 	ut_a(indexes);
 
 	if ((ib_vector_size(indexes) == 1
-	    && (index == static_cast<dict_index_t*>(
-			ib_vector_getp(table->fts->indexes, 0))))
-	   || ib_vector_is_empty(indexes)) {
+	     && (index == static_cast<dict_index_t*>(
+			ib_vector_getp(table->fts->indexes, 0)))
+	     && DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
+	    || ib_vector_is_empty(indexes)) {
 		doc_id_t	current_doc_id;
 		doc_id_t	first_doc_id;
 
 		DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS);
-
-		/* If Doc ID column is not added internally by FTS index,
-		we can drop all FTS auxiliary tables. Otherwise, we will
-		need to keep some common table such as CONFIG table, so
-		as to keep track of incrementing Doc IDs */
-		if (!DICT_TF2_FLAG_IS_SET(
-			table, DICT_TF2_FTS_HAS_DOC_ID)) {
-
-			err = fts_drop_tables(trx, table);
-
-			err = fts_drop_index_tables(trx, index);
-
-			fts_free(table);
-
-			return(err);
-		}
 
 		current_doc_id = table->fts->cache->next_doc_id;
 		first_doc_id = table->fts->cache->first_doc_id;
@@ -1435,9 +1443,9 @@ fts_drop_table(
 		error = row_drop_table_for_mysql(table_name, trx,
 						 SQLCOM_DROP_DB, false, false);
 
-		if (error != DB_SUCCESS) {
+		if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
 			ib::error() << "Unable to drop FTS index aux table "
-				<< table_name << ": " << ut_strerr(error);
+				<< table_name << ": " << error;
 		}
 	} else {
 		error = DB_FAIL;
@@ -2490,8 +2498,7 @@ fts_get_max_cache_size(
 	error = fts_config_get_value(
 		trx, fts_table, FTS_MAX_CACHE_SIZE_IN_MB, &value);
 
-	if (error == DB_SUCCESS) {
-
+	if (UNIV_LIKELY(error == DB_SUCCESS)) {
 		value.f_str[value.f_len] = 0;
 		cache_size_in_mb = strtoul((char*) value.f_str, NULL, 10);
 
@@ -2521,7 +2528,7 @@ fts_get_max_cache_size(
 			cache_size_in_mb = FTS_CACHE_SIZE_LOWER_LIMIT_IN_MB;
 		}
 	} else {
-		ib::error() << "(" << ut_strerr(error) << ") reading max"
+		ib::error() << "(" << error << ") reading max"
 			" cache config value from config table";
 	}
 
@@ -2592,11 +2599,11 @@ dberr_t
 fts_cmp_set_sync_doc_id(
 /*====================*/
 	const dict_table_t*	table,		/*!< in: table */
-	doc_id_t		doc_id_cmp,	/*!< in: Doc ID to compare */
+	doc_id_t		cmp_doc_id,	/*!< in: Doc ID to compare */
 	ibool			read_only,	/*!< in: TRUE if read the
 						synced_doc_id only */
 	doc_id_t*		doc_id)		/*!< out: larger document id
-						after comparing "doc_id_cmp"
+						after comparing "cmp_doc_id"
 						to the one stored in CONFIG
 						table */
 {
@@ -2667,10 +2674,10 @@ retry:
 		goto func_exit;
 	}
 
-	if (doc_id_cmp == 0 && *doc_id) {
+	if (cmp_doc_id == 0 && *doc_id) {
 		cache->synced_doc_id = *doc_id - 1;
 	} else {
-		cache->synced_doc_id = ut_max(doc_id_cmp, *doc_id);
+		cache->synced_doc_id = ut_max(cmp_doc_id, *doc_id);
 	}
 
 	mutex_enter(&cache->doc_id_lock);
@@ -2681,7 +2688,7 @@ retry:
 	}
 	mutex_exit(&cache->doc_id_lock);
 
-	if (doc_id_cmp > *doc_id) {
+	if (cmp_doc_id > *doc_id) {
 		error = fts_update_sync_doc_id(
 			table, cache->synced_doc_id, trx);
 	}
@@ -2690,13 +2697,12 @@ retry:
 
 func_exit:
 
-	if (error == DB_SUCCESS) {
+	if (UNIV_LIKELY(error == DB_SUCCESS)) {
 		fts_sql_commit(trx);
 	} else {
 		*doc_id = 0;
 
-		ib::error() << "(" << ut_strerr(error) << ") while getting"
-			" next doc id.";
+		ib::error() << "(" << error << ") while getting next doc id.";
 		fts_sql_rollback(trx);
 
 		if (error == DB_DEADLOCK) {
@@ -2771,12 +2777,11 @@ fts_update_sync_doc_id(
 	fts_que_graph_free_check_lock(&fts_table, NULL, graph);
 
 	if (local_trx) {
-		if (error == DB_SUCCESS) {
+		if (UNIV_LIKELY(error == DB_SUCCESS)) {
 			fts_sql_commit(trx);
 			cache->synced_doc_id = doc_id;
 		} else {
-
-			ib::error() << "(" << ut_strerr(error) << ") while"
+			ib::error() << "(" << error << ") while"
 				" updating last doc id.";
 
 			fts_sql_rollback(trx);
@@ -2803,7 +2808,7 @@ fts_doc_ids_create(void)
 	fts_doc_ids->self_heap = ib_heap_allocator_create(heap);
 
 	fts_doc_ids->doc_ids = static_cast<ib_vector_t*>(ib_vector_create(
-		fts_doc_ids->self_heap, sizeof(fts_update_t), 32));
+		fts_doc_ids->self_heap, sizeof(doc_id_t), 32));
 
 	return(fts_doc_ids);
 }
@@ -3878,7 +3883,7 @@ fts_sync_add_deleted_cache(
 
 	ut_a(ib_vector_size(doc_ids) > 0);
 
-	ib_vector_sort(doc_ids, fts_update_doc_id_cmp);
+	ib_vector_sort(doc_ids, fts_doc_id_cmp);
 
 	info = pars_info_create();
 
@@ -3896,13 +3901,13 @@ fts_sync_add_deleted_cache(
 		"BEGIN INSERT INTO $table_name VALUES (:doc_id);");
 
 	for (i = 0; i < n_elems && error == DB_SUCCESS; ++i) {
-		fts_update_t*	update;
+		doc_id_t*	update;
 		doc_id_t	write_doc_id;
 
-		update = static_cast<fts_update_t*>(ib_vector_get(doc_ids, i));
+		update = static_cast<doc_id_t*>(ib_vector_get(doc_ids, i));
 
 		/* Convert to "storage" byte order. */
-		fts_write_doc_id((byte*) &write_doc_id, update->doc_id);
+		fts_write_doc_id((byte*) &write_doc_id, *update);
 		fts_bind_doc_id(info, "doc_id", &write_doc_id);
 
 		error = fts_eval_sql(sync->trx, graph);
@@ -4000,14 +4005,14 @@ fts_sync_write_words(
 
 		n_nodes += ib_vector_size(word->nodes);
 
-		if (error != DB_SUCCESS && !print_error) {
-			ib::error() << "(" << ut_strerr(error) << ") writing"
+		if (UNIV_UNLIKELY(error != DB_SUCCESS) && !print_error) {
+			ib::error() << "(" << error << ") writing"
 				" word node to FTS auxiliary index table.";
 			print_error = TRUE;
 		}
 	}
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		printf("Avg number of nodes: %lf\n",
 		       (double) n_nodes / (double) (n_words > 1 ? n_words : 1));
 	}
@@ -4033,7 +4038,7 @@ fts_sync_begin(
 	sync->trx = trx_create();
 	trx_start_internal(sync->trx);
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		ib::info() << "FTS SYNC for table " << sync->table->name
 			<< ", deleted count: "
 			<< ib_vector_size(cache->deleted_doc_ids)
@@ -4056,7 +4061,7 @@ fts_sync_index(
 
 	trx->op_info = "doing SYNC index";
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		ib::info() << "SYNC words: " << rbt_size(index_cache->words);
 	}
 
@@ -4153,18 +4158,14 @@ fts_sync_commit(
 	fts_cache_init(cache);
 	rw_lock_x_unlock(&cache->lock);
 
-	if (error == DB_SUCCESS) {
-
+	if (UNIV_LIKELY(error == DB_SUCCESS)) {
 		fts_sql_commit(trx);
-
-	} else if (error != DB_SUCCESS) {
-
+	} else {
 		fts_sql_rollback(trx);
-
-		ib::error() << "(" << ut_strerr(error) << ") during SYNC.";
+		ib::error() << "(" << error << ") during SYNC.";
 	}
 
-	if (fts_enable_diag_print && elapsed_time) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print) && elapsed_time) {
 		ib::info() << "SYNC for table " << sync->table->name
 			<< ": SYNC time: "
 			<< (time(NULL) - sync->start_time)
@@ -4910,7 +4911,7 @@ fts_get_rows_count(
 	for (;;) {
 		error = fts_eval_sql(trx, graph);
 
-		if (error == DB_SUCCESS) {
+		if (UNIV_LIKELY(error == DB_SUCCESS)) {
 			fts_sql_commit(trx);
 
 			break;				/* Exit the loop. */
@@ -4923,7 +4924,7 @@ fts_get_rows_count(
 
 				trx->error_state = DB_SUCCESS;
 			} else {
-				ib::error() << "(" << ut_strerr(error)
+				ib::error() << "(" << error
 					<< ") while reading FTS table.";
 
 				break;			/* Exit the loop. */
@@ -5193,12 +5194,12 @@ fts_cache_append_deleted_doc_ids(
 
 
 	for (ulint i = 0; i < ib_vector_size(cache->deleted_doc_ids); ++i) {
-		fts_update_t*	update;
+		doc_id_t*	update;
 
-		update = static_cast<fts_update_t*>(
+		update = static_cast<doc_id_t*>(
 			ib_vector_get(cache->deleted_doc_ids, i));
 
-		ib_vector_push(vector, &update->doc_id);
+		ib_vector_push(vector, &update);
 	}
 
 	mutex_exit((ib_mutex_t*) &cache->deleted_lock);
@@ -6946,7 +6947,7 @@ fts_drop_orphaned_tables(void)
 	for (;;) {
 		dberr_t error = fts_eval_sql(trx, graph);
 
-		if (error == DB_SUCCESS) {
+		if (UNIV_LIKELY(error == DB_SUCCESS)) {
 			fts_check_and_drop_orphaned_tables(trx, tables);
 			break;				/* Exit the loop. */
 		} else {
@@ -6960,7 +6961,7 @@ fts_drop_orphaned_tables(void)
 
 				trx->error_state = DB_SUCCESS;
 			} else {
-				ib::error() << "(" << ut_strerr(error)
+				ib::error() << "(" << error
 					<< ") while reading SYS_TABLES.";
 
 				break;			/* Exit the loop. */

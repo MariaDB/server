@@ -1,0 +1,30 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+CREATE TABLE t1(f1 INT NOT NULL, f2 int not null,
+		f3 int generated always as (f2 * 2) VIRTUAL,
+		primary key(f1), INDEX (f3))ENGINE=InnoDB;
+connect(con1,localhost,root,,,);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
+INSERT INTO t1(f1, f2) VALUES(1,2);
+DELETE from t1 where f1 = 1;
+
+connect(con2,localhost,root,,,);
+begin;
+INSERT INTO t1 (f1, f2) VALUES(1,2);
+
+set global debug_dbug="+d,ib_purge_virtual_index_callback";
+connection con1;
+COMMIT;
+
+--source ../innodb/include/wait_all_purged.inc
+
+connection con2;
+commit;
+
+disconnect con1;
+disconnect con2;
+connection default;
+set global debug_dbug=default;
+DROP TABLE t1;

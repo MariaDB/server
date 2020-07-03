@@ -576,8 +576,8 @@ static int register_service(const char *datadir, const char *user, const char *p
 
 static void clean_directory(const char *dir)
 {
-  char dir2[MAX_PATH+2];
-  *(strmake_buf(dir2, dir)+1)= 0;
+  char dir2[MAX_PATH + 4]= {};
+  snprintf(dir2, MAX_PATH+2, "%s\\*", dir);
 
   SHFILEOPSTRUCT fileop;
   fileop.hwnd= NULL;    /* no status display */
@@ -706,7 +706,7 @@ static int create_db_instance(const char *datadir)
   DWORD cwd_len= MAX_PATH;
   char cmdline[3*MAX_PATH];
   FILE *in;
-  bool cleanup_datadir= true;
+  bool created_datadir= false;
   DWORD last_error;
   bool service_created= false;
   std::string mysql_db_dir;
@@ -717,7 +717,11 @@ static int create_db_instance(const char *datadir)
 
   /* Create datadir and datadir/mysql, if they do not already exist. */
 
-  if (!CreateDirectory(datadir, NULL) && (GetLastError() != ERROR_ALREADY_EXISTS))
+  if (CreateDirectory(datadir, NULL))
+  {
+    created_datadir= true;
+  }
+  else if (GetLastError() != ERROR_ALREADY_EXISTS)
   {
     last_error = GetLastError();
     switch(last_error)
@@ -756,7 +760,8 @@ static int create_db_instance(const char *datadir)
 
   if (!PathIsDirectoryEmpty(datadir))
   {
-    fprintf(stderr,"FATAL ERROR: data directory is not empty\n");
+    fprintf(stderr, "ERROR : Data directory %s is not empty."
+        " Only new or empty existing directories are accepted for --datadir\n", datadir);
     exit(1);
   }
 
@@ -900,7 +905,7 @@ end:
     return ret;
 
   /* Cleanup after error.*/
-  if (cleanup_datadir)
+  if (created_datadir)
   {
     SetCurrentDirectory(cwd);
     clean_directory(datadir);
@@ -926,6 +931,8 @@ end:
     {
       handle_user_privileges(service_user.c_str(), 0, false);
     }
+    if (created_datadir)
+      RemoveDirectory(opt_datadir);
   }
   return ret;
 }

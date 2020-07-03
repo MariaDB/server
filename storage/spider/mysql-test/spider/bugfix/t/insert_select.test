@@ -1,0 +1,99 @@
+--source ../include/insert_select_init.inc
+--echo
+--echo this test is for MDEV-16399
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+echo CHILD2_1_CREATE_TABLES;
+eval $CHILD2_1_CREATE_TABLES;
+echo CHILD2_1_CREATE_TABLES2;
+eval $CHILD2_1_CREATE_TABLES2;
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+    skey int NOT NULL,
+    dt date NOT NULL,
+    tm time NOT NULL,
+    KEY idx1 (skey,dt,tm)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+    skey int NOT NULL,
+    dt date NOT NULL,
+    tm time NOT NULL,
+    KEY idx1 (skey,dt,tm)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+echo CREATE TABLE tbl_b (
+    pkey int NOT NULL,
+    dt datetime NOT NULL,
+    PRIMARY KEY (pkey),
+    KEY idx1 (dt)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1_2;
+eval CREATE TABLE tbl_b (
+    pkey int NOT NULL,
+    dt datetime NOT NULL,
+    PRIMARY KEY (pkey),
+    KEY idx1 (dt)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1_2;
+--enable_query_log
+INSERT INTO tbl_a (skey, dt, tm) VALUES (0, '2012-01-01', '12:00:00'),(1, '2012-02-01', '12:00:00'),(2, '2012-03-01', '12:00:00'),(3, '2012-04-01', '12:00:00'),(4, '2012-05-01', '12:00:00'),(5, '2012-06-01', '12:00:00'),(6, '2012-07-01', '12:00:00'),(7, '2012-08-01', '12:00:00'),(8, '2012-09-01', '12:00:00'),(9, '2012-10-01', '12:00:00');
+INSERT INTO tbl_a (skey, dt, tm) VALUES (0, '2013-01-01', '13:00:00'),(1, '2013-02-01', '13:00:00'),(2, '2013-03-01', '13:00:00'),(3, '2013-04-01', '13:00:00'),(4, '2013-05-01', '13:00:00'),(5, '2013-06-01', '13:00:00'),(6, '2013-07-01', '13:00:00'),(7, '2013-08-01', '13:00:00'),(8, '2013-09-01', '13:00:00'),(9, '2013-10-01', '13:00:00');
+INSERT INTO tbl_a (skey, dt, tm) VALUES (0, '2012-11-01', '11:00:00'),(1, '2012-12-01', '11:00:00'),(2, '2012-11-30', '11:00:00'),(3, '2012-11-29', '11:00:00'),(4, '2012-11-28', '11:00:00'),(5, '2012-11-27', '11:00:00'),(6, '2012-11-26', '11:00:00'),(7, '2012-11-25', '11:00:00'),(8, '2012-11-24', '11:00:00'),(9, '2012-11-23', '11:00:00');
+FLUSH TABLES;
+
+--echo
+--echo select test 1
+
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 4 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
+INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 3 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
+INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 2 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
+INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 1 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
+INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 0 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
+INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 9 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
+INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 8 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
+INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 7 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
+INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 6 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
+INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 5 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
+
+--connection child2_1
+eval $CHILD2_1_SELECT_ARGUMENT1;
+eval $CHILD2_1_SELECT_TABLES;
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+
+--enable_warnings
+--source ../include/insert_select_deinit.inc
+--echo
+--echo end of test

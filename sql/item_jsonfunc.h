@@ -91,6 +91,7 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_valid>(thd, this); }
+  enum Functype functype() const   { return JSON_VALID_FUNC; }
 };
 
 
@@ -240,6 +241,7 @@ public:
   String *val_str(String *);
   longlong val_int();
   double val_real();
+  my_decimal *val_decimal(my_decimal *);
   uint get_n_paths() const { return arg_count - 1; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_extract>(thd, this); }
@@ -537,7 +539,19 @@ public:
 
 class Item_func_json_arrayagg : public Item_func_group_concat
 {
+protected:
+  /*
+    Overrides Item_func_group_concat::skip_nulls()
+    NULL-s should be added to the result as JSON null value.
+  */
+  bool skip_nulls() const { return false; }
+  String *get_str_from_item(Item *i, String *tmp);
+  String *get_str_from_field(Item *i, Field *f, String *tmp,
+                             const uchar *key, size_t offset);
+  void cut_max_length(String *result,
+                      uint old_length, uint max_length) const;
 public:
+  String m_tmp_json; /* Used in get_str_from_*.. */
   Item_func_json_arrayagg(THD *thd, Name_resolution_context *context_arg,
                           bool is_distinct, List<Item> *is_select,
                           const SQL_I_List<ORDER> &is_order, String *is_separator,
@@ -552,14 +566,8 @@ public:
   const char *func_name() const { return "json_arrayagg("; }
   enum Sumfunctype sum_func() const {return JSON_ARRAYAGG_FUNC;}
 
-  String* convert_to_json(Item *item, String *str);
   String* val_str(String *str);
 
-  /* Overrides Item_func_group_concat::add() */
-  bool add()
-  {
-    return Item_func_group_concat::add(false);
-  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_arrayagg>(thd, this); }
 };
@@ -572,6 +580,7 @@ public:
   Item_func_json_objectagg(THD *thd, Item *key, Item *value) :
     Item_sum(thd, key, value)
   {
+    quick_group= FALSE;
     result.append("{");
   }
 

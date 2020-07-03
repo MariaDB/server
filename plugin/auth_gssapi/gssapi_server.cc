@@ -30,7 +30,7 @@ static void log_error( OM_uint32 major, OM_uint32 minor, const char *msg)
   Generate default principal service name formatted as principal name "mariadb/server.fqdn@REALM"
 */
 #include <krb5.h>
-#ifndef HAVE_KRB5_FREE_UNPARSED_NAME
+#ifdef HAVE_KRB5_XFREE
 #define krb5_free_unparsed_name(a,b) krb5_xfree(b)
 #endif
 static char* get_default_principal_name()
@@ -158,8 +158,8 @@ int auth_server(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
   gss_buffer_desc client_name_buf, input, output;
   char *client_name_str;
   const char *user= 0;
-  size_t userlen;
-  int use_full_name;
+  size_t userlen= 0;
+  int use_full_name= 0;
 
   /* server acquires credential */
   major= gss_acquire_cred(&minor, service_name, GSS_C_INDEFINITE,
@@ -244,7 +244,7 @@ int auth_server(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
        && userlen < client_name_buf.length
        && client_name_str[userlen] == '@'))
   {
-    if (strncmp(client_name_str, user, userlen) == 0)
+    if (user && strncmp(client_name_str, user, userlen) == 0)
     {
       rc= CR_OK;
     }

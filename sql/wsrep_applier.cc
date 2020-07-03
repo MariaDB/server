@@ -191,7 +191,7 @@ int wsrep_apply_events(THD*        thd,
     /* Use the original server id for logging. */
     thd->set_server_id(ev->server_id);
     thd->set_time();                            // time the query
-    thd->transaction.start_time.reset(thd);
+    thd->transaction->start_time.reset(thd);
     thd->lex->current_select= 0;
     if (!ev->when)
     {

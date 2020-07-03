@@ -1909,7 +1909,7 @@ static void translog_put_sector_protection(uchar *page,
 static uint32 translog_crc(uchar *area, uint length)
 {
   DBUG_ENTER("translog_crc");
-  DBUG_RETURN(crc32(0L, (unsigned char*) area, length));
+  DBUG_RETURN(my_checksum(0L, area, length));
 }
 
 

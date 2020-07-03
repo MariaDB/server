@@ -511,6 +511,8 @@ Event_scheduler::run(THD *thd)
     }
     DBUG_PRINT("info", ("state=%s", scheduler_states_names[state].str));
     free_root(thd->mem_root, MYF(0));
+    /* Ensure we don't have any open tables or table locks */
+    DBUG_ASSERT(thd->lock == 0);
   }
 
   LOCK_DATA();

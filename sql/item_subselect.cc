@@ -661,6 +661,40 @@ bool Item_subselect::is_expensive()
 }
 
 
+bool Item_subselect::unknown_splocal_processor(void *argument)
+{
+  SELECT_LEX *sl= unit->first_select();
+  if (sl->top_join_list.elements)
+    return 0;
+  if (sl->tvc && sl->tvc->walk_values(&Item::unknown_splocal_processor,
+                                      false, argument))
+    return true;
+  for (SELECT_LEX *lex= unit->first_select(); lex; lex= lex->next_select())
+  {
+    /*
+      TODO: walk through GROUP BY and ORDER yet eventually.
+      This will require checking aliases in SELECT list:
+        SELECT 1 AS a GROUP BY a;
+        SELECT 1 AS a ORDER BY a;
+    */
+    List_iterator<Item> li(lex->item_list);
+    Item *item;
+    if (lex->where && (lex->where)->walk(&Item::unknown_splocal_processor,
+                                         false, argument))
+      return true;
+    if (lex->having && (lex->having)->walk(&Item::unknown_splocal_processor,
+                                           false, argument))
+      return true;
+    while ((item=li++))
+    {
+      if (item->walk(&Item::unknown_splocal_processor, false, argument))
+        return true;
+    }
+  }
+  return false;
+}
+
+
 bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
                           void *argument)
 {
@@ -728,8 +762,8 @@ bool Item_subselect::exec()
         QT_WITHOUT_INTRODUCERS));
 
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-       ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %.*s",
-       print.length(),print.c_ptr());
+                        ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %.*b",
+                        print.length(),print.ptr());
   );
   /*
     Do not execute subselect in case of a fatal error
@@ -2070,7 +2104,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
     The swap is needed for expressions of type 'f1 < ALL ( SELECT ....)'
     where we want to evaluate the sub query even if f1 would be null.
   */
-  subs= func->create_swap(thd, *(optimizer->get_cache()), subs);
+  subs= func->create_swap(thd, expr, subs);
   thd->change_item_tree(place, subs);
   if (subs->fix_fields(thd, &subs))
     DBUG_RETURN(true);
@@ -2192,10 +2226,13 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
   }
   else
   {
+    /*
+      No need to use real_item for the item, as the ref items that are possible
+      in the subquery either belong to views or to the parent select.
+      For such case we need to refer to the reference and not to the original
+      item.
+    */
     Item *item= (Item*) select_lex->item_list.head();
-    if (item->type() != REF_ITEM ||
-        ((Item_ref*)item)->ref_type() != Item_ref::VIEW_REF)
-      item= item->real_item();
 
     if (select_lex->table_list.elements)
     {

@@ -62,6 +62,61 @@ id	s	e
 1	2003-01-01	2003-02-01
 1	2003-03-01	2003-05-01
 1	2003-05-01	2003-07-01
+# UPDATE ... FOR PORTION test
+insert t values (2, '2003-04-15', '2003-05-01');
+update t for portion of p from '2003-01-01' to '2003-01-15'
+         set id= 2;
+select * from t;
+id	s	e
+1	2003-01-15	2003-02-01
+1	2003-03-01	2003-05-01
+1	2003-05-01	2003-07-01
+2	2003-01-01	2003-01-15
+2	2003-04-15	2003-05-01
+update t for portion of p from '2003-01-15' to '2003-02-01'
+         set id= 2;
+select * from t;
+id	s	e
+1	2003-03-01	2003-05-01
+1	2003-05-01	2003-07-01
+2	2003-01-01	2003-01-15
+2	2003-01-15	2003-02-01
+2	2003-04-15	2003-05-01
+# Next, test UPDATE ... FOR PORTION resulting with an error
+# Since MyISAM/Aria engines lack atomicity, the results would differ with
+# innodb. So a table is going to be copied to one with explicit engine.
+create table t_myisam (id int, s date, e date,
+period for p(s,e),
+primary key(id, p without overlaps))
+engine=myisam
+select * from t;
+update t_myisam for portion of p from '2003-04-01' to '2003-06-01'
+         set id= 2 order by s desc;
+ERROR 23000: Duplicate entry '2-2003-05-01-2003-04-01' for key 'PRIMARY'
+select * from t_myisam;
+id	s	e
+1	2003-03-01	2003-05-01
+1	2003-06-01	2003-07-01
+2	2003-01-01	2003-01-15
+2	2003-01-15	2003-02-01
+2	2003-04-15	2003-05-01
+2	2003-05-01	2003-06-01
+create table t_innodb (id int, s date, e date,
+period for p(s,e),
+primary key(id, p without overlaps))
+engine=innodb
+select * from t;
+update t_innodb for portion of p from '2003-04-01' to '2003-06-01'
+         set id= 2 order by s desc;
+ERROR 23000: Duplicate entry '2-2003-05-01-2003-04-01' for key 'PRIMARY'
+select * from t_innodb;
+id	s	e
+1	2003-03-01	2003-05-01
+1	2003-05-01	2003-07-01
+2	2003-01-01	2003-01-15
+2	2003-01-15	2003-02-01
+2	2003-04-15	2003-05-01
+drop table t_myisam, t_innodb;
 create or replace table t(id int, s date, e date,
 period for p(s,e),
 primary key(id, q without overlaps));
@@ -120,7 +175,7 @@ insert into t values (3, NULL, '2003-03-01', '2003-05-01');
 insert into t values (1, 1, '2003-03-01', '2003-05-01');
 insert into t values (1, 2, '2003-05-01', '2003-07-01');
 insert into t values (4, NULL, '2003-03-01', '2003-05-01');
-create sequence seq start=5;
+create sequence seq start=5 engine=myisam;
 update t set id= nextval(seq), u= nextval(seq), s='2003-05-01', e='2003-07-01'
          where u is NULL;
 select * from t;
@@ -130,6 +185,7 @@ id	u	s	e
 5	6	2003-05-01	2003-07-01
 7	8	2003-05-01	2003-07-01
 9	10	2003-05-01	2003-07-01
+drop sequence seq;
 create or replace table t(id int, s date, e date,
 period for p(s,e));
 insert into t values (1, '2003-01-01', '2003-03-01'),
@@ -226,4 +282,42 @@ Warnings:
 Warning	1062	Duplicate entry '1-2020-03-05-2020-03-01' for key 'x'
 load data infile 'tmp_t.txt' replace into table t;
 ERROR 42000: This version of MariaDB doesn't yet support 'WITHOUT OVERLAPS'
-create or replace database test;
+# MDEV-22599 WITHOUT OVERLAPS does not work with prefix indexes
+create or replace table t1 (a varchar(6), s timestamp, e timestamp,
+period for p(s,e),
+unique(a(3), p without overlaps));
+insert into t1 values ('foo', '2012-01-01', '2015-12-31');
+insert into t1 values ('foobar', '2013-01-01', '2014-01-01');
+ERROR 23000: Duplicate entry 'foo-2014-01-01 00:00:00-2013-01-01 00:00:00' for key 'a'
+insert into t1 values ('bar', '2012-01-01', '2015-12-31'),
+('baz', '2013-01-01', '2014-01-01');
+select * from t1;
+a	s	e
+foo	2012-01-01 00:00:00	2015-12-31 00:00:00
+bar	2012-01-01 00:00:00	2015-12-31 00:00:00
+baz	2013-01-01 00:00:00	2014-01-01 00:00:00
+# MDEV-22753 Server crashes in handler::ha_check_overlaps or error 190
+# "Incompatible key or row definition" upon INSERT into versioned
+# partitioned table with WITHOUT OVERLAPS
+create or replace table t1 (f int, s date, e date, period for p(s,e),
+unique(f, p without overlaps)
+) engine=innodb with system versioning
+partition by system_time limit 1000
+(partition p1 history, partition pn current);
+alter table t1 add partition (partition p2 history);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` int(11) DEFAULT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `p` (`s`, `e`),
+  UNIQUE KEY `f` (`f`,`p` WITHOUT OVERLAPS)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1000
+(PARTITION `p1` HISTORY ENGINE = InnoDB,
+ PARTITION `p2` HISTORY ENGINE = InnoDB,
+ PARTITION `pn` CURRENT ENGINE = InnoDB)
+insert into t1 values (1,'2013-01-12','2015-11-04'),
+(2,'2016-03-15','2024-11-09');
+drop table t, t1;

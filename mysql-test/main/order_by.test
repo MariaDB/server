@@ -15,6 +15,8 @@ call mtr.add_suppression("Out of sort memory; increase server sort buffer size")
 # Test old ORDER BY bug
 #
 
+--source include/have_sequence.inc
+
 CREATE TABLE t1 (
   id int(6) DEFAULT '0' NOT NULL,
   idservice int(5),
@@ -2162,6 +2164,21 @@ select * from t1 order  by b;
 set @@sort_buffer_size= @save_sort_buffer_size;
 drop table t1;
 
+--echo #
+--echo # MDEV-22715: SIGSEGV in radixsort_for_str_ptr and in native_compare/my_qsort2 (optimized builds)
+--echo #
+
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_sort_length= @@max_sort_length;
+SET max_sort_length=8;
+SET sort_buffer_size=1024;
+CREATE TABLE t1(a INT, b DECIMAL(65), c BLOB);
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+SELECT * FROM t1 ORDER BY a,b;
+SET @@sort_buffer_size= @save_sort_buffer_size;
+SET @@max_sort_length= @save_max_sort_length;
+DROP TABLE t1;
 
 --echo #
 --echo # MDEV-13994: Bad join results with orderby_uses_equalities=on
@@ -2206,7 +2223,6 @@ set optimizer_switch= @save_optimizer_switch;
 
 DROP TABLE books, wings;
 
-
 --echo #
 --echo # MDEV-17796: query with DISTINCT, GROUP BY and ORDER BY
 --echo #
@@ -2220,6 +2236,8 @@ GROUP BY id
 ORDER BY id+1 DESC;
 
 DROP TABLE t1;
+
+--echo # End of 10.2 tests
 
 --echo #
 --echo # MDEV-16214: Incorrect plan taken by the optimizer , uses INDEX instead of ref access with ORDER BY
@@ -2258,6 +2276,8 @@ eval $query;
 
 drop table t1,t2;
 
+--echo # End of 10.3 tests
+
 --echo #
 --echo # MDEV-17761: Odd optimizer choice with ORDER BY LIMIT and condition selectivity
 --echo #
@@ -2293,6 +2313,8 @@ set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
     optimizer_use_condition_selectivity=@tmp_o; 
 
 drop table t1,t2,t3,t4;
+
+--echo # End of 10.4 tests
 
 --echo #
 --echo # MDEV-21655: Server crashes in my_qsort2 / Filesort_buffer::sort_buffer
@@ -2413,3 +2435,70 @@ insert into t1 select repeat('d', 256);
 
 SELECT IF( 0, NULL, a ) AS f FROM t1 GROUP BY f WITH ROLLUP;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22303: Incorrect ordering with REGEXP_REPLACE and OFFSET/LIMIT
+--echo #
+
+CREATE TABLE t1 (name VARCHAR(20) CHARACTER SET utf8 NOT NULL);
+INSERT INTO t1 (name) VALUES ('Charles Dickens'), ('Roald Dahl');
+
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC;
+
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC LIMIT 1;
+
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC LIMIT 1 OFFSET 1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22836: Server crashes in err_conv / ErrBuff::set_str
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(1);
+--disable_warnings
+SELECT * FROM t1 ORDER BY CONVERT(AES_ENCRYPT(1,a), CHAR(4));
+--enable_warnings
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22819:Wrong result or Assertion `ix > 0' failed in read_to_buffer upon select
+--echo # with GROUP BY and GROUP_CONCAT
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(1000), b CHAR(1));
+
+INSERT INTO t1 VALUES
+    (REPEAT('a',1000),'a'),(REPEAT('t',932),'t'),('x',NULL),('x',NULL),
+    (REPEAT('z',298),'z'),(REPEAT('p',1000),'p'),(REPEAT('k',468),'k'),
+    (REPEAT('c',1000),'c'),(REPEAT('o',648),'o'),('x',NULL),('x',NULL),
+    (REPEAT('c',258),'c'),(REPEAT('t',414),'t'),(REPEAT('f',966),'f'),
+    (REPEAT('y',746),'y'),(REPEAT('f',1000),'f');
+
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET sort_buffer_size= 16384;
+SELECT LEFT(a,1), GROUP_CONCAT(b) FROM t1 GROUP BY a;
+SELECT SUBSTR(a,1,1), LENGTH(a), GROUP_CONCAT(b), COUNT(*) FROM t1 GROUP BY a;
+
+SET @@sort_buffer_size= @save_sort_buffer_size;
+DROP TABLE t1;
+
+CREATE TABLE t1(a VARCHAR(1027), b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_34;
+SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
+SET tmp_memory_table_size= 1056*2;
+SELECT COUNT(DISTINCT a) FROM t1;
+SET @@tmp_memory_table_size= @save_tmp_memory_table_size;
+DROP TABLE t1;
+
+
+--echo # End of 10.5 tests

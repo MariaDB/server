@@ -112,18 +112,16 @@ btr_pcur_store_position(
 
 	rec = page_cur_get_rec(page_cursor);
 	offs = rec - block->frame;
-	ut_ad(block->page.id.page_no() == page_get_page_no(block->frame));
-	ut_ad(block->page.buf_fix_count);
+	ut_ad(block->page.id().page_no() == page_get_page_no(block->frame));
+	ut_ad(block->page.buf_fix_count());
 	/* For spatial index, when we do positioning on parent
 	buffer if necessary, it might not hold latches, but the
 	tree must be locked to prevent change on the page */
-	ut_ad(mtr_memo_contains_flagged(mtr, block,
-					MTR_MEMO_PAGE_S_FIX
-					| MTR_MEMO_PAGE_X_FIX)
-	      || (dict_index_is_spatial(index)
-		  && mtr_memo_contains_flagged(
-			  mtr, dict_index_get_lock(index),
-			  MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK)));
+	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_S_FIX
+					 | MTR_MEMO_PAGE_X_FIX)
+	      || (index->is_spatial()
+		  && mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
+						| MTR_MEMO_SX_LOCK)));
 
 	cursor->old_stored = true;
 
@@ -134,7 +132,7 @@ btr_pcur_store_position(
 
 		ut_a(!page_has_siblings(block->frame));
 		ut_ad(page_is_leaf(block->frame));
-		ut_ad(block->page.id.page_no() == index->page);
+		ut_ad(block->page.id().page_no() == index->page);
 
 		if (page_rec_is_supremum_low(offs)) {
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
@@ -151,10 +149,16 @@ before_first:
 
 		ut_ad(!page_rec_is_infimum(rec));
 		if (UNIV_UNLIKELY(rec_is_metadata(rec, *index))) {
+#if 0 /* MDEV-22867 had to relax this */
+			/* If the table is emptied during an ALGORITHM=NOCOPY
+			DROP COLUMN ... that is not ALGORITHM=INSTANT,
+			then we must preserve any instant ADD metadata. */
 			ut_ad(index->table->instant);
+#endif
+			ut_ad(index->is_instant());
 			ut_ad(page_get_n_recs(block->frame) == 1);
 			ut_ad(page_is_leaf(block->frame));
-			ut_ad(page_get_page_no(block->frame) == index->page);
+			ut_ad(!page_has_prev(block->frame));
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
 			return;
 		}
@@ -483,7 +487,7 @@ btr_pcur_move_to_next_page(
 #ifdef UNIV_BTR_DEBUG
 	ut_a(page_is_comp(next_page) == page_is_comp(page));
 	ut_a(btr_page_get_prev(next_page)
-	     == btr_pcur_get_block(cursor)->page.id.page_no());
+	     == btr_pcur_get_block(cursor)->page.id().page_no());
 #endif /* UNIV_BTR_DEBUG */
 
 	btr_leaf_page_release(btr_pcur_get_block(cursor), mode, mtr);

@@ -1,5 +1,5 @@
---- mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
-+++ mysql-test/suite/sys_vars/r/sysvars_server_notembedded,32bit.result~
+--- sysvars_server_notembedded.result	2020-04-29 11:35:30.046243428 +0300
++++ sysvars_server_notembedded,32bit.reject	2020-04-30 11:45:50.488748076 +0300
 @@ -35,7 +35,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	ARIA_BLOCK_SIZE
@@ -42,7 +42,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Interval between commite in microseconds (1/1000000c). 0 stands for no waiting for other threads to come and do a commit in "hard" mode and no sync()/commit at all in "soft" mode.  Option has only an effect if aria_group_commit is used
+ VARIABLE_COMMENT	Interval between commits in microseconds (1/1000000 sec). 0 stands for no waiting for other threads to come and do a commit in "hard" mode and no sync()/commit at all in "soft" mode.  Option has only an effect if aria_group_commit is used
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
 @@ -105,7 +105,7 @@
@@ -1254,7 +1254,7 @@
  VARIABLE_COMMENT	When reading rows in sorted order after a sort, the rows are read through this buffer to avoid a disk seeks
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	2147483647
-@@ -3265,10 +3265,10 @@
+@@ -3365,10 +3365,10 @@
  COMMAND_LINE_ARGUMENT	OPTIONAL
  VARIABLE_NAME	ROWID_MERGE_BUFF_SIZE
  VARIABLE_SCOPE	SESSION
@@ -1267,7 +1267,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -3285,20 +3285,20 @@
+@@ -3385,20 +3385,20 @@
  COMMAND_LINE_ARGUMENT	OPTIONAL
  VARIABLE_NAME	RPL_SEMI_SYNC_MASTER_TIMEOUT
  VARIABLE_SCOPE	GLOBAL
@@ -1292,7 +1292,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -3355,10 +3355,10 @@
+@@ -3455,10 +3455,10 @@
  COMMAND_LINE_ARGUMENT	OPTIONAL
  VARIABLE_NAME	RPL_SEMI_SYNC_SLAVE_TRACE_LEVEL
  VARIABLE_SCOPE	GLOBAL
@@ -1305,7 +1305,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -3395,7 +3395,7 @@
+@@ -3495,7 +3495,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	SERVER_ID
  VARIABLE_SCOPE	SESSION
@@ -1314,7 +1314,7 @@
  VARIABLE_COMMENT	Uniquely identifies the server instance in the community of replication partners
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
-@@ -3535,7 +3535,7 @@
+@@ -3635,7 +3635,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	SLAVE_DOMAIN_PARALLEL_THREADS
  VARIABLE_SCOPE	GLOBAL
@@ -1323,7 +1323,7 @@
  VARIABLE_COMMENT	Maximum number of parallel threads to use on slave for events in a single replication domain. When using multiple domains, this can be used to limit a single domain from grabbing all threads and thus stalling other domains. The default of 0 means to allow a domain to grab as many threads as it wants, up to the value of slave_parallel_threads.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16383
-@@ -3565,7 +3565,7 @@
+@@ -3665,7 +3665,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	SLAVE_MAX_ALLOWED_PACKET
  VARIABLE_SCOPE	GLOBAL
@@ -1332,7 +1332,7 @@
  VARIABLE_COMMENT	The maximum packet length to sent successfully from the master to slave.
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	1073741824
-@@ -3585,7 +3585,7 @@
+@@ -3685,7 +3685,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	SLAVE_PARALLEL_MAX_QUEUED
  VARIABLE_SCOPE	GLOBAL
@@ -1341,7 +1341,7 @@
  VARIABLE_COMMENT	Limit on how much memory SQL threads should use per parallel replication thread when reading ahead in the relay log looking for opportunities for parallel replication. Only used when --slave-parallel-threads > 0.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2147483647
-@@ -3605,7 +3605,7 @@
+@@ -3705,7 +3705,7 @@
  COMMAND_LINE_ARGUMENT	NULL
  VARIABLE_NAME	SLAVE_PARALLEL_THREADS
  VARIABLE_SCOPE	GLOBAL
@@ -1350,7 +1350,7 @@
  VARIABLE_COMMENT	If non-zero, number of threads to spawn to apply in parallel events on the slave that were group-committed on the master or were logged with GTID in different replication domains. Note that these threads are in addition to the IO and SQL threads, which are always created by a replication slave
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16383
-@@ -3615,7 +3615,7 @@
+@@ -3715,7 +3715,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	SLAVE_PARALLEL_WORKERS
  VARIABLE_SCOPE	GLOBAL
@@ -1359,7 +1359,7 @@
  VARIABLE_COMMENT	Alias for slave_parallel_threads
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16383
-@@ -3655,7 +3655,7 @@
+@@ -3755,7 +3755,7 @@
  COMMAND_LINE_ARGUMENT	OPTIONAL
  VARIABLE_NAME	SLAVE_TRANSACTION_RETRIES
  VARIABLE_SCOPE	GLOBAL
@@ -1368,7 +1368,7 @@
  VARIABLE_COMMENT	Number of times the slave SQL thread will retry a transaction in case it failed with a deadlock, elapsed lock wait timeout or listed in slave_transaction_retry_errors, before giving up and stopping
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -3675,7 +3675,7 @@
+@@ -3775,7 +3775,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	SLAVE_TRANSACTION_RETRY_INTERVAL
  VARIABLE_SCOPE	GLOBAL
@@ -1377,7 +1377,7 @@
  VARIABLE_COMMENT	Interval of the slave SQL thread will retry a transaction in case it failed with a deadlock or elapsed lock wait timeout or listed in slave_transaction_retry_errors
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	3600
-@@ -3695,7 +3695,7 @@
+@@ -3795,7 +3795,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	SLOW_LAUNCH_TIME
  VARIABLE_SCOPE	GLOBAL
@@ -1386,7 +1386,7 @@
  VARIABLE_COMMENT	If creating the thread takes longer than this value (in seconds), the Slow_launch_threads counter will be incremented
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	31536000
-@@ -3738,7 +3738,7 @@
+@@ -3838,7 +3838,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Each thread that needs to do a sort allocates a buffer of this size
  NUMERIC_MIN_VALUE	1024
@@ -1395,7 +1395,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -3955,7 +3955,7 @@
+@@ -4065,7 +4065,7 @@
  COMMAND_LINE_ARGUMENT	NULL
  VARIABLE_NAME	STORED_PROGRAM_CACHE
  VARIABLE_SCOPE	GLOBAL
@@ -1404,7 +1404,7 @@
  VARIABLE_COMMENT	The soft upper limit for number of cached stored routines for one connection.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	524288
-@@ -4055,7 +4055,7 @@
+@@ -4165,7 +4165,7 @@
  COMMAND_LINE_ARGUMENT	NULL
  VARIABLE_NAME	TABLE_DEFINITION_CACHE
  VARIABLE_SCOPE	GLOBAL
@@ -1413,7 +1413,7 @@
  VARIABLE_COMMENT	The number of cached table definitions
  NUMERIC_MIN_VALUE	400
  NUMERIC_MAX_VALUE	2097152
-@@ -4065,7 +4065,7 @@
+@@ -4175,7 +4175,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	TABLE_OPEN_CACHE
  VARIABLE_SCOPE	GLOBAL
@@ -1422,7 +1422,7 @@
  VARIABLE_COMMENT	The number of cached open tables
  NUMERIC_MIN_VALUE	10
  NUMERIC_MAX_VALUE	1048576
-@@ -4125,7 +4125,7 @@
+@@ -4235,7 +4235,7 @@
  COMMAND_LINE_ARGUMENT	OPTIONAL
  VARIABLE_NAME	THREAD_CACHE_SIZE
  VARIABLE_SCOPE	GLOBAL
@@ -1431,7 +1431,7 @@
  VARIABLE_COMMENT	How many threads we should keep in a cache for reuse. These are freed after 5 minutes of idle time
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16384
-@@ -4298,7 +4298,7 @@
+@@ -4408,7 +4408,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Max size for data for an internal temporary on-disk MyISAM or Aria table.
  NUMERIC_MIN_VALUE	1024
@@ -1440,7 +1440,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -4308,7 +4308,7 @@
+@@ -4418,7 +4418,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table. Same as tmp_table_size.
  NUMERIC_MIN_VALUE	0
@@ -1449,7 +1449,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -4318,14 +4318,14 @@
+@@ -4428,14 +4428,14 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Alias for tmp_memory_table_size. If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table.
  NUMERIC_MIN_VALUE	0
@@ -1466,7 +1466,7 @@
  VARIABLE_COMMENT	Allocation block size for transactions to be stored in binary log
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	134217728
-@@ -4335,7 +4335,7 @@
+@@ -4445,7 +4445,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	TRANSACTION_PREALLOC_SIZE
  VARIABLE_SCOPE	SESSION
@@ -1475,7 +1475,7 @@
  VARIABLE_COMMENT	Persistent buffer for transactions to be stored in binary log
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	134217728
-@@ -4475,7 +4475,7 @@
+@@ -4585,7 +4585,7 @@
  COMMAND_LINE_ARGUMENT	NULL
  VARIABLE_NAME	WAIT_TIMEOUT
  VARIABLE_SCOPE	SESSION
@@ -1484,7 +1484,7 @@
  VARIABLE_COMMENT	The number of seconds the server waits for activity on a connection before closing it
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	31536000
-@@ -4502,7 +4502,7 @@
+@@ -4612,7 +4612,7 @@
  VARIABLE_NAME	LOG_TC_SIZE
  GLOBAL_VALUE_ORIGIN	AUTO
  VARIABLE_SCOPE	GLOBAL

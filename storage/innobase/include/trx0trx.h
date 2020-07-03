@@ -35,6 +35,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "ut0vec.h"
 #include "fts0fts.h"
 #include "read0types.h"
+#include "ilist.h"
 
 #include <vector>
 #include <set>
@@ -241,8 +242,7 @@ trx_commit_step(
 	que_thr_t*	thr);	/*!< in: query thread */
 
 /**********************************************************************//**
-Prints info about a transaction.
-Caller must hold trx_sys.mutex. */
+Prints info about a transaction. */
 void
 trx_print_low(
 /*==========*/
@@ -262,7 +262,6 @@ trx_print_low(
 
 /**********************************************************************//**
 Prints info about a transaction.
-The caller must hold lock_sys.mutex and trx_sys.mutex.
 When possible, use trx_print() instead. */
 void
 trx_print_latched(
@@ -304,7 +303,7 @@ trx_set_dict_operation(
 
 /**********************************************************************//**
 Determines if a transaction is in the given state.
-The caller must hold trx_sys.mutex, or it must be the thread
+The caller must hold trx->mutex, or it must be the thread
 that is serving a running transaction.
 A running RW transaction must be in trx_sys.rw_trx_hash.
 @return TRUE if trx->state == state */
@@ -434,32 +433,6 @@ Check transaction state */
 	}								\
 	ut_error;							\
 } while (0)
-
-/** Check if transaction is free so that it can be re-initialized.
-@param t transaction handle */
-#define	assert_trx_is_free(t)	do {					\
-	ut_ad(trx_state_eq((t), TRX_STATE_NOT_STARTED));		\
-	ut_ad(!(t)->id);						\
-	ut_ad(!(t)->has_logged());					\
-	ut_ad(!(t)->is_referenced());					\
-	ut_ad(!(t)->is_wsrep());					\
-	ut_ad(!(t)->read_view.is_open());				\
-	ut_ad((t)->lock.wait_thr == NULL);				\
-	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
-	ut_ad((t)->lock.table_locks.empty());				\
-	ut_ad(!(t)->autoinc_locks					\
-	      || ib_vector_is_empty((t)->autoinc_locks));		\
-	ut_ad(UT_LIST_GET_LEN((t)->lock.evicted_tables) == 0);		\
-	ut_ad((t)->dict_operation == TRX_DICT_OP_NONE);			\
-} while(0)
-
-/** Check if transaction is in-active so that it can be freed and put back to
-transaction pool.
-@param t transaction handle */
-#define assert_trx_is_inactive(t) do {					\
-	assert_trx_is_free((t));					\
-	ut_ad((t)->dict_operation_lock_mode == 0);			\
-} while(0)
 
 #ifdef UNIV_DEBUG
 /*******************************************************************//**
@@ -741,7 +714,7 @@ struct trx_rsegs_t {
 	trx_temp_undo_t	m_noredo;
 };
 
-struct trx_t {
+struct trx_t : ilist_node<> {
 private:
   /**
     Count of references.
@@ -761,14 +734,6 @@ public:
 					lock_sys.mutex) */
 
 	trx_id_t	id;		/*!< transaction id */
-
-	trx_id_t	no;		/*!< transaction serialization number:
-					max trx id shortly before the
-					transaction is moved to
-					COMMITTED_IN_MEMORY state.
-					Protected by trx_sys_t::mutex
-					when trx is in rw_trx_hash. Initially
-					set to TRX_ID_MAX. */
 
 	/** State of the trx from the point of view of concurrency control
 	and the valid state transitions.
@@ -809,7 +774,7 @@ public:
 	XA (2PC) transactions are always treated as non-autocommit.
 
 	Transitions to ACTIVE or NOT_STARTED occur when transaction
-	is not in rw_trx_hash (no trx_sys.mutex needed).
+	is not in rw_trx_hash.
 
 	Autocommit non-locking read-only transactions move between states
 	without holding any mutex. They are not in rw_trx_hash.
@@ -825,7 +790,7 @@ public:
 	in rw_trx_hash.
 
 	ACTIVE->PREPARED->COMMITTED is only possible when trx is in rw_trx_hash.
-	The transition ACTIVE->PREPARED is protected by trx_sys.mutex.
+	The transition ACTIVE->PREPARED is protected by trx->mutex.
 
 	ACTIVE->COMMITTED is possible when the transaction is in
 	rw_trx_hash.
@@ -945,10 +910,6 @@ public:
 					/*!< how many tables the current SQL
 					statement uses, except those
 					in consistent read */
-	/*------------------------------*/
-	UT_LIST_NODE_T(trx_t) trx_list;	/*!< list of all transactions;
-					protected by trx_sys.mutex */
-	/*------------------------------*/
 	dberr_t		error_state;	/*!< 0 if no error, otherwise error
 					number; NOTE That ONLY the thread
 					doing the transaction is allowed to
@@ -1147,6 +1108,26 @@ public:
 #endif
     n_ref--;
     ut_ad(old_n_ref > 0);
+  }
+
+
+  void assert_freed() const
+  {
+    ut_ad(state == TRX_STATE_NOT_STARTED);
+    ut_ad(!id);
+    ut_ad(!has_logged());
+    ut_ad(!is_referenced());
+    ut_ad(!is_wsrep());
+#ifdef WITH_WSREP
+    ut_ad(!lock.was_chosen_as_wsrep_victim);
+#endif
+    ut_ad(!read_view.is_open());
+    ut_ad(!lock.wait_thr);
+    ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
+    ut_ad(lock.table_locks.empty());
+    ut_ad(!autoinc_locks || ib_vector_is_empty(autoinc_locks));
+    ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
+    ut_ad(dict_operation == TRX_DICT_OP_NONE);
   }
 
 

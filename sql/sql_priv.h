@@ -182,6 +182,8 @@
 #define SELECT_NO_UNLOCK                (1ULL << 41) // SELECT, intern
 #define SELECT_NO_UNLOCK                (1ULL << 41) // SELECT, intern
 #define OPTION_BIN_TMP_LOG_OFF          (1ULL << 42) // disable binlog, intern
+/* Disable commit of binlog. Used to combine many DDL's and DML's as one */
+#define OPTION_BIN_COMMIT_OFF           (1ULL << 43)
 
 #define OPTION_LEX_FOUND_COMMENT        (1ULL << 0) //  intern, parser
 

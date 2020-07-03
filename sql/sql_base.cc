@@ -598,12 +598,15 @@ bool flush_tables(THD *thd, flush_tables_type flag)
     else
     {
       /*
-        HA_OPEN_FOR_ALTER is used to allow us to open the table even if
-        TABLE_SHARE::incompatible_version is set.
+        HA_OPEN_FOR_FLUSH is used to allow us to open the table even if
+        TABLE_SHARE::incompatible_version is set. It also will tell
+        SEQUENCE engine that we don't have to read the sequence information
+        (which may cause deadlocks with concurrently running ALTER TABLE or
+        ALTER SEQUENCE) as we will close the table at once.
       */
       if (!open_table_from_share(thd, share, &empty_clex_str,
                                  HA_OPEN_KEYFILE, 0,
-                                 HA_OPEN_FOR_ALTER,
+                                 HA_OPEN_FOR_ALTER | HA_OPEN_FOR_FLUSH,
                                  tmp_table, FALSE,
                                  NULL))
       {
@@ -793,7 +796,7 @@ int close_thread_tables(THD *thd)
     DEBUG_SYNC(thd, "before_close_thread_tables");
 #endif
 
-  DBUG_ASSERT(thd->transaction.stmt.is_empty() || thd->in_sub_stmt ||
+  DBUG_ASSERT(thd->transaction->stmt.is_empty() || thd->in_sub_stmt ||
               (thd->state_flags & Open_tables_state::BACKUPS_AVAIL));
 
   for (table= thd->open_tables; table; table= table->next)
@@ -1765,6 +1768,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     {
       table= best_table;
       table->query_id= thd->query_id;
+      table->init(thd, table_list);
       DBUG_PRINT("info",("Using locked table"));
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       part_names_error= set_partitions_as_used(table_list, table);
@@ -2084,11 +2088,12 @@ retry_share:
   }
 
   table->mdl_ticket= mdl_ticket;
+  table->reginfo.lock_type=TL_READ;		/* Assume read */
+
+  table->init(thd, table_list);
 
   table->next= thd->open_tables;		/* Link into simple list */
   thd->set_open_tables(table);
-
-  table->reginfo.lock_type=TL_READ;		/* Assume read */
 
  reset:
   /*
@@ -2121,16 +2126,15 @@ retry_share:
     my_error(ER_NOT_SEQUENCE, MYF(0), table_list->db.str, table_list->alias.str);
     DBUG_RETURN(true);
   }
-  table->init(thd, table_list);
-  DBUG_ASSERT(thd->locked_tables_mode || table->file->row_logging == 0);
 
-  DBUG_RETURN(FALSE);
+  DBUG_ASSERT(thd->locked_tables_mode || table->file->row_logging == 0);
+  DBUG_RETURN(false);
 
 err_lock:
   tdc_release_share(share);
 
   DBUG_PRINT("exit", ("failed"));
-  DBUG_RETURN(TRUE);
+  DBUG_RETURN(true);
 }
 
 
@@ -2296,9 +2300,9 @@ Locked_tables_list::init_locked_tables(THD *thd)
       in reopen_tables(). reopen_tables() is a critical
       path and we don't want to complicate it with extra allocations.
     */
-    m_reopen_array= (TABLE**)alloc_root(&m_locked_tables_root,
-                                        sizeof(TABLE*) *
-                                        (m_locked_tables_count+1));
+    m_reopen_array= (TABLE_LIST**)alloc_root(&m_locked_tables_root,
+                                             sizeof(TABLE_LIST*) *
+                                             (m_locked_tables_count+1));
     if (m_reopen_array == NULL)
     {
       reset();
@@ -2351,7 +2355,7 @@ Locked_tables_list::unlock_locked_tables(THD *thd)
 
   TRANSACT_TRACKER(clear_trx_state(thd, TX_LOCKED_TABLES));
 
-  DBUG_ASSERT(thd->transaction.stmt.is_empty());
+  DBUG_ASSERT(thd->transaction->stmt.is_empty());
   error= close_thread_tables(thd);
 
   /*
@@ -2411,6 +2415,7 @@ void Locked_tables_list::reset()
   m_locked_tables_last= &m_locked_tables;
   m_reopen_array= NULL;
   m_locked_tables_count= 0;
+  some_table_marked_for_reopen= 0;
 }
 
 
@@ -2506,7 +2511,7 @@ unlink_all_closed_tables(THD *thd, MYSQL_LOCK *lock, size_t reopen_count)
         in reopen_tables() always links the opened table
         to the beginning of the open_tables list.
       */
-      DBUG_ASSERT(thd->open_tables == m_reopen_array[reopen_count]);
+      DBUG_ASSERT(thd->open_tables == m_reopen_array[reopen_count]->table);
 
       thd->open_tables->pos_in_locked_tables->table= NULL;
       thd->open_tables->pos_in_locked_tables= NULL;
@@ -2536,9 +2541,35 @@ unlink_all_closed_tables(THD *thd, MYSQL_LOCK *lock, size_t reopen_count)
 }
 
 
+/*
+  Mark all instances of the table to be reopened
+
+  This is only needed when LOCK TABLES is active
+*/
+
+void Locked_tables_list::mark_table_for_reopen(THD *thd, TABLE *table)
+{
+  TABLE_SHARE *share= table->s;
+
+    for (TABLE_LIST *table_list= m_locked_tables;
+       table_list; table_list= table_list->next_global)
+  {
+    if (table_list->table->s == share)
+      table_list->table->internal_set_needs_reopen(true);
+  }
+  /* This is needed in the case where lock tables where not used */
+  table->internal_set_needs_reopen(true);
+  some_table_marked_for_reopen= 1;
+}
+
+
 /**
   Reopen the tables locked with LOCK TABLES and temporarily closed
   by a DDL statement or FLUSH TABLES.
+
+  @param need_reopen  If set, reopen open tables that are marked with
+                      for reopen.
+                      If not set, reopen tables that where closed.
 
   @note This function is a no-op if we're not under LOCK TABLES.
 
@@ -2556,6 +2587,13 @@ Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
   MYSQL_LOCK *lock;
   MYSQL_LOCK *merged_lock;
   DBUG_ENTER("Locked_tables_list::reopen_tables");
+
+  DBUG_ASSERT(some_table_marked_for_reopen || !need_reopen);
+
+
+  /* Reset flag that some table was marked for reopen */
+  if (need_reopen)
+    some_table_marked_for_reopen= 0;
 
   for (TABLE_LIST *table_list= m_locked_tables;
        table_list; table_list= table_list->next_global)
@@ -2580,24 +2618,32 @@ Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
     else
     {
       if (table_list->table)                      /* The table was not closed */
-          continue;
+        continue;
     }
-
-    /* Links into thd->open_tables upon success */
-    if (open_table(thd, table_list, &ot_ctx))
-    {
-      unlink_all_closed_tables(thd, 0, reopen_count);
-      DBUG_RETURN(TRUE);
-    }
-    table_list->table->pos_in_locked_tables= table_list;
-    /* See also the comment on lock type in init_locked_tables(). */
-    table_list->table->reginfo.lock_type= table_list->lock_type;
 
     DBUG_ASSERT(reopen_count < m_locked_tables_count);
-    m_reopen_array[reopen_count++]= table_list->table;
+    m_reopen_array[reopen_count++]= table_list;
   }
   if (reopen_count)
   {
+    TABLE **tables= (TABLE**) my_alloca(reopen_count * sizeof(TABLE*));
+
+    for (uint i= 0 ; i < reopen_count ; i++)
+    {
+      TABLE_LIST *table_list= m_reopen_array[i];
+      /* Links into thd->open_tables upon success */
+      if (open_table(thd, table_list, &ot_ctx))
+      {
+        unlink_all_closed_tables(thd, 0, i);
+        my_afree((void*) tables);
+        DBUG_RETURN(TRUE);
+      }
+      tables[i]= table_list->table;
+      table_list->table->pos_in_locked_tables= table_list;
+      /* See also the comment on lock type in init_locked_tables(). */
+      table_list->table->reginfo.lock_type= table_list->lock_type;
+    }
+
     thd->in_lock_tables= 1;
     /*
       We re-lock all tables with mysql_lock_tables() at once rather
@@ -2610,7 +2656,7 @@ Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
       works fine. Patching legacy code of thr_lock.c is risking to
       break something else.
     */
-    lock= mysql_lock_tables(thd, m_reopen_array, reopen_count,
+    lock= mysql_lock_tables(thd, tables, reopen_count,
                             MYSQL_OPEN_REOPEN | MYSQL_LOCK_USE_MALLOC);
     thd->in_lock_tables= 0;
     if (lock == NULL || (merged_lock=
@@ -2619,9 +2665,11 @@ Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
       unlink_all_closed_tables(thd, lock, reopen_count);
       if (! thd->killed)
         my_error(ER_LOCK_DEADLOCK, MYF(0));
+      my_afree((void*) tables);
       DBUG_RETURN(TRUE);
     }
     thd->lock= merged_lock;
+    my_afree((void*) tables);
   }
   DBUG_RETURN(FALSE);
 }
@@ -4117,7 +4165,7 @@ bool open_tables(THD *thd, const DDL_options_st &options,
   DBUG_ENTER("open_tables");
 
   /* Data access in XA transaction is only allowed when it is active. */
-  if (*start && thd->transaction.xid_state.check_has_uncommitted_xa())
+  if (*start && thd->transaction->xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(true);
 
   thd->current_tablenr= 0;
@@ -4259,7 +4307,7 @@ restart:
       list, we still need to call open_and_process_routine() to take
       MDL locks on the routines.
     */
-    if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
+    if (thd->locked_tables_mode <= LTM_LOCK_TABLES && *sroutine_to_open)
     {
       /*
         Process elements of the prelocking set which are present there
@@ -5186,7 +5234,7 @@ end:
     table on the fly, and thus mustn't manipulate with the
     transaction of the enclosing statement.
   */
-  DBUG_ASSERT(thd->transaction.stmt.is_empty() ||
+  DBUG_ASSERT(thd->transaction->stmt.is_empty() ||
               (thd->state_flags & Open_tables_state::BACKUPS_AVAIL));
   close_thread_tables(thd);
   /* Don't keep locks for a failed statement. */
@@ -5583,7 +5631,7 @@ void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
     table on the fly, and thus mustn't manipulate with the
     transaction of the enclosing statement.
   */
-  DBUG_ASSERT(thd->transaction.stmt.is_empty() ||
+  DBUG_ASSERT(thd->transaction->stmt.is_empty() ||
               (thd->state_flags & Open_tables_state::BACKUPS_AVAIL));
   close_thread_tables(thd);
   thd->mdl_context.rollback_to_savepoint(start_of_statement_svp);
@@ -8375,11 +8423,9 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     if (table->next_number_field &&
         rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
-    Item::Type type= value->type();
     const bool skip_sys_field= rfield->vers_sys_field(); // TODO: && !thd->vers_modify_history() [MDEV-16546]
     if ((rfield->vcol_info || skip_sys_field) &&
-        type != Item::DEFAULT_VALUE_ITEM &&
-        type != Item::NULL_ITEM &&
+        !value->vcol_assignment_allowed_value() &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -8660,20 +8706,16 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
 
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
-    if (unlikely(field->vcol_info) || (vers_sys_field && !ignore_errors))
+    if ((unlikely(field->vcol_info) || (vers_sys_field && !ignore_errors)) &&
+        !value->vcol_assignment_allowed_value() &&
+        table->s->table_category != TABLE_CATEGORY_TEMPORARY)
     {
-      Item::Type type= value->type();
-      if (type != Item::DEFAULT_VALUE_ITEM &&
-          type != Item::NULL_ITEM &&
-          table->s->table_category != TABLE_CATEGORY_TEMPORARY)
-      {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN,
-                            ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN),
-                            field->field_name.str, table->s->table_name.str);
-        if (vers_sys_field)
-          continue;
-      }
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN,
+                          ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN),
+                          field->field_name.str, table->s->table_name.str);
+      if (vers_sys_field)
+        continue;
     }
 
     if (use_value)
@@ -8887,17 +8929,16 @@ bool is_equal(const LEX_CSTRING *a, const LEX_CSTRING *b)
     open_system_tables_for_read()
       thd         Thread context.
       table_list  List of tables to open.
-      backup      Pointer to Open_tables_state instance where
-                  information about currently open tables will be
-                  saved, and from which will be restored when we will
-                  end work with system tables.
 
   NOTES
+    Caller should have used start_new_trans object to start a new
+    transcation when reading system tables.
+
     Thanks to restrictions which we put on opening and locking of
     system tables for writing, we can open and lock them for reading
-    even when we already have some other tables open and locked.  One
-    must call close_system_tables() to close systems tables opened
-    with this call.
+    even when we already have some other tables open and locked.
+    One should call thd->commit_whole_transaction_and_close_tables()
+    to close systems tables opened with this call.
 
   NOTES
    In some situations we  use this function to open system tables for
@@ -8911,22 +8952,20 @@ bool is_equal(const LEX_CSTRING *a, const LEX_CSTRING *b)
 */
 
 bool
-open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
-                            Open_tables_backup *backup)
+open_system_tables_for_read(THD *thd, TABLE_LIST *table_list)
 {
   Query_tables_list query_tables_list_backup;
   LEX *lex= thd->lex;
   DBUG_ENTER("open_system_tables_for_read");
+  DBUG_ASSERT(thd->internal_transaction());
 
   /*
     Besides using new Open_tables_state for opening system tables,
     we also have to backup and reset/and then restore part of LEX
     which is accessed by open_tables() in order to determine if
     prelocking is needed and what tables should be added for it.
-    close_system_tables() doesn't require such treatment.
   */
   lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
-  thd->reset_n_backup_open_tables_state(backup);
   thd->lex->sql_command= SQLCOM_SELECT;
 
   /*
@@ -8941,7 +8980,6 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
                              MYSQL_LOCK_IGNORE_TIMEOUT : 0))))
   {
     lex->restore_backup_query_tables_list(&query_tables_list_backup);
-    thd->restore_backup_open_tables_state(backup);
     DBUG_RETURN(TRUE);
   }
 
@@ -8955,33 +8993,6 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
 
   DBUG_RETURN(FALSE);
 }
-
-
-/*
-  Close system tables, opened with open_system_tables_for_read().
-
-  SYNOPSIS
-    close_system_tables()
-      thd     Thread context
-      backup  Pointer to Open_tables_backup instance which holds
-              information about tables which were open before we
-              decided to access system tables.
-*/
-
-void
-close_system_tables(THD *thd, Open_tables_backup *backup)
-{
-  /*
-    Inform the transaction handler that we are closing the
-    system tables and we don't need the read view anymore.
-  */
-  for (TABLE *table= thd->open_tables ; table ; table= table->next)
-    table->file->extra(HA_EXTRA_PREPARE_FOR_FORCED_CLOSE);
-
-  close_thread_tables(thd);
-  thd->restore_backup_open_tables_state(backup);
-}
-
 
 /**
   A helper function to close a mysql.* table opened
@@ -9091,9 +9102,17 @@ open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup)
   @param thd The current thread
   @param backup [in] the context to restore.
 */
+
 void close_log_table(THD *thd, Open_tables_backup *backup)
 {
-  close_system_tables(thd, backup);
+  /*
+    Inform the transaction handler that we are closing the
+    system tables and we don't need the read view anymore.
+  */
+  for (TABLE *table= thd->open_tables ; table ; table= table->next)
+    table->file->extra(HA_EXTRA_PREPARE_FOR_FORCED_CLOSE);
+  close_thread_tables(thd);
+  thd->restore_backup_open_tables_state(backup);
 }
 
 

@@ -1,0 +1,98 @@
+--source ../include/strict_group_by_init.inc
+--echo
+--echo this test is for MDEV-18988
+--echo
+--echo drop and create databases
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+--connection child2_2
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+echo CHILD2_1_CREATE_TABLES;
+eval $CHILD2_1_CREATE_TABLES;
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection child2_2
+--disable_query_log
+echo CHILD2_2_CREATE_TABLES;
+eval $CHILD2_2_CREATE_TABLES;
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    skey int NOT NULL,
+    PRIMARY KEY (pkey),
+    KEY idx1 (skey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    skey int NOT NULL,
+    PRIMARY KEY (pkey),
+    KEY idx1 (skey)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+--enable_query_log
+INSERT INTO tbl_a (pkey,skey) VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+INSERT INTO tbl_a (pkey,skey) VALUES (10,10),(11,11),(12,12),(13,13),(14,14),(15,15),(16,16),(17,17),(18,18),(19,19);
+INSERT INTO tbl_a (pkey,skey) VALUES (20,5),(21,6),(22,7),(23,8),(24,9),(25,10),(26,11),(27,12),(28,13),(29,14);
+
+--echo
+--echo select test 1
+
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+
+--connection child2_2
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+FLUSH TABLES;
+SELECT count(pkey) cnt, skey FROM tbl_a;
+
+--connection child2_1
+eval $CHILD2_1_SELECT_ARGUMENT1;
+eval $CHILD2_1_SELECT_TABLES;
+
+--connection child2_2
+eval $CHILD2_2_SELECT_ARGUMENT1;
+eval $CHILD2_2_SELECT_TABLES;
+
+--echo
+--echo deinit
+--disable_warnings
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+
+--connection child2_2
+DROP DATABASE IF EXISTS auto_test_remote2;
+SET GLOBAL log_output = @old_log_output;
+
+--enable_warnings
+--source ../include/strict_group_by_deinit.inc
+--echo
+--echo end of test

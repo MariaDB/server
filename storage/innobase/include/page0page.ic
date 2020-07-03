@@ -46,7 +46,7 @@ page_update_max_trx_id(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	ut_ad(block);
-	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(trx_id);
 	ut_ad(page_is_leaf(buf_block_get_frame(block)));
 
@@ -83,8 +83,8 @@ page_set_ssn_id(
 	node_seq_t	ssn_id,	/*!< in: transaction id */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-  ut_ad(mtr_memo_contains_flagged(mtr, block,
-                                  MTR_MEMO_PAGE_SX_FIX | MTR_MEMO_PAGE_X_FIX));
+  ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_SX_FIX |
+                                   MTR_MEMO_PAGE_X_FIX));
   ut_ad(!page_zip || page_zip == &block->page.zip);
   constexpr uint16_t field= FIL_RTREE_SPLIT_SEQ_NUM;
   byte *b= my_assume_aligned<2>(&block->frame[field]);

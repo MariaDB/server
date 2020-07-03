@@ -590,8 +590,8 @@ int maria_chk_key(HA_CHECK *param, register MARIA_HA *info)
       {
 	_ma_check_print_error(param,"Found %s keys of %s",llstr(keys,buff),
 		    llstr(share->state.state.records,buff2));
-	if (!(param->testflag & T_INFO))
-	DBUG_RETURN(-1);
+	if (!(param->testflag & (T_INFO | T_EXTEND)))
+          DBUG_RETURN(-1);
 	result= -1;
 	continue;
       }
@@ -1119,8 +1119,8 @@ static uint isam_key_length(MARIA_HA *info, register MARIA_KEYDEF *keyinfo)
 
 
 
-static void record_pos_to_txt(MARIA_HA *info, my_off_t recpos,
-                              char *buff)
+static char * record_pos_to_txt(MARIA_HA *info, my_off_t recpos,
+                                char *buff)
 {
   if (info->s->data_file_type != BLOCK_RECORD)
     llstr(recpos, buff);
@@ -1132,6 +1132,7 @@ static void record_pos_to_txt(MARIA_HA *info, my_off_t recpos,
     *(end++)= ':';
     longlong10_to_str(row, end, 10);
   }
+  return buff;
 }
 
 
@@ -1195,11 +1196,14 @@ static int check_keys_in_record(HA_CHECK *param, MARIA_HA *info, int extend,
             _ma_search(info, &key, SEARCH_SAME, share->state.key_root[keynr]);
           if (search_result)
           {
-            record_pos_to_txt(info, start_recpos, llbuff);
             _ma_check_print_error(param,
                                   "Record at: %14s  "
                                   "Can't find key for index: %2d",
-                                  llbuff, keynr+1);
+                                  record_pos_to_txt(info, start_recpos,
+                                                    llbuff),
+                                  keynr+1);
+            if (param->testflag & T_VERBOSE)
+              _ma_print_key(stdout, &key);
             if (param->err_count++ > MAXERR || !(param->testflag & T_VERBOSE))
               return -1;
           }
@@ -1541,6 +1545,7 @@ static int check_compressed_record(HA_CHECK *param, MARIA_HA *info, int extend,
                             my_errno, llstr(block_info.filepos, llbuff));
       DBUG_RETURN(1);
     }
+    info->rec_buff[block_info.rec_len]= 0;  /* Keep valgrind happy */
     if (_ma_pack_rec_unpack(info, &info->bit_buff, record,
                             info->rec_buff, block_info.rec_len))
     {
@@ -2367,7 +2372,7 @@ static int initialize_variables_for_repair(HA_CHECK *param,
 
   /* Repair code relies on share->state.state so we have to update it here */
   if (share->lock.update_status)
-    (*share->lock.update_status)(info);
+    (*share->lock.update_status)(info->lock.status_param);
 
   bzero((char*) sort_info,  sizeof(*sort_info));
   bzero((char*) sort_param, sizeof(*sort_param));
@@ -2731,8 +2736,11 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
                               "Duplicate key %2d for record at %10s against "
                               "new record at %10s",
                               info->errkey+1,
-                              llstr(sort_param.current_filepos, llbuff),
-                              llstr(info->dup_key_pos,llbuff2));
+                              record_pos_to_txt(info,
+                                                sort_param.current_filepos,
+                                                llbuff),
+                              record_pos_to_txt(info,
+                                                info->dup_key_pos, llbuff2));
       if (param->testflag & T_VERBOSE)
       {
         MARIA_KEY tmp_key;
@@ -4895,10 +4903,12 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
           {
             if (param->testflag & T_VERBOSE)
             {
-              record_pos_to_txt(info, info->cur_row.lastpos, llbuff);
               _ma_check_print_info(param,
                                    "Found record with wrong checksum at %s",
-                                   llbuff);
+                                   record_pos_to_txt(info,
+                                                     info->cur_row.lastpos,
+                                                     llbuff));
+
             }
             continue;
           }
@@ -5318,10 +5328,7 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
 			      llstr(sort_param->pos,llbuff));
 	continue;
       }
-#ifdef HAVE_valgrind
-      bzero(sort_param->rec_buff + block_info.rec_len,
-            share->base.extra_rec_buff_size);
-#endif
+      sort_param->rec_buff[block_info.rec_len]= 0;  /* Keep valgrind happy */
       if (_ma_pack_rec_unpack(info, &sort_param->bit_buff, sort_param->record,
                               sort_param->rec_buff, block_info.rec_len))
       {
@@ -5517,6 +5524,7 @@ static int sort_key_write(MARIA_SORT_PARAM *sort_param, const uchar *a)
   char llbuff[22],llbuff2[22];
   MARIA_SORT_INFO *sort_info=sort_param->sort_info;
   HA_CHECK *param= sort_info->param;
+  MARIA_HA *info= sort_info->info;
   int cmp;
 
   if (sort_info->key_block->inited)
@@ -5559,11 +5567,14 @@ static int sort_key_write(MARIA_SORT_PARAM *sort_param, const uchar *a)
 			   "Duplicate key %2u for record at %10s against "
                             "record at %10s",
                             sort_param->key + 1,
-                            llstr(sort_info->info->cur_row.lastpos, llbuff),
-                            llstr(get_record_for_key(sort_param->keyinfo,
-                                                     sort_info->key_block->
-                                                     lastkey),
-                                  llbuff2));
+                            record_pos_to_txt(info,
+                                              sort_info->info->cur_row.lastpos,
+                                              llbuff),
+                            record_pos_to_txt(info,
+                                              get_record_for_key(sort_param->
+                                                                 keyinfo,
+                                                                 sort_info->key_block->lastkey),
+                                              llbuff2));
     param->testflag|=T_RETRY_WITHOUT_QUICK;
     if (sort_info->param->testflag & T_VERBOSE)
       _ma_print_keydata(stdout,sort_param->seg, a, USE_WHOLE_KEY);

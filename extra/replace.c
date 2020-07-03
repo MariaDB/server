@@ -64,7 +64,7 @@ typedef struct st_pointer_array {		/* when using array-strings */
 #define LAST_CHAR_CODE	259
 
 typedef struct st_replace {
-  my_bool   found;
+  uint8 found;
   struct st_replace *next[256];
 } REPLACE;
 
@@ -654,7 +654,13 @@ static REPLACE *init_replace(char * *from, char * *to,uint count,
     for (i=1 ; i <= found_sets ; i++)
     {
       pos=from[found_set[i-1].table_offset];
-      rep_str[i].found= (my_bool) (!memcmp(pos,"\\^",3) ? 2 : 1);
+      /*
+        Test if we are matching start of string (\^)
+        We can't use bcmp() here as pos may be only 1 character and
+        that would confuse MSAN.
+      */
+      rep_str[i].found= (uint8) ((pos[0] == '\\' && pos[1] == '^' &&
+                                  pos[2] == 0) ? 2 : 1);
       rep_str[i].replace_string=to_array[found_set[i-1].table_offset];
       rep_str[i].to_offset=found_set[i-1].found_offset-start_at_word(pos);
       rep_str[i].from_offset=found_set[i-1].found_offset-replace_len(pos)+

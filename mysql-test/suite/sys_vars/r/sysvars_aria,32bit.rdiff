@@ -1,16 +1,16 @@
---- sysvars_aria.result	2015-01-09 11:49:32.000000000 +0100
-+++ sysvars_aria,32bit.result	2015-01-09 17:30:11.000000000 +0100
-@@ -7,7 +7,7 @@
- GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+--- sysvars_aria.result	2020-04-29 11:35:30.042243474 +0300
++++ sysvars_aria,32bit.reject	2020-04-30 11:45:51.128740906 +0300
+@@ -5,7 +5,7 @@
+ SESSION_VALUE	NULL
  DEFAULT_VALUE	8192
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
  VARIABLE_COMMENT	Block size to be used for Aria index pages.
- NUMERIC_MIN_VALUE	1024
+ NUMERIC_MIN_VALUE	4096
  NUMERIC_MAX_VALUE	32768
-@@ -21,7 +21,7 @@
- GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+@@ -17,7 +17,7 @@
+ SESSION_VALUE	NULL
  DEFAULT_VALUE	30
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
@@ -18,8 +18,8 @@
  VARIABLE_COMMENT	Interval between tries to do an automatic checkpoints. In seconds; 0 means 'no automatic checkpoints' which makes sense only for testing.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -35,7 +35,7 @@
- GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+@@ -29,7 +29,7 @@
+ SESSION_VALUE	NULL
  DEFAULT_VALUE	1048576
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
@@ -27,8 +27,8 @@
  VARIABLE_COMMENT	Number of bytes that the transaction log has to grow between checkpoints before a new checkpoint is written to the log.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -63,7 +63,7 @@
- GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+@@ -53,7 +53,7 @@
+ SESSION_VALUE	NULL
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
@@ -36,17 +36,17 @@
  VARIABLE_COMMENT	Number of consecutive log recovery failures after which logs will be automatically deleted to cure the problem; 0 (the default) disables the feature.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	255
-@@ -91,7 +91,7 @@
- GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+@@ -77,7 +77,7 @@
+ SESSION_VALUE	NULL
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Interval between commite in microseconds (1/1000000c). 0 stands for no waiting for other threads to come and do a commit in "hard" mode and no sync()/commit at all in "soft" mode.  Option has only an effect if aria_group_commit is used
+ VARIABLE_COMMENT	Interval between commits in microseconds (1/1000000 sec). 0 stands for no waiting for other threads to come and do a commit in "hard" mode and no sync()/commit at all in "soft" mode.  Option has only an effect if aria_group_commit is used
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -105,7 +105,7 @@
- GLOBAL_VALUE_ORIGIN	CONFIG
+@@ -89,7 +89,7 @@
+ SESSION_VALUE	NULL
  DEFAULT_VALUE	1073741824
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
@@ -54,8 +54,8 @@
  VARIABLE_COMMENT	Limit for transaction log size
  NUMERIC_MIN_VALUE	8388608
  NUMERIC_MAX_VALUE	4294967295
-@@ -147,10 +147,10 @@
- GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+@@ -125,10 +125,10 @@
+ SESSION_VALUE	NULL
  DEFAULT_VALUE	300
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
@@ -67,8 +67,8 @@
  NUMERIC_BLOCK_SIZE	100
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -175,7 +175,7 @@
- GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+@@ -149,7 +149,7 @@
+ SESSION_VALUE	NULL
  DEFAULT_VALUE	100
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
@@ -76,8 +76,8 @@
  VARIABLE_COMMENT	The minimum percentage of warm blocks in key cache
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	100
-@@ -189,7 +189,7 @@
- GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+@@ -161,7 +161,7 @@
+ SESSION_VALUE	NULL
  DEFAULT_VALUE	512
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
@@ -85,8 +85,8 @@
  VARIABLE_COMMENT	Number of hash buckets for open and changed files.  If you have a lot of Aria files open you should increase this for faster flush of changes. A good value is probably 1/10 of number of possible open Aria files.
  NUMERIC_MIN_VALUE	128
  NUMERIC_MAX_VALUE	16384
-@@ -231,7 +231,7 @@
- GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+@@ -197,7 +197,7 @@
+ SESSION_VALUE	1
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
@@ -94,7 +94,7 @@
  VARIABLE_COMMENT	Number of threads to use when repairing Aria tables. The value of 1 disables parallel repair.
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	128
-@@ -248,7 +248,7 @@
+@@ -212,7 +212,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	The buffer that is allocated when sorting the index when doing a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.
  NUMERIC_MIN_VALUE	4096

@@ -167,6 +167,40 @@ select name into outfile 'tmp.txt' from federated.t1;
 let $path=`select concat(@@datadir, 'test/tmp.txt')`;
 remove_file $path;
 
+--echo #
+--echo # MDEV-22993: Crash on EXPLAIN with PUSHED DOWN SELECT and subquery
+--echo #
+
+explain
+select * from federated.t1
+where name in (select name from federated.t2);
+
+explain format=json
+select * from federated.t1
+where name in (select name from federated.t2);
+
+--echo #
+--echo # MDEV-22993, testcase #2: EXPLAIN output doesn't make sense when
+--echo #   derived table pushdown is used.
+--echo #
+
+create table t5 (a int) engine=myisam;
+insert into t5 values (1),(2);
+
+--echo # Must not show lines with id=3
+explain 
+select * from t5, 
+(select id from federated.t1
+ where name in (select name from federated.t2) or name like 'foo%') as TQ;
+
+--echo # Must not show elements with select_id=3
+explain format=json
+select * from t5, 
+(select id from federated.t1
+ where name in (select name from federated.t2) or name like 'foo%') as TQ;
+
+drop table t5;
+
 DROP TABLE federated.t1, federated.t2, federated.t3, federated.t4;
 
 connection slave;

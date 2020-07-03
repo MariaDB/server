@@ -226,11 +226,11 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   case MTR_MEMO_PAGE_SX_FIX:
   case MTR_MEMO_PAGE_X_FIX:
     buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
-    block->unfix();
     buf_page_release_latch(block, slot->type);
+    block->unfix();
     break;
   }
-  slot->object= NULL;
+  slot->object= nullptr;
 }
 
 /** Release the latches acquired by the mini-transaction. */
@@ -262,8 +262,8 @@ struct ReleaseLatches {
     case MTR_MEMO_PAGE_SX_FIX:
     case MTR_MEMO_PAGE_X_FIX:
       buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
-      block->unfix();
       buf_page_release_latch(block, slot->type);
+      block->unfix();
       break;
     }
     slot->object= NULL;
@@ -354,7 +354,10 @@ struct mtr_write_log_t {
 /** Start a mini-transaction. */
 void mtr_t::start()
 {
-  UNIV_MEM_INVALID(this, sizeof *this);
+#ifdef HAVE_valgrind_or_MSAN
+  MEM_UNDEFINED(this, sizeof *this);
+  MEM_MAKE_DEFINED(&m_freed_pages, sizeof(m_freed_pages));
+#endif /* HAVE_valgrind_or_MSAN */
 
   ut_d(m_start= true);
   ut_d(m_commit= false);
@@ -372,6 +375,8 @@ void mtr_t::start()
   ut_d(m_user_space_id= TRX_SYS_SPACE);
   m_user_space= nullptr;
   m_commit_lsn= 0;
+  m_freed_in_system_tablespace= m_trim_pages= false;
+  ut_ad(!m_freed_pages);
 }
 
 /** Release the resources */
@@ -413,6 +418,32 @@ void mtr_t::commit()
     to insert into the flush list. */
     log_mutex_exit();
 
+    if (m_freed_pages)
+    {
+      ut_ad(!m_freed_pages->empty());
+      fil_space_t *freed_space= m_user_space;
+      /* Get the freed tablespace in case of predefined tablespace */
+      if (!freed_space)
+      {
+        ut_ad(is_freed_system_tablespace_page());
+        freed_space= fil_system.sys_space;
+      }
+
+      ut_ad(memo_contains(freed_space->latch, MTR_MEMO_X_LOCK));
+      /* Update the last freed lsn */
+      freed_space->update_last_freed_lsn(m_commit_lsn);
+
+      if (!is_trim_pages())
+        for (const auto &range : *m_freed_pages)
+          freed_space->add_free_range(range);
+      else
+        freed_space->clear_freed_ranges();
+      delete m_freed_pages;
+      m_freed_pages= nullptr;
+      /* Reset of m_trim_pages and m_freed_in_system_tablespace
+      happens in mtr_t::start() */
+    }
+
     m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
                                      (ReleaseBlocks(start_lsn, m_commit_lsn)));
     if (m_made_dirty)
@@ -441,6 +472,8 @@ void mtr_t::commit_files(lsn_t checkpoint_lsn)
 	ut_ad(!m_made_dirty);
 	ut_ad(m_memo.size() == 0);
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!m_freed_pages);
+	ut_ad(!m_freed_in_system_tablespace);
 
 	if (checkpoint_lsn) {
 		byte*	ptr = m_log.push<byte*>(SIZE_OF_FILE_CHECKPOINT);
@@ -661,34 +694,31 @@ inline lsn_t mtr_t::finish_write(ulint len)
 }
 
 #ifdef UNIV_DEBUG
-/** Check if memo contains the given item.
-@return	true if contains */
-bool
-mtr_t::memo_contains(
-	const mtr_buf_t*	memo,
-	const void*		object,
-	mtr_memo_type_t		type)
+/** Check if we are holding an rw-latch in this mini-transaction
+@param lock   latch to search for
+@param type   held latch type
+@return whether (lock,type) is contained */
+bool mtr_t::memo_contains(const rw_lock_t &lock, mtr_memo_type_t type)
 {
-	Iterate<Find> iteration(Find(object, type));
-	if (memo->for_each_block_in_reverse(iteration)) {
-		return(false);
-	}
+  Iterate<Find> iteration(Find(&lock, type));
+  if (m_memo.for_each_block_in_reverse(iteration))
+    return false;
 
-	switch (type) {
-	case MTR_MEMO_X_LOCK:
-		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_X));
-		break;
-	case MTR_MEMO_SX_LOCK:
-		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_SX));
-		break;
-	case MTR_MEMO_S_LOCK:
-		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_S));
-		break;
-	default:
-		break;
-	}
+  switch (type) {
+  case MTR_MEMO_X_LOCK:
+    ut_ad(rw_lock_own(const_cast<rw_lock_t*>(&lock), RW_LOCK_X));
+    break;
+  case MTR_MEMO_SX_LOCK:
+    ut_ad(rw_lock_own(const_cast<rw_lock_t*>(&lock), RW_LOCK_SX));
+    break;
+  case MTR_MEMO_S_LOCK:
+    ut_ad(rw_lock_own(const_cast<rw_lock_t*>(&lock), RW_LOCK_S));
+    break;
+  default:
+    break;
+  }
 
-	return(true);
+  return true;
 }
 
 /** Debug check for flags */

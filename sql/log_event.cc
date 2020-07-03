@@ -3134,6 +3134,8 @@ const char *sql_ex_info::init(const char *buf, const char *buf_end,
   }
   else
   {
+    if (buf_end - buf < 7)
+      return 0;                                 // Wrong data
     field_term_len= enclosed_len= line_term_len= line_start_len= escaped_len=1;
     field_term = buf++;			// Use first byte in string
     enclosed=	 buf++;

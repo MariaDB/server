@@ -1,4 +1,5 @@
 # Copyright (C) 2007 MySQL AB
+# Copyright (C) 2009,2020 MariaDB Corporation Ab
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -55,20 +56,20 @@ MYSQL_ADD_PLUGIN(aria ${ARIA_SOURCES} STORAGE_ENGINE MANDATORY
                  LINK_LIBRARIES myisam mysys mysys_ssl
                  RECOMPILE_FOR_EMBEDDED)
 
-MYSQL_ADD_EXECUTABLE(aria_ftdump maria_ftdump.c COMPONENT Server)
+MYSQL_ADD_EXECUTABLE(aria_ftdump aria_ftdump.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_ftdump aria)
 
-MYSQL_ADD_EXECUTABLE(aria_chk maria_chk.c COMPONENT Server)
+MYSQL_ADD_EXECUTABLE(aria_chk aria_chk.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_chk aria)
 
-MYSQL_ADD_EXECUTABLE(aria_read_log maria_read_log.c COMPONENT Server)
+MYSQL_ADD_EXECUTABLE(aria_read_log aria_read_log.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_read_log aria)
 
-MYSQL_ADD_EXECUTABLE(aria_dump_log  maria_dump_log.c unittest/ma_loghandler_examples.c COMPONENT Server)
+MYSQL_ADD_EXECUTABLE(aria_dump_log aria_dump_log.c unittest/ma_loghandler_examples.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_dump_log aria)
 SET_TARGET_PROPERTIES(aria_dump_log PROPERTIES COMPILE_FLAGS "-DMARIA_DUMP_LOG")
 
-MYSQL_ADD_EXECUTABLE(aria_pack maria_pack.c COMPONENT Server)
+MYSQL_ADD_EXECUTABLE(aria_pack aria_pack.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_pack aria)
 
 IF(WITH_UNIT_TESTS)
@@ -104,65 +105,24 @@ OPTION(USE_ARIA_FOR_TMP_TABLES "Use Aria for temporary tables" ON)
 # S3
 #
 INCLUDE (CheckIncludeFiles)
-INCLUDE (CheckCSourceRuns)
 
-SET(CURL_SSL_TEST_SOURCE "\n
-   #include <curl/curl.h>\n
-   #include <stdlib.h>\n
-   #include <string.h>\n
-   int main(void)\n
-   {\n
-     curl_version_info_data *data = curl_version_info(CURLVERSION_NOW);\n
-\n
-     if (data->ssl_version)\n
-     {\n
-       if (strncmp(data->ssl_version, \"OpenSSL\", 7) != 0)\n
-       {\n
-         return EXIT_SUCCESS;\n
-       }\n
-       if (data->ssl_version[8] == '0')\n
-       {\n
-         return EXIT_FAILURE;\n
-       }\n
-       if ((data->ssl_version[8] == '1') && (data->ssl_version[10] == '0'))\n
-       {\n
-         return EXIT_FAILURE;\n
-       }\n
-     }\n
-     return EXIT_SUCCESS;\n
-   }")
-
-SET(S3_SOURCES ha_s3.cc s3_func.c
+SET(S3_SOURCES s3_func.c
     libmarias3/src/debug.c libmarias3/src/error.c libmarias3/src/marias3.c
     libmarias3/src/request.c libmarias3/src/response.c libmarias3/src/sha256.c
-    libmarias3/src/sha256-internal.c)
+    libmarias3/src/sha256-internal.c libmarias3/src/xml.c)
 
 IF(NOT PLUGIN_S3 STREQUAL NO)
-  FIND_PACKAGE(LibXml2)
   FIND_PACKAGE(CURL)
 ENDIF()
 
-IF (LIBXML2_FOUND AND CURL_FOUND)
-  MYSQL_ADD_PLUGIN(s3 ${S3_SOURCES} STORAGE_ENGINE STATIC_ONLY
-                   LINK_LIBRARIES aria myisam mysys mysys_ssl xml2 curl
-                   NOT_EMBEDDED)
+IF (CURL_FOUND)
+  MYSQL_ADD_PLUGIN(s3 ha_s3.cc ${S3_SOURCES} COMPONENT s3-engine
+    LINK_LIBRARIES curl STORAGE_ENGINE NOT_EMBEDDED CONFIG s3.cnf)
 ENDIF()
 
 IF(TARGET s3)
-  SET(CMAKE_REQUIRED_LIBRARIES curl)
-  CHECK_C_SOURCE_RUNS("${CURL_SSL_TEST_SOURCE}" FOUND_SAFE_CURL_SSL)
-  UNSET(CMAKE_REQUIRED_LIBRARIES)
-  MYSQL_ADD_EXECUTABLE(aria_s3_copy aria_s3_copy.cc COMPONENT Server)
-  TARGET_LINK_LIBRARIES(aria_s3_copy s3)
-
-  INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/libmarias3 ${LIBXML2_INCLUDE_DIR})
+  MYSQL_ADD_EXECUTABLE(aria_s3_copy aria_s3_copy.cc ${S3_SOURCES} COMPONENT s3-engine)
+  TARGET_LINK_LIBRARIES(aria_s3_copy aria myisam mysys mysys_ssl curl)
+  INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/libmarias3)
   ADD_DEFINITIONS(-DWITH_S3_STORAGE_ENGINE)
-  IF (FOUND_SAFE_CURL_SSL)
-      MESSAGE(STATUS "Found thread safe curl ssl")
-  ELSE ()
-      MESSAGE(STATUS "Found thread unsafe curl ssl, locks added")
-      ADD_DEFINITIONS(-DHAVE_CURL_OPENSSL_UNSAFE)
-  ENDIF ()
-
-  TARGET_LINK_LIBRARIES(aria s3)
 ENDIF()

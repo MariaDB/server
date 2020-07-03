@@ -63,7 +63,7 @@ INSERT INTO t_permanent_myisam SET col1 = 1;
 connect backup,localhost,root,,;
 connect con11,localhost,root,,;
 SET AUTOCOMMIT = 0;
-set session lock_wait_timeout=0;
+set session lock_wait_timeout=1;
 connect con12,localhost,root,,;
 SET AUTOCOMMIT = 1;
 # Between (connection default) BACKUP STAGE START and FLUSH
@@ -208,7 +208,7 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 DROP TABLE t_con1_myisam;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection con12;
-SET STATEMENT lock_wait_timeout=0 FOR UPDATE t_permanent_innodb SET col1 = 9;
+SET STATEMENT lock_wait_timeout=1 FOR UPDATE t_permanent_innodb SET col1 = 9;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection backup;
 BACKUP STAGE END;

@@ -48,7 +48,7 @@ trx_sys_t		trx_sys;
 @param[in]	id              transaction id to check
 @param[in]      name            table name */
 void
-ReadView::check_trx_id_sanity(
+ReadViewBase::check_trx_id_sanity(
 	trx_id_t		id,
 	const table_name_t&	name)
 {
@@ -163,7 +163,7 @@ trx_sysf_create(
 			    mtr);
 	buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
 
-	ut_a(block->page.id.page_no() == TRX_SYS_PAGE_NO);
+	ut_a(block->page.id().page_no() == TRX_SYS_PAGE_NO);
 
 	mtr->write<2>(*block, FIL_PAGE_TYPE + block->frame,
 		      FIL_PAGE_TYPE_TRX_SYS);
@@ -195,7 +195,7 @@ trx_sysf_create(
 						     slot_no, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
-	ut_a(rblock->page.id.page_no() == FSP_FIRST_RSEG_PAGE_NO);
+	ut_a(rblock->page.id().page_no() == FSP_FIRST_RSEG_PAGE_NO);
 }
 
 /** Create the instance */
@@ -205,8 +205,7 @@ trx_sys_t::create()
 	ut_ad(this == &trx_sys);
 	ut_ad(!is_initialised());
 	m_initialised = true;
-	mutex_create(LATCH_ID_TRX_SYS, &mutex);
-	UT_LIST_INIT(trx_list, &trx_t::trx_list);
+	trx_list.create();
 	rseg_history_len= 0;
 
 	rw_trx_hash.init();
@@ -320,8 +319,8 @@ trx_sys_t::close()
 		}
 	}
 
-	ut_a(UT_LIST_GET_LEN(trx_list) == 0);
-	mutex_free(&mutex);
+	ut_a(trx_list.empty());
+	trx_list.close();
 	m_initialised = false;
 }
 
@@ -330,15 +329,11 @@ ulint trx_sys_t::any_active_transactions()
 {
   uint32_t total_trx= 0;
 
-  mutex_enter(&mutex);
-  for (trx_t* trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
-       trx != NULL;
-       trx= UT_LIST_GET_NEXT(trx_list, trx))
-  {
-    if (trx->state == TRX_STATE_COMMITTED_IN_MEMORY ||
-        (trx->state == TRX_STATE_ACTIVE && trx->id))
+  trx_sys.trx_list.for_each([&total_trx](const trx_t &trx) {
+    if (trx.state == TRX_STATE_COMMITTED_IN_MEMORY ||
+        (trx.state == TRX_STATE_ACTIVE && trx.id))
       total_trx++;
-  }
-  mutex_exit(&mutex);
+  });
+
   return total_trx;
 }

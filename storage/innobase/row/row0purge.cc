@@ -46,7 +46,6 @@ Created 3/14/1997 Heikki Tuuri
 #include "handler.h"
 #include "ha_innodb.h"
 #include "fil0fil.h"
-#include "debug_sync.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -492,7 +491,7 @@ row_purge_remove_sec_if_poss_leaf(
 				const buf_block_t* block = btr_cur_get_block(
 					btr_cur);
 
-				if (block->page.id.page_no()
+				if (block->page.id().page_no()
 				    != index->page
 				    && page_get_n_recs(block->frame) < 2
 				    && !lock_test_prdt_page_lock(
@@ -501,8 +500,8 @@ row_purge_remove_sec_if_poss_leaf(
 					    ? thr_get_trx(
 						    btr_cur->rtr_info->thr)
 					    : NULL,
-					    block->page.id.space(),
-					    block->page.id.page_no())) {
+					    block->page.id().space(),
+					    block->page.id().page_no())) {
 					/* this is the last record on page,
 					and it has a "page" lock on it,
 					which mean search is still depending
@@ -510,7 +509,7 @@ row_purge_remove_sec_if_poss_leaf(
 					DBUG_LOG("purge",
 						 "skip purging last"
 						 " record on page "
-						 << block->page.id);
+						 << block->page.id());
 
 					btr_pcur_close(&pcur);
 					mtr.commit();
@@ -957,7 +956,7 @@ already_locked:
 		if (!mysqld_server_started) {
 
 			node->close_table();
-			if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+			if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 				return(false);
 			}
 			os_thread_sleep(1000000);
@@ -1111,7 +1110,7 @@ row_purge(
 				node, undo_rec, thr, updated_extern);
 
 			if (purged
-			    || srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+			    || srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 				return;
 			}
 

@@ -50,11 +50,14 @@ ELSEIF(PLUGIN_PARTITION MATCHES "^NO$")
 ELSE()
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/spider/hs_client)
 
-  INSTALL(FILES
-    ${CMAKE_SOURCE_DIR}/storage/spider/scripts/install_spider.sql
-    DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT Server
-  )
-  MYSQL_ADD_PLUGIN(spider ${SPIDER_SOURCES} STORAGE_ENGINE MODULE_ONLY MODULE_OUTPUT_NAME "ha_spider")
+  IF(DEB)
+    SET(extra_options COMPONENT spider-engine)
+  ELSE()
+    SET(extra_options CONFIG spider.cnf)
+  ENDIF()
+
+  MYSQL_ADD_PLUGIN(spider ${SPIDER_SOURCES} ${extra_options}
+    STORAGE_ENGINE MODULE_ONLY)
   IF(NOT TARGET spider)
     RETURN()
   ENDIF()

@@ -437,16 +437,13 @@ bool stmt_causes_implicit_commit(THD *thd, uint mask)
     DBUG_RETURN(FALSE);
 
   switch (lex->sql_command) {
-  case SQLCOM_DROP_TABLE:
-  case SQLCOM_DROP_SEQUENCE:
-    skip= (lex->tmp_table() ||
-           (thd->variables.option_bits & OPTION_GTID_BEGIN));
-    break;
   case SQLCOM_ALTER_TABLE:
   case SQLCOM_ALTER_SEQUENCE:
     /* If ALTER TABLE of non-temporary table, do implicit commit */
     skip= (lex->tmp_table());
     break;
+  case SQLCOM_DROP_TABLE:
+  case SQLCOM_DROP_SEQUENCE:
   case SQLCOM_CREATE_TABLE:
   case SQLCOM_CREATE_SEQUENCE:
     /*
@@ -945,11 +942,6 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
   char *buf= thd->strmake(init_command->str, len);
   mysql_rwlock_unlock(var_lock);
 
-#if defined(ENABLED_PROFILING)
-  thd->profiling.start_new_query();
-  thd->profiling.set_query_source(buf, len);
-#endif
-
   THD_STAGE_INFO(thd, stage_execution_of_init_command);
   save_client_capabilities= thd->client_capabilities;
   thd->client_capabilities|= CLIENT_MULTI_QUERIES;
@@ -964,9 +956,6 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
   thd->client_capabilities= save_client_capabilities;
   thd->net.vio= save_vio;
 
-#if defined(ENABLED_PROFILING)
-  thd->profiling.finish_current_query();
-#endif
 }
 
 
@@ -1104,7 +1093,7 @@ int bootstrap(MYSQL_FILE *file)
 
     thd->reset_kill_query();  /* Ensure that killed_errmsg is released */
     free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
-    free_root(&thd->transaction.mem_root,MYF(MY_KEEP_PREALLOC));
+    thd->transaction->free();
     thd->lex->restore_set_statement_var();
   }
   delete thd;
@@ -1291,7 +1280,7 @@ bool do_command(THD *thd)
     Aborted by background rollbacker thread.
     Handle error here and jump straight to out
   */
-  if (wsrep_before_command(thd))
+  if (unlikely(wsrep_service_started) && wsrep_before_command(thd))
   {
     thd->store_globals();
     WSREP_LOG_THD(thd, "enter found BF aborted");
@@ -1368,7 +1357,8 @@ out:
   if (packet_length != packet_error)
   {
     /* there was a command to process, and before_command() has been called */
-    wsrep_after_command_after_result(thd);
+    if (unlikely(wsrep_service_started))
+      wsrep_after_command_after_result(thd);
   }
 #endif /* WITH_WSREP */
   DBUG_RETURN(return_value);
@@ -1505,6 +1495,31 @@ uint maria_multi_check(THD *thd, char *packet, size_t packet_length)
   }
   DBUG_RETURN(counter);
 }
+
+
+#if defined(WITH_ARIA_STORAGE_ENGINE)
+class Silence_all_errors : public Internal_error_handler
+{
+  char m_message[MYSQL_ERRMSG_SIZE];
+  int error;
+public:
+  Silence_all_errors():error(0) {}
+  virtual ~Silence_all_errors() {}
+
+  virtual bool handle_condition(THD *thd,
+                                uint sql_errno,
+                                const char* sql_state,
+                                Sql_condition::enum_warning_level *level,
+                                const char* msg,
+                                Sql_condition ** cond_hdl)
+  {
+    error= sql_errno;
+    *cond_hdl= NULL;
+    strmake_buf(m_message, msg);
+    return true;                              // Error handled
+  }
+};
+#endif
 
 
 /**
@@ -1659,14 +1674,20 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   {
     thd->status_var.com_other++;
 #ifdef WITH_WSREP
-    wsrep_after_command_ignore_result(thd);
-    wsrep_close(thd);
+    if (unlikely(wsrep_service_started))
+    {
+      wsrep_after_command_ignore_result(thd);
+      wsrep_close(thd);
+    }
 #endif /* WITH_WSREP */
     thd->change_user();
     thd->clear_error();                         // if errors from rollback
 #ifdef WITH_WSREP
-    wsrep_open(thd);
-    wsrep_before_command(thd);
+    if (unlikely(wsrep_service_started))
+    {
+      wsrep_open(thd);
+      wsrep_before_command(thd);
+    }
 #endif /* WITH_WSREP */
     /* Restore original charset from client authentication packet.*/
     if(thd->org_charset)
@@ -1680,13 +1701,19 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     status_var_increment(thd->status_var.com_other);
 
 #ifdef WITH_WSREP
-    wsrep_after_command_ignore_result(thd);
-    wsrep_close(thd);
+    if (unlikely(wsrep_service_started))
+    {
+      wsrep_after_command_ignore_result(thd);
+      wsrep_close(thd);
+    }
 #endif /* WITH_WSREP */
     thd->change_user();
 #ifdef WITH_WSREP
-    wsrep_open(thd);
-    wsrep_before_command(thd);
+    if (unlikely(wsrep_service_started))
+    {
+      wsrep_open(thd);
+      wsrep_before_command(thd);
+    }
 #endif /* WITH_WSREP */
     thd->clear_error();                         // if errors from rollback
 
@@ -1846,10 +1873,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         Multiple queries exist, execute them individually
       */
       char *beginning_of_next_stmt= (char*) parser_state.m_lip.found_semicolon;
-
-#ifdef WITH_ARIA_STORAGE_ENGINE
-    ha_maria::implicit_commit(thd, FALSE);
-#endif
 
       /* Finalize server status flags after executing a statement. */
       thd->update_server_status();
@@ -2046,7 +2069,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     mysqld_list_fields(thd,&table_list,fields);
     thd->lex->unit.cleanup();
     /* No need to rollback statement transaction, it's not started. */
-    DBUG_ASSERT(thd->transaction.stmt.is_empty());
+    DBUG_ASSERT(thd->transaction->stmt.is_empty());
     close_thread_tables(thd);
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
@@ -2376,45 +2399,51 @@ com_multi_end:
   }
 
 dispatch_end:
+  do_end_of_statement= true;
 #ifdef WITH_WSREP
   /*
-    BF aborted before sending response back to client
+    Next test should really be WSREP(thd), but that causes a failure when doing
+    'set WSREP_ON=0'
   */
-  if (thd->killed == KILL_QUERY)
-  {
-    WSREP_DEBUG("THD is killed at dispatch_end");
-  }
-  wsrep_after_command_before_result(thd);
-  if (wsrep_current_error(thd) &&
-      !(command == COM_STMT_PREPARE          ||
-        command == COM_STMT_FETCH            ||
-        command == COM_STMT_SEND_LONG_DATA   ||
-        command == COM_STMT_CLOSE
-        ))
-  {
-    /* todo: Pass wsrep client state current error to override */
-    wsrep_override_error(thd, wsrep_current_error(thd),
-                         wsrep_current_error_status(thd));
-    WSREP_LOG_THD(thd, "leave");
-  }
-  if (WSREP(thd))
+  if (unlikely(wsrep_service_started))
   {
     /*
-      MDEV-10812
-      In the case of COM_QUIT/COM_STMT_CLOSE thread status should be disabled.
+      BF aborted before sending response back to client
     */
-    DBUG_ASSERT((command != COM_QUIT && command != COM_STMT_CLOSE)
+    if (thd->killed == KILL_QUERY)
+    {
+      WSREP_DEBUG("THD is killed at dispatch_end");
+    }
+    wsrep_after_command_before_result(thd);
+    if (wsrep_current_error(thd) &&
+        !(command == COM_STMT_PREPARE          ||
+          command == COM_STMT_FETCH            ||
+          command == COM_STMT_SEND_LONG_DATA   ||
+          command == COM_STMT_CLOSE
+          ))
+    {
+      /* todo: Pass wsrep client state current error to override */
+      wsrep_override_error(thd, wsrep_current_error(thd),
+                           wsrep_current_error_status(thd));
+      WSREP_LOG_THD(thd, "leave");
+    }
+    if (WSREP(thd))
+    {
+      /*
+        MDEV-10812
+        In the case of COM_QUIT/COM_STMT_CLOSE thread status should be disabled.
+      */
+      DBUG_ASSERT((command != COM_QUIT && command != COM_STMT_CLOSE)
                   || thd->get_stmt_da()->is_disabled());
-    DBUG_ASSERT(thd->wsrep_trx().state() != wsrep::transaction::s_replaying);
-    /* wsrep BF abort in query exec phase */
-    mysql_mutex_lock(&thd->LOCK_thd_kill);
-    do_end_of_statement= thd_is_connection_alive(thd);
-    mysql_mutex_unlock(&thd->LOCK_thd_kill);
+      DBUG_ASSERT(thd->wsrep_trx().state() != wsrep::transaction::s_replaying);
+      /* wsrep BF abort in query exec phase */
+      mysql_mutex_lock(&thd->LOCK_thd_kill);
+      do_end_of_statement= thd_is_connection_alive(thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_kill);
+    }
   }
-  else
-    do_end_of_statement= true;
-
 #endif /* WITH_WSREP */
+
 
   if (do_end_of_statement)
   {
@@ -3092,14 +3121,13 @@ mysql_create_routine(THD *thd, LEX *lex)
       statement takes metadata locks should be detected by a deadlock
       detector in MDL subsystem and reported as errors.
 
-      No need to commit/rollback statement transaction, it's not started.
-
       TODO: Long-term we should either ensure that implicit GRANT statement
             is written into binary log as a separate statement or make both
             creation of routine and implicit GRANT parts of one fully atomic
             statement.
       */
-    DBUG_ASSERT(thd->transaction.stmt.is_empty());
+    if (trans_commit_stmt(thd))
+      goto wsrep_error_label;
     close_thread_tables(thd);
     /*
       Check if the definer exists on slave,
@@ -3143,7 +3171,9 @@ mysql_create_routine(THD *thd, LEX *lex)
 #endif
     return false;
   }
-#ifdef WITH_WSREP
+  (void) trans_commit_stmt(thd);
+
+#if !defined(NO_EMBEDDED_ACCESS_CHECKS) || defined(WITH_WSREP)
 wsrep_error_label:
 #endif
   return true;
@@ -3320,7 +3350,7 @@ mysql_execute_command(THD *thd)
     DBUG_RETURN(1);
   }
 
-  DBUG_ASSERT(thd->transaction.stmt.is_empty() || thd->in_sub_stmt);
+  DBUG_ASSERT(thd->transaction->stmt.is_empty() || thd->in_sub_stmt);
   /*
     Each statement or replication event which might produce deadlock
     should handle transaction rollback on its own. So by the start of
@@ -3547,7 +3577,7 @@ mysql_execute_command(THD *thd)
   thd->progress.report_to_client= MY_TEST(sql_command_flags[lex->sql_command] &
                                           CF_REPORT_PROGRESS);
 
-  DBUG_ASSERT(thd->transaction.stmt.modified_non_trans_table == FALSE);
+  DBUG_ASSERT(thd->transaction->stmt.modified_non_trans_table == FALSE);
 
   /* store old value of binlog format */
   enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
@@ -3704,7 +3734,7 @@ mysql_execute_command(THD *thd)
     */
     DBUG_ASSERT(! thd->in_sub_stmt);
     /* Statement transaction still should not be started. */
-    DBUG_ASSERT(thd->transaction.stmt.is_empty());
+    DBUG_ASSERT(thd->transaction->stmt.is_empty());
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
     {
       /* Commit the normal transaction if one is active. */
@@ -3718,7 +3748,7 @@ mysql_execute_command(THD *thd)
         goto error;
       }
     }
-    thd->transaction.stmt.mark_trans_did_ddl();
+    thd->transaction->stmt.mark_trans_did_ddl();
 #ifdef WITH_WSREP
     /* Clean up the previous transaction on implicit commit */
     if (wsrep_thd_is_local(thd) && wsrep_after_statement(thd))
@@ -4852,6 +4882,8 @@ mysql_execute_command(THD *thd)
     }
     else
     {
+      if (thd->transaction->xid_state.check_has_uncommitted_xa())
+        goto error;
       status_var_decrement(thd->status_var.com_stat[lex->sql_command]);
       status_var_increment(thd->status_var.com_drop_tmp_table);
 
@@ -5007,6 +5039,7 @@ mysql_execute_command(THD *thd)
         res= 1;
       thd->mdl_context.release_transactional_locks();
       thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
+      thd->reset_binlog_for_next_statement();
     }
     if (thd->global_read_lock.is_acquired() &&
         thd->current_backup_stage == BACKUP_FINISHED)
@@ -5910,7 +5943,7 @@ mysql_execute_command(THD *thd)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
     DBUG_ASSERT(lex->m_sql_cmd != NULL);
     res= lex->m_sql_cmd->execute(thd);
-    DBUG_PRINT("result", ("res: %d  killed: %d  is_error: %d",
+    DBUG_PRINT("result", ("res: %d  killed: %d  is_error(): %d",
                           res, thd->killed, thd->is_error()));
     break;
   default:
@@ -5941,7 +5974,8 @@ finish:
   lex->unit.cleanup();
 
   /* close/reopen tables that were marked to need reopen under LOCK TABLES */
-  if (! thd->lex->requires_prelocking())
+  if (unlikely(thd->locked_tables_list.some_table_marked_for_reopen) &&
+      !thd->lex->requires_prelocking())
     thd->locked_tables_list.reopen_tables(thd, true);
 
   if (! thd->in_sub_stmt)
@@ -5971,9 +6005,6 @@ finish:
       trans_commit_stmt(thd);
       thd->get_stmt_da()->set_overwrite_status(false);
     }
-#ifdef WITH_ARIA_STORAGE_ENGINE
-    ha_maria::implicit_commit(thd, FALSE);
-#endif
   }
 
   /* Free tables. Set stage 'closing tables' */
@@ -6495,14 +6526,13 @@ drop_routine(THD *thd, LEX *lex)
     statement takes metadata locks should be detected by a deadlock
     detector in MDL subsystem and reported as errors.
 
-    No need to commit/rollback statement transaction, it's not started.
-
     TODO: Long-term we should either ensure that implicit REVOKE statement
     is written into binary log as a separate statement or make both
     dropping of routine and implicit REVOKE parts of one fully atomic
     statement.
   */
-  DBUG_ASSERT(thd->transaction.stmt.is_empty());
+  if (trans_commit_stmt(thd))
+    sp_result= SP_INTERNAL_ERROR;
   close_thread_tables(thd);
 
   if (sp_result != SP_KEY_NOT_FOUND &&
@@ -7505,7 +7535,7 @@ void THD::reset_for_next_command(bool do_clear_error)
   if (!in_multi_stmt_transaction_mode())
   {
     variables.option_bits&= ~OPTION_KEEP_LOG;
-    transaction.all.reset();
+    transaction->all.reset();
   }
   DBUG_ASSERT(security_ctx== &main_security_ctx);
   thread_specific_used= FALSE;

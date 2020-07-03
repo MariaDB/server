@@ -45,8 +45,6 @@ static my_bool my_use_large_pages= 0;
 #define my_use_large_pages 0
 #endif
 
-static inline my_bool my_is_2pow(size_t n) { return !((n) & ((n) - 1)); }
-
 #if defined(HAVE_GETPAGESIZES) || defined(__linux__)
 /* Descending sort */
 
@@ -76,6 +74,8 @@ static size_t my_large_page_sizes[my_large_page_sizes_length];
   Linux-specific function to determine the sizes of large pages
 */
 #ifdef __linux__
+static inline my_bool my_is_2pow(size_t n) { return !((n) & ((n) - 1)); }
+
 static void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
 {
   DIR *dirp;

@@ -278,29 +278,10 @@ extern char*	srv_undo_dir;
 /** Number of undo tablespaces to use. */
 extern ulong	srv_undo_tablespaces;
 
-/** The number of UNDO tablespaces that are open and ready to use. */
-extern ulint	srv_undo_tablespaces_open;
-
 /** The number of UNDO tablespaces that are active (hosting some rollback
 segment). It is quite possible that some of the tablespaces doesn't host
 any of the rollback-segment based on configuration used. */
 extern ulint	srv_undo_tablespaces_active;
-
-/** Undo tablespaces starts with space_id. */
-extern	ulint	srv_undo_space_id_start;
-
-/** Check whether given space id is undo tablespace id
-@param[in]	space_id	space id to check
-@return true if it is undo tablespace else false. */
-inline
-bool
-srv_is_undo_tablespace(ulint space_id)
-{
-	return srv_undo_space_id_start > 0
-		&& space_id >= srv_undo_space_id_start
-		&& space_id < (srv_undo_space_id_start
-			       + srv_undo_tablespaces_open);
-}
 
 /** Maximum size of undo tablespace. */
 extern unsigned long long	srv_max_undo_log_size;
@@ -352,8 +333,6 @@ extern const ulint	srv_buf_pool_min_size;
 extern const ulint	srv_buf_pool_def_size;
 /** Requested buffer pool chunk size */
 extern ulong		srv_buf_pool_chunk_unit;
-/** Number of locks to protect buf_pool.page_hash */
-extern ulong	srv_n_page_hash_locks;
 /** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
 extern ulong	srv_LRU_scan_depth;
 /** Whether or not to flush neighbors of a block */
@@ -601,37 +580,6 @@ extern PSI_stage_info	srv_stage_alter_table_read_pk_internal_sort;
 extern PSI_stage_info	srv_stage_buffer_pool_load;
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 
-
-/** Alternatives for innodb_flush_method */
-enum srv_flush_t {
-	SRV_FSYNC = 0,	/*!< fsync, the default */
-	SRV_O_DSYNC,	/*!< open log files in O_DSYNC mode */
-	SRV_LITTLESYNC,	/*!< do not call os_file_flush()
-				when writing data files, but do flush
-				after writing to log files */
-	SRV_NOSYNC,	/*!< do not flush after writing */
-	SRV_O_DIRECT,	/*!< invoke os_file_set_nocache() on
-				data files. This implies using
-				non-buffered IO but still using fsync,
-				the reason for which is that some FS
-				do not flush meta-data when
-				unbuffered IO happens */
-	SRV_O_DIRECT_NO_FSYNC
-				/*!< do not use fsync() when using
-				direct IO i.e.: it can be set to avoid
-				the fsync() call that we make when
-				using SRV_UNIX_O_DIRECT. However, in
-				this case user/DBA should be sure about
-				the integrity of the meta-data */
-#ifdef _WIN32
-	,SRV_ALL_O_DIRECT_FSYNC
-				/*!< Traditional Windows appoach to open 
-				all files without caching, and do FileFlushBuffers()*/
-#endif
-};
-/** innodb_flush_method */
-extern ulong srv_file_flush_method;
-
 /** Alternatives for srv_force_recovery. Non-zero values are intended
 to help the user get a damaged database up so that he can dump intact
 tables and rows with SELECT INTO OUTFILE. The database must not otherwise
@@ -757,6 +705,16 @@ srv_que_task_enqueue_low(
 /*=====================*/
 	que_thr_t*	thr);	/*!< in: query thread */
 
+/**
+Flag which is set, whenever innodb_purge_threads changes.
+It is read and reset in srv_do_purge().
+
+Thus it is Atomic_counter<int>, not bool, since unprotected
+reads are used. We just need an atomic with relaxed memory
+order, to please Thread Sanitizer.
+*/
+extern Atomic_counter<int> srv_purge_thread_count_changed;
+
 #ifdef UNIV_DEBUG
 /** @return whether purge or master task is active */
 bool srv_any_background_activity();
@@ -796,7 +754,7 @@ ulint srv_get_task_queue_length();
 void srv_purge_shutdown();
 
 /** Init purge tasks*/
-void srv_init_purge_tasks(uint n_max);
+void srv_init_purge_tasks();
 
 #ifdef UNIV_DEBUG
 /** Disables master thread. It's used by:

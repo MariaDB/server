@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation.
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1015,7 +1015,7 @@ public:
   int save_union_explain_part2(Explain_query *output);
   unit_common_op common_op();
 
-  bool explainable()
+  bool explainable() const
   {
     /*
       EXPLAIN/ANALYZE unit, when:
@@ -3864,6 +3864,21 @@ public:
                                                    const Column_definition &ref,
                                                    Row_definition_list *fields,
                                                    Item *def);
+
+  LEX_USER *current_user_for_set_password(THD *thd);
+  bool sp_create_set_password_instr(THD *thd,
+                                    LEX_USER *user,
+                                    USER_AUTH *auth,
+                                    bool no_lookahead);
+  bool sp_create_set_password_instr(THD *thd,
+                                    USER_AUTH *auth,
+                                    bool no_lookahead)
+  {
+    LEX_USER *user;
+    return !(user= current_user_for_set_password(thd)) ||
+           sp_create_set_password_instr(thd, user, auth, no_lookahead);
+  }
+
   bool sp_handler_declaration_init(THD *thd, int type);
   bool sp_handler_declaration_finalize(THD *thd, int type);
 
@@ -4316,8 +4331,7 @@ public:
                       bool if_not_exists)
   {
     constr->name= name;
-    constr->flags= if_not_exists ?
-                   Alter_info::CHECK_CONSTRAINT_IF_NOT_EXISTS : 0;
+    constr->flags= if_not_exists ? VCOL_CHECK_CONSTRAINT_IF_NOT_EXISTS : 0;
     alter_info.check_constraint_list.push_back(constr);
     return false;
   }

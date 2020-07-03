@@ -108,6 +108,7 @@ select * from v1	{
                 "selectivity_for_columns": [
                   {
                     "column_name": "a",
+                    "ranges": ["1 <= a <= 1"],
                     "selectivity_from_histogram": 0.5
                   }
                 ],
@@ -253,6 +254,7 @@ select * from (select * from t1 where t1.a=1)q	{
                 "selectivity_for_columns": [
                   {
                     "column_name": "a",
+                    "ranges": ["1 <= a <= 1"],
                     "selectivity_from_histogram": 0.5
                   }
                 ],
@@ -403,6 +405,7 @@ select * from v2	{
                       "selectivity_for_columns": [
                         {
                           "column_name": "a",
+                          "ranges": ["1 <= a <= 1"],
                           "selectivity_from_histogram": 0.5
                         }
                       ],
@@ -441,6 +444,7 @@ select * from v2	{
                       },
                       "rows_for_plan": 1,
                       "cost_for_plan": 2.404394531,
+                      "cost_for_sorting": 1,
                       "estimated_join_cardinality": 1
                     }
                   ]
@@ -765,6 +769,7 @@ explain select * from v1	{
                       },
                       "rows_for_plan": 10,
                       "cost_for_plan": 4.021972656,
+                      "cost_for_sorting": 10,
                       "estimated_join_cardinality": 10
                     }
                   ]
@@ -1452,6 +1457,7 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                 },
                 "rows_for_plan": 8,
                 "cost_for_plan": 3.8,
+                "cost_for_sorting": 8,
                 "estimated_join_cardinality": 8
               }
             ]
@@ -1645,6 +1651,7 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                 },
                 "rows_for_plan": 9,
                 "cost_for_plan": 4.15,
+                "cost_for_sorting": 9,
                 "estimated_join_cardinality": 9
               }
             ]
@@ -1827,6 +1834,7 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                 },
                 "rows_for_plan": 9,
                 "cost_for_plan": 4.15,
+                "cost_for_sorting": 9,
                 "estimated_join_cardinality": 9
               }
             ]
@@ -2054,10 +2062,12 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "selectivity_for_columns": [
                   {
                     "column_name": "a",
+                    "ranges": ["1 <= a <= 1"],
                     "selectivity_from_histogram": 0.1796875
                   },
                   {
                     "column_name": "b",
+                    "ranges": ["2 <= b <= 2"],
                     "selectivity_from_histogram": 0.015625
                   }
                 ],
@@ -3272,10 +3282,12 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                 "selectivity_for_columns": [
                   {
                     "column_name": "a",
+                    "ranges": ["5 <= a <= 5"],
                     "selectivity_from_histogram": 0.1
                   },
                   {
                     "column_name": "b",
+                    "ranges": ["1 <= b <= 1"],
                     "selectivity_from_histogram": 0.1
                   }
                 ],
@@ -8258,6 +8270,290 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
     ]
 ]
 drop table t1;
+#
+# MDEV-21626: Optimizer misses the details about the picked join order
+#
+CREATE TABLE t1(a INT, b INT, key(a));
+INSERT INTO t1 SELECT seq, seq from seq_1_to_10;
+CREATE TABLE t2(a INT, b INT, key(a));
+INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
+SET OPTIMIZER_TRACE=1;
+EXPLAIN SELECT * FROM t1, t2 WHERE t1.a=t2.a ORDER BY t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	ref	a	a	5	test.t1.a	1	
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
+[
+    
+    [
+        
+        {
+            "plan_prefix": 
+            [
+            ],
+            "table": "t1",
+            "best_access_path": 
+            {
+                "considered_access_paths": 
+                [
+                    
+                    {
+                        "access_type": "scan",
+                        "resulting_rows": 10,
+                        "cost": 2.021972656,
+                        "chosen": true
+                    }
+                ],
+                "chosen_access_method": 
+                {
+                    "type": "scan",
+                    "records": 10,
+                    "cost": 2.021972656,
+                    "uses_join_buffering": false
+                }
+            },
+            "rows_for_plan": 10,
+            "cost_for_plan": 4.021972656,
+            "rest_of_plan": 
+            [
+                
+                {
+                    "plan_prefix": 
+                    [
+                        "t1"
+                    ],
+                    "table": "t2",
+                    "best_access_path": 
+                    {
+                        "considered_access_paths": 
+                        [
+                            
+                            {
+                                "access_type": "ref",
+                                "index": "a",
+                                "used_range_estimates": false,
+                                "cause": "not available",
+                                "rows": 1,
+                                "cost": 20.00585794,
+                                "chosen": true
+                            },
+                            
+                            {
+                                "access_type": "scan",
+                                "resulting_rows": 100,
+                                "cost": 2.219726562,
+                                "chosen": false
+                            }
+                        ],
+                        "chosen_access_method": 
+                        {
+                            "type": "ref",
+                            "records": 1,
+                            "cost": 20.00585794,
+                            "uses_join_buffering": false
+                        }
+                    },
+                    "rows_for_plan": 10,
+                    "cost_for_plan": 26.0278306,
+                    "cost_for_sorting": 10,
+                    "estimated_join_cardinality": 10
+                }
+            ]
+        },
+        
+        {
+            "plan_prefix": 
+            [
+            ],
+            "table": "t2",
+            "best_access_path": 
+            {
+                "considered_access_paths": 
+                [
+                    
+                    {
+                        "access_type": "scan",
+                        "resulting_rows": 100,
+                        "cost": 2.219726562,
+                        "chosen": true,
+                        "use_tmp_table": true
+                    }
+                ],
+                "chosen_access_method": 
+                {
+                    "type": "scan",
+                    "records": 100,
+                    "cost": 2.219726562,
+                    "uses_join_buffering": false
+                }
+            },
+            "rows_for_plan": 100,
+            "cost_for_plan": 22.21972656,
+            "rest_of_plan": 
+            [
+                
+                {
+                    "plan_prefix": 
+                    [
+                        "t2"
+                    ],
+                    "table": "t1",
+                    "best_access_path": 
+                    {
+                        "considered_access_paths": 
+                        [
+                            
+                            {
+                                "access_type": "ref",
+                                "index": "a",
+                                "used_range_estimates": false,
+                                "cause": "not available",
+                                "rows": 1,
+                                "cost": 200.0585794,
+                                "chosen": true
+                            },
+                            
+                            {
+                                "access_type": "scan",
+                                "resulting_rows": 10,
+                                "cost": 2.021972656,
+                                "chosen": true
+                            }
+                        ],
+                        "chosen_access_method": 
+                        {
+                            "type": "scan",
+                            "records": 10,
+                            "cost": 2.021972656,
+                            "uses_join_buffering": true
+                        }
+                    },
+                    "rows_for_plan": 1000,
+                    "cost_for_plan": 224.2416992,
+                    "pruned_by_cost": true
+                }
+            ]
+        }
+    ]
+]
+DROP TABLE t1,t2;
+#
+# MDEV-22665: Print ranges in the optimizer trace created for non-indexed columns when
+# optimizer_use_condition_selectivity >2
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+SET optimizer_trace=1;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN EXTENDED SELECT * from t1 WHERE a between 1 and 5 and b <= 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	0.22	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` between 1 and 5 and `test`.`t1`.`b` <= 5
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns'))
+[
+    
+    [
+        
+        {
+            "column_name": "a",
+            "ranges": 
+            [
+                "1 <= a <= 5"
+            ],
+            "selectivity_from_histogram": 0.046875
+        },
+        
+        {
+            "column_name": "b",
+            "ranges": 
+            [
+                "NULL < b <= 5"
+            ],
+            "selectivity_from_histogram": 0.046875
+        }
+    ]
+]
+EXPLAIN EXTENDED SELECT * from t1 WHERE a != 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` <> 5
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns'))
+[
+    
+    [
+        
+        {
+            "column_name": "a",
+            "ranges": 
+            [
+                "NULL < a < 5",
+                "5 < a"
+            ],
+            "selectivity_from_histogram": 1
+        }
+    ]
+]
+EXPLAIN EXTENDED SELECT * from t1 WHERE b >= 10 and b < 25;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	15.62	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` >= 10 and `test`.`t1`.`b` < 25
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns'))
+[
+    
+    [
+        
+        {
+            "column_name": "b",
+            "ranges": 
+            [
+                "10 <= b < 25"
+            ],
+            "selectivity_from_histogram": 0.15625
+        }
+    ]
+]
+drop table t1;
+#
+# MDEV-22910:SIGSEGV in Opt_trace_context::is_started & SIGSEGV in Json_writer::add_table_name
+# (on optimized builds)
+#
+CREATE TABLE t1( a INT, b INT, PRIMARY KEY( a ) );
+SELECT sum(b), row_number() OVER (order by b) FROM t1 WHERE a = 101;
+sum(b)	row_number() OVER (order by b)
+NULL	1
+UPDATE t1 SET b=10 WHERE a=1;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
+[
+    
+    [
+        
+        {
+            "index": "PRIMARY",
+            "ranges": 
+            [
+                "(1) <= (a) <= (1)"
+            ],
+            "rowid_ordered": true,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 0,
+            "cost": 0.145,
+            "chosen": true
+        }
+    ]
+]
+DROP TABLE t1;
 # End of 10.4 tests
 #
 # Test many rows to see output of big cost numbers
@@ -8357,5 +8653,36 @@ select count(*) from seq_1_to_10000000	{
     }
   ]
 }	0	0
+#
+# MDEV-22891: Optimizer trace: const tables are not clearly visible
+#
+create table t0(a int primary key);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (pk int primary key, a int);
+insert into t1 select a,a from t0;
+create table t2 (pk int primary key, a int);
+insert into t2 select a,a from t0;
+create table t3 (pk int primary key, a int);
+insert into t3 select a,a from t0;
+explain
+select * from t1 left join (t2 join t3 on t3.pk=1000) on t2.a=t1.a and t2.pk is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
+1	SIMPLE	t2	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const'))
+from information_schema.optimizer_trace;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const'))
+[
+    
+    {
+        "members": 
+        [
+            "t3",
+            "t2"
+        ]
+    }
+]
+drop table t0, t1, t2, t3;
 # End of 10.5 tests
 set optimizer_trace='enabled=off';

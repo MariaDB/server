@@ -686,7 +686,9 @@ int ha_partition::create_partitioning_metadata(const char *path,
   if (m_part_info)
   {
     part= m_part_info->partitions.head();
-    if ((part->engine_type)->create_partitioning_metadata &&
+    /* part->engine_type may be 0 when we failed to create the partition */
+    if (part->engine_type &&
+        (part->engine_type)->create_partitioning_metadata &&
         ((part->engine_type)->create_partitioning_metadata)(path, old_path,
                                                             action_flag))
     {
@@ -1192,7 +1194,17 @@ int ha_partition::analyze(THD *thd, HA_CHECK_OPT *check_opt)
 {
   DBUG_ENTER("ha_partition::analyze");
 
-  DBUG_RETURN(handle_opt_partitions(thd, check_opt, ANALYZE_PARTS));
+  int result= handle_opt_partitions(thd, check_opt, ANALYZE_PARTS);
+
+  if ((result == 0) && m_file[0]
+      && (m_file[0]->ha_table_flags() & HA_ONLINE_ANALYZE))
+  {
+    /* If this is ANALYZE TABLE that will not force table definition cache
+       eviction, update statistics for the partition handler. */
+    this->info(HA_STATUS_CONST | HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
+  }
+
+  DBUG_RETURN(result);
 }
 
 
@@ -2270,7 +2282,8 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
         sub_elem= subpart_it++;
         DBUG_ASSERT(sub_elem);
         part= i * num_subparts + j;
-        DBUG_ASSERT(part < m_file_tot_parts && m_file[part]);
+        DBUG_ASSERT(part < m_file_tot_parts);
+        DBUG_ASSERT(m_file[part]);
         dummy_info.data_file_name= dummy_info.index_file_name = NULL;
         m_file[part]->update_create_info(&dummy_info);
         sub_elem->data_file_name = (char*) dummy_info.data_file_name;
@@ -3725,11 +3738,13 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
 
 err_handler:
   DEBUG_SYNC(ha_thd(), "partition_open_error");
-  file= &m_file[m_tot_parts - 1];
-  while (file-- != m_file)
+  DBUG_ASSERT(m_tot_parts > 0);
+  for (uint i= m_tot_parts - 1; ; --i)
   {
-    if (bitmap_is_set(&m_opened_partitions, (uint)(file - m_file)))
-      (*file)->ha_close();
+    if (bitmap_is_set(&m_opened_partitions, i))
+      m_file[i]->ha_close();
+    if (!i)
+      break;
   }
 err_alloc:
   free_partition_bitmaps();
@@ -3993,7 +4008,8 @@ int ha_partition::external_lock(THD *thd, int lock_type)
   MY_BITMAP *used_partitions;
   DBUG_ENTER("ha_partition::external_lock");
 
-  DBUG_ASSERT(!auto_increment_lock && !auto_increment_safe_stmt_log_lock);
+  DBUG_ASSERT(!auto_increment_lock);
+  DBUG_ASSERT(!auto_increment_safe_stmt_log_lock);
 
   if (lock_type == F_UNLCK)
     used_partitions= &m_locked_partitions;
@@ -4272,8 +4288,8 @@ void ha_partition::unlock_row()
 bool ha_partition::was_semi_consistent_read()
 {
   DBUG_ENTER("ha_partition::was_semi_consistent_read");
-  DBUG_ASSERT(m_last_part < m_tot_parts &&
-              bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
+  DBUG_ASSERT(m_last_part < m_tot_parts);
+  DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
   DBUG_RETURN(m_file[m_last_part]->was_semi_consistent_read());
 }
 
@@ -7175,8 +7191,8 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
     DBUG_ASSERT(m_part_spec.start_part < m_tot_parts);
     m_ordered_scan_ongoing= m_ordered;
   }
-  DBUG_ASSERT(m_part_spec.start_part < m_tot_parts &&
-              m_part_spec.end_part < m_tot_parts);
+  DBUG_ASSERT(m_part_spec.start_part < m_tot_parts);
+  DBUG_ASSERT(m_part_spec.end_part < m_tot_parts);
   DBUG_RETURN(0);
 }
 
@@ -7237,8 +7253,6 @@ bool ha_partition::check_parallel_search()
         if (order_field && order_field->table == table_list->table)
         {
           Field *part_field= m_part_info->full_part_field_array[0];
-          if (set_top_table_fields)
-            order_field= top_table_field[order_field->field_index];
           DBUG_PRINT("info",("partition order_field: %p", order_field));
           DBUG_PRINT("info",("partition part_field: %p", part_field));
           if (part_field == order_field)
@@ -7282,8 +7296,6 @@ bool ha_partition::check_parallel_search()
         if (group_field && group_field->table == table_list->table)
         {
           Field *part_field= m_part_info->full_part_field_array[0];
-          if (set_top_table_fields)
-            group_field= top_table_field[group_field->field_index];
           DBUG_PRINT("info",("partition group_field: %p", group_field));
           DBUG_PRINT("info",("partition part_field: %p", part_field));
           if (part_field == group_field)
@@ -10619,7 +10631,8 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
   DBUG_PRINT("enter", ("offset: %lu  inc: %lu  desired_values: %lu  "
                        "first_value: %lu", (ulong) offset, (ulong) increment,
                       (ulong) nb_desired_values, (ulong) *first_value));
-  DBUG_ASSERT(increment && nb_desired_values);
+  DBUG_ASSERT(increment);
+  DBUG_ASSERT(nb_desired_values);
   *first_value= 0;
   if (table->s->next_number_keypart)
   {
@@ -11014,9 +11027,9 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
 
           /*
             If the engine supports transactions, the failure will be
-            rollbacked.
+            rolled back
           */
-          if (!m_file[correct_part_id]->has_transactions())
+          if (!m_file[correct_part_id]->has_transactions_and_rollback())
           {
             /* Log this error, so the DBA can notice it and fix it! */
             sql_print_error("Table '%-192s' failed to move/insert a row"
@@ -11040,7 +11053,7 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
         /* Delete row from wrong partition. */
         if ((result= m_file[read_part_id]->ha_delete_row(m_rec0)))
         {
-          if (m_file[correct_part_id]->has_transactions())
+          if (m_file[correct_part_id]->has_transactions_and_rollback())
             break;
           /*
             We have introduced a duplicate, since we failed to remove it
@@ -11217,22 +11230,6 @@ const COND *ha_partition::cond_push(const COND *cond)
   handler **file= m_file;
   COND *res_cond= NULL;
   DBUG_ENTER("ha_partition::cond_push");
-
-  if (set_top_table_fields)
-  {
-    /*
-      We want to do this in a separate loop to not come into a situation
-      where we have only done cond_push() to some of the tables
-    */
-    do
-    {
-      if (((*file)->set_top_table_and_fields(top_table,
-                                             top_table_field,
-                                             top_table_fields)))
-        DBUG_RETURN(cond);                      // Abort cond push, no error
-    } while (*(++file));
-    file= m_file;
-  }
 
   do
   {
@@ -11864,23 +11861,6 @@ int ha_partition::info_push(uint info_type, void *info)
   DBUG_RETURN(error);
 }
 
-
-void ha_partition::clear_top_table_fields()
-{
-  handler **file;
-  DBUG_ENTER("ha_partition::clear_top_table_fields");
-
-  if (set_top_table_fields)
-  {
-    set_top_table_fields= FALSE;
-    top_table= NULL;
-    top_table_field= NULL;
-    top_table_fields= 0;
-    for (file= m_file; *file; file++)
-      (*file)->clear_top_table_fields();
-  }
-  DBUG_VOID_RETURN;
-}
 
 bool
 ha_partition::can_convert_string(const Field_string* field,

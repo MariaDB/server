@@ -1,4 +1,4 @@
-/* Copyright (C) 2018 MariaDB corporation
+/* Copyright (C) 2018, 2020 MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,8 +20,6 @@
 #include "ma_checkpoint.h"
 #include <aria_backup.h>
 
-static uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base);
-
 /**
   @brief Get capabilites for an Aria table
 
@@ -32,6 +30,7 @@ static uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base);
   @return X      errno
 */
 
+int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)__attribute__((visibility("default"))) ;
 int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)
 {
   MARIA_SHARE share;
@@ -102,20 +101,13 @@ int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)
 err:
   my_free(disc_cache);
   DBUG_RETURN(error);
-} /* maria_get_capabilities */
+} /* aria_get_capabilities */
 
+/****************************************************************************
+**  store MARIA_BASE_INFO
+****************************************************************************/
 
-/*
-  This is a copy of my_base_info_read from ma_open().
-  The base information will never change (something may be added
-  last, but not relevant for maria_get_capabilities), so it's safe to
-  copy it here.
-
-  The copy is done to avoid linking in the fill Aria library just
-  because maria_backup uses maria_get_capabilities()
-*/
-
-static uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
+uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
 {
   bmove(base->uuid, ptr, MY_UUID_SIZE);                 ptr+= MY_UUID_SIZE;
   base->keystart= mi_sizekorr(ptr);			ptr+= 8;

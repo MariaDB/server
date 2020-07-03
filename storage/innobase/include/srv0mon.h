@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -38,6 +38,7 @@ Created 12/15/2009	Jimmy Yang
 
 #include <stdint.h>
 #include "my_atomic.h"
+#include "my_atomic_wrapper.h"
 
 /** Possible status values for "mon_status" in "struct monitor_value" */
 enum monitor_running_status {
@@ -398,8 +399,6 @@ enum monitor_id_t {
 	MONITOR_MASTER_IDLE_LOOPS,
 	MONITOR_SRV_BACKGROUND_DROP_TABLE_MICROSECOND,
 	MONITOR_SRV_LOG_FLUSH_MICROSECOND,
-	MONITOR_SRV_MEM_VALIDATE_MICROSECOND,
-	MONITOR_SRV_PURGE_MICROSECOND,
 	MONITOR_SRV_DICT_LRU_MICROSECOND,
 	MONITOR_SRV_DICT_LRU_EVICT_COUNT_ACTIVE,
 	MONITOR_SRV_DICT_LRU_EVICT_COUNT_IDLE,
@@ -652,14 +651,14 @@ Use MONITOR_DEC if appropriate mutex protection exists.
 		}							\
 	}
 
-#ifdef UNIV_DEBUG_VALGRIND
+#ifdef HAVE_valgrind_or_MSAN
 # define MONITOR_CHECK_DEFINED(value) do {	\
 	mon_type_t m = value;			\
-	UNIV_MEM_ASSERT_RW(&m, sizeof m);	\
+	MEM_CHECK_DEFINED(&m, sizeof m);	\
 } while (0)
-#else /* UNIV_DEBUG_VALGRIND */
+#else /* HAVE_valgrind_or_MSAN */
 # define MONITOR_CHECK_DEFINED(value) (void) 0
-#endif /* UNIV_DEBUG_VALGRIND */
+#endif /* HAVE_valgrind_or_MSAN */
 
 #define	MONITOR_INC_VALUE(monitor, value)				\
 	MONITOR_CHECK_DEFINED(value);					\

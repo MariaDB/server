@@ -1,5 +1,5 @@
 /* Copyright (c) 2001, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -316,6 +316,9 @@ double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
 
   max_elements_in_tree= ((size_t) max_in_memory_size /
                          ALIGN_SIZE(sizeof(TREE_ELEMENT)+key_size));
+
+  if (max_elements_in_tree == 0)
+    max_elements_in_tree= 1;
 
   n_full_trees=    nkeys / max_elements_in_tree;
   last_tree_elems= nkeys % max_elements_in_tree;
@@ -735,6 +738,13 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
   sort_param.cmp_context.key_compare= tree.compare;
   sort_param.cmp_context.key_compare_arg= tree.custom_arg;
 
+  /*
+    We need to remove the size allocated for the unique buffer.
+    The sort_buffer_size is:
+      MY_MAX(MERGEBUFF2+1, max_in_memory_size/full_size+1) * full_size;
+  */
+  buff_size-= full_size;
+
   /* Merge the buffers to one file, removing duplicates */
   if (merge_many_buff(&sort_param,
                       Bounds_checked_array<uchar>(buff, buff_size),
@@ -802,7 +812,13 @@ bool Unique::get(TABLE *table)
   /* Not enough memory; Save the result to file && free memory used by tree */
   if (flush())
     DBUG_RETURN(1);
-  size_t buff_sz= (max_in_memory_size / full_size + 1) * full_size;
+  /*
+    merge_buffer must fit at least MERGEBUFF2 + 1 keys, because
+    merge_index() can merge that many BUFFPEKs at once. The extra space for
+    one key for Sort_param::unique_buff
+  */
+  size_t buff_sz= MY_MAX(MERGEBUFF2+1, max_in_memory_size/full_size+1) * full_size;
+
   if (!(sort_buffer= (uchar*) my_malloc(key_memory_Unique_sort_buffer, buff_sz,
                                         MYF(MY_THREAD_SPECIFIC|MY_WME))))
     DBUG_RETURN(1);

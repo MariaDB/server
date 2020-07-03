@@ -1891,7 +1891,8 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 		ut_ad(undo);
 		for (ut_d(int loop_count = 0);;) {
 			ut_ad(loop_count++ < 2);
-			ut_ad(undo->last_page_no == block->page.id.page_no());
+			ut_ad(undo->last_page_no
+			      == block->page.id().page_no());
 
 			if (uint16_t offset = trx_undo_page_report_rename(
 				    trx, table, block, &mtr)) {
@@ -1915,10 +1916,9 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 				}
 			}
 		}
-
-		mtr.commit();
 	}
 
+	mtr.commit();
 	return err;
 }
 
@@ -2048,7 +2048,7 @@ trx_undo_report_row_operation(
 			undo->withdraw_clock = buf_pool.withdraw_clock();
 			mtr_commit(&mtr);
 
-			undo->top_page_no = undo_block->page.id.page_no();
+			undo->top_page_no = undo_block->page.id().page_no();
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
@@ -2080,7 +2080,7 @@ trx_undo_report_row_operation(
 			return(DB_SUCCESS);
 		}
 
-		ut_ad(undo_block->page.id.page_no() == undo->last_page_no);
+		ut_ad(undo_block->page.id().page_no() == undo->last_page_no);
 
 		/* We have to extend the undo log by one page */
 
@@ -2174,11 +2174,9 @@ trx_undo_get_undo_rec(
 	const table_name_t&	name,
 	trx_undo_rec_t**	undo_rec)
 {
-	bool		missing_history;
-
 	rw_lock_s_lock(&purge_sys.latch);
 
-	missing_history = purge_sys.view.changes_visible(trx_id, name);
+	bool missing_history = purge_sys.changes_visible(trx_id, name);
 	if (!missing_history) {
 		*undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
 	}
@@ -2247,9 +2245,9 @@ trx_undo_prev_version_build(
 
 	ut_ad(!index->table->is_temporary());
 	ut_ad(!rw_lock_own(&purge_sys.latch, RW_LOCK_S));
-	ut_ad(mtr_memo_contains_page_flagged(index_mtr, index_rec,
-					     MTR_MEMO_PAGE_S_FIX
-					     | MTR_MEMO_PAGE_X_FIX));
+	ut_ad(index_mtr->memo_contains_page_flagged(index_rec,
+						    MTR_MEMO_PAGE_S_FIX
+						    | MTR_MEMO_PAGE_X_FIX));
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_a(index->is_primary());
 
@@ -2344,7 +2342,7 @@ trx_undo_prev_version_build(
 
 			rw_lock_s_lock(&purge_sys.latch);
 
-			missing_extern = purge_sys.view.changes_visible(
+			missing_extern = purge_sys.changes_visible(
 				trx_id,	index->table->name);
 
 			rw_lock_s_unlock(&purge_sys.latch);

@@ -129,7 +129,7 @@ btr_leaf_page_release(
 	      || latch_mode == BTR_MODIFY_LEAF
 	      || latch_mode == BTR_NO_LATCHES);
 
-	ut_ad(!mtr_memo_contains(mtr, block, MTR_MEMO_MODIFY));
+	ut_ad(!mtr->memo_contains_flagged(block, MTR_MEMO_MODIFY));
 
 	mtr_memo_type_t mode;
 	switch (latch_mode) {

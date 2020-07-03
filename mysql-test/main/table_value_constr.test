@@ -1326,3 +1326,46 @@ create view v1 as with t(a) as (values (2), (1)) select a from t;
 show create view v1;
 select * from v1;
 drop view v1;
+
+
+--echo #
+--echo # MDEV-22560 Crash on a table value constructor with an SP variable
+--echo #
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a INT DEFAULT 0;
+  VALUES (a) UNION SELECT 1;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # MDEV-21995 Server crashes in Item_field::real_type_handler with table value constructor
+--echo #
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+VALUES (IGNORE);
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+VALUES (DEFAULT);
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXECUTE IMMEDIATE 'VALUES (?)' USING IGNORE;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXECUTE IMMEDIATE 'VALUES (?)' USING DEFAULT;
+
+
+--echo #
+--echo # MDEV-22610 Crash in INSERT INTO t1 (VALUES (DEFAULT) UNION VALUES (DEFAULT))
+--echo #
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+VALUES (DEFAULT) UNION VALUES (DEFAULT);
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+VALUES (IGNORE) UNION VALUES (IGNORE);
+CREATE TABLE t1 (a INT DEFAULT 10);
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+INSERT INTO t1 (VALUES (DEFAULT) UNION VALUES (DEFAULT));
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+INSERT INTO t1 (VALUES (IGNORE) UNION VALUES (IGNORE));
+DROP TABLE t1;

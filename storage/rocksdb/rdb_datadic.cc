@@ -987,7 +987,7 @@ uint Rdb_key_def::get_memcmp_sk_parts(const TABLE *table,
   Convert index tuple into storage (i.e. mem-comparable) format
 
   @detail
-    Currently this is done by unpacking into table->record[0] and then
+    Currently this is done by unpacking into record_buffer and then
     packing index columns into storage format.
 
   @param pack_buffer Temporary area for packing varchar columns. Its
@@ -996,6 +996,7 @@ uint Rdb_key_def::get_memcmp_sk_parts(const TABLE *table,
 
 uint Rdb_key_def::pack_index_tuple(TABLE *const tbl, uchar *const pack_buffer,
                                    uchar *const packed_tuple,
+                                   uchar *const record_buffer,
                                    const uchar *const key_tuple,
                                    const key_part_map &keypart_map) const {
   DBUG_ASSERT(tbl != nullptr);
@@ -1005,13 +1006,13 @@ uint Rdb_key_def::pack_index_tuple(TABLE *const tbl, uchar *const pack_buffer,
 
   /* We were given a record in KeyTupleFormat. First, save it to record */
   const uint key_len = calculate_key_len(tbl, m_keyno, key_tuple, keypart_map);
-  key_restore(tbl->record[0], key_tuple, &tbl->key_info[m_keyno], key_len);
+  key_restore(record_buffer, key_tuple, &tbl->key_info[m_keyno], key_len);
 
   uint n_used_parts = my_count_bits(keypart_map);
   if (keypart_map == HA_WHOLE_KEY) n_used_parts = 0;  // Full key is used
 
   /* Then, convert the record into a mem-comparable form */
-  return pack_record(tbl, pack_buffer, tbl->record[0], packed_tuple, nullptr,
+  return pack_record(tbl, pack_buffer, record_buffer, packed_tuple, nullptr,
                      false, 0, n_used_parts);
 }
 
@@ -1432,9 +1433,10 @@ uint Rdb_key_def::pack_record(const TABLE *const tbl, uchar *const pack_buffer,
     // ha_rocksdb::convert_record_to_storage_format
     //
     if (should_store_row_debug_checksums) {
-      const uint32_t key_crc32 = crc32(0, packed_tuple, tuple - packed_tuple);
+      const uint32_t key_crc32 =
+          my_checksum(0, packed_tuple, tuple - packed_tuple);
       const uint32_t val_crc32 =
-          crc32(0, unpack_info->ptr(), unpack_info->get_current_pos());
+          my_checksum(0, unpack_info->ptr(), unpack_info->get_current_pos());
 
       unpack_info->write_uint8(RDB_CHECKSUM_DATA_TAG);
       unpack_info->write_uint32(key_crc32);
@@ -1690,9 +1692,9 @@ int Rdb_key_def::unpack_record(TABLE *const table, uchar *const buf,
           (const uchar *)unp_reader.read(RDB_CHECKSUM_SIZE));
 
       const uint32_t computed_key_chksum =
-          crc32(0, (const uchar *)packed_key->data(), packed_key->size());
+          my_checksum(0, packed_key->data(), packed_key->size());
       const uint32_t computed_val_chksum =
-          crc32(0, (const uchar *)unpack_info->data(),
+          my_checksum(0, unpack_info->data(),
                 unpack_info->size() - RDB_CHECKSUM_CHUNK_SIZE);
 
       DBUG_EXECUTE_IF("myrocks_simulate_bad_key_checksum1",
@@ -3315,7 +3317,9 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
       field->field_length = field->char_length() * cs->mbmaxlen.
     */
     const CHARSET_INFO *cs = field->charset();
-    m_max_image_len = cs->strnxfrmlen(field->field_length);
+    m_max_image_len = cs->strnxfrmlen(type == MYSQL_TYPE_STRING ?
+                                      field->pack_length() :
+                                      field->field_length);
   }
   const bool is_varchar = (type == MYSQL_TYPE_VARCHAR);
   const CHARSET_INFO *cs = field->charset();

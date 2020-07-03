@@ -23,7 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include <zlib.h>
 #include "common.h"
 #include "xbstream.h"
-#include "crc_glue.h"
 
 /* Allocate 1 MB for the payload buffer initially */
 #define INIT_BUFFER_LEN (1024 * 1024)
@@ -71,8 +70,7 @@ xb_rstream_result_t
 xb_stream_validate_checksum(xb_rstream_chunk_t *chunk)
 {
 	ulong	checksum;
-
-	checksum = crc32_iso3309(0, (unsigned char *)chunk->data, (uint)chunk->length);
+	checksum = my_checksum(0, chunk->data, chunk->length);
 	if (checksum != chunk->checksum) {
 		msg("xb_stream_read_chunk(): invalid checksum at offset "
 		    "0x%llx: expected 0x%lx, read 0x%lx.",

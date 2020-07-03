@@ -2599,3 +2599,38 @@ a
 2
 1
 drop view v1;
+#
+# MDEV-22560 Crash on a table value constructor with an SP variable
+#
+BEGIN NOT ATOMIC
+DECLARE a INT DEFAULT 0;
+VALUES (a) UNION SELECT 1;
+END;
+$$
+a
+0
+1
+#
+# MDEV-21995 Server crashes in Item_field::real_type_handler with table value constructor
+#
+VALUES (IGNORE);
+ERROR HY000: 'ignore' is not allowed in this context
+VALUES (DEFAULT);
+ERROR HY000: 'default' is not allowed in this context
+EXECUTE IMMEDIATE 'VALUES (?)' USING IGNORE;
+ERROR HY000: 'ignore' is not allowed in this context
+EXECUTE IMMEDIATE 'VALUES (?)' USING DEFAULT;
+ERROR HY000: 'default' is not allowed in this context
+#
+# MDEV-22610 Crash in INSERT INTO t1 (VALUES (DEFAULT) UNION VALUES (DEFAULT))
+#
+VALUES (DEFAULT) UNION VALUES (DEFAULT);
+ERROR HY000: 'default' is not allowed in this context
+VALUES (IGNORE) UNION VALUES (IGNORE);
+ERROR HY000: 'ignore' is not allowed in this context
+CREATE TABLE t1 (a INT DEFAULT 10);
+INSERT INTO t1 (VALUES (DEFAULT) UNION VALUES (DEFAULT));
+ERROR HY000: 'default' is not allowed in this context
+INSERT INTO t1 (VALUES (IGNORE) UNION VALUES (IGNORE));
+ERROR HY000: 'ignore' is not allowed in this context
+DROP TABLE t1;

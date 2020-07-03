@@ -52,8 +52,9 @@ static inline void output_core_info()
   char buff[PATH_MAX];
   ssize_t len;
   int fd;
-  if ((len= readlink("/proc/self/cwd", buff, sizeof(buff))) >= 0)
+  if ((len= readlink("/proc/self/cwd", buff, sizeof(buff)-1)) >= 0)
   {
+    buff[len]= 0;
     my_safe_printf_stderr("Writing a core file...\nWorking directory at %.*s\n",
                           (int) len, buff);
   }
@@ -278,7 +279,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   }
   my_safe_printf_stderr("%s",
     "The manual page at "
-    "http://dev.mysql.com/doc/mysql/en/crashing.html contains\n"
+    "https://mariadb.com/kb/en/how-to-produce-a-full-stack-trace-for-mysqld/ contains\n"
     "information that should help you find out what is causing the crash.\n");
 
 #endif /* HAVE_STACKTRACE */

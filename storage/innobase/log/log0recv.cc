@@ -165,7 +165,7 @@ public:
                       free + len + 6 >= srv_page_size - FIL_PAGE_DATA_END))
     {
       ib::error() << "Not applying UNDO_APPEND due to corruption on "
-                  << block.page.id;
+                  << block.page.id();
       return true;
     }
 
@@ -224,13 +224,13 @@ public:
         size_t idlen= mlog_decode_varint_length(*l);
         ut_ad(idlen <= 5);
         ut_ad(idlen < rlen);
-        ut_ad(mlog_decode_varint(l) == block.page.id.space());
+        ut_ad(mlog_decode_varint(l) == block.page.id().space());
         l+= idlen;
         rlen-= idlen;
         idlen= mlog_decode_varint_length(*l);
         ut_ad(idlen <= 5);
         ut_ad(idlen <= rlen);
-        ut_ad(mlog_decode_varint(l) == block.page.id.page_no());
+        ut_ad(mlog_decode_varint(l) == block.page.id().page_no());
         l+= idlen;
         rlen-= idlen;
         last_offset= 0;
@@ -244,9 +244,9 @@ public:
         if (UNIV_LIKELY(rlen == 0))
         {
           memset_aligned<UNIV_ZIP_SIZE_MIN>(frame, 0, size);
-          mach_write_to_4(frame + FIL_PAGE_OFFSET, block.page.id.page_no());
+          mach_write_to_4(frame + FIL_PAGE_OFFSET, block.page.id().page_no());
           memset_aligned<8>(FIL_PAGE_PREV + frame, 0xff, 8);
-          mach_write_to_4(frame + FIL_PAGE_SPACE_ID, block.page.id.space());
+          mach_write_to_4(frame + FIL_PAGE_SPACE_ID, block.page.id().space());
           last_offset= FIL_PAGE_TYPE;
       next_after_applying:
           if (applied == APPLIED_NO)
@@ -269,9 +269,9 @@ public:
       }
 
       ut_ad(mach_read_from_4(frame + FIL_PAGE_OFFSET) ==
-            block.page.id.page_no());
+            block.page.id().page_no());
       ut_ad(mach_read_from_4(frame + FIL_PAGE_SPACE_ID) ==
-            block.page.id.space());
+            block.page.id().space());
       ut_ad(last_offset <= 1 || last_offset > 8);
       ut_ad(last_offset <= size);
 
@@ -279,7 +279,7 @@ public:
       case OPTION:
         goto next;
       case EXTENDED:
-        if (UNIV_UNLIKELY(block.page.id.page_no() < 3 ||
+        if (UNIV_UNLIKELY(block.page.id().page_no() < 3 ||
                           block.page.zip.ssize))
           goto record_corrupted;
         static_assert(INIT_ROW_FORMAT_REDUNDANT == 0, "compatiblity");
@@ -462,7 +462,7 @@ page_corrupted:
           if (UNIV_UNLIKELY(rlen + last_offset > size))
             goto record_corrupted;
           memcpy(frame + last_offset, l, llen);
-          if (UNIV_LIKELY(block.page.id.page_no()));
+          if (UNIV_LIKELY(block.page.id().page_no()));
           else if (llen == 11 + MY_AES_BLOCK_SIZE &&
                    last_offset == FSP_HEADER_OFFSET + MAGIC_SZ +
                    fsp_header_get_encryption_offset(block.zip_size()))
@@ -543,11 +543,24 @@ struct file_name_t {
 	/** FSP_SIZE of tablespace */
 	ulint		size;
 
+	/** Freed pages of tablespace */
+	range_set	freed_ranges;
+
 	/** Constructor */
 	file_name_t(std::string name_, bool deleted)
 		: name(std::move(name_)), space(NULL),
 		status(deleted ? DELETED: NORMAL),
 		size(0) {}
+
+  /** Add the freed pages */
+  void add_freed_page(uint32_t page_no) { freed_ranges.add_value(page_no); }
+
+  /** Remove the freed pages */
+  void remove_freed_page(uint32_t page_no)
+  {
+    if (freed_ranges.empty()) return;
+    freed_ranges.remove_value(page_no);
+  }
 };
 
 /** Map of dirty tablespaces during recovery */
@@ -675,7 +688,7 @@ public:
 							break;
 						}
 						ib::error() << "corrupted "
-							    << block->page.id;
+							    << block->page.id();
 					}
 				}
 				if (recv_no_ibuf_operations) {
@@ -685,7 +698,7 @@ public:
 				}
 				mutex_exit(&recv_sys.mutex);
 				block->page.ibuf_exist = ibuf_page_exists(
-					block->page.id, block->zip_size());
+					block->page.id(), block->zip_size());
 				mtr.commit();
 				mtr.start();
 				mutex_enter(&recv_sys.mutex);
@@ -966,7 +979,7 @@ DECLARE_THREAD(recv_writer_thread)(
 
 		/* Flush pages from end of LRU if required */
 		os_event_reset(recv_sys.flush_end);
-		recv_sys.flush_type = BUF_FLUSH_LRU;
+		recv_sys.flush_lru = true;
 		os_event_set(recv_sys.flush_start);
 		os_event_wait(recv_sys.flush_end);
 
@@ -999,7 +1012,7 @@ void recv_sys_t::create()
 		flush_end = os_event_create(0);
 	}
 
-	flush_type = BUF_FLUSH_LRU;
+	flush_lru = true;
 	apply_log_recs = false;
 	apply_batch_on = false;
 
@@ -1035,7 +1048,7 @@ inline void recv_sys_t::clear()
   for (buf_block_t *block= UT_LIST_GET_LAST(blocks); block; )
   {
     buf_block_t *prev_block= UT_LIST_GET_PREV(unzip_LRU, block);
-    ut_ad(buf_block_get_state(block) == BUF_BLOCK_MEMORY);
+    ut_ad(block->page.state() == BUF_BLOCK_MEMORY);
     UT_LIST_REMOVE(blocks, block);
     buf_block_free(block);
     block= prev_block;
@@ -1080,8 +1093,8 @@ create_block:
       ut_calc_align<uint16_t>(static_cast<uint16_t>(len), ALIGNMENT);
     static_assert(ut_is_2pow(ALIGNMENT), "ALIGNMENT must be a power of 2");
     UT_LIST_ADD_FIRST(blocks, block);
-    UNIV_MEM_INVALID(block->frame, len);
-    UNIV_MEM_FREE(block->frame + len, srv_page_size - len);
+    MEM_UNDEFINED(block->frame, len);
+    MEM_NOACCESS(block->frame + len, srv_page_size - len);
     return my_assume_aligned<ALIGNMENT>(block->frame);
   }
 
@@ -1100,7 +1113,7 @@ create_block:
 
   block->page.access_time= ((block->page.access_time >> 16) + 1) << 16 |
     ut_calc_align<uint16_t>(static_cast<uint16_t>(free_offset), ALIGNMENT);
-  UNIV_MEM_ALLOC(block->frame + free_offset - len, len);
+  MEM_UNDEFINED(block->frame + free_offset - len, len);
   return my_assume_aligned<ALIGNMENT>(block->frame + free_offset - len);
 }
 
@@ -1128,7 +1141,7 @@ inline void recv_sys_t::free(const void *data)
       continue;
     buf_block_t *block= &chunk->blocks[offs];
     ut_ad(block->frame == data);
-    ut_ad(buf_block_get_state(block) == BUF_BLOCK_MEMORY);
+    ut_ad(block->page.state() == BUF_BLOCK_MEMORY);
     ut_ad(static_cast<uint16_t>(block->page.access_time - 1) <
           srv_page_size);
     ut_ad(block->page.access_time >= 1U << 16);
@@ -1204,7 +1217,7 @@ fail:
 				}
 			});
 
-		if (crc != cksum) {
+		if (UNIV_UNLIKELY(crc != cksum)) {
 			ib::error() << "Invalid log block checksum."
 				    << " block: " << block_number
 				    << " checkpoint no: "
@@ -1482,7 +1495,7 @@ static dberr_t recv_log_recover_10_4()
 	ulint crc = log_block_calc_checksum_crc32(buf);
 	ulint cksum = log_block_get_checksum(buf);
 
-	if (crc != cksum) {
+	if (UNIV_UNLIKELY(crc != cksum)) {
 		ib::error() << "Invalid log block checksum."
 			    << " block: "
 			    << log_block_get_hdr_no(buf)
@@ -1745,7 +1758,7 @@ inline void recv_sys_t::add(const page_id_t page_id,
     {
       /* Use already allocated 'padding' bytes */
 append:
-      UNIV_MEM_ALLOC(end + 1, len);
+      MEM_UNDEFINED(end + 1, len);
       /* Append to the preceding record for the page */
       tail->append(l, len);
       return;
@@ -1764,6 +1777,36 @@ append:
                   log_phys_t(start_lsn, lsn, l, len));
 }
 
+#if 0 /* FIXME: MDEV-22970 Potential corruption */
+/** Store/remove the freed pages in fil_name_t of recv_spaces.
+@param[in]	page_id		freed or init page_id
+@param[in]	freed		TRUE if page is freed */
+static void store_freed_or_init_rec(page_id_t page_id, bool freed)
+{
+  uint32_t space_id= page_id.space();
+  uint32_t page_no= page_id.page_no();
+  if (is_predefined_tablespace(space_id))
+  {
+    fil_space_t *space;
+    if (space_id == TRX_SYS_SPACE)
+      space= fil_system.sys_space;
+    else
+      space= fil_space_get(space_id);
+
+    space->free_page(page_no, freed);
+    return;
+  }
+
+  recv_spaces_t::iterator i= recv_spaces.lower_bound(space_id);
+  if (i != recv_spaces.end() && i->first == space_id)
+  {
+    if (freed)
+      i->second.add_freed_page(page_no);
+    else
+      i->second.remove_freed_page(page_no);
+  }
+}
+#endif
 
 /** Parse and register one mini-transaction in log_t::FORMAT_10_5.
 @param checkpoint_lsn  the log sequence number of the latest checkpoint
@@ -1963,6 +2006,9 @@ same_page:
       case INIT_PAGE:
         last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
+#if 0 /* FIXME: MDEV-22970 Potential corruption */
+        store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
+#endif
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
         break;
@@ -2234,18 +2280,18 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 	ut_ad(recv_needed_recovery);
 	ut_ad(!init || init->created);
 	ut_ad(!init || init->lsn);
-	ut_ad(block->page.id == p->first);
+	ut_ad(block->page.id() == p->first);
 	ut_ad(!p->second.is_being_processed());
-	ut_ad(!space || space->id == block->page.id.space());
+	ut_ad(!space || space->id == block->page.id().space());
 	ut_ad(log_sys.is_physical());
 
 	if (UNIV_UNLIKELY(srv_print_verbose_log == 2)) {
-		ib::info() << "Applying log to page " << block->page.id;
+		ib::info() << "Applying log to page " << block->page.id();
 	}
 
 	DBUG_PRINT("ib_log", ("Applying log to page %u:%u",
-			      block->page.id.space(),
-			      block->page.id.page_no()));
+			      block->page.id().space(),
+			      block->page.id().page_no()));
 
 	p->second.state = page_recv_t::RECV_BEING_PROCESSED;
 
@@ -2277,8 +2323,8 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 			/* This record has already been applied. */
 			DBUG_PRINT("ib_log", ("apply skip %u:%u LSN " LSN_PF
 					      " < " LSN_PF,
-					      block->page.id.space(),
-					      block->page.id.page_no(),
+					      block->page.id().space(),
+					      block->page.id().page_no(),
 					      l->start_lsn, page_lsn));
 			continue;
 		}
@@ -2286,8 +2332,8 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 		if (l->start_lsn < init_lsn) {
 			DBUG_PRINT("ib_log", ("init skip %u:%u LSN " LSN_PF
 					      " < " LSN_PF,
-					      block->page.id.space(),
-					      block->page.id.page_no(),
+					      block->page.id().space(),
+					      block->page.id().page_no(),
 					      l->start_lsn, init_lsn));
 			continue;
 		}
@@ -2295,13 +2341,13 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 
 		if (UNIV_UNLIKELY(srv_print_verbose_log == 2)) {
 			ib::info() << "apply " << l->start_lsn
-				   << ": " << block->page.id;
+				   << ": " << block->page.id();
 		}
 
 		DBUG_PRINT("ib_log", ("apply " LSN_PF ": %u:%u",
 				      l->start_lsn,
-				      block->page.id.space(),
-				      block->page.id.page_no()));
+				      block->page.id().space(),
+				      block->page.id().page_no()));
 
 		log_phys_t::apply_status a= l->apply(*block,
 						     p->second.last_offset);
@@ -2321,7 +2367,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 
 		if (fil_space_t* s = space
 		    ? space
-		    : fil_space_acquire(block->page.id.space())) {
+		    : fil_space_acquire(block->page.id().space())) {
 			switch (a) {
 			case log_phys_t::APPLIED_TO_FSP_HEADER:
 				s->flags = mach_read_from_4(
@@ -2448,7 +2494,7 @@ void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 	mtr.start();
 	mtr.set_log_mode(MTR_LOG_NONE);
 
-	ut_ad(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
+	ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE);
 	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
 
 	/* Move the ownership of the x-latch on the page to
@@ -2462,7 +2508,7 @@ void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 
 	mutex_enter(&recv_sys.mutex);
 	if (recv_sys.apply_log_recs) {
-		recv_sys_t::map::iterator p = recv_sys.pages.find(bpage->id);
+		recv_sys_t::map::iterator p = recv_sys.pages.find(bpage->id());
 		if (p != recv_sys.pages.end()
 		    && !p->second.is_being_processed()) {
 			recv_recover_page(block, mtr, p, space);
@@ -2495,7 +2541,7 @@ static void recv_read_in_area(page_id_t page_id)
 	     && i->first.space() == page_id.space()
 	     && i->first.page_no() < up_limit; i++) {
 		if (i->second.state == page_recv_t::RECV_NOT_PROCESSED
-		    && !buf_page_hash_get(i->first)) {
+		    && !buf_pool.page_hash_contains(i->first)) {
 			i->second.state = page_recv_t::RECV_BEING_READ;
 			*p++ = i->first.page_no();
 		}
@@ -2531,7 +2577,7 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
   {
     mtr.start();
     mtr.set_log_mode(MTR_LOG_NONE);
-    block= buf_page_create(page_id, space->zip_size(), &mtr);
+    block= buf_page_create(space, page_id.page_no(), space->zip_size(), &mtr);
     p= recv_sys.pages.find(page_id);
     if (p == recv_sys.pages.end())
     {
@@ -2702,7 +2748,7 @@ void recv_sys_t::apply(bool last_batch)
     buf_flush_wait_LRU_batch_end();
 
     os_event_reset(flush_end);
-    flush_type = BUF_FLUSH_LIST;
+    flush_lru= false;
     os_event_set(flush_start);
     os_event_wait(flush_end);
 
@@ -3183,7 +3229,7 @@ func_exit:
 	entire redo log. If rescan is needed or innodb_force_recovery
 	is set, we can ignore missing tablespaces. */
 	for (const recv_spaces_t::value_type& rs : recv_spaces) {
-		if (rs.second.status != file_name_t::MISSING) {
+		if (UNIV_LIKELY(rs.second.status != file_name_t::MISSING)) {
 			continue;
 		}
 
@@ -3240,6 +3286,12 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 			/* The tablespace was found, and there
 			are some redo log records for it. */
 			fil_names_dirty(rs.second.space);
+
+			/* Add the freed page ranges in the respective
+			tablespace */
+			if (!rs.second.freed_ranges.empty())
+			  rs.second.space->add_free_ranges(
+					std::move(rs.second.freed_ranges));
 		} else if (rs.second.name == "") {
 			ib::error() << "Missing FILE_CREATE, FILE_DELETE"
 				" or FILE_MODIFY before FILE_CHECKPOINT"

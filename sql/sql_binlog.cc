@@ -158,8 +158,9 @@ int binlog_defragment(THD *thd)
     memcpy(const_cast<char*>(thd->lex->comment.str) + gathered_length, entry[k]->value,
            entry[k]->length);
     gathered_length += entry[k]->length;
-    update_hash(entry[k], true, NULL, 0, STRING_RESULT, &my_charset_bin, 0);
   }
+  for (uint k=0; k < 2; k++)
+    update_hash(entry[k], true, NULL, 0, STRING_RESULT, &my_charset_bin, 0);
 
   DBUG_ASSERT(gathered_length == thd->lex->comment.length);
 
@@ -210,7 +211,7 @@ void mysql_client_binlog_statement(THD* thd)
   size_t coded_len= 0, decoded_len= 0;
 
   rli= thd->rli_fake;
-  if (!rli && (rli= thd->rli_fake= new Relay_log_info(FALSE)))
+  if (!rli && (rli= thd->rli_fake= new Relay_log_info(FALSE, "BINLOG_BASE64_EVENT")))
     rli->sql_driver_thd= thd;
   if (!(rgi= thd->rgi_fake))
     rgi= thd->rgi_fake= new rpl_group_info(rli);

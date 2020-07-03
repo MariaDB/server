@@ -580,8 +580,49 @@ select * from t1 force index(kp1) where (kp1=2 and kp2 >=4);
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t1;
 
---echo # End of 10.4 tests
+--echo #
+--echo # MDEV-21626: Optimizer misses the details about the picked join order
+--echo #
 
+CREATE TABLE t1(a INT, b INT, key(a));
+INSERT INTO t1 SELECT seq, seq from seq_1_to_10;
+CREATE TABLE t2(a INT, b INT, key(a));
+INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
+
+SET OPTIMIZER_TRACE=1;
+EXPLAIN SELECT * FROM t1, t2 WHERE t1.a=t2.a ORDER BY t2.b;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-22665: Print ranges in the optimizer trace created for non-indexed columns when
+--echo # optimizer_use_condition_selectivity >2
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+SET optimizer_trace=1;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+EXPLAIN EXTENDED SELECT * from t1 WHERE a between 1 and 5 and b <= 5;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN EXTENDED SELECT * from t1 WHERE a != 5;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN EXTENDED SELECT * from t1 WHERE b >= 10 and b < 25;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+--echo #
+--echo # MDEV-22910:SIGSEGV in Opt_trace_context::is_started & SIGSEGV in Json_writer::add_table_name
+--echo # (on optimized builds)
+--echo #
+
+CREATE TABLE t1( a INT, b INT, PRIMARY KEY( a ) );
+SELECT sum(b), row_number() OVER (order by b) FROM t1 WHERE a = 101;
+UPDATE t1 SET b=10 WHERE a=1;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+DROP TABLE t1;
+
+--echo # End of 10.4 tests
 
 --echo #
 --echo # Test many rows to see output of big cost numbers
@@ -589,6 +630,29 @@ drop table t1;
 
 select count(*) from seq_1_to_10000000;
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo #
+--echo # MDEV-22891: Optimizer trace: const tables are not clearly visible
+--echo #
+create table t0(a int primary key);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (pk int primary key, a int);
+insert into t1 select a,a from t0;
+
+create table t2 (pk int primary key, a int);
+insert into t2 select a,a from t0;
+
+create table t3 (pk int primary key, a int);
+insert into t3 select a,a from t0;
+
+explain
+select * from t1 left join (t2 join t3 on t3.pk=1000) on t2.a=t1.a and t2.pk is null;
+
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const'))
+from information_schema.optimizer_trace;
+
+drop table t0, t1, t2, t3;
 
 --echo # End of 10.5 tests
 set optimizer_trace='enabled=off';

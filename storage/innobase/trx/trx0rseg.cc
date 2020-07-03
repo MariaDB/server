@@ -312,7 +312,7 @@ trx_rseg_header_create(
 {
 	buf_block_t*	block;
 
-	ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_X_LOCK));
+	ut_ad(mtr->memo_contains(space->latch, MTR_MEMO_X_LOCK));
 	ut_ad(!sys_header == (space == fil_system.temp_space));
 
 	/* Allocate a new file segment for the rollback segment */
@@ -350,7 +350,7 @@ trx_rseg_header_create(
 			*sys_header,
 			TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO
 			+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
-			+ sys_header->frame, block->page.id.page_no());
+			+ sys_header->frame, block->page.id().page_no());
 	}
 
 	return block;
@@ -671,8 +671,6 @@ trx_rseg_create(ulint space_id)
 
 	mtr.start();
 
-	/* To obey the latching order, acquire the file space
-	x-latch before the trx_sys.mutex. */
 	fil_space_t*	space = mtr_x_lock_space(space_id, &mtr);
 	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
 
@@ -685,7 +683,8 @@ trx_rseg_create(ulint space_id)
 			ut_ad(trx_sysf_rseg_get_space(sys_header, rseg_id)
 			      == space_id);
 			rseg = trx_rseg_mem_create(rseg_id, space,
-						   rblock->page.id.page_no());
+						   rblock->page.id().
+						   page_no());
 			ut_ad(rseg->id == rseg_id);
 			ut_ad(rseg->is_persistent());
 			ut_ad(!trx_sys.rseg_array[rseg->id]);
@@ -712,7 +711,7 @@ trx_temp_rseg_create()
 		buf_block_t* rblock = trx_rseg_header_create(
 			fil_system.temp_space, i, NULL, &mtr);
 		trx_rseg_t* rseg = trx_rseg_mem_create(
-			i, fil_system.temp_space, rblock->page.id.page_no());
+			i, fil_system.temp_space, rblock->page.id().page_no());
 		ut_ad(!rseg->is_persistent());
 		ut_ad(!trx_sys.temp_rsegs[i]);
 		trx_sys.temp_rsegs[i] = rseg;

@@ -229,7 +229,7 @@ public:
     m_aio.reset();
   }
   int bind(native_file_handle &fd) { return m_aio->bind(fd); }
-  void unbind(const native_file_handle &fd) { m_aio->unbind(fd); }
+  void unbind(const native_file_handle &fd) { if (m_aio) m_aio->unbind(fd); }
   int submit_io(aiocb *cb) { return m_aio->submit_io(cb); }
   virtual void wait_begin() {};
   virtual void wait_end() {};

@@ -1,0 +1,20 @@
+SET @saved_profiling=@@GLOBAL.profiling;
+SET @saved_init_connect=@@GLOBAL.init_connect;
+SET GLOBAL init_connect="set @a=2;set @b=3";
+SET GLOBAL profiling=on;
+create user mysqltest1@localhost;
+connect  con1,localhost,mysqltest1,,;
+connection con1;
+SELECT @a, @b;
+@a	@b
+2	3
+SHOW PROFILES;
+Query_ID	Duration	Query
+1	#	set @a=2;set @b=3
+2	#	set @b=3
+3	#	SELECT @a, @b
+connection default;
+disconnect con1;
+DROP USER mysqltest1@localhost;
+SET GLOBAL profiling=@saved_profiling;
+SET GLOBAL init_connect=@saved_init_connect;

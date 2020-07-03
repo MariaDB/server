@@ -99,6 +99,13 @@ void item_init(void)
 }
 
 
+void Item::raise_error_not_evaluable()
+{
+  Item::Print tmp(this, QT_ORDINARY);
+  my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), tmp.ptr());
+}
+
+
 void Item::push_note_converted_to_negative_complement(THD *thd)
 {
   push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
@@ -754,6 +761,29 @@ bool Item_field::collect_item_field_processor(void *arg)
   }
   item_list->push_back(this);
   DBUG_RETURN(FALSE);
+}
+
+
+void Item_ident::undeclared_spvar_error() const
+{
+  /*
+    We assume this is an unknown SP variable, possibly a ROW variable.
+    Print the leftmost name in the error:
+      SET var=a;      -> a
+      SET var=a.b;    -> a
+      SET var=a.b.c;  -> a
+  */
+  my_error(ER_SP_UNDECLARED_VAR, MYF(0),  db_name.str    ? db_name.str :
+                                          table_name.str ? table_name.str :
+                                          field_name.str);
+}
+
+bool Item_field::unknown_splocal_processor(void *arg)
+{
+  DBUG_ENTER("Item_field::unknown_splocal_processor");
+  DBUG_ASSERT(type() == FIELD_ITEM);
+  undeclared_spvar_error();
+  DBUG_RETURN(true);
 }
 
 
@@ -1460,6 +1490,37 @@ bool mark_unsupported_function(const char *w1, const char *w2,
   if (ptr)
     strxmov(ptr, w1, w2, NullS);
   return mark_unsupported_function(ptr, store, result);
+}
+
+
+bool Item_field::check_vcol_func_processor(void *arg)
+{
+  context= 0;
+  vcol_func_processor_result *res= (vcol_func_processor_result *) arg;
+  if (res && res->alter_info)
+  {
+    for (Key &k: res->alter_info->key_list)
+    {
+      if (k.type != Key::FOREIGN_KEY)
+        continue;
+      Foreign_key *fk= (Foreign_key*) &k;
+      if (fk->update_opt != FK_OPTION_CASCADE)
+        continue;
+      for (Key_part_spec& kp: fk->columns)
+      {
+        if (!lex_string_cmp(system_charset_info, &kp.field_name, &field_name))
+        {
+          return mark_unsupported_function(field_name.str, arg, VCOL_IMPOSSIBLE);
+        }
+      }
+    }
+  }
+  if (field && (field->unireg_check == Field::NEXT_NUMBER))
+  {
+    // Auto increment fields are unsupported
+    return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF | VCOL_AUTO_INC);
+  }
+  return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF);
 }
 
 
@@ -2991,6 +3052,17 @@ Item_field::Item_field(THD *thd, Item_field *item)
 }
 
 
+bool Item_field::is_json_type()
+{
+  if (!field->check_constraint ||
+      field->check_constraint->expr->type() != FUNC_ITEM)
+    return FALSE;
+
+  Item_func *f= (Item_func *) field->check_constraint->expr;
+  return f->functype() == Item_func::JSON_VALID_FUNC;
+}
+
+
 void Item_field::set_field(Field *field_par)
 {
   field=result_field=field_par;			// for easy coding with fields
@@ -4295,6 +4367,23 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
   }
   DBUG_ASSERT(0); // Garbage
   return 1;
+}
+
+
+bool Item_param::is_evaluable_expression() const
+{
+  switch (state) {
+  case SHORT_DATA_VALUE:
+  case LONG_DATA_VALUE:
+  case NULL_VALUE:
+    return true;
+  case NO_VALUE:
+    return true; // Not assigned yet, so we don't know
+  case IGNORE_VALUE:
+  case DEFAULT_VALUE:
+    break;
+  }
+  return false;
 }
 
 
@@ -6833,8 +6922,8 @@ Item_float::Item_float(THD *thd, const char *str_arg, size_t length):
   value= my_charset_bin.strntod((char*) str_arg, length, &end_not_used, &error);
   if (unlikely(error))
   {
-    char tmp[NAME_LEN + 1];
-    my_snprintf(tmp, sizeof(tmp), "%.*s", (int)length, str_arg);
+    char tmp[NAME_LEN + 2];
+    my_snprintf(tmp, sizeof(tmp), "%.*s", static_cast<int>(length), str_arg);
     my_error(ER_ILLEGAL_VALUE_FOR_TYPE, MYF(0), "double", tmp);
   }
   presentation= name.str= str_arg;
@@ -9229,12 +9318,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   Item_field *field_arg;
   Field *def_field;
   DBUG_ASSERT(fixed == 0);
-
-  if (!arg)
-  {
-    fixed= 1;
-    return FALSE;
-  }
+  DBUG_ASSERT(arg);
 
   /*
     DEFAULT() do not need table field so should not ask handler to bring
@@ -9309,11 +9393,7 @@ void Item_default_value::cleanup()
 
 void Item_default_value::print(String *str, enum_query_type query_type)
 {
-  if (!arg)
-  {
-    str->append(STRING_WITH_LEN("default"));
-    return;
-  }
+  DBUG_ASSERT(arg);
   str->append(STRING_WITH_LEN("default("));
   /*
     We take DEFAULT from a field so do not need it value in case of const
@@ -9327,9 +9407,16 @@ void Item_default_value::print(String *str, enum_query_type query_type)
 
 void Item_default_value::calculate()
 {
+  DBUG_ASSERT(arg);
   if (field->default_value)
     field->set_default();
   DEBUG_SYNC(field->table->in_use, "after_Item_default_value_calculate");
+}
+
+bool Item_default_value::val_native(THD *thd, Native *to)
+{
+  calculate();
+  return Item_field::val_native(thd, to);
 }
 
 String *Item_default_value::val_str(String *str)
@@ -9370,14 +9457,8 @@ bool Item_default_value::send(Protocol *protocol, st_value *buffer)
 
 int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 {
-  if (arg)
-  {
-    calculate();
-    return Item_field::save_in_field(field_arg, no_conversions);
-  }
-
-  return field_arg->save_in_field_default_value(context->error_processor ==
-                                                &view_error_processor);
+  calculate();
+  return Item_field::save_in_field(field_arg, no_conversions);
 }
 
 table_map Item_default_value::used_tables() const
@@ -9398,13 +9479,7 @@ Item *Item_default_value::transform(THD *thd, Item_transformer transformer,
                                     uchar *args)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
-
-  /*
-    If the value of arg is NULL, then this object represents a constant,
-    so further transformation is unnecessary (and impossible).
-  */
-  if (!arg)
-    return 0;
+  DBUG_ASSERT(arg);
 
   Item *new_item= arg->transform(thd, transformer, args);
   if (!new_item)
@@ -9421,57 +9496,6 @@ Item *Item_default_value::transform(THD *thd, Item_transformer transformer,
   return (this->*transformer)(thd, args);
 }
 
-void Item_ignore_value::print(String *str, enum_query_type query_type)
-{
-    str->append(STRING_WITH_LEN("ignore"));
-}
-
-int Item_ignore_value::save_in_field(Field *field_arg, bool no_conversions)
-{
-  return field_arg->save_in_field_ignore_value(context->error_processor ==
-                                               &view_error_processor);
-}
-
-String *Item_ignore_value::val_str(String *str)
-{
-  DBUG_ASSERT(0); // never should be called
-  null_value= 1;
-  return 0;
-}
-
-double Item_ignore_value::val_real()
-{
-  DBUG_ASSERT(0); // never should be called
-  null_value= 1;
-  return 0.0;
-}
-
-longlong Item_ignore_value::val_int()
-{
-  DBUG_ASSERT(0); // never should be called
-  null_value= 1;
-  return 0;
-}
-
-my_decimal *Item_ignore_value::val_decimal(my_decimal *decimal_value)
-{
-  DBUG_ASSERT(0); // never should be called
-  null_value= 1;
-  return 0;
-}
-
-bool Item_ignore_value::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
-{
-  DBUG_ASSERT(0); // never should be called
-  null_value= 1;
-  return TRUE;
-}
-
-bool Item_ignore_value::send(Protocol *protocol, st_value *buffer)
-{
-  DBUG_ASSERT(0); // never should be called
-  return TRUE;
-}
 
 bool Item_insert_value::eq(const Item *item, bool binary_cmp) const
 {

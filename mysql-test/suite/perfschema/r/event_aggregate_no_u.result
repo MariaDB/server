@@ -230,7 +230,7 @@ wait/synch/rwlock/sql/LOCK_grant	1
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	6
@@ -239,21 +239,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	4
-localhost	stage/sql/closing tables	13
+localhost	stage/sql/closing tables	11
 localhost	stage/sql/init	3
 localhost	stage/sql/Opening tables	7
 localhost	stage/sql/starting	6
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	4
-stage/sql/closing tables	13
+stage/sql/closing tables	11
 stage/sql/init	3
 stage/sql/Opening tables	7
 stage/sql/starting	6
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	4
-stage/sql/closing tables	13
+stage/sql/closing tables	11
 stage/sql/init	3
 stage/sql/Opening tables	7
 stage/sql/starting	6
@@ -287,18 +287,18 @@ statement/sql/insert	1
 statement/sql/select	3
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
+user1	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	1
+localhost	transaction	2
 execute dump_transactions_global;
 event_name	count_star
-transaction	1
+transaction	2
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	1
+transaction	2
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -345,7 +345,7 @@ wait/synch/rwlock/sql/LOCK_grant	1
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	6
@@ -359,21 +359,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	4
-localhost	stage/sql/closing tables	13
+localhost	stage/sql/closing tables	11
 localhost	stage/sql/init	3
 localhost	stage/sql/Opening tables	7
 localhost	stage/sql/starting	6
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	4
-stage/sql/closing tables	13
+stage/sql/closing tables	11
 stage/sql/init	3
 stage/sql/Opening tables	7
 stage/sql/starting	6
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	4
-stage/sql/closing tables	13
+stage/sql/closing tables	11
 stage/sql/init	3
 stage/sql/Opening tables	7
 stage/sql/starting	6
@@ -412,19 +412,19 @@ statement/sql/insert	1
 statement/sql/select	3
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
+user1	localhost	transaction	2
 user2	localhost	transaction	0
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	1
+localhost	transaction	2
 execute dump_transactions_global;
 event_name	count_star
-transaction	1
+transaction	2
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	1
+transaction	2
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -484,12 +484,12 @@ wait/synch/rwlock/sql/LOCK_grant	2
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	6
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	6
@@ -498,21 +498,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	8
-localhost	stage/sql/closing tables	24
+localhost	stage/sql/closing tables	21
 localhost	stage/sql/init	6
 localhost	stage/sql/Opening tables	13
 localhost	stage/sql/starting	12
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	8
-stage/sql/closing tables	24
+stage/sql/closing tables	21
 stage/sql/init	6
 stage/sql/Opening tables	13
 stage/sql/starting	12
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	8
-stage/sql/closing tables	24
+stage/sql/closing tables	21
 stage/sql/init	6
 stage/sql/Opening tables	13
 stage/sql/starting	12
@@ -551,19 +551,19 @@ statement/sql/insert	2
 statement/sql/select	6
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	2
+localhost	transaction	4
 execute dump_transactions_global;
 event_name	count_star
-transaction	2
+transaction	4
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	2
+transaction	4
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -614,12 +614,12 @@ wait/synch/rwlock/sql/LOCK_grant	2
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	6
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	6
@@ -633,21 +633,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	8
-localhost	stage/sql/closing tables	24
+localhost	stage/sql/closing tables	21
 localhost	stage/sql/init	6
 localhost	stage/sql/Opening tables	13
 localhost	stage/sql/starting	12
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	8
-stage/sql/closing tables	24
+stage/sql/closing tables	21
 stage/sql/init	6
 stage/sql/Opening tables	13
 stage/sql/starting	12
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	8
-stage/sql/closing tables	24
+stage/sql/closing tables	21
 stage/sql/init	6
 stage/sql/Opening tables	13
 stage/sql/starting	12
@@ -691,20 +691,20 @@ statement/sql/insert	2
 statement/sql/select	6
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
 user3	localhost	transaction	0
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	2
+localhost	transaction	4
 execute dump_transactions_global;
 event_name	count_star
-transaction	2
+transaction	4
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	2
+transaction	4
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -768,17 +768,17 @@ wait/synch/rwlock/sql/LOCK_grant	3
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	6
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	6
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	6
@@ -787,21 +787,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	12
-localhost	stage/sql/closing tables	35
+localhost	stage/sql/closing tables	31
 localhost	stage/sql/init	9
 localhost	stage/sql/Opening tables	19
 localhost	stage/sql/starting	18
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	12
-stage/sql/closing tables	35
+stage/sql/closing tables	31
 stage/sql/init	9
 stage/sql/Opening tables	19
 stage/sql/starting	18
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	12
-stage/sql/closing tables	35
+stage/sql/closing tables	31
 stage/sql/init	9
 stage/sql/Opening tables	19
 stage/sql/starting	18
@@ -845,20 +845,20 @@ statement/sql/insert	3
 statement/sql/select	9
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	3
+localhost	transaction	6
 execute dump_transactions_global;
 event_name	count_star
-transaction	3
+transaction	6
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	3
+transaction	6
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -913,17 +913,17 @@ wait/synch/rwlock/sql/LOCK_grant	3
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	6
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	6
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	6
@@ -937,21 +937,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	12
-localhost	stage/sql/closing tables	35
+localhost	stage/sql/closing tables	31
 localhost	stage/sql/init	9
 localhost	stage/sql/Opening tables	19
 localhost	stage/sql/starting	18
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	12
-stage/sql/closing tables	35
+stage/sql/closing tables	31
 stage/sql/init	9
 stage/sql/Opening tables	19
 stage/sql/starting	18
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	12
-stage/sql/closing tables	35
+stage/sql/closing tables	31
 stage/sql/init	9
 stage/sql/Opening tables	19
 stage/sql/starting	18
@@ -1000,21 +1000,21 @@ statement/sql/insert	3
 statement/sql/select	9
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
 user4	localhost	transaction	0
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	3
+localhost	transaction	6
 execute dump_transactions_global;
 event_name	count_star
-transaction	3
+transaction	6
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	3
+transaction	6
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -1082,22 +1082,22 @@ wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	6
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	6
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	6
 user4	localhost	stage/sql/checking permissions	4
-user4	localhost	stage/sql/closing tables	11
+user4	localhost	stage/sql/closing tables	10
 user4	localhost	stage/sql/init	3
 user4	localhost	stage/sql/Opening tables	6
 user4	localhost	stage/sql/starting	6
@@ -1106,21 +1106,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	24
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	24
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	24
@@ -1169,21 +1169,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -1238,22 +1238,22 @@ wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	7
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	6
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	6
 user4	localhost	stage/sql/checking permissions	4
-user4	localhost	stage/sql/closing tables	11
+user4	localhost	stage/sql/closing tables	10
 user4	localhost	stage/sql/init	3
 user4	localhost	stage/sql/Opening tables	6
 user4	localhost	stage/sql/starting	6
@@ -1262,21 +1262,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	25
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	25
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	25
@@ -1326,21 +1326,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -1394,22 +1394,22 @@ wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	7
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	7
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	6
 user4	localhost	stage/sql/checking permissions	4
-user4	localhost	stage/sql/closing tables	11
+user4	localhost	stage/sql/closing tables	10
 user4	localhost	stage/sql/init	3
 user4	localhost	stage/sql/Opening tables	6
 user4	localhost	stage/sql/starting	6
@@ -1418,21 +1418,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	26
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	26
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	26
@@ -1482,21 +1482,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -1549,22 +1549,22 @@ wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	7
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	7
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	7
 user4	localhost	stage/sql/checking permissions	4
-user4	localhost	stage/sql/closing tables	11
+user4	localhost	stage/sql/closing tables	10
 user4	localhost	stage/sql/init	3
 user4	localhost	stage/sql/Opening tables	6
 user4	localhost	stage/sql/starting	6
@@ -1573,21 +1573,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	27
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	27
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	27
@@ -1637,21 +1637,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -1703,22 +1703,22 @@ wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	7
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	7
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	7
 user4	localhost	stage/sql/checking permissions	4
-user4	localhost	stage/sql/closing tables	11
+user4	localhost	stage/sql/closing tables	10
 user4	localhost	stage/sql/init	3
 user4	localhost	stage/sql/Opening tables	6
 user4	localhost	stage/sql/starting	7
@@ -1727,21 +1727,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	28
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -1791,21 +1791,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -1858,22 +1858,22 @@ wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	7
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	7
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	7
 user4	localhost	stage/sql/checking permissions	4
-user4	localhost	stage/sql/closing tables	11
+user4	localhost	stage/sql/closing tables	10
 user4	localhost	stage/sql/init	3
 user4	localhost	stage/sql/Opening tables	6
 user4	localhost	stage/sql/starting	7
@@ -1882,21 +1882,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	28
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -1946,21 +1946,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -2012,22 +2012,22 @@ wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	7
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	7
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	7
 user4	localhost	stage/sql/checking permissions	4
-user4	localhost	stage/sql/closing tables	11
+user4	localhost	stage/sql/closing tables	10
 user4	localhost	stage/sql/init	3
 user4	localhost	stage/sql/Opening tables	6
 user4	localhost	stage/sql/starting	7
@@ -2036,21 +2036,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	28
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -2100,21 +2100,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -2166,22 +2166,22 @@ wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	7
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	7
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	7
 user4	localhost	stage/sql/checking permissions	4
-user4	localhost	stage/sql/closing tables	11
+user4	localhost	stage/sql/closing tables	10
 user4	localhost	stage/sql/init	3
 user4	localhost	stage/sql/Opening tables	6
 user4	localhost	stage/sql/starting	7
@@ -2190,21 +2190,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	28
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -2254,21 +2254,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -2320,22 +2320,22 @@ wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	7
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	7
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	7
 user4	localhost	stage/sql/checking permissions	4
-user4	localhost	stage/sql/closing tables	11
+user4	localhost	stage/sql/closing tables	10
 user4	localhost	stage/sql/init	3
 user4	localhost	stage/sql/Opening tables	6
 user4	localhost	stage/sql/starting	7
@@ -2344,21 +2344,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	28
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -2408,21 +2408,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -2474,22 +2474,22 @@ wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	7
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	7
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	7
 user4	localhost	stage/sql/checking permissions	4
-user4	localhost	stage/sql/closing tables	11
+user4	localhost	stage/sql/closing tables	10
 user4	localhost	stage/sql/init	3
 user4	localhost	stage/sql/Opening tables	6
 user4	localhost	stage/sql/starting	7
@@ -2498,21 +2498,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	28
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -2562,21 +2562,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -2628,22 +2628,22 @@ wait/synch/rwlock/sql/LOCK_grant	4
 execute dump_stages_account;
 user	host	event_name	count_star
 user1	localhost	stage/sql/checking permissions	4
-user1	localhost	stage/sql/closing tables	13
+user1	localhost	stage/sql/closing tables	11
 user1	localhost	stage/sql/init	3
 user1	localhost	stage/sql/Opening tables	7
 user1	localhost	stage/sql/starting	7
 user2	localhost	stage/sql/checking permissions	4
-user2	localhost	stage/sql/closing tables	11
+user2	localhost	stage/sql/closing tables	10
 user2	localhost	stage/sql/init	3
 user2	localhost	stage/sql/Opening tables	6
 user2	localhost	stage/sql/starting	7
 user3	localhost	stage/sql/checking permissions	4
-user3	localhost	stage/sql/closing tables	11
+user3	localhost	stage/sql/closing tables	10
 user3	localhost	stage/sql/init	3
 user3	localhost	stage/sql/Opening tables	6
 user3	localhost	stage/sql/starting	7
 user4	localhost	stage/sql/checking permissions	4
-user4	localhost	stage/sql/closing tables	11
+user4	localhost	stage/sql/closing tables	10
 user4	localhost	stage/sql/init	3
 user4	localhost	stage/sql/Opening tables	6
 user4	localhost	stage/sql/starting	7
@@ -2652,21 +2652,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	28
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -2716,21 +2716,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -2806,21 +2806,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	28
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -2870,21 +2870,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -2960,21 +2960,21 @@ user	event_name	count_star
 execute dump_stages_host;
 host	event_name	count_star
 localhost	stage/sql/checking permissions	16
-localhost	stage/sql/closing tables	46
+localhost	stage/sql/closing tables	41
 localhost	stage/sql/init	12
 localhost	stage/sql/Opening tables	25
 localhost	stage/sql/starting	28
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -3024,21 +3024,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -3121,14 +3121,14 @@ localhost	stage/sql/starting	0
 execute dump_stages_global;
 event_name	count_star
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -3178,21 +3178,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -3282,7 +3282,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -3332,21 +3332,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -3436,7 +3436,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -3486,21 +3486,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -3590,7 +3590,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -3640,21 +3640,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -3744,7 +3744,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -3794,21 +3794,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -3898,7 +3898,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -3948,21 +3948,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -4052,7 +4052,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -4102,21 +4102,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -4206,7 +4206,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -4256,21 +4256,21 @@ statement/sql/insert	4
 statement/sql/select	12
 execute dump_transactions_account;
 user	host	event_name	count_star
-user1	localhost	transaction	1
-user2	localhost	transaction	1
-user3	localhost	transaction	1
-user4	localhost	transaction	1
+user1	localhost	transaction	2
+user2	localhost	transaction	2
+user3	localhost	transaction	2
+user4	localhost	transaction	2
 execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -4360,7 +4360,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -4418,13 +4418,13 @@ execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -4514,7 +4514,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -4572,13 +4572,13 @@ execute dump_transactions_user;
 user	event_name	count_star
 execute dump_transactions_host;
 host	event_name	count_star
-localhost	transaction	4
+localhost	transaction	8
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -4668,7 +4668,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -4729,10 +4729,10 @@ host	event_name	count_star
 localhost	transaction	0
 execute dump_transactions_global;
 event_name	count_star
-transaction	4
+transaction	8
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -4822,7 +4822,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -4886,7 +4886,7 @@ event_name	count_star
 transaction	0
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -4948,7 +4948,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -4988,7 +4988,7 @@ event_name	count_star
 transaction	0
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -5046,7 +5046,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -5086,7 +5086,7 @@ event_name	count_star
 transaction	0
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1
@@ -5144,7 +5144,7 @@ stage/sql/starting	0
 execute dump_stages_history;
 event_name	count(event_name)
 stage/sql/checking permissions	16
-stage/sql/closing tables	46
+stage/sql/closing tables	41
 stage/sql/init	12
 stage/sql/Opening tables	25
 stage/sql/starting	28
@@ -5184,7 +5184,7 @@ event_name	count_star
 transaction	0
 execute dump_transactions_history;
 event_name	count(event_name)
-transaction	4
+transaction	8
 execute dump_accounts;
 USER	HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 root	localhost	1	1

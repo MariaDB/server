@@ -966,6 +966,42 @@ select i, sum(i) from t1 group by i with rollup;
 drop function agg_sum;
 drop table t1;
 
+--echo #
+--echo # User defined aggregate functions not working correctly when the schema is changed
+--echo #
+
+CREATE SCHEMA IF NOT EXISTS common_schema;
+CREATE SCHEMA IF NOT EXISTS another_schema;
+DELIMITER |;
+DROP FUNCTION IF EXISTS common_schema.add_ints |
+CREATE FUNCTION common_schema.add_ints(int_1 INT, int_2 INT) RETURNS INT NO SQL
+BEGIN
+    RETURN int_1 + int_2;
+END |
+DROP FUNCTION IF EXISTS common_schema.sum_ints |
+CREATE AGGREGATE FUNCTION common_schema.sum_ints(int_val INT) RETURNS INT
+BEGIN
+    DECLARE result INT DEFAULT 0;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN result;
+    LOOP FETCH GROUP NEXT ROW;
+        SET result = common_schema.add_ints(result, int_val);
+    END LOOP;
+END |
+
+DELIMITER ;|
+
+use common_schema;
+SELECT common_schema.sum_ints(seq) FROM (SELECT 1 seq UNION ALL SELECT 2) t;
+
+USE another_schema;
+SELECT common_schema.sum_ints(seq) FROM (SELECT 1 seq UNION ALL SELECT 2) t;
+
+drop database common_schema;
+drop database another_schema;
+
+USE test;
+
+--echo # End of 10.3 tests
 
 --echo #
 --echo # MDEV-18813 PROCEDURE and anonymous blocks silently ignore FETCH GROUP NEXT ROW
@@ -1016,3 +1052,5 @@ CREATE EVENT ev1
   STARTS CURRENT_TIMESTAMP + INTERVAL 1 MONTH
   ENDS CURRENT_TIMESTAMP + INTERVAL 1 MONTH + INTERVAL 1 WEEK
 DO FETCH GROUP NEXT ROW;
+
+--echo # End of 10.4 tests

@@ -36,16 +36,62 @@ Created 10/25/1995 Heikki Tuuri
 #include "hash0hash.h"
 #include "log0recv.h"
 #include "dict0types.h"
-#include "intrusive_list.h"
-#ifdef UNIV_LINUX
-# include <set>
-#endif
+#include "ilist.h"
+#include <set>
+#include <mutex>
 
 struct unflushed_spaces_tag_t;
 struct rotation_list_tag_t;
 
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
+
+/** Possible values of innodb_flush_method */
+enum srv_flush_t
+{
+  /** fsync, the default */
+  SRV_FSYNC= 0,
+  /** open log files in O_DSYNC mode */
+  SRV_O_DSYNC,
+  /** do not call os_file_flush() when writing data files, but do flush
+  after writing to log files */
+  SRV_LITTLESYNC,
+  /** do not flush after writing */
+  SRV_NOSYNC,
+  /** invoke os_file_set_nocache() on data files. This implies using
+  non-buffered IO but still using fsync, the reason for which is that
+  some FS do not flush meta-data when unbuffered IO happens */
+  SRV_O_DIRECT,
+  /** do not use fsync() when using direct IO i.e.: it can be set to
+  avoid the fsync() call that we make when using SRV_UNIX_O_DIRECT.
+  However, in this case user/DBA should be sure about the integrity of
+  the meta-data */
+  SRV_O_DIRECT_NO_FSYNC
+#ifdef _WIN32
+  /** Traditional Windows appoach to open all files without caching,
+  and do FileFlushBuffers() */
+  ,SRV_ALL_O_DIRECT_FSYNC
+#endif
+};
+
+/** innodb_flush_method */
+extern ulong srv_file_flush_method;
+
+/** Undo tablespaces starts with space_id. */
+extern	ulint	srv_undo_space_id_start;
+/** The number of UNDO tablespaces that are open and ready to use. */
+extern ulint	srv_undo_tablespaces_open;
+
+/** Check whether given space id is undo tablespace id
+@param[in]	space_id	space id to check
+@return true if it is undo tablespace else false. */
+inline bool srv_is_undo_tablespace(ulint space_id)
+{
+  return srv_undo_space_id_start > 0 &&
+    space_id >= srv_undo_space_id_start &&
+    space_id < srv_undo_space_id_start + srv_undo_tablespaces_open;
+}
+
 extern struct buf_dblwr_t* buf_dblwr;
 class page_id_t;
 
@@ -64,12 +110,181 @@ enum fil_type_t {
 
 struct fil_node_t;
 
+/** Structure to store first and last value of range */
+struct range_t
+{
+  uint32_t first;
+  uint32_t last;
+};
+
+/** Sort the range based on first value of the range */
+struct range_compare
+{
+  bool operator() (const range_t lhs, const range_t rhs) const
+  {
+    return lhs.first < rhs.first;
+  }
+};
+
+using range_set_t= std::set<range_t, range_compare>;
+/** Range to store the set of ranges of integers */
+class range_set
+{
+private:
+  range_set_t ranges;
+public:
+  /** Merge the current range with previous range.
+  @param[in] range      range to be merged
+  @param[in] prev_range range to be merged with next */
+  void merge_range(range_set_t::iterator range,
+		   range_set_t::iterator prev_range)
+  {
+    if (range->first != prev_range->last + 1)
+      return;
+
+    /* Merge the current range with previous range */
+    range_t new_range {prev_range->first, range->last};
+    ranges.erase(prev_range);
+    ranges.erase(range);
+    ranges.emplace(new_range);
+  }
+
+  /** Split the range and add two more ranges
+  @param[in] range	range to be split
+  @param[in] value	Value to be removed from range */
+  void split_range(range_set_t::iterator range, uint32_t value)
+  {
+    range_t split1{range->first, value - 1};
+    range_t split2{value + 1, range->last};
+
+    /* Remove the existing element */
+    ranges.erase(range);
+
+    /* Insert the two elements */
+    ranges.emplace(split1);
+    ranges.emplace(split2);
+  }
+
+  /** Remove the value with the given range
+  @param[in,out] range  range to be changed
+  @param[in]	 value	value to be removed */
+  void remove_within_range(range_set_t::iterator range, uint32_t value)
+  {
+    range_t new_range{range->first, range->last};
+    if (value == range->first)
+    {
+      if (range->first == range->last)
+      {
+        ranges.erase(range);
+        return;
+      }
+      else
+        new_range.first++;
+    }
+    else if (value == range->last)
+      new_range.last--;
+    else if (range->first < value && range->last > value)
+      return split_range(range, value);
+
+    ranges.erase(range);
+    ranges.emplace(new_range);
+  }
+
+  /** Remove the value from the ranges.
+  @param[in]	value	Value to be removed. */
+  void remove_value(uint32_t value)
+  {
+    if (ranges.empty())
+      return;
+    range_t new_range {value, value};
+    range_set_t::iterator range= ranges.lower_bound(new_range);
+    if (range == ranges.end())
+      return remove_within_range(std::prev(range), value);
+
+    if (range->first > value && range != ranges.begin())
+      /* Iterate the previous ranges to delete */
+      return remove_within_range(std::prev(range), value);
+    return remove_within_range(range, value);
+  }
+  /** Add the value within the existing range
+  @param[in]	range	range to be modified
+  @param[in]	value	value to be added */
+  range_set_t::iterator add_within_range(range_set_t::iterator range,
+                                         uint32_t value)
+  {
+    if (range->first <= value && range->last >= value)
+      return range;
+
+    range_t new_range{range->first, range->last};
+    if (range->last + 1 == value)
+      new_range.last++;
+    else if (range->first - 1 == value)
+      new_range.first--;
+    else return ranges.end();
+    ranges.erase(range);
+    return ranges.emplace(new_range).first;
+  }
+  /** Add the range in the ranges set
+  @param[in]	new_range	range to be added */
+  void add_range(range_t new_range)
+  {
+    auto r_offset= ranges.lower_bound(new_range);
+    auto r_begin= ranges.begin();
+    auto r_end= ranges.end();
+    if (!ranges.size())
+    {
+new_range:
+      ranges.emplace(new_range);
+      return;
+    }
+
+    if (r_offset == r_end)
+    {
+      /* last range */
+      if (add_within_range(std::prev(r_offset), new_range.first) == r_end)
+        goto new_range;
+    }
+    else if (r_offset == r_begin)
+    {
+      /* First range */
+      if (add_within_range(r_offset, new_range.first) == r_end)
+        goto new_range;
+    }
+    else if (r_offset->first - 1 == new_range.first)
+    {
+      /* Change starting of the existing range */
+      auto r_value= add_within_range(r_offset, new_range.first);
+      if (r_value != ranges.begin())
+        merge_range(r_value, std::prev(r_value));
+    }
+    else
+    {
+      /* previous range last_value alone */
+      if (add_within_range(std::prev(r_offset), new_range.first) == r_end)
+        goto new_range;
+    }
+  }
+
+ /** Add the value in the ranges
+ @param[in] value  value to be added */
+  void add_value(uint32_t value)
+  {
+    range_t new_range{value, value};
+    add_range(new_range);
+  }
+
+  ulint size() { return ranges.size(); }
+  void clear() { ranges.clear(); }
+  bool empty() const { return ranges.empty(); }
+  typename range_set_t::iterator begin() { return ranges.begin(); }
+  typename range_set_t::iterator end() { return ranges.end(); }
+};
 #endif
 
 /** Tablespace or log data space */
 #ifndef UNIV_INNOCHECKSUM
-struct fil_space_t : intrusive::list_node<unflushed_spaces_tag_t>,
-                     intrusive::list_node<rotation_list_tag_t>
+struct fil_space_t : ilist_node<unflushed_spaces_tag_t>,
+                     ilist_node<rotation_list_tag_t>
 #else
 struct fil_space_t
 #endif
@@ -137,17 +352,17 @@ struct fil_space_t
 	UT_LIST_NODE_T(fil_space_t) named_spaces;
 				/*!< list of spaces for which FILE_MODIFY
 				records have been issued */
-	/** Checks that this tablespace in a list of unflushed tablespaces.
-	@return true if in a list */
-	bool is_in_unflushed_spaces() const;
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
-	/** Checks that this tablespace needs key rotation.
-	@return true if in a rotation list */
-	bool is_in_rotation_list() const;
 
 	/** MariaDB encryption data */
 	fil_space_crypt_t* crypt_data;
+
+	/** Checks that this tablespace in a list of unflushed tablespaces. */
+	bool is_in_unflushed_spaces;
+
+	/** Checks that this tablespace needs key rotation. */
+	bool is_in_rotation_list;
 
 	/** True if the device this filespace is on supports atomic writes */
 	bool		atomic_write_supported;
@@ -155,6 +370,16 @@ struct fil_space_t
 	/** True if file system storing this tablespace supports
 	punch hole */
 	bool		punch_hole;
+
+	/** mutex to protect freed ranges */
+	std::mutex	freed_range_mutex;
+
+	/** Variables to store freed ranges. This can be used to write
+	zeroes/punch the hole in files. Protected by freed_mutex */
+	range_set	freed_ranges;
+
+	/** Stores last page freed lsn. Protected by freed_mutex */
+	lsn_t		last_freed_lsn;
 
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 
@@ -249,6 +474,41 @@ struct fil_space_t
 	void release_for_io() { ut_ad(pending_io()); n_pending_ios--; }
 	/** @return whether I/O is pending */
 	bool pending_io() const { return n_pending_ios; }
+
+  /** @return whether the tablespace file can be closed and reopened */
+  bool belongs_in_lru() const
+  {
+    switch (purpose) {
+    case FIL_TYPE_TEMPORARY:
+      ut_ad(id == SRV_TMP_SPACE_ID);
+      return false;
+    case FIL_TYPE_IMPORT:
+      ut_ad(id != SRV_TMP_SPACE_ID);
+      return true;
+    case FIL_TYPE_TABLESPACE:
+      ut_ad(id != SRV_TMP_SPACE_ID);
+      return id && !srv_is_undo_tablespace(id);
+    }
+    ut_ad(0);
+    return false;
+  }
+
+  /** @return last_freed_lsn */
+  lsn_t get_last_freed_lsn() { return last_freed_lsn; }
+  /** Update last_freed_lsn */
+  void update_last_freed_lsn(lsn_t lsn)
+  {
+    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
+    last_freed_lsn= lsn;
+  }
+
+  /** Clear all freed ranges for undo tablespace when InnoDB
+  encounters TRIM redo log record */
+  void clear_freed_ranges()
+  {
+    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
+    freed_ranges.clear();
+  }
 #endif /* !UNIV_INNOCHECKSUM */
 	/** FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
 	check fsp0types.h to more info about flags. */
@@ -518,6 +778,38 @@ struct fil_space_t
 		return(ssize == 0 || !is_ibd
 		       || srv_page_size != UNIV_PAGE_SIZE_ORIG);
 	}
+
+#ifndef UNIV_INNOCHECKSUM
+  /** Add/remove the free page in the freed ranges list.
+  @param[in] offset     page number to be added
+  @param[in] free       true if page to be freed */
+  void free_page(uint32_t offset, bool add=true)
+  {
+    std::lock_guard<std::mutex>	freed_lock(freed_range_mutex);
+    if (add)
+      return freed_ranges.add_value(offset);
+
+    if (freed_ranges.empty())
+      return;
+
+    return freed_ranges.remove_value(offset);
+  }
+
+  /** Add the range of freed pages */
+  void add_free_ranges(range_set ranges)
+  {
+    std::lock_guard<std::mutex>	freed_lock(freed_range_mutex);
+    freed_ranges= std::move(ranges);
+  }
+
+  /** Add the set of freed page ranges */
+  void add_free_range(const range_t range)
+  {
+    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
+    freed_ranges.add_range(range);
+  }
+#endif /*!UNIV_INNOCHECKSUM */
+
 };
 
 #ifndef UNIV_INNOCHECKSUM
@@ -586,8 +878,21 @@ struct fil_node_t {
 #endif
 			   );
 
-	/** Close the file handle. */
-	void close();
+  /** Close the file handle. */
+  void close();
+  /** Same as close() but returns file handle instead of closing it. */
+  pfs_os_file_t detach() MY_ATTRIBUTE((warn_unused_result));
+  /** Prepare to free a file from fil_system.
+  @param detach_handle whether to detach instead of closing a handle
+  @return detached handle or OS_FILE_CLOSED */
+  pfs_os_file_t close_to_free(bool detach_handle= false);
+
+  /** Update the data structures on I/O completion */
+  inline void complete_io(bool write= false);
+
+private:
+  /** Does stuff common for close() and detach() */
+  void prepare_to_close_or_detach();
 };
 
 /** Value of fil_node_t::magic_n */
@@ -903,12 +1208,18 @@ public:
   }
 #endif
 public:
+  /** Detach a tablespace from the cache and close the files.
+  @param space tablespace
+  @param detach_handle whether to detach or close handles
+  @return detached handles or empty vector */
+  std::vector<pfs_os_file_t> detach(fil_space_t *space,
+                                    bool detach_handle= false);
+
 	ib_mutex_t	mutex;		/*!< The mutex protecting the cache */
 	fil_space_t*	sys_space;	/*!< The innodb_system tablespace */
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
-	hash_table_t*	spaces;		/*!< The hash table of spaces in the
-					system; they are hashed on the space
-					id */
+  /** Map of fil_space_t::id to fil_space_t* */
+  hash_table_t spaces;
 	UT_LIST_BASE_NODE_T(fil_node_t) LRU;
 					/*!< base node for the LRU list of the
 					most recently used open files with no
@@ -920,7 +1231,7 @@ public:
 					not put to this list: they are opened
 					after the startup, and kept open until
 					shutdown */
-	intrusive::list<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
+	sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
 					/*!< list of those
 					tablespaces whose files contain
 					unflushed writes; those spaces have
@@ -941,7 +1252,7 @@ public:
 					record has been written since
 					the latest redo log checkpoint.
 					Protected only by log_sys.mutex. */
-	intrusive::list<fil_space_t, rotation_list_tag_t> rotation_list;
+	ilist<fil_space_t, rotation_list_tag_t> rotation_list;
 					/*!< list of all file spaces needing
 					key rotation.*/
 
@@ -978,6 +1289,41 @@ public:
 
 /** The tablespace memory cache. */
 extern fil_system_t	fil_system;
+
+/** Update the data structures on I/O completion */
+inline void fil_node_t::complete_io(bool write)
+{
+  ut_ad(mutex_own(&fil_system.mutex));
+
+  if (write)
+  {
+    if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)
+    {
+      /* We don't need to keep track of unflushed changes as user has
+      explicitly disabled buffering. */
+      ut_ad(!space->is_in_unflushed_spaces);
+      ut_ad(!needs_flush);
+    }
+    else if (!space->is_stopping())
+    {
+      needs_flush= true;
+      if (!space->is_in_unflushed_spaces)
+      {
+        space->is_in_unflushed_spaces= true;
+        fil_system.unflushed_spaces.push_front(*space);
+      }
+    }
+  }
+
+  switch (n_pending--) {
+  case 0:
+    ut_error;
+  case 1:
+    if (space->belongs_in_lru())
+      /* The node must be put back to the LRU list */
+      UT_LIST_ADD_FIRST(fil_system.LRU, this);
+  }
+}
 
 #include "fil0crypt.h"
 
@@ -1051,14 +1397,9 @@ database server shutdown. This should be called at a server startup after the
 space objects for the system tablespace have been created. The
 purpose of this operation is to make sure we never run out of file descriptors
 if we need to read from the insert buffer. */
-void
-fil_open_system_tablespace_files();
-/*==========================================*/
-/*******************************************************************//**
-Closes all open files. There must not be any pending i/o's or not flushed
-modifications in the files. */
-void
-fil_close_all_files(void);
+void fil_open_system_tablespace_files();
+/** Close all tablespace files at shutdown */
+void fil_close_all_files();
 /*******************************************************************//**
 Sets the max tablespace id counter if the given number is bigger than the
 previous value. */
@@ -1182,8 +1523,11 @@ bool fil_table_accessible(const dict_table_t* table)
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	if_exists	whether to ignore missing tablespace
+@param[out]	leaked_handles	return detached handles here
 @return	DB_SUCCESS or error */
-dberr_t fil_delete_tablespace(ulint id, bool if_exists= false);
+dberr_t
+fil_delete_tablespace(ulint id, bool if_exists= false,
+                      std::vector<pfs_os_file_t> *detached_handles= nullptr);
 
 /** Prepare to truncate an undo tablespace.
 @param[in]	space_id	undo tablespace id
@@ -1191,15 +1535,10 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists= false);
 @retval	NULL if the tablespace does not exist */
 fil_space_t* fil_truncate_prepare(ulint space_id);
 
-/*******************************************************************//**
-Closes a single-table tablespace. The tablespace must be cached in the
-memory cache. Free all pages used by the tablespace.
-@return DB_SUCCESS or error */
-dberr_t
-fil_close_tablespace(
-/*=================*/
-	trx_t*	trx,	/*!< in/out: Transaction covering the close */
-	ulint	id);	/*!< in: space id */
+/** Close a single-table tablespace on failed IMPORT TABLESPACE.
+The tablespace must be cached in the memory cache.
+Free all pages used by the tablespace. */
+void fil_close_tablespace(ulint id);
 
 /*******************************************************************//**
 Allocates and builds a file name from a path, a table or tablespace name
@@ -1350,6 +1689,14 @@ fil_space_extend(
 	fil_space_t*	space,
 	ulint		size);
 
+struct fil_io_t
+{
+  /** error code */
+  dberr_t err;
+  /** file; node->space->release_for_io() must follow fil_io(sync=true) call */
+  fil_node_t *node;
+};
+
 /** Reads or writes data. This operation could be asynchronous (aio).
 
 @param[in]	type		IO context
@@ -1366,12 +1713,11 @@ fil_space_extend(
 				aligned
 @param[in]	message		message for aio handler if non-sync aio
 				used, else ignored
-@param[in]	ignore		whether to ignore out-of-bounds page_id
+@param[in]	ignore		whether to ignore errors
 @param[in]	punch_hole	punch the hole to the file for page_compressed
 				tablespace
-@return DB_SUCCESS, or DB_TABLESPACE_DELETED
-if we are trying to do i/o on a tablespace which does not exist */
-dberr_t
+@return status and file descriptor */
+fil_io_t
 fil_io(
 	const IORequest&	type,
 	bool			sync,

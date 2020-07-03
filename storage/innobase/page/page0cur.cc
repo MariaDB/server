@@ -1119,7 +1119,7 @@ inline void mtr_t::page_insert(const buf_block_t &block, bool reuse,
   len+= hdr_l + data_l;
 
   const bool small= len < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5);
-  byte *l= log_write<EXTENDED>(block.page.id, &block.page, len, small);
+  byte *l= log_write<EXTENDED>(block.page.id(), &block.page, len, small);
 
   if (UNIV_LIKELY(small))
   {
@@ -1227,7 +1227,7 @@ inline void mtr_t::page_insert(const buf_block_t &block, bool reuse,
   len+= hdr_l + data_l;
 
   const bool small= len < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5);
-  byte *l= log_write<EXTENDED>(block.page.id, &block.page, len, small);
+  byte *l= log_write<EXTENDED>(block.page.id(), &block.page, len, small);
 
   if (UNIV_LIKELY(small))
   {
@@ -1302,7 +1302,7 @@ page_cur_insert_rec_low(
   /* 1. Get the size of the physical record in the page */
   const ulint rec_size= rec_offs_size(offsets);
 
-#ifdef UNIV_DEBUG_VALGRIND
+#ifdef HAVE_valgrind_or_MSAN
   {
     const void *rec_start= rec - rec_offs_extra_size(offsets);
     ulint extra_size= rec_offs_extra_size(offsets) -
@@ -1310,11 +1310,11 @@ page_cur_insert_rec_low(
        ? REC_N_NEW_EXTRA_BYTES
        : REC_N_OLD_EXTRA_BYTES);
     /* All data bytes of the record must be valid. */
-    UNIV_MEM_ASSERT_RW(rec, rec_offs_data_size(offsets));
+    MEM_CHECK_DEFINED(rec, rec_offs_data_size(offsets));
     /* The variable-length header must be valid. */
-    UNIV_MEM_ASSERT_RW(rec_start, extra_size);
+    MEM_CHECK_DEFINED(rec_start, extra_size);
   }
-#endif /* UNIV_DEBUG_VALGRIND */
+#endif /* HAVE_valgrind_or_MSAN */
 
   /* 2. Try to find suitable space from page memory management */
   bool reuse= false;
@@ -1613,7 +1613,7 @@ static inline void page_zip_dir_add_slot(buf_block_t *block,
   page_zip_des_t *page_zip= &block->page.zip;
 
   ut_ad(page_is_comp(page_zip->data));
-  UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
+  MEM_CHECK_DEFINED(page_zip->data, page_zip_get_size(page_zip));
 
   /* Read the old n_dense (n_heap has already been incremented). */
   ulint n_dense= page_dir_get_n_heap(page_zip->data) - (PAGE_HEAP_NO_USER_LOW +
@@ -1702,16 +1702,16 @@ page_cur_insert_rec_zip(
   /* 1. Get the size of the physical record in the page */
   const ulint rec_size= rec_offs_size(offsets);
 
-#ifdef UNIV_DEBUG_VALGRIND
+#ifdef HAVE_valgrind_or_MSAN
   {
     const void *rec_start= rec - rec_offs_extra_size(offsets);
     ulint extra_size= rec_offs_extra_size(offsets) - REC_N_NEW_EXTRA_BYTES;
     /* All data bytes of the record must be valid. */
-    UNIV_MEM_ASSERT_RW(rec, rec_offs_data_size(offsets));
+    MEM_CHECK_DEFINED(rec, rec_offs_data_size(offsets));
     /* The variable-length header must be valid. */
-    UNIV_MEM_ASSERT_RW(rec_start, extra_size);
+    MEM_CHECK_DEFINED(rec_start, extra_size);
   }
-#endif /* UNIV_DEBUG_VALGRIND */
+#endif /* HAVE_valgrind_or_MSAN */
   const bool reorg_before_insert= page_has_garbage(cursor->block->frame) &&
     rec_size > page_get_max_insert_size(cursor->block->frame, 1) &&
     rec_size <= page_get_max_insert_size_after_reorganize(cursor->block->frame,
@@ -1954,8 +1954,8 @@ use_heap:
   rec_set_bit_field_2(insert_rec, heap_no, REC_NEW_HEAP_NO,
                       REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT);
 
-  UNIV_MEM_ASSERT_RW(rec_get_start(insert_rec, offsets),
-                     rec_offs_size(offsets));
+  MEM_CHECK_DEFINED(rec_get_start(insert_rec, offsets),
+                    rec_offs_size(offsets));
 
   /* 6. Update the last insertion info in page header */
   byte *last_insert= my_assume_aligned<4>(PAGE_LAST_INSERT + PAGE_HEADER +
@@ -2289,10 +2289,11 @@ bool page_apply_insert_redundant(const buf_block_t &block, bool reuse,
   byte *page_n_heap= my_assume_aligned<2>(PAGE_N_HEAP + PAGE_HEADER +
                                           block.frame);
   const uint16_t h= mach_read_from_2(page_n_heap);
+  const page_id_t id(block.page.id());
   if (UNIV_UNLIKELY(n_slots < 2 || h < n_slots || h < PAGE_HEAP_NO_USER_LOW ||
                     h >= srv_page_size / REC_N_OLD_EXTRA_BYTES ||
                     !fil_page_index_page_check(block.frame) ||
-                    page_get_page_no(block.frame) != block.page.id.page_no() ||
+                    page_get_page_no(block.frame) != id.page_no() ||
                     mach_read_from_2(my_assume_aligned<2>
                                      (PAGE_OLD_SUPREMUM - REC_NEXT +
                                       block.frame))))
@@ -2303,7 +2304,7 @@ corrupted:
                     " due to corruption on "
                     : "Not applying INSERT_HEAP_REDUNDANT"
                     " due to corruption on ")
-                << block.page.id;
+                << id;
     return true;
   }
 
@@ -2530,11 +2531,12 @@ bool page_apply_insert_dynamic(const buf_block_t &block, bool reuse,
   byte *page_n_heap= my_assume_aligned<2>(PAGE_N_HEAP + PAGE_HEADER +
                                           block.frame);
   ulint h= mach_read_from_2(page_n_heap);
+  const page_id_t id(block.page.id());
   if (UNIV_UNLIKELY(n_slots < 2 || h < (PAGE_HEAP_NO_USER_LOW | 0x8000) ||
                     (h & 0x7fff) >= srv_page_size / REC_N_NEW_EXTRA_BYTES ||
                     (h & 0x7fff) < n_slots ||
                     !fil_page_index_page_check(block.frame) ||
-                    page_get_page_no(block.frame) != block.page.id.page_no() ||
+                    page_get_page_no(block.frame) != id.page_no() ||
                     mach_read_from_2(my_assume_aligned<2>
                                      (PAGE_NEW_SUPREMUM - REC_NEXT +
                                       block.frame)) ||
@@ -2548,7 +2550,7 @@ corrupted:
                     " due to corruption on "
                     : "Not applying INSERT_HEAP_DYNAMIC"
                     " due to corruption on ")
-                << block.page.id;
+                << id;
     return true;
   }
 
@@ -2746,10 +2748,11 @@ bool page_apply_delete_redundant(const buf_block_t &block, ulint prev)
 {
   const uint16_t n_slots= page_dir_get_n_slots(block.frame);
   ulint n_recs= page_get_n_recs(block.frame);
+  const page_id_t id(block.page.id());
 
   if (UNIV_UNLIKELY(!n_recs || n_slots < 2 ||
                     !fil_page_index_page_check(block.frame) ||
-                    page_get_page_no(block.frame) != block.page.id.page_no() ||
+                    page_get_page_no(block.frame) != id.page_no() ||
                     mach_read_from_2(my_assume_aligned<2>
                                      (PAGE_OLD_SUPREMUM - REC_NEXT +
                                       block.frame)) ||
@@ -2757,7 +2760,7 @@ bool page_apply_delete_redundant(const buf_block_t &block, ulint prev)
   {
 corrupted:
     ib::error() << "Not applying DELETE_ROW_FORMAT_REDUNDANT"
-                   " due to corruption on " << block.page.id;
+                   " due to corruption on " << id;
     return true;
   }
 
@@ -2841,10 +2844,11 @@ bool page_apply_delete_dynamic(const buf_block_t &block, ulint prev,
 {
   const uint16_t n_slots= page_dir_get_n_slots(block.frame);
   ulint n_recs= page_get_n_recs(block.frame);
+  const page_id_t id(block.page.id());
 
   if (UNIV_UNLIKELY(!n_recs || n_slots < 2 ||
                     !fil_page_index_page_check(block.frame) ||
-                    page_get_page_no(block.frame) != block.page.id.page_no() ||
+                    page_get_page_no(block.frame) != id.page_no() ||
                     mach_read_from_2(my_assume_aligned<2>
                                      (PAGE_NEW_SUPREMUM - REC_NEXT +
                                       block.frame)) ||
@@ -2852,7 +2856,7 @@ bool page_apply_delete_dynamic(const buf_block_t &block, ulint prev,
   {
 corrupted:
     ib::error() << "Not applying DELETE_ROW_FORMAT_DYNAMIC"
-                   " due to corruption on " << block.page.id;
+                   " due to corruption on " << id;
     return true;
   }
 

@@ -1543,6 +1543,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
                  admin_option_for_role user_maybe_role
 
 %type <user_auth> opt_auth_str auth_expression auth_token
+                  text_or_password
 
 %type <charset>
         opt_collate
@@ -13047,13 +13048,13 @@ expr_or_default:
           expr { $$= $1;}
         | DEFAULT
           {
-            $$= new (thd->mem_root) Item_default_value(thd, Lex->current_context());
+            $$= new (thd->mem_root) Item_default_specification(thd);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
         | IGNORE_SYM
           {
-            $$= new (thd->mem_root) Item_ignore_value(thd, Lex->current_context());
+            $$= new (thd->mem_root) Item_ignore_specification(thd);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
@@ -16176,13 +16177,15 @@ set_stmt_option:
           ident_cli equal set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_system_variable(Lex->option_type, &tmp, $3)))
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_system_variable(Lex->option_type, &tmp, $3)))
               MYSQL_YYABORT;
           }
         | ident_cli '.' ident equal set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_system_variable(thd, Lex->option_type, &tmp, &$3, $5)))
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_system_variable(thd, Lex->option_type, &tmp, &$3, $5)))
               MYSQL_YYABORT;
           }
         | DEFAULT '.' ident equal set_expr_or_default
@@ -16203,7 +16206,8 @@ option_value_following_option_type:
           set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_system_variable(Lex->option_type, &tmp, $4)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_system_variable(Lex->option_type, &tmp, $4)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -16215,7 +16219,8 @@ option_value_following_option_type:
           set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_system_variable(thd, Lex->option_type, &tmp, &$3, $6)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_system_variable(thd, Lex->option_type, &tmp, &$3, $6)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -16242,7 +16247,8 @@ option_value_no_option_type:
           set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_variable(&tmp, $4)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_variable(&tmp, $4)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -16254,7 +16260,8 @@ option_value_no_option_type:
           set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_variable(&tmp, &$3, $6)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_variable(&tmp, &$3, $6)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -16422,28 +16429,34 @@ option_value_no_option_type:
           set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_variable(&tmp, $4)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_variable(&tmp, $4)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
-        | PASSWORD_SYM opt_for_user text_or_password
+        | PASSWORD_SYM equal
           {
             if (sp_create_assignment_lex(thd, $1.pos()))
               MYSQL_YYABORT;
-            LEX *lex = Lex;
-            set_var_password *var= (new (thd->mem_root)
-                                    set_var_password(lex->definer));
-            if (unlikely(var == NULL) ||
-                unlikely(lex->var_list.push_back(var, thd->mem_root)))
+          }
+          text_or_password
+          {
+            if (unlikely(Lex->sp_create_set_password_instr(thd, $4,
+                                                           yychar == YYEMPTY)))
               MYSQL_YYABORT;
-            lex->autocommit= TRUE;
-            if (lex->sphead)
-              lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
-            if (unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
+          }
+        | PASSWORD_SYM FOR_SYM
+          {
+            if (sp_create_assignment_lex(thd, $1.pos()))
+              MYSQL_YYABORT;
+          }
+          user equal text_or_password
+          {
+            if (unlikely(Lex->sp_create_set_password_instr(thd, $4, $6,
+                                                           yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
         ;
-
 
 transaction_characteristics:
           transaction_access_mode
@@ -16501,42 +16514,25 @@ isolation_types:
         | SERIALIZABLE_SYM         { $$= ISO_SERIALIZABLE; }
         ;
 
-opt_for_user:
-        equal
-          {
-            LEX *lex= thd->lex;
-            sp_pcontext *spc= lex->spcont;
-            LEX_CSTRING pw= { STRING_WITH_LEN("password") };
-
-            if (unlikely(spc && spc->find_variable(&pw, false)))
-              my_yyabort_error((ER_SP_BAD_VAR_SHADOW, MYF(0), pw.str));
-            if (unlikely(!(lex->definer= (LEX_USER*)
-                           thd->calloc(sizeof(LEX_USER)))))
-              MYSQL_YYABORT;
-            lex->definer->user= current_user;
-            lex->definer->auth= new (thd->mem_root) USER_AUTH();
-          }
-        | FOR_SYM user equal { Lex->definer= $2; }
-        ;
 
 text_or_password:
           TEXT_STRING
           {
-            Lex->definer->auth= new (thd->mem_root) USER_AUTH();
-            Lex->definer->auth->auth_str= $1;
+            $$= new (thd->mem_root) USER_AUTH();
+            $$->auth_str= $1;
           }
         | PASSWORD_SYM '(' TEXT_STRING ')'
           {
-            Lex->definer->auth= new (thd->mem_root) USER_AUTH();
-            Lex->definer->auth->pwtext= $3;
+            $$= new (thd->mem_root) USER_AUTH();
+            $$->pwtext= $3;
           }
         | OLD_PASSWORD_SYM '(' TEXT_STRING ')'
           {
-            Lex->definer->auth= new (thd->mem_root) USER_AUTH();
-            Lex->definer->auth->pwtext= $3;
-            Lex->definer->auth->auth_str.str= Item_func_password::alloc(thd,
+            $$= new (thd->mem_root) USER_AUTH();
+            $$->pwtext= $3;
+            $$->auth_str.str= Item_func_password::alloc(thd,
                                    $3.str, $3.length, Item_func_password::OLD);
-            Lex->definer->auth->auth_str.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+            $$->auth_str.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
           }
         ;
 
@@ -18150,14 +18146,16 @@ sp_statement:
           {
             // Direct procedure call (without the CALL keyword)
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->call_statement_start(thd, &tmp)))
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->call_statement_start(thd, &tmp)))
               MYSQL_YYABORT;
           }
           opt_sp_cparam_list
         | ident_cli_directly_assignable '.' ident
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->call_statement_start(thd, &tmp, &$3)))
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->call_statement_start(thd, &tmp, &$3)))
               MYSQL_YYABORT;
           }
           opt_sp_cparam_list
@@ -18371,7 +18369,8 @@ set_assign:
           set_expr_or_default
           {
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(Lex->set_variable(&tmp, $4)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_variable(&tmp, $4)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY,
                                                     false)))
               MYSQL_YYABORT;
@@ -18388,7 +18387,8 @@ set_assign:
             LEX *lex= Lex;
             DBUG_ASSERT(lex->var_list.is_empty());
             Lex_ident_sys tmp(thd, &$1);
-            if (unlikely(lex->set_variable(&tmp, &$3, $6)) ||
+            if (unlikely(!tmp.str) ||
+                unlikely(lex->set_variable(&tmp, &$3, $6)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY,
                                                     false)))
               MYSQL_YYABORT;
@@ -19070,7 +19070,7 @@ sp_labeled_block:
           {
             Lex->sp_block_init(thd, &$1);
           }
-          sp_decl_body_list
+          opt_sp_decl_body_list
           {
             if (unlikely(Lex->sp_block_with_exceptions_finalize_declarations(thd)))
               MYSQL_YYABORT;
@@ -19112,7 +19112,7 @@ sp_unlabeled_block:
               MYSQL_YYABORT;
             Lex->sp_block_init(thd);
           }
-          sp_decl_body_list
+          opt_sp_decl_body_list
           {
             if (unlikely(Lex->sp_block_with_exceptions_finalize_declarations(thd)))
               MYSQL_YYABORT;

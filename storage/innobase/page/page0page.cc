@@ -197,7 +197,7 @@ page_set_max_trx_id(
 	trx_id_t	trx_id,	/*!< in: transaction id */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction, or NULL */
 {
-  ut_ad(!mtr || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+  ut_ad(!mtr || mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
   ut_ad(!page_zip || page_zip == &block->page.zip);
   static_assert((PAGE_HEADER + PAGE_MAX_TRX_ID) % 8 == 0, "alignment");
   byte *max_trx_id= my_assume_aligned<8>(PAGE_MAX_TRX_ID +
@@ -400,7 +400,7 @@ page_create_empty(
 
 	ut_ad(fil_page_index_page_check(block->frame));
 	ut_ad(!index->is_dummy);
-	ut_ad(block->page.id.space() == index->table->space->id);
+	ut_ad(block->page.id().space() == index->table->space->id);
 
 	/* Multiple transactions cannot simultaneously operate on the
 	same temp-table in parallel.
@@ -411,7 +411,7 @@ page_create_empty(
 	    && page_is_leaf(block->frame)) {
 		max_trx_id = page_get_max_trx_id(block->frame);
 		ut_ad(max_trx_id);
-	} else if (block->page.id.page_no() == index->page) {
+	} else if (block->page.id().page_no() == index->page) {
 		/* Preserve PAGE_ROOT_AUTO_INC. */
 		max_trx_id = page_get_max_trx_id(block->frame);
 	} else {
@@ -1994,7 +1994,7 @@ bool page_validate(const page_t* page, const dict_index_t* index)
 	const rec_t*		rec;
 	const rec_t*		old_rec		= NULL;
 	const rec_t*		first_rec	= NULL;
-	ulint			offs;
+	ulint			offs = 0;
 	ulint			n_slots;
 	ibool			ret		= TRUE;
 	ulint			i;

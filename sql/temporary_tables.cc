@@ -698,10 +698,10 @@ bool THD::rm_temporary_table(handlerton *base, const char *path)
   char frm_path[FN_REFLEN + 1];
 
   strxnmov(frm_path, sizeof(frm_path) - 1, path, reg_ext, NullS);
-  if (mysql_file_delete(key_file_frm, frm_path, MYF(0)))
-  {
+  if (mysql_file_delete(key_file_frm, frm_path,
+                        MYF(MY_WME | MY_IGNORE_ENOENT)))
     error= true;
-  }
+
   file= get_new_handler((TABLE_SHARE*) 0, current_thd->mem_root, base);
   if (file && file->ha_delete_table(path))
   {
@@ -1070,7 +1070,7 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
         case TMP_TABLE_ANY:        found= true;                 break;
         }
       }
-      if (table && unlikely(table->m_needs_reopen))
+      if (table && unlikely(table->needs_reopen()))
       {
         share->all_tmp_tables.remove(table);
         free_temporary_table(table);
@@ -1402,7 +1402,7 @@ bool THD::log_events_and_free_tmp_shares()
         variables.character_set_client= cs_save;
 
         get_stmt_da()->set_overwrite_status(true);
-        transaction.stmt.mark_dropped_temp_table();
+        transaction->stmt.mark_dropped_temp_table();
         bool error2= mysql_bin_log.write(&qinfo);
         if (unlikely(error|= error2))
         {

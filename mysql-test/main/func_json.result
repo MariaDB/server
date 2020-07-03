@@ -916,6 +916,19 @@ NULL
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_patch'
 #
+# MDEV-22976 CAST(JSON_EXTRACT() AS DECIMAL) does not handle boolean values
+#
+SELECT
+CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DOUBLE) AS cf,
+CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DECIMAL) AS cd;
+cf	cd
+1	1
+SELECT
+CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DOUBLE) AS cf,
+CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
+cf	cd
+0	0
+#
 # End of 10.2 tests
 #
 #
@@ -1160,13 +1173,13 @@ JSON_ARRAYAGG(DISTINCT a)
 [1,2,3]
 SELECT JSON_ARRAYAGG(DISTINCT b) FROM t1;
 JSON_ARRAYAGG(DISTINCT b)
-["Hello","World","This","Will","Work","!",null]
+[null,"!","Hello","This","Will","Work","World"]
 SELECT JSON_ARRAYAGG(DISTINCT a LIMIT 2) FROM t1;
 JSON_ARRAYAGG(DISTINCT a LIMIT 2)
 [1,2]
 SELECT JSON_ARRAYAGG(DISTINCT b LIMIT 2) FROM t1;
 JSON_ARRAYAGG(DISTINCT b LIMIT 2)
-["Hello","World"]
+[null,"!"]
 #
 # JSON aggregation
 #
@@ -1229,6 +1242,119 @@ select json_arrayagg(a) over () from (select 1 a) t;
 ERROR 42000: This version of MariaDB doesn't yet support 'JSON_ARRAYAGG() aggregate as window function'
 select json_objectagg(a, b) over () from (select 1 a, 2 b) t;
 ERROR 42000: This version of MariaDB doesn't yet support 'JSON_OBJECTAGG() aggregate as window function'
+SELECT JSON_ARRAYAGG(NULL) FROM (SELECT 1 AS t) AS A;
+JSON_ARRAYAGG(NULL)
+[null]
+SELECT JSON_ARRAYAGG("null") FROM (SELECT 1 AS t) AS A;
+JSON_ARRAYAGG("null")
+["null"]
+create view v as (select json_arrayagg(json_object("type", "permPeriod", "id", "asd")) as JSON_DATA);
+select * from v;
+JSON_DATA
+[{"type": "permPeriod", "id": "asd"}]
+drop view v;
+select json_arrayagg(a order by a asc) from (select 1 a union select 2 a) t;
+json_arrayagg(a order by a asc)
+[1,2]
+select json_object('x', json_arrayagg(json_object('a', 1)));
+json_object('x', json_arrayagg(json_object('a', 1)))
+{"x": [{"a": 1}]}
+#
+# MDEV-22011: DISTINCT with JSON_ARRAYAGG gives wrong results
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+SELECT JSON_ARRAYAGG(a) FROM t1;
+JSON_ARRAYAGG(a)
+[1,2,3,1,2,3]
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+[1,2,3]
+INSERT INTO t1 VALUES (NULL,NULL), (NULL,NULL);
+SELECT JSON_ARRAYAGG(a) FROM t1;
+JSON_ARRAYAGG(a)
+[1,2,3,1,2,3,null,null]
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+[null,1,2,3]
+DROP TABLE t1;
+CREATE TABLE t1(a VARCHAR(10), b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+SELECT JSON_ARRAYAGG(a) FROM t1;
+JSON_ARRAYAGG(a)
+["1","2","3","1","2","3"]
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+["1","2","3"]
+INSERT INTO t1 VALUES (NULL,NULL), (NULL,NULL);
+SELECT JSON_ARRAYAGG(a) FROM t1;
+JSON_ARRAYAGG(a)
+["1","2","3","1","2","3",null,null]
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+[null,"1","2","3"]
+DROP TABLE t1;
+#
+# MDEV-22840: JSON_ARRAYAGG gives wrong results with NULL values and ORDER by clause
+#
+CREATE TABLE t1(a VARCHAR(255));
+INSERT INTO t1 VALUES ('red'),('blue');
+SELECT JSON_ARRAYAGG(a) FROM t1;
+JSON_ARRAYAGG(a)
+["red","blue"]
+SELECT JSON_ARRAYAGG(a ORDER BY a DESC) FROM t1;
+JSON_ARRAYAGG(a ORDER BY a DESC)
+["red","blue"]
+SELECT JSON_ARRAYAGG(a ORDER BY a ASC) FROM t1;
+JSON_ARRAYAGG(a ORDER BY a ASC)
+["blue","red"]
+INSERT INTO t1 VALUES (NULL);
+SELECT JSON_ARRAYAGG(a) FROM t1;
+JSON_ARRAYAGG(a)
+["red","blue",null]
+SELECT JSON_ARRAYAGG(a ORDER BY a DESC) FROM t1;
+JSON_ARRAYAGG(a ORDER BY a DESC)
+["red","blue",null]
+SELECT JSON_ARRAYAGG(a ORDER BY a ASC) FROM t1;
+JSON_ARRAYAGG(a ORDER BY a ASC)
+[null,"blue","red"]
+DROP TABLE t1;
+set group_concat_max_len=64;
+create table t1 (a varchar(254));
+insert into t1 values (concat('x64-', repeat('a', 60)));
+insert into t1 values (concat('x64-', repeat('b', 60)));
+insert into t1 values (concat('x64-', repeat('c', 60)));
+select json_arrayagg(a) from t1;
+json_arrayagg(a)
+["x64-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+drop table t1;
+SET group_concat_max_len= default;
+create table t1 (col1 json);
+insert into t1 values('{"color":"red", "size":1}' );
+insert into t1 values('{"color":"blue", "size":2}' );
+select JSON_ARRAYAGG(col1) from t1;
+JSON_ARRAYAGG(col1)
+[{"color":"red", "size":1},{"color":"blue", "size":2}]
+drop table t1;
+#
+# MDEV-23029: JSON_OBJECTAGG returns NULL when used together with GROUP BY
+#
+CREATE TABLE t1 (e INT, a VARCHAR(255), v VARCHAR(255));
+INSERT INTO t1 VALUES (0, 'a1', '1') , (0, 'a2', '2') , (1, 'b1', '3');
+EXPLAIN SELECT B.e, JSON_OBJECTAGG(B.a, B.v) FROM t1 A, t1 B GROUP BY B.e, B.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
+1	SIMPLE	B	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
+SELECT B.e, JSON_OBJECTAGG(B.a, B.v) FROM t1 A, t1 B GROUP BY B.e, B.a;
+e	JSON_OBJECTAGG(B.a, B.v)
+0	{"a1":"1", "a1":"1", "a1":"1"}
+0	{"a2":"2", "a2":"2", "a2":"2"}
+1	{"b1":"3", "b1":"3", "b1":"3"}
+DROP TABLE t1;
 #
 # End of 10.5 tests
 #

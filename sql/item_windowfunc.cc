@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2016,2017 MariaDB
+   Copyright (c) 2016, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -187,13 +187,6 @@ bool Item_window_func::check_result_type_of_order_item()
   case Item_sum::PERCENTILE_DISC_FUNC:
   {
     Item *src_item= window_spec->order_list->first->item[0];
-    Item_result rtype= src_item->cmp_type();
-    // TODO-10.5: Fix MDEV-20280 PERCENTILE_DISC() rejects temporal and string input
-    if (rtype != REAL_RESULT && rtype != INT_RESULT && rtype != DECIMAL_RESULT)
-    {
-      my_error(ER_WRONG_TYPE_FOR_PERCENTILE_FUNC, MYF(0), window_func()->func_name());
-      return true;
-    }
     Item_sum_percentile_disc *func=
       static_cast<Item_sum_percentile_disc*>(window_func());
     func->set_handler(src_item->type_handler());
@@ -348,9 +341,9 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
 
   for (uint i= 0; i < arg_count; i++)
   {
-    // 'item' can be changed during fix_fields
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
+    with_window_func|= args[i]->with_window_func;
   }
 
   for (uint i= 0; i < arg_count && !m_with_subquery; i++)

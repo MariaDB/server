@@ -2203,7 +2203,7 @@ int ha_connect::MakeRecord(char *buf)
           case TYPE_DECIM:
             p= value->GetCharString(val);
             charset= tdbp->data_charset();
-            rc= fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
+            rc= fp->store_text(p, strlen(p), charset, CHECK_FIELD_WARN);
             break;
 					case TYPE_BIN:
 						p= value->GetCharValue();
@@ -5192,7 +5192,8 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
         } // endif pos
 
       } // endif open_table_def
-
+      else
+        rc= ENOENT;
     free_table_share(share);
   } else              // Temporary file
     ok= true;

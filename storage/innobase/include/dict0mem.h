@@ -579,101 +579,103 @@ private:
 	static const unsigned DROPPED = 1023;
 public:
 
-	/** Detach the column from an index.
-	@param[in]	index	index to be detached from */
-	inline void detach(const dict_index_t& index);
+  /** Detach a virtual column from an index.
+  @param index  being-freed index */
+  inline void detach(const dict_index_t &index);
 
-	/** Data for instantly added columns */
-	struct def_t {
-		/** original default value of instantly added column */
-		const void*	data;
-		/** len of data, or UNIV_SQL_DEFAULT if unavailable */
-		ulint		len;
-	} def_val;
+  /** Data for instantly added columns */
+  struct def_t
+  {
+    /** original default value of instantly added column */
+    const void *data;
+    /** len of data, or UNIV_SQL_DEFAULT if unavailable */
+    ulint len;
+  } def_val;
 
-	/** Retrieve the column name.
-	@param[in]	table	the table of this column */
-	const char* name(const dict_table_t& table) const;
+  /** Retrieve the column name.
+  @param table  the table of this column */
+  const char *name(const dict_table_t &table) const;
 
-	/** @return whether this is a virtual column */
-	bool is_virtual() const { return prtype & DATA_VIRTUAL; }
-	/** @return whether NULL is an allowed value for this column */
-	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
+  /** @return whether this is a virtual column */
+  bool is_virtual() const { return prtype & DATA_VIRTUAL; }
+  /** @return whether NULL is an allowed value for this column */
+  bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
 
-	/** @return whether table of this system field is TRX_ID-based */
-	bool vers_native() const
-	{
-		ut_ad(vers_sys_start() || vers_sys_end());
-		ut_ad(mtype == DATA_INT || mtype == DATA_FIXBINARY);
-		return mtype == DATA_INT;
-	}
-	/** @return whether this user column (not row_start, row_end)
-		    has System Versioning property */
-	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
-	/** @return whether this is the system version start */
-	bool vers_sys_start() const
-	{
-		return (prtype & DATA_VERSIONED) == DATA_VERS_START;
-	}
-	/** @return whether this is the system version end */
-	bool vers_sys_end() const
-	{
-		return (prtype & DATA_VERSIONED) == DATA_VERS_END;
-	}
+  /** @return whether table of this system field is TRX_ID-based */
+  bool vers_native() const
+  {
+    ut_ad(vers_sys_start() || vers_sys_end());
+    ut_ad(mtype == DATA_INT || mtype == DATA_FIXBINARY);
+    return mtype == DATA_INT;
+  }
+  /** @return whether this user column (not row_start, row_end)
+  has System Versioning property */
+  bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
+  /** @return whether this is the system version start */
+  bool vers_sys_start() const
+  {
+    return (prtype & DATA_VERSIONED) == DATA_VERS_START;
+  }
+  /** @return whether this is the system version end */
+  bool vers_sys_end() const
+  {
+    return (prtype & DATA_VERSIONED) == DATA_VERS_END;
+  }
 
-	/** @return whether this is an instantly-added column */
-	bool is_added() const
-	{
-		DBUG_ASSERT(def_val.len != UNIV_SQL_DEFAULT || !def_val.data);
-		return def_val.len != UNIV_SQL_DEFAULT;
-	}
-	/** Flag the column instantly dropped */
-	void set_dropped() { ind = DROPPED; }
-	/** Flag the column instantly dropped.
-	@param[in]	not_null	whether the column was NOT NULL
-	@param[in]	len2		whether the length exceeds 255 bytes
-	@param[in]	fixed_len	the fixed length in bytes, or 0 */
-	void set_dropped(bool not_null, bool len2, unsigned fixed)
-	{
-		DBUG_ASSERT(!len2 || !fixed);
-		prtype = not_null
-			? DATA_NOT_NULL | DATA_BINARY_TYPE
-			: DATA_BINARY_TYPE;
-		if (fixed) {
-			mtype = DATA_FIXBINARY;
-			len = static_cast<uint16_t>(fixed);
-		} else {
-			mtype = DATA_BINARY;
-			len = len2 ? 65535 : 255;
-		}
-		mbminlen = mbmaxlen = 0;
-		ind = DROPPED;
-		ord_part = 0;
-		max_prefix = 0;
-	}
-	/** @return whether the column was instantly dropped */
-	bool is_dropped() const { return ind == DROPPED; }
-	/** @return whether the column was instantly dropped
-	@param[in] index	the clustered index */
-	inline bool is_dropped(const dict_index_t& index) const;
+  /** @return whether this is an instantly-added column */
+  bool is_added() const
+  {
+    DBUG_ASSERT(def_val.len != UNIV_SQL_DEFAULT || !def_val.data);
+    return def_val.len != UNIV_SQL_DEFAULT;
+  }
+  /** Flag the column instantly dropped */
+  void set_dropped() { ind = DROPPED; }
+  /** Flag the column instantly dropped.
+  @param not_null  whether the column was NOT NULL
+  @param len2      whether the length exceeds 255 bytes
+  @param fixed_len the fixed length in bytes, or 0 */
+  void set_dropped(bool not_null, bool len2, unsigned fixed)
+  {
+    DBUG_ASSERT(!len2 || !fixed);
+    prtype= not_null ? DATA_NOT_NULL | DATA_BINARY_TYPE : DATA_BINARY_TYPE;
+    if (fixed)
+    {
+      mtype= DATA_FIXBINARY;
+      len= static_cast<uint16_t>(fixed);
+    }
+    else
+    {
+      mtype= DATA_BINARY;
+      len= len2 ? 65535 : 255;
+    }
+    mbminlen= mbmaxlen= 0;
+    ind= DROPPED;
+    ord_part= 0;
+    max_prefix= 0;
+  }
+  /** @return whether the column was instantly dropped */
+  bool is_dropped() const { return ind == DROPPED; }
+  /** @return whether the column was instantly dropped
+  @param index  the clustered index */
+  inline bool is_dropped(const dict_index_t &index) const;
 
-	/** Get the default value of an instantly-added column.
-	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
-	@return	default value
-	@retval	NULL	if the default value is SQL NULL (len=UNIV_SQL_NULL) */
-	const byte* instant_value(ulint* len) const
-	{
-		DBUG_ASSERT(is_added());
-		*len = def_val.len;
-		return static_cast<const byte*>(def_val.data);
-	}
+  /** Get the default value of an instantly-added column.
+  @param[out] len   value length (in bytes), or UNIV_SQL_NULL
+  @return default value
+  @retval NULL if the default value is SQL NULL (len=UNIV_SQL_NULL) */
+  const byte *instant_value(ulint *len) const
+  {
+    DBUG_ASSERT(is_added());
+    *len= def_val.len;
+    return static_cast<const byte*>(def_val.data);
+  }
 
-	/** Remove the 'instant ADD' status of the column */
-	void clear_instant()
-	{
-		def_val.len = UNIV_SQL_DEFAULT;
-		def_val.data = NULL;
-	}
+  /** Remove the 'instant ADD' status of the column */
+  void clear_instant()
+  {
+    def_val.len= UNIV_SQL_DEFAULT;
+    def_val.data= NULL;
+  }
 
   /** @return whether two columns have compatible data type encoding */
   bool same_type(const dict_col_t &other) const
@@ -719,24 +721,21 @@ public:
   /** @return whether two collations codes have the same character encoding */
   static bool same_encoding(uint16_t a, uint16_t b);
 
-	/** Determine if the columns have the same format
-	except for is_nullable() and is_versioned().
-	@param[in]	other	column to compare to
-	@return	whether the columns have the same format */
-	bool same_format(const dict_col_t& other) const
-	{
-		return same_type(other)
-			&& len >= other.len
-			&& mbminlen == other.mbminlen
-			&& mbmaxlen == other.mbmaxlen
-			&& !((prtype ^ other.prtype)
-			     & ~(DATA_NOT_NULL | DATA_VERSIONED
-				 | CHAR_COLL_MASK << 16
-				 | DATA_LONG_TRUE_VARCHAR));
-	}
+  /** Determine if the columns have the same format
+  except for is_nullable() and is_versioned().
+  @param other   column to compare to
+  @return whether the columns have the same format */
+  bool same_format(const dict_col_t &other) const
+  {
+    return same_type(other) && len >= other.len &&
+      mbminlen == other.mbminlen && mbmaxlen == other.mbmaxlen &&
+      !((prtype ^ other.prtype) & ~(DATA_NOT_NULL | DATA_VERSIONED |
+                                    CHAR_COLL_MASK << 16 |
+                                    DATA_LONG_TRUE_VARCHAR));
+  }
 
   /** @return whether the column values are comparable by memcmp() */
-  inline bool is_binary() const { return prtype & DATA_BINARY_TYPE; }
+  bool is_binary() const { return prtype & DATA_BINARY_TYPE; }
 };
 
 /** Index information put in a list of virtual column structure. Index
@@ -774,27 +773,30 @@ struct dict_v_col_t{
 	std::forward_list<dict_v_idx_t, ut_allocator<dict_v_idx_t> >
 	v_indexes;
 
-	/** Detach the column from an index.
-	@param[in]	index	index to be detached from */
-	void detach(const dict_index_t& index)
-	{
-		if (!n_v_indexes) return;
-		auto i = v_indexes.before_begin();
-		ut_d(unsigned n = 0);
-		do {
-			auto prev = i++;
-			if (i == v_indexes.end()) {
-				ut_ad(n == n_v_indexes);
-				return;
-			}
-			ut_ad(++n <= n_v_indexes);
-			if (i->index == &index) {
-				v_indexes.erase_after(prev);
-				n_v_indexes--;
-				return;
-			}
-		} while (i != v_indexes.end());
-	}
+  /** Detach the column from an index.
+  @param index  index to be detached from */
+  void detach(const dict_index_t &index)
+  {
+    if (!n_v_indexes) return;
+    auto i= v_indexes.before_begin();
+    ut_d(unsigned n= 0);
+    do {
+      auto prev = i++;
+      if (i == v_indexes.end())
+      {
+        ut_ad(n == n_v_indexes);
+        return;
+      }
+      ut_ad(++n <= n_v_indexes);
+      if (i->index == &index)
+      {
+        v_indexes.erase_after(prev);
+        n_v_indexes--;
+        return;
+      }
+    }
+    while (i != v_indexes.end());
+  }
 };
 
 /** Data structure for newly added virtual column in a table */
@@ -932,7 +934,7 @@ an uncompressed page should be left as padding to avoid compression
 failures. This estimate is based on a self-adapting heuristic. */
 struct zip_pad_info_t {
 	SysMutex	mutex;	/*!< mutex protecting the info */
-	Atomic_counter<ulint>
+	Atomic_relaxed<ulint>
 			pad;	/*!< number of bytes used as pad */
 	ulint		success;/*!< successful compression ops during
 				current round */
@@ -960,7 +962,10 @@ struct dict_index_t {
 	mem_heap_t*	heap;	/*!< memory heap */
 	id_name_t	name;	/*!< index name */
 	dict_table_t*	table;	/*!< back pointer to table */
-	unsigned	page:32;/*!< index tree root page number */
+	/** root page number, or FIL_NULL if the index has been detached
+	from storage (DISCARD TABLESPACE or similar),
+	or 1 if the index is in table->freed_indexes */
+	unsigned	page:32;
 	unsigned	merge_threshold:6;
 				/*!< In the pessimistic delete, if the page
 				data size drops below this limit in percent,
@@ -1105,19 +1110,11 @@ struct dict_index_t {
 	/* @} */
 private:
   /** R-tree split sequence number */
-  std::atomic<node_seq_t> rtr_ssn;
+  Atomic_relaxed<node_seq_t> rtr_ssn;
 public:
-
-  void set_ssn(node_seq_t ssn)
-  {
-    rtr_ssn.store(ssn, std::memory_order_relaxed);
-  }
-  node_seq_t assign_ssn()
-  {
-    node_seq_t ssn= rtr_ssn.fetch_add(1, std::memory_order_relaxed);
-    return ssn + 1;
-  }
-  node_seq_t ssn() const { return rtr_ssn.load(std::memory_order_relaxed); }
+  void set_ssn(node_seq_t ssn) { rtr_ssn= ssn; }
+  node_seq_t assign_ssn() { return rtr_ssn.fetch_add(1) + 1; }
+  node_seq_t ssn() const { return rtr_ssn; }
 
 	rtr_info_track_t*
 			rtr_track;/*!< tracking all R-Tree search cursors */
@@ -1209,17 +1206,22 @@ public:
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
 
-	/** Detach the columns from the index that is to be freed. */
-	void detach_columns()
-	{
-		if (has_virtual()) {
-			for (unsigned i = 0; i < n_fields; i++) {
-				fields[i].col->detach(*this);
-			}
-
-			n_fields = 0;
-		}
-	}
+  /** Detach the virtual columns from the index that is to be removed.
+  @param   whether to reset fields[].col */
+  void detach_columns(bool clear= false)
+  {
+    if (!has_virtual() || !cached)
+      return;
+    for (unsigned i= 0; i < n_fields; i++)
+    {
+      dict_col_t* col= fields[i].col;
+      if (!col || !col->is_virtual())
+        continue;
+      col->detach(*this);
+      if (clear)
+        fields[i].col= nullptr;
+    }
+  }
 
 	/** Determine how many fields of a given prefix can be set NULL.
 	@param[in]	n_prefix	number of fields in the prefix
@@ -1280,15 +1282,39 @@ public:
 	bool
 	vers_history_row(const rec_t* rec, bool &history_row);
 
-	/** Reconstruct the clustered index fields. */
-	inline void reconstruct_fields();
+  /** Reconstruct the clustered index fields. */
+  inline void reconstruct_fields();
 
-	/** Check if the index contains a column or a prefix of that column.
-	@param[in]	n		column number
-	@param[in]	is_virtual	whether it is a virtual col
-	@return whether the index contains the column or its prefix */
-	bool contains_col_or_prefix(ulint n, bool is_virtual) const
-	MY_ATTRIBUTE((warn_unused_result));
+  /** Check if the index contains a column or a prefix of that column.
+  @param[in]	n		column number
+  @param[in]	is_virtual	whether it is a virtual col
+  @return whether the index contains the column or its prefix */
+  bool contains_col_or_prefix(ulint n, bool is_virtual) const
+  MY_ATTRIBUTE((warn_unused_result));
+
+#ifdef BTR_CUR_HASH_ADAPT
+  /** @return a clone of this */
+  dict_index_t* clone() const;
+  /** Clone this index for lazy dropping of the adaptive hash index.
+  @return this or a clone */
+  dict_index_t* clone_if_needed();
+  /** @return number of leaf pages pointed to by the adaptive hash index */
+  inline ulint n_ahi_pages() const;
+  /** @return whether mark_freed() had been invoked */
+  bool freed() const { return UNIV_UNLIKELY(page == 1); }
+  /** Note that the index is waiting for btr_search_lazy_free() */
+  void set_freed() { ut_ad(!freed()); page= 1; }
+#endif /* BTR_CUR_HASH_ADAPT */
+
+  /** @return whether it is forbidden to invoke clear_instant_add() */
+  bool must_avoid_clear_instant_add() const
+  {
+    if (is_instant())
+      for (auto i= this; (i= UT_LIST_GET_NEXT(indexes, i)) != nullptr; )
+        if (i->to_be_dropped /* || i->online_log*/)
+          return true;
+    return false;
+  }
 
 	/** This ad-hoc class is used by record_size_info only.	*/
 	class record_size_info_t {
@@ -1351,13 +1377,12 @@ public:
 	inline record_size_info_t record_size_info() const;
 };
 
-/** Detach a column from an index.
-@param[in]	index	index to be detached from */
-inline void dict_col_t::detach(const dict_index_t& index)
+/** Detach a virtual column from an index.
+@param index  being-freed index */
+inline void dict_col_t::detach(const dict_index_t &index)
 {
-	if (is_virtual()) {
-		reinterpret_cast<dict_v_col_t*>(this)->detach(index);
-	}
+  if (is_virtual())
+    reinterpret_cast<dict_v_col_t*>(this)->detach(index);
 }
 
 /** The status of online index creation */
@@ -2062,6 +2087,11 @@ public:
 
 	/** List of indexes of the table. */
 	UT_LIST_BASE_NODE_T(dict_index_t)	indexes;
+#ifdef BTR_CUR_HASH_ADAPT
+	/** List of detached indexes that are waiting to be freed along with
+	the last adaptive hash index entry */
+	UT_LIST_BASE_NODE_T(dict_index_t)	freed_indexes;
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/** List of foreign key constraints in the table. These refer to
 	columns in other tables. */

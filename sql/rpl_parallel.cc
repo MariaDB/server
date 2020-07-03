@@ -93,18 +93,18 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
 
   /* Do not update position if an earlier event group caused an error abort. */
   DBUG_ASSERT(qev->typ == rpl_parallel_thread::queued_event::QUEUED_POS_UPDATE);
+  rli= qev->rgi->rli;
   e= qev->entry_for_queued;
-  if (e->stop_on_error_sub_id < (uint64)ULONGLONG_MAX || e->force_abort)
+  if (e->stop_on_error_sub_id < (uint64)ULONGLONG_MAX ||
+      (e->force_abort && !rli->stop_for_until))
     return;
 
-  rli= qev->rgi->rli;
   mysql_mutex_lock(&rli->data_lock);
   cmp= strcmp(rli->group_relay_log_name, qev->event_relay_log_name);
   if (cmp < 0)
   {
     rli->group_relay_log_pos= qev->future_event_relay_log_pos;
     strmake_buf(rli->group_relay_log_name, qev->event_relay_log_name);
-    rli->notify_group_relay_log_name_update();
   } else if (cmp == 0 &&
              rli->group_relay_log_pos < qev->future_event_relay_log_pos)
     rli->group_relay_log_pos= qev->future_event_relay_log_pos;
@@ -467,6 +467,7 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
     So we protect the infrequent operations of FLUSH TABLES WITH READ LOCK and
     pool size changes with this condition wait.
   */
+  DBUG_EXECUTE_IF("mark_busy_mdev_22370",my_sleep(1000000););
   mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
   if (thd)
   {
@@ -2013,9 +2014,23 @@ rpl_parallel_thread_pool::init(uint32 size)
 void
 rpl_parallel_thread_pool::destroy()
 {
+  deactivate();
+  destroy_cond_mutex();
+}
+
+void
+rpl_parallel_thread_pool::deactivate()
+{
   if (!inited)
     return;
   rpl_parallel_change_thread_count(this, 0, 1);
+}
+
+void
+rpl_parallel_thread_pool::destroy_cond_mutex()
+{
+  if (!inited)
+    return;
   mysql_mutex_destroy(&LOCK_rpl_thread_pool);
   mysql_cond_destroy(&COND_rpl_thread_pool);
   inited= false;

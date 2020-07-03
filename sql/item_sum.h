@@ -1208,6 +1208,8 @@ public:
   const Type_handler *type_handler() const { return &type_handler_ulonglong; }
   bool fix_length_and_dec()
   {
+    if (args[0]->check_type_can_return_int(func_name()))
+      return true;
     decimals= 0; max_length=21; unsigned_flag= 1; maybe_null= null_value= 0;
     return FALSE;
   }
@@ -1405,6 +1407,11 @@ public:
     if(execute())
       return NULL;
     return sp_result_field->val_decimal(dec_buf);
+  }
+
+  bool val_native(THD *thd, Native *to)
+  {
+    return null_value= execute() || sp_result_field->val_native(to);
   }
 
   String *val_str(String *str)
@@ -1842,8 +1849,12 @@ public:
 C_MODE_START
 int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
                                        const void* key2);
+int group_concat_key_cmp_with_distinct_with_nulls(void* arg, const void* key1,
+                                                  const void* key2);
 int group_concat_key_cmp_with_order(void* arg, const void* key1,
                                     const void* key2);
+int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1,
+                                               const void *key2);
 int dump_leaf_key(void* key_arg,
                   element_count count __attribute__((unused)),
                   void* item_arg);
@@ -1880,7 +1891,8 @@ protected:
   bool warning_for_row;
   bool always_null;
   bool force_copy_fields;
-  bool no_appended;
+  /** True if entire result of GROUP_CONCAT has been written to output buffer. */
+  bool result_finalized;
   /** Limits the rows in the result */
   Item *row_limit;
   /** Skips a particular number of rows in from the result*/
@@ -1905,14 +1917,32 @@ protected:
 
   friend int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
                                                 const void* key2);
+  friend int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
+                                                           const void* key1,
+                                                           const void* key2);
   friend int group_concat_key_cmp_with_order(void* arg, const void* key1,
 					     const void* key2);
+  friend int group_concat_key_cmp_with_order_with_nulls(void *arg,
+                                       const void *key1, const void *key2);
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
 
   bool repack_tree(THD *thd);
 
+  /*
+    Says whether the function should skip NULL arguments
+    or add them to the result.
+    Redefined in JSON_ARRAYAGG.
+  */
+  virtual bool skip_nulls() const { return true; }
+  virtual String *get_str_from_item(Item *i, String *tmp)
+    { return i->val_str(tmp); }
+  virtual String *get_str_from_field(Item *i, Field *f, String *tmp,
+                                     const uchar *key, size_t offset)
+    { return f->val_str(tmp, key + offset); }
+  virtual void cut_max_length(String *result,
+                              uint old_length, uint max_length) const;
 public:
   // Methods used by ColumnStore
   bool get_distinct() const { return distinct; }
@@ -1942,7 +1972,7 @@ public:
   void clear();
   bool add()
   {
-    return add(true);
+    return add(skip_nulls());
   }
   void reset_field() { DBUG_ASSERT(0); }        // not used
   void update_field() { DBUG_ASSERT(0); }       // not used
@@ -1985,6 +2015,11 @@ public:
     { context= (Name_resolution_context *)cntx; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_group_concat>(thd, this); }
+  qsort_cmp2 get_comparator_function_for_distinct();
+  qsort_cmp2 get_comparator_function_for_order_by();
+  uchar* get_record_pointer();
+  uint get_null_bytes();
+
 };
 
 #endif /* ITEM_SUM_INCLUDED */

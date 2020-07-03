@@ -81,7 +81,6 @@ enum buf_buddy_state_t {
 				are in use */
 };
 
-#ifdef UNIV_DEBUG_VALGRIND
 /**********************************************************************//**
 Invalidate memory area that we won't access while page is free */
 UNIV_INLINE
@@ -91,15 +90,11 @@ buf_buddy_mem_invalid(
 	buf_buddy_free_t*	buf,	/*!< in: block to check */
 	ulint			i)	/*!< in: index of zip_free[] */
 {
-	const size_t	size	= BUF_BUDDY_LOW << i;
-	ut_ad(i <= BUF_BUDDY_SIZES);
+  ut_ad(i <= BUF_BUDDY_SIZES);
 
-	UNIV_MEM_ASSERT_W(buf, size);
-	UNIV_MEM_INVALID(buf, size);
+  MEM_CHECK_ADDRESSABLE(buf, BUF_BUDDY_LOW << i);
+  MEM_UNDEFINED(buf, BUF_BUDDY_LOW << i);
 }
-#else /* UNIV_DEBUG_VALGRIND */
-# define buf_buddy_mem_invalid(buf, i) ut_ad((i) <= BUF_BUDDY_SIZES)
-#endif /* UNIV_DEBUG_VALGRIND */
 
 /**********************************************************************//**
 Check if a buddy is stamped free.
@@ -333,11 +328,10 @@ static buf_buddy_free_t* buf_buddy_alloc_zip(ulint i)
 
 	if (buf) {
 		/* Trash the page other than the BUF_BUDDY_STAMP_NONFREE. */
-               UNIV_MEM_TRASH((void*) buf, (int) ~i, BUF_BUDDY_STAMP_OFFSET);
-		UNIV_MEM_TRASH(BUF_BUDDY_STAMP_OFFSET + 4
-			       + buf->stamp.bytes, (int) ~i,
-			       (BUF_BUDDY_LOW << i)
-			       - (BUF_BUDDY_STAMP_OFFSET + 4));
+		MEM_UNDEFINED(buf, BUF_BUDDY_STAMP_OFFSET);
+		MEM_UNDEFINED(BUF_BUDDY_STAMP_OFFSET + 4 + buf->stamp.bytes,
+			      (BUF_BUDDY_LOW << i)
+			      - (BUF_BUDDY_STAMP_OFFSET + 4));
 		ut_ad(mach_read_from_4(buf->stamp.bytes
 				       + BUF_BUDDY_STAMP_OFFSET)
 		      == BUF_BUDDY_STAMP_NONFREE);
@@ -357,27 +351,25 @@ buf_buddy_block_free(void* buf)
 	buf_block_t*	block;
 
 	ut_ad(mutex_own(&buf_pool.mutex));
-	ut_ad(!mutex_own(&buf_pool.zip_mutex));
 	ut_a(!ut_align_offset(buf, srv_page_size));
 
-	HASH_SEARCH(hash, buf_pool.zip_hash, fold, buf_page_t*, bpage,
-		    ut_ad(buf_page_get_state(bpage) == BUF_BLOCK_MEMORY
-			  && bpage->in_zip_hash && !bpage->in_page_hash),
+	HASH_SEARCH(hash, &buf_pool.zip_hash, fold, buf_page_t*, bpage,
+		    ut_ad(bpage->state() == BUF_BLOCK_MEMORY
+			  && bpage->in_zip_hash),
 		    ((buf_block_t*) bpage)->frame == buf);
 	ut_a(bpage);
-	ut_a(buf_page_get_state(bpage) == BUF_BLOCK_MEMORY);
-	ut_ad(!bpage->in_page_hash);
+	ut_a(bpage->state() == BUF_BLOCK_MEMORY);
 	ut_ad(bpage->in_zip_hash);
-	ut_d(bpage->in_zip_hash = FALSE);
-	HASH_DELETE(buf_page_t, hash, buf_pool.zip_hash, fold, bpage);
+	ut_d(bpage->in_zip_hash = false);
+	HASH_DELETE(buf_page_t, hash, &buf_pool.zip_hash, fold, bpage);
 
 	ut_d(memset(buf, 0, srv_page_size));
-	UNIV_MEM_INVALID(buf, srv_page_size);
+#ifdef HAVE_valgrind_or_MSAN
+	MEM_UNDEFINED(buf, srv_page_size);
+#endif /* HAVE_valgrind_or_MSAN */
 
 	block = (buf_block_t*) bpage;
-	buf_page_mutex_enter(block);
 	buf_LRU_block_free_non_file_page(block);
-	buf_page_mutex_exit(block);
 
 	ut_ad(buf_pool.buddy_n_frames > 0);
 	ut_d(buf_pool.buddy_n_frames--);
@@ -392,19 +384,14 @@ buf_buddy_block_register(
 	buf_block_t*	block)	/*!< in: buffer frame to allocate */
 {
 	const ulint	fold = BUF_POOL_ZIP_FOLD(block);
-	ut_ad(mutex_own(&buf_pool.mutex));
-	ut_ad(!mutex_own(&buf_pool.zip_mutex));
-	ut_ad(buf_block_get_state(block) == BUF_BLOCK_READY_FOR_USE);
-
-	buf_block_set_state(block, BUF_BLOCK_MEMORY);
+	ut_ad(block->page.state() == BUF_BLOCK_MEMORY);
 
 	ut_a(block->frame);
 	ut_a(!ut_align_offset(block->frame, srv_page_size));
 
-	ut_ad(!block->page.in_page_hash);
 	ut_ad(!block->page.in_zip_hash);
-	ut_d(block->page.in_zip_hash = TRUE);
-	HASH_INSERT(buf_page_t, hash, buf_pool.zip_hash, fold, &block->page);
+	ut_d(block->page.in_zip_hash = true);
+	HASH_INSERT(buf_page_t, hash, &buf_pool.zip_hash, fold, &block->page);
 
 	ut_d(buf_pool.buddy_n_frames++);
 }
@@ -440,16 +427,15 @@ buf_buddy_alloc_from(void* buf, ulint i, ulint j)
 	return(buf);
 }
 
-/** Allocate a block.
-@param[in]	i	index of buf_pool.zip_free[] or BUF_BUDDY_SIZES
-@param[out]	lru	whether buf_pool.mutex was temporarily released
+/** Allocate a ROW_FORMAT=COMPRESSED block.
+@param i      index of buf_pool.zip_free[] or BUF_BUDDY_SIZES
+@param lru    assigned to true if buf_pool.mutex was temporarily released
 @return allocated block, never NULL */
 byte *buf_buddy_alloc_low(ulint i, bool *lru)
 {
 	buf_block_t*	block;
 
 	ut_ad(mutex_own(&buf_pool.mutex));
-	ut_ad(!mutex_own(&buf_pool.zip_mutex));
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
 
 	if (i < BUF_BUDDY_SIZES) {
@@ -469,9 +455,7 @@ byte *buf_buddy_alloc_low(ulint i, bool *lru)
 	}
 
 	/* Try replacing an uncompressed page in the buffer pool. */
-	mutex_exit(&buf_pool.mutex);
-	block = buf_LRU_get_free_block();
-	mutex_enter(&buf_pool.mutex);
+	block = buf_LRU_get_free_block(true);
 	if (lru) {
 		*lru = true;
 	}
@@ -502,39 +486,32 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 	ulint		offset;
 
 	ut_ad(mutex_own(&buf_pool.mutex));
-	ut_ad(!mutex_own(&buf_pool.zip_mutex));
 	ut_ad(!ut_align_offset(src, size));
 	ut_ad(!ut_align_offset(dst, size));
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
-	UNIV_MEM_ASSERT_W(dst, size);
+	MEM_CHECK_ADDRESSABLE(dst, size);
 
 	space	= mach_read_from_4((const byte*) src
 				   + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	offset	= mach_read_from_4((const byte*) src
 				   + FIL_PAGE_OFFSET);
 
-	/* Suppress Valgrind warnings about conditional jump
-	on uninitialized value. */
-	UNIV_MEM_VALID(&space, sizeof space);
-	UNIV_MEM_VALID(&offset, sizeof offset);
+	/* Suppress Valgrind or MSAN warnings. */
+	MEM_MAKE_DEFINED(&space, sizeof space);
+	MEM_MAKE_DEFINED(&offset, sizeof offset);
 
 	ut_ad(space != BUF_BUDDY_STAMP_FREE);
 
 	const page_id_t	page_id(space, offset);
+	const ulint fold= page_id.fold();
 
-	rw_lock_t*	hash_lock = buf_page_hash_lock_get(page_id);
-
-	rw_lock_x_lock(hash_lock);
-
-	bpage = buf_page_hash_get_low(page_id);
+	bpage = buf_pool.page_hash_get_low(page_id, fold);
 
 	if (!bpage || bpage->zip.data != src) {
 		/* The block has probably been freshly
 		allocated by buf_LRU_get_free_block() but not
 		added to buf_pool.page_hash yet.  Obviously,
 		it cannot be relocated. */
-
-		rw_lock_x_unlock(hash_lock);
 
 		if (!force || space != 0 || offset != 0) {
 			return(false);
@@ -546,8 +523,7 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		bpage = UT_LIST_GET_FIRST(buf_pool.LRU);
 		while (bpage != NULL) {
 			if (bpage->zip.data == src) {
-				hash_lock = buf_page_hash_lock_get(bpage->id);
-				rw_lock_x_lock(hash_lock);
+				ut_ad(bpage->id() == page_id);
 				break;
 			}
 			bpage = UT_LIST_GET_NEXT(LRU, bpage);
@@ -563,21 +539,21 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		have to relocate all blocks covered by src.
 		For the sake of simplicity, give up. */
 		ut_ad(page_zip_get_size(&bpage->zip) < size);
-
-		rw_lock_x_unlock(hash_lock);
-
 		return(false);
 	}
 
 	/* The block must have been allocated, but it may
 	contain uninitialized data. */
-	UNIV_MEM_ASSERT_W(src, size);
+	MEM_CHECK_ADDRESSABLE(src, size);
 
-	BPageMutex*	block_mutex = buf_page_get_mutex(bpage);
+	if (!bpage->can_relocate()) {
+		return false;
+	}
 
-	mutex_enter(block_mutex);
+	page_hash_latch *hash_lock = buf_pool.page_hash.lock_get(fold);
+	hash_lock->write_lock();
 
-	if (buf_page_can_relocate(bpage)) {
+	if (bpage->can_relocate()) {
 		/* Relocate the compressed page. */
 		const ulonglong ns = my_interval_timer();
 
@@ -586,9 +562,7 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		memcpy(dst, src, size);
 		bpage->zip.data = reinterpret_cast<page_zip_t*>(dst);
 
-		rw_lock_x_unlock(hash_lock);
-
-		mutex_exit(block_mutex);
+		hash_lock->write_unlock();
 
 		buf_buddy_mem_invalid(
 			reinterpret_cast<buf_buddy_free_t*>(src), i);
@@ -599,9 +573,8 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		return(true);
 	}
 
-	rw_lock_x_unlock(hash_lock);
+	hash_lock->write_unlock();
 
-	mutex_exit(block_mutex);
 	return(false);
 }
 
@@ -614,14 +587,13 @@ void buf_buddy_free_low(void* buf, ulint i)
 	buf_buddy_free_t*	buddy;
 
 	ut_ad(mutex_own(&buf_pool.mutex));
-	ut_ad(!mutex_own(&buf_pool.zip_mutex));
 	ut_ad(i <= BUF_BUDDY_SIZES);
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
 	ut_ad(buf_pool.buddy_stat[i].used > 0);
 
 	buf_pool.buddy_stat[i].used--;
 recombine:
-	UNIV_MEM_ALLOC(buf, BUF_BUDDY_LOW << i);
+	MEM_UNDEFINED(buf, BUF_BUDDY_LOW << i);
 
 	if (i == BUF_BUDDY_SIZES) {
 		buf_buddy_block_free(buf);
@@ -701,7 +673,6 @@ buf_buddy_realloc(void* buf, ulint size)
 	ulint		i = buf_buddy_get_slot(size);
 
 	ut_ad(mutex_own(&buf_pool.mutex));
-	ut_ad(!mutex_own(&buf_pool.zip_mutex));
 	ut_ad(i <= BUF_BUDDY_SIZES);
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
 

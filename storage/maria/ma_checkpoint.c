@@ -1218,10 +1218,9 @@ err:
       MARIA_SHARE *share= distinct_shares[i];
       if (share->in_checkpoint & MARIA_CHECKPOINT_SHOULD_FREE_ME)
       {
+        share->in_checkpoint&= ~MARIA_CHECKPOINT_SHOULD_FREE_ME;
         /* maria_close() left us to free the share */
-        mysql_mutex_destroy(&share->intern_lock);
-        ma_crypt_free(share);
-        my_free(share);
+        free_maria_share(share);
       }
       else
       {

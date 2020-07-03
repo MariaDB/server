@@ -101,7 +101,6 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "encryption_plugin.h"
 #include <sql_plugin.h>
 #include <srv0srv.h>
-#include <crc_glue.h>
 #include <log.h>
 #include <derror.h>
 #include <thr_timer.h>
@@ -119,6 +118,8 @@ my_bool xtrabackup_copy_back;
 my_bool xtrabackup_move_back;
 my_bool xtrabackup_decrypt_decompress;
 my_bool xtrabackup_print_param;
+my_bool xtrabackup_mysqld_args;
+my_bool xtrabackup_help;
 
 my_bool xtrabackup_export;
 
@@ -157,16 +158,16 @@ typedef std::list<regex_t> regex_list_t;
 static regex_list_t regex_include_list;
 static regex_list_t regex_exclude_list;
 
-static hash_table_t* tables_include_hash = NULL;
-static hash_table_t* tables_exclude_hash = NULL;
+static hash_table_t tables_include_hash;
+static hash_table_t tables_exclude_hash;
 
 char *xtrabackup_databases = NULL;
 char *xtrabackup_databases_file = NULL;
 char *xtrabackup_databases_exclude = NULL;
-static hash_table_t* databases_include_hash = NULL;
-static hash_table_t* databases_exclude_hash = NULL;
+static hash_table_t databases_include_hash;
+static hash_table_t databases_exclude_hash;
 
-static hash_table_t* inc_dir_tables_hash;
+static hash_table_t inc_dir_tables_hash;
 
 struct xb_filter_entry_struct{
 	char*		name;
@@ -798,7 +799,8 @@ enum options_xtrabackup
   OPT_LOCK_DDL_PER_TABLE,
   OPT_ROCKSDB_DATADIR,
   OPT_BACKUP_ROCKSDB,
-  OPT_XTRA_CHECK_PRIVILEGES
+  OPT_XTRA_CHECK_PRIVILEGES,
+  OPT_XTRA_MYSQLD_ARGS
 };
 
 struct my_option xb_client_options[]= {
@@ -1192,7 +1194,6 @@ struct my_option xb_client_options[]= {
 #define MYSQL_CLIENT
 #include "sslopt-longopts.h"
 #undef MYSQL_CLIENT
-
     {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}};
 
 uint xb_client_options_count = array_elements(xb_client_options);
@@ -1408,6 +1409,18 @@ struct my_option xb_server_options[] =
    &opt_check_privileges, &opt_check_privileges,
    0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
 
+    {"mysqld-args", OPT_XTRA_MYSQLD_ARGS,
+     "All arguments that follow this argument are considered as server "
+     "options, and if some of them are not supported by mariabackup, they "
+     "will be ignored.",
+     (G_PTR *) &xtrabackup_mysqld_args, (G_PTR *) &xtrabackup_mysqld_args, 0,
+     GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
+    {"help", '?',
+     "Display this help and exit.",
+     (G_PTR *) &xtrabackup_help, (G_PTR *) &xtrabackup_help, 0,
+     GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -1575,24 +1588,11 @@ end:
   return err;
 }
 
+static const char *xb_client_default_groups[]= {
+    "client", "client-server", "client-mariadb", 0, 0, 0};
 
-static const char *xb_client_default_groups[]={
-   "xtrabackup", "mariabackup",
-   "client", "client-server",
-   "client-mariadb",
-   0, 0, 0
-};
-
-static const char *xb_server_default_groups[]={
-   "xtrabackup", "mariabackup",
-   "mysqld", "server", MYSQL_BASE_VERSION,
-   "mariadb", MARIADB_BASE_VERSION,
-   "client-server",
-   #ifdef WITH_WSREP
-   "galera",
-   #endif
-   0, 0, 0
-};
+static const char *backup_default_groups[]= {
+    "xtrabackup", "mariabackup", "mariadb-backup", 0, 0, 0};
 
 static void print_version(void)
 {
@@ -1620,7 +1620,7 @@ GNU General Public License for more details.\n\
 You can download full text of the license on http://www.gnu.org/licenses/gpl-2.0.txt\n");
 
   printf("Usage: %s [--defaults-file=#] [--backup | --prepare | --copy-back | --move-back] [OPTIONS]\n",my_progname);
-  print_defaults("my", xb_server_default_groups);
+  print_defaults("my", load_default_groups);
   my_print_help(xb_client_options);
   my_print_help(xb_server_options);
   my_print_variables(xb_server_options);
@@ -1755,15 +1755,7 @@ xb_get_one_option(const struct my_option *opt,
     }
     break;
   case 'p':
-    if (argument)
-    {
-      char *start= argument;
-      my_free(opt_password);
-      opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
-      while (*argument) *argument++= 'x';               // Destroy argument
-      if (*start)
-        start[1]=0 ;
-    }
+    opt_password = argument;
     break;
   case OPT_PROTOCOL:
     if (argument)
@@ -2270,7 +2262,7 @@ check_if_table_matches_filters(const char *name,
 	const regex_list_t& regex_list,
 	hash_table_t* tables_hash)
 {
-	if (regex_list.empty() && !tables_hash) {
+	if (regex_list.empty() && !tables_hash->array) {
 		return(FALSE);
 	}
 
@@ -2278,11 +2270,8 @@ check_if_table_matches_filters(const char *name,
 		return(TRUE);
 	}
 
-	if (tables_hash && find_filter_in_hashtable(name, tables_hash, NULL)) {
-		return(TRUE);
-	}
-
-	return FALSE;
+	return tables_hash->array &&
+		find_filter_in_hashtable(name, tables_hash, NULL);
 }
 
 enum skip_database_check_result {
@@ -2308,8 +2297,8 @@ check_if_skip_database(
 	/* There are some filters for databases, check them */
 	xb_filter_entry_t*	database = NULL;
 
-	if (databases_exclude_hash &&
-		find_filter_in_hashtable(name, databases_exclude_hash,
+	if (databases_exclude_hash.array &&
+		find_filter_in_hashtable(name, &databases_exclude_hash,
 					 &database) &&
 		!database->has_tables) {
 		/* Database is found and there are no tables specified,
@@ -2317,8 +2306,8 @@ check_if_skip_database(
 		return DATABASE_SKIP;
 	}
 
-	if (databases_include_hash) {
-		if (!find_filter_in_hashtable(name, databases_include_hash,
+	if (databases_include_hash.array) {
+		if (!find_filter_in_hashtable(name, &databases_include_hash,
 					      &database)) {
 		/* Database isn't found, skip the database */
 			return DATABASE_SKIP;
@@ -2342,8 +2331,7 @@ check_if_skip_database_by_path(
 	const char* path /*!< in: path to the db directory. */
 )
 {
-	if (databases_include_hash == NULL &&
-		databases_exclude_hash == NULL) {
+	if (!databases_include_hash.array && !databases_exclude_hash.array) {
 		return(FALSE);
 	}
 
@@ -2387,10 +2375,10 @@ check_if_skip_table(
 
 	if (regex_exclude_list.empty() &&
 		regex_include_list.empty() &&
-		tables_include_hash == NULL &&
-		tables_exclude_hash == NULL &&
-		databases_include_hash == NULL &&
-		databases_exclude_hash == NULL) {
+		!tables_include_hash.array &&
+		!tables_exclude_hash.array &&
+		!databases_include_hash.array &&
+		!databases_exclude_hash.array) {
 		return(FALSE);
 	}
 
@@ -2422,22 +2410,22 @@ check_if_skip_table(
 	without truncating the #P#... suffix so we can backup individual
 	partitions with regexps like '^test[.]t#P#p5' */
 	if (check_if_table_matches_filters(buf, regex_exclude_list,
-					   tables_exclude_hash)) {
+					   &tables_exclude_hash)) {
 		return(TRUE);
 	}
 	if (check_if_table_matches_filters(buf, regex_include_list,
-					   tables_include_hash)) {
+					   &tables_include_hash)) {
 		return(FALSE);
 	}
 	if ((eptr = strstr(buf, "#P#")) != NULL) {
 		*eptr = 0;
 
 		if (check_if_table_matches_filters(buf, regex_exclude_list,
-						   tables_exclude_hash)) {
+						   &tables_exclude_hash)) {
 			return (TRUE);
 		}
 		if (check_if_table_matches_filters(buf, regex_include_list,
-						   tables_include_hash)) {
+						   &tables_include_hash)) {
 			return(FALSE);
 		}
 	}
@@ -2450,7 +2438,7 @@ check_if_skip_table(
 
 	if (skip_database == DATABASE_SKIP_SOME_TABLES ||
 		!regex_include_list.empty() ||
-		tables_include_hash) {
+		tables_include_hash.array) {
 
 		/* Include lists are present, but qualified name
 		   failed to match any.*/
@@ -3475,17 +3463,17 @@ xb_filter_entry_t*
 xb_add_filter(
 /*========================*/
 	const char*	name,	/*!< in: name of table/database */
-	hash_table_t**	hash)	/*!< in/out: hash to insert into */
+	hash_table_t*	hash)	/*!< in/out: hash to insert into */
 {
 	xb_filter_entry_t*	entry;
 
 	entry = xb_new_filter_entry(name);
 
-	if (UNIV_UNLIKELY(*hash == NULL)) {
-		*hash = hash_create(1000);
+	if (UNIV_UNLIKELY(!hash->array)) {
+		hash->create(1000);
 	}
 	HASH_INSERT(xb_filter_entry_t,
-		name_hash, *hash,
+		name_hash, hash,
 		ut_fold_string(entry->name),
 		entry);
 
@@ -3523,8 +3511,8 @@ void
 xb_register_filter_entry(
 /*=====================*/
 	const char*	name,	/*!< in: name */
-	hash_table_t** databases_hash,
-	hash_table_t** tables_hash
+	hash_table_t* databases_hash,
+	hash_table_t* tables_hash
 	)
 {
 	const char*		p;
@@ -3541,8 +3529,8 @@ xb_register_filter_entry(
 		strncpy(dbname, name, p - name);
 		dbname[p - name] = 0;
 
-		if (*databases_hash) {
-			HASH_SEARCH(name_hash, (*databases_hash),
+		if (databases_hash) {
+			HASH_SEARCH(name_hash, databases_hash,
 					ut_fold_string(dbname),
 					xb_filter_entry_t*,
 					db_entry, (void) 0,
@@ -3741,7 +3729,7 @@ xb_filter_hash_free(hash_table_t* hash)
 	ulint	i;
 
 	/* free the hash elements */
-	for (i = 0; i < hash_get_n_cells(hash); i++) {
+	for (i = 0; i < hash->n_cells; i++) {
 		xb_filter_entry_t*	table;
 
 		table = static_cast<xb_filter_entry_t *>
@@ -3759,8 +3747,7 @@ xb_filter_hash_free(hash_table_t* hash)
 		}
 	}
 
-	/* free hash */
-	hash_table_free(hash);
+	hash->free();
 }
 
 static void xb_regex_list_free(regex_list_t* list)
@@ -3780,20 +3767,20 @@ xb_filters_free()
 	xb_regex_list_free(&regex_include_list);
 	xb_regex_list_free(&regex_exclude_list);
 
-	if (tables_include_hash) {
-		xb_filter_hash_free(tables_include_hash);
+	if (tables_include_hash.array) {
+		xb_filter_hash_free(&tables_include_hash);
 	}
 
-	if (tables_exclude_hash) {
-		xb_filter_hash_free(tables_exclude_hash);
+	if (tables_exclude_hash.array) {
+		xb_filter_hash_free(&tables_exclude_hash);
 	}
 
-	if (databases_include_hash) {
-		xb_filter_hash_free(databases_include_hash);
+	if (databases_include_hash.array) {
+		xb_filter_hash_free(&databases_include_hash);
 	}
 
-	if (databases_exclude_hash) {
-		xb_filter_hash_free(databases_exclude_hash);
+	if (databases_exclude_hash.array) {
+		xb_filter_hash_free(&databases_exclude_hash);
 	}
 }
 
@@ -4034,7 +4021,7 @@ fail:
 	trx_pool_init();
 
 	ut_crc32_init();
-	crc_init();
+	my_checksum_init();
 	recv_sys.create();
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
@@ -4658,7 +4645,7 @@ exit:
 
 	table->name = ((char*)table) + sizeof(xb_filter_entry_t);
 	strcpy(table->name, dest_space_name);
-	HASH_INSERT(xb_filter_entry_t, name_hash, inc_dir_tables_hash,
+	HASH_INSERT(xb_filter_entry_t, name_hash, &inc_dir_tables_hash,
 			ut_fold_string(table->name), table);
 
 	mutex_enter(&fil_system.mutex);
@@ -5048,7 +5035,7 @@ rm_if_not_found(
 	/* Truncate ".ibd" */
 	name[strlen(name) - 4] = '\0';
 
-	HASH_SEARCH(name_hash, inc_dir_tables_hash, ut_fold_string(name),
+	HASH_SEARCH(name_hash, &inc_dir_tables_hash, ut_fold_string(name),
 		    xb_filter_entry_t*,
 		    table, (void) 0,
 		    !strcmp(table->name, name));
@@ -5424,7 +5411,7 @@ static bool xtrabackup_prepare_func(char** argv)
 			goto error_cleanup;
 		}
 
-		inc_dir_tables_hash = hash_create(1000);
+		inc_dir_tables_hash.create(1000);
 
 		ok = xtrabackup_apply_deltas();
 
@@ -5437,7 +5424,7 @@ static bool xtrabackup_prepare_func(char** argv)
 			xb_process_datadir("./", ".ibd", rm_if_not_found);
 		}
 
-		xb_filter_hash_free(inc_dir_tables_hash);
+		xb_filter_hash_free(&inc_dir_tables_hash);
 
 		fil_system.close();
 #ifdef WITH_INNODB_DISALLOW_WRITES
@@ -5535,7 +5522,7 @@ static bool xtrabackup_prepare_func(char** argv)
 
 error_cleanup:
 	xb_filters_free();
-	return ok;
+        return ok && !ib::error::was_logged();
 }
 
 /**************************************************************************
@@ -5802,11 +5789,23 @@ void setup_error_messages()
 	  die("could not initialize error messages");
 }
 
-void
-handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
+/** Handle mariabackup options. The options are handled with the following
+order:
+
+1) Load server groups and process server options, ignore unknown options
+2) Load client groups and process client options, ignore unknown options
+3) Load backup groups and process client-server options, exit on unknown option
+4) Process --mysqld-args options, ignore unknown options
+
+@param[in] argc arguments count
+@param[in] argv arguments array
+@param[out] argv_server server options including loaded from server groups
+@param[out] argv_client client options including loaded from client groups
+@param[out] argv_backup backup options including loaded from backup groups */
+void handle_options(int argc, char **argv, char ***argv_server,
+                    char ***argv_client, char ***argv_backup)
 {
 	/* Setup some variables for Innodb.*/
-
 	srv_operation = SRV_OPERATION_RESTORE;
 
 	files_charset_info = &my_charset_utf8mb3_general_ci;
@@ -5833,49 +5832,64 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	bool	prepare = false;
 
 	char	conf_file[FN_REFLEN];
-	int	argc_client = argc;
-	int	argc_server = argc;
 
-	/* scan options for group and config file to load defaults from */
-	for (i = 1; i < argc; i++) {
+        // array_elements() will not work for load_defaults, as it is defined
+        // as external symbol, so let's use dynamic array to have ability to
+        // add new server default groups
+        std::vector<const char *> server_default_groups;
 
-		char *optend = strcend(argv[i], '=');
+        for (const char **default_group= load_default_groups; *default_group;
+             ++default_group)
+          server_default_groups.push_back(*default_group);
 
-		if (strncmp(argv[i], "--defaults-group",
-			    optend - argv[i]) == 0) {
-			defaults_group = optend + 1;
-			append_defaults_group(defaults_group,
-				xb_server_default_groups,
-				array_elements(xb_server_default_groups));
-		}
+        std::vector<char *> mysqld_args;
+        std::vector<char *> mariabackup_args;
+        mysqld_args.push_back(argv[0]);
+        mariabackup_args.push_back(argv[0]);
 
-		if (strncmp(argv[i], "--login-path",
-			    optend - argv[i]) == 0) {
-			append_defaults_group(optend + 1,
-				xb_client_default_groups,
-				array_elements(xb_client_default_groups));
-		}
+        /* scan options for group and config file to load defaults from */
+        for (i= 1; i < argc; i++)
+        {
+          char *optend= strcend(argv[i], '=');
+          if (mysqld_args.size() > 1 ||
+              strncmp(argv[i], "--mysqld-args", optend - argv[i]) == 0)
+          {
+            mysqld_args.push_back(argv[i]);
+            continue;
+          }
+          else
+            mariabackup_args.push_back(argv[i]);
 
-		if (!strncmp(argv[i], "--prepare",
-			     optend - argv[i])) {
-			prepare = true;
-		}
+          if (strncmp(argv[i], "--defaults-group", optend - argv[i]) == 0)
+          {
+            defaults_group= optend + 1;
+            server_default_groups.push_back(defaults_group);
+          }
+          else if (strncmp(argv[i], "--login-path", optend - argv[i]) == 0)
+          {
+            append_defaults_group(optend + 1, xb_client_default_groups,
+                                  array_elements(xb_client_default_groups));
+          }
+          else if (!strncmp(argv[i], "--prepare", optend - argv[i]))
+          {
+            prepare= true;
+          }
+          else if (!strncmp(argv[i], "--apply-log", optend - argv[i]))
+          {
+            prepare= true;
+          }
+          else if (!strncmp(argv[i], "--target-dir", optend - argv[i]) &&
+                   *optend)
+          {
+            target_dir= optend + 1;
+          }
+          else if (!*optend && argv[i][0] != '-')
+          {
+            target_dir= argv[i];
+          }
+        }
 
-		if (!strncmp(argv[i], "--apply-log",
-			     optend - argv[i])) {
-			prepare = true;
-		}
-
-		if (!strncmp(argv[i], "--target-dir",
-			     optend - argv[i]) && *optend) {
-			target_dir = optend + 1;
-		}
-
-		if (!*optend && argv[i][0] != '-') {
-			target_dir = argv[i];
-		}
-	}
-
+        server_default_groups.push_back(NULL);
 	snprintf(conf_file, sizeof(conf_file), "my");
 
 	if (prepare && target_dir) {
@@ -5891,10 +5905,16 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 			}
 	}
 
-	*argv_client = argv;
-	*argv_server = argv;
-	load_defaults_or_exit(conf_file, xb_server_default_groups,
-			      &argc_server, argv_server);
+        *argv_client= *argv_server= *argv_backup= &mariabackup_args[0];
+        int argc_backup= static_cast<int>(mariabackup_args.size());
+        int argc_client= argc_backup;
+        int argc_server= argc_backup;
+
+        /* 1) Load server groups and process server options, ignore unknown
+         options */
+
+        load_defaults_or_exit(conf_file, &server_default_groups[0],
+                              &argc_server, argv_server);
 
 	int n;
 	for (n = 0; (*argv_server)[n]; n++) {};
@@ -5913,7 +5933,6 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	for (my_option *optp= xb_server_options; optp->name; optp++) {
 		optp->u_max_value = (G_PTR *) &global_max_value;
 	}
-
 
 	/* Throw a descriptive error if --defaults-file or --defaults-extra-file
 	is not the first command line argument */
@@ -5936,6 +5955,9 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 					xb_server_options, xb_get_one_option)))
 		exit(ho_error);
 
+        /* 2) Load client groups and process client options, ignore unknown
+         options */
+
 	load_defaults_or_exit(conf_file, xb_client_default_groups,
 			      &argc_client, argv_client);
 
@@ -5943,8 +5965,6 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
  	argc_client = n;
 
 	if (innobackupex_mode && argc_client > 0) {
-		/* emulate innobackupex script */
-		innobackupex_mode = true;
 		if (!ibx_handle_options(&argc_client, argv_client)) {
 			exit(EXIT_FAILURE);
 		}
@@ -5955,18 +5975,76 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 					xb_client_options, xb_get_one_option)))
 		exit(ho_error);
 
+        /* 3) Load backup groups and process client-server options, exit on
+         unknown option */
+
+        load_defaults_or_exit(conf_file, backup_default_groups, &argc_backup,
+                              argv_backup);
+        for (n= 0; (*argv_backup)[n]; n++)
+        {
+        };
+        argc_backup= n;
+
+        my_handle_options_init_variables = FALSE;
+
+        if (argc_backup > 0 &&
+            (ho_error= handle_options(&argc_backup, argv_backup,
+                                      xb_server_options, xb_get_one_option)))
+          exit(ho_error);
+
+        /* Add back the program name handle_options removes */
+        ++argc_backup;
+        --(*argv_backup);
+
+        if (innobackupex_mode && argc_backup > 0 &&
+            !ibx_handle_options(&argc_backup, argv_backup))
+          exit(EXIT_FAILURE);
+
+        my_getopt_skip_unknown = FALSE;
+
+        if (argc_backup > 0 &&
+            (ho_error= handle_options(&argc_backup, argv_backup,
+                                      xb_client_options, xb_get_one_option)))
+          exit(ho_error);
+
+        if (opt_password)
+        {
+          char *argument= opt_password;
+          char *start= argument;
+          opt_password= my_strdup(PSI_NOT_INSTRUMENTED, opt_password, MYF(MY_FAE));
+          while (*argument)
+            *argument++= 'x'; // Destroy argument
+          if (*start)
+            start[1]= 0;
+        }
+
+        /* 4) Process --mysqld-args options, ignore unknown options */
+
+        my_getopt_skip_unknown = TRUE;
+
+        int argc_mysqld = static_cast<int>(mysqld_args.size());
+        if (argc_mysqld > 1)
+        {
+          char **argv_mysqld= &mysqld_args[0];
+          if ((ho_error= handle_options(&argc_mysqld, &argv_mysqld,
+                                        xb_server_options, xb_get_one_option)))
+            exit(ho_error);
+        }
+
+        my_handle_options_init_variables = TRUE;
+
 	/* Reject command line arguments that don't look like options, i.e. are
 	not of the form '-X' (single-character options) or '--option' (long
 	options) */
-	for (int i = 0 ; i < argc_client ; i++) {
-		const char * const opt = (*argv_client)[i];
+	for (int i = 0 ; i < argc_backup ; i++) {
+		const char * const opt = (*argv_backup)[i];
 
 		if (strncmp(opt, "--", 2) &&
 		    !(strlen(opt) == 2 && opt[0] == '-')) {
 			bool server_option = true;
 
-			for (int j = 0; j < argc_server; j++) {
-				if (opt == (*argv_server)[j]) {
+			for (int j = 0; j < argc_backup; j++) {
+				if (opt == (*argv_backup)[j]) {
 					server_option = false;
 					break;
 				}
@@ -5987,7 +6065,9 @@ static int get_exepath(char *buf, size_t size, const char *argv0);
 /* ================= main =================== */
 int main(int argc, char **argv)
 {
-	char **client_defaults, **server_defaults;
+  char **server_defaults;
+  char **client_defaults;
+  char **backup_defaults;
 
 	if (get_exepath(mariabackup_exe,FN_REFLEN, argv[0]))
     strncpy(mariabackup_exe,argv[0], FN_REFLEN-1);
@@ -6038,7 +6118,8 @@ int main(int argc, char **argv)
 	mysql_mutex_init(key_LOCK_error_log, &LOCK_error_log,
 			 MY_MUTEX_INIT_FAST);
 
-	handle_options(argc, argv, &client_defaults, &server_defaults);
+        handle_options(argc, argv, &server_defaults, &client_defaults,
+                       &backup_defaults);
 
 #ifndef DBUG_OFF
 	if (dbug_option) {
@@ -6058,8 +6139,9 @@ int main(int argc, char **argv)
 		ibx_cleanup();
 	}
 
-	free_defaults(client_defaults);
 	free_defaults(server_defaults);
+        free_defaults(client_defaults);
+        free_defaults(backup_defaults);
 
 #ifndef DBUG_OFF
 	if (dbug_option) {

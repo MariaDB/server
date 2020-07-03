@@ -741,7 +741,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
   if ((thd->variables.session_track_transaction_info == TX_TRACK_CHISTICS) &&
       (tx_changed & TX_CHG_CHISTICS))
   {
-    bool is_xa= thd->transaction.xid_state.is_explicit_XA();
+    bool is_xa= thd->transaction->xid_state.is_explicit_XA();
     size_t start;
 
     /* 2 length by 1 byte and code */
@@ -918,7 +918,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
 
       if ((tx_curr_state & TX_EXPLICIT) && is_xa)
       {
-        XID *xid= thd->transaction.xid_state.get_xid();
+        XID *xid= thd->transaction->xid_state.get_xid();
         long glen, blen;
 
         buf->append(STRING_WITH_LEN("XA START"));
@@ -1183,6 +1183,7 @@ bool Session_state_change_tracker::store(THD *thd, String *buf)
   return false;
 }
 
+#ifdef USER_VAR_TRACKING
 
 bool User_variables_tracker::update(THD *thd, set_var *)
 {
@@ -1195,19 +1196,22 @@ bool User_variables_tracker::store(THD *thd, String *buf)
 {
   for (ulong i= 0; i < m_changed_user_variables.size(); i++)
   {
-    auto var= m_changed_user_variables.at(i);
+    const user_var_entry *var= m_changed_user_variables.at(i);
     String value_str;
     bool null_value;
+    size_t length;
 
     var->val_str(&null_value, &value_str, DECIMAL_MAX_SCALE);
-
-    size_t length= net_length_size(var->name.length) + var->name.length;
+    length= net_length_size(var->name.length) + var->name.length;
     if (!null_value)
       length+= net_length_size(value_str.length()) + value_str.length();
+    else
+      length+= 1;
 
     if (buf->reserve(sizeof(char) + length + net_length_size(length)))
       return true;
 
+    // TODO: check max packet length MDEV-22709
     buf->q_append(static_cast<char>(SESSION_TRACK_USER_VARIABLES));
     buf->q_net_store_length(length);
     buf->q_net_store_data(reinterpret_cast<const uchar*>(var->name.str),
@@ -1215,10 +1219,16 @@ bool User_variables_tracker::store(THD *thd, String *buf)
     if (!null_value)
       buf->q_net_store_data(reinterpret_cast<const uchar*>(value_str.ptr()),
                             value_str.length());
+    else
+    {
+      char nullbuff[1]= { (char)251 };
+      buf->q_append(nullbuff, sizeof(nullbuff));
+    }
   }
   m_changed_user_variables.clear();
   return false;
 }
+#endif // USER_VAR_TRACKING
 
 ///////////////////////////////////////////////////////////////////////////////
 

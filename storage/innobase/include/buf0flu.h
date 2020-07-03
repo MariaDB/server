@@ -70,10 +70,14 @@ buf_flush_relocate_on_flush_list(
 /*=============================*/
 	buf_page_t*	bpage,	/*!< in/out: control block being moved */
 	buf_page_t*	dpage);	/*!< in/out: destination block */
-/** Update the flush system data structures when a write is completed.
-@param[in,out]	bpage	flushed page
-@param[in]	dblwr	whether the doublewrite buffer was used */
-void buf_flush_write_complete(buf_page_t* bpage, bool dblwr);
+
+/** Complete write of a file page from buf_pool.
+@param bpage   written page
+@param request write request
+@param dblwr   whether the doublewrite buffer was used
+@param evict   whether or not to evict the page from LRU list */
+void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
+                             bool dblwr, bool evict);
 
 /** Assign the full crc32 checksum for non-compressed page.
 @param[in,out]	page	page to be updated */
@@ -91,19 +95,9 @@ buf_flush_init_for_writing(
 	void*			page_zip_,
 	bool			use_full_checksum);
 
-# if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-/** Writes a flushable page asynchronously from the buffer pool to a file.
-NOTE: block and LRU list mutexes must be held upon entering this function, and
-they will be released by this function after flushing. This is loosely based on
-buf_flush_batch() and buf_flush_page().
-@param[in,out]	block		buffer control block
-@return whether the page was flushed and the mutex released */
-bool buf_flush_page_try(buf_block_t* block)
-	MY_ATTRIBUTE((warn_unused_result));
-# endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 /** Do flushing batch of a given type.
 NOTE: The calling thread is not allowed to own any latches on pages!
-@param[in]	type		flush type
+@param[in]	lru		true=buf_pool.LRU; false=buf_pool.flush_list
 @param[in]	min_n		wished minimum mumber of blocks flushed
 (it is not guaranteed that the actual number is that big, though)
 @param[in]	lsn_limit	in the case BUF_FLUSH_LIST all blocks whose
@@ -113,12 +107,8 @@ does not exceed min_n), otherwise ignored
 passed back to caller. Ignored if NULL
 @retval true	if a batch was queued successfully.
 @retval false	if another batch of same type was already running. */
-bool
-buf_flush_do_batch(
-	buf_flush_t		type,
-	ulint			min_n,
-	lsn_t			lsn_limit,
-	flush_counters_t*	n);
+bool buf_flush_do_batch(bool lru, ulint min_n, lsn_t lsn_limit,
+                        flush_counters_t *n);
 
 /** This utility flushes dirty blocks from the end of the flush list.
 NOTE: The calling thread is not allowed to own any latches on pages!
@@ -144,8 +134,8 @@ is not fast enough to keep pace with the workload.
 bool buf_flush_single_page_from_LRU();
 
 /** Wait until a flush batch ends.
-@param[in]	type	BUF_FLUSH_LRU or BUF_FLUSH_LIST */
-void buf_flush_wait_batch_end(buf_flush_t type);
+@param[in]	lru	true=buf_pool.LRU; false=buf_pool.flush_list */
+void buf_flush_wait_batch_end(bool lru);
 /** Wait until a flush batch of the given lsn ends
 @param[in]	new_oldest	target oldest_modified_lsn to wait for */
 void buf_flush_wait_flushed(lsn_t new_oldest);
@@ -162,15 +152,6 @@ buf_flush_note_modification(
 					set of mtr's */
 	lsn_t		end_lsn);	/*!< in: end lsn of the last mtr in the
 					set of mtr's */
-/********************************************************************//**
-Returns TRUE if the file page block is immediately suitable for replacement,
-i.e., transition FILE_PAGE => NOT_USED allowed.
-@return TRUE if can replace immediately */
-ibool
-buf_flush_ready_for_replace(
-/*========================*/
-	buf_page_t*	bpage);	/*!< in: buffer control block, must be
-				buf_page_in_file(bpage) and in the LRU list */
 
 /** Initialize page_cleaner. */
 void buf_flush_page_cleaner_init();
@@ -178,10 +159,10 @@ void buf_flush_page_cleaner_init();
 /** Wait for any possible LRU flushes to complete. */
 void buf_flush_wait_LRU_batch_end();
 
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /** Validate the flush list. */
 void buf_flush_validate();
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* UNIV_DEBUG */
 
 /********************************************************************//**
 Initialize the red-black tree to speed up insertions into the flush_list
@@ -197,29 +178,16 @@ void
 buf_flush_free_flush_rbt(void);
 /*==========================*/
 
-/** Write a flushable page asynchronously from the buffer pool to a file.
-NOTE: 1. in simulated aio we must call os_aio_simulated_wake_handler_threads
-after we have posted a batch of writes! 2. buf_page_get_mutex(bpage) must be
-held upon entering this function. The LRU list mutex must be held if flush_type
-== BUF_FLUSH_SINGLE_PAGE. Both mutexes will be released by this function if it
-returns true.
-@param[in]	bpage		buffer control block
-@param[in]	flush_type	type of flush
-@param[in]	sync		true if sync IO request
-@return whether the page was flushed */
-bool buf_flush_page(buf_page_t* bpage, buf_flush_t flush_type, bool sync);
-
-/** Check if the block is modified and ready for flushing.
-@param[in]	bpage		buffer control block, must be buf_page_in_file()
-@param[in]	flush_type	type of flush
-@return true if can flush immediately */
-bool
-buf_flush_ready_for_flush(
-/*======================*/
-	buf_page_t*	bpage,	/*!< in: buffer control block, must be
-				buf_page_in_file(bpage) */
-	buf_flush_t	flush_type)/*!< in: type of flush */
-	MY_ATTRIBUTE((warn_unused_result));
+/** Write a flushable page from buf_pool to a file.
+buf_pool.mutex must be held.
+@param bpage       buffer control block
+@param flush_type  type of flush
+@param space       tablespace (or nullptr if not known)
+@param sync        whether this is a synchronous request
+                   (only for flush_type=SINGLE_PAGE)
+@return whether the page was flushed and buf_pool.mutex was released */
+bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
+                    fil_space_t *space, bool sync);
 
 /** Synchronously flush dirty blocks.
 NOTE: The calling thread is not allowed to hold any buffer page latches! */

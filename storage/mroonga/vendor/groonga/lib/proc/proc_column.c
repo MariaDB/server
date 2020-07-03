@@ -41,7 +41,7 @@ grn_proc_column_parse_flags(grn_ctx *ctx,
 
 #define CHECK_FLAG(name)                                                \
     name_size = strlen(#name);                                          \
-    if ((end - text) >= name_size &&                                    \
+    if ((unsigned long) (end - text) >= (unsigned long) name_size &&    \
         memcmp(text, #name, name_size) == 0) {                          \
       flags |= GRN_OBJ_ ## name;                                        \
       text += name_size;                                                \

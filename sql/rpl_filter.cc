@@ -350,14 +350,20 @@ Rpl_filter::set_do_table(const char* table_spec)
   int status;
 
   if (do_table_inited)
-    my_hash_reset(&do_table);
-
-  status= parse_filter_rule(table_spec, &Rpl_filter::add_do_table);
-
-  if (!do_table.records)
   {
     my_hash_free(&do_table);
     do_table_inited= 0;
+  }
+
+  status= parse_filter_rule(table_spec, &Rpl_filter::add_do_table);
+
+  if (do_table_inited && status)
+  {
+    if (!do_table.records)
+    {
+      my_hash_free(&do_table);
+      do_table_inited= 0;
+    }
   }
 
   return status;
@@ -370,14 +376,20 @@ Rpl_filter::set_ignore_table(const char* table_spec)
   int status;
 
   if (ignore_table_inited)
-    my_hash_reset(&ignore_table);
-
-  status= parse_filter_rule(table_spec, &Rpl_filter::add_ignore_table);
-
-  if (!ignore_table.records)
   {
     my_hash_free(&ignore_table);
     ignore_table_inited= 0;
+  }
+
+  status= parse_filter_rule(table_spec, &Rpl_filter::add_ignore_table);
+
+  if (ignore_table_inited && status)
+  {
+    if (!ignore_table.records)
+    {
+      my_hash_free(&ignore_table);
+      ignore_table_inited= 0;
+    }
   }
 
   return status;

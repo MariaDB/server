@@ -288,14 +288,9 @@ fil_space_crypt_t* fil_space_read_crypt_data(ulint zip_size, const byte* page)
 	      type == CRYPT_SCHEME_1)
 	    || iv_length != sizeof crypt_data->iv) {
 		ib::error() << "Found non sensible crypt scheme: "
-			    << type << "," << iv_length << " for space: "
-			    << page_get_space_id(page) << " offset: "
-			    << offset << " bytes: ["
-			    << page[offset + 2 + MAGIC_SZ]
-			    << page[offset + 3 + MAGIC_SZ]
-			    << page[offset + 4 + MAGIC_SZ]
-			    << page[offset + 5 + MAGIC_SZ]
-			    << "].";
+			    << type << "," << iv_length
+			    << " for space: "
+			    << page_get_space_id(page);
 		return NULL;
 	}
 
@@ -784,8 +779,10 @@ static bool fil_space_decrypt_for_non_full_checksum(
 		}
 
 		ib::fatal() << "Unable to decrypt data-block "
-			    << " src: " << src << "srclen: "
-			    << srclen << " buf: " << dst << "buflen: "
+			    << " src: " << static_cast<const void*>(src)
+			    << "srclen: "
+			    << srclen << " buf: "
+			    << static_cast<const void*>(dst) << "buflen: "
 			    << dstlen << " return-code: " << rc
 			    << " Can't continue!";
 	}
@@ -1100,7 +1097,7 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 		do {
 			ulint n_pages = 0;
 			success = buf_flush_lists(ULINT_MAX, end_lsn, &n_pages);
-			buf_flush_wait_batch_end(BUF_FLUSH_LIST);
+			buf_flush_wait_batch_end(false);
 			sum_pages += n_pages;
 		} while (!success);
 
@@ -1163,6 +1160,7 @@ struct rotate_thread_t {
 		case SRV_SHUTDOWN_EXIT_THREADS:
 			/* srv_init_abort() must have been invoked */
 		case SRV_SHUTDOWN_CLEANUP:
+		case SRV_SHUTDOWN_INITIATED:
 			return true;
 		case SRV_SHUTDOWN_FLUSH_PHASE:
 		case SRV_SHUTDOWN_LAST_PHASE:
@@ -1786,6 +1784,12 @@ fil_crypt_rotate_page(
 			mtr.write<1,mtr_t::FORCED>(*block,
 						   &frame[FIL_PAGE_SPACE_ID],
 						   frame[FIL_PAGE_SPACE_ID]);
+			/* This may be a freed page. Until
+			MDEV-21347 has been fixed, a page on which
+			BtrBulk::finish() invoked btr_page_free() may
+			be an inconsistent B-tree page. For now,
+			let us disable the flush-time check. */
+			block->skip_flush_check = true;
 
 			/* statistics */
 			state->crypt_stat.pages_modified++;
@@ -1894,7 +1898,7 @@ fil_crypt_flush_space(
 
 		do {
 			success = buf_flush_lists(ULINT_MAX, end_lsn, &n_pages);
-			buf_flush_wait_batch_end(BUF_FLUSH_LIST);
+			buf_flush_wait_batch_end(false);
 			sum_pages += n_pages;
 		} while (!success && !space->is_stopping());
 
@@ -2164,7 +2168,7 @@ static void fil_crypt_rotation_list_fill()
 	     space != NULL;
 	     space = UT_LIST_GET_NEXT(space_list, space)) {
 		if (space->purpose != FIL_TYPE_TABLESPACE
-		    || space->is_in_rotation_list()
+		    || space->is_in_rotation_list
 		    || space->is_stopping()
 		    || UT_LIST_GET_LEN(space->chain) == 0) {
 			continue;
@@ -2211,6 +2215,7 @@ static void fil_crypt_rotation_list_fill()
 		}
 
 		fil_system.rotation_list.push_back(*space);
+		space->is_in_rotation_list = true;
 	}
 }
 
@@ -2437,7 +2442,7 @@ bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 
 	/* Compressed and encrypted pages do not have checksum. Assume not
 	corrupted. Page verification happens after decompression in
-	buf_page_io_complete() using buf_page_is_corrupted(). */
+	buf_page_read_complete() using buf_page_is_corrupted(). */
 	if (fil_page_get_type(page) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		return true;
 	}

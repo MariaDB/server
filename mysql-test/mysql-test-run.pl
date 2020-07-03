@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # -*- cperl -*-
 
 # Copyright (c) 2004, 2014, Oracle and/or its affiliates.
@@ -201,6 +201,7 @@ my @DEFAULT_SUITES= qw(
     plugins-
     roles-
     rpl-
+    stress-
     sys_vars-
     sql_sequence-
     unit-
@@ -266,8 +267,12 @@ our %gprof_dirs;
 
 our $glob_debugger= 0;
 our $opt_gdb;
+my $opt_rr;
+my $opt_rr_dir;
+my @rr_record_args;
 our $opt_client_gdb;
 my $opt_boot_gdb;
+my $opt_boot_rr;
 our $opt_dbx;
 our $opt_client_dbx;
 my $opt_boot_dbx;
@@ -377,32 +382,6 @@ my $opt_stop_keep_alive= $ENV{MTR_STOP_KEEP_ALIVE};
 select(STDOUT);
 $| = 1; # Automatically flush STDOUT
 
-my $set_titlebar;
-
-
- BEGIN {
-   if (IS_WINDOWS) {
-     my $have_win32_console= 0;
-     eval {
-       require Win32::Console;
-       Win32::Console->import();
-       $have_win32_console = 1;
-     };
-     eval 'sub HAVE_WIN32_CONSOLE { $have_win32_console }';
-   } else {
-     eval 'sub HAVE_WIN32_CONSOLE { 0 }';
-   }
-}
-
-if (-t STDOUT) {
-  if (IS_WINDOWS and HAVE_WIN32_CONSOLE) {
-    $set_titlebar = sub {Win32::Console::Title $_[0];};
-  } elsif (defined $ENV{TERM} and $ENV{TERM} =~ /xterm/) {
-    $set_titlebar = sub { syswrite STDOUT, "\e];$_[0]\a"; };
-  }
-}
-
-
 main();
 
 sub main {
@@ -475,7 +454,7 @@ sub main {
   }
   
   #######################################################################
-  my $num_tests= @$tests;
+  my $num_tests= $mtr_report::tests_total= @$tests;
   if ( $opt_parallel eq "auto" ) {
     # Try to find a suitable value for number of workers
     if (IS_WINDOWS)
@@ -582,6 +561,7 @@ sub main {
     # Create minimalistic "test" for the reporting
     my $tinfo = My::Test->new
       (
+       suite          => { name => 'valgrind', },
        name           => 'valgrind_report',
       );
     # Set dummy worker id to align report with normal tests
@@ -784,8 +764,14 @@ sub run_test_server ($$$) {
               if ( $result->is_failed() ) {
                 my $worker_logdir= $result->{savedir};
                 my $log_file_name=dirname($worker_logdir)."/".$result->{shortname}.".log";
-                $result->{'logfile-failed'} = mtr_lastlinesfromfile($log_file_name, 20);
-                rename $log_file_name,$log_file_name.".failed";
+
+                if (-e $log_file_name) {
+                  $result->{'logfile-failed'} = mtr_lastlinesfromfile($log_file_name, 20);
+                } else {
+                  $result->{'logfile-failed'} = "";
+                }
+
+                rename $log_file_name, $log_file_name.".failed";
               }
 	      delete($result->{result});
 	      $result->{retries}= $retries+1;
@@ -908,8 +894,6 @@ sub run_test_server ($$$) {
 	  $next= splice(@$tests, $second_best, 1);
 	  delete $next->{reserved};
 	}
-
-	titlebar_stat(scalar(@$tests)) if $set_titlebar;
 
 	if ($next) {
 	  # We don't need this any more
@@ -1179,10 +1163,14 @@ sub command_line_setup {
              'debug-common'             => \$opt_debug_common,
              'debug-server'             => \$opt_debug_server,
              'gdb=s'                    => \$opt_gdb,
+             'rr'                       => \$opt_rr,
+             'rr-arg=s'                 => \@rr_record_args,
+             'rr-dir=s'                 => \$opt_rr_dir,
              'client-gdb'               => \$opt_client_gdb,
              'manual-gdb'               => \$opt_manual_gdb,
              'manual-lldb'              => \$opt_manual_lldb,
 	     'boot-gdb'                 => \$opt_boot_gdb,
+	     'boot-rr'                  => \$opt_boot_rr,
              'manual-debug'             => \$opt_manual_debug,
              'ddd'                      => \$opt_ddd,
              'client-ddd'               => \$opt_client_ddd,
@@ -1658,9 +1646,9 @@ sub command_line_setup {
   $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp:print_suppressions=0"
     if -f "$glob_mysql_test_dir/lsan.supp" and not IS_WINDOWS;
 
-  if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || 
-       $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd || 
-       $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx || 
+  if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || $opt_rr ||
+       $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd ||
+       $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx ||
        $opt_debugger || $opt_client_debugger )
   {
     $ENV{ASAN_OPTIONS}= 'disable_coredump=0:'. $ENV{ASAN_OPTIONS};
@@ -3307,6 +3295,13 @@ sub mysql_install_db {
     if ($opt_boot_ddd) {
       ddd_arguments(\$args, \$exe_mysqld_bootstrap, $mysqld->name(),
         $bootstrap_sql_file);
+    }
+    if ($opt_boot_rr) {
+      $args= ["record", @rr_record_args, $exe_mysqld_bootstrap, @$args];
+      $exe_mysqld_bootstrap= "rr";
+      my $rr_dir= $opt_rr_dir ? $opt_rr_dir : "$opt_vardir/rr.boot";
+      $ENV{'_RR_TRACE_DIR'}= $rr_dir;
+      mkpath($rr_dir);
     }
 
     my $path_sql= my_find_file($install_basedir,
@@ -5306,6 +5301,14 @@ sub mysqld_start ($$) {
      # Indicate the exe should not be started
     $exe= undef;
   }
+  elsif ( $opt_rr )
+  {
+    $args= ["record", @rr_record_args, "$exe", @$args];
+    $exe= "rr";
+    my $rr_dir= $opt_rr_dir ? $opt_rr_dir : "$opt_vardir/rr". $mysqld->after('mysqld');
+    $ENV{'_RR_TRACE_DIR'}= $rr_dir;
+    mkpath($rr_dir);
+  }
   else
   {
     # Default to not wait until pid file has been created
@@ -6490,6 +6493,15 @@ Options for strace
   stracer=<EXE>         Specify name and path to the trace program to use.
                         Default is "strace". Example: $0 --stracer=ktrace.
 
+Options for rr (Record and Replay)
+  rr                    Run the "mysqld" executables using rr. Default run
+                        option is "rr record mysqld mysqld_options"
+  boot-rr               Start bootstrap server in rr
+  rr-arg=ARG            Option to give rr record, can be specified more then once
+  rr-dir=DIR            The directory where rr recordings are stored. Defaults
+                        to 'vardir'/rr.0 (rr.boot for bootstrap instance and
+                        rr.1, ..., rr.N for slave instances).
+
 Misc options
   user=USER             User for connecting to mysqld(default: $opt_user)
   comment=STR           Write STR to the output
@@ -6578,24 +6590,4 @@ sub list_options ($) {
   }
 
   exit(1);
-}
-
-sub time_format($) {
-  sprintf '%d:%02d:%02d', $_[0]/3600, ($_[0]/60)%60, $_[0]%60;
-}
-
-our $num_tests;
-
-sub titlebar_stat {
-  my ($left) = @_;
-
-  # 2.5 -> best by test
-  $num_tests = $left + 2.5 unless $num_tests;
-
-  my $done = $num_tests - $left;
-  my $spent = time - $^T;
-
-  &$set_titlebar(sprintf "mtr: spent %s on %d tests. %s (%d tests) left",
-           time_format($spent), $done,
-           time_format($spent/$done * $left), $left);
 }

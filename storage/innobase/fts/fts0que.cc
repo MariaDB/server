@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -731,10 +731,10 @@ fts_query_union_doc_id(
 {
 	ib_rbt_bound_t	parent;
 	ulint		size = ib_vector_size(query->deleted->doc_ids);
-	fts_update_t*	array = (fts_update_t*) query->deleted->doc_ids->data;
+	doc_id_t*	updates = (doc_id_t*) query->deleted->doc_ids->data;
 
 	/* Check if the doc id is deleted and it's not already in our set. */
-	if (fts_bsearch(array, 0, static_cast<int>(size), doc_id) < 0
+	if (fts_bsearch(updates, 0, static_cast<int>(size), doc_id) < 0
 	    && rbt_search(query->doc_ids, &parent, &doc_id) != 0) {
 
 		fts_ranking_t	ranking;
@@ -762,10 +762,10 @@ fts_query_remove_doc_id(
 {
 	ib_rbt_bound_t	parent;
 	ulint		size = ib_vector_size(query->deleted->doc_ids);
-	fts_update_t*	array = (fts_update_t*) query->deleted->doc_ids->data;
+	doc_id_t*	updates = (doc_id_t*) query->deleted->doc_ids->data;
 
 	/* Check if the doc id is deleted and it's in our set. */
-	if (fts_bsearch(array, 0, static_cast<int>(size), doc_id) < 0
+	if (fts_bsearch(updates, 0, static_cast<int>(size), doc_id) < 0
 	    && rbt_search(query->doc_ids, &parent, &doc_id) == 0) {
 		ut_free(rbt_remove_node(query->doc_ids, parent.last));
 
@@ -792,10 +792,10 @@ fts_query_change_ranking(
 {
 	ib_rbt_bound_t	parent;
 	ulint		size = ib_vector_size(query->deleted->doc_ids);
-	fts_update_t*	array = (fts_update_t*) query->deleted->doc_ids->data;
+	doc_id_t*	updates = (doc_id_t*) query->deleted->doc_ids->data;
 
 	/* Check if the doc id is deleted and it's in our set. */
-	if (fts_bsearch(array, 0, static_cast<int>(size), doc_id) < 0
+	if (fts_bsearch(updates, 0, static_cast<int>(size), doc_id) < 0
 	    && rbt_search(query->doc_ids, &parent, &doc_id) == 0) {
 
 		fts_ranking_t*	ranking;
@@ -829,7 +829,7 @@ fts_query_intersect_doc_id(
 {
 	ib_rbt_bound_t	parent;
 	ulint		size = ib_vector_size(query->deleted->doc_ids);
-	fts_update_t*	array = (fts_update_t*) query->deleted->doc_ids->data;
+	doc_id_t*	updates = (doc_id_t*) query->deleted->doc_ids->data;
 	fts_ranking_t*	ranking= NULL;
 
 	/* There are three types of intersect:
@@ -841,7 +841,7 @@ fts_query_intersect_doc_id(
 	      if it matches 'b' and it's in doc_ids.(multi_exist = true). */
 
 	/* Check if the doc id is deleted and it's in our set */
-	if (fts_bsearch(array, 0, static_cast<int>(size), doc_id) < 0) {
+	if (fts_bsearch(updates, 0, static_cast<int>(size), doc_id) < 0) {
 		fts_ranking_t	new_ranking;
 
 		if (rbt_search(query->doc_ids, &parent, &doc_id) != 0) {
@@ -2448,9 +2448,8 @@ fts_query_match_document(
 		get_doc, match->doc_id, NULL, FTS_FETCH_DOC_BY_ID_EQUAL,
 		fts_query_fetch_document, &phrase);
 
-	if (error != DB_SUCCESS) {
-		ib::error() << "(" << ut_strerr(error)
-			<< ") matching document.";
+	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+		ib::error() << "(" << error << ") matching document.";
 	} else {
 		*found = phrase.found;
 	}
@@ -2496,8 +2495,8 @@ fts_query_is_in_proximity_range(
 		&get_doc, match[0]->doc_id, NULL, FTS_FETCH_DOC_BY_ID_EQUAL,
 		fts_query_fetch_document, &phrase);
 
-	if (err != DB_SUCCESS) {
-		ib::error() << "(" << ut_strerr(err) << ") in verification"
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+		ib::error() << "(" << err << ") in verification"
 			" phase of proximity search";
 	}
 
@@ -3503,14 +3502,6 @@ fts_query_calculate_idf(
 						word_freq->doc_count));
 			}
 		}
-
-		if (fts_enable_diag_print) {
-			ib::info() << "'" << word_freq->word.f_str << "' -> "
-				<< query->total_docs << "/"
-				<< word_freq->doc_count << " "
-				<< std::setw(6) << std::setprecision(5)
-				<< word_freq->idf;
-		}
 	}
 }
 
@@ -3651,8 +3642,8 @@ fts_query_prepare_result(
 	if (query->flags == FTS_OPT_RANKING) {
 		fts_word_freq_t*	word_freq;
 		ulint		size = ib_vector_size(query->deleted->doc_ids);
-		fts_update_t*	array =
-			(fts_update_t*) query->deleted->doc_ids->data;
+		doc_id_t*	updates =
+			(doc_id_t*) query->deleted->doc_ids->data;
 
 		node = rbt_first(query->word_freqs);
 		ut_ad(node);
@@ -3667,7 +3658,7 @@ fts_query_prepare_result(
 			doc_freq = rbt_value(fts_doc_freq_t, node);
 
 			/* Don't put deleted docs into result */
-			if (fts_bsearch(array, 0, static_cast<int>(size),
+			if (fts_bsearch(updates, 0, static_cast<int>(size),
 					doc_freq->doc_id) >= 0) {
 				/* one less matching doc count */
 				--word_freq->doc_count;
@@ -3886,7 +3877,7 @@ fts_query_parse(
 	} else {
 		query->root = state.root;
 
-		if (fts_enable_diag_print && query->root != NULL) {
+		if (UNIV_UNLIKELY(fts_enable_diag_print) && query->root) {
 			fts_ast_node_print(query->root);
 		}
 	}
@@ -4018,7 +4009,7 @@ fts_query(
 	DEBUG_SYNC_C("fts_deleted_doc_ids_append");
 
 	/* Sort the vector so that we can do a binary search over the ids. */
-	ib_vector_sort(query.deleted->doc_ids, fts_update_doc_id_cmp);
+	ib_vector_sort(query.deleted->doc_ids, fts_doc_id_cmp);
 
 	/* Convert the query string to lower case before parsing. We own
 	the ut_malloc'ed result and so remember to free it before return. */
@@ -4110,7 +4101,7 @@ fts_query(
 
 	ut_free(lc_query_str);
 
-	if (fts_enable_diag_print && (*result)) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print) && (*result)) {
 		ulint	diff_time = ut_time_ms() - start_time_ms;
 
 		ib::info() << "FTS Search Processing time: "
@@ -4266,7 +4257,7 @@ fts_expand_query(
 
 	query->total_size += SIZEOF_RBT_CREATE;
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		fts_print_doc_id(query);
 	}
 

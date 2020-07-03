@@ -432,7 +432,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   if (check_dependencies_in_with_clauses(lex->with_clauses_list))
   {
     res= TRUE;
-    goto err;
+    goto err_no_relink;
   }
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
@@ -449,16 +449,15 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   if (thd->open_temporary_tables(lex->query_tables) ||
       open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
   {
-    view= lex->unlink_first_table(&link_to_local);
     res= TRUE;
-    goto err;
+    goto err_no_relink;
   }
 
 #ifdef WITH_WSREP
   if(!wsrep_should_replicate_ddl_iterate(thd, static_cast<const TABLE_LIST *>(tables)))
   {
     res= TRUE;
-    goto err;
+    goto err_no_relink;
   }
 #endif
 
@@ -723,10 +722,12 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 #ifdef WITH_WSREP
 wsrep_error_label:
   res= true;
+  goto err_no_relink;
 #endif
 
 err:
   lex->link_first_table_back(view, link_to_local);
+err_no_relink:
   unit->cleanup();
   DBUG_RETURN(res || thd->is_error());
 }
@@ -1809,10 +1810,10 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
   char path[FN_REFLEN + 1];
   TABLE_LIST *view;
   String non_existant_views;
-  const char *wrong_object_db= NULL, *wrong_object_name= NULL;
-  bool error= FALSE;
+  bool delete_error= FALSE, wrong_object_name= FALSE;
   bool some_views_deleted= FALSE;
   bool something_wrong= FALSE;
+  uint not_exists_count= 0;
   DBUG_ENTER("mysql_drop_view");
 
   /*
@@ -1842,32 +1843,22 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       char name[FN_REFLEN];
       my_snprintf(name, sizeof(name), "%s.%s", view->db.str,
                   view->table_name.str);
-      if (thd->lex->if_exists())
+      if (non_existant_views.length())
+        non_existant_views.append(',');
+      non_existant_views.append(name);
+
+      if (!not_exist)
       {
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-			    ER_UNKNOWN_VIEW,
-                            ER_THD(thd, ER_UNKNOWN_VIEW),
-			    name);
-	continue;
-      }
-      if (not_exist)
-      {
-        if (non_existant_views.length())
-          non_existant_views.append(',');
-        non_existant_views.append(name);
+        wrong_object_name= 1;
+        my_error(ER_WRONG_OBJECT, MYF(ME_WARNING), view->db.str,
+                 view->table_name.str, "VIEW");
       }
       else
-      {
-        if (!wrong_object_name)
-        {
-          wrong_object_db= view->db.str;
-          wrong_object_name= view->table_name.str;
-        }
-      }
+        not_exists_count++;
       continue;
     }
     if (unlikely(mysql_file_delete(key_file_frm, path, MYF(MY_WME))))
-      error= TRUE;
+      delete_error= TRUE;
 
     some_views_deleted= TRUE;
 
@@ -1880,17 +1871,16 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     sp_cache_invalidate();
   }
 
-  if (unlikely(wrong_object_name))
-  {
-    my_error(ER_WRONG_OBJECT, MYF(0), wrong_object_db, wrong_object_name, 
-             "VIEW");
-  }
+  something_wrong= (delete_error ||
+                    (!thd->lex->if_exists() && (not_exists_count ||
+                                                wrong_object_name)));
+
   if (unlikely(non_existant_views.length()))
   {
-    my_error(ER_UNKNOWN_VIEW, MYF(0), non_existant_views.c_ptr_safe());
+    my_error(ER_UNKNOWN_VIEW, MYF(something_wrong ? 0 : ME_NOTE),
+             non_existant_views.c_ptr_safe());
   }
 
-  something_wrong= error || wrong_object_name || non_existant_views.length();
   if (some_views_deleted || !something_wrong)
   {
     /* if something goes wrong, bin-log with possible error code,

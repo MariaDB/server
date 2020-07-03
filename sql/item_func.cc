@@ -2139,44 +2139,103 @@ double Item_func_cot::val_real()
 // Shift-functions, same as << and >> in C/C++
 
 
-longlong Item_func_shift_left::val_int()
+class Func_handler_shift_left_int_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
 {
-  DBUG_ASSERT(fixed == 1);
-  uint shift;
-  ulonglong res= ((ulonglong) args[0]->val_int() <<
-		  (shift=(uint) args[1]->val_int()));
-  if (args[0]->null_value || args[1]->null_value)
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    null_value=1;
-    return 0;
+    DBUG_ASSERT(item->is_fixed());
+    return item->arguments()[0]->to_longlong_null() <<
+           item->arguments()[1]->to_longlong_null();
   }
-  null_value=0;
-  return (shift < sizeof(longlong)*8 ? (longlong) res : 0);
+};
+
+
+class Func_handler_shift_left_decimal_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
+  {
+    DBUG_ASSERT(item->is_fixed());
+    return VDec(item->arguments()[0]).to_xlonglong_null() <<
+           item->arguments()[1]->to_longlong_null();
+  }
+};
+
+
+bool Item_func_shift_left::fix_length_and_dec()
+{
+  static Func_handler_shift_left_int_to_ulonglong ha_int_to_ull;
+  static Func_handler_shift_left_decimal_to_ulonglong ha_dec_to_ull;
+  return fix_length_and_dec_op1_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
-longlong Item_func_shift_right::val_int()
+
+class Func_handler_shift_right_int_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
 {
-  DBUG_ASSERT(fixed == 1);
-  uint shift;
-  ulonglong res= (ulonglong) args[0]->val_int() >>
-    (shift=(uint) args[1]->val_int());
-  if (args[0]->null_value || args[1]->null_value)
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    null_value=1;
-    return 0;
+    DBUG_ASSERT(item->fixed == 1);
+    return item->arguments()[0]->to_longlong_null() >>
+           item->arguments()[1]->to_longlong_null();
   }
-  null_value=0;
-  return (shift < sizeof(longlong)*8 ? (longlong) res : 0);
+};
+
+
+class Func_handler_shift_right_decimal_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
+  {
+    DBUG_ASSERT(item->is_fixed());
+    return VDec(item->arguments()[0]).to_xlonglong_null() >>
+           item->arguments()[1]->to_longlong_null();
+  }
+};
+
+
+bool Item_func_shift_right::fix_length_and_dec()
+{
+  static Func_handler_shift_right_int_to_ulonglong ha_int_to_ull;
+  static Func_handler_shift_right_decimal_to_ulonglong ha_dec_to_ull;
+  return fix_length_and_dec_op1_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
 
-longlong Item_func_bit_neg::val_int()
+class Func_handler_bit_neg_int_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
 {
-  DBUG_ASSERT(fixed == 1);
-  ulonglong res= (ulonglong) args[0]->val_int();
-  if ((null_value=args[0]->null_value))
-    return 0;
-  return ~res;
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
+  {
+    DBUG_ASSERT(item->is_fixed());
+    return ~ item->arguments()[0]->to_longlong_null();
+  }
+};
+
+
+class Func_handler_bit_neg_decimal_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
+  {
+    DBUG_ASSERT(item->is_fixed());
+    return ~ VDec(item->arguments()[0]).to_xlonglong_null();
+  }
+};
+
+
+bool Item_func_bit_neg::fix_length_and_dec()
+{
+  static Func_handler_bit_neg_int_to_ulonglong ha_int_to_ull;
+  static Func_handler_bit_neg_decimal_to_ulonglong ha_dec_to_ull;
+  return fix_length_and_dec_op1_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
 
@@ -2184,6 +2243,12 @@ longlong Item_func_bit_neg::val_int()
 
 void Item_func_int_val::fix_length_and_dec_int_or_decimal()
 {
+  /*
+    The INT branch of this code should be revised.
+    It creates too large data types, e.g.
+      CREATE OR REPLACE TABLE t2 AS SELECT FLOOR(9999999.999) AS fa;
+    results in a BININT(10) column, while INT(7) should probably be enough.
+  */
   ulonglong tmp_max_length= (ulonglong ) args[0]->max_length - 
     (args[0]->decimals ? args[0]->decimals + 1 : 0) + 2;
   max_length= tmp_max_length > (ulonglong) UINT_MAX32 ?
@@ -2198,6 +2263,9 @@ void Item_func_int_val::fix_length_and_dec_int_or_decimal()
   */
   if (args[0]->max_length - args[0]->decimals >= DECIMAL_LONGLONG_DIGITS - 2)
   {
+    fix_char_length(
+      my_decimal_precision_to_length_no_truncation(
+        args[0]->decimal_int_part(), 0, false));
     set_handler(&type_handler_newdecimal);
   }
   else
@@ -2314,6 +2382,8 @@ void Item_func_round::fix_length_and_dec_decimal(uint decimals_to_set)
   set_handler(&type_handler_newdecimal);
   unsigned_flag= args[0]->unsigned_flag;
   decimals= decimals_to_set;
+  if (!precision)
+    precision= 1; // DECIMAL(0,0) -> DECIMAL(1,0)
   max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                            decimals,
                                                            unsigned_flag);
@@ -3188,13 +3258,39 @@ longlong Item_func_find_in_set::val_int()
   return 0;
 }
 
-longlong Item_func_bit_count::val_int()
+
+class Func_handler_bit_count_int_to_slong:
+        public Item_handled_func::Handler_slong2
 {
-  DBUG_ASSERT(fixed == 1);
-  ulonglong value= (ulonglong) args[0]->val_int();
-  if ((null_value= args[0]->null_value))
-    return 0; /* purecov: inspected */
-  return (longlong) my_count_bits(value);
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
+  {
+    DBUG_ASSERT(item->is_fixed());
+    return item->arguments()[0]->to_longlong_null().bit_count();
+  }
+};
+
+
+class Func_handler_bit_count_decimal_to_slong:
+        public Item_handled_func::Handler_slong2
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
+  {
+    DBUG_ASSERT(item->is_fixed());
+    return VDec(item->arguments()[0]).to_xlonglong_null().bit_count();
+  }
+};
+
+
+bool Item_func_bit_count::fix_length_and_dec()
+{
+  static Func_handler_bit_count_int_to_slong ha_int_to_slong;
+  static Func_handler_bit_count_decimal_to_slong ha_dec_to_slong;
+  set_func_handler(args[0]->cmp_type() == INT_RESULT ?
+                   (const Handler *) &ha_int_to_slong :
+                   (const Handler *) &ha_dec_to_slong);
+  return m_func_handler->fix_length_and_dec(this);
 }
 
 
@@ -3651,12 +3747,13 @@ longlong Item_master_pos_wait::val_int()
   THD* thd = current_thd;
   String *log_name = args[0]->val_str(&value);
   int event_count= 0;
+  DBUG_ENTER("Item_master_pos_wait::val_int");
 
   null_value=0;
   if (thd->slave_thread || !log_name || !log_name->length())
   {
     null_value = 1;
-    return 0;
+    DBUG_RETURN(0);
   }
 #ifdef HAVE_REPLICATION
   longlong pos = (ulong)args[1]->val_int();
@@ -3692,13 +3789,15 @@ longlong Item_master_pos_wait::val_int()
   }
   mi->release();
 #endif
-  return event_count;
+  DBUG_PRINT("exit", ("event_count: %d  null_value: %d", event_count,
+                      (int) null_value));
+  DBUG_RETURN(event_count);
 
 #ifdef HAVE_REPLICATION
 err:
   {
     null_value = 1;
-    return 0;
+    DBUG_RETURN(0);
   }
 #endif
 }
@@ -3709,11 +3808,12 @@ longlong Item_master_gtid_wait::val_int()
   DBUG_ASSERT(fixed == 1);
   longlong result= 0;
   String *gtid_pos __attribute__((unused)) = args[0]->val_str(&value);
+  DBUG_ENTER("Item_master_gtid_wait::val_int");
 
   if (args[0]->null_value)
   {
     null_value= 1;
-    return 0;
+    DBUG_RETURN(0);
   }
 
   null_value=0;
@@ -3730,7 +3830,7 @@ longlong Item_master_gtid_wait::val_int()
 #else
   null_value= 0;
 #endif /* REPLICATION */
-  return result;
+  DBUG_RETURN(result);
 }
 
 
@@ -4691,10 +4791,12 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
     entry->unsigned_flag= unsigned_arg;
   }
   entry->type=type;
+#ifdef USER_VAR_TRACKING
 #ifndef EMBEDDED_LIBRARY
   THD *thd= current_thd;
   thd->session_tracker.user_variables.mark_as_changed(thd, entry);
 #endif
+#endif // USER_VAR_TRACKING
   return 0;
 }
 
@@ -6210,14 +6312,38 @@ void Item_func_match::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN("))"));
 }
 
-longlong Item_func_bit_xor::val_int()
+
+class Func_handler_bit_xor_int_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
 {
-  DBUG_ASSERT(fixed == 1);
-  ulonglong arg1= (ulonglong) args[0]->val_int();
-  ulonglong arg2= (ulonglong) args[1]->val_int();
-  if ((null_value= (args[0]->null_value || args[1]->null_value)))
-    return 0;
-  return (longlong) (arg1 ^ arg2);
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
+  {
+    DBUG_ASSERT(item->is_fixed());
+    return item->arguments()[0]->to_longlong_null() ^
+           item->arguments()[1]->to_longlong_null();
+  }
+};
+
+
+class Func_handler_bit_xor_dec_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
+  {
+    DBUG_ASSERT(item->is_fixed());
+    return VDec(item->arguments()[0]).to_xlonglong_null() ^
+           VDec(item->arguments()[1]).to_xlonglong_null();
+  }
+};
+
+
+bool Item_func_bit_xor::fix_length_and_dec()
+{
+  static const Func_handler_bit_xor_int_to_ulonglong ha_int_to_ull;
+  static const Func_handler_bit_xor_dec_to_ulonglong ha_dec_to_ull;
+  return fix_length_and_dec_op2_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
 

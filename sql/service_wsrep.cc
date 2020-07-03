@@ -206,7 +206,15 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
     as RSU has paused the provider.
    */
   if ((ret || !wsrep_on(victim_thd)) && signal)
-    victim_thd->awake(KILL_QUERY);
+  {
+    mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_data);
+    mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_kill);
+    mysql_mutex_lock(&victim_thd->LOCK_thd_data);
+    mysql_mutex_lock(&victim_thd->LOCK_thd_kill);
+    victim_thd->awake_no_mutex(KILL_QUERY);
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
+  }
   return ret;
 }
 
@@ -305,8 +313,10 @@ extern "C" void wsrep_commit_ordered(THD *thd)
     {
       thd->wsrep_last_written_gtid_seqno= thd->wsrep_current_gtid_seqno;
     }
-    if (!wsrep_commit_will_write_binlog(thd))
+    if (thd->wsrep_trx().state() != wsrep::transaction::s_ordered_commit &&
+        !wsrep_commit_will_write_binlog(thd))
     {
+      DEBUG_SYNC(thd, "before_wsrep_ordered_commit");
       thd->wsrep_cs().ordered_commit();
     }
   }

@@ -849,7 +849,8 @@ loop:
 
 		num_doc_processed++;
 
-		if (fts_enable_diag_print && num_doc_processed % 10000 == 1) {
+		if (UNIV_UNLIKELY(fts_enable_diag_print)
+		    && num_doc_processed % 10000 == 1) {
 			ib::info() << "Number of documents processed: "
 				<< num_doc_processed;
 #ifdef FTS_INTERNAL_DIAG_PRINT
@@ -887,7 +888,7 @@ loop:
 			goto func_exit;
 		}
 
-		UNIV_MEM_INVALID(block[t_ctx.buf_used], srv_sort_buf_size);
+		MEM_UNDEFINED(block[t_ctx.buf_used], srv_sort_buf_size);
 		buf[t_ctx.buf_used] = row_merge_buf_empty(buf[t_ctx.buf_used]);
 		mycount[t_ctx.buf_used] += t_ctx.rows_added[t_ctx.buf_used];
 		t_ctx.rows_added[t_ctx.buf_used] = 0;
@@ -981,12 +982,14 @@ exit:
 					goto func_exit;
 				}
 
-				UNIV_MEM_INVALID(block[i], srv_sort_buf_size);
+#ifdef HAVE_valgrind_or_MSAN
+				MEM_UNDEFINED(block[i], srv_sort_buf_size);
 
 				if (crypt_block[i]) {
-					UNIV_MEM_INVALID(crypt_block[i],
-							 srv_sort_buf_size);
+					MEM_UNDEFINED(crypt_block[i],
+						      srv_sort_buf_size);
 				}
+#endif /* HAVE_valgrind_or_MSAN */
 			}
 
 			buf[i] = row_merge_buf_empty(buf[i]);
@@ -994,7 +997,7 @@ exit:
 		}
 	}
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		DEBUG_FTS_SORT_PRINT("  InnoDB_FTS: start merge sort\n");
 	}
 
@@ -1025,7 +1028,7 @@ exit:
 	}
 
 func_exit:
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		DEBUG_FTS_SORT_PRINT("  InnoDB_FTS: complete merge sort\n");
 	}
 
@@ -1185,11 +1188,9 @@ row_merge_write_fts_word(
 
 		error = row_merge_write_fts_node(ins_ctx, &word->text, fts_node);
 
-		if (error != DB_SUCCESS) {
-			ib::error() << "Failed to write word "
-				<< word->text.f_str << " to FTS auxiliary"
-				" index table, error (" << ut_strerr(error)
-				<< ")";
+		if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+			ib::error() << "Failed to write word to FTS auxiliary"
+				" index table, error " << error;
 			ret = error;
 		}
 
@@ -1497,10 +1498,11 @@ row_fts_build_sel_tree(
 		sel_tree[i + start] = int(i);
 	}
 
-	for (i = treelevel; --i; ) {
+	i = treelevel;
+	do {
 		row_fts_build_sel_tree_level(
-			sel_tree, i, mrec, offsets, index);
-	}
+			sel_tree, --i, mrec, offsets, index);
+	} while (i > 0);
 
 	return(treelevel);
 }
@@ -1602,7 +1604,7 @@ row_fts_merge_insert(
 		count_diag += psort_info[i].merge_file[id]->n_rec;
 	}
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		ib::info() << "InnoDB_FTS: to insert " << count_diag
 			<< " records";
 	}
@@ -1771,7 +1773,7 @@ exit:
 
 	mem_heap_free(heap);
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		ib::info() << "InnoDB_FTS: inserted " << count << " records";
 	}
 

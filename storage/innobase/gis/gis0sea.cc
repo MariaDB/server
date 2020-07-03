@@ -139,10 +139,10 @@ rtr_pcur_getnext_from_path(
 		      || latch_mode & BTR_MODIFY_LEAF);
 		mtr_s_lock_index(index, mtr);
 	} else {
-		ut_ad(mtr_memo_contains_flagged(mtr, &index->lock,
-						MTR_MEMO_SX_LOCK
-						| MTR_MEMO_S_LOCK
-						| MTR_MEMO_X_LOCK));
+		ut_ad(mtr->memo_contains_flagged(&index->lock,
+						 MTR_MEMO_SX_LOCK
+						 | MTR_MEMO_S_LOCK
+						 | MTR_MEMO_X_LOCK));
 	}
 
 	const ulint zip_size = index->table->space->zip_size();
@@ -599,15 +599,14 @@ rtr_pcur_open_low(
 	n_fields = dtuple_get_n_fields(tuple);
 
 	if (latch_mode & BTR_ALREADY_S_LATCHED) {
-		ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
-				  MTR_MEMO_S_LOCK));
+		ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_S_LOCK));
 		tree_latched = true;
 	}
 
 	if (latch_mode & BTR_MODIFY_TREE) {
-		ut_ad(mtr_memo_contains_flagged(mtr, &index->lock,
-						MTR_MEMO_X_LOCK
-						| MTR_MEMO_SX_LOCK));
+		ut_ad(mtr->memo_contains_flagged(&index->lock,
+						 MTR_MEMO_X_LOCK
+						 | MTR_MEMO_SX_LOCK));
 		tree_latched = true;
 	}
 
@@ -674,7 +673,7 @@ rtr_page_get_father(
 	ulint	page_no = btr_node_ptr_get_child_page_no(cursor->page_cur.rec,
 							 offsets);
 
-	ut_ad(page_no == block->page.id.page_no());
+	ut_ad(page_no == block->page.id().page_no());
 #else
 	rtr_page_get_father_block(
 		NULL, heap, index, block, mtr, sea_cur, cursor);
@@ -707,11 +706,8 @@ static void rtr_get_father_node(
 	/* Try to optimally locate the parent node. Level should always
 	less than sea_cur->tree_height unless the root is splitting */
 	if (sea_cur && sea_cur->tree_height > level) {
-
-		ut_ad(mtr_memo_contains_flagged(mtr,
-						dict_index_get_lock(index),
-						MTR_MEMO_X_LOCK
-						| MTR_MEMO_SX_LOCK));
+		ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
+						 | MTR_MEMO_SX_LOCK));
 		ret = rtr_cur_restore_position(
 			BTR_CONT_MODIFY_TREE, sea_cur, level, mtr);
 
@@ -820,12 +816,12 @@ rtr_page_get_father_node_ptr(
 	dict_index_t*	index;
 	rtr_mbr_t	mbr;
 
-	page_no = btr_cur_get_block(cursor)->page.id.page_no();
+	page_no = btr_cur_get_block(cursor)->page.id().page_no();
 	index = btr_cur_get_index(cursor);
 
 	ut_ad(srv_read_only_mode
-	      || mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
-					   MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
+	      || mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
+					    | MTR_MEMO_SX_LOCK));
 
 	ut_ad(dict_index_get_page(index) != page_no);
 
@@ -1198,7 +1194,7 @@ rtr_check_discard_page(
 				the root page */
 	buf_block_t*	block)	/*!< in: block of page to be discarded */
 {
-	const ulint pageno = block->page.id.page_no();
+	const ulint pageno = block->page.id().page_no();
 
 	mutex_enter(&index->rtr_track->rtr_active_mutex);
 
@@ -1219,7 +1215,7 @@ rtr_check_discard_page(
 		if (rtr_info->matches) {
 			mutex_enter(&rtr_info->matches->rtr_match_mutex);
 
-			if ((&rtr_info->matches->block)->page.id.page_no()
+			if ((&rtr_info->matches->block)->page.id().page_no()
 			     == pageno) {
 				if (!rtr_info->matches->matched_recs->empty()) {
 					rtr_info->matches->matched_recs->clear();
@@ -1235,8 +1231,8 @@ rtr_check_discard_page(
 	mutex_exit(&index->rtr_track->rtr_active_mutex);
 
 	lock_mutex_enter();
-	lock_prdt_page_free_from_discard(block, lock_sys.prdt_hash);
-	lock_prdt_page_free_from_discard(block, lock_sys.prdt_page_hash);
+	lock_prdt_page_free_from_discard(block, &lock_sys.prdt_hash);
+	lock_prdt_page_free_from_discard(block, &lock_sys.prdt_page_hash);
 	lock_mutex_exit();
 }
 
@@ -1494,7 +1490,7 @@ rtr_non_leaf_insert_stack_push(
 {
 	node_seq_t	new_seq;
 	btr_pcur_t*	my_cursor;
-	ulint		page_no = block->page.id.page_no();
+	ulint		page_no = block->page.id().page_no();
 
 	my_cursor = static_cast<btr_pcur_t*>(
 		ut_malloc_nokey(sizeof(*my_cursor)));
@@ -1510,7 +1506,7 @@ rtr_non_leaf_insert_stack_push(
 				my_cursor, mbr_inc);
 }
 
-/** Copy a buf_block_t strcuture, except "block->lock" and "block->mutex".
+/** Copy a buf_block_t, except "block->lock".
 @param[in,out]	matches	copy to match->block
 @param[in]	block	block to copy */
 static
@@ -1519,13 +1515,11 @@ rtr_copy_buf(
 	matched_rec_t*		matches,
 	const buf_block_t*	block)
 {
-	/* Copy all members of "block" to "matches->block" except "mutex"
-	and "lock". We skip "mutex" and "lock" because they are not used
+	/* Copy all members of "block" to "matches->block" except "lock".
+	We skip "lock" because it is not used
 	from the dummy buf_block_t we create here and because memcpy()ing
-	them generates (valid) compiler warnings that the vtable pointer
-	will be copied. It is also undefined what will happen with the
-	newly memcpy()ed mutex if the source mutex was acquired by
-	(another) thread while it was copied. */
+	it generates (valid) compiler warnings that the vtable pointer
+	will be copied. */
 	new (&matches->block.page) buf_page_t(block->page);
 	matches->block.frame = block->frame;
 	matches->block.unzip_LRU = block->unzip_LRU;
@@ -1533,7 +1527,6 @@ rtr_copy_buf(
 	ut_d(matches->block.in_unzip_LRU_list = block->in_unzip_LRU_list);
 	ut_d(matches->block.in_withdraw_list = block->in_withdraw_list);
 
-	/* Skip buf_block_t::mutex */
 	/* Skip buf_block_t::lock */
 	matches->block.lock_hash_val = block->lock_hash_val;
 	matches->block.modify_clock = block->modify_clock;
@@ -1697,7 +1690,7 @@ rtr_cur_search_with_match(
 	const rec_t*	best_rec;
 	const rec_t*	last_match_rec = NULL;
 	bool		match_init = false;
-	ulint		space = block->page.id.space();
+	ulint		space = block->page.id().space();
 	page_cur_mode_t	orig_mode = mode;
 	const rec_t*	first_rec = NULL;
 

@@ -114,10 +114,9 @@ currently cached in the buffer pool. It will be used to populate
 table INFORMATION_SCHEMA.INNODB_BUFFER_PAGE */
 struct buf_page_info_t{
 	ulint		block_id;	/*!< Buffer Pool block ID */
-	unsigned	space_id:32;	/*!< Tablespace ID */
-	unsigned	page_num:32;	/*!< Page number/offset */
+	/** page identifier */
+	page_id_t	id;
 	unsigned	access_time:32;	/*!< Time of first access */
-	unsigned	flush_type:2;	/*!< Flush type */
 	unsigned	io_fix:2;	/*!< type of pending I/O operation */
 	uint32_t	fix_count;	/*!< Count of how manyfold this block
 					is bufferfixed */
@@ -131,7 +130,7 @@ struct buf_page_info_t{
 					buf_pool.freed_page_clock */
 	unsigned	zip_ssize:PAGE_ZIP_SSIZE_BITS;
 					/*!< Compressed page size */
-	unsigned	page_state:BUF_PAGE_STATE_BITS; /*!< Page state */
+	unsigned	page_state:3; /*!< Page state */
 	unsigned	page_type:I_S_PAGE_TYPE_BITS;	/*!< Page type */
 	unsigned	num_recs:UNIV_PAGE_SIZE_SHIFT_MAX-2;
 					/*!< Number of records on Page */
@@ -2966,7 +2965,7 @@ i_s_fts_index_table_fill_selected(
 	for (;;) {
 		error = fts_eval_sql(trx, graph);
 
-		if (error == DB_SUCCESS) {
+		if (UNIV_LIKELY(error == DB_SUCCESS)) {
 			fts_sql_commit(trx);
 
 			break;
@@ -2980,7 +2979,7 @@ i_s_fts_index_table_fill_selected(
 				trx->error_state = DB_SUCCESS;
 			} else {
 				ib::error() << "Error occurred while reading"
-					" FTS index: " << ut_strerr(error);
+					" FTS index: " << error;
 				break;
 			}
 		}
@@ -3840,17 +3839,16 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_stats =
         STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
-/** These must correspond to the last values of buf_page_state */
+/** These must correspond to the first values of buf_page_state */
 static const LEX_CSTRING page_state_values[] =
 {
-	{ STRING_WITH_LEN("NOT_USED") },
-	{ STRING_WITH_LEN("READY_FOR_USE") },
-	{ STRING_WITH_LEN("FILE_PAGE") },
-	{ STRING_WITH_LEN("MEMORY") },
-	{ STRING_WITH_LEN("REMOVE_HASH") }
+  { STRING_WITH_LEN("NOT_USED") },
+  { STRING_WITH_LEN("MEMORY") },
+  { STRING_WITH_LEN("REMOVE_HASH") },
+  { STRING_WITH_LEN("FILE_PAGE") },
 };
 
-static const TypelibBuffer<5> page_state_values_typelib(page_state_values);
+static const TypelibBuffer<4> page_state_values_typelib(page_state_values);
 
 static const LEX_CSTRING io_values[] =
 {
@@ -3973,17 +3971,16 @@ i_s_innodb_buffer_page_fill(
 			   page_info->block_id, true));
 
 		OK(fields[IDX_BUFFER_PAGE_SPACE]->store(
-			   page_info->space_id, true));
+			   page_info->id.space(), true));
 
 		OK(fields[IDX_BUFFER_PAGE_NUM]->store(
-			   page_info->page_num, true));
+			   page_info->id.page_no(), true));
 
 		OK(field_store_string(
 			   fields[IDX_BUFFER_PAGE_TYPE],
 			   i_s_page_type[page_info->page_type].type_str));
 
-		OK(fields[IDX_BUFFER_PAGE_FLUSH_TYPE]->store(
-			   page_info->flush_type, true));
+		OK(fields[IDX_BUFFER_PAGE_FLUSH_TYPE]->store(0, true));
 
 		OK(fields[IDX_BUFFER_PAGE_FIX_COUNT]->store(
 			   page_info->fix_count, true));
@@ -4058,15 +4055,10 @@ i_s_innodb_buffer_page_fill(
 			   page_info->zip_ssize
 			   ? (UNIV_ZIP_SIZE_MIN >> 1) << page_info->zip_ssize
 			   : 0, true));
-		compile_time_assert(BUF_PAGE_STATE_BITS == 3);
 
-		/* First three states are for compression pages and
-		are not states we would get as we scan pages through
-		buffer blocks */
 		OK(fields[IDX_BUFFER_PAGE_STATE]->store(
-			   page_info->page_state >= BUF_BLOCK_NOT_USED
-			   ? page_info->page_state - (BUF_BLOCK_NOT_USED - 1)
-			   : 0, true));
+			   1 + std::min<unsigned>(page_info->page_state,
+						  BUF_BLOCK_FILE_PAGE), true));
 
 		OK(fields[IDX_BUFFER_PAGE_IO_FIX]->store(
 			   1 + page_info->io_fix, true));
@@ -4135,14 +4127,6 @@ i_s_innodb_set_page_type(
 
 		page_info->page_type = page_type & 0xf;
 	}
-
-	if (page_info->page_type == FIL_PAGE_TYPE_ZBLOB
-	    || page_info->page_type == FIL_PAGE_TYPE_ZBLOB2) {
-		page_info->page_num = mach_read_from_4(
-			frame + FIL_PAGE_OFFSET);
-		page_info->space_id = mach_read_from_4(
-			frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-	}
 }
 /*******************************************************************//**
 Scans pages in the buffer cache, and collect their general information
@@ -4161,35 +4145,40 @@ i_s_innodb_buffer_page_get_info(
 {
 	page_info->block_id = pos;
 
-	page_info->page_state = buf_page_get_state(bpage) & 7;
+	compile_time_assert(BUF_BLOCK_NOT_USED == 0);
+	compile_time_assert(BUF_BLOCK_MEMORY == 1);
+	compile_time_assert(BUF_BLOCK_REMOVE_HASH == 2);
+	compile_time_assert(BUF_BLOCK_FILE_PAGE == 3);
+	compile_time_assert(BUF_BLOCK_ZIP_PAGE == 4);
 
-	/* Only fetch information for buffers that map to a tablespace,
-	that is, buffer page with state BUF_BLOCK_ZIP_PAGE,
-	BUF_BLOCK_ZIP_DIRTY or BUF_BLOCK_FILE_PAGE */
-	if (buf_page_in_file(bpage)) {
+	auto state = bpage->state();
+	page_info->page_state= int{state} & 7;
+
+	switch (state) {
+	default:
+		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
+		break;
+	case BUF_BLOCK_FILE_PAGE:
+	case BUF_BLOCK_ZIP_PAGE:
 		const byte*	frame;
 
-		page_info->space_id = bpage->id.space();
+		page_info->id = bpage->id();
 
-		page_info->page_num = bpage->id.page_no();
+		page_info->fix_count = bpage->buf_fix_count();
 
-		page_info->flush_type = bpage->flush_type;
-
-		page_info->fix_count = bpage->buf_fix_count;
-
-		page_info->oldest_mod = bpage->oldest_modification;
+		page_info->oldest_mod = bpage->oldest_modification();
 
 		page_info->access_time = bpage->access_time;
 
 		page_info->zip_ssize = bpage->zip.ssize;
 
-		page_info->io_fix = bpage->io_fix & 3;
+		page_info->io_fix = bpage->io_fix() & 3;
 
 		page_info->is_old = bpage->old;
 
 		page_info->freed_page_clock = bpage->freed_page_clock;
 
-		switch (buf_page_get_io_fix(bpage)) {
+		switch (bpage->io_fix()) {
 		case BUF_IO_NONE:
 		case BUF_IO_WRITE:
 		case BUF_IO_PIN:
@@ -4200,7 +4189,7 @@ i_s_innodb_buffer_page_get_info(
 			return;
 		}
 
-		if (page_info->page_state == BUF_BLOCK_FILE_PAGE) {
+		if (state == BUF_BLOCK_FILE_PAGE) {
 			const buf_block_t*block;
 
 			block = reinterpret_cast<const buf_block_t*>(bpage);
@@ -4219,8 +4208,6 @@ i_s_innodb_buffer_page_get_info(
 
 		page_info->newest_mod = mach_read_from_8(FIL_PAGE_LSN + frame);
 		i_s_innodb_set_page_type(page_info, frame);
-	} else {
-		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
 	}
 }
 
@@ -4404,7 +4391,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
   Column("PAGE_TYPE", Varchar(64), NULLABLE),
 
 #define IDX_BUF_LRU_PAGE_FLUSH_TYPE	5
-  Column("FLUSH_TYPE", ULonglong(), NOT_NULL),
+  Column("FLUSH_TYPE", ULong(), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_FIX_COUNT	6
   Column("FIX_COUNT", ULong(), NOT_NULL),
@@ -4488,17 +4475,16 @@ i_s_innodb_buf_page_lru_fill(
 			   page_info->block_id, true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_SPACE]->store(
-			   page_info->space_id, true));
+			   page_info->id.space(), true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_NUM]->store(
-			   page_info->page_num, true));
+			   page_info->id.page_no(), true));
 
 		OK(field_store_string(
 			   fields[IDX_BUF_LRU_PAGE_TYPE],
 			   i_s_page_type[page_info->page_type].type_str));
 
-		OK(fields[IDX_BUF_LRU_PAGE_FLUSH_TYPE]->store(
-			   page_info->flush_type, true));
+		OK(fields[IDX_BUF_LRU_PAGE_FLUSH_TYPE]->store(0, true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_FIX_COUNT]->store(
 			   page_info->fix_count, true));
@@ -4574,8 +4560,7 @@ i_s_innodb_buf_page_lru_fill(
 			   ? 512 << page_info->zip_ssize : 0, true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_STATE]->store(
-			   page_info->page_state == BUF_BLOCK_ZIP_PAGE
-			   || page_info->page_state == BUF_BLOCK_ZIP_DIRTY,
+			   page_info->page_state == BUF_BLOCK_ZIP_PAGE,
 			   true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_IO_FIX]->store(
@@ -4622,14 +4607,12 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 
 	/* Print error message if malloc fail */
 	info_buffer = (buf_page_info_t*) my_malloc(PSI_INSTRUMENT_ME,
-		lru_len * sizeof *info_buffer, MYF(MY_WME));
+		lru_len * sizeof *info_buffer, MYF(MY_WME | MY_ZEROFILL));
 
 	if (!info_buffer) {
 		status = 1;
 		goto exit;
 	}
-
-	memset(info_buffer, 0, lru_len * sizeof *info_buffer);
 
 	/* Walk through Pool's LRU list and print the buffer page
 	information */
@@ -6588,9 +6571,7 @@ i_s_dict_fill_sys_tablespaces(
 			break;
 
 		default:
-			ib::error()
-				<< "File '" << filepath << "' "
-				<< ut_strerr(err);
+			ib::error() << "File '" << filepath << "' " << err;
 			break;
 		}
 
@@ -7055,7 +7036,7 @@ i_s_tablespaces_encryption_fill_table(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
-	if (check_global_access(thd, SUPER_ACL)) {
+	if (check_global_access(thd, PROCESS_ACL)) {
 		DBUG_RETURN(0);
 	}
 
@@ -7201,17 +7182,9 @@ i_s_innodb_mutexes_fill_table(
 
 #ifdef JAN_TODO_FIXME
 	ib_mutex_t*	mutex;
-	ulint		block_mutex_oswait_count = 0;
-	ib_mutex_t*	block_mutex = NULL;
 	for (mutex = UT_LIST_GET_FIRST(os_mutex_list); mutex != NULL;
 	     mutex = UT_LIST_GET_NEXT(list, mutex)) {
 		if (mutex->count_os_wait == 0) {
-			continue;
-		}
-
-		if (buf_pool.is_block_mutex(mutex)) {
-			block_mutex = mutex;
-			block_mutex_oswait_count += mutex->count_os_wait;
 			continue;
 		}
 
@@ -7222,20 +7195,6 @@ i_s_innodb_mutexes_fill_table(
 		fields[MUTEXES_CREATE_LINE]->set_notnull();
 		OK(fields[MUTEXES_OS_WAITS]->store(lock->count_os_wait, true));
 		fields[MUTEXES_OS_WAITS]->set_notnull();
-		OK(schema_table_store_record(thd, tables->table));
-	}
-
-	if (block_mutex) {
-		char buf1[IO_SIZE];
-
-		snprintf(buf1, sizeof buf1, "combined %s",
-			 innobase_basename(block_mutex->cfile_name));
-
-		OK(field_store_string(fields[MUTEXES_NAME], block_mutex->cmutex_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
-		OK(fields[MUTEXES_CREATE_LINE]->store(block_mutex->cline, true));
-		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(fields[MUTEXES_OS_WAITS]->store((longlong)block_mutex_oswait_count), true);
 		OK(schema_table_store_record(thd, tables->table));
 	}
 

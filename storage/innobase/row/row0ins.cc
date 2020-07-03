@@ -58,35 +58,22 @@ check.
 If you make a change in this module make sure that no codepath is
 introduced where a call to log_free_check() is bypassed. */
 
-/***********************************************************//**
-Creates an entry template for each index of a table. */
-static
-void
-ins_node_create_entry_list(
-/*=======================*/
-	ins_node_t*	node)	/*!< in: row insert node */
+/** Create an row template for each index of a table. */
+static void ins_node_create_entry_list(ins_node_t *node)
 {
-	dict_index_t*	index;
-	dtuple_t*	entry;
+  node->entry_list.reserve(UT_LIST_GET_LEN(node->table->indexes));
 
-	ut_ad(node->entry_sys_heap);
-
-	/* We will include all indexes (include those corrupted
-	secondary indexes) in the entry list. Filtration of
-	these corrupted index will be done in row_ins() */
-
-	node->entry_list.reserve(UT_LIST_GET_LEN(node->table->indexes));
-
-	for (index = dict_table_get_first_index(node->table);
-	     index != 0;
-	     index = dict_table_get_next_index(index)) {
-
-		entry = row_build_index_entry_low(
-			node->row, NULL, index, node->entry_sys_heap,
-			ROW_BUILD_FOR_INSERT);
-
-		node->entry_list.push_back(entry);
-	}
+  for (dict_index_t *index= dict_table_get_first_index(node->table); index;
+       index= dict_table_get_next_index(index))
+  {
+    /* Corrupted or incomplete secondary indexes will be filtered out in
+    row_ins(). */
+    dtuple_t *entry= index->online_status >= ONLINE_INDEX_ABORTED
+      ? dtuple_create(node->entry_sys_heap, 0)
+      : row_build_index_entry_low(node->row, NULL, index, node->entry_sys_heap,
+				  ROW_BUILD_FOR_INSERT);
+    node->entry_list.push_back(entry);
+  }
 }
 
 /*****************************************************************//**
@@ -252,7 +239,7 @@ row_ins_sec_index_entry_by_modify(
 		}
 	} else {
 		ut_a(mode == BTR_MODIFY_TREE);
-		if (buf_LRU_buf_pool_running_out()) {
+		if (buf_pool.running_out()) {
 
 			return(DB_LOCK_TABLE_FULL);
 		}
@@ -342,10 +329,8 @@ row_ins_clust_index_entry_by_modify(
 			break;
 		}
 	} else {
-		if (buf_LRU_buf_pool_running_out()) {
-
-			return(DB_LOCK_TABLE_FULL);
-
+		if (buf_pool.running_out()) {
+			return DB_LOCK_TABLE_FULL;
 		}
 
 		big_rec_t*	big_rec	= NULL;
@@ -1255,8 +1240,10 @@ row_ins_foreign_check_on_constraint(
 
 		update->info_bits = 0;
 		update->n_fields = foreign->n_fields;
-		UNIV_MEM_INVALID(update->fields,
-				 update->n_fields * sizeof *update->fields);
+#ifdef HAVE_valgrind_or_MSAN
+		MEM_UNDEFINED(update->fields,
+			      update->n_fields * sizeof *update->fields);
+#endif /* HAVE_valgrind_or_MSAN */
 
 		bool affects_fulltext = false;
 
@@ -2731,8 +2718,7 @@ do_insert:
 				entry, &insert_rec, &big_rec,
 				n_ext, thr, &mtr);
 		} else {
-			if (buf_LRU_buf_pool_running_out()) {
-
+			if (buf_pool.running_out()) {
 				err = DB_LOCK_TABLE_FULL;
 				goto err_exit;
 			}
@@ -3089,8 +3075,7 @@ row_ins_sec_index_entry_low(
 			}
 		} else {
 			ut_ad(mode == BTR_MODIFY_TREE);
-			if (buf_LRU_buf_pool_running_out()) {
-
+			if (buf_pool.running_out()) {
 				err = DB_LOCK_TABLE_FULL;
 				goto func_exit;
 			}

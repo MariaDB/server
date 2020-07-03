@@ -2500,7 +2500,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           double rows= 1.0;
           while ((tableno = tm_it.next_bit()) != Table_map_iterator::BITMAP_END)
             rows= COST_MULT(rows,
-			    join->map2table[tableno]->table->quick_condition_rows);
+			    join->map2table[tableno]->table->opt_range_condition_rows);
           sjm->rows= MY_MIN(sjm->rows, rows);
         }
         memcpy((uchar*) sjm->positions,

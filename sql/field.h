@@ -551,6 +551,7 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
 #define VCOL_AUTO_INC         16
 #define VCOL_IMPOSSIBLE       32
 #define VCOL_NOT_VIRTUAL      64  /* Function can't be virtual */
+#define VCOL_CHECK_CONSTRAINT_IF_NOT_EXISTS 128
 
 #define VCOL_NOT_STRICTLY_DETERMINISTIC                       \
   (VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC | VCOL_SESSION_FUNC)
@@ -977,6 +978,37 @@ public:
     DBUG_ASSERT(ls.length < UINT_MAX32);
     return store(ls.str, (uint) ls.length, cs);
   }
+
+  /*
+    @brief
+      Store minimum/maximum value of a column in the statistics table.
+    @param
+      field                  statistical table field
+      str                    value buffer
+  */
+  virtual int store_to_statistical_minmax_field(Field *field, String *str);
+
+  /*
+    @brief
+      Store minimum/maximum value of a column from the statistical table.
+    @param
+      field                  statistical table field
+      str                    value buffer
+  */
+  virtual int store_from_statistical_minmax_field(Field *field, String *str);
+
+#ifdef HAVE_valgrind_or_MSAN
+  /**
+    Mark unused memory in the field as defined. Mainly used to ensure
+    that if we write full field to disk (for example in
+    Count_distinct_field::add(), we don't write unitalized data to
+    disk which would confuse valgrind or MSAN.
+  */
+  virtual void mark_unused_memory_as_defined() {}
+#else
+  void mark_unused_memory_as_defined() {}
+#endif
+
   virtual double val_real()=0;
   virtual longlong val_int()=0;
   /*
@@ -1432,6 +1464,13 @@ public:
                                          const SORT_FIELD_ATTR *sort_field);
 
   virtual void make_send_field(Send_field *);
+
+  /*
+    Some implementations actually may write up to 8 bytes regardless of what
+    size was requested. This is due to the minimum value of the system variable
+    max_sort_length.
+  */
+
   virtual void sort_string(uchar *buff,uint length)=0;
   virtual bool optimize_range(uint idx, uint part) const;
   virtual void free() {}
@@ -1572,6 +1611,7 @@ public:
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment, ulong current_row=0) const;
   virtual void print_key_value(String *out, uint32 length);
+  void print_key_part_value(String *out, const uchar *key, uint32 length);
   void print_key_value_binary(String *out, const uchar* key, uint32 length);
 protected:
   bool set_warning(unsigned int code, int cuted_increment) const
@@ -4096,6 +4136,9 @@ public:
   }
   int  store(const char *to,size_t length,CHARSET_INFO *charset) override;
   using Field_str::store;
+#ifdef HAVE_valgrind_or_MSAN
+  void mark_unused_memory_as_defined() override;
+#endif
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
@@ -5678,7 +5721,7 @@ int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
 int convert_null_to_field_value_or_error(Field *field);
 bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
-                      enum_vcol_info_type type);
+                      enum_vcol_info_type type, Alter_info *alter_info= NULL);
 
 /*
   The following are for the interface with the .frm file

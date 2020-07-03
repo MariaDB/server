@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT, b VARCHAR(255)) ENGINE=columnstore;
+INSERT INTO t1 (a, b) VALUES (1, 'columnstore'), (2, 'test');
+SELECT * FROM t1;
+a	b
+1	columnstore
+2	test
+UPDATE t1 SET a=a+100;
+SELECT * FROM t1;
+a	b
+101	columnstore
+102	test
+DELETE FROM t1 WHERE a=101;
+SELECT * FROM t1;
+a	b
+102	test
+DROP TABLE t1;

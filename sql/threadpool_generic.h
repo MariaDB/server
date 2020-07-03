@@ -25,7 +25,7 @@
 #include <windows.h>
 #include "threadpool_winsockets.h"
 /* AIX may define this, too ?*/
-#define HAVE_IOCP 
+#define HAVE_IOCP
 #endif
 
 
@@ -90,7 +90,7 @@ struct TP_connection_generic :public TP_connection
   TP_file_handle fd;
   bool bound_to_poll_descriptor;
   int waiting;
-
+  bool fix_group;
 #ifdef _WIN32
   win_aiosocket win_sock{};
   void init_vio(st_vio *vio) override
@@ -128,7 +128,7 @@ struct thread_group_counters_t
   ulonglong polls[2];
 };
 
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) thread_group_t
+struct thread_group_t
 {
   mysql_mutex_t mutex;
   connection_queue_t queues[NQUEUES];
@@ -147,6 +147,7 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) thread_group_t
   bool shutdown;
   bool stalled;
   thread_group_counters_t counters;
+  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
 };
 
 #define TP_INCREMENT_GROUP_COUNTER(group,var) do {group->counters.var++;}while(0)

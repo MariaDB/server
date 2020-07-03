@@ -537,6 +537,20 @@ SELECT a, GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-21765 Possibly inconsistent behavior of BIT_xx functions with INET6 field
+--echo #
+
+CREATE TABLE t1 (a INET6);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_AND(a) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_OR(a) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_XOR(a) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # Window functions
 --echo #
 
@@ -1444,4 +1458,105 @@ DROP TABLE t1;
 CREATE TABLE t1 (id INT, a INET6) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1, 'fff::'),(1, '8888::');
 SELECT MIN(a), MAX(a) FROM t1 GROUP BY id;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-20809 EXTRACT from INET6 value does not produce any warnings
+--echo #
+
+CREATE TABLE t1 (a INET6);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT EXTRACT(DAY FROM a) FROM t1;
+DROP TABLE t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT EXTRACT(DAY FROM CAST('::' AS INET6));
+
+
+--echo #
+--echo # MDEV-22764 Crash with a stored aggregate function returning INET6
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE AGGREGATE FUNCTION aggregate_min_inet6(x INET6) RETURNS INET6
+BEGIN
+  DECLARE res INET6 DEFAULT NULL;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND
+    RETURN res;
+  LOOP
+    FETCH GROUP NEXT ROW;
+    IF (res IS NULL) OR (res > x) THEN
+      SET res= x;
+    END IF;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+CREATE OR REPLACE TABLE t1 (name CHAR(30), val INET6);
+INSERT INTO t1 VALUES ('a', '::05');
+INSERT INTO t1 VALUES ('a', '::03');
+INSERT INTO t1 VALUES ('b', '::01');
+INSERT INTO t1 VALUES ('b', '::02');
+INSERT INTO t1 VALUES ('b', '::05');
+SELECT name, aggregate_min_inet6(val) pc FROM t1 GROUP BY name;
+
+CREATE OR REPLACE TABLE t2 (name CHAR(30), val INET6);
+INSERT INTO t2 SELECT name, aggregate_min_inet6(val) pc FROM t1 GROUP BY name;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+DROP TABLE t1;
+DROP FUNCTION aggregate_min_inet6;
+
+
+--echo #
+--echo # MDEV-20280 PERCENTILE_DISC() rejects temporal and string input
+--echo #
+
+CREATE TABLE t1 (name CHAR(30), star_rating INET6);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', '::5');
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', '::3');
+INSERT INTO t1 VALUES ('Lady of the Flies', '::1');
+INSERT INTO t1 VALUES ('Lady of the Flies', '::2');
+INSERT INTO t1 VALUES ('Lady of the Flies', '::5');
+SELECT name, PERCENTILE_DISC(0.5)
+  WITHIN GROUP (ORDER BY star_rating)
+  OVER (PARTITION BY name) AS pc FROM t1;
+SELECT name, PERCENTILE_DISC(0)
+  WITHIN GROUP (ORDER BY star_rating)
+  OVER (PARTITION BY name) AS pc FROM t1;
+SELECT name, PERCENTILE_DISC(1)
+  WITHIN GROUP (ORDER BY star_rating)
+  OVER (PARTITION BY name) AS pc FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-22758 Assertion `!item->null_value' failed in Type_handler_inet6::make_sort_key_part
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(8) NOT NULL, b INET6 NOT NULL);
+INSERT INTO t1 VALUES ('foo','::'),('bar','1::1');
+SELECT * FROM t1 ORDER BY CASE WHEN a THEN b ELSE a END;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a VARCHAR(8) NOT NULL);
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT * FROM t1 ORDER BY CAST(a AS INET6);
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INET6 NOT NULL, b VARCHAR(32) NOT NULL);
+CREATE TABLE t2 AS SELECT CAST(a AS INET6) AS ca, CAST(b AS INET6) AS cb FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT COALESCE(a,a), COALESCE(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT a AS ca,a AS cb FROM t1 UNION SELECT a,b FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
 DROP TABLE t1;

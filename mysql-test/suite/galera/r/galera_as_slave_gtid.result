@@ -9,6 +9,7 @@ INSERT INTO t1 VALUES(1);
 SELECT LENGTH(@@global.gtid_binlog_state) > 1;
 LENGTH(@@global.gtid_binlog_state) > 1
 1
+connection node_1;
 connection node_2;
 gtid_binlog_state_equal
 1

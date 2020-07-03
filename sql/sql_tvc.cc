@@ -23,6 +23,36 @@
 #include "sql_parse.h"
 #include "sql_cte.h"
 
+
+/**
+  @brief
+    Walk through all VALUES items.
+  @param
+     @param processor      - the processor to call for each Item
+     @param walk_qubquery  - if should dive into subquery items
+     @param argument       - the argument to pass recursively
+  @retval
+    true   on error
+    false  on success
+*/
+bool table_value_constr::walk_values(Item_processor processor,
+                                     bool walk_subquery,
+                                     void *argument)
+{
+  List_iterator_fast<List_item> list_item_it(lists_of_values);
+  while (List_item *list= list_item_it++)
+  {
+    List_iterator_fast<Item> item_it(*list);
+    while (Item *item= item_it++)
+    {
+       if (item->walk(&Item::unknown_splocal_processor, false, argument))
+         return true;
+    }
+  }
+  return false;
+}
+
+
 /**
   @brief
     Fix fields for TVC values
@@ -52,7 +82,15 @@ bool fix_fields_for_tvc(THD *thd, List_iterator_fast<List_item> &li)
 
     while ((item= it++))
     {
-      if (item->fix_fields(thd, 0))
+      /*
+        Some items have already been fixed.
+        For example Item_splocal items get fixed in
+        Item_splocal::append_for_log(), which is called from subst_spvars()
+        while replacing their values to NAME_CONST()s.
+        So fix only those that have not been.
+      */
+      if (item->fix_fields_if_needed(thd, 0) ||
+          item->check_is_evaluable_expression_or_error())
 	DBUG_RETURN(true);
     }
   }

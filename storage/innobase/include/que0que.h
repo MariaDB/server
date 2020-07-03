@@ -154,16 +154,6 @@ trx_t*
 thr_get_trx(
 /*========*/
 	que_thr_t*	thr);	/*!< in: query thread */
-/*******************************************************************//**
-Determines if this thread is rolling back an incomplete transaction
-in crash recovery.
-@return TRUE if thr is rolling back an incomplete transaction in crash
-recovery */
-UNIV_INLINE
-ibool
-thr_is_recv(
-/*========*/
-	const que_thr_t*	thr);	/*!< in: query thread */
 /***********************************************************************//**
 Gets the type of a graph node. */
 UNIV_INLINE

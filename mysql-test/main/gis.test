@@ -3310,5 +3310,28 @@ FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-20809 EXTRACT from INET6 value does not produce any warnings
+--echo #
+
+CREATE TABLE t1 (a GEOMETRY);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT EXTRACT(DAY FROM a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-21765 Possibly inconsistent behavior of BIT_xx functions with INET6 field
+--echo #
+
+CREATE TABLE t1 (a GEOMETRY);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_AND(a) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_OR(a) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_XOR(a) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

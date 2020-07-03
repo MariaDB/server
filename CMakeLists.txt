@@ -24,6 +24,9 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8.7)
 IF(POLICY CMP0022)
   CMAKE_POLICY(SET CMP0022 NEW)
 ENDIF()
+IF(POLICY CMP0048)
+  CMAKE_POLICY(SET CMP0048 NEW)
+ENDIF()
 IF(POLICY CMP0054)
   CMAKE_POLICY(SET CMP0054 NEW)
 ENDIF()
@@ -170,7 +173,6 @@ INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
 INCLUDE(symlinks)
 INCLUDE(compile_flags)
-INCLUDE(crc32)
 INCLUDE(pmem)
 
 # Handle options
@@ -238,6 +240,9 @@ OPTION(WITH_MSAN "Enable memory sanitizer" OFF)
 IF (WITH_MSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
 ENDIF()
+
+# Be nice to profilers etc
+MY_CHECK_AND_SET_COMPILER_FLAG("-fno-omit-frame-pointer" RELWITHDEBINFO)
 
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
@@ -420,7 +425,7 @@ INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
 
-SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
+SET(PYTHON_SHEBANG "/usr/bin/env python3" CACHE STRING "python shebang")
 MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 # Add storage engines and plugins.

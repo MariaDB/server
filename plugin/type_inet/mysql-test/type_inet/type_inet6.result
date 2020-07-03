@@ -909,6 +909,17 @@ a	GROUP_CONCAT(a ORDER BY a)
 ::2	::2,::2,::2,::2
 DROP TABLE t1;
 #
+# MDEV-21765 Possibly inconsistent behavior of BIT_xx functions with INET6 field
+#
+CREATE TABLE t1 (a INET6);
+SELECT BIT_AND(a) FROM t1;
+ERROR HY000: Illegal parameter data type inet6 for operation 'bit_and('
+SELECT BIT_OR(a) FROM t1;
+ERROR HY000: Illegal parameter data type inet6 for operation 'bit_or('
+SELECT BIT_XOR(a) FROM t1;
+ERROR HY000: Illegal parameter data type inet6 for operation 'bit_xor('
+DROP TABLE t1;
+#
 # Window functions
 #
 CREATE TABLE t1 (a INET6);
@@ -1976,4 +1987,136 @@ INSERT INTO t1 VALUES (1, 'fff::'),(1, '8888::');
 SELECT MIN(a), MAX(a) FROM t1 GROUP BY id;
 MIN(a)	MAX(a)
 fff::	8888::
+DROP TABLE t1;
+#
+# MDEV-20809 EXTRACT from INET6 value does not produce any warnings
+#
+CREATE TABLE t1 (a INET6);
+SELECT EXTRACT(DAY FROM a) FROM t1;
+ERROR HY000: Illegal parameter data type inet6 for operation 'extract(day)'
+DROP TABLE t1;
+SELECT EXTRACT(DAY FROM CAST('::' AS INET6));
+ERROR HY000: Illegal parameter data type inet6 for operation 'extract(day)'
+#
+# MDEV-22764 Crash with a stored aggregate function returning INET6
+#
+CREATE OR REPLACE AGGREGATE FUNCTION aggregate_min_inet6(x INET6) RETURNS INET6
+BEGIN
+DECLARE res INET6 DEFAULT NULL;
+DECLARE CONTINUE HANDLER FOR NOT FOUND
+RETURN res;
+LOOP
+FETCH GROUP NEXT ROW;
+IF (res IS NULL) OR (res > x) THEN
+SET res= x;
+END IF;
+END LOOP;
+END;
+$$
+CREATE OR REPLACE TABLE t1 (name CHAR(30), val INET6);
+INSERT INTO t1 VALUES ('a', '::05');
+INSERT INTO t1 VALUES ('a', '::03');
+INSERT INTO t1 VALUES ('b', '::01');
+INSERT INTO t1 VALUES ('b', '::02');
+INSERT INTO t1 VALUES ('b', '::05');
+SELECT name, aggregate_min_inet6(val) pc FROM t1 GROUP BY name;
+name	pc
+a	::3
+b	::1
+CREATE OR REPLACE TABLE t2 (name CHAR(30), val INET6);
+INSERT INTO t2 SELECT name, aggregate_min_inet6(val) pc FROM t1 GROUP BY name;
+SELECT * FROM t2;
+name	val
+a	::3
+b	::1
+DROP TABLE t2;
+DROP TABLE t1;
+DROP FUNCTION aggregate_min_inet6;
+#
+# MDEV-20280 PERCENTILE_DISC() rejects temporal and string input
+#
+CREATE TABLE t1 (name CHAR(30), star_rating INET6);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', '::5');
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', '::3');
+INSERT INTO t1 VALUES ('Lady of the Flies', '::1');
+INSERT INTO t1 VALUES ('Lady of the Flies', '::2');
+INSERT INTO t1 VALUES ('Lady of the Flies', '::5');
+SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+name	pc
+Lady of the Flies	::2
+Lady of the Flies	::2
+Lady of the Flies	::2
+Lord of the Ladybirds	::3
+Lord of the Ladybirds	::3
+SELECT name, PERCENTILE_DISC(0)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+name	pc
+Lady of the Flies	::1
+Lady of the Flies	::1
+Lady of the Flies	::1
+Lord of the Ladybirds	::3
+Lord of the Ladybirds	::3
+SELECT name, PERCENTILE_DISC(1)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+name	pc
+Lady of the Flies	::5
+Lady of the Flies	::5
+Lady of the Flies	::5
+Lord of the Ladybirds	::5
+Lord of the Ladybirds	::5
+DROP TABLE t1;
+#
+# MDEV-22758 Assertion `!item->null_value' failed in Type_handler_inet6::make_sort_key_part
+#
+CREATE TABLE t1 (a VARCHAR(8) NOT NULL, b INET6 NOT NULL);
+INSERT INTO t1 VALUES ('foo','::'),('bar','1::1');
+SELECT * FROM t1 ORDER BY CASE WHEN a THEN b ELSE a END;
+a	b
+foo	::
+bar	1::1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Incorrect inet6 value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'bar'
+Warning	1292	Incorrect inet6 value: 'bar'
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a VARCHAR(8) NOT NULL);
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT * FROM t1 ORDER BY CAST(a AS INET6);
+a
+foo
+bar
+Warnings:
+Warning	1292	Incorrect inet6 value: 'foo'
+Warning	1292	Incorrect inet6 value: 'bar'
+DROP TABLE t1;
+CREATE TABLE t1 (a INET6 NOT NULL, b VARCHAR(32) NOT NULL);
+CREATE TABLE t2 AS SELECT CAST(a AS INET6) AS ca, CAST(b AS INET6) AS cb FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ca` inet6 NOT NULL,
+  `cb` inet6 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT COALESCE(a,a), COALESCE(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,a)` inet6 NOT NULL,
+  `COALESCE(a,b)` inet6 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT a AS ca,a AS cb FROM t1 UNION SELECT a,b FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ca` inet6 NOT NULL DEFAULT '::',
+  `cb` inet6 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
 DROP TABLE t1;

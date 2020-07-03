@@ -30,52 +30,53 @@ public:
   ha_s3(handlerton *hton, TABLE_SHARE * table_arg);
   ~ha_s3() {}
 
-  int create(const char *name, TABLE *table_arg, HA_CREATE_INFO *ha_create_info);
-  int open(const char *name, int mode, uint open_flags);
-  int write_row(const uchar *buf);
-  int update_row(const uchar * old_data, const uchar * new_data)
+  int create(const char *name, TABLE *table_arg,
+             HA_CREATE_INFO *ha_create_info) final;
+  int open(const char *name, int mode, uint open_flags) final;
+  int write_row(const uchar *buf) final;
+  int update_row(const uchar * old_data, const uchar * new_data) final
   {
     DBUG_ENTER("update_row");
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   }
-  int delete_row(const uchar * buf)
+  int delete_row(const uchar * buf) final
   {
     DBUG_ENTER("delete_row");
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   }
-  int check(THD * thd, HA_CHECK_OPT * check_opt)
+  int check(THD * thd, HA_CHECK_OPT * check_opt) final
   {
     DBUG_ENTER("delete_row");
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   }
-  int analyze(THD * thd, HA_CHECK_OPT * check_opt)
+  int analyze(THD * thd, HA_CHECK_OPT * check_opt) final
   {
     DBUG_ENTER("analyze");
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   }
-  int repair(THD * thd, HA_CHECK_OPT * check_opt)
+  int repair(THD * thd, HA_CHECK_OPT * check_opt) final
   {
     DBUG_ENTER("repair");
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   }
-  int preload_keys(THD * thd, HA_CHECK_OPT * check_opt)
+  int preload_keys(THD * thd, HA_CHECK_OPT * check_opt) final
   {
     DBUG_ENTER("preload_keys");
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   }
-  int external_lock(THD * thd, int lock_type);
+  int external_lock(THD * thd, int lock_type) final;
   /*
     drop_table() is only used for internal temporary tables,
     not applicable for s3
   */
-  void drop_table(const char *name)
+  void drop_table(const char *name) final
   {
   }
-  int delete_table(const char *name);
-  int rename_table(const char *from, const char *to);
+  int delete_table(const char *name) final;
+  int rename_table(const char *from, const char *to) final;
   int discover_check_version() override;
   int rebind();
-  S3_INFO *s3_open_args() { return open_args; }
-  void register_handler(MARIA_HA *file);
+  S3_INFO *s3_open_args() final { return open_args; }
+  void register_handler(MARIA_HA *file) final;
 };
 #endif /* HA_S3_INCLUDED */

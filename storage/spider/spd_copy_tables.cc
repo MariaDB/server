@@ -1,4 +1,5 @@
-/* Copyright (C) 2009-2018 Kentoku Shiba
+/* Copyright (C) 2009-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -839,6 +840,7 @@ long long spider_copy_tables_body(
   spider_string *tmp_sql = NULL;
   SPIDER_COPY_TABLE_CONN *table_conn, *src_tbl_conn, *dst_tbl_conn;
   SPIDER_CONN *tmp_conn;
+  SPIDER_WIDE_HANDLER *wide_handler;
   spider_db_copy_table *select_ct, *insert_ct;
   MEM_ROOT mem_root;
   longlong bulk_insert_rows;
@@ -1128,13 +1130,15 @@ long long spider_copy_tables_body(
         __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
         &tmp_spider->dbton_handler,
           sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
+        &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
         NullS))
     ) {
       my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
       goto error;
     }
     tmp_spider->share = table_conn->share;
-    tmp_spider->trx = copy_tables->trx;
+    tmp_spider->wide_handler = wide_handler;
+    wide_handler->trx = copy_tables->trx;
 /*
     if (spider_db_append_set_names(table_conn->share))
     {
@@ -1147,7 +1151,7 @@ long long spider_copy_tables_body(
     tmp_sql[roop_count].set_charset(copy_tables->access_charset);
     tmp_spider->result_list.sqls = &tmp_sql[roop_count];
     tmp_spider->need_mons = &table_conn->need_mon;
-    tmp_spider->lock_type = TL_READ;
+    tmp_spider->wide_handler->lock_type = TL_READ;
     tmp_spider->conn_link_idx = &tmp_conn_link_idx;
     uint dbton_id = tmp_spider->share->use_dbton_ids[0];
     if (!(tmp_spider->dbton_handler[dbton_id] =
@@ -1172,13 +1176,15 @@ long long spider_copy_tables_body(
         __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
         &tmp_spider->dbton_handler,
           sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
+        &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
         NullS))
     ) {
       my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
       goto error;
     }
     tmp_spider->share = table_conn->share;
-    tmp_spider->trx = copy_tables->trx;
+    tmp_spider->wide_handler = wide_handler;
+    wide_handler->trx = copy_tables->trx;
 /*
     if (spider_db_append_set_names(table_conn->share))
     {
@@ -1191,7 +1197,7 @@ long long spider_copy_tables_body(
     tmp_sql[roop_count].set_charset(copy_tables->access_charset);
     tmp_spider->result_list.sqls = &tmp_sql[roop_count];
     tmp_spider->need_mons = &table_conn->need_mon;
-    tmp_spider->lock_type = TL_WRITE;
+    tmp_spider->wide_handler->lock_type = TL_WRITE;
     tmp_spider->conn_link_idx = &tmp_conn_link_idx;
     uint dbton_id = tmp_spider->share->use_dbton_ids[0];
     if (!(tmp_spider->dbton_handler[dbton_id] =

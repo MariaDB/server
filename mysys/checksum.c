@@ -18,25 +18,41 @@
 #include <my_sys.h>
 #include <zlib.h>
 
-/*
-  Calculate a long checksum for a memoryblock.
-
-  SYNOPSIS
-    my_checksum()
-      crc       start value for crc
-      pos       pointer to memory block
-      length    length of the block
-*/
-
-ha_checksum my_checksum(ha_checksum crc, const uchar *pos, size_t length)
+#if !defined(HAVE_CRC32_VPMSUM)
+/* TODO: remove this once zlib adds inherent support for hardware accelerated
+crc32 for all architectures. */
+static unsigned int my_crc32_zlib(unsigned int crc, const void *data,
+                                  size_t len)
 {
-#ifdef HAVE_CRC32_VPMSUM
-  extern unsigned int crc32ieee_vpmsum(unsigned int crc, const unsigned char *p,
-                                    unsigned long len);
-  crc= (ha_checksum) crc32ieee_vpmsum((uint) crc, pos, (uint) length);
-#else
-  crc= (ha_checksum) crc32((uint)crc, pos, (uint) length);
-#endif
-  DBUG_PRINT("info", ("crc: %lu", (ulong) crc));
-  return crc;
+  return (unsigned int) crc32(crc, data, (unsigned int) len);
 }
+
+my_crc32_t my_checksum= my_crc32_zlib;
+#endif
+
+#if __GNUC__ >= 4 && defined(__x86_64__)
+
+extern int crc32_pclmul_enabled();
+extern unsigned int crc32_pclmul(unsigned int, const void *, size_t);
+
+/*----------------------------- x86_64 ---------------------------------*/
+void my_checksum_init(void)
+{
+  if (crc32_pclmul_enabled())
+    my_checksum= crc32_pclmul;
+}
+#elif defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
+/*----------------------------- aarch64 --------------------------------*/
+
+extern unsigned int crc32_aarch64(unsigned int, const void *, size_t);
+
+/* Ideally all ARM 64 bit processor should support crc32 but if some model
+doesn't support better to find it out through auxillary vector. */
+void my_checksum_init(void)
+{
+  if (crc32_aarch64_available())
+    my_checksum= crc32_aarch64;
+}
+#else
+void my_checksum_init(void) {}
+#endif

@@ -11,6 +11,8 @@ SELECT @@datadir;
 @@datadir
 DATADIR/
 # Kill the server
+1
+FOUND 1 /is not empty. Only new or empty existing directories are accepted for --datadir/ in install.log
 connection default;
 [mysqld]
 long_query_time=15.000000

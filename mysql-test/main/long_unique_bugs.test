@@ -343,6 +343,34 @@ while ($count)
 drop table t1;
 
 #
+# MDEV-21804 Assertion `marked_for_read()' failed upon INSERT into table with long unique blob under binlog_row_image=NOBLOB
+#
+
+--source include/have_binlog_format_row.inc
+SET binlog_row_image= NOBLOB;
+CREATE TABLE t1 (pk INT PRIMARY KEY, a text ,UNIQUE(a) using hash);
+INSERT INTO t1 VALUES (1,'foo');
+
+create table t2(id int primary key, a blob, b varchar(20) as (LEFT(a,2)));
+INSERT INTO t2 VALUES (1, 'foo', default);
+
+# Cleanup
+DROP TABLE t1, t2;
+SET binlog_row_image= FULL;
+
+#
+# MDEV-22719 Long unique keys are not created when individual key_part->length < max_key_length but SUM(key_parts->length) > max_key_length
+#
+
+CREATE TABLE t1 (a int, b VARCHAR(1000), UNIQUE (a,b)) ENGINE=MyISAM;
+show index from t1;
+CREATE TABLE t2 (a varchar(900), b VARCHAR(900), UNIQUE (a,b)) ENGINE=MyISAM;
+show index from t2;
+
+# Cleanup
+DROP TABLE t1,t2;
+
+#
 # MDEV-22113 SIGSEGV, ASAN use-after-poison, Assertion `next_insert_id == 0' in handler::ha_external_lock
 #
 create temporary table tmp ( a int, b int, c blob not null, d int, e int default 0, f int, unique key (c)) engine=innodb;
@@ -410,3 +438,5 @@ create table t1 (a int, b int, unique (b) using hash) engine=innodb partition by
 insert into t1 values (1,10),(2,20);
 update t1 set b = 30 limit 1;
 drop table t1;
+
+--echo # End of 10.5 tests

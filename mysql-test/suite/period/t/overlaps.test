@@ -67,6 +67,47 @@ update t set e= '2003-05-01' where s = '2003-01-01';
 
 select * from t where year(s) = 2003;
 
+--echo # UPDATE ... FOR PORTION test
+insert t values (2, '2003-04-15', '2003-05-01');
+
+update t for portion of p from '2003-01-01' to '2003-01-15'
+         set id= 2;
+--sorted_result
+select * from t;
+
+update t for portion of p from '2003-01-15' to '2003-02-01'
+         set id= 2;
+--sorted_result
+select * from t;
+
+--echo # Next, test UPDATE ... FOR PORTION resulting with an error
+--echo # Since MyISAM/Aria engines lack atomicity, the results would differ with
+--echo # innodb. So a table is going to be copied to one with explicit engine.
+
+create table t_myisam (id int, s date, e date,
+                     period for p(s,e),
+                     primary key(id, p without overlaps))
+                     engine=myisam
+                     select * from t;
+--error ER_DUP_ENTRY
+update t_myisam for portion of p from '2003-04-01' to '2003-06-01'
+         set id= 2 order by s desc;
+--sorted_result
+select * from t_myisam;
+
+create table t_innodb (id int, s date, e date,
+                     period for p(s,e),
+                     primary key(id, p without overlaps))
+                     engine=innodb
+                     select * from t;
+--error ER_DUP_ENTRY
+update t_innodb for portion of p from '2003-04-01' to '2003-06-01'
+         set id= 2 order by s desc;
+--sorted_result
+select * from t_innodb;
+
+drop table t_myisam, t_innodb;
+
 --error ER_PERIOD_NOT_FOUND
 create or replace table t(id int, s date, e date,
                           period for p(s,e),
@@ -116,12 +157,13 @@ insert into t values (1, 1, '2003-03-01', '2003-05-01');
 insert into t values (1, 2, '2003-05-01', '2003-07-01');
 insert into t values (4, NULL, '2003-03-01', '2003-05-01');
 
-create sequence seq start=5;
+create sequence seq start=5 engine=myisam;
 update t set id= nextval(seq), u= nextval(seq), s='2003-05-01', e='2003-07-01'
          where u is NULL;
 
 --sorted_result
 select * from t;
+drop sequence seq;
 
 create or replace table t(id int, s date, e date,
                           period for p(s,e));
@@ -229,4 +271,33 @@ load data infile 'tmp_t.txt' replace into table t;
 
 remove_file $MYSQLD_DATADIR/test/tmp_t.txt;
 
-create or replace database test;
+
+--echo # MDEV-22599 WITHOUT OVERLAPS does not work with prefix indexes
+create or replace table t1 (a varchar(6), s timestamp, e timestamp,
+                            period for p(s,e),
+                            unique(a(3), p without overlaps));
+
+insert into t1 values ('foo', '2012-01-01', '2015-12-31');
+--error ER_DUP_ENTRY
+insert into t1 values ('foobar', '2013-01-01', '2014-01-01');
+
+insert into t1 values ('bar', '2012-01-01', '2015-12-31'),
+                      ('baz', '2013-01-01', '2014-01-01');
+select * from t1;
+
+--echo # MDEV-22753 Server crashes in handler::ha_check_overlaps or error 190
+--echo # "Incompatible key or row definition" upon INSERT into versioned
+--echo # partitioned table with WITHOUT OVERLAPS
+create or replace table t1 (f int, s date, e date, period for p(s,e),
+                 unique(f, p without overlaps)
+                 ) engine=innodb with system versioning
+                 partition by system_time limit 1000
+                 (partition p1 history, partition pn current);
+alter table t1 add partition (partition p2 history);
+show create table t1;
+insert into t1 values (1,'2013-01-12','2015-11-04'),
+                      (2,'2016-03-15','2024-11-09');
+
+
+
+drop table t, t1;

@@ -61,6 +61,7 @@
 #include "wsrep_xid.h"
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h" /* wsrep transaction hooks */
+#include "wsrep_var.h"            /* wsrep_hton_check() */
 #endif /* WITH_WSREP */
 
 /**
@@ -146,6 +147,44 @@ TYPELIB tx_isolation_typelib= {array_elements(tx_isolation_names)-1,"",
 
 static TYPELIB known_extensions= {0,"known_exts", NULL, NULL};
 uint known_extensions_id= 0;
+
+
+class Table_exists_error_handler : public Internal_error_handler
+{
+public:
+  Table_exists_error_handler()
+    : m_handled_errors(0), m_unhandled_errors(0)
+  {}
+
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl)
+  {
+    *cond_hdl= NULL;
+    if (non_existing_table_error(sql_errno))
+    {
+      m_handled_errors++;
+      return TRUE;
+    }
+
+    if (*level == Sql_condition::WARN_LEVEL_ERROR)
+      m_unhandled_errors++;
+    return FALSE;
+  }
+
+  bool safely_trapped_errors()
+  {
+    return ((m_handled_errors > 0) && (m_unhandled_errors == 0));
+  }
+
+private:
+  int m_handled_errors;
+  int m_unhandled_errors;
+};
+
 
 static int commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans,
                               bool is_real_trans);
@@ -1244,14 +1283,14 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
 
   if (all)
   {
-    trans= &thd->transaction.all;
+    trans= &thd->transaction->all;
     thd->server_status|= SERVER_STATUS_IN_TRANS;
     if (thd->tx_read_only)
       thd->server_status|= SERVER_STATUS_IN_TRANS_READONLY;
     DBUG_PRINT("info", ("setting SERVER_STATUS_IN_TRANS"));
   }
   else
-    trans= &thd->transaction.stmt;
+    trans= &thd->transaction->stmt;
 
   ha_info= thd->ha_data[ht_arg->slot].ha_info + (all ? 1 : 0);
 
@@ -1263,8 +1302,8 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
   trans->no_2pc|=(ht_arg->prepare==0);
 
   /* Set implicit xid even if there's explicit XA, it will be ignored anyway. */
-  if (thd->transaction.implicit_xid.is_null())
-    thd->transaction.implicit_xid.set(thd->query_id);
+  if (thd->transaction->implicit_xid.is_null())
+    thd->transaction->implicit_xid.set(thd->query_id);
 
 /*
   Register transaction start in performance schema if not done already.
@@ -1327,7 +1366,7 @@ static int prepare_or_error(handlerton *ht, THD *thd, bool all)
 int ha_prepare(THD *thd)
 {
   int error=0, all=1;
-  THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
+  THD_TRANS *trans=all ? &thd->transaction->all : &thd->transaction->stmt;
   Ha_trx_info *ha_info= trans->ha_list;
   DBUG_ENTER("ha_prepare");
 
@@ -1377,7 +1416,7 @@ uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info)
 {
   unsigned rw_ha_count= 0;
 
-  for (auto ha_info= thd->transaction.all.ha_list; ha_info;
+  for (auto ha_info= thd->transaction->all.ha_list; ha_info;
        ha_info= ha_info->next())
   {
     if (ha_info->is_trx_read_write())
@@ -1472,7 +1511,7 @@ int ha_commit_trans(THD *thd, bool all)
     'all' means that this is either an explicit commit issued by
     user, or an implicit commit issued by a DDL.
   */
-  THD_TRANS *trans= all ? &thd->transaction.all : &thd->transaction.stmt;
+  THD_TRANS *trans= all ? &thd->transaction->all : &thd->transaction->stmt;
   /*
     "real" is a nick name for a transaction for which a commit will
     make persistent changes. E.g. a 'stmt' transaction inside a 'all'
@@ -1480,7 +1519,7 @@ int ha_commit_trans(THD *thd, bool all)
     the changes are not durable as they might be rolled back if the
     enclosing 'all' transaction is rolled back.
   */
-  bool is_real_trans= ((all || thd->transaction.all.ha_list == 0) &&
+  bool is_real_trans= ((all || thd->transaction->all.ha_list == 0) &&
                        !(thd->variables.option_bits & OPTION_GTID_BEGIN));
   Ha_trx_info *ha_info= trans->ha_list;
   bool need_prepare_ordered, need_commit_ordered;
@@ -1507,8 +1546,8 @@ int ha_commit_trans(THD *thd, bool all)
     flags will not get propagated to its normal transaction's
     counterpart.
   */
-  DBUG_ASSERT(thd->transaction.stmt.ha_list == NULL ||
-              trans == &thd->transaction.stmt);
+  DBUG_ASSERT(thd->transaction->stmt.ha_list == NULL ||
+              trans == &thd->transaction->stmt);
 
   if (thd->in_sub_stmt)
   {
@@ -1531,16 +1570,6 @@ int ha_commit_trans(THD *thd, bool all)
     DBUG_RETURN(2);
   }
 
-#ifdef WITH_ARIA_STORAGE_ENGINE
-  if ((error= ha_maria::implicit_commit(thd, TRUE)))
-  {
-    my_error(ER_ERROR_DURING_COMMIT, MYF(0), error);
-    ha_rollback_trans(thd, all);
-    DBUG_RETURN(1);
-  }
-
-#endif
-
   if (!ha_info)
   {
     /*
@@ -1548,7 +1577,7 @@ int ha_commit_trans(THD *thd, bool all)
     */
     if (is_real_trans)
     {
-      thd->transaction.cleanup();
+      thd->transaction->cleanup();
       MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi);
       thd->m_transaction_psi= NULL;
     }
@@ -1556,6 +1585,7 @@ int ha_commit_trans(THD *thd, bool all)
     if (wsrep_is_active(thd) && is_real_trans && !error)
       wsrep_commit_empty(thd, all);
 #endif /* WITH_WSREP */
+
     DBUG_RETURN(0);
   }
 
@@ -1570,9 +1600,15 @@ int ha_commit_trans(THD *thd, bool all)
   bool rw_trans= is_real_trans &&
                  (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
   MDL_request mdl_request;
+  mdl_request.ticket= 0;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
 
+  /*
+    We need to test maria_hton because of plugin_innodb.test that changes
+    the plugin table to innodb and thus plugin_load will call
+    mysql_close_tables() which calls trans_commit_trans() with maria_hton = 0
+  */
   if (rw_trans)
   {
     /*
@@ -1587,8 +1623,8 @@ int ha_commit_trans(THD *thd, bool all)
                      MDL_EXPLICIT);
 
     if (!WSREP(thd) &&
-      thd->mdl_context.acquire_lock(&mdl_request,
-                                    thd->variables.lock_wait_timeout))
+        thd->mdl_context.acquire_lock(&mdl_request,
+                                      thd->variables.lock_wait_timeout))
     {
       ha_rollback_trans(thd, all);
       DBUG_RETURN(1);
@@ -1596,7 +1632,6 @@ int ha_commit_trans(THD *thd, bool all)
 
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
-
   if (rw_trans &&
       opt_readonly &&
       !(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
@@ -1636,7 +1671,7 @@ int ha_commit_trans(THD *thd, bool all)
       // Here, the call will not commit inside InnoDB. It is only working
       // around closing thd->transaction.stmt open by TR_table::open().
       if (all)
-        commit_one_phase_2(thd, false, &thd->transaction.stmt, false);
+        commit_one_phase_2(thd, false, &thd->transaction->stmt, false);
     }
   }
 #endif
@@ -1697,11 +1732,11 @@ int ha_commit_trans(THD *thd, bool all)
     goto done;
   }
 
-  DBUG_ASSERT(thd->transaction.implicit_xid.get_my_xid() ==
-              thd->transaction.implicit_xid.quick_get_my_xid());
-  DBUG_ASSERT(!thd->transaction.xid_state.is_explicit_XA() ||
+  DBUG_ASSERT(thd->transaction->implicit_xid.get_my_xid() ==
+              thd->transaction->implicit_xid.quick_get_my_xid());
+  DBUG_ASSERT(!thd->transaction->xid_state.is_explicit_XA() ||
               thd->lex->xa_opt == XA_ONE_PHASE);
-  xid= thd->transaction.implicit_xid.quick_get_my_xid();
+  xid= thd->transaction->implicit_xid.quick_get_my_xid();
 
 #ifdef WITH_WSREP
   if (run_wsrep_hooks && !error)
@@ -1797,7 +1832,7 @@ err:
                 thd->rgi_slave->is_parallel_exec);
   }
 end:
-  if (rw_trans && mdl_request.ticket)
+  if (mdl_request.ticket)
   {
     /*
       We do not always immediately release transactional locks
@@ -1832,7 +1867,7 @@ end:
 
 int ha_commit_one_phase(THD *thd, bool all)
 {
-  THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
+  THD_TRANS *trans=all ? &thd->transaction->all : &thd->transaction->stmt;
   /*
     "real" is a nick name for a transaction for which a commit will
     make persistent changes. E.g. a 'stmt' transaction inside a 'all'
@@ -1846,7 +1881,7 @@ int ha_commit_one_phase(THD *thd, bool all)
     ha_commit_one_phase() can be called with an empty
     transaction.all.ha_list, see why in trans_register_ha()).
   */
-  bool is_real_trans= ((all || thd->transaction.all.ha_list == 0) &&
+  bool is_real_trans= ((all || thd->transaction->all.ha_list == 0) &&
                        !(thd->variables.option_bits & OPTION_GTID_BEGIN));
   int res;
   DBUG_ENTER("ha_commit_one_phase");
@@ -1893,8 +1928,8 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     if (all)
     {
 #ifdef HAVE_QUERY_CACHE
-      if (thd->transaction.changed_tables)
-        query_cache.invalidate(thd, thd->transaction.changed_tables);
+      if (thd->transaction->changed_tables)
+        query_cache.invalidate(thd, thd->transaction->changed_tables);
 #endif
     }
   }
@@ -1902,7 +1937,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   if (is_real_trans)
   {
     thd->has_waiter= false;
-    thd->transaction.cleanup();
+    thd->transaction->cleanup();
     if (count >= 2)
       statistic_increment(transactions_multi_engine, LOCK_status);
   }
@@ -1914,7 +1949,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
 int ha_rollback_trans(THD *thd, bool all)
 {
   int error=0;
-  THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
+  THD_TRANS *trans=all ? &thd->transaction->all : &thd->transaction->stmt;
   Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
   /*
     "real" is a nick name for a transaction for which a commit will
@@ -1929,15 +1964,15 @@ int ha_rollback_trans(THD *thd, bool all)
     ha_commit_one_phase() is called with an empty
     transaction.all.ha_list, see why in trans_register_ha()).
   */
-  bool is_real_trans=all || thd->transaction.all.ha_list == 0;
+  bool is_real_trans=all || thd->transaction->all.ha_list == 0;
   DBUG_ENTER("ha_rollback_trans");
 
   /*
     We must not rollback the normal transaction if a statement
     transaction is pending.
   */
-  DBUG_ASSERT(thd->transaction.stmt.ha_list == NULL ||
-              trans == &thd->transaction.stmt);
+  DBUG_ASSERT(thd->transaction->stmt.ha_list == NULL ||
+              trans == &thd->transaction->stmt);
 
 #ifdef HAVE_REPLICATION
   if (is_real_trans)
@@ -1954,7 +1989,7 @@ int ha_rollback_trans(THD *thd, bool all)
       builds, we explicitly do the signalling before rolling back.
     */
     DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit) ||
-                thd->transaction.xid_state.is_explicit_XA());
+                thd->transaction->xid_state.is_explicit_XA());
     if (thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)
       thd->rgi_slave->unmark_start_commit();
   }
@@ -1988,7 +2023,8 @@ int ha_rollback_trans(THD *thd, bool all)
       int err;
       handlerton *ht= ha_info->ht();
       if ((err= ht->rollback(ht, thd, all)))
-      { // cannot happen
+      {
+        // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
 #ifdef WITH_WSREP
@@ -2029,10 +2065,10 @@ int ha_rollback_trans(THD *thd, bool all)
       transaction hasn't been started in any transactional storage engine.
     */
     if (thd->transaction_rollback_request)
-      thd->transaction.xid_state.set_error(thd->get_stmt_da()->sql_errno());
+      thd->transaction->xid_state.set_error(thd->get_stmt_da()->sql_errno());
 
     thd->has_waiter= false;
-    thd->transaction.cleanup();
+    thd->transaction->cleanup();
   }
   if (all)
     thd->transaction_rollback_request= FALSE;
@@ -2050,7 +2086,7 @@ int ha_rollback_trans(THD *thd, bool all)
     it doesn't matter if a warning is pushed to a system thread or not:
     No one will see it...
   */
-  if (is_real_trans && thd->transaction.all.modified_non_trans_table &&
+  if (is_real_trans && thd->transaction->all.modified_non_trans_table &&
       !thd->slave_thread && thd->killed < KILL_CONNECTION)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
@@ -2392,8 +2428,8 @@ commit_checkpoint_notify_ha(handlerton *hton, void *cookie)
 bool ha_rollback_to_savepoint_can_release_mdl(THD *thd)
 {
   Ha_trx_info *ha_info;
-  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction.stmt :
-                                        &thd->transaction.all);
+  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction->stmt :
+                                        &thd->transaction->all);
 
   DBUG_ENTER("ha_rollback_to_savepoint_can_release_mdl");
 
@@ -2417,8 +2453,8 @@ bool ha_rollback_to_savepoint_can_release_mdl(THD *thd)
 int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
 {
   int error=0;
-  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction.stmt :
-                                        &thd->transaction.all);
+  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction->stmt :
+                                        &thd->transaction->all);
   Ha_trx_info *ha_info, *ha_info_next;
 
   DBUG_ENTER("ha_rollback_to_savepoint");
@@ -2503,8 +2539,8 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
   }
 #endif /* WITH_WSREP */
   int error=0;
-  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction.stmt :
-                                        &thd->transaction.all);
+  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction->stmt :
+                                        &thd->transaction->all);
   Ha_trx_info *ha_info= trans->ha_list;
   DBUG_ENTER("ha_savepoint");
 
@@ -2676,26 +2712,34 @@ const char *get_canonical_filename(handler *file, const char *path,
 }
 
 
-/** delete a table in the engine
+/**
+   Delete a table in the engine
+
+   @return 0   Table was deleted
+   @return -1  Table didn't exists, no error given
+   @return #   Error from table handler
 
   @note
   ENOENT and HA_ERR_NO_SUCH_TABLE are not considered errors.
-  The .frm file will be deleted only if we return 0.
+  The .frm file should be deleted by the caller only if we return <= 0.
 */
+
 int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
-                    const LEX_CSTRING *db, const LEX_CSTRING *alias, bool generate_warning)
+                    const LEX_CSTRING *db, const LEX_CSTRING *alias,
+                    bool generate_warning)
 {
   handler *file;
   char tmp_path[FN_REFLEN];
   int error;
   TABLE dummy_table;
   TABLE_SHARE dummy_share;
+  bool is_error= thd->is_error();
   DBUG_ENTER("ha_delete_table");
 
   /* table_type is NULL in ALTER TABLE when renaming only .frm files */
   if (table_type == NULL || table_type == view_pseudo_hton ||
       ! (file=get_new_handler((TABLE_SHARE*)0, thd->mem_root, table_type)))
-    DBUG_RETURN(0);
+    DBUG_RETURN(-1);
 
   bzero((char*) &dummy_table, sizeof(dummy_table));
   bzero((char*) &dummy_share, sizeof(dummy_share));
@@ -2705,11 +2749,11 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
   if (unlikely((error= file->ha_delete_table(path))))
   {
     /*
-      it's not an error if the table doesn't exist in the engine.
+      It's not an error if the table doesn't exist in the engine.
       warn the user, but still report DROP being a success
     */
-    bool intercept= (error == ENOENT || error == HA_ERR_NO_SUCH_TABLE ||
-                     error == HA_ERR_UNSUPPORTED);
+    bool intercept= non_existing_table_error(error);
+    DBUG_ASSERT(error > 0);
 
     if ((!intercept || generate_warning) && ! thd->is_error())
     {
@@ -2725,8 +2769,10 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
     }
     if (intercept)
     {
-      thd->clear_error();
-      error= 0;
+      /* Clear error if we got it in this function */
+      if (!is_error)
+        thd->clear_error();
+      error= -1;
     }
   }
   delete file;
@@ -3105,6 +3151,9 @@ int handler::ha_index_next(uchar * buf)
       table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
+
+  DEBUG_SYNC(ha_thd(), "handler_ha_index_next_end");
+
   DBUG_RETURN(result);
 }
 
@@ -4367,45 +4416,64 @@ uint handler::get_dup_key(int error)
 
   @note
     We assume that the handler may return more extensions than
-    was actually used for the file.
+    was actually used for the file. We also assume that the first
+    extension is the most important one (see the comment near
+    handlerton::tablefile_extensions). If this exist and we can't delete
+    that it, we will abort the delete.
+    If the first one doesn't exists, we have to try to delete all other
+    extension as there is chance that the server had crashed between
+    the delete of the first file and the next
 
   @retval
     0   If we successfully deleted at least one file from base_ext and
-    didn't get any other errors than ENOENT
+        didn't get any other errors than ENOENT
+
   @retval
     !0  Error
 */
+
 int handler::delete_table(const char *name)
 {
-  int saved_error= 0;
-  int error= 0;
-  int enoent_or_zero;
+  int saved_error= ENOENT;
+  bool abort_if_first_file_error= 1;
+  bool some_file_deleted= 0;
+  DBUG_ENTER("handler::delete_table");
 
+  // For discovery tables, it's ok if first file doesn't exists
   if (ht->discover_table)
-    enoent_or_zero= 0; // the table may not exist in the engine, it's ok
-  else
-    enoent_or_zero= ENOENT;  // the first file of bas_ext() *must* exist
-
-  for (const char **ext=bas_ext(); *ext ; ext++)
   {
-    if (mysql_file_delete_with_symlink(key_file_misc, name, *ext, 0))
+    abort_if_first_file_error= 0;
+    saved_error= 0;
+    if (!bas_ext())
+    {
+      DBUG_ASSERT(ht->flags & HTON_AUTOMATIC_DELETE_TABLE);
+      DBUG_RETURN(0);                           // Drop succeded
+    }
+  }
+
+  for (const char **ext= bas_ext(); *ext ; ext++)
+  {
+    int error;
+    if ((error= mysql_file_delete_with_symlink(key_file_misc, name, *ext,
+                                              MYF(0))))
     {
       if (my_errno != ENOENT)
       {
+        saved_error= my_errno;
         /*
-          If error on the first existing file, return the error.
+          If error other than file not found on the first existing file,
+          return the error.
           Otherwise delete as much as possible.
         */
-        if (enoent_or_zero)
-          return my_errno;
-	saved_error= my_errno;
+        if (abort_if_first_file_error)
+          DBUG_RETURN(saved_error);
       }
     }
     else
-      enoent_or_zero= 0;                        // No error for ENOENT
-    error= enoent_or_zero;
+      some_file_deleted= 1;
+    abort_if_first_file_error= 0;
   }
-  return saved_error ? saved_error : error;
+  DBUG_RETURN(some_file_deleted && saved_error == ENOENT ? 0 : saved_error);
 }
 
 
@@ -4441,6 +4509,21 @@ void handler::drop_table(const char *name)
 
 
 /**
+   Return true if the error from drop table means that the
+   table didn't exists
+*/
+
+bool non_existing_table_error(int error)
+{
+  return (error == ENOENT || error == HA_ERR_NO_SUCH_TABLE ||
+          error == HA_ERR_UNSUPPORTED ||
+          error == ER_NO_SUCH_TABLE ||
+          error == ER_NO_SUCH_TABLE_IN_ENGINE ||
+          error == ER_WRONG_OBJECT);
+}
+
+
+/**
   Performs checks upon the table.
 
   @param thd                thread doing CHECK TABLE operation
@@ -4455,6 +4538,7 @@ void handler::drop_table(const char *name)
   @retval
     HA_ADMIN_NOT_IMPLEMENTED
 */
+
 int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
 {
   int error;
@@ -4501,7 +4585,6 @@ void handler::mark_trx_read_write_internal()
   */
   if (ha_info->is_started())
   {
-    DBUG_ASSERT(has_transaction_manager());
     /*
       table_share can be NULL in ha_delete_table(). See implementation
       of standalone function ha_delete_table() in sql_base.cc.
@@ -4533,6 +4616,19 @@ int handler::ha_repair(THD* thd, HA_CHECK_OPT* check_opt)
   return result;
 }
 
+
+/**
+   End bulk insert
+*/
+
+int handler::ha_end_bulk_insert()
+{
+  DBUG_ENTER("handler::ha_end_bulk_insert");
+  DBUG_EXECUTE_IF("crash_end_bulk_insert",
+                  { extra(HA_EXTRA_FLUSH) ; DBUG_SUICIDE();});
+  estimation_rows_to_insert= 0;
+  DBUG_RETURN(end_bulk_insert());
+}
 
 /**
   Bulk update row: public interface.
@@ -4889,6 +4985,88 @@ handler::ha_drop_table(const char *name)
 
 
 /**
+   Structure used during force drop table.
+*/
+
+struct st_force_drop_table_params
+{
+  const char *path;
+  const LEX_CSTRING *db;
+  const LEX_CSTRING *alias;
+  int error;
+};
+
+
+/**
+   Try to delete table from a given plugin
+   Table types with discovery is ignored as these .frm files would have
+   been created during discovery and thus doesn't need to be found
+   for drop table force
+*/
+
+static my_bool delete_table_force(THD *thd, plugin_ref plugin, void *arg)
+{
+  handlerton *hton = plugin_hton(plugin);
+  st_force_drop_table_params *param = (st_force_drop_table_params *)arg;
+
+  /*
+    We have to ignore HEAP tables as these may not have been created yet
+    We also remove engines that is using discovery (as these will recrate
+    any missing .frm if needed) and tables marked with
+    HTON_AUTOMATIC_DELETE_TABLE as for these we can't check if the table
+    ever existed.
+  */
+  if (!hton->discover_table && hton->db_type != DB_TYPE_HEAP &&
+      !(hton->flags & HTON_AUTOMATIC_DELETE_TABLE))
+  {
+    int error;
+    error= ha_delete_table(thd, hton, param->path, param->db,
+                           param->alias, 0);
+    if (error > 0 && !non_existing_table_error(error))
+      param->error= error;
+    if (error == 0)
+    {
+      param->error= 0;
+      return TRUE;                                // Table was deleted
+    }
+  }
+  return FALSE;
+}
+
+/**
+   @brief
+   Traverse all plugins to delete table when .frm file is missing.
+
+   @return -1  Table was not found in any engine
+   @return 0  Table was found in some engine and delete succeded
+   @return #  Error from first engine that had a table but didn't succeed to
+              delete the table
+   @return HA_ERR_ROW_IS_REFERENCED if foreign key reference is encountered,
+
+*/
+
+int ha_delete_table_force(THD *thd, const char *path, const LEX_CSTRING *db,
+                          const LEX_CSTRING *alias)
+{
+  st_force_drop_table_params param;
+  Table_exists_error_handler no_such_table_handler;
+  DBUG_ENTER("ha_delete_table_force");
+
+  param.path=             path;
+  param.db=               db;
+  param.alias=            alias;
+  param.error=            -1;                   // Table not found
+
+  thd->push_internal_handler(&no_such_table_handler);
+  if (plugin_foreach(thd, delete_table_force, MYSQL_STORAGE_ENGINE_PLUGIN,
+                     &param))
+    param.error= 0;                            // Delete succeded
+  thd->pop_internal_handler();
+  DBUG_RETURN(param.error);
+}
+
+
+/**
   Create a table in the engine: public interface.
 
   @sa handler::create()
@@ -5008,7 +5186,7 @@ int ha_enable_transaction(THD *thd, bool on)
   DBUG_ENTER("ha_enable_transaction");
   DBUG_PRINT("enter", ("on: %d", (int) on));
 
-  if ((thd->transaction.on= on))
+  if ((thd->transaction->on= on))
   {
     /*
       Now all storage engines should have transaction handling enabled.
@@ -5602,43 +5780,6 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
   return ht->discover_table_existence(ht, args->db, args->table_name);
 }
 
-class Table_exists_error_handler : public Internal_error_handler
-{
-public:
-  Table_exists_error_handler()
-    : m_handled_errors(0), m_unhandled_errors(0)
-  {}
-
-  bool handle_condition(THD *thd,
-                        uint sql_errno,
-                        const char* sqlstate,
-                        Sql_condition::enum_warning_level *level,
-                        const char* msg,
-                        Sql_condition ** cond_hdl)
-  {
-    *cond_hdl= NULL;
-    if (sql_errno == ER_NO_SUCH_TABLE ||
-        sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE ||
-        sql_errno == ER_WRONG_OBJECT)
-    {
-      m_handled_errors++;
-      return TRUE;
-    }
-
-    if (*level == Sql_condition::WARN_LEVEL_ERROR)
-      m_unhandled_errors++;
-    return FALSE;
-  }
-
-  bool safely_trapped_errors()
-  {
-    return ((m_handled_errors > 0) && (m_unhandled_errors == 0));
-  }
-
-private:
-  int m_handled_errors;
-  int m_unhandled_errors;
-};
 
 /**
   Check if a given table exists, without doing a full discover, if possible
@@ -5709,20 +5850,25 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
 
       if ((type= dd_frm_type(thd, path, &engine, is_sequence)) ==
           TABLE_TYPE_UNKNOWN)
-        DBUG_RETURN(0);
-      
+      {
+        DBUG_PRINT("exit", ("Does not exist"));
+        DBUG_RETURN(true);                      // Frm exists
+      }
       if (type != TABLE_TYPE_VIEW)
       {
         plugin_ref p=  plugin_lock_by_name(thd, &engine,
                                            MYSQL_STORAGE_ENGINE_PLUGIN);
         *hton= p ? plugin_hton(p) : NULL;
         if (*hton)
+        {
           // verify that the table really exists
           exists= discover_existence(thd, p, &args);
+        }
       }
       else
         *hton= view_pseudo_hton;
     }
+    DBUG_PRINT("exit", (exists ? "Exists" : "Does not exist"));
     DBUG_RETURN(exists);
   }
 
@@ -5732,13 +5878,16 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
   {
     if (hton)
       *hton= args.hton;
+    DBUG_PRINT("exit", ("discovery found file"));
     DBUG_RETURN(TRUE);
   }
 
   if (need_full_discover_for_existence)
   {
     TABLE_LIST table;
+    bool exists;
     uint flags = GTS_TABLE | GTS_VIEW;
+
     if (!hton)
       flags|= GTS_NOLOCK;
 
@@ -5755,9 +5904,12 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     }
 
     // the table doesn't exist if we've caught ER_NO_SUCH_TABLE and nothing else
-    DBUG_RETURN(!no_such_table_handler.safely_trapped_errors());
+    exists= !no_such_table_handler.safely_trapped_errors();
+    DBUG_PRINT("exit", (exists ? "Exists" : "Does not exist"));
+    DBUG_RETURN(exists);
   }
 
+  DBUG_PRINT("exit", ("Does not exist"));
   DBUG_RETURN(FALSE);
 }
 
@@ -6167,7 +6319,7 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
   THD *thd= h->table->in_use;
   check_result_t res;
 
-  enum thd_kill_levels abort_at= h->has_transactions() ?
+  enum thd_kill_levels abort_at= h->has_rollback() ?
     THD_ABORT_SOFTLY : THD_ABORT_ASAP;
   if (thd_kill_level(thd) > abort_at)
     return CHECK_ABORTED_BY_USER;
@@ -6571,7 +6723,6 @@ int handler::ha_reset()
   cancel_pushed_idx_cond();
   /* Reset information about pushed index conditions */
   cancel_pushed_rowid_filter();
-  clear_top_table_fields();
   if (lookup_handler != this)
   {
     lookup_handler->ha_external_unlock(table->in_use);
@@ -6586,6 +6737,9 @@ int handler::ha_reset()
 static int wsrep_after_row(THD *thd)
 {
   DBUG_ENTER("wsrep_after_row");
+  if (thd->internal_transaction())
+    DBUG_RETURN(0);
+
   /* enforce wsrep_max_ws_rows */
   thd->wsrep_affected_rows++;
   if (wsrep_max_ws_rows &&
@@ -6596,7 +6750,7 @@ static int wsrep_after_row(THD *thd)
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
-  else if (wsrep_after_row(thd, false))
+  else if (wsrep_after_row_internal(thd))
   {
     DBUG_RETURN(ER_LOCK_DEADLOCK);
   }
@@ -6934,7 +7088,7 @@ bool handler::prepare_for_row_logging()
     row_logging_has_trans=
       ((sql_command_flags[table->in_use->lex->sql_command] &
         (CF_SCHEMA_CHANGE | CF_ADMIN_COMMAND)) ||
-       table->file->has_transactions());
+       table->file->has_transactions_and_rollback());
   }
   else
   {
@@ -6997,6 +7151,7 @@ int handler::ha_write_row(const uchar *buf)
     }
 #ifdef WITH_WSREP
     if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
+        ht->flags & HTON_WSREP_REPLICATION &&
         !error && (error= wsrep_after_row(ha_thd())))
     {
       DBUG_RETURN(error);
@@ -7047,6 +7202,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
     }
 #ifdef WITH_WSREP
     if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
+        ht->flags & HTON_WSREP_REPLICATION &&
         !error && (error= wsrep_after_row(ha_thd())))
       return error;
 #endif /* WITH_WSREP */
@@ -7110,6 +7266,7 @@ int handler::ha_delete_row(const uchar *buf)
     }
 #ifdef WITH_WSREP
     if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
+        ht->flags & HTON_WSREP_REPLICATION &&
         !error && (error= wsrep_after_row(ha_thd())))
     {
       return error;

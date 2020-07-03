@@ -199,7 +199,7 @@ trx_rollback_for_mysql_low(
 @return error code or DB_SUCCESS */
 dberr_t trx_rollback_for_mysql(trx_t* trx)
 {
-	/* We are reading trx->state without holding trx_sys.mutex
+	/* We are reading trx->state without holding trx->mutex
 	here, because the rollback should be invoked for a running
 	active MySQL transaction (or recovered prepared transaction)
 	that is associated with the current thread. */
@@ -209,7 +209,8 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 		trx->will_lock = 0;
 		ut_ad(trx->mysql_thd);
 #ifdef WITH_WSREP
-		trx->wsrep = false;
+		trx->wsrep= false;
+		trx->lock.was_chosen_as_wsrep_victim= false;
 #endif
 		return(DB_SUCCESS);
 
@@ -285,7 +286,7 @@ trx_rollback_last_sql_stat_for_mysql(
 {
 	dberr_t	err;
 
-	/* We are reading trx->state without holding trx_sys.mutex
+	/* We are reading trx->state without holding trx->mutex
 	here, because the statement rollback should be invoked for a
 	running active MySQL transaction that is associated with the
 	current thread. */
@@ -459,7 +460,7 @@ trx_rollback_to_savepoint_for_mysql(
 {
 	trx_named_savept_t*	savep;
 
-	/* We are reading trx->state without holding trx_sys.mutex
+	/* We are reading trx->state without holding trx->mutex
 	here, because the savepoint rollback should be invoked for a
 	running active MySQL transaction that is associated with the
 	current thread. */
@@ -566,19 +567,6 @@ trx_release_savepoint_for_mysql(
 	}
 
 	return(savep != NULL ? DB_SUCCESS : DB_NO_SAVEPOINT);
-}
-
-/*******************************************************************//**
-Determines if this transaction is rolling back an incomplete transaction
-in crash recovery.
-@return TRUE if trx is an incomplete transaction that is being rolled
-back in crash recovery */
-ibool
-trx_is_recv(
-/*========*/
-	const trx_t*	trx)	/*!< in: transaction */
-{
-	return(trx == trx_roll_crash_recv_trx);
 }
 
 /*******************************************************************//**
@@ -716,8 +704,7 @@ void trx_roll_report_progress()
 		rows they modified. Numbers must be accurate, because only this
 		thread is allowed to touch recovered transactions. */
 		trx_sys.rw_trx_hash.iterate_no_dups(
-			reinterpret_cast<my_hash_walk_action>
-			(trx_roll_count_callback), &arg);
+			trx_roll_count_callback, &arg);
 
 		if (arg.n_rows > 0) {
 			service_manager_extend_timeout(
@@ -775,8 +762,7 @@ void trx_rollback_recovered(bool all)
     other thread is allowed to modify or remove these transactions from
     rw_trx_hash.
   */
-  trx_sys.rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
-                                      (trx_rollback_recovered_callback),
+  trx_sys.rw_trx_hash.iterate_no_dups(trx_rollback_recovered_callback,
                                       &trx_list);
 
   while (!trx_list.empty())

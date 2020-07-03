@@ -1455,7 +1455,7 @@ void Field::error_generated_column_function_is_not_allowed(THD *thd,
                                 QT_ITEM_IDENT_SKIP_TABLE_NAMES));
   my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED,
            MYF(error ? 0 : ME_WARNING),
-           tmp.c_ptr(), vcol_info->get_vcol_type_name(),
+           tmp.c_ptr_safe(), vcol_info->get_vcol_type_name(),
            const_cast<const char*>(field_name.str));
 }
 
@@ -1966,6 +1966,23 @@ int Field::store_timestamp_dec(const timeval &ts, uint dec)
 {
   return store_time_dec(Datetime(get_thd(), ts).get_mysql_time(), dec);
 }
+
+
+int Field::store_to_statistical_minmax_field(Field *field, String *val)
+{
+  val_str(val);
+  size_t length= Well_formed_prefix(val->charset(), val->ptr(),
+                 MY_MIN(val->length(), field->field_length)).length();
+  return field->store(val->ptr(), length, &my_charset_bin);
+}
+
+
+int Field::store_from_statistical_minmax_field(Field *stat_field, String *str)
+{
+  stat_field->val_str(str);
+  return store_text(str->ptr(), str->length(), &my_charset_bin);
+}
+
 
 /**
    Pack the field into a format suitable for storage and transfer.
@@ -3517,10 +3534,9 @@ int Field_new_decimal::cmp(const uchar *a,const uchar*b) const
 }
 
 
-void Field_new_decimal::sort_string(uchar *buff,
-                                    uint)
+void Field_new_decimal::sort_string(uchar *buff, uint length)
 {
-  memcpy(buff, ptr, bin_size);
+  memcpy(buff, ptr, length);
 }
 
 
@@ -5819,7 +5835,9 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
   case ANY_SUBST:
     if (!is_temporal_type_with_date(const_item->field_type()))
     {
-      Datetime dt(thd, const_item, Datetime::Options_cmp(thd));
+      Datetime dt= type_handler()->field_type() == MYSQL_TYPE_TIMESTAMP ?
+        Datetime(thd, const_item, Timestamp::DatetimeOptions(thd)) :
+        Datetime(thd, const_item, Datetime::Options_cmp(thd));
       if (!dt.is_valid_datetime())
         return NULL;
       return new (thd->mem_root)
@@ -7678,6 +7696,15 @@ my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
   return decimal_value;
 
 }
+
+
+#ifdef HAVE_valgrind_or_MSAN
+void Field_varstring::mark_unused_memory_as_defined()
+{
+  uint used_length= get_length();
+  MEM_MAKE_DEFINED(get_data() + used_length, field_length - used_length);
+}
+#endif
 
 
 int Field_varstring::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
@@ -10166,11 +10193,12 @@ void Column_definition::create_length_to_internal_length_newdecimal()
 
 
 bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
-                      enum_vcol_info_type type)
+                      enum_vcol_info_type type, Alter_info *alter_info)
 
 {
   bool ret;
   Item::vcol_func_processor_result res;
+  res.alter_info= alter_info;
 
   if (!vcol->name.length)
     vcol->name= *name;
@@ -10179,7 +10207,6 @@ bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
     Walk through the Item tree checking if all items are valid
     to be part of the virtual column
   */
-  res.errors= 0;
   ret= vcol->expr->walk(&Item::check_vcol_func_processor, 0, &res);
   vcol->flags= res.errors;
 
@@ -10948,6 +10975,13 @@ bool Field::save_in_field_default_value(bool view_error_processing)
 {
   THD *thd= table->in_use;
 
+  /*
+     TODO: MDEV-19597 Refactor TABLE::vers_update_fields() via stored virtual columns
+     This condition will go away as well as other conditions with vers_sys_field().
+  */
+  if (vers_sys_field())
+    return false;
+
   if (unlikely(flags & NO_DEFAULT_VALUE_FLAG &&
                real_type() != MYSQL_TYPE_ENUM))
   {
@@ -11073,6 +11107,46 @@ void Field_blob::print_key_value(String *out, uint32 length)
 }
 
 
+/*
+  @brief Print value of the key part
+
+  @param
+    out                Output string
+    key                value of the key
+    length             Length of field in bytes,
+                       excluding NULL flag and length bytes
+*/
+
+
+void
+Field::print_key_part_value(String *out, const uchar* key, uint32 length)
+{
+  StringBuffer<128> tmp(system_charset_info);
+  uint null_byte= 0;
+  if (real_maybe_null())
+  {
+    /*
+      Byte 0 of key is the null-byte. If set, key is NULL.
+      Otherwise, print the key value starting immediately after the
+      null-byte
+    */
+    if (*key)
+    {
+      out->append(STRING_WITH_LEN("NULL"));
+      return;
+    }
+    null_byte++;  // Skip null byte
+  }
+
+  set_key_image(key + null_byte, length);
+  print_key_value(&tmp, length);
+  if (charset() == &my_charset_bin)
+    out->append(tmp.ptr(), tmp.length(), tmp.charset());
+  else
+    tmp.print(out, system_charset_info);
+}
+
+
 void Field::print_key_value_binary(String *out, const uchar* key, uint32 length)
 {
   out->append_semi_hex((const char*)key, length, charset());
@@ -11086,7 +11160,7 @@ Virtual_column_info* Virtual_column_info::clone(THD *thd)
     return NULL;
   if (expr)
   {
-    dst->expr= expr->get_copy(thd);
+    dst->expr= expr->build_clone(thd);
     if (!dst->expr)
       return NULL;
   }

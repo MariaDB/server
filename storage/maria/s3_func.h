@@ -1,6 +1,6 @@
 #ifndef S3_FUNC_INCLUDED
 #define S3_FUNC_INCLUDED
-/* Copyright (C) 2019 MariaDB Corporation Ab
+/* Copyright (C) 2019, 2020 MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,10 +20,22 @@
 */
 
 #ifdef WITH_S3_STORAGE_ENGINE
-C_MODE_START
 #include <libmarias3/marias3.h>
 
+C_MODE_START
 #define DEFAULT_AWS_HOST_NAME "s3.amazonaws.com"
+
+extern struct s3_func {
+  uint8_t (*set_option)(ms3_st *, ms3_set_option_t, void *);
+  void (*free)(S3_BLOCK *);
+  void (*deinit)(ms3_st *);
+  int32 (*unique_file_number)(void);
+  my_bool (*read_index_header)(ms3_st *, S3_INFO *, S3_BLOCK *);
+  int (*check_frm_version)(ms3_st *, S3_INFO *);
+  S3_INFO *(*info_copy)(S3_INFO *);
+  my_bool (*set_database_and_table_from_path)(S3_INFO *, const char *);
+  ms3_st *(*open_connection)(S3_INFO *);
+} s3f;
 
 extern TYPELIB s3_protocol_typelib;
 
@@ -33,7 +45,6 @@ typedef struct s3_info
 {
   /* Connection strings */
   LEX_CSTRING access_key, secret_key, region, bucket, host_name;
-
 
   /* Will be set by caller or by ma_open() */
   LEX_CSTRING database, table;

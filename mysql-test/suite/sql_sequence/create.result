@@ -165,7 +165,7 @@ drop sequence t1;
 ERROR 42S02: 'test.t1' is not a SEQUENCE
 drop sequence if exists t1;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t1'
+Note	4090	'test.t1' is not a SEQUENCE
 create sequence t1 start with 10 maxvalue=9;
 ERROR HY000: Sequence 'test.t1' values are conflicting
 create sequence t1 minvalue= 100 maxvalue=10;
@@ -375,6 +375,40 @@ CREATE OR REPLACE TABLE t1 (
 key key1 (next_not_cached_value)
 ) sequence=1;
 ERROR HY000: Sequence 'test.t1' table structure is invalid (Sequence tables cannot have any keys)
+CREATE TABLE t1 (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL,
+`cycle_count` bigint(21) NOT NULL,
+CHECK (start_value < minimum_value)
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (Sequence tables cannot have any constraints)
+CREATE TABLE t1 (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL CHECK (start_value < minimum_value),
+`increment` bigint(21) NOT NULL,
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL,
+`cycle_count` bigint(21) NOT NULL
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (start_value)
+CREATE TABLE t1 (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL,
+`cycle_count` bigint(21) generated always as (1) virtual
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (cycle_count)
 drop sequence if exists t1;
 Warnings:
 Note	4091	Unknown SEQUENCE: 'test.t1'
@@ -387,12 +421,11 @@ CREATE SEQUENCE s1;
 drop sequence s1;
 drop sequence if exists t1,t2,t3,t4;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t3'
+Note	4090	'test.t3' is not a SEQUENCE
 Note	4091	Unknown SEQUENCE: 'test.t4'
 drop table if exists t1,t2,t3;
 Warnings:
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t1,test.t2'
 CREATE TABLE t1 (a int);
 CREATE TABLE t2 (a int);
 CREATE SEQUENCE s1;
@@ -407,15 +440,15 @@ CREATE TABLE t1 (a int);
 CREATE TABLE t2 (a int);
 CREATE SEQUENCE s1;
 drop sequence t1,t2,s1,s2;
-ERROR 42S02: Unknown SEQUENCE: 'test.t1,test.t2,test.s2'
+ERROR 42S02: 'test.t1' is not a SEQUENCE
 drop table if exists t1,t2;
 CREATE TABLE t1 (a int);
 CREATE TABLE t2 (a int);
 CREATE SEQUENCE s1;
 drop sequence if exists t1,t2,s1,s2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t1'
-Note	4091	Unknown SEQUENCE: 'test.t2'
+Note	4090	'test.t1' is not a SEQUENCE
+Note	4090	'test.t2' is not a SEQUENCE
 Note	4091	Unknown SEQUENCE: 'test.s2'
 drop table if exists t1,t2;
 CREATE TEMPORARY SEQUENCE s1;

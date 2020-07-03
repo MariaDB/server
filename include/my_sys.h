@@ -22,18 +22,9 @@
 
 C_MODE_START
 
-#ifdef HAVE_AIOWAIT
-#include <sys/asynch.h>			/* Used by record-cache */
-typedef struct my_aio_result {
-  aio_result_t result;
-  int	       pending;
-} my_aio_result;
-#endif
 
 #include <my_valgrind.h>
-
 #include <my_pthread.h>
-
 #include <m_ctype.h>                    /* for CHARSET_INFO */
 #include <stdarg.h>
 #include <typelib.h>
@@ -67,6 +58,7 @@ typedef struct my_aio_result {
 #define MY_WME		16U	/* Write message on error */
 #define MY_WAIT_IF_FULL 32U	/* Wait and try again if disk full error */
 #define MY_IGNORE_BADFD 32U     /* my_sync(): ignore 'bad descriptor' errors */
+#define MY_IGNORE_ENOENT 32U    /* my_delete() ignores ENOENT (no such file) */
 #define MY_ENCRYPT      64U     /* Encrypt IO_CACHE temporary files */
 #define MY_TEMPORARY    64U     /* create_temp_file(): delete file at once */
 #define MY_NOSYMLINKS  512U     /* my_open(): don't follow symlinks */
@@ -315,10 +307,6 @@ typedef struct st_record_cache	/* Used when caching records */
   uint	rc_length,read_length,reclength;
   my_off_t rc_record_pos,end_of_file;
   uchar *rc_buff,*rc_buff2,*rc_pos,*rc_end,*rc_request_pos;
-#ifdef HAVE_AIOWAIT
-  int	use_async_io;
-  my_aio_result aio_result;
-#endif
   enum cache_type type;
 } RECORD_CACHE;
 
@@ -487,15 +475,6 @@ typedef struct st_io_cache		/* Used when caching files */
     somewhere else
   */
   my_bool alloced_buffer;
-#ifdef HAVE_AIOWAIT
-  /*
-    As inidicated by ifdef, this is for async I/O, which is not currently
-    used (because it's not reliable on all systems)
-  */
-  uint inited;
-  my_off_t aio_read_pos;
-  my_aio_result aio_result;
-#endif
 } IO_CACHE;
 
 typedef int (*qsort2_cmp)(const void *, const void *, const void *);
@@ -532,6 +511,7 @@ static inline int my_b_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 
 static inline int my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 {
+  MEM_CHECK_DEFINED(Buffer, Count);
   if (info->write_pos + Count <= info->write_end)
   {
     memcpy(info->write_pos, Buffer, Count);
@@ -553,6 +533,7 @@ static inline int my_b_get(IO_CACHE *info)
 
 static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 {
+  MEM_CHECK_DEFINED(&chr, 1);
   if (info->write_pos >= info->write_end)
     if (my_b_flush_io_cache(info, 1))
       return 1;
@@ -814,7 +795,6 @@ void end_slave_io_cache(IO_CACHE *cache);
 void seek_io_cache(IO_CACHE *cache, my_off_t needed_offset);
 
 extern void remove_io_thread(IO_CACHE *info);
-extern int _my_b_async_read(IO_CACHE *info,uchar *Buffer,size_t Count);
 extern int my_b_append(IO_CACHE *info,const uchar *Buffer,size_t Count);
 extern int my_b_safe_write(IO_CACHE *info,const uchar *Buffer,size_t Count);
 
@@ -925,8 +905,18 @@ extern int my_compress_buffer(uchar *dest, size_t *destLen,
 extern int packfrm(const uchar *, size_t, uchar **, size_t *);
 extern int unpackfrm(uchar **, size_t *, const uchar *);
 
-extern ha_checksum my_checksum(ha_checksum crc, const uchar *mem,
-                               size_t count);
+void my_checksum_init(void);
+#ifdef HAVE_CRC32_VPMSUM
+extern ha_checksum my_checksum(ha_checksum, const void *, size_t);
+#else
+typedef ha_checksum (*my_crc32_t)(ha_checksum, const void *, size_t);
+extern MYSQL_PLUGIN_IMPORT my_crc32_t my_checksum;
+#endif
+
+#if defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
+int crc32_aarch64_available(void);
+#endif
+
 #ifdef DBUG_ASSERT_EXISTS
 extern void my_debug_put_break_here(void);
 #else
@@ -934,7 +924,6 @@ extern void my_debug_put_break_here(void);
 #endif
 
 extern void my_sleep(ulong m_seconds);
-extern ulong crc32(ulong crc, const uchar *buf, uint len);
 extern uint my_set_max_open_files(uint files);
 void my_free_open_file_info(void);
 

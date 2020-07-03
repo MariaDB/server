@@ -793,7 +793,9 @@ typedef struct system_variables
   ulong session_track_transaction_info;
   my_bool session_track_schema;
   my_bool session_track_state_change;
+#ifdef USER_VAR_TRACKING
   my_bool session_track_user_variables;
+#endif // USER_VAR_TRACKING
   my_bool tcp_nodelay;
 
   ulong threadpool_priority;
@@ -1951,20 +1953,23 @@ private:
   TABLE_LIST *m_locked_tables;
   TABLE_LIST **m_locked_tables_last;
   /** An auxiliary array used only in reopen_tables(). */
-  TABLE **m_reopen_array;
+  TABLE_LIST **m_reopen_array;
   /**
     Count the number of tables in m_locked_tables list. We can't
     rely on thd->lock->table_count because it excludes
     non-transactional temporary tables. We need to know
     an exact number of TABLE objects.
   */
-  size_t m_locked_tables_count;
+  uint m_locked_tables_count;
 public:
+  bool some_table_marked_for_reopen;
+
   Locked_tables_list()
     :m_locked_tables(NULL),
     m_locked_tables_last(&m_locked_tables),
     m_reopen_array(NULL),
-    m_locked_tables_count(0)
+    m_locked_tables_count(0),
+    some_table_marked_for_reopen(0)
   {
     init_sql_alloc(key_memory_locked_table_list, &m_locked_tables_root,
                    MEM_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
@@ -1987,6 +1992,7 @@ public:
   bool restore_lock(THD *thd, TABLE_LIST *dst_table_list, TABLE *table,
                     MYSQL_LOCK *lock);
   void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
+  void mark_table_for_reopen(THD *thd, TABLE *table);
 };
 
 
@@ -2693,6 +2699,7 @@ public:
   {
     binlog_table_maps= 0;
   }
+  bool binlog_table_should_be_logged(const LEX_CSTRING *db);
 
 #endif /* MYSQL_CLIENT */
 
@@ -2733,6 +2740,10 @@ public:
       free_root(&mem_root,MYF(MY_KEEP_PREALLOC));
       DBUG_VOID_RETURN;
     }
+    void free()
+    {
+      free_root(&mem_root,MYF(0));
+    }
     my_bool is_active()
     {
       return (all.ha_list != NULL);
@@ -2744,7 +2755,7 @@ public:
       init_sql_alloc(key_memory_thd_transactions, &mem_root,
                      ALLOC_ROOT_MIN_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
     }
-  } transaction;
+  } default_transaction, *transaction;
   Global_read_lock global_read_lock;
   Field      *dup_field;
 #ifndef __WIN__
@@ -3582,8 +3593,8 @@ public:
   timeval transaction_time()
   {
     if (!in_multi_stmt_transaction_mode())
-      transaction.start_time.reset(this);
-    return transaction.start_time;
+      transaction->start_time.reset(this);
+    return transaction->start_time;
   }
 
   inline void set_start_time()
@@ -3737,6 +3748,8 @@ public:
   {
     return server_status & SERVER_STATUS_IN_TRANS;
   }
+  /* Commit both statement and full transaction */
+  int commit_whole_transaction_and_close_tables();
   void give_protection_error();
   inline bool has_read_only_protection()
   {
@@ -3756,7 +3769,7 @@ public:
   }
   inline void* trans_alloc(size_t size)
   {
-    return alloc_root(&transaction.mem_root,size);
+    return alloc_root(&transaction->mem_root,size);
   }
 
   LEX_CSTRING strmake_lex_cstring(const char *str, size_t length)
@@ -4140,7 +4153,8 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        if (likely((killed_err= (err_info*) alloc(sizeof(*killed_err)))))
+        killed_err= (err_info*) alloc_root(&main_mem_root, sizeof(*killed_err));
+        if (likely(killed_err))
         {
           killed_err->no= killed_errno_arg;
           ::strmake((char*) killed_err->msg, killed_err_msg_arg,
@@ -4172,7 +4186,7 @@ public:
   inline bool really_abort_on_warning()
   {
     return (abort_on_warning &&
-            (!transaction.stmt.modified_non_trans_table ||
+            (!transaction->stmt.modified_non_trans_table ||
              (variables.sql_mode & MODE_STRICT_ALL_TABLES)));
   }
   void set_status_var_init();
@@ -4761,6 +4775,7 @@ public:
   }
 
   void mark_transaction_to_rollback(bool all);
+  bool internal_transaction() { return transaction != &default_transaction; }
 private:
 
   /** The current internal error handler for this thread, or NULL. */
@@ -4838,9 +4853,9 @@ public:
     if (!wsrep_xid.is_null())
       return &wsrep_xid;
 #endif /* WITH_WSREP */
-    return transaction.xid_state.is_explicit_XA() ?
-          transaction.xid_state.get_xid() :
-          &transaction.implicit_xid;
+    return (transaction->xid_state.is_explicit_XA() ?
+            transaction->xid_state.get_xid() :
+            &transaction->implicit_xid);
   }
 
 /* Members related to temporary tables. */
@@ -5084,10 +5099,10 @@ public:
   /* Copy relevant `stmt` transaction flags to `all` transaction. */
   void merge_unsafe_rollback_flags()
   {
-    if (transaction.stmt.modified_non_trans_table)
-      transaction.all.modified_non_trans_table= TRUE;
-    transaction.all.m_unsafe_rollback_flags|=
-      (transaction.stmt.m_unsafe_rollback_flags &
+    if (transaction->stmt.modified_non_trans_table)
+      transaction->all.modified_non_trans_table= TRUE;
+    transaction->all.m_unsafe_rollback_flags|=
+      (transaction->stmt.m_unsafe_rollback_flags &
        (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
         THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL));
   }
@@ -5097,7 +5112,7 @@ public:
   {
     if (in_active_multi_stmt_transaction())
     {
-      if (transaction.all.is_trx_read_write())
+      if (transaction->all.is_trx_read_write())
       {
         if (variables.idle_write_transaction_timeout > 0)
           return variables.idle_write_transaction_timeout;
@@ -5143,6 +5158,41 @@ public:
   Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
+};
+
+
+/*
+  Start a new independent transaction for the THD.
+  The old one is stored in this object and restored when calling
+  restore_old_transaction() or when the object is freed
+*/
+
+class start_new_trans
+{
+  /* container for handler's private per-connection data */
+  Ha_data old_ha_data[MAX_HA];
+  struct THD::st_transactions *old_transaction, new_transaction;
+  Open_tables_backup open_tables_state_backup;
+  MDL_savepoint mdl_savepoint;
+  PSI_transaction_locker *m_transaction_psi;
+  THD *org_thd;
+  uint in_sub_stmt;
+  uint server_status;
+  my_bool wsrep_on;
+
+public:
+  start_new_trans(THD *thd);
+  ~start_new_trans()
+  {
+    destroy();
+  }
+  void destroy()
+  {
+    if (org_thd)                                // Safety
+      restore_old_transaction();
+    new_transaction.free();
+  }
+  void restore_old_transaction();
 };
 
 /** A short cut for thd->get_stmt_da()->set_ok_status(). */
@@ -7284,13 +7334,13 @@ class Sp_eval_expr_state
   {
     m_thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
     m_thd->abort_on_warning= m_thd->is_strict_mode();
-    m_thd->transaction.stmt.modified_non_trans_table= false;
+    m_thd->transaction->stmt.modified_non_trans_table= false;
   }
   void stop()
   {
     m_thd->count_cuted_fields= m_count_cuted_fields;
     m_thd->abort_on_warning= m_abort_on_warning;
-    m_thd->transaction.stmt.modified_non_trans_table=
+    m_thd->transaction->stmt.modified_non_trans_table=
       m_stmt_modified_non_trans_table;
   }
 public:
@@ -7298,7 +7348,7 @@ public:
    :m_thd(thd),
     m_count_cuted_fields(thd->count_cuted_fields),
     m_abort_on_warning(thd->abort_on_warning),
-    m_stmt_modified_non_trans_table(thd->transaction.stmt.
+    m_stmt_modified_non_trans_table(thd->transaction->stmt.
                                     modified_non_trans_table)
   {
     start();

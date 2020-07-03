@@ -98,8 +98,11 @@ static std::atomic<ulong> last_table_id;
 
 	/* Functions defined in this file */
 
-static void fix_type_pointers(const char ***array, TYPELIB *point_to_type,
-			      uint types, char **names);
+static bool fix_type_pointers(const char ***typelib_value_names,
+                              uint **typelib_value_lengths,
+                              TYPELIB *point_to_type, uint types,
+                              char *names, size_t names_length);
+
 static uint find_field(Field **fields, uchar *record, uint start, uint length);
 
 inline bool is_system_table_name(const char *name, size_t length);
@@ -462,10 +465,6 @@ void TABLE_SHARE::destroy()
   delete_stat_values_for_table_share(this);
   delete sequence;
   free_root(&stats_cb.mem_root, MYF(0));
-  stats_cb.stats_can_be_read= FALSE;
-  stats_cb.stats_is_read= FALSE;
-  stats_cb.histograms_can_be_read= FALSE;
-  stats_cb.histograms_are_read= FALSE;
 
   /* The mutexes are initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
@@ -731,7 +730,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                              uint keys, KEY *keyinfo,
                              uint new_frm_ver, uint *ext_key_parts,
                              TABLE_SHARE *share, uint len,
-                             KEY *first_keyinfo, char** keynames)
+                             KEY *first_keyinfo,
+                             LEX_STRING *keynames)
 {
   uint i, j, n_length;
   KEY_PART_INFO *key_part= NULL;
@@ -883,10 +883,13 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       share->ext_key_parts++;
     share->ext_key_parts+= keyinfo->ext_key_parts;
   }
-  *keynames=(char*) key_part;
-  strpos+= strnmov(*keynames, (char *) strpos, frm_image_end - strpos) - *keynames;
+  keynames->str= (char*) key_part;
+  keynames->length= strnmov(keynames->str, (char *) strpos,
+                            frm_image_end - strpos) - keynames->str;
+  strpos+= keynames->length;
   if (*strpos++) // key names are \0-terminated
     return 1;
+  keynames->length++; // Include '\0', to make fix_type_pointers() happy.
 
   //reading index comments
   for (keyinfo= share->key_info, i=0; i < keys; i++, keyinfo++)
@@ -1698,11 +1701,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   TABLE_SHARE *share= this;
   uint new_frm_ver, field_pack_length, new_field_pack_flag;
   uint interval_count, interval_parts, read_length, int_length;
+  uint total_typelib_value_count;
   uint db_create_options, keys, key_parts, n_length;
   uint com_length, null_bit_pos, UNINIT_VAR(mysql57_vcol_null_bit_pos), bitmap_count;
   uint i, hash_fields= 0;
   bool use_hash, mysql57_null_bits= 0;
-  char *keynames, *names, *comment_pos;
+  LEX_STRING keynames= {NULL, 0};
+  char *names, *comment_pos;
   const uchar *forminfo;
   const uchar *frm_image_end = frm_image + frm_length;
   uchar *record, *null_flags, *null_pos, *UNINIT_VAR(mysql57_vcol_null_pos);
@@ -1714,6 +1719,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   KEY_PART_INFO *key_part= NULL;
   Field  **field_ptr, *reg_field;
   const char **interval_array;
+  uint *typelib_value_lengths= NULL;
   enum legacy_db_type legacy_db_type;
   my_bitmap_map *bitmaps;
   bool null_bits_are_used;
@@ -2133,11 +2139,34 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   DBUG_PRINT("info",("i_count: %d  i_parts: %d  index: %d  n_length: %d  int_length: %d  com_length: %d  vcol_screen_length: %d", interval_count,interval_parts, keys,n_length,int_length, com_length, vcol_screen_length));
 
+  /*
+    We load the following things into TYPELIBs:
+    - One TYPELIB for field names
+    - interval_count TYPELIBs for ENUM/SET values
+    - One TYPELIB for key names
+    Every TYPELIB requires one extra value with a NULL pointer and zero length,
+    which is the end-of-values marker.
+    TODO-10.5+:
+    Note, we should eventually reuse this total_typelib_value_count
+    to allocate interval_array. The below code reserves less space
+    than total_typelib_value_count pointers. So it seems `interval_array`
+    and `names` overlap in the memory. Too dangerous to fix in 10.1.
+  */
+  total_typelib_value_count=
+    (share->fields  +              1/*end-of-values marker*/) +
+    (interval_parts + interval_count/*end-of-values markers*/) +
+    (keys           +              1/*end-of-values marker*/);
+
   if (!multi_alloc_root(&share->mem_root,
                         &share->field, (uint)(share->fields+1)*sizeof(Field*),
                         &share->intervals, (uint)interval_count*sizeof(TYPELIB),
                         &share->check_constraints, (uint) share->table_check_constraints * sizeof(Virtual_column_info*),
+                        /*
+                           This looks wrong: shouldn't it be (+2+interval_count)
+                           instread of (+3) ?
+                        */
                         &interval_array, (uint) (share->fields+interval_parts+ keys+3)*sizeof(char *),
+                        &typelib_value_lengths, total_typelib_value_count * sizeof(uint *),
                         &names, (uint) (n_length+int_length),
                         &comment_pos, (uint) com_length,
                         &vcol_screen_pos, vcol_screen_length,
@@ -2164,33 +2193,21 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   memcpy(vcol_screen_pos, disk_buff+read_length-vcol_screen_length, 
          vcol_screen_length);
 
-  fix_type_pointers(&interval_array, &share->fieldnames, 1, &names);
-  if (share->fieldnames.count != share->fields)
+  if (fix_type_pointers(&interval_array, &typelib_value_lengths,
+                        &share->fieldnames, 1, names, n_length) ||
+      share->fieldnames.count != share->fields)
     goto err;
-  fix_type_pointers(&interval_array, share->intervals, interval_count, &names);
 
-  {
-    /* Set ENUM and SET lengths */
-    TYPELIB *interval;
-    for (interval= share->intervals;
-         interval < share->intervals + interval_count;
-         interval++)
-    {
-      uint count= (uint) (interval->count + 1) * sizeof(uint);
-      if (!(interval->type_lengths= (uint *) alloc_root(&share->mem_root,
-                                                        count)))
-        goto err;
-      for (count= 0; count < interval->count; count++)
-      {
-        char *val= (char*) interval->type_names[count];
-        interval->type_lengths[count]= (uint)strlen(val);
-      }
-      interval->type_lengths[count]= 0;
-    }
-  }
+  if (fix_type_pointers(&interval_array, &typelib_value_lengths,
+                        share->intervals, interval_count,
+                        names + n_length, int_length))
+    goto err;
 
-  if (keynames)
-    fix_type_pointers(&interval_array, &share->keynames, 1, &keynames);
+  if (keynames.length &&
+      (fix_type_pointers(&interval_array, &typelib_value_lengths,
+                         &share->keynames, 1, keynames.str, keynames.length) ||
+      share->keynames.count != keys))
+    goto err;
 
  /* Allocate handler */
   if (!(handler_file= get_new_handler(share, thd->mem_root,
@@ -3557,7 +3574,6 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
     to be part of the virtual column
   */
   Item::vcol_func_processor_result res;
-  res.errors= 0;
 
   int error= func_expr->walk(&Item::check_vcol_func_processor, 0, &res);
   if (unlikely(error || (res.errors & VCOL_IMPOSSIBLE)))
@@ -3875,7 +3891,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->write_row_record= NULL;
 
   if (share->incompatible_version &&
-      !(ha_open_flags & (HA_OPEN_FOR_ALTER | HA_OPEN_FOR_REPAIR)))
+      !(ha_open_flags & (HA_OPEN_FOR_ALTER | HA_OPEN_FOR_REPAIR |
+                         HA_OPEN_FOR_FLUSH)))
   {
     /* one needs to run mysql_upgrade on the table */
     error= OPEN_FRM_NEEDS_REBUILD;
@@ -3958,6 +3975,15 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                                           (uint) ((share->fields+1)*
                                                   sizeof(Field*)))))
     goto err;                                   /* purecov: inspected */
+
+  /* Allocate storage for range optimizer */
+  if (!multi_alloc_root(&outparam->mem_root,
+                        &outparam->opt_range,
+                        share->keys * sizeof(TABLE::OPT_RANGE),
+                        &outparam->const_key_parts,
+                        share->keys * sizeof(key_part_map),
+                        NullS))
+    goto err;
 
   outparam->field= field_ptr;
 
@@ -4403,37 +4429,81 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
 	** with a '\0'
 	*/
 
-static void
-fix_type_pointers(const char ***array, TYPELIB *point_to_type, uint types,
-		  char **names)
+static bool
+fix_type_pointers(const char ***typelib_value_names,
+                  uint **typelib_value_lengths,
+                  TYPELIB *point_to_type, uint types,
+                  char *ptr, size_t length)
 {
-  char *type_name, *ptr;
-  char chr;
+  const char *end= ptr + length;
 
-  ptr= *names;
   while (types--)
   {
+    char sep;
     point_to_type->name=0;
-    point_to_type->type_names= *array;
+    point_to_type->type_names= *typelib_value_names;
+    point_to_type->type_lengths= *typelib_value_lengths;
 
-    if ((chr= *ptr))			/* Test if empty type */
+    /*
+      Typelib can be encoded as:
+      1) 0x00                     - empty typelib
+      2) 0xFF 0x00                - empty typelib (index names)
+      3) sep (value sep)... 0x00  - non-empty typelib (where sep is a separator)
+    */
+    if (length == 2 && ptr[0] == (char) 0xFF && ptr[1] == '\0')
     {
-      while ((type_name=strchr(ptr+1,chr)) != NullS)
-      {
-	*((*array)++) = ptr+1;
-	*type_name= '\0';		/* End string */
-	ptr=type_name;
-      }
-      ptr+=2;				/* Skip end mark and last 0 */
+      /*
+        This is a special case #2.
+        If there are no indexes at all, index names can be encoded
+        as a two byte sequence: 0xFF 0x00
+        TODO: Check if it's a bug in the FRM packing routine.
+        It should probably write just 0x00 instead of 0xFF00.
+      */
+      ptr+= 2;
     }
-    else
-      ptr++;
-    point_to_type->count= (uint) (*array - point_to_type->type_names);
+    else if ((sep= *ptr++))            // A non-empty typelib
+    {
+      for ( ; ptr < end; )
+      {
+        // Now scan the next value+sep pair
+        char *vend= (char*) memchr(ptr, sep, end - ptr);
+        if (!vend)
+          return true;            // Bad format
+        *((*typelib_value_names)++)= ptr;
+        *((*typelib_value_lengths)++)= (uint) (vend - ptr);
+        *vend= '\0';              // Change sep to '\0'
+        ptr= vend + 1;            // Shift from sep to the next byte
+        /*
+          Now we can have either:
+          - the end-of-typelib marker (0x00)
+          - more value+sep pairs
+        */
+        if (!*ptr)
+        {
+          /*
+            We have an ambiguity here. 0x00 can be an end-of-typelib marker,
+            but it can also be a part of the next value:
+              CREATE TABLE t1 (a ENUM(0x61, 0x0062) CHARACTER SET BINARY);
+            If this is the last ENUM/SET in the table and there is still more
+            packed data left after 0x00, then we know for sure that 0x00
+            is a part of the next value.
+            TODO-10.5+: we should eventually introduce a new unambiguous
+            typelib encoding for FRM.
+          */
+          if (!types && ptr + 1 < end)
+            continue;           // A binary value starting with 0x00
+          ptr++;                // Consume the end-of-typelib marker
+          break;                // End of the current typelib
+        }
+      }
+    }
+    point_to_type->count= (uint) (*typelib_value_names -
+                                  point_to_type->type_names);
     point_to_type++;
-    *((*array)++)= NullS;		/* End of type */
+    *((*typelib_value_names)++)= NullS; /* End of type */
+    *((*typelib_value_lengths)++)= 0;   /* End of type */
   }
-  *names=ptr;				/* Update end */
-  return;
+  return ptr != end;
 } /* fix_type_pointers */
 
 
@@ -5313,6 +5383,8 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   fulltext_searched= 0;
   file->ft_handler= 0;
   reginfo.impossible_range= 0;
+  reginfo.join_tab= NULL;
+  reginfo.not_exists_optimize= FALSE;
   created= TRUE;
   cond_selectivity= 1.0;
   cond_selectivity_sampling_explain= NULL;
@@ -5320,9 +5392,9 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   range_rowid_filter_cost_info_ptr= NULL;
   range_rowid_filter_cost_info= NULL;
   vers_write= s->versioned;
-  quick_condition_rows=0;
+  opt_range_condition_rows=0;
   no_cache= false;
-  initialize_quick_structures();
+  initialize_opt_range_structures();
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;
@@ -7190,7 +7262,6 @@ void TABLE::mark_columns_needed_for_update()
   DBUG_ENTER("TABLE::mark_columns_needed_for_update");
   bool need_signal= false;
 
-  mark_columns_per_binlog_row_image();
 
   if (triggers)
     triggers->mark_fields_used(TRG_EVENT_UPDATE);
@@ -7219,6 +7290,12 @@ void TABLE::mark_columns_needed_for_update()
     }
     need_signal= true;
   }
+  else
+  {
+    if (found_next_number_field)
+      mark_auto_increment_column();
+  }
+
   if (file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_DELETE)
   {
     /*
@@ -7260,6 +7337,7 @@ void TABLE::mark_columns_needed_for_update()
     bitmap_union(read_set, write_set);
     need_signal= true;
   }
+  mark_columns_per_binlog_row_image();
   if (need_signal)
     file->column_bitmaps_signal();
   DBUG_VOID_RETURN;
@@ -7276,7 +7354,6 @@ void TABLE::mark_columns_needed_for_update()
 void TABLE::mark_columns_needed_for_insert()
 {
   DBUG_ENTER("mark_columns_needed_for_insert");
-  mark_columns_per_binlog_row_image();
 
   if (triggers)
   {
@@ -7296,6 +7373,7 @@ void TABLE::mark_columns_needed_for_insert()
   /* Mark virtual columns for insert */
   if (vfield)
     mark_virtual_columns_for_write(TRUE);
+  mark_columns_per_binlog_row_image();
   if (check_constraints)
     mark_check_constraint_columns_for_read();
   DBUG_VOID_RETURN;
@@ -7704,12 +7782,28 @@ void TABLE::restore_blob_values(String *blob_storage)
 
 bool TABLE::alloc_keys(uint key_count)
 {
-  key_info= (KEY*) alloc_root(&mem_root, sizeof(KEY)*(s->keys+key_count));
+  KEY *new_key_info;
+  key_part_map *new_const_key_parts;
+  DBUG_ASSERT(s->tmp_table == INTERNAL_TMP_TABLE);
+
+  if (!multi_alloc_root(&mem_root,
+                        &new_key_info, sizeof(*key_info)*(s->keys+key_count),
+                        &new_const_key_parts,
+                        sizeof(*new_const_key_parts)*(s->keys+key_count),
+                        NullS))
+    return TRUE;
   if (s->keys)
-    memmove(key_info, s->key_info, sizeof(KEY)*s->keys);
-  s->key_info= key_info;
+  {
+    memmove(new_key_info, s->key_info, sizeof(*key_info) * s->keys);
+    memmove(new_const_key_parts, const_key_parts,
+            s->keys * sizeof(const_key_parts));
+  }
+  s->key_info= key_info= new_key_info;
+  const_key_parts= new_const_key_parts;
+  bzero((char*) (const_key_parts + s->keys),
+        sizeof(*const_key_parts) * key_count);
   max_keys= s->keys+key_count;
-  return !(key_info);
+  return FALSE;
 }
 
 
@@ -8517,9 +8611,10 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
 
 int TABLE::update_virtual_field(Field *vf)
 {
-  DBUG_ASSERT(!in_use->is_error());
-  Query_arena backup_arena;
   DBUG_ENTER("TABLE::update_virtual_field");
+  Query_arena backup_arena;
+  Counting_error_handler count_errors;
+  in_use->push_internal_handler(&count_errors);
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
   bitmap_clear_all(&tmp_set);
   vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
@@ -8527,7 +8622,8 @@ int TABLE::update_virtual_field(Field *vf)
   vf->vcol_info->expr->save_in_field(vf, 0);
   DBUG_RESTORE_WRITE_SET(vf);
   in_use->restore_active_arena(expr_arena, &backup_arena);
-  DBUG_RETURN(in_use->is_error());
+  in_use->pop_internal_handler();
+  DBUG_RETURN(count_errors.errors);
 }
 
 
@@ -8690,7 +8786,8 @@ bool TABLE::check_period_overlaps(const KEY &key,
     if (key.key_part[part_nr].null_bit)
       if (f->is_null_in_record(lhs) || f->is_null_in_record(rhs))
         return false;
-    if (f->cmp(f->ptr_in_record(lhs), f->ptr_in_record(rhs)) != 0)
+    uint kp_len= key.key_part[part_nr].length;
+    if (f->cmp_max(f->ptr_in_record(lhs), f->ptr_in_record(rhs), kp_len) != 0)
       return false;
   }
 
@@ -8852,7 +8949,7 @@ bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
   for (Field **fld= field; *fld; fld++)
   {
     if (!bitmap_is_set(write_set, (*fld)->field_index) &&
-        !((*fld)->flags & NO_DEFAULT_VALUE_FLAG))
+        !((*fld)->flags & (NO_DEFAULT_VALUE_FLAG | VERS_SYSTEM_FIELD)))
     {
       if (!(*fld)->is_null_in_record(s->default_values) &&
           (*fld)->validate_value_in_record_with_warn(thd, s->default_values) &&
@@ -9826,18 +9923,27 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
 
 /*
   @brief
-    Initialize all the quick structures that are used to stored the
+    Initialize all the opt_range structures that are used to stored the
     estimates when the range optimizer is run.
-  @details
-    This is specifically needed when we read the TABLE structure from the
-    table cache. There can be some garbage data from previous queries
-    that need to be reset here.
+    As these are initialized by the range optimizer for all index
+    marked in opt_range_keys, we only mark the memory as undefined
+    to be able to find wrong usage of data with valgrind or MSAN.
 */
 
-void TABLE::initialize_quick_structures()
+void TABLE::initialize_opt_range_structures()
 {
-  bzero(quick_rows, sizeof(quick_rows));
-  bzero(quick_key_parts, sizeof(quick_key_parts));
-  bzero(quick_costs, sizeof(quick_costs));
-  bzero(quick_n_ranges, sizeof(quick_n_ranges));
+  TRASH_ALLOC((void*)&opt_range_keys, sizeof(opt_range_keys));
+  TRASH_ALLOC(opt_range, s->keys * sizeof(*opt_range));
+  TRASH_ALLOC(const_key_parts, s->keys * sizeof(*const_key_parts));
+}
+
+/*
+  Mark table to be reopened after query
+*/
+
+void TABLE::mark_table_for_reopen()
+{
+  THD *thd= in_use;
+  DBUG_ASSERT(thd);
+  thd->locked_tables_list.mark_table_for_reopen(thd, this);
 }

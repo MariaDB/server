@@ -601,19 +601,17 @@ rec_offs_make_nth_extern(
         rec_offs*	offsets,
         const ulint     n);
 
+MY_ATTRIBUTE((nonnull))
 /** Determine the number of allocated elements for an array of offsets.
 @param[in]	offsets		offsets after rec_offs_set_n_alloc()
 @return number of elements */
-inline
-ulint
-rec_offs_get_n_alloc(const rec_offs* offsets)
+inline ulint rec_offs_get_n_alloc(const rec_offs *offsets)
 {
-	ulint	n_alloc;
-	ut_ad(offsets);
-	n_alloc = offsets[0];
-	ut_ad(n_alloc > REC_OFFS_HEADER_SIZE);
-	UNIV_MEM_ASSERT_W(offsets, n_alloc * sizeof *offsets);
-	return(n_alloc);
+  ut_ad(offsets);
+  ulint n_alloc= offsets[0];
+  ut_ad(n_alloc > REC_OFFS_HEADER_SIZE);
+  MEM_CHECK_ADDRESSABLE(offsets, n_alloc * sizeof *offsets);
+  return n_alloc;
 }
 
 /** Determine the number of fields for which offsets have been initialized.

@@ -1,6 +1,7 @@
 #ifndef HA_MARIA_INCLUDED
 #define HA_MARIA_INCLUDED
-/* Copyright (C) 2006,2004 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+/* Copyright (C) 2006, 2004 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+   Copyright (c) 2009, 2020, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,7 +22,7 @@
 
 /* class for the maria handler */
 
-#include <maria.h>
+#include "maria_def.h"
 #include "handler.h"
 #include "table.h"
 
@@ -38,9 +39,11 @@ C_MODE_END
 extern TYPELIB maria_recover_typelib;
 extern ulonglong maria_recover_options;
 
-class ha_maria :public handler
+class __attribute__((visibility("default"))) ha_maria :public handler
 {
+public:
   MARIA_HA *file;
+private:
   ulonglong int_table_flags;
   MARIA_RECORD_POS remember_pos;
   char *data_file_name, *index_file_name;
@@ -95,12 +98,7 @@ public:
     ft_handler->please->reinit_search(ft_handler);
     return 0;
   }
-  FT_INFO *ft_init_ext(uint flags, uint inx, String * key)
-  {
-    return maria_ft_init_search(flags, file, inx,
-                                (uchar *) key->ptr(), key->length(),
-                                key->charset(), table->record[0]);
-  }
+  FT_INFO *ft_init_ext(uint flags, uint inx, String * key);
   int ft_read(uchar * buf);
   int index_init(uint idx, bool sorted);
   int index_end();
@@ -144,14 +142,7 @@ public:
   bool check_and_repair(THD * thd);
   bool is_crashed() const;
   bool is_changed() const;
-  bool auto_repair(int error) const
-  {
-    /* Always auto-repair moved tables (error == HA_ERR_OLD_FILE) */
-    return ((MY_TEST(maria_recover_options & HA_RECOVER_ANY) &&
-             error == HA_ERR_CRASHED_ON_USAGE) ||
-            error == HA_ERR_OLD_FILE);
-
-  }
+  bool auto_repair(int error) const;
   int optimize(THD * thd, HA_CHECK_OPT * check_opt);
   int assign_to_keycache(THD * thd, HA_CHECK_OPT * check_opt);
   int preload_keys(THD * thd, HA_CHECK_OPT * check_opt);

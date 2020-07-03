@@ -1089,7 +1089,7 @@ send_result_message:
         }
         /* Make sure this table instance is not reused after the operation. */
         if (table->table)
-          table->table->m_needs_reopen= true;
+          table->table->mark_table_for_reopen();
       }
       result_code= result_code ? HA_ADMIN_FAILED : HA_ADMIN_OK;
       table->next_local= save_next_local;
@@ -1141,6 +1141,13 @@ send_result_message:
     }
     if (table->table && !table->view)
     {
+      /*
+        Don't skip flushing if we are collecting EITS statistics.
+      */
+      const bool skip_flush=
+        (operator_func == &handler::ha_analyze) && 
+        (table->table->file->ha_table_flags() & HA_ONLINE_ANALYZE) &&
+        !collect_eis;
       if (table->table->s->tmp_table)
       {
         /*
@@ -1150,7 +1157,7 @@ send_result_message:
         if (open_for_modify && !open_error)
           table->table->file->info(HA_STATUS_CONST);
       }
-      else if (open_for_modify || fatal_error)
+      else if ((!skip_flush && open_for_modify) || fatal_error)
       {
         table->table->s->tdc->flush_unused(true);
         /*
@@ -1213,7 +1220,7 @@ err:
     trans_rollback(thd);
   if (table && table->table)
   {
-    table->table->m_needs_reopen= true;
+    table->table->mark_table_for_reopen();
     table->table= 0;
   }
   close_thread_tables(thd);			// Shouldn't be needed

@@ -1175,6 +1175,7 @@ int chk_data_link(HA_CHECK *param, MI_INFO *info, my_bool extend)
       if (_mi_read_cache(&param->read_cache,(uchar*) info->rec_buff,
 			block_info.filepos, block_info.rec_len, READING_NEXT))
 	goto err;
+      info->rec_buff[block_info.rec_len]= 0;  /* Keep valgrind happy */
       if (_mi_pack_rec_unpack(info, &info->bit_buff, record,
                               info->rec_buff, block_info.rec_len))
       {
@@ -1587,6 +1588,8 @@ int mi_repair(HA_CHECK *param, register MI_INFO *info,
   sort_param.filepos=new_header_length;
   param->read_cache.end_of_file=sort_info.filelength=
     mysql_file_seek(info->dfile, 0L, MY_SEEK_END, MYF(0));
+  if (info->state->data_file_length == 0)
+    info->state->data_file_length= sort_info.filelength;
   sort_info.dupp=0;
   sort_param.fix_datafile= (my_bool) (! rep_quick);
   sort_param.master=1;
@@ -2292,6 +2295,8 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
   sort_info.buff=0;
   param->read_cache.end_of_file=sort_info.filelength=
     mysql_file_seek(param->read_cache.file, 0L, MY_SEEK_END, MYF(0));
+  if (info->state->data_file_length == 0)
+    info->state->data_file_length= sort_info.filelength;
 
   sort_param.wordlist=NULL;
   init_alloc_root(mi_key_memory_MI_SORT_PARAM_wordroot, &sort_param.wordroot,
@@ -2759,6 +2764,8 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
   sort_info.buff=0;
   param->read_cache.end_of_file=sort_info.filelength=
     mysql_file_seek(param->read_cache.file, 0L, MY_SEEK_END, MYF(0));
+  if (info->state->data_file_length == 0)
+    info->state->data_file_length= sort_info.filelength;
 
   if (share->data_file_type == DYNAMIC_RECORD)
     rec_length=MY_MAX(share->base.min_pack_length+1,share->base.min_block_length);
@@ -3626,6 +3633,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 			      llstr(sort_param->pos,llbuff));
 	continue;
       }
+      sort_param->rec_buff[block_info.rec_len]= 0;  /* Keep valgrind happy */
       if (_mi_pack_rec_unpack(info, &sort_param->bit_buff, sort_param->record,
                               sort_param->rec_buff, block_info.rec_len))
       {

@@ -91,27 +91,17 @@ should be bigger than LOG_POOL_PREFLUSH_RATIO_SYNC */
 the previous */
 #define LOG_POOL_PREFLUSH_RATIO_ASYNC	8
 
-/****************************************************************//**
-Returns the oldest modified block lsn in the pool, or log_sys.lsn if none
-exists.
+/** Return the oldest modified LSN in buf_pool.flush_list,
+or the latest LSN if all pages are clean.
 @return LSN of oldest modification */
-static
-lsn_t
-log_buf_pool_get_oldest_modification(void)
-/*======================================*/
+static lsn_t log_buf_pool_get_oldest_modification()
 {
-	lsn_t	lsn;
+  ut_ad(log_mutex_own());
+  log_flush_order_mutex_enter();
+  lsn_t lsn= buf_pool.get_oldest_modification();
+  log_flush_order_mutex_exit();
 
-	ut_ad(log_mutex_own());
-
-	lsn = buf_pool_get_oldest_modification();
-
-	if (!lsn) {
-
-		lsn = log_sys.get_lsn();
-	}
-
-	return(lsn);
+  return lsn ? lsn : log_sys.get_lsn();
 }
 
 /** Extends the log buffer.
@@ -419,7 +409,7 @@ log_close(void)
 		goto function_exit;
 	}
 
-	oldest_lsn = buf_pool_get_oldest_modification();
+	oldest_lsn = log_buf_pool_get_oldest_modification();
 
 	if (!oldest_lsn
 	    || lsn - oldest_lsn > log_sys.max_modified_age_sync
@@ -432,7 +422,7 @@ function_exit:
 }
 
 /** Calculate the recommended highest values for lsn - last_checkpoint_lsn
-and lsn - buf_get_oldest_modification().
+and lsn - buf_pool.get_oldest_modification().
 @param[in]	file_size	requested innodb_log_file_size
 @retval true on success
 @retval false if the smallest log group is too small to
@@ -440,6 +430,12 @@ accommodate the number of OS threads in the database server */
 bool
 log_set_capacity(ulonglong file_size)
 {
+	/* Margin for the free space in the smallest log, before a new query
+	step which modifies the database, is started */
+	const size_t LOG_CHECKPOINT_FREE_PER_THREAD = 4U
+						      << srv_page_size_shift;
+	const size_t LOG_CHECKPOINT_EXTRA_FREE = 8U << srv_page_size_shift;
+
 	lsn_t		margin;
 	ulint		free;
 
@@ -455,14 +451,11 @@ log_set_capacity(ulonglong file_size)
 	free = LOG_CHECKPOINT_FREE_PER_THREAD * (10 + srv_thread_concurrency)
 		+ LOG_CHECKPOINT_EXTRA_FREE;
 	if (free >= smallest_capacity / 2) {
-		ib::error() << "Cannot continue operation. " << LOG_FILE_NAME
-			    << " is too small for innodb_thread_concurrency="
-			    << srv_thread_concurrency << ". The size of "
-			    << LOG_FILE_NAME
-			    << " should be bigger than 200 kB * "
-			       "innodb_thread_concurrency. "
+		ib::error() << "Cannot continue operation because log file is "
+			       "too small. Increase innodb_log_file_size "
+			       "or decrease innodb_thread_concurrency. "
 			    << INNODB_PARAMETERS_MSG;
-		return(false);
+		return false;
 	}
 
 	margin = smallest_capacity - free;
@@ -1051,7 +1044,7 @@ static void log_write(bool rotate_key)
 		}
 	}
 
-	if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE)) {
+	if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED)) {
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 					       "InnoDB log write: "
 					       LSN_PF, log_sys.write_lsn);
@@ -1214,7 +1207,7 @@ static bool log_preflush_pool_modified_pages(lsn_t new_oldest)
 
 		success = buf_flush_lists(ULINT_MAX, new_oldest, &n_pages);
 
-		buf_flush_wait_batch_end(BUF_FLUSH_LIST);
+		buf_flush_wait_batch_end(false);
 
 		if (!success) {
 			MONITOR_INC(MONITOR_FLUSH_SYNC_WAITS);
@@ -1250,7 +1243,7 @@ void log_write_checkpoint_info(lsn_t end_lsn)
 	ut_ad(end_lsn == 0 || end_lsn >= log_sys.next_checkpoint_lsn);
 	ut_ad(end_lsn <= log_sys.get_lsn());
 	ut_ad(end_lsn + SIZE_OF_FILE_CHECKPOINT <= log_sys.get_lsn()
-	      || srv_shutdown_state != SRV_SHUTDOWN_NONE);
+	      || srv_shutdown_state > SRV_SHUTDOWN_INITIATED);
 
 	DBUG_PRINT("ib_log", ("checkpoint " UINT64PF " at " LSN_PF
 			      " written",
@@ -1364,7 +1357,7 @@ bool log_checkpoint()
 	if (oldest_lsn
 	    > log_sys.last_checkpoint_lsn + SIZE_OF_FILE_CHECKPOINT) {
 		/* Some log has been written since the previous checkpoint. */
-	} else if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	} else if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		/* MariaDB startup expects the redo log file to be
 		logically empty (not even containing a MLOG_CHECKPOINT record)
 		after a clean shutdown. Perform an extra checkpoint at
@@ -1389,7 +1382,7 @@ bool log_checkpoint()
 	lsn_t		flush_lsn	= oldest_lsn;
 	const lsn_t	end_lsn		= log_sys.get_lsn();
 	const bool	do_write
-		= srv_shutdown_state == SRV_SHUTDOWN_NONE
+		= srv_shutdown_state <= SRV_SHUTDOWN_INITIATED
 		|| flush_lsn != end_lsn;
 
 	if (fil_names_clear(flush_lsn, do_write)) {
@@ -1520,14 +1513,9 @@ void log_check_margins()
 }
 
 extern void buf_resize_shutdown();
-/****************************************************************//**
-Makes a checkpoint at the latest lsn and writes it to first page of each
-data file in the database, so that we know that the file spaces contain
-all modifications up to that lsn. This can only be called at database
-shutdown. This function also writes log in log file to the log archive. */
-void
-logs_empty_and_mark_files_at_shutdown(void)
-/*=======================================*/
+
+/** Make a checkpoint at the latest lsn on shutdown. */
+void logs_empty_and_mark_files_at_shutdown()
 {
 	lsn_t			lsn;
 	ulint			count = 0;
@@ -1678,7 +1666,7 @@ wait_suspend_loop:
 
 	if (!buf_pool.is_initialised()) {
 		ut_ad(!srv_was_started);
-	} else if (ulint pending_io = buf_pool_check_no_pending_io()) {
+	} else if (ulint pending_io = buf_pool.io_pending()) {
 		if (srv_print_verbose_log && count > 600) {
 			ib::info() << "Waiting for " << pending_io << " buffer"
 				" page I/Os to complete";
@@ -1709,10 +1697,6 @@ wait_suspend_loop:
 		}
 
 		srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
-
-		if (fil_system.is_initialised()) {
-			fil_close_all_files();
-		}
 		return;
 	}
 
@@ -1736,8 +1720,6 @@ wait_suspend_loop:
 			goto loop;
 		}
 
-		/* Ensure that all buffered changes are written to the
-		redo log before fil_close_all_files(). */
 		log_sys.log.flush();
 	} else {
 		lsn = recv_sys.recovered_lsn;
@@ -1771,8 +1753,6 @@ wait_suspend_loop:
 				<< " failed; error=" << err;
 		}
 	}
-
-	fil_close_all_files();
 
 	/* Make some checks that the server really is quiet */
 	ut_ad(!srv_any_background_activity());
