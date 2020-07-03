@@ -16388,7 +16388,7 @@ innodb_show_rwlock_status(
 {
 	DBUG_ENTER("innodb_show_rwlock_status");
 
-	rw_lock_t*	block_rwlock = NULL;
+	const rw_lock_t* block_rwlock= nullptr;
 	ulint		block_rwlock_oswait_count = 0;
 	uint		hton_name_len = (uint) strlen(innobase_hton_name);
 
@@ -16396,36 +16396,34 @@ innodb_show_rwlock_status(
 
 	mutex_enter(&rw_lock_list_mutex);
 
-	for (rw_lock_t* rw_lock = UT_LIST_GET_FIRST(rw_lock_list);
-	     rw_lock != NULL;
-	     rw_lock = UT_LIST_GET_NEXT(list, rw_lock)) {
+	for (const rw_lock_t& rw_lock : rw_lock_list) {
 
-		if (rw_lock->count_os_wait == 0) {
+		if (rw_lock.count_os_wait == 0) {
 			continue;
 		}
 
 		int		buf1len;
 		char		buf1[IO_SIZE];
 
-		if (rw_lock->is_block_lock) {
+		if (rw_lock.is_block_lock) {
 
-			block_rwlock = rw_lock;
-			block_rwlock_oswait_count += rw_lock->count_os_wait;
+			block_rwlock = &rw_lock;
+			block_rwlock_oswait_count += rw_lock.count_os_wait;
 
 			continue;
 		}
 
 		buf1len = snprintf(
 			buf1, sizeof buf1, "rwlock: %s:%u",
-			innobase_basename(rw_lock->cfile_name),
-			rw_lock->cline);
+			innobase_basename(rw_lock.cfile_name),
+			rw_lock.cline);
 
 		int		buf2len;
 		char		buf2[IO_SIZE];
 
 		buf2len = snprintf(
 			buf2, sizeof buf2, "waits=%u",
-			rw_lock->count_os_wait);
+			rw_lock.count_os_wait);
 
 		if (stat_print(thd, innobase_hton_name,
 			       hton_name_len,

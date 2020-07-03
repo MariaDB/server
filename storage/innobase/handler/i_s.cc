@@ -7165,9 +7165,8 @@ i_s_innodb_mutexes_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	rw_lock_t*	lock;
 	ulint		block_lock_oswait_count = 0;
-	rw_lock_t*	block_lock = NULL;
+	const rw_lock_t* block_lock= nullptr;
 	Field**		fields = tables->table->field;
 
 	DBUG_ENTER("i_s_innodb_mutexes_fill_table");
@@ -7210,32 +7209,31 @@ i_s_innodb_mutexes_fill_table(
 
 		char lock_name[sizeof "buf0dump.cc:12345"];
 
-		for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
-		     lock = UT_LIST_GET_NEXT(list, lock)) {
-			if (lock->count_os_wait == 0) {
+		for (const rw_lock_t& lock : rw_lock_list) {
+			if (lock.count_os_wait == 0) {
 				continue;
 			}
 
-			if (buf_pool.is_block_lock(lock)) {
-				block_lock = lock;
-				block_lock_oswait_count += lock->count_os_wait;
+			if (buf_pool.is_block_lock(&lock)) {
+				block_lock = &lock;
+				block_lock_oswait_count += lock.count_os_wait;
 				continue;
 			}
 
 			const char* basename = innobase_basename(
-				lock->cfile_name);
+				lock.cfile_name);
 
 			snprintf(lock_name, sizeof lock_name, "%s:%u",
-				 basename, lock->cline);
+				 basename, lock.cline);
 
 			OK(field_store_string(fields[MUTEXES_NAME],
 					      lock_name));
 			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
 					      basename));
-			OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline,
+			OK(fields[MUTEXES_CREATE_LINE]->store(lock.cline,
 							      true));
 			fields[MUTEXES_CREATE_LINE]->set_notnull();
-			OK(fields[MUTEXES_OS_WAITS]->store(lock->count_os_wait,
+			OK(fields[MUTEXES_OS_WAITS]->store(lock.count_os_wait,
 							   true));
 			fields[MUTEXES_OS_WAITS]->set_notnull();
 			OK(schema_table_store_record(thd, tables->table));

@@ -1682,9 +1682,7 @@ sync_check_init()
 
 	sync_latch_meta_init();
 
-	/* Init the rw-lock & mutex list and create the mutex to protect it. */
-
-	UT_LIST_INIT(rw_lock_list, &rw_lock_t::list);
+	/* create the mutex to protect rw_lock list. */
 
 	mutex_create(LATCH_ID_RW_LOCK_LIST, &rw_lock_list_mutex);
 
