@@ -9932,7 +9932,7 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
 
 void TABLE::initialize_opt_range_structures()
 {
-  TRASH_ALLOC(&opt_range_keys, sizeof(opt_range_keys));
+  TRASH_ALLOC((void*)&opt_range_keys, sizeof(opt_range_keys));
   TRASH_ALLOC(opt_range, s->keys * sizeof(*opt_range));
   TRASH_ALLOC(const_key_parts, s->keys * sizeof(*const_key_parts));
 }
