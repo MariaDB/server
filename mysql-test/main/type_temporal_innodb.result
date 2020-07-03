@@ -173,6 +173,9 @@ ERROR 22007: Truncated incorrect datetime value: '0000-00-00 00:00:00'
 DROP TABLE t1,t2;
 SET sql_mode=DEFAULT;
 #
+# End of 10.3 tests
+#
+#
 # MDEV-19166 Assertion `!is_zero_datetime()' failed in Timestamp_or_zero_datetime::tv
 #
 CREATE TABLE t1 (f TIMESTAMP DEFAULT 0) ENGINE=InnoDB;
