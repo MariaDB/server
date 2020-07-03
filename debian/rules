@@ -39,6 +39,17 @@ else
     TESTSUITE_FAIL_CMD:=exit 1
 endif
 
+# RocksDB cannot build on 32-bit platforms
+ifeq (32,$(DEB_HOST_ARCH_BITS))
+    CMAKEFLAGS += -DWITHOUT_ROCKSDB=true
+endif
+
+# ColumnStore only attempts to build on a few platforms as dictated by CMake checks
+# Also note in debian/control the CS-only build deps marked '[i386 amd64]'
+ifeq ($(DEB_HOST_ARCH),$(filter $(DEB_HOST_ARCH),amd64 i386))
+    CMAKEFLAGS += -DPLUGIN_COLUMNSTORE=YES
+endif
+
 # Add extra flag to avoid WolfSSL code crashing the entire mariadbd on s390x. This
 # can be removed once upstream has made the code s390x compatible, see
 # https://jira.mariadb.org/browse/MDEV-21705 and
@@ -83,10 +94,7 @@ endif
 	    -DBUILD_CONFIG=mysql_release \
 	    -DPLUGIN_TOKUDB=NO \
 	    -DPLUGIN_CASSANDRA=NO \
-	    -DPLUGIN_COLUMNSTORE=YES \
-	    -DPLUGIN_ROCKSDB=YES \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
-	    -WITH_EMBEDDED_SERVER=OFF \
 	    -DDEB=$(DEB_VENDOR) ..'
 
 # This is needed, otherwise 'make test' will run before binaries have been built

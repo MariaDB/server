@@ -18,7 +18,6 @@ usr/bin/ProcMon
 usr/bin/ServerMonitor
 usr/bin/StorageManager
 usr/bin/WriteEngineServer
-usr/bin/dbmsReport.sh
 usr/bin/autoConfigure
 usr/bin/bulklogReport.sh
 usr/bin/clearShm
@@ -42,6 +41,7 @@ usr/bin/cpimport
 usr/bin/cpimport.bin
 usr/bin/cplogger
 usr/bin/dbbuilder
+usr/bin/dbmsReport.sh
 usr/bin/dbrmctl
 usr/bin/ddlcleanup
 usr/bin/disable-rep-columnstore.sh
@@ -51,8 +51,12 @@ usr/bin/hardwareReport.sh
 usr/bin/idbmeminfo
 usr/bin/load_brm
 usr/bin/logReport.sh
+usr/bin/mariadb-columnstore-start.sh
+usr/bin/mariadb-columnstore-stop.sh
 usr/bin/mariadb-command-line.sh
 usr/bin/master-rep-columnstore.sh
+usr/bin/mcs-loadbrm.py
+usr/bin/mcs-start-storagemanager.py
 usr/bin/mcs-stop-controllernode.sh
 usr/bin/mcsGetConfig
 usr/bin/mcsSetConfig
@@ -82,10 +86,6 @@ usr/bin/smrm
 usr/bin/startupTests.sh
 usr/bin/viewtablelock
 usr/bin/workernode
-usr/bin/mcs-start-storagemanager.py
-usr/bin/mcs-loadbrm.py
-usr/bin/mariadb-columnstore-start.sh
-usr/bin/mariadb-columnstore-stop.sh
 usr/lib/*/libalarmmanager.so
 usr/lib/*/libbatchloader.so
 usr/lib/*/libbrm.so
@@ -146,9 +146,9 @@ usr/share/columnstore/mcs-dmlproc.service
 usr/share/columnstore/mcs-exemgr.service
 usr/share/columnstore/mcs-loadbrm.service
 usr/share/columnstore/mcs-primproc.service
+usr/share/columnstore/mcs-storagemanager.service
 usr/share/columnstore/mcs-workernode.service
 usr/share/columnstore/mcs-writeengineserver.service
-usr/share/columnstore/mcs-storagemanager.service
 usr/share/columnstore/mcstest-001.sh
 usr/share/columnstore/mcstest-002.sh
 usr/share/columnstore/mcstest-003.sh
