@@ -1622,6 +1622,8 @@ buf_chunk_init(
 		return(NULL);
 	}
 
+        MEM_MAKE_ADDRESSABLE(chunk->mem, chunk->mem_size());
+
 #ifdef HAVE_LIBNUMA
 	if (srv_numa_interleave) {
 		struct bitmask *numa_mems_allowed = numa_get_mems_allowed();
@@ -2907,6 +2909,9 @@ withdraw_retry:
 
 			while (chunk < echunk) {
 				buf_block_t*	block = chunk->blocks;
+
+                                MEM_MAKE_ADDRESSABLE(chunk->mem,
+                                                     chunk->mem_size());
 
 				for (ulint j = chunk->size;
 				     j--; block++) {
