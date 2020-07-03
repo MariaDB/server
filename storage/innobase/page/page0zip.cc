@@ -1552,11 +1552,11 @@ err_exit:
 	ut_ad(buf + c_stream.total_out == c_stream.next_out);
 	ut_ad((ulint) (storage - c_stream.next_out) >= c_stream.avail_out);
 
-#ifdef HAVE_valgrind
+#if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
 	/* Valgrind believes that zlib does not initialize some bits
 	in the last 7 or 8 bytes of the stream.  Make Valgrind happy. */
 	MEM_MAKE_DEFINED(buf, c_stream.total_out);
-#endif /* HAVE_valgrind */
+#endif /* HAVE_valgrind && !memory_sanitizer */
 
 	/* Zero out the area reserved for the modification log.
 	Space for the end marker of the modification log is not
@@ -3076,9 +3076,7 @@ page_zip_decompress_low(
 	/* Clear the uncompressed page, except the header. */
 	memset(PAGE_DATA + page, 0x55, srv_page_size - PAGE_DATA);
 #endif /* UNIV_ZIP_DEBUG */
-#ifdef HAVE_valgrind_or_MSAN
 	MEM_UNDEFINED(PAGE_DATA + page, srv_page_size - PAGE_DATA);
-#endif /* HAVE_valgrind_or_MSAN */
 
 	/* Copy the page directory. */
 	if (UNIV_UNLIKELY(!page_zip_dir_decode(page_zip, page, recs,

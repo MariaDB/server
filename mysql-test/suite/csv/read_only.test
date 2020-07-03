@@ -1,3 +1,4 @@
+--source include/not_as_root.inc
 #
 # MDEV-11883 MariaDB crashes with out-of-memory when query information_schema
 #

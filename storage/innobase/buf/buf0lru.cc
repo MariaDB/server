@@ -626,7 +626,7 @@ buf_block_t* buf_LRU_get_free_only()
 			assert_block_ahi_empty(block);
 
 			block->page.set_state(BUF_BLOCK_MEMORY);
-			MEM_UNDEFINED(block->frame, srv_page_size);
+			MEM_MAKE_ADDRESSABLE(block->frame, srv_page_size);
 			break;
 		}
 
@@ -1307,13 +1307,9 @@ func_exit:
 	order to avoid bogus Valgrind or MSAN warnings.*/
 	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
 
-#ifdef HAVE_valgrind_or_MSAN
 	MEM_MAKE_DEFINED(block->frame, srv_page_size);
-#endif /* HAVE_valgrind_or_MSAN */
 	btr_search_drop_page_hash_index(block);
-#ifdef HAVE_valgrind_or_MSAN
 	MEM_UNDEFINED(block->frame, srv_page_size);
-#endif /* HAVE_valgrind_or_MSAN */
 
 	if (UNIV_LIKELY_NULL(b)) {
 		ut_ad(b->zip_size());
@@ -1511,9 +1507,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 			      "not perfect alignment");
 		memset_aligned<2>(reinterpret_cast<buf_block_t*>(bpage)->frame
 				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
-#ifdef HAVE_valgrind_or_MSAN
 		MEM_UNDEFINED(((buf_block_t*) bpage)->frame, srv_page_size);
-#endif /* HAVE_valgrind_or_MSAN */
 		bpage->set_state(BUF_BLOCK_REMOVE_HASH);
 
 		/* Question: If we release hash_lock here

@@ -6123,6 +6123,11 @@ void ha_tokudb::position(const uchar * record) {
         //
         memcpy(ref, &key.size, sizeof(uint32_t));
     }
+    /*
+      tokudb doesn't always write the last byte. Don't that cause problems with
+      MariaDB
+    */
+    MEM_MAKE_DEFINED(ref, ref_length);
     TOKUDB_HANDLER_DBUG_VOID_RETURN;
 }
 
