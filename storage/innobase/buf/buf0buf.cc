@@ -2257,7 +2257,18 @@ withdraw_retry:
 		ulint	sum_freed = 0;
 
 		while (chunk < echunk) {
+			/* buf_LRU_block_free_non_file_page() invokes
+			MEM_NOACCESS() on any buf_pool.free blocks.
+			We must cancel the effect of that. In
+			MemorySanitizer, MEM_NOACCESS() is no-op, so
+			we must not do anything special for it here. */
+#ifdef HAVE_valgrind
+# if !__has_feature(memory_sanitizer)
+			MEM_MAKE_DEFINED(chunk->mem, chunk->mem_size());
+# endif
+#else
 			MEM_MAKE_ADDRESSABLE(chunk->mem, chunk->size);
+#endif
 
 			buf_block_t*	block = chunk->blocks;
 
