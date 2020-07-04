@@ -644,6 +644,7 @@ Description: Amazon S3 archival storage engine for MariaDB
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el
 Depends: mariadb-server-10.5 (= ${binary:Version}),
+         python3,
          rocksdb-tools,
          ${misc:Depends},
          ${shlibs:Depends}
