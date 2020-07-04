@@ -6562,6 +6562,7 @@ add_ft_keys(DYNAMIC_ARRAY *keyuse_array,
   keyuse.keypart= FT_KEYPART;
   keyuse.used_tables=cond_func->key_item()->used_tables();
   keyuse.optimize= 0;
+  keyuse.ref_table_rows= 0;
   keyuse.keypart_map= 0;
   keyuse.sj_pred_no= UINT_MAX;
   keyuse.validity_ref= 0;
@@ -18641,17 +18642,15 @@ bool Create_tmp_table::finalize(THD *thd,
   uint null_pack_length[2];
   uint null_pack_base[2];
   uint null_counter[2]= {0, 0};
-
   uint whole_null_pack_length;
-
   bool  use_packed_rows= false;
+  bool  save_abort_on_warning;
   uchar *pos;
   uchar *null_flags;
   KEY *keyinfo;
   TMP_ENGINE_COLUMNDEF *recinfo;
   TABLE_SHARE  *share= table->s;
   Copy_field *copy= param->copy_field;
-
   MEM_ROOT *mem_root_save= thd->mem_root;
   thd->mem_root= &table->mem_root;
 
@@ -18752,6 +18751,11 @@ bool Create_tmp_table::finalize(THD *thd,
   {
     null_counter[(m_field_count[other] ? other : distinct)]++;
   }
+
+  /* Protect against warnings in field_conv() in the next loop*/
+  save_abort_on_warning= thd->abort_on_warning;
+  thd->abort_on_warning= 0;
+
   for (uint i= 0; i < share->fields; i++, recinfo++)
   {
     Field *field= table->field[i];
@@ -18795,25 +18799,31 @@ bool Create_tmp_table::finalize(THD *thd,
          inherit the default value that is defined for the field referred
          by the Item_field object from which 'field' has been created.
       */
-      const Field *orig_field= m_default_field[i];
+      Field *orig_field= m_default_field[i];
       /* Get the value from default_values */
       if (orig_field->is_null_in_record(orig_field->table->s->default_values))
         field->set_null();
       else
       {
+        /*
+          Copy default value. We have to use field_conv() for copy, instead of
+          memcpy(), because bit_fields may be stored differently
+        */
+        my_ptrdiff_t ptr_diff= (orig_field->table->s->default_values -
+                                orig_field->table->record[0]);
         field->set_notnull();
-        memcpy(field->ptr,
-               orig_field->ptr_in_record(orig_field->table->s->default_values),
-               field->pack_length_in_rec());
+        orig_field->move_field_offset(ptr_diff);
+        field_conv(field, orig_field);
+        orig_field->move_field_offset(-ptr_diff);
       }
-    } 
+    }
 
     if (m_from_field[i])
     {						/* Not a table Item */
       copy->set(field, m_from_field[i], m_save_sum_fields);
       copy++;
     }
-    length=field->pack_length();
+    length=field->pack_length_in_rec();
     pos+= length;
 
     /* Make entry for create table */
@@ -18823,7 +18833,11 @@ bool Create_tmp_table::finalize(THD *thd,
     // fix table name in field entry
     field->set_table_name(&table->alias);
   }
+  /* Handle group_null_items */
+  bzero(pos, table->s->reclength - (pos - table->record[0]));
+  MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
 
+  thd->abort_on_warning= save_abort_on_warning;
   param->copy_field_end= copy;
   param->recinfo= recinfo;              	// Pointer to after last field
   store_record(table,s->default_values);        // Make empty default record
@@ -19086,8 +19100,9 @@ bool Create_tmp_table::finalize(THD *thd,
       goto err;
   }
 
-  // Make empty record so random data is not written to disk
-  empty_record(table);
+  /* record[0] and share->default_values should now have been set up */
+  MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
+  MEM_CHECK_DEFINED(share->default_values, table->s->reclength);
 
   thd->mem_root= mem_root_save;
 
@@ -19483,7 +19498,11 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       (*recinfo)->type=   FIELD_CHECK;
       (*recinfo)->length= MARIA_UNIQUE_HASH_LENGTH;
       (*recinfo)++;
-      share->reclength+=      MARIA_UNIQUE_HASH_LENGTH;
+
+      /* Avoid warnings from valgrind */
+      bzero(table->record[0]+ share->reclength, MARIA_UNIQUE_HASH_LENGTH);
+      bzero(share->default_values+ share->reclength, MARIA_UNIQUE_HASH_LENGTH);
+      share->reclength+= MARIA_UNIQUE_HASH_LENGTH;
     }
     else
     {
@@ -19677,7 +19696,10 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       (*recinfo)->type= FIELD_CHECK;
       (*recinfo)->length=MI_UNIQUE_HASH_LENGTH;
       (*recinfo)++;
-      share->reclength+=MI_UNIQUE_HASH_LENGTH;
+      /* Avoid warnings from valgrind */
+      bzero(table->record[0]+ share->reclength, MI_UNIQUE_HASH_LENGTH);
+      bzero(share->default_values+ share->reclength, MI_UNIQUE_HASH_LENGTH);
+      share->reclength+= MI_UNIQUE_HASH_LENGTH;
     }
     else
     {
@@ -19780,8 +19802,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   if (is_duplicate)
     *is_duplicate= FALSE;
 
-  if (table->s->db_type() != heap_hton || 
-      error != HA_ERR_RECORD_FILE_FULL)
+  if (table->s->db_type() != heap_hton || error != HA_ERR_RECORD_FILE_FULL)
   {
     /*
       We don't want this error to be converted to a warning, e.g. in case of
@@ -19795,7 +19816,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   new_table.s= &share;
   new_table.s->db_plugin= ha_lock_engine(thd, TMP_ENGINE_HTON);
   if (unlikely(!(new_table.file= get_new_handler(&share, &new_table.mem_root,
-                                                 new_table.s->db_type()))))
+                                                 TMP_ENGINE_HTON))))
     DBUG_RETURN(1);				// End of memory
 
   if (unlikely(new_table.file->set_ha_share_ref(&share.ha_share)))
@@ -19886,7 +19907,7 @@ err_killed:
   (void) table->file->ha_rnd_end();
   (void) new_table.file->ha_close();
  err1:
-  new_table.file->ha_delete_table(new_table.s->path.str);
+  TMP_ENGINE_HTON->drop_table(TMP_ENGINE_HTON, new_table.s->path.str);
  err2:
   delete new_table.file;
   thd_proc_info(thd, save_proc_info);
@@ -19909,16 +19930,12 @@ free_tmp_table(THD *thd, TABLE *entry)
 
   if (entry->file && entry->is_created())
   {
+    DBUG_ASSERT(entry->db_stat);
     entry->file->ha_index_or_rnd_end();
-    if (entry->db_stat)
-    {
-      entry->file->info(HA_STATUS_VARIABLE);
-      thd->tmp_tables_size+= (entry->file->stats.data_file_length +
-                              entry->file->stats.index_file_length);
-      entry->file->ha_drop_table(entry->s->path.str);
-    }
-    else
-      entry->file->ha_delete_table(entry->s->path.str);
+    entry->file->info(HA_STATUS_VARIABLE);
+    thd->tmp_tables_size+= (entry->file->stats.data_file_length +
+                            entry->file->stats.index_file_length);
+    entry->file->ha_drop_table(entry->s->path.str);
     delete entry->file;
   }
 
@@ -20269,11 +20286,11 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
       If it is not heap (in-memory) table then convert index to unique
       constrain.
     */
+    MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
     if (create_internal_tmp_table(table, keyinfo, start_recinfo, recinfo,
                                   options))
       return TRUE;
-    // Make empty record so random data is not written to disk
-    empty_record(table);
+    MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
   }
   if (open_tmp_table(table))
     return TRUE;
@@ -28795,7 +28812,6 @@ AGGR_OP::prepare_tmp_table()
                               join->select_options))
       return true;
     (void) table->file->extra(HA_EXTRA_WRITE_CACHE);
-    empty_record(table);
   }
   /* If it wasn't already, start index scan for grouping using table index. */
   if (!table->file->inited && table->group &&

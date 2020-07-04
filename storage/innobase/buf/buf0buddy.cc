@@ -364,9 +364,7 @@ buf_buddy_block_free(void* buf)
 	HASH_DELETE(buf_page_t, hash, &buf_pool.zip_hash, fold, bpage);
 
 	ut_d(memset(buf, 0, srv_page_size));
-#ifdef HAVE_valgrind_or_MSAN
 	MEM_UNDEFINED(buf, srv_page_size);
-#endif /* HAVE_valgrind_or_MSAN */
 
 	block = (buf_block_t*) bpage;
 	buf_LRU_block_free_non_file_page(block);

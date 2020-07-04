@@ -409,24 +409,6 @@ static struct st_mysql_information_schema feedback =
 
 } // namespace feedback
 
-mysql_declare_plugin(feedback)
-{
-  MYSQL_INFORMATION_SCHEMA_PLUGIN,
-  &feedback::feedback,
-  "FEEDBACK",
-  "Sergei Golubchik",
-  "MariaDB User Feedback Plugin",
-  PLUGIN_LICENSE_GPL,
-  feedback::init,
-  feedback::free,
-  0x0101,
-  NULL,
-  feedback::settings,
-  NULL,
-  0
-}
-mysql_declare_plugin_end;
-#ifdef MARIA_PLUGIN_INTERFACE_VERSION
 maria_declare_plugin(feedback)
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
@@ -444,4 +426,3 @@ maria_declare_plugin(feedback)
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
-#endif

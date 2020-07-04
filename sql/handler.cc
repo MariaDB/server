@@ -45,6 +45,7 @@
 #include "sql_audit.h"
 #include "ha_sequence.h"
 #include "rowid_filter.h"
+#include "mysys_err.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -546,6 +547,26 @@ static void update_discovery_counters(handlerton *hton, int val)
     engines_with_discover+= val;
 }
 
+int ha_drop_table(THD *thd, handlerton *hton, const char *path)
+{
+  if (ha_check_if_updates_are_ignored(thd, hton, "DROP"))
+    return 0;                                   // Simulate dropped
+  return hton->drop_table(hton, path);
+}
+
+static int hton_drop_table(handlerton *hton, const char *path)
+{
+  char tmp_path[FN_REFLEN];
+  handler *file= get_new_handler(nullptr, current_thd->mem_root, hton);
+  if (!file)
+    return ENOMEM;
+  path= get_canonical_filename(file, path, tmp_path);
+  int error= file->delete_table(path);
+  delete file;
+  return error;
+}
+
+
 int ha_finalize_handlerton(st_plugin_int *plugin)
 {
   handlerton *hton= (handlerton *)plugin->data;
@@ -616,6 +637,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
 
   hton->tablefile_extensions= no_exts;
   hton->discover_table_names= hton_ext_based_table_discovery;
+  hton->drop_table= hton_drop_table;
 
   hton->slot= HA_SLOT_UNDEF;
   /* Historical Requirement */
@@ -2724,48 +2746,46 @@ const char *get_canonical_filename(handler *file, const char *path,
   The .frm file should be deleted by the caller only if we return <= 0.
 */
 
-int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
+int ha_delete_table(THD *thd, handlerton *hton, const char *path,
                     const LEX_CSTRING *db, const LEX_CSTRING *alias,
                     bool generate_warning)
 {
-  handler *file;
-  char tmp_path[FN_REFLEN];
   int error;
-  TABLE dummy_table;
-  TABLE_SHARE dummy_share;
   bool is_error= thd->is_error();
   DBUG_ENTER("ha_delete_table");
 
-  /* table_type is NULL in ALTER TABLE when renaming only .frm files */
-  if (table_type == NULL || table_type == view_pseudo_hton ||
-      ! (file=get_new_handler((TABLE_SHARE*)0, thd->mem_root, table_type)))
-    DBUG_RETURN(-1);
+  /* hton is NULL in ALTER TABLE when renaming only .frm files */
+  if (hton == NULL || hton == view_pseudo_hton)
+    DBUG_RETURN(0);
 
-  bzero((char*) &dummy_table, sizeof(dummy_table));
-  bzero((char*) &dummy_share, sizeof(dummy_share));
-  dummy_table.s= &dummy_share;
-
-  path= get_canonical_filename(file, path, tmp_path);
-  if (unlikely((error= file->ha_delete_table(path))))
+  error= hton->drop_table(hton, path);
+  if (error > 0)
   {
     /*
       It's not an error if the table doesn't exist in the engine.
       warn the user, but still report DROP being a success
     */
     bool intercept= non_existing_table_error(error);
-    DBUG_ASSERT(error > 0);
 
     if ((!intercept || generate_warning) && ! thd->is_error())
     {
-      /* Fill up strucutures that print_error may need */
-      dummy_share.path.str= (char*) path;
-      dummy_share.path.length= strlen(path);
-      dummy_share.normalized_path= dummy_share.path;
-      dummy_share.db= *db;
-      dummy_share.table_name= *alias;
-      dummy_table.alias.set(alias->str, alias->length, table_alias_charset);
-      file->change_table_ptr(&dummy_table, &dummy_share);
-      file->print_error(error, MYF(intercept ? ME_WARNING : 0));
+      TABLE dummy_table;
+      TABLE_SHARE dummy_share;
+      handler *file= get_new_handler(nullptr, thd->mem_root, hton);
+      if (file) {
+        bzero((char*) &dummy_table, sizeof(dummy_table));
+        bzero((char*) &dummy_share, sizeof(dummy_share));
+        dummy_share.path.str= (char*) path;
+        dummy_share.path.length= strlen(path);
+        dummy_share.normalized_path= dummy_share.path;
+        dummy_share.db= *db;
+        dummy_share.table_name= *alias;
+        dummy_table.s= &dummy_share;
+        dummy_table.alias.set(alias->str, alias->length, table_alias_charset);
+        file->change_table_ptr(&dummy_table, &dummy_share);
+        file->print_error(error, MYF(intercept ? ME_WARNING : 0));
+        delete file;
+      }
     }
     if (intercept)
     {
@@ -2775,7 +2795,6 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
       error= -1;
     }
   }
-  delete file;
 
   DBUG_RETURN(error);
 }
@@ -4439,23 +4458,10 @@ int handler::delete_table(const char *name)
   bool some_file_deleted= 0;
   DBUG_ENTER("handler::delete_table");
 
-  // For discovery tables, it's ok if first file doesn't exists
-  if (ht->discover_table)
-  {
-    abort_if_first_file_error= 0;
-    saved_error= 0;
-    if (!bas_ext())
-    {
-      DBUG_ASSERT(ht->flags & HTON_AUTOMATIC_DELETE_TABLE);
-      DBUG_RETURN(0);                           // Drop succeded
-    }
-  }
-
   for (const char **ext= bas_ext(); *ext ; ext++)
   {
-    int error;
-    if ((error= mysql_file_delete_with_symlink(key_file_misc, name, *ext,
-                                              MYF(0))))
+    int err= mysql_file_delete_with_symlink(key_file_misc, name, *ext, MYF(0));
+    if (err)
     {
       if (my_errno != ENOENT)
       {
@@ -4515,7 +4521,9 @@ void handler::drop_table(const char *name)
 
 bool non_existing_table_error(int error)
 {
-  return (error == ENOENT || error == HA_ERR_NO_SUCH_TABLE ||
+  return (error == ENOENT ||
+          (error == EE_DELETE && my_errno == ENOENT) ||
+          error == HA_ERR_NO_SUCH_TABLE ||
           error == HA_ERR_UNSUPPORTED ||
           error == ER_NO_SUCH_TABLE ||
           error == ER_NO_SUCH_TABLE_IN_ENGINE ||
@@ -4586,8 +4594,8 @@ void handler::mark_trx_read_write_internal()
   if (ha_info->is_started())
   {
     /*
-      table_share can be NULL in ha_delete_table(). See implementation
-      of standalone function ha_delete_table() in sql_base.cc.
+      table_share can be NULL, for example, in ha_delete_table() or
+      ha_rename_table().
     */
     if (table_share == NULL || table_share->tmp_table == NO_TMP_TABLE)
       ha_info->set_trx_read_write();
@@ -4948,22 +4956,6 @@ handler::ha_rename_table(const char *from, const char *to)
 
 
 /**
-  Delete table: public interface.
-
-  @sa handler::delete_table()
-*/
-
-int
-handler::ha_delete_table(const char *name)
-{
-  if (ha_check_if_updates_are_ignored(ha_thd(), ht, "DROP"))
-    return 0;                                   // Simulate dropped
-  mark_trx_read_write();
-  return delete_table(name);
-}
-
-
-/**
   Drop table in the engine: public interface.
 
   @sa handler::drop_table()
@@ -4994,6 +4986,7 @@ struct st_force_drop_table_params
   const LEX_CSTRING *db;
   const LEX_CSTRING *alias;
   int error;
+  bool discovering;
 };
 
 
@@ -5009,19 +5002,10 @@ static my_bool delete_table_force(THD *thd, plugin_ref plugin, void *arg)
   handlerton *hton = plugin_hton(plugin);
   st_force_drop_table_params *param = (st_force_drop_table_params *)arg;
 
-  /*
-    We have to ignore HEAP tables as these may not have been created yet
-    We also remove engines that is using discovery (as these will recrate
-    any missing .frm if needed) and tables marked with
-    HTON_AUTOMATIC_DELETE_TABLE as for these we can't check if the table
-    ever existed.
-  */
-  if (!hton->discover_table && hton->db_type != DB_TYPE_HEAP &&
-      !(hton->flags & HTON_AUTOMATIC_DELETE_TABLE))
+  if (param->discovering == (hton->discover_table != NULL))
   {
     int error;
-    error= ha_delete_table(thd, hton, param->path, param->db,
-                           param->alias, 0);
+    error= ha_delete_table(thd, hton, param->path, param->db, param->alias, 0);
     if (error > 0 && !non_existing_table_error(error))
       param->error= error;
     if (error == 0)
@@ -5052,15 +5036,23 @@ int ha_delete_table_force(THD *thd, const char *path, const LEX_CSTRING *db,
   Table_exists_error_handler no_such_table_handler;
   DBUG_ENTER("ha_delete_table_force");
 
-  param.path=             path;
-  param.db=               db;
-  param.alias=            alias;
-  param.error=            -1;                   // Table not found
+  param.path=        path;
+  param.db=          db;
+  param.alias=       alias;
+  param.error=       -1;                   // Table not found
+  param.discovering= true;
 
   thd->push_internal_handler(&no_such_table_handler);
   if (plugin_foreach(thd, delete_table_force, MYSQL_STORAGE_ENGINE_PLUGIN,
                      &param))
     param.error= 0;                            // Delete succeded
+  else
+  {
+    param.discovering= false;
+    if (plugin_foreach(thd, delete_table_force, MYSQL_STORAGE_ENGINE_PLUGIN,
+                       &param))
+      param.error= 0;                            // Delete succeded
+  }
   thd->pop_internal_handler();
   DBUG_RETURN(param.error);
 }
@@ -5846,27 +5838,28 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     {
       char engine_buf[NAME_CHAR_LEN + 1];
       LEX_CSTRING engine= { engine_buf, 0 };
-      Table_type type;
+      Table_type type= dd_frm_type(thd, path, &engine);
 
-      if ((type= dd_frm_type(thd, path, &engine, is_sequence)) ==
-          TABLE_TYPE_UNKNOWN)
-      {
-        DBUG_PRINT("exit", ("Does not exist"));
+      switch (type) {
+      case TABLE_TYPE_UNKNOWN:
+        DBUG_PRINT("exit", ("Exist, cannot be opened"));
         DBUG_RETURN(true);                      // Frm exists
-      }
-      if (type != TABLE_TYPE_VIEW)
-      {
-        plugin_ref p=  plugin_lock_by_name(thd, &engine,
-                                           MYSQL_STORAGE_ENGINE_PLUGIN);
-        *hton= p ? plugin_hton(p) : NULL;
-        if (*hton)
+      case TABLE_TYPE_VIEW:
+        *hton= view_pseudo_hton;
+        DBUG_PRINT("exit", ("Exist, view"));
+        DBUG_RETURN(true);                      // Frm exists
+      case TABLE_TYPE_SEQUENCE:
+        *is_sequence= true;
+        /* fall through */
+      case TABLE_TYPE_NORMAL:
         {
-          // verify that the table really exists
-          exists= discover_existence(thd, p, &args);
+          plugin_ref p=  plugin_lock_by_name(thd, &engine,
+                                             MYSQL_STORAGE_ENGINE_PLUGIN);
+          *hton= p ? plugin_hton(p) : NULL;
+          if (*hton)      // verify that the table really exists
+            exists= discover_existence(thd, p, &args);
         }
       }
-      else
-        *hton= view_pseudo_hton;
     }
     DBUG_PRINT("exit", (exists ? "Exists" : "Does not exist"));
     DBUG_RETURN(exists);

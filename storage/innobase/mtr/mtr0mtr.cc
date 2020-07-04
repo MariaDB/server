@@ -354,10 +354,9 @@ struct mtr_write_log_t {
 /** Start a mini-transaction. */
 void mtr_t::start()
 {
-#ifdef HAVE_valgrind_or_MSAN
+  ut_ad(!m_freed_pages);
   MEM_UNDEFINED(this, sizeof *this);
   MEM_MAKE_DEFINED(&m_freed_pages, sizeof(m_freed_pages));
-#endif /* HAVE_valgrind_or_MSAN */
 
   ut_d(m_start= true);
   ut_d(m_commit= false);
@@ -376,7 +375,6 @@ void mtr_t::start()
   m_user_space= nullptr;
   m_commit_lsn= 0;
   m_freed_in_system_tablespace= m_trim_pages= false;
-  ut_ad(!m_freed_pages);
 }
 
 /** Release the resources */

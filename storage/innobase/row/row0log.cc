@@ -375,9 +375,7 @@ row_log_online_op(
 		goto err_exit;
 	}
 
-#ifdef HAVE_valgrind_or_MSAN
 	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
-#endif /* HAVE_valgrind_or_MSAN */
 
 	ut_ad(log->tail.bytes < srv_sort_buf_size);
 	avail_size = srv_sort_buf_size - log->tail.bytes;
@@ -462,10 +460,8 @@ write_failed:
 			index->type |= DICT_CORRUPT;
 		}
 
-#ifdef HAVE_valgrind_or_MSAN
 		MEM_UNDEFINED(log->tail.block, srv_sort_buf_size);
 		MEM_UNDEFINED(buf, srv_sort_buf_size);
-#endif /* HAVE_valgrind_or_MSAN */
 
 		memcpy(log->tail.block, log->tail.buf + avail_size,
 		       mrec_size - avail_size);
@@ -475,9 +471,7 @@ write_failed:
 		ut_ad(b == log->tail.block + log->tail.bytes);
 	}
 
-#ifdef HAVE_valgrind_or_MSAN
 	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
-#endif /* HAVE_valgrind_or_MSAN */
 err_exit:
 	mutex_exit(&log->mutex);
 }
@@ -509,9 +503,7 @@ row_log_table_open(
 {
 	mutex_enter(&log->mutex);
 
-#ifdef HAVE_valgrind_or_MSAN
 	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
-#endif /* HAVE_valgrind_or_MSAN */
 
 	if (log->error != DB_SUCCESS) {
 err_exit:
@@ -603,10 +595,9 @@ row_log_table_close_func(
 write_failed:
 			log->error = DB_ONLINE_LOG_TOO_BIG;
 		}
-#ifdef HAVE_valgrind_or_MSAN
+
 		MEM_UNDEFINED(log->tail.block, srv_sort_buf_size);
 		MEM_UNDEFINED(buf, srv_sort_buf_size);
-#endif /* HAVE_valgrind_or_MSAN */
 		memcpy(log->tail.block, log->tail.buf + avail, size - avail);
 		log->tail.bytes = size - avail;
 	} else {
@@ -615,9 +606,7 @@ write_failed:
 	}
 
 	log->tail.total += size;
-#ifdef HAVE_valgrind_or_MSAN
 	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
-#endif /* HAVE_valgrind_or_MSAN */
 err_exit:
 	mutex_exit(&log->mutex);
 
@@ -2789,9 +2778,7 @@ row_log_table_apply_ops(
 	ut_ad(new_trx_id_col > 0);
 	ut_ad(new_trx_id_col != ULINT_UNDEFINED);
 
-#ifdef HAVE_valgrind_or_MSAN
 	MEM_UNDEFINED(&mrec_end, sizeof mrec_end);
-#endif /* HAVE_valgrind_or_MSAN */
 
 	offsets = static_cast<rec_offs*>(ut_malloc_nokey(i * sizeof *offsets));
 	rec_offs_set_n_alloc(offsets, i);
@@ -3703,9 +3690,8 @@ row_log_apply_ops(
 	ut_ad(!index->is_committed());
 	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
 	ut_ad(index->online_log);
-#ifdef HAVE_valgrind_or_MSAN
+
 	MEM_UNDEFINED(&mrec_end, sizeof mrec_end);
-#endif /* HAVE_valgrind_or_MSAN */
 
 	offsets = static_cast<rec_offs*>(ut_malloc_nokey(i * sizeof *offsets));
 	rec_offs_set_n_alloc(offsets, i);

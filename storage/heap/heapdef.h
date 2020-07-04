@@ -110,6 +110,8 @@ extern PSI_memory_key hp_key_memory_HP_KEYDEF;
 
 #ifdef HAVE_PSI_INTERFACE
 void init_heap_psi_keys();
+#else
+#define init_heap_psi_keys() do { } while(0)
 #endif /* HAVE_PSI_INTERFACE */
 
 C_MODE_END

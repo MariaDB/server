@@ -4479,8 +4479,7 @@ static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
     char path[FN_REFLEN];
     build_table_filename(path, sizeof(path) - 1,
                          db->str, table->str, reg_ext, 0);
-    bool is_sequence;
-    if (dd_frm_type(thd, path, &engine_name, &is_sequence) == TABLE_TYPE_NORMAL)
+    if (dd_frm_type(thd, path, &engine_name) == TABLE_TYPE_NORMAL)
       tl->option= engine_name.str;
   }
 }

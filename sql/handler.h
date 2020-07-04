@@ -1484,6 +1484,12 @@ struct handlerton
    void (*close_cursor_read_view)(handlerton *hton, THD *thd, void *read_view);
    handler *(*create)(handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root);
    void (*drop_database)(handlerton *hton, char* path);
+   /*
+     return 0 if dropped successfully,
+           -1 if nothing was done by design (as in e.g. blackhole)
+           an error code (e.g. HA_ERR_NO_SUCH_TABLE) otherwise
+   */
+   int (*drop_table)(handlerton *hton, const char* path);
    int (*panic)(handlerton *hton, enum ha_panic_function flag);
    int (*start_consistent_snapshot)(handlerton *hton, THD *thd);
    bool (*flush_logs)(handlerton *hton);
@@ -1789,13 +1795,6 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
   tables
 */
 #define HTON_TRANSACTIONAL_AND_NON_TRANSACTIONAL (1 << 17)
-
-/*
-  The engine doesn't keep track of tables, delete_table() is not
-  needed and delete_table() always returns 0 (table deleted). This flag
-  mainly used to skip storage engines in case of ha_delete_table_force()
-*/
-#define HTON_AUTOMATIC_DELETE_TABLE (1 << 18)
 
 class Ha_trx_info;
 
@@ -3453,7 +3452,6 @@ public:
   int ha_enable_indexes(uint mode);
   int ha_discard_or_import_tablespace(my_bool discard);
   int ha_rename_table(const char *from, const char *to);
-  int ha_delete_table(const char *name);
   void ha_drop_table(const char *name);
 
   int ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info);
@@ -4673,13 +4671,14 @@ protected:
     provide useful functionality.
   */
   virtual int rename_table(const char *from, const char *to);
+
+
+public:
   /**
     Delete a table in the engine. Called for base as well as temporary
     tables.
   */
   virtual int delete_table(const char *name);
-
-public:
   bool check_table_binlog_row_based();
   bool prepare_for_row_logging();
   int prepare_for_insert(bool do_create);

@@ -1302,7 +1302,7 @@ page_cur_insert_rec_low(
   /* 1. Get the size of the physical record in the page */
   const ulint rec_size= rec_offs_size(offsets);
 
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
   {
     const void *rec_start= rec - rec_offs_extra_size(offsets);
     ulint extra_size= rec_offs_extra_size(offsets) -
@@ -1314,7 +1314,7 @@ page_cur_insert_rec_low(
     /* The variable-length header must be valid. */
     MEM_CHECK_DEFINED(rec_start, extra_size);
   }
-#endif /* HAVE_valgrind_or_MSAN */
+#endif /* HAVE_valgrind */
 
   /* 2. Try to find suitable space from page memory management */
   bool reuse= false;
@@ -1702,7 +1702,7 @@ page_cur_insert_rec_zip(
   /* 1. Get the size of the physical record in the page */
   const ulint rec_size= rec_offs_size(offsets);
 
-#ifdef HAVE_valgrind_or_MSAN
+#ifdef HAVE_valgrind
   {
     const void *rec_start= rec - rec_offs_extra_size(offsets);
     ulint extra_size= rec_offs_extra_size(offsets) - REC_N_NEW_EXTRA_BYTES;
@@ -1711,7 +1711,7 @@ page_cur_insert_rec_zip(
     /* The variable-length header must be valid. */
     MEM_CHECK_DEFINED(rec_start, extra_size);
   }
-#endif /* HAVE_valgrind_or_MSAN */
+#endif /* HAVE_valgrind */
   const bool reorg_before_insert= page_has_garbage(cursor->block->frame) &&
     rec_size > page_get_max_insert_size(cursor->block->frame, 1) &&
     rec_size <= page_get_max_insert_size_after_reorganize(cursor->block->frame,

@@ -2109,8 +2109,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->rec_buff_length= rec_buff_length;
   if (!(record= (uchar *) alloc_root(&share->mem_root, rec_buff_length)))
     goto err;                          /* purecov: inspected */
-  MEM_NOACCESS(record, rec_buff_length);
-  MEM_UNDEFINED(record, share->reclength);
+  /* Mark bytes after record as not accessable to catch overrun bugs */
+  MEM_NOACCESS(record + share->reclength, rec_buff_length - share->reclength);
   share->default_values= record;
   memcpy(record, frm_image + record_offset, share->reclength);
 
@@ -3959,7 +3959,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (!(record= (uchar*) alloc_root(&outparam->mem_root,
                                       share->rec_buff_length * records)))
       goto err;                                   /* purecov: inspected */
-    MEM_NOACCESS(record, share->rec_buff_length * records);
   }
 
   for (i= 0; i < 3;)
@@ -3968,8 +3967,10 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (++i < records)
       record+= share->rec_buff_length;
   }
+  /* Mark bytes between records as not accessable to catch overrun bugs */
   for (i= 0; i < records; i++)
-    MEM_UNDEFINED(outparam->record[i], share->reclength);
+    MEM_NOACCESS(outparam->record[i] + share->reclength,
+                 share->rec_buff_length - share->reclength);
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
                                           (uint) ((share->fields+1)*
@@ -9921,7 +9922,7 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
   return false;
 }
 
-/*
+/**
   @brief
     Initialize all the opt_range structures that are used to stored the
     estimates when the range optimizer is run.
@@ -9930,7 +9931,7 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
     to be able to find wrong usage of data with valgrind or MSAN.
 */
 
-void TABLE::initialize_opt_range_structures()
+inline void TABLE::initialize_opt_range_structures()
 {
   TRASH_ALLOC((void*)&opt_range_keys, sizeof(opt_range_keys));
   TRASH_ALLOC(opt_range, s->keys * sizeof(*opt_range));

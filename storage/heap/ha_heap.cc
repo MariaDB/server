@@ -34,24 +34,29 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
                             HP_CREATE_INFO *hp_create_info);
 
 
-int heap_panic(handlerton *hton, ha_panic_function flag)
+static int heap_panic(handlerton *hton, ha_panic_function flag)
 {
   return hp_panic(flag);
 }
 
 
+static int heap_drop_table(handlerton *hton, const char *path)
+{
+  int error= heap_delete_table(path);
+  return error == ENOENT ? -1 : error;
+}
+
 int heap_init(void *p)
 {
   handlerton *heap_hton;
 
-#ifdef HAVE_PSI_INTERFACE
   init_heap_psi_keys();
-#endif
 
   heap_hton= (handlerton *)p;
   heap_hton->db_type=    DB_TYPE_HEAP;
   heap_hton->create=     heap_create_handler;
   heap_hton->panic=      heap_panic;
+  heap_hton->drop_table= heap_drop_table;
   heap_hton->flags=      HTON_CAN_RECREATE;
 
   return 0;
@@ -561,8 +566,7 @@ THR_LOCK_DATA **ha_heap::store_lock(THD *thd,
 
 int ha_heap::delete_table(const char *name)
 {
-  int error= heap_delete_table(name);
-  return error == ENOENT ? 0 : error;
+  return heap_drop_table(0, name);
 }
 
 
@@ -835,23 +839,6 @@ int ha_heap::find_unique_row(uchar *record, uint unique_idx)
 struct st_mysql_storage_engine heap_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(heap)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &heap_storage_engine,
-  "MEMORY",
-  "MySQL AB",
-  "Hash based, stored in memory, useful for temporary tables",
-  PLUGIN_LICENSE_GPL,
-  heap_init,
-  NULL,
-  0x0100, /* 1.0 */
-  NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(heap)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,

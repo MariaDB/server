@@ -439,8 +439,7 @@ static int sequence_initialize(void *p)
                                HTON_HIDDEN |
                                HTON_TEMPORARY_NOT_SUPPORTED |
                                HTON_ALTER_NOT_SUPPORTED |
-                               HTON_NO_PARTITION |
-                               HTON_AUTOMATIC_DELETE_TABLE);
+                               HTON_NO_PARTITION);
   DBUG_RETURN(0);
 }
 

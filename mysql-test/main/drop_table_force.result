@@ -8,7 +8,7 @@ db.opt
 # Test droping table without frm without super privilege
 create table t1(a int) engine=innodb;
 create user test identified by '123456';
-grant all privileges on test.t1 to 'test'@'%'identified by '123456' with grant option;
+grant all privileges on test.t1 to 'test'@'%'identified by '123456';
 connect  con_test, localhost, test,'123456', ;
 connection con_test;
 drop table t1;
@@ -17,10 +17,6 @@ ERROR 42S02: Unknown table 'test.t1'
 connection default;
 disconnect con_test;
 drop user test;
-db.opt
-#Test4: drop table can drop consistent table as well
-create table t1(a int) engine=innodb;
-drop table t1;
 db.opt
 #Test5: drop table with triger, and with missing frm
 create table t1(a int)engine=innodb;
@@ -45,13 +41,6 @@ drop table if exists t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
 db.opt
-#Test8: check compatibility with if exists
-create table t1(a int)engine=innodb;
-drop table t1;
-db.opt
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
 #Test9: check compatibility with restrict/cascade
 CREATE TABLE parent (id INT NOT NULL, PRIMARY KEY (id)) ENGINE=INNODB;
 CREATE TABLE child (id INT, parent_id INT, INDEX par_ind (parent_id), FOREIGN KEY (parent_id) REFERENCES parent(id) ON DELETE CASCADE) ENGINE=INNODB;

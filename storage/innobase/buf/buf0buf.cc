@@ -1356,6 +1356,8 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
   if (UNIV_UNLIKELY(!mem))
     return false;
 
+  MEM_MAKE_ADDRESSABLE(mem, mem_size());
+
 #ifdef HAVE_LIBNUMA
   if (srv_numa_interleave)
   {
@@ -1736,9 +1738,7 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 			      "not perfect alignment");
 		memset_aligned<2>(block->frame
 				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
-#ifdef HAVE_valgrind_or_MSAN
 		MEM_UNDEFINED(block->frame, srv_page_size);
-#endif /* HAVE_valgrind_or_MSAN */
 		block->page.set_state(BUF_BLOCK_REMOVE_HASH);
 
 		/* Relocate flush_list. */
@@ -2257,6 +2257,8 @@ withdraw_retry:
 		ulint	sum_freed = 0;
 
 		while (chunk < echunk) {
+			MEM_MAKE_ADDRESSABLE(chunk->mem, chunk->size);
+
 			buf_block_t*	block = chunk->blocks;
 
 			for (ulint j = chunk->size; j--; block++) {
@@ -3382,9 +3384,7 @@ evict_from_pool:
 		block->page.set_io_fix(BUF_IO_READ);
 		rw_lock_x_lock_inline(&block->lock, 0, file, line);
 
-#ifdef HAVE_valgrind_or_MSAN
 		MEM_UNDEFINED(bpage, sizeof *bpage);
-#endif /* HAVE_valgrind_or_MSAN */
 
 		mutex_exit(&buf_pool.mutex);
 		hash_lock->write_unlock();

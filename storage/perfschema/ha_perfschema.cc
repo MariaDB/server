@@ -94,12 +94,10 @@ static int pfs_init_func(void *p)
   pfs_hton= reinterpret_cast<handlerton *> (p);
 
   pfs_hton->create= pfs_create_handler;
+  pfs_hton->drop_table= [](handlerton *, const char*) { return -1; };
   pfs_hton->show_status= pfs_show_status;
-  pfs_hton->flags= (HTON_ALTER_NOT_SUPPORTED |
-                    HTON_TEMPORARY_NOT_SUPPORTED |
-                    HTON_NO_PARTITION |
-                    HTON_NO_BINLOG_ROW_OPT |
-                    HTON_AUTOMATIC_DELETE_TABLE);
+  pfs_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_TEMPORARY_NOT_SUPPORTED |
+                   HTON_NO_PARTITION | HTON_NO_BINLOG_ROW_OPT;
 
   /*
     As long as the server implementation keeps using legacy_db_type,
@@ -217,24 +215,6 @@ struct st_mysql_storage_engine pfs_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
 const char* pfs_engine_name= "PERFORMANCE_SCHEMA";
-
-mysql_declare_plugin(perfschema)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &pfs_storage_engine,
-  pfs_engine_name,
-  "Marc Alff, Oracle", /* Formerly Sun Microsystems, formerly MySQL */
-  "Performance Schema",
-  PLUGIN_LICENSE_GPL,
-  pfs_init_func,                                /* Plugin Init */
-  pfs_done_func,                                /* Plugin Deinit */
-  0x0001 /* 0.1 */,
-  pfs_status_vars,                              /* status variables */
-  NULL,                                         /* system variables */
-  NULL,                                         /* config options */
-  0,                                            /* flags */
-}
-mysql_declare_plugin_end;
 
 maria_declare_plugin(perfschema)
 {

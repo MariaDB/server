@@ -147,11 +147,20 @@ static int discover_table(handlerton *hton, THD* thd, TABLE_SHARE *share)
                                                sql, strlen(sql));
 }
 
+static int drop_table(handlerton *hton, const char *path)
+{
+  const char *name= strrchr(path, FN_LIBCHAR)+1;
+  const char *sql= THDVAR(current_thd, statement);
+  return !sql || strncmp(sql, name, strlen(name)) || sql[strlen(name)] != ':'
+    ? ENOENT : 0;
+}
+
 static int init(void *p)
 {
   handlerton *hton = (handlerton *)p;
   hton->create = create_handler;
   hton->discover_table = discover_table;
+  hton->drop_table= drop_table;
   return 0;
 }
 

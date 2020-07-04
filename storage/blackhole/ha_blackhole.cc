@@ -399,7 +399,8 @@ static int blackhole_init(void *p)
   blackhole_hton= (handlerton *)p;
   blackhole_hton->db_type= DB_TYPE_BLACKHOLE_DB;
   blackhole_hton->create= blackhole_create_handler;
-  blackhole_hton->flags= HTON_CAN_RECREATE | HTON_AUTOMATIC_DELETE_TABLE;
+  blackhole_hton->drop_table= [](handlerton *, const char*) { return -1; };
+  blackhole_hton->flags= HTON_CAN_RECREATE;
 
   mysql_mutex_init(bh_key_mutex_blackhole,
                    &blackhole_mutex, MY_MUTEX_INIT_FAST);
@@ -422,23 +423,6 @@ static int blackhole_fini(void *p)
 struct st_mysql_storage_engine blackhole_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(blackhole)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &blackhole_storage_engine,
-  "BLACKHOLE",
-  "MySQL AB",
-  "/dev/null storage engine (anything you write to it disappears)",
-  PLUGIN_LICENSE_GPL,
-  blackhole_init, /* Plugin Init */
-  blackhole_fini, /* Plugin Deinit */
-  0x0100 /* 1.0 */,
-  NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(blackhole)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,

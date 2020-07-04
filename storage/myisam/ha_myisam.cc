@@ -2512,13 +2512,16 @@ int myisam_panic(handlerton *hton, ha_panic_function flag)
   return mi_panic(flag);
 }
 
+static int myisam_drop_table(handlerton *hton, const char *path)
+{
+  return mi_delete_table(path);
+}
+
 static int myisam_init(void *p)
 {
   handlerton *hton;
 
-#ifdef HAVE_PSI_INTERFACE
   init_myisam_psi_keys();
-#endif
 
   /* Set global variables based on startup options */
   if (myisam_recover_options && myisam_recover_options != HA_RECOVER_OFF)
@@ -2531,6 +2534,7 @@ static int myisam_init(void *p)
   hton= (handlerton *)p;
   hton->db_type= DB_TYPE_MYISAM;
   hton->create= myisam_create_handler;
+  hton->drop_table= myisam_drop_table;
   hton->panic= myisam_panic;
   hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
   hton->tablefile_extensions= ha_myisam_exts;
@@ -2644,23 +2648,6 @@ bool ha_myisam::rowid_filter_push(Rowid_filter* rowid_filter)
 struct st_mysql_storage_engine myisam_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(myisam)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &myisam_storage_engine,
-  "MyISAM",
-  "MySQL AB",
-  "MyISAM storage engine",
-  PLUGIN_LICENSE_GPL,
-  myisam_init, /* Plugin Init */
-  NULL, /* Plugin Deinit */
-  0x0100, /* 1.0 */
-  NULL,                       /* status variables                */
-  myisam_sysvars,             /* system variables                */
-  NULL,
-  0,
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(myisam)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,

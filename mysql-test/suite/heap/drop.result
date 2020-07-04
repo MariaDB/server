@@ -1,0 +1,3 @@
+create table t1 (a int) engine=memory;
+drop table t1;
+drop table t2;

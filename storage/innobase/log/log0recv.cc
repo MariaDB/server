@@ -1050,6 +1050,7 @@ inline void recv_sys_t::clear()
     buf_block_t *prev_block= UT_LIST_GET_PREV(unzip_LRU, block);
     ut_ad(block->page.state() == BUF_BLOCK_MEMORY);
     UT_LIST_REMOVE(blocks, block);
+    MEM_MAKE_ADDRESSABLE(block->frame, srv_page_size);
     buf_block_free(block);
     block= prev_block;
   }
@@ -1093,7 +1094,7 @@ create_block:
       ut_calc_align<uint16_t>(static_cast<uint16_t>(len), ALIGNMENT);
     static_assert(ut_is_2pow(ALIGNMENT), "ALIGNMENT must be a power of 2");
     UT_LIST_ADD_FIRST(blocks, block);
-    MEM_UNDEFINED(block->frame, len);
+    MEM_MAKE_ADDRESSABLE(block->frame, len);
     MEM_NOACCESS(block->frame + len, srv_page_size - len);
     return my_assume_aligned<ALIGNMENT>(block->frame);
   }
@@ -1113,7 +1114,7 @@ create_block:
 
   block->page.access_time= ((block->page.access_time >> 16) + 1) << 16 |
     ut_calc_align<uint16_t>(static_cast<uint16_t>(free_offset), ALIGNMENT);
-  MEM_UNDEFINED(block->frame + free_offset - len, len);
+  MEM_MAKE_ADDRESSABLE(block->frame + free_offset - len, len);
   return my_assume_aligned<ALIGNMENT>(block->frame + free_offset - len);
 }
 
@@ -1148,6 +1149,7 @@ inline void recv_sys_t::free(const void *data)
     if (!((block->page.access_time -= 1U << 16) >> 16))
     {
       UT_LIST_REMOVE(blocks, block);
+      MEM_MAKE_ADDRESSABLE(block->frame, srv_page_size);
       buf_block_free(block);
     }
     return;
@@ -1758,7 +1760,7 @@ inline void recv_sys_t::add(const page_id_t page_id,
     {
       /* Use already allocated 'padding' bytes */
 append:
-      MEM_UNDEFINED(end + 1, len);
+      MEM_MAKE_ADDRESSABLE(end + 1, len);
       /* Append to the preceding record for the page */
       tail->append(l, len);
       return;

@@ -454,19 +454,19 @@ void trx_free(trx_t*& trx)
 #ifdef __SANITIZE_ADDRESS__
 	/* Unpoison the memory for innodb_monitor_set_option;
 	it is operating also on the freed transaction objects. */
-	MEM_UNDEFINED(&trx->mutex, sizeof trx->mutex);
-	/* For innobase_kill_connection() */
+	MEM_MAKE_ADDRESSABLE(&trx->mutex, sizeof trx->mutex);
 # ifdef WITH_WSREP
-	MEM_UNDEFINED(&trx->wsrep, sizeof trx->wsrep);
+	MEM_MAKE_ADDRESSABLE(&trx->wsrep, sizeof trx->wsrep);
 # endif
-	MEM_UNDEFINED(&trx->state, sizeof trx->state);
-	MEM_UNDEFINED(&trx->mysql_thd, sizeof trx->mysql_thd);
+	/* For innobase_kill_connection() */
+	MEM_MAKE_ADDRESSABLE(&trx->state, sizeof trx->state);
+	MEM_MAKE_ADDRESSABLE(&trx->mysql_thd, sizeof trx->mysql_thd);
 #endif
-#ifdef HAVE_valgrind_or_MSAN
-	/* Unpoison the memory for innodb_monitor_set_option;
-	it is operating also on the freed transaction objects.
-	We checked that these were initialized in
-	trx_pools->mem_free(trx). */
+#if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
+	/* In Valgrind, we cannot cancel the effect of MEM_NOACCESS()
+	without changing the state of the V bits (indicating which
+	bits are initialized). We did invoke MEM_CHECK_DEFINED() in
+	trx_pools->mem_free(). */
 	MEM_MAKE_DEFINED(&trx->mutex, sizeof trx->mutex);
 	/* For innobase_kill_connection() */
 # ifdef WITH_WSREP

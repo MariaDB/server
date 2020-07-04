@@ -125,7 +125,6 @@ static int i_s_metadata_lock_info_deinit(
 static struct st_mysql_information_schema i_s_metadata_lock_info_plugin =
 { MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION };
 
-#ifdef MARIADB_BASE_VERSION
 maria_declare_plugin(metadata_lock_info)
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
@@ -143,24 +142,3 @@ maria_declare_plugin(metadata_lock_info)
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
-#else
-mysql_declare_plugin(metadata_lock_info)
-{
-  MYSQL_INFORMATION_SCHEMA_PLUGIN,
-  &i_s_metadata_lock_info_plugin,
-  "METADATA_LOCK_INFO",
-  "Kentoku Shiba",
-  "Metadata locking viewer",
-  PLUGIN_LICENSE_GPL,
-  i_s_metadata_lock_info_init,
-  i_s_metadata_lock_info_deinit,
-  0x0001,
-  NULL,
-  NULL,
-  NULL,
-#if MYSQL_VERSION_ID >= 50600
-  0,
-#endif
-}
-mysql_declare_plugin_end;
-#endif

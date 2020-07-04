@@ -279,17 +279,20 @@ public:
 
 
   /**
-    Unpoison the memory for innodb_monitor_set_option;
-    It is operating also on the freed transaction objects.
-    Declare the contents as initialized for Valgrind;
-    We checked that it was initialized in trx_pools->mem_free(trx).
+    Make the memory accessible by innodb_monitor_set_option;
+    It is operating also on freed transaction objects.
   */
   void mem_valid() const
   {
+    /* Cancel the effect of MEM_NOACCESS(). */
 #ifdef __SANITIZE_ADDRESS__
-    MEM_UNDEFINED(&m_mutex, sizeof m_mutex);
+    MEM_MAKE_ADDRESSABLE(&m_mutex, sizeof m_mutex);
 #endif
-#ifdef HAVE_valgrind
+#if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
+    /* In Valgrind, we cannot cancel MEM_NOACCESS() without changing
+    the state of the V bits (indicating which bits are initialized).
+    We will declare the contents as initialized.
+    We did invoke MEM_CHECK_DEFINED() in trx_pools->mem_free(). */
     MEM_MAKE_DEFINED(&m_mutex, sizeof m_mutex);
 #endif
   }

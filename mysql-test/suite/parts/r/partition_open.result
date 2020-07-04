@@ -5,4 +5,4 @@ select * from t1 partition (p0);
 ERROR HY000: Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
 drop table t1;
 Warnings:
-Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
+Warning	1017	Can't find file: './test/t1.par' (errno: 2 "No such file or directory")

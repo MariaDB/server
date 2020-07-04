@@ -89,11 +89,15 @@ struct Pool {
 			ut_ad(elem->m_pool == this);
 #ifdef __SANITIZE_ADDRESS__
 			/* Unpoison the memory for AddressSanitizer */
-			MEM_UNDEFINED(&elem->m_type, sizeof elem->m_type);
+			MEM_MAKE_ADDRESSABLE(&elem->m_type,
+					     sizeof elem->m_type);
 #endif
-#ifdef HAVE_valgrind
-			/* Declare the contents as initialized for Valgrind;
-			we checked this in mem_free(). */
+#if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
+			/* In Valgrind, we cannot cancel MEM_NOACCESS() without
+			changing the state of the V bits (which indicate
+			which bits are initialized).
+			We will declare the contents as initialized.
+			We did invoke MEM_CHECK_DEFINED() in mem_free(). */
 			MEM_MAKE_DEFINED(&elem->m_type, sizeof elem->m_type);
 #endif
 			Factory::destroy(&elem->m_type);
@@ -134,15 +138,17 @@ struct Pool {
 		if (elem) {
 # ifdef __SANITIZE_ADDRESS__
 			/* Unpoison the memory for AddressSanitizer */
-			MEM_UNDEFINED(&elem->m_type, sizeof elem->m_type);
+			MEM_MAKE_ADDRESSABLE(&elem->m_type,
+					     sizeof elem->m_type);
 # endif
-# ifdef HAVE_valgrind
-			/* Declare the memory initialized for Valgrind.
-			The trx_t that are released to the pool are
-			actually initialized; we checked that by
-			MEM_CHECK_DEFINED() in mem_free() below. */
-# endif
+# if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
+			/* In Valgrind, we cannot cancel MEM_NOACCESS() without
+			changing the state of the V bits (which indicate
+			which bits are initialized).
+			We will declare the contents as initialized.
+			We did invoke MEM_CHECK_DEFINED() in mem_free(). */
 			MEM_MAKE_DEFINED(&elem->m_type, sizeof elem->m_type);
+# endif
 		}
 #endif
 

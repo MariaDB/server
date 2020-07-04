@@ -203,7 +203,7 @@ mem_heap_alloc(
 	mem_block_set_free(block, free + MEM_SPACE_NEEDED(n));
 
 	buf = buf + REDZONE_SIZE;
-	MEM_UNDEFINED(buf, n - REDZONE_SIZE);
+	MEM_MAKE_ADDRESSABLE(buf, n - REDZONE_SIZE);
 	return(buf);
 }
 
