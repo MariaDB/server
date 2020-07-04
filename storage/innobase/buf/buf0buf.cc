@@ -1622,7 +1622,7 @@ buf_chunk_init(
 		return(NULL);
 	}
 
-        MEM_MAKE_ADDRESSABLE(chunk->mem, chunk->mem_size());
+	MEM_MAKE_ADDRESSABLE(chunk->mem, chunk->mem_size());
 
 #ifdef HAVE_LIBNUMA
 	if (srv_numa_interleave) {
@@ -2890,8 +2890,21 @@ withdraw_retry:
 			while (chunk < echunk) {
 				buf_block_t*	block = chunk->blocks;
 
-                                MEM_MAKE_ADDRESSABLE(chunk->mem,
-                                                     chunk->mem_size());
+				/* buf_LRU_block_free_non_file_page()
+				invokes MEM_NOACCESS() on any blocks
+				that are in free_list. We must
+				cancel the effect of that. In MemorySanitizer,
+				MEM_NOACCESS() is no-op, so we must not do
+				anything special for it here. */
+#ifdef HAVE_valgrind
+# if !__has_feature(memory_sanitizer)
+				MEM_MAKE_DEFINED(chunk->mem,
+						 chunk->mem_size());
+# endif
+#else
+				MEM_MAKE_ADDRESSABLE(chunk->mem,
+						     chunk->mem_size());
+#endif
 
 				for (ulint j = chunk->size;
 				     j--; block++) {
