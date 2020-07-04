@@ -179,7 +179,7 @@ IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
 ENDIF()
 
 IF(WIN32)
-  SET(SQL_SOURCE ${SQL_SOURCE} handle_connections_win.cc nt_servc.cc)
+  SET(SQL_SOURCE ${SQL_SOURCE} handle_connections_win.cc)
 ENDIF()
 
 MYSQL_ADD_PLUGIN(partition ha_partition.cc STORAGE_ENGINE DEFAULT STATIC_ONLY
@@ -209,7 +209,7 @@ FOREACH(se aria partition perfschema sql_sequence wsrep)
 ENDFOREACH()
 
 IF(WIN32)
-  SET(MYSQLD_SOURCE main.cc  message.rc)
+  SET(MYSQLD_SOURCE winmain.cc  message.rc)
 ELSE()
   SET(MYSQLD_SOURCE main.cc ${DTRACE_PROBES_ALL})
 ENDIF()

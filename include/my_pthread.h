@@ -104,7 +104,6 @@ int pthread_cancel(pthread_t thread);
 #define ETIMEDOUT 145		    /* Win32 doesn't have this */
 #endif
 
-#define getpid() GetCurrentThreadId()
 #define HAVE_LOCALTIME_R		1
 #define _REENTRANT			1
 #define HAVE_PTHREAD_ATTR_SETSTACKSIZE	1

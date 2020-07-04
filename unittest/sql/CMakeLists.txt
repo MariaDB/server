@@ -19,15 +19,8 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
                     ${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/unittest/mytap
                     ${CMAKE_SOURCE_DIR}/extra/yassl/include)
+ADD_EXECUTABLE(explain_filename-t explain_filename-t.cc  dummy_builtins.cc)
 
-IF(WIN32)
-  ADD_EXECUTABLE(explain_filename-t
-  explain_filename-t.cc
-  dummy_builtins.cc
-  ../../sql/nt_servc.cc)
-ELSE()
-  ADD_EXECUTABLE(explain_filename-t explain_filename-t.cc  dummy_builtins.cc)
-ENDIF()
 
 TARGET_LINK_LIBRARIES(explain_filename-t sql mytap)
 MY_ADD_TEST(explain_filename)
