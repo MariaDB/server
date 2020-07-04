@@ -9922,7 +9922,7 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
   return false;
 }
 
-/*
+/**
   @brief
     Initialize all the opt_range structures that are used to stored the
     estimates when the range optimizer is run.
@@ -9931,7 +9931,7 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
     to be able to find wrong usage of data with valgrind or MSAN.
 */
 
-void TABLE::initialize_opt_range_structures()
+inline void TABLE::initialize_opt_range_structures()
 {
   TRASH_ALLOC((void*)&opt_range_keys, sizeof(opt_range_keys));
   TRASH_ALLOC(opt_range, s->keys * sizeof(*opt_range));
