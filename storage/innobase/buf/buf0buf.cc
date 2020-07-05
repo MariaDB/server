@@ -1356,7 +1356,7 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
   if (UNIV_UNLIKELY(!mem))
     return false;
 
-  MEM_MAKE_ADDRESSABLE(mem, mem_size());
+  MEM_UNDEFINED(mem, mem_size());
 
 #ifdef HAVE_LIBNUMA
   if (srv_numa_interleave)

@@ -421,9 +421,11 @@ void my_large_free(void *ptr, size_t size)
   {
     my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size, errno);
   }
+# if !__has_feature(memory_sanitizer)
   else
   {
-    MEM_UNDEFINED(ptr, size);
+    MEM_MAKE_ADDRESSABLE(ptr, size);
+# endif
   }
 #elif defined(_WIN32)
   /*
@@ -435,9 +437,11 @@ void my_large_free(void *ptr, size_t size)
     my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size,
              GetLastError());
   }
+# if !__has_feature(memory_sanitizer)
   else
   {
-    MEM_UNDEFINED(ptr, size);
+    MEM_MAKE_ADDRESSABLE(ptr, size);
+# endif
   }
 #else
   my_free_lock(ptr);
