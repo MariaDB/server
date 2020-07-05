@@ -425,8 +425,8 @@ void my_large_free(void *ptr, size_t size)
   else
   {
     MEM_MAKE_ADDRESSABLE(ptr, size);
-# endif
   }
+# endif
 #elif defined(_WIN32)
   /*
      When RELEASE memory, the size parameter must be 0.
@@ -441,8 +441,8 @@ void my_large_free(void *ptr, size_t size)
   else
   {
     MEM_MAKE_ADDRESSABLE(ptr, size);
-# endif
   }
+# endif
 #else
   my_free_lock(ptr);
 #endif
