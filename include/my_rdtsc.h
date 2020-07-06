@@ -77,7 +77,7 @@ C_MODE_START
 /**
   A cycle timer.
 
-  On clang, we use __builtin_readcyclecounter().
+  On clang we use __builtin_readcyclecounter(), except for AARCH64.
   On other compilers:
 
   On IA-32 and AMD64, we use the RDTSC instruction.
@@ -88,6 +88,9 @@ C_MODE_START
   On IBM S/390 System z we use the STCK instruction.
   On ARM, we probably should use the Generic Timer, but should figure out
   how to ensure that it can be accessed.
+  On AARCH64, we use the generic timer base register. We override clang
+  implementation for aarch64 as it access a PMU register which is not
+  guarenteed to be active.
 
   Sadly, we have nothing for the Digital Alpha, MIPS, Motorola m68k,
   HP PA-RISC or other non-mainstream (or obsolete) processors.
@@ -125,7 +128,7 @@ C_MODE_START
 */
 static inline ulonglong my_timer_cycles(void)
 {
-# if __has_builtin(__builtin_readcyclecounter)
+# if __has_builtin(__builtin_readcyclecounter) && !defined (__aarch64__)
   return __builtin_readcyclecounter();
 # elif defined _WIN32 || defined __i386__ || defined __x86_64__
   return __rdtsc();
@@ -162,6 +165,12 @@ static inline ulonglong my_timer_cycles(void)
   {
     ulonglong result;
     __asm__ __volatile__ ("stck %0" : "=Q" (result) : : "cc");
+    return result;
+  }
+#elif defined(__GNUC__) && defined (__aarch64__)
+  {
+    ulonglong result;
+    __asm __volatile("mrs	%0, CNTVCT_EL0" : "=&r" (result));
     return result;
   }
 #elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
@@ -221,6 +230,7 @@ C_MODE_END
 #define MY_TIMER_ROUTINE_MACH_ABSOLUTE_TIME      25
 #define MY_TIMER_ROUTINE_GETSYSTEMTIMEASFILETIME 26
 #define MY_TIMER_ROUTINE_ASM_S390                28
+#define MY_TIMER_ROUTINE_AARCH64                 29
 
 #endif
 

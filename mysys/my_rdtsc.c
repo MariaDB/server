@@ -362,6 +362,8 @@ void my_timer_init(MY_TIMER_INFO *mti)
   mti->cycles.routine= MY_TIMER_ROUTINE_ASM_GCC_SPARC32;
 #elif defined(__GNUC__) && defined(__s390__)
   mti->cycles.routine= MY_TIMER_ROUTINE_ASM_S390;
+#elif defined(__GNUC__) && defined (__aarch64__)
+  mti->cycles.routine= MY_TIMER_ROUTINE_AARCH64;
 #elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
   mti->cycles.routine= MY_TIMER_ROUTINE_GETHRTIME;
 #else
