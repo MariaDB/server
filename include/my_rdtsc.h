@@ -164,6 +164,12 @@ static inline ulonglong my_timer_cycles(void)
     __asm__ __volatile__ ("stck %0" : "=Q" (result) : : "cc");
     return result;
   }
+#elif defined(__GNUC__) && defined (__aarch64__)
+  {
+    ulonglong result;
+    __asm __volatile("mrs	%0, CNTVCT_EL0" : "=&r" (result));
+    return result;
+  }
 #elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
   /* gethrtime may appear as either cycle or nanosecond counter */
   return (ulonglong) gethrtime();
