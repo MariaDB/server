@@ -297,22 +297,21 @@ parent table will fail, and user has to drop excessive foreign constraint
 before proceeds. */
 #define FK_MAX_CASCADE_DEL		15
 
-/**********************************************************************//**
-Creates a table memory object.
+/** Creates a table memory object.
+@param[in]	name		table name
+@param[in]	space		tablespace
+@param[in]	n_cols		total number of columns including virtual and
+				non-virtual columns
+@param[in]	n_v_cols	number of virtual columns
+@param[in]	flags		table flags
+@param[in]	flags2		table flags2
+@param[in]	init_stats_latch	whether to init the stats latch
 @return own: table object */
-dict_table_t*
-dict_mem_table_create(
-/*==================*/
-	const char*	name,		/*!< in: table name */
-	fil_space_t*	space,		/*!< in: tablespace */
-	ulint		n_cols,		/*!< in: total number of columns
-					including virtual and non-virtual
-					columns */
-	ulint		n_v_cols,	/*!< in: number of virtual columns */
-	ulint		flags,		/*!< in: table flags */
-	ulint		flags2);	/*!< in: table flags2 */
-/****************************************************************//**
-Free a table memory object. */
+dict_table_t *dict_mem_table_create(const char *name, fil_space_t *space,
+                                    ulint n_cols, ulint n_v_cols, ulint flags,
+                                    ulint flags2, bool init_stats_latch= true);
+/****************************************************************/ /**
+ Free a table memory object. */
 void
 dict_mem_table_free(
 /*================*/
@@ -2145,6 +2144,8 @@ public:
 	(*) Those are not always protected for
 	performance reasons. */
 	rw_lock_t				stats_latch;
+
+  bool stats_latch_inited= false;
 
 	/** TRUE if statistics have been calculated the first time after
 	database startup or table creation. */

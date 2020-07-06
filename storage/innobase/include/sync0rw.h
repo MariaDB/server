@@ -567,6 +567,8 @@ struct rw_lock_t :
 #endif /* UNIV_DEBUG */
 	public ilist_node<>
 {
+  ut_d(bool created= false;)
+
   /** Holds the state of the lock. */
   Atomic_relaxed<int32_t> lock_word;
 

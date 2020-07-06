@@ -234,6 +234,8 @@ rw_lock_create_func(
 
 	lock->is_block_lock = 0;
 
+	ut_d(lock->created = true);
+
 	mutex_enter(&rw_lock_list_mutex);
 	rw_lock_list.push_front(*lock);
 	mutex_exit(&rw_lock_list_mutex);
@@ -250,6 +252,8 @@ rw_lock_free_func(
 {
 	ut_ad(rw_lock_validate(lock));
 	ut_a(lock->lock_word == X_LOCK_DECR);
+
+	ut_d(lock->created = false);
 
 	mutex_enter(&rw_lock_list_mutex);
 
@@ -849,6 +853,8 @@ rw_lock_validate(
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
 	ut_ad(lock);
+
+	ut_ad(lock->created);
 
 	int32_t lock_word = lock->lock_word;
 
