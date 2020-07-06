@@ -367,36 +367,37 @@ public:
     Item_bool_func(thd, a, b), cache(0), expr_cache(0),
     save_cache(0), result_for_null_param(UNKNOWN)
   { m_with_subquery= true; }
-  bool fix_fields(THD *, Item **);
+  bool fix_fields(THD *, Item **) override;
   bool fix_left(THD *thd);
-  table_map not_null_tables() const { return 0; }
-  bool is_null();
-  longlong val_int();
-  void cleanup();
-  enum Functype functype() const   { return IN_OPTIMIZER_FUNC; }
-  const char *func_name() const { return "<in_optimizer>"; }
+  table_map not_null_tables() const override { return 0; }
+  bool is_null() override;
+  longlong val_int() override;
+  void cleanup() override;
+  enum Functype functype() const override { return IN_OPTIMIZER_FUNC; }
+  const char *func_name() const override { return "<in_optimizer>"; }
   Item_cache **get_cache() { return &cache; }
   void keep_top_level_cache();
-  Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
-  virtual Item *expr_cache_insert_transformer(THD *thd, uchar *unused);
-  bool is_expensive_processor(void *arg);
-  bool is_expensive();
-  void set_join_tab_idx(uint join_tab_idx_arg)
+  Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
+  Item *expr_cache_insert_transformer(THD *thd, uchar *unused) override;
+  bool is_expensive_processor(void *arg) override;
+  bool is_expensive() override;
+  void set_join_tab_idx(uint join_tab_idx_arg) override
   { args[1]->set_join_tab_idx(join_tab_idx_arg); }
-  virtual void get_cache_parameters(List<Item> &parameters);
+  void get_cache_parameters(List<Item> &parameters) override;
   bool is_top_level_item() const override;
-  bool eval_not_null_tables(void *opt_arg);
-  bool find_not_null_fields(table_map allowed);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
+  bool eval_not_null_tables(void *opt_arg) override;
+  bool find_not_null_fields(table_map allowed) override;
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref,
+                         bool merge) override;
   bool invisible_mode();
   void reset_cache() { cache= NULL; }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type) override;
   void restore_first_argument();
   Item* get_wrapped_in_subselect_item()
   { return args[1]; }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_in_optimizer>(thd, this); }
-  enum precedence precedence() const { return args[1]->precedence(); }
+  enum precedence precedence() const override { return args[1]->precedence(); }
 };
 
 
@@ -601,17 +602,17 @@ class Item_func_not :public Item_bool_func
 public:
   Item_func_not(THD *thd, Item *a):
     Item_bool_func(thd, a), abort_on_null(FALSE) {}
-  virtual void top_level_item() { abort_on_null= 1; }
+  void top_level_item() override { abort_on_null= 1; }
   bool is_top_level_item() const override { return abort_on_null; }
-  longlong val_int();
-  enum Functype functype() const { return NOT_FUNC; }
-  const char *func_name() const { return "not"; }
-  bool find_not_null_fields(table_map allowed) { return false; }
-  enum precedence precedence() const { return BANG_PRECEDENCE; }
-  Item *neg_transformer(THD *thd);
-  bool fix_fields(THD *, Item **);
-  virtual void print(String *str, enum_query_type query_type);
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  enum Functype functype() const override { return NOT_FUNC; }
+  const char *func_name() const override { return "not"; }
+  bool find_not_null_fields(table_map allowed) override { return false; }
+  enum precedence precedence() const override { return BANG_PRECEDENCE; }
+  Item *neg_transformer(THD *thd) override;
+  bool fix_fields(THD *, Item **) override;
+  void print(String *str, enum_query_type query_type) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_not>(thd, this); }
 };
 
@@ -889,18 +890,21 @@ public:
   Item_func_opt_neg(THD *thd, List<Item> &list):
     Item_bool_func(thd, list), negated(0), pred_level(0) {}
 public:
-  inline void top_level_item() { pred_level= 1; }
+  void top_level_item() override { pred_level= 1; }
   bool is_top_level_item() const override { return pred_level; }
-  Item *neg_transformer(THD *thd)
+  Item *neg_transformer(THD *thd) override
   {
     negated= !negated;
     return this;
   }
-  bool eq(const Item *item, bool binary_cmp) const;
-  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
-  Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *) = 0;
+  bool eq(const Item *item, bool binary_cmp) const override;
+  CHARSET_INFO *compare_collation() const override
+  {
+    return cmp_collation.collation;
+  }
+  Item *propagate_equal_fields(THD *, const Context &,
+                               COND_EQUAL *) override= 0;
 };
-
 
 class Item_func_between :public Item_func_opt_neg
 {
