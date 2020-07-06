@@ -97,7 +97,6 @@ uchar **Filesort_buffer::alloc_sort_buffer(uint num_records, uint record_length)
   if (m_idx_array.is_null())
   {
     sort_buff_sz= ((size_t)num_records) * (record_length + sizeof(uchar*));
-    set_if_bigger(sort_buff_sz, record_length * MERGEBUFF2); 
     uchar **sort_keys=
       (uchar**) my_malloc(sort_buff_sz, MYF(MY_THREAD_SPECIFIC));
     m_idx_array= Idx_array(sort_keys, num_records);

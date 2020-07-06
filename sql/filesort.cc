@@ -256,7 +256,8 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
     while (memory_available >= min_sort_memory)
     {
       ulonglong keys= memory_available / (param.rec_length + sizeof(char*));
-      param.max_keys_per_buffer= (uint) MY_MIN(num_rows, keys);
+      param.max_keys_per_buffer= MY_MAX(MERGEBUFF2,
+                                        (uint) MY_MIN(num_rows, keys));
       if (table_sort.get_sort_keys())
       {
         // If we have already allocated a buffer, it better have same size!
