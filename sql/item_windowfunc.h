@@ -953,6 +953,7 @@ public:
   bool fix_length_and_dec()
   {
     decimals = window_func()->decimals;
+    unsigned_flag= window_func()->unsigned_flag;
     return FALSE;
   }
 
