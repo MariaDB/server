@@ -822,3 +822,32 @@ inline void SORT_INFO::unpack_addon_fields(uchar *buff)
       field->unpack(field->ptr, buff + addonf->offset, buff_end, 0);
   }
 }
+
+
+/*
+  @brief
+    Read and unpack next record from a table
+
+  @details
+    The function first reads the next record from the table.
+    If a success then it unpacks the values to the base table fields.
+    This is used by SJM scan table to unpack the values of the materialized
+    table to the base table fields
+
+  @retval
+    0   Record successfully read.
+  @retval
+    -1   There is no record to be read anymore.
+    >0   Error
+*/
+int read_record_func_for_rr_and_unpack(READ_RECORD *info)
+{
+  int error;
+  if ((error= info->read_record_func_and_unpack_calls(info)))
+    return error;
+
+  for (Copy_field *cp= info->copy_field; cp != info->copy_field_end; cp++)
+    (*cp->do_copy)(cp);
+
+  return error;
+}

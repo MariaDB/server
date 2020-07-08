@@ -2769,6 +2769,7 @@ struct TABLE_LIST
    */
   const char *get_table_name() const { return view != NULL ? view_name.str : table_name.str; }
   bool is_active_sjm();
+  bool is_sjm_scan_table();
   bool is_jtbm() { return MY_TEST(jtbm_subselect != NULL); }
   st_select_lex_unit *get_unit();
   st_select_lex *get_single_select();

@@ -2500,5 +2500,37 @@ SELECT COUNT(DISTINCT a) FROM t1;
 SET @@tmp_memory_table_size= @save_tmp_memory_table_size;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-13694: Wrong result upon GROUP BY with orderby_uses_equalities=on
+--echo #
+
+CREATE TABLE t1 (a INT, b int, primary key(a));
+CREATE TABLE t2 (a INT, b INT);
+
+INSERT INTO t1 (a,b) VALUES (58,1),(96,2),(273,3),(23,4),(231,5),(525,6),
+                            (2354,7),(321421,3),(535,2),(4535,3);
+INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3);
+
+--echo # Join order should have the SJM scan table as the first table for both
+--echo # the queries with GROUP BY and ORDER BY clause.
+
+let $query= SELECT t1.a
+            FROM t1
+            WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
+            ORDER BY t1.a DESC;
+
+eval EXPLAIN $query;
+eval EXPLAIN FORMAT=JSON $query;
+eval $query;
+
+let $query= SELECT t1.a, group_concat(t1.b)
+            FROM t1
+            WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
+            GROUP BY t1.a DESC;
+
+eval EXPLAIN $query;
+eval EXPLAIN FORMAT=JSON $query;
+eval $query;
+DROP TABLE t1, t2;
 
 --echo # End of 10.5 tests

@@ -55,6 +55,7 @@ struct READ_RECORD
   TABLE *table;                                 /* Head-form */
   Unlock_row_func unlock_row;
   Read_func read_record_func;
+  Read_func read_record_func_and_unpack_calls;
   THD *thd;
   SQL_SELECT *select;
   uint ref_length, reclength, rec_cache_size, error_offset;
