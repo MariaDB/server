@@ -1,5 +1,10 @@
+--echo #
+--echo # MDEV-23102: 10.4 create mariadb.sys user on each update even
+--echo # is the user is not needed
+--echo #
+--echo # part 1: reassigning mysql.user and gis procedures to other user
 
--- source include/mysql_upgrade_preparation.inc
+--source include/mysql_upgrade_preparation.inc
 
 call mtr.add_suppression("Cannot load from mysql.proc. The table is probably corrupted");
 create database mysqltest1;
@@ -13,11 +18,14 @@ set @save_sql_mode= @@sql_mode;
 
 use mysql;
 
---echo # make old definition of gis procedures and user view
+--echo # make changed definition of gis procedures and user view
+
+create user superuser@localhost;
+grant all privileges on mysql.* to superuser@localhost;
 
 drop view user;
 
-CREATE DEFINER='root'@'localhost' SQL SECURITY DEFINER VIEW IF NOT EXISTS user AS SELECT
+CREATE DEFINER='superuser'@'localhost' SQL SECURITY DEFINER VIEW IF NOT EXISTS user AS SELECT
   Host,
   User,
   IF(JSON_VALUE(Priv, '$.plugin') IN ('mysql_native_password', 'mysql_old_password'), IFNULL(JSON_VALUE(Priv, '$.authentication_string'), ''), '') AS Password,
@@ -75,25 +83,32 @@ DROP PROCEDURE IF EXISTS mysql.DropGeometryColumn;
 
 delimiter |;
 
-CREATE DEFINER=`root`@`localhost` PROCEDURE AddGeometryColumn(catalog varchar(64), t_schema varchar(64),
+CREATE DEFINER=`superuser`@`localhost` PROCEDURE AddGeometryColumn(catalog varchar(64), t_schema varchar(64),
    t_name varchar(64), geometry_column varchar(64), t_srid int) SQL SECURITY INVOKER
 begin
   set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' ADD ', geometry_column,' GEOMETRY REF_SYSTEM_ID=', t_srid); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end |
 
-CREATE DEFINER=`root`@`localhost` PROCEDURE DropGeometryColumn(catalog varchar(64), t_schema varchar(64),
+CREATE DEFINER=`superuser`@`localhost` PROCEDURE DropGeometryColumn(catalog varchar(64), t_schema varchar(64),
    t_name varchar(64), geometry_column varchar(64)) SQL SECURITY INVOKER
 begin
   set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' DROP ', geometry_column); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end |
 
 delimiter ;|
+
 set @@sql_mode= @save_sql_mode;
 
 drop user 'mariadb.sys'@'localhost';
 
---echo # check old definitions mysql_upgrade
+--echo # check changed definitions mysql_upgrade
 
-SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def' and TABLE_SCHEMA = 'mysql' and TABLE_NAME='user' and DEFINER = 'root@localhost';
+SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def'
+and TABLE_SCHEMA = 'mysql' and TABLE_NAME='user' and DEFINER = 'superuser@localhost';
 SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def' and TABLE_SCHEMA = 'mysql' and TABLE_NAME='user' and DEFINER = 'mariadb.sys@localhost';
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'superuser@localhost';
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'superuser@localhost';
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
+
 SELECT * FROM information_schema.USER_PRIVILEGES WHERE GRANTEE="'mariadb.sys'@'localhost'";
 SELECT * FROM information_schema.TABLE_PRIVILEGES WHERE GRANTEE="'mariadb.sys'@'localhost'";
 
@@ -106,36 +121,26 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 
 --echo # check new definitions mysql_upgrade
 
-SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def' and TABLE_SCHEMA = 'mysql' and TABLE_NAME='user' and DEFINER = 'root@localhost';
+SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def'
+and TABLE_SCHEMA = 'mysql' and TABLE_NAME='user' and DEFINER = 'superuser@localhost';
 SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def' and TABLE_SCHEMA = 'mysql' and TABLE_NAME='user' and DEFINER = 'mariadb.sys@localhost';
-SELECT * FROM information_schema.USER_PRIVILEGES WHERE GRANTEE="'mariadb.sys'@'localhost'";
-SELECT * FROM information_schema.TABLE_PRIVILEGES WHERE GRANTEE="'mariadb.sys'@'localhost'";
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'superuser@localhost';
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'superuser@localhost';
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
 
---echo # check non root
-
-CREATE USER 'not_root'@'localhost';
-GRANT ALL PRIVILEGES ON *.* TO 'not_root'@'localhost';
-GRANT PROXY ON ''@'%' TO 'not_root'@'localhost' WITH GRANT OPTION;
-
-connect  con1,localhost,not_root,,;
-
-connection con1;
-
-DROP USER 'root'@'localhost';
-DROP USER 'root'@'127.0.0.1';
-DROP USER 'root'@'::1';
-
-use mysqltest1;
-
-create table t1 (a int);
-call mysql.AddGeometryColumn("def", "mysqltest1", "t1", "g", 101);
-
-show create table t1;
-use mysql;
-
-select count(*) from user;
+select count(*) from global_priv where user='mariadb.sys' and host='localhost';
+--echo # above should be 0 (no mariadb.sys@localhost user)
 
 --echo # restore environment
+
+DROP USER 'superuser'@'localhost';
+DROP VIEW mysql.user;
+DROP PROCEDURE AddGeometryColumn;
+DROP PROCEDURE DropGeometryColumn;
+--exec $MYSQL_UPGRADE  2>&1
+--file_exists $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
 
 delete from global_priv;
 delete from tables_priv;
@@ -152,7 +157,6 @@ flush privileges;
 disconnect default;
 connect  default,localhost,root,,;
 connection default;
-disconnect con1;
 
 drop database mysqltest1;
 
