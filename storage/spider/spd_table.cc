@@ -10342,7 +10342,7 @@ void *spider_table_bg_sts_action(
     while (spider_init_queries[i].length && !thd->killed && !thread->killed)
     {
       dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
-        (uint) spider_init_queries[i].length, FALSE, FALSE);
+        (uint) spider_init_queries[i].length);
       if (unlikely(thd->is_error()))
       {
         fprintf(stderr, "[ERROR] %s\n", spider_stmt_da_message(thd));

@@ -70,7 +70,7 @@ protected:
 
   virtual bool send_ok(uint server_status, uint statement_warn_count,
                        ulonglong affected_rows, ulonglong last_insert_id,
-                       const char *message, bool skip_flush);
+                       const char *message);
 
   virtual bool send_eof(uint server_status, uint statement_warn_count);
 

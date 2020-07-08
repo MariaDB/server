@@ -7537,13 +7537,10 @@ ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS
 # MariaDB extra error numbers starts from 4000
 skip-to-error-number 4000
 
-ER_COMMULTI_BADCONTEXT 0A000
-        eng "COM_MULTI can't return a result set in the given context"
-        ger "COM_MULTI kann im gegebenen Kontext keine Ergebnismenge zurückgeben"
-        ukr "COM_MULTI не може повернути результати у цьому контексті"
-ER_BAD_COMMAND_IN_MULTI
-        eng "Command '%s' is not allowed for COM_MULTI"
-        ukr "Команда '%s' не дозволена для COM_MULTI"
+ER_UNUSED_26 0A000
+        eng "This error never happens"
+ER_UNUSED_27
+        eng "This error never happens"
 ER_WITH_COL_WRONG_LIST
         eng "WITH column list and SELECT field list have different column counts"
 ER_TOO_MANY_DEFINITIONS_IN_WITH_CLAUSE

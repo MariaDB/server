@@ -168,8 +168,7 @@ emb_advanced_command(MYSQL *mysql, enum enum_server_command command,
     arg_length= header_length;
   }
 
-  result= dispatch_command(command, thd, (char *) arg, arg_length, FALSE,
-                           FALSE);
+  result= dispatch_command(command, thd, (char *) arg, arg_length);
   thd->cur_data= 0;
   thd->mysys_var= NULL;
 
@@ -1258,7 +1257,7 @@ bool
 net_send_ok(THD *thd,
             uint server_status, uint statement_warn_count,
             ulonglong affected_rows, ulonglong id, const char *message,
-            bool, bool)
+            bool)
 {
   DBUG_ENTER("emb_net_send_ok");
   MYSQL_DATA *data;
