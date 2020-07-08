@@ -1922,3 +1922,65 @@ SELECT SCHEMA_NAME from information_schema.schemata where schema_name=REPEAT('a'
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-21201:No records produced in information_schema query,
+--echo # depending on projection
+--echo #
+
+create table t (i int, constraint a check (i > 0));
+
+--disable_warnings
+select
+  tc.TABLE_SCHEMA,
+  tc.TABLE_NAME,
+  cc.CONSTRAINT_NAME,
+  cc.CHECK_CLAUSE
+from information_schema.TABLE_CONSTRAINTS tc
+  join information_schema.CHECK_CONSTRAINTS cc
+    using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
+;
+select
+  tc.TABLE_SCHEMA,
+  tc.TABLE_NAME,
+  cc.CONSTRAINT_NAME,
+  cc.CHECK_CLAUSE
+from information_schema.CHECK_CONSTRAINTS cc
+  join information_schema.TABLE_CONSTRAINTS tc
+    using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
+;
+select
+  tc.TABLE_SCHEMA,
+  tc.TABLE_NAME,
+  cc.CONSTRAINT_NAME,
+  cc.CHECK_CLAUSE
+from information_schema.TABLE_CONSTRAINTS tc
+  NATURAL join information_schema.CHECK_CONSTRAINTS cc
+;
+select
+  tc.TABLE_SCHEMA,
+  tc.TABLE_NAME,
+  cc.CONSTRAINT_NAME,
+  cc.CHECK_CLAUSE
+from information_schema.CHECK_CONSTRAINTS cc
+  NATURAL join information_schema.TABLE_CONSTRAINTS tc
+;
+select
+  tc.TABLE_SCHEMA,
+  tc.TABLE_NAME,
+  cc.CONSTRAINT_NAME,
+  cc.CHECK_CLAUSE,
+  tc.CONSTRAINT_CATALOG,
+  tc.CONSTRAINT_SCHEMA
+from information_schema.TABLE_CONSTRAINTS tc
+  join information_schema.CHECK_CONSTRAINTS cc
+    using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
+;
+--enable_warnings
+
+drop table t;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

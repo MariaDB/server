@@ -2201,3 +2201,67 @@ SCHEMA_NAME
 #
 # End of 10.1 tests
 #
+#
+# MDEV-21201:No records produced in information_schema query,
+# depending on projection
+#
+create table t (i int, constraint a check (i > 0));
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE
+from information_schema.TABLE_CONSTRAINTS tc
+join information_schema.CHECK_CONSTRAINTS cc
+using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+test	t	a	`i` > 0
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE
+from information_schema.CHECK_CONSTRAINTS cc
+join information_schema.TABLE_CONSTRAINTS tc
+using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+test	t	a	`i` > 0
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE
+from information_schema.TABLE_CONSTRAINTS tc
+NATURAL join information_schema.CHECK_CONSTRAINTS cc
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+test	t	a	`i` > 0
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE
+from information_schema.CHECK_CONSTRAINTS cc
+NATURAL join information_schema.TABLE_CONSTRAINTS tc
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+test	t	a	`i` > 0
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE,
+tc.CONSTRAINT_CATALOG,
+tc.CONSTRAINT_SCHEMA
+from information_schema.TABLE_CONSTRAINTS tc
+join information_schema.CHECK_CONSTRAINTS cc
+using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE	CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA
+test	t	a	`i` > 0	def	test
+drop table t;
+#
+# End of 10.3 tests
+#
