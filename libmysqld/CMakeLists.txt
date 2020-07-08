@@ -108,6 +108,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_explain.cc ../sql/sql_explain.h
            ../sql/sql_analyze_stmt.cc ../sql/sql_analyze_stmt.h
            ../sql/compat56.cc
+           ../sql/sql_schema.cc
            ../sql/sql_type.cc ../sql/sql_type.h
            ../sql/sql_mode.cc
            ../sql/table_cache.cc ../sql/mf_iocache_encr.cc

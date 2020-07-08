@@ -129,3 +129,18 @@ let $datadir= `select @@datadir`;
 remove_file $datadir/mysql_upgrade_info;
 
 set GLOBAL sql_mode=default;
+
+
+--echo #
+--echo # MDEV-19632 Replication aborts with ER_SLAVE_CONVERSION_FAILED upon CREATE ... SELECT in ORACLE mode
+--echo #
+
+--echo # Compatibility schema names respect the filesystem case sensitivity
+
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1 (a MARIADB_SCHEMA.date);
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1 (a Mariadb_schema.date);
+
+CREATE TABLE t1 (a mariadb_schema.date);
+DROP TABLE t1;

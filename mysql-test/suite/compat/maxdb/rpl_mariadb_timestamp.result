@@ -1,0 +1,65 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-19632 Replication aborts with ER_SLAVE_CONVERSION_FAILED upon CREATE ... SELECT in ORACLE mode
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:00:00');
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES (NULL);
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+SET sql_mode=MAXDB;
+CREATE TABLE t2 SELECT * FROM t1;
+SET timestamp=DEFAULT;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a TIMESTAMP)
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (NULL)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES ('2001-01-01 10:20:30')
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE "t2" (
+  "a" mariadb_schema.timestamp NOT NULL DEFAULT current_timestamp()
+)
+master-bin.000001	#	Annotate_rows	#	#	CREATE TABLE t2 SELECT * FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+connection slave;
+SELECT * FROM t1;
+a
+2001-01-01 10:00:00
+2001-01-01 10:20:30
+SET sql_mode=DEFAULT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SET sql_mode=MAXDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" mariadb_schema.timestamp NOT NULL DEFAULT current_timestamp()
+)
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" mariadb_schema.timestamp NOT NULL DEFAULT current_timestamp()
+)
+connection master;
+DROP TABLE t1, t2;
+include/rpl_end.inc

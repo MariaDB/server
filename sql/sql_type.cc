@@ -69,6 +69,12 @@ Type_handler_geometry    type_handler_geometry;
 #endif
 
 
+Schema *Type_handler::schema() const
+{
+  return &mariadb_schema;
+}
+
+
 bool Type_handler_data::init()
 {
 #ifdef HAVE_SPATIAL

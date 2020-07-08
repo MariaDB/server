@@ -488,6 +488,10 @@ public:
   }
   bool append(const char *s, size_t size);
   bool append(const char *s, size_t arg_length, CHARSET_INFO *cs);
+  bool append(const LEX_CSTRING &s, CHARSET_INFO *cs)
+  {
+    return append(s.str, s.length, cs);
+  }
   bool append_ulonglong(ulonglong val);
   bool append_longlong(longlong val);
   bool append(IO_CACHE* file, uint32 arg_length);

@@ -127,6 +127,7 @@ SET (SQL_SOURCE
                rpl_gtid.cc rpl_parallel.cc
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc
+               sql_schema.cc
                sql_type.cc sql_mode.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc

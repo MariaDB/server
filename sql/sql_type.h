@@ -75,6 +75,7 @@ struct Schema_specification_st;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 class Vers_history_point;
+class Schema;
 
 
 /**
@@ -1062,6 +1063,7 @@ public:
   Type_handler *aggregate_for_num_op_traditional(const Type_handler *h1,
                                                  const Type_handler *h2);
 
+  virtual Schema *schema() const;
   virtual const Name name() const= 0;
   virtual enum_field_types field_type() const= 0;
   virtual enum_field_types real_field_type() const { return field_type(); }

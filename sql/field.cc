@@ -10407,6 +10407,19 @@ void Column_definition::set_attributes(const Lex_field_type_st &type,
   set_handler(type.type_handler());
   charset= cs;
 
+#if MYSQL_VERSION_ID > 100500
+#error When merging to 10.5, please move the code below to
+#error Type_handler_timestamp_common::Column_definition_set_attributes()
+#else
+  /*
+    Unlike other types TIMESTAMP fields are NOT NULL by default.
+    Unless --explicit-defaults-for-timestamp is given.
+  */
+  if (!opt_explicit_defaults_for_timestamp &&
+      type.type_handler()->field_type() == MYSQL_TYPE_TIMESTAMP)
+    flags|= NOT_NULL_FLAG;
+#endif
+
   if (type.length())
   {
     int err;
