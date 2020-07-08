@@ -1,0 +1,21 @@
+#
+# MDEV-22553: Assertion `info->lastpos == (~ (my_off_t) 0)' failed in mi_rkey with rowid_filer=on
+#
+CREATE TABLE t1 (
+a smallint(6) DEFAULT NULL,
+b bigint(20) DEFAULT NULL,
+c varchar(64) DEFAULT NULL,
+d varchar(64) DEFAULT NULL,
+e smallint(6) DEFAULT NULL,
+f bigint(20) DEFAULT NULL,
+KEY a (a),
+KEY d (d),
+KEY f (f)
+) ENGINE=MyISAM;
+ALTER TABLE t1 DISABLE KEYS;
+# Insert a lot of rows
+ALTER TABLE t1 ENABLE KEYS;
+# Must not crash:
+SELECT * FROM t1 WHERE ( a BETWEEN 255 AND 270 OR f = 200 ) AND f IN ( 1, 4, 112, 143 ) AND d IN ('Montana', 'South Dakota');
+a	b	c	d	e	f
+DROP TABLE t1;
