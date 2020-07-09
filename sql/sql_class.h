@@ -2024,6 +2024,14 @@ struct Ha_data
   */
   plugin_ref lock;
   Ha_data() :ha_ptr(NULL) {}
+
+  void reset()
+  {
+    ha_ptr= nullptr;
+    for (auto &info : ha_info)
+      info.reset();
+    lock= nullptr;
+  }
 };
 
 /**

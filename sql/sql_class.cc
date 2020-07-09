@@ -5802,7 +5802,8 @@ start_new_trans::start_new_trans(THD *thd)
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
   memcpy(old_ha_data, thd->ha_data, sizeof(old_ha_data));
   thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
-  bzero(thd->ha_data, sizeof(thd->ha_data));
+  for (auto &data : thd->ha_data)
+    data.reset();
   old_transaction= thd->transaction;
   thd->transaction= &new_transaction;
   new_transaction.on= 1;
