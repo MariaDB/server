@@ -1,6 +1,7 @@
 #
 #  Window Functions Tests
 #
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t1,t2;
@@ -2479,6 +2480,21 @@ DROP TABLE t1;
 CREATE TABLE t1 (d DECIMAL(1,0) UNSIGNED);
 INSERT INTO t1 VALUES (1),(2);
 SELECT MIN(d) OVER () FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22463: Element_type &Bounds_checked_array<Item *>::operator[](size_t) [Element_type = Item *]:
+--echo # Assertion `n < m_size' failed
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c INT, d INT, e INT, f INT, g int, h INT, i INT);
+INSERT INTO t1 SELECT seq,seq,seq,seq, seq,seq,seq,seq,seq FROM seq_1_to_5;
+
+SELECT ROW_NUMBER() OVER w2 FROM t1 WINDOW w2 AS (PARTITION BY -1,0,1,2,3,4,5,6);
+--sorted_result
+SELECT a FROM t1 ORDER BY ROW_NUMBER() OVER (PARTITION BY -1,1,0,2,3,4,5,6,7,8);
+SELECT a,b FROM t1 WINDOW w2 AS (PARTITION BY -1,1,0,2,3,4);
+SELECT ROW_NUMBER() OVER w2 FROM t1 WINDOW w2 AS (PARTITION BY -1,0,1,2,3,4,5,6);
 DROP TABLE t1;
 
 --echo #
