@@ -56,7 +56,6 @@ usr/bin/mariadb-columnstore-stop.sh
 usr/bin/mariadb-command-line.sh
 usr/bin/master-rep-columnstore.sh
 usr/bin/mcs-loadbrm.py
-usr/bin/mcs-start-storagemanager.py
 usr/bin/mcs-stop-controllernode.sh
 usr/bin/mcsGetConfig
 usr/bin/mcsSetConfig
