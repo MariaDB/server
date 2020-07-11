@@ -637,8 +637,10 @@ Depends: libcurl4,
          mariadb-server-10.5 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
-Description: S3 storage engine for MariaDB
- Read only table stored in S3.
+Description: Amazon S3 archival storage engine for MariaDB
+ The S3 storage engine allows one to archive MariaDB tables in Amazon S3 (or any
+ third-party public or private cloud that implements S3 API), but still have
+ them accessible in MariaDB in read-only mode.
 
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el
