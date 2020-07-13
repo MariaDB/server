@@ -2492,7 +2492,7 @@ void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 {
 	mtr_t mtr;
 	mtr.start();
-	mtr.set_log_mode(MTR_LOG_NONE);
+	mtr.set_log_mode(MTR_LOG_NO_REDO);
 
 	ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE);
 	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
@@ -2576,7 +2576,7 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
   else if (fil_space_t *space= fil_space_acquire_for_io(page_id.space()))
   {
     mtr.start();
-    mtr.set_log_mode(MTR_LOG_NONE);
+    mtr.set_log_mode(MTR_LOG_NO_REDO);
     block= buf_page_create(space, page_id.page_no(), space->zip_size(), &mtr);
     p= recv_sys.pages.find(page_id);
     if (p == recv_sys.pages.end())
@@ -2693,7 +2693,7 @@ void recv_sys_t::apply(bool last_batch)
         continue;
       case page_recv_t::RECV_NOT_PROCESSED:
         mtr.start();
-        mtr.set_log_mode(MTR_LOG_NONE);
+        mtr.set_log_mode(MTR_LOG_NO_REDO);
         if (buf_block_t *block= buf_page_get_low(page_id, 0, RW_X_LATCH,
                                                  nullptr, BUF_GET_IF_IN_POOL,
                                                  __FILE__, __LINE__,

@@ -171,39 +171,3 @@ mtr_t::release_block_at_savepoint(
 
 	slot->object = NULL;
 }
-
-/**
-Changes the logging mode of a mini-transaction.
-@return	old mode */
-
-mtr_log_t
-mtr_t::set_log_mode(mtr_log_t mode)
-{
-	ut_ad(mode >= MTR_LOG_ALL);
-	ut_ad(mode <= MTR_LOG_NO_REDO);
-
-	const mtr_log_t	old_mode = get_log_mode();
-
-	switch (old_mode) {
-	case MTR_LOG_NO_REDO:
-		/* Once this mode is set, it must not be changed. */
-		ut_ad(mode == MTR_LOG_NO_REDO || mode == MTR_LOG_NONE);
-		return(old_mode);
-	case MTR_LOG_NONE:
-		if (mode == old_mode) {
-			/* Keep MTR_LOG_NONE. */
-			return(old_mode);
-		}
-		ut_ad(mode == MTR_LOG_ALL);
-		/* fall through */
-	case MTR_LOG_ALL:
-		/* MTR_LOG_NO_REDO can only be set before generating
-		any redo log records. */
-		ut_ad(mode != MTR_LOG_NO_REDO || m_log.empty());
-		m_log_mode = mode & 3;
-		return(old_mode);
-	}
-
-	ut_ad(0);
-	return(old_mode);
-}

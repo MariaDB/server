@@ -1344,7 +1344,7 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
 static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
                                     mtr_t *mtr)
 {
-  const mtr_log_t log_mode= mtr->set_log_mode(MTR_LOG_NONE);
+  const mtr_log_t log_mode= mtr->set_log_mode(MTR_LOG_NO_REDO);
 
   buf_block_t *const block= cursor->block;
 

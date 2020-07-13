@@ -234,7 +234,7 @@ public:
 		memset(&m_cur, 0x0, sizeof(m_cur));
 		/* Make page_cur_delete_rec() happy. */
 		m_mtr.start();
-		m_mtr.set_log_mode(MTR_LOG_NONE);
+		m_mtr.set_log_mode(MTR_LOG_NO_REDO);
 	}
 
 	/** Position the cursor on the first user record. */

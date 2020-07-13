@@ -41,8 +41,7 @@ enum mtr_log_t {
 	MTR_LOG_ALL = 0,
 
 	/** Log no operations and dirty pages are not added to the flush list.
-	Set when applying log in crash recovery or when a modification of a
-	ROW_FORMAT=COMPRESSED page is attempted. */
+	Set for attempting modification of a ROW_FORMAT=COMPRESSED page. */
 	MTR_LOG_NONE,
 
 	/** Don't generate REDO log but add dirty pages to flush list */
@@ -329,9 +328,10 @@ enum mtr_memo_type_t {
 
 	MTR_MEMO_BUF_FIX = RW_NO_LATCH,
 
-#ifdef UNIV_DEBUG
 	MTR_MEMO_MODIFY = 16,
-#endif /* UNIV_DEBUG */
+
+	MTR_MEMO_PAGE_X_MODIFY = MTR_MEMO_PAGE_X_FIX | MTR_MEMO_MODIFY,
+	MTR_MEMO_PAGE_SX_MODIFY = MTR_MEMO_PAGE_SX_FIX | MTR_MEMO_MODIFY,
 
 	MTR_MEMO_S_LOCK = RW_S_LATCH << 5,
 

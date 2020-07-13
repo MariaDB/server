@@ -205,13 +205,6 @@ private:
 static void memo_slot_release(mtr_memo_slot_t *slot)
 {
   switch (slot->type) {
-#ifdef UNIV_DEBUG
-  default:
-    ut_ad("invalid type" == 0);
-    break;
-  case MTR_MEMO_MODIFY:
-    break;
-#endif /* UNIV_DEBUG */
   case MTR_MEMO_S_LOCK:
     rw_lock_s_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
     break;
@@ -228,12 +221,21 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   case MTR_MEMO_X_LOCK:
     rw_lock_x_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
     break;
-  case MTR_MEMO_BUF_FIX:
-  case MTR_MEMO_PAGE_S_FIX:
-  case MTR_MEMO_PAGE_SX_FIX:
-  case MTR_MEMO_PAGE_X_FIX:
+  default:
+#ifdef UNIV_DEBUG
+    switch (slot->type & ~MTR_MEMO_MODIFY) {
+    case MTR_MEMO_BUF_FIX:
+    case MTR_MEMO_PAGE_S_FIX:
+    case MTR_MEMO_PAGE_SX_FIX:
+    case MTR_MEMO_PAGE_X_FIX:
+      break;
+    default:
+      ut_ad("invalid type" == 0);
+      break;
+    }
+#endif /* UNIV_DEBUG */
     buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
-    buf_page_release_latch(block, slot->type);
+    buf_page_release_latch(block, slot->type & ~MTR_MEMO_MODIFY);
     block->unfix();
     break;
   }
@@ -248,13 +250,6 @@ struct ReleaseLatches {
     if (!slot->object)
       return true;
     switch (slot->type) {
-#ifdef UNIV_DEBUG
-    default:
-      ut_ad("invalid type" == 0);
-      break;
-    case MTR_MEMO_MODIFY:
-      break;
-#endif /* UNIV_DEBUG */
     case MTR_MEMO_S_LOCK:
       rw_lock_s_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
       break;
@@ -271,12 +266,21 @@ struct ReleaseLatches {
     case MTR_MEMO_SX_LOCK:
       rw_lock_sx_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
       break;
-    case MTR_MEMO_BUF_FIX:
-    case MTR_MEMO_PAGE_S_FIX:
-    case MTR_MEMO_PAGE_SX_FIX:
-    case MTR_MEMO_PAGE_X_FIX:
+    default:
+#ifdef UNIV_DEBUG
+      switch (slot->type & ~MTR_MEMO_MODIFY) {
+      case MTR_MEMO_BUF_FIX:
+      case MTR_MEMO_PAGE_S_FIX:
+      case MTR_MEMO_PAGE_SX_FIX:
+      case MTR_MEMO_PAGE_X_FIX:
+        break;
+      default:
+        ut_ad("invalid type" == 0);
+        break;
+      }
+#endif /* UNIV_DEBUG */
       buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
-      buf_page_release_latch(block, slot->type);
+      buf_page_release_latch(block, slot->type & ~MTR_MEMO_MODIFY);
       block->unfix();
       break;
     }
@@ -308,50 +312,42 @@ struct DebugCheck {
 };
 #endif
 
-/** Release a resource acquired by the mini-transaction. */
-struct ReleaseBlocks {
-	/** Release specific object */
-	ReleaseBlocks(lsn_t start_lsn, lsn_t end_lsn)
-		:
-		m_end_lsn(end_lsn),
-		m_start_lsn(start_lsn)
-	{
-		/* Do nothing */
-	}
+/** Release page latches held by the mini-transaction. */
+struct ReleaseBlocks
+{
+  const lsn_t start, end;
+#ifdef UNIV_DEBUG
+  const mtr_buf_t &memo;
 
-	/** Add the modified page to the buffer flush list. */
-	void add_dirty_page_to_flush_list(mtr_memo_slot_t* slot) const
-	{
-		ut_ad(m_end_lsn > 0);
-		ut_ad(m_start_lsn > 0);
+  ReleaseBlocks(lsn_t start, lsn_t end, const mtr_buf_t &memo) :
+    start(start), end(end), memo(memo)
+#else /* UNIV_DEBUG */
+  ReleaseBlocks(lsn_t start, lsn_t end, const mtr_buf_t&) :
+    start(start), end(end)
+#endif /* UNIV_DEBUG */
+  {
+    ut_ad(start);
+    ut_ad(end);
+  }
 
-		buf_block_t*	block;
+  /** @return true always */
+  bool operator()(mtr_memo_slot_t* slot) const
+  {
+    if (!slot->object)
+      return true;
+    switch (slot->type) {
+    case MTR_MEMO_PAGE_X_MODIFY:
+    case MTR_MEMO_PAGE_SX_MODIFY:
+      break;
+    default:
+      ut_ad(!(slot->type & MTR_MEMO_MODIFY));
+      return true;
+    }
 
-		block = reinterpret_cast<buf_block_t*>(slot->object);
-
-		buf_flush_note_modification(block, m_start_lsn, m_end_lsn);
-	}
-
-	/** @return true always. */
-	bool operator()(mtr_memo_slot_t* slot) const
-	{
-		if (slot->object != NULL) {
-
-			if (slot->type == MTR_MEMO_PAGE_X_FIX
-			    || slot->type == MTR_MEMO_PAGE_SX_FIX) {
-
-				add_dirty_page_to_flush_list(slot);
-			}
-		}
-
-		return(true);
-	}
-
-	/** Mini-transaction REDO start LSN */
-	lsn_t		m_end_lsn;
-
-	/** Mini-transaction REDO end LSN */
-	lsn_t		m_start_lsn;
+    buf_flush_note_modification(static_cast<buf_block_t*>(slot->object),
+                                start, end);
+    return true;
+  }
 };
 
 /** Write the block contents to the REDO log */
@@ -457,7 +453,8 @@ void mtr_t::commit()
     }
 
     m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
-                                     (ReleaseBlocks(start_lsn, m_commit_lsn)));
+                                     (ReleaseBlocks(start_lsn, m_commit_lsn,
+                                                    m_memo)));
     if (m_made_dirty)
       log_flush_order_mutex_exit();
 
@@ -834,33 +831,6 @@ mtr_t::memo_contains_page_flagged(
 		? NULL : iteration.functor.get_block();
 }
 
-/** Find a block, preferrably in MTR_MEMO_MODIFY state */
-struct FindModified
-{
-  const mtr_memo_slot_t *found= nullptr;
-  const buf_block_t& block;
-
-  FindModified(const buf_block_t &block) : block(block) {}
-  bool operator()(const mtr_memo_slot_t* slot)
-  {
-    if (slot->object != &block)
-      return true;
-    found= slot;
-    return slot->type != MTR_MEMO_MODIFY;
-  }
-};
-
-/** Mark the given latched page as modified.
-@param block   page that will be modified */
-void mtr_t::modify(const buf_block_t &block)
-{
-  Iterate<FindModified> iteration(block);
-  m_memo.for_each_block_in_reverse(iteration);
-  ut_ad(iteration.functor.found);
-  if (iteration.functor.found->type != MTR_MEMO_MODIFY)
-    memo_push(const_cast<buf_block_t*>(&block), MTR_MEMO_MODIFY);
-}
-
 /** Print info of an mtr handle. */
 void
 mtr_t::print() const
@@ -871,3 +841,43 @@ mtr_t::print() const
 }
 
 #endif /* UNIV_DEBUG */
+
+
+/** Find a block, preferrably in MTR_MEMO_MODIFY state */
+struct FindModified
+{
+  mtr_memo_slot_t *found= nullptr;
+  const buf_block_t& block;
+
+  FindModified(const buf_block_t &block) : block(block) {}
+  bool operator()(mtr_memo_slot_t *slot)
+  {
+    if (slot->object != &block)
+      return true;
+    found= slot;
+    return !(slot->type & (MTR_MEMO_MODIFY |
+                           MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
+  }
+};
+
+/** Mark the given latched page as modified.
+@param block   page that will be modified */
+void mtr_t::modify(const buf_block_t &block)
+{
+  if (UNIV_UNLIKELY(m_memo.empty()))
+  {
+    /* This must be PageConverter::update_page() in IMPORT TABLESPACE. */
+    ut_ad(!block.page.in_LRU_list);
+    ut_ad(!buf_pool.is_uncompressed(&block));
+    return;
+  }
+
+  Iterate<FindModified> iteration((FindModified(block)));
+  if (UNIV_UNLIKELY(m_memo.for_each_block(iteration)))
+  {
+    ut_ad("modifying an unlatched page" == 0);
+    return;
+  }
+  iteration.functor.found->type= static_cast<mtr_memo_type_t>
+    (iteration.functor.found->type | MTR_MEMO_MODIFY);
+}
