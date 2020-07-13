@@ -5091,6 +5091,11 @@ btr_cur_pessimistic_update(
 			btr_page_reorganize(page_cursor, index, mtr);
 			rec = page_cursor->rec;
 			rec_offs_make_valid(rec, index, true, *offsets);
+			if (page_cursor->block->page.id.page_no()
+			    == index->page) {
+				btr_set_instant(page_cursor->block, *index,
+						mtr);
+			}
 		} else if (!dict_table_is_locking_disabled(index->table)) {
 			lock_rec_restore_from_page_infimum(
 				btr_cur_get_block(cursor), rec, block);
