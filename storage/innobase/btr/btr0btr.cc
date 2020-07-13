@@ -930,8 +930,10 @@ void btr_page_get_father(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 	mem_heap_free(heap);
 }
 
+#ifdef UNIV_DEBUG
 /** PAGE_INDEX_ID value for freed index B-trees */
 constexpr index_id_t	BTR_FREED_INDEX_ID = 0;
+#endif
 
 /** Free a B-tree root page. btr_free_but_not_root() must already
 have been called.
