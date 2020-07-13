@@ -1488,8 +1488,10 @@ static void buf_block_free_mutexes(buf_block_t* block)
 void buf_pool_t::page_hash_table::create(ulint n)
 {
   n_cells= ut_find_prime(n);
-  array= static_cast<hash_cell_t*>
-    (ut_zalloc_nokey(pad(n_cells) * sizeof *array));
+  const size_t size= pad(n_cells) * sizeof *array;
+  void* v= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
+  memset(v, 0, size);
+  array= static_cast<hash_cell_t*>(v);
 }
 
 /** Create the buffer pool.

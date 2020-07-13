@@ -1832,7 +1832,7 @@ public:
 
     /** number of payload elements in array[] */
     Atomic_relaxed<ulint> n_cells;
-    /** the hash array, with pad(n_cells) elements */
+    /** the hash table, with pad(n_cells) elements, aligned to L1 cache size */
     hash_cell_t *array;
 
     /** Create the hash table.
@@ -1840,7 +1840,7 @@ public:
     void create(ulint n);
 
     /** Free the hash table. */
-    void free() { ut_free(array); array= nullptr; }
+    void free() { aligned_free(array); array= nullptr; }
 
     /** @return the index of an array element */
     ulint calc_hash(ulint fold) const { return calc_hash(fold, n_cells); }
