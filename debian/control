@@ -31,7 +31,6 @@ Build-Depends: bison,
                libnuma-dev [!armhf],
                libpam0g-dev,
                libpcre2-dev,
-               libreadline-gplv2-dev [i386 amd64],
                libsnappy-dev,
                libssl-dev | libssl1.0-dev,
                libsystemd-dev [linux-any],
@@ -662,7 +661,6 @@ Description: RocksDB storage engine for MariaDB
 Package: mariadb-plugin-columnstore
 Architecture: amd64 i386
 Depends: binutils,
-         expect,
          libjemalloc1 | libjemalloc2,
          libsnappy1 | libsnappy1v5,
          mariadb-server-10.5 (= ${binary:Version}),
