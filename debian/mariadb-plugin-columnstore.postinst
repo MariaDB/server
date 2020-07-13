@@ -3,6 +3,6 @@
 set -e
 
 # Install ColumnStore
-columnstore-post-install --rpmmode=install
+columnstore-post-install install
 
 #DEBHELPER#
