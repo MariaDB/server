@@ -150,7 +150,7 @@ protected:
   /*
     Return the full select tree for "field_item" and "value":
     - a single SEL_TREE if the field is not in a multiple equality, or
-    - a conjuction of all SEL_TREEs for all fields from
+    - a conjunction of all SEL_TREEs for all fields from
       the same multiple equality with "field_item".
   */
   SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,

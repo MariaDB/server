@@ -230,7 +230,7 @@ void key_restore(uchar *to_record, uchar *from_key, KEY *key_info,
     {
       /*
         This in fact never happens, as we have only partial BLOB
-        keys yet anyway, so it's difficult to find any sence to
+        keys yet anyway, so it's difficult to find any sense to
         restore the part of a record.
         Maybe this branch is to be removed, but now we
         have to ignore GCov compaining.

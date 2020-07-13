@@ -725,7 +725,7 @@ int ha_end()
 
 
   /* 
-    This should be eventualy based  on the graceful shutdown flag.
+    This should be eventually based on the graceful shutdown flag.
     So if flag is equal to HA_PANIC_CLOSE, the deallocate
     the errors.
   */
@@ -1334,8 +1334,8 @@ int ha_commit_trans(THD *thd, bool all)
   THD_TRANS *trans= all ? &thd->transaction.all : &thd->transaction.stmt;
   /*
     "real" is a nick name for a transaction for which a commit will
-    make persistent changes. E.g. a 'stmt' transaction inside a 'all'
-    transation is not 'real': even though it's possible to commit it,
+    make persistent changes. E.g. a 'stmt' transaction inside an 'all'
+    transaction is not 'real': even though it's possible to commit it,
     the changes are not durable as they might be rolled back if the
     enclosing 'all' transaction is rolled back.
   */
@@ -2472,7 +2472,7 @@ handler *handler::clone(const char *name, MEM_ROOT *mem_root)
 
   /*
     TODO: Implement a more efficient way to have more than one index open for
-    the same table instance. The ha_open call is not cachable for clone.
+    the same table instance. The ha_open call is not cacheable for clone.
 
     This is not critical as the engines already have the table open
     and should be able to use the original instance of the table.
@@ -3254,7 +3254,7 @@ int handler::update_auto_increment()
     index_init() or rnd_init() and in any column_bitmaps_signal() call after
     this.
 
-    The handler is allowd to do changes to the bitmap after a index_init or
+    The handler is allowed to do changes to the bitmap after a index_init or
     rnd_init() call is made as after this, MySQL will not use the bitmap
     for any program logic checking.
 */
@@ -3311,7 +3311,7 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
   {						// Autoincrement at key-start
     error= ha_index_last(table->record[1]);
     /*
-      MySQL implicitely assumes such method does locking (as MySQL decides to
+      MySQL implicitly assumes such method does locking (as MySQL decides to
       use nr+increment without checking again with the handler, in
       handler::update_auto_increment()), so reserves to infinite.
     */

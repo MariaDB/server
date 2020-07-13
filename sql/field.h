@@ -241,7 +241,7 @@ protected:
   };
 
 
-  // String-to-number convertion methods for the old code compatibility
+  // String-to-number conversion methods for the old code compatibility
   longlong longlong_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
                                            const char *end) const
   {
@@ -312,7 +312,7 @@ public:
   /*
     Item context attributes.
     Comparison functions pass their attributes to propagate_equal_fields().
-    For exmple, for string comparison, the collation of the comparison
+    For example, for string comparison, the collation of the comparison
     operation is important inside propagate_equal_fields().
   */
   class Context
@@ -460,7 +460,7 @@ inline bool is_timestamp_type(enum_field_types type)
 
 
 /**
-  Convert temporal real types as retuned by field->real_type()
+  Convert temporal real types as returned by field->real_type()
   to field type as returned by field->type().
   
   @param real_type  Real type.
@@ -3352,7 +3352,7 @@ private:
     This is the reason:
     - Field_bit::cmp_binary() is only implemented in the base class
       (Field::cmp_binary()).
-    - Field::cmp_binary() currenly use pack_length() to calculate how
+    - Field::cmp_binary() currently uses pack_length() to calculate how
       long the data is.
     - pack_length() includes size of the bits stored in the NULL bytes
       of the record.

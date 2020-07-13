@@ -47,7 +47,7 @@
 #define MAX_EXPONENT 1024
 
 /*****************************************************************************
-  Instansiate templates and static variables
+  Instantiate templates and static variables
 *****************************************************************************/
 
 static const char *zero_timestamp="0000-00-00 00:00:00.000000";
@@ -78,7 +78,7 @@ const char field_separator=',';
 /*
   Rules for merging different types of fields in UNION
 
-  NOTE: to avoid 256*256 table, gap in table types numeration is skiped
+  NOTE: to avoid 256*256 table, gap in table types numeration is skipped
   following #defines describe that gap and how to canculate number of fields
   and index of field in thia array.
 */
@@ -1374,7 +1374,7 @@ Item *Field_num::get_equal_zerofill_const_item(THD *thd, const Context &ctx,
 
 
 /**
-  Contruct warning parameters using thd->no_errors
+Construct warning parameters using thd->no_errors
   to determine whether to generate or suppress warnings.
   We can get here in a query like this:
     SELECT COUNT(@@basedir);
@@ -1422,7 +1422,7 @@ Value_source::Converter_string_to_number::check_edom_and_truncation(THD *thd,
     if (filter.want_warning_edom())
     {
       /*
-        We can use err.ptr() here as ErrConvString is guranteed to put an
+        We can use err.ptr() here as ErrConvString is guaranteed to put an
         end \0 here.
       */
       THD *wthd= thd ? thd : current_thd;
@@ -1454,7 +1454,7 @@ Value_source::Converter_string_to_number::check_edom_and_truncation(THD *thd,
   - found garbage at the end of the string.
 
   @param type          Data type name (e.g. "decimal", "integer", "double")
-  @param edom          Indicates that the string-to-number routine retuned
+  @param edom          Indicates that the string-to-number routine returned
                        an error code equivalent to EDOM (value out of domain),
                        i.e. the string fully consisted of garbage and the
                        conversion routine could not get any digits from it.
@@ -1518,7 +1518,7 @@ int Field_num::check_edom_and_truncation(const char *type, bool edom,
 
 
 /*
-  Conver a string to an integer then check bounds.
+  Convert a string to an integer then check bounds.
   
   SYNOPSIS
     Field_num::get_int
@@ -2486,7 +2486,7 @@ int Field_decimal::store(const char *from_arg, uint len, CHARSET_INFO *cs)
     We only have to generate warnings if count_cuted_fields is set.
     This is to avoid extra checks of the number when they are not needed.
     Even if this flag is not set, it's OK to increment warnings, if
-    it makes the code easer to read.
+    it makes the code easier to read.
   */
 
   if (get_thd()->count_cuted_fields)
@@ -2569,7 +2569,7 @@ int Field_decimal::store(const char *from_arg, uint len, CHARSET_INFO *cs)
   }
   
   /*
-    Now write the formated number
+    Now write the formatted number
     
     First the digits of the int_% parts.
     Do we have enough room to write these digits ?
@@ -3129,7 +3129,7 @@ int Field_new_decimal::store(const char *from, uint length,
             If check_decimal() failed because of EDOM-alike error,
             (e.g. E_DEC_BAD_NUM), we have to initialize decimal_value to zero.
             Note: if check_decimal() failed because of truncation,
-            decimal_value is alreay properly initialized.
+            decimal_value is already properly initialized.
           */
           my_decimal_set_zero(&decimal_value);
           /*
@@ -4936,7 +4936,7 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
   {
     /*
       We mark the flag with TIMESTAMP_FLAG to indicate to the client that
-      this field will be automaticly updated on insert.
+      this field will be automatically updated on insert.
     */
     flags|= TIMESTAMP_FLAG;
     if (unireg_check != TIMESTAMP_DN_FIELD)
@@ -7345,7 +7345,7 @@ Field_string::unpack(uchar *to, const uchar *from, const uchar *from_end,
    with the real type.  Since all allowable types have 0xF as most
    significant bits of the metadata word, lengths <256 will not affect
    the real type at all, while all other values will result in a
-   non-existant type in the range 17-244.
+   non-existent type in the range 17-244.
 
    @see Field_string::unpack
 
@@ -9871,7 +9871,7 @@ void Create_field::init_for_tmp_table(enum_field_types sql_type_arg,
   /*
     Set the pack flag correctly for the blob-like types. This sets the
     packtype to something that make_field can use. If the pack type is
-    not set correctly, the packlength will be reeeeally wierd (like
+    not set correctly, the packlength will be reeeeally weird (like
     129 or so).
    */
   switch (sql_type_arg)
@@ -10079,7 +10079,7 @@ bool Create_field::check(THD *thd)
     break;
   case MYSQL_TYPE_VARCHAR:
     /*
-      Long VARCHAR's are automaticly converted to blobs in mysql_prepare_table
+      Long VARCHAR's are automatically converted to blobs in mysql_prepare_table
       if they don't have a default value
     */
     max_field_charlength= MAX_FIELD_VARCHARLENGTH;

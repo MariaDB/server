@@ -1069,7 +1069,7 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   MDL_request mdl_request;
   DBUG_ENTER("make_global_read_lock_block_commit");
   /*
-    If we didn't succeed lock_global_read_lock(), or if we already suceeded
+    If we didn't succeed lock_global_read_lock(), or if we already succeeded
     make_global_read_lock_block_commit(), do nothing.
   */
 

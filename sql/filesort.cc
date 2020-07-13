@@ -855,7 +855,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   }
   if (!quick_select)
   {
-    (void) file->extra(HA_EXTRA_NO_CACHE);	/* End cacheing of records */
+    (void) file->extra(HA_EXTRA_NO_CACHE);	/* End caching of records */
     if (!next_pos)
       file->ha_rnd_end();
   }
@@ -863,7 +863,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   if (thd->is_error())
     DBUG_RETURN(HA_POS_ERROR);
   
-  /* Signal we should use orignal column read and write maps */
+  /* Signal we should use original column read and write maps */
   sort_form->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
 
   DBUG_PRINT("test",("error: %d  indexpos: %d",error,indexpos));
@@ -1140,7 +1140,7 @@ static void make_sortkey(Sort_param *param,
 	}
       case ROW_RESULT:
       default: 
-	// This case should never be choosen
+	// This case should never be chosen
 	DBUG_ASSERT(0);
 	break;
       }
@@ -1926,7 +1926,7 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
 	break;
       case ROW_RESULT:
       default: 
-	// This case should never be choosen
+	// This case should never be chosen
 	DBUG_ASSERT(0);
 	break;
       }

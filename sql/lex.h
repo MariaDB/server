@@ -23,7 +23,7 @@
 #include "lex_symbol.h"
 
 SYM_GROUP sym_group_common= {"", ""};
-SYM_GROUP sym_group_geom= {"Spatial extentions", "HAVE_SPATIAL"};
+SYM_GROUP sym_group_geom= {"Spatial extensions", "HAVE_SPATIAL"};
 SYM_GROUP sym_group_rtree= {"RTree keys", "HAVE_RTREE_KEYS"};
 
 /* We don't want to include sql_yacc.h into gen_lex_hash */

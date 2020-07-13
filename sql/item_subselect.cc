@@ -1096,12 +1096,12 @@ void Item_singlerow_subselect::reset()
 
 /**
   @todo
-  - We cant change name of Item_field or Item_ref, because it will
-  prevent it's correct resolving, but we should save name of
+  - We can't change name of Item_field or Item_ref, because it will
+  prevent its correct resolving, but we should save name of
   removed item => we do not make optimization if top item of
   list is field or reference.
   - switch off this optimization for prepare statement,
-  because we do not rollback this changes.
+  because we do not rollback these changes.
   Make rollback for it, or special name resolving mode in 5.0.
 
   @param join  Join object of the subquery (i.e. 'child' join).
@@ -1124,8 +1124,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
       select_lex->item_list.elements == 1 &&
       !select_lex->item_list.head()->with_sum_func &&
       /*
-	We cant change name of Item_field or Item_ref, because it will
-	prevent it's correct resolving, but we should save name of
+	We can't change name of Item_field or Item_ref, because it will
+	prevent its correct resolving, but we should save name of
 	removed item => we do not make optimization if top item of
 	list is field or reference.
 	TODO: solve above problem
@@ -1610,7 +1610,7 @@ longlong Item_exists_subselect::val_int()
   Return the result of EXISTS as a string value
 
   Converts the true/false result into a string value.
-  Note that currently this cannot be NULL, so if the query exection fails
+  Note that currently this cannot be NULL, so if the query execution fails
   it will return 0.
 
   @param decimal_value[out]    buffer to hold the resulting string value
@@ -1633,7 +1633,7 @@ String *Item_exists_subselect::val_str(String *str)
   Return the result of EXISTS as a decimal value
 
   Converts the true/false result into a decimal value.
-  Note that currently this cannot be NULL, so if the query exection fails
+  Note that currently this cannot be NULL, so if the query execution fails
   it will return 0.
 
   @param decimal_value[out]    Buffer to hold the resulting decimal value
@@ -2280,7 +2280,7 @@ Item_in_subselect::row_value_transformer(JOIN *join)
     /*
       The uncacheable property controls a number of actions, e.g. whether to
       save/restore (via init_save_join_tab/restore_tmp) the original JOIN for
-      plans with a temp table where the original JOIN was overriden by
+      plans with a temp table where the original JOIN was overridden by
       make_simple_join. The UNCACHEABLE_EXPLAIN is ignored by EXPLAIN, thus
       non-correlated subqueries will not appear as such to EXPLAIN.
     */
@@ -2327,7 +2327,7 @@ Item_in_subselect::row_value_transformer(JOIN *join)
                               is_not_null_test(v3))
     where is_not_null_test registers NULLs values but reject rows.
 
-    in case when we do not need correct NULL, we have simplier construction:
+    in case when we do not need correct NULL, we have simpler construction:
     EXISTS (SELECT ... WHERE where and
                              (l1 = v1) and
                              (l2 = v2) and
@@ -2580,7 +2580,7 @@ bool Item_in_subselect::create_in_to_exists_cond(JOIN *join_arg)
   /*
     The uncacheable property controls a number of actions, e.g. whether to
     save/restore (via init_save_join_tab/restore_tmp) the original JOIN for
-    plans with a temp table where the original JOIN was overriden by
+    plans with a temp table where the original JOIN was overridden by
     make_simple_join. The UNCACHEABLE_EXPLAIN is ignored by EXPLAIN, thus
     non-correlated subqueries will not appear as such to EXPLAIN.
   */
@@ -3178,7 +3178,7 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
   /*
     In some optimisation cases we will not need this Item_in_optimizer
     object, but we can't know it here, but here we need address correct
-    reference on left expresion.
+    reference on left expression.
 
     note: we won't need Item_in_optimizer when handling degenerate cases
     like "... IN (SELECT 1)"
@@ -3210,7 +3210,7 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
     and all that items do not make permanent changes in current item arena
     which allow to us call them with changed arena (if we do not know nature
     of Item, we have to call fix_fields() for it only with original arena to
-    avoid memory leack)
+    avoid memory leak)
   */
   if (left_expr->cols() == 1)
     trans_res= single_value_transformer(join);
@@ -3373,7 +3373,7 @@ bool Item_in_subselect::setup_mat_engine()
 
   /*
     The select_engine (that executes transformed IN=>EXISTS subselects) is
-    pre-created at parse time, and is stored in statment memory (preserved
+    pre-created at parse time, and is stored in statement memory (preserved
     across PS executions).
   */
   DBUG_ASSERT(engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE);
@@ -3833,7 +3833,7 @@ int subselect_single_select_engine::exec()
         For at least one of the pushed predicates the following is true:
         We should not apply optimizations based on the condition that was
         pushed down into the subquery. Those optimizations are ref[_or_null]
-        acceses. Change them to be full table scans.
+        accesses. Change them to be full table scans.
       */
       JOIN_TAB *tab;
       for (tab= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
@@ -4742,7 +4742,7 @@ subselect_hash_sj_engine::choose_partial_match_strategy(
   /*
     Choose according to global optimizer switch. If only one of the switches is
     'ON', then the remaining strategy is the only possible one. The only cases
-    when this will be overriden is when the total size of all buffers for the
+    when this will be overridden is when the total size of all buffers for the
     merge strategy is bigger than the 'rowid_merge_buff_size' system variable,
     or if there isn't enough physical memory to allocate the buffers.
   */
@@ -6061,7 +6061,7 @@ int subselect_partial_match_engine::exec()
   if (has_covering_null_row)
   {
     /*
-      If there is a NULL-only row that coveres all columns the result of IN
+      If there is a NULL-only row that covers all columns the result of IN
       is UNKNOWN. 
     */
     item_in->value= 0;
@@ -6261,7 +6261,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
     for (uint i= (non_null_key ? 1 : 0); i < merge_keys_count; i++)
     {
       /*
-        Check if the first and only indexed column contains NULL in the curent
+        Check if the first and only indexed column contains NULL in the current
         row, and add the row number to the corresponding key.
       */
       if (tmp_table->field[merge_keys[i]->get_field_idx(0)]->is_null())
@@ -6472,7 +6472,7 @@ bool subselect_rowid_merge_engine::partial_match()
   }
 
   /*
-    If all nullable columns contain only NULLs, then there is a guranteed
+    If all nullable columns contain only NULLs, then there is a guaranteed
     partial match, and we don't need to search for a matching row.
   */
   if (has_covering_null_columns)

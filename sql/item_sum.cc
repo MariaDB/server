@@ -527,7 +527,7 @@ Field *Item_sum::create_tmp_field(bool group, TABLE *table)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-    // This case should never be choosen
+    // This case should never be chosen
     DBUG_ASSERT(0);
     return 0;
   }
@@ -717,7 +717,7 @@ calc_tmp_field_type(enum enum_field_types table_field_type,
 
 C_MODE_START
 
-/* Declarations for auxilary C-callbacks */
+/* Declarations for auxiliary C-callbacks */
 
 int simple_raw_key_cmp(void* arg, const void* key1, const void* key2)
 {
@@ -749,7 +749,7 @@ C_MODE_END
   @param thd Thread descriptor
   @return status
     @retval FALSE success
-    @retval TRUE  faliure  
+    @retval TRUE  failure  
 
     Prepares Aggregator_distinct to process the incoming stream.
     Creates the temporary table and the Unique class if needed.
@@ -1215,7 +1215,7 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
     DBUG_ASSERT(0);
   };
   setup_hybrid(thd, args[0], NULL);
-  /* MIN/MAX can return NULL for empty set indepedent of the used column */
+  /* MIN/MAX can return NULL for empty set independent of the used column */
   maybe_null= 1;
   result_field=0;
   null_value=1;
@@ -1630,7 +1630,7 @@ void Item_sum_count::cleanup()
 
 
 /*
-  Avgerage
+  Average
 */
 void Item_sum_avg::fix_length_and_dec()
 {
@@ -1863,7 +1863,7 @@ void Item_sum_variance::fix_length_and_dec()
   /*
     According to the SQL2003 standard (Part 2, Foundations; sec 10.9,
     aggregate function; paragraph 7h of Syntax Rules), "the declared 
-    type of the result is an implementation-defined aproximate numeric
+    type of the result is an implementation-defined approximate numeric
     type.
   */
 
@@ -1953,7 +1953,7 @@ double Item_sum_variance::val_real()
     is one or zero.  If it's zero, i.e. a population variance, then we only
     set nullness when the count is zero.
 
-    Another way to read it is that 'sample' is the numerical threshhold, at and
+    Another way to read it is that 'sample' is the numerical threshold, at and
     below which a 'count' number of items is called NULL.
   */
   DBUG_ASSERT((sample == 0) || (sample == 1));
@@ -3567,7 +3567,7 @@ bool Item_func_group_concat::setup(THD *thd)
   {
     /*
       Force the create_tmp_table() to convert BIT columns to INT
-      as we cannot compare two table records containg BIT fields
+      as we cannot compare two table records containing BIT fields
       stored in the the tree used for distinct/order by.
       Moreover we don't even save in the tree record null bits 
       where BIT fields store parts of their data.
