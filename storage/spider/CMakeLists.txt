@@ -1,3 +1,6 @@
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DHAVE_HANDLERSOCKET")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_HANDLERSOCKET")
+
 IF(HAVE_WVLA)
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wno-vla")
   SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Wno-vla")
@@ -17,9 +20,31 @@ SET(SPIDER_SOURCES
   spd_db_mysql.cc spd_group_by_handler.cc spd_db_include.cc
 )
 
-IF(PLUGIN_PARTITION MATCHES "^NO$")
+set(CPACK_RPM_spider-engine_PACKAGE_SUMMARY "Spider storage engine for MariaDB" PARENT_SCOPE)
+set(CPACK_RPM_spider-engine_PACKAGE_DESCRIPTION " The Spider storage engine with built-in sharding features. It supports
+ partitioning and xa transactions, and allows tables of different MariaDB
+ instances to be handled as if they were on the same instance. It refers to one
+ possible implementation of ISO/IEC 9075-9:2008 SQL/MED." PARENT_SCOPE)
+
+IF(EXISTS ${PROJECT_SOURCE_DIR}/storage/mysql_storage_engine.cmake)
+  SET(CMAKE_CXX_FLAGS_DEBUG
+    "${CMAKE_CXX_FLAGS_DEBUG} -DSAFEMALLOC -DSAFE_MUTEX -DUSE_SYMDIR /Zi")
+  SET(CMAKE_C_FLAGS_DEBUG
+    "${CMAKE_C_FLAGS_DEBUG} -DSAFEMALLOC -DSAFE_MUTEX -DUSE_SYMDIR /Zi")
+  SET(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /MAP /MAPINFO:EXPORTS")
+  INCLUDE("${PROJECT_SOURCE_DIR}/storage/mysql_storage_engine.cmake")
+
+  INCLUDE_DIRECTORIES(
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/sql
+    ${CMAKE_SOURCE_DIR}/regex)
+
+  MYSQL_STORAGE_ENGINE(SPIDER)
+ELSEIF(PLUGIN_PARTITION MATCHES "^NO$")
   MESSAGE(STATUS "Spider is skipped because partitioning is disabled")
 ELSE()
+  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/spider/hs_client)
+
   IF(DEB)
     SET(extra_options COMPONENT spider-engine)
   ELSE()
