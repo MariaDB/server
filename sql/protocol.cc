@@ -1206,18 +1206,6 @@ bool Protocol_text::store(const char *from, size_t length,
                           CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
 #ifndef DBUG_OFF
-  DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_STRING));
-  field_pos++;
-#endif
-  return store_string_aux(from, length, fromcs, tocs);
-}
-
-
-bool Protocol_text::store(const char *from, size_t length,
-                          CHARSET_INFO *fromcs)
-{
-  CHARSET_INFO *tocs= this->thd->variables.character_set_results;
-#ifndef DBUG_OFF
   DBUG_PRINT("info", ("Protocol_text::store field %u (%u): %.*b", field_pos,
                       field_count, (int) length, (length == 0 ? "" : from)));
   DBUG_ASSERT(field_handlers == 0 || field_pos < field_count);
@@ -1225,6 +1213,14 @@ bool Protocol_text::store(const char *from, size_t length,
   field_pos++;
 #endif
   return store_string_aux(from, length, fromcs, tocs);
+}
+
+
+bool Protocol::store(const char *from, size_t length,
+                     CHARSET_INFO *fromcs)
+{
+  CHARSET_INFO *tocs= this->thd->variables.character_set_results;
+  return store(from, length, fromcs, tocs);
 }
 
 
@@ -1456,14 +1452,6 @@ void Protocol_binary::prepare_for_resend()
 
 
 bool Protocol_binary::store(const char *from, size_t length,
-                            CHARSET_INFO *fromcs)
-{
-  CHARSET_INFO *tocs= thd->variables.character_set_results;
-  field_pos++;
-  return store_string_aux(from, length, fromcs, tocs);
-}
-
-bool Protocol_binary::store(const char *from, size_t length,
                             CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
   field_pos++;
@@ -1526,11 +1514,11 @@ bool Protocol_binary::store_decimal(const my_decimal *d)
 {
 #ifndef DBUG_OFF
   DBUG_ASSERT(0); // This method is not used yet
-  field_pos++;
 #endif
   StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
   (void) d->to_string(&str);
-  return store(str.ptr(), str.length(), str.charset());
+  return store(str.ptr(), str.length(), str.charset(),
+               thd->variables.character_set_results);
 }
 
 bool Protocol_binary::store(float from, uint32 decimals, String *buffer)

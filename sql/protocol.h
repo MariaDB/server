@@ -120,7 +120,7 @@ public:
   virtual bool store_long(longlong from)=0;
   virtual bool store_longlong(longlong from, bool unsigned_flag)=0;
   virtual bool store_decimal(const my_decimal *)=0;
-  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs)=0;
+  bool store(const char *from, size_t length, CHARSET_INFO *cs);
   virtual bool store(const char *from, size_t length, 
   		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs)=0;
   bool store_str(const LEX_CSTRING &s, CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
@@ -178,7 +178,6 @@ public:
   virtual bool store_long(longlong from);
   virtual bool store_longlong(longlong from, bool unsigned_flag);
   virtual bool store_decimal(const my_decimal *);
-  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs);
   virtual bool store(const char *from, size_t length,
   		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
   virtual bool store(MYSQL_TIME *time, int decimals);
@@ -223,7 +222,6 @@ public:
   virtual bool store_long(longlong from);
   virtual bool store_longlong(longlong from, bool unsigned_flag);
   virtual bool store_decimal(const my_decimal *);
-  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs);
   virtual bool store(const char *from, size_t length,
   		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
   virtual bool store(MYSQL_TIME *time, int decimals);
@@ -272,7 +270,6 @@ public:
   bool store_long(longlong) { return false; }
   bool store_longlong(longlong, bool) { return false; }
   bool store_decimal(const my_decimal *) { return false; }
-  bool store(const char *, size_t, CHARSET_INFO *) { return false; }
   bool store(const char *, size_t, CHARSET_INFO *, CHARSET_INFO *) { return false; }
   bool store(MYSQL_TIME *, int) { return false; }
   bool store_date(MYSQL_TIME *) { return false; }
