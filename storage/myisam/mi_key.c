@@ -563,7 +563,15 @@ check_result_t mi_check_index_tuple(MI_INFO *info, uint keynr, uchar *record)
     if (need_unpack && mi_unpack_index_tuple(info, keynr, record))
       res= CHECK_ERROR;
     else
-      res= info->rowid_filter_func(info->rowid_filter_func_arg);
+    {
+      if ((res= info->rowid_filter_func(info->rowid_filter_func_arg)) ==
+           CHECK_OUT_OF_RANGE)
+      {
+        /* We got beyond the end of scanned range */
+        info->lastpos= HA_OFFSET_ERROR;             /* No active record */
+        my_errno= HA_ERR_END_OF_FILE;
+      }
+    }
   }
   return res;
 }

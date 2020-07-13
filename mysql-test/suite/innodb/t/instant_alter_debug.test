@@ -455,5 +455,8 @@ connection con2;
 reap;
 disconnect con2;
 connection default;
+ALTER TABLE t1 DROP c;
+INSERT INTO t1 VALUES (2),(3),(4);
+CHECK TABLE t1;
 DROP TABLE t1;
 SET DEBUG_SYNC=RESET;

@@ -401,5 +401,10 @@ SET DEBUG_SYNC='now SIGNAL emptied';
 connection con2;
 disconnect con2;
 connection default;
+ALTER TABLE t1 DROP c;
+INSERT INTO t1 VALUES (2),(3),(4);
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
 DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
