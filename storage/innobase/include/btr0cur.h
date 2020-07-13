@@ -69,7 +69,6 @@ struct btr_latch_leaves_t {
 
 #include "que0types.h"
 #include "row0types.h"
-#include "ha0ha.h"
 
 #ifdef UNIV_DEBUG
 /*********************************************************//**
