@@ -189,7 +189,7 @@ static int dbfhead(PGLOBAL g, FILE *file, PCSZ fn, DBFHEADER *buf)
 /*  Returns:                                                                */
 /*      RC_OK, RC_INFO, or RC_FX if error.                                  */
 /****************************************************************************/
-int dbfields(PGLOBAL g, DBFHEADER* hdrp)
+static int dbfields(PGLOBAL g, DBFHEADER* hdrp)
 {
 	char* endmark;
 	int   dbc = 2, rc = RC_OK;
