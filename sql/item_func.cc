@@ -363,7 +363,7 @@ Item *Item_func::transform(THD *thd, Item_transformer transformer, uchar *argume
   callback functions.
 
     First the function applies the analyzer to the root node of
-    the Item_func object. Then if the analizer succeeeds (returns TRUE)
+    the Item_func object. Then if the analyzer succeeds (returns TRUE)
     the function recursively applies the compile method to each argument
     of the Item_func node.
     If the call of the method for an argument item returns a new item
@@ -1788,7 +1788,7 @@ void Item_func_div::fix_length_and_dec()
   case TIME_RESULT:
     DBUG_ASSERT(0);
   }
-  maybe_null= 1; // devision by zero
+  maybe_null= 1; // division by zero
   DBUG_VOID_RETURN;
 }
 
@@ -1862,7 +1862,7 @@ longlong Item_func_int_div::val_int()
 void Item_func_int_div::fix_length_and_dec()
 {
   Item_result argtype= args[0]->result_type();
-  /* use precision ony for the data type it is applicable for and valid */
+  /* use precision only for the data type it is applicable for and valid */
   uint32 char_length= args[0]->max_char_length() -
                       (argtype == DECIMAL_RESULT || argtype == INT_RESULT ?
                        args[0]->decimals : 0);
@@ -4816,7 +4816,7 @@ bool Item_func_set_user_var::register_field_in_bitmap(uchar *arg)
   @param type           type of new value
   @param cs             charset info for new value
   @param dv             derivation for new value
-  @param unsigned_arg   indiates if a value of type INT_RESULT is unsigned
+  @param unsigned_arg   indicates if a value of type INT_RESULT is unsigned
 
   @note Sets error and fatal error if allocation fails.
 
@@ -4894,7 +4894,7 @@ Item_func_set_user_var::update_hash(void *ptr, uint length,
                                     bool unsigned_arg)
 {
   /*
-    If we set a variable explicitely to NULL then keep the old
+    If we set a variable explicitly to NULL then keep the old
     result type of the variable
   */
   if ((null_value= args[0]->null_value) && null_item)
@@ -6534,7 +6534,7 @@ void my_missing_function_error(const LEX_STRING &token, const char *func_name)
   @brief Initialize the result field by creating a temporary dummy table
     and assign it to a newly created field object. Meta data used to
     create the field is fetched from the sp_head belonging to the stored
-    proceedure found in the stored procedure functon cache.
+    procedure found in the stored procedure function cache.
   
   @note This function should be called from fix_fields to init the result
     field. It is some what related to Item_field.
@@ -6838,7 +6838,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     /*
       Here we check privileges of the stored routine only during view
       creation, in order to validate the view.  A runtime check is
-      perfomed in Item_func_sp::execute(), and this method is not
+      performed in Item_func_sp::execute(), and this method is not
       called during context analysis.  Notice, that during view
       creation we do not infer into stored routine bodies and do not
       check privileges of its statements, which would probably be a

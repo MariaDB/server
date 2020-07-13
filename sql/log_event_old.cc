@@ -846,7 +846,7 @@ int Write_rows_log_event_old::do_after_row_operations(TABLE *table, int error)
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
   /*
-    reseting the extra with 
+    resetting the extra with 
     table->file->extra(HA_EXTRA_NO_IGNORE_NO_KEY); 
     fires bug#27077
     todo: explain or fix
@@ -1238,7 +1238,7 @@ Old_rows_log_event::Old_rows_log_event(const char *buf, uint event_len,
     DBUG_VOID_RETURN;
   }
 
-  /* if my_bitmap_init fails, catched in is_valid() */
+  /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
                           m_width,

@@ -159,7 +159,7 @@ Event_creation_ctx::load_from_db(THD *thd,
 /*************************************************************************/
 
 /*
-  Initiliazes dbname and name of an Event_queue_element_for_exec
+  Initializes dbname and name of an Event_queue_element_for_exec
   object
 
   SYNOPSIS

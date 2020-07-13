@@ -250,7 +250,7 @@ class st_select_lex;
   The field 'aggr_level' is to contain the nest level of the subquery
   where the set function is aggregated.
 
-  The field 'max_arg_level' is for the maximun of the nest levels of the
+  The field 'max_arg_level' is for the maximum of the nest levels of the
   unbound column references occurred in the set function. A column reference
   is unbound  within a set function if it is not bound by any subquery
   used as a subexpression in this function. A column reference is bound by

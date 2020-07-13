@@ -745,7 +745,7 @@ Item** Arg_comparator::cache_converted_constant(THD *thd_arg, Item **value,
 
     If the value should be compared as time (TIME_RESULT), it's retrieved as
     MYSQL_TIME. Otherwise it's read as a number/string and converted to time.
-    Constant items are cached, so the convertion is only done once for them.
+    Constant items are cached, so the conversion is only done once for them.
 
     Note the f_type behavior: if the item can be compared as time, then
     f_type is this item's field_type(). Otherwise it's field_type() of
@@ -1425,7 +1425,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   @note 
    Item_in_optimizer should work as pass-through for
     - subqueries that were processed by ALL/ANY->MIN/MAX rewrite
-    - subqueries taht were originally EXISTS subqueries (and were coverted by
+    - subqueries that were originally EXISTS subqueries (and were coinverted by
       the EXISTS->IN rewrite)
 
    When Item_in_optimizer is not not working as a pass-through, it
@@ -2013,8 +2013,8 @@ longlong Item_func_interval::val_int()
       interval_range *range= intervals + mid;
       my_bool cmp_result;
       /*
-        The values in the range intervall may have different types,
-        Only do a decimal comparision of the first argument is a decimal
+        The values in the range interval may have different types,
+        Only do a decimal comparison if the first argument is a decimal
         and we are comparing against a decimal
       */
       if (dec && range->type == DECIMAL_RESULT)
@@ -2696,7 +2696,7 @@ Item_func_nullif::fix_length_and_dec()
       Some examples of what NULLIF can end up with after argument
       substitution (we don't mention args[1] in some cases for simplicity):
 
-      1. l_expr is not an aggragate function:
+      1. l_expr is not an aggregate function:
 
         a. No conversion happened.
            args[0] and args[2] were not replaced to something else
@@ -2817,7 +2817,7 @@ Item_func_nullif::fix_length_and_dec()
     In this case we remember and reuse m_arg0 during EXECUTE time as args[2].
 
     QQ: How to make sure that m_args0 does not point
-    to something temporary which will be destoyed between PREPARE and EXECUTE.
+    to something temporary which will be destroyed between PREPARE and EXECUTE.
     The condition below should probably be more strict and somehow check that:
     - change_item_tree() was called for the new args[0]
     - m_args0 is referenced from inside args[0], e.g. as a function argument,
@@ -3279,7 +3279,7 @@ void Item_func_case::fix_length_and_dec()
         If we'll do string comparison, we also need to aggregate
         character set and collation for first/WHEN items and
         install converters for some of them to cmp_collation when necessary.
-        This is done because cmp_item compatators cannot compare
+        This is done because cmp_item comparators cannot compare
         strings in two different character sets.
         Some examples when we install converters:
 
@@ -4402,7 +4402,7 @@ void Item_func_in::fix_length_and_dec()
       else
       {
         /*
-          We don't put NULL values in array, to avoid erronous matches in
+          We don't put NULL values in array, to avoid erroneous matches in
           bisection.
         */
         have_null= 1;
@@ -6887,7 +6887,7 @@ Item* Item_equal::get_first(JOIN_TAB *context, Item *field_item)
     and not ot2.col.
     
     eliminate_item_equal() also has code that deals with equality substitution
-    in presense of SJM nests.
+    in presence of SJM nests.
   */
 
   TABLE_LIST *emb_nest;
