@@ -20,6 +20,12 @@ SET(SPIDER_SOURCES
   spd_db_mysql.cc spd_group_by_handler.cc spd_db_include.cc
 )
 
+set(CPACK_RPM_spider-engine_PACKAGE_SUMMARY "Spider storage engine for MariaDB" PARENT_SCOPE)
+set(CPACK_RPM_spider-engine_PACKAGE_DESCRIPTION " The Spider storage engine with built-in sharding features. It supports
+ partitioning and xa transactions, and allows tables of different MariaDB
+ instances to be handled as if they were on the same instance. It refers to one
+ possible implementation of ISO/IEC 9075-9:2008 SQL/MED." PARENT_SCOPE)
+
 IF(EXISTS ${PROJECT_SOURCE_DIR}/storage/mysql_storage_engine.cmake)
   SET(CMAKE_CXX_FLAGS_DEBUG
     "${CMAKE_CXX_FLAGS_DEBUG} -DSAFEMALLOC -DSAFE_MUTEX -DUSE_SYMDIR /Zi")
