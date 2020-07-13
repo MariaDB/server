@@ -2712,6 +2712,19 @@ public:
 #define MY_REPERTOIRE_NUMERIC   MY_REPERTOIRE_ASCII
 
 
+static inline my_repertoire_t operator|(const my_repertoire_t a,
+                                        const my_repertoire_t b)
+{
+  return (my_repertoire_t) ((uint) a | (uint) b);
+}
+
+static inline my_repertoire_t &operator|=(my_repertoire_t &a,
+                                          const my_repertoire_t b)
+{
+  return a= (my_repertoire_t) ((uint) a | (uint) b);
+}
+
+
 enum Derivation
 {
   DERIVATION_IGNORABLE= 6,
@@ -2733,7 +2746,7 @@ class DTCollation {
 public:
   CHARSET_INFO     *collation;
   enum Derivation derivation;
-  uint repertoire;
+  my_repertoire_t repertoire;
 
   void set_repertoire_from_charset(CHARSET_INFO *cs)
   {
@@ -2769,7 +2782,7 @@ public:
   }
   DTCollation(CHARSET_INFO *collation_arg,
               Derivation derivation_arg,
-              uint repertoire_arg)
+              my_repertoire_t repertoire_arg)
    :collation(collation_arg),
     derivation(derivation_arg),
     repertoire(repertoire_arg)
@@ -2786,7 +2799,7 @@ public:
   }
   void set(CHARSET_INFO *collation_arg,
            Derivation derivation_arg,
-           uint repertoire_arg)
+           my_repertoire_t repertoire_arg)
   {
     collation= collation_arg;
     derivation= derivation_arg;

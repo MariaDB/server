@@ -2430,7 +2430,7 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
     {
       if (derivation == DERIVATION_EXPLICIT)
       {
-        set(0, DERIVATION_NONE, 0);
+        set(0, DERIVATION_NONE, MY_REPERTOIRE_NONE);
         return 1;
       }
       if (collation->state & MY_CS_BINSORT &&
@@ -3911,7 +3911,7 @@ Item_null::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
   if (str->length)
   {
     CHARSET_INFO *cs= thd->variables.collation_connection;
-    uint repertoire= my_string_repertoire(cs, str->str, str->length);
+    my_repertoire_t repertoire= my_string_repertoire(cs, str->str, str->length);
     return new (thd->mem_root) Item_string(thd,
                                            str->str, (uint) str->length, cs,
                                            DERIVATION_COERCIBLE, repertoire);

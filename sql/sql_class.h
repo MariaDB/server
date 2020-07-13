@@ -3935,10 +3935,10 @@ public:
     @param repertoire - the repertoire of the string
   */
   Item_basic_constant *make_string_literal(const char *str, size_t length,
-                                           uint repertoire);
+                                           my_repertoire_t repertoire);
   Item_basic_constant *make_string_literal(const Lex_string_with_metadata_st &str)
   {
-    uint repertoire= str.repertoire(variables.character_set_client);
+    my_repertoire_t repertoire= str.repertoire(variables.character_set_client);
     return make_string_literal(str.str, str.length, repertoire);
   }
   Item_basic_constant *make_string_literal_nchar(const Lex_string_with_metadata_st &str);

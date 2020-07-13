@@ -60,7 +60,7 @@ public:
     grouping(grouping_par),
     errmsgs(errmsgs_par)
   {}
-  uint repertoire() const
+  my_repertoire_t repertoire() const
   { return is_ascii ? MY_REPERTOIRE_ASCII : MY_REPERTOIRE_EXTENDED; }
 };
 /* Exported variables */

@@ -2493,7 +2493,8 @@ bool THD::to_ident_sys_alloc(Lex_ident_sys_st *to, const Lex_ident_cli_st *ident
 
 
 Item_basic_constant *
-THD::make_string_literal(const char *str, size_t length, uint repertoire)
+THD::make_string_literal(const char *str, size_t length,
+                         my_repertoire_t repertoire)
 {
   if (!length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
     return new (mem_root) Item_null(this, 0, variables.collation_connection);

@@ -1742,7 +1742,7 @@ bool Item_func_date_format::fix_length_and_dec()
 
   decimals=0;
   CHARSET_INFO *cs= thd->variables.collation_connection;
-  uint32 repertoire= arg1->collation.repertoire;
+  my_repertoire_t repertoire= arg1->collation.repertoire;
   if (!thd->variables.lc_time_names->is_ascii)
     repertoire|= MY_REPERTOIRE_EXTENDED;
   collation.set(cs, arg1->collation.derivation, repertoire);

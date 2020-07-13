@@ -2767,12 +2767,15 @@ protected:
     {
       my_string_metadata_get(this, str->charset(), str->ptr(), str->length());
     }
-    Metadata(const String *str, uint repertoire_arg)
+    Metadata(const String *str, my_repertoire_t repertoire_arg)
     {
       MY_STRING_METADATA::repertoire= repertoire_arg;
       MY_STRING_METADATA::char_length= str->numchars();
     }
-    uint repertoire() const { return MY_STRING_METADATA::repertoire; }
+    my_repertoire_t repertoire() const
+    {
+      return MY_STRING_METADATA::repertoire;
+    }
     size_t char_length() const { return MY_STRING_METADATA::char_length; }
   };
   void fix_charset_and_length(CHARSET_INFO *cs,
@@ -4400,7 +4403,7 @@ public:
   }
   // Constructors with the item name set from its value
   Item_string(THD *thd, const char *str, uint length, CHARSET_INFO *cs,
-              Derivation dv, uint repertoire)
+              Derivation dv, my_repertoire_t repertoire)
    :Item_literal(thd)
   {
     str_value.set_or_copy_aligned(str, length, cs);
@@ -4414,7 +4417,7 @@ public:
     fix_and_set_name_from_value(thd, dv, Metadata(&str_value));
   }
   Item_string(THD *thd, const String *str, CHARSET_INFO *tocs, uint *conv_errors,
-              Derivation dv, uint repertoire)
+              Derivation dv, my_repertoire_t repertoire)
    :Item_literal(thd)
   {
     if (str_value.copy(str, tocs, conv_errors))
@@ -4432,7 +4435,7 @@ public:
     set_name(thd, name_par);
   }
   Item_string(THD *thd, const LEX_CSTRING &name_par, const LEX_CSTRING &str,
-              CHARSET_INFO *cs, Derivation dv, uint repertoire)
+              CHARSET_INFO *cs, Derivation dv, my_repertoire_t repertoire)
    :Item_literal(thd)
   {
     str_value.set_or_copy_aligned(str.str, str.length, cs);
@@ -4565,7 +4568,7 @@ public:
   Item_static_string_func(THD *thd, const LEX_CSTRING &name_par,
                           const String *str,
                           CHARSET_INFO *tocs, uint *conv_errors,
-                          Derivation dv, uint repertoire):
+                          Derivation dv, my_repertoire_t repertoire):
     Item_string(thd, str, tocs, conv_errors, dv, repertoire),
     func_name(name_par)
   {}

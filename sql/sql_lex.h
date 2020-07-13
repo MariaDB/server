@@ -85,13 +85,13 @@ public:
   bool is_quoted() const { return m_quote != '\0'; }
   char quote() const { return m_quote; }
   // Get string repertoire by the 8-bit flag and the character set
-  uint repertoire(CHARSET_INFO *cs) const
+  my_repertoire_t repertoire(CHARSET_INFO *cs) const
   {
     return !m_is_8bit && my_charset_is_ascii_based(cs) ?
            MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
   }
   // Get string repertoire by the 8-bit flag, for ASCII-based character sets
-  uint repertoire() const
+  my_repertoire_t repertoire() const
   {
     return !m_is_8bit ? MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
   }
