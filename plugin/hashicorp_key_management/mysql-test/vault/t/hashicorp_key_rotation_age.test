@@ -1,0 +1,135 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source hashicorp_plugin.inc
+
+--source hashicorp_init.inc
+
+replace_result $VAULT_ADDR VAULT_ADDR;
+SHOW GLOBAL variables LIKE "hashicorp%";
+
+--echo # Restart the server with encryption
+let $default_parameters="--innodb-tablespaces-encryption --innodb_encrypt_tables=ON";
+let $restart_noprint=1;
+let $restart_parameters=$default_parameters;
+--source include/restart_mysqld.inc
+
+CREATE TABLE t1 (f1 INT, f2 VARCHAR(256))engine=innodb;
+INSERT INTO t1 VALUES(1, 'MariaDB'), (2, 'Robot'), (3, 'Science');
+INSERT INTO t1 SELECT * FROM t1;
+
+CREATE TABLE t2(f1 INT, f2 VARCHAR(256))engine=innodb;
+INSERT INTO t2 SELECT * FROM t1;
+
+CREATE TABLE t3(f1 INT, f2 VARCHAR(256))engine=innodb encrypted=yes;
+INSERT INTO t3 SELECT * FROM t1;
+
+CREATE TABLE t33(f1 INT, f2 VARCHAR(256)) engine=innodb encrypted=yes encryption_key_id=2;
+INSERT INTO t33 VALUES (12345, '1234567890');
+
+--echo # Restart the server with encryption and rotate key age
+
+let $restart_parameters=$default_parameters --innodb_encryption_threads=5 --innodb_encryption_rotate_key_age=16384;
+--source include/restart_mysqld.inc
+
+--echo # Wait until encryption threads have encrypted all tablespaces
+
+--let $tables_count= `select count(*) + 1 from information_schema.tables where engine = 'InnoDB'`
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE "test/%";
+--sorted_result
+SELECT NAME, CURRENT_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE "test/%";
+
+--echo # Restart the server with innodb_encryption_rotate_key_age= 0
+
+let $restart_parameters=$default_parameters --innodb_encryption_threads=1 --innodb_encryption_rotate_key_age=0;
+--source include/restart_mysqld.inc
+
+create table t4 (f1 int not null)engine=innodb encrypted=NO;
+
+# artificial error useful for debugging a plugin
+--error ER_ILLEGAL_HA_CREATE_OPTION
+alter table t33 encryption_key_id=111;
+
+--echo # Update key value to version 2
+--exec vault kv put /mariadbtest/1 data="11112222333344445555666677778888" > /dev/null
+--sleep 2
+
+# artificial error useful for debugging a plugin
+--error ER_ILLEGAL_HA_CREATE_OPTION
+alter table t33 encryption_key_id=222;
+
+--echo # Wait until encryption threads have encrypted all tablespaces
+
+--let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE "test/%";
+--sorted_result
+SELECT NAME, CURRENT_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE "test/%";
+
+--echo # Disable encryption when innodb_encryption_rotate_key_age is 0
+set global innodb_encrypt_tables = OFF;
+
+--echo # Wait until encryption threads to decrypt all encrypted tablespaces
+
+--let $tables_count= `select count(*) - 1 from information_schema.tables where engine = 'InnoDB'`
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND ROTATING_OR_FLUSHING = 0;
+--source include/wait_condition.inc
+
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE "test/%";
+--echo # Display only encrypted create tables (t3)
+--sorted_result
+SELECT NAME, CURRENT_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE "test/%";
+
+# artificial error useful for debugging a plugin
+--error ER_ILLEGAL_HA_CREATE_OPTION
+alter table t33 encryption_key_id=333;
+
+--echo # Update key value to version 3
+--exec vault kv put /mariadbtest/1 data="5555222233334444555566667777AAAA" > /dev/null
+--sleep 2
+
+# artificial error useful for debugging a plugin
+--error ER_ILLEGAL_HA_CREATE_OPTION
+alter table t33 encryption_key_id=444;
+
+--echo # Enable encryption when innodb_encryption_rotate_key_age is 0
+set global innodb_encrypt_tables = ON;
+
+--echo # Wait until encryption threads to encrypt all unencrypted tablespaces
+
+--let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE "test/%";
+--echo # Display only unencrypted create tables (t4)
+--sorted_result
+SELECT NAME, CURRENT_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE "test/%";
+
+--let $restart_parameters=$default_parameters
+--source include/restart_mysqld.inc
+
+# artificial error useful for debugging a plugin
+--error ER_ILLEGAL_HA_CREATE_OPTION
+alter table t33 encryption_key_id=555;
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE "test/%";
+--sorted_result
+SELECT NAME, CURRENT_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE "test/%";
+
+DROP TABLE t4, t3, t2, t1;
+DROP TABLE t33;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--source hashicorp_deinit.inc

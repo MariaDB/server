@@ -1,0 +1,2 @@
+etc/mysql/mariadb.conf.d/hashicorp_key_management.cnf
+usr/lib/mysql/plugin/hashicorp_key_management.so
