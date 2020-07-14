@@ -1976,7 +1976,7 @@ public:
   virtual bool limit_index_condition_pushdown_processor(void *arg) { return 0; }
   virtual bool exists2in_processor(void *arg) { return 0; }
   virtual bool find_selective_predicates_list_processor(void *arg) { return 0; }
-  bool cleanup_is_expensive_cache_processor(void *arg)
+  virtual bool cleanup_is_expensive_cache_processor(void *arg)
   {
     is_expensive_cache= (int8)(-1);
     return 0;
@@ -3233,6 +3233,8 @@ public:
   bool check_partition_func_processor(void *int_arg) { return false;}
   bool const_item() const { return true; }
   bool basic_const_item() const { return true; }
+  bool is_expensive() { return false; }
+  bool cleanup_is_expensive_cache_processor(void *arg) { return 0; }
 };
 
 
@@ -4231,6 +4233,7 @@ public:
     Item_int(thd, str_arg, i, 1) {}
   Item_bool(THD *thd, bool i) :Item_int(thd, (longlong) i, 1) { }
   bool is_bool_literal() const { return true; }
+  void print(String *str, enum_query_type query_type);
   Item *neg_transformer(THD *thd);
   const Type_handler *type_handler() const
   { return &type_handler_bool; }
@@ -4245,6 +4248,18 @@ public:
   }
 };
 
+
+class Item_bool_static :public Item_bool
+{
+public:
+  Item_bool_static(const char *str_arg, longlong i):
+    Item_bool(NULL, str_arg, i) {};
+
+  void set_join_tab_idx(uint8 join_tab_idx_arg) override
+  { DBUG_ASSERT(0); }
+};
+
+extern const Item_bool_static Item_false, Item_true;
 
 class Item_uint :public Item_int
 {
