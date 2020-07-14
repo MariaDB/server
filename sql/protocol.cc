@@ -43,6 +43,12 @@ bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count);
 static bool write_eof_packet(THD *, NET *, uint, uint);
 #endif
 
+CHARSET_INFO *Protocol::character_set_results() const
+{
+  return thd->variables.character_set_results;
+}
+
+
 #ifndef EMBEDDED_LIBRARY
 bool Protocol::net_store_data(const uchar *from, size_t length)
 #else
@@ -846,12 +852,13 @@ bool Protocol_text::store_field_metadata(const THD * thd,
 
   if (thd->client_capabilities & CLIENT_PROTOCOL_41)
   {
-    if (store(STRING_WITH_LEN("def"), cs, thd_charset) ||
-        store_str(field.db_name, cs, thd_charset) ||
-        store_str(field.table_name, cs, thd_charset) ||
-        store_str(field.org_table_name, cs, thd_charset) ||
-        store_str(field.col_name, cs, thd_charset) ||
-        store_str(field.org_col_name, cs, thd_charset))
+    const LEX_CSTRING def= {STRING_WITH_LEN("def")};
+    if (store_ident(def) ||
+        store_ident(field.db_name) ||
+        store_ident(field.table_name) ||
+        store_ident(field.org_table_name) ||
+        store_ident(field.col_name) ||
+        store_ident(field.org_col_name))
       return true;
     if (thd->client_capabilities & MARIADB_CLIENT_EXTENDED_METADATA)
     {
@@ -861,7 +868,7 @@ bool Protocol_text::store_field_metadata(const THD * thd,
         Don't apply character set conversion:
         extended metadata is a binary encoded data.
       */
-      if (store_str(metadata.lex_cstring(), cs, &my_charset_bin))
+      if (store_lex_cstring(metadata.lex_cstring(), cs, &my_charset_bin))
         return true;
     }
     if (packet->realloc(packet->length() + 12))
@@ -894,8 +901,8 @@ bool Protocol_text::store_field_metadata(const THD * thd,
   }
   else
   {
-    if (store_str(field.table_name, cs, thd_charset) ||
-        store_str(field.col_name, cs, thd_charset) ||
+    if (store_ident(field.table_name) ||
+        store_ident(field.col_name) ||
         packet->realloc(packet->length() + 10))
       return true;
     pos= (char*) packet->end();
@@ -1178,9 +1185,7 @@ bool Protocol::store_string_aux(const char *from, size_t length,
                                 CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
   /* 'tocs' is set 0 when client issues SET character_set_results=NULL */
-  if (tocs && !my_charset_same(fromcs, tocs) &&
-      fromcs != &my_charset_bin &&
-      tocs != &my_charset_bin)
+  if (needs_conversion(fromcs, tocs))
   {
     /* Store with conversion */
     return net_store_data_cs((uchar*) from, length, fromcs, tocs);
@@ -1202,8 +1207,8 @@ bool Protocol::store_warning(const char *from, size_t length)
 }
 
 
-bool Protocol_text::store(const char *from, size_t length,
-                          CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+bool Protocol_text::store_str(const char *from, size_t length,
+                              CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
 #ifndef DBUG_OFF
   DBUG_PRINT("info", ("Protocol_text::store field %u (%u): %.*b", field_pos,
@@ -1213,14 +1218,6 @@ bool Protocol_text::store(const char *from, size_t length,
   field_pos++;
 #endif
   return store_string_aux(from, length, fromcs, tocs);
-}
-
-
-bool Protocol::store(const char *from, size_t length,
-                     CHARSET_INFO *fromcs)
-{
-  CHARSET_INFO *tocs= this->thd->variables.character_set_results;
-  return store(from, length, fromcs, tocs);
 }
 
 
@@ -1451,8 +1448,8 @@ void Protocol_binary::prepare_for_resend()
 }
 
 
-bool Protocol_binary::store(const char *from, size_t length,
-                            CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+bool Protocol_binary::store_str(const char *from, size_t length,
+                                CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
   field_pos++;
   return store_string_aux(from, length, fromcs, tocs);
@@ -1517,8 +1514,8 @@ bool Protocol_binary::store_decimal(const my_decimal *d)
 #endif
   StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
   (void) d->to_string(&str);
-  return store(str.ptr(), str.length(), str.charset(),
-               thd->variables.character_set_results);
+  return store_str(str.ptr(), str.length(), str.charset(),
+                   thd->variables.character_set_results);
 }
 
 bool Protocol_binary::store(float from, uint32 decimals, String *buffer)

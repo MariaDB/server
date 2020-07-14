@@ -262,9 +262,8 @@ protected:
   virtual bool store_long(longlong from);
   virtual bool store_longlong(longlong from, bool unsigned_flag);
   virtual bool store_decimal(const my_decimal *);
-  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs);
-  virtual bool store(const char *from, size_t length,
-                     CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
+  virtual bool store_str(const char *from, size_t length,
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
   virtual bool store(MYSQL_TIME *time, int decimals);
   virtual bool store_date(MYSQL_TIME *time);
   virtual bool store_time(MYSQL_TIME *time, int decimals);
@@ -5275,9 +5274,7 @@ Protocol_local::store_string(const char *str, size_t length,
   /* Store with conversion */
   uint error_unused;
 
-  if (dst_cs && !my_charset_same(src_cs, dst_cs) &&
-      src_cs != &my_charset_bin &&
-      dst_cs != &my_charset_bin)
+  if (needs_conversion(src_cs, dst_cs))
   {
     if (unlikely(convert->copy(str, length, src_cs, dst_cs, &error_unused)))
       return TRUE;
@@ -5334,22 +5331,10 @@ bool Protocol_local::store_decimal(const my_decimal *value)
 }
 
 
-/** Convert to cs_results and store a string. */
-
-bool Protocol_local::store(const char *str, size_t length,
-                           CHARSET_INFO *src_cs)
-{
-  CHARSET_INFO *dst_cs;
-
-  dst_cs= m_connection->m_thd->variables.character_set_results;
-  return store_string(str, length, src_cs, dst_cs);
-}
-
-
 /** Store a string. */
 
-bool Protocol_local::store(const char *str, size_t length,
-                           CHARSET_INFO *src_cs, CHARSET_INFO *dst_cs)
+bool Protocol_local::store_str(const char *str, size_t length,
+                               CHARSET_INFO *src_cs, CHARSET_INFO *dst_cs)
 {
   return store_string(str, length, src_cs, dst_cs);
 }
