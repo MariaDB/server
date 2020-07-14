@@ -770,4 +770,33 @@ set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selecti
 set @save_optimizer_switch=@@optimizer_switch;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
+#
+# MDEV-22851: Engine independent index statistics are incorrect for large tables on Windows.
+#
+CREATE TABLE t1 AS SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.COLUMNS;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+SET @save_use_stat_tables= @@use_stat_tables;
+SET use_stat_tables= preferably;
+SELECT count(*) FROM t1;
+count(*)
+54336
+CREATE INDEX idx ON t1(TABLE_CATALOG);
+Warnings:
+Warning	1071	Specified key was too long; max key length is 767 bytes
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (TABLE_CATALOG) INDEXES (idx);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM mysql.index_stats where table_name='t1';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx	1	NULL
+SELECT * FROM mysql.column_stats where table_name='t1';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	TABLE_CATALOG	def	def	0.0000	3.0000	54336.0000	0	NULL	NULL
+SET use_stat_tables= @save_use_stat_tables;
+DROP TABLE t1;
 SET SESSION STORAGE_ENGINE=DEFAULT;

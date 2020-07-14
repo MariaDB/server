@@ -9,4 +9,25 @@ set optimizer_switch='extended_keys=on';
 
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
 
+--echo #
+--echo # MDEV-22851: Engine independent index statistics are incorrect for large tables on Windows.
+--echo #
+
+CREATE TABLE t1 AS SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.COLUMNS;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+
+SET @save_use_stat_tables= @@use_stat_tables;
+SET use_stat_tables= preferably;
+SELECT count(*) FROM t1;
+CREATE INDEX idx ON t1(TABLE_CATALOG);
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (TABLE_CATALOG) INDEXES (idx);
+SELECT * FROM mysql.index_stats where table_name='t1';
+SELECT * FROM mysql.column_stats where table_name='t1';
+SET use_stat_tables= @save_use_stat_tables;
+DROP TABLE t1;
+
 SET SESSION STORAGE_ENGINE=DEFAULT;
