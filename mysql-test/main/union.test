@@ -1200,11 +1200,11 @@ select 4
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ;
 
+--error ER_AGGREGATE_ORDER_FOR_UNION
 eval $my_stmt;
 
+--error ER_AGGREGATE_ORDER_FOR_UNION
 eval prepare stmt1 from '$my_stmt';
-execute stmt1;
-execute stmt1;
 
 let $my_stmt=
 select 1 as foo
@@ -1217,13 +1217,11 @@ union
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ;
 
+--error ER_AGGREGATE_ORDER_FOR_UNION
 eval $my_stmt;
 
+--error ER_AGGREGATE_ORDER_FOR_UNION
 eval prepare stmt1 from '$my_stmt';
-execute stmt1;
-execute stmt1;
-
-deallocate prepare stmt1;
 
 --echo End of 5.1 tests
 
@@ -1652,6 +1650,17 @@ eval $q;
 eval EXPLAIN EXTENDED $q;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-10120: Wrong result of UNION .. ORDER BY GROUP_CONCAT()
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT t1 VALUES (1),(2),(3);
+
+--error ER_AGGREGATE_ORDER_FOR_UNION
+(SELECT 1 AS a) UNION (SELECT a FROM t1 GROUP BY a) ORDER BY GROUP_CONCAT(a);
+DROP TABLE t1;
 
 
 --echo #

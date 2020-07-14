@@ -62,7 +62,7 @@ const char field_separator=',';
 #define BLOB_PACK_LENGTH_TO_MAX_LENGH(arg) \
                         ((ulong) ((1LL << MY_MIN(arg, 4) * 8) - 1))
 
-// Column marked for read or the field set to read out or record[0] or [1]
+// Column marked for read or the field set to read out of record[0]
 #define ASSERT_COLUMN_MARKED_FOR_READ                              \
   DBUG_ASSERT(!table ||                                            \
               (!table->read_set ||                                 \

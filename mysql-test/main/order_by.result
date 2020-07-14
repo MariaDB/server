@@ -3301,6 +3301,61 @@ SET @@sort_buffer_size= @save_sort_buffer_size;
 SET @@max_sort_length= @save_max_sort_length;
 DROP TABLE t1;
 #
+# MDEV-22390: Assertion `m_next_rec_ptr >= m_rawmem' failed in Filesort_buffer::spaceleft |
+# SIGSEGV in __memmove_avx_unaligned_erms from my_b_write (on optimized)
+#
+SET @save_max_sort_length= @@max_sort_length;
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_length_for_sort_data= @@max_length_for_sort_data;
+SET max_sort_length=8;
+SET sort_buffer_size=1024;
+SET max_length_for_sort_data=7000;
+CREATE TABLE t1(a VARCHAR(64), b VARCHAR(2048))DEFAULT CHARSET=utf8;
+INSERT INTO t1 SELECT seq,seq from seq_1_to_100;
+ANALYZE FORMAT=JSON SELECT * FROM t1 ORDER BY a LIMIT 5;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "read_sorted_file": {
+      "r_rows": 5,
+      "filesort": {
+        "sort_key": "t1.a",
+        "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
+        "r_limit": 5,
+        "r_used_priority_queue": false,
+        "r_output_rows": 35,
+        "r_sort_passes": 1,
+        "r_buffer_size": "REPLACED",
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 100,
+          "r_rows": 100,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+SELECT * FROM t1 ORDER BY a LIMIT 5;
+a	b
+1	1
+10	10
+100	100
+11	11
+12	12
+SET max_sort_length= @save_max_sort_length;
+SET sort_buffer_size= @save_sort_buffer_size;
+SET max_length_for_sort_data= @save_max_length_for_sort_data;
+DROP TABLE t1;
+#
 # MDEV-13994: Bad join results with orderby_uses_equalities=on
 #
 CREATE TABLE books (

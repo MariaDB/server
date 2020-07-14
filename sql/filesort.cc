@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -242,7 +242,8 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     while (memory_available >= min_sort_memory)
     {
       ulonglong keys= memory_available / (param.rec_length + sizeof(char*));
-      param.max_keys_per_buffer= (uint) MY_MIN(num_rows, keys);
+      param.max_keys_per_buffer= (uint) MY_MAX(MERGEBUFF2,
+                                               MY_MIN(num_rows, keys));
       if (sort->alloc_sort_buffer(param.max_keys_per_buffer, param.rec_length))
         break;
       size_t old_memory_available= memory_available;

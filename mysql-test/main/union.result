@@ -1779,8 +1779,7 @@ union
 select 4
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ;
-foo
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 prepare stmt1 from 'select 1 as foo
 union
 select 2
@@ -1790,12 +1789,7 @@ union
 select 4
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ';
-execute stmt1;
-foo
-1
-execute stmt1;
-foo
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 select 1 as foo
 union
 select 2
@@ -1805,8 +1799,7 @@ union
 (select 4)
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ;
-foo
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 prepare stmt1 from 'select 1 as foo
 union
 select 2
@@ -1816,13 +1809,7 @@ union
 (select 4)
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ';
-execute stmt1;
-foo
-1
-execute stmt1;
-foo
-1
-deallocate prepare stmt1;
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 End of 5.1 tests
 #
 # mdev-5091: Asseirtion failure for UNION with ORDER BY 
@@ -2320,6 +2307,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	/* select#1 */ select 1 AS `1`,2 AS `2` union all /* select#2 */ select 1 AS `i`,count(0) AS `COUNT(*)` from `test`.`t2` where 1 group by 1 having 0
 DROP TABLE t1,t2;
+#
+# MDEV-10120: Wrong result of UNION .. ORDER BY GROUP_CONCAT()
+#
+CREATE TABLE t1 (a INT);
+INSERT t1 VALUES (1),(2),(3);
+(SELECT 1 AS a) UNION (SELECT a FROM t1 GROUP BY a) ORDER BY GROUP_CONCAT(a);
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
+DROP TABLE t1;
 #
 # Start of 10.3 tests
 #

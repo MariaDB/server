@@ -697,9 +697,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
     {
       DBUG_PRINT("info", ("Subquery can't be converted to merged semi-join"));
       /* Test if the user has set a legal combination of optimizer switches. */
-      if (!optimizer_flag(thd, OPTIMIZER_SWITCH_IN_TO_EXISTS) &&
-          !optimizer_flag(thd, OPTIMIZER_SWITCH_MATERIALIZATION))
-        my_error(ER_ILLEGAL_SUBQUERY_OPTIMIZER_SWITCHES, MYF(0));
+      DBUG_ASSERT(optimizer_flag(thd, OPTIMIZER_SWITCH_IN_TO_EXISTS |
+                                      OPTIMIZER_SWITCH_MATERIALIZATION));
       /*
         Transform each subquery predicate according to its overloaded
         transformer.

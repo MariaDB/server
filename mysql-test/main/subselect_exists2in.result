@@ -437,8 +437,8 @@ drop table t1,t3;
 # MDEV-159 Assertion about not marked for read failed in
 # String* Field_varstring::val_str(String*, String*)
 #
-SET optimizer_switch = REPLACE( @@optimizer_switch, '=on', '=off' );
-SET optimizer_switch='in_to_exists=on,exists_to_in=on';
+SET optimizer_switch = REPLACE(REPLACE(@@optimizer_switch, '=on', '=off'), 'in_to_exists=off', 'in_to_exists=on');
+SET optimizer_switch='exists_to_in=on';
 CREATE TABLE t1 ( a VARCHAR(1) );
 INSERT INTO t1 VALUES ('k'),('m');
 CREATE TABLE t2 ( b INT,
@@ -593,8 +593,8 @@ Warnings:
 Note	1276	Field or reference 'test.alias.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.alias.b' of SELECT #2 was resolved in SELECT #1
 Note	1003	select `test`.`alias`.`a` AS `a`,`test`.`alias`.`b` AS `b` from `test`.`t1` `alias` semi join (`test`.`t1`) where `test`.`t1`.`a` = `test`.`alias`.`b` and `test`.`alias`.`b` > `test`.`alias`.`a`
-SET optimizer_switch = REPLACE( @@optimizer_switch, '=on', '=off' );
-SET optimizer_switch = 'exists_to_in=on,materialization=on,semijoin=off';
+SET optimizer_switch = REPLACE(REPLACE(@@optimizer_switch, '=on', '=off'), 'materialization=off', 'materialization=on');
+SET optimizer_switch = 'exists_to_in=on,semijoin=off';
 SELECT * FROM t1 AS alias
 WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
 a	b

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1233,20 +1233,20 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
         switch (type()) {
         case TYPE_ENUM_PACKAGE:
           // Drop together with its PACKAGE BODY mysql.proc record
-          ret= sp_handler_package_spec.sp_find_and_drop_routine(thd, table, sp);
+          if (sp_handler_package_spec.sp_find_and_drop_routine(thd, table, sp))
+            goto done;
           break;
         case TYPE_ENUM_PACKAGE_BODY:
         case TYPE_ENUM_FUNCTION:
         case TYPE_ENUM_PROCEDURE:
-          ret= sp_drop_routine_internal(thd, sp, table);
+          if (sp_drop_routine_internal(thd, sp, table))
+            goto done;
           break;
         case TYPE_ENUM_TRIGGER:
         case TYPE_ENUM_PROXY:
           DBUG_ASSERT(0);
           ret= SP_OK;
         }
-        if (ret != SP_OK)
-          goto done;
       }
       else if (lex->create_info.if_not_exists())
       {

@@ -281,6 +281,36 @@ ELSE()
     SET(WSREP_SOURCE
       wsrep_sst_common
     )
+
+    SET (wsrep_sst_rsync_wan ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_rsync_wan)
+    ADD_CUSTOM_COMMAND(
+      OUTPUT ${wsrep_sst_rsync_wan}
+      COMMAND ${CMAKE_COMMAND} ARGS -E create_symlink
+        wsrep_sst_rsync
+        wsrep_sst_rsync_wan
+    )
+    ADD_CUSTOM_TARGET(symlink_wsrep_sst_rsync
+        ALL
+        DEPENDS ${wsrep_sst_rsync_wan}
+    )
+    INSTALL(
+      FILES  ${wsrep_sst_rsync_wan}
+      DESTINATION ${INSTALL_BINDIR}
+      COMPONENT Server
+    )
+
+    FOREACH(file ${WSREP_SOURCE})
+      CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
+        ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)
+      IF(NOT ${file}_COMPONENT)
+        SET(${file}_COMPONENT Server)
+      ENDIF()
+      INSTALL(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/${file}
+        DESTINATION ${INSTALL_BINDIR}
+        COMPONENT ${${file}_COMPONENT}
+       )
+    ENDFOREACH()
   ENDIF()
   IF (NOT WITHOUT_SERVER)
     SET(SERVER_SCRIPTS
@@ -328,35 +358,6 @@ ELSE()
     ENDIF()
     INSTALL_SCRIPT(
       ${CMAKE_CURRENT_BINARY_DIR}/${file} 
-      DESTINATION ${INSTALL_BINDIR}
-      COMPONENT ${${file}_COMPONENT}
-     )
-  ENDFOREACH()
-  SET (wsrep_sst_rsync_wan ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_rsync_wan)
-  ADD_CUSTOM_COMMAND(
-    OUTPUT ${wsrep_sst_rsync_wan}
-    COMMAND ${CMAKE_COMMAND} ARGS -E create_symlink
-      wsrep_sst_rsync
-      wsrep_sst_rsync_wan
-  )
-  ADD_CUSTOM_TARGET(symlink_wsrep_sst_rsync
-      ALL
-      DEPENDS ${wsrep_sst_rsync_wan}
-  )
-  INSTALL(
-    FILES  ${wsrep_sst_rsync_wan}
-    DESTINATION ${INSTALL_BINDIR}
-    COMPONENT Server
-  )
-
-  FOREACH(file ${WSREP_SOURCE})
-    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
-      ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)
-    IF(NOT ${file}_COMPONENT)
-      SET(${file}_COMPONENT Server)
-    ENDIF()
-    INSTALL(FILES
-      ${CMAKE_CURRENT_BINARY_DIR}/${file}
       DESTINATION ${INSTALL_BINDIR}
       COMPONENT ${${file}_COMPONENT}
      )

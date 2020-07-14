@@ -2179,6 +2179,28 @@ SET @@max_sort_length= @save_max_sort_length;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-22390: Assertion `m_next_rec_ptr >= m_rawmem' failed in Filesort_buffer::spaceleft |
+--echo # SIGSEGV in __memmove_avx_unaligned_erms from my_b_write (on optimized)
+--echo #
+
+SET @save_max_sort_length= @@max_sort_length;
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_length_for_sort_data= @@max_length_for_sort_data;
+SET max_sort_length=8;
+SET sort_buffer_size=1024;
+# needed to make sure we use addon fields
+SET max_length_for_sort_data=7000;
+CREATE TABLE t1(a VARCHAR(64), b VARCHAR(2048))DEFAULT CHARSET=utf8;
+INSERT INTO t1 SELECT seq,seq from seq_1_to_100;
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT * FROM t1 ORDER BY a LIMIT 5;
+SELECT * FROM t1 ORDER BY a LIMIT 5;
+SET max_sort_length= @save_max_sort_length;
+SET sort_buffer_size= @save_sort_buffer_size;
+SET max_length_for_sort_data= @save_max_length_for_sort_data;
+DROP TABLE t1;
+
+--echo #
 --echo # MDEV-13994: Bad join results with orderby_uses_equalities=on
 --echo #
 

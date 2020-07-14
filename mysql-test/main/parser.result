@@ -936,11 +936,9 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a);
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 DROP TABLE t1;
 # UNION with a parenthesed term
 CREATE TABLE t1 (a INT);
@@ -1003,14 +1001,11 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a);
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a);
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 1;
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 DROP TABLE t1;
 # Derived table with ROLLUP
 CREATE TABLE t1 (a INT);
