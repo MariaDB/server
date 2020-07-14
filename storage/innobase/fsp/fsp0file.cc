@@ -30,6 +30,7 @@ Created 2013-7-26 by Kevin Lewis
 #include "page0page.h"
 #include "srv0start.h"
 
+#include "string_view.h"
 /** Initialize the name, size and order of this datafile
 @param[in]	name	tablespace name, will be copied
 @param[in]	flags	tablespace flags */

@@ -34,7 +34,6 @@ Created 10/25/1995 Heikki Tuuri
 #include "log0recv.h"
 #include "dict0types.h"
 #include "ilist.h"
-#include "string_view.h"
 #ifdef UNIV_LINUX
 # include <set>
 #endif
