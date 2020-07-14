@@ -173,13 +173,6 @@ set(LIBS ${ROCKSDB_LIBS} ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 #  Unit tests themselves:
 #  - *_test.cc
 #  - *_bench.cc
-#
-#  - table/mock_table.cc
-#  - utilities/cassandra/cassandra_compaction_filter.cc
-#  - utilities/cassandra/format.cc
-#  - utilities/cassandra/merge_operator.cc
-#  - utilities/cassandra/test_utils.cc
-#
 set(ROCKSDB_SOURCES
         cache/clock_cache.cc
         cache/lru_cache.cc
