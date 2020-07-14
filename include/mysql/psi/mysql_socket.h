@@ -1043,10 +1043,14 @@ inline_mysql_socket_accept
 #else
     socket_accept.fd= accept(socket_listen.fd, addr, &addr_length);
 #ifdef FD_CLOEXEC
-    flags= fcntl(socket_accept.fd, F_GETFD);
-    if (flags != -1) {
-      flags |= FD_CLOEXEC;
-      fcntl(socket_accept.fd, F_SETFD, flags);
+    if (socket_accept.fd != INVALID_SOCKET)
+    {
+      flags= fcntl(socket_accept.fd, F_GETFD);
+      if (flags != -1)
+      {
+        flags |= FD_CLOEXEC;
+        fcntl(socket_accept.fd, F_SETFD, flags);
+      }
     }
 #endif
 #endif
@@ -1065,10 +1069,14 @@ inline_mysql_socket_accept
 #else
     socket_accept.fd= accept(socket_listen.fd, addr, &addr_length);
 #ifdef FD_CLOEXEC
-    flags= fcntl(socket_accept.fd, F_GETFD);
-    if (flags != -1) {
-      flags |= FD_CLOEXEC;
-      fcntl(socket_accept.fd, F_SETFD, flags);
+    if (socket_accept.fd != INVALID_SOCKET)
+    {
+      flags= fcntl(socket_accept.fd, F_GETFD);
+      if (flags != -1)
+      {
+        flags |= FD_CLOEXEC;
+        fcntl(socket_accept.fd, F_SETFD, flags);
+      }
     }
 #endif
 #endif
