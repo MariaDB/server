@@ -55,7 +55,8 @@ const char *item_empty_name="";
 const char *item_used_name= "\0";
 
 static int save_field_in_field(Field *, bool *, Field *, bool);
-
+const Item_bool_static Item_false("FALSE", 0);
+const Item_bool_static Item_true("TRUE", 1);
 
 /**
   Compare two Items for List<Item>::add_unique()
@@ -412,7 +413,6 @@ Item::Item(THD *thd):
   is_expensive_cache(-1), rsize(0), name(null_clex_str), orig_name(0),
   common_flags(IS_AUTO_GENERATED_NAME)
 {
-  DBUG_ASSERT(thd);
   marker= 0;
   maybe_null= null_value= with_window_func= with_field= false;
   in_rollup= 0;
@@ -421,6 +421,9 @@ Item::Item(THD *thd):
    /* Initially this item is not attached to any JOIN_TAB. */
   join_tab_idx= MAX_TABLES;
 
+   /* thd is NULL in case of static items like Item_true */
+  if (!thd)
+    return;
   /* Put item in free list so that we can free all items at end */
   next= thd->free_list;
   thd->free_list= this;
@@ -3628,12 +3631,26 @@ String *Item_int::val_str(String *str)
   return str;
 }
 
+
 void Item_int::print(String *str, enum_query_type query_type)
 {
   StringBuffer<LONGLONG_BUFFER_SIZE+1> buf;
   // my_charset_bin is good enough for numbers
   buf.set_int(value, unsigned_flag, &my_charset_bin);
   str->append(buf);
+}
+
+
+/*
+  This function is needed to ensure that Item_bool_static doesn't change
+  the value of the member str_value.
+*/
+
+void Item_bool::print(String *str, enum_query_type query_type)
+{
+  // my_charset_bin is good enough for numbers
+  String tmp(value ? (char*) "1" : (char*) "0" , 1, &my_charset_bin);
+  str->append(tmp);
 }
 
 

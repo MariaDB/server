@@ -2395,6 +2395,7 @@ resume:
     thd->update_server_status();
     thd->protocol->end_statement();
     query_cache_end_of_result(thd);
+    /* Check that the query didn't change const items */
   }
   if (drop_more_results)
     thd->server_status&= ~SERVER_MORE_RESULTS_EXISTS;

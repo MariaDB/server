@@ -185,8 +185,8 @@ bool uses_index_fields_only(Item *item, TABLE *tbl, uint keyno,
 static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
                                  bool other_tbls_ok)
 {
-  if (!cond)
-    return NULL;
+  if (!cond || cond->basic_const_item())
+    return cond;
   if (cond->type() == Item::COND_ITEM)
   {
     uint n_marked= 0;
@@ -218,7 +218,7 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
       case 0:
 	return (COND*) 0;
       case 1:
-        new_cond->used_tables_cache= used_tables;
+        /* remove AND level if there is only one argument */
 	return new_cond->argument_list()->head();
       default:
 	new_cond->quick_fix_field();

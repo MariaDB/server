@@ -1176,13 +1176,13 @@ my_xpath_keyword(MY_XPATH *x,
 
 static Item *create_func_true(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return new (xpath->thd->mem_root) Item_bool(xpath->thd, "xpath_bool", 1);
+  return (Item*) &Item_true;
 }
 
 
 static Item *create_func_false(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return new (xpath->thd->mem_root) Item_bool(xpath->thd, "xpath_bool", 0);
+  return (Item*) &Item_false;
 }
 
 
