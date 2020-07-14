@@ -5,12 +5,12 @@ CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 connection node_2;
 SET SESSION wsrep_retry_autocommit = 0;
 INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6, ten AS a7, ten AS a8;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
 connection node_1;
-TRUNCATE TABLE t1;;
+TRUNCATE TABLE t1;
 connection node_2;
 ERROR 40001: Deadlock: wsrep aborted transaction
-connection node_1;
-connection node_2;
 SELECT COUNT(*) AS EXPECT_0 FROM t1;
 EXPECT_0
 0

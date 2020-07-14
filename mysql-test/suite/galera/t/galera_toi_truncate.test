@@ -25,17 +25,18 @@ CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 SET SESSION wsrep_retry_autocommit = 0;
 --send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6, ten AS a7, ten AS a8
 
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Sending data%' AND INFO LIKE 'INSERT INTO t1 (f1)%';
+--source include/wait_condition.inc
+
 --connection node_1
---send TRUNCATE TABLE t1;
+TRUNCATE TABLE t1;
 
 --connection node_2
 --error ER_LOCK_DEADLOCK
 --reap
 
---connection node_1
---reap
-
---connection node_2
 SELECT COUNT(*) AS EXPECT_0 FROM t1;
 
 --connection node_1
