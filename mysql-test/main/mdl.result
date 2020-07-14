@@ -58,6 +58,8 @@ DROP TABLE t1,t3;
 #
 CREATE TABLE t1(a INT) ENGINE=InnoDB;
 CREATE TABLE t3(a INT) ENGINE=myisam;
+connect purge_control,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connect  locker,localhost,root,,;
 connection default;
 FLUSH TABLES WITH READ LOCK;
@@ -85,6 +87,7 @@ MDL_SHARED_WRITE	Table metadata lock	test	t3
 unlock tables;
 connection locker;
 unlock tables;
+disconnect purge_control;
 connection default;
 disconnect locker;
 DROP TABLE t1,t3;
