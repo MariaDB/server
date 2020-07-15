@@ -2874,3 +2874,16 @@ SELECT @msg;
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP TABLE t1;
+#
+# 10.2 Test
+#
+# MDEV-MDEV-22058: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+# is_bulk_op())' failed in Diagnostics_area::set_ok_status
+#
+SET @old_optimizer_switch = @@SESSION.OPTIMIZER_SWITCH;
+SET @cmd:="SET @@SESSION.SQL_MODE=(SELECT 'a')";
+SET @@SESSION.OPTIMIZER_SWITCH="in_to_exists=OFF,materialization=OFF";
+ERROR HY000: At least one of the 'in_to_exists' or 'materialization' optimizer_switch flags must be 'on'
+PREPARE stmt FROM @cmd;
+set @@SESSION.OPTIMIZER_SWITCH=@old_optimizer_switch;
+# End of 10.2 Test

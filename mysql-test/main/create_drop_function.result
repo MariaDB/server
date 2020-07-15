@@ -52,3 +52,20 @@ body
 DROP FUNCTION IF EXISTS f1;
 Warnings:
 Note	1305	FUNCTION test.f1 does not exist
+#
+# 10.1 Test
+#
+# MDEV-22654: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+# is_bulk_op())' failed in Diagnostics_area::set_ok_status on FUNCTION replace
+#
+SET GLOBAL log_bin_trust_function_creators=0;
+CREATE FUNCTION f(c INT) RETURNS NUMERIC NO SQL RETURN 0;
+CREATE OR REPLACE FUNCTION f(c INT) RETURNS INT RETURN 0;
+ERROR HY000: This function has none of DETERMINISTIC, NO SQL, or READS SQL DATA in its declaration and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)
+CREATE OR REPLACE FUNCTION sp1_thisisaveryverylongnamelongnameverylongname_thisisaveryverylongname234872934(a INT) RETURNS INT RETURN 0;
+ERROR 42000: Identifier name 'sp1_thisisaveryverylongnamelongnameverylongname_thisisaveryverylongname234872934' is too long
+DROP FUNCTION IF EXISTS f;
+Warnings:
+Note	1305	FUNCTION test.f does not exist
+SET GLOBAL log_bin_trust_function_creators=1;
+# End of 10.1 Test

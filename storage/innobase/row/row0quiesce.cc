@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -668,12 +668,17 @@ row_quiesce_set_state(
 			    " FTS auxiliary tables will not be flushed.");
 	}
 
+	dict_index_t* clust_index = dict_table_get_first_index(table);
+
 	row_mysql_lock_data_dictionary(trx);
-	for (dict_index_t* index = dict_table_get_first_index(table);
+
+	for (dict_index_t* index = dict_table_get_next_index(clust_index);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
 		rw_lock_x_lock(&index->lock);
 	}
+
+	rw_lock_x_lock(&clust_index->lock);
 
 	switch (state) {
 	case QUIESCE_START:

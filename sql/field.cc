@@ -57,7 +57,7 @@ const char field_separator=',';
 #define BLOB_PACK_LENGTH_TO_MAX_LENGH(arg) \
                         ((ulong) ((1LL << MY_MIN(arg, 4) * 8) - 1))
 
-// Column marked for read or the field set to read out or record[0] or [1]
+// Column marked for read or the field set to read out of record[0]
 inline bool Field::marked_for_read() const
 {
   return !table ||
@@ -68,7 +68,7 @@ inline bool Field::marked_for_read() const
 }
 
 /*
-  The name of this function is a bit missleading as in 10.4 we don't
+  The name of this function is a bit misleading as in 10.4 we don't
   have to test anymore if the field is computed. Instead we mark
   changed fields with DBUG_FIX_WRITE_SET() in table.cc
 */
