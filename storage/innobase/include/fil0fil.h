@@ -1488,13 +1488,6 @@ fil_space_t*
 fil_space_keyrotate_next(fil_space_t* prev_space, bool remove)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/********************************************************//**
-Creates the database directory for a table if it does not exist yet. */
-void
-fil_create_directory_for_tablename(
-/*===============================*/
-	const char*	name);	/*!< in: name in the standard
-				'databasename/tablename' format */
 /** Replay a file rename operation if possible.
 @param[in]	space_id	tablespace identifier
 @param[in]	name		old file name

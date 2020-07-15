@@ -1775,37 +1775,6 @@ fil_space_acquire_for_io(ulint id)
 	return(space);
 }
 
-/********************************************************//**
-Creates the database directory for a table if it does not exist yet. */
-void
-fil_create_directory_for_tablename(
-/*===============================*/
-	const char*	name)	/*!< in: name in the standard
-				'databasename/tablename' format */
-{
-	const char*	namend;
-	char*		path;
-	ulint		len;
-
-	len = strlen(fil_path_to_mysql_datadir);
-	namend = strchr(name, '/');
-	ut_a(namend);
-	path = static_cast<char*>(
-		ut_malloc_nokey(len + ulint(namend - name) + 2));
-
-	memcpy(path, fil_path_to_mysql_datadir, len);
-	path[len] = '/';
-	memcpy(path + len + 1, name, ulint(namend - name));
-	path[len + ulint(namend - name) + 1] = 0;
-
-	os_normalize_path(path);
-
-	bool	success = os_file_create_directory(path, false);
-	ut_a(success);
-
-	ut_free(path);
-}
-
 /** Write a log record about a file operation.
 @param type           file operation
 @param first_page_no  first page number in the file
