@@ -75,7 +75,7 @@
 #endif
 #endif
 
-#if !defined(CLOCK_GETTIME) && defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
+#if defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
 #include <sys/timeb.h>       /* for ftime */
 #endif
 
@@ -173,17 +173,27 @@ ulonglong my_timer_microseconds(void)
   milliseconds.
 */
 
+#if defined(HAVE_CLOCK_GETTIME)
+#if defined(CLOCK_MONOTONIC_FAST)
+/* FreeBSD */
+#define MY_CLOCK_ID CLOCK_MONOTONIC_FAST
+#elif defined(CLOCK_MONOTONIC_COARSE)
+/* Linux */
+#define MY_CLOCK_ID CLOCK_MONOTONIC_COARSE
+#elif defined(CLOCK_MONOTONIC)
+/* POSIX (includes OSX) */
+#define MY_CLOCK_ID CLOCK_MONOTONIC
+#elif defined(CLOCK_REALTIME)
+/* Solaris (which doesn't seem to have MONOTONIC) */
+#define MY_CLOCK_ID CLOCK_REALTIME
+#endif
+#endif
+
 ulonglong my_timer_milliseconds(void)
 {
-#if defined(HAVE_CLOCK_GETTIME)
+#if defined(MY_CLOCK_ID)
   struct timespec tp;
-#ifdef CLOCK_MONOTONIC_COARSE
-  /* Linux */
-  clock_gettime(CLOCK_MONOTONIC_COARSE, &tp);
-#else
-  /* POSIX */
-  clock_gettime(CLOCK_MONOTONIC, &tp);
-#endif
+  clock_gettime(MY_CLOCK_ID, &tp);
   return (ulonglong)tp.tv_sec * 1000 + (ulonglong)tp.tv_nsec / 1000000;
 #elif defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
   /* ftime() is obsolete but maybe the platform is old */
@@ -436,7 +446,9 @@ void my_timer_init(MY_TIMER_INFO *mti)
 
   /* milliseconds */
   mti->milliseconds.frequency= 1000; /* initial assumption */
-#if defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
+#ifdef MY_CLOCK_ID
+  mti->milliseconds.routine= MY_TIMER_ROUTINE_CLOCK_GETTIME;
+#elif defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
   mti->milliseconds.routine= MY_TIMER_ROUTINE_FTIME;
 #elif defined(_WIN32)
   mti->milliseconds.routine= MY_TIMER_ROUTINE_GETSYSTEMTIMEASFILETIME;
