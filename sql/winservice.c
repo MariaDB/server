@@ -125,7 +125,8 @@ static void get_datadir_from_ini(const char *ini, char *service_name, char *data
   {
     if (sections[i])
     {
-      GetPrivateProfileStringA(sections[i], "datadir", NULL, datadir, sz, ini);
+      GetPrivateProfileStringA(sections[i], "datadir", NULL, datadir,
+                               (DWORD) sz, ini);
       if (*datadir)
         return;
     }
