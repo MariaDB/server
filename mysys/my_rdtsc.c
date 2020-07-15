@@ -75,7 +75,7 @@
 #endif
 #endif
 
-#if defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
+#if !defined(CLOCK_GETTIME) && defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
 #include <sys/timeb.h>       /* for ftime */
 #endif
 
@@ -175,7 +175,17 @@ ulonglong my_timer_microseconds(void)
 
 ulonglong my_timer_milliseconds(void)
 {
-#if defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
+#if defined(HAVE_CLOCK_GETTIME)
+  struct timespec tp;
+#ifdef CLOCK_MONOTONIC_COARSE
+  /* Linux */
+  clock_gettime(CLOCK_MONOTONIC_COARSE, &tp);
+#else
+  /* POSIX */
+  clock_gettime(CLOCK_MONOTONIC, &tp);
+#endif
+  return (ulonglong)tp.tv_sec * 1000 + (ulonglong)tp.tv_nsec / 1000000;
+#elif defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
   /* ftime() is obsolete but maybe the platform is old */
   struct timeb ft;
   ftime(&ft);
