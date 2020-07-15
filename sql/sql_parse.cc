@@ -1124,6 +1124,19 @@ void cleanup_items(Item *item)
   DBUG_VOID_RETURN;
 }
 
+#ifdef WITH_WSREP
+static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
+{
+  for (const TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    LEX_CSTRING db= table->db, tn= table->table_name;
+    if (get_table_category(&db, &tn)  < TABLE_CATEGORY_INFORMATION)
+      return false;
+  }
+  return true;
+}
+#endif /* WITH_WSREP */
+#ifndef EMBEDDED_LIBRARY
 static enum enum_server_command fetch_command(THD *thd, char *packet)
 {
   enum enum_server_command
@@ -1139,21 +1152,6 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
                      command_name[command].str));
   DBUG_RETURN(command);
 }
-
-
-#ifdef WITH_WSREP
-static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
-{
-  for (const TABLE_LIST *table= tables; table; table= table->next_global)
-  {
-    LEX_CSTRING db= table->db, tn= table->table_name;
-    if (get_table_category(&db, &tn)  < TABLE_CATEGORY_INFORMATION)
-      return false;
-  }
-  return true;
-}
-#endif /* WITH_WSREP */
-#ifndef EMBEDDED_LIBRARY
 
 /**
   Read one command from connection and execute it (query or simple command).
