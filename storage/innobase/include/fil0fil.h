@@ -1495,6 +1495,13 @@ fil_space_read_name_and_filepath(
 	char**	name,
 	char**	filepath);
 
+/** Convert a file name to a tablespace name.
+@param[in]	filename	directory/databasename/tablename.ibd
+@return database/tablename string, to be freed with ut_free() */
+char*
+fil_path_to_space_name(
+	const char*	filename);
+
 /** Generate redo log for swapping two .ibd files
 @param[in]	old_table	old table
 @param[in]	new_table	new table
