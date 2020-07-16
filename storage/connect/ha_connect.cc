@@ -4507,12 +4507,12 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 		case TAB_DIR:
 		case TAB_ZIP:
 		case TAB_OEM:
-      if (table && table->pos_in_table_list) // if SELECT
-      {
-        //Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
+      if (table && table->pos_in_table_list) {		// if SELECT
+#if MYSQL_VERSION_ID > 100200
+				Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
+#endif // VERSION_ID > 100200
         return check_global_access(thd, FILE_ACL);
-      }
-      else
+      }	else
         return check_global_access(thd, FILE_ACL);
     case TAB_ODBC:
 		case TAB_JDBC:
@@ -4528,7 +4528,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
     case TAB_VIR:
 			// This is temporary until a solution is found
 			return false;
-    } // endswitch type
+  } // endswitch type
 
   my_printf_error(ER_UNKNOWN_ERROR, "check_privileges failed", MYF(0));
   return true;
@@ -5882,7 +5882,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 			} else switch (ttp) {
 				case TAB_DBF:
-					qrp= DBFColumns(g, dpath, fn, fnc == FNC_COL);
+					qrp= DBFColumns(g, dpath, fn, topt, fnc == FNC_COL);
 					break;
 #if defined(ODBC_SUPPORT)
 				case TAB_ODBC:
@@ -6732,11 +6732,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 			bool append= *a == '1' || *a == 'Y' || *a == 'y' || !stricmp(a, "ON");
 			PCSZ m= GetListOption(g, "Mulentries", options->oplist, "NO");
 			bool mul= *m == '1' || *m == 'Y' || *m == 'y' || !stricmp(m, "ON");
-
-			if (!entry && !mul) {
-				my_message(ER_UNKNOWN_ERROR, "Missing entry name", MYF(0));
-				DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-			}	// endif entry
 
 			strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
 			PlugSetPath(zbuf, options->filename, dbpath);
