@@ -760,12 +760,11 @@ got_mutex:
 	/* If there is a block in the free list, take it */
 	block = buf_LRU_get_free_only();
 
-	if (block != NULL) {
+	if (block) {
 		if (!have_mutex) {
 			mutex_exit(&buf_pool.mutex);
 		}
 		memset(&block->page.zip, 0, sizeof block->page.zip);
-		block->skip_flush_check = false;
 		return(block);
 	}
 

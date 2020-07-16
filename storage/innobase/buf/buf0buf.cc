@@ -1306,8 +1306,6 @@ buf_block_init(buf_block_t* block, byte* frame)
 #ifdef BTR_CUR_HASH_ADAPT
 	block->index = NULL;
 #endif /* BTR_CUR_HASH_ADAPT */
-	block->skip_flush_check = false;
-
 	ut_d(block->in_unzip_LRU_list = false);
 	ut_d(block->in_withdraw_list = false);
 
@@ -2801,7 +2799,6 @@ buf_block_init_low(
 /*===============*/
 	buf_block_t*	block)	/*!< in: block to init */
 {
-	block->skip_flush_check = false;
 #ifdef BTR_CUR_HASH_ADAPT
 	/* No adaptive hash index entries may point to a previously
 	unused (and now freshly allocated) block. */

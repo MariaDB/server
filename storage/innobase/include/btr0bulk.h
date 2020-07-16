@@ -118,6 +118,9 @@ public:
 	dirs, and set page header members. */
 	inline void finish();
 
+  /** @return whether finish() actually needs to do something */
+  inline bool needs_finish() const;
+
 	/** Commit mtr for a page
 	@param[in]	success		Flag whether all inserts succeed. */
 	void commit(bool success);
