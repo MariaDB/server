@@ -4430,7 +4430,7 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     Again we don't do this for SHOW COLUMNS/KEYS because
     of backward compatibility.
   */
-  if (!is_show_fields_or_keys && result &&
+  if (!is_show_fields_or_keys && result && thd->is_error() &&
       (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT))
   {
@@ -5614,15 +5614,21 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
         rather than in SHOW COLUMNS
       */
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-      thd->clear_error();
+      if (thd->is_error())
+      {
+        /*
+          The the query was aborted because examined rows exceeded limit.
+          Don't send the warning here. It is done later, in handle_select().
+        */
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                     thd->get_stmt_da()->sql_errno(),
+                     thd->get_stmt_da()->message());
+        thd->clear_error();
+      }
       res= 0;
     }
     DBUG_RETURN(res);
   }
-
   show_table= tables->table;
   count= 0;
   ptr= show_table->field;
