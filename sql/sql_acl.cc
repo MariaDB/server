@@ -14131,6 +14131,9 @@ static int native_password_authenticate(MYSQL_PLUGIN_VIO *vio,
     if (!info->auth_string_length)
       DBUG_RETURN(CR_AUTH_USER_CREDENTIALS);
 
+    if (info->auth_string_length != SCRAMBLE_LENGTH)
+      DBUG_RETURN(CR_AUTH_USER_CREDENTIALS);
+
     if (check_scramble(pkt, thd->scramble, (uchar*)info->auth_string))
       DBUG_RETURN(CR_AUTH_USER_CREDENTIALS);
     else
@@ -14155,9 +14158,13 @@ static int native_password_make_scramble(const char *password,
   return 0;
 }
 
+/* As this contains is a string of not a valid SCRAMBLE_LENGTH */
+static const char invalid_password[] = "*THISISNOTAVALIDPASSWORDTHATCANBEUSEDHERE";
+
 static int native_password_get_salt(const char *hash, size_t hash_length,
                                     unsigned char *out, size_t *out_length)
 {
+  DBUG_ASSERT(sizeof(invalid_password) > SCRAMBLE_LENGTH);
   DBUG_ASSERT(*out_length >= SCRAMBLE_LENGTH);
   if (hash_length == 0)
   {
@@ -14167,6 +14174,12 @@ static int native_password_get_salt(const char *hash, size_t hash_length,
 
   if (hash_length != SCRAMBLED_PASSWORD_CHAR_LENGTH)
   {
+    if (hash_length == 7 && strcmp(hash, "invalid") == 0)
+    {
+      memcpy(out, invalid_password, SCRAMBLED_PASSWORD_CHAR_LENGTH);
+      *out_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
+      return 0;
+    }
     my_error(ER_PASSWD_LENGTH, MYF(0), SCRAMBLED_PASSWORD_CHAR_LENGTH);
     return 1;
   }
