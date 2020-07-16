@@ -554,12 +554,18 @@ buf_dblwr_process()
 			continue;
 		}
 
-		if (!fil_check_adress_in_tablespace(space_id, page_no)) {
+		if (!space()->size) {
+			fil_space_get_size(space_id);
+		}
+
+		if (UNIV_UNLIKELY(space()->size <= page_no)) {
 			ib_logf(IB_LOG_LEVEL_WARN,
-				"A copy of page " ULINTPF ":" ULINTPF
+				"A copy of page " ULINTPF
 				" in the doublewrite buffer slot " ULINTPF
-				" is not within space bounds",
-				space_id, page_no, page_no_dblwr);
+				" is beyond the end of the tablespace "
+				" %s (" ULINTPF " pages)",
+				page_no, page_no_dblwr,
+				space()->name, space()->size);
 			continue;
 		}
 
