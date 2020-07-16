@@ -142,3 +142,6 @@ void wsrep_log(void (*)(const char *, ...), const char *, ...)
 
 my_bool wsrep_thd_is_applying(const THD*)
 { return 0;}
+
+bool wsrep_thd_set_wsrep_aborter(THD*, THD*)
+{ return 0;}

@@ -1,7 +1,5 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
---source include/have_debug.inc
---source include/have_debug_sync.inc
 
 #
 # Test case 1: Start a transaction on node_2a and kill it
@@ -135,56 +133,9 @@ update t1 set a =5, b=2;
 --eval KILL $k_thread
 --enable_query_log
 
-
 select * from t1;
 
 --disconnect node_2a
 
+--connection node_1
 drop table t1;
-
-
-#
-# Test case 7:
-# run a transaction in node 2, and set a sync point to pause the transaction
-# in commit phase.
-# Through another connection to node 2, kill the committing transaction by
-# KILL QUERY command
-#
-
---connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
---connection node_2a
---let $connection_id = `SELECT CONNECTION_ID()`
-
-CREATE TABLE t1 (i int primary key);
-
-# Set up sync point
-SET DEBUG_SYNC = "before_wsrep_ordered_commit SIGNAL bwoc_reached WAIT_FOR bwoc_continue";
-
-# Send insert which will block in the sync point above
---send INSERT INTO t1 VALUES (1)
-
---connection node_2
-SET DEBUG_SYNC = "now WAIT_FOR bwoc_reached";
-
---disable_query_log
---disable_result_log
-# victim has passed the point of no return, kill is not possible anymore
---eval KILL QUERY $connection_id
---enable_result_log
---enable_query_log
-
-SET DEBUG_SYNC = "now SIGNAL bwoc_continue";
-SET DEBUG_SYNC='RESET';
---connection node_2a
---error 0,1213
---reap
-
---connection node_2
-# victim was able to complete the INSERT
-select * from t1;
-
---disconnect node_2a
-
---connection node_2
-drop table t1;
-
