@@ -1768,9 +1768,6 @@ struct buf_block_t{
 # define assert_block_ahi_empty_on_init(block) /* nothing */
 # define assert_block_ahi_valid(block) /* nothing */
 #endif /* BTR_CUR_HASH_ADAPT */
-	bool		skip_flush_check;
-					/*!< Skip check in buf_dblwr_check_block
-					during bulk load, protected by lock.*/
 # ifdef UNIV_DEBUG
 	/** @name Debug fields */
 	/* @{ */

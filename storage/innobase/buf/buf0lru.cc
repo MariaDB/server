@@ -951,7 +951,6 @@ loop:
 		ut_ad(buf_pool_from_block(block) == buf_pool);
 		memset(&block->page.zip, 0, sizeof block->page.zip);
 
-		block->skip_flush_check = false;
 		block->page.flush_observer = NULL;
 		return(block);
 	}

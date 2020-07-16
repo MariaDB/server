@@ -2023,10 +2023,9 @@ page_simple_validate_old(
 
 	n_slots = page_dir_get_n_slots(page);
 
-	if (UNIV_UNLIKELY(n_slots > srv_page_size / 4)) {
-		ib::error() << "Nonsensical number " << n_slots
-			<< " of page dir slots";
-
+	if (UNIV_UNLIKELY(n_slots < 2 || n_slots > srv_page_size / 4)) {
+		ib::error() << "Nonsensical number of page dir slots: "
+			    << n_slots;
 		goto func_exit;
 	}
 
@@ -2223,10 +2222,9 @@ page_simple_validate_new(
 
 	n_slots = page_dir_get_n_slots(page);
 
-	if (UNIV_UNLIKELY(n_slots > srv_page_size / 4)) {
-		ib::error() << "Nonsensical number " << n_slots
-			<< " of page dir slots";
-
+	if (UNIV_UNLIKELY(n_slots < 2 || n_slots > srv_page_size / 4)) {
+		ib::error() << "Nonsensical number of page dir slots: "
+			    << n_slots;
 		goto func_exit;
 	}
 
@@ -2438,6 +2436,7 @@ func_exit2:
 			    << " of table " << index->table->name;
 		return FALSE;
 	}
+
 	if (page_is_comp(page)) {
 		if (UNIV_UNLIKELY(!page_simple_validate_new(page))) {
 			goto func_exit2;
