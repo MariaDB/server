@@ -1508,8 +1508,6 @@ buf_block_init(
 #ifdef BTR_CUR_HASH_ADAPT
 	block->index = NULL;
 #endif /* BTR_CUR_HASH_ADAPT */
-	block->skip_flush_check = false;
-
 	ut_d(block->page.in_page_hash = FALSE);
 	ut_d(block->page.in_zip_hash = FALSE);
 	ut_d(block->page.in_flush_list = FALSE);
@@ -3822,7 +3820,6 @@ buf_block_init_low(
 /*===============*/
 	buf_block_t*	block)	/*!< in: block to init */
 {
-	block->skip_flush_check = false;
 #ifdef BTR_CUR_HASH_ADAPT
 	/* No adaptive hash index entries may point to a previously
 	unused (and now freshly allocated) block. */

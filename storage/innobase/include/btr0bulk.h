@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -109,6 +109,9 @@ public:
 	/** Mark end of insertion to the page. Scan all records to set page
 	dirs, and set page header members. */
 	void finish();
+
+  /** @return whether finish() actually needs to do something */
+  inline bool needs_finish() const;
 
 	/** Commit mtr for a page
 	@param[in]	success		Flag whether all inserts succeed. */
