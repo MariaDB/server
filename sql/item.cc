@@ -3626,9 +3626,10 @@ String *Item_int::val_str(String *str)
 
 void Item_int::print(String *str, enum_query_type query_type)
 {
+  StringBuffer<LONGLONG_BUFFER_SIZE> buf;
   // my_charset_bin is good enough for numbers
-  str_value.set_int(value, unsigned_flag, &my_charset_bin);
-  str->append(str_value);
+  buf.set_int(value, unsigned_flag, &my_charset_bin);
+  str->append(buf);
 }
 
 
@@ -3651,21 +3652,6 @@ Item_uint::Item_uint(THD *thd, const char *str_arg, longlong i, uint length):
   Item_int(thd, str_arg, i, length)
 {
   unsigned_flag= 1;
-}
-
-
-String *Item_uint::val_str(String *str)
-{
-  str->set((ulonglong) value, collation.collation);
-  return str;
-}
-
-
-void Item_uint::print(String *str, enum_query_type query_type)
-{
-  // latin1 is good enough for numbers
-  str_value.set((ulonglong) value, default_charset());
-  str->append(str_value);
 }
 
 

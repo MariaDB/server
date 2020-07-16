@@ -796,6 +796,8 @@ inline unsigned long long my_double2ulonglong(double d)
 #define LONGLONG_MIN	((long long) 0x8000000000000000LL)
 #define LONGLONG_MAX	((long long) 0x7FFFFFFFFFFFFFFFLL)
 #endif
+/* Max length needed for a buffer to hold a longlong or ulonglong + end \0 */
+#define LONGLONG_BUFFER_SIZE 21
 
 #if defined(HAVE_LONG_LONG) && !defined(ULONGLONG_MAX)
 /* First check for ANSI C99 definition: */

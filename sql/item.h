@@ -4238,9 +4238,7 @@ public:
   Item_uint(THD *thd, ulonglong i): Item_int(thd, i, 10) {}
   Item_uint(THD *thd, const char *str_arg, longlong i, uint length);
   double val_real() { return ulonglong2double((ulonglong)value); }
-  String *val_str(String*);
   Item *clone_item(THD *thd);
-  virtual void print(String *str, enum_query_type query_type);
   Item *neg(THD *thd);
   uint decimal_precision() const { return max_length; }
   Item *get_copy(THD *thd)
