@@ -268,7 +268,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       msg= current_thd->get_stmt_da()->message();
       goto err;
     }
-    if (init_io_cache(&info_file, info_fd, IO_SIZE*2, READ_CACHE, 0L,0,
+    if (init_io_cache(&info_file, info_fd, LOG_BIN_IO_SIZE, READ_CACHE, 0L,0,
                       MYF(MY_WME)))
     {
       sql_print_error("Failed to create a cache on relay log info file '%s'",
@@ -303,7 +303,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
         error= 1;
       }
       else if (init_io_cache(&info_file, info_fd,
-                             IO_SIZE*2, READ_CACHE, 0L, 0, MYF(MY_WME)))
+                             LOG_BIN_IO_SIZE, READ_CACHE, 0L, 0, MYF(MY_WME)))
       {
         sql_print_error("Failed to create a cache on relay log info file '%s'",
                         fname);
