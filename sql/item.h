@@ -962,6 +962,10 @@ public:
 #endif
   }		/*lint -e1509 */
   void set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs);
+  void set_name(THD *thd, String *str)
+  {
+    set_name(thd, str->ptr(), str->length(), str->charset());
+  }
   void set_name(THD *thd, const LEX_CSTRING &str,
                 CHARSET_INFO *cs= system_charset_info)
   {
@@ -4377,7 +4381,7 @@ protected:
                                    const Metadata metadata)
   {
     fix_from_value(dv, metadata);
-    set_name(thd, str_value.lex_cstring(), str_value.charset());
+    set_name(thd, &str_value);
   }
 protected:
   /* Just create an item and do not fill string representation */

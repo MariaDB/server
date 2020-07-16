@@ -1078,17 +1078,16 @@ Field_longstr::make_packed_sort_key_part(uchar *buff,
     *buff++=1;
   }
   uchar *end= pack_sort_string(buff, sort_field);
-  return static_cast<int>(end-buff);
+  return (uint) (end-buff);
 }
 
 
 uchar*
 Field_longstr::pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field)
 {
-  String buf;
+  StringBuffer<LONGLONG_BUFFER_SIZE> buf;
   val_str(&buf, &buf);
-  return to + sort_field->pack_sort_string(to, buf.lex_cstring(),
-                                           field_charset());
+  return to + sort_field->pack_sort_string(to, &buf);
 }
 
 
@@ -2106,7 +2105,7 @@ void Field::make_send_field(Send_field *field)
     field->org_table_name= field->db_name= empty_clex_str;
   if (orig_table && orig_table->alias.ptr())
   {
-    field->table_name= orig_table->alias.lex_cstring();
+    orig_table->alias.get_value(&field->table_name);
     field->org_col_name= field_name;
   }
   else

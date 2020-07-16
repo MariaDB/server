@@ -476,9 +476,10 @@ char *spider_string::c_ptr_safe()
 
 LEX_STRING spider_string::lex_string() const
 {
+  LEX_STRING res= { (char*) str.ptr(), str.length() };
   DBUG_ENTER("spider_string::lex_string");
   DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(str.lex_string());
+  DBUG_RETURN(res);
 }
 
 void spider_string::set(

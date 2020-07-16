@@ -222,18 +222,6 @@ public:
   inline bool is_empty() const { return (str_length == 0); }
   inline const char *ptr() const { return Ptr; }
   inline const char *end() const { return Ptr + str_length; }
-
-  LEX_STRING lex_string() const
-  {
-    LEX_STRING str = { (char*) ptr(), length() };
-    return str;
-  }
-  LEX_CSTRING lex_cstring() const
-  {
-    LEX_CSTRING skr = { ptr(), length() };
-    return skr;
-  }
-
   bool has_8bit_bytes() const
   {
     for (const char *c= ptr(), *c_end= end(); c < c_end; c++)
@@ -487,6 +475,12 @@ public:
     Static_binary_string::set((char*) str.ptr() + offset, arg_length);
     if (str.Alloced_length)
       Alloced_length= (uint32) (str.Alloced_length - offset);
+  }
+  inline LEX_CSTRING *get_value(LEX_CSTRING *res)
+  {
+    res->str=    Ptr;
+    res->length= str_length;
+    return res;
   }
 
   /* Take over handling of buffer from some other object */
@@ -888,13 +882,13 @@ public:
   {
     return Binary_string::append_hex((const char*)src, srclen);
   }
-  bool append_introducer_and_hex(CHARSET_INFO *cs, const LEX_CSTRING &str)
+  bool append_introducer_and_hex(String *str)
   {
     return
       append(STRING_WITH_LEN("_"))   ||
-      append(cs->csname)             ||
+      append(str->charset()->csname)  ||
       append(STRING_WITH_LEN(" 0x")) ||
-      append_hex(str.str, (uint32) str.length);
+      append_hex(str->ptr(), (uint32) str->length());
   }
   bool append(IO_CACHE* file, uint32 arg_length)
   {

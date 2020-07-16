@@ -864,12 +864,13 @@ bool Protocol_text::store_field_metadata(const THD * thd,
     {
       Send_field_packed_extended_metadata metadata;
       metadata.pack(field);
+
       /*
         Don't apply character set conversion:
         extended metadata is a binary encoded data.
       */
-      if (store_lex_cstring(metadata.lex_cstring(), cs,
-                            MY_REPERTOIRE_UNICODE30, &my_charset_bin))
+      if (store_binary_string(&metadata, cs,
+                              MY_REPERTOIRE_UNICODE30))
         return true;
     }
     if (packet->realloc(packet->length() + 12))

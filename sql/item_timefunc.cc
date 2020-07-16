@@ -473,7 +473,7 @@ err:
   Create a formated date/time value in a string.
 */
 
-static bool make_date_time(const LEX_CSTRING &format, MYSQL_TIME *l_time,
+static bool make_date_time(String *format, MYSQL_TIME *l_time,
                            timestamp_type type, const MY_LOCALE *locale,
                            String *str)
 {
@@ -488,7 +488,7 @@ static bool make_date_time(const LEX_CSTRING &format, MYSQL_TIME *l_time,
   if (l_time->neg)
     str->append('-');
   
-  end= (ptr= format.str) + format.length;
+  end= (ptr= format->ptr()) + format->length();
   for (; ptr != end ; ptr++)
   {
     if (*ptr != '%' || ptr+1 == end)
@@ -1877,6 +1877,7 @@ String *Item_func_date_format::val_str(String *str)
   DBUG_ASSERT(fixed == 1);
   date_conv_mode_t mode= is_time_format ? TIME_TIME_ONLY : TIME_CONV_NONE;
   THD *thd= current_thd;
+
   if ((null_value= args[0]->get_date(thd, &l_time,
                                      Temporal::Options(mode, thd))))
     return 0;
@@ -1901,7 +1902,7 @@ String *Item_func_date_format::val_str(String *str)
 
   /* Create the result string */
   str->set_charset(collation.collation);
-  if (!make_date_time(format->lex_cstring(), &l_time,
+  if (!make_date_time(format, &l_time,
                       is_time_format ? MYSQL_TIMESTAMP_TIME :
                                        MYSQL_TIMESTAMP_DATE,
                       lc, str))

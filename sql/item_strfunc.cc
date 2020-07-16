@@ -1391,8 +1391,8 @@ String *Item_func_regexp_replace::val_str(String *str)
       !(replace= re.convert_if_needed(replace, &re.replace_converter)))
     goto err;
 
-  src= source->lex_cstring();
-  rpl= replace->lex_cstring();
+  source->get_value(&src);
+  replace->get_value(&rpl);
 
   str->length(0);
   str->set_charset(collation.collation);

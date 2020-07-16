@@ -2546,7 +2546,6 @@ Type_handler_string_result::make_packed_sort_key_part(uchar *to, Item *item,
                                             const SORT_FIELD_ATTR *sort_field,
                                             Sort_param *param) const
 {
-  CHARSET_INFO *cs= item->collation.collation;
   bool maybe_null= item->maybe_null;
 
   if (maybe_null)
@@ -2576,7 +2575,7 @@ Type_handler_string_result::make_packed_sort_key_part(uchar *to, Item *item,
       return sort_field->original_length;
     }
   }
-  return sort_field->pack_sort_string(to, res->lex_cstring(), cs);
+  return sort_field->pack_sort_string(to, res);
 }
 
 
@@ -2932,13 +2931,12 @@ int compare_packed_sort_keys(void *sort_param,
 */
 
 uint
-SORT_FIELD_ATTR::pack_sort_string(uchar *to, const LEX_CSTRING &str,
-                                  CHARSET_INFO *cs) const
+SORT_FIELD_ATTR::pack_sort_string(uchar *to, String *str) const
 {
   uchar *orig_to= to;
   uint32 length, data_length;
-  DBUG_ASSERT(str.length <= UINT32_MAX);
-  length= (uint32)str.length;
+  DBUG_ASSERT(str->length() <= UINT32_MAX);
+  length= (uint32) str->length();
 
   if (length + suffix_length <= original_length)
     data_length= length;
@@ -2949,13 +2947,13 @@ SORT_FIELD_ATTR::pack_sort_string(uchar *to, const LEX_CSTRING &str,
   store_key_part_length(data_length + suffix_length, to, length_bytes);
   to+= length_bytes;
   // copying data length bytes to the buffer
-  memcpy(to, (uchar*)str.str, data_length);
+  memcpy(to, (uchar*)str->ptr(), data_length);
   to+= data_length;
 
-  if (cs == &my_charset_bin && suffix_length)
+  if (str->charset() == &my_charset_bin && suffix_length)
   {
     // suffix length stored in bigendian form
-    store_bigendian(str.length, to, suffix_length);
+    store_bigendian(length, to, suffix_length);
     to+= suffix_length;
   }
   return static_cast<uint>(to - orig_to);

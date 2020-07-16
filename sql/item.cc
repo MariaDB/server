@@ -1394,7 +1394,7 @@ bool Item::get_date_from_real(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate
 
 bool Item::get_date_from_string(THD *thd, MYSQL_TIME *to, date_mode_t mode)
 {
-  StringBuffer<40> tmp;
+  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> tmp;
   Temporal::Warn_push warn(thd, field_table_or_null(), field_name_or_null(),
                            to, mode);
   Temporal_hybrid *t= new(to) Temporal_hybrid(thd, &warn, val_str(&tmp), mode);
@@ -2076,7 +2076,7 @@ Item_name_const::Item_name_const(THD *thd, Item *name_arg, Item *val):
   Item::maybe_null= TRUE;
   if (name_item->basic_const_item() &&
       (name_str= name_item->val_str(&name_buffer))) // Can't have a NULL name
-    set_name(thd, name_str->lex_cstring(), name_str->charset());
+    set_name(thd, name_str);
 }
 
 
@@ -6674,8 +6674,9 @@ int Item_string::save_in_field(Field *field, bool no_conversions)
 
 Item *Item_string::clone_item(THD *thd)
 {
-  return new (thd->mem_root)
-    Item_string(thd, name, str_value.lex_cstring(), collation.collation);
+  LEX_CSTRING val;
+  str_value.get_value(&val);
+  return new (thd->mem_root) Item_string(thd, name, val, collation.collation);
 }
 
 

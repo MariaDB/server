@@ -149,17 +149,24 @@ public:
 
   // Various useful wrappers for the virtual store*() methods.
   // Backward wrapper for store_str()
-  bool store(const char *from, size_t length, CHARSET_INFO *cs,
-             my_repertoire_t repertoire= MY_REPERTOIRE_UNICODE30)
+  inline bool store(const char *from, size_t length, CHARSET_INFO *cs,
+                    my_repertoire_t repertoire= MY_REPERTOIRE_UNICODE30)
   {
     return store_str(from, length, cs, repertoire, character_set_results());
   }
-  bool store_lex_cstring(const LEX_CSTRING &s,
-                         CHARSET_INFO *fromcs,
-                         my_repertoire_t from_repertoire,
-                         CHARSET_INFO *tocs)
+  inline bool store_lex_cstring(const LEX_CSTRING &s,
+                                CHARSET_INFO *fromcs,
+                                my_repertoire_t from_repertoire,
+                                CHARSET_INFO *tocs)
   {
     return store_str(s.str, (uint) s.length, fromcs, from_repertoire, tocs);
+  }
+  inline bool store_binary_string(Binary_string *str,
+                                  CHARSET_INFO *fromcs,
+                                  my_repertoire_t from_repertoire)
+  {
+    return store_str(str->ptr(), (uint) str->length(), fromcs, from_repertoire,
+                     &my_charset_bin);
   }
   bool store_ident(const LEX_CSTRING &s,
                    my_repertoire_t repertoire= MY_REPERTOIRE_UNICODE30)

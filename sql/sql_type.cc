@@ -8981,8 +8981,8 @@ bool Type_handler::partition_field_append_value(
     uint cnverr2= 0;
     buf2.copy(res->ptr(), res->length(), res->charset(), field_cs, &cnverr2);
     if (!cnverr2)
-      return str->append_introducer_and_hex(buf2.charset(), buf2.lex_cstring());
-    return str->append_introducer_and_hex(res->charset(), res->lex_cstring());
+      return str->append_introducer_and_hex(&buf2);
+    return str->append_introducer_and_hex(res);
   }
 
   StringBuffer<64> val(system_charset_info);

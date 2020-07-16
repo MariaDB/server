@@ -86,6 +86,13 @@ static uchar* extra2_write_str(uchar *pos, const LEX_CSTRING &str)
   return pos + str.length;
 }
 
+static uchar* extra2_write_str(uchar *pos, Binary_string *str)
+{
+  pos= extra2_write_len(pos, str->length());
+  memcpy(pos, str->ptr(), str->length());
+  return pos + str->length();
+}
+
 static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
                            const LEX_CSTRING &str)
 {
@@ -178,11 +185,11 @@ class Field_data_type_info_image: public BinaryStringBuffer<512>
   {
     return net_store_length(pos, length);
   }
-  static uchar *store_string(uchar *pos, const LEX_CSTRING &str)
+  static uchar *store_string(uchar *pos, Binary_string *str)
   {
-    pos= store_length(pos, str.length);
-    memcpy(pos, str.str, str.length);
-    return pos + str.length;
+    pos= store_length(pos, str->length());
+    memcpy(pos, str->ptr(), str->length());
+    return pos + str->length();
   }
   static uint store_length_required_length(ulonglong length)
   {
@@ -206,7 +213,7 @@ public:
       return true; // Error
     uchar *pos= (uchar *) end();
     pos= store_length(pos, fieldnr);
-    pos= store_string(pos, type_info.lex_cstring());
+    pos= store_string(pos, &type_info);
     size_t new_length= (const char *) pos - ptr();
     DBUG_ASSERT(new_length < alloced_length());
     length((uint32) new_length);
@@ -471,7 +478,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
       goto err;
     }
     *pos= EXTRA2_FIELD_DATA_TYPE_INFO;
-    pos= extra2_write_str(pos + 1, field_data_type_info_image.lex_cstring());
+    pos= extra2_write_str(pos + 1, &field_data_type_info_image);
   }
 
   // PERIOD

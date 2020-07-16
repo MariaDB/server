@@ -1286,7 +1286,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
         if (type() == SP_TYPE_FUNCTION)
         {
           sp_returns_type(thd, retstr, sp);
-          returns= retstr.lex_cstring();
+          retstr.get_value(&returns);
         }
         goto log;
       }
@@ -1369,7 +1369,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
     if (type() == SP_TYPE_FUNCTION)
     {
       sp_returns_type(thd, retstr, sp);
-      returns= retstr.lex_cstring();
+      retstr.get_value(&returns);
 
       store_failed= store_failed ||
         table->field[MYSQL_PROC_FIELD_RETURNS]->
@@ -2061,7 +2061,7 @@ Sp_handler::sp_clone_and_link_routine(THD *thd,
   if (type() == SP_TYPE_FUNCTION)
   {
     sp_returns_type(thd, retstr, sp);
-    returns= retstr.lex_cstring();
+    retstr.get_value(&returns);
   }
 
   if (sp->m_parent)
