@@ -1,8 +1,10 @@
 include/rpl_init.inc [topology=1->2]
 *** MDEV-5509: Incorrect value for Seconds_Behind_Master if parallel replication ***
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+set @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=5;
+set global slave_parallel_mode= optimistic;
 include/start_slave.inc
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave");
@@ -127,6 +129,7 @@ UNLOCK TABLES;
 UNLOCK TABLES;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+set global slave_parallel_mode= @old_parallel_mode;
 include/start_slave.inc
 DROP TABLE t1, t2;
 include/rpl_end.inc
