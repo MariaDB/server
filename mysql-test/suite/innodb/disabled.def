@@ -12,4 +12,3 @@
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
 innodb_force_recovery_rollback : MDEV-22889 InnoDB occasionally breaks ACID
-innodb_scrub : MDEV-8139/MDEV-22970 Fix scrubbing

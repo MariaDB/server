@@ -746,6 +746,13 @@ buf_read_recv_pages(
 	const ulint zip_size = space->zip_size();
 
 	for (ulint i = 0; i < n_stored; i++) {
+
+		/* Ignore if the page already present in freed ranges. */
+		if (space->freed_ranges.contains(
+			static_cast<uint32_t>(page_nos[i]))) {
+			continue;
+		}
+
 		const page_id_t	cur_page_id(space_id, page_nos[i]);
 
 		ulint limit = 0;

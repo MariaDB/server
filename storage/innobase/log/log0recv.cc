@@ -1779,7 +1779,6 @@ append:
                   log_phys_t(start_lsn, lsn, l, len));
 }
 
-#if 0 /* FIXME: MDEV-22970 Potential corruption */
 /** Store/remove the freed pages in fil_name_t of recv_spaces.
 @param[in]	page_id		freed or init page_id
 @param[in]	freed		TRUE if page is freed */
@@ -1789,6 +1788,8 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
   uint32_t page_no= page_id.page_no();
   if (is_predefined_tablespace(space_id))
   {
+    if (!srv_immediate_scrub_data_uncompressed)
+      return;
     fil_space_t *space;
     if (space_id == TRX_SYS_SPACE)
       space= fil_system.sys_space;
@@ -1808,7 +1809,6 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
       i->second.remove_freed_page(page_no);
   }
 }
-#endif
 
 /** Parse and register one mini-transaction in log_t::FORMAT_10_5.
 @param checkpoint_lsn  the log sequence number of the latest checkpoint
@@ -2008,9 +2008,7 @@ same_page:
       case INIT_PAGE:
         last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
-#if 0 /* FIXME: MDEV-22970 Potential corruption */
         store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
-#endif
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
         break;
@@ -2135,12 +2133,12 @@ same_page:
       case STORE_NO:
         if (!is_init)
           continue;
+        mlog_init.add(id, start_lsn);
         map::iterator i= pages.find(id);
         if (i == pages.end())
           continue;
         i->second.log.clear();
         pages.erase(i);
-        mlog_init.add(id, start_lsn);
       }
     }
 #if 1 /* MDEV-14425 FIXME: this must be in the checkpoint file only! */
@@ -3291,9 +3289,13 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 
 			/* Add the freed page ranges in the respective
 			tablespace */
-			if (!rs.second.freed_ranges.empty())
-			  rs.second.space->add_free_ranges(
+			if (!rs.second.freed_ranges.empty()
+			    && (srv_immediate_scrub_data_uncompressed
+				|| rs.second.space->is_compressed())) {
+
+				rs.second.space->add_free_ranges(
 					std::move(rs.second.freed_ranges));
+			}
 		} else if (rs.second.name == "") {
 			ib::error() << "Missing FILE_CREATE, FILE_DELETE"
 				" or FILE_MODIFY before FILE_CHECKPOINT"

@@ -63,7 +63,6 @@ extern struct st_maria_plugin	i_s_innodb_sys_datafiles;
 extern struct st_maria_plugin	i_s_innodb_mutexes;
 extern struct st_maria_plugin	i_s_innodb_sys_virtual;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_encryption;
-extern struct st_maria_plugin	i_s_innodb_tablespaces_scrubbing;
 extern struct st_maria_plugin	i_s_innodb_sys_semaphore_waits;
 
 /** The latest successfully looked up innodb_fts_aux_table */

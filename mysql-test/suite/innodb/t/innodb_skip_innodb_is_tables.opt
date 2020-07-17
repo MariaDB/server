@@ -59,9 +59,7 @@
 --loose-innodb_sys_datafiles
 --loose-innodb_changed_pages
 --loose-innodb_tablespaces_encryption
---loose-innodb_tablespaces_scrubbing
 --loose-innodb_mutexes
 --loose-innodb_sys_semaphore_waits
---loose-innodb_tablespaces_scrubbing
 --loose-innodb_mutexes
 --loose-innodb_sys_semaphore_waits

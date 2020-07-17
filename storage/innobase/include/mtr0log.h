@@ -511,7 +511,17 @@ inline void mtr_t::memcpy(const buf_block_t &b, void *dest, const void *str,
 @param[in,out]        b       buffer page */
 inline void mtr_t::init(buf_block_t *b)
 {
-  ut_ad(!m_freed_pages);
+  if (UNIV_LIKELY_NULL(m_freed_pages))
+  {
+    ut_ad(m_user_space->id == b->page.id().space());
+    if (m_freed_pages->remove_if_exists(b->page.id().page_no()) &&
+        m_freed_pages->empty())
+    {
+      delete m_freed_pages;
+      m_freed_pages= nullptr;
+    }
+  }
+
   b->page.status= buf_page_t::INIT_ON_FLUSH;
 
   if (m_log_mode != MTR_LOG_ALL)
