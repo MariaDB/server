@@ -300,6 +300,8 @@ struct fil_space_t {
 				/*!< recovered tablespace size in pages;
 				0 if no size change was read from the redo log,
 				or if the size change was implemented */
+  /** the committed size of the tablespace in pages */
+  ulint committed_size;
 	ulint		flags;	/*!< FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
 				see fsp0fsp.h,
 				fsp_flags_is_valid(),
@@ -364,6 +366,15 @@ struct fil_space_t {
 	{
 		return stop_new_ops;
 	}
+
+  /** Clamp a page number for batched I/O, such as read-ahead.
+  @param offset   page number limit
+  @return offset clamped to the tablespace size */
+  ulint max_page_number_for_io(ulint offset) const
+  {
+    const ulint limit= committed_size;
+    return limit > offset ? offset : limit;
+  }
 };
 
 /** Value of fil_space_t::magic_n */

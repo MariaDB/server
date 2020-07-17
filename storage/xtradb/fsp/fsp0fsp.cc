@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -450,7 +450,7 @@ xdes_get_descriptor_with_space_hdr(
 	page_t*	descr_page;
 
 	ut_ad(mtr_memo_contains(mtr, fil_space_get_latch(space, NULL),
-				MTR_MEMO_X_LOCK));
+				MTR_MEMO_SPACE_X_LOCK));
 	ut_ad(mtr_memo_contains_page(mtr, sp_header, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(page_offset(sp_header) == FSP_HEADER_OFFSET);
 	/* Read free limit and space size */
@@ -534,7 +534,7 @@ xdes_lst_get_descriptor(
 
 	ut_ad(mtr);
 	ut_ad(mtr_memo_contains(mtr, fil_space_get_latch(space, NULL),
-				MTR_MEMO_X_LOCK));
+				MTR_MEMO_SPACE_X_LOCK));
 	descr = fut_get_ptr(space, zip_size, lst_node, RW_X_LATCH, mtr)
 		- XDES_FLST_NODE;
 
@@ -690,7 +690,7 @@ fsp_header_init(ulint space_id, ulint size, mtr_t* mtr)
 
 	ut_ad(mtr);
 
-	mtr_x_lock(fil_space_get_latch(space_id, &flags), mtr);
+	mtr_x_space_lock(fil_space_get_latch(space_id, &flags), mtr);
 
 	zip_size = fsp_flags_get_zip_size(flags);
 	block = buf_page_create(space_id, 0, zip_size, mtr);
@@ -817,7 +817,7 @@ fsp_header_inc_size(
 
 	ut_ad(mtr);
 
-	mtr_x_lock(fil_space_get_latch(space, &flags), mtr);
+	mtr_x_space_lock(fil_space_get_latch(space, &flags), mtr);
 
 	header = fsp_get_space_header(space,
 				      fsp_flags_get_zip_size(flags),
@@ -846,7 +846,7 @@ fsp_header_get_tablespace_size(void)
 
 	mtr_start(&mtr);
 
-	mtr_x_lock(fil_space_get_latch(0, NULL), &mtr);
+	mtr_x_space_lock(fil_space_get_latch(0, NULL), &mtr);
 
 	header = fsp_get_space_header(0, 0, &mtr);
 
@@ -1073,7 +1073,6 @@ fsp_fill_free_list(
 	ulint	frag_n_used;
 	ulint	actual_increase;
 	ulint	i;
-	mtr_t	ibuf_mtr;
 
 	ut_ad(page_offset(header) == FSP_HEADER_OFFSET);
 
@@ -1141,26 +1140,17 @@ fsp_fill_free_list(
 						 MLOG_2BYTES, mtr);
 			}
 
-			/* Initialize the ibuf bitmap page in a separate
-			mini-transaction because it is low in the latching
-			order, and we must be able to release its latch
-			before returning from the fsp routine */
-
-			mtr_start(&ibuf_mtr);
-
 			block = buf_page_create(space,
-						    i + FSP_IBUF_BITMAP_OFFSET,
-						    zip_size, &ibuf_mtr);
+						i + FSP_IBUF_BITMAP_OFFSET,
+						zip_size, mtr);
 			buf_page_get(space, zip_size,
 				     i + FSP_IBUF_BITMAP_OFFSET,
-				     RW_X_LATCH, &ibuf_mtr);
+				     RW_X_LATCH, mtr);
 			buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 
-			fsp_init_file_page(block, &ibuf_mtr);
+			fsp_init_file_page(block, mtr);
 
-			ibuf_bitmap_page_init(block, &ibuf_mtr);
-
-			mtr_commit(&ibuf_mtr);
+			ibuf_bitmap_page_init(block, mtr);
 		}
 
 		descr = xdes_get_descriptor_with_space_hdr(header, space, i,
@@ -2047,7 +2037,7 @@ fseg_create_general(
 		header = byte_offset + buf_block_get_frame(block);
 	}
 
-	mtr_x_lock(latch, mtr);
+	mtr_x_space_lock(latch, mtr);
 
 	if (!has_done_reservation) {
 		success = fsp_reserve_free_extents(&n_reserved, space, 2,
@@ -2194,7 +2184,7 @@ fseg_n_reserved_pages(
 	latch = fil_space_get_latch(space, &flags);
 	zip_size = fsp_flags_get_zip_size(flags);
 
-	mtr_x_lock(latch, mtr);
+	mtr_x_space_lock(latch, mtr);
 
 	inode = fseg_inode_get(header, space, zip_size, mtr);
 
@@ -2617,7 +2607,7 @@ fseg_alloc_free_page_general(
 
 	zip_size = fsp_flags_get_zip_size(flags);
 
-	mtr_x_lock(latch, mtr);
+	mtr_x_space_lock(latch, mtr);
 
 	inode = fseg_inode_get(seg_header, space, zip_size, mtr);
 
@@ -2734,7 +2724,7 @@ fsp_reserve_free_extents(
 	latch = fil_space_get_latch(space, &flags);
 	zip_size = fsp_flags_get_zip_size(flags);
 
-	mtr_x_lock(latch, mtr);
+	mtr_x_space_lock(latch, mtr);
 
 	space_header = fsp_get_space_header(space, zip_size, mtr);
 try_again:
@@ -2873,7 +2863,7 @@ fsp_get_available_space_in_free_extents(
 
 	zip_size = fsp_flags_get_zip_size(flags);
 
-	mtr_x_lock(latch, &mtr);
+	mtr_x_space_lock(latch, &mtr);
 
 	mutex_exit(&dict_sys->mutex);
 
@@ -3169,7 +3159,7 @@ fseg_free_page(
 	latch = fil_space_get_latch(space, &flags);
 	zip_size = fsp_flags_get_zip_size(flags);
 
-	mtr_x_lock(latch, mtr);
+	mtr_x_space_lock(latch, mtr);
 
 	seg_inode = fseg_inode_get(seg_header, space, zip_size, mtr);
 
@@ -3203,7 +3193,7 @@ fseg_page_is_free(
 	zip_size = dict_tf_get_zip_size(flags);
 
 	mtr_start(&mtr);
-	mtr_x_lock(latch, &mtr);
+	mtr_x_space_lock(latch, &mtr);
 
 	seg_inode = fseg_inode_get(seg_header, space, zip_size, &mtr);
 
@@ -3328,7 +3318,7 @@ fseg_free_step(
 	latch = fil_space_get_latch(space, &flags);
 	zip_size = fsp_flags_get_zip_size(flags);
 
-	mtr_x_lock(latch, mtr);
+	mtr_x_space_lock(latch, mtr);
 
 	descr = xdes_get_descriptor(space, zip_size, header_page, mtr);
 
@@ -3415,7 +3405,7 @@ fseg_free_step_not_header(
 	latch = fil_space_get_latch(space, &flags);
 	zip_size = fsp_flags_get_zip_size(flags);
 
-	mtr_x_lock(latch, mtr);
+	mtr_x_space_lock(latch, mtr);
 
 	inode = fseg_inode_get(header, space, zip_size, mtr);
 
@@ -3541,7 +3531,7 @@ fseg_validate_low(
 		ulint	zip_size;
 
 		mtr_start(&mtr);
-		mtr_x_lock(fil_space_get_latch(space, &flags), &mtr);
+		mtr_x_space_lock(fil_space_get_latch(space, &flags), &mtr);
 		zip_size = fsp_flags_get_zip_size(flags);
 
 		descr = xdes_lst_get_descriptor(space, zip_size,
@@ -3564,7 +3554,7 @@ fseg_validate_low(
 		ulint	zip_size;
 
 		mtr_start(&mtr);
-		mtr_x_lock(fil_space_get_latch(space, &flags), &mtr);
+		mtr_x_space_lock(fil_space_get_latch(space, &flags), &mtr);
 		zip_size = fsp_flags_get_zip_size(flags);
 
 		descr = xdes_lst_get_descriptor(space, zip_size,
@@ -3590,7 +3580,7 @@ fseg_validate_low(
 		ulint	zip_size;
 
 		mtr_start(&mtr);
-		mtr_x_lock(fil_space_get_latch(space, &flags), &mtr);
+		mtr_x_space_lock(fil_space_get_latch(space, &flags), &mtr);
 		zip_size = fsp_flags_get_zip_size(flags);
 
 		descr = xdes_lst_get_descriptor(space, zip_size,
@@ -3628,7 +3618,7 @@ fseg_validate(
 
 	space = page_get_space_id(page_align(header));
 
-	mtr_x_lock(fil_space_get_latch(space, &flags), mtr);
+	mtr_x_space_lock(fil_space_get_latch(space, &flags), mtr);
 	zip_size = fsp_flags_get_zip_size(flags);
 
 	inode = fseg_inode_get(header, space, zip_size, mtr);
@@ -3704,7 +3694,7 @@ fseg_print(
 
 	space = page_get_space_id(page_align(header));
 
-	mtr_x_lock(fil_space_get_latch(space, &flags), mtr);
+	mtr_x_space_lock(fil_space_get_latch(space, &flags), mtr);
 	zip_size = fsp_flags_get_zip_size(flags);
 
 	inode = fseg_inode_get(header, space, zip_size, mtr);
@@ -3753,10 +3743,10 @@ fsp_validate(
 	/* Start first a mini-transaction mtr2 to lock out all other threads
 	from the fsp system */
 	mtr_start(&mtr2);
-	mtr_x_lock(latch, &mtr2);
+	mtr_x_space_lock(latch, &mtr2);
 
 	mtr_start(&mtr);
-	mtr_x_lock(latch, &mtr);
+	mtr_x_space_lock(latch, &mtr);
 
 	header = fsp_get_space_header(space, zip_size, &mtr);
 
@@ -3783,7 +3773,7 @@ fsp_validate(
 
 	/* Validate FSP_FREE list */
 	mtr_start(&mtr);
-	mtr_x_lock(latch, &mtr);
+	mtr_x_space_lock(latch, &mtr);
 
 	header = fsp_get_space_header(space, zip_size, &mtr);
 	node_addr = flst_get_first(header + FSP_FREE, &mtr);
@@ -3792,7 +3782,7 @@ fsp_validate(
 
 	while (!fil_addr_is_null(node_addr)) {
 		mtr_start(&mtr);
-		mtr_x_lock(latch, &mtr);
+		mtr_x_space_lock(latch, &mtr);
 
 		descr_count++;
 		descr = xdes_lst_get_descriptor(space, zip_size,
@@ -3807,7 +3797,7 @@ fsp_validate(
 
 	/* Validate FSP_FREE_FRAG list */
 	mtr_start(&mtr);
-	mtr_x_lock(latch, &mtr);
+	mtr_x_space_lock(latch, &mtr);
 
 	header = fsp_get_space_header(space, zip_size, &mtr);
 	node_addr = flst_get_first(header + FSP_FREE_FRAG, &mtr);
@@ -3816,7 +3806,7 @@ fsp_validate(
 
 	while (!fil_addr_is_null(node_addr)) {
 		mtr_start(&mtr);
-		mtr_x_lock(latch, &mtr);
+		mtr_x_space_lock(latch, &mtr);
 
 		descr_count++;
 		descr = xdes_lst_get_descriptor(space, zip_size,
@@ -3834,7 +3824,7 @@ fsp_validate(
 
 	/* Validate FSP_FULL_FRAG list */
 	mtr_start(&mtr);
-	mtr_x_lock(latch, &mtr);
+	mtr_x_space_lock(latch, &mtr);
 
 	header = fsp_get_space_header(space, zip_size, &mtr);
 	node_addr = flst_get_first(header + FSP_FULL_FRAG, &mtr);
@@ -3843,7 +3833,7 @@ fsp_validate(
 
 	while (!fil_addr_is_null(node_addr)) {
 		mtr_start(&mtr);
-		mtr_x_lock(latch, &mtr);
+		mtr_x_space_lock(latch, &mtr);
 
 		descr_count++;
 		descr = xdes_lst_get_descriptor(space, zip_size,
@@ -3858,7 +3848,7 @@ fsp_validate(
 
 	/* Validate segments */
 	mtr_start(&mtr);
-	mtr_x_lock(latch, &mtr);
+	mtr_x_space_lock(latch, &mtr);
 
 	header = fsp_get_space_header(space, zip_size, &mtr);
 
@@ -3873,7 +3863,7 @@ fsp_validate(
 		n = 0;
 		do {
 			mtr_start(&mtr);
-			mtr_x_lock(latch, &mtr);
+			mtr_x_space_lock(latch, &mtr);
 
 			seg_inode_page = fut_get_ptr(
 				space, zip_size, node_addr, RW_X_LATCH, &mtr)
@@ -3902,7 +3892,7 @@ fsp_validate(
 	}
 
 	mtr_start(&mtr);
-	mtr_x_lock(latch, &mtr);
+	mtr_x_space_lock(latch, &mtr);
 
 	header = fsp_get_space_header(space, zip_size, &mtr);
 
@@ -3918,7 +3908,7 @@ fsp_validate(
 
 		do {
 			mtr_start(&mtr);
-			mtr_x_lock(latch, &mtr);
+			mtr_x_space_lock(latch, &mtr);
 
 			seg_inode_page = fut_get_ptr(
 				space, zip_size, node_addr, RW_X_LATCH, &mtr)
@@ -4002,11 +3992,11 @@ fsp_print(
 
 	mtr_start(&mtr2);
 
-	mtr_x_lock(latch, &mtr2);
+	mtr_x_space_lock(latch, &mtr2);
 
 	mtr_start(&mtr);
 
-	mtr_x_lock(latch, &mtr);
+	mtr_x_space_lock(latch, &mtr);
 
 	header = fsp_get_space_header(space, zip_size, &mtr);
 
@@ -4038,7 +4028,7 @@ fsp_print(
 	/* Print segments */
 
 	mtr_start(&mtr);
-	mtr_x_lock(latch, &mtr);
+	mtr_x_space_lock(latch, &mtr);
 
 	header = fsp_get_space_header(space, zip_size, &mtr);
 
@@ -4053,7 +4043,7 @@ fsp_print(
 		do {
 
 			mtr_start(&mtr);
-			mtr_x_lock(latch, &mtr);
+			mtr_x_space_lock(latch, &mtr);
 
 			seg_inode_page = fut_get_ptr(
 				space, zip_size, node_addr, RW_X_LATCH, &mtr)
@@ -4075,7 +4065,7 @@ fsp_print(
 	}
 
 	mtr_start(&mtr);
-	mtr_x_lock(latch, &mtr);
+	mtr_x_space_lock(latch, &mtr);
 
 	header = fsp_get_space_header(space, zip_size, &mtr);
 
@@ -4090,7 +4080,7 @@ fsp_print(
 		do {
 
 			mtr_start(&mtr);
-			mtr_x_lock(latch, &mtr);
+			mtr_x_space_lock(latch, &mtr);
 
 			seg_inode_page = fut_get_ptr(
 				space, zip_size, node_addr, RW_X_LATCH, &mtr)
@@ -4147,7 +4137,8 @@ fsp_page_is_free_func(
 
 	ut_ad(mtr);
 
-	mtr_x_lock_func(fil_space_get_latch(space, &flags), file, line, mtr);
+	mtr_x_space_lock_func(fil_space_get_latch(space, &flags), file, line,
+			      mtr);
 	ulint zip_size = fsp_flags_get_zip_size(flags);
 
 	xdes_t* descr = xdes_get_descriptor(space, zip_size, page_no, mtr);

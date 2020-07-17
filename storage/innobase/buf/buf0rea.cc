@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -292,19 +292,22 @@ buf_read_ahead_random(
 		return(0);
 	}
 
-	/* Remember the tablespace version before we ask te tablespace size
-	below: if DISCARD + IMPORT changes the actual .ibd file meanwhile, we
-	do not try to read outside the bounds of the tablespace! */
+	if (fil_space_t *s = fil_space_acquire_for_io(space)) {
+		/* Remember the tablespace version along with the
+		tablespace size: if DISCARD + IMPORT changes the
+		actual .ibd file meanwhile, we do not try to read
+		outside the bounds of the tablespace! */
+		tablespace_version = s->tablespace_version;
 
-	tablespace_version = fil_space_get_version(space);
+		low  = (offset / buf_read_ahead_random_area)
+			* buf_read_ahead_random_area;
+		high = (offset / buf_read_ahead_random_area + 1)
+			* buf_read_ahead_random_area;
+		high = s->max_page_number_for_io(high);
 
-	low  = (offset / buf_read_ahead_random_area)
-		* buf_read_ahead_random_area;
-	high = (offset / buf_read_ahead_random_area + 1)
-		* buf_read_ahead_random_area;
-	if (high > fil_space_get_size(space)) {
-
-		high = fil_space_get_size(space);
+		fil_space_release_for_io(s);
+	} else {
+		return 0;
 	}
 
 	buf_pool_mutex_enter(buf_pool);
@@ -435,22 +438,16 @@ buf_read_page(
 	ulint	zip_size,
 	ulint	offset)
 {
-	ib_int64_t	tablespace_version;
-	ulint		count;
 	dberr_t		err = DB_SUCCESS;
-
-	tablespace_version = fil_space_get_version(space_id);
 
 	FilSpace space(space_id, true);
 
 	if (space()) {
-
-		/* We do the i/o in the synchronous aio mode to save thread
-		switches: hence TRUE */
-		count = buf_read_page_low(&err, true, BUF_READ_ANY_PAGE, space_id,
-				  zip_size, FALSE,
-				  tablespace_version, offset);
-
+		ulint count = buf_read_page_low(&err, /*sync=*/true,
+						BUF_READ_ANY_PAGE,
+						space_id, zip_size, FALSE,
+						space()->tablespace_version,
+						offset);
 		srv_stats.buf_pool_reads.add(count);
 	}
 
@@ -619,20 +616,29 @@ buf_read_ahead_linear(
 		return(0);
 	}
 
-	/* Remember the tablespace version before we ask te tablespace size
-	below: if DISCARD + IMPORT changes the actual .ibd file meanwhile, we
-	do not try to read outside the bounds of the tablespace! */
+	uint32_t space_high_limit = 0;
 
-	tablespace_version = fil_space_get_version(space);
+	if (fil_space_t *s = fil_space_acquire_for_io(space)) {
+		/* Remember the tablespace version along with the
+		tablespace size: if DISCARD + IMPORT changes the
+		actual .ibd file meanwhile, we do not try to read
+		outside the bounds of the tablespace! */
+		tablespace_version = s->tablespace_version;
 
-	buf_pool_mutex_enter(buf_pool);
+		space_high_limit = s->max_page_number_for_io(ULINT_UNDEFINED);
 
-	if (high > fil_space_get_size(space)) {
-		buf_pool_mutex_exit(buf_pool);
+		fil_space_release_for_io(s);
+	} else {
+		return 0;
+	}
+
+	if (high > space_high_limit) {
 		/* The area is not whole, return */
 
 		return(0);
 	}
+
+	buf_pool_mutex_enter(buf_pool);
 
 	if (buf_pool->n_pend_reads
 	    > buf_pool->curr_size / BUF_READ_AHEAD_PEND_LIMIT) {
@@ -754,7 +760,7 @@ buf_read_ahead_linear(
 		return(0);
 	}
 
-	if (high > fil_space_get_size(space)) {
+	if (high > space_high_limit) {
 		/* The area is not whole, return */
 
 		return(0);

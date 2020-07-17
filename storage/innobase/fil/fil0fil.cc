@@ -676,7 +676,7 @@ fil_node_open_file(
 #ifdef UNIV_HOTBACKUP
 add_size:
 #endif /* UNIV_HOTBACKUP */
-		space->size += node->size;
+		space->committed_size = space->size += node->size;
 	}
 
 	ulint atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(space->flags);
@@ -1151,6 +1151,9 @@ retry:
 		ut_a(success);
 		/* InnoDB data files cannot shrink. */
 		ut_a(space->size >= size);
+		if (size > space->committed_size) {
+			space->committed_size = size;
+		}
 
 		/* There could be multiple concurrent I/O requests for
 		this tablespace (multiple threads trying to extend

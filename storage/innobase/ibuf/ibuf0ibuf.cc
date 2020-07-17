@@ -548,7 +548,7 @@ ibuf_init_at_db_start(void)
 
 	mutex_enter(&ibuf_mutex);
 
-	mtr_x_lock(fil_space_get_latch(IBUF_SPACE_ID, NULL), &mtr);
+	mtr_x_space_lock(fil_space_get_latch(IBUF_SPACE_ID, NULL), &mtr);
 
 	header_page = ibuf_header_page_get(&mtr);
 
@@ -2098,7 +2098,7 @@ ibuf_add_free_page(void)
 
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
-	mtr_x_lock(fil_space_get_latch(IBUF_SPACE_ID, &flags), &mtr);
+	mtr_x_space_lock(fil_space_get_latch(IBUF_SPACE_ID, &flags), &mtr);
 	zip_size = fsp_flags_get_zip_size(flags);
 
 	header_page = ibuf_header_page_get(&mtr);
@@ -2182,7 +2182,7 @@ ibuf_remove_free_page(void)
 
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
-	mtr_x_lock(fil_space_get_latch(IBUF_SPACE_ID, &flags), &mtr);
+	mtr_x_space_lock(fil_space_get_latch(IBUF_SPACE_ID, &flags), &mtr);
 	zip_size = fsp_flags_get_zip_size(flags);
 
 	header_page = ibuf_header_page_get(&mtr);

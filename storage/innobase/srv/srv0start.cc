@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1203,6 +1203,10 @@ check_first_page:
 		}
 	}
 
+	if (fil_space_t* s = fil_space_get(0)) {
+		s->committed_size = s->size;
+	}
+
 	return(DB_SUCCESS);
 }
 
@@ -1370,6 +1374,10 @@ srv_undo_tablespace_open(
 		32 bit. */
 		if (fil_node_create(name, (ulint) n_pages, space, FALSE)) {
 			err = DB_SUCCESS;
+		}
+
+		if (fil_space_t* s = fil_space_get(space)) {
+			s->committed_size = n_pages;
 		}
 	}
 

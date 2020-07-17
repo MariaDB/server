@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -58,6 +58,7 @@ first 3 values must be RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH */
 #endif /* UNIV_DEBUG */
 #define	MTR_MEMO_S_LOCK		55
 #define	MTR_MEMO_X_LOCK		56
+#define	MTR_MEMO_SPACE_X_LOCK	57
 
 /** @name Log item types
 The log items are declared 'byte' so that the compiler can warn if val
@@ -295,6 +296,8 @@ This macro locks an rw-lock in s-mode. */
 This macro locks an rw-lock in x-mode. */
 #define mtr_x_lock(B, MTR)	mtr_x_lock_func((B), __FILE__, __LINE__,\
 						(MTR))
+#define mtr_x_space_lock(B, MTR) mtr_x_space_lock_func(B, __FILE__, __LINE__,\
+						       MTR)
 /*********************************************************************//**
 NOTE! Use the macro above!
 Locks a lock in s-mode. */
@@ -317,6 +320,14 @@ mtr_x_lock_func(
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line number */
 	mtr_t*		mtr);	/*!< in: mtr */
+
+/** Acquire exclusive tablespace latch.
+@param lock   fil_space_t::latch
+@param file   source code file name of the caller
+@param line   source code line number of the caller
+@param mtr    mini-transaction */
+inline void mtr_x_space_lock_func(rw_lock_t *lock,
+                                  const char *file, ulint line, mtr_t *mtr);
 #endif /* !UNIV_HOTBACKUP */
 
 /***************************************************//**

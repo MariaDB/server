@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -65,7 +65,7 @@ trx_rseg_header_create(
 
 	ut_ad(mtr);
 	ut_ad(mtr_memo_contains(mtr, fil_space_get_latch(space, NULL),
-				MTR_MEMO_X_LOCK));
+				MTR_MEMO_SPACE_X_LOCK));
 
 	/* Allocate a new file segment for the rollback segment */
 	block = fseg_create(space, 0, TRX_RSEG + TRX_RSEG_FSEG_HEADER, mtr);
@@ -310,7 +310,7 @@ trx_rseg_create(ulint space)
 
 	/* To obey the latching order, acquire the file space
 	x-latch before the trx_sys->mutex. */
-	mtr_x_lock(fil_space_get_latch(space, NULL), &mtr);
+	mtr_x_space_lock(fil_space_get_latch(space, NULL), &mtr);
 
 	slot_no = trx_sysf_rseg_find_free(&mtr);
 
