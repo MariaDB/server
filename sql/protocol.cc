@@ -774,6 +774,7 @@ void Protocol::init(THD *thd_arg)
   convert= &thd->convert_buffer;
 #ifndef DBUG_OFF
   field_handlers= 0;
+  field_pos= 0;
 #endif
 }
 
@@ -1217,8 +1218,8 @@ bool Protocol_text::store_str(const char *from, size_t length,
                               CHARSET_INFO *tocs)
 {
 #ifndef DBUG_OFF
-  DBUG_PRINT("info", ("Protocol_text::store field %u (%u): %.*b", field_pos,
-                      field_count, (int) length, (length == 0 ? "" : from)));
+  DBUG_PRINT("info", ("Protocol_text::store field %u : %.*b", field_pos,
+                      (int) length, (length == 0 ? "" : from)));
   DBUG_ASSERT(field_handlers == 0 || field_pos < field_count);
   DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_STRING));
   field_pos++;
