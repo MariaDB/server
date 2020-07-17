@@ -5580,8 +5580,9 @@ extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2)
   {
     return res;
   }
-  if ((res= file->m_file[0]->cmp_ref(ref1 + PARTITION_BYTES_IN_POS + file->m_rec_length,
-                                     ref2 + PARTITION_BYTES_IN_POS + file->m_rec_length)))
+  if ((res= file->get_open_file_sample()->cmp_ref(ref1 +
+          PARTITION_BYTES_IN_POS + file->m_rec_length,
+          ref2 + PARTITION_BYTES_IN_POS + file->m_rec_length)))
   {
     return res;
   }
@@ -9577,7 +9578,7 @@ uint8 ha_partition::table_cache_type()
 {
   DBUG_ENTER("ha_partition::table_cache_type");
 
-  DBUG_RETURN(m_file[0]->table_cache_type());
+  DBUG_RETURN(get_open_file_sample()->table_cache_type());
 }
 
 
