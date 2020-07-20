@@ -21074,39 +21074,49 @@ ha_innobase::can_convert_varstring(const Field_varstring* field,
 	return true;
 }
 
-bool
-ha_innobase::can_convert_blob(const Field_blob* field,
-			      const Column_definition& new_type) const
+static bool is_part_of_a_key(const Field_blob *field)
 {
-	if (new_type.type_handler() != field->type_handler()) {
-		return false;
-	}
+  const TABLE_SHARE *s= field->table->s;
 
-	if (!new_type.compression_method() != !field->compression_method()) {
-		return false;
-	}
+  for (uint i= 0; i < s->keys; i++)
+  {
+    const KEY &key= s->key_info[i];
+    for (uint j= 0; j < key.user_defined_key_parts; j++)
+    {
+      const KEY_PART_INFO &info= key.key_part[j];
+      if (info.field->field_index == field->field_index)
+        return true;
+    }
+  }
 
-	if (new_type.pack_length != field->pack_length()) {
-		return false;
-	}
+  return false;
+}
 
-	if (new_type.charset != field->charset()) {
-		Charset field_cs(field->charset());
-		if (!field_cs.encoding_allows_reinterpret_as(
-			new_type.charset)) {
-			return false;
-		}
+bool ha_innobase::can_convert_blob(const Field_blob *field,
+                                   const Column_definition &new_type) const
+{
+  if (new_type.type_handler() != field->type_handler())
+    return false;
 
-		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
-			bool is_part_of_a_key
-			    = !field->part_of_key.is_clear_all();
-			return !is_part_of_a_key;
-		}
+  if (!new_type.compression_method() != !field->compression_method())
+    return false;
 
-		return true;
-	}
+  if (new_type.pack_length != field->pack_length())
+    return false;
 
-	return true;
+  if (new_type.charset != field->charset())
+  {
+    Charset field_cs(field->charset());
+    if (!field_cs.encoding_allows_reinterpret_as(new_type.charset))
+      return false;
+
+    if (!field_cs.eq_collation_specific_names(new_type.charset))
+      return !is_part_of_a_key(field);
+
+    return true;
+  }
+
+  return true;
 }
 
 Compare_keys ha_innobase::compare_key_parts(
