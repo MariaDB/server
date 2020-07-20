@@ -5358,8 +5358,7 @@ bool Query_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
     }
     else if (strcmp("COMMIT", query) == 0)
     {
-      if (my_b_write(&cache, (uchar*) "BEGIN", 5) ||
-          my_b_printf(&cache, "\n%s\n", print_event_info->delimiter))
+      if (my_b_printf(&cache, "START TRANSACTION\n%s\n", print_event_info->delimiter))
         goto err;
     }
   }
@@ -8254,7 +8253,8 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         goto err;
   }
   if (!(flags2 & FL_STANDALONE))
-    if (my_b_printf(&cache, is_flashback ? "COMMIT\n%s\n" : "BEGIN\n%s\n", print_event_info->delimiter))
+    if (my_b_printf(&cache, is_flashback ? "COMMIT\n%s\n" :
+                    "START TRANSACTION\n%s\n", print_event_info->delimiter))
       goto err;
 
   return cache.flush_data();
@@ -8937,7 +8937,7 @@ bool Xid_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
         my_b_printf(&cache, "\tXid = %s\n", buf))
       goto err;
   }
-  if (my_b_printf(&cache, is_flashback ? "BEGIN%s\n" : "COMMIT%s\n",
+  if (my_b_printf(&cache, is_flashback ? "START TRANSACTION%s\n" : "COMMIT%s\n",
                   print_event_info->delimiter))
     goto err;
 

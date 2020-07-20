@@ -23,7 +23,7 @@ flush logs;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET @`a b`:=_latin1 X'68656C6C6F' COLLATE `latin1_swedish_ci`/*!*/;
 use `test`/*!*/;
@@ -41,7 +41,7 @@ INSERT INTO t1 VALUES(@`a b`)
 SET TIMESTAMP=10000/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET @`var1`:=_latin1 X'273B616161' COLLATE `latin1_swedish_ci`/*!*/;
 SET @`var2`:=_binary X'61' COLLATE `binary`/*!*/;
