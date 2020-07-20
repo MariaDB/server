@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -218,6 +218,13 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   case MTR_MEMO_SX_LOCK:
     rw_lock_sx_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
     break;
+  case MTR_MEMO_SPACE_X_LOCK:
+    {
+      fil_space_t *space= static_cast<fil_space_t*>(slot->object);
+      space->committed_size= space->size;
+      rw_lock_x_unlock(&space->latch);
+    }
+    break;
   case MTR_MEMO_X_LOCK:
     rw_lock_x_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
     break;
@@ -250,6 +257,13 @@ struct ReleaseLatches {
 #endif /* UNIV_DEBUG */
     case MTR_MEMO_S_LOCK:
       rw_lock_s_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
+      break;
+    case MTR_MEMO_SPACE_X_LOCK:
+      {
+        fil_space_t *space= static_cast<fil_space_t*>(slot->object);
+        space->committed_size= space->size;
+        rw_lock_x_unlock(&space->latch);
+      }
       break;
     case MTR_MEMO_X_LOCK:
       rw_lock_x_unlock(reinterpret_cast<rw_lock_t*>(slot->object));

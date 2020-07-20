@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2019, MariaDB Corporation.
+# Copyright (c) 2008, 2020, MariaDB Corporation.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -183,6 +183,7 @@ ENDIF()
 OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
 
 INCLUDE(check_compiler_flag)
+INCLUDE(check_linker_flag)
 
 OPTION(WITH_ASAN "Enable address sanitizer" OFF)
 
@@ -245,7 +246,7 @@ IF(NOT WITH_TSAN)
     ENDIF()
     # security-enhancing flags
     MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wl,-z,relro,-z,now")
+    MY_CHECK_AND_SET_LINKER_FLAG("-Wl,-z,relro,-z,now")
     MY_CHECK_AND_SET_COMPILER_FLAG("-fstack-protector --param=ssp-buffer-size=4")
     MY_CHECK_AND_SET_COMPILER_FLAG("-D_FORTIFY_SOURCE=2" RELEASE RELWITHDEBINFO)
   ENDIF()

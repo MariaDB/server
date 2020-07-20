@@ -365,34 +365,6 @@ fil_space_get(
 	return(space);
 }
 
-/** Returns the latch of a file space.
-@param[in]	id	space id
-@param[out]	flags	tablespace flags
-@return latch protecting storage allocation */
-rw_lock_t*
-fil_space_get_latch(
-	ulint	id,
-	ulint*	flags)
-{
-	fil_space_t*	space;
-
-	ut_ad(fil_system.is_initialised());
-
-	mutex_enter(&fil_system.mutex);
-
-	space = fil_space_get_by_id(id);
-
-	ut_a(space);
-
-	if (flags) {
-		*flags = space->flags;
-	}
-
-	mutex_exit(&fil_system.mutex);
-
-	return(&(space->latch));
-}
-
 /** Note that the tablespace has been imported.
 Initially, purpose=FIL_TYPE_IMPORT so that no redo log is
 written while the space ID is being updated in each page. */
@@ -563,13 +535,17 @@ bool fil_node_t::read_page0(bool first)
 		}
 
 		this->size = ulint(size_bytes / psize);
-		space->size += this->size;
+		space->committed_size = space->size += this->size;
 	} else if (space->id != TRX_SYS_SPACE || space->size_in_header) {
 		/* If this is not the first-time open, do nothing.
 		For the system tablespace, we always get invoked as
 		first=false, so we detect the true first-time-open based
-		on size_in_header and proceed to initiailze the data. */
+		on size_in_header and proceed to initialize the data. */
 		return true;
+	} else {
+		/* Initialize the size of predefined tablespaces
+		to FSP_SIZE. */
+		space->committed_size = size;
 	}
 
 	ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
@@ -1090,6 +1066,9 @@ fil_mutex_enter_and_prepare_for_io(
 			ut_a(success);
 			/* InnoDB data files cannot shrink. */
 			ut_a(space->size >= size);
+			if (size > space->committed_size) {
+				space->committed_size = size;
+			}
 
 			/* There could be multiple concurrent I/O requests for
 			this tablespace (multiple threads trying to extend
