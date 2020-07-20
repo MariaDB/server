@@ -66,6 +66,7 @@ const char *empty_string= "";			/* For empty states */
 */
 
 const char *default_language= "eng";
+my_bool default_language_changed= 0;
 uint er_offset= 1000;
 my_bool info_flag= 0;
 
@@ -440,7 +441,8 @@ static void clean_up(struct languages *lang_head, struct errors *error_head)
   struct errors *tmp_error, *next_error;
   uint count, i;
 
-  my_free((void*) default_language);
+  if (default_language_changed)
+    my_free((void*) default_language);
 
   for (tmp_lang= lang_head; tmp_lang; tmp_lang= next_language)
   {
@@ -562,6 +564,7 @@ static uint parse_input_file(const char *file_name, struct errors **top_error,
 		"Failed to parse the default language line. Aborting\n");
 	DBUG_RETURN(0);
       }
+      default_language_changed= 1;
       continue;
     }
 
