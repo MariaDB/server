@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -301,6 +301,12 @@ struct mtr_t {
 		ulint		space_id,
 		const char*	file,
 		unsigned	line);
+
+	/** Exclusively aqcuire a tablespace latch.
+	@param space  tablespace
+	@param file   source code file name of the caller
+	@param line   source code line number */
+	void x_lock_space(fil_space_t *space, const char *file, unsigned line);
 
 	/** Release an object in the memo stack.
 	@param object	object

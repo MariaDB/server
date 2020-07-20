@@ -1391,9 +1391,11 @@ buf_flush_try_neighbors(
 		}
 	}
 
-	const ulint	space_size = fil_space_get_size(page_id.space());
-	if (high > space_size) {
-		high = space_size;
+	if (fil_space_t *s = fil_space_acquire_for_io(page_id.space())) {
+		high = s->max_page_number_for_io(high);
+		fil_space_release_for_io(s);
+	} else {
+		return 0;
 	}
 
 	DBUG_PRINT("ib_buf", ("flush %u:%u..%u",

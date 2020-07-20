@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -684,7 +684,7 @@ fil_node_open_file(
 #ifdef UNIV_HOTBACKUP
 add_size:
 #endif /* UNIV_HOTBACKUP */
-		space->size += node->size;
+		space->committed_size = space->size += node->size;
 	}
 
 	ulint atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(space->flags);
@@ -1158,6 +1158,9 @@ retry:
 		ut_a(success);
 		/* InnoDB data files cannot shrink. */
 		ut_a(space->size >= size);
+		if (size > space->committed_size) {
+			space->committed_size = size;
+		}
 
 		/* There could be multiple concurrent I/O requests for
 		this tablespace (multiple threads trying to extend
@@ -1813,25 +1816,6 @@ fil_space_get_zip_size(
 	}
 
 	return(flags);
-}
-
-/*******************************************************************//**
-Checks if the pair space, page_no refers to an existing page in a tablespace
-file space. The tablespace must be cached in the memory cache.
-@return	TRUE if the address is meaningful */
-UNIV_INTERN
-ibool
-fil_check_adress_in_tablespace(
-/*===========================*/
-	ulint	id,	/*!< in: space id */
-	ulint	page_no)/*!< in: page number */
-{
-	if (fil_space_get_size(id) > page_no) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
 }
 
 /****************************************************************//**

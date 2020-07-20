@@ -1984,7 +1984,7 @@ ibuf_add_free_page(void)
 
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
-	mtr_x_lock(&space->latch, &mtr);
+	mtr.x_lock_space(space, __FILE__, __LINE__);
 	header_page = ibuf_header_page_get(&mtr);
 
 	/* Allocate a new page: NOTE that if the page has been a part of a
@@ -2068,7 +2068,7 @@ ibuf_remove_free_page(void)
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
 
-	mtr_x_lock(&space->latch, &mtr);
+	mtr.x_lock_space(space, __FILE__, __LINE__);
 	header_page = ibuf_header_page_get(&mtr);
 
 	/* Prevent pessimistic inserts to insert buffer trees for a while */

@@ -995,7 +995,7 @@ trx_purge_initiate_truncate(
 	mtr_t mtr;
 	const ulint size = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 	mtr.start();
-	mtr_x_lock(&space->latch, &mtr);
+	mtr.x_lock_space(space, __FILE__, __LINE__);
 	fil_truncate_log(space, size, &mtr);
 	fsp_header_init(space_id, size, &mtr);
 	mutex_enter(&fil_system->mutex);

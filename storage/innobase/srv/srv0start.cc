@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -696,6 +696,7 @@ static bool srv_undo_tablespace_open(const char* name, ulint space_id,
 	if (create_new_db) {
 		space->size = file->size = ulint(size >> srv_page_size_shift);
 		space->size_in_header = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
+		space->committed_size = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 	} else {
 		success = file->read_page0(true);
 		if (!success) {
@@ -1044,7 +1045,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 			fsp_header_init(
 				*it, SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
 
-			mtr_x_lock(fil_space_get_latch(*it, NULL), &mtr);
+			mtr_x_lock_space(*it, &mtr);
 
 			for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
 

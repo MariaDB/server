@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1297,8 +1297,11 @@ buf_flush_try_neighbors(
 
 	/* fprintf(stderr, "Flush area: low %lu high %lu\n", low, high); */
 
-	if (high > fil_space_get_size(space)) {
-		high = fil_space_get_size(space);
+	if (fil_space_t *s = fil_space_acquire_for_io(space)) {
+		high = s->max_page_number_for_io(high);
+		fil_space_release_for_io(s);
+	} else {
+		return 0;
 	}
 
 	ulint	count = 0;
