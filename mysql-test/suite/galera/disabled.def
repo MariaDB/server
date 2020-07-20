@@ -19,7 +19,6 @@ galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid
 galera_autoinc_sst_mariabackup : Known issue, may require porting MDEV-17458 from later versions
 galera_binlog_stmt_autoinc : MDEV-19959 Galera test failure on galera_binlog_stmt_autoinc	
 galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
-galera_ist_progress : MDEV-15236 fails when trying to read transfer status
 galera_load_data : MDEV-19968 galera.galera_load_data
 galera_parallel_autoinc_largetrx : MDEV-20916 galera.galera_parallel_autoinc_largetrx
 galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails	
