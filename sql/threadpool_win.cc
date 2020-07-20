@@ -30,6 +30,7 @@
 #include <debug_sync.h>
 #include <threadpool.h>
 #include <windows.h>
+#include <set_var.h>
 
 #include "threadpool_winsockets.h"
 
@@ -345,18 +346,42 @@ int TP_pool_win::init()
   InitializeThreadpoolEnvironment(&callback_environ);
   SetThreadpoolCallbackPool(&callback_environ, pool);
 
-  if (threadpool_max_threads)
+  if (IS_SYSVAR_AUTOSIZE(&threadpool_max_threads))
+  {
+    /*
+     Nr 500 comes from Microsoft documentation,
+     there is no API for GetThreadpoolThreadMaxThreads()
+    */
+    SYSVAR_AUTOSIZE(threadpool_max_threads,500);
+  }
+  else
   {
     SetThreadpoolThreadMaximum(pool, threadpool_max_threads);
   }
 
-  if (threadpool_min_threads)
+  if (IS_SYSVAR_AUTOSIZE(&threadpool_min_threads))
+  {
+    SYSVAR_AUTOSIZE(threadpool_min_threads,1);
+  }
+  else
   {
     if (!SetThreadpoolThreadMinimum(pool, threadpool_min_threads))
     {
       tp_log_warning("Can't set threadpool minimum threads",
         "SetThreadpoolThreadMinimum");
     }
+  }
+
+
+  if (IS_SYSVAR_AUTOSIZE(&global_system_variables.threadpool_priority))
+  {
+    /*
+     There is a notable overhead for "auto" priority implementation,
+     use "high" which handles socket IO callbacks as they come
+     without rescheduling to work queue.
+    */
+    SYSVAR_AUTOSIZE(global_system_variables.threadpool_priority,
+                    TP_PRIORITY_HIGH);
   }
 
   TP_POOL_STACK_INFORMATION stackinfo;
