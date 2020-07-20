@@ -20986,43 +20986,35 @@ is_part_of_a_primary_key(const Field* field)
 	       && field->part_of_key.is_set(s->primary_key);
 }
 
-bool
-ha_innobase::can_convert_string(const Field_string* field,
-				const Column_definition& new_type) const
+bool ha_innobase::can_convert_string(const Field_string *field,
+                                     const Column_definition &new_type) const
 {
-	DBUG_ASSERT(!field->compression_method());
-	if (new_type.type_handler() != field->type_handler()) {
-		return false;
-	}
+  DBUG_ASSERT(!field->compression_method());
+  if (new_type.type_handler() != field->type_handler())
+    return false;
 
-	if (new_type.char_length < field->char_length()) {
-		return false;
-	}
+  if (new_type.char_length != field->char_length())
+    return false;
 
-	if (new_type.charset != field->charset()) {
-		if (new_type.length != field->max_display_length()
-		    && !m_prebuilt->table->not_redundant()) {
-			return IS_EQUAL_NO;
-		}
+  const Charset field_cs(field->charset());
 
-		Charset field_cs(field->charset());
-		if (!field_cs.encoding_allows_reinterpret_as(
-			new_type.charset)) {
-			return false;
-		}
+  if (new_type.length != field->max_display_length() &&
+      (!m_prebuilt->table->not_redundant() ||
+       field_cs.mbminlen() == field_cs.mbmaxlen()))
+    return false;
 
-		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
-			return !is_part_of_a_primary_key(field);
-		}
+  if (new_type.charset != field->charset())
+  {
+    if (!field_cs.encoding_allows_reinterpret_as(new_type.charset))
+      return false;
 
-		return true;
-	}
+    if (!field_cs.eq_collation_specific_names(new_type.charset))
+      return !is_part_of_a_primary_key(field);
 
-	if (new_type.length != field->max_display_length()) {
-		return false;
-	}
+    return true;
+  }
 
-	return true;
+  return true;
 }
 
 static bool
