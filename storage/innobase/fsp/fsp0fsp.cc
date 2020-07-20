@@ -386,7 +386,7 @@ xdes_get_descriptor_with_space_hdr(
 	ulint	size;
 	ulint	descr_page_no;
 	page_t*	descr_page;
-	ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_X_LOCK));
+	ut_ad(mtr_memo_contains(mtr, space, MTR_MEMO_SPACE_X_LOCK));
 	ut_ad(mtr_memo_contains_page(mtr, sp_header, MTR_MEMO_PAGE_SX_FIX));
 	ut_ad(page_offset(sp_header) == FSP_HEADER_OFFSET);
 	/* Read free limit and space size */
@@ -523,7 +523,7 @@ xdes_lst_get_descriptor(
 	fil_addr_t		lst_node,
 	mtr_t*			mtr)
 {
-	ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_X_LOCK));
+	ut_ad(mtr_memo_contains(mtr, space, MTR_MEMO_SPACE_X_LOCK));
 	return fut_get_ptr(space->id, space->zip_size(),
 			   lst_node, RW_SX_LATCH, mtr)
 		- XDES_FLST_NODE;
@@ -977,35 +977,23 @@ fsp_fill_free_list(
 						 MLOG_2BYTES, mtr);
 			}
 
-			/* Initialize the ibuf bitmap page in a separate
-			mini-transaction because it is low in the latching
-			order, and we must be able to release its latch.
-			Note: Insert-Buffering is disabled for tables that
-			reside in the temp-tablespace. */
 			if (space->purpose != FIL_TYPE_TEMPORARY) {
-				mtr_t	ibuf_mtr;
-
-				mtr_start(&ibuf_mtr);
-				ibuf_mtr.set_named_space(space);
-
 				const page_id_t	page_id(
 					space->id,
 					i + FSP_IBUF_BITMAP_OFFSET);
 
 				block = buf_page_create(
-					page_id, zip_size, &ibuf_mtr);
+					page_id, zip_size, mtr);
 
 				buf_page_get(
-					page_id, zip_size, RW_SX_LATCH,
-					&ibuf_mtr);
+					page_id, zip_size, RW_SX_LATCH, mtr);
 
 				buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 
-				fsp_init_file_page(space, block, &ibuf_mtr);
+				fsp_init_file_page(space, block, mtr);
 				mlog_write_ulint(block->frame + FIL_PAGE_TYPE,
 						 FIL_PAGE_IBUF_BITMAP,
-						 MLOG_2BYTES, &ibuf_mtr);
-				mtr_commit(&ibuf_mtr);
+						 MLOG_2BYTES, mtr);
 			}
 		}
 
@@ -1413,7 +1401,7 @@ static void fsp_free_extent(fil_space_t* space, page_no_t offset, mtr_t* mtr)
 	fsp_header_t*	header;
 	xdes_t*		descr;
 
-	ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_X_LOCK));
+	ut_ad(mtr_memo_contains(mtr, space, MTR_MEMO_SPACE_X_LOCK));
 
 	header = fsp_get_space_header(space, mtr);
 

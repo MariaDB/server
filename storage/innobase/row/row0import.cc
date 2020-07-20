@@ -530,14 +530,6 @@ protected:
 	/** Space id of the file being iterated over. */
 	ulint			m_space;
 
-	/** Minimum page number for which the free list has not been
-	initialized: the pages >= this limit are, by definition, free;
-	note that in a single-table tablespace where size < 64 pages,
-	this number is 64, i.e., we have initialized the space about
-	the first extent, but have not physically allocted those pages
-	to the file. @see FSP_LIMIT. */
-	ulint			m_free_limit;
-
 	/** Current size of the space in pages */
 	ulint			m_size;
 
@@ -597,7 +589,6 @@ AbstractCallback::init(
 	}
 
 	m_size  = mach_read_from_4(page + FSP_SIZE);
-	m_free_limit = mach_read_from_4(page + FSP_FREE_LIMIT);
 	if (m_space == ULINT_UNDEFINED) {
 		m_space = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID
 					   + page);

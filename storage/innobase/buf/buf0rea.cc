@@ -264,10 +264,7 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 	high = (page_id.page_no() / buf_read_ahead_random_area + 1)
 		* buf_read_ahead_random_area;
 
-	/* If DISCARD + IMPORT changes the actual .ibd file meanwhile, we
-	do not try to read outside the bounds of the tablespace! */
 	if (fil_space_t* space = fil_space_acquire(page_id.space())) {
-
 #ifdef UNIV_DEBUG
 		if (srv_file_per_table) {
 			ulint	size = 0;
@@ -286,9 +283,7 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 		}
 #endif /* UNIV_DEBUG */
 
-		if (high > space->size) {
-			high = space->size;
-		}
+		high = space->max_page_number_for_io(high);
 		space->release();
 	} else {
 		return(0);
@@ -549,13 +544,10 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 		return(0);
 	}
 
-	/* Remember the tablespace version before we ask te tablespace size
-	below: if DISCARD + IMPORT changes the actual .ibd file meanwhile, we
-	do not try to read outside the bounds of the tablespace! */
 	ulint	space_size;
 
 	if (fil_space_t* space = fil_space_acquire(page_id.space())) {
-		space_size = space->size;
+		space_size = space->committed_size;
 		space->release();
 
 		if (high > space_size) {

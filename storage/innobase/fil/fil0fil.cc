@@ -358,34 +358,6 @@ fil_space_get(
 	return(space);
 }
 
-/** Returns the latch of a file space.
-@param[in]	id	space id
-@param[out]	flags	tablespace flags
-@return latch protecting storage allocation */
-rw_lock_t*
-fil_space_get_latch(
-	ulint	id,
-	ulint*	flags)
-{
-	fil_space_t*	space;
-
-	ut_ad(fil_system.is_initialised());
-
-	mutex_enter(&fil_system.mutex);
-
-	space = fil_space_get_by_id(id);
-
-	ut_a(space);
-
-	if (flags) {
-		*flags = space->flags;
-	}
-
-	mutex_exit(&fil_system.mutex);
-
-	return(&(space->latch));
-}
-
 /**********************************************************************//**
 Checks if all the file nodes in a space are flushed.
 @return true if all are flushed */
@@ -981,6 +953,9 @@ fil_mutex_enter_and_prepare_for_io(
 			ut_a(success);
 			/* InnoDB data files cannot shrink. */
 			ut_a(space->size >= size);
+			if (size > space->committed_size) {
+				space->committed_size = size;
+			}
 
 			/* There could be multiple concurrent I/O requests for
 			this tablespace (multiple threads trying to extend

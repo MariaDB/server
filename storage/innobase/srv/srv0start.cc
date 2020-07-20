@@ -699,6 +699,7 @@ static bool srv_undo_tablespace_open(const char* name, ulint space_id,
 	if (create_new_db) {
 		space->size = file->size = ulint(size >> srv_page_size_shift);
 		space->size_in_header = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
+		space->committed_size = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 	} else {
 		success = file->read_page0(true);
 		if (!success) {
@@ -1920,6 +1921,8 @@ files_checked:
 			if (sum_of_new_sizes > 0) {
 				/* New data file(s) were added */
 				mtr.start();
+				mtr.x_lock_space(fil_system.sys_space,
+						 __FILE__, __LINE__);
 				buf_block_t* block = buf_page_get(
 					page_id_t(0, 0), 0,
 					RW_SX_LATCH, &mtr);

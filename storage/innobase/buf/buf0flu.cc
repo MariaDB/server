@@ -1359,9 +1359,7 @@ buf_flush_try_neighbors(
 		}
 	}
 
-	if (high > space->size) {
-		high = space->size;
-	}
+	high = space->max_page_number_for_io(high);
 
 	DBUG_PRINT("ib_buf", ("flush %u:%u..%u",
 			      page_id.space(),
