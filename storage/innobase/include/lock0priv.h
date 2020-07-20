@@ -68,12 +68,13 @@ inline
 std::ostream&
 ib_lock_t::print(std::ostream& out) const
 {
-	out << "[lock_t: trx=" << trx << " (" << trx->lock.trx_locks.count
-		<< ":" << trx->lock.table_locks.size() << "), "
-		<< "type_mode=" << type_mode << "=" << type_mode_string() << " ";
+  out << "[lock_t: trx=" << trx << " (" << trx->lock.trx_locks.count << ":"
+      << trx->lock.table_locks.size() << "), "
+      << "type_mode=" << type_mode << "=" << type_mode_string() << " ";
 
-	if (is_record_lock()) {
-		out << un_member.rec_lock;
+  if (is_record_lock())
+  {
+    out << un_member.rec_lock;
 	} else {
 		out << un_member.tab_lock;
 	}
@@ -563,14 +564,13 @@ lock_rec_get_first(
 	const buf_block_t*	block,	/*!< in: block containing the record */
 	ulint			heap_no);/*!< in: heap number of the record */
 
-/*********************************************************************//**
-Gets the mode from type_mode.
-@return mode */
+/*********************************************************************/ /**
+ Gets the mode from type_mode.
+ @return mode */
 UNIV_INLINE
-enum lock_mode
-lock_get_mode(
-/*==========*/
-	const ib_uint32_t type_mode);
+enum lock_mode lock_get_mode(
+    /*==========*/
+    const ib_uint32_t type_mode);
 
 /*********************************************************************//**
 Gets the mode of a lock.
@@ -649,7 +649,7 @@ inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx)
 
 	trx->lock.wait_lock = lock;
 	lock->type_mode |= LOCK_WAIT;
-	DBUG_LOG("ib_lock", "+WAIT("<< lock << ") " << *lock);
+        DBUG_LOG("ib_lock", "+WAIT(" << lock << ") " << *lock);
 }
 
 /** Reset the wait status of a lock.
@@ -662,26 +662,21 @@ inline void lock_reset_lock_and_trx_wait(lock_t* lock)
 	      || lock->trx->lock.wait_lock == lock);
 	lock->trx->lock.wait_lock = NULL;
 	lock->type_mode &= ~LOCK_WAIT;
-	DBUG_LOG("ib_lock", "-WAIT("<< lock << ") " << *lock);
+        DBUG_LOG("ib_lock", "-WAIT(" << lock << ") " << *lock);
 }
 
-inline
-bool ib_lock_t::is_stronger(ulint precise_mode, ulint heap_no, const trx_t* t) const
+inline bool ib_lock_t::is_stronger(ulint precise_mode, ulint heap_no,
+                                   const trx_t *t) const
 {
-	ut_ad(is_record_lock());
-	return trx == t
-	    && !is_waiting()
-	    && !is_insert_intention()
-	    && (!is_record_not_gap()
-		|| (precise_mode & LOCK_REC_NOT_GAP) /* only record */
-		|| heap_no == PAGE_HEAP_NO_SUPREMUM)
-	    && (!is_gap()
-		|| (precise_mode & LOCK_GAP)         /* only gap */
-		|| heap_no == PAGE_HEAP_NO_SUPREMUM)
-	    && lock_mode_stronger_or_eq(
-		mode(),
-		static_cast<lock_mode>(
-			precise_mode & LOCK_MODE_MASK));
+  ut_ad(is_record_lock());
+  return trx == t && !is_waiting() && !is_insert_intention() &&
+         (!is_record_not_gap() ||
+          (precise_mode & LOCK_REC_NOT_GAP) /* only record */
+          || heap_no == PAGE_HEAP_NO_SUPREMUM) &&
+         (!is_gap() || (precise_mode & LOCK_GAP) /* only gap */
+          || heap_no == PAGE_HEAP_NO_SUPREMUM) &&
+         lock_mode_stronger_or_eq(
+             mode(), static_cast<lock_mode>(precise_mode & LOCK_MODE_MASK));
 }
 
 #include "lock0priv.ic"

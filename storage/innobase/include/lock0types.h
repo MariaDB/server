@@ -56,20 +56,20 @@ const char* lock_mode_string(enum lock_mode mode)
 {
 	switch (mode) {
 	case LOCK_IS:
-		return("IS");
-	case LOCK_IX:
-		return("IX");
-	case LOCK_S:
-		return("S");
-	case LOCK_X:
-		return("X");
-	case LOCK_AUTO_INC:
-		return("AUTO_INC");
-	case LOCK_NONE:
-		return("NONE");
-	case LOCK_NONE_UNSET:
-		return("NONE_UNSET");
-	default:
+          return ("IS");
+        case LOCK_IX:
+          return ("IX");
+        case LOCK_S:
+          return ("S");
+        case LOCK_X:
+          return ("X");
+        case LOCK_AUTO_INC:
+          return ("AUTO_INC");
+        case LOCK_NONE:
+          return ("NONE");
+        case LOCK_NONE_UNSET:
+          return ("NONE_UNSET");
+        default:
 		ut_error;
 	}
 }
@@ -175,49 +175,51 @@ operator<<(std::ostream& out, const lock_rec_t& lock)
 #endif
 /* @} */
 
-inline
-const char*
-type_string(ulint type_mode)
+inline const char *type_string(ulint type_mode)
 {
-	switch (type_mode & LOCK_TYPE_MASK) {
-	case LOCK_REC:
-		return("REC");
-	case LOCK_TABLE:
-		return("TABLE");
-	default:
-		ut_error;
-	}
+  switch (type_mode & LOCK_TYPE_MASK)
+  {
+  case LOCK_REC:
+    return ("REC");
+  case LOCK_TABLE:
+    return ("TABLE");
+  default:
+    ut_error;
+  }
 }
 
 /** Convert 'type_mode' into a human readable string.
 @return human readable string */
-inline
-std::string
-type_mode_string(ulint type_mode)
+inline std::string type_mode_string(ulint type_mode)
 {
-	std::ostringstream sout;
-	lock_mode mode = static_cast<enum lock_mode>(type_mode & LOCK_MODE_MASK);
-	if (type_mode & LOCK_TYPE_MASK) {
-		sout << type_string(type_mode) << "|";
-	}
-	sout << lock_mode_string(mode);
+  std::ostringstream sout;
+  lock_mode mode= static_cast<enum lock_mode>(type_mode & LOCK_MODE_MASK);
+  if (type_mode & LOCK_TYPE_MASK)
+  {
+    sout << type_string(type_mode) << "|";
+  }
+  sout << lock_mode_string(mode);
 
-	if (type_mode & LOCK_REC_NOT_GAP) {
-		sout << "|REC_NOT_GAP";
-	}
+  if (type_mode & LOCK_REC_NOT_GAP)
+  {
+    sout << "|REC_NOT_GAP";
+  }
 
-	if (type_mode & LOCK_WAIT) {
-		sout << "|WAIT";
-	}
+  if (type_mode & LOCK_WAIT)
+  {
+    sout << "|WAIT";
+  }
 
-	if (type_mode & LOCK_GAP) {
-		sout << "|GAP";
-	}
+  if (type_mode & LOCK_GAP)
+  {
+    sout << "|GAP";
+  }
 
-	if (type_mode & LOCK_INSERT_INTENTION) {
-		sout << "|INSERT_INTENTION";
-	}
-	return(sout.str());
+  if (type_mode & LOCK_INSERT_INTENTION)
+  {
+    sout << "|INSERT_INTENTION";
+  }
+  return (sout.str());
 }
 
 /** Lock struct; protected by lock_sys.mutex */
@@ -281,14 +283,12 @@ struct ib_lock_t
 		return(type_mode & LOCK_INSERT_INTENTION);
 	}
 
-	bool is_stronger(ulint precise_mode, ulint heap_no, const trx_t* t) const;
+        bool is_stronger(ulint precise_mode, ulint heap_no,
+                         const trx_t *t) const;
 
-	ulint type() const
-	{
-		return(type_mode & LOCK_TYPE_MASK);
-	}
+        ulint type() const { return (type_mode & LOCK_TYPE_MASK); }
 
-	enum lock_mode mode() const
+        enum lock_mode mode() const
 	{
 		return(static_cast<enum lock_mode>(type_mode & LOCK_MODE_MASK));
 	}
@@ -298,15 +298,12 @@ struct ib_lock_t
 	@return the given output stream. */
 	std::ostream& print(std::ostream& out) const;
 
-	std::string type_mode_string() const
-	{
-		return ::type_mode_string(type_mode);
-	}
+        std::string type_mode_string() const
+        {
+          return ::type_mode_string(type_mode);
+        }
 
-	const char* type_string() const
-	{
-		return ::type_string(type_mode);
-	}
+        const char *type_string() const { return ::type_string(type_mode); }
 };
 
 typedef UT_LIST_BASE_NODE_T(ib_lock_t) trx_lock_list_t;
@@ -316,63 +313,55 @@ typedef UT_LIST_BASE_NODE_T(ib_lock_t) trx_lock_list_t;
 
 struct VICTIM /* deadlock victim */
 {
-	const trx_t *trx;
-	bool set;
-	VICTIM(const trx_t *t, bool s = true) : trx(t), set(s)
-	{
-	}
+  const trx_t *trx;
+  bool set;
+  VICTIM(const trx_t *t, bool s= true) : trx(t), set(s) {}
 };
 
-inline
-std::ostream&
-operator<<(std::ostream& out, const VICTIM& v)
+inline std::ostream &operator<<(std::ostream &out, const VICTIM &v)
 {
-	out << (v.set ? '+' : '-') << "VICTIM(trx=" << v.trx << ") ";
-	return out;
+  out << (v.set ? '+' : '-') << "VICTIM(trx=" << v.trx << ") ";
+  return out;
 }
 
 struct WEAKER /* precise_mode is weaker than existing lock (of same trx) */
 {
-	ulint precise_mode;
-	lock_t *lock;
-	WEAKER(ulint m, lock_t *l) : precise_mode(m), lock(l)
-	{
-	}
+  ulint precise_mode;
+  lock_t *lock;
+  WEAKER(ulint m, lock_t *l) : precise_mode(m), lock(l) {}
 };
 
-inline
-std::ostream&
-operator<<(std::ostream& out, const WEAKER& w)
+inline std::ostream &operator<<(std::ostream &out, const WEAKER &w)
 {
-	out << "WEAKER(" << type_mode_string(w.precise_mode) << ", " << w.lock << ") ";
-	w.lock->print(out);
-	out << " ";
-	return out;
+  out << "WEAKER(" << type_mode_string(w.precise_mode) << ", " << w.lock
+      << ") ";
+  w.lock->print(out);
+  out << " ";
+  return out;
 }
 
-struct CONFLICTS /* precise_mode conflicts (or doesn't) with any existing locks */
+struct CONFLICTS /* precise_mode conflicts (or doesn't) with any existing locks
+                  */
 {
-	const trx_t *trx;
-	ulint precise_mode;
-	const lock_t *conflict;
-	CONFLICTS(const trx_t *t, ulint m, const lock_t *c) :
-		trx(t), precise_mode(m), conflict(c)
-	{
-	}
+  const trx_t *trx;
+  ulint precise_mode;
+  const lock_t *conflict;
+  CONFLICTS(const trx_t *t, ulint m, const lock_t *c)
+      : trx(t), precise_mode(m), conflict(c)
+  {
+  }
 };
 
-inline
-std::ostream&
-operator<<(std::ostream& out, const CONFLICTS& c)
+inline std::ostream &operator<<(std::ostream &out, const CONFLICTS &c)
 {
-	out << (c.conflict ? "CONFLICTS(trx=" : "NO_CONFLICTS(trx=")
-		<< c.trx << ", " << type_mode_string(c.precise_mode) << ", "
-		<< c.conflict  << ") ";
-	if (c.conflict) {
-		c.conflict->print(out);
-		out << " ";
-	}
-	return out;
+  out << (c.conflict ? "CONFLICTS(trx=" : "NO_CONFLICTS(trx=") << c.trx << ", "
+      << type_mode_string(c.precise_mode) << ", " << c.conflict << ") ";
+  if (c.conflict)
+  {
+    c.conflict->print(out);
+    out << " ";
+  }
+  return out;
 }
 
 #endif /* !DBUG_OFF */

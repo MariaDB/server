@@ -18968,8 +18968,9 @@ no_victim:
 
 			if (wait_lock) {
 				WSREP_DEBUG("canceling wait lock");
-				DBUG_LOG("ib_lock", VICTIM(victim_trx) << *lock);
-				victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
+                                DBUG_LOG("ib_lock", VICTIM(victim_trx)
+                                                        << *lock);
+                                victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 				lock_cancel_waiting_and_release(wait_lock);
 			}
 
