@@ -513,15 +513,17 @@ buf_dblwr_process()
 		const ulint		page_no	= page_get_page_no(page);
 		const page_id_t		page_id(space_id, page_no);
 
-		if (page_no >= space->size) {
+		if (UNIV_UNLIKELY(page_no >= space->size)) {
 
 			/* Do not report the warning for undo
 			tablespaces, because they can be truncated in place. */
 			if (!srv_is_undo_tablespace(space_id)) {
-				ib::warn() << "A copy of page " << page_id
+				ib::warn() << "A copy of page " << page_no
 					<< " in the doublewrite buffer slot "
 					<< page_no_dblwr
-					<< " is not within space bounds";
+					<< " is beyond the end of tablespace "
+					<< space->name
+					<< " (" << space->size << " pages)";
 			}
 			continue;
 		}

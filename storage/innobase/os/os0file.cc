@@ -4569,13 +4569,17 @@ invalid:
 		space->flags = (space->flags & FSP_FLAGS_MEM_MASK) | flags;
 
 		this->size = ulint(size_bytes / psize);
-		space->size += this->size;
+		space->committed_size = space->size += this->size;
 	} else if (space->id != TRX_SYS_SPACE || space->size_in_header) {
 		/* If this is not the first-time open, do nothing.
 		For the system tablespace, we always get invoked as
 		first=false, so we detect the true first-time-open based
-		on size_in_header and proceed to initiailze the data. */
+		on size_in_header and proceed to initialize the data. */
 		return true;
+	} else {
+		/* Initialize the size of predefined tablespaces
+		to FSP_SIZE. */
+		space->committed_size = size;
 	}
 
 	ut_ad(space->free_limit == 0 || space->free_limit == free_limit);

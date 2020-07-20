@@ -264,7 +264,8 @@ struct mtr_t {
 		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
 		      || space->purpose == FIL_TYPE_TABLESPACE);
-		x_lock(&space->latch, file, line);
+		memo_push(space, MTR_MEMO_SPACE_X_LOCK);
+		rw_lock_x_lock_inline(&space->latch, 0, file, line);
 	}
 
 	/** Release an object in the memo stack.
@@ -337,6 +338,12 @@ public:
   @return whether (lock,type) is contained */
   bool memo_contains(const rw_lock_t &lock, mtr_memo_type_t type)
     MY_ATTRIBUTE((warn_unused_result));
+  /** Check if we are holding exclusive tablespace latch
+  @param space  tablespace to search for
+  @return whether space.latch is being held */
+  bool memo_contains(const fil_space_t& space)
+    MY_ATTRIBUTE((warn_unused_result));
+
 
 	/** Check if memo contains the given item.
 	@param object		object to search

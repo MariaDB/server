@@ -326,6 +326,8 @@ struct fil_space_t
 				/*!< recovered tablespace size in pages;
 				0 if no size change was read from the redo log,
 				or if the size change was implemented */
+  /** the committed size of the tablespace in pages */
+  Atomic_relaxed<ulint> committed_size;
 	ulint		n_reserved_extents;
 				/*!< number of reserved free extents for
 				ongoing operations like B-tree page split */
@@ -385,6 +387,15 @@ struct fil_space_t
 
 	/** @return whether the tablespace is about to be dropped */
 	bool is_stopping() const { return stop_new_ops;	}
+
+  /** Clamp a page number for batched I/O, such as read-ahead.
+  @param offset   page number limit
+  @return offset clamped to the tablespace size */
+  ulint max_page_number_for_io(ulint offset) const
+  {
+    const ulint limit= committed_size;
+    return limit > offset ? offset : limit;
+  }
 
 	/** @return whether doublewrite buffering is needed */
 	bool use_doublewrite() const
@@ -1326,15 +1337,6 @@ inline void fil_node_t::complete_io(bool write)
 }
 
 #include "fil0crypt.h"
-
-/** Returns the latch of a file space.
-@param[in]	id	space id
-@param[out]	flags	tablespace flags
-@return latch protecting storage allocation */
-rw_lock_t*
-fil_space_get_latch(
-	ulint	id,
-	ulint*	flags);
 
 /** Create a space memory object and put it to the fil_system hash table.
 Error messages are issued to the server log.

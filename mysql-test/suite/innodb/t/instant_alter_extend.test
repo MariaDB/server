@@ -64,6 +64,15 @@ select a, length(a) from t where a = 'z';
 check table t extended;
 call check_table('t');
 
+--enable_info
+ALTER TABLE t CHANGE COLUMN a a CHAR(230) BINARY;
+ALTER TABLE t ADD COLUMN b INT FIRST;
+ALTER TABLE t DROP b;
+--disable_info
+
+check table t extended;
+call check_table('t');
+
 --echo # Convert from VARCHAR to a bigger CHAR
 --enable_info
 alter table t modify a varchar(200);

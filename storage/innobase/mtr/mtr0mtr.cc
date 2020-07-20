@@ -218,6 +218,13 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   case MTR_MEMO_SX_LOCK:
     rw_lock_sx_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
     break;
+  case MTR_MEMO_SPACE_X_LOCK:
+    {
+      fil_space_t *space= static_cast<fil_space_t*>(slot->object);
+      space->committed_size= space->size;
+      rw_lock_x_unlock(&space->latch);
+    }
+    break;
   case MTR_MEMO_X_LOCK:
     rw_lock_x_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
     break;
@@ -250,6 +257,13 @@ struct ReleaseLatches {
 #endif /* UNIV_DEBUG */
     case MTR_MEMO_S_LOCK:
       rw_lock_s_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
+      break;
+    case MTR_MEMO_SPACE_X_LOCK:
+      {
+        fil_space_t *space= static_cast<fil_space_t*>(slot->object);
+        space->committed_size= space->size;
+        rw_lock_x_unlock(&space->latch);
+      }
       break;
     case MTR_MEMO_X_LOCK:
       rw_lock_x_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
@@ -427,7 +441,7 @@ void mtr_t::commit()
         freed_space= fil_system.sys_space;
       }
 
-      ut_ad(memo_contains(freed_space->latch, MTR_MEMO_X_LOCK));
+      ut_ad(memo_contains(*freed_space));
       /* Update the last freed lsn */
       freed_space->update_last_freed_lsn(m_commit_lsn);
 
@@ -716,6 +730,18 @@ bool mtr_t::memo_contains(const rw_lock_t &lock, mtr_memo_type_t type)
     break;
   }
 
+  return true;
+}
+
+/** Check if we are holding exclusive tablespace latch
+@param space  tablespace to search for
+@return whether space.latch is being held */
+bool mtr_t::memo_contains(const fil_space_t& space)
+{
+  Iterate<Find> iteration(Find(&space, MTR_MEMO_SPACE_X_LOCK));
+  if (m_memo.for_each_block_in_reverse(iteration))
+    return false;
+  ut_ad(rw_lock_own(const_cast<rw_lock_t*>(&space.latch), RW_LOCK_X));
   return true;
 }
 

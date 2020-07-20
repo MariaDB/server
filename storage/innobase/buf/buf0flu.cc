@@ -1262,7 +1262,7 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
   page_id_t low= id - (id.page_no() % buf_flush_area);
   page_id_t high= low + buf_flush_area;
   high.set_page_no(std::min(high.page_no(),
-                            static_cast<uint32_t>(space.size - 1)));
+                            static_cast<uint32_t>(space.committed_size - 1)));
 
   /* Determine the contiguous dirty area around id. */
   const ulint id_fold= id.fold();
