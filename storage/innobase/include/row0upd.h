@@ -454,7 +454,32 @@ struct upd_t{
 		fields[n_fields++] = field;
 	}
 
-	/** Determine if the given field_no is modified.
+        void remove_element(ulint i)
+        {
+          ut_ad(n_fields > 0);
+          ut_ad(i < n_fields);
+          while (i < n_fields - 1)
+          {
+            fields[i]= fields[i + 1];
+            i++;
+          }
+          n_fields--;
+        }
+
+        bool remove(const ulint field_no)
+        {
+          for (ulint i= 0; i < n_fields; ++i)
+          {
+            if (field_no == fields[i].field_no)
+            {
+              remove_element(i);
+              return true;
+            }
+          }
+          return false;
+        }
+
+        /** Determine if the given field_no is modified.
 	@return true if modified, false otherwise.  */
 	bool is_modified(const ulint field_no) const
 	{
