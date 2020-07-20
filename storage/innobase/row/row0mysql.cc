@@ -1871,10 +1871,10 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	if (prebuilt->versioned_write) {
 		if (node->is_delete == VERSIONED_DELETE) {
-			node->make_versioned_delete(trx);
-		} else if (node->update->affects_versioned()) {
-			node->make_versioned_update(trx);
-		}
+                  node->vers_make_delete(trx);
+                } else if (node->update->affects_versioned()) {
+                  node->vers_make_update(trx);
+                }
 	}
 
 	for (;;) {
@@ -2239,14 +2239,14 @@ row_update_cascade_for_mysql(
 
 	if (table->versioned()) {
 		if (node->is_delete == PLAIN_DELETE) {
-			node->make_versioned_delete(trx);
-		} else if (node->update->affects_versioned()) {
+                  node->vers_make_delete(trx);
+                } else if (node->update->affects_versioned()) {
 			dberr_t err = row_update_vers_insert(thr, node);
 			if (err != DB_SUCCESS) {
 				return err;
 			}
-			node->make_versioned_update(trx);
-		}
+                        node->vers_make_update(trx);
+                }
 	}
 
 	for (;;) {

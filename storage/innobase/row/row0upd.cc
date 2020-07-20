@@ -3486,32 +3486,45 @@ Supposed to be called only by make_versioned_update() and
 make_versioned_delete().
 @param[in]	trx	transaction
 @param[in]	vers_sys_idx	table->row_start or table->row_end */
-void upd_node_t::make_versioned_helper(const trx_t* trx, ulint idx)
+void upd_node_t::vers_update_fields(const trx_t *trx, ulint idx)
 {
 	ut_ad(in_mysql_interface); // otherwise needs to recalculate
 				   // node->cmpl_info
 	ut_ad(idx == table->vers_start || idx == table->vers_end);
 
 	dict_index_t* clust_index = dict_table_get_first_index(table);
+        const dict_col_t *col= dict_table_get_nth_col(table, idx);
+        ulint field_no= dict_col_get_clust_pos(col, clust_index);
+        upd_field_t *ufield;
 
-	/* row_create_update_node_for_mysql() pre-allocated this much.
+        for (ulint i= 0; i < update->n_fields; ++i)
+        {
+          if (update->fields[i].field_no == field_no)
+          {
+            ufield= &update->fields[i];
+            goto skip_append;
+          }
+        }
+
+        /* row_create_update_node_for_mysql() pre-allocated this much.
 	   At least one PK column always remains unchanged. */
 	ut_ad(update->n_fields < ulint(table->n_cols + table->n_v_cols));
 
 	update->n_fields++;
-	upd_field_t* ufield = upd_get_nth_field(update, update->n_fields - 1);
-	const dict_col_t* col = dict_table_get_nth_col(table, idx);
+        ufield= upd_get_nth_field(update, update->n_fields - 1);
+        upd_field_set_field_no(ufield, field_no, clust_index);
 
-	upd_field_set_field_no(ufield, dict_col_get_clust_pos(col, clust_index),
-			       clust_index);
+skip_append:
+  char *where= reinterpret_cast<char *>(update->vers_sys_value);
+  if (col->vers_native())
+  {
+    mach_write_to_8(where, trx->id);
+  }
+  else
+  {
+    thd_get_query_start_data(trx->mysql_thd, where);
+  }
 
-	char* where = reinterpret_cast<char*>(update->vers_sys_value);
-	if (col->vers_native()) {
-		mach_write_to_8(where, trx->id);
-	} else {
-		thd_get_query_start_data(trx->mysql_thd, where);
-	}
-
-	dfield_set_data(&ufield->new_val, update->vers_sys_value, col->len);
+  dfield_set_data(&ufield->new_val, update->vers_sys_value, col->len);
 }
 

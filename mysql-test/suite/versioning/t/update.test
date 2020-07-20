@@ -245,4 +245,24 @@ update t1 set f = null where f = 'foo';
 # cleanup
 drop table t1;
 
+--echo #
+--echo # MDEV-22061 InnoDB: Assertion of missing row in sec index row_start upon REPLACE on a system-versioned table
+--echo #
+create or replace table t1 (
+  a int,
+  b int,
+  row_start bigint(20) unsigned generated always as row start,
+  row_end bigint(20) unsigned generated always as row end,
+  unique key (b,row_end),
+  key (row_start),
+  period for system_time (row_start,row_end)
+) engine=innodb with system versioning;
+
+insert into t1 (a, b) values (1, 2);
+replace into t1 (a, b) values (3, 2);
+replace into t1 (a, b) values (4, 2);
+
+# cleanup
+drop table t1;
+
 source suite/versioning/common_finish.inc;
