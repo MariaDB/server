@@ -2890,6 +2890,10 @@ static void reset_thd_trn(THD *thd, MARIA_HA *first_table)
   DBUG_VOID_RETURN;
 }
 
+bool ha_maria::has_active_transaction(THD *thd)
+{
+  return (maria_hton && THD_TRN);
+}
 
 /**
   Performs an implicit commit of the Maria transaction and creates a new

@@ -5021,7 +5021,7 @@ int ha_change_key_cache(KEY_CACHE *old_key_cache, KEY_CACHE *new_key_cache);
 /* transactions: interface to handlerton functions */
 int ha_start_consistent_snapshot(THD *thd);
 int ha_commit_or_rollback_by_xid(XID *xid, bool commit);
-int ha_commit_one_phase(THD *thd, bool all);
+int ha_commit_one_phase(THD *thd, bool all, bool rw_trans);
 int ha_commit_trans(THD *thd, bool all);
 int ha_rollback_trans(THD *thd, bool all);
 int ha_prepare(THD *thd);
@@ -5093,4 +5093,10 @@ int del_global_table_stat(THD *thd, const  LEX_CSTRING *db, const LEX_CSTRING *t
 @note This does not need to be multi-byte safe or anything */
 char *xid_to_str(char *buf, const XID &xid);
 #endif // !DBUG_OFF
+
+#if defined(WITH_ARIA_STORAGE_ENGINE) && MYSQL_VERSION_ID < 100500
+extern void ha_maria_implicit_commit(THD *thd, bool new_trans);
+#else
+#define ha_maria_implicit_commit(A, B) while(0)
+#endif
 #endif /* HANDLER_INCLUDED */

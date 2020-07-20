@@ -165,6 +165,7 @@ public:
   {
     return file;
   }
+  static bool has_active_transaction(THD *thd);
   static int implicit_commit(THD *thd, bool new_trn);
   /**
    * Multi Range Read interface

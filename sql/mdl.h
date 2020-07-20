@@ -122,6 +122,8 @@ public:
 */
 
 enum enum_mdl_type {
+  /* This means that the MDL_request is not initialized */
+  MDL_NOT_INITIALIZED= -1,
   /*
     An intention exclusive metadata lock (IX). Used only for scoped locks.
     Owner of this type of lock can acquire upgradable exclusive locks on
@@ -592,12 +594,13 @@ public:
   */
   MDL_request& operator=(const MDL_request &)
   {
+    type= MDL_NOT_INITIALIZED;
     ticket= NULL;
     /* Do nothing, in particular, don't try to copy the key. */
     return *this;
   }
   /* Another piece of ugliness for TABLE_LIST constructor */
-  MDL_request() {}
+  MDL_request(): type(MDL_NOT_INITIALIZED), ticket(NULL) {}
 
   MDL_request(const MDL_request *rhs)
     :type(rhs->type),

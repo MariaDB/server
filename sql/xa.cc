@@ -582,7 +582,7 @@ bool trans_xa_commit(THD *thd)
     {
       DEBUG_SYNC(thd, "trans_xa_commit_after_acquire_commit_lock");
 
-      res= MY_TEST(ha_commit_one_phase(thd, 1));
+      res= MY_TEST(ha_commit_one_phase(thd, 1, 1));
       if (res)
         my_error(ER_XAER_RMERR, MYF(0));
     }

@@ -1841,9 +1841,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       */
       char *beginning_of_next_stmt= (char*) parser_state.m_lip.found_semicolon;
 
-#ifdef WITH_ARIA_STORAGE_ENGINE
-    ha_maria::implicit_commit(thd, FALSE);
-#endif
+      ha_maria_implicit_commit(thd, FALSE);
 
       /* Finalize server status flags after executing a statement. */
       thd->update_server_status();
@@ -6157,9 +6155,7 @@ finish:
       trans_commit_stmt(thd);
       thd->get_stmt_da()->set_overwrite_status(false);
     }
-#ifdef WITH_ARIA_STORAGE_ENGINE
-    ha_maria::implicit_commit(thd, FALSE);
-#endif
+    ha_maria_implicit_commit(thd, FALSE);
   }
 
   /* Free tables. Set stage 'closing tables' */

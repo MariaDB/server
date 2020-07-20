@@ -1383,7 +1383,11 @@ void THD::update_all_stats()
 void THD::init_for_queries()
 {
   set_time(); 
-  ha_enable_transaction(this,TRUE);
+  /*
+    We don't need to call ha_enable_transaction() as we can't have
+    any active transactions that has to be commited
+  */
+  transaction.on= TRUE;
 
   reset_root_defaults(mem_root, variables.query_alloc_block_size,
                       variables.query_prealloc_size);
@@ -7308,7 +7312,6 @@ wait_for_commit::~wait_for_commit()
   mysql_mutex_destroy(&LOCK_wait_commit);
   mysql_cond_destroy(&COND_wait_commit);
 }
-
 
 void
 wait_for_commit::wakeup(int wakeup_error)

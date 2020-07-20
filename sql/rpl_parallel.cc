@@ -1051,10 +1051,10 @@ handle_rpl_parallel_thread(void *arg)
   server_threads.insert(thd);
   set_current_thd(thd);
   pthread_detach_this_thread();
+  thd->store_globals();
   thd->init_for_queries();
   thd->variables.binlog_annotate_row_events= 0;
   init_thr_lock();
-  thd->store_globals();
   thd->system_thread= SYSTEM_THREAD_SLAVE_SQL;
   thd->security_ctx->skip_grants();
   thd->variables.max_allowed_packet= slave_max_allowed_packet;
