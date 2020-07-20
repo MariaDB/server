@@ -13,6 +13,7 @@ drop table if exists t1;
 --disable_query_log
 call mtr.add_suppression("Syntax error at '\\[strength tertiary\\]'");
 call mtr.add_suppression("Can't reset before a primary ignorable character U\\+A48C");
+call mtr.add_suppression("Charset id.*trying to replace");
 --enable_query_log
 
 --echo In the following tests we change the order of letter "b"

@@ -22,6 +22,7 @@
 
 #ifdef HAVE_CHARSET_sjis
 
+const char charset_name_sjis[]= "sjis";
 
 /*
  * This comment is parsed by configure to create ctype.c,
@@ -34152,7 +34153,7 @@ struct charset_info_st my_charset_sjis_japanese_ci=
 {
     13,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_NONASCII,	/* state */
-    "sjis",		/* cs name    */
+    charset_name_sjis,		/* cs name    */
     "sjis_japanese_ci",	/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
@@ -34184,7 +34185,7 @@ struct charset_info_st my_charset_sjis_bin=
 {
     88,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NONASCII, /* state  */
-    "sjis",		/* cs name    */
+    charset_name_sjis,		/* cs name    */
     "sjis_bin",		/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
@@ -34217,7 +34218,7 @@ struct charset_info_st my_charset_sjis_japanese_nopad_ci=
 {
     MY_NOPAD_ID(13),0,0, /* number           */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NONASCII|MY_CS_NOPAD, /* state */
-    "sjis",              /* cs name          */
+    charset_name_sjis,              /* cs name          */
     "sjis_japanese_nopad_ci", /* name        */
     "",                  /* comment          */
     NULL,                /* tailoring        */
@@ -34249,7 +34250,7 @@ struct charset_info_st my_charset_sjis_nopad_bin=
 {
     MY_NOPAD_ID(88),0,0, /* number           */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NONASCII|MY_CS_NOPAD, /* state */
-    "sjis",              /* cs name          */
+    charset_name_sjis,              /* cs name          */
     "sjis_nopad_bin",    /* name             */
     "",                  /* comment          */
     NULL,                /* tailoring        */

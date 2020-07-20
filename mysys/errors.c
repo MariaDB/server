@@ -58,7 +58,8 @@ const char *globerrs[GLOBERRS]=
   "Warning: Can't copy ownership for file '%s' (Errcode: %M)",
   "Failed to release memory pointer %p, %zu bytes (Errcode: %M)",
   "Lock Pages in memory access rights required",
-  "Memcntl %s cmd %s error"
+  "Memcntl %s cmd %s error",
+  "Warning: Charset id '%d' csname '%s' trying to replace existing csname '%s'",
 };
 
 void init_glob_errs(void)
@@ -107,6 +108,7 @@ void init_glob_errs()
   EE(EE_BADMEMORYRELEASE)= "Failed to release memory pointer %p, %zu bytes (Errcode: %M)";
   EE(EE_PERM_LOCK_MEMORY)= "Lock Pages in memory access rights required";
   EE(EE_MEMCNTL)         = "Memcntl %s cmd %s error";
+  EE(EE_DUPLICATE_CHARSET)= "Warning: Charset id %d trying to replace csname %s with %s";
 }
 #endif
 

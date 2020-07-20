@@ -32,6 +32,7 @@
 
 #ifdef HAVE_CHARSET_ujis
 
+const char charset_name_ujis[]= "ujis";
 
 static const uchar ctype_ujis[257] =
 {
@@ -67337,7 +67338,7 @@ struct charset_info_st my_charset_ujis_japanese_ci=
 {
     12,0,0,		/* number       */
     MY_CS_COMPILED|MY_CS_PRIMARY,	/* state        */
-    "ujis",		/* cs name    */
+    charset_name_ujis,		/* cs name    */
     "ujis_japanese_ci",	/* name         */
     "",			/* comment      */
     NULL,		/* tailoring    */
@@ -67370,7 +67371,7 @@ struct charset_info_st my_charset_ujis_bin=
 {
     91,0,0,		/* number       */
     MY_CS_COMPILED|MY_CS_BINSORT,	/* state        */
-    "ujis",		/* cs name    */
+    charset_name_ujis,		/* cs name    */
     "ujis_bin",		/* name         */
     "",			/* comment      */
     NULL,		/* tailoring    */
@@ -67403,7 +67404,7 @@ struct charset_info_st my_charset_ujis_japanese_nopad_ci=
 {
     MY_NOPAD_ID(12),0,0,/* number           */
     MY_CS_COMPILED|MY_CS_NOPAD, /* state    */
-    "ujis",             /* cs name          */
+    charset_name_ujis,             /* cs name          */
     "ujis_japanese_nopad_ci", /* name       */
     "",                 /* comment          */
     NULL,               /* tailoring        */
@@ -67436,7 +67437,7 @@ struct charset_info_st my_charset_ujis_nopad_bin=
 {
     MY_NOPAD_ID(91),0,0,/* number           */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
-    "ujis",             /* cs name          */
+    charset_name_ujis,             /* cs name          */
     "ujis_nopad_bin",   /* name             */
     "",                 /* comment          */
     NULL,               /* tailoring        */

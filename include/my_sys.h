@@ -1049,9 +1049,13 @@ extern my_bool resolve_collation(const char *cl_name,
                                  CHARSET_INFO **cl);
 extern void free_charsets(void);
 extern char *get_charsets_dir(char *buf);
-extern my_bool my_charset_same(CHARSET_INFO *cs1, CHARSET_INFO *cs2);
+static inline my_bool my_charset_same(CHARSET_INFO *cs1, CHARSET_INFO *cs2)
+{
+  return (cs1->csname == cs2->csname);
+}
 extern my_bool init_compiled_charsets(myf flags);
 extern void add_compiled_collation(struct charset_info_st *cs);
+extern void add_compiled_extra_collation(struct charset_info_st *cs);
 extern size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);

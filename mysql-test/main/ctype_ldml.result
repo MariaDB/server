@@ -447,7 +447,7 @@ Bug#46448 trailing spaces are not ignored when user collation maps space != 0x20
 set names latin1;
 show collation like 'latin1_test';
 Collation	Charset	Id	Default	Compiled	Sortlen
-latin1_test	latin1	99		Yes	1
+latin1_test	latin1	331			1
 select "foo" = "foo " collate latin1_test;
 "foo" = "foo " collate latin1_test
 1
@@ -466,6 +466,7 @@ utf8mb4_test_ci	utf8mb4	326			8
 utf16_test_ci	utf16	327			8
 utf8mb4_test_400_ci	utf8mb4	328			8
 utf8mb4_test_520_nopad_ci	utf8mb4	329			8
+latin1_test	latin1	331			1
 latin1_test2	latin1	332			1
 latin1_test2_cs	latin1	333			1
 latin1_swedish_nopad2_ci	latin1	334			1
@@ -490,7 +491,7 @@ utf32_test_ci	utf32	391			8
 utf8_maxuserid_ci	utf8	2047			8
 show collation like '%test%';
 Collation	Charset	Id	Default	Compiled	Sortlen
-latin1_test	latin1	99		Yes	1
+latin1_test	latin1	331			1
 latin1_test2	latin1	332			1
 latin1_test2_cs	latin1	333			1
 utf8_test_ci	utf8	353			8
@@ -3034,3 +3035,10 @@ SELECT 'chž'< 'i';
 1
 SELECT 'a' COLLATE utf8_czech_test_bad_w2;
 ERROR HY000: Unknown collation: 'utf8_czech_test_bad_w2'
+#
+# MDEV-7947 my_charset_same: strcmp() takes 0.37% in OLTP RO
+#
+SHOW COLLATION LIKE 'latin1_test_replace';
+Collation	Charset	Id	Default	Compiled	Sortlen
+SELECT 'foo' = 'foo ' COLLATE latin1_test_replace;
+ERROR HY000: Unknown collation: 'latin1_test_replace'

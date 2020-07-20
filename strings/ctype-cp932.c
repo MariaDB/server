@@ -22,6 +22,7 @@
 
 #ifdef HAVE_CHARSET_cp932
 
+const char charset_name_cp932[]= "cp932";
 
 /*
  * This comment is parsed by configure to create ctype.c,
@@ -34764,8 +34765,8 @@ struct charset_info_st my_charset_cp932_japanese_ci=
 {
     95,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM,	/* state      */
-    "cp932",		/* cs name    */
-    "cp932_japanese_ci",	/* name */
+    charset_name_cp932,  /* cs name    */
+    "cp932_japanese_ci", /* name */
     "",			/* comment    */
     NULL,		/* tailoring */
     ctype_cp932,
@@ -34796,8 +34797,8 @@ struct charset_info_st my_charset_cp932_bin=
 {
     96,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_BINSORT,	/* state      */
-    "cp932",		/* cs name    */
-    "cp932_bin",		/* name */
+    charset_name_cp932, /* cs name    */
+    "cp932_bin",	/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
     ctype_cp932,
@@ -34829,7 +34830,7 @@ struct charset_info_st my_charset_cp932_japanese_nopad_ci=
 {
     MY_NOPAD_ID(95),0,0, /* number       */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NOPAD, /* state */
-    "cp932",             /* cs name      */
+    charset_name_cp932, /* cs name      */
     "cp932_japanese_nopad_ci",/* name    */
     "",                  /* comment      */
     NULL,                /* tailoring    */
@@ -34861,7 +34862,7 @@ struct charset_info_st my_charset_cp932_nopad_bin=
 {
     MY_NOPAD_ID(96),0,0, /* number        */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
-    "cp932",             /* cs name       */
+    charset_name_cp932, /* cs name       */
     "cp932_nopad_bin",   /* name          */
     "",                  /* comment       */
     NULL,                /* tailoring     */

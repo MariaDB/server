@@ -130,4 +130,13 @@ int my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
 int my_wc_to_printable_8bit(CHARSET_INFO *cs, my_wc_t wc,
                             uchar *s, uchar *e);
 
+/* Some common character set names */
+extern const char charset_name_latin2[];
+extern const char charset_name_utf8[];
+extern const char charset_name_utf16[];
+extern const char charset_name_utf32[];
+extern const char charset_name_ucs2[];
+extern const char charset_name_ucs2[];
+extern const char charset_name_utf8mb4[];
+
 #endif /*STRINGS_DEF_INCLUDED */

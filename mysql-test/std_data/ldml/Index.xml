@@ -362,7 +362,14 @@
     <alias>iso_8859-1:1987</alias>
     <alias>l1</alias>
     <alias>latin1</alias>
-    <collation name="latin1_test" id="99" order="test"/>
+    <!--
+      The server rejects binding an existing built-in collation
+      to a different character set through Index.xml.
+      This example tries to override cp1250_polish_ci with id 99
+      and bind it to latin1:
+    -->
+    <collation name="latin1_test_replace" id="99"/>
+    <collation name="latin1_test" id="331" order="test"/>
     <collation name="latin1_test2" id="332" order="test"/>
     <collation name="latin1_test2_cs" id="333"/>
     <collation name="latin1_swedish_nopad2_ci" id="334" flag="nopad">
