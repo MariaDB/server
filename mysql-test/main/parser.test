@@ -1613,4 +1613,70 @@ SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.t1;
 SET STATEMENT max_statement_time=180 FOR BACKUP UNLOCK;
 set SQL_MODE=@save_sql_mode;
 
+
+--echo #
+--echo # MDEV-21997: Server crashes in LEX::create_item_ident_sp
+--echo # upon use of unknown identifier
+--echo #
+
+--error ER_SP_UNDECLARED_VAR
+/*! IF 1 IN ( SELECT 2 ) OR foo = 3 THEN */ SELECT 4;
+
+
+DELIMITER $$;
+
+--error ER_SP_UNDECLARED_VAR
+BEGIN NOT ATOMIC
+  IF (SELECT 2) OR foo = 3 THEN
+    SELECT 4;
+  END IF ;
+END;
+$$
+
+--echo # ... but if declare it then it still work
+BEGIN NOT ATOMIC
+  DECLARE foo int;
+  IF (SELECT 2) OR foo = 3 THEN
+    SELECT 4;
+  END IF ;
+END;
+$$
+
+--error ER_SP_UNDECLARED_VAR
+CASE (SELECT 2) OR foo
+WHEN 1 THEN
+  SET @x=10;
+$$
+
+--error ER_SP_UNDECLARED_VAR
+/*! WHILE (SELECT 2) OR foo */
+  SET @x=10;
+END WHILE;
+$$
+
+--error ER_SP_UNDECLARED_VAR
+REPEAT
+  SET @x=10;
+UNTIL (SELECT 2) OR foo
+END REPEAT;
+$$
+
+--error ER_SP_UNDECLARED_VAR
+FOR i IN 1..(SELECT 2) OR foo
+DO
+  SET @x=10;
+END FOR;
+$$
+
+--echo # ... but automatic FOR variable still work
+FOR i IN 1..2
+DO
+  SELECT i;
+END FOR;
+$$
+
+DELIMITER ;$$
+
+
+
 --echo # End of 10.4 tests
