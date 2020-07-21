@@ -1295,7 +1295,8 @@ trx_update_mod_tables_timestamp(
 		dict_table_t* table = it->first;
 		table->update_time = now;
 #ifdef UNIV_DEBUG
-		if (preserve_tables || table->get_ref_count()) {
+		if (preserve_tables || table->get_ref_count()
+		    || UT_LIST_GET_LEN(table->locks)) {
 			/* do not evict when committing DDL operations
 			or if some other transaction is holding the
 			table handle */
@@ -1304,7 +1305,11 @@ trx_update_mod_tables_timestamp(
 		/* recheck while holding the mutex that blocks
 		table->acquire() */
 		mutex_enter(&dict_sys_mutex);
-		if (!table->get_ref_count()) {
+		mutex_enter(&lock_sys.mutex);
+		const bool do_evict = !table->get_ref_count()
+			&& !UT_LIST_GET_LEN(table->locks);
+		mutex_exit(&lock_sys.mutex);
+		if (do_evict) {
 # if MYSQL_VERSION_ID >= 100405
 			dict_sys.remove(table, true);
 # else
