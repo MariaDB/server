@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2017, MariaDB Corporation, Alibaba Corporation
+   Copyrgiht (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -483,6 +484,10 @@ int SEQUENCE::read_initial_values(TABLE *table)
       if (mdl_lock_used)
         thd->mdl_context.release_lock(mdl_request.ticket);
       write_unlock(table);
+
+      if (!has_active_transaction && !thd->transaction->stmt.is_empty() &&
+          !thd->in_sub_stmt)
+        trans_commit_stmt(thd);
       DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
     }
     DBUG_ASSERT(table->reginfo.lock_type == TL_READ);

@@ -319,3 +319,34 @@ create or replace table t1 (f point, key(f)) with system versioning engine=myisa
 update t1 set f = null where f = 'foo';
 ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 drop table t1;
+#
+# MDEV-22061 InnoDB: Assertion of missing row in sec index row_start upon REPLACE on a system-versioned table
+#
+create or replace table t1 (
+a int,
+b int,
+row_start bigint(20) unsigned generated always as row start,
+row_end bigint(20) unsigned generated always as row end,
+unique key (b,row_end),
+key (row_start),
+period for system_time (row_start,row_end)
+) engine=innodb with system versioning;
+insert into t1 (a, b) values (1, 2);
+replace into t1 (a, b) values (3, 2);
+replace into t1 (a, b) values (4, 2);
+drop table t1;
+#
+# MDEV-20661 Virtual fields are not recalculated on system fields value assignment
+#
+create table t1 (
+a int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end),
+v1 bigint unsigned as (a ^ row_start) unique,
+v2 bigint unsigned as (a ^ row_end) unique
+) engine=innodb with system versioning;
+insert into t1 (a) values (1), (2);
+update ignore t1 set a= 3;
+delete history from t1;
+drop table t1;

@@ -21150,39 +21150,49 @@ ha_innobase::can_convert_varstring(const Field_varstring* field,
 	return true;
 }
 
-bool
-ha_innobase::can_convert_blob(const Field_blob* field,
-			      const Column_definition& new_type) const
+static bool is_part_of_a_key(const Field_blob *field)
 {
-	if (new_type.type_handler() != field->type_handler()) {
-		return false;
-	}
+  const TABLE_SHARE *s= field->table->s;
 
-	if (!new_type.compression_method() != !field->compression_method()) {
-		return false;
-	}
+  for (uint i= 0; i < s->keys; i++)
+  {
+    const KEY &key= s->key_info[i];
+    for (uint j= 0; j < key.user_defined_key_parts; j++)
+    {
+      const KEY_PART_INFO &info= key.key_part[j];
+      if (info.field->field_index == field->field_index)
+        return true;
+    }
+  }
 
-	if (new_type.pack_length != field->pack_length()) {
-		return false;
-	}
+  return false;
+}
 
-	if (new_type.charset != field->charset()) {
-		Charset field_cs(field->charset());
-		if (!field_cs.encoding_allows_reinterpret_as(
-			new_type.charset)) {
-			return false;
-		}
+bool ha_innobase::can_convert_blob(const Field_blob *field,
+                                   const Column_definition &new_type) const
+{
+  if (new_type.type_handler() != field->type_handler())
+    return false;
 
-		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
-			bool is_part_of_a_key
-			    = !field->part_of_key.is_clear_all();
-			return !is_part_of_a_key;
-		}
+  if (!new_type.compression_method() != !field->compression_method())
+    return false;
 
-		return true;
-	}
+  if (new_type.pack_length != field->pack_length())
+    return false;
 
-	return true;
+  if (new_type.charset != field->charset())
+  {
+    Charset field_cs(field->charset());
+    if (!field_cs.encoding_allows_reinterpret_as(new_type.charset))
+      return false;
+
+    if (!field_cs.eq_collation_specific_names(new_type.charset))
+      return !is_part_of_a_key(field);
+
+    return true;
+  }
+
+  return true;
 }
 
 Compare_keys ha_innobase::compare_key_parts(
@@ -21807,4 +21817,71 @@ ib_push_frm_error(
 		ut_error;
 		break;
 	}
+}
+
+/** Writes 8 bytes to nth tuple field
+@param[in]	tuple	where to write
+@param[in]	nth	index in tuple
+@param[in]	data	what to write
+@param[in]	buf	field data buffer */
+static void set_tuple_col_8(dtuple_t *tuple, int col, uint64_t data, byte *buf)
+{
+  dfield_t *dfield= dtuple_get_nth_field(tuple, col);
+  ut_ad(dfield->type.len == 8);
+  if (dfield->len == UNIV_SQL_NULL)
+  {
+    dfield_set_data(dfield, buf, 8);
+  }
+  ut_ad(dfield->len == dfield->type.len && dfield->data);
+  mach_write_to_8(dfield->data, data);
+}
+
+void ins_node_t::vers_update_end(row_prebuilt_t *prebuilt, bool history_row)
+{
+  ut_ad(prebuilt->ins_node == this);
+  trx_t *trx= prebuilt->trx;
+#ifndef DBUG_OFF
+  ut_ad(table->vers_start != table->vers_end);
+  const mysql_row_templ_t *t= prebuilt->get_template_by_col(table->vers_end);
+  ut_ad(t);
+  ut_ad(t->mysql_col_len == 8);
+#endif
+
+  if (history_row)
+  {
+    set_tuple_col_8(row, table->vers_end, trx->id, vers_end_buf);
+  }
+  else /* ROW_INS_VERSIONED */
+  {
+    set_tuple_col_8(row, table->vers_end, TRX_ID_MAX, vers_end_buf);
+#ifndef DBUG_OFF
+    t= prebuilt->get_template_by_col(table->vers_start);
+    ut_ad(t);
+    ut_ad(t->mysql_col_len == 8);
+#endif
+    set_tuple_col_8(row, table->vers_start, trx->id, vers_start_buf);
+  }
+  dict_index_t *clust_index= dict_table_get_first_index(table);
+  THD *thd= trx->mysql_thd;
+  TABLE *mysql_table= prebuilt->m_mysql_table;
+  mem_heap_t *local_heap= NULL;
+  for (ulint col_no= 0; col_no < dict_table_get_n_v_cols(table); col_no++)
+  {
+
+    const dict_v_col_t *v_col= dict_table_get_nth_v_col(table, col_no);
+    for (ulint i= 0; i < unsigned(v_col->num_base); i++)
+    {
+      dict_col_t *base_col= v_col->base_col[i];
+      if (base_col->ind == table->vers_end)
+      {
+        innobase_get_computed_value(row, v_col, clust_index, &local_heap,
+                                    table->heap, NULL, thd, mysql_table,
+                                    mysql_table->record[0], NULL, NULL, NULL);
+      }
+    }
+  }
+  if (local_heap)
+  {
+    mem_heap_free(local_heap);
+  }
 }

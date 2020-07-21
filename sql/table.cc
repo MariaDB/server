@@ -8809,29 +8809,24 @@ void TABLE::vers_update_fields()
   bitmap_set_bit(write_set, vers_start_field()->field_index);
   bitmap_set_bit(write_set, vers_end_field()->field_index);
 
-  if (versioned(VERS_TIMESTAMP))
+  if (!vers_write)
   {
-    if (!vers_write)
-    {
-      file->column_bitmaps_signal();
-      return;
-    }
-    if (vers_start_field()->store_timestamp(in_use->query_start(),
-                                            in_use->query_start_sec_part()))
-      DBUG_ASSERT(0);
+    file->column_bitmaps_signal();
+    return;
   }
-  else
+
+  if (versioned(VERS_TIMESTAMP) &&
+      vers_start_field()->store_timestamp(in_use->query_start(),
+                                          in_use->query_start_sec_part()))
   {
-    if (!vers_write)
-    {
-      file->column_bitmaps_signal();
-      return;
-    }
+    DBUG_ASSERT(0);
   }
 
   vers_end_field()->set_max();
   bitmap_set_bit(read_set, vers_end_field()->field_index);
   file->column_bitmaps_signal();
+  if (vfield)
+    update_virtual_fields(file, VCOL_UPDATE_FOR_READ);
 }
 
 
