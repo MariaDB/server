@@ -5332,18 +5332,18 @@ static void mark_real_tables_as_free_for_reuse(TABLE_LIST *table_list)
   DBUG_VOID_RETURN;
 }
 
-static int fix_table_vcol_exprs(THD *thd, TABLE *t)
+int TABLE::fix_vcol_exprs(THD *thd)
 {
-  for (Field **vf= t->vfield; vf && *vf; vf++)
+  for (Field **vf= vfield; vf && *vf; vf++)
     if (fix_session_vcol_expr(thd, (*vf)->vcol_info))
       return 1;
 
-  for (Field **df= t->default_field; df && *df; df++)
+  for (Field **df= default_field; df && *df; df++)
     if ((*df)->default_value &&
         fix_session_vcol_expr(thd, (*df)->default_value))
       return 1;
 
-  for (Virtual_column_info **cc= t->check_constraints; cc && *cc; cc++)
+  for (Virtual_column_info **cc= check_constraints; cc && *cc; cc++)
     if (fix_session_vcol_expr(thd, (*cc)))
       return 1;
 
@@ -5371,7 +5371,7 @@ static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
       if (table->security_ctx)
         thd->security_ctx= table->security_ctx;
 
-      error= fix_table_vcol_exprs(thd, t);
+      error= t->fix_vcol_exprs(thd);
 
       thd->security_ctx= save_security_ctx;
       thd->stmt_arena= stmt_backup;

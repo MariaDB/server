@@ -1760,6 +1760,8 @@ public:
   void vers_update_end();
   void find_constraint_correlated_indexes();
 
+  int fix_vcol_exprs(THD *thd);
+
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
 };
