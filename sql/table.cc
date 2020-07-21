@@ -54,7 +54,7 @@ public:
           Query_arena(mem_root, state_arg){}
   virtual Type type() const
   {
-    return Type::TABLE;
+    return TABLE_ARENA;
   }
 };
 

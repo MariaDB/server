@@ -3482,7 +3482,7 @@ void select_dumpvar::cleanup()
 Query_arena::Type Query_arena::type() const
 {
   DBUG_ASSERT(0); /* Should never be called */
-  return Type::STATEMENT;
+  return STATEMENT;
 }
 
 
@@ -3535,7 +3535,7 @@ Statement::Statement(LEX *lex_arg, MEM_ROOT *mem_root_arg,
 
 Query_arena::Type Statement::type() const
 {
-  return Type::STATEMENT;
+  return STATEMENT;
 }
 
 

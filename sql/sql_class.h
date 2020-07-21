@@ -951,9 +951,9 @@ public:
   enum_state state;
 
   /* We build without RTTI, so dynamic_cast can't be used. */
-  enum class Type
+  enum Type
   {
-    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE, TABLE
+    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE, TABLE_ARENA
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
@@ -3658,7 +3658,7 @@ public:
   bool is_item_tree_change_register_required()
   {
     return !stmt_arena->is_conventional()
-           || stmt_arena->type() == Query_arena::Type::TABLE;
+           || stmt_arena->type() == Query_arena::TABLE_ARENA;
   }
 
   void change_item_tree(Item **place, Item *new_value)
