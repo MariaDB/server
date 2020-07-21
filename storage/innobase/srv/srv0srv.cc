@@ -2365,6 +2365,10 @@ srv_master_do_idle_tasks(void)
 	log_checkpoint(true);
 	MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_CHECKPOINT_MICROSECOND,
 				       counter_time);
+
+	/* This is a workaround to avoid the InnoDB hang when OS datetime
+	changed backwards.*/
+	os_event_set(buf_flush_event);
 }
 
 /** Perform shutdown tasks.
