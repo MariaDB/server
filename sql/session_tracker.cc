@@ -189,7 +189,13 @@ bool sysvartrack_validate_value(THD *thd, const char *str, size_t len)
   char *token, *lasts= NULL;
   size_t rest= var_list.length;
 
-  if (!var_list.str || var_list.length == 0 ||
+  if (!var_list.str)
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0),
+             "session_track_system_variables", "NULL");
+    return false;
+  }
+  if (var_list.length == 0 ||
       !strcmp(var_list.str, "*"))
   {
     return false;
