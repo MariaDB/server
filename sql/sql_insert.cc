@@ -1682,6 +1682,10 @@ int vers_insert_history_row(TABLE *table)
   if (row_start->cmp(row_start->ptr, row_end->ptr) >= 0)
     return 0;
 
+  if (table->vfield &&
+      table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ))
+    return HA_ERR_GENERIC;
+
   return table->file->ha_write_row(table->record[0]);
 }
 
