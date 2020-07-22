@@ -1308,7 +1308,8 @@ innodb_immediate_scrub_data_uncompressed from the freed ranges.
 static void buf_flush_freed_pages(fil_space_t *space)
 {
   ut_ad(space != NULL);
-  if (!srv_immediate_scrub_data_uncompressed && !space->is_compressed())
+  const bool punch_hole= space->punch_hole;
+  if (!srv_immediate_scrub_data_uncompressed && !punch_hole)
     return;
   lsn_t flush_to_disk_lsn= log_sys.get_flushed_lsn();
 
@@ -1322,11 +1323,6 @@ static void buf_flush_freed_pages(fil_space_t *space)
 
   range_set freed_ranges= std::move(space->freed_ranges);
   freed_lock.unlock();
-  const bool punch_hole=
-#if defined(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
-    space->is_compressed() ||
-#endif
-    false;
 
   for (const auto &range : freed_ranges)
   {

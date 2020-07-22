@@ -4568,6 +4568,7 @@ invalid:
 
 		space->flags = (space->flags & FSP_FLAGS_MEM_MASK) | flags;
 
+		space->punch_hole = space->is_compressed();
 		this->size = ulint(size_bytes / psize);
 		space->committed_size = space->size += this->size;
 	} else if (space->id != TRX_SYS_SPACE || space->size_in_header) {

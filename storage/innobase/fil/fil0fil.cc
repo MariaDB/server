@@ -3903,6 +3903,12 @@ fil_io(
 	if (punch_hole) {
 		/* Punch the hole to the file */
 		err = os_file_punch_hole(node->handle, offset, len);
+		/* Punch hole is not supported, make space not to
+		support punch hole */
+		if (UNIV_UNLIKELY(err == DB_IO_NO_PUNCH_HOLE)) {
+			node->space->punch_hole = false;
+			err = DB_SUCCESS;
+		}
 	} else {
 		/* Queue the aio request */
 		err = os_aio(
