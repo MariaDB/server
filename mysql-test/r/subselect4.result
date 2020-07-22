@@ -2584,3 +2584,27 @@ l1	i2
 e	2
 o	6
 DROP TABLE t1, t2;
+#
+# MDEV-19232: Floating point precision / value comparison problem
+#
+CREATE TABLE t1 (region varchar(60), area decimal(10,0), population decimal(11,0));
+INSERT INTO t1 VALUES ('Central America and the Caribbean',91,11797);
+INSERT INTO t1 VALUES ('Central America and the Caribbean',442,66422);
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='subquery_cache=on';
+SELECT
+population, area, population/area,
+cast(population/area as DECIMAL(20,9)) FROM t1 LIMIT 1;
+population	area	population/area	cast(population/area as DECIMAL(20,9))
+11797	91	129.6374	129.637400000
+SELECT * FROM t1 A
+WHERE population/area = (SELECT MAX(population/area) from t1 B where A.region = B.region);
+region	area	population
+Central America and the Caribbean	442	66422
+SET optimizer_switch='subquery_cache=off';
+SELECT * FROM t1 A
+WHERE population/area = (SELECT MAX(population/area) from t1 B where A.region = B.region);
+region	area	population
+Central America and the Caribbean	442	66422
+SET @@optimizer_switch= @save_optimizer_switch;
+DROP TABLE t1;

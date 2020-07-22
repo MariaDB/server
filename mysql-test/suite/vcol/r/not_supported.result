@@ -51,7 +51,7 @@ a	b	v
 flush tables;
 select * from t1;
 a	b	v
-1	2	0.3333333330000000000
+1	2	0.3333000000000000000
 select * from t5;
 a	b	v
 20141010	2	October

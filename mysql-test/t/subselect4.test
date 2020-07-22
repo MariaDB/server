@@ -2112,3 +2112,29 @@ INSERT INTO t2 VALUES  ('k'),('rid'),('f'),('x');
 EXPLAIN EXTENDED SELECT * FROM t1 where  ( t1.l1 < ANY (SELECT MAX(t2.v1) FROM t2));
 SELECT * FROM t1 where  ( t1.l1 < ANY (SELECT MAX(t2.v1) FROM t2));
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-19232: Floating point precision / value comparison problem
+--echo #
+
+CREATE TABLE t1 (region varchar(60), area decimal(10,0), population decimal(11,0));
+INSERT INTO t1 VALUES ('Central America and the Caribbean',91,11797);
+INSERT INTO t1 VALUES ('Central America and the Caribbean',442,66422);
+
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='subquery_cache=on';
+
+SELECT
+population, area, population/area,
+cast(population/area as DECIMAL(20,9)) FROM t1 LIMIT 1;
+
+SELECT * FROM t1 A
+WHERE population/area = (SELECT MAX(population/area) from t1 B where A.region = B.region);
+
+SET optimizer_switch='subquery_cache=off';
+SELECT * FROM t1 A
+WHERE population/area = (SELECT MAX(population/area) from t1 B where A.region = B.region);
+
+SET @@optimizer_switch= @save_optimizer_switch;
+
+DROP TABLE t1;
