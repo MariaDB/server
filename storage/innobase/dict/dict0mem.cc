@@ -789,7 +789,7 @@ dict_mem_index_create(
 
 	dict_mem_fill_index_struct(index, heap, index_name, type, n_fields);
 
-	mutex_create(LATCH_ID_ZIP_PAD_MUTEX, &index->zip_pad.mutex);
+	new (&index->zip_pad.mutex) std::mutex();
 
 	if (type & DICT_SPATIAL) {
 		index->rtr_track = new
@@ -1098,7 +1098,7 @@ dict_mem_index_free(
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
-	mutex_free(&index->zip_pad.mutex);
+	index->zip_pad.mutex.~mutex();
 
 	if (dict_index_is_spatial(index)) {
 		for (auto& rtr_info : index->rtr_track->rtr_active) {

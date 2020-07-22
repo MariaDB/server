@@ -291,7 +291,6 @@ UNIV_INLINE
 void
 dict_table_autoinc_initialize(dict_table_t* table, ib_uint64_t value)
 {
-	ut_ad(mutex_own(&table->autoinc_mutex));
 	table->autoinc = value;
 }
 
@@ -304,7 +303,6 @@ UNIV_INLINE
 ib_uint64_t
 dict_table_autoinc_read(const dict_table_t* table)
 {
-	ut_ad(mutex_own(&table->autoinc_mutex));
 	return(table->autoinc);
 }
 
@@ -318,8 +316,6 @@ UNIV_INLINE
 bool
 dict_table_autoinc_update_if_greater(dict_table_t* table, ib_uint64_t value)
 {
-	ut_ad(mutex_own(&table->autoinc_mutex));
-
 	if (value > table->autoinc) {
 
 		table->autoinc = value;

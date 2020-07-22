@@ -985,7 +985,7 @@ inline void dict_sys_t::add(dict_table_t* table)
 
 	ulint fold = ut_fold_string(table->name.m_name);
 
-	mutex_create(LATCH_ID_AUTOINC, &table->autoinc_mutex);
+	new (&table->autoinc_mutex) std::mutex();
 
 	/* Look for a table with the same name: error if such exists */
 	{
@@ -1115,7 +1115,7 @@ dict_index_t *dict_index_t::clone() const
     (mem_heap_zalloc(heap, n_uniq * sizeof *stat_n_sample_sizes));
   index->stat_n_non_null_key_vals= static_cast<ib_uint64_t*>
     (mem_heap_zalloc(heap, n_uniq * sizeof *stat_n_non_null_key_vals));
-  mutex_create(LATCH_ID_ZIP_PAD_MUTEX, &index->zip_pad.mutex);
+  new (&index->zip_pad.mutex) std::mutex();
   return index;
 }
 
@@ -1777,7 +1777,7 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 		UT_DELETE(table->vc_templ);
 	}
 
-	mutex_free(&table->autoinc_mutex);
+	table->autoinc_mutex.~mutex();
 
 	if (keep) {
 		return;
@@ -6200,10 +6200,10 @@ dict_index_zip_success(
 		return;
 	}
 
-	mutex_enter(&index->zip_pad.mutex);
+	index->zip_pad.mutex.lock();
 	++index->zip_pad.success;
 	dict_index_zip_pad_update(&index->zip_pad, zip_threshold);
-	mutex_exit(&index->zip_pad.mutex);
+	index->zip_pad.mutex.unlock();
 }
 
 /*********************************************************************//**
@@ -6220,10 +6220,10 @@ dict_index_zip_failure(
 		return;
 	}
 
-	mutex_enter(&index->zip_pad.mutex);
+	index->zip_pad.mutex.lock();
 	++index->zip_pad.failure;
 	dict_index_zip_pad_update(&index->zip_pad, zip_threshold);
-	mutex_exit(&index->zip_pad.mutex);
+	index->zip_pad.mutex.unlock();
 }
 
 /*********************************************************************//**
