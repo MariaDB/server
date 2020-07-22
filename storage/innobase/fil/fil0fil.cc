@@ -723,7 +723,7 @@ fil_space_extend_must_retry(
 		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift));
 
 	*success = os_file_set_size(node->name, node->handle, new_size,
-		FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags));
+				    space->is_compressed());
 
 	os_has_said_disk_full = *success;
 	if (*success) {
@@ -2653,7 +2653,7 @@ fil_ibd_create(
 		return NULL;
 	}
 
-	const bool is_compressed = FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
+	const bool is_compressed = fil_space_t::is_compressed(flags);
 	bool punch_hole = is_compressed;
 
 #ifdef _WIN32
@@ -3478,7 +3478,7 @@ fil_ibd_load(
 	/* Adjust the memory-based flags that would normally be set by
 	dict_tf_to_fsp_flags(). In recovery, we have no data dictionary. */
 	ulint flags = file.flags();
-	if (FSP_FLAGS_HAS_PAGE_COMPRESSION(flags)) {
+	if (fil_space_t::is_compressed(flags)) {
 		flags |= page_zip_level
 			<< FSP_FLAGS_MEM_COMPRESSION_LEVEL;
 	}
