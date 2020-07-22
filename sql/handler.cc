@@ -1818,6 +1818,10 @@ err:
     ha_rollback_trans(thd, all);
   else
   {
+    /*
+      We are not really doing a rollback here, but the code in trans_commit()
+      requres that m_transaction_psi is 0 when we return from this function.
+    */
     MYSQL_ROLLBACK_TRANSACTION(thd->m_transaction_psi);
     thd->m_transaction_psi= NULL;
     WSREP_DEBUG("rollback skipped %p %d",thd->rgi_slave,

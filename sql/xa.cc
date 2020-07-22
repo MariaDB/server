@@ -843,6 +843,7 @@ bool trans_xa_detach(THD *thd)
 
   thd->transaction->all.ha_list= 0;
   thd->transaction->all.no_2pc= 0;
+  thd->m_transaction_psi= 0;
   return false;
 }
 

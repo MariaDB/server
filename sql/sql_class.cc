@@ -1396,9 +1396,11 @@ void THD::update_all_stats()
 
 void THD::init_for_queries()
 {
-  set_time(); 
-  ha_enable_transaction(this,TRUE);
+  DBUG_ASSERT(transaction->on);
+  DBUG_ASSERT(m_transaction_psi == NULL);
 
+  /* Set time for --init-file queries */
+  set_time();
   reset_root_defaults(mem_root, variables.query_alloc_block_size,
                       variables.query_prealloc_size);
   reset_root_defaults(&transaction->mem_root,
@@ -1550,6 +1552,8 @@ void THD::cleanup(void)
     trans_rollback(this);
 
   DBUG_ASSERT(open_tables == NULL);
+  DBUG_ASSERT(m_transaction_psi == NULL);
+
   /*
     If the thread was in the middle of an ongoing transaction (rolled
     back a few lines above) or under LOCK TABLES (unlocked the tables
@@ -1650,6 +1654,7 @@ void THD::reset_for_reuse()
   abort_on_warning= 0;
   free_connection_done= 0;
   m_command= COM_CONNECT;
+  transaction->on= 1;
 #if defined(ENABLED_PROFILING)
   profiling.reset();
 #endif

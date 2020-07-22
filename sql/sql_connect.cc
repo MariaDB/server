@@ -1279,7 +1279,6 @@ void prepare_new_connection_state(THD* thd)
     }
 
     thd->proc_info=0;
-    thd->init_for_queries();
   }
 }
 
