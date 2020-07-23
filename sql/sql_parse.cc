@@ -1280,6 +1280,7 @@ bool do_command(THD *thd)
   command= fetch_command(thd, packet);
 
 #ifdef WITH_WSREP
+  DEBUG_SYNC(thd, "wsrep_before_before_command");
   /*
     Aborted by background rollbacker thread.
     Handle error here and jump straight to out
