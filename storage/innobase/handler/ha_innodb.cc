@@ -4188,16 +4188,7 @@ innobase_commit_low(
 #ifdef WITH_WSREP
 	const char* tmp = 0;
 	if (trx->is_wsrep()) {
-#ifdef WSREP_PROC_INFO
-		char info[64];
-		info[sizeof(info) - 1] = '\0';
-		snprintf(info, sizeof(info) - 1,
-			 "innobase_commit_low():trx_commit_for_mysql(%lld)",
-			 (long long) wsrep_thd_trx_seqno(trx->mysql_thd));
-		tmp = thd_proc_info(trx->mysql_thd, info);
-#else
 		tmp = thd_proc_info(trx->mysql_thd, "innobase_commit_low()");
-#endif /* WSREP_PROC_INFO */
 	}
 #endif /* WITH_WSREP */
 	if (trx_is_started(trx)) {
