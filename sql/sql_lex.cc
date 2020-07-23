@@ -8226,6 +8226,13 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
       return new (thd->mem_root) Item_func_sqlerrm(thd);
   }
 
+  if (!current_select)
+  {
+    // we are out of SELECT or FOR so it is syntax error
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
+    return NULL;
+  }
+
   if (current_select->parsing_place == FOR_LOOP_BOUND)
     return create_item_for_loop_bound(thd, &null_clex_str, &null_clex_str,
                                       name);

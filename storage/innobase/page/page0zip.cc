@@ -1628,7 +1628,7 @@ page_zip_fields_free(
 {
 	if (index) {
 		dict_table_t*	table = index->table;
-		mutex_free(&index->zip_pad.mutex);
+		index->zip_pad.mutex.~mutex();
 		mem_heap_free(index->heap);
 
 		dict_mem_table_free(table);

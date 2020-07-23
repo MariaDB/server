@@ -52,6 +52,7 @@ Created 1/8/1996 Heikki Tuuri
 #include <algorithm>
 #include <iterator>
 #include <ostream>
+#include <mutex>
 
 /* Forward declaration. */
 struct ib_rbt_t;
@@ -932,7 +933,9 @@ extern ulong	zip_pad_max;
 an uncompressed page should be left as padding to avoid compression
 failures. This estimate is based on a self-adapting heuristic. */
 struct zip_pad_info_t {
-	SysMutex	mutex;	/*!< mutex protecting the info */
+  /** Dummy assignment operator for dict_index_t::clone() */
+  zip_pad_info_t &operator=(const zip_pad_info_t&) { return *this; }
+	std::mutex	mutex;	/*!< mutex protecting the info */
 	Atomic_relaxed<ulint>
 			pad;	/*!< number of bytes used as pad */
 	ulint		success;/*!< successful compression ops during
@@ -2270,7 +2273,7 @@ public:
 	lock_t*					autoinc_lock;
 
 	/** Mutex protecting the autoincrement counter. */
-	ib_mutex_t				autoinc_mutex;
+	std::mutex				autoinc_mutex;
 
 	/** Autoinc counter value to give to the next inserted row. */
 	ib_uint64_t				autoinc;
