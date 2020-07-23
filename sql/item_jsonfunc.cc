@@ -1150,6 +1150,76 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
 }
 
 
+longlong Item_func_json_equals::val_int()
+{
+  String *js1= args[0]->val_json(&tmp_js);
+  String *js2;
+  String *val1, *val2;
+
+  json_engine_t je1, je2, ve1, ve2;
+
+  if (args[0]->null_value)
+    goto return_null;
+
+  if (!a2_parsed)
+  {
+    val1= args[1]->val_json(&tmp_val);
+    a2_parsed= a2_constant;
+  }
+
+  if (args[1]->null_value)
+    goto return_null;
+
+  json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
+                  (const uchar *) js1->end());
+  
+
+  json_scan_start(&ve1, val1->charset(),(const uchar *) val1->ptr(),
+                  (const uchar *) val1->end());
+
+  if (json_read_value(&je1) || json_read_value(&ve1))  
+    goto error;
+
+  if (check_contains(&je1, &ve1))
+  {
+    js2= args[0]->val_json(&tmp_js);
+    val2= args[1]->val_json(&tmp_val);
+
+    json_scan_start(&je2, js2->charset(),(const uchar *) js2->ptr(),
+                  (const uchar *) js2->end());
+
+    json_scan_start(&ve2, val2->charset(),(const uchar *) val2->ptr(),
+                  (const uchar *) val2->end());
+
+    if (json_read_value(&je2) || json_read_value(&ve2))
+      goto error;
+    if (check_contains(&ve2, &je2))
+      return 1;
+    if (unlikely(je2.s.error || ve2.s.error))
+      goto error; 
+  }
+  if (unlikely(je1.s.error || ve1.s.error))
+    goto error;
+
+  return 0;
+
+error:
+  if (je1.s.error)
+    report_json_error(js1, &je1, 0);
+  if (je2.s.error)
+    report_json_error(js2, &je2, 0);
+  if (ve1.s.error)
+    report_json_error(val1, &ve1, 1);
+  if (ve2.s.error)
+    report_json_error(val2, &ve2, 1);
+  
+return_null:
+  null_value= 1;
+  return 0;
+
+}
+
+
 longlong Item_func_json_contains::val_int()
 {
   String *js= args[0]->val_json(&tmp_js);

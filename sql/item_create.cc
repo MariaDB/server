@@ -1057,6 +1057,19 @@ protected:
 };
 
 
+class Create_func_json_equals: public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+
+  static Create_func_json_equals s_singleton;
+
+protected:
+  Create_func_json_equals() {}
+  virtual ~Create_func_json_equals() {}
+};
+
+
 class Create_func_json_extract : public Create_native_func
 {
 public:
@@ -4075,6 +4088,32 @@ Create_func_json_contains_path::create_native(THD *thd, LEX_CSTRING *name,
 }
 
 
+Create_func_json_equals Create_func_json_equals::s_singleton;
+
+Item*
+Create_func_json_equals::create_native(THD *thd, LEX_CSTRING *name,
+                                                List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if(item_list != NULL)
+    arg_count= item_list->elements;
+
+  if(unlikely(arg_count < 2 || arg_count > 2)/* json_doc, json_doc */)
+  {
+     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+  }
+  else
+  {
+    func= new (thd->mem_root) Item_func_json_equals(thd, *item_list);
+  }
+
+  status_var_increment(current_thd->status_var.feature_json); 
+  return func;
+}
+
+
 Create_func_json_extract Create_func_json_extract::s_singleton;
 
 Item*
@@ -5479,6 +5518,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("JSON_CONTAINS_PATH") }, BUILDER(Create_func_json_contains_path)},
   { { STRING_WITH_LEN("JSON_DEPTH") }, BUILDER(Create_func_json_depth)},
   { { STRING_WITH_LEN("JSON_DETAILED") }, BUILDER(Create_func_json_detailed)},
+  { { STRING_WITH_LEN("JSON_EQUALS") }, BUILDER(Create_func_json_equals)},
   { { STRING_WITH_LEN("JSON_EXISTS") }, BUILDER(Create_func_json_exists)},
   { { STRING_WITH_LEN("JSON_EXTRACT") }, BUILDER(Create_func_json_extract)},
   { { STRING_WITH_LEN("JSON_INSERT") }, BUILDER(Create_func_json_insert)},

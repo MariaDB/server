@@ -2366,6 +2366,58 @@ SELECT JSON_ARRAY();
 JSON_ARRAY()
 []
 # ----------------------------------------------------------------------
+# Bug #MDEV-23143: missing a JSON_EQUALS function
+# ----------------------------------------------------------------------
+# should give NULL
+select JSON_EQUALS(NULL, NULL);
+JSON_EQUALS(NULL, NULL)
+NULL
+select JSON_EQUALS(json_compact('{"a": 1, "b": 2}'), NULL);
+JSON_EQUALS(json_compact('{"a": 1, "b": 2}'), NULL)
+NULL
+select JSON_EQUALS(NULL, '[1, 2]');
+JSON_EQUALS(NULL, '[1, 2]')
+NULL
+# should give 0: no type conversion
+select JSON_EQUALS(json_compact(3.14), json_compact(3));
+JSON_EQUALS(json_compact(3.14), json_compact(3))
+0
+# returns 0: one candidate element doesn't match
+SELECT JSON_EQUALS('{"A": 0, "B": {"C": 1}, "D": 2}', '{"A": 7, "C": 9, "B": 8}');
+JSON_EQUALS('{"A": 0, "B": {"C": 1}, "D": 2}', '{"A": 7, "C": 9, "B": 8}')
+0
+SELECT JSON_EQUALS('{"A": 0, "B": {"C": 1}, "D": 2}', '{"A": 0, "B": {"C": 2}, "D": 2}');
+JSON_EQUALS('{"A": 0, "B": {"C": 1}, "D": 2}', '{"A": 0, "B": {"C": 2}, "D": 2}')
+0
+#returns 1
+SELECT JSON_EQUALS('{"A": 0, "B": {"C": 1}, "D": 2}', '{"A": 0, "B": {"C": 1}, "D": 2}');
+JSON_EQUALS('{"A": 0, "B": {"C": 1}, "D": 2}', '{"A": 0, "B": {"C": 1}, "D": 2}')
+1
+SELECT JSON_EQUALS('{}', '{}');
+JSON_EQUALS('{}', '{}')
+1
+SELECT JSON_EQUALS('[]', '[]');
+JSON_EQUALS('[]', '[]')
+1
+#returns 1: fine with different types that compare equal
+SELECT JSON_EQUALS('[3.0]', '[3]');
+JSON_EQUALS('[3.0]', '[3]')
+1
+#returns 0 : contains would have returned 1
+SELECT JSON_EQUALS('[null,1,[2,3],true,false]', '[null,1,[2],false]');
+JSON_EQUALS('[null,1,[2,3],true,false]', '[null,1,[2],false]')
+0
+#returns 1 : duplicates are also equal (trying to resolve this)
+SELECT JSON_EQUALS('[1,2,4,4,5]', '[1,2,4,5]');
+JSON_EQUALS('[1,2,4,4,5]', '[1,2,4,5]')
+1
+SELECT JSON_EQUALS();
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_EQUALS'
+SELECT JSON_EQUALS('[1,2,3]');
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_EQUALS'
+SELECT JSON_EQUALS('{"A": 1}', '{"A": 1}', '{"A": 1}');
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_EQUALS'
+# ----------------------------------------------------------------------
 # Test of JSON_OBJECT function.
 # ----------------------------------------------------------------------
 select json_object( 'a' );

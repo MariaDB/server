@@ -290,6 +290,20 @@ public:
 };
 
 
+class Item_func_json_equals: public Item_func_json_contains
+{
+protected:
+  String tmp_js;
+public:
+  Item_func_json_equals(THD *thd, List<Item> &list):
+    Item_func_json_contains(thd, list) {}
+  const char *func_name() const { return "json_equals"; }
+  longlong val_int();
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_equals>(thd, this); }
+};
+
+
 class Item_func_json_array: public Item_json_func
 {
 protected:

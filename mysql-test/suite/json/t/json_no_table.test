@@ -1484,6 +1484,46 @@ select json_array(b'0', b'1', b'10');
 # returns the empty array: []
 SELECT JSON_ARRAY();
 
+
+--echo # ----------------------------------------------------------------------
+--echo # Bug #MDEV-23143: missing a JSON_EQUALS function
+--echo # ----------------------------------------------------------------------
+
+--echo # should give NULL
+select JSON_EQUALS(NULL, NULL);
+select JSON_EQUALS(json_compact('{"a": 1, "b": 2}'), NULL);
+select JSON_EQUALS(NULL, '[1, 2]');
+
+--echo # should give 0: no type conversion
+select JSON_EQUALS(json_compact(3.14), json_compact(3));
+
+--echo # returns 0: one candidate element doesn't match
+SELECT JSON_EQUALS('{"A": 0, "B": {"C": 1}, "D": 2}', '{"A": 7, "C": 9, "B": 8}');
+SELECT JSON_EQUALS('{"A": 0, "B": {"C": 1}, "D": 2}', '{"A": 0, "B": {"C": 2}, "D": 2}');
+
+--echo #returns 1
+SELECT JSON_EQUALS('{"A": 0, "B": {"C": 1}, "D": 2}', '{"A": 0, "B": {"C": 1}, "D": 2}');
+SELECT JSON_EQUALS('{}', '{}');
+SELECT JSON_EQUALS('[]', '[]');
+
+--echo #returns 1: fine with different types that compare equal
+SELECT JSON_EQUALS('[3.0]', '[3]');
+
+--echo #returns 0 : contains would have returned 1
+SELECT JSON_EQUALS('[null,1,[2,3],true,false]', '[null,1,[2],false]');
+
+--echo #returns 1 : duplicates are also equal (trying to resolve this)
+SELECT JSON_EQUALS('[1,2,4,4,5]', '[1,2,4,5]');
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_EQUALS();
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_EQUALS('[1,2,3]');
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_EQUALS('{"A": 1}', '{"A": 1}', '{"A": 1}');
+
 --echo # ----------------------------------------------------------------------
 --echo # Test of JSON_OBJECT function.
 --echo # ----------------------------------------------------------------------
