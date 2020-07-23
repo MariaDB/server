@@ -1640,6 +1640,7 @@ void THD::reset_for_reuse()
   abort_on_warning= 0;
   free_connection_done= 0;
   m_command= COM_CONNECT;
+  transaction.on= 1;
 #if defined(ENABLED_PROFILING)
   profiling.reset();
 #endif
