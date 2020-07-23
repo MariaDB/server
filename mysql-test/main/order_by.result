@@ -4079,4 +4079,22 @@ COUNT(DISTINCT a)
 34
 SET @@tmp_memory_table_size= @save_tmp_memory_table_size;
 DROP TABLE t1;
+#
+# MDEV-23216: LONGTEXT column with collation doesn't sort
+#
+CREATE TABLE t1 (a LONGTEXT COLLATE utf8mb4_swedish_ci);
+INSERT INTO t1 VALUES ('A'),('Z'),('B'),('Y');
+SELECT * FROM t1 ORDER BY a;
+a
+A
+B
+Y
+Z
+SELECT * FROM t1 ORDER BY a DESC;
+a
+Z
+Y
+B
+A
+DROP TABLE t1;
 # End of 10.5 tests

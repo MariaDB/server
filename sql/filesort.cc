@@ -2102,9 +2102,7 @@ Type_handler_string_result::sort_length(THD *thd,
                                        SORT_FIELD_ATTR *sortorder) const
 {
   CHARSET_INFO *cs;
-  sortorder->length= item->max_length;
-  set_if_smaller(sortorder->length, thd->variables.max_sort_length);
-  sortorder->original_length= item->max_length;
+  sortorder->set_length_and_original_length(thd, item->max_length);
 
   if (use_strnxfrm((cs= item->collation.collation)))
   {
@@ -2211,9 +2209,9 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *allow_packing_for_sortkeys)
     {
       Field *field= sortorder->field;
       CHARSET_INFO *cs= sortorder->field->sort_charset();
-      sortorder->length= sortorder->field->sort_length();
+      sortorder->set_length_and_original_length(thd, field->sort_length());
+
       sortorder->suffix_length= sortorder->field->sort_suffix_length();
-      sortorder->original_length= sortorder->length;
       sortorder->type= field->is_packable() ?
                        SORT_FIELD_ATTR::VARIABLE_SIZE :
                        SORT_FIELD_ATTR::FIXED_SIZE;
@@ -2745,6 +2743,14 @@ bool SORT_FIELD_ATTR::check_if_packing_possible(THD *thd) const
       cs->state & MY_CS_NON1TO1)
     return false;
   return true;
+}
+
+
+void SORT_FIELD_ATTR::set_length_and_original_length(THD *thd, uint length_arg)
+{
+  length= length_arg;
+  set_if_smaller(length, thd->variables.max_sort_length);
+  original_length= length_arg;
 }
 
 

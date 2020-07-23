@@ -6454,6 +6454,7 @@ struct SORT_FIELD_ATTR
                                 uchar *b, size_t *b_len);
   bool check_if_packing_possible(THD *thd) const;
   bool is_variable_sized() { return type == VARIABLE_SIZE; }
+  void set_length_and_original_length(THD *thd, uint length_arg);
 };
 
 
