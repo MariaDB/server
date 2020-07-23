@@ -26,6 +26,7 @@ a
 1
 UPDATE t SET a=3 WHERE a=1;
 ERROR HY000: Table 't' is read only
+SET GLOBAL innodb_status_output= @@GLOBAL.innodb_status_output;
 # Starting with MariaDB 10.2, innodb_read_only implies READ UNCOMMITTED.
 # In earlier versions, this would return the last committed version
 # (empty table)!
