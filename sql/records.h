@@ -30,6 +30,7 @@ class SORT_INFO;
 struct READ_RECORD;
 
 void end_read_record(READ_RECORD *info);
+void free_cache(READ_RECORD *info);
 
 /**
   A context for reading through a single table using a chosen access method:

@@ -613,7 +613,7 @@ typedef struct st_join_table {
   bool use_order() const; ///< Use ordering provided by chosen index?
   bool sort_table();
   bool remove_duplicates();
-
+  void partial_cleanup();
 } JOIN_TAB;
 
 

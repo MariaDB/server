@@ -320,12 +320,9 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
 
 
 void end_read_record(READ_RECORD *info)
-{                   /* free cache if used */
-  if (info->cache)
-  {
-    my_free_lock(info->cache);
-    info->cache=0;
-  }
+{
+  /* free cache if used */
+  free_cache(info);
   if (info->table)
   {
     if (info->table->is_created())
@@ -335,6 +332,17 @@ void end_read_record(READ_RECORD *info)
     info->table=0;
   }
 }
+
+
+void free_cache(READ_RECORD *info)
+{
+  if (info->cache)
+  {
+    my_free_lock(info->cache);
+    info->cache=0;
+  }
+}
+
 
 static int rr_handle_error(READ_RECORD *info, int error)
 {
