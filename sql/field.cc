@@ -4689,7 +4689,7 @@ void Field_float::sort_string(uchar *to,uint length __attribute__((unused)))
 bool Field_float::send_binary(Protocol *protocol)
 {
   DBUG_ASSERT(marked_for_read());
-  return protocol->store((float) Field_float::val_real(), dec, (String*) 0);
+  return protocol->store_float((float) Field_float::val_real(), dec);
 }
 
 
@@ -4982,7 +4982,7 @@ String *Field_double::val_str(String *val_buffer,
 
 bool Field_double::send_binary(Protocol *protocol)
 {
-  return protocol->store((double) Field_double::val_real(), dec, (String*) 0);
+  return protocol->store_double(Field_double::val_real(), dec);
 }
 
 

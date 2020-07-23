@@ -141,8 +141,8 @@ public:
                          CHARSET_INFO *fromcs,
                          my_repertoire_t from_repertoire,
                          CHARSET_INFO *tocs)=0;
-  virtual bool store(float from, uint32 decimals, String *buffer)=0;
-  virtual bool store(double from, uint32 decimals, String *buffer)=0;
+  virtual bool store_float(float from, uint32 decimals)=0;
+  virtual bool store_double(double from, uint32 decimals)=0;
   virtual bool store(MYSQL_TIME *time, int decimals)=0;
   virtual bool store_date(MYSQL_TIME *time)=0;
   virtual bool store_time(MYSQL_TIME *time, int decimals)=0;
@@ -208,6 +208,7 @@ public:
 
 class Protocol_text final :public Protocol
 {
+  StringBuffer<FLOATING_POINT_BUFFER> buffer;
   bool store_numeric_string_aux(const char *from, size_t length);
 public:
   Protocol_text(THD *thd_arg, ulong prealloc= 0)
@@ -230,8 +231,8 @@ public:
   bool store(MYSQL_TIME *time, int decimals) override;
   bool store_date(MYSQL_TIME *time) override;
   bool store_time(MYSQL_TIME *time, int decimals) override;
-  bool store(float nr, uint32 decimals, String *buffer) override;
-  bool store(double from, uint32 decimals, String *buffer) override;
+  bool store_float(float nr, uint32 decimals) override;
+  bool store_double(double from, uint32 decimals) override;
   bool store(Field *field) override;
 
   bool send_out_parameters(List<Item_param> *sp_params) override;
@@ -276,8 +277,8 @@ public:
   bool store(MYSQL_TIME *time, int decimals) override;
   bool store_date(MYSQL_TIME *time) override;
   bool store_time(MYSQL_TIME *time, int decimals) override;
-  bool store(float nr, uint32 decimals, String *buffer) override;
-  bool store(double from, uint32 decimals, String *buffer) override;
+  bool store_float(float nr, uint32 decimals) override;
+  bool store_double(double from, uint32 decimals) override;
   bool store(Field *field) override;
 
   bool send_out_parameters(List<Item_param> *sp_params) override;
@@ -328,8 +329,8 @@ public:
   bool store(MYSQL_TIME *, int) override { return false; }
   bool store_date(MYSQL_TIME *) override { return false; }
   bool store_time(MYSQL_TIME *, int) override { return false; }
-  bool store(float, uint32, String *) override { return false; }
-  bool store(double, uint32, String *) override { return false; }
+  bool store_float(float, uint32) override { return false; }
+  bool store_double(double, uint32) override { return false; }
   bool store(Field *) override { return false; }
   enum enum_protocol_type type() override { return PROTOCOL_DISCARD; };
 };

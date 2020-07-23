@@ -2891,8 +2891,6 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   server_threads.iterate(list_callback, &arg);
 
   ulonglong now= microsecond_interval_timer();
-  char buff[20];                                // For progress
-  String store_buffer(buff, sizeof(buff), system_charset_info);
 
   while (auto thd_info= arg.thread_infos.get())
   {
@@ -2918,7 +2916,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
       protocol->store_null();
     if (!thd->variables.old_mode &&
         !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
-      protocol->store(thd_info->progress, 3, &store_buffer);
+      protocol->store_double(thd_info->progress, 3);
     if (protocol->write())
       break; /* purecov: inspected */
   }

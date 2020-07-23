@@ -269,8 +269,8 @@ protected:
   virtual bool store(MYSQL_TIME *time, int decimals);
   virtual bool store_date(MYSQL_TIME *time);
   virtual bool store_time(MYSQL_TIME *time, int decimals);
-  virtual bool store(float value, uint32 decimals, String *buffer);
-  virtual bool store(double value, uint32 decimals, String *buffer);
+  virtual bool store_float(float value, uint32 decimals);
+  virtual bool store_double(double value, uint32 decimals);
   virtual bool store(Field *field);
 
   virtual bool send_result_set_metadata(List<Item> *list, uint flags);
@@ -5378,7 +5378,7 @@ bool Protocol_local::store_time(MYSQL_TIME *time, int decimals)
 
 /* Store a floating point number, as is. */
 
-bool Protocol_local::store(float value, uint32 decimals, String *buffer)
+bool Protocol_local::store_float(float value, uint32 decimals)
 {
   return store_column(&value, sizeof(float));
 }
@@ -5386,7 +5386,7 @@ bool Protocol_local::store(float value, uint32 decimals, String *buffer)
 
 /* Store a double precision number, as is. */
 
-bool Protocol_local::store(double value, uint32 decimals, String *buffer)
+bool Protocol_local::store_double(double value, uint32 decimals)
 {
   return store_column(&value, sizeof (double));
 }

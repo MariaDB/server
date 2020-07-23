@@ -3478,7 +3478,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       protocol->store((ulonglong) mi->rli.max_relay_log_size);
       protocol->store(mi->rli.executed_entries);
       protocol->store((uint32)    mi->received_heartbeats);
-      protocol->store((double)    mi->heartbeat_period, 3, &tmp);
+      protocol->store_double(mi->heartbeat_period, 3);
       protocol->store(gtid_pos->ptr(), gtid_pos->length(), &my_charset_bin);
     }
 
