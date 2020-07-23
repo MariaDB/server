@@ -1,0 +1,16 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+connection node_1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+SET DEBUG_SYNC = "wsrep_before_before_command SIGNAL reached WAIT_FOR continue";
+COMMIT;
+connection node_1_ctrl;
+SET DEBUG_SYNC = "now WAIT_FOR reached";
+connection node_2;
+INSERT INTO t1 VALUES (1);
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1;
+SET DEBUG_SYNC = "RESET";
