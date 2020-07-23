@@ -56,7 +56,6 @@ SELECT table_catalog, table_schema, table_name, privilege_type
 FROM information_schema.table_privileges WHERE table_catalog IS NOT NULL;
 table_catalog	table_schema	table_name	privilege_type
 def	mysql	global_priv	SELECT
-def	mysql	global_priv	UPDATE
 def	mysql	global_priv	DELETE
 ######################################################################
 # Testcase 3.2.11.2+3.2.11.3+3.2.11.4:

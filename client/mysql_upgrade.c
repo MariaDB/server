@@ -887,6 +887,7 @@ static const char *expected_errors[]=
   "ERROR 1290", /* RR_OPTION_PREVENTS_STATEMENT */
   "ERROR 1347", /* 'mysql.user' is not of type 'BASE TABLE' */
   "ERROR 1348", /* Column 'Show_db_priv' is not updatable */
+  "ERROR 1356", /* definer of view lack rights (UPDATE) */
   0
 };
 

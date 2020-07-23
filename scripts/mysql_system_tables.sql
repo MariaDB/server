@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS servers ( Server_name char(64) NOT NULL DEFAULT '', H
 CREATE TABLE IF NOT EXISTS tables_priv ( Host char(60) binary DEFAULT '' NOT NULL, Db char(64) binary DEFAULT '' NOT NULL, User char(80) binary DEFAULT '' NOT NULL, Table_name char(64) binary DEFAULT '' NOT NULL, Grantor char(141) DEFAULT '' NOT NULL, Timestamp timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, Table_priv set('Select','Insert','Update','Delete','Create','Drop','Grant','References','Index','Alter','Create View','Show view','Trigger','Delete versioning rows') COLLATE utf8_general_ci DEFAULT '' NOT NULL, Column_priv set('Select','Insert','Update','References') COLLATE utf8_general_ci DEFAULT '' NOT NULL, PRIMARY KEY (Host,Db,User,Table_name), KEY Grantor (Grantor) ) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin   comment='Table privileges';
 
 CREATE TEMPORARY TABLE tmp_user_sys LIKE tables_priv;
-INSERT INTO tmp_user_sys (Host,Db,User,Table_name,Grantor,Timestamp,Table_priv) VALUES ('localhost','mysql','mariadb.sys','global_priv','root@localhost','0','Select,Update,Delete');
+INSERT INTO tmp_user_sys (Host,Db,User,Table_name,Grantor,Timestamp,Table_priv) VALUES ('localhost','mysql','mariadb.sys','global_priv','root@localhost','0','Select,Delete');
 INSERT INTO tables_priv SELECT * FROM tmp_user_sys WHERE 0 <> @need_sys_user_creation;
 DROP TABLE tmp_user_sys;
 

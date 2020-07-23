@@ -576,7 +576,6 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRAN
 select * from INFORMATION_SCHEMA.TABLE_PRIVILEGES;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mariadb.sys'@'localhost'	def	mysql	global_priv	SELECT	NO
-'mariadb.sys'@'localhost'	def	mysql	global_priv	UPDATE	NO
 'mariadb.sys'@'localhost'	def	mysql	global_priv	DELETE	NO
 drop view v1, v2, v3;
 drop table t1;

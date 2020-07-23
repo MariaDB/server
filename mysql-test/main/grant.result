@@ -968,7 +968,6 @@ select * from  information_schema.table_privileges;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_8'@'%'	def	test	t1	UPDATE	NO
 'mariadb.sys'@'localhost'	def	mysql	global_priv	SELECT	NO
-'mariadb.sys'@'localhost'	def	mysql	global_priv	UPDATE	NO
 'mariadb.sys'@'localhost'	def	mysql	global_priv	DELETE	NO
 connect  conn5,localhost,mysqltest_8,,;
 select * from t1;
@@ -985,7 +984,6 @@ GRANT USAGE ON *.* TO `mysqltest_8`@`%`
 select * from  information_schema.table_privileges;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mariadb.sys'@'localhost'	def	mysql	global_priv	SELECT	NO
-'mariadb.sys'@'localhost'	def	mysql	global_priv	UPDATE	NO
 'mariadb.sys'@'localhost'	def	mysql	global_priv	DELETE	NO
 flush privileges;
 show grants for mysqltest_8@'';
