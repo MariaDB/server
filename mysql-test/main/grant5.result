@@ -242,4 +242,10 @@ disconnect con1;
 connection default;
 drop database db;
 drop user foo;
+call mtr.add_suppression('mysql.host table is damaged');
+create table mysql.host (c1 int);
+insert mysql.host values (1);
+flush privileges;
+ERROR HY000: Fatal error: mysql.host table is damaged or in unsupported 3.20 format
+drop table mysql.host;
 # End of 10.4 tests
