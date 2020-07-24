@@ -848,13 +848,12 @@ bool Protocol_text::store_field_metadata(const THD * thd,
 {
   CHARSET_INFO *thd_charset= thd->variables.character_set_results;
   char *pos;
-  CHARSET_INFO *cs= system_charset_info;
   DBUG_ASSERT(field.is_sane());
 
   if (thd->client_capabilities & CLIENT_PROTOCOL_41)
   {
     const LEX_CSTRING def= {STRING_WITH_LEN("def")};
-    if (store_ident(def, MY_REPERTOIRE_ASCII) ||
+    if (store_ident(def) ||
         store_ident(field.db_name) ||
         store_ident(field.table_name) ||
         store_ident(field.org_table_name) ||
@@ -870,8 +869,7 @@ bool Protocol_text::store_field_metadata(const THD * thd,
         Don't apply character set conversion:
         extended metadata is a binary encoded data.
       */
-      if (store_binary_string(&metadata, cs,
-                              MY_REPERTOIRE_UNICODE30))
+      if (store_binary_string(metadata.ptr(), metadata.length()))
         return true;
     }
     if (packet->realloc(packet->length() + 12))
@@ -1185,12 +1183,10 @@ bool Protocol_text::store_null()
 */
 
 bool Protocol::store_string_aux(const char *from, size_t length,
-                                CHARSET_INFO *fromcs,
-                                my_repertoire_t from_repertoire,
-                                CHARSET_INFO *tocs)
+                                CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
   /* 'tocs' is set 0 when client issues SET character_set_results=NULL */
-  if (needs_conversion(fromcs, from_repertoire, tocs))
+  if (needs_conversion(fromcs, tocs))
   {
     /* Store with conversion */
     return net_store_data_cs((uchar*) from, length, fromcs, tocs);
@@ -1223,9 +1219,7 @@ bool Protocol::store_warning(const char *from, size_t length)
 
 
 bool Protocol_text::store_str(const char *from, size_t length,
-                              CHARSET_INFO *fromcs,
-                              my_repertoire_t from_repertoire,
-                              CHARSET_INFO *tocs)
+                              CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
 #ifndef DBUG_OFF
   DBUG_PRINT("info", ("Protocol_text::store field %u : %.*b", field_pos,
@@ -1234,7 +1228,7 @@ bool Protocol_text::store_str(const char *from, size_t length,
   DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_STRING));
   field_pos++;
 #endif
-  return store_string_aux(from, length, fromcs, from_repertoire, tocs);
+  return store_string_aux(from, length, fromcs, tocs);
 }
 
 
@@ -1346,8 +1340,7 @@ bool Protocol_text::store(Field *field)
     dbug_tmp_restore_column_map(table->read_set, old_map);
 #endif
 
-  return store_string_aux(str.ptr(), str.length(), str.charset(),
-                          field->dtcollation().repertoire, tocs);
+  return store_string_aux(str.ptr(), str.length(), str.charset(), tocs);
 }
 
 
@@ -1466,12 +1459,10 @@ void Protocol_binary::prepare_for_resend()
 
 
 bool Protocol_binary::store_str(const char *from, size_t length,
-                                CHARSET_INFO *fromcs,
-                                my_repertoire_t from_repertoire,
-                                CHARSET_INFO *tocs)
+                                CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
   field_pos++;
-  return store_string_aux(from, length, fromcs, from_repertoire, tocs);
+  return store_string_aux(from, length, fromcs, tocs);
 }
 
 bool Protocol_binary::store_null()
@@ -1534,7 +1525,6 @@ bool Protocol_binary::store_decimal(const my_decimal *d)
   StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
   (void) d->to_string(&str);
   return store_str(str.ptr(), str.length(), str.charset(),
-                   MY_REPERTOIRE_ASCII,
                    thd->variables.character_set_results);
 }
 

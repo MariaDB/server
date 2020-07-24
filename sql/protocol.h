@@ -63,25 +63,19 @@ protected:
   MEM_ROOT *alloc;
 #endif
   bool needs_conversion(CHARSET_INFO *fromcs,
-                        my_repertoire_t from_repertoire,
                         CHARSET_INFO *tocs) const
   {
     // 'tocs' is set 0 when client issues SET character_set_results=NULL
     return tocs && !my_charset_same(fromcs, tocs) &&
            fromcs != &my_charset_bin &&
-           tocs != &my_charset_bin &&
-           (from_repertoire != MY_REPERTOIRE_ASCII ||
-           (fromcs->state & MY_CS_NONASCII) ||
-           (tocs->state & MY_CS_NONASCII));
+           tocs != &my_charset_bin;
   }
   /* 
     The following two are low-level functions that are invoked from
     higher-level store_xxx() funcs.  The data is stored into this->packet.
   */
   bool store_string_aux(const char *from, size_t length,
-                        CHARSET_INFO *fromcs,
-                        my_repertoire_t from_repertoire,
-                        CHARSET_INFO *tocs);
+                        CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
 
   virtual bool send_ok(uint server_status, uint statement_warn_count,
                        ulonglong affected_rows, ulonglong last_insert_id,
@@ -138,9 +132,7 @@ public:
   virtual bool store_longlong(longlong from, bool unsigned_flag)=0;
   virtual bool store_decimal(const my_decimal *)=0;
   virtual bool store_str(const char *from, size_t length,
-                         CHARSET_INFO *fromcs,
-                         my_repertoire_t from_repertoire,
-                         CHARSET_INFO *tocs)=0;
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs)=0;
   virtual bool store_float(float from, uint32 decimals)=0;
   virtual bool store_double(double from, uint32 decimals)=0;
   virtual bool store(MYSQL_TIME *time, int decimals)=0;
@@ -150,30 +142,23 @@ public:
 
   // Various useful wrappers for the virtual store*() methods.
   // Backward wrapper for store_str()
-  inline bool store(const char *from, size_t length, CHARSET_INFO *cs,
-                    my_repertoire_t repertoire= MY_REPERTOIRE_UNICODE30)
+  bool store(const char *from, size_t length, CHARSET_INFO *cs)
   {
-    return store_str(from, length, cs, repertoire, character_set_results());
+    return store_str(from, length, cs, character_set_results());
   }
-  inline bool store_lex_cstring(const LEX_CSTRING &s,
-                                CHARSET_INFO *fromcs,
-                                my_repertoire_t from_repertoire,
-                                CHARSET_INFO *tocs)
+  bool store_lex_cstring(const LEX_CSTRING &s,
+                         CHARSET_INFO *fromcs,
+                         CHARSET_INFO *tocs)
   {
-    return store_str(s.str, (uint) s.length, fromcs, from_repertoire, tocs);
+    return store_str(s.str, (uint) s.length, fromcs, tocs);
   }
-  inline bool store_binary_string(Binary_string *str,
-                                  CHARSET_INFO *fromcs,
-                                  my_repertoire_t from_repertoire)
+  bool store_binary_string(const char *str, size_t length)
   {
-    return store_str(str->ptr(), (uint) str->length(), fromcs, from_repertoire,
-                     &my_charset_bin);
+    return store_str(str, (uint) length, &my_charset_bin, &my_charset_bin);
   }
-  bool store_ident(const LEX_CSTRING &s,
-                   my_repertoire_t repertoire= MY_REPERTOIRE_UNICODE30)
+  bool store_ident(const LEX_CSTRING &s)
   {
-    return store_lex_cstring(s, system_charset_info, repertoire,
-                             character_set_results());
+    return store_lex_cstring(s, system_charset_info, character_set_results());
   }
   // End of wrappers
 
@@ -225,9 +210,7 @@ public:
   bool store_longlong(longlong from, bool unsigned_flag) override;
   bool store_decimal(const my_decimal *) override;
   bool store_str(const char *from, size_t length,
-                 CHARSET_INFO *fromcs,
-                 my_repertoire_t from_repertoire,
-                 CHARSET_INFO *tocs) override;
+                 CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
   bool store(MYSQL_TIME *time, int decimals) override;
   bool store_date(MYSQL_TIME *time) override;
   bool store_time(MYSQL_TIME *time, int decimals) override;
@@ -271,9 +254,7 @@ public:
   bool store_longlong(longlong from, bool unsigned_flag) override;
   bool store_decimal(const my_decimal *) override;
   bool store_str(const char *from, size_t length,
-                 CHARSET_INFO *fromcs,
-                 my_repertoire_t from_repertoire,
-                 CHARSET_INFO *tocs) override;
+                 CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
   bool store(MYSQL_TIME *time, int decimals) override;
   bool store_date(MYSQL_TIME *time) override;
   bool store_time(MYSQL_TIME *time, int decimals) override;
@@ -321,8 +302,7 @@ public:
   bool store_long(longlong) override { return false; }
   bool store_longlong(longlong, bool) override { return false; }
   bool store_decimal(const my_decimal *) override { return false; }
-  bool store_str(const char *, size_t, CHARSET_INFO *, my_repertoire_t,
-                 CHARSET_INFO *) override
+  bool store_str(const char *, size_t, CHARSET_INFO *, CHARSET_INFO *)
   {
     return false;
   }

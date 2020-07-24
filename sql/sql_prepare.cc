@@ -263,9 +263,7 @@ protected:
   virtual bool store_longlong(longlong from, bool unsigned_flag);
   virtual bool store_decimal(const my_decimal *);
   virtual bool store_str(const char *from, size_t length,
-                         CHARSET_INFO *fromcs,
-                         my_repertoire_t from_repertoire,
-                         CHARSET_INFO *tocs);
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
   virtual bool store(MYSQL_TIME *time, int decimals);
   virtual bool store_date(MYSQL_TIME *time);
   virtual bool store_time(MYSQL_TIME *time, int decimals);
@@ -288,9 +286,7 @@ protected:
   virtual bool send_error(uint sql_errno, const char *err_msg, const char* sqlstate);
 private:
   bool store_string(const char *str, size_t length,
-                    CHARSET_INFO *src_cs,
-                    my_repertoire_t src_repertoire,
-                    CHARSET_INFO *dst_cs);
+                    CHARSET_INFO *src_cs, CHARSET_INFO *dst_cs);
 
   bool store_column(const void *data, size_t length);
   void opt_add_row_to_rset();
@@ -5273,14 +5269,12 @@ bool Protocol_local::store_column(const void *data, size_t length)
 
 bool
 Protocol_local::store_string(const char *str, size_t length,
-                             CHARSET_INFO *src_cs,
-                             my_repertoire_t src_repertoire,
-                             CHARSET_INFO *dst_cs)
+                             CHARSET_INFO *src_cs, CHARSET_INFO *dst_cs)
 {
   /* Store with conversion */
   uint error_unused;
 
-  if (needs_conversion(src_cs, src_repertoire, dst_cs))
+  if (needs_conversion(src_cs, dst_cs))
   {
     if (unlikely(convert->copy(str, length, src_cs, dst_cs, &error_unused)))
       return TRUE;
@@ -5340,11 +5334,9 @@ bool Protocol_local::store_decimal(const my_decimal *value)
 /** Store a string. */
 
 bool Protocol_local::store_str(const char *str, size_t length,
-                               CHARSET_INFO *src_cs,
-                               my_repertoire_t from_repertoire,
-                               CHARSET_INFO *dst_cs)
+                               CHARSET_INFO *src_cs, CHARSET_INFO *dst_cs)
 {
-  return store_string(str, length, src_cs, from_repertoire, dst_cs);
+  return store_string(str, length, src_cs, dst_cs);
 }
 
 
