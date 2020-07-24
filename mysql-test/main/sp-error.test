@@ -615,7 +615,7 @@ call bug2653_1(1, @b)|
 
 drop procedure bug2653_1|
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 create procedure bug2653_2(a int, out b int)
 begin
   if aa < 0 then
@@ -1508,7 +1508,7 @@ DROP PROCEDURE IF EXISTS bug13037_p3;
 
 delimiter |;
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 CREATE PROCEDURE bug13037_p1()
 BEGIN
   IF bug13037_foo THEN

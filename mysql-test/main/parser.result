@@ -1893,4 +1893,12 @@ i
 1
 i
 2
+#
+# MDEV-21998: Server crashes in st_select_lex::add_table_to_list
+# upon mix of KILL and sequences
+#
+KILL ( SELECT 1 ) + LASTVAL(s);
+ERROR 42000: KILL does not support subqueries or stored functions
+KILL LASTVAL(s);
+ERROR 42000: KILL does not support subqueries or stored functions
 # End of 10.4 tests

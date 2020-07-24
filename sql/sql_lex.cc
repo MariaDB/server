@@ -7560,6 +7560,7 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
 
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
+  uint unused_off;
   DBUG_ASSERT(spcont);
   DBUG_ASSERT(sphead);
   if ((spv= find_variable(name, &rh)))
@@ -7598,7 +7599,9 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
       return new (thd->mem_root) Item_func_sqlerrm(thd);
   }
 
-  if (!current_select)
+  if (!select_stack_head() &&
+      (current_select->parsing_place != FOR_LOOP_BOUND ||
+       spcont->find_cursor(name, &unused_off, false) == NULL))
   {
     // we are out of SELECT or FOR so it is syntax error
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
@@ -9083,7 +9086,8 @@ Item *LEX::create_item_query_expression(THD *thd,
 
   // Add the subtree of subquery to the current SELECT_LEX
   SELECT_LEX *curr_sel= select_stack_head();
-  DBUG_ASSERT(current_select == curr_sel);
+  DBUG_ASSERT(current_select == curr_sel ||
+              (curr_sel == NULL && current_select == &builtin_select));
   if (!curr_sel)
   {
     curr_sel= &builtin_select;
@@ -9315,7 +9319,8 @@ SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit)
 
   // Add the subtree of subquery to the current SELECT_LEX
   SELECT_LEX *curr_sel= select_stack_head();
-  DBUG_ASSERT(current_select == curr_sel);
+  DBUG_ASSERT(current_select == curr_sel ||
+              (curr_sel == NULL && current_select == &builtin_select));
   if (curr_sel)
   {
     curr_sel->register_unit(unit, &curr_sel->context);
@@ -9391,7 +9396,8 @@ TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,
 
   // Add the subtree of subquery to the current SELECT_LEX
   SELECT_LEX *curr_sel= select_stack_head();
-  DBUG_ASSERT(current_select == curr_sel);
+  DBUG_ASSERT(current_select == curr_sel ||
+              (curr_sel == NULL && current_select == &builtin_select));
 
   Table_ident *ti= new (thd->mem_root) Table_ident(unit);
   if (ti == NULL)

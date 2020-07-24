@@ -3632,8 +3632,9 @@ public:
 
     if (unlikely(!select_stack_top))
     {
-      current_select= NULL;
-      DBUG_PRINT("info", ("Top Select is empty"));
+      current_select= &builtin_select;
+      DBUG_PRINT("info", ("Top Select is empty -> sel builtin: %p",
+                          current_select));
     }
     else
       current_select= select_stack[select_stack_top - 1];
