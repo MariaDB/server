@@ -37,6 +37,7 @@
 class Send_field;
 class Copy_field;
 class Protocol;
+class Protocol_text;
 class Create_field;
 class Relay_log_info;
 class Field;
@@ -1576,7 +1577,7 @@ public:
     ptr= old_ptr;
     return str;
   }
-  virtual bool send_binary(Protocol *protocol);
+  virtual bool send(Protocol *protocol);
 
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   /**
@@ -2005,6 +2006,9 @@ protected:
     return (flags & UNSIGNED_FLAG) ? Binlog_type_info::SIGN_UNSIGNED :
                                      Binlog_type_info::SIGN_SIGNED;
   }
+  bool send_numeric_zerofill_str(Protocol_text *protocol,
+                                 protocol_send_type_t send_type);
+
 public:
   const uint8 dec;
   bool zerofill,unsigned_flag;	// Purify cannot handle bit fields
@@ -2194,6 +2198,7 @@ public:
   int store_decimal(const my_decimal *d) override;
   uint32 max_data_length() const override;
   void make_send_field(Send_field *) override;
+  bool send(Protocol *protocol) override;
 
   bool is_varchar_and_in_write_set() const override
   {
@@ -2520,7 +2525,7 @@ public:
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 1; }
@@ -2583,7 +2588,7 @@ public:
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 2; }
@@ -2630,7 +2635,7 @@ public:
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 3; }
@@ -2681,7 +2686,7 @@ public:
   int reset() override { ptr[0]=ptr[1]=ptr[2]=ptr[3]=0; return 0; }
   double val_real() override;
   longlong val_int() override;
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   String *val_str(String *, String *) override;
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
@@ -2743,7 +2748,7 @@ public:
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 8; }
@@ -2843,7 +2848,7 @@ public:
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff, uint length) override;
   uint32 pack_length() const override { return sizeof(float); }
@@ -2907,7 +2912,7 @@ public:
   longlong val_int() override final { return val_int_from_real(false); }
   ulonglong val_uint() override final { return (ulonglong) val_int_from_real(true); }
   String *val_str(String *, String *) override final;
-  bool send_binary(Protocol *protocol) override final;
+  bool send(Protocol *protocol) override;
   int cmp(const uchar *,const uchar *) const override final;
   void sort_string(uchar *buff, uint length) override final;
   uint32 pack_length() const override final { return sizeof(double); }
@@ -3210,7 +3215,7 @@ public:
   {
     return (double) Field_timestamp0::val_int();
   }
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 4; }
@@ -3265,7 +3270,7 @@ public:
     DBUG_ASSERT(length == pack_length());
     memcpy(to, ptr, length);
   }
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   double val_real() override;
   my_decimal* val_decimal(my_decimal*) override;
   int set_time() override;
@@ -3403,7 +3408,7 @@ public:
   longlong val_int() override;
   String *val_str(String *, String *) override;
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const override
   {
@@ -3462,7 +3467,7 @@ public:
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 4; }
@@ -3501,7 +3506,7 @@ public:
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 3; }
@@ -3561,7 +3566,7 @@ public:
   int store(longlong nr, bool unsigned_val) override;
   int  store_decimal(const my_decimal *) override;
   String *val_str(String *, String *) override;
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   void set_curdays(THD *thd);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
@@ -3775,7 +3780,7 @@ public:
   }
   longlong val_int() override;
   String *val_str(String *, String *) override;
-  bool send_binary(Protocol *protocol) override;
+  bool send(Protocol *protocol) override;
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 8; }
@@ -3815,7 +3820,7 @@ public:
   uint decimals() const override final { return dec; }
   enum ha_base_keytype key_type() const override final { return HA_KEYTYPE_BINARY; }
   void make_send_field(Send_field *field) override final;
-  bool send_binary(Protocol *protocol) override final;
+  bool send(Protocol *protocol) override final;
   uchar *pack(uchar *to, const uchar *from, uint max_length) override final
   { return Field::pack(to, from, max_length); }
   const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end,
@@ -4153,6 +4158,7 @@ public:
   longlong val_int() override;
   String *val_str(String *, String *) override;
   my_decimal *val_decimal(my_decimal *) override;
+  bool send(Protocol *protocol) override;
   int cmp(const uchar *a,const uchar *b) const override;
   int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len) const
     override;
@@ -4217,6 +4223,15 @@ private:
   double val_real() override;
   longlong val_int() override;
   uint size_of() const override { return sizeof *this; }
+  /*
+    We use the default Field::send() implementation,
+    because the derived optimized version (from Field_longstr)
+    is not suitable for compressed fields.
+  */
+  bool send(Protocol *protocol) override
+  {
+    return Field::send(protocol);
+  }
   enum_field_types binlog_type() const override
   { return MYSQL_TYPE_VARCHAR_COMPRESSED; }
   void sql_type(String &str) const override
@@ -4614,6 +4629,15 @@ private:
   String *val_str(String *, String *) override;
   double val_real() override;
   longlong val_int() override;
+  /*
+    We use the default Field::send() implementation,
+    because the derived optimized version (from Field_longstr)
+    is not suitable for compressed fields.
+  */
+  bool send(Protocol *protocol) override
+  {
+    return Field::send(protocol);
+  }
   uint size_of() const override { return sizeof *this; }
   enum_field_types binlog_type() const override
   { return MYSQL_TYPE_BLOB_COMPRESSED; }

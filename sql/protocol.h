@@ -219,6 +219,10 @@ public:
   bool store(Field *field) override;
 
   bool send_out_parameters(List<Item_param> *sp_params) override;
+
+  bool store_numeric_zerofill_str(const char *from, size_t length,
+                                  protocol_send_type_t send_type);
+
 #ifdef EMBEDDED_LIBRARY
   void remove_last_row() override;
 #endif

@@ -5390,7 +5390,7 @@ bool Protocol_local::store(Field *field)
 {
   if (field->is_null())
     return store_null();
-  return field->send_binary(this);
+  return field->send(this);
 }
 
 

@@ -1888,12 +1888,24 @@ void Field::copy_from_tmp(int row_offset)
 }
 
 
-bool Field::send_binary(Protocol *protocol)
+bool Field::send(Protocol *protocol)
 {
   char buff[MAX_FIELD_WIDTH];
   String tmp(buff,sizeof(buff),charset());
   val_str(&tmp);
   return protocol->store(tmp.ptr(), tmp.length(), tmp.charset());
+}
+
+
+bool Field_num::send_numeric_zerofill_str(Protocol_text *protocol,
+                                          protocol_send_type_t send_type)
+{
+  DBUG_ASSERT(marked_for_read());
+  StringBuffer<MAX_FIELD_WIDTH> tmp(&my_charset_latin1);
+  val_str(&tmp);
+  return protocol->store_numeric_zerofill_str(tmp.ptr(),
+                                              tmp.length(),
+                                              send_type);
 }
 
 
@@ -3855,10 +3867,15 @@ String *Field_tiny::val_str(String *val_buffer,
   return val_str_from_long(val_buffer, 5, -10, nr);
 }
 
-bool Field_tiny::send_binary(Protocol *protocol)
+bool Field_tiny::send(Protocol *protocol)
 {
-  return protocol->store_tiny((longlong) (int8) ptr[0]);
+  DBUG_ASSERT(marked_for_read());
+  Protocol_text *txt;
+  if (unlikely(zerofill) && (txt= dynamic_cast<Protocol_text*>(protocol)))
+    return send_numeric_zerofill_str(txt, PROTOCOL_SEND_TINY);
+  return protocol->store_tiny(Field_tiny::val_int());
 }
+
 
 int Field_tiny::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
@@ -4015,8 +4032,12 @@ String *Field_short::val_str(String *val_buffer,
 }
 
 
-bool Field_short::send_binary(Protocol *protocol)
+bool Field_short::send(Protocol *protocol)
 {
+  DBUG_ASSERT(marked_for_read());
+  Protocol_text *txt;
+  if (unlikely(zerofill) && (txt= dynamic_cast<Protocol_text*>(protocol)))
+    return send_numeric_zerofill_str(txt, PROTOCOL_SEND_SHORT);
   return protocol->store_short(Field_short::val_int());
 }
 
@@ -4198,9 +4219,12 @@ String *Field_int::val_str_from_long(String *val_buffer,
 }
 
 
-bool Field_medium::send_binary(Protocol *protocol)
+bool Field_medium::send(Protocol *protocol)
 {
   DBUG_ASSERT(marked_for_read());
+  Protocol_text *txt;
+  if (unlikely(zerofill) && (txt= dynamic_cast<Protocol_text*>(protocol)))
+    return send_numeric_zerofill_str(txt, PROTOCOL_SEND_LONG);
   return protocol->store_long(Field_medium::val_int());
 }
 
@@ -4369,11 +4393,15 @@ String *Field_long::val_str(String *val_buffer,
 }
 
 
-bool Field_long::send_binary(Protocol *protocol)
+bool Field_long::send(Protocol *protocol)
 {
   DBUG_ASSERT(marked_for_read());
+  Protocol_text *txt;
+  if (unlikely(zerofill) && (txt= dynamic_cast<Protocol_text*>(protocol)))
+    return send_numeric_zerofill_str(txt, PROTOCOL_SEND_LONG);
   return protocol->store_long(Field_long::val_int());
 }
+
 
 int Field_long::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
@@ -4506,9 +4534,12 @@ String *Field_longlong::val_str(String *val_buffer,
 }
 
 
-bool Field_longlong::send_binary(Protocol *protocol)
+bool Field_longlong::send(Protocol *protocol)
 {
   DBUG_ASSERT(marked_for_read());
+  Protocol_text *txt;
+  if (unlikely(zerofill) && (txt= dynamic_cast<Protocol_text*>(protocol)))
+    return send_numeric_zerofill_str(txt, PROTOCOL_SEND_LONGLONG);
   return protocol->store_longlong(Field_longlong::val_int(), unsigned_flag);
 }
 
@@ -4686,9 +4717,12 @@ void Field_float::sort_string(uchar *to,uint length __attribute__((unused)))
 }
 
 
-bool Field_float::send_binary(Protocol *protocol)
+bool Field_float::send(Protocol *protocol)
 {
   DBUG_ASSERT(marked_for_read());
+  Protocol_text *txt;
+  if (unlikely(zerofill) && (txt= dynamic_cast<Protocol_text*>(protocol)))
+    return send_numeric_zerofill_str(txt, PROTOCOL_SEND_FLOAT);
   return protocol->store_float((float) Field_float::val_real(), dec);
 }
 
@@ -4980,8 +5014,12 @@ String *Field_double::val_str(String *val_buffer,
   return val_buffer;
 }
 
-bool Field_double::send_binary(Protocol *protocol)
+bool Field_double::send(Protocol *protocol)
 {
+  DBUG_ASSERT(marked_for_read());
+  Protocol_text *txt;
+  if (unlikely(zerofill) && (txt= dynamic_cast<Protocol_text*>(protocol)))
+    return send_numeric_zerofill_str(txt, PROTOCOL_SEND_DOUBLE);
   return protocol->store_double(Field_double::val_real(), dec);
 }
 
@@ -5378,7 +5416,7 @@ bool Field_timestamp::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
 }
 
 
-bool Field_timestamp0::send_binary(Protocol *protocol)
+bool Field_timestamp0::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   Field_timestamp0::get_date(&ltime, date_mode_t(0));
@@ -5538,7 +5576,7 @@ int Field_timestamp_with_dec::set_time()
   return 0;
 }
 
-bool Field_timestamp_with_dec::send_binary(Protocol *protocol)
+bool Field_timestamp_with_dec::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   Field_timestamp::get_date(&ltime, date_mode_t(0));
@@ -6047,7 +6085,7 @@ bool Field_time0::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
 }
 
 
-bool Field_time::send_binary(Protocol *protocol)
+bool Field_time::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   get_date(&ltime, Time::Options(TIME_TIME_ONLY, get_thd()));
@@ -6369,9 +6407,12 @@ int Field_year::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
   return 0;
 }
 
-bool Field_year::send_binary(Protocol *protocol)
+bool Field_year::send(Protocol *protocol)
 {
   DBUG_ASSERT(marked_for_read());
+  Protocol_text *txt;
+  if ((txt= dynamic_cast<Protocol_text*>(protocol)))
+    return send_numeric_zerofill_str(txt, PROTOCOL_SEND_SHORT);
   ulonglong tmp= Field_year::val_int();
   return protocol->store_short(tmp);
 }
@@ -6506,7 +6547,7 @@ void Field_date::store_TIME(const MYSQL_TIME *ltime)
   int4store(ptr,tmp);
 }
 
-bool Field_date::send_binary(Protocol *protocol)
+bool Field_date::send(Protocol *protocol)
 {
   longlong tmp= Field_date::val_int();
   MYSQL_TIME tm;
@@ -6600,7 +6641,7 @@ void Field_newdate::store_TIME(const MYSQL_TIME *ltime)
 }
 
 
-bool Field_newdate::send_binary(Protocol *protocol)
+bool Field_newdate::send(Protocol *protocol)
 {
   MYSQL_TIME tm;
   Field_newdate::get_date(&tm, date_mode_t(0));
@@ -6772,7 +6813,7 @@ Field_datetime::conversion_depends_on_sql_mode(THD *thd, Item *expr) const
 }
 
 
-bool Field_datetime0::send_binary(Protocol *protocol)
+bool Field_datetime0::send(Protocol *protocol)
 {
   MYSQL_TIME tm;
   Field_datetime0::get_date(&tm, date_mode_t(0));
@@ -6900,7 +6941,7 @@ void Field_datetime_hires::store_TIME(const MYSQL_TIME *ltime)
   store_bigendian(packed, ptr, Field_datetime_hires::pack_length());
 }
 
-bool Field_datetime_with_dec::send_binary(Protocol *protocol)
+bool Field_datetime_with_dec::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   get_date(&ltime, date_mode_t(0));
@@ -7108,6 +7149,23 @@ void Field_longstr::make_send_field(Send_field *field)
     check_constraint->expr->set_format_by_check_constraint(field);
   }
 }
+
+
+/*
+  An optimized version that uses less stack than Field::send().
+*/
+bool Field_longstr::send(Protocol *protocol)
+{
+  String tmp;
+  val_str(&tmp, &tmp);
+  /*
+    Ensure this function is only used with classes that do not allocate
+    memory in val_str()
+  */
+  DBUG_ASSERT(tmp.alloced_length() == 0);
+  return protocol->store(tmp.ptr(), tmp.length(), tmp.charset());
+}
+
 
 	/* Copy a string and fill with space */
 
@@ -7695,6 +7753,17 @@ my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
                                      get_length(), decimal_value);
   return decimal_value;
 
+}
+
+
+/*
+  An optimized version that uses less stack and less temporary
+  variable initialization than Field_longstr::send()
+*/
+bool Field_varstring::send(Protocol *protocol)
+{
+  return protocol->store((const char *) get_data(), get_length(),
+                         field_charset());
 }
 
 
