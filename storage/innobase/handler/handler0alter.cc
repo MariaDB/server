@@ -194,8 +194,6 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 	ut_d(unsigned n_nullable = 0);
 	for (unsigned i = u; i < index.n_fields; i++) {
 		auto& f = index.fields[i];
-		DBUG_ASSERT(dict_col_get_fixed_size(f.col, not_redundant())
-			    <= DICT_MAX_FIXED_COL_LEN);
 		ut_d(n_nullable += f.col->is_nullable());
 
 		if (!f.col->is_dropped()) {
