@@ -954,9 +954,13 @@ public:
     return type();
   }
   inline  int cmp(const uchar *str) { return cmp(ptr,str); }
-  virtual int cmp_max(const uchar *a, const uchar *b, uint max_len)
-    { return cmp(a, b); }
   virtual int cmp(const uchar *,const uchar *)=0;
+  /*
+    The following method is used for comparing prefix keys.
+    Currently it's only used in partitioning.
+  */
+  virtual int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len)
+  { return cmp(a, b); }
   virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0L)
   { return memcmp(a,b,pack_length()); }
   virtual int cmp_offset(uint row_offset)
@@ -2991,11 +2995,8 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   my_decimal *val_decimal(my_decimal *);
-  int cmp_max(const uchar *, const uchar *, uint max_length);
-  int cmp(const uchar *a,const uchar *b)
-  {
-    return cmp_max(a, b, ~0L);
-  }
+  int cmp(const uchar *a,const uchar *b);
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len);
   void sort_string(uchar *buff,uint length);
   uint get_key_image(uchar *buff,uint length, imagetype type);
   void set_key_image(const uchar *buff,uint length);
@@ -3077,9 +3078,8 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   my_decimal *val_decimal(my_decimal *);
-  int cmp_max(const uchar *, const uchar *, uint max_length);
-  int cmp(const uchar *a,const uchar *b)
-    { return cmp_max(a, b, ~0L); }
+  int cmp(const uchar *a,const uchar *b);
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len);
   int cmp(const uchar *a, uint32 a_length, const uchar *b, uint32 b_length);
   int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0L);
   int key_cmp(const uchar *,const uchar*);
@@ -3399,7 +3399,7 @@ public:
   }
   int cmp_binary_offset(uint row_offset)
   { return cmp_offset(row_offset); }
-  int cmp_max(const uchar *a, const uchar *b, uint max_length);
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len);
   int key_cmp(const uchar *a, const uchar *b)
   { return cmp_binary((uchar *) a, (uchar *) b); }
   int key_cmp(const uchar *str, uint length);

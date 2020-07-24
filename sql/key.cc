@@ -623,8 +623,8 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
         max length. The exceptions are the BLOB and VARCHAR field types
         that take the max length into account.
       */
-      if ((result= field->cmp_max(field->ptr+first_diff, field->ptr+sec_diff,
-                             key_part->length)))
+      if ((result= field->cmp_prefix(field->ptr+first_diff, field->ptr+sec_diff,
+                                     key_part->length)))
         DBUG_RETURN(result);
 next_loop:
       key_part++;

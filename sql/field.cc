@@ -7537,8 +7537,7 @@ my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
 }
 
 
-int Field_varstring::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
-                             uint max_len)
+int Field_varstring::cmp(const uchar *a_ptr, const uchar *b_ptr)
 {
   uint a_length, b_length;
   int diff;
@@ -7553,8 +7552,8 @@ int Field_varstring::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
     a_length= uint2korr(a_ptr);
     b_length= uint2korr(b_ptr);
   }
-  set_if_smaller(a_length, max_len);
-  set_if_smaller(b_length, max_len);
+  set_if_smaller(a_length, field_length);
+  set_if_smaller(b_length, field_length);
   diff= field_charset->coll->strnncollsp(field_charset,
                                          a_ptr+
                                          length_bytes,
@@ -7563,6 +7562,43 @@ int Field_varstring::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
                                          length_bytes,
                                          b_length,0);
   return diff;
+}
+
+
+static int cmp_str_prefix(const uchar *ua, size_t alen, const uchar *ub,
+                          size_t blen, size_t prefix, CHARSET_INFO *cs)
+{
+  const char *a= (char*)ua, *b= (char*)ub;
+  MY_STRCOPY_STATUS status;
+  prefix/= cs->mbmaxlen;
+  alen= cs->cset->well_formed_char_length(cs, a, a + alen, prefix, &status);
+  blen= cs->cset->well_formed_char_length(cs, b, b + blen, prefix, &status);
+  return cs->coll->strnncollsp(cs, ua, alen, ub, blen, 0);
+}
+
+
+
+int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
+                                size_t prefix_len)
+{
+  /* avoid expensive well_formed_char_length if possible */
+  if (prefix_len == table->field[field_index]->field_length)
+    return Field_varstring::cmp(a_ptr, b_ptr);
+
+  size_t a_length, b_length;
+
+  if (length_bytes == 1)
+  {
+    a_length= *a_ptr;
+    b_length= *b_ptr;
+  }
+  else
+  {
+    a_length= uint2korr(a_ptr);
+    b_length= uint2korr(b_ptr);
+  }
+  return cmp_str_prefix(a_ptr+length_bytes, a_length, b_ptr+length_bytes,
+                        b_length, prefix_len, field_charset);
 }
 
 
@@ -8114,16 +8150,24 @@ int Field_blob::cmp(const uchar *a,uint32 a_length, const uchar *b,
 }
 
 
-int Field_blob::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
-                        uint max_length)
+int Field_blob::cmp(const uchar *a_ptr, const uchar *b_ptr)
 {
   uchar *blob1,*blob2;
   memcpy(&blob1, a_ptr+packlength, sizeof(char*));
   memcpy(&blob2, b_ptr+packlength, sizeof(char*));
-  uint a_len= get_length(a_ptr), b_len= get_length(b_ptr);
-  set_if_smaller(a_len, max_length);
-  set_if_smaller(b_len, max_length);
-  return Field_blob::cmp(blob1,a_len,blob2,b_len);
+  size_t a_len= get_length(a_ptr), b_len= get_length(b_ptr);
+  return cmp(blob1, a_len, blob2, b_len);
+}
+
+
+int Field_blob::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
+                           size_t prefix_len)
+{
+  uchar *blob1,*blob2;
+  memcpy(&blob1, a_ptr+packlength, sizeof(char*));
+  memcpy(&blob2, b_ptr+packlength, sizeof(char*));
+  size_t a_len= get_length(a_ptr), b_len= get_length(b_ptr);
+  return cmp_str_prefix(blob1, a_len, blob2, b_len, prefix_len, field_charset);
 }
 
 
@@ -9407,7 +9451,7 @@ my_decimal *Field_bit::val_decimal(my_decimal *deciaml_value)
     The a and b pointer must be pointers to the field in a record
     (not the table->record[0] necessarily)
 */
-int Field_bit::cmp_max(const uchar *a, const uchar *b, uint max_len)
+int Field_bit::cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len)
 {
   my_ptrdiff_t a_diff= a - ptr;
   my_ptrdiff_t b_diff= b - ptr;

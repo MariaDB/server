@@ -2971,5 +2971,33 @@ SELECT 1 FROM t1 WHERE a XOR 'a';
 DROP TABLE t1;
 
 --echo #
+--echo # Bug #25207522: INCORRECT ORDER-BY BEHAVIOR ON A PARTITIONED TABLE
+--echo # WITH A COMPOSITE PREFIX INDEX
+--echo #
+create table t1(id int unsigned not null,
+  data varchar(2) default null,
+  key data_idx (data(1),id)
+) default charset=utf8
+partition by range (id) (
+  partition p10 values less than (10),
+  partition p20 values less than (20)
+);
+insert t1 values (6, 'ab'), (4, 'ab'), (5, 'ab'), (16, 'ab'), (14, 'ab'), (15, 'ab'), (5, 'ac'), (15, 'aa') ;
+select id from t1 where data = 'ab' order by id;
+drop table t1;
+
+create table t1(id int unsigned not null,
+  data text default null,
+  key data_idx (data(1),id)
+) default charset=utf8
+partition by range (id) (
+  partition p10 values less than (10),
+  partition p20 values less than (20)
+);
+insert t1 values (6, 'ab'), (4, 'ab'), (5, 'ab'), (16, 'ab'), (14, 'ab'), (15, 'ab'), (5, 'ac'), (15, 'aa') ;
+select id from t1 where data = 'ab' order by id;
+drop table t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
