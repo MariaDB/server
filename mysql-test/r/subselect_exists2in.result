@@ -972,4 +972,74 @@ id
 DROP PROCEDURE p1;
 DROP TABLE t1;
 # End of 10.0 tests
+#
+# MDEV-23221: A subquery causes crash
+#
+create table t1 (
+location_code varchar(10),
+country_id varchar(10)
+);
+insert into t1 values ('HKG', 'HK');
+insert into t1 values ('NYC', 'US');
+insert into t1 values ('LAX', 'US');
+create table t2 (
+container_id varchar(10),
+cntr_activity_type varchar(10),
+cntr_dest varchar(10)
+);
+insert into t2 values ('AAAA1111', 'VSL', 'NYC');
+insert into t2 values ('AAAA1111', 'CUV', 'NYC');
+insert into t2 values ('BBBB2222', 'VSL', 'LAX');
+insert into t2 values ('BBBB2222', 'XYZ', 'LAX');
+# Must not crash or return an error:
+select
+(select country_id from t1 where location_code = cl1.cntr_dest) as dest_cntry,
+(select
+max(container_id)
+from t2 as cl2
+where
+cl2.container_id = cl1.container_id and
+cl2.cntr_activity_type = 'CUV' and
+exists (select location_code
+from t1
+where
+location_code = cl2.cntr_dest and
+country_id = dest_cntry)
+) as CUV
+from
+t2 cl1;
+dest_cntry	CUV
+US	AAAA1111
+US	AAAA1111
+US	NULL
+US	NULL
+prepare s from "select
+(select country_id from t1 where location_code = cl1.cntr_dest) as dest_cntry,
+(select
+max(container_id)
+from t2 as cl2
+where
+cl2.container_id = cl1.container_id and
+cl2.cntr_activity_type = 'CUV' and
+exists (select location_code
+from t1
+where
+location_code = cl2.cntr_dest and
+country_id = dest_cntry)
+) as CUV
+from
+t2 cl1";
+execute s;
+dest_cntry	CUV
+US	AAAA1111
+US	AAAA1111
+US	NULL
+US	NULL
+execute s;
+dest_cntry	CUV
+US	AAAA1111
+US	AAAA1111
+US	NULL
+US	NULL
+drop table t1,t2;
 set optimizer_switch=default;

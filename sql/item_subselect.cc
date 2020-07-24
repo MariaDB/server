@@ -2727,6 +2727,8 @@ bool Item_exists_subselect::select_prepare_to_be_in()
   Check if 'func' is an equality in form "inner_table.column = outer_expr"
 
   @param func              Expression to check
+  @param allow_subselect   If true, the outer_expr part can have a subquery
+                           If false, it cannot.
   @param local_field  OUT  Return "inner_table.column" here
   @param outer_expr   OUT  Return outer_expr here
 
@@ -2734,6 +2736,7 @@ bool Item_exists_subselect::select_prepare_to_be_in()
 */
 
 static bool check_equality_for_exist2in(Item_func *func,
+                                        bool allow_subselect,
                                         Item_ident **local_field,
                                         Item **outer_exp)
 {
@@ -2744,7 +2747,8 @@ static bool check_equality_for_exist2in(Item_func *func,
   args= func->arguments();
   if (args[0]->real_type() == Item::FIELD_ITEM &&
       args[0]->all_used_tables() != OUTER_REF_TABLE_BIT &&
-      args[1]->all_used_tables() == OUTER_REF_TABLE_BIT)
+      args[1]->all_used_tables() == OUTER_REF_TABLE_BIT &&
+      (allow_subselect || !args[1]->has_subquery()))
   {
     /* It is Item_field or Item_direct_view_ref) */
     DBUG_ASSERT(args[0]->type() == Item::FIELD_ITEM ||
@@ -2755,7 +2759,8 @@ static bool check_equality_for_exist2in(Item_func *func,
   }
   else if (args[1]->real_type() == Item::FIELD_ITEM &&
            args[1]->all_used_tables() != OUTER_REF_TABLE_BIT &&
-           args[0]->all_used_tables() == OUTER_REF_TABLE_BIT)
+           args[0]->all_used_tables() == OUTER_REF_TABLE_BIT &&
+           (allow_subselect || !args[0]->has_subquery()))
   {
     /* It is Item_field or Item_direct_view_ref) */
     DBUG_ASSERT(args[1]->type() == Item::FIELD_ITEM ||
@@ -2784,6 +2789,13 @@ typedef struct st_eq_field_outer
 
     outer1=inner_tbl1.col1 AND ... AND outer2=inner_tbl1.col2 AND remainder_cond
 
+    if there is just one outer_expr=inner_expr pair, then outer_expr can have a
+    subselect in it.  If there are many such pairs, then none of outer_expr can
+    have a subselect in it. If we allow this, the query will fail with an error:
+
+      This version of MariaDB doesn't yet support 'SUBQUERY in ROW in left
+      expression of IN/ALL/ANY'
+
   @param  conds    Condition to be checked
   @parm   result   Array to collect EQ_FIELD_OUTER elements describing
                    inner-vs-outer equalities the function has found.
@@ -2801,14 +2813,17 @@ static bool find_inner_outer_equalities(Item **conds,
   {
     List_iterator<Item> li(*((Item_cond*)*conds)->argument_list());
     Item *item;
+    bool allow_subselect= true;
     while ((item= li++))
     {
       if (item->type() == Item::FUNC_ITEM &&
           check_equality_for_exist2in((Item_func *)item,
+                                      allow_subselect,
                                       &element.local_field,
                                       &element.outer_exp))
       {
         found= TRUE;
+        allow_subselect= false;
         element.eq_ref= li.ref();
         if (result.append(element))
           goto alloc_err;
@@ -2817,6 +2832,7 @@ static bool find_inner_outer_equalities(Item **conds,
   }
   else if ((*conds)->type() == Item::FUNC_ITEM &&
            check_equality_for_exist2in((Item_func *)*conds,
+                                       true,
                                        &element.local_field,
                                        &element.outer_exp))
   {
