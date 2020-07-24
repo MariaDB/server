@@ -4627,11 +4627,12 @@ int truncate_double(double *nr, uint field_length, uint dec,
   {
     uint order= field_length - dec;
     uint step= array_elements(log_10) - 1;
-    max_value= 1.0;
+    double max_value_by_dec= 1.0;
     for (; order > step; order-= step)
-      max_value*= log_10[step];
-    max_value*= log_10[order];
-    max_value-= 1.0 / log_10[dec];
+      max_value_by_dec*= log_10[step];
+    max_value_by_dec*= log_10[order];
+    max_value_by_dec-= 1.0 / log_10[dec];
+    set_if_smaller(max_value, max_value_by_dec);
 
     /* Check for infinity so we don't get NaN in calculations */
     if (!my_isinf(res))

@@ -672,5 +672,26 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 2010e0)
 DROP TABLE t1;
 #
+# MDEV-23282 FLOAT(53,0) badly handles out-of-range values
+#
+CREATE OR REPLACE TABLE t1 (c1 FLOAT NOT NULL, c2 FLOAT NOT NULL);
+INSERT IGNORE INTO t1 VALUES (1e+40, -1e+40);
+Warnings:
+Warning	1264	Out of range value for column 'c1' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+SELECT c1, c2 FROM t1;
+c1	c2
+3.40282e38	-3.40282e38
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (c1 FLOAT(53,0) NOT NULL, c2 FLOAT(53,0) NOT NULL);
+INSERT IGNORE INTO t1 VALUES (1e+40, -1e+40);
+Warnings:
+Warning	1264	Out of range value for column 'c1' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+SELECT c1, c2 FROM t1;
+c1	c2
+340282346638528860000000000000000000000	-340282346638528860000000000000000000000
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
