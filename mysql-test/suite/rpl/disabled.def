@@ -20,3 +20,9 @@ rpl_slave_grp_exec: MDEV-10514
 rpl_auto_increment_update_failure  : disabled for now
 rpl_current_user          : waits for MDEV-22374 fix
 rpl_parallel2             : waits for MDEV-23089
+rpl_mixed_mixing_engines : WIP: MDEV-21175/MDEV-21602
+rpl_non_direct_mixed_mixing_engines : WIP: MDEV-21175/MDEV-21602
+rpl_non_direct_row_mixing_engines : WIP: MDEV-21175/MDEV-21602
+rpl_non_direct_stm_mixing_engines : WIP: MDEV-21175/MDEV-21602
+rpl_row_mixing_engines : WIP: MDEV-21175/MDEV-21602
+rpl_stm_mixing_engines : WIP: MDEV-21175/MDEV-21602

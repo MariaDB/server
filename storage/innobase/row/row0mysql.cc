@@ -2867,7 +2867,6 @@ row_discard_tablespace_begin(
 	if (table) {
 		dict_stats_wait_bg_to_stop_using_table(table, trx);
 		ut_a(!is_system_tablespace(table->space_id));
-		ut_ad(!table->n_foreign_key_checks_running);
 	}
 
 	return(table);
@@ -3102,8 +3101,6 @@ row_discard_tablespace_for_mysql(
 		err = DB_ERROR;
 
 	} else {
-		ut_ad(!table->n_foreign_key_checks_running);
-
 		bool fts_exist = (dict_table_has_fts_index(table)
 				  || DICT_TF2_FLAG_IS_SET(
 					  table, DICT_TF2_FTS_HAS_DOC_ID));
@@ -3462,16 +3459,14 @@ row_drop_table_for_mysql(
 		}
 	}
 
-	DBUG_EXECUTE_IF("row_drop_table_add_to_background", goto defer;);
+	DBUG_EXECUTE_IF("row_drop_table_add_to_background", goto dbug_defer;);
 
-	/* TODO: could we replace the counter n_foreign_key_checks_running
-	with lock checks on the table? Acquire here an exclusive lock on the
-	table, and rewrite lock0lock.cc and the lock wait in srv0srv.cc so that
-	they can cope with the table having been dropped here? Foreign key
-	checks take an IS or IX lock on the table. */
-
-	if (table->n_foreign_key_checks_running > 0) {
+	if (table->get_ref_count()) {
 defer:
+		ut_ad(is_temp_name || strstr(table->name.m_name, "/FTS_"));
+#ifndef DBUG_OFF
+dbug_defer:
+#endif
 		/* Rename #sql-backup to #sql-ib if table has open ref count
 		while dropping the table. This scenario can happen
 		when purge thread is waiting for dict_sys.mutex so
@@ -3499,22 +3494,8 @@ defer:
 		goto funct_exit;
 	}
 
-	/* Remove all locks that are on the table or its records, if there
-	are no references to the table but it has record locks, we release
-	the record locks unconditionally. One use case is:
-
-		CREATE TABLE t2 (PRIMARY KEY (a)) SELECT * FROM t1;
-
-	If after the user transaction has done the SELECT and there is a
-	problem in completing the CREATE TABLE operation, MySQL will drop
-	the table. InnoDB will create a new background transaction to do the
-	actual drop, the trx instance that is passed to this function. To
-	preserve existing behaviour we remove the locks but ideally we
-	shouldn't have to. There should never be record locks on a table
-	that is going to be dropped. */
-
-	if (table->get_ref_count() > 0 || table->n_rec_locks > 0
-	    || lock_table_has_locks(table)) {
+	if (UNIV_UNLIKELY(table->n_rec_locks
+			  || lock_table_has_locks(table))) {
 		goto defer;
 	}
 
@@ -4123,7 +4104,6 @@ row_rename_table_for_mysql(
 	ulint		n_constraints_to_drop	= 0;
 	ibool		old_is_tmp, new_is_tmp;
 	pars_info_t*	info			= NULL;
-	int		retry;
 	bool		aux_fts_rename		= false;
 	char*		is_part 		= NULL;
 
@@ -4233,23 +4213,6 @@ row_rename_table_for_mysql(
 		if (err != DB_SUCCESS) {
 			goto funct_exit;
 		}
-	}
-
-	/* Is a foreign key check running on this table? */
-	for (retry = 0; retry < 100
-	     && table->n_foreign_key_checks_running > 0; ++retry) {
-		row_mysql_unlock_data_dictionary(trx);
-		os_thread_yield();
-		row_mysql_lock_data_dictionary(trx);
-	}
-
-	if (table->n_foreign_key_checks_running > 0) {
-		ib::error() << "In ALTER TABLE "
-			<< ut_get_name(trx, old_name)
-			<< " a FOREIGN KEY check is running. Cannot rename"
-			" table.";
-		err = DB_TABLE_IN_FK_CHECK;
-		goto funct_exit;
 	}
 
 	if (!table->is_temporary()) {

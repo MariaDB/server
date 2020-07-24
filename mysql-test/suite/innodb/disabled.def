@@ -12,3 +12,5 @@
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
 innodb_force_recovery_rollback : MDEV-22889 InnoDB occasionally breaks ACID
+innodb_mysql : WIP: MDEV-21175/MDEV-21602
+xa_recovery : WIP: MDEV-21175/MDEV-21602/MDEV-22769 (MDEV-742 regression)

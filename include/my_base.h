@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 1995, 2018, MariaDB Corporation.
+   Copyright (c) 1995, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -513,7 +513,7 @@ enum ha_base_keytype {
 #define HA_ERR_INDEX_CORRUPT      180    /* Index corrupted */
 #define HA_ERR_UNDO_REC_TOO_BIG   181    /* Undo log record too big */
 #define HA_FTS_INVALID_DOCID      182	 /* Invalid InnoDB Doc ID */
-#define HA_ERR_TABLE_IN_FK_CHECK  183    /* Table being used in foreign key check */
+/* #define HA_ERR_TABLE_IN_FK_CHECK  183 */ /* Table being used in foreign key check */
 #define HA_ERR_TABLESPACE_EXISTS  184    /* The tablespace existed in storage engine */
 #define HA_ERR_TOO_MANY_FIELDS    185    /* Table has too many columns */
 #define HA_ERR_ROW_IN_WRONG_PARTITION 186 /* Row in wrong partition */
