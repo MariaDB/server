@@ -5584,15 +5584,30 @@ buf_page_create(
 	    && !buf_pool_watch_is_sentinel(buf_pool, &block->page)) {
 		ut_d(block->page.file_page_was_freed = FALSE);
 
+#ifdef BTR_CUR_HASH_ADAPT
+		bool drop_hash_entry =
+			(block->page.state == BUF_BLOCK_FILE_PAGE
+			 && block->index);
+
+		if (drop_hash_entry) {
+			mutex_enter(&block->mutex);
+			buf_page_set_sticky(&block->page);
+			mutex_exit(&block->mutex);
+		}
+#endif
 		/* Page can be found in buf_pool */
 		buf_pool_mutex_exit(buf_pool);
 		rw_lock_x_unlock(hash_lock);
 
 		buf_block_free(free_block);
 #ifdef BTR_CUR_HASH_ADAPT
-		if (block->page.state == BUF_BLOCK_FILE_PAGE
-		    && UNIV_LIKELY_NULL(block->index)) {
+		if (drop_hash_entry) {
 			btr_search_drop_page_hash_index(block);
+			buf_pool_mutex_enter(buf_pool);
+			mutex_enter(&block->mutex);
+			buf_page_unset_sticky(&block->page);
+			mutex_exit(&block->mutex);
+			buf_pool_mutex_exit(buf_pool);
 		}
 #endif /* BTR_CUR_HASH_ADAPT */
 
