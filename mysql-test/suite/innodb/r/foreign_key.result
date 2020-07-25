@@ -1,7 +1,7 @@
-#
-# Bug #19027905 ASSERT RET.SECOND DICT_CREATE_FOREIGN_CONSTRAINTS_LOW
-# DICT_CREATE_FOREIGN_CONSTR
-#
+
+Bug 19027905 ASSERT RET.SECOND DICT_CREATE_FOREIGN_CONSTRAINTS_LOW
+DICT_CREATE_FOREIGN_CONSTR
+
 create table t1 (f1 int primary key) engine=InnoDB;
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1),
@@ -15,10 +15,10 @@ set foreign_key_checks = 0;
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 ERROR HY000: Duplicate FOREIGN KEY constraint name 'test/c1'
 drop table t2, t1;
-#
-# Bug #20031243 CREATE TABLE FAILS TO CHECK IF FOREIGN KEY COLUMN
-# NULL/NOT NULL MISMATCH
-#
+
+Bug 20031243 CREATE TABLE FAILS TO CHECK IF FOREIGN KEY COLUMN
+NULL/NOT NULL MISMATCH
+
 set foreign_key_checks = 1;
 show variables like 'foreign_key_checks';
 Variable_name	Value
@@ -90,7 +90,7 @@ a	b
 53	3
 54	4
 55	5
-# Operations on child table
+Operations on child table
 INSERT INTO t2 VALUES (56, 6);
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`id`) ON DELETE CASCADE ON UPDATE CASCADE)
 UPDATE t2 SET b = 99 WHERE a = 51;
@@ -109,7 +109,7 @@ a	b
 52	2
 54	4
 55	5
-# Operations on parent table
+Operations on parent table
 DELETE FROM t1 WHERE id = 1;
 UPDATE t1 SET id = 50 WHERE id = 5;
 SELECT id, b FROM t1 ORDER BY id;
@@ -123,11 +123,9 @@ a	b
 52	2
 54	4
 55	50
-DROP TABLE t2, t1;
-#
-# bug#25126722 FOREIGN KEY CONSTRAINT NAME IS NULL AFTER RESTART
-# base bug#24818604 [GR]
-#
+DROP TABLE t2, t1;25126722 FOREIGN KEY CONSTRAINT NAME IS NULL AFTER RESTART
+base 24818604 [GR]
+
 CREATE TABLE t1 (c1 INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (c1 INT PRIMARY KEY, FOREIGN KEY (c1) REFERENCES t1(c1))
 ENGINE=InnoDB;
@@ -137,7 +135,7 @@ SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
 PRIMARY
-# restart
+restart
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SELECT unique_constraint_name FROM information_schema.referential_constraints
@@ -173,9 +171,9 @@ LOCK TABLE staff WRITE;
 UNLOCK TABLES;
 DROP TABLES staff, store;
 SET FOREIGN_KEY_CHECKS=1;
-#
-# MDEV-17531 Crash in RENAME TABLE with FOREIGN KEY and FULLTEXT INDEX
-#
+
+MDEV-17531 Crash in RENAME TABLE with FOREIGN KEY and FULLTEXT INDEX
+
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE DATABASE best default character set latin1;
 CREATE TABLE t3 (a INT PRIMARY KEY,
@@ -194,9 +192,9 @@ t2	CREATE TABLE `t2` (
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP DATABASE best;
-#
-# MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
-#
+
+ MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
+
 connect  con1, localhost, root,,;
 INSERT INTO t1 SET a=1;
 BEGIN;
@@ -212,10 +210,10 @@ ROLLBACK;
 connection default;
 disconnect con1;
 DROP TABLE t3,t1;
-#
-# MDEV-18222 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
-# or ASAN heap-use-after-free in dict_foreign_remove_from_cache upon CHANGE COLUMN
-#
+
+MDEV-18222 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
+or ASAN heap-use-after-free in dict_foreign_remove_from_cache upon CHANGE COLUMN
+
 CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a)) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a);
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
@@ -224,10 +222,10 @@ ALTER TABLE t1 ADD pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
 ALTER TABLE t1 CHANGE COLUMN a b TIME;
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 DROP TABLE t1;
-#
-# MDEV-18256 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
-# upon DROP FOREIGN KEY
-#
+
+ MDEV-18256 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
+upon DROP FOREIGN KEY
+
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (b INT PRIMARY KEY, FOREIGN KEY fk1 (b) REFERENCES t1 (a))
 ENGINE=InnoDB;
@@ -250,10 +248,10 @@ Warnings:
 Warning	1088	failed to load FOREIGN KEY constraints
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
 DROP TABLE t1;
-#
-# MDEV-18630 Conditional jump or move depends on uninitialised value
-# in ib_push_warning / dict_create_foreign_constraints_low
-#
+
+ MDEV-18630 Conditional jump or move depends on uninitialised value
+ in ib_push_warning / dict_create_foreign_constraints_low
+
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
 ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
@@ -263,9 +261,9 @@ Warning	150	Alter  table `test`.`t1` with foreign key (a) constraint failed. Ref
 Error	1005	Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `t1`
 DROP TABLE t1;
-#
-# MDEV-18139 ALTER IGNORE ... ADD FOREIGN KEY causes bogus error
-#
+
+MDEV-18139 ALTER IGNORE ... ADD FOREIGN KEY causes bogus error
+
 CREATE TABLE t1 (f1 INT, f2 INT, f3 INT, KEY(f1)) ENGINE=InnoDB;
 CREATE TABLE t2 (f INT, KEY(f)) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FOREIGN KEY (f2) REFERENCES t2 (f);
@@ -288,10 +286,10 @@ ALTER TABLE t1 DROP f3;
 ALTER TABLE t1 CHANGE f f3 INT;
 DROP TABLE t1;
 SET FOREIGN_KEY_CHECKS=1;
-#
-# Bug #19471516 SERVER CRASHES WHEN EXECUTING ALTER TABLE
-# ADD FOREIGN KEY
-#
+
+19471516 SERVER CRASHES WHEN EXECUTING ALTER TABLE
+ADD FOREIGN KEY
+
 CREATE TABLE `department` (`department_id` INT, `department_people_fk` INT,
 PRIMARY KEY (`department_id`)) engine=innodb;
 CREATE TABLE `title` (`title_id` INT, `title_manager_fk` INT,
@@ -341,13 +339,12 @@ c	d
 6	30
 drop table t2, t1;
 drop user foo;
-#
-# MDEV-17595 - Server crashes in copy_data_between_tables or
-#              Assertion `thd->transaction.stmt.is_empty() ||
-#              (thd->state_flags & Open_tables_state::BACKUPS_AVAIL)'
-#              fails in close_tables_for_reopen upon concurrent
-#              ALTER TABLE and FLUSH
-#
+
+MDEV-17595 - Server crashes in copy_data_between_tables or              Assertion `thd->transaction.stmt.is_empty() ||
+             (thd->state_flags & Open_tables_state::BACKUPS_AVAIL)'
+             fails in close_tables_for_reopen upon concurrent
+             ALTER TABLE and FLUSH
+
 CREATE TABLE t1 (a INT, KEY(a)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1),(2);
 CREATE TABLE t2 (b INT, KEY(b)) ENGINE=InnoDB;
@@ -403,10 +400,10 @@ Opened_table_definitions	5
 Opened_tables	5
 drop function foo;
 drop table t2, t1;
-# Start of 10.2 tests
-#
-# MDEV-13246 Stale rows despite ON DELETE CASCADE constraint
-#
+ Start of 10.2 tests
+
+MDEV-13246 Stale rows despite ON DELETE CASCADE constraint
+
 CREATE TABLE users (
 id int unsigned AUTO_INCREMENT PRIMARY KEY,
 name varchar(32) NOT NULL DEFAULT ''
@@ -456,9 +453,9 @@ id	name
 2	bar
 DROP TABLE
 matchmaking_group_maps, matchmaking_group_users, matchmaking_groups, users;
-#
-# MDEV-13331 FK DELETE CASCADE does not honor innodb_lock_wait_timeout
-#
+
+MDEV-13331 FK DELETE CASCADE does not honor innodb_lock_wait_timeout
+
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (
 id INT NOT NULL PRIMARY KEY,
@@ -497,9 +494,9 @@ SELECT * FROM t2;
 id	ref_id	f
 2	2	20
 DROP TABLE t2, t1;
-#
-# MDEV-15199 Referential integrity broken in ON DELETE CASCADE
-#
+
+MDEV-15199 Referential integrity broken in ON DELETE CASCADE
+
 CREATE TABLE member (id int AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO member VALUES (1);
 CREATE TABLE address (
@@ -540,10 +537,10 @@ id	member_id
 SELECT * FROM payment_method;
 id	member_id	cardholder_address_id
 DROP TABLE payment_method,address,member;
-#
-# Bug #26958695 INNODB NESTED STORED FIELD WITH CONSTRAINT KEY
-# PRODUCE BROKEN TABLE (no bug in MariaDB)
-#
+
+ Bug #26958695 INNODB NESTED STORED FIELD WITH CONSTRAINT KEY
+PRODUCE BROKEN TABLE (no bug in MariaDB)
+
 create table t1(f1 int,f2 int, primary key(f1), key(f2, f1))engine=innodb;
 create table t2(f1 int, f2 int as (2) stored, f3 int as (f2) stored,
 foreign key(f1) references t1(f2) on update set NULL)
@@ -570,9 +567,9 @@ LOCK TABLE staff WRITE;
 UNLOCK TABLES;
 DROP TABLES staff, store;
 SET FOREIGN_KEY_CHECKS=1;
-#
-# MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
-#
+
+MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
+
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (a INT PRIMARY KEY, FOREIGN KEY (a) REFERENCES t1(a))
 ENGINE=InnoDB;
@@ -590,9 +587,9 @@ connection con1;
 ROLLBACK;
 connection default;
 DROP TABLE t2,t1;
-#
-# MDEV-18272 InnoDB index corruption after failed DELETE CASCADE
-#
+
+ MDEV-18272 InnoDB index corruption after failed DELETE CASCADE
+
 CREATE TABLE t1 (
 pk TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
 a TINYINT UNSIGNED NOT NULL, b TINYINT UNSIGNED NOT NULL, KEY(b),
@@ -651,10 +648,10 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
-#
-# MDEV-17187 table doesn't exist in engine after ALTER other tables
-# with CONSTRAINTs
-#
+
+ MDEV-17187 table doesn't exist in engine after ALTER other tables
+with CONSTRAINTs
+
 set foreign_key_checks=on;
 create table t1 (id int not null primary key) engine=innodb;
 create table t2 (id int not null primary key, fid int not null,
@@ -710,14 +707,14 @@ drop table t1,t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 drop table t1,t2;
 ERROR 42S02: Unknown table 'test.t2'
-# End of 10.2 tests
+ End of 10.2 tests
 CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
 FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;
 ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
-# End of 10.4 tests
-#
-# MDEV-20729 Fix REFERENCES constraint in column definition
-#
+End of 10.4 tests
+
+ MDEV-20729 Fix REFERENCES constraint in column definition
+
 set default_storage_engine= innodb;
 create table t1 (x int primary key, y int unique);
 create table t2 (x int references t1(x), y int constraint fk references t1(y));
@@ -758,9 +755,9 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop tables t2, t1;
 set default_storage_engine= default;
-#
-# MDEV-21690 LeakSanitizer: detected memory leaks in mem_heap_create_block_func
-#
+
+MDEV-21690 LeakSanitizer: detected memory leaks in mem_heap_create_block_func
+
 CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (b);
 ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
