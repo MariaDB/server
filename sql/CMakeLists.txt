@@ -167,6 +167,7 @@ SET (SQL_SOURCE
                # Dynamic compression
                compression/compression_libs.cc
                compression/lzma.cc ../libservices/compression_service_lzma.c
+               compression/lzo.cc  ../libservices/compression_service_lzo.c
 )
   
 IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR

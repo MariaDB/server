@@ -45,6 +45,7 @@ extern "C" {
 
 //Dynamic Compression Libraries
 #include <compression/lzma.h>
+#include <compression/lzo/lzo1x.h>
 
 #ifdef __cplusplus
 }

@@ -1637,7 +1637,10 @@ int plugin_init(int *argc, char **argv, int flags)
   DBUG_ASSERT(strcmp(list_of_services[1].name, "debug_sync_service") == 0);
   list_of_services[1].service= *(void**)&debug_sync_C_callback_ptr;
 
-  init_compression(&compression_handler_lzma);
+  init_compression(
+    &compression_handler_lzma,
+    &compression_handler_lzo
+  );
 
   /* prepare encryption_keys service */
   finalize_encryption_plugin(0);

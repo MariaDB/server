@@ -499,6 +499,17 @@ struct compression_service_lzma_st{
 };
 extern struct compression_service_lzma_st *compression_service_lzma;
 }
+extern "C" {
+extern bool COMPRESSION_LOADED_LZO;
+typedef unsigned long lzo_uint;
+typedef int (*PTR_lzo1x_1_15_compress)( const unsigned char *src, unsigned long src_len, unsigned char *dst, unsigned long *dst_len, void *wrkmem );
+typedef int (*PTR_lzo1x_decompress_safe)( const unsigned char *src, unsigned long src_len, unsigned char *dst, unsigned long *dst_len, void *wrkmem );
+struct compression_service_lzo_st{
+    PTR_lzo1x_1_15_compress lzo1x_1_15_compress_ptr;
+    PTR_lzo1x_decompress_safe lzo1x_decompress_safe_ptr;
+};
+extern struct compression_service_lzo_st *compression_service_lzo;
+}
 }
 struct st_mysql_xid {
   long formatID;

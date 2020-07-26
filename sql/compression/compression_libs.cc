@@ -2,7 +2,10 @@
 #include <mariadb.h>
 #include <mysqld.h>
 
-void init_compression(struct compression_service_lzma_st *lzma_handler){
+void init_compression(
+    struct compression_service_lzma_st *lzma_handler,
+    struct compression_service_lzo_st  *lzo_handler
+){
     if(enabled_compression_libraries & COMPRESSION_ALL)
         enabled_compression_libraries = (COMPRESSION_ALL) - 1;
 
@@ -21,5 +24,6 @@ void init_compression(struct compression_service_lzma_st *lzma_handler){
 
     // TODO: Handle different versions of the library (liblzma.so.1, liblzma.so.2, etc)
 
-    init_lzma(lzma_handler, (enabled_compression_libraries & COMPRESSION_LZMA));
+    init_lzma (lzma_handler, (enabled_compression_libraries & COMPRESSION_LZMA));
+    init_lzo  (lzo_handler,  (enabled_compression_libraries & COMPRESSION_LZO));
 }
