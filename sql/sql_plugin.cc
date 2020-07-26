@@ -1801,6 +1801,8 @@ static void plugin_load(MEM_ROOT *tmp_root)
   int error;
   THD *new_thd= new THD(0);
   bool result;
+  unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
+  { MYSQL_AUDIT_GENERAL_CLASSMASK };
   DBUG_ENTER("plugin_load");
 
   if (global_system_variables.log_warnings >= 9)
@@ -1848,6 +1850,31 @@ static void plugin_load(MEM_ROOT *tmp_root)
 
     if (!name.length || !dl.length)
       continue;
+
+    /*
+      Pre-acquire audit plugins for events that may potentially occur
+      during [UN]INSTALL PLUGIN.
+
+      When audit event is triggered, audit subsystem acquires interested
+      plugins by walking through plugin list. Evidently plugin list
+      iterator protects plugin list by acquiring LOCK_plugin, see
+      plugin_foreach_with_mask().
+
+      On the other hand plugin_load is acquiring LOCK_plugin
+      rather for a long time.
+
+      When audit event is triggered during plugin_load plugin
+      list iterator acquires the same lock (within the same thread)
+      second time.
+
+      This hack should be removed when LOCK_plugin is fixed so it
+      protects only what it supposed to protect.
+
+      See also mysql_install_plugin(), mysql_uninstall_plugin() and
+        initialize_audit_plugin()
+    */
+    if (mysql_audit_general_enabled())
+      mysql_audit_acquire_plugins(new_thd, event_class_mask);
 
     /*
       there're no other threads running yet, so we don't need a mutex.
