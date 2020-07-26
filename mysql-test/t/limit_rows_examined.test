@@ -576,3 +576,20 @@ EXECUTE ps;
 
 drop view v;
 drop table t1, t2;
+
+--echo #
+--echo # 10.1 Test
+--echo #
+--echo # MDEV-17729: Assertion `! is_set() || m_can_overwrite_status'
+--echo # failed in Diagnostics_area::set_error_status
+--echo #
+set @old_mode= @@sql_mode;
+
+CREATE TABLE t1(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,k INT, c CHAR(20));
+INSERT INTO t1 (k,c) VALUES(0,'0'), (0,'0'),(0,'0'),(0,'0'),(0,'0'),(0,'0'),(0,'0');
+
+SET @@sql_mode='STRICT_TRANS_TABLES';
+INSERT INTO t1 (c) SELECT k FROM t1 LIMIT ROWS EXAMINED 2;
+
+SET @@sql_mode=@old_mode;
+DROP TABLE t1;
