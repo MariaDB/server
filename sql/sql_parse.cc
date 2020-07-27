@@ -2355,11 +2355,11 @@ com_multi_end:
     DBUG_ASSERT((command != COM_QUIT && command != COM_STMT_CLOSE)
                   || thd->get_stmt_da()->is_disabled());
     /* wsrep BF abort in query exec phase */
-    mysql_mutex_lock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
     do_end_of_statement= thd->wsrep_conflict_state != REPLAYING &&
                          thd->wsrep_conflict_state != RETRY_AUTOCOMMIT &&
                          !thd->killed;
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
   }
   else
     do_end_of_statement= true;
@@ -8820,7 +8820,7 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
 
 
 /**
-  Find a thread by id and return it, locking it LOCK_thd_data
+  Find a thread by id and return it, locking it LOCK_thd_kill
 
   @param id  Identifier of the thread we're looking for
   @param query_id If true, search by query_id instead of thread_id
@@ -8840,7 +8840,7 @@ THD *find_thread_by_id(longlong id, bool query_id)
       continue;
     if (id == (query_id ? tmp->query_id : (longlong) tmp->thread_id))
     {
-      mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
+      mysql_mutex_lock(&tmp->LOCK_thd_kill);    // Lock from delete
       break;
     }
   }
@@ -8896,13 +8896,30 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
 	!wsrep_thd_is_BF(tmp, false))
     {
-      tmp->awake(kill_signal);
-      error=0;
+#ifdef WITH_WSREP
+      DEBUG_SYNC(thd, "before_awake_no_mutex");
+      if (tmp->wsrep_aborter && tmp->wsrep_aborter != thd->thread_id)
+      {
+        /* victim is in hit list already, bail out */
+        WSREP_DEBUG("victim has wsrep aborter: %lu, skipping awake()",
+                    tmp->wsrep_aborter);
+        error= 0;
+      }
+      else
+#endif /* WITH_WSREP */
+      {
+        WSREP_DEBUG("kill_one_thread %llu, victim: %llu wsrep_aborter %llu by signal %d",
+                    thd->thread_id, id, tmp->wsrep_aborter, kill_signal);
+        tmp->awake_no_mutex(kill_signal);
+        WSREP_DEBUG("victim: %llu taken care of", id);
+        error= 0;
+      }
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
                                         ER_KILL_DENIED_ERROR);
-    mysql_mutex_unlock(&tmp->LOCK_thd_data);
+    if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
+    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   }
   DBUG_PRINT("exit", ("%d", error));
   DBUG_RETURN(error);
@@ -8971,17 +8988,18 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
     THD *ptr= it2++;
     do
     {
-      ptr->awake(kill_signal);
+      ptr->awake_no_mutex(kill_signal);
       /*
         Careful here: The list nodes are allocated on the memroots of the
         THDs to be awakened.
         But those THDs may be terminated and deleted as soon as we release
-        LOCK_thd_data, which will make the list nodes invalid.
+        LOCK_thd_kill, which will make the list nodes invalid.
         Since the operation "it++" dereferences the "next" pointer of the
         previous list node, we need to do this while holding LOCK_thd_data.
       */
       next_ptr= it2++;
-      mysql_mutex_unlock(&ptr->LOCK_thd_data);
+      mysql_mutex_unlock(&ptr->LOCK_thd_kill);
+      if (WSREP(ptr)) mysql_mutex_unlock(&ptr->LOCK_thd_data);
       (*rows)++;
     } while ((ptr= next_ptr));
   }

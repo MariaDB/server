@@ -136,27 +136,6 @@ ut_sprintf_timestamp(
 }
 
 /*************************************************************//**
-Runs an idle loop on CPU. The argument gives the desired delay
-in microseconds on 100 MHz Pentium + Visual C++.
-@return dummy value */
-void
-ut_delay(
-/*=====*/
-	ulint	delay)	/*!< in: delay in microseconds on 100 MHz Pentium */
-{
-	ulint	i;
-
-	UT_LOW_PRIORITY_CPU();
-
-	for (i = 0; i < delay * 50; i++) {
-		UT_RELAX_CPU();
-		UT_COMPILER_BARRIER();
-	}
-
-	UT_RESUME_PRIORITY_CPU();
-}
-
-/*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */
 void
 ut_print_buf(

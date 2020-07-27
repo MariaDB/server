@@ -2753,7 +2753,7 @@ void kill_delayed_threads(void)
   Delayed_insert *di;
   while ((di= it++))
   {
-    mysql_mutex_lock(&di->thd.LOCK_thd_data);
+    mysql_mutex_lock(&di->thd.LOCK_thd_kill);
     if (di->thd.killed < KILL_CONNECTION)
       di->thd.set_killed(KILL_CONNECTION);
     if (di->thd.mysys_var)
@@ -2773,7 +2773,7 @@ void kill_delayed_threads(void)
       }
       mysql_mutex_unlock(&di->thd.mysys_var->mutex);
     }
-    mysql_mutex_unlock(&di->thd.LOCK_thd_data);
+    mysql_mutex_unlock(&di->thd.LOCK_thd_kill);
   }
   mysql_mutex_unlock(&LOCK_delayed_insert); // For unlink from list
   DBUG_VOID_RETURN;

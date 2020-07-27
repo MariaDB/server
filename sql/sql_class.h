@@ -3214,7 +3214,28 @@ public:
   }
   void close_active_vio();
 #endif
-  void awake(killed_state state_to_set);
+  void awake_no_mutex(killed_state state_to_set);
+  void awake(killed_state state_to_set)
+  {
+/*
+    bool wsrep_on_local= WSREP(this);
+*/
+    /*
+      mutex locking order (LOCK_thd_data - LOCK_thd_kill)) requires
+      to grab LOCK_thd_data here
+    */
+/*
+    if (wsrep_on_local)
+      mysql_mutex_lock(&LOCK_thd_data);
+*/
+    mysql_mutex_lock(&LOCK_thd_kill);
+    awake_no_mutex(state_to_set);
+    mysql_mutex_unlock(&LOCK_thd_kill);
+/*
+    if (wsrep_on_local)
+      mysql_mutex_unlock(&LOCK_thd_data);
+*/
+  }
  
   /** Disconnect the associated communication endpoint. */
   void disconnect();
@@ -3755,11 +3776,18 @@ public:
     */
     if (killed != NOT_KILLED)
     {
+      mysql_mutex_assert_not_owner(&LOCK_thd_kill);
       mysql_mutex_lock(&LOCK_thd_kill);
       killed= NOT_KILLED;
       killed_err= 0;
       mysql_mutex_unlock(&LOCK_thd_kill);
     }
+#ifdef WITH_WSREP
+    mysql_mutex_assert_not_owner(&LOCK_thd_data);
+    mysql_mutex_lock(&LOCK_thd_data);
+    wsrep_aborter= 0;
+    mysql_mutex_unlock(&LOCK_thd_data);
+#endif /* WITH_WSREP */
   }
   inline void reset_kill_query()
   {
@@ -4470,6 +4498,8 @@ public:
   registered again, but replication of last chunk of rows is skipped
   by the innodb engine: */
   bool                      wsrep_split_flag;
+  /* thread who has started kill for this THD protected by LOCK_thd_data*/
+  my_thread_id              wsrep_aborter;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */

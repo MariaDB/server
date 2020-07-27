@@ -590,10 +590,8 @@ handle_condition(THD *thd,
 extern "C" void thd_kill_timeout(THD* thd)
 {
   thd->status_var.max_statement_time_exceeded++;
-  mysql_mutex_lock(&thd->LOCK_thd_data);
   /* Kill queries that can't cause data corruptions */
   thd->awake(KILL_TIMEOUT);
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
 
@@ -652,7 +650,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_po_handle(WSREP_PO_INITIALIZER),
    wsrep_po_cnt(0),
    wsrep_apply_format(0),
-   wsrep_ignore_table(false)
+   wsrep_ignore_table(false),
+   wsrep_aborter(0)
 #endif
 {
   ulong tmp;
@@ -790,6 +789,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
   wsrep_split_flag        = false;
+  wsrep_aborter           = 0;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1247,7 +1247,7 @@ void THD::init(void)
   session_tracker.enable(this);
 #endif //EMBEDDED_LIBRARY
 
-  apc_target.init(&LOCK_thd_data);
+  apc_target.init(&LOCK_thd_kill);
   DBUG_VOID_RETURN;
 }
 
@@ -1508,9 +1508,15 @@ THD::~THD()
   if (!status_in_global)
     add_status_to_global();
 
-  /* Ensure that no one is using THD */
-  mysql_mutex_lock(&LOCK_thd_data);
-  mysql_mutex_unlock(&LOCK_thd_data);
+  /*
+    Other threads may have a lock on LOCK_thd_kill to ensure that this
+    THD is not deleted while they access it. The following mutex_lock
+    ensures that no one else is using this THD and it's now safe to delete
+  */
+  if (WSREP(this)) mysql_mutex_lock(&LOCK_thd_data);
+  mysql_mutex_lock(&LOCK_thd_kill);
+  mysql_mutex_unlock(&LOCK_thd_kill);
+  if (WSREP(this)) mysql_mutex_unlock(&LOCK_thd_data);
 
 #ifdef WITH_WSREP
   delete wsrep_rgi;
@@ -1680,17 +1686,18 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
 
   This is normally called from another thread's THD object.
 
-  @note Do always call this while holding LOCK_thd_data.
+  @note Do always call this while holding LOCK_thd_kill.
         NOT_KILLED is used to awake a thread for a slave
 */
 
-void THD::awake(killed_state state_to_set)
+void THD::awake_no_mutex(killed_state state_to_set)
 {
   DBUG_ENTER("THD::awake");
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
-  mysql_mutex_assert_owner(&LOCK_thd_data);
+  if (WSREP(this)) mysql_mutex_assert_owner(&LOCK_thd_data);
+  mysql_mutex_assert_owner(&LOCK_thd_kill);
 
   print_aborted_warning(3, "KILLED");
 
@@ -1702,7 +1709,6 @@ void THD::awake(killed_state state_to_set)
     state_to_set= killed;
 
   /* Set the 'killed' flag of 'this', which is the target THD object. */
-  mysql_mutex_lock(&LOCK_thd_kill);
   set_killed_no_mutex(state_to_set);
 
   if (state_to_set >= KILL_CONNECTION || state_to_set == NOT_KILLED)
@@ -1789,7 +1795,6 @@ void THD::awake(killed_state state_to_set)
     }
     mysql_mutex_unlock(&mysys_var->mutex);
   }
-  mysql_mutex_unlock(&LOCK_thd_kill);
   DBUG_VOID_RETURN;
 }
 
@@ -1841,7 +1846,7 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
   {
     /* This code is similar to kill_delayed_threads() */
     DBUG_PRINT("info", ("kill delayed thread"));
-    mysql_mutex_lock(&in_use->LOCK_thd_data);
+    mysql_mutex_lock(&in_use->LOCK_thd_kill);
     if (in_use->killed < KILL_CONNECTION)
       in_use->set_killed(KILL_CONNECTION);
     if (in_use->mysys_var)
@@ -1854,7 +1859,7 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
       in_use->mysys_var->abort= 1;
       mysql_mutex_unlock(&in_use->mysys_var->mutex);
     }
-    mysql_mutex_unlock(&in_use->LOCK_thd_data);
+    mysql_mutex_unlock(&in_use->LOCK_thd_kill);
     signalled= TRUE;
   }
 
@@ -1962,7 +1967,7 @@ bool THD::store_globals()
     return 1;
   /*
     mysys_var is concurrently readable by a killer thread.
-    It is protected by LOCK_thd_data, it is not needed to lock while the
+    It is protected by LOCK_thd_kill, it is not needed to lock while the
     pointer is changing from NULL not non-NULL. If the kill thread reads
     NULL it doesn't refer to anything, but if it is non-NULL we need to
     ensure that the thread doesn't proceed to assign another thread to
@@ -2013,9 +2018,9 @@ bool THD::store_globals()
 
 void THD::reset_globals()
 {
-  mysql_mutex_lock(&LOCK_thd_data);
+  mysql_mutex_lock(&LOCK_thd_kill);
   mysys_var= 0;
-  mysql_mutex_unlock(&LOCK_thd_data);
+  mysql_mutex_unlock(&LOCK_thd_kill);
 
   /* Undocking the thread specific data. */
   set_current_thd(0);
@@ -5240,9 +5245,9 @@ void THD::set_query_and_id(char *query_arg, uint32 query_length_arg,
 /** Assign a new value to thd->mysys_var.  */
 void THD::set_mysys_var(struct st_my_thread_var *new_mysys_var)
 {
-  mysql_mutex_lock(&LOCK_thd_data);
+  mysql_mutex_lock(&LOCK_thd_kill);
   mysys_var= new_mysys_var;
-  mysql_mutex_unlock(&LOCK_thd_data);
+  mysql_mutex_unlock(&LOCK_thd_kill);
 }
 
 /**

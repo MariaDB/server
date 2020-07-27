@@ -28,6 +28,7 @@
 #include <mysys_err.h>
 #include <my_bit.h>
 #include <lf.h>
+#include "my_cpu.h"
 
 /* An element of the list */
 typedef struct {
@@ -103,7 +104,7 @@ retry:
     cursor->curr= (LF_SLIST *)(*cursor->prev);
     lf_pin(pins, 1, cursor->curr);
   } while (my_atomic_loadptr((void**)cursor->prev) != cursor->curr &&
-                              LF_BACKOFF);
+                              LF_BACKOFF());
   for (;;)
   {
     if (unlikely(!cursor->curr))
@@ -117,7 +118,7 @@ retry:
       link= cursor->curr->link;
       cursor->next= PTR(link);
       lf_pin(pins, 0, cursor->next);
-    } while (link != cursor->curr->link && LF_BACKOFF);
+    } while (link != cursor->curr->link && LF_BACKOFF());
 
     if (!DELETED(link))
     {
@@ -145,7 +146,7 @@ retry:
         and remove this deleted node
       */
       if (my_atomic_casptr((void **) cursor->prev,
-                           (void **) &cursor->curr, cursor->next) && LF_BACKOFF)
+                           (void **) &cursor->curr, cursor->next) && LF_BACKOFF())
         lf_alloc_free(pins, cursor->curr);
       else
         goto retry;

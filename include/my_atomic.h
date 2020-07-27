@@ -346,15 +346,6 @@ make_atomic_store(ptr)
 #undef make_atomic_fas_body
 #undef intptr
 
-/*
-  the macro below defines (as an expression) the code that
-  will be run in spin-loops. Intel manuals recummend to have PAUSE there.
-  It is expected to be defined in include/atomic/ *.h files
-*/
-#ifndef LF_BACKOFF
-#define LF_BACKOFF (1)
-#endif
-
 #define MY_ATOMIC_OK       0
 #define MY_ATOMIC_NOT_1CPU 1
 extern int my_atomic_initialize();

@@ -32,6 +32,7 @@ Created 1/20/1994 Heikki Tuuri
 #include <ostream>
 #include <sstream>
 #include <string.h>
+#include "my_cpu.h"
 
 #ifndef UNIV_INNOCHECKSUM
 
@@ -50,50 +51,12 @@ Created 1/20/1994 Heikki Tuuri
 /** Index name prefix in fast index creation, as a string constant */
 #define TEMP_INDEX_PREFIX_STR	"\377"
 
-#ifdef HAVE_PAUSE_INSTRUCTION
-   /* According to the gcc info page, asm volatile means that the
-   instruction has important side-effects and must not be removed.
-   Also asm volatile may trigger a memory barrier (spilling all registers
-   to memory). */
-# ifdef __SUNPRO_CC
-#  define UT_RELAX_CPU() asm ("pause" )
-# else
-#  define UT_RELAX_CPU() __asm__ __volatile__ ("pause")
-# endif /* __SUNPRO_CC */
-
-#elif defined(HAVE_FAKE_PAUSE_INSTRUCTION)
-# define UT_RELAX_CPU() __asm__ __volatile__ ("rep; nop")
-#elif defined _WIN32
-   /* In the Win32 API, the x86 PAUSE instruction is executed by calling
-   the YieldProcessor macro defined in WinNT.h. It is a CPU architecture-
-   independent way by using YieldProcessor. */
-# define UT_RELAX_CPU() YieldProcessor()
-#elif defined(__powerpc__) && defined __GLIBC__
-# include <sys/platform/ppc.h>
-# define UT_RELAX_CPU() __ppc_get_timebase()
-#else
-# define UT_RELAX_CPU() do { \
-     volatile int32	volatile_var; \
-     int32 oldval= 0; \
-     my_atomic_cas32(&volatile_var, &oldval, 1); \
-   } while (0)
-#endif
-
 #if defined (__GNUC__)
 # define UT_COMPILER_BARRIER() __asm__ __volatile__ ("":::"memory")
 #elif defined (_MSC_VER)
 # define UT_COMPILER_BARRIER() _ReadWriteBarrier()
 #else
 # define UT_COMPILER_BARRIER()
-#endif
-
-#if defined(HAVE_HMT_PRIORITY_INSTRUCTION)
-# include <sys/platform/ppc.h>
-# define UT_LOW_PRIORITY_CPU() __ppc_set_ppr_low()
-# define UT_RESUME_PRIORITY_CPU() __ppc_set_ppr_med()
-#else
-# define UT_LOW_PRIORITY_CPU() ((void)0)
-# define UT_RESUME_PRIORITY_CPU() ((void)0)
 #endif
 
 #define ut_max	std::max
@@ -240,14 +203,6 @@ void
 ut_sprintf_timestamp(
 /*=================*/
 	char*	buf); /*!< in: buffer where to sprintf */
-/*************************************************************//**
-Runs an idle loop on CPU. The argument gives the desired delay
-in microseconds on 100 MHz Pentium + Visual C++.
-@return dummy value */
-void
-ut_delay(
-/*=====*/
-	ulint	delay);	/*!< in: delay in microseconds on 100 MHz Pentium */
 /*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */
 void

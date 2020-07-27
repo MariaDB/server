@@ -97,7 +97,8 @@ extern struct wsrep_service_st {
   enum wsrep_exec_mode        (*wsrep_thd_exec_mode_func)(THD *thd);
   const char *                (*wsrep_thd_exec_mode_str_func)(THD *thd);
   enum wsrep_conflict_state   (*wsrep_thd_get_conflict_state_func)(MYSQL_THD);
-  my_bool                     (*wsrep_thd_is_BF_func)(MYSQL_THD , my_bool);
+  my_bool                     (*wsrep_thd_is_aborting_func)(const MYSQL_THD thd);
+  my_bool                     (*wsrep_thd_is_BF_func)(MYSQL_THD, my_bool);
   my_bool                     (*wsrep_thd_is_wsrep_func)(MYSQL_THD thd);
   const char *                (*wsrep_thd_query_func)(THD *thd);
   enum wsrep_query_state      (*wsrep_thd_query_state_func)(THD *thd);
@@ -111,10 +112,14 @@ extern struct wsrep_service_st {
   void                        (*wsrep_set_load_multi_commit_func)(THD *thd, bool split);
   bool                        (*wsrep_is_load_multi_commit_func)(THD *thd);
   int                         (*wsrep_trx_is_aborting_func)(MYSQL_THD thd);
+  my_bool                     (*wsrep_thd_bf_abort_func)(MYSQL_THD bf_thd,
+                                                         MYSQL_THD victim_thd,
+                                                         my_bool signal);
   int                         (*wsrep_trx_order_before_func)(MYSQL_THD, MYSQL_THD);
   void                        (*wsrep_unlock_rollback_func)();
   void                        (*wsrep_set_data_home_dir_func)(const char *data_dir);
   my_bool                     (*wsrep_thd_is_applier_func)(MYSQL_THD);
+  bool                        (*wsrep_thd_set_wsrep_aborter_func)(MYSQL_THD bf_thd, MYSQL_THD thd);
 } *wsrep_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -143,6 +148,7 @@ extern struct wsrep_service_st {
 #define wsrep_thd_exec_mode(T) wsrep_service->wsrep_thd_exec_mode_func(T)
 #define wsrep_thd_exec_mode_str(T) wsrep_service->wsrep_thd_exec_mode_str_func(T)
 #define wsrep_thd_get_conflict_state(T) wsrep_service->wsrep_thd_get_conflict_state_func(T)
+#define wsrep_thd_is_aborting(T) wsrep_service->wsrep_thd_is_aborting_func(T)
 #define wsrep_thd_is_BF(T,S) wsrep_service->wsrep_thd_is_BF_func(T,S)
 #define wsrep_thd_is_wsrep(T) wsrep_service->wsrep_thd_is_wsrep_func(T)
 #define wsrep_thd_query(T) wsrep_service->wsrep_thd_query_func(T)
@@ -157,10 +163,12 @@ extern struct wsrep_service_st {
 #define wsrep_set_load_multi_commit(T,S) wsrep_service->wsrep_set_load_multi_commit_func(T,S)
 #define wsrep_is_load_multi_commit(T) wsrep_service->wsrep_is_load_multi_commit_func(T)
 #define wsrep_trx_is_aborting(T) wsrep_service->wsrep_trx_is_aborting_func(T)
+#define wsrep_thd_bf_abort(T,T2,S) wsrep_service->wsrep_thd_bf_abort_func(T,T2,S)
 #define wsrep_trx_order_before(T1,T2) wsrep_service->wsrep_trx_order_before_func(T1,T2)
 #define wsrep_unlock_rollback() wsrep_service->wsrep_unlock_rollback_func()
 #define wsrep_set_data_home_dir(A) wsrep_service->wsrep_set_data_home_dir_func(A)
 #define wsrep_thd_is_applier(T) wsrep_service->wsrep_thd_is_applier_func(T)
+#define wsrep_thd_set_wsrep_aborter(T) wsrep_service->wsrep_thd_set_wsrep_aborter_func(T1, T2)
 
 #define wsrep_debug get_wsrep_debug()
 #define wsrep_log_conflicts get_wsrep_log_conflicts()
@@ -195,6 +203,9 @@ int wsrep_is_wsrep_xid(const struct xid_t* xid);
 int wsrep_on(MYSQL_THD thd);
 int wsrep_thd_retry_counter(THD *thd);
 int wsrep_trx_is_aborting(MYSQL_THD thd);
+my_bool wsrep_thd_bf_abort(MYSQL_THD bf_thd,
+                           MYSQL_THD victim_thd,
+                           my_bool signal);
 int wsrep_trx_order_before(MYSQL_THD thd1, MYSQL_THD thd2);
 long get_wsrep_protocol_version();
 long long wsrep_thd_trx_seqno(THD *thd);
@@ -205,6 +216,7 @@ my_bool get_wsrep_recovery();
 my_bool get_wsrep_load_data_splitting();
 my_bool get_wsrep_log_conflicts();
 my_bool wsrep_aborting_thd_contains(THD *thd);
+my_bool wsrep_thd_is_aborting(const MYSQL_THD thd);
 my_bool wsrep_thd_is_BF(MYSQL_THD thd, my_bool sync);
 my_bool wsrep_thd_is_wsrep(MYSQL_THD thd);
 struct wsrep *get_wsrep();
@@ -223,6 +235,8 @@ bool wsrep_thd_ignore_table(THD *thd);
 void wsrep_unlock_rollback();
 void wsrep_set_data_home_dir(const char *data_dir);
 my_bool wsrep_thd_is_applier(MYSQL_THD thd);
+bool wsrep_thd_set_wsrep_aborter(MYSQL_THD bf_thd, MYSQL_THD victim_thd);
+
 #endif
 
 #ifdef __cplusplus

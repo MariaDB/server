@@ -651,13 +651,11 @@ Event_scheduler::stop()
     DBUG_PRINT("info", ("Scheduler thread has id %lu",
                         (ulong) scheduler_thd->thread_id));
     /* Lock from delete */
-    mysql_mutex_lock(&scheduler_thd->LOCK_thd_data);
     /* This will wake up the thread if it waits on Queue's conditional */
     sql_print_information("Event Scheduler: Killing the scheduler thread, "
                           "thread id %lu",
                           (ulong) scheduler_thd->thread_id);
     scheduler_thd->awake(KILL_CONNECTION);
-    mysql_mutex_unlock(&scheduler_thd->LOCK_thd_data);
 
     /* thd could be 0x0, when shutting down */
     sql_print_information("Event Scheduler: "

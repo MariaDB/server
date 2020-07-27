@@ -17,6 +17,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "my_cpu.h"
 #include "sql_plist.h"
 #include "sql_list.h"                           /* Sql_alloc */
 #include "mdl.h"
@@ -610,7 +611,7 @@ class TABLE_STATISTICS_CB
           return true;
         if (expected == READY)
           return false;
-        (void) LF_BACKOFF;
+        (void) LF_BACKOFF();
       }
     }
 

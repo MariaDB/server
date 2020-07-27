@@ -759,43 +759,6 @@ IF(NOT C_HAS_inline)
   ENDIF()
 ENDIF()
 
-IF(NOT CMAKE_CROSSCOMPILING AND NOT MSVC)
-  STRING(TOLOWER ${CMAKE_SYSTEM_PROCESSOR}  processor)
-  IF(processor MATCHES "86" OR processor MATCHES "amd64" OR processor MATCHES "x64")
-  #Check for x86 PAUSE instruction
-  # We have to actually try running the test program, because of a bug
-  # in Solaris on x86_64, where it wrongly reports that PAUSE is not
-  # supported when trying to run an application.  See
-  # http://bugs.opensolaris.org/bugdatabase/printableBug.do?bug_id=6478684
-  CHECK_C_SOURCE_RUNS("
-  int main()
-  { 
-    __asm__ __volatile__ (\"pause\"); 
-    return 0;
-  }"  HAVE_PAUSE_INSTRUCTION)
-  ENDIF()
-  IF (NOT HAVE_PAUSE_INSTRUCTION)
-    CHECK_C_SOURCE_COMPILES("
-    int main()
-    {
-     __asm__ __volatile__ (\"rep; nop\");
-     return 0;
-    }
-   " HAVE_FAKE_PAUSE_INSTRUCTION)
-  ENDIF()
-  IF (NOT HAVE_PAUSE_INSTRUCTION)
-    CHECK_C_SOURCE_COMPILES("
-    #include <sys/platform/ppc.h>
-    int main()
-    {
-     __ppc_set_ppr_low();
-     __ppc_set_ppr_med();
-     return 0;
-    }
-    " HAVE_HMT_PRIORITY_INSTRUCTION)
-  ENDIF()
-ENDIF()
-  
 CHECK_SYMBOL_EXISTS(tcgetattr "termios.h" HAVE_TCGETATTR 1)
 
 #

@@ -2556,6 +2556,28 @@ public:
   double progress;
 };
 
+/**
+  Try to lock a mutex, but give up after a short while to not cause deadlocks
+
+  The loop is short, as the mutex we are trying to lock are mutex the should
+  never be locked a long time, just over a few instructions.
+
+  @return 0 ok
+  @return 1 error
+*/
+
+static bool trylock_short(mysql_mutex_t *mutex)
+{
+  uint i;
+  for (i= 0 ; i < 100 ; i++)
+  {
+    if (!mysql_mutex_trylock(mutex))
+      return 0;
+    LF_BACKOFF();
+  }
+  return 1;
+}
+
 static const char *thread_state_info(THD *tmp)
 {
 #ifndef EMBEDDED_LIBRARY
@@ -2574,10 +2596,17 @@ static const char *thread_state_info(THD *tmp)
 #endif
   if (tmp->proc_info)
     return tmp->proc_info;
-  else if (tmp->mysys_var && tmp->mysys_var->current_cond)
-    return "Waiting on cond";
-  else
-    return NULL;
+
+  /* Check if we are waiting on a condition */
+  if (!trylock_short(&tmp->LOCK_thd_kill))
+  {
+    /* mysys_var is protected by above mutex */
+    bool cond= tmp->mysys_var && tmp->mysys_var->current_cond;
+    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
+    if (cond)
+      return "Waiting on cond";
+  }
+  return NULL;
 }
 
 void mysqld_list_processes(THD *thd,const char *user, bool verbose)
@@ -2921,13 +2950,13 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
                                                    tmp_sctx->user)))
     {
       my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "PROCESS");
-      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      mysql_mutex_unlock(&tmp->LOCK_thd_kill);
       DBUG_RETURN(1);
     }
 
     if (tmp == thd)
     {
-      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      mysql_mutex_unlock(&tmp->LOCK_thd_kill);
       my_error(ER_TARGET_NOT_EXPLAINABLE, MYF(0));
       DBUG_RETURN(1);
     }
@@ -2935,7 +2964,7 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     bool bres;
     /* 
       Ok we've found the thread of interest and it won't go away because 
-      we're holding its LOCK_thd data. Post it a SHOW EXPLAIN request.
+      we're holding its LOCK_thd_kill. Post it a SHOW EXPLAIN request.
     */
     bool timed_out;
     int timeout_sec= 30;
@@ -2949,7 +2978,7 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     explain_req.request_thd= thd;
     explain_req.failed_to_produce= FALSE;
     
-    /* Ok, we have a lock on target->LOCK_thd_data, can call: */
+    /* Ok, we have a lock on target->LOCK_thd_kill, can call: */
     bres= tmp->apc_target.make_apc_call(thd, &explain_req, timeout_sec, &timed_out);
 
     if (bres || explain_req.failed_to_produce)

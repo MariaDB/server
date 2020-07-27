@@ -43,7 +43,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 				my_atomic.c my_getncpus.c my_safehash.c my_chmod.c my_rnd.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
 				my_rdtsc.c my_context.c psi_noop.c
-				my_atomic_writes.c
+				my_atomic_writes.c my_cpu.c
                                 file_logger.c my_dlerror.c)
 
 IF (WIN32)

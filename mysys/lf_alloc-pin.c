@@ -102,6 +102,7 @@
 #include <my_global.h>
 #include <my_sys.h>
 #include <lf.h>
+#include "my_cpu.h"
 
 /*
   when using alloca() leave at least that many bytes of the stack -
@@ -430,7 +431,7 @@ static void alloc_free(uchar *first,
   {
     anext_node(last)= tmp.node;
   } while (!my_atomic_casptr((void **)(char *)&allocator->top,
-                             (void **)&tmp.ptr, first) && LF_BACKOFF);
+                             (void **)&tmp.ptr, first) && LF_BACKOFF());
 }
 
 /*
@@ -501,7 +502,7 @@ void *lf_alloc_new(LF_PINS *pins)
     {
       node= allocator->top;
      lf_pin(pins, 0, node);
-    } while (node != allocator->top && LF_BACKOFF);
+    } while (node != allocator->top && LF_BACKOFF());
     if (!node)
     {
       node= (void *)my_malloc(allocator->element_size, MYF(MY_WME));

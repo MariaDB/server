@@ -27,6 +27,7 @@ Created Feb 20, 2014 Vasil Dimov
 #ifndef os0once_h
 #define os0once_h
 
+#include "my_cpu.h"
 #include "univ.i"
 #include "ut0ut.h"
 
@@ -109,7 +110,7 @@ public:
 					ut_error;
 				}
 
-				UT_RELAX_CPU();
+				MY_RELAX_CPU();
 			}
 		}
 	}

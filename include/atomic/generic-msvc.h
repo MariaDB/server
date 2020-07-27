@@ -120,7 +120,6 @@ static __inline int my_yield_processor()
   return 1;
 }
 
-#define LF_BACKOFF my_yield_processor()
 #else /* cleanup */
 
 #undef IL_EXCHG_ADD32

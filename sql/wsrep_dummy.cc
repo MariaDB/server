@@ -17,7 +17,13 @@
 #include <sql_class.h>
 #include <mysql/service_wsrep.h>
 
+my_bool wsrep_thd_is_aborting(const THD *)
+{ return 0; }
+
 my_bool wsrep_thd_is_BF(THD *, my_bool)
+{ return 0; }
+
+my_bool wsrep_thd_bf_abort(THD *, THD *, my_bool)
 { return 0; }
 
 int wsrep_trx_order_before(THD *, THD *)
@@ -153,4 +159,7 @@ void wsrep_log(void (*)(const char *, ...), const char *, ...)
 }
 
 my_bool wsrep_thd_is_applier(MYSQL_THD thd)
+{ return false; }
+
+bool wsrep_thd_set_wsrep_aborter(THD*, THD*)
 { return false; }

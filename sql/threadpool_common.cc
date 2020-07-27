@@ -477,11 +477,11 @@ void tp_timeout_handler(TP_connection *c)
   if (c->state != TP_STATE_IDLE)
     return;
   THD *thd=c->thd;
-  mysql_mutex_lock(&thd->LOCK_thd_data);
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
   thd->set_killed(KILL_WAIT_TIMEOUT);
   c->priority= TP_PRIORITY_HIGH;
   post_kill_notification(thd);
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
 

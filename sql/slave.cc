@@ -346,9 +346,7 @@ handle_slave_background(void *arg __attribute__((unused)))
       THD *to_kill= p->to_kill;
       kill_list= p->next;
 
-      mysql_mutex_lock(&to_kill->LOCK_thd_data);
       to_kill->awake(KILL_CONNECTION);
-      mysql_mutex_unlock(&to_kill->LOCK_thd_data);
       mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
       to_kill->rgi_slave->killed_for_retry=
         rpl_group_info::RETRY_KILL_KILLED;
@@ -859,7 +857,7 @@ terminate_slave_thread(THD *thd,
     int error __attribute__((unused));
     DBUG_PRINT("loop", ("killing slave thread"));
 
-    mysql_mutex_lock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
 #ifndef DONT_USE_THR_ALARM
     /*
       Error codes from pthread_kill are:
@@ -869,9 +867,9 @@ terminate_slave_thread(THD *thd,
     int err __attribute__((unused))= pthread_kill(thd->real_id, thr_client_alarm);
     DBUG_ASSERT(err != EINVAL);
 #endif
-    thd->awake(NOT_KILLED);
+    thd->awake_no_mutex(NOT_KILLED);
 
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
 
     /*
       There is a small chance that slave thread might miss the first

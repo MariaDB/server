@@ -19726,35 +19726,41 @@ wsrep_innobase_kill_one_trx(
 			    victim_trx->id);
 
 		victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
+		if (wsrep_thd_set_wsrep_aborter(bf_thd, thd))
+		{
+		  WSREP_DEBUG("innodb kill transaction skipped due to wsrep_aborter set");
+		  wsrep_thd_UNLOCK(thd);
+		  DBUG_RETURN(0);
+		}
 
-		if (victim_trx->lock.wait_lock) {
-			WSREP_DEBUG("victim has wait flag: %ld",
-				thd_get_thread_id(thd));
+		wsrep_thd_UNLOCK(thd);
+
+		DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
+
+		if (wsrep_thd_bf_abort(bf_thd, thd, signal)) {
+			wsrep_thd_LOCK(thd);
 			lock_t*  wait_lock = victim_trx->lock.wait_lock;
-
 			if (wait_lock) {
+				WSREP_DEBUG("victim has wait flag: %ld",
+					thd_get_thread_id(thd));
 				WSREP_DEBUG("canceling wait lock");
-				victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 				lock_cancel_waiting_and_release(wait_lock);
-			}
+				wsrep_thd_UNLOCK(thd);
+			} else {
+				/* abort currently executing query */
+				DBUG_PRINT("wsrep",("sending KILL_QUERY to: %lu",
+					thd_get_thread_id(thd)));
+				WSREP_DEBUG("kill query for: %ld",
+					thd_get_thread_id(thd));
+				/* Note that innobase_kill_query will take lock_mutex
+				and trx_mutex */
+				wsrep_thd_UNLOCK(thd);
 
-			wsrep_thd_UNLOCK(thd);
-			wsrep_thd_awake(thd, signal);
-		} else {
-			/* abort currently executing query */
-			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %lu",
-                                            thd_get_thread_id(thd)));
-			WSREP_DEBUG("kill query for: %ld",
-				thd_get_thread_id(thd));
-			/* Note that innobase_kill_query will take lock_mutex
-			and trx_mutex */
-			wsrep_thd_UNLOCK(thd);
-			wsrep_thd_awake(thd, signal);
-
-			/* for BF thd, we need to prevent him from committing */
-			if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
-				wsrep_abort_slave_trx(bf_seqno,
-						    wsrep_thd_trx_seqno(thd));
+				/* for BF thd, we need to prevent him from committing */
+				if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
+					wsrep_abort_slave_trx(bf_seqno,
+							    wsrep_thd_trx_seqno(thd));
+				}
 			}
 		}
 		break;
