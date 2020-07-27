@@ -1493,7 +1493,10 @@ inc_dir:
     rec_set_bit_field_1(next_rec, n_owned + 1, REC_NEW_N_OWNED,
                         REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
     if (mtr->get_log_mode() != MTR_LOG_ALL)
+    {
+      mtr->set_modified(*block);
       goto copied;
+    }
 
     const byte * const c_start= cur->rec - extra_size;
     if (extra_size > REC_N_NEW_EXTRA_BYTES &&
@@ -1532,7 +1535,10 @@ inc_dir:
     rec_set_bit_field_1(next_rec, n_owned + 1, REC_OLD_N_OWNED,
                         REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
     if (mtr->get_log_mode() != MTR_LOG_ALL)
+    {
+      mtr->set_modified(*block);
       goto copied;
+    }
 
     ut_ad(extra_size > REC_N_OLD_EXTRA_BYTES);
     const byte * const c_start= cur->rec - extra_size;
