@@ -1277,6 +1277,17 @@ sub command_line_setup {
     report_option('verbose', $opt_verbose);
   }
 
+  # Negative values aren't meaningful on integer options
+  foreach(grep(/=i$/, keys %options))
+  {
+    if (defined ${$options{$_}} &&
+        do { no warnings "numeric"; int ${$options{$_}} < 0})
+    {
+      my $v= (split /=/)[0];
+      die("$v doesn't accept a negative value:");
+    }
+  }
+
   # Find the absolute path to the test directory
   $glob_mysql_test_dir= cwd();
   if ($glob_mysql_test_dir =~ / /)
