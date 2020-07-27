@@ -6182,6 +6182,7 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
   LEX_CSTRING name;
   uint coffs, param_count= 0;
   const sp_pcursor *pcursor;
+  DBUG_ENTER("LEX::sp_for_loop_cursor_declarations");
 
   if ((item_splocal= item->get_item_splocal()))
     name= item_splocal->m_name;
@@ -6213,23 +6214,23 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
   else
   {
     thd->parse_error();
-    return true;
+    DBUG_RETURN(true);
   }
   if (unlikely(!(pcursor= spcont->find_cursor_with_error(&name, &coffs,
                                                          false)) ||
                pcursor->check_param_count_with_error(param_count)))
-    return true;
+    DBUG_RETURN(true);
 
   if (!(loop->m_index= sp_add_for_loop_cursor_variable(thd, index,
                                                        pcursor, coffs,
                                                        bounds.m_index,
                                                        item_func_sp)))
-    return true;
+    DBUG_RETURN(true);
   loop->m_target_bound= NULL;
   loop->m_direction= bounds.m_direction;
   loop->m_cursor_offset= coffs;
   loop->m_implicit_cursor= bounds.m_implicit_cursor;
-  return false;
+  DBUG_RETURN(false);
 }
 
 

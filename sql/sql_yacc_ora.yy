@@ -9253,8 +9253,8 @@ adm_partition:
 cache_keys_spec:
           {
             Lex->first_select_lex()->alloc_index_hints(thd);
-            Select->set_index_hint_type(INDEX_HINT_USE,
-                                        INDEX_HINT_MASK_ALL);
+            Lex->first_select_lex()->set_index_hint_type(INDEX_HINT_USE,
+                                                         INDEX_HINT_MASK_ALL);
           }
           cache_key_list_or_empty
         ;
@@ -16622,7 +16622,8 @@ set:
               MYSQL_YYABORT;
             lex->set_stmt_init();
             lex->var_list.empty();
-            sp_create_assignment_lex(thd, yychar == YYEMPTY);
+            if (sp_create_assignment_lex(thd, yychar == YYEMPTY))
+              MYSQL_YYABORT;
           }
           start_option_value_list
           {
@@ -16657,7 +16658,8 @@ set_assign:
             LEX *lex=Lex;
             lex->set_stmt_init();
             lex->var_list.empty();
-            sp_create_assignment_lex(thd, yychar == YYEMPTY);
+            if(sp_create_assignment_lex(thd, yychar == YYEMPTY))
+              MYSQL_YYABORT;
           }
           set_expr_or_default
           {
@@ -16670,7 +16672,8 @@ set_assign:
             LEX *lex=Lex;
             lex->set_stmt_init();
             lex->var_list.empty();
-            sp_create_assignment_lex(thd, yychar == YYEMPTY);
+            if (sp_create_assignment_lex(thd, yychar == YYEMPTY))
+              MYSQL_YYABORT;
           }
           set_expr_or_default
           {
@@ -16690,7 +16693,8 @@ set_assign:
             }
             lex->set_stmt_init();
             lex->var_list.empty();
-            sp_create_assignment_lex(thd, yychar == YYEMPTY);
+            if (sp_create_assignment_lex(thd, yychar == YYEMPTY))
+              MYSQL_YYABORT;
           }
           set_expr_or_default
           {
@@ -16760,7 +16764,8 @@ option_value_list_continued:
 /* Repeating list of option values after first option value. */
 option_value_list:
           {
-            sp_create_assignment_lex(thd, yychar == YYEMPTY);
+            if (sp_create_assignment_lex(thd, yychar == YYEMPTY))
+              MYSQL_YYABORT;
           }
           option_value
           {
@@ -16769,7 +16774,8 @@ option_value_list:
           }
         | option_value_list ','
           {
-            sp_create_assignment_lex(thd, yychar == YYEMPTY);
+            if (sp_create_assignment_lex(thd, yychar == YYEMPTY))
+              MYSQL_YYABORT;
           }
           option_value
           {
@@ -17565,7 +17571,7 @@ grant_ident:
           '*'
           {
             LEX *lex= Lex;
-            if (unlikely(lex->copy_db_to(&lex->current_select->db)))
+            if (unlikely(lex->copy_db_to(&lex->first_select_lex()->db)))
               MYSQL_YYABORT;
             if (lex->grant == GLOBAL_ACLS)
               lex->grant = DB_ACLS & ~GRANT_ACL;
@@ -17575,7 +17581,7 @@ grant_ident:
         | ident '.' '*'
           {
             LEX *lex= Lex;
-            lex->current_select->db= $1;
+            lex->first_select_lex()->db= $1;
             if (lex->grant == GLOBAL_ACLS)
               lex->grant = DB_ACLS & ~GRANT_ACL;
             else if (unlikely(lex->columns.elements))
@@ -17584,7 +17590,7 @@ grant_ident:
         | '*' '.' '*'
           {
             LEX *lex= Lex;
-            lex->current_select->db= null_clex_str;
+            lex->first_select_lex()->db= null_clex_str;
             if (lex->grant == GLOBAL_ACLS)
               lex->grant= GLOBAL_ACLS & ~GRANT_ACL;
             else if (unlikely(lex->columns.elements))
@@ -17593,7 +17599,7 @@ grant_ident:
         | table_ident
           {
             LEX *lex=Lex;
-            if (unlikely(!lex->current_select->
+            if (unlikely(!lex->first_select_lex()->
                          add_table_to_list(thd, $1,NULL,
                                            TL_OPTION_UPDATING)))
               MYSQL_YYABORT;

@@ -509,7 +509,7 @@ Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
   @param no_lookahead  True if the parser has no lookahead
 */
 
-void sp_create_assignment_lex(THD *thd, bool no_lookahead)
+bool sp_create_assignment_lex(THD *thd, bool no_lookahead)
 {
   LEX *lex= thd->lex;
 
@@ -522,6 +522,8 @@ void sp_create_assignment_lex(THD *thd, bool no_lookahead)
 
     /* Set new LEX as if we at start of set rule. */
     lex->sql_command= SQLCOM_SET_OPTION;
+    if (lex->main_select_push())
+      return true;
     mysql_init_select(lex);
     lex->var_list.empty();
     lex->autocommit= 0;
@@ -532,8 +534,8 @@ void sp_create_assignment_lex(THD *thd, bool no_lookahead)
         lex->sphead->m_tmp_query= lip->get_tok_end();
     /* Inherit from outer lex. */
     lex->option_type= old_lex->option_type;
-    lex->main_select_push();
   }
+  return false;
 }
 
 
@@ -16453,7 +16455,8 @@ set:
               MYSQL_YYABORT;
             lex->set_stmt_init();
             lex->var_list.empty();
-            sp_create_assignment_lex(thd, yychar == YYEMPTY);
+            if (sp_create_assignment_lex(thd, yychar == YYEMPTY))
+              MYSQL_YYABORT;
           }
           start_option_value_list
           {
@@ -16541,7 +16544,8 @@ option_value_list_continued:
 /* Repeating list of option values after first option value. */
 option_value_list:
           {
-            sp_create_assignment_lex(thd, yychar == YYEMPTY);
+            if (sp_create_assignment_lex(thd, yychar == YYEMPTY))
+              MYSQL_YYABORT;
           }
           option_value
           {
@@ -16550,7 +16554,8 @@ option_value_list:
           }
         | option_value_list ','
           {
-            sp_create_assignment_lex(thd, yychar == YYEMPTY);
+            if (sp_create_assignment_lex(thd, yychar == YYEMPTY))
+              MYSQL_YYABORT;
           }
           option_value
           {
@@ -17346,7 +17351,7 @@ grant_ident:
           '*'
           {
             LEX *lex= Lex;
-            if (unlikely(lex->copy_db_to(&lex->current_select->db)))
+            if (unlikely(lex->copy_db_to(&lex->first_select_lex()->db)))
               MYSQL_YYABORT;
             if (lex->grant == GLOBAL_ACLS)
               lex->grant = DB_ACLS & ~GRANT_ACL;
@@ -17356,7 +17361,7 @@ grant_ident:
         | ident '.' '*'
           {
             LEX *lex= Lex;
-            lex->current_select->db= $1;
+            lex->first_select_lex()->db= $1;
             if (lex->grant == GLOBAL_ACLS)
               lex->grant = DB_ACLS & ~GRANT_ACL;
             else if (unlikely(lex->columns.elements))
@@ -17365,7 +17370,7 @@ grant_ident:
         | '*' '.' '*'
           {
             LEX *lex= Lex;
-            lex->current_select->db= null_clex_str;
+            lex->first_select_lex()->db= null_clex_str;
             if (lex->grant == GLOBAL_ACLS)
               lex->grant= GLOBAL_ACLS & ~GRANT_ACL;
             else if (unlikely(lex->columns.elements))
@@ -17374,7 +17379,7 @@ grant_ident:
         | table_ident
           {
             LEX *lex=Lex;
-            if (unlikely(!lex->current_select->
+            if (unlikely(!lex->first_select_lex()->
                          add_table_to_list(thd, $1,NULL,
                                            TL_OPTION_UPDATING)))
               MYSQL_YYABORT;

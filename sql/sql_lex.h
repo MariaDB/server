@@ -4812,7 +4812,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr);
 Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
                                        Item *expr);
 
-void sp_create_assignment_lex(THD *thd, bool no_lookahead);
+bool sp_create_assignment_lex(THD *thd, bool no_lookahead);
 bool sp_create_assignment_instr(THD *thd, bool no_lookahead);
 
 void mark_or_conds_to_avoid_pushdown(Item *cond);
