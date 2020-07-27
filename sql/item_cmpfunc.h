@@ -744,7 +744,7 @@ public:
   { return get_item_copy<Item_func_eq>(thd, this); }
 };
 
-class Item_func_equal :public Item_bool_rowready_func2
+class Item_func_equal final :public Item_bool_rowready_func2
 {
 public:
   Item_func_equal(THD *thd, Item *a, Item *b):
@@ -3331,7 +3331,7 @@ public:
 };
 
 
-class Item_cond_and :public Item_cond
+class Item_cond_and final :public Item_cond
 {
 public:
   COND_EQUAL m_cond_equal;  /* contains list of Item_equal objects for 
@@ -3368,7 +3368,7 @@ inline bool is_cond_and(Item *item)
   return func_item && func_item->functype() == Item_func::COND_AND_FUNC;
 }
 
-class Item_cond_or :public Item_cond
+class Item_cond_or final :public Item_cond
 {
 public:
   Item_cond_or(THD *thd): Item_cond(thd) {}

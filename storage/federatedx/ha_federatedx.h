@@ -260,7 +260,7 @@ public:
 /*
   Class definition for the storage engine
 */
-class ha_federatedx: public handler
+class ha_federatedx final : public handler
 {
   friend int federatedx_db_init(void *p);
 

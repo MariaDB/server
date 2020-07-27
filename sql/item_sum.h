@@ -1016,7 +1016,7 @@ public:
 
 
 
-class Item_sum_variance : public Item_sum_double
+class Item_sum_variance :public Item_sum_double
 {
   Stddev m_stddev;
   bool fix_length_and_dec();
@@ -1033,13 +1033,13 @@ public:
   enum Sumfunctype sum_func () const { return VARIANCE_FUNC; }
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
-  void clear();
-  bool add();
+  void clear() override final;
+  bool add() override final;
   double val_real();
-  void reset_field();
-  void update_field();
+  void reset_field() override final;
+  void update_field() override final;
   Item *result_item(THD *thd, Field *field);
-  void no_rows_in_result() {}
+  void no_rows_in_result() override final {}
   const char *func_name() const
     { return sample ? "var_samp(" : "variance("; }
   Item *copy_or_same(THD* thd);
@@ -1057,7 +1057,7 @@ public:
    standard_deviation(a) = sqrt(variance(a))
 */
 
-class Item_sum_std :public Item_sum_variance
+class Item_sum_std final :public Item_sum_variance
 {
   public:
   Item_sum_std(THD *thd, Item *item_par, uint sample_arg):
@@ -1075,7 +1075,7 @@ class Item_sum_std :public Item_sum_variance
 };
 
 
-class Item_sum_hybrid: public Item_sum,
+class Item_sum_hybrid : public Item_sum,
                        public Type_handler_hybrid_field_type
 {
 public:
@@ -1156,7 +1156,7 @@ public:
 };
 
 
-class Item_sum_min :public Item_sum_min_max
+class Item_sum_min final :public Item_sum_min_max
 {
 public:
   Item_sum_min(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, 1) {}
@@ -1171,7 +1171,7 @@ public:
 };
 
 
-class Item_sum_max :public Item_sum_min_max
+class Item_sum_max final :public Item_sum_min_max
 {
 public:
   Item_sum_max(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, -1) {}
@@ -1260,7 +1260,7 @@ protected:
 };
 
 
-class Item_sum_or :public Item_sum_bit
+class Item_sum_or final :public Item_sum_bit
 {
 public:
   Item_sum_or(THD *thd, Item *item_par): Item_sum_bit(thd, item_par, 0) {}
@@ -1276,7 +1276,7 @@ private:
 };
 
 
-class Item_sum_and :public Item_sum_bit
+class Item_sum_and final :public Item_sum_bit
 {
 public:
   Item_sum_and(THD *thd, Item *item_par):
@@ -1292,7 +1292,7 @@ private:
   void set_bits_from_counters();
 };
 
-class Item_sum_xor :public Item_sum_bit
+class Item_sum_xor final :public Item_sum_bit
 {
 public:
   Item_sum_xor(THD *thd, Item *item_par): Item_sum_bit(thd, item_par, 0) {}
@@ -1359,7 +1359,7 @@ struct st_sp_security_context;
   Example:
   DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN ret_val;
 */
-class Item_sum_sp :public Item_sum,
+class Item_sum_sp final :public Item_sum,
                    public Item_sp
 {
  private:

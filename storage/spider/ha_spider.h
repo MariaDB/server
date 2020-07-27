@@ -49,7 +49,7 @@ struct st_spider_ft_info
   String *key;
 };
 
-class ha_spider: public handler
+class ha_spider final : public handler
 {
 public:
   SPIDER_SHARE       *share;

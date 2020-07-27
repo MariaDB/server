@@ -30,7 +30,7 @@ struct CSphSEStats;
 struct CSphSEThreadTable;
 
 /// Sphinx SE handler class
-class ha_sphinx : public handler
+class ha_sphinx final : public handler
 {
 protected:
 	THR_LOCK_DATA	m_tLock;				///< MySQL lock

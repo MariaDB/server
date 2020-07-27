@@ -190,7 +190,8 @@ public:
       Before adding a new type, please make sure
       there is enough storage for it in Query_cache_query_flags.
     */
-    PROTOCOL_TEXT= 0, PROTOCOL_BINARY= 1, PROTOCOL_LOCAL= 2
+    PROTOCOL_TEXT= 0, PROTOCOL_BINARY= 1, PROTOCOL_LOCAL= 2,
+    PROTOCOL_DISCARD= 3 /* Should be last, not used by Query_cache */
   };
   virtual enum enum_protocol_type type()= 0;
 
@@ -204,7 +205,7 @@ public:
 
 /** Class used for the old (MySQL 4.0 protocol). */
 
-class Protocol_text :public Protocol
+class Protocol_text final :public Protocol
 {
 public:
   Protocol_text(THD *thd_arg, ulong prealloc= 0)
@@ -242,11 +243,11 @@ public:
   bool store_field_metadata_for_list_fields(const THD *thd, Field *field,
                                             const TABLE_LIST *table_list,
                                             uint pos);
-  virtual enum enum_protocol_type type() { return PROTOCOL_TEXT; };
+  enum enum_protocol_type type() override { return PROTOCOL_TEXT; };
 };
 
 
-class Protocol_binary :public Protocol
+class Protocol_binary final :public Protocol
 {
 private:
   uint bit_fields;
@@ -279,7 +280,7 @@ public:
 
   virtual bool send_out_parameters(List<Item_param> *sp_params);
 
-  virtual enum enum_protocol_type type() { return PROTOCOL_BINARY; };
+  enum enum_protocol_type type() override { return PROTOCOL_BINARY; };
 };
 
 
@@ -297,37 +298,38 @@ public:
   select_send::send_data() & co., and also uses  Protocol_discard object.
 */
 
-class Protocol_discard : public Protocol_text
+class Protocol_discard final : public Protocol
 {
 public:
-  Protocol_discard(THD *thd_arg) : Protocol_text(thd_arg) {}
-  bool write() { return 0; }
-  bool send_result_set_metadata(List<Item> *, uint) { return 0; }
-  bool send_eof(uint, uint) { return 0; }
-  void prepare_for_resend() { IF_DBUG(field_pos= 0,); }
+  Protocol_discard(THD *thd_arg) : Protocol(thd_arg) {}
+  bool write() override { return 0; }
+  bool send_result_set_metadata(List<Item> *, uint) override { return 0; }
+  bool send_eof(uint, uint) override { return 0; }
+  void prepare_for_resend() override { IF_DBUG(field_pos= 0,); }
+  bool send_out_parameters(List<Item_param> *sp_params) override { return false; }
   
   /* 
     Provide dummy overrides for any storage methods so that we
     avoid allocating and copying of data
   */
-  bool store_null() { return false; }
-  bool store_tiny(longlong) { return false; }
-  bool store_short(longlong) { return false; }
-  bool store_long(longlong) { return false; }
-  bool store_longlong(longlong, bool) { return false; }
-  bool store_decimal(const my_decimal *) { return false; }
+  bool store_null() override { return false; }
+  bool store_tiny(longlong) override { return false; }
+  bool store_short(longlong) override { return false; }
+  bool store_long(longlong) override { return false; }
+  bool store_longlong(longlong, bool) override { return false; }
+  bool store_decimal(const my_decimal *) override { return false; }
   bool store_str(const char *, size_t, CHARSET_INFO *, my_repertoire_t,
-                 CHARSET_INFO *)
+                 CHARSET_INFO *) override
   {
     return false;
   }
-  bool store(MYSQL_TIME *, int) { return false; }
-  bool store_date(MYSQL_TIME *) { return false; }
-  bool store_time(MYSQL_TIME *, int) { return false; }
-  bool store(float, uint32, String *) { return false; }
-  bool store(double, uint32, String *) { return false; }
-  bool store(Field *) { return false; }
-
+  bool store(MYSQL_TIME *, int) override { return false; }
+  bool store_date(MYSQL_TIME *) override { return false; }
+  bool store_time(MYSQL_TIME *, int) override { return false; }
+  bool store(float, uint32, String *) override { return false; }
+  bool store(double, uint32, String *) override { return false; }
+  bool store(Field *) override { return false; }
+  enum enum_protocol_type type() override { return PROTOCOL_DISCARD; };
 };
 
 

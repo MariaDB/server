@@ -2157,7 +2157,7 @@ public:
                      const LEX_CSTRING &field_name_arg):
     Item_ref(thd, context_arg, item, table_name_arg, field_name_arg) {}
 
-  virtual inline void print (String *str, enum_query_type query_type)
+  void print (String *str, enum_query_type query_type) override
   {
     if (ref)
       (*ref)->print(str, query_type);
