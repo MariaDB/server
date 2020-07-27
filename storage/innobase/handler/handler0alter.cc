@@ -238,6 +238,9 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 	DBUG_ASSERT(old.n_cols == old.n_def);
 	DBUG_ASSERT(n_cols == n_def);
 	DBUG_ASSERT(old.supports_instant());
+	DBUG_ASSERT(not_redundant() == old.not_redundant());
+	DBUG_ASSERT(DICT_TF_HAS_ATOMIC_BLOBS(flags)
+		    == DICT_TF_HAS_ATOMIC_BLOBS(old.flags));
 	DBUG_ASSERT(!persistent_autoinc
 		    || persistent_autoinc == old.persistent_autoinc);
 	/* supports_instant() does not necessarily hold here,
@@ -6205,6 +6208,15 @@ prepare_inplace_alter_table_dict(
 	DBUG_ASSERT(!ctx->num_to_add_index);
 
 	user_table = ctx->new_table;
+
+	if (ha_alter_info->inplace_supported == HA_ALTER_INPLACE_INSTANT) {
+		/* If we promised ALGORITHM=INSTANT capability, we must
+		retain the original ROW_FORMAT of the table. */
+		flags = (user_table->flags & (DICT_TF_MASK_COMPACT
+					      | DICT_TF_MASK_ATOMIC_BLOBS))
+			| (flags & ~(DICT_TF_MASK_COMPACT
+				     | DICT_TF_MASK_ATOMIC_BLOBS));
+	}
 
 	trx_start_if_not_started_xa(ctx->prebuilt->trx, true);
 
