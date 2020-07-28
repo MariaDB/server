@@ -447,6 +447,7 @@ else()
   endif(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
   # aarch
   if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
+    INCLUDE(CheckCXXCompilerFlag)
     CHECK_CXX_COMPILER_FLAG("-march=armv8-a+crc+crypto" HAS_ARMV8_CRC)
     if(HAS_ARMV8_CRC)
       message(STATUS " HAS_ARMV8_CRC yes")
