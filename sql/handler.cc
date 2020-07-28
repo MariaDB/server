@@ -7856,6 +7856,7 @@ bool Table_period_info::check_field(const Create_field* f,
   {
     my_error(ER_PERIOD_FIELD_WRONG_ATTRIBUTES, MYF(0),
              f->field_name.str, "GENERATED ALWAYS AS");
+    res= true;
   }
 
   return res;
