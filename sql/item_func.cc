@@ -134,7 +134,7 @@ void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
   Item *item;
   while ((item= li++))
   {
-    join_with_sum_func(item);
+    with_sum_func|= item->with_sum_func;
     with_window_func|= item->with_window_func;
     with_field|= item->with_field;
     with_param|= item->with_param;
@@ -353,13 +353,11 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	return TRUE;				/* purecov: inspected */
       item= *arg;
 
-      if (item->maybe_null)
-	maybe_null=1;
-
-      join_with_sum_func(item);
-      with_param= with_param || item->with_param;
-      with_window_func= with_window_func || item->with_window_func;
-      with_field= with_field || item->with_field;
+      maybe_null  |= item->maybe_null;
+      with_sum_func |= item->with_sum_func;
+      with_param |= item->with_param;
+      with_window_func |= item->with_window_func;
+      with_field |= item->with_field;
       used_tables_and_const_cache_join(item);
       not_null_tables_cache|= item->not_null_tables();
       m_with_subquery|= item->with_subquery();
@@ -741,7 +739,7 @@ void Item_func::signal_divide_by_null()
 
 Item *Item_func::get_tmp_table_item(THD *thd)
 {
-  if (!Item_func::with_sum_func() && !const_item())
+  if (!with_sum_func && !const_item())
     return new (thd->mem_root) Item_temptable_field(thd, result_field);
   return copy_or_same(thd);
 }
@@ -3467,7 +3465,6 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
     }
     uint i;
     Item **arg,**arg_end;
-    With_sum_func_cache *with_sum_func_cache= func->get_with_sum_func_cache();
     for (i=0, arg=arguments, arg_end=arguments+arg_count;
 	 arg != arg_end ;
 	 arg++,i++)
@@ -3489,14 +3486,11 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       */
       if (item->collation.collation->state & MY_CS_BINSORT)
 	func->collation.set(&my_charset_bin);
-      if (item->maybe_null)
-	func->maybe_null=1;
-      if (with_sum_func_cache)
-        with_sum_func_cache->join_with_sum_func(item);
-      func->with_window_func= func->with_window_func ||
-                              item->with_window_func;
-      func->with_field= func->with_field || item->with_field;
-      func->with_param= func->with_param || item->with_param;
+      func->maybe_null |= item->maybe_null;
+      func->with_sum_func |= item->with_sum_func;
+      func->with_window_func |= item->with_window_func;
+      func->with_field |= item->with_field;
+      func->with_param |= item->with_param;
       func->With_subquery_cache::join(item);
       func->used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();

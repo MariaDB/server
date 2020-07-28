@@ -587,8 +587,6 @@ public:
   void mark_as_window_func_sum_expr() { window_func_sum_expr_flag= true; }
   bool is_window_func_sum_expr() { return window_func_sum_expr_flag; }
   virtual void setup_caches(THD *thd) {};
-
-  bool with_sum_func() const { return true; }
   virtual void set_partition_row_count(ulonglong count) { DBUG_ASSERT(0); }
 };
 

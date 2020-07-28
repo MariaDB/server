@@ -36,8 +36,7 @@
 class Item_row: public Item_fixed_hybrid,
                 private Item_args,
                 private Used_tables_and_const_cache,
-                private With_subquery_cache,
-                private With_sum_func_cache
+                private With_subquery_cache
 {
   table_map not_null_tables_cache;
   /**
@@ -53,7 +52,6 @@ public:
   Item_row(THD *thd, Item_row *row)
    :Item_fixed_hybrid(thd), Item_args(thd, static_cast<Item_args*>(row)),
     Used_tables_and_const_cache(),
-    With_sum_func_cache(*row),
     not_null_tables_cache(0), with_null(0)
   { }
 
@@ -101,8 +99,6 @@ public:
   void cleanup();
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                       List<Item> &fields, uint flags);
-  bool with_sum_func() const { return m_with_sum_func; }
-  With_sum_func_cache* get_with_sum_func_cache() { return this; }
   table_map used_tables() const { return used_tables_cache; };
   bool const_item() const { return const_item_cache; };
   void update_used_tables()
