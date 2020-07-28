@@ -780,7 +780,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_ALTER_SERVER]=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_SERVER]=        CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_BACKUP]=             CF_AUTO_COMMIT_TRANS;
-  sql_command_flags[SQLCOM_BACKUP_LOCK]=        0;
+  sql_command_flags[SQLCOM_BACKUP_LOCK]=        CF_AUTO_COMMIT_TRANS;
 
   /*
     The following statements can deal with temporary tables,
@@ -4999,6 +4999,15 @@ mysql_execute_command(THD *thd)
     if (thd->current_backup_stage != BACKUP_FINISHED)
     {
       my_error(ER_BACKUP_LOCK_IS_ACTIVE, MYF(0));
+      goto error;
+    }
+
+    /*
+      Should not lock tables while BACKUP LOCK is active.
+    */
+    if (thd->mdl_backup_lock)
+    {
+      my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
       goto error;
     }
 

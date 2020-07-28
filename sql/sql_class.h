@@ -3626,7 +3626,8 @@ public:
   inline bool has_read_only_protection()
   {
     if (current_backup_stage == BACKUP_FINISHED &&
-        !global_read_lock.is_acquired())
+        !global_read_lock.is_acquired() &&
+        !mdl_backup_lock)
       return FALSE;
     give_protection_error();
     return TRUE;

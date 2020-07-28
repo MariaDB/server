@@ -217,6 +217,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
               thd->handler_tables_hash.records ||
               thd->ull_hash.records ||
               thd->global_read_lock.is_acquired() ||
+              thd->mdl_backup_lock ||
               thd->current_backup_stage != BACKUP_FINISHED
               );
 
@@ -522,6 +523,15 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
   */
 
   if (thd->locked_tables_mode)
+  {
+    my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
+    goto error;
+  }
+
+  /*
+    Should not lock tables while BACKUP LOCK is active.
+  */
+  if (thd->mdl_backup_lock)
   {
     my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
     goto error;

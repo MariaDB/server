@@ -379,6 +379,11 @@ bool backup_reset_alter_copy_lock(THD *thd)
 bool backup_lock(THD *thd, TABLE_LIST *table)
 {
   backup_unlock(thd);
+  if (thd->locked_tables_mode)
+  {
+    my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
+    return 1;
+  }
   table->mdl_request.duration= MDL_EXPLICIT;
   if (thd->mdl_context.acquire_lock(&table->mdl_request,
                                     thd->variables.lock_wait_timeout))
