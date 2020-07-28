@@ -13614,7 +13614,6 @@ end:
   if (is_table_scan || is_index_scan)
     issue_long_find_row_warning(get_general_type_code(), m_table->alias.c_ptr(), 
                                 is_index_scan, rgi);
-  table->default_column_bitmaps();
   DBUG_RETURN(error);
 }
 
@@ -13928,6 +13927,12 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif /* WSREP_PROC_INFO */
 
   thd_proc_info(thd, message);
+  // Temporary fix to find out why it fails [/Matz]
+  memcpy(m_table->read_set->bitmap, m_cols.bitmap, (m_table->read_set->n_bits + 7) / 8);
+  memcpy(m_table->write_set->bitmap, m_cols_ai.bitmap, (m_table->write_set->n_bits + 7) / 8);
+
+  m_table->mark_columns_per_binlog_row_image();
+  
   int error= find_row(rgi); 
   if (error)
   {
@@ -13997,12 +14002,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
     error= HA_ERR_GENERIC; // in case if error is not set yet
     goto err;
   }
-
-  // Temporary fix to find out why it fails [/Matz]
-  memcpy(m_table->read_set->bitmap, m_cols.bitmap, (m_table->read_set->n_bits + 7) / 8);
-  memcpy(m_table->write_set->bitmap, m_cols_ai.bitmap, (m_table->write_set->n_bits + 7) / 8);
-
-  m_table->mark_columns_per_binlog_row_image();
+  
   error= m_table->file->ha_update_row(m_table->record[1], m_table->record[0]);
   if (error == HA_ERR_RECORD_IS_THE_SAME)
     error= 0;
