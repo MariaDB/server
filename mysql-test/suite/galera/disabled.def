@@ -39,11 +39,12 @@ galera_sst_mariabackup_encrypt_with_key : MDEV-21484 galera_sst_mariabackup_encr
 galera_toi_ddl_nonconflicting : MDEV-21518 galera.galera_toi_ddl_nonconflicting
 galera_toi_truncate : MDEV-22996 Hang on galera_toi_truncate test case
 galera_var_node_address : MDEV-20485 Galera test failure
+galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
 galera_var_reject_queries : assertion in inline_mysql_socket_send
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
 galera_wan : MDEV-17259 Test failure on galera.galera_wan
-mysql-wsrep#198 : MDEV-18935 Galera test mysql-wsrep#198 sporaric assertion transaction.cpp:362: int wsrep::transaction::before_commit(): Assertion `state() == s_executing || state() == s_committing || state() == s_must_abort || state() == s_replaying' failed.
 lp1376747-4 : MDEV-21911 Galera test failure on lp1376747-4
+mysql-wsrep#198 : MDEV-18935 Galera test mysql-wsrep#198 sporaric assertion transaction.cpp:362: int wsrep::transaction::before_commit(): Assertion `state() == s_executing || state() == s_committing || state() == s_must_abort || state() == s_replaying' failed.
 partition : MDEV-19958 Galera test failure on galera.partition
 query_cache: MDEV-15805 Test failure on galera.query_cache
 sql_log_bin : MDEV-21491 galera.sql_log_bin
