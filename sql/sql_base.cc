@@ -7711,7 +7711,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       Item_window_func::split_sum_func.
     */
     if (sum_func_list &&
-         ((item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM) ||
+         ((item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM) ||
           item->with_window_func))
     {
       item->split_sum_func(thd, ref_pointer_array, *sum_func_list,

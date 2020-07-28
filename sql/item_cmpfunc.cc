@@ -1342,7 +1342,7 @@ bool Item_in_optimizer::fix_left(THD *thd)
     used_tables_cache= args[0]->used_tables();
   }
   eval_not_null_tables(NULL);
-  copy_with_sum_func(args[0]);
+  with_sum_func= args[0]->with_sum_func;
   with_param= args[0]->with_param || args[1]->with_param;
   with_field= args[0]->with_field;
   if ((const_item_cache= args[0]->const_item()))
@@ -1354,7 +1354,7 @@ bool Item_in_optimizer::fix_left(THD *thd)
   {
     /* to avoid overriding is called to update left expression */
     used_tables_and_const_cache_join(args[1]);
-    join_with_sum_func(args[1]);
+    with_sum_func= with_sum_func || args[1]->with_sum_func;
   }
   DBUG_RETURN(0);
 }
@@ -1390,7 +1390,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   if (args[1]->maybe_null)
     maybe_null=1;
   m_with_subquery= true;
-  join_with_sum_func(args[1]);
+  with_sum_func= with_sum_func || args[1]->with_sum_func;
   with_field= with_field || args[1]->with_field;
   with_param= args[0]->with_param || args[1]->with_param; 
   used_tables_and_const_cache_join(args[1]);
@@ -1939,7 +1939,7 @@ bool Item_func_interval::fix_length_and_dec()
   max_length= 2;
   used_tables_and_const_cache_join(row);
   not_null_tables_cache= row->not_null_tables();
-  join_with_sum_func(row);
+  with_sum_func= with_sum_func || row->with_sum_func;
   with_param= with_param || row->with_param;
   with_field= with_field || row->with_field;
   return FALSE;
@@ -4939,7 +4939,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       const_item_cache= FALSE;
     } 
   
-    join_with_sum_func(item);
+    with_sum_func|=    item->with_sum_func;
     with_param|=       item->with_param;
     with_field|=       item->with_field;
     m_with_subquery|=  item->with_subquery();
@@ -7058,7 +7058,7 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
     used_tables_cache|= item->used_tables();
     tmp_table_map= item->not_null_tables();
     not_null_tables_cache|= tmp_table_map;
-    DBUG_ASSERT(!item->with_sum_func() && !item->with_subquery());
+    DBUG_ASSERT(!item->with_sum_func && !item->with_subquery());
     if (item->maybe_null)
       maybe_null= 1;
     if (!item->get_item_equal())

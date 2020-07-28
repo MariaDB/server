@@ -35,8 +35,7 @@ extern "C"				/* Bug in BSDI include file */
 #include <cmath>
 
 
-class Item_func :public Item_func_or_sum,
-                 protected With_sum_func_cache
+class Item_func :public Item_func_or_sum
 {
   void sync_with_sum_func_and_with_field(List<Item> &list);
 protected:
@@ -101,35 +100,41 @@ public:
     with_field= 0;
     with_param= 0;
   }
-  Item_func(THD *thd, Item *a)
-   :Item_func_or_sum(thd, a), With_sum_func_cache(a)
+  Item_func(THD *thd, Item *a): Item_func_or_sum(thd, a)
   {
+    with_sum_func= a->with_sum_func;
     with_param= a->with_param;
     with_field= a->with_field;
   }
-  Item_func(THD *thd, Item *a, Item *b)
-   :Item_func_or_sum(thd, a, b), With_sum_func_cache(a, b)
+  Item_func(THD *thd, Item *a, Item *b):
+    Item_func_or_sum(thd, a, b)
   {
+    with_sum_func= a->with_sum_func || b->with_sum_func;
     with_param= a->with_param || b->with_param;
     with_field= a->with_field || b->with_field;
   }
-  Item_func(THD *thd, Item *a, Item *b, Item *c)
-   :Item_func_or_sum(thd, a, b, c), With_sum_func_cache(a, b, c)
+  Item_func(THD *thd, Item *a, Item *b, Item *c):
+    Item_func_or_sum(thd, a, b, c)
   {
+    with_sum_func= a->with_sum_func || b->with_sum_func || c->with_sum_func;
     with_field= a->with_field || b->with_field || c->with_field;
     with_param= a->with_param || b->with_param || c->with_param;
   }
-  Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d)
-   :Item_func_or_sum(thd, a, b, c, d), With_sum_func_cache(a, b, c, d)
+  Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d):
+    Item_func_or_sum(thd, a, b, c, d)
   {
+    with_sum_func= a->with_sum_func || b->with_sum_func ||
+                   c->with_sum_func || d->with_sum_func;
     with_field= a->with_field || b->with_field ||
                 c->with_field || d->with_field;
     with_param= a->with_param || b->with_param ||
                 c->with_param || d->with_param;
   }
-  Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e)
-   :Item_func_or_sum(thd, a, b, c, d, e), With_sum_func_cache(a, b, c, d, e)
+  Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e):
+    Item_func_or_sum(thd, a, b, c, d, e)
   {
+    with_sum_func= a->with_sum_func || b->with_sum_func ||
+                   c->with_sum_func || d->with_sum_func || e->with_sum_func;
     with_field= a->with_field || b->with_field ||
                 c->with_field || d->with_field || e->with_field;
     with_param= a->with_param || b->with_param ||
@@ -141,8 +146,8 @@ public:
     set_arguments(thd, list);
   }
   // Constructor used for Item_cond_and/or (see Item comment)
-  Item_func(THD *thd, Item_func *item)
-   :Item_func_or_sum(thd, item), With_sum_func_cache(item),
+  Item_func(THD *thd, Item_func *item):
+    Item_func_or_sum(thd, item),
     not_null_tables_cache(item->not_null_tables_cache)
   { }
   bool fix_fields(THD *, Item **ref);
@@ -393,9 +398,6 @@ public:
     - or replaced to an Item_int_with_ref
   */
   bool setup_args_and_comparator(THD *thd, Arg_comparator *cmp);
-
-  bool with_sum_func() const { return m_with_sum_func; }
-  With_sum_func_cache* get_with_sum_func_cache() { return this; }
   Item_func *get_item_func() { return this; }
   bool is_simplified_cond_processor(void *arg)
   { return const_item() && !val_int(); }
