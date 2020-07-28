@@ -33,6 +33,7 @@ my_bool vio_is_connected_pipe(Vio *vio);
 int vio_close_pipe(Vio * vio);
 int cancel_io(HANDLE handle, DWORD thread_id);
 int vio_shutdown_pipe(Vio *vio,int how);
+uint vio_pending_pipe(Vio* vio);
 #endif
 
 #ifdef HAVE_SMEM

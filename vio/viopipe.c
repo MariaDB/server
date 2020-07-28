@@ -141,5 +141,11 @@ int vio_close_pipe(Vio *vio)
   DBUG_RETURN(ret);
 }
 
+/* return number of bytes readable from pipe.*/
+uint vio_pending_pipe(Vio *vio)
+{
+  DWORD bytes;
+  return PeekNamedPipe(vio->hPipe, NULL, 0, NULL, &bytes, NULL) ? bytes : 0;
+}
 #endif
 

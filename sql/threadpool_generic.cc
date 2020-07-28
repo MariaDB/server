@@ -591,11 +591,8 @@ static void timeout_check(pool_timer_t *timer)
   THD *thd;
   while ((thd=it++))
   {
-    if (thd->net.reading_or_writing != 1)
-      continue;
- 
     TP_connection_generic *connection= (TP_connection_generic *)thd->event_scheduler.data;
-    if (!connection)
+    if (!connection || connection->state != TP_STATE_IDLE)
     {
       /* 
         Connection does not have scheduler data. This happens for example
