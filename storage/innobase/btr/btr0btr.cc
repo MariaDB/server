@@ -5028,11 +5028,13 @@ loop:
 				mtr_release_block_at_savepoint(
 					&mtr, savepoint, right_block);
 
-				btr_block_get(
-					page_id_t(index->space,
-						  parent_right_page_no),
-					table_page_size,
-					RW_SX_LATCH, index, &mtr);
+				if (parent_right_page_no != FIL_NULL) {
+					btr_block_get(
+						page_id_t(index->space,
+							  parent_right_page_no),
+						table_page_size,
+						RW_SX_LATCH, index, &mtr);
+				}
 
 				right_block = btr_block_get(
 					page_id_t(index->space,
