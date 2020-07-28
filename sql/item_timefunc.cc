@@ -1580,7 +1580,7 @@ static void set_sec_part(ulong sec_part, MYSQL_TIME *ltime, Item *item)
   {
     ltime->second_part= sec_part;
     if (item->decimals < TIME_SECOND_PART_DIGITS)
-      my_time_trunc(ltime, item->decimals);
+      my_datetime_trunc(ltime, item->decimals);
   }
 }
 

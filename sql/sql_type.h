@@ -1358,6 +1358,14 @@ public:
     { }
   };
 
+  class Options_for_round: public Options
+  {
+  public:
+    Options_for_round(time_round_mode_t round_mode= TIME_FRAC_TRUNCATE)
+     :Options(Time::default_flags_for_get_date(), round_mode,
+              Time::DATETIME_TO_TIME_DISALLOW)
+    { }
+  };
   class Options_cmp: public Options
   {
   public:
@@ -1708,6 +1716,40 @@ public:
       my_time_trunc(this, dec);
     DBUG_ASSERT(is_valid_value_slow());
     return *this;
+  }
+  Time &ceiling(int *warn)
+  {
+    if (is_valid_time())
+    {
+      if (neg)
+        my_time_trunc(this, 0);
+      else if (second_part)
+        round_or_set_max(0, warn, 999999999);
+    }
+    DBUG_ASSERT(is_valid_value_slow());
+    return *this;
+  }
+  Time &ceiling()
+  {
+    int warn= 0;
+    return ceiling(&warn);
+  }
+  Time &floor(int *warn)
+  {
+    if (is_valid_time())
+    {
+      if (!neg)
+        my_time_trunc(this, 0);
+      else if (second_part)
+        round_or_set_max(0, warn, 999999999);
+    }
+    DBUG_ASSERT(is_valid_value_slow());
+    return *this;
+  }
+  Time &floor()
+  {
+    int warn= 0;
+    return floor(&warn);
   }
   Time &round(uint dec, int *warn)
   {
@@ -2276,9 +2318,21 @@ public:
   Datetime &trunc(uint dec)
   {
     if (is_valid_datetime())
-      my_time_trunc(this, dec);
+      my_datetime_trunc(this, dec);
     DBUG_ASSERT(is_valid_value_slow());
     return *this;
+  }
+  Datetime &ceiling(THD *thd, int *warn)
+  {
+    if (is_valid_datetime() && second_part)
+      round_or_invalidate(thd, 0, warn, 999999999);
+    DBUG_ASSERT(is_valid_value_slow());
+    return *this;
+  }
+  Datetime &ceiling(THD *thd)
+  {
+    int warn= 0;
+    return ceiling(thd, &warn);
   }
   Datetime &round(THD *thd, uint dec, int *warn)
   {
@@ -5305,6 +5359,7 @@ public:
                                   MYSQL_TIME *, date_mode_t fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
@@ -5532,6 +5587,7 @@ public:
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
                                             my_decimal *) const;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -5634,6 +5690,7 @@ public:
   int cmp_native(const Native &a, const Native &b) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
@@ -5977,6 +6034,7 @@ public:
   const Name name() const { return m_name_hex_hybrid; }
   const Type_handler *cast_to_int_type_handler() const;
   const Type_handler *type_handler_for_system_time() const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
 };
 
 
@@ -6212,6 +6270,7 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   const Type_handler *type_handler_for_item_field() const;
   const Type_handler *cast_to_int_type_handler() const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,

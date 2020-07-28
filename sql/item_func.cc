@@ -2218,8 +2218,7 @@ bool Item_func_int_val::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_int_val::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
-  if (args[0]->cast_to_int_type_handler()->
-      Item_func_int_val_fix_length_and_dec(this))
+  if (args[0]->type_handler()->Item_func_int_val_fix_length_and_dec(this))
     DBUG_RETURN(TRUE);
   DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
   DBUG_RETURN(FALSE);
@@ -2262,6 +2261,28 @@ my_decimal *Item_func_ceiling::decimal_op(my_decimal *decimal_value)
 }
 
 
+bool Item_func_ceiling::date_op(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate)
+{
+  Datetime::Options opt(thd, TIME_FRAC_TRUNCATE);
+  Datetime *tm= new (to) Datetime(thd, args[0], opt);
+  tm->ceiling(thd);
+  null_value= !tm->is_valid_datetime();
+  DBUG_ASSERT(maybe_null || !null_value);
+  return null_value;
+}
+
+
+bool Item_func_ceiling::time_op(THD *thd, MYSQL_TIME *to)
+{
+  static const Time::Options_for_round opt;
+  Time *tm= new (to) Time(thd, args[0], opt);
+  tm->ceiling();
+  null_value= !tm->is_valid_time();
+  DBUG_ASSERT(maybe_null || !null_value);
+  return null_value;
+}
+
+
 longlong Item_func_floor::int_op()
 {
   switch (args[0]->result_type()) {
@@ -2299,6 +2320,28 @@ my_decimal *Item_func_floor::decimal_op(my_decimal *decimal_value)
                      value.round_to(decimal_value, 0, FLOOR) > 1)))
     return decimal_value;
   return 0;
+}
+
+
+bool Item_func_floor::date_op(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate)
+{
+  // DATETIME is not negative, so FLOOR means just truncation
+  Datetime::Options opt(thd, TIME_FRAC_TRUNCATE);
+  Datetime *tm= new (to) Datetime(thd, args[0], opt, 0);
+  null_value= !tm->is_valid_datetime();
+  DBUG_ASSERT(maybe_null || !null_value);
+  return null_value;
+}
+
+
+bool Item_func_floor::time_op(THD *thd, MYSQL_TIME *to)
+{
+  static const Time::Options_for_round opt;
+  Time *tm= new (to) Time(thd, args[0], opt);
+  tm->floor();
+  null_value= !tm->is_valid_time();
+  DBUG_ASSERT(maybe_null || !null_value);
+  return null_value;
 }
 
 
@@ -2540,9 +2583,7 @@ bool Item_func_round::time_op(THD *thd, MYSQL_TIME *to)
 {
   DBUG_ASSERT(args[0]->type_handler()->mysql_timestamp_type() ==
               MYSQL_TIMESTAMP_TIME);
-  Time::Options opt(Time::default_flags_for_get_date(),
-                    truncate ? TIME_FRAC_TRUNCATE : TIME_FRAC_ROUND,
-                    Time::DATETIME_TO_TIME_DISALLOW);
+  Time::Options_for_round opt(truncate ? TIME_FRAC_TRUNCATE : TIME_FRAC_ROUND);
   Longlong_hybrid_null dec= args[1]->to_longlong_hybrid_null();
   Time *tm= new (to) Time(thd, args[0], opt,
                           dec.to_uint(TIME_SECOND_PART_DIGITS));

@@ -1666,13 +1666,32 @@ public:
 };
 
 
-class Item_func_int_val :public Item_func_num1
+class Item_func_int_val :public Item_func_hybrid_field_type
 {
 public:
-  Item_func_int_val(THD *thd, Item *a): Item_func_num1(thd, a) {}
+  Item_func_int_val(THD *thd, Item *a): Item_func_hybrid_field_type(thd, a) {}
+  bool check_partition_func_processor(void *int_arg) { return FALSE; }
+  bool check_vcol_func_processor(void *arg) { return FALSE; }
   void fix_length_and_dec_double();
   void fix_length_and_dec_int_or_decimal();
+  void fix_length_and_dec_time()
+  {
+    fix_attributes_time(0);
+    set_handler(&type_handler_time2);
+  }
+  void fix_length_and_dec_datetime()
+  {
+    fix_attributes_datetime(0);
+    set_handler(&type_handler_datetime2);
+    maybe_null= true; // E.g. CEILING(TIMESTAMP'0000-01-01 23:59:59.9')
+  }
   bool fix_length_and_dec();
+  String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
+  bool native_op(THD *thd, Native *to)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
 };
 
 
@@ -1684,6 +1703,8 @@ public:
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_ceiling>(thd, this); }
 };
@@ -1697,6 +1718,8 @@ public:
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_floor>(thd, this); }
 };

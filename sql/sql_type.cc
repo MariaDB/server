@@ -980,7 +980,7 @@ bool Temporal::datetime_round_or_invalidate(THD *thd, uint dec, int *warn, ulong
   DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
   if (datetime_add_nanoseconds_or_invalidate(thd, warn, nsec))
     return true;
-  my_time_trunc(this, dec);
+  my_datetime_trunc(this, dec);
   return false;
 
 }
@@ -5732,6 +5732,22 @@ bool Type_handler_int_result::
 }
 
 
+bool Type_handler_typelib::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  item->fix_length_and_dec_int_or_decimal();
+  return false;
+}
+
+
+bool Type_handler_hex_hybrid::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  item->fix_length_and_dec_int_or_decimal();
+  return false;
+}
+
+
 bool Type_handler_real_result::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
@@ -5752,6 +5768,30 @@ bool Type_handler_temporal_result::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
   item->fix_length_and_dec_int_or_decimal();
+  return false;
+}
+
+
+bool Type_handler_time_common::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  item->fix_length_and_dec_time();
+  return false;
+}
+
+
+bool Type_handler_datetime_common::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  item->fix_length_and_dec_datetime();
+  return false;
+}
+
+
+bool Type_handler_timestamp_common::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  item->fix_length_and_dec_datetime();
   return false;
 }
 

@@ -233,9 +233,16 @@ static inline long my_time_fraction_remainder(long nr, uint decimals)
   DBUG_ASSERT(decimals <= TIME_SECOND_PART_DIGITS);
   return nr % (long) log_10_int[TIME_SECOND_PART_DIGITS - decimals];
 }
+static inline void my_datetime_trunc(MYSQL_TIME *ltime, uint decimals)
+{
+  ltime->second_part-= my_time_fraction_remainder(ltime->second_part, decimals);
+}
 static inline void my_time_trunc(MYSQL_TIME *ltime, uint decimals)
 {
   ltime->second_part-= my_time_fraction_remainder(ltime->second_part, decimals);
+  if (!ltime->second_part && ltime->neg &&
+      !ltime->hour && !ltime->minute && !ltime->second)
+    ltime->neg= FALSE;
 }
 static inline void my_timeval_trunc(struct timeval *tv, uint decimals)
 {
