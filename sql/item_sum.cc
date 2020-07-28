@@ -407,7 +407,7 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
     for (sl= thd->lex->current_select; 
          sl && sl != aggr_sel && sl->master_unit()->item;
          sl= sl->master_unit()->outer_select() )
-      sl->master_unit()->item->get_with_sum_func_cache()->set_with_sum_func();
+      sl->master_unit()->item->with_sum_func= 1;
   }
   thd->lex->current_select->mark_as_dependent(thd, aggr_sel, NULL);
 
@@ -488,6 +488,7 @@ void Item_sum::mark_as_sum_func()
   cur_select->n_sum_items++;
   cur_select->with_sum_func= 1;
   const_item_cache= false;
+  with_sum_func= 1;
   with_field= 0;
   window_func_sum_expr_flag= false;
 }
