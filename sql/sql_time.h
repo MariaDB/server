@@ -120,15 +120,18 @@ void make_truncated_value_warning(THD *thd,
                                   Sql_condition::enum_warning_level level,
                                   const ErrConv *str_val,
                                   timestamp_type time_type,
-                                  const TABLE_SHARE *s, const char *field_name);
+                                  const char *db_name, const char *table_name,
+                                  const char *field_name);
 
 static inline void make_truncated_value_warning(THD *thd,
                 Sql_condition::enum_warning_level level, const char *str_val,
                 uint str_length, timestamp_type time_type,
-                const TABLE_SHARE *s, const char *field_name)
+                const char *db_name, const char *table_name,
+                const char *field_name)
 {
   const ErrConvString str(str_val, str_length, &my_charset_bin);
-  make_truncated_value_warning(thd, level, &str, time_type, s, field_name);
+  make_truncated_value_warning(thd, level, &str, time_type, db_name, table_name,
+                               field_name);
 }
 
 extern DATE_TIME_FORMAT *date_time_format_make(timestamp_type format_type,

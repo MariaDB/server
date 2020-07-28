@@ -7338,7 +7338,7 @@ Item *create_temporal_literal(THD *thd,
       ErrConvString err(str, length, cs);
       make_truncated_value_warning(thd,
                                    Sql_condition::time_warn_level(status.warnings),
-                                   &err, ltime.time_type, 0, 0);
+                                   &err, ltime.time_type, NULL, NULL, NULL);
     }
     return item;
   }

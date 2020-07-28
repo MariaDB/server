@@ -11059,7 +11059,7 @@ void Field::set_datetime_warning(Sql_condition::enum_warning_level level,
   THD *thd= get_thd();
   if (thd->really_abort_on_warning() && level >= Sql_condition::WARN_LEVEL_WARN)
     make_truncated_value_warning(thd, level, str, ts_type,
-        table->s, field_name);
+        table->s->db.str, table->s->table_name.str, field_name);
   else
     set_warning(level, code, cuted_increment);
 }

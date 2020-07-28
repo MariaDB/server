@@ -430,7 +430,7 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
         make_truncated_value_warning(current_thd,
                                      Sql_condition::WARN_LEVEL_WARN,
                                      val_begin, length,
-				     cached_timestamp_type, 0, NullS);
+				     cached_timestamp_type, NULL, NULL, NULL);
 	break;
       }
     } while (++val != val_end);
@@ -1870,13 +1870,13 @@ overflow:
   {
     ErrConvInteger err2(sec, unsigned_flag);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &err2, MYSQL_TIMESTAMP_TIME, 0, NullS);
+                                 &err2, MYSQL_TIMESTAMP_TIME, NULL, NULL, NULL);
   }
   else
   {
     ErrConvString err2(err);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &err2, MYSQL_TIMESTAMP_TIME, 0, NullS);
+                                 &err2, MYSQL_TIMESTAMP_TIME, NULL, NULL, NULL);
   }
   return 0;
 }
@@ -2894,7 +2894,7 @@ bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     int len = (int)(ptr - buf) + sprintf(ptr, ":%02u:%02u", (uint)minute, (uint)second);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  buf, len, MYSQL_TIMESTAMP_TIME,
-                                 0, NullS);
+                                 NULL, NULL, NULL);
   }
 
   return (null_value= 0);

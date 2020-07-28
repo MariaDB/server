@@ -9952,7 +9952,8 @@ err_new_table_cleanup:
     thd->abort_on_warning= true;
     make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                  f_val, strlength(f_val), t_type,
-                                 new_table->s,
+                                 alter_ctx.new_db,
+                                 alter_ctx.new_name,
                                  alter_ctx.datetime_field->field_name);
     thd->abort_on_warning= save_abort_on_warning;
   }
