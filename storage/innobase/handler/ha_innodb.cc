@@ -20970,6 +20970,31 @@ bool ha_innobase::rowid_filter_push(Rowid_filter* pk_filter)
 	DBUG_RETURN(false);
 }
 
+static bool is_part_of_a_key_prefix(const Field_longstr *field)
+{
+  const TABLE_SHARE *s= field->table->s;
+
+  for (uint i= 0; i < s->keys; i++)
+  {
+    const KEY &key= s->key_info[i];
+    for (uint j= 0; j < key.user_defined_key_parts; j++)
+    {
+      const KEY_PART_INFO &info= key.key_part[j];
+      // When field is a part of some key, a key part and field will have the
+      // same length. And their length will be different when only some prefix
+      // of a field is used as a key part. That's what we're looking for here.
+      if (info.field->field_index == field->field_index &&
+          info.length != field->field_length)
+      {
+        DBUG_ASSERT(info.length < field->field_length);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 static bool
 is_part_of_a_primary_key(const Field* field)
 {
@@ -21004,6 +21029,11 @@ bool ha_innobase::can_convert_string(const Field_string *field,
     if (!field_cs.eq_collation_specific_names(new_type.charset))
       return !is_part_of_a_primary_key(field);
 
+    // Fully indexed case works instantly like
+    // Compare_keys::EqualButKeyPartLength. But prefix case isn't implemented.
+    if (is_part_of_a_key_prefix(field))
+	    return false;
+
     return true;
   }
 
@@ -21018,53 +21048,50 @@ supports_enlarging(const dict_table_t* table, const Field_varstring* field,
 	       || field->field_length > 255 || !table->not_redundant();
 }
 
-bool
-ha_innobase::can_convert_varstring(const Field_varstring* field,
-				   const Column_definition& new_type) const
+bool ha_innobase::can_convert_varstring(
+    const Field_varstring *field, const Column_definition &new_type) const
 {
-	if (new_type.length < field->field_length) {
-		return false;
-	}
+  if (new_type.length < field->field_length)
+    return false;
 
-	if (new_type.char_length < field->char_length()) {
-		return false;
-	}
+  if (new_type.char_length < field->char_length())
+    return false;
 
-	if (!new_type.compression_method() != !field->compression_method()) {
-		return false;
-	}
+  if (!new_type.compression_method() != !field->compression_method())
+    return false;
 
-	if (new_type.type_handler() != field->type_handler()) {
-		return false;
-	}
+  if (new_type.type_handler() != field->type_handler())
+    return false;
 
-	if (new_type.charset != field->charset()) {
-		if (!supports_enlarging(m_prebuilt->table, field, new_type)) {
-			return false;
-		}
+  if (new_type.charset != field->charset())
+  {
+    if (!supports_enlarging(m_prebuilt->table, field, new_type))
+      return false;
 
-		Charset field_cs(field->charset());
-		if (!field_cs.encoding_allows_reinterpret_as(
-			new_type.charset)) {
-			return false;
-		}
+    Charset field_cs(field->charset());
+    if (!field_cs.encoding_allows_reinterpret_as(new_type.charset))
+      return false;
 
-		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
-			return !is_part_of_a_primary_key(field);
-		}
+    if (!field_cs.eq_collation_specific_names(new_type.charset))
+      return !is_part_of_a_primary_key(field);
 
-		return true;
-	}
+    // Fully indexed case works instantly like
+    // Compare_keys::EqualButKeyPartLength. But prefix case isn't implemented.
+    if (is_part_of_a_key_prefix(field))
+      return false;
 
-	if (new_type.length != field->field_length) {
-		if (!supports_enlarging(m_prebuilt->table, field, new_type)) {
-			return false;
-		}
+    return true;
+  }
 
-		return true;
-	}
+  if (new_type.length != field->field_length)
+  {
+    if (!supports_enlarging(m_prebuilt->table, field, new_type))
+      return false;
 
-	return true;
+    return true;
+  }
+
+  return true;
 }
 
 static bool is_part_of_a_key(const Field_blob *field)
@@ -21105,6 +21132,11 @@ bool ha_innobase::can_convert_blob(const Field_blob *field,
 
     if (!field_cs.eq_collation_specific_names(new_type.charset))
       return !is_part_of_a_key(field);
+
+    // Fully indexed case works instantly like
+    // Compare_keys::EqualButKeyPartLength. But prefix case isn't implemented.
+    if (is_part_of_a_key_prefix(field))
+      return false;
 
     return true;
   }
