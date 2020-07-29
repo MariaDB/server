@@ -7130,6 +7130,17 @@ err:
 }
 
 
+static void check_grant_column_int(GRANT_TABLE *grant_table, const char *name,
+                                   uint length, ulong *want_access)
+{
+  if (grant_table)
+  {
+    GRANT_COLUMN *grant_column= column_hash_search(grant_table, name, length);
+    if (grant_column)
+      *want_access&= ~grant_column->rights;
+  }
+}
+
 /*
   Check column rights in given security context
 
@@ -7152,9 +7163,6 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
 			const char *db_name, const char *table_name,
 			const char *name, uint length,  Security_context *sctx)
 {
-  GRANT_TABLE *grant_table;
-  GRANT_TABLE *grant_table_role;
-  GRANT_COLUMN *grant_column;
   ulong want_access= grant->want_privilege & ~grant->privilege;
   DBUG_ENTER("check_grant_column");
   DBUG_PRINT("enter", ("table: %s  want_access: %lu", table_name, want_access));
@@ -7179,45 +7187,18 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
     grant->version= grant_version;		/* purecov: inspected */
   }
 
-  grant_table= grant->grant_table_user;
-  grant_table_role= grant->grant_table_role;
+  check_grant_column_int(grant->grant_table_user, name, length, &want_access);
+  check_grant_column_int(grant->grant_table_role, name, length, &want_access);
 
-  if (!grant_table && !grant_table_role)
-    goto err;
-
-  if (grant_table)
-  {
-    grant_column= column_hash_search(grant_table, name, length);
-    if (grant_column)
-    {
-      want_access&= ~grant_column->rights;
-    }
-  }
-  if (grant_table_role)
-  {
-    grant_column= column_hash_search(grant_table_role, name, length);
-    if (grant_column)
-    {
-      want_access&= ~grant_column->rights;
-    }
-  }
-  if (!want_access)
-  {
-    mysql_rwlock_unlock(&LOCK_grant);
-    DBUG_RETURN(0);
-  }
-
-err:
   mysql_rwlock_unlock(&LOCK_grant);
+  if (!want_access)
+    DBUG_RETURN(0);
+
   char command[128];
   get_privilege_desc(command, sizeof(command), want_access);
   /* TODO perhaps error should print current rolename aswell */
-  my_error(ER_COLUMNACCESS_DENIED_ERROR, MYF(0),
-           command,
-           sctx->priv_user,
-           sctx->host_or_ip,
-           name,
-           table_name);
+  my_error(ER_COLUMNACCESS_DENIED_ERROR, MYF(0), command, sctx->priv_user,
+           sctx->host_or_ip, name, table_name);
   DBUG_RETURN(1);
 }
 
