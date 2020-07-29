@@ -2228,6 +2228,7 @@ bool Item_func_int_val::fix_length_and_dec()
 longlong Item_func_ceiling::int_op()
 {
   switch (args[0]->result_type()) {
+  case STRING_RESULT: // hex hybrid
   case INT_RESULT:
     return val_int_from_item(args[0]);
   case DECIMAL_RESULT:
@@ -2286,6 +2287,7 @@ bool Item_func_ceiling::time_op(THD *thd, MYSQL_TIME *to)
 longlong Item_func_floor::int_op()
 {
   switch (args[0]->result_type()) {
+  case STRING_RESULT: // hex hybrid
   case INT_RESULT:
     return val_int_from_item(args[0]);
   case DECIMAL_RESULT:
@@ -2452,7 +2454,7 @@ void Item_func_round::fix_arg_int()
     {
       // Length can increase in some cases: ROUND(9,-1) -> 10
       int length_can_increase= MY_TEST(!truncate && val1.neg());
-      max_length= args[0]->max_length + length_can_increase;
+      max_length= args[0]->decimal_precision() + length_can_increase;
       // Here we can keep INT_RESULT
       unsigned_flag= args[0]->unsigned_flag;
       decimals= 0;

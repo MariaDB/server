@@ -5650,6 +5650,14 @@ bool Type_handler_int_result::
 }
 
 
+bool Type_handler_hex_hybrid::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  item->fix_arg_int();
+  return false;
+}
+
+
 bool Type_handler_real_result::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
@@ -5743,7 +5751,14 @@ bool Type_handler_typelib::
 bool Type_handler_hex_hybrid::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
-  item->fix_length_and_dec_int_or_decimal();
+  item->collation.set_numeric();
+  item->unsigned_flag= true;
+  item->max_length= item->arguments()[0]->decimal_precision();
+#if MARIADB_VERSION_ID < 100500
+  item->set_handler(type_handler_long_or_longlong(item->max_length));
+#else
+  item->set_handler(type_handler_long_or_longlong(item->max_length, true));
+#endif
   return false;
 }
 

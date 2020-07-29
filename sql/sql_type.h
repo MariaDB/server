@@ -6034,6 +6034,7 @@ public:
   const Name name() const { return m_name_hex_hybrid; }
   const Type_handler *cast_to_int_type_handler() const;
   const Type_handler *type_handler_for_system_time() const;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
 };
 
