@@ -3536,7 +3536,7 @@ uint32
 Type_handler_bit::Item_decimal_notation_int_digits(const Item *item)
                                                               const
 {
-  return Bit_decimal_notation_int_digits(item);
+  return Bit_decimal_notation_int_digits_by_nbits(item->max_length);
 }
 
 
@@ -3554,9 +3554,23 @@ Type_handler_general_purpose_int::Item_decimal_notation_int_digits(
     a divisor.
 */
 uint32
-Type_handler_bit::Bit_decimal_notation_int_digits(const Item *item)
+Type_handler_bit::Bit_decimal_notation_int_digits_by_nbits(uint nbits)
 {
-  return item->max_length/3+1;
+  DBUG_ASSERT(nbits > 0);
+  DBUG_ASSERT(nbits <= 64);
+  set_if_smaller(nbits, 64); // Safety
+  static uint ndigits[65]=
+  {0,
+   1,1,1,2,2,2,3,3,         // 1..8 bits
+   3,4,4,4,4,5,5,5,         // 9..16 bits
+   6,6,6,7,7,7,7,8,         // 17..24 bits
+   8,8,9,9,9,10,10,10,      // 25..32 bits
+   10,11,11,11,12,12,12,13, // 33..40 bits
+   13,13,13,14,14,14,15,15, // 41..48 bits
+   15,16,16,16,16,17,17,17, // 49..56 bits
+   18,18,18,19,19,19,19,20  // 57..64 bits
+  };
+  return ndigits[nbits];
 }
 
 /*************************************************************************/
@@ -5658,6 +5672,23 @@ bool Type_handler_hex_hybrid::
 }
 
 
+bool Type_handler_bit::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  uint nbits= item->arguments()[0]->max_length;
+  item->fix_length_and_dec_ulong_or_ulonglong_by_nbits(nbits);
+  return false;
+}
+
+
+bool Type_handler_typelib::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  item->fix_length_and_dec_long_or_longlong(5, true);
+  return false;
+}
+
+
 bool Type_handler_real_result::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
@@ -5740,10 +5771,19 @@ bool Type_handler_int_result::
 }
 
 
+bool Type_handler_bit::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  uint nbits= item->arguments()[0]->max_length;
+  item->fix_length_and_dec_ulong_or_ulonglong_by_nbits(nbits);
+  return false;
+}
+
+
 bool Type_handler_typelib::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
-  item->fix_length_and_dec_int_or_decimal();
+  item->fix_length_and_dec_long_or_longlong(5, true);
   return false;
 }
 
@@ -5751,14 +5791,8 @@ bool Type_handler_typelib::
 bool Type_handler_hex_hybrid::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
-  item->collation.set_numeric();
-  item->unsigned_flag= true;
-  item->max_length= item->arguments()[0]->decimal_precision();
-#if MARIADB_VERSION_ID < 100500
-  item->set_handler(type_handler_long_or_longlong(item->max_length));
-#else
-  item->set_handler(type_handler_long_or_longlong(item->max_length, true));
-#endif
+  uint nchars= item->arguments()[0]->decimal_precision();
+  item->fix_length_and_dec_long_or_longlong(nchars, true);
   return false;
 }
 

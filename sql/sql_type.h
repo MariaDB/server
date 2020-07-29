@@ -5147,7 +5147,7 @@ public:
   }
   uint32 max_display_length(const Item *item) const;
   uint32 Item_decimal_notation_int_digits(const Item *item) const;
-  static uint32 Bit_decimal_notation_int_digits(const Item *item); 
+  static uint32 Bit_decimal_notation_int_digits_by_nbits(uint nbits);
   uint32 calc_pack_length(uint32 length) const { return length / 8; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
@@ -5157,6 +5157,8 @@ public:
   {
     return print_item_value_csstr(thd, item, str);
   }
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
@@ -6271,6 +6273,7 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   const Type_handler *type_handler_for_item_field() const;
   const Type_handler *cast_to_int_type_handler() const;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,

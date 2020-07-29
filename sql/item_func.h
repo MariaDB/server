@@ -458,6 +458,29 @@ public:
   {
     Type_geometry_attributes::set_geometry_type(type);
   }
+  void fix_length_and_dec_long_or_longlong(uint char_length, bool unsigned_arg)
+  {
+    collation.set_numeric();
+    unsigned_flag= unsigned_arg;
+    max_length= char_length;
+#if MARIADB_VERSION_ID < 100500
+    set_handler(Type_handler::type_handler_long_or_longlong(char_length));
+#else
+    set_handler(Type_handler::type_handler_long_or_longlong(char_length,
+                                                            unsigned_arg));
+#endif
+  }
+  void fix_length_and_dec_ulong_or_ulonglong_by_nbits(uint nbits)
+  {
+    uint digits= Type_handler_bit::Bit_decimal_notation_int_digits_by_nbits(nbits);
+    collation.set_numeric();
+    unsigned_flag= true;
+    max_length= digits;
+    if (nbits > 32)
+      set_handler(&type_handler_longlong);
+    else
+      set_handler(&type_handler_long);
+  }
 };
 
 
@@ -1758,7 +1781,11 @@ public:
   void fix_arg_temporal(const Type_handler *h, uint int_part_length);
   bool fix_length_and_dec()
   {
-    return args[0]->type_handler()->Item_func_round_fix_length_and_dec(this);
+    /*
+      We don't want to translate ENUM/SET to CHAR here.
+      So let's real_type_handler(), not type_handler().
+    */
+    return args[0]->real_type_handler()->Item_func_round_fix_length_and_dec(this);
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_round>(thd, this); }

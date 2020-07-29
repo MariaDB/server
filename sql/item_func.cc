@@ -2218,9 +2218,13 @@ bool Item_func_int_val::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_int_val::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
-  if (args[0]->type_handler()->Item_func_int_val_fix_length_and_dec(this))
+  /*
+    We don't want to translate ENUM/SET to CHAR here.
+    So let's call real_type_handler(), not type_handler().
+  */
+  if (args[0]->real_type_handler()->Item_func_int_val_fix_length_and_dec(this))
     DBUG_RETURN(TRUE);
-  DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  DBUG_PRINT("info", ("Type: %s", real_type_handler()->name().ptr()));
   DBUG_RETURN(FALSE);
 }
 
