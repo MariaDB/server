@@ -7135,9 +7135,13 @@ static void check_grant_column_int(GRANT_TABLE *grant_table, const char *name,
 {
   if (grant_table)
   {
-    GRANT_COLUMN *grant_column= column_hash_search(grant_table, name, length);
-    if (grant_column)
-      *want_access&= ~grant_column->rights;
+    *want_access&= ~grant_table->privs;
+    if (*want_access & grant_table->cols)
+    {
+      GRANT_COLUMN *grant_column= column_hash_search(grant_table, name, length);
+      if (grant_column)
+        *want_access&= ~grant_column->rights;
+    }
   }
 }
 
