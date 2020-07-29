@@ -7,7 +7,7 @@ delete from test_user;
 insert ignore into test_user (Host,User) values (@name,@name);
 create table test_func select * from mysql.func;
 delete from test_func;
-insert ignore into test_func (name) values (@name);
+insert ignore into test_func (name, dl) values (@name, @name);
 create table test_tables_priv select * from mysql.tables_priv;
 delete from test_tables_priv;
 insert ignore into test_tables_priv (Host,Db,User,Table_name) values (@name,@name,@name,@name);

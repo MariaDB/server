@@ -104,9 +104,9 @@ user	CREATE ALGORITHM=UNDEFINED DEFINER=`mariadb.sys`@`localhost` SQL SECURITY D
 show create table func;
 Table	Create Table
 func	CREATE TABLE `func` (
-  `name` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `ret` tinyint(1) NOT NULL DEFAULT 0,
-  `dl` char(128) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `name` char(64) COLLATE utf8_bin NOT NULL CHECK (`name` <> ''),
+  `ret` tinyint(1) NOT NULL DEFAULT 0 CHECK (`ret` <> 3 and `ret` between 0 and 4),
+  `dl` char(128) COLLATE utf8_bin NOT NULL CHECK (`dl` <> ''),
   `type` enum('function','aggregate') CHARACTER SET utf8 NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8 COLLATE=utf8_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='User defined functions'

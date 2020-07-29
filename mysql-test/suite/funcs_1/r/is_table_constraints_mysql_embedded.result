@@ -11,7 +11,10 @@ def	mysql	PRIMARY	mysql	columns_priv	PRIMARY KEY
 def	mysql	PRIMARY	mysql	column_stats	PRIMARY KEY
 def	mysql	PRIMARY	mysql	db	PRIMARY KEY
 def	mysql	PRIMARY	mysql	event	PRIMARY KEY
+def	mysql	dl	mysql	func	CHECK
+def	mysql	name	mysql	func	CHECK
 def	mysql	PRIMARY	mysql	func	PRIMARY KEY
+def	mysql	ret	mysql	func	CHECK
 def	mysql	PRIMARY	mysql	global_priv	PRIMARY KEY
 def	mysql	Priv	mysql	global_priv	CHECK
 def	mysql	PRIMARY	mysql	gtid_slave_pos	PRIMARY KEY
@@ -49,7 +52,10 @@ def	mysql	PRIMARY	mysql	columns_priv	PRIMARY KEY
 def	mysql	PRIMARY	mysql	column_stats	PRIMARY KEY
 def	mysql	PRIMARY	mysql	db	PRIMARY KEY
 def	mysql	PRIMARY	mysql	event	PRIMARY KEY
+def	mysql	dl	mysql	func	CHECK
+def	mysql	name	mysql	func	CHECK
 def	mysql	PRIMARY	mysql	func	PRIMARY KEY
+def	mysql	ret	mysql	func	CHECK
 def	mysql	PRIMARY	mysql	global_priv	PRIMARY KEY
 def	mysql	Priv	mysql	global_priv	CHECK
 def	mysql	PRIMARY	mysql	gtid_slave_pos	PRIMARY KEY

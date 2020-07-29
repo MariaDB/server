@@ -65,8 +65,8 @@ def	mysql	event	sql_mode	15	''	NO	set	561	1683	NULL	NULL	NULL	utf8	utf8_general_
 def	mysql	event	starts	11	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select,insert,update,references		NEVER	NULL
 def	mysql	event	status	13	'ENABLED'	NO	enum	18	54	NULL	NULL	NULL	utf8	utf8_general_ci	enum('ENABLED','DISABLED','SLAVESIDE_DISABLED')			select,insert,update,references		NEVER	NULL
 def	mysql	event	time_zone	18	'SYSTEM'	NO	char	64	64	NULL	NULL	NULL	latin1	latin1_swedish_ci	char(64)			select,insert,update,references		NEVER	NULL
-def	mysql	func	dl	3	''	NO	char	128	384	NULL	NULL	NULL	utf8	utf8_bin	char(128)			select,insert,update,references		NEVER	NULL
-def	mysql	func	name	1	''	NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	char(64)	PRI		select,insert,update,references		NEVER	NULL
+def	mysql	func	dl	3	NULL	NO	char	128	384	NULL	NULL	NULL	utf8	utf8_bin	char(128)			select,insert,update,references		NEVER	NULL
+def	mysql	func	name	1	NULL	NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	char(64)	PRI		select,insert,update,references		NEVER	NULL
 def	mysql	func	ret	2	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(1)			select,insert,update,references		NEVER	NULL
 def	mysql	func	type	4	NULL	NO	enum	9	27	NULL	NULL	NULL	utf8	utf8_general_ci	enum('function','aggregate')			select,insert,update,references		NEVER	NULL
 def	mysql	general_log	argument	6	NULL	NO	mediumtext	16777215	16777215	NULL	NULL	NULL	utf8	utf8_general_ci	mediumtext			select,insert,update,references		NEVER	NULL

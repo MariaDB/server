@@ -62,7 +62,10 @@ def	mysql	PRIMARY	mysql	columns_priv
 def	mysql	PRIMARY	mysql	column_stats
 def	mysql	PRIMARY	mysql	db
 def	mysql	PRIMARY	mysql	event
+def	mysql	dl	mysql	func
+def	mysql	name	mysql	func
 def	mysql	PRIMARY	mysql	func
+def	mysql	ret	mysql	func
 def	mysql	PRIMARY	mysql	global_priv
 def	mysql	Priv	mysql	global_priv
 def	mysql	PRIMARY	mysql	gtid_slave_pos
