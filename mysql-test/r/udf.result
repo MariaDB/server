@@ -479,3 +479,17 @@ myfunc_int(max(a) over (order by b) , b)
 drop view v1;
 drop function myfunc_int;
 drop table t1;
+#
+# MDEV-23327: Can't uninstall UDF if the implementation library
+# file doesn't exist
+#
+insert into  mysql.func values ("unexisting_udf", 0, "soname", "function");
+select * from mysql.func WHERE name='unexisting_udf';
+name	ret	dl	type
+unexisting_udf	0	soname	function
+DROP FUNCTION unexisting_udf;
+select * from mysql.plugin WHERE name='unexisting_udf';
+name	dl
+DROP FUNCTION unexisting_udf;
+ERROR 42000: FUNCTION test.unexisting_udf does not exist
+# End of 10.2 tests

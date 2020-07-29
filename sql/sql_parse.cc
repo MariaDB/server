@@ -5623,23 +5623,20 @@ mysql_execute_command(THD *thd)
           ! lex->spname->m_explicit_name)
       {
         /* DROP FUNCTION <non qualified name> */
-        udf_func *udf = find_udf(lex->spname->m_name.str,
-                                 lex->spname->m_name.length);
-        if (udf)
+        enum drop_udf_result rc= mysql_drop_function(thd,
+                                                     &lex->spname->m_name);
+        if (rc == UDF_DEL_RESULT_DELETED)
         {
-          if (check_access(thd, DELETE_ACL, "mysql", NULL, NULL, 1, 0))
-            goto error;
-
-          if (!(res = mysql_drop_function(thd, &lex->spname->m_name)))
-          {
-            my_ok(thd);
-            break;
-          }
-          my_error(ER_SP_DROP_FAILED, MYF(0),
-                   "FUNCTION (UDF)", lex->spname->m_name.str);
-          goto error;
+          my_ok(thd);
+          break;
         }
 
+        if (rc == UDF_DEL_RESULT_ERROR)
+          goto error;
+
+        DBUG_ASSERT(rc == UDF_DEL_RESULT_ABSENT);
+
+        // If there was no current database, so it can not be SP
         if (lex->spname->m_db.str == NULL)
         {
           if (lex->if_exists())
