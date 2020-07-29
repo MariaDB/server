@@ -3799,7 +3799,7 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   {
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
-    m_with_subquery|= args[i]->with_subquery();
+    with_subquery|= args[i]->with_subquery;
     with_param|= args[i]->with_param;
     with_window_func|= args[i]->with_window_func;
   }

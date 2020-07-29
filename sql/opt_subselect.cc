@@ -1776,7 +1776,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
   // The subqueries were replaced for Item_int(1) earlier
   subq_pred->reset_strategy(SUBS_SEMI_JOIN);       // for subsequent executions
-  /*TODO: also reset the 'm_with_subquery' there. */
+  /*TODO: also reset the 'with_subquery' there. */
 
   /* n. Adjust the parent_join->table_count counter */
   uint table_no= parent_join->table_count;

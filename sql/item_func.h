@@ -346,7 +346,7 @@ public:
 
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   {
-    if (has_rand_bit() || with_subquery())
+    if (has_rand_bit() || has_subquery())
       return false;
     return Item_args::excl_dep_on_grouping_fields(sel);
   }

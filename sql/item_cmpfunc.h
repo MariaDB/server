@@ -366,7 +366,7 @@ public:
   Item_in_optimizer(THD *thd, Item *a, Item *b):
     Item_bool_func(thd, a, b), cache(0), expr_cache(0),
     save_cache(0), result_for_null_param(UNKNOWN)
-  { m_with_subquery= true; }
+  { with_subquery= true; }
   bool fix_fields(THD *, Item **) override;
   bool fix_left(THD *thd);
   table_map not_null_tables() const override { return 0; }

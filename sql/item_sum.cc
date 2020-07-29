@@ -1124,7 +1124,7 @@ Item_sum_num::fix_fields(THD *thd, Item **ref)
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
     set_if_bigger(decimals, args[i]->decimals);
-    m_with_subquery|= args[i]->with_subquery();
+    with_subquery|= args[i]->with_subquery;
     with_param|= args[i]->with_param;
     with_window_func|= args[i]->with_window_func;
   }
@@ -1155,7 +1155,7 @@ Item_sum_min_max::fix_fields(THD *thd, Item **ref)
   if (args[0]->fix_fields_if_needed_for_scalar(thd, &args[0]))
     DBUG_RETURN(TRUE);
 
-  m_with_subquery= args[0]->with_subquery();
+  with_subquery= args[0]->with_subquery;
   with_param= args[0]->with_param;
   with_window_func|= args[0]->with_window_func;
 
@@ -1357,7 +1357,7 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
     set_if_bigger(decimals, args[i]->decimals);
-    m_with_subquery|= args[i]->with_subquery();
+    with_subquery|= args[i]->with_subquery;
     with_window_func|= args[i]->with_window_func;
   }
   result_field= NULL;
@@ -4229,7 +4229,7 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
   {
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
-    m_with_subquery|= args[i]->with_subquery();
+    with_subquery|= args[i]->with_subquery;
     with_param|= args[i]->with_param;
     with_window_func|= args[i]->with_window_func;
   }

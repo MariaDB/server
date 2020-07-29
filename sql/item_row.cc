@@ -64,7 +64,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
     with_sum_func= with_sum_func || item->with_sum_func;
     with_window_func = with_window_func || item->with_window_func;
     with_field= with_field || item->with_field;
-    m_with_subquery|= item->with_subquery();
+    with_subquery|= item->with_subquery;
     with_param|= item->with_param;
   }
   fixed= 1;
