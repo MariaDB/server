@@ -911,6 +911,9 @@ extern MYSQL_PLUGIN_IMPORT my_crc32_t my_checksum;
 
 #if defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
 int crc32_aarch64_available(void);
+#if defined(HAVE_ARMV8_CRYPTO)
+int crc32c_aarch64_available(void);
+#endif
 #endif
 
 #ifdef DBUG_ASSERT_EXISTS
