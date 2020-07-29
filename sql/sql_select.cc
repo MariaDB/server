@@ -1930,10 +1930,10 @@ JOIN::optimize_inner()
   if (optimize_constant_subqueries())
     DBUG_RETURN(1);
 
-  if (conds && conds->with_subquery())
+  if (conds && conds->has_subquery())
     (void) conds->walk(&Item::cleanup_is_expensive_cache_processor,
                        0, (void *) 0);
-  if (having && having->with_subquery())
+  if (having && having->has_subquery())
     (void) having->walk(&Item::cleanup_is_expensive_cache_processor,
 			0, (void *) 0);
 
@@ -13629,7 +13629,7 @@ bool JOIN_TAB::pfs_batch_update(JOIN *join)
 
   return join->join_tab + join->table_count - 1 == this &&              // 1
          type != JT_EQ_REF && type != JT_CONST  && type != JT_SYSTEM && // 2
-         (!select_cond || !select_cond->with_subquery());               // 3
+         (!select_cond || !select_cond->has_subquery());               // 3
 }
 
 
@@ -14209,7 +14209,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
       *simple_order=0;				// Must do a temp table to sort
     else if (!(order_tables & not_const_tables))
     {
-      if (order->item[0]->with_subquery())
+      if (order->item[0]->has_subquery())
       {
         /*
           Delay the evaluation of constant ORDER and/or GROUP expressions that

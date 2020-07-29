@@ -67,6 +67,7 @@ Item_subselect::Item_subselect(THD *thd_arg):
 #ifndef DBUG_OFF
   exec_counter= 0;
 #endif
+  with_subquery= 1;
   reset();
   /*
     Item value is NULL if select_result_interceptor didn't change this value
@@ -2844,7 +2845,7 @@ static bool check_equality_for_exist2in(Item_func *func,
   if (args[0]->real_type() == Item::FIELD_ITEM &&
       args[0]->all_used_tables() != OUTER_REF_TABLE_BIT &&
       args[1]->all_used_tables() == OUTER_REF_TABLE_BIT &&
-      (allow_subselect || !args[1]->with_subquery()))
+      (allow_subselect || !args[1]->with_subquery))
   {
     /* It is Item_field or Item_direct_view_ref) */
     DBUG_ASSERT(args[0]->type() == Item::FIELD_ITEM ||
@@ -2856,7 +2857,7 @@ static bool check_equality_for_exist2in(Item_func *func,
   else if (args[1]->real_type() == Item::FIELD_ITEM &&
            args[1]->all_used_tables() != OUTER_REF_TABLE_BIT &&
            args[0]->all_used_tables() == OUTER_REF_TABLE_BIT &&
-           (allow_subselect || !args[0]->with_subquery()))
+           (allow_subselect || !args[0]->with_subquery))
   {
     /* It is Item_field or Item_direct_view_ref) */
     DBUG_ASSERT(args[1]->type() == Item::FIELD_ITEM ||

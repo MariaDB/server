@@ -345,13 +345,11 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
     with_window_func|= args[i]->with_window_func;
+    with_subquery|= args[i]->with_subquery;
   }
 
-  for (uint i= 0; i < arg_count && !m_with_subquery; i++)
-    m_with_subquery|= args[i]->with_subquery();
-
   if (fix_length_and_dec())
-    return true;
+    return TRUE;
 
   setup_hybrid(thd, args[0]);
   result_field=0;

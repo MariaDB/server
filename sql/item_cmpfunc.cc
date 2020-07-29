@@ -1389,7 +1389,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   }
   if (args[1]->maybe_null)
     maybe_null=1;
-  m_with_subquery= true;
+  with_subquery= 1;
   with_sum_func= with_sum_func || args[1]->with_sum_func;
   with_field= with_field || args[1]->with_field;
   with_param= args[0]->with_param || args[1]->with_param; 
@@ -4942,7 +4942,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     with_sum_func|=    item->with_sum_func;
     with_param|=       item->with_param;
     with_field|=       item->with_field;
-    m_with_subquery|=  item->with_subquery();
+    with_subquery|=   item->with_subquery;
     with_window_func|= item->with_window_func;
     maybe_null|=       item->maybe_null;
   }
@@ -7054,7 +7054,7 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
     used_tables_cache|= item->used_tables();
     tmp_table_map= item->not_null_tables();
     not_null_tables_cache|= tmp_table_map;
-    DBUG_ASSERT(!item->with_sum_func && !item->with_subquery());
+    DBUG_ASSERT(!item->with_sum_func && !item->with_subquery);
     if (item->maybe_null)
       maybe_null= 1;
     if (!item->get_item_equal())
