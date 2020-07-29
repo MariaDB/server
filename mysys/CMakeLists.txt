@@ -90,7 +90,8 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
       __asm__(\"pmull  v2.1q,          v2.1d,  v1.1d\");
       return ret;
     }
-    int main() { foo(0); }" HAVE_ARMV8_CRYPTO)
+    #include <sys/auxv.h>
+    int main() { foo(0); getauxval(AT_HWCAP); }" HAVE_ARMV8_CRYPTO)
 
     CHECK_C_COMPILER_FLAG(-march=armv8-a+crc+crypto HAVE_ARMV8_CRC_CRYPTO_INTRINSICS)
     IF(HAVE_ARMV8_CRC_CRYPTO_INTRINSICS)

@@ -18,7 +18,20 @@ int crc32_aarch64_available(void)
   unsigned long auxv= getauxval(AT_HWCAP);
   return (auxv & HWCAP_CRC32) != 0;
 }
+
+#if defined(HAVE_ARMV8_CRYPTO)
+
+#ifndef HWCAP_PMULL
+#define HWCAP_PMULL (1 << 4)
 #endif
+
+/* Check if target ARM machine support crc32 + pmull for computing crc32c */
+int crc32c_aarch64_available(void)
+{
+  return !(~getauxval(AT_HWCAP) & (HWCAP_CRC32 | HWCAP_PMULL));
+}
+#endif /* HAVE_ARMV8_CRYPTO */
+#endif /* HAVE_ARMV8_CRC */
 
 #ifndef HAVE_ARMV8_CRC_CRYPTO_INTRINSICS
 
