@@ -35,3 +35,19 @@ SELECT metaphon('mariadb');
 
 DROP FUNCTION metaphon;
 DROP FUNCTION IF EXISTS metaphon;
+
+--echo #
+--echo # MDEV-23299
+--echo #
+INSERT into mysql.func(name, ret, dl) values('example', 0, 'example.so');
+
+--error ER_CONSTRAINT_FAILED 
+INSERT into mysql.func(name, ret, dl) values('', 0, 'example.so');
+
+--error ER_CONSTRAINT_FAILED 
+INSERT into mysql.func(name, ret, dl) values('example', 6, 'example.so');
+
+--error ER_CONSTRAINT_FAILED 
+INSERT into mysql.func(name, ret, dl) values('example', 0, '');
+
+DELETE from mysql.func;

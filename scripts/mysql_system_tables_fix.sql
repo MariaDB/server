@@ -115,6 +115,14 @@ ALTER TABLE columns_priv
 ALTER TABLE func add type enum ('function','aggregate') COLLATE utf8_general_ci NOT NULL;
 
 #
+# Add CHECK for 'name','ret','dl' field.
+#
+
+ALTER TABLE func MODIFY name char(64) COLLATE utf8_bin NOT NULL CHECK (name <> '');
+ALTER TABLE func MODIFY ret tinyint(1) DEFAULT '0' NOT NULL CHECK (ret < 5 and ret >= 0 and ret <> 3);
+ALTER TABLE func MODIFY dl char(128) COLLATE utf8_bin NOT NULL CHECK (dl <> '');
+
+#
 #  Change the user,db and host tables to current format
 #
 

@@ -102,7 +102,7 @@ set @had_user_table= @@warning_count != 0;
 
 CREATE TABLE IF NOT EXISTS roles_mapping ( Host char(60) binary DEFAULT '' NOT NULL, User char(80) binary DEFAULT '' NOT NULL, Role char(80) binary DEFAULT '' NOT NULL, Admin_option enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, UNIQUE (Host, User, Role)) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='Granted roles';
 
-CREATE TABLE IF NOT EXISTS func (  name char(64) binary DEFAULT '' NOT NULL, ret tinyint(1) DEFAULT '0' NOT NULL, dl char(128) DEFAULT '' NOT NULL, type enum ('function','aggregate') COLLATE utf8_general_ci NOT NULL, PRIMARY KEY (name) ) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin   comment='User defined functions';
+CREATE TABLE IF NOT EXISTS func (  name char(64) COLLATE utf8_bin NOT NULL CHECK (name <> ''), ret tinyint(1) DEFAULT '0' NOT NULL CHECK (ret < 5 and ret >= 0 and ret <> 3), dl char(128) COLLATE utf8_bin NOT NULL CHECK (dl <> ''), type enum ('function','aggregate') COLLATE utf8_general_ci NOT NULL, PRIMARY KEY (name) ) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin   comment='User defined functions';
 
 
 CREATE TABLE IF NOT EXISTS plugin ( name varchar(64) DEFAULT '' NOT NULL, dl varchar(128) DEFAULT '' NOT NULL, PRIMARY KEY (name) ) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_general_ci comment='MySQL plugins';
