@@ -37,13 +37,15 @@ DROP FUNCTION IF EXISTS metaphon;
 Warnings:
 Note	1305	FUNCTION test.metaphon does not exist
 #
-# MDEV-23299
+# MDEV-23299 The udf_init() function cause server crash.
 #
 INSERT into mysql.func(name, ret, dl) values('example', 0, 'example.so');
+INSERT into mysql.func(ret) values(0);
+ERROR HY000: Field 'name' doesn't have a default value
 INSERT into mysql.func(name, ret, dl) values('', 0, 'example.so');
 ERROR 23000: CONSTRAINT `func.name` failed for `mysql`.`func`
 INSERT into mysql.func(name, ret, dl) values('example', 6, 'example.so');
 ERROR 23000: CONSTRAINT `func.ret` failed for `mysql`.`func`
 INSERT into mysql.func(name, ret, dl) values('example', 0, '');
 ERROR 23000: CONSTRAINT `func.dl` failed for `mysql`.`func`
-DELETE from mysql.func;
+DELETE from mysql.func WHERE name='example';

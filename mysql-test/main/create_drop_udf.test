@@ -37,17 +37,20 @@ DROP FUNCTION metaphon;
 DROP FUNCTION IF EXISTS metaphon;
 
 --echo #
---echo # MDEV-23299
+--echo # MDEV-23299 The udf_init() function cause server crash.
 --echo #
 INSERT into mysql.func(name, ret, dl) values('example', 0, 'example.so');
 
---error ER_CONSTRAINT_FAILED 
+--error ER_NO_DEFAULT_FOR_FIELD
+INSERT into mysql.func(ret) values(0);
+
+--error ER_CONSTRAINT_FAILED
 INSERT into mysql.func(name, ret, dl) values('', 0, 'example.so');
 
---error ER_CONSTRAINT_FAILED 
+--error ER_CONSTRAINT_FAILED
 INSERT into mysql.func(name, ret, dl) values('example', 6, 'example.so');
 
---error ER_CONSTRAINT_FAILED 
+--error ER_CONSTRAINT_FAILED
 INSERT into mysql.func(name, ret, dl) values('example', 0, '');
 
-DELETE from mysql.func;
+DELETE from mysql.func WHERE name='example';

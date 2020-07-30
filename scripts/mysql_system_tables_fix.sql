@@ -109,18 +109,14 @@ ALTER TABLE columns_priv
     COLLATE utf8_general_ci DEFAULT '' NOT NULL;
 
 #
-#  Add the new 'type' column to the func table.
-#
-
-ALTER TABLE func add type enum ('function','aggregate') COLLATE utf8_general_ci NOT NULL;
-
-#
 # Add CHECK for 'name','ret','dl' field.
 #
+DELETE FROM func WHERE name='' OR ret=3 OR NOT ret BETWEEN 0 AND 4 OR dl='';
 
-ALTER TABLE func MODIFY name char(64) COLLATE utf8_bin NOT NULL CHECK (name <> '');
-ALTER TABLE func MODIFY ret tinyint(1) DEFAULT '0' NOT NULL CHECK (ret < 5 and ret >= 0 and ret <> 3);
-ALTER TABLE func MODIFY dl char(128) COLLATE utf8_bin NOT NULL CHECK (dl <> '');
+ALTER TABLE func
+MODIFY name char(64) binary NOT NULL CHECK (name <> ''),
+MODIFY ret tinyint(1) DEFAULT '0' NOT NULL CHECK (ret <>3 AND ret BETWEEN 0 AND 4),
+MODIFY dl char(128) NOT NULL CHECK (dl <> '');
 
 #
 #  Change the user,db and host tables to current format
