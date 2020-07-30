@@ -611,7 +611,7 @@ trx_rollback_active(
 
 	if (trx->error_state != DB_SUCCESS) {
 		ut_ad(trx->error_state == DB_INTERRUPTED);
-		ut_ad(!srv_is_being_started);
+		ut_ad(srv_shutdown_state != SRV_SHUTDOWN_NONE);
 		ut_ad(!srv_undo_sources);
 		ut_ad(srv_fast_shutdown);
 		ut_ad(!dictionary_locked);
@@ -701,7 +701,7 @@ func_exit:
 		trx_free_resurrected(trx);
 		return(TRUE);
 	case TRX_STATE_ACTIVE:
-		if (!srv_is_being_started
+		if (srv_shutdown_state != SRV_SHUTDOWN_NONE
 		    && !srv_undo_sources && srv_fast_shutdown) {
 fake_prepared:
 			trx->state = TRX_STATE_PREPARED;
