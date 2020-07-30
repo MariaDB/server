@@ -3475,13 +3475,15 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
            table->key_info->key_length);
 
   if (table->file->ha_index_read_idx_map(table->record[0], 0, user_key,
-                                         HA_WHOLE_KEY,
-                                         HA_READ_KEY_EXACT))
+                                         HA_WHOLE_KEY, HA_READ_KEY_EXACT))
   {
     /* what == 'N' means revoke */
     if (what == 'N')
     {
-      my_error(ER_NONEXISTING_GRANT, MYF(0), combo.user.str, combo.host.str);
+      if (combo.host.length)
+        my_error(ER_NONEXISTING_GRANT, MYF(0), combo.user.str, combo.host.str);
+      else
+        my_error(ER_INVALID_ROLE, MYF(0), combo.user.str);
       goto end;
     }
     /*

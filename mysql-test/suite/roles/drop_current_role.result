@@ -2,4 +2,4 @@ create role r;
 set role r;
 drop role r;
 revoke all on *.* from current_role;
-ERROR 42000: There is no such grant defined for user 'r' on host ''
+ERROR OP000: Invalid role specification `r`.
