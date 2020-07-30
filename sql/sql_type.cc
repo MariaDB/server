@@ -5659,7 +5659,15 @@ bool Type_handler_row::
 bool Type_handler_int_result::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int();
+  item->fix_arg_int(this);
+  return false;
+}
+
+
+bool Type_handler_year::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  item->fix_arg_int(&type_handler_long); // 10.5 merge: fix to type_handler_ulong
   return false;
 }
 
@@ -5667,7 +5675,7 @@ bool Type_handler_int_result::
 bool Type_handler_hex_hybrid::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int();
+  item->fix_arg_int(NULL);
   return false;
 }
 
@@ -5766,7 +5774,17 @@ bool Type_handler_row::
 bool Type_handler_int_result::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
-  item->fix_length_and_dec_int_or_decimal();
+  item->Type_std_attributes::set(item->arguments()[0]);
+  item->set_handler(this);
+  return false;
+}
+
+
+bool Type_handler_year::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  item->Type_std_attributes::set(item->arguments()[0]);
+  item->set_handler(&type_handler_long);
   return false;
 }
 

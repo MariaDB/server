@@ -5124,6 +5124,8 @@ public:
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   void Item_get_date(THD *thd, Item *item, Temporal::Warn *warn,
                      MYSQL_TIME *ltime,  date_mode_t fuzzydate) const;
   void Item_func_hybrid_field_type_get_date(THD *,

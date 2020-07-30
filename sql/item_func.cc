@@ -2446,8 +2446,24 @@ void Item_func_round::fix_arg_datetime()
 }
 
 
-void Item_func_round::fix_arg_int()
+/**
+  Calculate data type and attributes for INT-alike input.
+
+  @param [IN] preferred - The preferred data type handler for simple cases
+                          such as ROUND(x) and TRUNCATE(x,0), when the input
+                          is short enough to fit into an integer type
+                          (without extending to DECIMAL).
+                          - If `preferred` is not NULL, then the code tries
+                            to preserve the given data type handler and
+                            data type attributes of the argument.
+                          - If `preferred` is NULL, then the code fully
+                            calculates attributes using
+                            args[0]->decimal_precision() and chooses between
+                            INT and BIGINT, depending on attributes.
+*/
+void Item_func_round::fix_arg_int(const Type_handler *preferred)
 {
+  DBUG_ASSERT(args[0]->decimals == 0);
   if (args[1]->const_item())
   {
     Longlong_hybrid val1= args[1]->to_longlong_hybrid();
@@ -2456,13 +2472,35 @@ void Item_func_round::fix_arg_int()
     else if ((!val1.to_uint(DECIMAL_MAX_SCALE) && truncate) ||
              args[0]->decimal_precision() < DECIMAL_LONGLONG_DIGITS)
     {
+      // Here we can keep INT_RESULT
       // Length can increase in some cases: ROUND(9,-1) -> 10
       int length_can_increase= MY_TEST(!truncate && val1.neg());
-      max_length= args[0]->decimal_precision() + length_can_increase;
-      // Here we can keep INT_RESULT
-      unsigned_flag= args[0]->unsigned_flag;
-      decimals= 0;
-      set_handler(type_handler_long_or_longlong());
+      if (preferred)
+      {
+        Type_std_attributes::set(args[0]);
+        if (!length_can_increase)
+        {
+          // Preserve the exact data type and attributes
+          set_handler(preferred);
+        }
+        else
+        {
+          max_length++;
+          set_handler(type_handler_long_or_longlong());
+        }
+      }
+      else
+      {
+        /*
+          This branch is currently used for hex hybrid only.
+          It's known to be unsigned. So sign length is 0.
+        */
+        DBUG_ASSERT(args[0]->unsigned_flag); // no needs to add sign length
+        max_length= args[0]->decimal_precision() + length_can_increase;
+        unsigned_flag= true;
+        decimals= 0;
+        set_handler(type_handler_long_or_longlong());
+      }
     }
     else
       fix_length_and_dec_decimal(val1.to_uint(DECIMAL_MAX_SCALE));
