@@ -563,11 +563,11 @@ bool Sql_cmd_alter_table_exchange_partition::
   part_table= table_list->table;
   swap_table= swap_table_list->table;
 
-  if (part_table->file->check_if_updates_are_ignored("ALTER"))
-    DBUG_RETURN(return_with_logging(thd));
-
   if (unlikely(check_exchange_partition(swap_table, part_table)))
     DBUG_RETURN(TRUE);
+
+  if (part_table->file->check_if_updates_are_ignored("ALTER"))
+    DBUG_RETURN(return_with_logging(thd));
 
   /* Add IF EXISTS to binlog if shared table */
   if (part_table->file->partition_ht()->flags &
