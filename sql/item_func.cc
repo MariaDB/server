@@ -6170,12 +6170,12 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
   }
 
   if (join_key && !no_order)
-    flags|=FT_SORTED;
+    match_flags|=FT_SORTED;
 
   if (key != NO_SUCH_KEY)
     THD_STAGE_INFO(table->in_use, stage_fulltext_initialization);
 
-  ft_handler= table->file->ft_init_ext(flags, key, ft_tmp);
+  ft_handler= table->file->ft_init_ext(match_flags, key, ft_tmp);
 
   if (join_key)
     table->file->ft_handler=ft_handler;
@@ -6286,7 +6286,7 @@ bool Item_func_match::fix_index()
   for (keynr=0 ; keynr < table->s->keys ; keynr++)
   {
     if ((table->key_info[keynr].flags & HA_FULLTEXT) &&
-        (flags & FT_BOOL ? table->keys_in_use_for_query.is_set(keynr) :
+        (match_flags & FT_BOOL ? table->keys_in_use_for_query.is_set(keynr) :
                            table->s->keys_in_use.is_set(keynr)))
 
     {
@@ -6363,7 +6363,7 @@ bool Item_func_match::eq(const Item *item, bool binary_cmp) const
 {
   if (item->type() != FUNC_ITEM ||
       ((Item_func*)item)->functype() != FT_FUNC ||
-      flags != ((Item_func_match*)item)->flags)
+      match_flags != ((Item_func_match*)item)->match_flags)
     return 0;
 
   Item_func_match *ifm=(Item_func_match*) item;
@@ -6411,9 +6411,9 @@ void Item_func_match::print(String *str, enum_query_type query_type)
   print_args(str, 1, query_type);
   str->append(STRING_WITH_LEN(" against ("));
   args[0]->print(str, query_type);
-  if (flags & FT_BOOL)
+  if (match_flags & FT_BOOL)
     str->append(STRING_WITH_LEN(" in boolean mode"));
-  else if (flags & FT_EXPAND)
+  else if (match_flags & FT_EXPAND)
     str->append(STRING_WITH_LEN(" with query expansion"));
   str->append(STRING_WITH_LEN("))"));
 }
