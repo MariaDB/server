@@ -29,6 +29,7 @@ SET DEBUG_SYNC='foreign_constraint_check_for_update SIGNAL fk WAIT_FOR go';
 DELETE FROM parent;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR fk';
+SET lock_wait_timeout=1;
 TRUNCATE TABLE child;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET DEBUG_SYNC='now SIGNAL go';
