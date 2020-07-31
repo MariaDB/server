@@ -12,6 +12,6 @@ SET GLOBAL innodb_flush_log_at_trx_commit=1;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 disconnect con0;
 connection default;
-SELECT * FROM t0 LOCK IN SHARE MODE;
+SELECT * FROM t0 LIMIT 0 LOCK IN SHARE MODE;
 a
 DROP TABLE t0,t1;

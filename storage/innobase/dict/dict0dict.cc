@@ -5705,6 +5705,7 @@ dict_set_corrupted_index_cache_only(
 	is corrupted */
 	if (dict_index_is_clust(index)) {
 		index->table->corrupted = TRUE;
+		index->table->file_unreadable = true;
 	}
 
 	index->type |= DICT_CORRUPT;

@@ -638,6 +638,7 @@ btr_cur_optimistic_latch_leaves(
 {
 	ulint		mode;
 	ulint		left_page_no;
+	ulint		curr_page_no;
 
 	switch (*latch_mode) {
 	case BTR_SEARCH_LEAF:
@@ -664,17 +665,33 @@ btr_cur_optimistic_latch_leaves(
 
 			goto unpin_failed;
 		}
+
+		curr_page_no = block->page.id.page_no();
 		left_page_no = btr_page_get_prev(
 			buf_block_get_frame(block));
 		rw_lock_s_unlock(&block->lock);
 
 		if (left_page_no != FIL_NULL) {
-			cursor->left_block = btr_block_get(
+			dberr_t	err = DB_SUCCESS;
+			cursor->left_block = buf_page_get_gen(
 				page_id_t(cursor->index->table->space_id,
 					  left_page_no),
 				page_size_t(cursor->index->table->space
 					    ->flags),
-				mode, cursor->index, mtr);
+				mode, NULL, BUF_GET_POSSIBLY_FREED,
+				__FILE__, __LINE__, mtr, &err);
+
+			if (err == DB_DECRYPTION_FAILED) {
+				cursor->index->table->file_unreadable = true;
+			}
+
+			if (btr_page_get_next(cursor->left_block->frame)
+			    != curr_page_no) {
+				/* release the left block */
+				btr_leaf_page_release(
+					cursor->left_block, mode, mtr);
+				goto unpin_failed;
+			}
 		} else {
 			cursor->left_block = NULL;
 		}

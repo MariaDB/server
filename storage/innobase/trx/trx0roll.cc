@@ -66,7 +66,7 @@ static bool trx_rollback_finish(trx_t* trx)
 		trx_commit(trx);
 	} else {
 		ut_a(trx->error_state == DB_INTERRUPTED);
-		ut_ad(!srv_is_being_started);
+		ut_ad(srv_shutdown_state != SRV_SHUTDOWN_NONE);
 		ut_a(!srv_undo_sources);
 		ut_ad(srv_fast_shutdown);
 		ut_d(trx->in_rollback = false);
@@ -163,9 +163,6 @@ trx_rollback_to_savepoint_low(
 	}
 
 	mem_heap_free(heap);
-
-	/* There might be work for utility threads.*/
-	srv_active_wake_master_thread();
 
 	MONITOR_DEC(MONITOR_TRX_ACTIVE);
 }
@@ -801,7 +798,8 @@ void trx_rollback_recovered(bool all)
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
     ut_d(trx_mutex_exit(trx));
 
-    if (!srv_is_being_started && !srv_undo_sources && srv_fast_shutdown)
+    if (srv_shutdown_state != SRV_SHUTDOWN_NONE && !srv_undo_sources &&
+        srv_fast_shutdown)
       goto discard;
 
     if (all || trx_get_dict_operation(trx) != TRX_DICT_OP_NONE)

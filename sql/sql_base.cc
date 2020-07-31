@@ -5245,6 +5245,24 @@ static void mark_real_tables_as_free_for_reuse(TABLE_LIST *table_list)
     }
 }
 
+int TABLE::fix_vcol_exprs(THD *thd)
+{
+  for (Field **vf= vfield; vf && *vf; vf++)
+    if (fix_session_vcol_expr(thd, (*vf)->vcol_info))
+      return 1;
+
+  for (Field **df= default_field; df && *df; df++)
+    if ((*df)->default_value &&
+        fix_session_vcol_expr(thd, (*df)->default_value))
+      return 1;
+
+  for (Virtual_column_info **cc= check_constraints; cc && *cc; cc++)
+    if (fix_session_vcol_expr(thd, (*cc)))
+      return 1;
+
+  return 0;
+}
+
 
 static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
 {
@@ -5252,36 +5270,27 @@ static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
   TABLE_LIST *first_not_own= thd->lex->first_not_own_table();
   DBUG_ENTER("fix_session_vcol_expr");
 
-  for (TABLE_LIST *table= tables; table && table != first_not_own;
+  int error= 0;
+  for (TABLE_LIST *table= tables; table && table != first_not_own && !error;
        table= table->next_global)
   {
     TABLE *t= table->table;
     if (!table->placeholder() && t->s->vcols_need_refixing &&
          table->lock_type >= TL_WRITE_ALLOW_WRITE)
     {
+      Query_arena *stmt_backup= thd->stmt_arena;
+      if (thd->stmt_arena->is_conventional())
+        thd->stmt_arena= t->expr_arena;
       if (table->security_ctx)
         thd->security_ctx= table->security_ctx;
 
-      for (Field **vf= t->vfield; vf && *vf; vf++)
-        if (fix_session_vcol_expr(thd, (*vf)->vcol_info))
-          goto err;
-
-      for (Field **df= t->default_field; df && *df; df++)
-        if ((*df)->default_value &&
-            fix_session_vcol_expr(thd, (*df)->default_value))
-          goto err;
-
-      for (Virtual_column_info **cc= t->check_constraints; cc && *cc; cc++)
-        if (fix_session_vcol_expr(thd, (*cc)))
-          goto err;
+      error= t->fix_vcol_exprs(thd);
 
       thd->security_ctx= save_security_ctx;
+      thd->stmt_arena= stmt_backup;
     }
   }
-  DBUG_RETURN(0);
-err:
-  thd->security_ctx= save_security_ctx;
-  DBUG_RETURN(1);
+  DBUG_RETURN(error);
 }
 
 

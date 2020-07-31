@@ -26,7 +26,8 @@ SET debug_dbug='+d,myisam_pretend_crashed_table_on_usage';
 uninstall plugin audit_null;
 SET debug_dbug=@old_dbug;
 
---error 1305
+uninstall plugin audit_null;
+--error ER_SP_DOES_NOT_EXIST
 uninstall plugin audit_null;
 
 delete from mysql.plugin where name='audit_null';

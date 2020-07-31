@@ -1149,26 +1149,6 @@ retry:
 	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_a(index_id == index->id);
 	ut_ad(!dict_index_is_ibuf(index));
-#ifdef UNIV_DEBUG
-	switch (dict_index_get_online_status(index)) {
-	case ONLINE_INDEX_CREATION:
-		/* The index is being created (bulk loaded). */
-	case ONLINE_INDEX_COMPLETE:
-		/* The index has been published. */
-	case ONLINE_INDEX_ABORTED:
-		/* Either the index creation was aborted due to an
-		error observed by InnoDB (in which case there should
-		not be any adaptive hash index entries), or it was
-		completed and then flagged aborted in
-		rollback_inplace_alter_table(). */
-		break;
-	case ONLINE_INDEX_ABORTED_DROPPED:
-		/* The index should have been dropped from the tablespace
-		already, and the adaptive hash index entries should have
-		been dropped as well. */
-		ut_error;
-	}
-#endif /* UNIV_DEBUG */
 
 	n_fields = block->curr_n_fields;
 	n_bytes = block->curr_n_bytes;

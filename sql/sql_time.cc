@@ -18,7 +18,6 @@
 /* Functions to handle date and time */
 
 #include "mariadb.h"
-#include "sql_priv.h"
 #include "sql_time.h"
 #include "tztime.h"                      // struct Time_zone
 #include "sql_class.h"                   // THD
@@ -297,7 +296,7 @@ check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
   {
     ErrConvTime str(ltime);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, ts_type, 0, 0);
+                                 &str, ts_type, NULL, NULL, NULL);
     return true;
   }
   return false;
@@ -314,7 +313,7 @@ adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec)
     return true;
   if (warnings)
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, MYSQL_TIMESTAMP_TIME, 0, NullS);
+                                 &str, MYSQL_TIMESTAMP_TIME, NULL, NULL, NULL);
   return false;
 }
 
@@ -403,7 +402,8 @@ str_to_datetime_with_warn(CHARSET_INFO *cs,
                                  ret_val ? Sql_condition::WARN_LEVEL_WARN :
                                  Sql_condition::time_warn_level(status.warnings),
                                  str, length, flags & TIME_TIME_ONLY ?
-                                 MYSQL_TIMESTAMP_TIME : l_time->time_type, 0, NullS);
+                                 MYSQL_TIMESTAMP_TIME : l_time->time_type, 
+                                 NULL, NULL, NULL);
   DBUG_EXECUTE_IF("str_to_datetime_warn",
                   push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                                ER_YES, str););
@@ -460,7 +460,8 @@ static bool number_to_time_with_warn(bool neg, ulonglong nr, ulong sec_part,
     make_truncated_value_warning(current_thd,
                                  Sql_condition::WARN_LEVEL_WARN, str,
                                  res < 0 ? MYSQL_TIMESTAMP_ERROR : ts_type,
-                                 s, field_name);
+                                 s ? s->db.str : NULL,
+                                 s ? s->table_name.str : NULL, field_name);
   }
   return res < 0;
 }
@@ -933,7 +934,8 @@ void make_truncated_value_warning(THD *thd,
                                   Sql_condition::enum_warning_level level,
                                   const ErrConv *sval,
 				  timestamp_type time_type,
-                                  const TABLE_SHARE *s, const char *field_name)
+                                  const char *db_name, const char *table_name,
+                                  const char *field_name)
 {
   char warn_buff[MYSQL_ERRMSG_SIZE];
   const char *type_str;
@@ -953,9 +955,6 @@ void make_truncated_value_warning(THD *thd,
   }
   if (field_name)
   {
-    const char *db_name= s->db.str;
-    const char *table_name= s->table_name.str;
-
     if (!db_name)
       db_name= "";
     if (!table_name)
@@ -1293,7 +1292,7 @@ make_date_with_warn(MYSQL_TIME *ltime, ulonglong fuzzy_date,
     /* e.g. negative time */
     ErrConvTime str(ltime);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, ts_type, 0, 0);
+                                 &str, ts_type, NULL, NULL, NULL);
     return true;
   }
   if ((ltime->time_type= ts_type) == MYSQL_TIMESTAMP_DATE)
@@ -1457,7 +1456,7 @@ time_to_datetime_with_warn(THD *thd,
   {
     ErrConvTime str(from);
     make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, MYSQL_TIMESTAMP_DATETIME, 0, 0); 
+                                 &str, MYSQL_TIMESTAMP_DATETIME, NULL, NULL, NULL); 
     return true;
   }
   return false;

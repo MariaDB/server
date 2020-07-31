@@ -112,9 +112,15 @@ SET(ROCKSDB_SE_SOURCES
 # This is a strong requirement coming from RocksDB. No conditional checks here.
 #ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX
 #)
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64")
+  SET(ATOMIC_EXTRA_LIBS -latomic)
+else()
+  SET(ATOMIC_EXTRA_LIBS)
+endif()
 
 MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} MODULE_ONLY STORAGE_ENGINE
                  MODULE_OUTPUT_NAME ha_rocksdb
+                 LINK_LIBRARIES ${ATOMIC_EXTRA_LIBS}
                  COMPONENT rocksdb-engine)
 
 IF(NOT TARGET rocksdb)
@@ -165,6 +171,7 @@ TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARY})
 if (UNIX AND NOT APPLE)
   TARGET_LINK_LIBRARIES(rocksdb_aux_lib -lrt)
 endif()
+TARGET_LINK_LIBRARIES(rocksdb_aux_lib ${ATOMIC_EXTRA_LIBS})
 
 # IF (WITH_JEMALLOC)
 #  FIND_LIBRARY(JEMALLOC_LIBRARY

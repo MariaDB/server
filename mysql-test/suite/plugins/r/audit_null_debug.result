@@ -11,5 +11,6 @@ uninstall plugin audit_null;
 ERROR HY000: Index for table './mysql/plugin.MYI' is corrupt; try to repair it
 SET debug_dbug=@old_dbug;
 uninstall plugin audit_null;
+uninstall plugin audit_null;
 ERROR 42000: PLUGIN audit_null does not exist
 delete from mysql.plugin where name='audit_null';
