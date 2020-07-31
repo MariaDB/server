@@ -470,7 +470,7 @@ btr_cur_optimistic_latch_leaves(
 				/* release the left block */
 				btr_leaf_page_release(
 					cursor->left_block, mode, mtr);
-				return false;
+				goto unpin_failed;
 			}
 		} else {
 			cursor->left_block = NULL;
