@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -453,7 +453,8 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
       {
         ErrConvString err(val_begin, length, &my_charset_bin);
         make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                                     &err, cached_timestamp_type, 0, NullS);
+                                     &err, cached_timestamp_type,
+                                     nullptr, nullptr, nullptr);
 	break;
       }
     } while (++val != val_end);

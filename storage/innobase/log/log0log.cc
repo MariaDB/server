@@ -1714,6 +1714,9 @@ wait_suspend_loop:
 				"Waiting for page cleaner");
 			ib::info() << "Waiting for page_cleaner to "
 				"finish flushing of buffer pool";
+			/* This is a workaround to avoid the InnoDB hang
+			when OS datetime changed backwards */
+			os_event_set(buf_flush_event);
 			count = 0;
 		}
 	}

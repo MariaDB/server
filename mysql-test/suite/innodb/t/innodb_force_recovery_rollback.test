@@ -30,5 +30,6 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 disconnect con0;
 connection default;
 # If the rollback was aborted, we would end up in a lock wait here.
-SELECT * FROM t0 LOCK IN SHARE MODE;
+# The LIMIT 0 works around MDEV-22889 InnoDB occasionally breaks ACID
+SELECT * FROM t0 LIMIT 0 LOCK IN SHARE MODE;
 DROP TABLE t0,t1;

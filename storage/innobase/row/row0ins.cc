@@ -2225,8 +2225,14 @@ row_ins_duplicate_online(
 		return(DB_SUCCESS);
 	}
 
-	if (fields == n_uniq + 2) {
-		/* rec is an exact match of entry. */
+	ulint trx_id_len;
+
+	if (fields == n_uniq + 2
+	    && memcmp(rec_get_nth_field(rec, offsets, n_uniq, &trx_id_len),
+		      reset_trx_id, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN)) {
+		ut_ad(trx_id_len == DATA_TRX_ID_LEN);
+		/* rec is an exact match of entry, and DB_TRX_ID belongs
+		to a transaction that started after our ALTER TABLE. */
 		return(DB_SUCCESS_LOCKED_REC);
 	}
 

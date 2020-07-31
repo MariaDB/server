@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2276,27 +2276,30 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
   if (!(plugin= plugin_find_internal(name, MYSQL_ANY_PLUGIN)) ||
       plugin->state & (PLUGIN_IS_UNINITIALIZED | PLUGIN_IS_DYING))
   {
-    myf MyFlags= thd->lex->if_exists() ? ME_NOTE : 0;
-    my_error(ER_SP_DOES_NOT_EXIST, MyFlags, "PLUGIN", name->str);
-    return !MyFlags;
-  }
-  if (!plugin->plugin_dl)
-  {
-    my_error(ER_PLUGIN_DELETE_BUILTIN, MYF(0));
-    return 1;
-  }
-  if (plugin->load_option == PLUGIN_FORCE_PLUS_PERMANENT)
-  {
-    my_error(ER_PLUGIN_IS_PERMANENT, MYF(0), name->str);
-    return 1;
+    // maybe plugin is present in mysql.plugin; postpone the error
+    plugin= nullptr;
   }
 
-  plugin->state= PLUGIN_IS_DELETED;
-  if (plugin->ref_count)
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                 WARN_PLUGIN_BUSY, ER_THD(thd, WARN_PLUGIN_BUSY));
-  else
-    reap_needed= true;
+  if (plugin)
+  {
+    if (!plugin->plugin_dl)
+    {
+      my_error(ER_PLUGIN_DELETE_BUILTIN, MYF(0));
+      return 1;
+    }
+    if (plugin->load_option == PLUGIN_FORCE_PLUS_PERMANENT)
+    {
+      my_error(ER_PLUGIN_IS_PERMANENT, MYF(0), name->str);
+      return 1;
+    }
+
+    plugin->state= PLUGIN_IS_DELETED;
+    if (plugin->ref_count)
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+          WARN_PLUGIN_BUSY, ER_THD(thd, WARN_PLUGIN_BUSY));
+    else
+      reap_needed= true;
+  }
 
   uchar user_key[MAX_KEY_LENGTH];
   table->use_all_columns();
@@ -2320,6 +2323,12 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
       table->file->print_error(error, MYF(0));
       return 1;
     }
+  }
+  else if (!plugin)
+  {
+    const myf MyFlags= thd->lex->if_exists() ? ME_NOTE : 0;
+    my_error(ER_SP_DOES_NOT_EXIST, MyFlags, "PLUGIN", name->str);
+    return !MyFlags;
   }
   return 0;
 }

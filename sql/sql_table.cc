@@ -10495,8 +10495,9 @@ err_new_table_cleanup:
     bool save_abort_on_warning= thd->abort_on_warning;
     thd->abort_on_warning= true;
     thd->push_warning_truncated_value_for_field(Sql_condition::WARN_LEVEL_WARN,
-                                                f_type, f_val, new_table
-                                                ? new_table->s : table->s,
+                                                f_type, f_val,
+                                                alter_ctx.new_db.str,
+                                                alter_ctx.new_name.str,
                                                 alter_ctx.datetime_field->
                                                 field_name.str);
     thd->abort_on_warning= save_abort_on_warning;

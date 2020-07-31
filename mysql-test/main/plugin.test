@@ -277,8 +277,27 @@ DROP TABLE t1;
 
 --echo # End of 10.1 test
 
---source include/install_plugin_if_exists.inc
+--echo #
+--echo # MDEV-21258: Can't uninstall plugin if the library file doesn't exist
+--echo #
 
+insert into  mysql.plugin values ("unexisting_plugin", "soname");
+
+# check that we have the plugin installed
+select * from mysql.plugin WHERE name='unexisting_plugin';
+
+# make attempt to uninstall the plugin
+UNINSTALL PLUGIN unexisting_plugin;
+
+# check that we have the plugin uninstalled
+select * from mysql.plugin WHERE name='unexisting_plugin';
+
+--error ER_SP_DOES_NOT_EXIST
+UNINSTALL PLUGIN unexisting_plugin;
+
+--echo # End of 10.2 tests
+
+--source include/install_plugin_if_exists.inc
 
 --echo #
 --echo # Make sure temporary tables maintain plugin references properly
@@ -294,3 +313,5 @@ INSTALL PLUGIN example SONAME 'ha_example';
 CREATE TEMPORARY TABLE t1(a INT) ENGINE=example;
 DROP TABLE t1;
 UNINSTALL PLUGIN example;
+
+--echo # End of 10.4 tests

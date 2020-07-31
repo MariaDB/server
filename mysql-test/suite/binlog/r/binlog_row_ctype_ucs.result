@@ -16,7 +16,7 @@ flush logs;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # Annotate_rows:
 #Q> insert into t2 values (@v)
@@ -104,7 +104,7 @@ CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8)
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -125,7 +125,7 @@ COMMIT
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -146,7 +146,7 @@ COMMIT
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -167,7 +167,7 @@ COMMIT
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -188,7 +188,7 @@ COMMIT
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -209,7 +209,7 @@ COMMIT
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #

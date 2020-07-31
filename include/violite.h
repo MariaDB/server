@@ -109,9 +109,7 @@ my_bool vio_peer_addr(Vio *vio, char *buf, uint16 *port, size_t buflen);
 /* Wait for an I/O event notification. */
 int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout);
 my_bool vio_is_connected(Vio *vio);
-#ifndef DBUG_OFF
 ssize_t vio_pending(Vio *vio);
-#endif
 /* Set timeout for a network operation. */
 extern int vio_timeout(Vio *vio, uint which, int timeout_sec);
 extern void vio_set_wait_callback(void (*before_wait)(void),

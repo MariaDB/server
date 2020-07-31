@@ -431,14 +431,6 @@ TYPELIB innodb_flush_method_typelib = {
 	NULL
 };
 
-/* The following counter is used to convey information to InnoDB
-about server activity: in case of normal DML ops it is not
-sensible to call srv_active_wake_master_thread after each
-operation, we only do it every INNOBASE_WAKE_INTERVAL'th step. */
-
-#define INNOBASE_WAKE_INTERVAL	32
-static ulong	innobase_active_counter	= 0;
-
 /** Allowed values of innodb_change_buffering */
 static const char* innodb_change_buffering_names[] = {
 	"none",		/* IBUF_USE_NONE */
@@ -1837,23 +1829,6 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
-/********************************************************************//**
-Increments innobase_active_counter and every INNOBASE_WAKE_INTERVALth
-time calls srv_active_wake_master_thread. This function should be used
-when a single database operation may introduce a small need for
-server utility activity, like checkpointing. */
-inline
-void
-innobase_active_small(void)
-/*=======================*/
-{
-	innobase_active_counter++;
-
-	if ((innobase_active_counter % INNOBASE_WAKE_INTERVAL) == 0) {
-		srv_active_wake_master_thread();
-	}
-}
-
 /********************************************************************//**
 Converts an InnoDB error code to a MySQL error code and also tells to MySQL
 about a possible transaction rollback inside InnoDB caused by a lock wait
@@ -6487,11 +6462,6 @@ ha_innobase::close()
 
 	MONITOR_INC(MONITOR_TABLE_CLOSE);
 
-	/* Tell InnoDB server that there might be work for
-	utility threads: */
-
-	srv_active_wake_master_thread();
-
 	DBUG_RETURN(0);
 }
 
@@ -8189,8 +8159,6 @@ report_error:
 	}
 
 func_exit:
-	innobase_active_small();
-
 	DBUG_RETURN(error_result);
 }
 
@@ -8870,11 +8838,6 @@ func_exit:
 			error, m_prebuilt->table->flags, m_user_thd);
 	}
 
-	/* Tell InnoDB server that there might be work for
-	utility threads: */
-
-	innobase_active_small();
-
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS && trx->is_wsrep()
 	    && wsrep_thd_is_local(m_user_thd)
@@ -8935,11 +8898,6 @@ ha_innobase::delete_row(
 	error = row_update_for_mysql(m_prebuilt);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
-
-	/* Tell the InnoDB server that there might be work for
-	utility threads: */
-
-	innobase_active_small();
 
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS && trx->is_wsrep()
@@ -12756,7 +12714,6 @@ create_table_info_t::create_table_update_dict()
 	if (m_flags2 & DICT_TF2_FTS) {
 		if (!innobase_fts_load_stopword(innobase_table, NULL, m_thd)) {
 			dict_table_close(innobase_table, FALSE, FALSE);
-			srv_active_wake_master_thread();
 			trx_free(m_trx);
 			DBUG_RETURN(-1);
 		}
@@ -12905,11 +12862,6 @@ ha_innobase::create(
 	ut_ad(!srv_read_only_mode);
 
 	error = info.create_table_update_dict();
-
-	/* Tell the InnoDB server that there might be work for
-	utility threads: */
-
-	srv_active_wake_master_thread();
 
 	DBUG_RETURN(error);
 }

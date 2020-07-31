@@ -1088,7 +1088,7 @@ srv_shutdown_all_bg_threads()
 			if (srv_start_state_is_set(SRV_START_STATE_MASTER)) {
 				/* c. We wake the master thread so that
 				it exits */
-				srv_wake_master_thread();
+				srv_inc_activity_count();
 			}
 
 			if (srv_start_state_is_set(SRV_START_STATE_PURGE)) {
@@ -2420,7 +2420,7 @@ void srv_shutdown_bg_undo_sources()
 		fts_optimize_shutdown();
 		dict_stats_shutdown();
 		while (row_get_background_drop_list_len_low()) {
-			srv_wake_master_thread();
+			srv_inc_activity_count();
 			os_thread_yield();
 		}
 		srv_undo_sources = false;

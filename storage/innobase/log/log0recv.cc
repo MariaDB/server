@@ -2793,8 +2793,9 @@ loop:
 
 			if (lsn == checkpoint_lsn) {
 				if (recv_sys.mlog_checkpoint_lsn) {
-					ut_ad(recv_sys.mlog_checkpoint_lsn
-					      <= recv_sys.recovered_lsn);
+					/* There can be multiple
+					MLOG_CHECKPOINT lsn for the
+					same checkpoint. */
 					break;
 				}
 				recv_sys.mlog_checkpoint_lsn

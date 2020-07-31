@@ -875,7 +875,6 @@ void partition_info::vers_set_hist_part(THD *thd)
       if (next->range_value > thd->query_start())
         return;
     }
-    goto warn;
   }
   return;
 warn:

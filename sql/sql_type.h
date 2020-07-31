@@ -1,7 +1,7 @@
 #ifndef SQL_TYPE_H_INCLUDED
 #define SQL_TYPE_H_INCLUDED
 /*
-   Copyright (c) 2015  MariaDB Foundation.
+   Copyright (c) 2015, 2020, MariaDB
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -663,34 +663,39 @@ public:
   public:
     void push_conversion_warnings(THD *thd, bool totally_useless_value,
                                   date_mode_t mode, timestamp_type tstype,
-                                  const TABLE_SHARE* s, const char *name)
+                                  const char *db_name, const char *table_name,
+                                  const char *name)
     {
       const char *typestr= tstype >= 0 ? type_name_by_timestamp_type(tstype) :
                            mode & (TIME_INTERVAL_hhmmssff | TIME_INTERVAL_DAY) ?
                            "interval" :
                            mode & TIME_TIME_ONLY ? "time" : "datetime";
       Temporal::push_conversion_warnings(thd, totally_useless_value, warnings,
-                                         typestr, s, name, ptr());
+                                         typestr, db_name, table_name, name,
+                                         ptr());
     }
   };
 
   class Warn_push: public Warn
   {
-    THD *m_thd;
-    const TABLE_SHARE *m_s;
-    const char *m_name;
-    const MYSQL_TIME *m_ltime;
-    date_mode_t m_mode;
+    THD * const m_thd;
+    const char * const m_db_name;
+    const char * const m_table_name;
+    const char * const m_name;
+    const MYSQL_TIME * const m_ltime;
+    const date_mode_t m_mode;
   public:
-    Warn_push(THD *thd, const TABLE_SHARE *s, const char *name,
-              const MYSQL_TIME *ltime, date_mode_t mode)
-    :m_thd(thd), m_s(s), m_name(name), m_ltime(ltime), m_mode(mode)
+    Warn_push(THD *thd, const char *db_name, const char *table_name,
+              const char *name, const MYSQL_TIME *ltime, date_mode_t mode)
+      : m_thd(thd), m_db_name(db_name), m_table_name(table_name), m_name(name),
+        m_ltime(ltime), m_mode(mode)
     { }
     ~Warn_push()
     {
       if (warnings)
         push_conversion_warnings(m_thd, m_ltime->time_type < 0,
-                                 m_mode, m_ltime->time_type, m_s, m_name);
+                                 m_mode, m_ltime->time_type,
+                                 m_db_name, m_table_name, m_name);
     }
   };
 
@@ -731,7 +736,8 @@ public:
   }
   static void push_conversion_warnings(THD *thd, bool totally_useless_value, int warn,
                                        const char *type_name,
-                                       const TABLE_SHARE *s,
+                                       const char *db_name,
+                                       const char *table_name,
                                        const char *field_name,
                                        const char *value);
   /*

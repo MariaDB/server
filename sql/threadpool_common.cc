@@ -475,11 +475,25 @@ void tp_timeout_handler(TP_connection *c)
 {
   if (c->state != TP_STATE_IDLE)
     return;
-  THD *thd=c->thd;
+  THD *thd= c->thd;
   mysql_mutex_lock(&thd->LOCK_thd_kill);
-  thd->set_killed_no_mutex(KILL_WAIT_TIMEOUT);
-  c->priority= TP_PRIORITY_HIGH;
-  post_kill_notification(thd);
+  Vio *vio= thd->net.vio;
+  if (vio && (vio_pending(vio) > 0 || vio->has_data(vio)) &&
+      c->state == TP_STATE_IDLE)
+  {
+    /*
+     There is some data on that connection, i.e
+     i.e there was no inactivity timeout.
+     Don't kill.
+    */
+    c->state= TP_STATE_PENDING;
+  }
+  else if (c->state == TP_STATE_IDLE)
+  {
+    thd->set_killed_no_mutex(KILL_WAIT_TIMEOUT);
+    c->priority= TP_PRIORITY_HIGH;
+    post_kill_notification(thd);
+  }
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 

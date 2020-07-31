@@ -887,8 +887,11 @@ rec_get_nth_cfield(
 	ulint			n,
 	ulint*			len)
 {
-	ut_ad(rec_offs_validate(rec, index, offsets));
-
+	/* Because this function may be invoked by innobase_rec_to_mysql()
+	for reporting a duplicate key during ALTER TABLE or
+	CREATE UNIQUE INDEX, and in that case the rec omit the fixed-size
+	header of 5 or 6 bytes, the check
+	rec_offs_validate(rec, index, offsets) must be avoided here. */
 	if (!rec_offs_nth_default(offsets, n)) {
 		return rec_get_nth_field(rec, offsets, n, len);
 	}

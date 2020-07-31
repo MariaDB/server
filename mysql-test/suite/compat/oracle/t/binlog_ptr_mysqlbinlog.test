@@ -1,0 +1,117 @@
+# ==== Purpose ====
+#
+# Test verifies that point in time recovery of binary log works when
+# sql_mode='ORACLE'.
+#
+# BEGIN statement is printed in three places
+# 1) "Gtid_log_event::print"
+# 2) "Xid_log_event::print" if flashback is enabled
+# 3) "Query_log_event::print" if flashback is enabled and engine is
+#    non-transacional.
+#
+# Test verifies all these cases.
+#
+# ==== References ====
+#
+# MDEV-23108: Point in time recovery of binary log fails when sql_mode=ORACLE
+#
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+SET @@SQL_MODE = 'ORACLE';
+
+--echo ##########################################################################
+--echo #      Test verifies Gtid_log_event/Xid_log_event specific print         #
+--echo ##########################################################################
+CREATE TABLE tm (f INT) ENGINE=MYISAM;
+INSERT INTO tm VALUES (10);
+
+CREATE TABLE t(f INT) ENGINE=INNODB;
+INSERT INTO t VALUES (10);
+
+DELIMITER /;
+CREATE OR REPLACE PROCEDURE simpleproc (param1 OUT INT) AS
+ BEGIN
+  SELECT COUNT(*) INTO param1 FROM t;
+ END;
+/
+CREATE FUNCTION f1 RETURN INT
+AS
+BEGIN
+  RETURN 10;
+END;
+/
+DELIMITER ;/
+
+FLUSH LOGS;
+--echo ##########################################################################
+--echo #      Delete data from master so that it can be restored from binlog    #
+--echo ##########################################################################
+DROP FUNCTION f1;
+DROP PROCEDURE simpleproc;
+DROP TABLE tm;
+DROP TABLE t;
+
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/test.sql
+--exec $MYSQL < $MYSQLTEST_VARDIR/tmp/test.sql
+
+--echo ##########################################################################
+--echo #               Post recovery using mysqlbinlog                          #
+--echo ##########################################################################
+SHOW TABLES;
+SELECT * FROM tm;
+SELECT * FROM t;
+--horizontal_results
+SELECT f1();
+CALL simpleproc(@a);
+SELECT @a;
+
+--echo "*****     Clean Up     *****"
+DROP TABLE t,tm;
+DROP PROCEDURE simpleproc;
+DROP FUNCTION f1;
+--remove_file $MYSQLTEST_VARDIR/tmp/test.sql
+RESET MASTER;
+
+--echo ##########################################################################
+--echo #      Test verifies Gtid_log_event/Xid_log_event/Qery_log_event         #
+--echo #      specific print along with flashback option                        #
+--echo ##########################################################################
+CREATE TABLE tm(f INT) ENGINE=MYISAM;
+INSERT INTO tm VALUES (10);
+INSERT INTO tm VALUES (20);
+CREATE TABLE t(f INT) ENGINE=INNODB;
+INSERT INTO t VALUES (10);
+INSERT INTO t VALUES (20);
+--echo ##########################################################################
+--echo #                         Initial data                                   #
+--echo ##########################################################################
+SELECT * FROM tm;
+SELECT * FROM t;
+FLUSH LOGS;
+DELETE FROM tm WHERE f=20;
+DELETE FROM t WHERE f=20;
+FLUSH LOGS;
+
+--echo ##########################################################################
+--echo #                     Data after deletion                                #
+--echo ##########################################################################
+SELECT * FROM tm;
+SELECT * FROM t;
+--exec $MYSQL_BINLOG --flashback $MYSQLD_DATADIR/master-bin.000002 > $MYSQLTEST_VARDIR/tmp/test.sql
+
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/test.sql
+--let SEARCH_PATTERN=START TRANSACTION
+--source include/search_pattern_in_file.inc
+--exec $MYSQL < $MYSQLTEST_VARDIR/tmp/test.sql
+
+--echo ##########################################################################
+--echo #             Data after recovery using flashback                        #
+--echo ##########################################################################
+SELECT * FROM tm;
+SELECT * FROM t;
+
+--echo "*****     Clean Up     *****"
+DROP TABLE t,tm;
+--remove_file $MYSQLTEST_VARDIR/tmp/test.sql

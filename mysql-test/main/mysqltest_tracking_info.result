@@ -45,3 +45,15 @@ Warning	1681	'engine_condition_pushdown=on' is deprecated and will be removed in
 set @@optimizer_switch=@save_optimizer_switch;
 SET @@session.session_track_system_variables= @save_session_track_system_variables;
 # End of 10.2 tests
+#
+# MDEV-22134 handle_fatal_signal (sig=11) in __strlen_avx2 on START
+# SLAVE | Assertion
+# `global_system_variables.session_track_system_variables' failed in
+# Session_sysvars_tracker::init | *** buffer overflow detected ***
+# (on optimized builds)
+#
+SET @@GLOBAL.session_track_system_variables=NULL;
+ERROR 42000: Variable 'session_track_system_variables' can't be set to the value of 'NULL'
+SET SESSION session_track_system_variables=NULL;
+ERROR 42000: Variable 'session_track_system_variables' can't be set to the value of 'NULL'
+# End of 10.3 tests
