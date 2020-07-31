@@ -165,23 +165,35 @@ struct recv_t{
 			rec_list;/*!< list of log records for this page */
 };
 
-struct recv_dblwr_t {
-	/** Add a page frame to the doublewrite recovery buffer. */
-	void add(byte* page) {
-		pages.push_front(page);
-	}
+struct recv_dblwr_t
+{
+  /** Add a page frame to the doublewrite recovery buffer. */
+  void add(byte *page) { pages.push_front(page); }
 
-	/** Find a doublewrite copy of a page.
-	@param[in]	space_id	tablespace identifier
-	@param[in]	page_no		page number
-	@return	page frame
-	@retval NULL if no page was found */
-	const byte* find_page(ulint space_id, ulint page_no);
+  /** Validate the page.
+  @param page_id  page identifier
+  @param page     page contents
+  @param space    the tablespace of the page (not available for page 0)
+  @param tmp_buf  2*srv_page_size for decrypting and decompressing any
+  page_compressed or encrypted pages
+  @return whether the page is valid */
+  bool validate_page(const page_id_t page_id, const byte *page,
+                     const fil_space_t *space, byte *tmp_buf);
 
-	typedef std::deque<byte*, ut_allocator<byte*> > list;
+  /** Find a doublewrite copy of a page.
+  @param page_id  page identifier
+  @param space    tablespace (not available for page_id.page_no()==0)
+  @param tmp_buf  2*srv_page_size for decrypting and decompressing any
+  page_compressed or encrypted pages
+  @return page frame
+  @retval NULL if no valid page for page_id was found */
+  byte* find_page(const page_id_t page_id, const fil_space_t *space= NULL,
+                  byte *tmp_buf= NULL);
 
-	/** Recovered doublewrite buffer page frames */
-	list	pages;
+  typedef std::deque<byte*, ut_allocator<byte*> > list;
+
+  /** Recovered doublewrite buffer page frames */
+  list pages;
 };
 
 /** Recovery system data structure */

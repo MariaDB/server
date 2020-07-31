@@ -56,6 +56,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "srv0start.h"
 #include "trx0roll.h"
 #include "row0merge.h"
+#include "fil0pagecompress.h"
 
 /** Log records are stored in the hash table in chunks at most of this size;
 this must be less than srv_page_size as it is stored in the buffer pool */
@@ -3757,6 +3758,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 			rescan = true;
 		}
 
+		recv_sys.parse_start_lsn = checkpoint_lsn;
+
 		if (srv_operation == SRV_OPERATION_NORMAL) {
 			buf_dblwr_process();
 		}
@@ -3926,25 +3929,92 @@ recv_recovery_rollback_active(void)
 	}
 }
 
-/** Find a doublewrite copy of a page.
-@param[in]	space_id	tablespace identifier
-@param[in]	page_no		page number
-@return	page frame
-@retval NULL if no page was found */
-const byte*
-recv_dblwr_t::find_page(ulint space_id, ulint page_no)
+bool recv_dblwr_t::validate_page(const page_id_t page_id,
+                                 const byte *page,
+                                 const fil_space_t *space,
+                                 byte *tmp_buf)
 {
-  const byte *result= NULL;
+  if (page_id.page_no() == 0)
+  {
+    ulint flags= fsp_header_get_flags(page);
+    if (!fil_space_t::is_valid_flags(flags, page_id.space()))
+    {
+      ulint cflags= fsp_flags_convert_from_101(flags);
+      if (cflags == ULINT_UNDEFINED)
+      {
+        ib::warn() << "Ignoring a doublewrite copy of page " << page_id
+                   << "due to invalid flags " << ib::hex(flags);
+        return false;
+      }
+
+      flags= cflags;
+    }
+
+    /* Page 0 is never page_compressed or encrypted. */
+    return !buf_page_is_corrupted(true, page, flags);
+  }
+
+  ut_ad(tmp_buf);
+  byte *tmp_frame= tmp_buf;
+  byte *tmp_page= tmp_buf + srv_page_size;
+  const uint16_t page_type= mach_read_from_2(page + FIL_PAGE_TYPE);
+  const bool expect_encrypted= space->crypt_data &&
+    space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED;
+
+  if (space->full_crc32())
+    return !buf_page_is_corrupted(true, page, space->flags);
+
+  if (expect_encrypted &&
+      mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION))
+  {
+    if (!fil_space_verify_crypt_checksum(page, space->zip_size()))
+      return false;
+    if (page_type != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED)
+      return true;
+    if (space->zip_size())
+      return false;
+    memcpy(tmp_page, page, space->physical_size());
+    if (!fil_space_decrypt(space, tmp_frame, tmp_page))
+      return false;
+  }
+
+  switch (page_type) {
+  case FIL_PAGE_PAGE_COMPRESSED:
+    memcpy(tmp_page, page, space->physical_size());
+    /* fall through */
+  case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
+    if (space->zip_size())
+      return false; /* ROW_FORMAT=COMPRESSED cannot be page_compressed */
+    ulint decomp= fil_page_decompress(tmp_frame, tmp_page, space->flags);
+    if (!decomp)
+      return false; /* decompression failed */
+    if (decomp == srv_page_size)
+      return false; /* the page was not compressed (invalid page type) */
+    return !buf_page_is_corrupted(true, tmp_page, space->flags);
+  }
+
+  return !buf_page_is_corrupted(true, page, space->flags);
+}
+
+byte *recv_dblwr_t::find_page(const page_id_t page_id,
+                              const fil_space_t *space, byte *tmp_buf)
+{
+  byte *result= NULL;
   lsn_t max_lsn= 0;
 
-  for (const byte *page : pages)
+  for (byte *page : pages)
   {
-    if (page_get_page_no(page) != page_no ||
-        page_get_space_id(page) != space_id)
+    if (page_get_page_no(page) != page_id.page_no() ||
+        page_get_space_id(page) != page_id.space())
       continue;
     const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
-    if (lsn <= max_lsn)
+    if (lsn <= max_lsn ||
+        !validate_page(page_id, page, space, tmp_buf))
+    {
+      /* Mark processed for subsequent iterations in buf_dblwr_process() */
+      memset(page + FIL_PAGE_LSN, 0, 8);
       continue;
+    }
     max_lsn= lsn;
     result= page;
   }
