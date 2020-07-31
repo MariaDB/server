@@ -3234,7 +3234,7 @@ public:
 class Item_func_match :public Item_real_func
 {
 public:
-  uint key, flags;
+  uint key, match_flags;
   bool join_key;
   DTCollation cmp_collation;
   FT_INFO *ft_handler;
@@ -3245,7 +3245,7 @@ public:
   String search_value;       // key_item()'s value converted to cmp_collation
 
   Item_func_match(THD *thd, List<Item> &a, uint b):
-    Item_real_func(thd, a), key(0), flags(b), join_key(0), ft_handler(0),
+    Item_real_func(thd, a), key(0), match_flags(b), join_key(0), ft_handler(0),
     table(0), master(0), concat_ws(0) { }
   void cleanup()
   {
@@ -3308,7 +3308,7 @@ private:
   bool allows_search_on_non_indexed_columns(TABLE* table_arg)
   {
     // Only Boolean search may support non_indexed columns
-    if (!(flags & FT_BOOL))
+    if (!(match_flags & FT_BOOL))
       return false;
 
     DBUG_ASSERT(table_arg && table_arg->file);

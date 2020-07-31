@@ -1569,7 +1569,7 @@ public:
 class Item_func_weight_string :public Item_str_func
 {
   String tmp_value;
-  uint flags;
+  uint weigth_flags;
   uint nweights;
   uint result_length;
 public:
@@ -1578,7 +1578,7 @@ public:
     Item_str_func(thd, a)
   {
     nweights= nweights_arg;
-    flags= flags_arg;
+    weigth_flags= flags_arg;
     result_length= result_length_arg;
   }
   const char *func_name() const { return "weight_string"; }
@@ -1589,7 +1589,7 @@ public:
     if (!Item_str_func::eq(item, binary_cmp))
       return false;
     Item_func_weight_string *that= (Item_func_weight_string *)item;
-    return this->flags == that->flags &&
+    return this->weigth_flags == that->weigth_flags &&
            this->nweights == that->nweights &&
            this->result_length == that->result_length;
   }

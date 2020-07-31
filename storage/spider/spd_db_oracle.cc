@@ -4299,16 +4299,16 @@ int spider_db_oracle_util::open_item_func(
     if (str)
     {
       if (str->reserve(
-        ((item_func_match->flags & FT_BOOL) ?
+        ((item_func_match->match_flags & FT_BOOL) ?
           SPIDER_SQL_IN_BOOLEAN_MODE_LEN : 0) +
-        ((item_func_match->flags & FT_EXPAND) ?
+        ((item_func_match->match_flags & FT_EXPAND) ?
           SPIDER_SQL_WITH_QUERY_EXPANSION_LEN : 0)
       ))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      if (item_func_match->flags & FT_BOOL)
+      if (item_func_match->match_flags & FT_BOOL)
         str->q_append(SPIDER_SQL_IN_BOOLEAN_MODE_STR,
           SPIDER_SQL_IN_BOOLEAN_MODE_LEN);
-      if (item_func_match->flags & FT_EXPAND)
+      if (item_func_match->match_flags & FT_EXPAND)
         str->q_append(SPIDER_SQL_WITH_QUERY_EXPANSION_STR,
           SPIDER_SQL_WITH_QUERY_EXPANSION_LEN);
     }
@@ -8030,16 +8030,16 @@ int spider_oracle_handler::append_match_against(
 
   if (str->reserve(
     SPIDER_SQL_VALUE_QUOTE_LEN + SPIDER_SQL_CLOSE_PAREN_LEN +
-    ((ft_info->flags & FT_BOOL) ? SPIDER_SQL_IN_BOOLEAN_MODE_LEN : 0) +
-    ((ft_info->flags & FT_EXPAND) ?
+    ((ft_info->match_flags & FT_BOOL) ? SPIDER_SQL_IN_BOOLEAN_MODE_LEN : 0) +
+    ((ft_info->match_flags & FT_EXPAND) ?
       SPIDER_SQL_WITH_QUERY_EXPANSION_LEN : 0)
   ))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-  if (ft_info->flags & FT_BOOL)
+  if (ft_info->match_flags & FT_BOOL)
     str->q_append(SPIDER_SQL_IN_BOOLEAN_MODE_STR,
       SPIDER_SQL_IN_BOOLEAN_MODE_LEN);
-  if (ft_info->flags & FT_EXPAND)
+  if (ft_info->match_flags & FT_EXPAND)
     str->q_append(SPIDER_SQL_WITH_QUERY_EXPANSION_STR,
       SPIDER_SQL_WITH_QUERY_EXPANSION_LEN);
   str->q_append(SPIDER_SQL_CLOSE_PAREN_STR, SPIDER_SQL_CLOSE_PAREN_LEN);
