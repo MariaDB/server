@@ -91,7 +91,7 @@ row_vers_impl_x_locked_low(
 {
 	rec_t*		prev_version = NULL;
 	rec_offs	clust_offsets_[REC_OFFS_NORMAL_SIZE];
-	rec_offs*	clust_offsets = clust_offsets_;
+	rec_offs*	clust_offsets;
 	mem_heap_t*	heap;
 	dtuple_t*	ientry = NULL;
 	mem_heap_t*	v_heap = NULL;
@@ -105,7 +105,7 @@ row_vers_impl_x_locked_low(
 
 	heap = mem_heap_create(1024);
 
-	clust_offsets = rec_get_offsets(clust_rec, clust_index, clust_offsets,
+	clust_offsets = rec_get_offsets(clust_rec, clust_index, clust_offsets_,
 					true, ULINT_UNDEFINED, &heap);
 
 	const trx_id_t trx_id = row_get_rec_trx_id(
@@ -187,7 +187,7 @@ row_vers_impl_x_locked_low(
 		ut_ad(committed || prev_version
 		      || !rec_get_deleted_flag(version, comp));
 
-		/* Free version. */
+		/* Free version and clust_offsets. */
 		mem_heap_free(old_heap);
 
 		if (committed) {
@@ -222,7 +222,7 @@ not_locked:
 		}
 
 		clust_offsets = rec_get_offsets(
-			prev_version, clust_index, clust_offsets, true,
+			prev_version, clust_index, clust_offsets_, true,
 			ULINT_UNDEFINED, &heap);
 
 		vers_del = rec_get_deleted_flag(prev_version, comp);
