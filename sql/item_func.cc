@@ -2455,13 +2455,16 @@ void Item_func_round::fix_arg_datetime()
                           (without extending to DECIMAL).
                           - If `preferred` is not NULL, then the code tries
                             to preserve the given data type handler and
-                            data type attributes of the argument.
+                            the data type attributes `preferred_attrs`.
                           - If `preferred` is NULL, then the code fully
                             calculates attributes using
                             args[0]->decimal_precision() and chooses between
                             INT and BIGINT, depending on attributes.
+  @param [IN] preferred_attrs - The preferred data type attributes for
+                                simple cases.
 */
-void Item_func_round::fix_arg_int(const Type_handler *preferred)
+void Item_func_round::fix_arg_int(const Type_handler *preferred,
+                                  const Type_std_attributes *preferred_attrs)
 {
   DBUG_ASSERT(args[0]->decimals == 0);
   if (args[1]->const_item())
@@ -2477,7 +2480,7 @@ void Item_func_round::fix_arg_int(const Type_handler *preferred)
       int length_can_increase= MY_TEST(!truncate && val1.neg());
       if (preferred)
       {
-        Type_std_attributes::set(args[0]);
+        Type_std_attributes::set(preferred_attrs);
         if (!length_can_increase)
         {
           // Preserve the exact data type and attributes

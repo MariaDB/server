@@ -2742,6 +2742,17 @@ public:
 };
 
 
+class DTCollation_numeric: public DTCollation
+{
+public:
+  DTCollation_numeric()
+   :DTCollation(charset_info(), DERIVATION_NUMERIC, MY_REPERTOIRE_NUMERIC)
+  { }
+  static const CHARSET_INFO *charset_info() { return &my_charset_numeric; }
+  static const DTCollation & singleton();
+};
+
+
 static inline uint32
 char_to_byte_length_safe(size_t char_length_arg, uint32 mbmaxlen_arg)
 {
@@ -4658,8 +4669,6 @@ public:
   bool Item_func_between_fix_length_and_dec(Item_func_between *func) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
-  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
-  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
   bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
   bool Item_func_plus_fix_length_and_dec(Item_func_plus *) const;
@@ -5486,6 +5495,8 @@ public:
   longlong Item_func_min_max_val_int(Item_func_min_max *) const;
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
                                             my_decimal *) const;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,

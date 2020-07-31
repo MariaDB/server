@@ -23,6 +23,12 @@
 #include "log.h"
 #include "tztime.h"
 
+const DTCollation &DTCollation_numeric::singleton()
+{
+  static const DTCollation_numeric tmp;
+  return tmp;
+}
+
 Type_handler_row         type_handler_row;
 
 Type_handler_null        type_handler_null;
@@ -5659,7 +5665,7 @@ bool Type_handler_row::
 bool Type_handler_int_result::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(this);
+  item->fix_arg_int(this, item->arguments()[0]);
   return false;
 }
 
@@ -5667,7 +5673,7 @@ bool Type_handler_int_result::
 bool Type_handler_year::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(&type_handler_long); // 10.5 merge: fix to type_handler_ulong
+  item->fix_arg_int(&type_handler_long, item->arguments()[0]); // 10.5 merge: fix to type_handler_ulong
   return false;
 }
 
@@ -5675,7 +5681,7 @@ bool Type_handler_year::
 bool Type_handler_hex_hybrid::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(NULL);
+  item->fix_arg_int(NULL, NULL);
   return false;
 }
 
@@ -5713,10 +5719,12 @@ bool Type_handler_decimal_result::
 }
 
 
-bool Type_handler_temporal_result::
+bool Type_handler_date_common::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_double();
+  static const Type_std_attributes attr(8, 0/*dec*/, true/*unsigned*/,
+                                        DTCollation_numeric::singleton());
+  item->fix_arg_int(&type_handler_long, &attr); // 10.5 merge: fix to *_ulong
   return false;
 }
 
@@ -5831,10 +5839,13 @@ bool Type_handler_decimal_result::
 }
 
 
-bool Type_handler_temporal_result::
+bool Type_handler_date_common::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
-  item->fix_length_and_dec_int_or_decimal();
+  static const Type_std_attributes attr(8, 0/*dec*/, true/*unsigned*/,
+                                        DTCollation_numeric::singleton());
+  item->Type_std_attributes::set(attr);
+  item->set_handler(&type_handler_long); // 10.5 merge: fix to *_ulong
   return false;
 }
 

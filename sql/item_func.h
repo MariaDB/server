@@ -1774,7 +1774,8 @@ public:
     return NULL;
   }
   void fix_arg_decimal();
-  void fix_arg_int(const Type_handler *preferred);
+  void fix_arg_int(const Type_handler *preferred,
+                   const Type_std_attributes *preferred_attributes);
   void fix_arg_double();
   void fix_arg_time();
   void fix_arg_datetime();
