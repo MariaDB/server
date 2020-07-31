@@ -3600,7 +3600,7 @@ bool Item_func_weight_string::fix_length_and_dec()
 {
   CHARSET_INFO *cs= args[0]->collation.collation;
   collation.set(&my_charset_bin, args[0]->collation.derivation);
-  flags= my_strxfrm_flag_normalize(flags, cs->levels_for_order);
+  weigth_flags= my_strxfrm_flag_normalize(weigth_flags, cs->levels_for_order);
   /* 
     Use result_length if it was given explicitly in constructor,
     otherwise calculate max_length using argument's max_length
@@ -3659,7 +3659,7 @@ String *Item_func_weight_string::val_str(String *str)
         to know the true number of characters.
       */
       if (!(char_length= nweights))
-        char_length= (flags & MY_STRXFRM_PAD_WITH_SPACE) ?
+        char_length= (weigth_flags & MY_STRXFRM_PAD_WITH_SPACE) ?
                       res->numchars() : (res->length() / cs->mbminlen);
     }
     tmp_length= cs->strnxfrmlen(char_length * cs->mbmaxlen);
@@ -3684,7 +3684,7 @@ String *Item_func_weight_string::val_str(String *str)
   frm_length= cs->strnxfrm((char*) str->ptr(), tmp_length,
                            nweights ? nweights : (uint) tmp_length,
                            res->ptr(), res->length(),
-                           flags);
+                           weigth_flags);
   DBUG_ASSERT(frm_length <= tmp_length);
 
   str->length(frm_length);
@@ -3707,7 +3707,7 @@ void Item_func_weight_string::print(String *str, enum_query_type query_type)
   str->append(',');
   str->append_ulonglong(nweights);
   str->append(',');
-  str->append_ulonglong(flags);
+  str->append_ulonglong(weigth_flags);
   str->append(')');
 }
 
