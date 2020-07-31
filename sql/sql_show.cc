@@ -8230,7 +8230,10 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   else
     all_items= thd->free_list;
 
-  mark_all_fields_used_in_query(thd, fields_info, &bitmap, all_items);
+  if (table_list->part_of_natural_join)
+    bitmap_set_all(&bitmap);
+  else
+    mark_all_fields_used_in_query(thd, fields_info, &bitmap, all_items);
 
   for (field_count=0; fields_info->field_name; fields_info++)
   {
