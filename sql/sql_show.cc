@@ -8165,7 +8165,7 @@ mark_all_fields_used_in_query(THD *thd,
     0<decimals<10 and 0<=length<100 .
 
   @param
-    thd	       	          thread handler
+    thd                   thread handler
 
   @param table_list Used to pass I_S table information(fields info, tables
   parameters etc) and table name.
@@ -8332,11 +8332,10 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   tmp_table_param->schema_table= 1;
   SELECT_LEX *select_lex= thd->lex->current_select;
   bool keep_row_order= is_show_command(thd);
-  if (!(table= create_tmp_table(thd, tmp_table_param,
-                                field_list, (ORDER*) 0, 0, 0, 
-                                (select_lex->options | thd->variables.option_bits |
-                                 TMP_TABLE_ALL_COLUMNS), HA_POS_ERROR,
-                                &table_list->alias, false, keep_row_order)))
+  if (!(table= create_tmp_table(thd, tmp_table_param, field_list, (ORDER*) 0, 0,
+                 0, (select_lex->options | thd->variables.option_bits |
+                 TMP_TABLE_ALL_COLUMNS), HA_POS_ERROR,
+                 &table_list->alias, false, keep_row_order)))
     DBUG_RETURN(0);
   my_bitmap_map* bitmaps=
     (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));
@@ -8794,10 +8793,10 @@ bool optimize_schema_tables_reads(JOIN *join)
         cond= tab->cache_select->cond;
       }
       if (optimize_for_get_all_tables(thd, table_list, cond))
-        DBUG_RETURN(TRUE);   // Handle OOM
+        DBUG_RETURN(1);   // Handle OOM
     }
   }
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(0);
 }
 
 
@@ -8862,13 +8861,10 @@ bool get_schema_tables_result(JOIN *join,
         continue;
 
       /*
-        If schema table is already processed and
-        the statement is not a subselect then
-        we don't need to fill this table again.
-        If schema table is already processed and
-        schema_table_state != executed_place then
-        table is already processed and
-        we should skip second data processing.
+        If schema table is already processed and the statement is not a
+        subselect then we don't need to fill this table again. If schema table
+        is already processed and schema_table_state != executed_place then
+        table is already processed and we should skip second data processing.
       */
       if (table_list->schema_table_state &&
           (!is_subselect || table_list->schema_table_state != executed_place))
@@ -8930,8 +8926,7 @@ bool get_schema_tables_result(JOIN *join,
       It also means that an audit plugin cannot process the error correctly
       either. See also thd->clear_error()
     */
-    thd->get_stmt_da()->push_warning(thd,
-                                     thd->get_stmt_da()->sql_errno(),
+    thd->get_stmt_da()->push_warning(thd, thd->get_stmt_da()->sql_errno(),
                                      thd->get_stmt_da()->get_sqlstate(),
                                      Sql_condition::WARN_LEVEL_ERROR,
                                      thd->get_stmt_da()->message());
