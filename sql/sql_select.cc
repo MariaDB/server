@@ -2468,6 +2468,10 @@ int JOIN::optimize_stage2()
     (select_options & (SELECT_DESCRIBE | SELECT_NO_JOIN_CACHE)) |
     (select_lex->ftfunc_list->elements ?  SELECT_NO_JOIN_CACHE : 0);
 
+  if (select_lex->options & OPTION_SCHEMA_TABLE &&
+       optimize_schema_tables_reads(this))
+    DBUG_RETURN(1);
+
   if (make_join_readinfo(this, select_opts_for_readinfo, no_jbuf_after))
     DBUG_RETURN(1);
 
@@ -2643,10 +2647,6 @@ int JOIN::optimize_stage2()
   if (having)
     having_is_correlated= MY_TEST(having->used_tables() & OUTER_REF_TABLE_BIT);
   tmp_having= having;
-
-  if ((select_lex->options & OPTION_SCHEMA_TABLE) &&
-       optimize_schema_tables_reads(this))
-    DBUG_RETURN(TRUE);
 
   if (unlikely(thd->is_error()))
     DBUG_RETURN(TRUE);
@@ -17138,15 +17138,11 @@ Field *Item::create_field_for_schema(THD *thd, TABLE *table)
   {
     Field *field;
     if (max_length > MAX_FIELD_VARCHARLENGTH)
-      field= new (thd->mem_root) Field_blob(max_length, maybe_null, &name,
-                                            collation.collation);
-    else if (max_length > 0)
-      field= new (thd->mem_root) Field_varstring(max_length, maybe_null, &name,
-                                                 table->s,
-                                                 collation.collation);
-    else
-      field= new Field_null((uchar*) 0, 0, Field::NONE, &name,
+      field= new Field_blob(max_length, maybe_null, &name,
                             collation.collation);
+    else
+      field= new Field_varstring(max_length, maybe_null, &name,
+                                 table->s, collation.collation);
     if (field)
       field->init(table);
     return field;

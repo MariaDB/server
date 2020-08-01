@@ -3312,21 +3312,21 @@ bool LEX::can_not_use_merged()
   }
 }
 
-/*
-  Detect that we need only table structure of derived table/view
+/**
+  Detect that we need only table structure of derived table/view.
 
-  SYNOPSIS
-    only_view_structure()
+  Also used by I_S tables (@see create_schema_table) to detect that
+  they need a full table structure and cannot optimize unused columns away
 
-  RETURN
-    TRUE yes, we need only structure
-    FALSE no, we need data
+  @retval TRUE yes, we need only structure
+  @retval FALSE no, we need data
 */
 
 bool LEX::only_view_structure()
 {
   switch (sql_command) {
   case SQLCOM_SHOW_CREATE:
+  case SQLCOM_CHECKSUM:
   case SQLCOM_SHOW_TABLES:
   case SQLCOM_SHOW_FIELDS:
   case SQLCOM_REVOKE_ALL:
@@ -3334,6 +3334,8 @@ bool LEX::only_view_structure()
   case SQLCOM_GRANT:
   case SQLCOM_CREATE_VIEW:
     return TRUE;
+  case SQLCOM_CREATE_TABLE:
+    return create_info.like();
   default:
     return FALSE;
   }
