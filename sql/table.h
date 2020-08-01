@@ -2237,6 +2237,7 @@ struct TABLE_LIST
     parsing 'this' is a NATURAL/USING join iff (natural_join != NULL).
   */
   TABLE_LIST *natural_join;
+  bool part_of_natural_join;
   /*
     True if 'this' represents a nested join that is a NATURAL JOIN.
     For one of the operands of 'this', the member 'natural_join' points
