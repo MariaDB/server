@@ -2166,7 +2166,7 @@ same_page:
 
           if (lsn == checkpoint_lsn)
           {
-            ut_ad(mlog_checkpoint_lsn <= recovered_lsn);
+            /* There can be multiple FILE_CHECKPOINT for the same LSN. */
             if (mlog_checkpoint_lsn)
               continue;
             mlog_checkpoint_lsn= recovered_lsn;

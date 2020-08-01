@@ -1,4 +1,4 @@
-/* Copyright (C) 2012 Monty Program Ab
+/* Copyright (C) 2012, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -513,11 +513,21 @@ static my_bool timeout_check(THD *thd, pool_timer_t *timer)
   DBUG_ENTER("timeout_check");
   if (thd->net.reading_or_writing == 1)
   {
-    /*
-      Check if connection does not have scheduler data. This happens for example
-      if THD belongs to a different scheduler, that is listening to extra_port.
-    */
-    if (auto connection= (TP_connection_generic *) thd->event_scheduler.data)
+    TP_connection_generic *connection= (TP_connection_generic *)thd->event_scheduler.data;
+    if (!connection || connection->state != TP_STATE_IDLE)
+    {
+      /*
+        Connection does not have scheduler data. This happens for example
+        if THD belongs to a different scheduler, that is listening to extra_port.
+      */
+      DBUG_RETURN(0);
+    }
+
+    if(connection->abs_wait_timeout < timer->current_microtime)
+    {
+      tp_timeout_handler(connection);
+    }
+    else
     {
       if (connection->abs_wait_timeout < timer->current_microtime)
         tp_timeout_handler(connection);

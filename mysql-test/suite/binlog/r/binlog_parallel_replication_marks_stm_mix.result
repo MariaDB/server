@@ -38,21 +38,21 @@ disconnect tmp_con;
 connection default;
 FLUSH LOGS;
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
-BEGIN
+START TRANSACTION
 /* GTID */ INSERT INTO t1 VALUES (1,0)
 COMMIT/*!*/;
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
-BEGIN
+START TRANSACTION
 /* GTID */ INSERT INTO t1 VALUES (2,0)
 COMMIT/*!*/;
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# ddl
 /* GTID */ ALTER TABLE t1 ADD c INT
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
-BEGIN
+START TRANSACTION
 /* GTID */ INSERT INTO t1 VALUES (3,0,0)
 COMMIT/*!*/;
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# ddl
-BEGIN
+START TRANSACTION
 /* GTID */ UPDATE t1 SET b=1, c=1 WHERE a=2
 /* GTID */ CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB
 /* GTID */ INSERT INTO t2 VALUES (4,10), (5,20)
@@ -63,7 +63,7 @@ COMMIT/*!*/;
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# ddl
 /* GTID */ CREATE TEMPORARY TABLE t3 (a INT PRIMARY KEY) ENGINE=InnoDB
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# ddl
-BEGIN
+START TRANSACTION
 /* GTID */ DELETE FROM t1 WHERE a=5
 /* GTID */ INSERT INTO t3 VALUES (7)
 /* GTID */ INSERT INTO t1 SELECT a, 4, 0 FROM t3
@@ -73,21 +73,21 @@ COMMIT/*!*/;
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# ddl
 /* GTID */ CREATE TEMPORARY TABLE t4 (a INT PRIMARY KEY) ENGINE=InnoDB
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
-BEGIN
+START TRANSACTION
 /* GTID */ INSERT INTO t1 VALUES (8, 5, 0)
 COMMIT/*!*/;
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# ddl
 /* GTID */ ALTER TABLE t4 ADD b INT
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
-BEGIN
+START TRANSACTION
 /* GTID */ INSERT INTO t1 VALUES (9, 5, 1)
 COMMIT/*!*/;
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
-BEGIN
+START TRANSACTION
 /* GTID */ INSERT INTO t1 VALUES (10, 6, 0)
 COMMIT/*!*/;
 # server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# ddl
-BEGIN
+START TRANSACTION
 /* GTID */ CREATE TEMPORARY TABLE t5 (a INT PRIMARY KEY) ENGINE=InnoDB
 /* GTID */ INSERT INTO t1 VALUES (11, 7, 0)
 COMMIT/*!*/;

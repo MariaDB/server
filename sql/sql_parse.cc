@@ -1276,6 +1276,7 @@ bool do_command(THD *thd)
   command= fetch_command(thd, packet);
 
 #ifdef WITH_WSREP
+  DEBUG_SYNC(thd, "wsrep_before_before_command");
   /*
     Aborted by background rollbacker thread.
     Handle error here and jump straight to out
@@ -8013,8 +8014,8 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     sp_cache_enforce_limit(thd->sp_package_spec_cache, stored_program_cache_size);
     sp_cache_enforce_limit(thd->sp_package_body_cache, stored_program_cache_size);
     thd->end_statement();
+    thd->Item_change_list::rollback_item_tree_changes();
     thd->cleanup_after_query();
-    DBUG_ASSERT(thd->Item_change_list::is_empty());
   }
   else
   {
@@ -9116,7 +9117,6 @@ my_bool find_thread_callback(THD *thd, find_thread_callback_arg *arg)
   if (thd->get_command() != COM_DAEMON &&
       arg->id == (arg->query_id ? thd->query_id : (longlong) thd->thread_id))
   {
-    if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
     mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
     arg->thd= thd;
     return 1;
@@ -9132,6 +9132,26 @@ THD *find_thread_by_id(longlong id, bool query_id)
   return arg.thd;
 }
 
+#ifdef WITH_WSREP
+my_bool find_thread_with_thd_data_lock_callback(THD *thd, find_thread_callback_arg *arg)
+{
+  if (thd->get_command() != COM_DAEMON &&
+      arg->id == (arg->query_id ? thd->query_id : (longlong) thd->thread_id))
+  {
+    if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
+    arg->thd= thd;
+    return 1;
+  }
+  return 0;
+}
+THD *find_thread_by_id_with_thd_data_lock(longlong id, bool query_id)
+{
+  find_thread_callback_arg arg(id, query_id);
+  server_threads.iterate(find_thread_with_thd_data_lock_callback, &arg);
+  return arg.thd;
+}
+#endif
 
 /**
   kill one thread.
@@ -9149,7 +9169,11 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   uint error= (type == KILL_TYPE_QUERY ? ER_NO_SUCH_QUERY : ER_NO_SUCH_THREAD);
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
+#ifdef WITH_WSREP
+  if (id && (tmp= find_thread_by_id_with_thd_data_lock(id, type == KILL_TYPE_QUERY)))
+#else
   if (id && (tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
+#endif
   {
     /*
       If we're SUPER, we can KILL anything, including system-threads.
@@ -9203,8 +9227,9 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
                                         ER_KILL_DENIED_ERROR);
-
+#ifdef WITH_WSREP
     if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
+#endif
     mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   }
   DBUG_PRINT("exit", ("%d", error));

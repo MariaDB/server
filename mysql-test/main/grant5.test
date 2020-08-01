@@ -199,4 +199,14 @@ delete from db.t1 returning *;
 drop database db;
 drop user foo;
 
+#
+# MDEV-23009 SIGSEGV in get_field from acl_load (on optimized builds)
+#
+call mtr.add_suppression('mysql.host table is damaged');
+create table mysql.host (c1 int);
+insert mysql.host values (1);
+--error ER_UNKNOWN_ERROR
+flush privileges;
+drop table mysql.host;
+
 --echo # End of 10.4 tests

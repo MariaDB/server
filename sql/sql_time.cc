@@ -18,7 +18,6 @@
 /* Functions to handle date and time */
 
 #include "mariadb.h"
-#include "sql_priv.h"
 #include "sql_time.h"
 #include "tztime.h"                      // struct Time_zone
 #include "sql_class.h"                   // THD
@@ -297,7 +296,7 @@ check_date_with_warn(THD *thd, const MYSQL_TIME *ltime,
   {
     ErrConvTime str(ltime);
     make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, ts_type, 0, 0);
+                                 &str, ts_type, nullptr, nullptr, nullptr);
     return true;
   }
   return false;
@@ -431,7 +430,7 @@ str_to_datetime_with_warn(THD *thd, CHARSET_INFO *cs,
                           const char *str, size_t length, MYSQL_TIME *to,
                           date_mode_t mode)
 {
-  Temporal::Warn_push warn(thd, NULL, NullS, to, mode);
+  Temporal::Warn_push warn(thd, nullptr, nullptr, nullptr, to, mode);
   Temporal_hybrid *t= new(to) Temporal_hybrid(thd, &warn, str, length, cs, mode);
   return !t->is_valid_temporal();
 }
@@ -441,7 +440,9 @@ bool double_to_datetime_with_warn(THD *thd, double value, MYSQL_TIME *ltime,
                                   date_mode_t fuzzydate,
                                   const TABLE_SHARE *s, const char *field_name)
 {
-  Temporal::Warn_push warn(thd, s, field_name, ltime, fuzzydate);
+  Temporal::Warn_push warn(thd, s ? s->db.str : nullptr,
+                           s ? s->table_name.str : nullptr,
+                           field_name, ltime, fuzzydate);
   Temporal_hybrid *t= new (ltime) Temporal_hybrid(thd, &warn, value, fuzzydate);
   return !t->is_valid_temporal();
 }
@@ -452,7 +453,9 @@ bool decimal_to_datetime_with_warn(THD *thd, const my_decimal *value,
                                    date_mode_t fuzzydate,
                                    const TABLE_SHARE *s, const char *field_name)
 {
-  Temporal::Warn_push warn(thd, s, field_name, ltime, fuzzydate);
+  Temporal::Warn_push warn(thd, s ? s->db.str : nullptr,
+                           s ? s->table_name.str : nullptr,
+                           field_name, ltime, fuzzydate);
   Temporal_hybrid *t= new (ltime) Temporal_hybrid(thd, &warn, value, fuzzydate);
   return !t->is_valid_temporal();
 }
@@ -467,7 +470,9 @@ bool int_to_datetime_with_warn(THD *thd, const Longlong_hybrid &nr,
     Note: conversion from an integer to TIME can overflow to '838:59:59.999999',
     so the conversion result can have fractional digits.
   */
-  Temporal::Warn_push warn(thd, s, field_name, ltime, fuzzydate);
+  Temporal::Warn_push warn(thd, s ? s->db.str : nullptr,
+                           s ? s->table_name.str : nullptr,
+                           field_name, ltime, fuzzydate);
   Temporal_hybrid *t= new (ltime) Temporal_hybrid(thd, &warn, nr, fuzzydate);
   return !t->is_valid_temporal();
 }
@@ -896,12 +901,13 @@ void make_truncated_value_warning(THD *thd,
                                   Sql_condition::enum_warning_level level,
                                   const ErrConv *sval,
 				  timestamp_type time_type,
-                                  const TABLE_SHARE *s, const char *field_name)
+                                  const char *db_name, const char *table_name,
+                                  const char *field_name)
 {
   const char *type_str= Temporal::type_name_by_timestamp_type(time_type);
   return thd->push_warning_wrong_or_truncated_value
     (level, time_type <= MYSQL_TIMESTAMP_ERROR, type_str, sval->ptr(),
-     s, field_name);
+     db_name, table_name, field_name);
 }
 
 

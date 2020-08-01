@@ -14,7 +14,10 @@ END|
 connect node_1X, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1X;
 CALL proc_update();;
+connection node_1;
+call mtr.add_suppression("WSREP: Wait for gtid returned error 3 while waiting for prior transactions to commit before setting position");
 connection node_2;
+call mtr.add_suppression("WSREP: Wait for gtid returned error 3 while waiting for prior transactions to commit before setting position");
 SET SESSION wsrep_retry_autocommit = 0;
 connection node_1;
 connection node_1X;

@@ -1019,7 +1019,7 @@ LOOP
 EXIT WHEN unknown_ident IS NULL;
 END LOOP;
 END$$
-ERROR 42S22: Unknown column 'unknown_ident' in 'field list'
+ERROR 42000: Undeclared variable: unknown_ident
 CREATE PROCEDURE p1
 AS
 BEGIN
@@ -1028,7 +1028,7 @@ LOOP
 EXIT label WHEN unknown_ident IS NULL;
 END LOOP;
 END$$
-ERROR 42S22: Unknown column 'unknown_ident' in 'field list'
+ERROR 42000: Undeclared variable: unknown_ident
 CREATE PROCEDURE p1
 AS
 BEGIN
@@ -1036,7 +1036,7 @@ LOOP
 CONTINUE WHEN unknown_ident IS NULL;
 END LOOP;
 END$$
-ERROR 42S22: Unknown column 'unknown_ident' in 'field list'
+ERROR 42000: Undeclared variable: unknown_ident
 CREATE PROCEDURE p1
 AS
 BEGIN
@@ -1045,7 +1045,7 @@ LOOP
 CONTINUE label WHEN unknown_ident IS NULL;
 END LOOP;
 END$$
-ERROR 42S22: Unknown column 'unknown_ident' in 'field list'
+ERROR 42000: Undeclared variable: unknown_ident
 #
 # MDEV-10583 sql_mode=ORACLE: SQL%ROWCOUNT
 #

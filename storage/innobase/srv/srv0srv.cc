@@ -76,7 +76,6 @@ Created 10/8/1995 Heikki Tuuri
 
 
 #include <my_service_manager.h>
-
 /* The following is the maximum allowed duration of a lock wait. */
 UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT;
 
@@ -1507,17 +1506,6 @@ bool srv_any_background_activity()
 }
 #endif /* UNIV_DEBUG */
 
-/** Wake up the InnoDB master thread if it was suspended (not sleeping). */
-void
-srv_active_wake_master_thread_low()
-{
-	ut_ad(!srv_read_only_mode);
-	ut_ad(!mutex_own(&srv_sys.mutex));
-
-	srv_inc_activity_count();
-}
-
-
 static void purge_worker_callback(void*);
 static void purge_coordinator_callback(void*);
 static void purge_coordinator_timer_callback(void*);
@@ -1606,13 +1594,6 @@ void purge_sys_t::resume()
    rw_lock_x_unlock(&latch);
 }
 
-/** Wake up the master thread if it is suspended or being suspended. */
-void
-srv_wake_master_thread()
-{
-	srv_inc_activity_count();
-}
-
 /*******************************************************************//**
 Get current server activity count. We don't hold srv_sys::mutex while
 reading this value as it is only used in heuristics.
@@ -1624,15 +1605,20 @@ srv_get_activity_count(void)
 	return(srv_sys.activity_count);
 }
 
-/*******************************************************************//**
-Check if there has been any activity.
+/** Check if there has been any activity.
+@param[in,out]  activity_count  recent activity count to be returned
+if there is a change
 @return FALSE if no change in activity counter. */
-ibool
-srv_check_activity(
-/*===============*/
-	ulint		old_activity_count)	/*!< in: old activity count */
+bool srv_check_activity(ulint  *activity_count)
 {
-	return(srv_sys.activity_count != old_activity_count);
+  ulint new_activity_count= srv_sys.activity_count;
+  if (new_activity_count != *activity_count)
+  {
+    *activity_count= new_activity_count;
+    return true;
+  }
+
+  return false;
 }
 
 /********************************************************************//**
@@ -1923,6 +1909,10 @@ srv_master_do_idle_tasks(void)
 	log_checkpoint();
 	MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_CHECKPOINT_MICROSECOND,
 				       counter_time);
+
+	/* This is a workaround to avoid the InnoDB hang when OS datetime
+	changed backwards.*/
+	os_event_set(buf_flush_event);
 }
 
 /**
@@ -1971,8 +1961,7 @@ void srv_master_callback(void*)
 
 	srv_main_thread_op_info = "";
 	MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
-	if (srv_check_activity(old_activity_count)) {
-		old_activity_count = srv_get_activity_count();
+	if (srv_check_activity(&old_activity_count)) {
 		srv_master_do_active_tasks();
 	} else {
 		srv_master_do_idle_tasks();
@@ -2097,15 +2086,13 @@ static uint32_t srv_do_purge(ulint* n_total_purged)
 				++n_use_threads;
 			}
 
-		} else if (srv_check_activity(old_activity_count)
+		} else if (srv_check_activity(&old_activity_count)
 			   && n_use_threads > 1) {
 
 			/* History length same or smaller since last snapshot,
 			use fewer threads. */
 
 			--n_use_threads;
-
-			old_activity_count = srv_get_activity_count();
 		}
 
 		/* Ensure that the purge threads are less than what

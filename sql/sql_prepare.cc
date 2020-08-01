@@ -5353,7 +5353,7 @@ bool Protocol_local::store_str(const char *str, size_t length,
 bool Protocol_local::store(MYSQL_TIME *time, int decimals)
 {
   if (decimals != AUTO_SEC_PART_DIGITS)
-    my_time_trunc(time, decimals);
+    my_datetime_trunc(time, decimals);
   return store_column(time, sizeof(MYSQL_TIME));
 }
 

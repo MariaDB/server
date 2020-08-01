@@ -4922,8 +4922,13 @@ loop:
 				mtr_release_block_at_savepoint(
 					&mtr, savepoint, right_block);
 
-				btr_block_get(*index, parent_right_page_no,
-					      RW_SX_LATCH, false, &mtr);
+				if (parent_right_page_no != FIL_NULL) {
+					btr_block_get(*index,
+						      parent_right_page_no,
+						      RW_SX_LATCH, false,
+						      &mtr);
+				}
+
 				right_block = btr_block_get(*index,
 							    right_page_no,
 							    RW_SX_LATCH,

@@ -740,6 +740,14 @@ SET sql_mode=DEFAULT;
 SELECT NULLIF(CAST(1012.5 AS DATE), 1);
 SELECT CAST(1012.5 AS DATE) * 1.0;
 
+--echo #
+--echo # MDEV-23351 Rounding functions return wrong data types for DATE input
+--echo #
+
+CREATE TABLE t1 (a date);
+CREATE TABLE t2 AS SELECT FLOOR(a), CEIL(a),ROUND(a),TRUNCATE(a,0) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2,t1;
 
 --echo #
 --echo # End of 10.4 tests

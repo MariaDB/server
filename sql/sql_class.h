@@ -1100,7 +1100,7 @@ public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
   {
-    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE
+    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE, TABLE_ARENA
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
@@ -4086,13 +4086,20 @@ public:
     return 0;
   }
 
+
+  bool is_item_tree_change_register_required()
+  {
+    return !stmt_arena->is_conventional()
+           || stmt_arena->type() == Query_arena::TABLE_ARENA;
+  }
+
   void change_item_tree(Item **place, Item *new_value)
   {
     DBUG_ENTER("THD::change_item_tree");
     DBUG_PRINT("enter", ("Register: %p (%p) <- %p",
                        *place, place, new_value));
     /* TODO: check for OOM condition here */
-    if (!stmt_arena->is_conventional())
+    if (is_item_tree_change_register_required())
       nocheck_register_item_tree_change(place, *place, mem_root);
     *place= new_value;
     DBUG_VOID_RETURN;
@@ -4588,14 +4595,13 @@ public:
   void push_warning_truncated_value_for_field(Sql_condition::enum_warning_level
                                               level, const char *type_str,
                                               const char *val,
-                                              const TABLE_SHARE *s,
+                                              const char *db_name,
+                                              const char *table_name,
                                               const char *name)
   {
     DBUG_ASSERT(name);
     char buff[MYSQL_ERRMSG_SIZE];
     CHARSET_INFO *cs= &my_charset_latin1;
-    const char *db_name= s ? s->db.str : NULL;
-    const char *table_name= s ? s->table_name.str : NULL;
 
     if (!db_name)
       db_name= "";
@@ -4612,12 +4618,13 @@ public:
                                              bool totally_useless_value,
                                              const char *type_str,
                                              const char *val,
-                                             const TABLE_SHARE *s,
+                                             const char *db_name,
+                                             const char *table_name,
                                              const char *field_name)
   {
     if (field_name)
       push_warning_truncated_value_for_field(level, type_str, val,
-                                             s, field_name);
+                                             db_name, table_name, field_name);
     else if (totally_useless_value)
       push_warning_wrong_value(level, type_str, val);
     else

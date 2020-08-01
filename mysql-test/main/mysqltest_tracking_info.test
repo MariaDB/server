@@ -47,6 +47,21 @@ SET @@session.session_track_system_variables= @save_session_track_system_variabl
 --echo # End of 10.2 tests
 
 --echo #
+--echo # MDEV-22134 handle_fatal_signal (sig=11) in __strlen_avx2 on START
+--echo # SLAVE | Assertion
+--echo # `global_system_variables.session_track_system_variables' failed in
+--echo # Session_sysvars_tracker::init | *** buffer overflow detected ***
+--echo # (on optimized builds)
+--echo #
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@GLOBAL.session_track_system_variables=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET SESSION session_track_system_variables=NULL;
+
+--echo # End of 10.3 tests
+
+--echo #
 --echo # MDEV-16470 - Session user variables tracker
 --echo #
 #SET @@session.session_track_user_variables=1;

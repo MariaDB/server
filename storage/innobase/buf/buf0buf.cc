@@ -3836,15 +3836,25 @@ buf_page_create(fil_space_t *space, uint32_t offset,
   if (block && block->page.in_file() &&
       !buf_pool.watch_is_sentinel(block->page))
   {
+#ifdef BTR_CUR_HASH_ADAPT
+    const bool drop_hash_entry= block->page.state() == BUF_BLOCK_FILE_PAGE &&
+      UNIV_LIKELY_NULL(block->index);
+    if (UNIV_UNLIKELY(drop_hash_entry))
+      block->page.set_io_fix(BUF_IO_PIN);
+#endif /* BTR_CUR_HASH_ADAPT */
+
     /* Page can be found in buf_pool */
     buf_LRU_block_free_non_file_page(free_block);
     mutex_exit(&buf_pool.mutex);
 
 #ifdef BTR_CUR_HASH_ADAPT
-    if (block->page.state() == BUF_BLOCK_FILE_PAGE &&
-        UNIV_LIKELY_NULL(block->index))
+    if (UNIV_UNLIKELY(drop_hash_entry))
+    {
       btr_search_drop_page_hash_index(block);
+      block->page.io_unfix();
+    }
 #endif /* BTR_CUR_HASH_ADAPT */
+
     if (!recv_recovery_is_on())
       /* FIXME: Remove the redundant lookup and avoid
       the unnecessary invocation of buf_zip_decompress().

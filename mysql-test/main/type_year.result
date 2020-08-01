@@ -585,6 +585,33 @@ COALESCE(a)	DATE(COALESCE(a))
 NULL	NULL
 DROP TABLE t1;
 #
+# MDEV-23337 Rounding functions create a wrong data type for numeric input
+#
+CREATE TABLE t1 (a YEAR(2));
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+DESC t2;
+Field	Type	Null	Key	Default	Extra
+a	year(2)	YES		NULL	
+ROUND(a)	int(2) unsigned	YES		NULL	
+TRUNCATE(a,0)	int(2) unsigned	YES		NULL	
+FLOOR(a)	int(2) unsigned	YES		NULL	
+CEILING(a)	int(2) unsigned	YES		NULL	
+DROP TABLE t2,t1;
+CREATE TABLE t1 (a YEAR(4));
+CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+DESC t2;
+Field	Type	Null	Key	Default	Extra
+a	year(4)	YES		NULL	
+ROUND(a)	int(4) unsigned	YES		NULL	
+TRUNCATE(a,0)	int(4) unsigned	YES		NULL	
+FLOOR(a)	int(4) unsigned	YES		NULL	
+CEILING(a)	int(4) unsigned	YES		NULL	
+DROP TABLE t2,t1;
+#
 # End of 10.4 tests
 #
 #

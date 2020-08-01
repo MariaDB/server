@@ -800,6 +800,15 @@ class Grant_table_base
   bool init_read_record(READ_RECORD* info) const
   {
     DBUG_ASSERT(m_table);
+
+    if (num_fields() < min_columns)
+    {
+      my_printf_error(ER_UNKNOWN_ERROR, "Fatal error: mysql.%s table is "
+                      "damaged or in unsupported 3.20 format",
+                      MYF(ME_ERROR_LOG), m_table->s->table_name.str);
+      return 1;
+    }
+
     bool result= ::init_read_record(info, m_table->in_use, m_table,
                                     NULL, NULL, 1, true, false);
     if (!result)
@@ -824,7 +833,7 @@ class Grant_table_base
  protected:
   friend class Grant_tables;
 
-  Grant_table_base() : start_priv_columns(0), end_priv_columns(0), m_table(0)
+  Grant_table_base() : min_columns(3), start_priv_columns(0), end_priv_columns(0), m_table(0)
   { }
 
   /* Compute how many privilege columns this table has. This method
@@ -853,6 +862,9 @@ class Grant_table_base
     }
   }
 
+
+  /* the min number of columns a table should have */
+  uint min_columns;
   /* The index at which privilege columns start. */
   uint start_priv_columns;
   /* The index after the last privilege column */
@@ -1266,7 +1278,7 @@ class User_table_tabular: public User_table
   friend class Grant_tables;
 
   /* Only Grant_tables can instantiate this class. */
-  User_table_tabular() {}
+  User_table_tabular() { min_columns= 13; /* As in 3.20.13 */ }
 
   /* The user table is a bit different compared to the other Grant tables.
      Usually, we only add columns to the grant tables when adding functionality.
@@ -1288,13 +1300,6 @@ class User_table_tabular: public User_table
 
   int setup_sysvars() const
   {
-    if (num_fields() < 13) // number of columns in 3.21
-    {
-      sql_print_error("Fatal error: mysql.user table is damaged or in "
-                      "unsupported 3.20 format.");
-      return 1;
-    }
-
     username_char_length= MY_MIN(m_table->field[1]->char_length(),
                                  USERNAME_CHAR_LENGTH);
     using_global_priv_table= false;
@@ -1806,7 +1811,7 @@ class Db_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Db_table() {}
+  Db_table() { min_columns= 9; /* as in 3.20.13 */ }
 };
 
 class Tables_priv_table: public Grant_table_base
@@ -1824,7 +1829,7 @@ class Tables_priv_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Tables_priv_table() {}
+  Tables_priv_table() { min_columns= 8; /* as in 3.22.26a */ }
 };
 
 class Columns_priv_table: public Grant_table_base
@@ -1841,7 +1846,7 @@ class Columns_priv_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Columns_priv_table() {}
+  Columns_priv_table() { min_columns= 7; /* as in 3.22.26a */ }
 };
 
 class Host_table: public Grant_table_base
@@ -1853,7 +1858,7 @@ class Host_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Host_table() {}
+  Host_table() { min_columns= 8; /* as in 3.20.13 */ }
 };
 
 class Procs_priv_table: public Grant_table_base
@@ -1871,7 +1876,7 @@ class Procs_priv_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Procs_priv_table() {}
+  Procs_priv_table() { min_columns=8; }
 };
 
 class Proxies_priv_table: public Grant_table_base
@@ -1888,7 +1893,7 @@ class Proxies_priv_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Proxies_priv_table() {}
+  Proxies_priv_table() { min_columns= 7; }
 };
 
 class Roles_mapping_table: public Grant_table_base
@@ -1902,7 +1907,7 @@ class Roles_mapping_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Roles_mapping_table() {}
+  Roles_mapping_table() { min_columns= 4; }
 };
 
 /**

@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2016, 2018, MariaDB Corporation
+   Copyright (c) 2016, 2020, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -129,10 +129,10 @@ const char* Alter_info::lock() const
 }
 
 
-bool Alter_info::supports_algorithm(THD *thd, enum_alter_inplace_result result,
+bool Alter_info::supports_algorithm(THD *thd,
                                     const Alter_inplace_info *ha_alter_info)
 {
-  switch (result) {
+  switch (ha_alter_info->inplace_supported) {
   case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:
   case HA_ALTER_INPLACE_SHARED_LOCK:
   case HA_ALTER_INPLACE_NO_LOCK:
@@ -173,10 +173,10 @@ bool Alter_info::supports_algorithm(THD *thd, enum_alter_inplace_result result,
 }
 
 
-bool Alter_info::supports_lock(THD *thd, enum_alter_inplace_result result,
+bool Alter_info::supports_lock(THD *thd,
                                const Alter_inplace_info *ha_alter_info)
 {
-  switch (result) {
+  switch (ha_alter_info->inplace_supported) {
   case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:
     // If SHARED lock and no particular algorithm was requested, use COPY.
     if (requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED &&
@@ -377,7 +377,9 @@ void Alter_table_ctx::report_implicit_default_value_error(THD *thd,
   thd->push_warning_truncated_value_for_field(Sql_condition::WARN_LEVEL_WARN,
                                               h->name().ptr(),
                                               h->default_value().ptr(),
-                                              s, error_field->field_name.str);
+                                              s ? s->db.str : nullptr,
+                                              s ? s->table_name.str : nullptr,
+                                              error_field->field_name.str);
 }
 
 

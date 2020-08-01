@@ -1469,11 +1469,6 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
       must_flush_log_later= true;
     else if (srv_flush_log_at_trx_commit)
       trx_flush_log_if_needed(commit_lsn, this);
-
-    /* Tell server some activity has happened, since the trx does
-    changes something. Background utility threads like master thread,
-    purge thread or page_cleaner thread might have some work to do. */
-    srv_active_wake_master_thread();
   }
 
   ut_ad(!rsegs.m_noredo.undo);

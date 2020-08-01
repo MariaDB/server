@@ -2401,7 +2401,7 @@ uint Field::fill_cache_field(CACHE_FIELD *copy)
 bool Field::get_date(MYSQL_TIME *to, date_mode_t mode)
 {
   StringBuffer<40> tmp;
-  Temporal::Warn_push warn(get_thd(), NULL, NullS, to, mode);
+  Temporal::Warn_push warn(get_thd(), nullptr, nullptr, nullptr, to, mode);
   Temporal_hybrid *t= new(to) Temporal_hybrid(get_thd(), &warn,
                                               val_str(&tmp), mode);
   return !t->is_valid_temporal();
@@ -10887,14 +10887,16 @@ void Field::set_datetime_warning(Sql_condition::enum_warning_level level,
   if (thd->really_abort_on_warning() && level >= Sql_condition::WARN_LEVEL_WARN)
   {
     /*
-      field_str.name can be NULL when field is not in the select list:
+      field_name.str can be NULL when field is not in the select list:
         SET SESSION SQL_MODE= 'STRICT_ALL_TABLES,NO_ZERO_DATE';
         CREATE OR REPLACE TABLE t2 SELECT 1 AS f FROM t1 GROUP BY FROM_DAYS(d);
       Can't call push_warning_truncated_value_for_field() directly here,
       as it expect a non-NULL name.
     */
     thd->push_warning_wrong_or_truncated_value(level, false, typestr,
-                                               str->ptr(), table->s,
+                                               str->ptr(),
+                                               table->s->db.str,
+                                               table->s->table_name.str,
                                                field_name.str);
   }
   else

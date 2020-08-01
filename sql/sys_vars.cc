@@ -3863,6 +3863,12 @@ static bool fix_tp_min_threads(sys_var *, THD *, enum_var_type)
 
 static bool check_threadpool_size(sys_var *self, THD *thd, set_var *var)
 {
+
+#ifdef _WIN32
+  if (threadpool_mode != TP_MODE_GENERIC)
+    return false;
+#endif
+
   ulonglong v= var->save_result.ulonglong_value;
   if (v > threadpool_max_size)
   {

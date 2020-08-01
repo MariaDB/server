@@ -1089,5 +1089,19 @@ CAST(1012.5 AS DATE) * 1.0
 Warnings:
 Note	1292	Truncated incorrect date value: '1012.5'
 #
+# MDEV-23351 Rounding functions return wrong data types for DATE input
+#
+CREATE TABLE t1 (a date);
+CREATE TABLE t2 AS SELECT FLOOR(a), CEIL(a),ROUND(a),TRUNCATE(a,0) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `FLOOR(a)` int(8) unsigned DEFAULT NULL,
+  `CEIL(a)` int(8) unsigned DEFAULT NULL,
+  `ROUND(a)` int(8) unsigned DEFAULT NULL,
+  `TRUNCATE(a,0)` int(8) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2,t1;
+#
 # End of 10.4 tests
 #

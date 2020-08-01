@@ -772,6 +772,7 @@ btr_cur_optimistic_latch_leaves(
 {
 	rw_lock_type_t	mode;
 	ulint		left_page_no;
+	ulint		curr_page_no;
 
 	switch (*latch_mode) {
 	case BTR_SEARCH_LEAF:
@@ -795,13 +796,33 @@ btr_cur_optimistic_latch_leaves(
 
 			goto unpin_failed;
 		}
+		curr_page_no = block->page.id().page_no();
 		left_page_no = btr_page_get_prev(block->frame);
 		rw_lock_s_unlock(&block->lock);
 
-		cursor->left_block = left_page_no != FIL_NULL
-			? btr_block_get(*cursor->index, left_page_no, mode,
-					page_is_leaf(block->frame), mtr)
-			: NULL;
+		if (left_page_no != FIL_NULL) {
+			dberr_t	err = DB_SUCCESS;
+			cursor->left_block = buf_page_get_gen(
+				page_id_t(cursor->index->table->space_id,
+					  left_page_no),
+				cursor->index->table->space->zip_size(),
+				mode, nullptr, BUF_GET_POSSIBLY_FREED,
+				__FILE__, __LINE__, mtr, &err);
+
+			if (err == DB_DECRYPTION_FAILED) {
+				cursor->index->table->file_unreadable = true;
+			}
+
+			if (btr_page_get_next(cursor->left_block->frame)
+			    != curr_page_no) {
+				/* release the left block */
+				btr_leaf_page_release(
+					cursor->left_block, mode, mtr);
+				goto unpin_failed;
+			}
+		} else {
+			cursor->left_block = NULL;
+		}
 
 		if (buf_page_optimistic_get(mode, block, modify_clock,
 					    file, line, mtr)) {

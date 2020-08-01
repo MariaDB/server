@@ -512,6 +512,8 @@ cli_advanced_command(MYSQL *mysql, enum enum_server_command command,
       set_mysql_error(mysql, CR_NET_PACKET_TOO_LARGE, unknown_sqlstate);
       goto end;
     }
+    if (net->last_errno == ER_NET_ERROR_ON_WRITE && command == COM_BINLOG_DUMP)
+      goto end;
     end_server(mysql);
     if (mysql_reconnect(mysql) || stmt_skip)
       goto end;

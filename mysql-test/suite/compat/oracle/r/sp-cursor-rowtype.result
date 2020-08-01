@@ -1045,7 +1045,7 @@ NULL;
 END LOOP;
 END;
 $$
-ERROR 42000: Undefined CURSOR: c2
+ERROR 42000: Undeclared variable: c2
 # Make sure "rec" shadows other declarations outside the loop
 CREATE TABLE t1 (a INT, b VARCHAR(10));
 INSERT INTO t1 VALUES (10, 'b0');

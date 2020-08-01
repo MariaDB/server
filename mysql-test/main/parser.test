@@ -1679,7 +1679,15 @@ $$
 
 DELIMITER ;$$
 
+--echo #
+--echo # MDEV-21998: Server crashes in st_select_lex::add_table_to_list
+--echo # upon mix of KILL and sequences
+--echo #
 
+--error ER_SUBQUERIES_NOT_SUPPORTED
+KILL ( SELECT 1 ) + LASTVAL(s);
+--error ER_SUBQUERIES_NOT_SUPPORTED
+KILL LASTVAL(s);
 
 --echo # End of 10.4 tests
 

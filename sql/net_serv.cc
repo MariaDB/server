@@ -45,6 +45,7 @@
 #include <violite.h>
 #include <signal.h>
 #include "probes_mysql.h"
+#include <debug_sync.h>
 #include "proxy_protocol.h"
 
 PSI_memory_key key_memory_NET_buff;
@@ -494,6 +495,17 @@ net_write_command(NET *net,uchar command,
   DBUG_ENTER("net_write_command");
   DBUG_PRINT("enter",("length: %lu", (ulong) len));
 
+  DBUG_EXECUTE_IF("simulate_error_on_packet_write",
+                  {
+                    if (command == COM_BINLOG_DUMP)
+                    {
+                      net->last_errno = ER_NET_ERROR_ON_WRITE;
+                      DBUG_ASSERT(!debug_sync_set_action(
+                      (THD *)net->thd,
+                      STRING_WITH_LEN("now SIGNAL parked WAIT_FOR continue")));
+                      DBUG_RETURN(true);
+                    }
+                  };);
   MYSQL_NET_WRITE_START(length);
 
   buff[4]=command;				/* For first packet */

@@ -369,14 +369,6 @@ TYPELIB innodb_flush_method_typelib = {
 	NULL
 };
 
-/* The following counter is used to convey information to InnoDB
-about server activity: in case of normal DML ops it is not
-sensible to call srv_active_wake_master_thread after each
-operation, we only do it every INNOBASE_WAKE_INTERVAL'th step. */
-
-#define INNOBASE_WAKE_INTERVAL	32
-static ulong	innobase_active_counter	= 0;
-
 /** Allowed values of innodb_change_buffering */
 static const char* innodb_change_buffering_names[] = {
 	"none",		/* IBUF_USE_NONE */
@@ -1723,23 +1715,6 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
-/********************************************************************//**
-Increments innobase_active_counter and every INNOBASE_WAKE_INTERVALth
-time calls srv_active_wake_master_thread. This function should be used
-when a single database operation may introduce a small need for
-server utility activity, like checkpointing. */
-inline
-void
-innobase_active_small(void)
-/*=======================*/
-{
-	innobase_active_counter++;
-
-	if ((innobase_active_counter % INNOBASE_WAKE_INTERVAL) == 0) {
-		srv_active_wake_master_thread();
-	}
-}
-
 /********************************************************************//**
 Converts an InnoDB error code to a MySQL error code and also tells to MySQL
 about a possible transaction rollback inside InnoDB caused by a lock wait
@@ -6193,11 +6168,6 @@ ha_innobase::close()
 
 	MONITOR_INC(MONITOR_TABLE_CLOSE);
 
-	/* Tell InnoDB server that there might be work for
-	utility threads: */
-
-	srv_active_wake_master_thread();
-
 	DBUG_RETURN(0);
 }
 
@@ -7890,8 +7860,6 @@ report_error:
 	}
 
 func_exit:
-	innobase_active_small();
-
 	DBUG_RETURN(error_result);
 }
 
@@ -8573,11 +8541,6 @@ func_exit:
 			error, m_prebuilt->table->flags, m_user_thd);
 	}
 
-	/* Tell InnoDB server that there might be work for
-	utility threads: */
-
-	innobase_active_small();
-
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS && trx->is_wsrep()
 	    && wsrep_thd_is_local(m_user_thd)
@@ -8638,11 +8601,6 @@ ha_innobase::delete_row(
 	error = row_update_for_mysql(m_prebuilt);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
-
-	/* Tell the InnoDB server that there might be work for
-	utility threads: */
-
-	innobase_active_small();
 
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS && trx->is_wsrep()
@@ -13020,7 +12978,6 @@ create_table_info_t::create_table_update_dict()
 	if (m_flags2 & DICT_TF2_FTS) {
 		if (!innobase_fts_load_stopword(innobase_table, NULL, m_thd)) {
 			dict_table_close(innobase_table, FALSE, FALSE);
-			srv_active_wake_master_thread();
 			trx_free(m_trx);
 			DBUG_RETURN(-1);
 		}
@@ -13172,11 +13129,6 @@ ha_innobase::create(
 	ut_ad(!srv_read_only_mode);
 
 	error = info.create_table_update_dict();
-
-	/* Tell the InnoDB server that there might be work for
-	utility threads: */
-
-	srv_active_wake_master_thread();
 
 	DBUG_RETURN(error);
 }
@@ -21053,6 +21005,31 @@ bool ha_innobase::rowid_filter_push(Rowid_filter* pk_filter)
 	DBUG_RETURN(false);
 }
 
+static bool is_part_of_a_key_prefix(const Field_longstr *field)
+{
+  const TABLE_SHARE *s= field->table->s;
+
+  for (uint i= 0; i < s->keys; i++)
+  {
+    const KEY &key= s->key_info[i];
+    for (uint j= 0; j < key.user_defined_key_parts; j++)
+    {
+      const KEY_PART_INFO &info= key.key_part[j];
+      // When field is a part of some key, a key part and field will have the
+      // same length. And their length will be different when only some prefix
+      // of a field is used as a key part. That's what we're looking for here.
+      if (info.field->field_index == field->field_index &&
+          info.length != field->field_length)
+      {
+        DBUG_ASSERT(info.length < field->field_length);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 static bool
 is_part_of_a_primary_key(const Field* field)
 {
@@ -21087,6 +21064,11 @@ bool ha_innobase::can_convert_string(const Field_string *field,
     if (!field_cs.eq_collation_specific_names(new_type.charset))
       return !is_part_of_a_primary_key(field);
 
+    // Fully indexed case works instantly like
+    // Compare_keys::EqualButKeyPartLength. But prefix case isn't implemented.
+    if (is_part_of_a_key_prefix(field))
+	    return false;
+
     return true;
   }
 
@@ -21101,53 +21083,50 @@ supports_enlarging(const dict_table_t* table, const Field_varstring* field,
 	       || field->field_length > 255 || !table->not_redundant();
 }
 
-bool
-ha_innobase::can_convert_varstring(const Field_varstring* field,
-				   const Column_definition& new_type) const
+bool ha_innobase::can_convert_varstring(
+    const Field_varstring *field, const Column_definition &new_type) const
 {
-	if (new_type.length < field->field_length) {
-		return false;
-	}
+  if (new_type.length < field->field_length)
+    return false;
 
-	if (new_type.char_length < field->char_length()) {
-		return false;
-	}
+  if (new_type.char_length < field->char_length())
+    return false;
 
-	if (!new_type.compression_method() != !field->compression_method()) {
-		return false;
-	}
+  if (!new_type.compression_method() != !field->compression_method())
+    return false;
 
-	if (new_type.type_handler() != field->type_handler()) {
-		return false;
-	}
+  if (new_type.type_handler() != field->type_handler())
+    return false;
 
-	if (new_type.charset != field->charset()) {
-		if (!supports_enlarging(m_prebuilt->table, field, new_type)) {
-			return false;
-		}
+  if (new_type.charset != field->charset())
+  {
+    if (!supports_enlarging(m_prebuilt->table, field, new_type))
+      return false;
 
-		Charset field_cs(field->charset());
-		if (!field_cs.encoding_allows_reinterpret_as(
-			new_type.charset)) {
-			return false;
-		}
+    Charset field_cs(field->charset());
+    if (!field_cs.encoding_allows_reinterpret_as(new_type.charset))
+      return false;
 
-		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
-			return !is_part_of_a_primary_key(field);
-		}
+    if (!field_cs.eq_collation_specific_names(new_type.charset))
+      return !is_part_of_a_primary_key(field);
 
-		return true;
-	}
+    // Fully indexed case works instantly like
+    // Compare_keys::EqualButKeyPartLength. But prefix case isn't implemented.
+    if (is_part_of_a_key_prefix(field))
+      return false;
 
-	if (new_type.length != field->field_length) {
-		if (!supports_enlarging(m_prebuilt->table, field, new_type)) {
-			return false;
-		}
+    return true;
+  }
 
-		return true;
-	}
+  if (new_type.length != field->field_length)
+  {
+    if (!supports_enlarging(m_prebuilt->table, field, new_type))
+      return false;
 
-	return true;
+    return true;
+  }
+
+  return true;
 }
 
 static bool is_part_of_a_key(const Field_blob *field)
@@ -21188,6 +21167,11 @@ bool ha_innobase::can_convert_blob(const Field_blob *field,
 
     if (!field_cs.eq_collation_specific_names(new_type.charset))
       return !is_part_of_a_key(field);
+
+    // Fully indexed case works instantly like
+    // Compare_keys::EqualButKeyPartLength. But prefix case isn't implemented.
+    if (is_part_of_a_key_prefix(field))
+      return false;
 
     return true;
   }

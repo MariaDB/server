@@ -6787,6 +6787,7 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
   LEX_CSTRING name;
   uint coffs, param_count= 0;
   const sp_pcursor *pcursor;
+  DBUG_ENTER("LEX::sp_for_loop_cursor_declarations");
 
   if ((item_splocal= item->get_item_splocal()))
     name= item_splocal->m_name;
@@ -6818,23 +6819,23 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
   else
   {
     thd->parse_error();
-    return true;
+    DBUG_RETURN(true);
   }
   if (unlikely(!(pcursor= spcont->find_cursor_with_error(&name, &coffs,
                                                          false)) ||
                pcursor->check_param_count_with_error(param_count)))
-    return true;
+    DBUG_RETURN(true);
 
   if (!(loop->m_index= sp_add_for_loop_cursor_variable(thd, index,
                                                        pcursor, coffs,
                                                        bounds.m_index,
                                                        item_func_sp)))
-    return true;
+    DBUG_RETURN(true);
   loop->m_target_bound= NULL;
   loop->m_direction= bounds.m_direction;
   loop->m_cursor_offset= coffs;
   loop->m_implicit_cursor= bounds.m_implicit_cursor;
-  return false;
+  DBUG_RETURN(false);
 }
 
 
@@ -8188,6 +8189,7 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
 
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
+  uint unused_off;
   DBUG_ASSERT(spcont);
   DBUG_ASSERT(sphead);
   if ((spv= find_variable(name, &rh)))
@@ -8226,7 +8228,9 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
       return new (thd->mem_root) Item_func_sqlerrm(thd);
   }
 
-  if (!current_select)
+  if (!select_stack_head() &&
+      (current_select->parsing_place != FOR_LOOP_BOUND ||
+       spcont->find_cursor(name, &unused_off, false) == NULL))
   {
     // we are out of SELECT or FOR so it is syntax error
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
@@ -9722,7 +9726,8 @@ Item *LEX::create_item_query_expression(THD *thd,
 
   // Add the subtree of subquery to the current SELECT_LEX
   SELECT_LEX *curr_sel= select_stack_head();
-  DBUG_ASSERT(current_select == curr_sel);
+  DBUG_ASSERT(current_select == curr_sel ||
+              (curr_sel == NULL && current_select == &builtin_select));
   if (!curr_sel)
   {
     curr_sel= &builtin_select;
@@ -9965,7 +9970,8 @@ SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit)
 
   // Add the subtree of subquery to the current SELECT_LEX
   SELECT_LEX *curr_sel= select_stack_head();
-  DBUG_ASSERT(current_select == curr_sel);
+  DBUG_ASSERT(current_select == curr_sel ||
+              (curr_sel == NULL && current_select == &builtin_select));
   if (curr_sel)
   {
     curr_sel->register_unit(unit, &curr_sel->context);
@@ -10041,7 +10047,8 @@ TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,
 
   // Add the subtree of subquery to the current SELECT_LEX
   SELECT_LEX *curr_sel= select_stack_head();
-  DBUG_ASSERT(current_select == curr_sel);
+  DBUG_ASSERT(current_select == curr_sel ||
+              (curr_sel == NULL && current_select == &builtin_select));
 
   Table_ident *ti= new (thd->mem_root) Table_ident(unit);
   if (ti == NULL)

@@ -622,10 +622,15 @@ class Field_inet6: public Field
                      Sql_condition::enum_warning_level level)
   {
     static const Name type_name= type_handler_inet6.name();
-    if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION)
-      get_thd()->push_warning_truncated_value_for_field(level, type_name.ptr(),
-                                                        str.ptr(), table->s,
-                                                        field_name.str);
+    if (get_thd()->count_cuted_fields <= CHECK_FIELD_EXPRESSION)
+      return;
+    const TABLE_SHARE *s= table->s;
+    get_thd()->push_warning_truncated_value_for_field(level, type_name.ptr(),
+                                                      str.ptr(),
+                                                      s ? s->db.str : nullptr,
+                                                      s ? s->table_name.str
+                                                      : nullptr,
+                                                      field_name.str);
   }
   int set_null_with_warn(const ErrConv &str)
   {

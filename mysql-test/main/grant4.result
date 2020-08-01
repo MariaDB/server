@@ -148,7 +148,7 @@ call mtr.add_suppression('mysql.user table is damaged');
 rename table mysql.user to mysql.user1;
 create table mysql.user (Host char(100), User char(100));
 flush privileges;
-ERROR HY000: Unknown error
+ERROR HY000: Fatal error: mysql.user table is damaged or in unsupported 3.20 format
 drop table mysql.user;
 rename table mysql.user1 to mysql.user;
 # switching back from mysql.user to mysql.global_priv

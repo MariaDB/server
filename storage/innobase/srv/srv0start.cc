@@ -888,7 +888,6 @@ srv_shutdown_all_bg_threads()
 		/* NOTE: IF YOU CREATE THREADS IN INNODB, YOU MUST EXIT THEM
 		HERE OR EARLIER */
 
-
 		if (!srv_read_only_mode) {
 			/* b. srv error monitor thread exits automatically,
 			no need to do anything here */
@@ -2049,7 +2048,7 @@ void srv_shutdown_bg_undo_sources()
 		fts_optimize_shutdown();
 		dict_stats_shutdown();
 		while (row_get_background_drop_list_len_low()) {
-			srv_wake_master_thread();
+			srv_inc_activity_count();
 			os_thread_yield();
 		}
 		srv_undo_sources = false;

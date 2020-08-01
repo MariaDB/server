@@ -169,8 +169,6 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 	ut_d(unsigned n_nullable = 0);
 	for (unsigned i = u; i < index.n_fields; i++) {
 		auto& f = index.fields[i];
-		DBUG_ASSERT(dict_col_get_fixed_size(f.col, not_redundant())
-			    <= DICT_MAX_FIXED_COL_LEN);
 		ut_d(n_nullable += f.col->is_nullable());
 
 		if (!f.col->is_dropped()) {
@@ -215,6 +213,9 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 	DBUG_ASSERT(old.n_cols == old.n_def);
 	DBUG_ASSERT(n_cols == n_def);
 	DBUG_ASSERT(old.supports_instant());
+	DBUG_ASSERT(not_redundant() == old.not_redundant());
+	DBUG_ASSERT(DICT_TF_HAS_ATOMIC_BLOBS(flags)
+		    == DICT_TF_HAS_ATOMIC_BLOBS(old.flags));
 	DBUG_ASSERT(!persistent_autoinc
 		    || persistent_autoinc == old.persistent_autoinc);
 	/* supports_instant() does not necessarily hold here,
@@ -6123,6 +6124,15 @@ prepare_inplace_alter_table_dict(
 
 	user_table = ctx->new_table;
 
+	if (ha_alter_info->inplace_supported == HA_ALTER_INPLACE_INSTANT) {
+		/* If we promised ALGORITHM=INSTANT capability, we must
+		retain the original ROW_FORMAT of the table. */
+		flags = (user_table->flags & (DICT_TF_MASK_COMPACT
+					      | DICT_TF_MASK_ATOMIC_BLOBS))
+			| (flags & ~(DICT_TF_MASK_COMPACT
+				     | DICT_TF_MASK_ATOMIC_BLOBS));
+	}
+
 	trx_start_if_not_started_xa(ctx->prebuilt->trx, true);
 
 	if (ha_alter_info->handler_flags
@@ -11059,11 +11069,6 @@ foreign_fail:
 		DBUG_INJECT_CRASH("ib_commit_inplace_crash",
 				  crash_inject_count++);
 	}
-
-	/* Tell the InnoDB server that there might be work for
-	utility threads: */
-
-	srv_active_wake_master_thread();
 
 	if (fail) {
 		for (inplace_alter_handler_ctx** pctx = ctx_array;

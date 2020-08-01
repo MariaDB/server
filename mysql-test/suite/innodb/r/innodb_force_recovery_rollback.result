@@ -13,6 +13,6 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 # restart: --innodb-force-recovery=2
 disconnect con0;
 connection default;
-SELECT * FROM t0 LOCK IN SHARE MODE;
+SELECT * FROM t0 LIMIT 0 LOCK IN SHARE MODE;
 a
 DROP TABLE t0,t1;

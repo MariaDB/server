@@ -449,7 +449,8 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
       {
         ErrConvString err(val_begin, length, &my_charset_bin);
         make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                                     &err, cached_timestamp_type, 0, NullS);
+                                     &err, cached_timestamp_type,
+                                     nullptr, nullptr, nullptr);
 	break;
       }
     } while (++val != val_end);
@@ -1576,7 +1577,7 @@ static void set_sec_part(ulong sec_part, MYSQL_TIME *ltime, Item *item)
   {
     ltime->second_part= sec_part;
     if (item->decimals < TIME_SECOND_PART_DIGITS)
-      my_time_trunc(ltime, item->decimals);
+      my_datetime_trunc(ltime, item->decimals);
   }
 }
 

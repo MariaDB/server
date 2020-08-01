@@ -11,40 +11,62 @@
 #
 
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 --source include/have_log_bin.inc
 
+--let $datadir= `SELECT @@datadir`
+
+
 # Open a separate connection to be used to run SHOW PROCESSLIST
---connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
 --connection node_1a
 SET SESSION wsrep_sync_wait = 0;
 
 --connection node_1
-CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+CREATE TABLE t1 (f1 INTEGER, f2 varchar(1024)) Engine=InnoDB;
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
 SET GLOBAL innodb_disallow_writes=ON;
---send INSERT INTO t1 VALUES (1);
+--exec find $datadir -type f-exec md5sum {} \; | md5sum >$MYSQLTEST_VARDIR/tmp/innodb_before
+
+#
+# This insert has no effect before innodb_disallow_writes is OFF
+#
+--send INSERT INTO t1 (f2) SELECT 'abcde ' FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+
+--connection node_2
+INSERT INTO t1 (f2) SELECT 'fghij ' FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+SELECT COUNT(*) AS EXPECT_10000 FROM t1;
 
 --connection node_1a
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
---source include/wait_condition.inc
-SELECT COUNT(*) AS EXPECT_0 FROM t1;
-let $wait_condition = SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'INSERT INTO t1 VALUES (1)';
---source include/wait_condition.inc
-SELECT COUNT(*) AS EXPECT_0 FROM t1;
+--sleep 5
+
+--exec find $datadir -type f-exec md5sum {} \; | md5sum >$MYSQLTEST_VARDIR/tmp/innodb_after
 
 SET GLOBAL innodb_disallow_writes=OFF;
 
 --connection node_1
 --reap
-SELECT COUNT(*) AS EXPECT_1 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 20000 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_20000 FROM t1;
 
 --connection node_2
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--let $wait_condition = SELECT COUNT(*) = 20000 FROM t1;
 --source include/wait_condition.inc
---let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
---source include/wait_condition.inc
-SELECT COUNT(*) AS EXPECT_1 FROM t1;
+SELECT COUNT(*) AS EXPECT_20000 FROM t1;
+
+--connection node_1
+--diff_files $MYSQLTEST_VARDIR/tmp/innodb_before $MYSQLTEST_VARDIR/tmp/innodb_after
+
+--connection node_2
 
 DROP TABLE t1;
+DROP TABLE ten;
 
 --disconnect node_1a
 

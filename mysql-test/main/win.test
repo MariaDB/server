@@ -2497,6 +2497,15 @@ SELECT ROW_NUMBER() OVER w2 FROM t1 WINDOW w2 AS (PARTITION BY -1,0,1,2,3,4,5,6)
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-18916: crash in Window_spec::print_partition() with decimals
+--echo #
+
+--error ER_TOO_BIG_SCALE
+SELECT cast((rank() over w1) as decimal (53,56));
+--error ER_WRONG_WINDOW_SPEC_NAME
+SELECT cast((rank() over w1) as decimal (53,30));
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

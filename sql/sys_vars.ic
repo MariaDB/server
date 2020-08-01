@@ -534,7 +534,10 @@ public:
     String str2(buff2, sizeof(buff2), charset), *res;
 
     if (!(res=var->value->val_str(&str)))
+    {
       var->save_result.string_value.str= 0;
+      var->save_result.string_value.length= 0; // safety
+    }
     else
     {
       uint32 unused;
@@ -939,9 +942,16 @@ public:
     String str(buff, sizeof(buff), system_charset_info), *res;
 
     if (!(res=var->value->val_str(&str)))
+    {
       var->save_result.string_value.str= const_cast<char*>("");
+      var->save_result.string_value.length= 0;
+    }
     else
-      var->save_result.string_value.str= thd->strmake(res->ptr(), res->length());
+    {
+      size_t len= res->length();
+      var->save_result.string_value.str= thd->strmake(res->ptr(), len);
+      var->save_result.string_value.length= len;
+    }
     return false;
   }
   bool session_update(THD *thd, set_var *var)
@@ -965,6 +975,7 @@ public:
   {
     char *ptr= (char*)(intptr)option.def_value;
     var->save_result.string_value.str= ptr;
+    var->save_result.string_value.length= safe_strlen(ptr);
   }
   uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
   {
