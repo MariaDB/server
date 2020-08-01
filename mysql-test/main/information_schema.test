@@ -1933,6 +1933,7 @@ SELECT SCHEMA_NAME from information_schema.schemata where schema_name=REPEAT('a'
 create table t (i int, constraint a check (i > 0));
 
 --disable_warnings
+--sorted_result
 select
   tc.TABLE_SCHEMA,
   tc.TABLE_NAME,
@@ -1942,6 +1943,7 @@ from information_schema.TABLE_CONSTRAINTS tc
   join information_schema.CHECK_CONSTRAINTS cc
     using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
+--sorted_result
 select
   tc.TABLE_SCHEMA,
   tc.TABLE_NAME,
@@ -1951,6 +1953,7 @@ from information_schema.CHECK_CONSTRAINTS cc
   join information_schema.TABLE_CONSTRAINTS tc
     using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
+--sorted_result
 select
   tc.TABLE_SCHEMA,
   tc.TABLE_NAME,
@@ -1959,6 +1962,7 @@ select
 from information_schema.TABLE_CONSTRAINTS tc
   NATURAL join information_schema.CHECK_CONSTRAINTS cc
 ;
+--sorted_result
 select
   tc.TABLE_SCHEMA,
   tc.TABLE_NAME,
@@ -1967,6 +1971,7 @@ select
 from information_schema.CHECK_CONSTRAINTS cc
   NATURAL join information_schema.TABLE_CONSTRAINTS tc
 ;
+--sorted_result
 select
   tc.TABLE_SCHEMA,
   tc.TABLE_NAME,

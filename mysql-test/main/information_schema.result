@@ -2233,8 +2233,8 @@ join information_schema.CHECK_CONSTRAINTS cc
 using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
-test	t	a	`i` > 0
 mysql	global_priv	Priv	json_valid(`Priv`)
+test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
 tc.TABLE_NAME,
@@ -2245,8 +2245,8 @@ join information_schema.TABLE_CONSTRAINTS tc
 using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
-test	t	a	`i` > 0
 mysql	global_priv	Priv	json_valid(`Priv`)
+test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
 tc.TABLE_NAME,
@@ -2256,8 +2256,8 @@ from information_schema.TABLE_CONSTRAINTS tc
 NATURAL join information_schema.CHECK_CONSTRAINTS cc
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
-test	t	a	`i` > 0
 mysql	global_priv	Priv	json_valid(`Priv`)
+test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
 tc.TABLE_NAME,
@@ -2267,8 +2267,8 @@ from information_schema.CHECK_CONSTRAINTS cc
 NATURAL join information_schema.TABLE_CONSTRAINTS tc
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
-test	t	a	`i` > 0
 mysql	global_priv	Priv	json_valid(`Priv`)
+test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
 tc.TABLE_NAME,
@@ -2281,8 +2281,8 @@ join information_schema.CHECK_CONSTRAINTS cc
 using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE	CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA
-test	t	a	`i` > 0	def	test
 mysql	global_priv	Priv	json_valid(`Priv`)	def	mysql
+test	t	a	`i` > 0	def	test
 drop table t;
 #
 # End of 10.3 tests
