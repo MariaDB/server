@@ -16,6 +16,7 @@ GRANT USAGE ON *.* TO 'foo'
 show grants for foo@'%';
 ERROR 42000: Access denied for user 'test'@'%' to database 'mysql'
 connection default;
+disconnect conn_1;
 drop user test, foo;
 drop role foo;
 CREATE TABLE t1 (a INT);
@@ -25,3 +26,16 @@ ERROR HY000: Table 'user' was not locked with LOCK TABLES
 REVOKE PROCESS ON *.* FROM u;
 ERROR HY000: Table 'user' was not locked with LOCK TABLES
 DROP TABLE t1;
+create database mysqltest1;
+use mysqltest1;
+create table t1(id int);
+insert t1 values(2);
+create user u1@localhost;
+grant select on mysqltest1.t1 to u1@localhost;
+grant update on mysqltest1.* to u1@localhost;
+connect u1, localhost, u1;
+update mysqltest1.t1 set id=1 where id=2;
+connection default;
+disconnect u1;
+drop user u1@localhost;
+drop database mysqltest1;

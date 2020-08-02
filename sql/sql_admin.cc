@@ -765,8 +765,18 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       {
         compl_result_code= result_code= HA_ADMIN_INVALID;
       }
+
+      /*
+        The check for Alter_info::ALTER_ADMIN_PARTITION implements this logic:
+        do not collect EITS STATS for this syntax:
+          ALTER TABLE ... ANALYZE PARTITION p
+        EITS statistics is global (not per-partition). Collecting global stats
+        is much more expensive processing just one partition, so the most
+        appropriate action is to just not collect EITS stats for this command.
+      */
       collect_eis=
         (table->table->s->table_category == TABLE_CATEGORY_USER &&
+        !(lex->alter_info.flags &= Alter_info::ALTER_ADMIN_PARTITION) &&
          (get_use_stat_tables_mode(thd) > NEVER ||
           lex->with_persistent_for_clause));
     }

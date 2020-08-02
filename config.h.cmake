@@ -250,7 +250,6 @@
 /* Symbols we may use */
 #cmakedefine HAVE_SYS_ERRLIST 1
 /* used by stacktrace functions */
-#cmakedefine HAVE_BSS_START 1
 #cmakedefine HAVE_BACKTRACE 1
 #cmakedefine HAVE_BACKTRACE_SYMBOLS 1
 #cmakedefine HAVE_BACKTRACE_SYMBOLS_FD 1

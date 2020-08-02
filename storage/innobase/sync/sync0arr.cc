@@ -1078,7 +1078,7 @@ sync_array_print_long_waits(
 		sync_array_exit(arr);
 	}
 
-	if (noticed) {
+	if (noticed && srv_monitor_event) {
 		ibool	old_val;
 
 		fprintf(stderr,

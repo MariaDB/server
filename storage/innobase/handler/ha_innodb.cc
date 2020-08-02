@@ -4417,16 +4417,7 @@ innobase_commit_low(
 	const bool is_wsrep = trx->is_wsrep();
 	THD* thd = trx->mysql_thd;
 	if (is_wsrep) {
-#ifdef WSREP_PROC_INFO
-		char info[64];
-		info[sizeof(info) - 1] = '\0';
-		snprintf(info, sizeof(info) - 1,
-			 "innobase_commit_low():trx_commit_for_mysql(%lld)",
-			 (long long) wsrep_thd_trx_seqno(thd));
-		tmp = thd_proc_info(thd, info);
-#else
 		tmp = thd_proc_info(thd, "innobase_commit_low()");
-#endif /* WSREP_PROC_INFO */
 	}
 #endif /* WITH_WSREP */
 	if (trx_is_started(trx)) {
@@ -19438,11 +19429,14 @@ static
 void
 innodb_status_output_update(THD*,st_mysql_sys_var*,void*var,const void*save)
 {
-	*static_cast<my_bool*>(var) = *static_cast<const my_bool*>(save);
-	mysql_mutex_unlock(&LOCK_global_system_variables);
-	/* Wakeup server monitor thread. */
-	os_event_set(srv_monitor_event);
-	mysql_mutex_lock(&LOCK_global_system_variables);
+  *static_cast<my_bool*>(var)= *static_cast<const my_bool*>(save);
+  if (srv_monitor_event)
+  {
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+    /* Wakeup server monitor thread. */
+    os_event_set(srv_monitor_event);
+    mysql_mutex_lock(&LOCK_global_system_variables);
+  }
 }
 
 /** Update the system variable innodb_encryption_threads.

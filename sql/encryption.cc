@@ -75,8 +75,8 @@ int initialize_encryption_plugin(st_plugin_int *plugin)
     (struct st_mariadb_encryption*) plugin->plugin->info;
 
   /*
-    Copmiler on Spark doesn't like the '?' operator here as it
-    belives the (uint (*)...) implies the C++ call model.
+    Compiler on Spark doesn't like the '?' operator here as it
+    believes the (uint (*)...) implies the C++ call model.
   */
   if (handle->crypt_ctx_size)
     encryption_handler.encryption_ctx_size_func= handle->crypt_ctx_size;

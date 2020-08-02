@@ -1109,11 +1109,11 @@ int JOIN::optimize()
   if (optimization_state != JOIN::NOT_OPTIMIZED)
     return FALSE;
   optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
+  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
 
   int res= optimize_inner();
   if (!res && have_query_plan != QEP_DELETED)
   {
-    create_explain_query_if_not_exists(thd->lex, thd->mem_root);
     have_query_plan= QEP_AVAILABLE;
 
     /*

@@ -864,7 +864,7 @@ buf_LRU_check_size_of_non_data_objects(
 		       + UT_LIST_GET_LEN(buf_pool->LRU))
 		   < buf_pool->curr_size / 3) {
 
-		if (!buf_lru_switched_on_innodb_mon) {
+		if (!buf_lru_switched_on_innodb_mon && srv_monitor_event) {
 
 			/* Over 67 % of the buffer pool is occupied by lock
 			heaps or the adaptive hash index. This may be a memory

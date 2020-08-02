@@ -1233,7 +1233,7 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
                    FALSE);
   /* extra() call must come only after all instances above are closed */
   if (function != HA_EXTRA_NOT_USED)
-    (void) table->file->extra(function);
+    DBUG_RETURN(table->file->extra(function));
   DBUG_RETURN(FALSE);
 }
 
@@ -7506,15 +7506,11 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
     FALSE ok;  In this case *map will include the chosen index
     TRUE  error
 */
-bool setup_tables_and_check_access(THD *thd, 
-                                   Name_resolution_context *context,
+bool setup_tables_and_check_access(THD *thd, Name_resolution_context *context,
                                    List<TABLE_LIST> *from_clause,
-                                   TABLE_LIST *tables,
-                                   List<TABLE_LIST> &leaves,
-                                   bool select_insert,
-                                   ulong want_access_first,
-                                   ulong want_access,
-                                   bool full_table_list)
+                                   TABLE_LIST *tables, List<TABLE_LIST> &leaves,
+                                   bool select_insert, ulong want_access_first,
+                                   ulong want_access, bool full_table_list)
 {
   DBUG_ENTER("setup_tables_and_check_access");
 

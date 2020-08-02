@@ -34,22 +34,20 @@
 #include <execinfo.h>
 #endif
 
+#ifdef __linux__
 #define PTR_SANE(p) ((p) && (char*)(p) >= heap_start && (char*)(p) <= heap_end)
-
 static char *heap_start;
-
-#if(defined HAVE_BSS_START) && !(defined __linux__)
 extern char *__bss_start;
-#endif
+#else
+#define PTR_SANE(p) (p)
+#endif /* __linux */
+
+#ifdef __linux__
 
 void my_init_stacktrace()
 {
-#if(defined HAVE_BSS_START) && !(defined __linux__)
   heap_start = (char*) &__bss_start;
-#endif
 }
-
-#ifdef __linux__
 
 static void print_buffer(char *buffer, size_t count)
 {
@@ -149,15 +147,15 @@ static int safe_print_str(const char *addr, int max_len)
 
 int my_safe_print_str(const char* val, int max_len)
 {
+#ifdef __linux__
   char *heap_end;
 
-#ifdef __linux__
   // Try and make use of /proc filesystem to safely print memory contents.
   if (!safe_print_str(val, max_len))
     return 0;
-#endif
 
   heap_end= (char*) sbrk(0);
+#endif
 
   if (!PTR_SANE(val))
   {

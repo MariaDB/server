@@ -16,7 +16,6 @@ SET use_stat_tables = PREFERABLY;
 CREATE TABLE t1 ( a INT ) ENGINE=MyISAM PARTITION BY HASH(a) PARTITIONS 2;
 ALTER TABLE t1 ANALYZE PARTITION p1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
