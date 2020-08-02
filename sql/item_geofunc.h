@@ -284,7 +284,7 @@ public:
     collation.set(&my_charset_bin);
     decimals=0;
     max_length= (uint32) UINT_MAX32;
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -326,7 +326,7 @@ public:
   {
     // "GeometryCollection" is the longest
     fix_length_and_charset(20, default_charset());
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   };
   Item *get_copy(THD *thd)
@@ -675,7 +675,7 @@ public:
   Item_func_spatial_rel(THD *thd, Item *a, Item *b, enum Functype sp_rel):
     Item_bool_func2_with_rev(thd, a, b), spatial_rel(sp_rel)
   {
-    maybe_null= true;
+    flags|= ITEM_FLAG_MAYBE_NULL;
   }
   enum Functype functype() const { return spatial_rel; }
   enum Functype rev_functype() const
@@ -856,7 +856,7 @@ public:
    :Item_bool_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_isempty"; }
-  bool fix_length_and_dec() { maybe_null= 1; return FALSE; }
+  bool fix_length_and_dec() { flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
   bool need_parentheses_in_default() { return false; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isempty>(thd, this); }
@@ -909,7 +909,7 @@ public:
    :Item_long_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_dimension"; }
-  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
+  bool fix_length_and_dec() { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_dimension>(thd, this); }
 };
@@ -925,7 +925,7 @@ public:
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -943,7 +943,7 @@ public:
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -958,7 +958,7 @@ public:
    :Item_long_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_numgeometries"; }
-  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
+  bool fix_length_and_dec() { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_numgeometries>(thd, this); }
 };
@@ -971,7 +971,7 @@ public:
    :Item_long_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_numinteriorrings"; }
-  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
+  bool fix_length_and_dec() { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_numinteriorring>(thd, this); }
 };
@@ -984,7 +984,7 @@ public:
    :Item_long_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_numpoints"; }
-  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
+  bool fix_length_and_dec() { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_numpoints>(thd, this); }
 };
@@ -1000,7 +1000,7 @@ public:
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -1020,7 +1020,7 @@ public:
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -1035,7 +1035,7 @@ public:
    :Item_long_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "srid"; }
-  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
+  bool fix_length_and_dec() { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_srid>(thd, this); }
 };

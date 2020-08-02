@@ -462,7 +462,11 @@ public:
   */
   virtual void update_field()=0;
   virtual bool fix_length_and_dec()
-  { maybe_null=1; null_value=1; return FALSE; }
+  {
+    flags|= ITEM_FLAG_MAYBE_NULL;
+    null_value=1;
+    return FALSE;
+  }
   virtual Item *result_item(THD *thd, Field *field);
 
   void update_used_tables ();
@@ -531,7 +535,7 @@ public:
   Item *get_arg(uint i) const { return args[i]; }
   Item *set_arg(uint i, THD *thd, Item *new_val);
   uint get_arg_count() const { return arg_count; }
-  virtual Item **get_args() { return fixed ? orig_args : args; }
+  virtual Item **get_args() { return fixed() ? orig_args : args; }
 
   /* Initialization of distinct related members */
   void init_aggregator()
@@ -771,7 +775,7 @@ public:
   Item_sum_int(THD *thd, Item *item_par): Item_sum_num(thd, item_par) {}
   Item_sum_int(THD *thd, List<Item> &list): Item_sum_num(thd, list) {}
   Item_sum_int(THD *thd, Item_sum_int *item) :Item_sum_num(thd, item) {}
-  double val_real() { DBUG_ASSERT(fixed == 1); return (double) val_int(); }
+  double val_real() { DBUG_ASSERT(fixed()); return (double) val_int(); }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
@@ -779,7 +783,12 @@ public:
     return get_date_from_int(thd, ltime, fuzzydate);
   }
   bool fix_length_and_dec()
-  { decimals=0; max_length=21; maybe_null=null_value=0; return FALSE; }
+  {
+    decimals=0;
+    max_length=21;
+    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    null_value=0;
+    return FALSE; }
 };
 
 
@@ -1209,7 +1218,9 @@ public:
   {
     if (args[0]->check_type_can_return_int(func_name()))
       return true;
-    decimals= 0; max_length=21; unsigned_flag= 1; maybe_null= null_value= 0;
+    decimals= 0; max_length=21; unsigned_flag= 1;
+    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    null_value= 0;
     return FALSE;
   }
   void cleanup()
@@ -1459,7 +1470,7 @@ public:
     :Item(thd), field(item->result_field)
   {
     name= item->name;
-    maybe_null= true;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     decimals= item->decimals;
     max_length= item->max_length;
     unsigned_flag= item->unsigned_flag;
@@ -1598,12 +1609,12 @@ public:
   const char *func_name() const { return udf.name(); }
   bool fix_fields(THD *thd, Item **ref)
   {
-    DBUG_ASSERT(fixed == 0);
+    DBUG_ASSERT(fixed() == 0);
 
     if (init_sum_func_check(thd))
       return TRUE;
 
-    fixed= 1;
+    flags|= ITEM_FLAG_FIXED;
     /*
       We set const_item_cache to false in constructors.
       It can be later changed to "true", in a Item_sum::make_const() call.
@@ -1678,7 +1689,7 @@ public:
     :Item_udf_sum(thd, item) {}
   longlong val_int();
   double val_real()
-    { DBUG_ASSERT(fixed == 1); return (double) Item_sum_udf_int::val_int(); }
+  { DBUG_ASSERT(fixed()); return (double) Item_sum_udf_int::val_int(); }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   const Type_handler *type_handler() const
@@ -1776,7 +1787,7 @@ class Item_sum_udf_float :public Item_sum_double
   Item_sum_udf_float(THD *thd, Item_sum_udf_float *item)
     :Item_sum_double(thd, item) {}
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
-  double val_real() { DBUG_ASSERT(fixed == 1); return 0.0; }
+  double val_real() { DBUG_ASSERT(fixed()); return 0.0; }
   void clear() {}
   bool add() { return 0; }  
   void reset_field() { DBUG_ASSERT(0); };
@@ -1794,8 +1805,8 @@ public:
   Item_sum_udf_int(THD *thd, Item_sum_udf_int *item)
     :Item_sum_double(thd, item) {}
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
-  longlong val_int() { DBUG_ASSERT(fixed == 1); return 0; }
-  double val_real() { DBUG_ASSERT(fixed == 1); return 0; }
+  longlong val_int() { DBUG_ASSERT(fixed()); return 0; }
+  double val_real() { DBUG_ASSERT(fixed()); return 0; }
   void clear() {}
   bool add() { return 0; }  
   void reset_field() { DBUG_ASSERT(0); };
@@ -1813,8 +1824,8 @@ class Item_sum_udf_decimal :public Item_sum_double
   Item_sum_udf_decimal(THD *thd, Item_sum_udf_float *item)
     :Item_sum_double(thd, item) {}
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
-  double val_real() { DBUG_ASSERT(fixed == 1); return 0.0; }
-  my_decimal *val_decimal(my_decimal *) { DBUG_ASSERT(fixed == 1); return 0; }
+  double val_real() { DBUG_ASSERT(fixed()); return 0.0; }
+  my_decimal *val_decimal(my_decimal *) { DBUG_ASSERT(fixed()); return 0; }
   void clear() {}
   bool add() { return 0; }
   void reset_field() { DBUG_ASSERT(0); };
@@ -1832,10 +1843,10 @@ public:
   Item_sum_udf_str(THD *thd, Item_sum_udf_str *item)
     :Item_sum_double(thd, item) {}
   String *val_str(String *)
-    { DBUG_ASSERT(fixed == 1); null_value=1; return 0; }
-  double val_real() { DBUG_ASSERT(fixed == 1); null_value=1; return 0.0; }
-  longlong val_int() { DBUG_ASSERT(fixed == 1); null_value=1; return 0; }
-  bool fix_length_and_dec() { maybe_null=1; max_length=0; return FALSE; }
+    { DBUG_ASSERT(fixed()); null_value=1; return 0; }
+  double val_real() { DBUG_ASSERT(fixed()); null_value=1; return 0.0; }
+  longlong val_int() { DBUG_ASSERT(fixed()); null_value=1; return 0; }
+  bool fix_length_and_dec() { flags|= ITEM_FLAG_MAYBE_NULL; max_length=0; return FALSE; }
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   void clear() {}
   bool add() { return 0; }  

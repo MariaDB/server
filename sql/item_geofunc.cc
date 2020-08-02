@@ -47,14 +47,14 @@ bool Item_geometry_func::fix_length_and_dec()
   collation.set(&my_charset_bin);
   decimals=0;
   max_length= (uint32) UINT_MAX32;
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
 
 String *Item_func_geometry_from_text::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_buffer buffer;
   String arg_val;
   String *wkt= args[0]->val_str_ascii(&arg_val);
@@ -81,7 +81,7 @@ String *Item_func_geometry_from_text::val_str(String *str)
 
 String *Item_func_geometry_from_wkb::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *wkb;
   Geometry_buffer buffer;
@@ -117,7 +117,7 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
 
 String *Item_func_geometry_from_json::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_buffer buffer;
   String *js= args[0]->val_str_ascii(&tmp_js);
   uint32 srid= 0;
@@ -193,7 +193,7 @@ String *Item_func_geometry_from_json::val_str(String *str)
 
 String *Item_func_as_wkt::val_str_ascii(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -218,14 +218,14 @@ bool Item_func_as_wkt::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= (uint32) UINT_MAX32;
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
 
 String *Item_func_as_wkb::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -245,14 +245,14 @@ bool Item_func_as_geojson::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length=MAX_BLOB_WIDTH;
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
 
 String *Item_func_as_geojson::val_str_ascii(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   uint max_dec= FLOATING_POINT_DECIMALS;
@@ -306,7 +306,7 @@ error:
 
 String *Item_func_geometry_type::val_str_ascii(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *swkb= args[0]->val_str(str);
   Geometry_buffer buffer;
   Geometry *geom= NULL;
@@ -325,7 +325,7 @@ String *Item_func_geometry_type::val_str_ascii(String *str)
 
 String *Item_func_envelope::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -437,7 +437,7 @@ int Item_func_boundary::Transporter::start_collection(int n_objects)
 String *Item_func_boundary::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_boundary::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
 
@@ -475,7 +475,7 @@ mem_error:
 
 String *Item_func_centroid::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -536,7 +536,7 @@ String *Item_func_convexhull::val_str(String *str_value)
   Gcalc_heap::Info *cur_pi;
   
   DBUG_ENTER("Item_func_convexhull::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *swkb= args[0]->val_str(&tmp_value);
 
   if ((null_value=
@@ -645,7 +645,7 @@ String *Item_func_convexhull::val_str(String *str_value)
   ch_node *left_first, *left_cur, *right_first, *right_cur;
   
   DBUG_ENTER("Item_func_convexhull::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *swkb= args[0]->val_str(&tmp_value);
 
   if ((null_value=
@@ -786,7 +786,7 @@ mem_error:
 
 String *Item_func_spatial_decomp::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -833,7 +833,7 @@ err:
 
 String *Item_func_spatial_decomp_n::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   long n= (long) args[1]->val_int();
@@ -892,7 +892,7 @@ err:
 
 String *Item_func_point::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double x= args[0]->val_real();
   double y= args[1]->val_real();
   uint32 srid= 0;
@@ -925,7 +925,7 @@ String *Item_func_point::val_str(String *str)
 
 String *Item_func_spatial_collection::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_value;
   uint i;
   uint32 srid= 0;
@@ -1155,7 +1155,7 @@ const char *Item_func_spatial_mbr_rel::func_name() const
 
 longlong Item_func_spatial_mbr_rel::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *res1= args[0]->val_str(&tmp_value1);
   String *res2= args[1]->val_str(&tmp_value2);
   Geometry_buffer buffer1, buffer2;
@@ -1364,7 +1364,7 @@ public:
 longlong Item_func_spatial_relate::val_int()
 {
   DBUG_ENTER("Item_func_spatial_relate::val_int");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_ptr_with_buffer_and_mbr g1, g2;
   int result= 0;
 
@@ -1401,7 +1401,7 @@ exit:
 longlong Item_func_spatial_precise_rel::val_int()
 {
   DBUG_ENTER("Item_func_spatial_precise_rel::val_int");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_ptr_with_buffer_and_mbr g1, g2;
   int result= 0;
   uint shape_a, shape_b;
@@ -1538,7 +1538,7 @@ Item_func_spatial_operation::~Item_func_spatial_operation()
 String *Item_func_spatial_operation::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_spatial_operation::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_ptr_with_buffer_and_mbr g1, g2;
   uint32 srid= 0;
   Gcalc_operation_transporter trn(&func, &collector);
@@ -1990,7 +1990,7 @@ int Item_func_buffer::Transporter::complete_ring()
 String *Item_func_buffer::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_buffer::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *obj= args[0]->val_str(str_value);
   double dist= args[1]->val_real();
   Geometry_buffer buffer;
@@ -2065,7 +2065,7 @@ mem_error:
 
 longlong Item_func_isempty::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String tmp;
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
@@ -2087,7 +2087,7 @@ longlong Item_func_issimple::val_int()
   const char *c_end;
 
   DBUG_ENTER("Item_func_issimple::val_int");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   
   null_value= 0;
   if ((args[0]->null_value ||
@@ -2150,7 +2150,7 @@ mem_error:
 
 longlong Item_func_isclosed::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String tmp;
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
@@ -2174,7 +2174,7 @@ longlong Item_func_isclosed::val_int()
 longlong Item_func_isring::val_int()
 {
   /* It's actually a combination of two functions - IsClosed and IsSimple */
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String tmp;
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
@@ -2205,7 +2205,7 @@ longlong Item_func_isring::val_int()
 
 longlong Item_func_dimension::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint32 dim= 0;				// In case of error
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2222,7 +2222,7 @@ longlong Item_func_dimension::val_int()
 
 longlong Item_func_numinteriorring::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint32 num= 0;				// In case of error
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2238,7 +2238,7 @@ longlong Item_func_numinteriorring::val_int()
 
 longlong Item_func_numgeometries::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint32 num= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2254,7 +2254,7 @@ longlong Item_func_numgeometries::val_int()
 
 longlong Item_func_numpoints::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint32 num= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2271,7 +2271,7 @@ longlong Item_func_numpoints::val_int()
 
 double Item_func_x::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double res= 0.0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2287,7 +2287,7 @@ double Item_func_x::val_real()
 
 double Item_func_y::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double res= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2303,7 +2303,7 @@ double Item_func_y::val_real()
 
 double Item_func_area::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double res= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2319,7 +2319,7 @@ double Item_func_area::val_real()
 
 double Item_func_glength::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double res= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2336,7 +2336,7 @@ double Item_func_glength::val_real()
 
 longlong Item_func_srid::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
   
@@ -2363,7 +2363,7 @@ double Item_func_distance::val_real()
   Gcalc_operation_transporter trn(&func, &collector);
 
   DBUG_ENTER("Item_func_distance::val_real");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *res1= args[0]->val_str(&tmp_value1);
   String *res2= args[1]->val_str(&tmp_value2);
   Geometry_buffer buffer1, buffer2;
@@ -2660,9 +2660,6 @@ double Item_func_sphere_distance::spherical_distance_points(Geometry *g1,
 String *Item_func_pointonsurface::val_str(String *str)
 {
   Gcalc_operation_transporter trn(&func, &collector);
-
-  DBUG_ENTER("Item_func_pointonsurface::val_str");
-  DBUG_ASSERT(fixed == 1);
   String *res= args[0]->val_str(&tmp_value);
   Geometry_buffer buffer;
   Geometry *g;
@@ -2672,6 +2669,8 @@ String *Item_func_pointonsurface::val_str(String *str)
   String *result= 0;
   const Gcalc_scan_iterator::point *pprev= NULL;
   uint32 srid;
+  DBUG_ENTER("Item_func_pointonsurface::val_str");
+  DBUG_ASSERT(fixed());
 
   null_value= 1;
   if ((args[0]->null_value ||

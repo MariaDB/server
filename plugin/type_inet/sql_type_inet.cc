@@ -510,7 +510,7 @@ size_t Inet6::to_string(char *dst, size_t dstsize) const
 
 bool Inet6::fix_fields_maybe_null_on_conversion_to_inet6(Item *item)
 {
-  if (item->maybe_null)
+  if (item->maybe_null())
     return true;
   if (item->type_handler() == &type_handler_inet6)
     return false;
@@ -1055,7 +1055,7 @@ public:
   {
     Type_std_attributes::operator=(Type_std_attributes_inet6());
     if (Inet6::fix_fields_maybe_null_on_conversion_to_inet6(args[0]))
-      maybe_null= true;
+      flags|= ITEM_FLAG_MAYBE_NULL;
     return false;
   }
   String *val_str(String *to) override
@@ -1388,7 +1388,7 @@ void Type_handler_inet6::make_sort_key_part(uchar *to, Item *item,
   DBUG_ASSERT(item->type_handler() == this);
   NativeBufferInet6 tmp;
   item->val_native_result(current_thd, &tmp);
-  if (item->maybe_null)
+  if (item->maybe_null())
   {
     if (item->null_value)
     {
@@ -1411,7 +1411,7 @@ Type_handler_inet6::make_packed_sort_key_part(uchar *to, Item *item,
   DBUG_ASSERT(item->type_handler() == this);
   NativeBufferInet6 tmp;
   item->val_native_result(current_thd, &tmp);
-  if (item->maybe_null)
+  if (item->maybe_null())
   {
     if (item->null_value)
     {

@@ -2005,7 +2005,7 @@ public:
   store_key_item(THD *thd, Field *to_field_arg, uchar *ptr,
                  uchar *null_ptr_arg, uint length, Item *item_arg, bool val)
     :store_key(thd, to_field_arg, ptr,
-	       null_ptr_arg ? null_ptr_arg : item_arg->maybe_null ?
+	       null_ptr_arg ? null_ptr_arg : item_arg->maybe_null() ?
 	       &err : (uchar*) 0, length), item(item_arg), use_value(val)
   {}
   store_key_item(store_key &arg, Item *new_item, bool val)
@@ -2058,7 +2058,7 @@ public:
 		       uchar *null_ptr_arg, uint length,
 		       Item *item_arg)
     :store_key_item(thd, to_field_arg, ptr,
-		    null_ptr_arg ? null_ptr_arg : item_arg->maybe_null ?
+		    null_ptr_arg ? null_ptr_arg : item_arg->maybe_null() ?
 		    &err : (uchar*) 0, length, item_arg, FALSE), inited(0)
   {
   }

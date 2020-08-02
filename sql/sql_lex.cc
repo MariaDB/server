@@ -4854,7 +4854,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
 
     if (subquery_predicate)
     {
-      if (!subquery_predicate->fixed)
+      if (!subquery_predicate->fixed())
       {
         /*
          This subquery was excluded as part of some expression so it is
