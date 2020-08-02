@@ -2464,7 +2464,8 @@ void Item_func_round::fix_arg_datetime()
                                 simple cases.
 */
 void Item_func_round::fix_arg_int(const Type_handler *preferred,
-                                  const Type_std_attributes *preferred_attrs)
+                                  const Type_std_attributes *preferred_attrs,
+                                  bool use_decimal_on_length_increase)
 {
   DBUG_ASSERT(args[0]->decimals == 0);
   if (args[1]->const_item())
@@ -2490,7 +2491,10 @@ void Item_func_round::fix_arg_int(const Type_handler *preferred,
         else
         {
           max_length++;
-          set_handler(type_handler_long_or_longlong());
+          if (use_decimal_on_length_increase)
+            set_handler(&type_handler_newdecimal);
+          else
+            set_handler(type_handler_long_or_longlong());
         }
       }
       else
@@ -2503,7 +2507,10 @@ void Item_func_round::fix_arg_int(const Type_handler *preferred,
         max_length= args[0]->decimal_precision() + length_can_increase;
         unsigned_flag= true;
         decimals= 0;
-        set_handler(type_handler_long_or_longlong());
+        if (length_can_increase && use_decimal_on_length_increase)
+          set_handler(&type_handler_newdecimal);
+        else
+          set_handler(type_handler_long_or_longlong());
       }
     }
     else

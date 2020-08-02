@@ -5673,7 +5673,8 @@ bool Type_handler_row::
 bool Type_handler_int_result::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(this, item->arguments()[0]);
+  item->fix_arg_int(this, item->arguments()[0],
+                    field_type() == MYSQL_TYPE_LONGLONG);
   return false;
 }
 
@@ -5681,7 +5682,7 @@ bool Type_handler_int_result::
 bool Type_handler_year::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(&type_handler_long, item->arguments()[0]); // 10.5 merge: fix to type_handler_ulong
+  item->fix_arg_int(&type_handler_long, item->arguments()[0], false); // 10.5 merge: fix to type_handler_ulong
   return false;
 }
 
@@ -5689,7 +5690,7 @@ bool Type_handler_year::
 bool Type_handler_hex_hybrid::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(NULL, NULL);
+  item->fix_arg_int(NULL, NULL, item->arguments()[0]->max_length >= 8);
   return false;
 }
 
@@ -5732,7 +5733,7 @@ bool Type_handler_date_common::
 {
   static const Type_std_attributes attr(8, 0/*dec*/, true/*unsigned*/,
                                         DTCollation_numeric::singleton());
-  item->fix_arg_int(&type_handler_long, &attr); // 10.5 merge: fix to *_ulong
+  item->fix_arg_int(&type_handler_long, &attr, false); // 10.5 merge: fix to *_ulong
   return false;
 }
 
