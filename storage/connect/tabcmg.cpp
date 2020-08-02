@@ -26,6 +26,8 @@
 #include "tabmul.h"
 #include "filter.h"
 
+PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info);
+
 /* -------------------------- Class CMGDISC -------------------------- */
 
 /***********************************************************************/
