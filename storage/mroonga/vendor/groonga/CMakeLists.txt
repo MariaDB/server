@@ -240,7 +240,6 @@ include(build/ac_macros/check_functions.m4)
 ac_check_symbols(fpclassify math.h)
 ac_check_lib(m fpclassify)
 
-ac_check_lib(dl dlopen)
 ac_check_lib(execinfo backtrace)
 if(HAVE_LIBEXECINFO)
   set(HAVE_BACKTRACE TRUE)
