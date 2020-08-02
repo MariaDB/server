@@ -8,6 +8,10 @@
 # Crash tests don't work with embedded
 --source include/not_embedded.inc
 
+# Make sure system tables are not open, as the test will kill the server
+# and it will cause corruption errors in the log
+FLUSH TABLES;
+
 # Partitioning test that require debug features
 
 --echo #
