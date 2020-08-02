@@ -37,7 +37,7 @@ public:
   {
     decimals= 0;
     max_length= 21;
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     unsigned_flag= 1;
     return FALSE;
   }
@@ -61,7 +61,7 @@ public:
   {
     decimals= 0;
     fix_length_and_charset(3 * 8 + 7, default_charset());
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -105,7 +105,7 @@ public:
   {
     decimals= 0;
     fix_length_and_charset(16, &my_charset_bin);
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -139,7 +139,7 @@ public:
     // 4 symbols per group
     fix_length_and_charset(8 * 4 + 7, default_charset());
 
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;;
     return FALSE;
   }
   String *val_str_ascii(String *to);

@@ -294,7 +294,7 @@ public:
   {
     collation.set(system_charset_info);
     max_length= MAX_BLOB_WIDTH;
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   const char *func_name() const { return "decode_histogram"; }
@@ -506,7 +506,7 @@ public:
   bool fix_length_and_dec()
   {
     bool res= Item_func_substr::fix_length_and_dec();
-    maybe_null= true;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return res;
   }
   const char *func_name() const { return "substr_oracle"; }
@@ -581,7 +581,7 @@ public:
   bool fix_length_and_dec()
   {
     bool res= Item_func_trim::fix_length_and_dec();
-    maybe_null= true;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return res;
   }
   Item *get_copy(THD *thd)
@@ -620,7 +620,7 @@ public:
   bool fix_length_and_dec()
   {
     bool res= Item_func_ltrim::fix_length_and_dec();
-    maybe_null= true;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return res;
   }
   Item *get_copy(THD *thd)
@@ -655,7 +655,7 @@ public:
   bool fix_length_and_dec()
   {
     bool res= Item_func_rtrim::fix_length_and_dec();
-    maybe_null= true;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return res;
   }
   Item *get_copy(THD *thd)
@@ -714,7 +714,7 @@ public:
   String *val_str(String *);
   bool fix_length_and_dec()
   {
-    maybe_null=1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     /* 9 = MAX ((8- (arg_len % 8)) + 1) */
     max_length = args[0]->max_length + 9;
     return FALSE;
@@ -735,7 +735,7 @@ public:
   String *val_str(String *);
   bool fix_length_and_dec()
   {
-    maybe_null=1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     /* 9 = MAX ((8- (arg_len % 8)) + 1) */
     max_length= args[0]->max_length;
     if (max_length >= 9U)
@@ -773,7 +773,12 @@ public:
     constructor_helper();
   }
   String *val_str(String *);
-  bool fix_length_and_dec() { maybe_null=1; max_length = 13; return FALSE; }
+  bool fix_length_and_dec()
+  {
+    flags|= ITEM_FLAG_MAYBE_NULL;
+    max_length = 13;
+    return FALSE;
+  }
   const char *func_name() const { return "encrypt"; }
   bool check_vcol_func_processor(void *arg)
   {
@@ -850,7 +855,7 @@ public:
   bool fix_length_and_dec()
   {
     max_length= MAX_FIELD_NAME * system_charset_info->mbmaxlen;
-    maybe_null=1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   const char *func_name() const { return "database"; }
@@ -875,7 +880,7 @@ public:
   {
     max_length= 512 * system_charset_info->mbmaxlen;
     null_value= false;
-    maybe_null= false;
+    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -895,7 +900,7 @@ public:
   }
   String *val_str(String *)
   {
-    DBUG_ASSERT(fixed == 1);
+    DBUG_ASSERT(fixed());
     return (null_value ? 0 : &str_value);
   }
   bool fix_fields(THD *thd, Item **ref);
@@ -954,7 +959,7 @@ public:
   const char *fully_qualified_func_name() const { return "current_role()"; }
   String *val_str(String *)
   {
-    DBUG_ASSERT(fixed == 1);
+    DBUG_ASSERT(fixed());
     return null_value ? NULL : &str_value;
   }
   bool check_vcol_func_processor(void *arg)
@@ -1150,7 +1155,7 @@ public:
   bool fix_length_and_dec()
   {
     bool res= Item_func_rpad::fix_length_and_dec();
-    maybe_null= true;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return res;
   }
   const char *func_name() const { return "rpad_oracle"; }
@@ -1185,7 +1190,7 @@ public:
   bool fix_length_and_dec()
   {
     bool res= Item_func_lpad::fix_length_and_dec();
-    maybe_null= true;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return res;
   }
   const char *func_name() const { return "lpad_oracle"; }
@@ -1205,7 +1210,7 @@ public:
   {
     collation.set(default_charset());
     fix_char_length(64);
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -1233,7 +1238,7 @@ public:
   String *val_str_ascii_from_val_str(String *str);
   String *val_str_ascii(String *str)
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return m_arg0_type_handler->Item_func_hex_val_str_ascii(this, str);
   }
   bool fix_length_and_dec()
@@ -1255,7 +1260,7 @@ public:
   Item_func_unhex(THD *thd, Item *a): Item_str_func(thd, a)
   {
     /* there can be bad hex strings */
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
   }
   const char *func_name() const { return "unhex"; }
   String *val_str(String *);
@@ -1281,7 +1286,9 @@ protected:
 public:
   Item_func_like_range(THD *thd, Item *a, Item *b, bool is_min_arg):
     Item_str_func(thd, a, b), is_min(is_min_arg)
-  { maybe_null= 1; }
+  {
+    flags|= ITEM_FLAG_MAYBE_NULL;
+  }
   String *val_str(String *);
   bool fix_length_and_dec()
   {
@@ -1322,7 +1329,7 @@ public:
   Item_func_binary(THD *thd, Item *a): Item_str_func(thd, a) {}
   String *val_str(String *a)
   {
-    DBUG_ASSERT(fixed == 1);
+    DBUG_ASSERT(fixed());
     String *tmp=args[0]->val_str(a);
     null_value=args[0]->null_value;
     if (tmp)
@@ -1353,7 +1360,7 @@ public:
   bool fix_length_and_dec()
   {
     collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
-    maybe_null=1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     max_length=MAX_BLOB_WIDTH;
     return FALSE;
   }
@@ -1527,7 +1534,7 @@ public:
   {
      collation.set(system_charset_info);
      max_length= 64 * collation.collation->mbmaxlen; // should be enough
-     maybe_null= 0;
+     flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
      return FALSE;
   };
   table_map not_null_tables() const { return 0; }
@@ -1617,7 +1624,11 @@ public:
   Item_func_uncompressed_length(THD *thd, Item *a)
    :Item_long_func_length(thd, a) {}
   const char *func_name() const{return "uncompressed_length";}
-  bool fix_length_and_dec() { max_length=10; maybe_null= true; return FALSE; }
+  bool fix_length_and_dec()
+  {
+    max_length=10;
+    flags|= ITEM_FLAG_MAYBE_NULL;
+    return FALSE; }
   longlong val_int();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_uncompressed_length>(thd, this); }
@@ -1654,7 +1665,8 @@ public:
    :Item_str_binary_checksum_func(thd, a) {}
   bool fix_length_and_dec()
   {
-    maybe_null= 1; max_length= MAX_BLOB_WIDTH;
+    flags|= ITEM_FLAG_MAYBE_NULL;
+    max_length= MAX_BLOB_WIDTH;
     return FALSE;
   }
   const char *func_name() const{return "uncompress";}
@@ -1733,7 +1745,7 @@ public:
   bool fix_length_and_dec()
   {
     max_length= MAX_BLOB_WIDTH;
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     decimals= 0;
     return FALSE;
   }
@@ -1751,7 +1763,11 @@ public:
   Item_dyncol_get(THD *thd, Item *str, Item *num): Item_str_func(thd, str, num)
   {}
   bool fix_length_and_dec()
-  { maybe_null= 1;; max_length= MAX_BLOB_WIDTH; return FALSE; }
+  {
+    flags|= ITEM_FLAG_MAYBE_NULL;
+    max_length= MAX_BLOB_WIDTH;
+    return FALSE;
+  }
   /* Mark that collation can change between calls */
   bool dynamic_result() { return 1; }
 
@@ -1790,7 +1806,11 @@ public:
   Item_func_dyncol_list(THD *thd, Item *str): Item_str_func(thd, str)
     {collation.set(DYNCOL_UTF);}
   bool fix_length_and_dec()
-  { maybe_null= 1; max_length= MAX_BLOB_WIDTH; return FALSE; };
+  {
+    flags|= ITEM_FLAG_MAYBE_NULL;
+    max_length= MAX_BLOB_WIDTH;
+    return FALSE;
+  }
   const char *func_name() const{ return "column_list"; }
   String *val_str(String *);
   Item *get_copy(THD *thd)
@@ -1831,7 +1851,7 @@ public:
   bool fix_length_and_dec()
   {
     max_length= WSREP_GTID_STR_LEN;
-    maybe_null= true;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -1848,7 +1868,7 @@ public:
   bool fix_length_and_dec()
   {
     max_length= WSREP_GTID_STR_LEN;
-    maybe_null= true;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   Item *get_copy(THD *thd)

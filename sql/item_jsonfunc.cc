@@ -386,7 +386,7 @@ bool Item_func_json_exists::fix_length_and_dec()
 {
   if (Item_bool_func::fix_length_and_dec())
     return TRUE;
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   path.set_constant_flag(args[1]->const_item());
   return FALSE;
 }
@@ -440,7 +440,7 @@ bool Item_func_json_value::fix_length_and_dec()
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   set_constant_flag(args[1]->const_item());
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
@@ -450,7 +450,7 @@ bool Item_func_json_query::fix_length_and_dec()
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   set_constant_flag(args[1]->const_item());
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
@@ -598,7 +598,7 @@ bool Item_func_json_unquote::fix_length_and_dec()
   collation.set(&my_charset_utf8mb3_general_ci,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= args[0]->max_length;
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
@@ -721,7 +721,7 @@ bool Item_func_json_extract::fix_length_and_dec()
   max_length= args[0]->max_length * (arg_count - 1);
 
   mark_constant_paths(paths, args+1, arg_count-1);
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
@@ -990,7 +990,7 @@ bool Item_func_json_contains::fix_length_and_dec()
 {
   a2_constant= args[1]->const_item();
   a2_parsed= FALSE;
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   if (arg_count > 2)
     path.set_constant_flag(args[2]->const_item());
   return Item_bool_func::fix_length_and_dec();
@@ -1241,7 +1241,7 @@ bool Item_func_json_contains_path::fix_length_and_dec()
 {
   ooa_constant= args[1]->const_item();
   ooa_parsed= FALSE;
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   mark_constant_paths(paths, args+2, arg_count-2);
   return Item_bool_func::fix_length_and_dec();
 }
@@ -1579,7 +1579,7 @@ bool Item_func_json_array::fix_length_and_dec()
 
 String *Item_func_json_array::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint n_arg;
 
   str->length(0);
@@ -1632,7 +1632,7 @@ bool Item_func_json_array_append::fix_length_and_dec()
   }
 
   fix_char_length_ulonglong(char_length);
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
@@ -1645,7 +1645,7 @@ String *Item_func_json_array_append::val_str(String *str)
   size_t str_rest_len;
   const uchar *ar_end;
 
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -1773,7 +1773,7 @@ String *Item_func_json_array_insert::val_str(String *str)
   String *js= args[0]->val_json(&tmp_js);
   uint n_arg, n_path;
 
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -1909,7 +1909,7 @@ return_null:
 
 String *Item_func_json_object::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint n_arg;
 
   str->length(0);
@@ -2157,7 +2157,7 @@ continue_j2:
 
 String *Item_func_json_merge::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   json_engine_t je1, je2;
   String *js1= args[0]->val_json(&tmp_js1), *js2=NULL;
   uint n_arg;
@@ -2458,7 +2458,7 @@ continue_j2:
 
 String *Item_func_json_merge_patch::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   json_engine_t je1, je2;
   String *js1= args[0]->val_json(&tmp_js1), *js2=NULL;
   uint n_arg;
@@ -2551,7 +2551,7 @@ bool Item_func_json_length::fix_length_and_dec()
 {
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   max_length= 10;
   return FALSE;
 }
@@ -2697,7 +2697,7 @@ bool Item_func_json_type::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8mb3_general_ci);
   max_length= 12;
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
@@ -2766,7 +2766,7 @@ bool Item_func_json_insert::fix_length_and_dec()
   }
 
   fix_char_length_ulonglong(char_length);
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
@@ -2778,7 +2778,7 @@ String *Item_func_json_insert::val_str(String *str)
   uint n_arg, n_path;
   json_string_t key_name;
 
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -3018,7 +3018,7 @@ bool Item_func_json_remove::fix_length_and_dec()
   max_length= args[0]->max_length;
 
   mark_constant_paths(paths, args+1, arg_count-1);
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
@@ -3030,7 +3030,7 @@ String *Item_func_json_remove::val_str(String *str)
   uint n_arg, n_path;
   json_string_t key_name;
 
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
 
   if (args[0]->null_value)
     goto null_return;
@@ -3203,7 +3203,7 @@ bool Item_func_json_keys::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
   return FALSE;
@@ -3388,7 +3388,7 @@ bool Item_func_json_search::fix_length_and_dec()
 
   if (arg_count > 4)
     mark_constant_paths(paths, args+4, arg_count-4);
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
@@ -3571,7 +3571,7 @@ bool Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
   max_length= args[0]->max_length;
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
   return FALSE;
 }
 
@@ -3772,14 +3772,14 @@ bool
 Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
 {
   uint i;                       /* for loop variable */
-  DBUG_ASSERT(fixed == 0);
+  DBUG_ASSERT(fixed() == 0);
 
   memcpy(orig_args, args, sizeof(Item*) * arg_count);
 
   if (init_sum_func_check(thd))
     return TRUE;
 
-  maybe_null= 1;
+  flags|= ITEM_FLAG_MAYBE_NULL;
 
   /*
     Fix fields for select list and ORDER clause
@@ -3789,9 +3789,9 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   {
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
-    with_subquery|= args[i]->with_subquery;
-    with_param|= args[i]->with_param;
-    with_window_func|= args[i]->with_window_func;
+    flags|= (args[i]->flags & (ITEM_FLAG_WITH_SUBQUERY |
+                               ITEM_FLAG_WITH_PARAM |
+                               ITEM_FLAG_WITH_WINDOW_FUNC));
   }
 
   /* skip charset aggregation for order columns */
@@ -3808,7 +3808,7 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   if (check_sum_func(thd, ref))
     return TRUE;
 
-  fixed= 1;
+  flags|= ITEM_FLAG_FIXED;
   return FALSE;
 }
 
@@ -3862,7 +3862,7 @@ bool Item_func_json_objectagg::add()
 
 String* Item_func_json_objectagg::val_str(String* str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   if (null_value)
     return 0;
 

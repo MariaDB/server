@@ -81,7 +81,7 @@ public:
   {
     if (Item_bool_func::fix_length_and_dec())
       return TRUE;
-    maybe_null= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   bool set_format_by_check_constraint(Send_field_extended_metadata *to) const

@@ -24,7 +24,7 @@
 
 longlong Item_func_inet_aton::val_int()
 {
-  DBUG_ASSERT(fixed);
+  DBUG_ASSERT(fixed());
 
   uint byte_result= 0;
   ulonglong result= 0;                    // We are ready for 64 bit addresses
@@ -85,7 +85,7 @@ err:
 
 String* Item_func_inet_ntoa::val_str(String* str)
 {
-  DBUG_ASSERT(fixed);
+  DBUG_ASSERT(fixed());
 
   ulonglong n= (ulonglong) args[0]->val_int();
 
@@ -145,7 +145,7 @@ String* Item_func_inet_ntoa::val_str(String* str)
 
 String *Item_func_inet6_aton::val_str(String *buffer)
 {
-  DBUG_ASSERT(fixed);
+  DBUG_ASSERT(fixed());
 
   Ascii_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
   if ((null_value= tmp.is_null()))
@@ -176,7 +176,7 @@ String *Item_func_inet6_aton::val_str(String *buffer)
 
 String *Item_func_inet6_ntoa::val_str_ascii(String *buffer)
 {
-  DBUG_ASSERT(fixed);
+  DBUG_ASSERT(fixed());
 
   // Binary string argument expected
   if (unlikely(args[0]->result_type() != STRING_RESULT ||
@@ -216,7 +216,7 @@ String *Item_func_inet6_ntoa::val_str_ascii(String *buffer)
 
 longlong Item_func_is_ipv4::val_int()
 {
-  DBUG_ASSERT(fixed);
+  DBUG_ASSERT(fixed());
   String_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
   return !tmp.is_null() && !Inet4_null(*tmp.string()).is_null();
 }
@@ -228,7 +228,7 @@ longlong Item_func_is_ipv4::val_int()
 
 longlong Item_func_is_ipv6::val_int()
 {
-  DBUG_ASSERT(fixed);
+  DBUG_ASSERT(fixed());
   String_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
   return !tmp.is_null() && !Inet6_null(*tmp.string()).is_null();
 }

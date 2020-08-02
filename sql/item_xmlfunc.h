@@ -110,12 +110,12 @@ protected:
 public:
   Item_xml_str_func(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b)
   {
-    maybe_null= TRUE;
+    flags|= ITEM_FLAG_MAYBE_NULL;
   }
   Item_xml_str_func(THD *thd, Item *a, Item *b, Item *c):
     Item_str_func(thd, a, b, c)
   {
-    maybe_null= TRUE;
+    flags|= ITEM_FLAG_MAYBE_NULL;
   }
   bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();

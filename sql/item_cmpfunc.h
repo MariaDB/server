@@ -366,7 +366,9 @@ public:
   Item_in_optimizer(THD *thd, Item *a, Item *b):
     Item_bool_func(thd, a, b), cache(0), expr_cache(0),
     save_cache(0), result_for_null_param(UNKNOWN)
-  { with_subquery= true; }
+  {
+    flags|= ITEM_FLAG_WITH_SUBQUERY;
+  }
   bool fix_fields(THD *, Item **) override;
   bool fix_left(THD *thd);
   table_map not_null_tables() const override { return 0; }
@@ -918,7 +920,7 @@ public:
     Item_func_opt_neg(thd, a, b, c) { }
   longlong val_int()
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return m_comparator.type_handler()->Item_func_between_val_int(this);
   }
   enum Functype functype() const   { return BETWEEN; }
@@ -1070,7 +1072,7 @@ protected:
   {
     Type_std_attributes::set(source);
     set_handler(source->type_handler());
-    maybe_null= maybe_null_arg;
+    set_maybe_null(maybe_null_arg);
   }
 
   bool fix_length_and_dec2_eliminate_null(Item **items)
@@ -1127,7 +1129,7 @@ public:
         IFNULL(inet6_not_null_expr, 'foo') -> INET6 NULL
         IFNULL(inet6_not_null_expr, '::1') -> INET6 NOT NULL
     */
-    maybe_null= args[1]->maybe_null;
+    copy_flags(args[1], ITEM_FLAG_MAYBE_NULL);
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
       return TRUE;
     return FALSE;
@@ -2407,7 +2409,7 @@ public:
     DBUG_ASSERT(m_comparator.cmp_type() == ROW_RESULT);
     return all_items_are_consts(args + 1, arg_count - 1) &&   // Bisection #2
            ((is_top_level_item() && !negated) ||              // Bisection #3
-            (!list_contains_null() && !args[0]->maybe_null)); // Bisection #4
+            (!list_contains_null() && !args[0]->maybe_null())); // Bisection #4
   }
   bool agg_all_arg_charsets_for_comparison()
   {
@@ -2566,7 +2568,9 @@ public:
   { return args[0]->collation.collation; }
   bool fix_length_and_dec()
   {
-    decimals=0; max_length=1; maybe_null=0;
+    decimals=0;
+    max_length=1;
+    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   bool count_sargable_conds(void *arg);
@@ -2600,7 +2604,7 @@ public:
   /* Optimize case of not_null_column IS NULL */
   virtual void update_used_tables()
   {
-    if (!args[0]->maybe_null && !arg_is_datetime_notnull_field())
+    if (!args[0]->maybe_null() && !arg_is_datetime_notnull_field())
     {
       used_tables_cache= 0;			/* is always false */
       const_item_cache= 1;
@@ -3461,7 +3465,10 @@ class Item_func_cursor_found: public Item_func_cursor_bool_attr
 {
 public:
   Item_func_cursor_found(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_func_cursor_bool_attr(thd, name, offset) { maybe_null= true; }
+   :Item_func_cursor_bool_attr(thd, name, offset)
+  {
+    flags|= ITEM_FLAG_MAYBE_NULL;
+  }
   const char *func_name() const { return "%FOUND"; }
   longlong val_int();
   Item *get_copy(THD *thd)
@@ -3473,7 +3480,10 @@ class Item_func_cursor_notfound: public Item_func_cursor_bool_attr
 {
 public:
   Item_func_cursor_notfound(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_func_cursor_bool_attr(thd, name, offset) { maybe_null= true; }
+   :Item_func_cursor_bool_attr(thd, name, offset)
+  {
+    flags|= ITEM_FLAG_MAYBE_NULL;
+  }
   const char *func_name() const { return "%NOTFOUND"; }
   longlong val_int();
   Item *get_copy(THD *thd)

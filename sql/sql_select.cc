@@ -1209,9 +1209,9 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
 
     while ((select_el= select_it++))
     {
-      if (select_el->with_sum_func)
+      if (select_el->with_sum_func())
         found_sum_func_elem= true;
-      if (select_el->with_field)
+      if (select_el->with_field())
         found_field_elem= true;
       if (found_sum_func_elem && found_field_elem)
       {
@@ -1309,7 +1309,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
       DBUG_RETURN(-1);				/* purecov: inspected */
     thd->lex->allow_sum_func= save_allow_sum_func;
 
-    if (having->with_window_func)
+    if (having->with_window_func())
     {
       my_error(ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION, MYF(0));
       DBUG_RETURN(-1); 
@@ -1327,7 +1327,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     Item *item;
     while ((item= it++))
     {
-      if (item->with_window_func)
+      if (item->with_window_func())
         item->update_used_tables();
     }
   }
@@ -1371,20 +1371,20 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
             ((Item_field *) item)->field->sort_length()) &&
            /* AND not a zero length NOT NULL string function. */
            (item->type() != Item::FUNC_ITEM ||
-            item->maybe_null ||
+            item->maybe_null() ||
             item->result_type() != STRING_RESULT ||
             item->max_length)))
         real_order= TRUE;
 
-      if ((item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM) ||
-          item->with_window_func)
+      if ((item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM) ||
+          item->with_window_func())
         item->split_sum_func(thd, ref_ptrs, all_fields, SPLIT_SUM_SELECT);
     }
     if (!real_order)
       order= NULL;
   }
 
-  if (having && having->with_sum_func)
+  if (having && having->with_sum_func())
     having->split_sum_func2(thd, ref_ptrs, all_fields,
                             &having, SPLIT_SUM_SKIP_REGISTERED);
   if (select_lex->inner_sum_func_list)
@@ -2809,7 +2809,7 @@ int JOIN::optimize_stage2()
     elements may be lost during further having
     condition transformation in JOIN::exec.
   */
-  if (having && const_table_map && !having->with_sum_func)
+  if (having && const_table_map && !having->with_sum_func())
   {
     having->update_used_tables();
     having= having->remove_eq_conds(thd, &select_lex->having_value, true);
@@ -5997,7 +5997,7 @@ add_key_field(JOIN *join,
   {
     if ((cond->functype() == Item_func::EQ_FUNC ||
          cond->functype() == Item_func::MULT_EQUAL_FUNC) &&
-        ((*value)->maybe_null || field->real_maybe_null()))
+        ((*value)->maybe_null() || field->real_maybe_null()))
       (*key_fields)->null_rejecting= true;
     else
       (*key_fields)->null_rejecting= false;
@@ -7444,7 +7444,7 @@ best_access_path(JOIN      *join,
             if (!(keyuse->used_tables & ~join->const_table_map))
               const_part|= keyuse->keypart_map;
 
-            if (!keyuse->val->maybe_null || keyuse->null_rejecting)
+            if (!keyuse->val->maybe_null() || keyuse->null_rejecting)
               notnull_part|=keyuse->keypart_map;
 
             double tmp2= prev_record_reads(join_positions, idx,
@@ -10787,7 +10787,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       j->ref.items[i]=keyuse->val;		// Save for cond removal
       j->ref.cond_guards[i]= keyuse->cond_guard;
 
-      if (!keyuse->val->maybe_null || keyuse->null_rejecting)
+      if (!keyuse->val->maybe_null() || keyuse->null_rejecting)
         not_null_keyparts++;
       /*
         Set ref.null_rejecting to true only if we are going to inject a
@@ -14086,7 +14086,7 @@ static void update_depend_map_for_order(JOIN *join, ORDER *order)
     order->used= 0;
     // Not item_sum(), RAND() and no reference to table outside of sub select
     if (!(order->depend_map & (OUTER_REF_TABLE_BIT | RAND_TABLE_BIT))
-        && !order->item[0]->with_sum_func &&
+        && !order->item[0]->with_sum_func() &&
         join->join_tab)
     {
       for (JOIN_TAB **tab=join->map2table;
@@ -14193,7 +14193,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
   for (order=first_order; order ; order=order->next)
   {
     table_map order_tables=order->item[0]->used_tables();
-    if (order->item[0]->with_sum_func ||
+    if (order->item[0]->with_sum_func() ||
         /*
           If the outer table of an outer join is const (either by itself or
           after applying WHERE condition), grouping on a field from such a
@@ -14340,7 +14340,7 @@ ORDER *simple_remove_const(ORDER *order, COND *where)
   ORDER *first= NULL, *prev= NULL;
   for (; order; order= order->next)
   {
-    DBUG_ASSERT(!order->item[0]->with_sum_func); // should never happen
+    DBUG_ASSERT(!order->item[0]->with_sum_func()); // should never happen
     if (!const_expression_in_where(where, order->item[0]))
     {
       if (!first)
@@ -17492,7 +17492,7 @@ Item_bool_func2::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
     if (args[0]->eq(args[1], true))
     {
       if (*cond_value == Item::COND_FALSE ||
-          !args[0]->maybe_null || functype() == Item_func::EQUAL_FUNC)
+          !args[0]->maybe_null() || functype() == Item_func::EQUAL_FUNC)
         return (COND*) 0;                       // Compare of identical items
     }
   }
@@ -17785,7 +17785,7 @@ Field *Item::create_tmp_field_int(MEM_ROOT *root, TABLE *table,
     h= &type_handler_slonglong;
   if (unsigned_flag)
     h= h->type_handler_unsigned();
-  return h->make_and_init_table_field(root, &name, Record_addr(maybe_null),
+  return h->make_and_init_table_field(root, &name, Record_addr(maybe_null()),
                                       *this, table);
 }
 
@@ -17819,7 +17819,7 @@ Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
   case REAL_RESULT:
   {
     new_field= new (root)
-      Field_double(max_char_length(), maybe_null, &name, decimals, TRUE);
+      Field_double(max_char_length(), maybe_null(), &name, decimals, TRUE);
     break;
   }
   case INT_RESULT:
@@ -17855,9 +17855,9 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
     If item have to be able to store NULLs but underlaid field can't do it,
     create_tmp_field_from_field() can't be used for tmp field creation.
   */
-  if (((maybe_null && in_rollup) ||
+  if (((maybe_null() && in_rollup()) ||
       (new_table->in_use->create_tmp_table_for_derived && /* for mat. view/dt */
-       orig_item && orig_item->maybe_null)) &&
+       orig_item && orig_item->maybe_null())) &&
       !field->maybe_null())
   {
     /*
@@ -17866,7 +17866,7 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
       when the outer query decided at some point after name resolution phase
       that this field might be null. Take this into account here.
     */
-    Record_addr rec(orig_item ? orig_item->maybe_null : maybe_null);
+    Record_addr rec(orig_item ? orig_item->maybe_null() : maybe_null());
     const Type_handler *handler= type_handler()->
                                    type_handler_for_tmp_table(this);
     result= handler->make_and_init_table_field(root,
@@ -17879,13 +17879,13 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
     const Type_handler *handler=
       Type_handler::type_handler_long_or_longlong(max_char_length(), true);
     result= handler->make_and_init_table_field(root, &name,
-                                               Record_addr(maybe_null),
+                                               Record_addr(maybe_null()),
                                                *this, new_table);
   }
   else
   {
     LEX_CSTRING *tmp= orig_item ? &orig_item->name : &name;
-    bool tmp_maybe_null= param->modify_item() ? maybe_null :
+    bool tmp_maybe_null= param->modify_item() ? maybe_null() :
                                                 field->maybe_null();
     result= field->create_tmp_field(root, new_table, tmp_maybe_null);
     if (result)
@@ -17970,13 +17970,13 @@ Item_result_field::create_tmp_field_ex_from_handler(
     - Item_func
     - Item_subselect
   */
-  DBUG_ASSERT(fixed);
+  DBUG_ASSERT(fixed());
   DBUG_ASSERT(is_result_field());
   DBUG_ASSERT(type() != NULL_ITEM);
   get_tmp_field_src(src, param);
   Field *result;
   if ((result= h->make_and_init_table_field(root, &name,
-                                            Record_addr(maybe_null),
+                                            Record_addr(maybe_null()),
                                             *this, table)) &&
       param->modify_item())
     result_field= result;
@@ -18413,7 +18413,7 @@ bool Create_tmp_table::add_fields(THD *thd,
   Item *item;
   Field **tmp_from_field= m_from_field;
   while (!m_with_cycle && (item= li++))
-    if (item->is_in_with_cycle)
+    if (item->is_in_with_cycle())
     {
       m_with_cycle= true;
       /*
@@ -18431,7 +18431,7 @@ bool Create_tmp_table::add_fields(THD *thd,
   {
     current_counter= (((param->hidden_field_count < (fieldnr + 1)) &&
                        distinct_record_structure &&
-                       (!m_with_cycle || item->is_in_with_cycle)) ?
+                       (!m_with_cycle || item->is_in_with_cycle())) ?
                       distinct :
                       other);
     Item::Type type= item->type();
@@ -18442,7 +18442,7 @@ bool Create_tmp_table::add_fields(THD *thd,
     }
     if (not_all_columns)
     {
-      if (item->with_sum_func && type != Item::SUM_FUNC_ITEM)
+      if (item->with_sum_func() && type != Item::SUM_FUNC_ITEM)
       {
         if (item->used_tables() & OUTER_REF_TABLE_BIT)
           item->update_used_tables();
@@ -18499,7 +18499,7 @@ bool Create_tmp_table::add_fields(THD *thd,
               new_field->maybe_null() is still false, it will be
               changed below. But we have to setup Item_field correctly
             */
-            arg->maybe_null=1;
+            arg->flags|= ITEM_FLAG_MAYBE_NULL;
           }
           if (current_counter == distinct)
             new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
@@ -18575,7 +18575,7 @@ bool Create_tmp_table::add_fields(THD *thd,
       uneven_delta= m_uneven_bit_length - uneven_delta;
       m_field_count[current_counter]++;
 
-      if (item->marker == 4 && item->maybe_null)
+      if (item->marker == 4 && item->maybe_null())
       {
         m_group_null_items++;
         new_field->flags|= GROUP_FLAG;
@@ -18860,7 +18860,7 @@ bool Create_tmp_table::finalize(THD *thd,
     {
       Field *field=(*cur_group->item)->get_tmp_table_field();
       DBUG_ASSERT(field->table == table);
-      bool maybe_null=(*cur_group->item)->maybe_null;
+      bool maybe_null=(*cur_group->item)->maybe_null();
       m_key_part_info->null_bit=0;
       m_key_part_info->field=  field;
       m_key_part_info->fieldnr= field->field_index + 1;
@@ -18888,7 +18888,8 @@ bool Create_tmp_table::finalize(THD *thd,
             We solve this by marking the item as !maybe_null to ensure
             that the key,field and item definition match.
           */
-          (*cur_group->item)->maybe_null= maybe_null= 0;
+          maybe_null= 0;
+          (*cur_group->item)->flags&= (Item::item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
         }
 
 	if (!(cur_group->field= field->new_key_field(thd->mem_root,table,
@@ -22106,7 +22107,7 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     }
     item->save_org_in_field(group->field, group->fast_field_copier_func);
     /* Store in the used key if the field was 0 */
-    if (item->maybe_null)
+    if (item->maybe_null())
       group->buff[-1]= (char) group->field->is_null();
   }
   if (!table->file->ha_index_read_map(table->record[1],
@@ -24470,14 +24471,14 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     if (find_order_in_list(thd, ref_pointer_array, tables, order, fields,
                            all_fields, false, true, from_window_spec))
       return 1;
-    if ((*order->item)->with_window_func &&
+    if ((*order->item)->with_window_func() &&
         context_analysis_place != IN_ORDER_BY)
     {
       my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
       return 1;
     }
 
-    if (!(*order->item)->with_sum_func)
+    if (!(*order->item)->with_sum_func())
       continue;
 
     /*
@@ -24548,12 +24549,12 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
                            all_fields, true, true, from_window_spec))
       return 1;
     (*ord->item)->marker= UNDEF_POS;		/* Mark found */
-    if ((*ord->item)->with_sum_func && context_analysis_place == IN_GROUP_BY)
+    if ((*ord->item)->with_sum_func() && context_analysis_place == IN_GROUP_BY)
     {
       my_error(ER_WRONG_GROUP_FIELD, MYF(0), (*ord->item)->full_name());
       return 1;
     }
-    if ((*ord->item)->with_window_func)
+    if ((*ord->item)->with_window_func())
     {
       if (context_analysis_place == IN_GROUP_BY)
         my_error(ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION, MYF(0));
@@ -24561,7 +24562,7 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
         my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
       return 1;
     }
-    if (from_window_spec && (*ord->item)->with_sum_func &&
+    if (from_window_spec && (*ord->item)->with_sum_func() &&
         (*ord->item)->type() != Item::SUM_FUNC_ITEM)
       (*ord->item)->split_sum_func(thd, ref_pointer_array,
                                    all_fields, SPLIT_SUM_SELECT);
@@ -24711,7 +24712,7 @@ create_distinct_group(THD *thd, Ref_ptr_array ref_pointer_array,
   li.rewind();
   while ((item=li++))
   {
-    if (!item->const_item() && !item->with_sum_func && !item->marker)
+    if (!item->const_item() && !item->with_sum_func() && !item->marker)
     {
       /* 
         Don't put duplicate columns from the SELECT list into the 
@@ -24810,7 +24811,7 @@ count_field_types(SELECT_LEX *select_lex, TMP_TABLE_PARAM *param,
     {
       param->func_count++;
       if (reset_with_sum_func)
-	field->with_sum_func=0;
+	field->flags&= ~ITEM_FLAG_WITH_SUM_FUNC;
     }
   }
 }
@@ -24964,7 +24965,7 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
       }
     }
     parts++;
-    if (group_item->maybe_null)
+    if (group_item->maybe_null())
       null_parts++;
   }
   param->group_length= key_length + null_parts;
@@ -25214,7 +25215,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	      real_pos->real_type() == Item::SUBSELECT_ITEM ||
 	      real_pos->type() == Item::CACHE_ITEM ||
 	      real_pos->type() == Item::COND_ITEM) &&
-	     !real_pos->with_sum_func)
+	     !real_pos->with_sum_func())
     {						// Save for send fields
       LEX_CSTRING real_name= pos->name;
       pos= real_pos;
@@ -25423,8 +25424,8 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   for (uint i= 0; (item= it++); i++)
   {
     Field *field;
-    if ((item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM) ||
-       item->with_window_func)
+    if ((item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM) ||
+        item->with_window_func())
       item_field= item;
     else if (item->type() == Item::FIELD_ITEM)
     {
@@ -25687,7 +25688,7 @@ copy_funcs(Item **func_ptr, const THD *thd)
   for (; (func = *func_ptr) ; func_ptr++)
   {
     if (func->type() == Item::FUNC_ITEM &&
-        ((Item_func *) func)->with_window_func)
+        ((Item_func *) func)->with_window_func())
       continue;
     func->save_in_result_field(1);
     /*
@@ -25863,8 +25864,7 @@ static bool change_group_ref(THD *thd, Item_func *expr, ORDER *group_list,
     }
     if (arg_changed)
     {
-      expr->maybe_null= 1;
-      expr->in_rollup= 1;
+      expr->flags|= ITEM_FLAG_MAYBE_NULL | ITEM_FLAG_IN_ROLLUP;
       *changed= TRUE;
     }
   }
@@ -25935,8 +25935,7 @@ bool JOIN::rollup_init()
     {
       if (*group_tmp->item == item)
       {
-        item->maybe_null= 1;
-        item->in_rollup= 1;
+        item->flags|= ITEM_FLAG_MAYBE_NULL | ITEM_FLAG_IN_ROLLUP;
         found_in_group= 1;
         break;
       }
@@ -25952,7 +25951,7 @@ bool JOIN::rollup_init()
         Marking the expression item as 'with_sum_func' will ensure this.
       */ 
       if (changed)
-        item->with_sum_func= 1;
+        item->flags|= ITEM_FLAG_WITH_SUM_FUNC;
     }
   }
   return 0;
@@ -26122,7 +26121,7 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
             Item_null_result *null_item= new (thd->mem_root) Item_null_result(thd);
             if (!null_item)
               return 1;
-	    item->maybe_null= 1;		// Value will be null sometimes
+	    item->flags|= ITEM_FLAG_MAYBE_NULL;		// Value will be null sometimes
             null_item->result_field= item->get_tmp_table_field();
             item= null_item;
 	    break;
@@ -27655,7 +27654,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     else
       str->append(',');
 
-    if (is_subquery_function() && item->is_autogenerated_name)
+    if (is_subquery_function() && item->is_autogenerated_name())
     {
       /*
         Do not print auto-generated aliases in subqueries. It has no purpose

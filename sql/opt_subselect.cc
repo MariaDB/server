@@ -966,7 +966,7 @@ bool make_in_exists_conversion(THD *thd, JOIN *join, Item_in_subselect *item)
     call.
   */
   item->changed= 0;
-  item->fixed= 0;
+  item->flags|= ITEM_FLAG_FIXED;
 
   SELECT_LEX *save_select_lex= thd->lex->current_select;
   thd->lex->current_select= item->unit->first_select();
@@ -979,7 +979,7 @@ bool make_in_exists_conversion(THD *thd, JOIN *join, Item_in_subselect *item)
     DBUG_RETURN(TRUE);
 
   item->changed= 1;
-  item->fixed= 1;
+  DBUG_ASSERT(item->fixed());
 
   Item *substitute= item->substitution;
   bool do_fix_fields= !item->substitution->is_fixed();
@@ -1318,7 +1318,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
   {
     JOIN *child_join= in_subq->unit->first_select()->join;
     in_subq->changed= 0;
-    in_subq->fixed= 0;
+    in_subq->flags|= ITEM_FLAG_FIXED;
 
     SELECT_LEX *save_select_lex= thd->lex->current_select;
     thd->lex->current_select= in_subq->unit->first_select();
@@ -1331,7 +1331,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
       DBUG_RETURN(TRUE);
 
     in_subq->changed= 1;
-    in_subq->fixed= 1;
+    DBUG_ASSERT(in_subq->fixed());
 
     Item *substitute= in_subq->substitution;
     bool do_fix_fields= !in_subq->substitution->is_fixed();
@@ -2702,7 +2702,7 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
           */
           if (!(keyuse->used_tables & sj_inner_tables) &&
               !(keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL) &&
-              (keyuse->null_rejecting || !keyuse->val->maybe_null))
+              (keyuse->null_rejecting || !keyuse->val->maybe_null()))
           {
             bound_parts |= 1 << keyuse->keypart;
           }

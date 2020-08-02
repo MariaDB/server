@@ -2497,7 +2497,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
       cursor_manager->add_cursor(current_row_pos);
-      DBUG_ASSERT(item_sum->fixed);
+      DBUG_ASSERT(item_sum->fixed());
       bool negative_offset= item_sum->sum_func() == Item_sum::LAG_FUNC;
       fc= new Frame_positional_cursor(*current_row_pos,
                                       *top_bound, *bottom_bound,
@@ -2513,7 +2513,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
-      DBUG_ASSERT(item_sum->fixed);
+      DBUG_ASSERT(item_sum->fixed());
       Item *offset_item= new (thd->mem_root) Item_int(thd, 0);
       offset_item->fix_fields(thd, &offset_item);
       fc= new Frame_positional_cursor(*top_bound,
@@ -2529,7 +2529,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
-      DBUG_ASSERT(item_sum->fixed);
+      DBUG_ASSERT(item_sum->fixed());
       Item *offset_item= new (thd->mem_root) Item_int(thd, 0);
       offset_item->fix_fields(thd, &offset_item);
       fc= new Frame_positional_cursor(*bottom_bound,
@@ -2545,7 +2545,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
-      DBUG_ASSERT(item_sum->fixed);
+      DBUG_ASSERT(item_sum->fixed());
       Item *int_item= new (thd->mem_root) Item_int(thd, 1);
       Item *offset_func= new (thd->mem_root)
                               Item_func_minus(thd, item_sum->get_arg(1),
@@ -2734,7 +2734,7 @@ bool save_window_function_values(List<Item_window_func>& window_functions,
   Item *func;
   for (; (func = *func_ptr) ; func_ptr++)
   {
-    if (func->with_window_func && func->type() != Item::WINDOW_FUNC_ITEM)
+    if (func->with_window_func() && func->type() != Item::WINDOW_FUNC_ITEM)
       func->save_in_result_field(true);
   }
 

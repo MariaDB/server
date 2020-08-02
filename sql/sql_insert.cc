@@ -4435,7 +4435,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     if (!cr_field)
       DBUG_RETURN(NULL);
 
-    if (item->maybe_null)
+    if (item->maybe_null())
       cr_field->flags &= ~NOT_NULL_FLAG;
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
