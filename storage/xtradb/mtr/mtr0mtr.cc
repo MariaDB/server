@@ -93,8 +93,7 @@ mtr_memo_slot_release_func(
 		{
 			fil_space_t* space = reinterpret_cast<fil_space_t*>(
 				static_cast<char*>(object)
-				- reinterpret_cast<char*>(
-					&static_cast<fil_space_t*>(0)->latch));
+				- my_offsetof(fil_space_t, latch));
 			space->committed_size = space->size;
 			rw_lock_x_unlock(&space->latch);
 		}
