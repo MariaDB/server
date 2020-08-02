@@ -84,7 +84,7 @@ Item_window_func::update_used_tables()
 bool
 Item_window_func::fix_fields(THD *thd, Item **ref)
 {
-  DBUG_ASSERT(fixed == 0);
+  DBUG_ASSERT(fixed() == 0);
 
   if (!thd->lex->current_select ||
       (thd->lex->current_select->context_analysis_place != SELECT_LIST &&
@@ -119,16 +119,16 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
     return true;
 
   const_item_cache= false;
-  with_window_func= true;
-  with_sum_func= false;
+
+  flags= (flags & ~ITEM_FLAG_WITH_SUM_FUNC) | ITEM_FLAG_WITH_WINDOW_FUNC;
 
   if (fix_length_and_dec())
     return TRUE;
 
   max_length= window_func()->max_length;
-  maybe_null= window_func()->maybe_null;
+  set_maybe_null(window_func()->maybe_null());
 
-  fixed= 1;
+  flags|= ITEM_FLAG_FIXED;
   set_phase_to_initial();
   return false;
 }
@@ -335,7 +335,7 @@ void Item_sum_percent_rank::setup_window_func(THD *thd, Window_spec *window_spec
 
 bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
 {
-  DBUG_ASSERT(fixed == 0);
+  DBUG_ASSERT(fixed() == 0);
 
   if (init_sum_func_check(thd))
     return TRUE;
@@ -344,8 +344,8 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   {
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
-    with_window_func|= args[i]->with_window_func;
-    with_subquery|= args[i]->with_subquery;
+    flags|= (args[i]->flags & (ITEM_FLAG_WITH_WINDOW_FUNC |
+                               ITEM_FLAG_WITH_SUBQUERY));
   }
 
   if (fix_length_and_dec())
@@ -357,17 +357,17 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   if (check_sum_func(thd, ref))
     return TRUE;
   for (uint i= 0; i < arg_count; i++)
-  {
     orig_args[i]= args[i];
-  }
-  fixed= 1;
+
+  flags|= ITEM_FLAG_FIXED;
   return FALSE;
 }
 
 
 bool Item_sum_hybrid_simple::fix_length_and_dec()
 {
-  maybe_null= null_value= true;
+  flags|= ITEM_FLAG_MAYBE_NULL;
+  null_value= true;
   return args[0]->type_handler()->Item_sum_hybrid_fix_length_and_dec(this);
 }
 
@@ -393,7 +393,7 @@ void Item_sum_hybrid_simple::setup_hybrid(THD *thd, Item *item)
 
 double Item_sum_hybrid_simple::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   if (null_value)
     return 0.0;
   double retval= value->val_real();
@@ -404,7 +404,7 @@ double Item_sum_hybrid_simple::val_real()
 
 longlong Item_sum_hybrid_simple::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   if (null_value)
     return 0;
   longlong retval= value->val_int();
@@ -415,7 +415,7 @@ longlong Item_sum_hybrid_simple::val_int()
 
 my_decimal *Item_sum_hybrid_simple::val_decimal(my_decimal *val)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   if (null_value)
     return 0;
   my_decimal *retval= value->val_decimal(val);
@@ -427,7 +427,7 @@ my_decimal *Item_sum_hybrid_simple::val_decimal(my_decimal *val)
 String *
 Item_sum_hybrid_simple::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   if (null_value)
     return 0;
   String *retval= value->val_str(str);
@@ -438,7 +438,7 @@ Item_sum_hybrid_simple::val_str(String *str)
 
 bool Item_sum_hybrid_simple::val_native(THD *thd, Native *to)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   if (null_value)
     return true;
   return val_native_from_item(thd, value, to);
@@ -446,7 +446,7 @@ bool Item_sum_hybrid_simple::val_native(THD *thd, Native *to)
 
 bool Item_sum_hybrid_simple::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   if (null_value)
     return true;
   bool retval= value->get_date(thd, ltime, fuzzydate);
@@ -487,7 +487,7 @@ void Item_sum_hybrid_simple::reset_field()
   {
     longlong nr=args[0]->val_int();
 
-    if (maybe_null)
+    if (maybe_null())
     {
       if (args[0]->null_value)
       {
@@ -504,7 +504,7 @@ void Item_sum_hybrid_simple::reset_field()
   {
     double nr= args[0]->val_real();
 
-    if (maybe_null)
+    if (maybe_null())
     {
       if (args[0]->null_value)
       {
@@ -521,7 +521,7 @@ void Item_sum_hybrid_simple::reset_field()
   {
     VDec arg_dec(args[0]);
 
-    if (maybe_null)
+    if (maybe_null())
     {
       if (arg_dec.is_null())
         result_field->set_null();

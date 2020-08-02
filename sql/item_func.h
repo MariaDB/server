@@ -97,48 +97,45 @@ public:
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
   Item_func(THD *thd): Item_func_or_sum(thd)
   {
-    with_field= 0;
-    with_param= 0;
+    flags&=(item_flags_t)  ~(ITEM_FLAG_WITH_FIELD | ITEM_FLAG_WITH_FIELD);
   }
   Item_func(THD *thd, Item *a): Item_func_or_sum(thd, a)
   {
-    with_sum_func= a->with_sum_func;
-    with_param= a->with_param;
-    with_field= a->with_field;
+    copy_flags(a,
+               ITEM_FLAG_WITH_SUM_FUNC | ITEM_FLAG_WITH_FIELD |
+               ITEM_FLAG_WITH_PARAM);
   }
   Item_func(THD *thd, Item *a, Item *b):
     Item_func_or_sum(thd, a, b)
   {
-    with_sum_func= a->with_sum_func || b->with_sum_func;
-    with_param= a->with_param || b->with_param;
-    with_field= a->with_field || b->with_field;
+    flags|= ((a->flags | b->flags) &
+             (ITEM_FLAG_WITH_SUM_FUNC |
+              ITEM_FLAG_WITH_PARAM |
+              ITEM_FLAG_WITH_FIELD));
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c):
     Item_func_or_sum(thd, a, b, c)
   {
-    with_sum_func= a->with_sum_func || b->with_sum_func || c->with_sum_func;
-    with_field= a->with_field || b->with_field || c->with_field;
-    with_param= a->with_param || b->with_param || c->with_param;
+    flags|= ((a->flags | b->flags | c->flags) &
+             (ITEM_FLAG_WITH_SUM_FUNC |
+              ITEM_FLAG_WITH_PARAM |
+              ITEM_FLAG_WITH_FIELD));
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d):
     Item_func_or_sum(thd, a, b, c, d)
   {
-    with_sum_func= a->with_sum_func || b->with_sum_func ||
-                   c->with_sum_func || d->with_sum_func;
-    with_field= a->with_field || b->with_field ||
-                c->with_field || d->with_field;
-    with_param= a->with_param || b->with_param ||
-                c->with_param || d->with_param;
+    flags|= ((a->flags | b->flags | c->flags | d->flags) &
+             (ITEM_FLAG_WITH_SUM_FUNC |
+              ITEM_FLAG_WITH_PARAM |
+              ITEM_FLAG_WITH_FIELD));
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e):
     Item_func_or_sum(thd, a, b, c, d, e)
   {
-    with_sum_func= a->with_sum_func || b->with_sum_func ||
-                   c->with_sum_func || d->with_sum_func || e->with_sum_func;
-    with_field= a->with_field || b->with_field ||
-                c->with_field || d->with_field || e->with_field;
-    with_param= a->with_param || b->with_param ||
-                c->with_param || d->with_param || e->with_param;
+    flags|= ((a->flags | b->flags | c->flags | d->flags | e->flags) &
+             (ITEM_FLAG_WITH_SUM_FUNC |
+              ITEM_FLAG_WITH_PARAM |
+              ITEM_FLAG_WITH_FIELD));
   }
   Item_func(THD *thd, List<Item> &list):
     Item_func_or_sum(thd, list)
@@ -204,7 +201,7 @@ public:
     if (max_result_length >= MAX_BLOB_WIDTH)
     {
       max_length= MAX_BLOB_WIDTH;
-      maybe_null= 1;
+      flags|= ITEM_FLAG_MAYBE_NULL;
     }
     else
       max_length= (uint32) max_result_length;
@@ -272,7 +269,7 @@ public:
 
   bool has_timestamp_args()
   {
-    DBUG_ASSERT(fixed == TRUE);
+    DBUG_ASSERT(fixed());
     for (uint i= 0; i < arg_count; i++)
     {
       if (args[i]->type() == Item::FIELD_ITEM &&
@@ -284,7 +281,7 @@ public:
 
   bool has_date_args()
   {
-    DBUG_ASSERT(fixed == TRUE);
+    DBUG_ASSERT(fixed());
     for (uint i= 0; i < arg_count; i++)
     {
       if (args[i]->type() == Item::FIELD_ITEM &&
@@ -297,7 +294,7 @@ public:
 
   bool has_time_args()
   {
-    DBUG_ASSERT(fixed == TRUE);
+    DBUG_ASSERT(fixed());
     for (uint i= 0; i < arg_count; i++)
     {
       if (args[i]->type() == Item::FIELD_ITEM &&
@@ -310,7 +307,7 @@ public:
 
   bool has_datetime_args()
   {
-    DBUG_ASSERT(fixed == TRUE);
+    DBUG_ASSERT(fixed());
     for (uint i= 0; i < arg_count; i++)
     {
       if (args[i]->type() == Item::FIELD_ITEM &&
@@ -418,7 +415,7 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value);
   longlong val_int()
   {
-    DBUG_ASSERT(fixed == 1);
+    DBUG_ASSERT(fixed());
     return Converter_double_to_longlong(val_real(), unsigned_flag).result();
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
@@ -770,10 +767,10 @@ public:
   }
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     const Type_handler *h= m_func_handler->type_handler_for_create_select(this);
     return h->make_and_init_table_field(root, &name,
-                                        Record_addr(maybe_null),
+                                        Record_addr(maybe_null()),
                                         *this, table);
   }
   String *val_str(String *to)
@@ -905,25 +902,25 @@ public:
 
   double val_real()
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return Item_func_hybrid_field_type::type_handler()->
            Item_func_hybrid_field_type_val_real(this);
   }
   longlong val_int()
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return Item_func_hybrid_field_type::type_handler()->
            Item_func_hybrid_field_type_val_int(this);
   }
   my_decimal *val_decimal(my_decimal *dec)
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return Item_func_hybrid_field_type::type_handler()->
            Item_func_hybrid_field_type_val_decimal(this, dec);
   }
   String *val_str(String*str)
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     String *res= Item_func_hybrid_field_type::type_handler()->
                  Item_func_hybrid_field_type_val_str(this, str);
     DBUG_ASSERT(null_value == (res == NULL));
@@ -931,14 +928,14 @@ public:
   }
   bool get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return Item_func_hybrid_field_type::type_handler()->
            Item_func_hybrid_field_type_get_date_with_warn(thd, this, to, mode);
   }
 
   bool val_native(THD *thd, Native *to)
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return native_op(thd, to);
   }
 
@@ -1254,7 +1251,10 @@ class Item_func_cursor_rowcount: public Item_longlong_func,
 {
 public:
   Item_func_cursor_rowcount(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_longlong_func(thd), Cursor_ref(name, offset) { maybe_null= true; }
+   :Item_longlong_func(thd), Cursor_ref(name, offset)
+  {
+    flags|= ITEM_FLAG_MAYBE_NULL;
+  }
   const char *func_name() const { return "%ROWCOUNT"; }
   longlong val_int();
   bool check_vcol_func_processor(void *arg)
@@ -1280,7 +1280,7 @@ public:
   const char *func_name() const { return "connection_id"; }
   bool fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
-  longlong val_int() { DBUG_ASSERT(fixed == 1); return value; }
+  longlong val_int() { DBUG_ASSERT(fixed()); return value; }
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
@@ -1430,7 +1430,10 @@ public:
   }
   bool need_parentheses_in_default() { return true; }
   void print(String *str, enum_query_type query_type);
-  void fix_length_and_dec_generic() { maybe_null= 1; }
+  void fix_length_and_dec_generic()
+  {
+    flags|= ITEM_FLAG_MAYBE_NULL;
+  }
 };
 
 
@@ -1692,8 +1695,9 @@ class Item_dec_func :public Item_real_func
   Item_dec_func(THD *thd, Item *a, Item *b): Item_real_func(thd, a, b) {}
   bool fix_length_and_dec()
   {
-    decimals=NOT_FIXED_DEC; max_length=float_length(decimals);
-    maybe_null=1;
+    decimals= NOT_FIXED_DEC;
+    max_length= float_length(decimals);
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
 };
@@ -1866,7 +1870,8 @@ public:
   {
     fix_attributes_datetime(0);
     set_handler(&type_handler_datetime2);
-    maybe_null= true; // E.g. CEILING(TIMESTAMP'0000-01-01 23:59:59.9')
+    // Thinks like CEILING(TIMESTAMP'0000-01-01 23:59:59.9') returns NULL
+    flags|= ITEM_FLAG_MAYBE_NULL;
   }
   bool fix_length_and_dec();
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
@@ -2057,31 +2062,31 @@ public:
 
   double val_real()
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return Item_func_min_max::type_handler()->
              Item_func_min_max_val_real(this);
   }
   longlong val_int()
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return Item_func_min_max::type_handler()->
              Item_func_min_max_val_int(this);
   }
   String *val_str(String *str)
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return Item_func_min_max::type_handler()->
              Item_func_min_max_val_str(this, str);
   }
   my_decimal *val_decimal(my_decimal *dec)
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return Item_func_min_max::type_handler()->
              Item_func_min_max_val_decimal(this, dec);
   }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate)
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return Item_func_min_max::type_handler()->
              Item_func_min_max_get_date(thd, this, res, fuzzydate);
   }
@@ -2224,7 +2229,12 @@ public:
   Item_func_coercibility(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "coercibility"; }
-  bool fix_length_and_dec() { max_length=10; maybe_null= 0; return FALSE; }
+  bool fix_length_and_dec()
+  {
+    max_length=10;
+    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    return FALSE;
+  }
   bool eval_not_null_tables(void *)
   {
     not_null_tables_cache= 0;
@@ -2482,7 +2492,12 @@ public:
   {}
   longlong val_int();
   const char *func_name() const { return "benchmark"; }
-  bool fix_length_and_dec() { max_length=1; maybe_null=0; return FALSE; }
+  bool fix_length_and_dec()
+  {
+    max_length=1;
+    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    return FALSE;
+  }
   virtual void print(String *str, enum_query_type query_type);
   bool check_vcol_func_processor(void *arg)
   {
@@ -2559,10 +2574,10 @@ public:
   enum Functype functype() const   { return UDF_FUNC; }
   bool fix_fields(THD *thd, Item **ref)
   {
-    DBUG_ASSERT(fixed == 0);
+    DBUG_ASSERT(fixed() == 0);
     bool res= udf.fix_fields(thd, this, arg_count, args);
     set_non_deterministic_if_needed();
-    fixed= 1;
+    flags|= ITEM_FLAG_FIXED;
     return res;
   }
   void fix_num_length_and_dec();
@@ -2650,7 +2665,7 @@ class Item_func_udf_float :public Item_udf_func
     Item_udf_func(thd, udf_arg, list) {}
   longlong val_int()
   {
-    DBUG_ASSERT(fixed == 1);
+    DBUG_ASSERT(fixed());
     return Converter_double_to_longlong(Item_func_udf_float::val_real(),
                                         unsigned_flag).result();
   }
@@ -2772,7 +2787,7 @@ class Item_func_udf_float :public Item_real_func
     Item_real_func(thd) {}
   Item_func_udf_float(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_real_func(thd, list) {}
-  double val_real() { DBUG_ASSERT(fixed == 1); return 0.0; }
+  double val_real() { DBUG_ASSERT(fixed()); return 0.0; }
 };
 
 
@@ -2784,7 +2799,7 @@ public:
   Item_func_udf_int(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_int_func(thd, list) {}
   const Type_handler *type_handler() const { return &type_handler_slonglong; }
-  longlong val_int() { DBUG_ASSERT(fixed == 1); return 0; }
+  longlong val_int() { DBUG_ASSERT(fixed()); return 0; }
 };
 
 
@@ -2796,7 +2811,7 @@ public:
   Item_func_udf_decimal(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_int_func(thd, list) {}
   const Type_handler *type_handler() const { return &type_handler_slonglong; }
-  my_decimal *val_decimal(my_decimal *) { DBUG_ASSERT(fixed == 1); return 0; }
+  my_decimal *val_decimal(my_decimal *) { DBUG_ASSERT(fixed()); return 0; }
 };
 
 
@@ -2808,10 +2823,10 @@ public:
   Item_func_udf_str(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_func(thd, list) {}
   String *val_str(String *)
-    { DBUG_ASSERT(fixed == 1); null_value=1; return 0; }
-  double val_real() { DBUG_ASSERT(fixed == 1); null_value= 1; return 0.0; }
-  longlong val_int() { DBUG_ASSERT(fixed == 1); null_value=1; return 0; }
-  bool fix_length_and_dec() { maybe_null=1; max_length=0; return FALSE; }
+    { DBUG_ASSERT(fixed()); null_value=1; return 0; }
+  double val_real() { DBUG_ASSERT(fixed()); null_value= 1; return 0.0; }
+  longlong val_int() { DBUG_ASSERT(fixed()); null_value=1; return 0; }
+  bool fix_length_and_dec() { flags|= ITEM_FLAG_MAYBE_NULL; max_length=0; return FALSE; }
 };
 
 #endif /* HAVE_DLOPEN */
@@ -2851,7 +2866,12 @@ class Item_func_get_lock final :public Item_func_lock
   Item_func_get_lock(THD *thd, Item *a, Item *b) :Item_func_lock(thd, a, b) {}
   longlong val_int() final;
   const char *func_name() const final { return "get_lock"; }
-  bool fix_length_and_dec() { max_length= 1; maybe_null= 1; return FALSE; }
+  bool fix_length_and_dec()
+  {
+    max_length= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
+    return FALSE;
+  }
   Item *get_copy(THD *thd) final
   { return get_item_copy<Item_func_get_lock>(thd, this); }
 };
@@ -2878,7 +2898,12 @@ public:
   Item_func_release_lock(THD *thd, Item *a): Item_func_lock(thd, a) {}
   longlong val_int() final;
   const char *func_name() const { return "release_lock"; }
-  bool fix_length_and_dec() { max_length= 1; maybe_null= 1; return FALSE; }
+  bool fix_length_and_dec()
+  {
+    max_length= 1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
+    return FALSE;
+  }
   Item *get_copy(THD *thd) final
   { return get_item_copy<Item_func_release_lock>(thd, this); }
 };
@@ -2906,7 +2931,12 @@ public:
     Item_longlong_func(thd, a, b, c, d) {}
   longlong val_int();
   const char *func_name() const { return "master_pos_wait"; }
-  bool fix_length_and_dec() { max_length=21; maybe_null=1; return FALSE; }
+  bool fix_length_and_dec()
+  {
+    max_length=21;
+    flags|= ITEM_FLAG_MAYBE_NULL;
+    return FALSE;
+  }
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
@@ -2965,7 +2995,7 @@ public:
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
-    DBUG_ASSERT(fixed);
+    DBUG_ASSERT(fixed());
     return create_tmp_field_ex_from_handler(root, table, src, param,
                                             type_handler());
   }
@@ -3271,7 +3301,7 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   bool eq(const Item *, bool binary_cmp) const;
   /* The following should be safe, even if we compare doubles */
-  longlong val_int() { DBUG_ASSERT(fixed == 1); return val_real() != 0.0; }
+  longlong val_int() { DBUG_ASSERT(fixed()); return val_real() != 0.0; }
   double val_real();
   virtual void print(String *str, enum_query_type query_type);
 
@@ -3344,7 +3374,9 @@ public:
   const char *func_name() const { return "is_free_lock"; }
   bool fix_length_and_dec()
   {
-    decimals=0; max_length=1; maybe_null=1;
+    decimals=0;
+    max_length=1;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg)
@@ -3366,7 +3398,8 @@ public:
   const char *func_name() const { return "is_used_lock"; }
   bool fix_length_and_dec()
   {
-    decimals=0; max_length=10; maybe_null=1;
+    decimals=0; max_length=10;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg)
@@ -3420,7 +3453,12 @@ public:
   Item_func_row_count(THD *thd): Item_longlong_func(thd) {}
   longlong val_int();
   const char *func_name() const { return "row_count"; }
-  bool fix_length_and_dec() { decimals= 0; maybe_null=0; return FALSE; }
+  bool fix_length_and_dec()
+  {
+    decimals= 0;
+    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    return FALSE;
+  }
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
@@ -3585,7 +3623,12 @@ public:
   Item_func_found_rows(THD *thd): Item_longlong_func(thd) {}
   longlong val_int();
   const char *func_name() const { return "found_rows"; }
-  bool fix_length_and_dec() { decimals= 0; maybe_null=0; return FALSE; }
+  bool fix_length_and_dec()
+  {
+    decimals= 0;
+    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    return FALSE;
+  }
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
@@ -3630,7 +3673,8 @@ public:
   }
   bool fix_length_and_dec()
   {
-    maybe_null= null_value= false;
+    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    null_value= false;
     max_length= 11;
     return FALSE;
   }
@@ -3689,7 +3733,7 @@ public:
   void update_used_tables()
   {
     Item_func::update_used_tables();
-    maybe_null= last_value->maybe_null;
+    copy_flags(last_value, ITEM_FLAG_MAYBE_NULL);
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_last_value>(thd, this); }
@@ -3712,7 +3756,7 @@ public:
   {
     unsigned_flag= 0;
     max_length= MAX_BIGINT_WIDTH;
-    maybe_null= 1;                              /* In case of errors */
+    flags|= ITEM_FLAG_MAYBE_NULL;             /* In case of errors */
     return FALSE;
   }
   /*

@@ -32,7 +32,7 @@ public:
   bool fix_length_and_dec()
   {
     max_length= MAX_FIELD_NAME * system_charset_info->mbmaxlen;
-    maybe_null= true;
+    flags|= ITEM_FLAG_MAYBE_NULL;
     return false;
   }
   const char *func_name() const { return "sysconst_test"; }

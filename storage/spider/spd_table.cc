@@ -9594,7 +9594,7 @@ int spider_set_direct_limit_offset(
 #ifdef SPIDER_has_Item_has_subquery
   if (select_lex->where && select_lex->where->has_subquery())
 #else
-  if (select_lex->where && select_lex->where->with_subquery)
+    if (select_lex->where && select_lex->where->with_subquery())
 #endif
     DBUG_RETURN(FALSE);
 
