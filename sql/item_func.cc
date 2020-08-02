@@ -2472,7 +2472,8 @@ void Item_func_round::fix_arg_int(const Type_handler *preferred,
     Longlong_hybrid val1= args[1]->to_longlong_hybrid();
     if (args[1]->null_value)
       fix_length_and_dec_double(NOT_FIXED_DEC);
-    else if ((!val1.to_uint(DECIMAL_MAX_SCALE) && truncate) ||
+    else if (truncate ||
+             !val1.neg() /* ROUND(x, n>=0) */ ||
              args[0]->decimal_precision() < DECIMAL_LONGLONG_DIGITS)
     {
       // Here we can keep INT_RESULT

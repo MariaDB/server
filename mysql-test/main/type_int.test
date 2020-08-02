@@ -295,6 +295,7 @@ DROP TABLE t1;
 
 --echo #
 --echo # MDEV-23337 Rounding functions create a wrong data type for numeric input
+--echo # MDEV-23350 ROUND(bigint_22_or_longer) returns a wrong data type
 --echo #
 
 DELIMITER $$;
@@ -304,7 +305,7 @@ BEGIN
   EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (a TYPE)', 'TYPE', t);
   INSERT IGNORE INTO t1 VALUES (-100000000000000000000000000000);
   INSERT IGNORE INTO t1 VALUES (100000000000000000000000000000);
-  CREATE  TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+  CREATE  TABLE t2 AS SELECT a, ROUND(a), ROUND(a,1), ROUND(a,10), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
   SHOW CREATE TABLE t2;
   SELECT * FROM t2;
   DROP TABLE t1, t2;
@@ -318,12 +319,22 @@ CALL p1('smallint');
 CALL p1('mediumint');
 CALL p1('int');
 CALL p1('bigint');
+CALL p1('bigint(20)');
+CALL p1('bigint(21)');
+CALL p1('bigint(22)');
+CALL p1('bigint(23)');
+CALL p1('bigint(30)');
 
 CALL p1('tinyint unsigned');
 CALL p1('smallint unsigned');
 CALL p1('mediumint unsigned');
 CALL p1('int unsigned');
 CALL p1('bigint unsigned');
+CALL p1('bigint(20) unsigned');
+CALL p1('bigint(21) unsigned');
+CALL p1('bigint(22) unsigned');
+CALL p1('bigint(23) unsigned');
+CALL p1('bigint(30) unsigned');
 --horizontal_results
 
 DROP PROCEDURE p1;
