@@ -1824,7 +1824,8 @@ public:
   {
     /** Number of array[] elements per page_hash_latch.
     Must be one less than a power of 2. */
-    static constexpr size_t ELEMENTS_PER_LATCH= 1023;
+    static constexpr size_t ELEMENTS_PER_LATCH= CPU_LEVEL1_DCACHE_LINESIZE /
+      sizeof(void*) - 1;
 
     /** number of payload elements in array[] */
     Atomic_relaxed<ulint> n_cells;
