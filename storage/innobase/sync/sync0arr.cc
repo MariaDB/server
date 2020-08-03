@@ -1075,7 +1075,8 @@ sync_array_print_long_waits(
 		sync_array_exit(arr);
 	}
 
-	if (noticed) {
+	if (noticed && srv_monitor_event) {
+
 		fprintf(stderr,
 			"InnoDB: ###### Starts InnoDB Monitor"
 			" for 30 secs to print diagnostic info:\n");

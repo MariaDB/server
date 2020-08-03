@@ -1,11 +1,11 @@
 /************* TabDos C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABDOS                                                */
 /* -------------                                                       */
-/*  Version 4.9.4                                                      */
+/*  Version 4.9.5                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2019    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -359,7 +359,26 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   /*  Allocate table and file processing class of the proper type.     */
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
-	if (Zipped) {
+	if (Recfm == RECFM_DBF) {
+		if (Catfunc == FNC_NO) {
+			if (Zipped) {
+				if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
+					txfp = new(g) UZDFAM(this);
+				}	else {
+					strcpy(g->Message, "Zipped DBF tables are read only");
+					return NULL;
+				}	// endif's mode
+
+			} else if (map)
+				txfp = new(g) DBMFAM(this);
+			else
+				txfp = new(g) DBFFAM(this);
+
+			tdbp = new(g) TDBFIX(this, txfp);
+		} else
+			tdbp = new(g) TDBDCL(this);    // Catfunc should be 'C'
+
+	} else if (Zipped) {
 #if defined(ZIP_SUPPORT)
 		if (Recfm == RECFM_VAR) {
 			if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
@@ -389,17 +408,6 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
 		return NULL;
 #endif  // !ZIP_SUPPORT
-	} else if (Recfm == RECFM_DBF) {
-    if (Catfunc == FNC_NO) {
-      if (map)
-        txfp = new(g) DBMFAM(this);
-      else
-        txfp = new(g) DBFFAM(this);
-
-      tdbp = new(g) TDBFIX(this, txfp);
-    } else                   // Catfunc should be 'C'
-      tdbp = new(g) TDBDCL(this);
-
   } else if (Recfm != RECFM_VAR && Compressed < 2) {
     if (Huge)
       txfp = new(g) BGXFAM(this);

@@ -372,7 +372,7 @@ bool Inet6::make_from_item(Item *item)
 
   @return Completion status.
   @retval true  - error, the given string does not represent an IPv4-address.
-  @retval false - ok, the string has been converted sucessfully.
+  @retval false - ok, the string has been converted successfully.
 
   @note The problem with inet_pton() is that it treats leading zeros in
   IPv4-part differently on different platforms.
@@ -496,7 +496,7 @@ bool Inet4::ascii_to_ipv4(const char *str, size_t str_length)
 
   @return Completion status.
   @retval true  - error, the given string does not represent an IPv6-address.
-  @retval false - ok, the string has been converted sucessfully.
+  @retval false - ok, the string has been converted successfully.
 
   @note The problem with inet_pton() is that it treats leading zeros in
   IPv4-part differently on different platforms.
@@ -851,7 +851,7 @@ size_t Inet6::to_string(char *dst, size_t dstsize) const
 
   @return Completion status.
   @retval NULL  Given string does not represent an IP-address.
-  @retval !NULL The string has been converted sucessfully.
+  @retval !NULL The string has been converted successfully.
 */
 
 String *Item_func_inet6_aton::val_str(String *buffer)

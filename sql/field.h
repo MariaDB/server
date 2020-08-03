@@ -280,7 +280,7 @@ protected:
   };
 
 
-  // String-to-number convertion methods for the old code compatibility
+  // String-to-number conversion methods for the old code compatibility
   longlong longlong_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
                                            const char *end) const
   {
@@ -361,7 +361,7 @@ public:
   /*
     Item context attributes.
     Comparison functions pass their attributes to propagate_equal_fields().
-    For exmple, for string comparison, the collation of the comparison
+    For example, for string comparison, the collation of the comparison
     operation is important inside propagate_equal_fields().
   */
   class Context
@@ -1089,9 +1089,13 @@ public:
     return type();
   }
   inline  int cmp(const uchar *str) { return cmp(ptr,str); }
-  virtual int cmp_max(const uchar *a, const uchar *b, uint max_len)
-    { return cmp(a, b); }
   virtual int cmp(const uchar *,const uchar *)=0;
+  /*
+    The following method is used for comparing prefix keys.
+    Currently it's only used in partitioning.
+  */
+  virtual int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len)
+  { return cmp(a, b); }
   virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U)
   { return memcmp(a,b,pack_length()); }
   virtual int cmp_offset(my_ptrdiff_t row_offset)
@@ -3702,11 +3706,8 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   my_decimal *val_decimal(my_decimal *);
-  int cmp_max(const uchar *, const uchar *, uint max_length);
-  int cmp(const uchar *a,const uchar *b)
-  {
-    return cmp_max(a, b, ~0U);
-  }
+  int cmp(const uchar *a,const uchar *b);
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len);
   void sort_string(uchar *buff,uint length);
   uint get_key_image(uchar *buff,uint length, imagetype type);
   void set_key_image(const uchar *buff,uint length);
@@ -3776,7 +3777,7 @@ private:
   {
     return (field_length - 1) / field_charset->mbmaxlen;
   }
-  int cmp_max(const uchar *a_ptr, const uchar *b_ptr, uint max_len);
+  int cmp(const uchar *a_ptr, const uchar *b_ptr);
 
   /*
     Compressed fields can't have keys as two rows may have different
@@ -3944,9 +3945,8 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   my_decimal *val_decimal(my_decimal *);
-  int cmp_max(const uchar *, const uchar *, uint max_length);
-  int cmp(const uchar *a,const uchar *b)
-    { return cmp_max(a, b, ~0U); }
+  int cmp(const uchar *a,const uchar *b);
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len);
   int cmp(const uchar *a, uint32 a_length, const uchar *b, uint32 b_length);
   int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U);
   int key_cmp(const uchar *,const uchar*);
@@ -4391,7 +4391,7 @@ private:
     This is the reason:
     - Field_bit::cmp_binary() is only implemented in the base class
       (Field::cmp_binary()).
-    - Field::cmp_binary() currenly use pack_length() to calculate how
+    - Field::cmp_binary() currently uses pack_length() to calculate how
       long the data is.
     - pack_length() includes size of the bits stored in the NULL bytes
       of the record.
@@ -4450,7 +4450,7 @@ public:
   }
   int cmp_binary_offset(uint row_offset)
   { return cmp_offset(row_offset); }
-  int cmp_max(const uchar *a, const uchar *b, uint max_length);
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len);
   int key_cmp(const uchar *a, const uchar *b)
   { return cmp_binary((uchar *) a, (uchar *) b); }
   int key_cmp(const uchar *str, uint length);

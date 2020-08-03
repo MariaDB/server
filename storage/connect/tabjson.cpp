@@ -741,6 +741,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 /***********************************************************************/
 TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   {
+	G = NULL;
   Top = NULL;
   Row = NULL;
   Val = NULL;

@@ -1,0 +1,53 @@
+#
+# MDEV-19632 Replication aborts with ER_SLAVE_CONVERSION_FAILED upon CREATE ... SELECT in ORACLE mode
+#
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (
+def_timestamp TIMESTAMP,
+mdb_timestamp mariadb_schema.TIMESTAMP,
+ora_timestamp oracle_schema.TIMESTAMP,
+max_timestamp maxdb_schema.TIMESTAMP
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `def_timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `mdb_timestamp` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `ora_timestamp` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `max_timestamp` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SET sql_mode=MAXDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "def_timestamp" mariadb_schema.timestamp NOT NULL DEFAULT current_timestamp(),
+  "mdb_timestamp" mariadb_schema.timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  "ora_timestamp" mariadb_schema.timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  "max_timestamp" datetime DEFAULT NULL
+)
+DROP TABLE t1;
+SET sql_mode=MAXDB;
+CREATE TABLE t1 (
+def_timestamp TIMESTAMP,
+mdb_timestamp mariadb_schema.TIMESTAMP,
+ora_timestamp oracle_schema.TIMESTAMP,
+max_timestamp maxdb_schema.TIMESTAMP
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "def_timestamp" datetime DEFAULT NULL,
+  "mdb_timestamp" mariadb_schema.timestamp NOT NULL DEFAULT current_timestamp(),
+  "ora_timestamp" mariadb_schema.timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  "max_timestamp" datetime DEFAULT NULL
+)
+SET sql_mode=DEFAULT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `def_timestamp` datetime DEFAULT NULL,
+  `mdb_timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `ora_timestamp` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `max_timestamp` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;

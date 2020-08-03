@@ -672,7 +672,7 @@ Event_db_repository::create_event(THD *thd, Event_parse_data *parse_data,
   DBUG_PRINT("info", ("name: %.*s", (int) parse_data->name.length,
              parse_data->name.str));
 
-  DBUG_PRINT("info", ("check existance of an event with the same name"));
+  DBUG_PRINT("info", ("check existence of an event with the same name"));
   if (!find_named_event(&parse_data->dbname, &parse_data->name, table))
   {
     if (thd->lex->create_info.or_replace())

@@ -506,7 +506,7 @@ Item *Item_func::transform(THD *thd, Item_transformer transformer, uchar *argume
   callback functions.
 
     First the function applies the analyzer to the root node of
-    the Item_func object. Then if the analizer succeeeds (returns TRUE)
+    the Item_func object. Then if the analyzer succeeds (returns TRUE)
     the function recursively applies the compile method to each argument
     of the Item_func node.
     If the call of the method for an argument item returns a new item
@@ -1482,13 +1482,14 @@ double Item_func_div::real_op()
 my_decimal *Item_func_div::decimal_op(my_decimal *decimal_value)
 {
   int err;
+  my_decimal tmp;
   VDec2_lazy val(args[0], args[1]);
   if ((null_value= val.has_null()))
     return 0;
   if ((err= check_decimal_overflow(my_decimal_div(E_DEC_FATAL_ERROR &
                                                   ~E_DEC_OVERFLOW &
                                                   ~E_DEC_DIV_ZERO,
-                                                  decimal_value,
+                                                  &tmp,
                                                   val.m_a.ptr(), val.m_b.ptr(),
                                                   prec_increment))) > 3)
   {
@@ -1497,6 +1498,7 @@ my_decimal *Item_func_div::decimal_op(my_decimal *decimal_value)
     null_value= 1;
     return 0;
   }
+  tmp.round_to(decimal_value, decimals, HALF_UP);
   return decimal_value;
 }
 
@@ -1553,7 +1555,7 @@ bool Item_func_div::fix_length_and_dec()
   DBUG_ENTER("Item_func_div::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
   prec_increment= current_thd->variables.div_precincrement;
-  maybe_null= 1; // devision by zero
+  maybe_null= 1; // division by zero
 
   const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_div;
   DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_non_commutative_test;);
@@ -4685,7 +4687,7 @@ bool Item_func_set_user_var::register_field_in_bitmap(void *arg)
   @param type           type of new value
   @param cs             charset info for new value
   @param dv             derivation for new value
-  @param unsigned_arg   indiates if a value of type INT_RESULT is unsigned
+  @param unsigned_arg   indicates if a value of type INT_RESULT is unsigned
 
   @note Sets error and fatal error if allocation fails.
 
@@ -6585,7 +6587,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     /*
       Here we check privileges of the stored routine only during view
       creation, in order to validate the view.  A runtime check is
-      perfomed in Item_func_sp::execute(), and this method is not
+      performed in Item_func_sp::execute(), and this method is not
       called during context analysis.  Notice, that during view
       creation we do not infer into stored routine bodies and do not
       check privileges of its statements, which would probably be a
