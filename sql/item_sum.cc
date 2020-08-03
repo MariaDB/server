@@ -478,7 +478,7 @@ Item_sum::Item_sum(THD *thd, Item_sum *item):
   init_aggregator();
   with_distinct= item->with_distinct;
   if (item->aggr)
-    set_aggregator(item->aggr->Aggrtype());
+    set_aggregator(thd, item->aggr->Aggrtype());
 }
 
 
@@ -579,7 +579,7 @@ Item *Item_sum::set_arg(uint i, THD *thd, Item *new_val)
 }
 
 
-int Item_sum::set_aggregator(Aggregator::Aggregator_type aggregator)
+int Item_sum::set_aggregator(THD *thd, Aggregator::Aggregator_type aggregator)
 {
   /*
     Dependent subselects may be executed multiple times, making
@@ -600,10 +600,10 @@ int Item_sum::set_aggregator(Aggregator::Aggregator_type aggregator)
   switch (aggregator)
   {
   case Aggregator::DISTINCT_AGGREGATOR:
-    aggr= new Aggregator_distinct(this);
+    aggr= new (thd->mem_root) Aggregator_distinct(this);
     break;
   case Aggregator::SIMPLE_AGGREGATOR:
-    aggr= new Aggregator_simple(this);
+    aggr= new (thd->mem_root) Aggregator_simple(this);
     break;
   };
   return aggr ? FALSE : TRUE;
@@ -763,7 +763,7 @@ bool Aggregator_distinct::setup(THD *thd)
     List<Item> list;
     SELECT_LEX *select_lex= thd->lex->current_select;
 
-    if (!(tmp_table_param= new TMP_TABLE_PARAM))
+    if (!(tmp_table_param= new (thd->mem_root) TMP_TABLE_PARAM))
       return TRUE;
 
     /* Create a table with an unique key over all parameters */
@@ -863,8 +863,9 @@ bool Aggregator_distinct::setup(THD *thd)
         }
       }
       DBUG_ASSERT(tree == 0);
-      tree= new Unique(compare_key, cmp_arg, tree_key_length,
-                       item_sum->ram_limitation(thd));
+      tree= (new (thd->mem_root)
+             Unique(compare_key, cmp_arg, tree_key_length,
+                    item_sum->ram_limitation(thd)));
       /*
         The only time tree_key_length could be 0 is if someone does
         count(distinct) on a char(0) field - stupid thing to do,
@@ -921,8 +922,9 @@ bool Aggregator_distinct::setup(THD *thd)
       simple_raw_key_cmp because the table contains numbers only; decimals
       are converted to binary representation as well.
     */
-    tree= new Unique(simple_raw_key_cmp, &tree_key_length, tree_key_length,
-                     item_sum->ram_limitation(thd));
+    tree= (new (thd->mem_root)
+           Unique(simple_raw_key_cmp, &tree_key_length, tree_key_length,
+                  item_sum->ram_limitation(thd)));
 
     DBUG_RETURN(tree == 0);
   }
@@ -1278,9 +1280,9 @@ void Item_sum_min_max::setup_hybrid(THD *thd, Item *item, Item *value_arg)
   /* Don't cache value, as it will change */
   if (!item->const_item())
     arg_cache->set_used_tables(RAND_TABLE_BIT);
-  cmp= new Arg_comparator();
+  cmp= new (thd->mem_root) Arg_comparator();
   if (cmp)
-    cmp->set_cmp_func(this, (Item**)&arg_cache, (Item**)&value, FALSE);
+    cmp->set_cmp_func(thd, this, (Item**)&arg_cache, (Item**)&value, FALSE);
   DBUG_VOID_RETURN;
 }
 
@@ -4292,7 +4294,7 @@ bool Item_func_group_concat::setup(THD *thd)
   if (table || tree)
     DBUG_RETURN(FALSE);
 
-  if (!(tmp_table_param= new TMP_TABLE_PARAM))
+  if (!(tmp_table_param= new (thd->mem_root) TMP_TABLE_PARAM))
     DBUG_RETURN(TRUE);
 
   /* Push all not constant fields to the list and create a temp table */
@@ -4381,7 +4383,7 @@ bool Item_func_group_concat::setup(THD *thd)
     with ORDER BY | DISTINCT and BLOB field count > 0.    
   */
   if (order_or_distinct && table->s->blob_fields)
-    table->blob_storage= new Blob_mem_storage();
+    table->blob_storage= new (thd->mem_root) Blob_mem_storage();
 
   /*
      Need sorting or uniqueness: init tree and choose a function to sort.
@@ -4407,10 +4409,11 @@ bool Item_func_group_concat::setup(THD *thd)
   }
 
   if (distinct)
-    unique_filter= new Unique(get_comparator_function_for_distinct(),
-                              (void*)this,
-                              tree_key_length + get_null_bytes(),
-                              ram_limitation(thd));
+    unique_filter= (new (thd->mem_root)
+                    Unique(get_comparator_function_for_distinct(),
+                           (void*)this,
+                           tree_key_length + get_null_bytes(),
+                           ram_limitation(thd)));
   if ((row_limit && row_limit->cmp_type() != INT_RESULT) ||
       (offset_limit && offset_limit->cmp_type() != INT_RESULT))
   {

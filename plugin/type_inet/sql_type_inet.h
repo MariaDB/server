@@ -695,9 +695,9 @@ decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const override
     DBUG_ASSERT(b.length() == Inet6::binary_length());
     return memcmp(a.ptr(), b.ptr(), Inet6::binary_length());
   }
-  bool set_comparator_func(Arg_comparator *cmp) const override
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override
   {
-    return cmp->set_cmp_func_native();
+    return cmp->set_cmp_func_native(thd);
   }
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                              bool binary_cmp) const override

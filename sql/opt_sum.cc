@@ -448,7 +448,8 @@ int opt_sum_query(THD *thd,
           const_result= 0;
           break;
         }
-        item_sum->set_aggregator(item_sum->has_with_distinct() ? 
+        item_sum->set_aggregator(thd,
+                                 item_sum->has_with_distinct() ?
                                  Aggregator::DISTINCT_AGGREGATOR :
                                  Aggregator::SIMPLE_AGGREGATOR);
         /*

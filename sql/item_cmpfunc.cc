@@ -355,8 +355,9 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
 
       if (0 == field_cmp)
       {
-        Item *tmp= new (thd->mem_root) Item_int_with_ref(thd, field->val_int(), *item,
-                                         MY_TEST(field->flags & UNSIGNED_FLAG));
+        Item *tmp= (new (thd->mem_root)
+                    Item_int_with_ref(thd, field->val_int(), *item,
+                                      MY_TEST(field->flags & UNSIGNED_FLAG)));
         if (tmp)
           thd->change_item_tree(item, tmp);
         result= 1;					// Item was replaced
@@ -418,7 +419,7 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
   DBUG_ASSERT(functype() != LIKE_FUNC);
   convert_const_compared_to_int_field(thd);
 
-  return cmp->set_cmp_func(this, &args[0], &args[1], true);
+  return cmp->set_cmp_func(thd, this, &args[0], &args[1], true);
 }
 
 
@@ -466,7 +467,7 @@ bool Item_bool_rowready_func2::fix_length_and_dec()
   items, holding the cached converted value of the original (constant) item.
 */
 
-int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
+int Arg_comparator::set_cmp_func(THD *thd, Item_func_or_sum *owner_arg,
                                  Item **a1, Item **a2)
 {
   owner= owner_arg;
@@ -477,15 +478,15 @@ int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
   Type_handler_hybrid_field_type tmp;
   if (tmp.aggregate_for_comparison(owner_arg->func_name(), tmp_args, 2, false))
   {
-    DBUG_ASSERT(current_thd->is_error());
+    DBUG_ASSERT(thd->is_error());
     return 1;
   }
   m_compare_handler= tmp.type_handler();
-  return m_compare_handler->set_comparator_func(this);
+  return m_compare_handler->set_comparator_func(thd, this);
 }
 
 
-bool Arg_comparator::set_cmp_func_for_row_arguments()
+bool Arg_comparator::set_cmp_func_for_row_arguments(THD *thd)
 {
   uint n= (*a)->cols();
   if (n != (*b)->cols())
@@ -494,7 +495,7 @@ bool Arg_comparator::set_cmp_func_for_row_arguments()
     comparators= 0;
     return true;
   }
-  if (!(comparators= new Arg_comparator[n]))
+  if (!(comparators= new (thd->mem_root) Arg_comparator[n]))
     return true;
   for (uint i=0; i < n; i++)
   {
@@ -503,25 +504,24 @@ bool Arg_comparator::set_cmp_func_for_row_arguments()
       my_error(ER_OPERAND_COLUMNS, MYF(0), (*a)->element_index(i)->cols());
       return true;
     }
-    if (comparators[i].set_cmp_func(owner, (*a)->addr(i),
-                                           (*b)->addr(i), set_null))
+    if (comparators[i].set_cmp_func(thd, owner, (*a)->addr(i),
+                                    (*b)->addr(i), set_null))
       return true;
   }
   return false;
 }
 
 
-bool Arg_comparator::set_cmp_func_row()
+bool Arg_comparator::set_cmp_func_row(THD *thd)
 {
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_row :
                                 &Arg_comparator::compare_row;
-  return set_cmp_func_for_row_arguments();
+  return set_cmp_func_for_row_arguments(thd);
 }
 
 
-bool Arg_comparator::set_cmp_func_string()
+bool Arg_comparator::set_cmp_func_string(THD *thd)
 {
-  THD *thd= current_thd;
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_string :
                                 &Arg_comparator::compare_string;
   if (compare_type() == STRING_RESULT &&
@@ -557,9 +557,8 @@ bool Arg_comparator::set_cmp_func_string()
 }
 
 
-bool Arg_comparator::set_cmp_func_time()
+bool Arg_comparator::set_cmp_func_time(THD *thd)
 {
-  THD *thd= current_thd;
   m_compare_collation= &my_charset_numeric;
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_time :
                                 &Arg_comparator::compare_time;
@@ -569,9 +568,8 @@ bool Arg_comparator::set_cmp_func_time()
 }
 
 
-bool Arg_comparator::set_cmp_func_datetime()
+bool Arg_comparator::set_cmp_func_datetime(THD *thd)
 {
-  THD *thd= current_thd;
   m_compare_collation= &my_charset_numeric;
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_datetime :
                                 &Arg_comparator::compare_datetime;
@@ -581,9 +579,8 @@ bool Arg_comparator::set_cmp_func_datetime()
 }
 
 
-bool Arg_comparator::set_cmp_func_native()
+bool Arg_comparator::set_cmp_func_native(THD *thd)
 {
-  THD *thd= current_thd;
   m_compare_collation= &my_charset_numeric;
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_native :
                                 &Arg_comparator::compare_native;
@@ -593,9 +590,8 @@ bool Arg_comparator::set_cmp_func_native()
 }
 
 
-bool Arg_comparator::set_cmp_func_int()
+bool Arg_comparator::set_cmp_func_int(THD *thd)
 {
-  THD *thd= current_thd;
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_int :
                                 &Arg_comparator::compare_int_signed;
   if ((*a)->field_type() == MYSQL_TYPE_YEAR &&
@@ -624,7 +620,7 @@ bool Arg_comparator::set_cmp_func_int()
 }
 
 
-bool Arg_comparator::set_cmp_func_real()
+bool Arg_comparator::set_cmp_func_real(THD *thd)
 {
   if ((((*a)->result_type() == DECIMAL_RESULT && !(*a)->const_item() &&
         (*b)->result_type() == STRING_RESULT  &&  (*b)->const_item()) ||
@@ -639,10 +635,9 @@ bool Arg_comparator::set_cmp_func_real()
      Do comparison as decimal rather than float, in order not to lose precision.
     */
     m_compare_handler= &type_handler_newdecimal;
-    return set_cmp_func_decimal();
+    return set_cmp_func_decimal(thd);
   }
 
-  THD *thd= current_thd;
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_real :
                                 &Arg_comparator::compare_real;
   if ((*a)->decimals < NOT_FIXED_DEC && (*b)->decimals < NOT_FIXED_DEC)
@@ -658,9 +653,8 @@ bool Arg_comparator::set_cmp_func_real()
   return false;
 }
 
-bool Arg_comparator::set_cmp_func_decimal()
+bool Arg_comparator::set_cmp_func_decimal(THD *thd)
 {
-  THD *thd= current_thd;
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_decimal :
                                 &Arg_comparator::compare_decimal;
   a= cache_converted_constant(thd, a, &a_cache, compare_type_handler());
@@ -4019,24 +4013,24 @@ bool Predicant_to_list_comparator::make_unique_cmp_items(THD *thd,
 }
 
 
-cmp_item* cmp_item_sort_string::make_same()
+cmp_item* cmp_item_sort_string::make_same(THD *thd)
 {
-  return new cmp_item_sort_string_in_static(cmp_charset);
+  return new (thd->mem_root) cmp_item_sort_string_in_static(cmp_charset);
 }
 
-cmp_item* cmp_item_int::make_same()
+cmp_item* cmp_item_int::make_same(THD *thd)
 {
-  return new cmp_item_int();
+  return new (thd->mem_root) cmp_item_int();
 }
 
-cmp_item* cmp_item_real::make_same()
+cmp_item* cmp_item_real::make_same(THD *thd)
 {
-  return new cmp_item_real();
+  return new (thd->mem_root) cmp_item_real();
 }
 
-cmp_item* cmp_item_row::make_same()
+cmp_item* cmp_item_row::make_same(THD *thd)
 {
-  return new cmp_item_row();
+  return new (thd->mem_root) cmp_item_row();
 }
 
 
@@ -4100,7 +4094,7 @@ void cmp_item_row::store_value_by_template(THD *thd, cmp_item *t, Item *item)
     item->null_value= 0;
     for (uint i=0; i < n; i++)
     {
-      if (!(comparators[i]= tmpl->comparators[i]->make_same()))
+      if (!(comparators[i]= tmpl->comparators[i]->make_same(thd)))
 	break;					// new failed
       comparators[i]->store_value_by_template(thd, tmpl->comparators[i],
 					      item->element_index(i));
@@ -4184,9 +4178,9 @@ int cmp_item_decimal::compare(cmp_item *arg)
 }
 
 
-cmp_item* cmp_item_decimal::make_same()
+cmp_item* cmp_item_decimal::make_same(THD *thd)
 {
-  return new cmp_item_decimal();
+  return new (thd->mem_root) cmp_item_decimal();
 }
 
 
@@ -4227,15 +4221,15 @@ int cmp_item_temporal::compare(cmp_item *ci)
 }
 
 
-cmp_item *cmp_item_datetime::make_same()
+cmp_item *cmp_item_datetime::make_same(THD *thd)
 {
-  return new cmp_item_datetime();
+  return new (thd->mem_root) cmp_item_datetime();
 }
 
 
-cmp_item *cmp_item_time::make_same()
+cmp_item *cmp_item_time::make_same(THD *thd)
 {
-  return new cmp_item_time();
+  return new (thd->mem_root) cmp_item_time();
 }
 
 
@@ -4275,9 +4269,9 @@ int cmp_item_timestamp::compare(cmp_item *arg)
 }
 
 
-cmp_item* cmp_item_timestamp::make_same()
+cmp_item* cmp_item_timestamp::make_same(THD *thd)
 {
-  return new cmp_item_timestamp();
+  return new (thd->mem_root) cmp_item_timestamp();
 }
 
 
