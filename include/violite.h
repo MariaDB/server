@@ -281,6 +281,7 @@ struct st_vio
   OVERLAPPED overlapped;
   DWORD read_timeout_ms;
   DWORD write_timeout_ms;
+  int shutdown_flag;
 #endif
 };
 #endif /* vio_violite_h_ */
