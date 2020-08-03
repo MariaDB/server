@@ -349,6 +349,69 @@ SHOW CREATE TABLE t1;
 SELECT * FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-23367 ROUND(18446744073709551615,-1) returns a wrong result
+--echo #
+
+--vertical_results
+SELECT
+  ROUND(18446744073709551615,-1) AS c01,
+  ROUND(18446744073709551615,-19) AS c19;
+
+CREATE OR REPLACE TABLE t1 AS
+SELECT
+  ROUND(18446744073709551615,-1) AS c01,
+  ROUND(18446744073709551615,-19) AS c19;
+
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--horizontal_results
+
+DELIMITER $$;
+CREATE PROCEDURE p1(t VARCHAR(64))
+BEGIN
+  SELECT t AS ``;
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (a TYPE)', 'TYPE', t);
+  INSERT IGNORE INTO t1 VALUES (-100000000000000000000000000000);
+  INSERT IGNORE INTO t1 VALUES (100000000000000000000000000000);
+  CREATE TABLE t2 AS SELECT
+    a, ROUND(a,-1), ROUND(a,-2), ROUND(a,-19), ROUND(a,-20), ROUND(a,-30)
+  FROM t1
+  ORDER BY a;
+  SHOW CREATE TABLE t2;
+  SELECT * FROM t2;
+  DROP TABLE t1, t2;
+END;
+$$
+DELIMITER ;$$
+
+--vertical_results
+CALL p1('tinyint');
+CALL p1('smallint');
+CALL p1('mediumint');
+CALL p1('int');
+CALL p1('bigint');
+CALL p1('bigint(20)');
+CALL p1('bigint(21)');
+#CALL p1('bigint(22)');
+#CALL p1('bigint(23)');
+#CALL p1('bigint(30)');
+
+CALL p1('tinyint unsigned');
+CALL p1('smallint unsigned');
+CALL p1('mediumint unsigned');
+CALL p1('int unsigned');
+CALL p1('bigint unsigned');
+CALL p1('bigint(20) unsigned');
+CALL p1('bigint(21) unsigned');
+#CALL p1('bigint(22) unsigned');
+#CALL p1('bigint(23) unsigned');
+#CALL p1('bigint(30) unsigned');
+--horizontal_results
+
+DROP PROCEDURE p1;
+
 
 --echo #
 --echo # End of 10.4 tests

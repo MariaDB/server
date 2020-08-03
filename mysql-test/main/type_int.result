@@ -966,5 +966,365 @@ ROUND(18446744073709551615,-10)	ROUND(18446744073709551615,-11)
 18446744070000000000	18446744100000000000
 DROP TABLE t1;
 #
+# MDEV-23367 ROUND(18446744073709551615,-1) returns a wrong result
+#
+SELECT
+ROUND(18446744073709551615,-1) AS c01,
+ROUND(18446744073709551615,-19) AS c19;
+c01	18446744073709551620
+c19	20000000000000000000
+CREATE OR REPLACE TABLE t1 AS
+SELECT
+ROUND(18446744073709551615,-1) AS c01,
+ROUND(18446744073709551615,-19) AS c19;
+SELECT * FROM t1;
+c01	18446744073709551620
+c19	20000000000000000000
+SHOW CREATE TABLE t1;
+Table	t1
+Create Table	CREATE TABLE `t1` (
+  `c01` decimal(21,0) unsigned NOT NULL,
+  `c19` decimal(21,0) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE PROCEDURE p1(t VARCHAR(64))
+BEGIN
+SELECT t AS ``;
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (a TYPE)', 'TYPE', t);
+INSERT IGNORE INTO t1 VALUES (-100000000000000000000000000000);
+INSERT IGNORE INTO t1 VALUES (100000000000000000000000000000);
+CREATE TABLE t2 AS SELECT
+a, ROUND(a,-1), ROUND(a,-2), ROUND(a,-19), ROUND(a,-20), ROUND(a,-30)
+FROM t1
+ORDER BY a;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t1, t2;
+END;
+$$
+CALL p1('tinyint');
+	tinyint
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` tinyint(4) DEFAULT NULL,
+  `ROUND(a,-1)` int(5) DEFAULT NULL,
+  `ROUND(a,-2)` int(5) DEFAULT NULL,
+  `ROUND(a,-19)` int(5) DEFAULT NULL,
+  `ROUND(a,-20)` int(5) DEFAULT NULL,
+  `ROUND(a,-30)` int(5) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	-128
+ROUND(a,-1)	-130
+ROUND(a,-2)	-100
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	127
+ROUND(a,-1)	130
+ROUND(a,-2)	100
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('smallint');
+	smallint
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` smallint(6) DEFAULT NULL,
+  `ROUND(a,-1)` int(7) DEFAULT NULL,
+  `ROUND(a,-2)` int(7) DEFAULT NULL,
+  `ROUND(a,-19)` int(7) DEFAULT NULL,
+  `ROUND(a,-20)` int(7) DEFAULT NULL,
+  `ROUND(a,-30)` int(7) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	-32768
+ROUND(a,-1)	-32770
+ROUND(a,-2)	-32800
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	32767
+ROUND(a,-1)	32770
+ROUND(a,-2)	32800
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('mediumint');
+	mediumint
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` mediumint(9) DEFAULT NULL,
+  `ROUND(a,-1)` bigint(10) DEFAULT NULL,
+  `ROUND(a,-2)` bigint(10) DEFAULT NULL,
+  `ROUND(a,-19)` bigint(10) DEFAULT NULL,
+  `ROUND(a,-20)` bigint(10) DEFAULT NULL,
+  `ROUND(a,-30)` bigint(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	-8388608
+ROUND(a,-1)	-8388610
+ROUND(a,-2)	-8388600
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	8388607
+ROUND(a,-1)	8388610
+ROUND(a,-2)	8388600
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('int');
+	int
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `ROUND(a,-1)` bigint(12) DEFAULT NULL,
+  `ROUND(a,-2)` bigint(12) DEFAULT NULL,
+  `ROUND(a,-19)` bigint(12) DEFAULT NULL,
+  `ROUND(a,-20)` bigint(12) DEFAULT NULL,
+  `ROUND(a,-30)` bigint(12) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	-2147483648
+ROUND(a,-1)	-2147483650
+ROUND(a,-2)	-2147483600
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	2147483647
+ROUND(a,-1)	2147483650
+ROUND(a,-2)	2147483600
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('bigint');
+	bigint
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bigint(20) DEFAULT NULL,
+  `ROUND(a,-1)` decimal(20,0) DEFAULT NULL,
+  `ROUND(a,-2)` decimal(20,0) DEFAULT NULL,
+  `ROUND(a,-19)` decimal(20,0) DEFAULT NULL,
+  `ROUND(a,-20)` decimal(20,0) DEFAULT NULL,
+  `ROUND(a,-30)` decimal(20,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	-9223372036854775808
+ROUND(a,-1)	-9223372036854775810
+ROUND(a,-2)	-9223372036854775800
+ROUND(a,-19)	-10000000000000000000
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	9223372036854775807
+ROUND(a,-1)	9223372036854775810
+ROUND(a,-2)	9223372036854775800
+ROUND(a,-19)	10000000000000000000
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('bigint(20)');
+	bigint(20)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bigint(20) DEFAULT NULL,
+  `ROUND(a,-1)` decimal(20,0) DEFAULT NULL,
+  `ROUND(a,-2)` decimal(20,0) DEFAULT NULL,
+  `ROUND(a,-19)` decimal(20,0) DEFAULT NULL,
+  `ROUND(a,-20)` decimal(20,0) DEFAULT NULL,
+  `ROUND(a,-30)` decimal(20,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	-9223372036854775808
+ROUND(a,-1)	-9223372036854775810
+ROUND(a,-2)	-9223372036854775800
+ROUND(a,-19)	-10000000000000000000
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	9223372036854775807
+ROUND(a,-1)	9223372036854775810
+ROUND(a,-2)	9223372036854775800
+ROUND(a,-19)	10000000000000000000
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('bigint(21)');
+	bigint(21)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bigint(21) DEFAULT NULL,
+  `ROUND(a,-1)` decimal(21,0) DEFAULT NULL,
+  `ROUND(a,-2)` decimal(21,0) DEFAULT NULL,
+  `ROUND(a,-19)` decimal(21,0) DEFAULT NULL,
+  `ROUND(a,-20)` decimal(21,0) DEFAULT NULL,
+  `ROUND(a,-30)` decimal(21,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	-9223372036854775808
+ROUND(a,-1)	-9223372036854775810
+ROUND(a,-2)	-9223372036854775800
+ROUND(a,-19)	-10000000000000000000
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	9223372036854775807
+ROUND(a,-1)	9223372036854775810
+ROUND(a,-2)	9223372036854775800
+ROUND(a,-19)	10000000000000000000
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('tinyint unsigned');
+	tinyint unsigned
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` tinyint(3) unsigned DEFAULT NULL,
+  `ROUND(a,-1)` int(4) unsigned DEFAULT NULL,
+  `ROUND(a,-2)` int(4) unsigned DEFAULT NULL,
+  `ROUND(a,-19)` int(4) unsigned DEFAULT NULL,
+  `ROUND(a,-20)` int(4) unsigned DEFAULT NULL,
+  `ROUND(a,-30)` int(4) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	0
+ROUND(a,-1)	0
+ROUND(a,-2)	0
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	255
+ROUND(a,-1)	260
+ROUND(a,-2)	300
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('smallint unsigned');
+	smallint unsigned
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` smallint(5) unsigned DEFAULT NULL,
+  `ROUND(a,-1)` int(6) unsigned DEFAULT NULL,
+  `ROUND(a,-2)` int(6) unsigned DEFAULT NULL,
+  `ROUND(a,-19)` int(6) unsigned DEFAULT NULL,
+  `ROUND(a,-20)` int(6) unsigned DEFAULT NULL,
+  `ROUND(a,-30)` int(6) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	0
+ROUND(a,-1)	0
+ROUND(a,-2)	0
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	65535
+ROUND(a,-1)	65540
+ROUND(a,-2)	65500
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('mediumint unsigned');
+	mediumint unsigned
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` mediumint(8) unsigned DEFAULT NULL,
+  `ROUND(a,-1)` int(9) unsigned DEFAULT NULL,
+  `ROUND(a,-2)` int(9) unsigned DEFAULT NULL,
+  `ROUND(a,-19)` int(9) unsigned DEFAULT NULL,
+  `ROUND(a,-20)` int(9) unsigned DEFAULT NULL,
+  `ROUND(a,-30)` int(9) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	0
+ROUND(a,-1)	0
+ROUND(a,-2)	0
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	16777215
+ROUND(a,-1)	16777220
+ROUND(a,-2)	16777200
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('int unsigned');
+	int unsigned
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` int(10) unsigned DEFAULT NULL,
+  `ROUND(a,-1)` bigint(11) unsigned DEFAULT NULL,
+  `ROUND(a,-2)` bigint(11) unsigned DEFAULT NULL,
+  `ROUND(a,-19)` bigint(11) unsigned DEFAULT NULL,
+  `ROUND(a,-20)` bigint(11) unsigned DEFAULT NULL,
+  `ROUND(a,-30)` bigint(11) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	0
+ROUND(a,-1)	0
+ROUND(a,-2)	0
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	4294967295
+ROUND(a,-1)	4294967300
+ROUND(a,-2)	4294967300
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('bigint unsigned');
+	bigint unsigned
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bigint(20) unsigned DEFAULT NULL,
+  `ROUND(a,-1)` decimal(21,0) unsigned DEFAULT NULL,
+  `ROUND(a,-2)` decimal(21,0) unsigned DEFAULT NULL,
+  `ROUND(a,-19)` decimal(21,0) unsigned DEFAULT NULL,
+  `ROUND(a,-20)` decimal(21,0) unsigned DEFAULT NULL,
+  `ROUND(a,-30)` decimal(21,0) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	0
+ROUND(a,-1)	0
+ROUND(a,-2)	0
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	18446744073709551615
+ROUND(a,-1)	18446744073709551620
+ROUND(a,-2)	18446744073709551600
+ROUND(a,-19)	20000000000000000000
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('bigint(20) unsigned');
+	bigint(20) unsigned
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bigint(20) unsigned DEFAULT NULL,
+  `ROUND(a,-1)` decimal(21,0) unsigned DEFAULT NULL,
+  `ROUND(a,-2)` decimal(21,0) unsigned DEFAULT NULL,
+  `ROUND(a,-19)` decimal(21,0) unsigned DEFAULT NULL,
+  `ROUND(a,-20)` decimal(21,0) unsigned DEFAULT NULL,
+  `ROUND(a,-30)` decimal(21,0) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	0
+ROUND(a,-1)	0
+ROUND(a,-2)	0
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	18446744073709551615
+ROUND(a,-1)	18446744073709551620
+ROUND(a,-2)	18446744073709551600
+ROUND(a,-19)	20000000000000000000
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+CALL p1('bigint(21) unsigned');
+	bigint(21) unsigned
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bigint(21) unsigned DEFAULT NULL,
+  `ROUND(a,-1)` decimal(22,0) unsigned DEFAULT NULL,
+  `ROUND(a,-2)` decimal(22,0) unsigned DEFAULT NULL,
+  `ROUND(a,-19)` decimal(22,0) unsigned DEFAULT NULL,
+  `ROUND(a,-20)` decimal(22,0) unsigned DEFAULT NULL,
+  `ROUND(a,-30)` decimal(22,0) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	0
+ROUND(a,-1)	0
+ROUND(a,-2)	0
+ROUND(a,-19)	0
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+a	18446744073709551615
+ROUND(a,-1)	18446744073709551620
+ROUND(a,-2)	18446744073709551600
+ROUND(a,-19)	20000000000000000000
+ROUND(a,-20)	0
+ROUND(a,-30)	0
+DROP PROCEDURE p1;
+#
 # End of 10.4 tests
 #
