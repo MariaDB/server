@@ -1871,3 +1871,51 @@ drop table t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-23032 FLOOR()/CEIL() incorrectly calculate the precision of a DECIMAL(M,D) column.
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(prec INT, scale INT, suffix VARCHAR(32))
+BEGIN
+  EXECUTE IMMEDIATE CONCAT('CREATE TABLE t1 (a decimal(',prec,',',scale,')',suffix,')');
+  INSERT IGNORE INTO t1 VALUES (-1e100), (+1e100);
+  CREATE TABLE t2 AS SELECT
+    a,
+    FLOOR(a) AS fa,
+    CEILING(a) AS ca,
+    LENGTH(FLOOR(a)),
+    LENGTH(CEILING(a))
+  FROM t1 ORDER BY a;
+  SHOW CREATE TABLE t2;
+  SELECT * FROM t2;
+  DROP TABLE t2, t1;
+END;
+$$
+DELIMITER ;$$
+
+--vertical_results
+CALL p1(38,10,'');
+CALL p1(28,10,'');
+CALL p1(27,10,'');
+CALL p1(20,10,'');
+CALL p1(19,10,'');
+CALL p1(18,10,'');
+CALL p1(10,10,'');
+
+CALL p1(38,10,'  UNSIGNED');
+CALL p1(28,10,'  UNSIGNED');
+CALL p1(27,10,'  UNSIGNED');
+CALL p1(20,10,'  UNSIGNED');
+CALL p1(19,10,'  UNSIGNED');
+CALL p1(18,10,'  UNSIGNED');
+CALL p1(10,10,'  UNSIGNED');
+
+--horizontal_results
+
+DROP PROCEDURE p1;

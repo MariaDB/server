@@ -2173,35 +2173,64 @@ longlong Item_func_bit_neg::val_int()
 
 void Item_func_int_val::fix_length_and_dec_int_or_decimal()
 {
+  DBUG_ASSERT(args[0]->cmp_type() == DECIMAL_RESULT);
+  DBUG_ASSERT(args[0]->max_length <= DECIMAL_MAX_STR_LENGTH);
   /*
-    The INT branch of this code should be revised.
-    It creates too large data types, e.g.
-      CREATE OR REPLACE TABLE t2 AS SELECT FLOOR(9999999.999) AS fa;
-    results in a BININT(10) column, while INT(7) should probably be enough.
+    FLOOR() for negative numbers can increase length:   floor(-9.9) -> -10
+    CEILING() for positive numbers can increase length:  ceil(9.9)  -> 10
   */
-  ulonglong tmp_max_length= (ulonglong ) args[0]->max_length - 
-    (args[0]->decimals ? args[0]->decimals + 1 : 0) + 2;
-  max_length= tmp_max_length > (ulonglong) UINT_MAX32 ?
-    (uint32) UINT_MAX32 : (uint32) tmp_max_length;
-  uint tmp= float_length(decimals);
-  set_if_smaller(max_length,tmp);
-  decimals= 0;
+  decimal_round_mode mode= round_mode();
+  uint length_increase= args[0]->decimals > 0 &&
+                        (mode == CEILING ||
+                         (mode == FLOOR && !args[0]->unsigned_flag)) ? 1 : 0;
+  uint precision= args[0]->decimal_int_part() + length_increase;
+  set_if_bigger(precision, 1);
 
   /*
-    -2 because in most high position can't be used any digit for longlong
-    and one position for increasing value during operation
+    The BIGINT data type can store:
+    UNSIGNED BIGINT: 0..18446744073709551615                     - up to 19 digits
+      SIGNED BIGINT:   -9223372036854775808..9223372036854775807 - up to 18 digits
+
+    The INT data type can store:
+        UNSIGNED INT:  0..4294967295          - up to 9 digits
+          SIGNED INT: -2147483648..2147483647 - up to 9 digits
   */
-  if (args[0]->max_length - args[0]->decimals >= DECIMAL_LONGLONG_DIGITS - 2)
+  if (precision > 18)
   {
+    unsigned_flag= args[0]->unsigned_flag;
     fix_char_length(
-      my_decimal_precision_to_length_no_truncation(
-        args[0]->decimal_int_part(), 0, false));
+      my_decimal_precision_to_length_no_truncation(precision, 0,
+                                                   unsigned_flag));
     set_handler(&type_handler_newdecimal);
   }
   else
   {
-    unsigned_flag= args[0]->unsigned_flag;
-    set_handler(type_handler_long_or_longlong());
+    uint sign_length= (unsigned_flag= args[0]->unsigned_flag) ? 0 : 1;
+    fix_char_length(precision + sign_length);
+    if (precision > 9)
+    {
+#if MYSQL_VERSION_ID > 100500
+#error Remove the '#else' branch and the conditional compilation
+      if (unsigned_flag)
+        set_handler(&type_handler_ulonglong);
+      else
+        set_handler(&type_handler_slonglong);
+#else
+      set_handler(&type_handler_longlong);
+#endif
+    }
+    else
+    {
+#if MYSQL_VERSION_ID > 100500
+#error Remove the '#else' branch and the conditional compilation
+      if (unsigned_flag)
+        set_handler(&type_handler_ulong);
+      else
+        set_handler(&type_handler_slong);
+#else
+      set_handler(&type_handler_long);
+#endif
+    }
   }
 }
 

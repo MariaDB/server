@@ -1080,7 +1080,7 @@ Create Table	CREATE TABLE `t2` (
   `a` decimal(38,0) DEFAULT NULL,
   `b` decimal(38,0) unsigned DEFAULT NULL,
   `fa` decimal(38,0) DEFAULT NULL,
-  `fb` decimal(38,0) DEFAULT NULL
+  `fb` decimal(38,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999999999999999999999999
 b	99999999999999999999999999999999999999
@@ -1090,8 +1090,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,1) DEFAULT NULL,
   `b` decimal(38,1) unsigned DEFAULT NULL,
-  `fa` decimal(37,0) DEFAULT NULL,
-  `fb` decimal(37,0) DEFAULT NULL
+  `fa` decimal(38,0) DEFAULT NULL,
+  `fb` decimal(37,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999999999999999999999999.9
 b	9999999999999999999999999999999999999.9
@@ -1101,8 +1101,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,2) DEFAULT NULL,
   `b` decimal(38,2) unsigned DEFAULT NULL,
-  `fa` decimal(36,0) DEFAULT NULL,
-  `fb` decimal(36,0) DEFAULT NULL
+  `fa` decimal(37,0) DEFAULT NULL,
+  `fb` decimal(36,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999999999999999999999999.99
 b	999999999999999999999999999999999999.99
@@ -1112,8 +1112,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,3) DEFAULT NULL,
   `b` decimal(38,3) unsigned DEFAULT NULL,
-  `fa` decimal(35,0) DEFAULT NULL,
-  `fb` decimal(35,0) DEFAULT NULL
+  `fa` decimal(36,0) DEFAULT NULL,
+  `fb` decimal(35,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999999999999999999999.999
 b	99999999999999999999999999999999999.999
@@ -1123,8 +1123,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,4) DEFAULT NULL,
   `b` decimal(38,4) unsigned DEFAULT NULL,
-  `fa` decimal(34,0) DEFAULT NULL,
-  `fb` decimal(34,0) DEFAULT NULL
+  `fa` decimal(35,0) DEFAULT NULL,
+  `fb` decimal(34,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999999999999999999999.9999
 b	9999999999999999999999999999999999.9999
@@ -1134,8 +1134,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,5) DEFAULT NULL,
   `b` decimal(38,5) unsigned DEFAULT NULL,
-  `fa` decimal(33,0) DEFAULT NULL,
-  `fb` decimal(33,0) DEFAULT NULL
+  `fa` decimal(34,0) DEFAULT NULL,
+  `fb` decimal(33,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999999999999999999999.99999
 b	999999999999999999999999999999999.99999
@@ -1145,8 +1145,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,6) DEFAULT NULL,
   `b` decimal(38,6) unsigned DEFAULT NULL,
-  `fa` decimal(32,0) DEFAULT NULL,
-  `fb` decimal(32,0) DEFAULT NULL
+  `fa` decimal(33,0) DEFAULT NULL,
+  `fb` decimal(32,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999999999999999999.999999
 b	99999999999999999999999999999999.999999
@@ -1156,8 +1156,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,7) DEFAULT NULL,
   `b` decimal(38,7) unsigned DEFAULT NULL,
-  `fa` decimal(31,0) DEFAULT NULL,
-  `fb` decimal(31,0) DEFAULT NULL
+  `fa` decimal(32,0) DEFAULT NULL,
+  `fb` decimal(31,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999999999999999999.9999999
 b	9999999999999999999999999999999.9999999
@@ -1167,8 +1167,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,8) DEFAULT NULL,
   `b` decimal(38,8) unsigned DEFAULT NULL,
-  `fa` decimal(30,0) DEFAULT NULL,
-  `fb` decimal(30,0) DEFAULT NULL
+  `fa` decimal(31,0) DEFAULT NULL,
+  `fb` decimal(30,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999999999999999999.99999999
 b	999999999999999999999999999999.99999999
@@ -1178,8 +1178,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,9) DEFAULT NULL,
   `b` decimal(38,9) unsigned DEFAULT NULL,
-  `fa` decimal(29,0) DEFAULT NULL,
-  `fb` decimal(29,0) DEFAULT NULL
+  `fa` decimal(30,0) DEFAULT NULL,
+  `fb` decimal(29,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999999999999999.999999999
 b	99999999999999999999999999999.999999999
@@ -1189,8 +1189,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,10) DEFAULT NULL,
   `b` decimal(38,10) unsigned DEFAULT NULL,
-  `fa` decimal(28,0) DEFAULT NULL,
-  `fb` decimal(28,0) DEFAULT NULL
+  `fa` decimal(29,0) DEFAULT NULL,
+  `fb` decimal(28,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999999999999999.9999999999
 b	9999999999999999999999999999.9999999999
@@ -1200,8 +1200,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,11) DEFAULT NULL,
   `b` decimal(38,11) unsigned DEFAULT NULL,
-  `fa` decimal(27,0) DEFAULT NULL,
-  `fb` decimal(27,0) DEFAULT NULL
+  `fa` decimal(28,0) DEFAULT NULL,
+  `fb` decimal(27,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999999999999999.99999999999
 b	999999999999999999999999999.99999999999
@@ -1211,8 +1211,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,12) DEFAULT NULL,
   `b` decimal(38,12) unsigned DEFAULT NULL,
-  `fa` decimal(26,0) DEFAULT NULL,
-  `fb` decimal(26,0) DEFAULT NULL
+  `fa` decimal(27,0) DEFAULT NULL,
+  `fb` decimal(26,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999999999999.999999999999
 b	99999999999999999999999999.999999999999
@@ -1222,8 +1222,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,13) DEFAULT NULL,
   `b` decimal(38,13) unsigned DEFAULT NULL,
-  `fa` decimal(25,0) DEFAULT NULL,
-  `fb` decimal(25,0) DEFAULT NULL
+  `fa` decimal(26,0) DEFAULT NULL,
+  `fb` decimal(25,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999999999999.9999999999999
 b	9999999999999999999999999.9999999999999
@@ -1233,8 +1233,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,14) DEFAULT NULL,
   `b` decimal(38,14) unsigned DEFAULT NULL,
-  `fa` decimal(24,0) DEFAULT NULL,
-  `fb` decimal(24,0) DEFAULT NULL
+  `fa` decimal(25,0) DEFAULT NULL,
+  `fb` decimal(24,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999999999999.99999999999999
 b	999999999999999999999999.99999999999999
@@ -1244,8 +1244,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,15) DEFAULT NULL,
   `b` decimal(38,15) unsigned DEFAULT NULL,
-  `fa` decimal(23,0) DEFAULT NULL,
-  `fb` decimal(23,0) DEFAULT NULL
+  `fa` decimal(24,0) DEFAULT NULL,
+  `fb` decimal(23,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999999999.999999999999999
 b	99999999999999999999999.999999999999999
@@ -1255,8 +1255,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,16) DEFAULT NULL,
   `b` decimal(38,16) unsigned DEFAULT NULL,
-  `fa` decimal(22,0) DEFAULT NULL,
-  `fb` decimal(22,0) DEFAULT NULL
+  `fa` decimal(23,0) DEFAULT NULL,
+  `fb` decimal(22,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999999999.9999999999999999
 b	9999999999999999999999.9999999999999999
@@ -1266,8 +1266,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,17) DEFAULT NULL,
   `b` decimal(38,17) unsigned DEFAULT NULL,
-  `fa` decimal(21,0) DEFAULT NULL,
-  `fb` decimal(21,0) DEFAULT NULL
+  `fa` decimal(22,0) DEFAULT NULL,
+  `fb` decimal(21,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999999999.99999999999999999
 b	999999999999999999999.99999999999999999
@@ -1277,8 +1277,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,18) DEFAULT NULL,
   `b` decimal(38,18) unsigned DEFAULT NULL,
-  `fa` decimal(20,0) DEFAULT NULL,
-  `fb` decimal(20,0) DEFAULT NULL
+  `fa` decimal(21,0) DEFAULT NULL,
+  `fb` decimal(20,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999999.999999999999999999
 b	99999999999999999999.999999999999999999
@@ -1288,8 +1288,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,19) DEFAULT NULL,
   `b` decimal(38,19) unsigned DEFAULT NULL,
-  `fa` decimal(19,0) DEFAULT NULL,
-  `fb` decimal(19,0) DEFAULT NULL
+  `fa` decimal(20,0) DEFAULT NULL,
+  `fb` decimal(19,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999999.9999999999999999999
 b	9999999999999999999.9999999999999999999
@@ -1299,8 +1299,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,20) DEFAULT NULL,
   `b` decimal(38,20) unsigned DEFAULT NULL,
-  `fa` decimal(18,0) DEFAULT NULL,
-  `fb` bigint(17) unsigned DEFAULT NULL
+  `fa` decimal(19,0) DEFAULT NULL,
+  `fb` bigint(18) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999999.99999999999999999999
 b	999999999999999999.99999999999999999999
@@ -1310,7 +1310,7 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,21) DEFAULT NULL,
   `b` decimal(38,21) unsigned DEFAULT NULL,
-  `fa` bigint(17) DEFAULT NULL,
+  `fa` bigint(19) DEFAULT NULL,
   `fb` bigint(17) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999.999999999999999999999
@@ -1321,8 +1321,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,22) DEFAULT NULL,
   `b` decimal(38,22) unsigned DEFAULT NULL,
-  `fa` bigint(17) DEFAULT NULL,
-  `fb` bigint(17) unsigned DEFAULT NULL
+  `fa` bigint(18) DEFAULT NULL,
+  `fb` bigint(16) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999.9999999999999999999999
 b	9999999999999999.9999999999999999999999
@@ -1333,7 +1333,7 @@ Create Table	CREATE TABLE `t2` (
   `a` decimal(38,23) DEFAULT NULL,
   `b` decimal(38,23) unsigned DEFAULT NULL,
   `fa` bigint(17) DEFAULT NULL,
-  `fb` bigint(17) unsigned DEFAULT NULL
+  `fb` bigint(15) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999.99999999999999999999999
 b	999999999999999.99999999999999999999999
@@ -1343,8 +1343,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,24) DEFAULT NULL,
   `b` decimal(38,24) unsigned DEFAULT NULL,
-  `fa` bigint(17) DEFAULT NULL,
-  `fb` bigint(16) unsigned DEFAULT NULL
+  `fa` bigint(16) DEFAULT NULL,
+  `fb` bigint(14) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999.999999999999999999999999
 b	99999999999999.999999999999999999999999
@@ -1354,8 +1354,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,25) DEFAULT NULL,
   `b` decimal(38,25) unsigned DEFAULT NULL,
-  `fa` bigint(16) DEFAULT NULL,
-  `fb` bigint(15) unsigned DEFAULT NULL
+  `fa` bigint(15) DEFAULT NULL,
+  `fb` bigint(13) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999.9999999999999999999999999
 b	9999999999999.9999999999999999999999999
@@ -1365,8 +1365,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,26) DEFAULT NULL,
   `b` decimal(38,26) unsigned DEFAULT NULL,
-  `fa` bigint(15) DEFAULT NULL,
-  `fb` bigint(14) unsigned DEFAULT NULL
+  `fa` bigint(14) DEFAULT NULL,
+  `fb` bigint(12) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999.99999999999999999999999999
 b	999999999999.99999999999999999999999999
@@ -1376,8 +1376,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,27) DEFAULT NULL,
   `b` decimal(38,27) unsigned DEFAULT NULL,
-  `fa` bigint(14) DEFAULT NULL,
-  `fb` bigint(13) unsigned DEFAULT NULL
+  `fa` bigint(13) DEFAULT NULL,
+  `fb` bigint(11) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999.999999999999999999999999999
 b	99999999999.999999999999999999999999999
@@ -1387,8 +1387,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,28) DEFAULT NULL,
   `b` decimal(38,28) unsigned DEFAULT NULL,
-  `fa` bigint(13) DEFAULT NULL,
-  `fb` bigint(12) unsigned DEFAULT NULL
+  `fa` bigint(12) DEFAULT NULL,
+  `fb` bigint(10) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999.9999999999999999999999999999
 b	9999999999.9999999999999999999999999999
@@ -1398,8 +1398,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,29) DEFAULT NULL,
   `b` decimal(38,29) unsigned DEFAULT NULL,
-  `fa` bigint(12) DEFAULT NULL,
-  `fb` bigint(11) unsigned DEFAULT NULL
+  `fa` bigint(11) DEFAULT NULL,
+  `fb` int(9) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999.99999999999999999999999999999
 b	999999999.99999999999999999999999999999
@@ -1409,8 +1409,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,30) DEFAULT NULL,
   `b` decimal(38,30) unsigned DEFAULT NULL,
-  `fa` bigint(11) DEFAULT NULL,
-  `fb` bigint(10) unsigned DEFAULT NULL
+  `fa` int(10) DEFAULT NULL,
+  `fb` int(8) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999.999999999999999999999999999999
 b	99999999.999999999999999999999999999999
@@ -1422,7 +1422,7 @@ Create Table	CREATE TABLE `t2` (
   `a` decimal(30,0) DEFAULT NULL,
   `b` decimal(30,0) unsigned DEFAULT NULL,
   `fa` decimal(30,0) DEFAULT NULL,
-  `fb` decimal(31,0) unsigned DEFAULT NULL
+  `fb` decimal(30,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999999999999999999
 b	999999999999999999999999999999
@@ -1432,8 +1432,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,1) DEFAULT NULL,
   `b` decimal(30,1) unsigned DEFAULT NULL,
-  `fa` decimal(29,0) DEFAULT NULL,
-  `fb` decimal(30,0) unsigned DEFAULT NULL
+  `fa` decimal(30,0) DEFAULT NULL,
+  `fb` decimal(29,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999999999999999.9
 b	99999999999999999999999999999.9
@@ -1443,8 +1443,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,2) DEFAULT NULL,
   `b` decimal(30,2) unsigned DEFAULT NULL,
-  `fa` decimal(28,0) DEFAULT NULL,
-  `fb` decimal(29,0) unsigned DEFAULT NULL
+  `fa` decimal(29,0) DEFAULT NULL,
+  `fb` decimal(28,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999999999999999.99
 b	9999999999999999999999999999.99
@@ -1454,8 +1454,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,3) DEFAULT NULL,
   `b` decimal(30,3) unsigned DEFAULT NULL,
-  `fa` decimal(27,0) DEFAULT NULL,
-  `fb` decimal(28,0) unsigned DEFAULT NULL
+  `fa` decimal(28,0) DEFAULT NULL,
+  `fb` decimal(27,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999999999999999.999
 b	999999999999999999999999999.999
@@ -1465,8 +1465,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,4) DEFAULT NULL,
   `b` decimal(30,4) unsigned DEFAULT NULL,
-  `fa` decimal(26,0) DEFAULT NULL,
-  `fb` decimal(27,0) unsigned DEFAULT NULL
+  `fa` decimal(27,0) DEFAULT NULL,
+  `fb` decimal(26,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999999999999.9999
 b	99999999999999999999999999.9999
@@ -1476,8 +1476,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,5) DEFAULT NULL,
   `b` decimal(30,5) unsigned DEFAULT NULL,
-  `fa` decimal(25,0) DEFAULT NULL,
-  `fb` decimal(26,0) unsigned DEFAULT NULL
+  `fa` decimal(26,0) DEFAULT NULL,
+  `fb` decimal(25,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999999999999.99999
 b	9999999999999999999999999.99999
@@ -1487,8 +1487,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,6) DEFAULT NULL,
   `b` decimal(30,6) unsigned DEFAULT NULL,
-  `fa` decimal(24,0) DEFAULT NULL,
-  `fb` decimal(25,0) unsigned DEFAULT NULL
+  `fa` decimal(25,0) DEFAULT NULL,
+  `fb` decimal(24,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999999999999.999999
 b	999999999999999999999999.999999
@@ -1498,8 +1498,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,7) DEFAULT NULL,
   `b` decimal(30,7) unsigned DEFAULT NULL,
-  `fa` decimal(23,0) DEFAULT NULL,
-  `fb` decimal(24,0) unsigned DEFAULT NULL
+  `fa` decimal(24,0) DEFAULT NULL,
+  `fb` decimal(23,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999999999.9999999
 b	99999999999999999999999.9999999
@@ -1509,8 +1509,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,8) DEFAULT NULL,
   `b` decimal(30,8) unsigned DEFAULT NULL,
-  `fa` decimal(22,0) DEFAULT NULL,
-  `fb` decimal(23,0) unsigned DEFAULT NULL
+  `fa` decimal(23,0) DEFAULT NULL,
+  `fb` decimal(22,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999999999.99999999
 b	9999999999999999999999.99999999
@@ -1520,8 +1520,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,9) DEFAULT NULL,
   `b` decimal(30,9) unsigned DEFAULT NULL,
-  `fa` decimal(21,0) DEFAULT NULL,
-  `fb` decimal(22,0) unsigned DEFAULT NULL
+  `fa` decimal(22,0) DEFAULT NULL,
+  `fb` decimal(21,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999999999.999999999
 b	999999999999999999999.999999999
@@ -1531,8 +1531,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,10) DEFAULT NULL,
   `b` decimal(30,10) unsigned DEFAULT NULL,
-  `fa` decimal(20,0) DEFAULT NULL,
-  `fb` decimal(21,0) unsigned DEFAULT NULL
+  `fa` decimal(21,0) DEFAULT NULL,
+  `fb` decimal(20,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999999.9999999999
 b	99999999999999999999.9999999999
@@ -1542,8 +1542,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,11) DEFAULT NULL,
   `b` decimal(30,11) unsigned DEFAULT NULL,
-  `fa` decimal(19,0) DEFAULT NULL,
-  `fb` decimal(20,0) unsigned DEFAULT NULL
+  `fa` decimal(20,0) DEFAULT NULL,
+  `fb` decimal(19,0) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999999.99999999999
 b	9999999999999999999.99999999999
@@ -1553,8 +1553,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,12) DEFAULT NULL,
   `b` decimal(30,12) unsigned DEFAULT NULL,
-  `fa` decimal(18,0) DEFAULT NULL,
-  `fb` bigint(17) unsigned DEFAULT NULL
+  `fa` decimal(19,0) DEFAULT NULL,
+  `fb` bigint(18) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999999.999999999999
 b	999999999999999999.999999999999
@@ -1564,7 +1564,7 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,13) DEFAULT NULL,
   `b` decimal(30,13) unsigned DEFAULT NULL,
-  `fa` bigint(17) DEFAULT NULL,
+  `fa` bigint(19) DEFAULT NULL,
   `fb` bigint(17) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999999.9999999999999
@@ -1575,8 +1575,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,14) DEFAULT NULL,
   `b` decimal(30,14) unsigned DEFAULT NULL,
-  `fa` bigint(17) DEFAULT NULL,
-  `fb` bigint(17) unsigned DEFAULT NULL
+  `fa` bigint(18) DEFAULT NULL,
+  `fb` bigint(16) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999999.99999999999999
 b	9999999999999999.99999999999999
@@ -1587,7 +1587,7 @@ Create Table	CREATE TABLE `t2` (
   `a` decimal(30,15) DEFAULT NULL,
   `b` decimal(30,15) unsigned DEFAULT NULL,
   `fa` bigint(17) DEFAULT NULL,
-  `fb` bigint(17) unsigned DEFAULT NULL
+  `fb` bigint(15) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999999.999999999999999
 b	999999999999999.999999999999999
@@ -1597,8 +1597,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,16) DEFAULT NULL,
   `b` decimal(30,16) unsigned DEFAULT NULL,
-  `fa` bigint(17) DEFAULT NULL,
-  `fb` bigint(16) unsigned DEFAULT NULL
+  `fa` bigint(16) DEFAULT NULL,
+  `fb` bigint(14) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999999.9999999999999999
 b	99999999999999.9999999999999999
@@ -1608,8 +1608,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,17) DEFAULT NULL,
   `b` decimal(30,17) unsigned DEFAULT NULL,
-  `fa` bigint(16) DEFAULT NULL,
-  `fb` bigint(15) unsigned DEFAULT NULL
+  `fa` bigint(15) DEFAULT NULL,
+  `fb` bigint(13) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999999.99999999999999999
 b	9999999999999.99999999999999999
@@ -1619,8 +1619,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,18) DEFAULT NULL,
   `b` decimal(30,18) unsigned DEFAULT NULL,
-  `fa` bigint(15) DEFAULT NULL,
-  `fb` bigint(14) unsigned DEFAULT NULL
+  `fa` bigint(14) DEFAULT NULL,
+  `fb` bigint(12) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999999.999999999999999999
 b	999999999999.999999999999999999
@@ -1630,8 +1630,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,19) DEFAULT NULL,
   `b` decimal(30,19) unsigned DEFAULT NULL,
-  `fa` bigint(14) DEFAULT NULL,
-  `fb` bigint(13) unsigned DEFAULT NULL
+  `fa` bigint(13) DEFAULT NULL,
+  `fb` bigint(11) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999999.9999999999999999999
 b	99999999999.9999999999999999999
@@ -1641,8 +1641,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,20) DEFAULT NULL,
   `b` decimal(30,20) unsigned DEFAULT NULL,
-  `fa` bigint(13) DEFAULT NULL,
-  `fb` bigint(12) unsigned DEFAULT NULL
+  `fa` bigint(12) DEFAULT NULL,
+  `fb` bigint(10) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999999.99999999999999999999
 b	9999999999.99999999999999999999
@@ -1652,8 +1652,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,21) DEFAULT NULL,
   `b` decimal(30,21) unsigned DEFAULT NULL,
-  `fa` bigint(12) DEFAULT NULL,
-  `fb` bigint(11) unsigned DEFAULT NULL
+  `fa` bigint(11) DEFAULT NULL,
+  `fb` int(9) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999999.999999999999999999999
 b	999999999.999999999999999999999
@@ -1663,8 +1663,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,22) DEFAULT NULL,
   `b` decimal(30,22) unsigned DEFAULT NULL,
-  `fa` bigint(11) DEFAULT NULL,
-  `fb` bigint(10) unsigned DEFAULT NULL
+  `fa` int(10) DEFAULT NULL,
+  `fb` int(8) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999999.9999999999999999999999
 b	99999999.9999999999999999999999
@@ -1674,8 +1674,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,23) DEFAULT NULL,
   `b` decimal(30,23) unsigned DEFAULT NULL,
-  `fa` bigint(10) DEFAULT NULL,
-  `fb` int(9) unsigned DEFAULT NULL
+  `fa` int(9) DEFAULT NULL,
+  `fb` int(7) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999999.99999999999999999999999
 b	9999999.99999999999999999999999
@@ -1685,8 +1685,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,24) DEFAULT NULL,
   `b` decimal(30,24) unsigned DEFAULT NULL,
-  `fa` int(9) DEFAULT NULL,
-  `fb` int(8) unsigned DEFAULT NULL
+  `fa` int(8) DEFAULT NULL,
+  `fb` int(6) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999999.999999999999999999999999
 b	999999.999999999999999999999999
@@ -1696,8 +1696,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,25) DEFAULT NULL,
   `b` decimal(30,25) unsigned DEFAULT NULL,
-  `fa` int(8) DEFAULT NULL,
-  `fb` int(7) unsigned DEFAULT NULL
+  `fa` int(7) DEFAULT NULL,
+  `fb` int(5) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99999.9999999999999999999999999
 b	99999.9999999999999999999999999
@@ -1707,8 +1707,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,26) DEFAULT NULL,
   `b` decimal(30,26) unsigned DEFAULT NULL,
-  `fa` int(7) DEFAULT NULL,
-  `fb` int(6) unsigned DEFAULT NULL
+  `fa` int(6) DEFAULT NULL,
+  `fb` int(4) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9999.99999999999999999999999999
 b	9999.99999999999999999999999999
@@ -1718,8 +1718,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,27) DEFAULT NULL,
   `b` decimal(30,27) unsigned DEFAULT NULL,
-  `fa` int(6) DEFAULT NULL,
-  `fb` int(5) unsigned DEFAULT NULL
+  `fa` int(5) DEFAULT NULL,
+  `fb` int(3) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	999.999999999999999999999999999
 b	999.999999999999999999999999999
@@ -1729,8 +1729,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,28) DEFAULT NULL,
   `b` decimal(30,28) unsigned DEFAULT NULL,
-  `fa` int(5) DEFAULT NULL,
-  `fb` int(4) unsigned DEFAULT NULL
+  `fa` int(4) DEFAULT NULL,
+  `fb` int(2) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	99.9999999999999999999999999999
 b	99.9999999999999999999999999999
@@ -1740,8 +1740,8 @@ Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(30,29) DEFAULT NULL,
   `b` decimal(30,29) unsigned DEFAULT NULL,
-  `fa` int(4) DEFAULT NULL,
-  `fb` int(3) unsigned DEFAULT NULL
+  `fa` int(3) DEFAULT NULL,
+  `fb` int(1) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 a	9.99999999999999999999999999999
 b	9.99999999999999999999999999999
