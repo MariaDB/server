@@ -118,6 +118,7 @@ void Item_subselect::init(st_select_lex *select_lex,
   else
   {
     SELECT_LEX *outer_select= unit->outer_select();
+    THD *thd= unit->thd;
     /*
       do not take into account expression inside aggregate functions because
       they can access original table fields
@@ -127,9 +128,11 @@ void Item_subselect::init(st_select_lex *select_lex,
                     outer_select->parsing_place);
     if (unit->is_unit_op() &&
         (unit->first_select()->next_select() || unit->fake_select_lex))
-      engine= new subselect_union_engine(unit, result, this);
+      engine= new (thd->mem_root)
+        subselect_union_engine(unit, result, this);
     else
-      engine= new subselect_single_select_engine(select_lex, result, this);
+      engine= new (thd->mem_root)
+        subselect_single_select_engine(select_lex, result, this);
   }
   DBUG_PRINT("info", ("engine: %p", engine));
   DBUG_VOID_RETURN;
@@ -3318,7 +3321,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
     }
     else
     {
-      List<Item> *and_list= new List<Item>;
+      List<Item> *and_list= new (thd->mem_root) List<Item>;
       if (!and_list)
       {
         res= TRUE;
@@ -3598,7 +3601,8 @@ bool Item_in_subselect::setup_mat_engine()
   select_engine= (subselect_single_select_engine*) engine;
 
   /* Create/initialize execution objects. */
-  if (!(mat_engine= new subselect_hash_sj_engine(thd, this, select_engine)))
+  if (!(mat_engine= new (thd->mem_root)
+        subselect_hash_sj_engine(thd, this, select_engine)))
     DBUG_RETURN(TRUE);
 
   if (mat_engine->prepare(thd) ||
@@ -3636,7 +3640,7 @@ bool Item_in_subselect::init_left_expr_cache()
   if (!outer_join || !outer_join->table_count || !outer_join->tables_list)
     return TRUE;
 
-  if (!(left_expr_cache= new List<Cached_item>))
+  if (!(left_expr_cache= new (thd->mem_root) List<Cached_item>))
     return TRUE;
 
   for (uint i= 0; i < left_expr->cols(); i++)
@@ -3867,8 +3871,9 @@ int subselect_single_select_engine::prepare(THD *thd)
   {
     select_lex->cleanup();
   }
-  join= new JOIN(thd, select_lex->item_list,
-		 select_lex->options | SELECT_NO_UNLOCK, result);
+  join= (new (thd->mem_root)
+         JOIN(thd, select_lex->item_list,
+              select_lex->options | SELECT_NO_UNLOCK, result));
   if (!join || !result)
     return 1; /* Fatal error is set already. */
   prepared= 1;
@@ -5280,7 +5285,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
   tmp_table_ref->init_one_table(&empty_clex_str, &table_name, NULL, TL_READ);
   tmp_table_ref->table= tmp_table;
 
-  context= new Name_resolution_context;
+  context= new (thd->mem_root) Name_resolution_context;
   context->init();
   context->first_name_resolution_table=
     context->last_name_resolution_table= tmp_table_ref;
@@ -5348,8 +5353,9 @@ subselect_hash_sj_engine::make_unique_engine()
   tab->preread_init_done= FALSE;
   tab->ref.tmp_table_index_lookup_init(thd, tmp_key, it, FALSE);
 
-  DBUG_RETURN(new subselect_uniquesubquery_engine(thd, tab, item_in,
-                                                  semi_join_conds));
+  DBUG_RETURN(new (thd->mem_root)
+              subselect_uniquesubquery_engine(thd, tab, item_in,
+                                              semi_join_conds));
 }
 
 
@@ -5745,14 +5751,15 @@ int subselect_hash_sj_engine::exec()
     if (strategy == PARTIAL_MATCH_MERGE)
     {
       pm_engine=
-        new subselect_rowid_merge_engine((subselect_uniquesubquery_engine*)
-                                         lookup_engine, tmp_table,
-                                         count_pm_keys,
-                                         has_covering_null_row,
-                                         has_covering_null_columns,
-                                         count_columns_with_nulls,
-                                         item, result,
-                                         semi_join_conds->argument_list());
+        (new (thd->mem_root)
+         subselect_rowid_merge_engine((subselect_uniquesubquery_engine*)
+                                      lookup_engine, tmp_table,
+                                      count_pm_keys,
+                                      has_covering_null_row,
+                                      has_covering_null_columns,
+                                      count_columns_with_nulls,
+                                      item, result,
+                                      semi_join_conds->argument_list()));
       if (!pm_engine ||
           pm_engine->prepare(thd) ||
           ((subselect_rowid_merge_engine*) pm_engine)->
@@ -5772,13 +5779,14 @@ int subselect_hash_sj_engine::exec()
     if (strategy == PARTIAL_MATCH_SCAN)
     {
       if (!(pm_engine=
-            new subselect_table_scan_engine((subselect_uniquesubquery_engine*)
-                                            lookup_engine, tmp_table,
-                                            item, result,
-                                            semi_join_conds->argument_list(),
-                                            has_covering_null_row,
-                                            has_covering_null_columns,
-                                            count_columns_with_nulls)) ||
+            (new (thd->mem_root)
+             subselect_table_scan_engine((subselect_uniquesubquery_engine*)
+                                         lookup_engine, tmp_table,
+                                         item, result,
+                                         semi_join_conds->argument_list(),
+                                         has_covering_null_row,
+                                         has_covering_null_columns,
+                                         count_columns_with_nulls))) ||
           pm_engine->prepare(thd))
       {
         /* This is an irrecoverable error. */
@@ -6409,8 +6417,9 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
   /* Create the only non-NULL key if there is any. */
   if (non_null_key_parts)
   {
-    non_null_key= new Ordered_key(cur_keyid, tmp_table, left,
-                                  0, 0, 0, row_num_to_rowid);
+    non_null_key= (new (thd->mem_root)
+                   Ordered_key(cur_keyid, tmp_table, left,
+                               0, 0, 0, row_num_to_rowid));
     if (non_null_key->init(non_null_key_parts))
       return TRUE;
     merge_keys[cur_keyid]= non_null_key;
@@ -6439,13 +6448,13 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
           result_sink->get_null_count_of_col(i) == row_count)
         continue;
 
-      merge_keys[cur_keyid]= new Ordered_key(
-                                     cur_keyid, tmp_table,
-                                     left->element_index(i),
-                                     result_sink->get_null_count_of_col(i),
-                                     result_sink->get_min_null_of_col(i),
-                                     result_sink->get_max_null_of_col(i),
-                                     row_num_to_rowid);
+      merge_keys[cur_keyid]= new (thd->mem_root)
+          Ordered_key(cur_keyid, tmp_table,
+                      left->element_index(i),
+                      result_sink->get_null_count_of_col(i),
+                      result_sink->get_min_null_of_col(i),
+                      result_sink->get_max_null_of_col(i),
+                      row_num_to_rowid);
       if (merge_keys[cur_keyid]->init(i))
         return TRUE;
       merge_keys[cur_keyid]->first();

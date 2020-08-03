@@ -56,7 +56,8 @@ class Arg_comparator: public Sql_alloc
   Item *a_cache, *b_cache;         // Cached values of a and b items
                                    //   when one of arguments is NULL.
 
-  int set_cmp_func(Item_func_or_sum *owner_arg, Item **a1, Item **a2);
+  int set_cmp_func(THD *thd, Item_func_or_sum *owner_arg,
+                   Item **a1, Item **a2);
 
   int compare_not_null_values(longlong val1, longlong val2)
   {
@@ -83,21 +84,21 @@ public:
     a_cache(0), b_cache(0) {};
 
 public:
-  bool set_cmp_func_for_row_arguments();
-  bool set_cmp_func_row();
-  bool set_cmp_func_string();
-  bool set_cmp_func_time();
-  bool set_cmp_func_datetime();
-  bool set_cmp_func_native();
-  bool set_cmp_func_int();
-  bool set_cmp_func_real();
-  bool set_cmp_func_decimal();
+  bool set_cmp_func_for_row_arguments(THD *thd);
+  bool set_cmp_func_row(THD *thd);
+  bool set_cmp_func_string(THD *thd);
+  bool set_cmp_func_time(THD *thd);
+  bool set_cmp_func_datetime(THD *thd);
+  bool set_cmp_func_native(THD *thd);
+  bool set_cmp_func_int(THD *thd);
+  bool set_cmp_func_real(THD *thd);
+  bool set_cmp_func_decimal(THD *thd);
 
-  inline int set_cmp_func(Item_func_or_sum *owner_arg,
+  inline int set_cmp_func(THD *thd, Item_func_or_sum *owner_arg,
 			  Item **a1, Item **a2, bool set_null_arg)
   {
     set_null= set_null_arg;
-    return set_cmp_func(owner_arg, a1, a2);
+    return set_cmp_func(thd, owner_arg, a1, a2);
   }
   inline int compare() { return (this->*func)(); }
 
@@ -538,9 +539,9 @@ public:
     return this;
   }
   bool fix_length_and_dec();
-  int set_cmp_func()
+  int set_cmp_func(THD *thd)
   {
-    return cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
+    return cmp.set_cmp_func(thd, this, tmp_arg, tmp_arg + 1, true);
   }
   CHARSET_INFO *compare_collation() const { return cmp.compare_collation(); }
   const Type_handler *compare_type_handler() const
@@ -1560,7 +1561,7 @@ public:
   virtual int cmp_not_null(const Value *value)= 0;
   // for optimized IN with row
   virtual int compare(cmp_item *item)= 0;
-  virtual cmp_item *make_same()= 0;
+  virtual cmp_item *make_same(THD *thd)= 0;
   virtual void store_value_by_template(THD *thd, cmp_item *tmpl, Item *item)
   {
     store_value(item);
@@ -1633,7 +1634,7 @@ public:
     cmp_item_string *l_cmp= (cmp_item_string *) ci;
     return sortcmp(value_res, l_cmp->value_res, cmp_charset);
   } 
-  cmp_item *make_same();
+  cmp_item *make_same(THD *thd);
   void set_charset(CHARSET_INFO *cs)
   {
     cmp_charset= cs;
@@ -1667,7 +1668,7 @@ public:
     cmp_item_int *l_cmp= (cmp_item_int *)ci;
     return (value < l_cmp->value) ? -1 : ((value == l_cmp->value) ? 0 : 1);
   }
-  cmp_item *make_same();
+  cmp_item *make_same(THD *thd);
 };
 
 /*
@@ -1696,7 +1697,7 @@ public:
   }
   int cmp_not_null(const Value *val);
   int cmp(Item *arg);
-  cmp_item *make_same();
+  cmp_item *make_same(THD *thd);
 };
 
 
@@ -1713,7 +1714,7 @@ public:
   }
   int cmp_not_null(const Value *val);
   int cmp(Item *arg);
-  cmp_item *make_same();
+  cmp_item *make_same(THD *thd);
 };
 
 
@@ -1726,7 +1727,7 @@ public:
   int cmp_not_null(const Value *val);
   int cmp(Item *arg);
   int compare(cmp_item *ci);
-  cmp_item *make_same();
+  cmp_item *make_same(THD *thd);
 };
 
 
@@ -1756,7 +1757,7 @@ public:
     cmp_item_real *l_cmp= (cmp_item_real *) ci;
     return (value < l_cmp->value)? -1 : ((value == l_cmp->value) ? 0 : 1);
   }
-  cmp_item *make_same();
+  cmp_item *make_same(THD *thd);
 };
 
 
@@ -1769,7 +1770,7 @@ public:
   int cmp(Item *arg);
   int cmp_not_null(const Value *val);
   int compare(cmp_item *c);
-  cmp_item *make_same();
+  cmp_item *make_same(THD *thd);
 };
 
 
@@ -1806,7 +1807,7 @@ public:
     cmp_item_string *l_cmp= (cmp_item_string *) ci;
     return sortcmp(value_res, l_cmp->value_res, cmp_charset);
   }
-  cmp_item *make_same()
+  cmp_item *make_same(THD *thd)
   {
     return new cmp_item_sort_string_in_static(cmp_charset);
   }
@@ -2515,7 +2516,7 @@ public:
     return TRUE;
   }
   int compare(cmp_item *arg);
-  cmp_item *make_same();
+  cmp_item *make_same(THD *thd);
   void store_value_by_template(THD *thd, cmp_item *tmpl, Item *);
   friend class Item_func_in;
   cmp_item *get_comparator(uint i) { return comparators[i]; }
