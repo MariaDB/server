@@ -1034,6 +1034,9 @@ struct dict_index_t{
     }
   }
 
+  /** @return whether this is the change buffer */
+  bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
+
 #ifdef BTR_CUR_HASH_ADAPT
   /** @return a clone of this */
   dict_index_t* clone() const;
