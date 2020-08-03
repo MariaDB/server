@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQL_UPGRADE\FR" "1" "9 May 2017" "MariaDB 10\&.3" "MariaDB Database System"
+.TH "\FBMYSQL_UPGRADE\FR" "1" "20 July 2020" "MariaDB 10\&.3" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -164,6 +164,8 @@ mysql_upgrade_info
 in the data directory\&. This is used to quickly check whether all tables have been checked for this release so that table\-checking can be skipped\&. To ignore this file and perform the check regardless, use the
 \fB\-\-force\fR
 option\&.
+.PP
+For this reason, \fBmysql_upgrade\fR needs to be run as a user with write access to the data directory\&.
 .PP
 If you install MariaDB from RPM packages on Linux, you must install the server and client RPMs\&.
 \fBmysql_upgrade\fR
