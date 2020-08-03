@@ -30,3 +30,4 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 let SEARCH_FILE=$MYSQLD_DATADIR/second-mysqld.err;
 let SEARCH_PATTERN=\[ERROR\] Create named pipe failed;
 source include/search_pattern_in_file.inc;
+remove_file $SEARCH_FILE;
