@@ -738,7 +738,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       */
       collect_eis=
         (table->table->s->table_category == TABLE_CATEGORY_USER &&
-        !(lex->alter_info.flags &= Alter_info::ALTER_ADMIN_PARTITION) &&
+        !(lex->alter_info.flags & Alter_info::ALTER_ADMIN_PARTITION) &&
          (get_use_stat_tables_mode(thd) > NEVER ||
           lex->with_persistent_for_clause));
 
