@@ -5690,7 +5690,7 @@ bool Type_handler_year::
 bool Type_handler_hex_hybrid::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(NULL, NULL, item->arguments()[0]->max_length >= 8);
+  item->fix_arg_hex_hybrid();
   return false;
 }
 

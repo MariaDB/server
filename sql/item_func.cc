@@ -2446,6 +2446,20 @@ void Item_func_round::fix_arg_datetime()
 }
 
 
+bool Item_func_round::test_if_length_can_increase()
+{
+  if (truncate)
+    return false;
+  if (args[1]->const_item() && !args[1]->is_expensive())
+  {
+    // Length can increase in some cases: e.g. ROUND(9,-1) -> 10.
+    Longlong_hybrid val1= args[1]->to_longlong_hybrid();
+    return !args[1]->null_value && val1.neg();
+  }
+  return true; // ROUND(x,n), where n is not a constant.
+}
+
+
 /**
   Calculate data type and attributes for INT-alike input.
 
@@ -2468,56 +2482,37 @@ void Item_func_round::fix_arg_int(const Type_handler *preferred,
                                   bool use_decimal_on_length_increase)
 {
   DBUG_ASSERT(args[0]->decimals == 0);
-  if (args[1]->const_item())
+
+  Type_std_attributes::set(preferred_attrs);
+  if (!test_if_length_can_increase())
   {
-    Longlong_hybrid val1= args[1]->to_longlong_hybrid();
-    if (args[1]->null_value)
-      fix_length_and_dec_double(NOT_FIXED_DEC);
-    else if (truncate ||
-             !val1.neg() /* ROUND(x, n>=0) */ ||
-             args[0]->decimal_precision() < DECIMAL_LONGLONG_DIGITS)
-    {
-      // Here we can keep INT_RESULT
-      // Length can increase in some cases: ROUND(9,-1) -> 10
-      int length_can_increase= MY_TEST(!truncate && val1.neg());
-      if (preferred)
-      {
-        Type_std_attributes::set(preferred_attrs);
-        if (!length_can_increase)
-        {
-          // Preserve the exact data type and attributes
-          set_handler(preferred);
-        }
-        else
-        {
-          max_length++;
-          if (use_decimal_on_length_increase)
-            set_handler(&type_handler_newdecimal);
-          else
-            set_handler(type_handler_long_or_longlong());
-        }
-      }
-      else
-      {
-        /*
-          This branch is currently used for hex hybrid only.
-          It's known to be unsigned. So sign length is 0.
-        */
-        DBUG_ASSERT(args[0]->unsigned_flag); // no needs to add sign length
-        max_length= args[0]->decimal_precision() + length_can_increase;
-        unsigned_flag= true;
-        decimals= 0;
-        if (length_can_increase && use_decimal_on_length_increase)
-          set_handler(&type_handler_newdecimal);
-        else
-          set_handler(type_handler_long_or_longlong());
-      }
-    }
-    else
-      fix_length_and_dec_decimal(val1.to_uint(DECIMAL_MAX_SCALE));
+    // Preserve the exact data type and attributes
+    set_handler(preferred);
   }
   else
-    fix_length_and_dec_double(args[0]->decimals);
+  {
+    max_length++;
+    if (use_decimal_on_length_increase)
+      set_handler(&type_handler_newdecimal);
+    else
+      set_handler(type_handler_long_or_longlong());
+  }
+}
+
+
+void Item_func_round::fix_arg_hex_hybrid()
+{
+  DBUG_ASSERT(args[0]->decimals == 0);
+  DBUG_ASSERT(args[0]->decimal_precision() < DECIMAL_LONGLONG_DIGITS);
+  DBUG_ASSERT(args[0]->unsigned_flag); // no needs to add sign length
+  bool length_can_increase= test_if_length_can_increase();
+  max_length= args[0]->decimal_precision() + MY_TEST(length_can_increase);
+  unsigned_flag= true;
+  decimals= 0;
+  if (length_can_increase && args[0]->max_length >= 8)
+    set_handler(&type_handler_newdecimal);
+  else
+    set_handler(type_handler_long_or_longlong());
 }
 
 

@@ -394,9 +394,9 @@ CALL p1('int');
 CALL p1('bigint');
 CALL p1('bigint(20)');
 CALL p1('bigint(21)');
-#CALL p1('bigint(22)');
-#CALL p1('bigint(23)');
-#CALL p1('bigint(30)');
+CALL p1('bigint(22)');
+CALL p1('bigint(23)');
+CALL p1('bigint(30)');
 
 CALL p1('tinyint unsigned');
 CALL p1('smallint unsigned');
@@ -405,12 +405,34 @@ CALL p1('int unsigned');
 CALL p1('bigint unsigned');
 CALL p1('bigint(20) unsigned');
 CALL p1('bigint(21) unsigned');
-#CALL p1('bigint(22) unsigned');
-#CALL p1('bigint(23) unsigned');
-#CALL p1('bigint(30) unsigned');
+CALL p1('bigint(22) unsigned');
+CALL p1('bigint(23) unsigned');
+CALL p1('bigint(30) unsigned');
 --horizontal_results
 
 DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-23366 ROUND(18446744073709551615,rand()*0) returns a wrong result
+--echo #
+
+--vertical_results
+SELECT
+  ROUND(18446744073709551615,NULL) AS c1,
+  ROUND(18446744073709551615,rand()*0) AS c2,
+  ROUND(18446744073709551615,rand()*0-19) AS c3;
+
+CREATE OR REPLACE TABLE t1 AS
+SELECT
+  ROUND(18446744073709551615,NULL) AS c1,
+  ROUND(18446744073709551615,rand()*0) AS c2,
+  ROUND(18446744073709551615,rand()*0-19) AS c3;
+
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--horizontal_results
 
 
 --echo #
