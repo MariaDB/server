@@ -4272,46 +4272,54 @@ int Type_handler_int_result::Item_save_in_field(Item *item, Field *field,
 
 /***********************************************************************/
 
-bool Type_handler_row::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_row::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_row();
+  return cmp->set_cmp_func_row(thd);
 }
 
-bool Type_handler_int_result::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_int_result::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_int();
+  return cmp->set_cmp_func_int(thd);
 }
 
-bool Type_handler_real_result::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_real_result::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_real();
+  return cmp->set_cmp_func_real(thd);
 }
 
-bool Type_handler_decimal_result::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_decimal_result::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_decimal();
+  return cmp->set_cmp_func_decimal(thd);
 }
 
-bool Type_handler_string_result::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_string_result::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_string();
+  return cmp->set_cmp_func_string(thd);
 }
 
-bool Type_handler_time_common::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_time_common::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_time();
+  return cmp->set_cmp_func_time(thd);
 }
 
 bool
-Type_handler_temporal_with_date::set_comparator_func(Arg_comparator *cmp) const
+Type_handler_temporal_with_date::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_datetime();
+  return cmp->set_cmp_func_datetime(thd);
 }
 
 bool
-Type_handler_timestamp_common::set_comparator_func(Arg_comparator *cmp) const
+Type_handler_timestamp_common::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_native();
+  return cmp->set_cmp_func_native(thd);
 }
 
 

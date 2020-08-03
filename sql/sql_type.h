@@ -4127,7 +4127,7 @@ public:
     DBUG_ASSERT(0);
     return 0;
   }
-  virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
+  virtual bool set_comparator_func(THD *thd, Arg_comparator *cmp) const= 0;
   virtual bool Item_const_eq(const Item_const *a, const Item_const *b,
                              bool binary_cmp) const
   {
@@ -4465,7 +4465,7 @@ public:
     DBUG_ASSERT(0);
     return NULL;
   }
-  bool set_comparator_func(Arg_comparator *cmp) const override;
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -4754,7 +4754,7 @@ public:
                          const override;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp)
                                        const override;
-  bool set_comparator_func(Arg_comparator *cmp) const override;
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -4890,7 +4890,7 @@ public:
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const
     override;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
-  bool set_comparator_func(Arg_comparator *cmp) const override;
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -5124,7 +5124,7 @@ public:
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const override;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const override;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
-  bool set_comparator_func(Arg_comparator *cmp) const override;
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -5378,7 +5378,7 @@ public:
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const
     override;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
-  bool set_comparator_func(Arg_comparator *cmp) const override;
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -6086,7 +6086,7 @@ public:
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val*) const override;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp)
                                        const override;
-  bool set_comparator_func(Arg_comparator *cmp) const override;
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs)
                             const override;
@@ -6180,7 +6180,7 @@ public:
                          const override;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp)
                                        const override;
-  bool set_comparator_func(Arg_comparator *cmp) const override;
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs)
                             const override;
@@ -6550,7 +6550,7 @@ public:
   longlong Item_func_min_max_val_int(Item_func_min_max *) const override;
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
                                             my_decimal *) const override;
-  bool set_comparator_func(Arg_comparator *cmp) const override;
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,

@@ -2964,7 +2964,8 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
     win_func->set_phase_to_computation();
     // TODO(cvicentiu) Setting the aggregator should probably be done during
     // setup of Window_funcs_sort.
-    win_func->window_func()->set_aggregator(Aggregator::SIMPLE_AGGREGATOR);
+    win_func->window_func()->set_aggregator(thd,
+                                            Aggregator::SIMPLE_AGGREGATOR);
   }
   it.rewind();
 

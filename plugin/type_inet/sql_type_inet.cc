@@ -601,9 +601,9 @@ public:
     DBUG_ASSERT(!tmp->m_null_value);
     return m_native.cmp(tmp->m_native);
   }
-  cmp_item *make_same() override
+  cmp_item *make_same(THD *thd) override
   {
-    return new cmp_item_inet6();
+    return new (thd->mem_root) cmp_item_inet6();
   }
 };
 

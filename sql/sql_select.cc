@@ -274,7 +274,8 @@ static void update_tmptable_sum_func(Item_sum **func,TABLE *tmp_table);
 static void copy_sum_funcs(Item_sum **func_ptr, Item_sum **end);
 static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab);
 static bool setup_sum_funcs(THD *thd, Item_sum **func_ptr);
-static bool prepare_sum_aggregators(Item_sum **func_ptr, bool need_distinct);
+static bool prepare_sum_aggregators(THD *thd, Item_sum **func_ptr,
+                                    bool need_distinct);
 static bool init_sum_functions(Item_sum **func, Item_sum **end);
 static bool update_sum_func(Item_sum **func);
 static void select_describe(JOIN *join, bool need_tmp_table,bool need_order,
@@ -3506,7 +3507,7 @@ bool JOIN::make_aggr_tables_info()
       {
         if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true, true))
           DBUG_RETURN(true);
-        if (prepare_sum_aggregators(sum_funcs,
+        if (prepare_sum_aggregators(thd, sum_funcs,
                                     !join_tab->is_using_agg_loose_index_scan()))
           DBUG_RETURN(true);
         group_list= NULL;
@@ -3616,7 +3617,7 @@ bool JOIN::make_aggr_tables_info()
     }
     if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true, true))
       DBUG_RETURN(true);
-    if (prepare_sum_aggregators(sum_funcs,
+    if (prepare_sum_aggregators(thd, sum_funcs,
                                 !join_tab ||
                                 !join_tab-> is_using_agg_loose_index_scan()))
       DBUG_RETURN(true);
@@ -3800,7 +3801,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
       goto err;
     if (make_sum_func_list(all_fields, fields_list, true))
       goto err;
-    if (prepare_sum_aggregators(sum_funcs,
+    if (prepare_sum_aggregators(thd, sum_funcs,
                                 !(tables_list && 
                                   join_tab->is_using_agg_loose_index_scan())))
       goto err;
@@ -3812,7 +3813,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   {
     if (make_sum_func_list(all_fields, fields_list, false))
       goto err;
-    if (prepare_sum_aggregators(sum_funcs,
+    if (prepare_sum_aggregators(thd, sum_funcs,
                                 !join_tab->is_using_agg_loose_index_scan()))
       goto err;
     if (setup_sum_funcs(thd, sum_funcs))
@@ -15006,7 +15007,7 @@ static bool check_row_equality(THD *thd, const Arg_comparator *comparators,
     {
       Item_func_eq *eq_item;
       if (!(eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item)) ||
-          eq_item->set_cmp_func())
+          eq_item->set_cmp_func(thd))
         return FALSE;
       eq_item->quick_fix_field();
       eq_list->push_back(eq_item, thd->mem_root);
@@ -15766,7 +15767,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
           Don't produce equality if const is equal to item_const.
         */
         Item_func_eq *func= new (thd->mem_root) Item_func_eq(thd, item_const, upper_const);
-        func->set_cmp_func();
+        func->set_cmp_func(thd);
         func->quick_fix_field();
         if (func->val_int())
           item= 0;
@@ -15814,7 +15815,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
                                                 field_item->remove_item_direct_ref(),
                                                 head_item->remove_item_direct_ref());
 
-      if (!eq_item || eq_item->set_cmp_func())
+      if (!eq_item || eq_item->set_cmp_func(thd))
         return 0;
       eq_item->quick_fix_field();
     }
@@ -16232,7 +16233,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
         So make sure to use set_cmp_func() only for non-LIKE operators.
       */
       if (functype != Item_func::LIKE_FUNC)
-        ((Item_bool_rowready_func2*) func)->set_cmp_func();
+        ((Item_bool_rowready_func2*) func)->set_cmp_func(thd);
     }
   }
   else if (can_change_cond_ref_to_const(func, left_item, right_item,
@@ -16257,7 +16258,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
 	  save_list->push_back(tmp2);
       }
       if (functype != Item_func::LIKE_FUNC)
-        ((Item_bool_rowready_func2*) func)->set_cmp_func();
+        ((Item_bool_rowready_func2*) func)->set_cmp_func(thd);
     }
   }
 }
@@ -25769,13 +25770,15 @@ static bool setup_sum_funcs(THD *thd, Item_sum **func_ptr)
 }
 
 
-static bool prepare_sum_aggregators(Item_sum **func_ptr, bool need_distinct)
+static bool prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
+                                    bool need_distinct)
 {
   Item_sum *func;
   DBUG_ENTER("prepare_sum_aggregators");
   while ((func= *(func_ptr++)))
   {
-    if (func->set_aggregator(need_distinct && func->has_with_distinct() ?
+    if (func->set_aggregator(thd,
+                             need_distinct && func->has_with_distinct() ?
                              Aggregator::DISTINCT_AGGREGATOR :
                              Aggregator::SIMPLE_AGGREGATOR))
       DBUG_RETURN(TRUE);

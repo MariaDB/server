@@ -512,7 +512,7 @@ public:
   */
   virtual void no_rows_in_result()
   {
-    set_aggregator(with_distinct ?
+    set_aggregator(current_thd, with_distinct ?
                    Aggregator::DISTINCT_AGGREGATOR :
                    Aggregator::SIMPLE_AGGREGATOR);
     aggregator_clear();
@@ -576,7 +576,7 @@ public:
     May be called multiple times.
   */
 
-  int set_aggregator(Aggregator::Aggregator_type aggregator);
+  int set_aggregator(THD *thd, Aggregator::Aggregator_type aggregator);
 
   virtual void clear()= 0;
   virtual bool add()= 0;
