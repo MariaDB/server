@@ -754,7 +754,7 @@ lock_rec_has_to_wait(
 		/* if BF thread is locking and has conflict with another BF
 		   thread, we need to look at trx ordering and lock types */
 		if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
-		    wsrep_thd_is_BF(lock2->trx->mysql_thd, TRUE)) {
+		    wsrep_thd_is_BF(lock2->trx->mysql_thd, FALSE)) {
 			mtr_t mtr;
 
 			if (UNIV_UNLIKELY(wsrep_debug)) {
@@ -1104,7 +1104,7 @@ wsrep_kill_victim(
 	if (!trx->is_wsrep()) return;
 
 	my_bool bf_this  = wsrep_thd_is_BF(trx->mysql_thd, FALSE);
-	my_bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE);
+	my_bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, FALSE);
 	mtr_t mtr;
 
 	if ((bf_this && !bf_other) ||
@@ -1483,7 +1483,7 @@ lock_rec_create_low(
 		lock_t *hash	= (lock_t *)c_lock->hash;
 		lock_t *prev	= NULL;
 
-		while (hash && wsrep_thd_is_BF(hash->trx->mysql_thd, TRUE)
+		while (hash && wsrep_thd_is_BF(hash->trx->mysql_thd, FALSE)
 		       && wsrep_trx_order_before(hash->trx->mysql_thd,
 						 trx->mysql_thd)) {
 			prev = hash;
@@ -1877,11 +1877,9 @@ lock_rec_add_to_queue(
 			= lock_rec_other_has_expl_req(
 				mode, block, false, heap_no, trx);
 #ifdef WITH_WSREP
-		//ut_a(!other_lock || (wsrep_thd_is_BF(trx->mysql_thd, FALSE) &&
-                //                     wsrep_thd_is_BF(other_lock->trx->mysql_thd, TRUE)));
 		if (other_lock && trx->is_wsrep() &&
 			!wsrep_thd_is_BF(trx->mysql_thd, FALSE) &&
-			!wsrep_thd_is_BF(other_lock->trx->mysql_thd, TRUE)) {
+			!wsrep_thd_is_BF(other_lock->trx->mysql_thd, FALSE)) {
 
 			ib::info() << "WSREP BF lock conflict for my lock:\n BF:" <<
 				((wsrep_thd_is_BF(trx->mysql_thd, FALSE)) ? "BF" : "normal") << " exec: " <<
@@ -2190,6 +2188,7 @@ lock_rec_has_to_wait_in_queue(
 	ulint		bit_offset;
 	hash_table_t*	hash;
 
+	ut_ad(wait_lock);
 	ut_ad(lock_mutex_own());
 	ut_ad(lock_get_wait(wait_lock));
 	ut_ad(lock_get_type_low(wait_lock) == LOCK_REC);
@@ -2204,9 +2203,10 @@ lock_rec_has_to_wait_in_queue(
 	hash = lock_hash_get(wait_lock->type_mode);
 
 	for (lock = lock_rec_get_first_on_page_addr(hash, space, page_no);
-	     lock != wait_lock;
+	     lock && lock != wait_lock;
 	     lock = lock_rec_get_next_on_page_const(lock)) {
 
+		ut_ad(lock);
 		const byte*	p = (const byte*) &lock[1];
 
 		if (heap_no < lock_rec_get_n_bits(lock)
@@ -2214,7 +2214,8 @@ lock_rec_has_to_wait_in_queue(
 		    && lock_has_to_wait(wait_lock, lock)) {
 #ifdef WITH_WSREP
 			if (wsrep_thd_is_BF(wait_lock->trx->mysql_thd, FALSE) &&
-			    wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE)) {
+			    wsrep_thd_is_BF(lock->trx->mysql_thd, FALSE)) {
+
 				if (UNIV_UNLIKELY(wsrep_debug)) {
 					mtr_t mtr;
 					ib::info() << "WSREP: waiting BF trx: " << ib::hex(wait_lock->trx->id)
@@ -7038,7 +7039,7 @@ DeadlockChecker::select_victim() const
 		/* The joining transaction is 'smaller',
 		choose it as the victim and roll it back. */
 #ifdef WITH_WSREP
-		if (wsrep_thd_is_BF(m_start->mysql_thd, TRUE)) {
+		if (wsrep_thd_is_BF(m_start->mysql_thd, FALSE)) {
 			return(m_wait_lock->trx);
 		}
 #endif /* WITH_WSREP */
@@ -7046,7 +7047,7 @@ DeadlockChecker::select_victim() const
 	}
 
 #ifdef WITH_WSREP
-	if (wsrep_thd_is_BF(m_wait_lock->trx->mysql_thd, TRUE)) {
+	if (wsrep_thd_is_BF(m_wait_lock->trx->mysql_thd, FALSE)) {
 		return(m_start);
 	}
 #endif /* WITH_WSREP */
