@@ -5260,7 +5260,6 @@ btr_validate_index(
 
 		if (!btr_validate_level(index, trx, n - i, lockout)) {
 			err = DB_CORRUPTION;
-			break;
 		}
 	}
 
