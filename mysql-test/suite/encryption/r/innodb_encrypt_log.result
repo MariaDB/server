@@ -5,12 +5,6 @@
 # MDEV-9422 Encrypted redo log checksum errors
 # on restart after killing busy server instance
 #
-SET GLOBAL innodb_log_checksums=0;
-Warnings:
-Warning	138	The parameter innodb_log_checksums is deprecated and has no effect.
-SELECT @@global.innodb_log_checksums;
-@@global.innodb_log_checksums
-1
 CREATE TABLE t0 (
 pk bigint auto_increment,
 col_int int,

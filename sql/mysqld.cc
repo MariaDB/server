@@ -5026,6 +5026,29 @@ static int init_server_components()
       /* The following options were added after 5.6.10 */
       MYSQL_TO_BE_IMPLEMENTED_OPTION("rpl-stop-slave-timeout"),
       MYSQL_TO_BE_IMPLEMENTED_OPTION("validate-user-plugins"), // NO_EMBEDDED_ACCESS_CHECKS
+
+      /* The following options were deprecated in 10.5 or earlier */
+      MARIADB_REMOVED_OPTION("innodb-adaptive-max-sleep-delay"),
+      MARIADB_REMOVED_OPTION("innodb-background-scrub-data-check-interval"),
+      MARIADB_REMOVED_OPTION("innodb-background-scrub-data-compressed"),
+      MARIADB_REMOVED_OPTION("innodb-background-scrub-data-interval"),
+      MARIADB_REMOVED_OPTION("innodb-background-scrub-data-uncompressed"),
+      MARIADB_REMOVED_OPTION("innodb-buffer-pool-instances"),
+      MARIADB_REMOVED_OPTION("innodb-commit-concurrency"),
+      MARIADB_REMOVED_OPTION("innodb-concurrency-tickets"),
+      MARIADB_REMOVED_OPTION("innodb-file-format"),
+      MARIADB_REMOVED_OPTION("innodb-large-prefix"),
+      MARIADB_REMOVED_OPTION("innodb-log-checksums"),
+      MARIADB_REMOVED_OPTION("innodb-log-compressed-pages"),
+      MARIADB_REMOVED_OPTION("innodb-log-files-in-group"),
+      MARIADB_REMOVED_OPTION("innodb-log-optimize-ddl"),
+      MARIADB_REMOVED_OPTION("innodb-page-cleaners"),
+      MARIADB_REMOVED_OPTION("innodb-replication-delay"),
+      MARIADB_REMOVED_OPTION("innodb-scrub-log"),
+      MARIADB_REMOVED_OPTION("innodb-scrub-log-speed"),
+      MARIADB_REMOVED_OPTION("innodb-thread-concurrency"),
+      MARIADB_REMOVED_OPTION("innodb-thread-sleep-delay"),
+      MARIADB_REMOVED_OPTION("innodb-undo-logs"),
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
     /*

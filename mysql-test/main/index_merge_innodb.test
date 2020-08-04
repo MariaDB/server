@@ -206,8 +206,6 @@ set optimizer_switch=@tmp_optimizer_switch;
 --echo #
 
 SET @save_sort_buffer_size=@@sort_buffer_size;
-SET @save_innodb_file_format= @@innodb_file_format;
-SET @save_innodb_large_prefix= @@innodb_large_prefix;
 SET sort_buffer_size=2048;
 
 CREATE TABLE t1 (

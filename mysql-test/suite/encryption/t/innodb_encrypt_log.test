@@ -13,9 +13,6 @@
 
 --let $MYSQLD_DATADIR=`select @@datadir`
 
-SET GLOBAL innodb_log_checksums=0;
-SELECT @@global.innodb_log_checksums;
-
 CREATE TABLE t0 (
   pk bigint auto_increment,
   col_int int,

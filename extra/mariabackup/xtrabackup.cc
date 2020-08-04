@@ -753,7 +753,6 @@ enum options_xtrabackup
   OPT_INNODB_CHECKSUM_ALGORITHM,
   OPT_INNODB_UNDO_DIRECTORY,
   OPT_INNODB_UNDO_TABLESPACES,
-  OPT_INNODB_LOG_CHECKSUMS,
   OPT_XTRA_INCREMENTAL_FORCE_SCAN,
   OPT_DEFAULTS_GROUP,
   OPT_CLOSE_FILES,
@@ -1195,10 +1194,6 @@ uint xb_client_options_count = array_elements(xb_client_options);
 static const char *dbug_option;
 #endif
 
-namespace deprecated {
-extern ulong srv_n_log_files;
-}
-
 struct my_option xb_server_options[] =
 {
   {"datadir", 'h', "Path to the database root.", (G_PTR*) &mysql_data_home,
@@ -1305,10 +1300,6 @@ struct my_option xb_server_options[] =
    GET_ULL, REQUIRED_ARG, 48 << 20, 1 << 20,
    std::numeric_limits<ulonglong>::max(), 0,
    UNIV_PAGE_SIZE_MAX, 0},
-  {"innodb_log_files_in_group", OPT_INNODB_LOG_FILES_IN_GROUP,
-   "Ignored for mysqld option compatibility",
-   &deprecated::srv_n_log_files, &deprecated::srv_n_log_files,
-   0, GET_LONG, REQUIRED_ARG, 1, 1, 100, 0, 1, 0},
   {"innodb_log_group_home_dir", OPT_INNODB_LOG_GROUP_HOME_DIR,
    "Path to InnoDB log files.", &srv_log_group_home_dir,
    &srv_log_group_home_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},

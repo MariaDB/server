@@ -3193,136 +3193,6 @@ static void innodb_buffer_pool_size_init()
 	innobase_buffer_pool_size = srv_buf_pool_size;
 }
 
-namespace deprecated {
-/** Deprecated; no effect other than issuing a deprecation warning. */
-char* innodb_file_format;
-/** Deprecated; no effect other than issuing a deprecation warning. */
-char* innodb_large_prefix;
-
-/** Deprecated parameter with no effect */
-static my_bool innodb_log_checksums;
-/** Deprecation message for innodb_log_checksums */
-static const char* innodb_log_checksums_msg
-= "The parameter innodb_log_checksums is deprecated and has no effect.";
-/** Deprecated parameter with no effect */
-static my_bool innodb_log_compressed_pages;
-/** Deprecation message for innodb_log_compressed_pages */
-static const char* innodb_log_compressed_pages_msg
-= "The parameter innodb_log_compressed_pages is deprecated and has no effect.";
-/** Deprecated parameter with no effect */
-static my_bool	innodb_log_optimize_ddl;
-static const char* innodb_log_optimize_ddl_msg
-= "The parameter innodb_log_optimize_ddl is deprecated and has no effect.";
-/** Deprecated parameter with no effect */
-static my_bool innodb_scrub_log;
-/** Deprecation message for innodb_scrub_log */
-static const char* innodb_scrub_log_msg
-= "The parameter innodb_scrub_log is deprecated and has no effect.";
-/** Deprecated parameter with no effect */
-static ulonglong innodb_scrub_log_speed;
-/** Deprecation message for innodb_scrub_log_speed */
-static const char* innodb_scrub_log_speed_msg
-= "The parameter innodb_scrub_log_speed is deprecated and has no effect.";
-/** Deprecated parameter with no effect */
-static ulong innodb_undo_logs;
-/** Deprecation message for innodb_undo_logs */
-static const char* innodb_undo_logs_msg
-= "The parameter innodb_undo_logs is deprecated and has no effect.";
-/** Deprecated parameter with no effect */
-static ulong innodb_buffer_pool_instances;
-/** Deprecated parameter with no effect */
-static ulong innodb_page_cleaners;
-static const char* innodb_page_cleaners_msg
-= "The parameter innodb_page_cleaners is deprecated and has no effect.";
-
-ulong srv_n_log_files;
-static const char* srv_n_log_files_msg
-= "The parameter innodb_log_files_in_group is deprecated and has no effect.";
-
-static my_bool innodb_background_scrub_data_uncompressed;
-
-static const char* innodb_background_scrub_data_uncompressed_msg
-= "The parameter innodb_background_scrub_data_uncompressed is deprecated and"
-  " has no effect.";
-
-static my_bool innodb_background_scrub_data_compressed;
-
-static const char* innodb_background_scrub_data_compressed_msg
-= "The parameter innodb_background_scrub_data_compressed is deprecated and"
-  " has no effect.";
-
-static uint innodb_background_scrub_data_check_interval;
-
-static const char* innodb_background_scrub_data_check_interval_msg
-= "The parameter innodb_background_scrub_data_check_interval is deprecated and"
-  " has no effect.";
-
-static uint innodb_background_scrub_data_interval;
-
-static const char* innodb_background_scrub_data_interval_msg
-= "The parameter innodb_background_scrub_data_interval is deprecated and"
-  " has no effect.";
-
-uint replication_delay;
-uint thread_concurrency;
-uint commit_concurrency;
-uint concurrency_tickets;
-uint adaptive_max_sleep_delay;
-uint thread_sleep_delay;
-
-static const char * const replication_delay_msg
-= "The parameter innodb_replication_delay is deprecated and has no effect.";
-static const char * const thread_concurrency_msg
-= "The parameter innodb_thread_concurrency is deprecated and has no effect.";
-static const char * const commit_concurrency_msg
-= "The parameter innodb_commit_concurrency is deprecated and has no effect.";
-static const char * const concurrency_tickets_msg
-= "The parameter innodb_concurrency_tickets is deprecated and has no effect.";
-static const char * const adaptive_max_sleep_delay_msg
-= "The parameter innodb_adaptive_max_sleep_delay is deprecated and"
-  " has no effect.";
-static const char * const thread_sleep_delay_msg
-= "The parameter innodb_thread_sleep_delay is deprecated and has no effect.";
-
-static void replication_delay_warn(THD* thd, st_mysql_sys_var*, void*,
-                                   const void*)
-{
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
-                      replication_delay_msg);
-}
-static void thread_concurrency_warn(THD* thd, st_mysql_sys_var*, void*,
-                                    const void*)
-{
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
-                      thread_concurrency_msg);
-}
-static void commit_concurrency_warn(THD* thd, st_mysql_sys_var*, void*,
-                                    const void*)
-{
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
-                      commit_concurrency_msg);
-}
-static void concurrency_tickets_warn(THD* thd, st_mysql_sys_var*, void*,
-                                     const void*)
-{
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
-                      concurrency_tickets_msg);
-}
-static void adaptive_max_sleep_delay_warn(THD* thd, st_mysql_sys_var*, void*,
-                                          const void*)
-{
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
-                      adaptive_max_sleep_delay_msg);
-}
-static void thread_sleep_delay_warn(THD* thd, st_mysql_sys_var*, void*,
-                                    const void*)
-{
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
-                      thread_sleep_delay_msg);
-}
-
-} // namespace deprecated
-
 /** Initialize, validate and normalize the InnoDB startup parameters.
 @return failure code
 @retval 0 on success
@@ -3335,90 +3205,6 @@ static int innodb_init_params()
 	static char	current_dir[3];
 	char		*default_path;
 	ulong		num_pll_degree;
-
-	if (deprecated::innodb_large_prefix || deprecated::innodb_file_format) {
-		const char* p = deprecated::innodb_file_format
-			? "file_format"
-			: "large_prefix";
-		sql_print_warning("The parameter innodb_%s is deprecated"
-				  " and has no effect."
-				  " It may be removed in future releases."
-				  " See https://mariadb.com/kb/en/library/"
-				  "xtradbinnodb-file-format/", p);
-	}
-
-	if (UNIV_UNLIKELY(!deprecated::innodb_log_checksums)) {
-		sql_print_warning(deprecated::innodb_log_checksums_msg);
-		deprecated::innodb_log_checksums = TRUE;
-	}
-
-	if (UNIV_UNLIKELY(!deprecated::innodb_log_compressed_pages)) {
-		sql_print_warning(deprecated::innodb_log_compressed_pages_msg);
-		deprecated::innodb_log_compressed_pages = TRUE;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_log_optimize_ddl)) {
-		sql_print_warning(deprecated::innodb_log_optimize_ddl_msg);
-		deprecated::innodb_log_optimize_ddl = FALSE;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_scrub_log)) {
-		sql_print_warning(deprecated::innodb_scrub_log_msg);
-		deprecated::innodb_scrub_log = FALSE;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_scrub_log_speed != 256)) {
-		sql_print_warning(deprecated::innodb_scrub_log_speed_msg);
-		deprecated::innodb_scrub_log_speed = 256;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_buffer_pool_instances)) {
-		sql_print_warning("The parameter innodb_buffer_pool_instances"
-				  " is deprecated and has no effect.");
-	}
-
-	if (UNIV_UNLIKELY(deprecated::innodb_page_cleaners)) {
-		sql_print_warning(deprecated::innodb_page_cleaners_msg);
-	}
-
-	if (UNIV_UNLIKELY(deprecated::srv_n_log_files != 1)) {
-		sql_print_warning(deprecated::srv_n_log_files_msg);
-		deprecated::srv_n_log_files = 1;
-	}
-
-	deprecated::innodb_buffer_pool_instances = 1;
-
-	deprecated::innodb_page_cleaners = 1;
-
-	if (UNIV_UNLIKELY(deprecated::innodb_undo_logs != TRX_SYS_N_RSEGS)) {
-		sql_print_warning(deprecated::innodb_undo_logs_msg);
-		deprecated::innodb_undo_logs = TRX_SYS_N_RSEGS;
-	}
-
-	if (UNIV_UNLIKELY(deprecated::replication_delay)) {
-		sql_print_warning(deprecated::replication_delay_msg);
-		deprecated::replication_delay = 0;
-	}
-	if (UNIV_UNLIKELY(deprecated::thread_concurrency)) {
-		sql_print_warning(deprecated::thread_concurrency_msg);
-		deprecated::thread_concurrency = 0;
-	}
-	if (UNIV_UNLIKELY(deprecated::commit_concurrency)) {
-		sql_print_warning(deprecated::commit_concurrency_msg);
-		deprecated::commit_concurrency = 0;
-	}
-	if (UNIV_UNLIKELY(deprecated::concurrency_tickets)) {
-		sql_print_warning(deprecated::concurrency_tickets_msg);
-		deprecated::concurrency_tickets = 0;
-	}
-	if (UNIV_UNLIKELY(deprecated::adaptive_max_sleep_delay)) {
-		sql_print_warning(deprecated::adaptive_max_sleep_delay_msg);
-		deprecated::adaptive_max_sleep_delay = 0;
-	}
-	if (UNIV_UNLIKELY(deprecated::thread_sleep_delay)) {
-		sql_print_warning(deprecated::thread_sleep_delay_msg);
-		deprecated::thread_sleep_delay = 0;
-	}
 
 	/* Check that values don't overflow on 32-bit systems. */
 	if (sizeof(ulint) == 4) {
@@ -18620,107 +18406,6 @@ innodb_encrypt_tables_update(THD*, st_mysql_sys_var*, void*, const void* save)
 	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
-/** Issue a deprecation warning for SET GLOBAL innodb_log_checksums.
-@param[in,out]	thd	client connection */
-static void
-innodb_log_checksums_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
-{
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			    HA_ERR_UNSUPPORTED,
-			    deprecated::innodb_log_checksums_msg);
-}
-
-/** Issue a deprecation warning for SET GLOBAL innodb_log_compressed_pages.
-@param[in,out]	thd	client connection */
-static void
-innodb_log_compressed_pages_warn(THD* thd, st_mysql_sys_var*, void*,
-				 const void*)
-{
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			    HA_ERR_UNSUPPORTED,
-			    deprecated::innodb_log_compressed_pages_msg);
-}
-
-/** Issue a deprecation warning for SET GLOBAL innodb_log_optimize_ddl.
-@param[in,out]	thd	client connection */
-static void
-innodb_log_optimize_ddl_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
-{
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			    HA_ERR_UNSUPPORTED,
-			    deprecated::innodb_log_optimize_ddl_msg);
-}
-
-/** Issue a deprecation warning for SET GLOBAL innodb_page_cleaners.
-@param[in,out]	thd	client connection */
-static void
-innodb_page_cleaners_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
-{
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			    HA_ERR_UNSUPPORTED,
-			    deprecated::innodb_page_cleaners_msg);
-}
-
-/** Issue a deprecation warning for SET GLOBAL innodb_undo_logs.
-@param[in,out]	thd	client connection */
-static void
-innodb_undo_logs_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
-{
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			    HA_ERR_UNSUPPORTED,
-			    deprecated::innodb_undo_logs_msg);
-}
-
-/** Issue a deprecation warning for SET GLOBAL innodb_scrub_log_speed.
-@param[in,out]	thd	client connection */
-static void
-innodb_scrub_log_speed_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
-{
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			    HA_ERR_UNSUPPORTED,
-			    deprecated::innodb_scrub_log_speed_msg);
-}
-
-static void
-innodb_background_scrub_data_uncompressed_warn(THD* thd, st_mysql_sys_var*,
-					       void*, const void*)
-{
-	push_warning_printf(
-		thd, Sql_condition::WARN_LEVEL_WARN,
-		HA_ERR_UNSUPPORTED,
-		deprecated::innodb_background_scrub_data_uncompressed_msg);
-}
-
-static void
-innodb_background_scrub_data_compressed_warn(THD* thd, st_mysql_sys_var*,
-					     void*, const void*)
-{
-	push_warning_printf(
-		thd, Sql_condition::WARN_LEVEL_WARN,
-		HA_ERR_UNSUPPORTED,
-		deprecated::innodb_background_scrub_data_compressed_msg);
-}
-
-static void
-innodb_background_scrub_data_check_interval_warn(
-	THD* thd, st_mysql_sys_var*, void*, const void*)
-{
-	push_warning_printf(
-		thd, Sql_condition::WARN_LEVEL_WARN,
-		HA_ERR_UNSUPPORTED,
-		deprecated::innodb_background_scrub_data_check_interval_msg);
-}
-
-static void
-innodb_background_scrub_data_interval_warn(
-	THD* thd, st_mysql_sys_var*, void*, const void*)
-{
-	push_warning_printf(
-		thd, Sql_condition::WARN_LEVEL_WARN,
-		HA_ERR_UNSUPPORTED,
-		deprecated::innodb_background_scrub_data_interval_msg);
-}
-
 static SHOW_VAR innodb_status_variables_export[]= {
 	{"Innodb", (char*) &show_innodb_vars, SHOW_FUNC},
 	{NullS, NullS, SHOW_LONG}
@@ -18949,7 +18634,7 @@ static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
     " to match when reading;"
   " NONE"
     " write a constant magic number, do not do any checksum verification"
-    " when reading (same as innodb_checksums=OFF);"
+    " when reading;"
   " STRICT_NONE"
     " write a constant magic number, do not allow values other than that"
     " magic number when reading;"
@@ -18958,14 +18643,6 @@ static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
   " new files created with full_crc32 are readable by MariaDB 10.4.3+",
   NULL, NULL, SRV_CHECKSUM_ALGORITHM_FULL_CRC32,
   &innodb_checksum_algorithm_typelib);
-
-/** Description of deprecated and ignored parameters */
-static const char* innodb_deprecated_ignored
-= "Deprecated parameter with no effect.";
-
-static MYSQL_SYSVAR_BOOL(log_checksums, deprecated::innodb_log_checksums,
-  PLUGIN_VAR_RQCMDARG,
-  innodb_deprecated_ignored, NULL, innodb_log_checksums_warn, TRUE);
 
 static MYSQL_SYSVAR_STR(data_home_dir, innobase_data_home_dir,
   PLUGIN_VAR_READONLY,
@@ -19109,13 +18786,6 @@ static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
   NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_FSYNC),
   &innodb_flush_method_typelib);
 
-static MYSQL_SYSVAR_STR(file_format, deprecated::innodb_file_format,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  innodb_deprecated_ignored, NULL, NULL, NULL);
-static MYSQL_SYSVAR_STR(large_prefix, deprecated::innodb_large_prefix,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  innodb_deprecated_ignored, NULL, NULL, NULL);
-
 static MYSQL_SYSVAR_BOOL(force_load_corrupted, srv_load_corrupted,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Force InnoDB to load metadata of corrupted table.",
@@ -19124,10 +18794,6 @@ static MYSQL_SYSVAR_BOOL(force_load_corrupted, srv_load_corrupted,
 static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Path to InnoDB log files.", NULL, NULL, NULL);
-
-static MYSQL_SYSVAR_ULONG(page_cleaners, deprecated::innodb_page_cleaners,
-  PLUGIN_VAR_RQCMDARG,
-  innodb_deprecated_ignored, NULL, innodb_page_cleaners_warn, 0, 0, 64, 0);
 
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -19244,25 +18910,11 @@ static MYSQL_SYSVAR_ULONG(adaptive_hash_index_parts, btr_ahi_parts,
   NULL, NULL, 8, 1, 512, 0);
 #endif /* BTR_CUR_HASH_ADAPT */
 
-static MYSQL_SYSVAR_UINT(replication_delay, deprecated::replication_delay,
-  PLUGIN_VAR_RQCMDARG,
-  innodb_deprecated_ignored, nullptr, deprecated::replication_delay_warn,
-   0, 0, ~0U, 0);
-
 static MYSQL_SYSVAR_UINT(compression_level, page_zip_level,
   PLUGIN_VAR_RQCMDARG,
   "Compression level used for zlib compression.  0 is no compression"
   ", 1 is fastest, 9 is best compression and default is 6.",
   NULL, NULL, DEFAULT_COMPRESSION_LEVEL, 0, 9, 0);
-
-static MYSQL_SYSVAR_BOOL(log_compressed_pages,
-  deprecated::innodb_log_compressed_pages,
-  PLUGIN_VAR_OPCMDARG,
-  innodb_deprecated_ignored, NULL, innodb_log_compressed_pages_warn, TRUE);
-
-static MYSQL_SYSVAR_BOOL(log_optimize_ddl, deprecated::innodb_log_optimize_ddl,
-  PLUGIN_VAR_OPCMDARG,
-  innodb_deprecated_ignored, NULL, innodb_log_optimize_ddl_warn, FALSE);
 
 static MYSQL_SYSVAR_ULONG(autoextend_increment,
   sys_tablespace_auto_extend_increment,
@@ -19321,11 +18973,6 @@ static MYSQL_SYSVAR_ENUM(lock_schedule_algorithm, innodb_lock_schedule_algorithm
   " uses an Eldest-Transaction-First heuristic.",
   NULL, NULL, INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS,
   &innodb_lock_schedule_algorithm_typelib);
-
-static MYSQL_SYSVAR_ULONG(buffer_pool_instances,
-  deprecated::innodb_buffer_pool_instances,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  innodb_deprecated_ignored, NULL, NULL, 0, 0, 64, 0);
 
 static MYSQL_SYSVAR_STR(buffer_pool_filename, srv_buf_dump_filename,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
@@ -19443,16 +19090,6 @@ static MYSQL_SYSVAR_ULONG(flush_neighbors, srv_flush_neighbors,
   " when flushing a block",
   NULL, NULL, 1, 0, 2, 0);
 
-static MYSQL_SYSVAR_UINT(commit_concurrency, deprecated::commit_concurrency,
-  PLUGIN_VAR_RQCMDARG,
-  innodb_deprecated_ignored, nullptr, deprecated::commit_concurrency_warn,
-  0, 0, 1000, 0);
-
-static MYSQL_SYSVAR_UINT(concurrency_tickets, deprecated::concurrency_tickets,
-  PLUGIN_VAR_RQCMDARG,
-  innodb_deprecated_ignored, nullptr, deprecated::concurrency_tickets_warn,
-  0, 0, ~0U, 0);
-
 static MYSQL_SYSVAR_BOOL(deadlock_detect, innobase_deadlock_detect,
   PLUGIN_VAR_NOCMDARG,
   "Enable/disable InnoDB deadlock detector (default ON)."
@@ -19562,10 +19199,6 @@ static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   NULL, NULL, 96 << 20, 1 << 20, std::numeric_limits<ulonglong>::max(),
   UNIV_PAGE_SIZE_MAX);
 
-static MYSQL_SYSVAR_ULONG(log_files_in_group, deprecated::srv_n_log_files,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  innodb_deprecated_ignored, NULL, NULL, 1, 1, 100, 0);
-
 static MYSQL_SYSVAR_ULONG(log_write_ahead_size, srv_log_write_ahead_size,
   PLUGIN_VAR_RQCMDARG,
   "Redo log write ahead unit size to avoid read-on-write,"
@@ -19600,27 +19233,11 @@ static MYSQL_SYSVAR_UINT(spin_wait_delay, srv_spin_wait_delay,
   "Maximum delay between polling for a spin lock (4 by default)",
   NULL, NULL, 4, 0, 6000, 0);
 
-static MYSQL_SYSVAR_UINT(thread_concurrency, deprecated::thread_concurrency,
-  PLUGIN_VAR_RQCMDARG,
-  innodb_deprecated_ignored, nullptr, deprecated::thread_concurrency_warn,
-  0, 0, 1000, 0);
-
-static MYSQL_SYSVAR_UINT(
-  adaptive_max_sleep_delay, deprecated::adaptive_max_sleep_delay,
-  PLUGIN_VAR_RQCMDARG,
-  innodb_deprecated_ignored,
-  nullptr, deprecated::adaptive_max_sleep_delay_warn, 0, 0, 1000000, 0);
-
 static MYSQL_SYSVAR_BOOL(prefix_index_cluster_optimization,
   srv_prefix_index_cluster_optimization,
   PLUGIN_VAR_OPCMDARG,
   "Enable prefix optimization to sometimes avoid cluster index lookups.",
   NULL, NULL, FALSE);
-
-static MYSQL_SYSVAR_UINT(thread_sleep_delay, deprecated::thread_sleep_delay,
-  PLUGIN_VAR_RQCMDARG,
-  innodb_deprecated_ignored, nullptr, deprecated::thread_sleep_delay_warn,
-  0, 0, 1000000, 0);
 
 static MYSQL_SYSVAR_STR(data_file_path, innobase_data_file_path,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -19644,11 +19261,6 @@ static MYSQL_SYSVAR_ULONG(undo_tablespaces, srv_undo_tablespaces,
   0L,			/* Default seting */
   0L,			/* Minimum value */
   TRX_SYS_MAX_UNDO_SPACES, 0); /* Maximum value */
-
-static MYSQL_SYSVAR_ULONG(undo_logs, deprecated::innodb_undo_logs,
-  PLUGIN_VAR_OPCMDARG,
-  innodb_deprecated_ignored, NULL, innodb_undo_logs_warn,
-  TRX_SYS_N_RSEGS, 0, TRX_SYS_N_RSEGS, 0);
 
 static MYSQL_SYSVAR_ULONGLONG(max_undo_log_size, srv_max_undo_log_size,
   PLUGIN_VAR_OPCMDARG,
@@ -19992,16 +19604,6 @@ static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
 			 innodb_encryption_rotation_iops_update,
 			 srv_n_fil_crypt_iops, 0, UINT_MAX32, 0);
 
-static MYSQL_SYSVAR_BOOL(scrub_log, deprecated::innodb_scrub_log,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  innodb_deprecated_ignored,
-  0, 0, 0);
-
-static MYSQL_SYSVAR_ULONGLONG(scrub_log_speed, deprecated::innodb_scrub_log_speed,
-  PLUGIN_VAR_OPCMDARG,
-  innodb_deprecated_ignored, NULL, innodb_scrub_log_speed_warn,
-  256, 1, 50000, 0);
-
 static MYSQL_SYSVAR_BOOL(encrypt_log, srv_encrypt_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Enable redo log encryption",
@@ -20013,26 +19615,6 @@ static MYSQL_SYSVAR_BOOL(immediate_scrub_data_uncompressed,
 			 "Enable scrubbing of data",
 			 NULL, NULL, FALSE);
 
-static MYSQL_SYSVAR_BOOL(background_scrub_data_uncompressed,
-  deprecated::innodb_background_scrub_data_uncompressed,
-  PLUGIN_VAR_OPCMDARG, innodb_deprecated_ignored, NULL,
-  innodb_background_scrub_data_uncompressed_warn, FALSE);
-
-static MYSQL_SYSVAR_BOOL(background_scrub_data_compressed,
-  deprecated::innodb_background_scrub_data_compressed,
-  PLUGIN_VAR_OPCMDARG, innodb_deprecated_ignored, NULL,
-  innodb_background_scrub_data_compressed_warn, FALSE);
-
-static MYSQL_SYSVAR_UINT(background_scrub_data_check_interval,
-  deprecated::innodb_background_scrub_data_check_interval,
-  0, innodb_deprecated_ignored, NULL,
-  innodb_background_scrub_data_check_interval_warn, 0, 0, 0, 0);
-
-static MYSQL_SYSVAR_UINT(background_scrub_data_interval,
-  deprecated::innodb_background_scrub_data_interval,
-  0, innodb_deprecated_ignored, NULL,
-  innodb_background_scrub_data_interval_warn, 0, 0, 0, 0);
-
 static MYSQL_SYSVAR_BOOL(encrypt_temporary_tables, innodb_encrypt_temporary_tables,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Enrypt the temporary table data.",
@@ -20042,7 +19624,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
   MYSQL_SYSVAR(buffer_pool_chunk_size),
-  MYSQL_SYSVAR(buffer_pool_instances),
   MYSQL_SYSVAR(buffer_pool_filename),
   MYSQL_SYSVAR(buffer_pool_dump_now),
   MYSQL_SYSVAR(buffer_pool_dump_at_shutdown),
@@ -20065,9 +19646,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(lru_scan_depth),
   MYSQL_SYSVAR(flush_neighbors),
   MYSQL_SYSVAR(checksum_algorithm),
-  MYSQL_SYSVAR(log_checksums),
-  MYSQL_SYSVAR(commit_concurrency),
-  MYSQL_SYSVAR(concurrency_tickets),
   MYSQL_SYSVAR(compression_level),
   MYSQL_SYSVAR(data_file_path),
   MYSQL_SYSVAR(temp_data_file_path),
@@ -20079,7 +19657,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(read_io_threads),
   MYSQL_SYSVAR(write_io_threads),
   MYSQL_SYSVAR(file_per_table),
-  MYSQL_SYSVAR(file_format), /* deprecated in MariaDB 10.2; no effect */
   MYSQL_SYSVAR(flush_log_at_timeout),
   MYSQL_SYSVAR(flush_log_at_trx_commit),
   MYSQL_SYSVAR(flush_method),
@@ -20093,7 +19670,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_min_token_size),
   MYSQL_SYSVAR(ft_num_word_optimize),
   MYSQL_SYSVAR(ft_sort_pll_degree),
-  MYSQL_SYSVAR(large_prefix), /* deprecated in MariaDB 10.2; no effect */
   MYSQL_SYSVAR(force_load_corrupted),
   MYSQL_SYSVAR(lock_schedule_algorithm),
   MYSQL_SYSVAR(lock_wait_timeout),
@@ -20101,11 +19677,8 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(page_size),
   MYSQL_SYSVAR(log_buffer_size),
   MYSQL_SYSVAR(log_file_size),
-  MYSQL_SYSVAR(log_files_in_group),
   MYSQL_SYSVAR(log_write_ahead_size),
   MYSQL_SYSVAR(log_group_home_dir),
-  MYSQL_SYSVAR(log_compressed_pages),
-  MYSQL_SYSVAR(log_optimize_ddl),
   MYSQL_SYSVAR(max_dirty_pages_pct),
   MYSQL_SYSVAR(max_dirty_pages_pct_lwm),
   MYSQL_SYSVAR(adaptive_flushing_lwm),
@@ -20136,7 +19709,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(adaptive_hash_index_parts),
 #endif /* BTR_CUR_HASH_ADAPT */
   MYSQL_SYSVAR(stats_method),
-  MYSQL_SYSVAR(replication_delay),
   MYSQL_SYSVAR(status_file),
   MYSQL_SYSVAR(strict_mode),
   MYSQL_SYSVAR(sort_buffer_size),
@@ -20144,10 +19716,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(sync_spin_loops),
   MYSQL_SYSVAR(spin_wait_delay),
   MYSQL_SYSVAR(table_locks),
-  MYSQL_SYSVAR(thread_concurrency),
-  MYSQL_SYSVAR(adaptive_max_sleep_delay),
   MYSQL_SYSVAR(prefix_index_cluster_optimization),
-  MYSQL_SYSVAR(thread_sleep_delay),
   MYSQL_SYSVAR(tmpdir),
   MYSQL_SYSVAR(autoinc_lock_mode),
   MYSQL_SYSVAR(version),
@@ -20170,7 +19739,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(instant_alter_column_allowed),
   MYSQL_SYSVAR(io_capacity),
   MYSQL_SYSVAR(io_capacity_max),
-  MYSQL_SYSVAR(page_cleaners),
   MYSQL_SYSVAR(idle_flush_pct),
   MYSQL_SYSVAR(monitor_enable),
   MYSQL_SYSVAR(monitor_disable),
@@ -20191,7 +19759,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(status_output_locks),
   MYSQL_SYSVAR(print_all_deadlocks),
   MYSQL_SYSVAR(cmp_per_index_enabled),
-  MYSQL_SYSVAR(undo_logs),
   MYSQL_SYSVAR(max_undo_log_size),
   MYSQL_SYSVAR(purge_rseg_truncate_frequency),
   MYSQL_SYSVAR(undo_log_truncate),
@@ -20226,16 +19793,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(encryption_threads),
   MYSQL_SYSVAR(encryption_rotate_key_age),
   MYSQL_SYSVAR(encryption_rotation_iops),
-  MYSQL_SYSVAR(scrub_log),
-  MYSQL_SYSVAR(scrub_log_speed),
   MYSQL_SYSVAR(encrypt_log),
   MYSQL_SYSVAR(default_encryption_key_id),
-  /* Scrubing feature */
   MYSQL_SYSVAR(immediate_scrub_data_uncompressed),
-  MYSQL_SYSVAR(background_scrub_data_uncompressed),
-  MYSQL_SYSVAR(background_scrub_data_compressed),
-  MYSQL_SYSVAR(background_scrub_data_interval),
-  MYSQL_SYSVAR(background_scrub_data_check_interval),
   MYSQL_SYSVAR(buf_dump_status_frequency),
   MYSQL_SYSVAR(background_thread),
   MYSQL_SYSVAR(encrypt_temporary_tables),
@@ -20299,11 +19859,6 @@ static
 void
 innodb_params_adjust()
 {
-	/* The default value and the max value of
-	innodb_undo_logs must be equal to the available undo logs. */
-	MYSQL_SYSVAR_NAME(undo_logs).max_val
-		= MYSQL_SYSVAR_NAME(undo_logs).def_val
-		= srv_available_undo_logs;
 	MYSQL_SYSVAR_NAME(max_undo_log_size).max_val
 		= 1ULL << (32U + srv_page_size_shift);
 	MYSQL_SYSVAR_NAME(max_undo_log_size).min_val

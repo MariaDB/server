@@ -36,13 +36,13 @@ let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 
---let $restart_parameters= --innodb-thread-concurrency=1 --innodb-log-file-size=2m
+--let $restart_parameters= --innodb-log-file-size=2m
 --source include/start_mysqld.inc
 
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 CHECK TABLE t1;
 
---let $restart_parameters= --innodb-thread-concurrency=100 --innodb-log-file-size=20M
+--let $restart_parameters= --innodb-log-file-size=20M
 --source include/restart_mysqld.inc
 
 BEGIN;

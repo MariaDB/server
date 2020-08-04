@@ -1301,8 +1301,6 @@ ALTER TABLE worklog5743 ADD PRIMARY KEY `pk_idx` (col_1_varchar(3000));
 DROP TABLE worklog5743;
 
 # -----------------------------------------------------------------------------
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
-set global innodb_large_prefix=0;
 CREATE TABLE worklog5743 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
 PRIMARY KEY (col_1_varchar(3072))

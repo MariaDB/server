@@ -1392,8 +1392,6 @@ VALUES(concat(REPEAT("a", 2000),REPEAT("b", 2000)), REPEAT("o", 4000));
 ALTER TABLE worklog5743 ADD PRIMARY KEY `pk_idx` (col_1_varchar(3000));
 ERROR 23000: Duplicate entry 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...' for key 'PRIMARY'
 DROP TABLE worklog5743;
-set global innodb_large_prefix=0;
-ERROR HY000: Variable 'innodb_large_prefix' is a read only variable
 CREATE TABLE worklog5743 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
 PRIMARY KEY (col_1_varchar(3072))

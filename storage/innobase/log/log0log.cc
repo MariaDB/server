@@ -451,9 +451,7 @@ log_set_capacity(ulonglong file_size)
 	free = LOG_CHECKPOINT_FREE_PER_THREAD * 10
 		+ LOG_CHECKPOINT_EXTRA_FREE;
 	if (free >= smallest_capacity / 2) {
-		ib::error() << "Cannot continue operation because log file is "
-			       "too small. Increase innodb_log_file_size "
-			       "or decrease innodb_thread_concurrency. "
+		ib::error() << "innodb_log_file_size is too small. "
 			    << INNODB_PARAMETERS_MSG;
 		return false;
 	}
