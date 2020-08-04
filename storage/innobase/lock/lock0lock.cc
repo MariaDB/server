@@ -2203,10 +2203,11 @@ lock_rec_has_to_wait_in_queue(
 	hash = lock_hash_get(wait_lock->type_mode);
 
 	for (lock = lock_rec_get_first_on_page_addr(hash, space, page_no);
-	     lock && lock != wait_lock;
+#ifdef WITH_WSREP
+	     lock &&
+#endif
+	     lock != wait_lock;
 	     lock = lock_rec_get_next_on_page_const(lock)) {
-
-		ut_ad(lock);
 		const byte*	p = (const byte*) &lock[1];
 
 		if (heap_no < lock_rec_get_n_bits(lock)
