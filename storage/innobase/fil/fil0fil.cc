@@ -284,34 +284,6 @@ fil_space_get(
 	return(space);
 }
 
-/** Returns the latch of a file space.
-@param[in]	id	space id
-@param[out]	flags	tablespace flags
-@return latch protecting storage allocation */
-rw_lock_t*
-fil_space_get_latch(
-	ulint	id,
-	ulint*	flags)
-{
-	fil_space_t*	space;
-
-	ut_ad(fil_system.is_initialised());
-
-	mutex_enter(&fil_system.mutex);
-
-	space = fil_space_get_by_id(id);
-
-	ut_a(space);
-
-	if (flags) {
-		*flags = space->flags;
-	}
-
-	mutex_exit(&fil_system.mutex);
-
-	return(&(space->latch));
-}
-
 /**********************************************************************//**
 Checks if all the file nodes in a space are flushed.
 @return true if all are flushed */
@@ -751,7 +723,7 @@ fil_space_extend_must_retry(
 		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift));
 
 	*success = os_file_set_size(node->name, node->handle, new_size,
-		FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags));
+				    space->is_compressed());
 
 	os_has_said_disk_full = *success;
 	if (*success) {
@@ -879,6 +851,9 @@ fil_mutex_enter_and_prepare_for_io(
 			ut_a(success);
 			/* InnoDB data files cannot shrink. */
 			ut_a(space->size >= size);
+			if (size > space->committed_size) {
+				space->committed_size = size;
+			}
 
 			/* There could be multiple concurrent I/O requests for
 			this tablespace (multiple threads trying to extend
@@ -1773,37 +1748,6 @@ fil_space_acquire_for_io(ulint id)
 	mutex_exit(&fil_system.mutex);
 
 	return(space);
-}
-
-/********************************************************//**
-Creates the database directory for a table if it does not exist yet. */
-void
-fil_create_directory_for_tablename(
-/*===============================*/
-	const char*	name)	/*!< in: name in the standard
-				'databasename/tablename' format */
-{
-	const char*	namend;
-	char*		path;
-	ulint		len;
-
-	len = strlen(fil_path_to_mysql_datadir);
-	namend = strchr(name, '/');
-	ut_a(namend);
-	path = static_cast<char*>(
-		ut_malloc_nokey(len + ulint(namend - name) + 2));
-
-	memcpy(path, fil_path_to_mysql_datadir, len);
-	path[len] = '/';
-	memcpy(path + len + 1, name, ulint(namend - name));
-	path[len + ulint(namend - name) + 1] = 0;
-
-	os_normalize_path(path);
-
-	bool	success = os_file_create_directory(path, false);
-	ut_a(success);
-
-	ut_free(path);
 }
 
 /** Write a log record about a file operation.
@@ -2709,7 +2653,7 @@ fil_ibd_create(
 		return NULL;
 	}
 
-	const bool is_compressed = FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
+	const bool is_compressed = fil_space_t::is_compressed(flags);
 	bool punch_hole = is_compressed;
 
 #ifdef _WIN32
@@ -3534,7 +3478,7 @@ fil_ibd_load(
 	/* Adjust the memory-based flags that would normally be set by
 	dict_tf_to_fsp_flags(). In recovery, we have no data dictionary. */
 	ulint flags = file.flags();
-	if (FSP_FLAGS_HAS_PAGE_COMPRESSION(flags)) {
+	if (fil_space_t::is_compressed(flags)) {
 		flags |= page_zip_level
 			<< FSP_FLAGS_MEM_COMPRESSION_LEVEL;
 	}
@@ -3959,6 +3903,12 @@ fil_io(
 	if (punch_hole) {
 		/* Punch the hole to the file */
 		err = os_file_punch_hole(node->handle, offset, len);
+		/* Punch hole is not supported, make space not to
+		support punch hole */
+		if (UNIV_UNLIKELY(err == DB_IO_NO_PUNCH_HOLE)) {
+			node->space->punch_hole = false;
+			err = DB_SUCCESS;
+		}
 	} else {
 		/* Queue the aio request */
 		err = os_aio(

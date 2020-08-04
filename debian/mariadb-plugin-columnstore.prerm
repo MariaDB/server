@@ -4,6 +4,5 @@ set -e
 
 columnstore-pre-uninstall
 
-exit 0
 
 #DEBHELPER#

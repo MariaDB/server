@@ -11,7 +11,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 show warnings;
 Level	Code	Message
 Error	1062	Duplicate entry '2' for key 'PRIMARY'
-Note	4173	Engine Aria does not support rollback. Changes where commited during rollback call
+Note	4173	Engine Aria does not support rollback. Changes where committed during rollback call
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
 select * from t1;
 a

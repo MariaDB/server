@@ -962,6 +962,10 @@ public:
 #endif
   }		/*lint -e1509 */
   void set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs);
+  void set_name(THD *thd, String *str)
+  {
+    set_name(thd, str->ptr(), str->length(), str->charset());
+  }
   void set_name(THD *thd, const LEX_CSTRING &str,
                 CHARSET_INFO *cs= system_charset_info)
   {
@@ -1841,6 +1845,18 @@ public:
   */
   virtual void top_level_item() {}
   /*
+    Return TRUE if it is item of top WHERE level (AND/OR)  and it is
+    important, return FALSE if it not important (we can not use to simplify
+    calculations) or not top level
+  */
+  virtual bool is_top_level_item() const
+  { return FALSE; /* not important */}
+  /*
+    return IN/ALL/ANY subquery or NULL
+  */
+  virtual Item_in_subselect* get_IN_subquery()
+  { return NULL; /* in is not IN/ALL/ANY */ }
+  /*
     set field of temporary table for Item which can be switched on temporary
     table during query processing (grouping and so on)
   */
@@ -2435,7 +2451,8 @@ public:
   }
   bool pushable_cond_checker_for_subquery(uchar *arg)
   {
-    return excl_dep_on_in_subq_left_part((Item_in_subselect *)arg);
+    DBUG_ASSERT(((Item*) arg)->get_IN_subquery());
+    return excl_dep_on_in_subq_left_part(((Item*)arg)->get_IN_subquery());
   }
   Item *build_pushable_cond(THD *thd,
                             Pushdown_checker checker,
@@ -2754,12 +2771,15 @@ protected:
     {
       my_string_metadata_get(this, str->charset(), str->ptr(), str->length());
     }
-    Metadata(const String *str, uint repertoire_arg)
+    Metadata(const String *str, my_repertoire_t repertoire_arg)
     {
       MY_STRING_METADATA::repertoire= repertoire_arg;
       MY_STRING_METADATA::char_length= str->numchars();
     }
-    uint repertoire() const { return MY_STRING_METADATA::repertoire; }
+    my_repertoire_t repertoire() const
+    {
+      return MY_STRING_METADATA::repertoire;
+    }
     size_t char_length() const { return MY_STRING_METADATA::char_length; }
   };
   void fix_charset_and_length(CHARSET_INFO *cs,
@@ -4222,9 +4242,7 @@ public:
   Item_uint(THD *thd, ulonglong i): Item_int(thd, i, 10) {}
   Item_uint(THD *thd, const char *str_arg, longlong i, uint length);
   double val_real() { return ulonglong2double((ulonglong)value); }
-  String *val_str(String*);
   Item *clone_item(THD *thd);
-  virtual void print(String *str, enum_query_type query_type);
   Item *neg(THD *thd);
   uint decimal_precision() const { return max_length; }
   Item *get_copy(THD *thd)
@@ -4363,7 +4381,7 @@ protected:
                                    const Metadata metadata)
   {
     fix_from_value(dv, metadata);
-    set_name(thd, str_value.lex_cstring(), str_value.charset());
+    set_name(thd, &str_value);
   }
 protected:
   /* Just create an item and do not fill string representation */
@@ -4387,7 +4405,7 @@ public:
   }
   // Constructors with the item name set from its value
   Item_string(THD *thd, const char *str, uint length, CHARSET_INFO *cs,
-              Derivation dv, uint repertoire)
+              Derivation dv, my_repertoire_t repertoire)
    :Item_literal(thd)
   {
     str_value.set_or_copy_aligned(str, length, cs);
@@ -4401,7 +4419,7 @@ public:
     fix_and_set_name_from_value(thd, dv, Metadata(&str_value));
   }
   Item_string(THD *thd, const String *str, CHARSET_INFO *tocs, uint *conv_errors,
-              Derivation dv, uint repertoire)
+              Derivation dv, my_repertoire_t repertoire)
    :Item_literal(thd)
   {
     if (str_value.copy(str, tocs, conv_errors))
@@ -4419,7 +4437,7 @@ public:
     set_name(thd, name_par);
   }
   Item_string(THD *thd, const LEX_CSTRING &name_par, const LEX_CSTRING &str,
-              CHARSET_INFO *cs, Derivation dv, uint repertoire)
+              CHARSET_INFO *cs, Derivation dv, my_repertoire_t repertoire)
    :Item_literal(thd)
   {
     str_value.set_or_copy_aligned(str.str, str.length, cs);
@@ -4552,7 +4570,7 @@ public:
   Item_static_string_func(THD *thd, const LEX_CSTRING &name_par,
                           const String *str,
                           CHARSET_INFO *tocs, uint *conv_errors,
-                          Derivation dv, uint repertoire):
+                          Derivation dv, my_repertoire_t repertoire):
     Item_string(thd, str, tocs, conv_errors, dv, repertoire),
     func_name(name_par)
   {}

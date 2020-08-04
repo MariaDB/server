@@ -1186,9 +1186,6 @@ struct buf_block_t{
 # define assert_block_ahi_empty_on_init(block) /* nothing */
 # define assert_block_ahi_valid(block) /* nothing */
 #endif /* BTR_CUR_HASH_ADAPT */
-	bool		skip_flush_check;
-					/*!< Skip check in buf_dblwr_check_block
-					during bulk load, protected by lock.*/
 # ifdef UNIV_DEBUG
 	/** @name Debug fields */
 	/* @{ */
@@ -1201,12 +1198,11 @@ struct buf_block_t{
   void fix() { page.fix(); }
   uint32_t unfix()
   {
-    uint32_t fix_count= page.unfix();
-    ut_ad(fix_count || page.io_fix() != BUF_IO_NONE ||
+    ut_ad(page.buf_fix_count() || page.io_fix() != BUF_IO_NONE ||
           page.state() == BUF_BLOCK_ZIP_PAGE ||
           !rw_lock_own_flagged(&lock, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S |
                                RW_LOCK_FLAG_SX));
-    return fix_count;
+    return page.unfix();
   }
 
   /** @return the physical size, in bytes */
@@ -1828,11 +1824,12 @@ public:
   {
     /** Number of array[] elements per page_hash_latch.
     Must be one less than a power of 2. */
-    static constexpr size_t ELEMENTS_PER_LATCH= 1023;
+    static constexpr size_t ELEMENTS_PER_LATCH= CPU_LEVEL1_DCACHE_LINESIZE /
+      sizeof(void*) - 1;
 
     /** number of payload elements in array[] */
     Atomic_relaxed<ulint> n_cells;
-    /** the hash array, with pad(n_cells) elements */
+    /** the hash table, with pad(n_cells) elements, aligned to L1 cache size */
     hash_cell_t *array;
 
     /** Create the hash table.
@@ -1840,7 +1837,7 @@ public:
     void create(ulint n);
 
     /** Free the hash table. */
-    void free() { ut_free(array); array= nullptr; }
+    void free() { aligned_free(array); array= nullptr; }
 
     /** @return the index of an array element */
     ulint calc_hash(ulint fold) const { return calc_hash(fold, n_cells); }

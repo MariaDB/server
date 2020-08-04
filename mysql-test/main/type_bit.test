@@ -507,6 +507,35 @@ EXPLAIN SELECT * FROM t1 WHERE a=200;
 EXPLAIN SELECT * FROM t1 WHERE a<=>200;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-23323 Rounding functions return a wrong data type for a BIT, ENUM, SET argument
+--echo #
+
+--vertical_results
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  FOR i IN 1..64
+  DO
+    SELECT '-----', CONCAT('BIT(',i,')') AS Type;
+    EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (a BIT(64))','64', i);
+    INSERT IGNORE INTO t1 VALUES (0xFFFFFFFFFFFFFFFF);
+     CREATE TABLE t2 AS SELECT
+       a,
+       FLOOR(a) AS cf,
+       CEILING(a) AS cc,
+       ROUND(a) AS cr,
+       TRUNCATE(a,0) AS ct
+     FROM t1;
+    SHOW CREATE TABLE t2;
+    SELECT CAST(a AS UNSIGNED) AS a, cf, cc, cr, ct FROM t2;
+    DROP TABLE t2;
+    DROP TABLE t1;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+--horizontal_results
+
 
 --echo #
 --echo # End of 10.4 tests

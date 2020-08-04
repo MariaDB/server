@@ -81,7 +81,7 @@ c08 TEXT
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 trans
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -107,7 +107,7 @@ COMMIT/*!*/;
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -133,7 +133,7 @@ COMMIT/*!*/;
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans
 /*!100001 SET @@session.gtid_seq_no=4*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -159,7 +159,7 @@ COMMIT/*!*/;
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-5 trans
 /*!100001 SET @@session.gtid_seq_no=5*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -213,7 +213,7 @@ COMMIT/*!*/;
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-6 trans
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -296,7 +296,7 @@ ROLLBACK/*!*/;
 # Number of rows: 3
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Rotate to master-bin.000002  pos: 4
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
-BEGIN/*!*/;
+START TRANSACTION/*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
@@ -331,7 +331,7 @@ BEGIN/*!*/;
 COMMIT
 /*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
-BEGIN/*!*/;
+START TRANSACTION/*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
 ### UPDATE `test`.`t1`
 ### WHERE
@@ -374,7 +374,7 @@ BEGIN/*!*/;
 COMMIT
 /*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
-BEGIN/*!*/;
+START TRANSACTION/*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
@@ -389,7 +389,7 @@ BEGIN/*!*/;
 COMMIT
 /*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
-BEGIN/*!*/;
+START TRANSACTION/*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
@@ -404,7 +404,7 @@ BEGIN/*!*/;
 COMMIT
 /*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
-BEGIN/*!*/;
+START TRANSACTION/*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE

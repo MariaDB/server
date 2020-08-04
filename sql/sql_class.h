@@ -1099,7 +1099,7 @@ public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
   {
-    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE
+    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE, TABLE_ARENA
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
@@ -2023,6 +2023,14 @@ struct Ha_data
   */
   plugin_ref lock;
   Ha_data() :ha_ptr(NULL) {}
+
+  void reset()
+  {
+    ha_ptr= nullptr;
+    for (auto &info : ha_info)
+      info.reset();
+    lock= nullptr;
+  }
 };
 
 /**
@@ -3926,10 +3934,10 @@ public:
     @param repertoire - the repertoire of the string
   */
   Item_basic_constant *make_string_literal(const char *str, size_t length,
-                                           uint repertoire);
+                                           my_repertoire_t repertoire);
   Item_basic_constant *make_string_literal(const Lex_string_with_metadata_st &str)
   {
-    uint repertoire= str.repertoire(variables.character_set_client);
+    my_repertoire_t repertoire= str.repertoire(variables.character_set_client);
     return make_string_literal(str.str, str.length, repertoire);
   }
   Item_basic_constant *make_string_literal_nchar(const Lex_string_with_metadata_st &str);
@@ -4077,13 +4085,20 @@ public:
     return 0;
   }
 
+
+  bool is_item_tree_change_register_required()
+  {
+    return !stmt_arena->is_conventional()
+           || stmt_arena->type() == Query_arena::TABLE_ARENA;
+  }
+
   void change_item_tree(Item **place, Item *new_value)
   {
     DBUG_ENTER("THD::change_item_tree");
     DBUG_PRINT("enter", ("Register: %p (%p) <- %p",
                        *place, place, new_value));
     /* TODO: check for OOM condition here */
-    if (!stmt_arena->is_conventional())
+    if (is_item_tree_change_register_required())
       nocheck_register_item_tree_change(place, *place, mem_root);
     *place= new_value;
     DBUG_VOID_RETURN;
@@ -4579,14 +4594,13 @@ public:
   void push_warning_truncated_value_for_field(Sql_condition::enum_warning_level
                                               level, const char *type_str,
                                               const char *val,
-                                              const TABLE_SHARE *s,
+                                              const char *db_name,
+                                              const char *table_name,
                                               const char *name)
   {
     DBUG_ASSERT(name);
     char buff[MYSQL_ERRMSG_SIZE];
     CHARSET_INFO *cs= &my_charset_latin1;
-    const char *db_name= s ? s->db.str : NULL;
-    const char *table_name= s ? s->table_name.str : NULL;
 
     if (!db_name)
       db_name= "";
@@ -4603,12 +4617,13 @@ public:
                                              bool totally_useless_value,
                                              const char *type_str,
                                              const char *val,
-                                             const TABLE_SHARE *s,
+                                             const char *db_name,
+                                             const char *table_name,
                                              const char *field_name)
   {
     if (field_name)
       push_warning_truncated_value_for_field(level, type_str, val,
-                                             s, field_name);
+                                             db_name, table_name, field_name);
     else if (totally_useless_value)
       push_warning_wrong_value(level, type_str, val);
     else
@@ -5004,7 +5019,8 @@ public:
     table updates from being replicated to other nodes via galera replication.
   */
   bool                      wsrep_ignore_table;
-  
+  /* thread who has started kill for this THD protected by LOCK_thd_data*/
+  my_thread_id              wsrep_aborter;
 
   /*
     Transaction id:
@@ -6437,14 +6453,14 @@ struct SORT_FIELD_ATTR
   */
   bool maybe_null;
   CHARSET_INFO *cs;
-  uint pack_sort_string(uchar *to, const LEX_CSTRING &str,
-                        CHARSET_INFO *cs) const;
+  uint pack_sort_string(uchar *to, String *str) const;
   int compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
                                      uchar *b, size_t *b_len);
   int compare_packed_varstrings(uchar *a, size_t *a_len,
                                 uchar *b, size_t *b_len);
   bool check_if_packing_possible(THD *thd) const;
   bool is_variable_sized() { return type == VARIABLE_SIZE; }
+  void set_length_and_original_length(THD *thd, uint length_arg);
 };
 
 

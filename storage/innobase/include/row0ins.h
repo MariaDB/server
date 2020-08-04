@@ -163,6 +163,8 @@ row_ins_step(
 #define	INS_NODE_INSERT_ENTRIES 3	/* index entries should be built and
 					inserted */
 
+struct row_prebuilt_t;
+
 /** Insert node structure */
 struct ins_node_t
 {
@@ -203,6 +205,7 @@ struct ins_node_t
 				entry_list and sys fields are stored here;
 				if this is NULL, entry list should be created
 				and buffers for sys fields in row allocated */
+        void vers_update_end(row_prebuilt_t *prebuilt, bool history_row);
 };
 
 /** Create an insert object.

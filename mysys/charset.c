@@ -20,6 +20,7 @@
 #include <m_ctype.h>
 #include <m_string.h>
 #include <my_dir.h>
+#include <hash.h>
 #include <my_xml.h>
 #ifdef HAVE_LANGINFO_H
 #include <langinfo.h>
@@ -27,6 +28,8 @@
 #ifdef HAVE_LOCALE_H
 #include <locale.h>
 #endif
+
+extern HASH charset_name_hash;
 
 /*
   The code below implements this functionality:
@@ -38,15 +41,10 @@
     - Setting server default character set
 */
 
-my_bool my_charset_same(CHARSET_INFO *cs1, CHARSET_INFO *cs2)
-{
-  return ((cs1 == cs2) || !strcmp(cs1->csname,cs2->csname));
-}
-
-
 static uint
 get_collation_number_internal(const char *name)
 {
+
   CHARSET_INFO **cs;
   for (cs= all_charsets;
        cs < all_charsets + array_elements(all_charsets);
@@ -72,11 +70,10 @@ static my_bool init_state_maps(struct charset_info_st *cs)
   uchar *state_map;
   uchar *ident_map;
 
-  if (!(cs->state_map= state_map= (uchar*) my_once_alloc(256, MYF(MY_WME))))
+  if (!(cs->state_map= state_map= (uchar*) my_once_alloc(256*2, MYF(MY_WME))))
     return 1;
     
-  if (!(cs->ident_map= ident_map= (uchar*) my_once_alloc(256, MYF(MY_WME))))
-    return 1;
+  cs->ident_map= ident_map= state_map + 256;
 
   /* Fill state_map with states to get a faster parser */
   for (i=0; i < 256 ; i++)
@@ -153,7 +150,8 @@ static int cs_copy_data(struct charset_info_st *to, CHARSET_INFO *from)
 {
   to->number= from->number ? from->number : to->number;
 
-  if (from->csname)
+  /* Don't replace csname if already set */
+  if (from->csname && !to->csname)
     if (!(to->csname= my_once_strdup(from->csname,MYF(MY_WME))))
       goto err;
   
@@ -322,7 +320,21 @@ static int add_collation(struct charset_info_st *cs)
         return MY_XML_ERROR;
       bzero(newcs,sizeof(CHARSET_INFO));
     }
-    
+    else
+    {
+      /* Don't allow change of csname */
+      if (newcs->csname && strcmp(newcs->csname, cs->csname))
+      {
+        my_error(EE_DUPLICATE_CHARSET, MYF(ME_WARNING),
+                 cs->number, cs->csname, newcs->csname);
+        /*
+          Continue parsing rest of Index.xml. We got an warning in the log
+          so the user can fix the wrong character set definition.
+        */
+        return MY_XML_OK;
+      }
+    }
+
     if (cs->primary_number == cs->number)
       cs->state |= MY_CS_PRIMARY;
       
@@ -402,8 +414,8 @@ static int add_collation(struct charset_info_st *cs)
         {
           newcs->state |= MY_CS_LOADED;
         }
-        newcs->state|= MY_CS_AVAILABLE;
       }
+      add_compiled_extra_collation(newcs);
     }
     else
     {
@@ -420,7 +432,7 @@ static int add_collation(struct charset_info_st *cs)
       if (cs->comment)
 	if (!(newcs->comment= my_once_strdup(cs->comment,MYF(MY_WME))))
 	  return MY_XML_ERROR;
-      if (cs->csname)
+      if (cs->csname && ! newcs->csname)
         if (!(newcs->csname= my_once_strdup(cs->csname,MYF(MY_WME))))
 	  return MY_XML_ERROR;
       if (cs->name)
@@ -557,12 +569,53 @@ char *get_charsets_dir(char *buf)
 CHARSET_INFO *all_charsets[MY_ALL_CHARSETS_SIZE]={NULL};
 CHARSET_INFO *default_charset_info = &my_charset_latin1;
 
+
+/*
+  Add standard character set compiled into the application
+  All related character sets should share same cname
+*/
+
 void add_compiled_collation(struct charset_info_st *cs)
 {
   DBUG_ASSERT(cs->number < array_elements(all_charsets));
   all_charsets[cs->number]= cs;
   cs->state|= MY_CS_AVAILABLE;
+  if ((my_hash_insert(&charset_name_hash, (uchar*) cs)))
+  {
+#ifndef DBUG_OFF
+    CHARSET_INFO *org= (CHARSET_INFO*) my_hash_search(&charset_name_hash,
+                                                      (uchar*) cs->csname,
+                                                      strlen(cs->csname));
+    DBUG_ASSERT(org);
+    DBUG_ASSERT(org->csname == cs->csname);
+#endif
+  }
 }
+
+
+/*
+  Add optional characters sets from ctype-extra.c
+
+  If cname is already in use, replace csname in new object with a pointer to
+  the already used csname to ensure that all csname's points to the same string
+  for the same character set.
+*/
+
+
+void add_compiled_extra_collation(struct charset_info_st *cs)
+{
+  DBUG_ASSERT(cs->number < array_elements(all_charsets));
+  all_charsets[cs->number]= cs;
+  cs->state|= MY_CS_AVAILABLE;
+  if ((my_hash_insert(&charset_name_hash, (uchar*) cs)))
+  {
+    CHARSET_INFO *org= (CHARSET_INFO*) my_hash_search(&charset_name_hash,
+                                                      (uchar*) cs->csname,
+                                                      strlen(cs->csname));
+    cs->csname= org->csname;
+  }
+}
+
 
 
 static my_pthread_once_t charsets_initialized= MY_PTHREAD_ONCE_INIT;
@@ -612,14 +665,31 @@ const char *my_collation_get_tailoring(uint id)
 }
 
 
+HASH charset_name_hash;
+
+static uchar *get_charset_key(const uchar *object,
+                              size_t *size,
+                              my_bool not_used __attribute__((unused)))
+{
+  CHARSET_INFO *cs= (CHARSET_INFO*) object;
+  *size= strlen(cs->csname);
+  return (uchar*) cs->csname;
+}
+
 static void init_available_charsets(void)
 {
   char fname[FN_REFLEN + sizeof(MY_CHARSET_INDEX)];
   struct charset_info_st **cs;
   MY_CHARSET_LOADER loader;
+  DBUG_ENTER("init_available_charsets");
 
   bzero((char*) &all_charsets,sizeof(all_charsets));
   bzero((char*) &my_collation_statistics, sizeof(my_collation_statistics));
+
+  my_hash_init2(key_memory_charsets, &charset_name_hash, 16,
+                &my_charset_latin1, 64, 0, 0, get_charset_key,
+                0, 0, HASH_UNIQUE);
+
   init_compiled_charsets(MYF(0));
 
   /* Copy compiled charsets */
@@ -640,12 +710,14 @@ static void init_available_charsets(void)
   my_charset_loader_init_mysys(&loader);
   strmov(get_charsets_dir(fname), MY_CHARSET_INDEX);
   my_read_charset_file(&loader, fname, MYF(0));
+  DBUG_VOID_RETURN;
 }
 
 
 void free_charsets(void)
 {
   charsets_initialized= charsets_template;
+  my_hash_free(&charset_name_hash);
 }
 
 

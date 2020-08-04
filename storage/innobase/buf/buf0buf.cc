@@ -1306,8 +1306,6 @@ buf_block_init(buf_block_t* block, byte* frame)
 #ifdef BTR_CUR_HASH_ADAPT
 	block->index = NULL;
 #endif /* BTR_CUR_HASH_ADAPT */
-	block->skip_flush_check = false;
-
 	ut_d(block->in_unzip_LRU_list = false);
 	ut_d(block->in_withdraw_list = false);
 
@@ -1356,7 +1354,7 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
   if (UNIV_UNLIKELY(!mem))
     return false;
 
-  MEM_MAKE_ADDRESSABLE(mem, mem_size());
+  MEM_UNDEFINED(mem, mem_size());
 
 #ifdef HAVE_LIBNUMA
   if (srv_numa_interleave)
@@ -1488,8 +1486,10 @@ static void buf_block_free_mutexes(buf_block_t* block)
 void buf_pool_t::page_hash_table::create(ulint n)
 {
   n_cells= ut_find_prime(n);
-  array= static_cast<hash_cell_t*>
-    (ut_zalloc_nokey(pad(n_cells) * sizeof *array));
+  const size_t size= pad(n_cells) * sizeof *array;
+  void* v= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
+  memset(v, 0, size);
+  array= static_cast<hash_cell_t*>(v);
 }
 
 /** Create the buffer pool.
@@ -2257,7 +2257,18 @@ withdraw_retry:
 		ulint	sum_freed = 0;
 
 		while (chunk < echunk) {
+			/* buf_LRU_block_free_non_file_page() invokes
+			MEM_NOACCESS() on any buf_pool.free blocks.
+			We must cancel the effect of that. In
+			MemorySanitizer, MEM_NOACCESS() is no-op, so
+			we must not do anything special for it here. */
+#ifdef HAVE_valgrind
+# if !__has_feature(memory_sanitizer)
+			MEM_MAKE_DEFINED(chunk->mem, chunk->mem_size());
+# endif
+#else
 			MEM_MAKE_ADDRESSABLE(chunk->mem, chunk->size);
+#endif
 
 			buf_block_t*	block = chunk->blocks;
 
@@ -2645,14 +2656,9 @@ void buf_page_free(const page_id_t page_id,
   buf_block_t *block= reinterpret_cast<buf_block_t*>
     (buf_pool.page_hash_get_low(page_id, fold));
 
-#if 0 /* FIXME: MDEV-22970 Potential corruption */
-  /* TODO: Find out how and when a freed page can be marked
-  allocated in the same mini-transaction. At least it seems to
-  happen during a pessimistic insert operation. */
   /* TODO: try to all this part of mtr_t::free() */
   if (srv_immediate_scrub_data_uncompressed || mtr->is_page_compressed())
     mtr->add_freed_offset(page_id);
-#endif
 
   if (!block || block->page.state() != BUF_BLOCK_FILE_PAGE)
   {
@@ -2788,7 +2794,6 @@ buf_block_init_low(
 /*===============*/
 	buf_block_t*	block)	/*!< in: block to init */
 {
-	block->skip_flush_check = false;
 #ifdef BTR_CUR_HASH_ADAPT
 	/* No adaptive hash index entries may point to a previously
 	unused (and now freshly allocated) block. */
@@ -3831,15 +3836,25 @@ buf_page_create(fil_space_t *space, uint32_t offset,
   if (block && block->page.in_file() &&
       !buf_pool.watch_is_sentinel(block->page))
   {
+#ifdef BTR_CUR_HASH_ADAPT
+    const bool drop_hash_entry= block->page.state() == BUF_BLOCK_FILE_PAGE &&
+      UNIV_LIKELY_NULL(block->index);
+    if (UNIV_UNLIKELY(drop_hash_entry))
+      block->page.set_io_fix(BUF_IO_PIN);
+#endif /* BTR_CUR_HASH_ADAPT */
+
     /* Page can be found in buf_pool */
     buf_LRU_block_free_non_file_page(free_block);
     mutex_exit(&buf_pool.mutex);
 
 #ifdef BTR_CUR_HASH_ADAPT
-    if (block->page.state() == BUF_BLOCK_FILE_PAGE &&
-        UNIV_LIKELY_NULL(block->index))
+    if (UNIV_UNLIKELY(drop_hash_entry))
+    {
       btr_search_drop_page_hash_index(block);
+      block->page.io_unfix();
+    }
 #endif /* BTR_CUR_HASH_ADAPT */
+
     if (!recv_recovery_is_on())
       /* FIXME: Remove the redundant lookup and avoid
       the unnecessary invocation of buf_zip_decompress().

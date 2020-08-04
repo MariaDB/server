@@ -85,13 +85,13 @@ public:
   bool is_quoted() const { return m_quote != '\0'; }
   char quote() const { return m_quote; }
   // Get string repertoire by the 8-bit flag and the character set
-  uint repertoire(CHARSET_INFO *cs) const
+  my_repertoire_t repertoire(CHARSET_INFO *cs) const
   {
     return !m_is_8bit && my_charset_is_ascii_based(cs) ?
            MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
   }
   // Get string repertoire by the 8-bit flag, for ASCII-based character sets
-  uint repertoire() const
+  my_repertoire_t repertoire() const
   {
     return !m_is_8bit ? MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
   }
@@ -1215,6 +1215,14 @@ public:
    converted to a GROUP BY involving BIT fields.
   */
   uint hidden_bit_fields;
+  /*
+    Number of fields used in the definition of all the windows functions.
+    This includes:
+      1) Fields in the arguments
+      2) Fields in the PARTITION BY clause
+      3) Fields in the ORDER BY clause
+  */
+  uint fields_in_window_functions;
   enum_parsing_place parsing_place; /* where we are parsing expression */
   enum_parsing_place save_parsing_place;
   enum_parsing_place context_analysis_place; /* where we are in prepare */
@@ -1548,10 +1556,7 @@ public:
                        SQL_I_List<ORDER> win_order_list,
                        Window_frame *win_frame);
   List<Item_window_func> window_funcs;
-  bool add_window_func(Item_window_func *win_func)
-  {
-    return window_funcs.push_back(win_func);
-  }
+  bool add_window_func(Item_window_func *win_func);
 
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
   ORDER *find_common_window_func_partition_fields(THD *thd);
@@ -3693,8 +3698,9 @@ public:
 
     if (unlikely(!select_stack_top))
     {
-      current_select= NULL;
-      DBUG_PRINT("info", ("Top Select is empty"));
+      current_select= &builtin_select;
+      DBUG_PRINT("info", ("Top Select is empty -> sel builtin: %p",
+                          current_select));
     }
     else
       current_select= select_stack[select_stack_top - 1];

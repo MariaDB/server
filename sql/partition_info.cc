@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation.
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -864,9 +864,6 @@ void partition_info::vers_set_hist_part(THD *thd)
       if (next->range_value > thd->query_start())
         return;
     }
-    my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
-            table->s->db.str, table->s->table_name.str,
-            vers_info->hist_part->partition_name, "INTERVAL");
   }
 }
 

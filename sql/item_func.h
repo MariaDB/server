@@ -450,6 +450,25 @@ public:
     :Item_func(thd, item), Type_handler_hybrid_field_type(item) { }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
+  void fix_length_and_dec_long_or_longlong(uint char_length, bool unsigned_arg)
+  {
+    collation= DTCollation_numeric();
+    unsigned_flag= unsigned_arg;
+    max_length= char_length;
+    set_handler(Type_handler::type_handler_long_or_longlong(char_length,
+                                                            unsigned_arg));
+  }
+  void fix_length_and_dec_ulong_or_ulonglong_by_nbits(uint nbits)
+  {
+    uint digits= Type_handler_bit::Bit_decimal_notation_int_digits_by_nbits(nbits);
+    collation= DTCollation_numeric();
+    unsigned_flag= true;
+    max_length= digits;
+    if (nbits > 32)
+      set_handler(&type_handler_ulonglong);
+    else
+      set_handler(&type_handler_ulong);
+  }
 };
 
 
@@ -1813,13 +1832,32 @@ public:
 };
 
 
-class Item_func_int_val :public Item_func_num1
+class Item_func_int_val :public Item_func_hybrid_field_type
 {
 public:
-  Item_func_int_val(THD *thd, Item *a): Item_func_num1(thd, a) {}
+  Item_func_int_val(THD *thd, Item *a): Item_func_hybrid_field_type(thd, a) {}
+  bool check_partition_func_processor(void *int_arg) { return FALSE; }
+  bool check_vcol_func_processor(void *arg) { return FALSE; }
   void fix_length_and_dec_double();
   void fix_length_and_dec_int_or_decimal();
+  void fix_length_and_dec_time()
+  {
+    fix_attributes_time(0);
+    set_handler(&type_handler_time2);
+  }
+  void fix_length_and_dec_datetime()
+  {
+    fix_attributes_datetime(0);
+    set_handler(&type_handler_datetime2);
+    maybe_null= true; // E.g. CEILING(TIMESTAMP'0000-01-01 23:59:59.9')
+  }
   bool fix_length_and_dec();
+  String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
+  bool native_op(THD *thd, Native *to)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
 };
 
 
@@ -1831,6 +1869,8 @@ public:
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_ceiling>(thd, this); }
 };
@@ -1844,6 +1884,8 @@ public:
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_floor>(thd, this); }
 };
@@ -1875,14 +1917,19 @@ public:
     return NULL;
   }
   void fix_arg_decimal();
-  void fix_arg_int();
+  void fix_arg_int(const Type_handler *preferred,
+                   const Type_std_attributes *preferred_attributes);
   void fix_arg_double();
   void fix_arg_time();
   void fix_arg_datetime();
   void fix_arg_temporal(const Type_handler *h, uint int_part_length);
   bool fix_length_and_dec()
   {
-    return args[0]->type_handler()->Item_func_round_fix_length_and_dec(this);
+    /*
+      We don't want to translate ENUM/SET to CHAR here.
+      So let's real_type_handler(), not type_handler().
+    */
+    return args[0]->real_type_handler()->Item_func_round_fix_length_and_dec(this);
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_round>(thd, this); }

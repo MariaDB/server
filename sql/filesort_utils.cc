@@ -1,4 +1,5 @@
 /* Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved. 
+   Copyright (c) 2012, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -107,14 +108,6 @@ uchar *Filesort_buffer::alloc_sort_buffer(uint num_records,
                   DBUG_SET("+d,simulate_out_of_memory"););
 
   buff_size= ALIGN_SIZE(num_records * (record_length + sizeof(uchar*)));
-
-  /*
-    The minimum memory required should be each merge buffer can hold atmost
-    one key.
-    TODO varun: move this to the place where min_sort_memory is used.
-  */
-  set_if_bigger(buff_size,
-               ALIGN_SIZE((record_length +sizeof(uchar*)) * MERGEBUFF2));
 
   if (m_rawmem)
   {

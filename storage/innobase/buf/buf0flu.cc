@@ -1262,7 +1262,7 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
   page_id_t low= id - (id.page_no() % buf_flush_area);
   page_id_t high= low + buf_flush_area;
   high.set_page_no(std::min(high.page_no(),
-                            static_cast<uint32_t>(space.size - 1)));
+                            static_cast<uint32_t>(space.committed_size - 1)));
 
   /* Determine the contiguous dirty area around id. */
   const ulint id_fold= id.fold();
@@ -1308,7 +1308,8 @@ innodb_immediate_scrub_data_uncompressed from the freed ranges.
 static void buf_flush_freed_pages(fil_space_t *space)
 {
   ut_ad(space != NULL);
-  if (!srv_immediate_scrub_data_uncompressed && !space->is_compressed())
+  const bool punch_hole= space->punch_hole;
+  if (!srv_immediate_scrub_data_uncompressed && !punch_hole)
     return;
   lsn_t flush_to_disk_lsn= log_sys.get_flushed_lsn();
 
@@ -1322,11 +1323,6 @@ static void buf_flush_freed_pages(fil_space_t *space)
 
   range_set freed_ranges= std::move(space->freed_ranges);
   freed_lock.unlock();
-  const bool punch_hole=
-#if defined(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
-    space->is_compressed() ||
-#endif
-    false;
 
   for (const auto &range : freed_ranges)
   {
@@ -2585,7 +2581,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 		idle and there are no pending IOs in the buffer pool
 		and there is work to do. */
 		if (!n_flushed || !buf_pool.n_pend_reads
-		    || srv_check_activity(last_activity)) {
+		    || srv_check_activity(&last_activity)) {
 
 			ret_sleep = pc_sleep_if_needed(
 				next_loop_time, sig_count, curr_time);
@@ -2675,7 +2671,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 
 			n_flushed = n_flushed_lru + n_flushed_list;
 
-		} else if (srv_check_activity(last_activity)) {
+		} else if (srv_check_activity(&last_activity)) {
 			ulint	n_to_flush;
 			lsn_t	lsn_limit;
 

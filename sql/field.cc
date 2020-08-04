@@ -57,7 +57,7 @@ const char field_separator=',';
 #define BLOB_PACK_LENGTH_TO_MAX_LENGH(arg) \
                         ((ulong) ((1LL << MY_MIN(arg, 4) * 8) - 1))
 
-// Column marked for read or the field set to read out or record[0] or [1]
+// Column marked for read or the field set to read out of record[0]
 bool Field::marked_for_read() const
 {
   return !table ||
@@ -68,7 +68,7 @@ bool Field::marked_for_read() const
 }
 
 /*
-  The name of this function is a bit missleading as in 10.4 we don't
+  The name of this function is a bit misleading as in 10.4 we don't
   have to test anymore if the field is computed. Instead we mark
   changed fields with DBUG_FIX_WRITE_SET() in table.cc
 */
@@ -1078,17 +1078,16 @@ Field_longstr::make_packed_sort_key_part(uchar *buff,
     *buff++=1;
   }
   uchar *end= pack_sort_string(buff, sort_field);
-  return static_cast<int>(end-buff);
+  return (uint) (end-buff);
 }
 
 
 uchar*
 Field_longstr::pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field)
 {
-  String buf;
+  StringBuffer<LONGLONG_BUFFER_SIZE> buf;
   val_str(&buf, &buf);
-  return to + sort_field->pack_sort_string(to, buf.lex_cstring(),
-                                           field_charset());
+  return to + sort_field->pack_sort_string(to, &buf);
 }
 
 
@@ -2106,7 +2105,7 @@ void Field::make_send_field(Send_field *field)
     field->org_table_name= field->db_name= empty_clex_str;
   if (orig_table && orig_table->alias.ptr())
   {
-    field->table_name= orig_table->alias.lex_cstring();
+    orig_table->alias.get_value(&field->table_name);
     field->org_col_name= field_name;
   }
   else
@@ -2402,7 +2401,7 @@ uint Field::fill_cache_field(CACHE_FIELD *copy)
 bool Field::get_date(MYSQL_TIME *to, date_mode_t mode)
 {
   StringBuffer<40> tmp;
-  Temporal::Warn_push warn(get_thd(), NULL, NullS, to, mode);
+  Temporal::Warn_push warn(get_thd(), nullptr, nullptr, nullptr, to, mode);
   Temporal_hybrid *t= new(to) Temporal_hybrid(get_thd(), &warn,
                                               val_str(&tmp), mode);
   return !t->is_valid_temporal();
@@ -10888,14 +10887,16 @@ void Field::set_datetime_warning(Sql_condition::enum_warning_level level,
   if (thd->really_abort_on_warning() && level >= Sql_condition::WARN_LEVEL_WARN)
   {
     /*
-      field_str.name can be NULL when field is not in the select list:
+      field_name.str can be NULL when field is not in the select list:
         SET SESSION SQL_MODE= 'STRICT_ALL_TABLES,NO_ZERO_DATE';
         CREATE OR REPLACE TABLE t2 SELECT 1 AS f FROM t1 GROUP BY FROM_DAYS(d);
       Can't call push_warning_truncated_value_for_field() directly here,
       as it expect a non-NULL name.
     */
     thd->push_warning_wrong_or_truncated_value(level, false, typestr,
-                                               str->ptr(), table->s,
+                                               str->ptr(),
+                                               table->s->db.str,
+                                               table->s->table_name.str,
                                                field_name.str);
   }
   else

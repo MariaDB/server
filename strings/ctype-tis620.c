@@ -40,6 +40,8 @@
 
 #ifdef HAVE_CHARSET_tis620
 
+const char charset_name_tis620[]= "tis620";
+
 #define M  L_MIDDLE
 #define U  L_UPPER
 #define L  L_LOWER
@@ -914,7 +916,7 @@ struct charset_info_st my_charset_tis620_thai_ci=
 {
     18,0,0,		/* number    */
     MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_NON1TO1, /* state     */
-    "tis620",		/* cs name    */
+    charset_name_tis620,		/* cs name    */
     "tis620_thai_ci",	/* name      */
     "",			/* comment   */
     NULL,		/* tailoring */
@@ -946,7 +948,7 @@ struct charset_info_st my_charset_tis620_bin=
 {
     89,0,0,		/* number    */
     MY_CS_COMPILED|MY_CS_BINSORT,	/* state     */
-    "tis620",		/* cs name    */
+    charset_name_tis620,		/* cs name    */
     "tis620_bin",	/* name      */
     "",			/* comment   */
     NULL,		/* tailoring */
@@ -979,7 +981,7 @@ struct charset_info_st my_charset_tis620_thai_nopad_ci=
 {
     MY_NOPAD_ID(18),0,0,   /* number           */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NON1TO1|MY_CS_NOPAD, /* state */
-    "tis620",              /* cs name          */
+    charset_name_tis620,              /* cs name          */
     "tis620_thai_nopad_ci",/* name             */
     "",                    /* comment          */
     NULL,                  /* tailoring        */
@@ -1012,7 +1014,7 @@ struct charset_info_st my_charset_tis620_nopad_bin=
 {
     MY_NOPAD_ID(89),0,0,   /* number           */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
-    "tis620",              /* cs name          */
+    charset_name_tis620,              /* cs name          */
     "tis620_nopad_bin",    /* name             */
     "",                    /* comment          */
     NULL,                  /* tailoring        */

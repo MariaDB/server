@@ -169,3 +169,46 @@ from t1;
 
 
 drop table t1;
+
+--echo #
+--echo # MDEV-9911 NTILE must return an error when parameter is not stable
+--echo #
+
+create table t1 (
+  pk int primary key,
+  c1 nvarchar(10),
+  c2 nvarchar(10),
+  c3 int
+);
+
+insert into t1 values
+ (1, 'Mark', 'Male', 5),
+ (2, 'John', 'Male', 5),
+ (3, 'Pam', 'Female', 6),
+ (4, 'Sara', 'Female', 6),
+ (5, 'Todd', 'Male', 5),
+ (6, 'Mary', 'Female', 6),
+ (7, 'Ben', 'Male', 5),
+ (8, 'Jodi', 'Female', 6),
+ (9, 'Tom', 'Male', 5),
+ (10, 'Lucky', 'Male', 5),
+ (11, 'Mark', 'Male', 5),
+ (12, 'John', 'Male', 5),
+ (13, 'Pam', 'Female', 6),
+ (14, 'Sara', 'Female', 6),
+ (15, 'Todd', 'Male', 5),
+ (16, 'Mary', 'Female', 6),
+ (17, 'Ben', 'Male', 5),
+ (18, 'Jodi', 'Female', 6),
+ (19, 'Tom', 'Male', 5),
+ (20, 'Lucky', 'Male', 5);
+# Correct usage of NTILE with a fix argument NTILE(6).
+select c1, c2, c3, ntile(6) over (partition by c2 order by pk) from t1;
+# Correct usage - constant NTILE (argument) in each partition.
+select c1, c2, c3, ntile(c3) over (partition by c2 order by pk) from t1;
+
+update t1 set c3= 1 where pk = 1;
+--error ER_INVALID_NTILE_ARGUMENT
+select c1, c2, c3, ntile(c3) over (partition by c2 order by pk) from t1;
+
+drop table t1;

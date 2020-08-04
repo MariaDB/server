@@ -2514,6 +2514,9 @@ public:
   /** true for online operation (LOCK=NONE) */
   bool online;
 
+  /** which ALGORITHM and LOCK are supported by the storage engine */
+  enum_alter_inplace_result inplace_supported;
+
   /**
      Can be set by handler to describe why a given operation cannot be done
      in-place (HA_ALTER_INPLACE_NOT_SUPPORTED) or why it cannot be done
@@ -5176,7 +5179,7 @@ int ha_change_key_cache(KEY_CACHE *old_key_cache, KEY_CACHE *new_key_cache);
 /* transactions: interface to handlerton functions */
 int ha_start_consistent_snapshot(THD *thd);
 int ha_commit_or_rollback_by_xid(XID *xid, bool commit);
-int ha_commit_one_phase(THD *thd, bool all);
+int ha_commit_one_phase(THD *thd, bool all, bool rw_trans);
 int ha_commit_trans(THD *thd, bool all);
 int ha_rollback_trans(THD *thd, bool all);
 int ha_prepare(THD *thd);

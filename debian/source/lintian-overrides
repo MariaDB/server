@@ -1,5 +1,3 @@
-# Upstream fix pending: https://github.com/wolfSSL/wolfssl/pull/2785
-source-is-missing extra/wolfssl/wolfssl/doc/formats/html/html_changes/menu.js line length is 679 characters (>512)
 # Necessary for drop-in-place-replacement upgrades on mysql-server/-client
 # since package breaks/replaces these but at the same time also provides them
 version-substvar-for-external-package mariadb-client-core-10.6 -> mysql-client-5.5

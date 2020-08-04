@@ -16,7 +16,8 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
-#pragma once
+#ifndef ILIST_H
+#define ILIST_H
 
 #include <cstddef>
 #include <iterator>
@@ -24,15 +25,17 @@
 // Derive your class from this struct to insert to a linked list.
 template <class Tag= void> struct ilist_node
 {
-  ilist_node()
+  ilist_node() noexcept
 #ifndef DBUG_OFF
-      :
-        next(NULL), prev(NULL)
+      : next(NULL), prev(NULL)
 #endif
   {
   }
 
-  ilist_node(ilist_node *next, ilist_node *prev) : next(next), prev(prev) {}
+  ilist_node(ilist_node *next, ilist_node *prev) noexcept
+      : next(next), prev(prev)
+  {
+  }
 
   ilist_node *next;
   ilist_node *prev;
@@ -70,40 +73,40 @@ public:
     typedef T *pointer;
     typedef T &reference;
 
-    Iterator(ListNode *node) : node_(node) {}
+    Iterator(ListNode *node) noexcept : node_(node) {}
 
-    Iterator &operator++()
+    Iterator &operator++() noexcept
     {
       node_= node_->next;
       return *this;
     }
-    Iterator operator++(int)
+    Iterator operator++(int) noexcept
     {
       Iterator tmp(*this);
       operator++();
       return tmp;
     }
 
-    Iterator &operator--()
+    Iterator &operator--() noexcept
     {
       node_= node_->prev;
       return *this;
     }
-    Iterator operator--(int)
+    Iterator operator--(int) noexcept
     {
       Iterator tmp(*this);
       operator--();
       return tmp;
     }
 
-    reference operator*() { return *static_cast<pointer>(node_); }
-    pointer operator->() { return static_cast<pointer>(node_); }
+    reference operator*() noexcept { return *static_cast<pointer>(node_); }
+    pointer operator->() noexcept { return static_cast<pointer>(node_); }
 
-    friend bool operator==(const Iterator &lhs, const Iterator &rhs)
+    friend bool operator==(const Iterator &lhs, const Iterator &rhs) noexcept
     {
       return lhs.node_ == rhs.node_;
     }
-    friend bool operator!=(const Iterator &lhs, const Iterator &rhs)
+    friend bool operator!=(const Iterator &lhs, const Iterator &rhs) noexcept
     {
       return !(lhs == rhs);
     }
@@ -114,30 +117,36 @@ public:
     friend class ilist;
   };
 
-  ilist() : sentinel_(&sentinel_, &sentinel_) {}
+  ilist() noexcept : sentinel_(&sentinel_, &sentinel_) {}
 
-  reference front() { return *begin(); }
-  reference back() { return *--end(); }
-  const_reference front() const { return *begin(); }
-  const_reference back() const { return *--end(); }
+  reference front() noexcept { return *begin(); }
+  reference back() noexcept { return *--end(); }
+  const_reference front() const noexcept { return *begin(); }
+  const_reference back() const noexcept { return *--end(); }
 
-  iterator begin() { return iterator(sentinel_.next); }
-  const_iterator begin() const
+  iterator begin() noexcept { return iterator(sentinel_.next); }
+  const_iterator begin() const noexcept
   {
     return iterator(const_cast<ListNode *>(sentinel_.next));
   }
-  iterator end() { return iterator(&sentinel_); }
-  const_iterator end() const
+  iterator end() noexcept { return iterator(&sentinel_); }
+  const_iterator end() const noexcept
   {
     return iterator(const_cast<ListNode *>(&sentinel_));
   }
 
-  reverse_iterator rbegin() { return reverse_iterator(end()); }
-  const_reverse_iterator rbegin() const { return reverse_iterator(end()); }
-  reverse_iterator rend() { return reverse_iterator(begin()); }
-  const_reverse_iterator rend() const { return reverse_iterator(begin()); }
+  reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
+  const_reverse_iterator rbegin() const noexcept
+  {
+    return reverse_iterator(end());
+  }
+  reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
+  const_reverse_iterator rend() const noexcept
+  {
+    return reverse_iterator(begin());
+  }
 
-  bool empty() const { return sentinel_.next == &sentinel_; }
+  bool empty() const noexcept { return sentinel_.next == &sentinel_; }
 
   // Not implemented because it's O(N)
   // size_type size() const
@@ -145,13 +154,13 @@ public:
   //   return static_cast<size_type>(std::distance(begin(), end()));
   // }
 
-  void clear()
+  void clear() noexcept
   {
     sentinel_.next= &sentinel_;
     sentinel_.prev= &sentinel_;
   }
 
-  iterator insert(iterator pos, reference value)
+  iterator insert(iterator pos, reference value) noexcept
   {
     ListNode *curr= pos.node_;
     ListNode *prev= pos.node_->prev;
@@ -165,7 +174,7 @@ public:
     return iterator(&value);
   }
 
-  iterator erase(iterator pos)
+  iterator erase(iterator pos) noexcept
   {
     ListNode *prev= pos.node_->prev;
     ListNode *next= pos.node_->next;
@@ -182,15 +191,15 @@ public:
     return next;
   }
 
-  void push_back(reference value) { insert(end(), value); }
-  void pop_back() { erase(end()); }
+  void push_back(reference value) noexcept { insert(end(), value); }
+  void pop_back() noexcept { erase(end()); }
 
-  void push_front(reference value) { insert(begin(), value); }
-  void pop_front() { erase(begin()); }
+  void push_front(reference value) noexcept { insert(begin(), value); }
+  void pop_front() noexcept { erase(begin()); }
 
   // STL version is O(n) but this is O(1) because an element can't be inserted
   // several times in the same ilist.
-  void remove(reference value) { erase(iterator(&value)); }
+  void remove(reference value) noexcept { erase(iterator(&value)); }
 
 private:
   ListNode sentinel_;
@@ -216,36 +225,38 @@ public:
   typedef std::reverse_iterator<iterator> reverse_iterator;
   typedef std::reverse_iterator<const iterator> const_reverse_iterator;
 
-  sized_ilist() : size_(0) {}
+  sized_ilist() noexcept : size_(0) {}
 
-  size_type size() const { return size_; }
+  size_type size() const noexcept { return size_; }
 
-  void clear()
+  void clear() noexcept
   {
     BASE::clear();
     size_= 0;
   }
 
-  iterator insert(iterator pos, reference value)
+  iterator insert(iterator pos, reference value) noexcept
   {
     ++size_;
     return BASE::insert(pos, value);
   }
 
-  iterator erase(iterator pos)
+  iterator erase(iterator pos) noexcept
   {
     --size_;
     return BASE::erase(pos);
   }
 
-  void push_back(reference value) { insert(BASE::end(), value); }
-  void pop_back() { erase(BASE::end()); }
+  void push_back(reference value) noexcept { insert(BASE::end(), value); }
+  void pop_back() noexcept { erase(BASE::end()); }
 
-  void push_front(reference value) { insert(BASE::begin(), value); }
-  void pop_front() { erase(BASE::begin()); }
+  void push_front(reference value) noexcept { insert(BASE::begin(), value); }
+  void pop_front() noexcept { erase(BASE::begin()); }
 
-  void remove(reference value) { erase(iterator(&value)); }
+  void remove(reference value) noexcept { erase(iterator(&value)); }
 
 private:
   size_type size_;
 };
+
+#endif

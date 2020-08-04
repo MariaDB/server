@@ -70,10 +70,10 @@ CREATE DEFINER='root'@'localhost' SQL SECURITY DEFINER VIEW IF NOT EXISTS user A
 
 SET sql_mode='';
 
-delimiter |;
-
 DROP PROCEDURE IF EXISTS mysql.AddGeometryColumn;
 DROP PROCEDURE IF EXISTS mysql.DropGeometryColumn;
+
+delimiter |;
 
 CREATE DEFINER=`root`@`localhost` PROCEDURE AddGeometryColumn(catalog varchar(64), t_schema varchar(64),
    t_name varchar(64), geometry_column varchar(64), t_srid int) SQL SECURITY INVOKER

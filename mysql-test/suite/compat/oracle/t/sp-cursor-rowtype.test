@@ -1128,7 +1128,7 @@ DELIMITER ;$$
 --echo # IN followed by an unknown cursor name
 
 DELIMITER $$;
---error ER_SP_CURSOR_MISMATCH
+--error ER_SP_UNDECLARED_VAR
 CREATE PROCEDURE p1 AS
   CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
 BEGIN

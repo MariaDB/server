@@ -1,0 +1,21 @@
+# MDEV-22458
+# 
+# When running SHOW command, thread lock `LOCK_thd_data` should not be taken.
+# Lock will be taken only when we are killing thread
+#
+
+--source include/galera_cluster.inc
+CREATE TABLE t1 (a INT);
+
+--connect (con1,localhost,root,,test)
+--let $con1 = `SELECT CONNECTION_ID()`
+
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+
+--error ER_TARGET_NOT_EXPLAINABLE
+EVALP SHOW EXPLAIN FOR $con1;
+
+--connection con1
+INSERT INTO t1 VALUES (5),(6),(7),(8);
+
+DROP TABLE t1;

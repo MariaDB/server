@@ -1667,6 +1667,7 @@ public:
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
+  int fix_vcol_exprs(THD *thd);
   Field *find_field_by_name(LEX_CSTRING *str) const;
   bool export_structure(THD *thd, class Row_definition_list *defs);
   bool is_splittable() { return spl_opt_info != NULL; }
@@ -2236,6 +2237,7 @@ struct TABLE_LIST
     parsing 'this' is a NATURAL/USING join iff (natural_join != NULL).
   */
   TABLE_LIST *natural_join;
+  bool part_of_natural_join;
   /*
     True if 'this' represents a nested join that is a NATURAL JOIN.
     For one of the operands of 'this', the member 'natural_join' points

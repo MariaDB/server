@@ -52,6 +52,7 @@ Created 1/8/1996 Heikki Tuuri
 #include <algorithm>
 #include <iterator>
 #include <ostream>
+#include <mutex>
 
 /* Forward declaration. */
 struct ib_rbt_t;
@@ -297,22 +298,21 @@ parent table will fail, and user has to drop excessive foreign constraint
 before proceeds. */
 #define FK_MAX_CASCADE_DEL		15
 
-/**********************************************************************//**
-Creates a table memory object.
+/** Creates a table memory object.
+@param[in]	name		table name
+@param[in]	space		tablespace
+@param[in]	n_cols		total number of columns including virtual and
+				non-virtual columns
+@param[in]	n_v_cols	number of virtual columns
+@param[in]	flags		table flags
+@param[in]	flags2		table flags2
+@param[in]	init_stats_latch	whether to init the stats latch
 @return own: table object */
-dict_table_t*
-dict_mem_table_create(
-/*==================*/
-	const char*	name,		/*!< in: table name */
-	fil_space_t*	space,		/*!< in: tablespace */
-	ulint		n_cols,		/*!< in: total number of columns
-					including virtual and non-virtual
-					columns */
-	ulint		n_v_cols,	/*!< in: number of virtual columns */
-	ulint		flags,		/*!< in: table flags */
-	ulint		flags2);	/*!< in: table flags2 */
-/****************************************************************//**
-Free a table memory object. */
+dict_table_t *dict_mem_table_create(const char *name, fil_space_t *space,
+                                    ulint n_cols, ulint n_v_cols, ulint flags,
+                                    ulint flags2, bool init_stats_latch= true);
+/****************************************************************/ /**
+ Free a table memory object. */
 void
 dict_mem_table_free(
 /*================*/
@@ -933,7 +933,9 @@ extern ulong	zip_pad_max;
 an uncompressed page should be left as padding to avoid compression
 failures. This estimate is based on a self-adapting heuristic. */
 struct zip_pad_info_t {
-	SysMutex	mutex;	/*!< mutex protecting the info */
+  /** Dummy assignment operator for dict_index_t::clone() */
+  zip_pad_info_t &operator=(const zip_pad_info_t&) { return *this; }
+	std::mutex	mutex;	/*!< mutex protecting the info */
 	Atomic_relaxed<ulint>
 			pad;	/*!< number of bytes used as pad */
 	ulint		success;/*!< successful compression ops during
@@ -2146,6 +2148,8 @@ public:
 	performance reasons. */
 	rw_lock_t				stats_latch;
 
+  bool stats_latch_inited= false;
+
 	/** TRUE if statistics have been calculated the first time after
 	database startup or table creation. */
 	unsigned				stat_initialized:1;
@@ -2269,7 +2273,7 @@ public:
 	lock_t*					autoinc_lock;
 
 	/** Mutex protecting the autoincrement counter. */
-	ib_mutex_t				autoinc_mutex;
+	std::mutex				autoinc_mutex;
 
 	/** Autoinc counter value to give to the next inserted row. */
 	ib_uint64_t				autoinc;

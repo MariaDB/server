@@ -2828,7 +2828,9 @@ bool MYSQL_LOG::open(
   else if ((seek_offset= mysql_file_tell(file, MYF(MY_WME))))
     goto err;
 
-  if (init_io_cache(&log_file, file, IO_SIZE, io_cache_type, seek_offset, 0,
+  if (init_io_cache(&log_file, file, (log_type == LOG_NORMAL ? IO_SIZE :
+                                      LOG_BIN_IO_SIZE),
+                    io_cache_type, seek_offset, 0,
                     MYF(MY_WME | MY_NABP |
                         ((log_type == LOG_BIN) ? MY_WAIT_IF_FULL : 0))))
     goto err;

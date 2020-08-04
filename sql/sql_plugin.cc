@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1831,6 +1831,8 @@ static void plugin_load(MEM_ROOT *tmp_root)
   int error;
   THD *new_thd= new THD(0);
   bool result;
+  unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
+  { MYSQL_AUDIT_GENERAL_CLASSMASK };
   DBUG_ENTER("plugin_load");
 
   if (global_system_variables.log_warnings >= 9)
@@ -1880,6 +1882,31 @@ static void plugin_load(MEM_ROOT *tmp_root)
 
     if (!name.length || !dl.length)
       continue;
+
+    /*
+      Pre-acquire audit plugins for events that may potentially occur
+      during [UN]INSTALL PLUGIN.
+
+      When audit event is triggered, audit subsystem acquires interested
+      plugins by walking through plugin list. Evidently plugin list
+      iterator protects plugin list by acquiring LOCK_plugin, see
+      plugin_foreach_with_mask().
+
+      On the other hand plugin_load is acquiring LOCK_plugin
+      rather for a long time.
+
+      When audit event is triggered during plugin_load plugin
+      list iterator acquires the same lock (within the same thread)
+      second time.
+
+      This hack should be removed when LOCK_plugin is fixed so it
+      protects only what it supposed to protect.
+
+      See also mysql_install_plugin(), mysql_uninstall_plugin() and
+        initialize_audit_plugin()
+    */
+    if (mysql_audit_general_enabled())
+      mysql_audit_acquire_plugins(new_thd, event_class_mask);
 
     /*
       there're no other threads running yet, so we don't need a mutex.
@@ -2281,27 +2308,30 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
   if (!(plugin= plugin_find_internal(name, MYSQL_ANY_PLUGIN)) ||
       plugin->state & (PLUGIN_IS_UNINITIALIZED | PLUGIN_IS_DYING))
   {
-    myf MyFlags= thd->lex->if_exists() ? ME_NOTE : 0;
-    my_error(ER_SP_DOES_NOT_EXIST, MyFlags, "PLUGIN", name->str);
-    return !MyFlags;
-  }
-  if (!plugin->plugin_dl)
-  {
-    my_error(ER_PLUGIN_DELETE_BUILTIN, MYF(0));
-    return 1;
-  }
-  if (plugin->load_option == PLUGIN_FORCE_PLUS_PERMANENT)
-  {
-    my_error(ER_PLUGIN_IS_PERMANENT, MYF(0), name->str);
-    return 1;
+    // maybe plugin is present in mysql.plugin; postpone the error
+    plugin= nullptr;
   }
 
-  plugin->state= PLUGIN_IS_DELETED;
-  if (plugin->ref_count)
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                 WARN_PLUGIN_BUSY, ER_THD(thd, WARN_PLUGIN_BUSY));
-  else
-    reap_needed= true;
+  if (plugin)
+  {
+    if (!plugin->plugin_dl)
+    {
+      my_error(ER_PLUGIN_DELETE_BUILTIN, MYF(0));
+      return 1;
+    }
+    if (plugin->load_option == PLUGIN_FORCE_PLUS_PERMANENT)
+    {
+      my_error(ER_PLUGIN_IS_PERMANENT, MYF(0), name->str);
+      return 1;
+    }
+
+    plugin->state= PLUGIN_IS_DELETED;
+    if (plugin->ref_count)
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+          WARN_PLUGIN_BUSY, ER_THD(thd, WARN_PLUGIN_BUSY));
+    else
+      reap_needed= true;
+  }
 
   uchar user_key[MAX_KEY_LENGTH];
   table->use_all_columns();
@@ -2324,6 +2354,12 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
       table->file->print_error(error, MYF(0));
       return 1;
     }
+  }
+  else if (!plugin)
+  {
+    const myf MyFlags= thd->lex->if_exists() ? ME_NOTE : 0;
+    my_error(ER_SP_DOES_NOT_EXIST, MyFlags, "PLUGIN", name->str);
+    return !MyFlags;
   }
   return 0;
 }

@@ -2288,10 +2288,13 @@ bool Item_func_int_val::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_int_val::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
-  if (args[0]->cast_to_int_type_handler()->
-      Item_func_int_val_fix_length_and_dec(this))
+  /*
+    We don't want to translate ENUM/SET to CHAR here.
+    So let's call real_type_handler(), not type_handler().
+  */
+  if (args[0]->real_type_handler()->Item_func_int_val_fix_length_and_dec(this))
     DBUG_RETURN(TRUE);
-  DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  DBUG_PRINT("info", ("Type: %s", real_type_handler()->name().ptr()));
   DBUG_RETURN(FALSE);
 }
 
@@ -2299,6 +2302,7 @@ bool Item_func_int_val::fix_length_and_dec()
 longlong Item_func_ceiling::int_op()
 {
   switch (args[0]->result_type()) {
+  case STRING_RESULT: // hex hybrid
   case INT_RESULT:
     return val_int_from_item(args[0]);
   case DECIMAL_RESULT:
@@ -2332,9 +2336,32 @@ my_decimal *Item_func_ceiling::decimal_op(my_decimal *decimal_value)
 }
 
 
+bool Item_func_ceiling::date_op(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate)
+{
+  Datetime::Options opt(thd, TIME_FRAC_TRUNCATE);
+  Datetime *tm= new (to) Datetime(thd, args[0], opt);
+  tm->ceiling(thd);
+  null_value= !tm->is_valid_datetime();
+  DBUG_ASSERT(maybe_null || !null_value);
+  return null_value;
+}
+
+
+bool Item_func_ceiling::time_op(THD *thd, MYSQL_TIME *to)
+{
+  static const Time::Options_for_round opt;
+  Time *tm= new (to) Time(thd, args[0], opt);
+  tm->ceiling();
+  null_value= !tm->is_valid_time();
+  DBUG_ASSERT(maybe_null || !null_value);
+  return null_value;
+}
+
+
 longlong Item_func_floor::int_op()
 {
   switch (args[0]->result_type()) {
+  case STRING_RESULT: // hex hybrid
   case INT_RESULT:
     return val_int_from_item(args[0]);
   case DECIMAL_RESULT:
@@ -2369,6 +2396,28 @@ my_decimal *Item_func_floor::decimal_op(my_decimal *decimal_value)
                      value.round_to(decimal_value, 0, FLOOR) > 1)))
     return decimal_value;
   return 0;
+}
+
+
+bool Item_func_floor::date_op(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate)
+{
+  // DATETIME is not negative, so FLOOR means just truncation
+  Datetime::Options opt(thd, TIME_FRAC_TRUNCATE);
+  Datetime *tm= new (to) Datetime(thd, args[0], opt, 0);
+  null_value= !tm->is_valid_datetime();
+  DBUG_ASSERT(maybe_null || !null_value);
+  return null_value;
+}
+
+
+bool Item_func_floor::time_op(THD *thd, MYSQL_TIME *to)
+{
+  static const Time::Options_for_round opt;
+  Time *tm= new (to) Time(thd, args[0], opt);
+  tm->floor();
+  null_value= !tm->is_valid_time();
+  DBUG_ASSERT(maybe_null || !null_value);
+  return null_value;
 }
 
 
@@ -2467,8 +2516,27 @@ void Item_func_round::fix_arg_datetime()
 }
 
 
-void Item_func_round::fix_arg_int()
+/**
+  Calculate data type and attributes for INT-alike input.
+
+  @param [IN] preferred - The preferred data type handler for simple cases
+                          such as ROUND(x) and TRUNCATE(x,0), when the input
+                          is short enough to fit into an integer type
+                          (without extending to DECIMAL).
+                          - If `preferred` is not NULL, then the code tries
+                            to preserve the given data type handler and
+                            the data type attributes `preferred_attrs`.
+                          - If `preferred` is NULL, then the code fully
+                            calculates attributes using
+                            args[0]->decimal_precision() and chooses between
+                            INT and BIGINT, depending on attributes.
+  @param [IN] preferred_attrs - The preferred data type attributes for
+                                simple cases.
+*/
+void Item_func_round::fix_arg_int(const Type_handler *preferred,
+                                  const Type_std_attributes *preferred_attrs)
 {
+  DBUG_ASSERT(args[0]->decimals == 0);
   if (args[1]->const_item())
   {
     Longlong_hybrid val1= args[1]->to_longlong_hybrid();
@@ -2477,13 +2545,35 @@ void Item_func_round::fix_arg_int()
     else if ((!val1.to_uint(DECIMAL_MAX_SCALE) && truncate) ||
              args[0]->decimal_precision() < DECIMAL_LONGLONG_DIGITS)
     {
+      // Here we can keep INT_RESULT
       // Length can increase in some cases: ROUND(9,-1) -> 10
       int length_can_increase= MY_TEST(!truncate && val1.neg());
-      max_length= args[0]->max_length + length_can_increase;
-      // Here we can keep INT_RESULT
-      unsigned_flag= args[0]->unsigned_flag;
-      decimals= 0;
-      set_handler(type_handler_long_or_longlong());
+      if (preferred)
+      {
+        Type_std_attributes::set(preferred_attrs);
+        if (!length_can_increase)
+        {
+          // Preserve the exact data type and attributes
+          set_handler(preferred);
+        }
+        else
+        {
+          max_length++;
+          set_handler(type_handler_long_or_longlong());
+        }
+      }
+      else
+      {
+        /*
+          This branch is currently used for hex hybrid only.
+          It's known to be unsigned. So sign length is 0.
+        */
+        DBUG_ASSERT(args[0]->unsigned_flag); // no needs to add sign length
+        max_length= args[0]->decimal_precision() + length_can_increase;
+        unsigned_flag= true;
+        decimals= 0;
+        set_handler(type_handler_long_or_longlong());
+      }
     }
     else
       fix_length_and_dec_decimal(val1.to_uint(DECIMAL_MAX_SCALE));
@@ -2610,9 +2700,7 @@ bool Item_func_round::time_op(THD *thd, MYSQL_TIME *to)
 {
   DBUG_ASSERT(args[0]->type_handler()->mysql_timestamp_type() ==
               MYSQL_TIMESTAMP_TIME);
-  Time::Options opt(Time::default_flags_for_get_date(),
-                    truncate ? TIME_FRAC_TRUNCATE : TIME_FRAC_ROUND,
-                    Time::DATETIME_TO_TIME_DISALLOW);
+  Time::Options_for_round opt(truncate ? TIME_FRAC_TRUNCATE : TIME_FRAC_ROUND);
   Longlong_hybrid_null dec= args[1]->to_longlong_hybrid_null();
   Time *tm= new (to) Time(thd, args[0], opt,
                           dec.to_uint(TIME_SECOND_PART_DIGITS));

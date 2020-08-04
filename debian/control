@@ -9,10 +9,17 @@ Build-Depends: bison,
                dh-apparmor,
                dh-exec,
                dh-systemd,
-               flex,
+               flex [i386 amd64],
                gdb,
                libaio-dev [linux-any],
+               libboost-atomic-dev [i386 amd64],
+               libboost-chrono-dev [i386 amd64],
+               libboost-date-time-dev [i386 amd64],
                libboost-dev,
+               libboost-filesystem-dev [i386 amd64],
+               libboost-regex-dev [i386 amd64],
+               libboost-system-dev [i386 amd64],
+               libboost-thread-dev [i386 amd64],
                libcrack2-dev (>= 2.9.0),
                libcurl4-openssl-dev | libcurl4-dev,
                libedit-dev,
@@ -490,8 +497,7 @@ Package: mariadb-server-10.6
 Architecture: any
 Suggests: mailx,
           mariadb-test,
-          netcat-openbsd,
-          tinyca
+          netcat-openbsd
 Recommends: libhtml-template-perl
 Pre-Depends: adduser (>= 3.40),
              debconf,
@@ -642,12 +648,15 @@ Depends: libcurl4,
          mariadb-server-10.6 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
-Description: S3 storage engine for MariaDB
- Read only table stored in S3.
+Description: Amazon S3 archival storage engine for MariaDB
+ The S3 storage engine allows one to archive MariaDB tables in Amazon S3 (or any
+ third-party public or private cloud that implements S3 API), but still have
+ them accessible in MariaDB in read-only mode.
 
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el
 Depends: mariadb-server-10.6 (= ${binary:Version}),
+         python3,
          rocksdb-tools,
          ${misc:Depends},
          ${shlibs:Depends}
@@ -665,11 +674,11 @@ Description: RocksDB storage engine for MariaDB
 
 Package: mariadb-plugin-columnstore
 Architecture: amd64 i386
-Depends: mariadb-server-10.6 (= ${binary:Version}),
-         net-tools,
-         binutils,
-         libsnappy1 | libsnappy1v5,
+Depends: binutils,
          libjemalloc1 | libjemalloc2,
+         libsnappy1 | libsnappy1v5,
+         mariadb-server-10.6 (= ${binary:Version}),
+         net-tools,
          python3,
          ${misc:Depends},
          ${shlibs:Depends}

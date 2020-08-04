@@ -342,6 +342,19 @@ ERROR 42S02: Table 'test.t1' doesn't exist
 DROP TABLE t1;
 # End of 10.1 test
 #
+# MDEV-21258: Can't uninstall plugin if the library file doesn't exist
+#
+insert into  mysql.plugin values ("unexisting_plugin", "soname");
+select * from mysql.plugin WHERE name='unexisting_plugin';
+name	dl
+unexisting_plugin	soname
+UNINSTALL PLUGIN unexisting_plugin;
+select * from mysql.plugin WHERE name='unexisting_plugin';
+name	dl
+UNINSTALL PLUGIN unexisting_plugin;
+ERROR 42000: PLUGIN unexisting_plugin does not exist
+# End of 10.2 tests
+#
 # MDEV-16294: INSTALL PLUGIN IF NOT EXISTS / UNINSTALL PLUGIN IF EXISTS
 #
 # INSTALL IF NOT EXISTS PLUGIN name SONAME library /
@@ -403,3 +416,4 @@ INSTALL PLUGIN example SONAME 'ha_example';
 CREATE TEMPORARY TABLE t1(a INT) ENGINE=example;
 DROP TABLE t1;
 UNINSTALL PLUGIN example;
+# End of 10.4 tests

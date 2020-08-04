@@ -420,4 +420,14 @@ ALTER TABLE t1 MODIFY COLUMN b INT FIRST;
 ALTER TABLE t1 ADD UNIQUE INDEX (va);
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-22651 Assertion dict_col_get_fixed_size...
+--echo # in dict_table_t::init_instant()
+--echo #
+--source include/have_innodb.inc
+CREATE TABLE t (i INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t SET i=1;
+ALTER TABLE t ADD e CHAR(255) CHARACTER SET UTF32 FIRST, ALGORITHM=INSTANT;
+DROP TABLE t;
+
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

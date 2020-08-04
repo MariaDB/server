@@ -38,7 +38,7 @@ Created 2012-08-21 Sunny Bains
 #include <vector>
 #include <string>
 #include <algorithm>
-#include <iostream>
+#include <map>
 
 #ifdef UNIV_DEBUG
 
@@ -505,7 +505,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_IBUF_HEADER);
 	LEVEL_MAP_INSERT(SYNC_DICT_HEADER);
 	LEVEL_MAP_INSERT(SYNC_STATS_AUTO_RECALC);
-	LEVEL_MAP_INSERT(SYNC_DICT_AUTOINC_MUTEX);
 	LEVEL_MAP_INSERT(SYNC_DICT);
 	LEVEL_MAP_INSERT(SYNC_FTS_CACHE);
 	LEVEL_MAP_INSERT(SYNC_DICT_OPERATION);
@@ -766,7 +765,6 @@ LatchDebug::check_order(
 	case SYNC_NOREDO_RSEG:
 	case SYNC_PURGE_LATCH:
 	case SYNC_PURGE_QUEUE:
-	case SYNC_DICT_AUTOINC_MUTEX:
 	case SYNC_DICT_OPERATION:
 	case SYNC_DICT_HEADER:
 	case SYNC_TRX_I_S_RWLOCK:
@@ -1257,8 +1255,6 @@ sync_latch_meta_init()
 	/* The latches should be ordered on latch_id_t. So that we can
 	index directly into the vector to update and fetch meta-data. */
 
-	LATCH_ADD_MUTEX(AUTOINC, SYNC_DICT_AUTOINC_MUTEX, autoinc_mutex_key);
-
 	LATCH_ADD_MUTEX(BUF_POOL, SYNC_BUF_POOL, buf_pool_mutex_key);
 
 	LATCH_ADD_MUTEX(CACHE_LAST_READ, SYNC_TRX_I_S_LAST_READ,
@@ -1386,8 +1382,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(SYNC_ARRAY_MUTEX, SYNC_NO_ORDER_CHECK,
 			sync_array_mutex_key);
 
-	LATCH_ADD_MUTEX(ZIP_PAD_MUTEX, SYNC_NO_ORDER_CHECK, zip_pad_mutex_key);
-
 	LATCH_ADD_MUTEX(OS_AIO_READ_MUTEX, SYNC_NO_ORDER_CHECK,
 			PFS_NOT_INSTRUMENTED);
 
@@ -1506,173 +1500,6 @@ sync_latch_meta_destroy()
 	latch_meta.clear();
 }
 
-/** Track mutex file creation name and line number. This is to avoid storing
-{ const char* name; uint16_t line; } in every instance. This results in the
-sizeof(Mutex) > 64. We use a lookup table to store it separately. Fetching
-the values is very rare, only required for diagnostic purposes. And, we
-don't create/destroy mutexes that frequently. */
-struct CreateTracker {
-
-	/** Constructor */
-	CreateTracker()
-		UNIV_NOTHROW
-	{
-		m_mutex.init();
-	}
-
-	/** Destructor */
-	~CreateTracker()
-		UNIV_NOTHROW
-	{
-		ut_ad(m_files.empty());
-
-		m_mutex.destroy();
-	}
-
-	/** Register where the latch was created
-	@param[in]	ptr		Latch instance
-	@param[in]	filename	Where created
-	@param[in]	line		Line number in filename */
-	void register_latch(
-		const void*	ptr,
-		const char*	filename,
-		uint16_t	line)
-		UNIV_NOTHROW
-	{
-		m_mutex.enter();
-
-		Files::iterator	lb = m_files.lower_bound(ptr);
-
-		ut_ad(lb == m_files.end()
-		      || m_files.key_comp()(ptr, lb->first));
-
-		typedef Files::value_type value_type;
-
-		m_files.insert(lb, value_type(ptr, File(filename, line)));
-
-		m_mutex.exit();
-	}
-
-	/** Deregister a latch - when it is destroyed
-	@param[in]	ptr		Latch instance being destroyed */
-	void deregister_latch(const void* ptr)
-		UNIV_NOTHROW
-	{
-		m_mutex.enter();
-
-		Files::iterator	lb = m_files.lower_bound(ptr);
-
-		ut_ad(lb != m_files.end()
-		      && !(m_files.key_comp()(ptr, lb->first)));
-
-		m_files.erase(lb);
-
-		m_mutex.exit();
-	}
-
-	/** Get the create string, format is "name:line"
-	@param[in]	ptr		Latch instance
-	@return the create string or "" if not found */
-	std::string get(const void* ptr)
-		UNIV_NOTHROW
-	{
-		m_mutex.enter();
-
-		std::string	created;
-
-		Files::iterator	lb = m_files.lower_bound(ptr);
-
-		if (lb != m_files.end()
-		    && !(m_files.key_comp()(ptr, lb->first))) {
-
-			std::ostringstream	msg;
-
-			msg << lb->second.m_name << ":" << lb->second.m_line;
-
-			created = msg.str();
-		}
-
-		m_mutex.exit();
-
-		return(created);
-	}
-
-private:
-	/** For tracking the filename and line number */
-	struct File {
-
-		/** Constructor */
-		File() UNIV_NOTHROW : m_name(), m_line() { }
-
-		/** Constructor
-		@param[in]	name		Filename where created
-		@param[in]	line		Line number where created */
-		File(const char*  name, uint16_t line)
-			UNIV_NOTHROW
-			:
-			m_name(sync_basename(name)),
-			m_line(line)
-		{
-			/* No op */
-		}
-
-		/** Filename where created */
-		std::string		m_name;
-
-		/** Line number where created */
-		uint16_t		m_line;
-	};
-
-	/** Map the mutex instance to where it was created */
-	typedef std::map<
-		const void*,
-		File,
-		std::less<const void*>,
-		ut_allocator<std::pair<const void* const, File> > >
-		Files;
-
-	typedef OSMutex	Mutex;
-
-	/** Mutex protecting m_files */
-	Mutex			m_mutex;
-
-	/** Track the latch creation */
-	Files			m_files;
-};
-
-/** Track latch creation location. For reducing the size of the latches */
-static CreateTracker	create_tracker;
-
-/** Register a latch, called when it is created
-@param[in]	ptr		Latch instance that was created
-@param[in]	filename	Filename where it was created
-@param[in]	line		Line number in filename */
-void
-sync_file_created_register(
-	const void*	ptr,
-	const char*	filename,
-	uint16_t	line)
-{
-	create_tracker.register_latch(ptr, filename, line);
-}
-
-/** Deregister a latch, called when it is destroyed
-@param[in]	ptr		Latch to be destroyed */
-void
-sync_file_created_deregister(const void* ptr)
-{
-	create_tracker.deregister_latch(ptr);
-}
-
-/** Get the string where the file was created. Its format is "name:line"
-@param[in]	ptr		Latch instance
-@return created information or "" if can't be found */
-std::string
-sync_file_created_get(const void* ptr)
-{
-	return(create_tracker.get(ptr));
-}
-
 /** Initializes the synchronization data structures. */
 void
 sync_check_init()
@@ -1682,9 +1509,7 @@ sync_check_init()
 
 	sync_latch_meta_init();
 
-	/* Init the rw-lock & mutex list and create the mutex to protect it. */
-
-	UT_LIST_INIT(rw_lock_list, &rw_lock_t::list);
+	/* create the mutex to protect rw_lock list. */
 
 	mutex_create(LATCH_ID_RW_LOCK_LIST, &rw_lock_list_mutex);
 

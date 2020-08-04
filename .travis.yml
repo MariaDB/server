@@ -40,7 +40,14 @@ addons:
       - g++-9 # ubuntu-toolchain-r/test (xenial and bionic)
       - gdb
       - libaio-dev
+      - libboost-atomic-dev
+      - libboost-chrono-dev
+      - libboost-date-time-dev
       - libboost-dev
+      - libboost-filesystem-dev
+      - libboost-regex-dev
+      - libboost-system-dev
+      - libboost-thread-dev
       - libcrack2-dev
       - libcurl3-dev
       - libdbd-mysql
@@ -52,6 +59,7 @@ addons:
       - libnuma-dev
       - libpam0g-dev
       - libpcre2-dev
+      - libreadline-gplv2-dev
       - libsnappy-dev
       - libssl-dev
       - libstemmer-dev

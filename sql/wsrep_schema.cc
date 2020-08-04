@@ -492,12 +492,11 @@ static int scan(TABLE* table, uint field, INTTYPE& val)
 
 static int scan(TABLE* table, uint field, char* strbuf, uint strbuf_len)
 {
-  String str;
-  (void)table->field[field]->val_str(&str);
-  LEX_CSTRING tmp= str.lex_cstring();
-  uint len = tmp.length;
-  strncpy(strbuf, tmp.str, std::min(len, strbuf_len));
-  strbuf[strbuf_len - 1]= '\0';
+  uint len;
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> str;
+  (void) table->field[field]->val_str(&str);
+  len= str.length();
+  strmake(strbuf, str.ptr(), MY_MIN(len, strbuf_len-1));
   return 0;
 }
 

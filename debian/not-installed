@@ -1,12 +1,17 @@
+etc/columnstore/storagemanager.cnf.example # Copy of etc/columnstore/storagemanager.cnf that is installed
 lib/systemd/system/mariadb.service # Installed by rules file
 lib/systemd/system/mariadb@.service # Installed by rules file
 usr/bin/mysql_config # We already have the MariaDB variant
 usr/bin/mytop # Mytop is distributed from a separate source package
 usr/bin/sst_dump # Use the one from rocksdb-tools package
-usr/lib/sysusers.d/sysusers.conf
-usr/lib/tmpfiles.d/tmpfiles.conf
 usr/lib/mysql/plugin/JavaWrappers.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
 usr/lib/mysql/plugin/JdbcInterface.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
+usr/lib/sysusers.d/sysusers.conf
+usr/lib/tmpfiles.d/tmpfiles.conf
+usr/lib/*/libdbbc.a # ColumnStore header file
+usr/lib/*/libidbboot.a # ColumnStore header file
+usr/lib/*/libprocessor.a # ColumnStore header file
+usr/lib/*/libwe_xml.a # ColumnStore header file
 usr/share/doc/mariadb-server-10.6/COPYING
 usr/share/doc/mariadb-server-10.6/COPYING.AGPLv3
 usr/share/doc/mariadb-server-10.6/COPYING.GPLv2

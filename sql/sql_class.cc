@@ -706,6 +706,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_affected_rows(0),
    wsrep_has_ignored_error(false),
    wsrep_ignore_table(false),
+   wsrep_aborter(0),
 
 /* wsrep-lib */
    m_wsrep_next_trx_id(WSREP_UNDEFINED_TRX_ID),
@@ -1308,6 +1309,7 @@ void THD::init()
   wsrep_rbr_buf           = NULL;
   wsrep_affected_rows     = 0;
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
+  wsrep_aborter           = 0;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -1394,9 +1396,11 @@ void THD::update_all_stats()
 
 void THD::init_for_queries()
 {
-  set_time(); 
-  ha_enable_transaction(this,TRUE);
+  DBUG_ASSERT(transaction->on);
+  DBUG_ASSERT(m_transaction_psi == NULL);
 
+  /* Set time for --init-file queries */
+  set_time();
   reset_root_defaults(mem_root, variables.query_alloc_block_size,
                       variables.query_prealloc_size);
   reset_root_defaults(&transaction->mem_root,
@@ -1548,6 +1552,8 @@ void THD::cleanup(void)
     trans_rollback(this);
 
   DBUG_ASSERT(open_tables == NULL);
+  DBUG_ASSERT(m_transaction_psi == NULL);
+
   /*
     If the thread was in the middle of an ongoing transaction (rolled
     back a few lines above) or under LOCK TABLES (unlocked the tables
@@ -1648,6 +1654,7 @@ void THD::reset_for_reuse()
   abort_on_warning= 0;
   free_connection_done= 0;
   m_command= COM_CONNECT;
+  transaction->on= 1;
 #if defined(ENABLED_PROFILING)
   profiling.reset();
 #endif
@@ -2139,11 +2146,19 @@ void THD::reset_killed()
   DBUG_ENTER("reset_killed");
   if (killed != NOT_KILLED)
   {
+    mysql_mutex_assert_not_owner(&LOCK_thd_kill);
     mysql_mutex_lock(&LOCK_thd_kill);
     killed= NOT_KILLED;
     killed_err= 0;
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
+#ifdef WITH_WSREP
+  mysql_mutex_assert_not_owner(&LOCK_thd_data);
+  mysql_mutex_lock(&LOCK_thd_data);
+  wsrep_aborter= 0;
+  mysql_mutex_unlock(&LOCK_thd_data);
+#endif /* WITH_WSREP */
+
   DBUG_VOID_RETURN;
 }
 
@@ -2493,7 +2508,8 @@ bool THD::to_ident_sys_alloc(Lex_ident_sys_st *to, const Lex_ident_cli_st *ident
 
 
 Item_basic_constant *
-THD::make_string_literal(const char *str, size_t length, uint repertoire)
+THD::make_string_literal(const char *str, size_t length,
+                         my_repertoire_t repertoire)
 {
   if (!length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
     return new (mem_root) Item_null(this, 0, variables.collation_connection);
@@ -3738,7 +3754,6 @@ void select_dumpvar::cleanup()
 
 Query_arena::Type Query_arena::type() const
 {
-  DBUG_ASSERT(0); /* Should never be called */
   return STATEMENT;
 }
 
@@ -5802,7 +5817,8 @@ start_new_trans::start_new_trans(THD *thd)
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
   memcpy(old_ha_data, thd->ha_data, sizeof(old_ha_data));
   thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
-  bzero(thd->ha_data, sizeof(thd->ha_data));
+  for (auto &data : thd->ha_data)
+    data.reset();
   old_transaction= thd->transaction;
   thd->transaction= &new_transaction;
   new_transaction.on= 1;

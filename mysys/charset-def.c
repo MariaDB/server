@@ -469,7 +469,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
 
   /* Copy compiled charsets */
   for (cs=compiled_charsets; cs->name; cs++)
-    add_compiled_collation((struct charset_info_st *) cs);
+    add_compiled_extra_collation((struct charset_info_st *) cs);
   
   return FALSE;
 }

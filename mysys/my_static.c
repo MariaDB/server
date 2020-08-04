@@ -47,6 +47,7 @@ PSI_memory_key key_memory_my_compress_alloc;
 PSI_memory_key key_memory_my_err_head;
 PSI_memory_key key_memory_my_file_info;
 PSI_memory_key key_memory_pack_frm;
+PSI_memory_key key_memory_charsets;
 
 #ifdef _WIN32
 PSI_memory_key key_memory_win_SECURITY_ATTRIBUTES;

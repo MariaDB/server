@@ -1331,23 +1331,6 @@ row_mysql_get_table_status(
 	return(err);
 }
 
-/** Writes 8 bytes to nth tuple field
-@param[in]	tuple	where to write
-@param[in]	nth	index in tuple
-@param[in]	data	what to write
-@param[in]	buf	field data buffer */
-static
-void
-set_tuple_col_8(dtuple_t* tuple, int col, uint64_t data, byte* buf) {
-	dfield_t* dfield = dtuple_get_nth_field(tuple, col);
-	ut_ad(dfield->type.len == 8);
-	if (dfield->len == UNIV_SQL_NULL) {
-		dfield_set_data(dfield, buf, 8);
-	}
-	ut_ad(dfield->len == dfield->type.len && dfield->data);
-	mach_write_to_8(dfield->data, data);
-}
-
 /** Does an insert for MySQL.
 @param[in]	mysql_rec	row in the MySQL format
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
@@ -1415,29 +1398,8 @@ row_insert_for_mysql(
 					  &blob_heap);
 
 	if (ins_mode != ROW_INS_NORMAL) {
-#ifndef DBUG_OFF
-		ut_ad(table->vers_start != table->vers_end);
-		const mysql_row_templ_t* t
-		    = prebuilt->get_template_by_col(table->vers_end);
-		ut_ad(t);
-		ut_ad(t->mysql_col_len == 8);
-#endif
-
-		if (ins_mode == ROW_INS_HISTORICAL) {
-			set_tuple_col_8(node->row, table->vers_end, trx->id,
-					node->vers_end_buf);
-		} else /* ROW_INS_VERSIONED */ {
-			set_tuple_col_8(node->row, table->vers_end, TRX_ID_MAX,
-					node->vers_end_buf);
-#ifndef DBUG_OFF
-			t = prebuilt->get_template_by_col(table->vers_start);
-			ut_ad(t);
-			ut_ad(t->mysql_col_len == 8);
-#endif
-			set_tuple_col_8(node->row, table->vers_start, trx->id,
-					node->vers_start_buf);
-		}
-	}
+          node->vers_update_end(prebuilt, ins_mode == ROW_INS_HISTORICAL);
+        }
 
 	savept = trx_savept_take(trx);
 
@@ -1871,10 +1833,10 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	if (prebuilt->versioned_write) {
 		if (node->is_delete == VERSIONED_DELETE) {
-			node->make_versioned_delete(trx);
-		} else if (node->update->affects_versioned()) {
-			node->make_versioned_update(trx);
-		}
+                  node->vers_make_delete(trx);
+                } else if (node->update->affects_versioned()) {
+                  node->vers_make_update(trx);
+                }
 	}
 
 	for (;;) {
@@ -2230,14 +2192,14 @@ row_update_cascade_for_mysql(
 
 	if (table->versioned()) {
 		if (node->is_delete == PLAIN_DELETE) {
-			node->make_versioned_delete(trx);
-		} else if (node->update->affects_versioned()) {
+                  node->vers_make_delete(trx);
+                } else if (node->update->affects_versioned()) {
 			dberr_t err = row_update_vers_insert(thr, node);
 			if (err != DB_SUCCESS) {
 				return err;
 			}
-			node->make_versioned_update(trx);
-		}
+                        node->vers_make_update(trx);
+                }
 	}
 
 	for (;;) {
@@ -3845,7 +3807,7 @@ funct_exit_all_freed:
 
 	trx->op_info = "";
 
-	srv_wake_master_thread();
+	srv_inc_activity_count();
 
 	DBUG_RETURN(err);
 }

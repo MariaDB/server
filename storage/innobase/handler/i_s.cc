@@ -470,8 +470,7 @@ fill_innodb_trx_from_cache(
 			   row->trx_rows_modified, true));
 
 		/* trx_concurrency_tickets */
-		OK(fields[IDX_TRX_CONNCURRENCY_TICKETS]->store(
-			   row->trx_concurrency_tickets, true));
+		OK(fields[IDX_TRX_CONNCURRENCY_TICKETS]->store(0, true));
 
 		/* trx_isolation_level */
 		OK(fields[IDX_TRX_ISOLATION_LEVEL]->store(
@@ -2046,7 +2045,7 @@ i_s_metrics_fill(
 			time_diff = 0;
 		}
 
-		/* Unless MONITOR__NO_AVERAGE is marked, we will need
+		/* Unless MONITOR_NO_AVERAGE is set, we must
 		to calculate the average value. If this is a monitor set
 		owner marked by MONITOR_SET_OWNER, divide
 		the value by another counter (number of calls) designated
@@ -2054,8 +2053,9 @@ i_s_metrics_fill(
 		Otherwise average the counter value by the time between the
 		time that the counter is enabled and time it is disabled
 		or time it is sampled. */
-		if (!(monitor_info->monitor_type & MONITOR_NO_AVERAGE)
-		    && (monitor_info->monitor_type & MONITOR_SET_OWNER)
+		if ((monitor_info->monitor_type
+		     & (MONITOR_NO_AVERAGE | MONITOR_SET_OWNER))
+		    == MONITOR_SET_OWNER
 		    && monitor_info->monitor_related_id) {
 			mon_type_t	value_start
 				 = MONITOR_VALUE_SINCE_START(
@@ -2071,18 +2071,18 @@ i_s_metrics_fill(
 				fields[METRIC_AVG_VALUE_START]->set_null();
 			}
 
-			if (MONITOR_VALUE(monitor_info->monitor_related_id)) {
-				OK(fields[METRIC_AVG_VALUE_RESET]->store(
-					MONITOR_VALUE(count)
-					/ MONITOR_VALUE(
-					monitor_info->monitor_related_id),
-					FALSE));
+			if (mon_type_t related_value =
+			    MONITOR_VALUE(monitor_info->monitor_related_id)) {
+				OK(fields[METRIC_AVG_VALUE_RESET]
+				   ->store(MONITOR_VALUE(count)
+					   / related_value, false));
+				fields[METRIC_AVG_VALUE_RESET]->set_notnull();
 			} else {
 				fields[METRIC_AVG_VALUE_RESET]->set_null();
 			}
-		} else if (!(monitor_info->monitor_type & MONITOR_NO_AVERAGE)
-			   && !(monitor_info->monitor_type
-				& MONITOR_DISPLAY_CURRENT)) {
+		} else if (!(monitor_info->monitor_type
+			     & (MONITOR_NO_AVERAGE
+				| MONITOR_DISPLAY_CURRENT))) {
 			if (time_diff != 0) {
 				OK(fields[METRIC_AVG_VALUE_START]->store(
 					(double) MONITOR_VALUE_SINCE_START(
@@ -2817,6 +2817,8 @@ no_fts:
 	conv_str.f_len = sizeof word;
 	conv_str.f_str = word;
 
+	rw_lock_s_lock(&cache->lock);
+
 	for (ulint i = 0; i < ib_vector_size(cache->indexes); i++) {
 		fts_index_cache_t*      index_cache;
 
@@ -2827,6 +2829,7 @@ no_fts:
 				 index_cache, thd, &conv_str, tables));
 	}
 
+	rw_lock_s_unlock(&cache->lock);
 	dict_table_close(user_table, FALSE, FALSE);
 	rw_lock_s_unlock(&dict_sys.latch);
 
@@ -7165,9 +7168,8 @@ i_s_innodb_mutexes_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	rw_lock_t*	lock;
 	ulint		block_lock_oswait_count = 0;
-	rw_lock_t*	block_lock = NULL;
+	const rw_lock_t* block_lock= nullptr;
 	Field**		fields = tables->table->field;
 
 	DBUG_ENTER("i_s_innodb_mutexes_fill_table");
@@ -7210,32 +7212,31 @@ i_s_innodb_mutexes_fill_table(
 
 		char lock_name[sizeof "buf0dump.cc:12345"];
 
-		for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
-		     lock = UT_LIST_GET_NEXT(list, lock)) {
-			if (lock->count_os_wait == 0) {
+		for (const rw_lock_t& lock : rw_lock_list) {
+			if (lock.count_os_wait == 0) {
 				continue;
 			}
 
-			if (buf_pool.is_block_lock(lock)) {
-				block_lock = lock;
-				block_lock_oswait_count += lock->count_os_wait;
+			if (buf_pool.is_block_lock(&lock)) {
+				block_lock = &lock;
+				block_lock_oswait_count += lock.count_os_wait;
 				continue;
 			}
 
 			const char* basename = innobase_basename(
-				lock->cfile_name);
+				lock.cfile_name);
 
 			snprintf(lock_name, sizeof lock_name, "%s:%u",
-				 basename, lock->cline);
+				 basename, lock.cline);
 
 			OK(field_store_string(fields[MUTEXES_NAME],
 					      lock_name));
 			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
 					      basename));
-			OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline,
+			OK(fields[MUTEXES_CREATE_LINE]->store(lock.cline,
 							      true));
 			fields[MUTEXES_CREATE_LINE]->set_notnull();
-			OK(fields[MUTEXES_OS_WAITS]->store(lock->count_os_wait,
+			OK(fields[MUTEXES_OS_WAITS]->store(lock.count_os_wait,
 							   true));
 			fields[MUTEXES_OS_WAITS]->set_notnull();
 			OK(schema_table_store_record(thd, tables->table));

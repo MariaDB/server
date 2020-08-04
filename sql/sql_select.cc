@@ -1425,7 +1425,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY && !group_list &&
       !(select_lex->master_unit()->item &&
         select_lex->master_unit()->item->is_in_predicate() &&
-        ((Item_in_subselect*)select_lex->master_unit()->item)->
+        select_lex->master_unit()->item->get_IN_subquery()->
         test_set_strategy(SUBS_MAXMIN_INJECTED)) &&
       select_lex->non_agg_field_used() &&
       select_lex->agg_func_used())
@@ -5056,7 +5056,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     */
     bool skip_unprefixed_keyparts=
       !(join->is_in_subquery() &&
-        ((Item_in_subselect*)join->unit->item)->test_strategy(SUBS_IN_TO_EXISTS));
+        join->unit->item->get_IN_subquery()->test_strategy(SUBS_IN_TO_EXISTS));
 
     if (keyuse_array->elements &&
         sort_and_filter_keyuse(thd, keyuse_array,
@@ -5809,7 +5809,8 @@ static uint get_semi_join_select_list_index(Field *field)
   {
     Item_in_subselect *subq_pred= emb_sj_nest->sj_subq_pred;
     st_select_lex *subq_lex= subq_pred->unit->first_select();
-    if (subq_pred->left_expr->cols() == 1)
+    uint ncols= subq_pred->left_exp()->cols();
+    if (ncols == 1)
     {
       Item *sel_item= subq_lex->ref_pointer_array[0];
       if (sel_item->type() == Item::FIELD_ITEM &&
@@ -5820,7 +5821,7 @@ static uint get_semi_join_select_list_index(Field *field)
     }
     else
     {
-      for (uint i= 0; i < subq_pred->left_expr->cols(); i++)
+      for (uint i= 0; i < ncols; i++)
       {
         Item *sel_item= subq_lex->ref_pointer_array[i];
         if (sel_item->type() == Item::FIELD_ITEM &&
@@ -21258,7 +21259,7 @@ int join_read_key2(THD *thd, JOIN_TAB *tab, TABLE *table, TABLE_REF *table_ref)
   if (tab && tab->bush_children)
   {
     TABLE_LIST *emb_sj_nest= tab->bush_children->start->emb_sj_nest;
-    emb_sj_nest->sj_subq_pred->left_expr->bring_value();
+    emb_sj_nest->sj_subq_pred->left_exp()->bring_value();
   }
 
   /* TODO: Why don't we do "Late NULLs Filtering" here? */
@@ -24470,10 +24471,13 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
                 List<Item> &fields, List<Item> &all_fields, ORDER *order,
                 bool from_window_spec)
 { 
+  SELECT_LEX *select = thd->lex->current_select;
   enum_parsing_place context_analysis_place=
                      thd->lex->current_select->context_analysis_place;
   thd->where="order clause";
-  for (; order; order=order->next)
+  const bool for_union= select->master_unit()->is_unit_op() &&
+    select == select->master_unit()->fake_select_lex;
+  for (uint number = 1; order; order=order->next, number++)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, order, fields,
                            all_fields, false, true, from_window_spec))
@@ -24484,8 +24488,22 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
       return 1;
     }
-    if (from_window_spec && (*order->item)->with_sum_func() &&
-        (*order->item)->type() != Item::SUM_FUNC_ITEM)
+
+    if (!(*order->item)->with_sum_func())
+      continue;
+
+    /*
+      UNION queries cannot be used with an aggregate function in
+      an ORDER BY clause
+    */
+
+    if (for_union)
+    {
+      my_error(ER_AGGREGATE_ORDER_FOR_UNION, MYF(0), number);
+      return 1;
+    }
+
+    if (from_window_spec && (*order->item)->type() != Item::SUM_FUNC_ITEM)
       (*order->item)->split_sum_func(thd, ref_pointer_array,
                                      all_fields, SPLIT_SUM_SELECT);
   }

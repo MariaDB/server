@@ -8126,7 +8126,10 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   else
     all_items= thd->free_list;
 
-  mark_all_fields_used_in_query(thd, fields_info, &bitmap, all_items);
+  if (table_list->part_of_natural_join)
+    bitmap_set_all(&bitmap);
+  else
+    mark_all_fields_used_in_query(thd, fields_info, &bitmap, all_items);
 
   TMP_TABLE_PARAM *tmp_table_param = new (thd->mem_root) TMP_TABLE_PARAM;
   tmp_table_param->init();
@@ -8215,7 +8218,7 @@ int make_schemata_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
       buffer.append(lex->wild->ptr());
       buffer.append(')');
     }
-    field->set_name(thd, buffer.lex_cstring());
+    field->set_name(thd, &buffer);
   }
   return 0;
 }
@@ -8224,7 +8227,7 @@ int make_schemata_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 {
   char tmp[128];
-  String buffer(tmp,sizeof(tmp), thd->charset());
+  String buffer(tmp, sizeof(tmp), system_charset_info);
   LEX *lex= thd->lex;
   Name_resolution_context *context= &lex->first_select_lex()->context;
   ST_FIELD_INFO *field_info= &schema_table->fields_info[2];
@@ -8242,7 +8245,7 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   Item_field *field= new (thd->mem_root) Item_field(thd, context, field_name);
   if (add_item_to_list(thd, field))
     return 1;
-  field->set_name(thd, buffer.lex_cstring());
+  field->set_name(thd, &buffer);
   if (thd->lex->verbose)
   {
     field_info= &schema_table->fields_info[3];

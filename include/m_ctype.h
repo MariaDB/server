@@ -226,9 +226,14 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
 #define MY_CHARSET_UNDEFINED 0
 
 /* Character repertoire flags */
-#define MY_REPERTOIRE_ASCII      1 /* Pure ASCII            U+0000..U+007F */
-#define MY_REPERTOIRE_EXTENDED   2 /* Extended characters:  U+0080..U+FFFF */
-#define MY_REPERTOIRE_UNICODE30  3 /* ASCII | EXTENDED:     U+0000..U+FFFF */
+typedef enum enum_repertoire_t
+{
+  MY_REPERTOIRE_NONE=        0,
+  MY_REPERTOIRE_ASCII=       1, /* Pure ASCII            U+0000..U+007F */
+  MY_REPERTOIRE_EXTENDED=    2, /* Extended characters:  U+0080..U+FFFF */
+  MY_REPERTOIRE_UNICODE30=   3  /* ASCII | EXTENDED:     U+0000..U+FFFF */
+} my_repertoire_t;
+
 
 /* Flags for strxfrm */
 #define MY_STRXFRM_LEVEL1          0x00000001 /* for primary weights   */
@@ -1420,14 +1425,15 @@ my_bool my_propagate_complex(CHARSET_INFO *cs, const uchar *str, size_t len);
 typedef struct 
 {
   size_t char_length;
-  uint repertoire;
+  my_repertoire_t repertoire;
 } MY_STRING_METADATA;
 
 void my_string_metadata_get(MY_STRING_METADATA *metadata,
                             CHARSET_INFO *cs, const char *str, size_t len);
-uint my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t len);
+my_repertoire_t my_string_repertoire(CHARSET_INFO *cs,
+                                     const char *str, size_t len);
 my_bool my_charset_is_ascii_based(CHARSET_INFO *cs);
-uint my_charset_repertoire(CHARSET_INFO *cs);
+my_repertoire_t my_charset_repertoire(CHARSET_INFO *cs);
 
 uint my_strxfrm_flag_normalize(uint flags, uint nlevels);
 void my_strxfrm_desc_and_reverse(uchar *str, uchar *strend,

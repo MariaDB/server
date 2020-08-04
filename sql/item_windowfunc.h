@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2016,2019 MariaDB
+   Copyright (c) 2016, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -651,7 +651,7 @@ class Item_sum_ntile : public Item_sum_int,
 {
  public:
   Item_sum_ntile(THD* thd, Item* num_quantiles_expr) :
-    Item_sum_int(thd, num_quantiles_expr)
+    Item_sum_int(thd, num_quantiles_expr), n_old_val_(0)
   { }
 
   longlong val_int()
@@ -664,11 +664,13 @@ class Item_sum_ntile : public Item_sum_int,
 
     longlong num_quantiles= get_num_quantiles();
 
-    if (num_quantiles <= 0) {
+    if (num_quantiles <= 0 || 
+      (static_cast<ulonglong>(num_quantiles) != n_old_val_ && n_old_val_ > 0))
+    {
       my_error(ER_INVALID_NTILE_ARGUMENT, MYF(0));
       return true;
     }
-
+    n_old_val_= static_cast<ulonglong>(num_quantiles);
     null_value= false;
     ulonglong quantile_size = get_row_count() / num_quantiles;
     ulonglong extra_rows = get_row_count() - quantile_size * num_quantiles;
@@ -694,6 +696,7 @@ class Item_sum_ntile : public Item_sum_int,
   {
     current_row_count_= 0;
     partition_row_count_= 0;
+    n_old_val_= 0;
   }
 
   const char*func_name() const
@@ -717,6 +720,7 @@ class Item_sum_ntile : public Item_sum_int,
 
  private:
   longlong get_num_quantiles() { return args[0]->val_int(); }
+  ulonglong n_old_val_;
 };
 
 class Item_sum_percentile_disc : public Item_sum_num,

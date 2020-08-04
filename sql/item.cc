@@ -1394,9 +1394,11 @@ bool Item::get_date_from_real(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate
 
 bool Item::get_date_from_string(THD *thd, MYSQL_TIME *to, date_mode_t mode)
 {
-  StringBuffer<40> tmp;
-  Temporal::Warn_push warn(thd, field_table_or_null(), field_name_or_null(),
-                           to, mode);
+  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> tmp;
+  const TABLE_SHARE *s = field_table_or_null();
+  Temporal::Warn_push warn(thd, s ? s->db.str : nullptr,
+                           s ? s->table_name.str : nullptr,
+                           field_name_or_null(), to, mode);
   Temporal_hybrid *t= new(to) Temporal_hybrid(thd, &warn, val_str(&tmp), mode);
   return !t->is_valid_temporal();
 }
@@ -2076,7 +2078,7 @@ Item_name_const::Item_name_const(THD *thd, Item *name_arg, Item *val):
   Item::maybe_null= TRUE;
   if (name_item->basic_const_item() &&
       (name_str= name_item->val_str(&name_buffer))) // Can't have a NULL name
-    set_name(thd, name_str->lex_cstring(), name_str->charset());
+    set_name(thd, name_str);
 }
 
 
@@ -2430,7 +2432,7 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
     {
       if (derivation == DERIVATION_EXPLICIT)
       {
-        set(0, DERIVATION_NONE, 0);
+        set(0, DERIVATION_NONE, MY_REPERTOIRE_NONE);
         return 1;
       }
       if (collation->state & MY_CS_BINSORT &&
@@ -2562,14 +2564,7 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
   bool res= FALSE;
   uint i;
 
-  /*
-    In case we're in statement prepare, create conversion item
-    in its memory: it will be reused on each execute.
-  */
-  Query_arena backup;
-  Query_arena *arena= thd->stmt_arena->is_stmt_prepare() ?
-                      thd->activate_stmt_arena_if_needed(&backup) :
-                      NULL;
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
   for (i= 0, arg= args; i < nargs; i++, arg+= item_sep)
   {
@@ -2591,20 +2586,8 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
       res= TRUE;
       break; // we cannot return here, we need to restore "arena".
     }
-    /*
-      If in statement prepare, then we create a converter for two
-      constant items, do it once and then reuse it.
-      If we're in execution of a prepared statement, arena is NULL,
-      and the conv was created in runtime memory. This can be
-      the case only if the argument is a parameter marker ('?'),
-      because for all true constants the charset converter has already
-      been created in prepare. In this case register the change for
-      rollback.
-    */
-    if (thd->stmt_arena->is_stmt_prepare())
-      *arg= conv;
-    else
-      thd->change_item_tree(arg, conv);
+
+    thd->change_item_tree(arg, conv);
 
     if (conv->fix_fields_if_needed(thd, arg))
     {
@@ -2612,8 +2595,6 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
       break; // we cannot return here, we need to restore "arena".
     }
   }
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
   return res;
 }
 
@@ -3626,9 +3607,10 @@ String *Item_int::val_str(String *str)
 
 void Item_int::print(String *str, enum_query_type query_type)
 {
+  StringBuffer<LONGLONG_BUFFER_SIZE> buf;
   // my_charset_bin is good enough for numbers
-  str_value.set_int(value, unsigned_flag, &my_charset_bin);
-  str->append(str_value);
+  buf.set_int(value, unsigned_flag, &my_charset_bin);
+  str->append(buf);
 }
 
 
@@ -3651,21 +3633,6 @@ Item_uint::Item_uint(THD *thd, const char *str_arg, longlong i, uint length):
   Item_int(thd, str_arg, i, length)
 {
   unsigned_flag= 1;
-}
-
-
-String *Item_uint::val_str(String *str)
-{
-  str->set((ulonglong) value, collation.collation);
-  return str;
-}
-
-
-void Item_uint::print(String *str, enum_query_type query_type)
-{
-  // latin1 is good enough for numbers
-  str_value.set((ulonglong) value, default_charset());
-  str->append(str_value);
 }
 
 
@@ -3911,7 +3878,7 @@ Item_null::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
   if (str->length)
   {
     CHARSET_INFO *cs= thd->variables.collation_connection;
-    uint repertoire= my_string_repertoire(cs, str->str, str->length);
+    my_repertoire_t repertoire= my_string_repertoire(cs, str->str, str->length);
     return new (thd->mem_root) Item_string(thd,
                                            str->str, (uint) str->length, cs,
                                            DERIVATION_COERCIBLE, repertoire);
@@ -4156,7 +4123,7 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
   {
     ErrConvTime str(&value.time);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, time_type, 0, 0);
+                                 &str, time_type, NULL, NULL, NULL);
     set_zero_time(&value.time, time_type);
   }
   maybe_null= 0;
@@ -6688,8 +6655,9 @@ int Item_string::save_in_field(Field *field, bool no_conversions)
 
 Item *Item_string::clone_item(THD *thd)
 {
-  return new (thd->mem_root)
-    Item_string(thd, name, str_value.lex_cstring(), collation.collation);
+  LEX_CSTRING val;
+  str_value.get_value(&val);
+  return new (thd->mem_root) Item_string(thd, name, val, collation.collation);
 }
 
 

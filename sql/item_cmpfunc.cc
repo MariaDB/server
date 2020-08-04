@@ -1197,11 +1197,9 @@ longlong Item_func_truth::val_int()
 }
 
 
-bool Item_in_optimizer::is_top_level_item()
+bool Item_in_optimizer::is_top_level_item() const
 {
-  if (invisible_mode())
-    return FALSE;
-  return ((Item_in_subselect *)args[1])->is_top_level_item();
+  return args[1]->is_top_level_item();
 }
 
 
@@ -1265,10 +1263,9 @@ void Item_in_optimizer::print(String *str, enum_query_type query_type)
 
 void Item_in_optimizer::restore_first_argument()
 {
-  if (!invisible_mode())
-  {
-    args[0]= ((Item_in_subselect *)args[1])->left_expr;
-  }
+  Item_in_subselect *in_subs= args[1]->get_IN_subquery();
+  if (in_subs)
+    args[0]= in_subs->left_exp();
 }
 
 
@@ -1292,8 +1289,8 @@ bool Item_in_optimizer::fix_left(THD *thd)
        the pointer to the post-transformation item. Because of that, on the
        next execution we need to copy args[1]->left_expr again.
     */
-    ref0= &(((Item_in_subselect *)args[1])->left_expr);
-    args[0]= ((Item_in_subselect *)args[1])->left_expr;
+    ref0= args[1]->get_IN_subquery()->left_exp_ptr();
+    args[0]= (*ref0);
   }
   if ((*ref0)->fix_fields_if_needed(thd, ref0) ||
       (!cache && !(cache= (*ref0)->get_cache(thd))))
@@ -1419,9 +1416,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
 bool Item_in_optimizer::invisible_mode()
 {
   /* MAX/MIN transformed or EXISTS->IN prepared => do nothing */
- return (args[1]->type() != Item::SUBSELECT_ITEM ||
-         ((Item_subselect *)args[1])->substype() ==
-         Item_subselect::EXISTS_SUBS);
+  return (args[1]->get_IN_subquery() == NULL);
 }
 
 
@@ -1583,7 +1578,7 @@ longlong Item_in_optimizer::val_int()
       "<outer_value_list> [NOT] IN (SELECT <inner_value_list>...)" 
       where one or more of the outer values is NULL. 
     */
-    if (((Item_in_subselect*)args[1])->is_top_level_item())
+    if (args[1]->is_top_level_item())
     {
       /*
         We're evaluating a top level item, e.g. 
@@ -1606,7 +1601,7 @@ longlong Item_in_optimizer::val_int()
         SELECT evaluated over the non-NULL values produces at least
         one row, FALSE otherwise
       */
-      Item_in_subselect *item_subs=(Item_in_subselect*)args[1]; 
+      Item_in_subselect *item_subs= args[1]->get_IN_subquery();
       bool all_left_cols_null= true;
       const uint ncols= cache->cols();
 
@@ -1752,8 +1747,7 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
                  ((Item_subselect*)(args[1]))->substype() ==
                  Item_subselect::ANY_SUBS));
 
-    Item_in_subselect *in_arg= (Item_in_subselect*)args[1];
-    thd->change_item_tree(&in_arg->left_expr, args[0]);
+    thd->change_item_tree(args[1]->get_IN_subquery()->left_exp_ptr(), args[0]);
   }
   return (this->*transformer)(thd, argument);
 }

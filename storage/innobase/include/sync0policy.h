@@ -220,7 +220,8 @@ public:
 
 		meta.get_counter()->single_register(&m_count);
 
-		sync_file_created_register(this, filename, uint16_t(line));
+		m_filename = filename;
+		m_line = line;
 	}
 
 	/** Called when the mutex is destroyed. */
@@ -230,8 +231,6 @@ public:
 		latch_meta_t&	meta = sync_latch_get_meta(m_id);
 
 		meta.get_counter()->single_deregister(&m_count);
-
-		sync_file_created_deregister(this);
 	}
 
 	/** Called after a successful mutex acquire.
@@ -272,13 +271,21 @@ public:
 
   /** @return the string representation */
   std::string to_string() const
-  { return sync_mutex_to_string(get_id(), sync_file_created_get(this)); }
+  {
+    return sync_mutex_to_string(get_id(),
+                                std::string(m_filename)
+                                    .append(":")
+                                    .append(std::to_string(m_line)));
+  }
 
 #ifdef UNIV_DEBUG
   MutexDebug<Mutex> context;
 #endif
 
 private:
+  const char *m_filename;
+  uint32_t m_line;
+
   /** The user visible counters, registered with the meta-data. */
   latch_meta_t::CounterType::Count m_count;
 

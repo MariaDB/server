@@ -50,6 +50,17 @@
 #define MYSQL57_GENERATED_FIELD 128
 #define MYSQL57_GCOL_HEADER_SIZE 4
 
+class Table_arena: public Query_arena
+{
+public:
+  Table_arena(MEM_ROOT *mem_root, enum enum_state state_arg) :
+          Query_arena(mem_root, state_arg){}
+  virtual Type type() const
+  {
+    return TABLE_ARENA;
+  }
+};
+
 struct extra2_fields
 {
   LEX_CUSTRING version;
@@ -1145,8 +1156,9 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     We need to use CONVENTIONAL_EXECUTION here to ensure that
     any new items created by fix_fields() are not reverted.
   */
-  table->expr_arena= new (alloc_root(mem_root, sizeof(Query_arena)))
-                        Query_arena(mem_root, Query_arena::STMT_CONVENTIONAL_EXECUTION);
+  table->expr_arena= new (alloc_root(mem_root, sizeof(Table_arena)))
+                        Table_arena(mem_root, 
+                                    Query_arena::STMT_CONVENTIONAL_EXECUTION);
   if (!table->expr_arena)
     DBUG_RETURN(1);
 
@@ -8809,29 +8821,24 @@ void TABLE::vers_update_fields()
   bitmap_set_bit(write_set, vers_start_field()->field_index);
   bitmap_set_bit(write_set, vers_end_field()->field_index);
 
-  if (versioned(VERS_TIMESTAMP))
+  if (!vers_write)
   {
-    if (!vers_write)
-    {
-      file->column_bitmaps_signal();
-      return;
-    }
-    if (vers_start_field()->store_timestamp(in_use->query_start(),
-                                            in_use->query_start_sec_part()))
-      DBUG_ASSERT(0);
+    file->column_bitmaps_signal();
+    return;
   }
-  else
+
+  if (versioned(VERS_TIMESTAMP) &&
+      vers_start_field()->store_timestamp(in_use->query_start(),
+                                          in_use->query_start_sec_part()))
   {
-    if (!vers_write)
-    {
-      file->column_bitmaps_signal();
-      return;
-    }
+    DBUG_ASSERT(0);
   }
 
   vers_end_field()->set_max();
   bitmap_set_bit(read_set, vers_end_field()->field_index);
   file->column_bitmaps_signal();
+  if (vfield)
+    update_virtual_fields(file, VCOL_UPDATE_FOR_READ);
 }
 
 

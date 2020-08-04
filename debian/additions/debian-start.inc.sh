@@ -5,7 +5,7 @@
 
 ## Check MyISAM and Aria unclosed tables.
 # - Requires the server to be up.
-# - Is supposed to run silently in background. 
+# - Is supposed to run silently in background.
 function check_for_crashed_tables() {
   set -e
   set -u
@@ -15,7 +15,7 @@ function check_for_crashed_tables() {
 
   # Checking for $? is unreliable so the size of the output is checked.
   # Some table handlers like HEAP do not support CHECK TABLE.
-  tempfile=`tempfile`
+  tempfile=$(mktemp)
 
   # We have to use xargs in this case, because a for loop barfs on the
   # spaces in the thing to be looped over.
@@ -25,7 +25,7 @@ function check_for_crashed_tables() {
 
   LC_ALL=C $MYSQL --skip-column-names --batch -e  '
       select concat('\''select count(*) into @discard from `'\'',
-                    TABLE_SCHEMA, '\''`.`'\'', TABLE_NAME, '\''`'\'') 
+                    TABLE_SCHEMA, '\''`.`'\'', TABLE_NAME, '\''`'\'')
       from information_schema.TABLES where TABLE_SCHEMA<>'\''INFORMATION_SCHEMA'\'' and TABLE_SCHEMA<>'\''PERFORMANCE_SCHEMA'\'' and ( ENGINE='\''MyISAM'\'' or ENGINE='\''Aria'\'' )' | \
     xargs -i $MYSQL --skip-column-names --silent --batch \
                     --force -e "{}" &>$tempfile
@@ -39,8 +39,8 @@ function check_for_crashed_tables() {
        $MYADMIN processlist status
     ) >> $tempfile
     # Check for presence as a dependency on mailx would require an MTA.
-    if [ -x /usr/bin/mailx ]; then 
-      mailx -e -s"$MYCHECK_SUBJECT" $MYCHECK_RCPT < $tempfile 
+    if [ -x /usr/bin/mailx ]; then
+      mailx -e -s"$MYCHECK_SUBJECT" $MYCHECK_RCPT < $tempfile
     fi
     (echo "$MYCHECK_SUBJECT"; cat $tempfile) | logger -p daemon.warn -i -t$0
   fi
@@ -49,7 +49,7 @@ function check_for_crashed_tables() {
 
 ## Check for tables needing an upgrade.
 # - Requires the server to be up.
-# - Is supposed to run silently in background. 
+# - Is supposed to run silently in background.
 function upgrade_system_tables_if_necessary() {
   set -e
   set -u
@@ -69,7 +69,7 @@ function upgrade_system_tables_if_necessary() {
 function check_root_accounts() {
   set -e
   set -u
-  
+
   logger -p daemon.info -i -t$0 "Checking for insecure root accounts."
 
   ret=$( echo "SELECT count(*) FROM mysql.user WHERE user='root' and password='' and plugin in ('', 'mysql_native_password', 'mysql_old_password');" | $MYSQL --skip-column-names )

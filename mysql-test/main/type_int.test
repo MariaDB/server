@@ -294,6 +294,41 @@ SELECT COUNT(*) FROM t1 WHERE a XOR a;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-23337 Rounding functions create a wrong data type for numeric input
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(t VARCHAR(64))
+BEGIN
+  SELECT t AS ``;
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (a TYPE)', 'TYPE', t);
+  INSERT IGNORE INTO t1 VALUES (-100000000000000000000000000000);
+  INSERT IGNORE INTO t1 VALUES (100000000000000000000000000000);
+  CREATE  TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+  SHOW CREATE TABLE t2;
+  SELECT * FROM t2;
+  DROP TABLE t1, t2;
+END;
+$$
+DELIMITER ;$$
+
+--vertical_results
+CALL p1('tinyint');
+CALL p1('smallint');
+CALL p1('mediumint');
+CALL p1('int');
+CALL p1('bigint');
+
+CALL p1('tinyint unsigned');
+CALL p1('smallint unsigned');
+CALL p1('mediumint unsigned');
+CALL p1('int unsigned');
+CALL p1('bigint unsigned');
+--horizontal_results
+
+DROP PROCEDURE p1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
 

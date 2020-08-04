@@ -234,7 +234,6 @@ lock_wait_suspend_thread(
 {
 	srv_slot_t*	slot;
 	trx_t*		trx;
-	ibool		was_declared_inside_innodb;
 	ulong		lock_wait_timeout;
 
 	ut_a(lock_sys.timeout_timer.get());
@@ -329,16 +328,6 @@ lock_wait_suspend_thread(
 
 	/* Suspend this thread and wait for the event. */
 
-	was_declared_inside_innodb = trx->declared_to_be_inside_innodb;
-
-	if (was_declared_inside_innodb) {
-		/* We must declare this OS thread to exit InnoDB, since a
-		possible other thread holding a lock which this thread waits
-		for must be allowed to enter, sooner or later */
-
-		srv_conc_force_exit_innodb(trx);
-	}
-
 	/* Unknown is also treated like a record lock */
 	if (lock_type == ULINT_UNDEFINED || lock_type == LOCK_REC) {
 		thd_wait_begin(trx->mysql_thd, THD_WAIT_ROW_LOCK);
@@ -353,13 +342,6 @@ lock_wait_suspend_thread(
 
 	/* After resuming, reacquire the data dictionary latch if
 	necessary. */
-
-	if (was_declared_inside_innodb) {
-
-		/* Return back inside InnoDB */
-
-		srv_conc_force_enter_innodb(trx);
-	}
 
 	if (had_dict_lock) {
 

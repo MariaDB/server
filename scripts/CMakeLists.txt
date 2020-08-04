@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-# Copyright (c) 2011, 2017, MariaDB Corporation
+# Copyright (c) 2011, 2020, MariaDB Corporation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -293,6 +293,20 @@ ELSE()
     SET(WSREP_SOURCE
       wsrep_sst_common
     )
+
+    INSTALL_LINK(wsrep_sst_rsync wsrep_sst_rsync_wan ${INSTALL_BINDIR} Server)
+    FOREACH(file ${WSREP_SOURCE})
+      CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
+        ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)
+      IF(NOT ${file}_COMPONENT)
+        SET(${file}_COMPONENT Server)
+      ENDIF()
+      INSTALL(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/${file}
+        DESTINATION ${INSTALL_BINDIR}
+        COMPONENT ${${file}_COMPONENT}
+      )
+    ENDFOREACH()
   ENDIF()
   IF (NOT WITHOUT_SERVER)
     SET(SERVER_SCRIPTS
@@ -362,20 +376,6 @@ ELSE()
     IF (NOT ${binname} STREQUAL ${file})
       INSTALL_LINK(${file} ${binname} ${INSTALL_BINDIR} ${${file}_COMPONENT})
     ENDIF()
-  ENDFOREACH()
-
-  INSTALL_LINK(wsrep_sst_rsync wsrep_sst_rsync_wan ${INSTALL_BINDIR} Server)
-  FOREACH(file ${WSREP_SOURCE})
-    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
-      ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)
-    IF(NOT ${file}_COMPONENT)
-      SET(${file}_COMPONENT Server)
-    ENDIF()
-    INSTALL(FILES
-      ${CMAKE_CURRENT_BINARY_DIR}/${file}
-      DESTINATION ${INSTALL_BINDIR}
-      COMPONENT ${${file}_COMPONENT}
-    )
   ENDFOREACH()
 ENDIF()
 

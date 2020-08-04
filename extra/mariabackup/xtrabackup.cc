@@ -244,14 +244,6 @@ static char*	innobase_ignored_opt;
 char*	innobase_data_home_dir;
 char*	innobase_data_file_path;
 
-/* The following counter is used to convey information to InnoDB
-about server activity: in selects it is not sensible to call
-srv_active_wake_master_thread after each fetch or search, we only do
-it every INNOBASE_WAKE_INTERVAL'th step. */
-
-#define INNOBASE_WAKE_INTERVAL	32
-ulong	innobase_active_counter	= 0;
-
 #ifndef _WIN32
 static char *xtrabackup_debug_sync = NULL;
 #endif
@@ -5384,7 +5376,6 @@ static bool xtrabackup_prepare_func(char** argv)
 	xb_filters_init();
 
 	srv_log_group_home_dir = NULL;
-	srv_thread_concurrency = 1;
 
 	if (xtrabackup_incremental) {
 		srv_operation = SRV_OPERATION_RESTORE_DELTA;

@@ -1968,7 +1968,7 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
   if (sp->m_handler->type() == SP_TYPE_FUNCTION)
   {
     sp_returns_type(thd, retstr, sp);
-    returns= retstr.lex_cstring();
+    retstr.get_value(&returns);
   }
   if (sp->m_handler->
       show_create_sp(thd, &log_query,

@@ -499,8 +499,6 @@ thd_done:
 
 	row->trx_rows_modified = trx->undo_no;
 
-	row->trx_concurrency_tickets = trx->n_tickets_to_enter_innodb;
-
 	row->trx_isolation_level = trx->isolation_level;
 
 	row->trx_unique_checks = (ibool) trx->check_unique_secondary;

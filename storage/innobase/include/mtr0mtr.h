@@ -141,10 +141,15 @@ struct mtr_t {
     return static_cast<mtr_log_t>(m_log_mode);
   }
 
-	/** Change the logging mode.
-	@param mode	 logging mode
-	@return	old mode */
-	inline mtr_log_t set_log_mode(mtr_log_t mode);
+  /** Change the logging mode.
+  @param mode	 logging mode
+  @return	old mode */
+  mtr_log_t set_log_mode(mtr_log_t mode)
+  {
+    const mtr_log_t old_mode= get_log_mode();
+    m_log_mode= mode & 3;
+    return old_mode;
+  }
 
 	/** Copy the tablespaces associated with the mini-transaction
 	(needed for generating FILE_MODIFY records)
@@ -264,7 +269,8 @@ struct mtr_t {
 		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
 		      || space->purpose == FIL_TYPE_TABLESPACE);
-		x_lock(&space->latch, file, line);
+		memo_push(space, MTR_MEMO_SPACE_X_LOCK);
+		rw_lock_x_lock_inline(&space->latch, 0, file, line);
 	}
 
 	/** Release an object in the memo stack.
@@ -280,19 +286,13 @@ struct mtr_t {
 private:
   /** Note that the mini-transaction will modify data. */
   void flag_modified() { m_modifications = true; }
-#ifdef UNIV_DEBUG
   /** Mark the given latched page as modified.
   @param block   page that will be modified */
   void modify(const buf_block_t& block);
 public:
   /** Note that the mini-transaction will modify a block. */
   void set_modified(const buf_block_t &block)
-  { flag_modified(); if (m_log_mode == MTR_LOG_ALL) modify(block); }
-#else /* UNIV_DEBUG */
-public:
-  /** Note that the mini-transaction will modify a block. */
-  void set_modified(const buf_block_t &) { flag_modified(); }
-#endif /* UNIV_DEBUG */
+  { flag_modified(); if (m_log_mode != MTR_LOG_NONE) modify(block); }
 
   /** Set the state to not-modified. This will not log the changes.
   This is only used during redo log apply, to avoid logging the changes. */
@@ -337,6 +337,12 @@ public:
   @return whether (lock,type) is contained */
   bool memo_contains(const rw_lock_t &lock, mtr_memo_type_t type)
     MY_ATTRIBUTE((warn_unused_result));
+  /** Check if we are holding exclusive tablespace latch
+  @param space  tablespace to search for
+  @return whether space.latch is being held */
+  bool memo_contains(const fil_space_t& space)
+    MY_ATTRIBUTE((warn_unused_result));
+
 
 	/** Check if memo contains the given item.
 	@param object		object to search

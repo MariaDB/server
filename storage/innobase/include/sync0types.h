@@ -253,7 +253,6 @@ enum latch_level_t {
 	SYNC_IBUF_HEADER,
 	SYNC_DICT_HEADER,
 	SYNC_STATS_AUTO_RECALC,
-	SYNC_DICT_AUTOINC_MUTEX,
 	SYNC_DICT,
 	SYNC_FTS_CACHE,
 
@@ -282,7 +281,6 @@ enum latch_level_t {
 up its meta-data. See sync0debug.c. */
 enum latch_id_t {
 	LATCH_ID_NONE = 0,
-	LATCH_ID_AUTOINC,
 	LATCH_ID_BUF_POOL,
 	LATCH_ID_CACHE_LAST_READ,
 	LATCH_ID_DICT_FOREIGN_ERR,
@@ -332,7 +330,6 @@ enum latch_id_t {
 	LATCH_ID_EVENT_MANAGER,
 	LATCH_ID_EVENT_MUTEX,
 	LATCH_ID_SYNC_ARRAY_MUTEX,
-	LATCH_ID_ZIP_PAD_MUTEX,
 	LATCH_ID_OS_AIO_READ_MUTEX,
 	LATCH_ID_OS_AIO_WRITE_MUTEX,
 	LATCH_ID_OS_AIO_LOG_MUTEX,
@@ -940,27 +937,6 @@ sync_latch_get_name(latch_level_t level);
 @return the basename */
 const char*
 sync_basename(const char* filename);
-
-/** Register a latch, called when it is created
-@param[in]	ptr		Latch instance that was created
-@param[in]	filename	Filename where it was created
-@param[in]	line		Line number in filename */
-void
-sync_file_created_register(
-	const void*	ptr,
-	const char*	filename,
-	uint16_t	line);
-
-/** Deregister a latch, called when it is destroyed
-@param[in]	ptr		Latch to be destroyed */
-void
-sync_file_created_deregister(const void* ptr);
-
-/** Get the string where the file was created. Its format is "name:line"
-@param[in]	ptr		Latch instance
-@return created information or "" if can't be found */
-std::string
-sync_file_created_get(const void* ptr);
 
 #ifdef UNIV_DEBUG
 

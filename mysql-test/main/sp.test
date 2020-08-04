@@ -5046,7 +5046,7 @@ drop procedure if exists bug14643_1|
 drop procedure if exists bug14643_2|
 --enable_warnings
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 create procedure bug14643_1()
 begin
   declare continue handler for sqlexception select 'boo' as 'Handler';
@@ -5062,7 +5062,7 @@ begin
   end;
 end|
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 create procedure bug14643_2()
 begin
   declare continue handler for sqlexception select 'boo' as 'Handler';
@@ -5117,7 +5117,7 @@ drop table t3, t4|
 drop procedure if exists bug14376|
 --enable_warnings
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 create procedure bug14376()
 begin
   declare x int default x;
@@ -5344,7 +5344,7 @@ drop procedure if exists bug14498_4|
 drop procedure if exists bug14498_5|
 --enable_warnings
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 create procedure bug14498_1()
 begin
   declare continue handler for sqlexception select 'error' as 'Handler';
@@ -5357,7 +5357,7 @@ begin
   select 'done' as 'End';
 end|
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 create procedure bug14498_2()
 begin
   declare continue handler for sqlexception select 'error' as 'Handler';
@@ -5368,7 +5368,7 @@ begin
   select 'done' as 'End';
 end|
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 create procedure bug14498_3()
 begin
   declare continue handler for sqlexception select 'error' as 'Handler';
@@ -5379,7 +5379,7 @@ begin
   select 'done' as 'End';
 end|
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 create procedure bug14498_4()
 begin
   declare continue handler for sqlexception select 'error' as 'Handler';
@@ -5395,7 +5395,7 @@ begin
   select 'done' as 'End';
 end|
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 create procedure bug14498_5()
 begin
   declare continue handler for sqlexception select 'error' as 'Handler';
@@ -9931,7 +9931,7 @@ BEGIN
   call p1(name);
 END|
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 CREATE OR REPLACE PROCEDURE p3 ()
 BEGIN
   DECLARE name VARCHAR(10);

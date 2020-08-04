@@ -932,11 +932,9 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a);
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 DROP TABLE t1;
 # UNION with a parenthesed term
 CREATE TABLE t1 (a INT);
@@ -999,14 +997,11 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a);
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a);
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 1;
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 DROP TABLE t1;
 # Derived table with ROLLUP
 CREATE TABLE t1 (a INT);
@@ -1880,6 +1875,69 @@ ERROR 42S02: Table 'test.t1' doesn't exist
 SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.t1;
 SET STATEMENT max_statement_time=180 FOR BACKUP UNLOCK;
 set SQL_MODE=@save_sql_mode;
+#
+# MDEV-21997: Server crashes in LEX::create_item_ident_sp
+# upon use of unknown identifier
+#
+/*! IF 1 IN ( SELECT 2 ) OR foo = 3 THEN */ SELECT 4;
+ERROR 42000: Undeclared variable: foo
+BEGIN NOT ATOMIC
+IF (SELECT 2) OR foo = 3 THEN
+SELECT 4;
+END IF ;
+END;
+$$
+ERROR 42000: Undeclared variable: foo
+# ... but if declare it then it still work
+BEGIN NOT ATOMIC
+DECLARE foo int;
+IF (SELECT 2) OR foo = 3 THEN
+SELECT 4;
+END IF ;
+END;
+$$
+4
+4
+CASE (SELECT 2) OR foo
+WHEN 1 THEN
+SET @x=10;
+$$
+ERROR 42000: Undeclared variable: foo
+/*! WHILE (SELECT 2) OR foo */
+SET @x=10;
+END WHILE;
+$$
+ERROR 42000: Undeclared variable: foo
+REPEAT
+SET @x=10;
+UNTIL (SELECT 2) OR foo
+END REPEAT;
+$$
+ERROR 42000: Undeclared variable: foo
+FOR i IN 1..(SELECT 2) OR foo
+DO
+SET @x=10;
+END FOR;
+$$
+ERROR 42000: Undeclared variable: foo
+# ... but automatic FOR variable still work
+FOR i IN 1..2
+DO
+SELECT i;
+END FOR;
+$$
+i
+1
+i
+2
+#
+# MDEV-21998: Server crashes in st_select_lex::add_table_to_list
+# upon mix of KILL and sequences
+#
+KILL ( SELECT 1 ) + LASTVAL(s);
+ERROR 42000: KILL does not support subqueries or stored functions
+KILL LASTVAL(s);
+ERROR 42000: KILL does not support subqueries or stored functions
 # End of 10.4 tests
 #
 # Start of 10.5 tests

@@ -24,8 +24,7 @@ Starts the Innobase database server
 Created 10/10/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef srv0start_h
-#define srv0start_h
+#pragma once
 
 #include "log0log.h"
 #include "ut0byte.h"
@@ -133,4 +132,3 @@ extern	enum srv_shutdown_t	srv_shutdown_state;
 
 /** Files comprising the system tablespace */
 extern pfs_os_file_t	files[1000];
-#endif

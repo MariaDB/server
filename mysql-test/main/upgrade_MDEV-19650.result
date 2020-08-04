@@ -165,7 +165,6 @@ GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 SELECT * FROM information_schema.TABLE_PRIVILEGES WHERE GRANTEE="'mariadb.sys'@'localhost'";
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mariadb.sys'@'localhost'	def	mysql	global_priv	SELECT	NO
-'mariadb.sys'@'localhost'	def	mysql	global_priv	UPDATE	NO
 'mariadb.sys'@'localhost'	def	mysql	global_priv	DELETE	NO
 # check non root
 CREATE USER 'not_root'@'localhost';

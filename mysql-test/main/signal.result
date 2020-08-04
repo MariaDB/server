@@ -2285,13 +2285,13 @@ begin
 DECLARE foo CONDITION FOR SQLSTATE '12345';
 SIGNAL foo SET MYSQL_ERRNO = `65`; /* illegal */
 end $$
-ERROR 42S22: Unknown column '65' in 'field list'
+ERROR 42000: Undeclared variable: 65
 create procedure test_signal()
 begin
 DECLARE foo CONDITION FOR SQLSTATE '12345';
 SIGNAL foo SET MYSQL_ERRNO = `A`; /* illegal */
 end $$
-ERROR 42S22: Unknown column 'A' in 'field list'
+ERROR 42000: Undeclared variable: A
 create procedure test_signal()
 begin
 DECLARE foo CONDITION FOR SQLSTATE '12345';
@@ -2342,7 +2342,7 @@ DECLARE foo CONDITION FOR SQLSTATE '12345';
 SIGNAL foo SET MYSQL_ERRNO = 1000,
 MESSAGE_TEXT = `Hello`;
 end $$
-ERROR 42S22: Unknown column 'Hello' in 'field list'
+ERROR 42000: Undeclared variable: Hello
 create procedure test_signal()
 begin
 DECLARE foo CONDITION FOR SQLSTATE '12345';

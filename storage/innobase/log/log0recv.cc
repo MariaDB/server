@@ -54,6 +54,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "buf0rea.h"
 #include "srv0srv.h"
 #include "srv0start.h"
+#include "fil0pagecompress.h"
 
 /** Read-ahead area in applying log records to file pages */
 #define RECV_READ_AHEAD_AREA	32U
@@ -1779,7 +1780,6 @@ append:
                   log_phys_t(start_lsn, lsn, l, len));
 }
 
-#if 0 /* FIXME: MDEV-22970 Potential corruption */
 /** Store/remove the freed pages in fil_name_t of recv_spaces.
 @param[in]	page_id		freed or init page_id
 @param[in]	freed		TRUE if page is freed */
@@ -1789,6 +1789,8 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
   uint32_t page_no= page_id.page_no();
   if (is_predefined_tablespace(space_id))
   {
+    if (!srv_immediate_scrub_data_uncompressed)
+      return;
     fil_space_t *space;
     if (space_id == TRX_SYS_SPACE)
       space= fil_system.sys_space;
@@ -1808,7 +1810,6 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
       i->second.remove_freed_page(page_no);
   }
 }
-#endif
 
 /** Parse and register one mini-transaction in log_t::FORMAT_10_5.
 @param checkpoint_lsn  the log sequence number of the latest checkpoint
@@ -2008,9 +2009,7 @@ same_page:
       case INIT_PAGE:
         last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
-#if 0 /* FIXME: MDEV-22970 Potential corruption */
         store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
-#endif
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
         break;
@@ -2135,12 +2134,12 @@ same_page:
       case STORE_NO:
         if (!is_init)
           continue;
+        mlog_init.add(id, start_lsn);
         map::iterator i= pages.find(id);
         if (i == pages.end())
           continue;
         i->second.log.clear();
         pages.erase(i);
-        mlog_init.add(id, start_lsn);
       }
     }
 #if 1 /* MDEV-14425 FIXME: this must be in the checkpoint file only! */
@@ -2168,7 +2167,7 @@ same_page:
 
           if (lsn == checkpoint_lsn)
           {
-            ut_ad(mlog_checkpoint_lsn <= recovered_lsn);
+            /* There can be multiple FILE_CHECKPOINT for the same LSN. */
             if (mlog_checkpoint_lsn)
               continue;
             mlog_checkpoint_lsn= recovered_lsn;
@@ -2494,7 +2493,7 @@ void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 {
 	mtr_t mtr;
 	mtr.start();
-	mtr.set_log_mode(MTR_LOG_NONE);
+	mtr.set_log_mode(MTR_LOG_NO_REDO);
 
 	ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE);
 	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
@@ -2578,7 +2577,7 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
   else if (fil_space_t *space= fil_space_acquire_for_io(page_id.space()))
   {
     mtr.start();
-    mtr.set_log_mode(MTR_LOG_NONE);
+    mtr.set_log_mode(MTR_LOG_NO_REDO);
     block= buf_page_create(space, page_id.page_no(), space->zip_size(), &mtr);
     p= recv_sys.pages.find(page_id);
     if (p == recv_sys.pages.end())
@@ -2695,7 +2694,7 @@ void recv_sys_t::apply(bool last_batch)
         continue;
       case page_recv_t::RECV_NOT_PROCESSED:
         mtr.start();
-        mtr.set_log_mode(MTR_LOG_NONE);
+        mtr.set_log_mode(MTR_LOG_NO_REDO);
         if (buf_block_t *block= buf_page_get_low(page_id, 0, RW_X_LATCH,
                                                  nullptr, BUF_GET_IF_IN_POOL,
                                                  __FILE__, __LINE__,
@@ -3291,9 +3290,13 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 
 			/* Add the freed page ranges in the respective
 			tablespace */
-			if (!rs.second.freed_ranges.empty())
-			  rs.second.space->add_free_ranges(
+			if (!rs.second.freed_ranges.empty()
+			    && (srv_immediate_scrub_data_uncompressed
+				|| rs.second.space->is_compressed())) {
+
+				rs.second.space->add_free_ranges(
 					std::move(rs.second.freed_ranges));
+			}
 		} else if (rs.second.name == "") {
 			ib::error() << "Missing FILE_CREATE, FILE_DELETE"
 				" or FILE_MODIFY before FILE_CHECKPOINT"
@@ -3540,6 +3543,8 @@ completed:
 			rescan = true;
 		}
 
+		recv_sys.parse_start_lsn = checkpoint_lsn;
+
 		if (srv_operation == SRV_OPERATION_NORMAL) {
 			buf_dblwr_process();
 		}
@@ -3669,25 +3674,92 @@ recv_recovery_from_checkpoint_finish(void)
 	ut_d(sync_check_enable());
 }
 
-/** Find a doublewrite copy of a page.
-@param[in]	space_id	tablespace identifier
-@param[in]	page_no		page number
-@return	page frame
-@retval NULL if no page was found */
-const byte*
-recv_dblwr_t::find_page(ulint space_id, ulint page_no)
+bool recv_dblwr_t::validate_page(const page_id_t page_id,
+                                 const byte *page,
+                                 const fil_space_t *space,
+                                 byte *tmp_buf)
 {
-  const byte *result= NULL;
+  if (page_id.page_no() == 0)
+  {
+    ulint flags= fsp_header_get_flags(page);
+    if (!fil_space_t::is_valid_flags(flags, page_id.space()))
+    {
+      ulint cflags= fsp_flags_convert_from_101(flags);
+      if (cflags == ULINT_UNDEFINED)
+      {
+        ib::warn() << "Ignoring a doublewrite copy of page " << page_id
+                   << "due to invalid flags " << ib::hex(flags);
+        return false;
+      }
+
+      flags= cflags;
+    }
+
+    /* Page 0 is never page_compressed or encrypted. */
+    return !buf_page_is_corrupted(true, page, flags);
+  }
+
+  ut_ad(tmp_buf);
+  byte *tmp_frame= tmp_buf;
+  byte *tmp_page= tmp_buf + srv_page_size;
+  const uint16_t page_type= mach_read_from_2(page + FIL_PAGE_TYPE);
+  const bool expect_encrypted= space->crypt_data &&
+    space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED;
+
+  if (space->full_crc32())
+    return !buf_page_is_corrupted(true, page, space->flags);
+
+  if (expect_encrypted &&
+      mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION))
+  {
+    if (!fil_space_verify_crypt_checksum(page, space->zip_size()))
+      return false;
+    if (page_type != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED)
+      return true;
+    if (space->zip_size())
+      return false;
+    memcpy(tmp_page, page, space->physical_size());
+    if (!fil_space_decrypt(space, tmp_frame, tmp_page))
+      return false;
+  }
+
+  switch (page_type) {
+  case FIL_PAGE_PAGE_COMPRESSED:
+    memcpy(tmp_page, page, space->physical_size());
+    /* fall through */
+  case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
+    if (space->zip_size())
+      return false; /* ROW_FORMAT=COMPRESSED cannot be page_compressed */
+    ulint decomp= fil_page_decompress(tmp_frame, tmp_page, space->flags);
+    if (!decomp)
+      return false; /* decompression failed */
+    if (decomp == srv_page_size)
+      return false; /* the page was not compressed (invalid page type) */
+    return !buf_page_is_corrupted(true, tmp_page, space->flags);
+  }
+
+  return !buf_page_is_corrupted(true, page, space->flags);
+}
+
+byte *recv_dblwr_t::find_page(const page_id_t page_id,
+                              const fil_space_t *space, byte *tmp_buf)
+{
+  byte *result= NULL;
   lsn_t max_lsn= 0;
 
-  for (const byte *page : pages)
+  for (byte *page : pages)
   {
-    if (page_get_page_no(page) != page_no ||
-        page_get_space_id(page) != space_id)
+    if (page_get_page_no(page) != page_id.page_no() ||
+        page_get_space_id(page) != page_id.space())
       continue;
     const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
-    if (lsn <= max_lsn)
+    if (lsn <= max_lsn ||
+        !validate_page(page_id, page, space, tmp_buf))
+    {
+      /* Mark processed for subsequent iterations in buf_dblwr_process() */
+      memset(page + FIL_PAGE_LSN, 0, 8);
       continue;
+    }
     max_lsn= lsn;
     result= page;
   }

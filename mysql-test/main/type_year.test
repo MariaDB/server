@@ -327,6 +327,21 @@ SELECT COALESCE(a), DATE(COALESCE(a)) FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-23337 Rounding functions create a wrong data type for numeric input
+--echo #
+
+CREATE TABLE t1 (a YEAR(2));
+CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+DESC t2;
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 (a YEAR(4));
+CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+DESC t2;
+DROP TABLE t2,t1;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
 

@@ -101,6 +101,10 @@ Created 2/16/1996 Heikki Tuuri
 #include "zlib.h"
 #include "ut0crc32.h"
 
+/** We are prepared for a situation that we have this many threads waiting for
+a semaphore inside InnoDB. srv_start() sets the value. */
+ulint srv_max_n_threads;
+
 /** Log sequence number at shutdown */
 lsn_t	srv_shutdown_lsn;
 
@@ -583,6 +587,7 @@ err_exit:
   {
     space->size= file->size= ulint(size >> srv_page_size_shift);
     space->size_in_header= SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
+    space->committed_size= SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
   }
   else
   {
@@ -886,7 +891,6 @@ srv_shutdown_all_bg_threads()
 	for (uint i = 0; i < 1000; ++i) {
 		/* NOTE: IF YOU CREATE THREADS IN INNODB, YOU MUST EXIT THEM
 		HERE OR EARLIER */
-
 
 		if (!srv_read_only_mode) {
 			/* b. srv error monitor thread exits automatically,
@@ -1196,9 +1200,7 @@ dberr_t srv_start(bool create_new_db)
 			     static_cast<int>(UT_ARR_SIZE(srv_stages)));
 
 	/* Set the maximum number of threads which can wait for a semaphore
-	inside InnoDB: this is the 'sync wait array' size, as well as the
-	maximum number of threads that can wait in the 'srv_conc array' for
-	their time to enter InnoDB. */
+	inside InnoDB: this is the 'sync wait array' size */
 
 	srv_max_n_threads = 1   /* io_ibuf_thread */
 			    + 1 /* io_log_thread */
@@ -1590,6 +1592,8 @@ file_checked:
 			if (sum_of_new_sizes > 0) {
 				/* New data file(s) were added */
 				mtr.start();
+				mtr.x_lock_space(fil_system.sys_space,
+						 __FILE__, __LINE__);
 				buf_block_t* block = buf_page_get(
 					page_id_t(0, 0), 0,
 					RW_SX_LATCH, &mtr);
@@ -2046,7 +2050,7 @@ void srv_shutdown_bg_undo_sources()
 		fts_optimize_shutdown();
 		dict_stats_shutdown();
 		while (row_get_background_drop_list_len_low()) {
-			srv_wake_master_thread();
+			srv_inc_activity_count();
 			os_thread_yield();
 		}
 		srv_undo_sources = false;
@@ -2094,12 +2098,6 @@ void innodb_shutdown()
 	case SRV_OPERATION_NORMAL:
 		/* Shut down the persistent files. */
 		logs_empty_and_mark_files_at_shutdown();
-
-		if (ulint n_threads = srv_conc_get_active_threads()) {
-			ib::warn() << "Query counter shows "
-				   << n_threads << " queries still"
-				" inside InnoDB at shutdown";
-		}
 	}
 
 	os_aio_free();

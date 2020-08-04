@@ -930,8 +930,10 @@ void btr_page_get_father(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 	mem_heap_free(heap);
 }
 
+#ifdef UNIV_DEBUG
 /** PAGE_INDEX_ID value for freed index B-trees */
 constexpr index_id_t	BTR_FREED_INDEX_ID = 0;
+#endif
 
 /** Free a B-tree root page. btr_free_but_not_root() must already
 have been called.
@@ -1342,7 +1344,7 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
 static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
                                     mtr_t *mtr)
 {
-  const mtr_log_t log_mode= mtr->set_log_mode(MTR_LOG_NONE);
+  const mtr_log_t log_mode= mtr->set_log_mode(MTR_LOG_NO_REDO);
 
   buf_block_t *const block= cursor->block;
 
@@ -4920,8 +4922,13 @@ loop:
 				mtr_release_block_at_savepoint(
 					&mtr, savepoint, right_block);
 
-				btr_block_get(*index, parent_right_page_no,
-					      RW_SX_LATCH, false, &mtr);
+				if (parent_right_page_no != FIL_NULL) {
+					btr_block_get(*index,
+						      parent_right_page_no,
+						      RW_SX_LATCH, false,
+						      &mtr);
+				}
+
 				right_block = btr_block_get(*index,
 							    right_page_no,
 							    RW_SX_LATCH,

@@ -50,7 +50,6 @@ instrumentation due to their large number of instances. */
 
 #ifdef UNIV_PFS_MUTEX
 /* Key defines to register InnoDB mutexes with performance schema */
-extern mysql_pfs_key_t	autoinc_mutex_key;
 extern mysql_pfs_key_t	buf_pool_mutex_key;
 extern mysql_pfs_key_t	cache_last_read_mutex_key;
 extern mysql_pfs_key_t	dict_foreign_err_mutex_key;
@@ -102,7 +101,6 @@ extern mysql_pfs_key_t	event_mutex_key;
 extern mysql_pfs_key_t	event_manager_mutex_key;
 extern mysql_pfs_key_t	sync_array_mutex_key;
 extern mysql_pfs_key_t	thread_mutex_key;
-extern mysql_pfs_key_t  zip_pad_mutex_key;
 extern mysql_pfs_key_t  row_drop_list_mutex_key;
 extern mysql_pfs_key_t	rw_trx_hash_element_mutex_key;
 extern mysql_pfs_key_t	read_view_mutex_key;

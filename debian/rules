@@ -1,12 +1,10 @@
 #!/usr/bin/make -f
 
-export DH_VERBOSE=1
-export DEB_BUILD_HARDENING=1
-
-# enable Debian Hardening
-# see: https://wiki.debian.org/Hardening
+# Enable Debian Hardening
+# https://wiki.debian.org/Hardening
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 DPKG_EXPORT_BUILDFLAGS = 1
+# Include all defaults, including buildflags.mk
 include /usr/share/dpkg/default.mk
 # CPPFLAGS are nor read by CMake, so copy them to CXXFLAGS
 # See why at https://cmake.org/Bug/view.php?id=12928
@@ -21,6 +19,12 @@ TMP:=$(CURDIR)/debian/tmp
 
 CC := $(DEB_HOST_GNU_TYPE)-gcc
 CXX := $(DEB_HOST_GNU_TYPE)-g++
+
+# According to Debian Policy version 4.2.0 builds should be as verbose as
+# possible unless 'terse' is specifically passed.
+ifeq (,$(filter terse,$(DEB_BUILD_OPTIONS)))
+    export DH_VERBOSE=1
+endif
 
 # Parallel build support as advised
 # at https://www.debian.org/doc/debian-policy/ch-source.html#s-debianrules-options
@@ -37,6 +41,17 @@ ifeq ($(DEB_HOST_ARCH),$(filter $(DEB_HOST_ARCH),mips mipsel mips64el alpha powe
     TESTSUITE_FAIL_CMD:=true
 else
     TESTSUITE_FAIL_CMD:=exit 1
+endif
+
+# RocksDB cannot build on 32-bit platforms
+ifeq (32,$(DEB_HOST_ARCH_BITS))
+    CMAKEFLAGS += -DWITHOUT_ROCKSDB=true
+endif
+
+# ColumnStore only attempts to build on a few platforms as dictated by CMake checks
+# Also note in debian/control the CS-only build deps marked '[i386 amd64]'
+ifeq ($(DEB_HOST_ARCH),$(filter $(DEB_HOST_ARCH),amd64 i386))
+    CMAKEFLAGS += -DPLUGIN_COLUMNSTORE=YES
 endif
 
 # Add extra flag to avoid WolfSSL code crashing the entire mariadbd on s390x. This
@@ -81,11 +96,7 @@ endif
 	    -DSYSTEM_TYPE="debian-$(DEB_HOST_GNU_SYSTEM)" \
 	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_HOST_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
-	    -DPLUGIN_TOKUDB=NO \
-	    -DPLUGIN_COLUMNSTORE=YES \
-	    -DPLUGIN_ROCKSDB=YES \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
-	    -WITH_EMBEDDED_SERVER=OFF \
 	    -DDEB=$(DEB_VENDOR) ..'
 
 # This is needed, otherwise 'make test' will run before binaries have been built

@@ -18,13 +18,11 @@ MW-286 : MDEV-18464 Killing thread can cause mutex deadlock if done concurrently
 MW-329 : MDEV-19962 Galera test failure on MW-329
 galera.galera_defaults : MDEV-21494 Galera test sporadic failure on galera.galera_defaults
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
-galera_autoinc_sst_mariabackup : Known issue, may require porting MDEV-17458 from later versions
 galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_bf_abort_group_commit
 galera_binlog_stmt_autoinc : MDEV-19959 Galera test failure on galera_binlog_stmt_autoinc	
 galera_encrypt_tmp_files : Get error failed to enable encryption of temporary files
 galera_ftwrl : MDEV-21525 galera.galera_ftwrl
 galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
-galera_ist_progress : MDEV-15236 fails when trying to read transfer status
 galera_kill_largechanges : MDEV-18179 Galera test failure on galera.galera_kill_largechanges
 galera_kill_nochanges : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
 galera_load_data : MDEV-19968 galera.galera_load_data
@@ -43,7 +41,6 @@ galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
 galera_var_reject_queries : assertion in inline_mysql_socket_send
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
 galera_wan : MDEV-17259 Test failure on galera.galera_wan
-mysql-wsrep#198 : MDEV-18935 Galera test mysql-wsrep#198 sporaric assertion transaction.cpp:362: int wsrep::transaction::before_commit(): Assertion `state() == s_executing || state() == s_committing || state() == s_must_abort || state() == s_replaying' failed.
 lp1376747-4 : MDEV-21911 Galera test failure on lp1376747-4
 partition : MDEV-19958 Galera test failure on galera.partition
 query_cache: MDEV-15805 Test failure on galera.query_cache

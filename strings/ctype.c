@@ -36,6 +36,12 @@
   
 */
 
+const char charset_name_latin2[]= "latin2";
+const char charset_name_utf8[]= "utf8";
+const char charset_name_utf16[]= "utf16";
+const char charset_name_utf32[]= "utf32";
+const char charset_name_ucs2[]= "ucs2";
+const char charset_name_utf8mb4[]= "utf8mb4";
 
 /*
   Avoid using my_snprintf

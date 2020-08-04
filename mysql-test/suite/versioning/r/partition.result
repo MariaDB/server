@@ -348,11 +348,7 @@ insert t1 values (1);
 delete from t1;
 set timestamp=unix_timestamp('2001-02-04 10:20:50');
 insert t1 values (2);
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 delete from t1;
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
 subpartition_name	partition_description	table_rows
 p1sp0	2001-02-04 00:00:00	1
@@ -395,6 +391,22 @@ i
 explain partitions select * from t1 for system_time all where row_end = @ts;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p1_p1sp0,p1_p1sp1	#	NULL	NULL	NULL	NULL	#	#
+#
+# MDEV-16023 Unfortunate error message WARN_VERS_PART_FULL
+#
+set timestamp= unix_timestamp('2020-07-29 10:30:10');
+create or replace table t1 (a int) with system versioning
+partition by system_time interval 1 second (
+partition p0 history,
+partition p1 history,
+partition pc current
+);
+set timestamp= unix_timestamp('2020-07-29 10:30:14');
+insert into t1 values (1),(2),(3);
+show warnings;
+Level	Code	Message
+# Cleanup
+set timestamp= default;
 ## INTERVAL ... STARTS
 create or replace table t1 (i int) with system versioning
 partition by system_time interval 1 day starts 'a';
@@ -544,16 +556,10 @@ partition by system_time interval 1 day starts '2000-01-01 00:00:00'
 partitions 3;
 # we are warned when we push to present:
 insert into t1 values (0);
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 set timestamp= unix_timestamp('2001-01-01 00:00:01');
 update t1 set i= i + 1;
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 set timestamp= unix_timestamp('2001-01-01 00:00:02');
 update t1 set i= i + 1;
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 select *, row_end from t1 partition (p0);
 i	row_end
 select *, row_end from t1 partition (p1);
@@ -596,12 +602,8 @@ set timestamp= unix_timestamp('2000-01-02 00:00:01');
 update t1 set i= i + 1;
 set timestamp= unix_timestamp('2000-01-03 00:00:01');
 update t1 set i= i + 1;
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 set timestamp= unix_timestamp('2000-01-04 00:00:01');
 update t1 set i= i + 1;
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 alter table t1 add partition (partition p2 history, partition p3 history);
 select *, row_end from t1 partition (p0);
 i	row_end

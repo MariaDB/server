@@ -319,7 +319,7 @@ xdes_get_descriptor_with_space_hdr(
 	ulint	limit;
 	ulint	size;
 	ulint	descr_page_no;
-	ut_ad(mtr->memo_contains(space->latch, MTR_MEMO_X_LOCK));
+	ut_ad(mtr->memo_contains(*space));
 	ut_ad(mtr->memo_contains_flagged(header, MTR_MEMO_PAGE_SX_FIX));
 	/* Read free limit and space size */
 	limit = mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
@@ -444,7 +444,7 @@ xdes_lst_get_descriptor(
 	buf_block_t**		block,
 	mtr_t*			mtr)
 {
-	ut_ad(mtr->memo_contains(space->latch, MTR_MEMO_X_LOCK));
+	ut_ad(mtr->memo_contains(*space));
 	return fut_get_ptr(space->id, space->zip_size(),
 			   lst_node, RW_SX_LATCH, mtr, block)
 		- XDES_FLST_NODE;
@@ -887,30 +887,20 @@ fsp_fill_free_list(
 					      FIL_PAGE_TYPE_XDES);
 			}
 
-			/* Initialize the ibuf bitmap page in a separate
-			mini-transaction because it is low in the latching
-			order, and we must be able to release its latch.
-			Note: Insert-Buffering is disabled for tables that
-			reside in the temp-tablespace. */
 			if (space->purpose != FIL_TYPE_TEMPORARY) {
-				mtr_t	ibuf_mtr;
-
-				ibuf_mtr.start();
-				ibuf_mtr.set_named_space(space);
-
+				const auto savepoint = mtr->get_savepoint();
 				block = buf_page_create(
 					space,
 					static_cast<uint32_t>(
 						i + FSP_IBUF_BITMAP_OFFSET),
-					zip_size, &ibuf_mtr);
-				ibuf_mtr.sx_latch_at_savepoint(0, block);
+					zip_size, mtr);
+				mtr->sx_latch_at_savepoint(savepoint, block);
 				buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 
-				fsp_init_file_page(space, block, &ibuf_mtr);
-				ibuf_mtr.write<2>(*block,
-						  block->frame + FIL_PAGE_TYPE,
-						  FIL_PAGE_IBUF_BITMAP);
-				ibuf_mtr.commit();
+				fsp_init_file_page(space, block, mtr);
+				mtr->write<2>(*block,
+					      block->frame + FIL_PAGE_TYPE,
+					      FIL_PAGE_IBUF_BITMAP);
 			}
 		}
 
@@ -1296,7 +1286,7 @@ static void fsp_free_page(fil_space_t* space, page_no_t offset, mtr_t* mtr)
 @param[in,out]  mtr     mini-transaction */
 static void fsp_free_extent(fil_space_t* space, page_no_t offset, mtr_t* mtr)
 {
-  ut_ad(mtr->memo_contains(space->latch, MTR_MEMO_X_LOCK));
+  ut_ad(mtr->memo_contains(*space));
 
   buf_block_t *block= fsp_get_header(space, mtr);
   buf_block_t *xdes= 0;
@@ -1308,8 +1298,8 @@ static void fsp_free_extent(fil_space_t* space, page_no_t offset, mtr_t* mtr)
   xdes_init(*xdes, descr, mtr);
 
   flst_add_last(block, FSP_HEADER_OFFSET + FSP_FREE,
-                xdes, static_cast<uint16_t>(descr - xdes->frame
-					    + XDES_FLST_NODE), mtr);
+                xdes, static_cast<uint16_t>(descr - xdes->frame +
+                                            XDES_FLST_NODE), mtr);
   space->free_len++;
 }
 

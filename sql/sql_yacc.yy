@@ -14698,13 +14698,15 @@ literal:
         | UNDERSCORE_CHARSET hex_or_bin_String
           {
             Item_string_with_introducer *item_str;
+            LEX_CSTRING tmp;
+            $2->get_value(&tmp);
             /*
               Pass NULL as name. Name will be set in the "select_item" rule and
               will include the introducer and the original hex/bin notation.
             */
             item_str= new (thd->mem_root)
                Item_string_with_introducer(thd, null_clex_str,
-                                           $2->lex_cstring(), $1);
+                                           tmp, $1);
             if (unlikely(!item_str ||
                          !item_str->check_well_formed_result(true)))
               MYSQL_YYABORT;

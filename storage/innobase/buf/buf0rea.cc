@@ -415,7 +415,7 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
   const page_id_t low= page_id - (page_id.page_no() % buf_read_ahead_area);
   page_id_t high= low + buf_read_ahead_area;
   high.set_page_no(std::min(high.page_no(),
-                            static_cast<uint32_t>(space->size - 1)));
+                            static_cast<uint32_t>(space->committed_size - 1)));
 
   /* Count how many blocks in the area have been recently accessed,
   that is, reside near the start of the LRU list. */
@@ -600,7 +600,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
   fil_space_t *space= fil_space_acquire(page_id.space());
   if (!space)
     return 0;
-  if (high_1.page_no() >= space->size)
+  if (high_1.page_no() >= space->committed_size)
   {
     /* The area is not whole. */
     space->release();
@@ -663,7 +663,7 @@ hard_fail:
       if (id != new_low && id != new_high_1)
         /* This is not a border page of the area: return */
         goto hard_fail;
-      if (new_high_1.page_no() >= space->size)
+      if (new_high_1.page_no() >= space->committed_size)
         /* The area is not whole */
         goto hard_fail;
     }
@@ -746,6 +746,13 @@ buf_read_recv_pages(
 	const ulint zip_size = space->zip_size();
 
 	for (ulint i = 0; i < n_stored; i++) {
+
+		/* Ignore if the page already present in freed ranges. */
+		if (space->freed_ranges.contains(
+			static_cast<uint32_t>(page_nos[i]))) {
+			continue;
+		}
+
 		const page_id_t	cur_page_id(space_id, page_nos[i]);
 
 		ulint limit = 0;

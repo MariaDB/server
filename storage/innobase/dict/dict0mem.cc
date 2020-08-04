@@ -124,19 +124,25 @@ bool dict_col_t::same_encoding(uint16_t a, uint16_t b)
   return false;
 }
 
-/**********************************************************************//**
-Creates a table memory object.
+/** Creates a table memory object.
+@param[in]	name		table name
+@param[in]	space		tablespace
+@param[in]	n_cols		total number of columns including virtual and
+				non-virtual columns
+@param[in]	n_v_cols	number of virtual columns
+@param[in]	flags		table flags
+@param[in]	flags2		table flags2
+@param[in]	init_stats_latch	whether to init the stats latch
 @return own: table object */
 dict_table_t*
 dict_mem_table_create(
-/*==================*/
-	const char*	name,	/*!< in: table name */
-	fil_space_t*	space,	/*!< in: tablespace */
-	ulint		n_cols,	/*!< in: total number of columns including
-				virtual and non-virtual columns */
-	ulint		n_v_cols,/*!< in: number of virtual columns */
-	ulint		flags,	/*!< in: table flags */
-	ulint		flags2)	/*!< in: table flags2 */
+	const char*	name,
+	fil_space_t*	space,
+	ulint		n_cols,
+	ulint		n_v_cols,
+	ulint		flags,
+	ulint		flags2,
+	bool		init_stats_latch)
 {
 	dict_table_t*	table;
 	mem_heap_t*	heap;
@@ -204,8 +210,11 @@ dict_mem_table_create(
 	new(&table->foreign_set) dict_foreign_set();
 	new(&table->referenced_set) dict_foreign_set();
 
-	rw_lock_create(dict_table_stats_key, &table->stats_latch,
-		       SYNC_INDEX_TREE);
+	if (init_stats_latch) {
+		rw_lock_create(dict_table_stats_key, &table->stats_latch,
+			       SYNC_INDEX_TREE);
+		table->stats_latch_inited = true;
+	}
 
 	return(table);
 }
@@ -249,7 +258,9 @@ dict_mem_table_free(
 
 	UT_DELETE(table->s_cols);
 
-	rw_lock_free(&table->stats_latch);
+	if (table->stats_latch_inited) {
+		rw_lock_free(&table->stats_latch);
+	}
 
 	mem_heap_free(table->heap);
 }
@@ -793,7 +804,7 @@ dict_mem_index_create(
 
 	dict_mem_fill_index_struct(index, heap, index_name, type, n_fields);
 
-	mutex_create(LATCH_ID_ZIP_PAD_MUTEX, &index->zip_pad.mutex);
+	new (&index->zip_pad.mutex) std::mutex();
 
 	if (type & DICT_SPATIAL) {
 		index->rtr_track = new
@@ -1102,7 +1113,7 @@ dict_mem_index_free(
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
-	mutex_free(&index->zip_pad.mutex);
+	index->zip_pad.mutex.~mutex();
 
 	if (dict_index_is_spatial(index)) {
 		for (auto& rtr_info : index->rtr_track->rtr_active) {

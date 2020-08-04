@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2018, MariaDB Corporation.
+   Copyright (c) 2012, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2728,12 +2728,23 @@ static bool fix_optimizer_switch(sys_var *self, THD *thd,
                         "engine_condition_pushdown=on"); // since 10.1.1
   return false;
 }
+static bool check_legal_optimizer_switch(sys_var *self, THD *thd,
+                                         set_var *var)
+{
+  if (var->save_result.ulonglong_value & (OPTIMIZER_SWITCH_MATERIALIZATION |
+                                          OPTIMIZER_SWITCH_IN_TO_EXISTS))
+  {
+    return false;
+  }
+  my_error(ER_ILLEGAL_SUBQUERY_OPTIMIZER_SWITCHES, MYF(0));
+  return true;
+}
 static Sys_var_flagset Sys_optimizer_switch(
        "optimizer_switch",
        "Fine-tune the optimizer behavior",
        SESSION_VAR(optimizer_switch), CMD_LINE(REQUIRED_ARG),
        optimizer_switch_names, DEFAULT(OPTIMIZER_SWITCH_DEFAULT),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_legal_optimizer_switch),
        ON_UPDATE(fix_optimizer_switch));
 
 static Sys_var_flagset Sys_optimizer_trace(
@@ -3852,6 +3863,12 @@ static bool fix_tp_min_threads(sys_var *, THD *, enum_var_type)
 
 static bool check_threadpool_size(sys_var *self, THD *thd, set_var *var)
 {
+
+#ifdef _WIN32
+  if (threadpool_mode != TP_MODE_GENERIC)
+    return false;
+#endif
+
   ulonglong v= var->save_result.ulonglong_value;
   if (v > threadpool_max_size)
   {

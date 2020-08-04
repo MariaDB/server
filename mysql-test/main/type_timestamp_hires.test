@@ -107,6 +107,16 @@ DROP TABLE t1;
 
 SET time_zone=DEFAULT;
 
+
+--echo #
+--echo # MDEV-23311 CEILING() and FLOOR() convert temporal input to numbers, unlike ROUND() and TRUNCATE()
+--echo #
+
+CREATE TABLE t1 (a TIMESTAMP NOT NULL);
+CREATE TABLE t2 AS SELECT FLOOR(a), CEILING(a) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+
 --echo #
 --echo # End of 10.4 tests
 --echo #

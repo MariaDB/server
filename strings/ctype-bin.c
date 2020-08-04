@@ -23,6 +23,8 @@
 #include "strings_def.h"
 #include <m_ctype.h>
 
+const char charset_name_binary[]= "binary";
+
 static const uchar ctype_bin[]=
 {
   0,
@@ -568,7 +570,7 @@ struct charset_info_st my_charset_bin =
 {
     63,0,0,			/* number        */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_PRIMARY|MY_CS_NOPAD,/* state */
-    "binary",			/* cs name    */
+    charset_name_binary,	/* cs name    */
     "binary",			/* name          */
     "",				/* comment       */
     NULL,			/* tailoring     */

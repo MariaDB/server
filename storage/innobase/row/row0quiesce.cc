@@ -659,12 +659,17 @@ row_quiesce_set_state(
 			    " FTS auxiliary tables will not be flushed.");
 	}
 
+	dict_index_t* clust_index = dict_table_get_first_index(table);
+
 	row_mysql_lock_data_dictionary(trx);
-	for (dict_index_t* index = dict_table_get_first_index(table);
+
+	for (dict_index_t* index = dict_table_get_next_index(clust_index);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
 		rw_lock_x_lock(&index->lock);
 	}
+
+	rw_lock_x_lock(&clust_index->lock);
 
 	switch (state) {
 	case QUIESCE_START:

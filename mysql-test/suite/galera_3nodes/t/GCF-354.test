@@ -9,6 +9,13 @@ DROP SCHEMA test;
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
 SET wsrep_on=OFF;
 CREATE TABLE test.t1 (f1 INTEGER);
 #
@@ -89,4 +96,6 @@ CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query.
 CALL mtr.add_suppression("Query apply failed");
 CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on .*");
 CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
+
+--source ../galera/include/auto_increment_offset_restore.inc
 

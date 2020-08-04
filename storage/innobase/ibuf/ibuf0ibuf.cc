@@ -1309,7 +1309,7 @@ ibuf_dummy_index_create(
 	dict_index_t*	index;
 
 	table = dict_mem_table_create("IBUF_DUMMY", NULL, n, 0,
-				      comp ? DICT_TF_COMPACT : 0, 0);
+				      comp ? DICT_TF_COMPACT : 0, 0, false);
 
 	index = dict_mem_index_create(table, "IBUF_DUMMY", 0, n);
 

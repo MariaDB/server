@@ -53,7 +53,7 @@ CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMIN
 # at 727
 #<date> server id 1  end_log_pos 769 CRC32 XXX 	GTID 0-1-3
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 769
 #<date> server id 1  end_log_pos 897 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0
@@ -68,7 +68,7 @@ COMMIT
 # at 970
 #<date> server id 1  end_log_pos 1012 CRC32 XXX 	GTID 0-1-4
 /*!100001 SET @@session.gtid_seq_no=4*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 1012
 #<date> server id 1  end_log_pos 1140 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0
@@ -83,7 +83,7 @@ COMMIT
 # at 1213
 #<date> server id 1  end_log_pos 1255 CRC32 XXX 	GTID 0-1-5
 /*!100001 SET @@session.gtid_seq_no=5*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 1255
 #<date> server id 1  end_log_pos 1385 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0
@@ -98,7 +98,7 @@ COMMIT
 # at 1458
 #<date> server id 1  end_log_pos 1500 CRC32 XXX 	GTID 0-1-6
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 1500
 #<date> server id 1  end_log_pos 1627 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0
@@ -113,7 +113,7 @@ COMMIT
 # at 1700
 #<date> server id 1  end_log_pos 1742 CRC32 XXX 	GTID 0-1-7
 /*!100001 SET @@session.gtid_seq_no=7*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 1742
 #<date> server id 1  end_log_pos 1850 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0
@@ -128,7 +128,7 @@ COMMIT
 # at 1923
 #<date> server id 1  end_log_pos 1965 CRC32 XXX 	GTID 0-1-8
 /*!100001 SET @@session.gtid_seq_no=8*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 1965
 #<date> server id 1  end_log_pos 2082 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0
@@ -143,7 +143,7 @@ COMMIT
 # at 2155
 #<date> server id 1  end_log_pos 2197 CRC32 XXX 	GTID 0-1-9
 /*!100001 SET @@session.gtid_seq_no=9*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 2197
 #<date> server id 1  end_log_pos 2288 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0
@@ -158,7 +158,7 @@ COMMIT
 # at 2361
 #<date> server id 1  end_log_pos 2403 CRC32 XXX 	GTID 0-1-10
 /*!100001 SET @@session.gtid_seq_no=10*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 2403
 #<date> server id 1  end_log_pos 2494 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0

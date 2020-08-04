@@ -2,6 +2,11 @@
 #
 # Build MariaDB .deb packages for test and release at mariadb.org
 #
+# Purpose of this script:
+# Always keep the actual packaging as up-to-date as possible following the latest
+# Debian policy and targeting Debian Sid. Then case-by-case run in autobake-deb.sh
+# tests for backwards compatibility and strip away parts on older builders or
+# specfic build environments.
 
 # Exit immediately on any error
 set -e
@@ -17,21 +22,32 @@ if [[ $TRAVIS ]] || [[ $GITLAB_CI ]]
 then
   # On both Travis and Gitlab the output log must stay under 4MB so make the
   # build less verbose
-  sed -i -e '/Add support for verbose builds/,/^$/d' debian/rules
+  sed '/Add support for verbose builds/,/^$/d' -i debian/rules
+
+  # MCOL-4149: ColumnStore builds are so slow and big that they must be skipped on
+  # both Travis-CI and Gitlab-CI
+  sed 's|-DPLUGIN_COLUMNSTORE=YES|-DPLUGIN_COLUMNSTORE=NO|' -i debian/rules
+  sed "/Package: mariadb-plugin-columnstore/,/^$/d" -i debian/control
 fi
 
-# Travis-CI optimizations to keep build small (in both duration and disk space)
+# Don't build or try to put files in a package for selected plugins and compontents on Travis-CI
+# in order to keep build small (in both duration and disk space)
 if [[ $TRAVIS ]]
 then
-  # Don't include test suite package on Travis-CI to make the build time shorter
+  # Test suite package not relevant on Travis-CI
+  sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
   sed '/Package: mariadb-test-data/,/^$/d' -i debian/control
   sed '/Package: mariadb-test$/,/^$/d' -i debian/control
 
-  # Don't build the test package at all to save time and disk space
-  sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
-
-  # Also skip building RocksDB, Mroonga etc to save even more time and disk space
-  sed 's|-DDEB|-DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -DDEB|' -i debian/rules
+  # Extra plugins such as Mroonga, Spider, OQgraph, Sphinx and the embedded build can safely be skipped
+  sed 's|-DDEB|-DPLUGIN_MROONGA=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -DWITH_EMBEDDED_SERVER=OFF -DDEB|' -i debian/rules
+  sed "/Package: mariadb-plugin-mroonga/,/^$/d" -i debian/control
+  sed "/Package: mariadb-plugin-rocksdb/,/^$/d" -i debian/control
+  sed "/Package: mariadb-plugin-spider/,/^$/d" -i debian/control
+  sed "/Package: mariadb-plugin-oqgraph/,/^$/d" -i debian/control
+  sed "/ha_sphinx.so/d" -i debian/mariadb-server-10.6.install
+  sed "/Package: libmariadbd19/,/^$/d" -i debian/control
+  sed "/Package: libmariadbd-dev/,/^$/d" -i debian/control
 fi
 
 # Convert gcc version to numberical value. Format is Mmmpp where M is Major
@@ -40,19 +56,6 @@ fi
 GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' \
                                                      -e 's/\.\([0-9]\)/0\1/g'     \
                                                      -e 's/^[0-9]\{3,4\}$/&00/')
-
-# Look up distro-version specific stuff
-#
-# Always keep the actual packaging as up-to-date as possible following the latest
-# Debian policy and targeting Debian Sid. Then case-by-case run in autobake-deb.sh
-# tests for backwards compatibility and strip away parts on older builders.
-
-# If libzstd-dev is not available (before Debian Stretch and Ubuntu Xenial)
-# remove the dependency from server and RocksDB so it can build properly
-if ! apt-cache madison libzstd-dev | grep 'libzstd-dev' >/dev/null 2>&1
-then
-  sed '/libzstd-dev/d' -i debian/control
-fi
 
 # If rocksdb-tools is not available (before Debian Buster and Ubuntu Disco)
 # remove the dependency from the RocksDB plugin so it can install properly
@@ -68,38 +71,6 @@ fi
 if ! apt-cache madison libcurl4 | grep 'libcurl4' >/dev/null 2>&1
 then
   sed 's/libcurl4/libcurl3/g' -i debian/control
-fi
-
-# Don't build rocksdb package if gcc version is less than 4.8 or we are running on
-# x86 32 bit.
-if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
-then
-  sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
-  sed -i 's|-DPLUGIN_ROCKSDB=YES|-DPLUGIN_ROCKSDB=NO|' debian/rules
-fi
-
-# If libpcre2-dev is not available (before Debian Stretch and Ubuntu Xenial)
-# attempt to build using older libpcre3-dev (SIC!)
-if ! apt-cache madison libpcre2-dev | grep --quiet 'libpcre2-dev'
-then
-  sed 's/libcurl4-openssl-dev | libcurl4-dev/libpcre3-dev/' -i debian/control
-fi
-
-# Mroonga, Spider etc never built on Travis CI anyway, see build flags above
-if [[ $TRAVIS ]]
-then
-  sed -i -e "/Package: mariadb-plugin-mroonga/,/^$/d" debian/control
-  sed -i -e "/Package: mariadb-plugin-spider/,/^$/d" debian/control
-  sed -i -e "/Package: mariadb-plugin-oqgraph/,/^$/d" debian/control
-  sed -i -e "/usr\/lib\/mysql\/plugin\/ha_sphinx.so/d" debian/mariadb-server-10.6.install
-  sed -i -e "/Package: libmariadbd-dev/,/^$/d" debian/control
-fi
-
-if [[ $TRAVIS ]] || ! [[ $(arch) =~ 86 ]]
-then
-  sed -i -e "/Package: mariadb-plugin-columnstore/,/^$/d" debian/control
-  sed -i '/flex/d' debian/control
-  sed -i 's|-DPLUGIN_COLUMNSTORE=YES|-DPLUGIN_COLUMNSTORE=NO|' debian/rules
 fi
 
 # Adjust changelog, add new version

@@ -354,7 +354,32 @@ struct upd_t{
 		fields[n_fields++] = field;
 	}
 
-	/** Determine if the given field_no is modified.
+        void remove_element(ulint i)
+        {
+          ut_ad(n_fields > 0);
+          ut_ad(i < n_fields);
+          while (i < n_fields - 1)
+          {
+            fields[i]= fields[i + 1];
+            i++;
+          }
+          n_fields--;
+        }
+
+        bool remove(const ulint field_no)
+        {
+          for (ulint i= 0; i < n_fields; ++i)
+          {
+            if (field_no == fields[i].field_no)
+            {
+              remove_element(i);
+              return true;
+            }
+          }
+          return false;
+        }
+
+        /** Determine if the given field_no is modified.
 	@return true if modified, false otherwise.  */
 	bool is_modified(uint16_t field_no) const
 	{
@@ -494,25 +519,25 @@ private:
 	make_versioned_delete().
 	@param[in]	trx	transaction
 	@param[in]	vers_sys_idx	table->row_start or table->row_end */
-	void make_versioned_helper(const trx_t* trx, ulint idx);
+  void vers_update_fields(const trx_t *trx, ulint idx);
 
 public:
 	/** Also set row_start = CURRENT_TIMESTAMP/trx->id
 	@param[in]	trx	transaction */
-	void make_versioned_update(const trx_t* trx)
-	{
-		make_versioned_helper(trx, table->vers_start);
-	}
+  void vers_make_update(const trx_t *trx)
+  {
+    vers_update_fields(trx, table->vers_start);
+        }
 
 	/** Only set row_end = CURRENT_TIMESTAMP/trx->id.
 	Do not touch other fields at all.
 	@param[in]	trx	transaction */
-	void make_versioned_delete(const trx_t* trx)
-	{
+        void vers_make_delete(const trx_t *trx)
+        {
 		update->n_fields = 0;
 		is_delete = VERSIONED_DELETE;
-		make_versioned_helper(trx, table->vers_end);
-	}
+                vers_update_fields(trx, table->vers_end);
+        }
 };
 
 #define	UPD_NODE_MAGIC_N	1579975

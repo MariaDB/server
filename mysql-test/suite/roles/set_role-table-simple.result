@@ -61,7 +61,7 @@ ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'ro
 drop user 'test_user'@'localhost';
 select * from mysql.tables_priv;
 Host	Db	User	Table_name	Grantor	Timestamp	Table_priv	Column_priv
-localhost	mysql	mariadb.sys	global_priv	root@localhost	0000-00-00 00:00:00	Select,Update,Delete	
+localhost	mysql	mariadb.sys	global_priv	root@localhost	0000-00-00 00:00:00	Select,Delete	
 	mysql	test_role2	roles_mapping	root@localhost	0000-00-00 00:00:00	Select	
 revoke select on mysql.roles_mapping from test_role2;
 delete from mysql.user where user like'test_%';

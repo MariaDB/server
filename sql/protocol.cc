@@ -43,6 +43,12 @@ bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count);
 static bool write_eof_packet(THD *, NET *, uint, uint);
 #endif
 
+CHARSET_INFO *Protocol::character_set_results() const
+{
+  return thd->variables.character_set_results;
+}
+
+
 #ifndef EMBEDDED_LIBRARY
 bool Protocol::net_store_data(const uchar *from, size_t length)
 #else
@@ -765,6 +771,7 @@ void Protocol::init(THD *thd_arg)
   convert= &thd->convert_buffer;
 #ifndef DBUG_OFF
   field_handlers= 0;
+  field_pos= 0;
 #endif
 }
 
@@ -843,22 +850,25 @@ bool Protocol_text::store_field_metadata(const THD * thd,
 
   if (thd->client_capabilities & CLIENT_PROTOCOL_41)
   {
-    if (store(STRING_WITH_LEN("def"), cs, thd_charset) ||
-        store_str(field.db_name, cs, thd_charset) ||
-        store_str(field.table_name, cs, thd_charset) ||
-        store_str(field.org_table_name, cs, thd_charset) ||
-        store_str(field.col_name, cs, thd_charset) ||
-        store_str(field.org_col_name, cs, thd_charset))
+    const LEX_CSTRING def= {STRING_WITH_LEN("def")};
+    if (store_ident(def, MY_REPERTOIRE_ASCII) ||
+        store_ident(field.db_name) ||
+        store_ident(field.table_name) ||
+        store_ident(field.org_table_name) ||
+        store_ident(field.col_name) ||
+        store_ident(field.org_col_name))
       return true;
     if (thd->client_capabilities & MARIADB_CLIENT_EXTENDED_METADATA)
     {
       Send_field_packed_extended_metadata metadata;
       metadata.pack(field);
+
       /*
         Don't apply character set conversion:
         extended metadata is a binary encoded data.
       */
-      if (store_str(metadata.lex_cstring(), cs, &my_charset_bin))
+      if (store_binary_string(&metadata, cs,
+                              MY_REPERTOIRE_UNICODE30))
         return true;
     }
     if (packet->realloc(packet->length() + 12))
@@ -891,8 +901,8 @@ bool Protocol_text::store_field_metadata(const THD * thd,
   }
   else
   {
-    if (store_str(field.table_name, cs, thd_charset) ||
-        store_str(field.col_name, cs, thd_charset) ||
+    if (store_ident(field.table_name) ||
+        store_ident(field.col_name) ||
         packet->realloc(packet->length() + 10))
       return true;
     pos= (char*) packet->end();
@@ -1172,12 +1182,12 @@ bool Protocol_text::store_null()
 */
 
 bool Protocol::store_string_aux(const char *from, size_t length,
-                                CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+                                CHARSET_INFO *fromcs,
+                                my_repertoire_t from_repertoire,
+                                CHARSET_INFO *tocs)
 {
   /* 'tocs' is set 0 when client issues SET character_set_results=NULL */
-  if (tocs && !my_charset_same(fromcs, tocs) &&
-      fromcs != &my_charset_bin &&
-      tocs != &my_charset_bin)
+  if (needs_conversion(fromcs, from_repertoire, tocs))
   {
     /* Store with conversion */
     return net_store_data_cs((uchar*) from, length, fromcs, tocs);
@@ -1199,29 +1209,19 @@ bool Protocol::store_warning(const char *from, size_t length)
 }
 
 
-bool Protocol_text::store(const char *from, size_t length,
-                          CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+bool Protocol_text::store_str(const char *from, size_t length,
+                              CHARSET_INFO *fromcs,
+                              my_repertoire_t from_repertoire,
+                              CHARSET_INFO *tocs)
 {
 #ifndef DBUG_OFF
-  DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_STRING));
-  field_pos++;
-#endif
-  return store_string_aux(from, length, fromcs, tocs);
-}
-
-
-bool Protocol_text::store(const char *from, size_t length,
-                          CHARSET_INFO *fromcs)
-{
-  CHARSET_INFO *tocs= this->thd->variables.character_set_results;
-#ifndef DBUG_OFF
-  DBUG_PRINT("info", ("Protocol_text::store field %u (%u): %.*b", field_pos,
-                      field_count, (int) length, (length == 0 ? "" : from)));
+  DBUG_PRINT("info", ("Protocol_text::store field %u : %.*b", field_pos,
+                      (int) length, (length == 0 ? "" : from)));
   DBUG_ASSERT(field_handlers == 0 || field_pos < field_count);
   DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_STRING));
   field_pos++;
 #endif
-  return store_string_aux(from, length, fromcs, tocs);
+  return store_string_aux(from, length, fromcs, from_repertoire, tocs);
 }
 
 
@@ -1334,7 +1334,8 @@ bool Protocol_text::store(Field *field)
     dbug_tmp_restore_column_map(table->read_set, old_map);
 #endif
 
-  return store_string_aux(str.ptr(), str.length(), str.charset(), tocs);
+  return store_string_aux(str.ptr(), str.length(), str.charset(),
+                          field->dtcollation().repertoire, tocs);
 }
 
 
@@ -1452,19 +1453,13 @@ void Protocol_binary::prepare_for_resend()
 }
 
 
-bool Protocol_binary::store(const char *from, size_t length,
-                            CHARSET_INFO *fromcs)
-{
-  CHARSET_INFO *tocs= thd->variables.character_set_results;
-  field_pos++;
-  return store_string_aux(from, length, fromcs, tocs);
-}
-
-bool Protocol_binary::store(const char *from, size_t length,
-                            CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+bool Protocol_binary::store_str(const char *from, size_t length,
+                                CHARSET_INFO *fromcs,
+                                my_repertoire_t from_repertoire,
+                                CHARSET_INFO *tocs)
 {
   field_pos++;
-  return store_string_aux(from, length, fromcs, tocs);
+  return store_string_aux(from, length, fromcs, from_repertoire, tocs);
 }
 
 bool Protocol_binary::store_null()
@@ -1523,11 +1518,12 @@ bool Protocol_binary::store_decimal(const my_decimal *d)
 {
 #ifndef DBUG_OFF
   DBUG_ASSERT(0); // This method is not used yet
-  field_pos++;
 #endif
   StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
   (void) d->to_string(&str);
-  return store(str.ptr(), str.length(), str.charset());
+  return store_str(str.ptr(), str.length(), str.charset(),
+                   MY_REPERTOIRE_ASCII,
+                   thd->variables.character_set_results);
 }
 
 bool Protocol_binary::store(float from, uint32 decimals, String *buffer)
@@ -1580,7 +1576,7 @@ bool Protocol_binary::store(MYSQL_TIME *tm, int decimals)
   DBUG_ASSERT(decimals == AUTO_SEC_PART_DIGITS ||
               (decimals >= 0 && decimals <= TIME_SECOND_PART_DIGITS));
   if (decimals != AUTO_SEC_PART_DIGITS)
-    my_time_trunc(tm, decimals);
+    my_datetime_trunc(tm, decimals);
   int4store(pos+7, tm->second_part);
   if (tm->second_part)
     length=11;

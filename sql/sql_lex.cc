@@ -2941,6 +2941,7 @@ void st_select_lex::init_query()
   n_sum_items= 0;
   n_child_sum_items= 0;
   hidden_bit_fields= 0;
+  fields_in_window_functions= 0;
   subquery_in_having= explicit_limit= 0;
   is_item_list_lookup= 0;
   changed_elements= 0;
@@ -3503,7 +3504,8 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
                        select_n_having_items +
                        select_n_where_fields +
                        order_group_num +
-                       hidden_bit_fields) * 5;
+                       hidden_bit_fields +
+                       fields_in_window_functions) * 5;
   if (!ref_pointer_array.is_null())
   {
     /*
@@ -4740,7 +4742,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
       }
       if (subquery_predicate->substype() == Item_subselect::IN_SUBS)
       {
-        Item_in_subselect *in_subs= (Item_in_subselect*) subquery_predicate;
+        Item_in_subselect *in_subs= subquery_predicate->get_IN_subquery();
         if (in_subs->is_jtbm_merged)
           continue;
       }
@@ -5167,7 +5169,7 @@ void SELECT_LEX::update_used_tables()
     */
     if (tl->jtbm_subselect)
     {
-      Item *left_expr= tl->jtbm_subselect->left_expr;
+      Item *left_expr= tl->jtbm_subselect->left_exp();
       left_expr->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
     }
 
@@ -5324,7 +5326,7 @@ void st_select_lex::set_explain_type(bool on_the_fly)
   if ((parent_item= master_unit()->item) &&
       parent_item->substype() == Item_subselect::IN_SUBS)
   {
-    Item_in_subselect *in_subs= (Item_in_subselect*)parent_item;
+    Item_in_subselect *in_subs= parent_item->get_IN_subquery();
     /*
       Surprisingly, in_subs->is_set_strategy() can return FALSE here,
       even for the last invocation of this function for the select.
@@ -5613,9 +5615,10 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
        sl=sl->outer_select())
   {
     Item *subs= sl->master_unit()->item;
-    if (subs && subs->type() == Item::SUBSELECT_ITEM && 
+    Item_in_subselect *in_subs= (subs ? subs->get_IN_subquery() : NULL);
+    if (in_subs &&
         ((Item_subselect*)subs)->substype() == Item_subselect::IN_SUBS &&
-        ((Item_in_subselect*)subs)->test_strategy(SUBS_SEMI_JOIN))
+        in_subs->test_strategy(SUBS_SEMI_JOIN))
     {
       continue;
     }
@@ -6784,6 +6787,7 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
   LEX_CSTRING name;
   uint coffs, param_count= 0;
   const sp_pcursor *pcursor;
+  DBUG_ENTER("LEX::sp_for_loop_cursor_declarations");
 
   if ((item_splocal= item->get_item_splocal()))
     name= item_splocal->m_name;
@@ -6815,23 +6819,23 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
   else
   {
     thd->parse_error();
-    return true;
+    DBUG_RETURN(true);
   }
   if (unlikely(!(pcursor= spcont->find_cursor_with_error(&name, &coffs,
                                                          false)) ||
                pcursor->check_param_count_with_error(param_count)))
-    return true;
+    DBUG_RETURN(true);
 
   if (!(loop->m_index= sp_add_for_loop_cursor_variable(thd, index,
                                                        pcursor, coffs,
                                                        bounds.m_index,
                                                        item_func_sp)))
-    return true;
+    DBUG_RETURN(true);
   loop->m_target_bound= NULL;
   loop->m_direction= bounds.m_direction;
   loop->m_cursor_offset= coffs;
   loop->m_implicit_cursor= bounds.m_implicit_cursor;
-  return false;
+  DBUG_RETURN(false);
 }
 
 
@@ -8185,6 +8189,7 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
 
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
+  uint unused_off;
   DBUG_ASSERT(spcont);
   DBUG_ASSERT(sphead);
   if ((spv= find_variable(name, &rh)))
@@ -8221,6 +8226,15 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
       return new (thd->mem_root) Item_func_sqlcode(thd);
     if (lex_string_eq(name, STRING_WITH_LEN("SQLERRM")))
       return new (thd->mem_root) Item_func_sqlerrm(thd);
+  }
+
+  if (!select_stack_head() &&
+      (current_select->parsing_place != FOR_LOOP_BOUND ||
+       spcont->find_cursor(name, &unused_off, false) == NULL))
+  {
+    // we are out of SELECT or FOR so it is syntax error
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
+    return NULL;
   }
 
   if (current_select->parsing_place == FOR_LOOP_BOUND)
@@ -9712,7 +9726,8 @@ Item *LEX::create_item_query_expression(THD *thd,
 
   // Add the subtree of subquery to the current SELECT_LEX
   SELECT_LEX *curr_sel= select_stack_head();
-  DBUG_ASSERT(current_select == curr_sel);
+  DBUG_ASSERT(current_select == curr_sel ||
+              (curr_sel == NULL && current_select == &builtin_select));
   if (!curr_sel)
   {
     curr_sel= &builtin_select;
@@ -9955,7 +9970,8 @@ SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit)
 
   // Add the subtree of subquery to the current SELECT_LEX
   SELECT_LEX *curr_sel= select_stack_head();
-  DBUG_ASSERT(current_select == curr_sel);
+  DBUG_ASSERT(current_select == curr_sel ||
+              (curr_sel == NULL && current_select == &builtin_select));
   if (curr_sel)
   {
     curr_sel->register_unit(unit, &curr_sel->context);
@@ -10031,7 +10047,8 @@ TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,
 
   // Add the subtree of subquery to the current SELECT_LEX
   SELECT_LEX *curr_sel= select_stack_head();
-  DBUG_ASSERT(current_select == curr_sel);
+  DBUG_ASSERT(current_select == curr_sel ||
+              (curr_sel == NULL && current_select == &builtin_select));
 
   Table_ident *ti= new (thd->mem_root) Table_ident(unit);
   if (ti == NULL)

@@ -61,12 +61,26 @@ protected:
   MYSQL_FIELD *next_mysql_field;
   MEM_ROOT *alloc;
 #endif
+  bool needs_conversion(CHARSET_INFO *fromcs,
+                        my_repertoire_t from_repertoire,
+                        CHARSET_INFO *tocs) const
+  {
+    // 'tocs' is set 0 when client issues SET character_set_results=NULL
+    return tocs && !my_charset_same(fromcs, tocs) &&
+           fromcs != &my_charset_bin &&
+           tocs != &my_charset_bin &&
+           (from_repertoire != MY_REPERTOIRE_ASCII ||
+           (fromcs->state & MY_CS_NONASCII) ||
+           (tocs->state & MY_CS_NONASCII));
+  }
   /* 
     The following two are low-level functions that are invoked from
     higher-level store_xxx() funcs.  The data is stored into this->packet.
   */
   bool store_string_aux(const char *from, size_t length,
-                        CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
+                        CHARSET_INFO *fromcs,
+                        my_repertoire_t from_repertoire,
+                        CHARSET_INFO *tocs);
 
   virtual bool send_ok(uint server_status, uint statement_warn_count,
                        ulonglong affected_rows, ulonglong last_insert_id,
@@ -76,6 +90,8 @@ protected:
 
   virtual bool send_error(uint sql_errno, const char *err_msg,
                           const char *sql_state);
+
+  CHARSET_INFO *character_set_results() const;
 
 public:
   THD	 *thd;
@@ -120,19 +136,45 @@ public:
   virtual bool store_long(longlong from)=0;
   virtual bool store_longlong(longlong from, bool unsigned_flag)=0;
   virtual bool store_decimal(const my_decimal *)=0;
-  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs)=0;
-  virtual bool store(const char *from, size_t length, 
-  		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs)=0;
-  bool store_str(const LEX_CSTRING &s, CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
-  {
-    return store(s.str, (uint) s.length, fromcs, tocs);
-  }
+  virtual bool store_str(const char *from, size_t length,
+                         CHARSET_INFO *fromcs,
+                         my_repertoire_t from_repertoire,
+                         CHARSET_INFO *tocs)=0;
   virtual bool store(float from, uint32 decimals, String *buffer)=0;
   virtual bool store(double from, uint32 decimals, String *buffer)=0;
   virtual bool store(MYSQL_TIME *time, int decimals)=0;
   virtual bool store_date(MYSQL_TIME *time)=0;
   virtual bool store_time(MYSQL_TIME *time, int decimals)=0;
   virtual bool store(Field *field)=0;
+
+  // Various useful wrappers for the virtual store*() methods.
+  // Backward wrapper for store_str()
+  inline bool store(const char *from, size_t length, CHARSET_INFO *cs,
+                    my_repertoire_t repertoire= MY_REPERTOIRE_UNICODE30)
+  {
+    return store_str(from, length, cs, repertoire, character_set_results());
+  }
+  inline bool store_lex_cstring(const LEX_CSTRING &s,
+                                CHARSET_INFO *fromcs,
+                                my_repertoire_t from_repertoire,
+                                CHARSET_INFO *tocs)
+  {
+    return store_str(s.str, (uint) s.length, fromcs, from_repertoire, tocs);
+  }
+  inline bool store_binary_string(Binary_string *str,
+                                  CHARSET_INFO *fromcs,
+                                  my_repertoire_t from_repertoire)
+  {
+    return store_str(str->ptr(), (uint) str->length(), fromcs, from_repertoire,
+                     &my_charset_bin);
+  }
+  bool store_ident(const LEX_CSTRING &s,
+                   my_repertoire_t repertoire= MY_REPERTOIRE_UNICODE30)
+  {
+    return store_lex_cstring(s, system_charset_info, repertoire,
+                             character_set_results());
+  }
+  // End of wrappers
 
   virtual bool send_out_parameters(List<Item_param> *sp_params)=0;
 #ifdef EMBEDDED_LIBRARY
@@ -178,9 +220,10 @@ public:
   virtual bool store_long(longlong from);
   virtual bool store_longlong(longlong from, bool unsigned_flag);
   virtual bool store_decimal(const my_decimal *);
-  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs);
-  virtual bool store(const char *from, size_t length,
-  		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
+  virtual bool store_str(const char *from, size_t length,
+                         CHARSET_INFO *fromcs,
+                         my_repertoire_t from_repertoire,
+                         CHARSET_INFO *tocs);
   virtual bool store(MYSQL_TIME *time, int decimals);
   virtual bool store_date(MYSQL_TIME *time);
   virtual bool store_time(MYSQL_TIME *time, int decimals);
@@ -223,9 +266,10 @@ public:
   virtual bool store_long(longlong from);
   virtual bool store_longlong(longlong from, bool unsigned_flag);
   virtual bool store_decimal(const my_decimal *);
-  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs);
-  virtual bool store(const char *from, size_t length,
-  		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
+  virtual bool store_str(const char *from, size_t length,
+                         CHARSET_INFO *fromcs,
+                         my_repertoire_t from_repertoire,
+                         CHARSET_INFO *tocs);
   virtual bool store(MYSQL_TIME *time, int decimals);
   virtual bool store_date(MYSQL_TIME *time);
   virtual bool store_time(MYSQL_TIME *time, int decimals);
@@ -272,8 +316,11 @@ public:
   bool store_long(longlong) { return false; }
   bool store_longlong(longlong, bool) { return false; }
   bool store_decimal(const my_decimal *) { return false; }
-  bool store(const char *, size_t, CHARSET_INFO *) { return false; }
-  bool store(const char *, size_t, CHARSET_INFO *, CHARSET_INFO *) { return false; }
+  bool store_str(const char *, size_t, CHARSET_INFO *, my_repertoire_t,
+                 CHARSET_INFO *)
+  {
+    return false;
+  }
   bool store(MYSQL_TIME *, int) { return false; }
   bool store_date(MYSQL_TIME *) { return false; }
   bool store_time(MYSQL_TIME *, int) { return false; }

@@ -1258,20 +1258,20 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
         switch (type()) {
         case SP_TYPE_PACKAGE:
           // Drop together with its PACKAGE BODY mysql.proc record
-          ret= sp_handler_package_spec.sp_find_and_drop_routine(thd, table, sp);
+          if (sp_handler_package_spec.sp_find_and_drop_routine(thd, table, sp))
+            goto done;
           break;
         case SP_TYPE_PACKAGE_BODY:
         case SP_TYPE_FUNCTION:
         case SP_TYPE_PROCEDURE:
-          ret= sp_drop_routine_internal(thd, sp, table);
+          if (sp_drop_routine_internal(thd, sp, table))
+            goto done;
           break;
         case SP_TYPE_TRIGGER:
         case SP_TYPE_EVENT:
           DBUG_ASSERT(0);
           ret= SP_OK;
         }
-        if (ret != SP_OK)
-          goto done;
       }
       else if (lex->create_info.if_not_exists())
       {
@@ -1286,7 +1286,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
         if (type() == SP_TYPE_FUNCTION)
         {
           sp_returns_type(thd, retstr, sp);
-          returns= retstr.lex_cstring();
+          retstr.get_value(&returns);
         }
         goto log;
       }
@@ -1369,7 +1369,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
     if (type() == SP_TYPE_FUNCTION)
     {
       sp_returns_type(thd, retstr, sp);
-      returns= retstr.lex_cstring();
+      retstr.get_value(&returns);
 
       store_failed= store_failed ||
         table->field[MYSQL_PROC_FIELD_RETURNS]->
@@ -2061,7 +2061,7 @@ Sp_handler::sp_clone_and_link_routine(THD *thd,
   if (type() == SP_TYPE_FUNCTION)
   {
     sp_returns_type(thd, retstr, sp);
-    returns= retstr.lex_cstring();
+    retstr.get_value(&returns);
   }
 
   if (sp->m_parent)
