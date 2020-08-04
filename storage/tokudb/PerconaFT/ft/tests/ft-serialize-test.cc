@@ -238,7 +238,7 @@ static void test_serialize_leaf_check_msn(enum ftnode_verify_type bft,
     sn.layout_version_original = FT_LAYOUT_VERSION;
     sn.height = 0;
     sn.n_children = 2;
-    sn.dirty = 1;
+    sn.set_dirty();
     sn.oldest_referenced_xid_known = TXNID_NONE;
     MALLOC_N(sn.n_children, sn.bp);
     DBT pivotkey;
@@ -381,7 +381,7 @@ static void test_serialize_leaf_with_large_pivots(enum ftnode_verify_type bft,
     sn.layout_version_original = FT_LAYOUT_VERSION;
     sn.height = 0;
     sn.n_children = nrows;
-    sn.dirty = 1;
+    sn.set_dirty();
     sn.oldest_referenced_xid_known = TXNID_NONE;
 
     MALLOC_N(sn.n_children, sn.bp);
@@ -538,7 +538,7 @@ static void test_serialize_leaf_with_many_rows(enum ftnode_verify_type bft,
     sn.layout_version_original = FT_LAYOUT_VERSION;
     sn.height = 0;
     sn.n_children = 1;
-    sn.dirty = 1;
+    sn.set_dirty();
     sn.oldest_referenced_xid_known = TXNID_NONE;
 
     XMALLOC_N(sn.n_children, sn.bp);
@@ -693,7 +693,7 @@ static void test_serialize_leaf_with_large_rows(enum ftnode_verify_type bft,
     sn.layout_version_original = FT_LAYOUT_VERSION;
     sn.height = 0;
     sn.n_children = 1;
-    sn.dirty = 1;
+    sn.set_dirty();
     sn.oldest_referenced_xid_known = TXNID_NONE;
 
     MALLOC_N(sn.n_children, sn.bp);
@@ -845,7 +845,7 @@ static void test_serialize_leaf_with_empty_basement_nodes(
     sn.layout_version_original = FT_LAYOUT_VERSION;
     sn.height = 0;
     sn.n_children = 7;
-    sn.dirty = 1;
+    sn.set_dirty();
     sn.oldest_referenced_xid_known = TXNID_NONE;
     MALLOC_N(sn.n_children, sn.bp);
     DBT pivotkeys[6];
@@ -989,7 +989,7 @@ static void test_serialize_leaf_with_multiple_empty_basement_nodes(
     sn.layout_version_original = FT_LAYOUT_VERSION;
     sn.height = 0;
     sn.n_children = 4;
-    sn.dirty = 1;
+    sn.set_dirty();
     sn.oldest_referenced_xid_known = TXNID_NONE;
     MALLOC_N(sn.n_children, sn.bp);
     DBT pivotkeys[3];
@@ -1100,7 +1100,7 @@ static void test_serialize_nonleaf(enum ftnode_verify_type bft, bool do_clone) {
     sn.layout_version_original = FT_LAYOUT_VERSION;
     sn.height = 1;
     sn.n_children = 2;
-    sn.dirty = 1;
+    sn.set_dirty();
     sn.oldest_referenced_xid_known = TXNID_NONE;
     MALLOC_N(2, sn.bp);
     DBT pivotkey;

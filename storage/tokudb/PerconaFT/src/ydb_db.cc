@@ -508,7 +508,7 @@ int toku_db_open_iname(DB * db, DB_TXN * txn, const char *iname_in_env, uint32_t
         struct lt_on_create_callback_extra on_create_extra = {
             .txn = txn,
             .ft_handle = db->i->ft_handle,
-            open_rw
+            .open_rw = false
         };
         db->i->lt = db->dbenv->i->ltm.get_lt(db->i->dict_id,
                                              toku_ft_get_comparator(db->i->ft_handle),

@@ -134,4 +134,4 @@ static __thread int tlsvar = 0;
 int main(void) { return tlsvar; }" HAVE_GNU_TLS)
 
 ## set TOKUDB_REVISION
-set(CMAKE_TOKUDB_REVISION 0 CACHE INTEGER "Revision of tokudb.")
+set(CMAKE_TOKUDB_REVISION 0 CACHE STRING "Revision of tokudb.")
