@@ -5883,7 +5883,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 			} else switch (ttp) {
 				case TAB_DBF:
-					qrp= DBFColumns(g, dpath, fn, fnc == FNC_COL);
+					qrp= DBFColumns(g, dpath, fn, topt, fnc == FNC_COL);
 					break;
 #if defined(ODBC_SUPPORT)
 				case TAB_ODBC:
@@ -6733,11 +6733,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 			bool append= *a == '1' || *a == 'Y' || *a == 'y' || !stricmp(a, "ON");
 			PCSZ m= GetListOption(g, "Mulentries", options->oplist, "NO");
 			bool mul= *m == '1' || *m == 'Y' || *m == 'y' || !stricmp(m, "ON");
-
-			if (!entry && !mul) {
-				my_message(ER_UNKNOWN_ERROR, "Missing entry name", MYF(0));
-				DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-			}	// endif entry
 
 			strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
 			PlugSetPath(zbuf, options->filename, dbpath);

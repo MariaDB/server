@@ -31,7 +31,7 @@ int myrg_extra(MYRG_INFO *info,enum ha_extra_function function,
   DBUG_PRINT("info",("function: %lu", (ulong) function));
 
   if (!info->children_attached)
-    DBUG_RETURN(1);
+    DBUG_RETURN(0);
   if (function == HA_EXTRA_CACHE)
   {
     info->cache_in_use=1;

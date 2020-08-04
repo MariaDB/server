@@ -23,6 +23,7 @@
 #include "filamzip.h"
 #include "resource.h"                        // for IDS_COLUMNS
 #include "tabdos.h"
+#include "tabmul.h"
 #include "tabzip.h"
 
 /* -------------------------- Class ZIPDEF --------------------------- */
@@ -41,7 +42,14 @@ bool ZIPDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB ZIPDEF::GetTable(PGLOBAL g, MODE m)
 {
-	return new(g) TDBZIP(this);
+	PTDB tdbp = NULL;
+
+	tdbp = new(g) TDBZIP(this);
+
+	if (Multiple)
+		tdbp = new(g) TDBMUL(tdbp);
+
+	return tdbp;
 } // end of GetTable
 
 /* ------------------------------------------------------------------- */
@@ -108,7 +116,7 @@ int TDBZIP::Cardinality(PGLOBAL g)
 
 			Cardinal = (err == UNZ_OK) ? (int)ginfo.number_entry : 0;
 		} else
-			Cardinal = 0;
+			Cardinal = 10;    // Dummy for multiple tables
 
 	} // endif Cardinal
 
@@ -187,6 +195,7 @@ int TDBZIP::DeleteDB(PGLOBAL g, int irc)
 void TDBZIP::CloseDB(PGLOBAL g)
 {
 	close();
+	nexterr = UNZ_OK;               // For multiple tables
 	Use = USE_READY;                // Just to be clean
 } // end of CloseDB
 

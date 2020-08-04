@@ -46,3 +46,4 @@ partition : MDEV-19958 Galera test failure on galera.partition
 query_cache: MDEV-15805 Test failure on galera.query_cache
 sql_log_bin : MDEV-21491 galera.sql_log_bin
 versioning_trx_id : MDEV-18590 galera.versioning_trx_id
+MW-328A : MDEV-22666?

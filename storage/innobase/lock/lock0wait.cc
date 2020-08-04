@@ -195,8 +195,8 @@ wsrep_is_BF_lock_timeout(
 	const trx_t*	trx,
 	bool		locked = true)
 {
-	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, FALSE)
-	    && trx->error_state != DB_DEADLOCK) {
+	if (trx->error_state != DB_DEADLOCK && trx->is_wsrep() &&
+	    srv_monitor_timer && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx->id)
 			   << " query: " << wsrep_thd_query(trx->mysql_thd);
 		if (!locked) {

@@ -348,7 +348,6 @@ truncate(4, cast(-2 as unsigned))	truncate(4, 18446744073709551614)	truncate(4, 
 4	4	0
 Warnings:
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
-Note	1105	Cast to unsigned converted negative integer to it's positive complement
 select round(10000000000000000000, -19), truncate(10000000000000000000, -19);
 round(10000000000000000000, -19)	truncate(10000000000000000000, -19)
 10000000000000000000	10000000000000000000
@@ -1784,7 +1783,7 @@ ROUND(10e0,NULL) AS c3;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` double DEFAULT NULL,
+  `c1` int(2) DEFAULT NULL,
   `c2` double DEFAULT NULL,
   `c3` double DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

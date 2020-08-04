@@ -179,6 +179,7 @@ my @DEFAULT_SUITES= qw(
     csv-
     compat/oracle-
     compat/mssql-
+    compat/maxdb-
     encryption-
     federated-
     funcs_1-
@@ -691,8 +692,7 @@ sub run_test_server ($$$) {
                   My::CoreDump->show($core_file, $exe_mysqld, $opt_parallel);
 
                   # Limit number of core files saved
-                  if ($opt_max_save_core > 0 &&
-                      $num_saved_cores >= $opt_max_save_core)
+                  if ($num_saved_cores >= $opt_max_save_core)
                   {
                     mtr_report(" - deleting it, already saved",
                                "$opt_max_save_core");
@@ -708,8 +708,7 @@ sub run_test_server ($$$) {
             },
             $worker_savedir);
 
-	    if ($opt_max_save_datadir > 0 &&
-		$num_saved_datadir >= $opt_max_save_datadir)
+	    if ($num_saved_datadir >= $opt_max_save_datadir)
 	    {
 	      mtr_report(" - skipping '$worker_savedir/'");
 	      rmtree($worker_savedir);
@@ -718,9 +717,9 @@ sub run_test_server ($$$) {
             {
 	      mtr_report(" - saving '$worker_savedir/' to '$savedir/'");
 	      rename($worker_savedir, $savedir);
+	      $num_saved_datadir++;
 	    }
 	    resfile_print_test();
-	    $num_saved_datadir++;
 	    $num_failed_test++ unless ($result->{retries} ||
                                        $result->{exp_fail});
 
@@ -1275,6 +1274,17 @@ sub command_line_setup {
   # --------------------------------------------------------------------------
   if ($opt_verbose != 0){
     report_option('verbose', $opt_verbose);
+  }
+
+  # Negative values aren't meaningful on integer options
+  foreach(grep(/=i$/, keys %options))
+  {
+    if (defined ${$options{$_}} &&
+        do { no warnings "numeric"; int ${$options{$_}} < 0})
+    {
+      my $v= (split /=/)[0];
+      die("$v doesn't accept a negative value:");
+    }
   }
 
   # Find the absolute path to the test directory
@@ -6458,12 +6468,12 @@ Options for debugging the product
                         test(s)
   max-save-core         Limit the number of core files saved (to avoid filling
                         up disks for heavily crashing server). Defaults to
-                        $opt_max_save_core, set to 0 for no limit. Set
-                        it's default with MTR_MAX_SAVE_CORE
+                        $opt_max_save_core. Set its default with
+                        MTR_MAX_SAVE_CORE
   max-save-datadir      Limit the number of datadir saved (to avoid filling
                         up disks for heavily crashing server). Defaults to
-                        $opt_max_save_datadir, set to 0 for no limit. Set
-                        it's default with MTR_MAX_SAVE_DATADIR
+                        $opt_max_save_datadir. Set its default with
+                        MTR_MAX_SAVE_DATADIR
   max-test-fail         Limit the number of test failures before aborting
                         the current test run. Defaults to
                         $opt_max_test_fail, set to 0 for no limit. Set

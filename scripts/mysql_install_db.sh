@@ -67,6 +67,7 @@ Usage: $0 [OPTIONS]
   --cross-bootstrap    For internal use.  Used when building the MariaDB system
                        tables on a different host than the target.
   --datadir=path       The path to the MariaDB data directory.
+  --no-defaults        Don't read default options from any option file.
   --defaults-extra-file=name
                        Read this file after the global files are read.
   --defaults-file=name Only read default options from the given file name.
@@ -79,8 +80,6 @@ Usage: $0 [OPTIONS]
   --help               Display this help and exit.
   --ldata=path         The path to the MariaDB data directory. Same as
                        --datadir.
-  --no-defaults        Don't read default options from any option file.
-  --defaults-file=path Read only this configuration file.
   --rpm                For internal use.  This option is used by RPM files
                        during the MariaDB installation process.
   --skip-name-resolve  Use IP addresses rather than hostnames when creating

@@ -1186,13 +1186,13 @@ i	count(*)	std(e1/e2)
 3	4	0.00000000
 select std(s1/s2) from bug22555;
 std(s1/s2)
-0.21325764
+0.21328517
 select std(o1/o2) from bug22555;
 std(o1/o2)
 0.2132576358664934
 select std(e1/e2) from bug22555;
 std(e1/e2)
-0.21325764
+0.21328517
 set @saved_div_precision_increment=@@div_precision_increment;
 set div_precision_increment=19;
 select i, count(*), std(s1/s2) from bug22555 group by i order by i;

@@ -1430,6 +1430,8 @@ public:
   }
 };
 
+class Schema;
+
 
 /**
   Class Time is designed to store valid TIME values.
@@ -3507,6 +3509,7 @@ public:
   static const
   Type_handler *aggregate_for_result_traditional(const Type_handler *h1,
                                                  const Type_handler *h2);
+  virtual Schema *schema() const;
   static void partition_field_type_not_allowed(const LEX_CSTRING &field_name);
   static bool partition_field_check_result_type(Item *item,
                                                 Item_result expected_type);
@@ -6452,6 +6455,12 @@ public:
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
                                   MYSQL_TIME *, date_mode_t fuzzydate)
                                   const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        CHARSET_INFO *cs,
+                                        column_definition_type_t type)
+                                        const override;
 };
 
 

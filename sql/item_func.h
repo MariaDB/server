@@ -1897,6 +1897,7 @@ class Item_func_round :public Item_func_hybrid_field_type
   bool truncate;
   void fix_length_and_dec_decimal(uint decimals_to_set);
   void fix_length_and_dec_double(uint decimals_to_set);
+  bool test_if_length_can_increase();
 public:
   Item_func_round(THD *thd, Item *a, Item *b, bool trunc_arg)
     :Item_func_hybrid_field_type(thd, a, b), truncate(trunc_arg) {}
@@ -1918,7 +1919,9 @@ public:
   }
   void fix_arg_decimal();
   void fix_arg_int(const Type_handler *preferred,
-                   const Type_std_attributes *preferred_attributes);
+                   const Type_std_attributes *preferred_attributes,
+                   bool use_decimal_on_length_increase);
+  void fix_arg_hex_hybrid();
   void fix_arg_double();
   void fix_arg_time();
   void fix_arg_datetime();
