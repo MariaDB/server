@@ -470,8 +470,7 @@ fill_innodb_trx_from_cache(
 			   row->trx_rows_modified, true));
 
 		/* trx_concurrency_tickets */
-		OK(fields[IDX_TRX_CONNCURRENCY_TICKETS]->store(
-			   row->trx_concurrency_tickets, true));
+		OK(fields[IDX_TRX_CONNCURRENCY_TICKETS]->store(0, true));
 
 		/* trx_isolation_level */
 		OK(fields[IDX_TRX_ISOLATION_LEVEL]->store(

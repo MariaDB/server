@@ -1,5 +1,4 @@
 set global innodb_file_per_table=ON;
-set global innodb_thread_concurrency=20;
 connect  con1,localhost,root,,;
 connect  con2,localhost,root,,;
 connect  con3,localhost,root,,;

@@ -348,9 +348,6 @@ number of pages to use in LRU and flush_list batch flushing.
 The rest of the doublewrite buffer is used for single-page flushing. */
 ulong	srv_doublewrite_batch_size = 120;
 
-/** innodb_replication_delay */
-ulong	srv_replication_delay;
-
 /** innodb_sync_spin_loops */
 ulong	srv_n_spin_wait_rounds;
 /** innodb_spin_wait_delay */
@@ -1006,12 +1003,6 @@ srv_printf_innodb_monitor(
 	fputs("--------------\n"
 	      "ROW OPERATIONS\n"
 	      "--------------\n", file);
-	fprintf(file,
-		ULINTPF " queries inside InnoDB, "
-		ULINTPF " queries in queue\n",
-		srv_conc_get_active_threads(),
-		srv_conc_get_waiting_threads());
-
 	fprintf(file, ULINTPF " read views open inside InnoDB\n",
 		trx_sys.view_count());
 

@@ -235,7 +235,6 @@ SET(INNOBASE_SOURCES
 	include/row0upd.h
 	include/row0upd.ic
 	include/row0vers.h
-	include/srv0conc.h
 	include/srv0mon.h
 	include/srv0mon.ic
 	include/srv0srv.h
@@ -328,7 +327,6 @@ SET(INNOBASE_SOURCES
 	row/row0upd.cc
 	row/row0quiesce.cc
 	row/row0vers.cc
-	srv/srv0conc.cc
 	srv/srv0mon.cc
 	srv/srv0srv.cc
 	srv/srv0start.cc

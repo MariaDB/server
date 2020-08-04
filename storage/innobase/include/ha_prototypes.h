@@ -110,10 +110,7 @@ innobase_convert_name(
 
 /******************************************************************//**
 Returns true if the thread is the replication thread on the slave
-server. Used in srv_conc_enter_innodb() to determine if the thread
-should be allowed to enter InnoDB - the replication thread is treated
-differently than other threads. Also used in
-srv_conc_force_exit_innodb().
+server.
 @return true if thd is the replication thread */
 ibool
 thd_is_replication_slave_thread(

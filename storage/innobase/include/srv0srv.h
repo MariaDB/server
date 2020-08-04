@@ -39,14 +39,12 @@ The server main program
 Created 10/10/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef srv0srv_h
-#define srv0srv_h
+#pragma once
 
 #include "log0log.h"
 #include "os0event.h"
 #include "que0types.h"
 #include "trx0types.h"
-#include "srv0conc.h"
 #include "fil0fil.h"
 
 #include "mysql/psi/mysql_stage.h"
@@ -198,6 +196,10 @@ struct srv_stats_t
 	ulint_ctr_1_t		lock_deadlock_count;
 };
 
+/** We are prepared for a situation that we have this many threads waiting for
+a semaphore inside InnoDB. srv_start() sets the value. */
+extern ulint srv_max_n_threads;
+
 extern const char*	srv_main_thread_op_info;
 
 /** Prefix used by MySQL to indicate pre-5.1 table name encoding */
@@ -246,10 +248,6 @@ extern my_bool	high_level_read_only;
 /** store to its own file each table created by an user; data
 dictionary tables are in the system tablespace 0 */
 extern my_bool	srv_file_per_table;
-/** Sleep delay for threads waiting to enter InnoDB. In micro-seconds. */
-extern	ulong	srv_thread_sleep_delay;
-/** Maximum sleep delay (in micro-seconds), value of 0 disables it.*/
-extern	ulong	srv_adaptive_max_sleep_delay;
 
 /** Sort buffer size in index creation */
 extern ulong	srv_sort_buf_size;
@@ -423,8 +421,6 @@ extern double	srv_max_buf_pool_modified_pct;
 extern ulong	srv_max_purge_lag;
 extern ulong	srv_max_purge_lag_delay;
 
-extern ulong	srv_replication_delay;
-
 extern my_bool	innodb_encrypt_temporary_tables;
 
 extern my_bool  srv_immediate_scrub_data_uncompressed;
@@ -455,8 +451,6 @@ extern bool	srv_monitor_active;
 
 
 extern ulong	srv_n_spin_wait_rounds;
-extern ulong	srv_n_free_tickets_to_enter;
-extern ulong	srv_thread_sleep_delay;
 extern uint	srv_spin_wait_delay;
 
 extern ulint	srv_truncated_status_writes;
@@ -942,14 +936,3 @@ static inline void srv_start_periodic_timer(std::unique_ptr<tpool::timer>& t,
 
 void srv_thread_pool_init();
 void srv_thread_pool_end();
-
-#ifdef WITH_WSREP
-UNIV_INTERN
-void
-wsrep_srv_conc_cancel_wait(
-/*==================*/
-	trx_t*	trx);	/*!< in: transaction object associated with the
-			thread */
-#endif /* WITH_WSREP */
-
-#endif

@@ -377,10 +377,6 @@ trx_t *trx_create()
 	ut_ad(trx->lock.rec_cached == 0);
 	ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
 
-#ifdef WITH_WSREP
-	trx->wsrep_event= NULL;
-#endif /* WITH_WSREP */
-
 	trx_sys.register_trx(trx);
 
 	return(trx);
@@ -392,24 +388,10 @@ trx_t *trx_create()
 */
 void trx_free(trx_t*& trx)
 {
-	ut_ad(!trx->declared_to_be_inside_innodb);
 	ut_ad(!trx->n_mysql_tables_in_use);
 	ut_ad(!trx->mysql_n_tables_locked);
 	ut_ad(!trx->internal);
 	ut_ad(!trx->mysql_log_file_name);
-
-	if (UNIV_UNLIKELY(trx->declared_to_be_inside_innodb)) {
-		ib::error() << "Freeing a trx ("
-			<< trx_get_id_for_print(trx) << ") which is declared"
-			" to be processing inside InnoDB";
-
-		trx_print(stderr, trx, 600);
-		putc('\n', stderr);
-
-		/* This is an error but not a fatal error. We must keep
-		the counters like srv_conc.n_active accurate. */
-		srv_conc_force_exit_innodb(trx);
-	}
 
 	if (trx->n_mysql_tables_in_use != 0
 	    || trx->mysql_n_tables_locked != 0) {
@@ -1822,11 +1804,6 @@ state_ok:
 
 	if (trx->is_recovered) {
 		fputs(" recovered trx", f);
-	}
-
-	if (trx->declared_to_be_inside_innodb) {
-		fprintf(f, ", thread declared inside InnoDB %lu",
-			(ulong) trx->n_tickets_to_enter_innodb);
 	}
 
 	putc('\n', f);

@@ -864,17 +864,6 @@ public:
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
 	trx_dict_op_t	dict_operation;	/**< @see enum trx_dict_op_t */
 
-	/* Fields protected by the srv_conc_mutex. */
-	bool		declared_to_be_inside_innodb;
-					/*!< this is TRUE if we have declared
-					this transaction in
-					srv_conc_enter_innodb to be inside the
-					InnoDB engine */
-	ib_uint32_t	n_tickets_to_enter_innodb;
-					/*!< this can be > 0 only when
-					declared_to_... is TRUE; when we come
-					to srv_conc_innodb_enter, if the value
-					here is > 0, we decrement this by 1 */
 	ib_uint32_t	dict_operation_lock_mode;
 					/*!< 0, RW_S_LATCH, or RW_X_LATCH:
 					the latch mode trx currently holds
@@ -1017,10 +1006,6 @@ public:
 	ulint		total_table_lock_wait_time;
 					/*!< Total table lock wait time
 					up to this moment. */
-
-#ifdef WITH_WSREP
-	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
-#endif /* WITH_WSREP */
 
 	rw_trx_hash_element_t *rw_trx_hash_element;
 	LF_PINS *rw_trx_hash_pins;

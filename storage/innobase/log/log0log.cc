@@ -448,7 +448,7 @@ log_set_capacity(ulonglong file_size)
 	by single query steps: running out of free log space is a serious
 	system error which requires rebooting the database. */
 
-	free = LOG_CHECKPOINT_FREE_PER_THREAD * (10 + srv_thread_concurrency)
+	free = LOG_CHECKPOINT_FREE_PER_THREAD * 10
 		+ LOG_CHECKPOINT_EXTRA_FREE;
 	if (free >= smallest_capacity / 2) {
 		ib::error() << "Cannot continue operation because log file is "

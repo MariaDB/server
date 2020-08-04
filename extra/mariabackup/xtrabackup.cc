@@ -5376,7 +5376,6 @@ static bool xtrabackup_prepare_func(char** argv)
 	xb_filters_init();
 
 	srv_log_group_home_dir = NULL;
-	srv_thread_concurrency = 1;
 
 	if (xtrabackup_incremental) {
 		srv_operation = SRV_OPERATION_RESTORE_DELTA;
