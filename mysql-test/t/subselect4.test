@@ -2138,3 +2138,28 @@ WHERE population/area = (SELECT MAX(population/area) from t1 B where A.region = 
 SET @@optimizer_switch= @save_optimizer_switch;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9513: Assertion `join->group_list || !join->is_in_subquery()' failed in create_sort_index
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (2),(3);
+EXPLAIN
+SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION SELECT B.a FROM t2 B ORDER BY 1);
+SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION SELECT B.a FROM t2 B ORDER BY 1);
+
+EXPLAIN
+SELECT t1.a FROM t1 WHERE EXISTS (SELECT A.a FROM t1 A UNION SELECT B.a FROM t2 B ORDER BY 1);
+SELECT t1.a FROM t1 WHERE EXISTS (SELECT A.a FROM t1 A UNION SELECT B.a FROM t2 B ORDER BY 1);
+
+EXPLAIN
+SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION ALL SELECT B.a FROM t2 B ORDER BY 1);
+SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION ALL SELECT B.a FROM t2 B ORDER BY 1);
+
+DROP TABLE t1,t2;
+
+--echo # end of 10.1 tests

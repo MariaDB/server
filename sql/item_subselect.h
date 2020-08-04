@@ -131,6 +131,10 @@ public:
   Item_subselect(THD *thd);
 
   virtual subs_type substype() { return UNKNOWN_SUBS; }
+  bool is_exists_predicate()
+  {
+    return substype() == Item_subselect::EXISTS_SUBS;
+  }
   bool is_in_predicate()
   {
     return (substype() == Item_subselect::IN_SUBS ||
