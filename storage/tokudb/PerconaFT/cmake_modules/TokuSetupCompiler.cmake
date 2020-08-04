@@ -46,31 +46,20 @@ endif (USE_GCOV)
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
-## adds a compiler flag if the compiler supports it
-macro(set_cflags_if_supported_named flag flagname)
-  check_c_compiler_flag("${flag}" HAVE_C_${flagname})
-  if (HAVE_C_${flagname})
-    set(CMAKE_C_FLAGS "${flag} ${CMAKE_C_FLAGS}")
-  endif ()
-  check_cxx_compiler_flag("${flag}" HAVE_CXX_${flagname})
-  if (HAVE_CXX_${flagname})
-    set(CMAKE_CXX_FLAGS "${flag} ${CMAKE_CXX_FLAGS}")
-  endif ()
-endmacro(set_cflags_if_supported_named)
-
-## adds a compiler flag if the compiler supports it
-macro(set_cflags_if_supported)
-  foreach(flag ${ARGN})
-    check_c_compiler_flag(${flag} HAVE_C_${flag})
-    if (HAVE_C_${flag})
-      set(CMAKE_C_FLAGS "${flag} ${CMAKE_C_FLAGS}")
-    endif ()
-    check_cxx_compiler_flag(${flag} HAVE_CXX_${flag})
-    if (HAVE_CXX_${flag})
-      set(CMAKE_CXX_FLAGS "${flag} ${CMAKE_CXX_FLAGS}")
-    endif ()
-  endforeach(flag)
-endmacro(set_cflags_if_supported)
+## prepends a compiler flag if the compiler supports it
+MACRO (prepend_cflags_if_supported)
+  FOREACH (flag ${ARGN})
+    STRING (REGEX REPLACE "-" "_" temp_flag ${flag})
+    check_c_compiler_flag (${flag} HAVE_C_${temp_flag})
+    IF (HAVE_C_${temp_flag})
+      SET (CMAKE_C_FLAGS "${flag} ${CMAKE_C_FLAGS}")
+    ENDIF ()
+    check_cxx_compiler_flag (${flag} HAVE_CXX_${temp_flag})
+    IF (HAVE_CXX_${temp_flag})
+      SET (CMAKE_CXX_FLAGS "${flag} ${CMAKE_CXX_FLAGS}")
+    ENDIF ()
+  ENDFOREACH (flag)
+ENDMACRO (prepend_cflags_if_supported)
 
 ## adds a linker flag if the compiler supports it
 macro(set_ldflags_if_supported)
@@ -83,33 +72,18 @@ macro(set_ldflags_if_supported)
   endforeach(flag)
 endmacro(set_ldflags_if_supported)
 
-if (NOT DEFINED MYSQL_PROJECT_NAME_DOCSTRING)
-  set (OPTIONAL_CFLAGS "${OPTIONAL_CFLAGS} -Wmissing-format-attribute")
-endif()
-
 ## disable some warnings
-## missing-format-attribute causes warnings in some MySQL include files
-## if the library is built as a part of TokuDB MySQL storage engine
-set_cflags_if_supported(
+prepend_cflags_if_supported(
   -Wno-missing-field-initializers
   -Wstrict-null-sentinel
   -Winit-self
   -Wswitch
   -Wtrampolines
   -Wlogical-op
-  ${OPTIONAL_CFLAGS}
-  -Wno-error=missing-format-attribute
-  -Wno-error=address-of-array-temporary
-  -Wno-error=tautological-constant-out-of-range-compare
-  -Wno-error=maybe-uninitialized
-  -Wno-ignored-attributes
-  -Wno-error=extern-c-compat
-  -Wno-pointer-bool-conversion
   -fno-rtti
   -fno-exceptions
   -Wno-error=nonnull-compare
   )
-## set_cflags_if_supported_named("-Weffc++" -Weffcpp)
 
 if (CMAKE_CXX_FLAGS MATCHES -fno-implicit-templates)
   # must append this because mysql sets -fno-implicit-templates and we need to override it
@@ -121,26 +95,17 @@ endif()
 
 ## Clang has stricter POD checks.  So, only enable this warning on our other builds (Linux + GCC)
 if (NOT CMAKE_CXX_COMPILER_ID MATCHES Clang)
-  set_cflags_if_supported(
+  prepend_cflags_if_supported(
     -Wpacked
     )
 endif ()
 
 option (PROFILING "Allow profiling and debug" ON)
 if (PROFILING)
-  set_cflags_if_supported(
+  prepend_cflags_if_supported(
     -fno-omit-frame-pointer
   )
 endif ()
-
-## this hits with optimized builds somewhere in ftleaf_split, we don't
-## know why but we don't think it's a big deal
-set_cflags_if_supported(
-  -Wno-error=strict-overflow
-  )
-set_ldflags_if_supported(
-  -Wno-error=strict-overflow
-  )
 
 # new flag sets in MySQL 8.0 seem to explicitly disable this
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions")
@@ -179,7 +144,7 @@ else ()
 endif ()
 
 ## set warnings
-set_cflags_if_supported(
+prepend_cflags_if_supported(
   -Wextra
   -Wbad-function-cast
   -Wno-missing-noreturn
@@ -188,7 +153,7 @@ set_cflags_if_supported(
   -Wmissing-declarations
   -Wpointer-arith
   -Wshadow
-  ${OPTIONAL_CFLAGS}
+  -Wmissing-format-attribute
   ## other flags to try:
   #-Wunsafe-loop-optimizations
   #-Wpointer-arith
@@ -202,7 +167,7 @@ set_cflags_if_supported(
 
 if (NOT CMAKE_CXX_COMPILER_ID STREQUAL Clang)
   # Disabling -Wcast-align with clang.  TODO: fix casting and re-enable it, someday.
-  set_cflags_if_supported(-Wcast-align)
+  prepend_cflags_if_supported(-Wcast-align)
 endif ()
 
 ## always want these

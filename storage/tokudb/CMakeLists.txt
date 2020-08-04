@@ -54,7 +54,7 @@ IF(DEFINED TOKUDB_NOPATCH_CONFIG)
     ADD_DEFINITIONS("-DTOKUDB_NOPATCH_CONFIG=${TOKUDB_NOPATCH_CONFIG}")
 ENDIF()
 
-macro(set_cflags_if_supported)
+macro(prepend_cflags_if_supported)
   foreach(flag ${ARGN})
     string(REGEX REPLACE "-" "_" temp_flag ${flag})
     check_c_compiler_flag(${flag} HAVE_C_${temp_flag})
@@ -66,7 +66,7 @@ macro(set_cflags_if_supported)
       set(CMAKE_CXX_FLAGS "${flag} ${CMAKE_CXX_FLAGS}")
     endif ()
   endforeach(flag)
-endmacro(set_cflags_if_supported)
+endmacro(prepend_cflags_if_supported)
 
 macro(append_cflags_if_supported)
   foreach(flag ${ARGN})
@@ -82,15 +82,18 @@ macro(append_cflags_if_supported)
   endforeach(flag)
 endmacro(append_cflags_if_supported)
 
-set_cflags_if_supported(-Wno-missing-field-initializers)
+
+## PerconaFT sets "-Wmissing-format-attribute" what causes warnings in some MySQL include files
+prepend_cflags_if_supported(-Wno-missing-format-attribute)
+
+# "cmake/maintainer.cmake" sets "-Wvla" which causes warnings with PerconaFT
 append_cflags_if_supported(-Wno-vla)
 
-# Disable warnings for gcc-9 or higher
-IF(CMAKE_COMPILER_IS_GNUCXX AND
-    (CMAKE_CXX_COMPILER_VERSION VERSION_EQUAL 9.0 OR
-     CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9.0))
-  append_cflags_if_supported(-Wno-address-of-packed-member)
+# Suppress warnings for gcc older than gcc-5 (for tokudb_status.h, ha_tokudb.cc, hatoku_hton.cc)
+IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
+  prepend_cflags_if_supported(-Wno-missing-field-initializers)
 ENDIF()
+
 
 IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/PerconaFT/")
     IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ft-index/")

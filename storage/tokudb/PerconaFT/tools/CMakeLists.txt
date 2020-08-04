@@ -15,7 +15,7 @@ foreach(tool ${tools})
     if ((CMAKE_BUILD_TYPE MATCHES "Debug") AND
         (CMAKE_CXX_FLAGS_DEBUG MATCHES " -DENABLED_DEBUG_SYNC"))
       if (MYSQL_BASE_VERSION VERSION_EQUAL "8.0")
-        target_link_libraries(${tool} sql_main sql_gis sql_main sql_dd sql_gis binlog rpl master slave ${ICU_LIBRARIES})
+        target_link_libraries(${tool} sql_main sql_gis sql_main sql_dd sql_gis binlog rpl master slave minchassis ${ICU_LIBRARIES})
       else ()
         target_link_libraries(${tool} sql binlog rpl master slave)
       endif ()

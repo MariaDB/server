@@ -95,7 +95,7 @@ static void test_serialize_leaf(int valsize,
     sn->layout_version_original = FT_LAYOUT_VERSION;
     sn->height = 0;
     sn->n_children = 8;
-    sn->dirty = 1;
+    sn->set_dirty();
     sn->oldest_referenced_xid_known = TXNID_NONE;
     MALLOC_N(sn->n_children, sn->bp);
     sn->pivotkeys.create_empty();
@@ -173,7 +173,7 @@ static void test_serialize_leaf(int valsize,
     for (int i = 0; i < ser_runs; i++) {
         gettimeofday(&t[0], NULL);
         ndd = NULL;
-        sn->dirty = 1;
+        sn->set_dirty();
         r = toku_serialize_ftnode_to(
             fd, make_blocknum(20), sn, &ndd, true, ft->ft, false);
         invariant(r == 0);
@@ -265,7 +265,7 @@ static void test_serialize_nonleaf(int valsize,
     sn.layout_version_original = FT_LAYOUT_VERSION;
     sn.height = 1;
     sn.n_children = 8;
-    sn.dirty = 1;
+    sn.set_dirty();
     sn.oldest_referenced_xid_known = TXNID_NONE;
     MALLOC_N(sn.n_children, sn.bp);
     sn.pivotkeys.create_empty();

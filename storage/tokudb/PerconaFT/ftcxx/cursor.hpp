@@ -398,8 +398,8 @@ namespace ftcxx {
             {}
 
             bool operator()(const DBT *key, const DBT *val) {
-                _key = std::move(Slice(*key).owned());
-                _val = std::move(Slice(*val).owned());
+                _key = Slice(*key).owned();
+                _val = Slice(*val).owned();
 
                 // Don't bulk fetch.
                 return false;

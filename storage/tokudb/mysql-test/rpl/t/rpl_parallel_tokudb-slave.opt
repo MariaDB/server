@@ -1,4 +1,4 @@
---log-warnings=0 --slave-transaction-retries=0
+--slave-parallel-workers=2 --log-warnings=0 --slave-transaction-retries=0
 
 
 
