@@ -1103,5 +1103,35 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2,t1;
 #
+# MDEV-23388 Assertion `args[0]->decimals == 0' failed in Item_func_round::fix_arg_int
+#
+SELECT ROUND(GREATEST('1', CAST('2020-12-12' AS DATE)));
+ROUND(GREATEST('1', CAST('2020-12-12' AS DATE)))
+20201212
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+SELECT GREATEST('1', CAST('2020-12-12' AS DATE));
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					GREATEST('1', CAST('2020-12-12' AS DATE))	10	10	10	Y	128	0	63
+GREATEST('1', CAST('2020-12-12' AS DATE))
+2020-12-12
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+CREATE TABLE t1 (c_date DATE NOT NULL, c_int INT NOT NULL);
+CREATE TABLE t2 AS SELECT
+GREATEST(c_date,c_date),
+GREATEST(c_date,c_int),
+GREATEST(c_int,c_date)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `GREATEST(c_date,c_date)` date NOT NULL,
+  `GREATEST(c_date,c_int)` date DEFAULT NULL,
+  `GREATEST(c_int,c_date)` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #

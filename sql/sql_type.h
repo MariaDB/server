@@ -5508,6 +5508,8 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
+  bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const;
 };
