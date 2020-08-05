@@ -2164,7 +2164,7 @@ public:
     else
       Item_ident::print(str, query_type);
   }
-  virtual Ref_Type ref_type() { return AGGREGATE_REF; }
+  Ref_Type ref_type() override final { return AGGREGATE_REF; }
 };
 
 

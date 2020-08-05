@@ -2,6 +2,7 @@
 #define PROTOCOL_INCLUDED
 
 /* Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -214,27 +215,27 @@ public:
     if (prealloc)
       packet->alloc(prealloc);
   }
-  virtual void prepare_for_resend();
-  virtual bool store_null();
-  virtual bool store_tiny(longlong from);
-  virtual bool store_short(longlong from);
-  virtual bool store_long(longlong from);
-  virtual bool store_longlong(longlong from, bool unsigned_flag);
-  virtual bool store_decimal(const my_decimal *);
-  virtual bool store_str(const char *from, size_t length,
-                         CHARSET_INFO *fromcs,
-                         my_repertoire_t from_repertoire,
-                         CHARSET_INFO *tocs);
-  virtual bool store(MYSQL_TIME *time, int decimals);
-  virtual bool store_date(MYSQL_TIME *time);
-  virtual bool store_time(MYSQL_TIME *time, int decimals);
-  virtual bool store(float nr, uint32 decimals, String *buffer);
-  virtual bool store(double from, uint32 decimals, String *buffer);
-  virtual bool store(Field *field);
+  void prepare_for_resend() override;
+  bool store_null() override;
+  bool store_tiny(longlong from) override;
+  bool store_short(longlong from) override;
+  bool store_long(longlong from) override;
+  bool store_longlong(longlong from, bool unsigned_flag) override;
+  bool store_decimal(const my_decimal *) override;
+  bool store_str(const char *from, size_t length,
+                 CHARSET_INFO *fromcs,
+                 my_repertoire_t from_repertoire,
+                 CHARSET_INFO *tocs) override;
+  bool store(MYSQL_TIME *time, int decimals) override;
+  bool store_date(MYSQL_TIME *time) override;
+  bool store_time(MYSQL_TIME *time, int decimals) override;
+  bool store(float nr, uint32 decimals, String *buffer) override;
+  bool store(double from, uint32 decimals, String *buffer) override;
+  bool store(Field *field) override;
 
-  virtual bool send_out_parameters(List<Item_param> *sp_params);
+  bool send_out_parameters(List<Item_param> *sp_params) override;
 #ifdef EMBEDDED_LIBRARY
-  void remove_last_row();
+  void remove_last_row() override;
 #endif
   bool store_field_metadata(const THD *thd, const Send_field &field,
                             CHARSET_INFO *charset_for_protocol,
@@ -253,32 +254,32 @@ private:
   uint bit_fields;
 public:
   Protocol_binary(THD *thd_arg) :Protocol(thd_arg) {}
-  virtual bool prepare_for_send(uint num_columns);
-  virtual void prepare_for_resend();
+  bool prepare_for_send(uint num_columns) override;
+  void prepare_for_resend() override;
 #ifdef EMBEDDED_LIBRARY
-  virtual bool write();
-  bool net_store_data(const uchar *from, size_t length);
+  bool write() override;
+  bool net_store_data(const uchar *from, size_t length) override;
   bool net_store_data_cs(const uchar *from, size_t length,
-                      CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
 #endif
-  virtual bool store_null();
-  virtual bool store_tiny(longlong from);
-  virtual bool store_short(longlong from);
-  virtual bool store_long(longlong from);
-  virtual bool store_longlong(longlong from, bool unsigned_flag);
-  virtual bool store_decimal(const my_decimal *);
-  virtual bool store_str(const char *from, size_t length,
-                         CHARSET_INFO *fromcs,
-                         my_repertoire_t from_repertoire,
-                         CHARSET_INFO *tocs);
-  virtual bool store(MYSQL_TIME *time, int decimals);
-  virtual bool store_date(MYSQL_TIME *time);
-  virtual bool store_time(MYSQL_TIME *time, int decimals);
-  virtual bool store(float nr, uint32 decimals, String *buffer);
-  virtual bool store(double from, uint32 decimals, String *buffer);
-  virtual bool store(Field *field);
+  bool store_null() override;
+  bool store_tiny(longlong from) override;
+  bool store_short(longlong from) override;
+  bool store_long(longlong from) override;
+  bool store_longlong(longlong from, bool unsigned_flag) override;
+  bool store_decimal(const my_decimal *) override;
+  bool store_str(const char *from, size_t length,
+                 CHARSET_INFO *fromcs,
+                 my_repertoire_t from_repertoire,
+                 CHARSET_INFO *tocs) override;
+  bool store(MYSQL_TIME *time, int decimals) override;
+  bool store_date(MYSQL_TIME *time) override;
+  bool store_time(MYSQL_TIME *time, int decimals) override;
+  bool store(float nr, uint32 decimals, String *buffer) override;
+  bool store(double from, uint32 decimals, String *buffer) override;
+  bool store(Field *field) override;
 
-  virtual bool send_out_parameters(List<Item_param> *sp_params);
+  bool send_out_parameters(List<Item_param> *sp_params) override;
 
   enum enum_protocol_type type() override { return PROTOCOL_BINARY; };
 };
