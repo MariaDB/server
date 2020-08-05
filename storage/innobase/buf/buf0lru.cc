@@ -570,8 +570,9 @@ static bool buf_LRU_free_from_common_LRU_list(bool scan_all)
 				ever being accessed. This gives us a measure of
 				the effectiveness of readahead */
 				++buf_pool.stat.n_ra_pages_evicted;
-				break;
 			}
+
+			break;
 		}
 	}
 
