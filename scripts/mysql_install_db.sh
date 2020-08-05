@@ -36,11 +36,10 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
-install_params="create database if not exists mysql;
-create database if not exists test;
-use mysql;"
 auth_root_authentication_method=normal
 auth_root_socket_user='root'
+tzdir=
+skip_anonymous=
 
 dirname0=`dirname $0 2>/dev/null`
 dirname0=`dirname $dirname0 2>/dev/null`
@@ -97,6 +96,8 @@ Usage: $0 [OPTIONS]
                        user.  You must be root to use this option.  By default
                        mysqld runs using your current login name and files and
                        directories that it creates will be owned by you.
+  ---timezones(=path)  Initialize timezones using mysql_tzinfo_to_sql. Path
+                       defaults to /usr/share/zoneinfo.
 
 All other options are passed to the mysqld program
 
@@ -170,8 +171,7 @@ parse_arguments()
         # --windows is a deprecated alias
         cross_bootstrap=1 ;;
       --skip-auth-anonymous-user)
-	install_params="$install_params
-SET @skip_auth_anonymous=1;" ;;
+        skip_anonymous=1 ;;
       --auth-root-authentication-method=normal)
 	auth_root_authentication_method=normal ;;
       --auth-root-authentication-method=socket)
@@ -180,6 +180,8 @@ SET @skip_auth_anonymous=1;" ;;
         usage ;;
       --auth-root-socket-user=*)
         auth_root_socket_user="$(parse_arg "$arg")" ;;
+      --timezones) tzdir="/usr/share/zoneinfo" ;;
+      --timezones=*) tzdir="$(parse_arg "$arg")" ;;
 
       *)
         if test -n "$pick_args"
@@ -285,6 +287,7 @@ then
     fi
   fi
   print_defaults="$builddir/extra/my_print_defaults"
+  tzinfo_to_sql="$builddir/sql/mysql_tzinfo_to_sql"
 elif test -n "$basedir"
 then
   print_defaults=`find_in_dirs my_print_defaults $basedir/bin $basedir/extra`
@@ -293,22 +296,51 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
+  if test -z "$tzdir"
+  then
+    tzinfo_to_sql=`find_in_dirs mysql_tzinfo_to_sql $basedir/bin $basedir/sql`
+    if test -z "$tzinfo_to_sql"
+    then
+      cannot_find_file mysql_tzinfo_to_sql
+      exit 1
+    fi
+  else
+    tzinfo_to_sql=""
+  fi
 elif test -n "$dirname0" -a -x "$dirname0/@bindir@/my_print_defaults"
 then
   print_defaults="$dirname0/@bindir@/my_print_defaults"
+  tzinfo_to_sql="$dirname0/@bindir@/mysql_tzinfo_to_sql"
 elif test -x "./extra/my_print_defaults"
 then
   srcdir="."
   builddir="."
   print_defaults="./extra/my_print_defaults"
+  tzinfo_to_sql="./sql/mysql_tzinfo_to_sql"
 else
   print_defaults="@bindir@/my_print_defaults"
+  tzinfo_to_sql="@bindir@/mysql_tzinfo_to_sql"
 fi
 
 if test ! -x "$print_defaults"
 then
   cannot_find_file "$print_defaults"
   exit 1
+fi
+
+if test ! -z "$tzdir"
+then
+  if test -r "$tzdir" -a -d "$tzdir"
+  then
+    if test -z "$tzinfo_to_sql"
+    then
+      cannot_find_file mysql_tzinfo_to_sql $basedir/bin $basedir/sql
+      exit 1
+    fi
+  else
+    echo "Not a readable directory $tzdir"
+    exit 1
+  fi
 fi
 
 # Now we can get arguments from the groups [mysqld] and [mysql_install_db]
@@ -499,20 +531,39 @@ mysqld_install_cmd_line()
   --net_buffer_length=16K
 }
 
+cat_sql()
+{
+  echo "create database if not exists mysql;"
+  echo "use mysql;"
+  # drop below 6 lines in 10.3 merge
+  echo "create database if not exists test;"
+
+  if test -n "$skip_anonymous"
+  then
+    echo "SET @skip_auth_anonymous=1;"
+  fi
+  case "$auth_root_authentication_method" in
+    normal)
+      install_params="$install_params
+  SET @skip_auth_root_nopasswd=NULL;
+  SET @auth_root_socket=NULL;" ;;
+    socket)
+      install_params="$install_params
+  SET @skip_auth_root_nopasswd=1;
+  SET @auth_root_socket='$auth_root_socket_user';" ;;
+  esac
+
+  echo "$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp";
+
+  if test ! -z "$tzdir"
+  then
+    "$tzinfo_to_sql" --skip-wsrep-checks --skip-write-binlog "$tzdir"
+  fi
+}
 
 # Create the system and help tables by passing them to "mysqld --bootstrap"
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
-case "$auth_root_authentication_method" in
-  normal)
-    install_params="$install_params
-SET @skip_auth_root_nopasswd=NULL;
-SET @auth_root_socket=NULL;" ;;
-  socket)
-    install_params="$install_params
-SET @skip_auth_root_nopasswd=1;
-SET @auth_root_socket='$auth_root_socket_user';" ;;
-esac
-if { echo "$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
   s_echo "OK"
 else
