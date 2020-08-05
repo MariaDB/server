@@ -39,6 +39,7 @@ auth_root_authentication_method=normal
 auth_root_socket_user='root'
 skip_anon_user=0
 skip_test_db=0
+tzdir=
 
 dirname0=`dirname $0 2>/dev/null`
 dirname0=`dirname $dirname0 2>/dev/null`
@@ -96,6 +97,8 @@ Usage: $0 [OPTIONS]
                        user.  You must be root to use this option.  By default
                        mysqld runs using your current login name and files and
                        directories that it creates will be owned by you.
+  ---timezones(=path)  Initialize timezones using mysql_tzinfo_to_sql. Path
+                       defaults to /usr/share/zoneinfo.
 
 All other options are passed to the mysqld program
 
@@ -179,6 +182,8 @@ parse_arguments()
       --auth-root-socket-user=*)
         auth_root_socket_user="$(parse_arg "$arg")" ;;
       --skip-test-db) skip_test_db=1 ;;
+      --timezones) tzdir="/usr/share/zoneinfo" ;;
+      --timezones=*) tzdir="$(parse_arg "$arg")" ;;
 
       *)
         if test -n "$pick_args"
@@ -284,6 +289,7 @@ then
     fi
   fi
   print_defaults="$builddir/extra/my_print_defaults"
+  tzinfo_to_sql="$builddir/sql/mysql_tzinfo_to_sql"
 elif test -n "$basedir"
 then
   print_defaults=`find_in_dirs my_print_defaults $basedir/bin $basedir/extra`
@@ -292,22 +298,51 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
+  if test -z "$tzdir"
+  then
+    tzinfo_to_sql=`find_in_dirs mysql_tzinfo_to_sql $basedir/bin $basedir/sql`
+    if test -z "$tzinfo_to_sql"
+    then
+      cannot_find_file mysql_tzinfo_to_sql
+      exit 1
+    fi
+  else
+    tzinfo_to_sql=""
+  fi
 elif test -n "$dirname0" -a -x "$dirname0/@bindir@/my_print_defaults"
 then
   print_defaults="$dirname0/@bindir@/my_print_defaults"
+  tzinfo_to_sql="$dirname0/@bindir@/mysql_tzinfo_to_sql"
 elif test -x "./extra/my_print_defaults"
 then
   srcdir="."
   builddir="."
   print_defaults="./extra/my_print_defaults"
+  tzinfo_to_sql="./sql/mysql_tzinfo_to_sql"
 else
   print_defaults="@bindir@/my_print_defaults"
+  tzinfo_to_sql="@bindir@/mysql_tzinfo_to_sql"
 fi
 
 if test ! -x "$print_defaults"
 then
   cannot_find_file "$print_defaults"
   exit 1
+fi
+
+if test ! -z "$tzdir"
+then
+  if test -r "$tzdir" -a -d "$tzdir"
+  then
+    if test -z "$tzinfo_to_sql"
+    then
+      cannot_find_file mysql_tzinfo_to_sql $basedir/bin $basedir/sql
+      exit 1
+    fi
+  else
+    echo "Not a readable directory $tzdir"
+    exit 1
+  fi
 fi
 
 # Now we can get arguments from the groups [mysqld] and [mysql_install_db]
@@ -519,6 +554,10 @@ cat_sql()
       echo "SET @skip_auth_anonymous=1;"
     fi
     cat "$mysql_test_db"
+  fi
+  if test ! -z "$tzdir"
+  then
+    "$tzinfo_to_sql" --skip-wsrep-checks --skip-write-binlog "$tzdir"
   fi
 }
 
