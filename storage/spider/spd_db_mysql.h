@@ -199,6 +199,12 @@ public:
     spider_string *str
   );
 #endif
+  bool tables_on_different_db_are_joinable();
+  bool socket_has_default_value();
+  bool database_has_default_value();
+  bool default_file_has_default_value();
+  bool host_has_default_value();
+  bool port_has_default_value();
   bool append_charset_name_before_string();
 };
 

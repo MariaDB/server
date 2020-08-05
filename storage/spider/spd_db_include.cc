@@ -141,21 +141,42 @@ bool spider_db_util::tables_on_different_db_are_joinable()
 {
   DBUG_ENTER("spider_db_util::tables_on_different_db_are_joinable");
   DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(TRUE);
+  DBUG_RETURN(FALSE);
 }
 
 bool spider_db_util::socket_has_default_value()
 {
   DBUG_ENTER("spider_db_util::socket_has_default_value");
   DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(TRUE);
+  DBUG_RETURN(FALSE);
 }
 
 bool spider_db_util::database_has_default_value()
 {
   DBUG_ENTER("spider_db_util::database_has_default_value");
   DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(TRUE);
+  DBUG_RETURN(FALSE);
+}
+
+bool spider_db_util::default_file_has_default_value()
+{
+  DBUG_ENTER("spider_db_util::default_file_has_default_value");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(FALSE);
+}
+
+bool spider_db_util::host_has_default_value()
+{
+  DBUG_ENTER("spider_db_util::host_has_default_value");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(FALSE);
+}
+
+bool spider_db_util::port_has_default_value()
+{
+  DBUG_ENTER("spider_db_util::port_has_default_value");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(FALSE);
 }
 
 bool spider_db_util::append_charset_name_before_string()

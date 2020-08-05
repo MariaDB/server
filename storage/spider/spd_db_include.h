@@ -961,6 +961,9 @@ public:
   virtual bool tables_on_different_db_are_joinable();
   virtual bool socket_has_default_value();
   virtual bool database_has_default_value();
+  virtual bool default_file_has_default_value();
+  virtual bool host_has_default_value();
+  virtual bool port_has_default_value();
   virtual bool append_charset_name_before_string();
   virtual uint limit_mode();
 };
