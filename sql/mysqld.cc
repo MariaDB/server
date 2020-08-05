@@ -6746,11 +6746,11 @@ struct my_option my_long_options[]=
   {"temp-pool", 0,
 #if (ENABLE_TEMP_POOL)
    "Using this option will cause most temporary files created to use a small "
-   "set of names, rather than a unique name for each new file.",
+   "set of names, rather than a unique name for each new file. Deprecated.",
 #else
    "This option is ignored on this OS.",
 #endif
-   &use_temp_pool, &use_temp_pool, 0, GET_BOOL, NO_ARG, 1,
+   &use_temp_pool, &use_temp_pool, 0, GET_BOOL, NO_ARG, 0,
    0, 0, 0, 0, 0},
   {"transaction-isolation", 0,
    "Default transaction isolation level",
