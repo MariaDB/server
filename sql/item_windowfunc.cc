@@ -234,7 +234,7 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   {
     Item *item= args[i];
     // 'item' can be changed during fix_fields
-    if ((!item->fixed && item->fix_fields(thd, args)) ||
+    if ((!item->fixed && item->fix_fields(thd, args + i)) ||
         (item= args[i])->check_cols(1))
       return TRUE;
     with_window_func|= item->with_window_func;
