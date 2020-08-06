@@ -37,7 +37,7 @@
 #ifdef __linux__
 #define PTR_SANE(p) ((p) && (char*)(p) >= heap_start && (char*)(p) <= heap_end)
 static char *heap_start;
-extern char *__bss_start;
+char *__bss_start;
 #else
 #define PTR_SANE(p) (p)
 #endif /* __linux */
