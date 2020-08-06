@@ -1247,6 +1247,19 @@ Events::load_events_from_db(THD *thd)
         delete et;
         continue;
     }
+    else if (et->status == Event_parse_data::SLAVESIDE_DISABLED)
+    {
+        et->status = Event_parse_data::ENABLED;
+
+        store_record(table, record[1]);
+        table->field[ET_FIELD_STATUS]->
+                store((longlong) Event_parse_data::ENABLED,
+                      TRUE);
+
+        /* All the dmls to mysql.events tables are stmt bin-logged. */
+        table->file->row_logging= 0;
+        (void) table->file->ha_update_row(table->record[1], table->record[0]);
+    }
 #endif /* WITH_WSREP */
 
     /**

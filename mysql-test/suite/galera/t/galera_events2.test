@@ -145,4 +145,68 @@ SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFIN
 DROP TABLE t1;
 DROP EVENT one_event;
 
+#
+# Test case 4: After SST on the master node (the one where event is created) it status should be 'ENABLED':
+#
+--connection node_2
+use test;
+CREATE EVENT one_event ON SCHEDULE EVERY 10 SECOND DO SELECT 123;
+
+--echo # node_2 Event should be enabled
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
+
+--connection node_1
+use test;
+--echo # node_1 Event should be SERVERSIDE_DISABLED
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
+
+--connection node_2
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1)) engine=InnoDB;
+INSERT INTO t1 VALUES (1, 'a'), (2, 'a'), (3, 'a');
+
+SELECT * FROM t1;
+
+# Initiate normal shutdown on the node 2 and wait until shutdown has been completed:
+
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+UPDATE t1 SET f2 = 'b' WHERE f1 > 1;
+UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
+
+SELECT * FROM t1;
+
+--connection node_2
+
+# Remove the "grastate.dat" file (to initiate new SST) and restart node 2
+
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+
+--echo # Force SST from node_1 to node_2
+--let $start_mysqld_params=
+--echo Starting server ...
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Sanity check (node 2 is running now and can perform SQL operators):
+
+SELECT * FROM t1;
+--echo # node_2 Event should be ENABLED
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
+
+--connection node_1
+SELECT * FROM t1;
+--echo # node_1 Event should be SERVERSIDE_DISABLED
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
+
+DROP TABLE t1;
+DROP EVENT one_event;
+
 --source include/auto_increment_offset_restore.inc
