@@ -432,17 +432,17 @@ tsv_print_perf_totals(const struct cli_args *cli_args, uint64_t *counters[], con
 }
 
 const struct perf_formatter perf_formatters[] = {
-    [HUMAN] = {
+    { /* HUMAN */
         .header = human_print_perf_header,
         .iteration = human_print_perf_iteration,
         .totals = human_print_perf_totals
     },
-    [CSV] = {
+    { /* CSV */
         .header = csv_print_perf_header,
         .iteration = csv_print_perf_iteration,
         .totals = csv_print_perf_totals
     },
-    [TSV] = {
+    { /* TSV */
         .header = tsv_print_perf_header,
         .iteration = tsv_print_perf_iteration,
         .totals = tsv_print_perf_totals

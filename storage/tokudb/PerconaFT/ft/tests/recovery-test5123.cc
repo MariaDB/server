@@ -49,9 +49,9 @@ static void test_5123(void) {
     test_setup(TOKU_TEST_FILENAME, &logger, &ct);
 
     int r;
-    TXNID_PAIR one = {.parent_id64 = (TXNID)1, TXNID_NONE};
-    TXNID_PAIR two = {.parent_id64 = (TXNID)2, TXNID_NONE};
-    TXNID_PAIR three = {.parent_id64 = (TXNID)3, TXNID_NONE};
+    TXNID_PAIR one = { (TXNID)1, TXNID_NONE};
+    TXNID_PAIR two = { (TXNID)2, TXNID_NONE};
+    TXNID_PAIR three = { (TXNID)3, TXNID_NONE};
 
     toku_log_xbegin(logger, NULL, false, one, TXNID_PAIR_NONE);
     toku_log_xbegin(logger, NULL, false, three, TXNID_PAIR_NONE);
