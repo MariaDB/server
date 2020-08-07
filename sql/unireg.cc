@@ -191,9 +191,9 @@ class Field_data_type_info_image: public BinaryStringBuffer<512>
     memcpy(pos, str->ptr(), str->length());
     return pos + str->length();
   }
-  static uint store_length_required_length(ulonglong length)
+  static size_t store_length_required_length(ulonglong length)
   {
-    return net_length_size(length);
+    return (size_t) net_length_size(length);
   }
 public:
   Field_data_type_info_image() { }
