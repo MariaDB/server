@@ -474,7 +474,7 @@ err:
   Create a formatted date/time value in a string.
 */
 
-static bool make_date_time(String *format, MYSQL_TIME *l_time,
+static bool make_date_time(const String *format, const MYSQL_TIME *l_time,
                            timestamp_type type, const MY_LOCALE *locale,
                            String *str)
 {

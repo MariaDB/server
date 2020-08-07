@@ -882,7 +882,7 @@ public:
   {
     return Binary_string::append_hex((const char*)src, srclen);
   }
-  bool append_introducer_and_hex(String *str)
+  bool append_introducer_and_hex(const String *str)
   {
     return
       append(STRING_WITH_LEN("_"))   ||

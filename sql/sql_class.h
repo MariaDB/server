@@ -6454,7 +6454,8 @@ struct SORT_FIELD_ATTR
   */
   bool maybe_null;
   CHARSET_INFO *cs;
-  uint pack_sort_string(uchar *to, String *str) const;
+  uint pack_sort_string(uchar *to, const Binary_string *str,
+                        CHARSET_INFO *cs) const;
   int compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
                                      uchar *b, size_t *b_len);
   int compare_packed_varstrings(uchar *a, size_t *a_len,

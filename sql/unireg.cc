@@ -86,7 +86,7 @@ static uchar* extra2_write_str(uchar *pos, const LEX_CSTRING &str)
   return pos + str.length;
 }
 
-static uchar* extra2_write_str(uchar *pos, Binary_string *str)
+static uchar* extra2_write_str(uchar *pos, const Binary_string *str)
 {
   pos= extra2_write_len(pos, str->length());
   memcpy(pos, str->ptr(), str->length());
@@ -185,7 +185,7 @@ class Field_data_type_info_image: public BinaryStringBuffer<512>
   {
     return net_store_length(pos, length);
   }
-  static uchar *store_string(uchar *pos, Binary_string *str)
+  static uchar *store_string(uchar *pos, const Binary_string *str)
   {
     pos= store_length(pos, str->length());
     memcpy(pos, str->ptr(), str->length());

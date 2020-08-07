@@ -214,3 +214,4 @@ SELECT * FROM t1;
 a	b
 hello	12NKz5XM5JeKI
 DROP TABLE t1;
+# End of 10.2 tests
