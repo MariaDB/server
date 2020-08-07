@@ -5,6 +5,7 @@ debian/additions/mariadb.conf.d/50-mysqld_safe.cnf etc/mysql/mariadb.conf.d
 debian/additions/mariadb.conf.d/50-server.cnf etc/mysql/mariadb.conf.d
 debian/additions/source_mariadb-10.5.py usr/share/apport/package-hooks
 etc/apparmor.d/usr.sbin.mariadbd
+etc/mysql/mariadb.conf.d/spider.cnf
 etc/security/user_map.conf
 lib/*/security/pam_user_map.so
 lib/systemd/system/mariadb@bootstrap.service.d/use_galera_new_cluster.conf
@@ -52,6 +53,7 @@ usr/lib/mysql/plugin/ha_blackhole.so
 usr/lib/mysql/plugin/ha_federated.so
 usr/lib/mysql/plugin/ha_federatedx.so
 usr/lib/mysql/plugin/ha_sphinx.so
+usr/lib/mysql/plugin/ha_spider.so
 usr/lib/mysql/plugin/handlersocket.so
 usr/lib/mysql/plugin/locales.so
 usr/lib/mysql/plugin/metadata_lock_info.so

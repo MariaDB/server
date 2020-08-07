@@ -39,11 +39,10 @@ then
   sed '/Package: mariadb-test-data/,/^$/d' -i debian/control
   sed '/Package: mariadb-test$/,/^$/d' -i debian/control
 
-  # Extra plugins such as Mroonga, Spider, OQgraph, Sphinx and the embedded build can safely be skipped
-  sed 's|-DDEB|-DPLUGIN_MROONGA=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -DWITH_EMBEDDED_SERVER=OFF -DDEB|' -i debian/rules
+  # Extra plugins such as Mroonga, OQgraph, Sphinx and the embedded build can safely be skipped
+  sed 's|-DDEB|-DPLUGIN_MROONGA=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -DWITH_EMBEDDED_SERVER=OFF -DDEB|' -i debian/rules
   sed "/Package: mariadb-plugin-mroonga/,/^$/d" -i debian/control
   sed "/Package: mariadb-plugin-rocksdb/,/^$/d" -i debian/control
-  sed "/Package: mariadb-plugin-spider/,/^$/d" -i debian/control
   sed "/Package: mariadb-plugin-oqgraph/,/^$/d" -i debian/control
   sed "/ha_sphinx.so/d" -i debian/mariadb-server-10.5.install
   sed "/Package: libmariadbd19/,/^$/d" -i debian/control
