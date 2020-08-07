@@ -91,9 +91,7 @@ extern int writing_rollback;
  int toku_close_trace_file (void) { return 0; } 
 #endif
 
-extern "C" {
-  uint force_recovery = 0;
-}
+extern uint force_recovery;
 
 // Set when env is panicked, never cleared.
 static int env_is_panicked = 0;
