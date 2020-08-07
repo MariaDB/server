@@ -50,12 +50,10 @@ then
   sed "/Package: libmariadbd-dev/,/^$/d" -i debian/control
 fi
 
-# Convert gcc version to numberical value. Format is Mmmpp where M is Major
-# version, mm is minor version and p is patch.
-# -dumpfullversion & -dumpversion to make it uniform across old and new (>=7)
-GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' \
-                                                     -e 's/\.\([0-9]\)/0\1/g'     \
-                                                     -e 's/^[0-9]\{3,4\}$/&00/')
+if [[ $(arch) =~ i[346]86 ]]
+then
+  sed "/Package: mariadb-plugin-rocksdb/,/^$/d" -i debian/control
+fi
 
 # If rocksdb-tools is not available (before Debian Buster and Ubuntu Disco)
 # remove the dependency from the RocksDB plugin so it can install properly
