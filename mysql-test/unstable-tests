@@ -1058,6 +1058,10 @@ sys_vars.wait_timeout_func                         : MDEV-12896 - Wrong result; 
 
 #-----------------------------------------------------------------------
 
+type_test.type_test_double : MDEV-22243 - fails with 'NUMERIC_SCALE NULL'
+
+#-----------------------------------------------------------------------
+
 tokudb.change_column_all_1000_10               : MDEV-12640 - Lost connection
 tokudb.change_column_bin                       : MDEV-12640 - Lost connection
 tokudb.change_column_char                      : MDEV-12822 - Lost connection
