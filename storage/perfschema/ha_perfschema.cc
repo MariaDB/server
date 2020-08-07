@@ -229,7 +229,7 @@ maria_declare_plugin(perfschema)
   0x0001,
   pfs_status_vars,
   NULL,
-  "5.6.40",
+  "5.7.31",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
