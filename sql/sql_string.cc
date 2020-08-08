@@ -183,6 +183,17 @@ bool Binary_string::set_hex(const char *str, uint32 len)
 }
 
 
+bool Binary_string::set_fcvt(double num, uint decimals)
+{
+  // Assert that `decimals` is small enough to fit into FLOATING_POINT_BUFFER
+  DBUG_ASSERT(decimals < DECIMAL_NOT_SPECIFIED);
+  if (alloc(FLOATING_POINT_BUFFER))
+    return true;
+  length(my_fcvt(num, decimals, Ptr, NULL));
+  return false;
+}
+
+
 bool String::set_real(double num,uint decimals, CHARSET_INFO *cs)
 {
   char buff[FLOATING_POINT_BUFFER];

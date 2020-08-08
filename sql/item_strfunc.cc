@@ -2752,7 +2752,7 @@ String *Item_func_format::val_str_ascii(String *str)
     if ((null_value=args[0]->null_value))
       return 0; /* purecov: inspected */
     nr= my_double_round(nr, (longlong) dec, FALSE, FALSE);
-    str->set_real(nr, dec, &my_charset_numeric);
+    str->set_fcvt(nr, dec);
     if (!std::isfinite(nr))
       return str;
     str_length=str->length();
