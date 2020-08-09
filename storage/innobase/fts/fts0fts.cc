@@ -1143,10 +1143,7 @@ fts_tokenizer_word_get(
 	mysql_mutex_assert_owner(&cache->lock);
 
 	/* If it is a stopword, do not index it */
-	if (!fts_check_token(text,
-		    cache->stopword_info.cached_stopword,
-		    index_cache->charset)) {
-
+	if (fts_token_is_stopword(text, cache->stopword_info.cached_stopword)) {
 		return(NULL);
 	}
 
@@ -4413,27 +4410,29 @@ dberr_t fts_sync_table(dict_table_t* table, bool wait)
     : DB_SUCCESS;
 }
 
-/** Check if a fts token is a stopword or less than fts_min_token_size
-or greater than fts_max_token_size.
+/** Check if a fts token is a stopword.
 @param[in]	token		token string
 @param[in]	stopwords	stopwords rb tree
-@param[in]	cs		token charset
-@retval	true	if it is not stopword and length in range
-@retval	false	if it is stopword or length not in range */
+@retval	true	if it is a stopword
+@retval	false	if it is not a stopword */
 bool
-fts_check_token(
+fts_token_is_stopword(
 	const fts_string_t*		token,
-	const ib_rbt_t*			stopwords,
-	const CHARSET_INFO*		cs)
+	const ib_rbt_t*			stopwords)
 {
-	ut_ad(cs != NULL || stopwords == NULL);
-
 	ib_rbt_bound_t  parent;
 
+	if (stopwords == NULL)
+		return(false);
+	return(rbt_search(stopwords, &parent, token) == 0);
+}
+
+bool
+fts_token_length_in_range(
+	const fts_string_t*		token)
+{
 	return(token->f_n_char >= fts_min_token_size
-	       && token->f_n_char <= fts_max_token_size
-	       && (stopwords == NULL
-		   || rbt_search(stopwords, &parent, token) != 0));
+	       && token->f_n_char <= fts_max_token_size);
 }
 
 /** Add the token and its start position to the token's list of positions.
@@ -4447,10 +4446,7 @@ fts_add_token(
 	fts_string_t	str,
 	ulint		position)
 {
-	/* Ignore string whose character number is less than
-	"fts_min_token_size" or more than "fts_max_token_size" */
-
-	if (fts_check_token(&str, NULL, result_doc->charset)) {
+	{
 
 		mem_heap_t*	heap;
 		fts_string_t	t_str;
@@ -4534,7 +4530,8 @@ fts_process_token(
 
 	position = start_pos + ret - str.f_len + add_pos;
 
-	fts_add_token(result_doc, str, position);
+	if (fts_token_length_in_range(&str))
+		fts_add_token(result_doc, str, position);
 
 	return(ret);
 }
