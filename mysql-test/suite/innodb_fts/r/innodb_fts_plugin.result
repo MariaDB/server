@@ -41,6 +41,7 @@ id	title	body
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('will go');
 id	title	body
+5	Go MySQL Tricks	How to use full text search engine
 # Test plugin parser tokenizer difference
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('full-text');
@@ -80,6 +81,7 @@ id	title	body
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('will go');
 id	title	body
+5	Go MySQL Tricks	How to use full text search engine
 # Test plugin parser tokenizer difference
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('full-text');
@@ -194,6 +196,7 @@ id	title	body
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('will go');
 id	title	body
+5	Go MySQL Tricks	How to use full text search engine
 # Test plugin parser tokenizer difference
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('full-text');

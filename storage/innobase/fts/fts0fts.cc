@@ -1197,10 +1197,7 @@ fts_tokenizer_word_get(
 	ut_ad(rw_lock_own(&cache->lock, RW_LOCK_X));
 
 	/* If it is a stopword, do not index it */
-	if (!fts_check_token(text,
-		    cache->stopword_info.cached_stopword,
-		    index_cache->charset)) {
-
+	if (fts_token_is_stopword(text, cache->stopword_info.cached_stopword)) {
 		return(NULL);
 	}
 
@@ -4443,27 +4440,29 @@ dberr_t fts_sync_table(dict_table_t* table, bool wait)
 	return(err);
 }
 
-/** Check if a fts token is a stopword or less than fts_min_token_size
-or greater than fts_max_token_size.
+/** Check if a fts token is a stopword.
 @param[in]	token		token string
 @param[in]	stopwords	stopwords rb tree
-@param[in]	cs		token charset
-@retval	true	if it is not stopword and length in range
-@retval	false	if it is stopword or lenght not in range */
+@retval	true	if it is a stopword
+@retval	false	if it is not a stopword */
 bool
-fts_check_token(
+fts_token_is_stopword(
 	const fts_string_t*		token,
-	const ib_rbt_t*			stopwords,
-	const CHARSET_INFO*		cs)
+	const ib_rbt_t*			stopwords)
 {
-	ut_ad(cs != NULL || stopwords == NULL);
-
 	ib_rbt_bound_t  parent;
 
+	if (stopwords == NULL)
+		return(false);
+	return(rbt_search(stopwords, &parent, token) == 0);
+}
+
+bool
+fts_token_length_in_range(
+	const fts_string_t*		token)
+{
 	return(token->f_n_char >= fts_min_token_size
-	       && token->f_n_char <= fts_max_token_size
-	       && (stopwords == NULL
-		   || rbt_search(stopwords, &parent, token) != 0));
+	       && token->f_n_char <= fts_max_token_size);
 }
 
 /** Add the token and its start position to the token's list of positions.
@@ -4477,62 +4476,56 @@ fts_add_token(
 	fts_string_t	str,
 	ulint		position)
 {
-	/* Ignore string whose character number is less than
-	"fts_min_token_size" or more than "fts_max_token_size" */
+	mem_heap_t*	heap;
+	fts_string_t	t_str;
+	fts_token_t*	token;
+	ib_rbt_bound_t	parent;
+	ulint		newlen;
 
-	if (fts_check_token(&str, NULL, result_doc->charset)) {
+	heap = static_cast<mem_heap_t*>(result_doc->self_heap->arg);
 
-		mem_heap_t*	heap;
-		fts_string_t	t_str;
-		fts_token_t*	token;
-		ib_rbt_bound_t	parent;
-		ulint		newlen;
+	t_str.f_n_char = str.f_n_char;
 
-		heap = static_cast<mem_heap_t*>(result_doc->self_heap->arg);
+	t_str.f_len = str.f_len * result_doc->charset->casedn_multiply + 1;
 
-		t_str.f_n_char = str.f_n_char;
+	t_str.f_str = static_cast<byte*>(
+		mem_heap_alloc(heap, t_str.f_len));
 
-		t_str.f_len = str.f_len * result_doc->charset->casedn_multiply + 1;
-
-		t_str.f_str = static_cast<byte*>(
-			mem_heap_alloc(heap, t_str.f_len));
-
-		/* For binary collations, a case sensitive search is
-		performed. Hence don't convert to lower case. */
-		if (my_binary_compare(result_doc->charset)) {
-			memcpy(t_str.f_str, str.f_str, str.f_len);
-			t_str.f_str[str.f_len]= 0;
-			newlen= str.f_len;
-		} else {
-			newlen = innobase_fts_casedn_str(
-				result_doc->charset, (char*) str.f_str, str.f_len,
-				(char*) t_str.f_str, t_str.f_len);
-		}
-
-		t_str.f_len = newlen;
-		t_str.f_str[newlen] = 0;
-
-		/* Add the word to the document statistics. If the word
-		hasn't been seen before we create a new entry for it. */
-		if (rbt_search(result_doc->tokens, &parent, &t_str) != 0) {
-			fts_token_t	new_token;
-
-			new_token.text.f_len = newlen;
-			new_token.text.f_str = t_str.f_str;
-			new_token.text.f_n_char = t_str.f_n_char;
-
-			new_token.positions = ib_vector_create(
-				result_doc->self_heap, sizeof(ulint), 32);
-
-			parent.last = rbt_add_node(
-				result_doc->tokens, &parent, &new_token);
-
-			ut_ad(rbt_validate(result_doc->tokens));
-		}
-
-		token = rbt_value(fts_token_t, parent.last);
-		ib_vector_push(token->positions, &position);
+	/* For binary collations, a case sensitive search is
+	performed. Hence don't convert to lower case. */
+	if (my_binary_compare(result_doc->charset)) {
+		memcpy(t_str.f_str, str.f_str, str.f_len);
+		t_str.f_str[str.f_len]= 0;
+		newlen= str.f_len;
+	} else {
+		newlen = innobase_fts_casedn_str(
+			result_doc->charset, (char*) str.f_str, str.f_len,
+			(char*) t_str.f_str, t_str.f_len);
 	}
+
+	t_str.f_len = newlen;
+	t_str.f_str[newlen] = 0;
+
+	/* Add the word to the document statistics. If the word
+	hasn't been seen before we create a new entry for it. */
+	if (rbt_search(result_doc->tokens, &parent, &t_str) != 0) {
+		fts_token_t	new_token;
+
+		new_token.text.f_len = newlen;
+		new_token.text.f_str = t_str.f_str;
+		new_token.text.f_n_char = t_str.f_n_char;
+
+		new_token.positions = ib_vector_create(
+			result_doc->self_heap, sizeof(ulint), 32);
+
+		parent.last = rbt_add_node(
+			result_doc->tokens, &parent, &new_token);
+
+		ut_ad(rbt_validate(result_doc->tokens));
+	}
+
+	token = rbt_value(fts_token_t, parent.last);
+	ib_vector_push(token->positions, &position);
 }
 
 /********************************************************************
@@ -4570,7 +4563,8 @@ fts_process_token(
 
 	position = start_pos + ret - str.f_len + add_pos;
 
-	fts_add_token(result_doc, str, position);
+	if (fts_token_length_in_range(&str))
+		fts_add_token(result_doc, str, position);
 
 	return(ret);
 }
