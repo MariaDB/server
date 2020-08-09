@@ -512,10 +512,16 @@ row_merge_fts_doc_tokenize(
 		}
 
 		/* Ignore string whose character number is less than
-		"fts_min_token_size" or more than "fts_max_token_size" */
-		if (!fts_check_token(&str, NULL, NULL)) {
-			if (parser != NULL) {
-				UT_LIST_REMOVE(t_ctx->fts_token_list, fts_token);
+		"fts_min_token_size" or more than "fts_max_token_size",
+		and words in the stopword list. The tokens of a parser
+		plugin only have to fit into the index. */
+		if (parser
+		    ? !fts_token_fits(&str)
+		    : !fts_check_token(&str, t_ctx->cached_stopword,
+				       doc->charset)) {
+			if (parser) {
+				UT_LIST_REMOVE(t_ctx->fts_token_list,
+					       fts_token);
 				ut_free(fts_token);
 			} else {
 				t_ctx->processed_len += inc;
@@ -526,20 +532,6 @@ row_merge_fts_doc_tokenize(
 
 		str_buf.copy_casedn(doc->charset,
 			LEX_CSTRING{(const char *) str.f_str, str.f_len});
-
-		/* if "cached_stopword" is defined, ignore words in the
-		stopword list */
-		if (!fts_check_token(&str, t_ctx->cached_stopword,
-				     doc->charset)) {
-			if (parser != NULL) {
-				UT_LIST_REMOVE(t_ctx->fts_token_list, fts_token);
-				ut_free(fts_token);
-			} else {
-				t_ctx->processed_len += inc;
-			}
-
-			continue;
-		}
 
 		/* There are FTS_NUM_AUX_INDEX auxiliary tables, find
 		out which sort buffer to put this word record in */

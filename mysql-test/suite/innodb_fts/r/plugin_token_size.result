@@ -1,0 +1,33 @@
+#
+# MDEV-10267 Add "ngram" support to MariaDB
+# innodb_ft_min_token_size and innodb_ft_max_token_size
+# (plugin_token_size.opt) apply to the built-in tokenizer only,
+# when an index is built and when rows are added
+#
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+CREATE TABLE p (a TEXT) ENGINE=InnoDB;
+INSERT INTO p VALUES ('ab abcdefghijk');
+ALTER TABLE p ADD FULLTEXT(a) WITH PARSER simple_parser;
+INSERT INTO p VALUES ('cd lmnopqrstuv');
+SELECT COUNT(*) FROM p WHERE MATCH(a) AGAINST('ab');
+COUNT(*)
+1
+SELECT COUNT(*) FROM p WHERE MATCH(a) AGAINST('abcdefghijk');
+COUNT(*)
+1
+SELECT COUNT(*) FROM p WHERE MATCH(a) AGAINST('cd');
+COUNT(*)
+1
+SELECT COUNT(*) FROM p WHERE MATCH(a) AGAINST('lmnopqrstuv');
+COUNT(*)
+1
+CREATE TABLE b (a TEXT, FULLTEXT(a)) ENGINE=InnoDB;
+INSERT INTO b VALUES ('ab abcdefghijk');
+SELECT COUNT(*) FROM b WHERE MATCH(a) AGAINST('ab');
+COUNT(*)
+0
+SELECT COUNT(*) FROM b WHERE MATCH(a) AGAINST('abcdefghijk');
+COUNT(*)
+0
+DROP TABLE p, b;
+UNINSTALL PLUGIN simple_parser;
