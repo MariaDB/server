@@ -1,0 +1,6 @@
+eval CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+  ENGINE=$engine;
+INSERT INTO t VALUES (1, 'abcd'), (2, 'klmn'), (3, 'uvwx');
+SELECT id FROM t WHERE MATCH(a) AGAINST('cdx');
+SELECT id FROM t WHERE MATCH(a) AGAINST('cdx' IN BOOLEAN MODE);
+DROP TABLE t;

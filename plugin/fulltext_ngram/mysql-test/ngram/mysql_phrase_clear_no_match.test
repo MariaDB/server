@@ -1,0 +1,85 @@
+--source include/have_innodb.inc
+# The view protocol creates its views on a second connection, which keeps
+# the character set it was opened with and does not follow SET NAMES.
+--disable_view_protocol
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo #
+
+# MySQL's innodb_fts.phrase_clear_no_match, with 1-grams
+# (mysql_phrase_clear_no_match.opt)
+
+--echo #
+--echo # Bug #30933728 INNODB FTS PHRASE SEARCH CRASH
+--echo #
+
+# MySQL 8.0 connects with utf8mb4 by default
+SET NAMES utf8mb4;
+
+--echo # Case 1 : test phrase search with ngram.
+
+select @@ngram_token_size;
+select @@innodb_ft_enable_stopword;
+
+create table t1(
+        FTS_DOC_ID bigint unsigned auto_increment not null primary key,
+        content varchar(100) COLLATE utf8mb4_danish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_danish_ci;
+
+create fulltext index fts_index on t1(content) with parser ngram;
+
+insert into t1(content) values('María'), ('Maríb'), ('Maria'), ('Marib');
+
+select * from t1 where match(content) against('+María' IN BOOLEAN MODE);
+select * from t1 where match(content) against('+Maríb' IN BOOLEAN MODE);
+select * from t1 where match(content) against('+Maria' IN BOOLEAN MODE);
+select * from t1 where match(content) against('+Marib' IN BOOLEAN MODE);
+
+drop table t1;
+
+--echo # Case 2: test with ngram without stopword
+
+# MySQL restarts the server with --innodb_ft_enable_stopword=off; the
+# session value is what CREATE FULLTEXT INDEX uses
+SET innodb_ft_enable_stopword= OFF;
+
+select @@ngram_token_size;
+select @@innodb_ft_enable_stopword;
+
+
+create table t1(
+        FTS_DOC_ID bigint unsigned auto_increment not null primary key,
+        content varchar(100) COLLATE utf8mb4_danish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_danish_ci;
+
+create fulltext index fts_index on t1(content) with parser ngram;
+
+insert into t1(content) values('María'), ('Maríb'), ('Maria'), ('Marib');
+
+select * from t1 where match(content) against('+María' IN BOOLEAN MODE);
+select * from t1 where match(content) against('+Maríb' IN BOOLEAN MODE);
+select * from t1 where match(content) against('+Maria' IN BOOLEAN MODE);
+select * from t1 where match(content) against('+Marib' IN BOOLEAN MODE);
+
+drop table t1;
+
+--echo # Case 3: test phrase search without ngram.
+create table t1(
+        FTS_DOC_ID bigint unsigned auto_increment not null primary key,
+        content varchar(100) COLLATE utf8mb4_danish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_danish_ci;
+
+create fulltext index fts_index on t1(content);
+
+insert into t1(content) values('María'), ('Maríb'), ('Maria'), ('Marib');
+
+select * from t1 where match(content) against('+María' IN BOOLEAN MODE);
+select * from t1 where match(content) against('+Maríb' IN BOOLEAN MODE);
+select * from t1 where match(content) against('+Maria' IN BOOLEAN MODE);
+select * from t1 where match(content) against('+Marib' IN BOOLEAN MODE);
+
+drop table t1;
+
+SET innodb_ft_enable_stopword= DEFAULT;
+--enable_view_protocol
