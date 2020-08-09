@@ -206,6 +206,7 @@ public:
 
 class Protocol_text :public Protocol
 {
+  bool store_numeric_string_aux(const char *from, size_t length);
 public:
   Protocol_text(THD *thd_arg, ulong prealloc= 0)
    :Protocol(thd_arg)
