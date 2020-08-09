@@ -240,3 +240,20 @@ ALTER TABLE t ADD FULLTEXT INDEX (title, body) WITH PARSER simple_parser;
 SELECT * FROM t WHERE MATCH(title, body) AGAINST('xyz');
 DROP TABLE t;
 UNINSTALL PLUGIN simple_parser;
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo # Tokens of a parser plugin that do not fit into the index (more than
+--echo # 84 characters) are skipped, when the index is built and when rows
+--echo # are added
+--echo #
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+CREATE TABLE t (a TEXT) ENGINE=InnoDB CHARSET=latin1;
+INSERT INTO t VALUES (CONCAT(REPEAT('x', 400), ' short'));
+ALTER TABLE t ADD FULLTEXT(a) WITH PARSER simple_parser;
+INSERT INTO t VALUES (CONCAT(REPEAT('y', 85), ' ', REPEAT('z', 84)));
+SELECT LEFT(a, 5) FROM t WHERE MATCH(a) AGAINST('short');
+SELECT COUNT(*) FROM t WHERE MATCH(a) AGAINST(REPEAT('y', 85));
+SELECT LEFT(a, 5) FROM t WHERE MATCH(a) AGAINST(REPEAT('z', 84));
+DROP TABLE t;
+UNINSTALL PLUGIN simple_parser;
