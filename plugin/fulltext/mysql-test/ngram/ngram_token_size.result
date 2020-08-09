@@ -1,0 +1,75 @@
+# Check 'ngram_token_size' variable.
+SELECT * FROM information_schema.system_variables WHERE variable_name='ngram_token_size';
+VARIABLE_NAME	NGRAM_TOKEN_SIZE
+SESSION_VALUE	NULL
+GLOBAL_VALUE	2
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	2
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT
+VARIABLE_COMMENT	Ngram full text plugin parser token size in characters
+NUMERIC_MIN_VALUE	1
+NUMERIC_MAX_VALUE	10
+NUMERIC_BLOCK_SIZE	0
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+#
+# Try 3-grams.
+SET GLOBAL ngram_token_size= 3;
+CREATE TABLE t (str TEXT, FULLTEXT INDEX (str) WITH PARSER ngram) Engine=InnoDB;
+INSERT INTO t VALUES
+('Lorem ipsum dolor sit amet, consectetur adipiscing elit.'),
+('Maecenas non pellentesque odio.'),
+('Sed fermentum egestas sapien vel consequat.');
+# Only one row contains substring 'api'.
+SELECT str FROM t WHERE MATCH(str) AGAINST('api');
+str
+Sed fermentum egestas sapien vel consequat.
+# 'lent' is parsed into ('len', 'ent') list. Two rows contain at least one of the tokens.
+SELECT str FROM t WHERE MATCH(str) AGAINST('lent*');
+str
+Maecenas non pellentesque odio.
+Sed fermentum egestas sapien vel consequat.
+# 'zzz' is not present anywhere, so result is empty.
+SELECT str FROM t WHERE MATCH(str) AGAINST('zzzz');
+str
+# 'piz' cannot be found anywhere, but 'api' is in one of the rows.
+SELECT str FROM t WHERE MATCH(str) AGAINST('apiz');
+str
+Sed fermentum egestas sapien vel consequat.
+#
+# Try switching to 2-grams while keeping the index.
+SET GLOBAL ngram_token_size= 2;
+# 'api' is now parsed into ('ap', 'pi'). Since index only contains 3-grams, nothing is found.
+SELECT str FROM t WHERE MATCH(str) AGAINST('api');
+str
+#
+# Add some data while ngram size is set to 2.
+INSERT INTO t VALUES('1234 56789');
+#
+# Now index contains 3-grams from the rows added before and a number of
+# 2-grams from the just added row.
+# Querying for 'api' still returns nothing, but line with '678' is found.
+SELECT str from t WHERE MATCH(str) AGAINST('api');
+str
+SELECT str FROM t WHERE MATCH(str) AGAINST('678');
+str
+1234 56789
+#
+# Switching back to 3-grams make intitially added rows searchable.
+SET GLOBAL ngram_token_size= 3;
+SELECT str FROM t WHERE MATCH(str) AGAINST('api');
+str
+Sed fermentum egestas sapien vel consequat.
+#
+# But row with '678' in it cannot be found, as it was added with 2-grams.
+SELECT str FROM t WHERE MATCH(str) AGAINST('678');
+str
+#
+# Try matching in boolean mode.
+SELECT str FROM t WHERE MATCH(str) AGAINST('+ent -api' IN BOOLEAN MODE);
+str
+Maecenas non pellentesque odio.
+#
+DROP TABLE t;
