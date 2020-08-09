@@ -1,0 +1,66 @@
+source include/have_innodb.inc;
+
+--echo # Check 'ngram_token_size' variable.
+query_vertical SELECT * FROM information_schema.system_variables WHERE variable_name='ngram_token_size';
+
+--let $saved_ngram_token_size= `SELECT @@global.ngram_token_size`
+
+--echo #
+--echo # Try 3-grams.
+SET GLOBAL ngram_token_size= 3;
+CREATE TABLE t (str TEXT, FULLTEXT INDEX (str) WITH PARSER ngram) Engine=InnoDB;
+INSERT INTO t VALUES
+  ('Lorem ipsum dolor sit amet, consectetur adipiscing elit.'),
+  ('Maecenas non pellentesque odio.'),
+  ('Sed fermentum egestas sapien vel consequat.');
+
+--echo # Only one row contains substring 'api'.
+SELECT str FROM t WHERE MATCH(str) AGAINST('api');
+
+--echo # 'lent' is parsed into ('len', 'ent') list. Two rows contain at least one of the tokens.
+SELECT str FROM t WHERE MATCH(str) AGAINST('lent*');
+
+--echo # 'zzz' is not present anywhere, so result is empty.
+SELECT str FROM t WHERE MATCH(str) AGAINST('zzzz');
+
+--echo # 'piz' cannot be found anywhere, but 'api' is in one of the rows.
+SELECT str FROM t WHERE MATCH(str) AGAINST('apiz');
+
+--echo #
+--echo # Try switching to 2-grams while keeping the index.
+SET GLOBAL ngram_token_size= 2;
+
+--echo # 'api' is now parsed into ('ap', 'pi'). Since index only contains 3-grams, nothing is found.
+SELECT str FROM t WHERE MATCH(str) AGAINST('api');
+
+--echo #
+--echo # Add some data while ngram size is set to 2.
+INSERT INTO t VALUES('1234 56789');
+
+--echo #
+--echo # Now index contains 3-grams from the rows added before and a number of
+--echo # 2-grams from the just added row.
+--echo # Querying for 'api' still returns nothing, but line with '678' is found.
+SELECT str from t WHERE MATCH(str) AGAINST('api');
+SELECT str FROM t WHERE MATCH(str) AGAINST('678');
+
+--echo #
+--echo # Switching back to 3-grams make intitially added rows searchable.
+SET GLOBAL ngram_token_size= 3;
+SELECT str FROM t WHERE MATCH(str) AGAINST('api');
+
+--echo #
+--echo # But row with '678' in it cannot be found, as it was added with 2-grams.
+SELECT str FROM t WHERE MATCH(str) AGAINST('678');
+
+--echo #
+--echo # Try matching in boolean mode.
+SELECT str FROM t WHERE MATCH(str) AGAINST('+ent -api' IN BOOLEAN MODE);
+
+--echo #
+DROP TABLE t;
+
+# Restore default values.
+--disable_query_log
+--eval SET GLOBAL ngram_token_size= $saved_ngram_token_size
+--enable_query_log
