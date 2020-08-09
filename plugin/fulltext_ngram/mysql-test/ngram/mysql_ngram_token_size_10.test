@@ -1,0 +1,11 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo #
+
+# ngram_token_size is 1 to 10; 10 (mysql_ngram_token_size_10.opt) stays
+
+--disable_warnings
+select * from information_schema.global_variables where variable_name='ngram_token_size';
+--enable_warnings

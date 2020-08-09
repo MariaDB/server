@@ -1,0 +1,67 @@
+source include/have_innodb.inc;
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo #
+
+--echo # Check 'ngram_token_size' variable.
+query_vertical SELECT * FROM information_schema.system_variables WHERE variable_name='ngram_token_size';
+
+
+--echo #
+--echo # Try 3-grams.
+# ngram_token_size.opt starts the server with 3-grams
+CREATE TABLE t (str TEXT, FULLTEXT INDEX (str) WITH PARSER ngram) Engine=InnoDB;
+INSERT INTO t VALUES
+  ('Lorem ipsum dolor sit amet, consectetur adipiscing elit.'),
+  ('Maecenas non pellentesque odio.'),
+  ('Sed fermentum egestas sapien vel consequat.');
+
+--echo # Only one row contains substring 'api'.
+SELECT str FROM t WHERE MATCH(str) AGAINST('api');
+
+--echo # 'lent' is parsed into ('len', 'ent') list. Two rows contain at least one of the tokens.
+--sorted_result
+SELECT str FROM t WHERE MATCH(str) AGAINST('lent*');
+
+--echo # 'zzzz' is not present anywhere, so result is empty.
+SELECT str FROM t WHERE MATCH(str) AGAINST('zzzz');
+
+--echo # 'piz' cannot be found anywhere, but 'api' is in one of the rows.
+SELECT str FROM t WHERE MATCH(str) AGAINST('apiz');
+
+--echo #
+--echo # Try switching to 2-grams while keeping the index.
+let $restart_parameters= --ngram-token-size=2;
+--source include/restart_mysqld.inc
+
+--echo # 'api' is now parsed into ('ap', 'pi'). Since index only contains 3-grams, nothing is found.
+SELECT str FROM t WHERE MATCH(str) AGAINST('api');
+
+--echo #
+--echo # Add some data while ngram size is set to 2.
+INSERT INTO t VALUES('1234 56789');
+
+--echo #
+--echo # Now index contains 3-grams from the rows added before and a number of
+--echo # 2-grams from the just added row.
+--echo # Querying for 'api' still returns nothing, but line with '678' is found.
+SELECT str from t WHERE MATCH(str) AGAINST('api');
+SELECT str FROM t WHERE MATCH(str) AGAINST('678');
+
+--echo #
+--echo # Switching back to 3-grams makes initially added rows searchable.
+let $restart_parameters=;
+--source include/restart_mysqld.inc
+SELECT str FROM t WHERE MATCH(str) AGAINST('api');
+
+--echo #
+--echo # But row with '678' in it cannot be found, as it was added with 2-grams.
+SELECT str FROM t WHERE MATCH(str) AGAINST('678');
+
+--echo #
+--echo # Try matching in boolean mode.
+SELECT str FROM t WHERE MATCH(str) AGAINST('+ent -api' IN BOOLEAN MODE);
+
+--echo #
+DROP TABLE t;

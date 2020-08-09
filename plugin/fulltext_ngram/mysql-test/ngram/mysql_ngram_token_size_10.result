@@ -1,0 +1,6 @@
+#
+# MDEV-10267 Add "ngram" support to MariaDB
+#
+select * from information_schema.global_variables where variable_name='ngram_token_size';
+VARIABLE_NAME	VARIABLE_VALUE
+NGRAM_TOKEN_SIZE	10

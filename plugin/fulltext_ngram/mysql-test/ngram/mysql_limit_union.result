@@ -1,0 +1,22 @@
+#
+# MDEV-10267 Add "ngram" support to MariaDB
+#
+#
+# Bug #31228694 FTS QUERY WITH LIMIT CRASH
+#
+select @@ngram_token_size;
+@@ngram_token_size
+1
+CREATE TABLE t1 (
+id INT(10) unsigned NOT NULL AUTO_INCREMENT,
+name VARCHAR(45) NOT NULL,
+PRIMARY KEY (id) USING BTREE,
+FULLTEXT KEY search_name (name)  WITH PARSER ngram
+) ENGINE=InnoDB;
+INSERT INTO t1(name) VALUES('x'), ('mx'), ('mx'), ('mx'), ('mx');
+SELECT * FROM t1 WHERE MATCH (`name`) AGAINST ('mx*' IN BOOLEAN MODE) LIMIT 3;
+id	name
+2	mx
+3	mx
+4	mx
+DROP TABLE t1;
