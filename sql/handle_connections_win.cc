@@ -482,13 +482,13 @@ struct Pipe_Listener : public Listener
 #define SHUTDOWN_IDX 0
 #define LISTENER_START_IDX 1
 
-void handle_connections_win()
-{
-  Listener* all_listeners[MAX_WAIT_HANDLES]= {};
-  HANDLE wait_events[MAX_WAIT_HANDLES]= {};
-  int n_listeners= 0;
-  int n_waits= 0;
+static Listener *all_listeners[MAX_WAIT_HANDLES];
+static HANDLE wait_events[MAX_WAIT_HANDLES];
+static int n_listeners;
+static int n_waits;
 
+void network_init_win()
+{
   Socket_Listener::init_winsock_extensions();
 
   /* Listen for TCP connections on "extra-port" (no threadpool).*/
@@ -518,7 +518,6 @@ void handle_connections_win()
     unireg_abort(1);
   }
 
-  wait_events[SHUTDOWN_IDX]= hEventShutdown;
   n_waits = 1;
 
   for (int i= 0;  i < n_listeners; i++)
@@ -531,7 +530,14 @@ void handle_connections_win()
     }
     all_listeners[i]->begin_accept();
   }
+}
 
+void handle_connections_win()
+{
+  DBUG_ASSERT(hEventShutdown);
+  DBUG_ASSERT(n_waits);
+
+  wait_events[SHUTDOWN_IDX]= hEventShutdown;
   for (;;)
   {
     DWORD idx = WaitForMultipleObjects(n_waits ,wait_events, FALSE, INFINITE);

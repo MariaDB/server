@@ -2526,6 +2526,11 @@ static void network_init(void)
 #endif
   }
 #endif
+
+#ifdef _WIN32
+  network_init_win();
+#endif
+
   DBUG_PRINT("info",("server started"));
   DBUG_VOID_RETURN;
 }
