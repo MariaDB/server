@@ -2202,6 +2202,21 @@ SCHEMA_NAME
 # End of 10.1 tests
 #
 #
+# Start of 10.2 Test
+#
+# MDEV-14836: Assertion `m_status == DA_ERROR' failed in
+# Diagnostics_area::sql_errno upon query from I_S with LIMIT ROWS EXAMINED
+#
+SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
+ERROR HY000: Unknown error
+SHOW WARNINGS;
+Level	Code	Message
+Error	1105	Unknown error
+Warning	1931	Query execution was interrupted. The query examined at least 11 rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
+#
+# End of 10.2 Test
+#
+#
 # MDEV-21201:No records produced in information_schema query,
 # depending on projection
 #

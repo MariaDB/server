@@ -2609,6 +2609,47 @@ Central America and the Caribbean	442	66422
 SET @@optimizer_switch= @save_optimizer_switch;
 DROP TABLE t1;
 #
+# MDEV-9513: Assertion `join->group_list || !join->is_in_subquery()' failed in create_sort_index
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (2),(3);
+EXPLAIN
+SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION SELECT B.a FROM t2 B ORDER BY 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	2	Using where
+3	DEPENDENT UNION	B	ALL	NULL	NULL	NULL	NULL	2	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION SELECT B.a FROM t2 B ORDER BY 1);
+a
+1
+2
+EXPLAIN
+SELECT t1.a FROM t1 WHERE EXISTS (SELECT A.a FROM t1 A UNION SELECT B.a FROM t2 B ORDER BY 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	2	
+3	UNION	B	ALL	NULL	NULL	NULL	NULL	2	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+SELECT t1.a FROM t1 WHERE EXISTS (SELECT A.a FROM t1 A UNION SELECT B.a FROM t2 B ORDER BY 1);
+a
+1
+2
+EXPLAIN
+SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION ALL SELECT B.a FROM t2 B ORDER BY 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	2	Using where
+3	DEPENDENT UNION	B	ALL	NULL	NULL	NULL	NULL	2	Using where
+SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION ALL SELECT B.a FROM t2 B ORDER BY 1);
+a
+1
+2
+DROP TABLE t1,t2;
+# end of 10.1 tests
+#
 # MDEV-22852: SIGSEGV in sortlength (optimized builds)
 #
 SET @save_optimizer_switch=@@optimizer_switch;
@@ -2620,4 +2661,29 @@ SELECT (SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b)) FR
 0
 SET @@optimizer_switch= @save_optimizer_switch;
 DROP TABLE t1;
+#
+# MDEV-17066: Bytes lost or Assertion `status_var.local_memory_used == 0 after DELETE
+# with subquery with ROLLUP
+#
+CREATE TABLE t1 (i INT DEFAULT 0, c VARCHAR(2048));
+INSERT INTO t1  SELECT 0, seq FROM seq_1_to_6000;
+CREATE TABLE t2 (f VARCHAR(2048) DEFAULT '');
+INSERT INTO t2 VALUES ('1'),('bar');
+EXPLAIN
+SELECT * FROM t2 WHERE f IN ( SELECT MAX(c) FROM t1 GROUP BY c WITH ROLLUP);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	6000	Using filesort
+SELECT * FROM t2 WHERE f IN ( SELECT MAX(c) FROM t1 GROUP BY c WITH ROLLUP);
+f
+1
+SELECT * FROM t2;
+f
+1
+bar
+DELETE FROM t2 WHERE f IN ( SELECT MAX(c) FROM t1 GROUP BY c WITH ROLLUP );
+SELECT * FROM t2;
+f
+bar
+DROP TABLE t1, t2;
 # End of 10.2 tests

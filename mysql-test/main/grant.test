@@ -2268,6 +2268,31 @@ DROP TABLE t1;
 DROP USER dummy@localhost;
 
 --echo #
+--echo # MDEV-23082: ER_TABLEACCESS_DENIED_ERROR error message is truncated, and
+--echo # inaccurately
+--echo #
+
+CREATE USER foo;
+CREATE DATABASE db;
+CREATE TABLE db.t (a INT);
+
+--connect (con1,localhost,foo,,)
+
+--error ER_TABLEACCESS_DENIED_ERROR
+GRANT ALL ON db.t TO foo;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, GRANT OPTION, REFERENCES,
+INDEX, ALTER, CREATE VIEW, SHOW VIEW, TRIGGER ON db.t TO foo;
+
+--connection default
+--disconnect con1
+
+DROP USER foo;
+DROP TABLE db.t;
+DROP DATABASE db;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
