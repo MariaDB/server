@@ -186,6 +186,7 @@ bool wsrep_before_SE()
 
 static bool            sst_complete = false;
 static bool            sst_needed   = false;
+static bool            sst_in_progress = false;
 
 #define WSREP_EXTEND_TIMEOUT_INTERVAL 30
 #define WSREP_TIMEDWAIT_SECONDS 10
@@ -1545,7 +1546,10 @@ static void* sst_donor_thread (void* a)
   char         out_buf[out_len];
 
   wsrep_uuid_t  ret_uuid= WSREP_UUID_UNDEFINED;
-  wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED; // seqno of complete SST
+  // seqno of complete SST
+  wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
+  // SST is now in progress
+  sst_in_progress= true;
 
   wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
                        // operate with wsrep_ready == OFF
@@ -1646,6 +1650,8 @@ wait_signal:
   };
   wsrep->sst_sent (wsrep, &state_id, -err);
   proc.wait();
+
+  sst_in_progress= false;
 
   return NULL;
 }
@@ -1820,4 +1826,9 @@ void wsrep_SE_init_done()
 void wsrep_SE_initialized()
 {
   SE_initialized = true;
+}
+
+bool wsrep_is_sst_progress()
+{
+  return (sst_in_progress);
 }
