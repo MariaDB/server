@@ -41,8 +41,8 @@ IF (select count(*) from information_schema.global_variables where
 variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone ENGINE=MyISAM;
 ALTER TABLE time_zone_name ENGINE=MyISAM;
-ALTER TABLE time_zone_transition ENGINE=MyISAM;
-ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
+ALTER TABLE time_zone_transition ENGINE=MyISAM, ORDER BY Time_zone_id, Transition_time;
+ALTER TABLE time_zone_transition_type ENGINE=MyISAM, ORDER BY Time_zone_id, Transition_type_id;
 END IF|
 \d ;
 # Silent run
@@ -82,49 +82,22 @@ IF (select count(*) from information_schema.global_variables where
 variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone ENGINE=MyISAM;
 ALTER TABLE time_zone_name ENGINE=MyISAM;
-ALTER TABLE time_zone_transition ENGINE=MyISAM;
-ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
+ALTER TABLE time_zone_transition ENGINE=MyISAM, ORDER BY Time_zone_id, Transition_time;
+ALTER TABLE time_zone_transition_type ENGINE=MyISAM, ORDER BY Time_zone_id, Transition_type_id;
 END IF|
 \d ;
 #
 # Testing with explicit timezonefile
 #
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=InnoDB;
-ALTER TABLE time_zone_name ENGINE=InnoDB;
-ALTER TABLE time_zone_transition ENGINE=InnoDB;
-ALTER TABLE time_zone_transition_type ENGINE=InnoDB;
-END IF|
-\d ;
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('XXX', @time_zone_id);
 INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
  (@time_zone_id, 0, 0, 0, 'GMT')
 ;
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=MyISAM;
-ALTER TABLE time_zone_name ENGINE=MyISAM;
-ALTER TABLE time_zone_transition ENGINE=MyISAM;
-ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
-END IF|
-\d ;
 #
 # Testing --leap
 #
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=InnoDB;
-ALTER TABLE time_zone_name ENGINE=InnoDB;
-ALTER TABLE time_zone_transition ENGINE=InnoDB;
-ALTER TABLE time_zone_transition_type ENGINE=InnoDB;
-END IF|
-\d ;
 \d |
 IF (select count(*) from information_schema.global_variables where
 variable_name='wsrep_on' and variable_value='ON') = 1 THEN
@@ -139,12 +112,3 @@ ALTER TABLE time_zone_leap_second ENGINE=MyISAM;
 END IF|
 \d ;
 ALTER TABLE time_zone_leap_second ORDER BY Transition_time;
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=MyISAM;
-ALTER TABLE time_zone_name ENGINE=MyISAM;
-ALTER TABLE time_zone_transition ENGINE=MyISAM;
-ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
-END IF|
-\d ;

@@ -15,9 +15,30 @@
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --exec $MYSQL_TZINFO_TO_SQL --verbose $MYSQLTEST_VARDIR/zoneinfo 2>&1
 
---echo # Silent run
+--echo # Run on zoneinfo directory
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo 2>&1
+
+--echo #
+--echo # Run on zoneinfo directory --skip-write-binlog
+--echo #
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo 2>&1
+
+--echo #
+--echo # Run on zoneinfo directory --skip-write-binlog --skip-wsrep-checks
+--echo #
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog --skip-wsrep-checks $MYSQLTEST_VARDIR/zoneinfo 2>&1
+
+--echo #
+--echo # Run on zoneinfo directory --skip-wsrep-checks
+--echo #
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_TZINFO_TO_SQL --skip-wsrep-checks $MYSQLTEST_VARDIR/zoneinfo 2>&1
 
 --echo #
 --echo # Testing with explicit timezonefile
@@ -27,11 +48,48 @@
 --exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>&1
 
 --echo #
+--echo # Testing with explicit timezonefile --skip-write-binlog
+--echo #
+
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>&1
+
+--echo #
+--echo # Testing with explicit timezonefile --skip-write-binlog --skip-wsrep-checks
+--echo #
+
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog --skip-wsrep-checks $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>&1
+
+--echo #
+--echo # Testing with explicit timezonefile --skip-wsrep-checks
+--echo #
+
+--exec $MYSQL_TZINFO_TO_SQL --skip-wsrep-checks $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>&1
+
+--echo #
 --echo # Testing --leap
 --echo #
 
 --exec $MYSQL_TZINFO_TO_SQL --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>&1
 
+--echo #
+--echo # Testing --skip-write-binlog --leap
+--echo #
+
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>&1
+
+--echo #
+--echo # Testing --skip-write-binlog --skip-wsrep-checks --leap
+--echo #
+
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog --skip-wsrep-checks --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>&1
+
+--echo #
+--echo # Testing --skip-wsrep-checks --leap
+--echo #
+
+--exec $MYSQL_TZINFO_TO_SQL --skip-wsrep-checks --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>&1
+
+#
 #
 # Cleanup
 #

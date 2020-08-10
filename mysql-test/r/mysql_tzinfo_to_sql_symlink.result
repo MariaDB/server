@@ -41,11 +41,11 @@ IF (select count(*) from information_schema.global_variables where
 variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone ENGINE=MyISAM;
 ALTER TABLE time_zone_name ENGINE=MyISAM;
-ALTER TABLE time_zone_transition ENGINE=MyISAM;
-ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
+ALTER TABLE time_zone_transition ENGINE=MyISAM, ORDER BY Time_zone_id, Transition_time;
+ALTER TABLE time_zone_transition_type ENGINE=MyISAM, ORDER BY Time_zone_id, Transition_type_id;
 END IF|
 \d ;
-# Silent run
+# Run on zoneinfo directory
 \d |
 IF (select count(*) from information_schema.global_variables where
 variable_name='wsrep_on' and variable_value='ON') = 1 THEN
@@ -82,49 +82,140 @@ IF (select count(*) from information_schema.global_variables where
 variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone ENGINE=MyISAM;
 ALTER TABLE time_zone_name ENGINE=MyISAM;
-ALTER TABLE time_zone_transition ENGINE=MyISAM;
-ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
+ALTER TABLE time_zone_transition ENGINE=MyISAM, ORDER BY Time_zone_id, Transition_time;
+ALTER TABLE time_zone_transition_type ENGINE=MyISAM, ORDER BY Time_zone_id, Transition_type_id;
 END IF|
 \d ;
 #
-# Testing with explicit timezonefile
+# Run on zoneinfo directory --skip-write-binlog
 #
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
+set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
+prepare set_wsrep_write_binlog from @prep1;
+set @toggle=0; execute set_wsrep_write_binlog using @toggle;
+TRUNCATE TABLE time_zone;
+TRUNCATE TABLE time_zone_name;
+TRUNCATE TABLE time_zone_transition;
+TRUNCATE TABLE time_zone_transition_type;
+START TRANSACTION;
+INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
+SET @time_zone_id= LAST_INSERT_ID();
+INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('GMT', @time_zone_id);
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+ (@time_zone_id, 0, 0, 0, 'GMT')
+;
+Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/garbage' as time zone. Skipping it.
+INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
+SET @time_zone_id= LAST_INSERT_ID();
+INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('posix/GMT', @time_zone_id);
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+ (@time_zone_id, 0, 0, 0, 'GMT')
+;
+Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/posix/garbage' as time zone. Skipping it.
+COMMIT;
+ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
+ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
+#
+# Run on zoneinfo directory --skip-write-binlog --skip-wsrep-checks
+#
+SET SESSION SQL_LOG_BIN=0, WSREP_ON=OFF;
+TRUNCATE TABLE time_zone;
+TRUNCATE TABLE time_zone_name;
+TRUNCATE TABLE time_zone_transition;
+TRUNCATE TABLE time_zone_transition_type;
+START TRANSACTION;
+INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
+SET @time_zone_id= LAST_INSERT_ID();
+INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('GMT', @time_zone_id);
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+ (@time_zone_id, 0, 0, 0, 'GMT')
+;
+Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/garbage' as time zone. Skipping it.
+INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
+SET @time_zone_id= LAST_INSERT_ID();
+INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('posix/GMT', @time_zone_id);
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+ (@time_zone_id, 0, 0, 0, 'GMT')
+;
+Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/posix/garbage' as time zone. Skipping it.
+COMMIT;
+ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
+ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
+#
+# Run on zoneinfo directory --skip-wsrep-checks
+#
 ALTER TABLE time_zone ENGINE=InnoDB;
 ALTER TABLE time_zone_name ENGINE=InnoDB;
 ALTER TABLE time_zone_transition ENGINE=InnoDB;
 ALTER TABLE time_zone_transition_type ENGINE=InnoDB;
-END IF|
-\d ;
+TRUNCATE TABLE time_zone;
+TRUNCATE TABLE time_zone_name;
+TRUNCATE TABLE time_zone_transition;
+TRUNCATE TABLE time_zone_transition_type;
+START TRANSACTION;
+INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
+SET @time_zone_id= LAST_INSERT_ID();
+INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('GMT', @time_zone_id);
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+ (@time_zone_id, 0, 0, 0, 'GMT')
+;
+Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/garbage' as time zone. Skipping it.
+INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
+SET @time_zone_id= LAST_INSERT_ID();
+INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('posix/GMT', @time_zone_id);
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+ (@time_zone_id, 0, 0, 0, 'GMT')
+;
+Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/posix/garbage' as time zone. Skipping it.
+COMMIT;
+ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
+ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
+ALTER TABLE time_zone ENGINE=MyISAM;
+ALTER TABLE time_zone_name ENGINE=MyISAM;
+ALTER TABLE time_zone_transition ENGINE=MyISAM, ORDER BY Time_zone_id, Transition_time;
+ALTER TABLE time_zone_transition_type ENGINE=MyISAM, ORDER BY Time_zone_id, Transition_type_id;
+#
+# Testing with explicit timezonefile
+#
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('XXX', @time_zone_id);
 INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
  (@time_zone_id, 0, 0, 0, 'GMT')
 ;
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=MyISAM;
-ALTER TABLE time_zone_name ENGINE=MyISAM;
-ALTER TABLE time_zone_transition ENGINE=MyISAM;
-ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
-END IF|
-\d ;
+#
+# Testing with explicit timezonefile --skip-write-binlog
+#
+set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
+prepare set_wsrep_write_binlog from @prep1;
+set @toggle=0; execute set_wsrep_write_binlog using @toggle;
+INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
+SET @time_zone_id= LAST_INSERT_ID();
+INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('XXX', @time_zone_id);
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+ (@time_zone_id, 0, 0, 0, 'GMT')
+;
+#
+# Testing with explicit timezonefile --skip-write-binlog --skip-wsrep-checks
+#
+SET SESSION SQL_LOG_BIN=0, WSREP_ON=OFF;
+INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
+SET @time_zone_id= LAST_INSERT_ID();
+INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('XXX', @time_zone_id);
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+ (@time_zone_id, 0, 0, 0, 'GMT')
+;
+#
+# Testing with explicit timezonefile --skip-wsrep-checks
+#
+INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
+SET @time_zone_id= LAST_INSERT_ID();
+INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('XXX', @time_zone_id);
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+ (@time_zone_id, 0, 0, 0, 'GMT')
+;
 #
 # Testing --leap
 #
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=InnoDB;
-ALTER TABLE time_zone_name ENGINE=InnoDB;
-ALTER TABLE time_zone_transition ENGINE=InnoDB;
-ALTER TABLE time_zone_transition_type ENGINE=InnoDB;
-END IF|
-\d ;
 \d |
 IF (select count(*) from information_schema.global_variables where
 variable_name='wsrep_on' and variable_value='ON') = 1 THEN
@@ -139,15 +230,27 @@ ALTER TABLE time_zone_leap_second ENGINE=MyISAM;
 END IF|
 \d ;
 ALTER TABLE time_zone_leap_second ORDER BY Transition_time;
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=MyISAM;
-ALTER TABLE time_zone_name ENGINE=MyISAM;
-ALTER TABLE time_zone_transition ENGINE=MyISAM;
-ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
-END IF|
-\d ;
+#
+# Testing --skip-write-binlog --leap
+#
+set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
+prepare set_wsrep_write_binlog from @prep1;
+set @toggle=0; execute set_wsrep_write_binlog using @toggle;
+TRUNCATE TABLE time_zone_leap_second;
+ALTER TABLE time_zone_leap_second ORDER BY Transition_time;
+#
+# Testing --skip-write-binlog --skip-wsrep-checks --leap
+#
+SET SESSION SQL_LOG_BIN=0, WSREP_ON=OFF;
+TRUNCATE TABLE time_zone_leap_second;
+ALTER TABLE time_zone_leap_second ORDER BY Transition_time;
+#
+# Testing --skip-wsrep-checks --leap
+#
+ALTER TABLE time_zone_leap_second ENGINE=InnoDB;
+TRUNCATE TABLE time_zone_leap_second;
+ALTER TABLE time_zone_leap_second ENGINE=MyISAM;
+ALTER TABLE time_zone_leap_second ORDER BY Transition_time;
 #
 # MDEV-6236 - [PATCH] mysql_tzinfo_to_sql may produce invalid SQL
 #
@@ -173,7 +276,7 @@ IF (select count(*) from information_schema.global_variables where
 variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone ENGINE=MyISAM;
 ALTER TABLE time_zone_name ENGINE=MyISAM;
-ALTER TABLE time_zone_transition ENGINE=MyISAM;
-ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
+ALTER TABLE time_zone_transition ENGINE=MyISAM, ORDER BY Time_zone_id, Transition_time;
+ALTER TABLE time_zone_transition_type ENGINE=MyISAM, ORDER BY Time_zone_id, Transition_type_id;
 END IF|
 \d ;
