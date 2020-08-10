@@ -113,8 +113,8 @@ struct st_plugin_int
   st_ptr_backup *ptr_backup;
   uint nbackups;
   uint state;
-  uint ref_count;               /* number of threads using the plugin */
-  uint locks_total;             /* how many times the plugin was locked */
+  volatile int32 ref_count;     /* number of threads using the plugin */
+  volatile int32 locks_total;   /* how many times the plugin was locked */
   void *data;                   /* plugin type specific, e.g. handlerton */
   MEM_ROOT mem_root;            /* memory for dynamic plugin structures */
   sys_var *system_vars;         /* server variables for this plugin */
@@ -182,7 +182,6 @@ extern void plugin_thdvar_init(THD *thd);
 extern void plugin_thdvar_cleanup(THD *thd);
 sys_var *find_plugin_sysvar(st_plugin_int *plugin, st_mysql_sys_var *var);
 void plugin_opt_set_limits(struct my_option *, const struct st_mysql_sys_var *);
-extern SHOW_COMP_OPTION plugin_status(const char *name, size_t len, int type);
 extern bool check_valid_path(const char *path, size_t length);
 extern void plugin_mutex_init();
 

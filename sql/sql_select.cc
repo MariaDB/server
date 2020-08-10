@@ -26925,7 +26925,7 @@ int JOIN::save_explain_data_intern(Explain_query *output,
   }
 
   if (select_lex->is_top_level_node())
-    output->query_plan_ready();
+    output->query_plan_set_ready();
 
   DBUG_RETURN(0);
 }

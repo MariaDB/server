@@ -482,7 +482,8 @@ public:
   /* If true, at least part of EXPLAIN can be printed */
   bool have_query_plan() { return insert_plan || upd_del_plan|| get_node(1) != NULL; }
 
-  void query_plan_ready();
+  void query_plan_set_ready() { query_plan_ready= true; }
+  bool query_plan_is_ready() const { return query_plan_ready; }
 
   MEM_ROOT *mem_root;
 
@@ -496,9 +497,10 @@ private:
 
   Dynamic_array<Explain_union*> unions;
   Dynamic_array<Explain_select*> selects;
+
+  bool query_plan_ready;
+  THD *m_thd; //thd->mem_root to be used in print_explain_json
   
-  THD *thd; // for APC start/stop
-  bool apc_enabled;
   /* 
     Debugging aid: count how many times add_node() was called. Ideally, it
     should be one, we currently allow O(1) query plan saves for each

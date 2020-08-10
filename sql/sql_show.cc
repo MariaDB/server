@@ -3010,6 +3010,12 @@ void Show_explain_request::call_in_target_thread()
   Query_arena backup_arena;
   bool printed_anything= FALSE;
 
+  if (target_thd->lex == NULL || target_thd->lex->explain == NULL ||
+      !target_thd->lex->explain->query_plan_is_ready())
+  {
+    failed_to_produce= TRUE;
+    return;
+  }
   /* 
     Change the arena because JOIN::print_explain and co. are going to allocate
     items. Let them allocate them on our arena.

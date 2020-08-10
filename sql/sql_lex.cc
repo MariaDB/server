@@ -5221,7 +5221,7 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
   output->add_node(eu);
 
   if (eu->get_select_id() == 1)
-    output->query_plan_ready();
+    output->query_plan_set_ready();
 
   return 0;
 }

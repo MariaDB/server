@@ -1348,10 +1348,10 @@ bool do_command(THD *thd)
   my_net_set_read_timeout(net, thd->variables.net_read_timeout);
 
   DBUG_ASSERT(packet_length);
-  DBUG_ASSERT(!thd->apc_target.is_enabled());
+  thd->apc_target.enable();
   return_value= dispatch_command(command, thd, packet+1,
                                  (uint) (packet_length-1), FALSE, FALSE);
-  DBUG_ASSERT(!thd->apc_target.is_enabled());
+  thd->apc_target.disable();
 
 out:
   thd->lex->restore_set_statement_var();

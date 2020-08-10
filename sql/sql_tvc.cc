@@ -344,7 +344,7 @@ int table_value_constr::save_explain_data_intern(THD *thd,
   output->add_node(explain);
 
   if (select_lex->is_top_level_node())
-    output->query_plan_ready();
+    output->query_plan_set_ready();
 
   DBUG_RETURN(0);
 }

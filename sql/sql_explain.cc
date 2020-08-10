@@ -40,10 +40,10 @@ const char *pushed_select_text= "PUSHED SELECT";
 static void write_item(Json_writer *writer, Item *item);
 static void append_item_to_str(String *out, Item *item);
 
-Explain_query::Explain_query(THD *thd_arg, MEM_ROOT *root) : 
+Explain_query::Explain_query(THD *thd, MEM_ROOT *root) : 
   mem_root(root), upd_del_plan(NULL),  insert_plan(NULL),
-  unions(root), selects(root),  thd(thd_arg), apc_enabled(false),
-  operations(0)
+  unions(root), selects(root),  query_plan_ready(false),
+  m_thd(thd), operations(0)
 {
 }
 
@@ -62,9 +62,6 @@ static void print_json_array(Json_writer *writer,
 
 Explain_query::~Explain_query()
 {
-  if (apc_enabled)
-    thd->apc_target.disable();
-
   delete upd_del_plan;
   delete insert_plan;
   uint i;
@@ -139,23 +136,16 @@ void Explain_query::add_node(Explain_node *node)
 void Explain_query::add_insert_plan(Explain_insert *insert_plan_arg)
 {
   insert_plan= insert_plan_arg;
-  query_plan_ready();
+  query_plan_set_ready();
 }
 
 
 void Explain_query::add_upd_del_plan(Explain_update *upd_del_plan_arg)
 {
   upd_del_plan= upd_del_plan_arg;
-  query_plan_ready();
+  query_plan_set_ready();
 }
 
-
-void Explain_query::query_plan_ready()
-{
-  if (!apc_enabled)
-    thd->apc_target.enable();
-  apc_enabled= true;
-}
 
 /*
   Send EXPLAIN output to the client.
@@ -237,9 +227,9 @@ void Explain_query::print_explain_json(select_result_sink *output,
   CHARSET_INFO *cs= system_charset_info;
   List<Item> item_list;
   const String *buf= writer.output.get_string();
-  item_list.push_back(new (thd->mem_root)
-                      Item_string(thd, buf->ptr(), buf->length(), cs),
-                      thd->mem_root);
+  item_list.push_back(new (m_thd->mem_root)
+                      Item_string(m_thd, buf->ptr(), buf->length(), cs),
+                      m_thd->mem_root);
   output->send_data(item_list);
 }
 
