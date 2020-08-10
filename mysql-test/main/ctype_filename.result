@@ -21,3 +21,10 @@ SET NAMES utf8;
 SELECT @a:=CONVERT('aя' USING filename) AS `@a`, BINARY @a, REVERSE(@a), HEX(@a), HEX(REVERSE(@a));
 @a	BINARY @a	REVERSE(@a)	HEX(@a)	HEX(REVERSE(@a))
 aя	a@r1	яa	61407231	40723161
+#
+# MDEV-22022 Various mangled SQL statements will crash 10.3 to 10.5 debug builds
+#
+SET CHARACTER_SET_CLIENT=17;
+SELECT doc.`Children`.0 FROM t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '?Children??0?FROM?t1' at line 1
+SET NAMES latin1;

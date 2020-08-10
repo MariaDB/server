@@ -2766,6 +2766,24 @@ root@localhost
 DROP TABLE t1;
 DROP USER dummy@localhost;
 #
+# MDEV-23082: ER_TABLEACCESS_DENIED_ERROR error message is truncated, and
+# inaccurately
+#
+CREATE USER foo;
+CREATE DATABASE db;
+CREATE TABLE db.t (a INT);
+connect  con1,localhost,foo,,;
+GRANT ALL ON db.t TO foo;
+ERROR 42000: SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, GRANT, REFERENCES, INDEX, ALTER, CREATE VIEW, SHOW ... command denied to user 'foo'@'localhost' for table 't'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, GRANT OPTION, REFERENCES,
+INDEX, ALTER, CREATE VIEW, SHOW VIEW, TRIGGER ON db.t TO foo;
+ERROR 42000: SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, GRANT, REFERENCES, INDEX, ALTER, CREATE VIEW, SHOW ... command denied to user 'foo'@'localhost' for table 't'
+connection default;
+disconnect con1;
+DROP USER foo;
+DROP TABLE db.t;
+DROP DATABASE db;
+#
 # End of 10.2 tests
 #
 #

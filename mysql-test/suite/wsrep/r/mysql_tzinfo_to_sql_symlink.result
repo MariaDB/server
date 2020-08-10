@@ -85,6 +85,15 @@ END IF|
 #
 # Testing with explicit timezonefile
 #
+\d |
+IF (select count(*) from information_schema.global_variables where
+variable_name='wsrep_on' and variable_value='ON') = 1 THEN
+ALTER TABLE time_zone ENGINE=InnoDB;
+ALTER TABLE time_zone_name ENGINE=InnoDB;
+ALTER TABLE time_zone_transition ENGINE=InnoDB;
+ALTER TABLE time_zone_transition_type ENGINE=InnoDB;
+END IF|
+\d ;
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('XXX', @time_zone_id);
@@ -103,6 +112,15 @@ END IF|
 #
 # Testing --leap
 #
+\d |
+IF (select count(*) from information_schema.global_variables where
+variable_name='wsrep_on' and variable_value='ON') = 1 THEN
+ALTER TABLE time_zone ENGINE=InnoDB;
+ALTER TABLE time_zone_name ENGINE=InnoDB;
+ALTER TABLE time_zone_transition ENGINE=InnoDB;
+ALTER TABLE time_zone_transition_type ENGINE=InnoDB;
+END IF|
+\d ;
 \d |
 IF (select count(*) from information_schema.global_variables where
 variable_name='wsrep_on' and variable_value='ON') = 1 THEN

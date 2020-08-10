@@ -812,6 +812,24 @@ internal_str2dec(const char *from, decimal_t *to, char **end, my_bool fixed)
   while (s < end_of_string && my_isdigit(&my_charset_latin1, *s))
     s++;
   intg= (int) (s-s1);
+  /*
+    If the integer part is long enough and it has multiple leading zeros,
+    let's trim them, so this expression can return 1 without overflowing:
+      CAST(CONCAT(REPEAT('0',90),'1') AS DECIMAL(10))
+  */
+  if (intg > DIG_PER_DEC1 && s1[0] == '0' && s1[1] == '0')
+  {
+    /*
+      Keep at least one digit, to avoid an empty string.
+      So we trim '0000' to '0' rather than to ''.
+      Otherwise the below code (converting digits to to->buf)
+      would fail on a fatal error.
+    */
+    const char *iend= s - 1;
+    for ( ; s1 < iend && *s1 == '0'; s1++)
+    { }
+    intg= (int) (s-s1);
+  }
   if (s < end_of_string && *s=='.')
   {
     endp= s+1;
