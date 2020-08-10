@@ -68,7 +68,7 @@ seqinsert (int n, float p) {
         int v = i;
         DBT key, val;
         r = db->put(db, 0, dbt_init(&key, &k, sizeof k), dbt_init(&val, &v, sizeof v), 0); assert(r == 0);
-        if (random() <= RAND_MAX * p) {
+        if (random() <= static_cast<float>(RAND_MAX) * p) {
             k = htonl(i-1);
             v = i-1;
             r = db->put(db, 0, dbt_init(&key, &k, sizeof k), dbt_init(&val, &v, sizeof v), 0); assert(r == 0);
