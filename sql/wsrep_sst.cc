@@ -54,6 +54,7 @@ my_bool wsrep_sst_donor_rejects_queries= FALSE;
 
 bool sst_joiner_completed            = false;
 bool sst_donor_completed             = false;
+bool sst_needed                      = false;
 
 struct sst_thread_arg
 {
@@ -307,6 +308,7 @@ bool wsrep_before_SE()
           && strcmp (wsrep_sst_method, WSREP_SST_MYSQLDUMP));
 }
 
+static bool            sst_in_progress = false;
 // Signal end of SST
 static void wsrep_sst_complete (THD*                thd,
                                 int const           rcode)
@@ -1623,7 +1625,10 @@ static void* sst_donor_thread (void* a)
   char         out_buf[out_len];
 
   wsrep_uuid_t  ret_uuid= WSREP_UUID_UNDEFINED;
-  wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED; // seqno of complete SST
+  // seqno of complete SST
+  wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
+  // SST is now in progress
+  sst_in_progress= true;
 
   wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
                        // operate with wsrep_ready == OFF
@@ -1729,6 +1734,8 @@ wait_signal:
   proc.wait();
 
   wsrep_donor_monitor_end();
+  sst_in_progress= false;
+
 
   return NULL;
 }
@@ -1881,4 +1888,9 @@ int wsrep_sst_donate(const std::string& msg,
   }
 
   return (ret >= 0 ? 0 : 1);
+}
+
+bool wsrep_is_sst_progress()
+{
+  return (sst_in_progress);
 }
