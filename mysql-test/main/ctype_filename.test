@@ -30,6 +30,16 @@ SELECT @a:=CONVERT('aя' USING filename) AS `@a`, BINARY @a, REVERSE(@a), HEX(@a
 
 
 --echo #
+--echo # MDEV-22022 Various mangled SQL statements will crash 10.3 to 10.5 debug builds
+--echo #
+
+SET CHARACTER_SET_CLIENT=17;
+--error ER_PARSE_ERROR
+SELECT doc.`Children`.0 FROM t1;
+SET NAMES latin1;
+
+
+--echo #
 --echo # Start of 10.5 tests
 --echo #
 

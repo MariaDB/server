@@ -2708,7 +2708,7 @@ create table t1(a float);
 insert into t1 values (1.33);
 select format(a, 2) from t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					format(a, 2)	253	56	4	Y	0	39	8
+def					format(a, 2)	253	57	4	Y	0	39	8
 format(a, 2)
 1.33
 drop table t1;

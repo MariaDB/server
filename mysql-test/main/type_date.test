@@ -750,5 +750,27 @@ SHOW CREATE TABLE t2;
 DROP TABLE t2,t1;
 
 --echo #
+--echo # MDEV-23388 Assertion `args[0]->decimals == 0' failed in Item_func_round::fix_arg_int
+--echo #
+
+SELECT ROUND(GREATEST('1', CAST('2020-12-12' AS DATE)));
+
+--disable_ps_protocol
+--enable_metadata
+SELECT GREATEST('1', CAST('2020-12-12' AS DATE));
+--disable_metadata
+--enable_ps_protocol
+
+CREATE TABLE t1 (c_date DATE NOT NULL, c_int INT NOT NULL);
+CREATE TABLE t2 AS SELECT
+  GREATEST(c_date,c_date),
+  GREATEST(c_date,c_int),
+  GREATEST(c_int,c_date)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

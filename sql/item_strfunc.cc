@@ -2642,18 +2642,42 @@ String *Item_func_soundex::val_str(String *str)
   This should be 'internationalized' sometimes.
 */
 
-const int FORMAT_MAX_DECIMALS= 30;
+/*
+  The maximum supported decimal scale:
+  38 - starting from 10.2.1
+  30 - before 10.2.1
+*/
+const int FORMAT_MAX_DECIMALS= 38;
 
 
 bool Item_func_format::fix_length_and_dec()
 {
   uint32 char_length= args[0]->type_handler()->Item_decimal_notation_int_digits(args[0]);
   uint dec= FORMAT_MAX_DECIMALS;
-  if (args[1]->const_item() && !args[1]->is_expensive() && !args[1]->null_value)
+  /*
+    Format can require one more integer digit if rounding happens:
+      FORMAT(9.9,0) -> '10'
+    Set need_extra_digit_for_rounding to true by default
+    if args[0] has some decimals: if args[1] is not
+    a constant, then format can potentially reduce
+    the number of decimals and round to the next integer.
+  */
+  bool need_extra_digit_for_rounding= args[0]->decimals > 0;
+  if (args[1]->const_item() && !args[1]->is_expensive())
   {
     Longlong_hybrid tmp= args[1]->to_longlong_hybrid();
-    dec= tmp.to_uint(FORMAT_MAX_DECIMALS);
+    if (!args[1]->null_value)
+    {
+      dec= tmp.to_uint(FORMAT_MAX_DECIMALS);
+      need_extra_digit_for_rounding= (dec < args[0]->decimals);
+    }
   }
+  /*
+    In case of a data type with zero integer digits, e.g. DECIMAL(4,4),
+    we'll print at least one integer digit.
+  */
+  if (need_extra_digit_for_rounding || !char_length)
+    char_length++;
   uint32 max_sep_count= (char_length / 3) + (dec ? 1 : 0) + /*sign*/1;
   collation.set(default_charset());
   fix_char_length(char_length + max_sep_count + dec);
@@ -2709,7 +2733,7 @@ String *Item_func_format::val_str_ascii(String *str)
     if ((null_value=args[0]->null_value))
       return 0; /* purecov: inspected */
     nr= my_double_round(nr, (longlong) dec, FALSE, FALSE);
-    str->set_real(nr, dec, &my_charset_numeric);
+    str->set_fcvt(nr, dec);
     if (!std::isfinite(nr))
       return str;
     str_length=str->length();

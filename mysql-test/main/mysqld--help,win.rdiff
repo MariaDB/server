@@ -66,20 +66,6 @@
  sort-buffer-size 2097152
  sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
  sql-safe-updates FALSE
-@@ -1741,10 +1752,10 @@
- sync-relay-log-info 10000
- sysdate-is-now FALSE
- system-versioning-alter-history ERROR
--table-cache 421
-+table-cache 2000
- table-definition-cache 400
--table-open-cache 421
--table-open-cache-instances 1
-+table-open-cache 2000
-+table-open-cache-instances 8
- tc-heuristic-recover OFF
- tcp-keepalive-interval 0
- tcp-keepalive-probes 0
 @@ -1753,6 +1764,8 @@
  thread-cache-size 151
  thread-pool-idle-timeout 60

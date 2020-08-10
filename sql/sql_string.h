@@ -524,6 +524,7 @@ public:
 
   bool set_hex(ulonglong num);
   bool set_hex(const char *str, uint32 len);
+  bool set_fcvt(double num, uint decimals);
 
   bool copy();                                  // Alloc string if not alloced
   bool copy(const Binary_string &s);            // Allocate new string
@@ -781,6 +782,11 @@ public:
   bool set(longlong num, CHARSET_INFO *cs) { return set_int(num, false, cs); }
   bool set(ulonglong num, CHARSET_INFO *cs) { return set_int((longlong)num, true, cs); }
   bool set_real(double num,uint decimals, CHARSET_INFO *cs);
+  bool set_fcvt(double num, uint decimals)
+  {
+    set_charset(&my_charset_latin1);
+    return Binary_string::set_fcvt(num, decimals);
+  }
 
   bool set_hex(ulonglong num)
   {

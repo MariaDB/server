@@ -78,6 +78,7 @@ static my_bool has_no_data(Vio *vio __attribute__((unused)))
 #ifdef _WIN32
 int vio_pipe_shutdown(Vio *vio, int how)
 {
+  vio->shutdown_flag= how;
   return CancelIoEx(vio->hPipe, NULL);
 }
 #endif

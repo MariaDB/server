@@ -1308,24 +1308,15 @@ public:
 	@retval	NULL	if the tablespace does not exist or cannot be read */
 	fil_space_t* read_page0(ulint id);
 
-	/** Return the next fil_space_t from key rotation list.
-	Once started, the caller must keep calling this until it returns NULL.
-	fil_space_acquire() and fil_space_t::release() are invoked here, which
-	blocks a concurrent operation from dropping the tablespace.
-	@param[in]      prev_space      Previous tablespace or NULL to start
-					from beginning of fil_system->rotation
-					list
-	@param[in]      recheck         recheck of the tablespace is needed or
-					still encryption thread does write page0
-					for it
-	@param[in]	key_version	key version of the key state thread
-	If NULL, use the first fil_space_t on fil_system->space_list.
-	@return pointer to the next fil_space_t.
-	@retval NULL if this was the last */
-	fil_space_t* keyrotate_next(
-		fil_space_t*	prev_space,
-		bool		remove,
-		uint		key_version);
+  /** Return the next tablespace from rotation_list.
+  @param space   previous tablespace (NULL to start from the start)
+  @param recheck whether the removal condition needs to be rechecked after
+  the encryption parameters were changed
+  @param encrypt expected state of innodb_encrypt_tables
+  @return the next tablespace to process (n_pending_ops incremented)
+  @retval NULL if this was the last */
+  inline fil_space_t* keyrotate_next(fil_space_t *space, bool recheck,
+                                     bool encrypt);
 };
 
 /** The tablespace memory cache. */
@@ -1492,33 +1483,6 @@ when it could be dropped concurrently.
 @retval	NULL if missing */
 fil_space_t*
 fil_space_acquire_for_io(ulint id);
-
-/** Return the next fil_space_t.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_t::release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in,out]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system.space_list.
-@return pointer to the next fil_space_t.
-@retval NULL if this was the last  */
-fil_space_t*
-fil_space_next(
-	fil_space_t*	prev_space)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Return the next fil_space_t from key rotation list.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_t::release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in,out]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system.space_list.
-@param[in]	remove		Whether to remove the previous tablespace from
-				the rotation list
-@return pointer to the next fil_space_t.
-@retval NULL if this was the last*/
-fil_space_t*
-fil_space_keyrotate_next(fil_space_t* prev_space, bool remove)
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Replay a file rename operation if possible.
 @param[in]	space_id	tablespace identifier

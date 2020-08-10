@@ -4647,6 +4647,7 @@ bool Type_handler_temporal_result::
        Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
                                         Item **items, uint nitems) const
 {
+  DBUG_ASSERT(func->field_type() != MYSQL_TYPE_DATE);
   bool rc= Type_handler::Item_func_min_max_fix_attributes(thd, func,
                                                           items, nitems);
   bool is_time= func->field_type() == MYSQL_TYPE_TIME;
@@ -4701,7 +4702,6 @@ bool Type_handler_temporal_result::
         DATETIME             DATETIME       no conversion
         DATETIME             TIMESTAMP      safe conversion
         DATETIME             DATE           safe conversion
-        DATE                 DATE           no conversion
         TIME                 TIME           no conversion
 
         Note, a function cannot return TIMESTAMP if it has non-TIMESTAMP
@@ -4718,9 +4718,6 @@ bool Type_handler_temporal_result::
       -------------------- ------------- -------
       TIMESTAMP            TIME          Not possible
       DATETIME             TIME          depends on OLD_MODE_ZERO_DATE_TIME_CAST
-      DATE                 TIMESTAMP     Not possible
-      DATE                 DATETIME      Not possible
-      DATE                 TIME          Not possible
       TIME                 TIMESTAMP     Not possible
       TIME                 DATETIME      Not possible
       TIME                 DATE          Not possible
@@ -4740,6 +4737,30 @@ bool Type_handler_temporal_result::
     break;
   }
   return rc;
+}
+
+
+bool Type_handler_date_common::
+       Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const
+{
+  func->fix_attributes_date();
+  if (func->maybe_null)
+    return false;
+  /*
+    We cannot trust the generic maybe_null value calculated during fix_fields().
+    If a conversion from non-temoral types to DATE happens,
+    then the result can be NULL (even if all arguments are not NULL).
+  */
+  for (uint i= 0; i < nitems; i++)
+  {
+    if (items[i]->type_handler()->cmp_type() != TIME_RESULT)
+    {
+      func->maybe_null= true;
+      break;
+    }
+  }
+  return false;
 }
 
 

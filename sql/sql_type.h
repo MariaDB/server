@@ -6145,8 +6145,11 @@ public:
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
-                                       Item **items, uint nitems)
-                                       const override;
+                                       Item **items, uint nitems) const
+    override;
+  bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const
+    override;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const override;
 };

@@ -1594,7 +1594,6 @@ max-binlog-cache-size 18446744073709547520
 max-binlog-size 1073741824
 max-binlog-stmt-cache-size 18446744073709547520
 max-connect-errors 100
-max-connections 151
 max-delayed-threads 20
 max-digest-length 1024
 max-error-count 64
@@ -1797,10 +1796,7 @@ sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
 system-versioning-alter-history ERROR
-table-cache 421
 table-definition-cache 400
-table-open-cache 421
-table-open-cache-instances 1
 tc-heuristic-recover OFF
 tcp-keepalive-interval 0
 tcp-keepalive-probes 0
