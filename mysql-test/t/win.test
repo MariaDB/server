@@ -2534,5 +2534,20 @@ SELECT a, sum(a), bit_or(a) OVER (ORDER BY b) FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-23438: Assertion `!field->is_null()' failed in my_decimal::my_decimal fails
+--echo # in ONLY_FULL_GROUP_BY mode
+--echo #
+
+CREATE TABLE t1(a INT, b DECIMAL(10, 0) NOT NULL);
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode='ONLY_FULL_GROUP_BY';
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
+SELECT a, sum(a), bit_or(a) OVER (ORDER BY b) FROM t1;
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
+SELECT sum(a),  last_value(b) OVER () FROM t1;
+SET sql_mode= @save_sql_mode;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

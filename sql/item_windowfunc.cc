@@ -93,6 +93,12 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
     my_error(ER_NO_ORDER_LIST_IN_WINDOW_SPEC, MYF(0), window_func()->func_name());
     return true;
   }
+
+  /*
+    Mark that Item_sum is used as a window function
+  */
+  window_func()->mark_as_window_func_sum_expr();
+
   /*
     TODO: why the last parameter is 'ref' in this call? What if window_func
     decides to substitute itself for something else and does *ref=.... ? 

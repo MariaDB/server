@@ -84,7 +84,9 @@ bool Item_sum::init_sum_func_check(THD *thd)
   /* Set a reference to the nesting set function if there is  any */
   in_sum_func= thd->lex->in_sum_func;
   /* Save a pointer to object to be used in items for nested set functions */
-  thd->lex->in_sum_func= this;
+  if (!window_func_sum_expr_flag)
+    thd->lex->in_sum_func= this;
+
   nest_level= thd->lex->current_select->nest_level;
   ref_by= 0;
   aggr_level= -1;

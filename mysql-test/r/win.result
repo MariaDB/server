@@ -3880,5 +3880,18 @@ a	sum(a)	bit_or(a) OVER (ORDER BY b)
 NULL	NULL	0
 DROP TABLE t1;
 #
+# MDEV-23438: Assertion `!field->is_null()' failed in my_decimal::my_decimal fails
+# in ONLY_FULL_GROUP_BY mode
+#
+CREATE TABLE t1(a INT, b DECIMAL(10, 0) NOT NULL);
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode='ONLY_FULL_GROUP_BY';
+SELECT a, sum(a), bit_or(a) OVER (ORDER BY b) FROM t1;
+ERROR 42000: Mixing of GROUP columns (MIN(),MAX(),COUNT(),...) with no GROUP columns is illegal if there is no GROUP BY clause
+SELECT sum(a),  last_value(b) OVER () FROM t1;
+ERROR 42000: Mixing of GROUP columns (MIN(),MAX(),COUNT(),...) with no GROUP columns is illegal if there is no GROUP BY clause
+SET sql_mode= @save_sql_mode;
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
