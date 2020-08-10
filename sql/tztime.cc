@@ -2748,9 +2748,11 @@ main(int argc, char **argv)
     printf("TRUNCATE TABLE time_zone_name;\n");
     printf("TRUNCATE TABLE time_zone_transition;\n");
     printf("TRUNCATE TABLE time_zone_transition_type;\n");
+    printf("START TRANSACTION;\n");
 
     if (scan_tz_dir(root_name_end, 0, opt_verbose))
     {
+      printf("ROLLBACK;\n");
       fflush(stdout);
       fprintf(stderr,
               "There were fatal errors during processing "
@@ -2758,6 +2760,7 @@ main(int argc, char **argv)
       return 1;
     }
 
+    printf("COMMIT;\n");
     printf("ALTER TABLE time_zone_transition "
            "ORDER BY Time_zone_id, Transition_time;\n");
     printf("ALTER TABLE time_zone_transition_type "
