@@ -626,6 +626,10 @@ public:
   {
     set(handler, 0, 0);
   }
+  void set_handler(const Type_handler *handler)
+  {
+    m_handler= handler;
+  }
   const Type_handler *type_handler() const { return m_handler; }
 };
 

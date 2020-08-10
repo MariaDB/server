@@ -850,12 +850,12 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   }
   if (!quick_select)
   {
-    (void) file->extra(HA_EXTRA_NO_CACHE);	/* End cacheing of records */
+    (void) file->extra(HA_EXTRA_NO_CACHE);	/* End caching of records */
     if (!next_pos)
       file->ha_rnd_end();
   }
 
-  /* Signal we should use orignal column read and write maps */
+  /* Signal we should use original column read and write maps */
   sort_form->column_bitmaps_set(save_read_set, save_write_set);
 
   if (unlikely(thd->is_error()))

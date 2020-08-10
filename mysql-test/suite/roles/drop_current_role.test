@@ -1,0 +1,9 @@
+--source include/not_embedded.inc
+#
+# MDEV-22521 Server crashes in traverse_role_graph_up or Assertion `user' fails in traverse_role_graph_impl
+#
+create role r;
+set role r;
+drop role r;
+error ER_INVALID_ROLE;
+revoke all on *.* from current_role;

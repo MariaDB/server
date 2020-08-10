@@ -1135,12 +1135,12 @@ void Item_singlerow_subselect::reset()
 
 /**
   @todo
-  - We cant change name of Item_field or Item_ref, because it will
-  prevent it's correct resolving, but we should save name of
+  - We can't change name of Item_field or Item_ref, because it will
+  prevent its correct resolving, but we should save name of
   removed item => we do not make optimization if top item of
   list is field or reference.
   - switch off this optimization for prepare statement,
-  because we do not rollback this changes.
+  because we do not rollback these changes.
   Make rollback for it, or special name resolving mode in 5.0.
 
   @param join  Join object of the subquery (i.e. 'child' join).
@@ -1163,8 +1163,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
       select_lex->item_list.elements == 1 &&
       !select_lex->item_list.head()->with_sum_func() &&
       /*
-	We cant change name of Item_field or Item_ref, because it will
-	prevent it's correct resolving, but we should save name of
+	We can't change name of Item_field or Item_ref, because it will
+	prevent its correct resolving, but we should save name of
 	removed item => we do not make optimization if top item of
 	list is field or reference.
 	TODO: solve above problem
@@ -1662,7 +1662,7 @@ longlong Item_exists_subselect::val_int()
   Return the result of EXISTS as a string value
 
   Converts the true/false result into a string value.
-  Note that currently this cannot be NULL, so if the query exection fails
+  Note that currently this cannot be NULL, so if the query execution fails
   it will return 0.
 
   @param decimal_value[out]    buffer to hold the resulting string value
@@ -1685,7 +1685,7 @@ String *Item_exists_subselect::val_str(String *str)
   Return the result of EXISTS as a decimal value
 
   Converts the true/false result into a decimal value.
-  Note that currently this cannot be NULL, so if the query exection fails
+  Note that currently this cannot be NULL, so if the query execution fails
   it will return 0.
 
   @param decimal_value[out]    Buffer to hold the resulting decimal value
@@ -2383,7 +2383,7 @@ Item_in_subselect::row_value_transformer(JOIN *join)
                               is_not_null_test(v3))
     where is_not_null_test registers NULLs values but reject rows.
 
-    in case when we do not need correct NULL, we have simplier construction:
+    in case when we do not need correct NULL, we have simpler construction:
     EXISTS (SELECT ... WHERE where and
                              (l1 = v1) and
                              (l2 = v2) and
@@ -2786,6 +2786,8 @@ bool Item_exists_subselect::select_prepare_to_be_in()
   Check if 'func' is an equality in form "inner_table.column = outer_expr"
 
   @param func              Expression to check
+  @param allow_subselect   If true, the outer_expr part can have a subquery
+                           If false, it cannot.
   @param local_field  OUT  Return "inner_table.column" here
   @param outer_expr   OUT  Return outer_expr here
 
@@ -2793,6 +2795,7 @@ bool Item_exists_subselect::select_prepare_to_be_in()
 */
 
 static bool check_equality_for_exist2in(Item_func *func,
+                                        bool allow_subselect,
                                         Item_ident **local_field,
                                         Item **outer_exp)
 {
@@ -2803,7 +2806,8 @@ static bool check_equality_for_exist2in(Item_func *func,
   args= func->arguments();
   if (args[0]->real_type() == Item::FIELD_ITEM &&
       args[0]->all_used_tables() != OUTER_REF_TABLE_BIT &&
-      args[1]->all_used_tables() == OUTER_REF_TABLE_BIT)
+      args[1]->all_used_tables() == OUTER_REF_TABLE_BIT &&
+      (allow_subselect || !args[1]->with_subquery()))
   {
     /* It is Item_field or Item_direct_view_ref) */
     DBUG_ASSERT(args[0]->type() == Item::FIELD_ITEM ||
@@ -2814,7 +2818,8 @@ static bool check_equality_for_exist2in(Item_func *func,
   }
   else if (args[1]->real_type() == Item::FIELD_ITEM &&
            args[1]->all_used_tables() != OUTER_REF_TABLE_BIT &&
-           args[0]->all_used_tables() == OUTER_REF_TABLE_BIT)
+           args[0]->all_used_tables() == OUTER_REF_TABLE_BIT &&
+           (allow_subselect || !args[0]->with_subquery()))
   {
     /* It is Item_field or Item_direct_view_ref) */
     DBUG_ASSERT(args[1]->type() == Item::FIELD_ITEM ||
@@ -2843,6 +2848,13 @@ typedef struct st_eq_field_outer
 
     outer1=inner_tbl1.col1 AND ... AND outer2=inner_tbl1.col2 AND remainder_cond
 
+    if there is just one outer_expr=inner_expr pair, then outer_expr can have a
+    subselect in it.  If there are many such pairs, then none of outer_expr can
+    have a subselect in it. If we allow this, the query will fail with an error:
+
+      This version of MariaDB doesn't yet support 'SUBQUERY in ROW in left
+      expression of IN/ALL/ANY'
+
   @param  conds    Condition to be checked
   @parm   result   Array to collect EQ_FIELD_OUTER elements describing
                    inner-vs-outer equalities the function has found.
@@ -2860,14 +2872,17 @@ static bool find_inner_outer_equalities(Item **conds,
   {
     List_iterator<Item> li(*((Item_cond*)*conds)->argument_list());
     Item *item;
+    bool allow_subselect= true;
     while ((item= li++))
     {
       if (item->type() == Item::FUNC_ITEM &&
           check_equality_for_exist2in((Item_func *)item,
+                                      allow_subselect,
                                       &element.local_field,
                                       &element.outer_exp))
       {
         found= TRUE;
+        allow_subselect= false;
         element.eq_ref= li.ref();
         if (result.append(element))
           goto alloc_err;
@@ -2876,6 +2891,7 @@ static bool find_inner_outer_equalities(Item **conds,
   }
   else if ((*conds)->type() == Item::FUNC_ITEM &&
            check_equality_for_exist2in((Item_func *)*conds,
+                                       true,
                                        &element.local_field,
                                        &element.outer_exp))
   {
@@ -3242,7 +3258,7 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
   /*
     In some optimisation cases we will not need this Item_in_optimizer
     object, but we can't know it here, but here we need address correct
-    reference on left expresion.
+    reference on left expression.
 
     note: we won't need Item_in_optimizer when handling degenerate cases
     like "... IN (SELECT 1)"
@@ -3274,7 +3290,7 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
     and all that items do not make permanent changes in current item arena
     which allow to us call them with changed arena (if we do not know nature
     of Item, we have to call fix_fields() for it only with original arena to
-    avoid memory leack)
+    avoid memory leak)
   */
   if (left_expr->cols() == 1)
     trans_res= single_value_transformer(join);
@@ -3437,7 +3453,7 @@ bool Item_in_subselect::setup_mat_engine()
 
   /*
     The select_engine (that executes transformed IN=>EXISTS subselects) is
-    pre-created at parse time, and is stored in statment memory (preserved
+    pre-created at parse time, and is stored in statement memory (preserved
     across PS executions).
   */
   DBUG_ASSERT(engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE);
@@ -3906,7 +3922,7 @@ int subselect_single_select_engine::exec()
         For at least one of the pushed predicates the following is true:
         We should not apply optimizations based on the condition that was
         pushed down into the subquery. Those optimizations are ref[_or_null]
-        acceses. Change them to be full table scans.
+        accesses. Change them to be full table scans.
       */
       JOIN_TAB *tab;
       for (tab= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
@@ -6135,7 +6151,7 @@ int subselect_partial_match_engine::exec()
   if (has_covering_null_row)
   {
     /*
-      If there is a NULL-only row that coveres all columns the result of IN
+      If there is a NULL-only row that covers all columns the result of IN
       is UNKNOWN. 
     */
     item_in->value= 0;
@@ -6330,7 +6346,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
     for (uint i= (non_null_key ? 1 : 0); i < merge_keys_count; i++)
     {
       /*
-        Check if the first and only indexed column contains NULL in the curent
+        Check if the first and only indexed column contains NULL in the current
         row, and add the row number to the corresponding key.
       */
       if (merge_keys[i]->get_field(0)->is_null())
@@ -6542,7 +6558,7 @@ bool subselect_rowid_merge_engine::partial_match()
   }
 
   /*
-    If all nullable columns contain only NULLs, then there is a guranteed
+    If all nullable columns contain only NULLs, then there is a guaranteed
     partial match, and we don't need to search for a matching row.
   */
   if (has_covering_null_columns)

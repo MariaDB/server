@@ -105,7 +105,7 @@ setup_ftnode_header(struct ftnode *node)
     node->layout_version = FT_LAYOUT_VERSION;
     node->layout_version_original = FT_LAYOUT_VERSION;
     node->height = 0;
-    node->dirty = 1;
+    node->set_dirty();
     node->oldest_referenced_xid_known = TXNID_NONE;
 }
 

@@ -1285,6 +1285,8 @@ public:
   }
 };
 
+class Schema;
+
 
 /**
   Class Time is designed to store valid TIME values.
@@ -3287,6 +3289,7 @@ public:
   Type_handler *aggregate_for_num_op_traditional(const Type_handler *h1,
                                                  const Type_handler *h2);
 
+  virtual Schema *schema() const;
   virtual const Name name() const= 0;
   virtual const Name version() const { return m_version_default; }
   virtual enum_field_types field_type() const= 0;

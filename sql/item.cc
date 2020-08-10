@@ -5011,7 +5011,7 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
 
   @note
     We have to mark all items between current_sel (including) and
-    last_select (excluding) as dependend (select before last_select should
+    last_select (excluding) as dependent (select before last_select should
     be marked with actual table mask used by resolved item, all other with
     OUTER_REF_TABLE_BIT) and also write dependence information to Item of
     resolved identifier.
@@ -5387,7 +5387,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   bool upward_lookup= FALSE;
   TABLE_LIST *table_list;
 
-  /* Calulate the TABLE_LIST for the table */
+  /* Calculate the TABLE_LIST for the table */
   table_list= (cached_table ? cached_table :
                field_found && (*from_field) != view_ref_found ?
                (*from_field)->table->pos_in_table_list : 0);
@@ -6123,7 +6123,7 @@ Item *Item_field::propagate_equal_fields(THD *thd,
       but failed to create a valid DATE literal from the given string literal.
 
       Do not do constant propagation in such cases and unlink
-      "this" from the found Item_equal (as this equality not usefull).
+      "this" from the found Item_equal (as this equality not useful).
     */
     item_equal= NULL;
     return this;
@@ -7844,7 +7844,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
               /*
                 Due to cache, find_field_in_tables() can return field which
                 doesn't belong to provided outer_context. In this case we have
-                to find proper field context in order to fix field correcly.
+                to find proper field context in order to fix field correctly.
               */
               do
               {
@@ -8029,9 +8029,9 @@ Item* Item_ref::transform(THD *thd, Item_transformer transformer, uchar *arg)
   callback functions.
 
   First the function applies the analyzer to the Item_ref object. Then
-  if the analizer succeeeds we first applies the compile method to the
+  if the analyzer succeeds we first apply the compile method to the
   object the Item_ref object is referencing. If this returns a new
-  item the old item is substituted for a new one.  After this the
+  item the old item is substituted for a new one. After this the
   transformer is applied to the Item_ref object itself.
   The compile function is not called if the analyzer returns NULL
   in the parameter arg_p. 

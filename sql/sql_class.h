@@ -3418,7 +3418,7 @@ public:
   {
     return !MY_TEST(variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
   }
-  const Type_handler *type_handler_for_date() const;
+  const Type_handler *type_handler_for_datetime() const;
   bool timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
                          ulong sec_part, date_mode_t fuzzydate);
   inline my_time_t query_start() { return start_time; }
