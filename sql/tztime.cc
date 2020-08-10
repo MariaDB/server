@@ -148,7 +148,7 @@ typedef struct st_time_zone_info
 
 static my_bool prepare_tz_info(TIME_ZONE_INFO *sp, MEM_ROOT *storage);
 
-my_bool opt_leap, opt_verbose, opt_skip_write_binlog;
+my_bool opt_leap, opt_verbose, opt_skip_write_binlog, opt_skip_wsrep_check;
 
 #if defined(TZINFO2SQL) || defined(TESTTIME)
 
@@ -2441,12 +2441,16 @@ print_tz_leaps_as_sql(const TIME_ZONE_INFO *sp)
     For all timezones.
   */
   if (!opt_skip_write_binlog)
+  {
+    if (!opt_skip_wsrep_check)
       printf("\\d |\n"
-        "IF (select count(*) from information_schema.global_variables where\n"
-        "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
-        "ALTER TABLE time_zone_leap_second ENGINE=InnoDB;\n"
-        "END IF|\n"
-        "\\d ;\n");
+               "IF (select count(*) from information_schema.global_variables where\n"
+               "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n");
+    printf("ALTER TABLE time_zone_leap_second ENGINE=InnoDB;\n");
+    if (!opt_skip_wsrep_check)
+      printf("END IF|\n"
+             "\\d ;\n");
+  }
 
   printf("TRUNCATE TABLE time_zone_leap_second;\n");
 
@@ -2461,12 +2465,16 @@ print_tz_leaps_as_sql(const TIME_ZONE_INFO *sp)
   }
 
   if (!opt_skip_write_binlog)
+  {
+    if (!opt_skip_wsrep_check)
       printf("\\d |\n"
-        "IF (select count(*) from information_schema.global_variables where\n"
-        "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
-        "ALTER TABLE time_zone_leap_second ENGINE=MyISAM;\n"
-        "END IF|\n"
-        "\\d ;\n");
+             "IF (select count(*) from information_schema.global_variables where\n"
+             "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n");
+    printf("ALTER TABLE time_zone_leap_second ENGINE=MyISAM;\n");
+    if (!opt_skip_wsrep_check)
+      printf("END IF|\n"
+             "\\d ;\n");
+  }
 
   printf("ALTER TABLE time_zone_leap_second ORDER BY Transition_time;\n");
 }
@@ -2644,8 +2652,10 @@ static struct my_option my_long_options[] =
    &opt_verbose, &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"skip-write-binlog", 'S', "Do not replicate changes to time zone tables to other nodes in a Galera cluster",
+  {"skip-write-binlog", 'S', "Do not replicate changes to time zone tables to the binary log, or to other nodes in a Galera cluster (if wsrep_on=ON)",
    &opt_skip_write_binlog,&opt_skip_write_binlog, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"skip-wsrep-checks", 'G', "Do not check Galera status (wsrep_on=ON) for the --skip-write-binlog option. This also forces Innodb to be use for table loading if --skip-write-binlog is not specified (changes back to MyISAM upon completion).",
+   &opt_skip_wsrep_check,&opt_skip_wsrep_check, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -2715,13 +2725,18 @@ main(int argc, char **argv)
   }
 
   if (opt_skip_write_binlog)
+  {
     /* If skip_write_binlog is set and wsrep is compiled in we disable
        sql_log_bin and wsrep_on to avoid Galera replicating below
        truncate table clauses. This will allow user to set different
        time zones to nodes in Galera cluster. */
-    printf("set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');\n"
-           "prepare set_wsrep_write_binlog from @prep1;\n"
-           "set @toggle=0; execute set_wsrep_write_binlog using @toggle;\n");
+    if (opt_skip_wsrep_check)
+      printf("SET SESSION SQL_LOG_BIN=0, WSREP_ON=OFF;\n");
+    else
+      printf("set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');\n"
+             "prepare set_wsrep_write_binlog from @prep1;\n"
+             "set @toggle=0; execute set_wsrep_write_binlog using @toggle;\n");
+  }
 
   if (argc == 1 && !opt_leap)
   {
@@ -2733,15 +2748,17 @@ main(int argc, char **argv)
     {
       // Alter time zone tables to InnoDB if wsrep_on is enabled
       // to allow changes to them to replicate with Galera
-      printf("\\d |\n"
-        "IF (select count(*) from information_schema.global_variables where\n"
-        "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
-        "ALTER TABLE time_zone ENGINE=InnoDB;\n"
-        "ALTER TABLE time_zone_name ENGINE=InnoDB;\n"
-        "ALTER TABLE time_zone_transition ENGINE=InnoDB;\n"
-        "ALTER TABLE time_zone_transition_type ENGINE=InnoDB;\n"
-        "END IF|\n"
-        "\\d ;\n");
+      if (!opt_skip_wsrep_check)
+        printf("\\d |\n"
+               "IF (select count(*) from information_schema.global_variables where\n"
+               "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n");
+      printf("ALTER TABLE time_zone ENGINE=InnoDB;\n"
+             "ALTER TABLE time_zone_name ENGINE=InnoDB;\n"
+             "ALTER TABLE time_zone_transition ENGINE=InnoDB;\n"
+             "ALTER TABLE time_zone_transition_type ENGINE=InnoDB;\n");
+      if (!opt_skip_wsrep_check)
+        printf("END IF|\n"
+               "\\d ;\n");
     }
 
     printf("TRUNCATE TABLE time_zone;\n");
@@ -2791,15 +2808,18 @@ main(int argc, char **argv)
   if(!opt_skip_write_binlog)
   {
       // Fall back to MyISAM
-      printf("\\d |\n"
-        "IF (select count(*) from information_schema.global_variables where\n"
-        "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
+      if (!opt_skip_wsrep_check)
+        printf("\\d |\n"
+          "IF (select count(*) from information_schema.global_variables where\n"
+          "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n");
+      printf(
         "ALTER TABLE time_zone ENGINE=MyISAM;\n"
         "ALTER TABLE time_zone_name ENGINE=MyISAM;\n"
         "ALTER TABLE time_zone_transition ENGINE=MyISAM;\n"
-        "ALTER TABLE time_zone_transition_type ENGINE=MyISAM;\n"
-        "END IF|\n"
-        "\\d ;\n");
+        "ALTER TABLE time_zone_transition_type ENGINE=MyISAM;\n");
+      if (!opt_skip_wsrep_check)
+        printf("END IF|\n"
+               "\\d ;\n");
   }
 
   free_defaults(default_argv);
