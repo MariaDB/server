@@ -77,6 +77,7 @@ extern void wsrep_SE_init_grab();   /*! grab init critical section */
 extern void wsrep_SE_init_wait();   /*! wait for SE init to complete */
 extern void wsrep_SE_init_done();   /*! signal that SE init is complte */
 extern void wsrep_SE_initialized(); /*! mark SE initialization complete */
+extern bool wsrep_is_sst_progress();
 
 /**
    Return a string containing the state transfer request string.
@@ -102,5 +103,6 @@ int wsrep_sst_donate(const std::string& request,
 #define wsrep_SE_init_grab() do { } while(0)
 #define wsrep_SE_init_done() do { } while(0)
 #define wsrep_sst_continue() (0)
+#define wsrep_is_sst_progress() (0)
 
 #endif /* WSREP_SST_H */
