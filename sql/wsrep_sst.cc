@@ -1818,3 +1818,8 @@ void wsrep_SE_initialized()
 {
   SE_initialized = true;
 }
+
+bool wsrep_is_sst_progress()
+{
+	return (sst_needed && !sst_complete);
+}

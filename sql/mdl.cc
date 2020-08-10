@@ -25,6 +25,7 @@
 #include <mysql/psi/mysql_stage.h>
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
+#include "wsrep_sst.h"
 
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_MDL_wait_LOCK_wait_status;
@@ -2137,10 +2138,17 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     wait_status= m_wait.timed_wait(m_owner, &abs_shortwait, FALSE,
                                    mdl_request->key.get_wait_state_name());
 
+    THD* thd= m_owner->get_thd();
+
     if (wait_status != MDL_wait::EMPTY)
       break;
     /* Check if the client is gone while we were waiting. */
-    if (! thd_is_connected(m_owner->get_thd()))
+    if (! thd_is_connected(thd)
+#if defined(WITH_WSREP) && !defined(EMBEDDED_LIBRARY)
+	// During SST client might not be connected
+	&& WSREP(thd) && !wsrep_is_sst_progress()
+#endif
+       )
     {
       /*
        * The client is disconnected. Don't wait forever:
