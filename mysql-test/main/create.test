@@ -1873,9 +1873,30 @@ drop table t1;
 CREATE TABLE t1 ( id1 INT, id2 INT, CONSTRAINT `foo` PRIMARY KEY (id1), CONSTRAINT `bar` UNIQUE KEY(id2));
 DROP TABLE t1;
 
+--echo #
+--echo # 10.4 Test
+--echo #
+--echo # MDEV-21017: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+--echo # is_bulk_op())' failed or late ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+--echo # upon attempt to create existing table
+--echo #
+CREATE TABLE t1 (a INT);
+LOCK TABLE t1 WRITE;
+
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+CREATE TABLE IF NOT EXISTS t1 (s DATE GENERATED ALWAYS AS ('2000-01-01') STORED,
+e DATE, PERIOD FOR app(s,e));
+
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo # End of 10.4 Test
+
 #
 # MDEV-22199 Add VISIBLE option for indexes in create table
 #
 
 CREATE TABLE t1 (id1 INT, id2 INT, primary key (id1), unique index (id2) visible);
 drop table t1;
+
+--echo # End of 10.5 Test

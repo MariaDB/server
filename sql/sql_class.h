@@ -3552,7 +3552,7 @@ public:
   {
     return !MY_TEST(variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
   }
-  const Type_handler *type_handler_for_date() const;
+  const Type_handler *type_handler_for_datetime() const;
   bool timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
                          ulong sec_part, date_mode_t fuzzydate);
   inline my_time_t query_start() { return start_time; }
@@ -6454,7 +6454,8 @@ struct SORT_FIELD_ATTR
   */
   bool maybe_null;
   CHARSET_INFO *cs;
-  uint pack_sort_string(uchar *to, String *str) const;
+  uint pack_sort_string(uchar *to, const Binary_string *str,
+                        CHARSET_INFO *cs) const;
   int compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
                                      uchar *b, size_t *b_len);
   int compare_packed_varstrings(uchar *a, size_t *a_len,

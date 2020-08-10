@@ -1092,9 +1092,6 @@ fts_cache_clear(
 		index_cache->doc_stats = NULL;
 	}
 
-	mem_heap_free(static_cast<mem_heap_t*>(cache->sync_heap->arg));
-	cache->sync_heap->arg = NULL;
-
 	fts_need_sync = false;
 
 	cache->total_size = 0;
@@ -1102,6 +1099,9 @@ fts_cache_clear(
 	mutex_enter((ib_mutex_t*) &cache->deleted_lock);
 	cache->deleted_doc_ids = NULL;
 	mutex_exit((ib_mutex_t*) &cache->deleted_lock);
+
+	mem_heap_free(static_cast<mem_heap_t*>(cache->sync_heap->arg));
+	cache->sync_heap->arg = NULL;
 }
 
 /*********************************************************************//**

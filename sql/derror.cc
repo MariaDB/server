@@ -237,7 +237,7 @@ static File open_error_msg_file(const char *file_name, const char *language,
                              MYF(0))) < 0)
   {
     /*
-      Trying pre-5.4 sematics of the --language parameter.
+      Trying pre-5.4 semantics of the --language parameter.
       It included the language-specific part, e.g.:
       --language=/path/to/english/
     */

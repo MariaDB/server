@@ -186,6 +186,12 @@ bool Type_handler_data::init()
 }
 
 
+Schema *Type_handler::schema() const
+{
+  return &mariadb_schema;
+}
+
+
 const Type_handler *
 Type_handler::handler_by_name(THD *thd, const LEX_CSTRING &name)
 {
@@ -4134,6 +4140,19 @@ void Type_handler_temporal_with_date::Item_update_null_value(Item *item) const
   (void) item->get_date(thd, &ltime, Datetime::Options(thd));
 }
 
+bool
+Type_handler_timestamp_common::
+Column_definition_set_attributes(THD *thd,
+                                 Column_definition *def,
+                                 const Lex_field_type_st &attr,
+                                 CHARSET_INFO *cs,
+                                 column_definition_type_t type) const
+{
+  Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
+  if (!opt_explicit_defaults_for_timestamp)
+    def->flags|= NOT_NULL_FLAG;
+  return false;
+}
 
 void Type_handler_string_result::Item_update_null_value(Item *item) const
 {
@@ -6165,7 +6184,8 @@ bool Type_handler_row::
 bool Type_handler_int_result::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(this, item->arguments()[0]);
+  item->fix_arg_int(this, item->arguments()[0],
+                    field_type() == MYSQL_TYPE_LONGLONG);
   return false;
 }
 
@@ -6173,7 +6193,7 @@ bool Type_handler_int_result::
 bool Type_handler_year::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(&type_handler_ulong, item->arguments()[0]);
+  item->fix_arg_int(&type_handler_ulong, item->arguments()[0], false);
   return false;
 }
 
@@ -6181,7 +6201,7 @@ bool Type_handler_year::
 bool Type_handler_hex_hybrid::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(nullptr, nullptr);
+  item->fix_arg_hex_hybrid();
   return false;
 }
 
@@ -6224,7 +6244,7 @@ bool Type_handler_date_common::
 {
   static const Type_std_attributes attr(Type_numeric_attributes(8, 0, true),
                                         DTCollation_numeric());
-  item->fix_arg_int(&type_handler_ulong, &attr);
+  item->fix_arg_int(&type_handler_ulong, &attr, false);
   return false;
 }
 

@@ -11,7 +11,33 @@ CREATE TABLE t1 (pk int PRIMARY KEY, a bit(1), INDEX idx(a)
 INSERT INTO t1 VALUES (1,1),(2,0),(3,0),(4,1);
 
 ANALYZE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-21472: ALTER TABLE ... ANALYZE PARTITION ... with EITS reads and locks all rows
+--echo #
+CREATE TABLE t1 (
+  id int(11) auto_increment primary key,
+  c1 int(11) DEFAULT NULL
+) PARTITION BY RANGE (id) (
+  PARTITION p0 VALUES LESS THAN (4),
+  PARTITION p1 VALUES LESS THAN MAXVALUE
+);
+
+insert into t1(c1) values (1),(1),(1),(1),  (1),(1),(1),(1);
+insert into t1(c1) select c1 from t1;
+insert into t1(c1) select c1 from t1;
+
+select count(*) from t1;
+select count(*) from t1 where id <4;
+flush status;
+set session use_stat_tables='preferably';
+
+--echo # Must NOT show "Engine-independent statistics collected":
+alter table t1 analyze partition p0;
+
+--echo # Should not have Handler_read_rnd_next=34
+show session status like 'Handler_read_rnd%';
+drop table t1;
 
 SET use_stat_tables = DEFAULT;
-
-DROP TABLE t1;

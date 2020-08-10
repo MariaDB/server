@@ -203,7 +203,7 @@ doit (bool keep_other_bn_in_memory) {
         &node,
         true
         );
-    assert(!node->dirty);
+    assert(!node->dirty());
     assert(node->n_children == 2);
     // a hack to get the basement nodes evicted
     for (int i = 0; i < 20; i++) {
@@ -249,7 +249,7 @@ doit (bool keep_other_bn_in_memory) {
         &node,
         true
         );
-    assert(!node->dirty);
+    assert(!node->dirty());
     assert(node->n_children == 2);
     assert(BP_STATE(node,0) == PT_AVAIL);
     if (keep_other_bn_in_memory) {
@@ -273,7 +273,7 @@ doit (bool keep_other_bn_in_memory) {
         &node,
         true
         );
-    assert(!node->dirty);
+    assert(!node->dirty());
 
     // we expect that this flushes its buffer, that
     // a merge is not done, and that the lookup

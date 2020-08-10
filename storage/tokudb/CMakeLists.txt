@@ -1,4 +1,4 @@
-SET(TOKUDB_VERSION 5.6.41-84.1)
+SET(TOKUDB_VERSION 5.6.49-89.0)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(WIN32)
   # tokudb never worked there
@@ -137,6 +137,7 @@ IF(DEFINED TOKUDB_NOPATCH_CONFIG)
     ADD_DEFINITIONS("-DTOKUDB_NOPATCH_CONFIG=${TOKUDB_NOPATCH_CONFIG}")
 ENDIF()
 
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-missing-format-attribute)
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-missing-field-initializers)
 
 IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/PerconaFT/")

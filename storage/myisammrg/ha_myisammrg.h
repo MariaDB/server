@@ -68,7 +68,7 @@ public:
 };
 
 
-class ha_myisammrg: public handler
+class ha_myisammrg final : public handler
 {
   MYRG_INFO *file;
   my_bool is_cloned;                    /* This instance has been cloned */

@@ -571,7 +571,7 @@ public:
   bool jtbm_const_row_found;
   
   /*
-    TRUE<=>this is a flattenable semi-join, false overwise.
+    TRUE<=>this is a flattenable semi-join, false otherwise.
   */
   bool is_flattenable_semijoin;
 
@@ -1006,7 +1006,7 @@ class subselect_indexsubquery_engine: public subselect_uniquesubquery_engine
   /* FALSE for 'ref', TRUE for 'ref-or-null'. */
   bool check_null;
   /* 
-    The "having" clause. This clause (further reffered to as "artificial
+    The "having" clause. This clause (further referred to as "artificial
     having") was inserted by subquery transformation code. It contains 
     Item(s) that have a side-effect: they record whether the subquery has 
     produced a row with NULL certain components. We need to use it for cases
@@ -1027,7 +1027,7 @@ class subselect_indexsubquery_engine: public subselect_uniquesubquery_engine
     However, subqueries like the above are currently not handled by index
     lookup-based subquery engines, the engine applicability check misses
     them: it doesn't switch the engine for case of artificial having and
-    [eq_]ref access (only for artifical having + ref_or_null or no having).
+    [eq_]ref access (only for artificial having + ref_or_null or no having).
     The above example subquery is handled as a full-blown SELECT with eq_ref
     access to one table.
 
@@ -1098,7 +1098,7 @@ public:
   */
   JOIN *materialize_join;
   /*
-    A conjunction of all the equality condtions between all pairs of expressions
+    A conjunction of all the equality conditions between all pairs of expressions
     that are arguments of an IN predicate. We need these to post-filter some
     IN results because index lookups sometimes match values that are actually
     not equal to the search key in SQL terms.

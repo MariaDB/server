@@ -2011,5 +2011,21 @@ CREATE TABLE t1 ( id1 INT, id2 INT, CONSTRAINT `foo` PRIMARY KEY (id1), CONSTRAI
 Warnings:
 Warning	1280	Name 'foo' ignored for PRIMARY key.
 DROP TABLE t1;
+#
+# 10.4 Test
+#
+# MDEV-21017: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+# is_bulk_op())' failed or late ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+# upon attempt to create existing table
+#
+CREATE TABLE t1 (a INT);
+LOCK TABLE t1 WRITE;
+CREATE TABLE IF NOT EXISTS t1 (s DATE GENERATED ALWAYS AS ('2000-01-01') STORED,
+e DATE, PERIOD FOR app(s,e));
+ERROR HY000: Period field `s` cannot be GENERATED ALWAYS AS
+UNLOCK TABLES;
+DROP TABLE t1;
+# End of 10.4 Test
 CREATE TABLE t1 (id1 INT, id2 INT, primary key (id1), unique index (id2) visible);
 drop table t1;
+# End of 10.5 Test

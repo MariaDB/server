@@ -53,7 +53,7 @@ public:
   }
 };
 
-class ha_seq: public handler
+class ha_seq final : public handler
 {
 private:
   THR_LOCK_DATA lock;

@@ -62,7 +62,7 @@ typedef struct my_xml_node_st
 } MY_XML_NODE;
 
 
-/* Lexical analizer token */
+/* Lexical analyzer token */
 typedef struct my_xpath_lex_st
 {
   int        term;  /* token type, see MY_XPATH_LEX_XXXXX below */
@@ -1074,7 +1074,7 @@ static Item* nametestfunc(MY_XPATH *xpath,
 
 
 /*
-  Tokens consisting of one character, for faster lexical analizer.
+  Tokens consisting of one character, for faster lexical analyzer.
 */
 static char simpletok[128]=
 {
@@ -1394,7 +1394,7 @@ my_xpath_function(const char *beg, const char *end)
 }
 
 
-/* Initialize a lex analizer token */
+/* Initialize a lex analyzer token */
 static void
 my_xpath_lex_init(MY_XPATH_LEX *lex,
                   const char *str, const char *strend)
@@ -1425,7 +1425,7 @@ my_xdigit(int c)
   SYNOPSYS
     Scan the next token from the input.
     lex->term is set to the scanned token type.
-    lex->beg and lex->end are set to the beginnig
+    lex->beg and lex->end are set to the beginning
     and to the end of the token.
   RETURN
     N/A
@@ -1451,7 +1451,7 @@ my_xpath_lex_scan(MY_XPATH *xpath,
                                 (const uchar*) end)) > 0 &&
       ((ctype & (_MY_L | _MY_U)) || *beg == '_'))
   {
-    // scan untill the end of the idenfitier
+    // scan until the end of the identifier
     for (beg+= length; 
          (length= xpath->cs->ctype(&ctype,
                                    (const uchar*) beg,
@@ -1580,7 +1580,7 @@ static int my_xpath_parse_AxisName(MY_XPATH *xpath)
 ** Grammar rules, according to http://www.w3.org/TR/xpath
 ** Implemented using recursive descendant method.
 ** All the following grammar processing functions accept
-** a signle "xpath" argument and return 1 on success and 0 on error.
+** a single "xpath" argument and return 1 on success and 0 on error.
 ** They also modify "xpath" argument by creating new items.
 */
 
@@ -2476,7 +2476,7 @@ public:
   as it is in conflict with abbreviated step.
   1 + .123    does not work,
   1 + 0.123   does.
-  Perhaps it is better to move this code into lex analizer.
+  Perhaps it is better to move this code into lex analyzer.
 
   RETURN
     1 - success
@@ -2831,7 +2831,7 @@ append_node(String *str, MY_XML_NODE *node)
   SYNOPSYS
 
     A call-back function executed when XML parser
-    is entering a tag or an attribue.
+    is entering a tag or an attribute.
     Appends the new node into data->pxml.
     Increments data->level.
 
@@ -2867,7 +2867,7 @@ int xml_enter(MY_XML_PARSER *st,const char *attr, size_t len)
   SYNOPSYS
 
     A call-back function executed when XML parser
-    is entering into a tag or an attribue textual value.
+    is entering into a tag or an attribute textual value.
     The value is appended into data->pxml.
 
   RETURN
@@ -2895,7 +2895,7 @@ int xml_value(MY_XML_PARSER *st,const char *attr, size_t len)
   SYNOPSYS
 
     A call-back function executed when XML parser
-    is leaving a tag or an attribue.
+    is leaving a tag or an attribute.
     Decrements data->level.
 
   RETURN

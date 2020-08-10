@@ -2149,6 +2149,13 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     append_identifier(thd, packet, &field->field_name);
     packet->append(' ');
 
+    const Type_handler *th= field->type_handler();
+    const Schema *implied_schema= Schema::find_implied(thd);
+    if (th != implied_schema->map_data_type(thd, th))
+    {
+      packet->append(th->schema()->name(), system_charset_info);
+      packet->append(STRING_WITH_LEN("."), system_charset_info);
+    }
     type.set(tmp, sizeof(tmp), system_charset_info);
     field->sql_type(type);
     packet->append(type.ptr(), type.length(), system_charset_info);

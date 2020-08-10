@@ -1404,7 +1404,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   @note 
    Item_in_optimizer should work as pass-through for
     - subqueries that were processed by ALL/ANY->MIN/MAX rewrite
-    - subqueries taht were originally EXISTS subqueries (and were coverted by
+    - subqueries that were originally EXISTS subqueries (and were coinverted by
       the EXISTS->IN rewrite)
 
    When Item_in_optimizer is not not working as a pass-through, it
@@ -1991,8 +1991,8 @@ longlong Item_func_interval::val_int()
       interval_range *range= intervals + mid;
       my_bool cmp_result;
       /*
-        The values in the range intervall may have different types,
-        Only do a decimal comparision of the first argument is a decimal
+        The values in the range interval may have different types,
+        Only do a decimal comparison if the first argument is a decimal
         and we are comparing against a decimal
       */
       if (dec && range->type == DECIMAL_RESULT)
@@ -2634,7 +2634,7 @@ Item_func_nullif::fix_length_and_dec()
       Some examples of what NULLIF can end up with after argument
       substitution (we don't mention args[1] in some cases for simplicity):
 
-      1. l_expr is not an aggragate function:
+      1. l_expr is not an aggregate function:
 
         a. No conversion happened.
            args[0] and args[2] were not replaced to something else
@@ -2758,7 +2758,7 @@ Item_func_nullif::fix_length_and_dec()
     In this case we remember and reuse m_arg0 during EXECUTE time as args[2].
 
     QQ: How to make sure that m_args0 does not point
-    to something temporary which will be destoyed between PREPARE and EXECUTE.
+    to something temporary which will be destroyed between PREPARE and EXECUTE.
     The condition below should probably be more strict and somehow check that:
     - change_item_tree() was called for the new args[0]
     - m_args0 is referenced from inside args[0], e.g. as a function argument,
@@ -7301,7 +7301,7 @@ Item* Item_equal::get_first(JOIN_TAB *context, Item *field_item)
     and not ot2.col.
     
     eliminate_item_equal() also has code that deals with equality substitution
-    in presense of SJM nests.
+    in presence of SJM nests.
   */
 
   TABLE_LIST *emb_nest;

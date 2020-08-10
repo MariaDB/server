@@ -2533,4 +2533,12 @@ SELECT * FROM t1 ORDER BY a DESC;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-23414 Assertion `res->charset() == item->collation.collation' failed in Type_handler_string_result::make_packed_sort_key_part
+--echo #
+CREATE TABLE t1 (a CHAR(3), b BINARY(255));
+INSERT t1 VALUES ('foo','bar'),('baz','qux');
+SELECT COALESCE(a, b) AS f FROM t1 ORDER BY f;
+DROP TABLE t1;
+
 --echo # End of 10.5 tests

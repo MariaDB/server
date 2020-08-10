@@ -6124,9 +6124,13 @@ prepare_inplace_alter_table_dict(
 
 	user_table = ctx->new_table;
 
-	if (ha_alter_info->inplace_supported == HA_ALTER_INPLACE_INSTANT) {
-		/* If we promised ALGORITHM=INSTANT capability, we must
-		retain the original ROW_FORMAT of the table. */
+	switch (ha_alter_info->inplace_supported) {
+	default: break;
+	case HA_ALTER_INPLACE_INSTANT:
+	case HA_ALTER_INPLACE_NOCOPY_LOCK:
+	case HA_ALTER_INPLACE_NOCOPY_NO_LOCK:
+		/* If we promised ALGORITHM=NOCOPY or ALGORITHM=INSTANT,
+		we must retain the original ROW_FORMAT of the table. */
 		flags = (user_table->flags & (DICT_TF_MASK_COMPACT
 					      | DICT_TF_MASK_ATOMIC_BLOBS))
 			| (flags & ~(DICT_TF_MASK_COMPACT

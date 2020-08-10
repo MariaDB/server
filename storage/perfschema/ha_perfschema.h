@@ -41,7 +41,7 @@ class PFS_engine_table;
 extern const char *pfs_engine_name;
 
 /** A handler for a PERFORMANCE_SCHEMA table. */
-class ha_perfschema : public handler
+class ha_perfschema final : public handler
 {
 public:
   /**
