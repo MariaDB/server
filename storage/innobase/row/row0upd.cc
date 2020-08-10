@@ -2101,9 +2101,11 @@ row_upd_eval_new_vals(
 @param[in,out]	node		row update node
 @param[in]	update		an update vector if it is update
 @param[in]	thd		mysql thread handle
-@param[in,out]	mysql_table	mysql table object */
+@param[in,out]	mysql_table	mysql table object
+@return true if success
+	false if virtual column value computation fails. */
 static
-void
+bool
 row_upd_store_v_row(
 	upd_node_t*	node,
 	const upd_t*	update,
@@ -2165,24 +2167,33 @@ row_upd_store_v_row(
 								  &mysql_table);
 					/* Need to compute, this happens when
 					deleting row */
-					innobase_get_computed_value(
-						node->row, col, index,
-						&vc.heap, node->heap,
-						NULL, thd, mysql_table,
-						record, NULL, NULL, NULL);
+					dfield_t* vfield =
+						innobase_get_computed_value(
+							node->row, col, index,
+							&vc.heap, node->heap,
+							NULL, thd, mysql_table,
+							record, NULL, NULL,
+							NULL);
+					if (vfield == NULL) {
+						return false;
+					}
 				}
 			}
 		}
 	}
+
+	return true;
 }
 
 /** Stores to the heap the row on which the node->pcur is positioned.
 @param[in]	node		row update node
 @param[in]	thd		mysql thread handle
 @param[in,out]	mysql_table	NULL, or mysql table object when
-				user thread invokes dml */
+				user thread invokes dml
+@return false if virtual column value computation fails
+	true otherwise. */
 static
-void
+bool
 row_upd_store_row(
 	upd_node_t*	node,
 	THD*		thd,
@@ -2226,8 +2237,12 @@ row_upd_store_row(
 			      NULL, NULL, NULL, ext, node->heap);
 
 	if (node->table->n_v_cols) {
-		row_upd_store_v_row(node, node->is_delete ? NULL : node->update,
+		bool ok = row_upd_store_v_row(node,
+				    node->is_delete ? NULL : node->update,
 				    thd, mysql_table);
+		if (!ok) {
+			return false;
+		}
 	}
 
 	if (node->is_delete) {
@@ -2242,6 +2257,7 @@ row_upd_store_row(
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
+	return true;
 }
 
 /***********************************************************//**
@@ -2957,9 +2973,12 @@ row_upd_del_mark_clust_rec(
 	/* Store row because we have to build also the secondary index
 	entries */
 
-	row_upd_store_row(node, trx->mysql_thd,
+	if (!row_upd_store_row(node, trx->mysql_thd,
 			  thr->prebuilt  && thr->prebuilt->table == node->table
-			  ? thr->prebuilt->m_mysql_table : NULL);
+			  ? thr->prebuilt->m_mysql_table : NULL)) {
+		err = DB_COMPUTE_VALUE_FAILED;
+		return err;
+	}
 
 	/* Mark the clustered index record deleted; we do not have to check
 	locks, because we assume that we have an x-lock on the record */
@@ -3168,8 +3187,11 @@ row_upd_clust_step(
 		goto exit_func;
 	}
 
-	row_upd_store_row(node, trx->mysql_thd,
-			  thr->prebuilt ? thr->prebuilt->m_mysql_table : NULL);
+	if(!row_upd_store_row(node, trx->mysql_thd,
+			thr->prebuilt ? thr->prebuilt->m_mysql_table : NULL)) {
+		err = DB_COMPUTE_VALUE_FAILED;
+		goto exit_func;
+	}
 
 	if (row_upd_changes_ord_field_binary(index, node->update, thr,
 					     node->row, node->ext)) {

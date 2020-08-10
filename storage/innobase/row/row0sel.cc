@@ -154,11 +154,15 @@ fields are compared with collation!
 				must be protected by a page s-latch
 @param[in]	clust_index	clustered index
 @param[in]	thr		query thread
-@return TRUE if the secondary record is equal to the corresponding
-fields in the clustered record, when compared with collation;
-FALSE if not equal or if the clustered record has been marked for deletion */
+@retval	DB_COMPUTE_VALUE_FAILED in case of virtual column value computation
+	failure.
+@retval DB_SUCCESS_LOCKED_REC if the secondary record is equal to the
+	corresponding fields in the clustered record, when compared with
+	collation;
+@retval DB_SUCCESS if not equal or if the clustered record has been marked
+	for deletion */
 static
-ibool
+dberr_t
 row_sel_sec_rec_is_for_clust_rec(
 	const rec_t*	sec_rec,
 	dict_index_t*	sec_index,
@@ -190,7 +194,7 @@ row_sel_sec_rec_is_for_clust_rec(
 		it is not visible in the read view.  Besides,
 		if there are any externally stored columns,
 		some of them may have already been purged. */
-		return(FALSE);
+		return DB_SUCCESS;
 	}
 
 	heap = mem_heap_create(256);
@@ -242,6 +246,10 @@ row_sel_sec_rec_is_for_clust_rec(
 					thr->prebuilt->m_mysql_table,
 					record, NULL, NULL, NULL);
 
+			if (vfield == NULL) {
+				innobase_report_computed_value_failed(row);
+				return DB_COMPUTE_VALUE_FAILED;
+			}
 			clust_len = vfield->len;
 			clust_field = static_cast<byte*>(vfield->data);
 		} else {
@@ -275,7 +283,7 @@ row_sel_sec_rec_is_for_clust_rec(
 					    sec_field, sec_len,
 					    ifield->prefix_len,
 					    clust_index->table)) {
-					return FALSE;
+					return DB_SUCCESS;
 				}
 
 				continue;
@@ -311,19 +319,19 @@ row_sel_sec_rec_is_for_clust_rec(
 			rtr_read_mbr(sec_field, &sec_mbr);
 
 			if (!MBR_EQUAL_CMP(&sec_mbr, &tmp_mbr)) {
-				return FALSE;
+				return DB_SUCCESS;
 			}
 		} else {
 
 			if (0 != cmp_data_data(col->mtype, col->prtype,
 					       clust_field, len,
 					       sec_field, sec_len)) {
-				return FALSE;
+				return DB_SUCCESS;
 			}
 		}
 	}
 
-	return TRUE;
+	return DB_SUCCESS_LOCKED_REC;
 }
 
 /*********************************************************************//**
@@ -890,7 +898,7 @@ row_sel_get_clust_rec(
 	dict_index_t*	index;
 	rec_t*		clust_rec;
 	rec_t*		old_vers;
-	dberr_t		err;
+	dberr_t		err		= DB_SUCCESS;
 	mem_heap_t*	heap		= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
@@ -932,7 +940,7 @@ row_sel_get_clust_rec(
 		clustered index record did not exist in the read view of
 		trx. */
 
-		goto func_exit;
+		goto err_exit;
 	}
 
 	offsets = rec_get_offsets(clust_rec, index, offsets, true,
@@ -997,7 +1005,7 @@ row_sel_get_clust_rec(
 			clust_rec = old_vers;
 
 			if (clust_rec == NULL) {
-				goto func_exit;
+				goto err_exit;
 			}
 		}
 
@@ -1014,13 +1022,14 @@ row_sel_get_clust_rec(
 		visit through secondary index records that would not really
 		exist in our snapshot. */
 
-		if ((old_vers
-		     || rec_get_deleted_flag(rec, dict_table_is_comp(
-						     plan->table)))
-		    && !row_sel_sec_rec_is_for_clust_rec(rec, plan->index,
-							 clust_rec, index,
-							 thr)) {
-			goto func_exit;
+		if (old_vers || rec_get_deleted_flag(rec, dict_table_is_comp(
+							       plan->table))) {
+			err = row_sel_sec_rec_is_for_clust_rec(rec,
+							plan->index, clust_rec,
+							index, thr);
+			if (err != DB_SUCCESS_LOCKED_REC) {
+				goto err_exit;
+			}
 		}
 	}
 
@@ -1033,7 +1042,6 @@ row_sel_get_clust_rec(
 	row_sel_fetch_columns(index, clust_rec, offsets,
 			      UT_LIST_GET_FIRST(plan->columns));
 	*out_rec = clust_rec;
-func_exit:
 	err = DB_SUCCESS;
 err_exit:
 	if (UNIV_LIKELY_NULL(heap)) {
@@ -3565,10 +3573,18 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 			|| trx->isolation_level <= TRX_ISO_READ_UNCOMMITTED
 			|| dict_index_is_spatial(sec_index)
 			|| rec_get_deleted_flag(rec, dict_table_is_comp(
-							sec_index->table)))
-		    && !row_sel_sec_rec_is_for_clust_rec(
-			    rec, sec_index, clust_rec, clust_index, thr)) {
-			clust_rec = NULL;
+							sec_index->table)))) {
+			err = row_sel_sec_rec_is_for_clust_rec(rec, sec_index,
+						clust_rec, clust_index, thr);
+			switch (err) {
+			case DB_SUCCESS:
+				clust_rec = NULL;
+				break;
+			case DB_SUCCESS_LOCKED_REC:
+				break;
+			default:
+				goto err_exit;
+			}
 		}
 
 		err = DB_SUCCESS;

@@ -445,9 +445,11 @@ row_vers_must_preserve_del_marked(
 @param[in]	clust_index	clustered index
 @param[in]	index		the secondary index
 @param[in]	heap		heap used to build virtual dtuple
-@param[in,out]	vcol_info	virtual column information. */
+@param[in,out]	vcol_info	virtual column information.
+@return		true in case of success
+		false if virtual column computation fails */
 static
-void
+bool
 row_vers_build_clust_v_col(
 	dtuple_t*		row,
 	dict_index_t*		clust_index,
@@ -471,7 +473,8 @@ row_vers_build_clust_v_col(
 
 	if (vcol_info && !vcol_info->table()) {
 		vcol_info->set_table(maria_table);
-		return;
+		// wait for second fetch
+		return true;
 	}
 
 	for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
@@ -484,12 +487,18 @@ row_vers_build_clust_v_col(
 			col = reinterpret_cast<const dict_v_col_t*>(
 				ind_field->col);
 
-			innobase_get_computed_value(
+			dfield_t *vfield = innobase_get_computed_value(
 				row, col, clust_index, &vc.heap,
 				heap, NULL, thd, maria_table, record, NULL,
 				NULL, NULL);
+			if (vfield == NULL) {
+				innobase_report_computed_value_failed(row);
+				ut_ad(0);
+				return false;
+			}
 		}
 	}
+	return true;
 }
 
 /** Build latest virtual column data from undo log
@@ -826,8 +835,11 @@ row_vers_build_cur_vrow(
 			mtr->commit();
 		}
 
-		row_vers_build_clust_v_col(
+		bool res = row_vers_build_clust_v_col(
 			row, clust_index, index, heap, vcol_info);
+		if (!res) {
+			return NULL;
+		}
 
 		if (vcol_info != NULL && vcol_info->is_first_fetch()) {
 			return NULL;
@@ -948,9 +960,13 @@ row_vers_old_has_index_entry(
 					mtr->commit();
 				}
 
-				row_vers_build_clust_v_col(
+				bool res = row_vers_build_clust_v_col(
 					row, clust_index, index, heap,
 					vcol_info);
+
+				if (!res) {
+					goto unsafe_to_purge;
+				}
 
 				if (vcol_info && vcol_info->is_first_fetch()) {
 					goto unsafe_to_purge;

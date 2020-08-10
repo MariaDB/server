@@ -874,6 +874,12 @@ public:
   }
 };
 
+/** Report virtual value computation failure in ib::error
+@param[in]    row    the data row
+*/
+ATTRIBUTE_COLD
+void innobase_report_computed_value_failed(dtuple_t *row);
+
 /** Get the computed value by supplying the base column values.
 @param[in,out]	row		the data row
 @param[in]	col		virtual column

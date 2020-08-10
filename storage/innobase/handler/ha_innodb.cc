@@ -103,6 +103,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "srv0mon.h"
 #include "srv0srv.h"
 #include "srv0start.h"
+#include "rem0rec.h"
 #ifdef UNIV_DEBUG
 #include "trx0purge.h"
 #endif /* UNIV_DEBUG */
@@ -21881,6 +21882,13 @@ void innobase_free_row_for_vcol(VCOL_STORAGE *storage)
 }
 
 
+void innobase_report_computed_value_failed(dtuple_t *row)
+{
+  ib::error() << "Compute virtual column values failed for "
+              << rec_printer(row).str();
+}
+
+
 /** Get the computed value by supplying the base column values.
 @param[in,out]	row		the data row
 @param[in]	col		virtual column
@@ -22008,13 +22016,6 @@ innobase_get_computed_value(
 	dbug_tmp_restore_column_map(mysql_table->write_set, old_write_set);
 
 	if (ret != 0) {
-	// FIXME: Why this error message is macro-hidden?
-#ifdef INNODB_VIRTUAL_DEBUG
-		ib::warn() << "Compute virtual column values failed ";
-		fputs("InnoDB: Cannot compute value for following record ",
-		      stderr);
-		dtuple_print(stderr, row);
-#endif /* INNODB_VIRTUAL_DEBUG */
 		DBUG_RETURN(NULL);
 	}
 
