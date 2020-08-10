@@ -44,14 +44,7 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "ha_prototypes.h" // IB_LOG_
 #include <my_crypt.h>
 
-/** Mutex for keys */
-static ib_mutex_t fil_crypt_key_mutex;
-
 static bool fil_crypt_threads_inited = false;
-
-#ifdef UNIV_PFS_MUTEX
-static mysql_pfs_key_t fil_crypt_key_mutex_key;
-#endif
 
 /** Is encryption enabled/disabled */
 UNIV_INTERN ulong srv_encrypt_tables = 0;
@@ -133,9 +126,6 @@ UNIV_INTERN
 void
 fil_space_crypt_init()
 {
-	mutex_create(fil_crypt_key_mutex_key,
-		     &fil_crypt_key_mutex, SYNC_NO_ORDER_CHECK);
-
 	fil_crypt_throttle_sleep_event = os_event_create();
 
 	mutex_create(fil_crypt_stat_mutex_key,
@@ -152,7 +142,6 @@ fil_space_crypt_cleanup()
 {
 	os_event_free(fil_crypt_throttle_sleep_event);
 	fil_crypt_throttle_sleep_event = NULL;
-	mutex_free(&fil_crypt_key_mutex);
 	mutex_free(&crypt_stat_mutex);
 }
 
@@ -1451,6 +1440,109 @@ fil_crypt_return_iops(
 	fil_crypt_update_total_stat(state);
 }
 
+/** Remove space from key rotation list if there are no pending operations. */
+static void fil_space_remove_from_keyrotation(fil_space_t *space)
+{
+  ut_ad(mutex_own(&fil_system->mutex));
+
+  if (space->n_pending_ops == 0 && space->is_in_rotation_list)
+  {
+    space->is_in_rotation_list= false;
+    ut_a(UT_LIST_GET_LEN(fil_system->rotation_list) > 0);
+    UT_LIST_REMOVE(rotation_list, fil_system->rotation_list, space);
+  }
+}
+
+/** Return the next tablespace from key rotation list.
+@param space  previous tablespace (NULL to start from the beginning)
+@return pointer to the next tablespace (with n_pending_ops incremented)
+@retval NULL if this was the last */
+static fil_space_t *fil_space_keyrotate_next(fil_space_t *space)
+{
+  ut_ad(mutex_own(&fil_system->mutex));
+
+  if (UT_LIST_GET_LEN(fil_system->rotation_list) == 0)
+  {
+    if (space)
+    {
+      space->n_pending_ops--;
+      fil_space_remove_from_keyrotation(space);
+    }
+
+    return NULL;
+  }
+
+  if (!space)
+  {
+    space= UT_LIST_GET_FIRST(fil_system->rotation_list);
+    /* We can trust that space is not NULL because we
+    checked list length above */
+  }
+  else
+  {
+    space->n_pending_ops--;
+    fil_space_t *old = space;
+    space= UT_LIST_GET_NEXT(rotation_list, space);
+    fil_space_remove_from_keyrotation(old);
+  }
+
+  /* Skip spaces that are being created by fil_ibd_create(),
+  or dropped. Note that rotation_list contains only
+  space->purpose == FIL_TABLESPACE. */
+  while (space && (!UT_LIST_GET_LEN(space->chain) || space->is_stopping()))
+  {
+    fil_space_t *old = space;
+    space= UT_LIST_GET_NEXT(rotation_list, space);
+    fil_space_remove_from_keyrotation(old);
+  }
+
+  if (space)
+    space->n_pending_ops++;
+
+  return space;
+}
+
+/** Return the next tablespace.
+@param space    previous tablespace (NULL to start from the beginning)
+@return pointer to the next tablespace (with n_pending_ops incremented)
+@retval NULL if this was the last */
+static fil_space_t *fil_space_next(fil_space_t *space)
+{
+  mutex_enter(&fil_system->mutex);
+  ut_ad(!space || space->n_pending_ops);
+
+  if (!srv_fil_crypt_rotate_key_age)
+    space= fil_space_keyrotate_next(space);
+  else if (!space)
+  {
+    space= UT_LIST_GET_FIRST(fil_system->space_list);
+    /* We can trust that space is not NULL because at least the
+    system tablespace is always present and loaded first. */
+    space->n_pending_ops++;
+  }
+  else
+  {
+    ut_ad(space->n_pending_ops > 0);
+    /* Move on to the next fil_space_t */
+    space->n_pending_ops--;
+    space= UT_LIST_GET_NEXT(space_list, space);
+
+    /* Skip abnormal tablespaces or those that are being created by
+    fil_ibd_create(), or being dropped. */
+    while (space &&
+           (UT_LIST_GET_LEN(space->chain) == 0 ||
+            space->is_stopping() || space->purpose != FIL_TABLESPACE))
+      space= UT_LIST_GET_NEXT(space_list, space);
+
+    if (space)
+      space->n_pending_ops++;
+  }
+
+  mutex_exit(&fil_system->mutex);
+
+  return space;
+}
+
 /***********************************************************************
 Search for a space needing rotation
 @param[in,out]		key_state		Key state
@@ -1485,14 +1577,7 @@ fil_crypt_find_space_to_rotate(
 		state->space = NULL;
 	}
 
-	/* If key rotation is enabled (default) we iterate all tablespaces.
-	If key rotation is not enabled we iterate only the tablespaces
-	added to keyrotation list. */
-	if (srv_fil_crypt_rotate_key_age) {
-		state->space = fil_space_next(state->space);
-	} else {
-		state->space = fil_space_keyrotate_next(state->space);
-	}
+	state->space = fil_space_next(state->space);
 
 	while (!state->should_shutdown() && state->space) {
 		fil_crypt_read_crypt_data(state->space);
@@ -1505,14 +1590,15 @@ fil_crypt_find_space_to_rotate(
 			return true;
 		}
 
-		if (srv_fil_crypt_rotate_key_age) {
-			state->space = fil_space_next(state->space);
-		} else {
-			state->space = fil_space_keyrotate_next(state->space);
-		}
+		state->space = fil_space_next(state->space);
 	}
 
-	/* if we didn't find any space return iops */
+	if (state->space) {
+		fil_space_release(state->space);
+		state->space = NULL;
+	}
+
+	/* no work to do; release our allocation of I/O capacity */
 	fil_crypt_return_iops(state);
 
 	return false;

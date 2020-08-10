@@ -101,18 +101,7 @@
  sort-buffer-size 2097152
  sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
  stack-trace TRUE
-@@ -1516,14 +1532,16 @@
- sync-relay-log 10000
- sync-relay-log-info 10000
- sysdate-is-now FALSE
--table-cache 421
-+table-cache 2000
- table-definition-cache 400
--table-open-cache 421
--table-open-cache-instances 1
-+table-open-cache 2000
-+table-open-cache-instances 8
- tc-heuristic-recover OFF
+@@ -1516,6 +1532,8 @@
  thread-cache-size 151
  thread-pool-idle-timeout 60
  thread-pool-max-threads 65536
