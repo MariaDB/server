@@ -2523,5 +2523,16 @@ DROP VIEW v1;
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-22702: Assertion `!field->is_null()' failed in my_decimal::my_decimal
+--echo #
+
+CREATE TABLE t1(a INT, b DECIMAL(10, 0) NOT NULL);
+SELECT a, bit_or(min(a)) OVER (ORDER BY b) FROM t1;
+--echo # No implicit grouping here
+SELECT a, bit_or(a) OVER (ORDER BY b) FROM t1;
+SELECT a, sum(a), bit_or(a) OVER (ORDER BY b) FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

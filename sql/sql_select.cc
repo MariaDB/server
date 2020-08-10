@@ -770,6 +770,31 @@ JOIN::prepare(TABLE_LIST *tables_init,
         break;
       }
     }
+
+    /*
+      If the query has a window function with an aggregate function,
+      then we have a mix of elements with and without grouping.
+      Window function can be present in the SELECT LIST and the ORDER BY clause
+      so a separate check is made here (above we just iterate over the
+      SELECT LIST).
+
+      Window function is inherited from Item_sum class which means
+      each window function is registered as a sum item,
+      so a check needs to be any of the sum items are aggregate functions
+      or not.
+
+      Example:
+
+        (1) SELECT a, sum(a), row_number() OVER (ORDER BY b)  :=> sum_items= 2
+        (2) SELECT a, sum(a) OVER (ORDER BY b)                :=> sum_items= 1
+
+      In example (1) we have an aggregate function and a window function
+      In example (2) we have a window function (SUM function is used as
+      a window function here)
+    */
+    if (select_lex->have_window_funcs() &&
+        select_lex->get_number_of_window_funcs() < select_lex->n_sum_items)
+      mixed_implicit_grouping= true;
   }
 
   table_count= select_lex->leaf_tables.elements;

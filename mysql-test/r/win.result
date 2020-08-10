@@ -3866,5 +3866,19 @@ NULL
 DROP VIEW v1;
 DROP TABLE t1,t2;
 #
+# MDEV-22702: Assertion `!field->is_null()' failed in my_decimal::my_decimal
+#
+CREATE TABLE t1(a INT, b DECIMAL(10, 0) NOT NULL);
+SELECT a, bit_or(min(a)) OVER (ORDER BY b) FROM t1;
+a	bit_or(min(a)) OVER (ORDER BY b)
+NULL	0
+# No implicit grouping here
+SELECT a, bit_or(a) OVER (ORDER BY b) FROM t1;
+a	bit_or(a) OVER (ORDER BY b)
+SELECT a, sum(a), bit_or(a) OVER (ORDER BY b) FROM t1;
+a	sum(a)	bit_or(a) OVER (ORDER BY b)
+NULL	NULL	0
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #

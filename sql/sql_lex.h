@@ -1191,6 +1191,8 @@ public:
   bool add_window_func(Item_window_func *win_func);
 
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
+  uint get_number_of_window_funcs() const
+  { return window_funcs.elements; }
 
   bool cond_pushdown_is_allowed() const
   { return !have_window_funcs() && !olap && !explicit_limit; }
