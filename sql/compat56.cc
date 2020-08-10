@@ -292,7 +292,7 @@ uint my_datetime_binary_length(uint dec)
 
 /*
   On disk we store as unsigned number with DATETIMEF_INT_OFS offset,
-  for HA_KETYPE_BINARY compatibilty purposes.
+  for HA_KETYPE_BINARY compatibility purposes.
 */
 #define DATETIMEF_INT_OFS 0x8000000000LL
 

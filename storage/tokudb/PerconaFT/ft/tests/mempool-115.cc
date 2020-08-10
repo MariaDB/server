@@ -102,7 +102,7 @@ public:
         sn.layout_version_original = FT_LAYOUT_VERSION;
         sn.height = 0;
         sn.n_children = 2;
-        sn.dirty = 1;
+        sn.set_dirty();
         sn.oldest_referenced_xid_known = TXNID_NONE;
         MALLOC_N(sn.n_children, sn.bp);
         DBT pivotkey;

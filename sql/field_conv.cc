@@ -230,7 +230,7 @@ static void do_skip(Copy_field *copy __attribute__((unused)))
 
   note: if the record we're copying from is NULL-complemetned (i.e. 
   from_field->table->null_row==1), it will also have all NULLable columns to be
-  set to NULLs, so we dont need to check table->null_row here.
+  set to NULLs, so we don't need to check table->null_row here.
 */
 
 static void do_copy_null(Copy_field *copy)

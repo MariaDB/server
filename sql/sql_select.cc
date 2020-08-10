@@ -1442,7 +1442,6 @@ err:
 
 bool JOIN::build_explain()
 {
-  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
   have_query_plan= QEP_AVAILABLE;
 
   /*
@@ -1485,6 +1484,7 @@ bool JOIN::build_explain()
 int JOIN::optimize()
 {
   int res= 0;
+  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
   join_optimization_state init_state= optimization_state;
   if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
     res= optimize_stage2();

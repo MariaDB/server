@@ -57,7 +57,7 @@ static void test_header (void) {
     assert(r==0);
     // now insert some info into the header
     FT ft = t->ft;
-    ft->h->dirty = 1;
+    ft->h->set_dirty();
     // cast away const because we actually want to fiddle with the header
     // in this test
     *((int *) &ft->h->layout_version_original) = 13;

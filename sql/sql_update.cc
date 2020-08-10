@@ -1281,8 +1281,7 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE);
 
   if (setup_tables_and_check_access(thd, &select_lex->context, 
-                                    &select_lex->top_join_list,
-                                    table_list,
+                                    &select_lex->top_join_list, table_list,
                                     select_lex->leaf_tables,
                                     FALSE, UPDATE_ACL, SELECT_ACL, TRUE) ||
       setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||

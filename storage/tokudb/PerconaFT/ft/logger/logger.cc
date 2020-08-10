@@ -51,6 +51,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "util/status.h"
 
 int writing_rollback = 0;
+extern "C" {
+  uint force_recovery = 0;
+}
 
 static const int log_format_version = TOKU_LOG_VERSION;
 

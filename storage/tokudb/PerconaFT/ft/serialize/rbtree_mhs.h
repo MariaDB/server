@@ -193,6 +193,7 @@ namespace MhsRbTree {
             BlockPair(OUUInt64 o, OUUInt64 s) : _offset(o), _size(s) {}
             BlockPair(const BlockPair &o)
                 : _offset(o._offset), _size(o._size) {}
+            BlockPair& operator=(const BlockPair&) = default;
 
             int operator<(const BlockPair &rhs) const {
                 return _offset < rhs._offset;
