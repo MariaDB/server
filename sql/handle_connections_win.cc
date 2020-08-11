@@ -319,7 +319,7 @@ struct Pipe_Listener : public Listener
 {
   PTP_CALLBACK_ENVIRON m_tp_env;
   Pipe_Listener():
-    Listener(INVALID_HANDLE_VALUE, CreateEvent(0, FALSE, FALSE, 0)),
+    Listener(create_named_pipe(), CreateEvent(0, FALSE, FALSE, 0)),
     m_tp_env(get_threadpool_win_callback_environ())
   {
   }
@@ -388,7 +388,6 @@ struct Pipe_Listener : public Listener
 
   void begin_accept()
   {
-    m_handle= create_named_pipe();
     BOOL connected= ConnectNamedPipe(m_handle, &m_overlapped);
     if (connected)
     {
@@ -433,11 +432,12 @@ struct Pipe_Listener : public Listener
       sql_print_warning("ConnectNamedPipe completed with %u", GetLastError());
 #endif
       CloseHandle(m_handle);
-      m_handle= INVALID_HANDLE_VALUE;
+      m_handle= create_named_pipe();
       begin_accept();
       return;
     }
     HANDLE pipe= m_handle;
+    m_handle= create_named_pipe();
     begin_accept();
     // If threadpool is on, create connection in threadpool thread
     if (!m_tp_env || !TrySubmitThreadpoolCallback(tp_create_pipe_connection, pipe, m_tp_env))
@@ -485,7 +485,6 @@ struct Pipe_Listener : public Listener
 static Listener *all_listeners[MAX_WAIT_HANDLES];
 static HANDLE wait_events[MAX_WAIT_HANDLES];
 static int n_listeners;
-static int n_waits;
 
 void network_init_win()
 {
@@ -517,27 +516,27 @@ void network_init_win()
     sql_print_error("Either TCP connections or named pipe connections must be enabled.");
     unireg_abort(1);
   }
-
-  n_waits = 1;
-
-  for (int i= 0;  i < n_listeners; i++)
-  {
-    HANDLE wait_handle= all_listeners[i]->wait_handle();
-    if(wait_handle)
-    {
-      DBUG_ASSERT((i == 0) || (all_listeners[i-1]->wait_handle() != 0));
-      wait_events[n_waits++]= wait_handle;
-    }
-    all_listeners[i]->begin_accept();
-  }
 }
 
 void handle_connections_win()
 {
   DBUG_ASSERT(hEventShutdown);
-  DBUG_ASSERT(n_waits);
+  int n_waits;
 
   wait_events[SHUTDOWN_IDX]= hEventShutdown;
+  n_waits= 1;
+
+  for (int i= 0; i < n_listeners; i++)
+  {
+    HANDLE wait_handle= all_listeners[i]->wait_handle();
+    if (wait_handle)
+    {
+      DBUG_ASSERT((i == 0) || (all_listeners[i - 1]->wait_handle() != 0));
+      wait_events[n_waits++]= wait_handle;
+    }
+    all_listeners[i]->begin_accept();
+  }
+
   for (;;)
   {
     DWORD idx = WaitForMultipleObjects(n_waits ,wait_events, FALSE, INFINITE);
