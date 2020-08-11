@@ -33,13 +33,21 @@
 #include <execinfo.h>
 #endif
 
-#ifdef __linux__
+/* 10.5 fails to build on Debian 9:
+ *   "undefined reference to symbol '__bss_start' /usr/lib/x86_64-linux-gnu/libgmp.so.10:
+ *   error adding symbols: DSO missing from command line "
+ *
+ * The issue was fixed in 10.2 but not merged to 10.5 (MDEV-10943):
+ *   Linux does not actually use bss_start,
+ *   put bss_start into #ifndef __linux__ section.
+ */
+#if(defined HAVE_BSS_START) && !(defined __linux__)
 #define PTR_SANE(p) ((p) && (char*)(p) >= heap_start && (char*)(p) <= heap_end)
 static char *heap_start;
 char *__bss_start;
 #else
 #define PTR_SANE(p) (p)
-#endif /* __linux */
+#endif /* HAVE_BSS_START | !__linux */
 
 
 /**
@@ -68,9 +76,9 @@ static sig_handler default_handle_fatal_signal(int sig)
 
 void my_init_stacktrace(int setup_handlers)
 {
-#ifdef __linux__
+#if(defined HAVE_BSS_START) && !(defined __linux__)
   heap_start = (char*) &__bss_start;
-#endif /* __linux */
+#endif /* HAVE_BSS_START | !__linux */
   if (setup_handlers)
   {
     struct sigaction sa;
