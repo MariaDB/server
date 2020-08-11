@@ -27,8 +27,10 @@ class ha_cache_share
   const char *name;
   uint open_count;
 public:
+  ulonglong cached_rows;
   THR_LOCK org_lock;
-  friend ha_cache_share *find_cache_share(const char *name);
+  friend ha_cache_share *find_cache_share(const char *name,
+                                          ulonglong cached_rows);
   void close();
 };
 
@@ -37,7 +39,7 @@ class ha_cache :public ha_tina
 {
   typedef ha_tina parent;
   int original_lock_type;
-  bool insert_command;
+  bool insert_command, cache_locked;
 
 public:
   uint lock_counter;
