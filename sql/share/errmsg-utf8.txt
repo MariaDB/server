@@ -7964,4 +7964,4 @@ ER_KEY_CANT_HAVE_WITHOUT_OVERLAPS
 ER_NOT_ALLOWED_IN_THIS_CONTEXT
         eng "'%-.128s' is not allowed in this context"
 ER_DATA_WAS_COMMITED_UNDER_ROLLBACK
-        eng "Engine %s does not support rollback. Changes where committed during rollback call"
+        eng "Engine %s does not support rollback. Changes were committed during rollback call"
