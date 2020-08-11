@@ -6620,13 +6620,11 @@ void handle_connections_sockets()
   MYSQL_SOCKET sock= mysql_socket_invalid();
   MYSQL_SOCKET new_sock= mysql_socket_invalid();
   uint error_count=0;
-  CONNECT *connect;
   struct sockaddr_storage cAddr;
   int ip_flags __attribute__((unused))=0;
   int socket_flags __attribute__((unused))= 0;
   int extra_ip_flags __attribute__((unused))=0;
   int flags=0,retval;
-  bool is_unix_sock;
 #ifdef HAVE_POLL
   int socket_count= 0;
   struct pollfd fds[3]; // for ip_sock, unix_sock and extra_ip_sock
@@ -6826,41 +6824,37 @@ void handle_connections_sockets()
 
     DBUG_PRINT("info", ("Creating CONNECT for new connection"));
 
-    if ((connect= new CONNECT()))
+    if (CONNECT *connect= new CONNECT())
     {
-      is_unix_sock= (mysql_socket_getfd(sock) ==
-                     mysql_socket_getfd(unix_sock));
+      const bool is_unix_sock= (mysql_socket_getfd(sock) ==
+                                mysql_socket_getfd(unix_sock));
 
-      if (!(connect->vio=
-            mysql_socket_vio_new(new_sock,
-                                 is_unix_sock ? VIO_TYPE_SOCKET :
-                                 VIO_TYPE_TCPIP,
-                                 is_unix_sock ? VIO_LOCALHOST: 0)))
+      if ((connect->vio=
+           mysql_socket_vio_new(new_sock,
+                                is_unix_sock ? VIO_TYPE_SOCKET :
+                                VIO_TYPE_TCPIP,
+                                is_unix_sock ? VIO_LOCALHOST: 0)))
       {
-        delete connect;
-        connect= 0;                             // Error handling below
+        if (is_unix_sock)
+          connect->host= my_localhost;
+
+        if (mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
+        {
+          connect->extra_port= 1;
+          connect->scheduler= extra_thread_scheduler;
+        }
+        create_new_thread(connect);
+        continue;
       }
+
+      delete connect;
     }
 
-    if (!connect)
-    {
-      /* Connect failure */
-      (void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
-      (void) mysql_socket_close(new_sock);
-      statistic_increment(aborted_connects,&LOCK_status);
-      statistic_increment(connection_errors_internal, &LOCK_status);
-      continue;
-    }
-
-    if (is_unix_sock)
-      connect->host= my_localhost;
-
-    if (mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
-    {
-      connect->extra_port= 1;
-      connect->scheduler= extra_thread_scheduler;
-    }
-    create_new_thread(connect);
+    /* Connect failure */
+    (void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
+    (void) mysql_socket_close(new_sock);
+    statistic_increment(aborted_connects,&LOCK_status);
+    statistic_increment(connection_errors_internal, &LOCK_status);
   }
   sd_notify(0, "STOPPING=1\n"
             "STATUS=Shutdown in progress\n");
