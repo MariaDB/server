@@ -1131,6 +1131,8 @@ JOIN::prepare(TABLE_LIST *tables_init,
   proc_param= proc_param_init;
   tables_list= tables_init;
   select_lex= select_lex_arg;
+  DBUG_PRINT("info", ("select %p (%u) = JOIN %p",
+                      select_lex, select_lex->select_number, this));
   select_lex->join= this;
   join_list= &select_lex->top_join_list;
   union_part= unit_arg->is_unit_op();
@@ -4494,6 +4496,9 @@ int
 JOIN::destroy()
 {
   DBUG_ENTER("JOIN::destroy");
+
+  DBUG_PRINT("info", ("select %p (%u) <> JOIN %p",
+                      select_lex, select_lex->select_number, this));
   select_lex->join= 0;
 
   cond_equal= 0;

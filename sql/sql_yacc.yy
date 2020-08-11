@@ -2809,8 +2809,6 @@ create:
           {
             Lex->create_info.default_table_charset= NULL;
             Lex->create_info.used_fields= 0;
-            if (Lex->main_select_push())
-              MYSQL_YYABORT;
           }
           opt_create_database_options
           {
@@ -2819,7 +2817,6 @@ create:
                          $1 | $3)))
                MYSQL_YYABORT;
             lex->name= $4;
-            Lex->pop_select(); //main select
           }
         | create_or_replace definer_opt opt_view_suid VIEW_SYM
           opt_if_not_exists table_ident
@@ -3653,10 +3650,13 @@ sp_cursor_stmt:
           {
             DBUG_ASSERT(thd->free_list == NULL);
             Lex->sphead->reset_lex(thd, $1);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
           }
           select
           {
             DBUG_ASSERT(Lex == $1);
+            Lex->pop_select(); //main select
             if (unlikely($1->stmt_finalize(thd)) ||
                 unlikely($1->sphead->restore_lex(thd)))
               MYSQL_YYABORT;
@@ -4154,6 +4154,11 @@ sp_proc_stmt_statement:
             Lex_input_stream *lip= YYLIP;
 
             lex->sphead->reset_lex(thd);
+            /*
+              We should not push main select here, it will be done or not
+              done by the statement, we just provide only a new LEX for the
+              statement here as if it is start of parsing a new statement.
+            */
             lex->sphead->m_tmp_query= lip->get_tok_start();
           }
           statement
@@ -4172,11 +4177,16 @@ RETURN_ALLMODES_SYM:
 
 sp_proc_stmt_return:
           RETURN_ALLMODES_SYM
-          { Lex->sphead->reset_lex(thd); }
+          {
+            Lex->sphead->reset_lex(thd);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
+          }
           expr
           {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
+            Lex->pop_select(); //main select
             if (unlikely(sp->m_handler->add_instr_freturn(thd, sp, lex->spcont,
                                                           $3, lex)) ||
                 unlikely(sp->restore_lex(thd)))
@@ -4193,7 +4203,16 @@ sp_proc_stmt_return:
         ;
 
 reset_lex_expr:
-          { Lex->sphead->reset_lex(thd); } expr { $$= $2; }
+          {
+            Lex->sphead->reset_lex(thd);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
+          }
+          expr
+          {
+            Lex->pop_select(); //main select
+            $$= $2;
+          }
         ;
 
 sp_proc_stmt_exit_oracle:
@@ -4285,6 +4304,8 @@ assignment_source_expr:
           {
             DBUG_ASSERT(thd->free_list == NULL);
             Lex->sphead->reset_lex(thd, $1);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
           }
           expr
           {
@@ -4293,6 +4314,7 @@ assignment_source_expr:
             $$->sp_lex_in_use= true;
             $$->set_item_and_free_list($3, thd->free_list);
             thd->free_list= NULL;
+            Lex->pop_select(); //min select
             if ($$->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
@@ -4302,6 +4324,8 @@ for_loop_bound_expr:
           assignment_source_lex
           {
             Lex->sphead->reset_lex(thd, $1);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
             Lex->current_select->parsing_place= FOR_LOOP_BOUND;
           }
           expr
@@ -4310,6 +4334,7 @@ for_loop_bound_expr:
             $$= $1;
             $$->sp_lex_in_use= true;
             $$->set_item_and_free_list($3, NULL);
+            Lex->pop_select(); //main select
             if (unlikely($$->sphead->restore_lex(thd)))
               MYSQL_YYABORT;
             Lex->current_select->parsing_place= NO_MATTER;
@@ -4424,7 +4449,11 @@ sp_fetch_list:
         ;
 
 sp_if:
-          { Lex->sphead->reset_lex(thd); }
+          {
+            Lex->sphead->reset_lex(thd);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
+          }
           expr THEN_SYM
           {
             LEX *lex= Lex;
@@ -4438,6 +4467,7 @@ sp_if:
                 unlikely(sp->add_cont_backpatch(i)) ||
                 unlikely(sp->add_instr(i)))
               MYSQL_YYABORT;
+            Lex->pop_select(); //main select
             if (unlikely(sp->restore_lex(thd)))
               MYSQL_YYABORT;
           }
@@ -4538,12 +4568,17 @@ case_stmt_specification:
         ;
 
 case_stmt_body:
-          { Lex->sphead->reset_lex(thd); /* For expr $2 */ }
+          {
+            Lex->sphead->reset_lex(thd); /* For expr $2 */
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
+          }
           expr
           {
             if (unlikely(Lex->case_stmt_action_expr($2)))
               MYSQL_YYABORT;
 
+            Lex->pop_select(); //main select
             if (Lex->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
@@ -4567,6 +4602,8 @@ simple_when_clause:
           WHEN_SYM
           {
             Lex->sphead->reset_lex(thd); /* For expr $3 */
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
           }
           expr
           {
@@ -4575,6 +4612,7 @@ simple_when_clause:
             LEX *lex= Lex;
             if (unlikely(lex->case_stmt_action_when($3, true)))
               MYSQL_YYABORT;
+            Lex->pop_select(); //main select
             /* For expr $3 */
             if (unlikely(lex->sphead->restore_lex(thd)))
               MYSQL_YYABORT;
@@ -4591,12 +4629,15 @@ searched_when_clause:
           WHEN_SYM
           {
             Lex->sphead->reset_lex(thd); /* For expr $3 */
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
           }
           expr
           {
             LEX *lex= Lex;
             if (unlikely(lex->case_stmt_action_when($3, false)))
               MYSQL_YYABORT;
+            Lex->pop_select(); //main select
             /* For expr $3 */
             if (unlikely(lex->sphead->restore_lex(thd)))
               MYSQL_YYABORT;
@@ -4695,9 +4736,15 @@ opt_sp_for_loop_direction:
         ;
 
 sp_for_loop_index_and_bounds:
-          ident sp_for_loop_bounds
+          ident
           {
-            if (unlikely(Lex->sp_for_loop_declarations(thd, &$$, &$1, $2)))
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
+          }
+          sp_for_loop_bounds
+          {
+            Lex->pop_select(); //main select
+            if (unlikely(Lex->sp_for_loop_declarations(thd, &$$, &$1, $3)))
               MYSQL_YYABORT;
           }
         ;
@@ -4743,8 +4790,11 @@ while_body:
             LEX *lex= Lex;
             if (unlikely(lex->sp_while_loop_expression(thd, $1)))
               MYSQL_YYABORT;
+            Lex->pop_select(); //main select
             if (lex->sphead->restore_lex(thd))
               MYSQL_YYABORT;
+            if (lex->main_select_push(true))
+               MYSQL_YYABORT;
           }
           sp_proc_stmts1 END WHILE_SYM
           {
@@ -4755,7 +4805,11 @@ while_body:
 
 repeat_body:
           sp_proc_stmts1 UNTIL_SYM 
-          { Lex->sphead->reset_lex(thd); }
+          {
+            Lex->sphead->reset_lex(thd);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
+          }
           expr END REPEAT_SYM
           {
             LEX *lex= Lex;
@@ -4766,6 +4820,7 @@ repeat_body:
             if (unlikely(i == NULL) ||
                 unlikely(lex->sphead->add_instr(i)))
               MYSQL_YYABORT;
+            Lex->pop_select(); //main select
             if (lex->sphead->restore_lex(thd))
               MYSQL_YYABORT;
             /* We can shortcut the cont_backpatch here */
@@ -4794,6 +4849,8 @@ sp_labeled_control:
             if (unlikely(Lex->sp_push_loop_label(thd, &$1)))
               MYSQL_YYABORT;
             Lex->sphead->reset_lex(thd);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
           }
           while_body pop_sp_loop_label
           { }
@@ -4845,6 +4902,8 @@ sp_unlabeled_control:
             if (unlikely(Lex->sp_push_loop_empty_label(thd)))
               MYSQL_YYABORT;
             Lex->sphead->reset_lex(thd);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
           }
           while_body
           {
@@ -7816,7 +7875,7 @@ alter:
           {
             Lex->create_info.default_table_charset= NULL;
             Lex->create_info.used_fields= 0;
-            if (Lex->main_select_push())
+            if (Lex->main_select_push(true))
               MYSQL_YYABORT;
           }
           create_database_options
@@ -13265,7 +13324,7 @@ do:
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_DO;
-            if (lex->main_select_push())
+            if (lex->main_select_push(true))
               MYSQL_YYABORT;
             mysql_init_select(lex);
           }
@@ -16453,7 +16512,7 @@ set:
           SET
           {
             LEX *lex=Lex;
-            if (lex->main_select_push())
+            if (lex->main_select_push(true))
               MYSQL_YYABORT;
             lex->set_stmt_init();
             lex->var_list.empty();

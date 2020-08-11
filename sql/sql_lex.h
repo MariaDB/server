@@ -1249,6 +1249,8 @@ public:
   bool no_wrap_view_item;
   /* exclude this select from check of unique_table() */
   bool exclude_from_table_unique_test;
+  /* the select is "service-select" and can not have tables*/
+  bool is_service_select;
   /* index in the select list of the expression currently being fixed */
   int cur_pos_in_select_list;
 
@@ -4413,7 +4415,7 @@ public:
   SELECT_LEX_UNIT *create_unit(SELECT_LEX*);
   SELECT_LEX *wrap_unit_into_derived(SELECT_LEX_UNIT *unit);
   SELECT_LEX *wrap_select_chain_into_derived(SELECT_LEX *sel);
-  bool main_select_push();
+  bool main_select_push(bool service= false);
   bool insert_select_hack(SELECT_LEX *sel);
   SELECT_LEX *create_priority_nest(SELECT_LEX *first_in_nest);
 
@@ -4530,6 +4532,16 @@ public:
                      Lex_field_type_st *type) const;
 
   void mark_first_table_as_inserting();
+
+  bool fields_are_impossible()
+  {
+    // no select or it is last select with no tables (service select)
+    return !select_stack_head() ||
+           (select_stack_top == 1 &&
+            select_stack[0]->is_service_select);
+  }
+
+
 };
 
 

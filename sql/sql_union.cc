@@ -2080,6 +2080,8 @@ bool st_select_lex::cleanup()
   bool error= FALSE;
   DBUG_ENTER("st_select_lex::cleanup()");
 
+  DBUG_PRINT("info", ("select: %p (%u)  JOIN %p",
+                      this, select_number, join));
   cleanup_order(order_list.first);
   cleanup_order(group_list.first);
   cleanup_ftfuncs(this);
