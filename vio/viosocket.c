@@ -31,8 +31,6 @@
   #include <mstcpip.h>
   #pragma comment(lib, "ws2_32.lib")
 #endif
-#include "my_context.h"
-#include <mysql_async.h>
 
 #ifdef FIONREAD_IN_SYS_FILIO
 # include <sys/filio.h>
@@ -171,34 +169,18 @@ size_t vio_read(Vio *vio, uchar *buf, size_t size)
   if (vio->read_timeout >= 0)
     flags= VIO_DONTWAIT;
 
-  if (vio->async_context && vio->async_context->active)
-    ret= my_recv_async(vio->async_context,
-                       mysql_socket_getfd(vio->mysql_socket),
-                       buf, size, vio->read_timeout);
-  else
+  while ((ret= mysql_socket_recv(vio->mysql_socket, (SOCKBUF_T *)buf, size,
+                                  flags)) == -1)
   {
-    if (vio->async_context)
-    {
-      /*
-        If switching from non-blocking to blocking API usage, set the socket
-        back to blocking mode.
-      */
-      my_bool old_mode;
-      vio_blocking(vio, TRUE, &old_mode);
-    }
-    while ((ret= mysql_socket_recv(vio->mysql_socket, (SOCKBUF_T *)buf, size,
-                                   flags)) == -1)
-    {
-      int error= socket_errno;
+    int error= socket_errno;
 
-      /* The operation would block? */
-      if (error != SOCKET_EAGAIN && error != SOCKET_EWOULDBLOCK)
-        break;
+    /* The operation would block? */
+    if (error != SOCKET_EAGAIN && error != SOCKET_EWOULDBLOCK)
+      break;
 
-      /* Wait for input data to become available. */
-      if ((ret= vio_socket_io_wait(vio, VIO_IO_EVENT_READ)))
-        break;
-    }
+    /* Wait for input data to become available. */
+    if ((ret= vio_socket_io_wait(vio, VIO_IO_EVENT_READ)))
+      break;
   }
 #ifndef DBUG_OFF
   if (ret == -1)
@@ -282,33 +264,17 @@ size_t vio_write(Vio *vio, const uchar* buf, size_t size)
   if (vio->write_timeout >= 0)
     flags= VIO_DONTWAIT;
 
-  if (vio->async_context && vio->async_context->active)
-    ret= my_send_async(vio->async_context,
-                     mysql_socket_getfd(vio->mysql_socket), buf, size,
-                     vio->write_timeout);
-  else
+  while ((ret= mysql_socket_send(vio->mysql_socket, (SOCKBUF_T *)buf, size,
+                                  flags)) == -1)
   {
-    if (vio->async_context)
-    {
-      /*
-        If switching from non-blocking to blocking API usage, set the socket
-        back to blocking mode.
-      */
-      my_bool old_mode;
-      vio_blocking(vio, TRUE, &old_mode);
-    }
-    while ((ret= mysql_socket_send(vio->mysql_socket, (SOCKBUF_T *)buf, size,
-                                   flags)) == -1)
-    {
-      int error= socket_errno;
-      /* The operation would block? */
-      if (error != SOCKET_EAGAIN && error != SOCKET_EWOULDBLOCK)
-        break;
+    int error= socket_errno;
+    /* The operation would block? */
+    if (error != SOCKET_EAGAIN && error != SOCKET_EWOULDBLOCK)
+      break;
 
-      /* Wait for the output buffer to become writable.*/
-      if ((ret= vio_socket_io_wait(vio, VIO_IO_EVENT_WRITE)))
-        break;
-    }
+    /* Wait for the output buffer to become writable.*/
+    if ((ret= vio_socket_io_wait(vio, VIO_IO_EVENT_WRITE)))
+      break;
   }
 #ifndef DBUG_OFF
   if (ret == -1)
@@ -953,24 +919,6 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   DBUG_ENTER("vio_io_wait");
   DBUG_PRINT("enter", ("timeout: %d", timeout));
 
-  /*
-    Note that if zero timeout, then we will not block, so we do not need to
-    yield to calling application in the async case.
-  */
-  if (timeout != 0 && vio->async_context && vio->async_context->active)
-  {
-    START_SOCKET_WAIT(locker, &state, vio->mysql_socket,
-                            PSI_SOCKET_SELECT, timeout);
-    ret= my_io_wait_async(vio->async_context, event, timeout);
-    if (ret == 0)
-    {
-      DBUG_PRINT("info", ("timeout"));
-      errno= SOCKET_ETIMEDOUT;
-    }
-    END_SOCKET_WAIT(locker,timeout);
-    DBUG_RETURN(ret);
-  }
-
   memset(&pfd, 0, sizeof(pfd));
 
   pfd.fd= sd;
@@ -1031,21 +979,6 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   fd_set readfds, writefds, exceptfds;
   MYSQL_SOCKET_WAIT_VARIABLES(locker, state) /* no ';' */
   DBUG_ENTER("vio_io_wait");
-
-  /*
-    Note that if zero timeout, then we will not block, so we do not need to
-    yield to calling application in the async case.
-  */
-  if (timeout != 0 && vio->async_context && vio->async_context->active)
-  {
-    START_SOCKET_WAIT(locker, &state, vio->mysql_socket,
-                            PSI_SOCKET_SELECT, timeout);
-    ret= my_io_wait_async(vio->async_context, event, timeout);
-    if (ret == 0)
-      WSASetLastError(SOCKET_ETIMEDOUT);
-    END_SOCKET_WAIT(locker, timeout);
-    DBUG_RETURN(ret);
-  }
 
   /* Convert the timeout, in milliseconds, to seconds and microseconds. */
   if (timeout >= 0)

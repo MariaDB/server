@@ -139,7 +139,6 @@ SET (SQL_SOURCE
                opt_index_cond_pushdown.cc opt_subselect.cc
                opt_table_elimination.cc sql_expression_cache.cc
                gcalc_slicescan.cc gcalc_tools.cc
-               ../sql-common/mysql_async.c
                my_apc.cc mf_iocache_encr.cc item_jsonfunc.cc
                my_json_writer.cc
                rpl_gtid.cc rpl_parallel.cc

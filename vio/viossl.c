@@ -21,8 +21,6 @@
 */
 
 #include "vio_priv.h"
-#include "my_context.h"
-#include <mysql_async.h>
 
 #ifdef HAVE_OPENSSL
 
@@ -129,21 +127,17 @@ size_t vio_ssl_read(Vio *vio, uchar *buf, size_t size)
 		       (int)mysql_socket_getfd(vio->mysql_socket), buf, size,
                        vio->ssl_arg));
 
-  if (vio->async_context && vio->async_context->active)
-    ret= my_ssl_read_async(vio->async_context, (SSL *)vio->ssl_arg, buf, (int)size);
-  else
+
+  while ((ret= SSL_read(ssl, buf, (int)size)) < 0)
   {
-    while ((ret= SSL_read(ssl, buf, (int)size)) < 0)
-    {
-      enum enum_vio_io_event event;
+    enum enum_vio_io_event event;
       
-      /* Process the SSL I/O error. */
-      if (!ssl_should_retry(vio, ret, &event))
-        break;
-      /* Attempt to wait for an I/O event. */
-      if (vio_socket_io_wait(vio, event))
-        break;
-    }
+    /* Process the SSL I/O error. */
+    if (!ssl_should_retry(vio, ret, &event))
+      break;
+    /* Attempt to wait for an I/O event. */
+    if (vio_socket_io_wait(vio, event))
+      break;
   }
 
   DBUG_PRINT("exit", ("%d", (int) ret));
@@ -160,24 +154,17 @@ size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
   DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %zu",
                        (int)mysql_socket_getfd(vio->mysql_socket),
                        buf, size));
-
-  if (vio->async_context && vio->async_context->active)
-    ret= my_ssl_write_async(vio->async_context, (SSL *)vio->ssl_arg, buf,
-                            (int)size);
-  else
+  while ((ret= SSL_write(ssl, buf, (int)size)) < 0)
   {
-    while ((ret= SSL_write(ssl, buf, (int)size)) < 0)
-    {
-      enum enum_vio_io_event event;
+    enum enum_vio_io_event event;
 
-      /* Process the SSL I/O error. */
-      if (!ssl_should_retry(vio, ret, &event))
-        break;
+    /* Process the SSL I/O error. */
+    if (!ssl_should_retry(vio, ret, &event))
+      break;
 
-      /* Attempt to wait for an I/O event. */
-      if (vio_socket_io_wait(vio, event))
-        break;
-    }
+    /* Attempt to wait for an I/O event. */
+    if (vio_socket_io_wait(vio, event))
+      break;
   }
 
   DBUG_RETURN(ret < 0 ? -1 : ret);
