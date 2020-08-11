@@ -1,0 +1,17 @@
+--- mysql-test/main/information_schema.result
++++ mysql-test/main/information_schema.result
+@@ -2208,9 +2208,11 @@
+ # Diagnostics_area::sql_errno upon query from I_S with LIMIT ROWS EXAMINED
+ #
+ SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
+-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
+-Warnings:
+-Warning	1931	Query execution was interrupted. The query examined at least 671 rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
++ERROR HY000: Unknown error
++SHOW WARNINGS;
++Level	Code	Message
++Error	1105	Unknown error
++Warning	1931	Query execution was interrupted. The query examined at least 11 rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
+ #
+ # End of 10.2 Test
+ #

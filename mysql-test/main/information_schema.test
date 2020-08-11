@@ -20,6 +20,8 @@
 --source include/default_optimizer_switch.inc
 --source include/default_charset.inc
 
+--source include/maybe_debug.inc
+
 set global sql_mode="";
 set local sql_mode="";
 
@@ -1930,9 +1932,14 @@ SELECT SCHEMA_NAME from information_schema.schemata where schema_name=REPEAT('a'
 --echo # Diagnostics_area::sql_errno upon query from I_S with LIMIT ROWS EXAMINED
 --echo #
 
+if ($have_debug) {
 --error ER_UNKNOWN_ERROR
 SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
 SHOW WARNINGS;
+}
+if (!$have_debug) {
+SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
+}
 
 --echo #
 --echo # End of 10.2 Test
