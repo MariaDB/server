@@ -3579,7 +3579,7 @@ void Log_event::print_base64(IO_CACHE* file,
 #ifdef WHEN_FLASHBACK_REVIEW_READY
       ev->need_flashback_review= need_flashback_review;
       if (print_event_info->verbose)
-        ev->print_verbose(file, print_event_info);
+        ev->print_verbose(&print_event_info->tail_cache, print_event_info);
       else
       {
         IO_CACHE tmp_cache;
@@ -3589,18 +3589,7 @@ void Log_event::print_base64(IO_CACHE* file,
       }
 #else
       if (print_event_info->verbose)
-      {
-        /*
-          Verbose event printout can't start before encoded data
-          got enquoted. This is done at this point though multi-row
-          statement remain vulnerable.
-          TODO: fix MDEV-10362 to remove this workaround.
-        */
-        if (print_event_info->base64_output_mode !=
-            BASE64_OUTPUT_DECODE_ROWS)
-          my_b_printf(file, "'%s\n", print_event_info->delimiter);
-        ev->print_verbose(file, print_event_info);
-      }
+        ev->print_verbose(&print_event_info->tail_cache, print_event_info);
 #endif
       delete ev;
     }
@@ -11538,11 +11527,8 @@ void copy_cache_to_string_wrapped(IO_CACHE *cache,
     str_tmp.length= sprintf(str_tmp.str, fmt_frag, 1);
     ret.append(&str_tmp);
     ret.append(cache, uint32(cache->end_of_file - (cache_size/2 + 1)));
-    if (!is_verbose)
-    {
-      str_tmp.length= sprintf(str_tmp.str, fmt_delim, delimiter);
-      ret.append(&str_tmp);
-    }
+    str_tmp.length= sprintf(str_tmp.str, fmt_delim, delimiter);
+    ret.append(&str_tmp);
     str_tmp.length= sprintf(str_tmp.str, "BINLOG @binlog_fragment_0, @binlog_fragment_1%s\n",
                             delimiter);
     ret.append(&str_tmp);
@@ -11552,11 +11538,8 @@ void copy_cache_to_string_wrapped(IO_CACHE *cache,
     str_tmp.length= sprintf(str_tmp.str, str_binlog);
     ret.append(&str_tmp);
     ret.append(cache, (uint32) cache->end_of_file);
-    if (!is_verbose)
-    {
-      str_tmp.length= sprintf(str_tmp.str, fmt_delim, delimiter);
-      ret.append(&str_tmp);
-    }
+    str_tmp.length= sprintf(str_tmp.str, fmt_delim, delimiter);
+    ret.append(&str_tmp);
   }
 
   to->length= ret.length();
@@ -11605,6 +11588,7 @@ void Rows_log_event::print_helper(FILE *file,
 {
   IO_CACHE *const head= &print_event_info->head_cache;
   IO_CACHE *const body= &print_event_info->body_cache;
+  IO_CACHE *const tail= &print_event_info->tail_cache;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   IO_CACHE *const sql= &print_event_info->review_sql_cache;
 #endif
@@ -11644,6 +11628,13 @@ void Rows_log_event::print_helper(FILE *file,
     copy_cache_to_string_wrapped(body, &tmp_str,  do_print_encoded,
                                  print_event_info->delimiter,
                                  print_event_info->verbose);
+    output_buf.append(&tmp_str);
+    my_free(tmp_str.str);
+    if (copy_event_cache_to_string_and_reinit(tail, &tmp_str))
+    {
+      tail->error= -1;
+      return;
+    }
     output_buf.append(&tmp_str);
     my_free(tmp_str.str);
   }
@@ -14316,6 +14307,7 @@ st_print_event_info::st_print_event_info()
   myf const flags = MYF(MY_WME | MY_NABP);
   open_cached_file(&head_cache, NULL, NULL, 0, flags);
   open_cached_file(&body_cache, NULL, NULL, 0, flags);
+  open_cached_file(&tail_cache, NULL, NULL, 0, flags);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   open_cached_file(&review_sql_cache, NULL, NULL, 0, flags);
 #endif

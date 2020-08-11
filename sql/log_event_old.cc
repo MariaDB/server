@@ -1859,6 +1859,7 @@ void Old_rows_log_event::print_helper(FILE *file,
 {
   IO_CACHE *const head= &print_event_info->head_cache;
   IO_CACHE *const body= &print_event_info->body_cache;
+  IO_CACHE *const tail= &print_event_info->tail_cache;
   bool do_print_encoded=
     print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
     !print_event_info->short_form;
@@ -1888,6 +1889,13 @@ void Old_rows_log_event::print_helper(FILE *file,
     copy_cache_to_string_wrapped(body, &tmp_str,  do_print_encoded,
                                  print_event_info->delimiter,
                                  print_event_info->verbose);
+    output_buf.append(&tmp_str);
+    my_free(tmp_str.str);
+    if (copy_event_cache_to_string_and_reinit(tail, &tmp_str))
+    {
+      tail->error= -1;
+      return;
+    }
     output_buf.append(&tmp_str);
     my_free(tmp_str.str);
   }

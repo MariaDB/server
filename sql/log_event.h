@@ -848,17 +848,18 @@ typedef struct st_print_event_info
   ~st_print_event_info() {
     close_cached_file(&head_cache);
     close_cached_file(&body_cache);
+    close_cached_file(&tail_cache);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
     close_cached_file(&review_sql_cache);
 #endif
   }
   bool init_ok() /* tells if construction was successful */
-    { return my_b_inited(&head_cache) && my_b_inited(&body_cache)
+    { return my_b_inited(&head_cache) && my_b_inited(&body_cache) &&
+             my_b_inited(&tail_cache)
 #ifdef WHEN_FLASHBACK_REVIEW_READY
       && my_b_inited(&review_sql_cache)
 #endif
     ; }
-
 
   /* Settings on how to print the events */
   bool short_form;
@@ -885,6 +886,7 @@ typedef struct st_print_event_info
    */
   IO_CACHE head_cache;
   IO_CACHE body_cache;
+  IO_CACHE tail_cache;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   /* Storing the SQL for reviewing */
   IO_CACHE review_sql_cache;
