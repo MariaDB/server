@@ -32,10 +32,12 @@ drop table t1;
 # Test insert of now() and curtime()
 #
 
+SET TIMESTAMP=UNIX_TIMESTAMP('2020-08-11 00:00:01');
 CREATE TABLE t1 (a timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, b date, c time, d datetime);
 insert into t1 (b,c,d) values(now(),curtime(),now());
 select date_format(a,"%Y-%m-%d")=b,right(a+0,6)=c+0,a=d+0 from t1;
 drop table t1;
+SET TIMESTAMP=DEFAULT;
 
 #
 # Test of datetime and not null
@@ -201,6 +203,7 @@ drop table t1;
 #
 # Bug#16377: Wrong DATE/DATETIME comparison in BETWEEN function.
 #
+
 create table t1 (f1 date, f2 datetime, f3 timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
 insert into t1 values('2001-01-01','2001-01-01 01:01:01','2001-01-01 01:01:01');
 insert into t1 values('2001-02-05','2001-02-05 00:00:00','2001-02-05 01:01:01');
@@ -214,7 +217,9 @@ select f1, f2, f3 from t1 where cast(f1 as datetime) between f2 and
 select f2 from t1 where '2001-04-10 12:34:56' between f2 and '01-05-01';
 select f2, f3 from t1 where '01-03-10' between f2 and f3;
 select f2 from t1 where DATE(f2) between "2001-4-15" AND "01-4-15";
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 00:00:01');
 SELECT 1 from dual where NOW() BETWEEN CURRENT_DATE() - INTERVAL 1 DAY AND CURRENT_DATE();
+SET timestamp=DEFAULT;
 drop table t1;
 
 #
