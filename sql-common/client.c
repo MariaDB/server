@@ -100,8 +100,6 @@ my_bool	net_flush(NET *net);
 #include <ssl_compat.h>
 #include <sql_common.h>
 #include <mysql/client_plugin.h>
-#include <my_context.h>
-#include <mysql_async.h>
 
 typedef enum {
   ALWAYS_ACCEPT,       /* heuristics is disabled, use CLIENT_LOCAL_FILES */
@@ -2607,19 +2605,10 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
 
 
 static int
-connect_sync_or_async(MYSQL *mysql, NET *net, my_socket fd,
+connect_sync(MYSQL *mysql, NET *net, my_socket fd,
                       struct sockaddr *name, uint namelen)
 {
   int vio_timeout = get_vio_connect_timeout(mysql);
-
-  if (mysql->options.extension && mysql->options.extension->async_context &&
-      mysql->options.extension->async_context->active)
-  {
-    my_bool old_mode;
-    vio_blocking(net->vio, FALSE, &old_mode);
-    return my_connect_async(mysql->options.extension->async_context, fd,
-                            name, namelen, vio_timeout);
-  }
 
   return vio_socket_connect(net->vio, name, namelen, vio_timeout);
 }
@@ -2787,7 +2776,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     bzero((char*) &UNIXaddr, sizeof(UNIXaddr));
     UNIXaddr.sun_family= AF_UNIX;
     strmake_buf(UNIXaddr.sun_path, unix_socket);
-    if (connect_sync_or_async(mysql, net, sock,
+    if (connect_sync(mysql, net, sock,
                               (struct sockaddr *) &UNIXaddr, sizeof(UNIXaddr)))
     {
       DBUG_PRINT("error",("Got error %d on connect to local server",
@@ -2902,7 +2891,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
       }
 
       DBUG_PRINT("info", ("Connect socket"));
-      status= connect_sync_or_async(mysql, net, sock,
+      status= connect_sync(mysql, net, sock,
                                     t_res->ai_addr, (uint)t_res->ai_addrlen);
       /*
         Here we rely on my_connect() to return success only if the
@@ -2951,9 +2940,6 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     set_mysql_error(mysql, CR_CONN_UNKNOW_PROTOCOL, unknown_sqlstate);
     goto error;
   }
-
-  if (mysql->options.extension && mysql->options.extension->async_context)
-    net->vio->async_context= mysql->options.extension->async_context;
 
   if (my_net_init(net, net->vio, _current_thd(), MYF(0)))
   {
@@ -3195,42 +3181,16 @@ error:
     /* Free alloced memory */
     end_server(mysql);
     mysql_close_free(mysql);
-    if (!(client_flag & CLIENT_REMEMBER_OPTIONS) &&
-        !(mysql->options.extension && mysql->options.extension->async_context))
+    if (!(client_flag & CLIENT_REMEMBER_OPTIONS))
       mysql_close_free_options(mysql);
   }
   DBUG_RETURN(0);
 }
 
 
-struct my_hook_data {
-  MYSQL *orig_mysql;
-  MYSQL *new_mysql;
-  /* This is always NULL currently, but restoring does not hurt just in case. */
-  Vio *orig_vio;
-};
-/*
-  Callback hook to make the new VIO accessible via the old MYSQL to calling
-  application when suspending a non-blocking call during automatic reconnect.
-*/
-static void
-my_suspend_hook(my_bool suspend, void *data)
-{
-  struct my_hook_data *hook_data= (struct my_hook_data *)data;
-  if (suspend)
-  {
-    hook_data->orig_vio= hook_data->orig_mysql->net.vio;
-    hook_data->orig_mysql->net.vio= hook_data->new_mysql->net.vio;
-  }
-  else
-    hook_data->orig_mysql->net.vio= hook_data->orig_vio;
-}
-
 my_bool mysql_reconnect(MYSQL *mysql)
 {
   MYSQL tmp_mysql;
-  struct my_hook_data hook_data;
-  struct mysql_async_context *ctxt= NULL;
   DBUG_ENTER("mysql_reconnect");
   DBUG_ASSERT(mysql);
   DBUG_PRINT("enter", ("mysql->reconnect: %d", mysql->reconnect));
@@ -3247,31 +3207,11 @@ my_bool mysql_reconnect(MYSQL *mysql)
   tmp_mysql.options= mysql->options;
   tmp_mysql.options.my_cnf_file= tmp_mysql.options.my_cnf_group= 0;
 
-  /*
-    If we are automatically re-connecting inside a non-blocking API call, we
-    may need to suspend and yield to the user application during the reconnect.
-    If so, the user application will need access to the new VIO already then
-    so that it can correctly wait for I/O to become ready.
-    To achieve this, we temporarily install a hook that will temporarily put in
-    the VIO while we are suspended.
-    (The vio will be put in the original MYSQL permanently once we successfully
-    reconnect, or be discarded if we fail to reconnect.)
-  */
-  if (mysql->options.extension &&
-      (ctxt= mysql->options.extension->async_context) &&
-      mysql->options.extension->async_context->active)
-  {
-    hook_data.orig_mysql= mysql;
-    hook_data.new_mysql= &tmp_mysql;
-    hook_data.orig_vio= mysql->net.vio;
-    my_context_install_suspend_resume_hook(ctxt, my_suspend_hook, &hook_data);
-  }
+
   if (!mysql_real_connect(&tmp_mysql,mysql->host,mysql->user,mysql->passwd,
 			  mysql->db, mysql->port, mysql->unix_socket,
 			  mysql->client_flag | CLIENT_REMEMBER_OPTIONS))
   {
-    if (ctxt)
-      my_context_install_suspend_resume_hook(ctxt, NULL, NULL);
     mysql->net.last_errno= tmp_mysql.net.last_errno;
     strmov(mysql->net.last_error, tmp_mysql.net.last_error);
     strmov(mysql->net.sqlstate, tmp_mysql.net.sqlstate);
@@ -3282,15 +3222,11 @@ my_bool mysql_reconnect(MYSQL *mysql)
     DBUG_PRINT("error", ("mysql_set_character_set() failed"));
     bzero((char*) &tmp_mysql.options,sizeof(tmp_mysql.options));
     mysql_close(&tmp_mysql);
-    if (ctxt)
-      my_context_install_suspend_resume_hook(ctxt, NULL, NULL);
     mysql->net.last_errno= tmp_mysql.net.last_errno;
     strmov(mysql->net.last_error, tmp_mysql.net.last_error);
     strmov(mysql->net.sqlstate, tmp_mysql.net.sqlstate);
     DBUG_RETURN(1);
   }
-  if (ctxt)
-    my_context_install_suspend_resume_hook(ctxt, NULL, NULL);
 
   DBUG_PRINT("info", ("reconnect succeeded"));
   tmp_mysql.reconnect= 1;
@@ -3365,15 +3301,9 @@ static void mysql_close_free_options(MYSQL *mysql)
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
   if (mysql->options.extension)
   {
-    struct mysql_async_context *ctxt= mysql->options.extension->async_context;
     my_free(mysql->options.extension->plugin_dir);
     my_free(mysql->options.extension->default_auth);
     my_hash_free(&mysql->options.extension->connection_attributes);
-    if (ctxt)
-    {
-      my_context_destroy(&ctxt->async_context);
-      my_free(ctxt);
-    }
     my_free(mysql->options.extension);
   }
   bzero((char*) &mysql->options,sizeof(mysql->options));
@@ -3806,15 +3736,9 @@ mysql_fetch_lengths(MYSQL_RES *res)
   return res->lengths;
 }
 
-
-#define ASYNC_CONTEXT_DEFAULT_STACK_SIZE (4096*15)
-
 int STDCALL
 mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
 {
-  struct mysql_async_context *ctxt;
-  size_t stacksize;
-
   DBUG_ENTER("mysql_options");
   DBUG_PRINT("enter",("option: %d",(int) option));
   switch (option) {
@@ -3910,39 +3834,6 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
         (void (*)(const MYSQL *, uint, uint, double, const char *, uint)) arg;
     break;
   case MYSQL_OPT_NONBLOCK:
-    if (mysql->options.extension &&
-        (ctxt = mysql->options.extension->async_context) != 0)
-    {
-      /*
-        We must not allow changing the stack size while a non-blocking call is
-        suspended (as the stack is then in use).
-      */
-      if (ctxt->suspended)
-        DBUG_RETURN(1);
-      my_context_destroy(&ctxt->async_context);
-      my_free(ctxt);
-    }
-    if (!(ctxt= (struct mysql_async_context *)
-          my_malloc(PSI_INSTRUMENT_ME, sizeof(*ctxt), MYF(MY_ZEROFILL))))
-    {
-      set_mysql_error(mysql, CR_OUT_OF_MEMORY, unknown_sqlstate);
-      DBUG_RETURN(1);
-    }
-    stacksize= 0;
-    if (arg)
-      stacksize= *(const size_t *)arg;
-    if (!stacksize)
-      stacksize= ASYNC_CONTEXT_DEFAULT_STACK_SIZE;
-    if (my_context_init(&ctxt->async_context, stacksize))
-    {
-      set_mysql_error(mysql, CR_OUT_OF_MEMORY, unknown_sqlstate);
-      my_free(ctxt);
-      DBUG_RETURN(1);
-    }
-    ENSURE_EXTENSIONS_PRESENT(&(mysql->options));
-    mysql->options.extension->async_context= ctxt;
-    if (mysql->net.vio)
-      mysql->net.vio->async_context= ctxt;
     break;
   case MYSQL_OPT_SSL_KEY:
     SET_SSL_PATH_OPTION(&mysql->options,ssl_key, arg);
