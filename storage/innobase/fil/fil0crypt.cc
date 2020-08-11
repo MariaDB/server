@@ -1388,29 +1388,34 @@ the encryption parameters were changed
 inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
                                                  bool recheck, bool encrypt)
 {
-  ut_ad(mutex_own(&fil_system->mutex));
+  ut_ad(mutex_own(&mutex));
 
   sized_ilist<fil_space_t, rotation_list_tag_t>::iterator it=
-    space ? space : fil_system->rotation_list.begin();
+    space && space->is_in_rotation_list ? space : rotation_list.begin();
   const sized_ilist<fil_space_t, rotation_list_tag_t>::iterator end=
-    fil_system->rotation_list.end();
+    rotation_list.end();
 
   if (space)
   {
-    while (++it != end && (!UT_LIST_GET_LEN(it->chain) || it->is_stopping()));
+    const bool released= !--space->n_pending_ops;
 
-    /* If one of the encryption threads already started the encryption
-    of the table then don't remove the unencrypted spaces from rotation list
-
-    If there is a change in innodb_encrypt_tables variables value then
-    don't remove the last processed tablespace from the rotation list. */
-    if (!--space->n_pending_ops &&
-        (!recheck || space->crypt_data) && !encrypt == !srv_encrypt_tables &&
-        space->is_in_rotation_list)
+    if (space->is_in_rotation_list)
     {
-      ut_a(!fil_system->rotation_list.empty());
-      fil_system->rotation_list.remove(*space);
-      space->is_in_rotation_list= false;
+      while (++it != end &&
+             (!UT_LIST_GET_LEN(it->chain) || it->is_stopping()));
+
+      /* If one of the encryption threads already started the encryption
+      of the table then don't remove the unencrypted spaces from rotation list
+
+      If there is a change in innodb_encrypt_tables variables value then
+      don't remove the last processed tablespace from the rotation list. */
+      if (released && (!recheck || space->crypt_data) &&
+          !encrypt == !srv_encrypt_tables)
+      {
+        ut_a(!rotation_list.empty());
+        rotation_list.remove(*space);
+        space->is_in_rotation_list= false;
+      }
     }
   }
 
