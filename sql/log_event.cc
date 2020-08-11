@@ -2865,10 +2865,10 @@ void Log_event::print_base64(IO_CACHE* file,
     default:
       break;
     }
-    
+
     if (ev)
     {
-      ev->print_verbose(file, print_event_info);
+      ev->print_verbose(&print_event_info->tail_cache, print_event_info);
       delete ev;
     }
   }
@@ -10671,6 +10671,7 @@ void Rows_log_event::print_helper(FILE *file,
 {
   IO_CACHE *const head= &print_event_info->head_cache;
   IO_CACHE *const body= &print_event_info->body_cache;
+  IO_CACHE *const tail= &print_event_info->tail_cache;
   bool do_print_encoded=
     print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
     !print_event_info->short_form;
@@ -10694,6 +10695,11 @@ void Rows_log_event::print_helper(FILE *file,
     }
     copy_cache_to_file_wrapped(file, body, do_print_encoded,
                                print_event_info->delimiter);
+    if (copy_event_cache_to_file_and_reinit(tail, file))
+    {
+      tail->error= -1;
+      return;
+    }
   }
 }
 #endif
@@ -13220,6 +13226,7 @@ st_print_event_info::st_print_event_info()
   myf const flags = MYF(MY_WME | MY_NABP);
   open_cached_file(&head_cache, NULL, NULL, 0, flags);
   open_cached_file(&body_cache, NULL, NULL, 0, flags);
+  open_cached_file(&tail_cache, NULL, NULL, 0, flags);
 }
 #endif
 

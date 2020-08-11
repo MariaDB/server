@@ -781,9 +781,12 @@ typedef struct st_print_event_info
   ~st_print_event_info() {
     close_cached_file(&head_cache);
     close_cached_file(&body_cache);
+    close_cached_file(&tail_cache);
   }
   bool init_ok() /* tells if construction was successful */
-    { return my_b_inited(&head_cache) && my_b_inited(&body_cache); }
+    { return my_b_inited(&head_cache) &&
+             my_b_inited(&body_cache) &&
+             my_b_inited(&tail_cache); }
 
 
   /* Settings on how to print the events */
@@ -811,6 +814,7 @@ typedef struct st_print_event_info
    */
   IO_CACHE head_cache;
   IO_CACHE body_cache;
+  IO_CACHE tail_cache;
 } PRINT_EVENT_INFO;
 #endif
 

@@ -11,7 +11,7 @@ SELECT a from t into @a;
 FLUSH LOGS;
 DELETE FROM t;
 
---exec $MYSQL_BINLOG --debug-binlog-row-event-max-encoded-size=256 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--exec $MYSQL_BINLOG --verbose --debug-binlog-row-event-max-encoded-size=256 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
 
 --let SEARCH_PATTERN= BINLOG @binlog_fragment_0, @binlog_fragment_1
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
