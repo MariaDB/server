@@ -1117,9 +1117,19 @@ public:
   bool native_op(THD *thd, Native *to);
   bool fix_length_and_dec()
   {
+    /*
+      Set nullability from args[1] by default.
+      Note, some type handlers may reset maybe_null
+      in Item_hybrid_func_fix_attributes() if args[1]
+      is NOT NULL but cannot always be converted to
+      the data type of "this" safely.
+      E.g. Type_handler_inet6 does:
+        IFNULL(inet6_not_null_expr, 'foo') -> INET6 NULL
+        IFNULL(inet6_not_null_expr, '::1') -> INET6 NOT NULL
+    */
+    maybe_null= args[1]->maybe_null;
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
       return TRUE;
-    maybe_null= args[1]->maybe_null;
     return FALSE;
   }
   const char *func_name() const { return "ifnull"; }

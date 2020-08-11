@@ -2120,3 +2120,42 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 DROP TABLE t1;
+#
+# MDEV-22758 Assertion `!item->null_value' failed in Type_handler_inet6::make_sort_key_part
+#
+CREATE TABLE t1 (c INET6);
+INSERT INTO t1 VALUES ('::'),(NULL);
+SELECT * FROM t1 ORDER BY IFNULL(c, 'foo');
+c
+NULL
+::
+Warnings:
+Warning	1292	Incorrect inet6 value: 'foo'
+DROP TABLE t1;
+CREATE TABLE t1 (c INET6);
+INSERT INTO t1 VALUES ('::'),(NULL);
+CREATE TABLE t2 AS SELECT IFNULL(c, 'foo') FROM t1;
+Warnings:
+Warning	1292	Incorrect inet6 value: 'foo'
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IFNULL(c, 'foo')` inet6 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2;
+IFNULL(c, 'foo')
+::
+NULL
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT IFNULL(c, '::1') FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IFNULL(c, '::1')` inet6 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2;
+IFNULL(c, '::1')
+::
+::1
+DROP TABLE t2;
+DROP TABLE t1;

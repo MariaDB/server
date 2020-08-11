@@ -720,7 +720,17 @@ public:
   {
     attr->Type_std_attributes::operator=(Type_std_attributes_inet6());
     h->set_handler(this);
-    for (uint i= 0; i < nitems; i++)
+    /*
+      If some of the arguments cannot be safely converted to "INET6 NOT NULL",
+      then mark the entire function nullability as NULL-able.
+      Otherwise, keep the generic nullability calculated by earlier stages:
+      - either by the most generic way in Item_func::fix_fields()
+      - or by Item_func_xxx::fix_length_and_dec() before the call of
+        Item_hybrid_func_fix_attributes()
+      IFNULL() is special. It does not need to test args[0].
+    */
+    uint first= dynamic_cast<Item_func_ifnull*>(attr) ? 1 : 0;
+    for (uint i= first; i < nitems; i++)
     {
       if (Inet6::fix_fields_maybe_null_on_conversion_to_inet6(items[i]))
       {
