@@ -937,19 +937,17 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
   }
   else if (part->key_part_flag & HA_BLOB_PART)
   {
-    String blob;
     uint blob_length= uint2korr(ptr);
-    blob.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
-                   blob_length, &my_charset_bin);
+    String blob((char*) ptr+HA_KEY_BLOB_LENGTH,
+                blob_length, &my_charset_bin);
     if (to->append_for_single_quote(&blob))
       DBUG_RETURN(1);
   }
   else if (part->key_part_flag & HA_VAR_LENGTH_PART)
   {
-    String varchar;
     uint var_length= uint2korr(ptr);
-    varchar.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
-                      var_length, &my_charset_bin);
+    String varchar((char*) ptr+HA_KEY_BLOB_LENGTH,
+                   var_length, &my_charset_bin);
     if (to->append_for_single_quote(&varchar))
       DBUG_RETURN(1);
   }
@@ -1272,14 +1270,18 @@ bool ha_federatedx::create_where_from_key(String *to,
       {
         if (*ptr++)
         {
+          LEX_CSTRING constraint;
+          if (ranges[i]->flag == HA_READ_KEY_EXACT)
+            constraint= {STRING_WITH_LEN(" IS NULL ") };
+          else
+            constraint= {STRING_WITH_LEN(" IS NOT NULL ") };
           /*
             We got "IS [NOT] NULL" condition against nullable column. We
             distinguish between "IS NOT NULL" and "IS NULL" by flag. For
             "IS NULL", flag is set to HA_READ_KEY_EXACT.
           */
           if (emit_key_part_name(&tmp, key_part) ||
-              tmp.append(ranges[i]->flag == HA_READ_KEY_EXACT ?
-                         " IS NULL " : " IS NOT NULL "))
+              tmp.append(constraint))
             goto err;
           /*
             We need to adjust pointer and length to be prepared for next
@@ -1331,7 +1333,7 @@ bool ha_federatedx::create_where_from_key(String *to,
       case HA_READ_AFTER_KEY:
         if (eq_range)
         {
-          if (tmp.append("1=1"))                // Dummy
+          if (tmp.append(STRING_WITH_LEN("1=1")))                // Dummy
             goto err;
           break;
         }
@@ -1440,13 +1442,16 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
                         FEDERATEDX_SHARE *share, CHARSET_INFO *table_charset)
 {
   char buffer[STRING_BUFFER_USUAL_SIZE];
+  const char *socket_arg= share->socket ? share->socket : "";
+  const char *password_arg= share->password ? share->password : "";
+
   String key(buffer, sizeof(buffer), &my_charset_bin);  
-  String scheme(share->scheme, &my_charset_latin1);
-  String hostname(share->hostname, &my_charset_latin1);
-  String database(share->database, system_charset_info);
-  String username(share->username, system_charset_info);
-  String socket(share->socket ? share->socket : "", files_charset_info);
-  String password(share->password ? share->password : "", &my_charset_bin);
+  String scheme(share->scheme, strlen(share->scheme), &my_charset_latin1);
+  String hostname(share->hostname, strlen(share->hostname), &my_charset_latin1);
+  String database(share->database, strlen(share->database), system_charset_info);
+  String username(share->username, strlen(share->username), system_charset_info);
+  String socket(socket_arg, strlen(socket_arg), files_charset_info);
+  String password(password_arg, strlen(password_arg), &my_charset_bin);
   DBUG_ENTER("fill_server");
 
   /* Do some case conversions */
@@ -1530,13 +1535,16 @@ static FEDERATEDX_SERVER *get_server(FEDERATEDX_SHARE *share, TABLE *table)
   FEDERATEDX_SERVER *server= NULL, tmp_server;
   MEM_ROOT mem_root;
   char buffer[STRING_BUFFER_USUAL_SIZE];
+  const char *socket_arg= share->socket ? share->socket : "";
+  const char *password_arg= share->password ? share->password : "";
+
   String key(buffer, sizeof(buffer), &my_charset_bin);  
-  String scheme(share->scheme, &my_charset_latin1);
-  String hostname(share->hostname, &my_charset_latin1);
-  String database(share->database, system_charset_info);
-  String username(share->username, system_charset_info);
-  String socket(share->socket ? share->socket : "", files_charset_info);
-  String password(share->password ? share->password : "", &my_charset_bin);
+  String scheme(share->scheme, strlen(share->scheme), &my_charset_latin1);
+  String hostname(share->hostname, strlen(share->hostname), &my_charset_latin1);
+  String database(share->database, strlen(share->database), system_charset_info);
+  String username(share->username, strlen(share->username), system_charset_info);
+  String socket(socket_arg, strlen(socket_arg), files_charset_info);
+  String password(password_arg, strlen(password_arg), &my_charset_bin);
   DBUG_ENTER("ha_federated.cc::get_server");
 
   mysql_mutex_assert_owner(&federatedx_mutex);
@@ -1638,13 +1646,14 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
 
     if (!(share= (FEDERATEDX_SHARE *) memdup_root(&mem_root, (char*)&tmp_share, sizeof(*share))) ||
         !(share->share_key= (char*) memdup_root(&mem_root, tmp_share.share_key, tmp_share.share_key_length+1)) ||
-        !(share->select_query= (char*) strmake_root(&mem_root, query.ptr(), query.length())))
+        !(share->select_query.str= (char*) strmake_root(&mem_root, query.ptr(), query.length())))
       goto error;
+    share->select_query.length= query.length();
 
     share->mem_root= mem_root;
 
     DBUG_PRINT("info",
-               ("share->select_query %s", share->select_query));
+               ("share->select_query %s", share->select_query.str));
 
     if (!(share->s= get_server(share, table)))
       goto error;
@@ -2823,8 +2832,7 @@ int ha_federatedx::rnd_init(bool scan)
     if (stored_result)
       (void) free_result();
 
-    if (io->query(share->select_query,
-                  strlen(share->select_query)))
+    if (io->query(share->select_query.str, share->select_query.length))
       goto error;
 
     stored_result= io->store_result();
@@ -3475,7 +3483,7 @@ bool ha_federatedx::get_error_message(int error, String* buf)
     buf->append(STRING_WITH_LEN("Error on remote system: "));
     buf->qs_append(remote_error_number);
     buf->append(STRING_WITH_LEN(": "));
-    buf->append(remote_error_buf);
+    buf->append(remote_error_buf, strlen(remote_error_buf));
     /* Ensure string ends with \0 */
     (void) buf->c_ptr_safe();
 

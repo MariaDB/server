@@ -182,7 +182,7 @@ void compute_digest_text(const sql_digest_storage* digest_storage,
 
   if (byte_count > digest_storage->m_token_array_length)
   {
-    digest_output->append("\0", 1);
+    digest_output->append('\0');
     return;
   }
 
@@ -196,7 +196,7 @@ void compute_digest_text(const sql_digest_storage* digest_storage,
       Can happen, as we do dirty reads on digest_storage,
       which can be written to in another thread.
     */
-    digest_output->append("\0", 1);
+    digest_output->append('\0');
     return;
   }
 
@@ -256,7 +256,7 @@ void compute_digest_text(const sql_digest_storage* digest_storage,
           break;
         }
         /* Copy the converted identifier into the digest string. */
-        digest_output->append("`", 1);
+        digest_output->append('`');
         if (id_length > 0)
           digest_output->append(id_string, id_length);
         digest_output->append("` ", 2);
@@ -273,7 +273,7 @@ void compute_digest_text(const sql_digest_storage* digest_storage,
 
       digest_output->append(tok_data->m_token_string, tok_length);
       if (tok_data->m_append_space)
-        digest_output->append(" ", 1);
+        digest_output->append(' ');
       break;
     }
   }

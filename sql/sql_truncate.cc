@@ -49,7 +49,7 @@ static bool fk_info_append_fields(THD *thd, String *str,
   while ((field= it++))
   {
     res|= append_identifier(thd, str, field);
-    res|= str->append(", ");
+    res|= str->append(STRING_WITH_LEN(", "));
   }
 
   str->chop();
@@ -81,17 +81,17 @@ static const char *fk_info_str(THD *thd, FOREIGN_KEY_INFO *fk_info)
   */
 
   res|= append_identifier(thd, &str, fk_info->foreign_db);
-  res|= str.append(".");
+  res|= str.append('.');
   res|= append_identifier(thd, &str, fk_info->foreign_table);
-  res|= str.append(", CONSTRAINT ");
+  res|= str.append(STRING_WITH_LEN(", CONSTRAINT "));
   res|= append_identifier(thd, &str, fk_info->foreign_id);
-  res|= str.append(" FOREIGN KEY (");
+  res|= str.append(STRING_WITH_LEN(" FOREIGN KEY ("));
   res|= fk_info_append_fields(thd, &str, &fk_info->foreign_fields);
-  res|= str.append(") REFERENCES ");
+  res|= str.append(STRING_WITH_LEN(") REFERENCES "));
   res|= append_identifier(thd, &str, fk_info->referenced_db);
-  res|= str.append(".");
+  res|= str.append('.');
   res|= append_identifier(thd, &str, fk_info->referenced_table);
-  res|= str.append(" (");
+  res|= str.append(STRING_WITH_LEN(" ("));
   res|= fk_info_append_fields(thd, &str, &fk_info->referenced_fields);
   res|= str.append(')');
 

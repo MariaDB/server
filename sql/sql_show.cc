@@ -108,6 +108,10 @@ static const LEX_CSTRING trg_event_type_names[]=
   { STRING_WITH_LEN("DELETE") }
 };
 
+
+LEX_CSTRING DATA_clex_str= { STRING_WITH_LEN("DATA") };
+LEX_CSTRING INDEX_clex_str= { STRING_WITH_LEN("INDEX") };
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static const char *grant_names[]={
   "select","insert","update","delete","create","drop","reload","shutdown",
@@ -119,7 +123,12 @@ static TYPELIB grant_types = { sizeof(grant_names)/sizeof(char **),
 #endif
 
 /* Match the values of enum ha_choice */
-static const char *ha_choice_values[] = {"", "0", "1"};
+static const LEX_CSTRING ha_choice_values[]=
+{
+  { STRING_WITH_LEN("") },
+  { STRING_WITH_LEN("0") },
+  { STRING_WITH_LEN("1") }
+};
 
 static void store_key_options(THD *, String *, TABLE *, KEY *);
 
@@ -396,9 +405,11 @@ bool mysqld_show_authors(THD *thd)
   for (authors= show_table_authors; authors->name; authors++)
   {
     protocol->prepare_for_resend();
-    protocol->store(authors->name, system_charset_info);
-    protocol->store(authors->location, system_charset_info);
-    protocol->store(authors->comment, system_charset_info);
+    protocol->store(authors->name, strlen(authors->name), system_charset_info);
+    protocol->store(authors->location, strlen(authors->location),
+                    system_charset_info);
+    protocol->store(authors->comment, strlen(authors->comment),
+                    system_charset_info);
     if (protocol->write())
       DBUG_RETURN(TRUE);
   }
@@ -435,9 +446,12 @@ bool mysqld_show_contributors(THD *thd)
   for (contributors= show_table_contributors; contributors->name; contributors++)
   {
     protocol->prepare_for_resend();
-    protocol->store(contributors->name, system_charset_info);
-    protocol->store(contributors->location, system_charset_info);
-    protocol->store(contributors->comment, system_charset_info);
+    protocol->store(contributors->name, strlen(contributors->name),
+                    system_charset_info);
+    protocol->store(contributors->location, strlen(contributors->location),
+                    system_charset_info);
+    protocol->store(contributors->comment, strlen(contributors->comment),
+                    system_charset_info);
     if (protocol->write())
       DBUG_RETURN(TRUE);
   }
@@ -527,9 +541,12 @@ bool mysqld_show_privileges(THD *thd)
   for (privilege= sys_privileges; privilege->privilege ; privilege++)
   {
     protocol->prepare_for_resend();
-    protocol->store(privilege->privilege, system_charset_info);
-    protocol->store(privilege->context, system_charset_info);
-    protocol->store(privilege->comment, system_charset_info);
+    protocol->store(privilege->privilege, strlen(privilege->privilege),
+                    system_charset_info);
+    protocol->store(privilege->context, strlen(privilege->context),
+                    system_charset_info);
+    protocol->store(privilege->comment, strlen(privilege->comment),
+                    system_charset_info);
     if (protocol->write())
       DBUG_RETURN(TRUE);
   }
@@ -1298,19 +1315,23 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 
   protocol->prepare_for_resend();
   if (table_list->view)
-    protocol->store(table_list->view_name.str, system_charset_info);
+    protocol->store(&table_list->view_name, system_charset_info);
   else
   {
     if (table_list->schema_table)
-      protocol->store(table_list->schema_table->table_name, system_charset_info);
+      protocol->store(table_list->schema_table->table_name,
+                      strlen(table_list->schema_table->table_name),
+                      system_charset_info);
     else
-      protocol->store(table_list->table->alias.c_ptr(), system_charset_info);
+      protocol->store(table_list->table->alias.ptr(),
+                      table_list->table->alias.length(),
+                      system_charset_info);
   }
 
   if (table_list->view)
   {
-    protocol->store(buffer.ptr(), buffer.length(),
-                    table_list->view_creation_ctx->get_client_cs());
+    buffer.set_charset(table_list->view_creation_ctx->get_client_cs());
+    protocol->store(&buffer);
 
     protocol->store(table_list->view_creation_ctx->get_client_cs()->csname,
                     system_charset_info);
@@ -1319,7 +1340,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
                     system_charset_info);
   }
   else
-    protocol->store(buffer.ptr(), buffer.length(), buffer.charset());
+    protocol->store(&buffer);
 
   if (protocol->write())
     goto exit;
@@ -1419,11 +1440,13 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   {
     buffer.append(STRING_WITH_LEN(" /*!40100"));
     buffer.append(STRING_WITH_LEN(" DEFAULT CHARACTER SET "));
-    buffer.append(create.default_table_charset->csname);
+    buffer.append(create.default_table_charset->csname,
+                  strlen(create.default_table_charset->csname));
     if (!(create.default_table_charset->state & MY_CS_PRIMARY))
     {
       buffer.append(STRING_WITH_LEN(" COLLATE "));
-      buffer.append(create.default_table_charset->name);
+      buffer.append(create.default_table_charset->name,
+                    strlen(create.default_table_charset->name));
     }
     buffer.append(STRING_WITH_LEN(" */"));
   }
@@ -1621,7 +1644,7 @@ int get_quote_char_for_identifier(THD *thd, const char *name, size_t length)
 
 /* Append directory name (if exists) to CREATE INFO */
 
-static void append_directory(THD *thd, String *packet, const char *dir_type,
+static void append_directory(THD *thd, String *packet, LEX_CSTRING *dir_type,
 			     const char *filename)
 {
   if (filename && !(thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE))
@@ -1879,11 +1902,13 @@ static void add_table_options(THD *thd, TABLE *table,
         (create_info_arg->used_fields & HA_CREATE_USED_DEFAULT_CHARSET))
     {
       packet->append(STRING_WITH_LEN(" DEFAULT CHARSET="));
-      packet->append(share->table_charset->csname);
+      packet->append(share->table_charset->csname,
+                     strlen(share->table_charset->csname));
       if (!(share->table_charset->state & MY_CS_PRIMARY))
       {
         packet->append(STRING_WITH_LEN(" COLLATE="));
-        packet->append(table->s->table_charset->name);
+        packet->append(table->s->table_charset->name,
+                       strlen(table->s->table_charset->name));
       }
     }
   }
@@ -1930,19 +1955,19 @@ static void add_table_options(THD *thd, TABLE *table,
   if (create_info.page_checksum != HA_CHOICE_UNDEF)
   {
     packet->append(STRING_WITH_LEN(" PAGE_CHECKSUM="));
-    packet->append(ha_choice_values[create_info.page_checksum], 1);
+    packet->append(ha_choice_values[create_info.page_checksum]);
   }
   if (create_info.options & HA_OPTION_DELAY_KEY_WRITE)
     packet->append(STRING_WITH_LEN(" DELAY_KEY_WRITE=1"));
   if (create_info.row_type != ROW_TYPE_DEFAULT)
   {
     packet->append(STRING_WITH_LEN(" ROW_FORMAT="));
-    packet->append(ha_row_type[(uint) create_info.row_type]);
+    packet->append(&ha_row_type[(uint) create_info.row_type]);
   }
   if (share->transactional != HA_CHOICE_UNDEF)
   {
     packet->append(STRING_WITH_LEN(" TRANSACTIONAL="));
-    packet->append(ha_choice_values[(uint) share->transactional], 1);
+    packet->append(ha_choice_values[(uint) share->transactional]);
   }
   if (share->table_type == TABLE_TYPE_SEQUENCE)
     packet->append(STRING_WITH_LEN(" SEQUENCE=1"));
@@ -1966,8 +1991,8 @@ end_options:
   }
   append_create_options(thd, packet, share->option_list, check_options,
                         hton->table_options);
-  append_directory(thd, packet, "DATA",  create_info.data_file_name);
-  append_directory(thd, packet, "INDEX", create_info.index_file_name);
+  append_directory(thd, packet, &DATA_clex_str,  create_info.data_file_name);
+  append_directory(thd, packet, &INDEX_clex_str, create_info.index_file_name);
 }
 
 static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
@@ -2166,7 +2191,8 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       if (field->charset() != share->table_charset)
       {
 	packet->append(STRING_WITH_LEN(" CHARACTER SET "));
-	packet->append(field->charset()->csname);
+	packet->append(field->charset()->csname,
+                       strlen(field->charset()->csname));
       }
       /*
 	For string types dump collation name only if
@@ -2175,7 +2201,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       if (!(field->charset()->state & MY_CS_PRIMARY) && !field->vcol_info)
       {
 	packet->append(STRING_WITH_LEN(" COLLATE "));
-	packet->append(field->charset()->name);
+	packet->append(field->charset()->name, strlen(field->charset()->name));
       }
     }
 
@@ -2283,7 +2309,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     bool found_primary=0;
     packet->append(STRING_WITH_LEN(",\n  "));
 
-    if (i == primary_key && !strcmp(key_info->name.str, primary_key_name))
+    if (i == primary_key && !strcmp(key_info->name.str, primary_key_name.str))
     {
       found_primary=1;
       /*
@@ -2893,22 +2919,23 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
 
   ulonglong now= microsecond_interval_timer();
 
-  while (auto thd_info= arg.thread_infos.get())
+  while (thread_info *thd_info= arg.thread_infos.get())
   {
     protocol->prepare_for_resend();
     protocol->store(thd_info->thread_id);
-    protocol->store(thd_info->user, system_charset_info);
-    protocol->store(thd_info->host, system_charset_info);
-    protocol->store(thd_info->db, system_charset_info);
+    protocol->store(thd_info->user, strlen(thd_info->user), system_charset_info);
+    protocol->store(thd_info->host, strlen(thd_info->host), system_charset_info);
+    protocol->store_string_or_null(thd_info->db, system_charset_info);
     if (thd_info->proc_info)
-      protocol->store(thd_info->proc_info, system_charset_info);
+      protocol->store(thd_info->proc_info, strlen(thd_info->proc_info),
+                      system_charset_info);
     else
-      protocol->store(command_name[thd_info->command].str, system_charset_info);
+      protocol->store(&command_name[thd_info->command], system_charset_info);
     if (thd_info->start_time && now > thd_info->start_time)
       protocol->store_long((now - thd_info->start_time) / HRTIME_RESOLUTION);
     else
       protocol->store_null();
-    protocol->store(thd_info->state_info, system_charset_info);
+    protocol->store_string_or_null(thd_info->state_info, system_charset_info);
     if (thd_info->query_string.length())
       protocol->store(thd_info->query_string.str(),
                       thd_info->query_string.length(),
@@ -3051,19 +3078,19 @@ void select_result_text_buffer::save_to(String *res)
 {
   List_iterator<char*> it(rows);
   char **row;
-  res->append("#\n");
+  res->append(STRING_WITH_LEN("#\n"));
   while ((row= it++))
   {
-    res->append("# explain: ");
+    res->append(STRING_WITH_LEN("# explain: "));
     for (int i=0; i < n_columns; i++)
     {
       if (i)
         res->append('\t');
-      res->append(row[i]);
+      res->append(row[i], strlen(row[i]));
     }
-    res->append("\n");
+    res->append('\n');
   }
-  res->append("#\n");
+  res->append(STRING_WITH_LEN("#\n"));
 }
 
 
@@ -5501,7 +5528,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     if (share->page_checksum != HA_CHOICE_UNDEF)
     {
       str.qs_append(STRING_WITH_LEN(" page_checksum="));
-      str.qs_append(ha_choice_values[(uint) share->page_checksum]);
+      str.qs_append(&ha_choice_values[(uint) share->page_checksum]);
     }
 
     if (share->db_create_options & HA_OPTION_DELAY_KEY_WRITE)
@@ -5510,7 +5537,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     if (share->row_type != ROW_TYPE_DEFAULT)
     {
       str.qs_append(STRING_WITH_LEN(" row_format="));
-      str.qs_append(ha_row_type[(uint) share->row_type]);
+      str.qs_append(&ha_row_type[(uint) share->row_type]);
     }
 
     if (share->key_block_size)
@@ -5542,7 +5569,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
                  HA_CHOICE_NO : HA_CHOICE_YES);
 
       str.qs_append(STRING_WITH_LEN(" transactional="));
-      str.qs_append(ha_choice_values[choice]);
+      str.qs_append(&ha_choice_values[choice]);
     }
     append_create_options(thd, &str, share->option_list, false, 0);
 
@@ -5551,8 +5578,8 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       HA_CREATE_INFO create_info;
       create_info.init();
       file->update_create_info(&create_info);
-      append_directory(thd, &str, "DATA", create_info.data_file_name);
-      append_directory(thd, &str, "INDEX", create_info.index_file_name);
+      append_directory(thd, &str, &DATA_clex_str, create_info.data_file_name);
+      append_directory(thd, &str, &INDEX_clex_str, create_info.index_file_name);
     }
 
     if (str.length())
@@ -6955,7 +6982,7 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
       if (i != primary_key && !(key_info->flags & HA_NOSAME))
         continue;
 
-      if (i == primary_key && !strcmp(key_info->name.str, primary_key_name))
+      if (i == primary_key && !strcmp(key_info->name.str, primary_key_name.str))
       {
         if (store_constraints(thd, table, db_name, table_name,
                               key_info->name.str, key_info->name.length,
@@ -7225,7 +7252,7 @@ static void collect_partition_expr(THD *thd, List<const char> &field_list,
   {
     append_identifier(thd, str, field_str, strlen(field_str));
     if (--no_fields != 0)
-      str->append(",");
+      str->append(',');
   }
   return;
 }
@@ -7318,7 +7345,7 @@ static int get_partition_column_description(THD *thd, partition_info *part_info,
     if (col_val->max_value)
       tmp_str.append(STRING_WITH_LEN("MAXVALUE"));
     else if (col_val->null_value)
-      tmp_str.append("NULL");
+      tmp_str.append(NULL_clex_str);
     else
     {
       Item *item= col_val->item_expression;
@@ -7331,7 +7358,7 @@ static int get_partition_column_description(THD *thd, partition_info *part_info,
       tmp_str.append(val);
     }
     if (i != num_elements - 1)
-      tmp_str.append(",");
+      tmp_str.append(',');
   }
   DBUG_RETURN(0);
 }
@@ -7492,9 +7519,9 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
         tmp_res.length(0);
         if (part_elem->has_null_value)
         {
-          tmp_str.append(STRING_WITH_LEN("NULL"));
+          tmp_str.append(NULL_clex_str);
           if (num_items > 0)
-            tmp_str.append(",");
+            tmp_str.append(',');
         }
         while ((list_value= list_val_it++))
         {
@@ -7506,7 +7533,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
                                                  tmp_str))
               DBUG_RETURN(1);
             if (part_info->part_field_list.elements > 1U)
-              tmp_str.append(")");
+              tmp_str.append(')');
           }
           else
           {
@@ -7517,7 +7544,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
             tmp_str.append(tmp_res);
           }
           if (--num_items != 0)
-            tmp_str.append(",");
+            tmp_str.append(',');
         }
         table->field[11]->store(tmp_str.ptr(), tmp_str.length(), cs);
         table->field[11]->set_notnull();
@@ -8155,7 +8182,7 @@ int make_schemata_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     if (lex->wild && lex->wild->ptr())
     {
       buffer.append(STRING_WITH_LEN(" ("));
-      buffer.append(lex->wild->ptr());
+      buffer.append(*lex->wild);
       buffer.append(')');
     }
     field->set_name(thd, &buffer);
@@ -8179,7 +8206,7 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   if (lex->wild && lex->wild->ptr())
   {
     buffer.append(STRING_WITH_LEN(" ("));
-    buffer.append(lex->wild->ptr());
+    buffer.append(*lex->wild);
     buffer.append(')');
   }
   Item_field *field= new (thd->mem_root) Item_field(thd, context, field_name);
@@ -10032,19 +10059,19 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   if (sctx->host)
   {
     str.append(' ');
-    str.append(sctx->host);
+    str.append(sctx->host, strlen(sctx->host));
   }
 
   if (sctx->ip)
   {
     str.append(' ');
-    str.append(sctx->ip);
+    str.append(sctx->ip, strlen(sctx->ip));
   }
 
   if (sctx->user)
   {
     str.append(' ');
-    str.append(sctx->user);
+    str.append(sctx->user, strlen(sctx->user));
   }
 
   /* Don't wait if LOCK_thd_data is used as this could cause a deadlock */
@@ -10053,7 +10080,7 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
     if (const char *info= thread_state_info(thd))
     {
       str.append(' ');
-      str.append(info);
+      str.append(info, strlen(info));
     }
 
     if (thd->query())

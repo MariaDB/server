@@ -2119,17 +2119,17 @@ static int add_keyword_string(String *str, const char *keyword,
                               bool quoted, const char *keystr)
 {
   int err= str->append(' ');
-  err+= str->append(keyword);
+  err+= str->append(keyword, strlen(keyword));
 
   str->append(STRING_WITH_LEN(" = "));
   if (quoted)
   {
     err+= str->append('\'');
-    err+= str->append_for_single_quote(keystr);
+    err+= str->append_for_single_quote(keystr, strlen(keystr));
     err+= str->append('\'');
   }
   else
-    err+= str->append(keystr);
+    err+= str->append(keystr, strlen(keystr));
   return err;
 }
 
@@ -2205,7 +2205,7 @@ static int add_keyword_path(String *str, const char *keyword,
 static int add_keyword_int(String *str, const char *keyword, longlong num)
 {
   int err= str->append(' ');
-  err+= str->append(keyword);
+  err+= str->append(keyword, strlen(keyword));
   str->append(STRING_WITH_LEN(" = "));
   return err + str->append_longlong(num);
 }
@@ -2294,12 +2294,12 @@ static int add_column_list_values(String *str, partition_info *part_info,
     if (col_val->max_value)
       err+= str->append(STRING_WITH_LEN("MAXVALUE"));
     else if (col_val->null_value)
-      err+= str->append(STRING_WITH_LEN("NULL"));
+      err+= str->append(NULL_clex_str);
     else
     {
       Item *item_expr= col_val->item_expression;
       if (item_expr->null_value)
-        err+= str->append(STRING_WITH_LEN("NULL"));
+        err+= str->append(NULL_clex_str);
       else
       {
         CHARSET_INFO *field_cs;
@@ -2402,7 +2402,7 @@ static int add_partition_values(String *str, partition_info *part_info,
     err+= str->append('(');
     if (p_elem->has_null_value)
     {
-      err+= str->append(STRING_WITH_LEN("NULL"));
+      err+= str->append(NULL_clex_str);
       if (num_items == 0)
       {
         err+= str->append(')');
@@ -7540,9 +7540,9 @@ void append_row_to_str(String &str, const uchar *row, TABLE *table)
        field_ptr++)
   {
     Field *field= *field_ptr;
-    str.append(" ");
+    str.append(' ');
     str.append(&field->field_name);
-    str.append(":");
+    str.append(':');
     field_unpack(&str, field, rec, 0, false);
   }
 

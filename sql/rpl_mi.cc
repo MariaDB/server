@@ -1971,14 +1971,15 @@ void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids)
         break the loop whenever remained space could not fit
         ellipses on the next cycle
       */
-      sprintf(dbuff + cur_len, "...");
+      cur_len+= sprintf(dbuff + cur_len, "...");
       break;
     }
-    cur_len += sprintf(buff + cur_len, "%s", dbuff);
+    cur_len+= sprintf(buff + cur_len, "%s", dbuff);
   }
-  thd->protocol->store(buff, &my_charset_bin);
+  thd->protocol->store(buff, cur_len, &my_charset_bin);
   return;
 }
+
 
 bool Master_info_index::flush_all_relay_logs()
 {

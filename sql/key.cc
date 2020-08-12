@@ -361,7 +361,7 @@ void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
   {
     if (field->is_null())
     {
-      to->append(STRING_WITH_LEN("NULL"));
+      to->append(NULL_clex_str);
       DBUG_VOID_RETURN;
     }
     CHARSET_INFO *cs= field->charset();
@@ -435,7 +435,7 @@ void key_unpack(String *to, TABLE *table, KEY *key)
     {
       if (table->record[0][key_part->null_offset] & key_part->null_bit)
       {
-	to->append(STRING_WITH_LEN("NULL"));
+	to->append(NULL_clex_str);
 	continue;
       }
     }

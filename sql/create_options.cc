@@ -403,7 +403,7 @@ static bool resolve_sysvars(handlerton *hton, ha_create_table_option *rules)
         str.length(0);
         for (const char **s= optp.typelib->type_names; *s; s++)
         {
-          if (str.append(*s) || str.append(','))
+          if (str.append(*s, strlen(*s)) || str.append(','))
             return 1;
         }
         DBUG_ASSERT(str.length());

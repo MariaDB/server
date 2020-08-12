@@ -87,20 +87,20 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
 void Filesort_tracker::get_data_format(String *str)
 {
   if (r_sort_keys_packed)
-    str->append("packed_sort_key");
+    str->append(STRING_WITH_LEN("packed_sort_key"));
   else
-    str->append("sort_key");
-  str->append(",");
+    str->append(STRING_WITH_LEN("sort_key"));
+  str->append(',');
 
   if (r_using_addons)
   {
     if (r_packed_addon_fields)
-      str->append("packed_addon_fields");
+      str->append(STRING_WITH_LEN("packed_addon_fields"));
     else
-      str->append("addon_fields");
+      str->append(STRING_WITH_LEN("addon_fields"));
   }
   else
-    str->append("rowid");
+    str->append(STRING_WITH_LEN("rowid"));
 }
 
 void attach_gap_time_tracker(THD *thd, Gap_time_tracker *gap_tracker,

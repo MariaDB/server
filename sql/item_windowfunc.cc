@@ -99,13 +99,15 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
   
   if (window_spec->window_frame && is_frame_prohibited())
   {
-    my_error(ER_NOT_ALLOWED_WINDOW_FRAME, MYF(0), window_func()->func_name());
+    my_error(ER_NOT_ALLOWED_WINDOW_FRAME, MYF(0),
+             window_func()->func_name());
     return true;
   }
 
   if (window_spec->order_list->elements == 0 && is_order_list_mandatory())
   {
-    my_error(ER_NO_ORDER_LIST_IN_WINDOW_SPEC, MYF(0), window_func()->func_name());
+    my_error(ER_NO_ORDER_LIST_IN_WINDOW_SPEC, MYF(0),
+             window_func()->func_name());
     return true;
   }
 
@@ -180,7 +182,8 @@ bool Item_window_func::check_result_type_of_order_item()
     if (rtype != REAL_RESULT && rtype != INT_RESULT &&
         rtype != DECIMAL_RESULT && rtype != TIME_RESULT)
     {
-      my_error(ER_WRONG_TYPE_FOR_PERCENTILE_FUNC, MYF(0), window_func()->func_name());
+      my_error(ER_WRONG_TYPE_FOR_PERCENTILE_FUNC, MYF(0),
+               window_func()->func_name());
       return true;
     }
     return false;
@@ -553,7 +556,7 @@ void Item_window_func::print(String *str, enum_query_type query_type)
     return;
   }
   window_func()->print(str, query_type);
-  str->append(" over ");
+  str->append(STRING_WITH_LEN(" over "));
   if (!window_spec)
     str->append(window_name);
   else
@@ -562,11 +565,11 @@ void Item_window_func::print(String *str, enum_query_type query_type)
 void Item_window_func::print_for_percentile_functions(String *str, enum_query_type query_type)
 {
   window_func()->print(str, query_type);
-  str->append(" within group ");
+  str->append(STRING_WITH_LEN(" within group "));
   str->append('(');
   window_spec->print_order(str,query_type);
   str->append(')');
-  str->append(" over ");
+  str->append(STRING_WITH_LEN(" over "));
   str->append('(');
   window_spec->print_partition(str,query_type);
   str->append(')');

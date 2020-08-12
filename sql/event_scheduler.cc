@@ -89,11 +89,11 @@ Event_worker_thread::print_warnings(THD *thd, Event_job_data *et)
   prefix.append(STRING_WITH_LEN("Event Scheduler: ["));
 
   prefix.append(et->definer.str, et->definer.length, system_charset_info);
-  prefix.append("][", 2);
+  prefix.append(STRING_WITH_LEN("]["));
   prefix.append(et->dbname.str, et->dbname.length, system_charset_info);
   prefix.append('.');
   prefix.append(et->name.str, et->name.length, system_charset_info);
-  prefix.append("] ", 2);
+  prefix.append(STRING_WITH_LEN("] "));
 
   Diagnostics_area::Sql_condition_iterator it=
     thd->get_stmt_da()->sql_conditions();

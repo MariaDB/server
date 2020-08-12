@@ -1037,13 +1037,13 @@ rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid, bool *first)
   if (*first)
     *first= false;
   else
-    if (dest->append(",",1))
+    if (dest->append(','))
       return true;
   return
     dest->append_ulonglong(gtid->domain_id) ||
-    dest->append("-",1) ||
+    dest->append('-') ||
     dest->append_ulonglong(gtid->server_id) ||
-    dest->append("-",1) ||
+    dest->append('-') ||
     dest->append_ulonglong(gtid->seq_no);
 }
 

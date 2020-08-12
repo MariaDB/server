@@ -314,9 +314,11 @@ build_gtid_pos_create_query(THD *thd, String *query,
                             LEX_CSTRING *engine_name)
 {
   bool err= false;
-  err|= query->append(gtid_pos_table_definition1);
+  err|= query->append(gtid_pos_table_definition1,
+                      sizeof(gtid_pos_table_definition1)-1);
   err|= append_identifier(thd, query, table_name);
-  err|= query->append(gtid_pos_table_definition2);
+  err|= query->append(gtid_pos_table_definition2,
+                      sizeof(gtid_pos_table_definition2)-1);
   err|= append_identifier(thd, query, engine_name);
   return err;
 }
@@ -2693,15 +2695,20 @@ after_set_capability:
     char quote_buf[2*sizeof(mi->master_log_name)+1];
     char str_buf[28+2*sizeof(mi->master_log_name)+10];
     String query(str_buf, sizeof(str_buf), system_charset_info);
+    size_t quote_length;
+    my_bool overflow;
     query.length(0);
 
-    query.append("SELECT binlog_gtid_pos('");
-    escape_quotes_for_mysql(&my_charset_bin, quote_buf, sizeof(quote_buf),
-                            mi->master_log_name, strlen(mi->master_log_name));
-    query.append(quote_buf);
-    query.append("',");
+    query.append(STRING_WITH_LEN("SELECT binlog_gtid_pos('"));
+    quote_length= escape_quotes_for_mysql(&my_charset_bin, quote_buf,
+                                          sizeof(quote_buf),
+                                          mi->master_log_name,
+                                          strlen(mi->master_log_name),
+                                          &overflow);
+    query.append(quote_buf, quote_length);
+    query.append(STRING_WITH_LEN("',"));
     query.append_ulonglong(mi->master_log_pos);
-    query.append(")");
+    query.append(')');
 
     if (!mysql_real_query(mysql, query.c_ptr_safe(), query.length()) &&
         (master_res= mysql_store_result(mysql)) &&
@@ -3267,7 +3274,20 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
 }
 
 /* Text for Slave_IO_Running */
-static const char *slave_running[]= { "No", "Connecting", "Preparing", "Yes" };
+static const LEX_CSTRING slave_running[]=
+{
+  { STRING_WITH_LEN("No") },
+  { STRING_WITH_LEN("Connecting") },
+  { STRING_WITH_LEN("Preparing") },
+  { STRING_WITH_LEN("Yes") }
+};
+
+static const LEX_CSTRING msg_yes= { STRING_WITH_LEN("Yes") };
+static const LEX_CSTRING msg_no=  { STRING_WITH_LEN("No") };
+#ifndef HAVE_OPENSSL
+static const LEX_CSTRING msg_ignored=  { STRING_WITH_LEN("Ignored") };
+#endif
+
 
 static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
                                        String *gtid_pos)
@@ -3281,6 +3301,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     Protocol *protocol= thd->protocol;
     Rpl_filter *rpl_filter= mi->rpl_filter;
     StringBuffer<256> tmp;
+    const char *msg;
 
     protocol->prepare_for_resend();
 
@@ -3298,11 +3319,13 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
         Show what the sql driver replication thread is doing
         This is only meaningful if there is only one slave thread.
       */
-      protocol->store(mi->rli.sql_driver_thd ?
-                      mi->rli.sql_driver_thd->get_proc_info() : "",
-                      &my_charset_bin);
+      msg= (mi->rli.sql_driver_thd ?
+            mi->rli.sql_driver_thd->get_proc_info() : "");
+      protocol->store_string_or_null(msg, &my_charset_bin);
     }
-    protocol->store(mi->io_thd ? mi->io_thd->get_proc_info() : "", &my_charset_bin);
+    msg= mi->io_thd ? mi->io_thd->get_proc_info() : "";
+    protocol->store_string_or_null(msg, &my_charset_bin);
+
     mysql_mutex_unlock(&mi->run_lock);
 
     mysql_mutex_lock(&mi->data_lock);
@@ -3311,19 +3334,22 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     mysql_mutex_lock(&mi->err_lock);
     /* err_lock is to protect mi->rli.last_error() */
     mysql_mutex_lock(&mi->rli.err_lock);
-    protocol->store(mi->host, &my_charset_bin);
-    protocol->store(mi->user, &my_charset_bin);
+    protocol->store_string_or_null(mi->host, &my_charset_bin);
+    protocol->store_string_or_null(mi->user, &my_charset_bin);
     protocol->store((uint32) mi->port);
     protocol->store((uint32) mi->connect_retry);
-    protocol->store(mi->master_log_name, &my_charset_bin);
-    protocol->store((ulonglong) mi->master_log_pos);
-    protocol->store(mi->rli.group_relay_log_name +
-                    dirname_length(mi->rli.group_relay_log_name),
+    protocol->store(mi->master_log_name, strlen(mi->master_log_name),
                     &my_charset_bin);
+    protocol->store((ulonglong) mi->master_log_pos);
+    msg= (mi->rli.group_relay_log_name +
+          dirname_length(mi->rli.group_relay_log_name));
+    protocol->store(msg, strlen(msg), &my_charset_bin);
     protocol->store((ulonglong) mi->rli.group_relay_log_pos);
-    protocol->store(mi->rli.group_master_log_name, &my_charset_bin);
-    protocol->store(slave_running[mi->slave_running], &my_charset_bin);
-    protocol->store(mi->rli.slave_running ? "Yes":"No", &my_charset_bin);
+    protocol->store(mi->rli.group_master_log_name,
+                    strlen(mi->rli.group_master_log_name),
+                    &my_charset_bin);
+    protocol->store(&slave_running[mi->slave_running], &my_charset_bin);
+    protocol->store(mi->rli.slave_running ? &msg_yes : &msg_no, &my_charset_bin);
     protocol->store(rpl_filter->get_do_db());
     protocol->store(rpl_filter->get_ignore_db());
 
@@ -3337,29 +3363,30 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     protocol->store(&tmp);
 
     protocol->store(mi->rli.last_error().number);
-    protocol->store(mi->rli.last_error().message, &my_charset_bin);
+    protocol->store_string_or_null(mi->rli.last_error().message,
+                                   &my_charset_bin);
     protocol->store((uint32) mi->rli.slave_skip_counter);
     protocol->store((ulonglong) mi->rli.group_master_log_pos);
     protocol->store((ulonglong) mi->rli.log_space_total);
 
-    protocol->store(
-      mi->rli.until_condition==Relay_log_info::UNTIL_NONE ? "None":
-        ( mi->rli.until_condition==Relay_log_info::UNTIL_MASTER_POS? "Master":
-          ( mi->rli.until_condition==Relay_log_info::UNTIL_RELAY_POS? "Relay":
-            "Gtid")), &my_charset_bin);
-    protocol->store(mi->rli.until_log_name, &my_charset_bin);
+    msg= (mi->rli.until_condition==Relay_log_info::UNTIL_NONE ? "None" :
+          (mi->rli.until_condition==Relay_log_info::UNTIL_MASTER_POS? "Master":
+          (mi->rli.until_condition==Relay_log_info::UNTIL_RELAY_POS? "Relay":
+           "Gtid")));
+    protocol->store(msg, strlen(msg), &my_charset_bin);
+    protocol->store_string_or_null(mi->rli.until_log_name, &my_charset_bin);
     protocol->store((ulonglong) mi->rli.until_log_pos);
 
 #ifdef HAVE_OPENSSL
-    protocol->store(mi->ssl? "Yes":"No", &my_charset_bin);
+    protocol->store(mi->ssl ? &msg_yes : &msg_no, &my_charset_bin);
 #else
-    protocol->store(mi->ssl? "Ignored":"No", &my_charset_bin);
+    protocol->store(mi->ssl ? &msg_ignored: &msg_no, &my_charset_bin);
 #endif
-    protocol->store(mi->ssl_ca, &my_charset_bin);
-    protocol->store(mi->ssl_capath, &my_charset_bin);
-    protocol->store(mi->ssl_cert, &my_charset_bin);
-    protocol->store(mi->ssl_cipher, &my_charset_bin);
-    protocol->store(mi->ssl_key, &my_charset_bin);
+    protocol->store_string_or_null(mi->ssl_ca, &my_charset_bin);
+    protocol->store_string_or_null(mi->ssl_capath, &my_charset_bin);
+    protocol->store_string_or_null(mi->ssl_cert, &my_charset_bin);
+    protocol->store_string_or_null(mi->ssl_cipher, &my_charset_bin);
+    protocol->store_string_or_null(mi->ssl_key, &my_charset_bin);
 
     /*
       Seconds_Behind_Master: if SQL thread is running and I/O thread is
@@ -3414,27 +3441,30 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     {
       protocol->store_null();
     }
-    protocol->store(mi->ssl_verify_server_cert? "Yes":"No", &my_charset_bin);
+    protocol->store(mi->ssl_verify_server_cert? &msg_yes : &msg_no,
+                    &my_charset_bin);
 
     // Last_IO_Errno
     protocol->store(mi->last_error().number);
     // Last_IO_Error
-    protocol->store(mi->last_error().message, &my_charset_bin);
+    protocol->store_string_or_null(mi->last_error().message, &my_charset_bin);
     // Last_SQL_Errno
     protocol->store(mi->rli.last_error().number);
     // Last_SQL_Error
-    protocol->store(mi->rli.last_error().message, &my_charset_bin);
+    protocol->store_string_or_null(mi->rli.last_error().message,
+                                   &my_charset_bin);
     // Replicate_Ignore_Server_Ids
     prot_store_ids(thd, &mi->ignore_server_ids);
     // Master_Server_id
     protocol->store((uint32) mi->master_id);
     // SQL_Delay
     // Master_Ssl_Crl
-    protocol->store(mi->ssl_ca, &my_charset_bin);
+    protocol->store_string_or_null(mi->ssl_ca, &my_charset_bin);
     // Master_Ssl_Crlpath
-    protocol->store(mi->ssl_capath, &my_charset_bin);
+    protocol->store_string_or_null(mi->ssl_capath, &my_charset_bin);
     // Using_Gtid
-    protocol->store(mi->using_gtid_astext(mi->using_gtid), &my_charset_bin);
+    protocol->store_string_or_null(mi->using_gtid_astext(mi->using_gtid),
+                                   &my_charset_bin);
     // Gtid_IO_Pos
     {
       mi->gtid_current_pos.to_string(&tmp);
@@ -3465,7 +3495,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     else
       protocol->store_null();
     // Slave_SQL_Running_State
-    protocol->store(slave_sql_running_state, &my_charset_bin);
+    protocol->store_string_or_null(slave_sql_running_state, &my_charset_bin);
 
     protocol->store(mi->total_ddl_groups);
     protocol->store(mi->total_non_trans_groups);

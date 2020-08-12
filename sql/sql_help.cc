@@ -296,10 +296,10 @@ int get_topics_for_keyword(THD *thd, TABLE *topics, TABLE *relations,
   DBUG_ENTER("get_topics_for_keyword");
 
   if ((iindex_topic=
-       find_type(primary_key_name, &topics->s->keynames,
+       find_type(primary_key_name.str, &topics->s->keynames,
                  FIND_TYPE_NO_PREFIX) - 1) < 0 ||
       (iindex_relations=
-       find_type(primary_key_name, &relations->s->keynames,
+       find_type(primary_key_name.str, &relations->s->keynames,
                  FIND_TYPE_NO_PREFIX) - 1) < 0)
   {
     my_message(ER_CORRUPT_HELP_DB, ER_THD(thd, ER_CORRUPT_HELP_DB), MYF(0));

@@ -2955,11 +2955,11 @@ bool select_result::check_simple_select() const
 }
 
 
-static String default_line_term("\n",default_charset_info);
-static String default_escaped("\\",default_charset_info);
-static String default_field_term("\t",default_charset_info);
-static String default_enclosed_and_line_start("", default_charset_info);
-static String default_xml_row_term("<row>", default_charset_info);
+static String default_line_term("\n", 1, default_charset_info);
+static String default_escaped("\\", 1, default_charset_info);
+static String default_field_term("\t", 1, default_charset_info);
+static String default_enclosed_and_line_start("", 0, default_charset_info);
+static String default_xml_row_term("<row>", 5, default_charset_info);
 
 sql_exchange::sql_exchange(const char *name, bool flag,
                            enum enum_filetype filetype_arg)
@@ -6477,7 +6477,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
             table->lock_type >= TL_WRITE_ALLOW_WRITE)
         {
           table_names.append(&table->table_name);
-          table_names.append(",");
+          table_names.append(',');
         }
       }
       if (!table_names.is_empty())

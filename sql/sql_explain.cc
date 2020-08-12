@@ -296,7 +296,7 @@ static void push_string_list(THD *thd, List<Item> *item_list,
     else
       buf->append(',');
 
-    buf->append(line);
+    buf->append(line, strlen(line));
   }
   push_string(thd, item_list, buf);
 }
@@ -406,7 +406,7 @@ int print_explain_row(select_result_sink *result,
       Item_float *fl= new (mem_root) Item_float(thd, *r_rows, 2);
       String tmp;
       String *res= fl->val_str(&tmp);
-      r_rows_str.append(res->ptr());
+      r_rows_str.append(*res);
       item_list.push_back(new (mem_root)
                           Item_string_sys(thd, r_rows_str.ptr(),
                                           r_rows_str.length()), mem_root);
@@ -552,7 +552,7 @@ int Explain_union::print_explain(Explain_query *query,
     Item_float *fl= new (mem_root) Item_float(thd, avg_rows, 2);
     String tmp;
     String *res= fl->val_str(&tmp);
-    r_rows_str.append(res->ptr());
+    r_rows_str.append(*res);
     item_list.push_back(new (mem_root)
                         Item_string_sys(thd, r_rows_str.ptr(),
                                         r_rows_str.length()), mem_root);
@@ -1043,11 +1043,11 @@ void Explain_aggr_filesort::print_json_members(Json_writer *writer,
       first= false;
     else
     {
-      str.append(", ");
+      str.append(STRING_WITH_LEN(", "));
     }
     append_item_to_str(&str, item);
     if (*direction == ORDER::ORDER_DESC)
-      str.append(" desc");
+      str.append(STRING_WITH_LEN(" desc"));
   }
 
   writer->add_member("sort_key").add_str(str.c_ptr_safe());
@@ -1125,14 +1125,15 @@ void Explain_table_access::fill_key_str(String *key_str, bool is_json) const
   CHARSET_INFO *cs= system_charset_info;
   bool is_hj= (type == JT_HASH || type == JT_HASH_NEXT || 
                type == JT_HASH_RANGE || type == JT_HASH_INDEX_MERGE);
-  const char *hash_key_prefix= "#hash#";
+  LEX_CSTRING hash_key_prefix= { STRING_WITH_LEN("#hash#") };
+  const char *key_name;
 
-  if (key.get_key_name())
+  if ((key_name= key.get_key_name()))
   {
     if (is_hj)
-      key_str->append(hash_key_prefix, strlen(hash_key_prefix), cs);
+      key_str->append(hash_key_prefix.str, hash_key_prefix.length, cs);
 
-    key_str->append(key.get_key_name());
+    key_str->append(key_name, strlen(key_name));
 
     if (is_hj && type != JT_HASH)
       key_str->append(':');
@@ -1148,7 +1149,10 @@ void Explain_table_access::fill_key_str(String *key_str, bool is_json) const
     key_str->append(buf2);
   }
   if (type == JT_HASH_NEXT)
-    key_str->append(hash_next_key.get_key_name());
+  {
+    key_name= hash_next_key.get_key_name();
+    key_str->append(key_name, strlen(key_name));
+  }
 }
 
 
@@ -1290,8 +1294,8 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     push_str(thd, &item_list, join_type_str[type]);
   else
   {
-    join_type_buf.append(join_type_str[type]);
-    join_type_buf.append("|filter");
+    join_type_buf.append(join_type_str[type], strlen(join_type_str[type]));
+    join_type_buf.append(STRING_WITH_LEN("|filter"));
     item_list.push_back(new (mem_root)
                         Item_string_sys(thd, join_type_buf.ptr(),
                                              join_type_buf.length()),
@@ -1311,7 +1315,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
 
   if (rowid_filter)
   {
-    key_str.append("|");
+    key_str.append('|');
     StringBuffer<64> rowid_key_str;
     rowid_filter->quick->print_key(&rowid_key_str);
     key_str.append(rowid_key_str);
@@ -1354,10 +1358,10 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
 
     if (rowid_filter)
     {
-      rows_str.append(" (");
+      rows_str.append(STRING_WITH_LEN(" ("));
       rows_str.append_ulonglong((ulonglong) (round(rowid_filter->selectivity *
 						   100.0)));
-      rows_str.append("%)");
+      rows_str.append(STRING_WITH_LEN("%)"));
     }
     item_list.push_back(new (mem_root)
                         Item_string_sys(thd, rows_str.ptr(),
@@ -1380,13 +1384,13 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
       Item_float *fl= new (mem_root) Item_float(thd, avg_rows, 2);
       String tmp;
       String *res= fl->val_str(&tmp);
-      r_rows_str.append(res->ptr());
+      r_rows_str.append(*res);
       if (rowid_filter)
       {
-        r_rows_str.append(" (");
+        r_rows_str.append(STRING_WITH_LEN(" ("));
         r_rows_str.append_ulonglong(
 	  (ulonglong) (rowid_filter->tracker->get_r_selectivity_pct() * 100.0));
-        r_rows_str.append("%)");
+        r_rows_str.append(STRING_WITH_LEN("%)"));
       }
       item_list.push_back(new (mem_root)
                           Item_string_sys(thd, r_rows_str.ptr(),
@@ -1926,42 +1930,41 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   sql_explain.h
 */
 
-const char * extra_tag_text[]=
+const LEX_CSTRING extra_tag_text[]=
 {
-  "ET_none",
-  "Using index condition",
-  "Using index condition(BKA)",
-  "Using ", // special handling
-  "Range checked for each record (index map: 0x", // special handling
-  "Using where with pushed condition",
-  "Using where",
-  "Not exists",
+  { STRING_WITH_LEN("ET_none") },
+  { STRING_WITH_LEN("Using index condition") },
+  { STRING_WITH_LEN("Using index condition(BKA)") },
+  { STRING_WITH_LEN("Using ") }, // special handling
+  { STRING_WITH_LEN("Range checked for each record (index map: 0x") },  // special handling
+  { STRING_WITH_LEN("Using where with pushed condition") },
+  { STRING_WITH_LEN("Using where") },
+  { STRING_WITH_LEN("Not exists") },
   
-  "Using index",
-  "Full scan on NULL key",
-  "Skip_open_table",
-  "Open_frm_only",
-  "Open_full_table", 
+  { STRING_WITH_LEN("Using index") },
+  { STRING_WITH_LEN("Full scan on NULL key") },
+  { STRING_WITH_LEN("Skip_open_table") },
+  { STRING_WITH_LEN("Open_frm_only") },
+  { STRING_WITH_LEN("Open_full_table") },
 
-  "Scanned 0 databases",
-  "Scanned 1 database",
-  "Scanned all databases",
+  { STRING_WITH_LEN("Scanned 0 databases") },
+  { STRING_WITH_LEN("Scanned 1 database") },
+  { STRING_WITH_LEN("Scanned all databases") },
 
-  "Using index for group-by", // special handling
+  { STRING_WITH_LEN("Using index for group-by") }, // special handling
+  { STRING_WITH_LEN("USING MRR: DONT PRINT ME") }, // special handling
 
-  "USING MRR: DONT PRINT ME", // special handling
+  { STRING_WITH_LEN("Distinct") },
+  { STRING_WITH_LEN("LooseScan") },
+  { STRING_WITH_LEN("Start temporary") },
+  { STRING_WITH_LEN("End temporary") },
+  { STRING_WITH_LEN("FirstMatch") },               // special handling
 
-  "Distinct",
-  "LooseScan",
-  "Start temporary",
-  "End temporary",
-  "FirstMatch", // special handling
+  { STRING_WITH_LEN("Using join buffer") },        // special handling
 
-  "Using join buffer", // special handling 
-
-  "Const row not found",
-  "Unique row not found",
-  "Impossible ON condition",
+  { STRING_WITH_LEN("Const row not found") },
+  { STRING_WITH_LEN("Unique row not found") },
+  { STRING_WITH_LEN("Impossible ON condition") }
 };
 
 
@@ -1981,7 +1984,8 @@ void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag t
       char buf[MAX_KEY / 4 + 1];
       str->append(STRING_WITH_LEN("Range checked for each "
                                    "record (index map: 0x"));
-      str->append(range_checked_fer->keys_map.print(buf));
+      range_checked_fer->keys_map.print(buf);
+      str->append(buf, strlen(buf));
       str->append(')');
       break;
     }
@@ -1995,12 +1999,16 @@ void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag t
       str->append(extra_tag_text[tag]);
 
       str->append(STRING_WITH_LEN(" ("));
-      const char *buffer_type= bka_type.incremental ? "incremental" : "flat";
+      LEX_CSTRING buffer_type;
+      if (bka_type.incremental)
+        buffer_type= { STRING_WITH_LEN("incremental") };
+      else
+        buffer_type= { STRING_WITH_LEN("flat") };
       str->append(buffer_type);
       str->append(STRING_WITH_LEN(", "));
-      str->append(bka_type.join_alg);
+      str->append(bka_type.join_alg, strlen(bka_type.join_alg));
       str->append(STRING_WITH_LEN(" join"));
-      str->append(STRING_WITH_LEN(")"));
+      str->append(')');
       if (bka_type.mrr_type.length())
       {
         str->append(STRING_WITH_LEN("; "));
@@ -2013,9 +2021,9 @@ void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag t
     {
       if (firstmatch_table_name.length())
       {
-        str->append("FirstMatch(");
+        str->append(STRING_WITH_LEN("FirstMatch("));
         str->append(firstmatch_table_name);
-        str->append(")");
+        str->append(')');
       }
       else
         str->append(extra_tag_text[tag]);
@@ -2025,7 +2033,7 @@ void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag t
     {
       str->append(extra_tag_text[tag]);
       if (loose_scan_is_scanning)
-        str->append(" (scanning)");
+        str->append(STRING_WITH_LEN(" (scanning)"));
       break;
     }
     default:
@@ -2080,13 +2088,16 @@ void Explain_quick_select::print_json(Json_writer *writer)
 
 void Explain_quick_select::print_extra_recursive(String *str)
 {
+  const char *name;
   if (is_basic())
   {
-    str->append(range.get_key_name());
+    name= range.get_key_name();
+    str->append(name, strlen(name));
   }
   else
   {
-    str->append(get_name_by_type());
+    name= get_name_by_type();
+    str->append(name, strlen(name));
     str->append('(');
     List_iterator_fast<Explain_quick_select> it (children);
     Explain_quick_select* child;
@@ -2135,7 +2146,7 @@ void Explain_quick_select::print_key(String *str)
   {
     if (str->length() > 0)
       str->append(',');
-    str->append(range.get_key_name());
+    str->append(range.get_key_name(), strlen(range.get_key_name()));
   }
   else
   {

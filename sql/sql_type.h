@@ -3147,7 +3147,7 @@ public:
     aggregate_numeric_attributes_decimal(items, nitems,
                                          (unsigned_flag= unsigned_arg));
   }
-  bool aggregate_attributes_string(const char *func_name,
+  bool aggregate_attributes_string(const LEX_CSTRING &func_name,
                                    Item **item, uint nitems);
   void aggregate_attributes_temporal(uint int_part_length,
                                      Item **item, uint nitems)
@@ -3155,10 +3155,11 @@ public:
     fix_attributes_temporal(int_part_length, find_max_decimals(item, nitems));
   }
 
-  bool agg_item_collations(DTCollation &c, const char *name,
+  bool agg_item_collations(DTCollation &c, const LEX_CSTRING &name,
                            Item **items, uint nitems,
                            uint flags, int item_sep);
-  bool agg_item_set_converter(const DTCollation &coll, const char *fname,
+  bool agg_item_set_converter(const DTCollation &coll,
+                              const LEX_CSTRING &name,
                               Item **args, uint nargs,
                               uint flags, int item_sep);
 
@@ -3190,7 +3191,7 @@ public:
 
       agg_item_charsets(coll, fname, &args[2], 2, flags, 3)
   */
-  bool agg_arg_charsets(DTCollation &c, const char *func_name,
+  bool agg_arg_charsets(DTCollation &c, const LEX_CSTRING &func_name,
                         Item **items, uint nitems,
                         uint flags, int item_sep)
   {
@@ -3203,7 +3204,8 @@ public:
     - convert to @@character_set_connection if all arguments are numbers
     - allow DERIVATION_NONE
   */
-  bool agg_arg_charsets_for_string_result(DTCollation &c, const char *func_name,
+  bool agg_arg_charsets_for_string_result(DTCollation &c,
+                                          const LEX_CSTRING &func_name,
                                           Item **items, uint nitems,
                                           int item_sep)
   {
@@ -3219,7 +3221,7 @@ public:
     - disallow DERIVATION_NONE
   */
   bool agg_arg_charsets_for_string_result_with_comparison(DTCollation &c,
-                                                          const char *func_name,
+                                                          const LEX_CSTRING &func_name,
                                                           Item **items,
                                                           uint nitems,
                                                           int item_sep)
@@ -3237,7 +3239,7 @@ public:
     - don't allow DERIVATION_NONE
   */
   bool agg_arg_charsets_for_comparison(DTCollation &c,
-                                       const char *func_name,
+                                       const LEX_CSTRING &func_name,
                                        Item **items, uint nitems,
                                        int item_sep)
   {
@@ -3543,7 +3545,7 @@ protected:
                                      longlong value,
                                      const SORT_FIELD_ATTR *sort_field) const;
 
-  bool Item_func_or_sum_illegal_param(const char *name) const;
+  bool Item_func_or_sum_illegal_param(const LEX_CSTRING &name) const;
   bool Item_func_or_sum_illegal_param(const Item_func_or_sum *) const;
   bool check_null(const Item *item, st_value *value) const;
   bool Item_send_str(Item *item, Protocol *protocol, st_value *buf) const;
@@ -4136,7 +4138,7 @@ public:
   virtual bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                              Item *a, Item *b) const= 0;
   virtual bool Item_hybrid_func_fix_attributes(THD *thd,
-                                               const char *name,
+                                               const LEX_CSTRING &name,
                                                Type_handler_hybrid_field_type *,
                                                Type_all_attributes *atrr,
                                                Item **items,
@@ -4467,7 +4469,7 @@ public:
   }
   bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems)
@@ -4756,7 +4758,7 @@ public:
                                        const override;
   bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems)
@@ -4892,7 +4894,7 @@ public:
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
   bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems)
@@ -5126,7 +5128,7 @@ public:
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
   bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const override;
@@ -5380,7 +5382,7 @@ public:
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
   bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const
@@ -6053,7 +6055,7 @@ public:
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
   longlong Item_val_int_unsigned_typecast(Item *item) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems)
@@ -6247,7 +6249,7 @@ public:
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val*) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const
@@ -6388,7 +6390,7 @@ public:
                                             const override;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems)
@@ -6552,7 +6554,7 @@ public:
                                             my_decimal *) const override;
   bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems)
@@ -7035,7 +7037,7 @@ public:
                                   const Column_definition &def,
                                   const handler *file) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const
@@ -7167,7 +7169,7 @@ public:
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val*) const override;
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems)
@@ -7369,13 +7371,14 @@ public:
     return (m_type_handler= Type_handler::get_handler_by_real_type(type));
   }
   bool aggregate_for_comparison(const Type_handler *other);
-  bool aggregate_for_comparison(const char *funcname,
+  bool aggregate_for_comparison(const LEX_CSTRING &funcname,
                                 Item **items, uint nitems,
                                 bool treat_int_to_uint_as_decimal);
   bool aggregate_for_result(const Type_handler *other);
-  bool aggregate_for_result(const char *funcname,
+  bool aggregate_for_result(const LEX_CSTRING &funcname,
                             Item **item, uint nitems, bool treat_bit_as_number);
-  bool aggregate_for_min_max(const char *funcname, Item **item, uint nitems);
+  bool aggregate_for_min_max(const LEX_CSTRING &funcname, Item **item,
+                             uint nitems);
 
   bool aggregate_for_num_op(const class Type_aggregator *aggregator,
                             const Type_handler *h0, const Type_handler *h1);

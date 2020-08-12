@@ -1083,6 +1083,8 @@ my_bool resolve_collation(const char *cl_name,
     to_length           Length of destination buffer, or 0
     from                The string to escape
     length              The length of the string to escape
+    overflow            Set to 1 if the escaped string did not fit in
+                        the to buffer
 
   DESCRIPTION
     This escapes the contents of a string by adding backslashes before special
@@ -1094,17 +1096,17 @@ my_bool resolve_collation(const char *cl_name,
     "big enough"
 
   RETURN VALUES
-    (size_t) -1 The escaped string did not fit in the to buffer
     #           The length of the escaped string
 */
 
 size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
                                char *to, size_t to_length,
-                               const char *from, size_t length)
+                               const char *from, size_t length,
+                               my_bool *overflow)
 {
   const char *to_start= to;
   const char *end, *to_end=to_start + (to_length ? to_length-1 : 2*length);
-  my_bool overflow= FALSE;
+  *overflow= FALSE;
   for (end= from + length; from < end; from++)
   {
     char escape= 0;
@@ -1114,7 +1116,7 @@ size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
     {
       if (to + tmp_length > to_end)
       {
-        overflow= TRUE;
+        *overflow= TRUE;
         break;
       }
       while (tmp_length--)
@@ -1164,7 +1166,7 @@ size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
     {
       if (to + 2 > to_end)
       {
-        overflow= TRUE;
+        *overflow= TRUE;
         break;
       }
       *to++= '\\';
@@ -1174,14 +1176,14 @@ size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
     {
       if (to + 1 > to_end)
       {
-        overflow= TRUE;
+        *overflow= TRUE;
         break;
       }
       *to++= *from;
     }
   }
   *to= 0;
-  return overflow ? (size_t) -1 : (size_t) (to - to_start);
+  return (size_t) (to - to_start);
 }
 
 
@@ -1223,6 +1225,7 @@ CHARSET_INFO *fs_character_set()
     to_length           Length of destination buffer, or 0
     from                The string to escape
     length              The length of the string to escape
+    overflow            Set to 1 if the buffer overflows
 
   DESCRIPTION
     This escapes the contents of a string by doubling up any apostrophes that
@@ -1234,20 +1237,20 @@ CHARSET_INFO *fs_character_set()
     mean "big enough"
 
   RETURN VALUES
-    ~0          The escaped string did not fit in the to buffer
-    >=0         The length of the escaped string
+     The length of the escaped string
 */
 
 size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                char *to, size_t to_length,
-                               const char *from, size_t length)
+                               const char *from, size_t length,
+                               my_bool *overflow)
 {
   const char *to_start= to;
   const char *end, *to_end=to_start + (to_length ? to_length-1 : 2*length);
-  my_bool overflow= FALSE;
 #ifdef USE_MB
   my_bool use_mb_flag= my_ci_use_mb(charset_info);
 #endif
+  *overflow= FALSE;
   for (end= from + length; from < end; from++)
   {
 #ifdef USE_MB
@@ -1256,7 +1259,7 @@ size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
     {
       if (to + tmp_length > to_end)
       {
-        overflow= TRUE;
+        *overflow= TRUE;
         break;
       }
       while (tmp_length--)
@@ -1274,7 +1277,7 @@ size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
     {
       if (to + 2 > to_end)
       {
-        overflow= TRUE;
+        *overflow= TRUE;
         break;
       }
       *to++= '\'';
@@ -1284,14 +1287,14 @@ size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
     {
       if (to + 1 > to_end)
       {
-        overflow= TRUE;
+        *overflow= TRUE;
         break;
       }
       *to++= *from;
     }
   }
   *to= 0;
-  return overflow ? (ulong)~0 : (ulong) (to - to_start);
+  return (size_t) (to - to_start);
 }
 
 

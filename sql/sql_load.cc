@@ -877,18 +877,18 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
   {
     List_iterator<Item>  li(thd->lex->field_list);
 
-    query_str.append(" (");
+    query_str.append(STRING_WITH_LEN(" ("));
     n= 0;
 
     while ((item= li++))
     {
       if (n++)
-        query_str.append(", ");
+        query_str.append(STRING_WITH_LEN(", "));
       const Load_data_outvar *var= item->get_load_data_outvar();
       DBUG_ASSERT(var);
       var->load_data_print_for_log_event(thd, &query_str);
     }
-    query_str.append(")");
+    query_str.append(')');
   }
 
   if (!thd->lex->update_list.is_empty())

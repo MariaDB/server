@@ -2278,14 +2278,14 @@ String timeout_message(const char *command, const char *name1,
                        const char *name2)
 {
     String msg;
-    msg.append("Timeout on ");
-    msg.append(command);
-    msg.append(": ");
-    msg.append(name1);
+    msg.append(STRING_WITH_LEN("Timeout on "));
+    msg.append(command, strlen(command));
+    msg.append(STRING_WITH_LEN(": "));
+    msg.append(name1, strlen(name1));
     if (name2 && name2[0])
     {
-      msg.append(".");
-      msg.append(name2);
+      msg.append('.');
+      msg.append(name2, strlen(name2));
     }
     return msg;
 }
@@ -2473,7 +2473,8 @@ protected:
             "Query: %s",
             user_host_buff, thd->query());
       }
-      m_detailed_error = String(" (snapshot conflict)", system_charset_info);
+      m_detailed_error = String(STRING_WITH_LEN(" (snapshot conflict)"),
+                                system_charset_info);
       table_handler->m_deadlock_counter.inc();
       return HA_ERR_ROCKSDB_STATUS_BUSY;
     }
@@ -6910,7 +6911,8 @@ bool ha_rocksdb::get_error_message(const int error, String *const buf) {
   }
 
   if (error >= HA_ERR_ROCKSDB_FIRST && error <= HA_ERR_ROCKSDB_LAST) {
-    buf->append(rdb_error_messages[error - HA_ERR_ROCKSDB_FIRST]);
+    const char *msg= rdb_error_messages[error - HA_ERR_ROCKSDB_FIRST];
+    buf->append(msg, strlen(msg));
   }
 
   // We can be called with the values which are < HA_ERR_FIRST because most

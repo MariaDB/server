@@ -838,9 +838,11 @@ public:
   void reset_field();
   void update_field();
   void no_rows_in_result() {}
-  const char *func_name() const 
+  LEX_CSTRING func_name_cstring() const override
   { 
-    return has_with_distinct() ? "sum(distinct " : "sum("; 
+    static LEX_CSTRING name_distinct= { STRING_WITH_LEN("sum(distinct ")};
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("sum(") };
+    return has_with_distinct() ? name_distinct : name_normal;
   }
   Item *copy_or_same(THD* thd);
   void remove();
@@ -911,9 +913,11 @@ public:
   void reset_field();
   void update_field();
   void direct_add(longlong add_count);
-  const char *func_name() const 
+  LEX_CSTRING func_name_cstring() const override
   { 
-    return has_with_distinct() ? "count(distinct " : "count(";
+    static LEX_CSTRING name_distinct= { STRING_WITH_LEN("count(distinct ")};
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("count(") };
+    return has_with_distinct() ? name_distinct : name_normal;
   }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
@@ -961,9 +965,11 @@ public:
   void update_field();
   Item *result_item(THD *thd, Field *field);
   void no_rows_in_result() {}
-  const char *func_name() const 
+  LEX_CSTRING func_name_cstring() const override
   { 
-    return has_with_distinct() ? "avg(distinct " : "avg("; 
+    static LEX_CSTRING name_distinct= { STRING_WITH_LEN("avg(distinct ")};
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("avg(") };
+    return has_with_distinct() ? name_distinct : name_normal;
   }
   Item *copy_or_same(THD* thd);
   Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
@@ -1047,8 +1053,12 @@ public:
   void update_field() override final;
   Item *result_item(THD *thd, Field *field) override;
   void no_rows_in_result() override final {}
-  const char *func_name() const override
-    { return sample ? "var_samp(" : "variance("; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name_sample= { STRING_WITH_LEN("var_samp(")};
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("variance(") };
+    return sample ? name_sample : name_normal;
+  }
   Item *copy_or_same(THD* thd) override;
   Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override
     final;
@@ -1076,7 +1086,11 @@ class Item_sum_std final :public Item_sum_variance
   enum Sumfunctype sum_func () const override final { return STD_FUNC; }
   double val_real() override final;
   Item *result_item(THD *thd, Field *field) override final;
-  const char *func_name() const override final { return "std("; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING sum_name= {STRING_WITH_LEN("std(") };
+    return sum_name;
+  }
   Item *copy_or_same(THD* thd) override final;
   Item *get_copy(THD *thd) override final
   { return get_item_copy<Item_sum_std>(thd, this); }
@@ -1172,7 +1186,11 @@ public:
   enum Sumfunctype sum_func () const {return MIN_FUNC;}
 
   bool add();
-  const char *func_name() const { return "min("; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING sum_name= {STRING_WITH_LEN("min(") };
+    return sum_name;
+  }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_min>(thd, this); }
@@ -1187,7 +1205,11 @@ public:
   enum Sumfunctype sum_func () const {return MAX_FUNC;}
 
   bool add();
-  const char *func_name() const { return "max("; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING sum_name= {STRING_WITH_LEN("max(") };
+    return sum_name;
+  }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_max>(thd, this); }
@@ -1216,7 +1238,7 @@ public:
   const Type_handler *type_handler() const { return &type_handler_ulonglong; }
   bool fix_length_and_dec()
   {
-    if (args[0]->check_type_can_return_int(func_name()))
+    if (args[0]->check_type_can_return_int(func_name_cstring()))
       return true;
     decimals= 0; max_length=21; unsigned_flag= 1;
     base_flags&= ~item_base_t::MAYBE_NULL;
@@ -1276,7 +1298,11 @@ public:
   Item_sum_or(THD *thd, Item *item_par): Item_sum_bit(thd, item_par, 0) {}
   Item_sum_or(THD *thd, Item_sum_or *item) :Item_sum_bit(thd, item) {}
   bool add();
-  const char *func_name() const { return "bit_or("; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING sum_name= {STRING_WITH_LEN("bit_or(") };
+    return sum_name;
+  }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_or>(thd, this); }
@@ -1293,7 +1319,11 @@ public:
     Item_sum_bit(thd, item_par, ULONGLONG_MAX) {}
   Item_sum_and(THD *thd, Item_sum_and *item) :Item_sum_bit(thd, item) {}
   bool add();
-  const char *func_name() const { return "bit_and("; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING sum_min_name= {STRING_WITH_LEN("bit_and(") };
+    return sum_min_name;
+  }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_and>(thd, this); }
@@ -1308,7 +1338,11 @@ public:
   Item_sum_xor(THD *thd, Item *item_par): Item_sum_bit(thd, item_par, 0) {}
   Item_sum_xor(THD *thd, Item_sum_xor *item) :Item_sum_bit(thd, item) {}
   bool add();
-  const char *func_name() const { return "bit_xor("; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING sum_min_name= {STRING_WITH_LEN("bit_xor(") };
+    return sum_min_name;
+  }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_xor>(thd, this); }
@@ -1393,7 +1427,7 @@ public:
   }
   bool fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
-  const char *func_name() const;
+  LEX_CSTRING func_name_cstring() const override;
   const Type_handler *type_handler() const;
   bool add();
 
@@ -1606,7 +1640,11 @@ public:
   Item_udf_sum(THD *thd, Item_udf_sum *item)
     :Item_sum(thd, item), udf(item->udf)
   { udf.not_original= TRUE; }
-  const char *func_name() const { return udf.name(); }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    const char *tmp= udf.name();
+    return {tmp, strlen(tmp) };
+  }
   bool fix_fields(THD *thd, Item **ref)
   {
     DBUG_ASSERT(fixed() == 0);
@@ -1973,7 +2011,11 @@ public:
   void cleanup();
 
   enum Sumfunctype sum_func () const {return GROUP_CONCAT_FUNC;}
-  const char *func_name() const { return "group_concat("; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING sum_name= {STRING_WITH_LEN("group_concat(") };
+    return sum_name;
+  }
   const Type_handler *type_handler() const
   {
     if (too_big_for_varchar())

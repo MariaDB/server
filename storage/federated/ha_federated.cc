@@ -1000,19 +1000,17 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
   }
   else if (part->key_part_flag & HA_BLOB_PART)
   {
-    String blob;
     uint blob_length= uint2korr(ptr);
-    blob.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
-                   blob_length, &my_charset_bin);
+    String blob((char*) ptr+HA_KEY_BLOB_LENGTH,
+                blob_length, &my_charset_bin);
     if (to->append_for_single_quote(&blob))
       DBUG_RETURN(1);
   }
   else if (part->key_part_flag & HA_VAR_LENGTH_PART)
   {
-    String varchar;
     uint var_length= uint2korr(ptr);
-    varchar.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
-                      var_length, &my_charset_bin);
+    String varchar((char*) ptr+HA_KEY_BLOB_LENGTH,
+                   var_length, &my_charset_bin);
     if (to->append_for_single_quote(&varchar))
       DBUG_RETURN(1);
   }
@@ -1393,7 +1391,7 @@ bool ha_federated::create_where_from_key(String *to,
       case HA_READ_AFTER_KEY:
         if (eq_range_arg)
         {
-          if (tmp.append("1=1"))                // Dummy
+          if (tmp.append(STRING_WITH_LEN("1=1")))                // Dummy
             goto err;
           break;
         }
@@ -2429,7 +2427,7 @@ int ha_federated::index_read_idx_with_result_set(uchar *buf, uint index,
   index_string.length(0);
   sql_query.length(0);
 
-  sql_query.append(share->select_query);
+  sql_query.append(share->select_query, strlen(share->select_query));
 
   range.key= key;
   range.length= key_len;
@@ -2513,7 +2511,7 @@ int ha_federated::read_range_first(const key_range *start_key,
   DBUG_ASSERT(!(start_key == NULL && end_key == NULL));
 
   sql_query.length(0);
-  sql_query.append(share->select_query);
+  sql_query.append(share->select_query, strlen(share->select_query));
   create_where_from_key(&sql_query,
                         &table->key_info[active_index],
                         start_key, end_key, 0, eq_range_arg);
@@ -3169,16 +3167,17 @@ int ha_federated::real_connect()
     We have established a connection, lets try a simple dummy query just 
     to check that the table and expected columns are present.
   */
-  sql_query.append(share->select_query);
+  sql_query.append(share->select_query, strlen(share->select_query));
   sql_query.append(STRING_WITH_LEN(" WHERE 1=0"));
   if (mysql_real_query(mysql, sql_query.ptr(), sql_query.length()))
   {
     sql_query.length(0);
-    sql_query.append("error: ");
+    sql_query.append(STRING_WITH_LEN("error: "));
     sql_query.qs_append(mysql_errno(mysql));
-    sql_query.append("  '");
-    sql_query.append(mysql_error(mysql));
-    sql_query.append("'");
+    sql_query.append(STRING_WITH_LEN("  '"));
+    const char *errmsg= mysql_error(mysql);
+    sql_query.append(errmsg, strlen(errmsg));
+    sql_query.append('\'');
     mysql_close(mysql);
     mysql= NULL;
     my_error(ER_FOREIGN_DATA_SOURCE_DOESNT_EXIST, MYF(0), sql_query.ptr());
@@ -3243,7 +3242,7 @@ bool ha_federated::get_error_message(int error, String* buf)
     buf->append(STRING_WITH_LEN("Error on remote system: "));
     buf->qs_append(remote_error_number);
     buf->append(STRING_WITH_LEN(": "));
-    buf->append(remote_error_buf);
+    buf->append(remote_error_buf, strlen(remote_error_buf));
 
     remote_error_number= 0;
     remote_error_buf[0]= '\0';

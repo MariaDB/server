@@ -123,25 +123,26 @@ void TEST_filesort(SORT_FIELD *sortorder,uint s_length)
   char buff[256],buff2[256];
   String str(buff,sizeof(buff),system_charset_info);
   String out(buff2,sizeof(buff2),system_charset_info);
-  const char *sep;
+  DBUG_ASSERT(s_length > 0);
   DBUG_ENTER("TEST_filesort");
 
   out.length(0);
-  for (sep=""; s_length-- ; sortorder++, sep=" ")
+  for (; s_length-- ; sortorder++)
   {
-    out.append(sep);
     if (sortorder->reverse)
       out.append('-');
     if (sortorder->field)
     {
       if (sortorder->field->table_name)
       {
-	out.append(*sortorder->field->table_name);
+        const char *table_name= *sortorder->field->table_name;
+	out.append(table_name, strlen(table_name));
 	out.append('.');
       }
-      out.append(sortorder->field->field_name.str ?
-                 sortorder->field->field_name.str :
-		 "tmp_table_column");
+      const char *name= sortorder->field->field_name.str;
+      if (!name)
+        name= "tmp_table_column";
+      out.append(name, strlen(name));
     }
     else
     {
@@ -149,7 +150,9 @@ void TEST_filesort(SORT_FIELD *sortorder,uint s_length)
       sortorder->item->print(&str, QT_ORDINARY);
       out.append(str);
     }
+    out.append(' ');
   }
+  out.chop();                                  // Remove last space
   DBUG_LOCK_FILE;
   (void) fputs("\nInfo about FILESORT\n",DBUG_FILE);
   fprintf(DBUG_FILE,"Sortorder: %s\n",out.c_ptr_safe());
@@ -182,8 +185,9 @@ TEST_join(JOIN *join)
       JOIN_TAB *tab= jt_range->start + i;
       for (ref= 0; ref < tab->ref.key_parts; ref++)
       {
-        ref_key_parts[i].append(tab->ref.items[ref]->full_name());
-        ref_key_parts[i].append("  ");
+        const char *full_name=(tab->ref.items[ref]->full_name());
+        ref_key_parts[i].append(full_name, strlen(full_name));
+        ref_key_parts[i].append(STRING_WITH_LEN("  "));
       }
     }
 
