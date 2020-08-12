@@ -178,7 +178,7 @@ protected:
   /*
     Return the full select tree for "field_item" and "value":
     - a single SEL_TREE if the field is not in a multiple equality, or
-    - a conjuction of all SEL_TREEs for all fields from
+    - a conjunction of all SEL_TREEs for all fields from
       the same multiple equality with "field_item".
   */
   SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,
@@ -744,7 +744,7 @@ public:
   { return get_item_copy<Item_func_eq>(thd, this); }
 };
 
-class Item_func_equal :public Item_bool_rowready_func2
+class Item_func_equal final :public Item_bool_rowready_func2
 {
 public:
   Item_func_equal(THD *thd, Item *a, Item *b):
@@ -1117,9 +1117,19 @@ public:
   bool native_op(THD *thd, Native *to);
   bool fix_length_and_dec()
   {
+    /*
+      Set nullability from args[1] by default.
+      Note, some type handlers may reset maybe_null
+      in Item_hybrid_func_fix_attributes() if args[1]
+      is NOT NULL but cannot always be converted to
+      the data type of "this" safely.
+      E.g. Type_handler_inet6 does:
+        IFNULL(inet6_not_null_expr, 'foo') -> INET6 NULL
+        IFNULL(inet6_not_null_expr, '::1') -> INET6 NOT NULL
+    */
+    maybe_null= args[1]->maybe_null;
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
       return TRUE;
-    maybe_null= args[1]->maybe_null;
     return FALSE;
   }
   const char *func_name() const { return "ifnull"; }
@@ -3331,7 +3341,7 @@ public:
 };
 
 
-class Item_cond_and :public Item_cond
+class Item_cond_and final :public Item_cond
 {
 public:
   COND_EQUAL m_cond_equal;  /* contains list of Item_equal objects for 
@@ -3368,7 +3378,7 @@ inline bool is_cond_and(Item *item)
   return func_item && func_item->functype() == Item_func::COND_AND_FUNC;
 }
 
-class Item_cond_or :public Item_cond
+class Item_cond_or final :public Item_cond
 {
 public:
   Item_cond_or(THD *thd): Item_cond(thd) {}

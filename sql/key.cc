@@ -229,7 +229,7 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
     {
       /*
         This in fact never happens, as we have only partial BLOB
-        keys yet anyway, so it's difficult to find any sence to
+        keys yet anyway, so it's difficult to find any sense to
         restore the part of a record.
         Maybe this branch is to be removed, but now we
         have to ignore GCov compaining.
@@ -611,8 +611,8 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
         max length. The exceptions are the BLOB and VARCHAR field types
         that take the max length into account.
       */
-      if ((result= field->cmp_max(field->ptr+first_diff, field->ptr+sec_diff,
-                             key_part->length)))
+      if ((result= field->cmp_prefix(field->ptr+first_diff, field->ptr+sec_diff,
+                                     key_part->length)))
         DBUG_RETURN(result);
 next_loop:
       key_part++;

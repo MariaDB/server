@@ -1801,6 +1801,13 @@ SELECT @@GLOBAL.password;
 ERROR HY000: Unknown system variable 'password'
 SELECT @@GLOBAL.role;
 ERROR HY000: Unknown system variable 'role'
+#
+# MDEV-22022 Various mangled SQL statements will crash 10.3 to 10.5 debug builds
+#
+EXECUTE IMMEDIATE 'if(`systeminfo /FO LIST';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`systeminfo /FO LIST' at line 1
+EXECUTE IMMEDIATE 'if(`systeminfo';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`systeminfo' at line 1
 End of 10.3 tests
 #
 # MDEV-19540: 10.4 allow lock options with SELECT in brackets

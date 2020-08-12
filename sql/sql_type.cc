@@ -186,6 +186,12 @@ bool Type_handler_data::init()
 }
 
 
+Schema *Type_handler::schema() const
+{
+  return &mariadb_schema;
+}
+
+
 const Type_handler *
 Type_handler::handler_by_name(THD *thd, const LEX_CSTRING &name)
 {
@@ -4134,6 +4140,19 @@ void Type_handler_temporal_with_date::Item_update_null_value(Item *item) const
   (void) item->get_date(thd, &ltime, Datetime::Options(thd));
 }
 
+bool
+Type_handler_timestamp_common::
+Column_definition_set_attributes(THD *thd,
+                                 Column_definition *def,
+                                 const Lex_field_type_st &attr,
+                                 CHARSET_INFO *cs,
+                                 column_definition_type_t type) const
+{
+  Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
+  if (!opt_explicit_defaults_for_timestamp)
+    def->flags|= NOT_NULL_FLAG;
+  return false;
+}
 
 void Type_handler_string_result::Item_update_null_value(Item *item) const
 {
@@ -4628,6 +4647,7 @@ bool Type_handler_temporal_result::
        Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
                                         Item **items, uint nitems) const
 {
+  DBUG_ASSERT(func->field_type() != MYSQL_TYPE_DATE);
   bool rc= Type_handler::Item_func_min_max_fix_attributes(thd, func,
                                                           items, nitems);
   bool is_time= func->field_type() == MYSQL_TYPE_TIME;
@@ -4682,7 +4702,6 @@ bool Type_handler_temporal_result::
         DATETIME             DATETIME       no conversion
         DATETIME             TIMESTAMP      safe conversion
         DATETIME             DATE           safe conversion
-        DATE                 DATE           no conversion
         TIME                 TIME           no conversion
 
         Note, a function cannot return TIMESTAMP if it has non-TIMESTAMP
@@ -4699,9 +4718,6 @@ bool Type_handler_temporal_result::
       -------------------- ------------- -------
       TIMESTAMP            TIME          Not possible
       DATETIME             TIME          depends on OLD_MODE_ZERO_DATE_TIME_CAST
-      DATE                 TIMESTAMP     Not possible
-      DATE                 DATETIME      Not possible
-      DATE                 TIME          Not possible
       TIME                 TIMESTAMP     Not possible
       TIME                 DATETIME      Not possible
       TIME                 DATE          Not possible
@@ -4721,6 +4737,30 @@ bool Type_handler_temporal_result::
     break;
   }
   return rc;
+}
+
+
+bool Type_handler_date_common::
+       Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const
+{
+  func->fix_attributes_date();
+  if (func->maybe_null)
+    return false;
+  /*
+    We cannot trust the generic maybe_null value calculated during fix_fields().
+    If a conversion from non-temoral types to DATE happens,
+    then the result can be NULL (even if all arguments are not NULL).
+  */
+  for (uint i= 0; i < nitems; i++)
+  {
+    if (items[i]->type_handler()->cmp_type() != TIME_RESULT)
+    {
+      func->maybe_null= true;
+      break;
+    }
+  }
+  return false;
 }
 
 
@@ -6165,7 +6205,8 @@ bool Type_handler_row::
 bool Type_handler_int_result::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(this, item->arguments()[0]);
+  item->fix_arg_int(this, item->arguments()[0],
+                    field_type() == MYSQL_TYPE_LONGLONG);
   return false;
 }
 
@@ -6173,7 +6214,7 @@ bool Type_handler_int_result::
 bool Type_handler_year::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(&type_handler_ulong, item->arguments()[0]);
+  item->fix_arg_int(&type_handler_ulong, item->arguments()[0], false);
   return false;
 }
 
@@ -6181,7 +6222,7 @@ bool Type_handler_year::
 bool Type_handler_hex_hybrid::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  item->fix_arg_int(nullptr, nullptr);
+  item->fix_arg_hex_hybrid();
   return false;
 }
 
@@ -6224,7 +6265,7 @@ bool Type_handler_date_common::
 {
   static const Type_std_attributes attr(Type_numeric_attributes(8, 0, true),
                                         DTCollation_numeric());
-  item->fix_arg_int(&type_handler_ulong, &attr);
+  item->fix_arg_int(&type_handler_ulong, &attr, false);
   return false;
 }
 

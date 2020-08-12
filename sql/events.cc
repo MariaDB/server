@@ -130,7 +130,7 @@ bool Events::check_if_system_tables_error()
 
 /**
   Reconstructs interval expression from interval type and expression
-  value that is in form of a value of the smalles entity:
+  value that is in form of a value of the smallest entity:
   For
     YEAR_MONTH - expression is in months
     DAY_MINUTE - expression is in minutes

@@ -1838,6 +1838,7 @@ public:
   Item_func_int_val(THD *thd, Item *a): Item_func_hybrid_field_type(thd, a) {}
   bool check_partition_func_processor(void *int_arg) { return FALSE; }
   bool check_vcol_func_processor(void *arg) { return FALSE; }
+  virtual decimal_round_mode round_mode() const= 0;
   void fix_length_and_dec_double();
   void fix_length_and_dec_int_or_decimal();
   void fix_length_and_dec_time()
@@ -1866,6 +1867,7 @@ class Item_func_ceiling :public Item_func_int_val
 public:
   Item_func_ceiling(THD *thd, Item *a): Item_func_int_val(thd, a) {}
   const char *func_name() const { return "ceiling"; }
+  decimal_round_mode round_mode() const { return CEILING; }
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
@@ -1881,6 +1883,7 @@ class Item_func_floor :public Item_func_int_val
 public:
   Item_func_floor(THD *thd, Item *a): Item_func_int_val(thd, a) {}
   const char *func_name() const { return "floor"; }
+  decimal_round_mode round_mode() const { return FLOOR; }
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
@@ -1897,6 +1900,7 @@ class Item_func_round :public Item_func_hybrid_field_type
   bool truncate;
   void fix_length_and_dec_decimal(uint decimals_to_set);
   void fix_length_and_dec_double(uint decimals_to_set);
+  bool test_if_length_can_increase();
 public:
   Item_func_round(THD *thd, Item *a, Item *b, bool trunc_arg)
     :Item_func_hybrid_field_type(thd, a, b), truncate(trunc_arg) {}
@@ -1918,7 +1922,9 @@ public:
   }
   void fix_arg_decimal();
   void fix_arg_int(const Type_handler *preferred,
-                   const Type_std_attributes *preferred_attributes);
+                   const Type_std_attributes *preferred_attributes,
+                   bool use_decimal_on_length_increase);
+  void fix_arg_hex_hybrid();
   void fix_arg_double();
   void fix_arg_time();
   void fix_arg_datetime();

@@ -486,6 +486,20 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-23282 FLOAT(53,0) badly handles out-of-range values
+--echo #
+
+CREATE OR REPLACE TABLE t1 (c1 FLOAT NOT NULL, c2 FLOAT NOT NULL);
+INSERT IGNORE INTO t1 VALUES (1e+40, -1e+40);
+SELECT c1, c2 FROM t1;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (c1 FLOAT(53,0) NOT NULL, c2 FLOAT(53,0) NOT NULL);
+INSERT IGNORE INTO t1 VALUES (1e+40, -1e+40);
+SELECT c1, c2 FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
 
@@ -665,6 +679,26 @@ EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING 1e0,
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>1e0+a' USING 1e0;
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1e0+a<=>?+a' USING 1e0;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23415 Server crash or Assertion `dec_length <= str_length' failed in Item_func_format::val_str_ascii
+--echo #
+
+SELECT FORMAT('0', 50, 'de_DE');
+SELECT FORMAT(0e0, 50, 'de_DE');
+
+--vertical_results
+DELIMITER $$;
+FOR d IN 0..50
+DO
+  SELECT
+    d,
+    FORMAT(123456789.123456789e0, d, 'de_DE') AS fdbl,
+    FORMAT(123456789.123456789, d, 'de_DE') AS fdec;
+END FOR;
+$$
+DELIMITER ;$$
+--horizontal_results
 
 --echo #
 --echo # End of 10.4 tests

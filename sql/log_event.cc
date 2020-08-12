@@ -2735,7 +2735,7 @@ Intvar_log_event::Intvar_log_event(const char* buf,
                                    const Format_description_log_event* description_event)
   :Log_event(buf, description_event)
 {
-  /* The Post-Header is empty. The Varible Data part begins immediately. */
+  /* The Post-Header is empty. The Variable Data part begins immediately. */
   buf+= description_event->common_header_len +
     description_event->post_header_len[INTVAR_EVENT-1];
   type= buf[I_TYPE_OFFSET];
@@ -3284,7 +3284,7 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
     DBUG_VOID_RETURN;
   }
 
-  /* if my_bitmap_init fails, catched in is_valid() */
+  /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
                           m_width,

@@ -58,7 +58,7 @@ struct st_handler_tablename
   const char *tablename;
 };
 /** The class defining a handle to an Innodb table */
-class ha_innobase final: public handler
+class ha_innobase final : public handler
 {
 public:
 	ha_innobase(handlerton* hton, TABLE_SHARE* table_arg);

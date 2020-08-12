@@ -757,21 +757,23 @@ drop table t1;
 select hex(concat(ceiling(0.5)));
 hex(concat(ceiling(0.5)))
 31
-create table t1 as select concat(ceiling(0.5)) as c1;
+create table t1 as select ceiling(0.5) as c0, concat(ceiling(0.5)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(4) CHARACTER SET cp1251 DEFAULT NULL
+  `c0` int(3) NOT NULL,
+  `c1` varchar(3) CHARACTER SET cp1251 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(floor(0.5)));
 hex(concat(floor(0.5)))
 30
-create table t1 as select concat(floor(0.5)) as c1;
+create table t1 as select floor(0.5) as c0, concat(floor(0.5)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(4) CHARACTER SET cp1251 DEFAULT NULL
+  `c0` int(3) NOT NULL,
+  `c1` varchar(3) CHARACTER SET cp1251 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(round(0.5)));

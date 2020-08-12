@@ -93,4 +93,15 @@ SELECT ROW_FORMAT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
 ROW_FORMAT
 Dynamic
 DROP TABLE t1;
+#
+# MDEV-23345 Assertion not_redundant() == old.not_redundant() failed
+#
+SET GLOBAL innodb_default_row_format = @row_format;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, KEY(b)) ENGINE=InnoDB;
+SET GLOBAL innodb_default_row_format= COMPACT;
+ALTER TABLE t1 DROP b;
+SELECT ROW_FORMAT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
+ROW_FORMAT
+Dynamic
+DROP TABLE t1;
 SET GLOBAL innodb_default_row_format = @row_format;

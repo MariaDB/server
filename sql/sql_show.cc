@@ -2149,6 +2149,13 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     append_identifier(thd, packet, &field->field_name);
     packet->append(' ');
 
+    const Type_handler *th= field->type_handler();
+    const Schema *implied_schema= Schema::find_implied(thd);
+    if (th != implied_schema->map_data_type(thd, th))
+    {
+      packet->append(th->schema()->name(), system_charset_info);
+      packet->append(STRING_WITH_LEN("."), system_charset_info);
+    }
     type.set(tmp, sizeof(tmp), system_charset_info);
     field->sql_type(type);
     packet->append(type.ptr(), type.length(), system_charset_info);
@@ -4613,7 +4620,7 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
     Again we don't do this for SHOW COLUMNS/KEYS because
     of backward compatibility.
   */
-  if (!is_show_fields_or_keys && result &&
+  if (!is_show_fields_or_keys && result && thd->is_error() &&
       (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT ||
        thd->get_stmt_da()->sql_errno() == ER_NOT_SEQUENCE))
@@ -5925,12 +5932,12 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
         rather than in SHOW COLUMNS
       */
-      convert_error_to_warning(thd);
+      if (thd->is_error())
+        convert_error_to_warning(thd);
       res= 0;
     }
     DBUG_RETURN(res);
   }
-
   show_table= tables->table;
   count= 0;
   ptr= show_table->field;

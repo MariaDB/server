@@ -1197,6 +1197,16 @@ bool Protocol::store_string_aux(const char *from, size_t length,
 }
 
 
+bool Protocol_text::store_numeric_string_aux(const char *from, size_t length)
+{
+  CHARSET_INFO *tocs= thd->variables.character_set_results;
+  // 'tocs' is NULL when the client issues SET character_set_results=NULL
+  if (tocs && (tocs->state & MY_CS_NONASCII))   // Conversion needed
+    return net_store_data_cs((uchar*) from, length, &my_charset_latin1, tocs);
+  return net_store_data((uchar*) from, length); // No conversion
+}
+
+
 bool Protocol::store_warning(const char *from, size_t length)
 {
   BinaryStringBuffer<MYSQL_ERRMSG_SIZE> tmp;
@@ -1232,8 +1242,8 @@ bool Protocol_text::store_tiny(longlong from)
   field_pos++;
 #endif
   char buff[22];
-  return net_store_data((uchar*) buff,
-			(size_t) (int10_to_str((int) from, buff, -10) - buff));
+  size_t length= (size_t) (int10_to_str((int) from, buff, -10) - buff);
+  return store_numeric_string_aux(buff, length);
 }
 
 
@@ -1244,9 +1254,8 @@ bool Protocol_text::store_short(longlong from)
   field_pos++;
 #endif
   char buff[22];
-  return net_store_data((uchar*) buff,
-			(size_t) (int10_to_str((int) from, buff, -10) -
-                                  buff));
+  size_t length= (size_t) (int10_to_str((int) from, buff, -10) - buff);
+  return store_numeric_string_aux(buff, length);
 }
 
 
@@ -1257,9 +1266,9 @@ bool Protocol_text::store_long(longlong from)
   field_pos++;
 #endif
   char buff[22];
-  return net_store_data((uchar*) buff,
-			(size_t) (int10_to_str((long int)from, buff,
-                                               (from <0)?-10:10)-buff));
+  size_t length= (size_t) (int10_to_str((long int)from, buff,
+                                        (from < 0) ? - 10 : 10) - buff);
+  return store_numeric_string_aux(buff, length);
 }
 
 
@@ -1270,10 +1279,10 @@ bool Protocol_text::store_longlong(longlong from, bool unsigned_flag)
   field_pos++;
 #endif
   char buff[22];
-  return net_store_data((uchar*) buff,
-			(size_t) (longlong10_to_str(from,buff,
-                                                    unsigned_flag ? 10 : -10)-
-                                  buff));
+  size_t length= (size_t) (longlong10_to_str(from, buff,
+                                             unsigned_flag ? 10 : -10) -
+                           buff);
+  return store_numeric_string_aux(buff, length);
 }
 
 
@@ -1285,7 +1294,7 @@ bool Protocol_text::store_decimal(const my_decimal *d)
 #endif
   StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
   (void) d->to_string(&str);
-  return net_store_data((uchar*) str.ptr(), str.length());
+  return store_numeric_string_aux(str.ptr(), str.length());
 }
 
 
@@ -1296,7 +1305,7 @@ bool Protocol_text::store(float from, uint32 decimals, String *buffer)
   field_pos++;
 #endif
   Float(from).to_string(buffer, decimals);
-  return net_store_data((uchar*) buffer->ptr(), buffer->length());
+  return store_numeric_string_aux(buffer->ptr(), buffer->length());
 }
 
 
@@ -1307,7 +1316,7 @@ bool Protocol_text::store(double from, uint32 decimals, String *buffer)
   field_pos++;
 #endif
   buffer->set_real(from, decimals, thd->charset());
-  return net_store_data((uchar*) buffer->ptr(), buffer->length());
+  return store_numeric_string_aux(buffer->ptr(), buffer->length());
 }
 
 
@@ -1347,7 +1356,7 @@ bool Protocol_text::store(MYSQL_TIME *tm, int decimals)
 #endif
   char buff[MAX_DATE_STRING_REP_LENGTH];
   uint length= my_datetime_to_str(tm, buff, decimals);
-  return net_store_data((uchar*) buff, length);
+  return store_numeric_string_aux(buff, length);
 }
 
 
@@ -1359,7 +1368,7 @@ bool Protocol_text::store_date(MYSQL_TIME *tm)
 #endif
   char buff[MAX_DATE_STRING_REP_LENGTH];
   size_t length= my_date_to_str(tm, buff);
-  return net_store_data((uchar*) buff, length);
+  return store_numeric_string_aux(buff, length);
 }
 
 
@@ -1371,7 +1380,7 @@ bool Protocol_text::store_time(MYSQL_TIME *tm, int decimals)
 #endif
   char buff[MAX_DATE_STRING_REP_LENGTH];
   uint length= my_time_to_str(tm, buff, decimals);
-  return net_store_data((uchar*) buff, length);
+  return store_numeric_string_aux(buff, length);
 }
 
 /**

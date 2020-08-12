@@ -17,6 +17,8 @@
 --source include/default_optimizer_switch.inc
 --source include/default_charset.inc
 
+--source include/have_sequence.inc
+
 set global sql_mode="";
 set local sql_mode="";
 
@@ -1921,6 +1923,18 @@ SELECT SCHEMA_NAME from information_schema.schemata where schema_name=REPEAT('a'
 --echo # End of 10.1 tests
 --echo #
 
+--echo #
+--echo # Start of 10.2 Test
+--echo #
+--echo # MDEV-14836: Assertion `m_status == DA_ERROR' failed in
+--echo # Diagnostics_area::sql_errno upon query from I_S with LIMIT ROWS EXAMINED
+--echo #
+
+SELECT * FROM seq_1_to_100 LIMIT ROWS EXAMINED 10;
+
+--echo #
+--echo # End of 10.2 Test
+--echo #
 
 --echo #
 --echo # MDEV-21201:No records produced in information_schema query,

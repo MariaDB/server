@@ -984,12 +984,12 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   }
   if (!quick_select)
   {
-    (void) file->extra(HA_EXTRA_NO_CACHE);	/* End cacheing of records */
+    (void) file->extra(HA_EXTRA_NO_CACHE);	/* End caching of records */
     if (!next_pos)
       file->ha_rnd_end();
   }
 
-  /* Signal we should use orignal column read and write maps */
+  /* Signal we should use original column read and write maps */
   sort_form->column_bitmaps_set(save_read_set, save_write_set);
 
   if (unlikely(thd->is_error()))
@@ -2553,12 +2553,13 @@ Type_handler_string_result::make_packed_sort_key_part(uchar *to, Item *item,
                                             const SORT_FIELD_ATTR *sort_field,
                                             Sort_param *param) const
 {
+  CHARSET_INFO *cs= item->collation.collation;
   bool maybe_null= item->maybe_null;
 
   if (maybe_null)
     *to++= 1;
 
-  String *res= item->str_result(&param->tmp_buffer);
+  Binary_string *res= item->str_result(&param->tmp_buffer);
   if (!res)
   {
     if (maybe_null)
@@ -2582,7 +2583,7 @@ Type_handler_string_result::make_packed_sort_key_part(uchar *to, Item *item,
       return sort_field->original_length;
     }
   }
-  return sort_field->pack_sort_string(to, res);
+  return sort_field->pack_sort_string(to, res, cs);
 }
 
 
@@ -2946,7 +2947,8 @@ int compare_packed_sort_keys(void *sort_param,
 */
 
 uint
-SORT_FIELD_ATTR::pack_sort_string(uchar *to, String *str) const
+SORT_FIELD_ATTR::pack_sort_string(uchar *to, const Binary_string *str,
+                                  CHARSET_INFO *cs) const
 {
   uchar *orig_to= to;
   uint32 length, data_length;
@@ -2965,7 +2967,7 @@ SORT_FIELD_ATTR::pack_sort_string(uchar *to, String *str) const
   memcpy(to, (uchar*)str->ptr(), data_length);
   to+= data_length;
 
-  if (str->charset() == &my_charset_bin && suffix_length)
+  if (cs == &my_charset_bin && suffix_length)
   {
     // suffix length stored in bigendian form
     store_bigendian(length, to, suffix_length);

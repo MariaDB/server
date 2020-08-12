@@ -25,7 +25,7 @@
 #include <heap.h>
 #include "sql_class.h"                          /* THD */
 
-class ha_heap: public handler
+class ha_heap final : public handler
 {
   HP_INFO *file;
   HP_SHARE *internal_share;

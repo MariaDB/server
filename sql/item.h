@@ -164,7 +164,7 @@ void dummy_error_processor(THD *thd, void *data);
 void view_error_processor(THD *thd, void *data);
 
 /*
-  Instances of Name_resolution_context store the information necesary for
+  Instances of Name_resolution_context store the information necessary for
   name resolution of Items and other context analysis of a query made in
   fix_fields().
 
@@ -344,7 +344,7 @@ public:
   Monotonicity is defined only for Item* trees that represent table
   partitioning expressions (i.e. have no subselects/user vars/PS parameters
   etc etc). An Item* tree is assumed to have the same monotonicity properties
-  as its correspoinding function F:
+  as its corresponding function F:
 
   [signed] longlong F(field1, field2, ...) {
     put values of field_i into table record buffer;
@@ -1153,7 +1153,7 @@ public:
   /*
     real_type() is the type of base item.  This is same as type() for
     most items, except Item_ref() and Item_cache_wrapper() where it
-    shows the type for the underlaying item.
+    shows the type for the underlying item.
   */
   virtual enum Type real_type() const { return type(); }
   
@@ -1299,7 +1299,7 @@ public:
       The caller can modify the returned String, if it's not marked
       "const" (with the String::mark_as_const() method). That means that
       if the item returns its own internal buffer (e.g. tmp_value), it
-      *must* be marked "const" [1]. So normally it's preferrable to
+      *must* be marked "const" [1]. So normally it's preferable to
       return the result value in the String, that was passed as an
       argument. But, for example, SUBSTR() returns a String that simply
       points into the buffer of SUBSTR()'s args[0]->val_str(). Such a
@@ -1775,7 +1775,7 @@ public:
      @param cond_ptr[OUT] Store a replacement item here if the condition
                           can be simplified, e.g.:
                             WHERE part1 OR part2 OR part3
-                          with one of the partN evalutating to SEL_TREE::ALWAYS.
+                          with one of the partN evaluating to SEL_TREE::ALWAYS.
    */
    virtual SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   /*
@@ -2369,8 +2369,9 @@ public:
   virtual bool is_outer_field() const { DBUG_ASSERT(is_fixed()); return FALSE; }
 
   /**
-    Checks if this item or any of its decendents contains a subquery. This is a
-    replacement of the former Item::has_subquery() and Item::with_subselect.
+    Checks if this item or any of its descendents contains a subquery.
+    This is a replacement of the former Item::has_subquery() and
+    Item::with_subselect.
   */
   virtual bool with_subquery() const { DBUG_ASSERT(is_fixed()); return false; }
 
@@ -6061,7 +6062,7 @@ public:
    
     This is the method that updates the cached value.
     It must be explicitly called by the user of this class to store the value 
-    of the orginal item in the cache.
+    of the original item in the cache.
   */  
   virtual void copy() = 0;
 

@@ -201,7 +201,7 @@ maria_declare_plugin(type_inet)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
 },
 {
   MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
@@ -216,7 +216,7 @@ maria_declare_plugin(type_inet)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
 },
 {
   MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
@@ -231,7 +231,7 @@ maria_declare_plugin(type_inet)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
 },
 {
   MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
@@ -246,7 +246,7 @@ maria_declare_plugin(type_inet)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
 },
 {
   MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
@@ -261,7 +261,7 @@ maria_declare_plugin(type_inet)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
 },
 {
   MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
@@ -276,7 +276,7 @@ maria_declare_plugin(type_inet)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
 },
 {
   MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
@@ -291,7 +291,7 @@ maria_declare_plugin(type_inet)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
 },
 {
   MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
@@ -306,6 +306,6 @@ maria_declare_plugin(type_inet)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
 }
 maria_declare_plugin_end;

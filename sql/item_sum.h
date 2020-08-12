@@ -251,7 +251,7 @@ class Window_spec;
   The field 'aggr_level' is to contain the nest level of the subquery
   where the set function is aggregated.
 
-  The field 'max_arg_level' is for the maximun of the nest levels of the
+  The field 'max_arg_level' is for the maximum of the nest levels of the
   unbound column references occurred in the set function. A column reference
   is unbound  within a set function if it is not bound by any subquery
   used as a subexpression in this function. A column reference is bound by
@@ -1016,10 +1016,10 @@ public:
 
 
 
-class Item_sum_variance : public Item_sum_double
+class Item_sum_variance :public Item_sum_double
 {
   Stddev m_stddev;
-  bool fix_length_and_dec();
+  bool fix_length_and_dec() override;
 
 public:
   uint sample;
@@ -1030,26 +1030,27 @@ public:
     sample(sample_arg)
     {}
   Item_sum_variance(THD *thd, Item_sum_variance *item);
-  enum Sumfunctype sum_func () const { return VARIANCE_FUNC; }
+  Sumfunctype sum_func () const override { return VARIANCE_FUNC; }
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
-  void clear();
-  bool add();
-  double val_real();
-  void reset_field();
-  void update_field();
-  Item *result_item(THD *thd, Field *field);
-  void no_rows_in_result() {}
-  const char *func_name() const
+  void clear() override final;
+  bool add() override final;
+  double val_real() override;
+  void reset_field() override final;
+  void update_field() override final;
+  Item *result_item(THD *thd, Field *field) override;
+  void no_rows_in_result() override final {}
+  const char *func_name() const override
     { return sample ? "var_samp(" : "variance("; }
-  Item *copy_or_same(THD* thd);
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
-  void cleanup()
+  Item *copy_or_same(THD* thd) override;
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override
+    final;
+  void cleanup() override final
   {
     m_stddev= Stddev();
     Item_sum_double::cleanup();
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_sum_variance>(thd, this); }
 };
 
@@ -1057,7 +1058,7 @@ public:
    standard_deviation(a) = sqrt(variance(a))
 */
 
-class Item_sum_std :public Item_sum_variance
+class Item_sum_std final :public Item_sum_variance
 {
   public:
   Item_sum_std(THD *thd, Item *item_par, uint sample_arg):
@@ -1065,17 +1066,17 @@ class Item_sum_std :public Item_sum_variance
   Item_sum_std(THD *thd, Item_sum_std *item)
     :Item_sum_variance(thd, item)
     {}
-  enum Sumfunctype sum_func () const { return STD_FUNC; }
-  double val_real();
-  Item *result_item(THD *thd, Field *field);
-  const char *func_name() const { return "std("; }
-  Item *copy_or_same(THD* thd);
-  Item *get_copy(THD *thd)
+  enum Sumfunctype sum_func () const override final { return STD_FUNC; }
+  double val_real() override final;
+  Item *result_item(THD *thd, Field *field) override final;
+  const char *func_name() const override final { return "std("; }
+  Item *copy_or_same(THD* thd) override final;
+  Item *get_copy(THD *thd) override final
   { return get_item_copy<Item_sum_std>(thd, this); }
 };
 
 
-class Item_sum_hybrid: public Item_sum,
+class Item_sum_hybrid : public Item_sum,
                        public Type_handler_hybrid_field_type
 {
 public:
@@ -1156,7 +1157,7 @@ public:
 };
 
 
-class Item_sum_min :public Item_sum_min_max
+class Item_sum_min final :public Item_sum_min_max
 {
 public:
   Item_sum_min(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, 1) {}
@@ -1171,7 +1172,7 @@ public:
 };
 
 
-class Item_sum_max :public Item_sum_min_max
+class Item_sum_max final :public Item_sum_min_max
 {
 public:
   Item_sum_max(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, -1) {}
@@ -1260,7 +1261,7 @@ protected:
 };
 
 
-class Item_sum_or :public Item_sum_bit
+class Item_sum_or final :public Item_sum_bit
 {
 public:
   Item_sum_or(THD *thd, Item *item_par): Item_sum_bit(thd, item_par, 0) {}
@@ -1276,7 +1277,7 @@ private:
 };
 
 
-class Item_sum_and :public Item_sum_bit
+class Item_sum_and final :public Item_sum_bit
 {
 public:
   Item_sum_and(THD *thd, Item *item_par):
@@ -1292,7 +1293,7 @@ private:
   void set_bits_from_counters();
 };
 
-class Item_sum_xor :public Item_sum_bit
+class Item_sum_xor final :public Item_sum_bit
 {
 public:
   Item_sum_xor(THD *thd, Item *item_par): Item_sum_bit(thd, item_par, 0) {}
@@ -1359,7 +1360,7 @@ struct st_sp_security_context;
   Example:
   DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN ret_val;
 */
-class Item_sum_sp :public Item_sum,
+class Item_sum_sp final :public Item_sum,
                    public Item_sp
 {
  private:

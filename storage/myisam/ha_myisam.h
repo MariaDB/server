@@ -41,7 +41,7 @@ C_MODE_START
 check_result_t index_cond_func_myisam(void *arg);
 C_MODE_END
 
-class ha_myisam: public handler
+class ha_myisam final : public handler
 {
   MI_INFO *file;
   ulonglong int_table_flags;

@@ -15,14 +15,14 @@ IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
 CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64" OR
 CMAKE_SYSTEM_PROCESSOR STREQUAL "i386" OR
 CMAKE_SYSTEM_PROCESSOR STREQUAL "i686")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCOLUMNSTORE_MATURITY=MariaDB_PLUGIN_MATURITY_BETA")
     add_subdirectory(columnstore)
 
     IF(TARGET columnstore)
         # Needed to bump the component changes up to the main scope
         APPEND_FOR_CPACK(CPACK_COMPONENTS_ALL)
         IF (RPM)
-            APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES " binutils jemalloc net-tools python3")
+            APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES " binutils net-tools python3")
+            APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_PACKAGE_RECOMMENDS " jemalloc")
             APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_USER_FILELIST ";%ignore /var/lib;%ignore /var")
             APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_PACKAGE_CONFLICTS " thrift MariaDB-columnstore-platform MariaDB-columnstore-libs")
             # these three don't have the list semantics, so no append here

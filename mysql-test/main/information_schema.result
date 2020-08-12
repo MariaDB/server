@@ -2219,6 +2219,26 @@ SCHEMA_NAME
 # End of 10.1 tests
 #
 #
+# Start of 10.2 Test
+#
+# MDEV-14836: Assertion `m_status == DA_ERROR' failed in
+# Diagnostics_area::sql_errno upon query from I_S with LIMIT ROWS EXAMINED
+#
+SELECT * FROM seq_1_to_100 LIMIT ROWS EXAMINED 10;
+seq
+1
+2
+3
+4
+5
+6
+7
+Warnings:
+Warning	1931	Query execution was interrupted. The query examined at least 11 rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
+#
+# End of 10.2 Test
+#
+#
 # MDEV-21201:No records produced in information_schema query,
 # depending on projection
 #

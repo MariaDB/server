@@ -1560,3 +1560,29 @@ SHOW CREATE TABLE t2;
 DROP TABLE t2;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22758 Assertion `!item->null_value' failed in Type_handler_inet6::make_sort_key_part
+--echo #
+
+CREATE TABLE t1 (c INET6);
+INSERT INTO t1 VALUES ('::'),(NULL);
+SELECT * FROM t1 ORDER BY IFNULL(c, 'foo');
+DROP TABLE t1;
+
+CREATE TABLE t1 (c INET6);
+INSERT INTO t1 VALUES ('::'),(NULL);
+
+# Expect a NULL column
+CREATE TABLE t2 AS SELECT IFNULL(c, 'foo') FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+# Expect a NOT NULL column
+CREATE TABLE t2 AS SELECT IFNULL(c, '::1') FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+DROP TABLE t1;

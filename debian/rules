@@ -45,7 +45,7 @@ endif
 
 # RocksDB cannot build on 32-bit platforms
 ifeq (32,$(DEB_HOST_ARCH_BITS))
-    CMAKEFLAGS += -DWITHOUT_ROCKSDB=true
+    CMAKEFLAGS += -DPLUGIN_ROCKSDB=NO
 endif
 
 # ColumnStore only attempts to build on a few platforms as dictated by CMake checks

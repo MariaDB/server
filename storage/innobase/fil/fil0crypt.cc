@@ -41,9 +41,6 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "fil0pagecompress.h"
 #include <my_crypt.h>
 
-/** Mutex for keys */
-static ib_mutex_t fil_crypt_key_mutex;
-
 static bool fil_crypt_threads_inited = false;
 
 /** Is encryption enabled/disabled */
@@ -105,8 +102,6 @@ UNIV_INTERN
 void
 fil_space_crypt_init()
 {
-	mutex_create(LATCH_ID_FIL_CRYPT_MUTEX, &fil_crypt_key_mutex);
-
 	fil_crypt_throttle_sleep_event = os_event_create(0);
 
 	mutex_create(LATCH_ID_FIL_CRYPT_STAT_MUTEX, &crypt_stat_mutex);
@@ -120,7 +115,6 @@ void
 fil_space_crypt_cleanup()
 {
 	os_event_destroy(fil_crypt_throttle_sleep_event);
-	mutex_free(&fil_crypt_key_mutex);
 	mutex_free(&crypt_stat_mutex);
 }
 
@@ -1455,6 +1449,94 @@ fil_crypt_return_iops(
 	fil_crypt_update_total_stat(state);
 }
 
+/** Return the next tablespace from rotation_list.
+@param space   previous tablespace (NULL to start from the start)
+@param recheck whether the removal condition needs to be rechecked after
+the encryption parameters were changed
+@param encrypt expected state of innodb_encrypt_tables
+@return the next tablespace to process (n_pending_ops incremented)
+@retval NULL if this was the last */
+inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
+                                                 bool recheck, bool encrypt)
+{
+  ut_ad(mutex_own(&mutex));
+
+  sized_ilist<fil_space_t, rotation_list_tag_t>::iterator it=
+    space ? space : rotation_list.begin();
+  const sized_ilist<fil_space_t, rotation_list_tag_t>::iterator end=
+    rotation_list.end();
+
+  if (space)
+  {
+    while (++it != end && (!UT_LIST_GET_LEN(it->chain) || it->is_stopping()));
+
+    /* If one of the encryption threads already started the encryption
+    of the table then don't remove the unencrypted spaces from rotation list
+
+    If there is a change in innodb_encrypt_tables variables value then
+    don't remove the last processed tablespace from the rotation list. */
+    space->release();
+
+    if (!space->referenced() &&
+        (!recheck || space->crypt_data) && !encrypt == !srv_encrypt_tables &&
+        space->is_in_rotation_list)
+    {
+      ut_a(!rotation_list.empty());
+      rotation_list.remove(*space);
+      space->is_in_rotation_list= false;
+    }
+  }
+
+  if (it == end)
+    return NULL;
+
+  space= &*it;
+  space->acquire();
+  return space;
+}
+
+/** Return the next tablespace.
+@param space    previous tablespace (NULL to start from the beginning)
+@param recheck  whether the removal condition needs to be rechecked after
+the encryption parameters were changed
+@param encrypt  expected state of innodb_encrypt_tables
+@return pointer to the next tablespace (with n_pending_ops incremented)
+@retval NULL if this was the last */
+static fil_space_t *fil_space_next(fil_space_t *space, bool recheck,
+                                   bool encrypt)
+{
+  mutex_enter(&fil_system.mutex);
+
+  if (!srv_fil_crypt_rotate_key_age)
+    space= fil_system.keyrotate_next(space, recheck, encrypt);
+  else if (!space)
+  {
+    space= UT_LIST_GET_FIRST(fil_system.space_list);
+    /* We can trust that space is not NULL because at least the
+    system tablespace is always present and loaded first. */
+    space->acquire();
+  }
+  else
+  {
+    /* Move on to the next fil_space_t */
+    space->release();
+    space= UT_LIST_GET_NEXT(space_list, space);
+
+    /* Skip abnormal tablespaces or those that are being created by
+    fil_ibd_create(), or being dropped. */
+    while (space &&
+           (UT_LIST_GET_LEN(space->chain) == 0 ||
+            space->is_stopping() || space->purpose != FIL_TYPE_TABLESPACE))
+      space= UT_LIST_GET_NEXT(space_list, space);
+
+    if (space)
+      space->acquire();
+  }
+
+  mutex_exit(&fil_system.mutex);
+  return space;
+}
+
 /** Search for a space needing rotation
 @param[in,out]	key_state	Key state
 @param[in,out]	state		Rotation state
@@ -1487,13 +1569,8 @@ static bool fil_crypt_find_space_to_rotate(
 		state->space = NULL;
 	}
 
-	/* If key rotation is enabled (default) we iterate all tablespaces.
-	If key rotation is not enabled we iterate only the tablespaces
-	added to keyrotation list. */
-	state->space = srv_fil_crypt_rotate_key_age
-		? fil_space_next(state->space)
-		: fil_system.keyrotate_next(state->space, *recheck,
-					    key_state->key_version);
+	state->space = fil_space_next(state->space, *recheck,
+				      key_state->key_version != 0);
 
 	while (!state->should_shutdown() && state->space) {
 		/* If there is no crypt data and we have not yet read
@@ -1511,13 +1588,16 @@ static bool fil_crypt_find_space_to_rotate(
 			return true;
 		}
 
-		state->space = srv_fil_crypt_rotate_key_age
-			? fil_space_next(state->space)
-			: fil_system.keyrotate_next(state->space, *recheck,
-						    key_state->key_version);
+		state->space = fil_space_next(state->space, *recheck,
+					      key_state->key_version != 0);
 	}
 
-	/* if we didn't find any space return iops */
+	if (state->space) {
+		state->space->release();
+		state->space = NULL;
+	}
+
+	/* no work to do; release our allocation of I/O capacity */
 	fil_crypt_return_iops(state);
 
 	return false;
@@ -2172,13 +2252,11 @@ static void fil_crypt_rotation_list_fill()
 		if (!space->size) {
 			/* Protect the tablespace while we may
 			release fil_system.mutex. */
-			space->n_pending_ops++;
-#ifndef DBUG_OFF
+			ut_d(space->acquire());
 			ut_d(const fil_space_t* s=)
 			        fil_system.read_page0(space->id);
 			ut_ad(!s || s == space);
-#endif
-			space->n_pending_ops--;
+			ut_d(space->release());
 			if (!space->size) {
 				/* Page 0 was not loaded.
 				Skip this tablespace. */

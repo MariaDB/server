@@ -796,14 +796,6 @@ CHECK_CXX_SOURCE_COMPILES("
 ENDIF()
 
 CHECK_C_SOURCE_COMPILES("
-  int main(int argc, char **argv) 
-  {
-    extern char *__bss_start;
-    return __bss_start ? 1 : 0;
-  }"
-HAVE_BSS_START)
-
-CHECK_C_SOURCE_COMPILES("
     int main()
     {
       extern void __attribute__((weak)) foo(void);

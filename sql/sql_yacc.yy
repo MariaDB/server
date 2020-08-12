@@ -1353,6 +1353,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %type <sp_handler> sp_handler
 
 %type <Lex_field_type> type_with_opt_collate field_type
+        qualified_field_type
         field_type_numeric
         field_type_string
         field_type_lob
@@ -5965,10 +5966,12 @@ field_spec:
 
             lex->init_last_field(f, &$1, NULL);
             $<create_field>$= f;
+            lex->parsing_options.lookup_keywords_after_qualifier= true;
           }
           field_type_or_serial opt_check_constraint
           {
             LEX *lex=Lex;
+            lex->parsing_options.lookup_keywords_after_qualifier= false;
             $$= $<create_field>2;
 
             $$->check_constraint= $4;
@@ -5987,7 +5990,7 @@ field_spec:
         ;
 
 field_type_or_serial:
-          field_type
+          qualified_field_type
           {
              Lex->last_field->set_attributes(thd, $1, Lex->charset,
                                              COLUMN_DEFINITION_TABLE_FIELD);
@@ -6164,6 +6167,18 @@ column_default_expr:
           }
         ;
 
+qualified_field_type:
+          field_type
+          {
+            Lex->map_data_type(Lex_ident_sys(), &($$= $1));
+          }
+        | sp_decl_ident '.' field_type
+          {
+            if (Lex->map_data_type($1, &($$= $3)))
+              MYSQL_YYABORT;
+          }
+        ;
+
 field_type:
           field_type_numeric
         | field_type_temporal
@@ -6303,7 +6318,7 @@ field_type_temporal:
             }
             $$.set(&type_handler_year, $2);
           }
-        | DATE_SYM { $$.set(thd->type_handler_for_date()); }
+        | DATE_SYM { $$.set(&type_handler_newdate); }
         | TIME_SYM opt_field_length
           {
             $$.set(opt_mysql56_temporal_format ?
@@ -6313,31 +6328,14 @@ field_type_temporal:
           }
         | TIMESTAMP opt_field_length
           {
-            if (thd->variables.sql_mode & MODE_MAXDB)
-              $$.set(opt_mysql56_temporal_format ?
-                     static_cast<const Type_handler*>(&type_handler_datetime2) :
-                     static_cast<const Type_handler*>(&type_handler_datetime),
-                     $2);
-            else
-            {
-              /* 
-                Unlike other types TIMESTAMP fields are NOT NULL by default.
-                Unless --explicit-defaults-for-timestamp is given.
-              */
-              if (!opt_explicit_defaults_for_timestamp)
-                Lex->last_field->flags|= NOT_NULL_FLAG;
-              $$.set(opt_mysql56_temporal_format ?
-                     static_cast<const Type_handler*>(&type_handler_timestamp2):
-                     static_cast<const Type_handler*>(&type_handler_timestamp),
-                     $2);
-            }
+            $$.set(opt_mysql56_temporal_format ?
+                   static_cast<const Type_handler*>(&type_handler_timestamp2):
+                   static_cast<const Type_handler*>(&type_handler_timestamp),
+                   $2);
           }
         | DATETIME opt_field_length
           {
-            $$.set(opt_mysql56_temporal_format ?
-                   static_cast<const Type_handler*>(&type_handler_datetime2) :
-                   static_cast<const Type_handler*>(&type_handler_datetime),
-                   $2);
+            $$.set(thd->type_handler_for_datetime(), $2);
           }
         ;
 
@@ -6642,7 +6640,7 @@ with_or_without_system:
 type_with_opt_collate:
         field_type opt_collate
         {
-          $$= $1;
+          Lex->map_data_type(Lex_ident_sys(), &($$= $1));
 
           if ($2)
           {

@@ -1543,6 +1543,15 @@ SELECT @@GLOBAL.password;
 --error ER_UNKNOWN_SYSTEM_VARIABLE
 SELECT @@GLOBAL.role;
 
+--echo #
+--echo # MDEV-22022 Various mangled SQL statements will crash 10.3 to 10.5 debug builds
+--echo #
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 'if(`systeminfo /FO LIST';
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 'if(`systeminfo';
+
 --echo End of 10.3 tests
 
 --echo #

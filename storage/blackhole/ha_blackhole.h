@@ -36,7 +36,7 @@ struct st_blackhole_share {
   Class definition for the blackhole storage engine
   "Dumbest named feature ever"
 */
-class ha_blackhole: public handler
+class ha_blackhole final : public handler
 {
   THR_LOCK_DATA lock;      /* MySQL lock */
   st_blackhole_share *share;

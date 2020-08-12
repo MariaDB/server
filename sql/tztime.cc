@@ -2719,6 +2719,7 @@ main(int argc, char **argv)
   }
 
   if (opt_skip_write_binlog)
+  {
     /* If skip_write_binlog is set and wsrep is compiled in we disable
        sql_log_bin and wsrep_on to avoid Galera replicating below
        truncate table clauses. This will allow user to set different
@@ -2726,15 +2727,9 @@ main(int argc, char **argv)
     printf("set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');\n"
            "prepare set_wsrep_write_binlog from @prep1;\n"
            "set @toggle=0; execute set_wsrep_write_binlog using @toggle;\n");
-
-  if (argc == 1 && !opt_leap)
+  }
+  else
   {
-    /* Argument is timezonedir */
-
-    root_name_end= strmake_buf(fullname, argv[0]);
-
-    if(!opt_skip_write_binlog)
-    {
       // Alter time zone tables to InnoDB if wsrep_on is enabled
       // to allow changes to them to replicate with Galera
       printf("\\d |\n"
@@ -2746,7 +2741,13 @@ main(int argc, char **argv)
         "ALTER TABLE time_zone_transition_type ENGINE=InnoDB;\n"
         "END IF|\n"
         "\\d ;\n");
-    }
+  }
+
+  if (argc == 1 && !opt_leap)
+  {
+    /* Argument is timezonedir */
+
+    root_name_end= strmake_buf(fullname, argv[0]);
 
     printf("TRUNCATE TABLE time_zone;\n");
     printf("TRUNCATE TABLE time_zone_name;\n");

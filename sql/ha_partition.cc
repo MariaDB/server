@@ -1522,7 +1522,7 @@ int ha_partition::handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt,
 
 
 /**
-  @brief Check and repair the table if neccesary
+  @brief Check and repair the table if necessary
 
   @param thd    Thread object
 
@@ -3049,7 +3049,7 @@ error:
 /**
   Read the .par file to get the partitions engines and names
 
-  @param name  Name of table file (without extention)
+  @param name  Name of table file (without extension)
 
   @return Operation status
     @retval true   Failure
@@ -3279,7 +3279,7 @@ static uchar *get_part_name(PART_NAME_DEF *part, size_t *length,
 
   @return Operation status
     @retval true   Failure
-    @retval false  Sucess
+    @retval false  Success
 */
 
 bool ha_partition::insert_partition_name_in_hash(const char *name, uint part_id,
@@ -3405,7 +3405,7 @@ err:
 
   @return Operation status
     @retval true  Failure
-    @retval false Sucess
+    @retval false Success
 */
 
 bool ha_partition::set_ha_share_ref(Handler_share **ha_share_arg)
@@ -4396,7 +4396,7 @@ int ha_partition::write_row(const uchar * buf)
     /*
       If we have failed to set the auto-increment value for this row,
       it is highly likely that we will not be able to insert it into
-      the correct partition. We must check and fail if neccessary.
+      the correct partition. We must check and fail if necessary.
     */
     if (unlikely(error))
       goto exit;
@@ -4465,7 +4465,7 @@ exit:
     have the previous row record in it, while new_data will have the newest
     data in it.
     Keep in mind that the server can do updates based on ordering if an
-    ORDER BY clause was used. Consecutive ordering is not guarenteed.
+    ORDER BY clause was used. Consecutive ordering is not guaranteed.
 
     Called from sql_select.cc, sql_acl.cc, sql_update.cc, and sql_insert.cc.
     new_data is always record[0]
@@ -4593,7 +4593,7 @@ exit:
     (from either a previous rnd_xxx() or index_xxx() call).
     If you keep a pointer to the last row or can access a primary key it will
     make doing the deletion quite a bit easier.
-    Keep in mind that the server does no guarentee consecutive deletions.
+    Keep in mind that the server does no guarantee consecutive deletions.
     ORDER BY clauses can be used.
 
     Called in sql_acl.cc and sql_udf.cc to manage internal table information.
@@ -5011,7 +5011,7 @@ int ha_partition::end_bulk_insert()
 
     When scan is used we will scan one handler partition at a time.
     When preparing for rnd_pos we will init all handler partitions.
-    No extra cache handling is needed when scannning is not performed.
+    No extra cache handling is needed when scanning is not performed.
 
     Before initialising we will call rnd_end to ensure that we clean up from
     any previous incarnation of a table scan.
@@ -8714,7 +8714,7 @@ static int end_keyread_cb(handler* h, void *unused)
        function after completing a query.
     3) It is called when deleting the QUICK_RANGE_SELECT object if the
        QUICK_RANGE_SELECT object had its own handler object. It is called
-       immediatley before close of this local handler object.
+       immediately before close of this local handler object.
   HA_EXTRA_KEYREAD:
   HA_EXTRA_NO_KEYREAD:
     These parameters are used to provide an optimisation hint to the handler.
@@ -8751,7 +8751,7 @@ static int end_keyread_cb(handler* h, void *unused)
   HA_EXTRA_IGNORE_DUP_KEY:
   HA_EXTRA_NO_IGNORE_DUP_KEY:
     Informs the handler to we will not stop the transaction if we get an
-    duplicate key errors during insert/upate.
+    duplicate key errors during insert/update.
     Always called in pair, triggered by INSERT IGNORE and other similar
     SQL constructs.
     Not used by MyISAM.
@@ -10251,7 +10251,7 @@ bool ha_partition::prepare_inplace_alter_table(TABLE *altered_table,
 
   /*
     Changing to similar partitioning, only update metadata.
-    Non allowed changes would be catched in prep_alter_part_table().
+    Non allowed changes would be caought in prep_alter_part_table().
   */
   if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
   {
@@ -10287,7 +10287,7 @@ bool ha_partition::inplace_alter_table(TABLE *altered_table,
 
   /*
     Changing to similar partitioning, only update metadata.
-    Non allowed changes would be catched in prep_alter_part_table().
+    Non allowed changes would be caught in prep_alter_part_table().
   */
   if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
   {
@@ -10335,7 +10335,7 @@ bool ha_partition::commit_inplace_alter_table(TABLE *altered_table,
 
   /*
     Changing to similar partitioning, only update metadata.
-    Non allowed changes would be catched in prep_alter_part_table().
+    Non allowed changes would be caught in prep_alter_part_table().
   */
   if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
   {

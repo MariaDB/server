@@ -42,7 +42,7 @@
 #define MAX_EXPONENT 1024
 
 /*****************************************************************************
-  Instansiate templates and static variables
+  Instantiate templates and static variables
 *****************************************************************************/
 
 static const char *zero_timestamp="0000-00-00 00:00:00.000000";
@@ -88,7 +88,7 @@ bool Field::marked_for_write_or_computed() const
 /*
   Rules for merging different types of fields in UNION
 
-  NOTE: to avoid 256*256 table, gap in table types numeration is skiped
+  NOTE: to avoid 256*256 table, gap in table types numeration is skipped
   following #defines describe that gap and how to canculate number of fields
   and index of field in this array.
 */
@@ -1087,7 +1087,7 @@ Field_longstr::pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field)
 {
   StringBuffer<LONGLONG_BUFFER_SIZE> buf;
   val_str(&buf, &buf);
-  return to + sort_field->pack_sort_string(to, &buf);
+  return to + sort_field->pack_sort_string(to, &buf, field_charset());
 }
 
 
@@ -1552,7 +1552,7 @@ Item *Field_num::get_equal_zerofill_const_item(THD *thd, const Context &ctx,
 
 
 /**
-  Contruct warning parameters using thd->no_errors
+Construct warning parameters using thd->no_errors
   to determine whether to generate or suppress warnings.
   We can get here in a query like this:
     SELECT COUNT(@@basedir);
@@ -1600,7 +1600,7 @@ Value_source::Converter_string_to_number::check_edom_and_truncation(THD *thd,
     if (filter.want_warning_edom())
     {
       /*
-        We can use err.ptr() here as ErrConvString is guranteed to put an
+        We can use err.ptr() here as ErrConvString is guaranteed to put an
         end \0 here.
       */
       THD *wthd= thd ? thd : current_thd;
@@ -1632,7 +1632,7 @@ Value_source::Converter_string_to_number::check_edom_and_truncation(THD *thd,
   - found garbage at the end of the string.
 
   @param type          Data type name (e.g. "decimal", "integer", "double")
-  @param edom          Indicates that the string-to-number routine retuned
+  @param edom          Indicates that the string-to-number routine returned
                        an error code equivalent to EDOM (value out of domain),
                        i.e. the string fully consisted of garbage and the
                        conversion routine could not get any digits from it.
@@ -1695,7 +1695,7 @@ int Field_num::check_edom_and_truncation(const char *type, bool edom,
 
 
 /*
-  Conver a string to an integer then check bounds.
+  Convert a string to an integer then check bounds.
   
   SYNOPSIS
     Field_num::get_int
@@ -2809,7 +2809,7 @@ int Field_decimal::store(const char *from_arg, size_t len, CHARSET_INFO *cs)
     We only have to generate warnings if count_cuted_fields is set.
     This is to avoid extra checks of the number when they are not needed.
     Even if this flag is not set, it's OK to increment warnings, if
-    it makes the code easer to read.
+    it makes the code easier to read.
   */
 
   if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION)
@@ -2892,7 +2892,7 @@ int Field_decimal::store(const char *from_arg, size_t len, CHARSET_INFO *cs)
   }
   
   /*
-    Now write the formated number
+    Now write the formatted number
     
     First the digits of the int_% parts.
     Do we have enough room to write these digits ?
@@ -3409,7 +3409,7 @@ int Field_new_decimal::store(const char *from, size_t length,
             If check_decimal() failed because of EDOM-alike error,
             (e.g. E_DEC_BAD_NUM), we have to initialize decimal_value to zero.
             Note: if check_decimal() failed because of truncation,
-            decimal_value is alreay properly initialized.
+            decimal_value is already properly initialized.
           */
           my_decimal_set_zero(&decimal_value);
           /*
@@ -4781,11 +4781,12 @@ int truncate_double(double *nr, uint field_length, uint dec,
   {
     uint order= field_length - dec;
     uint step= array_elements(log_10) - 1;
-    max_value= 1.0;
+    double max_value_by_dec= 1.0;
     for (; order > step; order-= step)
-      max_value*= log_10[step];
-    max_value*= log_10[order];
-    max_value-= 1.0 / log_10[dec];
+      max_value_by_dec*= log_10[step];
+    max_value_by_dec*= log_10[order];
+    max_value_by_dec-= 1.0 / log_10[dec];
+    set_if_smaller(max_value, max_value_by_dec);
 
     /* Check for infinity so we don't get NaN in calculations */
     if (!std::isinf(res))
@@ -5076,7 +5077,7 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
   {
     /*
       We mark the flag with TIMESTAMP_FLAG to indicate to the client that
-      this field will be automaticly updated on insert.
+      this field will be automatically updated on insert.
     */
     flags|= TIMESTAMP_FLAG;
     if (unireg_check != TIMESTAMP_DN_FIELD)
@@ -7505,7 +7506,7 @@ Field_string::unpack(uchar *to, const uchar *from, const uchar *from_end,
    with the real type.  Since all allowable types have 0xF as most
    significant bits of the metadata word, lengths <256 will not affect
    the real type at all, while all other values will result in a
-   non-existant type in the range 17-244.
+   non-existent type in the range 17-244.
 
    @see Field_string::unpack
 
@@ -7706,8 +7707,7 @@ void Field_varstring::mark_unused_memory_as_defined()
 #endif
 
 
-int Field_varstring::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
-                             uint max_len) const
+int Field_varstring::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   uint a_length, b_length;
   int diff;
@@ -7722,11 +7722,48 @@ int Field_varstring::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
     a_length= uint2korr(a_ptr);
     b_length= uint2korr(b_ptr);
   }
-  set_if_smaller(a_length, max_len);
-  set_if_smaller(b_length, max_len);
+  set_if_smaller(a_length, field_length);
+  set_if_smaller(b_length, field_length);
   diff= field_charset()->strnncollsp(a_ptr + length_bytes, a_length,
                                      b_ptr + length_bytes, b_length);
   return diff;
+}
+
+
+static int cmp_str_prefix(const uchar *ua, size_t alen, const uchar *ub,
+                          size_t blen, size_t prefix, CHARSET_INFO *cs)
+{
+  const char *a= (char*)ua, *b= (char*)ub;
+  MY_STRCOPY_STATUS status;
+  prefix/= cs->mbmaxlen;
+  alen= cs->cset->well_formed_char_length(cs, a, a + alen, prefix, &status);
+  blen= cs->cset->well_formed_char_length(cs, b, b + blen, prefix, &status);
+  return cs->coll->strnncollsp(cs, ua, alen, ub, blen);
+}
+
+
+
+int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
+                                size_t prefix_len) const
+{
+  /* avoid expensive well_formed_char_length if possible */
+  if (prefix_len == table->field[field_index]->field_length)
+    return Field_varstring::cmp(a_ptr, b_ptr);
+
+  size_t a_length, b_length;
+
+  if (length_bytes == 1)
+  {
+    a_length= *a_ptr;
+    b_length= *b_ptr;
+  }
+  else
+  {
+    a_length= uint2korr(a_ptr);
+    b_length= uint2korr(b_ptr);
+  }
+  return cmp_str_prefix(a_ptr+length_bytes, a_length, b_ptr+length_bytes,
+                        b_length, prefix_len, field_charset());
 }
 
 
@@ -8235,8 +8272,8 @@ longlong Field_varstring_compressed::val_int(void)
 }
 
 
-int Field_varstring_compressed::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
-                                        uint max_len) const
+int Field_varstring_compressed::cmp(const uchar *a_ptr,
+                                    const uchar *b_ptr) const
 {
   String a, b;
   uint a_length, b_length;
@@ -8255,13 +8292,10 @@ int Field_varstring_compressed::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
   uncompress(&a, &a, a_ptr + length_bytes, a_length);
   uncompress(&b, &b, b_ptr + length_bytes, b_length);
 
-  if (a.length() > max_len)
-    a.length(max_len);
-  if (b.length() > max_len)
-    b.length(max_len);
-
   return sortcmp(&a, &b, field_charset());
 }
+
+
 Binlog_type_info Field_varstring_compressed::binlog_type_info() const
 {
   return Binlog_type_info(Field_varstring_compressed::binlog_type(),
@@ -8498,16 +8532,25 @@ int Field_blob::cmp(const uchar *a,uint32 a_length, const uchar *b,
 }
 
 
-int Field_blob::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
-                        uint max_length) const
+int Field_blob::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   uchar *blob1,*blob2;
   memcpy(&blob1, a_ptr+packlength, sizeof(char*));
   memcpy(&blob2, b_ptr+packlength, sizeof(char*));
-  uint a_len= get_length(a_ptr), b_len= get_length(b_ptr);
-  set_if_smaller(a_len, max_length);
-  set_if_smaller(b_len, max_length);
-  return Field_blob::cmp(blob1,a_len,blob2,b_len);
+  size_t a_len= get_length(a_ptr), b_len= get_length(b_ptr);
+  return cmp(blob1, (uint32)a_len, blob2, (uint32)b_len);
+}
+
+
+int Field_blob::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
+                           size_t prefix_len) const
+{
+  uchar *blob1,*blob2;
+  memcpy(&blob1, a_ptr+packlength, sizeof(char*));
+  memcpy(&blob2, b_ptr+packlength, sizeof(char*));
+  size_t a_len= get_length(a_ptr), b_len= get_length(b_ptr);
+  return cmp_str_prefix(blob1, a_len, blob2, b_len, prefix_len,
+                        field_charset());
 }
 
 
@@ -9690,7 +9733,8 @@ my_decimal *Field_bit::val_decimal(my_decimal *deciaml_value)
     The a and b pointer must be pointers to the field in a record
     (not the table->record[0] necessarily)
 */
-int Field_bit::cmp_max(const uchar *a, const uchar *b, uint max_len) const
+int Field_bit::cmp_prefix(const uchar *a, const uchar *b,
+                          size_t prefix_len) const
 {
   my_ptrdiff_t a_diff= a - ptr;
   my_ptrdiff_t b_diff= b - ptr;
