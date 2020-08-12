@@ -2294,7 +2294,10 @@ int spider_internal_xa_commit(
     spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
     table_xa_opened = FALSE;
   }
-  spider_xa_unlock(&trx->internal_xid_state);
+  if (trx->internal_xa)
+  {
+    spider_xa_unlock(&trx->internal_xid_state);
+  }
   DBUG_RETURN(0);
 
 error:
@@ -2304,7 +2307,10 @@ error:
     spider_close_sys_table(thd, table_xa_member, &open_tables_backup, TRUE);
 error_in_commit:
 error_open_table:
-  spider_xa_unlock(&trx->internal_xid_state);
+  if (trx->internal_xa)
+  {
+    spider_xa_unlock(&trx->internal_xid_state);
+  }
   DBUG_RETURN(error_num);
 }
 
@@ -2530,7 +2536,10 @@ int spider_internal_xa_rollback(
     spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
     table_xa_opened = FALSE;
   }
-  spider_xa_unlock(&trx->internal_xid_state);
+  if (trx->internal_xa)
+  {
+    spider_xa_unlock(&trx->internal_xid_state);
+  }
   DBUG_RETURN(0);
 
 error:
@@ -2540,7 +2549,10 @@ error:
     spider_close_sys_table(thd, table_xa_member, &open_tables_backup, TRUE);
 error_in_rollback:
 error_open_table:
-  spider_xa_unlock(&trx->internal_xid_state);
+  if (trx->internal_xa)
+  {
+    spider_xa_unlock(&trx->internal_xid_state);
+  }
   DBUG_RETURN(error_num);
 }
 
