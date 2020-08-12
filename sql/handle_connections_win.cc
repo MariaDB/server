@@ -531,11 +531,9 @@ void network_init_win()
 
 void handle_connections_win()
 {
-  DBUG_ASSERT(hEventShutdown);
   int n_waits;
 
   create_shutdown_event();
-
   wait_events[SHUTDOWN_IDX]= hEventShutdown;
   n_waits= 1;
 
